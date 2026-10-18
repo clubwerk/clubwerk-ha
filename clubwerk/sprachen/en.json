@@ -6016,6 +6016,12 @@
     "PIN zurücksetzen?": "Reset PIN?",
     "Tablet-PIN für Verkauf, Platzbuchung und Helferdienste": "Tablet PIN for sales, court booking and volunteer duties",
     "Zum Buchen und Stornieren am Tablet brauchst du eine PIN. Sie gilt für alles im Vereinsheim – Verkauf, Platzbuchung und Helferdienste – und schützt dich vor Buchungen auf deinen Namen.": "You need a PIN to book and cancel on the tablet. It is used for everything in the clubhouse – sales, court booking and volunteer duties – and protects you against bookings in your name.",
-    "Zur Sicherheit noch einmal eingeben": "Enter it once more to be sure"
+    "Zur Sicherheit noch einmal eingeben": "Enter it once more to be sure",
+    "■ Stoppen": "■ Stop",
+    "{0} gestoppt": "{0} stopped",
+    "Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!": "The court could not be stopped completely – please try again!",
+    "Start in {0}": "Starts in {0}",
+    "Stopp {0} nicht vollständig:": "Stop {0} incomplete:",
+    "Stopp {0} nicht vollständig: {1}": "Stop {0} incomplete: {1}"
   }
 }

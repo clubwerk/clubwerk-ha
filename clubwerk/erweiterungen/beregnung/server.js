@@ -215,7 +215,7 @@ async function tick() {
       await zoneOn(s.ref, rest);
       // wurde während des Einschaltens „Alles stoppen“ gedrückt? Dann sofort wieder aus.
       if (!db.prepare("UPDATE irr_steps SET state = 'run' WHERE id = ? AND state = 'wait'").run(s.id).changes) {
-        try { if (c.backend === 'hydrawise') await hwCall('setzone.php', { action: 'stopall' }); else await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); }
+        try { await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); }
       }
     } catch (e) {
       db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ? AND state = 'wait'").run(e.message, s.id);
@@ -253,6 +253,25 @@ function enqueue(platzIdx, who) {
   log('start', who, p.name, total, p.zones.length > 1 ? `${p.zones.length} Zonen nacheinander` : null);
   setImmediate(tick);
   return { totalSec: total, waitSec: Math.max(0, Math.round(((tail || 0) - Date.now()) / 1000)) };
+}
+
+/** Einen Platz stoppen (auch von der Automatik gestartet); wartende Plätze rücken nach */
+async function stopPlatz(platzIdx, who) {
+  const c = cfg(), p = c.plaetze[platzIdx];
+  if (!p) throw new Error('Diesen Platz gibt es nicht.');
+  db.prepare("UPDATE irr_steps SET state = 'stopped' WHERE platz = ? AND state IN ('wait','run')").run(platzIdx);
+  const errs = [];
+  for (const r of [...new Set((p.zones || []).map(z => String(z.ref)))]) { try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
+  // Warteschlange zusammenschieben: was hinter diesem Platz wartete, startet entsprechend früher
+  const running = db.prepare("SELECT MAX(end_at) e FROM irr_steps WHERE state = 'run'").get().e;
+  let t = Math.max(Date.now(), running || 0);
+  const up = db.prepare('UPDATE irr_steps SET start_at = ?, end_at = ? WHERE id = ?');
+  db.transaction(() => { for (const w of db.prepare("SELECT * FROM irr_steps WHERE state = 'wait' ORDER BY start_at, id").all()) { up.run(t, t + w.sec * 1000, w.id); t += w.sec * 1000; } })();
+  cache.at = 0;
+  log('stop', who, p.name, null, errs.length ? 'Fehler: ' + errs.join('; ') : null);
+  if (errs.length) notify(`Stopp ${p.name} nicht vollständig: ` + errs.join('; '));
+  setImmediate(tick);
+  return errs;
 }
 
 async function stopAll(who) {
@@ -504,12 +523,16 @@ function activate(ctx) {
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.plaetze.length && c.mode !== 'app'); };   // „nur Mitglieder-App“ gilt fürs eigene Handy, nicht fürs Vereinstablet
   /* Mitglieder-App: /api/m/beregnung/… (Gerät und Freischaltung prüft der Kern) */
   ctx.member.get('/status', async (req, res) => res.json({ ...(await status()), stopFree: Boolean(cfg().stopFree) }));
+  // In der Mitglieder-App ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet
   ctx.member.post('/run', (req, res) => {
-    if (!req.pinOk()) return;
     try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.member.name) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
   ctx.member.post('/stop', async (req, res) => {
-    if (!cfg().stopFree && !req.pinOk()) return;
+    const b = req.body || {};
+    if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
+      try { const errs = await stopPlatz(parseInt(b.platz, 10), req.member.name); if (errs.length) return res.status(502).json({ error: 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!' }); return res.json({ ok: true }); }
+      catch (e) { return res.status(400).json({ error: e.message }); }
+    }
     const errs = await stopAll(req.member.name);
     if (errs.length) return res.status(502).json({ error: 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!' });
     res.json({ ok: true });

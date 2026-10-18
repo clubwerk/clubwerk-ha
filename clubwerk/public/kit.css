@@ -69,6 +69,7 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; }
 .vh-pill.ghost { background: var(--brand); color: #fff; border-color: var(--brand); font-weight: 700; }
 .vh-pill .vh-rd { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); animation: vhblink .9s ease-in-out infinite alternate; }
 .vh-phase { font-size: 12px; text-align: center; color: var(--muted); }
+.vh-stop1 { min-height: 44px; border-radius: 12px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); font: inherit; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
 .vh-tile.off .vh-pill.ghost { background: var(--hover); color: var(--muted); border-color: var(--line); }
 
 .vh-stop { width: 100%; min-height: 56px; border-radius: 16px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); font-size: 16px; font-weight: 800; margin-top: 6px; }
