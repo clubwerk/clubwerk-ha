@@ -103,9 +103,10 @@ a.btn.primary { color: #fff; }
 #gkHeader h1 { margin: 0; font-size: 16px; line-height: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #gkHeader #club2 { font-size: 13px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #gkHeader #club2:empty { display: none; }
-#gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); max-width: 100%; }
-#gkHeader .topnav a { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; color: var(--muted); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; min-width: 0; overflow: hidden; }
+#gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); max-width: 100%; }
+#gkHeader .topnav a { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; min-width: 0; box-sizing: border-box; border-radius: 10px; color: var(--muted); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; min-width: 0; overflow: hidden; }
 #gkHeader .topnav a span { overflow: hidden; text-overflow: ellipsis; }
+#gkHeader .topnav a svg { flex: none; }
 #gkHeader .topnav a.on { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(19,26,22,.12); }
 #gkHeader .topnav a.on svg { color: var(--brand); }
 #gkHeader .topnav .ext { font-size: 12px; opacity: .7; }
@@ -115,15 +116,16 @@ a.btn.primary { color: #fff; }
 #gkHeader .admin.on { border-color: var(--brand); color: var(--brand-ink); }
 #gkHeader .hright, #gkHeader .brand { min-width: 0; overflow: hidden; }
 @media (max-width: 1100px) {
-  #gkHeader { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 0 16px; }
+  #gkHeader { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; padding: 0 16px; }
   #gkHeader .clock { display: none; }
-  #gkHeader .topnav { grid-auto-columns: minmax(0, 128px); }
-  #gkHeader .topnav a { padding: 0 8px; font-size: 14px; }
+  #gkHeader .topnav a { padding: 0 12px; font-size: 14px; }
 }
 @media (max-width: 640px) {
   #gkHeader { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 10px 12px; row-gap: 10px; }
   #gkHeader .hright { grid-column: 2; }
   #gkHeader .clock { display: none; }
   #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
-  #gkHeader .topnav a { padding: 0 6px; font-size: 14px; }
+  #gkHeader .topnav a { padding: 0 4px; font-size: 13.5px; }
+  #gkHeader .topnav a svg { display: none; }
+  #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; }
 }
