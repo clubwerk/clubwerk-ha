@@ -124,6 +124,8 @@ Mandate verfallen nach 36 Monaten ohne Lastschrift – Clubwerk zeigt das in der
 
 **Abteilungsadmins:** Ein Benutzer mit der Rolle „Abteilungsleitung“ (oder jeder Rolle mit „nur eigene Abteilung(en)“) sieht nur die Mitglieder seiner Abteilung(en). Er darf Stammdaten ändern, Austritte eintragen (mit Dokument), neue Mitglieder anlegen (sie gehören automatisch zu seiner Abteilung) und Beitrittserklärungen annehmen, in denen seine Abteilung angekreuzt ist. Beiträge, Einzug, Bankdaten, Auswertungen, Import und Einstellungen bleiben der Vereinsverwaltung vorbehalten. **Bestätigung:** Standardmäßig gelten Ein- und Austritte (neues Mitglied, Austritt, Rückkehr, angenommene Beitrittserklärung) einer Abteilungsleitung erst, wenn ein Admin sie unter „Anträge → Änderungen & Meldungen“ bestätigt; bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf. Abschaltbar unter Einstellungen → Verein & SEPA → „Abteilungsleitungen“.
 
+**Import – ähnliche Namen:** Gibt es eine Person schon unter einem Spitznamen oder in anderer Schreibweise (Benni/Benedikt, Susi/Susanne, Stefan/Stephan, Müller/Mueller), zeigt die Vorschau „Ähnliche Namen im Bestand“ mit der Wahl „zusammenführen mit …“ oder „als neues Mitglied anlegen“. Gleiches Geburtsdatum → Zusammenführen vorgewählt; anderes Geburtsdatum → kein Vorschlag.
+
 ## Modul Buchungssystem
 Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am Tablet im Vereinsheim (Reiter „Plätze“) und in der Verwaltung (Recht „Buchungssystem“).
 

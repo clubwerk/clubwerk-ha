@@ -33,6 +33,9 @@
     s.textContent = `
       .mv-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .mv-grid .w2 { grid-column: span 2; } .mv-grid .wall { grid-column: 1 / -1; }
+      .imp-sim { margin: 12px 0; } .imp-simrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); }
+      .imp-simrow > div { display: flex; flex-direction: column; min-width: 0; } .imp-simrow select { height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); padding: 0 10px; font: inherit; font-size: 14px; color: var(--ink); min-width: 0; width: 100%; }
+      @media (max-width: 700px) { .imp-simrow { grid-template-columns: 1fr; gap: 6px; } }
       .mv-up { display: flex; align-items: center; gap: 10px; height: 40px; box-sizing: border-box; padding: 0 4px 0 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--field); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--faint); }
       .mv-up span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .mv-up b { flex: none; height: 30px; padding: 0 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink); }
@@ -579,7 +582,8 @@
       if (commit && prev && prev.yearHint) q.set('year_start', prev.yearHint);
       return '?' + q.toString();
     };
-    const run = commit => send('import/run' + query(commit), fmt() === 'vereincloud' ? {} : { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())) });
+    let dec = {};   // ähnliche Namen: Zeile → Mitglieds-ID oder 'neu'
+    const run = commit => send('import/run' + query(commit), { ...(fmt() === 'vereincloud' ? {} : { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())) }), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify(dec)) } : {}) });
     const setStep = s => {
       step = s;
       $('iMap').classList.toggle('hidden', s === 'prev'); $('iPrev').classList.toggle('hidden', s !== 'prev');
@@ -617,13 +621,24 @@
       $('iOk').disabled = false; setStep('map');
     }
     function drawPrev() {
-      $('iPrev').innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Personen</div><div class="v">${prev.count}</div></div><div class="kpi"><div class="l">neu</div><div class="v">${prev.new}</div></div>
-          <div class="kpi"><div class="l">ergänzt</div><div class="v">${prev.update}</div></div><div class="kpi"><div class="l">neue Beitragsarten</div><div class="v">${prev.fees.length}</div></div></div>
+      const sim = prev.rows.filter(r => r.suggest && r.suggest.length);
+      dec = {}; sim.forEach(r => { dec[r.line] = r.suggest[0].sameBirth ? r.suggest[0].id : 'neu'; });
+      const merged = () => Object.values(dec).filter(v => v !== 'neu').length;
+      const sugLabel = c => `zusammenführen mit ${GK.lastFirst(c.name)}${c.member_no ? ` · Nr. ${c.member_no}` : ''}${c.birth_date ? ` · ${deDate(c.birth_date)}` : ''} (${c.why})`;
+      $('iPrev').innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Personen</div><div class="v">${prev.count}</div></div><div class="kpi"><div class="l">neu</div><div class="v" id="iKN">${prev.new - merged()}</div></div>
+          <div class="kpi"><div class="l">ergänzt</div><div class="v" id="iKU">${prev.update + merged()}</div></div><div class="kpi"><div class="l">neue Beitragsarten</div><div class="v">${prev.fees.length}</div></div></div>
         ${prev.warnings.concat(prev.conflicts).map(w => `<div class="banner a"><span>${esc(w)}</span></div>`).join('')}
+        ${sim.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Ähnliche Namen im Bestand <span class="muted s">(${sim.length})</span></h3>
+          <p class="muted s" style="margin:0 0 10px">Spitznamen, Kurzformen oder andere Schreibweise (z. B. Benni – Benedikt, Susi – Susanne). Beim Zusammenführen überschreiben die Daten aus der Datei die vorhandenen; Getränkekonto, PIN und App bleiben erhalten. Bei gleichem Geburtsdatum ist „zusammenführen“ vorgewählt.</p>
+          ${sim.map(r => `<div class="imp-simrow"><div><b translate="no">${esc(r.name)}</b><span class="muted s">Zeile ${r.line}${r.member_no ? ` · Nr. ${esc(r.member_no)}` : ''}${r.birth_date ? ` · ${deDate(r.birth_date)}` : ''}</span></div>
+            <select data-sim="${r.line}" translate="no">${r.suggest.map(c => `<option value="${c.id}" ${dec[r.line] === c.id ? 'selected' : ''}>${esc(sugLabel(c))}</option>`).join('')}<option value="neu" ${dec[r.line] === 'neu' ? 'selected' : ''}>als neues Mitglied anlegen</option></select></div>`).join('')}</div>` : ''}
         ${prev.depts.length ? `<p><b>Neue Abteilungen:</b> <span translate="no">${esc(prev.depts.join(', '))}</span></p>` : ''}
         ${prev.fees.length ? `<p><b>Neue Beitragsarten:</b> <span translate="no">${prev.fees.map(f => esc(`${f.name} (${euro(f.cents)} ${INTERVAL[f.interval]})`)).join(', ')}</span> <span class="muted s">– Altersgrenzen und Familientarif danach unter Beiträge prüfen.</span></p>` : ''}
         <div class="scroll" style="max-height:44vh"><table class="tbl"><tr><th>Zeile</th><th>Nr.</th><th>Name</th><th>Aktion</th><th>Abteilungen</th><th>Beiträge</th><th>Mandat</th></tr>
-          ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(r.name)}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td>${r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
+          ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(r.name)}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
+      const acts = () => sim.forEach(r => { const td = document.querySelector(`[data-act="${r.line}"]`); if (td) td.innerHTML = dec[r.line] === 'neu' ? '<span class="pill g">neu</span>' : '<span class="pill b">zusammenführen</span>'; });
+      document.querySelectorAll('[data-sim]').forEach(sel => { sel.onchange = () => { dec[sel.dataset.sim] = sel.value === 'neu' ? 'neu' : Number(sel.value); $('iKN').textContent = prev.new - merged(); $('iKU').textContent = prev.update + merged(); acts(); }; });
+      acts();
       setStep('prev');
     }
     $('iFile').onchange = async () => {

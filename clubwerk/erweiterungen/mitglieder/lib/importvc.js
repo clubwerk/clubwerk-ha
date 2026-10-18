@@ -264,6 +264,45 @@ function register(sh) {
     if (m.length > 1) return { id: null, conflict: 'Name mehrfach vorhanden' };
     return { id: null };
   }
+  /* Ähnliche Namen im Bestand (Spitznamen, Schreibvarianten) – nur Vorschläge, zusammengeführt wird erst nach Entscheidung im Dialog */
+  const NM = require('./names');
+  const { splitPersonName } = C.require('./db');
+  let pool = null;
+  const loadPool = () => {
+    pool = db.prepare(`SELECT m.id, m.name, m.first_name, m.last_name, p.member_no, p.birth_date FROM members m LEFT JOIN mv_person p ON p.member_id = m.id
+      WHERE m.kind = 'mitglied' AND m.deleted = 0 AND COALESCE(p.anonymized_at, '') = ''`).all().map(e => {
+      const sp = e.first_name || e.last_name ? { first: e.first_name || '', last: e.last_name || '' } : splitPersonName(e.name);
+      return { ...e, first: sp.first || '', last: sp.last || '' };
+    });
+  };
+  function candidates(rec, exclude = new Set()) {
+    if (!pool) loadPool();
+    const out = [];
+    for (const e of pool) {
+      if (exclude.has(e.id) || !NM.lastSimilar(rec.p.last_name, e.last)) continue;
+      const why = NM.firstSimilar(rec.p.first_name, e.first); if (!why) continue;
+      if (rec.p.birth_date && e.birth_date && rec.p.birth_date !== e.birth_date) continue;   // anderes Geburtsdatum = andere Person (z. B. Vater und Sohn)
+      out.push({ id: e.id, name: e.name, member_no: e.member_no || '', birth_date: e.birth_date || '', why: why + (NM.norm(rec.p.last_name) !== NM.norm(e.last) ? ', Nachname ähnlich' : ''),
+        sameBirth: Boolean(rec.p.birth_date && e.birth_date === rec.p.birth_date) });
+    }
+    return out.sort((a, b) => Number(b.sameBirth) - Number(a.sameBirth) || (a.why === 'gleicher Name' ? -1 : 0)).slice(0, 4);
+  }
+  /** Entscheidungen aus dem Dialog prüfen: { Zeile: Mitglieds-ID | 'neu' } → Map Zeile → ID */
+  function decisions(recs, raw) {
+    const out = new Map(); if (!raw || typeof raw !== 'object') return out;
+    loadPool();   // Bestand frisch lesen
+    const exact = new Set(recs.map(r => matchMember(r).id).filter(Boolean)), used = new Map();
+    for (const r of recs) {
+      const v = raw[r.line]; if (v == null || v === 'neu') continue;
+      const id = Number(v);
+      if (matchMember(r).id) continue;
+      if (!candidates(r).some(c => c.id === id)) throw new Error(`Zeile ${r.line}: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.`);
+      if (exact.has(id)) throw new Error(`Zeile ${r.line}: Dieses Mitglied wird schon über eine andere Zeile (gleicher Name oder Nummer) ergänzt.`);
+      if (used.has(id)) throw new Error(`Zeile ${r.line} und Zeile ${used.get(id)} sind demselben Mitglied zugeordnet – bitte eine davon „neu anlegen“.`);
+      used.set(id, r.line); out.set(r.line, id);
+    }
+    return out;
+  }
   function guessAges(name) {
     const s = String(name).toLowerCase();
     const min = /ab\s*(\d{1,2})/.exec(s), max = /bis\s*(\d{1,2})/.exec(s);
@@ -271,15 +310,19 @@ function register(sh) {
   }
 
   function plan(recs) {
-    const out = { new: 0, update: 0, conflicts: [], warnings: [], depts: new Set(), fees: new Map(), rows: [] };
+    const out = { new: 0, update: 0, conflicts: [], warnings: [], depts: new Set(), fees: new Map(), rows: [], similar: 0 };
+    loadPool();
+    const exactIds = new Set(recs.map(r => matchMember(r).id).filter(Boolean));
     for (const r of recs) {
       const m = matchMember(r);
-      if (m.conflict) { out.conflicts.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: ${m.conflict} – wird neu angelegt`); }
+      const sug = m.id ? [] : candidates(r, exactIds);
+      if (sug.length) out.similar++;
+      if (m.conflict && !sug.length) { out.conflicts.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: ${m.conflict} – wird neu angelegt`); }
       if (m.id) out.update++; else out.new++;
       if (r.ibanBad) out.warnings.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: IBAN ungültig (${r.ibanBad}) – nicht übernommen`);
       for (const d of r.depts) if (!db.prepare('SELECT 1 FROM mv_department WHERE lower(name) = lower(?)').get(d.name)) out.depts.add(d.name);
       for (const f of r.fees) { const key = `${f.name}|${f.cents}|${f.interval}`; if (!db.prepare('SELECT 1 FROM mv_fee WHERE lower(name) = lower(?)').get(f.name) && !out.fees.has(key)) out.fees.set(key, f); }
-      out.rows.push({ line: r.line, name: `${r.p.first_name || ''} ${r.p.last_name}`.trim(), member_no: r.member_no, action: m.id ? `ergänzen (${m.by})` : 'neu', depts: r.depts.map(d => d.name).join(', '),
+      out.rows.push({ line: r.line, name: `${r.p.first_name || ''} ${r.p.last_name}`.trim(), member_no: r.member_no, birth_date: r.p.birth_date || '', action: m.id ? `ergänzen (${m.by})` : 'neu', suggest: sug, depts: r.depts.map(d => d.name).join(', '),
         fees: r.fees.map(f => `${f.name}${f.booked ? ' · gebucht bis ' + fees.deD(f.booked) : ''}`).join(', '), mandate: r.bank && r.bank.mandate_ref ? r.bank.mandate_ref : '', exit: r.p.exit_date });
     }
     // Beginn des Beitragsjahres aus „Gebucht bis“ ablesen (z. B. 30.04. → Beitragsjahr ab 01.05.)
@@ -291,7 +334,7 @@ function register(sh) {
     return { ...out, yearHint, depts: [...out.depts], fees: [...out.fees.values()].map(f => ({ name: f.name, cents: f.cents, interval: f.interval, dept: f.dept })) };
   }
 
-  function commit(recs, user) {
+  function commit(recs, user, dec = new Map()) {
     const ids = new Map();   // member_no / Zeile → id
     const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0 };
     db.transaction(() => {
@@ -318,7 +361,7 @@ function register(sh) {
       };
       for (const r of recs) {
         const m = matchMember(r);
-        let id = m.id;
+        let id = m.id || dec.get(r.line) || null;   // ähnlicher Name: im Dialog „zusammenführen“ gewählt → Daten aus der Datei übernehmen
         const fields = Object.fromEntries(Object.entries(r.p).filter(([, v]) => v != null && v !== ''));
         if (!id) { id = sh.createPerson({ ...fields, first_name: fields.first_name || '-', entry_date: fields.entry_date || today() }, user, { memberNo: r.member_no && !db.prepare('SELECT 1 FROM mv_person WHERE member_no = ?').get(r.member_no) ? r.member_no : null }); stats.created++; }
         else {
@@ -423,7 +466,8 @@ function register(sh) {
     if (recs.some(r => r.bank) && !req.user.perms.includes('mitglieder_bank')) return bad(res, 'Die Datei enthält Bankverbindungen – Importieren darf nur, wer das Recht „Bankdaten“ hat.', 403);
     const yh = /^(0[1-9]|1[0-2])-01$/.test(String(req.query.year_start || '')) ? req.query.year_start : null;
     if (yh) SET('year_start', yh);
-    const stats = commit(recs, uname(req));
+    let dec; try { dec = decisions(recs, JSON.parse(decodeURIComponent(String(req.get('X-Decisions') || '')) || '{}')); } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
+    const stats = commit(recs, uname(req), dec);
     if (map) SET('import_map_' + format, JSON.stringify(map));   // nur Spaltennamen, keine Daten
     C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft`);
     res.json({ ok: true, ...stats });

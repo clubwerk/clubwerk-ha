@@ -5981,6 +5981,22 @@
     "Unbekannter Platz oder unbekanntes Gerät.": "Unknown court or device.",
     "optional, z. B. Training Jugend": "optional, e.g. youth training",
     "optional, z. B. Winterpause": "optional, e.g. winter break",
-    "optional – leer = Label oder Mitglied": "optional – empty = label or member"
+    "optional – leer = Label oder Mitglied": "optional – empty = label or member",
+    ", Nachname ähnlich": ", similar surname",
+    "· Nr. {0}": "· No. {0}",
+    "ähnlich geschrieben": "similar spelling",
+    "Ähnliche Namen im Bestand": "Similar names already on file",
+    "als neues Mitglied anlegen": "create as new member",
+    "Die Entscheidungen sind ungültig.": "The decisions are invalid.",
+    "gleicher Name": "same name",
+    "Kurzform": "short form",
+    "Spitzname": "nickname",
+    "Spitznamen, Kurzformen oder andere Schreibweise (z. B. Benni – Benedikt, Susi – Susanne). Beim Zusammenführen überschreiben die Daten aus der Datei die vorhandenen; Getränkekonto, PIN und App bleiben erhalten. Bei gleichem Geburtsdatum ist „zusammenführen“ vorgewählt.": "Nicknames, short forms or other spellings (e.g. Benni – Benedikt, Susi – Susanne). When merging, the data from the file overwrites the existing data; drinks account, PIN and app stay. With the same date of birth, “merge” is preselected.",
+    "Zeile {0} und Zeile {1} sind demselben Mitglied zugeordnet – bitte eine davon „neu anlegen“.": "Row {0} and row {1} are assigned to the same member – please set one of them to “create new”.",
+    "Zeile {0}: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.": "Row {0}: This assignment does not fit – please reload the preview.",
+    "Zeile {0}: Dieses Mitglied wird schon über eine andere Zeile (gleicher Name oder Nummer) ergänzt.": "Row {0}: This member is already updated by another row (same name or number).",
+    "Zeile {0}{1}{2}": "Row {0}{1}{2}",
+    "zusammenführen": "merge",
+    "zusammenführen mit {0}{1}{2} ({3})": "merge with {0}{1}{2} ({3})"
   }
 }
