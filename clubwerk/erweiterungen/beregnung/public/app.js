@@ -54,7 +54,11 @@
 
   /* ---------- Anzeige ---------- */
   let info = {}, pl = [], timer = null;
-  const draw = () => { $('tiles').innerHTML = T.html(pl, esc); document.querySelectorAll('[data-p]').forEach(b => { b.onclick = () => run(+b.dataset.p); }); };
+  const draw = () => {
+    $('tiles').innerHTML = T.html(pl, esc);
+    document.querySelectorAll('[data-p]').forEach(b => { b.onclick = () => run(+b.dataset.p); });
+    document.querySelectorAll('[data-stop]').forEach(b => { b.onclick = e => { e.stopPropagation(); stopOne(+b.dataset.stop); }; });
+  };
   async function refresh() {
     clearTimeout(timer);
     try {
@@ -65,8 +69,7 @@
       if (!r.ok) throw new Error(d.error);
       pl = d.plaetze || []; T.prime(pl); draw();
       $('dot').className = 'vh-dot ' + (d.online ? 'ok' : 'err');
-      $('st').textContent = d.online ? `Verbunden · ${d.zonesTotal} Zonen` : 'Keine Verbindung zur Bewässerungsanlage' + (d.error ? ` (${d.error})` : '');
-      $('next').textContent = d.next ? `Nächste automatische Beregnung: ${d.next}` : ''; $('next').classList.toggle('hidden', !d.next);
+      $('st').textContent = d.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
       timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);
     } catch (e) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Keine Verbindung zum Server'; timer = setTimeout(refresh, 15000); }
   }
@@ -80,6 +83,14 @@
       const r = await withPin(`${p.name} beregnen`, pin => post('run', { platz: id, pin }));
       if (r) toast(`${p.name} ${r.waitSec > 0 ? 'eingeplant – startet in ' + T.fmt(r.waitSec) : 'gestartet'} · ${Math.round(r.totalSec / 60)} Min.` + (p.zones.length > 1 ? ' (nacheinander)' : ''));
     } catch (e) { if (e.login) $('loginSheet').classList.add('show'); else if (!e.app) toast(e.message, true, 5000); }
+    refresh();
+  }
+  async function stopOne(id) {
+    const p = pl.find(x => x.id === id);
+    try {
+      const r = info.stopFree ? await post('stop', { platz: id }) : await withPin(`${p ? p.name : 'Platz'} stoppen`, pin => post('stop', { platz: id, pin }));
+      if (r) toast(`${p ? p.name : 'Platz'} gestoppt`);
+    } catch (e) { if (e.login) $('loginSheet').classList.add('show'); else if (!e.app) toast(e.message || 'Fehler beim Stoppen – bitte erneut versuchen!', true, 5000); }
     refresh();
   }
   $('stop').onclick = async () => {

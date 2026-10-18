@@ -405,6 +405,11 @@ function appRouter(ctx) {
   });
   r.post('/stop', rateLimit('bstop', 30, 60000), async (req, res) => {
     const g = guard(req, res, { forStop: true }); if (!g) return;
+    const b = req.body || {};
+    if (b.platz !== undefined && b.platz !== null && b.platz !== '') {   // einzelnen Platz stoppen (wie in der Mitglieder-App)
+      try { const errs = await stopPlatz(parseInt(b.platz, 10), g.who); if (errs.length) return res.status(502).json({ error: 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!' }); return res.json({ ok: true }); }
+      catch (e) { return res.status(400).json({ error: e.message }); }
+    }
     const errs = await stopAll(g.who);
     if (errs.length) return res.status(502).json({ error: 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!' });
     res.json({ ok: true });

@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.13.2
+- **Beregnung überall gleich:** Eigene Webapp, Tablet und Mitglieder-App zeigen jetzt exakt dieselbe Seite – laufende und wartende Plätze haben überall den eigenen **„Stoppen“-Knopf**, die Zeile „Nächste automatische Beregnung“ ist auch in der Webapp und am Tablet entfernt, die Statuszeile lautet überall „Verbunden mit der Bewässerungsanlage“. Einziger Unterschied: In Webapp und am Tablet fragt Stoppen nach der Vereins-PIN, sofern „Stoppen ohne PIN“ nicht eingeschaltet ist; in der Mitglieder-App ist das Handy bereits freigeschaltet.
+
 ## 3.13.1
 - **Mitglieder-App – Arbeitsstunden motivierender dargestellt:** Solange Stunden fehlen, steht groß „X h noch offen“ (mit Balken und „… von … geleistet – bitte bis …“). Ist das Soll erreicht, gibt es keinen Zielstrich und kein „Geschafft“ mehr, sondern „X h geleistet – danke!“ – und die offenen Dienste stehen dann ganz oben, die Stundenkarte darunter.
 

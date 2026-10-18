@@ -11,7 +11,7 @@
       let pl = [], timer = null, alive = true;
       const T = () => window.BeregnungTiles;
       const draw = () => {
-        document.getElementById('bgTiles').innerHTML = T().html(pl, esc, { stop: true });
+        document.getElementById('bgTiles').innerHTML = T().html(pl, esc);
         el.querySelectorAll('[data-p]').forEach(b => { b.onclick = () => run(+b.dataset.p); });
         el.querySelectorAll('[data-stop]').forEach(b => { b.onclick = e => { e.stopPropagation(); stopOne(+b.dataset.stop); }; });
       };
