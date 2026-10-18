@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="de" data-lang-auto="browser">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Mitglieder-App</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1f6b3a">
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="kit.css">
+</head>
+<body class="vh-page">
+<header class="vh-top">
+  <div class="vh-logo hidden" id="logoBox"><img id="logo" alt="Vereinslogo"></div>
+  <h1 id="club">&nbsp;</h1>
+  <p id="who">Mitglieder-App</p>
+</header>
+<main class="vh-main">
+  <div class="vh-box vh-hint hidden" id="installHint">
+    <h2>Auf den Home-Bildschirm</h2>
+    <p>Unten auf <b>Teilen</b> tippen → <b>„Zum Home-Bildschirm“</b>. Beim ersten Öffnen der App gibst du einmal deine PIN ein – fertig.</p>
+    <p class="vh-small">Zeigt die App trotzdem „Nicht freigeschaltet“: dort „Übernahme-Code eingeben“ antippen und diesen Code eintippen (7 Tage gültig):</p>
+    <div class="vh-code" id="installCode">–</div>
+    <div class="vh-row"><button class="no" id="installX">Ausblenden</button></div>
+  </div>
+  <div class="vh-tabs hidden" id="tabs"></div>
+  <div id="sec" style="display:flex;flex-direction:column;gap:12px"></div>
+  <div class="vh-foot hidden" id="langFoot"><button class="vh-langbtn" id="langBtn" type="button"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg><span id="langCur" translate="no"></span></button></div>
+</main>
+
+<div class="vh-sheet" id="langSheet"><div class="vh-box">
+  <h2>Sprache</h2>
+  <div class="vh-langs" id="langList"></div>
+  <div class="vh-row"><button class="no" id="langNo">Abbrechen</button></div>
+</div></div>
+
+<div class="vh-sheet" id="pinSheet"><div class="vh-box">
+  <h2 id="pinTitle">PIN eingeben</h2>
+  <p id="pinText">Deine persönliche PIN</p>
+  <input class="vh-input pin" id="pinIn" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
+  <div class="vh-err" id="pinErr"></div>
+  <div class="vh-row"><button class="no" id="pinNo">Abbrechen</button><button class="ok" id="pinOk">OK</button></div>
+</div></div>
+
+<div class="vh-sheet" id="pairSheet"><div class="vh-box">
+  <h2 id="pairTitle">Willkommen</h2>
+  <p>Lege deine persönliche PIN fest (4–8 Ziffern). Damit ist dieses Handy freigeschaltet – nur für dich. Du brauchst die PIN bei jedem Öffnen oder Starten.</p>
+  <input class="vh-input pin" id="pair1" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
+  <input class="vh-input pin" id="pair2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN wiederholen">
+  <div class="vh-err" id="pairErr"></div>
+  <div class="vh-row"><button class="ok" id="pairOk">Freischalten</button></div>
+</div></div>
+
+<div class="vh-sheet" id="lockSheet"><div class="vh-box">
+  <h2>Nicht freigeschaltet</h2>
+  <p id="lockText">Diese App funktioniert nur auf freigeschalteten Handys. Bitte beim Vorstand einen QR-Code holen und ihn mit diesem Handy scannen.</p>
+  <div class="vh-row"><button class="no" id="lockCode">Übernahme-Code eingeben</button></div>
+</div></div>
+
+<div class="vh-sheet" id="trSheet"><div class="vh-box">
+  <h2>Fast geschafft</h2>
+  <p id="trText">Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.</p>
+  <input class="vh-input vh-codein hidden" id="trCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="11" placeholder="Übernahme-Code">
+  <input class="vh-input pin" id="trPin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
+  <div class="vh-err" id="trErr"></div>
+  <div class="vh-row"><button class="no" id="trNo">Abbrechen</button><button class="ok" id="trOk">Übernehmen</button></div>
+</div></div>
+
+<div class="vh-toast" id="toast"></div>
+<script src="app.js"></script>
+</body>
+</html>

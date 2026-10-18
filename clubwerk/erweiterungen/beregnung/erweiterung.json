@@ -1,0 +1,27 @@
+{
+  "id": "beregnung",
+  "name": "Beregnung",
+  "version": "1.2.0",
+  "beschreibung": "Manuelle Platzberegnung für Mitglieder: eigene Webapp mit Vereins-PIN (eigener Port, aufs Handy installierbar) und/oder in der Mitglieder-App für freigeschaltete Mitglieder. Plätze mit Zonen nacheinander wegen des Wasserdrucks, Countdown, Not-Stopp, Protokoll. Herstellerneutral über Home Assistant (z. B. Hunter Hydrawise, Rain Bird, OpenSprinkler, Shelly) oder direkt über die Hydrawise-Schnittstelle.",
+  "minApp": "2.3.0",
+  "perms": {
+    "beregnung": "Beregnung einrichten: Plätze, Zonen, Schutz & Protokoll",
+    "beregnung_bedienen": "Beregnung bedienen (wenn die Webapp auf persönliche Anmeldung gesperrt ist)"
+  },
+  "tablet": {
+    "label": "Beregnung",
+    "seite": ""
+  },
+  "verwaltung": {
+    "label": "Beregnung",
+    "recht": "beregnung"
+  },
+  "mitgliederApp": {
+    "label": "Beregnung",
+    "order": 20
+  },
+  "tabellen": [
+    "irr_steps",
+    "irr_log"
+  ]
+}

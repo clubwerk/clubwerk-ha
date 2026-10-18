@@ -1,0 +1,33 @@
+{
+  "id": "arbeitseinsatz",
+  "name": "Arbeitseinsatz & Thekendienst",
+  "version": "1.0.0",
+  "beschreibung": "Arbeitseinsätze und Thekendienste planen, Mitglieder tragen sich in der Mitglieder-App ein, stempeln am Tablet oder melden ihre Stunden. Soll je Mitglied (Vorgabe, Beitragsart, Alter, Ausnahmen), Familien gemeinsam, Erinnerungen per E-Mail. Nicht geleistete Stunden rechnet die Mitgliederverwaltung im Beitragslauf mit dem Stundensatz ab.",
+  "minApp": "3.1.0",
+  "perms": {
+    "arbeitseinsatz": "Arbeitseinsatz: Einsätze, Stunden bestätigen, Soll & Einstellungen"
+  },
+  "tablet": {
+    "label": "Arbeitseinsatz",
+    "seite": ""
+  },
+  "verwaltung": {
+    "label": "Arbeitseinsatz",
+    "recht": "arbeitseinsatz",
+    "seite": "arbeitseinsatz"
+  },
+  "mitgliederApp": {
+    "label": "Dienste",
+    "order": 8,
+    "alle": true
+  },
+  "tabellen": [
+    "aw_event",
+    "aw_signup",
+    "aw_entry",
+    "aw_target"
+  ],
+  "einstellungen": [
+    "ext_arbeitseinsatz_"
+  ]
+}

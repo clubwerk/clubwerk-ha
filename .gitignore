@@ -1,0 +1,5 @@
+node_modules/
+*.db
+*.db-*
+*.csv
+.DS_Store

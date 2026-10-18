@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6b3a">
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<script src="../../theme-init.js"></script>
+<title>Arbeitseinsatz</title>
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  :root { --np: 16px; }
+  body { user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
+  header.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; background: var(--green); color: #fff; }
+  header.top h1 { margin: 0; font-size: 22px; font-weight: 700; }
+  header.top .brand { display: flex; align-items: center; gap: 14px; min-width: 0; }
+  .logo-badge { background: #fff; border-radius: 999px; padding: 3px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .logo-badge img { height: 50px; max-width: 140px; object-fit: contain; display: block; }
+  header.top nav { display: flex; align-items: center; gap: 22px; }
+  header.top nav a { color: #fff; opacity: .75; font-size: 15px; text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
+  header.top nav a.on { opacity: 1; font-weight: 700; border-bottom-color: #fff; }
+  header.top nav .ext { font-size: 12px; opacity: .8; }
+  main { padding: 22px 22px 40px; }
+  .aw-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; max-width: 1180px; margin: 0 auto; }
+  .aw-col h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 12px; }
+  .aw-list { display: flex; flex-direction: column; gap: 12px; }
+  .aw-tile { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 84px; padding: 16px 20px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: inset 5px 0 0 var(--brand), var(--shadow); text-align: left; width: 100%; font: inherit; color: var(--ink); cursor: pointer; }
+  .aw-tile b { display: block; font-size: 19px; } .aw-tile span { display: block; color: var(--muted); font-size: 14.5px; margin-top: 3px; }
+  .aw-tile .t { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--brand-ink); white-space: nowrap; }
+  .aw-tile.ev { box-shadow: inset 5px 0 0 var(--blue, var(--brand)), var(--shadow); cursor: default; }
+  .aw-big { width: 100%; min-height: 84px; border-radius: 18px; background: var(--brand); color: #fff; font: inherit; font-size: 21px; font-weight: 800; border: 0; cursor: pointer; }
+  .aw-empty { color: var(--muted); font-size: 16px; padding: 18px 4px; }
+  .aw-note { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 14px 0 0; }
+  .overlay { position: fixed; inset: 0; background: rgba(20,20,18,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .dialog { background: var(--card); border-radius: 20px; padding: 22px 24px; width: min(520px, 100%); max-height: 88vh; overflow: auto; text-align: center; }
+  .dialog h2 { margin: 0 0 4px; font-size: 24px; } .dialog .sub { color: var(--muted); font-size: 17px; margin-bottom: 14px; }
+  .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
+  .pin-dots span { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--brand); } .pin-dots span.f { background: var(--brand); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pad button { height: 70px; border-radius: 14px; background: var(--hover); font-size: 28px; font-weight: 700; color: var(--ink); border: 0; font-family: inherit; }
+  .pad button.fn { font-size: 18px; background: transparent; border: 1px solid var(--line); }
+  .perr { color: var(--red); font-weight: 700; min-height: 22px; margin-top: 10px; }
+  .names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: left; max-height: 50vh; overflow: auto; margin-top: 10px; }
+  .names button, .choice button { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); padding: 0 12px; text-align: left; }
+  .choice { display: flex; flex-direction: column; gap: 8px; text-align: left; }
+  .dialog input.q { width: 100%; height: 54px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; font-size: 18px; background: var(--field); color: var(--ink); box-sizing: border-box; user-select: text; -webkit-user-select: text; }
+  .dlg-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 14px; }
+  .dlg-btns button { height: 56px; border-radius: 14px; font: inherit; font-size: 18px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .dlg-btns .ok { background: var(--brand); border-color: var(--brand); color: #fff; }
+  @media (max-width: 800px) { .aw-wrap { grid-template-columns: 1fr; } .names { grid-template-columns: 1fr 1fr; } }
+  .gate { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .gatecard { width: min(440px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 30px 28px; display: flex; flex-direction: column; text-align: center; gap: 14px; }
+  .gatecard h2 { margin: 0; font-size: 24px; }
+  .gatecard p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
+  .gatecard input { height: 58px; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; font-size: 22px; text-align: center; background: #fff; }
+  .gatecard .gerr { color: var(--red); font-weight: 600; font-size: 15px; }
+  .gatecard .gerr:empty { display: none; }
+  .gatecard .btn { height: 58px; font-size: 19px; justify-content: center; }
+</style>
+</head>
+<body>
+<header id="gkHeader"></header>
+<main><div class="aw-wrap">
+  <section class="aw-col"><h2>Gerade im Einsatz</h2><div class="aw-list" id="running"></div></section>
+  <section class="aw-col"><h2>Heute</h2><div class="aw-list" id="events"></div><button class="aw-big" id="startBtn" style="margin-top:12px">Einsatz beginnen</button><p class="aw-note" id="note"></p></section>
+</div></main>
+<div id="gate" class="gate hidden"><div class="gatecard">
+  <h2>Seite gesperrt</h2>
+  <p>Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password">
+  <div class="gerr" id="gateErr"></div>
+  <button class="btn primary" id="gateGo">Freischalten</button>
+</div></div>
+<div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="../../nav.js" data-base="../../" data-active="arbeitseinsatz"></script>
+<script src="tablet.js"></script>
+</body>
+</html>
