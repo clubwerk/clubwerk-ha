@@ -127,7 +127,7 @@ Mandate verfallen nach 36 Monaten ohne Lastschrift – Clubwerk zeigt das in der
 ## Modul Buchungssystem
 Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am Tablet im Vereinsheim (Reiter „Plätze“) und in der Verwaltung (Recht „Buchungssystem“).
 
-**Plätze & Geräte:** Je Platz Name, Bereich (wird in der App zum Reiter, z. B. „Tennis“, „Padel“), buchbare Wochentage und Uhrzeiten, Zeitraster (z. B. 60 Minuten) und Höchstdauer am Stück. Geräte haben zusätzlich eine Anzahl (4 Leihschläger = 4 gleichzeitige Buchungen). Die Gastgebühr kann je Platz abweichen.
+**Plätze & Geräte:** Reihenfolge mit ↑ ↓ in der Liste festlegen (gilt für Belegungsplan, App und Tablet). Je Platz Name, Bereich (wird in der App zum Reiter, z. B. „Tennis“, „Padel“), buchbare Wochentage und Uhrzeiten, Zeitraster (z. B. 60 Minuten) und Höchstdauer am Stück. Geräte haben zusätzlich eine Anzahl (4 Leihschläger = 4 gleichzeitige Buchungen). Die Gastgebühr kann je Platz abweichen.
 
 **Regeln (Einstellungen):** Vorlauf (wie viele Tage im Voraus), offene Buchungen je Mitglied (getrennt für Plätze und Geräte; Mitspieler zählen auf Wunsch mit), höchstens Mitspieler und Gäste, Stornieren bis … vor Beginn, Namen in der Belegung sichtbar oder nur „belegt“, Warteliste, Buchen am Tablet, Platzordnung (muss vor jeder Buchung bestätigt werden).
 

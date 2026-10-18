@@ -67,6 +67,7 @@
       .bk-ser.off { opacity: .55; }
       .bk-clash { max-height: 220px; overflow: auto; margin: 8px 0 0; }
       .bk-tbl td { height: 52px; }
+      .bk-ord { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: middle; } .bk-ord .btn { width: 34px; min-width: 34px; padding: 0; justify-content: center; font-size: 15px; } .bk-ord .btn:disabled { opacity: .35; }
       .bk-hl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 0 !important; margin-bottom: 16px; }
       .bk-hlt { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; border-left: 1px solid var(--line-soft); min-width: 0; } .bk-hlt:first-child { border-left: 0; }
       .bk-hlt span { font-size: 12.5px; font-weight: 600; color: var(--muted); } .bk-hlt b { font-size: 18px; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-hlt small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -610,14 +611,20 @@
     const list = await api('resources');
     el.innerHTML = `${can('buchung_einstellungen') ? '<div class="toolbar"><button class="btn primary" id="rsNew">+ Platz</button><button class="btn" id="rsNewA">+ Gerät</button></div>' : ''}
       <div class="card" style="padding:0 20px;overflow:auto">${list.length ? `<table class="tbl bk-tbl"><tr><th>Name</th><th class="hm">Buchbar</th><th class="hm">Raster</th><th class="hm">Gastgebühr</th><th class="r hm">kommende</th><th></th></tr>
-        ${list.map(r => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.active ? '' : ' · inaktiv'}</span></td>
+        ${list.map((r, i) => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.active ? '' : ' · inaktiv'}</span></td>
           <td class="hm">${esc(r.days === '1234567' ? 'täglich' : r.days.split('').map(d => WD[+d]).join(', '))} · ${r.open_from}–${r.open_to}</td><td class="hm">${dur(r.slot_min)} · max. ${dur(r.max_min)}</td>
           <td class="hm">${r.guest_fee_cents == null ? `<span class="muted s">Standard (${euro(st.meta.settings.guest_fee_cents)})</span>` : euro(r.guest_fee_cents)}</td><td class="r hm">${r.future || '–'}</td>
-          <td class="r">${can('buchung_einstellungen') ? `<button class="btn small" data-ed="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="padding:24px;margin:0">Noch nichts angelegt.</p>'}</div>`;
+          <td class="r" style="white-space:nowrap">${can('buchung_einstellungen') ? `<span class="bk-ord"><button class="btn small" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button><button class="btn small" data-mv="${i}:1" ${i === list.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span><button class="btn small" data-ed="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="padding:24px;margin:0">Noch nichts angelegt.</p>'}</div>
+      ${list.length > 1 && can('buchung_einstellungen') ? '<p class="muted s" style="margin:10px 2px 0">Mit ↑ ↓ legst du die Reihenfolge fest – so stehen Plätze und Geräte im Belegungsplan, in der Mitglieder-App und am Tablet.</p>' : ''}`;
     const again = async () => { await loadMeta(); showResources(el).catch(fail); };
     if ($('rsNew')) $('rsNew').onclick = () => resDialog({ kind: 'platz' }, again);
     if ($('rsNewA')) $('rsNewA').onclick = () => resDialog({ kind: 'artikel' }, again);
     el.querySelectorAll('[data-ed]').forEach(b => { b.onclick = () => resDialog(list.find(r => r.id === +b.dataset.ed), again); });
+    el.querySelectorAll('[data-mv]').forEach(b => { b.onclick = async () => {
+      const [i, d] = b.dataset.mv.split(':').map(Number), ids = list.map(r => r.id);
+      [ids[i], ids[i + d]] = [ids[i + d], ids[i]];
+      try { await api('resources/order', 'PUT', { ids }); await again(); const nb = el.querySelector(`[data-mv="${i + d}:${d}"]`) || el.querySelector(`[data-mv="${i + d}:${-d}"]`); if (nb) nb.focus(); } catch (e) { fail(e); }
+    }; });
   }
   function resDialog(r, after) {
     const isNew = !r.id, art = r.kind === 'artikel';

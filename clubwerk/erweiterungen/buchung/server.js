@@ -138,7 +138,7 @@ function activate(ctx) {
   }
 
   /* ---------------------------------------------------------------- Helfer */
-  const resources = (all = false) => db.prepare(`SELECT * FROM bk_resource WHERE deleted = 0 ${all ? '' : 'AND active = 1'} ORDER BY kind DESC, sort, name COLLATE NOCASE`).all();
+  const resources = (all = false) => db.prepare(`SELECT * FROM bk_resource WHERE deleted = 0 ${all ? '' : 'AND active = 1'} ORDER BY sort, kind DESC, name COLLATE NOCASE`).all();
   const resource = id => db.prepare('SELECT * FROM bk_resource WHERE id = ?').get(int(id));
   const memberRow = id => db.prepare("SELECT id, name FROM members WHERE id = ? AND kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0").get(int(id));
   const people = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all();
@@ -722,8 +722,20 @@ function activate(ctx) {
     return { v };
   };
   admin.get('/resources', P, (req, res) => res.json(resources(true).map(r => ({ ...r, future: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE resource_id = ? AND status = 'aktiv' AND date >= ?").get(r.id, today()).n }))));
+  /** Reihenfolge (Belegungsplan, App, Tablet): ids in der gewünschten Reihenfolge */
+  admin.put('/resources/order', PE, (req, res) => {
+    const ids = (Array.isArray((req.body || {}).ids) ? req.body.ids : []).map(Number).filter(Number.isInteger);
+    const all = resources(true).map(r => r.id);
+    if (!ids.length || ids.some(id => !all.includes(id))) return bad(res, 'Unbekannter Platz oder unbekanntes Gerät.');
+    const order = [...new Set(ids), ...all.filter(id => !ids.includes(id))];
+    const up = db.prepare('UPDATE bk_resource SET sort = ? WHERE id = ?');
+    db.transaction(() => order.forEach((id, i) => up.run((i + 1) * 10, id)))();
+    ctx.audit(req.user, 'Buchungssystem: Reihenfolge der Plätze geändert', order.map(id => (resource(id) || {}).name).join(', '));
+    res.json({ ok: true });
+  });
   admin.post('/resources', PE, (req, res) => {
     const r = resInput(req.body || {}); if (r.error) return bad(res, r.error);
+    if ((req.body || {}).sort === undefined) r.v.sort = (db.prepare('SELECT MAX(sort) AS m FROM bk_resource WHERE deleted = 0').get().m || 0) + 10;   // neue ans Ende
     const k = Object.keys(r.v);
     const id = Number(db.prepare(`INSERT INTO bk_resource(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(x => r.v[x])).lastInsertRowid);
     ctx.audit(req.user, 'Buchungssystem: angelegt', r.v.name); res.json({ id });

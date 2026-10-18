@@ -5975,6 +5975,9 @@
     "Vergangene Buchungen bleiben im Protokoll und in der Auswertung erhalten. Gibt es noch kommende Buchungen, Serien oder Sperren, geht es nicht – dann erst stornieren oder auf „inaktiv“ setzen.": "Past bookings stay in the log and the statistics. If there are upcoming bookings, series or blocks, deleting is not possible – cancel them first or set it to “inactive”.",
     "wie auf dem Mandat": "as on the mandate",
     "Dieser Dienst ist nicht (mehr) offen.": "This duty is not (or no longer) open.",
-    "Dieser Dienst ist schon vorbei – eintragen geht nicht mehr.": "This duty is already over – signing up is no longer possible."
+    "Dieser Dienst ist schon vorbei – eintragen geht nicht mehr.": "This duty is already over – signing up is no longer possible.",
+    "Mit ↑ ↓ legst du die Reihenfolge fest – so stehen Plätze und Geräte im Belegungsplan, in der Mitglieder-App und am Tablet.": "Use ↑ ↓ to set the order – this is how courts and devices appear in the booking plan, the member app and on the tablet.",
+    "Buchungssystem: Reihenfolge der Plätze geändert": "Booking system: court order changed",
+    "Unbekannter Platz oder unbekanntes Gerät.": "Unknown court or device."
   }
 }
