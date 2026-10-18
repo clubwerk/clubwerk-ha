@@ -400,12 +400,22 @@
     if (!RENDER[p] || !allowed(p)) p = 'uebersicht';
     page = p;
     history.replaceState(null, '', '#' + p);
-    if (!go.obs && $('main')) { go.obs = new MutationObserver(() => placeDrinkTabs()); go.obs.observe($('main'), { childList: true }); }
+    // Reiter der Module: neu einsetzen, sobald eine Seite ihren Inhalt schreibt. Nach erneuter Anmeldung (z. B. nach einem Update des Add-ons)
+    // baut die Verwaltung ihr Grundgerüst neu – dann muss auch der Beobachter an das neue <main>, sonst fehlen die Reiter bis zum Neuladen.
+    if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => placeDrinkTabs()); go.obs.observe(go.obsEl, { childList: true }); }
     setChrome(p);
     $('side').classList.remove('open');
     $('main').onclick = null; $('main').oninput = null;
     $('main').innerHTML = '<p class="muted">Lade …</p>';
-    RENDER[p]().catch(fail);
+    // Seitenwechsel während eine langsame Seite noch lädt: endet die alte Seite nach der neuen, hätte sie den Inhalt überschrieben → neue Seite neu zeichnen
+    const gen = go.gen = (go.gen || 0) + 1;
+    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; RENDER[page]().catch(fail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); } }); };
+    const settle = () => {
+      if (gen === go.gen) { if (go.stale === gen) redraw(); else { go.fin = gen; placeDrinkTabs(); } return; }
+      // alte Seite fertig: aktuelle schon fertig → neu zeichnen, sonst merken (die aktuelle zeichnet sich am Ende neu)
+      if (go.fin === go.gen) redraw(); else go.stale = go.gen;
+    };
+    RENDER[p]().catch(fail).finally(settle);
     window.scrollTo(0, 0);
   }
 
