@@ -50,6 +50,12 @@ function activate(ctx) {
   const SET = (k, v) => ctx.setSetting('ext_arbeitseinsatz_' + k, String(v));
   const P = need('arbeitseinsatz');
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
+  // Dauerhafte Einsätze (z. B. Thekendienst): ganzjährig ohne festen Termin, am Tablet wählbar solange aktiv
+  if (!db.prepare('PRAGMA table_info(aw_event)').all().some(c => c.name === 'permanent')) db.exec('ALTER TABLE aw_event ADD COLUMN permanent INTEGER NOT NULL DEFAULT 0');
+  if (S('seed_theke') !== '1') {
+    if (!db.prepare("SELECT 1 FROM aw_event WHERE permanent = 1 AND kind = 'theke'").get()) db.prepare("INSERT INTO aw_event(kind, title, date, permanent, created_by) VALUES ('theke', 'Thekendienst', date('now','localtime'), 1, 'Clubwerk')").run();
+    SET('seed_theke', '1');
+  }
   const uname = req => req.user.name || req.user.username;
   const ar = fn => ctx.asyncRoute(fn);
   const cfg = () => ({
@@ -167,13 +173,15 @@ function activate(ctx) {
     hours: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(minutes),0) min FROM aw_entry WHERE event_id = ? AND status IN ('offen','bestaetigt')").get(e.id) });
   admin.get('/events', P, (req, res) => {
     const past = req.query.past === '1';
-    res.json(db.prepare(`SELECT * FROM aw_event WHERE ${past ? 'date < ?' : 'date >= ?'} ORDER BY date ${past ? 'DESC' : 'ASC'}, start LIMIT 200`).all(today()).map(eventRow));
+    const perm = past && req.query.perm !== '1' ? [] : db.prepare('SELECT * FROM aw_event WHERE permanent = 1 ORDER BY cancelled, title COLLATE NOCASE').all();
+    res.json([...perm, ...db.prepare(`SELECT * FROM aw_event WHERE permanent = 0 AND ${past ? 'date < ?' : 'date >= ?'} ORDER BY date ${past ? 'DESC' : 'ASC'}, start LIMIT 200`).all(today())].map(eventRow));
   });
   admin.post('/events', P, (req, res) => {
-    const r = evInput(req.body || {}); if (r.error) return bad(res, r.error);
+    const r = evInput({ ...(req.body || {}), ...((req.body || {}).permanent && !isDate((req.body || {}).date) ? { date: today() } : {}) }); if (r.error) return bad(res, r.error);
     const repeat = Math.max(0, Math.min(52, int((req.body || {}).repeat_weeks)));
     const ids = [];
-    for (let i = 0; i <= repeat; i++) { const v = { ...r.v, date: addDays(r.v.date, 7 * i), cancelled: (req.body || {}).active === false ? 1 : 0 }; const k = Object.keys(v); ids.push(Number(db.prepare(`INSERT INTO aw_event(${k.join(',')}, created_by) VALUES (${k.map(() => '?').join(',')}, ?)`).run(...k.map(x => v[x]), uname(req)).lastInsertRowid)); }
+    const perm = (req.body || {}).permanent ? 1 : 0;
+    for (let i = 0; i <= (perm ? 0 : repeat); i++) { const v = { ...r.v, date: addDays(r.v.date, 7 * i), cancelled: (req.body || {}).active === false ? 1 : 0, permanent: perm }; const k = Object.keys(v); ids.push(Number(db.prepare(`INSERT INTO aw_event(${k.join(',')}, created_by) VALUES (${k.map(() => '?').join(',')}, ?)`).run(...k.map(x => v[x]), uname(req)).lastInsertRowid)); }
     ctx.audit(req.user, `${KIND[r.v.kind]} angelegt`, `${r.v.title} ${deD(r.v.date)}${repeat ? ` (+${repeat} Wochen)` : ''}`);
     res.json({ ids });
   });
@@ -183,7 +191,8 @@ function activate(ctx) {
     const k = Object.keys(r.v);
     const b = req.body || {};
     const off = b.active !== undefined ? !b.active : b.cancelled !== undefined ? Boolean(b.cancelled) : Boolean(e.cancelled);
-    db.prepare(`UPDATE aw_event SET ${k.map(x => `${x} = ?`).join(', ')}, cancelled = ? WHERE id = ?`).run(...k.map(x => r.v[x]), off ? 1 : 0, e.id);
+    const perm = b.permanent !== undefined ? (b.permanent ? 1 : 0) : e.permanent;
+    db.prepare(`UPDATE aw_event SET ${k.map(x => `${x} = ?`).join(', ')}, cancelled = ?, permanent = ? WHERE id = ?`).run(...k.map(x => r.v[x]), off ? 1 : 0, perm, e.id);
     res.json({ ok: true });
   });
   /* aktivieren / deaktivieren: deaktivierte Einsätze stehen nicht am Tablet und nicht in der Mitglieder-App, es gibt keine Erinnerungen */
@@ -288,7 +297,7 @@ function activate(ctx) {
   }
   T.get('/state', (req, res) => {
     const day = today();
-    res.json({ text: cfg().text, events: db.prepare('SELECT id, kind, title, start, end, place FROM aw_event WHERE date = ? AND cancelled = 0 ORDER BY start').all(day),
+    res.json({ text: cfg().text, events: db.prepare('SELECT id, kind, title, start, end, place, permanent FROM aw_event WHERE (date = ? OR permanent = 1) AND cancelled = 0 ORDER BY permanent, start, title').all(day),
       running: db.prepare("SELECT e.id, e.member_id, m.name, e.in_at, v.title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id WHERE e.status = 'laeuft' ORDER BY e.in_at").all(),
       people: db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all() });
   });
@@ -296,10 +305,10 @@ function activate(ctx) {
     const b = req.body || {}; const mid = ctx.auth.checkTabletToken(b.token);
     if (!mid || typeof mid !== 'number') return bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401);
     if (db.prepare("SELECT 1 FROM aw_entry WHERE member_id = ? AND status = 'laeuft'").get(mid)) return bad(res, 'Du bist schon eingestempelt.');
-    const ev = b.event_id ? db.prepare('SELECT * FROM aw_event WHERE id = ? AND date = ? AND cancelled = 0').get(int(b.event_id), today()) : null;
+    const ev = b.event_id ? db.prepare('SELECT * FROM aw_event WHERE id = ? AND (date = ? OR permanent = 1) AND cancelled = 0').get(int(b.event_id), today()) : null;
     const own = txt(b.text, 140);
     const text = ev ? (own ? `${ev.title}: ${own}`.slice(0, 160) : ev.title) : own;   // beim Einsatz ist die Beschreibung freiwillig
-    if (!ev && text.length < 3) return bad(res, db.prepare('SELECT 1 FROM aw_event WHERE date = ? AND cancelled = 0').get(today()) ? 'Bitte einen Einsatz wählen oder kurz eintragen, was du machst.' : 'Bitte kurz eintragen, was du machst.');
+    if (!ev && text.length < 3) return bad(res, db.prepare('SELECT 1 FROM aw_event WHERE (date = ? OR permanent = 1) AND cancelled = 0').get(today()) ? 'Bitte einen Einsatz wählen oder kurz eintragen, was du machst.' : 'Bitte kurz eintragen, was du machst.');
     db.prepare("INSERT INTO aw_entry(member_id, event_id, date, text, in_at, status, source) VALUES (?,?,?,?,?, 'laeuft', 'tablet')").run(mid, ev ? ev.id : null, today(), text, nowTs());
     ctx.auth.dropTabletToken(b.token);
     res.json({ ok: true });
@@ -325,11 +334,11 @@ function activate(ctx) {
     const mine = await target(id, y);
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report,
       events: db.prepare(`SELECT e.*, (SELECT COUNT(*) FROM aw_signup s WHERE s.event_id = e.id) AS taken, EXISTS(SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?) AS mine
-        FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 ORDER BY e.date, e.start LIMIT 40`).all(id, today()),
+        FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 ORDER BY e.date, e.start LIMIT 40`).all(id, today()),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));
   M.post('/signup', (req, res) => {
-    const b = req.body || {}; const e = db.prepare('SELECT * FROM aw_event WHERE id = ? AND cancelled = 0').get(int(b.event_id));
+    const b = req.body || {}; const e = db.prepare('SELECT * FROM aw_event WHERE id = ? AND cancelled = 0 AND permanent = 0').get(int(b.event_id));
     if (!e || e.date < today()) return bad(res, 'Dieser Termin ist nicht mehr offen.');
     if (b.remove) { db.prepare('DELETE FROM aw_signup WHERE event_id = ? AND member_id = ?').run(e.id, req.member.id); return res.json({ ok: true }); }
     if (e.slots && db.prepare('SELECT COUNT(*) n FROM aw_signup WHERE event_id = ?').get(e.id).n >= e.slots) return bad(res, 'Leider schon voll.');
@@ -375,7 +384,7 @@ function activate(ctx) {
       if (!hasMv) return;
       if (c.remind_events) {
         const tm = addDays(today(), 1);
-        for (const s of db.prepare('SELECT s.id, s.member_id, e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND s.reminded = 0').all(tm)) {
+        for (const s of db.prepare('SELECT s.id, s.member_id, e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND e.permanent = 0 AND s.reminded = 0').all(tm)) {
           const m = mailOf(s.member_id); db.prepare('UPDATE aw_signup SET reminded = 1 WHERE id = ?').run(s.id);
           if (!m || !m.email) continue;
           await ctx.mail.send({ to: m.email, subject: `Erinnerung: ${s.title} morgen`, text: [`Hallo,`, '', `du hast dich für morgen eingetragen: ${KIND[s.kind]} „${s.title}“ am ${deD(s.date)}${s.start ? ` um ${s.start} Uhr` : ''}${s.place ? `, ${s.place}` : ''}.`, '', 'Danke für deine Hilfe!', club].join('\n') }).catch(() => {});

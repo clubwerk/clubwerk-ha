@@ -19,7 +19,7 @@
     try { state = await call('x/arbeitseinsatz/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="aw-tile" data-r="${r.member_id}"><div><b>${esc(r.name)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></div><span class="t">${since(r.in_at)}</span></button>`).join('')
       : '<div class="aw-empty">Niemand eingestempelt.</div>';
-    $('events').innerHTML = state.events.length ? state.events.map(e => `<div class="aw-tile ev"><div><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></div></div>`).join('')
+    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="aw-tile ev"><div><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></div></div>`).join('')
       : '<div class="aw-empty">Heute ist nichts geplant – du kannst trotzdem einen Einsatz beginnen.</div>';
     $('note').textContent = state.text || '';
     $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; unlock(p, 'Einsatz beenden', tok => finish(tok)); }; });
@@ -51,9 +51,10 @@
   }
   function chooseWork(token) {
     const evs = state.events;
-    let sel = evs.length === 1 ? evs[0].id : null;   // ein Einsatz heute: gleich ausgewählt
-    dlg(`<h2>Was machst du?</h2><div class="sub">${evs.length ? 'Einsatz wählen – eine Beschreibung ist dann freiwillig.' : 'Kurz beschreiben, was du machst.'}</div>
-      ${evs.length ? `<div class="choice">${evs.map(e => `<button data-e="${e.id}">${esc(e.title)}${e.start ? ` · ${e.start} Uhr` : ''}</button>`).join('')}</div>` : ''}
+    const dated = evs.filter(e => !e.permanent);
+    let sel = dated.length === 1 ? dated[0].id : null;   // genau ein Einsatz heute: gleich ausgewählt (dauerhafte wie Thekendienst nicht)
+    dlg(`<h2>Was machst du?</h2><div class="sub">${evs.length ? 'Auswählen – eine Beschreibung ist dann freiwillig. Sonst kurz beschreiben.' : 'Kurz beschreiben, was du machst.'}</div>
+      ${evs.length ? `<div class="choice">${evs.map(e => `<button data-e="${e.id}">${esc(e.title)}${e.start && !e.permanent ? ` · ${e.start} Uhr` : ''}</button>`).join('')}</div>` : ''}
       <input class="q" id="wt" placeholder="" style="margin-top:10px" autocomplete="off">
       <div class="perr" id="perr"></div><div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Einstempeln</button></div>`);
     const paint = () => {

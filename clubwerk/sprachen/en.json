@@ -4969,6 +4969,15 @@
     "Einsatz deaktiviert": "Work session deactivated",
     "wöchentlich wiederholen (Wochen)": "repeat weekly (weeks)",
     "Zu diesem Einsatz gibt es schon Stunden – stattdessen deaktivieren.": "Hours have already been recorded for this session – deactivate it instead.",
-    "deaktiviert": "deactivated"
+    "deaktiviert": "deactivated",
+    "{0} (dauerhaft)": "{0} (permanent)",
+    "am Tablet jederzeit wählbar": "selectable on the tablet at any time",
+    "am Tablet nicht wählbar": "not selectable on the tablet",
+    "Auswählen – eine Beschreibung ist dann freiwillig. Sonst kurz beschreiben.": "Choose one – a description is then optional. Otherwise describe briefly.",
+    "dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar": "permanent – all year without a fixed date (e.g. bar duty), selectable on the tablet at any time",
+    "Dauerhaft (ganzjährig)": "Permanent (all year)",
+    "ganzjährig": "all year",
+    "Keine. Beim Anlegen „dauerhaft“ wählen.": "None. Choose “permanent” when creating.",
+    "Ohne festen Termin – z. B. Thekendienst. Solange aktiv, kann man ihn am Tablet beim Einstempeln wählen.": "No fixed date – e.g. bar duty. While active it can be chosen on the tablet when clocking in."
   }
 }

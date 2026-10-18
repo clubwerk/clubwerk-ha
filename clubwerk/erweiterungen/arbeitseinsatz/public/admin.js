@@ -28,6 +28,7 @@
       .aw-ev { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line-soft); }
       .aw-ev:first-of-type { border-top: 0; }
       .aw-ev .aw-tog { min-width: 112px; justify-content: center; }
+      .aw-date.perm b { font-size: 26px; line-height: 1; } .aw-date.perm span { font-size: 10.5px; letter-spacing: .02em; }
       .aw-ev.off .aw-date, .aw-ev.off h4 > span[translate], .aw-ev.off .muted { opacity: .55; }
       .aw-date { width: 76px; height: 64px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; line-height: 1.1; }
       .aw-date b { font-size: 22px; } .aw-date span { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
@@ -97,11 +98,11 @@
     $('tgOk').onclick = async () => { try { await api('target', 'PUT', { member_id: r.id, year: o.year, minutes: val('tgM') === '' ? null : toMin(val('tgM')), note: val('tgN') }); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); } };
   }
   async function addEntries(after, preset = {}) {
-    const ev = await api('events?past=1');
+    const ev = await api('events?past=1&perm=1');
     const people = st.meta.members;
     dialog(`<h2>Stunden nachtragen</h2>
       <div class="aw-grid" style="--c:3"><label class="f">Datum<input id="aeD" type="date" value="${preset.date || st.meta.today}" max="${st.meta.today}"></label><label class="f">Dauer in Stunden<input id="aeM" inputmode="decimal" placeholder="z. B. 2,5"></label>
-        <label class="f">Einsatz (optional)<select id="aeE"><option value="">–</option>${ev.map(e => opt(e.id, `${deDate(e.date)} ${e.title}`, preset.event)).join('')}</select></label>
+        <label class="f">Einsatz (optional)<select id="aeE"><option value="">–</option>${ev.map(e => opt(e.id, e.permanent ? `${e.title} (dauerhaft)` : `${deDate(e.date)} ${e.title}`, preset.event)).join('')}</select></label>
         <label class="f wall">Was wurde gemacht?<input id="aeT" placeholder="z. B. Plätze abziehen, Hecke schneiden"></label></div>
       <label class="f" style="margin-top:14px">Mitglieder (mehrere möglich)<input id="aeQ" placeholder="filtern …" data-nodirty></label>
       <div class="aw-cols" id="aeL">${people.map(p => `<label class="chk" data-n="${esc(p.name.toLowerCase())}"><input type="checkbox" value="${p.id}" ${(preset.members || []).includes(p.id) ? 'checked' : ''}> ${esc(GK.lastFirst(p.name))}</label>`).join('')}</div>
@@ -119,13 +120,17 @@
   async function showEvents(el) {
     const list = await api('events' + (st.past ? '?past=1' : ''));
     const wd = d => new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' });
-    el.innerHTML = `<div class="toolbar"><button class="btn primary" id="evNew">+ Einsatz / Thekendienst</button><button class="btn ghost" id="evPast">${st.past ? 'Kommende anzeigen' : 'Vergangene anzeigen'}</button></div>
-      <div class="card"><h3>${st.past ? 'Vergangene Einsätze' : 'Kommende Einsätze'}</h3>${list.length ? list.map(e => `<div class="aw-ev${e.cancelled ? ' off' : ''}">
-        <div class="aw-date"><span>${wd(e.date)}</span><b>${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.</b></div>
+    const perm = list.filter(e => e.permanent), dated = list.filter(e => !e.permanent);
+    const row = e => `<div class="aw-ev${e.cancelled ? ' off' : ''}">
+        ${e.permanent ? '<div class="aw-date perm"><b>∞</b><span>ganzjährig</span></div>' : `<div class="aw-date"><span>${wd(e.date)}</span><b>${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.</b></div>`}
         <div style="min-width:0"><h4><span translate="no">${esc(e.title)}</span> ${pill(e.kind === 'theke' ? ['b', KIND[e.kind]] : ['', KIND[e.kind]])}${e.cancelled ? ' ' + pill(['a', 'deaktiviert']) : ''}</h4>
-          <div class="muted">${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place, e.slots ? `${e.signups.length} von ${e.slots} Plätzen` : `${e.signups.length} eingetragen`, e.hours.n ? `${h(e.hours.min)} erfasst` : ''].filter(Boolean).map(esc).join(' · ')}</div>
-          ${e.signups.length ? `<div class="aw-people">${e.signups.map(s => `<span class="pill g">${esc(s.name)}</span>`).join('')}</div>` : ''}</div>
-        <div class="acts">${e.date <= st.meta.today ? `<button class="btn small primary" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}<button class="btn small" data-evp="${e.id}">Helfer</button><button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`).join('')
+          <div class="muted">${(e.permanent ? [e.cancelled ? 'am Tablet nicht wählbar' : 'am Tablet jederzeit wählbar', e.place, e.hours.n ? `${h(e.hours.min)} erfasst` : '']
+            : [e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place, e.slots ? `${e.signups.length} von ${e.slots} Plätzen` : `${e.signups.length} eingetragen`, e.hours.n ? `${h(e.hours.min)} erfasst` : '']).filter(Boolean).map(esc).join(' · ')}</div>
+          ${!e.permanent && e.signups.length ? `<div class="aw-people">${e.signups.map(s => `<span class="pill g">${esc(s.name)}</span>`).join('')}</div>` : ''}</div>
+        <div class="acts">${!e.permanent && e.date <= st.meta.today ? `<button class="btn small primary" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}${e.permanent ? '' : `<button class="btn small" data-evp="${e.id}">Helfer</button>`}<button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`;
+    el.innerHTML = `<div class="toolbar"><button class="btn primary" id="evNew">+ Einsatz / Thekendienst</button><button class="btn ghost" id="evPast">${st.past ? 'Kommende anzeigen' : 'Vergangene anzeigen'}</button></div>
+      ${st.past ? '' : `<div class="card"><h3>Dauerhaft (ganzjährig)</h3><p class="muted s" style="margin-top:0">Ohne festen Termin – z. B. Thekendienst. Solange aktiv, kann man ihn am Tablet beim Einstempeln wählen.</p>${perm.length ? perm.map(row).join('') : '<p class="muted">Keine. Beim Anlegen „dauerhaft“ wählen.</p>'}</div>`}
+      <div class="card"><h3>${st.past ? 'Vergangene Einsätze' : 'Kommende Einsätze'}</h3>${dated.length ? dated.map(row).join('')
         : `<p class="muted">${st.past ? 'Keine vergangenen Einsätze.' : 'Nichts geplant – mit „+ Einsatz / Thekendienst“ anlegen. Mitglieder tragen sich dann in der Mitglieder-App unter „Dienste“ ein.'}</p>`}</div>`;
     const again = () => showEvents(el).catch(fail);
     $('evPast').onclick = () => { st.past = !st.past; again(); };
@@ -142,16 +147,20 @@
     const dur = e && e.start && e.end ? '' : '';
     dialog(`<h2>${e ? 'Einsatz bearbeiten' : 'Neuer Einsatz'}</h2><div class="aw-grid" style="--c:3">
       <label class="f">Art<select id="evK">${Object.entries(KIND).map(([k, l]) => opt(k, l, e ? e.kind : 'arbeit')).join('')}</select></label><label class="f w2">Titel<input id="evT" value="${esc(e ? e.title : '')}" placeholder="z. B. Frühjahrsputz Plätze"></label>
-      <label class="f">Datum<input id="evD" type="date" value="${esc(e ? e.date : st.meta.today)}"></label><label class="f">von<input id="evS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f">bis<input id="evE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
-      <label class="f w2">Ort / Treffpunkt<input id="evP" value="${esc(e ? e.place || '' : '')}"></label><label class="f">Helfer gesucht (leer = beliebig)<input id="evN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}"></label>
+      <label class="chk wall" style="min-height:32px"><input type="checkbox" id="evPm" ${e && e.permanent ? 'checked' : ''}> dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar</label>
+      <label class="f aw-dated">Datum<input id="evD" type="date" value="${esc(e ? e.date : st.meta.today)}"></label><label class="f aw-dated">von<input id="evS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f aw-dated">bis<input id="evE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
+      <label class="f w2" id="evPL">Ort / Treffpunkt<input id="evP" value="${esc(e ? e.place || '' : '')}"></label><label class="f aw-dated">Helfer gesucht (leer = beliebig)<input id="evN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}"></label>
       <label class="f wall">Hinweis für die Helfer<input id="evX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Arbeitshandschuhe mitbringen"></label>
-      ${e ? '' : '<label class="f">wöchentlich wiederholen (Wochen)<input id="evR" inputmode="numeric" placeholder="0"></label>'}
-      <label class="chk ${e ? 'wall' : 'w2'}" style="min-height:40px;align-self:end"><input type="checkbox" id="evA" ${!e || !e.cancelled ? 'checked' : ''}> aktiv – steht am Tablet und in der Mitglieder-App</label></div>
+      ${e ? '' : '<label class="f aw-dated">wöchentlich wiederholen (Wochen)<input id="evR" inputmode="numeric" placeholder="0"></label>'}
+      <label class="chk ${e ? 'wall' : 'w2'}" id="evAL" style="min-height:40px;align-self:end"><input type="checkbox" id="evA" ${!e || !e.cancelled ? 'checked' : ''}> aktiv – steht am Tablet und in der Mitglieder-App</label></div>
       <div class="btns">${e ? '<button class="btn danger" id="evDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="evOk">Speichern</button></div>`);
     void dur;
+    const pmPaint = () => { const pm = $('evPm').checked; $('dialog').querySelectorAll('.aw-dated').forEach(x => { x.style.display = pm ? 'none' : ''; }); $('evPL').classList.toggle('wall', pm); $('evPL').classList.toggle('w2', !pm); if (!e) { $('evAL').classList.toggle('wall', pm); $('evAL').classList.toggle('w2', !pm); } };
+    $('evPm').onchange = () => { if ($('evPm').checked && val('evK') === 'arbeit' && !val('evT')) { $('evK').value = 'theke'; $('evT').value = 'Thekendienst'; } pmPaint(); };
+    pmPaint();
     $('c').onclick = closeDialog;
     $('evOk').onclick = async () => {
-      const body = { kind: val('evK'), title: val('evT'), date: val('evD'), start: val('evS'), end: val('evE'), place: val('evP'), slots: val('evN') || null, note: val('evX') };
+      const body = { permanent: $('evPm').checked, kind: val('evK'), title: val('evT'), date: val('evD') || st.meta.today, start: val('evS'), end: val('evE'), place: val('evP'), slots: val('evN') || null, note: val('evX') };
       try { if (e) await api('events/' + e.id, 'PUT', { ...body, active: $('evA').checked }); else await api('events', 'POST', { ...body, active: $('evA').checked, repeat_weeks: val('evR') || 0 }); closeDialog(); toast('Gespeichert.'); after(); } catch (x) { fail(x); }
     };
     if ($('evDel')) $('evDel').onclick = async () => { if (!await ask('Einsatz löschen?')) return; try { await api('events/' + e.id, 'DELETE'); closeDialog(); after(); } catch (x) { fail(x); } };
