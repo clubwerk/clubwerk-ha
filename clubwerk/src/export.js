@@ -133,7 +133,7 @@ async function buildWorkbook({ clubName, from, to, balances, asOf, openBookings 
   /* 4) Bestand heute */
   const wsL = wb.addWorksheet('Bestand');
   title(wsL, 'Lagerbestand (Soll)', `Stand ${new Date().toLocaleDateString('de-DE')}`, 6);
-  wsL.getRow(4).values = ['Artikel', 'Kategorie', 'Bestand Einzelartikel', 'davon volle Kisten', 'Mindestbestand', 'Hinweis'];
+  wsL.getRow(4).values = ['Artikel', 'Kategorie', 'Bestand Einzelartikel', 'davon volle Gebinde', 'Mindestbestand', 'Hinweis'];
   header(wsL, wsL.getRow(4));
   stock.filter(s => s.track_stock).forEach((s, i) => {
     wsL.getRow(5 + i).values = [s.name, s.category, s.stock, Math.floor(Math.max(0, s.stock) / s.crate_size),

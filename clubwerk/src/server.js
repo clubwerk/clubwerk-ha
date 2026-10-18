@@ -1399,7 +1399,7 @@ function articleFromBody(b, base = {}) {
   };
   if (!a.name) throw new Error('Name fehlt.');
   if (!(a.price_cents >= 0)) throw new Error('Preis ungültig.');
-  if (!(a.crate_size >= 1 && a.crate_size <= 100)) throw new Error('Kistengröße bitte zwischen 1 und 100.');
+  if (!(a.crate_size >= 1 && a.crate_size <= 100)) throw new Error('Gebindegröße bitte zwischen 1 und 100.');
   if (a.price_cents > 100000) throw new Error('Preis ungültig.');
   return a;
 }
@@ -1407,7 +1407,7 @@ function articleFromBody(b, base = {}) {
 admin.get('/articles', (req, res) => res.json(stockList()));
 
 /* Artikelliste als Excel: herunterladen, bearbeiten, wieder einspielen (auch zum Übernehmen von einem anderen Verein) */
-const ART_COLS = ['ID', 'Artikel', 'Kategorie', 'Preis', 'Kiste', 'Bestand führen', 'Mindestbestand', 'Bestellen bis', 'Aktiv'];
+const ART_COLS = ['ID', 'Artikel', 'Kategorie', 'Preis', 'Gebinde', 'Bestand führen', 'Mindestbestand', 'Bestellen bis', 'Aktiv'];
 admin.get('/articles/export.xlsx', need('artikel'), asyncRoute(async (req, res) => {
   const ExcelJS = require('exceljs');
   const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Artikel');
@@ -1429,7 +1429,7 @@ admin.post('/articles/import-excel', need('artikel'), express.raw({ type: () => 
   try { await wb.xlsx.load(buf); } catch (e) { return bad(res, 'Die Excel-Datei lässt sich nicht lesen.'); }
   const norm = v => String(v || '').toLowerCase().replace(/[^a-zäöüß]/g, '');
   const want = { id: ['id', 'artikelid'], name: ['artikel', 'name', 'bezeichnung', 'produkt'], cat: ['spalte', 'kategorie', 'gruppe'], price: ['preis', 'vkpreis', 'verkaufspreis'],
-    crate: ['kiste', 'kistengröße', 'flaschenjekiste', 'gebinde'], track: ['bestandführen', 'bestand'], min: ['mindestbestand', 'mindest'],
+    crate: ['gebinde', 'gebindegröße', 'kiste', 'kistengröße', 'flaschenjekiste'], track: ['bestandführen', 'bestand'], min: ['mindestbestand', 'mindest'],
     target: ['bestellenbis'], active: ['aktiv'] };
   for (const k of Object.keys(want)) want[k] = i18n.aliases(want[k], norm);
   let cols = null, ws = null, head = 0;
@@ -1702,7 +1702,7 @@ admin.post('/deliveries', need('lieferungen'), (req, res) => {
     }
   })(); } catch (e) {
     if (/UNIQUE/.test(e.message)) return bad(res, `Den Beleg ${doc} von ${sup} gibt es schon.`);
-    if (/Unbekannter Artikel|unplausibel/.test(e.message)) return bad(res, e.message === 'Unbekannter Artikel.' ? 'Eine Position ist keinem gültigen Artikel zugeordnet. Bitte prüfen.' : 'Eine Menge ist unplausibel (über 1000 Kisten bzw. 10.000 Stück).');
+    if (/Unbekannter Artikel|unplausibel/.test(e.message)) return bad(res, e.message === 'Unbekannter Artikel.' ? 'Eine Position ist keinem gültigen Artikel zugeordnet. Bitte prüfen.' : 'Eine Menge ist unplausibel (über 1000 Gebinde bzw. 10.000 Stück).');
     throw e;
   }
   audit(req.user, 'Lieferung gespeichert', `${sup} ${date}${doc ? ' Beleg ' + doc : ''} (${rows.length} Positionen)`);

@@ -615,7 +615,7 @@
     $('main').querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
       const d = list.find(x => x.id === Number(b.dataset.show));
       dialog(`<h2>${esc(d.supplier)} · ${deDate(d.date)}</h2>
-        <table class="tbl"><tr><th>Artikel</th><th>Lieferanten-Text</th><th class="r">Kisten</th><th class="r">Einzelartikel lose</th><th class="r">Einzelartikel gesamt</th></tr>
+        <table class="tbl"><tr><th>Artikel</th><th>Lieferanten-Text</th><th class="r">Gebinde</th><th class="r">Einzelartikel lose</th><th class="r">Einzelartikel gesamt</th></tr>
         ${d.items.map(i => `<tr><td>${esc(i.name)}</td><td class="muted">${esc(i.supplier_text || '')}</td><td class="r">${num(i.crates)}</td><td class="r">${num(i.bottles)}</td><td class="r">${num(i.total)}</td></tr>`).join('')}
         <tr class="sum"><td colspan="4">Summe</td><td class="r">${num(d.total)}</td></tr></table>
         <div class="btns"><button class="btn primary" id="x">Schließen</button></div>`);
@@ -665,7 +665,7 @@
           : `</div><div class="banner a">Summe der Positionen (${euro(p.check.sum_cents)}) weicht vom Beleg (${euro(p.total_cents)}) ab – bitte die markierten Mengen mit dem Bild vergleichen.`) : '';
       const info = !p.fileId ? '' : auto
         ? `<div class="banner g">${p.lines.filter(l => !l.deposit).length} Positionen ${p.ocr ? 'per Bilderkennung ' : ''}erkannt${p.lines.some(l => l.deposit) ? ` (dazu ${p.lines.filter(l => l.deposit).length} Pfand-/Leergut-Zeilen, automatisch ignoriert)` : ''}.${chk} Bitte kurz prüfen – Zuordnungen werden für das nächste Mal gemerkt.</div>`
-        : `<div class="banner a">Auf diesem Beleg ist kein lesbarer Text (Foto/Scan). Bitte die Kisten unten von Hand eintragen – der Beleg wird mitgespeichert.</div>`;
+        : `<div class="banner a">Auf diesem Beleg ist kein lesbarer Text (Foto/Scan). Bitte die Gebinde unten von Hand eintragen – der Beleg wird mitgespeichert.</div>`;
       const dup = p.duplicateOf ? `<div class="banner r">Achtung: Beleg ${esc(p.docNo)} ist bereits gespeichert (Lieferung vom ${deDate(p.duplicateOf.date)}). Bitte nicht doppelt erfassen.</div>` : '';
 
       dialog(`<h2>${p.fileId ? 'Beleg prüfen' : 'Lieferung erfassen'}${p.originalName ? ' · ' + esc(p.originalName) : ''}</h2>
@@ -704,10 +704,10 @@
         return l.single ? Number(l.qty) || 0 : (Number(l.qty) || 0) * (Number(l.packSize) || 1);
       }
       function draw() {
-        $('lines').innerHTML = `<tr><th>Auf dem Beleg</th><th class="r">Menge</th><th>Artikel in der App</th><th class="r">je Kiste</th><th class="r">Einzelartikel</th><th></th></tr>` +
+        $('lines').innerHTML = `<tr><th>Auf dem Beleg</th><th class="r">Menge</th><th>Artikel in der App</th><th class="r">je Gebinde</th><th class="r">Einzelartikel</th><th></th></tr>` +
           lines.map((l, i) => l.manual
             ? `<tr><td class="muted">von Hand</td>
-                <td class="r"><input class="n" data-i="${i}" data-k="crates" value="${esc(l.crates)}" placeholder="Kisten" inputmode="numeric"><br>
+                <td class="r"><input class="n" data-i="${i}" data-k="crates" value="${esc(l.crates)}" placeholder="Gebinde" inputmode="numeric"><br>
                   <input class="n" data-i="${i}" data-k="bottles" value="${esc(l.bottles)}" placeholder="+ einzeln" inputmode="numeric" style="margin-top:4px"></td>
                 <td><select data-i="${i}" data-k="choice">${articleOptions(Number(l.choice) || l.choice, { create: true })}</select></td>
                 <td class="r muted">${art(l.choice) ? art(l.choice).crate_size + 'er' : ''}</td>
@@ -792,7 +792,7 @@
     const st = o.settings;
     const rows = o.rows;
     $('main').innerHTML = `<h2 class="page">Bestellung</h2>
-      <p class="lead">Vorschlag aus Bestand, Mindestbestand und „bestellen bis“. Kisten anpassen und die Bestellung direkt an den Lieferanten senden – oder den Text kopieren.</p>
+      <p class="lead">Vorschlag aus Bestand, Mindestbestand und „bestellen bis“. Gebinde anpassen und die Bestellung direkt an den Lieferanten senden – oder den Text kopieren.</p>
       <div class="card"><h3>Bestelldaten</h3><div class="row">
         <label class="f" style="flex:1;min-width:220px">Lieferant<input id="oSup" value="${esc(st.order_supplier)}"></label>
         <label class="f">Kunden-Nr.<input id="oCust" value="${esc(st.customer_no)}" style="width:110px"></label></div>
@@ -802,7 +802,7 @@
         <label class="f">Telefon für Rückfragen<input id="oPhone" value="${esc(st.order_phone)}"></label>
         <button class="btn" id="oSave">Merken</button></div></div>
       <div class="card"><h3>Was bestellen?</h3>
-        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Art.-Nr.</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th class="r">Kisten</th></tr>
+        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Art.-Nr.</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th class="r">Gebinde</th></tr>
         ${rows.map(r => `<tr class="${r.low ? '' : 'off'}"><td>${esc(r.name)} ${r.low ? '<span class="pill a">knapp</span>' : ''}<div class="muted s">${esc(r.supplier_text || '')}</div></td>
           <td>${esc(r.art_no) || '<span class="muted s">–</span>'}</td><td class="r ${r.stock < 0 ? 'neg' : ''}">${num(r.stock)}</td><td class="r">${num(r.min_stock)}</td><td class="r">${num(r.target_stock)}</td>
           <td class="r"><input class="n" data-o="${r.id}" value="${r.suggest || ''}" inputmode="numeric" placeholder="0"></td></tr>`).join('')}</table></div>
@@ -822,11 +822,11 @@
       const date = new Date().toLocaleDateString('de-DE');
       $('oSubj').value = `Bestellung ${o.clubName}${$('oCust').value ? ' (Kd.-Nr. ' + $('oCust').value + ')' : ''} vom ${date}`;
       $('oText').value = `Guten Tag,\n\nhiermit bestellen wir für den ${o.clubName}${$('oCust').value ? ' (Kunden-Nr. ' + $('oCust').value + ')' : ''}:\n\n` +
-        (lines.length ? lines.map(({ r, n }) => `- ${n} ${n === 1 ? 'Kiste' : 'Kisten'} ${r.supplier_text || r.name}${r.art_no ? ' (Art.-Nr. ' + r.art_no + ')' : ''}`).join('\n') : '- (bitte Mengen eintragen)') +
+        (lines.length ? lines.map(({ r, n }) => `- ${n} Gebinde ${r.supplier_text || r.name}${r.art_no ? ' (Art.-Nr. ' + r.art_no + ')' : ''}`).join('\n') : '- (bitte Mengen eintragen)') +
         `\n\nLieferadresse: ${$('oAddr').value}\nLeergut geben wir bei der Lieferung mit.\n` +
         `${$('oPhone').value ? 'Rückfragen gern unter ' + $('oPhone').value + '.\n' : ''}\nVielen Dank und viele Grüße\n${$('oSender').value}\n${o.clubName}`;
       $('oMailBtn').href = `mailto:${encodeURIComponent($('oMail').value)}?${$('oCc').value ? 'cc=' + encodeURIComponent($('oCc').value) + '&' : ''}subject=${encodeURIComponent($('oSubj').value)}&body=${encodeURIComponent($('oText').value)}`;
-      $('oInfo').textContent = `${lines.length} Positionen, ${lines.reduce((s, x) => s + x.n, 0)} Kisten`;
+      $('oInfo').textContent = `${lines.length} Positionen, ${lines.reduce((s, x) => s + x.n, 0)} Gebinde`;
     };
     build();
     $('main').oninput = e => { if (e.target.closest('[data-o], #oCust, #oAddr, #oSender, #oPhone, #oMail, #oCc')) build(); };
@@ -872,7 +872,7 @@
       <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
       <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
         <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
-        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Soll (Einzelartikel)</th><th class="r">= Kisten + einzeln</th><th class="r">Mindestbestand</th><th class="r">Gezählt: Kisten</th><th class="r">+ einzeln</th></tr>
+        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Soll (Einzelartikel)</th><th class="r">= Gebinde + einzeln</th><th class="r">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">+ einzeln</th></tr>
         ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted">${esc(s.category)}</td>
           <td class="r ${s.stock < 0 ? 'neg' : ''}">${num(s.stock)}</td>
           <td class="r muted">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : ''}</td>
@@ -1431,7 +1431,7 @@
         <datalist id="catList">${cats.map(c => `<option>${esc(c)}</option>`).join('')}</datalist>
         <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;align-items:end">
           <label class="f">Preis €<input name="price" value="${centsToInput(x.price_cents)}" inputmode="decimal"></label>
-          <label class="f">Einzelartikel je Kiste<input name="crate_size" value="${x.crate_size}" inputmode="numeric"></label>
+          <label class="f">Einzelartikel je Gebinde<input name="crate_size" value="${x.crate_size}" inputmode="numeric"></label>
           <label class="f">Mindestbestand<input name="min_stock" value="${x.min_stock}" inputmode="numeric"></label>
           <label class="f">Bestellen bis<input name="target_stock" value="${x.target_stock || ''}" placeholder="2× Mindest" inputmode="numeric"></label></div>
         <p class="muted s" style="margin:6px 0 0">Mindestbestand und „Bestellen bis“ in Einzelartikeln (Flaschen, Tüten, Dosen …).</p>
@@ -1506,7 +1506,7 @@
       <div class="toolbar"><button class="btn primary" id="new">+ Neuer Artikel</button>
         <button class="btn ghost" id="catOrd">Reihenfolge der Kategorien …</button>
         <button class="btn ghost" id="aImp">Excel importieren …</button><a class="btn ghost" href="api/admin/articles/export.xlsx">Als Excel herunterladen</a></div>
-      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r">Kiste</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th>Status</th><th></th></tr>
+      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r">Gebinde</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th>Status</th><th></th></tr>
       ${cache.articles.map(a => `<tr class="${a.active ? '' : 'off'}"><td><span class="art">${artTile(a)}<span>${esc(a.name)}</span></span></td><td>${esc(a.category)}</td><td class="r">${euro(a.price_cents)}</td><td class="r">${a.crate_size}</td>
         <td class="r">${a.track_stock ? num(a.stock) : '–'}</td><td class="r">${a.track_stock ? num(a.min_stock) : ''}</td><td class="r">${a.track_stock && a.target_stock ? num(a.target_stock) : ''}</td><td>${a.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</td>
         <td class="r"><button class="btn small" data-e="${a.id}">Bearbeiten</button></td></tr>`).join('')}</table></div>`;
@@ -1532,7 +1532,7 @@
     };
     $('aImp').onclick = () => {
       dialog(`<h2>Artikel aus Excel importieren</h2>
-        <p class="muted">Spalten <b>Artikel</b>, <b>Kategorie</b>, <b>Preis</b>, optional <b>ID</b>, <b>Kiste</b>, <b>Bestand führen</b>, <b>Mindestbestand</b>, <b>Bestellen bis</b>, <b>Aktiv</b>.
+        <p class="muted">Spalten <b>Artikel</b>, <b>Kategorie</b>, <b>Preis</b>, optional <b>ID</b>, <b>Gebinde</b>, <b>Bestand führen</b>, <b>Mindestbestand</b>, <b>Bestellen bis</b>, <b>Aktiv</b>.
           Erkannt wird ein vorhandener Artikel an seiner <b>ID</b> (Spalte aus „Als Excel herunterladen“), sonst am Namen. Neue Artikel bekommen immer eine neue ID – IDs werden nie doppelt vergeben.
           Weicht ein vorhandener Artikel ab, entscheidest du je Artikel, welche Fassung gilt.</p>
         <label class="f">Datei<input type="file" id="aFile" accept=".xlsx"></label>
@@ -1549,7 +1549,7 @@
         if (!r.ok) throw new Error(d.error || 'Import fehlgeschlagen');
         return d;
       };
-      const F = { name: 'Name', category: 'Kategorie', price_cents: 'Preis', crate_size: 'Kiste', track_stock: 'Bestand führen', min_stock: 'Mindest', target_stock: 'Bestellen bis', active: 'Aktiv' };
+      const F = { name: 'Name', category: 'Kategorie', price_cents: 'Preis', crate_size: 'Gebinde', track_stock: 'Bestand führen', min_stock: 'Mindest', target_stock: 'Bestellen bis', active: 'Aktiv' };
       const fmt = (k, v) => k === 'price_cents' ? euro(v) : (k === 'track_stock' || k === 'active') ? (v ? 'ja' : 'nein') : esc(String(v));
       const open = () => last.rows.filter(r => r.status === 'ändern' && !choice.has(r.id)).length;
       const draw = () => {

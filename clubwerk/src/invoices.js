@@ -243,7 +243,7 @@ function parseGenericText(text, supplier) {
       const unit = money(h[1]), total = money(h[2]);
       if (unit && total && pending.qty * unit === total) {
         out.lines.push({ artNo: unparsed.artNo || textKey(unparsed.name), text: unparsed.name, qty: pending.qty, single: false, packSize: pending.pack || packFromText(unparsed.name),
-          unit_cents: unit, line_cents: total, note: 'Sonderpreis', checked: true, noArtNo: !unparsed.artNo, unitLabel: 'Kiste' });
+          unit_cents: unit, line_cents: total, note: 'Sonderpreis', checked: true, noArtNo: !unparsed.artNo, unitLabel: 'Gebinde' });
         pending = null; unparsed = null; continue;
       }
     }
@@ -307,7 +307,7 @@ function parseGenericText(text, supplier) {
     const usedPending = Boolean(pending);
     out.lines.push({ artNo: artNo || textKey(name), text: name, qty, single: false,
       packSize: (pending && pending.pack) || packFromText(name), unit_cents: unit, line_cents: total,
-      note: checked ? '' : 'bitte Menge/Preis prüfen', checked, noArtNo: !artNo, unitLabel: usedPending ? 'Kiste' : 'Stk.' });
+      note: checked ? '' : 'bitte Menge/Preis prüfen', checked, noArtNo: !artNo, unitLabel: usedPending ? 'Gebinde' : 'Stk.' });
     pending = null;
   }
   const sum = out.lines.reduce((t, l) => t + l.line_cents, 0);

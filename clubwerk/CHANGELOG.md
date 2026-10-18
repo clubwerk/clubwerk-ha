@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.3.2
+- **Verkauf: „Gebinde“ statt „Kiste“** – passt für Kisten, Kartons, Fässer oder Packungen (Artikel, Lieferungen, Bestand, Inventur, Bestellung, Excel-Import und -Export). Excel-Listen mit der alten Spalte „Kiste“ werden weiter erkannt.
+- Beispiel „Patronen“ aus den Texten entfernt.
+
 ## 3.3.1
 - **Erste Einrichtung kompakter:** je Modul nur noch eine kurze Zeile, Verkauf steht oben, Häkchen sauber ausgerichtet.
 
