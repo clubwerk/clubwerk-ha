@@ -33,6 +33,11 @@
     s.textContent = `
       .mv-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .mv-grid .w2 { grid-column: span 2; } .mv-grid .wall { grid-column: 1 / -1; }
+      .mv-up { display: flex; align-items: center; gap: 10px; height: 40px; box-sizing: border-box; padding: 0 4px 0 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--field); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--faint); }
+      .mv-up span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .mv-up b { flex: none; height: 30px; padding: 0 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink); }
+      .mv-up.ok { border-style: solid; border-color: var(--green-line, var(--line)); background: var(--brand-soft); color: var(--brand-ink); }
+      .mv-up.drag { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       @media (max-width: 900px) { .mv-grid { grid-template-columns: 1fr 1fr; } .mv-grid .w2 { grid-column: 1 / -1; } }
       @media (max-width: 560px) { .mv-grid { grid-template-columns: 1fr; } }
       .mv-head { display: flex; align-items: center; gap: 16px; margin: 0 0 16px; }
@@ -171,7 +176,7 @@
     const m = st.meta, full = !SC();
     const ageAt = (b, d) => { if (!b) return null; let a = +d.slice(0, 4) - +b.slice(0, 4); if (d.slice(5) < b.slice(5)) a--; return a; };
     dialog(`<h2>Neues Mitglied</h2>
-      <p class="muted s" style="margin-top:0">Angelegt wird nur vollständig: Adresse, E-Mail und Handy${full ? ', Beitrag und Zahlung (Lastschrift mit SEPA-Mandat oder Rechnung)' : ''}. Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.</p>
+      <p class="muted s" style="margin-top:0">Angelegt wird nur vollständig: Adresse, E-Mail und Handy${full ? ', Beitrag, Zahlung (bei Lastschrift Kontoinhaber, IBAN und Datum des SEPA-Mandats)' : ''} und die unterschriebene Beitrittserklärung als PDF oder Foto. Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.</p>
       <div class="mv-grid" style="--c:4">
         <label class="f">Vorname<input id="nFirst" autocomplete="off"></label><label class="f">Nachname<input id="nLast" autocomplete="off"></label><label class="f">Geburtsdatum<input id="nBirth" type="date"></label><label class="f">Eintritt<input id="nEntry" type="date" value="${m.today}"></label>
         <label class="f w2">Straße und Hausnummer<input id="nStreet" autocomplete="off"></label><label class="f">PLZ<input id="nZip" inputmode="numeric" maxlength="10"></label><label class="f">Ort<input id="nCity"></label>
@@ -179,9 +184,32 @@
         ${full ? `<label class="f w2">Beitrag<select translate="no" id="nFee"></select></label>` : ''}
         <label class="f ${full ? '' : 'w2'}">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
         ${full ? `<label class="f">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${opt('rechnung', 'Rechnung')}${opt('bar', 'bar')}</select></label>
-        <label class="f nb">Kontoinhaber<input id="nHold" placeholder="leer = Mitglied"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
+        <label class="f nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
+        <label class="f wall">Unterschriebene Beitrittserklärung${full ? ' mit SEPA-Mandat' : ''} (PDF oder Foto)<input id="nDocF" type="file" accept="application/pdf,image/*" hidden><div class="mv-up" id="nDoc"><span>Datei wählen oder hierher ziehen</span><b>Datei wählen …</b></div></label>
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="nOk">Anlegen</button></div>`, true);
+    // Kontoinhaber: vorschlagen, solange niemand etwas anderes eingetragen hat (bei Kindern meist ein Elternteil – dann überschreiben)
+    let holdAuto = true;
+    const holdSync = () => { if ($('nHold') && holdAuto) $('nHold').value = [val('nFirst'), val('nLast')].filter(Boolean).join(' '); };
+    $('nFirst').addEventListener('input', holdSync); $('nLast').addEventListener('input', holdSync);
+    if ($('nHold')) $('nHold').addEventListener('input', () => { holdAuto = !val('nHold'); });
+    // Beitrittserklärung gleich hochladen, beim Anlegen wird sie dem Mitglied zugeordnet
+    let doc = null;
+    const upDoc = async f => {
+      if (!f) return;
+      const box = $('nDoc'); box.classList.remove('ok'); box.querySelector('span').textContent = `Lade hoch: ${f.name} …`;
+      try {
+        const r = await fetch('api/admin/x/mitglieder/member/new-document', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'application/octet-stream', 'X-Filename': encodeURIComponent(f.name) }, body: f });
+        const j = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(j.error || 'Hochladen fehlgeschlagen.');
+        doc = j; box.classList.add('ok'); box.querySelector('span').textContent = `✓ ${f.name} · ${f.size < 1048576 ? Math.max(1, Math.round(f.size / 1024)) + ' KB' : (f.size / 1048576).toFixed(1).replace('.', ',') + ' MB'}`; box.querySelector('b').textContent = 'Ersetzen …';
+      } catch (e) { doc = null; box.querySelector('span').textContent = 'Datei wählen oder hierher ziehen'; fail(e); }
+    };
+    $('nDocF').onchange = () => upDoc($('nDocF').files[0]);
+    const dz = $('nDoc');
+    dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag'); });
+    dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+    dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files.length) upDoc(e.dataTransfer.files[0]); });
     const fees = () => {   // Beiträge passend zum Alter (bei Eintritt) – unpassende ausgegraut
       if (!$('nFee')) return;
       const age = ageAt(val('nBirth'), val('nEntry') || m.today), cur = val('nFee');
@@ -197,6 +225,7 @@
       try {
         const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'),
           entry_date: val('nEntry'), member_no: val('nNo') || undefined, department_id: +val('nDept') || undefined,
+          doc_id: doc ? doc.doc_id : null,
           ...(full ? { fee_id: +val('nFee') || null, payment: val('nPay'), iban: val('nIban'), holder: val('nHold'), mandate_date: val('nMand') } : {}) });
         closeDialog(); toast(r.pending ? `Mitglied angelegt. ${PENDING}` : 'Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail);
       } catch (e) { fail(e); }

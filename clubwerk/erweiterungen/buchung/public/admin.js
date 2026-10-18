@@ -651,7 +651,7 @@
       try { if (isNew) await api('resources', 'POST', body); else await api('resources/' + r.id, 'PUT', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
     };
     if ($('rsDel')) $('rsDel').onclick = async () => {
-      if (!await ask(`„${r.name}“ löschen?\n\nGeht nur, solange es keine Buchungen dafür gibt – sonst auf „inaktiv“ setzen.`)) return;
+      if (!await ask(`„${r.name}“ wirklich löschen?\n\nVergangene Buchungen bleiben im Protokoll und in der Auswertung erhalten. Gibt es noch kommende Buchungen, Serien oder Sperren, geht es nicht – dann erst stornieren oder auf „inaktiv“ setzen.`, { ok: 'Löschen', danger: true })) return;
       try { await api('resources/' + r.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); after(); } catch (e) { fail(e); }
     };
   }

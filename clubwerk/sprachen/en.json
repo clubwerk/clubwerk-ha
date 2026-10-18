@@ -5957,6 +5957,22 @@
     "z. B. Vorstand": "e.g. Board",
     "Zitat": "Quote",
     "Zustellung": "Delivery",
-    "Zwischenüberschrift": "Subheading"
+    "Zwischenüberschrift": "Subheading",
+    ", Beitrag, Zahlung (bei Lastschrift Kontoinhaber, IBAN und Datum des SEPA-Mandats)": ", fee, payment (for direct debit: account holder, IBAN and date of the SEPA mandate)",
+    "„{0}“ hat noch {1} kommende {2} (nächste am {3} um {4} Uhr) – erst stornieren oder verlegen, oder auf „inaktiv“ setzen.": "“{0}” still has {1} upcoming {2} (next on {3} at {4}) – cancel or move them first, or set it to “inactive”.",
+    "„{0}“ wirklich löschen?": "Really delete “{0}”?",
+    "AND active = 1": "AND active = 1",
+    "Angelegt wird nur vollständig: Adresse, E-Mail und Handy{0} und die unterschriebene Beitrittserklärung als PDF oder Foto. Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.": "Members are only created with complete data: address, email and mobile{0} and the signed membership application as PDF or photo. To sign on the tablet, use “Membership application on the tablet”.",
+    "Bitte den Kontoinhaber eintragen (wie auf dem SEPA-Mandat).": "Please enter the account holder (as on the SEPA mandate).",
+    "Bitte die unterschriebene Beitrittserklärung hochladen (PDF oder Foto).": "Please upload the signed membership application (PDF or photo).",
+    "Buchungssystem: Platz/Gerät gelöscht": "Booking system: court/device deleted",
+    "Datei wählen …": "Choose file …",
+    "Datei wählen oder hierher ziehen": "Choose a file or drag it here",
+    "Ersetzen …": "Replace …",
+    "Lade hoch: {0} …": "Uploading: {0} …",
+    "mit SEPA-Mandat": "with SEPA mandate",
+    "Unterschriebene Beitrittserklärung{0} (PDF oder Foto)": "Signed membership application{0} (PDF or photo)",
+    "Vergangene Buchungen bleiben im Protokoll und in der Auswertung erhalten. Gibt es noch kommende Buchungen, Serien oder Sperren, geht es nicht – dann erst stornieren oder auf „inaktiv“ setzen.": "Past bookings stay in the log and the statistics. If there are upcoming bookings, series or blocks, deleting is not possible – cancel them first or set it to “inactive”.",
+    "wie auf dem Mandat": "as on the mandate"
   }
 }

@@ -288,7 +288,7 @@ function activate(ctx) {
   const scopedIssues = list => (list || []).filter(i => !/Mandat|Bankverbindung|IBAN|Beitrag|Altersstufe/.test(i));
   const SCOPED = [   // [Methode, Pfad, Prüfung]  Prüfung: m = Mitglied :id, md = Abteilungszugehörigkeit, h/f = Ehrung/Amt, a = Antrag, ch = Änderungswunsch, - = keine
     ['GET', /^\/meta$/, '-'], ['GET', /^\/list$/, '-'], ['GET', /^\/iban-check$/, '-'], ['GET', /^\/applications$/, '-'], ['GET', /^\/applications\/config$/, '-'], ['GET', /^\/changes$/, '-'],
-    ['POST', /^\/member$/, 'new'], ['GET', /^\/member\/(\d+)$/, 'm'], ['PUT', /^\/member\/(\d+)$/, 'm'],
+    ['POST', /^\/member$/, 'new'], ['POST', /^\/member\/new-document$/, '-'], ['GET', /^\/member\/(\d+)$/, 'm'], ['PUT', /^\/member\/(\d+)$/, 'm'],
     ['POST', /^\/member\/(\d+)\/(departments|honors|functions|exit|reenter|exit-document)$/, 'm'],
     ['PUT', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/honors\/(\d+)$/, 'h'], ['DELETE', /^\/functions\/(\d+)$/, 'f'],
     ['GET', /^\/applications\/(\d+)$/, 'a'], ['POST', /^\/applications\/(\d+)\/(accept|reject|code)$/, 'a'], ['PUT', /^\/applications\/(\d+)$/, 'a'], ['GET', /^\/applications\/(\d+)\/pdf$/, 'a'], ['POST', /^\/applications$/, 'newapp'],
@@ -356,6 +356,23 @@ function activate(ctx) {
     if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
     res.json(d);
   });
+  /* Unterschriebene Beitrittserklärung (Papier) vorab hochladen – wird beim Anlegen dem neuen Mitglied zugeordnet.
+     Nicht zugeordnete Uploads werden nach einem Tag gelöscht. */
+  admin.post('/member/new-document', P, express.raw({ type: () => true, limit: DOC_MAX + 1024 }), (req, res) => {
+    let name = ''; try { name = decodeURIComponent(String(req.get('X-Filename') || '')); } catch (e) { name = ''; }
+    try {
+      const docId = saveDocument(null, req.body, { kind: 'antrag', title: 'Beitrittserklärung' + (name ? ` (${one(name, 80)})` : ''), filename: name, user: uname(req) });
+      const d = ctx.db.prepare('SELECT id, title, size, mime FROM mv_document WHERE id = ?').get(docId);
+      res.json({ doc_id: d.id, title: d.title, size: d.size, mime: d.mime });
+    } catch (e) { bad(res, e.message); }
+  });
+  const dropOrphans = () => {
+    try {
+      for (const d of ctx.db.prepare("SELECT * FROM mv_document WHERE member_id IS NULL AND application_id IS NULL AND created_at < datetime('now','localtime','-1 day')").all()) { deleteDocumentFile(d); ctx.db.prepare('DELETE FROM mv_document WHERE id = ?').run(d.id); }
+    } catch (e) { /* beim nächsten Mal */ }
+  };
+  setTimeout(dropOrphans, 30000).unref(); setInterval(dropOrphans, 6 * 3600000).unref();
+
   admin.post('/member', P, (req, res) => {
     const pi = personInput(req.body || {}); if (pi.error) return bad(res, pi.error);
     if (!pi.fields.first_name) return bad(res, 'Bitte den Vornamen eintragen.');
@@ -365,6 +382,9 @@ function activate(ctx) {
     if (miss.length) return bad(res, `Für ein neues Mitglied fehlen noch: ${miss.join(', ')}.`);
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(f0.email)) return bad(res, 'Bitte eine gültige E-Mail-Adresse eintragen.');
     if (String(f0.mobile).replace(/\D/g, '').length < 7) return bad(res, 'Bitte eine gültige Handynummer eintragen.');
+    // von Hand ausgefüllte Beitrittserklärung gehört dazu (mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“)
+    const doc = ctx.db.prepare('SELECT * FROM mv_document WHERE id = ? AND member_id IS NULL AND application_id IS NULL AND by_user = ?').get(int(b.doc_id), uname(req));
+    if (!doc) return bad(res, 'Bitte die unterschriebene Beitrittserklärung hochladen (PDF oder Foto).');
     let fee = null, bank = null;
     const entry = f0.entry_date || today();
     if (full) {
@@ -375,12 +395,15 @@ function activate(ctx) {
       if (pay === 'lastschrift') {
         if (!req.user.perms.includes('mitglieder_bank')) return bad(res, 'Bankdaten darf nur eintragen, wer das Recht „Bankdaten“ hat – sonst Zahlart „Rechnung“ wählen.', 403);
         const ib = sepa.checkIban(b.iban); if (!ib.ok) return bad(res, ib.error || 'Bitte eine gültige IBAN eintragen.');
-        const holder = one(b.holder, 70) || `${f0.first_name} ${f0.last_name}`;
+        const holder = one(b.holder, 70);
+        if (holder.length < 3) return bad(res, 'Bitte den Kontoinhaber eintragen (wie auf dem SEPA-Mandat).');
         if (!isDate(b.mandate_date) || b.mandate_date > today()) return bad(res, 'Bitte das Datum der Unterschrift unter dem SEPA-Mandat angeben.');
         bank = { iban: ib.iban, holder, mandate_date: b.mandate_date, bic: (sepa.checkBic(b.bic || '').bic) || null };
       }
     }
     const id = createPerson(pi.fields, uname(req));
+    ctx.db.prepare('UPDATE mv_document SET member_id = ? WHERE id = ?').run(id, doc.id);
+    store.hist(id, uname(req), 'Dokument', null, doc.title);
     if (fee) {
       ctx.db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES (?,?,?,?,?,?,?)').run(id, fee.id, entry, null, null, null, null);
       store.hist(id, uname(req), 'Beitrag', null, `${fee.name} ab ${deD(entry)}`);

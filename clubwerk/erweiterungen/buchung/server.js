@@ -76,6 +76,7 @@ function activate(ctx) {
     if (!cols.includes('outsiders')) db.exec("ALTER TABLE bk_resource ADD COLUMN outsiders TEXT NOT NULL DEFAULT 'gebuehr'");   // gebuehr | gesperrt
     for (const t of ['bk_booking', 'bk_series']) if (!db.prepare(`PRAGMA table_info(${t})`).all().some(c => c.name === 'label_id')) db.exec(`ALTER TABLE ${t} ADD COLUMN label_id INTEGER`);
     if (!cols.includes('outsider_fee_cents')) db.exec('ALTER TABLE bk_resource ADD COLUMN outsider_fee_cents INTEGER NOT NULL DEFAULT 500');
+    if (!cols.includes('deleted')) db.exec('ALTER TABLE bk_resource ADD COLUMN deleted INTEGER NOT NULL DEFAULT 0');   // gelöscht, aber vergangene Buchungen bleiben im Protokoll
     const lc = db.prepare('PRAGMA table_info(bk_label)').all().map(c => c.name);
     if (!lc.includes('use_mode')) db.exec("ALTER TABLE bk_label ADD COLUMN use_mode TEXT NOT NULL DEFAULT 'verwaltung'");   // verwaltung | alle | auswahl
     if (!lc.includes('use_functions')) db.exec("ALTER TABLE bk_label ADD COLUMN use_functions TEXT NOT NULL DEFAULT '[]'");   // Ämter aus der Mitgliederverwaltung
@@ -137,7 +138,7 @@ function activate(ctx) {
   }
 
   /* ---------------------------------------------------------------- Helfer */
-  const resources = (all = false) => db.prepare(`SELECT * FROM bk_resource ${all ? '' : 'WHERE active = 1'} ORDER BY kind DESC, sort, name COLLATE NOCASE`).all();
+  const resources = (all = false) => db.prepare(`SELECT * FROM bk_resource WHERE deleted = 0 ${all ? '' : 'AND active = 1'} ORDER BY kind DESC, sort, name COLLATE NOCASE`).all();
   const resource = id => db.prepare('SELECT * FROM bk_resource WHERE id = ?').get(int(id));
   const memberRow = id => db.prepare("SELECT id, name FROM members WHERE id = ? AND kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0").get(int(id));
   const people = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all();
@@ -728,16 +729,23 @@ function activate(ctx) {
     ctx.audit(req.user, 'Buchungssystem: angelegt', r.v.name); res.json({ id });
   });
   admin.put('/resources/:id', PE, (req, res) => {
-    const cur = resource(req.params.id); if (!cur) return bad(res, 'Nicht gefunden.', 404);
+    const cur = resource(req.params.id); if (!cur || cur.deleted) return bad(res, 'Nicht gefunden.', 404);
     const r = resInput(req.body || {}, cur); if (r.error) return bad(res, r.error);
     const k = Object.keys(r.v);
     db.prepare(`UPDATE bk_resource SET ${k.map(x => `${x} = ?`).join(', ')} WHERE id = ?`).run(...k.map(x => r.v[x]), cur.id);
     res.json({ ok: true });
   });
   admin.delete('/resources/:id', PE, (req, res) => {
-    const cur = resource(req.params.id); if (!cur) return bad(res, 'Nicht gefunden.', 404);
-    if (db.prepare('SELECT 1 FROM bk_booking WHERE resource_id = ?').get(cur.id)) return bad(res, 'Dafür gibt es schon Buchungen – stattdessen auf „inaktiv“ setzen.');
-    db.prepare('DELETE FROM bk_resource WHERE id = ?').run(cur.id); db.prepare('DELETE FROM bk_wait WHERE resource_id = ?').run(cur.id);
+    const cur = resource(req.params.id); if (!cur || cur.deleted) return bad(res, 'Nicht gefunden.', 404);
+    // Nur kommende Buchungen (auch Serien und Sperren) verhindern das Löschen
+    const d = today(), t = hhmm(nowMin());
+    const fut = db.prepare("SELECT COUNT(*) AS n, MIN(date || ' ' || start) AS first FROM bk_booking WHERE resource_id = ? AND status = 'aktiv' AND (date > ? OR (date = ? AND end > ?))").get(cur.id, d, d, t);
+    if (fut.n) return bad(res, `„${cur.name}“ hat noch ${fut.n} kommende ${fut.n === 1 ? 'Buchung' : 'Buchungen'} (nächste am ${deD(fut.first.slice(0, 10))} um ${fut.first.slice(11)} Uhr) – erst stornieren oder verlegen, oder auf „inaktiv“ setzen.`, 409);
+    db.prepare('DELETE FROM bk_wait WHERE resource_id = ?').run(cur.id);
+    if (db.prepare('SELECT 1 FROM bk_booking WHERE resource_id = ?').get(cur.id)) {
+      db.prepare('UPDATE bk_resource SET deleted = 1, active = 0 WHERE id = ?').run(cur.id);   // vergangene Buchungen bleiben in Protokoll und Auswertung
+    } else db.prepare('DELETE FROM bk_resource WHERE id = ?').run(cur.id);
+    ctx.audit(req.user, 'Buchungssystem: Platz/Gerät gelöscht', cur.name);
     res.json({ ok: true });
   });
 
@@ -869,13 +877,13 @@ function activate(ctx) {
     return { kpis: [{ l: 'Buchungen heute', v: t }, { l: 'gerade belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }], alerts: [] };
   };
   ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
-    resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort FROM bk_resource').all() });
+    resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort FROM bk_resource WHERE deleted = 0').all() });
   ctx.hooks.importConfig = d => {
     if (!d || typeof d !== 'object') throw new Error('Leere Funktionsdatei.');
     for (const [k, v] of Object.entries(d.settings || {})) if (k in DEF && k !== 'blocked_fees' && typeof v === 'string') SET(k, v.slice(0, 2000));
     let n = 0;
     for (const r of Array.isArray(d.resources) ? d.resources.slice(0, 100) : []) {
-      if (!r || db.prepare('SELECT 1 FROM bk_resource WHERE lower(name) = lower(?)').get(String(r.name || ''))) continue;
+      if (!r || db.prepare('SELECT 1 FROM bk_resource WHERE deleted = 0 AND lower(name) = lower(?)').get(String(r.name || ''))) continue;
       const x = resInput(r); if (x.error) continue;
       const k = Object.keys(x.v); db.prepare(`INSERT INTO bk_resource(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(y => x.v[y])); n++;
     }
