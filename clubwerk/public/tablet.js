@@ -110,7 +110,7 @@
   const splitSize = n => { const m = String(n).match(/^(.+?)\s+(\d+[,.]\d+)\s*(l|ml|cl)?$/i); return m ? { name: m[1], size: m[2].replace('.', ',') + ' ' + (m[3] || 'l') } : { name: String(n), size: '' }; };
   const card = m => {
     const { first: fn, last: ln } = splitName(m.name);
-    return `<button data-id="${m.id}" class="${m.hasPin ? 'has-pin' : ''} ${m.pending ? 'pending' : ''}"><i class="av" style="${avStyle(m.name)}">${initials(m.name)}</i><span class="nm"><b>${esc(ln)}${m.pending ? '<span class="tag">neu</span>' : ''}${m.hasPin ? LOCK : ''}</b><span>${esc(fn) || '&nbsp;'}</span></span></button>`;
+    return `<button data-id="${m.id}" class="${m.hasPin ? 'has-pin' : ''} ${m.pending ? 'pending' : ''}"><i class="av" style="${avStyle(m.name)}">${initials(m.name)}</i><span class="nm"><b>${esc(ln)}${m.pending ? '<span class="tag">neu</span>' : ''}${m.family ? '<span class="tag fam">Familie</span>' : ''}${m.hasPin ? LOCK : ''}</b><span>${esc(fn) || '&nbsp;'}</span></span></button>`;
   };
 
   const guestCard = g => {
@@ -142,7 +142,7 @@
     $('special').classList.toggle('hidden', Boolean(ev));   // während der Veranstaltung nur deren Liste
     if (ev) { $('eventName').textContent = ev.name; renderEventList(); }
 
-    const people = state.members.filter(m => m.kind === 'mitglied').sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0));
+    const people = state.members.filter(m => m.kind === 'mitglied' && !m.hidden).sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0));
     const topIds = new Set(state.top || []);
     const top = people.filter(m => topIds.has(m.id));   // nur zusätzliche Schnellauswahl – alle stehen weiterhin unten in der Gesamtliste
 

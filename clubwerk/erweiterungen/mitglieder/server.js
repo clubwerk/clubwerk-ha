@@ -23,6 +23,7 @@ const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
 const mailOk = v => !v || /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i.test(String(v));
 const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const deD = fees.deD;
+const SALES = { payer: 'über den Hauptzahler', own_payer: 'eigener Eintrag, zahlt der Hauptzahler', own: 'eigener Eintrag, zahlt selbst' };
 
 /* ---------------------------------------------------------------- Lesen */
 function personRow(id) {
@@ -103,8 +104,8 @@ function detail(id, user) {
   const perms = user.perms;
   const bank = bankRow(id);
   const fam = store.familyOf(id);
-  const famRows = fam.members.length > 1 ? C.db.prepare(`SELECT m.id, m.name, p.birth_date FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${fam.members.map(() => '?').join(',')})`).all(...fam.members)
-    .map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, today()), head: r.id === fam.head })) : [];
+  const famRows = fam.members.length > 1 ? C.db.prepare(`SELECT m.id, m.name, p.birth_date, p.sales_mode FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${fam.members.map(() => '?').join(',')})`).all(...fam.members)
+    .map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, today()), head: r.id === fam.head, sales_mode: r.sales_mode || 'payer' })) : [];
   const appState = C.require('./memberapp').memberState(id);
   let drinksOpen = null;
   try { if (C.drinks.active()) { const o = C.drinks.open().rows.find(r => r.id === id); drinksOpen = o ? o.total_cents : 0; } } catch (e) { drinksOpen = null; }
@@ -379,7 +380,10 @@ function activate(ctx) {
       if (ctx.db.prepare('SELECT 1 FROM mv_person WHERE payer_id = ? AND member_id != ?').get(id, id)) return bad(res, 'Für dieses Mitglied zahlen schon andere (es ist selbst Hauptzahler) – erst die Angehörigen umhängen.');
       store.ensurePerson(payer);
     }
-    savePerson(id, { payer_id: payer, drinks_to_payer: b.drinks_to_payer === false ? 0 : 1 }, uname(req));
+    const cur = ctx.db.prepare('SELECT sales_mode FROM mv_person WHERE member_id = ?').get(id) || {};
+    const mode = ['payer', 'own_payer', 'own'].includes(b.sales_mode) ? b.sales_mode : b.drinks_to_payer === false ? 'own' : (cur.sales_mode || 'payer');
+    savePerson(id, { payer_id: payer, drinks_to_payer: mode === 'own' ? 0 : 1 }, uname(req));
+    if (mode !== cur.sales_mode) { ctx.db.prepare('UPDATE mv_person SET sales_mode = ? WHERE member_id = ?').run(mode, id); store.hist(id, uname(req), 'Verkauf', SALES[cur.sales_mode] || null, SALES[mode]); }
     res.json({ ok: true });
   });
   /* Bankverbindung & Mandat */
@@ -804,6 +808,14 @@ function activate(ctx) {
     if (ageN) alerts.push({ level: 'a', text: `${ageN} Mitglied(er) rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-beitraege', link: 'Entscheiden' });
     const leaving = rows.filter(r => r.leaving).length;
     return { kpis: [{ l: 'Mitglieder', v: rows.length }, { l: 'Austritte angekündigt', v: leaving }, { l: 'Eintritte ' + today().slice(0, 4), v: rows.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts };
+  };
+  /* für den Kern: Tablet-Liste im Verkauf – Angehörige „über den Hauptzahler“ ausblenden, Hauptzahler als „Familie“ markieren */
+  ctx.hooks.tabletMembers = () => {
+    const rows = ctx.db.prepare(`SELECT p.member_id, p.payer_id FROM mv_person p JOIN members m ON m.id = p.member_id
+      WHERE p.payer_id IS NOT NULL AND p.payer_id != p.member_id AND p.sales_mode = 'payer' AND m.deleted = 0 AND m.active = 1 AND p.anonymized_at IS NULL`).all();
+    const hidden = [], family = new Set();
+    for (const r of rows) { const head = store.payerOf(r.member_id); if (head === r.member_id) continue; hidden.push(r.member_id); family.add(head); }
+    return { hidden, family: [...family] };
   };
   /* für den Kern: Abteilungen (Benutzer & Rollen) */
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();

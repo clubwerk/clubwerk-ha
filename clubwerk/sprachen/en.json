@@ -4507,6 +4507,17 @@
     "Bei mehreren Personen bitte die Familienmitgliedschaft wählen.": "For several people, please choose the family membership.",
     "Daten hier eintragen – unterschrieben wird anschließend am Tablet mit einem Code. Für eine Familienmitgliedschaft Partner/in und Kinder (bis {0} Jahre) hinzufügen: der/die Antragsteller/in wird Hauptzahler.": "Enter the details here – signing then happens on the tablet with a code. For a family membership, add partner and children (up to age {0}): the applicant becomes the main payer.",
     "Die Familienmitgliedschaft gilt nur zusammen mit weiteren Personen – bitte Partner/in oder Kinder hinzufügen oder eine andere Mitgliedschaft wählen.": "The family membership only applies together with other people – please add a partner or children, or choose another membership.",
-    "Mehrere Personen: es gilt die Familienmitgliedschaft.": "Several people: the family membership applies."
+    "Mehrere Personen: es gilt die Familienmitgliedschaft.": "Several people: the family membership applies.",
+    "eigener Eintrag": "own entry",
+    "Eigener Eintrag – zahlt der Hauptzahler": "Own entry – main payer pays",
+    "Eigener Eintrag – zahlt selbst": "Own entry – pays themselves",
+    "eigener Eintrag, zahlt der Hauptzahler": "own entry, main payer pays",
+    "eigener Eintrag, zahlt selbst": "own entry, pays themselves",
+    "Familienmitgliedschaft: Partner/in und Kinder bekommen den Hauptzahler. Beiträge, Verkauf und Arbeitsstunden aller Angehörigen laufen dann über dessen Konto und Mandat. Am Tablet bucht die Familie standardmäßig auf den Namen des Hauptzahlers – wer einen eigenen Eintrag möchte, bekommt ihn hier.": "Family membership: partner and children get the main payer. Fees, sales and work hours of all dependants then run through their account and mandate. On the tablet the family books on the main payer's name by default – anyone who wants their own entry gets it here.",
+    "über den Hauptzahler": "via the main payer",
+    "Über den Hauptzahler (nicht in der Liste)": "Via the main payer (not in the list)",
+    "über Hauptzahler": "via main payer",
+    "Verkauf am Tablet": "Sales on the tablet",
+    "Verkauf: {0}": "Sales: {0}"
   }
 }

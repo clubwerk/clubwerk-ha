@@ -116,6 +116,11 @@ function migrate() {
   add('mv_member_department', 'fee_id', 'INTEGER');                   // fest gewählter Zusatzbeitrag (sonst nach Alter)
   add('mv_member_department', 'fee_free', 'INTEGER NOT NULL DEFAULT 0');   // vom Zusatzbeitrag befreit (z. B. Trainer)
   add('mv_charge', 'member_dept_id', 'INTEGER');
+  // Verkauf bei Angehörigen: payer = über den Hauptzahler (nicht in der Tablet-Liste) · own_payer = eigener Eintrag, zahlt der Hauptzahler · own = eigener Eintrag, zahlt selbst
+  if (!has('mv_person', 'sales_mode')) {
+    db.exec("ALTER TABLE mv_person ADD COLUMN sales_mode TEXT NOT NULL DEFAULT 'payer'");
+    db.prepare("UPDATE mv_person SET sales_mode = 'own' WHERE drinks_to_payer = 0").run();   // wer bisher selbst zahlte, bleibt dabei
+  }
   flattenPayers();
 }
 /** Zahler-Ketten (Kind → Mutter → Vater) auf den Hauptzahler ziehen – die Familie hat genau einen Hauptzahler */

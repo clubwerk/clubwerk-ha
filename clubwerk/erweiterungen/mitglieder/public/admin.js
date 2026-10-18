@@ -355,13 +355,13 @@
       <div class="card"><h3>Wer zahlt?</h3>
         <div class="mv-grid" style="--c:1">
           <label class="f">Zahler<select id="pPayer"><option value="">${esc(p.name)} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
-          <label class="chk ${p.payer_id ? '' : 'hidden'}" id="pDrinksL"><input type="checkbox" id="pDrinks" ${p.drinks_to_payer !== 0 ? 'checked' : ''}> Verkaufskonto dieses Mitglieds ebenfalls beim Zahler abbuchen</label>
+          <label class="f ${p.payer_id ? '' : 'hidden'}" id="pDrinksL">Verkauf am Tablet<select id="pSales">${opt('payer', 'Über den Hauptzahler (nicht in der Liste)', p.sales_mode || 'payer')}${opt('own_payer', 'Eigener Eintrag – zahlt der Hauptzahler', p.sales_mode)}${opt('own', 'Eigener Eintrag – zahlt selbst', p.sales_mode)}</select></label>
           <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
         </div>
-        <p class="muted s">Familienmitgliedschaft: Partner/in und Kinder bekommen den Hauptzahler. Beiträge, Verkauf und Arbeitsstunden aller Angehörigen laufen dann über dessen Konto und Mandat.</p>
+        <p class="muted s">Familienmitgliedschaft: Partner/in und Kinder bekommen den Hauptzahler. Beiträge, Verkauf und Arbeitsstunden aller Angehörigen laufen dann über dessen Konto und Mandat. Am Tablet bucht die Familie standardmäßig auf den Namen des Hauptzahlers – wer einen eigenen Eintrag möchte, bekommt ihn hier.</p>
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pSave">Speichern</button></div></div>
       <div class="card"><h3>Familie</h3>
-        ${d.family.length ? `<table class="tbl">${d.family.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? ' <span class="muted s">(dieses Mitglied)</span>' : ''}</td><td>${f.age != null ? f.age + ' Jahre' : ''}</td><td class="r">${f.head ? '<span class="pill g">Hauptzahler</span>' : ''}${f.id !== id ? ` <button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>`
+        ${d.family.length ? `<table class="tbl">${d.family.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? ' <span class="muted s">(dieses Mitglied)</span>' : ''}${!f.head ? `<div class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</div>` : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : ''}</td><td class="r">${f.head ? '<span class="pill g">Hauptzahler</span>' : ''}${f.id !== id ? ` <button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="muted">Keine Angehörigen verknüpft.</p>'}
         ${head ? '<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>' + memberOptions('', id) + '</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>' : ''}
       </div></div>
@@ -372,7 +372,7 @@
     $('pPayer').onchange = () => { $('pDrinksL').classList.toggle('hidden', !val('pPayer')); $('pPay').disabled = Boolean(val('pPayer')); };
     $('pSave').onclick = async () => {
       try {
-        await api(`member/${id}/payer`, 'PUT', { payer_id: val('pPayer') ? +val('pPayer') : null, drinks_to_payer: $('pDrinks').checked });
+        await api(`member/${id}/payer`, 'PUT', { payer_id: val('pPayer') ? +val('pPayer') : null, sales_mode: val('pSales') });
         if (!$('pPay').disabled) await api('member/' + id, 'PUT', { payment: val('pPay') });
         GK.clean(); toast('Gespeichert.'); again();
       } catch (e) { fail(e); }

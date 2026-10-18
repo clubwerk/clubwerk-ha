@@ -406,6 +406,10 @@ app.get('/api/tablet/state', (req, res) => {
   const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin
     FROM members WHERE active = 1 AND deleted = 0 ORDER BY name_key(name, kind)`).all()
     .map(m => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending) }));
+  // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen) und markieren (Familie)
+  const hidden = new Set(), family = new Set();
+  for (const p of plugins.withHook('tabletMembers')) { try { const r = p.hooks.tabletMembers() || {}; (r.hidden || []).forEach(id => hidden.add(id)); (r.family || []).forEach(id => family.add(id)); } catch (e) { /* Modul-Fehler blendet nichts aus */ } }
+  members.forEach(m => { if (hidden.has(m.id)) m.hidden = true; if (family.has(m.id)) m.family = true; });
   const stock = new Map(stockList().map(s => [s.id, s]));
   const articles = db.prepare('SELECT id, name, category, price_cents, icon, image FROM articles WHERE active = 1 AND custom = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all()
     .map(a => {
@@ -414,7 +418,7 @@ app.get('/api/tablet/state', (req, res) => {
     });
   res.json({
     clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'),
-    members, articles, top: topN() ? topMembers() : [], topDays: topDays(), event: activeEvent(true), color: clubColor(), logo: logoUrl(),
+    members, articles, top: topN() ? topMembers().filter(id => !hidden.has(id)) : [], topDays: topDays(), event: activeEvent(true), color: clubColor(), logo: logoUrl(),
     tabs: openTabs(),
   });
 });
