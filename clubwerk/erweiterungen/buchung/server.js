@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS bk_series (
 CREATE TABLE IF NOT EXISTS bk_label (
   id INTEGER PRIMARY KEY, name TEXT NOT NULL, color TEXT NOT NULL DEFAULT '#2f6fd6', sort INTEGER NOT NULL DEFAULT 100, active INTEGER NOT NULL DEFAULT 1
 );
+CREATE TABLE IF NOT EXISTS bk_rights (
+  member_id INTEGER NOT NULL PRIMARY KEY REFERENCES members(id), series INTEGER NOT NULL DEFAULT 0, labels TEXT NOT NULL DEFAULT '[]', note TEXT, updated_by TEXT, updated_at TEXT
+);
 CREATE TABLE IF NOT EXISTS bk_wait (
   id INTEGER PRIMARY KEY, resource_id INTEGER NOT NULL, date TEXT NOT NULL, start TEXT NOT NULL, end TEXT NOT NULL, member_id INTEGER NOT NULL,
   notified_at TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), UNIQUE(resource_id, date, start, member_id)
@@ -107,10 +110,12 @@ function activate(ctx) {
   /** aktuelle Ämter eines Mitglieds (Mitgliederverwaltung → Ehrungen & Ämter), klein geschrieben */
   const functionsOf = mid => { try { const d = today(); return db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(mid, d, d).map(x => String(x.name).trim().toLowerCase()); } catch (e) { return []; } };
   const functionNames = () => { try { return [...new Set(db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')); } catch (e) { return []; } };
+  /** Sonderrechte einzelner Mitglieder in der App (Serien anlegen, bestimmte Labels) */
+  const rightsOf = mid => { const r = mid ? db.prepare('SELECT * FROM bk_rights WHERE member_id = ?').get(mid) : null; return { series: Boolean(r && r.series), labels: r ? J(r.labels, []).map(Number) : [] }; };
   /** darf dieses Mitglied (App, Tablet) mit dem Label buchen? */
   const labelForMember = (l, mid) => {
     if (!l || !l.active || !mid) return false;
-    if (l.use_mode === 'alle') return true;
+    if (l.use_mode === 'alle' || rightsOf(mid).labels.includes(l.id)) return true;
     if (l.use_mode !== 'auswahl') return false;
     if (J(l.use_members, []).map(Number).includes(mid)) return true;
     const f = J(l.use_functions, []).map(x => String(x).trim().toLowerCase()); if (!f.length) return false;
@@ -136,6 +141,7 @@ function activate(ctx) {
   const resource = id => db.prepare('SELECT * FROM bk_resource WHERE id = ?').get(int(id));
   const memberRow = id => db.prepare("SELECT id, name FROM members WHERE id = ? AND kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0").get(int(id));
   const people = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all();
+  const photos = ctx.require('./photos');   // Profilbilder (nur wenn das Mitglied sie für die Platzbuchung freigegeben hat)
   const lastFirst = n => { const x = ctx.require('./db').splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };   // Anzeige „Nachname, Vorname“
   const nameOf = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const bview = (b, { me = null, names = true, full = false } = {}) => {
@@ -219,7 +225,8 @@ function activate(ctx) {
     if (!mv()) return null;
     const i = await info(id); if (!i) return null;
     const c = cfg();
-    if (!c.allowed_status.includes(i.status)) return `Mit der Mitgliedschaft „${STATUS[i.status] || i.status}“ kann nicht gebucht werden.`;
+    const st = i.status || 'aktiv';   // ohne erfasste Mitgliedsdaten gilt „aktiv“
+    if (!c.allowed_status.includes(st)) return `Mit der Mitgliedschaft „${STATUS[st] || st}“ kann nicht gebucht werden.`;
     if (i.fee && c.blocked_fees.includes(i.fee.id)) return `Mit der Beitragsart „${i.fee.name}“ kann nicht gebucht werden.`;
     return null;
   }
@@ -411,7 +418,10 @@ function activate(ctx) {
       plan: date >= today() && date <= max ? dayPlan(date, { me: mid }) : { date, resources: [], bookings: [], waits: [] },
       mine: myUpcoming(mid), waits: db.prepare(`SELECT w.id, w.date, w.start, w.end, w.notified_at, r.name AS resource FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.date >= ? ORDER BY w.date, w.start`).all(mid, today()),
       people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
-      labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })) });
+      labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })),
+      rights: { series: rightsOf(mid).series },
+      series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date,
+        resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
   }));
   M.post('/book', rateLimit('bkapp', 60, 60000), ar(async (req, res) => {
     try { const r = await memberBook(req.member.id, req.body || {}, 'app'); res.json({ ok: true, ...r, ics: icsUrl(r.id) }); } catch (e) { bad(res, e.message); }
@@ -423,6 +433,43 @@ function activate(ctx) {
     await cancel(b, req.member.name);
     mailPlayers(b, 'storno', { by: req.member.id });
     res.json({ ok: true });
+  }));
+  /* Serien in der App – nur mit Sonderrecht (Verwaltung → Buchungssystem → Einstellungen → Sonderrechte) */
+  M.post('/series', rateLimit('bkser', 20, 60000), ar(async (req, res) => {
+    const mid = req.member.id, b = req.body || {};
+    if (!rightsOf(mid).series) return bad(res, 'Serien anlegen darfst du nicht – bitte bei der Verwaltung melden.', 403);
+    const why = await notAllowed(mid); if (why) return bad(res, why);
+    const r = resource(b.resource_id); if (!r || !r.active) return bad(res, 'Diesen Platz gibt es nicht (mehr).');
+    const label = b.label_id ? labelRow(b.label_id) : null;
+    if (b.label_id && !labelForMember(label, mid)) return bad(res, 'Dieses Label darfst du nicht verwenden.');
+    const s = tm(b.start), e = s == null ? null : s + int(b.minutes);
+    if (!isDate(b.date) || b.date < today()) return bad(res, 'Bitte einen Tag ab heute wählen.');
+    const ge = gridError(r, b.date, s, e, { noMax: Boolean(label && label.free_rules) }); if (ge) return bad(res, ge);
+    if (!isDate(b.until) || b.until < b.date) return bad(res, 'Bitte angeben, bis wann die Serie läuft.');
+    if (addDays(b.date, 366) < b.until) return bad(res, 'Höchstens ein Jahr am Stück.');
+    const title = (label && txt(b.title, 80)) || (label ? label.name : `${nameOf(mid)} (Serie)`);
+    const sx = { type: 'serie', title, resources: JSON.stringify([r.id]), weekdays: String(isoDow(b.date)), start: hhmm(s), end: hhmm(e), from_date: b.date, to_date: b.until, member_id: mid, note: null, label_id: label ? label.id : null };
+    const days = seriesDays(sx);
+    const busy = d => db.prepare("SELECT 1 FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ?").get(r.id, d, hhmm(e), hhmm(s));
+    if (b.preview) return res.json({ days: days.length, busy: days.filter(busy).map(deD) });
+    let id, made = 0; const skipped = [];
+    db.transaction(() => {
+      const k = Object.keys(sx);
+      id = Number(db.prepare(`INSERT INTO bk_series(${k.join(',')}, created_by) VALUES (${k.map(() => '?').join(',')}, ?)`).run(...k.map(x => sx[x]), nameOf(mid)).lastInsertRowid);
+      const ins = db.prepare("INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, title, series_id, source, created_by, label_id) VALUES (?,?,?,?,'serie',?,?,?,'app',?,?)");
+      for (const d of days) { if (busy(d)) { skipped.push(deD(d)); continue; } ins.run(r.id, d, hhmm(s), hhmm(e), mid, title, id, nameOf(mid), sx.label_id); made++; }
+    })();
+    ctx.audit({ username: 'app', name: nameOf(mid) }, 'Serie angelegt (App)', `${nameOf(mid)}: ${title}, ${r.name} ${WD[isoDow(b.date)]} ${hhmm(s)}–${hhmm(e)}, ${made} Termine${skipped.length ? `, ${skipped.length} belegt ausgelassen` : ''}`);
+    res.json({ ok: true, id, made, skipped });
+  }));
+  M.post('/series/:id/end', ar(async (req, res) => {
+    const sx = db.prepare("SELECT * FROM bk_series WHERE id = ? AND member_id = ? AND active = 1").get(int(req.params.id), req.member.id);
+    if (!sx) return bad(res, 'Diese Serie kannst du nicht beenden.');
+    const fut = db.prepare("SELECT * FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").all(sx.id, today());
+    for (const b0 of fut) await cancel(b0, nameOf(req.member.id), 'Serie beendet');
+    db.prepare('UPDATE bk_series SET active = 0, to_date = MAX(from_date, ?) WHERE id = ?').run(addDays(today(), -1), sx.id);
+    ctx.audit({ username: 'app', name: nameOf(req.member.id) }, 'Serie beendet (App)', `${sx.title}: ${fut.length} Termine entfernt`);
+    res.json({ ok: true, removed: fut.length });
   }));
   M.post('/wait', rateLimit('bkapp', 60, 60000), (req, res) => {
     const c = cfg(), b = req.body || {}, mid = req.member.id;
@@ -443,7 +490,7 @@ function activate(ctx) {
     const c = cfg();
     const ok = new Set((await eligiblePeople(0)).map(p => p.id));
     res.json({ today: today(), now: hhmm(nowMin()), booking: c.tablet_booking, rules: c.rules, max_partners: c.max_partners, max_guests: c.max_guests, plan: dayPlan(today(), { me: null }),
-      people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(p => ({ ...p, ln: lastFirst(p.name) })) : [] });
+      people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(p => ({ ...p, ln: lastFirst(p.name), ph: photos.version(p.id, 'buchung') })) : [] });
   }));
   const tabletMember = (req, res) => {
     const mid = ctx.auth.checkTabletToken((req.body || {}).token);
@@ -575,7 +622,7 @@ function activate(ctx) {
     const now = `${today()} ${hhmm(nowMin())}`;
     let rows = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE ${w.join(' AND ')} ORDER BY ${order} LIMIT 5000`).all(...a).map(b => {
       const lab = labelOf(b.label_id), partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
-      const people = [b.member_id, ...partners].filter(Boolean).map(id => ({ id, name: lastFirst(nameOf(id)) }));
+      const people = [b.member_id, ...partners].filter(Boolean).map(id => ({ id, name: lastFirst(nameOf(id)), ph: photos.version(id, 'buchung') }));
       return { id: b.id, date: b.date, start: b.start, end: b.end, type: b.type, resource: b.rname, resource_id: b.resource_id, label: lab ? { name: lab.name, color: lab.color } : null, title: b.title,
         people, guests: guests.map(g => g.name + (g.partner ? ' (Partnerverein)' : '')), fee_cents: b.fee_cents, source: b.source, created_by: b.created_by, created_at: b.created_at,
         status: b.status === 'storniert' ? 'storniert' : `${b.date} ${b.end}` <= now ? 'abgeschlossen' : `${b.date} ${b.start}` <= now ? 'laeuft' : 'anstehend',
@@ -784,6 +831,19 @@ function activate(ctx) {
     if (db.prepare('SELECT 1 FROM bk_booking WHERE label_id = ?').get(cur.id) || db.prepare('SELECT 1 FROM bk_series WHERE label_id = ?').get(cur.id)) return bad(res, 'Das Label wird schon verwendet – stattdessen auf „inaktiv“ setzen.');
     db.prepare('DELETE FROM bk_label WHERE id = ?').run(cur.id); res.json({ ok: true });
   });
+
+  /* ---------- Sonderrechte einzelner Mitglieder (App) ---------- */
+  admin.get('/rights', P, (req, res) => res.json(db.prepare('SELECT r.*, m.name FROM bk_rights r JOIN members m ON m.id = r.member_id ORDER BY name_key(m.name, m.kind)').all().map(r => ({ ...r, series: Boolean(r.series), labels: J(r.labels, []) }))));
+  admin.put('/rights', PE, (req, res) => {
+    const b = req.body || {}; const m = memberRow(b.member_id); if (!m) return bad(res, 'Bitte ein Mitglied wählen.');
+    const ls = [...new Set((Array.isArray(b.labels) ? b.labels : []).map(Number))].filter(id => labelRow(id));
+    if (!b.series && !ls.length) { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(m.id); return res.json({ ok: true, removed: true }); }
+    db.prepare('INSERT INTO bk_rights(member_id, series, labels, note, updated_by, updated_at) VALUES (?,?,?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET series = excluded.series, labels = excluded.labels, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at')
+      .run(m.id, b.series ? 1 : 0, JSON.stringify(ls), txt(b.note, 120) || null, uname(req), nowTs());
+    ctx.audit(req.user, 'Buchungssystem: Sonderrechte', `${m.name}: ${[b.series ? 'Serien' : '', ...ls.map(id => labelRow(id).name)].filter(Boolean).join(', ')}`);
+    res.json({ ok: true });
+  });
+  admin.delete('/rights/:id', PE, (req, res) => { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(int(req.params.id)); res.json({ ok: true }); });
 
   /* ---------- Einstellungen ---------- */
   admin.get('/settings', P, (req, res) => res.json(cfg()));

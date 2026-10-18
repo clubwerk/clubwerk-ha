@@ -404,6 +404,12 @@ const DRINK_TABLET = /^\/api\/tablet\/(state|unlock|undo|book|account|pin|member
 app.use((req, res, next) => (DRINK_TABLET.test(normPath(req.path)) && !plugins.isActive('getraenke')
   ? res.status(404).json({ error: 'Das Modul „Verkauf“ ist ausgeschaltet.' }) : next()));
 
+/* Profilbilder am Tablet – nur wenn das Mitglied sie für diesen Zweck freigegeben hat (verkauf · buchung · helfer) */
+app.get('/api/tablet/photo/:id', (req, res) => {
+  const u = String(req.query.u || '');
+  if (!['verkauf', 'buchung', 'helfer'].includes(u)) return res.status(404).end();
+  require('./photos').send(res, int(req.params.id), u);
+});
 app.get('/api/tablet/artikelbild/:file', (req, res) => {
   const p = artIcons.imagePath(DATA_DIR, req.params.file);
   if (!p) return res.status(404).end();
@@ -416,7 +422,7 @@ app.get('/api/tablet/artikelbild/:file', (req, res) => {
 app.get('/api/tablet/state', (req, res) => {
   const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin
     FROM members WHERE active = 1 AND deleted = 0 ORDER BY name_key(name, kind)`).all()
-    .map(m => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending) }));
+    .map(m => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending), ph: m.kind === 'mitglied' ? require('./photos').version(m.id, 'verkauf') : null }));
   // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen) und markieren (Familie)
   const hidden = new Set(), family = new Set();
   for (const p of plugins.withHook('tabletMembers')) { try { const r = p.hooks.tabletMembers() || {}; (r.hidden || []).forEach(id => hidden.add(id)); (r.family || []).forEach(id => family.add(id)); } catch (e) { /* Modul-Fehler blendet nichts aus */ } }
@@ -2085,6 +2091,15 @@ admin.get('/settle-history', need('abrechnung'), (req, res) => {
 /* Getränke für andere Module (Mitgliederverwaltung: Einzug per Lastschrift) – gleiche Regeln wie die Abrechnung oben */
 const drinks = {
   active: () => plugins.isActive('getraenke'),
+  /** Veranstaltung im Verkauf anlegen (z. B. aus einem Dienstplan) – Artikelliste mit allen aktiven Artikeln zum Normalpreis → id */
+  createEvent(name, date, user) {
+    const n = cleanName(name, 80); if (!n) throw new Error('Name fehlt.');
+    const id = Number(db.prepare('INSERT INTO events(name, date) VALUES (?,?)').run(n, isDate(date) ? date : today()).lastInsertRowid);
+    saveEventArticles(id, db.prepare(`SELECT id AS articleId, price_cents FROM articles WHERE active = 1 AND custom = 0 AND deleted = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)`).all());
+    audit(user, 'Veranstaltung angelegt', `${n} (aus Dienstplan)`);
+    return id;
+  },
+  event: id => db.prepare('SELECT id, name, date, active, closed_at FROM events WHERE id = ?').get(int(id)) || null,
   /** offene Beträge je Konto zum jetzigen Stand → { asOf, upTo, rows: [{ id, name, kind, total_cents, items, since }] } */
   open() { const asOf = nowTs(), upTo = maxBookingId(); return { asOf, upTo, rows: balances(asOf, upTo) }; },
   /** Konten als abgerechnet markieren (nur Buchungen bis asOf/upTo) → { batch, cents, perMember: { id: cents } } */

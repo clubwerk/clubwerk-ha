@@ -111,7 +111,7 @@ function detail(id, user) {
   let drinksOpen = null;
   try { if (C.drinks.active()) { const o = C.drinks.open().rows.find(r => r.id === id); drinksOpen = o ? o.total_cents : 0; } } catch (e) { drinksOpen = null; }
   return {
-    person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id) },
+    person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id), photo: C.require('./photos').version(id) },
     bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
     departments: deptRows(id), fees: feeRows(id), family: famRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id),
@@ -359,7 +359,39 @@ function activate(ctx) {
   admin.post('/member', P, (req, res) => {
     const pi = personInput(req.body || {}); if (pi.error) return bad(res, pi.error);
     if (!pi.fields.first_name) return bad(res, 'Bitte den Vornamen eintragen.');
+    // Neue Mitglieder nur vollständig: erreichbar (Adresse, E-Mail, Handy), Beitrag zugeordnet, Zahlung möglich (Lastschrift mit Mandat oder Rechnung/bar)
+    const b = req.body || {}, f0 = pi.fields, full = !req.mvScope;
+    const miss = [['last_name', 'Nachname'], ['birth_date', 'Geburtsdatum'], ['street', 'Straße'], ['zip', 'PLZ'], ['city', 'Ort'], ['email', 'E-Mail'], ['mobile', 'Handynummer']].filter(([k]) => !f0[k]).map(([, l]) => l);
+    if (miss.length) return bad(res, `Für ein neues Mitglied fehlen noch: ${miss.join(', ')}.`);
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(f0.email)) return bad(res, 'Bitte eine gültige E-Mail-Adresse eintragen.');
+    if (String(f0.mobile).replace(/\D/g, '').length < 7) return bad(res, 'Bitte eine gültige Handynummer eintragen.');
+    let fee = null, bank = null;
+    const entry = f0.entry_date || today();
+    if (full) {
+      fee = ctx.db.prepare("SELECT * FROM mv_fee WHERE id = ? AND active = 1 AND kind != 'zusatz'").get(int(b.fee_id));
+      if (!fee) return bad(res, 'Bitte einen Beitrag zuordnen.');
+      const ae = feeAgeError(fee, { name: `${f0.first_name} ${f0.last_name}`, birth_date: f0.birth_date }, entry); if (ae) return bad(res, ae);
+      const pay = store.PAYMENT[f0.payment] ? f0.payment : 'lastschrift';
+      if (pay === 'lastschrift') {
+        if (!req.user.perms.includes('mitglieder_bank')) return bad(res, 'Bankdaten darf nur eintragen, wer das Recht „Bankdaten“ hat – sonst Zahlart „Rechnung“ wählen.', 403);
+        const ib = sepa.checkIban(b.iban); if (!ib.ok) return bad(res, ib.error || 'Bitte eine gültige IBAN eintragen.');
+        const holder = one(b.holder, 70) || `${f0.first_name} ${f0.last_name}`;
+        if (!isDate(b.mandate_date) || b.mandate_date > today()) return bad(res, 'Bitte das Datum der Unterschrift unter dem SEPA-Mandat angeben.');
+        bank = { iban: ib.iban, holder, mandate_date: b.mandate_date, bic: (sepa.checkBic(b.bic || '').bic) || null };
+      }
+    }
     const id = createPerson(pi.fields, uname(req));
+    if (fee) {
+      ctx.db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES (?,?,?,?,?,?,?)').run(id, fee.id, entry, null, null, null, null);
+      store.hist(id, uname(req), 'Beitrag', null, `${fee.name} ab ${deD(entry)}`);
+    }
+    if (bank) {
+      const no = (ctx.db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(id) || {}).member_no || String(id);
+      ctx.db.prepare('INSERT INTO mv_bank(member_id, holder, iban, bic, bank, mandate_ref, mandate_date, mandate_revoked, updated_at) VALUES (?,?,?,?,?,?,?,?,?)').run(id, bank.holder, bank.iban, bank.bic, null, store.mandateRefFor(no), bank.mandate_date, null, nowTs());
+      store.hist(id, uname(req), 'Bankverbindung', null, sepa.maskIban(bank.iban));
+    }
+    if (full && b.department_id && ctx.db.prepare('SELECT 1 FROM mv_department WHERE id = ? AND active = 1').get(int(b.department_id)))
+      ctx.db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, status, booked_until) VALUES (?,?,?,?,?)').run(id, int(b.department_id), entry, 'aktiv', store.zusatzStart(int(b.department_id), entry));
     if (req.mvScope) {   // Abteilungsadmin: neues Mitglied gehört gleich zu seiner Abteilung
       const dep = Number((req.body || {}).department_id) || req.mvScope[0];
       const entry = pi.fields.entry_date || today();

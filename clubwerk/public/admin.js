@@ -1945,7 +1945,7 @@
       const r = await api(`app/member/${memberId}/invite`, 'POST', {});
       const url = `${appUrl(info)}/#i=${r.token}`;
       const q = await api('qr', 'POST', { url });
-      const mods = Object.keys(info.access || {}).map(k => (info.modules.find(m => m.id === k) || {}).label).filter(Boolean);
+      const mods = info.modules.filter(m => (info.granted || {})[m.id]).map(m => m.label || m.name);
       dialog(`<h2>QR-Code für ${esc(r.member)}</h2>
         <p class="muted">Mit dem Handy von ${esc(r.member)} <b>direkt hier am Bildschirm</b> scannen (Kamera-App). Gilt <b>einmal</b> und ${hoursTxt(r.expiresHours)}. Dabei legt das Mitglied seine persönliche App-PIN fest. Den Code nicht abfotografieren oder weiterschicken – wer ihn zuerst scannt, bekommt den Zugang.
         ${mods.length ? `Freigeschaltet: <b>${mods.map(esc).join(', ')}</b>.` : '<b>Noch kein Bereich freigeschaltet</b> – bitte danach unter „Mitglieder-App“ ankreuzen.'}</p>
@@ -1967,11 +1967,11 @@
   async function appBox(el, memberId) {
     const info = await api('app/member/' + memberId);
     if (!info.modules.length) { el.remove(); return; }
-    el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angekreuzten Bereiche. Änderungen hier gelten sofort.</p>
+    el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angehakten Bereiche. Änderungen hier gelten sofort.</p>
       <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
-      ${info.modules.map(m => { const a = info.access[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${a ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
-        ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
-        ${a && a.blocked ? '<span class="pill r">gesperrt</span>' : ''}</div>`; }).join('')}
+      ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
+        ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a && g ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
+        ${a && a.blocked && !m.open ? '<span class="pill r">gesperrt</span>' : ''}</div>`; }).join('')}
       <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">${info.device ? 'Neuer QR-Code' : 'QR-Code erzeugen'}</button>${info.device ? '<button class="btn small" id="apRm">Handy entfernen</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
@@ -2015,12 +2015,12 @@
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
       <div class="card"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
-          ${mods.map(m => `<label class="chk" style="height:42px"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}
-          <button class="btn primary" id="apGo">Freischalten & QR-Code</button></div></div>
+          <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & QR-Code</button></div>
+        <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
       <div class="card"><h3>Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3>
         ${r.rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th>zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr><td><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
-            ${mods.map(m => { const a = x.access[m.id]; return `<td><label class="chk"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${a ? 'checked' : ''}>${a && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</label></td>`; }).join('')}
+            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td><label class="chk"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label></td>`; }).join('')}
             <td class="muted s">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> ${x.device ? `<button class="btn small" data-ad="${x.member_id}">Handy entfernen</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
@@ -2043,7 +2043,8 @@
       const id = Number($('apNew').value);
       if (!id) return toast('Bitte zuerst ein Mitglied wählen.', true);
       try {
-        for (const c of document.querySelectorAll('[data-nm]')) if (c.checked) await api(`app/member/${id}/access`, 'PUT', { module: c.dataset.nm, grant: true });
+        // angehakte Bereiche freischalten; „für alle“-Bereiche ohne Haken für dieses Mitglied abschalten
+        for (const c of document.querySelectorAll('[data-nm]')) { const m = mods.find(x => x.id === c.dataset.nm); if (c.checked || (m && m.open)) await api(`app/member/${id}/access`, 'PUT', { module: c.dataset.nm, grant: c.checked }); }
         appInvite(id, () => RENDER.app().catch(fail));
       } catch (e) { fail(e); }
     };
@@ -2159,7 +2160,7 @@
 
   const PERM_SHORT = { lieferungen: 'Lieferungen', bestand: 'Bestand', bestellung: 'Bestellung', buchungen: 'Buchungen', export: 'Export',
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
-    mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', arbeitseinsatz: 'Arbeitseinsatz',
+    mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', arbeitseinsatz: 'Helferdienste',
     zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen' };
   const permPills = list => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || p)}</span>`).join(' ');
   RENDER.benutzer = async () => {

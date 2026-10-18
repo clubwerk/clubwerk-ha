@@ -23,6 +23,7 @@
   /* Initialen: ruhige Pastellfarben je Name, dunkel automatisch abgedunkelt */
   .av { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 22px; background: var(--ab, var(--brand-soft)); color: var(--af, var(--brand-ink));
     display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-style: normal; }
+  .av { overflow: hidden; } .av img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
   :root[data-theme="dark"] .av { background: color-mix(in srgb, var(--af, var(--brand)) 26%, transparent); color: color-mix(in srgb, var(--af, var(--brand)) 45%, #fff); }
   .av.sq { border-radius: 12px; width: 40px; height: 40px; flex-basis: 40px; }
   .lock { width: 14px; height: 14px; color: var(--faint); flex: none; }

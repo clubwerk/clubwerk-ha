@@ -83,12 +83,14 @@ function memberState(memberId) {
   return {
     device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at } : null,
     access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked) }])),
+    // je Bereich angehakt? „für alle“-Bereiche gelten, bis sie für dieses Mitglied abgeschaltet werden
+    granted: Object.fromEntries(activeModules().map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
   };
 }
-const moduleInfo = () => activeModules().filter(([, m]) => !m.open).map(([id, m]) => {
+const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
   try { options = m.hooks.accessOptions ? m.hooks.accessOptions() : null; } catch (e) { options = null; }
-  return { id, name: m.name, label: m.label, perm: m.perm, options };
+  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), options: m.open ? null : options };
 });
 
 /* ---------- Port der Mitglieder-App ---------- */
@@ -118,7 +120,7 @@ function startPort({ rateLimit }) {
     next();
   });
   // Unterschriften (Online-Antrag, neue Bankverbindung) brauchen mehr Platz als die übrigen Anfragen
-  app.use(['/api/p', '/api/m/mitglieder'], express.json({ limit: '600kb' }));
+  app.use(['/api/p', '/api/m/mitglieder', '/api/photo'], express.json({ limit: '600kb' }));
   app.use(express.json({ limit: '10kb' }));
   const relay = (p, t) => async (req, res) => {
     try {
@@ -156,7 +158,7 @@ function startPort({ rateLimit }) {
   api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', tunnel: Boolean(req.viaTunnel) }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
-    const sections = w ? activeModules().filter(([id, m]) => m.open || access.get(w.memberId, id)).map(([id, m]) => {
+    const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
@@ -196,6 +198,24 @@ function startPort({ rateLimit }) {
     const c = invites.check(SCOPE, dev(req), (req.body || {}).pin);
     if (!c.ok) return res.status(c.status).json({ error: c.error, pin: c.pin, device: c.device });
     res.json({ ok: true });
+  });
+  /* Profilbild: das Mitglied lädt es selbst hoch und bestimmt, wo es erscheint */
+  const photos = require('./photos');
+  const meOr403 = (req, res) => { const w = invites.whoIs(SCOPE, dev(req)); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
+  const modOn = id => { try { return require('./plugins').isActive(id); } catch (e) { return false; } };
+  api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, modOn)); });
+  api.put('/photo', rateLimit('appphoto', 20, 3600000), (req, res) => {
+    const w = meOr403(req, res); if (!w) return;
+    const b = req.body || {};
+    try { if (b.data) photos.save(w.memberId, b.data, b.use, { username: 'app', name: w.name }); else photos.setUse(w.memberId, b.use); res.json(photos.info(w.memberId, modOn)); }
+    catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  api.delete('/photo', (req, res) => { const w = meOr403(req, res); if (!w) return; photos.remove(w.memberId, { username: 'app', name: w.name }); res.json({ ok: true }); });
+  api.get('/photo/img', (req, res) => { const w = meOr403(req, res); if (w) photos.send(res, w.memberId, null); });
+  api.get('/photo/of/:id', (req, res) => {   // Bilder anderer (Platzbuchung, Helferdienste) – nur gekoppelte Handys, nur mit Freigabe
+    const w = meOr403(req, res); if (!w) return;
+    const u = String(req.query.u || ''); if (!['buchung', 'helfer'].includes(u)) return res.status(404).end();
+    photos.send(res, parseInt(req.params.id, 10), u);
   });
   // Module: /api/m/<id>/… – nur gekoppeltes Gerät mit Freischaltung für dieses Modul
   api.use('/m/:id', (req, res, next) => {
@@ -237,8 +257,11 @@ function startPort({ rateLimit }) {
 
 /* ---------- Verwaltung ---------- */
 function adminRoutes(admin, { bad, need, auth }) {
+  // Profilbild in der Verwaltung ansehen und bei Bedarf entfernen
+  admin.get('/photo/:id', need('konten', 'mitglieder'), (req, res) => require('./photos').send(res, parseInt(req.params.id, 10), null));
+  admin.delete('/photo/:id', need('konten', 'mitglieder'), (req, res) => { require('./photos').remove(parseInt(req.params.id, 10), req.user); res.json({ ok: true }); });
   // Wer darf? „Mitglieder“ (konten) oder das Recht des jeweiligen Moduls
-  const permsAll = () => ['konten', ...moduleInfo().map(m => m.perm).filter(Boolean)];
+  const permsAll = () => ['konten', ...moduleInfo().filter(m => !m.open).map(m => m.perm).filter(Boolean)];
   // Freischalten für einen Bereich nur mit dem Recht DIESES Bereichs (z. B. Türen nur mit dem Recht „Zugang“) –
   // „Mitglieder“ allein reicht nur für Bereiche ohne eigenes Recht.
   const mayModule = (req, module) => {
@@ -248,7 +271,8 @@ function adminRoutes(admin, { bad, need, auth }) {
   // QR-Code/Handy eines Mitglieds: nur, wer alle Bereiche verwalten darf, die das Mitglied hat
   // (sonst könnte jemand mit nur „Beregnung“ das Handy eines Mitglieds mit Türzugang übernehmen)
   const mayMember = (req, memberId) => {
-    const mods = db.prepare('SELECT module FROM member_access WHERE member_id = ?').all(memberId).map(r => r.module);
+    // abgeschaltete „für alle“-Bereiche geben keinen Zugang → zählen nicht
+    const mods = db.prepare('SELECT module, blocked FROM member_access WHERE member_id = ?').all(memberId).filter(r => !(r.blocked && (modules.get(r.module) || {}).open)).map(r => r.module);
     return mods.every(mod => mayModule(req, mod));
   };
   admin.get('/app', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -290,6 +314,12 @@ function adminRoutes(admin, { bad, need, auth }) {
     if (!mayModule(req, b.module)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
     const m = db.prepare("SELECT name FROM members WHERE id = ? AND deleted = 0 AND kind = 'mitglied'").get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
+    if (mod.open && (b.grant === false || b.grant === true)) {
+      // Bereich „für alle“: Haken weg = für dieses Mitglied abgeschaltet, Haken dran = wieder wie alle
+      if (b.grant) access.remove(id, b.module); else access.set(id, b.module, { blocked: 1 });
+      audit(req.user, `${mod.name}: ${b.grant ? 'in der App freigeschaltet' : 'in der App abgeschaltet'}`, m.name);
+      return res.json({ ok: true, reinvite: false, ...memberState(id) });
+    }
     if (b.grant === false) {
       access.remove(id, b.module);
       audit(req.user, `${mod.name}: Freischaltung entzogen`, m.name);

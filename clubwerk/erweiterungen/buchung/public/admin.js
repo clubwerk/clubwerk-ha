@@ -94,6 +94,7 @@
       .bk-av { width: 32px; height: 32px; flex: none; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12.5px; font-weight: 800; letter-spacing: .02em; background-size: cover; background-position: center; }
       .bk-lgt { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
       @media (max-width: 700px) { .bk-lg tr.bk-lgd { display: block !important; border: 0 !important; background: none !important; padding: 0 !important; } .bk-lg tr.bk-lgd td { display: block !important; } }
+      .bk-av { overflow: hidden; } .bk-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .bk-fl { flex-direction: row !important; align-items: center; gap: 8px !important; }
       .bk-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
       .bk-kpi { margin: 0 !important; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
@@ -285,6 +286,7 @@
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select><span class="bk-chips" id="bdPc"></span></label>
         <label class="f bd-b w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"><span class="muted s" style="font-weight:500">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label></label>
         <label class="f w2" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}"></label>
+        ${!ed && can('buchung_serien') ? '<label class="f" id="bdRL">wöchentlich wiederholen bis<input id="bdR" type="date"></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">leer = nur dieser Termin · sonst jede Woche am selben Wochentag, belegte Tage werden ausgelassen</div>' : ''}
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
     const paint = () => {
@@ -306,6 +308,12 @@
       const body = { type, resource_id: +val('bdR'), date: val('bdD'), start: val('bdS'), end: val('bdE'), title: val('bdTi'), note: val('bdN'), force, label_id: +val('bdL') || null,
         member_id: type === 'buchung' ? +val('bdM') || null : null, partners: type === 'buchung' ? partners.slice() : [],
         guests: type === 'buchung' ? val('bdG').split(',').map(x => x.trim()).filter(Boolean).map(name => ({ name, partner: $('bdGp').checked })) : [] };
+      if (!ed && $('bdR') && val('bdR')) {   // Serie aus dem Kalender: gleicher Wochentag bis zum gewählten Datum, belegte Tage werden ausgelassen
+        const dw = new Date(body.date + 'T12:00:00').getDay() || 7;
+        const sb = { type: type === 'sperre' ? 'sperre' : 'serie', resources: [body.resource_id], weekdays: String(dw), start: body.start, end: body.end, from_date: body.date, to_date: val('bdR'), title: body.title, label_id: body.label_id, member_id: body.member_id, note: body.note };
+        try { const r = await api('series', 'POST', sb); closeDialog(); toast(`${r.made} Termine angelegt${r.skipped ? `, ${r.skipped} belegte ausgelassen` : ''}${r.cancelled ? `, ${r.cancelled} Buchungen storniert` : ''}.`); after(); } catch (e) { fail(e); }
+        return;
+      }
       try { if (ed) await api('bookings/' + ed.id, 'PUT', body); else await api('bookings', 'POST', body); closeDialog(); toast(ed ? 'Gespeichert.' : type === 'sperre' ? 'Gesperrt.' : 'Gebucht.'); after(); }
       catch (e) {
         if (e.status === 409 || /liegen in dieser Zeit/.test(e.message)) {
@@ -465,7 +473,7 @@
   /* ---------------------------------------------------------------- Buchungsprotokoll */
   const AVC = ['#2f6fd6', '#8a4fd6', '#1f9a6b', '#e07b16', '#c2185b', '#00838f', '#6d4c41', '#5e35b1', '#b22a2a', '#2e7d32'];
   const avatar = p => { const parts = String(p.name).split(',').map(x => x.trim()); const ini = ((parts[1] || '')[0] || '') + ((parts[0] || '')[0] || '');
-    return `<span class="bk-av" style="background:${AVC[p.id % AVC.length]}">${esc(ini.toUpperCase() || '?')}</span>`; };
+    return p.ph ? `<span class="bk-av"><img src="api/admin/photo/${p.id}?v=${esc(p.ph)}" alt="" loading="lazy"></span>` : `<span class="bk-av" style="background:${AVC[p.id % AVC.length]}">${esc(ini.toUpperCase() || '?')}</span>`; };
   const ago = ts => { const d = (Date.now() - Date.parse(String(ts).replace(' ', 'T'))) / 1000; if (d < 3600) return `vor ${Math.max(1, Math.round(d / 60))} Min.`; if (d < 86400) return `vor ${Math.round(d / 3600)} Std.`; if (d < 86400 * 45) return `vor ${Math.round(d / 86400)} Tagen`; if (d < 86400 * 365) return `vor ${Math.round(d / 86400 / 30)} Monaten`; return `vor ${(d / 86400 / 365).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Jahren`; };
   async function showLog(el) {
     st.lg = st.lg || { f: 'alle', year: new Date().getFullYear(), resource: '', sort: 'termin', q: '' };
@@ -674,8 +682,28 @@
       <div class="card"><h3>Von unterwegs buchen</h3>
         <p class="muted s" style="margin-top:0">Damit Mitglieder auch außerhalb des Vereins-WLANs buchen können, wird nur die Mitglieder-App über einen <b>Cloudflare Tunnel</b> erreichbar gemacht – ohne offenen Port am Router; Verwaltung und Tablet bleiben intern. Einrichtung: Einstellungen → Sicherheit → „Externer Zugang“ und die Anleitung in der Dokumentation.</p></div>
       <div class="row" style="justify-content:flex-end"><button class="btn primary" id="bsOk">Speichern</button></div>
+      <div class="card" id="bkRights" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr) oder mit bestimmten Labels buchen – zusätzlich zu den Rechten am Label selbst.</p>
+        <div class="bk-grid" style="--c:4"><label class="f w2">Mitglied<select id="rtM"><option value="">– Mitglied wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
+          <label class="chk w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rtS"> darf Serien anlegen</label>
+          <div class="f bkf wall"><span>darf mit diesen Labels buchen</span><div class="bk-chips">${st.meta.labels.filter(l => l.active).map(l => `<label><input type="checkbox" data-rl="${l.id}"><i class="bk-dot" style="background:${l.color};margin-right:0"></i>${esc(l.name)}</label>`).join('')}</div></div></div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="rtOk">Sonderrechte speichern</button></div>
+        <div id="rtList" style="margin-top:8px"></div></div>
       <div id="bkFunc"></div>`;
     GK.watch(el);
+    const rtLoad = async () => {
+      const l = await api('rights');
+      const lab = id => st.meta.labels.find(x => x.id === id);
+      $('rtList').innerHTML = l.length ? `<table class="tbl bk-tbl"><tr><th>Mitglied</th><th>Sonderrechte</th><th></th></tr>${l.map(r => `<tr><td><b>${esc(GK.lastFirst(r.name, 'mitglied'))}</b></td>
+        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.labels.map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
+        <td class="r nw"><button class="btn small" data-rte="${r.member_id}">Bearbeiten</button> <button class="btn small ghost" data-rtd="${r.member_id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch niemand mit Sonderrechten.</p>';
+      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
+      $('rtList').querySelectorAll('[data-rtd]').forEach(b => { b.onclick = async () => { try { await api('rights/' + b.dataset.rtd, 'DELETE'); toast('Sonderrechte entfernt.'); rtLoad(); } catch (e) { fail(e); } }; });
+    };
+    $('rtOk').onclick = async () => {
+      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl) });
+        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; $('rtS').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtLoad(); } catch (e) { fail(e); }
+    };
+    rtLoad().catch(fail);
     $('bsOk').onclick = async () => {
       const b = { guest_fee_cents: toCents(val('bs_guest_fee') || '0'), rules: $('bs_rules').value, cancel_before_min: +val('bs_cancel_before_min') };
       for (const k of ['advance_days', 'max_open_platz', 'max_open_artikel', 'max_partners', 'max_guests', 'max_waits']) b[k] = +val('bs_' + k);

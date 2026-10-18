@@ -85,7 +85,7 @@
         const f = (k, l, t = 'text') => `<label>${l}</label><input class="vh-input" data-k="${k}" type="${t}" value="${esc(p[k] || '')}">`;
         const E = (d.perms && d.perms.edit) || {};
         const sh = sheet(`<h2>Kontaktdaten ändern</h2><p>Der Vorstand bestätigt die Änderung.</p>${E.anschrift ? `${f('street', 'Straße und Hausnummer')}<div class="vh-row" style="gap:10px"><div style="flex:1">${f('zip', 'PLZ')}</div><div style="flex:2">${f('city', 'Ort')}</div></div>` : ''}
-          ${E.kontakt ? `${f('email', 'E-Mail', 'email')}${f('mobile', 'Mobil', 'tel')}` : ''}<div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Senden</button></div>`);
+          ${E.kontakt ? `${f('email', 'E-Mail', 'email')}${f('mobile', 'Mobil', 'tel')}` : ''}${!E.kontakt || !E.anschrift ? `<p class="vh-note" style="text-align:left;margin:10px 0 0">${!E.kontakt ? 'E-Mail und Handynummer' : 'Die Anschrift'} kann nur der Vorstand ändern.</p>` : ''}<div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Senden</button></div>`);
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelector('#mdOk').onclick = async () => {
           const body = {}; sh.querySelectorAll('[data-k]').forEach(i => { body[i.dataset.k] = i.value.trim(); });

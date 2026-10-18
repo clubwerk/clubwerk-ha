@@ -1,19 +1,19 @@
 {
   "id": "arbeitseinsatz",
-  "name": "Arbeitseinsatz & Thekendienst",
-  "version": "1.3.1",
-  "kurz": "Arbeitsstunden planen und abrechnen.",
-  "beschreibung": "Arbeitseinsätze und Thekendienste planen, Mitglieder tragen sich in der Mitglieder-App ein, stempeln am Tablet oder melden ihre Stunden. Soll je Mitglied (Vorgabe, Beitragsart, Alter, Ausnahmen), Familien gemeinsam, Erinnerungen per E-Mail. Nicht geleistete Stunden rechnet die Mitgliederverwaltung im Beitragslauf mit dem Stundensatz ab.",
+  "name": "Helferdienste",
+  "version": "2.0.0",
+  "kurz": "Dienstpläne für Veranstaltungen, Arbeitseinsätze und Arbeitsstunden.",
+  "beschreibung": "Dienstpläne für Veranstaltungen (z. B. Kirmes, Turnier): Tage mit Schichten wie Theke, Kasse, Aufbau – Mitglieder tragen sich in der Mitglieder-App ein, Austragen bis 24 Stunden vorher. Dazu Arbeitseinsätze und dauerhafte Dienste wie der Thekendienst, Ein- und Ausstempeln am Tablet, Stunden melden. Soll je Mitglied (Vorgabe, Beitragsart, Alter, Befreiung), Familien gemeinsam, Erinnerungen per E-Mail. Nicht geleistete Stunden rechnet die Mitgliederverwaltung im Beitragslauf ab.",
   "minApp": "3.1.0",
   "perms": {
-    "arbeitseinsatz": "Arbeitseinsatz: Einsätze, Stunden bestätigen, Soll & Einstellungen"
+    "arbeitseinsatz": "Helferdienste: Dienstpläne, Einsätze, Stunden bestätigen, Soll & Einstellungen"
   },
   "tablet": {
-    "label": "Arbeitseinsatz",
+    "label": "Helferdienste",
     "seite": ""
   },
   "verwaltung": {
-    "label": "Arbeitseinsatz",
+    "label": "Helferdienste",
     "recht": "arbeitseinsatz",
     "seite": "arbeitseinsatz"
   },
@@ -27,7 +27,9 @@
     "aw_signup",
     "aw_entry",
     "aw_target",
-    "aw_exempt"
+    "aw_exempt",
+    "aw_plan",
+    "aw_extern"
   ],
   "einstellungen": [
     "ext_arbeitseinsatz_"

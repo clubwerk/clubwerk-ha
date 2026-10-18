@@ -1,11 +1,11 @@
 'use strict';
-/* Verwaltung „Arbeitseinsatz & Thekendienst“: Übersicht · Einsätze · Stunden · Einstellungen */
+/* Verwaltung „Helferdienste“: Übersicht · Dienstpläne · Einzeltermine · Stunden · Einstellungen */
 (() => {
   const GK = window.GK;
   const { $, esc, euro, toast, fail, dialog, closeDialog, ask, deDate, deTime, toCents, centsToInput } = GK;
   const api = (url, method, body) => GK.api('x/arbeitseinsatz/' + url, method, body);
   const BASE = 'api/admin/x/arbeitseinsatz/';
-  const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', sonstiges: 'Sonstiges' };
+  const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Sonstiges' };
   const EST = { laeuft: ['b', 'läuft'], offen: ['a', 'zu bestätigen'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'] };
   const SRC = { verwaltung: 'Verwaltung', app: 'App', tablet: 'Tablet' };
   const st = { meta: null, year: null, past: false, es: 'offen' };
@@ -35,6 +35,23 @@
       .aw-ev h4 { margin: 0 0 4px; font-size: 15.5px; } .aw-ev .muted { font-size: 13px; }
       .aw-ev .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .aw-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+      .aw-pl .aw-prog { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+      .aw-back { margin-bottom: 12px; }
+      .aw-phead { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin: 0 0 16px; }
+      .aw-phead h3 { margin: 0 0 4px; font-size: 20px; } .aw-phead .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .aw-phead .acts .btn { min-height: 40px; height: 40px; }
+      .aw-note { display: flex; flex-direction: column; gap: 4px; white-space: pre-wrap; }
+      .aw-dh { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; } .aw-dh h3 { margin: 0; }
+      .aw-sh { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line-soft); }
+      .aw-dh + .aw-sh { border-top: 0; } .aw-sh.off { opacity: .5; }
+      .aw-when b { font-size: 14.5px; font-variant-numeric: tabular-nums; line-height: 24px; }
+      .aw-what { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px; } .aw-what b { font-size: 15px; }
+      .aw-sh .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+      .pill.aw-free { background: transparent; border: 1px dashed var(--line); color: var(--faint); }
+      .aw-xadd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; margin-top: 8px; } .aw-xadd .btn { height: 40px; min-height: 40px; }
+      .pill.aw-ph { padding-left: 2px; display: inline-flex; align-items: center; gap: 6px; } .pill.aw-ph img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
+      .aw-lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
+      @media (max-width: 760px) { .aw-sh { grid-template-columns: 1fr; gap: 6px; } .aw-sh .acts { justify-content: flex-start; } .aw-phead .acts { justify-content: flex-start; } }
       .aw-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; max-height: 46vh; overflow: auto; padding: 4px 0; }`;
     document.head.appendChild(s);
   }
@@ -42,12 +59,13 @@
   async function render() {
     st.meta = await api('meta');
     st.year = st.year || st.meta.year;
-    $('main').innerHTML = `<h2 class="page">Arbeitseinsatz & Thekendienst</h2>
-      <p class="lead">Einsätze planen, Stunden sammeln und bestätigen. Wer sein Soll nicht schafft, bezahlt den Stundensatz – automatisch im Beitragslauf der Mitgliederverwaltung.</p>
+    $('main').innerHTML = `<h2 class="page">Helferdienste</h2>
+      <p class="lead">Dienstpläne für Veranstaltungen, Arbeitseinsätze und Thekendienste – Mitglieder tragen sich in der App ein. Stunden sammeln und bestätigen; wer sein Soll nicht schafft, zahlt den Stundensatz im Beitragslauf.</p>
       ${!st.meta.mv ? '<div class="banner a"><span>Ohne die Mitgliederverwaltung gilt die Vorgabe für alle Mitglieder gleich; Familien, Alter, Beitragsarten und die Abrechnung brauchen das Modul „Mitgliederverwaltung“.</span></div>' : ''}
       <div id="awTabs"></div>`;
-    st.tabs = GK.tabs($('awTabs'), 'arbeitseinsatz', [['uebersicht', 'Übersicht'], ['einsaetze', 'Einsätze'], ['stunden', `Stunden${st.meta.pending ? ` (${st.meta.pending})` : ''}`], ['einstellungen', 'Einstellungen']], async (k, el) => {
+    st.tabs = GK.tabs($('awTabs'), 'arbeitseinsatz', [['uebersicht', 'Übersicht'], ['plaene', 'Dienstpläne'], ['einsaetze', 'Einzeltermine'], ['stunden', `Stunden${st.meta.pending ? ` (${st.meta.pending})` : ''}`], ['einstellungen', 'Einstellungen']], async (k, el) => {
       if (k === 'uebersicht') return showOverview(el);
+      if (k === 'plaene') return showPlans(el);
       if (k === 'einsaetze') return showEvents(el);
       if (k === 'stunden') return showEntries(el);
       if (k === 'einstellungen') return showSettings(el);
@@ -204,13 +222,143 @@
     $('c').onclick = () => { closeDialog(); after(); };
   }
   function closeEvent(e, after) {
-    const def = e.start && e.end ? ((+e.end.slice(0, 2) * 60 + +e.end.slice(3)) - (+e.start.slice(0, 2) * 60 + +e.start.slice(3))) : '';
+    const def = e.start && e.end ? (((+e.end.slice(0, 2) * 60 + +e.end.slice(3)) - (+e.start.slice(0, 2) * 60 + +e.start.slice(3))) + 1440) % 1440 || '' : '';
     dialog(`<h2>Stunden gutschreiben: ${esc(e.title)}</h2><p class="muted" style="margin-top:0">Alle angekreuzten Helfer bekommen die Stunden bestätigt. Wer schon Stunden zu diesem Einsatz hat, wird übersprungen.</p>
       <label class="f" style="max-width:240px">Dauer in Stunden<input id="ceM" inputmode="decimal" value="${def ? String(def / 60).replace('.', ',') : ''}"></label>
       <div class="aw-cols" style="margin-top:12px" id="ceL">${(e.signups.length ? e.signups : []).map(s => `<label class="chk"><input type="checkbox" value="${s.member_id}" checked> ${esc(GK.lastFirst(s.name))}</label>`).join('') || '<p class="muted">Niemand eingetragen – über „Helfer“ ergänzen oder „Stunden nachtragen“ nutzen.</p>'}</div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ceOk" ${e.signups.length ? '' : 'disabled'}>Gutschreiben</button></div>`);
     $('c').onclick = closeDialog;
     $('ceOk').onclick = async () => { try { const r = await api(`events/${e.id}/close`, 'POST', { minutes: toMin(val('ceM')), members: [...$('ceL').querySelectorAll('input:checked')].map(i => +i.value) }); closeDialog(); toast(`${r.count} Helfer gutgeschrieben.`); after(); } catch (x) { fail(x); } };
+  }
+
+  /* ---------------------------------------------------------------- Dienstpläne (Veranstaltungen mit Schichten) */
+  const WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
+  const dayLong = d => `${WDL[new Date(d + 'T12:00:00').getDay()]}, ${deDate(d)}`;
+  const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+  const when = e => (e.start ? (e.end ? `${e.start}–${e.end}` : `ab ${e.start} Uhr`) : 'ganztags');
+  const fill = e => (e.slots ? (e.taken >= e.slots ? ['g', '✓ voll'] : ['a', `${e.slots - e.taken} fehlen`]) : ['b', `${e.taken} dabei`]);
+  const rangeTxt = p => (p.from_date === p.to_date ? dayLong(p.from_date) : `${deDate(p.from_date)} – ${deDate(p.to_date)}`);
+  async function showPlans(el) {
+    if (st.plan) return showPlan(el, st.plan);
+    const list = await api('plans' + (st.ppast ? '?past=1' : ''));
+    const card = p => `<div class="aw-ev aw-pl" data-pl="${p.id}">
+        <div class="aw-date"><span>${new Date(p.from_date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' })}</span><b>${p.from_date.slice(8, 10)}.${p.from_date.slice(5, 7)}.</b></div>
+        <div style="min-width:0"><h4><span translate="no">${esc(p.title)}</span>${p.published ? '' : ' ' + pill(['a', 'Entwurf'])}${p.counts ? '' : ' ' + pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? ' ' + pill(['b', 'im Verkauf']) : ''}</h4>
+          <div class="muted">${[rangeTxt(p), p.place, `${p.shifts} ${p.shifts === 1 ? 'Schicht' : 'Schichten'}`, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).map(esc).join(' · ')}</div>
+          ${p.need ? `<div class="aw-prog"><span class="aw-bar"><i style="width:${Math.round(p.filled / p.need * 100)}%;background:${p.filled >= p.need ? 'var(--brand)' : p.filled / p.need >= .5 ? 'var(--amber)' : 'var(--red)'}"></i></span><span class="muted s">${p.open ? `${p.open} ${p.open === 1 ? 'Schicht' : 'Schichten'} noch nicht voll` : 'alle Schichten voll'}</span></div>` : ''}</div>
+        <div class="acts"><button class="btn small primary" data-po="${p.id}">Öffnen</button></div></div>`;
+    el.innerHTML = `<div class="toolbar"><button class="btn primary" id="plNew">+ Dienstplan</button><button class="btn ghost" id="plPast">${st.ppast ? 'Kommende anzeigen' : 'Vergangene anzeigen'}</button></div>
+      <div class="card"><h3>${st.ppast ? 'Vergangene Dienstpläne' : 'Dienstpläne'}</h3>${list.length ? list.map(card).join('')
+        : `<p class="muted">${st.ppast ? 'Keine vergangenen Dienstpläne.' : 'Noch kein Dienstplan – z. B. „Kirmes 2026“ mit Tagen und Schichten (Theke, Sektbar, Kasse, Aufbau). Mitglieder tragen sich in der Mitglieder-App unter „Dienste“ ein.'}</p>`}</div>`;
+    const again = () => showPlans(el).catch(fail);
+    $('plPast').onclick = () => { st.ppast = !st.ppast; again(); };
+    $('plNew').onclick = () => planDialog(null, id => { st.plan = id; again(); });
+    el.querySelectorAll('[data-po]').forEach(b => { b.onclick = () => { st.plan = +b.dataset.po; again(); }; });
+  }
+  function planDialog(p, after) {
+    dialog(`<h2>${p ? 'Dienstplan bearbeiten' : 'Neuer Dienstplan'}</h2><div class="aw-grid" style="--c:4">
+      <label class="f w2">Veranstaltung<input id="pT" value="${esc(p ? p.title : '')}" placeholder="z. B. Kirmes 2026"></label><label class="f">erster Tag<input id="pF" type="date" value="${esc(p ? p.from_date : st.meta.today)}"></label><label class="f">letzter Tag<input id="pU" type="date" value="${esc(p ? p.to_date : st.meta.today)}"></label>
+      <label class="f wall">Ort<input id="pP" value="${esc(p ? p.place || '' : '')}" placeholder="z. B. Festzelt am Vereinsheim"></label>
+      <label class="f wall">Infos für alle Helfer<textarea id="pN" rows="3" placeholder="z. B. Bitte ein paar Minuten vor Schichtbeginn da sein. Nach Ende wird gemeinsam aufgeräumt.">${esc(p ? p.note || '' : '')}</textarea></label>
+      <label class="chk w2"><input type="checkbox" id="pC" ${!p || p.counts ? 'checked' : ''}> zählt zu den Arbeitsstunden</label>
+      <label class="chk w2"><input type="checkbox" id="pV" ${!p || p.published ? 'checked' : ''}> veröffentlicht – in der Mitglieder-App sichtbar</label></div>
+      <div class="btns">${p ? '<button class="btn danger" id="pDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pOk">Speichern</button></div>`, true);
+    $('pF').onchange = () => { if (val('pU') < val('pF')) $('pU').value = val('pF'); };
+    $('c').onclick = closeDialog;
+    $('pOk').onclick = async () => {
+      const body = { title: val('pT'), from_date: val('pF'), to_date: val('pU'), place: val('pP'), note: val('pN'), counts: $('pC').checked, published: $('pV').checked };
+      try { const r = p ? await api('plans/' + p.id, 'PUT', body) : await api('plans', 'POST', body); closeDialog(); toast('Gespeichert.'); after(p ? p.id : r.id); } catch (x) { fail(x); }
+    };
+    if ($('pDel')) $('pDel').onclick = async () => { if (!await ask(`Dienstplan „${p.title}“ mit allen Schichten und Eintragungen löschen?`, { ok: 'Löschen', danger: true })) return; try { await api('plans/' + p.id, 'DELETE'); closeDialog(); st.plan = null; after(null); } catch (x) { fail(x); } };
+  }
+  async function showPlan(el, id) {
+    let d; try { d = await api('plans/' + id); } catch (x) { st.plan = null; return showPlans(el); }
+    const p = d.plan, days = []; for (let x = p.from_date; x <= p.to_date; x = addDays(x, 1)) days.push(x);
+    const row = e => `<div class="aw-sh${e.cancelled ? ' off' : ''}">
+        <div class="aw-when"><b>${esc(when(e))}</b></div>
+        <div style="min-width:0"><div class="aw-what"><b translate="no">${esc(e.title)}</b>${pill(fill(e))}${e.counts ? '' : ' ' + pill(['', 'zählt nicht'])}${e.hours.n ? ' ' + pill(['g', `${h(e.hours.min)} gutgeschrieben`]) : ''}</div>
+          ${e.note ? `<div class="muted s">${esc(e.note)}</div>` : ''}
+          <div class="aw-people">${e.helpers.length ? e.helpers.map(x => `<span class="pill ${x.extern ? '' : 'g'}${x.ph ? ' aw-ph' : ''}" translate="no">${x.ph ? `<img src="api/admin/photo/${x.member_id}?v=${esc(x.ph)}" alt="" loading="lazy">` : ''}${esc(x.ln)}${x.extern ? ' · Gast' : ''}</span>`).join('') : '<span class="muted s">noch niemand</span>'}${e.slots && e.taken < e.slots ? Array.from({ length: Math.min(8, e.slots - e.taken) }, () => '<span class="pill aw-free">frei</span>').join('') : ''}</div></div>
+        <div class="acts">${e.date <= st.meta.today && e.counts && e.helpers.some(x => !x.extern) ? `<button class="btn small primary" data-sc="${e.id}">Stunden gutschreiben</button>` : ''}<button class="btn small" data-sh="${e.id}">Helfer</button><button class="btn small" data-se="${e.id}">Bearbeiten</button></div></div>`;
+    el.innerHTML = `<button class="mv-back aw-back" id="plBack">← Alle Dienstpläne</button>
+      <div class="aw-phead"><div style="min-width:0"><h3 translate="no">${esc(p.title)}</h3><div class="muted">${[rangeTxt(p), p.place, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="aw-people" style="margin-top:8px">${p.published ? pill(['g', 'veröffentlicht']) : pill(['a', 'Entwurf – in der App noch nicht sichtbar'])}${p.counts ? pill(['b', 'zählt zu den Arbeitsstunden']) : pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? pill(['b', `im Verkauf: ${p.sales.name}`]) : ''}</div></div>
+        <div class="acts"><button class="btn" id="plEd">Bearbeiten</button><button class="btn" id="plPrint">Drucken</button><a class="btn" href="${BASE}plans/${p.id}/xlsx">Excel</a>${d.drinks && !p.sales ? '<button class="btn" id="plSale">In den Verkauf übernehmen</button>' : ''}<button class="btn" id="plCopy">Als Vorlage kopieren</button>${p.published ? '' : '<button class="btn primary" id="plPub">Veröffentlichen</button>'}</div></div>
+      ${p.note ? `<div class="card aw-note"><b>Infos für alle Helfer</b><div>${esc(p.note)}</div></div>` : ''}
+      ${days.map(day => { const sh = d.shifts.filter(e => e.date === day);
+        return `<div class="card"><div class="aw-dh"><h3>${esc(dayLong(day))}</h3><button class="btn small" data-add="${day}">+ Schicht</button></div>${sh.length ? sh.map(row).join('') : '<p class="muted" style="margin:0">Keine Schichten an diesem Tag.</p>'}</div>`; }).join('')}`;
+    const again = () => showPlan(el, id).catch(fail);
+    $('plBack').onclick = () => { st.plan = null; showPlans(el).catch(fail); };
+    $('plEd').onclick = () => planDialog(p, x => { if (!x) showPlans(el).catch(fail); else again(); });
+    $('plPrint').onclick = () => printPlan(p, d.shifts, days);
+    if ($('plPub')) $('plPub').onclick = async () => { try { await api('plans/' + p.id, 'PUT', { published: true }); toast('Veröffentlicht – Mitglieder sehen den Plan jetzt in der App.'); again(); } catch (x) { fail(x); } };
+    if ($('plSale')) $('plSale').onclick = async () => { if (!await ask(`„${p.title}“ als Veranstaltung im Verkauf anlegen (am ${deDate(p.from_date)}, alle Artikel zum Normalpreis)?`, { ok: 'Übernehmen' })) return; try { await api(`plans/${p.id}/sales`, 'POST', {}); toast('Im Verkauf unter „Veranstaltungen“ angelegt.'); again(); } catch (x) { fail(x); } };
+    $('plCopy').onclick = async () => {
+      dialog(`<h2>Als Vorlage kopieren</h2><p class="muted" style="margin-top:0">Gleiche Schichten an neuen Tagen – z. B. für die Kirmes im nächsten Jahr. Helfer werden nicht übernommen, der neue Plan ist zunächst ein Entwurf.</p>
+        <div class="aw-grid" style="--c:2"><label class="f">Name<input id="cpT" value="${esc(p.title.replace(/\d{4}/, y => +y + 1))}"></label><label class="f">erster Tag<input id="cpF" type="date" value="${addDays(p.from_date, 364)}"></label></div>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="cpOk">Kopieren</button></div>`);
+      $('c').onclick = closeDialog;
+      $('cpOk').onclick = async () => { try { const r = await api(`plans/${p.id}/copy`, 'POST', { title: val('cpT'), from_date: val('cpF') }); closeDialog(); st.plan = r.id; toast('Kopiert.'); showPlan(el, r.id).catch(fail); } catch (x) { fail(x); } };
+    };
+    el.querySelectorAll('[data-add]').forEach(b => { b.onclick = () => shiftDialog(p, days, null, b.dataset.add, again); });
+    el.querySelectorAll('[data-se]').forEach(b => { b.onclick = () => shiftDialog(p, days, d.shifts.find(e => e.id === +b.dataset.se), null, again); });
+    el.querySelectorAll('[data-sh]').forEach(b => { b.onclick = () => shiftHelpers(d.shifts.find(e => e.id === +b.dataset.sh), again); });
+    el.querySelectorAll('[data-sc]').forEach(b => { b.onclick = () => { const e = d.shifts.find(x => x.id === +b.dataset.sc); closeEvent({ ...e, signups: e.helpers.filter(x => !x.extern) }, again); }; });
+  }
+  function shiftDialog(p, days, e, day, after) {
+    dialog(`<h2>${e ? 'Schicht bearbeiten' : 'Neue Schicht'}</h2><div class="aw-grid" style="--c:4">
+      <label class="f w2">Tag<select id="shD">${days.map(x => opt(x, dayLong(x), e ? e.date : day)).join('')}</select></label><label class="f">von<input id="shS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f">bis (optional)<input id="shE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
+      <label class="f w2">Was<input id="shT" value="${esc(e ? e.title : '')}" placeholder="z. B. Theke, Sektbar, Kasse, Zeltaufbau" list="shTL"><datalist id="shTL">${['Theke', 'Sektbar', 'Kasse', 'Grill', 'Kuchentheke', 'Aufbau', 'Abbau', 'Zeltaufbau', 'Aufräumen', 'Einlass'].map(x => `<option value="${x}">`).join('')}</datalist></label>
+      <label class="f w2">Helfer gesucht (leer = beliebig viele)<input id="shN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}" placeholder="z. B. 8"></label>
+      <label class="f wall">Infos zur Schicht<input id="shX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Bitte ein paar Minuten vorher einfinden"></label>
+      <label class="chk w2"><input type="checkbox" id="shC" ${(e ? e.counts : p.counts) ? 'checked' : ''}> zählt zu den Arbeitsstunden</label>
+      ${e ? `<label class="chk w2"><input type="checkbox" id="shA" ${e.cancelled ? '' : 'checked'}> aktiv (sonst ausgeblendet)</label>` : ''}</div>
+      <p class="muted s" style="margin:10px 0 0">Ohne Ende erscheint „ab 16 Uhr“. Ein Ende vor dem Beginn gilt als nach Mitternacht (z. B. 23:30–02:00).</p>
+      <div class="btns">${e ? '<button class="btn danger" id="shDel" style="margin-right:auto">Löschen</button>' : '<label class="chk" style="margin-right:auto"><input type="checkbox" id="shMore"> danach weitere Schicht anlegen</label>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="shOk">Speichern</button></div>`, true);
+    $('c').onclick = closeDialog;
+    $('shOk').onclick = async () => {
+      const body = { plan_id: p.id, kind: 'dienst', date: val('shD'), start: val('shS'), end: val('shE'), title: val('shT'), slots: val('shN') || null, note: val('shX'), counts: $('shC').checked };
+      try {
+        if (e) await api('events/' + e.id, 'PUT', { ...body, active: $('shA').checked }); else await api('events', 'POST', { ...body, active: true });
+        const more = $('shMore') && $('shMore').checked; closeDialog(); toast('Gespeichert.'); after();
+        if (more) setTimeout(() => shiftDialog(p, days, null, body.date, after), 150);
+      } catch (x) { fail(x); }
+    };
+    if ($('shDel')) $('shDel').onclick = async () => { if (!await ask(`Schicht „${e.title}“ (${when(e)}) löschen?${e.taken ? `\n\n${e.taken} Helfer sind eingetragen.` : ''}`, { ok: 'Löschen', danger: true })) return; try { await api('events/' + e.id, 'DELETE'); closeDialog(); after(); } catch (x) { fail(x); } };
+  }
+  function shiftHelpers(e, after) {
+    const people = st.meta.members;
+    const draw = () => {
+      $('shxL').innerHTML = e.helpers.filter(x => x.extern).map(x => `<span class="pill">${esc(x.name)} <button type="button" class="btn small ghost" data-rx="${x.extern_id}" style="height:22px;padding:0 6px" aria-label="entfernen">×</button></span>`).join('') || '<span class="muted s">keine</span>';
+      $('shxL').querySelectorAll('[data-rx]').forEach(b => { b.onclick = async () => { try { await api('extern/' + b.dataset.rx, 'DELETE'); e.helpers = e.helpers.filter(x => x.extern_id !== +b.dataset.rx); draw(); } catch (x) { fail(x); } }; });
+    };
+    dialog(`<h2>Helfer: ${esc(e.title)} · ${esc(when(e))}</h2><p class="muted" style="margin-top:0">${esc(dayLong(e.date))}${e.slots ? ` · ${e.slots} gesucht` : ''} · Mitglieder tragen sich in der App ein; hier ergänzen oder austragen – auch nach Ablauf der 24-Stunden-Frist.</p>
+      <label class="f">Mitglieder filtern<input id="hpQ" data-nodirty placeholder="Name"></label><div class="aw-cols" id="hpL">${people.map(m => `<label class="chk" data-n="${esc(m.name.toLowerCase())}"><input type="checkbox" value="${m.id}" ${e.helpers.some(s => s.member_id === m.id) ? 'checked' : ''}> ${esc(GK.lastFirst(m.name))}</label>`).join('')}</div>
+      <div class="f" style="margin-top:14px"><span class="aw-lbl">Helfer ohne Mitgliedschaft (z. B. vom Nachbarverein)</span><div class="aw-people" id="shxL"></div>
+        <div class="aw-xadd"><label class="f"><input id="shxN" placeholder="Vor- und Nachname" maxlength="60" aria-label="Vor- und Nachname"></label><button class="btn" id="shxA">Hinzufügen</button></div></div>
+      <div class="btns"><button class="btn primary" id="c">Fertig</button></div>`, true);
+    draw();
+    $('hpQ').oninput = () => { const q = val('hpQ').toLowerCase(); $('hpL').querySelectorAll('[data-n]').forEach(l => { l.style.display = !q || l.dataset.n.includes(q) ? '' : 'none'; }); };
+    $('hpL').querySelectorAll('input').forEach(i => { i.onchange = () => api(`events/${e.id}/signup`, 'POST', { member_id: +i.value, remove: !i.checked }).catch(fail); });
+    $('shxA').onclick = async () => { const n = val('shxN'); if (n.length < 2) return; try { await api(`events/${e.id}/extern`, 'POST', { name: n }); const d = await api('plans/' + e.plan_id); e.helpers = d.shifts.find(x => x.id === e.id).helpers; $('shxN').value = ''; draw(); } catch (x) { fail(x); } };
+    $('c').onclick = () => { closeDialog(); after(); };
+  }
+  /** Aushang wie die bisherige Tabelle: je Tag Wann · Was · Helfer · Status · Infos */
+  function printPlan(p, shifts, days) {
+    const w = window.open('', '_blank'); if (!w) return toast('Bitte Pop-ups für die Verwaltung erlauben.', true);
+    const club = (st.meta.club || document.title || '').replace(/\s*–.*$/, '');
+    w.document.write(`<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Dienstplan ${esc(p.title)}</title><style>
+      body { font: 13px/1.4 system-ui, -apple-system, 'Segoe UI', sans-serif; color: #1b1f1c; margin: 24px; } h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: #555; margin: 0 0 18px; }
+      h2 { font-size: 15px; margin: 22px 0 6px; } table { width: 100%; border-collapse: collapse; table-layout: fixed; } th, td { border: 1px solid #c9cfcb; padding: 6px 8px; text-align: left; vertical-align: top; }
+      th { background: #eef2ef; font-size: 12px; } td.st { text-align: center; font-weight: 700; } .ok { color: #1f7a35; } .miss { color: #b26a00; } .free { color: #9aa29d; } .note { color: #444; }
+      @page { size: A4; margin: 14mm; } tr { break-inside: avoid; }</style></head><body>
+      <h1>${esc(club ? club + ' – ' : '')}Dienstplan ${esc(p.title)}</h1><p class="sub">${esc([rangeTxt(p), p.place].filter(Boolean).join(' · '))}${p.note ? `<br>${esc(p.note)}` : ''}</p>
+      ${days.map(day => { const sh = shifts.filter(e => e.date === day && !e.cancelled); if (!sh.length) return '';
+        return `<h2>${esc(dayLong(day))}</h2><table><colgroup><col style="width:16%"><col style="width:20%"><col style="width:30%"><col style="width:10%"><col style="width:24%"></colgroup><tr><th>Wann</th><th>Was</th><th>Helfer</th><th>Status</th><th>Infos</th></tr>
+          ${sh.map(e => `<tr><td>${esc(when(e))}</td><td><b>${esc(e.title)}</b>${e.slots ? `<br><span class="note">${e.slots} Personen</span>` : ''}</td><td>${e.helpers.map(x => esc(x.ln)).join('<br>')}${e.slots && e.taken < e.slots ? `${e.taken ? '<br>' : ''}<span class="free">${Array.from({ length: e.slots - e.taken }, () => '________').join('<br>')}</span>` : ''}</td>
+            <td class="st ${e.slots && e.taken < e.slots ? 'miss' : 'ok'}">${e.slots ? (e.taken >= e.slots ? '✓' : `${e.slots - e.taken} fehlen`) : e.taken}</td><td class="note">${esc(e.note || '')}</td></tr>`).join('')}</table>`; }).join('')}
+      <script>window.onload = () => setTimeout(() => window.print(), 300);<\/script></body></html>`);
+    w.document.close();
   }
 
   /* ---------------------------------------------------------------- Stunden */
@@ -252,7 +400,10 @@
         <label class="f">Abrechnen ab Jahr<input id="sStart" inputmode="numeric" value="${c.start_year}"></label>
         <label class="f">Am Tablet runden auf (Minuten)<input id="sRound" inputmode="numeric" value="${c.round}"></label>
         <label class="f w2">Erinnerung an fehlende Stunden per E-Mail am (TT.MM., leer = aus)<input id="sRem" value="${esc(c.remind_date ? c.remind_date.split('-').reverse().join('.') : '')}" placeholder="z. B. 01.09."></label>
-        <label class="f w2">Hinweis für Mitglieder (App und Tablet)<input id="sText" value="${esc(c.text)}" placeholder="z. B. Jedes Mitglied ab 12 Jahren leistet 4 Stunden im Jahr."></label></div>
+        <label class="f w2">Hinweis für Mitglieder (App und Tablet)<input id="sText" value="${esc(c.text)}" placeholder="z. B. Jedes Mitglied ab 12 Jahren leistet 4 Stunden im Jahr."></label>
+        <label class="f w2">Kontakt für kurzfristige Absagen (in der App und in Erinnerungen)<input id="sCon" value="${esc(c.contact || '')}" placeholder="z. B. Thorsten, 0170 1234567"></label>
+        <label class="f w2">Absagen per E-Mail an (mehrere mit Komma)<input id="sNot" value="${esc(c.notify || '')}" placeholder="z. B. vorstand@verein.de"></label></div>
+      <p class="muted s">Mitglieder können sich in der App bis 24 Stunden vor Beginn austragen – die Verwaltung bekommt dann eine E-Mail. Danach geht es nur über den Kontakt oben.</p>
       <div class="aw-grid" style="--c:2;margin-top:14px">
         <label class="chk"><input type="checkbox" id="sPool" ${c.pool_family ? 'checked' : ''}> Familien gemeinsam zählen (Abrechnung beim Hauptzahler)</label>
         <label class="chk"><input type="checkbox" id="sPass" ${c.exempt_passive ? 'checked' : ''}> Passive und Ehrenmitglieder sind befreit</label>
@@ -276,17 +427,17 @@
     };
     $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
     exLoad().catch(fail);
-    if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Arbeitseinsatz & Thekendienst', () => showSettings(el));
+    if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Helferdienste', () => showSettings(el));
     $('sSave').onclick = async () => {
       const rm = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('sRem'));
       try {
         await api('settings', 'PUT', { default_minutes: toMin(val('sDef')), rate_cents: toCents(val('sRate') || '0'), min_age: +val('sMin') || 0, max_age: +val('sMax') || 0, year_mode: val('sYear'), round: +val('sRound') || 1, start_year: +val('sStart') || undefined,
-          remind_date: rm ? `${rm[2].padStart(2, '0')}-${rm[1].padStart(2, '0')}` : '', pool_family: $('sPool').checked, exempt_passive: $('sPass').checked, prorate: $('sPro').checked, tablet_auto: $('sTab').checked, app_report: $('sApp').checked, remind_events: $('sEvR').checked, text: val('sText') });
+          remind_date: rm ? `${rm[2].padStart(2, '0')}-${rm[1].padStart(2, '0')}` : '', pool_family: $('sPool').checked, exempt_passive: $('sPass').checked, prorate: $('sPro').checked, tablet_auto: $('sTab').checked, app_report: $('sApp').checked, remind_events: $('sEvR').checked, text: val('sText'), contact: val('sCon'), notify: val('sNot') });
         GK.clean(); toast('Gespeichert.'); st.meta = await api('meta');
       } catch (e) { fail(e); }
     };
   }
 
   void deTime;
-  GK.registerPage({ key: 'arbeitseinsatz', title: 'Arbeitseinsatz', perm: 'arbeitseinsatz', render, icon: 'arbeit' });
+  GK.registerPage({ key: 'arbeitseinsatz', title: 'Helferdienste', perm: 'arbeitseinsatz', render, icon: 'arbeit' });
 })();

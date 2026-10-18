@@ -85,7 +85,7 @@
     const draw = () => {   // im Vereinsheim keine Namen vorschlagen – erst nach Eingabe (mind. 2 Buchstaben)
       const q = $('q').value.trim().toLowerCase();
       const hits = q.length < 2 ? [] : state.people.filter(p => p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q)).slice(0, 30);
-      $('nm').innerHTML = q.length < 2 ? '<div class="names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no">${esc(p.ln || p.name)}</button>`).join('') : '<div class="names-hint">Niemand gefunden.</div>';
+      $('nm').innerHTML = q.length < 2 ? '<div class="names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no" class="${p.ph ? 'ph' : ''}">${p.ph ? `<img src="api/tablet/photo/${p.id}?u=buchung&v=${esc(p.ph)}" alt="">` : ''}<span>${esc(p.ln || p.name)}</span></button>`).join('') : '<div class="names-hint">Niemand gefunden.</div>';
       $('nm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => unlock(state.people.find(p => p.id === +b.dataset.p), title, next); });
     };
     draw(); $('q').oninput = draw; $('x').onclick = closeDlg; setTimeout(() => $('q').focus(), 50);

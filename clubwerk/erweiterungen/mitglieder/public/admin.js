@@ -37,6 +37,7 @@
       @media (max-width: 560px) { .mv-grid { grid-template-columns: 1fr; } }
       .mv-head { display: flex; align-items: center; gap: 16px; margin: 0 0 16px; }
       .mv-head .av.lg { width: 56px; height: 56px; font-size: 20px; }
+      .mv-head .mv-ph { padding: 0; border: 0; overflow: hidden; cursor: pointer; } .mv-head .mv-ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .mv-head h2 { margin: 0; font-size: 24px; line-height: 30px; }
       .mv-head .pills { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
       .mv-head .acts { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
@@ -167,27 +168,41 @@
   }
 
   function newMember(el) {
-    const m = st.meta;
+    const m = st.meta, full = !SC();
+    const ageAt = (b, d) => { if (!b) return null; let a = +d.slice(0, 4) - +b.slice(0, 4); if (d.slice(5) < b.slice(5)) a--; return a; };
     dialog(`<h2>Neues Mitglied</h2>
-      <p class="muted s" style="margin-top:0">Schnell anlegen – alles Weitere (Beitrag, Konto, Familie) danach im Mitglied. Mit Unterschrift und SEPA-Mandat geht es über „Beitrittserklärung am Tablet“.</p>
-      <div class="mv-grid">
-        <label class="f">Vorname<input id="nFirst" autocomplete="off"></label><label class="f">Nachname<input id="nLast" autocomplete="off"></label><label class="f">Geburtsdatum<input id="nBirth" type="date"></label>
-        <label class="f">E-Mail<input id="nMail" type="email"></label><label class="f">Eintritt<input id="nEntry" type="date" value="${m.today}"></label><label class="f">Mitgliedsnummer<input id="nNo" placeholder="${esc(m.nextNo)} (automatisch)"></label>
-        ${SC() ? '' : `<label class="f w2">Beitrag<select translate="no" id="nFee"><option value="">${esc(GK.T('– später –'))}</option>${m.fees.filter(f => f.active && f.kind !== 'zusatz').map(f => opt(f.id, feeLabel(f))).join('')}</select></label>`}
-        <label class="f">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
+      <p class="muted s" style="margin-top:0">Angelegt wird nur vollständig: Adresse, E-Mail und Handy${full ? ', Beitrag und Zahlung (Lastschrift mit SEPA-Mandat oder Rechnung)' : ''}. Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.</p>
+      <div class="mv-grid" style="--c:4">
+        <label class="f">Vorname<input id="nFirst" autocomplete="off"></label><label class="f">Nachname<input id="nLast" autocomplete="off"></label><label class="f">Geburtsdatum<input id="nBirth" type="date"></label><label class="f">Eintritt<input id="nEntry" type="date" value="${m.today}"></label>
+        <label class="f w2">Straße und Hausnummer<input id="nStreet" autocomplete="off"></label><label class="f">PLZ<input id="nZip" inputmode="numeric" maxlength="10"></label><label class="f">Ort<input id="nCity"></label>
+        <label class="f w2">E-Mail<input id="nMail" type="email"></label><label class="f">Handy<input id="nMob" type="tel" placeholder="z. B. 0170 1234567"></label><label class="f">Mitgliedsnummer<input id="nNo" placeholder="${esc(m.nextNo)} (automatisch)"></label>
+        ${full ? `<label class="f w2">Beitrag<select translate="no" id="nFee"></select></label>` : ''}
+        <label class="f ${full ? '' : 'w2'}">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
+        ${full ? `<label class="f">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${opt('rechnung', 'Rechnung')}${opt('bar', 'bar')}</select></label>
+        <label class="f nb">Kontoinhaber<input id="nHold" placeholder="leer = Mitglied"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
       </div>
-      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="nOk">Anlegen</button></div>`);
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="nOk">Anlegen</button></div>`, true);
+    const fees = () => {   // Beiträge passend zum Alter (bei Eintritt) – unpassende ausgegraut
+      if (!$('nFee')) return;
+      const age = ageAt(val('nBirth'), val('nEntry') || m.today), cur = val('nFee');
+      const fits = x => age == null ? x.age_min == null && x.age_max == null : (x.age_min == null || age >= x.age_min) && (x.age_max == null || age <= x.age_max);
+      const list = m.fees.filter(f => f.active && f.kind !== 'zusatz'), ok = list.filter(fits), no = list.filter(x => !fits(x));
+      $('nFee').innerHTML = `<option value="">– Beitrag wählen –</option>${ok.map(f => opt(f.id, feeLabel(f), cur)).join('')}${no.length ? `<optgroup label="${esc(age == null ? 'mit Altersgrenze – erst Geburtsdatum eintragen' : `passt nicht zum Alter (${age} Jahre)`)}">${no.map(f => `<option value="${f.id}" disabled>${esc(feeLabel(f))}</option>`).join('')}</optgroup>` : ''}`;
+    };
+    const pay = () => { if ($('nPay')) $('dialog').querySelectorAll('.nb').forEach(x => { x.style.display = val('nPay') === 'lastschrift' ? '' : 'none'; }); };
+    fees(); pay();
+    $('nBirth').onchange = fees; $('nEntry').onchange = fees; if ($('nPay')) $('nPay').onchange = pay;
     $('c').onclick = closeDialog; setTimeout(() => $('nFirst').focus(), 50);
     $('nOk').onclick = async () => {
       try {
-        const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), entry_date: val('nEntry'), member_no: val('nNo') || undefined, ...(SC() ? { department_id: +val('nDept') } : {}) });
-        if (SC()) { closeDialog(); toast(r.pending ? `Mitglied angelegt. ${PENDING}` : 'Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail); return; }
-        if (val('nFee')) await api(`member/${r.id}/fees`, 'POST', { fee_id: +val('nFee'), start_date: val('nEntry') });
-        if (val('nDept')) await api(`member/${r.id}/departments`, 'POST', { department_id: +val('nDept'), entry_date: val('nEntry') });
-        closeDialog(); toast('Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail);
+        const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'),
+          entry_date: val('nEntry'), member_no: val('nNo') || undefined, department_id: +val('nDept') || undefined,
+          ...(full ? { fee_id: +val('nFee') || null, payment: val('nPay'), iban: val('nIban'), holder: val('nHold'), mandate_date: val('nMand') } : {}) });
+        closeDialog(); toast(r.pending ? `Mitglied angelegt. ${PENDING}` : 'Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail);
       } catch (e) { fail(e); }
     };
   }
+
 
   /* ================================================================= Mitglied */
   async function showDetail(el, id) {
@@ -198,7 +213,7 @@
     const SUBS = [['stamm', 'Stammdaten'], ['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ...(d.documents ? [['dokumente', `Dokumente${d.documents.length ? ' (' + d.documents.length + ')' : ''}`]] : []), ['verlauf', 'Verlauf']];
     if (!SUBS.some(s => s[0] === st.sub)) st.sub = 'stamm';
     el.innerHTML = `<button class="mv-back" id="mvBack">← Alle Mitglieder</button>
-      <div class="mv-head"><span class="av lg">${ini(p.name)}</span><div style="min-width:0"><h2>${esc(p.name)}</h2>
+      <div class="mv-head">${p.photo ? `<button type="button" class="av lg mv-ph" id="mvPh" title="Profilbild (vom Mitglied in der App hochgeladen) – antippen zum Entfernen"><img src="api/admin/photo/${id}?v=${esc(p.photo)}" alt=""></button>` : `<span class="av lg">${ini(p.name)}</span>`}<div style="min-width:0"><h2>${esc(p.name)}</h2>
         <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
           ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}
           ${d.changes.length ? `<span class="pill a">${d.changes.length} Änderung(en) aus der App</span>` : ''}</div></div>
@@ -209,6 +224,7 @@
       <div class="seg" id="mvSub" style="width:fit-content;margin-bottom:16px">${SUBS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.sub === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
       <div id="mvSubBody"></div>`;
     $('mvBack').onclick = () => { st.detail = null; showList(el).catch(fail); };
+    if ($('mvPh')) $('mvPh').onclick = async () => { if (!await ask(`Profilbild von ${p.name} entfernen?\n\nDas Mitglied kann in der App jederzeit ein neues hochladen.`, { ok: 'Entfernen', danger: true })) return; try { await GK.api('photo/' + id, 'DELETE'); toast('Profilbild entfernt.'); showDetail(el, id).catch(fail); } catch (e) { fail(e); } };
     $('mvSub').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; st.sub = b.dataset.s; $('mvSub').querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); sub(); };
     const again = () => showDetail(el, id).catch(fail);
     ageBind(el, again);

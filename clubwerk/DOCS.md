@@ -84,6 +84,8 @@ Am Tablet buchen statt Strichliste – Getränke, Speisen, Vereinsartikel, Bäll
 Beim ersten Start sind eine allgemeine Beispiel-Artikelliste sowie die Konten „Verein (kostenfrei)“ und „Gast (bar)“ angelegt. Vereinsname, Logo, Farbe, eigene Artikel (auch per Excel), Mitglieder und Mannschaften richtet jeder Verein selbst ein – im Paket steckt nichts Vereinsspezifisches. Die ausführliche Schritt-für-Schritt-Anleitung steht in **INSTALLATION.md** (liegt dem Paket bei).
 
 ## Modul Mitgliederverwaltung
+**Neues Mitglied:** Angelegt wird nur vollständig – Name, Geburtsdatum, Anschrift, E-Mail, Handynummer, ein zum Alter passender Beitrag und die Zahlungsart (bei Lastschrift IBAN, Kontoinhaber und Mandatsdatum). So kann sofort abgebucht und Kontakt aufgenommen werden.
+
 Im Menü ein eigenes Modul „Mitgliederverwaltung“ mit den Reitern **Mitglieder · Beiträge · Einzug & Zahlungen · Anträge · Auswertungen · Einstellungen**. Die komplette Mitgliederverwaltung: Stammdaten, Abteilungen, Beiträge, Familien, Ein- und Austritt, Dokumente, SEPA-Lastschrift, offene Posten und Mahnungen, digitale Beitrittserklärung, Auswertungen und Datenschutz. Die Person bleibt dieselbe wie bei Getränken, Zugang und Mitglieder-App – sie wird nur einmal gepflegt. Die Konten mit PINs für den Tablet-Verkauf wandern dann ins Modul „Verkauf“ (Reiter „Konten“).
 
 **Einrichten (Mitgliederverwaltung → Einstellungen)**
@@ -151,7 +153,13 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 
 **Bearbeiten:** Termine in der Verwaltung über „Bearbeiten“ ändern; Mitglieder ändern ihre eigenen Buchungen in der App (bis zur Stornofrist). Mitspieler werden per E-Mail informiert.
 
+**Sonderrechte in der App:** Unter Einstellungen → „Sonderrechte in der Mitglieder-App“ einzelnen Mitgliedern erlauben, in der App Serien zu buchen (wöchentlich, bis zu einem Jahr; belegte Tage werden übersprungen; unter „Meine Serien“ beenden) und/oder mit bestimmten Labels zu buchen. In der Verwaltung lassen sich Serien auch direkt im Belegungsplan anlegen: beim neuen Termin „wöchentlich wiederholen bis“ wählen (Recht „Serien & Sperren“).
+
 **Auswertung & Protokoll:** Reiter „Auswertung“ (Auslastung je Platz und gesamt, Vorjahresvergleich, beliebte Zeiten) und „Protokoll“ (alle Buchungen, auch stornierte, als CSV).
+
+## Mitglieder-App: Bereiche und Profilbild
+- **Bereiche je Mitglied:** Unter „Mitglieder-App“ hat jedes Mitglied für jeden aktiven Bereich (Buchen, Meine Daten, Dienste, Beregnung, Zugang …) einen Haken. Bereiche wie Buchen oder Meine Daten sind für neue Mitglieder vorausgewählt; ohne Haken verschwinden sie aus der App dieses Mitglieds. Beregnung und Zugang brauchen weiterhin das jeweilige Recht.
+- **Profilbild:** Das Mitglied tippt in der App oben rechts auf seinen Kreis, wählt ein Foto (wird im Handy auf 400 × 400 Pixel verkleinert) und hakt an, wo es erscheinen darf: Verkauf am Tablet, Platzbuchung, Helferdienste. Die Verwaltung sieht das Bild in der Mitgliederverwaltung und kann es mit einem Klick entfernen.
 
 ## Mitglieder-App von unterwegs (Cloudflare Tunnel)
 Normalerweise ist die Mitglieder-App nur im Vereins-WLAN erreichbar. Damit Mitglieder auch von zu Hause buchen können, wird **nur die Mitglieder-App** über einen Cloudflare Tunnel ins Internet gebracht – ohne Portfreigabe am Router.
@@ -183,8 +191,9 @@ Rechnungen und Spendenquittungen – unter Verwaltung → Buchhaltung (Recht „
 
 **Spendenquittungen:** Spender wählen (Mitglied, Firma oder einmaliger Spender mit Anschrift), Art (Geldspende, Sachspende, Verzicht auf Aufwandserstattung), Betrag und Tag der Zuwendung. Bei Sachspenden genau beschreiben, was gespendet wurde, und die Herkunft angeben; beim Verzicht, auf welche Aufwendungen verzichtet wurde. Die Bestätigung folgt dem amtlichen Muster – vor dem ersten Einsatz bitte einmal mit dem Muster des Finanzamts bzw. der Steuerberatung abgleichen. Falsch ausgestellte Quittungen stornieren, nicht löschen.
 
-## Modul Arbeitseinsatz & Thekendienst
-Arbeitseinsätze und Thekendienste planen, Stunden sammeln und abrechnen.
+## Modul Helferdienste (früher Arbeitseinsatz)
+Dienstpläne für Veranstaltungen, Arbeitseinsätze und Thekendienste planen, Stunden sammeln und abrechnen.
+- **Dienstpläne:** Unter „Dienstpläne“ einen Plan für eine Veranstaltung anlegen (Titel, von–bis bis zu 31 Tage, Ort, Hinweis, ob die Dienste zu den Pflichtstunden zählen). Je Tag Schichten mit Aufgabe, Zeit und Anzahl Helfer (leer = unbegrenzt); Schichten über Mitternacht (z. B. 23:30–02:00) sind erlaubt. Erst mit „Veröffentlichen“ sehen Mitglieder den Plan in der App unter „Dienste“ und tragen sich ein (keine Überschneidungen mit eigenen Diensten). **Austragen** geht bis 24 Stunden vor Beginn – die unter Einstellungen eingetragenen Adressen bekommen eine Info; danach nennt die App den **Ansprechpartner** (Einstellungen). Personen ohne Mitgliedschaft trägt nur die Verwaltung ein („Helfer“ an der Schicht). Weitere Knöpfe: **Kopieren** (mit Tagesversatz, ohne Helfer, unveröffentlicht), **Drucken** (A4), **Excel**, **In den Verkauf** (legt eine Veranstaltung im Verkauf an; Recht „Veranstaltungen“).
 - **Soll:** Vorgabe je Mitglied und Jahr (z. B. 4 Stunden), Altersgrenzen (z. B. ab 12), passive und Ehrenmitglieder befreit, je Beitragsart abweichend (z. B. „Kinder: keine“, „Unterstützend: keine“), bei Ein-/Austritt anteilig, einzelne Ausnahmen in der Übersicht über „Pflichtstunden …“: Automatisch, eigenes Soll für das Jahr oder **Befreit** (auch aktive Mitglieder; dauerhaft oder bis zu einem Datum, mit Grund). Befreite können weiter Stunden leisten, die erfasst werden, fehlende werden nicht berechnet; Filter „Befreit“ in der Übersicht, Liste auch unter Einstellungen → „Befreite Mitglieder“. **Familien** werden gemeinsam gezählt – geleistet ist, was irgendwer aus der Familie gemacht hat.
 - **Einsätze:** Termin mit Art, Zeit, Ort und Zahl der gesuchten Helfer, auf Wunsch wöchentlich wiederholt. Mitglieder tragen sich in der Mitglieder-App unter „Dienste“ ein und werden am Vortag per E-Mail erinnert. Nach dem Einsatz „Stunden gutschreiben“ für alle Helfer auf einmal.
 - **Dauerhafte Einsätze:** z. B. Thekendienst – ganzjährig ohne festen Termin (beim Anlegen „dauerhaft“ wählen; ein „Thekendienst“ ist schon da). Solange aktiv, ist er am Tablet beim Einstempeln wählbar; in der Mitglieder-App erscheint er nicht.

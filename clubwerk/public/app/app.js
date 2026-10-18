@@ -80,6 +80,7 @@
     document.title = `${me.appName} – ${me.club}`;
     if (!me.member) { lock(); return; }
     $('who').textContent = me.member;
+    initPhoto();
     if (!me.sections.length) { $('sec').innerHTML = '<div class="vh-empty">Für dich ist noch nichts freigeschaltet. Bitte beim Vorstand melden.</div>'; return; }
     for (const s of me.sections) if (s.ok) await loadScript(`m/${s.id}/member.js`);
     const tabs = $('tabs');
@@ -91,6 +92,61 @@
     tabs.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.t));
     const last = store.get('va_tab');
     show(me.sections.some(s => s.id === last) ? last : me.sections[0].id);
+  }
+
+  /* ---------- Bilder mit Anmeldung (Profilbilder): <img data-auth-src="api/…"> – geladen mit dem Geräteschlüssel, angezeigt als data:-Adresse ---------- */
+  const imgCache = new Map();
+  const loadAuthImg = async img => {
+    const u = img.getAttribute('data-auth-src'); if (!u || img.dataset.loaded === u) return; img.dataset.loaded = u;
+    try {
+      if (!imgCache.has(u)) imgCache.set(u, fetch(u, { headers: hdrs() }).then(r => (r.ok ? r.blob() : null)).then(b => (b ? new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); }) : null)));
+      const d = await imgCache.get(u); if (d) img.src = d; else img.style.visibility = 'hidden';
+    } catch (e) { /* ohne Bild */ }
+  };
+  const scanImgs = root => (root.querySelectorAll ? root.querySelectorAll('img[data-auth-src]') : []).forEach(loadAuthImg);
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('img[data-auth-src]')) loadAuthImg(n); scanImgs(n); } }))).observe(document.body, { childList: true, subtree: true });
+
+  /* ---------- Profilbild: selbst hochladen, selbst bestimmen, wo es erscheint ---------- */
+  const initials = n => String(n || '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();
+  async function initPhoto() {
+    const b = $('ava'); if (!b) return;
+    let p; try { p = await call('photo'); } catch (e) { return; }
+    const paint = () => { b.innerHTML = p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member)); b.classList.remove('hidden'); };
+    paint();
+    b.onclick = () => photoSheet(p, x => { p = x; paint(); });
+  }
+  /** Bild im Handy quadratisch auf 400 × 400 verkleinern → data:image/jpeg */
+  const shrink = file => new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onerror = () => reject(new Error('Das Bild konnte nicht gelesen werden.'));
+    fr.onload = () => { const img = new Image(); img.onerror = () => reject(new Error('Dieses Bildformat geht leider nicht – bitte ein JPEG oder PNG wählen.'));
+      img.onload = () => { const s = Math.min(img.naturalWidth, img.naturalHeight), c = document.createElement('canvas'); c.width = c.height = 400;
+        c.getContext('2d').drawImage(img, (img.naturalWidth - s) / 2, (img.naturalHeight - s) / 2, s, s, 0, 0, 400, 400);
+        let q = 0.86, out = c.toDataURL('image/jpeg', q); while (out.length > 480000 && q > 0.4) { q -= 0.1; out = c.toDataURL('image/jpeg', q); } resolve(out); };
+      img.src = fr.result; };
+    fr.readAsDataURL(file);
+  });
+  function photoSheet(p, done) {
+    let sh = $('photoSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'photoSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    let data = null, use = new Set(p.use);
+    const draw = () => {
+      sh.innerHTML = `<div class="vh-box"><h2>Profilbild</h2><div class="vh-photo">${data ? `<img src="${data}" alt="">` : p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member))}</div>
+        <label class="vh-pick">${p.has || data ? 'Anderes Foto wählen' : 'Foto aufnehmen oder wählen'}<input type="file" accept="image/*" id="phF"></label>
+        ${p.uses.length ? `<p class="vh-small" style="margin:0 0 6px;text-align:left">Zeigen bei:</p><div class="vh-uses">${p.uses.map(u => `<label><input type="checkbox" data-u="${u.k}" ${use.has(u.k) ? 'checked' : ''}> ${esc(u.l)}</label>`).join('')}</div>` : ''}
+        <p class="vh-small" style="text-align:left">Nur angehakte Bereiche zeigen dein Bild. Die Verwaltung sieht es bei deinen Mitgliedsdaten.</p>
+        <div class="vh-err" id="phE"></div>
+        <div class="vh-row">${p.has ? '<button class="no" id="phDel">Entfernen</button>' : '<button class="no" id="phNo">Abbrechen</button>'}<button class="ok" id="phOk">Speichern</button></div>
+        ${p.has ? '<div class="vh-row" style="margin-top:8px"><button class="no" id="phNo" style="flex:1">Schließen</button></div>' : ''}</div>`;
+      sh.querySelector('#phF').onchange = async e => { const f = e.target.files && e.target.files[0]; if (!f) return; try { data = await shrink(f); if (!use.size) p.uses.forEach(u => use.add(u.k)); draw(); } catch (x) { sh.querySelector('#phE').textContent = x.message; } };
+      sh.querySelectorAll('[data-u]').forEach(c => { c.onchange = () => { if (c.checked) use.add(c.dataset.u); else use.delete(c.dataset.u); }; });
+      sh.querySelector('#phNo').onclick = () => sh.classList.remove('show');
+      if (sh.querySelector('#phDel')) sh.querySelector('#phDel').onclick = async () => { try { await call('photo', 'DELETE'); const x = await call('photo'); sh.classList.remove('show'); toast('Profilbild entfernt.'); done(x); } catch (e) { sh.querySelector('#phE').textContent = e.message; } };
+      sh.querySelector('#phOk').onclick = async () => {
+        if (!data && !p.has) { sh.querySelector('#phE').textContent = 'Bitte zuerst ein Foto wählen.'; return; }
+        try { const x = await call('photo', 'PUT', { data: data || undefined, use: [...use] }); sh.classList.remove('show'); toast('Gespeichert.'); done(x); } catch (e) { sh.querySelector('#phE').textContent = e.message; }
+      };
+    };
+    draw(); sh.classList.add('show');
   }
 
   /* ---------- Übernahme in die Home-Bildschirm-App (iPhone: eigener Speicher je Home-Bildschirm-App) ---------- */
