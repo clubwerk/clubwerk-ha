@@ -14,7 +14,8 @@
   },
   "tablet": {
     "label": "Plätze",
-    "seite": ""
+    "seite": "",
+    "pfad": "plaetze"
   },
   "verwaltung": {
     "label": "Buchungssystem",

@@ -320,8 +320,11 @@
   .soft { background: var(--hover); }
   /* Reihenfolge am Tablet */
   .torows { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
-  .torow { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; gap: 12px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); min-height: 52px; box-sizing: border-box; }
+  .torow { display: grid; grid-template-columns: 32px minmax(0, 1fr) 52px 76px auto; gap: 12px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line); min-height: 52px; box-sizing: border-box; }
   .torow:first-child { border-top: 0; }
+  .torow .tostart { justify-self: start; margin: 0; }
+  .torow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 560px) { .torow { grid-template-columns: 32px minmax(0, 1fr) 76px auto; gap: 8px; } .torow > .muted.s { display: none; } }
   .ton { width: 28px; height: 28px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-ink); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
   .toact { display: inline-flex; gap: 6px; } .toact .btn { width: 40px; justify-content: center; }
   /* Benutzer & Rollen */

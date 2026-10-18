@@ -11,7 +11,8 @@
   },
   "tablet": {
     "label": "Beregnung",
-    "seite": ""
+    "seite": "",
+    "pfad": "beregnung"
   },
   "verwaltung": {
     "label": "Beregnung",

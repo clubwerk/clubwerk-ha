@@ -6062,6 +6062,17 @@
     "Was soll passieren?": "What should happen?",
     "Was von unterwegs nutzbar ist, darf nur ändern, wer das Recht „Einstellungen“ hat.": "Only users with the “Settings” permission may change what is usable on the go.",
     "Zum Entfernen aus der App fehlt dir das Recht für:": "To remove from the app you lack the permission for:",
-    "Zum Entfernen aus der App fehlt dir das Recht für: {0} – bitte einen Admin mit diesem Recht fragen.": "To remove from the app you lack the permission for: {0} – please ask an admin with this permission."
+    "Zum Entfernen aus der App fehlt dir das Recht für: {0} – bitte einen Admin mit diesem Recht fragen.": "To remove from the app you lack the permission for: {0} – please ask an admin with this permission.",
+    ") und nach 30 Sekunden ohne Eingabe.": ") and after 30 seconds without input.",
+    "erscheint beim Aufruf der Adresse (z. B.": "appears when the address is opened (e.g.",
+    "Leiste am Tablet": "Tablet bar",
+    "So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der": "This is how modules and links appear in the bar at the top of the tablet – from left to right. The",
+    "Start-Reiter": "start tab",
+    "Start-Reiter am Tablet geändert": "Tablet start tab changed",
+    "(noch nicht ermittelt)": "(not determined yet)",
+    "Code kopieren": "Copy code",
+    "Code kopiert.": "Code copied.",
+    "Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Das Vereins-WLAN erkennt Clubwerk auch über die öffentliche Adresse an der Internet-Adresse des Vereinsanschlusses": "Unchecked areas only work on the club Wi-Fi – on the go the member sees a notice there. Clubwerk also recognises the club Wi-Fi via the public address by the club's internet address",
+    "Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Das Vereins-WLAN erkennt Clubwerk auch über die öffentliche Adresse an der Internet-Adresse des Vereinsanschlusses{0}.": "Unchecked areas only work on the club Wi-Fi – on the go the member sees a notice there. Clubwerk also recognises the club Wi-Fi via the public address by the club's internet address{0}."
   }
 }

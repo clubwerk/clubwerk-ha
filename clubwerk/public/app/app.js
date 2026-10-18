@@ -166,6 +166,12 @@
       if (isIOS && store.get('va_hint_off') !== '1') { $('installCode').textContent = fmtCode(r.code); $('installHint').classList.remove('hidden'); }
     } catch (e) { /* kein Code – App lässt sich trotzdem per QR neu freischalten */ }
   }
+  $('installCopy').onclick = async () => {
+    const code = $('installCode').textContent.trim();
+    try { await navigator.clipboard.writeText(code); }
+    catch (e) { const r = document.createRange(); r.selectNodeContents($('installCode')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); try { document.execCommand('copy'); } catch (x) { /* egal */ } }
+    toast('Code kopiert.');
+  };
   $('installX').onclick = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); };
   function transferFlow(code) {
     $('lockSheet').classList.remove('show');

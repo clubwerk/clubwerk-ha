@@ -10,7 +10,8 @@
   },
   "tablet": {
     "label": "Zeiterfassung",
-    "seite": ""
+    "seite": "",
+    "pfad": "zeiterfassung"
   },
   "verwaltung": {
     "label": "Zeiterfassung",

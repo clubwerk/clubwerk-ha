@@ -23,7 +23,7 @@ meine-erweiterung/
   "beschreibung": "Was sie tut – erscheint in der Verwaltung.",
   "minApp": "1.13.0",                    // ältere Version → wird nicht geladen, Hinweis in der Verwaltung
   "perms": { "beispiel": "Beispiel bearbeiten" },   // eigene Rechte für „Benutzer & Rechte“
-  "tablet": { "label": "Beispiel", "seite": "" },   // Link am Tablet → /x/beispiel/  (weglassen = kein Link)
+  "tablet": { "label": "Beispiel", "seite": "", "pfad": "beispiel" },   // Reiter am Tablet → /beispiel/  (weglassen = kein Reiter; „pfad“ optional, Standard = id)
   "verwaltung": { "label": "Beispiel", "recht": "beispiel" }
 }
 ```
@@ -68,7 +68,9 @@ Die gemeinsame Kopfzeile bindet ihr so ein:
 <script src="../../nav.js" data-base="../../" data-active="beispiel"></script>
 ```
 
-Mit `nav.js` kehrt die Seite nach 30 Sekunden ohne Eingabe automatisch zur Getränkeseite zurück.
+Mit `nav.js` kehrt die Seite nach 30 Sekunden ohne Eingabe automatisch zum Start-Reiter zurück.
+
+Am Tablet erscheint die Seite unter `/<pfad>/` (z. B. `/beispiel/`). Clubwerk setzt dabei `<base href="../x/<id>/">` – relative Adressen in der Seite (`tablet.js`, `../../style.css`, `../../api/tablet/…`) funktionieren deshalb unverändert wie unter `/x/<id>/`. Ist der Pfad belegt (Dateien der Hauptseite, `api`, `x` …) oder schon vergeben, bleibt die Seite unter `/x/<id>/`. Ist die Erweiterung Start-Reiter, erscheint sie direkt unter `/`.
 
 ## Verwaltungsseite (public/admin.js)
 

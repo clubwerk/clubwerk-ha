@@ -69,6 +69,38 @@ plugins.set('getraenke', {
     perms: Object.fromEntries(DRINK_PERMS.map(k => [k, auth.PERMS[k]])), tablet: { label: 'Verkauf', seite: '' } },
 });
 
+/* Saubere Adressen am Tablet: /plaetze/, /helferdienste/ … statt /x/<id>/. Der Pfad kommt aus „tablet.pfad“ im Manifest (sonst die ID);
+   belegte Namen (Dateien der Hauptseite, api, x …) bleiben bei /x/<id>/. Verkauf liegt unter /verkauf. */
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+let reservedCache = null;
+function reservedPaths() {
+  if (!reservedCache) {
+    reservedCache = new Set(['api', 'x', 'app', 'm', 'p', 'verkauf', 'logo', 'gate', 'admin', 'index', 'manifest', 'vereinsicon']);
+    try { for (const f of fs.readdirSync(PUBLIC_DIR)) reservedCache.add(f.replace(/\.[^.]*$/, '').toLowerCase()); } catch (e) { /* egal */ }
+  }
+  return reservedCache;
+}
+function tabletSlug(p) {
+  if (!p || !p.meta.tablet) return null;
+  if (p.builtin) return p.meta.id === 'getraenke' ? 'verkauf' : null;
+  const want = String(p.meta.tablet.pfad || p.meta.id).toLowerCase();
+  if (!/^[a-z0-9][a-z0-9-]{1,39}$/.test(want) || reservedPaths().has(want)) return null;
+  for (const q of plugins.values()) if (q !== p && !q.builtin && q.meta.tablet && String(q.meta.tablet.pfad || q.meta.id).toLowerCase() === want && q.meta.id < p.meta.id) return null;   // doppelt: der erste gewinnt
+  return want;
+}
+/** HTML der Tablet-Seite mit <base>, damit relative Adressen auf /x/<id>/ zeigen – null, wenn es keine eigene Seite gibt */
+function tabletPage(id, baseHref) {
+  const p = plugins.get(id);
+  if (!p || p.builtin || p.error || !tabletSlug(p) || p.meta.tablet.seite) return null;
+  try { return fs.readFileSync(path.join(p.dir, 'public', 'index.html'), 'utf8').replace(/<head([^>]*)>/i, `<head$1>\n<base href="${baseHref}">`); } catch (e) { return null; }
+}
+/** Adresse der Tablet-Seite (relativ zur Startseite) */
+function tabletHref(p) {
+  const slug = tabletSlug(p), seite = String(p.meta.tablet.seite || '');
+  if (p.builtin) return slug || '';
+  return slug && !seite ? `${slug}/` : `x/${p.meta.id}/${seite}`;
+}
+
 const verNum = v => String(v || '0').split('.').map(n => parseInt(n, 10) || 0).reduce((a, n) => a * 1000 + n, 0);
 const activeKey = id => `ext_${id}_active`;
 const isUninstalled = id => getSetting(`ext_${id}_uninstalled`, '0') === '1';
@@ -126,6 +158,21 @@ function load({ app, admin, helpers }) {
     for (const [k, v] of Object.entries(p.meta.perms || {})) if (/^[a-z0-9_]{2,40}$/.test(k) && !auth.PERMS[k] && !RESERVED_PERMS.has(k)) auth.PERMS[k] = String(v);
     const guard = (req, res, next) => (isActive(id) ? next() : res.status(404).json({ error: 'Diese Erweiterung ist nicht aktiv.' }));
     const pub = path.join(p.dir, 'public');
+    const slug = tabletSlug(p);
+    if (fs.existsSync(pub) && slug && !p.meta.tablet.seite && fs.existsSync(path.join(pub, 'index.html'))) {
+      // Seite unter /<pfad>/ ausliefern; <base> lässt alle relativen Adressen (Skripte, Stile, API) weiter auf /x/<id>/ zeigen –
+      // so funktioniert sie auch hinter der Home-Assistant-Seitenleiste (Ingress) unverändert
+      const page = (req, res) => {
+        if (!isActive(id)) return res.status(404).send('Erweiterung nicht aktiv');
+        if (!req.path.endsWith('/')) return res.redirect(302, `${slug}/` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''));
+        const html = tabletPage(id, `../x/${id}/`);
+        if (!html) return res.status(404).end();
+        res.setHeader('Cache-Control', 'no-cache'); res.type('html').send(html);
+      };
+      app.get([`/${slug}`, `/${slug}/`, `/${slug}/index.html`], page);
+      // alte Adresse /x/<id>/ → neue Adresse (Lesezeichen und Tablets mit gespeicherter Seite)
+      app.get([`/x/${id}/`, `/x/${id}/index.html`], (req, res) => res.redirect(302, `../../${slug}/` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
+    }
     if (fs.existsSync(pub)) app.use(`/x/${id}`, (req, res, next) => (isActive(id) ? next() : res.status(404).send('Erweiterung nicht aktiv')),
       express.static(pub, { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
     const serverFile = path.join(p.dir, 'server.js');
@@ -195,7 +242,7 @@ function tabletNav() {
   for (const p of plugins.values()) {
     if (!isActive(p.meta.id) || !p.meta.tablet) continue;
     try { if (p.hooks.tabletVisible && !p.hooks.tabletVisible()) continue; } catch (e) { continue; }
-    out.push({ id: p.meta.id, label: String(p.meta.tablet.label || p.meta.name), href: p.builtin ? '' : `x/${p.meta.id}/${p.meta.tablet.seite || ''}` });
+    out.push({ id: p.meta.id, label: String(p.meta.tablet.label || p.meta.name), href: tabletHref(p) });
   }
   return out;
 }
@@ -277,4 +324,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlug, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };

@@ -10,7 +10,8 @@
   },
   "tablet": {
     "label": "Helferdienste",
-    "seite": ""
+    "seite": "",
+    "pfad": "helferdienste"
   },
   "verwaltung": {
     "label": "Helferdienste",

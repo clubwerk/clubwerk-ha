@@ -38,13 +38,13 @@
     brand();
     setInterval(brand, 5 * 60 * 1000);
   }
-  function render(items) {
+  function render(items, start) {
     const nav = document.getElementById('topnav');
     if (!nav) return;
     const links = [];
     // Reihenfolge vom Server: eingebaute Module (Getränke), Erweiterungen, eigene Links; die erste ist die Startseite
     items.forEach(i => links.push(i.external ? i : { ...i, href: base + i.href || './' }));
-    homeId = items.length ? items[0].id : null;
+    homeId = start || (items.length ? items[0].id : null);   // Start-Reiter (Einstellungen → Leiste am Tablet)
     const ICO = { buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', getraenke: '<path d="M5 8h14l-1.2 11.2A2 2 0 0 1 15.8 21H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
       beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
       zeiterfassung: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
@@ -54,7 +54,7 @@
     const adm = document.getElementById('adminLink'); if (adm) adm.classList.toggle('on', active === 'verwaltung');
   }
   function load() {
-    fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : { items: [] })).then(d => render(d.items || [])).catch(() => render([]));
+    fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : { items: [] })).then(d => render(d.items || [], d.start)).catch(() => render([]));
   }
   render([]);
   load();
@@ -62,7 +62,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   window.GKNav = { reload: load };
 
-  /* Nach 30 Sekunden ohne Eingabe zurück zu „Getränke“ – auf allen Tablet-Seiten außer der Getränkeseite selbst
+  /* Nach 30 Sekunden ohne Eingabe zurück zum Start-Reiter – auf allen Tablet-Seiten außer dem Start-Reiter selbst
      (die Verwaltung bindet diese Datei nicht ein und bleibt deshalb offen). */
   const IDLE_MS = 30 * 1000;
   if (active !== 'verwaltung' && active !== 'start') {

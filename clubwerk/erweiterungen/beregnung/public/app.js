@@ -2,7 +2,7 @@
 /* Beregnung: eigene Webapp (Port 5000, Vereins-PIN) und – falls eingeschaltet – am Vereinstablet.
    Am Tablet wird die PIN nie gemerkt: jede Aktion fragt neu. */
 (() => {
-  const embedded = location.pathname.includes('/x/beregnung/');
+  const embedded = /\/(x\/)?beregnung\//.test(location.pathname) || Boolean(document.querySelector('base[href*="x/beregnung/"]'));   // am Tablet (/beregnung/, alt: /x/beregnung/, oder als Start-Reiter unter „/“)
   const API = embedded ? '../../api/tablet/x/beregnung/' : 'api/';
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));

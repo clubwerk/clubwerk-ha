@@ -13,7 +13,8 @@
   },
   "tablet": {
     "label": "Mitglied werden",
-    "seite": ""
+    "seite": "",
+    "pfad": "mitglied-werden"
   },
   "verwaltung": {
     "label": "Mitgliederverwaltung",

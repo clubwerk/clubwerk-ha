@@ -211,12 +211,22 @@ app.get('/api/branding', (req, res) => {
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), iconNeeded: Boolean(l) && !iconFresh() });
 });
 
-/* Ohne Modul „Getränke“ zeigt die Startseite das erste aktive Modul mit Tablet-Seite (sonst eine schlichte Startseite) */
+/* Startseite: der eingestellte Start-Reiter (Einstellungen → Leiste am Tablet) erscheint direkt unter „/“ – ohne Umweg über eine andere Adresse */
 app.get(['/', '/index.html'], (req, res, next) => {
+  const st = tabletStart();
+  if (st && st.id === 'getraenke') return next();
+  const page = st && !st.url ? plugins.tabletPage(st.id, `x/${st.id}/`) : null;
+  if (page) { res.setHeader('Cache-Control', 'no-cache'); return res.type('html').send(page); }
+  if (st && st.href) return res.redirect(302, st.href);
   if (plugins.isActive('getraenke')) return next();
-  const first = plugins.tabletNav().find(i => i.href);
-  res.redirect(302, first ? first.href : 'start.html');
+  res.redirect(302, 'start.html');
 });
+// Verkauf auch unter /verkauf (ohne Schrägstrich am Ende, damit alle relativen Adressen gleich bleiben)
+app.get('/verkauf', (req, res, next) => {
+  if (!plugins.isActive('getraenke')) return next();
+  res.setHeader('Cache-Control', 'no-cache'); res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+app.get('/verkauf/', (req, res) => res.redirect(302, '../verkauf'));
 
 app.use('/app', (req, res) => res.status(404).end());
 // Seiten der Erweiterungen binden die gemeinsamen Stile relativ ein („style.css“) – am Tablet liegen sie zwei Ebenen höher
@@ -3074,14 +3084,30 @@ function tabletItems() {
   const pos = k => { const i = order.indexOf(k); return i < 0 ? 1000 : i; };
   return items.map((x, i) => ({ x, i })).sort((a, b) => pos(a.x.key) - pos(b.x.key) || a.i - b.i).map(o => o.x);
 }
-app.get('/api/tablet/nav', (req, res) => res.json({ items: tabletItems() }));
-admin.get('/settings/tablet-order', need('einstellungen'), (req, res) => res.json({ items: tabletItems() }));
+/** Start-Reiter: eingestellt, sonst Verkauf (falls aktiv), sonst der erste in der Leiste */
+function tabletStart(items = tabletItems()) {
+  const key = getSetting('tablet_start', '');
+  return items.find(x => x.key === key) || items.find(x => x.id === 'getraenke') || items[0] || null;
+}
+// der Start-Reiter verweist auf „/“ (dort erscheint er direkt), alle anderen auf ihre eigene Adresse
+app.get('/api/tablet/nav', (req, res) => {
+  const items = tabletItems(); const st = tabletStart(items);
+  const startHere = st && (st.id === 'getraenke' || (!st.url && plugins.tabletPage(st.id, '')));
+  res.json({ items: items.map(x => (startHere && x === st ? { ...x, href: '' } : x)), start: st ? st.id : null });
+});
+admin.get('/settings/tablet-order', need('einstellungen'), (req, res) => { const items = tabletItems(); const st = tabletStart(items); res.json({ items, start: st ? st.key : null }); });
 admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
   const keys = new Set(tabletItems().map(x => x.key));
   const order = (Array.isArray((req.body || {}).order) ? req.body.order : []).map(String).filter(k => keys.has(k)).slice(0, 40);
   setSetting('tablet_order', JSON.stringify(order));
   audit(req.user, 'Reihenfolge am Tablet geändert', order.join(', '));
-  res.json({ ok: true, items: tabletItems() });
+  const start = (req.body || {}).start;
+  if (start !== undefined && keys.has(String(start)) && String(start) !== getSetting('tablet_start', '')) {
+    setSetting('tablet_start', String(start));
+    audit(req.user, 'Start-Reiter am Tablet geändert', (tabletItems().find(x => x.key === String(start)) || {}).label || String(start));
+  }
+  const items = tabletItems(); const st = tabletStart(items);
+  res.json({ ok: true, items, start: st ? st.key : null });
 });
 admin.get('/extensions', (req, res) => {
   const all = plugins.list();

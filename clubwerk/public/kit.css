@@ -109,6 +109,10 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; }
 .vh-box.vh-hint h2 { font-size: 17px; }
 .vh-box.vh-hint p { margin: 0 0 10px; }
 .vh-small { font-size: 13px !important; }
+.vh-codewrap { position: relative; margin-bottom: 12px; }
+.vh-codewrap .vh-code { margin-bottom: 0; padding-left: 56px; padding-right: 56px; }
+.vh-copy { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.vh-copy:active { background: var(--brand-soft); }
 .vh-code { font: 700 22px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-align: center; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--field); color: var(--ink); margin-bottom: 12px; user-select: all; }
 .vh-input.vh-codein { text-align: center; font: 700 20px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; }
 #lockSheet .vh-row { margin-top: 14px; }

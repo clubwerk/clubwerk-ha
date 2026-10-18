@@ -10,7 +10,8 @@
   },
   "tablet": {
     "label": "Zugang",
-    "seite": ""
+    "seite": "",
+    "pfad": "zugang"
   },
   "verwaltung": {
     "label": "Zugang",

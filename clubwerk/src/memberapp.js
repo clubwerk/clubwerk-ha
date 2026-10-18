@@ -21,6 +21,38 @@ const tunnelHost = () => { try { return tunnelUrl() ? new URL(tunnelUrl()).host.
 /** Bereich „von unterwegs“ (über den Tunnel) nutzbar? Einstellung je Bereich, sonst Vorgabe des Moduls (Beregnung, Türen: nein) */
 const extCfg = () => { try { const x = JSON.parse(getSetting('app_ext_modules', '{}')); return x && typeof x === 'object' ? x : {}; } catch (e) { return {}; } };
 function extAllowed(id) { const c = extCfg(); if (c[id] !== undefined) return Boolean(c[id]); const m = modules.get(id); return m ? m.away !== false : false; }
+/* Im Vereins-WLAN, aber über die öffentliche Adresse? Dann läuft die Anfrage trotzdem über Cloudflare. Erkennung: Die Absender-IP
+   ist die öffentliche IP des Vereinsanschlusses (IPv4 gleich bzw. IPv6 im selben /64-Netz). Die eigene öffentliche IP fragt Clubwerk
+   regelmäßig bei Cloudflare ab (cdn-cgi/trace). */
+const clubNet = { v4: '', v6: '', at: 0, busy: false };
+async function refreshClubNet() {
+  if (clubNet.busy) return; clubNet.busy = true;
+  try {
+    if (process.env.CW_TEST_PUBLIC_IP !== undefined) { const [a, b] = process.env.CW_TEST_PUBLIC_IP.split(','); clubNet.v4 = a || ''; clubNet.v6 = b || ''; return; }
+    const ask = async u => { try { const r = await fetch(u, { signal: AbortSignal.timeout(5000) }); const m = /(?:^|\n)ip=([0-9a-fA-F:.]+)/.exec(await r.text()); return m ? m[1] : ''; } catch (e) { return ''; } };
+    const [v4, v6] = await Promise.all([ask('http://1.1.1.1/cdn-cgi/trace'), ask('http://[2606:4700:4700::1111]/cdn-cgi/trace')]);
+    if (v4 && !v4.includes(':')) clubNet.v4 = v4;
+    if (v6 && v6.includes(':')) clubNet.v6 = v6;
+  } finally { clubNet.at = Date.now(); clubNet.busy = false; }
+}
+/** die ersten 64 Bit einer IPv6-Adresse (ausgeschrieben), auch bei „::“-Kurzschreibweise */
+function v6net(ip) {
+  const v = String(ip).toLowerCase().split('%')[0];
+  if (!/^[0-9a-f:]+$/.test(v) || v.split('::').length > 2) return '';
+  const [l, r] = v.split('::');
+  const L = l ? l.split(':') : [], Rr = r !== undefined && r ? r.split(':') : [];
+  const full = r !== undefined ? [...L, ...Array(Math.max(0, 8 - L.length - Rr.length)).fill('0'), ...Rr] : L;
+  return full.length === 8 ? full.slice(0, 4).map(x => x.padStart(4, '0')).join(':') : '';
+}
+function inClubNet(ip) {
+  if (Date.now() - clubNet.at > 5 * 60 * 1000) refreshClubNet();   // im Hintergrund, z. B. nach Zwangstrennung der Leitung
+  ip = String(ip || '').replace(/^::ffff:/, '');
+  if (!ip) return false;
+  if (!ip.includes(':')) return Boolean(clubNet.v4) && ip === clubNet.v4;
+  return Boolean(clubNet.v6) && v6net(ip) !== '' && v6net(ip) === v6net(clubNet.v6);
+}
+/** von außen (über den Tunnel und nicht aus dem Vereinsnetz)? */
+const awayReq = req => Boolean(req.viaTunnel) && !req.clubNet;
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
 // Der Tunnel (cloudflared) läuft im Home-Assistant-Netz: nur dann der mitgeschickten Absender-IP trauen
@@ -105,6 +137,7 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
 function startPort({ rateLimit }) {
   const port = parseInt(process.env.MEMBER_PORT || '5001', 10);
   if (!port) return;
+  if (tunnelOn()) refreshClubNet();
   const app = express();
   app.disable('x-powered-by');
   app.use(require('./security').hostGuard());
@@ -118,6 +151,7 @@ function startPort({ rateLimit }) {
     const ip = String(cf).trim().slice(0, 45);
     if (/^[0-9a-fA-F:.]+$/.test(ip)) Object.defineProperty(req, 'ip', { value: ip, configurable: true });
     req.viaTunnel = true;
+    req.clubNet = inClubNet(ip);
     res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     next();
   });
@@ -163,12 +197,12 @@ function startPort({ rateLimit }) {
 
   const api = express.Router();
   const dev = req => req.get('X-Geraet') || '';
-  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', tunnel: Boolean(req.viaTunnel) }));
+  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', tunnel: Boolean(req.viaTunnel), clubNet: Boolean(req.clubNet) }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
     const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
-      if (c.ok && req.viaTunnel && !extAllowed(id)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
+      if (c.ok && awayReq(req) && !extAllowed(id)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
     res.json({ club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
@@ -234,7 +268,7 @@ function startPort({ rateLimit }) {
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
     const c = accessFor(w.memberId, req.params.id);
     if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
-    if (req.viaTunnel && !extAllowed(req.params.id)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
+    if (awayReq(req) && !extAllowed(req.params.id)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
     req.member = { id: w.memberId, name: w.name, access: c.row };
     /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
     req.pinOk = () => {
@@ -286,13 +320,13 @@ function adminRoutes(admin, { bad, need, auth }) {
   const missingFor = (req, memberId) => db.prepare('SELECT module, blocked FROM member_access WHERE member_id = ?').all(memberId)
     .filter(r => { const m = modules.get(r.module); return m && m.isActive() && !m.open && !r.blocked; })
     .filter(r => !mayModule(req, r.module)).map(r => modules.get(r.module).label || modules.get(r.module).name);
-  admin.get('/app', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
+  admin.get('/app', (req, res, next) => need(...permsAll())(req, res, next), (req, res, next) => { if (tunnelOn() && !clubNet.v4 && !clubNet.v6 && Date.now() - clubNet.at > 60000) refreshClubNet().then(() => next(), () => next()); else next(); }, (req, res) => {
     const ids = db.prepare(`SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)`).all(SCOPE).map(r => r.member_id);
     const rows = ids.map(id => { const m = db.prepare('SELECT id, name, kind, active, deleted FROM members WHERE id = ?').get(id); return m && !m.deleted ? { member_id: id, name: m.name, kind: m.kind, ...memberState(id) } : null; })
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl() }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), clubIp: [clubNet.v4, clubNet.v6 ? v6net(clubNet.v6) + '::/64' : ''].filter(Boolean).join(' · ') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {

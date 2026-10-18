@@ -181,7 +181,7 @@ Normalerweise ist die Mitglieder-App nur im Vereins-WLAN erreichbar. Damit Mitgl
 4. Im Tunnel unter „Routes“ → „Add route“ → **„Published application“** einen Eintrag anlegen: Subdomain `app`, Domain `meinverein.de`, Dienst **HTTPS** (bzw. HTTP, wenn HTTPS in Clubwerk aus ist), URL `IP-von-Home-Assistant:5001` (Port der Mitglieder-App). Bei HTTPS unter „Additional application settings → TLS“ **No TLS Verify** einschalten. **Keine weiteren Ports** freigeben.
 5. In Clubwerk unter Mitglieder-App → „Von unterwegs erreichbar“ `https://app.meinverein.de` eintragen, „eingeschaltet“ anhaken, speichern und „Verbindung prüfen“.
 6. Neue QR-Codes enthalten jetzt die öffentliche Adresse und funktionieren im WLAN und unterwegs. Bereits gekoppelte Handys brauchen für unterwegs einen neuen QR-Code – in der Liste stehen sie mit „alte Adresse – neuer QR-Code nötig“, der Filter „alte Adresse“ zeigt sie gesammelt.
-7. Unter **„Von unterwegs nutzbar“** je Bereich festlegen, ob er auch über das Internet funktioniert. Vorgabe: Buchen, Meine Daten und Helferdienste ja, Beregnung und Türen nein. Nicht freigegebene Bereiche zeigt die App unterwegs ausgegraut mit dem Hinweis „Nur im Vereins-WLAN“; im Vereins-WLAN funktioniert alles wie gewohnt. Ändern darf das nur, wer das Recht „Einstellungen“ hat.
+7. Unter **„Von unterwegs nutzbar“** je Bereich festlegen, ob er auch über das Internet funktioniert. Vorgabe: Buchen, Meine Daten und Helferdienste ja, Beregnung und Türen nein. Nicht freigegebene Bereiche zeigt die App unterwegs ausgegraut mit dem Hinweis „Nur im Vereins-WLAN“; im Vereins-WLAN funktioniert alles wie gewohnt – auch über die öffentliche Adresse: Clubwerk erkennt das Vereins-WLAN an der Internet-Adresse des Vereinsanschlusses (wird alle 5 Minuten bei Cloudflare abgefragt). Ändern darf das nur, wer das Recht „Einstellungen“ hat.
 
 **Sicherheit:** Verwaltung, Tablet-Seiten und Beregnung lehnen jede Anfrage ab, die über den Tunnel kommt – auch wenn der Tunnel versehentlich auf den falschen Port zeigt. Die Mitglieder-App antwortet nur unter der eingetragenen Adresse. Jedes Handy ist einzeln mit QR-Code und PIN gekoppelt; Fehlversuche werden je Absender gesperrt. Ausschalten genügt, um den Zugang von außen sofort zu schließen.
 
@@ -244,7 +244,8 @@ Jedes Mitglied hat **eine PIN für alles im Vereinsheim** – Verkauf, Platzbuch
 - **„Zum Home-Bildschirm hinzufügen“** – dann startet die Seite wie eine App im Vollbild.
 - iPad: **Einstellungen → Bedienungshilfen → Geführter Zugriff** einschalten, damit niemand die App verlässt. Android: **Bildschirm anheften**.
 - Automatische Bildschirmsperre ausschalten und das Tablet am Strom lassen.
-- **Reihenfolge der Leiste oben** (Verkauf, Mitglied werden, Zeiterfassung, eigene Links …): Einstellungen → Tablet & Kopfzeile → „Reihenfolge am Tablet“.
+- **Reihenfolge der Leiste oben und Start-Reiter** (Verkauf, Mitglied werden, Zeiterfassung, eigene Links …): Einstellungen → Tablet & Kopfzeile → „Leiste am Tablet“. Der Start-Reiter erscheint beim Aufruf der Adresse (`…:3100`) und nach 30 Sekunden ohne Eingabe; Vorgabe ist Verkauf.
+- **Adressen am Tablet:** `/verkauf`, `/plaetze/`, `/helferdienste/`, `/mitglied-werden/`, `/zeiterfassung/`, `/beregnung/`, `/zugang/`. Alte Adressen mit `/x/…/` leiten automatisch weiter.
 - Die Verwaltung erreicht man am Tablet über „Verwaltung“ oben rechts (Admin-Passwort nötig) oder bequemer über die Seitenleiste von Home Assistant.
 
 ## Ablauf im Alltag

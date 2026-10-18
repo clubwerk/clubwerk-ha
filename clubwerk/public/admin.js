@@ -2038,7 +2038,7 @@
           <li>Hier die Adresse eintragen, einschalten, „Verbindung prüfen“ – neue QR-Codes enthalten dann die öffentliche Adresse und funktionieren im WLAN und unterwegs.</li></ol>
         <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p>
         <h4 style="margin:16px 0 6px">Von unterwegs nutzbar</h4>
-        <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis.</p>
+        <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Das Vereins-WLAN erkennt Clubwerk auch über die öffentliche Adresse an der Internet-Adresse des Vereinsanschlusses${r.tunnel.clubIp ? ` (gerade <code>${esc(r.tunnel.clubIp)}</code>)` : r.tunnel.on ? ' (noch nicht ermittelt)' : ''}.</p>
         <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
@@ -3008,10 +3008,10 @@
         <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
         <div id="lnRows"></div>
         <div class="row" style="margin-top:10px"><button class="btn" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
-      ${mayCfg ? `<div class="card"><h3>Reihenfolge am Tablet</h3>
-        <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts.</p>
+      ${mayCfg ? `<div class="card"><h3>Leiste am Tablet</h3>
+        <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der <b>Start-Reiter</b> erscheint beim Aufruf der Adresse (z. B. <code>…:3100</code>) und nach 30 Sekunden ohne Eingabe.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
-        <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary" id="toSave">Reihenfolge speichern</button></div></div>` : ''}
+        <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
       <div class="card"><h3>Tablet & Home Assistant</h3>
         <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. ${s.tabletPw && s.tabletPw.on ? 'Beim ersten Aufruf das Passwort der Buchungsseite eingeben.' : 'Die Buchungsseite braucht keine Anmeldung.'}</p>
         <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
@@ -3094,15 +3094,17 @@
       };
     }
     if ($('toRows')) {
-      let items = [];
+      let items = [], start = null;
       const draw = () => {
         $('toRows').innerHTML = items.length ? items.map((x, i) => `<div class="torow"><span class="ton">${i + 1}</span><b translate="no">${esc(x.label)}</b><span class="muted s">${x.url ? 'Link' : 'Modul'}</span>
+          <label class="chk tostart"><input type="radio" name="toStart" data-st="${esc(x.key)}" ${x.key === start ? 'checked' : ''}> Start</label>
           <span class="toact"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach links">↑</button><button class="btn small" data-dn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach rechts">↓</button></span></div>`).join('') : '<p class="muted" style="margin:0">Kein Modul mit Tablet-Seite aktiv.</p>';
         $('toRows').querySelectorAll('[data-up]').forEach(b => { b.onclick = () => { const i = +b.dataset.up; [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); }; });
         $('toRows').querySelectorAll('[data-dn]').forEach(b => { b.onclick = () => { const i = +b.dataset.dn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
+        $('toRows').querySelectorAll('[data-st]').forEach(r => { r.onchange = () => { start = r.dataset.st; }; });
       };
-      api('settings/tablet-order').then(d => { items = d.items || []; draw(); }).catch(() => { $('toRows').innerHTML = '<p class="muted">Nicht abrufbar.</p>'; });
-      $('toSave').onclick = async () => { try { const r = await api('settings/tablet-order', 'PUT', { order: items.map(x => x.key) }); items = r.items; draw(); toast('Gespeichert – die Tablets übernehmen es beim nächsten Laden.'); } catch (e) { fail(e); } };
+      api('settings/tablet-order').then(d => { items = d.items || []; start = d.start; draw(); }).catch(() => { $('toRows').innerHTML = '<p class="muted">Nicht abrufbar.</p>'; });
+      $('toSave').onclick = async () => { try { const r = await api('settings/tablet-order', 'PUT', { order: items.map(x => x.key), start }); items = r.items; start = r.start; draw(); toast('Gespeichert – die Tablets übernehmen es beim nächsten Laden.'); } catch (e) { fail(e); } };
     }
     if ($('hostSave')) $('hostSave').onclick = async () => { try { const r = await api('settings/hosts', 'PUT', { hosts: $('hostList').value }); $('hostList').value = r.hosts; toast('Gespeichert.'); } catch (e) { fail(e); } };
     if ($('tpSave')) $('tpSave').onclick = async () => {
