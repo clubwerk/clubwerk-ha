@@ -5275,6 +5275,12 @@
     "Zu dieser Zeit ist schon gebucht.": "This time is already booked.",
     "{0} hat schon die höchste Zahl offener Buchungen ({1}).": "{0} already has the maximum number of open bookings ({1}).",
     "Du hast schon die höchste Zahl offener Buchungen ({0}) – erst wenn eine vorbei ist, geht die nächste.": "You already have the maximum number of open bookings ({0}) – the next one is possible once one is over.",
-    "Gastgebühr {0} {1} {2} (Gäste: {3})": "Guest fee {0} {1} {2} (guests: {3})"
+    "Gastgebühr {0} {1} {2} (Gäste: {3})": "Guest fee {0} {1} {2} (guests: {3})",
+    "Einsätze unter 5 Minuten werden nicht gewertet.": "Sessions under 5 minutes are not counted.",
+    "Nicht gewertet": "Not counted",
+    "seit {0} Uhr · {1}:{2} Stunden": "since {0} · {1}:{2} hours",
+    "Weniger als 5 Minuten – das wird nicht gewertet und verworfen.": "Less than 5 minutes – this will not be counted and will be discarded.",
+    "Weniger als 5 Minuten – der Einsatz wurde verworfen.": "Less than 5 minutes – the session was discarded.",
+    "Ausstempeln?": "Clock out?"
   }
 }

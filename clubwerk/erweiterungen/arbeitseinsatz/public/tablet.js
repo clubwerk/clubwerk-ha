@@ -22,7 +22,7 @@
     $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="aw-tile ev"><div><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></div></div>`).join('')
       : '<div class="aw-empty">Heute ist nichts geplant – du kannst trotzdem einen Einsatz beginnen.</div>';
     $('note').textContent = state.text || '';
-    $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; unlock(p, 'Einsatz beenden', tok => finish(tok)); }; });
+    $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; confirmStop(p, state.running.find(x => x.member_id === p.id)); }; });
   }
 
   const dlg = html => { $('dialog').innerHTML = html; $('overlay').classList.remove('hidden'); };
@@ -69,9 +69,20 @@
     $('x').onclick = closeDlg;
     paint();
   }
+  /** Vor dem Ausstempeln nachfragen (verhindert versehentliches Beenden) */
+  function confirmStop(p, r) {
+    const m = r ? Math.max(0, Math.round((Date.now() - new Date(r.in_at.replace(' ', 'T')).getTime()) / 60000)) : 0;
+    const short = m < 5;
+    dlg(`<h2>Ausstempeln?</h2><div class="sub"><b translate="no">${esc(p.name)}</b>${r ? ` · ${esc(r.title || 'Einsatz')}<br>seit ${r.in_at.slice(11, 16)} Uhr · ${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} Stunden` : ''}</div>
+      ${short ? '<div class="perr" style="margin-top:0">Weniger als 5 Minuten – das wird nicht gewertet und verworfen.</div>' : ''}
+      <div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Ausstempeln</button></div>`);
+    $('x').onclick = closeDlg;
+    $('ok').onclick = () => unlock(p, 'Einsatz beenden', tok => finish(tok));
+  }
   async function finish(token) {
     try {
       const r = await call('x/arbeitseinsatz/stop', { token });
+      if (r.discarded) { dlg(`<h2>Nicht gewertet</h2><div class="sub">Weniger als 5 Minuten – der Einsatz wurde verworfen.</div><div class="dlg-btns" style="grid-template-columns:1fr"><button class="ok" id="x">OK</button></div>`); $('x').onclick = closeDlg; setTimeout(closeDlg, 6000); load(); return; }
       dlg(`<h2>Danke!</h2><div class="sub">${Math.floor(r.minutes / 60)}:${String(r.minutes % 60).padStart(2, '0')} Stunden ${r.confirmed ? 'gutgeschrieben' : 'erfasst – der Vorstand bestätigt sie'}.</div><div class="dlg-btns" style="grid-template-columns:1fr"><button class="ok" id="x">Fertig</button></div>`);
       $('x').onclick = closeDlg; setTimeout(closeDlg, 6000); load();
     } catch (e) { closeDlg(); toast(e.message, true); }

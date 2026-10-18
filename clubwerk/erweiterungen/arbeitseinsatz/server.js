@@ -17,6 +17,7 @@ const hm = m => `${Math.floor(Math.abs(m) / 60)}:${pad(Math.abs(m) % 60)} h`;
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const ageAt = (b, day) => { if (!isDate(b)) return null; let a = +day.slice(0, 4) - +b.slice(0, 4); if (day.slice(5) < b.slice(5)) a--; return a; };
+const MIN_COUNT = 5;   // Einsätze unter 5 Minuten werden nicht gewertet
 const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', sonstiges: 'Sonstiges' };
 
 function tables(db) {
@@ -221,6 +222,7 @@ function activate(ctx) {
     const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
     const b = req.body || {}; const list = Array.isArray(b.members) ? b.members.map(Number) : [];
     const min = Math.round(Number(b.minutes)); if (!Number.isFinite(min) || min <= 0 || min > 1440) return bad(res, 'Bitte die Dauer angeben.');
+    if (min < MIN_COUNT) return bad(res, 'Einsätze unter 5 Minuten werden nicht gewertet.');
     let n = 0;
     for (const mid of list) {
       if (!db.prepare('SELECT 1 FROM members WHERE id = ?').get(mid) || db.prepare("SELECT 1 FROM aw_entry WHERE event_id = ? AND member_id = ? AND status != 'abgelehnt'").get(e.id, mid)) continue;
@@ -243,6 +245,7 @@ function activate(ctx) {
     const o = { date: b.date !== undefined ? b.date : cur.date, minutes: b.minutes !== undefined ? Math.round(Number(b.minutes)) : cur.minutes, text: b.text !== undefined ? txt(b.text, 140) || null : cur.text || null, event_id: b.event_id !== undefined ? (b.event_id ? int(b.event_id) : null) : cur.event_id || null };
     if (!isDate(o.date) || o.date > today()) return { error: 'Bitte ein Datum (nicht in der Zukunft) angeben.' };
     if (!Number.isFinite(o.minutes) || o.minutes <= 0 || o.minutes > 1440) return { error: 'Bitte die Dauer angeben (höchstens 24 Stunden).' };
+    if (o.minutes < MIN_COUNT) return { error: 'Einsätze unter 5 Minuten werden nicht gewertet.' };
     if (o.event_id && !db.prepare('SELECT 1 FROM aw_event WHERE id = ?').get(o.event_id)) return { error: 'Einsatz nicht gefunden.' };
     return { v: o };
   };
@@ -318,9 +321,12 @@ function activate(ctx) {
     if (!mid || typeof mid !== 'number') return bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401);
     const e = db.prepare("SELECT * FROM aw_entry WHERE member_id = ? AND status = 'laeuft'").get(mid);
     if (!e) return bad(res, 'Du bist nicht eingestempelt.');
+    ctx.auth.dropTabletToken(b.token);
+    // unter 5 Minuten (z. B. versehentlich eingestempelt): wird nicht gewertet und verworfen
+    const raw = Math.round((Date.parse(nowTs().replace(' ', 'T')) - Date.parse(e.in_at.replace(' ', 'T'))) / 60000);
+    if (raw < MIN_COUNT) { db.prepare('DELETE FROM aw_entry WHERE id = ?').run(e.id); return res.json({ ok: true, minutes: Math.max(0, raw), discarded: true }); }
     const hasPin = Boolean(db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(mid).pin_hash);
     const min = stop(e, cfg().tablet_auto && hasPin ? 'bestaetigt' : 'offen');
-    ctx.auth.dropTabletToken(b.token);
     res.json({ ok: true, minutes: min, confirmed: cfg().tablet_auto && hasPin });
   });
 

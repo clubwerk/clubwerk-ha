@@ -1,7 +1,7 @@
 {
   "id": "arbeitseinsatz",
   "name": "Arbeitseinsatz & Thekendienst",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "kurz": "Arbeitsstunden planen und abrechnen.",
   "beschreibung": "Arbeitseinsätze und Thekendienste planen, Mitglieder tragen sich in der Mitglieder-App ein, stempeln am Tablet oder melden ihre Stunden. Soll je Mitglied (Vorgabe, Beitragsart, Alter, Ausnahmen), Familien gemeinsam, Erinnerungen per E-Mail. Nicht geleistete Stunden rechnet die Mitgliederverwaltung im Beitragslauf mit dem Stundensatz ab.",
   "minApp": "3.1.0",
