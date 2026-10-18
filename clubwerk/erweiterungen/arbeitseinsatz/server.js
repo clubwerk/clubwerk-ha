@@ -475,6 +475,10 @@ function activate(ctx) {
   /* ---------------------------------------------------------------- Mitglieder-App „Dienste“ */
   const startMs = e => Date.parse(`${e.date}T${e.start || '00:00'}:00`);
   const canLeave = e => Date.now() <= startMs(e) - CANCEL_H * 3600000;
+  /** Ende eines Dienstes (über Mitternacht: am Folgetag; ohne Uhrzeit: Ende des Tages) */
+  const endMs = e => { if (!e.end) return Date.parse(`${e.date}T23:59:59`); let t = Date.parse(`${e.date}T${e.end}:00`); if (e.start && e.end <= e.start) t += 86400000; return t; };
+  /** Eintragen geht, bis der Dienst vorbei ist – gleiche Regel für Anzeige und Eintragen */
+  const isOpen = e => Date.now() < endMs(e);
   /** Info an die Verwaltung (Einstellungen → „Absagen an“) */
   function tellAdmins(subject, lines) {
     const to = cfg().notify; if (!to || !ctx.mail.ready()) return;
@@ -488,18 +492,19 @@ function activate(ctx) {
     const done = doneMinutes(ids, y), open = openMinutes(ids, y);
     const mine = await target(id, y);
     const shiftApp = e => { const hp = helpersOf(e.id); return { id: e.id, kind: e.kind, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, counts: Boolean(e.counts),
-      taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.map(x => x.name), faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e) }; };
+      taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.map(x => x.name), faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e), open: isOpen(e) }; };
     const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
       shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
       plans,
-      events: db.prepare('SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL ORDER BY e.date, e.start LIMIT 40').all(today()).map(shiftApp),
+      events: db.prepare('SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL ORDER BY e.date, e.start LIMIT 60').all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));
   M.post('/signup', rateLimit('awsig', 60, 60000), ar(async (req, res) => {
     const b = req.body || {}, mid = req.member.id; const e = db.prepare('SELECT * FROM aw_event WHERE id = ? AND cancelled = 0 AND permanent = 0').get(int(b.event_id));
     const plan = e && e.plan_id ? db.prepare('SELECT * FROM aw_plan WHERE id = ?').get(e.plan_id) : null;
-    if (!e || startMs(e) < Date.now() - 6 * 3600000 || (plan && !plan.published)) return bad(res, 'Dieser Dienst ist nicht mehr offen.');
+    if (!e || (plan && !plan.published)) return bad(res, 'Dieser Dienst ist nicht (mehr) offen.');
+    if (!b.remove && !isOpen(e)) return bad(res, 'Dieser Dienst ist schon vorbei – eintragen geht nicht mehr.');
     if (b.remove) {
       if (!db.prepare('SELECT 1 FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, mid)) return res.json({ ok: true });
       if (!canLeave(e)) return bad(res, `Austragen geht in der App nur bis ${CANCEL_H} Stunden vor Beginn. Bitte melde dich bei ${cfg().contact || 'der Vereinsleitung'} – dort wirst du ausgetragen.`);

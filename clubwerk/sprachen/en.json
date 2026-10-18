@@ -5973,6 +5973,8 @@
     "mit SEPA-Mandat": "with SEPA mandate",
     "Unterschriebene Beitrittserklärung{0} (PDF oder Foto)": "Signed membership application{0} (PDF or photo)",
     "Vergangene Buchungen bleiben im Protokoll und in der Auswertung erhalten. Gibt es noch kommende Buchungen, Serien oder Sperren, geht es nicht – dann erst stornieren oder auf „inaktiv“ setzen.": "Past bookings stay in the log and the statistics. If there are upcoming bookings, series or blocks, deleting is not possible – cancel them first or set it to “inactive”.",
-    "wie auf dem Mandat": "as on the mandate"
+    "wie auf dem Mandat": "as on the mandate",
+    "Dieser Dienst ist nicht (mehr) offen.": "This duty is not (or no longer) open.",
+    "Dieser Dienst ist schon vorbei – eintragen geht nicht mehr.": "This duty is already over – signing up is no longer possible."
   }
 }

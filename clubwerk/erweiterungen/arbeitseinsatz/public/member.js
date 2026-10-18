@@ -80,12 +80,12 @@
         const rep = document.getElementById('dsRep'); if (rep) rep.onclick = () => report(d);
       }
       function shiftHtml(e, withDate) {
-        const full = e.slots && e.taken >= e.slots && !e.mine;
+        const over = e.open === false, full = e.slots && e.taken >= e.slots && !e.mine;
         const st = e.slots ? (e.taken >= e.slots ? ['g', 'voll'] : ['a', `${e.slots - e.taken} frei`]) : ['', `${e.taken} dabei`];
         return `<div class="ds-sh${e.mine ? ' me' : ''}"><div class="ds-t">${withDate ? `${wd(e.date)} ${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.<small>${esc(when(e))}</small>` : esc(when(e))}</div>
           <div style="min-width:0"><strong><span translate="no">${esc(e.title)}</span><span class="ds-tag ${st[0]}">${esc(st[1])}</span>${e.mine ? '<span class="ds-tag g">du bist dabei</span>' : ''}</strong>
             ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length ? `<small class="n" translate="no">${esc(e.helpers.map(short).join(', '))}</small>` : ''}${e.note ? `<small class="n">${esc(e.note)}</small>` : ''}${withDate && e.place ? `<small class="n">${esc(e.place)}</small>` : ''}</div>
-          <button data-ev="${e.id}" data-on="${e.mine ? 1 : 0}" class="${e.mine ? 'sec' : ''}" ${full ? 'disabled' : ''}>${e.mine ? 'Austragen' : full ? 'voll' : 'Ich helfe'}</button></div>`;
+          ${over ? '<button class="sec" disabled>vorbei</button>' : `<button data-ev="${e.id}" data-on="${e.mine ? 1 : 0}" class="${e.mine ? 'sec' : ''}" ${full ? 'disabled' : ''}>${e.mine ? 'Austragen' : full ? 'voll' : 'Ich helfe'}</button>`}</div>`;
       }
       function planHtml(p) {
         const days = [...new Set(p.shifts.map(e => e.date))];
@@ -97,7 +97,7 @@
           ${sh.length ? sh.map(e => shiftHtml(e, false)).join('') : '<p class="ds-sub">Noch keine Schichten.</p>'}</div>`;
       }
       function mineHtml(d) {
-        const list = [...d.events.map(e => ({ ...e, plan: null })), ...d.plans.flatMap(p => p.shifts.map(e => ({ ...e, plan: p.title })))].filter(e => e.mine).sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
+        const list = [...d.events.map(e => ({ ...e, plan: null })), ...d.plans.flatMap(p => p.shifts.map(e => ({ ...e, plan: p.title })))].filter(e => e.mine && e.open !== false).sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
         if (!list.length) return '';
         return `<div class="ds-card"><h3>Meine Dienste</h3><div class="ds-mine">${list.map(e => `<div><span><span translate="no">${esc(e.title)}</span><small>${esc([e.plan, `${wd(e.date, true)}, ${deD(e.date)}`].filter(Boolean).join(' · '))}</small></span><b>${esc(when(e))}</b></div>`).join('')}</div></div>`;
       }
