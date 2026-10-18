@@ -5416,6 +5416,8 @@
     "Pflichtstunden · {0}": "Mandatory hours · {0}",
     "Soll in Stunden (nur {0})": "Target in hours ({0} only)",
     "Soll nach den Regeln unter Einstellungen (Vorgabe, Beitragsart, Alter, Status).": "Target according to the rules under Settings (default, fee type, age, status).",
-    "z. B. Vorstandsamt, Trainer": "e.g. board member, coach"
+    "z. B. Vorstandsamt, Trainer": "e.g. board member, coach",
+    "mehr": "more",
+    "weniger": "less"
   }
 }

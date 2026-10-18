@@ -6,6 +6,12 @@
 - **Arbeitseinsatz – Befreiung direkt in der Übersicht:** Je Mitglied „Pflichtstunden …“ mit der Wahl Automatisch / Eigenes Soll / Befreit (dauerhaft oder bis Datum, mit Grund) – auch für aktive Mitglieder. Befreite sind gekennzeichnet und haben einen eigenen Filter; geleistete Stunden zählen weiter, fehlende werden nicht berechnet.
 - **Buchungssystem überarbeitet:** einheitliche Höhen in allen Leisten (40 px), Tabellen mit gleichem Rand wie in den anderen Modulen, ruhige Leiste im Belegungsplan (nichts verschiebt sich mehr, „Heute“ hält seinen Platz), einheitliche Beschriftungen und Auswahl-Chips in allen Dialogen, Farbpalette der Labels als gleichmäßiges Raster, auf dem Handy kompakte Karten statt verschobener Tabellenzeilen.
 
+## 3.8.1
+- **Reiter springen nicht mehr:** Die Einleitung unter jeder Seitenüberschrift ist jetzt immer genau zwei Zeilen hoch – die Untermenüs (Reiter) stehen beim Wechseln in allen Modulen an derselben Stelle. Längere Texte lassen sich mit „mehr“ aufklappen. Auf dem Handy bleibt die Überschrift einzeilig.
+- **Schmale Bildschirme:** Ein leerer Streifen unter der Kopfleiste bei kurzen Seiten ist behoben.
+- **Arbeitseinsatz – Befreien direkt in der Übersicht:** Bei jedem Mitglied „Pflichtstunden …“ mit Automatisch · Eigenes Soll · Befreit (dauerhaft oder bis Datum, mit Grund) – auch für aktive Mitglieder. Befreite sind markiert und haben einen eigenen Filter; geleistete Stunden zählen weiter, fehlende werden nicht berechnet.
+- **Buchungssystem überarbeitet:** Einheitliche Höhen in allen Leisten (40 px), Tabellen mit sauberem Rand, Belegungsleiste ohne Sprünge („Heute“ behält seinen Platz), einheitliche Feldbeschriftungen und Auswahl-Chips in allen Dialogen, runde Farbauswahl bei Labels; auf dem Handy kompakte Karten (Name links, „Bearbeiten“ rechts) und Wochentage in einer Zeile.
+
 ## 3.8.0
 - **Buchungssystem – wer darf buchen:** Nur Mitglieder mit erlaubtem Status (Standard: aktiv und Ehrenmitglied) können buchen oder als Mitspieler eingetragen werden – passive/unterstützende nicht (einstellbar). Zusätzlich lassen sich einzelne Beitragsarten (z. B. „Fördermitglied“) ausschließen. Die App zeigt den Grund an; gesperrte Mitglieder erscheinen nicht in der Mitspielerauswahl.
 - **Plätze einer Abteilung:** Ein Platz kann einer Abteilung gehören (z. B. Padel). Abteilungsmitglieder buchen kostenlos; andere zahlen eine Platzgebühr je Person (z. B. 5 €, als offener Posten beim buchenden Mitglied) – oder dürfen gar nicht buchen.
