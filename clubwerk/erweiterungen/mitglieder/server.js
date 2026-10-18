@@ -902,8 +902,10 @@ function activate(ctx) {
     const p = personRow(id); if (!p) return null;
     const fee = ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(id, today());
     const payerFee = !fee && p.payer_id ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(store.payerOf(id), today()) : null;
-    return { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: store.payerOf(id),
-      fee: fee ? { name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true } : null };
+    const d0 = today();
+    const departments = ctx.db.prepare("SELECT department_id FROM mv_member_department WHERE member_id = ? AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?) AND status != 'ausgetreten'").all(id, d0, d0).map(r => r.department_id);
+    return { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: store.payerOf(id), departments,
+      fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
   const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm'];

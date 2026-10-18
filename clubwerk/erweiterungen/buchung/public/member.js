@@ -42,7 +42,10 @@
       .bkm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .bkm-row2 button { min-height: 54px; padding: 0 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--hover); font: inherit; font-weight: 700; color: var(--ink); }
       .bkm-rules { font-size: 13px; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 6px 0 8px; white-space: pre-wrap; max-height: 140px; overflow: auto; }
       .bkm-sheet .chk { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; margin: 4px 0 10px; } .bkm-sheet .chk input { width: 20px; height: 20px; margin-top: 1px; flex: none; }
-      .bkm-sum { font-size: 14px; color: var(--muted); margin: 2px 0 10px; }`;
+      .bkm-sum { font-size: 14px; color: var(--muted); margin: 2px 0 10px; }
+      .bkm-acts { display: flex; gap: 8px; align-items: center; }
+      .bkm-ical { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); color: var(--ink); }
+      .vh-row a.ok.bkm-cal { display: flex; align-items: center; justify-content: center; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; text-decoration: none; color: #fff; flex: 1.4; }`;
     document.head.appendChild(s);
   }
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
@@ -64,7 +67,7 @@
       const lock = ov.find(b => b.type === 'sperre'), mine = ov.find(b => b.mine);
       let state = 'free', label = r.quantity > 1 ? `${r.quantity - ov.length} frei` : 'frei', booking = null;
       if (!r.open_today) { state = 'closed'; label = 'zu'; } else if (lock) { state = 'lock'; label = lock.title || 'gesperrt'; booking = lock; } else if (mine) { state = 'mine'; label = 'meins'; booking = mine; }
-      else if (ov.length >= Math.max(1, r.quantity)) { state = 'busy'; booking = ov[0]; label = ov[0].type === 'serie' ? (ov[0].title || 'Training') : ov[0].who ? ov[0].who.map(first).join(', ') : 'belegt'; }
+      else if (ov.length >= Math.max(1, r.quantity)) { state = 'busy'; booking = ov[0]; label = ov[0].label ? ov[0].label.name : ov[0].type === 'serie' ? (ov[0].title || 'Training') : ov[0].who ? ov[0].who.map(first).join(', ') : 'belegt'; }
       if (d === today && e <= nowM && state !== 'mine') state = state === 'free' ? 'past' : state;
       if (state !== 'closed' && plan.waits.some(w => w.resource_id === r.id && w.start === hhmm(s))) state += ' wait';
       out.push({ s, e, state, label, booking });
@@ -92,13 +95,13 @@
         const areas = [...new Set(p.resources.map(r => r.area))];
         if (!areas.includes(area)) area = areas[0] || null;
         const rs = p.resources.filter(r => r.area === area);
-        el.innerHTML = `<div class="bkm-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
+        el.innerHTML = `${d.blocked ? `<div class="bkm-card" style="border-color:var(--amber)"><p class="bkm-empty" style="color:var(--ink)"><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</p></div>` : ''}<div class="bkm-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
           ${areas.length > 1 ? `<div class="bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
-          ${rs.length ? rs.map(r => `<div class="bkm-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.note ? `<p class="bkm-note">${esc(r.note)}</p>` : ''}
-            <div class="bkm-slots">${slots(r, p, day, nowM, d.today).map(x => `<button class="bkm-slot ${x.state}" data-r="${r.id}" data-s="${x.s}" ${/past|closed/.test(x.state) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span>${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
+          ${rs.length ? rs.map(r => `<div class="bkm-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="bkm-note">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
+            <div class="bkm-slots">${slots(r, p, day, nowM, d.today).map(x => `<button class="bkm-slot ${x.state}" data-r="${r.id}" data-s="${x.s}" ${x.booking && x.booking.label && !x.booking.mine ? `style="box-shadow:inset 0 -4px 0 ${x.booking.label.color}"` : ''} ${/past|closed/.test(x.state) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span>${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
             : '<div class="bkm-card"><p class="bkm-empty">Hier ist noch nichts buchbar.</p></div>'}
-          <div class="bkm-card"><h3>Meine Buchungen</h3><div class="bkm-list">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.fee_cents ? ` · Gastgebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
-              ${b.canCancel ? `<button data-c="${b.id}">Stornieren</button>` : ''}</div>`).join('') : '<p class="bkm-empty">Keine offenen Buchungen.</p>'}</div>
+          <div class="bkm-card"><h3>Meine Buchungen</h3><div class="bkm-list">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
+              <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" target="_blank" rel="noopener" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canCancel ? `<button data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="bkm-empty">Keine offenen Buchungen.</p>'}</div>
             ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="bkm-list">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
         el.querySelectorAll('[data-d]').forEach(b => { b.onclick = () => { day = b.dataset.d; load(); }; });
         el.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
@@ -110,14 +113,14 @@
       function slotTap(r, s) {
         const x = slots(r, data.plan, day, tm(data.now), data.today).find(y => y.s === s); if (!x) return;
         const st = x.state.split(' ')[0];
-        if (st === 'free') return bookSheet(r, s);
+        if (st === 'free') { if (data.blocked) { ctx.toast(data.blocked, true); return; } return bookSheet(r, s); }
         if (st === 'mine') { const m = data.mine.find(b => b.id === x.booking.id); if (m) cancelSheet(m); return; }
         if (st === 'busy' || st === 'lock') return infoSheet(r, x);
       }
       function infoSheet(r, x) {
         const sh = sheet(); const b = x.booking || {};
         const canWait = data.settings.waitlist && x.state.split(' ')[0] === 'busy' && !x.state.includes('wait');
-        sh.innerHTML = `<div class="vh-box"><h2>${esc(r.name)} · ${hhmm(x.s)}</h2><p>${esc(wd(day, { weekday: 'long' }))}, ${deD(day)} · ${b.type === 'sperre' ? 'gesperrt' : 'belegt'} ${b.start ? `${b.start}–${b.end} Uhr` : ''}${b.type === 'buchung' && b.who ? `<br>${esc(b.who.join(', '))}` : b.title ? `<br>${esc(b.title)}` : ''}</p>
+        sh.innerHTML = `<div class="vh-box"><h2>${esc(r.name)} · ${hhmm(x.s)}</h2><p>${esc(wd(day, { weekday: 'long' }))}, ${deD(day)} · ${b.type === 'sperre' ? 'gesperrt' : 'belegt'} ${b.start ? `${b.start}–${b.end} Uhr` : ''}${b.label ? `<br><b>${esc(b.label.name)}</b>` : ''}${b.type === 'buchung' && b.who ? `<br>${esc(b.who.join(', '))}` : b.title && (!b.label || b.title !== b.label.name) ? `<br>${esc(b.title)}` : ''}</p>
           ${canWait ? '<p>Auf die Warteliste? Du bekommst eine E-Mail, sobald die Zeit frei wird.</p>' : x.state.includes('wait') ? '<p>Du stehst schon auf der Warteliste.</p>' : ''}
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">${canWait ? 'Abbrechen' : 'Schließen'}</button>${canWait ? '<button class="ok" id="bkmOk">Vormerken</button>' : ''}</div></div>`;
         sh.classList.add('show');
@@ -138,17 +141,28 @@
           <label class="l">Dauer</label><select class="vh-select" id="bkmD">${durs.map((m, i) => `<option value="${m}" ${i === Math.min(durs.length - 1, (60 / r.slot_min | 0) - 1) ? 'selected' : ''}>${dur(m)} · bis ${hhmm(s + m)} Uhr</option>`).join('')}</select>
           ${set.max_partners ? `<label class="l">Mitspieler <span style="font-weight:500">(optional, max. ${set.max_partners})</span></label><div class="bkm-chips" id="bkmPc"></div>
             <input class="vh-input" id="bkmPq" placeholder="Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmPh" hidden></div>` : ''}
-          ${set.max_guests ? `<label class="l">Gäste <span style="font-weight:500">(optional, ${euro(r.guest_fee_cents)} je Gast)</span></label><div class="bkm-chips" id="bkmGc"></div>
-            <div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Vor- und Nachname" autocomplete="off" maxlength="60"><button id="bkmGa" style="margin-bottom:10px">+ Gast</button></div>` : ''}
+          ${set.max_guests ? `<label class="l">Gäste <span style="font-weight:500">(optional${r.guest_fee_cents ? `, ${euro(r.guest_fee_cents)} je Gast` : ''})</span></label><div class="bkm-chips" id="bkmGc"></div>
+            <div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Vor- und Nachname" autocomplete="off" maxlength="60"><button id="bkmGa" style="margin-bottom:10px">+ Gast</button></div>
+            <label class="chk" style="margin-top:-2px"><input type="checkbox" id="bkmGp"> Mitglied in einem Partnerverein (keine Gastgebühr)</label>` : ''}
           ${set.rules ? `<div class="bkm-rules">${esc(set.rules)}</div><label class="chk"><input type="checkbox" id="bkmR"> Ich halte mich an die Platzordnung.</label>` : ''}
           <div class="bkm-sum" id="bkmSum"></div>
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">Abbrechen</button><button class="ok" id="bkmOk">Buchen</button></div></div>`;
         sh.classList.add('show');
         const $q = id => sh.querySelector('#' + id);
-        const sum = () => { $q('bkmSum').textContent = guests.length ? `Gastgebühr ${euro(guests.length * r.guest_fee_cents)} – wird mit deinem nächsten Beitragseinzug abgerechnet.` : ''; };
+        let qn = 0;
+        const sum = async () => {   // Preis vom Server (Gäste, Platzgebühr für Nicht-Abteilungsmitglieder)
+          const n = ++qn;
+          try {
+            const q = await ctx.api('quote', 'POST', { resource_id: r.id, date: day, start: hhmm(s), minutes: +$q('bkmD').value, partners, guests });
+            if (n !== qn) return;
+            if (!q.ok) { $q('bkmSum').textContent = ''; $q('bkmE').textContent = q.error; return; }
+            $q('bkmE').textContent = '';
+            $q('bkmSum').innerHTML = q.fee_cents ? `${q.lines.map(l => esc(l.text)).join('<br>')}<br><b>Zusammen ${euro(q.fee_cents)}</b> – wird mit deinem nächsten Beitragseinzug abgerechnet.` : 'Kostenlos.';
+          } catch (e) { /* Vorschau ist nur Hilfe */ }
+        };
         const chips = () => {
           if ($q('bkmPc')) $q('bkmPc').innerHTML = partners.map(id => `<span>${esc((data.people.find(x => x.id === id) || {}).name || '')}<button data-rp="${id}" aria-label="entfernen">×</button></span>`).join('');
-          if ($q('bkmGc')) $q('bkmGc').innerHTML = guests.map((g, i) => `<span>${esc(g)} (Gast)<button data-rg="${i}" aria-label="entfernen">×</button></span>`).join('');
+          if ($q('bkmGc')) $q('bkmGc').innerHTML = guests.map((g, i) => `<span>${esc(g.name)} (${g.partner ? 'Partnerverein' : 'Gast'})<button data-rg="${i}" aria-label="entfernen">×</button></span>`).join('');
           sh.querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); }; });
           sh.querySelectorAll('[data-rg]').forEach(b => { b.onclick = () => { guests.splice(+b.dataset.rg, 1); chips(); }; });
           sum();
@@ -164,20 +178,25 @@
           const g = $q('bkmGq').value.trim();
           if (g.length < 3) { $q('bkmE').textContent = 'Bitte Vor- und Nachname des Gastes eintragen.'; return; }
           if (guests.length >= set.max_guests) { $q('bkmE').textContent = `Höchstens ${set.max_guests} Gäste.`; return; }
-          guests.push(g); $q('bkmGq').value = ''; $q('bkmE').textContent = ''; chips();
+          guests.push({ name: g, partner: $q('bkmGp').checked }); $q('bkmGq').value = ''; $q('bkmGp').checked = false; $q('bkmE').textContent = ''; chips();
         };
+        $q('bkmD').onchange = sum; sum();
         $q('bkmNo').onclick = close;
         $q('bkmOk').onclick = async () => {
           $q('bkmOk').disabled = true;
           try {
             const res = await ctx.api('book', 'POST', { resource_id: r.id, date: day, start: hhmm(s), minutes: +$q('bkmD').value, partners, guests, accept: $q('bkmR') ? $q('bkmR').checked : true });
-            close(); ctx.toast(`Gebucht: ${r.name} ${hhmm(s)}–${hhmm(s + +$q('bkmD').value)} Uhr${res.fee_cents ? ` · Gastgebühr ${euro(res.fee_cents)}` : ''}`); load();
+            const m = +$q('bkmD').value;
+            sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>Gebucht ✓</h2><p>${esc(r.name)} · ${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}<br><b>${hhmm(s)}–${hhmm(s + m)} Uhr</b>${partners.length ? `<br>Deine Mitspieler bekommen eine E-Mail.` : ''}${res.fee_cents ? `<br>Gebühr ${euro(res.fee_cents)}` : ''}</p>
+              <div class="vh-row"><button class="no" id="bkmDone">Fertig</button><a class="ok bkm-cal" href="${esc(res.ics)}" target="_blank" rel="noopener" id="bkmCal">In den Kalender</a></div></div>`;
+            sh.querySelector('#bkmDone').onclick = close; sh.querySelector('#bkmCal').addEventListener('click', () => setTimeout(close, 400));
+            load();
           } catch (e) { $q('bkmE').textContent = e.message; $q('bkmOk').disabled = false; if (/jemand anderes/.test(e.message)) load(); }
         };
       }
       function cancelSheet(b) {
         const sh = sheet();
-        sh.innerHTML = `<div class="vh-box"><h2>Buchung stornieren?</h2><p>${esc(b.resource)} · ${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)} · ${b.start}–${b.end} Uhr${b.fee_cents ? `<br>Die Gastgebühr (${euro(b.fee_cents)}) entfällt.` : ''}</p>
+        sh.innerHTML = `<div class="vh-box"><h2>Buchung stornieren?</h2><p>${esc(b.resource)} · ${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)} · ${b.start}–${b.end} Uhr${b.fee_cents ? `<br>Die Gebühr (${euro(b.fee_cents)}) entfällt.` : ''}</p>
           ${b.canCancel ? '' : '<p>Diese Buchung kannst du nicht mehr stornieren.</p>'}
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">${b.canCancel ? 'Behalten' : 'Schließen'}</button>${b.canCancel ? '<button class="ok" id="bkmOk" style="background:var(--red)">Stornieren</button>' : ''}</div></div>`;
         sh.classList.add('show');

@@ -232,8 +232,21 @@
         <label class="chk"><input type="checkbox" id="sApp" ${c.app_report ? 'checked' : ''}> Mitglieder dürfen Stunden in der App melden (Vorstand bestätigt)</label>
         <label class="chk"><input type="checkbox" id="sEvR" ${c.remind_events ? 'checked' : ''}> Helfer am Vortag per E-Mail erinnern</label></div>
       <p class="muted s">Je Beitragsart lässt sich in der Mitgliederverwaltung ein eigenes Soll festlegen (z. B. „Kinder: keine“, „Familie: je Person“). Einzelne Ausnahmen in der Übersicht über „Soll …“.</p>
-      <div class="row" style="justify-content:flex-end"><button class="btn primary" id="sSave">Speichern</button></div></div><div id="sFunc"></div>`;
-    GK.watch(el);
+      <div class="row" style="justify-content:flex-end"><button class="btn primary" id="sSave">Speichern</button></div></div>
+      <div class="card" data-nodirty><h3>Befreite Mitglieder</h3><p class="muted s" style="margin-top:0">Befreite Mitglieder können wie alle Stunden leisten (sie werden erfasst), haben aber kein Soll – es wird nichts eingezogen. Optional befristet.</p>
+        <div class="aw-grid" style="--c:4"><label class="f">Mitglied<select id="exM"><option value="">– Mitglied wählen –</option>${(st.meta.members || []).map(m => opt(m.id, GK.lastFirst(m.name))).join('')}</select></label>
+          <label class="f">Grund<input id="exN" placeholder="z. B. Vorstand, Krankheit"></label><label class="f">befreit bis (leer = dauerhaft)<input id="exU" type="date"></label>
+          <label class="f"><span>&nbsp;</span><button class="btn primary" id="exAdd">Befreien</button></label></div>
+        <div id="exList" style="margin-top:12px"></div></div>
+      <div id="sFunc"></div>`;
+    GK.watch(el.querySelector('.card'));
+    const exLoad = async () => {
+      const l = await api('exempt');
+      $('exList').innerHTML = l.length ? `<table class="tbl">${l.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b></td><td>${esc(x.note || '')}</td><td class="nw">${x.until_date ? 'bis ' + deDate(x.until_date) : 'dauerhaft'}</td><td class="r"><button class="btn small" data-exd="${x.member_id}">Aufheben</button></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Niemand befreit.</p>';
+      $('exList').querySelectorAll('[data-exd]').forEach(b => { b.onclick = async () => { try { await api('exempt/' + b.dataset.exd, 'DELETE'); toast('Befreiung aufgehoben.'); exLoad(); } catch (e) { fail(e); } }; });
+    };
+    $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
+    exLoad().catch(fail);
     if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Arbeitseinsatz & Thekendienst', () => showSettings(el));
     $('sSave').onclick = async () => {
       const rm = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('sRem'));

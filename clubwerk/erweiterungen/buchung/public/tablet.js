@@ -31,7 +31,7 @@
       const lock = ov.find(b => b.type === 'sperre');
       let cls = 'free', label = r.quantity > 1 ? `frei (${r.quantity - ov.length})` : 'frei', b = null;
       if (lock) { cls = 'lock'; label = lock.title || 'gesperrt'; b = lock; }
-      else if (ov.length >= Math.max(1, r.quantity)) { b = ov[0]; cls = b.type === 'serie' ? 'busy serie' : 'busy'; label = b.type === 'serie' ? (b.title || 'Training') : (b.who || []).map(first).join(', ') || 'belegt'; }
+      else if (ov.length >= Math.max(1, r.quantity)) { b = ov[0]; cls = b.type === 'serie' ? 'busy serie' : 'busy'; label = b.label ? `${b.label.name}${b.type === 'buchung' && b.who ? ' · ' + b.who.map(first).join(', ') : ''}` : b.type === 'serie' ? (b.title || 'Training') : (b.who || []).map(first).join(', ') || 'belegt'; }
       if (e <= nowM) cls += ' past'; else if (s <= nowM) cls += ' now';
       out.push({ s, e, cls, label, b });
     }
@@ -54,7 +54,7 @@
     $('areas').querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
     $('board').style.setProperty('--n', Math.min(Math.max(list.length, 1), 6));
     $('board').innerHTML = list.length ? list.map(r => `<div class="bk-col"><h3>${esc(r.name)}<small>${r.open_from}–${r.open_to} Uhr</small></h3><div class="bk-slots">
-        ${slots(r).map(x => `<button class="bk-slot ${x.cls}" data-r="${r.id}" data-s="${x.s}" ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
+        ${slots(r).map(x => `<button class="bk-slot ${x.cls}" data-r="${r.id}" data-s="${x.s}" ${x.b && x.b.label ? `style="box-shadow:inset 5px 0 0 ${x.b.label.color}"` : ''} ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
       : '<div class="bk-empty" style="grid-column:1/-1">Heute ist nichts buchbar.</div>';
     $('board').querySelectorAll('.bk-slot').forEach(b => { b.onclick = () => tap(list.find(r => r.id === +b.dataset.r), +b.dataset.s); });
   }
@@ -100,16 +100,22 @@
       <div class="durs">${durs.map(m => `<button data-m="${m}">${dur(m)}</button>`).join('')}</div>
       ${state.max_partners ? `<div class="lbl">Mitspieler (optional)</div><div class="chips" id="pc"></div><input class="q" id="pq" placeholder="Name suchen" autocomplete="off" style="margin-top:6px"><div class="names" id="ph" style="grid-template-columns:1fr 1fr;max-height:22vh"></div>` : ''}
       ${state.rules ? `<div class="rules">${esc(state.rules)}</div><label class="chk"><input type="checkbox" id="acc"> Ich halte mich an die Platzordnung.</label>` : ''}
-      <div class="perr" id="perr"></div><div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Buchen</button></div>`);
+      <div class="sub" id="fee" style="margin:10px 0 0;font-size:15px"></div><div class="perr" id="perr"></div><div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Buchen</button></div>`);
+    let qn = 0;
+    const quote = async () => {
+      const n = ++qn;
+      try { const q = await call('x/buchung/quote', { token, resource_id: r.id, start: hhmm(s), minutes: sel, partners, guests: [] }); if (n !== qn) return;
+        $('perr').textContent = q.ok ? '' : q.error; $('fee').innerHTML = q.ok && q.fee_cents ? `${q.lines.map(l => esc(l.text)).join('<br>')}<br><b>${euro(q.fee_cents)}</b> – mit dem nächsten Einzug` : ''; } catch (e) { /* nur Vorschau */ }
+    };
     const paint = () => { $('dialog').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', +b.dataset.m === sel)); $('ok').textContent = `Buchen bis ${hhmm(s + sel)} Uhr`; };
-    $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { sel = +b.dataset.m; paint(); }; });
-    const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); }; }); };
+    $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { sel = +b.dataset.m; paint(); quote(); }; });
+    const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); quote(); }; }); };
     if ($('pq')) $('pq').oninput = () => {
       const q = $('pq').value.trim().toLowerCase();
       $('ph').innerHTML = q.length < 2 ? '' : state.people.filter(p => !partners.includes(p.id) && p.name.toLowerCase().includes(q)).slice(0, 8).map(p => `<button data-p="${p.id}" translate="no">${esc(p.name)}</button>`).join('');
-      $('ph').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => { if (partners.length >= state.max_partners) return; partners.push(+b.dataset.p); $('pq').value = ''; $('ph').innerHTML = ''; chips(); }; });
+      $('ph').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => { if (partners.length >= state.max_partners) return; partners.push(+b.dataset.p); $('pq').value = ''; $('ph').innerHTML = ''; chips(); quote(); }; });
     };
-    paint();
+    paint(); quote();
     $('x').onclick = closeDlg;
     $('ok').onclick = async () => {
       try {

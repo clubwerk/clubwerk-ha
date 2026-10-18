@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS aw_entry (
   by_user TEXT, reviewed_by TEXT, reviewed_at TEXT, reason TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_awe_member ON aw_entry(member_id, date);
+CREATE TABLE IF NOT EXISTS aw_exempt (member_id INTEGER NOT NULL PRIMARY KEY REFERENCES members(id), note TEXT, until_date TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
 CREATE TABLE IF NOT EXISTS aw_target (member_id INTEGER NOT NULL REFERENCES members(id), year INTEGER NOT NULL, minutes INTEGER, note TEXT, PRIMARY KEY(member_id, year));
 `);
 }
@@ -84,6 +85,9 @@ function activate(ctx) {
     const c = cfg(); const per = period(y);
     const ov = db.prepare('SELECT * FROM aw_target WHERE member_id = ? AND year = ?').get(id, y);
     if (ov && ov.minutes != null) return { minutes: ov.minutes, why: ov.note ? `Ausnahme: ${ov.note}` : 'eigene Vorgabe' };
+    // dauerhaft befreit: Stunden zählen weiter, aber kein Soll und nichts wird eingezogen
+    const ex = db.prepare('SELECT * FROM aw_exempt WHERE member_id = ?').get(id);
+    if (ex && (!ex.until_date || ex.until_date >= per.from)) return { minutes: 0, why: `befreit${ex.note ? ': ' + ex.note : ''}`, exempt: true };
     const i = info !== undefined ? info : (mv() ? await hook('memberInfo', id) : null);
     let base = c.default_minutes, why = 'Vorgabe';
     if (i) {
@@ -153,6 +157,22 @@ function activate(ctx) {
     ws2.getRow(1).font = { bold: true };
     res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Arbeitsstunden_${o.label.replace('/', '-')}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
   }));
+  /* Dauerhafte Befreiung vom Arbeitseinsatz (Mitglied kann Stunden leisten, es wird aber nichts abgerechnet) */
+  admin.get('/exempt', P, (req, res) => res.json(db.prepare('SELECT e.*, m.name FROM aw_exempt e JOIN members m ON m.id = e.member_id ORDER BY name_key(m.name, m.kind)').all()));
+  admin.put('/exempt', P, (req, res) => {
+    const b = req.body || {}; const id = int(b.member_id);
+    const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND kind = 'mitglied'").get(id); if (!m) return bad(res, 'Bitte ein Mitglied wählen.');
+    if (b.until && !isDate(b.until)) return bad(res, 'Ungültiges Datum.');
+    db.prepare('INSERT INTO aw_exempt(member_id, note, until_date, created_by) VALUES (?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET note = excluded.note, until_date = excluded.until_date').run(id, txt(b.note, 120) || null, b.until || null, uname(req));
+    ctx.audit(req.user, 'Arbeitseinsatz: Mitglied befreit', `${m.name}${b.until ? ' bis ' + deD(b.until) : ''}${b.note ? ' – ' + txt(b.note, 120) : ''}`);
+    res.json({ ok: true });
+  });
+  admin.delete('/exempt/:id', P, (req, res) => {
+    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(int(req.params.id));
+    db.prepare('DELETE FROM aw_exempt WHERE member_id = ?').run(int(req.params.id));
+    ctx.audit(req.user, 'Arbeitseinsatz: Befreiung aufgehoben', m ? m.name : '');
+    res.json({ ok: true });
+  });
   admin.put('/target', P, (req, res) => {
     const b = req.body || {}; const id = int(b.member_id), y = int(b.year);
     if (!db.prepare("SELECT 1 FROM members WHERE id = ? AND kind = 'mitglied'").get(id) || y < 2000) return bad(res, 'Nicht gefunden.', 404);

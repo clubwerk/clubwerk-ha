@@ -129,7 +129,17 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 
 **Regeln (Einstellungen):** Vorlauf (wie viele Tage im Voraus), offene Buchungen je Mitglied (getrennt für Plätze und Geräte; Mitspieler zählen auf Wunsch mit), höchstens Mitspieler und Gäste, Stornieren bis … vor Beginn, Namen in der Belegung sichtbar oder nur „belegt“, Warteliste, Buchen am Tablet, Platzordnung (muss vor jeder Buchung bestätigt werden).
 
-**Gäste:** Wer Gäste mitbringt, trägt ihre Namen ein. Die Gastgebühr wird als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung) und mit dem nächsten Einzug abgerechnet. Wird storniert, entfällt der Posten.
+**Wer darf buchen:** Unter Einstellungen → „Wer darf buchen?“ die erlaubten Mitgliedschaften (Standard: aktiv, Ehrenmitglied) und ausgeschlossene Beitragsarten wählen. Gilt für die buchende Person und alle Mitspieler; die Verwaltung kann immer für jeden buchen.
+
+**Plätze einer Abteilung:** Unter Plätze & Geräte „Gehört der Abteilung“ wählen (z. B. Padel). Mitglieder der Abteilung buchen kostenlos; für andere wählt man „buchen mit Platzgebühr“ (Betrag je Person, als offener Posten beim buchenden Mitglied) oder „dürfen nicht buchen“.
+
+**Labels:** Unter „Labels“ Name und Farbe festlegen (z. B. Training Herren 40, Medenspiel Damen, Clubmeisterschaft). In der Belegung und bei Serien ein Label wählen – die Termine erscheinen in dieser Farbe, auch in der App und am Tablet.
+
+**Benachrichtigung & Kalender:** Mitspieler erhalten bei Buchung und Storno eine kurze E-Mail (wer, wann, mit wem). Nach dem Buchen bietet die App „In den Kalender“ an (.ics-Datei, funktioniert mit iPhone- und Android-Kalender); unter „Meine Buchungen“ geht das über das Kalender-Symbol jederzeit.
+
+**Rechte:** Belegung ansehen · für Mitglieder buchen · Buchungen anderer stornieren · Serien & Sperren · Plätze, Labels & Einstellungen – unter Benutzer & Rechte in Rollen vergeben.
+
+**Gäste:** Wer Gäste mitbringt, trägt ihre Namen ein. Ist ein Gast Mitglied in einem Partnerverein, den Haken setzen – er wird erfasst, aber ohne Gastgebühr. Die Gastgebühr wird als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung) und mit dem nächsten Einzug abgerechnet. Wird storniert, entfällt der Posten.
 
 **Belegung:** Tagesplan mit allen Plätzen. In eine freie Stelle klicken, um für ein Mitglied zu buchen (ohne Kontingent und Vorlauf) oder den Platz zu sperren. Liegen in einer Sperre schon Buchungen, fragt Clubwerk nach und storniert sie auf Wunsch – die Mitglieder bekommen eine E-Mail.
 
@@ -173,7 +183,7 @@ Arbeitseinsätze und Thekendienste planen, Stunden sammeln und abrechnen.
 - **Einsätze:** Termin mit Art, Zeit, Ort und Zahl der gesuchten Helfer, auf Wunsch wöchentlich wiederholt. Mitglieder tragen sich in der Mitglieder-App unter „Dienste“ ein und werden am Vortag per E-Mail erinnert. Nach dem Einsatz „Stunden gutschreiben“ für alle Helfer auf einmal.
 - **Dauerhafte Einsätze:** z. B. Thekendienst – ganzjährig ohne festen Termin (beim Anlegen „dauerhaft“ wählen; ein „Thekendienst“ ist schon da). Solange aktiv, ist er am Tablet beim Einstempeln wählbar; in der Mitglieder-App erscheint er nicht.
 - **Aktivieren/Deaktivieren:** Jeder Einsatz lässt sich in der Liste per Knopf deaktivieren und wieder aktivieren. Deaktivierte Einsätze stehen weder am Tablet noch in der Mitglieder-App, Erinnerungen entfallen. Gibt es heute einen aktiven Einsatz, ist er beim Einstempeln am Tablet vorausgewählt – eine Beschreibung ist dann freiwillig.
-- **Stunden erfassen:** am Tablet ein- und ausstempeln (vor dem Ausstempeln kommt eine Rückfrage; unter 5 Minuten wird nichts gewertet) (Name + PIN wie bei den Getränken; mit PIN gelten die Stunden sofort als bestätigt), in der App melden (der Vorstand bestätigt unter „Stunden“) oder in der Verwaltung nachtragen.
+- **Stunden erfassen:** am Tablet ein- und ausstempeln (vor dem Ausstempeln kommt eine Rückfrage; unter 5 Minuten wird nichts gewertet). **Befreiung:** unter Einstellungen → „Befreite Mitglieder“ (dauerhaft oder bis zu einem Datum) – Stunden werden weiter erfasst, abgerechnet wird nichts (Name + PIN wie bei den Getränken; mit PIN gelten die Stunden sofort als bestätigt), in der App melden (der Vorstand bestätigt unter „Stunden“) oder in der Verwaltung nachtragen.
 - **Abrechnung:** Nach Ablauf des Jahres kommen fehlende Stunden × Stundensatz (z. B. 15 €) beim nächsten Beitragslauf der Mitgliederverwaltung als Posten „Arbeitsstunden“ beim Zahler dazu – jedes Jahr nur einmal, frühestens ab dem Jahr, in dem das Modul eingeführt wurde („Abrechnen ab Jahr“). Auf Wunsch erinnert Clubwerk an einem festen Tag alle, denen noch Stunden fehlen.
 
 ## Installation in Home Assistant
