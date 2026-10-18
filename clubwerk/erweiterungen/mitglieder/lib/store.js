@@ -116,6 +116,8 @@ function migrate() {
   add('mv_member_department', 'fee_id', 'INTEGER');                   // fest gewählter Zusatzbeitrag (sonst nach Alter)
   add('mv_member_department', 'fee_free', 'INTEGER NOT NULL DEFAULT 0');   // vom Zusatzbeitrag befreit (z. B. Trainer)
   add('mv_charge', 'member_dept_id', 'INTEGER');
+  add('mv_change', 'created_by', 'TEXT');               // Meldungen von Abteilungsleitungen (Eintritt, Austritt, Rückkehr)
+  add('mv_application', 'pre_by', 'TEXT'); add('mv_application', 'pre_at', 'TEXT');   // von der Abteilungsleitung befürwortet
   // Verkauf bei Angehörigen: payer = über den Hauptzahler (nicht in der Tablet-Liste) · own_payer = eigener Eintrag, zahlt der Hauptzahler · own = eigener Eintrag, zahlt selbst
   if (!has('mv_person', 'sales_mode')) {
     db.exec("ALTER TABLE mv_person ADD COLUMN sales_mode TEXT NOT NULL DEFAULT 'payer'");

@@ -18,6 +18,8 @@
   const FIELD = { street: 'Straße', zip: 'PLZ', city: 'Ort', address_extra: 'Adresszusatz', phone: 'Telefon', mobile: 'Mobil', email: 'E-Mail', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Kreditinstitut' };
   const can = p => GK.can(p);
   const SC = () => Boolean(st.meta && st.meta.scope);   // Abteilungsadmin: nur eigene Abteilung(en)
+  const CONF = () => SC() && st.meta.settings.scope_confirm;   // Ein-/Austritte der Abteilungsleitung bestätigt die Vereinsverwaltung
+  const PENDING = 'Zur Bestätigung an die Vereinsverwaltung geschickt.';
   const pill = ([c, t]) => `<span class="pill ${c}">${esc(t)}</span>`;
   const opt = (v, l, sel) => `<option value="${esc(v)}" ${String(v) === String(sel ?? '') ? 'selected' : ''}>${esc(l)}</option>`;
   const val = id => ($(id) ? $(id).value.trim() : undefined);
@@ -85,7 +87,7 @@
     mitglieder: ['Mitglieder', 'Stammdaten, Abteilungen und Familien. Verkaufskonten, Zugang und Mitglieder-App nutzen dieselbe Person.'],
     'mv-beitraege': ['Beiträge', 'Beitragsarten des Hauptvereins, Zusatzbeiträge der Abteilungen und der Beitragslauf, aus dem die offenen Posten entstehen.'],
     'mv-einzug': ['Einzug & Zahlungen', 'SEPA-Lastschriften, offene Posten, Rechnungen und Mahnungen.'],
-    'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen (Tablet, online, Verwaltung) und Änderungswünsche aus der Mitglieder-App.'],
+    'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen (Tablet, online, Verwaltung), Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
     'mv-auswertung': ['Auswertungen', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund, Listen und Rundmails.'],
     'mv-einstellungen': ['Einstellungen', 'Verein und SEPA-Lastschrift, Beitrittserklärung, Mitglieder-App, Import und Datenschutz.'],
   };
@@ -179,7 +181,7 @@
     $('nOk').onclick = async () => {
       try {
         const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), entry_date: val('nEntry'), member_no: val('nNo') || undefined, ...(SC() ? { department_id: +val('nDept') } : {}) });
-        if (SC()) { closeDialog(); toast('Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail); return; }
+        if (SC()) { closeDialog(); toast(r.pending ? `Mitglied angelegt. ${PENDING}` : 'Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail); return; }
         if (val('nFee')) await api(`member/${r.id}/fees`, 'POST', { fee_id: +val('nFee'), start_date: val('nEntry') });
         if (val('nDept')) await api(`member/${r.id}/departments`, 'POST', { department_id: +val('nDept'), entry_date: val('nEntry') });
         closeDialog(); toast('Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail);
@@ -211,7 +213,7 @@
     const again = () => showDetail(el, id).catch(fail);
     ageBind(el, again);
     if ($('mvExit')) $('mvExit').onclick = () => exitDialog(d, again);
-    if ($('mvRe')) $('mvRe').onclick = async () => { if (!await ask(`Austritt von ${p.name} zurücknehmen?\n\nBeiträge und Abteilungen, die zum Austritt beendet wurden, bitte danach prüfen.`, { ok: 'Zurücknehmen' })) return; try { await api(`member/${id}/reenter`, 'POST', {}); toast('Austritt zurückgenommen.'); again(); } catch (e) { fail(e); } };
+    if ($('mvRe')) $('mvRe').onclick = async () => { if (!await ask(`Austritt von ${p.name} zurücknehmen?\n\nBeiträge und Abteilungen, die zum Austritt beendet wurden, bitte danach prüfen.`, { ok: 'Zurücknehmen' })) return; try { const r = await api(`member/${id}/reenter`, 'POST', {}); toast(r.pending ? `Rückkehr gemeldet. ${PENDING}` : 'Austritt zurückgenommen.'); again(); } catch (e) { fail(e); } };
     if ($('mvAnon')) $('mvAnon').onclick = async () => {
       const t = await askText('Mitglied anonymisieren?\nName, Anschrift, Kontakt, Bankverbindung, Dokumente und Verlauf werden unwiderruflich gelöscht. Für die Statistik bleiben Geburtsjahr, Geschlecht, Ein-/Austritt und Abteilungen; Buchungen bleiben unter „Anonym …“. Zur Bestätigung ANONYMISIEREN eingeben:', '', { ok: 'Anonymisieren' });
       if (t == null) return;
@@ -472,9 +474,9 @@
       const file = $('xDoc').files[0] || null;
       if (file && !/^(application\/pdf|image\/)/.test(file.type || '') && !/\.(pdf|jpe?g|png|webp|heic)$/i.test(file.name)) return toast('Bitte ein PDF oder Foto wählen.', true);
       const doc = async () => { if (file) { try { await upload(`member/${p.id}/exit-document`, file); } catch (e) { fail(e); } } };
-      try { await api(`member/${p.id}/exit`, 'POST', body); await doc(); closeDialog(); toast(file ? 'Austritt eingetragen, Dokument abgelegt.' : 'Austritt eingetragen.'); again(); }
+      try { const r = await api(`member/${p.id}/exit`, 'POST', body); await doc(); closeDialog(); toast(r.pending ? `Austritt gemeldet. ${PENDING}` : file ? 'Austritt eingetragen, Dokument abgelegt.' : 'Austritt eingetragen.'); again(); }
       catch (e) {
-        if (e.status === 409 && await ask(`${e.message}\n\nTrotzdem nur dieses Mitglied austreten lassen?`, { ok: 'Trotzdem' })) { try { await api(`member/${p.id}/exit`, 'POST', { ...body, force: true }); await doc(); closeDialog(); again(); } catch (e2) { fail(e2); } } else fail(e);
+        if (e.status === 409 && await ask(`${e.message}\n\nTrotzdem nur dieses Mitglied austreten lassen?`, { ok: 'Trotzdem' })) { try { const r = await api(`member/${p.id}/exit`, 'POST', { ...body, force: true }); await doc(); closeDialog(); if (r.pending) toast(`Austritt gemeldet. ${PENDING}`); again(); } catch (e2) { fail(e2); } } else fail(e);
       }
     };
   }
@@ -617,10 +619,10 @@
         <div><b>3 · Bestätigen</b>Mitglieder, Familie, Beitrag und Mandat entstehen</div><div><b>4 · Willkommen</b>E-Mail mit Mitgliedsnummer, Mandatsreferenz und PDF</div></div>
       <div class="card"><h3>Warten auf Bestätigung <span class="muted s">(${waiting.length})</span></h3>${waiting.length ? appTable(waiting) : '<p class="muted">Keine neuen Beitrittserklärungen.</p>'}</div>
       <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="muted">Nichts offen.</p>'}</div>
-      <div class="card"><h3>Änderungen aus der Mitglieder-App <span class="muted s">(${changes.length})</span></h3>${changes.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
-        ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : ['', c.label])}</td><td class="nw">${deTime(c.created_at)}</td>
-          <td class="s">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`).join('<br>')}</td>
-          <td class="r nw"><button class="btn small primary" data-cok="${c.id}">Übernehmen</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button></td></tr>`).join('')}</table>` : '<p class="muted">Keine offenen Änderungswünsche.</p>'}</div>
+      <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
+        ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="nw">${deTime(c.created_at)}</td>
+          <td class="s">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
+          <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small primary" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Keine offenen Änderungswünsche.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
         ${all ? (all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status)).length ? appTable(all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status))) : '<p class="muted">Noch nichts im Archiv.</p>') : ''}</div>`;
     $('aNew').onclick = () => applicationForm();
@@ -630,12 +632,12 @@
     el.querySelectorAll('[data-acode]').forEach(b => { b.onclick = async () => { try { const r = await api(`applications/${b.dataset.acode}/code`, 'POST', {}); showCode(r.code); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-adel]').forEach(b => { b.onclick = async () => { if (!await ask('Antrag löschen?')) return; try { await api('applications/' + b.dataset.adel, 'DELETE'); showApplications(el).catch(fail); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-cok]').forEach(b => { b.onclick = () => acceptChange(changes.find(c => c.id === +b.dataset.cok), () => { loadMeta().then(() => showApplications(el)).catch(fail); }); });
-    el.querySelectorAll('[data-cno]').forEach(b => { b.onclick = async () => { const r = await askText('Änderung ablehnen?\nDas Mitglied bekommt eine E-Mail mit dem Grund (optional):', ''); if (r == null) return; try { await api(`changes/${b.dataset.cno}/reject`, 'POST', { reason: r }); toast('Abgelehnt.'); showApplications(el).catch(fail); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-cno]').forEach(b => { b.onclick = async () => { const cc = changes.find(c => c.id === +b.dataset.cno); const r = await askText(cc && cc.scope ? `${cc.label} ablehnen?${cc.kind === 'eintritt' ? '\nDas angelegte Mitglied wird wieder entfernt.' : ''}\nGrund (nur intern, optional):` : 'Änderung ablehnen?\nDas Mitglied bekommt eine E-Mail mit dem Grund (optional):', ''); if (r == null) return; try { await api(`changes/${b.dataset.cno}/reject`, 'POST', { reason: r }); toast('Abgelehnt.'); showApplications(el).catch(fail); } catch (e) { fail(e); } }; });
   }
   const SRC = { verwaltung: 'Verwaltung', tablet: 'Tablet', online: 'online' };
   const ASTAT = { unterschrift: ['a', 'wartet auf Unterschrift'], eingegangen: ['b', 'unterschrieben'], angenommen: ['g', 'angenommen'], abgelehnt: ['', 'abgelehnt'] };
   function appTable(list) {
-    return `<table class="tbl"><tr><th>Personen</th><th>Weg</th><th>Status</th><th>vom</th><th></th></tr>${list.map(a => `<tr><td><b>${esc(a.names)}</b>${a.data.persons.length > 1 ? ` <span class="pill">Familie · ${a.data.persons.length}</span>` : ''}</td>
+    return `<table class="tbl"><tr><th>Personen</th><th>Weg</th><th>Status</th><th>vom</th><th></th></tr>${list.map(a => `<tr><td><b>${esc(a.names)}</b>${a.data.persons.length > 1 ? ` <span class="pill">Familie · ${a.data.persons.length}</span>` : ''}${a.pre_by ? ` <span class="pill g">befürwortet von ${esc(a.pre_by)}</span>` : ''}</td>
       <td>${esc(SRC[a.source] || a.source)}</td><td>${pill(ASTAT[a.status] || ['', a.status])}${a.status === 'unterschrift' && !a.waiting ? ' <span class="pill r">Code abgelaufen</span>' : ''}</td><td class="nw">${deTime(a.signed_at || a.created_at)}</td>
       <td class="r nw">${a.status === 'unterschrift' ? `<button class="btn small" data-acode="${a.id}">Neuer Code</button> <button class="btn small danger" data-adel="${a.id}">Löschen</button>` : `<button class="btn small ${a.status === 'eingegangen' ? 'primary' : ''}" data-ap="${a.id}">${a.status === 'eingegangen' ? 'Prüfen & annehmen' : 'Ansehen'}</button>`}</td></tr>`).join('')}</table>`;
   }
@@ -714,7 +716,7 @@
     const d = a.data, fees = st.meta.fees.filter(f => f.active);
     const ro = a.status !== 'eingegangen';
     dialog(`<h2>Beitrittserklärung ${esc(a.names)}</h2>
-      <div class="row" style="gap:6px;margin:-4px 0 12px">${pill(ASTAT[a.status] || ['', a.status])}<span class="pill">${esc(SRC[a.source] || a.source)}</span>${a.signed_at ? `<span class="pill">unterschrieben ${deTime(a.signed_at)}</span>` : ''}</div>
+      <div class="row" style="gap:6px;margin:-4px 0 12px">${pill(ASTAT[a.status] || ['', a.status])}<span class="pill">${esc(SRC[a.source] || a.source)}</span>${a.signed_at ? `<span class="pill">unterschrieben ${deTime(a.signed_at)}</span>` : ''}${a.pre_by ? `<span class="pill g">befürwortet von ${esc(a.pre_by)}</span>` : ''}</div>
       <div class="split"><div>
         <table class="tbl"><tr><th>Person</th><th>geboren</th>${ro ? '' : '<th>Im Bestand?</th><th>Beitrag</th>'}</tr>
         ${d.persons.map((p, i) => `<tr><td><b>${esc(p.first_name)} ${esc(p.last_name)}</b><div class="muted s">${i === 0 ? 'Antragsteller/in' : p.role === 'partner' ? 'Partner/in' : 'Kind'}${(p.departments || []).length ? ` · <span translate="no">${esc(p.departments.map(id => (st.meta.depts.find(x => x.id === id) || {}).name).filter(Boolean).join(', '))}</span>` : ''}</div></td><td class="nw">${deDate(p.birth_date)}</td>
@@ -730,19 +732,33 @@
         ${a.sha256 ? `<p class="muted s" style="word-break:break-all">Prüfwert (SHA-256): ${esc(a.sha256)}</p>` : ''}
       </div>
       <div class="preview"><iframe src="${BASE}applications/${id}/pdf" title="Beitrittserklärung"></iframe></div></div>
-      <div class="btns">${ro ? '<button class="btn primary" id="c">Schließen</button>' : '<button class="btn ghost" id="c">Später</button><button class="btn danger" id="rvNo">Ablehnen</button><button class="btn primary" id="rvOk">Annehmen & Mitglieder anlegen</button>'}</div>`, true);
+      <div class="btns">${ro ? '<button class="btn primary" id="c">Schließen</button>' : `<button class="btn ghost" id="c">Später</button><button class="btn danger" id="rvNo">Ablehnen</button><button class="btn primary" id="rvOk">${CONF() ? (a.pre_by ? 'Erneut befürworten' : 'Befürworten') : 'Annehmen & Mitglieder anlegen'}</button>`}</div>`, true);
     $('c').onclick = closeDialog;
     if ($('rvOpen')) $('rvOpen').onclick = () => { closeDialog(); openMember(a.member_id); };
     if (ro) return;
     $('rvNo').onclick = async () => { const r = await askText('Antrag ablehnen?\nGrund (nur intern):', ''); if (r == null) return; try { await api(`applications/${id}/reject`, 'POST', { reason: r }); closeDialog(); toast('Abgelehnt.'); after(); } catch (e) { fail(e); } };
     $('rvOk').onclick = async () => {
       const persons = d.persons.map((p, i) => ({ merge_id: (document.querySelector(`[data-merge="${i}"]`) || {}).value || null, fee_id: (document.querySelector(`[data-fee="${i}"]`) || {}).value ? +(document.querySelector(`[data-fee="${i}"]`)).value : null }));
-      try { const r = await api(`applications/${id}/accept`, 'POST', { persons, entry_date: val('rvEntry') }); closeDialog(); toast('Angenommen – Willkommens-E-Mail ist unterwegs.'); await loadMeta(); GK.refreshBadges(); openMember(r.member_id); }
+      try { const r = await api(`applications/${id}/accept`, 'POST', { persons, entry_date: val('rvEntry') }); closeDialog(); if (r.pending) { toast(`Befürwortet. ${PENDING}`); after(); return; } toast('Angenommen – Willkommens-E-Mail ist unterwegs.'); await loadMeta(); GK.refreshBadges(); openMember(r.member_id); }
       catch (e) { fail(e); }
     };
   }
 
   async function acceptChange(c, after) {
+    if (c.scope) {
+      if (c.kind === 'austritt') {
+        dialog(`<h2>Austritt von ${esc(c.name)}</h2><p>Gemeldet von <b>${esc(c.created_by || '–')}</b> (Abteilungsleitung).</p>${c.rows.filter(r => r.field !== 'Austritt zum').map(r => `<p class="muted s" style="margin:0 0 6px">${esc(r.field)}: ${esc(r.new || '–')}</p>`).join('')}
+          <label class="f" style="max-width:260px">Austritt zum<input id="ckDate" type="date" value="${esc(c.exit_date || '')}"></label>
+          <p class="muted s">Beiträge und Abteilungen enden zum Austritt. Das Kündigungsschreiben (falls hochgeladen) liegt im Mitglied unter Dokumente.</p>
+          <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Austritt bestätigen</button></div>`);
+        $('c').onclick = closeDialog;
+        $('ckOk').onclick = async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Austritt bestätigt.'); after(); } catch (e) { fail(e); } };
+        return;
+      }
+      if (!await ask(`${c.label} von ${c.name} bestätigen?\nGemeldet von ${c.created_by || '–'}.\n\n${c.rows.map(r => `${r.field}: ${r.new || '–'}`).join('\n')}`, { ok: 'Bestätigen', danger: false })) return;
+      try { await api(`changes/${c.id}/accept`, 'POST', {}); toast('Bestätigt.'); after(); } catch (e) { fail(e); }
+      return;
+    }
     if (c.kind === 'daten') {
       if (!await ask(`Änderung von ${c.name} übernehmen?\n\n${c.rows.map(r => `${FIELD[r.field] || r.field}: ${r.old || '–'} → ${r.new || '–'}`).join('\n')}`, { ok: 'Übernehmen', danger: false })) return;
       try { await api(`changes/${c.id}/accept`, 'POST', {}); toast('Übernommen.'); after(); } catch (e) { fail(e); }
@@ -1091,6 +1107,9 @@
         <label class="f w2">Zusatz auf Rechnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label>
       </div><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="eSave1">Speichern</button></div></div>
 `;
+    const tS = `<div class="card" data-sec="verein"><h3>Abteilungsleitungen</h3>
+        <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eScope" ${s.scope_confirm ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Ein- und Austritte bestätigt die Vereinsverwaltung</b><br><span class="muted s">Legt eine Abteilungsleitung ein neues Mitglied an, trägt einen Austritt oder eine Rückkehr ein oder nimmt eine Beitrittserklärung an, landet das unter „Anträge → Änderungen & Meldungen“ und gilt erst nach Bestätigung durch einen Admin. Bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf.</span></span></label>
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveScope">Speichern</button></div></div>`;
     const tB = `      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Beiträge Hauptverein</h3><button class="btn small primary" id="fNew">+ Beitragsart</button></div>
         ${m.fees.some(f => f.kind !== 'zusatz') ? `<table class="tbl"><tr><th>Bezeichnung</th><th class="r">Betrag</th><th>Rhythmus</th><th>Alter</th><th>Familie</th><th>Arbeitsstunden</th><th>Formular</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind !== 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc(f.name)}</b>${f.department_id ? `<div class="muted s">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</div>` : ''}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}${f.interval === 'einmalig' ? '' : `<div class="muted s">${esc(PRS[f.prorate] || '')}</div>`}</td>
@@ -1129,7 +1148,7 @@
       <div id="eFunc" data-sec="daten"></div>`;
     const SECS = [['verein', 'Verein & SEPA'], ['antrag', 'Beitrittserklärung'], ['app', 'Mitglieder-App'], ['daten', 'Import & Datenschutz']];
     if (!SECS.some(x => x[0] === st.set)) st.set = 'verein';
-    el.innerHTML = part === 'catalog' ? tB : `<div class="seg" id="eSeg" style="width:fit-content;margin-bottom:16px">${SECS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.set === k ? 'on' : ''}">${l}</button>`).join('')}</div>${tA}${tC}`;
+    el.innerHTML = part === 'catalog' ? tB : `<div class="seg" id="eSeg" style="width:fit-content;margin-bottom:16px">${SECS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.set === k ? 'on' : ''}">${l}</button>`).join('')}</div>${tA}${tS}${tC}`;
     if (part !== 'catalog') {
       const show = () => el.querySelectorAll('[data-sec]').forEach(c => c.classList.toggle('hidden', c.dataset.sec !== st.set));
       show();
@@ -1150,6 +1169,7 @@
     bindCons();
     if ($('eConsAdd')) $('eConsAdd').onclick = () => { $('eCons').insertAdjacentHTML('beforeend', consentRow({ key: 'e' + Date.now().toString(36).slice(-5), short: '', text: '', required: false })); bindCons(); };
     if ($('eSave2')) $('eSave2').onclick = () => save({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() });
+    if ($('eSaveScope')) $('eSaveScope').onclick = () => save({ scope_confirm: $('eScope').checked });
     if ($('eSaveApp')) {
       const syncApp = () => { [['anschrift', 'anschrift'], ['kontakt', 'kontakt'], ['bank', 'bank']].forEach(([v, e]) => { const vi = el.querySelector(`[data-apv="${v}"]`), ei = el.querySelector(`[data-ape="${e}"]`); if (vi && ei) { ei.disabled = !vi.checked; if (!vi.checked) ei.checked = false; } }); };
       el.querySelectorAll('[data-apv]').forEach(c => { c.addEventListener('change', syncApp); }); syncApp();

@@ -31,7 +31,7 @@ function register(sh) {
       const rows = db.prepare(`SELECT mf.*, f.name AS fee_name, f.cents AS fee_cents, f.interval, f.prorate, f.department_id, f.age_min, f.age_max, f.family,
           p.exit_date, p.birth_date, p.anonymized_at, m.name AS person_name
         FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id JOIN mv_person p ON p.member_id = mf.member_id JOIN members m ON m.id = mf.member_id
-        WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND f.kind != 'zusatz'`).all();
+        WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND f.kind != 'zusatz' AND NOT EXISTS (SELECT 1 FROM mv_change x WHERE x.member_id = m.id AND x.kind = 'eintritt' AND x.status = 'offen')`).all();
       for (const r of rows) {
         if (o.dept && r.department_id !== Number(o.dept)) continue;
         if (o.fee && r.fee_id !== Number(o.fee)) continue;
@@ -65,7 +65,7 @@ function register(sh) {
         const hold = sh.ageHold ? sh.ageHold() : new Map();   // offene Altersstufen-Hinweise: bisherige Stufe läuft weiter
         const mds = db.prepare(`SELECT md.*, d.name AS dept_name, p.birth_date, p.exit_date AS p_exit, p.entry_date AS p_entry, m.name AS person_name
           FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id JOIN mv_person p ON p.member_id = md.member_id JOIN members m ON m.id = md.member_id
-          WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND md.fee_free = 0`).all();
+          WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND md.fee_free = 0 AND NOT EXISTS (SELECT 1 FROM mv_change x WHERE x.member_id = m.id AND x.kind = 'eintritt' AND x.status = 'offen')`).all();
         for (const md of mds) {
           const list = byDept.get(md.department_id);
           if (!list && !md.fee_id) continue;

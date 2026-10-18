@@ -12,7 +12,7 @@ const store = require('./lib/store');
 const { sepa, fees } = store;
 const { S, SET, today, nowTs } = store;
 
-let ageScanFn = null, ageForFn = null;   // Altersstufen prüfen (lib/agecheck.js)
+let ageScanFn = null, ageForFn = null, shared = null;   // Altersstufen prüfen (lib/agecheck.js)
 let C;   // Kontext (ctx der Erweiterung + Helfer)
 const DOC_MAX = 15 * 1024 * 1024;
 const DOC_TYPES = { pdf: 'application/pdf', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', heic: 'image/heic', txt: 'text/plain', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' };
@@ -72,7 +72,8 @@ function listRows(q = {}) {
       (SELECT name FROM members WHERE id = p.payer_id) AS payer_name,
       (SELECT COUNT(*) FROM mv_person c WHERE c.payer_id = m.id AND c.member_id != m.id) AS dependents,
       (SELECT COALESCE(SUM(cents),0) FROM mv_charge c WHERE c.member_id = m.id AND c.status = 'offen') AS open_cents,
-      (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen') AS age_open
+      (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen') AS age_open,
+      (SELECT group_concat(kind) FROM mv_change x WHERE x.member_id = m.id AND x.status = 'offen' AND x.kind IN ('eintritt','austritt','rueckkehr')) AS pend
     FROM members m LEFT JOIN mv_person p ON p.member_id = m.id LEFT JOIN mv_bank b ON b.member_id = m.id
     WHERE m.kind = 'mitglied' AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(day, day, day, day);
   return rows.map(r => {
@@ -83,7 +84,7 @@ function listRows(q = {}) {
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
-      issues: [!r.complete && 'unvollständig', r.complete && !r.payer_id && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen'].filter(Boolean) };
+      issues: [!r.complete && 'unvollständig', r.complete && !r.payer_id && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -274,6 +275,14 @@ function activate(ctx) {
   const scopeOf = req => ((req.user.deptOnly || []).includes('mitglieder') ? (req.user.depts || []) : null);
   const inScope = (memberId, depts) => Boolean(ctx.db.prepare(`SELECT 1 FROM mv_member_department WHERE member_id = ? AND department_id IN (${depts.map(() => '?').join(',') || 'NULL'}) AND (exit_date IS NULL OR exit_date >= ?)`).get(memberId, ...depts, today()));
   const appInScope = (a, depts) => { try { return JSON.parse(a.data).persons.some(p => (p.departments || []).some(d => depts.includes(Number(d)))); } catch (e) { return false; } };
+  /** Ein- und Austritte von Abteilungsleitungen bestätigt die Vereinsverwaltung (Einstellung, Standard an) */
+  const needConfirm = req => Boolean(req.mvScope) && S('scope_confirm', '1') === '1';
+  function scopeChange(req, memberId, kind, data, text) {
+    ctx.db.prepare('INSERT INTO mv_change(member_id, kind, data, created_by) VALUES (?,?,?,?)').run(memberId, kind, JSON.stringify(data), uname(req));
+    store.hist(memberId, uname(req), 'Zur Bestätigung', null, text);
+    ctx.audit(req.user, 'Abteilung: zur Bestätigung gemeldet', text);
+    if (shared && shared.notifyBoard) shared.notifyBoard(`Zur Bestätigung: ${text}`, [`${req.user.name || req.user.username} (Abteilungsleitung) hat gemeldet: ${text}.`, '', 'Bitte in der Verwaltung unter Mitgliederverwaltung → Anträge bestätigen oder ablehnen.']).catch(() => {});
+  }
   /** Hinweise, die ein Abteilungsadmin selbst erledigen kann (Beiträge, Bank und Mandat macht die Vereinsverwaltung) */
   const scopedIssues = list => (list || []).filter(i => !/Mandat|Bankverbindung|IBAN|Beitrag|Altersstufe/.test(i));
   const SCOPED = [   // [Methode, Pfad, Prüfung]  Prüfung: m = Mitglied :id, md = Abteilungszugehörigkeit, h/f = Ehrung/Amt, a = Antrag, ch = Änderungswunsch, - = keine
@@ -301,7 +310,11 @@ function activate(ctx) {
     else if (hit[2] === 'md') { const r = row('SELECT * FROM mv_member_department WHERE id = ?', id); ok = Boolean(r && depts.includes(r.department_id)) && (req.method !== 'PUT' || (b.fee_id === undefined && b.fee_free === undefined && b.booked_until === undefined)); }
     else if (hit[2] === 'h' || hit[2] === 'f') { const r = row(`SELECT member_id FROM ${hit[2] === 'h' ? 'mv_honor' : 'mv_function'} WHERE id = ?`, id); ok = Boolean(r && inScope(r.member_id, depts)); }
     else if (hit[2] === 'a') { const a = row('SELECT * FROM mv_application WHERE id = ?', id); ok = Boolean(a && appInScope(a, depts)); }
-    else if (hit[2] === 'ch') { const c = row('SELECT member_id, kind FROM mv_change WHERE id = ?', id); ok = Boolean(c && inScope(c.member_id, depts) && c.kind !== 'bank'); }
+    else if (hit[2] === 'ch') {
+      const c = row('SELECT member_id, kind FROM mv_change WHERE id = ?', id);
+      const confirmKinds = ['eintritt', 'austritt', 'rueckkehr', ...(S('scope_confirm', '1') === '1' ? ['kuendigung'] : [])];
+      ok = Boolean(c && inScope(c.member_id, depts) && c.kind !== 'bank' && !(/accept$/.test(path) && confirmKinds.includes(c.kind)));
+    }
     else if (hit[2] === 'new') ok = depts.includes(Number(b.department_id)) || (depts.length === 1 && !b.department_id);
     else if (hit[2] === 'newapp') ok = appInScope({ data: JSON.stringify((b.data) || {}) }, depts);
     if (!ok) return no();
@@ -349,6 +362,12 @@ function activate(ctx) {
       const dep = Number((req.body || {}).department_id) || req.mvScope[0];
       const entry = pi.fields.entry_date || today();
       ctx.db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, status, booked_until) VALUES (?,?,?,?,?)').run(id, dep, entry, 'aktiv', store.zusatzStart(dep, entry));
+      if (needConfirm(req)) {   // erst nach Bestätigung durch die Vereinsverwaltung aktiv (Tablet, App, Beitragslauf)
+        ctx.db.prepare('UPDATE members SET active = 0 WHERE id = ?').run(id);
+        scopeChange(req, id, 'eintritt', { department_id: dep, entry_date: entry }, `Eintritt von ${pi.fields.first_name} ${pi.fields.last_name || ''}`.trim());
+        ctx.audit(req.user, 'Mitglied angelegt (wartet auf Bestätigung)', `${pi.fields.first_name} ${pi.fields.last_name}`);
+        return res.json({ id, pending: true });
+      }
     }
     ctx.audit(req.user, 'Mitglied angelegt', `${pi.fields.first_name} ${pi.fields.last_name}`);
     res.json({ id });
@@ -542,6 +561,11 @@ function activate(ctx) {
     if (p.entry_date && b.exit_date < p.entry_date) return bad(res, 'Der Austritt liegt vor dem Eintritt.');
     const deps = ctx.db.prepare('SELECT m.name FROM mv_person x JOIN members m ON m.id = x.member_id WHERE x.payer_id = ? AND x.member_id != ? AND (x.exit_date IS NULL OR x.exit_date > ?)').all(id, id, b.exit_date);
     if (deps.length && !b.force) return res.status(409).json({ error: `Für ${deps.map(d => d.name).join(', ')} zahlt dieses Mitglied. Diese Angehörigen bitte vorher einem anderen Zahler zuordnen oder mit austreten lassen.`, dependents: deps.map(d => d.name) });
+    if (needConfirm(req)) {   // Abteilungsleitung: Austritt geht zur Bestätigung an die Vereinsverwaltung
+      if (ctx.db.prepare("SELECT 1 FROM mv_change WHERE member_id = ? AND kind = 'austritt' AND status = 'offen'").get(id)) return bad(res, 'Für dieses Mitglied liegt schon ein Austritt zur Bestätigung vor.');
+      scopeChange(req, id, 'austritt', { exit_date: b.exit_date, notice_date: isDate(b.notice_date) ? b.notice_date : null, reason: one(b.reason, 80) || null, endFees: b.endFees !== false, endDepts: b.endDepts !== false, withDependents: Boolean(b.withDependents) }, `Austritt von ${p.name} zum ${deD(b.exit_date)}`);
+      return res.json({ ok: true, pending: true });
+    }
     exitMember(id, { exit_date: b.exit_date, reason: one(b.reason, 80), notice_date: isDate(b.notice_date) ? b.notice_date : null, endFees: b.endFees !== false, endDepts: b.endDepts !== false }, uname(req));
     if (b.withDependents) for (const d of ctx.db.prepare('SELECT member_id FROM mv_person WHERE payer_id = ? AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(id, id, b.exit_date)) exitMember(d.member_id, { exit_date: b.exit_date, reason: one(b.reason, 80) }, uname(req));
     daily();
@@ -567,7 +591,20 @@ function activate(ctx) {
     const id = int(req.params.id); const p = personRow(id);
     if (!p || !p.exit_date) return bad(res, 'Nicht ausgetreten.');
     if (p.anonymized_at) return bad(res, 'Anonymisierte Mitglieder können nicht zurückkehren – bitte neu anlegen.');
-    savePerson(id, { exit_date: null, exit_reason: null, notice_date: null }, uname(req));
+    if (needConfirm(req)) {
+      if (ctx.db.prepare("SELECT 1 FROM mv_change WHERE member_id = ? AND kind = 'rueckkehr' AND status = 'offen'").get(id)) return bad(res, 'Die Rückkehr liegt schon zur Bestätigung vor.');
+      scopeChange(req, id, 'rueckkehr', { date: today() }, `Rückkehr von ${p.name}`);
+      return res.json({ ok: true, pending: true });
+    }
+    reenterMember(id, uname(req));
+    ctx.audit(req.user, 'Mitglied: Austritt zurückgenommen', p.name);
+    res.json({ ok: true });
+  });
+  /** Austritt zurücknehmen: Beiträge und Abteilungen wieder öffnen (auch aus „Meldungen“ der Abteilungsleitung) */
+  function reenterMember(id, by) {
+    const p = personRow(id); if (!p || !p.exit_date) return;
+    const uname = () => by;
+    savePerson(id, { exit_date: null, exit_reason: null, notice_date: null }, uname());
     // Beiträge und Abteilungen, die mit dem Austritt endeten, wieder öffnen – ab dem laufenden Zeitraum, ohne die Pause nachzuberechnen
     const reopened = [];
     for (const mf of ctx.db.prepare('SELECT mf.*, f.interval, f.name FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND mf.end_date = ?').all(id, p.exit_date)) {
@@ -579,12 +616,10 @@ function activate(ctx) {
       const z = store.zusatzStart(md.department_id, null);
       ctx.db.prepare('UPDATE mv_member_department SET exit_date = NULL, exit_reason = NULL, booked_until = ? WHERE id = ?').run(!md.booked_until || (z && z > md.booked_until) ? z : md.booked_until, md.id); reopened.push(md.name);
     }
-    if (reopened.length) store.hist(id, uname(req), 'Wieder aufgenommen', null, reopened.join(', '));
+    if (reopened.length) store.hist(id, uname(), 'Wieder aufgenommen', null, reopened.join(', '));
     ctx.db.prepare('UPDATE members SET active = 1 WHERE id = ?').run(id);
     ctx.db.prepare('UPDATE member_access SET blocked = 0 WHERE member_id = ?').run(id);
-    ctx.audit(req.user, 'Mitglied: Austritt zurückgenommen', p.name);
-    res.json({ ok: true });
-  });
+  }
 
   /* ---------- Dokumente ---------- */
   admin.post('/member/:id/documents', PD, express.raw({ type: () => true, limit: DOC_MAX + 1024 }), (req, res) => {
@@ -743,7 +778,7 @@ function activate(ctx) {
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_fee_cents: parseInt(S('dunning_fee_cents', '0'), 10) || 0,
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: parseInt(S('retention_years', '0'), 10) || 0,
-      notice_months: parseInt(S('notice_months', '3'), 10) || 0, app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
+      notice_months: parseInt(S('notice_months', '3'), 10) || 0, scope_confirm: S('scope_confirm', '1') === '1', app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
     return s;
   }
   admin.put('/settings', P, (req, res) => {
@@ -765,6 +800,7 @@ function activate(ctx) {
     if (b.app_online !== undefined) SET('app_online', b.app_online ? '1' : '0');
     for (const k of ['return_fee_cents', 'dunning_fee_cents']) if (b[k] !== undefined) SET(k, String(Math.max(0, Math.min(10000, int(b[k])))));
     if (b.notice_months !== undefined) SET('notice_months', String(Math.max(0, Math.min(24, int(b.notice_months)))));
+    if (b.scope_confirm !== undefined) SET('scope_confirm', b.scope_confirm ? '1' : '0');
     if (b.app_perms && typeof b.app_perms === 'object') {
       const clean = (defs, v) => Object.fromEntries(Object.keys(defs).map(k => [k, Boolean(v && v[k])]));
       SET('app_perms', JSON.stringify({ view: clean(store.APP_VIEW, b.app_perms.view), edit: clean(store.APP_EDIT, b.app_perms.edit) }));
@@ -781,7 +817,7 @@ function activate(ctx) {
   });
 
   /* ---------- weitere Teile ---------- */
-  const shared = { C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope };
+  shared = { C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
   require('./lib/money').register(shared);
   require('./lib/agecheck').register(shared);
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
@@ -843,7 +879,7 @@ function activate(ctx) {
       fee: fee ? { name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'notice_months', 'member_no_start', 'app_perms'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });

@@ -188,7 +188,7 @@ function register(sh) {
   const view = a => {
     const d = JSON.parse(a.data);
     return { id: a.id, source: a.source, status: a.status, created_at: a.created_at, created_by: a.created_by, signed_at: a.signed_at, signed_via: a.signed_via, sha256: a.sha256, document_id: a.document_id,
-      member_id: a.member_id, reviewed_by: a.reviewed_by, reviewed_at: a.reviewed_at, reason: a.reason, waiting: a.status === 'unterschrift' && a.code_expires > Date.now(),
+      member_id: a.member_id, reviewed_by: a.reviewed_by, reviewed_at: a.reviewed_at, reason: a.reason, pre_by: a.pre_by || null, pre_at: a.pre_at || null, waiting: a.status === 'unterschrift' && a.code_expires > Date.now(),
       names: d.persons.map(p => `${p.first_name} ${p.last_name}`).join(', '), data: { ...d, iban_masked: sepa.maskIban(d.iban) } };
   };
   admin.get('/applications', P, (req, res) => {
@@ -237,6 +237,14 @@ function register(sh) {
   });
   admin.post('/applications/:id/accept', P, (req, res) => {
     const b = req.body || {};
+    if (req.mvScope && S('scope_confirm', '1') === '1') {   // Abteilungsleitung befürwortet – annehmen macht die Vereinsverwaltung
+      const a = db.prepare("SELECT * FROM mv_application WHERE id = ? AND status = 'eingegangen'").get(int(req.params.id));
+      if (!a) return bad(res, 'Dieser Antrag kann nicht mehr bearbeitet werden.');
+      db.prepare('UPDATE mv_application SET pre_by = ?, pre_at = ? WHERE id = ?').run(uname(req), nowTs(), a.id);
+      C.audit(req.user, 'Beitrittserklärung befürwortet (Abteilung)', view(a).names);
+      if (sh.notifyBoard) sh.notifyBoard(`Zur Bestätigung: Beitrittserklärung ${view(a).names}`, [`${uname(req)} (Abteilungsleitung) befürwortet die Beitrittserklärung von ${view(a).names}.`, '', 'Bitte in der Verwaltung unter Mitgliederverwaltung → Anträge annehmen.']).catch(() => {});
+      return res.json({ ok: true, pending: true });
+    }
     try { const ids = accept(int(req.params.id), { by: uname(req), persons: Array.isArray(b.persons) ? b.persons : [], entry_date: b.entry_date }); res.json({ ok: true, member_id: ids[0], ids }); }
     catch (e) { bad(res, e.message); }
   });

@@ -18,7 +18,8 @@ function register(sh) {
   const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), ci: S('creditor_id') });
   const sigOk = s => typeof s === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s) && s.length < 280000;
   const CHANGE_FIELDS = ['street', 'zip', 'city', 'address_extra', 'phone', 'mobile', 'email'];
-  const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung' };
+  const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)' };
+  const SCOPE_KINDS = ['eintritt', 'austritt', 'rueckkehr'];
 
   /** frühester Austritt: Ende des Beitragsjahres unter Einhaltung der Kündigungsfrist */
   function noticeDate(day = today()) {
@@ -181,7 +182,10 @@ function register(sh) {
       const b = bankRow(c.member_id) || {};
       rows = [['holder', b.holder, d.holder], ['iban', bankPerm ? sepa.fmtIban(b.iban) : sepa.maskIban(b.iban), bankPerm ? sepa.fmtIban(d.iban) : sepa.maskIban(d.iban)], ['bic', b.bic, d.bic], ['bank', b.bank, d.bank]].map(([field, o, n]) => ({ field, old: o || null, new: n || null }));
     }
-    return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
+    if (c.kind === 'eintritt') rows = [{ field: 'Abteilung', old: null, new: (db.prepare('SELECT name FROM mv_department WHERE id = ?').get(d.department_id) || {}).name || '–' }, { field: 'Eintritt', old: null, new: deD(d.entry_date) }];
+    if (c.kind === 'austritt') rows = [{ field: 'Austritt zum', old: null, new: deD(d.exit_date) }, ...(d.reason ? [{ field: 'Grund', old: null, new: d.reason }] : []), ...(d.withDependents ? [{ field: 'Angehörige', old: null, new: 'treten mit aus' }] : [])];
+    if (c.kind === 'rueckkehr') rows = [{ field: 'Rückkehr', old: deD(p.exit_date) ? `Austritt ${deD(p.exit_date)}` : null, new: 'Austritt zurücknehmen' }];
+    return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, created_by: c.created_by || null, scope: SCOPE_KINDS.includes(c.kind), exit_date: d.exit_date || null, name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
       rows, kuendigung: c.kind === 'kuendigung' ? d : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
   }
   admin.get('/changes', P, (req, res) => {
@@ -201,6 +205,20 @@ function register(sh) {
     const d = JSON.parse(c.data || '{}'); const b = req.body || {}; const by = uname(req);
     const p = personRow(c.member_id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     let mailLines, attachments;
+    if (SCOPE_KINDS.includes(c.kind)) {   // Meldung einer Abteilungsleitung bestätigen
+      if (c.kind === 'eintritt') { db.prepare('UPDATE members SET active = 1 WHERE id = ?').run(c.member_id); store.hist(c.member_id, by, 'Eintritt bestätigt', null, d.entry_date ? deD(d.entry_date) : null); }
+      if (c.kind === 'austritt') {
+        const date = fees.isDate(b.exit_date) ? b.exit_date : d.exit_date;
+        if (!fees.isDate(date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
+        const opt = { exit_date: date, reason: d.reason, notice_date: d.notice_date, endFees: d.endFees !== false, endDepts: d.endDepts !== false };
+        exitMember(c.member_id, opt, by);
+        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE payer_id = ? AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, date)) exitMember(x.member_id, { exit_date: date, reason: d.reason }, by);
+      }
+      if (c.kind === 'rueckkehr') sh.reenterMember(c.member_id, by);
+      db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ? WHERE id = ?").run(by, nowTs(), c.id);
+      C.audit(req.user, `Mitglied: ${KIND[c.kind]} bestätigt`, `${p.name} (gemeldet von ${c.created_by || '–'})`);
+      return res.json({ ok: true });
+    }
     if (c.kind === 'daten') {
       const fields = {};
       const pick = Array.isArray(b.fields) ? b.fields : Object.keys(d);
@@ -240,12 +258,19 @@ function register(sh) {
     const reason = txt((req.body || {}).reason, 300);
     db.prepare("UPDATE mv_change SET status = 'abgelehnt', reviewed_by = ?, reviewed_at = ?, reason = ?, signature = NULL WHERE id = ?").run(uname(req), nowTs(), reason || null, c.id);
     const p = personRow(c.member_id) || {};
+    if (SCOPE_KINDS.includes(c.kind)) {   // Meldung der Abteilungsleitung abgelehnt – keine Mail ans Mitglied
+      if (c.kind === 'eintritt') { db.prepare('UPDATE members SET deleted = 1, active = 0 WHERE id = ?').run(c.member_id); }
+      store.hist(c.member_id, uname(req), `${KIND[c.kind]} abgelehnt`, null, reason || null);
+      C.audit(req.user, `Mitglied: ${KIND[c.kind]} abgelehnt`, `${p.name || ''} (gemeldet von ${c.created_by || '–'})`);
+      return res.json({ ok: true });
+    }
     const mailed = (req.body || {}).notify === false ? false : await mailMember(c.member_id, `Ihre Mitteilung (${KIND[c.kind]}) – ${club().name}`, [`Ihre Mitteilung „${KIND[c.kind]}“ vom ${deD(c.created_at.slice(0, 10))} konnten wir leider nicht übernehmen.`, reason ? `Grund: ${reason}` : 'Bitte sprechen Sie uns kurz an.']);
     C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App abgelehnt`, p.name);
     res.json({ ok: true, mailed });
   }));
 
   sh.noticeDate = noticeDate;
+  sh.notifyBoard = notifyBoard;
   void euro;
 }
 
