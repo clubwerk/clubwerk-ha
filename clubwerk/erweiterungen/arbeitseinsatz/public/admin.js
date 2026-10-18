@@ -56,6 +56,15 @@
     document.head.appendChild(s);
   }
 
+  /** Zahl „zu bestätigen“ im Reiter „Stunden“ nach jeder Änderung neu holen */
+  function refreshPending() {
+    api('meta').then(m => {
+      st.meta = m;
+      const b = document.querySelector('#awTabs [data-tab="stunden"]');
+      if (b) b.textContent = `Stunden${m.pending ? ` (${m.pending})` : ''}`;
+      if (GK.refreshBadges) GK.refreshBadges();
+    }).catch(() => {});
+  }
   async function render() {
     st.meta = await api('meta');
     st.year = st.year || st.meta.year;
@@ -67,7 +76,7 @@
       if (k === 'uebersicht') return showOverview(el);
       if (k === 'plaene') return showPlans(el);
       if (k === 'einsaetze') return showEvents(el);
-      if (k === 'stunden') return showEntries(el);
+      if (k === 'stunden') { refreshPending(); return showEntries(el); }
       if (k === 'einstellungen') return showSettings(el);
     });
   }
@@ -371,7 +380,7 @@
           <td><b>${esc(GK.lastFirst(r.name))}</b></td><td><span translate="no">${esc(r.event_title || r.text || '')}</span>${r.reason ? `<div class="muted s">${esc(r.reason)}</div>` : ''}</td><td>${esc(SRC[r.source] || r.source)}</td><td>${pill(EST[r.status] || ['', r.status])}</td>
           <td class="r">${r.minutes ? h(r.minutes) : '–'}</td><td class="r nw">${r.status === 'laeuft' ? `<button class="btn small" data-stop="${r.id}">Ausstempeln</button>` : `<button class="btn small" data-ed="${r.id}">Ändern</button>`} <button class="btn small danger" data-del="${r.id}">Löschen</button></td></tr>`).join('')}</table>`
         : `<p class="muted">${st.es === 'offen' ? 'Nichts zu bestätigen.' : st.es === 'laeuft' ? 'Niemand eingestempelt.' : 'Keine Einträge.'}</p>`}</div>`;
-    const again = () => { api('meta').then(m => { st.meta = m; }).catch(() => {}); showEntries(el).catch(fail); };
+    const again = () => { refreshPending(); showEntries(el).catch(fail); };
     $('esSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.es = b.dataset.f; again(); };
     $('esAdd').onclick = () => addEntries(again);
     const sel = () => [...el.querySelectorAll('[data-id]')].filter(c => c.checked).map(c => +c.dataset.id);
