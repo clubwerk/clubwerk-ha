@@ -493,9 +493,12 @@ function activate(ctx) {
     res.json({ today: today(), now: hhmm(nowMin()), booking: c.tablet_booking, rules: c.rules, max_partners: c.max_partners, max_guests: c.max_guests, plan: dayPlan(today(), { me: null }),
       people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(p => ({ ...p, ln: lastFirst(p.name), ph: photos.version(p.id, 'buchung') })) : [] });
   }));
+  // Buchen und Stornieren am Tablet nur mit PIN (zentrale PIN des Mitglieds, wie im Verkauf)
   const tabletMember = (req, res) => {
     const mid = ctx.auth.checkTabletToken((req.body || {}).token);
     if (!mid || typeof mid !== 'number') { bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401); return null; }
+    const m = db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(mid);
+    if (!m || !m.pin_hash) { res.status(403).json({ error: 'Kein PIN vergeben – zum Buchen und Stornieren am Tablet bitte zuerst eine PIN festlegen.', needPin: true }); return null; }
     return mid;
   };
   T.post('/quote', rateLimit('bktab', 120, 60000), ar(async (req, res) => {

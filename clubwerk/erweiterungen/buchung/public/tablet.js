@@ -90,18 +90,46 @@
     };
     draw(); $('q').oninput = draw; $('x').onclick = closeDlg; setTimeout(() => $('q').focus(), 50);
   }
-  function unlock(p, title, next) {
-    const go = async pin => {
-      try { const r = await call('unlock', { memberId: p.id, pin }); next(r.token, p); }
-      catch (e) { if (e.gate) return closeDlg(); if ($('perr')) { $('perr').textContent = e.message; pinVal = ''; dots(); } else toast(e.message, true); }
-    };
-    if (!p.pin) return go('');
-    let pinVal = '';
-    dlg(`<h2>${esc(p.name)}</h2><div class="sub">PIN eingeben – ${esc(title)}</div><div class="pin-dots" id="dots"></div>
+  /** Ziffernblock (4–6 Ziffern) → onDone(pin) gibt true zurück oder eine Fehlermeldung */
+  function pad(title, sub, onDone) {
+    let pinVal = '', busy = false;
+    dlg(`<h2>${esc(title)}</h2><div class="sub">${esc(sub)}</div><div class="pin-dots" id="dots"></div>
       <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div><div class="perr" id="perr"></div>`);
-    function dots() { $('dots').innerHTML = Array.from({ length: Math.max(4, pinVal.length) }, (_, i) => `<span class="${i < pinVal.length ? 'f' : ''}"></span>`).join(''); }
+    const dots = () => { $('dots').innerHTML = Array.from({ length: Math.max(4, pinVal.length) }, (_, i) => `<span class="${i < pinVal.length ? 'f' : ''}"></span>`).join(''); };
+    const submit = async () => {
+      if (busy) return; busy = true;
+      const r = await onDone(pinVal); busy = false;
+      if (r !== true && $('perr')) { $('perr').textContent = r || ''; pinVal = ''; dots(); }
+    };
     dots();
-    $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return go(pinVal); if (pinVal.length < 6) { pinVal += k; dots(); } if (pinVal.length === 6) go(pinVal); }; });
+    $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return submit(); if (pinVal.length < 6) { pinVal += k; dots(); } if (pinVal.length === 6) submit(); }; });
+  }
+  function unlock(p, title, next) {
+    if (!p.pin) return firstPin(p, title, next);
+    pad(p.name, `PIN eingeben – ${title}`, async pin => {
+      try { const r = await call('unlock', { memberId: p.id, pin }); next(r.token, p); return true; }
+      catch (e) { if (e.gate) { closeDlg(); return true; } return e.message; }
+    });
+  }
+  /** Noch keine PIN: zum Buchen und Stornieren ist sie Pflicht – gleich hier festlegen (zweimal eingeben) */
+  function firstPin(p, title, next) {
+    dlg(`<h2>Kein PIN vergeben</h2><div class="sub" translate="no">${esc(p.ln || p.name)}</div>
+      <p class="pin-note">Zum Buchen und Stornieren am Tablet brauchst du eine PIN. Sie gilt für alles im Vereinsheim – Verkauf, Platzbuchung und Helferdienste – und schützt dich vor Buchungen auf deinen Namen.</p>
+      <div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="go">PIN festlegen</button></div>`);
+    $('x').onclick = closeDlg;
+    $('go').onclick = () => pad('Neue PIN', '4 bis 6 Ziffern, die du dir merken kannst', pin1 => {
+      if (pin1.length < 4) return 'Bitte 4 bis 6 Ziffern.';
+      setTimeout(() => pad('PIN wiederholen', 'Zur Sicherheit noch einmal eingeben', async pin2 => {
+        if (pin2 !== pin1) { setTimeout(() => { toast('Die beiden PINs stimmen nicht überein – bitte noch einmal.', true); firstPin(p, title, next); }, 0); return true; }
+        try {
+          const u = await call('unlock', { memberId: p.id });
+          await call('pin', { token: u.token, newPin: pin1 });
+          p.pin = true; toast('PIN gespeichert – sie gilt ab jetzt im ganzen Vereinsheim.');
+          next(u.token, p); return true;
+        } catch (e) { if (e.gate) { closeDlg(); return true; } return e.message; }
+      }), 0);
+      return true;
+    });
   }
   function bookDlg(r, s, token) {
     const nowM = tm(state.now);

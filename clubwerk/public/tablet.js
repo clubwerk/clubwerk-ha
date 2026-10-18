@@ -389,6 +389,7 @@
       try {
         const r = await api('api/tablet/unlock', { memberId: m.id });
         openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: r.member.kind });
+        if (r.member.kind === 'mitglied') askFirstPin();   // PIN ist eine Zentralfunktion – beim ersten Mal festlegen lassen
       } catch (e) { toast(e.message, true); }
       return;
     }
@@ -744,49 +745,43 @@
     } catch (e) { toast(e.message, true); if (e.status === 401) backToStart(); }
   });
 
-  $('pinBtn').addEventListener('click', () => {
-    const has = session.member.hasPin;
-    const setNew = cur => pinDialog('Neue PIN', '4 bis 6 Ziffern – schützt dein Konto vor fremden Buchungen', async pin => {
-      try {
-        const r = await api('api/tablet/pin', { token: session.token, currentPin: cur, newPin: pin });
-        session.member.hasPin = r.hasPin;
-        session.private = r.hasPin;
-        $('accBtn').classList.toggle('hidden', !r.hasPin);
-        $('pinBtn').textContent = r.hasPin ? 'PIN ändern' : 'PIN festlegen';
-        toast(r.hasPin ? 'PIN gespeichert – „Mein Konto“ mit offenem Betrag und Verlauf ist jetzt sichtbar.' : 'PIN entfernt – Konto und Verlauf werden nicht mehr angezeigt.');
-        load();
-        return true;
-      } catch (e) { setNew.lastError = e.message; return false; }
+  /* ---------- PIN (zentral: Verkauf, Platzbuchung, Helferdienste) ---------- */
+  function afterPin() {
+    session.member.hasPin = true; session.private = true;
+    $('accBtn').classList.toggle('hidden', false);
+    $('pinBtn').textContent = 'PIN ändern';
+    load();
+  }
+  /** neue PIN zweimal eingeben und speichern (cur = bisherige PIN, leer beim ersten Mal) */
+  function setNewPin(cur, sub) {
+    pinDialog('Neue PIN', sub || '4 bis 6 Ziffern – gilt für Verkauf, Platzbuchung und Helferdienste', async pin1 => {
+      closeDialog();
+      setTimeout(() => pinDialog('PIN wiederholen', 'Zur Sicherheit noch einmal eingeben', async pin2 => {
+        if (pin2 !== pin1) { closeDialog(); setTimeout(() => { toast('Die beiden PINs stimmen nicht überein – bitte noch einmal.', true); setNewPin(cur, sub); }, 0); return true; }
+        try {
+          await api('api/tablet/pin', { token: session.token, currentPin: cur, newPin: pin1 });
+          afterPin();
+          toast('PIN gespeichert – sie gilt ab jetzt im ganzen Vereinsheim. „Mein Konto“ ist jetzt sichtbar.');
+          return true;
+        } catch (e) { toast(e.message, true); return true; }
+      }), 0);
+      return true;
     });
-    if (!has) { setNew(''); return; }
-    // PIN vorhanden: erst wählen – ändern oder ganz entfernen –, dann die bisherige PIN bestätigen
-    $('dialog').innerHTML = `<h2>PIN</h2><div class="muted">Was möchtest du tun?</div>
-      <div class="pinchoice"><button class="btn primary" data-c="change">PIN ändern</button><button class="btn" data-c="remove">PIN entfernen</button></div>
-      <div class="muted s" style="margin-top:10px">Ohne PIN kann jeder auf deinen Namen buchen, und „Mein Konto“ wird nicht mehr angezeigt.</div>
-      <div style="display:flex;justify-content:center;margin-top:16px"><button class="btn ghost" data-c="x" style="min-width:180px;min-height:52px;justify-content:center">Abbrechen</button></div>`;
+  }
+  /** erstes Mal ohne PIN: gleich zum Festlegen auffordern */
+  function askFirstPin() {
+    $('dialog').innerHTML = `<h2>Kein PIN vergeben</h2><div class="muted" style="margin:6px 0 4px;line-height:1.5">Lege jetzt deine PIN fest. Sie schützt dein Konto und gilt für alles im Vereinsheim – Verkauf, Platzbuchung (Buchen und Stornieren nur mit PIN) und Helferdienste.</div>
+      <div class="pinchoice"><button class="btn" data-c="later">Später</button><button class="btn primary" data-c="set">PIN festlegen</button></div>`;
     $('overlay').classList.remove('hidden');
     $('dialog').onclick = e => {
       const c = e.target.closest('[data-c]'); if (!c) return;
-      bumpIdle();
-      if (c.dataset.c === 'x') return closeDialog();
-      closeDialog();
-      if (c.dataset.c === 'change') {
-        setTimeout(() => pinDialog('Aktuelle PIN', 'Zur Sicherheit erst die bisherige PIN eingeben', async cur => { closeDialog(); setTimeout(() => setNew(cur), 0); return true; }), 0);
-      } else {
-        const removeIt = async cur => {
-          try {
-            const r = await api('api/tablet/pin', { token: session.token, currentPin: cur, newPin: '' });
-            session.member.hasPin = r.hasPin; session.private = r.hasPin;
-            $('accBtn').classList.toggle('hidden', true);
-            $('pinBtn').textContent = 'PIN festlegen';
-            toast('PIN entfernt – Konto und Verlauf werden nicht mehr angezeigt.');
-            load();
-            return true;
-          } catch (err) { removeIt.lastError = err.message; return false; }
-        };
-        setTimeout(() => pinDialog('PIN entfernen', 'Zur Bestätigung die bisherige PIN eingeben', removeIt), 0);
-      }
+      bumpIdle(); closeDialog();
+      if (c.dataset.c === 'set') setTimeout(() => setNewPin(''), 0);
     };
+  }
+  $('pinBtn').addEventListener('click', () => {
+    if (!session.member.hasPin) { setNewPin(''); return; }
+    pinDialog('Aktuelle PIN', 'Zur Sicherheit erst die bisherige PIN eingeben', async cur => { closeDialog(); setTimeout(() => setNewPin(cur), 0); return true; });
   });
 
   /* ---------- Zurück zum Start ---------- */

@@ -234,6 +234,9 @@ Den Inhalt als GitHub-Repository ablegen (das Paket enthält keine Mitgliedernam
 7. **Artikel**: Die Beispielliste anpassen – oder unter „Artikel → Excel importieren …“ die eigene Liste einspielen (Spalten Artikel, Spalte, Preis, Gebinde …). „Als Excel herunterladen“ liefert die passende Vorlage; so lässt sich eine fertige Liste auch von einem anderen Verein übernehmen. Die Reihenfolge in der Datei ist die Reihenfolge am Tablet; per Häkchen lassen sich Artikel, die nicht in der Datei stehen (z. B. die Beispielliste), gleich ausblenden.
 8. Ab jetzt jede **Rechnung hochladen**, sobald sie kommt.
 
+## PIN (Tablet)
+Jedes Mitglied hat **eine PIN für alles im Vereinsheim** – Verkauf, Platzbuchung und Helferdienste. Wer noch keine hat, wird am Tablet beim ersten Mal aufgefordert, eine festzulegen (4–6 Ziffern, zweimal eingeben). **Plätze buchen und stornieren am Tablet geht nur mit PIN**; ohne PIN erscheint „Kein PIN vergeben“ mit dem Angebot, sie gleich festzulegen. Ändern geht am Tablet über „PIN ändern“ (mit der bisherigen PIN), entfernen nicht. Vergessene PINs setzt der Vorstand zurück – in der Mitgliederverwaltung beim Mitglied oder unter „Konten & PINs“. Nach 5 falschen Versuchen ist das Konto für einige Minuten gesperrt.
+
 ## Tablet einrichten
 - Tablet ins Vereins-WLAN, Browser öffnen: `http://<IP-von-Home-Assistant>:3100`
   (Die Buchungsseite braucht keine Home-Assistant-Anmeldung.)

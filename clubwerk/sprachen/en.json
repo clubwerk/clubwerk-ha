@@ -5997,6 +5997,25 @@
     "Zeile {0}: Dieses Mitglied wird schon über eine andere Zeile (gleicher Name oder Nummer) ergänzt.": "Row {0}: This member is already updated by another row (same name or number).",
     "Zeile {0}{1}{2}": "Row {0}{1}{2}",
     "zusammenführen": "merge",
-    "zusammenführen mit {0}{1}{2} ({3})": "merge with {0}{1}{2} ({3})"
+    "zusammenführen mit {0}{1}{2} ({3})": "merge with {0}{1}{2} ({3})",
+    "4 bis 6 Ziffern – gilt für Verkauf, Platzbuchung und Helferdienste": "4 to 6 digits – valid for sales, court booking and volunteer duties",
+    "4 bis 6 Ziffern, die du dir merken kannst": "4 to 6 digits you can remember",
+    "Bitte 4 bis 6 Ziffern.": "Please use 4 to 6 digits.",
+    "Das Mitglied legt beim nächsten Mal am Tablet eine neue PIN fest. Bis dahin sind Buchen und Stornieren von Plätzen am Tablet gesperrt.": "The member sets a new PIN on the tablet next time. Until then, booking and cancelling courts on the tablet is blocked.",
+    "Die beiden PINs stimmen nicht überein – bitte noch einmal.": "The two PINs do not match – please try again.",
+    "Die PIN kann nicht entfernt werden – sie gilt für Verkauf, Platzbuchung und Helferdienste. Vergessen? Der Vorstand setzt sie zurück.": "The PIN cannot be removed – it is used for sales, court booking and volunteer duties. Forgotten? The board can reset it.",
+    "kein PIN": "no PIN",
+    "Kein PIN vergeben": "No PIN set",
+    "Kein PIN vergeben – zum Buchen und Stornieren am Tablet bitte zuerst eine PIN festlegen.": "No PIN set – please set a PIN first to book and cancel on the tablet.",
+    "Lege jetzt deine PIN fest. Sie schützt dein Konto und gilt für alles im Vereinsheim – Verkauf, Platzbuchung (Buchen und Stornieren nur mit PIN) und Helferdienste.": "Set your PIN now. It protects your account and is used for everything in the clubhouse – sales, court booking (booking and cancelling only with PIN) and volunteer duties.",
+    "Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest": "Without a PIN, booking or cancelling on the tablet is not possible – the member sets it on the tablet the first time",
+    "PIN gespeichert – sie gilt ab jetzt im ganzen Vereinsheim.": "PIN saved – it now applies throughout the clubhouse.",
+    "PIN gespeichert – sie gilt ab jetzt im ganzen Vereinsheim. „Mein Konto“ ist jetzt sichtbar.": "PIN saved – it now applies throughout the clubhouse. “My account” is now visible.",
+    "PIN vergeben": "PIN set",
+    "PIN von {0} zurücksetzen?": "Reset PIN of {0}?",
+    "PIN zurücksetzen?": "Reset PIN?",
+    "Tablet-PIN für Verkauf, Platzbuchung und Helferdienste": "Tablet PIN for sales, court booking and volunteer duties",
+    "Zum Buchen und Stornieren am Tablet brauchst du eine PIN. Sie gilt für alles im Vereinsheim – Verkauf, Platzbuchung und Helferdienste – und schützt dich vor Buchungen auf deinen Namen.": "You need a PIN to book and cancel on the tablet. It is used for everything in the clubhouse – sales, court booking and volunteer duties – and protects you against bookings in your name.",
+    "Zur Sicherheit noch einmal eingeben": "Enter it once more to be sure"
   }
 }

@@ -248,14 +248,18 @@
       <div class="mv-head">${p.photo ? `<button type="button" class="av lg mv-ph" id="mvPh" title="Profilbild (vom Mitglied in der App hochgeladen) – antippen zum Entfernen"><img src="api/admin/photo/${id}?v=${esc(p.photo)}" alt=""></button>` : `<span class="av lg">${ini(p.name)}</span>`}<div style="min-width:0"><h2>${esc(p.name)}</h2>
         <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
           ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}
-          ${d.changes.length ? `<span class="pill a">${d.changes.length} Änderung(en) aus der App</span>` : ''}</div></div>
+          ${d.changes.length ? `<span class="pill a">${d.changes.length} Änderung(en) aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
         <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">Austritt zurücknehmen</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
-          ${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}</div></div>
+          ${p.has_pin && !SC() && !p.anonymized_at ? '<button class="btn ghost" id="mvPin">PIN zurücksetzen</button>' : ''}${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}</div></div>
       ${(d.ageNotices || []).map(n => `<div class="banner a"><span><b>Altersstufe:</b> ${esc(n.label)}${n.dept ? ` (<span translate="no">${esc(n.dept)}</span>)` : ''} – ab ${deDate(n.due_date)}: ${ageFrom(n)} → ${ageTo(n)}. Bis zur Entscheidung läuft der bisherige Beitrag weiter.</span>
         <span class="nw" style="margin-left:auto"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small primary" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></span></div>`).join('')}
       <div class="seg" id="mvSub" style="width:fit-content;margin-bottom:16px">${SUBS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.sub === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
       <div id="mvSubBody"></div>`;
     $('mvBack').onclick = () => { st.detail = null; showList(el).catch(fail); };
+    if ($('mvPin')) $('mvPin').onclick = async () => {
+      if (!await ask(`PIN von ${p.name} zurücksetzen?\n\nDas Mitglied legt beim nächsten Mal am Tablet eine neue PIN fest. Bis dahin sind Buchen und Stornieren von Plätzen am Tablet gesperrt.`, { ok: 'Zurücksetzen', danger: true })) return;
+      try { await GK.api(`members/${id}/reset-pin`, 'POST', {}); toast('PIN zurückgesetzt.'); showDetail(el, id).catch(fail); } catch (e) { fail(e); }
+    };
     if ($('mvPh')) $('mvPh').onclick = async () => { if (!await ask(`Profilbild von ${p.name} entfernen?\n\nDas Mitglied kann in der App jederzeit ein neues hochladen.`, { ok: 'Entfernen', danger: true })) return; try { await GK.api('photo/' + id, 'DELETE'); toast('Profilbild entfernt.'); showDetail(el, id).catch(fail); } catch (e) { fail(e); } };
     $('mvSub').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; st.sub = b.dataset.s; $('mvSub').querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); sub(); };
     const again = () => showDetail(el, id).catch(fail);

@@ -739,11 +739,8 @@ app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
     const err = checkPin(m, currentPin);                 // zählt in dieselbe Sperre wie das Entsperren
     if (err) return bad(res, err.msg === 'PIN falsch.' ? 'Aktuelle PIN falsch.' : err.msg, err.code);
   }
-  if (newPin === '' || newPin === null) {
-    db.prepare("UPDATE members SET pin_hash = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?").run(m.id);
-    audit('tablet', 'PIN entfernt', m.name);
-    return res.json({ ok: true, hasPin: false });
-  }
+  // Die PIN ist eine Zentralfunktion (Verkauf, Platzbuchung, Helferdienste) – entfernen kann sie nur der Vorstand (zurücksetzen)
+  if (newPin === '' || newPin === null) return bad(res, 'Die PIN kann nicht entfernt werden – sie gilt für Verkauf, Platzbuchung und Helferdienste. Vergessen? Der Vorstand setzt sie zurück.');
   if (!validPin(newPin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
   db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
       pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?`).run(auth.hashSecret(newPin), m.id);
@@ -1293,7 +1290,7 @@ admin.put('/members/:id', need('konten'), (req, res) => {
   res.json({ ok: true });
 });
 
-admin.post('/members/:id/reset-pin', need('konten'), (req, res) => {
+admin.post('/members/:id/reset-pin', need('konten', 'mitglieder'), (req, res) => {
   const m = db.prepare('SELECT name FROM members WHERE id = ?').get(int(req.params.id));
   db.prepare(`UPDATE members SET pin_hash = NULL, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
       pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`).run(req.user.username, int(req.params.id));

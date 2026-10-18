@@ -1907,7 +1907,7 @@
           };
         }
         if (pin) {
-          if (!await ask('PIN zurücksetzen? Danach kann am Tablet ohne PIN gebucht werden, bis das Mitglied eine neue festlegt.')) return;
+          if (!await ask('PIN zurücksetzen?\n\nDas Mitglied legt beim nächsten Mal am Tablet eine neue PIN fest. Bis dahin sind Buchen und Stornieren von Plätzen am Tablet gesperrt.')) return;
           await api(`members/${pin.dataset.pin}/reset-pin`, 'POST', {}); toast('PIN zurückgesetzt.'); RENDER.konten();
         }
         if (ed) {
