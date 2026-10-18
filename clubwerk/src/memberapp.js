@@ -13,6 +13,13 @@ const invites = require('./invites');
 const tls = require('./tls');
 const INTERNAL = () => tls.internalBase();
 const SCOPE = 'app';
+/* Externer Zugang über einen Cloudflare Tunnel (nur die Mitglieder-App): */
+const tunnelOn = () => getSetting('ext_tunnel', '0') === '1';
+const tunnelUrl = () => getSetting('ext_tunnel_url', '');
+/** Adresse, die im QR-Code landet: mit Tunnel die öffentliche, sonst die im WLAN */
+const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
+// Der Tunnel (cloudflared) läuft im Home-Assistant-Netz: nur dann der mitgeschickten Absender-IP trauen
+const PRIVATE_IP = ip => /^(::ffff:)?(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip);
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS member_access (
@@ -92,6 +99,18 @@ function startPort({ rateLimit }) {
   app.disable('x-powered-by');
   app.use(require('./security').hostGuard());
   app.use(require('./security').hardenHeaders({ frame: 'DENY' }));
+  // Anfragen über den Tunnel: echte Absender-IP für die Sperren bei Fehlversuchen (sonst teilten sich alle Handys draußen eine IP)
+  app.use((req, res, next) => {
+    const cf = req.get('cf-connecting-ip');
+    if (!cf) return next();
+    const sock = String(req.socket.remoteAddress || '');
+    if (!tunnelOn() || !PRIVATE_IP(sock)) return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' });
+    const ip = String(cf).trim().slice(0, 45);
+    if (/^[0-9a-fA-F:.]+$/.test(ip)) Object.defineProperty(req, 'ip', { value: ip, configurable: true });
+    req.viaTunnel = true;
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+    next();
+  });
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'no-referrer');
@@ -134,6 +153,7 @@ function startPort({ rateLimit }) {
 
   const api = express.Router();
   const dev = req => req.get('X-Geraet') || '';
+  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', tunnel: Boolean(req.viaTunnel) }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
     const sections = w ? activeModules().filter(([id, m]) => m.open || access.get(w.memberId, id)).map(([id, m]) => {
@@ -237,14 +257,14 @@ function adminRoutes(admin, { bad, need, auth }) {
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: getSetting('app_url', ''), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl() }, name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
     const m = db.prepare('SELECT id, name, kind FROM members WHERE id = ? AND deleted = 0').get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
-    res.json({ member_id: id, name: m.name, kind: m.kind, url: getSetting('app_url', ''), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
+    res.json({ member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
   });
   admin.post('/app/member/:id/invite', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     if (!mayMember(req, parseInt(req.params.id, 10))) return bad(res, 'Dieses Mitglied hat Bereiche, für die dir die Berechtigung fehlt – bitte einen Admin mit allen nötigen Rechten fragen.', 403);
@@ -302,12 +322,34 @@ function adminRoutes(admin, { bad, need, auth }) {
     if ((b.url !== undefined || b.inviteHours !== undefined || b.allowLink !== undefined || b.mailTo !== undefined) && !req.user.perms.includes('einstellungen'))
       return bad(res, 'Adresse und Sicherheit der Mitglieder-App darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
     if (b.url !== undefined) { const u = String(b.url || '').trim().replace(/\/+$/, ''); if (u && !/^https?:\/\/[A-Za-z0-9.\-[\]:]+$/.test(u)) return bad(res, 'Bitte eine Adresse wie http://homeassistant.local:5001 eintragen.'); setSetting('app_url', u); }
+    if ((b.tunnel !== undefined || b.tunnelUrl !== undefined) && !req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+    if (b.tunnelUrl !== undefined) {
+      const u = String(b.tunnelUrl || '').trim().replace(/\/+$/, '');
+      if (u && !/^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(u)) return bad(res, 'Bitte die öffentliche Adresse wie https://app.meinverein.de eintragen (mit https, ohne Port).');
+      setSetting('ext_tunnel_url', u.toLowerCase());
+    }
+    if (b.tunnel !== undefined) {
+      if (b.tunnel && !tunnelUrl()) return bad(res, 'Bitte zuerst die öffentliche Adresse eintragen.');
+      setSetting('ext_tunnel', b.tunnel ? '1' : '0');
+      audit(req.user, b.tunnel ? 'Mitglieder-App: externer Zugang eingeschaltet' : 'Mitglieder-App: externer Zugang ausgeschaltet', tunnelUrl());
+    }
+    require('./security').resetHostCache();
     if (b.name !== undefined) setSetting('app_name', String(b.name || '').trim().slice(0, 20) || 'Verein');
     if (b.inviteHours !== undefined) { const h = parseInt(b.inviteHours, 10); if (!invites.INVITE_HOURS.includes(h)) return bad(res, 'Ungültige Gültigkeit.'); setSetting('app_invite_hours', String(h)); }
     if (b.allowLink !== undefined) setSetting('app_invite_link', b.allowLink ? '1' : '0');
     if (b.mailTo !== undefined) { const t = String(b.mailTo || '').trim(); if (t && !require('./mail').mailOk(t)) return bad(res, 'Bitte eine gültige E-Mail-Adresse eintragen (mehrere mit Komma).'); setSetting('security_mail_to', t); }
     if (b.inviteHours !== undefined || b.allowLink !== undefined || b.mailTo !== undefined) audit(req.user, 'Mitglieder-App: Sicherheit geändert', `QR ${getSetting('app_invite_hours', '24')} Std., Link ${getSetting('app_invite_link', '0') === '1' ? 'erlaubt' : 'aus'}`);
     res.json({ ok: true });
+  });
+  /* Externer Zugang prüfen: die öffentliche Adresse von hier aus aufrufen */
+  admin.post('/app/tunnel-check', need('einstellungen'), async (req, res) => {
+    const u = tunnelUrl(); if (!u) return bad(res, 'Noch keine öffentliche Adresse eingetragen.');
+    try {
+      const r = await fetch(u + '/api/ping', { signal: AbortSignal.timeout(8000), redirect: 'manual' });
+      const d = await r.json().catch(() => ({}));
+      if (r.ok && d.app === 'clubwerk') return res.json({ ok: true, tunnel: Boolean(d.tunnel), on: tunnelOn(), cf: Boolean(r.headers.get('cf-ray')) });
+      res.json({ ok: false, error: r.status === 403 ? 'Erreicht, aber der externe Zugang ist hier noch ausgeschaltet.' : `Die Adresse antwortet, aber nicht mit der Mitglieder-App (HTTP ${r.status}). Zeigt der Tunnel auf den Port der Mitglieder-App?` });
+    } catch (e) { res.json({ ok: false, error: 'Keine Antwort von außen – Tunnel läuft nicht oder der Name ist bei Cloudflare noch nicht eingerichtet.' }); }
   });
   admin.post('/qr', async (req, res) => {
     const u = String((req.body || {}).url || '');

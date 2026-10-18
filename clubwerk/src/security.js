@@ -71,6 +71,7 @@ function knownHosts() {
   for (const h of String(process.env.ALLOWED_HOSTS || '').split(/[\s,]+/)) if (h) set.add(h.toLowerCase());
   for (const h of String(getSetting('allowed_hosts', '')).split(/[\s,]+/)) if (h) set.add(h.toLowerCase());
   const a = hostOf(getSetting('app_url', '')); if (a) set.add(a);
+  if (getSetting('ext_tunnel', '0') === '1') { const t = hostOf(getSetting('ext_tunnel_url', '')); if (t) set.add(t); }
   try { const b = hostOf(JSON.parse(getSetting('ext_beregnung_cfg', '{}')).webappUrl || ''); if (b) set.add(b); } catch (e) { /* */ }
   hostCache = { at: Date.now(), set };
   return set;

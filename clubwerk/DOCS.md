@@ -122,6 +122,33 @@ Mandate verfallen nach 36 Monaten ohne Lastschrift – Clubwerk zeigt das in der
 
 **Abteilungsadmins:** Ein Benutzer mit der Rolle „Abteilungsleitung“ (oder jeder Rolle mit „nur eigene Abteilung(en)“) sieht nur die Mitglieder seiner Abteilung(en). Er darf Stammdaten ändern, Austritte eintragen (mit Dokument), neue Mitglieder anlegen (sie gehören automatisch zu seiner Abteilung) und Beitrittserklärungen annehmen, in denen seine Abteilung angekreuzt ist. Beiträge, Einzug, Bankdaten, Auswertungen, Import und Einstellungen bleiben der Vereinsverwaltung vorbehalten. **Bestätigung:** Standardmäßig gelten Ein- und Austritte (neues Mitglied, Austritt, Rückkehr, angenommene Beitrittserklärung) einer Abteilungsleitung erst, wenn ein Admin sie unter „Anträge → Änderungen & Meldungen“ bestätigt; bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf. Abschaltbar unter Einstellungen → Verein & SEPA → „Abteilungsleitungen“.
 
+## Modul Buchungssystem
+Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am Tablet im Vereinsheim (Reiter „Plätze“) und in der Verwaltung (Recht „Buchungssystem“).
+
+**Plätze & Geräte:** Je Platz Name, Bereich (wird in der App zum Reiter, z. B. „Tennis“, „Padel“), buchbare Wochentage und Uhrzeiten, Zeitraster (z. B. 60 Minuten) und Höchstdauer am Stück. Geräte haben zusätzlich eine Anzahl (4 Leihschläger = 4 gleichzeitige Buchungen). Die Gastgebühr kann je Platz abweichen.
+
+**Regeln (Einstellungen):** Vorlauf (wie viele Tage im Voraus), offene Buchungen je Mitglied (getrennt für Plätze und Geräte; Mitspieler zählen auf Wunsch mit), höchstens Mitspieler und Gäste, Stornieren bis … vor Beginn, Namen in der Belegung sichtbar oder nur „belegt“, Warteliste, Buchen am Tablet, Platzordnung (muss vor jeder Buchung bestätigt werden).
+
+**Gäste:** Wer Gäste mitbringt, trägt ihre Namen ein. Die Gastgebühr wird als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung) und mit dem nächsten Einzug abgerechnet. Wird storniert, entfällt der Posten.
+
+**Belegung:** Tagesplan mit allen Plätzen. In eine freie Stelle klicken, um für ein Mitglied zu buchen (ohne Kontingent und Vorlauf) oder den Platz zu sperren. Liegen in einer Sperre schon Buchungen, fragt Clubwerk nach und storniert sie auf Wunsch – die Mitglieder bekommen eine E-Mail.
+
+**Serien & Sperren:** Wöchentliche Termine für Training und Mannschaften über einen Zeitraum (Tage, an denen der Platz belegt ist, werden ausgelassen) und Sperren über Zeiträume (z. B. Winterpause, Clubmeisterschaft). „Prüfen“ zeigt vorher alle Überschneidungen. Beenden entfernt nur die kommenden Termine.
+
+**Warteliste:** Ist eine Zeit belegt, kann man sich in der App vormerken. Wird storniert, bekommen die Vorgemerkten eine E-Mail – gebucht ist erst, wer zuerst zugreift.
+
+## Mitglieder-App von unterwegs (Cloudflare Tunnel)
+Normalerweise ist die Mitglieder-App nur im Vereins-WLAN erreichbar. Damit Mitglieder auch von zu Hause buchen können, wird **nur die Mitglieder-App** über einen Cloudflare Tunnel ins Internet gebracht – ohne Portfreigabe am Router.
+
+1. Kostenloses Konto bei Cloudflare anlegen und die Domain des Vereins dort verwalten lassen (z. B. `meinverein.de`).
+2. Cloudflare Zero Trust → Networks → Tunnels → „Create a tunnel“ → Cloudflared → Namen vergeben → den angezeigten **Token** kopieren.
+3. In Home Assistant das Add-on **Cloudflared** installieren (Add-on-Store, Repository von Tobias Brenner), unter Konfiguration den Token bei „Tunnel token“ eintragen, kein „External Home Assistant Hostname“ setzen, starten.
+4. Im Tunnel unter „Public Hostname“ einen Eintrag anlegen: Subdomain `app`, Domain `meinverein.de`, Dienst **HTTPS** (bzw. HTTP, wenn HTTPS in Clubwerk aus ist), URL `IP-von-Home-Assistant:5001` (Port der Mitglieder-App). Bei HTTPS unter „Additional application settings → TLS“ **No TLS Verify** einschalten. **Keine weiteren Ports** freigeben.
+5. In Clubwerk unter Mitglieder-App → „Von unterwegs erreichbar“ `https://app.meinverein.de` eintragen, „eingeschaltet“ anhaken, speichern und „Verbindung prüfen“.
+6. Neue QR-Codes enthalten jetzt die öffentliche Adresse und funktionieren im WLAN und unterwegs. Bereits gekoppelte Handys brauchen für unterwegs einen neuen QR-Code.
+
+**Sicherheit:** Verwaltung, Tablet-Seiten und Beregnung lehnen jede Anfrage ab, die über den Tunnel kommt – auch wenn der Tunnel versehentlich auf den falschen Port zeigt. Die Mitglieder-App antwortet nur unter der eingetragenen Adresse. Jedes Handy ist einzeln mit QR-Code und PIN gekoppelt; Fehlversuche werden je Absender gesperrt. Ausschalten genügt, um den Zugang von außen sofort zu schließen.
+
 ## Bankkonten
 Unter Einstellungen → Bankkonten pflegt der Verein alle seine Konten an einer Stelle. Ein Konto ist das Standardkonto; ein Konto kann einer oder mehreren Abteilungen zugeordnet werden (z. B. eigenes Konto der Padel-Abteilung). Die Buchhaltung nennt auf Rechnungen das Konto der Abteilung, sonst das Standardkonto; die Mitgliederverwaltung zieht Lastschriften auf das unter Mitgliederverwaltung → Einstellungen gewählte Konto ein. Ein Konto, das noch verwendet wird, lässt sich nicht löschen, nur auf „inaktiv“ setzen.
 

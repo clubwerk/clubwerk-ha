@@ -62,6 +62,17 @@ app.set('trust proxy', (process.env.TRUSTED_PROXY || '172.30.32.2').split(',').m
 
 /* ---------- Sicherheits-Header ---------- */
 app.use(require('./security').hostGuard({ bypass: req => viaIngress(req) }));
+/* Verwaltung, Tablet und Beregnung sind nie von außen erreichbar – auch nicht, wenn ein Tunnel versehentlich auf diesen Port zeigt.
+   Über den Cloudflare Tunnel wird nur die Mitglieder-App (eigener Port) freigegeben. */
+app.use((req, res, next) => {
+  if (viaIngress(req)) return next();
+  const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
+  const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
+  if (req.get('cf-connecting-ip') || req.get('cf-ray') || (ext && host === ext)) {
+    return res.status(403).type('text/plain; charset=utf-8').send('Die Verwaltung und die Tablet-Seiten sind von außen nicht erreichbar.\n\nÜber den Tunnel nur die Mitglieder-App freigeben (Port der Mitglieder-App).');
+  }
+  next();
+});
 app.use(require('./security').hardenHeaders({ frame: 'SAMEORIGIN' }));
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');

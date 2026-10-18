@@ -258,6 +258,7 @@
 
   /* Symbole fürs Menü (Strichzeichnungen, 18 px) */
   const ICO = {
+    kalender: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>',
     buchhaltung: '<path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
     uebersicht: '<rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/>',
     getraenke: '<path d="M8 2h8M9 2v4.5a4 4 0 0 1-1 2.6L6.8 10.5A4 4 0 0 0 6 13v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a4 4 0 0 0-.8-2.5L16 9.1a4 4 0 0 1-1-2.6V2"/>',
@@ -1876,6 +1877,18 @@
           <button class="btn primary" id="apSave">Speichern</button><a class="btn" id="apTest" target="_blank" rel="noopener">Testen ↗</a></div>
         ${!r.url ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">Noch keine Adresse eingetragen – im QR-Code landet <b>${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}</b>. ${/\.local$/i.test(location.hostname) ? 'Adressen mit „.local“ öffnen manche Handys nicht – besser ohne „.local“ (z. B. <b>' + (r.https ? 'https' : 'http') + '://' + esc(location.hostname.replace(/\.local$/i, '')) + ':' + (r.port || 5001) + '</b>) oder mit der IP-Adresse von Home Assistant.' : ''}</div>` : ''}
         <p class="muted s" style="margin:8px 0 0">Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port ${r.port || 5001}. ${r.https ? 'Mit HTTPS hier den Namen eintragen, für den das Zertifikat gilt (z. B. <code>https://tcf-vereinsheim.duckdns.org:' + (r.port || 5001) + '</code>) – mit einer IP-Adresse meldet das Handy einen Zertifikatsfehler.' : `Bei Fernzugriff (z. B. Nabu Casa) oder wenn Handys „.local“-Adressen nicht öffnen, hier die Adresse im Vereins-WLAN eintragen – den Gerätenamen ohne „.local“ (z. B. <code>http://tcfhomeassistant:${r.port || 5001}</code>) oder die IP-Adresse (z. B. <code>http://192.168.178.20:${r.port || 5001}</code>).`} Mit „Testen“ prüfen.</p></div>
+      <div class="card" id="apExt"><h3>Von unterwegs erreichbar <span class="pill ${r.tunnel.on ? 'g' : ''}" style="margin-left:6px">${r.tunnel.on ? 'an' : 'aus'}</span></h3>
+        <p class="muted s" style="margin-top:0">Über einen <b>Cloudflare Tunnel</b> wird nur die Mitglieder-App aus dem Internet erreichbar – ohne offenen Port am Router. Verwaltung, Tablet und Beregnung bleiben im Vereins-WLAN, auch wenn der Tunnel falsch eingestellt ist.</p>
+        <div class="row" style="align-items:flex-end"><label class="f" style="flex:2;min-width:260px">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
+          <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> eingeschaltet</label>
+          <button class="btn primary" id="apExtSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button><button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button></div>
+        <ol class="muted s" style="margin:12px 0 0;padding-left:18px;line-height:1.6">
+          <li>Kostenloses Konto bei Cloudflare, eure Domain dort verwalten lassen (z. B. <code>meinverein.de</code>).</li>
+          <li>Cloudflare Zero Trust → Networks → Tunnels → „Create a tunnel“ (Cloudflared) → Token kopieren.</li>
+          <li>In Home Assistant das Add-on <b>Cloudflared</b> installieren, den Token unter „Tunnel token“ eintragen, starten.</li>
+          <li>Im Tunnel einen „Public Hostname“ anlegen: <code>app.meinverein.de</code> → Dienst <code>${r.https ? 'HTTPS' : 'HTTP'}</code>, URL <code>${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ „No TLS Verify“ einschalten' : ''}. <b>Nur diesen Port</b> freigeben.</li>
+          <li>Hier die Adresse eintragen, einschalten, „Verbindung prüfen“ – neue QR-Codes enthalten dann die öffentliche Adresse und funktionieren im WLAN und unterwegs.</li></ol>
+        <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.</p></div>
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
@@ -1900,6 +1913,15 @@
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
     $('apUrl').addEventListener('input', setTest); setTest();
     $('apSave').onclick = async () => { try { await api('settings/app', 'PUT', can('einstellungen') ? { url: $('apUrl').value, name: $('apName').value } : { name: $('apName').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
+    $('apExtSave').onclick = async () => {
+      try { await api('settings/app', 'PUT', { tunnelUrl: $('apExtUrl').value }); await api('settings/app', 'PUT', { tunnel: $('apExtOn').checked }); clean(); toast($('apExtOn').checked ? 'Externer Zugang eingeschaltet.' : 'Gespeichert.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
+    };
+    $('apExtTest').onclick = async () => {
+      $('apExtTest').disabled = true;
+      try { const t = await api('app/tunnel-check', 'POST', {}); if (t.ok) toast(t.on ? 'Die Mitglieder-App ist von außen erreichbar.' : 'Erreichbar – jetzt noch „eingeschaltet“ setzen und speichern.'); else toast(t.error, true); }
+      catch (e) { fail(e); } finally { $('apExtTest').disabled = false; }
+    };
+    watch($('apExt'));
     $('apSecSave').onclick = async () => { try { await api('settings/app', 'PUT', { inviteHours: Number($('apHours').value), allowLink: $('apLink').checked, mailTo: $('apMail').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
     $('apLink').onchange = async () => { try { await api('settings/app', 'PUT', { allowLink: $('apLink').checked }); toast($('apLink').checked ? 'Link-Weitergabe erlaubt.' : 'Nur noch QR-Code am Bildschirm.'); } catch (e) { fail(e); } };
     $('apGo').onclick = async () => {
