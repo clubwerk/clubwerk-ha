@@ -122,6 +122,21 @@ Mandate verfallen nach 36 Monaten ohne Lastschrift – Clubwerk zeigt das in der
 
 **Abteilungsadmins:** Ein Benutzer mit der Rolle „Abteilungsleitung“ (oder jeder Rolle mit „nur eigene Abteilung(en)“) sieht nur die Mitglieder seiner Abteilung(en). Er darf Stammdaten ändern, Austritte eintragen (mit Dokument), neue Mitglieder anlegen (sie gehören automatisch zu seiner Abteilung) und Beitrittserklärungen annehmen, in denen seine Abteilung angekreuzt ist. Beiträge, Einzug, Bankdaten, Auswertungen, Import und Einstellungen bleiben der Vereinsverwaltung vorbehalten. **Bestätigung:** Standardmäßig gelten Ein- und Austritte (neues Mitglied, Austritt, Rückkehr, angenommene Beitrittserklärung) einer Abteilungsleitung erst, wenn ein Admin sie unter „Anträge → Änderungen & Meldungen“ bestätigt; bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf. Abschaltbar unter Einstellungen → Verein & SEPA → „Abteilungsleitungen“.
 
+## Modul Buchhaltung
+Rechnungen und Spendenquittungen – unter Verwaltung → Buchhaltung (Recht „Buchhaltung“).
+
+**Einrichten (Buchhaltung → Einstellungen):** Steuernummer, Umsatzsteuer-Vorgabe, Zahlungsziel und Bankverbindung. Anschrift und Konto werden aus der Mitgliederverwaltung übernommen, wenn hier nichts eingetragen ist. Für Spendenquittungen zusätzlich Finanzamt, Steuernummer, Art und Datum des Bescheids, Veranlagungszeitraum, begünstigte Zwecke und wer unterschreibt.
+
+**Firmen & Sponsoren:** Jede Firma einmal anlegen, mit den Positionen, die sie jedes Jahr bekommt (z. B. „Bandenwerbung Platz 1“, 300 € netto, 19 %). Firmen mit Rechnungen lassen sich nicht löschen, nur auf „inaktiv“ setzen.
+
+**Rechnungen:**
+- *Neue Rechnung* – an eine Firma oder ein Mitglied, Positionen mit Menge, Nettopreis und Steuersatz. Bei einer Firma werden ihre Jahrespositionen vorgeschlagen.
+- *Jahresrechnungen* – erstellt für alle aktiven Firmen mit Jahrespositionen je eine Rechnung, auf Wunsch gleich per E-Mail. Eine Firma bekommt pro Jahr nur eine Jahresrechnung (eine stornierte zählt nicht).
+- Über „…“ an der Rechnung: PDF, per E-Mail senden, Zahlungserinnerung (ab Fälligkeit), als bezahlt buchen, wieder öffnen, stornieren. Die Nummer einer stornierten Rechnung bleibt vergeben.
+- Rechnungen an Mitglieder erscheinen zusätzlich als offener Posten in der Mitgliederverwaltung und werden dort eingezogen bzw. bezahlt gebucht – der Status kommt automatisch zurück.
+
+**Spendenquittungen:** Spender wählen (Mitglied, Firma oder einmaliger Spender mit Anschrift), Art (Geldspende, Sachspende, Verzicht auf Aufwandserstattung), Betrag und Tag der Zuwendung. Bei Sachspenden genau beschreiben, was gespendet wurde, und die Herkunft angeben; beim Verzicht, auf welche Aufwendungen verzichtet wurde. Die Bestätigung folgt dem amtlichen Muster – vor dem ersten Einsatz bitte einmal mit dem Muster des Finanzamts bzw. der Steuerberatung abgleichen. Falsch ausgestellte Quittungen stornieren, nicht löschen.
+
 ## Modul Arbeitseinsatz & Thekendienst
 Arbeitseinsätze und Thekendienste planen, Stunden sammeln und abrechnen.
 - **Soll:** Vorgabe je Mitglied und Jahr (z. B. 4 Stunden), Altersgrenzen (z. B. ab 12), passive und Ehrenmitglieder befreit, je Beitragsart abweichend (z. B. „Kinder: keine“, „Unterstützend: keine“), bei Ein-/Austritt anteilig, einzelne Ausnahmen in der Übersicht über „Soll …“. **Familien** werden gemeinsam gezählt – geleistet ist, was irgendwer aus der Familie gemacht hat.

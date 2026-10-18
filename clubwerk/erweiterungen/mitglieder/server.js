@@ -871,6 +871,26 @@ function activate(ctx) {
     for (const r of rows) { const head = store.payerOf(r.member_id); if (head === r.member_id) continue; hidden.push(r.member_id); family.add(head); }
     return { hidden, family: [...family] };
   };
+  /* für andere Module (Buchhaltung): Anschrift eines Mitglieds, Forderung anlegen/abfragen/stornieren */
+  ctx.hooks.memberAddress = id => {
+    const p = personRow(id); if (!p) return null;
+    return { id, name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.name, street: p.street, zip: p.zip, city: p.city, country: p.country, email: p.email, member_no: p.member_no, payment: p.payment || 'lastschrift' };
+  };
+  ctx.hooks.createCharge = ({ member_id, text, cents, due_date, kind = 'sonstiges', ext_key, by }) => {
+    if (!personRow(member_id)) throw new Error('Mitglied nicht gefunden.');
+    store.ensurePerson(member_id);
+    return Number(ctx.db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, cents, due_date, ext_key, created_by) VALUES (?,?,?,?,?,?,?,?)')
+      .run(member_id, member_id, kind, one(text, 140), Math.round(cents), isDate(due_date) ? due_date : today(), ext_key ? String(ext_key).slice(0, 80) : null, by || null).lastInsertRowid);
+  };
+  ctx.hooks.chargeStatus = ids => Object.fromEntries((ids || []).length ? ctx.db.prepare(`SELECT id, status, paid_at FROM mv_charge WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids).map(r => [r.id, { status: r.status, paid_at: r.paid_at }]) : []);
+  ctx.hooks.cancelCharge = (id, reason, by) => {
+    const c = ctx.db.prepare('SELECT * FROM mv_charge WHERE id = ?').get(id);
+    if (!c) return false;
+    if (c.status === 'eingezogen') throw new Error('Der Posten steckt in einer laufenden Lastschrift – erst im Einzug klären.');
+    if (c.status === 'offen' || c.status === 'bezahlt') ctx.db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${by || '–'}: ${one(reason, 100)}`, id);
+    return true;
+  };
+  ctx.hooks.chargePaid = (id, date, via) => { ctx.db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ? AND status = 'offen'").run(isDate(date) ? date : today(), via || 'ueberweisung', id); };
   /* für den Kern: Abteilungen (Benutzer & Rollen) */
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();
   /* für andere Module (Arbeitseinsatz) */

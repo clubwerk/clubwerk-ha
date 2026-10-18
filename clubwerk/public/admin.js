@@ -258,6 +258,7 @@
 
   /* Symbole fürs Menü (Strichzeichnungen, 18 px) */
   const ICO = {
+    buchhaltung: '<path d="M6 2h9l5 5v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h5"/>',
     uebersicht: '<rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/>',
     getraenke: '<path d="M8 2h8M9 2v4.5a4 4 0 0 1-1 2.6L6.8 10.5A4 4 0 0 0 6 13v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a4 4 0 0 0-.8-2.5L16 9.1a4 4 0 0 1-1-2.6V2"/>',
     verkauf: '<path d="M5 8h14l-1.2 11.2A2 2 0 0 1 15.8 21H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
