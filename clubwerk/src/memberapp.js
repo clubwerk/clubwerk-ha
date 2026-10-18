@@ -270,11 +270,12 @@ function adminRoutes(admin, { bad, need, auth }) {
   };
   // QR-Code/Handy eines Mitglieds: nur, wer alle Bereiche verwalten darf, die das Mitglied hat
   // (sonst könnte jemand mit nur „Beregnung“ das Handy eines Mitglieds mit Türzugang übernehmen)
-  const mayMember = (req, memberId) => {
-    // abgeschaltete „für alle“-Bereiche geben keinen Zugang → zählen nicht
-    const mods = db.prepare('SELECT module, blocked FROM member_access WHERE member_id = ?').all(memberId).filter(r => !(r.blocked && (modules.get(r.module) || {}).open)).map(r => r.module);
-    return mods.every(mod => mayModule(req, mod));
-  };
+  /** Bereiche des Mitglieds, für die dem Admin das Recht fehlt (leer = darf).
+   *  Zählen nur aktive, eigens freigeschaltete Bereiche: „für alle“-Bereiche, gesperrte Freischaltungen und
+   *  Einträge abgeschalteter/entfernter Module geben keinen Zugang und blockieren deshalb nichts. */
+  const missingFor = (req, memberId) => db.prepare('SELECT module, blocked FROM member_access WHERE member_id = ?').all(memberId)
+    .filter(r => { const m = modules.get(r.module); return m && m.isActive() && !m.open && !r.blocked; })
+    .filter(r => !mayModule(req, r.module)).map(r => modules.get(r.module).label || modules.get(r.module).name);
   admin.get('/app', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const ids = db.prepare(`SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)`).all(SCOPE).map(r => r.member_id);
     const rows = ids.map(id => { const m = db.prepare('SELECT id, name, kind, active, deleted FROM members WHERE id = ?').get(id); return m && !m.deleted ? { member_id: id, name: m.name, kind: m.kind, ...memberState(id) } : null; })
@@ -291,7 +292,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     res.json({ member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
   });
   admin.post('/app/member/:id/invite', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
-    if (!mayMember(req, parseInt(req.params.id, 10))) return bad(res, 'Dieses Mitglied hat Bereiche, für die dir die Berechtigung fehlt – bitte einen Admin mit allen nötigen Rechten fragen.', 403);
+    { const miss = missingFor(req, parseInt(req.params.id, 10)); if (miss.length) return bad(res, `Für einen neuen QR-Code fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
     try {
       const out = invites.create(SCOPE, parseInt(req.params.id, 10), req.user.name || req.user.username, req.user.role === 'oberadmin' ? '*' : req.user.perms);
       audit(req.user, 'Mitglieder-App: QR-Einladung erzeugt', out.member);
@@ -300,7 +301,7 @@ function adminRoutes(admin, { bad, need, auth }) {
   });
   admin.delete('/app/member/:id/device', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
-    if (!mayMember(req, id)) return bad(res, 'Dieses Mitglied hat Bereiche, für die dir die Berechtigung fehlt.', 403);
+    { const miss = missingFor(req, id); if (miss.length) return bad(res, `Zum Entfernen des Handys fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
     const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
     invites.revoke(SCOPE, id);
     audit(req.user, 'Mitglieder-App: Handy entfernt', m ? m.name : String(id));

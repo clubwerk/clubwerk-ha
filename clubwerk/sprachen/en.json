@@ -6022,6 +6022,11 @@
     "Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!": "The court could not be stopped completely – please try again!",
     "Start in {0}": "Starts in {0}",
     "Stopp {0} nicht vollständig:": "Stop {0} incomplete:",
-    "Stopp {0} nicht vollständig: {1}": "Stop {0} incomplete: {1}"
+    "Stopp {0} nicht vollständig: {1}": "Stop {0} incomplete: {1}",
+    "Für einen neuen QR-Code fehlt dir das Recht für: {0} – bitte einen Admin mit diesem Recht fragen.": "To create a new QR code you lack the permission for: {0} – please ask an admin with this permission.",
+    "Zum Entfernen des Handys fehlt dir das Recht für: {0} – bitte einen Admin mit diesem Recht fragen.": "To remove the phone you lack the permission for: {0} – please ask an admin with this permission.",
+    "– bitte einen Admin mit diesem Recht fragen.": "– please ask an admin with this permission.",
+    "Für einen neuen QR-Code fehlt dir das Recht für:": "To create a new QR code you lack the permission for:",
+    "Zum Entfernen des Handys fehlt dir das Recht für:": "To remove the phone you lack the permission for:"
   }
 }
