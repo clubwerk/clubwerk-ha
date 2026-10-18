@@ -286,7 +286,7 @@
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select><span class="bk-chips" id="bdPc"></span></label>
         <label class="f bd-b w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"><span class="muted s" style="font-weight:500">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label></label>
         <label class="f w2" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}"></label>
-        ${!ed && can('buchung_serien') ? '<label class="f" id="bdRL">wöchentlich wiederholen bis<input id="bdR" type="date"></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">leer = nur dieser Termin · sonst jede Woche am selben Wochentag, belegte Tage werden ausgelassen</div>' : ''}
+        ${!ed && can('buchung_serien') ? '<label class="f" id="bdRL">wöchentlich wiederholen bis<input id="bdRep" type="date"></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">leer = nur dieser Termin · sonst jede Woche am selben Wochentag, belegte Tage werden ausgelassen</div>' : ''}
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
     const paint = () => {
@@ -308,9 +308,9 @@
       const body = { type, resource_id: +val('bdR'), date: val('bdD'), start: val('bdS'), end: val('bdE'), title: val('bdTi'), note: val('bdN'), force, label_id: +val('bdL') || null,
         member_id: type === 'buchung' ? +val('bdM') || null : null, partners: type === 'buchung' ? partners.slice() : [],
         guests: type === 'buchung' ? val('bdG').split(',').map(x => x.trim()).filter(Boolean).map(name => ({ name, partner: $('bdGp').checked })) : [] };
-      if (!ed && $('bdR') && val('bdR')) {   // Serie aus dem Kalender: gleicher Wochentag bis zum gewählten Datum, belegte Tage werden ausgelassen
+      if (!ed && $('bdRep') && val('bdRep')) {   // Serie aus dem Kalender: gleicher Wochentag bis zum gewählten Datum, belegte Tage werden ausgelassen
         const dw = new Date(body.date + 'T12:00:00').getDay() || 7;
-        const sb = { type: type === 'sperre' ? 'sperre' : 'serie', resources: [body.resource_id], weekdays: String(dw), start: body.start, end: body.end, from_date: body.date, to_date: val('bdR'), title: body.title, label_id: body.label_id, member_id: body.member_id, note: body.note };
+        const sb = { type: type === 'sperre' ? 'sperre' : 'serie', resources: [body.resource_id], weekdays: String(dw), start: body.start, end: body.end, from_date: body.date, to_date: val('bdRep'), title: body.title, label_id: body.label_id, member_id: body.member_id, note: body.note };
         try { const r = await api('series', 'POST', sb); closeDialog(); toast(`${r.made} Termine angelegt${r.skipped ? `, ${r.skipped} belegte ausgelassen` : ''}${r.cancelled ? `, ${r.cancelled} Buchungen storniert` : ''}.`); after(); } catch (e) { fail(e); }
         return;
       }
