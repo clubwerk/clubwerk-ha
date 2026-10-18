@@ -4500,6 +4500,13 @@
     "Gebindegröße bitte zwischen 1 und 100.": "Pack size must be between 1 and 100.",
     "Gezählt: Gebinde": "Counted: packs",
     "je Gebinde": "per pack",
-    "Vorschlag aus Bestand, Mindestbestand und „bestellen bis“. Gebinde anpassen und die Bestellung direkt an den Lieferanten senden – oder den Text kopieren.": "Suggestion from stock, minimum stock and “order up to”. Adjust packs and send the order directly to the supplier – or copy the text."
+    "Vorschlag aus Bestand, Mindestbestand und „bestellen bis“. Gebinde anpassen und die Bestellung direkt an den Lieferanten senden – oder den Text kopieren.": "Suggestion from stock, minimum stock and “order up to”. Adjust packs and send the order directly to the supplier – or copy the text.",
+    "{0} {1}: Kinder lassen sich bis {2} Jahre mit anmelden – ältere bitte mit einer eigenen Beitrittserklärung.": "{0} {1}: children can be included up to age {2} – older children need their own membership application.",
+    "{0} Für eine Familienmitgliedschaft Partner/in und Kinder (bis {1} Jahre) dazunehmen – dann zahlt die erste Person für alle.": "{0} For a family membership, add your partner and children (up to age {1}) – the first person then pays for everyone.",
+    "{0}: Kinder lassen sich bis {1} Jahre mit anmelden – ältere bitte mit einer eigenen Beitrittserklärung.": "{0}: children can be included up to age {1} – older children need their own membership application.",
+    "Bei mehreren Personen bitte die Familienmitgliedschaft wählen.": "For several people, please choose the family membership.",
+    "Daten hier eintragen – unterschrieben wird anschließend am Tablet mit einem Code. Für eine Familienmitgliedschaft Partner/in und Kinder (bis {0} Jahre) hinzufügen: der/die Antragsteller/in wird Hauptzahler.": "Enter the details here – signing then happens on the tablet with a code. For a family membership, add partner and children (up to age {0}): the applicant becomes the main payer.",
+    "Die Familienmitgliedschaft gilt nur zusammen mit weiteren Personen – bitte Partner/in oder Kinder hinzufügen oder eine andere Mitgliedschaft wählen.": "The family membership only applies together with other people – please add a partner or children, or choose another membership.",
+    "Mehrere Personen: es gilt die Familienmitgliedschaft.": "Several people: the family membership applies."
   }
 }

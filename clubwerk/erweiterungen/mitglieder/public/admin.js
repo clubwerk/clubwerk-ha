@@ -673,7 +673,7 @@
       ${deps.length ? `<td><div class="mv-depchk">${deps.map(dp => `<label class="chk"><input type="checkbox" data-dep="${dp.id}"> <span translate="no">${esc(dp.name)}</span></label>`).join('')}</div></td>` : ''}
       <td class="r">${i === 0 ? '' : '<button class="btn small danger" data-px="1">Entfernen</button>'}</td></tr>`;
     dialog(`<h2>Beitrittserklärung erfassen</h2>
-      <p class="muted" style="margin-top:0">Daten hier eintragen – unterschrieben wird anschließend am Tablet mit einem Code. Für eine Familienmitgliedschaft Partner/in und Kinder hinzufügen: der/die Antragsteller/in wird Hauptzahler.</p>
+      <p class="muted" style="margin-top:0">Daten hier eintragen – unterschrieben wird anschließend am Tablet mit einem Code. Für eine Familienmitgliedschaft Partner/in und Kinder (bis ${cfg.child_max || 18} Jahre) hinzufügen: der/die Antragsteller/in wird Hauptzahler.</p>
       <div class="card mv-persons" style="margin-bottom:16px;box-shadow:none"><h3>Personen</h3><table class="tbl" id="afP"><tr><th>Vorname</th><th>Nachname</th><th style="width:150px">Geburtsdatum</th><th style="width:120px">Geschlecht</th><th style="width:150px">Rolle</th>${deps.length ? '<th>Abteilungen (Zusatzbeitrag)</th>' : ''}<th style="width:100px"></th></tr>${person(0)}</table>
         <div class="row" style="margin-top:8px"><button class="btn small" id="afAdd">+ Person (Familie)</button></div></div>
       <div class="mv-grid" style="--c:4">
@@ -681,15 +681,24 @@
         <label class="f w2">E-Mail<input id="afMail" type="email"></label><label class="f">Mobil<input id="afMobile"></label><label class="f">Eintritt<input id="afEntry" type="date" value="${cfg.today}"></label>
       </div>
       <h3 style="margin:18px 0 8px">Mitgliedschaft und Jahresbeitrag</h3>
-      <div class="mv-fees" id="afFees">${cfg.fees.map(f => `<label><input type="radio" name="afFee" value="${f.id}"> <span translate="no">${esc(f.name)}</span><b>${euro(f.cents)}</b></label>`).join('')}</div>
+      <div class="mv-fees" id="afFees"></div><p class="muted s" id="afFeeHint" style="margin:6px 0 0"></p>
       <h3 style="margin:18px 0 8px">SEPA-Lastschriftmandat</h3>
       <div class="mv-grid" style="--c:4"><label class="f w2">Kontoinhaber<input id="afHolder"></label><label class="f w2">IBAN<input id="afIban" spellcheck="false" autocomplete="off"></label>
         <label class="f">BIC (optional)<input id="afBic"></label><label class="f">Kreditinstitut (optional)<input id="afBank"></label><label class="f w2">Gesetzlicher Vertreter (nur bei Minderjährigen)<input id="afSigner"></label></div>
       <label class="chk" style="margin-top:14px"><input type="checkbox" id="afAuto" checked> Nach der Unterschrift sofort als Mitglied übernehmen (sonst erst nach Bestätigung unter „Anträge“)</label>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="afOk">Code fürs Tablet erzeugen</button></div>`, true);
     $('c').onclick = closeDialog;
-    const bindPx = () => document.querySelectorAll('#afP [data-px]').forEach(b => { b.onclick = () => b.closest('tr').remove(); });
-    $('afAdd').onclick = () => { const n = document.querySelectorAll('#afP tr[data-p]').length; $('afP').insertAdjacentHTML('beforeend', person(n, { last_name: (document.querySelector('#afP tr[data-p="0"] [data-k="last_name"]') || {}).value || '' })); bindPx(); };
+    /* mehrere Personen → nur Familienbeitrag (falls angelegt); eine Person → ohne Familienbeitrag */
+    const drawFees = () => {
+      const n = document.querySelectorAll('#afP tr[data-p]').length, fam = cfg.fees.filter(f => f.family);
+      const offer = n > 1 ? (fam.length ? fam : cfg.fees) : cfg.fees.filter(f => !f.family);
+      const cur = (document.querySelector('[name=afFee]:checked') || {}).value;
+      $('afFees').innerHTML = offer.map(f => `<label><input type="radio" name="afFee" value="${f.id}" ${String(f.id) === cur || offer.length === 1 ? 'checked' : ''}> <span translate="no">${esc(f.name)}</span><b>${euro(f.cents)}</b></label>`).join('');
+      $('afFeeHint').textContent = n > 1 && fam.length ? 'Mehrere Personen: es gilt die Familienmitgliedschaft.' : '';
+    };
+    drawFees();
+    const bindPx = () => document.querySelectorAll('#afP [data-px]').forEach(b => { b.onclick = () => { b.closest('tr').remove(); drawFees(); }; });
+    $('afAdd').onclick = () => { const n = document.querySelectorAll('#afP tr[data-p]').length; $('afP').insertAdjacentHTML('beforeend', person(n, { last_name: (document.querySelector('#afP tr[data-p="0"] [data-k="last_name"]') || {}).value || '' })); bindPx(); drawFees(); };
     $('afHolder').onfocus = () => { if (!$('afHolder').value) { const r = document.querySelector('#afP tr[data-p="0"]'); $('afHolder').value = `${r.querySelector('[data-k=first_name]').value} ${r.querySelector('[data-k=last_name]').value}`.trim(); } };
     $('afOk').onclick = async () => {
       const persons = [...document.querySelectorAll('#afP tr[data-p]')].map(tr => ({ ...Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])), departments: [...tr.querySelectorAll('[data-dep]:checked')].map(i => +i.dataset.dep) }));

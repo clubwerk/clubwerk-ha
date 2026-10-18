@@ -35,9 +35,10 @@ function register(sh) {
   const pdfSettings = data => ({ due_text: S('due_text'), work_text: S('work_text'), consents: consentList(), dept_lines: data ? deptLines(data) : null, depts: formDepts() });
   function formConfig() {
     return { club: club(), intro: S('app_intro'), due_text: S('due_text'), work_text: S('work_text'), satzung_url: S('satzung_url'), consents: consentList(), fees: formFees(), departments: formDepts(),
-      tablet: S('app_tablet', '1') === '1', online: S('app_online', '0') === '1', today: today() };
+      tablet: S('app_tablet', '1') === '1', online: S('app_online', '0') === '1', today: today(), child_max: childMax() };
   }
 
+  const childMax = () => parseInt(S('family_child_max', '18'), 10) || 18;
   /** Antragsdaten prüfen und bereinigen → { v } oder { error } */
   function validate(raw, { needBank = true } = {}) {
     const d = raw && typeof raw === 'object' ? raw : {};
@@ -53,6 +54,7 @@ function register(sh) {
       if (!p.birth_date) return { error: `${who}: bitte das Geburtsdatum eintragen.` };
       if (p.birth_date > today() || p.birth_date < '1900-01-01') return { error: `${who}: das Geburtsdatum stimmt nicht.` };
       if (p.email && !mailOk(p.email)) return { error: `${who}: die E-Mail-Adresse sieht nicht gültig aus.` };
+      if (i > 0 && p.role === 'kind' && fees.ageAt(p.birth_date, today()) > childMax()) return { error: `${p.first_name} ${p.last_name}: Kinder lassen sich bis ${childMax()} Jahre mit anmelden – ältere bitte mit einer eigenen Beitrittserklärung.` };
     }
     const v = { persons, street: one(d.street, 80), zip: one(d.zip, 10), city: one(d.city, 60), mobile: one(d.mobile, 40), email: one(d.email, 120).toLowerCase(),
       fee_id: d.fee_id ? int(d.fee_id) : null, holder: one(d.holder, 70), iban: '', bic: '', bank: one(d.bank, 70), consents: {}, signer: one(d.signer, 70), note: txt(d.note, 500), entry_date: isDate(d.entry_date) ? d.entry_date : '' };
@@ -61,6 +63,10 @@ function register(sh) {
     if (v.email && !mailOk(v.email)) return { error: 'Die E-Mail-Adresse sieht nicht gültig aus.' };
     const fee = v.fee_id ? db.prepare('SELECT * FROM mv_fee WHERE id = ? AND active = 1').get(v.fee_id) : null;
     if (!fee) return { error: 'Bitte die Mitgliedschaft (Beitrag) auswählen.' };
+    // mehrere Personen → nur Familienbeitrag (sofern es einen gibt); eine Person → kein Familienbeitrag
+    const famFees = formFees().filter(f => f.family);
+    if (persons.length > 1 && famFees.length && !fee.family) return { error: 'Bei mehreren Personen bitte die Familienmitgliedschaft wählen.' };
+    if (persons.length === 1 && fee.family) return { error: 'Die Familienmitgliedschaft gilt nur zusammen mit weiteren Personen – bitte Partner/in oder Kinder hinzufügen oder eine andere Mitgliedschaft wählen.' };
     if (persons.length > 1 && !fee.family && persons.slice(1).some(p => !p.fee_id)) {
       // ohne Familientarif: jede weitere Person bekommt einen passenden Beitrag (nach Alter) – die Verwaltung kann ihn beim Annehmen ändern
       for (const p of persons.slice(1)) if (!p.fee_id) { const f = suggestFee(p.birth_date); p.fee_id = f ? f.id : null; }

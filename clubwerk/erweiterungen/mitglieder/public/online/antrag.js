@@ -107,6 +107,8 @@
     const started = Date.now();
     const fee = () => cfg.fees.find(f => f.id === +d.fee_id);
     const minor = () => ageAt(d.persons[0].birth_date, cfg.today) < 18;
+    /** mehrere Personen → nur Familienbeitrag (falls vorhanden); eine Person → ohne Familienbeitrag */
+    const feeOffer = () => { const fam = cfg.fees.filter(f => f.family); return d.persons.length > 1 ? (fam.length ? fam : cfg.fees) : cfg.fees.filter(f => !f.family); };
 
     const nav = (back, next, nextLabel = 'Weiter') => `<div class="af-err" id="afErr"></div><div class="af-nav"><button class="af-btn" id="afBack">${back}</button><button class="af-btn primary" id="afNext">${nextLabel}</button></div>`;
     const field = (label, k, attrs = '', cls = '') => `<label class="af-f ${cls}">${label}<input data-k="${k}" value="${esc(d[k] || '')}" ${attrs}></label>`;
@@ -129,6 +131,7 @@
           const who = i ? `Person ${i + 1}` : 'Bitte';
           if (!p.first_name || p.last_name.length < 2) return err(`${who}: Vor- und Nachname eintragen.`);
           if (!p.birth_date) return err(`${who}: Geburtsdatum eintragen.`);
+          if (i > 0 && p.role !== 'partner' && ageAt(p.birth_date, cfg.today) > (cfg.child_max || 18)) return err(`${p.first_name}: Kinder lassen sich bis ${cfg.child_max || 18} Jahre mit anmelden – ältere bitte mit einer eigenen Beitrittserklärung.`);
         }
         if (!d.holder) d.holder = `${d.persons[0].first_name} ${d.persons[0].last_name}`;
       }
@@ -150,15 +153,18 @@
       const k = STEPS[step];
       const bar = `<div class="af-steps" style="--n:${STEPS.length}">${STEPS.map((_, i) => `<span class="${i <= step ? 'on' : ''}"></span>`).join('')}</div>`;
       let h = '';
-      if (k === 'persons') h = `<h2>Wer möchte Mitglied werden?</h2><p class="af-sub">${esc(cfg.intro || `Schön, dass du zum ${cfg.club.name} kommen möchtest!`)} Für eine Familienmitgliedschaft Partner/in und Kinder dazunehmen – dann zahlt die erste Person für alle.</p>
+      if (k === 'persons') h = `<h2>Wer möchte Mitglied werden?</h2><p class="af-sub">${esc(cfg.intro || `Schön, dass du zum ${cfg.club.name} kommen möchtest!`)} Für eine Familienmitgliedschaft Partner/in und Kinder (bis ${cfg.child_max || 18} Jahre) dazunehmen – dann zahlt die erste Person für alle.</p>
         <div id="afPersons">${d.persons.map(personHtml).join('')}</div><div style="margin-top:12px"><button class="af-btn small" id="afAdd">+ Person hinzufügen (Familie)</button></div>`;
       if (k === 'contact') h = `<h2>Anschrift & Kontakt</h2><p class="af-sub">Gilt für alle angemeldeten Personen. An die E-Mail-Adresse schicken wir die Bestätigung.</p>
         <div class="af-grid" style="--c:3">${field('Straße und Hausnummer', 'street', 'autocomplete="street-address"', 'wall')}${field('PLZ', 'zip', 'inputmode="numeric" maxlength="10"', '')}${field('Ort', 'city', '', 'w2')}
           ${field('E-Mail', 'email', 'type="email" autocomplete="email"', 'w2')}${field('Mobil', 'mobile', 'type="tel"', '')}</div>`;
       if (k === 'fee') {
         const a = ageAt(d.persons[0].birth_date, cfg.today), fam = d.persons.length > 1;
+        const offer = feeOffer();
+        if (d.fee_id && !offer.some(f => f.id === +d.fee_id)) d.fee_id = null;
+        if (!d.fee_id && offer.length === 1) d.fee_id = offer[0].id;
         h = `<h2>Mitgliedschaft und Jahresbeitrag</h2><p class="af-sub">${fam ? 'Ihr meldet mehrere Personen an – der Familienbeitrag gilt für alle zusammen.' : 'Bitte die passende Mitgliedschaft wählen.'}</p>
-          <div class="af-fees">${cfg.fees.map(f => { const fits = (f.age_min == null || a >= f.age_min) && (f.age_max == null || a <= f.age_max); return `<label><input type="radio" name="afFee" value="${f.id}" ${+d.fee_id === f.id ? 'checked' : ''}><span><span translate="no">${esc(f.name)}</span>${!fits && !f.family ? '<span class="af-hint">passt nicht zum Alter</span>' : ''}</span><b>${euro(f.cents)}</b></label>`; }).join('')}</div>
+          <div class="af-fees">${offer.map(f => { const fits = (f.age_min == null || a >= f.age_min) && (f.age_max == null || a <= f.age_max); return `<label><input type="radio" name="afFee" value="${f.id}" ${+d.fee_id === f.id ? 'checked' : ''}><span><span translate="no">${esc(f.name)}</span>${!fits && !f.family ? '<span class="af-hint">passt nicht zum Alter</span>' : ''}</span><b>${euro(f.cents)}</b></label>`; }).join('')}</div>
           ${(cfg.departments || []).length ? `<h3 class="af-h3">Abteilungen</h3><p class="af-sub" style="margin-bottom:12px">Wer macht zusätzlich in einer Abteilung mit? Der Zusatzbeitrag gilt je Person, zusätzlich zum Beitrag oben.</p>
             <div class="af-deps">${cfg.departments.map(dep => `<div class="af-dep"><div class="af-dh"><b translate="no">${esc(dep.name)}</b><span translate="no">${dep.fees.map(f => `${esc(f.name)} ${euro(f.cents)}`).join(' · ')}</span></div>
               <div class="af-dp">${d.persons.map((p, i) => { const f = deptFee(dep, p.birth_date); return `<label><input type="checkbox" data-dep="${dep.id}" data-pi="${i}" ${(p.departments || []).includes(dep.id) ? 'checked' : ''} ${f ? '' : 'disabled'}><span>${esc(p.first_name)}</span><b translate="no">${f ? euro(f.cents) : '–'}</b></label>`; }).join('')}</div></div>`).join('')}</div>` : ''}
