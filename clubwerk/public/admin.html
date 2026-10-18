@@ -311,6 +311,12 @@
   #askOverlay { z-index: 40; align-items: center; }
   #askBox { width: min(460px, 100%); }
   #askBox p { color: var(--muted); line-height: 1.55; margin: 0; }
+  .rmopts { display: grid; gap: 10px; margin: 14px 0 4px; }
+  .rmopt { display: grid; gap: 4px; text-align: left; width: 100%; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: inherit; font: inherit; cursor: pointer; }
+  .rmopt span { color: var(--muted); font-size: 13px; line-height: 1.45; }
+  .rmopt:hover, .rmopt:focus-visible { border-color: var(--brand); outline: none; }
+  .rmopt.danger b { color: var(--red); }
+  .rmopt.danger:hover, .rmopt.danger:focus-visible { border-color: var(--red); }
   .soft { background: var(--hover); }
   /* Reihenfolge am Tablet */
   .torows { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

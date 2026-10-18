@@ -56,6 +56,7 @@
   let me = null, current = null, cleanup = null;
   const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
 
+  const WLAN_T = 'Nur im Vereins-WLAN';
   function show(id) {
     if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
     current = id; store.set('va_tab', id);
@@ -63,6 +64,7 @@
     const s = me.sections.find(x => x.id === id);
     const el = $('sec');
     if (!s) { el.innerHTML = ''; return; }
+    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span></div>`; return; }
     if (!s.ok) { el.innerHTML = `<div class="vh-empty">${esc(s.reason)}</div>`; return; }
     const sec = SECTIONS[id];
     if (!sec) { el.innerHTML = '<div class="vh-empty">Dieser Bereich konnte nicht geladen werden.</div>'; return; }
@@ -87,11 +89,12 @@
     const TI = { buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
       beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
     const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
-    tabs.innerHTML = me.sections.map(s => `<button data-t="${s.id}">${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('');
+    tabs.innerHTML = me.sections.map(s => `<button data-t="${s.id}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('');
     tabs.classList.toggle('hidden', me.sections.length < 2);
     tabs.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.t));
     const last = store.get('va_tab');
-    show(me.sections.some(s => s.id === last) ? last : me.sections[0].id);
+    const first = (me.sections.find(s => s.ok) || me.sections[0]).id;
+    show(me.sections.some(s => s.id === last && s.ok) ? last : first);
   }
 
   /* ---------- Bilder mit Anmeldung (Profilbilder): <img data-auth-src="api/…"> – geladen mit dem Geräteschlüssel, angezeigt als data:-Adresse ---------- */

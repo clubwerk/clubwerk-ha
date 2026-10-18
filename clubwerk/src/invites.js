@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS member_devices (
 );
 CREATE INDEX IF NOT EXISTS ix_devices_scope ON member_devices(scope, member_id);
 `);
-for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER']]) {
+for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT']]) {
   if (!db.prepare('PRAGMA table_info(member_devices)').all().some(x => x.name === c)) db.exec(`ALTER TABLE member_devices ADD COLUMN ${c} ${t}`);
 }
 
@@ -78,13 +78,13 @@ function peek(scope, inviteToken) {
 }
 
 /** Einladung einlösen: PIN festlegen, Gerät koppeln → Geräteschlüssel (nur jetzt einmal im Klartext) */
-function redeem(scope, inviteToken, pin, userAgent) {
+function redeem(scope, inviteToken, pin, userAgent, host) {
   const p = peek(scope, inviteToken);
   if (p.error) throw new Error(p.error);
   if (!/^\d{4,8}$/.test(String(pin || ''))) throw new Error('Die PIN muss aus 4 bis 8 Ziffern bestehen.');
   const device = crypto.randomBytes(24).toString('base64url');
-  const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, pin_hash = ?, device = ?, paired_at = ?
-    WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), auth.hashSecret(String(pin)), deviceLabel(userAgent), now(), scope, sha(inviteToken), Date.now());
+  const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?
+    WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), auth.hashSecret(String(pin)), deviceLabel(userAgent), now(), cleanHost(host), scope, sha(inviteToken), Date.now());
   if (!r.changes) throw new Error('Diese Einladung ist ungültig oder wurde bereits verwendet.');
   return { device, member: p.member };
 }
@@ -105,7 +105,9 @@ function createTransfer(scope, deviceToken) {
   db.prepare('UPDATE member_devices SET transfer_hash = ?, transfer_expires = ? WHERE id = ?').run(sha(code), Date.now() + TR_DAYS * 86400000, w.deviceId);
   return code;
 }
-function redeemTransfer(scope, code, pin, userAgent) {
+/** Adresse, unter der das Handy gekoppelt wurde (z. B. app.verein.de oder 192.168.178.20:5001) – das Handy merkt sich die Kopplung je Adresse */
+const cleanHost = h => (/^[A-Za-z0-9.\-\[\]:]{1,120}$/.test(String(h || '')) ? String(h).toLowerCase() : null);
+function redeemTransfer(scope, code, pin, userAgent, host) {
   scopeOk(scope);
   const c = trNorm(code);
   if (c.length !== 10) return { error: 'Der Übernahme-Code hat 10 Zeichen.', status: 400 };
@@ -115,7 +117,7 @@ function redeemTransfer(scope, code, pin, userAgent) {
   const r = check(scope, null, pin, d);
   if (!r.ok) return r;
   const device = crypto.randomBytes(24).toString('base64url');
-  db.prepare('UPDATE member_devices SET token_hash = ?, device = ?, transfer_hash = NULL, transfer_expires = NULL, last_used = ? WHERE id = ?').run(sha(device), deviceLabel(userAgent), now(), d.id);
+  db.prepare('UPDATE member_devices SET token_hash = ?, device = ?, transfer_hash = NULL, transfer_expires = NULL, last_used = ?, paired_host = COALESCE(?, paired_host) WHERE id = ?').run(sha(device), deviceLabel(userAgent), now(), cleanHost(host), d.id);
   return { ok: true, device, member: r.name };
 }
 

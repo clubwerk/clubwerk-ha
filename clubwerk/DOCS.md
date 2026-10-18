@@ -176,11 +176,12 @@ Mails an Mitglieder schreiben wie in einem E-Mail-Programm (Recht „E-Mail“).
 Normalerweise ist die Mitglieder-App nur im Vereins-WLAN erreichbar. Damit Mitglieder auch von zu Hause buchen können, wird **nur die Mitglieder-App** über einen Cloudflare Tunnel ins Internet gebracht – ohne Portfreigabe am Router.
 
 1. Kostenloses Konto bei Cloudflare anlegen und die Domain des Vereins dort verwalten lassen (z. B. `meinverein.de`).
-2. Cloudflare Zero Trust → Networks → Tunnels → „Create a tunnel“ → Cloudflared → Namen vergeben → den angezeigten **Token** kopieren.
+2. Cloudflare → Zero Trust → Networking → Tunnels → „Tunnel erstellen“ → Cloudflared → Namen vergeben → Umgebung **Docker** → aus dem angezeigten Befehl den **Token** (die lange Zeichenkette nach `--token`) kopieren.
 3. In Home Assistant das Add-on **Cloudflared** installieren (Add-on-Store, Repository von Tobias Brenner), unter Konfiguration den Token bei „Tunnel token“ eintragen, kein „External Home Assistant Hostname“ setzen, starten.
-4. Im Tunnel unter „Public Hostname“ einen Eintrag anlegen: Subdomain `app`, Domain `meinverein.de`, Dienst **HTTPS** (bzw. HTTP, wenn HTTPS in Clubwerk aus ist), URL `IP-von-Home-Assistant:5001` (Port der Mitglieder-App). Bei HTTPS unter „Additional application settings → TLS“ **No TLS Verify** einschalten. **Keine weiteren Ports** freigeben.
+4. Im Tunnel unter „Routes“ → „Add route“ → **„Published application“** einen Eintrag anlegen: Subdomain `app`, Domain `meinverein.de`, Dienst **HTTPS** (bzw. HTTP, wenn HTTPS in Clubwerk aus ist), URL `IP-von-Home-Assistant:5001` (Port der Mitglieder-App). Bei HTTPS unter „Additional application settings → TLS“ **No TLS Verify** einschalten. **Keine weiteren Ports** freigeben.
 5. In Clubwerk unter Mitglieder-App → „Von unterwegs erreichbar“ `https://app.meinverein.de` eintragen, „eingeschaltet“ anhaken, speichern und „Verbindung prüfen“.
-6. Neue QR-Codes enthalten jetzt die öffentliche Adresse und funktionieren im WLAN und unterwegs. Bereits gekoppelte Handys brauchen für unterwegs einen neuen QR-Code.
+6. Neue QR-Codes enthalten jetzt die öffentliche Adresse und funktionieren im WLAN und unterwegs. Bereits gekoppelte Handys brauchen für unterwegs einen neuen QR-Code – in der Liste stehen sie mit „alte Adresse – neuer QR-Code nötig“, der Filter „alte Adresse“ zeigt sie gesammelt.
+7. Unter **„Von unterwegs nutzbar“** je Bereich festlegen, ob er auch über das Internet funktioniert. Vorgabe: Buchen, Meine Daten und Helferdienste ja, Beregnung und Türen nein. Nicht freigegebene Bereiche zeigt die App unterwegs ausgegraut mit dem Hinweis „Nur im Vereins-WLAN“; im Vereins-WLAN funktioniert alles wie gewohnt. Ändern darf das nur, wer das Recht „Einstellungen“ hat.
 
 **Sicherheit:** Verwaltung, Tablet-Seiten und Beregnung lehnen jede Anfrage ab, die über den Tunnel kommt – auch wenn der Tunnel versehentlich auf den falschen Port zeigt. Die Mitglieder-App antwortet nur unter der eingetragenen Adresse. Jedes Handy ist einzeln mit QR-Code und PIN gekoppelt; Fehlversuche werden je Absender gesperrt. Ausschalten genügt, um den Zugang von außen sofort zu schließen.
 

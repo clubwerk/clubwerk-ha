@@ -18,7 +18,8 @@
   },
   "mitgliederApp": {
     "label": "Türen",
-    "order": 10
+    "order": 10,
+    "unterwegs": false
   },
   "tabellen": [
     "zugang_log"

@@ -1938,7 +1938,33 @@
   /* =================== Mitglieder-App (ein QR-Code, eine PIN) =================== */
   const DEVSTAT = { gekoppelt: ['g', 'Handy freigeschaltet'], eingeladen: ['a', 'QR-Code offen'], abgelaufen: ['r', 'QR-Code abgelaufen'], gesperrt: ['r', 'gesperrt (falsche PINs)'] };
   const hoursTxt = h => (h >= 48 ? `${h / 24} Tage` : h === 1 ? '1 Stunde' : `${h} Stunden`);
-  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${DEVSTAT[d.status][1]}</span>` : '<span class="pill">ohne Handy</span>');
+  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${DEVSTAT[d.status][1]}</span>${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
+  /** Entfernen: nur das Handy oder ganz aus der App? → 'device' | 'all' | null */
+  function askRemove(name, hasDevice) {
+    return new Promise(resolve => {
+      $('askBox').innerHTML = `<h2>${esc(name)} entfernen</h2><p>Was soll passieren?</p>
+        <div class="rmopts">${hasDevice ? `<button class="rmopt" id="rmDev"><b>Nur Handy entfernen</b><span>Die App funktioniert auf dem Handy sofort nicht mehr. Die Freischaltungen bleiben – mit einem neuen QR-Code ist das Mitglied wieder dabei.</span></button>` : ''}
+          <button class="rmopt danger" id="rmAll"><b>Ganz aus der App entfernen</b><span>${hasDevice ? 'Handy und alle Freischaltungen' : 'Alle Freischaltungen'} werden gelöscht. Das Mitglied verschwindet aus der Liste und kann später wieder freigeschaltet werden.</span></button></div>
+        <div class="btns"><button class="btn ghost" id="askNo">Abbrechen</button></div>`;
+      $('askOverlay').classList.remove('hidden');
+      const done = v => { $('askOverlay').classList.add('hidden'); document.removeEventListener('keydown', key); resolve(v); };
+      const key = e => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', key);
+      $('askNo').onclick = () => done(null);
+      if ($('rmDev')) $('rmDev').onclick = () => done('device');
+      $('rmAll').onclick = () => done('all');
+    });
+  }
+  /** Entfernen ausführen – true, wenn etwas entfernt wurde */
+  async function appRemove(memberId, name, hasDevice) {
+    const v = await askRemove(name, hasDevice);
+    if (!v) return false;
+    try {
+      if (v === 'device') { await api(`app/member/${memberId}/device`, 'DELETE'); toast('Handy entfernt.'); }
+      else { await api(`app/member/${memberId}`, 'DELETE'); toast(`${name} ist nicht mehr in der App.`); }
+      return true;
+    } catch (e) { fail(e); return false; }
+  }
   const appUrl = info => (info.url || `${info.https ? 'https' : 'http'}://${location.hostname}:${info.port || 5001}`).replace(/\/+$/, '');
 
   /** QR-Code für ein Mitglied erzeugen und anzeigen. after() wird nach „Fertig“ aufgerufen. */
@@ -1976,18 +2002,21 @@
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a && g ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
         ${a && a.blocked && !m.open ? '<span class="pill r">gesperrt</span>' : ''}</div>`; }).join('')}
-      <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">${info.device ? 'Neuer QR-Code' : 'QR-Code erzeugen'}</button>${info.device ? '<button class="btn small" id="apRm">Handy entfernen</button>' : ''}</div>`;
+      <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">${info.device ? 'Neuer QR-Code' : 'QR-Code erzeugen'}</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
     el.querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => { try { const rr = await api(`app/member/${memberId}/access`, 'PUT', { module: c.dataset.am, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); reload(); } catch (e) { fail(e); c.checked = !c.checked; } }; });
     el.querySelectorAll('[data-ap]').forEach(sel => { sel.onchange = async () => { try { await api(`app/member/${memberId}/access`, 'PUT', { module: sel.dataset.ap, profile: sel.value }); toast('Gespeichert.'); } catch (e) { fail(e); } }; });
     $('apQr').onclick = () => { const html = $('dialog').innerHTML; void html; appInvite(memberId); };
-    if ($('apRm')) $('apRm').onclick = async () => { if (!await ask(`Handy von ${info.name} entfernen?\n\nDie App funktioniert auf diesem Handy sofort nicht mehr. Die Freischaltungen bleiben – mit einem neuen QR-Code ist das Mitglied wieder dabei.`, { ok: 'Handy entfernen' })) return; try { await api(`app/member/${memberId}/device`, 'DELETE'); toast('Handy entfernt.'); reload(); } catch (e) { fail(e); } };
+    if ($('apRm')) $('apRm').onclick = async () => { if (await appRemove(memberId, info.name, Boolean(info.device))) reload(); };
   }
 
   RENDER.app = async () => {
     const r = await api('app');
     const mods = r.modules;
+    const oldN = r.rows.filter(x => x.device && x.device.oldAddress).length;
+    const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', alt: x => x.device && x.device.oldAddress };
+    let filt = FIL[cache.apFilter] ? cache.apFilter : 'alle';
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
       <p class="lead">Mitglieder bekommen <b>einen QR-Code</b>, legen <b>eine PIN</b> fest und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Die Getränke-PIN am Tablet bleibt davon unabhängig.</p>
       <div class="card" id="apSet"><h3>Adresse der App</h3>
@@ -2003,11 +2032,14 @@
           <button class="btn primary" id="apExtSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button><button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button></div>
         <ol class="muted s" style="margin:12px 0 0;padding-left:18px;line-height:1.6">
           <li>Kostenloses Konto bei Cloudflare, eure Domain dort verwalten lassen (z. B. <code>meinverein.de</code>).</li>
-          <li>Cloudflare Zero Trust → Networks → Tunnels → „Create a tunnel“ (Cloudflared) → Token kopieren.</li>
+          <li>Cloudflare → Zero Trust → Networking → Tunnels → „Tunnel erstellen“ (Cloudflared, Docker) → Token kopieren.</li>
           <li>In Home Assistant das Add-on <b>Cloudflared</b> installieren, den Token unter „Tunnel token“ eintragen, starten.</li>
-          <li>Im Tunnel einen „Public Hostname“ anlegen: <code>app.meinverein.de</code> → Dienst <code>${r.https ? 'HTTPS' : 'HTTP'}</code>, URL <code>${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ „No TLS Verify“ einschalten' : ''}. <b>Nur diesen Port</b> freigeben.</li>
+          <li>Im Tunnel unter „Routes“ → „Add route“ → „Published application“ anlegen: <code>app.meinverein.de</code> → Dienst <code>${r.https ? 'HTTPS' : 'HTTP'}</code>, URL <code>${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ „No TLS Verify“ einschalten' : ''}. <b>Nur diesen Port</b> freigeben.</li>
           <li>Hier die Adresse eintragen, einschalten, „Verbindung prüfen“ – neue QR-Codes enthalten dann die öffentliche Adresse und funktionieren im WLAN und unterwegs.</li></ol>
-        <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.</p></div>
+        <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p>
+        <h4 style="margin:16px 0 6px">Von unterwegs nutzbar</h4>
+        <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis.</p>
+        <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
@@ -2022,11 +2054,14 @@
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & QR-Code</button></div>
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
       <div class="card"><h3>Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3>
-        ${r.rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th>zuletzt benutzt</th><th></th></tr>
-          ${r.rows.map(x => `<tr><td><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
+        ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['alt', 'alte Adresse']].filter(([k]) => k !== 'alt' || oldN)
+          .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
+          <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th>zuletzt benutzt</th><th></th></tr>
+          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
             ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td><label class="chk"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label></td>`; }).join('')}
             <td class="muted s">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
-            <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> ${x.device ? `<button class="btn small" data-ad="${x.member_id}">Handy entfernen</button>` : ''}</td></tr>`).join('')}</table>`
+            <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
+          <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
     watch($('apSet')); watch($('apSec'));
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
@@ -2059,8 +2094,19 @@
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
       const x = r.rows.find(y => y.member_id === Number(b.dataset.ad));
-      if (!await ask(`Handy von ${x.name} entfernen?\n\nDie App funktioniert auf diesem Handy sofort nicht mehr. Die Freischaltungen bleiben – mit einem neuen QR-Code ist das Mitglied wieder dabei.`, { ok: 'Handy entfernen' })) return;
-      try { await api(`app/member/${x.member_id}/device`, 'DELETE'); toast('Handy entfernt.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
+      if (await appRemove(x.member_id, x.name, Boolean(x.device))) RENDER.app().catch(fail);
+    }; });
+    const applyFil = () => {
+      let n = 0;
+      r.rows.forEach(x => { const tr = $('main').querySelector(`[data-row="${x.member_id}"]`); const on = FIL[filt](x); if (tr) tr.style.display = on ? '' : 'none'; if (on) n++; });
+      if ($('apNone')) $('apNone').style.display = n ? 'none' : '';
+      if ($('apTbl')) $('apTbl').style.display = n ? '' : 'none';
+      $('main').querySelectorAll('#apFil [data-f]').forEach(b => b.classList.toggle('on', b.dataset.f === filt));
+    };
+    $('main').querySelectorAll('#apFil [data-f]').forEach(b => { b.onclick = () => { filt = cache.apFilter = b.dataset.f; applyFil(); }; });
+    applyFil();
+    $('main').querySelectorAll('[data-away]').forEach(c => { c.onchange = async () => {
+      try { await api('settings/app', 'PUT', { extModules: { [c.dataset.away]: c.checked } }); toast(c.checked ? 'Auch unterwegs nutzbar.' : 'Nur noch im Vereins-WLAN.'); } catch (e) { fail(e); c.checked = !c.checked; }
     }; });
   };
 
