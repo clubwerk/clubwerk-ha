@@ -64,7 +64,7 @@ const plugins = new Map();   // id -> { meta, dir, source, error, hooks }
 const DRINK_PERMS = ['lieferungen', 'bestand', 'bestellung', 'buchungen', 'export', 'abrechnung', 'veranstaltungen', 'uebernahme', 'artikel'];
 plugins.set('getraenke', {
   builtin: true, dir: null, source: 'mitgeliefert', error: null, hooks: {},   // ein Modul wie alle anderen (nur der Code steckt im Kern)
-  meta: { id: 'getraenke', name: 'Verkauf', version: APP_VERSION, standardAktiv: true,
+  meta: { id: 'getraenke', name: 'Verkauf', version: APP_VERSION, standardAktiv: true, kurz: 'Am Tablet buchen statt Strichliste.',
     beschreibung: 'Verkauf am Tablet statt Strichliste – Getränke, Speisen, Vereinsartikel, Bälle, Patronen … Artikel und Preise, Konten & PINs, Lieferungen & Belege einlesen, Bestand, Bestellung, Veranstaltungen, Gäste-Deckel, Abrechnung & Export.',
     perms: Object.fromEntries(DRINK_PERMS.map(k => [k, auth.PERMS[k]])), tablet: { label: 'Verkauf', seite: '' } },
 });
@@ -172,7 +172,7 @@ function load({ app, admin, helpers }) {
 }
 
 function list() {
-  return [...plugins.values()].sort((a, b) => String(a.meta.name).localeCompare(String(b.meta.name), 'de')).map(p => ({ id: p.meta.id, name: p.meta.name, version: p.meta.version, description: p.meta.beschreibung || '',
+  return [...plugins.values()].sort((a, b) => String(a.meta.name).localeCompare(String(b.meta.name), 'de')).map(p => ({ id: p.meta.id, name: p.meta.name, version: p.meta.version, description: p.meta.beschreibung || '', short: p.meta.kurz ? String(p.meta.kurz).slice(0, 140) : String(p.meta.beschreibung || '').split(/(?<=[.:–])\s/)[0].slice(0, 140),
     source: p.source, error: p.error, unapproved: Boolean(p.unapproved), pending: Boolean(p.pending), hash: (p.unapproved || p.pending) && p.hash ? p.hash : undefined, active: isActive(p.meta.id), installed: !isUninstalled(p.meta.id), perms: Object.keys(p.meta.perms || {}),
     tablet: p.meta.tablet || null, verwaltung: p.meta.verwaltung || null, builtin: Boolean(p.builtin),
     configIO: !p.error && typeof p.hooks.exportConfig === 'function' && typeof p.hooks.importConfig === 'function',

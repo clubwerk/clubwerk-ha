@@ -763,7 +763,7 @@ app.get('/api/admin/status', (req, res) => {
   res.json({ configured: auth.adminConfigured(), loggedIn: Boolean(u), https: tls.enabled(),
     user: u ? { id: u.id, username: u.username, name: u.name, role: u.role, perms: u.perms, deptOnly: u.deptOnly, depts: u.depts, builtin: Boolean(u.builtin) } : null, permLabels: plugins.visiblePerms(),
     setupCode: !auth.adminConfigured() && setupNeedsCode(req) ? true : undefined,
-    modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.description, active: p.active })) });
+    modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })) });
 });
 
 const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };

@@ -200,10 +200,10 @@
 
   function showSetup(mods = [], st = {}) {
     $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Erste Einrichtung</h2>
-      <p class="lead">Willkommen! Trage den Namen eures Vereins ein und lege das Passwort für das <b>Adminkonto</b> fest. Es darf alles, kann nicht gelöscht werden und legt weitere Benutzer mit eigenen Rechten an. Logo und Vereinsfarbe stellt ihr danach unter „Einstellungen“ ein.</p>
+      <p class="lead">Willkommen! Vereinsname, Module und Passwort für das <b>Adminkonto</b> festlegen – alles Weitere später unter „Einstellungen“.</p>
       <label class="f">Name des Vereins<input id="club" placeholder="z. B. SV Musterdorf 1920 e.V." autocomplete="organization"></label><br>
-      ${mods.length ? `<div class="f" style="margin-bottom:14px"><span>Was soll Clubwerk können? <span class="muted">(später unter „Einstellungen“ änderbar)</span></span>
-        ${mods.map(m => `<label class="chk" style="margin-top:8px;align-items:flex-start"><input type="checkbox" data-mod="${esc(m.id)}" ${m.active ? 'checked' : ''} style="margin-top:3px">
+      ${mods.length ? `<div class="f" style="margin-bottom:14px"><span>Module <span class="muted">(später änderbar)</span></span>
+        ${[...mods].sort((a, b) => (b.id === 'getraenke') - (a.id === 'getraenke')).map(m => `<label class="chk" style="margin-top:8px;align-items:flex-start"><input type="checkbox" data-mod="${esc(m.id)}" ${m.active ? 'checked' : ''} style="margin-top:2px;flex:none;width:18px;height:18px">
           <span><b>${esc(m.name)}</b><br><span class="muted s">${esc(m.description)}</span></span></label>`).join('')}</div>` : ''}
       ${st.setupCode ? `<label class="f">Einrichtungscode <span class="muted">(steht in Home Assistant unter Einstellungen → Add-ons → Clubwerk → Protokoll)</span><input id="scode" placeholder="XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><br>` : ''}
       <label class="f">Benutzername<input id="un" value="admin" disabled></label><br>
