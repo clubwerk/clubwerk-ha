@@ -4961,6 +4961,14 @@
     "Rechnungen, die es schon nennen, bleiben unverändert.": "Invoices that already show it stay unchanged.",
     "Standardkonto": "Default account",
     "Vereinskonto": "Club account",
-    "z. B. Vereinskonto, Padel": "e.g. Club account, Padel"
+    "z. B. Vereinskonto, Padel": "e.g. Club account, Padel",
+    "„{0}“ ist aktiv – steht am Tablet und in der Mitglieder-App.": "“{0}” is active – shown on the tablet and in the member app.",
+    "„{0}“ ist deaktiviert – nicht am Tablet, nicht in der Mitglieder-App.": "“{0}” is deactivated – not on the tablet, not in the member app.",
+    "aktiv – steht am Tablet und in der Mitglieder-App": "active – shown on the tablet and in the member app",
+    "Einsatz aktiviert": "Work session activated",
+    "Einsatz deaktiviert": "Work session deactivated",
+    "wöchentlich wiederholen (Wochen)": "repeat weekly (weeks)",
+    "Zu diesem Einsatz gibt es schon Stunden – stattdessen deaktivieren.": "Hours have already been recorded for this session – deactivate it instead.",
+    "deaktiviert": "deactivated"
   }
 }

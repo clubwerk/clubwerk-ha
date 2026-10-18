@@ -173,7 +173,7 @@ function activate(ctx) {
     const r = evInput(req.body || {}); if (r.error) return bad(res, r.error);
     const repeat = Math.max(0, Math.min(52, int((req.body || {}).repeat_weeks)));
     const ids = [];
-    for (let i = 0; i <= repeat; i++) { const v = { ...r.v, date: addDays(r.v.date, 7 * i) }; const k = Object.keys(v); ids.push(Number(db.prepare(`INSERT INTO aw_event(${k.join(',')}, created_by) VALUES (${k.map(() => '?').join(',')}, ?)`).run(...k.map(x => v[x]), uname(req)).lastInsertRowid)); }
+    for (let i = 0; i <= repeat; i++) { const v = { ...r.v, date: addDays(r.v.date, 7 * i), cancelled: (req.body || {}).active === false ? 1 : 0 }; const k = Object.keys(v); ids.push(Number(db.prepare(`INSERT INTO aw_event(${k.join(',')}, created_by) VALUES (${k.map(() => '?').join(',')}, ?)`).run(...k.map(x => v[x]), uname(req)).lastInsertRowid)); }
     ctx.audit(req.user, `${KIND[r.v.kind]} angelegt`, `${r.v.title} ${deD(r.v.date)}${repeat ? ` (+${repeat} Wochen)` : ''}`);
     res.json({ ids });
   });
@@ -181,12 +181,22 @@ function activate(ctx) {
     const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
     const r = evInput({ ...e, ...(req.body || {}) }); if (r.error) return bad(res, r.error);
     const k = Object.keys(r.v);
-    db.prepare(`UPDATE aw_event SET ${k.map(x => `${x} = ?`).join(', ')}, cancelled = ? WHERE id = ?`).run(...k.map(x => r.v[x]), (req.body || {}).cancelled ? 1 : 0, e.id);
+    const b = req.body || {};
+    const off = b.active !== undefined ? !b.active : b.cancelled !== undefined ? Boolean(b.cancelled) : Boolean(e.cancelled);
+    db.prepare(`UPDATE aw_event SET ${k.map(x => `${x} = ?`).join(', ')}, cancelled = ? WHERE id = ?`).run(...k.map(x => r.v[x]), off ? 1 : 0, e.id);
     res.json({ ok: true });
+  });
+  /* aktivieren / deaktivieren: deaktivierte Einsätze stehen nicht am Tablet und nicht in der Mitglieder-App, es gibt keine Erinnerungen */
+  admin.post('/events/:id/active', P, (req, res) => {
+    const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
+    const on = Boolean((req.body || {}).active);
+    db.prepare('UPDATE aw_event SET cancelled = ? WHERE id = ?').run(on ? 0 : 1, e.id);
+    ctx.audit(req.user, on ? 'Einsatz aktiviert' : 'Einsatz deaktiviert', `${e.title} ${deD(e.date)}`);
+    res.json({ ok: true, active: on });
   });
   admin.delete('/events/:id', P, (req, res) => {
     const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
-    if (db.prepare('SELECT 1 FROM aw_entry WHERE event_id = ?').get(e.id)) return bad(res, 'Zu diesem Einsatz gibt es schon Stunden – stattdessen absagen.');
+    if (db.prepare('SELECT 1 FROM aw_entry WHERE event_id = ?').get(e.id)) return bad(res, 'Zu diesem Einsatz gibt es schon Stunden – stattdessen deaktivieren.');
     db.prepare('DELETE FROM aw_signup WHERE event_id = ?').run(e.id); db.prepare('DELETE FROM aw_event WHERE id = ?').run(e.id);
     res.json({ ok: true });
   });
