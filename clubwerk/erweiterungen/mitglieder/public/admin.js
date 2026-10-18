@@ -287,7 +287,7 @@
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Beiträge</h3>${SC() ? '' : '<button class="btn small primary" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
           : `<p class="muted">${p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt (z. B. Familienbeitrag).' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Abteilungen</h3><button class="btn small primary" id="dAdd">+ Abteilung</button></div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small primary" id="dAdd">+ Abteilung</button>'}</div>
         ${d.departments.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Zusatzbeitrag</th><th></th></tr>${depRows}</table>
           <p class="muted s" style="margin-bottom:0">Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.</p>` : '<p class="muted">Keiner Abteilung zugeordnet.</p>'}</div>
       <div class="mv-two">
@@ -331,7 +331,7 @@
         try { if (x) await api('md/' + x.id, 'PUT', body); else await api(`member/${id}/departments`, 'POST', { ...body, department_id: +val('dDep') }); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { fail(e); }
       };
     };
-    $('dAdd').onclick = () => (m.depts.length ? deptDialog(null) : toast('Bitte zuerst unter Einstellungen eine Abteilung anlegen.', true));
+    if ($('dAdd')) $('dAdd').onclick = () => (m.depts.length ? deptDialog(null) : toast('Bitte zuerst unter Einstellungen eine Abteilung anlegen.', true));
     el.querySelectorAll('[data-md]').forEach(b => { b.onclick = () => deptDialog(d.departments.find(x => x.id === +b.dataset.md)); });
     el.querySelectorAll('[data-mdx]').forEach(b => { b.onclick = async () => { if (!await ask('Abteilung entfernen?\n\nFür einen Austritt aus der Abteilung besser ein Austrittsdatum eintragen – dann stimmt die Statistik.', { ok: 'Entfernen' })) return; try { await api('md/' + b.dataset.mdx, 'DELETE'); again(); } catch (e) { fail(e); } }; });
     const simple = (kind, title, extra) => {

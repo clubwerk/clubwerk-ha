@@ -3009,7 +3009,7 @@ admin.get('/overview/modules', async (req, res) => {
   for (const p of plugins.withHook('overview')) {
     const perm = p.meta.verwaltung && p.meta.verwaltung.recht;
     if (perm && !req.user.perms.includes(perm)) continue;
-    try { const o = await Promise.race([p.hooks.overview(), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 6000))]);
+    try { const o = await Promise.race([p.hooks.overview(req.user), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 6000))]);
       if (o) out.push({ id: p.meta.id, name: p.meta.name, page: p.meta.verwaltung ? p.meta.verwaltung.seite || p.meta.id : p.meta.id, kpis: o.kpis || [], alerts: o.alerts || [] }); }
     catch (e) { out.push({ id: p.meta.id, name: p.meta.name, page: p.meta.id, kpis: [], alerts: [{ level: 'r', text: 'Status nicht abrufbar: ' + e.message }] }); }
   }

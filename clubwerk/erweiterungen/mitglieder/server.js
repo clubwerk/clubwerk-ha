@@ -274,6 +274,8 @@ function activate(ctx) {
   const scopeOf = req => ((req.user.deptOnly || []).includes('mitglieder') ? (req.user.depts || []) : null);
   const inScope = (memberId, depts) => Boolean(ctx.db.prepare(`SELECT 1 FROM mv_member_department WHERE member_id = ? AND department_id IN (${depts.map(() => '?').join(',') || 'NULL'}) AND (exit_date IS NULL OR exit_date >= ?)`).get(memberId, ...depts, today()));
   const appInScope = (a, depts) => { try { return JSON.parse(a.data).persons.some(p => (p.departments || []).some(d => depts.includes(Number(d)))); } catch (e) { return false; } };
+  /** Hinweise, die ein Abteilungsadmin selbst erledigen kann (Beiträge, Bank und Mandat macht die Vereinsverwaltung) */
+  const scopedIssues = list => (list || []).filter(i => !/Mandat|Bankverbindung|IBAN|Beitrag|Altersstufe/.test(i));
   const SCOPED = [   // [Methode, Pfad, Prüfung]  Prüfung: m = Mitglied :id, md = Abteilungszugehörigkeit, h/f = Ehrung/Amt, a = Antrag, ch = Änderungswunsch, - = keine
     ['GET', /^\/meta$/, '-'], ['GET', /^\/list$/, '-'], ['GET', /^\/iban-check$/, '-'], ['GET', /^\/applications$/, '-'], ['GET', /^\/applications\/config$/, '-'], ['GET', /^\/changes$/, '-'],
     ['POST', /^\/member$/, 'new'], ['GET', /^\/member\/(\d+)$/, 'm'], ['PUT', /^\/member\/(\d+)$/, 'm'],
@@ -306,7 +308,7 @@ function activate(ctx) {
     // Antwort-Filter für Listen
     if (req.method === 'GET' && /^\/(list|applications|changes)$/.test(path)) {
       const json = res.json.bind(res);
-      res.json = data => json(!Array.isArray(data) ? data : data.filter(x => path === '/list' ? (x.dept_ids || []).some(d => depts.includes(d))
+      res.json = data => json(!Array.isArray(data) ? data : data.filter(x => path === '/list' ? (x.dept_ids || []).some(d => depts.includes(d)) && Object.assign(x, { issues: scopedIssues(x.issues) })
         : path === '/applications' ? appInScope({ data: JSON.stringify(x.data || {}) }, depts) : inScope(x.member_id, depts)));
     }
     next();
@@ -789,7 +791,19 @@ function activate(ctx) {
   require('./lib/memberapp').register(shared);
 
   /* Kennzahlen & Warnungen für die Übersicht */
-  ctx.hooks.overview = async () => {
+  ctx.hooks.overview = async user => {
+    const scope = user && (user.deptOnly || []).includes('mitglieder') ? (user.depts || []) : null;
+    if (scope) {   // Abteilungsadmin: nur die eigenen Mitglieder und nur, was er selbst erledigen kann
+      const mine = listRows({ status: 'aktuell' }).filter(r => r.dept_ids.some(d => scope.includes(d)));
+      const al = [];
+      const apps = ctx.db.prepare("SELECT * FROM mv_application WHERE status = 'eingegangen'").all().filter(a => appInScope(a, scope)).length;
+      if (apps) al.push({ level: 'a', text: `${apps} neue Beitrittserklärung(en) für deine Abteilung warten auf Bestätigung.` });
+      const ch = ctx.db.prepare("SELECT member_id, kind FROM mv_change WHERE status = 'offen'").all().filter(c => c.kind !== 'bank' && inScope(c.member_id, scope)).length;
+      if (ch) al.push({ level: 'a', text: `${ch} Änderungswunsch/-wünsche aus der Mitglieder-App.` });
+      const inc = mine.filter(r => scopedIssues(r.issues).length).length;
+      if (inc) al.push({ level: 'a', text: `${inc} Mitglied(er) deiner Abteilung mit fehlenden Angaben (z. B. E-Mail).` });
+      return { kpis: [{ l: 'Mitglieder deiner Abteilung', v: mine.length }, { l: 'Austritte angekündigt', v: mine.filter(r => r.leaving).length }, { l: 'Eintritte ' + today().slice(0, 4), v: mine.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts: al };
+    }
     const rows = listRows({ status: 'aktuell' });
     const alerts = [];
     const apps = ctx.db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status = 'eingegangen'").get().n;

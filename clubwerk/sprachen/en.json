@@ -4518,6 +4518,9 @@
     "Über den Hauptzahler (nicht in der Liste)": "Via the main payer (not in the list)",
     "über Hauptzahler": "via main payer",
     "Verkauf am Tablet": "Sales on the tablet",
-    "Verkauf: {0}": "Sales: {0}"
+    "Verkauf: {0}": "Sales: {0}",
+    "{0} Mitglied(er) deiner Abteilung mit fehlenden Angaben (z. B. E-Mail).": "{0} member(s) of your department with missing details (e.g. e-mail).",
+    "{0} neue Beitrittserklärung(en) für deine Abteilung warten auf Bestätigung.": "{0} new membership application(s) for your department awaiting confirmation.",
+    "Mitglieder deiner Abteilung": "Members of your department"
   }
 }
