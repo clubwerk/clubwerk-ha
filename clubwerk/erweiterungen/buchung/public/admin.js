@@ -282,7 +282,7 @@
         <label class="f">von<input id="bdS" type="time" value="${ed ? ed.start : pre.start || r0.open_from}" step="900"></label>
         <label class="f">bis<input id="bdE" type="time" value="${ed ? ed.end : pre.end || hhmm(tm(r0.open_from) + r0.slot_min)}" step="900"></label>
         <label class="f">Label<select id="bdL">${opt('', '– ohne –')}${m.labels.filter(l => l.active && (l.usable || l.id === curL)).map(l => opt(l.id, l.name, curL)).join('')}</select></label>
-        <label class="f bd-t w2">Titel / Grund<input id="bdTi" placeholder="z. B. Training Jugend" value="${esc(ed && ed.title && (!ed.label || ed.title !== ed.label.name) ? ed.title : '')}"></label>
+        <label class="f bd-t w2">Titel / Grund<input id="bdTi" placeholder="optional, z. B. Training Jugend" value="${esc(ed && ed.title && (!ed.label || ed.title !== ed.label.name) ? ed.title : '')}"></label>
         <label class="f bd-b w2">Mitglied (bucht)<select id="bdM">${personOpts(ed ? ed.member_id : '', '– Verein (Label oder Titel) –')}</select></label>
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select><span class="bk-chips" id="bdPc"></span></label>
         <label class="f bd-b w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"><span class="muted s" style="font-weight:500">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label></label>
@@ -371,7 +371,7 @@
     dialog(`<h2>${type === 'sperre' ? 'Sperre über einen Zeitraum' : 'Neue Serie'}</h2>
       <div class="bk-grid" style="--c:4">
         <label class="f">Label<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
-        <label class="f">${type === 'sperre' ? 'Grund' : 'Titel'}<input id="sxT" placeholder="${type === 'sperre' ? 'z. B. Winterpause' : 'leer = Name des Labels'}"></label>
+        <label class="f">${type === 'sperre' ? 'Grund' : 'Titel'}<input id="sxT" placeholder="${type === 'sperre' ? 'optional, z. B. Winterpause' : 'optional – leer = Label oder Mitglied'}"></label>
         <label class="f">vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : `${y}-09-30`}"></label>
         <div class="f bkf wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
         <div class="f bkf w2"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}" ${type === 'sperre' ? 'checked' : ''}> ${WD[d]}</label>`).join('')}</div></div>

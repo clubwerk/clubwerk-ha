@@ -773,10 +773,9 @@ function activate(ctx) {
     const b = req.body || {};
     const type = b.type === 'sperre' ? 'sperre' : 'serie';
     const label = b.label_id ? labelOf(int(b.label_id)) : null;
-    const title = txt(b.title, 80) || (label ? label.name : ''), rs = [...new Set((Array.isArray(b.resources) ? b.resources : []).map(Number))].map(resource).filter(Boolean);
+    let title = txt(b.title, 80) || (label ? label.name : ''); const rs = [...new Set((Array.isArray(b.resources) ? b.resources : []).map(Number))].map(resource).filter(Boolean);
     const weekdays = [...new Set(String(b.weekdays || '').replace(/[^1-7]/g, '').split(''))].sort().join('');
     const s = tm(b.start), e = tm(b.end);
-    if (title.length < 2) return bad(res, type === 'sperre' ? 'Bitte einen Grund eintragen (z. B. „Platzpflege“, „Clubmeisterschaft“).' : 'Bitte einen Titel eintragen (z. B. „Training Herren 40“).');
     if (!rs.length) return bad(res, 'Bitte mindestens einen Platz wählen.');
     if (!weekdays) return bad(res, 'Bitte mindestens einen Wochentag wählen.');
     if (s == null || e == null || e <= s) return bad(res, 'Bitte die Uhrzeit prüfen.');
@@ -784,6 +783,9 @@ function activate(ctx) {
     if (b.from_date < today()) return bad(res, 'Der Zeitraum beginnt in der Vergangenheit.');
     if (addDays(b.from_date, 400) < b.to_date) return bad(res, 'Höchstens ein gutes Jahr am Stück.');
     const mid = b.member_id ? memberRow(b.member_id) : null;
+    // Titel ist freiwillig: sonst Label, gebuchtes Mitglied oder einfach „Serie“/„Sperre“
+    if (title.length < 2 && type === 'serie' && !mid) return bad(res, 'Bitte ein Mitglied wählen, ein Label wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
+    if (title.length < 2) title = (mid && mid.name) || 'Sperre';
     const sx = { type, title, resources: JSON.stringify(rs.map(r => r.id)), weekdays, start: hhmm(s), end: hhmm(e), from_date: b.from_date, to_date: b.to_date, member_id: mid ? mid.id : null, note: txt(b.note, 300) || null, label_id: label ? label.id : null };
     const days = seriesDays(sx);
     // Überschneidungen vorab zeigen; Sperren stornieren auf Wunsch die betroffenen Buchungen, Serien lassen belegte Tage aus

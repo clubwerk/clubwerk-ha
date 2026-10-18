@@ -5978,6 +5978,9 @@
     "Dieser Dienst ist schon vorbei – eintragen geht nicht mehr.": "This duty is already over – signing up is no longer possible.",
     "Mit ↑ ↓ legst du die Reihenfolge fest – so stehen Plätze und Geräte im Belegungsplan, in der Mitglieder-App und am Tablet.": "Use ↑ ↓ to set the order – this is how courts and devices appear in the booking plan, the member app and on the tablet.",
     "Buchungssystem: Reihenfolge der Plätze geändert": "Booking system: court order changed",
-    "Unbekannter Platz oder unbekanntes Gerät.": "Unknown court or device."
+    "Unbekannter Platz oder unbekanntes Gerät.": "Unknown court or device.",
+    "optional, z. B. Training Jugend": "optional, e.g. youth training",
+    "optional, z. B. Winterpause": "optional, e.g. winter break",
+    "optional – leer = Label oder Mitglied": "optional – empty = label or member"
   }
 }
