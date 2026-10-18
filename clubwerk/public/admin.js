@@ -113,7 +113,7 @@
     const show = async k => {
       if (k !== cur && !(await leaveOk())) return;
       cur = k; sessionStorage.setItem(store, k);
-      el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+      el.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === k); if (b.dataset.tab === k) { const bar = b.parentNode; if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, b.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2); } });
       body.innerHTML = '<p class="muted">Lade …</p>';
       try { await onShow(k, body); } catch (e) { fail(e); }
     };
@@ -282,6 +282,7 @@
     tablet: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/>',
     abmelden: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
     menue: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
     punkte: '<circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none"/>',
   };
   const icon = (k, sz = 18) => `<svg aria-hidden="true" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k] || ICO.modul}</svg>`;
@@ -541,6 +542,9 @@
     badges(fn) { BADGE_HOOKS.push(fn); },
     refreshBadges: () => refreshBadges(),
   };
+  // Kernseiten aus eigenen Dateien (z. B. mail.js), die vor admin.js geladen wurden
+  (window.CW_PAGES || []).forEach(fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } });
+  window.CW_PAGES = { push: fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } } };
 
   /* =================== Übersicht =================== */
   /** Modul-Daten (Warnungen + Kennzahlen) aller aktiven Erweiterungen */

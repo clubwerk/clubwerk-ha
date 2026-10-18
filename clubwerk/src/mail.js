@@ -38,20 +38,37 @@ function save(b) {
   return `${host}:${port}${user ? ' · ' + user : ''}`;
 }
 
-/** send({ to, cc, replyTo, subject, text, attachments }) */
-async function send({ to, cc, replyTo, subject, text, attachments }) {
+function transport(pool) {
   const s = config();
   if (!s.host || !s.from) throw new Error('Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
-  if (!mailOk(to)) throw new Error('Keine gültige Empfänger-Adresse.');
-  if (cc && !mailOk(cc)) throw new Error('Ungültige Adresse bei „Kopie an“.');
   const nodemailer = require('nodemailer');
   // 465 = verschlüsselt von Anfang an, 587 = Verschlüsselung (STARTTLS) ist Pflicht – sonst könnte jemand sie unterdrücken und das Passwort mitlesen
-  const t = nodemailer.createTransport({ host: s.host, port: s.port, secure: s.port === 465, requireTLS: s.port === 587, auth: s.user ? { user: s.user, pass: s.pass } : undefined,
-    connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000 });
-  // in der Sprache der Anfrage bzw. der Vereinssprache (Hintergrundaufgaben)
-  const i18n = require('./i18n');
-  subject = i18n.tr(String(subject || '')); text = i18n.tr(String(text || ''));
-  await t.sendMail({ from: s.from, to: validMails(to).join(', '), cc: cc ? validMails(cc).join(', ') : undefined, replyTo: replyTo || undefined, subject, text, attachments });
+  return { s, t: nodemailer.createTransport({ host: s.host, port: s.port, secure: s.port === 465, requireTLS: s.port === 587, auth: s.user ? { user: s.user, pass: s.pass } : undefined,
+    connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000, ...(pool ? { pool: true, maxConnections: 1, maxMessages: 50 } : {}) }) };
+}
+/** Absender: immer das Vereinspostfach (sonst landen Mails im Spam), optional mit Anzeigenamen */
+const fromOf = (s, fromName) => (fromName ? { name: String(fromName).replace(/[\r\n"<>]/g, ' ').slice(0, 80), address: s.from } : s.from);
+function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fromName, raw }) {
+  if (!mailOk(to)) throw new Error('Keine gültige Empfänger-Adresse.');
+  if (cc && !mailOk(cc)) throw new Error('Ungültige Adresse bei „Kopie an“.');
+  if (replyTo && !mailOk(replyTo)) throw new Error('Ungültige Antwortadresse.');
+  if (!raw) {   // Systemmails in der Sprache der Anfrage bzw. der Vereinssprache – selbst geschriebene Mails bleiben, wie sie sind
+    const i18n = require('./i18n');
+    subject = i18n.tr(String(subject || '')); text = i18n.tr(String(text || ''));
+  }
+  return { from: fromOf(s, fromName), to: validMails(to).join(', '), cc: cc ? validMails(cc).join(', ') : undefined, bcc: bcc ? validMails(bcc).join(', ') : undefined,
+    replyTo: replyTo || undefined, subject, text, html: html || undefined, attachments };
 }
 
-module.exports = { config, publicConfig, ready, save, send, validMails, mailOk };
+/** send({ to, cc, replyTo, subject, text, html, attachments, fromName, raw }) */
+async function send(o) {
+  const { s, t } = transport(false);
+  await t.sendMail(message(s, o));
+}
+/** Viele Mails nacheinander über eine Verbindung: const x = session(); await x.send({…}); x.close() */
+function session() {
+  const { s, t } = transport(true);
+  return { send: o => t.sendMail(message(s, o)), close: () => { try { t.close(); } catch (e) { /* zu */ } } };
+}
+
+module.exports = { config, publicConfig, ready, save, send, session, validMails, mailOk };

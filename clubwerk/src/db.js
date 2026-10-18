@@ -309,7 +309,7 @@ addColumn('admin_users', 'member_id', 'INTEGER');
   if (db.prepare("SELECT value FROM settings WHERE key = 'roles_seeded'").get()) return;
   const ins = db.prepare('INSERT OR IGNORE INTO admin_roles(name, description, perms, dept_scope, sort) VALUES (?,?,?,?,?)');
   const R = [
-    ['Vorstand', 'Mitglieder, Anträge, Auswertungen, Dokumente, Veranstaltungen und Helferdienste – ohne Bankdaten und Einzug.', ['mitglieder', 'mitglieder_dokumente', 'export', 'veranstaltungen', 'arbeitseinsatz', 'konten']],
+    ['Vorstand', 'Mitglieder, Anträge, Auswertungen, Dokumente, E-Mail, Veranstaltungen und Helferdienste – ohne Bankdaten und Einzug.', ['mitglieder', 'mitglieder_dokumente', 'export', 'veranstaltungen', 'arbeitseinsatz', 'konten', 'email']],
     ['Kassenwart', 'Beitragslauf, Lastschriften, offene Posten, Bankdaten, Verkaufs-Abrechnung und Export.', ['mitglieder', 'mitglieder_bank', 'mitglieder_finanzen', 'mitglieder_dokumente', 'abrechnung', 'uebernahme', 'export', 'konten']],
     ['Abteilungsleitung', 'Nur Mitglieder der eigenen Abteilung(en): Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen.', ['mitglieder'], 1],
     ['Thekenteam', 'Verkauf: Lieferungen, Bestand, Bestellung, Buchungen, Artikel und neue Konten bestätigen.', ['lieferungen', 'bestand', 'bestellung', 'buchungen', 'artikel', 'konten', 'veranstaltungen']],

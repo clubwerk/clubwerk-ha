@@ -105,36 +105,7 @@ function register(sh) {
   }));
   admin.get('/export/cols', P, (req, res) => res.json(COLS.filter(([k]) => req.user.perms.includes('mitglieder_bank') || !['iban', 'mandate_ref', 'mandate_date'].includes(k))));
 
-  /* Rundmail an gefilterte Mitglieder, mit Platzhaltern */
-  const fill = (t, p, r) => String(t).replace(/\{(vorname|nachname|anrede|briefanrede|mitgliedsnr|verein)\}/g, (m, k) => ({ vorname: p.first_name || '', nachname: p.last_name || r.name, anrede: p.salutation || '',
-    briefanrede: p.letter_salutation || (p.first_name ? `Hallo ${p.first_name}` : 'Guten Tag'), mitgliedsnr: p.member_no || '', verein: C.getSetting('club_name', '') }[k]));
-  admin.post('/mail/preview', P, (req, res) => {
-    const b = req.body || {};
-    const rows = listRows(b.filter || {});
-    const withMail = rows.filter(r => r.email);
-    const first = withMail[0] ? db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(withMail[0].id) : null;
-    res.json({ count: rows.length, withMail: withMail.length, without: rows.filter(r => !r.email).map(r => r.name).slice(0, 50),
-      sample: first ? { to: first.email, subject: fill(b.subject || '', first, withMail[0]), text: fill(b.text || '', first, withMail[0]) } : null });
-  });
-  admin.post('/mail/send', P, rateLimit('mvmail', 3, 30 * 60000), ar(async (req, res) => {
-    const b = req.body || {};
-    const subject = one(b.subject, 150), text = txt(b.text, 20000);
-    if (subject.length < 3 || text.length < 10) return bad(res, 'Bitte Betreff und Text eintragen.');
-    if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
-    const rows = listRows(b.filter || {}).filter(r => r.email);
-    if (!rows.length) return bad(res, 'Niemand mit E-Mail-Adresse in dieser Auswahl.');
-    if (rows.length > 600) return bad(res, 'Höchstens 600 Empfänger auf einmal.');
-    const done = new Set(); let sent = 0; const failed = [];
-    for (const r of rows) {
-      if (done.has(r.email)) continue;   // Familien mit derselben Adresse nur einmal
-      done.add(r.email);
-      const p = db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(r.id) || {};
-      try { await C.mail.send({ to: r.email, subject: fill(subject, p, r), text: fill(text, p, r) }); sent++; } catch (e) { failed.push(`${r.name}: ${e.message}`); }
-      await new Promise(ok => setTimeout(ok, 200));
-    }
-    C.audit(req.user, 'Rundmail versendet', `„${subject}“ an ${sent} Empfänger`);
-    res.json({ ok: true, sent, failed });
-  }));
+  // Rundmails: seit 3.10 unter Verein → E-Mail (src/mailer.js)
 }
 
 module.exports = { register };

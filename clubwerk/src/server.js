@@ -3059,6 +3059,7 @@ i18n.reload();   // Sprachdateien der Erweiterungen
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung der Erweiterungs-Tabellen fehlgeschlagen –', e.message); }
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth });
+require('./mailer').routes(admin, { bad, need });
 memberapp.startPort({ rateLimit });
 
 function navLinks() {

@@ -21,7 +21,7 @@ const MAGIC = Buffer.from('CWSICH01');
 const MAGIC_ALT = [Buffer.from('VHSICH01')];   // Sicherungen der Vorgängerversion („Vereinsheim“) lassen sich weiter einspielen
 const EXT = '.cwbackup';
 const KDF = { N: 32768, r: 8, p: 1 };
-const DIRS = ['belege', 'artikelbilder', 'erweiterungen', 'erweiterungen-freigegeben', 'mitglieder-dokumente', 'fotos'];   // Ordner unter DATA_DIR
+const DIRS = ['belege', 'artikelbilder', 'erweiterungen', 'erweiterungen-freigegeben', 'mitglieder-dokumente', 'fotos', 'mail-anhaenge'];   // Ordner unter DATA_DIR
 const NAME_RE = /^(\d{4}-\d{2}-\d{2})(?:_(\d{6}))?_Clubwerk\.cwbackup$/;
 const LEGACY_RE = /^(\d{4}-\d{2}-\d{2})(?:_(\d{6}))?_Vereinsheim\.vhsicherung$/;
 const DB_NAME = 'clubwerk.db', DB_ALT = 'vereinsheim.db';

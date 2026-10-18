@@ -89,7 +89,7 @@
     'mv-beitraege': ['Beiträge', 'Beitragsarten des Hauptvereins, Zusatzbeiträge der Abteilungen und der Beitragslauf, aus dem die offenen Posten entstehen.'],
     'mv-einzug': ['Einzug & Zahlungen', 'SEPA-Lastschriften, offene Posten, Rechnungen und Mahnungen.'],
     'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen (Tablet, online, Verwaltung), Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
-    'mv-auswertung': ['Auswertungen', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund, Listen und Rundmails.'],
+    'mv-auswertung': ['Auswertungen', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund und Listen.'],
     'mv-einstellungen': ['Einstellungen', 'Verein und SEPA-Lastschrift, Beitrittserklärung, Mitglieder-App, Import und Datenschutz.'],
   };
   let current = 'mitglieder';
@@ -1101,26 +1101,10 @@
         ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} Mitglied(er) ohne Geburtsdatum sind nicht enthalten.</p>` : ''}</div>
       <div class="mv-two">
         <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl">${s.events.map(e => `<tr><td class="nw">${deDate(e.date)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.kind)}</td><td class="r">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="muted">Keine.</p>'}</div>
-        <div class="card"><h3>Rundmail</h3>
-          <div class="mv-grid" style="--c:2"><label class="f">An<select id="rmTo">${opt('aktuell', 'alle aktuellen Mitglieder')}${opt('aktiv', 'nur aktive')}${opt('passiv', 'nur passive')}${st.meta.depts.map(d => opt('d' + d.id, 'Abteilung ' + d.name)).join('')}</select></label>
-            <label class="f">Betreff<input id="rmSub"></label>
-            <label class="f wall">Text<textarea id="rmText" placeholder="{briefanrede},&#10;&#10;…"></textarea></label></div>
-          <p class="muted s">Platzhalter: {vorname} {nachname} {anrede} {briefanrede} {mitgliedsnr} {verein}. Familien mit gleicher Adresse bekommen die Mail nur einmal.</p>
-          <div class="row" style="justify-content:flex-end"><button class="btn" id="rmPrev">Vorschau</button><button class="btn primary" id="rmSend">Senden …</button></div></div></div>`;
+        <div class="card"><h3>E-Mail an Mitglieder</h3><p class="muted" style="margin-top:0">Rundmails schreibst du jetzt unter <b>Verein → E-Mail</b> – mit Gruppen (Status, Abteilungen, Ämter, Beiträge), Verteilern, Anhängen, Vorlagen und Zustellstatus.</p>
+          ${GK.can('email') ? '<div class="row" style="justify-content:flex-end"><button class="btn primary" id="rmGo">E-Mail schreiben</button></div>' : '<p class="muted s">Dafür ist das Recht „E-Mail“ nötig.</p>'}</div></div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
-    const filter = () => { const v = val('rmTo'); return v.startsWith('d') ? { status: 'aktuell', dept: v.slice(1) } : { status: v }; };
-    $('rmPrev').onclick = async () => {
-      try { const r = await api('mail/preview', 'POST', { subject: val('rmSub'), text: $('rmText').value, filter: filter() });
-        dialog(`<h2>Vorschau</h2><p class="muted" style="margin-top:0">${r.withMail} von ${r.count} haben eine E-Mail-Adresse.${r.without.length ? ` Ohne: ${esc(r.without.slice(0, 20).join(', '))}${r.without.length > 20 ? ' …' : ''}` : ''}</p>
-          ${r.sample ? `<div class="card soft"><p class="muted s" style="margin-top:0">An: ${esc(r.sample.to)}</p><h3>${esc(r.sample.subject)}</h3><div style="white-space:pre-wrap">${esc(r.sample.text)}</div></div>` : ''}<div class="btns"><button class="btn primary" id="c">Schließen</button></div>`);
-        $('c').onclick = closeDialog; } catch (e) { fail(e); }
-    };
-    $('rmSend').onclick = async () => {
-      try { const r = await api('mail/preview', 'POST', { subject: val('rmSub'), text: $('rmText').value, filter: filter() });
-        if (!await ask(`Rundmail an ${r.withMail} Mitglieder senden?\n\n„${val('rmSub')}“`, { ok: 'Senden', danger: false })) return;
-        const x = await api('mail/send', 'POST', { subject: val('rmSub'), text: $('rmText').value, filter: filter() }); toast(`${x.sent} E-Mails verschickt${x.failed.length ? `, ${x.failed.length} fehlgeschlagen` : ''}.`, x.failed.length > 0);
-      } catch (e) { fail(e); }
-    };
+    if ($('rmGo')) $('rmGo').onclick = () => GK.go('email');
   }
 
   /* ================================================================= Einstellungen */

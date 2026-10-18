@@ -118,7 +118,7 @@ Mandate verfallen nach 36 Monaten ohne Lastschrift – Clubwerk zeigt das in der
 
 **Mitglieder-App „Meine Daten“:** Was Mitglieder sehen und ändern dürfen, legt der Vorstand unter Einstellungen → Mitglieder-App fest (Anschrift, Kontakt, Geburtsdatum, Abteilungen, Beiträge, Familie, Zahlungen, Bankverbindung; ändern: Anschrift, Kontakt, Bankverbindung, Kündigung). Standardmäßig sieht jedes freigeschaltete Handy Mitgliedschaft, Beiträge, Zahlungen und Bankverbindung (IBAN gekürzt). Änderungen von Anschrift, E-Mail und Telefon bestätigt der Vorstand; freiwillige Einwilligungen kann man sofort widerrufen. Eine neue Bankverbindung wird auf dem Handy unterschrieben (neues Mandat als PDF), eine Kündigung mit der App-PIN eingereicht – der frühestmögliche Termin steht dabei.
 
-**Auswertungen:** Mitglieder am Stichtag, Altersdurchschnitt, Abteilungen, Ein- und Austritte je Jahr, **Bestandserhebung für den Landessportbund** (Altersgruppen × Geschlecht je Abteilung, als Excel), runde Geburtstage und Jubiläen, Mitgliederliste als Excel mit frei wählbaren Spalten (Bankdaten nur mit Recht), **Rundmail** mit Platzhaltern.
+**Auswertungen:** Mitglieder am Stichtag, Altersdurchschnitt, Abteilungen, Ein- und Austritte je Jahr, **Bestandserhebung für den Landessportbund** (Altersgruppen × Geschlecht je Abteilung, als Excel), runde Geburtstage und Jubiläen, Mitgliederliste als Excel mit frei wählbaren Spalten (Bankdaten nur mit Recht). Rundmails: unter **Verein → E-Mail**.
 
 **Rechte:** „Mitglieder“ (Stammdaten, Anträge, Auswertungen), „Bankdaten“ (IBAN und Mandate sehen und ändern), „Finanzen“ (Beitragslauf, Lastschriften, offene Posten), „Dokumente“. Ohne Bankrecht sind IBANs gekürzt; ein Import mit Bankverbindungen braucht das Recht ebenfalls.
 
@@ -156,6 +156,15 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 **Sonderrechte in der App:** Unter Einstellungen → „Sonderrechte in der Mitglieder-App“ einzelnen Mitgliedern erlauben, in der App Serien zu buchen (wöchentlich, bis zu einem Jahr; belegte Tage werden übersprungen; unter „Meine Serien“ beenden) und/oder mit bestimmten Labels zu buchen. In der Verwaltung lassen sich Serien auch direkt im Belegungsplan anlegen: beim neuen Termin „wöchentlich wiederholen bis“ wählen (Recht „Serien & Sperren“).
 
 **Auswertung & Protokoll:** Reiter „Auswertung“ (Auslastung je Platz und gesamt, Vorjahresvergleich, beliebte Zeiten) und „Protokoll“ (alle Buchungen, auch stornierte, als CSV).
+
+## E-Mail (Verein → E-Mail)
+Mails an Mitglieder schreiben wie in einem E-Mail-Programm (Recht „E-Mail“). Voraussetzung: Einstellungen → E-Mail-Versand ist eingerichtet.
+- **Absender:** Unter „Absender“ trägt jeder seinen Namen, seine Antwortadresse und eine Unterschrift ein. Die Mail kommt vom Vereinspostfach („Anna Schmidt · TC Musterstadt <info@…>“), Antworten gehen an die eigene Adresse.
+- **Empfänger:** Ins Feld „An“ tippen – Vorschläge für Gruppen (Status, Abteilungen, Ämter, Beitragsarten), Verteiler und Mitglieder; Adressen mit Enter oder Komma übernehmen. Doppelte Adressen (Familien) bekommen die Mail nur einmal. „Ohne eigene Adresse an den Zahler“ schickt die Mail für Kinder an die Eltern.
+- **Schreiben:** Formatierung über die Leiste, Platzhalter über „Platzhalter …“, Vorlagen über „Vorlage …“. Anhänge per Knopf oder Ziehen. Alles wird automatisch als Entwurf gespeichert.
+- **Senden:** „Senden …“ zeigt Absender, Antwortadresse, Empfängerzahl (auflistbar), wer keine Adresse hat und die Mail, wie sie beim ersten Empfänger aussieht. Der Versand läuft im Hintergrund; unter „Gesendet“ steht je Empfänger „zugestellt“ oder der Fehler, mit „Fehlgeschlagene erneut senden“.
+- **Verteiler & Vorlagen** gelten für alle mit dem Recht „E-Mail“. Verteiler aus Gruppen bleiben automatisch aktuell.
+- **Abteilungen:** Mit einer Rolle „nur eigene Abteilung“ sind nur die eigenen Abteilungen und deren Mitglieder wählbar.
 
 ## Mitglieder-App: Bereiche und Profilbild
 - **Bereiche je Mitglied:** Unter „Mitglieder-App“ hat jedes Mitglied für jeden aktiven Bereich (Buchen, Meine Daten, Dienste, Beregnung, Zugang …) einen Haken. Bereiche wie Buchen oder Meine Daten sind für neue Mitglieder vorausgewählt; ohne Haken verschwinden sie aus der App dieses Mitglieds. Beregnung und Zugang brauchen weiterhin das jeweilige Recht.

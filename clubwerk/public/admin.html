@@ -233,7 +233,7 @@
   details summary { cursor: pointer; }
   .card { overflow-x: auto; }
   /* Reiter */
-  .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--hover); margin: 4px 0 20px; flex-wrap: wrap; width: fit-content; max-width: 100%; }
+  .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--hover); margin: 4px 0 20px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-sizing: border-box; width: fit-content; max-width: 100%; } .tabs::-webkit-scrollbar { display: none; } .tabs > button { flex: none; white-space: nowrap; }
   /* Reiter der Module: immer eine Zeile (bei Platzmangel seitlich wischen) – keine zweite Zeile, nichts springt */
   .tabs.drinktabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-sizing: border-box; } .tabs.drinktabs::-webkit-scrollbar { display: none; }
   .tabs.drinktabs > button { flex: none; white-space: nowrap; }
@@ -479,6 +479,7 @@
 <div id="askOverlay" class="overlay hidden"><div class="dialog" id="askBox"></div></div>
 <div id="toast" class="toast hidden"></div>
 <script src="artikel-icons.js"></script>
+<script src="mail.js"></script>
 <script src="admin.js"></script>
 </body>
 </html>
