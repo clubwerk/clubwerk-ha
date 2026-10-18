@@ -147,6 +147,12 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 
 **Warteliste:** Ist eine Zeit belegt, kann man sich in der App vormerken. Wird storniert, bekommen die Vorgemerkten eine E-Mail – gebucht ist erst, wer zuerst zugreift.
 
+**Label-Rechte & Vereinstermine:** Beim Label festlegen, wer es verwenden darf – nur Verwaltung, alle Mitglieder oder bestimmte Ämter (beim Mitglied unter „Ehrungen & Ämter“, z. B. „Trainer“, „Mannschaftsführer“) und einzelne Personen. Mit „Vereinstermin“ gelten für das Label keine Höchstdauer, kein Kontingent, kein Vorlauf und keine Gebühren.
+
+**Bearbeiten:** Termine in der Verwaltung über „Bearbeiten“ ändern; Mitglieder ändern ihre eigenen Buchungen in der App (bis zur Stornofrist). Mitspieler werden per E-Mail informiert.
+
+**Auswertung & Protokoll:** Reiter „Auswertung“ (Auslastung je Platz und gesamt, Vorjahresvergleich, beliebte Zeiten) und „Protokoll“ (alle Buchungen, auch stornierte, als CSV).
+
 ## Mitglieder-App von unterwegs (Cloudflare Tunnel)
 Normalerweise ist die Mitglieder-App nur im Vereins-WLAN erreichbar. Damit Mitglieder auch von zu Hause buchen können, wird **nur die Mitglieder-App** über einen Cloudflare Tunnel ins Internet gebracht – ohne Portfreigabe am Router.
 

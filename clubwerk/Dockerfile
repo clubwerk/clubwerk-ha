@@ -3,8 +3,8 @@ FROM ${BUILD_FROM}
 
 # Node.js für die App, poppler (pdftotext) zum Auslesen der Rechnungen,
 # Build-Werkzeuge nur vorübergehend für das SQLite-Modul
-# tzdata: richtige Ortszeit für Buchungen, tar: Komplettsicherung, tesseract: Fotos und fotografierte PDFs per Bilderkennung lesen
-RUN apk add --no-cache nodejs npm poppler-utils tzdata tar tesseract-ocr tesseract-ocr-data-deu tesseract-ocr-data-eng \
+# icu-data-full: deutsche Zahlen- und Datumsformate auf dem Server (sonst „€0.00“ statt „0,00 €“), tzdata: richtige Ortszeit für Buchungen, tar: Komplettsicherung, tesseract: Fotos und fotografierte PDFs per Bilderkennung lesen
+RUN apk add --no-cache nodejs npm icu-data-full poppler-utils tzdata tar tesseract-ocr tesseract-ocr-data-deu tesseract-ocr-data-eng \
  && apk add --no-cache --virtual .build-deps python3 make g++ nodejs-dev
 
 WORKDIR /app

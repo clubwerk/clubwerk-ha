@@ -166,8 +166,17 @@ const STATUS = { aktiv: 'aktiv', passiv: 'passiv', ehren: 'Ehrenmitglied', ruhen
 const PAYMENT = { lastschrift: 'Lastschrift', rechnung: 'Rechnung', bar: 'bar' };
 const GENDER = { m: 'männlich', w: 'weiblich', d: 'divers' };
 
+/** Vor-/Nachname fehlen (z. B. Person stammt aus Verkaufskonto oder Import): aus dem bekannten Namen übernehmen */
+function fillNames(memberId = null) {
+  const rows = db.prepare(`SELECT p.member_id, m.name, m.first_name AS mf, m.last_name AS ml FROM mv_person p JOIN members m ON m.id = p.member_id
+    WHERE COALESCE(p.first_name, '') = '' AND COALESCE(p.last_name, '') = '' AND m.kind = 'mitglied' AND m.deleted = 0 ${memberId ? 'AND p.member_id = ?' : ''}`).all(...(memberId ? [memberId] : []));
+  const up = db.prepare('UPDATE mv_person SET first_name = ?, last_name = ? WHERE member_id = ?');
+  for (const r of rows) { const x = splitName({ name: r.name, first_name: r.mf, last_name: r.ml }); if (x.first || x.last) up.run(x.first || null, x.last || null, r.member_id); }
+  return rows.length;
+}
 function ensurePerson(memberId) {
-  if (!db.prepare('SELECT 1 FROM mv_person WHERE member_id = ?').get(memberId)) {
+  if (db.prepare('SELECT 1 FROM mv_person WHERE member_id = ?').get(memberId)) fillNames(memberId);
+  else {
     const m = db.prepare('SELECT * FROM members WHERE id = ?').get(memberId);
     const parts = splitName(m || {});
     db.prepare('INSERT INTO mv_person(member_id, first_name, last_name, entry_date) VALUES (?,?,?,?)').run(memberId, parts.first || null, parts.last || null, m ? (m.created_at || '').slice(0, 10) || null : null);
@@ -237,7 +246,7 @@ function feeLabel(fee) { return `${fee.name} (${(fee.cents / 100).toLocaleString
 
 module.exports = {
   init(o) { ({ db, getSetting, setSetting } = o); createTables(); migrate(); },
-  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, splitName, syncCore, nextMemberNo, mandateRefFor, hist,
+  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, mandateRefFor, hist,
   payerOf, familyOf, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, fullName, feeCents, feeLabel, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

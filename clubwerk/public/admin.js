@@ -240,7 +240,7 @@
     ['uebersicht', 'Übersicht', null, 'start'],
     ['lieferungen', 'Lieferungen & Belege', 'lieferungen', 'getraenke'], ['bestellung', 'Bestellung', 'bestellung', 'getraenke'],
     ['bestand', 'Bestand & Inventur', 'bestand', 'getraenke'], ['abgleich', 'Abgleich', 'bestand', 'getraenke'], ['buchungen', 'Buchungen', 'buchungen', 'getraenke'],
-    ['abrechnung', 'Abrechnung & Export', ['abrechnung', 'export'], 'getraenke'], ['veranstaltungen', 'Veranstaltungen', ['veranstaltungen', 'uebernahme'], 'getraenke'],
+    ['abrechnung', 'Abrechnung & Export', ['abrechnung', 'export'], 'getraenke'], ['auswertung', 'Auswertung', ['abrechnung', 'export'], 'getraenke'], ['veranstaltungen', 'Veranstaltungen', ['veranstaltungen', 'uebernahme'], 'getraenke'],
     ['deckel', 'Gäste-Deckel', ['veranstaltungen', 'uebernahme', 'abrechnung', 'export'], 'getraenke'], ['artikel', 'Artikel', 'artikel', 'getraenke'],
     ['konten', 'Mitglieder & Konten', 'konten', 'verein'], ['app', 'Mitglieder-App', 'konten', 'verein'], ['benutzer', 'Benutzer & Rechte', 'benutzer', 'verein'],
     ['sicherung', 'Datensicherung', 'einstellungen', 'verein'], ['protokoll', 'Protokoll', 'einstellungen', 'verein'], ['einstellungen', 'Einstellungen', null, 'verein'],
@@ -394,6 +394,7 @@
     t.innerHTML = GPAGES(g).map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
     t.querySelectorAll('[data-tab]').forEach(b => { b.onclick = e => { e.stopPropagation(); go(b.dataset.tab); }; });
     after.after(t);
+    const on = t.querySelector('.on'); if (on && t.scrollWidth > t.clientWidth) t.scrollLeft = Math.max(0, on.offsetLeft - 40);
   }
 
   /* Einleitung über Reitern immer gleich hoch (2 Zeilen), damit die Reiter beim Wechsel nicht springen – längere Texte per „mehr“ aufklappen */
@@ -552,7 +553,7 @@
   const alertHtml = a => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}"><span>${esc(a.link || 'Ansehen')}</span> →</a>` : ''}</div>`;
   /** Eine Modulkarte – für alle Module gleich aufgebaut */
   function modCard({ ic, name, pill, big, det, go: g }) {
-    return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3>${esc(name)}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
+    return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3 title="${esc(name)}">${esc(name).replace(/(\p{Ll})(verwaltung|system|einsatz|dienste?|erfassung|haltung|buchung|steuerung)/gu, '$1\u00ad$2')}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
       <div class="big"><span>${esc(big ? big[0] : '')}</span><b>${esc(big ? big[1] : '–')}</b></div>
       <div class="det">${det ? `<span>${esc(det[0])}</span><b>${esc(det[1])}</b>` : ''}</div>
       ${g ? `<a class="open" href="#${g}" data-go="${g}">Öffnen<span aria-hidden="true">→</span></a>` : '<span class="open" style="visibility:hidden">–</span>'}</section>`;
@@ -589,7 +590,8 @@
     mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, go: m.pageKey })));
     const modCards = mods.map(m => {
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
-      return modCard({ ic: PAGE_ICON[m.pageKey] || PAGE_ICON[m.id] || 'modul', name: m.name, pill: bad ? ['r', 'Störung'] : warn ? ['a', 'Hinweis'] : ['g', 'läuft'],
+      const gk = (PAGES.find(x => x[0] === m.pageKey) || [])[3];
+      return modCard({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, pill: bad ? ['r', 'Störung'] : warn ? ['a', 'Hinweis'] : ['g', 'läuft'],
         big: m.kpis[0] ? [m.kpis[0].l, m.kpis[0].v] : null, det: m.kpis[1] ? [m.kpis[1].l, m.kpis[1].v] : null, go: m.pageKey });
     }).join('');
     const memberCard = mem ? modCard({ ic: 'konten', name: 'Mitglieder', pill: pending.length ? ['a', `${pending.length} neu`] : null,
@@ -1115,6 +1117,103 @@
   }
 
   /* =================== Abrechnung =================== */
+  /* ---------------------------------------------------------------- Verkauf: Auswertung (Dashboard) */
+  const DS = (() => {
+    const HEAT = ['#c5e384', '#7cc86f', '#24a03f', '#e9c46a', '#b22a2a'];
+    const PAL = ['#1f6f3f', '#2f6fd6', '#e07b16', '#8a4fd6', '#1f9a6b', '#c2185b', '#00838f', '#f2b705', '#6d4c41', '#7a7f87', '#5e35b1', '#b22a2a'];
+    const heat = (v, max) => (v <= 0 || !max ? null : HEAT[Math.min(4, Math.floor(v / max * 4.999))]);
+    const num = v => Number(v || 0).toLocaleString('de-DE');
+    function delta(cur, prev, { invert = false } = {}) {
+      if (!prev && !cur) return '<span class="ds-d z">±0</span>';
+      if (!prev) return '<span class="ds-d u">neu</span>';
+      const d = Math.round((cur - prev) / prev * 100);
+      return `<span class="ds-d ${d === 0 ? 'z' : (d > 0) !== invert ? 'u' : 'w'}">${d > 0 ? '+' : d < 0 ? '−' : '±'}${Math.abs(d)} %</span>`;
+    }
+    function spark(cur, prev, color) {
+      const W = 260, H = 56, max = Math.max(1, ...cur, ...prev), x = i => 4 + i * (W - 8) / 11, y = v => H - 4 - v / max * (H - 10);
+      const path = a => a.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+      return `<svg class="ds-spark" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true"><path d="${path(cur)} L${x(11)},${H} L${x(0)},${H} Z" fill="${color}" opacity=".14"/>
+        <path d="${path(prev)}" fill="none" stroke="var(--faint)" stroke-width="1.5" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/><path d="${path(cur)}" fill="none" stroke="${color}" stroke-width="2.2" vector-effect="non-scaling-stroke"/></svg>`;
+    }
+    function donut(items, center, unit) {
+      const tot = items.reduce((x, i) => x + i.v, 0) || 1, R = 70, C = 2 * Math.PI * R;
+      const list = items.length > 10 ? [...items.slice(0, 9), { name: `Weitere (${items.length - 9})`, v: items.slice(9).reduce((x, i) => x + i.v, 0), color: 'var(--line)' }] : items;
+      let off = 0;
+      const segs = list.map(i => { const len = i.v / tot * C; const g = list.length > 1 ? Math.min(2, len / 3) : 0; const s0 = `<circle r="${R}" cx="90" cy="90" fill="none" stroke="${i.color}" stroke-width="26" stroke-dasharray="${Math.max(0, len - g).toFixed(2)} ${C.toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}"><title>${esc(i.name)}: ${Math.round(i.v / tot * 100)} %</title></circle>`; off += len; return s0; }).join('');
+      return `<div class="ds-donut"><div class="ds-dring"><svg viewBox="0 0 180 180" width="180" height="180"><g transform="rotate(-90 90 90)"><circle r="${R}" cx="90" cy="90" fill="none" stroke="var(--hover)" stroke-width="26"/>${segs}</g></svg><div class="ds-dc"><b>${center}</b><span>${unit}</span></div></div>
+        <ul class="ds-dleg">${list.map(i => `<li><i style="background:${i.color}"></i><b>${esc(i.name)}</b><span class="r">${(i.v / tot * 100).toLocaleString('de-DE', { maximumFractionDigits: 1 })} %</span></li>`).join('')}</ul></div>`;
+    }
+    const legend = () => `<span class="ds-leg">weniger${HEAT.map(c0 => `<i style="background:${c0}"></i>`).join('')}mehr</span>`;
+    const ICO = { e: '<path d="M17 6.5A6.5 6.5 0 1 0 17 17.5M4 10h9M4 14h9"/>', u: '<path d="M7 3h10l-1 18H8L7 3z"/><path d="M7.5 9h9"/>', b: '<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3z"/><path d="M9 8h6M9 12h6"/>', x: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>' };
+    const kpi = (k, label, val, dl, body, tone = '') => `<div class="card ds-kpi ${tone}"><div class="ds-kh"><span class="ds-ki"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k]}</svg></span><span>${label}</span></div><div class="ds-kv"><b>${val}</b>${dl}</div>${body}</div>`;
+    const MON = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
+    const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], WDL = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    const addD = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+    const dowI = s => (new Date(s + 'T12:00:00Z').getUTCDay() + 6) % 7;
+    /** Kalender-Heatmap eines Jahres: days = { 'YYYY-MM-DD': Wert } */
+    function calendar(year, days, fmt) {
+      const max = Math.max(0, ...Object.values(days));
+      const jan1 = `${year}-01-01`, start = addD(jan1, -dowI(jan1)), weeks = [];
+      for (let w = 0; w < 54; w++) { const wd = addD(start, w * 7); if (wd > `${year}-12-31`) break; weeks.push(wd); }
+      return `<div class="ds-scroll"><div class="ds-heat" style="--w:${weeks.length}"><span></span>${weeks.map((w, i) => { const m = +addD(w, 6).slice(5, 7) - 1; const first = i === 0 || +addD(weeks[i - 1], 6).slice(5, 7) - 1 !== m; return `<span class="mo">${first && addD(w, 6).slice(0, 4) === String(year) ? MON[m] : ''}</span>`; }).join('')}
+        ${WD.map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addD(w, r), v = days[day] || 0, inY = day.slice(0, 4) === String(year);
+          return `<i class="${inY ? '' : 'out'}" ${inY ? `title="${deDate(day)}: ${fmt(v)}"` : ''} style="${inY && v ? `background:${heat(v, max)}` : ''}"></i>`; }).join('')}`).join('')}</div></div>`;
+    }
+    /** Wochentag × Uhrzeit als Punkte */
+    function bubbles(grid, [h0, h1], fmt) {
+      const hours = Array.from({ length: Math.max(0, h1 - h0) }, (_, i) => h0 + i), max = Math.max(0, ...grid.flat());
+      return `<div class="ds-scroll"><div class="ds-bub" style="--h:${hours.length}"><span></span>${hours.map(h => `<span class="hh">${String(h).padStart(2, '0')}:00</span>`).join('')}
+        ${WD.map((n, r) => `<span class="dl">${n}</span>${hours.map(h => { const v = grid[r][h] || 0; const sz = v ? Math.max(8, Math.round(Math.sqrt(v / max) * 40)) : 0;
+          return `<span class="bc" title="${n} ${String(h).padStart(2, '0')}:00: ${fmt(v)}">${sz ? `<i style="width:${sz}px;height:${sz}px;background:${heat(v, max)}"></i>` : ''}</span>`; }).join('')}`).join('')}</div></div>`;
+    }
+    function monthBars(cur, prev, year, fmt) {
+      const max = Math.max(1, ...cur, ...prev);
+      return `<div class="ds-bars">${MON.map((m, i) => `<div class="ds-bar1" title="${m} ${year}: ${fmt(cur[i])} · ${year - 1}: ${fmt(prev[i])}"><div class="ds-bpair"><i class="p" style="height:${prev[i] / max * 100}%"></i><i style="height:${cur[i] / max * 100}%"></i></div><span>${m.slice(0, 3)}</span></div>`).join('')}</div>`;
+    }
+    return { PAL, delta, spark, donut, legend, kpi, calendar, bubbles, monthBars, num, WDL, heat };
+  })();
+  GK.dash = DS;
+
+  const svState = { year: new Date().getFullYear(), cat: '' };
+  RENDER.auswertung = async () => {
+    const g = svState;
+    $('main').innerHTML = `<h2 class="page">Auswertung</h2><p class="lead">Umsatz, verkaufte Artikel und beliebte Zeiten – was am meisten verkauft wird, im Vergleich zum Vorjahr.</p><div id="svBody"><p class="muted">Lade …</p></div>`;
+    const d = await api(`sales-stats?year=${g.year}&cat=${encodeURIComponent(g.cat)}`);
+    if (page !== 'auswertung') return;
+    const c = d.cur, p = d.prev, num = DS.num;
+    const tot = d.top.reduce((x, a) => x + a.units, 0) || 1, allUnits = c.units || 1;
+    let best = [0, 0, 0]; d.grid.forEach((row, r) => row.forEach((v, h) => { if (v > best[0]) best = [v, r, h]; }));
+    const byDow = d.grid.map(row => row.reduce((x, v) => x + v, 0)), bd = byDow.indexOf(Math.max(...byDow));
+    const bestDay = Object.entries(d.days).sort((a, b) => b[1] - a[1])[0];
+    const hl = (t, v, sub) => `<div class="ds-hlt"><span>${t}</span><b>${v}</b><small>${sub}</small></div>`;
+    void tot;
+    $('svBody').innerHTML = `<div class="filterbar"><select id="svY" class="ds-sel" data-nodirty>${d.years.map(y => `<option value="${y}" ${y === d.year ? 'selected' : ''}>Jahr ${y}</option>`).join('')}</select>
+        <select id="svC" class="ds-sel" data-nodirty><option value="">Alle Kategorien</option>${d.categories.map(k => `<option value="${esc(k)}" ${k === d.cat ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>
+        <span style="flex:1"></span><span class="muted s">${d.year === new Date().getFullYear() ? `bis heute (${deDate(d.until)}) · ` : ''}Vergleich mit ${d.year - 1}</span></div>
+      <div class="ds-kpis">
+        ${DS.kpi('e', 'Umsatz', euro(c.revenue), DS.delta(c.revenue, p.revenue), DS.spark(c.month, p.month, 'var(--brand)'))}
+        ${DS.kpi('u', 'Verkaufte Artikel', num(c.units), DS.delta(c.units, p.units), DS.spark(c.monthUnits, p.monthUnits, '#e07b16'), 'o')}
+        ${DS.kpi('b', 'Buchungen', num(c.count), DS.delta(c.count, p.count), DS.spark(c.monthCount, p.monthCount, '#2f6fd6'), 'b')}
+        ${DS.kpi('x', 'Storniert', num(c.cancelled), DS.delta(c.cancelled, p.cancelled, { invert: true }), DS.spark(c.monthCan, p.monthCan, 'var(--red)'), 'r')}
+      </div>
+      <div class="card ds-hl">${hl('Bestseller', d.top[0] ? esc(d.top[0].name) : '–', d.top[0] ? `${num(d.top[0].units)} × · ${Math.round(d.top[0].units / allUnits * 100)} % aller Artikel` : '&nbsp;')}
+        ${hl('Stärkster Tag', byDow[bd] ? DS.WDL[bd] : '–', bestDay ? `Rekord: ${deDate(bestDay[0])} · ${num(bestDay[1])} Artikel` : '&nbsp;')}
+        ${hl('Stoßzeit', best[0] ? `${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][best[1]]} ${best[2]}–${best[2] + 1} Uhr` : '–', best[0] ? `${num(best[0])} Artikel im Jahr` : '&nbsp;')}
+        ${hl('Ø je Buchung', c.count ? euro(c.revenue / c.count) : '–', c.count ? `${(c.units / c.count).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Artikel je Buchung` : '&nbsp;')}</div>
+      <div class="ds-two">
+        <div class="card"><h3>Die meistverkauften Artikel</h3>${d.top.length ? `<ol class="ds-top">${d.top.map((a, i) => `<li><span class="n">${i + 1}</span><b>${esc(a.name)}</b><div class="ds-meter"><i style="width:${a.units / d.top[0].units * 100}%"></i></div><span class="r">${num(a.units)} ×</span><span class="r muted">${Math.round(a.units / allUnits * 100)} %</span>${DS.delta(a.units, a.prev)}</li>`).join('')}</ol>` : '<p class="muted">Noch keine Verkäufe in diesem Jahr.</p>'}</div>
+        <div class="card"><h3>Umsatz nach Kategorie</h3>${d.cats.length ? DS.donut(d.cats.map((k, i) => ({ name: k.name, v: k.cents || k.units, color: DS.PAL[i % DS.PAL.length] })), euro(c.revenue).replace(/,\d\d\s/, ' '), 'Umsatz') : '<p class="muted">Noch keine Verkäufe.</p>'}
+          ${d.kinds.length ? `<div class="ds-mini" style="grid-template-columns:repeat(${Math.min(4, d.kinds.length)}, minmax(0, 1fr))">${d.kinds.slice(0, 4).map(k => `<div><span>${esc(k.name)}</span><b>${num(k.units)}</b><small>${euro(k.cents)}</small></div>`).join('')}</div>` : ''}</div>
+      </div>
+      <div class="card"><div class="ds-ch"><h3>Jahr ${d.year} · ${num(c.units)} verkaufte Artikel</h3>${DS.legend()}</div>${DS.calendar(d.year, d.days, v => `${num(v)} Artikel`)}</div>
+      <div class="ds-two">
+        <div class="card"><div class="ds-ch"><h3>Umsatz je Monat</h3><span class="ds-leg"><i style="background:var(--brand)"></i>${d.year}<i style="background:var(--line);margin-left:10px"></i>${d.year - 1}</span></div>${DS.monthBars(c.month, p.month, d.year, euro)}</div>
+        <div class="card"><div class="ds-ch"><h3>Wann wird gekauft?</h3>${DS.legend()}</div>${DS.bubbles(d.grid, d.hours, v => `${num(v)} Artikel`)}</div>
+      </div>`;
+    $('svY').onchange = () => { g.year = +$('svY').value; RENDER.auswertung().catch(fail); };
+    $('svC').onchange = () => { g.cat = $('svC').value; RENDER.auswertung().catch(fail); };
+  };
+
   RENDER.abrechnung = async (from, to) => {
     const q = new URLSearchParams(); if (from) q.set('from', from); if (to) q.set('to', to);
     const mayClose = can('abrechnung');

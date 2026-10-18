@@ -45,7 +45,7 @@ const deptRows = id => {
   return C.db.prepare(`SELECT md.*, d.name FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? ORDER BY md.exit_date IS NOT NULL, d.sort, d.name`).all(id)
     .map(md => { const z = zusatzFor(md, birth); return { ...md, zusatz: z.fee ? { id: z.fee.id, name: z.fee.name, cents: z.fee.cents, interval: z.fee.interval, auto: z.auto, assumed: Boolean(z.assumed) } : null, zusatz_free: Boolean(z.free), zusatz_none: Boolean(z.none), zusatz_nomatch: Boolean(!z.fee && z.nomatch), zusatz_age: z.age ?? null }; });
 };
-const feeRows = id => C.db.prepare(`SELECT mf.*, f.name, f.cents AS fee_cents, f.interval, f.family, f.department_id FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id
+const feeRows = id => C.db.prepare(`SELECT mf.*, f.name, f.cents AS fee_cents, f.interval, f.family, f.department_id, f.age_min, f.age_max FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id
   WHERE mf.member_id = ? ORDER BY mf.end_date IS NOT NULL, mf.start_date DESC`).all(id).map(r => ({ ...r, eff_cents: r.cents != null ? r.cents : r.fee_cents }));
 const bankRow = id => C.db.prepare('SELECT * FROM mv_bank WHERE member_id = ?').get(id) || null;
 
@@ -111,7 +111,7 @@ function detail(id, user) {
   let drinksOpen = null;
   try { if (C.drinks.active()) { const o = C.drinks.open().rows.find(r => r.id === id); drinksOpen = o ? o.total_cents : 0; } } catch (e) { drinksOpen = null; }
   return {
-    person: { ...p, consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id) },
+    person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id) },
     bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
     departments: deptRows(id), fees: feeRows(id), family: famRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id),
@@ -260,6 +260,7 @@ function activate(ctx) {
   C = ctx;
   store.init({ db: ctx.db, getSetting: ctx.getSetting, setSetting: ctx.setSetting });
   DOC_DIR = path.join(ctx.require('./db').DATA_DIR, 'mitglieder-dokumente');
+  try { store.fillNames(); } catch (e) { /* Tabellen entstehen beim ersten Start */ }
   const { need, bad, int, rateLimit } = ctx;
   const admin = ctx.admin;
   const P = need('mitglieder'), PB = need('mitglieder_bank'), PF = need('mitglieder_finanzen'), PD = need('mitglieder_dokumente');
@@ -350,6 +351,7 @@ function activate(ctx) {
   });
   admin.get('/list', P, (req, res) => res.json(listRows(req.query)));
   admin.get('/member/:id', P, (req, res) => {
+    try { store.fillNames(int(req.params.id)); } catch (e) { /* */ }
     const d = detail(int(req.params.id), req.user);
     if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
     res.json(d);
@@ -502,6 +504,15 @@ function activate(ctx) {
     } else out.cents = cur.cents ?? null;
     return { v: out };
   };
+  /** Altersgrenzen eines Beitrags (z. B. „Jugendliche“ bis 18) – geprüft zum Beginn → Fehlertext oder null */
+  const feeAgeError = (f, p, start) => {
+    if (f.age_min == null && f.age_max == null) return null;
+    const lim = f.age_min != null && f.age_max != null ? `von ${f.age_min} bis ${f.age_max} Jahre` : f.age_max != null ? `bis ${f.age_max} Jahre` : `ab ${f.age_min} Jahre`;
+    if (!p || !p.birth_date) return `„${f.name}“ gilt nur ${lim} – bitte zuerst das Geburtsdatum eintragen.`;
+    const age = fees.ageAt(p.birth_date, start);
+    if ((f.age_min != null && age < f.age_min) || (f.age_max != null && age > f.age_max)) return `„${f.name}“ gilt nur ${lim} – ${String(p.name || '').split(' ')[0]} ist am ${deD(start)} ${age} Jahre alt.`;
+    return null;
+  };
   admin.post('/member/:id/fees', P, (req, res) => {
     const id = int(req.params.id); const b = req.body || {};
     const f = ctx.db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(int(b.fee_id));
@@ -509,6 +520,7 @@ function activate(ctx) {
     if (!p || !f) return bad(res, 'Nicht gefunden.', 404);
     if (f.kind === 'zusatz') return bad(res, `„${f.name}“ ist ein Zusatzbeitrag der Abteilung – er gilt automatisch für alle, die der Abteilung angehören.`);
     const m = mfInput({ start_date: today(), ...b }); if (m.error) return bad(res, m.error);
+    const ae = feeAgeError(f, p, m.v.start_date); if (ae) return bad(res, ae);
     store.ensurePerson(id);
     ctx.db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES (?,?,?,?,?,?,?)').run(id, f.id, m.v.start_date, m.v.end_date, m.v.booked_until, m.v.cents, m.v.note);
     store.hist(id, uname(req), 'Beitrag', null, `${f.name} ab ${deD(m.v.start_date)}`);
@@ -518,6 +530,7 @@ function activate(ctx) {
     const r = ctx.db.prepare('SELECT mf.*, f.name FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.id = ?').get(int(req.params.id));
     if (!r) return bad(res, 'Nicht gefunden.', 404);
     const m = mfInput(req.body || {}, r); if (m.error) return bad(res, m.error);
+    { const f = ctx.db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(r.fee_id), ae = f && m.v.start_date !== r.start_date ? feeAgeError(f, personRow(r.member_id), m.v.start_date) : null; if (ae) return bad(res, ae); }
     ctx.db.prepare('UPDATE mv_member_fee SET start_date = ?, end_date = ?, booked_until = ?, cents = ?, note = ? WHERE id = ?').run(m.v.start_date, m.v.end_date, m.v.booked_until, m.v.cents, m.v.note, r.id);
     store.hist(r.member_id, uname(req), `Beitrag ${r.name}`, [deD(r.start_date), r.end_date && 'bis ' + deD(r.end_date), r.booked_until && 'gebucht bis ' + deD(r.booked_until), r.cents != null && euro(r.cents)].filter(Boolean).join(' · '),
       [deD(m.v.start_date), m.v.end_date && 'bis ' + deD(m.v.end_date), m.v.booked_until && 'gebucht bis ' + deD(m.v.booked_until), m.v.cents != null && euro(m.v.cents)].filter(Boolean).join(' · '));

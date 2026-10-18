@@ -37,6 +37,16 @@
     }
     return out;
   }
+  /** aufeinanderfolgende Zeiten derselben Buchung optisch zu einem Block zusammenfassen */
+  function merge(list) {
+    const out = [];
+    for (const x of list) {
+      const last = out[out.length - 1];
+      if (last && x.b && last.b && last.b.id === x.b.id && /past/.test(last.cls) === /past/.test(x.cls)) { last.e = x.e; last.n++; if (/now/.test(x.cls) && !/now/.test(last.cls)) last.cls += ' now'; }
+      else out.push({ ...x, n: 1 });
+    }
+    return out;
+  }
   async function load() {
     try { state = await call('x/buchung/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     draw();
@@ -54,7 +64,7 @@
     $('areas').querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
     $('board').style.setProperty('--n', Math.min(Math.max(list.length, 1), 6));
     $('board').innerHTML = list.length ? list.map(r => `<div class="bk-col"><h3>${esc(r.name)}<small>${r.open_from}–${r.open_to} Uhr</small></h3><div class="bk-slots">
-        ${slots(r).map(x => `<button class="bk-slot ${x.cls}" data-r="${r.id}" data-s="${x.s}" ${x.b && x.b.label ? `style="box-shadow:inset 5px 0 0 ${x.b.label.color}"` : ''} ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
+        ${merge(slots(r)).map(x => `<button class="bk-slot ${x.cls}${x.n > 1 ? ' multi' : ''}" data-r="${r.id}" data-s="${x.s}" style="${x.n > 1 ? `min-height:${x.n * 52 + (x.n - 1) * 8}px;` : ''}${x.b && x.b.label ? `box-shadow:inset 5px 0 0 ${x.b.label.color}` : ''}" ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}${x.n > 1 ? `<small>–${hhmm(x.e)}</small>` : ''}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
       : '<div class="bk-empty" style="grid-column:1/-1">Heute ist nichts buchbar.</div>';
     $('board').querySelectorAll('.bk-slot').forEach(b => { b.onclick = () => tap(list.find(r => r.id === +b.dataset.r), +b.dataset.s); });
   }
@@ -71,9 +81,14 @@
     });
   }
   function pickName(title, next) {
-    dlg(`<h2>Wer bist du?</h2><div class="sub">${esc(title)}</div><input class="q" id="q" placeholder="Name suchen" autocomplete="off"><div class="names" id="nm"></div><div class="dlg-btns" style="grid-template-columns:1fr"><button id="x">Abbrechen</button></div>`);
-    const draw = () => { const q = $('q').value.trim().toLowerCase(); $('nm').innerHTML = state.people.filter(p => !q || p.name.toLowerCase().includes(q)).slice(0, 60).map(p => `<button data-p="${p.id}" translate="no">${esc(p.name)}</button>`).join(''); $('nm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => unlock(state.people.find(p => p.id === +b.dataset.p), title, next); }); };
-    draw(); $('q').oninput = draw; $('x').onclick = closeDlg;
+    dlg(`<h2>Wer bist du?</h2><div class="sub">${esc(title)}</div><input class="q" id="q" placeholder="Namen eingeben" autocomplete="off"><div class="names" id="nm"></div><div class="dlg-btns" style="grid-template-columns:1fr"><button id="x">Abbrechen</button></div>`);
+    const draw = () => {   // im Vereinsheim keine Namen vorschlagen – erst nach Eingabe (mind. 2 Buchstaben)
+      const q = $('q').value.trim().toLowerCase();
+      const hits = q.length < 2 ? [] : state.people.filter(p => p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q)).slice(0, 30);
+      $('nm').innerHTML = q.length < 2 ? '<div class="names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no">${esc(p.ln || p.name)}</button>`).join('') : '<div class="names-hint">Niemand gefunden.</div>';
+      $('nm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => unlock(state.people.find(p => p.id === +b.dataset.p), title, next); });
+    };
+    draw(); $('q').oninput = draw; $('x').onclick = closeDlg; setTimeout(() => $('q').focus(), 50);
   }
   function unlock(p, title, next) {
     const go = async pin => {
@@ -109,10 +124,10 @@
     };
     const paint = () => { $('dialog').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', +b.dataset.m === sel)); $('ok').textContent = `Buchen bis ${hhmm(s + sel)} Uhr`; };
     $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { sel = +b.dataset.m; paint(); quote(); }; });
-    const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); quote(); }; }); };
+    const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).ln || (state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); quote(); }; }); };
     if ($('pq')) $('pq').oninput = () => {
       const q = $('pq').value.trim().toLowerCase();
-      $('ph').innerHTML = q.length < 2 ? '' : state.people.filter(p => !partners.includes(p.id) && p.name.toLowerCase().includes(q)).slice(0, 8).map(p => `<button data-p="${p.id}" translate="no">${esc(p.name)}</button>`).join('');
+      $('ph').innerHTML = q.length < 2 ? '' : state.people.filter(p => !partners.includes(p.id) && (p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q))).slice(0, 8).map(p => `<button data-p="${p.id}" translate="no">${esc(p.ln || p.name)}</button>`).join('');
       $('ph').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => { if (partners.length >= state.max_partners) return; partners.push(+b.dataset.p); $('pq').value = ''; $('ph').innerHTML = ''; chips(); quote(); }; });
     };
     paint(); quote();

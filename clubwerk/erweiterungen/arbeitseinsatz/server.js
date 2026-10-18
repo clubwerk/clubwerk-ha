@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS aw_target (member_id INTEGER NOT NULL REFERENCES memb
 }
 
 function activate(ctx) {
+  const NK = n => ctx.require('./db').nameKey(n, 'mitglied');   // Sortierung: Nachname, Vorname
   C = ctx;
   const db = ctx.db;
   tables(db);
@@ -134,7 +135,7 @@ function activate(ctx) {
     }).filter(f => f.target > 0 || f.done > 0);
     for (const r of rows) { const f = fams.find(x => x.members.includes(r.id)); r.family = f && f.members.length > 1 ? f.head : null; }
     const p = period(y);
-    return { year: y, label: yearLabel(y), from: p.from, to: p.to, closed: p.to < today(), rate_cents: c.rate_cents, pool: c.pool_family, rows, families: fams.sort((a, b) => b.missing - a.missing || a.name.localeCompare(b.name, 'de')),
+    return { year: y, label: yearLabel(y), from: p.from, to: p.to, closed: p.to < today(), rate_cents: c.rate_cents, pool: c.pool_family, rows, families: fams.sort((a, b) => b.missing - a.missing || NK(a.name).localeCompare(NK(b.name), 'de')),
       totals: { target: fams.reduce((s, f) => s + f.target, 0), done: fams.reduce((s, f) => s + f.done, 0), missing: fams.reduce((s, f) => s + f.missing, 0), cents: fams.reduce((s, f) => s + f.cents, 0), people: rows.filter(r => r.target > 0).length } };
   }
 
@@ -190,7 +191,7 @@ function activate(ctx) {
     if (o.start && o.end && o.end <= o.start) return { error: 'Das Ende liegt vor dem Beginn.' };
     return { v: o };
   };
-  const eventRow = e => ({ ...e, signups: db.prepare('SELECT s.member_id, m.name FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? ORDER BY s.id').all(e.id),
+  const eventRow = e => ({ ...e, signups: db.prepare('SELECT s.member_id, m.name FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? ORDER BY name_key(m.name, m.kind)').all(e.id),
     hours: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(minutes),0) min FROM aw_entry WHERE event_id = ? AND status IN ('offen','bestaetigt')").get(e.id) });
   admin.get('/events', P, (req, res) => {
     const past = req.query.past === '1';
@@ -322,7 +323,7 @@ function activate(ctx) {
     const day = today();
     res.json({ text: cfg().text, events: db.prepare('SELECT id, kind, title, start, end, place, permanent FROM aw_event WHERE (date = ? OR permanent = 1) AND cancelled = 0 ORDER BY permanent, start, title').all(day),
       running: db.prepare("SELECT e.id, e.member_id, m.name, e.in_at, v.title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id WHERE e.status = 'laeuft' ORDER BY e.in_at").all(),
-      people: db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all() });
+      people: db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().map(p => ({ ...p, ln: (x => (x.first ? `${x.last}, ${x.first}` : x.last))(ctx.require('./db').splitPersonName(p.name)) })) });
   });
   T.post('/start', rateLimit('awtab', 60, 60000), (req, res) => {
     const b = req.body || {}; const mid = ctx.auth.checkTabletToken(b.token);

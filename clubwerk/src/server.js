@@ -1941,6 +1941,43 @@ function balances(asOf = nowTs(), upTo = maxBookingId()) {
   return [...map.values()].map(e => ({ ...e, lastSettled: lastAt.get(e.id).t, eventOpen_cents: eventOpen(e.id) }));
 }
 
+/* Auswertung Verkauf (Dashboard): Umsatz, Artikel, Verlauf, Anteile, beliebte Zeiten – Vergleich mit dem Vorjahr */
+admin.get('/sales-stats', need('abrechnung', 'export'), (req, res) => {
+  const t0 = new Date(); const pad2 = n => String(n).padStart(2, '0');
+  const today0 = `${t0.getFullYear()}-${pad2(t0.getMonth() + 1)}-${pad2(t0.getDate())}`;
+  const y = Math.max(2000, Math.min(2100, parseInt(req.query.year, 10) || t0.getFullYear()));
+  const cat = String(req.query.cat || '');
+  const load = yy => db.prepare(`SELECT b.*, a.name AS aname, a.category FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.created_at >= ? AND b.created_at < ? ${cat ? 'AND a.category = ?' : ''}`)
+    .all(`${yy}-01-01`, `${yy + 1}-01-01`, ...(cat ? [cat] : []));
+  const calc = yy => {
+    const all = load(yy), act = all.filter(b => !b.cancelled_at), can = all.filter(b => b.cancelled_at);
+    const rev = b => (b.kind === 'verein' ? 0 : b.total_cents);
+    const m = f => Array.from({ length: 12 }, (_, i) => act.filter(b => +b.created_at.slice(5, 7) === i + 1).reduce((x, b) => x + f(b), 0));
+    return { act, can, revenue: act.reduce((x, b) => x + rev(b), 0), units: act.reduce((x, b) => x + b.qty, 0), count: act.length, cancelled: can.length,
+      month: m(rev), monthUnits: m(b => b.qty), monthCount: Array.from({ length: 12 }, (_, i) => act.filter(b => +b.created_at.slice(5, 7) === i + 1).length),
+      monthCan: Array.from({ length: 12 }, (_, i) => can.filter(b => +b.created_at.slice(5, 7) === i + 1).length), rev };
+  };
+  const c = calc(y), p = calc(y - 1);
+  const group = (key, nameOf) => { const mp = new Map(); for (const b of c.act) { const k = key(b); const v = mp.get(k) || { name: nameOf(b), units: 0, cents: 0, count: 0 }; v.units += b.qty; v.cents += c.rev(b); v.count++; mp.set(k, v); } return [...mp.values()]; };
+  const prevUnits = new Map(); for (const b of p.act) prevUnits.set(b.article_id, (prevUnits.get(b.article_id) || 0) + b.qty);
+  const freeId = require('./db').customArticleId();   // „Freier Betrag“ zählt zum Umsatz, aber nicht als Bestseller
+  const arts = group(b => b.article_id, b => b.aname).filter(a => a.name);
+  const artIds = new Map(); for (const b of c.act) artIds.set(b.aname, b.article_id);
+  const top = arts.filter(a => artIds.get(a.name) !== freeId).sort((a, b) => b.units - a.units).slice(0, 10).map(a => ({ ...a, prev: prevUnits.get(artIds.get(a.name)) || 0 }));
+  const cats = group(b => b.category || 'Sonstiges', b => b.category || 'Sonstiges').sort((a, b) => b.cents - a.cents || b.units - a.units);
+  const KIND = { konto: 'Auf Konto', gast: 'Gast (bar/Karte)', event: 'Veranstaltung', verein: 'Verein (frei)' };
+  const kinds = group(b => b.kind, b => KIND[b.kind] || b.kind).sort((a, b) => b.units - a.units);
+  const days = {}; for (const b of c.act) { const d = b.created_at.slice(0, 10); days[d] = (days[d] || 0) + b.qty; }
+  const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+  for (const b of c.act) { const dt = new Date(b.created_at.replace(' ', 'T')); grid[(dt.getDay() + 6) % 7][dt.getHours()] += b.qty; }
+  const usedH = grid.reduce((a, row) => { row.forEach((v, h) => { if (v) { a[0] = Math.min(a[0], h); a[1] = Math.max(a[1], h + 1); } }); return a; }, [24, 0]);
+  const pick = x => ({ revenue: x.revenue, units: x.units, count: x.count, cancelled: x.cancelled, month: x.month, monthUnits: x.monthUnits, monthCount: x.monthCount, monthCan: x.monthCan });
+  res.json({ year: y, cat, until: y === t0.getFullYear() ? today0 : `${y}-12-31`,
+    years: [...new Set([t0.getFullYear(), ...db.prepare("SELECT DISTINCT substr(created_at,1,4) y FROM bookings").all().map(r => +r.y)])].filter(Boolean).sort((a, b) => b - a),
+    categories: db.prepare('SELECT DISTINCT category FROM articles ORDER BY category').all().map(r => r.category),
+    cur: pick(c), prev: pick(p), top, cats, kinds, days, grid, hours: usedH[0] < usedH[1] ? usedH : [16, 23] });
+});
+
 admin.get('/balances', need('abrechnung', 'export'), (req, res) => {
   const asOf = nowTs(), upTo = maxBookingId();
   const list = balances(asOf, upTo);

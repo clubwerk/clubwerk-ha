@@ -16,6 +16,7 @@ function register(sh) {
   const admin = C.admin, db = C.db;
   const PF = need('mitglieder_finanzen');
   const isDate = fees.isDate;
+  const nameKey = (n, k) => C.require('./db').nameKey(n, k);   // Sortierung: Nachname, Vorname
 
   const payerName = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const personOf = id => db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id) || {};
@@ -144,7 +145,7 @@ function register(sh) {
       }
       if (notMembers.length) info.push(`Verkaufskonten ohne Mitgliedsdaten (z. B. Mannschaften) bleiben offen: ${notMembers.slice(0, 6).join(', ')}${notMembers.length > 6 ? ' …' : ''}`);
     }
-    positions.sort((a, b) => a.payer_name.localeCompare(b.payer_name, 'de') || a.kind.localeCompare(b.kind) || String(a.period_from).localeCompare(String(b.period_from)));
+    positions.sort((a, b) => nameKey(a.payer_name, 'mitglied').localeCompare(nameKey(b.payer_name, 'mitglied'), 'de') || a.kind.localeCompare(b.kind) || String(a.period_from).localeCompare(String(b.period_from)));
     const byPayer = new Set(positions.map(p => p.member_id));
     return { until, positions, warnings, info, drinks, marks, totals: { count: positions.length, payers: byPayer.size, cents: positions.reduce((s, p) => s + p.cents, 0),
       byKind: positions.reduce((m, p) => ({ ...m, [p.kind]: (m[p.kind] || 0) + p.cents }), {}) } };
@@ -217,7 +218,7 @@ function register(sh) {
     if (q.run) { where.push('c.run_id = ?'); args.push(int(q.run)); }
     if (q.overdue === '1') { where.push("c.status = 'offen' AND c.due_date < ?"); args.push(today()); }
     const rows = db.prepare(`SELECT c.*, m.name AS payer_name, f.name AS for_name, p.payment, p.member_no FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN members f ON f.id = c.for_member_id
-      LEFT JOIN mv_person p ON p.member_id = c.member_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY c.due_date DESC, m.name, c.id LIMIT 2000`).all(...args);
+      LEFT JOIN mv_person p ON p.member_id = c.member_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY c.due_date DESC, name_key(m.name, m.kind), c.id LIMIT 2000`).all(...args);
     res.json({ rows, sum: rows.reduce((s, r) => s + r.cents, 0) });
   });
   admin.post('/charges', PF, (req, res) => {
@@ -346,7 +347,7 @@ function register(sh) {
   admin.get('/collections/:id', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
     const rows = db.prepare(`SELECT c.member_id, m.name, p.email, p.member_no, SUM(c.cents) cents, COUNT(*) n, group_concat(c.text, ' · ') texts, MIN(c.status) status
-      FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id WHERE c.collection_id = ? GROUP BY c.member_id ORDER BY m.name`).all(k.id);
+      FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id WHERE c.collection_id = ? GROUP BY c.member_id ORDER BY name_key(m.name, m.kind)`).all(k.id);
     const returned = db.prepare(`SELECT DISTINCT c.member_id FROM mv_charge c WHERE c.note LIKE ? `).all(`%Rücklastschrift Einzug ${k.id}%`).map(r => r.member_id);
     res.json({ ...k, xml: undefined, note: undefined, rows: rows.map(r => ({ ...r, returned: returned.includes(r.member_id) })), returnedOnly: returned.filter(id => !rows.some(r => r.member_id === id)).map(id => ({ member_id: id, name: payerName(id) })) });
   });
@@ -443,7 +444,7 @@ function register(sh) {
   admin.get('/collections/:id/letters.pdf', PF, ar(async (req, res) => {
     const k = collOr404(req, res); if (!k) return;
     const rows = db.prepare(`SELECT c.member_id, m.name, p.email, SUM(c.cents) cents, group_concat(c.text, ' · ') texts FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id
-      WHERE c.collection_id = ? GROUP BY c.member_id ORDER BY m.name`).all(k.id).filter(r => req.query.all || !r.email);
+      WHERE c.collection_id = ? GROUP BY c.member_id ORDER BY name_key(m.name, m.kind)`).all(k.id).filter(r => req.query.all || !r.email);
     const buf = await pdf.letters(club(), rows.map(r => ({ person: personOf(r.member_id), name: r.name, title: 'Ankündigung SEPA-Lastschrift', body: prenoteText(k, r, bankRow(r.member_id)).split('\n').slice(2).join('\n') })));
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="Vorabinformation_${k.collection_date}.pdf"` }).send(buf);
   }));

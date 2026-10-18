@@ -72,7 +72,12 @@ function activate(ctx) {
     if (!cols.includes('department_id')) db.exec('ALTER TABLE bk_resource ADD COLUMN department_id INTEGER');
     if (!cols.includes('outsiders')) db.exec("ALTER TABLE bk_resource ADD COLUMN outsiders TEXT NOT NULL DEFAULT 'gebuehr'");   // gebuehr | gesperrt
     for (const t of ['bk_booking', 'bk_series']) if (!db.prepare(`PRAGMA table_info(${t})`).all().some(c => c.name === 'label_id')) db.exec(`ALTER TABLE ${t} ADD COLUMN label_id INTEGER`);
-    if (!cols.includes('outsider_fee_cents')) db.exec('ALTER TABLE bk_resource ADD COLUMN outsider_fee_cents INTEGER NOT NULL DEFAULT 500'); }
+    if (!cols.includes('outsider_fee_cents')) db.exec('ALTER TABLE bk_resource ADD COLUMN outsider_fee_cents INTEGER NOT NULL DEFAULT 500');
+    const lc = db.prepare('PRAGMA table_info(bk_label)').all().map(c => c.name);
+    if (!lc.includes('use_mode')) db.exec("ALTER TABLE bk_label ADD COLUMN use_mode TEXT NOT NULL DEFAULT 'verwaltung'");   // verwaltung | alle | auswahl
+    if (!lc.includes('use_functions')) db.exec("ALTER TABLE bk_label ADD COLUMN use_functions TEXT NOT NULL DEFAULT '[]'");   // Ämter aus der Mitgliederverwaltung
+    if (!lc.includes('use_members')) db.exec("ALTER TABLE bk_label ADD COLUMN use_members TEXT NOT NULL DEFAULT '[]'");
+    if (!lc.includes('free_rules')) db.exec('ALTER TABLE bk_label ADD COLUMN free_rules INTEGER NOT NULL DEFAULT 0'); }   // Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf, Gebühren
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
   const uname = req => req.user.name || req.user.username;
   const ar = fn => ctx.asyncRoute(fn);
@@ -98,6 +103,25 @@ function activate(ctx) {
   }
   const labels = (all = false) => db.prepare(`SELECT * FROM bk_label ${all ? '' : 'WHERE active = 1'} ORDER BY sort, name COLLATE NOCASE`).all();
   const labelOf = id => (id ? db.prepare('SELECT id, name, color FROM bk_label WHERE id = ?').get(id) : null);
+  const labelRow = id => (id ? db.prepare('SELECT * FROM bk_label WHERE id = ?').get(int(id)) : null);
+  /** aktuelle Ämter eines Mitglieds (Mitgliederverwaltung → Ehrungen & Ämter), klein geschrieben */
+  const functionsOf = mid => { try { const d = today(); return db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(mid, d, d).map(x => String(x.name).trim().toLowerCase()); } catch (e) { return []; } };
+  const functionNames = () => { try { return [...new Set(db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')); } catch (e) { return []; } };
+  /** darf dieses Mitglied (App, Tablet) mit dem Label buchen? */
+  const labelForMember = (l, mid) => {
+    if (!l || !l.active || !mid) return false;
+    if (l.use_mode === 'alle') return true;
+    if (l.use_mode !== 'auswahl') return false;
+    if (J(l.use_members, []).map(Number).includes(mid)) return true;
+    const f = J(l.use_functions, []).map(x => String(x).trim().toLowerCase()); if (!f.length) return false;
+    return functionsOf(mid).some(x => f.includes(x));
+  };
+  /** in der Verwaltung: „Plätze, Labels & Einstellungen“ darf alle; sonst wie das verknüpfte Mitglied (bei „nur bestimmte“) */
+  const labelForUser = (req, l) => {
+    if (!l || !l.active) return false;
+    if (req.user.perms.includes('buchung_einstellungen') || l.use_mode !== 'auswahl') return true;
+    return Boolean(req.user.member_id) && labelForMember(l, req.user.member_id);
+  };
   // Beim ersten Start zwei Beispielplätze, damit man sieht, wie es aussieht (frei änderbar)
   if (S('seeded') !== '1') {
     if (!db.prepare('SELECT 1 FROM bk_resource').get()) {
@@ -112,6 +136,7 @@ function activate(ctx) {
   const resource = id => db.prepare('SELECT * FROM bk_resource WHERE id = ?').get(int(id));
   const memberRow = id => db.prepare("SELECT id, name FROM members WHERE id = ? AND kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0").get(int(id));
   const people = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all();
+  const lastFirst = n => { const x = ctx.require('./db').splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };   // Anzeige „Nachname, Vorname“
   const nameOf = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const bview = (b, { me = null, names = true, full = false } = {}) => {
     const partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
@@ -131,7 +156,7 @@ function activate(ctx) {
     return ov.length < Math.max(1, r.quantity || 1);
   }
   /** Zeit im Raster und in den Öffnungszeiten? → Fehlertext oder null */
-  function gridError(r, date, s, e, { admin: isAdmin = false } = {}) {
+  function gridError(r, date, s, e, { admin: isAdmin = false, noMax = false } = {}) {
     if (!isDate(date)) return 'Bitte ein gültiges Datum wählen.';
     if (s == null || e == null || e <= s) return 'Bitte Beginn und Dauer wählen.';
     if (isAdmin) return null;   // die Verwaltung darf auch außerhalb des Rasters (z. B. Sperre ganztags)
@@ -139,7 +164,7 @@ function activate(ctx) {
     const o = tm(r.open_from), c = tm(r.open_to);
     if (s < o || e > c) return `${r.name} ist von ${r.open_from} bis ${r.open_to} Uhr buchbar.`;
     if ((s - o) % r.slot_min || (e - s) % r.slot_min) return `Bitte im ${r.slot_min}-Minuten-Raster buchen.`;
-    if (e - s > r.max_min) return `Höchstens ${r.max_min >= 60 && r.max_min % 60 === 0 ? `${r.max_min / 60} Std.` : `${r.max_min} Min.`} am Stück.`;
+    if (!noMax && e - s > r.max_min) return `Höchstens ${r.max_min >= 60 && r.max_min % 60 === 0 ? `${r.max_min / 60} Std.` : `${r.max_min} Min.`} am Stück.`;
     return null;
   }
   /** offene (noch nicht vorbei) Buchungen eines Mitglieds je Art */
@@ -165,13 +190,17 @@ function activate(ctx) {
       `Spieler:   ${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}`];
   };
   /** Mitspieler (und ggf. Bucher) informieren – Buchung oder Storno */
-  function mailPlayers(b, kind, { by = null, reason = '', toBooker = false } = {}) {
+  function mailPlayers(b, kind, { by = null, reason = '', toBooker = false, old = null } = {}) {
     if (!cfg().notify_partners) return;
     const ids = [...new Set([...(toBooker && b.member_id ? [b.member_id] : []), ...J(b.partners, [])])].filter(id => id !== by);
     if (!ids.length) return;
     const r = resource(b.resource_id) || { name: 'Platz' };
-    const head = kind === 'storno' ? `Storniert: ${r.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr` : `${r.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr`;
-    const intro = kind === 'storno' ? `${by ? nameOf(by) : 'Der Verein'} hat diese Buchung storniert${reason ? ` (Grund: ${reason})` : ''}:` : `${nameOf(b.member_id)} hat dich als Mitspieler eingetragen:`;
+    const when = `${r.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr`;
+    const head = kind === 'storno' ? `Storniert: ${when}` : kind === 'aenderung' ? `Geändert: ${when}` : when;
+    const ro = old ? resource(old.resource_id) || r : null;
+    const intro = kind === 'storno' ? `${by ? nameOf(by) : 'Der Verein'} hat diese Buchung storniert${reason ? ` (Grund: ${reason})` : ''}:`
+      : kind === 'aenderung' ? `${by ? nameOf(by) : 'Der Verein'} hat die Buchung geändert${old && (old.date !== b.date || old.start !== b.start || old.end !== b.end || old.resource_id !== b.resource_id) ? ` (vorher: ${ro.name}, ${WD[isoDow(old.date)]} ${deD(old.date)} · ${old.start}–${old.end} Uhr)` : ''}. So sieht sie jetzt aus:`
+      : `${nameOf(b.member_id)} hat dich als Mitspieler eingetragen:`;
     notify(ids, head, [intro, '', ...summary(b), '', kind === 'storno' ? 'Der Platz ist damit wieder frei.' : 'Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Buchen“.']).catch(() => {});
   }
   const guestLabel = g => `${g.name} (${g.partner ? 'Gast, Partnerverein' : 'Gast'})`;
@@ -207,21 +236,24 @@ function activate(ctx) {
    * Prüft eine Buchung (alle Regeln) und berechnet die Gebühren → { r, date, s, e, partners, guests, fee, lines }
    * dry: für die Preisvorschau (ohne Platzordnung)
    */
-  async function check(mid, b, { dry = false } = {}) {
+  async function check(mid, b, { dry = false, exceptId = 0 } = {}) {
     const c = cfg();
     const r = resource(b.resource_id);
     if (!r || !r.active) throw new Error('Diesen Platz gibt es nicht (mehr).');
     const why = await notAllowed(mid); if (why) throw new Error(why);
+    const label = b.label_id ? labelRow(b.label_id) : null;
+    if (b.label_id && !labelForMember(label, mid)) throw new Error('Dieses Label darfst du nicht verwenden.');
+    const club = Boolean(label && label.free_rules);   // Vereinstermin (z. B. Medenspiel): ohne Höchstdauer, Kontingent, Vorlauf und Gebühren
     const date = String(b.date || ''), s = tm(b.start), e = s == null ? null : s + int(b.minutes);
-    const ge = gridError(r, date, s, e); if (ge) throw new Error(ge);
+    const ge = gridError(r, date, s, e, { noMax: club }); if (ge) throw new Error(ge);
     const d0 = today();
     if (date < d0 || (date === d0 && e <= nowMin() + 5)) throw new Error('Diese Zeit ist schon vorbei.');
-    if (date > addDays(d0, c.advance_days)) throw new Error(`Gebucht werden kann höchstens ${c.advance_days} Tage im Voraus.`);
+    if (date > addDays(d0, club ? 365 : c.advance_days)) throw new Error(`Gebucht werden kann höchstens ${c.advance_days} Tage im Voraus.`);
     if (!dry && c.rules && !b.accept) throw new Error('Bitte die Platzordnung bestätigen.');
     const partners = [...new Set((Array.isArray(b.partners) ? b.partners : []).map(Number).filter(x => Number.isInteger(x) && x !== mid))].slice(0, 10);
-    if (partners.length > c.max_partners) throw new Error(`Höchstens ${c.max_partners} Mitspieler.`);
+    if (partners.length > (club ? 10 : c.max_partners)) throw new Error(`Höchstens ${club ? 10 : c.max_partners} Mitspieler.`);
     const guests = normGuests(b.guests);
-    if (guests.length > c.max_guests) throw new Error(`Höchstens ${c.max_guests} Gäste.`);
+    if (guests.length > (club ? 10 : c.max_guests)) throw new Error(`Höchstens ${club ? 10 : c.max_guests} Gäste.`);
     if (!dry && guests.some(g => g.name.length < 3)) throw new Error('Bitte für jeden Gast den Namen eintragen.');
     for (const p of partners) {
       if (!memberRow(p)) throw new Error('Ein Mitspieler wurde nicht gefunden.');
@@ -231,20 +263,22 @@ function activate(ctx) {
     let outsiders = [];
     if (r.department_id && mv()) {
       for (const p of [mid, ...partners]) { const i = await info(p); if (!i || !(i.departments || []).includes(r.department_id)) outsiders.push(p); }
+      if (club) outsiders = [];
       if (outsiders.length && r.outsiders === 'gesperrt') throw new Error(`${r.name} ist der Abteilung ${deptName(r.department_id)} vorbehalten${outsiders.includes(mid) ? '' : ` – ${outsiders.map(nameOf).join(', ')} ${outsiders.length > 1 ? 'sind' : 'ist'} nicht dabei`}.`);
     }
     const lines = [];
-    const paying = guests.filter(g => !g.partner).length;
-    if (paying && feeOf(r)) lines.push({ text: `Gastgebühr ${paying} × ${euro(feeOf(r))}`, cents: paying * feeOf(r) });
-    if (guests.length > paying) lines.push({ text: guests.length - paying === 1 ? 'Gast aus Partnerverein – ohne Gebühr' : `Gäste aus Partnerverein (${guests.length - paying}) – ohne Gebühr`, cents: 0 });
+    const paying = club ? 0 : guests.filter(g => !g.partner).length;
+    if (club) lines.push({ text: `${label.name} – Vereinstermin ohne Gebühr`, cents: 0 });
+    else if (paying && feeOf(r)) lines.push({ text: `Gastgebühr ${paying} × ${euro(feeOf(r))}`, cents: paying * feeOf(r) });
+    if (!club && guests.length > paying) lines.push({ text: guests.length - paying === 1 ? 'Gast aus Partnerverein – ohne Gebühr' : `Gäste aus Partnerverein (${guests.length - paying}) – ohne Gebühr`, cents: 0 });
     if (outsiders.length && r.outsider_fee_cents) lines.push({ text: `Platzgebühr ${outsiders.length} × ${euro(r.outsider_fee_cents)} (nicht in der Abteilung ${deptName(r.department_id)}: ${outsiders.map(p => nameOf(p).split(' ')[0]).join(', ')})`, cents: outsiders.length * r.outsider_fee_cents });
     const fee = lines.reduce((x, l) => x + l.cents, 0);
     const max = r.kind === 'artikel' ? c.max_open_artikel : c.max_open_platz;
-    for (const p of [mid, ...(c.count_partners ? partners : [])]) {
-      if (max && openCount(p, r.kind) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
+    for (const p of club ? [] : [mid, ...(c.count_partners ? partners : [])]) {
+      if (max && openCount(p, r.kind, exceptId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
     }
-    for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
-    return { r, date, s, e, partners, guests, fee, lines };
+    for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, exceptId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
+    return { r, date, s, e, partners, guests, fee, lines, label, title: label ? txt(b.title, 80) || null : null };
   }
 
   /**
@@ -252,22 +286,44 @@ function activate(ctx) {
    * b = { resource_id, date, start, minutes, partners: [ids], guests: [names], accept }
    */
   async function memberBook(mid, b, source) {
-    const c = cfg();
-    const { r, date, s, e, partners, guests, fee, lines } = await check(mid, b);
-    let id;
+    const editId = int(b.id) || 0;
+    const old = editId ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(editId) : null;
+    if (editId) {
+      if (!old || old.member_id !== mid || old.type !== 'buchung') throw new Error('Diese Buchung kannst du nicht ändern.');
+      if (!canCancelNow(old)) throw new Error('Diese Buchung kann nicht mehr geändert werden.');
+    }
+    const { r, date, s, e, partners, guests, fee, lines, label, title } = await check(mid, b, { exceptId: editId });
+    let id = editId;
     db.transaction(() => {   // Prüfen und Eintragen in einem Schritt: zwei gleichzeitige Buchungen können sich nicht überholen
-      if (!free(r, date, s, e)) throw new Error('Gerade eben hat jemand anderes gebucht – bitte eine andere Zeit wählen.');
-      id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, source, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
-        .run(r.id, date, hhmm(s), hhmm(e), 'buchung', mid, JSON.stringify(partners), JSON.stringify(guests), fee, source, nameOf(mid)).lastInsertRowid);
+      if (!free(r, date, s, e, editId)) throw new Error('Gerade eben hat jemand anderes gebucht – bitte eine andere Zeit wählen.');
+      if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, partners = ?, guests = ?, fee_cents = ?, label_id = ?, title = ?, charge_id = NULL WHERE id = ?')
+        .run(r.id, date, hhmm(s), hhmm(e), JSON.stringify(partners), JSON.stringify(guests), fee, label ? label.id : null, title, id);
+      else id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, source, created_by, label_id, title) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(r.id, date, hhmm(s), hhmm(e), 'buchung', mid, JSON.stringify(partners), JSON.stringify(guests), fee, source, nameOf(mid), label ? label.id : null, title).lastInsertRowid);
     })();
-    // Gast- und Platzgebühr: offener Posten beim buchenden Mitglied (zieht der Kassierer mit dem nächsten Einzug ein)
+    // alte Gebühr zurücknehmen, neue anlegen (Gast- und Platzgebühr: offener Posten beim buchenden Mitglied)
+    if (old && old.charge_id) await ctx.callHooks('cancelCharge', old.charge_id, 'Buchung geändert', nameOf(mid));
     if (fee && mv()) {
-      const cid = await hook('createCharge', { member_id: mid, text: `${r.name} ${deD(date)} ${hhmm(s)}: ${lines.filter(l => l.cents).map(l => l.text.replace(/ \(.*\)$/, '')).join(', ')}`, cents: fee, due_date: date, kind: 'sonstiges', ext_key: `bk-${id}`, by: nameOf(mid) });
+      const cid = await hook('createCharge', { member_id: mid, text: `${r.name} ${deD(date)} ${hhmm(s)}: ${lines.filter(l => l.cents).map(l => l.text.replace(/ \(.*\)$/, '')).join(', ')}`, cents: fee, due_date: date, kind: 'sonstiges', ext_key: `bk-${id}${old ? '-' + Date.now() : ''}`, by: nameOf(mid) });
       if (cid) db.prepare('UPDATE bk_booking SET charge_id = ? WHERE id = ?').run(cid, id);
     }
     db.prepare('DELETE FROM bk_wait WHERE member_id = ? AND resource_id = ? AND date = ? AND start = ?').run(mid, r.id, date, hhmm(s));
-    if (partners.length) mailPlayers(db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(id), 'buchung');
+    const now = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(id);
+    if (old) {
+      mailChange(old, now, { by: mid });
+      if (old.start !== now.start || old.end !== now.end || old.date !== now.date || old.resource_id !== now.resource_id) await wakeWaitlist(old);
+    } else if (partners.length) mailPlayers(now, 'buchung');
     return { id, fee_cents: fee, lines };
+  }
+  /** Änderung: neue Mitspieler bekommen die normale Buchungs-Mail, entfernte eine Storno-Mail, gebliebene (und ggf. der Bucher) eine Änderungs-Mail */
+  function mailChange(old, now, { by = null, toBooker = false } = {}) {
+    if (!cfg().notify_partners) return;
+    const a = J(old.partners, []), b = J(now.partners, []);
+    const added = b.filter(x => !a.includes(x)), removed = a.filter(x => !b.includes(x)), kept = b.filter(x => a.includes(x));
+    if (added.length) mailPlayers({ ...now, partners: JSON.stringify(added) }, 'buchung');
+    if (removed.length) mailPlayers({ ...old, partners: JSON.stringify(removed) }, 'storno', { by });
+    const moved = old.date !== now.date || old.start !== now.start || old.end !== now.end || old.resource_id !== now.resource_id;
+    if (moved || old.guests !== now.guests || added.length || removed.length) mailPlayers({ ...now, partners: JSON.stringify(kept) }, 'aenderung', { by, toBooker, old });
   }
 
   /** E-Mail an Mitglieder (Adresse aus der Mitgliederverwaltung) */
@@ -313,7 +369,8 @@ function activate(ctx) {
     const d = today(), n = hhmm(nowMin());
     return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?)) ORDER BY b.date, b.start`).all(d, d, n)
       .filter(b => b.member_id === mid || J(b.partners, []).includes(mid)).map(b => ({ ...bview(b, { me: mid, full: false }), resource: b.rname, kind: b.kind, fee_cents: b.member_id === mid ? b.fee_cents : 0,
-        canCancel: b.member_id === mid && canCancelNow(b), ics: icsUrl(b.id) }));
+        canCancel: b.member_id === mid && canCancelNow(b), canEdit: b.member_id === mid && canCancelNow(b), ics: icsUrl(b.id),
+        ...(b.member_id === mid ? { edit: { resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '' } } : {}) }));
   };
   const canCancelNow = b => { const lim = cfg().cancel_before_min; const st = Date.parse(`${b.date}T${b.start}:00`); return Date.now() <= st - lim * 60000; };
 
@@ -342,7 +399,8 @@ function activate(ctx) {
 
   /* ================================================================= Mitglieder-App (/api/m/buchung/…) */
   M.post('/quote', rateLimit('bkq', 120, 60000), ar(async (req, res) => {   // Preisvorschau vor dem Buchen
-    try { const q = await check(req.member.id, req.body || {}, { dry: true }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { res.json({ ok: false, error: e.message }); }
+    const b = req.body || {}, own = int(b.id) ? db.prepare("SELECT id FROM bk_booking WHERE id = ? AND member_id = ? AND status = 'aktiv'").get(int(b.id), req.member.id) : null;
+    try { const q = await check(req.member.id, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { res.json({ ok: false, error: e.message }); }
   }));
   M.get('/me', ar(async (req, res) => {
     const mid = req.member.id, c = cfg();
@@ -352,7 +410,8 @@ function activate(ctx) {
       max_open_platz: c.max_open_platz, max_open_artikel: c.max_open_artikel, cancel_before_min: c.cancel_before_min },
       plan: date >= today() && date <= max ? dayPlan(date, { me: mid }) : { date, resources: [], bookings: [], waits: [] },
       mine: myUpcoming(mid), waits: db.prepare(`SELECT w.id, w.date, w.start, w.end, w.notified_at, r.name AS resource FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.date >= ? ORDER BY w.date, w.start`).all(mid, today()),
-      people: await eligiblePeople(mid), blocked: await notAllowed(mid) });
+      people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
+      labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })) });
   }));
   M.post('/book', rateLimit('bkapp', 60, 60000), ar(async (req, res) => {
     try { const r = await memberBook(req.member.id, req.body || {}, 'app'); res.json({ ok: true, ...r, ics: icsUrl(r.id) }); } catch (e) { bad(res, e.message); }
@@ -384,7 +443,7 @@ function activate(ctx) {
     const c = cfg();
     const ok = new Set((await eligiblePeople(0)).map(p => p.id));
     res.json({ today: today(), now: hhmm(nowMin()), booking: c.tablet_booking, rules: c.rules, max_partners: c.max_partners, max_guests: c.max_guests, plan: dayPlan(today(), { me: null }),
-      people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)) : [] });
+      people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(p => ({ ...p, ln: lastFirst(p.name) })) : [] });
   }));
   const tabletMember = (req, res) => {
     const mid = ctx.auth.checkTabletToken((req.body || {}).token);
@@ -401,7 +460,7 @@ function activate(ctx) {
     const mid = tabletMember(req, res); if (!mid) return;
     const b = req.body || {};
     if (b.date && b.date !== today()) return bad(res, 'Am Tablet wird nur für heute gebucht.');
-    try { const r = await memberBook(mid, { ...b, date: today() }, 'tablet'); ctx.auth.dropTabletToken(b.token); res.json({ ok: true, ...r }); } catch (e) { bad(res, e.message); }
+    try { const r = await memberBook(mid, { ...b, id: 0, date: today() }, 'tablet'); ctx.auth.dropTabletToken(b.token); res.json({ ok: true, ...r }); } catch (e) { bad(res, e.message); }
   }));
   T.post('/cancel', rateLimit('bktab', 60, 60000), ar(async (req, res) => {
     const mid = tabletMember(req, res); if (!mid) return;
@@ -414,7 +473,7 @@ function activate(ctx) {
   }));
 
   /* ================================================================= Verwaltung */
-  admin.get('/meta', P, (req, res) => res.json({ today: today(), settings: cfg(), labels: labels(true), can: Object.fromEntries(ALL.map(p => [p, may(req, p)])), resources: resources(true), people: people(), departments: departments(), fees: feeList(), mv: mv(),
+  admin.get('/meta', P, (req, res) => res.json({ today: today(), settings: cfg(), labels: labels(true).map(l => ({ ...l, use_functions: J(l.use_functions, []), use_members: J(l.use_members, []), free_rules: Boolean(l.free_rules), usable: labelForUser(req, l) })), functions: functionNames(), can: Object.fromEntries(ALL.map(p => [p, may(req, p)])), resources: resources(true), people: people(), departments: departments(), fees: feeList(), mv: mv(),
     counts: { today: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND type = 'buchung'").get(today()).n } }));
   admin.get('/day', P, (req, res) => res.json(dayPlan(isDate(req.query.date) ? req.query.date : today(), { full: true })));
   admin.get('/week', P, (req, res) => {   // Wochenansicht eines Platzes (7 Tage nebeneinander)
@@ -431,29 +490,35 @@ function activate(ctx) {
       .map(b => ({ ...bview(b, { full: true }), resource: b.resource })));
   });
   /* Buchen in der Verwaltung: für ein Mitglied (ohne Kontingent/Vorlauf) oder als Sperre / Vereinsbuchung */
-  admin.post('/bookings', P, ar(async (req, res) => {
+  async function adminSave(req, res, editId = 0) {
     const b = req.body || {};
-    if (b.type === 'sperre' ? !may(req, 'buchung_serien') : !may(req, 'buchung_buchen')) return bad(res, b.type === 'sperre' ? 'Sperren anlegen darf nur, wer das Recht „Serien & Sperren“ hat.' : 'Für andere buchen darf nur, wer das Recht „für Mitglieder buchen“ hat.', 403);
+    const old = editId ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(editId) : null;
+    if (editId && !old) return bad(res, 'Diese Buchung gibt es nicht (mehr).', 404);
+    const type = old ? old.type : (b.type === 'sperre' ? 'sperre' : 'buchung');
+    if (type === 'serie') return bad(res, 'Termine einer Serie werden über „Serien & Sperren“ geändert.');
+    if (type === 'sperre' ? !may(req, 'buchung_serien') : !may(req, 'buchung_buchen')) return bad(res, type === 'sperre' ? 'Sperren anlegen und ändern darf nur, wer das Recht „Serien & Sperren“ hat.' : 'Für andere buchen und Buchungen ändern darf nur, wer das Recht „für Mitglieder buchen“ hat.', 403);
     const r = resource(b.resource_id); if (!r) return bad(res, 'Bitte einen Platz wählen.');
-    const type = b.type === 'sperre' ? 'sperre' : 'buchung';
     const s = tm(b.start), e = tm(b.end);
     const ge = gridError(r, String(b.date || ''), s, e, { admin: true }); if (ge) return bad(res, ge);
     const mid = b.member_id ? memberRow(b.member_id) : null;
     if (b.member_id && !mid) return bad(res, 'Mitglied nicht gefunden.');
-    const label = b.label_id ? labelOf(int(b.label_id)) : null;
+    const label = b.label_id ? labelRow(b.label_id) : null;
     if (b.label_id && !label) return bad(res, 'Dieses Label gibt es nicht.');
+    if (label && !(old && old.label_id === label.id) && !labelForUser(req, label)) return bad(res, `Das Label „${label.name}“ dürfen nur bestimmte Personen verwenden.`, 403);
     const title = txt(b.title, 80) || (label ? label.name : '');
     if (type === 'sperre' && title.length < 2) return bad(res, 'Bitte einen Grund für die Sperre eintragen (z. B. „Platzpflege“).');
     if (type === 'buchung' && !mid && title.length < 2) return bad(res, 'Bitte ein Mitglied wählen, ein Label wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
-    const partners = (Array.isArray(b.partners) ? b.partners : []).map(Number).filter(x => memberRow(x));
+    const partners = [...new Set((Array.isArray(b.partners) ? b.partners : []).map(Number))].filter(x => x !== (mid && mid.id) && memberRow(x));
     const guests = normGuests(b.guests).filter(g => g.name.length >= 3).slice(0, 10);
-    const conflicts = db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ?").all(r.id, b.date, hhmm(e), hhmm(s));
-    let id;
+    const conflicts = db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ? AND id != ?").all(r.id, b.date, hhmm(e), hhmm(s), editId);
+    let id = editId;
     try {
       db.transaction(() => {
-        if (type === 'buchung' && !free(r, b.date, s, e)) throw new Error('Zu dieser Zeit ist schon gebucht.');
+        if (type === 'buchung' && !free(r, b.date, s, e, editId)) throw new Error('Zu dieser Zeit ist schon gebucht.');
         if (type === 'sperre' && conflicts.length && !b.force) throw Object.assign(new Error(`${conflicts.length} Buchung(en) liegen in dieser Zeit.`), { conflicts });
-        id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, title, note, source, created_by, label_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, member_id = ?, partners = ?, guests = ?, title = ?, note = ?, label_id = ? WHERE id = ?')
+          .run(r.id, b.date, hhmm(s), hhmm(e), mid ? mid.id : null, JSON.stringify(partners), JSON.stringify(guests), title || null, txt(b.note, 300) || null, label ? label.id : null, id);
+        else id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, title, note, source, created_by, label_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
           .run(r.id, b.date, hhmm(s), hhmm(e), type, mid ? mid.id : null, JSON.stringify(partners), JSON.stringify(guests), 0, title || null, txt(b.note, 300) || null, 'verwaltung', uname(req), label ? label.id : null).lastInsertRowid);
       })();
     } catch (x) { return res.status(x.conflicts ? 409 : 400).json({ error: x.message, conflicts: (x.conflicts || []).map(c => bview(c, { full: true })) }); }
@@ -461,15 +526,29 @@ function activate(ctx) {
       await cancel(c, uname(req), `Platz gesperrt: ${title}`);
       if (c.member_id) notify([c.member_id], `Buchung storniert: ${r.name} ${deD(c.date)}`, [`Deine Buchung ${r.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${title}`]).catch(() => {});
     }
-    const paying = guests.filter(g => !g.partner).length;
-    if (paying && mid && b.fee !== false && mv()) {
-      const fee = paying * feeOf(r);
-      if (fee) { const cid = await hook('createCharge', { member_id: mid.id, text: `Gastgebühr ${r.name} ${deD(b.date)} ${hhmm(s)} (Gäste: ${paying})`, cents: fee, due_date: b.date, kind: 'sonstiges', ext_key: `bk-${id}`, by: uname(req) });
-        db.prepare('UPDATE bk_booking SET fee_cents = ?, charge_id = ? WHERE id = ?').run(fee, cid || null, id); }
+    // Gastgebühr: bei Änderung neu berechnen (alte zurücknehmen, neue anlegen)
+    const paying = label && label.free_rules ? 0 : guests.filter(g => !g.partner).length;
+    const fee = paying && mid && b.fee !== false && mv() ? paying * feeOf(r) : 0;
+    if (old && (old.charge_id || old.fee_cents) && (fee !== old.fee_cents || !mid || old.member_id !== mid.id)) {
+      if (old.charge_id) await ctx.callHooks('cancelCharge', old.charge_id, 'Buchung geändert', uname(req));
+      db.prepare('UPDATE bk_booking SET fee_cents = 0, charge_id = NULL WHERE id = ?').run(id);
     }
-    ctx.audit(req.user, type === 'sperre' ? 'Platz gesperrt' : 'Platz gebucht (Verwaltung)', `${r.name} ${deD(b.date)} ${hhmm(s)}–${hhmm(e)} ${title || (mid ? mid.name : '')}`);
+    const cur = db.prepare('SELECT fee_cents FROM bk_booking WHERE id = ?').get(id);
+    if (fee && !cur.fee_cents) {
+      const cid = await hook('createCharge', { member_id: mid.id, text: `Gastgebühr ${r.name} ${deD(b.date)} ${hhmm(s)} (Gäste: ${paying})`, cents: fee, due_date: b.date, kind: 'sonstiges', ext_key: `bk-${id}${old ? '-' + Date.now() : ''}`, by: uname(req) });
+      db.prepare('UPDATE bk_booking SET fee_cents = ?, charge_id = ? WHERE id = ?').run(fee, cid || null, id);
+    }
+    if (old) {
+      const now = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(id);
+      if (type === 'buchung' && b.notify !== false) mailChange(old, now, { toBooker: Boolean(now.member_id) });
+      if (old.start !== now.start || old.end !== now.end || old.date !== now.date || old.resource_id !== now.resource_id) await wakeWaitlist(old);
+    }
+    ctx.audit(req.user, old ? (type === 'sperre' ? 'Sperre geändert' : 'Buchung geändert (Verwaltung)') : (type === 'sperre' ? 'Platz gesperrt' : 'Platz gebucht (Verwaltung)'), `${r.name} ${deD(b.date)} ${hhmm(s)}–${hhmm(e)} ${title || (mid ? mid.name : '')}`);
     res.json({ id });
-  }));
+  }
+  /* Buchen in der Verwaltung: für ein Mitglied (ohne Kontingent/Vorlauf) oder als Sperre / Vereinsbuchung */
+  admin.post('/bookings', P, ar(async (req, res) => adminSave(req, res)));
+  admin.put('/bookings/:id', P, ar(async (req, res) => adminSave(req, res, int(req.params.id))));
   admin.post('/bookings/:id/cancel', P, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(req.params.id));
     if (!b) return bad(res, 'Nicht gefunden.', 404);
@@ -480,6 +559,101 @@ function activate(ctx) {
     ctx.audit(req.user, 'Buchung storniert (Verwaltung)', `#${b.id} ${b.date} ${b.start}${reason ? ' – ' + reason : ''}`);
     res.json({ ok: true });
   }));
+
+  /* ---------- Buchungsprotokoll: alle Buchungen eines Jahres (auch stornierte), filterbar, als CSV ---------- */
+  const logRows = q => {
+    const y = Math.max(2000, Math.min(2100, int(q.year) || Number(today().slice(0, 4))));
+    const w = ['b.date BETWEEN ? AND ?'], a = [`${y}-01-01`, `${y}-12-31`];
+    if (int(q.resource)) { w.push('b.resource_id = ?'); a.push(int(q.resource)); }
+    const f = String(q.f || 'alle');
+    if (f === 'storniert') w.push("b.status = 'storniert'"); else if (q.cancelled !== '1' && f !== 'alle') w.push("b.status = 'aktiv'");
+    if (f === 'mitglieder') w.push("b.type = 'buchung' AND b.member_id IS NOT NULL AND b.label_id IS NULL");
+    if (f === 'gast') w.push("b.guests NOT IN ('[]', '')");
+    if (f === 'label') w.push('b.label_id IS NOT NULL');
+    if (f === 'sperre') w.push("b.type = 'sperre'");
+    const order = q.sort === 'eingetragen' ? 'b.created_at DESC, b.id DESC' : 'b.date DESC, b.start DESC, b.id DESC';
+    const now = `${today()} ${hhmm(nowMin())}`;
+    let rows = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE ${w.join(' AND ')} ORDER BY ${order} LIMIT 5000`).all(...a).map(b => {
+      const lab = labelOf(b.label_id), partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
+      const people = [b.member_id, ...partners].filter(Boolean).map(id => ({ id, name: lastFirst(nameOf(id)) }));
+      return { id: b.id, date: b.date, start: b.start, end: b.end, type: b.type, resource: b.rname, resource_id: b.resource_id, label: lab ? { name: lab.name, color: lab.color } : null, title: b.title,
+        people, guests: guests.map(g => g.name + (g.partner ? ' (Partnerverein)' : '')), fee_cents: b.fee_cents, source: b.source, created_by: b.created_by, created_at: b.created_at,
+        status: b.status === 'storniert' ? 'storniert' : `${b.date} ${b.end}` <= now ? 'abgeschlossen' : `${b.date} ${b.start}` <= now ? 'laeuft' : 'anstehend',
+        cancelled_at: b.cancelled_at, cancelled_by: b.cancelled_by, cancel_reason: b.cancel_reason, series_id: b.series_id };
+    });
+    const t = String(q.q || '').trim().toLowerCase();
+    if (t) rows = rows.filter(r => [r.resource, r.title, r.label && r.label.name, r.created_by, ...r.people.map(p => p.name), ...r.guests].filter(Boolean).join(' ').toLowerCase().includes(t));
+    return { year: y, rows };
+  };
+  admin.get('/log', P, (req, res) => {
+    const { year, rows } = logRows(req.query);
+    res.json({ year, total: rows.length, rows: rows.slice(0, 1500), years: [...new Set([Number(today().slice(0, 4)), ...db.prepare('SELECT DISTINCT substr(date,1,4) y FROM bk_booking').all().map(r => +r.y)])].sort((a, b) => b - a) });
+  });
+  admin.get('/log.csv', P, (req, res) => {
+    const { year, rows } = logRows(req.query);
+    const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    const ST = { storniert: 'storniert', abgeschlossen: 'abgeschlossen', laeuft: 'läuft', anstehend: 'anstehend' };
+    const out = ['Datum;Von;Bis;Platz;Art;Label;Titel;Spieler;Gäste;Gebühr;Status;Storniert von;Grund;Eingetragen;Quelle;Von wem'].concat(rows.map(r => [deD(r.date), r.start, r.end, r.resource, TYPE[r.type], r.label ? r.label.name : '', r.title || '', r.people.map(p => p.name).join(' / '), r.guests.join(' / '),
+      r.fee_cents ? (r.fee_cents / 100).toFixed(2).replace('.', ',') : '', ST[r.status], r.cancelled_by || '', r.cancel_reason || '', r.created_at, r.source, r.created_by || ''].map(q).join(';')));
+    res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="buchungsprotokoll-${year}.csv"` }).send('\ufeff' + out.join('\r\n'));
+  });
+
+  /* ---------- Auswertung (Dashboard): Auslastung je Platz und gesamt ---------- */
+  admin.get('/stats', P, (req, res) => {
+    const y = Math.max(2000, Math.min(2100, int(req.query.year) || Number(today().slice(0, 4))));
+    const all = resources(true).filter(r => r.kind === 'platz');
+    const sel = req.query.resource ? all.filter(r => r.id === int(req.query.resource)) : all;
+    const ids = sel.map(r => r.id);
+    const t0 = today();
+    const calc = yy => {
+      const from = `${yy}-01-01`, to = `${yy}-12-31`;
+      const rows = ids.length ? db.prepare(`SELECT * FROM bk_booking WHERE date BETWEEN ? AND ? AND type != 'sperre' AND resource_id IN (${ids.map(() => '?').join(',')})`).all(from, to, ...ids) : [];
+      const act = rows.filter(b => b.status === 'aktiv'), can = rows.filter(b => b.status === 'storniert' && b.type === 'buchung');
+      const mins = b => Math.max(0, tm(b.end) - tm(b.start));
+      // verfügbare Zeit: Öffnungszeiten an buchbaren Tagen, im laufenden Jahr bis heute; Sperren abziehen
+      const until = yy === Number(t0.slice(0, 4)) ? t0 : to;
+      let avail = 0;
+      const perRes = sel.map(r => {
+        let a = 0;
+        if (from <= until) for (let d = from; d <= until; d = addDays(d, 1)) if (String(r.days).includes(String(isoDow(d)))) a += tm(r.open_to) - tm(r.open_from);
+        const locks = db.prepare("SELECT start, end FROM bk_booking WHERE resource_id = ? AND type = 'sperre' AND status = 'aktiv' AND date BETWEEN ? AND ?").all(r.id, from, until).reduce((x, b) => x + Math.max(0, tm(b.end) - tm(b.start)), 0);
+        a = Math.max(0, a - locks); avail += a;
+        const used = act.filter(b => b.resource_id === r.id && b.date <= until).reduce((x, b) => x + mins(b), 0);
+        const all2 = act.filter(b => b.resource_id === r.id).reduce((x, b) => x + mins(b), 0);
+        return { id: r.id, name: r.name, area: r.area, minutes: all2, used, avail: a, rate: a ? used / a : 0, count: act.filter(b => b.resource_id === r.id).length };
+      });
+      const usedAll = perRes.reduce((x, r) => x + r.used, 0);
+      const month = Array.from({ length: 12 }, (_, i) => act.filter(b => +b.date.slice(5, 7) === i + 1).reduce((x, b) => x + mins(b), 0));
+      const monthCount = Array.from({ length: 12 }, (_, i) => act.filter(b => +b.date.slice(5, 7) === i + 1).length);
+      const monthCan = Array.from({ length: 12 }, (_, i) => can.filter(b => +b.date.slice(5, 7) === i + 1).length);
+      const players = new Set(); act.forEach(b => { if (b.member_id) players.add(b.member_id); J(b.partners, []).forEach(x => players.add(x)); });
+      return { from, to, until, act, can, mins, perRes, avail, usedAll, month, monthCount, monthCan, players: players.size,
+        guests: act.filter(b => normGuests(J(b.guests, [])).length).length, labeled: act.filter(b => b.label_id).length, minutes: act.reduce((x, b) => x + mins(b), 0) };
+    };
+    const c = calc(y), p = calc(y - 1);
+    // Kalender: Minuten je Tag
+    const days = {}; c.act.forEach(b => { days[b.date] = (days[b.date] || 0) + c.mins(b); });
+    // Wochentag × Stunde: belegte Stunden (anteilig)
+    const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
+    c.act.forEach(b => { const d = isoDow(b.date) - 1, s0 = tm(b.start), e0 = tm(b.end); for (let h = Math.floor(s0 / 60); h * 60 < e0; h++) { const ov = Math.min(e0, (h + 1) * 60) - Math.max(s0, h * 60); if (ov > 0 && h < 24) grid[d][h] += ov / 60; } });
+    const lo = sel.length ? Math.min(...sel.map(r => tm(r.open_from))) : 8 * 60, hi = sel.length ? Math.max(...sel.map(r => tm(r.open_to))) : 22 * 60;
+    // nach Art: Label, Mitgliederbuchung, Serie ohne Label
+    const kinds = new Map();
+    c.act.forEach(b => { const l = labelOf(b.label_id); const k = l ? l.name : b.type === 'serie' ? 'Serie ohne Label' : 'Mitgliederbuchung'; const v = kinds.get(k) || { name: k, color: l ? l.color : b.type === 'serie' ? '#7a7f87' : null, minutes: 0, count: 0 }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); });
+    // Sperren als eigene Art (Platzpflege, Turniere …)
+    if (ids.length) { const lk = db.prepare(`SELECT * FROM bk_booking WHERE date BETWEEN ? AND ? AND type = 'sperre' AND status = 'aktiv' AND resource_id IN (${ids.map(() => '?').join(',')})`).all(c.from, c.to, ...ids);
+      for (const b of lk) { const l = labelOf(b.label_id); const k = l ? l.name : 'Gesperrt'; const v = kinds.get(k) || { name: k, color: l ? l.color : '#b0b4ba', minutes: 0, count: 0, lock: !l }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); } }
+    // Wer spielt am meisten? (Bucher und Mitspieler, Stunden)
+    const pm = new Map(); c.act.filter(b => b.type === 'buchung').forEach(b => { for (const id of [b.member_id, ...J(b.partners, [])].filter(Boolean)) pm.set(id, (pm.get(id) || 0) + c.mins(b)); });
+    const top = [...pm.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, m]) => ({ name: lastFirst(nameOf(id)), minutes: m }));
+    const app = c.act.filter(b => b.type === 'buchung' && b.source !== 'verwaltung' && b.created_at);
+    const lead = app.length ? app.reduce((x, b) => x + Math.max(0, (Date.parse(b.date + 'T' + b.start) - Date.parse(String(b.created_at).replace(' ', 'T'))) / 86400000), 0) / app.length : null;
+    const pick = x => ({ minutes: x.minutes, count: x.act.length, cancelled: x.can.length, rate: x.avail ? x.usedAll / x.avail : 0, players: x.players, guests: x.guests, labeled: x.labeled, month: x.month, monthCount: x.monthCount, monthCan: x.monthCan });
+    res.json({ year: y, years: [...new Set([Number(t0.slice(0, 4)), ...db.prepare("SELECT DISTINCT substr(date,1,4) y FROM bk_booking").all().map(r => +r.y)])].sort((a, b) => b - a),
+      resources: all.map(r => ({ id: r.id, name: r.name })), resource: req.query.resource ? int(req.query.resource) : null, until: c.until,
+      cur: pick(c), prev: pick(p), perRes: c.perRes.map(r => ({ ...r, prevRate: (p.perRes.find(x => x.id === r.id) || {}).rate || 0 })), days, grid, hours: [Math.floor(lo / 60), Math.ceil(hi / 60)],
+      kinds: [...kinds.values()].sort((a, b) => b.minutes - a.minutes), top, lead });
+  });
 
   /* ---------- Plätze & Geräte ---------- */
   const resInput = (b, cur = {}) => {
@@ -581,21 +755,28 @@ function activate(ctx) {
 
   /* ---------- Labels ---------- */
   const labelInput = b => {
-    const v = { name: txt(b.name, 40), color: /^#[0-9a-f]{6}$/i.test(String(b.color || '')) ? String(b.color).toLowerCase() : '#2f6fd6', sort: int(b.sort) || 100, active: b.active === undefined ? 1 : (b.active ? 1 : 0) };
+    const arr = v => (Array.isArray(v) ? v : J(v, []));
+    const v = { name: txt(b.name, 40), color: /^#[0-9a-f]{6}$/i.test(String(b.color || '')) ? String(b.color).toLowerCase() : '#2f6fd6', sort: int(b.sort) || 100, active: b.active === undefined ? 1 : (b.active ? 1 : 0),
+      use_mode: ['alle', 'auswahl'].includes(b.use_mode) ? b.use_mode : 'verwaltung',
+      use_functions: JSON.stringify([...new Set(arr(b.use_functions).map(x => txt(x, 60)).filter(Boolean))].slice(0, 30)),
+      use_members: JSON.stringify([...new Set(arr(b.use_members).map(Number).filter(x => Number.isInteger(x) && x > 0))].slice(0, 200)),
+      free_rules: b.free_rules ? 1 : 0 };
     if (v.name.length < 2) return { error: 'Bitte einen Namen für das Label eintragen (z. B. „Training“).' };
     return { v };
   };
-  admin.get('/labels', P, (req, res) => res.json(labels(true).map(l => ({ ...l, used: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE label_id = ? AND status = 'aktiv' AND date >= ?").get(l.id, today()).n }))));
+  admin.get('/labels', P, (req, res) => res.json(labels(true).map(l => ({ ...l, use_functions: J(l.use_functions, []), use_members: J(l.use_members, []), free_rules: Boolean(l.free_rules), used: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE label_id = ? AND status = 'aktiv' AND date >= ?").get(l.id, today()).n }))));
   admin.post('/labels', PE, (req, res) => {
     const r = labelInput(req.body || {}); if (r.error) return bad(res, r.error);
     if (db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(r.v.name)) return bad(res, 'Dieses Label gibt es schon.');
-    const id = Number(db.prepare('INSERT INTO bk_label(name, color, sort, active) VALUES (?,?,?,?)').run(r.v.name, r.v.color, r.v.sort, r.v.active).lastInsertRowid);
+    const id = Number(db.prepare('INSERT INTO bk_label(name, color, sort, active, use_mode, use_functions, use_members, free_rules) VALUES (?,?,?,?,?,?,?,?)').run(r.v.name, r.v.color, r.v.sort, r.v.active, r.v.use_mode, r.v.use_functions, r.v.use_members, r.v.free_rules).lastInsertRowid);
+    ctx.audit(req.user, 'Buchungssystem: Label angelegt', r.v.name);
     res.json({ id });
   });
   admin.put('/labels/:id', PE, (req, res) => {
     const cur = db.prepare('SELECT * FROM bk_label WHERE id = ?').get(int(req.params.id)); if (!cur) return bad(res, 'Nicht gefunden.', 404);
     const r = labelInput({ ...cur, ...(req.body || {}) }); if (r.error) return bad(res, r.error);
-    db.prepare('UPDATE bk_label SET name = ?, color = ?, sort = ?, active = ? WHERE id = ?').run(r.v.name, r.v.color, r.v.sort, r.v.active, cur.id);
+    db.prepare('UPDATE bk_label SET name = ?, color = ?, sort = ?, active = ?, use_mode = ?, use_functions = ?, use_members = ?, free_rules = ? WHERE id = ?').run(r.v.name, r.v.color, r.v.sort, r.v.active, r.v.use_mode, r.v.use_functions, r.v.use_members, r.v.free_rules, cur.id);
+    ctx.audit(req.user, 'Buchungssystem: Label geändert', r.v.name);
     res.json({ ok: true });
   });
   admin.delete('/labels/:id', PE, (req, res) => {
@@ -627,7 +808,7 @@ function activate(ctx) {
     const nowB = db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND start <= ? AND end > ?").get(d, n, n).n;
     return { kpis: [{ l: 'Buchungen heute', v: t }, { l: 'gerade belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }], alerts: [] };
   };
-  ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active FROM bk_label').all(), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
+  ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
     resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort FROM bk_resource').all() });
   ctx.hooks.importConfig = d => {
     if (!d || typeof d !== 'object') throw new Error('Leere Funktionsdatei.');
@@ -638,7 +819,7 @@ function activate(ctx) {
       const x = resInput(r); if (x.error) continue;
       const k = Object.keys(x.v); db.prepare(`INSERT INTO bk_resource(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(y => x.v[y])); n++;
     }
-    for (const l of Array.isArray(d.labels) ? d.labels.slice(0, 50) : []) { const x = labelInput(l || {}); if (!x.error && !db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(x.v.name)) db.prepare('INSERT INTO bk_label(name, color, sort, active) VALUES (?,?,?,?)').run(x.v.name, x.v.color, x.v.sort, x.v.active); }
+    for (const l of Array.isArray(d.labels) ? d.labels.slice(0, 50) : []) { const x = labelInput(l || {}); if (!x.error && !db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(x.v.name)) db.prepare('INSERT INTO bk_label(name, color, sort, active, use_mode, use_functions, use_members, free_rules) VALUES (?,?,?,?,?,?,?,?)').run(x.v.name, x.v.color, x.v.sort, x.v.active, x.v.use_mode, x.v.use_functions, '[]', x.v.free_rules); }
     return `Einstellungen und ${n} Plätze/Geräte übernommen`;
   };
   // Warteliste aufräumen (vergangene Tage)

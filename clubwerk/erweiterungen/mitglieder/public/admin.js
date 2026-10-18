@@ -199,7 +199,7 @@
     if (!SUBS.some(s => s[0] === st.sub)) st.sub = 'stamm';
     el.innerHTML = `<button class="mv-back" id="mvBack">← Alle Mitglieder</button>
       <div class="mv-head"><span class="av lg">${ini(p.name)}</span><div style="min-width:0"><h2>${esc(p.name)}</h2>
-        <div class="pills">${pill(STATUS[status] || ['', status])}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
+        <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
           ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}
           ${d.changes.length ? `<span class="pill a">${d.changes.length} Änderung(en) aus der App</span>` : ''}</div></div>
         <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">Austritt zurücknehmen</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
@@ -278,7 +278,7 @@
 
   function subMembership(el, d, again) {
     const p = d.person, m = st.meta, id = p.id;
-    const feeRows = d.fees.map(f => `<tr class="${f.end_date && f.end_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(f.name)}</b>${f.note ? `<div class="muted s">${esc(f.note)}</div>` : ''}</td>
+    const feeRows = d.fees.map(f => `<tr class="${f.end_date && f.end_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(f.name)}</b>${(!f.end_date || f.end_date >= m.today) && p.age != null && ((f.age_min != null && p.age < f.age_min) || (f.age_max != null && p.age > f.age_max)) ? ` <span class="pill r">passt nicht zum Alter (${f.age_max != null ? `bis ${f.age_max}` : `ab ${f.age_min}`} J.)</span>` : ''}${f.note ? `<div class="muted s">${esc(f.note)}</div>` : ''}</td>
       <td class="r">${euro(f.eff_cents)}${f.cents != null ? ' <span class="pill">abweichend</span>' : ''}</td><td>${esc(INTERVAL[f.interval] || f.interval)}</td><td class="nw">${deDate(f.start_date)}</td><td class="nw">${f.end_date ? deDate(f.end_date) : '–'}</td>
       <td class="nw">${f.booked_until ? deDate(f.booked_until) : '<span class="muted s">noch nichts</span>'}</td><td class="r nw">${SC() ? '' : `<button class="btn small" data-mf="${f.id}">Bearbeiten</button> <button class="btn small danger" data-mfx="${f.id}">Entfernen</button>`}</td></tr>`).join('');
     const myDept = depId => !SC() || m.scope.some(x => x.id === depId);
@@ -300,7 +300,12 @@
       </div>`;
     const feeDialog = f => {
       dialog(`<h2>${f ? esc(f.name) : 'Beitrag zuordnen'}</h2><div class="mv-grid" style="--c:2">
-        ${f ? '' : `<label class="f wall">Beitragsart<select translate="no" id="fFee">${m.fees.filter(x => x.active && x.kind !== 'zusatz').map(x => opt(x.id, feeLabel(x))).join('')}</select></label>`}
+        ${f ? '' : `<label class="f wall">Beitragsart<select translate="no" id="fFee">${(() => {
+          const fits = x => p.age == null ? x.age_min == null && x.age_max == null : (x.age_min == null || p.age >= x.age_min) && (x.age_max == null || p.age <= x.age_max);
+          const list = m.fees.filter(x => x.active && x.kind !== 'zusatz');
+          const ok = list.filter(fits), no = list.filter(x => !fits(x));
+          return ok.map(x => opt(x.id, feeLabel(x))).join('') + (no.length ? `<optgroup label="${esc(p.age == null ? 'mit Altersgrenze – erst Geburtsdatum eintragen' : `passt nicht zum Alter (${p.age} Jahre)`)}">${no.map(x => `<option value="${x.id}" disabled>${esc(feeLabel(x))}</option>`).join('')}</optgroup>` : '');
+        })()}</select></label>`}
         <label class="f">ab<input id="fStart" type="date" value="${esc(f ? f.start_date : (p.entry_date || m.today))}"></label><label class="f">bis (leer = unbefristet)<input id="fEnd" type="date" value="${esc(f ? f.end_date || '' : '')}"></label>
         <label class="f">Abweichender Betrag (leer = laut Beitragsart)<input id="fCents" inputmode="decimal" value="${f && f.cents != null ? centsToInput(f.cents) : ''}" placeholder="z. B. 54,00"></label>
         <label class="f">abgerechnet bis<input id="fBooked" type="date" value="${esc(f ? f.booked_until || '' : '')}"></label>
