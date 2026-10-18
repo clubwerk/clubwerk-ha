@@ -65,7 +65,7 @@ const DRINK_PERMS = ['lieferungen', 'bestand', 'bestellung', 'buchungen', 'expor
 plugins.set('getraenke', {
   builtin: true, dir: null, source: 'mitgeliefert', error: null, hooks: {},   // ein Modul wie alle anderen (nur der Code steckt im Kern)
   meta: { id: 'getraenke', name: 'Verkauf', version: APP_VERSION, standardAktiv: true, kurz: 'Am Tablet buchen statt Strichliste.',
-    beschreibung: 'Verkauf am Tablet statt Strichliste – Getränke, Speisen, Vereinsartikel, Bälle, Patronen … Artikel und Preise, Konten & PINs, Lieferungen & Belege einlesen, Bestand, Bestellung, Veranstaltungen, Gäste-Deckel, Abrechnung & Export.',
+    beschreibung: 'Verkauf am Tablet statt Strichliste – Getränke, Speisen, Vereinsartikel, Bälle … Artikel und Preise, Konten & PINs, Lieferungen & Belege einlesen, Bestand, Bestellung, Veranstaltungen, Gäste-Deckel, Abrechnung & Export.',
     perms: Object.fromEntries(DRINK_PERMS.map(k => [k, auth.PERMS[k]])), tablet: { label: 'Verkauf', seite: '' } },
 });
 

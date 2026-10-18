@@ -4259,7 +4259,6 @@
     "Verkauf": "Sales",
     "Verkauf {von} – {bis}": "Sales {von} – {bis}",
     "Verkauf abrechnen": "Settle sales",
-    "Verkauf am Tablet statt Strichliste – Getränke, Speisen, Vereinsartikel, Bälle, Patronen … Artikel und Preise, Konten & PINs, Lieferungen & Belege einlesen, Bestand, Bestellung, Veranstaltungen, Gäste-Deckel, Abrechnung & Export.": "Sales at the tablet instead of a tally sheet – drinks, food, club merchandise, balls, cartridges … items and prices, accounts & PINs, reading in deliveries & receipts, stock, ordering, events, guest tabs, settlement & export.",
     "Verkauf beim Zahler": "Sales via payer",
     "Verkauf bis {0}{1}": "Sales until {0}{1}",
     "Verkauf einziehen": "Collect sales",
@@ -4488,6 +4487,7 @@
     "Plätze per Handy oder Tablet beregnen.": "Water the courts by phone or tablet.",
     "Mitglieder, Beiträge und SEPA-Lastschrift.": "Members, fees and SEPA direct debit.",
     "Arbeitszeiten am Tablet stempeln.": "Clock working hours on the tablet.",
-    "Türen und Tore per Handy öffnen.": "Open doors and gates by phone."
+    "Türen und Tore per Handy öffnen.": "Open doors and gates by phone.",
+    "Verkauf am Tablet statt Strichliste – Getränke, Speisen, Vereinsartikel, Bälle … Artikel und Preise, Konten & PINs, Lieferungen & Belege einlesen, Bestand, Bestellung, Veranstaltungen, Gäste-Deckel, Abrechnung & Export.": "Sales at the tablet instead of a tally sheet – drinks, food, club merchandise, balls … items and prices, accounts & PINs, reading in deliveries & receipts, stock, ordering, events, guest tabs, settlement & export."
   }
 }
