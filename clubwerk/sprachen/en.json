@@ -6073,6 +6073,9 @@
     "Code kopieren": "Copy code",
     "Code kopiert.": "Code copied.",
     "Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Das Vereins-WLAN erkennt Clubwerk auch über die öffentliche Adresse an der Internet-Adresse des Vereinsanschlusses": "Unchecked areas only work on the club Wi-Fi – on the go the member sees a notice there. Clubwerk also recognises the club Wi-Fi via the public address by the club's internet address",
-    "Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Das Vereins-WLAN erkennt Clubwerk auch über die öffentliche Adresse an der Internet-Adresse des Vereinsanschlusses{0}.": "Unchecked areas only work on the club Wi-Fi – on the go the member sees a notice there. Clubwerk also recognises the club Wi-Fi via the public address by the club's internet address{0}."
+    "Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Das Vereins-WLAN erkennt Clubwerk auch über die öffentliche Adresse an der Internet-Adresse des Vereinsanschlusses{0}.": "Unchecked areas only work on the club Wi-Fi – on the go the member sees a notice there. Clubwerk also recognises the club Wi-Fi via the public address by the club's internet address{0}.",
+    ", danach {0} je fehlender Stunde": ", after that {0} per missing hour",
+    "{0} von {1} geleistet – bitte bis {2}{3}.{4}": "{0} of {1} done – please by {2}{3}.{4}",
+    "geleistet – danke!": "done – thank you!"
   }
 }

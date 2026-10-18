@@ -10,6 +10,7 @@
       .ds-big { display: flex; align-items: baseline; gap: 8px; } .ds-big b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; } .ds-big span { color: var(--muted); font-size: 15px; }
       .ds-bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 10px 0 8px; } .ds-bar i { display: block; height: 100%; background: var(--brand); border-radius: 5px; }
       .ds-sub { color: var(--muted); font-size: 13.5px; line-height: 1.45; margin: 0; }
+      .ds-met { margin-top: 8px; }
       .ds-ev { display: grid; grid-template-columns: 62px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
       .ds-ev:first-of-type { border-top: 0; padding-top: 2px; }
       .ds-d { width: 62px; height: 56px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; line-height: 1.05; }
@@ -62,13 +63,18 @@
         window.__dsToday = d.today;
         const pct = d.target ? Math.min(100, Math.round(d.done / d.target * 100)) : 100;
         const miss = Math.max(0, d.target - d.done);
-        el.innerHTML = `<div class="ds-card"><h3>Arbeitsstunden ${esc(d.year)}${d.family ? '<span class="ds-tag">Familie</span>' : ''}</h3>
-            ${d.target ? `<div class="ds-big"><b>${hh(d.done)}</b><span>von ${hh(d.target)}</span></div><div class="ds-bar"><i style="width:${pct}%"></i></div>
-              <p class="ds-sub">${miss ? `Noch ${hh(miss)} bis ${deD(d.to)}${d.rate_cents ? ` – danach ${euro(d.rate_cents)} je fehlender Stunde` : ''}.` : 'Geschafft – danke für deinen Einsatz!'}${d.open ? ` ${hh(d.open)} werden noch geprüft.` : ''}</p>`
-              : `<p class="ds-sub">Für dich ist kein Soll hinterlegt${d.mine && d.mine.why ? ` (${esc(d.mine.why)})` : ''}. Mithelfen ist trotzdem willkommen!</p>`}
-            ${d.text ? `<p class="ds-sub" style="margin-top:8px">${esc(d.text)}</p>` : ''}</div>
-          ${mineHtml(d)}${d.plans.map(planHtml).join('')}
-          ${d.events.length || !d.plans.length ? `<div class="ds-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="ds-sub">Gerade keine Termine geplant.</p>'}</div>` : ''}
+        // Solange Stunden fehlen, steht das Offene im Vordergrund; danach kein Zielstrich („Geschafft“), nur Dank – die Dienste rücken nach oben
+        const met = Boolean(d.target) && !miss;
+        const hours = `<div class="ds-card"><h3>Arbeitsstunden ${esc(d.year)}${d.family ? '<span class="ds-tag">Familie</span>' : ''}</h3>
+            ${!d.target ? `<p class="ds-sub">Für dich ist kein Soll hinterlegt${d.mine && d.mine.why ? ` (${esc(d.mine.why)})` : ''}. Mithelfen ist trotzdem willkommen!</p>`
+              : miss ? `<div class="ds-big"><b>${hh(miss)}</b><span>noch offen</span></div><div class="ds-bar"><i style="width:${pct}%"></i></div>
+              <p class="ds-sub">${hh(d.done)} von ${hh(d.target)} geleistet – bitte bis ${deD(d.to)}${d.rate_cents ? `, danach ${euro(d.rate_cents)} je fehlender Stunde` : ''}.${d.open ? ` ${hh(d.open)} werden noch geprüft.` : ''}</p>`
+              : `<div class="ds-big"><b>${hh(d.done)}</b><span>geleistet – danke!</span></div>
+              ${d.open ? `<p class="ds-sub ds-met">${hh(d.open)} werden noch geprüft.</p>` : ''}`}
+            ${d.text ? `<p class="ds-sub" style="margin-top:8px">${esc(d.text)}</p>` : ''}</div>`;
+        const duties = `${mineHtml(d)}${d.plans.map(planHtml).join('')}
+          ${d.events.length || !d.plans.length ? `<div class="ds-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="ds-sub">Gerade keine Termine geplant.</p>'}</div>` : ''}`;
+        el.innerHTML = `${met ? duties + hours : hours + duties}
           <div class="ds-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="ds-list">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="ds-tag ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b>${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<div><span class="ds-sub">Noch keine Stunden in diesem Jahr.</span></div>'}</div></div>`;
         const all = [...d.events, ...d.plans.flatMap(p => p.shifts)];
         el.querySelectorAll('[data-ev]').forEach(b => { b.onclick = async () => {
