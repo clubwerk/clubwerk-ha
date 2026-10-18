@@ -389,11 +389,27 @@
     const g = groupOf(page);
     const m = $('main'); if (!m || !g || m.querySelector(':scope > .drinktabs')) return;
     const h = m.querySelector(':scope > h2.page'); if (!h) return;
-    let after = h; while (after.nextElementSibling && after.nextElementSibling.matches('p.lead')) after = after.nextElementSibling;
+    const after = fixLead(h);
     const t = document.createElement('div'); t.className = 'tabs drinktabs'; t.setAttribute('role', 'tablist');
     t.innerHTML = GPAGES(g).map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
     t.querySelectorAll('[data-tab]').forEach(b => { b.onclick = e => { e.stopPropagation(); go(b.dataset.tab); }; });
     after.after(t);
+  }
+
+  /* Einleitung über Reitern immer gleich hoch (2 Zeilen), damit die Reiter beim Wechsel nicht springen – längere Texte per „mehr“ aufklappen */
+  function fixLead(h) {
+    if (h.nextElementSibling && h.nextElementSibling.matches('.leadbox')) return h.nextElementSibling;   // schon eingerichtet (Reiter neu gesetzt)
+    const box = document.createElement('div'); box.className = 'leadbox';
+    while (h.nextElementSibling && h.nextElementSibling.matches('p.lead')) box.appendChild(h.nextElementSibling);
+    h.after(box);
+    requestAnimationFrame(() => {
+      const ps = [...box.children]; if (!ps.length) return;
+      if (!ps.some(x => x.scrollHeight > x.clientHeight + 1) && ps.length < 2) return;
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'leadmore'; b.textContent = 'mehr';
+      b.onclick = e => { e.stopPropagation(); const o = box.classList.toggle('open'); b.textContent = o ? 'weniger' : 'mehr'; };
+      box.appendChild(b);
+    });
+    return box;
   }
 
   async function go(p) {

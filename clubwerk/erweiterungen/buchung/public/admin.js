@@ -51,7 +51,7 @@
       .bk-plan .hd.today { color: var(--brand-ink); box-shadow: inset 0 -3px 0 var(--brand); }
       .bk-sel { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; vertical-align: -1px; }
-      .bk-pal { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+      .bk-pal { display: grid; grid-template-columns: repeat(7, 30px); gap: 10px; align-items: center; width: fit-content; }
       .bk-pal button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
       .bk-pal button.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--card) inset; }
       .bk-pal input[type=color] { width: 40px; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--card); }
@@ -66,6 +66,34 @@
       .bk-ser.off { opacity: .55; }
       .bk-clash { max-height: 220px; overflow: auto; margin: 8px 0 0; }
       .bk-tbl td { height: 52px; }
+      .bkf { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+      .bkf > span:first-child { font-size: 13px; line-height: 16px; font-weight: 600; color: var(--muted); }
+      .bk-chips label { height: 40px; padding: 0 14px; border-radius: 20px; box-sizing: border-box; }
+      .bk-pal input[type=color] { width: 30px; height: 30px; border-radius: 50%; padding: 0; border: 1px dashed var(--faint); background: var(--card); cursor: pointer; overflow: hidden; }
+      .bk-pal input[type=color]::-webkit-color-swatch-wrapper { padding: 3px; } .bk-pal input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
+      #bkBody .toolbar .btn, #bkBody .filterbar .btn, .bk-bar .btn { min-height: 40px; height: 40px; box-sizing: border-box; }
+      .bk-bar .day .btn { width: 40px; padding: 0; font-size: 18px; }
+      .bk-bar .day input { width: 150px; box-sizing: border-box; }
+      .bk-bar .seg { height: 40px; box-sizing: border-box; align-items: stretch; } .bk-bar .seg button { min-height: 0; }
+      .bk-bar .bk-sel { width: 170px; }
+      .bk-bar .ttl { font-size: 15px; white-space: nowrap; }
+      .bk-act { display: flex; gap: 8px; margin-left: auto; }
+      @media (max-width: 760px) {
+        .bk-bar .ttl { order: -1; flex-basis: 100%; }
+        .bk-act { flex-basis: 100%; margin-left: 0; } .bk-act .btn { flex: 1 1 0; }
+        .bk-bar .bk-sel { flex: 1 1 0; width: auto; min-width: 0; } .bk-bar .day { flex: 1 1 auto; } .bk-bar .day input { flex: 1; width: auto; min-width: 0; }
+      }
+      @media (max-width: 700px) {
+        #bkBody .filterbar .btn { flex: 1 1 100%; }
+        #bkBody .card:has(> .bk-tbl) { padding: 0 !important; border: 0; background: none; box-shadow: none; }
+        .bk-tbl tr:not(:first-child) { display: grid !important; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; align-items: center; }
+        .bk-tbl td { grid-column: 1 / -1; }
+        .bk-tbl td:first-child { grid-column: 1; grid-row: 1; display: block !important; height: auto !important; min-height: 40px; text-align: left !important; } .bk-tbl td:first-child::before { content: none; }
+        .bk-tbl td:first-child > .tcell { text-align: left; }
+        .bk-tbl td:last-child { grid-column: 2; grid-row: 1; }
+        .bk-chips { gap: 6px; } .bk-chips label { padding: 0 10px; min-width: 40px; justify-content: center; }
+        .bk-tbl td:last-child::before { content: none; } .bk-tbl td:last-child:empty { display: none; }
+      }
       @media (max-width: 760px) { .bk-tbl .hm { display: none; } }`;
     document.head.appendChild(s);
   }
@@ -131,9 +159,9 @@
     const used = new Map(); all.forEach(b => { if (b.label) used.set(b.label.name, b.label.color); });
     el.innerHTML = `<div class="bk-bar"><div class="seg" id="bkV" style="width:fit-content"><button type="button" data-v="tag" class="${week ? '' : 'on'}">Tag</button><button type="button" data-v="woche" class="${week ? 'on' : ''}">Woche</button></div>
         ${week ? `<select id="bkRes" class="bk-sel" data-nodirty>${st.meta.resources.filter(r => r.active).map(r => opt(r.id, r.name, st.res)).join('')}</select>` : ''}
-        <span class="day"><button class="btn small" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn small" id="bkNext" aria-label="vor">›</button></span>
-        ${(week ? !cols.some(c => c.date === td) : st.day !== td) ? '<button class="btn small ghost" id="bkToday">Heute</button>' : ''}<b style="font-size:15px">${esc(title)}</b><span style="flex:1"></span>
-        ${can('buchung_serien') ? '<button class="btn" id="bkLock">+ Sperre</button>' : ''}${can('buchung_buchen') ? '<button class="btn primary" id="bkNew">+ Buchung</button>' : ''}</div>
+        <span class="day"><button class="btn" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn" id="bkNext" aria-label="vor">›</button></span>
+        <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : st.day !== td) ? '' : 'visibility:hidden'}">Heute</button><b class="ttl">${esc(title)}</b>
+        <span class="bk-act">${can('buchung_serien') ? '<button class="btn" id="bkLock">+ Sperre</button>' : ''}${can('buchung_buchen') ? '<button class="btn primary" id="bkNew">+ Buchung</button>' : ''}</span></div>
       ${cols.length ? `<div class="card bk-wrap"><div class="bk-plan" style="--n:${cols.length}">
         <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}<small>${esc(c.sub || '')}</small></div>`).join('')}
         <div class="times" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PX}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
@@ -262,8 +290,8 @@
         <label class="f">Label<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
         <label class="f">${type === 'sperre' ? 'Grund' : 'Titel'}<input id="sxT" placeholder="${type === 'sperre' ? 'z. B. Winterpause' : 'leer = Name des Labels'}"></label>
         <label class="f">vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : `${y}-09-30`}"></label>
-        <div class="f wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
-        <div class="f w2"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}" ${type === 'sperre' ? 'checked' : ''}> ${WD[d]}</label>`).join('')}</div></div>
+        <div class="f bkf wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
+        <div class="f bkf w2"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}" ${type === 'sperre' ? 'checked' : ''}> ${WD[d]}</label>`).join('')}</div></div>
         <label class="f">von<input id="sxS" type="time" value="${type === 'sperre' ? '00:00' : '18:00'}" step="900"></label><label class="f">bis<input id="sxE" type="time" value="${type === 'sperre' ? '23:59' : '20:00'}" step="900"></label>
         ${type === 'serie' ? `<label class="f w2">Mitglied / Trainer (optional)<select id="sxM">${personOpts('')}</select></label>` : ''}
         <label class="f ${type === 'serie' ? 'w2' : 'wall'}">Notiz (intern)<input id="sxN"></label>
@@ -305,7 +333,7 @@
     };
     el.innerHTML = `<div class="filterbar"><label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lbQ" placeholder="Label suchen" value="${esc(st.lq || '')}" data-nodirty></label>
         <span style="flex:1"></span>${can('buchung_einstellungen') ? '<button class="btn primary" id="lbNew">+ Neues Label</button>' : ''}</div>
-      <div class="card" style="padding:0;overflow:auto" id="lbList"></div>
+      <div class="card" style="padding:0 20px;overflow:auto" id="lbList"></div>
       <p class="muted s">Labels kennzeichnen Vereinsbuchungen und Serien – z. B. Training, Medenspiel, Clubmeisterschaft, Schulsport. Sie erscheinen farbig im Belegungsplan, in der Mitglieder-App und am Tablet.</p>`;
     const again = async () => { await loadMeta(); showLabels(el).catch(fail); };
     $('lbQ').oninput = () => { st.lq = val('lbQ'); draw(); };
@@ -318,8 +346,8 @@
     dialog(`<h2>${l ? esc(l.name) : 'Neues Label'}</h2>
       <div class="bk-grid" style="--c:2"><label class="f">Name<input id="lbN" value="${esc(l ? l.name : '')}" placeholder="z. B. Medenspiel Herren 40" maxlength="40"></label>
         <label class="f">Reihenfolge<input id="lbS" inputmode="numeric" value="${l ? l.sort : 100}"></label>
-        <div class="f wall"><span>Farbe</span><div class="bk-pal">${PALETTE.map(c => `<button type="button" data-col="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" id="lbC" value="${color}" aria-label="eigene Farbe"></div></div>
-        <div class="f wall"><span>Vorschau</span><div><span class="bk-prev" id="lbP"></span></div></div>
+        <div class="f bkf wall"><span>Farbe</span><div class="bk-pal">${PALETTE.map(c => `<button type="button" data-col="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" id="lbC" value="${color}" aria-label="eigene Farbe"></div></div>
+        <div class="f bkf wall"><span>Vorschau</span><div><span class="bk-prev" id="lbP"></span></div></div>
         ${l ? `<label class="chk wall"><input type="checkbox" id="lbA" ${l.active ? 'checked' : ''}> aktiv (inaktive Labels sind nicht mehr wählbar, bestehende Termine behalten sie)</label>` : ''}</div>
       <div class="btns">${l ? '<button class="btn ghost danger" id="lbDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="lbOk">Speichern</button></div>`);
     const paint = () => { $('lbP').textContent = val('lbN') || 'Label'; $('lbP').style.background = color; $('lbP').style.color = ink(color); $('lbC').value = color;
@@ -338,7 +366,7 @@
   async function showResources(el) {
     const list = await api('resources');
     el.innerHTML = `${can('buchung_einstellungen') ? '<div class="toolbar"><button class="btn primary" id="rsNew">+ Platz</button><button class="btn" id="rsNewA">+ Gerät</button></div>' : ''}
-      <div class="card" style="padding:0;overflow:auto">${list.length ? `<table class="tbl bk-tbl"><tr><th>Name</th><th class="hm">Buchbar</th><th class="hm">Raster</th><th class="hm">Gastgebühr</th><th class="r hm">kommende</th><th></th></tr>
+      <div class="card" style="padding:0 20px;overflow:auto">${list.length ? `<table class="tbl bk-tbl"><tr><th>Name</th><th class="hm">Buchbar</th><th class="hm">Raster</th><th class="hm">Gastgebühr</th><th class="r hm">kommende</th><th></th></tr>
         ${list.map(r => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.active ? '' : ' · inaktiv'}</span></td>
           <td class="hm">${esc(r.days === '1234567' ? 'täglich' : r.days.split('').map(d => WD[+d]).join(', '))} · ${r.open_from}–${r.open_to}</td><td class="hm">${dur(r.slot_min)} · max. ${dur(r.max_min)}</td>
           <td class="hm">${r.guest_fee_cents == null ? `<span class="muted s">Standard (${euro(st.meta.settings.guest_fee_cents)})</span>` : euro(r.guest_fee_cents)}</td><td class="r hm">${r.future || '–'}</td>
@@ -356,7 +384,7 @@
         <label class="f w2">Name<input id="rsN" value="${esc(d.name || '')}" placeholder="${art ? 'z. B. Ballmaschine' : 'z. B. Platz 1'}"></label>
         <label class="f">Art<select id="rsK">${opt('platz', 'Platz', d.kind)}${opt('artikel', 'Gerät / Artikel', d.kind)}</select></label>
         <label class="f">Bereich (Reiter)<input id="rsA" value="${esc(d.area || '')}" placeholder="${art ? 'Geräte' : 'z. B. Tennis, Padel'}"></label>
-        <div class="f wall"><span>buchbar an</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(x => `<label><input type="checkbox" data-d="${x}" ${String(d.days).includes(String(x)) ? 'checked' : ''}> ${WD[x]}</label>`).join('')}</div></div>
+        <div class="f bkf wall"><span>buchbar an</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(x => `<label><input type="checkbox" data-d="${x}" ${String(d.days).includes(String(x)) ? 'checked' : ''}> ${WD[x]}</label>`).join('')}</div></div>
         <label class="f">von<input id="rsF" type="time" value="${d.open_from}" step="900"></label><label class="f">bis<input id="rsT" type="time" value="${d.open_to === '24:00' ? '23:59' : d.open_to}" step="900"></label>
         <label class="f">Zeitraster<select id="rsS">${[15, 30, 45, 60, 90, 120].map(x => opt(x, dur(x), d.slot_min)).join('')}</select></label>
         <label class="f">Höchstdauer am Stück<select id="rsM">${[15, 30, 45, 60, 90, 120, 180, 240, 360, 480].map(x => opt(x, dur(x), d.max_min)).join('')}</select></label>
@@ -404,8 +432,8 @@
           ${chk('tablet_booking', 'Am Tablet im Vereinsheim buchen (für heute, mit Name und PIN)')}</div>
         <p class="muted s">Gastgebühren werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung) und mit dem nächsten Einzug abgerechnet. Wird die Buchung storniert, entfällt der Posten.</p></div>
       ${st.meta.mv ? `<div class="card"><h3>Wer darf buchen?</h3><p class="muted s" style="margin-top:0">Gilt für die buchende Person und alle Mitspieler (aus der Mitgliederverwaltung). Die Verwaltung kann immer für jeden buchen.</p>
-        <div class="f"><span>Mitgliedschaft</span><div class="bk-chips">${[['aktiv', 'aktiv'], ['ehren', 'Ehrenmitglied'], ['passiv', 'passiv / unterstützend'], ['ruhend', 'ruhend']].map(([k, l]) => `<label><input type="checkbox" data-st="${k}" ${s.allowed_status.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
-        ${st.meta.fees.length ? `<div class="f" style="margin-top:12px"><span>Diese Beitragsarten dürfen <b>nicht</b> buchen (z. B. „Fördermitglied“)</span><div class="bk-chips">${st.meta.fees.map(f => `<label><input type="checkbox" data-bf="${f.id}" ${s.blocked_fees.includes(f.id) ? 'checked' : ''}> ${esc(f.name)}</label>`).join('')}</div></div>` : ''}</div>` : ''}
+        <div class="f bkf"><span>Mitgliedschaft</span><div class="bk-chips">${[['aktiv', 'aktiv'], ['ehren', 'Ehrenmitglied'], ['passiv', 'passiv / unterstützend'], ['ruhend', 'ruhend']].map(([k, l]) => `<label><input type="checkbox" data-st="${k}" ${s.allowed_status.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
+        ${st.meta.fees.length ? `<div class="f bkf" style="margin-top:12px"><span>Diese Beitragsarten dürfen <b>nicht</b> buchen (z. B. „Fördermitglied“)</span><div class="bk-chips">${st.meta.fees.map(f => `<label><input type="checkbox" data-bf="${f.id}" ${s.blocked_fees.includes(f.id) ? 'checked' : ''}> ${esc(f.name)}</label>`).join('')}</div></div>` : ''}</div>` : ''}
       <div class="card"><h3>Platzordnung</h3><p class="muted s" style="margin-top:0">Wird vor jeder Buchung angezeigt und muss bestätigt werden. Leer lassen, wenn nicht nötig.</p>
         <label class="f"><textarea id="bs_rules" rows="5" placeholder="z. B. Bitte nur mit Tennisschuhen spielen. Plätze nach dem Spiel abziehen und Linien kehren.">${esc(s.rules)}</textarea></label></div>
       <div class="card"><h3>Von unterwegs buchen</h3>

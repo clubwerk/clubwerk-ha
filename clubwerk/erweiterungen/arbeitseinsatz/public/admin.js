@@ -64,23 +64,24 @@
       <div class="kpis"><div class="kpi"><div class="l">Soll gesamt</div><div class="v">${h(o.totals.target)}</div></div><div class="kpi"><div class="l">geleistet</div><div class="v">${h(o.totals.done)}</div></div>
         <div class="kpi ${o.totals.missing ? 'warn' : ''}"><div class="l">fehlen noch</div><div class="v">${h(o.totals.missing)}</div></div><div class="kpi"><div class="l">entspricht (${euro(o.rate_cents)}/h)</div><div class="v">${euro(o.totals.cents)}</div></div></div>
       <div class="filterbar"><label class="search"><span aria-hidden="true">${GK.icon('suche', 16)}</span><input id="awQ" placeholder="Name suchen"></label>
-        <div class="seg" id="awSeg">${[['fehlt', 'Fehlen noch'], ['fertig', 'Erledigt'], ['alle', 'Alle']].map(([k, l]) => `<button type="button" data-f="${k}" class="${(st.of || 'fehlt') === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
+        <div class="seg" id="awSeg">${[['fehlt', 'Fehlen noch'], ['fertig', 'Erledigt'], ['befreit', 'Befreit'], ['alle', 'Alle']].map(([k, l]) => `<button type="button" data-f="${k}" class="${(st.of || 'fehlt') === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
       <div class="card" style="padding:0 20px"><table class="tbl" id="awTbl"></table></div>
       <p class="muted s">${o.pool ? 'Familien werden gemeinsam gezählt: das Soll aller Angehörigen zusammen, geleistet ist, was irgendwer aus der Familie gemacht hat.' : ''} ${o.closed ? 'Die fehlenden Stunden kommen beim nächsten Beitragslauf als Posten „Arbeitsstunden“ dazu.' : `Abgerechnet wird nach Ablauf (${deDate(o.to)}) im Beitragslauf.`}</p>`;
     $('awYear').onchange = () => { st.year = +val('awYear'); showOverview(el).catch(fail); };
     $('awAdd').onclick = () => addEntries(() => showOverview(el));
     const draw = () => {
       const q = val('awQ').toLowerCase(), f = st.of || 'fehlt';
-      const fams = o.families.filter(x => (f === 'alle' || (f === 'fehlt' ? x.missing > 0 : x.missing === 0)) && (!q || x.members.some(id => (o.rows.find(r => r.id === id) || {}).name.toLowerCase().includes(q))));
+      const exOf = x => x.members.every(id => (o.rows.find(r => r.id === id) || {}).exempt);
+      const fams = o.families.filter(x => (f === 'alle' || (f === 'fehlt' ? x.missing > 0 : f === 'befreit' ? x.members.some(id => (o.rows.find(r => r.id === id) || {}).exempt) : x.missing === 0 && !exOf(x))) && (!q || x.members.some(id => (o.rows.find(r => r.id === id) || {}).name.toLowerCase().includes(q))));
       const rowOf = id => o.rows.find(r => r.id === id);
       $('awTbl').innerHTML = `<tr><th>${o.pool ? 'Familie / Mitglied' : 'Mitglied'}</th><th class="r">Soll</th><th class="r">geleistet</th><th>Fortschritt</th><th class="r">gemeldet</th><th class="r">fehlt</th><th class="r">Betrag</th><th></th></tr>`
         + (fams.length ? fams.map(x => {
           const many = x.members.length > 1;
-          const head = `<tr><td>${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `<div class="muted s">${esc(rowOf(x.head).why)}</div>`}</td>
+          const head = `<tr><td>${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `${rowOf(x.head).exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(rowOf(x.head).why)}</div>`}</td>
             <td class="r">${h(x.target)}</td><td class="r">${h(x.done)}</td><td>${bar(x.done, x.target)}</td><td class="r">${x.open ? h(x.open) : '<span class="muted s">–</span>'}</td>
             <td class="r ${x.missing ? 'neg' : ''}">${x.missing ? h(x.missing) : '✓'}</td><td class="r">${x.cents ? euro(x.cents) : '<span class="muted s">–</span>'}</td>
-            <td class="r">${many ? '' : `<button class="btn small" data-tgt="${x.head}">Soll …</button>`}</td></tr>`;
-          const subs = many && open.has(x.head) ? x.members.map(id => { const r = rowOf(id); return `<tr class="aw-sub"><td>${esc(GK.lastFirst(r.name))}<div class="muted s">${esc(r.why)}</div></td><td class="r">${h(r.target)}${r.override ? ' <span class="pill b">eigen</span>' : ''}</td><td class="r">${h(r.done)}</td><td></td><td class="r">${r.open ? h(r.open) : ''}</td><td></td><td></td><td class="r"><button class="btn small" data-tgt="${id}">Soll …</button></td></tr>`; }).join('') : '';
+            <td class="r">${many ? '' : `<button class="btn small" data-tgt="${x.head}">Pflichtstunden …</button>`}</td></tr>`;
+          const subs = many && open.has(x.head) ? x.members.map(id => { const r = rowOf(id); return `<tr class="aw-sub"><td>${esc(GK.lastFirst(r.name))}${r.exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(r.why)}</div></td><td class="r">${h(r.target)}${r.override ? ' <span class="pill b">eigen</span>' : ''}</td><td class="r">${h(r.done)}</td><td></td><td class="r">${r.open ? h(r.open) : ''}</td><td></td><td></td><td class="r"><button class="btn small" data-tgt="${id}">Pflichtstunden …</button></td></tr>`; }).join('') : '';
           return head + subs;
         }).join('') : `<tr><td colspan="8" class="muted" style="text-align:center;height:72px">${o.families.length ? 'Keine Treffer.' : 'Noch niemand mit Soll – unter Einstellungen die Vorgabe prüfen.'}</td></tr>`);
       $('awTbl').querySelectorAll('[data-tg]').forEach(b => { b.onclick = () => { const k = +b.dataset.tg; if (open.has(k)) open.delete(k); else open.add(k); draw(); }; });
@@ -91,11 +92,39 @@
     $('awSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.of = b.dataset.f; $('awSeg').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b)); draw(); };
   }
   function targetDialog(r, o, after) {
-    dialog(`<h2>Soll für ${esc(r.name)} · ${esc(o.label)}</h2><p class="muted" style="margin-top:0">Automatisch: <b>${h(r.target)}</b> (${esc(r.why)}). Eine eigene Vorgabe gilt nur für dieses Jahr – z. B. Befreiung wegen Krankheit oder Ehrenamt.</p>
-      <div class="aw-grid" style="--c:2"><label class="f">Eigenes Soll in Stunden (leer = automatisch)<input id="tgM" inputmode="decimal" value="${r.override ? String(r.target / 60).replace('.', ',') : ''}"></label><label class="f">Grund<input id="tgN" placeholder="z. B. Vorstandsamt"></label></div>
+    let mode = r.exempt ? 'befreit' : r.override ? 'eigen' : 'auto';
+    dialog(`<h2>Pflichtstunden · ${esc(GK.lastFirst(r.name))}</h2><p class="muted" style="margin-top:0">${esc(o.label)} · derzeit <b>${h(r.target)}</b> (${esc(r.why)})</p>
+      <div class="seg" id="tgS" style="width:fit-content;margin:0 0 16px">${[['auto', 'Automatisch'], ['eigen', 'Eigenes Soll'], ['befreit', 'Befreit']].map(([k, l]) => `<button type="button" data-m="${k}">${l}</button>`).join('')}</div>
+      <p class="muted s" id="tgH" style="margin:0 0 14px"></p>
+      <div class="aw-grid" style="--c:2">
+        <label class="f tg-e">Soll in Stunden (nur ${esc(o.label)})<input id="tgM" inputmode="decimal" value="${r.override ? String(r.target / 60).replace('.', ',') : ''}"></label>
+        <label class="f tg-b">befreit bis (leer = dauerhaft)<input id="tgU" type="date" value="${esc(r.exempt_until || '')}"></label>
+        <label class="f tg-g">Grund<input id="tgN" maxlength="120" value="${esc(r.exempt ? r.exempt_note || '' : '')}" placeholder="z. B. Vorstandsamt, Trainer"></label></div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="tgOk">Speichern</button></div>`);
+    const HINT = { auto: 'Soll nach den Regeln unter Einstellungen (Vorgabe, Beitragsart, Alter, Status).', eigen: 'Abweichendes Soll nur für diesen Zeitraum.',
+      befreit: 'Keine Pflichtstunden – auch als aktives Mitglied. Geleistete Stunden werden weiter erfasst, fehlende werden nicht berechnet.' };
+    const paint = () => {
+      $('tgS').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === mode));
+      $('tgH').textContent = HINT[mode];
+      $('dialog').querySelector('.tg-e').style.display = mode === 'eigen' ? '' : 'none';
+      $('dialog').querySelector('.tg-b').style.display = mode === 'befreit' ? '' : 'none';
+      $('dialog').querySelector('.tg-g').style.display = mode === 'auto' ? 'none' : '';
+    };
+    $('tgS').onclick = e => { const b = e.target.closest('[data-m]'); if (b) { mode = b.dataset.m; paint(); } };
+    paint();
     $('c').onclick = closeDialog;
-    $('tgOk').onclick = async () => { try { await api('target', 'PUT', { member_id: r.id, year: o.year, minutes: val('tgM') === '' ? null : toMin(val('tgM')), note: val('tgN') }); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); } };
+    $('tgOk').onclick = async () => {
+      try {
+        if (mode === 'befreit') {
+          if (r.override) await api('target', 'PUT', { member_id: r.id, year: o.year, minutes: null, note: '' });
+          await api('exempt', 'PUT', { member_id: r.id, note: val('tgN'), until: val('tgU') });
+        } else {
+          if (r.exempt) await api('exempt/' + r.id, 'DELETE');
+          await api('target', 'PUT', { member_id: r.id, year: o.year, minutes: mode === 'eigen' && val('tgM') !== '' ? toMin(val('tgM')) : null, note: mode === 'eigen' ? val('tgN') : '' });
+        }
+        closeDialog(); toast('Gespeichert.'); after();
+      } catch (e) { fail(e); }
+    };
   }
   async function addEntries(after, preset = {}) {
     const ev = await api('events?past=1&perm=1');

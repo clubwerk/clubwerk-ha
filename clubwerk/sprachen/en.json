@@ -5406,6 +5406,16 @@
     "TRIGGER:-PT1H": "TRIGGER:-PT1H",
     "VERSION:2.0": "VERSION:2.0",
     "Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Buchen“.": "Have fun playing! You can see all bookings in the member app under “Book”.",
-    "Wann: {0}, {1} · {2}–{3} Uhr": "When: {0}, {1} · {2}–{3}"
+    "Wann: {0}, {1} · {2}–{3} Uhr": "When: {0}, {1} · {2}–{3}",
+    "{0} · derzeit": "{0} · currently",
+    "Abweichendes Soll nur für diesen Zeitraum.": "Different target for this period only.",
+    "Befreit": "Exempt",
+    "Eigenes Soll": "Custom target",
+    "Keine Pflichtstunden – auch als aktives Mitglied. Geleistete Stunden werden weiter erfasst, fehlende werden nicht berechnet.": "No mandatory hours – even as an active member. Hours worked are still recorded; missing hours are not charged.",
+    "Pflichtstunden …": "Mandatory hours …",
+    "Pflichtstunden · {0}": "Mandatory hours · {0}",
+    "Soll in Stunden (nur {0})": "Target in hours ({0} only)",
+    "Soll nach den Regeln unter Einstellungen (Vorgabe, Beitragsart, Alter, Status).": "Target according to the rules under Settings (default, fee type, age, status).",
+    "z. B. Vorstandsamt, Trainer": "e.g. board member, coach"
   }
 }

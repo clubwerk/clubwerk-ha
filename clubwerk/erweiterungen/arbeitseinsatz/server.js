@@ -87,7 +87,7 @@ function activate(ctx) {
     if (ov && ov.minutes != null) return { minutes: ov.minutes, why: ov.note ? `Ausnahme: ${ov.note}` : 'eigene Vorgabe' };
     // dauerhaft befreit: Stunden zählen weiter, aber kein Soll und nichts wird eingezogen
     const ex = db.prepare('SELECT * FROM aw_exempt WHERE member_id = ?').get(id);
-    if (ex && (!ex.until_date || ex.until_date >= per.from)) return { minutes: 0, why: `befreit${ex.note ? ': ' + ex.note : ''}`, exempt: true };
+    if (ex && (!ex.until_date || ex.until_date >= per.from)) return { minutes: 0, why: `befreit${ex.until_date ? ' bis ' + ex.until_date.split('-').reverse().join('.') : ''}${ex.note ? ': ' + ex.note : ''}`, exempt: true, until: ex.until_date, note: ex.note };
     const i = info !== undefined ? info : (mv() ? await hook('memberInfo', id) : null);
     let base = c.default_minutes, why = 'Vorgabe';
     if (i) {
@@ -122,7 +122,7 @@ function activate(ctx) {
       const t = await target(p.id, y, info);
       const done = doneMinutes([p.id], y), open = openMinutes([p.id], y);
       const fam = mv() ? await hook('familyOf', p.id) : null;
-      rows.push({ id: p.id, name: p.name, target: t.minutes, why: t.why, done, open, head: fam ? fam.head : p.id, override: Boolean(db.prepare('SELECT 1 FROM aw_target WHERE member_id = ? AND year = ? AND minutes IS NOT NULL').get(p.id, y)) });
+      rows.push({ id: p.id, name: p.name, target: t.minutes, why: t.why, done, open, head: fam ? fam.head : p.id, exempt: Boolean(t.exempt), exempt_until: t.exempt ? t.until || null : null, exempt_note: t.exempt ? t.note || '' : '', override: Boolean(db.prepare('SELECT 1 FROM aw_target WHERE member_id = ? AND year = ? AND minutes IS NOT NULL').get(p.id, y)) });
     }
     const groups = new Map();
     for (const r of rows) { const k = c.pool_family ? r.head : r.id; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
