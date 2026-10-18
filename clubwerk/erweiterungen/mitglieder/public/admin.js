@@ -897,9 +897,9 @@
     el.querySelectorAll('[data-rshow]').forEach(b => { b.onclick = async () => { const r = await api('charges?status=alle&run=' + b.dataset.rshow); dialog(`<h2>Posten des Laufs</h2>${chargeTable(r.rows, {})}<div class="btns"><button class="btn primary" id="c">Schließen</button></div>`, true); $('c').onclick = closeDialog; }; });
   }
 
-  function chargeTable(rows, { member } = {}) {
-    return `<div class="scroll" style="max-height:60vh"><table class="tbl"><tr><th>Fällig</th>${member ? '' : '<th>Zahler</th>'}<th>Position</th><th>Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
-      ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td class="nw">${deDate(c.due_date)}</td>${member ? '' : `<td><b>${esc(GK.lastFirst(c.payer_name))}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td>`}
+  function chargeTable(rows, { member, select } = {}) {
+    return `<div class="scroll" style="max-height:60vh"><table class="tbl"><tr>${select ? '<th style="width:36px"></th>' : ''}<th>Fällig</th>${member ? '' : '<th>Zahler</th>'}<th>Position</th><th>Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
+      ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}">${select ? `<td>${c.status === 'eingezogen' ? `<input type="checkbox" data-csel="${c.id}" aria-label="auswählen">` : ''}</td>` : ''}<td class="nw">${deDate(c.due_date)}</td>${member ? '' : `<td><b>${esc(GK.lastFirst(c.payer_name))}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td>`}
         <td><span translate="no">${esc(c.text)}</span>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}</td><td>${esc(KIND[c.kind] || c.kind)}</td>
         <td>${pill(CSTAT[c.status] || ['', c.status])}${c.dunning_level ? ` <span class="pill r">${c.dunning_level}. Mahnstufe</span>` : ''}${c.paid_at ? `<div class="muted s">${deDate(c.paid_at)} · ${esc(c.paid_via || '')}</div>` : ''}</td>
         <td class="r ${c.cents < 0 ? 'neg' : ''}">${euro(c.cents)}</td>
@@ -952,7 +952,20 @@
     const r = await api('charges?' + q);
     el.innerHTML = `<div class="filterbar"><div class="seg" id="cSeg">${[['offen', 'Offen'], ['ueber', 'Überfällig'], ['eingezogen', 'Im Einzug'], ['bezahlt', 'Bezahlt'], ['alle', 'Alle']].map(([k, l]) => `<button type="button" data-f="${k}" class="${st.cf === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <span class="muted s" style="margin-left:auto">${r.rows.length} Posten · ${euro(r.sum)}</span><button class="btn primary" id="cNew">+ Forderung</button></div>
-      <div class="card">${r.rows.length ? chargeTable(r.rows) : '<p class="muted">Keine Posten.</p>'}</div>`;
+      ${st.cf === 'eingezogen' && r.rows.length ? `<div class="banner g"><span>Diese Posten stecken in einer eingereichten Lastschrift. Erst wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen), hier markieren und „Zahlung erfolgt“ buchen. Rücklastschriften vorher im Einzug beim Zahler erfassen.</span></div>
+        <div class="toolbar"><label class="chk"><input type="checkbox" id="cAll"> Alle markieren</label><span class="muted s" id="cSel"></span><button class="btn primary" id="cPaid" style="margin-left:auto" disabled>Zahlung erfolgt</button></div>` : ''}
+      <div class="card">${r.rows.length ? chargeTable(r.rows, { select: st.cf === 'eingezogen' }) : '<p class="muted">Keine Posten.</p>'}</div>`;
+    if ($('cPaid')) {
+      const sel = () => [...el.querySelectorAll('[data-csel]:checked')].map(x => +x.dataset.csel);
+      const upd = () => { const s = sel(); $('cPaid').disabled = !s.length; $('cSel').textContent = s.length ? `${s.length} ausgewählt · ${euro(r.rows.filter(c => s.includes(c.id)).reduce((t, c) => t + c.cents, 0))}` : ''; $('cAll').checked = s.length === r.rows.length; };
+      el.querySelectorAll('[data-csel]').forEach(x => { x.onchange = upd; });
+      $('cAll').onchange = () => { el.querySelectorAll('[data-csel]').forEach(x => { x.checked = $('cAll').checked; }); upd(); };
+      $('cPaid').onclick = async () => {
+        const ids = sel(); const d = await askText(`Zahlung erfolgt für ${ids.length} Posten?\nDatum der Gutschrift auf dem Vereinskonto (TT.MM.JJJJ):`, deDate(st.meta.today), { ok: 'Buchen' }); if (d == null) return;
+        const m2 = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(d.trim());
+        try { const x = await api('charges/paid', 'POST', { ids, date: m2 ? `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}` : undefined }); toast(`${x.count} Posten als bezahlt gebucht (${euro(x.cents)}).`); finCharges(el, again).catch(fail); } catch (e) { fail(e); }
+      };
+    }
     $('cSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.cf = b.dataset.f; finCharges(el, again).catch(fail); };
     $('cNew').onclick = () => chargeDialog(null, {}, () => finCharges(el, again));
     bindCharges(el, () => finCharges(el, again));
@@ -969,7 +982,7 @@
           <td>${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}${k.returned ? ` <span class="pill r">${k.returned} zurück</span>` : ''}</td>
           <td class="r">${k.count}</td><td class="r">${euro(k.cents)}</td><td class="nw">${k.prenotified_at ? deTime(k.prenotified_at) : '<span class="muted s">noch nicht</span>'}</td>
           <td class="r nw">${k.status !== 'verworfen' ? `<button class="btn small" data-kopen="${k.id}">Details</button> <a class="btn small primary" href="${BASE}collections/${k.id}/xml" download>SEPA-Datei</a>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted">Noch kein Einzug.</p>'}
-        <p class="muted s" style="margin-bottom:0">Die SEPA-Datei (pain.008.001.08) im Online-Banking unter „Sammellastschrift / SEPA-Datei hochladen“ einreichen. Nach der Gutschrift hier „Als bezahlt verbuchen“.</p></div>`;
+        <p class="muted s" style="margin-bottom:0">Die SEPA-Datei (pain.008.001.08) im Online-Banking unter „Sammellastschrift / SEPA-Datei hochladen“ einreichen. Kam nach 1–2 Wochen nichts zurück: „Zahlung erfolgt“ buchen – im Einzug oder unter „Offene Posten → Im Einzug“.</p></div>`;
     $('kPrev').onclick = async () => {
       try {
         const p = await api('collections/preview', 'POST', { date: val('kDate') });
@@ -997,7 +1010,8 @@
     dialog(`<h2>Einzug zum ${deDate(k.collection_date)}</h2>
       <div class="row" style="gap:6px;margin:-4px 0 12px">${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}<span class="pill">${k.count} Lastschriften · ${euro(k.cents)}</span>${k.prenotified_at ? `<span class="pill g">Vorabinfo ${deTime(k.prenotified_at)}</span>` : '<span class="pill a">Vorabinfo fehlt</span>'}</div>
       <div class="toolbar"><a class="btn primary" href="${BASE}collections/${id}/xml" download>SEPA-Datei herunterladen</a><button class="btn" id="kMail">Vorabinformation per E-Mail</button><a class="btn" href="${BASE}collections/${id}/letters.pdf" target="_blank">Briefe für Mitglieder ohne E-Mail</a>
-        ${open ? '<button class="btn" id="kBooked">Als bezahlt verbuchen</button><button class="btn danger" id="kDel">Verwerfen</button>' : ''}</div>
+        ${open ? '<button class="btn" id="kBooked">Zahlung erfolgt (alle ohne Rücklastschrift)</button><button class="btn danger" id="kDel">Verwerfen</button>' : ''}</div>
+      ${open ? '<p class="muted s" style="margin:0 0 10px">Erst buchen, wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen). Rückläufer vorher unten beim Zahler erfassen. Einzelne Posten lassen sich auch unter „Offene Posten → Im Einzug“ buchen.</p>' : ''}
       <div class="scroll" style="max-height:56vh"><table class="tbl"><tr><th>Zahler</th><th>E-Mail</th><th>Posten</th><th class="r">Betrag</th><th></th></tr>
         ${k.rows.map(r => `<tr class="${r.returned ? 'off' : ''}"><td><b>${esc(GK.lastFirst(r.name))}</b>${r.member_no ? `<div class="muted s">Nr. ${esc(r.member_no)}</div>` : ''}</td><td class="s">${esc(r.email || '–')}</td><td class="s" translate="no">${esc(r.texts)}</td><td class="r">${euro(r.cents)}</td>
           <td class="r">${k.status !== 'verworfen' ? `<button class="btn small danger" data-ret="${r.member_id}">Rücklastschrift</button>` : ''}</td></tr>`).join('')}
@@ -1006,7 +1020,7 @@
     $('c').onclick = () => { closeDialog(); again(); };
     $('kMail').onclick = async () => { if (!await ask(`Vorabinformation an ${k.rows.filter(r => r.email).length} Zahler schicken?\n\nJede/r bekommt Betrag, Termin, Mandatsreferenz und Gläubiger-ID. ${k.rows.filter(r => !r.email).length} ohne E-Mail – für sie gibt es die Briefe als PDF.`, { ok: 'Senden', danger: false })) return;
       try { const r = await api(`collections/${id}/prenotify`, 'POST', {}); toast(`${r.sent} E-Mails verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail` : ''}${r.failed.length ? `, ${r.failed.length} fehlgeschlagen` : ''}.`, r.failed.length > 0); collectionDetail(id, again); } catch (e) { fail(e); } };
-    if ($('kBooked')) $('kBooked').onclick = async () => { const d = await askText('Als bezahlt verbuchen\nDatum der Gutschrift auf dem Vereinskonto (TT.MM.JJJJ):', deDate(k.collection_date), { ok: 'Verbuchen' }); if (d == null) return;
+    if ($('kBooked')) $('kBooked').onclick = async () => { const d = await askText('Zahlung erfolgt – alle Lastschriften dieses Einzugs ohne Rücklastschrift als bezahlt buchen?\nDatum der Gutschrift auf dem Vereinskonto (TT.MM.JJJJ):', deDate(st.meta.today), { ok: 'Buchen' }); if (d == null) return;
       const m2 = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(d.trim()); try { await api(`collections/${id}/booked`, 'POST', { date: m2 ? `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}` : undefined }); toast('Verbucht.'); collectionDetail(id, again); } catch (e) { fail(e); } };
     if ($('kDel')) $('kDel').onclick = async () => { if (!await ask('Einzug verwerfen?\n\nNur, wenn die SEPA-Datei NICHT bei der Bank eingereicht wurde. Alle Posten werden wieder offen.', { ok: 'Verwerfen' })) return; try { await api('collections/' + id, 'DELETE'); closeDialog(); toast('Verworfen.'); again(); } catch (e) { fail(e); } };
     document.querySelectorAll('[data-ret]').forEach(b => { b.onclick = () => {

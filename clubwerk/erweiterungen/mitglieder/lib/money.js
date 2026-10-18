@@ -366,6 +366,26 @@ function register(sh) {
     C.audit(req.user, 'SEPA-Einzug als bezahlt verbucht', `Einzug ${k.id}: ${euro(k.cents)}`);
     res.json({ ok: true });
   });
+  /* Zahlung erfolgt: Posten „im Einzug“ (Lastschrift ohne Rückläufer) gesammelt als bezahlt buchen – vom Kassierer, wenn nichts zurückkam */
+  admin.post('/charges/paid', PF, (req, res) => {
+    const b = req.body || {};
+    const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(Number.isInteger).slice(0, 5000);
+    if (!ids.length) return bad(res, 'Bitte Posten auswählen.');
+    const date = isDate(b.date) ? b.date : today();
+    let n = 0, cents = 0;
+    db.transaction(() => {
+      for (const c of db.prepare(`SELECT * FROM mv_charge WHERE id IN (${ids.map(() => '?').join(',')}) AND status = 'eingezogen'`).all(...ids)) {
+        db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = 'lastschrift' WHERE id = ?").run(date, c.id); n++; cents += c.cents;
+      }
+      // Einzüge, in denen nichts mehr „im Einzug“ steht, gelten als verbucht
+      for (const k of db.prepare("SELECT id FROM mv_collection WHERE status = 'erstellt'").all())
+        if (!db.prepare("SELECT 1 FROM mv_charge WHERE collection_id = ? AND status = 'eingezogen'").get(k.id) && db.prepare("SELECT 1 FROM mv_charge WHERE collection_id = ? AND status = 'bezahlt'").get(k.id))
+          db.prepare("UPDATE mv_collection SET status = 'gebucht', booked_at = ? WHERE id = ?").run(nowTs(), k.id);
+    })();
+    if (!n) return bad(res, 'Keiner der Posten ist (noch) im Einzug.');
+    C.audit(req.user, 'Lastschrift: Zahlung erfolgt', `${n} Posten, ${euro(cents)} (Gutschrift ${deD(date)})`);
+    res.json({ ok: true, count: n, cents });
+  });
   admin.post('/collections/:id/return', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
     const b = req.body || {}; const payer = int(b.member_id);

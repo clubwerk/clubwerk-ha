@@ -854,6 +854,10 @@ function activate(ctx) {
       const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
       if (old) alerts.push({ level: 'a', text: `${old} ausgetretene(s) Mitglied(er) seit über ${ret} Jahren – bitte prüfen und anonymisieren.` });
     }
+    // Lastschrift eingereicht, aber noch nicht als bezahlt gebucht → Kassierer erinnern, sobald Rückläufer unwahrscheinlich sind
+    const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
+    for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))
+      alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Einzug & Zahlungen → Offene Posten → Im Einzug“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
     const ageN = ageScanFn ? ageScanFn() : 0;
     if (ageN) alerts.push({ level: 'a', text: `${ageN} Mitglied(er) rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-beitraege', link: 'Entscheiden' });
     const leaving = rows.filter(r => r.leaving).length;

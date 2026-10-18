@@ -4575,6 +4575,22 @@
     "Zur Bestätigung an die Vereinsverwaltung geschickt.": "Sent to the club administration for confirmation.",
     "Zur Bestätigung: {0}": "For confirmation: {0}",
     "Zur Bestätigung: Beitrittserklärung {0}": "For confirmation: membership application {0}",
-    "Beitrittserklärungen (Tablet, online, Verwaltung), Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.": "Membership applications (tablet, online, administration), change requests from the member app and reports from department heads."
+    "Beitrittserklärungen (Tablet, online, Verwaltung), Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.": "Membership applications (tablet, online, administration), change requests from the member app and reports from department heads.",
+    "{0} ausgewählt · {1}": "{0} selected · {1}",
+    "{0} Posten als bezahlt gebucht ({1}).": "{0} items booked as paid ({1}).",
+    "{0} Posten, {1} (Gutschrift {2})": "{0} items, {1} (credited {2})",
+    "Alle markieren": "Select all",
+    "auswählen": "select",
+    "Bitte Posten auswählen.": "Please select items.",
+    "Die SEPA-Datei (pain.008.001.08) im Online-Banking unter „Sammellastschrift / SEPA-Datei hochladen“ einreichen. Kam nach 1–2 Wochen nichts zurück: „Zahlung erfolgt“ buchen – im Einzug oder unter „Offene Posten → Im Einzug“.": "Submit the SEPA file (pain.008.001.08) in online banking under “batch direct debit / upload SEPA file”. If nothing came back after 1–2 weeks: book “Payment received” – in the collection or under “Open items → In collection”.",
+    "Diese Posten stecken in einer eingereichten Lastschrift. Erst wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen), hier markieren und „Zahlung erfolgt“ buchen. Rücklastschriften vorher im Einzug beim Zahler erfassen.": "These items are part of a submitted direct debit. Only once no more returns can come (usually after 1–2 weeks), select them here and book “Payment received”. Record returned debits in the collection first.",
+    "Erst buchen, wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen). Rückläufer vorher unten beim Zahler erfassen. Einzelne Posten lassen sich auch unter „Offene Posten → Im Einzug“ buchen.": "Only book once no more returns can come (usually after 1–2 weeks). Record returns below for the payer first. Individual items can also be booked under “Open items → In collection”.",
+    "Keiner der Posten ist (noch) im Einzug.": "None of the items is (still) in collection.",
+    "Lastschrift vom {0}: Wenn nichts zurückgekommen ist, unter „Einzug & Zahlungen → Offene Posten → Im Einzug“ die Zahlung als erfolgt buchen.": "Direct debit of {0}: if nothing came back, book the payment as received under “Collection & payments → Open items → In collection”.",
+    "Lastschrift: Zahlung erfolgt": "Direct debit: payment received",
+    "Zahlung erfolgt": "Payment received",
+    "Zahlung erfolgt – alle Lastschriften dieses Einzugs ohne Rücklastschrift als bezahlt buchen?": "Payment received – book all direct debits of this collection without a return as paid?",
+    "Zahlung erfolgt (alle ohne Rücklastschrift)": "Payment received (all without return)",
+    "Zahlung erfolgt für {0} Posten?": "Payment received for {0} items?"
   }
 }
