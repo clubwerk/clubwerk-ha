@@ -45,10 +45,16 @@ CREATE TABLE IF NOT EXISTS bh_donation (
   date TEXT NOT NULL, cents INTEGER NOT NULL, item TEXT, sach_origin TEXT, sach_docs INTEGER NOT NULL DEFAULT 0,
   status TEXT NOT NULL DEFAULT 'aktiv', sent_at TEXT, cancel_reason TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );`);
+  const cols = t => db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
+  if (!cols('bh_partner').includes('department_id')) db.exec('ALTER TABLE bh_partner ADD COLUMN department_id INTEGER');
+  const ic = cols('bh_invoice');
+  if (!ic.includes('department_id')) db.exec('ALTER TABLE bh_invoice ADD COLUMN department_id INTEGER');
+  if (!ic.includes('account_id')) db.exec('ALTER TABLE bh_invoice ADD COLUMN account_id INTEGER');
+  if (!ic.includes('bank')) db.exec('ALTER TABLE bh_invoice ADD COLUMN bank TEXT');   // Bankverbindung zum Zeitpunkt der Rechnung (bleibt so, auch wenn das Konto später geändert wird)
 }
 
 /* ---------------------------------------------------------------- Einstellungen */
-const DEF = { street: '', city: '', iban: '', bic: '', bank: '', tax_no: '', vat_id: '', phone: '', email: '', vat_default: '19', small_business: '0', inv_prefix: 'R-', due_days: '14',
+const DEF = { street: '', city: '', tax_no: '', vat_id: '', phone: '', email: '', vat_default: '19', small_business: '0', inv_prefix: 'R-', due_days: '14',
   footer: '', intro: '', remind_days: '14', don_prefix: 'SQ-', finanzamt: '', fa_tax_no: '', bescheid_type: 'freistellung', bescheid_date: '', veranlagungszeitraum: '',
   zwecke: 'des Sports (§ 52 Abs. 2 Satz 1 Nr. 21 AO)', signer: '', signer_role: 'Vorsitzende/r', place: '' };
 const S = k => C.setting(k, DEF[k] != null ? DEF[k] : '');
@@ -56,12 +62,15 @@ const mv = k => C.getSetting(`ext_mitglieder_${k}`, '');   // Vorgaben aus der M
 function settings() {
   const o = Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)]));
   o.small_business = o.small_business === '1'; o.vat_default = Number(o.vat_default) || 0; o.due_days = Number(o.due_days) || 14; o.remind_days = Number(o.remind_days) || 14;
-  o.fallback = { street: mv('club_street'), city: mv('club_city'), iban: mv('club_iban'), bic: mv('club_bic'), bank: mv('club_bank') };
+  o.fallback = { street: mv('club_street'), city: mv('club_city') };
   return o;
 }
-function club() {
+/** Bankverbindung als Momentaufnahme für eine Rechnung */
+const snap = a => (a ? { id: a.id, name: a.name, holder: a.holder || '', iban: a.iban, bic: a.bic || '', bank: a.bank || '' } : null);
+function club(acc) {
   const s = settings(), f = s.fallback;
-  return { name: C.getSetting('club_name', 'Verein'), street: s.street || f.street, city: s.city || f.city, iban: s.iban || f.iban, bic: s.bic || f.bic, bank: s.bank || f.bank,
+  const a = acc || snap(C.bank.def()) || {};
+  return { name: C.getSetting('club_name', 'Verein'), street: s.street || f.street, city: s.city || f.city, iban: a.iban || '', bic: a.bic || '', bank: a.bank || '', holder: a.holder || '',
     tax_no: s.tax_no, vat_id: s.vat_id, phone: s.phone, email: s.email, footer: s.footer,
     finanzamt: s.finanzamt, fa_tax_no: s.fa_tax_no, bescheid_type: s.bescheid_type, bescheid_date: s.bescheid_date, veranlagungszeitraum: s.veranlagungszeitraum, zwecke: s.zwecke,
     signer: s.signer, signer_role: s.signer_role, place: s.place || String(s.city || f.city || '').replace(/^\d{4,5}\s*/, '') };
@@ -95,6 +104,7 @@ function nextNo(table, prefix, year) {
   const n = last ? (parseInt(last.no.slice(pre.length), 10) || 0) + 1 : 1;
   return pre + pad(n, 4);
 }
+const departments = () => { try { return db.prepare('SELECT id, name FROM mv_department WHERE active = 1 ORDER BY sort, name').all(); } catch (e) { return []; } };
 const partnerRow = id => db.prepare('SELECT * FROM bh_partner WHERE id = ?').get(id);
 async function memberAddr(id) {
   const r = (await C.callHooks('memberAddress', id)).find(x => x.result);
@@ -107,7 +117,7 @@ const addrOfMember = m => ({ name: m.name, street: m.street || '', zip: m.zip ||
 
 function invView(r) {
   const today0 = today();
-  return { ...r, recipient: J(r.recipient, {}), items: J(r.items, []), small_business: Boolean(r.small_business), overdue: r.status === 'offen' && r.due_date && r.due_date < today0 };
+  return { ...r, recipient: J(r.recipient, {}), items: J(r.items, []), bank: J(r.bank, null), small_business: Boolean(r.small_business), overdue: r.status === 'offen' && r.due_date && r.due_date < today0 };
 }
 /** Rechnungen an Mitglieder: Status aus der Mitgliederverwaltung übernehmen (dort wird per Lastschrift/Zahlung gebucht) */
 async function syncMemberInvoices() {
@@ -125,7 +135,7 @@ function pdfInvoice(inv, { title } = {}) {
   const v = invView(inv);
   const reminder = Boolean(title);
   const note = [v.status === 'storniert' ? `Diese Rechnung wurde storniert${v.cancel_reason ? ` (${v.cancel_reason})` : ''} und ist nicht zu bezahlen.` : '', reminder ? '' : v.note].filter(Boolean).join('\n\n');
-  return pdf.invoice(club(), { no: v.no, date: v.date, due_date: v.due_date, period: v.period, title: title || 'Rechnung', recipient: v.recipient,
+  return pdf.invoice(club(v.bank), { no: v.no, date: v.date, due_date: v.due_date, period: v.period, title: title || 'Rechnung', recipient: v.recipient,
     customer_no: v.recipient.member_no || (v.partner_id ? (partnerRow(v.partner_id) || {}).customer_no : '') || '', items: v.items, small_business: v.small_business,
     intro: reminder ? '' : v.intro, note, direct_debit: Boolean(v.kind === 'member' && v.charge_id && v.recipient.payment === 'lastschrift') });
 }
@@ -155,7 +165,8 @@ function activate(ctx) {
     res.json({ today: today(), year: y, settings: settings(), mv: ctx.isModuleActive('mitglieder'), mail: ctx.mail.ready(),
       kpis: { open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), paidYear: sum("status = 'bezahlt' AND year = ?", y),
         donations: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM bh_donation WHERE status = 'aktiv' AND year = ?").get(y) },
-      partners: db.prepare('SELECT id, name, active FROM bh_partner ORDER BY active DESC, name COLLATE NOCASE').all(),
+      partners: db.prepare('SELECT id, name, active, department_id FROM bh_partner ORDER BY active DESC, name COLLATE NOCASE').all(),
+      accounts: C.bank.list().map(a => ({ id: a.id, name: a.name, iban: a.iban, is_default: a.is_default, departments: a.departments })), departments: departments(),
       members: members.map(m => ({ id: m.id, name: m.name, active: m.active, member_no: nos[m.id] || null })),
       donationReady: Boolean(S('finanzamt') && S('fa_tax_no') && S('bescheid_date') && S('zwecke')) });
   }));
@@ -164,11 +175,9 @@ function activate(ctx) {
   admin.get('/settings', P, (req, res) => res.json(settings()));
   admin.put('/settings', P, (req, res) => {
     const b = req.body || {}; const err = [];
-    for (const k of ['street', 'city', 'bank', 'tax_no', 'vat_id', 'phone', 'finanzamt', 'fa_tax_no', 'veranlagungszeitraum', 'signer', 'signer_role', 'place']) if (b[k] !== undefined) C.setSetting2(k, one(b[k], 120));
+    for (const k of ['street', 'city', 'tax_no', 'vat_id', 'phone', 'finanzamt', 'fa_tax_no', 'veranlagungszeitraum', 'signer', 'signer_role', 'place']) if (b[k] !== undefined) C.setSetting2(k, one(b[k], 120));
     for (const k of ['footer', 'intro', 'zwecke']) if (b[k] !== undefined) C.setSetting2(k, txt(b[k], 600));
     if (b.email !== undefined) { if (!mailOk(one(b.email, 120))) err.push('Die E-Mail-Adresse ist ungültig.'); else C.setSetting2('email', one(b.email, 120)); }
-    if (b.iban !== undefined) { const v = String(b.iban).replace(/\s+/g, '').toUpperCase(); if (v && !/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(v)) err.push('Die IBAN sieht nicht richtig aus.'); else C.setSetting2('iban', v); }
-    if (b.bic !== undefined) { const v = String(b.bic).replace(/\s+/g, '').toUpperCase(); if (v && !/^[A-Z0-9]{8}([A-Z0-9]{3})?$/.test(v)) err.push('Der BIC hat 8 oder 11 Zeichen.'); else C.setSetting2('bic', v); }
     if (b.vat_default !== undefined) C.setSetting2('vat_default', String(VATS.includes(Number(b.vat_default)) ? Number(b.vat_default) : 19));
     if (b.small_business !== undefined) C.setSetting2('small_business', b.small_business ? '1' : '0');
     for (const [k, min, max] of [['due_days', 0, 120], ['remind_days', 1, 120]]) if (b[k] !== undefined) C.setSetting2(k, String(Math.max(min, Math.min(max, int(b[k])))));
@@ -185,7 +194,7 @@ function activate(ctx) {
     const v = k => (b[k] !== undefined ? b[k] : cur[k]);
     const out = { name: one(v('name'), 100), contact: one(v('contact'), 80) || null, street: one(v('street'), 100) || null, zip: one(v('zip'), 10) || null, city: one(v('city'), 60) || null,
       country: one(v('country'), 40) || null, email: one(v('email'), 120).toLowerCase() || null, phone: one(v('phone'), 40) || null, vat_id: one(v('vat_id'), 20) || null,
-      customer_no: one(v('customer_no'), 20) || null, note: txt(v('note'), 400) || null, active: v('active') === undefined ? 1 : (v('active') ? 1 : 0) };
+      customer_no: one(v('customer_no'), 20) || null, note: txt(v('note'), 400) || null, department_id: Number(v('department_id')) || null, active: v('active') === undefined ? 1 : (v('active') ? 1 : 0) };
     if (out.name.length < 2) return { error: 'Bitte den Namen der Firma eintragen.' };
     if (!mailOk(out.email)) return { error: 'Die E-Mail-Adresse ist ungültig.' };
     try { out.items = JSON.stringify(b.items !== undefined ? cleanItems(b.items) : J(cur.items, [])); } catch (e) { return { error: e.message }; }
@@ -233,12 +242,15 @@ function activate(ctx) {
     const t = totals(items, s.small_business);
     if (t.gross <= 0) throw new Error('Der Rechnungsbetrag muss größer als 0 sein.');
     const year = Number(date.slice(0, 4));
+    const dept = Number(b.department_id) || (partner && partner.department_id) || null;
+    const acc = snap(C.bank.pick({ id: Number(b.account_id) || null, department: dept }));
     let id, no;
     db.transaction(() => {
       no = nextNo('bh_invoice', s.inv_prefix, year);
       id = Number(db.prepare(`INSERT INTO bh_invoice(no, year, kind, partner_id, member_id, recipient, date, due_date, period, intro, note, items, net, vat, gross, small_business, yearly, created_by)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(no, year, kind, partner ? partner.id : null, memberId, JSON.stringify(recipient), date, due, one(b.period, 80) || null,
         txt(b.intro !== undefined ? b.intro : s.intro, 600) || null, txt(b.note, 600) || null, JSON.stringify(items), t.net, t.vat, t.gross, s.small_business ? 1 : 0, yearly, by || null).lastInsertRowid);
+      db.prepare('UPDATE bh_invoice SET department_id = ?, account_id = ?, bank = ? WHERE id = ?').run(dept, acc ? acc.id : null, acc ? JSON.stringify(acc) : null, id);
     })();
     // an Mitglieder: zusätzlich offener Posten in der Mitgliederverwaltung (Lastschrift/Überweisung wird dort gebucht)
     if (kind === 'member' && C.isModuleActive('mitglieder') && b.as_charge !== false) {
@@ -278,7 +290,7 @@ function activate(ctx) {
     const n = reminder ? r.reminders + 1 : 0;
     const title = reminder ? `${n > 1 ? n + '. ' : ''}Zahlungserinnerung` : 'Rechnung';
     const buf = await pdfInvoice(r, { title });
-    const cl = club();
+    const cl = club(v.bank);
     const greet = v.recipient.contact ? `Guten Tag ${v.recipient.contact},` : 'Guten Tag,';
     const lines = reminder
       ? [greet, '', `unsere Rechnung ${r.no} vom ${deD(r.date)} über ${euro(r.gross)} war am ${deD(r.due_date)} fällig. Vielleicht ist sie im Alltag untergegangen – wir bitten freundlich um Überweisung.`, 'Sollten Sie inzwischen gezahlt haben, betrachten Sie diese Erinnerung bitte als gegenstandslos.']
@@ -433,18 +445,18 @@ function activate(ctx) {
     const pend = db.prepare("SELECT COUNT(*) n FROM bh_partner p WHERE p.active = 1 AND p.items != '[]' AND NOT EXISTS (SELECT 1 FROM bh_invoice i WHERE i.partner_id = p.id AND i.yearly = ? AND i.status != 'storniert')").get(y).n;
     return { kpis: [{ l: 'Offene Rechnungen', v: `${open.n} · ${euro(open.c)}` }, { l: `Jahresrechnungen ${y} offen`, v: pend }], alerts };
   };
-  ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).filter(k => !['iban', 'bic'].includes(k)).map(k => [k, S(k)])),
+  ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)])),
     partners: db.prepare('SELECT name, contact, street, zip, city, country, email, phone, vat_id, customer_no, items, note, active FROM bh_partner').all() });
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     let n = 0;
-    if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (k in DEF && !['iban', 'bic'].includes(k) && typeof v === 'string') C.setSetting2(k, v.slice(0, 600));
+    if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (k in DEF && typeof v === 'string') C.setSetting2(k, v.slice(0, 600));
     for (const p of Array.isArray(data.partners) ? data.partners.slice(0, 500) : []) {
       if (!p || !p.name || db.prepare('SELECT 1 FROM bh_partner WHERE lower(name) = lower(?)').get(String(p.name))) continue;
       const r = partnerInput({ ...p, items: J(p.items, []) }); if (r.error) continue;
       const k = Object.keys(r.v); db.prepare(`INSERT INTO bh_partner(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(x => r.v[x])); n++;
     }
-    return `Einstellungen und ${n} Firma/Firmen übernommen – Bankverbindung bitte selbst eintragen`;
+    return `Einstellungen und ${n} Firma/Firmen übernommen – Bankkonten stehen unter Einstellungen → Bankkonten`;
   };
 }
 

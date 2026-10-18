@@ -1106,11 +1106,12 @@
   async function showSettings(el, part = 'settings') {
     await loadMeta();
     const s = st.meta.settings, m = st.meta;
+    const acc = await GK.api('bank-accounts').catch(() => ({ rows: [], manage: false }));
     const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
     const tA = `<div class="card" data-sec="verein"><h3>Verein & SEPA-Lastschrift</h3><div class="mv-grid" style="--c:4">
         <label class="f w2">Name als Zahlungsempfänger<input id="eName" value="${esc(s.creditor_name)}" maxlength="70"></label><label class="f">Straße<input id="eStreet" value="${esc(s.club_street)}"></label><label class="f">PLZ und Ort<input id="eCity" value="${esc(s.club_city)}"></label>
-        <label class="f">Gläubiger-ID<input id="eCi" value="${esc(s.creditor_id)}" placeholder="DE98ZZZ09999999999" spellcheck="false"></label><label class="f">IBAN Vereinskonto<input id="eIban" value="${esc(fmtIban(s.club_iban))}" ${m.perms.finance ? '' : 'disabled'} spellcheck="false"></label>
-        <label class="f">BIC<input id="eBic" value="${esc(s.club_bic)}"></label><label class="f">Bank<input id="eBank" value="${esc(s.club_bank)}"></label>
+        <label class="f">Gläubiger-ID<input id="eCi" value="${esc(s.creditor_id)}" placeholder="DE98ZZZ09999999999" spellcheck="false"></label><label class="f w2">Konto für Lastschriften<select id="eAcc" ${m.perms.finance && acc.rows.length ? '' : 'disabled'}>${acc.rows.length ? `${opt('', 'Standardkonto' + (acc.rows.find(a => a.is_default) ? ` (${acc.rows.find(a => a.is_default).name})` : ''), s.sepa_account || '')}${acc.rows.filter(a => a.active !== false).map(a => opt(a.id, `${a.name} · ${fmtIban(a.iban).slice(0, 4)} … ${String(a.iban).replace(/\s/g, '').slice(-4)}`, s.sepa_account)).join('')}` : `<option>${s.club_iban && !s.account_central ? esc(fmtIban(s.club_iban)) + ' (bisher hier eingetragen)' : 'noch kein Bankkonto angelegt'}</option>`}</select></label>
+        <label class="f"><span>&nbsp;</span><a class="btn" href="#einstellungen" id="eAccGo" style="justify-content:center">Bankkonten verwalten …</a></label>
         <label class="f">Mandatsreferenz = Kürzel + Nr.<input id="ePre" value="${esc(s.mandate_prefix)}" maxlength="10" placeholder="z. B. TCF"></label><label class="f">Mitgliedsnummern ab<input id="eNo" value="${esc(s.member_no_start)}" inputmode="numeric"></label>
         <label class="f">Beitragsjahr beginnt am 1.<select id="eYear">${months.map((n, i) => opt(`${String(i + 1).padStart(2, '0')}-01`, n, s.year_start)).join('')}</select></label>
         <label class="f">Vorabinformation (Tage vorher)<input id="ePre2" value="${s.prenotify_days}" inputmode="numeric"></label>
@@ -1172,9 +1173,10 @@
     GK.watch(el);
     if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitgliederverwaltung', () => showSettings(el, part));
     const save = async body => { try { await api('settings', 'PUT', body); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); } };
+    if ($('eAccGo')) $('eAccGo').onclick = e => { e.preventDefault(); if (GK.openSettings) GK.openSettings('bank'); else GK.go('einstellungen'); };
     if ($('eSave1')) $('eSave1').onclick = () => {
       const dd = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('eDrinks'));
-      save({ creditor_name: val('eName'), club_street: val('eStreet'), club_city: val('eCity'), creditor_id: val('eCi'), ...(m.perms.finance ? { club_iban: val('eIban') } : {}), club_bic: val('eBic'), club_bank: val('eBank'),
+      save({ creditor_name: val('eName'), club_street: val('eStreet'), club_city: val('eCity'), creditor_id: val('eCi'), ...(m.perms.finance && $('eAcc') && !$('eAcc').disabled ? { sepa_account: val('eAcc') ? +val('eAcc') : null } : {}),
         mandate_prefix: val('ePre'), member_no_start: val('eNo'), year_start: val('eYear'), prenotify_days: +val('ePre2'), notice_months: +val('eNotice'), drinks_due: dd ? `${dd[2].padStart(2, '0')}-${dd[1].padStart(2, '0')}` : '',
         return_fee_cents: toCents(val('eRet') || '0'), dunning_fee_cents: toCents(val('eDun') || '0'), notify_to: val('eNotify'), invoice_text: val('eInv') });
     };

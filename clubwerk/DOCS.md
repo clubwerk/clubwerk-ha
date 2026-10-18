@@ -122,10 +122,13 @@ Mandate verfallen nach 36 Monaten ohne Lastschrift – Clubwerk zeigt das in der
 
 **Abteilungsadmins:** Ein Benutzer mit der Rolle „Abteilungsleitung“ (oder jeder Rolle mit „nur eigene Abteilung(en)“) sieht nur die Mitglieder seiner Abteilung(en). Er darf Stammdaten ändern, Austritte eintragen (mit Dokument), neue Mitglieder anlegen (sie gehören automatisch zu seiner Abteilung) und Beitrittserklärungen annehmen, in denen seine Abteilung angekreuzt ist. Beiträge, Einzug, Bankdaten, Auswertungen, Import und Einstellungen bleiben der Vereinsverwaltung vorbehalten. **Bestätigung:** Standardmäßig gelten Ein- und Austritte (neues Mitglied, Austritt, Rückkehr, angenommene Beitrittserklärung) einer Abteilungsleitung erst, wenn ein Admin sie unter „Anträge → Änderungen & Meldungen“ bestätigt; bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf. Abschaltbar unter Einstellungen → Verein & SEPA → „Abteilungsleitungen“.
 
+## Bankkonten
+Unter Einstellungen → Bankkonten pflegt der Verein alle seine Konten an einer Stelle. Ein Konto ist das Standardkonto; ein Konto kann einer oder mehreren Abteilungen zugeordnet werden (z. B. eigenes Konto der Padel-Abteilung). Die Buchhaltung nennt auf Rechnungen das Konto der Abteilung, sonst das Standardkonto; die Mitgliederverwaltung zieht Lastschriften auf das unter Mitgliederverwaltung → Einstellungen gewählte Konto ein. Ein Konto, das noch verwendet wird, lässt sich nicht löschen, nur auf „inaktiv“ setzen.
+
 ## Modul Buchhaltung
 Rechnungen und Spendenquittungen – unter Verwaltung → Buchhaltung (Recht „Buchhaltung“).
 
-**Einrichten (Buchhaltung → Einstellungen):** Steuernummer, Umsatzsteuer-Vorgabe, Zahlungsziel und Bankverbindung. Anschrift und Konto werden aus der Mitgliederverwaltung übernommen, wenn hier nichts eingetragen ist. Für Spendenquittungen zusätzlich Finanzamt, Steuernummer, Art und Datum des Bescheids, Veranlagungszeitraum, begünstigte Zwecke und wer unterschreibt.
+**Einrichten (Buchhaltung → Einstellungen):** Steuernummer, Umsatzsteuer-Vorgabe und Zahlungsziel. Die Anschrift wird aus der Mitgliederverwaltung übernommen, wenn hier nichts eingetragen ist. Die Bankkonten stehen zentral unter Einstellungen → Bankkonten: Auf der Rechnung steht das Konto der Abteilung (im Rechnungsdialog gewählt oder bei der Firma hinterlegt), sonst das Standardkonto. Für Spendenquittungen zusätzlich Finanzamt, Steuernummer, Art und Datum des Bescheids, Veranlagungszeitraum, begünstigte Zwecke und wer unterschreibt.
 
 **Firmen & Sponsoren:** Jede Firma einmal anlegen, mit den Positionen, die sie jedes Jahr bekommt (z. B. „Bandenwerbung Platz 1“, 300 € netto, 19 %). Firmen mit Rechnungen lassen sich nicht löschen, nur auf „inaktiv“ setzen.
 

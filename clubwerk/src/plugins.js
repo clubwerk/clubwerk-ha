@@ -139,6 +139,7 @@ function load({ app, admin, helpers }) {
         isActive: () => isActive(id), require: name => require(name), ...helpers,
         setting: (k, d) => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v),
         hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → E-Mail-Versand)
+        bank: require('./bank'),   // Bankkonten des Vereins: list() · get(id) · def() · forDepartment(id) · pick({ id, department })
         // Übersetzen: ctx.T('Text {0}', [wert]) in der Sprache der Anfrage bzw. der Vereinssprache (Fehlermeldungen, E-Mails, Excel und PDF übersetzt der Kern selbst)
         T: (t, v) => require('./i18n').T(t, v), lang: () => require('./i18n').current(),
         member, access: memberapp.access,

@@ -483,6 +483,8 @@
     $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
     scheme: () => SCHEME, ask, askText, watch, clean, tabs, funcBox, funcImport, lastFirst, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
+    /** Einstellungen öffnen, gleich im richtigen Bereich (z. B. 'bank') */
+    openSettings: sec => { sset('cw_setsec', sec); if (page === 'einstellungen') RENDER.einstellungen(); else go('einstellungen'); },
     modules: () => cache.modules || [],
     /** registerPage({ key, title, perm, render, group, before, icon, tab })
      *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“) */
@@ -2581,7 +2583,7 @@
       };
     }
   }
-  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
 
   /* ---------- Update per ZIP-Upload ---------- */
   async function renderUpdate() {
@@ -2655,7 +2657,7 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein & Logo'], ['sprache', 'Sprachen'], ['mail', 'E-Mail-Versand'], ['module', 'Module'], ['tablet', 'Tablet & Kopfzeile'], ['getraenke', 'Verkauf'], ['update', 'Update'], ['konto', 'Mein Konto']];
+  const SETTING_SECS = [['verein', 'Verein & Logo'], ['bank', 'Bankkonten'], ['sprache', 'Sprachen'], ['mail', 'E-Mail-Versand'], ['module', 'Module'], ['tablet', 'Tablet & Kopfzeile'], ['getraenke', 'Verkauf'], ['update', 'Update'], ['konto', 'Mein Konto']];
   const SETTING_OF = h => (/^Sprache/.test(h) ? 'sprache' : /^Mein Passwort/.test(h) ? 'konto' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo)/.test(h) ? 'verein' : /^E-Mail/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^Gemerkte Zuordnungen/.test(h) ? 'getraenke' : 'tablet');
   function sectionize() {
@@ -2676,6 +2678,44 @@
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
   }
+
+  /* ---------- Bankkonten (zentral für Buchhaltung, Mitgliederverwaltung …) ---------- */
+  const fmtIbanC = v => String(v || '').replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
+  async function renderBank() {
+    const r = await api('bank-accounts');
+    const box = $('bankBody'); if (!box) return;
+    const dn = id => (r.departments.find(d => d.id === id) || {}).name || '?';
+    box.innerHTML = `<p class="muted s" style="margin-top:0">Gilt für alle Module: Rechnungen der Buchhaltung, Lastschriften der Mitgliederverwaltung. Ein Konto ist das Standardkonto; Konten mit Abteilung werden für deren Rechnungen verwendet.</p>
+      ${r.rows.length ? `<table class="tbl"><tr><th>Bezeichnung</th><th>IBAN</th><th>Abteilungen</th><th></th></tr>
+        ${r.rows.map(a => `<tr class="${a.active ? '' : 'off'}"><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}${a.active ? '' : ' <span class="pill">inaktiv</span>'}${a.bank ? `<br><span class="muted s">${esc(a.bank)}</span>` : ''}</td>
+          <td class="nw">${esc(fmtIbanC(a.iban))}</td><td>${a.departments.length ? esc(a.departments.map(dn).join(', ')) : '<span class="muted s">alle</span>'}</td>
+          <td class="r">${r.manage ? `<button class="btn small" data-bk="${a.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>`
+        : '<p class="muted">Noch kein Bankkonto angelegt.</p>'}
+      ${r.manage ? '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="bkNew">+ Bankkonto</button></div>' : ''}`;
+    if ($('bkNew')) $('bkNew').onclick = () => bankDialog(null, r);
+    box.querySelectorAll('[data-bk]').forEach(b => { b.onclick = () => bankDialog(r.rows.find(a => a.id === +b.dataset.bk), r); });
+  }
+  function bankDialog(a, r) {
+    const v = k => esc((a && a[k]) || '');
+    dialog(`<h2>${a ? esc(a.name) : 'Bankkonto anlegen'}</h2>
+      <div class="ugrid"><label class="f">Bezeichnung<input id="bkN" value="${v('name')}" placeholder="z. B. Vereinskonto, Padel"></label><label class="f">Kontoinhaber<input id="bkH" value="${v('holder')}" placeholder="${esc(cache.settings.clubName || '')}"></label>
+        <label class="f">IBAN<input id="bkI" value="${esc(fmtIbanC(a && a.iban))}" spellcheck="false" autocomplete="off"></label><label class="f">BIC<input id="bkB" value="${v('bic')}" spellcheck="false"></label>
+        <label class="f">Kreditinstitut<input id="bkK" value="${v('bank')}"></label><label class="f"><span>&nbsp;</span><label class="chk" style="min-height:40px"><input type="checkbox" id="bkD" ${!a || a.is_default ? 'checked' : ''}> Standardkonto</label></label></div>
+      ${r.departments.length ? `<h3 style="margin:16px 0 4px">Abteilungen (optional)</h3><p class="muted s" style="margin:0 0 8px">Rechnungen dieser Abteilungen nennen dieses Konto. Ohne Auswahl gilt das Konto für den ganzen Verein.</p>
+        <div class="permgrid">${r.departments.filter(d => d.active !== 0).map(d => `<label class="chk"><input type="checkbox" data-bkd="${d.id}" ${a && a.departments.includes(d.id) ? 'checked' : ''}> ${esc(d.name)}</label>`).join('')}</div>` : ''}
+      ${a ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bkA" ${a.active ? 'checked' : ''}> aktiv</label>` : ''}
+      <div class="btns">${a ? '<button class="btn ghost danger" id="bkDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bkOk">Speichern</button></div>`);
+    $('c').onclick = closeDialog;
+    $('bkOk').onclick = async () => {
+      const body = { name: $('bkN').value, holder: $('bkH').value, iban: $('bkI').value, bic: $('bkB').value, bank: $('bkK').value, is_default: $('bkD').checked,
+        departments: [...document.querySelectorAll('[data-bkd]:checked')].map(x => +x.dataset.bkd), ...(a ? { active: $('bkA').checked } : {}) };
+      try { if (a) await api('bank-accounts/' + a.id, 'PUT', body); else await api('bank-accounts', 'POST', body); closeDialog(); toast('Gespeichert.'); renderBank().catch(fail); } catch (e) { fail(e); }
+    };
+    if ($('bkDel')) $('bkDel').onclick = async () => {
+      if (!await ask(`Bankkonto „${a.name}“ löschen?\n\nRechnungen, die es schon nennen, bleiben unverändert.`)) return;
+      try { await api('bank-accounts/' + a.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); renderBank().catch(fail); } catch (e) { fail(e); }
+    };
+  }
   async function renderSettings() {
     const mayCfg = can('einstellungen'), mayUn = can('deinstallieren');
     const [s, map, ext, ml] = await Promise.all([api('settings'), can('lieferungen') ? api('supplier-map') : null, mayCfg || mayUn ? api('extensions') : null, mayCfg ? api('mail') : null]);
@@ -2683,7 +2723,9 @@
     const SRC = { eingebaut: 'im Paket', mitgeliefert: 'im Paket', hochgeladen: 'hochgeladen', nachinstalliert: 'per Samba' };
     const inst = ext ? ext.all.filter(x => x.installed !== false) : [], notInst = ext ? ext.all.filter(x => x.installed === false) : [];
     const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
+    const mayBank = ['einstellungen', 'buchhaltung', 'mitglieder_finanzen'].some(canFull) || (me && me.role === 'oberadmin');
     $('main').innerHTML = `<h2 class="page">Einstellungen</h2>
+      ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       <div class="card"><h3>Mein Passwort ändern</h3><div class="row">
         <label class="f">Aktuelles Passwort<input type="password" id="pwCur" autocomplete="current-password"></label>

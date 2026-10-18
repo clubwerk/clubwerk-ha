@@ -50,14 +50,23 @@
     $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return go(pinVal); if (pinVal.length < 6) { pinVal += k; dots(); } if (pinVal.length === 6) go(pinVal); }; });
   }
   function chooseWork(token) {
-    dlg(`<h2>Was machst du?</h2><div class="sub">Einsatz von heute wählen oder kurz beschreiben.</div>
-      <div class="choice">${state.events.map(e => `<button data-e="${e.id}">${esc(e.title)}${e.start ? ` · ${e.start} Uhr` : ''}</button>`).join('')}</div>
-      <input class="q" id="wt" placeholder="z. B. Hecke schneiden" style="margin-top:10px" autocomplete="off">
+    const evs = state.events;
+    let sel = evs.length === 1 ? evs[0].id : null;   // ein Einsatz heute: gleich ausgewählt
+    dlg(`<h2>Was machst du?</h2><div class="sub">${evs.length ? 'Einsatz wählen – eine Beschreibung ist dann freiwillig.' : 'Kurz beschreiben, was du machst.'}</div>
+      ${evs.length ? `<div class="choice">${evs.map(e => `<button data-e="${e.id}">${esc(e.title)}${e.start ? ` · ${e.start} Uhr` : ''}</button>`).join('')}</div>` : ''}
+      <input class="q" id="wt" placeholder="" style="margin-top:10px" autocomplete="off">
       <div class="perr" id="perr"></div><div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Einstempeln</button></div>`);
+    const paint = () => {
+      $('dialog').querySelectorAll('[data-e]').forEach(b => b.classList.toggle('on', +b.dataset.e === sel));
+      $('wt').placeholder = sel ? 'optional: was genau, z. B. Hecke schneiden' : 'z. B. Hecke schneiden';
+      $('perr').textContent = '';
+    };
     const start = async body => { try { await call('x/arbeitseinsatz/start', { token, ...body }); closeDlg(); toast('Eingestempelt – danke fürs Mithelfen!'); load(); } catch (e) { $('perr').textContent = e.message; } };
-    $('dialog').querySelectorAll('[data-e]').forEach(b => { b.onclick = () => start({ event_id: +b.dataset.e }); });
-    $('ok').onclick = () => start({ text: $('wt').value });
+    $('dialog').querySelectorAll('[data-e]').forEach(b => { b.onclick = () => { sel = sel === +b.dataset.e ? null : +b.dataset.e; paint(); }; });
+    $('ok').onclick = () => start({ event_id: sel || undefined, text: $('wt').value });
+    $('wt').onkeydown = e => { if (e.key === 'Enter') $('ok').click(); };
     $('x').onclick = closeDlg;
+    paint();
   }
   async function finish(token) {
     try {

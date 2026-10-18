@@ -223,6 +223,13 @@ function familyOf(memberId) {
 }
 const isExited = (p, day = today()) => Boolean(p && p.exit_date && p.exit_date < day);
 const fullName = p => [p.first_name, p.last_name].filter(Boolean).join(' ');
+/** Konto für Lastschriften: aus den zentralen Bankkonten (Einstellungen → Bankkonten), sonst die früher hier eingetragenen Werte */
+let bank = null;
+function account() {
+  if (bank === null) { try { bank = require('../../../src/bank'); } catch (e) { bank = false; } }
+  const a = bank ? bank.pick({ id: Number(S('sepa_account')) || null }) : null;
+  return a ? { id: a.id, name: a.name, iban: a.iban, bic: a.bic || '', bank: a.bank || '', central: true } : { id: null, name: '', iban: S('club_iban'), bic: S('club_bic'), bank: S('club_bank'), central: false };
+}
 
 /* ---------- Beiträge ---------- */
 function feeCents(mf, fee) { return mf.cents != null ? mf.cents : fee.cents; }
@@ -230,7 +237,7 @@ function feeLabel(fee) { return `${fee.name} (${(fee.cents / 100).toLocaleString
 
 module.exports = {
   init(o) { ({ db, getSetting, setSetting } = o); createTables(); migrate(); },
-  S, SET, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, splitName, syncCore, nextMemberNo, mandateRefFor, hist,
+  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, splitName, syncCore, nextMemberNo, mandateRefFor, hist,
   payerOf, familyOf, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, fullName, feeCents, feeLabel, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

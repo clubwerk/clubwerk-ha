@@ -868,6 +868,31 @@ admin.get('/users/options', need('benutzer'), (req, res) => {
 });
 admin.get('/users/suggest', need('benutzer'), (req, res) => res.json({ username: suggestUsername(req.query.first, req.query.last) }));
 
+/* ---------- Bankkonten des Vereins (zentral, für alle Module) ---------- */
+const bank = require('./bank');
+const BANK_PERMS = ['einstellungen', 'buchhaltung', 'mitglieder_finanzen'];
+const bankManage = req => req.user.role === 'oberadmin' || BANK_PERMS.some(p => fullPerm(req, p));
+admin.get('/bank-accounts', (req, res) => {
+  const full = bankManage(req);
+  if (!full && !req.user.perms.some(p => ['mitglieder', 'buchhaltung'].includes(p))) return bad(res, 'Keine Berechtigung.', 403);
+  res.json({ manage: full, departments: departmentList(), rows: bank.list({ all: full }).map(a => (full ? a : { ...a, iban: bank.maskIban(a.iban) })) });
+});
+admin.post('/bank-accounts', (req, res) => {
+  if (!bankManage(req)) return bad(res, 'Bankkonten verwalten dürfen Einstellungen, Buchhaltung oder Beiträge & Einzug.', 403);
+  try { const id = bank.save(req.body || {}); audit(req.user, 'Bankkonto angelegt', `${(req.body || {}).name} ${bank.maskIban((req.body || {}).iban)}`); res.json({ id }); } catch (e) { bad(res, e.message); }
+});
+admin.put('/bank-accounts/:id', (req, res) => {
+  if (!bankManage(req)) return bad(res, 'Keine Berechtigung.', 403);
+  const cur = bank.get(req.params.id); if (!cur) return bad(res, 'Nicht gefunden.', 404);
+  try { bank.save(req.body || {}, cur); audit(req.user, 'Bankkonto geändert', cur.name); res.json({ ok: true }); } catch (e) { bad(res, e.message); }
+});
+admin.delete('/bank-accounts/:id', (req, res) => {
+  if (!bankManage(req)) return bad(res, 'Keine Berechtigung.', 403);
+  const cur = bank.get(req.params.id); if (!cur) return bad(res, 'Nicht gefunden.', 404);
+  const used = plugins.withHook('bankAccountUsed').map(p => { try { return p.hooks.bankAccountUsed(cur.id); } catch (e) { return null; } }).filter(Boolean);
+  if (used.length) return bad(res, `Das Konto wird noch verwendet: ${used.join(', ')}. Stattdessen auf „inaktiv“ setzen.`);
+  bank.remove(cur.id); audit(req.user, 'Bankkonto gelöscht', cur.name); res.json({ ok: true });
+});
 admin.post('/users', need('benutzer'), (req, res) => {
   const { username, name, password, role, perms } = req.body || {};
   const b = req.body || {};

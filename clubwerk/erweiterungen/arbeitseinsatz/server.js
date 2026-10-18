@@ -286,9 +286,10 @@ function activate(ctx) {
     const b = req.body || {}; const mid = ctx.auth.checkTabletToken(b.token);
     if (!mid || typeof mid !== 'number') return bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401);
     if (db.prepare("SELECT 1 FROM aw_entry WHERE member_id = ? AND status = 'laeuft'").get(mid)) return bad(res, 'Du bist schon eingestempelt.');
-    const ev = b.event_id ? db.prepare('SELECT * FROM aw_event WHERE id = ? AND date = ?').get(int(b.event_id), today()) : null;
-    const text = ev ? ev.title : txt(b.text, 140);
-    if (!ev && text.length < 3) return bad(res, 'Bitte kurz eintragen, was du machst.');
+    const ev = b.event_id ? db.prepare('SELECT * FROM aw_event WHERE id = ? AND date = ? AND cancelled = 0').get(int(b.event_id), today()) : null;
+    const own = txt(b.text, 140);
+    const text = ev ? (own ? `${ev.title}: ${own}`.slice(0, 160) : ev.title) : own;   // beim Einsatz ist die Beschreibung freiwillig
+    if (!ev && text.length < 3) return bad(res, db.prepare('SELECT 1 FROM aw_event WHERE date = ? AND cancelled = 0').get(today()) ? 'Bitte einen Einsatz wählen oder kurz eintragen, was du machst.' : 'Bitte kurz eintragen, was du machst.');
     db.prepare("INSERT INTO aw_entry(member_id, event_id, date, text, in_at, status, source) VALUES (?,?,?,?,?, 'laeuft', 'tablet')").run(mid, ev ? ev.id : null, today(), text, nowTs());
     ctx.auth.dropTabletToken(b.token);
     res.json({ ok: true });

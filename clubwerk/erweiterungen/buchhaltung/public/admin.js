@@ -44,19 +44,20 @@
     'bh-rechnungen': ['Rechnungen', 'Rechnungen an Firmen, Sponsoren und Mitglieder – mit fortlaufender Nummer, Umsatzsteuer je Position und Zahlungserinnerung.'],
     'bh-firmen': ['Firmen & Sponsoren', 'Einmal anlegen, jedes Jahr wiederverwenden: Anschrift, Ansprechperson und die jährlichen Positionen (z. B. Bandenwerbung).'],
     'bh-spenden': ['Spendenquittungen', 'Zuwendungsbestätigungen nach amtlichem Muster – Geldspende, Sachspende oder Verzicht auf Aufwandserstattung.'],
-    'bh-einstellungen': ['Einstellungen', 'Absender, Steuerangaben, Bankverbindung und die Angaben zum Freistellungsbescheid.'],
+    'bh-einstellungen': ['Einstellungen', 'Absender, Steuerangaben, Bankkonten und die Angaben zum Freistellungsbescheid.'],
   };
   const loadMeta = async () => { st.meta = await api('meta'); return st.meta; };
   function pageRender(key, fn) {
     return async () => {
       const m = await loadMeta(), [title, lead] = PAGE[key];
       const s = m.settings;
-      const noBank = key === 'bh-rechnungen' && !(s.iban || s.fallback.iban);
+      const noBank = key === 'bh-rechnungen' && !m.accounts.length;
       const noFa = key === 'bh-spenden' && !m.donationReady;
       $('main').innerHTML = `<h2 class="page">${esc(title)}</h2><p class="lead">${esc(lead)}</p>
-        ${noBank ? '<div class="banner a"><span>Für Rechnungen fehlt noch die Bankverbindung des Vereins.</span><a href="#bh-einstellungen">Eintragen →</a></div>' : ''}
+        ${noBank ? '<div class="banner a"><span>Für Rechnungen fehlt noch ein Bankkonto des Vereins.</span><a href="#einstellungen" data-bank>Anlegen →</a></div>' : ''}
         ${noFa ? '<div class="banner a"><span>Für Spendenquittungen fehlen noch die Angaben zum Freistellungsbescheid.</span><a href="#bh-einstellungen">Eintragen →</a></div>' : ''}
         <div id="bhBody"></div>`;
+      $('main').querySelectorAll('[data-bank]').forEach(a => { a.onclick = e => { e.preventDefault(); GK.openSettings ? GK.openSettings('bank') : GK.go('einstellungen'); }; });
       await fn($('bhBody'));
     };
   }
@@ -133,6 +134,8 @@
         <label class="f">Rechnungsdatum<input id="biD" type="date" value="${m.today}"></label>
         <label class="f">Zahlbar bis<input id="biDue" type="date" value="${due(m.today)}"></label>
         <label class="f">Leistungszeitraum<input id="biPer" placeholder="z. B. Saison ${m.year}/${String(m.year + 1).slice(2)}"></label>
+        ${m.departments.length ? `<label class="f">Abteilung (optional)<select id="biDep">${opt('', '– Verein –')}${m.departments.map(d => opt(d.id, d.name)).join('')}</select></label>` : ''}
+        <label class="f ${m.departments.length ? 'w2' : 'wall'}">Konto auf der Rechnung<select id="biAcc"></select></label>
       </div>
       <h3 style="margin:18px 0 6px">Positionen</h3><div id="biItems"></div>
       <label class="f" style="margin-top:10px">Hinweis auf der Rechnung (optional)<textarea id="biNote" rows="2" placeholder="z. B. Vielen Dank für die Unterstützung unserer Jugendabteilung!"></textarea></label>
@@ -148,7 +151,7 @@
       if ($('biToP')) $('biToP').onclick = closeDialog;
     };
     function el(sel) { return $('dialog').querySelectorAll(sel); }
-    el('[data-k]').forEach(b => { b.onclick = () => { kind = b.dataset.k; fillRec(); }; });
+    el('[data-k]').forEach(b => { b.onclick = () => { kind = b.dataset.k; fillRec(); if (typeof fillAcc === 'function') fillAcc(); }; });
     $('biRec').onchange = () => {   // Firma gewählt: Jahrespositionen vorschlagen, wenn noch nichts eingetragen ist
       if (kind !== 'partner') return;
       const cur = ed.get();
@@ -156,11 +159,24 @@
       api('partners').then(ps => { const p = ps.find(x => x.id === +val('biRec')); if (p && p.items.length) ed = itemsEditor($('biItems'), p.items); }).catch(() => {});
     };
     $('biD').onchange = () => { if (val('biD')) $('biDue').value = due(val('biD')); };
-    fillRec();
+    // Konto: Abteilung (gewählt oder von der Firma) → zugeordnetes Konto, sonst Standardkonto
+    let accTouched = false;
+    const accFor = dep => (dep && m.accounts.find(a => a.departments.includes(+dep))) || m.accounts.find(a => a.is_default) || m.accounts[0];
+    const fillAcc = () => {
+      if (accTouched) return;
+      const pDep = kind === 'partner' ? (m.partners.find(x => x.id === +val('biRec')) || {}).department_id : null;
+      if ($('biDep') && pDep && !val('biDep')) $('biDep').value = String(pDep);
+      const a = accFor($('biDep') ? val('biDep') : pDep);
+      $('biAcc').innerHTML = m.accounts.length ? m.accounts.map(x => opt(x.id, `${x.name} · ${x.iban.slice(0, 4)} … ${x.iban.slice(-4)}`, a && a.id)).join('') : '<option value="">kein Bankkonto angelegt</option>';
+    };
+    $('biAcc').onchange = () => { accTouched = true; };
+    if ($('biDep')) $('biDep').onchange = fillAcc;
+    const recChange = $('biRec').onchange; $('biRec').onchange = () => { recChange(); fillAcc(); };
+    fillRec(); fillAcc();
     ed = itemsEditor($('biItems'), pre.items);
     $('c').onclick = closeDialog;
     $('biOk').onclick = async () => {
-      const body = { kind, partner_id: kind === 'partner' ? +val('biRec') || null : null, member_id: kind === 'member' ? +val('biRec') || null : null, period: val('biPer'), date: val('biD'), due_date: val('biDue'), items: ed.get(), note: $('biNote').value, send: $('biSend').checked };
+      const body = { kind, partner_id: kind === 'partner' ? +val('biRec') || null : null, member_id: kind === 'member' ? +val('biRec') || null : null, period: val('biPer'), department_id: $('biDep') ? +val('biDep') || null : null, account_id: +val('biAcc') || null, date: val('biD'), due_date: val('biDue'), items: ed.get(), note: $('biNote').value, send: $('biSend').checked };
       if (!val('biRec')) return toast('Bitte den Empfänger wählen.', true);
       $('biOk').disabled = true;
       try {
@@ -273,14 +289,15 @@
   function partnerDialog(p, after) {
     const v = k => esc((p && p[k]) || '');
     dialog(`<h2>${p ? esc(p.name) : 'Firma anlegen'}</h2>
-      <div class="bh-grid" style="--c:3">
+      <div class="bh-grid" style="--c:4">
         <label class="f w2">Firma / Name<input id="pN" value="${v('name')}" placeholder="z. B. Autohaus Beispiel GmbH"></label>
         <label class="f">Kundennummer<input id="pK" value="${v('customer_no')}" placeholder="optional"></label>
+        <label class="f">Abteilung<select id="pD">${opt('', '– Verein –', p && p.department_id)}${st.meta.departments.map(d => opt(d.id, d.name, p && p.department_id)).join('')}</select></label>
         <label class="f">Ansprechperson<input id="pC" value="${v('contact')}" placeholder="z. B. Frau Muster"></label>
         <label class="f">E-Mail (Rechnungsversand)<input id="pE" type="email" value="${v('email')}"></label>
         <label class="f">Telefon<input id="pT" value="${v('phone')}"></label>
-        <label class="f w2">Straße und Hausnummer<input id="pS" value="${v('street')}"></label>
         <label class="f">USt-IdNr.<input id="pV" value="${v('vat_id')}" placeholder="optional"></label>
+        <label class="f">Straße und Hausnummer<input id="pS" value="${v('street')}"></label>
         <label class="f">PLZ<input id="pZ" value="${v('zip')}" inputmode="numeric"></label>
         <label class="f">Ort<input id="pO" value="${v('city')}"></label>
         <label class="f">Land<input id="pL" value="${v('country')}" placeholder="leer = Deutschland"></label>
@@ -294,7 +311,7 @@
     if (!(p && p.items.length)) { /* leerer Editor: eine leere Zeile, wird beim Speichern ignoriert */ }
     $('c').onclick = closeDialog;
     $('pOk').onclick = async () => {
-      const body = { name: val('pN'), customer_no: val('pK'), contact: val('pC'), email: val('pE'), phone: val('pT'), street: val('pS'), vat_id: val('pV'), zip: val('pZ'), city: val('pO'), country: val('pL'), note: $('pNo').value, items: ed.get(), ...(p ? { active: $('pA').checked } : {}) };
+      const body = { name: val('pN'), customer_no: val('pK'), contact: val('pC'), email: val('pE'), phone: val('pT'), street: val('pS'), vat_id: val('pV'), zip: val('pZ'), city: val('pO'), country: val('pL'), department_id: +val('pD') || null, note: $('pNo').value, items: ed.get(), ...(p ? { active: $('pA').checked } : {}) };
       try { if (p) await api('partners/' + p.id, 'PUT', body); else await api('partners', 'POST', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
     };
     if ($('pDel')) $('pDel').onclick = async () => {
@@ -382,7 +399,11 @@
     const inp = (k, l, o = {}) => `<label class="f ${o.cls || ''}">${esc(l)}<input id="bs_${k}" value="${esc(s[k] ?? '')}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.type ? `type="${o.type}"` : ''}></label>`;
     el.innerHTML = `
       <div class="card"><h3>Absender</h3><p class="muted s" style="margin-top:0">Steht im Briefkopf. Leer gelassene Felder übernehmen die Angaben aus der Mitgliederverwaltung.</p>
-        <div class="bh-grid">${inp('street', 'Straße und Hausnummer', { ph: fb.street, cls: 'w2' })}${inp('city', 'PLZ und Ort', { ph: fb.city })}${inp('email', 'E-Mail', { type: 'email' })}${inp('phone', 'Telefon')}</div></div>
+        <div class="bh-grid">${inp('street', 'Straße und Hausnummer', { ph: fb.street })}${inp('city', 'PLZ und Ort', { ph: fb.city })}${inp('email', 'E-Mail', { type: 'email' })}${inp('phone', 'Telefon')}
+          <label class="f w2">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div></div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">Bankkonten</h3><button class="btn" id="bsBank">Bankkonten verwalten …</button></div>
+        <p class="muted s" style="margin-top:0">Die Konten werden zentral unter Einstellungen → Bankkonten gepflegt. Auf der Rechnung steht das Konto der Abteilung, sonst das Standardkonto – im Rechnungsdialog änderbar.</p>
+        ${st.meta.accounts.length ? `<table class="tbl">${st.meta.accounts.map(a => `<tr><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (st.meta.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch kein Bankkonto angelegt.</p>'}</div>
       <div class="card"><h3>Rechnungen</h3>
         <div class="bh-grid">${inp('tax_no', 'Steuernummer')}${inp('vat_id', 'USt-IdNr.', { ph: 'optional' })}
           <label class="f">Umsatzsteuer (Vorgabe)<select id="bs_vat_default">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', s.vat_default)).join('')}</select></label>
@@ -390,9 +411,6 @@
           <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="bs_small_business" ${s.small_business ? 'checked' : ''}> Kleinunternehmer (§ 19 UStG, keine USt)</label>
           <label class="f wall">Einleitungstext<textarea id="bs_intro" rows="2" placeholder="z. B. Vielen Dank für Ihre Unterstützung! Wir berechnen Ihnen folgende Leistungen:">${esc(s.intro)}</textarea></label></div>
         <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 … Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig (wirtschaftlicher Geschäftsbetrieb) – im Zweifel die Steuerberatung fragen.</p></div>
-      <div class="card"><h3>Bankverbindung</h3>
-        <div class="bh-grid">${inp('iban', 'IBAN', { ph: fb.iban, cls: 'w2' })}${inp('bic', 'BIC', { ph: fb.bic })}${inp('bank', 'Kreditinstitut', { ph: fb.bank })}
-          <label class="f w2">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div></div>
       <div class="card"><h3>Spendenquittungen</h3><p class="muted s" style="margin-top:0">Angaben aus dem Freistellungsbescheid bzw. der Anlage zum Körperschaftsteuerbescheid – stehen so auf jeder Zuwendungsbestätigung.</p>
         <div class="bh-grid">${inp('finanzamt', 'Finanzamt', { ph: 'z. B. Finanzamt Musterstadt' })}${inp('fa_tax_no', 'Steuernummer (beim Finanzamt)')}
           <label class="f">Art des Bescheids<select id="bs_bescheid_type">${opt('freistellung', 'Freistellungsbescheid', s.bescheid_type)}${opt('feststellung', 'Feststellungsbescheid (§ 60a AO)', s.bescheid_type)}</select></label>
@@ -404,6 +422,7 @@
       <div class="row" style="justify-content:flex-end"><button class="btn primary" id="bsOk">Speichern</button></div>
       <div id="bhFunc"></div>`;
     GK.watch(el);
+    $('bsBank').onclick = () => (GK.openSettings ? GK.openSettings('bank') : GK.go('einstellungen'));
     $('bsOk').onclick = async () => {
       const b = {};
       for (const x of el.querySelectorAll('[id^="bs_"]')) { const k = x.id.slice(3); b[k] = x.type === 'checkbox' ? x.checked : x.value.trim(); }

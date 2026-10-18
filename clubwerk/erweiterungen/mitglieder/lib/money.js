@@ -19,7 +19,7 @@ function register(sh) {
 
   const payerName = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const personOf = id => db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id) || {};
-  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), iban: S('club_iban'), bic: S('club_bic'), bank: S('club_bank'),
+  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), iban: store.account().iban, bic: store.account().bic, bank: store.account().bank,
     ci: S('creditor_id'), invoiceText: S('invoice_text'), logo: null });
 
   /* ======================================================= Beitragslauf */
@@ -300,7 +300,7 @@ function register(sh) {
     }
     const earliest = sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14);
     return { date: day, ok, problems, other, earliest, tooEarly: day < earliest, bankDay: sepa.isBankDay(day), total: ok.reduce((s, x) => s + x.cents, 0),
-      ready: Boolean(S('creditor_id') && S('club_iban')), creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(S('club_iban')) } };
+      ready: Boolean(S('creditor_id') && store.account().iban), creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(store.account().iban), account: store.account().name } };
   }
   /** Verwendungszweck: Positionen zusammengefasst, max. 140 Zeichen */
   function remittance(x) {
@@ -328,7 +328,7 @@ function register(sh) {
       const prevMandates = {};
       const batches = ['FRST', 'RCUR'].map(seq => ({ id: `${msgId}-${seq}`, seqTp: seq, date: plan.date, txs: txs.filter(x => x.seq === seq).map(x => ({
         e2e: `CW${id}-${x.member_id}`, cents: x.cents, mandateId: x.mandate_ref, mandateDate: x.mandate_date, name: x.holder, iban: x.iban, bic: x.bic, text: remittance(x) })) }));
-      const xmlStr = sepa.buildPain008({ msgId, created: new Date().toISOString(), initiator: plan.creditor.name, creditor: { name: plan.creditor.name, iban: S('club_iban'), bic: S('club_bic'), ci: S('creditor_id') }, batches });
+      const xmlStr = sepa.buildPain008({ msgId, created: new Date().toISOString(), initiator: plan.creditor.name, creditor: { name: plan.creditor.name, iban: store.account().iban, bic: store.account().bic, ci: S('creditor_id') }, batches });
       for (const x of txs) {
         const bk = bankRow(x.member_id);
         prevMandates[x.member_id] = { first: bk.mandate_first_used, last: bk.mandate_last_used };
@@ -510,7 +510,7 @@ function register(sh) {
     res.json({ year: y, open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), inCollection: sum("status = 'eingezogen'"),
       paidYear: sum("status = 'bezahlt' AND substr(paid_at,1,4) = ?", y), billedYear: sum("status != 'storniert' AND substr(due_date,1,4) = ?", y),
       byKind: db.prepare("SELECT kind, COALESCE(SUM(cents),0) c FROM mv_charge WHERE status != 'storniert' AND substr(due_date,1,4) = ? GROUP BY kind").all(y),
-      ready: { creditor: Boolean(S('creditor_id')), iban: Boolean(S('club_iban')), mail: C.mail.ready() }, earliest: sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14),
+      ready: { creditor: Boolean(S('creditor_id')), iban: Boolean(store.account().iban), mail: C.mail.ready() }, earliest: sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14),
       drinksDue: S('drinks_due', ''), drinksOpen: C.drinks.active() ? C.drinks.open().rows.filter(r => r.kind === 'mitglied').reduce((s, r) => s + r.total_cents, 0) : null });
   });
 }

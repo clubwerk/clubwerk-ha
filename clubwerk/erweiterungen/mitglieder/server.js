@@ -773,7 +773,8 @@ function activate(ctx) {
   }
   function settingsView(user) {
     const s = { club_name: ctx.getSetting('club_name', ''), club_street: S('club_street'), club_city: S('club_city'), creditor_id: S('creditor_id'), creditor_name: S('creditor_name') || ctx.getSetting('club_name', ''),
-      club_iban: user && user.perms.includes('mitglieder_finanzen') ? S('club_iban') : sepa.maskIban(S('club_iban')), club_bic: S('club_bic'), club_bank: S('club_bank'),
+      club_iban: user && user.perms.includes('mitglieder_finanzen') ? store.account().iban : sepa.maskIban(store.account().iban), club_bic: store.account().bic, club_bank: store.account().bank,
+      sepa_account: Number(S('sepa_account')) || null, account_name: store.account().name, account_central: store.account().central,
       mandate_prefix: S('mandate_prefix'), member_no_start: S('member_no_start', '1'), year_start: S('year_start', '01-01'), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_fee_cents: parseInt(S('dunning_fee_cents', '0'), 10) || 0,
@@ -790,6 +791,7 @@ function activate(ctx) {
     if (b.satzung_url !== undefined) { const u = one(b.satzung_url, 300); if (u && !/^https?:\/\//i.test(u)) errors.push('Die Satzung bitte als Adresse mit https:// angeben.'); else SET('satzung_url', u); }
     if (b.creditor_id !== undefined) { const c = sepa.checkCreditorId(b.creditor_id); if (b.creditor_id && !c.ok) errors.push(c.error); else SET('creditor_id', c.ci); }
     if (b.club_iban !== undefined && !/•/.test(String(b.club_iban))) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Die Vereins-IBAN darf nur ändern, wer das Recht „Finanzen“ hat.'); else { const i = sepa.checkIban(b.club_iban); if (b.club_iban && !i.ok) errors.push('Vereinskonto: ' + i.error); else SET('club_iban', i.iban); } }
+    if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Finanzen“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else SET('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
     if (b.club_bic !== undefined) { const c = sepa.checkBic(b.club_bic); if (!c.ok) errors.push('Der BIC des Vereinskontos hat 8 oder 11 Zeichen.'); else SET('club_bic', c.bic); }
     if (b.mandate_prefix !== undefined) SET('mandate_prefix', String(b.mandate_prefix).replace(/[^A-Za-z0-9]/g, '').slice(0, 10));
     if (b.member_no_start !== undefined) SET('member_no_start', String(Math.max(1, int(b.member_no_start, 1))));
@@ -848,7 +850,7 @@ function activate(ctx) {
     if (ch) alerts.push({ level: 'a', text: `${ch} Änderungswunsch/-wünsche aus der Mitglieder-App.` });
     const noMandate = rows.filter(r => r.issues.some(i => /Mandat|Bankverbindung|IBAN/.test(i))).length;
     if (noMandate) alerts.push({ level: 'a', text: `${noMandate} Lastschriftzahler ohne gültiges SEPA-Mandat.` });
-    if (!S('creditor_id') || !S('club_iban')) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID oder Vereinskonto (Mitgliederverwaltung → Einstellungen).' });
+    if (!S('creditor_id') || !store.account().iban) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID (Mitgliederverwaltung → Einstellungen) oder ein Bankkonto (Einstellungen → Bankkonten).' });
     const ret = parseInt(S('retention_years', '0'), 10) || 0;
     if (ret) {
       const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
@@ -892,6 +894,7 @@ function activate(ctx) {
   };
   ctx.hooks.chargePaid = (id, date, via) => { ctx.db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ? AND status = 'offen'").run(isDate(date) ? date : today(), via || 'ueberweisung', id); };
   /* für den Kern: Abteilungen (Benutzer & Rollen) */
+  ctx.hooks.bankAccountUsed = id => (Number(S('sepa_account')) === Number(id) ? 'Mitgliederverwaltung (Lastschriften)' : null);
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();
   /* für andere Module (Arbeitseinsatz) */
   ctx.hooks.familyOf = id => store.familyOf(id);

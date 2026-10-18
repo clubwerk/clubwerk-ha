@@ -299,7 +299,7 @@ function invoice(club = {}, inv = {}) {
     para(inv.payment_text || (isReminder
       ? `Bitte überweisen Sie den offenen Betrag von ${euro(total)} innerhalb von 14 Tagen unter Angabe der Rechnungsnummer ${inv.no} auf folgendes Konto:`
       : `Bitte überweisen Sie den Betrag von ${euro(total)}${due ? ` bis zum ${due}` : ''} unter Angabe der Rechnungsnummer ${inv.no} auf folgendes Konto:`), { gap: 10 });
-    const rows = [['Empfänger', club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', [inv.no, inv.customer_no && `Kd.-Nr. ${inv.customer_no}`].filter(Boolean).join(' · ')]].filter(r => r[1]);
+    const rows = [['Empfänger', club.holder || club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', [inv.no, inv.customer_no && `Kd.-Nr. ${inv.customer_no}`].filter(Boolean).join(' · ')]].filter(r => r[1]);
     const bh = rows.length * 17 + 18;
     if (y + bh > BOTTOM) newPage();
     doc.roundedRect(L, y, W, bh, 6).fill(FAINT);
