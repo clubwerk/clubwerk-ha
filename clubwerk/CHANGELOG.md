@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.17.2
+
+- Buchungssystem: Die Platzgebühren je Mitglied in der Mitglieder-App („Meine Platzgebühren“) und der Zusatzschalter „Gebühren“ in der Freischaltungstabelle sind wieder entfernt – offene Platzgebühren sieht nur der Vorstand auf der Übersichtskarte (Kennzahl und Hinweis) und im Reiter „Gebühren“.
+
 ## 3.17.1
 - **Mitglieder-App – Zusatzschalter dezenter:** Die Haken „auch unterwegs“ und „Gebühren“ in der Freischaltungstabelle sind jetzt kleine Schaltflächen-Pills direkt neben dem Haken des Bereichs (grün = an), in einer Zeile ohne Versatz.
 

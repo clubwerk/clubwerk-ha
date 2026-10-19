@@ -78,9 +78,7 @@
       .bkm-pick button { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; }
       .bkm-pick button.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
       .bkm-sheet h3.l { margin: 10px 0 4px; font-size: 14.5px; font-weight: 800; }
-      .bkm-req { font-size: 13px; color: var(--amber-ink, var(--muted)); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; }
-      .bkm-fees > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); }
-      .bkm-fees > div:first-child { border-top: 0; padding-top: 2px; } .bkm-fees b { font-variant-numeric: tabular-nums; white-space: nowrap; }`;
+      .bkm-req { font-size: 13px; color: var(--amber-ink, var(--muted)); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; }`;
     document.head.appendChild(s);
   }
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
@@ -119,7 +117,7 @@
     id: 'buchung',
     render(el, ctx) {
       const { esc } = ctx;
-      let day = null, area = null, data = null, fees = null;
+      let day = null, area = null, data = null;
       let pastOpen = false;   // heute: vergangene Stunden aufgeklappt?
       const sheet = () => { let sh = document.getElementById('bkmSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'bkmSheet'; sh.className = 'vh-sheet bkm-sheet'; document.body.appendChild(sh); } return sh; };
       const close = () => { const s = document.getElementById('bkmSheet'); if (s) s.classList.remove('show'); };
@@ -129,8 +127,6 @@
         try { data = await ctx.api('me' + (day ? `?date=${day}` : '')); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
         if (day && day !== data.plan.date) pastOpen = false;
         day = data.plan.date;
-        fees = null;
-        if (data.feesEnabled) { try { fees = await ctx.api('fees'); } catch (e) { fees = null; } }   // „Meine Platzgebühren“ nur, wenn freigeschaltet
         draw();
       }
       function draw() {
@@ -150,10 +146,7 @@
           <div class="bkm-card"><h3>Meine Buchungen</h3><div class="bkm-list">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
               <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="bkm-empty">Keine offenen Buchungen.</p>'}</div>
             ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="bkm-list">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
-            ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="bkm-list">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>
-          ${fees ? `<div class="bkm-card"><h3>Meine Platzgebühren<small>${fees.items.length ? `offen: ${euro(fees.sum_cents)}` : 'nichts offen'}</small></h3>
-            ${fees.note ? `<p class="bkm-note">${esc(fees.note)}</p>` : '<p class="bkm-note">Gast- und Platzgebühren aus deinen Buchungen – werden mit dem nächsten Einzug abgerechnet.</p>'}
-            ${fees.items.length ? `<div class="bkm-fees">${fees.items.map(f => `<div><span><strong>${esc(f.resource)} · ${f.start}–${f.end}</strong><small>${deD(f.date)} · ${esc(f.text)}</small></span><b>${euro(f.fee_cents)}</b></div>`).join('')}</div>` : '<p class="bkm-empty">Keine offenen Gebühren.</p>'}</div>` : ''}`;
+            ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="bkm-list">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
         el.querySelectorAll('[data-d]').forEach(b => { b.onclick = () => { day = b.dataset.d; load(); }; });
         el.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
         el.querySelectorAll('.bkm-view [data-v]').forEach(b => { b.onclick = () => { view = b.dataset.v; try { localStorage.setItem('bkm_view', view); } catch (e) { /* */ } draw(); }; });

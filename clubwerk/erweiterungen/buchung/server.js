@@ -488,10 +488,6 @@ function activate(ctx) {
   });
 
   /* ================================================================= Mitglieder-App (/api/m/buchung/…) */
-  /** Haken „Gebühren zeigen“ je Mitglied (Kern: member_access.flags, vom Kern geparst als req.member.access.flags) */
-  const feesOn = req => Boolean(req.member && req.member.access && req.member.access.flags && req.member.access.flags.fees);
-  // für die Freischaltungstabelle des Kerns: zusätzliche Haken je Mitglied
-  ctx.hooks.accessOptions = () => ({ flags: [{ id: 'fees', label: 'Gebühren', title: 'Das Mitglied sieht unter „Buchen“ seine offenen Platz- und Gastgebühren („Meine Platzgebühren“).' }] });
   M.post('/quote', rateLimit('bkq', 120, 60000), ar(async (req, res) => {   // Preisvorschau vor dem Buchen
     const b = req.body || {}, own = int(b.id) ? db.prepare("SELECT id FROM bk_booking WHERE id = ? AND member_id = ? AND status = 'aktiv'").get(int(b.id), req.member.id) : null;
     try { const q = await check(req.member.id, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
@@ -506,16 +502,9 @@ function activate(ctx) {
       mine: myUpcoming(mid), waits: db.prepare(`SELECT w.id, w.date, w.start, w.end, w.notified_at, r.name AS resource FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.date >= ? ORDER BY w.date, w.start`).all(mid, today()),
       people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
       labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })),
-      rights: { series: rightsOf(mid).series }, feesEnabled: feesOn(req),
+      rights: { series: rightsOf(mid).series },
       series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date,
         resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
-  }));
-  /* Meine Platzgebühren: nur, wenn der Vorstand es für dieses Mitglied freigeschaltet hat (Mitglieder-App → Haken „Gebühren zeigen“, member_access.flags) */
-  M.get('/fees', ar(async (req, res) => {
-    if (!feesOn(req)) return bad(res, 'Die Anzeige deiner Platzgebühren ist für dich nicht freigeschaltet.', 403);
-    const { rows, tracked } = await feeRows({ memberId: req.member.id, from: `${today().slice(0, 4)}-01-01` });
-    const open = rows.filter(isOpenFee);
-    res.json({ tracked, note: tracked ? null : NO_TRACK, items: open.map(x => ({ id: x.id, date: x.date, start: x.start, end: x.end, resource: x.resource, text: x.text, fee_cents: x.fee_cents })), sum_cents: sumOf(open), paid_cents: sumOf(rows.filter(x => x.status === 'bezahlt')) });
   }));
   // je Mitglied (nicht nur je Adresse – draußen teilen sich viele Handys eine Adresse, drinnen könnte eine wechseln): 10 Aktionen je Minute
   const perMember = rateLimitKey('bkmem', 10, 60000, req => 'm' + req.member.id);
