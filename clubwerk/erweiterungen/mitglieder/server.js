@@ -62,7 +62,7 @@ function mandateState(b) {
 function listRows(q = {}) {
   const day = today();
   const rows = C.db.prepare(`SELECT m.id, m.name, m.active, m.pending, p.member_no, p.first_name, p.last_name, p.birth_date, p.gender, p.status, p.entry_date, p.exit_date,
-      p.payer_id, p.payment, p.email, p.mobile, p.phone, p.city, p.zip, p.street, p.anonymized_at, p.member_id IS NOT NULL AS complete,
+      p.payer_id, p.family_of, p.payment, p.email, p.mobile, p.phone, p.city, p.zip, p.street, p.anonymized_at, p.member_id IS NOT NULL AS complete,
       (SELECT group_concat(d.name, ', ') FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = m.id AND (md.exit_date IS NULL OR md.exit_date >= ?)) AS depts,
       (SELECT group_concat(md.department_id) FROM mv_member_department md WHERE md.member_id = m.id AND (md.exit_date IS NULL OR md.exit_date >= ?)) AS dept_ids,
       (SELECT group_concat(f.name, ', ') FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = m.id AND (mf.end_date IS NULL OR mf.end_date >= ?)) AS fees,
@@ -70,6 +70,8 @@ function listRows(q = {}) {
       b.iban AS iban_raw, b.mandate_ref, b.mandate_date, b.mandate_last_used, b.mandate_revoked,
       (SELECT name FROM members WHERE id = p.payer_id) AS payer_name,
       (SELECT COUNT(*) FROM mv_person c WHERE c.payer_id = m.id AND c.member_id != m.id) AS dependents,
+      (SELECT name FROM members WHERE id = p.family_of) AS family_head_name,
+      (SELECT COUNT(*) FROM mv_person c WHERE c.family_of = m.id AND c.member_id != m.id) AS family_count,
       (SELECT COALESCE(SUM(cents),0) FROM mv_charge c WHERE c.member_id = m.id AND c.status = 'offen') AS open_cents,
       (SELECT COUNT(*) FROM mv_age_notice a WHERE a.member_id = m.id AND a.status = 'offen') AS age_open,
       (SELECT group_concat(kind) FROM mv_change x WHERE x.member_id = m.id AND x.status = 'offen' AND x.kind IN ('eintritt','austritt','rueckkehr')) AS pend
@@ -81,9 +83,9 @@ function listRows(q = {}) {
     return { id: r.id, name: r.name, member_no: r.member_no, first_name: r.first_name, last_name: r.last_name, birth_date: r.birth_date, gender: r.gender, age: fees.ageAt(r.birth_date, day),
       status: r.anonymized_at ? 'anonym' : exited ? 'ausgetreten' : r.status || 'aktiv', entry_date: r.entry_date, exit_date: r.exit_date, leaving: Boolean(r.exit_date && !exited),
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
-      payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
+      payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
-      issues: [!r.complete && 'unvollständig', r.complete && !r.payer_id && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
+      issues: [!r.complete && 'unvollständig', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -103,16 +105,20 @@ function detail(id, user) {
   if (!p) return null;
   const perms = user.perms;
   const bank = bankRow(id);
-  const fam = store.familyOf(id);
-  const famRows = fam.members.length > 1 ? C.db.prepare(`SELECT m.id, m.name, p.birth_date, p.sales_mode FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${fam.members.map(() => '?').join(',')})`).all(...fam.members)
-    .map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, today()), head: r.id === fam.head, sales_mode: r.sales_mode || 'payer' })) : [];
+  // Zahlergruppe (Geld) und Familienmitgliedschaft (Familienbeitrag) getrennt – siehe store.js
+  const pg = store.payerGroup(id);
+  const payerRows = pg.members.length > 1 ? C.db.prepare(`SELECT m.id, m.name, p.birth_date, p.sales_mode FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${pg.members.map(() => '?').join(',')})`).all(...pg.members)
+    .map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, today()), head: r.id === pg.head, sales_mode: r.sales_mode || 'payer' })) : [];
+  const famHead = store.familyHead(id);
+  const famRows = famHead ? store.familyMembers(famHead).map(r => ({ id: r.id, name: r.name, age: r.age, role: r.role, head: r.role === 'oberhaupt' })) : [];
   const appState = C.require('./memberapp').memberState(id);
   let drinksOpen = null;
   try { if (C.drinks.active()) { const o = C.drinks.open().rows.find(r => r.id === id); drinksOpen = o ? o.total_cents : 0; } } catch (e) { drinksOpen = null; }
   return {
     person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id), photo: C.require('./photos').version(id) },
     bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
-    departments: deptRows(id), fees: feeRows(id), family: famRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
+    departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
+    family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id),
     functions: C.db.prepare('SELECT * FROM mv_function WHERE member_id = ? ORDER BY to_date IS NOT NULL, from_date DESC').all(id),
     documents: perms.includes('mitglieder_dokumente') ? C.db.prepare('SELECT id, kind, title, mime, size, created_at, by_user FROM mv_document WHERE member_id = ? ORDER BY created_at DESC').all(id) : null,
@@ -158,7 +164,7 @@ function personInput(b, cur = {}) {
 }
 const LABEL = { salutation: 'Anrede', title: 'Titel', first_name: 'Vorname', last_name: 'Nachname', birth_date: 'Geburtsdatum', gender: 'Geschlecht', street: 'Straße', zip: 'PLZ', city: 'Ort', country: 'Land',
   address_extra: 'Adresszusatz', phone: 'Telefon', mobile: 'Mobil', email: 'E-Mail', letter_salutation: 'Briefanrede', status: 'Status', entry_date: 'Eintritt', exit_date: 'Austritt', exit_reason: 'Austrittsgrund',
-  notice_date: 'Kündigung eingegangen', payer_id: 'Zahler', drinks_to_payer: 'Verkauf beim Zahler', payment: 'Zahlungsart', key_no: 'Schlüsselnummer', notes: 'Notizen', member_no: 'Mitgliedsnummer',
+  notice_date: 'Kündigung eingegangen', payer_id: 'Zahler', family_of: 'Familienmitgliedschaft bei', drinks_to_payer: 'Verkauf beim Zahler', payment: 'Zahlungsart', key_no: 'Schlüsselnummer', notes: 'Notizen', member_no: 'Mitgliedsnummer',
   iban: 'IBAN', holder: 'Kontoinhaber', bic: 'BIC', bank: 'Kreditinstitut', mandate_ref: 'Mandatsreferenz', mandate_date: 'Mandat unterschrieben', mandate_revoked: 'Mandat widerrufen' };
 
 function savePerson(id, fields, user) {
@@ -166,7 +172,8 @@ function savePerson(id, fields, user) {
   const cur = C.db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id);
   const keys = Object.keys(fields).filter(k => store.PERSON_FIELDS.includes(k));
   if (!keys.length) return;
-  for (const k of keys) store.hist(id, user, LABEL[k] || k, k === 'notes' ? (cur[k] ? '…' : '') : cur[k], k === 'notes' ? (fields[k] ? '…' : '') : fields[k]);
+  const shown = (k, v) => k === 'notes' ? (v ? '…' : '') : (k === 'payer_id' || k === 'family_of') && v ? (C.db.prepare('SELECT name FROM members WHERE id = ?').get(v) || {}).name || v : v;   // Verlauf: Namen statt Nummern
+  for (const k of keys) store.hist(id, user, LABEL[k] || k, shown(k, cur[k]), shown(k, fields[k]));
   C.db.prepare(`UPDATE mv_person SET ${keys.map(k => `${k} = ?`).join(', ')}, updated_at = ? WHERE member_id = ?`).run(...keys.map(k => fields[k]), nowTs(), id);
   if (keys.includes('first_name') || keys.includes('last_name')) store.syncCore(id);
 }
@@ -471,6 +478,28 @@ function activate(ctx) {
     if (mode !== cur.sales_mode) { ctx.db.prepare('UPDATE mv_person SET sales_mode = ? WHERE member_id = ?').run(mode, id); store.hist(id, uname(req), 'Verkauf', SALES[cur.sales_mode] || null, SALES[mode]); }
     res.json({ ok: true });
   });
+  /* Familienmitgliedschaft: Zuordnung zum Oberhaupt (dessen Familienbeitrag deckt die Person ab) – getrennt vom Zahler.
+     Regeln: eine Ebene, Oberhaupt mit aktivem Familienbeitrag, höchstens zwei Erwachsene (Oberhaupt + Partner), Kinder bis family_child_max. */
+  admin.put('/member/:id/family', P, (req, res) => {
+    const id = int(req.params.id); const b = req.body || {};
+    const p = personRow(id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const head = b.family_of ? int(b.family_of) : null;
+    if (head) {
+      const h = personRow(head);
+      if (!h || !h.member_id) return bad(res, 'Oberhaupt nicht gefunden.');
+      if (head === id) return bad(res, 'Ein Mitglied kann nicht seiner eigenen Familienmitgliedschaft zugeordnet werden.');
+      if (h.family_of) return bad(res, `${h.name} gehört selbst zur Familienmitgliedschaft von ${(personRow(h.family_of) || {}).name || '…'} – Oberhaupt kann nur sein, wer keiner anderen Familie zugeordnet ist.`);
+      if (ctx.db.prepare('SELECT 1 FROM mv_person WHERE family_of = ? AND member_id != ?').get(id, id)) return bad(res, `${p.name} ist selbst Oberhaupt einer Familienmitgliedschaft – erst die Angehörigen lösen.`);
+      if (store.isExited(h)) return bad(res, `${h.name} ist ausgetreten.`);
+      if (!store.familyFee(head)) return bad(res, `${h.name} hat keinen Familienbeitrag – bitte zuerst unter „Mitgliedschaft“ eine Beitragsart mit Familienbeitrag zuweisen.`);
+      if (store.isAdult(p.birth_date) && p.family_of !== head) {
+        const others = store.familyMembers(head).filter(f => f.role === 'partner' && f.id !== id && !store.isExited(f));
+        if (others.length) return bad(res, 'In einer Familienmitgliedschaft dürfen nur zwei Erwachsene sein – das Oberhaupt und ein Partner.');
+      }
+    }
+    savePerson(id, { family_of: head }, uname(req));
+    res.json({ ok: true, family: store.familyMembers(head || store.familyHead(id)) });
+  });
   /* Bankverbindung & Mandat */
   admin.put('/member/:id/bank', PB, (req, res) => {
     const id = int(req.params.id); const b = req.body || {};
@@ -637,15 +666,15 @@ function activate(ctx) {
     const p = personRow(id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     if (!isDate(b.exit_date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
     if (p.entry_date && b.exit_date < p.entry_date) return bad(res, 'Der Austritt liegt vor dem Eintritt.');
-    const deps = ctx.db.prepare('SELECT m.name FROM mv_person x JOIN members m ON m.id = x.member_id WHERE x.payer_id = ? AND x.member_id != ? AND (x.exit_date IS NULL OR x.exit_date > ?)').all(id, id, b.exit_date);
-    if (deps.length && !b.force) return res.status(409).json({ error: `Für ${deps.map(d => d.name).join(', ')} zahlt dieses Mitglied. Diese Angehörigen bitte vorher einem anderen Zahler zuordnen oder mit austreten lassen.`, dependents: deps.map(d => d.name) });
+    const deps = ctx.db.prepare('SELECT DISTINCT m.name FROM mv_person x JOIN members m ON m.id = x.member_id WHERE (x.payer_id = ? OR x.family_of = ?) AND x.member_id != ? AND (x.exit_date IS NULL OR x.exit_date > ?)').all(id, id, id, b.exit_date);
+    if (deps.length && !b.force) return res.status(409).json({ error: `Für ${deps.map(d => d.name).join(', ')} zahlt dieses Mitglied oder es ist deren Familienoberhaupt. Diese Angehörigen bitte vorher umhängen oder mit austreten lassen.`, dependents: deps.map(d => d.name) });
     if (needConfirm(req)) {   // Abteilungsleitung: Austritt geht zur Bestätigung an die Vereinsverwaltung
       if (ctx.db.prepare("SELECT 1 FROM mv_change WHERE member_id = ? AND kind = 'austritt' AND status = 'offen'").get(id)) return bad(res, 'Für dieses Mitglied liegt schon ein Austritt zur Bestätigung vor.');
       scopeChange(req, id, 'austritt', { exit_date: b.exit_date, notice_date: isDate(b.notice_date) ? b.notice_date : null, reason: one(b.reason, 80) || null, endFees: b.endFees !== false, endDepts: b.endDepts !== false, withDependents: Boolean(b.withDependents) }, `Austritt von ${p.name} zum ${deD(b.exit_date)}`);
       return res.json({ ok: true, pending: true });
     }
     exitMember(id, { exit_date: b.exit_date, reason: one(b.reason, 80), notice_date: isDate(b.notice_date) ? b.notice_date : null, endFees: b.endFees !== false, endDepts: b.endDepts !== false }, uname(req));
-    if (b.withDependents) for (const d of ctx.db.prepare('SELECT member_id FROM mv_person WHERE payer_id = ? AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(id, id, b.exit_date)) exitMember(d.member_id, { exit_date: b.exit_date, reason: one(b.reason, 80) }, uname(req));
+    if (b.withDependents) for (const d of ctx.db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(id, id, id, b.exit_date)) exitMember(d.member_id, { exit_date: b.exit_date, reason: one(b.reason, 80) }, uname(req));
     daily();
     ctx.audit(req.user, 'Mitglied: Austritt eingetragen', `${p.name} zum ${deD(b.exit_date)}`);
     res.json({ ok: true });
@@ -742,7 +771,7 @@ function activate(ctx) {
     const core = ctx.db.prepare('SELECT name, kind, active, created_at, pin_hash IS NOT NULL AS hat_pin FROM members WHERE id = ?').get(id);
     const drinks = ctx.db.prepare("SELECT substr(created_at,1,7) monat, SUM(qty) anzahl, SUM(total_cents) cents FROM bookings WHERE member_id = ? AND cancelled_at IS NULL GROUP BY monat ORDER BY monat").all(id);
     const out = { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
-      konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, familie: d.family,
+      konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
       ehrungen: d.honors, aemter: d.functions, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
       aenderungsverlauf: d.history, mitglieder_app: d.app, getraenke_je_monat: drinks };
     ctx.audit(req.user, 'Mitglied: Datenauskunft erstellt', d.person.name);
@@ -859,7 +888,7 @@ function activate(ctx) {
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_fee_cents: parseInt(S('dunning_fee_cents', '0'), 10) || 0,
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: parseInt(S('retention_years', '0'), 10) || 0,
-      notice_months: parseInt(S('notice_months', '3'), 10) || 0, scope_confirm: S('scope_confirm', '1') === '1', app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
+      notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
     return s;
   }
   admin.put('/settings', P, (req, res) => {
@@ -985,6 +1014,8 @@ function activate(ctx) {
       // Angehörige, die über das alte Konto zahlten, zahlen jetzt über das Zielkonto; das Zielkonto zahlt nie über sich selbst
       ctx.db.prepare('UPDATE mv_person SET payer_id = NULL WHERE member_id = ? AND payer_id = ?').run(intoId, fromId);
       ctx.db.prepare('UPDATE mv_person SET payer_id = ? WHERE payer_id = ? AND member_id != ?').run(intoId, fromId, intoId);
+      ctx.db.prepare('UPDATE mv_person SET family_of = NULL WHERE member_id = ? AND family_of = ?').run(intoId, fromId);
+      ctx.db.prepare('UPDATE mv_person SET family_of = ? WHERE family_of = ? AND member_id != ?').run(intoId, fromId, intoId);
       ctx.db.prepare('UPDATE mv_history SET member_id = ? WHERE member_id = ?').run(intoId, fromId);
       ctx.db.prepare('UPDATE mv_application SET member_id = ? WHERE member_id = ?').run(intoId, fromId);
       // Altersstufen-Hinweise: beim Zielkonto schon vorhandene (UNIQUE) fallen weg
@@ -997,6 +1028,7 @@ function activate(ctx) {
     // Löschen: Dateien der Dokumente entfernen (die Zeilen löscht der Kern über den Fremdschlüssel), Verweise ohne Fremdschlüssel lösen
     for (const d of ctx.db.prepare('SELECT * FROM mv_document WHERE member_id = ?').all(fromId)) deleteDocumentFile(d);
     ctx.db.prepare('UPDATE mv_person SET payer_id = NULL WHERE payer_id = ?').run(fromId);              // Angehörige zahlen wieder selbst
+    ctx.db.prepare('UPDATE mv_person SET family_of = NULL WHERE family_of = ?').run(fromId);            // … und stehen ohne Familienmitgliedschaft da
     ctx.db.prepare('UPDATE mv_charge SET for_member_id = NULL WHERE for_member_id = ? AND member_id != ?').run(fromId, fromId);   // Forderungen des Zahlers bleiben
     ctx.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(fromId);
     ctx.db.prepare('DELETE FROM mv_age_notice WHERE member_id = ?').run(fromId);
@@ -1006,15 +1038,18 @@ function activate(ctx) {
   ctx.hooks.bankAccountUsed = id => (Number(S('sepa_account')) === Number(id) ? 'Mitgliederverwaltung (Lastschriften)' : null);
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();
   /* für andere Module (Arbeitseinsatz) */
+  /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);
   ctx.hooks.memberInfo = id => {
     const p = personRow(id); if (!p) return null;
     const fee = ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(id, today());
-    const payerFee = !fee && p.payer_id ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(store.payerOf(id), today()) : null;
+    // ohne eigenen Beitrag: der Familienbeitrag des Oberhaupts (family_of), sonst – wie früher – der Beitrag des Zahlers
+    const famFee = !fee && p.family_of ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.family = 1 AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(p.family_of, today()) : null;
+    const payerFee = famFee || (!fee && p.payer_id ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(store.payerOf(id), today()) : null);
     const d0 = today();
     const departments = ctx.db.prepare("SELECT department_id FROM mv_member_department WHERE member_id = ? AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?) AND status != 'ausgetreten'").all(id, d0, d0).map(r => r.department_id);
-    return { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: store.payerOf(id), departments,
-      fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true } : null };
+    return { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: store.payerOf(id), family_of: p.family_of || null, departments,
+      fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
   const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm'];

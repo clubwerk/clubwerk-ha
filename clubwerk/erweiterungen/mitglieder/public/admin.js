@@ -69,6 +69,7 @@
       .mv-lsb th, .mv-lsb td { text-align: right; } .mv-lsb th:first-child, .mv-lsb td:first-child { text-align: left; }
       .mv-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; margin: 4px 0 12px; }
       .tbl td.nw, .tbl th.nw { white-space: nowrap; }
+      .mv-sub { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted, #667); text-transform: uppercase; letter-spacing: .04em; }
       .mv-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; } .mv-two > .card { margin-bottom: 16px; display: flex; flex-direction: column; } .mv-two > .card > .row:last-child { margin-top: auto; padding-top: 12px; }
       @media (max-width: 1000px) { .mv-two { grid-template-columns: 1fr; } }
       .mv-depchk { display: flex; flex-wrap: wrap; gap: 4px 14px; } .mv-depchk label.chk { font-size: 13.5px; white-space: nowrap; }
@@ -156,8 +157,8 @@
           <td class="muted">${esc(r.member_no || '–')}</td>
           <td><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}</span></span></td>
           <td class="r">${r.age ?? '<span class="muted s">–</span>'}</td><td translate="no">${esc(r.depts) || '<span class="muted s">–</span>'}</td>
-          <td>${r.payer_id ? `<span class="muted s">über ${esc(r.payer_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>` || '<span class="muted s">–</span>'}</td>
-          <td class="nw">${r.payer_id ? '<span class="muted s">Familie</span>' : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
+          <td>${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>` || (r.payer_id ? `<span class="muted s">über ${esc(r.payer_name)}</span>` : '<span class="muted s">–</span>')}</td>
+          <td class="nw">${r.payer_id ? `<span class="muted s">über ${esc(r.payer_name)}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
           <td>${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ') || ''}</td></tr>`).join('')
           : `<tr><td colspan="7" class="muted" style="text-align:center;height:72px">${st.rows.length ? 'Keine Treffer.' : 'Noch keine Mitglieder – oben anlegen oder importieren (S-Verein, WISO, verein.cloud …).'}</td></tr>`);
     };
@@ -247,7 +248,7 @@
     el.innerHTML = `<button class="mv-back" id="mvBack">← Alle Mitglieder</button>
       <div class="mv-head">${p.photo ? `<button type="button" class="av lg mv-ph" id="mvPh" title="Profilbild (vom Mitglied in der App hochgeladen) – antippen zum Entfernen"><img src="api/admin/photo/${id}?v=${esc(p.photo)}" alt=""></button>` : `<span class="av lg">${ini(p.name)}</span>`}<div style="min-width:0"><h2>${esc(p.name)}</h2>
         <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
-          ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}
+          ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}${d.familyHead ? `<span class="pill b">Familie von ${esc(d.familyHead.name)}</span>` : ''}
           ${d.changes.length ? `<span class="pill a">${d.changes.length} Änderung(en) aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
         <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">Austritt zurücknehmen</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
           ${p.has_pin && !SC() && !p.anonymized_at ? '<button class="btn ghost" id="mvPin">PIN zurücksetzen</button>' : ''}${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}</div></div>
@@ -340,7 +341,7 @@
       <td class="r nw">${myDept(x.department_id) ? `<button class="btn small" data-md="${x.id}">Bearbeiten</button> <button class="btn small danger" data-mdx="${x.id}">Entfernen</button>` : ''}</td></tr>`).join('');
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() ? '' : '<button class="btn small primary" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
-          : `<p class="muted">${p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt (z. B. Familienbeitrag).' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
+          : `<p class="muted">${d.familyHead ? `Kein eigener Beitrag – im Familienbeitrag von ${esc(d.familyHead.name)} enthalten (Reiter „Zahlung & Familie“).` : p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt.' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small primary" id="dAdd">+ Abteilung</button>'}</div>
         ${d.departments.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Zusatzbeitrag</th><th></th></tr>${depRows}</table>
           <p class="muted s" style="margin-bottom:0">Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.</p>` : '<p class="muted">Keiner Abteilung zugeordnet.</p>'}</div>
@@ -410,6 +411,15 @@
 
   function subPayment(el, d, again) {
     const p = d.person, id = p.id, head = !p.payer_id;
+    // Familienmitgliedschaft (Familienbeitrag des Oberhaupts) und Zahler (Geld) sind zwei getrennte Zuordnungen
+    const ROLE = { oberhaupt: 'Oberhaupt', partner: 'Partner/in', kind: 'Kind' };
+    const famFeeIds = new Set(st.meta.fees.filter(f => f.family && f.active && f.kind !== 'zusatz').map(f => f.id));
+    const live = r => r.status !== 'ausgetreten' && r.status !== 'anonym';
+    const heads = st.rows.filter(r => r.id !== id && live(r) && !r.family_of && (r.fee_ids.some(x => famFeeIds.has(x)) || r.id === p.family_of));
+    const isHead = d.family.length > 0 && d.family[0].id === id;
+    const famOpts = `<option value="">– keine –</option>${heads.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, p.family_of)).join('')}`;
+    const famTable = list => `<table class="tbl">${list.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.role === 'oberhaupt' ? '<span class="pill g">Oberhaupt</span>' : esc(ROLE[f.role] || f.role)}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}${isHead && f.id !== id ? ` <button class="btn small danger" data-famx="${f.id}" title="Aus der Familienmitgliedschaft lösen">Lösen</button>` : ''}</td></tr>`).join('')}</table>`;
+    const addable = st.rows.filter(r => r.id !== id && live(r) && !r.family_of && !d.family.some(f => f.id === r.id));
     el.innerHTML = `<div class="mv-two">
       <div class="card"><h3>Wer zahlt?</h3>
         <div class="mv-grid" style="--c:1">
@@ -417,13 +427,18 @@
           <label class="f ${p.payer_id ? '' : 'hidden'}" id="pDrinksL">Verkauf am Tablet<select id="pSales">${opt('payer', 'Über den Hauptzahler (nicht in der Liste)', p.sales_mode || 'payer')}${opt('own_payer', 'Eigener Eintrag – zahlt der Hauptzahler', p.sales_mode)}${opt('own', 'Eigener Eintrag – zahlt selbst', p.sales_mode)}</select></label>
           <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
         </div>
-        <p class="muted s">Familienmitgliedschaft: Partner/in und Kinder bekommen den Hauptzahler. Beiträge, Verkauf und Arbeitsstunden aller Angehörigen laufen dann über dessen Konto und Mandat. Am Tablet bucht die Familie standardmäßig auf den Namen des Hauptzahlers – wer einen eigenen Eintrag möchte, bekommt ihn hier.</p>
+        <p class="muted s">Der Zahler ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf aller Angehörigen laufen über sein Konto und Mandat – auch für erwachsene Kinder mit eigenem Beitrag. Am Tablet bucht die Zahlergruppe standardmäßig auf den Namen des Hauptzahlers.</p>
+        ${d.payerGroup.length ? `<h4 class="mv-sub">Zahlergruppe</h4><table class="tbl">${d.payerGroup.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.head ? '<span class="pill g">Hauptzahler</span>' : `<span class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</span>`}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>` : ''}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pSave">Speichern</button></div></div>
-      <div class="card"><h3>Familie</h3>
-        ${d.family.length ? `<table class="tbl">${d.family.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? ' <span class="muted s">(dieses Mitglied)</span>' : ''}${!f.head ? `<div class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</div>` : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : ''}</td><td class="r">${f.head ? '<span class="pill g">Hauptzahler</span>' : ''}${f.id !== id ? ` <button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>`
-          : '<p class="muted">Keine Angehörigen verknüpft.</p>'}
-        ${head ? '<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>' + memberOptions('', id) + '</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>' : ''}
-      </div></div>
+      <div class="card"><h3>Familienmitgliedschaft</h3>
+        <div class="mv-grid" style="--c:1">
+          <label class="f">Familienmitgliedschaft bei<select id="pFamOf" ${isHead ? 'disabled' : ''}>${famOpts}</select></label>
+        </div>
+        <p class="muted s">${isHead ? `${esc(p.name)} ist Oberhaupt: der eigene Familienbeitrag deckt Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre ab. Ein Oberhaupt kann nicht selbst einer anderen Familie zugeordnet sein.`
+          : `Wählbar sind Mitglieder mit aktivem Familienbeitrag. Wer zugeordnet ist, braucht keine eigene Beitragsart – Zusatzbeiträge der Abteilungen bleiben je Person. Erlaubt: Oberhaupt, ein/e Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre.${!d.familyFee && famFeeIds.size === 0 ? ' Noch keine Beitragsart mit Familienbeitrag angelegt (Beiträge → Beitragsarten).' : ''}`}</p>
+        ${d.family.length ? `<h4 class="mv-sub">Familie</h4>${famTable(d.family)}` : d.familyFee ? '<p class="muted">Noch keine Angehörigen zugeordnet – unten hinzufügen.</p>' : ''}
+        ${isHead || d.familyFee ? `<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>${addable.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, '')).join('')}</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>` : ''}
+        <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
       ${d.charges ? `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Forderungen & Zahlungen</h3><div class="row">${head && d.charges.some(c => c.status === 'offen') ? `<a class="btn small" href="${BASE}invoice.pdf?member=${id}" target="_blank">Rechnung (PDF)</a>` : ''}<button class="btn small primary" id="pCharge">+ Forderung</button></div></div>
         ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="muted">Noch keine Forderungen.</p>'}
         ${d.drinksOpen ? `<p class="muted s">Dazu noch nicht abgerechneter Verkauf: <b>${euro(d.drinksOpen)}</b></p>` : ''}</div>` : ''}`;
@@ -436,7 +451,9 @@
         GK.clean(); toast('Gespeichert.'); again();
       } catch (e) { fail(e); }
     };
-    if ($('pFamOk')) $('pFamOk').onclick = () => GK.busy($('pFamOk'), async () => { const x = +val('pAddFam'); if (!x) return; try { await api(`member/${x}/payer`, 'PUT', { payer_id: id }); toast('Hinzugefügt.'); again(); } catch (e) { fail(e); } });
+    $('pFamSave').onclick = () => GK.busy($('pFamSave'), async () => { try { await api(`member/${id}/family`, 'PUT', { family_of: val('pFamOf') ? +val('pFamOf') : null }); GK.clean(); toast('Gespeichert.'); again(); } catch (e) { fail(e); } });
+    if ($('pFamOk')) $('pFamOk').onclick = () => GK.busy($('pFamOk'), async () => { const x = +val('pAddFam'); if (!x) return; try { await api(`member/${x}/family`, 'PUT', { family_of: id }); toast('Hinzugefügt.'); again(); } catch (e) { fail(e); } });
+    el.querySelectorAll('[data-famx]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { await api(`member/${b.dataset.famx}/family`, 'PUT', { family_of: null }); toast('Gelöst.'); again(); } catch (e) { fail(e); } }); });
     el.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => openMember(+b.dataset.open); });
     if ($('pCharge')) $('pCharge').onclick = () => chargeDialog(null, { member_id: id }, again);
     bindCharges(el, again);
@@ -515,7 +532,7 @@
   }
 
   function exitDialog(d, again) {
-    const p = d.person, fam = d.family.filter(f => !f.head && f.id !== p.id);
+    const p = d.person, seen = new Set(), fam = [...(d.payerGroup || []), ...(d.family || [])].filter(f => !f.head && f.id !== p.id && !seen.has(f.id) && seen.add(f.id));   // Zahlergruppe und Familienmitgliedschaft
     const yearEnd = (() => { const ys = st.meta.settings.year_start || '01-01'; const y = +st.meta.today.slice(0, 4); for (const yy of [y, y + 1]) { const e = new Date(`${yy}-${ys}T00:00:00Z`); e.setUTCDate(e.getUTCDate() - 1); const s = e.toISOString().slice(0, 10); if (s >= st.meta.today) return s; } return st.meta.today; })();
     dialog(`<h2>Austritt von ${esc(p.name)}</h2>
       <div class="mv-grid" style="--c:2"><label class="f">Austritt zum<input id="xDate" type="date" value="${yearEnd}"></label><label class="f">Kündigung eingegangen am<input id="xNotice" type="date" value="${st.meta.today}"></label>
@@ -656,7 +673,7 @@
       $('iOk').disabled = true;
       try {
         if (step !== 'prev') { prev = await run(false); drawPrev(); }
-        else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft.`, { okOnly: true, danger: false }); reloadTab(); return; }
+        else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
       $('iOk').disabled = false;
     });

@@ -28,6 +28,7 @@ function register(sh) {
     const until = isDate(o.until) ? o.until : today();
     const yearStart = S('year_start', '01-01');
     const positions = [], warnings = [], info = [], marks = [];   // marks: beitragsfreie Zeiträume (Eintrittsjahr frei) – nur „abgerechnet bis“ vorrücken
+    const famWarned = new Set();
     if (!o.onlyDrinks) {
       const rows = db.prepare(`SELECT mf.*, f.name AS fee_name, f.cents AS fee_cents, f.interval, f.prorate, f.department_id, f.age_min, f.age_max, f.family,
           p.exit_date, p.birth_date, p.anonymized_at, m.name AS person_name
@@ -46,10 +47,16 @@ function register(sh) {
           if (age != null && ((r.age_max != null && age > r.age_max) || (r.age_min != null && age < r.age_min)) && !(sh.ageNoticeFor && sh.ageNoticeFor(r.id)))
             warnings.push({ member_id: r.member_id, text: `${r.person_name} ist am ${deD(pr.from)} ${age} Jahre – „${r.fee_name}“ gilt für ${r.age_min != null ? r.age_min : 0}–${r.age_max != null ? r.age_max : '…'} Jahre.` });
           if (r.family) {
-            const max = parseInt(S('family_child_max', '18'), 10) || 18;
-            for (const d of db.prepare('SELECT m.name, p.birth_date, p.exit_date FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.payer_id = ? AND p.member_id != ? AND (p.exit_date IS NULL OR p.exit_date >= ?)').all(r.member_id, r.member_id, pr.from)) {
+            // Familienbeitrag deckt das Oberhaupt und die Angehörigen der Familienmitgliedschaft (family_of) ab – nicht die Zahlergruppe.
+            // Ein Partner (zweiter Erwachsener) ist ausdrücklich zugeordnet; wer als Kind 19 wird, bleibt ohne Beitrag, bis ihm eine eigene Beitragsart zugewiesen ist (keine stille Umstellung).
+            const max = store.childMax();
+            const fam = db.prepare('SELECT m.name, p.birth_date FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.family_of = ? AND p.member_id != ? AND m.deleted = 0 AND (p.exit_date IS NULL OR p.exit_date >= ?) ORDER BY p.birth_date IS NULL, p.birth_date').all(r.member_id, r.member_id, pr.from);
+            let adults = 0;
+            for (const d of fam) {
               const a = fees.ageAt(d.birth_date, pr.from);
-              if (a != null && a > max && !/(partner|ehe|frau|mann)/i.test(d.name)) warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – im Familientarif von ${r.person_name} sind Kinder bis ${max} Jahre enthalten. Ggf. eigenen Beitrag zuordnen.` });
+              if (a == null || a > max) adults++;
+              if (a === max + 1 && !famWarned.has(`${d.name}|${pr.from}`)) { famWarned.add(`${d.name}|${pr.from}`); warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – nicht mehr im Familientarif von ${r.person_name}, bitte eigene Beitragsart zuweisen.` }); }
+              else if (a != null && a > max + 1 && adults > 1) warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – neben ${r.person_name} ist schon ein weiterer Erwachsener in der Familienmitgliedschaft (erlaubt: Oberhaupt und ein Partner). Bitte eigene Beitragsart zuweisen.` });
             }
           }
           positions.push({ key: `f${r.id}-${pr.from}`, kind: r.interval === 'einmalig' ? 'aufnahme' : 'beitrag', member_id: payer, for_member_id: r.member_id, member_fee_id: r.id,
@@ -109,9 +116,14 @@ function register(sh) {
       if (mFree.length) info.push(`${mFree.length} Zeitraum/Zeiträume im Eintrittsjahr beitragsfrei (${names(mFree)}) – wird als abgerechnet vermerkt.`);
       if (mAge.length) info.push(`${mAge.length} Zeitraum/Zeiträume ohne Zusatzbeitrag, weil keine Altersstufe passt (${names(mAge)}) – wird als abgerechnet vermerkt.`);
       if (sh.ageOpen) { const n = sh.ageScan ? sh.ageScan() : sh.ageOpen(); if (n) info.push(`${n} Altersstufen-Hinweis(e) offen – bis zur Entscheidung läuft der bisherige Beitrag weiter (Beiträge → Altersstufen).`); }
-      // ohne Beitrag (Hinweis)
+      // Familienmitgliedschaft ohne Deckung: das Oberhaupt hat (am Stichtag) keinen Familienbeitrag mehr
+      for (const r of db.prepare(`SELECT m.name, p.family_of, h.name AS head_name FROM mv_person p JOIN members m ON m.id = p.member_id JOIN members h ON h.id = p.family_of
+          WHERE p.family_of IS NOT NULL AND m.deleted = 0 AND p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?)`).all(until)) {
+        if (!store.familyFee(r.family_of)) warnings.push({ member_id: r.family_of, text: `${r.name} gehört zur Familienmitgliedschaft von ${r.head_name} – ${r.head_name} hat aber keinen Familienbeitrag (mehr). Bitte Familienbeitrag zuweisen oder die Zuordnung lösen.` });
+      }
+      // ohne Beitrag (Hinweis) – wer über eine Familienmitgliedschaft abgedeckt ist, braucht keinen eigenen
       const noFee = db.prepare(`SELECT m.name FROM members m JOIN mv_person p ON p.member_id = m.id WHERE m.kind = 'mitglied' AND m.deleted = 0 AND p.anonymized_at IS NULL
-        AND (p.exit_date IS NULL OR p.exit_date >= ?) AND p.payer_id IS NULL AND p.status != 'ehren' AND NOT EXISTS (SELECT 1 FROM mv_member_fee mf WHERE mf.member_id = m.id AND (mf.end_date IS NULL OR mf.end_date >= ?))`).all(until, until);
+        AND (p.exit_date IS NULL OR p.exit_date >= ?) AND p.payer_id IS NULL AND p.family_of IS NULL AND p.status != 'ehren' AND NOT EXISTS (SELECT 1 FROM mv_member_fee mf WHERE mf.member_id = m.id AND (mf.end_date IS NULL OR mf.end_date >= ?))`).all(until, until);
       if (noFee.length) info.push(`${noFee.length} Mitglied(er) ohne Beitrag: ${noFee.slice(0, 8).map(x => x.name).join(', ')}${noFee.length > 8 ? ' …' : ''}`);
       // Positionen anderer Module (z. B. Arbeitsstunden)
       if (o.extra !== false) {

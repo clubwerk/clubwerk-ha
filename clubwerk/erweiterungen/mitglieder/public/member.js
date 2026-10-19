@@ -55,16 +55,17 @@
         const ini = full.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
         const open = d.charges.filter(c => c.status === 'offen' || c.status === 'eingezogen');
         const V = (d.perms && d.perms.view) || {}, E = (d.perms && d.perms.edit) || {};
-        const showFees = V.beitraege !== false || d.departments.length || d.family.length > 1;
+        const showFees = V.beitraege !== false || d.departments.length || d.family.length > 1 || (d.familyMembership && d.familyMembership.length > 1);
         el.innerHTML = `
           ${d.pending.length ? `<div class="md-banner">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
           ${p.exit_date ? `<div class="md-banner">Deine Mitgliedschaft endet zum ${deD(p.exit_date)}.</div>` : ''}
           <div class="md-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(p.status || 'Mitglied')}${p.entry_date ? ` seit ${deD(p.entry_date)}` : ''}</span></div></div></div>
           ${showFees ? `<div class="md-card"><h3>Mitgliedschaft</h3><div class="md-list">
             ${V.beitraege === false ? '' : d.fees.map(f => `<div><span><span translate="no">${esc(f.name)}</span>${f.dept ? `<small>Zusatzbeitrag Abteilung <span translate="no">${esc(f.dept)}</span></small>` : ''}${f.who ? `<small>für ${esc(f.who)}</small>` : ''}${f.booked_until ? `<small>abgerechnet bis ${deD(f.booked_until)}</small>` : ''}</span><b>${euro(f.cents)} <small style="display:inline">${esc(f.interval)}</small></b></div>`).join('')
-              || `<div><span>${d.payerName ? `Dein Beitrag läuft über ${esc(d.payerName)}.` : 'Kein Beitrag hinterlegt.'}</span></div>`}
+              || `<div><span>${d.familyHeadName ? `Dein Beitrag ist im Familienbeitrag von ${esc(d.familyHeadName)} enthalten.` : d.payerName ? `Dein Beitrag läuft über ${esc(d.payerName)}.` : 'Kein Beitrag hinterlegt.'}</span></div>`}
             ${d.departments.length ? `<div><span>Abteilungen</span><b translate="no" style="white-space:normal;text-align:right">${d.departments.map(x => esc(x.name)).join(', ')}</b></div>` : ''}
-            ${d.family.length > 1 ? `<div><span>Familie</span><b style="white-space:normal;text-align:right">${d.family.map(f => esc(f.name) + (f.head ? ' (zahlt)' : '')).join(', ')}</b></div>` : ''}
+            ${d.familyMembership && d.familyMembership.length > 1 ? `<div><span>Familienmitgliedschaft</span><b style="white-space:normal;text-align:right">${d.familyMembership.map(f => esc(f.name) + (f.role === 'oberhaupt' ? ' (Oberhaupt)' : '')).join(', ')}</b></div>` : ''}
+            ${d.family.length > 1 ? `<div><span>${d.familyMembership && d.familyMembership.length > 1 ? 'Zahler' : 'Familie'}</span><b style="white-space:normal;text-align:right">${d.family.map(f => esc(f.name) + (f.head ? ' (zahlt)' : '')).join(', ')}</b></div>` : ''}
           </div></div>` : ''}
           ${d.isHead && V.posten !== false ? `<div class="md-card"><h3>Zahlungen${d.open_cents ? `<span class="md-tag a">offen ${euro(d.open_cents)}</span>` : ''}</h3><div class="md-list">
             ${d.charges.slice(0, 12).map(c => `<div><span><span translate="no">${esc(c.text)}</span><small>${c.status === 'eingezogen' && c.collection_date ? `Lastschrift am ${deD(c.collection_date)}` : c.status === 'bezahlt' ? `bezahlt ${deD(c.paid_at)}` : `fällig ${deD(c.due_date)}`}<span class="md-tag ${(ST[c.status] || [''])[0]}">${esc((ST[c.status] || ['', c.status])[1])}</span></small></span><b>${euro(c.cents)}</b></div>`).join('') || '<div><span class="muted">Noch keine Zahlungen.</span></div>'}

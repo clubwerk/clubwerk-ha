@@ -47,9 +47,12 @@ function register(sh) {
     const p = personRow(id);
     if (!p) return null;
     const day = today();
-    const fam = store.familyOf(id);
+    // Zahlergruppe (wer über wen zahlt – Beiträge, Posten, Kündigung) und Familienmitgliedschaft (Familienbeitrag – nur Namen) getrennt, siehe store.js
+    const fam = store.payerGroup(id);
     const family = fam.members.length > 1 ? db.prepare(`SELECT m.id, m.name, p.birth_date FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${fam.members.map(() => '?').join(',')})`).all(...fam.members)
       .map(r => ({ id: r.id, name: r.name, head: r.id === fam.head, me: r.id === id })) : [];
+    const famHead = store.familyHead(id);
+    const familyMembership = famHead ? store.familyMembers(famHead).filter(f => !store.isExited(f)).map(f => ({ name: f.name, role: f.role, me: f.id === id })) : [];
     const isHead = fam.head === id;
     const feeRows = db.prepare(`SELECT mf.start_date, mf.end_date, mf.booked_until, COALESCE(mf.cents, f.cents) AS cents, f.name, f.interval, mf.member_id, (SELECT name FROM members WHERE id = mf.member_id) AS who
       FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id IN (${(isHead ? fam.members : [id]).map(() => '?').join(',')}) AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.member_id = ? DESC, f.name`)
@@ -72,7 +75,7 @@ function register(sh) {
       person: { first_name: p.first_name, last_name: p.last_name, member_no: p.member_no, birth_date: V.geburt ? p.birth_date : null,
         ...(V.anschrift ? { street: p.street, zip: p.zip, city: p.city, address_extra: p.address_extra } : {}), ...(V.kontakt ? { phone: p.phone, mobile: p.mobile, email: p.email } : {}), entry_date: p.entry_date, exit_date: p.exit_date, notice_date: p.notice_date, status: store.STATUS[p.status] || p.status, payment: store.PAYMENT[p.payment] || p.payment },
       departments: V.abteilungen ? db.prepare(`SELECT d.name, md.entry_date, md.status FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? AND (md.exit_date IS NULL OR md.exit_date >= ?) ORDER BY d.sort, d.name`).all(id, day) : [],
-      fees: V.beitraege ? feeRows : [], family: V.familie ? family : [], isHead, payerName: payer !== id && V.familie ? (personRow(payer) || {}).name : null,
+      fees: V.beitraege ? feeRows : [], family: V.familie ? family : [], familyMembership: V.familie ? familyMembership : [], familyHeadName: famHead && famHead !== id && V.familie ? (personRow(famHead) || {}).name : null, isHead, payerName: payer !== id && V.familie ? (personRow(payer) || {}).name : null,
       open_cents: V.posten ? charges.filter(c => c.status === 'offen').reduce((s, c) => s + c.cents, 0) : 0, charges: V.posten ? charges : [],
       bank: b && V.bank ? { iban: sepa.maskIban(b.iban), holder: b.holder, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, ok: mandateState(b).ok } : null,
       consents: consentList().map(c => ({ key: c.key, short: c.short, text: c.text, required: Boolean(c.required), given: Boolean(consents[c.key]), date: consents[c.key] || null })),
@@ -156,7 +159,7 @@ function register(sh) {
     if (p.exit_date) return bad(res, `Dein Austritt ist schon zum ${deD(p.exit_date)} eingetragen.`);
     if (openOf(id, 'kuendigung')) return bad(res, 'Deine Kündigung liegt dem Vorstand schon vor.');
     if (!b.confirm) return bad(res, 'Bitte bestätige die Kündigung.');
-    const fam = store.familyOf(id);
+    const fam = store.payerGroup(id);
     const who = Array.isArray(b.members) ? b.members.map(Number).filter(m => fam.head === id ? fam.members.includes(m) : m === id) : [id];
     if (!who.length) who.push(id);
     const date = noticeDate();
@@ -215,7 +218,7 @@ function register(sh) {
         if (!fees.isDate(date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
         const opt = { exit_date: date, reason: d.reason, notice_date: d.notice_date, endFees: d.endFees !== false, endDepts: d.endDepts !== false };
         exitMember(c.member_id, opt, by);
-        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE payer_id = ? AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, date)) exitMember(x.member_id, { exit_date: date, reason: d.reason }, by);
+        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, date)) exitMember(x.member_id, { exit_date: date, reason: d.reason }, by);
       }
       if (c.kind === 'rueckkehr') sh.reenterMember(c.member_id, by);
       db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ? WHERE id = ?").run(by, nowTs(), c.id);

@@ -144,11 +144,13 @@ function register(sh) {
         ids.push(mid);
       });
       const head = ids[0];
-      for (const mid of ids.slice(1)) db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(head, mid);
+      for (const mid of ids.slice(1)) db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(head, mid);   // Zahler: der/die Antragsteller/in
       // Beiträge: Hauptzahler bekommt den gewählten; ohne Familientarif jede weitere Person ihren eigenen
       const addFee = (mid, fid) => { if (fid && db.prepare('SELECT 1 FROM mv_fee WHERE id = ?').get(fid)) db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date) VALUES (?,?,?)').run(mid, fid, start); };
-      addFee(head, (choice[0] && choice[0].fee_id) || fee.id);
-      if (!fee.family) d.persons.slice(1).forEach((p, i) => addFee(ids[i + 1], (choice[i + 1] && choice[i + 1].fee_id) || p.fee_id));
+      const headFee = db.prepare('SELECT * FROM mv_fee WHERE id = ?').get((choice[0] && choice[0].fee_id) || fee.id) || fee;
+      addFee(head, headFee.id);
+      if (!headFee.family) d.persons.slice(1).forEach((p, i) => addFee(ids[i + 1], (choice[i + 1] && choice[i + 1].fee_id) || p.fee_id));
+      else for (const mid of ids.slice(1)) db.prepare('UPDATE mv_person SET family_of = ? WHERE member_id = ?').run(head, mid);   // Familienmitgliedschaft: Partner/in und Kinder sind über den Familienbeitrag abgedeckt
       // angekreuzte Abteilungen je Person (Zusatzbeiträge laufen dann automatisch nach Alter)
       d.persons.forEach((p, i) => { for (const dep of p.departments || []) if (db.prepare('SELECT 1 FROM mv_department WHERE id = ?').get(dep) && !db.prepare('SELECT 1 FROM mv_member_department WHERE member_id = ? AND department_id = ? AND exit_date IS NULL').get(ids[i], dep)) db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date) VALUES (?,?,?)').run(ids[i], dep, start); });
       // Abteilung des Beitrags

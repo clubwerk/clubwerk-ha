@@ -108,6 +108,7 @@ function register(sh) {
     ['departments', 'Abteilung(en)', 'Mitgliedschaft', ['abteilung', 'abteilungen', 'sparte', 'sparten', 'gruppe', 'gruppen']],
     ['group', 'Familie / Gemeinschaft', 'Mitgliedschaft', ['familie', 'gemeinschaft', 'familienname gemeinschaft', 'haushalt', 'familiennr', 'familiennummer']],
     ['payer_no', 'Zahler (Mitgliedsnummer)', 'Mitgliedschaft', ['zahler', 'zahlernr', 'zahlermitglied', 'abweichenderzahler', 'abweichenderzahlermitglied', 'zahleristmitglied', 'hauptmitglied', 'uebergeordnetesmitglied', 'übergeordnetesmitglied']],
+    ['family_no', 'Familie bei (Mitgliedsnummer des Oberhaupts)', 'Mitgliedschaft', ['familiebei', 'familienmitgliedschaft', 'familienmitgliedschaftbei', 'familienoberhaupt', 'oberhaupt', 'familienzahler']],
     ['key_no', 'Schlüsselnummer', 'Mitgliedschaft', ['schluesselnummer', 'schlüsselnummer', 'schluessel', 'schlüssel', 'transponder']],
     ['notes', 'Notizen', 'Mitgliedschaft', ['notiz', 'notizen', 'bemerkung', 'bemerkungen', 'info', 'anmerkung']],
     ['fee_name', 'Beitrag (Bezeichnung)', 'Beitrag', ['beitragsart', 'beitragsart1', 'beitragsgruppe', 'beitragstarif', 'tarif', 'beitragsbezeichnung', 'beitragsklasse', 'persoenlicherbeitragstarif', 'persönlicherbeitragstarif', 'beitrag']],
@@ -202,7 +203,7 @@ function register(sh) {
           mandate_ref: mref && sepa.checkMandateRef(mref).ok ? mref : null, mandate_date: deToIso(g('mandate_date')), valid_until: null } : null,
         mandateUsed: Boolean(o.mandateUsed),
         ibanBad: g('iban') && !ib.ok ? ib.error : null,
-        payer: { member: one(g('payer_no'), 80) || null, iban: null, holder: null, bic: null, bank: null },
+        payer: { member: one(g('payer_no'), 80) || null, iban: null, holder: null, bic: null, bank: null }, family: one(g('family_no'), 80) || null,
         group: one(g('group'), 80) || null, honors: '', functions: '', depts, fees: feeList,
       });
     });
@@ -245,6 +246,7 @@ function register(sh) {
         ibanBad: g('IBAN') && !ib.ok ? ib.error : null,
         mandateUsed: false,
         payer: { member: g('Abweichender Zahler Mitglied') || null, iban: pib.ok ? pib.iban : null, holder: one(g('Abweichender Zahler Kontoinhaber'), 70) || null, bic: sepa.checkBic(g('Abweichender Zahler BIC')).bic || null, bank: one(g('Abweichender Zahler Kreditinstitut'), 70) || null },
+        family: one(g('Familie bei'), 80) || null,
         group: one(g('Gemeinschaft'), 80) || null, honors: g('Ehrungen'), functions: g('Funktionen'), depts, fees: feeList,
       });
     }
@@ -336,7 +338,7 @@ function register(sh) {
 
   function commit(recs, user, dec = new Map()) {
     const ids = new Map();   // member_no / Zeile → id
-    const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0 };
+    const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0, families: 0 };
     db.transaction(() => {
       const deptId = name => {
         let d = db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(name);
@@ -415,12 +417,21 @@ function register(sh) {
         for (const f of String(r.functions || '').split(/[;\n]/).map(x => x.trim()).filter(Boolean)) if (!db.prepare('SELECT 1 FROM mv_function WHERE member_id = ? AND name = ?').get(id, f.slice(0, 120))) db.prepare('INSERT INTO mv_function(member_id, name) VALUES (?,?)').run(id, f.slice(0, 120));
       }
       // Zahler verknüpfen: „Abweichender Zahler Mitglied“ (Nummer oder Name), sonst Gemeinschaft mit genau einem Beitragszahler
-      for (const r of recs) {
-        if (!r.payer.member) continue;
-        const key = r.payer.member.trim();
+      const findMember = key => {
         let pid = ids.get(key) || (db.prepare('SELECT member_id FROM mv_person WHERE member_no = ?').get(key) || {}).member_id;
         if (!pid) { const hit = db.prepare("SELECT id FROM members WHERE kind = 'mitglied' AND deleted = 0 AND (lower(name) = lower(?) OR lower(name) = lower(?))").all(key, key.split(',').reverse().map(s => s.trim()).join(' ')); if (hit.length === 1) pid = hit[0].id; }
+        return pid || null;
+      };
+      for (const r of recs) {
+        if (!r.payer.member) continue;
+        const pid = findMember(r.payer.member.trim());
         if (pid && pid !== r.id) { db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(pid, r.id); stats.payers++; }
+      }
+      // Familienmitgliedschaft: Spalte „Familie bei“ (Nummer oder Name des Oberhaupts) – nur mit Familienbeitrag beim Oberhaupt, eine Ebene
+      for (const r of recs) {
+        if (!r.family) continue;
+        const hid = findMember(r.family.trim());
+        if (hid && hid !== r.id && store.familyFee(hid) && !(db.prepare('SELECT family_of FROM mv_person WHERE member_id = ?').get(hid) || {}).family_of) { db.prepare('UPDATE mv_person SET family_of = ? WHERE member_id = ?').run(hid, r.id); stats.families++; }
       }
       const groups = new Map();
       for (const r of recs) if (r.group) { if (!groups.has(r.group)) groups.set(r.group, []); groups.get(r.group).push(r); }
@@ -431,6 +442,7 @@ function register(sh) {
         for (const r of list) if (r !== payers[0] && !db.prepare('SELECT payer_id FROM mv_person WHERE member_id = ?').get(r.id).payer_id) { db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(payers[0].id, r.id); stats.payers++; }
       }
       store.flattenPayers();
+      stats.families += store.familyFromPayers(recs.map(r => r.id));   // wie bisher: wer über einen Zahler mit Familienbeitrag läuft, gehört zu dessen Familienmitgliedschaft
     })();
     return stats;
   }
@@ -469,7 +481,7 @@ function register(sh) {
     let dec; try { dec = decisions(recs, JSON.parse(decodeURIComponent(String(req.get('X-Decisions') || '')) || '{}')); } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
     const stats = commit(recs, uname(req), dec);
     if (map) SET('import_map_' + format, JSON.stringify(map));   // nur Spaltennamen, keine Daten
-    C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft`);
+    C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft, ${stats.families} Familienmitgliedschaften`);
     res.json({ ok: true, ...stats });
   }
   /* bisheriger Weg (verein.cloud direkt) */

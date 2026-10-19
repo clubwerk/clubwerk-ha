@@ -48,11 +48,11 @@ function register(sh) {
         break;
       }
     }
-    // 2) Kinder im Familienbeitrag, die über die Altersgrenze kommen
+    // 2) Kinder in der Familienmitgliedschaft (family_of), die über die Altersgrenze kommen
     const max = parseInt(S('family_child_max', '18'), 10) || 18;
-    for (const r of db.prepare(`SELECT p.member_id, p.payer_id, p.birth_date, mf.id AS mf_id, mf.fee_id, f.interval FROM mv_person p JOIN members m ON m.id = p.member_id
-        JOIN mv_member_fee mf ON mf.member_id = p.payer_id JOIN mv_fee f ON f.id = mf.fee_id
-        WHERE m.deleted = 0 AND ${alive} AND p.payer_id IS NOT NULL AND p.payer_id != p.member_id AND f.family = 1 AND (mf.end_date IS NULL OR mf.end_date >= ?)
+    for (const r of db.prepare(`SELECT p.member_id, p.family_of, p.birth_date, mf.id AS mf_id, mf.fee_id, f.interval FROM mv_person p JOIN members m ON m.id = p.member_id
+        JOIN mv_member_fee mf ON mf.member_id = p.family_of JOIN mv_fee f ON f.id = mf.fee_id
+        WHERE m.deleted = 0 AND ${alive} AND p.family_of IS NOT NULL AND p.family_of != p.member_id AND f.family = 1 AND (mf.end_date IS NULL OR mf.end_date >= ?)
           AND NOT EXISTS (SELECT 1 FROM mv_member_fee x WHERE x.member_id = p.member_id AND (x.end_date IS NULL OR x.end_date >= ?))`).all(day, day, day)) {
       const nx = nextStart(r.interval), age = fees.ageAt(r.birth_date, nx);
       if (age == null || age <= max || age > max + 1) continue;   // nur wer gerade herauswächst (Partner sind älter und bleiben unberührt)

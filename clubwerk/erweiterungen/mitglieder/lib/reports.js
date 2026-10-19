@@ -82,7 +82,7 @@ function register(sh) {
   /* Mitgliederliste als Excel (Spalten wählbar; Bankdaten nur mit Recht) */
   const COLS = [['member_no', 'Mitgliedsnummer'], ['last_name', 'Nachname'], ['first_name', 'Vorname'], ['salutation', 'Anrede'], ['title', 'Titel'], ['birth_date', 'Geburtsdatum'], ['age', 'Alter'], ['gender', 'Geschlecht'],
     ['street', 'Straße'], ['zip', 'PLZ'], ['city', 'Ort'], ['email', 'E-Mail'], ['phone', 'Telefon'], ['mobile', 'Mobil'], ['status', 'Status'], ['entry_date', 'Eintritt'], ['exit_date', 'Austritt'],
-    ['depts', 'Abteilungen'], ['fees', 'Beiträge'], ['payer', 'Zahler'], ['payment', 'Zahlungsart'], ['key_no', 'Schlüsselnummer'], ['iban', 'IBAN'], ['mandate_ref', 'Mandatsreferenz'], ['mandate_date', 'Mandat vom'], ['consents', 'Einwilligungen']];
+    ['depts', 'Abteilungen'], ['fees', 'Beiträge'], ['payer', 'Zahler'], ['family', 'Familienmitgliedschaft bei'], ['payment', 'Zahlungsart'], ['key_no', 'Schlüsselnummer'], ['iban', 'IBAN'], ['mandate_ref', 'Mandatsreferenz'], ['mandate_date', 'Mandat vom'], ['consents', 'Einwilligungen']];
   admin.get('/export.xlsx', P, ar(async (req, res) => {
     const want = String(req.query.cols || 'member_no,last_name,first_name,birth_date,street,zip,city,email,mobile,status,entry_date,depts,fees').split(',');
     const canBank = req.user.perms.includes('mitglieder_bank');
@@ -95,7 +95,7 @@ function register(sh) {
       const p = db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(r.id) || {};
       const b = canBank ? db.prepare('SELECT * FROM mv_bank WHERE member_id = ?').get(r.id) || {} : {};
       const c = JSON.parse(p.consents || '{}');
-      const val = { ...p, ...r, gender: store.GENDER[r.gender] || '', payer: r.payer_name || '', payment: store.PAYMENT[r.payment] || '', iban: b.iban ? sepa.fmtIban(b.iban) : '', mandate_ref: b.mandate_ref || '', mandate_date: b.mandate_date || '',
+      const val = { ...p, ...r, gender: store.GENDER[r.gender] || '', payer: r.payer_name || '', family: r.family_head_name || '', payment: store.PAYMENT[r.payment] || '', iban: b.iban ? sepa.fmtIban(b.iban) : '', mandate_ref: b.mandate_ref || '', mandate_date: b.mandate_date || '',
         consents: cons.filter(x => c[x.key]).map(x => x.short).join(', ') };
       ws.addRow(cols.map(([k]) => { const v = val[k]; return safeCell(/_date$/.test(k) && isDate(v) ? deD(v) : v == null ? '' : v); }));
     }

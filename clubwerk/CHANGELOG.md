@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.16.0
+**Mitgliederverwaltung – Zahler und Familienmitgliedschaft getrennt.** Neben dem Zahler (wer die Beiträge, den Verkauf und die Lastschrift trägt) gibt es jetzt die Familienmitgliedschaft: Partner/in und Kinder bis 18 Jahre werden dem Oberhaupt mit Familienbeitrag zugeordnet und brauchen keine eigene Beitragsart; ein Vater kann weiterhin für erwachsene Kinder mit eigenem Beitrag zahlen. Höchstens zwei Erwachsene je Familie, Kinder, die 19 werden, meldet der Beitragslauf (keine stille Umstellung). Bestehende Familien werden beim Update automatisch übernommen. Neues Feld im Reiter „Zahlung & Familie“, in der Mitglieder-App, im Export, in der Datenauskunft und als Importspalte „Familie bei“. Helferdienste zählen den Familienpool nach der Familienmitgliedschaft.
+
 ## 3.15.1
 **Fachaudit Getränkebuchung, Abrechnung und SEPA**
 - Tablet „Rückgängig“ lehnt bereits abgerechnete Buchungen ab (Meldung „bereits abgerechnet – bitte an den Vorstand wenden“); Abrechnung und Buchungen können nicht mehr auseinanderlaufen.

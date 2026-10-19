@@ -64,6 +64,14 @@ Formate in einer Spalte nie mischen; für die Anzeige `ctx.util.deD()` verwenden
 
 **Deinstallieren:** In `erweiterung.json` mit `"tabellen": ["meine_tabelle", …]` die eigenen Tabellen angeben (sonst gelten alle Tabellen mit dem Präfix `<id>_`) und bei Bedarf `"einstellungen": ["praefix_"]` für Einstellungen außerhalb von `ext_<id>_…`. Diese Daten landen in der Modul-Sicherung und werden beim Deinstallieren gelöscht.
 
+**Mitgliederverwaltung – Zahler vs. Familienmitgliedschaft:** Die Mitgliederverwaltung kennt zwei getrennte Zuordnungen je Person:
+`payer_id` (Zahler – reine Geldbeziehung; Beiträge, Verkauf und Lastschrift laufen beim Zahler zusammen) und `family_of`
+(Familienmitgliedschaft – zeigt auf das Oberhaupt, dessen Familienbeitrag die Person abdeckt; Oberhaupt + ein Partner + Kinder).
+Für andere Module gibt es `ctx.hooks.familyOf(id) → { head, members, kind }`: die Familienmitgliedschaft (`kind: 'familie'`),
+ohne eine solche die Zahlergruppe (`'zahler'`) bzw. die Person allein (`'einzeln'`), wenn ihre Zahlergruppe schon eine Familie enthält –
+die Helferdienste bilden daraus den Familienpool. `ctx.hooks.memberInfo(id)` liefert `payer`, `family_of` und `fee` (mit `viaFamily`/`viaPayer`,
+wenn der Beitrag vom Oberhaupt bzw. Zahler stammt). Der Verkauf „beim Zahler“ nutzt bewusst nur den Zahler.
+
 **Funktionsexport/-import (optional):** Mit `ctx.hooks.exportConfig = () => ({...})` und
 `ctx.hooks.importConfig = (data, { user }) => 'Zusammenfassung'` bekommt die Erweiterung in der Verwaltung die Knöpfe
 „Export“/„Import“ (Einstellungen → Module & Erweiterungen) und kann auf ihrer Seite `GK.funcBox(element, id, name)` zeigen.
