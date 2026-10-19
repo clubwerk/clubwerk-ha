@@ -134,10 +134,10 @@ function wipe(p) {
   }
 }
 
-/** Sicherung einspielen (ersetzt die Daten des Moduls) → Zusammenfassung */
-async function restore(p, buf) {
+/** Sicherung einspielen (ersetzt die Daten des Moduls) → Zusammenfassung. src: Pfad der ZIP-Datei oder Buffer */
+async function restore(p, src) {
   let zip;
-  try { zip = await JSZip.loadAsync(buf); } catch (e) { throw new Error('Die Datei ist keine Modul-Sicherung (kein ZIP).'); }
+  try { zip = await JSZip.loadAsync(Buffer.isBuffer(src) ? src : fs.readFileSync(src)); } catch (e) { throw new Error('Die Datei ist keine Modul-Sicherung (kein ZIP).'); }
   // gegen „ZIP-Bomben“: angegebene Größen prüfen, bevor etwas entpackt wird
   const entries = Object.values(zip.files);
   if (entries.length > 20000) throw new Error('Die Modul-Sicherung enthält zu viele Dateien.');

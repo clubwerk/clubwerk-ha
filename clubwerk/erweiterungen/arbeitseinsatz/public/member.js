@@ -5,7 +5,7 @@
     const s = document.createElement('style'); s.id = 'dsStyle';
     s.textContent = `
       .ds-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; box-shadow: var(--shadow); }
-      .ds-card h3 { margin: 0 0 10px; font-size: 15px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
+      .ds-card h3 { margin: 0 0 10px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; }
       .ds-card h3 button { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 4px 0; }
       .ds-big { display: flex; align-items: baseline; gap: 8px; } .ds-big b { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; } .ds-big span { color: var(--muted); font-size: 15px; }
       .ds-bar { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 10px 0 8px; } .ds-bar i { display: block; height: 100%; background: var(--brand); border-radius: 5px; }

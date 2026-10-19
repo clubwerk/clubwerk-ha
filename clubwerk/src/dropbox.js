@@ -1,9 +1,10 @@
 'use strict';
 /**
- * Dropbox-Anbindung für den täglichen Export.
+ * Dropbox-Anbindung für die nächtliche Datensicherung (ein Sicherungsziel neben WebDAV/SFTP/FTPS, siehe targets.js).
  *  - Eigene Dropbox-App mit Zugriff nur auf ihren App-Ordner („App folder“)
  *  - Anmeldung per OAuth-Code (kein Passwort in der Verwaltung), gespeichert wird nur das Refresh-Token
- *  - Upload: Excel-Stand + Datenbanksicherung, alte Dateien werden nach X Tagen gelöscht
+ *  - Hochgeladen wird die verschlüsselte Komplettsicherung (Ordner „Komplett“) und optional lesbare Auszüge („Lesbar“);
+ *    ältere Dateien räumt der Kern nach Generationen (täglich/wöchentlich/monatlich) auf
  */
 const API = process.env.DROPBOX_API || 'https://api.dropboxapi.com';
 const CONTENT = process.env.DROPBOX_CONTENT || 'https://content.dropboxapi.com';

@@ -23,8 +23,7 @@
   header.top nav a.on { opacity: 1; font-weight: 700; border-bottom-color: #fff; }
   header.top nav .ext { font-size: 12px; opacity: .8; }
   header.top .clock { font-size: 20px; font-variant-numeric: tabular-nums; opacity: .9; }
-  main { padding: 18px 22px 30px; }
-  h2.sec { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 6px 0 14px 0; }
+  main { padding: 24px 24px 30px; }   /* Seitenkopf: gemeinsame Regeln .tab-head/.tab-title in style.css */
   .staff { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
   .staff button { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; min-height: 170px;
     padding: 18px var(--np); border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); }
@@ -61,12 +60,11 @@
     header.top { padding: 10px 14px; flex-wrap: wrap; }
     header.top h1 { font-size: 17px; }
     header.top .clock, .logo-badge { display: none; }
-    main { padding: 14px; }
+    main { padding: 16px; }
   }
   @media (orientation: landscape) and (max-height: 820px) {
     header.top { padding: 8px 22px; }
     .logo-badge img { height: 40px; }
-    main { padding-top: 10px; }
   }
   .gate { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
   .gatecard { width: min(440px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 30px 28px;
@@ -82,7 +80,7 @@
 <body>
 <header id="gkHeader"></header>
 <main>
-  <h2 class="sec">Wer kommt oder geht?</h2>
+  <div class="tab-head"><div><h1 class="tab-title">Wer kommt oder geht?</h1></div></div>
   <div class="staff" id="staff"></div>
   <p class="hint" id="hint">Kachel antippen und PIN eingeben – die App erkennt selbst, ob du kommst oder gehst.</p>
 </main>

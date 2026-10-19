@@ -7,10 +7,10 @@
   "minApp": "3.6.4",
   "perms": {
     "buchung": "Buchungssystem: Belegung ansehen",
-    "buchung_buchen": "Buchungssystem: für Mitglieder buchen, Einzelbuchungen mit Label",
+    "buchung_buchen": "Buchungssystem: für Mitglieder buchen, Einzelbuchungen mit Buchungsart",
     "buchung_stornieren": "Buchungssystem: Buchungen anderer stornieren",
     "buchung_serien": "Buchungssystem: Serien & Sperren anlegen und beenden",
-    "buchung_einstellungen": "Buchungssystem: Plätze, Labels & Einstellungen"
+    "buchung_einstellungen": "Buchungssystem: Plätze, Buchungsarten & Einstellungen"
   },
   "tablet": {
     "label": "Plätze",

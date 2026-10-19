@@ -50,8 +50,8 @@
     const c = st.c;
     return c.profiles.map((p, i) => `<div class="card soft" style="margin:0 0 12px">
       <div class="row" style="align-items:flex-end;flex-wrap:nowrap">
-        <label class="f" style="flex:1">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}"></label>
-        <label class="row" style="align-items:center;gap:8px;white-space:nowrap;margin-bottom:10px"><input type="radio" name="zDef" data-pdef="${i}" ${p.isDefault ? 'checked' : ''} style="width:20px;height:20px"> Standard bei neuer Freischaltung</label>
+        <label class="f" style="flex:1 1 180px;min-width:180px">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}"></label>
+        <label class="row" style="align-items:center;gap:8px;flex-wrap:nowrap;min-height:40px;margin:0"><input type="radio" name="zDef" data-pdef="${i}" ${p.isDefault ? 'checked' : ''} style="width:20px;height:20px;flex:none"> <span>Standard bei neuer Freischaltung</span></label>
         <button class="btn small danger" data-px="${i}" ${c.profiles.length < 2 ? 'disabled' : ''}>Profil löschen</button>
       </div>
       <div class="row" style="margin-top:10px;align-items:center;gap:14px;flex-wrap:wrap"><span class="muted s">Türen:</span>
@@ -211,11 +211,11 @@
           ${r.members.map(m => `<option value="${m.id}">${esc(GK.lastFirst ? GK.lastFirst(m.name) : m.name)}</option>`).join('')}</select></label><button class="btn primary" id="zMemInv">Freischalten & QR-Code</button></div>
         <p class="muted s" style="margin:8px 0 0">Der QR-Code gilt für die ganze Mitglieder-App. Wer schon ein freigeschaltetes Handy hat, braucht keinen neuen – einfach ankreuzen genügt (siehe „Mitglieder-App“).</p></div>
       <div class="card"><h3>Freigeschaltet <span class="muted s">(${r.rows.length})</span></h3>
-      ${r.rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Handy</th><th style="width:200px">Zeitprofil</th><th style="width:170px">gültig bis</th><th>zuletzt</th><th></th></tr>
+      ${r.rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Handy</th><th style="width:200px">Zeitprofil</th><th style="width:170px">gültig bis</th><th class="hide-md">zuletzt</th><th></th></tr>
         ${r.rows.map(x => `<tr${x.blocked ? ' class="off"' : ''}><td><b>${esc(GK.lastFirst ? GK.lastFirst(x.name) : x.name)}</b>${x.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</td><td><span class="pill ${STAT[x.device][0]}">${STAT[x.device][1]}</span></td>
           <td><select data-mp="${x.member_id}" data-nodirty style="width:100%">${r.profiles.map(p => `<option value="${p.id}" ${p.id === x.profile ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select></td>
           <td><input type="date" data-mu="${x.member_id}" data-nodirty value="${x.valid_until || ''}" title="leer = unbegrenzt"></td>
-          <td class="muted s">${x.last_used ? GK.deTime(x.last_used) : '–'}</td>
+          <td class="muted s hide-md">${x.last_used ? GK.deTime(x.last_used) : '–'}</td>
           <td class="r" style="white-space:nowrap">${x.device !== 'gekoppelt' ? `<button class="btn small" data-mq="${x.member_id}">QR-Code</button> ` : ''}<button class="btn small" data-mb="${x.member_id}">${x.blocked ? 'Entsperren' : 'Sperren'}</button> <button class="btn small danger" data-mx="${x.member_id}">Entziehen</button></td></tr>`).join('')}</table>`
         : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
     const reload = () => loadMembers(el).catch(fail);
@@ -252,5 +252,5 @@
     $('zMonth').onchange = () => { st.month = $('zMonth').value; loadLog().catch(fail); };
   }
 
-  GK.registerPage({ key: 'zugang', title: 'Zugang', perm: 'zugang', render: GK.RENDER.zugang });
+  GK.registerPage({ key: 'zugang', title: 'Zugang', perm: 'zugang', render: GK.RENDER.zugang, order: 6 });
 })();

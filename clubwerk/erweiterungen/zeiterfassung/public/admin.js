@@ -24,7 +24,7 @@
     const q = `month=${r.month}${sel ? '&staff=' + sel.id : ''}`;
     const m = r.mail;
     const prevName = (() => { const [y, mo] = m.prev.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); })();
-    const mailLine = !m.ready ? `<div class="banner a">Noch kein Postfach für den Versand eingerichtet – ${GK.can('einstellungen') ? '<a href="#einstellungen" data-gomail>Einstellungen → E-Mail-Versand</a>' : 'bitte einen Admin mit Recht „Einstellungen“ bitten (Einstellungen → E-Mail-Versand)'}.</div>`
+    const mailLine = !m.ready ? `<div class="banner a">Noch kein Postfach für den Versand eingerichtet – ${GK.can('einstellungen') ? '<a href="#einstellungen" data-gomail>Einstellungen → Postfach</a>' : 'bitte einen Admin mit Recht „Einstellungen“ bitten (Einstellungen → Postfach)'}.</div>`
       : m.error ? `<div class="banner r">Letzter Versand fehlgeschlagen: ${esc(m.error)}</div>`
         : m.sentMonth ? `<div class="banner g">Monatsnachweis ${esc(m.sentMonth.split('-').reverse().join('/'))} verschickt am ${deTime(m.sentAt)} Uhr an ${esc(m.to)}.</div>` : '';
     const flagCell = e => [!e.end_at ? (e.forgotten ? '<span class="pill r">nicht ausgestempelt</span>' : '<span class="pill a">noch da</span>') : '',
@@ -67,7 +67,7 @@
           <button class="btn" id="zTest" ${m.ready ? '' : 'disabled'}>Testmail senden</button>
           <button class="btn" id="zSend" ${m.ready ? '' : 'disabled'}>${esc(prevName)} jetzt senden</button>
         </div>
-        <p class="muted s" style="margin-bottom:0">Versand automatisch am 1. ab 6 Uhr (war Home Assistant aus, sobald es wieder läuft). Im Anhang: PDF mit Übersicht und je Person einer Seite zum Unterschreiben sowie eine Excel-Datei. Versand über das Vereinspostfach (Einstellungen → E-Mail-Versand)${m.ready ? ', Absender ' + esc(m.from) : ' – noch nicht eingerichtet'}.</p></div>`;
+        <p class="muted s" style="margin-bottom:0">Versand automatisch am 1. ab 6 Uhr (war Home Assistant aus, sobald es wieder läuft). Im Anhang: PDF mit Übersicht und je Person einer Seite zum Unterschreiben sowie eine Excel-Datei. Versand über das Vereinspostfach (Einstellungen → Postfach)${m.ready ? ', Absender ' + esc(m.from) : ' – noch nicht eingerichtet'}.</p></div>`;
 
     $('zMonth').onchange = () => { zstate.month = $('zMonth').value; GK.RENDER.zeit().catch(fail); };
     $('zStaff').onchange = () => { zstate.staff = Number($('zStaff').value); GK.RENDER.zeit().catch(fail); };
@@ -96,14 +96,14 @@
       <label class="f">Begründung (steht im Nachweis)<input id="zeN" maxlength="120" value="${e ? esc(e.note || '') : ''}" placeholder="z. B. vergessen auszustempeln"></label>
       <div class="btns">${e ? '<button class="btn danger" id="zeDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn" id="zeX">Abbrechen</button><button class="btn primary" id="zeOk">Speichern</button></div>`);
     $('zeX').onclick = closeDialog;
-    $('zeOk').onclick = async () => {
+    $('zeOk').onclick = () => GK.busy($('zeOk'), async () => {
       const body = { start: fromLocalInput($('zeA').value), end: fromLocalInput($('zeB').value), note: $('zeN').value };
       try {
         if (e) await api('entries/' + e.id, 'PUT', body);
         else { body.staffId = Number($('zeS').value); await api('entries', 'POST', body); zstate.staff = body.staffId; zstate.month = body.start.slice(0, 7); }
         closeDialog(); toast('Gespeichert.'); GK.RENDER.zeit();
       } catch (x) { fail(x); }
-    };
+    });
     if ($('zeDel')) $('zeDel').onclick = async () => {
       if (!await GK.ask('Diesen Einsatz löschen?')) return;
       try { await api('entries/' + e.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); GK.RENDER.zeit(); } catch (x) { fail(x); }
@@ -133,7 +133,7 @@
       ${p ? `<br><label class="row" style="align-items:center;gap:8px"><input type="checkbox" id="zpA" ${p.active ? 'checked' : ''} style="width:20px;height:20px"> aktiv (erscheint am Tablet)</label>` : ''}
       <div class="btns"><button class="btn" id="zpX">Zurück</button><button class="btn primary" id="zpOk">Speichern</button></div>`);
     $('zpX').onclick = () => zStaffDialog().catch(fail);
-    $('zpOk').onclick = async () => {
+    $('zpOk').onclick = () => GK.busy($('zpOk'), async () => {
       const body = { name: $('zpN').value, job: $('zpJ').value, rate: $('zpR').value };
       if ($('zpP').value) body.pin = $('zpP').value;
       try {
@@ -141,9 +141,9 @@
         else { body.pin = $('zpP').value; await api('staff', 'POST', body); }
         toast('Gespeichert.'); zStaffDialog().catch(fail);
       } catch (e) { fail(e); }
-    };
+    });
   }
 
 
-  GK.registerPage({ key: 'zeit', title: 'Zeiterfassung', perm: 'zeiterfassung', render: GK.RENDER.zeit });
+  GK.registerPage({ key: 'zeit', title: 'Zeiterfassung', perm: 'zeiterfassung', render: GK.RENDER.zeit, order: 4 });
 })();

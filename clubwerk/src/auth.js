@@ -56,7 +56,6 @@ function permInfo(u) {
   for (const r of rolesOf(u)) for (const p of r.perms.filter(ok)) (r.dept_scope ? scoped : full).add(p);
   return { perms: [...new Set([...full, ...scoped])], deptOnly: [...scoped].filter(p => !full.has(p)) };
 }
-function userPerms(u) { return permInfo(u).perms; }
 
 const DUMMY_HASH = hashSecret(crypto.randomBytes(8).toString('hex'));
 
@@ -194,7 +193,7 @@ setInterval(() => {
 }, 60 * 1000).unref();
 
 module.exports = {
-  PERMS, hashSecret, verifySecret, userPerms, permInfo, rolesOf, setPermFilter,
+  PERMS, hashSecret, verifySecret, permInfo, setPermFilter,
   adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, currentUser, requireAdmin, need,
   issueTabletToken, checkTabletToken, dropTabletToken,
 };

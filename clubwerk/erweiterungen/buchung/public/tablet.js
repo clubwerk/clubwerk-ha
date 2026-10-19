@@ -148,7 +148,8 @@
     const quote = async () => {
       const n = ++qn;
       try { const q = await call('x/buchung/quote', { token, resource_id: r.id, start: hhmm(s), minutes: sel, partners, guests: [] }); if (n !== qn) return;
-        $('perr').textContent = q.ok ? '' : q.error; $('fee').innerHTML = q.ok && q.fee_cents ? `${q.lines.map(l => esc(l.text)).join('<br>')}<br><b>${euro(q.fee_cents)}</b> – mit dem nächsten Einzug` : ''; } catch (e) { /* nur Vorschau */ }
+        $('perr').textContent = ''; $('fee').innerHTML = q.fee_cents ? `${q.lines.map(l => esc(l.text)).join('<br>')}<br><b>${euro(q.fee_cents)}</b> – mit dem nächsten Einzug` : ''; }
+      catch (e) { if (n !== qn) return; if (e.status === 400) { $('perr').textContent = e.message; $('fee').innerHTML = ''; } }   // Regelverstoß als Hinweis, sonst nur Vorschau
     };
     const paint = () => { $('dialog').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', +b.dataset.m === sel)); $('ok').textContent = `Buchen bis ${hhmm(s + sel)} Uhr`; };
     $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { sel = +b.dataset.m; paint(); quote(); }; });

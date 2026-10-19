@@ -22,8 +22,9 @@
   header.top nav a { color: #fff; opacity: .75; font-size: 15px; text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
   header.top nav a.on { opacity: 1; font-weight: 700; border-bottom-color: #fff; }
   header.top nav .ext { font-size: 12px; opacity: .8; }
-  main { padding: 22px 22px 40px; }
-  .aw-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; max-width: 1180px; margin: 0 auto; }
+  main { padding: 24px 24px 40px; }
+  .aw-head, .aw-wrap { max-width: 1280px; margin-left: auto; margin-right: auto; }   /* Seitenkopf: gemeinsame Regeln .tab-head/.tab-title/.tab-sub in style.css */
+  .aw-wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; }
   .aw-col h2 { font-size: 15px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 4px 0 12px; }
   .aw-list { display: flex; flex-direction: column; gap: 12px; }
   .aw-tile { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 84px; padding: 16px 20px; border-radius: 18px; background: var(--card); border: 1px solid var(--line); box-shadow: inset 5px 0 0 var(--brand), var(--shadow); text-align: left; width: 100%; font: inherit; color: var(--ink); cursor: pointer; }
@@ -67,7 +68,8 @@
 </head>
 <body>
 <header id="gkHeader"></header>
-<main><div class="aw-wrap">
+<main><div class="tab-head aw-head"><div><h1 class="tab-title">Helferdienste</h1><p class="tab-sub">Wer gerade im Einsatz ist und welche Dienste heute anstehen – antippen zum Beginnen oder Beenden.</p></div></div>
+<div class="aw-wrap">
   <section class="aw-col"><h2>Gerade im Einsatz</h2><div class="aw-list" id="running"></div></section>
   <section class="aw-col"><h2>Heute</h2><div class="aw-list" id="events"></div><button class="aw-big" id="startBtn" style="margin-top:12px">Einsatz beginnen</button><p class="aw-note" id="note"></p></section>
 </div></main>

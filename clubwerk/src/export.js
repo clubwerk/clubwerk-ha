@@ -46,7 +46,7 @@ function title(ws, text, sub, span) {
   ws.getCell(2, 1).font = { color: { argb: 'FF5F5E5A' } };
 }
 
-const de = d => d.split('-').reverse().join('.');
+const { deD: de } = require('./util');   // 'JJJJ-MM-TT' → 'TT.MM.JJJJ' (leer bleibt leer)
 const eur = c => (c || 0) / 100;
 
 async function buildWorkbook({ clubName, from, to, balances, asOf, openBookings = [], categories, bookings, shrink, stock, events, tabs = [], color }) {

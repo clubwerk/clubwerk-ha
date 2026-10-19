@@ -38,6 +38,20 @@ function limiter({ per = 5, baseMs = 5 * 60000, maxMs = 24 * 3600000, size = 200
     ok(key) { m.delete(key); },
   };
 }
+/** Kontingent je Schlüssel und Zeitfenster (z. B. 20 E-Mails je Mitglied und Stunde): take(key, n) → true, wenn n noch ins Fenster passt.
+ *  Anders als limiter() ohne Sperr-Eskalation – nach Ablauf des Fensters zählt es einfach von vorn. Begrenzte Größe wie limiter(). */
+function budget({ max = 20, windowMs = 3600000, size = 2000 } = {}) {
+  const m = new Map();
+  return {
+    take(key, n = 1) {
+      const now = Date.now(); let b = m.get(key);
+      if (!b || b.reset < now) { m.delete(key); if (m.size >= size) m.delete(m.keys().next().value); b = { n: 0, reset: now + windowMs }; m.set(key, b); }
+      if (b.n + n > max) return false;
+      b.n += n; return true;
+    },
+    left(key) { const b = m.get(key); return !b || b.reset < Date.now() ? max : Math.max(0, max - b.n); },
+  };
+}
 /** Gemeinsame Sicherheits-Header für alle Ports (Verwaltung/Tablet, Mitglieder-App, Beregnung) */
 function hardenHeaders({ frame = 'SAMEORIGIN' } = {}) {
   return (req, res, next) => {
@@ -91,9 +105,14 @@ function hostGuard({ bypass } = {}) {
   return (req, res, next) => {
     if (hostAllowed(req.headers.host) || (bypass && bypass(req))) return next();
     const h = String(req.headers.host || '').slice(0, 100);
-    res.status(421).type('text/plain; charset=utf-8').send(`Unbekannte Adresse „${h}“.\n\nAus Sicherheitsgründen antwortet Clubwerk nur unter bekannten Adressen. ` +
+    const msg = `Unbekannte Adresse „${h}“.`;
+    if (String(req.path || '').startsWith('/api/')) return res.status(421).json({ error: msg });   // Schnittstelle: immer JSON { error }
+    res.status(421).type('text/plain; charset=utf-8').send(`${msg}\n\nAus Sicherheitsgründen antwortet Clubwerk nur unter bekannten Adressen. ` +
       'Bitte über die IP-Adresse oder die Home-Assistant-Seitenleiste öffnen und den Namen unter Einstellungen → Sicherheit → „Weitere Adressen“ eintragen.');
   };
 }
 const resetHostCache = () => { hostCache.at = 0; };
-module.exports = { securityAlert, limiter, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
+/** Antworten komprimieren (gzip/brotli je nach Browser) – Skripte, Stile, JSON, SVG; Bilder/Archive bleiben unverändert */
+const compression = require('compression');
+const compress = () => compression({ threshold: 1024, level: 6, filter: (req, res) => { const t = String(res.getHeader('Content-Type') || ''); return /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/.test(t) || compression.filter(req, res); } });
+module.exports = { compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };

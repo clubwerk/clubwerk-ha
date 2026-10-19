@@ -93,7 +93,9 @@ async function create(o) {
     for (const x of dirs) args.push('-C', o.dataDir, x);
     const tar = spawn('tar', args, { stdio: ['ignore', 'pipe', 'pipe'] });
     let err = ''; tar.stderr.on('data', c => { err += c; });
-    const exited = new Promise(res => tar.on('close', res));
+    // fehlt das Programm (ENOENT) oder lässt es sich nicht starten, darf das nicht als unbehandeltes 'error' den Prozess beenden
+    const exited = new Promise((res, rej) => { tar.on('close', res); tar.on('error', e => rej(new Error('tar nicht verfügbar: ' + e.message))); });
+    exited.catch(() => {});
     await pipeline(tar.stdout, cipher, out, { end: false });
     const code = await exited;
     if (code !== 0) throw new Error('Packen fehlgeschlagen: ' + String(err).slice(0, 200));
@@ -126,7 +128,8 @@ async function extract(file, o) {
   decipher.setAuthTag(tag);
   const tar = spawn('tar', ['-xzf', '-', '-C', o.outDir, '--no-same-owner', '--no-same-permissions'], { stdio: ['pipe', 'ignore', 'pipe'] });
   let err = ''; tar.stderr.on('data', c => { err += c; });
-  const exited = new Promise(res => tar.on('close', res));
+  const exited = new Promise((res, rej) => { tar.on('close', res); tar.on('error', e => rej(new Error('tar nicht verfügbar: ' + e.message))); });
+  exited.catch(() => {});
   try {
     await pipeline(fs.createReadStream(file, { start: dataStart, end: dataEnd - 1 }), decipher, tar.stdin);
   } catch (e) {

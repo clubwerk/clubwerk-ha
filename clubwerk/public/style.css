@@ -92,7 +92,7 @@ a.btn.primary { color: #fff; }
 /* ---------- Kopfzeile am Tablet: auf allen Seiten identisch ----------
    Links Vereinszeichen + Name, Mitte die Bereiche (gleich breite Reiter, exakt mittig), rechts Uhr + Verwaltung.
    Links und rechts gleich breit, damit die Mitte wirklich mittig steht. Vereinsfarbe: Zeichen, Strich oben, aktive Markierung. */
-#gkHeader { display: grid; grid-template-columns: 296px minmax(0, 1fr) 296px; align-items: center; gap: 16px; height: 72px; padding: 0 24px;
+#gkHeader { display: grid; grid-template-columns: 240px minmax(0, 1fr) 240px; align-items: center; gap: 16px; height: 72px; padding: 0 24px;
   background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); box-shadow: inset 0 3px 0 var(--brand); box-sizing: border-box; flex: none; }
 #gkHeader .brand { grid-column: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
 #gkHeader .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; letter-spacing: .02em; }
@@ -115,6 +115,8 @@ a.btn.primary { color: #fff; }
 #gkHeader .admin { height: 44px; display: flex; align-items: center; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 #gkHeader .admin.on { border-color: var(--brand); color: var(--brand-ink); }
 #gkHeader .hright, #gkHeader .brand { min-width: 0; overflow: hidden; }
+@media (max-width: 1366px) { #gkHeader .topnav a { padding: 0 14px; } }   /* vier Reiter („Mitglied werden“) passen bei 1280 px ohne Abschneiden */
+@media (max-width: 1366px) { #gkHeader .topnav.many a { padding: 0 12px; font-size: 14px; } #gkHeader .topnav.many a svg { display: none; } }
 @media (max-width: 1100px) {
   #gkHeader { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; padding: 0 16px; }
   #gkHeader .clock { display: none; }
@@ -127,5 +129,14 @@ a.btn.primary { color: #fff; }
   #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
   #gkHeader .topnav a { padding: 0 4px; font-size: 13.5px; }
   #gkHeader .topnav a svg { display: none; }
-  #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; }
+  #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; hyphens: manual; }   /* Trennstellen setzt nav.js (weiche Trennstriche) */
 }
+
+/* ---------- Seitenkopf am Tablet: auf allen Seiten gleich ----------
+   24 px unter der Kopfzeile, Titel 28/36 px fett, Untertitel 14/20 px gedämpft, rechts optional Bedienelemente (Suche, Bereichswahl).
+   Die Seiten binden ihn als <div class="tab-head"><div><h1 class="tab-title">…</h1><p class="tab-sub">…</p></div>…</div> ein. */
+.tab-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 16px; align-items: center; margin: 0 0 16px; }
+.tab-head > :first-child { min-width: 0; min-height: 60px; display: flex; flex-direction: column; justify-content: flex-start; }   /* Titelblock immer 60 px (Titel + Untertitel) – Titel auf allen Seiten auf gleicher Höhe */
+.tab-title { margin: 0; font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); overflow-wrap: anywhere; }
+.tab-sub { margin: 2px 0 0; font-size: 15px; line-height: 22px; color: var(--muted); }
+@media (max-width: 640px) { .tab-head { grid-template-columns: minmax(0, 1fr); } .tab-title { font-size: 22px; line-height: 30px; } }

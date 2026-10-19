@@ -429,7 +429,7 @@ function register(sh) {
     const k = collOr404(req, res); if (!k) return;
     const rows = db.prepare(`SELECT c.member_id, m.name, p.email, SUM(c.cents) cents, group_concat(c.text, ' · ') texts FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id
       WHERE c.collection_id = ? GROUP BY c.member_id`).all(k.id);
-    if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+    if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     let sent = 0; const missing = [], failed = [];
     for (const r of rows) {
       if (!r.email) { missing.push(r.name); continue; }
@@ -478,7 +478,7 @@ function register(sh) {
   });
   admin.post('/invoices/send', PF, rateLimit('mvinv', 10, 10 * 60000), ar(async (req, res) => {
     const b = req.body || {};
-    if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+    if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     const ids = Array.isArray(b.member_ids) ? b.member_ids.map(Number).filter(Boolean).slice(0, 500) : [];
     const dunning = b.dunning ? 1 : 0;
     let sent = 0; const missing = [], failed = [];

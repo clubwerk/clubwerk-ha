@@ -5,7 +5,7 @@
     const s = document.createElement('style'); s.id = 'mdStyle';
     s.textContent = `
       .md-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; box-shadow: var(--shadow); }
-      .md-card h3 { margin: 0 0 10px; font-size: 15px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+      .md-card h3 { margin: 0 0 10px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
       .md-card h3 button { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 4px 0; }
       .md-head { display: flex; align-items: center; gap: 14px; }
       .md-av { width: 52px; height: 52px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; flex: none; }
@@ -50,14 +50,16 @@
         try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
         if (d.none) { el.innerHTML = '<div class="vh-empty">Für dich sind noch keine Mitgliedsdaten hinterlegt.</div>'; return; }
         const p = d.person;
-        const ini = `${(p.first_name || ' ')[0]}${(p.last_name || ' ')[0]}`.toUpperCase();
+        // Name und Initialen: aus Vor-/Nachname, sonst aus dem Kontonamen („Muster, Max“) – nie eine leere Karte
+        const full = [p.first_name, p.last_name].filter(Boolean).join(' ') || String(ctx.member || '').split(',').map(x => x.trim()).reverse().join(' ');
+        const ini = full.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
         const open = d.charges.filter(c => c.status === 'offen' || c.status === 'eingezogen');
         const V = (d.perms && d.perms.view) || {}, E = (d.perms && d.perms.edit) || {};
         const showFees = V.beitraege !== false || d.departments.length || d.family.length > 1;
         el.innerHTML = `
           ${d.pending.length ? `<div class="md-banner">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
           ${p.exit_date ? `<div class="md-banner">Deine Mitgliedschaft endet zum ${deD(p.exit_date)}.</div>` : ''}
-          <div class="md-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div><b>${esc(p.first_name)} ${esc(p.last_name)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(p.status)}${p.entry_date ? ` seit ${deD(p.entry_date)}` : ''}</span></div></div></div>
+          <div class="md-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(p.status || 'Mitglied')}${p.entry_date ? ` seit ${deD(p.entry_date)}` : ''}</span></div></div></div>
           ${showFees ? `<div class="md-card"><h3>Mitgliedschaft</h3><div class="md-list">
             ${V.beitraege === false ? '' : d.fees.map(f => `<div><span><span translate="no">${esc(f.name)}</span>${f.dept ? `<small>Zusatzbeitrag Abteilung <span translate="no">${esc(f.dept)}</span></small>` : ''}${f.who ? `<small>für ${esc(f.who)}</small>` : ''}${f.booked_until ? `<small>abgerechnet bis ${deD(f.booked_until)}</small>` : ''}</span><b>${euro(f.cents)} <small style="display:inline">${esc(f.interval)}</small></b></div>`).join('')
               || `<div><span>${d.payerName ? `Dein Beitrag läuft über ${esc(d.payerName)}.` : 'Kein Beitrag hinterlegt.'}</span></div>`}
@@ -72,7 +74,7 @@
             ${V.kontakt !== false ? `<dt>E-Mail</dt><dd>${esc(p.email || '–')}</dd><dt>Mobil</dt><dd>${esc(p.mobile || p.phone || '–')}</dd>` : ''}
             ${V.geburt !== false && p.birth_date ? `<dt>Geburtsdatum</dt><dd>${deD(p.birth_date)}</dd>` : ''}</dl></div>` : ''}
           ${d.isHead && V.bank !== false ? `<div class="md-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="md-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
-            <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<p class="vh-note" style="text-align:left">Zahlungsart: ${esc(p.payment)}</p>`}</div>` : ''}
+            <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="md-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
           <div class="md-card"><h3>Einwilligungen <button id="mdCons">Ändern</button></h3><div class="md-list">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>
           ${p.exit_date || !E.kuendigung ? '' : '<button class="md-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
@@ -84,21 +86,30 @@
         const p = d.person;
         const f = (k, l, t = 'text') => `<label>${l}</label><input class="vh-input" data-k="${k}" type="${t}" value="${esc(p[k] || '')}">`;
         const E = (d.perms && d.perms.edit) || {};
-        const sh = sheet(`<h2>Kontaktdaten ändern</h2><p>Der Vorstand bestätigt die Änderung.</p>${E.anschrift ? `${f('street', 'Straße und Hausnummer')}<div class="vh-row" style="gap:10px"><div style="flex:1">${f('zip', 'PLZ')}</div><div style="flex:2">${f('city', 'Ort')}</div></div>` : ''}
+        const sh = sheet(`<h2>Kontaktdaten ändern</h2><p>Der Vorstand bestätigt die Änderung.</p>${E.kontakt ? '<p>Eine neue E-Mail-Adresse bestätigst du mit deiner PIN.</p>' : ''}${E.anschrift ? `${f('street', 'Straße und Hausnummer')}<div class="vh-row" style="gap:10px"><div style="flex:1">${f('zip', 'PLZ')}</div><div style="flex:2">${f('city', 'Ort')}</div></div>` : ''}
           ${E.kontakt ? `${f('email', 'E-Mail', 'email')}${f('mobile', 'Mobil', 'tel')}` : ''}${!E.kontakt || !E.anschrift ? `<p class="vh-note" style="text-align:left;margin:10px 0 0">${!E.kontakt ? 'E-Mail und Handynummer' : 'Die Anschrift'} kann nur der Vorstand ändern.</p>` : ''}<div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Senden</button></div>`);
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelector('#mdOk').onclick = async () => {
           const body = {}; sh.querySelectorAll('[data-k]').forEach(i => { body[i.dataset.k] = i.value.trim(); });
-          try { await ctx.api('change', 'POST', body); closeSheet(); ctx.toast('Gesendet – der Vorstand bestätigt die Änderung.'); load(); } catch (e) { sh.querySelector('#mdErr').textContent = e.message; }
+          // neue E-Mail-Adresse: mit PIN (der Server verlangt sie) – alles andere ohne, der Vorstand bestätigt ohnehin
+          const mailChanged = body.email !== undefined && body.email.toLowerCase() !== String(p.email || '').toLowerCase();
+          try {
+            const r = mailChanged ? await ctx.withPin('Neue E-Mail-Adresse bestätigen', pin => ctx.api('change', 'POST', { ...body, pin })) : await ctx.api('change', 'POST', body);
+            if (r) { closeSheet(); ctx.toast('Gesendet – der Vorstand bestätigt die Änderung.'); load(); }
+          } catch (e) { sh.querySelector('#mdErr').textContent = e.message; }
         };
       }
       function editConsents() {
-        const sh = sheet(`<h2>Einwilligungen</h2><p>Freiwillige Einwilligungen kannst du jederzeit widerrufen – das gilt sofort.</p><div class="md-cons">${d.consents.map(c => `<label><input type="checkbox" data-c="${esc(c.key)}" ${c.given ? 'checked' : ''} ${c.required ? 'disabled' : ''}><span><b>${esc(c.short)}</b>${c.required ? ' (für die Mitgliedschaft nötig)' : ''}<br>${esc(c.text)}</span></label>`).join('')}</div>
+        const sh = sheet(`<h2>Einwilligungen</h2><p>Freiwillige Einwilligungen kannst du jederzeit widerrufen – das gilt sofort. <span>Änderungen bestätigst du mit deiner PIN.</span></p><div class="md-cons">${d.consents.map(c => `<label><input type="checkbox" data-c="${esc(c.key)}" ${c.given ? 'checked' : ''} ${c.required ? 'disabled' : ''}><span><b>${esc(c.short)}</b>${c.required ? ' (für die Mitgliedschaft nötig)' : ''}<br>${esc(c.text)}</span></label>`).join('')}</div>
           <div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Speichern</button></div>`);
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelector('#mdOk').onclick = async () => {
           const consents = {}; sh.querySelectorAll('[data-c]').forEach(c => { consents[c.dataset.c] = c.checked; });
-          try { await ctx.api('change', 'POST', { consents }); closeSheet(); ctx.toast('Gespeichert.'); load(); } catch (e) { sh.querySelector('#mdErr').textContent = e.message === 'Du hast nichts geändert.' ? '' : e.message; if (e.message === 'Du hast nichts geändert.') closeSheet(); }
+          if (!d.consents.some(c => Boolean(consents[c.key]) !== Boolean(c.given))) { closeSheet(); return; }   // nichts geändert – keine PIN-Abfrage nötig
+          try {
+            const r = await ctx.withPin('Einwilligungen bestätigen', pin => ctx.api('change', 'POST', { consents, pin }));
+            if (r) { closeSheet(); ctx.toast('Gespeichert.'); load(); }
+          } catch (e) { sh.querySelector('#mdErr').textContent = e.message === 'Du hast nichts geändert.' ? '' : e.message; if (e.message === 'Du hast nichts geändert.') closeSheet(); }
         };
       }
       function loadPad() { return window.Antrag ? Promise.resolve() : new Promise(res => { const s = document.createElement('script'); s.src = 'p/mitglieder/antrag.js'; s.onload = res; s.onerror = res; document.body.appendChild(s); }); }

@@ -137,7 +137,6 @@ function T(text, vars, lang = current()) {
   const d = dict(lang); const hit = d ? d.exact.get(Core.norm(text)) : undefined;
   return Core.fill(hit !== undefined ? hit : text, vars);
 }
-function trHtml(html, lang = current()) { const d = dict(lang); return d ? Core.translateHtml(d, html) : html; }
 function locale(lang = current()) { const m = meta(lang); return (m && m.locale) || 'de-DE'; }
 
 /** Server-weite Einbindung: Zahlen/Datum, Excel- und PDF-Dateien in der jeweiligen Sprache */
@@ -179,7 +178,9 @@ function patchGlobals() {
 /** Express-Middleware: Sprache der Anfrage bestimmen, Fehlermeldungen übersetzen */
 function middleware(req, res, next) {
   const cookie = (/(?:^|;\s*)cw_lang=([^;]+)/.exec(req.headers.cookie || '') || [])[1];
-  let want = req.get('X-Lang') || req.query.lang || (cookie ? decodeURIComponent(cookie) : '');
+  let fromCookie = '';
+  try { fromCookie = cookie ? decodeURIComponent(cookie) : ''; } catch (e) { fromCookie = ''; }   // kaputt kodierter Cookie darf keine Anfrage scheitern lassen
+  let want = req.get('X-Lang') || req.query.lang || fromCookie;
   const lang = resolve(typeof want === 'string' ? want : '', null);
   req.lang = lang;
   if (lang !== 'de' || customRow('de')) {
@@ -338,5 +339,5 @@ function init(o) {
   patchGlobals();
 }
 
-module.exports = { aliases, init, reload, invalidate, list, catalog, strings, meta, exists, resolve, clubLang, normCode, dict, tr, T, trHtml, current, run, locale,
+module.exports = { aliases, init, reload, list, catalog, strings, meta, exists, resolve, clubLang, normCode, dict, tr, T, current, run, locale,
   middleware, exportJson, exportXlsx, parseUpload, importData, remove, pageScript, LANG_DIR };

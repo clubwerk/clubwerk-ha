@@ -29,8 +29,7 @@
   .lock { width: 14px; height: 14px; color: var(--faint); flex: none; }
 
   /* Startseite */
-  .starthead { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 16px; align-items: center; margin-bottom: 16px; }
-  .starthead h1 { margin: 0; font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -.02em; }
+  .starthead { grid-template-columns: minmax(0, 1fr) 296px; }   /* Seitenkopf: gemeinsame Regeln .tab-head/.tab-title in style.css; rechts die Namenssuche */
   .namesearch { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 12px 0 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); color: var(--muted); }
   .namesearch:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   .namesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); }
@@ -271,7 +270,7 @@
       <div class="newrow"><button class="btn primary" id="evAdd">+ Namen hinzufügen</button></div>
     </div>
     <div id="normalBox">
-    <div class="starthead"><h1>Wer bucht?</h1>
+    <div class="starthead tab-head"><h1 class="tab-title">Wer bucht?</h1>
       <label class="namesearch"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
         <input id="nameSearch" placeholder="Namen tippen" aria-label="Namen suchen" autocomplete="off" autocapitalize="words"><button type="button" id="nameClear" class="hidden" aria-label="Suche leeren">✕</button></label></div>
     <div id="tabsBox" class="hidden">
@@ -338,6 +337,7 @@
 
 <script src="nav.js" data-base="" data-active="getraenke"></script>
 <script src="artikel-icons.js"></script>
+<script src="names.js"></script>
 <script src="tablet.js"></script>
 </body>
 </html>

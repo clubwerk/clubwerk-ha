@@ -5,7 +5,10 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* privat */ } } };
-  const sess = { get(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* egal */ } }, del(k) { try { sessionStorage.removeItem(k); } catch (e) { /* egal */ } } };
+  // Die PIN bleibt nur im Speicher dieser Seite (bis sie neu geladen wird) – nicht im sessionStorage, der auf dem Home-Bildschirm
+  // faktisch dauerhaft wäre und bei Gerätezugriff auslesbar ist
+  let pinMem = '';
+  const sess = { get() { return pinMem; }, set(v) { pinMem = String(v || ''); }, del() { pinMem = ''; } };
   const dev = () => store.get('va_geraet');
   const hdrs = (x = {}) => { const h = { ...x }; if (dev()) h['X-Geraet'] = dev(); return h; };
 
@@ -16,8 +19,8 @@
     const r = await fetch('api/' + url, { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
     const d = await r.json().catch(() => ({}));
     if (r.status === 403 && d.device) { lock(d.error); throw Object.assign(new Error(d.error), { device: true }); }
-    if (r.status === 429) { sess.del('va_pin'); throw Object.assign(new Error(d.error || 'Zu viele Versuche – bitte warten.'), { status: 429, data: d }); }
-    if (r.status === 401 && d.pin) { sess.del('va_pin'); throw Object.assign(new Error(d.error || 'Falsche PIN'), { pin: true }); }
+    if (r.status === 429) { sess.del(); throw Object.assign(new Error(d.error || 'Zu viele Versuche – bitte warten.'), { status: 429, data: d }); }
+    if (r.status === 401 && d.pin) { sess.del(); throw Object.assign(new Error(d.error || 'Falsche PIN'), { pin: true }); }
     if (!r.ok) throw Object.assign(new Error(d.error || `Fehler ${r.status}`), { status: r.status, data: d });
     return d;
   }
@@ -28,6 +31,8 @@
     return new Promise((resolve, reject) => {
       $('pinTitle').textContent = title || 'PIN eingeben';
       $('pinErr').textContent = ''; $('pinIn').value = '';
+      // immer zuoberst: Bereiche hängen eigene Blätter (z. B. „Meine Daten“) später an den Body – gleiche z-Ebene, deshalb ans Ende rücken
+      document.body.appendChild($('pinSheet'));
       $('pinSheet').classList.add('show');
       pinCb = { resolve, reject };
       setTimeout(() => $('pinIn').focus(), 80);
@@ -38,10 +43,10 @@
   $('pinIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('pinOk').click(); });
   /** Aktion mit PIN ausführen: fn(pin) → Promise. Fragt die PIN nur, wenn noch keine in dieser Sitzung bestätigt wurde. */
   async function withPin(title, fn) {
-    let pin = sess.get('va_pin');
+    let pin = sess.get();
     for (let i = 0; i < 4; i++) {
       if (!pin) { try { pin = await askPin(title); } catch (e) { return null; } }
-      try { const r = await fn(pin); sess.set('va_pin', pin); return r; }
+      try { const r = await fn(pin); sess.set(pin); return r; }
       catch (e) {
         if (e.pin) { pin = ''; toast(e.message, true); continue; }
         throw e;
@@ -205,7 +210,7 @@
       const r = await call('transfer/redeem', 'POST', { code, pin });
       store.set('va_geraet', r.device);
       if (dev() !== r.device) { $('trErr').textContent = 'Diese App kann nichts speichern – bitte in den Einstellungen prüfen.'; return; }
-      sess.set('va_pin', pin);
+      sess.set(pin);
       history.replaceState(null, '', location.pathname + location.search);
       $('trSheet').classList.remove('show');
       toast('Freigeschaltet – willkommen!', false, 4000);
@@ -236,7 +241,7 @@
       const r = await call('pair', 'POST', { t: inviteToken, pin: a });
       store.set('va_geraet', r.device);
       if (dev() !== r.device) { $('pairErr').textContent = 'Der Browser speichert nichts (privater Modus?) – bitte normal öffnen.'; return; }
-      sess.set('va_pin', a);
+      sess.set(a);
       $('pairSheet').classList.remove('show');
       toast('Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
       start().then(prepareTransfer).catch(e => toast(e.message, true));

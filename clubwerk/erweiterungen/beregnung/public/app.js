@@ -15,7 +15,10 @@
     const s = document.createElement('script'); s.src = '../../nav.js'; s.dataset.base = '../../'; s.dataset.active = 'beregnung'; document.body.appendChild(s);
   } else { const lg = $('logo'); lg.onload = () => $('logoBox').classList.remove('hidden'); lg.src = 'logo'; }
 
-  const sess = { get() { if (embedded) return ''; try { return sessionStorage.getItem('bw_pin') || ''; } catch (e) { return ''; } }, set(v) { if (embedded) return; try { sessionStorage.setItem('bw_pin', v); } catch (e) { /* egal */ } }, del() { try { sessionStorage.removeItem('bw_pin'); } catch (e) { /* egal */ } } };
+  // Die Vereins-PIN bleibt nur im Speicher dieser Seite (bis sie neu geladen wird) – nicht im sessionStorage, der bei Gerätezugriff auslesbar wäre;
+  // am Tablet (eingebettet) wird sie gar nicht gemerkt
+  let pinMem = '';
+  const sess = { get() { return embedded ? '' : pinMem; }, set(v) { if (!embedded) pinMem = String(v || ''); }, del() { pinMem = ''; } };
   function toast(msg, err = false, ms = 3500) { const t = $('toast'); t.textContent = msg; t.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms); }
   async function post(route, body = {}) {
     const r = await fetch(API + route, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1' }, body: JSON.stringify(body), credentials: 'same-origin' });

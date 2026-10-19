@@ -8,20 +8,14 @@
    Verwaltung: Belegungsplan, Buchen für Mitglieder, Serienbuchungen (Training, Mannschaften) und Sperren (Wartung, Turnier).
    ===================================================================================================== */
 let C;
-const pad = n => String(n).padStart(2, '0');
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const { pad, today, nowTs, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
-const nowTs = () => { const d = new Date(); return `${today()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
-const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || '')) || s === '24:00';
 const tm = s => (isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3, 5) : null);
 const hhmm = m => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
-const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const isoDow = s => { const d = new Date(s + 'T12:00:00Z').getUTCDay(); return d === 0 ? 7 : d; };   // 1 = Montag … 7 = Sonntag
-const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');
 const WD = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
 const KIND = { platz: 'Platz', artikel: 'Gerät' };
 const TYPE = { buchung: 'Buchung', serie: 'Serie', sperre: 'Sperre' };
@@ -64,7 +58,7 @@ function activate(ctx) {
   C = ctx;
   const db = ctx.db;
   tables(db);
-  const { need, bad, int, rateLimit } = ctx;
+  const { need, bad, int, rateLimit, rateLimitKey } = ctx;
   const S = (k, d = '') => ctx.getSetting('ext_buchung_' + k, d);
   const SET = (k, v) => ctx.setSetting('ext_buchung_' + k, String(v));
   const ALL = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
@@ -99,7 +93,7 @@ function activate(ctx) {
       waitlist: S('waitlist', '1') === '1', max_waits: n('max_waits'),
       allowed_status: S('allowed_status', DEF.allowed_status).split(',').filter(Boolean), blocked_fees: S('blocked_fees', '').split(',').map(Number).filter(Boolean) };
   };
-  // Labels (Kennzeichnung von Vereinsbuchungen, z. B. Training, Medenspiel) – Vorlagen beim ersten Start
+  // Buchungsarten (Kennzeichnung von Vereinsbuchungen, z. B. Training, Medenspiel) – Vorlagen beim ersten Start
   if (S('labels_seeded') !== '1') {
     if (!db.prepare('SELECT 1 FROM bk_label').get()) { const ins = db.prepare('INSERT INTO bk_label(name, color, sort) VALUES (?,?,?)');
       [['Training', '#2f6fd6'], ['Medenspiel', '#e07b16'], ['Turnier', '#8a4fd6'], ['Kurs', '#1f9a6b'], ['Platzpflege', '#7a7f87']].forEach(([n, c], i) => ins.run(n, c, (i + 1) * 10)); }
@@ -111,9 +105,9 @@ function activate(ctx) {
   /** aktuelle Ämter eines Mitglieds (Mitgliederverwaltung → Ehrungen & Ämter), klein geschrieben */
   const functionsOf = mid => { try { const d = today(); return db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(mid, d, d).map(x => String(x.name).trim().toLowerCase()); } catch (e) { return []; } };
   const functionNames = () => { try { return [...new Set(db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')); } catch (e) { return []; } };
-  /** Sonderrechte einzelner Mitglieder in der App (Serien anlegen, bestimmte Labels) */
+  /** Sonderrechte einzelner Mitglieder in der App (Serien anlegen, bestimmte Buchungsarten) */
   const rightsOf = mid => { const r = mid ? db.prepare('SELECT * FROM bk_rights WHERE member_id = ?').get(mid) : null; return { series: Boolean(r && r.series), labels: r ? J(r.labels, []).map(Number) : [] }; };
-  /** darf dieses Mitglied (App, Tablet) mit dem Label buchen? */
+  /** darf dieses Mitglied (App, Tablet) mit der Buchungsart buchen? */
   const labelForMember = (l, mid) => {
     if (!l || !l.active || !mid) return false;
     if (l.use_mode === 'alle' || rightsOf(mid).labels.includes(l.id)) return true;
@@ -122,7 +116,7 @@ function activate(ctx) {
     const f = J(l.use_functions, []).map(x => String(x).trim().toLowerCase()); if (!f.length) return false;
     return functionsOf(mid).some(x => f.includes(x));
   };
-  /** in der Verwaltung: „Plätze, Labels & Einstellungen“ darf alle; sonst wie das verknüpfte Mitglied (bei „nur bestimmte“) */
+  /** in der Verwaltung: „Plätze, Buchungsarten & Einstellungen“ darf alle; sonst wie das verknüpfte Mitglied (bei „nur bestimmte“) */
   const labelForUser = (req, l) => {
     if (!l || !l.active) return false;
     if (req.user.perms.includes('buchung_einstellungen') || l.use_mode !== 'auswahl') return true;
@@ -196,11 +190,16 @@ function activate(ctx) {
     return [`Platz:     ${r.name}`, `Wann:      ${WD[isoDow(b.date)]}, ${deD(b.date)} · ${b.start}–${b.end} Uhr`, `Gebucht von: ${b.member_id ? nameOf(b.member_id) : 'Verein'}`,
       `Spieler:   ${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}`];
   };
-  /** Mitspieler (und ggf. Bucher) informieren – Buchung oder Storno */
-  function mailPlayers(b, kind, { by = null, reason = '', toBooker = false, old = null } = {}) {
+  /* Mail-Kontingent je buchendem Mitglied: höchstens 20 Mitspieler-Mails je Stunde. Buchen → Stornieren → Buchen ließe sich sonst
+     beliebig wiederholen und würde das Vereinspostfach zum Spam-Versender an ausgesuchte Mitglieder machen. Darüber hinaus
+     geht die Aktion normal weiter, nur ohne Mail. Aktionen der Verwaltung (budget = null) zählen nicht. */
+  const mailBudget = ctx.require('./security').budget({ max: 20, windowMs: 3600000 });
+  /** Mitspieler (und ggf. Bucher) informieren – Buchung, Änderung oder Storno. budget: Mitglieds-ID, auf deren Kontingent die Mails gehen */
+  function mailPlayers(b, kind, { by = null, reason = '', toBooker = false, old = null, budget = null } = {}) {
     if (!cfg().notify_partners) return;
     const ids = [...new Set([...(toBooker && b.member_id ? [b.member_id] : []), ...J(b.partners, [])])].filter(id => id !== by);
     if (!ids.length) return;
+    if (budget != null && !mailBudget.take('m' + budget, ids.length)) return;   // still weiter, aber keine Mail mehr
     const r = resource(b.resource_id) || { name: 'Platz' };
     const when = `${r.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr`;
     const head = kind === 'storno' ? `Storniert: ${when}` : kind === 'aenderung' ? `Geändert: ${when}` : when;
@@ -250,7 +249,7 @@ function activate(ctx) {
     if (!r || !r.active) throw new Error('Diesen Platz gibt es nicht (mehr).');
     const why = await notAllowed(mid); if (why) throw new Error(why);
     const label = b.label_id ? labelRow(b.label_id) : null;
-    if (b.label_id && !labelForMember(label, mid)) throw new Error('Dieses Label darfst du nicht verwenden.');
+    if (b.label_id && !labelForMember(label, mid)) throw new Error('Diese Buchungsart darfst du nicht verwenden.');
     const club = Boolean(label && label.free_rules);   // Vereinstermin (z. B. Medenspiel): ohne Höchstdauer, Kontingent, Vorlauf und Gebühren
     const date = String(b.date || ''), s = tm(b.start), e = s == null ? null : s + int(b.minutes);
     const ge = gridError(r, date, s, e, { noMax: club }); if (ge) throw new Error(ge);
@@ -286,7 +285,7 @@ function activate(ctx) {
       if (max && openCount(p, r.kind, exceptId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
     }
     for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, exceptId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
-    return { r, date, s, e, partners, guests, fee, lines, label, title: label ? txt(b.title, 80) || null : null };
+    return { r, date, s, e, partners, guests, fee, lines, label, club, title: label ? txt(b.title, 80) || null : null };
   }
 
   /**
@@ -300,10 +299,15 @@ function activate(ctx) {
       if (!old || old.member_id !== mid || old.type !== 'buchung') throw new Error('Diese Buchung kannst du nicht ändern.');
       if (!canCancelNow(old)) throw new Error('Diese Buchung kann nicht mehr geändert werden.');
     }
-    const { r, date, s, e, partners, guests, fee, lines, label, title } = await check(mid, b, { exceptId: editId });
+    const { r, date, s, e, partners, guests, fee, lines, label, title, club } = await check(mid, b, { exceptId: editId });
     let id = editId;
     db.transaction(() => {   // Prüfen und Eintragen in einem Schritt: zwei gleichzeitige Buchungen können sich nicht überholen
       if (!free(r, date, s, e, editId)) throw new Error('Gerade eben hat jemand anderes gebucht – bitte eine andere Zeit wählen.');
+      // Kontingent und Doppelbelegung der Personen noch einmal hier (check() lief vor dem await, inzwischen kann eine zweite
+      // Anfrage desselben Mitglieds – Doppeltipp in der App – auf einem anderen Platz eingetragen worden sein)
+      const c = cfg(), max = r.kind === 'artikel' ? c.max_open_artikel : c.max_open_platz;
+      for (const p of club ? [] : [mid, ...(c.count_partners ? partners : [])]) if (max && openCount(p, r.kind, editId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
+      for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, editId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
       if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, partners = ?, guests = ?, fee_cents = ?, label_id = ?, title = ?, charge_id = NULL WHERE id = ?')
         .run(r.id, date, hhmm(s), hhmm(e), JSON.stringify(partners), JSON.stringify(guests), fee, label ? label.id : null, title, id);
       else id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, source, created_by, label_id, title) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
@@ -318,20 +322,20 @@ function activate(ctx) {
     db.prepare('DELETE FROM bk_wait WHERE member_id = ? AND resource_id = ? AND date = ? AND start = ?').run(mid, r.id, date, hhmm(s));
     const now = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(id);
     if (old) {
-      mailChange(old, now, { by: mid });
+      mailChange(old, now, { by: mid, budget: mid });
       if (old.start !== now.start || old.end !== now.end || old.date !== now.date || old.resource_id !== now.resource_id) await wakeWaitlist(old);
-    } else if (partners.length) mailPlayers(now, 'buchung');
+    } else if (partners.length) mailPlayers(now, 'buchung', { budget: mid });
     return { id, fee_cents: fee, lines };
   }
   /** Änderung: neue Mitspieler bekommen die normale Buchungs-Mail, entfernte eine Storno-Mail, gebliebene (und ggf. der Bucher) eine Änderungs-Mail */
-  function mailChange(old, now, { by = null, toBooker = false } = {}) {
+  function mailChange(old, now, { by = null, toBooker = false, budget = null } = {}) {
     if (!cfg().notify_partners) return;
     const a = J(old.partners, []), b = J(now.partners, []);
     const added = b.filter(x => !a.includes(x)), removed = a.filter(x => !b.includes(x)), kept = b.filter(x => a.includes(x));
-    if (added.length) mailPlayers({ ...now, partners: JSON.stringify(added) }, 'buchung');
-    if (removed.length) mailPlayers({ ...old, partners: JSON.stringify(removed) }, 'storno', { by });
+    if (added.length) mailPlayers({ ...now, partners: JSON.stringify(added) }, 'buchung', { budget });
+    if (removed.length) mailPlayers({ ...old, partners: JSON.stringify(removed) }, 'storno', { by, budget });
     const moved = old.date !== now.date || old.start !== now.start || old.end !== now.end || old.resource_id !== now.resource_id;
-    if (moved || old.guests !== now.guests || added.length || removed.length) mailPlayers({ ...now, partners: JSON.stringify(kept) }, 'aenderung', { by, toBooker, old });
+    if (moved || old.guests !== now.guests || added.length || removed.length) mailPlayers({ ...now, partners: JSON.stringify(kept) }, 'aenderung', { by, toBooker, old, budget });
   }
 
   /** E-Mail an Mitglieder (Adresse aus der Mitgliederverwaltung) */
@@ -408,7 +412,7 @@ function activate(ctx) {
   /* ================================================================= Mitglieder-App (/api/m/buchung/…) */
   M.post('/quote', rateLimit('bkq', 120, 60000), ar(async (req, res) => {   // Preisvorschau vor dem Buchen
     const b = req.body || {}, own = int(b.id) ? db.prepare("SELECT id FROM bk_booking WHERE id = ? AND member_id = ? AND status = 'aktiv'").get(int(b.id), req.member.id) : null;
-    try { const q = await check(req.member.id, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { res.json({ ok: false, error: e.message }); }
+    try { const q = await check(req.member.id, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
   }));
   M.get('/me', ar(async (req, res) => {
     const mid = req.member.id, c = cfg();
@@ -424,15 +428,17 @@ function activate(ctx) {
       series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date,
         resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
   }));
-  M.post('/book', rateLimit('bkapp', 60, 60000), ar(async (req, res) => {
+  // je Mitglied (nicht nur je Adresse – draußen teilen sich viele Handys eine Adresse, drinnen könnte eine wechseln): 10 Aktionen je Minute
+  const perMember = rateLimitKey('bkmem', 10, 60000, req => 'm' + req.member.id);
+  M.post('/book', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
     try { const r = await memberBook(req.member.id, req.body || {}, 'app'); res.json({ ok: true, ...r, ics: icsUrl(r.id) }); } catch (e) { bad(res, e.message); }
   }));
-  M.post('/cancel', rateLimit('bkapp', 60, 60000), ar(async (req, res) => {
+  M.post('/cancel', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int((req.body || {}).id));
     if (!b || b.member_id !== req.member.id || b.type !== 'buchung') return bad(res, 'Diese Buchung kannst du nicht stornieren.');
     if (!canCancelNow(b)) return bad(res, cfg().cancel_before_min ? `Stornieren geht nur bis ${cfg().cancel_before_min} Minuten vor Beginn.` : 'Die Buchung hat schon begonnen.');
     await cancel(b, req.member.name);
-    mailPlayers(b, 'storno', { by: req.member.id });
+    mailPlayers(b, 'storno', { by: req.member.id, budget: req.member.id });
     res.json({ ok: true });
   }));
   /* Serien in der App – nur mit Sonderrecht (Verwaltung → Buchungssystem → Einstellungen → Sonderrechte) */
@@ -442,7 +448,7 @@ function activate(ctx) {
     const why = await notAllowed(mid); if (why) return bad(res, why);
     const r = resource(b.resource_id); if (!r || !r.active) return bad(res, 'Diesen Platz gibt es nicht (mehr).');
     const label = b.label_id ? labelRow(b.label_id) : null;
-    if (b.label_id && !labelForMember(label, mid)) return bad(res, 'Dieses Label darfst du nicht verwenden.');
+    if (b.label_id && !labelForMember(label, mid)) return bad(res, 'Diese Buchungsart darfst du nicht verwenden.');
     const s = tm(b.start), e = s == null ? null : s + int(b.minutes);
     if (!isDate(b.date) || b.date < today()) return bad(res, 'Bitte einen Tag ab heute wählen.');
     const ge = gridError(r, b.date, s, e, { noMax: Boolean(label && label.free_rules) }); if (ge) return bad(res, ge);
@@ -472,7 +478,7 @@ function activate(ctx) {
     ctx.audit({ username: 'app', name: nameOf(req.member.id) }, 'Serie beendet (App)', `${sx.title}: ${fut.length} Termine entfernt`);
     res.json({ ok: true, removed: fut.length });
   }));
-  M.post('/wait', rateLimit('bkapp', 60, 60000), (req, res) => {
+  M.post('/wait', rateLimit('bkapp', 60, 60000), perMember, (req, res) => {
     const c = cfg(), b = req.body || {}, mid = req.member.id;
     if (!c.waitlist) return bad(res, 'Die Warteliste ist ausgeschaltet.');
     if (b.remove) { db.prepare('DELETE FROM bk_wait WHERE id = ? AND member_id = ?').run(int(b.id), mid); return res.json({ ok: true }); }
@@ -504,7 +510,7 @@ function activate(ctx) {
   T.post('/quote', rateLimit('bktab', 120, 60000), ar(async (req, res) => {
     const mid = ctx.auth.checkTabletToken((req.body || {}).token);
     if (!mid || typeof mid !== 'number') return bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401);
-    try { const q = await check(mid, { ...(req.body || {}), date: today() }, { dry: true }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { res.json({ ok: false, error: e.message }); }
+    try { const q = await check(mid, { ...(req.body || {}), date: today() }, { dry: true }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
   }));
   T.post('/book', rateLimit('bktab', 60, 60000), ar(async (req, res) => {
     if (!cfg().tablet_booking) return bad(res, 'Buchen am Tablet ist ausgeschaltet.');
@@ -519,7 +525,7 @@ function activate(ctx) {
     if (!b || b.member_id !== mid || b.type !== 'buchung') return bad(res, 'Diese Buchung kannst du nicht stornieren.');
     if (!canCancelNow(b)) return bad(res, 'Stornieren geht jetzt nicht mehr.');
     await cancel(b, nameOf(mid)); ctx.auth.dropTabletToken(req.body.token);
-    mailPlayers(b, 'storno', { by: mid });
+    mailPlayers(b, 'storno', { by: mid, budget: mid });
     res.json({ ok: true });
   }));
 
@@ -554,11 +560,11 @@ function activate(ctx) {
     const mid = b.member_id ? memberRow(b.member_id) : null;
     if (b.member_id && !mid) return bad(res, 'Mitglied nicht gefunden.');
     const label = b.label_id ? labelRow(b.label_id) : null;
-    if (b.label_id && !label) return bad(res, 'Dieses Label gibt es nicht.');
-    if (label && !(old && old.label_id === label.id) && !labelForUser(req, label)) return bad(res, `Das Label „${label.name}“ dürfen nur bestimmte Personen verwenden.`, 403);
+    if (b.label_id && !label) return bad(res, 'Diese Buchungsart gibt es nicht.');
+    if (label && !(old && old.label_id === label.id) && !labelForUser(req, label)) return bad(res, `Die Buchungsart „${label.name}“ dürfen nur bestimmte Personen verwenden.`, 403);
     const title = txt(b.title, 80) || (label ? label.name : '');
     if (type === 'sperre' && title.length < 2) return bad(res, 'Bitte einen Grund für die Sperre eintragen (z. B. „Platzpflege“).');
-    if (type === 'buchung' && !mid && title.length < 2) return bad(res, 'Bitte ein Mitglied wählen, ein Label wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
+    if (type === 'buchung' && !mid && title.length < 2) return bad(res, 'Bitte ein Mitglied wählen, eine Buchungsart wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
     const partners = [...new Set((Array.isArray(b.partners) ? b.partners : []).map(Number))].filter(x => x !== (mid && mid.id) && memberRow(x));
     const guests = normGuests(b.guests).filter(g => g.name.length >= 3).slice(0, 10);
     const conflicts = db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ? AND id != ?").all(r.id, b.date, hhmm(e), hhmm(s), editId);
@@ -642,9 +648,10 @@ function activate(ctx) {
   });
   admin.get('/log.csv', P, (req, res) => {
     const { year, rows } = logRows(req.query);
-    const q = v => `"${String(v == null ? '' : v).replace(/"/g, '""')}"`;
+    // Zellen, die Excel als Formel auswerten würde (=, +, -, @, Tab, CR am Anfang – z. B. aus Gastnamen), mit ' entschärfen
+    const q = v => { let s = String(v == null ? '' : v); if (/^[=+\-@\t\r]/.test(s)) s = "'" + s; return `"${s.replace(/"/g, '""')}"`; };
     const ST = { storniert: 'storniert', abgeschlossen: 'abgeschlossen', laeuft: 'läuft', anstehend: 'anstehend' };
-    const out = ['Datum;Von;Bis;Platz;Art;Label;Titel;Spieler;Gäste;Gebühr;Status;Storniert von;Grund;Eingetragen;Quelle;Von wem'].concat(rows.map(r => [deD(r.date), r.start, r.end, r.resource, TYPE[r.type], r.label ? r.label.name : '', r.title || '', r.people.map(p => p.name).join(' / '), r.guests.join(' / '),
+    const out = ['Datum;Von;Bis;Platz;Art;Buchungsart;Titel;Spieler;Gäste;Gebühr;Status;Storniert von;Grund;Eingetragen;Quelle;Von wem'].concat(rows.map(r => [deD(r.date), r.start, r.end, r.resource, TYPE[r.type], r.label ? r.label.name : '', r.title || '', r.people.map(p => p.name).join(' / '), r.guests.join(' / '),
       r.fee_cents ? (r.fee_cents / 100).toFixed(2).replace('.', ',') : '', ST[r.status], r.cancelled_by || '', r.cancel_reason || '', r.created_at, r.source, r.created_by || ''].map(q).join(';')));
     res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="buchungsprotokoll-${year}.csv"` }).send('\ufeff' + out.join('\r\n'));
   });
@@ -688,9 +695,9 @@ function activate(ctx) {
     const grid = Array.from({ length: 7 }, () => Array(24).fill(0));
     c.act.forEach(b => { const d = isoDow(b.date) - 1, s0 = tm(b.start), e0 = tm(b.end); for (let h = Math.floor(s0 / 60); h * 60 < e0; h++) { const ov = Math.min(e0, (h + 1) * 60) - Math.max(s0, h * 60); if (ov > 0 && h < 24) grid[d][h] += ov / 60; } });
     const lo = sel.length ? Math.min(...sel.map(r => tm(r.open_from))) : 8 * 60, hi = sel.length ? Math.max(...sel.map(r => tm(r.open_to))) : 22 * 60;
-    // nach Art: Label, Mitgliederbuchung, Serie ohne Label
+    // nach Art: Buchungsart, Mitgliederbuchung, Serie ohne Buchungsart
     const kinds = new Map();
-    c.act.forEach(b => { const l = labelOf(b.label_id); const k = l ? l.name : b.type === 'serie' ? 'Serie ohne Label' : 'Mitgliederbuchung'; const v = kinds.get(k) || { name: k, color: l ? l.color : b.type === 'serie' ? '#7a7f87' : null, minutes: 0, count: 0 }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); });
+    c.act.forEach(b => { const l = labelOf(b.label_id); const k = l ? l.name : b.type === 'serie' ? 'Serie ohne Buchungsart' : 'Mitgliederbuchung'; const v = kinds.get(k) || { name: k, color: l ? l.color : b.type === 'serie' ? '#7a7f87' : null, minutes: 0, count: 0 }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); });
     // Sperren als eigene Art (Platzpflege, Turniere …)
     if (ids.length) { const lk = db.prepare(`SELECT * FROM bk_booking WHERE date BETWEEN ? AND ? AND type = 'sperre' AND status = 'aktiv' AND resource_id IN (${ids.map(() => '?').join(',')})`).all(c.from, c.to, ...ids);
       for (const b of lk) { const l = labelOf(b.label_id); const k = l ? l.name : 'Gesperrt'; const v = kinds.get(k) || { name: k, color: l ? l.color : '#b0b4ba', minutes: 0, count: 0, lock: !l }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); } }
@@ -786,8 +793,8 @@ function activate(ctx) {
     if (b.from_date < today()) return bad(res, 'Der Zeitraum beginnt in der Vergangenheit.');
     if (addDays(b.from_date, 400) < b.to_date) return bad(res, 'Höchstens ein gutes Jahr am Stück.');
     const mid = b.member_id ? memberRow(b.member_id) : null;
-    // Titel ist freiwillig: sonst Label, gebuchtes Mitglied oder einfach „Serie“/„Sperre“
-    if (title.length < 2 && type === 'serie' && !mid) return bad(res, 'Bitte ein Mitglied wählen, ein Label wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
+    // Titel ist freiwillig: sonst Buchungsart, gebuchtes Mitglied oder einfach „Serie“/„Sperre“
+    if (title.length < 2 && type === 'serie' && !mid) return bad(res, 'Bitte ein Mitglied wählen, eine Buchungsart wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
     if (title.length < 2) title = (mid && mid.name) || 'Sperre';
     const sx = { type, title, resources: JSON.stringify(rs.map(r => r.id)), weekdays, start: hhmm(s), end: hhmm(e), from_date: b.from_date, to_date: b.to_date, member_id: mid ? mid.id : null, note: txt(b.note, 300) || null, label_id: label ? label.id : null };
     const days = seriesDays(sx);
@@ -825,7 +832,7 @@ function activate(ctx) {
     res.json({ ok: true, removed: fut.length });
   }));
 
-  /* ---------- Labels ---------- */
+  /* ---------- Buchungsarten ---------- */
   const labelInput = b => {
     const arr = v => (Array.isArray(v) ? v : J(v, []));
     const v = { name: txt(b.name, 40), color: /^#[0-9a-f]{6}$/i.test(String(b.color || '')) ? String(b.color).toLowerCase() : '#2f6fd6', sort: int(b.sort) || 100, active: b.active === undefined ? 1 : (b.active ? 1 : 0),
@@ -833,27 +840,27 @@ function activate(ctx) {
       use_functions: JSON.stringify([...new Set(arr(b.use_functions).map(x => txt(x, 60)).filter(Boolean))].slice(0, 30)),
       use_members: JSON.stringify([...new Set(arr(b.use_members).map(Number).filter(x => Number.isInteger(x) && x > 0))].slice(0, 200)),
       free_rules: b.free_rules ? 1 : 0 };
-    if (v.name.length < 2) return { error: 'Bitte einen Namen für das Label eintragen (z. B. „Training“).' };
+    if (v.name.length < 2) return { error: 'Bitte einen Namen für die Buchungsart eintragen (z. B. „Training“).' };
     return { v };
   };
   admin.get('/labels', P, (req, res) => res.json(labels(true).map(l => ({ ...l, use_functions: J(l.use_functions, []), use_members: J(l.use_members, []), free_rules: Boolean(l.free_rules), used: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE label_id = ? AND status = 'aktiv' AND date >= ?").get(l.id, today()).n }))));
   admin.post('/labels', PE, (req, res) => {
     const r = labelInput(req.body || {}); if (r.error) return bad(res, r.error);
-    if (db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(r.v.name)) return bad(res, 'Dieses Label gibt es schon.');
+    if (db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(r.v.name)) return bad(res, 'Diese Buchungsart gibt es schon.');
     const id = Number(db.prepare('INSERT INTO bk_label(name, color, sort, active, use_mode, use_functions, use_members, free_rules) VALUES (?,?,?,?,?,?,?,?)').run(r.v.name, r.v.color, r.v.sort, r.v.active, r.v.use_mode, r.v.use_functions, r.v.use_members, r.v.free_rules).lastInsertRowid);
-    ctx.audit(req.user, 'Buchungssystem: Label angelegt', r.v.name);
+    ctx.audit(req.user, 'Buchungssystem: Buchungsart angelegt', r.v.name);
     res.json({ id });
   });
   admin.put('/labels/:id', PE, (req, res) => {
     const cur = db.prepare('SELECT * FROM bk_label WHERE id = ?').get(int(req.params.id)); if (!cur) return bad(res, 'Nicht gefunden.', 404);
     const r = labelInput({ ...cur, ...(req.body || {}) }); if (r.error) return bad(res, r.error);
     db.prepare('UPDATE bk_label SET name = ?, color = ?, sort = ?, active = ?, use_mode = ?, use_functions = ?, use_members = ?, free_rules = ? WHERE id = ?').run(r.v.name, r.v.color, r.v.sort, r.v.active, r.v.use_mode, r.v.use_functions, r.v.use_members, r.v.free_rules, cur.id);
-    ctx.audit(req.user, 'Buchungssystem: Label geändert', r.v.name);
+    ctx.audit(req.user, 'Buchungssystem: Buchungsart geändert', r.v.name);
     res.json({ ok: true });
   });
   admin.delete('/labels/:id', PE, (req, res) => {
     const cur = db.prepare('SELECT * FROM bk_label WHERE id = ?').get(int(req.params.id)); if (!cur) return bad(res, 'Nicht gefunden.', 404);
-    if (db.prepare('SELECT 1 FROM bk_booking WHERE label_id = ?').get(cur.id) || db.prepare('SELECT 1 FROM bk_series WHERE label_id = ?').get(cur.id)) return bad(res, 'Das Label wird schon verwendet – stattdessen auf „inaktiv“ setzen.');
+    if (db.prepare('SELECT 1 FROM bk_booking WHERE label_id = ?').get(cur.id) || db.prepare('SELECT 1 FROM bk_series WHERE label_id = ?').get(cur.id)) return bad(res, 'Die Buchungsart wird schon verwendet – stattdessen auf „inaktiv“ setzen.');
     db.prepare('DELETE FROM bk_label WHERE id = ?').run(cur.id); res.json({ ok: true });
   });
 
@@ -885,6 +892,28 @@ function activate(ctx) {
     ctx.audit(req.user, 'Buchungssystem: Einstellungen geändert', Object.keys(b).join(', '));
     res.json({ ok: true, settings: cfg() });
   });
+
+  /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – synchron in der Transaktion des Kerns, vor dem generischen
+     Umhängen der Spalten mit Fremdschlüssel (bk_booking.member_id, bk_rights). Hier: Warteliste, Serien und Mitspieler-Listen (JSON). */
+  ctx.hooks.memberRemoved = (fromId, intoId) => {
+    if (intoId) {
+      for (const w of db.prepare('SELECT id FROM bk_wait WHERE member_id = ?').all(fromId)) {
+        try { db.prepare('UPDATE bk_wait SET member_id = ? WHERE id = ?').run(intoId, w.id); } catch (e) { db.prepare('DELETE FROM bk_wait WHERE id = ?').run(w.id); }   // steht dort schon
+      }
+      db.prepare('UPDATE bk_series SET member_id = ? WHERE member_id = ?').run(intoId, fromId);
+    } else {
+      db.prepare('DELETE FROM bk_wait WHERE member_id = ?').run(fromId);
+      db.prepare('UPDATE bk_series SET member_id = NULL WHERE member_id = ?').run(fromId);   // Serie läuft als Vereinstermin weiter
+    }
+    // Mitspieler: ID ersetzen bzw. entfernen; wird jemand dadurch sein eigener Mitspieler, fällt der Eintrag weg
+    const upd = db.prepare('UPDATE bk_booking SET partners = ? WHERE id = ?');
+    for (const b of db.prepare(`SELECT id, member_id, partners FROM bk_booking WHERE partners LIKE '%' || ? || '%'`).all(String(fromId))) {
+      const list = J(b.partners, []);
+      if (!list.includes(fromId)) continue;
+      const next = [...new Set(list.map(x => (x === fromId ? intoId : x)))].filter(x => x != null && x !== (intoId && b.member_id === fromId ? intoId : b.member_id));
+      upd.run(JSON.stringify(next), b.id);
+    }
+  };
 
   /* ---------- Übersicht, Funktionsdatei ---------- */
   ctx.hooks.overview = () => {

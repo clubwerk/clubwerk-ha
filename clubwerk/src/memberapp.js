@@ -30,7 +30,8 @@ async function refreshClubNet() {
   try {
     if (process.env.CW_TEST_PUBLIC_IP !== undefined) { const [a, b] = process.env.CW_TEST_PUBLIC_IP.split(','); clubNet.v4 = a || ''; clubNet.v6 = b || ''; return; }
     const ask = async u => { try { const r = await fetch(u, { signal: AbortSignal.timeout(5000) }); const m = /(?:^|\n)ip=([0-9a-fA-F:.]+)/.exec(await r.text()); return m ? m[1] : ''; } catch (e) { return ''; } };
-    const [v4, v6] = await Promise.all([ask('http://1.1.1.1/cdn-cgi/trace'), ask('http://[2606:4700:4700::1111]/cdn-cgi/trace')]);
+    // verschlüsselt abfragen: Die Antwort entscheidet mit, wer als „im Vereinsnetz“ gilt – unverschlüsselt könnte sie auf dem Weg verändert werden
+    const [v4, v6] = await Promise.all([ask('https://1.1.1.1/cdn-cgi/trace'), ask('https://[2606:4700:4700::1111]/cdn-cgi/trace')]);
     if (v4 && !v4.includes(':')) clubNet.v4 = v4;
     if (v6 && v6.includes(':')) clubNet.v6 = v6;
   } finally { clubNet.at = Date.now(); clubNet.busy = false; }
@@ -51,12 +52,30 @@ function inClubNet(ip) {
   if (!ip.includes(':')) return Boolean(clubNet.v4) && ip === clubNet.v4;
   return Boolean(clubNet.v6) && v6net(ip) !== '' && v6net(ip) === v6net(clubNet.v6);
 }
-/** von außen (über den Tunnel und nicht aus dem Vereinsnetz)? */
-const awayReq = req => Boolean(req.viaTunnel) && !req.clubNet;
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
-// Der Tunnel (cloudflared) läuft im Home-Assistant-Netz: nur dann der mitgeschickten Absender-IP trauen
-const PRIVATE_IP = ip => /^(::ffff:)?(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip);
+/** private Absenderadresse (WLAN, Add-on-Netz, derselbe Rechner, link-local)? */
+const PRIVATE_IP = ip => /^(::ffff:)?(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip) || /^fe80:/i.test(ip);
+/** von außen? Über den Tunnel und nicht aus dem Vereinsnetz – oder direkt von einer öffentlichen Adresse (versehentliche Portfreigabe am Router:
+ *  dann kommt keine cf-Kopfzeile, die Anfrage darf trotzdem nicht als „im WLAN“ gelten) */
+const awayReq = req => (Boolean(req.viaTunnel) && !req.clubNet) || !PRIVATE_IP(String(req.socket.remoteAddress || ''));
+/* Der Kopfzeile cf-connecting-ip (echte Absenderadresse hinter Cloudflare) wird nur geglaubt, wenn die Anfrage tatsächlich vom Tunnel kommt.
+   Sonst könnte jedes Handy im Vereins-WLAN mit wechselnden Adressen alle Bremsen (Kopplung, Übernahme, Online-Antrag …) aushebeln.
+   Vertraute Quellen: das in der Add-on-Konfiguration eingetragene Proxy-Add-on („proxy_addon_ip“, über TRUSTED_PROXY – ohne den Supervisor),
+   das Add-on-Netz 172.30.32.0/23 samt Gateway 172.30.32.1/172.30.33.1 (das Cloudflared-Add-on läuft mit host_network und erscheint über
+   das Docker-NAT als Gateway-Adresse) und derselbe Rechner (127.0.0.1/::1, Tests). */
+const TUNNEL_IPS = (process.env.TRUSTED_PROXY || '').split(',').map(x => x.trim()).filter(x => x && x !== '172.30.32.2');
+function fromTunnel(sock) {
+  const ip = String(sock || '').replace(/^::ffff:/, '');
+  if (!ip) return false;
+  if (TUNNEL_IPS.includes(ip)) return true;
+  if (/^172\.30\.3[23]\.\d{1,3}$/.test(ip)) return true;
+  return ip === '127.0.0.1' || ip === '::1';
+}
+/** zuletzt abgelehnte Tunnel-Anfrage (nur im Speicher) – damit der Vorstand in der Verwaltung sieht, wenn das Cloudflared-Add-on
+ *  von einer anderen Adresse kommt als erwartet, statt dass sich Mitglieder draußen über eine „kaputte“ App wundern */
+let lastTunnelReject = null;
+const noteTunnelReject = (sock, req, why) => { lastTunnelReject = { ip: String(sock || '').replace(/^::ffff:/, '').slice(0, 45), at: new Date().toISOString(), host: String(req.headers.host || '').slice(0, 100), why }; };
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS member_access (
@@ -70,8 +89,7 @@ CREATE TABLE IF NOT EXISTS member_access (
 );
 `);
 
-const pad = n => String(n).padStart(2, '0');
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+const { today } = require('./util');
 
 /* Module, die in der App erscheinen: id -> { name, label, order, dir, router, hooks, isActive } */
 const modules = new Map();
@@ -134,7 +152,7 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
 });
 
 /* ---------- Port der Mitglieder-App ---------- */
-function startPort({ rateLimit }) {
+function startPort({ rateLimit, rateLimitKey }) {
   const port = parseInt(process.env.MEMBER_PORT || '5001', 10);
   if (!port) return;
   if (tunnelOn()) refreshClubNet();
@@ -142,12 +160,15 @@ function startPort({ rateLimit }) {
   app.disable('x-powered-by');
   app.use(require('./security').hostGuard());
   app.use(require('./security').hardenHeaders({ frame: 'DENY' }));
+  app.use(require('./security').compress());
   // Anfragen über den Tunnel: echte Absender-IP für die Sperren bei Fehlversuchen (sonst teilten sich alle Handys draußen eine IP)
   app.use((req, res, next) => {
     const cf = req.get('cf-connecting-ip');
     if (!cf) return next();
     const sock = String(req.socket.remoteAddress || '');
-    if (!tunnelOn() || !PRIVATE_IP(sock)) return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' });
+    if (!tunnelOn()) { noteTunnelReject(sock, req, 'aus'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
+    // cf-Kopfzeile von einem Gerät, das nicht der Tunnel ist (z. B. aus dem Vereins-WLAN): nicht glauben, Anfrage ablehnen
+    if (!fromTunnel(sock)) { noteTunnelReject(sock, req, 'quelle'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
     const ip = String(cf).trim().slice(0, 45);
     if (/^[0-9a-fA-F:.]+$/.test(ip)) Object.defineProperty(req, 'ip', { value: ip, configurable: true });
     req.viaTunnel = true;
@@ -170,7 +191,7 @@ function startPort({ rateLimit }) {
       if (!r.ok) return res.status(404).end();
       const ct = r.headers.get('content-type') || t;
       if (/^image\//.test(ct)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");   // Bilder (auch SVG-Logo) nie als Seite mit Skripten
-      res.set({ 'Content-Type': ct, 'Cache-Control': 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));
+      res.set({ 'Content-Type': ct, 'Cache-Control': /\.(woff2|png)$/.test(p) ? 'public, max-age=604800' : 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));   // Schriften/Icons eine Woche, Rest per ETag
     } catch (e) { res.status(404).end(); }
   };
   for (const [p, t] of [['/style.css', 'text/css'], ['/kit.css', 'text/css'], ['/theme.css', 'text/css'], ['/icon-192.png', 'image/png'], ['/icon-512.png', 'image/png'], ['/fonts/jakarta-latin.woff2', 'font/woff2'], ['/fonts/jakarta-latin-ext.woff2', 'font/woff2'], ['/theme-init.js', 'application/javascript']]) app.get(p, relay(p, t));
@@ -257,9 +278,15 @@ function startPort({ rateLimit }) {
   api.get('/photo/img', (req, res) => { const w = meOr403(req, res); if (w) photos.send(res, w.memberId, null); });
   api.get('/photo/of/:id', (req, res) => {   // Bilder anderer (Platzbuchung, Helferdienste) – nur gekoppelte Handys, nur mit Freigabe
     const w = meOr403(req, res); if (!w) return;
-    const u = String(req.query.u || ''); if (!['buchung', 'helfer'].includes(u)) return res.status(404).end();
+    // … und nur, wer den Bereich selbst nutzen darf (Modul aktiv, Freischaltung gültig) – der Kreis der Betrachter bleibt so, wie es die App zeigt
+    const u = String(req.query.u || ''); const mod = { buchung: 'buchung', helfer: 'arbeitseinsatz' }[u];
+    if (!mod || !modOn(mod) || !accessFor(w.memberId, mod).ok) return res.status(404).end();
     photos.send(res, parseInt(req.params.id, 10), u);
   });
+  // Schreibende Aufrufe je Gerät bremsen (Schlüssel: Hash des Gerätetokens, nicht die Adresse – draußen teilen sich viele Handys eine Adresse,
+  // drinnen könnte ein Gerät die Adresse wechseln). Schützt vor Dauerfeuer auf PIN-prüfende Routen (scrypt kostet Rechenzeit) und Türimpulse.
+  const crypto = require('crypto');
+  const writeLimit = rateLimitKey('mwrite', 60, 60000, req => crypto.createHash('sha256').update(dev(req)).digest('hex').slice(0, 32));
   // Module: /api/m/<id>/… – nur gekoppeltes Gerät mit Freischaltung für dieses Modul
   api.use('/m/:id', (req, res, next) => {
     const m = modules.get(req.params.id);
@@ -269,15 +296,19 @@ function startPort({ rateLimit }) {
     const c = accessFor(w.memberId, req.params.id);
     if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
     if (awayReq(req) && !extAllowed(req.params.id)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
-    req.member = { id: w.memberId, name: w.name, access: c.row };
-    /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
-    req.pinOk = () => {
-      const r = invites.check(SCOPE, dev(req), (req.body || {}).pin);
-      if (r.ok) return true;
-      res.status(r.status).json({ error: r.error, pin: r.pin, device: r.device });
-      return false;
+    const go = () => {
+      req.member = { id: w.memberId, name: w.name, access: c.row };
+      /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
+      req.pinOk = () => {
+        const r = invites.check(SCOPE, dev(req), (req.body || {}).pin);
+        if (r.ok) return true;
+        res.status(r.status).json({ error: r.error, pin: r.pin, device: r.device });
+        return false;
+      };
+      m.router(req, res, next);
     };
-    m.router(req, res, next);
+    if (req.method === 'GET' || req.method === 'HEAD') return go();
+    writeLimit(req, res, go);
   });
   // Öffentliche Teile der Module (ohne Anmeldung): API unter /api/p/<id>/…, Seiten unter /p/<id>/ (Ordner public/online des Moduls)
   api.use('/p/:id', rateLimit('apppub', 120, 60000), (req, res, next) => {
@@ -294,7 +325,13 @@ function startPort({ rateLimit }) {
   app.use('/api', api);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Unbekannte Adresse.' }));
   app.use(express.static(path.join(__dirname, '..', 'public', 'app'), { index: 'index.html', setHeaders: r => r.setHeader('Cache-Control', 'no-cache') }));
-  app.use((err, req, res, next) => { res.status(400).json({ error: 'Ungültige Anfrage.' }); }); // eslint-disable-line no-unused-vars
+  /* Fehler immer als JSON, ohne interne Details – echte Programmfehler landen im Protokoll statt als „Ungültige Anfrage“ unterzugehen */
+  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+    if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Die Datei ist zu groß.' });
+    if (err && (err.type === 'entity.parse.failed' || (err.status >= 400 && err.status < 500))) return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    console.error('Mitglieder-App:', err);
+    res.status(500).json({ error: 'Interner Fehler.' });
+  });
   const srv = tls.listen(app, port, process.env.HOST || '0.0.0.0', 'Mitglieder-App');
   srv.on('error', e => console.error(`Mitglieder-App: Port ${port} nicht nutzbar (${e.code || e.message}).`));
 }
@@ -326,7 +363,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), clubIp: [clubNet.v4, clubNet.v6 ? v6net(clubNet.v6) + '::/64' : ''].filter(Boolean).join(' · ') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), clubIp: [clubNet.v4, clubNet.v6 ? v6net(clubNet.v6) + '::/64' : ''].filter(Boolean).join(' · '), lastReject: lastTunnelReject, proxyIps: TUNNEL_IPS }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -442,7 +479,10 @@ function adminRoutes(admin, { bad, need, auth }) {
       const r = await fetch(u + '/api/ping', { signal: AbortSignal.timeout(8000), redirect: 'manual' });
       const d = await r.json().catch(() => ({}));
       if (r.ok && d.app === 'clubwerk') return res.json({ ok: true, tunnel: Boolean(d.tunnel), on: tunnelOn(), cf: Boolean(r.headers.get('cf-ray')) });
-      res.json({ ok: false, error: r.status === 403 ? 'Erreicht, aber der externe Zugang ist hier noch ausgeschaltet.' : `Die Adresse antwortet, aber nicht mit der Mitglieder-App (HTTP ${r.status}). Zeigt der Tunnel auf den Port der Mitglieder-App?` });
+      // 403 bei eingeschaltetem Zugang: Die Anfrage kam an, wurde aber abgelehnt – meist, weil das Cloudflared-Add-on von einer unerwarteten Adresse kommt
+      const rj = lastTunnelReject && Date.now() - Date.parse(lastTunnelReject.at) < 60000 ? lastTunnelReject : null;
+      const src = rj && rj.why === 'quelle' ? `Die Anfrage kam von der Adresse ${rj.ip}, der Clubwerk nicht traut – kommt sie vom Cloudflared-Add-on, diese Adresse in der Add-on-Konfiguration von Clubwerk unter „proxy_addon_ip“ eintragen.` : '';
+      res.json({ ok: false, error: r.status === 403 ? (tunnelOn() ? ['Erreicht, aber die Anfrage wurde abgelehnt.', src].filter(Boolean).join(' ') : 'Erreicht, aber der externe Zugang ist hier noch ausgeschaltet.') : `Die Adresse antwortet, aber nicht mit der Mitglieder-App (HTTP ${r.status}). Zeigt der Tunnel auf den Port der Mitglieder-App?`, lastReject: rj });
     } catch (e) { res.json({ ok: false, error: 'Keine Antwort von außen – Tunnel läuft nicht oder der Name ist bei Cloudflare noch nicht eingerichtet.' }); }
   });
   admin.post('/qr', async (req, res) => {
@@ -453,4 +493,4 @@ function adminRoutes(admin, { bad, need, auth }) {
   void auth;
 }
 
-module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules };
+module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP };

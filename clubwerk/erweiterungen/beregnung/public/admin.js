@@ -77,7 +77,7 @@
     $('main').innerHTML = `<h2 class="page">Beregnung</h2>
       <p class="lead">Mitglieder starten hier nur die <b>manuelle</b> Beregnung eines Platzes. Zeitpläne, Wetteranpassung und Pausen bleiben in der Steuerung des Herstellers.
         Es läuft nie mehr als eine Zone gleichzeitig (Wasserdruck) – weitere Plätze stellen sich hinten an.</p><div id="bTabs"></div>`;
-    GK.tabs($('bTabs'), 'beregnung', [['bedienen', 'Bedienen'], ['plaetze', 'Plätze & Anbindung'], ['webapp', 'Webapp & Schutz'], ['protokoll', 'Protokoll']], async (k, el) => {
+    GK.tabs($('bTabs'), 'beregnung', [['bedienen', 'Bedienen'], ['plaetze', 'Plätze & Anbindung'], ['webapp', 'Webapp & PIN'], ['protokoll', 'Protokoll']], async (k, el) => {
       const d = await loadCfg(); const c = st.cfg;
       const ha = c.backend !== 'hydrawise';
       if (k === 'bedienen') {
@@ -166,5 +166,5 @@
     $('bMonth').onchange = () => { st.month = $('bMonth').value; loadLog().catch(fail); };
   }
 
-  GK.registerPage({ key: 'beregnung', title: 'Beregnung', perm: 'beregnung', render: GK.RENDER.beregnung });
+  GK.registerPage({ key: 'beregnung', title: 'Beregnung', perm: 'beregnung', render: GK.RENDER.beregnung, order: 5 });
 })();

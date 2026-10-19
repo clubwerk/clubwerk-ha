@@ -175,7 +175,7 @@
     fillRec(); fillAcc();
     ed = itemsEditor($('biItems'), pre.items);
     $('c').onclick = closeDialog;
-    $('biOk').onclick = async () => {
+    $('biOk').onclick = () => GK.busy($('biOk'), async () => {
       const body = { kind, partner_id: kind === 'partner' ? +val('biRec') || null : null, member_id: kind === 'member' ? +val('biRec') || null : null, period: val('biPer'), department_id: $('biDep') ? +val('biDep') || null : null, account_id: +val('biAcc') || null, date: val('biD'), due_date: val('biDue'), items: ed.get(), note: $('biNote').value, send: $('biSend').checked };
       if (!val('biRec')) return toast('Bitte den Empfänger wählen.', true);
       $('biOk').disabled = true;
@@ -185,7 +185,7 @@
         toast(`Rechnung ${r.no} erstellt${r.sent ? ` und an ${r.to} geschickt` : ''}.`);
         after();
       } catch (e) { fail(e); $('biOk').disabled = false; }
-    };
+    });
   }
 
   function invoiceActions(r, after) {
@@ -250,7 +250,7 @@
       const count = () => { const n = boxes().filter(b => b.checked).length; $('yrOk').textContent = `${n} Rechnung(en) erstellen`; $('yrOk').disabled = !n; };
       if ($('yrAll')) $('yrAll').onchange = () => { boxes().forEach(b => { b.checked = $('yrAll').checked; }); count(); };
       boxes().forEach(b => { b.onchange = count; });
-      $('yrOk').onclick = async () => {
+      $('yrOk').onclick = () => GK.busy($('yrOk'), async () => {
         const ids = boxes().filter(b => b.checked).map(b => +b.dataset.yr);
         $('yrOk').disabled = true;
         try {
@@ -260,7 +260,7 @@
           toast(`${r.created.length} Rechnung(en) erstellt${sent ? `, ${sent} verschickt` : ''}${r.skipped.length ? ` – übersprungen: ${r.skipped.join(', ')}` : ''}.`, r.skipped.length > 0);
           after();
         } catch (e) { fail(e); $('yrOk').disabled = false; }
-      };
+      });
     };
     await paint();
   }
@@ -310,10 +310,10 @@
     const ed = itemsEditor($('pItems'), p ? p.items : [], {});
     if (!(p && p.items.length)) { /* leerer Editor: eine leere Zeile, wird beim Speichern ignoriert */ }
     $('c').onclick = closeDialog;
-    $('pOk').onclick = async () => {
+    $('pOk').onclick = () => GK.busy($('pOk'), async () => {
       const body = { name: val('pN'), customer_no: val('pK'), contact: val('pC'), email: val('pE'), phone: val('pT'), street: val('pS'), vat_id: val('pV'), zip: val('pZ'), city: val('pO'), country: val('pL'), department_id: +val('pD') || null, note: $('pNo').value, items: ed.get(), ...(p ? { active: $('pA').checked } : {}) };
       try { if (p) await api('partners/' + p.id, 'PUT', body); else await api('partners', 'POST', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
-    };
+    });
     if ($('pDel')) $('pDel').onclick = async () => {
       if (!await ask(`„${p.name}“ löschen?\n\nGeht nur, solange es keine Rechnungen oder Spendenquittungen für diese Firma gibt.`)) return;
       try { await api('partners/' + p.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); after(); } catch (e) { fail(e); }
@@ -379,7 +379,7 @@
     $('dKind').querySelectorAll('button').forEach(b => { b.onclick = () => { kind = b.dataset.k; art(); }; });
     donor(); art();
     $('c').onclick = closeDialog;
-    $('dOk').onclick = async () => {
+    $('dOk').onclick = () => GK.busy($('dOk'), async () => {
       const zc = (val('dO') || '').match(/^(\d{4,5})\s+(.+)$/);
       const body = { donor_type: who, kind, cents: toCents(val('dC') || '0'), date: val('dD'), item: kind === 'geld' ? '' : $('dI').value,
         member_id: who === 'member' ? +val('dM') || null : null, partner_id: who === 'partner' ? +val('dP') || null : null,
@@ -390,48 +390,51 @@
         const r = await api('donations', 'POST', body);
         closeDialog(); toast(`Spendenquittung ${r.no} erstellt.`); window.open(`${BASE}donations/${r.id}/pdf`, '_blank', 'noopener'); after();
       } catch (e) { fail(e); $('dOk').disabled = false; }
-    };
+    });
   }
 
   /* ---------------- Einstellungen ---------------- */
+  /* Einstellungen: Unterbereiche (wie die Kern-Einstellungen), Speichern je Karte – jede Karte sendet nur ihre Felder */
+  const SET_SECS = [['absender', 'Absender'], ['bank', 'Bankkonten'], ['rechnungen', 'Rechnungen'], ['spenden', 'Spendenquittungen'], ['transfer', 'Übertragen']];
   async function showSettings(el) {
     const s = await api('settings'), fb = s.fallback;
     const inp = (k, l, o = {}) => `<label class="f ${o.cls || ''}">${esc(l)}<input id="bs_${k}" value="${esc(s[k] ?? '')}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.type ? `type="${o.type}"` : ''}></label>`;
+    const save = id => `<div class="btns"><button class="btn primary" data-save="${id}">Speichern</button></div>`;
     el.innerHTML = `
-      <div class="card"><h3>Absender</h3><p class="muted s" style="margin-top:0">Steht im Briefkopf. Leer gelassene Felder übernehmen die Angaben aus der Mitgliederverwaltung.</p>
+      <div class="card" data-set="absender"><h3>Absender</h3><p class="muted s" style="margin-top:0">Steht im Briefkopf. Leer gelassene Felder übernehmen die Angaben aus der Mitgliederverwaltung.</p>
         <div class="bh-grid">${inp('street', 'Straße und Hausnummer', { ph: fb.street })}${inp('city', 'PLZ und Ort', { ph: fb.city })}${inp('email', 'E-Mail', { type: 'email' })}${inp('phone', 'Telefon')}
-          <label class="f w2">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div></div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0">Bankkonten</h3><button class="btn" id="bsBank">Bankkonten verwalten …</button></div>
+          <label class="f w2">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div>${save('absender')}</div>
+      <div class="card" data-set="bank"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 200px;min-width:0">Bankkonten</h3><button class="btn" id="bsBank">Bankkonten verwalten …</button></div>
         <p class="muted s" style="margin-top:0">Die Konten werden zentral unter Einstellungen → Bankkonten gepflegt. Auf der Rechnung steht das Konto der Abteilung, sonst das Standardkonto – im Rechnungsdialog änderbar.</p>
         ${st.meta.accounts.length ? `<table class="tbl">${st.meta.accounts.map(a => `<tr><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (st.meta.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch kein Bankkonto angelegt.</p>'}</div>
-      <div class="card"><h3>Rechnungen</h3>
+      <div class="card" data-set="rechnungen"><h3>Rechnungen</h3>
         <div class="bh-grid">${inp('tax_no', 'Steuernummer')}${inp('vat_id', 'USt-IdNr.', { ph: 'optional' })}
           <label class="f">Umsatzsteuer (Vorgabe)<select id="bs_vat_default">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', s.vat_default)).join('')}</select></label>
           ${inp('inv_prefix', 'Nummernkreis', { ph: 'R-' })}<label class="f">Zahlungsziel (Tage)<input id="bs_due_days" type="number" min="0" max="120" value="${s.due_days}"></label>
           <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="bs_small_business" ${s.small_business ? 'checked' : ''}> Kleinunternehmer (§ 19 UStG, keine USt)</label>
           <label class="f wall">Einleitungstext<textarea id="bs_intro" rows="2" placeholder="z. B. Vielen Dank für Ihre Unterstützung! Wir berechnen Ihnen folgende Leistungen:">${esc(s.intro)}</textarea></label></div>
-        <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 … Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig (wirtschaftlicher Geschäftsbetrieb) – im Zweifel die Steuerberatung fragen.</p></div>
-      <div class="card"><h3>Spendenquittungen</h3><p class="muted s" style="margin-top:0">Angaben aus dem Freistellungsbescheid bzw. der Anlage zum Körperschaftsteuerbescheid – stehen so auf jeder Zuwendungsbestätigung.</p>
+        <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 … Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig (wirtschaftlicher Geschäftsbetrieb) – im Zweifel die Steuerberatung fragen.</p>${save('rechnungen')}</div>
+      <div class="card" data-set="spenden"><h3>Spendenquittungen</h3><p class="muted s" style="margin-top:0">Angaben aus dem Freistellungsbescheid bzw. der Anlage zum Körperschaftsteuerbescheid – stehen so auf jeder Zuwendungsbestätigung.</p>
         <div class="bh-grid">${inp('finanzamt', 'Finanzamt', { ph: 'z. B. Finanzamt Musterstadt' })}${inp('fa_tax_no', 'Steuernummer (beim Finanzamt)')}
           <label class="f">Art des Bescheids<select id="bs_bescheid_type">${opt('freistellung', 'Freistellungsbescheid', s.bescheid_type)}${opt('feststellung', 'Feststellungsbescheid (§ 60a AO)', s.bescheid_type)}</select></label>
           <label class="f">Datum des Bescheids<input id="bs_bescheid_date" type="date" value="${esc(s.bescheid_date)}"></label>
           ${inp('veranlagungszeitraum', 'Veranlagungszeitraum', { ph: 'z. B. 2022 bis 2024' })}${inp('don_prefix', 'Nummernkreis', { ph: 'SQ-' })}
           <label class="f wall">Begünstigte Zwecke<input id="bs_zwecke" value="${esc(s.zwecke)}"></label>
           ${inp('signer', 'Unterschrift (Name)')}${inp('signer_role', 'Funktion')}${inp('place', 'Ort der Ausstellung', { ph: 'leer = Ort des Vereins' })}</div>
-        <p class="muted s">Die Bestätigung ist nur gültig, solange der Bescheid nicht älter als 5 Jahre ist (Feststellungsbescheid: 3 Jahre).</p></div>
-      <div class="row" style="justify-content:flex-end"><button class="btn primary" id="bsOk">Speichern</button></div>
-      <div id="bhFunc"></div>`;
+        <p class="muted s">Die Bestätigung ist nur gültig, solange der Bescheid nicht älter als 5 Jahre ist (Feststellungsbescheid: 3 Jahre).</p>${save('spenden')}</div>
+      <div id="bhFunc" data-set="transfer"></div>`;
+    if (GK.funcBox) GK.funcBox($('bhFunc'), 'buchhaltung', 'Buchhaltung', () => showSettings(el).catch(fail));
+    if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bh' });
     GK.watch(el);
     $('bsBank').onclick = () => (GK.openSettings ? GK.openSettings('bank') : GK.go('einstellungen'));
-    $('bsOk').onclick = async () => {
+    el.querySelectorAll('[data-save]').forEach(btn => { btn.onclick = () => GK.busy(btn, async () => {
       const b = {};
-      for (const x of el.querySelectorAll('[id^="bs_"]')) { const k = x.id.slice(3); b[k] = x.type === 'checkbox' ? x.checked : x.value.trim(); }
+      for (const x of btn.closest('.card').querySelectorAll('[id^="bs_"]')) { const k = x.id.slice(3); b[k] = x.type === 'checkbox' ? x.checked : x.value.trim(); }
       try { await api('settings', 'PUT', b); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); }
-    };
-    if (GK.funcBox) GK.funcBox($('bhFunc'), 'buchhaltung', 'Buchhaltung', () => showSettings(el).catch(fail));
+    }); });
   }
 
-  const G = { key: 'buchhaltung', label: 'Buchhaltung', icon: 'buchhaltung', order: 7 };
+  const G = { key: 'buchhaltung', label: 'Buchhaltung', icon: 'buchhaltung', order: 8 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
   GK.registerPage({ key: 'bh-rechnungen', title: 'Rechnungen', perm: 'buchhaltung', render: pageRender('bh-rechnungen', showInvoices), group: G });
   GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G, tab: 'Firmen' });
   GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G, tab: 'Spenden' });

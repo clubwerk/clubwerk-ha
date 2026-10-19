@@ -22,8 +22,10 @@ if [ -f /data/options.json ]; then
     KF=$(node -e "try{process.stdout.write(require('/data/options.json').keyfile||'privkey.pem')}catch(e){}")
     case "$CF$KF" in *..*|*/*) echo "HTTPS: Dateinamen ohne Ordner angeben";; *) export SSL_CERT="/ssl/$CF" SSL_KEY="/ssl/$KF";; esac
   fi
-  # Nur wenn ein Proxy-Add-on (z. B. Cloudflared, NGINX) davor sitzt: dessen IP, damit die echte Absenderadresse gezählt wird
-  PX=$(node -e "try{const v=String(require('/data/options.json').proxy_addon_ip||'').trim();if(/^172\.30\.(32|33)\.\d{1,3}$/.test(v))process.stdout.write(v)}catch(e){}")
+  # Nur wenn ein Proxy-Add-on (z. B. Cloudflared, NGINX) davor sitzt: dessen IP, damit die echte Absenderadresse gezählt wird.
+  # Erlaubt sind private Adressen (Add-on-Netz 172.30.x, aber auch ein Proxy auf einem anderen Rechner im Vereins-WLAN); die
+  # Supervisor-Adresse 172.30.32.2 bleibt dem Ingress vorbehalten und zählt hier nicht.
+  PX=$(node -e "try{const v=String(require('/data/options.json').proxy_addon_ip||'').trim();if(v!=='172.30.32.2'&&/^(10\.\d{1,3}\.\d{1,3}\.\d{1,3}|172\.(1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3})$/.test(v))process.stdout.write(v)}catch(e){}")
   [ -n "$PX" ] && export TRUSTED_PROXY="172.30.32.2,$PX"
 fi
 

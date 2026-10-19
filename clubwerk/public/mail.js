@@ -225,7 +225,7 @@
     O = await api('mail/options');
     $('main').innerHTML = `<h2 class="page">E-Mail</h2>
       <p class="lead">Mails an Mitglieder, Gruppen, Verteiler und freie Adressen – mit Formatierung, Anhängen und Platzhaltern. Gesendet wird über das Vereinspostfach mit deinem Namen; Antworten gehen an deine Adresse.</p>
-      ${O.ready ? '' : `<div class="banner a">${esc(T('Noch kein Postfach eingerichtet – Mails können erst nach Einstellungen → E-Mail-Versand gesendet werden. Entwürfe gehen schon.'))}</div>`}
+      ${O.ready ? '' : `<div class="banner a">${esc(T('Noch kein Postfach eingerichtet – Mails können erst nach Einstellungen → Postfach gesendet werden. Entwürfe gehen schon.'))}</div>`}
       <div id="mlTabs"></div>`;
     tabsCtl = GK.tabs($('mlTabs'), 'email', [['neu', 'Neue E-Mail'], ['entwuerfe', 'Entwürfe'], ['gesendet', 'Gesendet'], ['verteiler', 'Verteiler'], ['vorlagen', 'Vorlagen'], ['absender', 'Absender']], async (k, body) => {
       O = await api('mail/options');
@@ -355,7 +355,7 @@
         <div class="btns"><button class="btn ghost" id="c">${esc(sendMode ? T('Abbrechen') : T('Schließen'))}</button>${sendMode && !p.errors.length && p.ready ? `<button class="btn primary" id="go">${esc(T('Jetzt an'))} ${p.count} ${esc(T('senden'))}</button>` : ''}</div>`, true);
       $('c').onclick = closeDialog;
       if ($('mlRcShow')) $('mlRcShow').onclick = e => { e.preventDefault(); $('mlRc').classList.toggle('hidden'); };
-      if (!p.ready && sendMode) toast(T('Erst unter Einstellungen → E-Mail-Versand das Vereinspostfach eintragen.'), true);
+      if (!p.ready && sendMode) toast(T('Erst unter Einstellungen → Postfach das Vereinspostfach eintragen.'), true);
       if ($('go')) $('go').onclick = async () => {
         $('go').disabled = true;
         try { const r = await api(`mail/drafts/${id}/send`, 'POST', {}); closeDialog(); toast(`${T('Wird gesendet an')} ${r.count} ${T('Empfänger')}.`); GK.clean && GK.clean(); const sent = id; id = null; showMessage(body, sent, 'gesendet'); markTab('gesendet'); }

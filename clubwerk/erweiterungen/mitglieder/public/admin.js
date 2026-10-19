@@ -1,5 +1,5 @@
 'use strict';
-/* Verwaltung „Mitglieder“: Mitglieder · Anträge & Änderungen · Beiträge & Einzug · Auswertungen · Einstellungen */
+/* Verwaltung „Mitglieder“: Mitglieder · Anträge & Änderungen · Beiträge & Einzug · Auswertung · Einstellungen */
 (() => {
   const GK = window.GK;
   const { $, esc, euro, toast, fail, dialog, closeDialog, ask, askText, deDate, deTime, toCents, centsToInput, icon } = GK;
@@ -97,7 +97,7 @@
     'mv-beitraege': ['Beiträge', 'Beitragsarten des Hauptvereins, Zusatzbeiträge der Abteilungen und der Beitragslauf, aus dem die offenen Posten entstehen.'],
     'mv-einzug': ['Einzug & Zahlungen', 'SEPA-Lastschriften, offene Posten, Rechnungen und Mahnungen.'],
     'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen (Tablet, online, Verwaltung), Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
-    'mv-auswertung': ['Auswertungen', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund und Listen.'],
+    'mv-auswertung': ['Auswertung', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund und Listen.'],
     'mv-einstellungen': ['Einstellungen', 'Verein und SEPA-Lastschrift, Beitrittserklärung, Mitglieder-App, Import und Datenschutz.'],
   };
   let current = 'mitglieder';
@@ -224,7 +224,7 @@
     fees(); pay();
     $('nBirth').onchange = fees; $('nEntry').onchange = fees; if ($('nPay')) $('nPay').onchange = pay;
     $('c').onclick = closeDialog; setTimeout(() => $('nFirst').focus(), 50);
-    $('nOk').onclick = async () => {
+    $('nOk').onclick = () => GK.busy($('nOk'), async () => {
       try {
         const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'),
           entry_date: val('nEntry'), member_no: val('nNo') || undefined, department_id: +val('nDept') || undefined,
@@ -232,7 +232,7 @@
           ...(full ? { fee_id: +val('nFee') || null, payment: val('nPay'), iban: val('nIban'), holder: val('nHold'), mandate_date: val('nMand') } : {}) });
         closeDialog(); toast(r.pending ? `Mitglied angelegt. ${PENDING}` : 'Mitglied angelegt.'); st.detail = r.id; st.sub = 'stamm'; showDetail(el, r.id).catch(fail);
       } catch (e) { fail(e); }
-    };
+    });
   }
 
 
@@ -338,16 +338,16 @@
       : x.zusatz_nomatch ? (x.zusatz_age != null ? `<span class="pill">beitragsfrei</span><div class="muted s">keine Altersstufe für ${x.zusatz_age} Jahre</div>` : '<span class="pill a">Geburtsdatum fehlt</span>') : '<span class="muted s">–</span>') + '</div>';
     const depRows = d.departments.map(x => `<tr class="${x.exit_date && x.exit_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(x.name)}</b></td><td>${esc(x.status)}</td><td class="nw">${deDate(x.entry_date) || '–'}</td><td class="nw">${x.exit_date ? deDate(x.exit_date) : '–'}</td><td>${zText(x)}</td>
       <td class="r nw">${myDept(x.department_id) ? `<button class="btn small" data-md="${x.id}">Bearbeiten</button> <button class="btn small danger" data-mdx="${x.id}">Entfernen</button>` : ''}</td></tr>`).join('');
-    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Beiträge</h3>${SC() ? '' : '<button class="btn small primary" id="fAdd">+ Beitrag</button>'}</div>
+    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() ? '' : '<button class="btn small primary" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
           : `<p class="muted">${p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt (z. B. Familienbeitrag).' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small primary" id="dAdd">+ Abteilung</button>'}</div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small primary" id="dAdd">+ Abteilung</button>'}</div>
         ${d.departments.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Zusatzbeitrag</th><th></th></tr>${depRows}</table>
           <p class="muted s" style="margin-bottom:0">Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.</p>` : '<p class="muted">Keiner Abteilung zugeordnet.</p>'}</div>
       <div class="mv-two">
-        <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Ehrungen</h3><button class="btn small" id="hAdd">+ Ehrung</button></div>
+        <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ehrungen</h3><button class="btn small" id="hAdd">+ Ehrung</button></div>
           ${d.honors.length ? `<table class="tbl">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted">Keine.</p>'}</div>
-        <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Ämter & Funktionen</h3><button class="btn small" id="aAdd">+ Amt</button></div>
+        <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ämter & Funktionen</h3><button class="btn small" id="aAdd">+ Amt</button></div>
           ${d.functions.length ? `<table class="tbl">${d.functions.map(h => `<tr class="${h.to_date && h.to_date < m.today ? 'off' : ''}"><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.from_date) || ''}${h.to_date ? ' – ' + deDate(h.to_date) : ''}</td><td class="r"><button class="btn small danger" data-ax="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted">Keine.</p>'}</div>
       </div>`;
     const feeDialog = f => {
@@ -365,10 +365,10 @@
         <p class="muted s">„Abgerechnet bis“ setzt der Beitragslauf selbst. Nur ändern, wenn Beiträge außerhalb von Clubwerk abgerechnet wurden.</p>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="fOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
-      $('fOk').onclick = async () => {
+      $('fOk').onclick = () => GK.busy($('fOk'), async () => {
         const body = { start_date: val('fStart'), end_date: val('fEnd') || null, booked_until: val('fBooked') || null, cents: val('fCents') ? toCents(val('fCents')) : null, note: val('fNote') };
         try { if (f) await api('mf/' + f.id, 'PUT', body); else await api(`member/${id}/fees`, 'POST', { ...body, fee_id: +val('fFee') }); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { fail(e); }
-      };
+      });
     };
     if ($('fAdd')) $('fAdd').onclick = () => feeDialog(null);
     el.querySelectorAll('[data-mf]').forEach(b => { b.onclick = () => feeDialog(d.fees.find(f => f.id === +b.dataset.mf)); });
@@ -384,11 +384,11 @@
           <label class="f">Zusatzbeitrag abgerechnet bis<input id="dBk" type="date" value="${esc(x.booked_until || '')}"></label>` : ''}</div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="dOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
-      $('dOk').onclick = async () => {
+      $('dOk').onclick = () => GK.busy($('dOk'), async () => {
         const body = { entry_date: val('dIn') || null, exit_date: val('dOut') || null, status: val('dSt'), federation_status: val('dFed') };
         if (x && $('dFee')) { const fv = val('dFee'); Object.assign(body, { fee_free: fv === 'frei', fee_id: fv && fv !== 'frei' ? +fv : null, booked_until: val('dBk') || null }); }
         try { if (x) await api('md/' + x.id, 'PUT', body); else await api(`member/${id}/departments`, 'POST', { ...body, department_id: +val('dDep') }); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { fail(e); }
-      };
+      });
     };
     if ($('dAdd')) $('dAdd').onclick = () => (m.depts.length ? deptDialog(null) : toast('Bitte zuerst unter Einstellungen eine Abteilung anlegen.', true));
     el.querySelectorAll('[data-md]').forEach(b => { b.onclick = () => deptDialog(d.departments.find(x => x.id === +b.dataset.md)); });
@@ -397,10 +397,10 @@
       dialog(`<h2>${title}</h2><div class="mv-grid" style="--c:2"><label class="f wall">Bezeichnung<input id="xName"></label>${extra}</div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="xOk">Hinzufügen</button></div>`);
       $('c').onclick = closeDialog; setTimeout(() => $('xName').focus(), 50);
-      $('xOk').onclick = async () => {
+      $('xOk').onclick = () => GK.busy($('xOk'), async () => {
         const body = { name: val('xName') }; el.ownerDocument.querySelectorAll('#dialog [data-k]').forEach(i => { body[i.dataset.k] = i.value || null; });
         try { await api(`member/${id}/${kind}`, 'POST', body); closeDialog(); again(); } catch (e) { fail(e); }
-      };
+      });
     };
     $('hAdd').onclick = () => simple('honors', 'Ehrung', '<label class="f">Datum<input type="date" data-k="date"></label><label class="f">Notiz<input data-k="note"></label>');
     $('aAdd').onclick = () => simple('functions', 'Amt / Funktion', '<label class="f">von<input type="date" data-k="from_date"></label><label class="f">bis<input type="date" data-k="to_date"></label>');
@@ -424,7 +424,7 @@
           : '<p class="muted">Keine Angehörigen verknüpft.</p>'}
         ${head ? '<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>' + memberOptions('', id) + '</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>' : ''}
       </div></div>
-      ${d.charges ? `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Forderungen & Zahlungen</h3><div class="row">${head && d.charges.some(c => c.status === 'offen') ? `<a class="btn small" href="${BASE}invoice.pdf?member=${id}" target="_blank">Rechnung (PDF)</a>` : ''}<button class="btn small primary" id="pCharge">+ Forderung</button></div></div>
+      ${d.charges ? `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Forderungen & Zahlungen</h3><div class="row">${head && d.charges.some(c => c.status === 'offen') ? `<a class="btn small" href="${BASE}invoice.pdf?member=${id}" target="_blank">Rechnung (PDF)</a>` : ''}<button class="btn small primary" id="pCharge">+ Forderung</button></div></div>
         ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="muted">Noch keine Forderungen.</p>'}
         ${d.drinksOpen ? `<p class="muted s">Dazu noch nicht abgerechneter Verkauf: <b>${euro(d.drinksOpen)}</b></p>` : ''}</div>` : ''}`;
     GK.watch(el);
@@ -436,7 +436,7 @@
         GK.clean(); toast('Gespeichert.'); again();
       } catch (e) { fail(e); }
     };
-    if ($('pFamOk')) $('pFamOk').onclick = async () => { const x = +val('pAddFam'); if (!x) return; try { await api(`member/${x}/payer`, 'PUT', { payer_id: id }); toast('Hinzugefügt.'); again(); } catch (e) { fail(e); } };
+    if ($('pFamOk')) $('pFamOk').onclick = () => GK.busy($('pFamOk'), async () => { const x = +val('pAddFam'); if (!x) return; try { await api(`member/${x}/payer`, 'PUT', { payer_id: id }); toast('Hinzugefügt.'); again(); } catch (e) { fail(e); } });
     el.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => openMember(+b.dataset.open); });
     if ($('pCharge')) $('pCharge').onclick = () => chargeDialog(null, { member_id: id }, again);
     bindCharges(el, again);
@@ -451,7 +451,7 @@
         <p>IBAN: <b>${esc(b.masked || '–')}</b><br>Mandatsreferenz: <b>${esc(b.mandate_ref || '–')}</b>${b.mandate_date ? ` vom ${deDate(b.mandate_date)}` : ''}</p></dl>
         <p class="muted s">Vollständige Bankdaten sieht und ändert nur, wer das Recht „Bankdaten“ hat.</p></div>`; return;
     }
-    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Bankverbindung</h3>${pill(stPill)}</div>
+    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bankverbindung</h3>${pill(stPill)}</div>
       <div class="mv-grid" style="--c:4">
         <label class="f w2">Kontoinhaber<input id="bHolder" value="${esc(b.holder || p.name)}"></label>
         <label class="f w2"><span>IBAN <span id="bIbanInfo" style="font-weight:600;margin-left:6px"></span></span><input id="bIban" value="${esc(fmtIban(b.iban))}" autocomplete="off" spellcheck="false"></label>
@@ -484,7 +484,7 @@
         <label class="f">Datum der Unterschrift<input id="nmDate" type="date" value="${st.meta.today}"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="nmOk">Mandat anlegen</button></div>`);
       $('c').onclick = closeDialog;
-      $('nmOk').onclick = async () => { const dt = val('nmDate'); closeDialog(); try { await save({ newMandate: true, mandate_date: dt }); } catch (e) { fail(e); } };
+      $('nmOk').onclick = () => GK.busy($('nmOk'), async () => { const dt = val('nmDate'); closeDialog(); try { await save({ newMandate: true, mandate_date: dt }); } catch (e) { fail(e); } });
     };
     if ($('bRevoke')) $('bRevoke').onclick = async () => { if (!b.mandate_revoked && !await ask('Mandat widerrufen?\n\nVon diesem Konto wird dann nichts mehr eingezogen, bis ein neues Mandat vorliegt.', { ok: 'Widerrufen' })) return; try { await api(`member/${id}/bank`, 'PUT', { mandate_revoked: !b.mandate_revoked }); again(); } catch (e) { fail(e); } };
   }
@@ -526,7 +526,7 @@
       <p class="muted s">Bis zum Austritt bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; Daten bleiben bis zum Anonymisieren erhalten.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="xOk">Austritt eintragen</button></div>`);
     $('c').onclick = closeDialog;
-    $('xOk').onclick = async () => {
+    $('xOk').onclick = () => GK.busy($('xOk'), async () => {
       const body = { exit_date: val('xDate'), notice_date: val('xNotice'), reason: val('xReason'), endFees: $('xFees').checked, endDepts: $('xDepts').checked, withDependents: $('xFam') ? $('xFam').checked : false };
       const file = $('xDoc').files[0] || null;
       if (file && !/^(application\/pdf|image\/)/.test(file.type || '') && !/\.(pdf|jpe?g|png|webp|heic)$/i.test(file.name)) return toast('Bitte ein PDF oder Foto wählen.', true);
@@ -535,7 +535,7 @@
       catch (e) {
         if (e.status === 409 && await ask(`${e.message}\n\nTrotzdem nur dieses Mitglied austreten lassen?`, { ok: 'Trotzdem' })) { try { const r = await api(`member/${p.id}/exit`, 'POST', { ...body, force: true }); await doc(); closeDialog(); if (r.pending) toast(`Austritt gemeldet. ${PENDING}`); again(); } catch (e2) { fail(e2); } } else fail(e);
       }
-    };
+    });
   }
 
   /* ================================================================= Import & Export */
@@ -652,14 +652,14 @@
       catch (e) { $('iMap').innerHTML = `<div class="banner r"><span>${esc(e.message)}</span></div>`; }
     };
     $('iBack').onclick = () => setStep('map');
-    $('iOk').onclick = async () => {
+    $('iOk').onclick = () => GK.busy($('iOk'), async () => {
       $('iOk').disabled = true;
       try {
         if (step !== 'prev') { prev = await run(false); drawPrev(); }
         else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft.`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
       $('iOk').disabled = false;
-    };
+    });
   }
 
   async function exportDialog() {
@@ -692,7 +692,7 @@
         ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="nw">${deTime(c.created_at)}</td>
           <td class="s">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
           <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small primary" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Keine offenen Änderungswünsche.</p>'}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
         ${all ? (all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status)).length ? appTable(all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status))) : '<p class="muted">Noch nichts im Archiv.</p>') : ''}</div>`;
     $('aNew').onclick = () => applicationForm();
     $('aArch').onclick = () => { st.app = st.app === 'alle' ? 'offen' : 'alle'; showApplications(el).catch(fail); };
@@ -771,13 +771,13 @@
     const bindPx = () => document.querySelectorAll('#afP [data-px]').forEach(b => { b.onclick = () => { b.closest('tr').remove(); drawFees(); }; });
     $('afAdd').onclick = () => { const n = document.querySelectorAll('#afP tr[data-p]').length; $('afP').insertAdjacentHTML('beforeend', person(n, { last_name: (document.querySelector('#afP tr[data-p="0"] [data-k="last_name"]') || {}).value || '' })); bindPx(); drawFees(); };
     $('afHolder').onfocus = () => { if (!$('afHolder').value) { const r = document.querySelector('#afP tr[data-p="0"]'); $('afHolder').value = `${r.querySelector('[data-k=first_name]').value} ${r.querySelector('[data-k=last_name]').value}`.trim(); } };
-    $('afOk').onclick = async () => {
+    $('afOk').onclick = () => GK.busy($('afOk'), async () => {
       const persons = [...document.querySelectorAll('#afP tr[data-p]')].map(tr => ({ ...Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])), departments: [...tr.querySelectorAll('[data-dep]:checked')].map(i => +i.dataset.dep) }));
       const fee = document.querySelector('[name=afFee]:checked');
       const data = { persons, street: val('afStreet'), zip: val('afZip'), city: val('afCity'), email: val('afMail'), mobile: val('afMobile'), entry_date: val('afEntry'), fee_id: fee ? +fee.value : null,
         holder: val('afHolder'), iban: val('afIban'), bic: val('afBic'), bank: val('afBank'), signer: val('afSigner') };
       try { const r = await api('applications', 'POST', { data, auto_accept: $('afAuto').checked }); showCode(r.code); } catch (e) { fail(e); }
-    };
+    });
   }
 
   async function reviewApplication(id, after) {
@@ -806,11 +806,11 @@
     if ($('rvOpen')) $('rvOpen').onclick = () => { closeDialog(); openMember(a.member_id); };
     if (ro) return;
     $('rvNo').onclick = async () => { const r = await askText('Antrag ablehnen?\nGrund (nur intern):', ''); if (r == null) return; try { await api(`applications/${id}/reject`, 'POST', { reason: r }); closeDialog(); toast('Abgelehnt.'); after(); } catch (e) { fail(e); } };
-    $('rvOk').onclick = async () => {
+    $('rvOk').onclick = () => GK.busy($('rvOk'), async () => {
       const persons = d.persons.map((p, i) => ({ merge_id: (document.querySelector(`[data-merge="${i}"]`) || {}).value || null, fee_id: (document.querySelector(`[data-fee="${i}"]`) || {}).value ? +(document.querySelector(`[data-fee="${i}"]`)).value : null }));
       try { const r = await api(`applications/${id}/accept`, 'POST', { persons, entry_date: val('rvEntry') }); closeDialog(); if (r.pending) { toast(`Befürwortet. ${PENDING}`); after(); return; } toast('Angenommen – Willkommens-E-Mail ist unterwegs.'); await loadMeta(); GK.refreshBadges(); openMember(r.member_id); }
       catch (e) { fail(e); }
-    };
+    });
   }
 
   async function acceptChange(c, after) {
@@ -821,7 +821,7 @@
           <p class="muted s">Beiträge und Abteilungen enden zum Austritt. Das Kündigungsschreiben (falls hochgeladen) liegt im Mitglied unter Dokumente.</p>
           <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Austritt bestätigen</button></div>`);
         $('c').onclick = closeDialog;
-        $('ckOk').onclick = async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Austritt bestätigt.'); after(); } catch (e) { fail(e); } };
+        $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Austritt bestätigt.'); after(); } catch (e) { fail(e); } });
         return;
       }
       if (!await ask(`${c.label} von ${c.name} bestätigen?\nGemeldet von ${c.created_by || '–'}.\n\n${c.rows.map(r => `${r.field}: ${r.new || '–'}`).join('\n')}`, { ok: 'Bestätigen', danger: false })) return;
@@ -839,7 +839,7 @@
         <p class="muted s">Beim Übernehmen entsteht ein neues SEPA-Mandat mit neuer Referenz (Erstlastschrift). Das unterschriebene Mandat wird als PDF abgelegt und dem Mitglied geschickt.</p>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="cbOk">Übernehmen</button></div>`);
       $('c').onclick = closeDialog;
-      $('cbOk').onclick = async () => { try { await api(`changes/${c.id}/accept`, 'POST', {}); closeDialog(); toast('Neue Bankverbindung übernommen.'); after(); } catch (e) { fail(e); } };
+      $('cbOk').onclick = () => GK.busy($('cbOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', {}); closeDialog(); toast('Neue Bankverbindung übernommen.'); after(); } catch (e) { fail(e); } });
       return;
     }
     dialog(`<h2>Kündigung von ${esc(c.name)}</h2><p>Für: <b>${esc((c.kuendigung.names || []).join(', '))}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}</p>
@@ -847,7 +847,7 @@
       <p class="muted s">Vorschlag nach Kündigungsfrist und Beitragsjahr. Beiträge und Abteilungen enden zum Austritt; das Mitglied bekommt eine Bestätigung per E-Mail.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Kündigung bestätigen</button></div>`);
     $('c').onclick = closeDialog;
-    $('ckOk').onclick = async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Kündigung bestätigt.'); after(); } catch (e) { fail(e); } };
+    $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Kündigung bestätigt.'); after(); } catch (e) { fail(e); } });
   }
 
   /* ================================================================= Beiträge & Einzug */
@@ -941,7 +941,7 @@
       const o = opts(only);
       const pv = await api('runs/preview', 'POST', o);
       const skip = new Set();
-      $('rOut').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">${only ? 'Verkaufs-Einzug' : 'Vorschau Beitragslauf'} bis ${deDate(pv.until)}</h3>
+      $('rOut').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">${only ? 'Verkaufs-Einzug' : 'Vorschau Beitragslauf'} bis ${deDate(pv.until)}</h3>
           <span class="muted s">${pv.totals.payers} Zahler · ${pv.totals.count} Positionen</span></div>
         ${pv.warnings.map(w => `<div class="banner a"><span>${esc(w.text)}</span></div>`).join('')}${pv.info.map(w => `<div class="banner g"><span>${esc(w)}</span></div>`).join('')}
         ${pv.positions.length ? `<div class="scroll" style="max-height:52vh"><table class="tbl"><tr><th style="width:36px"><input type="checkbox" id="rAll" checked aria-label="alle"></th><th>Zahler</th><th>Position</th><th>Art</th><th>Fälligkeit</th><th>Zahlung</th><th class="r">Betrag</th></tr>
@@ -984,7 +984,7 @@
         <p class="muted s">Weniger als der Betrag = Teilzahlung, der Rest bleibt offen.</p>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pyOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
-      $('pyOk').onclick = async () => { try { await api(`charges/${c.id}/pay`, 'POST', { cents: toCents(val('pyC')), date: val('pyD'), via: val('pyV') }); closeDialog(); toast('Zahlung erfasst.'); again(); } catch (e) { fail(e); } };
+      $('pyOk').onclick = () => GK.busy($('pyOk'), async () => { try { await api(`charges/${c.id}/pay`, 'POST', { cents: toCents(val('pyC')), date: val('pyD'), via: val('pyV') }); closeDialog(); toast('Zahlung erfasst.'); again(); } catch (e) { fail(e); } });
     }; });
     el.querySelectorAll('[data-ced]').forEach(b => { b.onclick = async () => chargeDialog(await get(+b.dataset.ced), {}, again); });
     el.querySelectorAll('[data-ccx]').forEach(b => { b.onclick = async () => {
@@ -994,7 +994,7 @@
         ${c.kind === 'beitrag' ? '<label class="chk" style="margin-top:12px"><input type="checkbox" id="cxRe"> Zeitraum beim nächsten Beitragslauf neu abrechnen</label>' : ''}
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="cxOk">Stornieren</button></div>`);
       $('c').onclick = closeDialog;
-      $('cxOk').onclick = async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } };
+      $('cxOk').onclick = () => GK.busy($('cxOk'), async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } });
     }; });
   }
   function chargeDialog(c, { member_id } = {}, again) {
@@ -1006,13 +1006,13 @@
       ${c ? '' : '<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>'}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="chOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
-    $('chOk').onclick = async () => {
+    $('chOk').onclick = () => GK.busy($('chOk'), async () => {
       try {
         if (c) await api('charges/' + c.id, 'PUT', { text: val('chT'), cents: toCents(val('chC')), due_date: val('chD') });
         else await api('charges', 'POST', { member_id: member_id || +val('chM'), text: val('chT'), cents: toCents(val('chC')), due_date: val('chD'), kind: val('chK') });
         closeDialog(); toast('Gespeichert.'); again();
       } catch (e) { fail(e); }
-    };
+    });
   }
 
   async function finCharges(el, again) {
@@ -1100,7 +1100,7 @@
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="rtM"> Mandat sperren (keine weiteren Lastschriften)</label>
         <div class="btns"><button class="btn ghost" id="c2">Abbrechen</button><button class="btn danger" id="rtOk">Rücklastschrift erfassen</button></div>`);
       $('c2').onclick = () => collectionDetail(id, again);
-      $('rtOk').onclick = async () => { try { await api(`collections/${id}/return`, 'POST', { member_id: r.member_id, reason: val('rtR'), fee_cents: toCents(val('rtF') || '0'), revokeMandate: $('rtM').checked }); toast('Erfasst.'); collectionDetail(id, again); } catch (e) { fail(e); } };
+      $('rtOk').onclick = () => GK.busy($('rtOk'), async () => { try { await api(`collections/${id}/return`, 'POST', { member_id: r.member_id, reason: val('rtR'), fee_cents: toCents(val('rtF') || '0'), revokeMandate: $('rtM').checked }); toast('Erfasst.'); collectionDetail(id, again); } catch (e) { fail(e); } });
     }; });
   }
 
@@ -1109,10 +1109,10 @@
     const rows = await api('dunning?days=' + st.dd);
     const all = await api('charges?status=offen');
     const payers = [...new Set(all.rows.map(c => c.member_id))].map(id => { const list = all.rows.filter(c => c.member_id === id); return { id, name: list[0].payer_name, payment: list[0].payment, cents: list.reduce((s, c) => s + c.cents, 0), n: list.length }; }).filter(p => p.cents > 0 && p.payment !== 'lastschrift');
-    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Rechnungen (Zahlungsart Rechnung/bar)</h3><button class="btn primary" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button></div>
+    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Rechnungen (Zahlungsart Rechnung/bar)</h3><button class="btn primary" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button></div>
         ${payers.length ? `<table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>${payers.map(p => `<tr><td><input type="checkbox" data-inv="${p.id}" checked></td><td><b>${esc(GK.lastFirst(p.name))}</b></td><td class="r">${p.n}</td><td class="r">${euro(p.cents)}</td>
           <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${p.id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="muted">Keine offenen Rechnungen.</p>'}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Mahnungen</h3>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
           <div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px">überfällig seit mehr als<select id="dDays" data-nodirty>${[0, 7, 14, 30, 60].map(n => opt(n, n + ' Tagen', st.dd)).join('')}</select></label><button class="btn primary" id="dSend" ${rows.length ? '' : 'disabled'}>Ausgewählte mahnen</button></div></div>
         ${rows.length ? `<table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>älteste Fälligkeit</th><th>Mahnstufe</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>
           ${rows.map(r => `<tr><td><input type="checkbox" data-dun="${r.member_id}" checked></td><td><b>${esc(GK.lastFirst(r.name))}</b>${r.email ? '' : ' <span class="pill a">keine E-Mail</span>'}</td><td class="nw">${deDate(r.oldest)}</td><td>${r.level ? `${r.level}. ${r.dunned_at ? '· ' + deDate(r.dunned_at) : ''}` : '–'}</td><td class="r">${r.n}</td><td class="r">${euro(r.cents)}</td>
@@ -1143,7 +1143,7 @@
         <div class="card"><h3>Abteilungen</h3>${s.depts.length ? `<table class="tbl">${s.depts.map(d => `<tr><td><b>${esc(d.name)}</b></td><td class="r">${d.n}</td></tr>`).join('')}</table>` : '<p class="muted">Keine Abteilungen angelegt.</p>'}</div>
         <div class="card"><h3>Ein- und Austritte</h3><table class="tbl"><tr><th>Jahr</th><th class="r">Eintritte</th><th class="r">Austritte</th><th class="r">Saldo</th></tr>
           ${s.years.slice().reverse().filter(y => y.in || y.out || y.year >= +s.day.slice(0, 4) - 2).map(y => `<tr><td>${y.year}</td><td class="r">${y.in}</td><td class="r">${y.out}</td><td class="r ${y.in - y.out < 0 ? 'neg' : ''}">${y.in - y.out > 0 ? '+' : ''}${y.in - y.out}</td></tr>`).join('')}</table></div></div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn primary" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn primary" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
         <table class="tbl mv-lsb"><tr><th>Altersgruppe</th><th>männlich</th><th>weiblich</th><th>divers</th><th>ohne Angabe</th><th>gesamt</th></tr>
           ${s.lsb.groups.map((g, i) => `<tr><td>${esc(g)}</td><td>${s.lsb.total[i].m}</td><td>${s.lsb.total[i].w}</td><td>${s.lsb.total[i].d}</td><td>${s.lsb.total[i].x}</td><td><b>${sum(s.lsb.total[i])}</b></td></tr>`).join('')}</table>
         ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} Mitglied(er) ohne Geburtsdatum sind nicht enthalten.</p>` : ''}</div>
@@ -1178,18 +1178,18 @@
     const tS = `<div class="card" data-sec="verein"><h3>Abteilungsleitungen</h3>
         <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eScope" ${s.scope_confirm ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Ein- und Austritte bestätigt die Vereinsverwaltung</b><br><span class="muted s">Legt eine Abteilungsleitung ein neues Mitglied an, trägt einen Austritt oder eine Rückkehr ein oder nimmt eine Beitrittserklärung an, landet das unter „Anträge → Änderungen & Meldungen“ und gilt erst nach Bestätigung durch einen Admin. Bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf.</span></span></label>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveScope">Speichern</button></div></div>`;
-    const tB = `      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Beiträge Hauptverein</h3><button class="btn small primary" id="fNew">+ Beitragsart</button></div>
+    const tB = `      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge Hauptverein</h3><button class="btn small primary" id="fNew">+ Beitragsart</button></div>
         ${m.fees.some(f => f.kind !== 'zusatz') ? `<table class="tbl"><tr><th>Bezeichnung</th><th class="r">Betrag</th><th>Rhythmus</th><th>Alter</th><th>Familie</th><th>Arbeitsstunden</th><th>Formular</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind !== 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc(f.name)}</b>${f.department_id ? `<div class="muted s">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</div>` : ''}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}${f.interval === 'einmalig' ? '' : `<div class="muted s">${esc(PRS[f.prorate] || '')}</div>`}</td>
             <td>${f.age_min != null || f.age_max != null ? `${f.age_min ?? 0}–${f.age_max ?? '…'}` : '–'}</td><td>${f.family ? '<span class="pill g">ja</span>' : '–'}</td><td>${f.work_minutes === 0 ? 'keine' : f.work_minutes ? (f.work_minutes / 60).toLocaleString('de-DE') + ' h' : 'Vorgabe'}</td>
             <td>${f.on_form ? '✓' : '–'}</td><td class="r">${f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Beitragsarten – z. B. „Erwachsene ab 19 Jahre“, „Jugendliche 12–18“, „Familie“. Oder per Import (S-Verein, WISO Mein Verein, verein.cloud) unter Mitglieder → Import.</p>'}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Zusatzbeiträge der Abteilungen</h3><button class="btn small primary" id="zNew" ${m.depts.length ? '' : 'disabled'}>+ Zusatzbeitrag</button></div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Zusatzbeiträge der Abteilungen</h3><button class="btn small primary" id="zNew" ${m.depts.length ? '' : 'disabled'}>+ Zusatzbeitrag</button></div>
         ${m.fees.some(f => f.kind === 'zusatz') ? `<table class="tbl"><tr><th>Abteilung</th><th>Bezeichnung</th><th>Alter</th><th class="r">Betrag</th><th>Rhythmus</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind === 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</b></td><td translate="no">${esc(f.name)}</td>
             <td>${f.age_min != null || f.age_max != null ? `${f.age_min ?? 0}–${f.age_max ?? '…'}` : 'alle'}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}<div class="muted s">${esc(PRS[f.prorate] || '')}</div></td>
             <td class="r">${f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>`
           : '<p class="muted">Keine. Beispiel: Abteilung Padel – „Padel Erwachsene“ ab 19 Jahre 60 €, „Padel Jugend“ bis 18 Jahre 30 €. Jede Person in der Abteilung zahlt den Beitrag ihres Alters zusätzlich zum Beitrag des Hauptvereins – in Familien beim Hauptzahler.</p>'}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 0;min-width:0;line-height:1.25">Abteilungen</h3><button class="btn small primary" id="dNew">+ Abteilung</button></div>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3><button class="btn small primary" id="dNew">+ Abteilung</button></div>
         ${m.depts.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Verband</th><th class="r">Mitglieder</th><th></th></tr>${m.depts.map(d => `<tr class="${d.active ? '' : 'off'}"><td><b translate="no">${esc(d.name)}</b></td><td>${esc(d.federation || '–')}</td><td class="r">${d.members}</td>
           <td class="r nw"><button class="btn small" data-de="${d.id}">Bearbeiten</button> ${d.members ? '' : `<button class="btn small danger" data-dx="${d.id}">Löschen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Abteilungen.</p>'}</div>
 `;
@@ -1204,7 +1204,7 @@
         <h3 style="margin:18px 0 8px">Einwilligungen</h3>
         <table class="tbl" id="eCons"><tr><th style="width:200px">Kurzname</th><th>Text auf dem Formular</th><th style="width:80px">Pflicht</th><th style="width:100px"></th></tr>
           ${s.consents.map((c, i) => consentRow(c, i)).join('')}</table>
-        <div class="row" style="justify-content:space-between;margin-top:10px"><div class="row"><button class="btn small" id="eConsAdd">+ Einwilligung</button><a class="btn small" href="${BASE}applications-blank.pdf" target="_blank">Formular ansehen (PDF)</a></div><button class="btn primary" id="eSave2">Speichern</button></div></div>
+        <div class="row" style="justify-content:space-between;margin-top:10px"><div class="row"><button class="btn" id="eConsAdd">+ Einwilligung</button><a class="btn" href="${BASE}applications-blank.pdf" target="_blank">Formular ansehen (PDF)</a></div><button class="btn primary" id="eSave2">Speichern</button></div></div>
       <div class="card" data-sec="app"><h3>Mitglieder-App: „Meine Daten“</h3><p class="muted s" style="margin-top:0">Was Mitglieder in der App sehen und selbst ändern dürfen. Änderungen an Daten bestätigt immer der Vorstand. Einwilligungen (z. B. Fotos auf der Homepage) kann jedes Mitglied jederzeit widerrufen – das bleibt immer möglich.</p>
         <div class="mv-grid" style="--c:2"><div><div class="mv-sub">Sehen</div><div class="mv-cons">${Object.entries(s.app_labels.view).map(([k, l]) => `<label class="chk"><input type="checkbox" data-apv="${k}" ${s.app_perms.view[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
           <div><div class="mv-sub">Ändern</div><div class="mv-cons">${Object.entries(s.app_labels.edit).map(([k, l]) => `<label class="chk"><input type="checkbox" data-ape="${k}" ${s.app_perms.edit[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div></div>
@@ -1253,8 +1253,8 @@
         <label class="f">Reihenfolge<input id="dnS" value="${d ? d.sort : 0}" inputmode="numeric"></label>${d ? `<label class="chk" style="align-self:end;height:40px"><input type="checkbox" id="dnA" ${d.active ? 'checked' : ''}> aktiv (zur Auswahl angeboten)</label>` : ''}</div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="dnOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
-      $('dnOk').onclick = async () => { const body = { name: val('dnN'), federation: val('dnF'), sort: +val('dnS') || 0, ...(d ? { active: $('dnA').checked } : {}) };
-        try { if (d) await api('departments/' + d.id, 'PUT', body); else await api('departments', 'POST', body); closeDialog(); showSettings(el, part).catch(fail); } catch (e) { fail(e); } };
+      $('dnOk').onclick = () => GK.busy($('dnOk'), async () => { const body = { name: val('dnN'), federation: val('dnF'), sort: +val('dnS') || 0, ...(d ? { active: $('dnA').checked } : {}) };
+        try { if (d) await api('departments/' + d.id, 'PUT', body); else await api('departments', 'POST', body); closeDialog(); showSettings(el, part).catch(fail); } catch (e) { fail(e); } });
     };
     if ($('dNew')) $('dNew').onclick = () => deptEdit(null);
     el.querySelectorAll('[data-de]').forEach(b => { b.onclick = () => deptEdit(m.depts.find(d => d.id === +b.dataset.de)); });
@@ -1292,21 +1292,21 @@
     };
     $('feK').onchange = sync; sync();
     const n = v => (v === '' ? null : +v);
-    $('feOk').onclick = async () => {
+    $('feOk').onclick = () => GK.busy($('feOk'), async () => {
       const w = val('feW');
       const body = { kind: val('feK'), name: val('feN'), cents: toCents(val('feC') || '0'), interval: val('feI'), prorate: val('feP'), department_id: val('feD') ? +val('feD') : null, age_min: n(val('feA1')), age_max: n(val('feA2')),
         work_minutes: w === '' ? null : Math.round(Number(w.replace(',', '.')) * 60), family: $('feF').checked, on_form: $('feO').checked, note: val('feNote'), ...(f ? { active: $('feAct').checked } : {}) };
       try { if (f) await api('fees/' + f.id, 'PUT', body); else await api('fees', 'POST', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
-    };
+    });
     if ($('feDel')) $('feDel').onclick = async () => { try { await api('fees/' + f.id, 'DELETE'); closeDialog(); after(); } catch (e) { fail(e); } };
   }
 
-  const G = { key: 'mitglieder', label: 'Mitgliederverwaltung', icon: 'ausweis', order: 5 };
+  const G = { key: 'mitglieder', label: 'Mitgliederverwaltung', icon: 'ausweis', order: 7 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
   GK.registerPage({ key: 'mitglieder', title: 'Mitglieder', perm: 'mitglieder', render, group: G });
   GK.registerPage({ key: 'mv-beitraege', title: 'Beiträge', perm: '!mitglieder', render: pageRender('mv-beitraege', showFees), group: G });
   GK.registerPage({ key: 'mv-einzug', title: 'Einzug & Zahlungen', perm: 'mitglieder_finanzen', render: pageRender('mv-einzug', showFinance), group: G });
   GK.registerPage({ key: 'mv-antraege', title: 'Anträge & Änderungen', perm: 'mitglieder', render: pageRender('mv-antraege', showApplications), group: G, tab: 'Anträge' });
-  GK.registerPage({ key: 'mv-auswertung', title: 'Auswertungen', perm: '!mitglieder', render: pageRender('mv-auswertung', showReports), group: G });
+  GK.registerPage({ key: 'mv-auswertung', title: 'Auswertung', perm: '!mitglieder', render: pageRender('mv-auswertung', showReports), group: G });
   GK.registerPage({ key: 'mv-einstellungen', title: 'Einstellungen', perm: '!mitglieder', render: pageRender('mv-einstellungen', el => showSettings(el, 'settings')), group: G });
   // Konten & PINs gehören zum Verkauf, sobald die Mitglieder hier verwaltet werden
   if (GK.regroup && (!GK.modules || GK.modules().includes('getraenke'))) GK.regroup('konten', 'getraenke', { title: 'Konten & PINs', tab: 'Konten' });

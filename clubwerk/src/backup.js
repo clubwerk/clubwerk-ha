@@ -153,7 +153,7 @@ async function haPre() {
 }
 function haPost() { try { fs.unlinkSync(HA_MARKER); } catch (e) { /* egal */ } }
 
-module.exports = { BACKUP_DIR, DB_FILE, DATA_DIR, snapshot, list, validate, isSqlite, markRestore, pendingRestore, cancelRestore,
+module.exports = { BACKUP_DIR, DB_FILE, DATA_DIR, snapshot, list, validate, markRestore, pendingRestore, cancelRestore,
   applyPendingRestore, haPre, haPost, safeName, stamp, stageDirs, standalone };
 
 // Aufruf von der Kommandozeile: node backup.js pre|post

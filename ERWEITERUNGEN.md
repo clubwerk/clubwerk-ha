@@ -40,11 +40,27 @@ exports.activate = ctx => {
 
 `ctx` enthält: `tablet` und `admin` (Express-Router, schon abgesichert: Admin-Routen nur mit Anmeldung,
 Tablet-Routen mit dem Passwortschutz der Buchungsseite), `db` (SQLite, better-sqlite3), `getSetting`, `setSetting`,
-`audit(user, aktion, details)`, `need(recht)`, `rateLimit(name, max, ms)`, `bad(res, text)`, `int`, `cleanName`, `nowTs`,
+`audit(user, aktion, details)`, `need(recht)`, `rateLimit(name, max, ms)` (Bremse je Absenderadresse),
+`rateLimitKey(name, max, ms, req => schlüssel)` (Bremse je frei gewähltem Schlüssel, z. B. `req.member.id`), `bad(res, text)`, `int`, `cleanName`, `nowTs`,
+`util` (gemeinsame Helfer: `today()`, `nowTs()`, `isDate(s)`, `addDays(s, n)`, `deD(s)` → „TT.MM.JJJJ“, `euro(cents)`, `esc(html)`, `pad(n)`),
 `isActive()`, `hooks.tabletVisible = () => bool` (Link am Tablet nur zeigen, wenn sinnvoll) und
 `require(name)` für die Bibliotheken von Clubwerk (`exceljs`, `pdfkit`, `nodemailer`, `express`).
 
-**E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → E-Mail-Versand), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger.
+**Hooks für den Lebenszyklus (optional):** `ctx.hooks.shutdown = async () => {}` (Clubwerk wird beendet – Update, Neustart),
+`ctx.hooks.deactivate = () => {}` (das Modul wird in der Verwaltung ausgeschaltet – laufende Vorgänge beenden, z. B. offene Ventile schließen)
+und `ctx.hooks.memberRemoved = (fromId, intoId) => {}`: Ein Mitgliedskonto wird zusammengeführt (`intoId` = Zielkonto) oder endgültig
+gelöscht (`intoId = null`). Der Hook läuft **synchron** in der Transaktion des Kerns, *bevor* der Kern alle Spalten mit
+`REFERENCES members(id)` – auch in Modultabellen – generisch umhängt bzw. löscht (bei UNIQUE-Konflikt fällt die Zeile des alten Kontos weg).
+Im Hook erledigt das Modul nur, was der Kern nicht sieht: Verweise ohne Fremdschlüssel (z. B. Verlauf, IDs in JSON-Listen), Dateien,
+eigene Protokolleinträge. Wirft der Hook, bricht der Kern ab und zeigt den Fehlertext an.
+
+**Datums-/Zeitformate:** Fachliche Tage und Zeitpunkte stehen in der Datenbank in lokaler Zeit ohne Zonenangabe –
+`JJJJ-MM-TT` bzw. `JJJJ-MM-TT HH:MM:SS` (wie SQLites `datetime('now','localtime')`; genau das liefern `ctx.util.today()` und
+`ctx.util.nowTs()`). Vergleiche funktionieren dann als Textvergleich. Millisekunden seit 1970 (`Date.now()`) nur für Zeitgeber
+und Sperren (z. B. Ablauf eines Ventils, Gerätesperre), ISO mit `Z` nur, wo der Kern es vorgibt (`locked_until` der Konten).
+Formate in einer Spalte nie mischen; für die Anzeige `ctx.util.deD()` verwenden.
+
+**E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → Postfach), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger.
 
 **Deinstallieren:** In `erweiterung.json` mit `"tabellen": ["meine_tabelle", …]` die eigenen Tabellen angeben (sonst gelten alle Tabellen mit dem Präfix `<id>_`) und bei Bedarf `"einstellungen": ["praefix_"]` für Einstellungen außerhalb von `ext_<id>_…`. Diese Daten landen in der Modul-Sicherung und werden beim Deinstallieren gelöscht.
 

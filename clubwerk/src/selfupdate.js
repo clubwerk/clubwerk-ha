@@ -36,10 +36,11 @@ function findAddonDir(root = process.env.ADDONS_DIR || '/addons') {
  * Akzeptiert: clubwerk-ha/clubwerk/…, clubwerk/… oder die Add-on-Dateien direkt im ZIP.
  * @returns {{ version, files, size, depsChanged, changelog }}
  */
-async function inspect(buf, outDir, { currentVersion, currentDir }) {
+async function inspect(src, outDir, { currentVersion, currentDir }) {
   const JSZip = require('jszip');
   let zip;
-  try { zip = await JSZip.loadAsync(buf); } catch (e) { throw new Error('Die Datei ist kein gültiges ZIP-Archiv.'); }
+  // src: Pfad der hochgeladenen Datei (gestreamt auf die Platte) oder ein Buffer
+  try { zip = await JSZip.loadAsync(Buffer.isBuffer(src) ? src : fs.readFileSync(src)); } catch (e) { throw new Error('Die Datei ist kein gültiges ZIP-Archiv.'); }
   const entries = Object.values(zip.files);
   if (entries.length > MAX_FILES) throw new Error('Das ZIP enthält zu viele Dateien.');
   const unsafe = entries.find(f => f.unsafeOriginalName && f.unsafeOriginalName !== f.name);

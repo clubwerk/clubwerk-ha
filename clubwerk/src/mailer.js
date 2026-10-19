@@ -4,7 +4,7 @@
  * Mails an Mitglieder schreiben wie in einem E-Mail-Programm: Empfänger aus Gruppen (Status, Abteilungen, Ämter,
  * Beiträge), einzelnen Mitgliedern, freien Adressen und gespeicherten Verteilern; formatierter Text, Anhänge,
  * Entwürfe (automatisch gespeichert), Vorlagen, Gesendet-Ordner mit Zustellstatus je Empfänger.
- * Gesendet wird immer über das Vereinspostfach (Einstellungen → E-Mail-Versand) – mit dem Namen des Absenders und
+ * Gesendet wird immer über das Vereinspostfach (Einstellungen → Postfach) – mit dem Namen des Absenders und
  * SEINER Antwortadresse: Jeder im Vorstand schreibt im Namen des Vereins, Antworten landen bei ihm persönlich.
  * Recht „E-Mail“; mit einer Rolle „nur eigene Abteilung“ nur an Mitglieder der eigenen Abteilungen.
  */
@@ -12,8 +12,17 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const { db, DATA_DIR, getSetting, setSetting, audit, nameKey } = require('./db');
+const { db, DATA_DIR, getSetting, setSetting, audit, nameKey, splitPersonName } = require('./db');
 const mail = require('./mail');
+const { nowTs: now, today, esc } = require('./util');
+
+/* ---------- kleine Helfer (vor der Rechte-Migration unten, die sie schon beim Laden braucht) ---------- */
+const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
+const one = (v, n) => String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, n);
+const okMail = m => /^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(m);
+const club = () => getSetting('club_name', 'Verein');
+/** Anzeige „Nachname, Vorname“ – gleiche Zerlegung wie die Sortierung (name_key), damit die Liste sortiert wirkt */
+const lastFirst = n => { const x = splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };
 
 const DIR = path.join(DATA_DIR, 'mail-anhaenge');
 const MAX_FILE = 10 * 1024 * 1024, MAX_TOTAL = 20 * 1024 * 1024, MAX_FILES = 10, MAX_RCPT = 1500;
@@ -41,25 +50,20 @@ CREATE TABLE IF NOT EXISTS mail_list (id INTEGER PRIMARY KEY AUTOINCREMENT, name
 CREATE TABLE IF NOT EXISTS mail_template (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, subject TEXT NOT NULL DEFAULT '', html TEXT NOT NULL DEFAULT '', updated_by TEXT, updated_at TEXT);
 `);
 { const cols = db.prepare('PRAGMA table_info(mail_message)').all().map(c => c.name); if (!cols.includes('signature_html')) db.exec('ALTER TABLE mail_message ADD COLUMN signature_html TEXT'); }
-// Einmalig (3.10): Wer bisher Rundmails aus der Mitgliederverwaltung schicken durfte, bekommt das neue Recht „E-Mail“
+// Einmalig (3.10): Wer bisher Rundmails aus der Mitgliederverwaltung schicken durfte, bekommt das neue Recht „E-Mail“.
+// Die Markierung wird erst gesetzt, wenn alles ohne Fehler durchlief – sonst beim nächsten Start noch einmal versuchen.
 (function migratePerm() {
   if (getSetting('mail_perm_migrated', '')) return;
+  if (!db.prepare('SELECT 1 FROM admin_users LIMIT 1').get()) { setSetting('mail_perm_migrated', '1'); return; }   // frische Installation: Rollenvorlagen bleiben wie ausgeliefert
   const add = v => { const a = J(v, []); return Array.isArray(a) && a.includes('mitglieder') && !a.includes('email') ? JSON.stringify([...a, 'email']) : null; };
   try {
-    for (const r of db.prepare('SELECT id, perms FROM admin_roles').all()) { const n = add(r.perms); if (n) db.prepare('UPDATE admin_roles SET perms = ? WHERE id = ?').run(n, r.id); }
-    for (const u of db.prepare('SELECT id, perms FROM admin_users').all()) { const n = add(u.perms); if (n) db.prepare('UPDATE admin_users SET perms = ? WHERE id = ?').run(n, u.id); }
+    db.transaction(() => {
+      for (const r of db.prepare('SELECT id, perms FROM admin_roles').all()) { const n = add(r.perms); if (n) db.prepare('UPDATE admin_roles SET perms = ? WHERE id = ?').run(n, r.id); }
+      for (const u of db.prepare('SELECT id, perms FROM admin_users').all()) { const n = add(u.perms); if (n) db.prepare('UPDATE admin_users SET perms = ? WHERE id = ?').run(n, u.id); }
+    })();
+    setSetting('mail_perm_migrated', '1');
   } catch (e) { console.error('E-Mail: Rechte übernehmen', e.message); }
-  setSetting('mail_perm_migrated', '1');
 })();
-
-const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
-const now = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
-const today = () => now().slice(0, 10);
-const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const one = (v, n) => String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, n);
-const okMail = m => /^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(m);
-const club = () => getSetting('club_name', 'Verein');
-const lastFirst = n => { const p = String(n || '').trim().split(/\s+/); return p.length > 1 ? `${p[p.length - 1]}, ${p.slice(0, -1).join(' ')}` : String(n || ''); };
 
 /* ---------- HTML: nur einfache Formatierung durchlassen ---------- */
 const TAGS = new Set(['p', 'br', 'div', 'b', 'strong', 'i', 'em', 'u', 's', 'ul', 'ol', 'li', 'a', 'h2', 'h3', 'blockquote', 'hr', 'span']);
@@ -183,8 +187,9 @@ const PH = ['vorname', 'nachname', 'name', 'anrede', 'briefanrede', 'mitgliedsnr
 function vars(r) {
   const p = r.person;
   if (!p) return { vorname: '', nachname: '', name: r.name && r.name !== r.email ? r.name : '', anrede: '', briefanrede: r.name && r.name !== r.email ? `Hallo ${r.name.split(/\s+/)[0]}` : 'Guten Tag', mitgliedsnr: '', verein: club() };
-  const first = p.first_name || String(p.name).split(/\s+/).slice(0, -1).join(' ');
-  const last = p.last_name || String(p.name).split(/\s+/).slice(-1)[0];
+  const sp = splitPersonName(p.name);
+  const first = p.first_name || sp.first;
+  const last = p.last_name || sp.last;
   return { vorname: first || '', nachname: last || '', name: p.name, anrede: p.salutation || '', briefanrede: p.letter_salutation || (first ? `Hallo ${first}` : 'Guten Tag'), mitgliedsnr: p.member_no || '', verein: club() };
 }
 const fillText = (t, v) => String(t).replace(/\{(vorname|nachname|name|anrede|briefanrede|mitgliedsnr|verein)\}/g, (m, k) => v[k] || '');
@@ -409,7 +414,7 @@ function routes(admin, { need, bad }) {
   });
   admin.post('/mail/drafts/:id/send', P, (req, res) => {
     const m = draftOf(req, res); if (!m) return;
-    if (!mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+    if (!mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     const { r, errs } = check(req, m);
     if (errs.length) return bad(res, errs[0]);
     const me = identity(req.user);
@@ -433,7 +438,7 @@ function routes(admin, { need, bad }) {
   admin.post('/mail/messages/:id/retry', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
     if (!visible(req, m) || m.status !== 'teilweise') return bad(res, 'Nichts zu wiederholen.');
-    if (!mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+    if (!mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     const n = db.prepare("UPDATE mail_recipient SET status = 'wartet', error = NULL WHERE message_id = ? AND status = 'fehler'").run(m.id).changes;
     db.prepare("UPDATE mail_message SET status = 'sendet' WHERE id = ?").run(m.id);
     audit(req.user, 'E-Mail erneut gesendet', `„${m.subject}“ an ${n} Empfänger`);

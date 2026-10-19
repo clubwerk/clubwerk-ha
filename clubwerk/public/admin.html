@@ -37,6 +37,7 @@
   nav.side button.nav.on::before { content: ''; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: var(--brand); }
   nav.side .badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
   nav.side .badge.a { background: var(--amber-soft); color: var(--amber); }
+  nav.side .badge.r { background: var(--red); color: #fff; }   /* Datensicherung: fehlt oder zu alt */
   nav.side .userchip { display: flex; flex-direction: column; gap: 10px; margin: 12px; padding: 12px; border-radius: 12px; background: var(--hover); }
   nav.side .userchip .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
   nav.side .userchip .ucbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
@@ -64,8 +65,8 @@
   .leadbox.open { height: auto; }
   .leadbox.open > p.lead { display: block; -webkit-line-clamp: unset; overflow: visible; }
   .leadbox.open > p.lead + p.lead { margin-top: 8px; }
-  .leadbox .leadmore { position: absolute; right: 0; bottom: 0; height: 20px; padding: 0 0 0 28px; border: 0; font: inherit; font-weight: 600; color: var(--brand-ink); cursor: pointer;
-    background: linear-gradient(90deg, transparent, var(--bg) 24px); }
+  .leadbox .leadmore { position: absolute; right: 0; bottom: 0; height: 20px; padding: 0 0 0 44px; border: 0; font: inherit; font-weight: 600; color: var(--brand-ink); cursor: pointer;
+    background: linear-gradient(90deg, transparent, var(--bg) 40px); }
   .leadbox.open .leadmore { position: static; padding: 0; margin-top: 4px; background: none; }
   /* Karten, Kennzahlen */
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
@@ -73,6 +74,7 @@
   .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 16px; }
   .kpi { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 4px; }
   .kpi .l { color: var(--muted); font-size: 13px; font-weight: 600; }
+  .kpis .kpi { justify-content: flex-end; }   /* Zahlen stehen auf einer Linie, auch wenn ein Label zwei Zeilen braucht */
   .kpi .v { font-size: 24px; line-height: 32px; font-weight: 700; letter-spacing: -.01em; font-variant-numeric: tabular-nums; }
   .kpi a { color: var(--brand-ink); font-weight: 700; font-size: 13px; text-decoration: none; margin-top: auto; }
   .kpi.warn { background: var(--amber-soft); border-color: var(--amber-line); }
@@ -128,7 +130,7 @@
   .av.lg { width: 52px; height: 52px; flex-basis: 52px; border-radius: 26px; font-size: 17px; background: var(--brand); color: #fff; }
   .mdetail { position: sticky; top: 20px; margin: 0; padding: 20px; }
   .mdetail .mhead { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
-  .mdetail .mhead h3 { margin: 0 0 6px; font-size: 17px; line-height: 22px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mdetail .mhead h3 { margin: 0 0 6px; font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mdetail .facts { margin: 0; padding: 8px 0; }
   .mdetail .facts > div { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
   .mdetail .facts dt { color: var(--muted); font-size: 13px; line-height: 20px; }
@@ -139,7 +141,7 @@
   .mdetail .mact .btn:only-child, .mdetail .mact .btn.ghost { grid-column: 1 / -1; }
   .mdetail .mempty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 8px; }
   .mdetail .mempty .mi { width: 48px; height: 48px; border-radius: 14px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
-  @media (max-width: 1100px) { .mlayout { grid-template-columns: 1fr; } .mdetail { position: static; order: -1; } .mdetail.empty { display: none; } }
+  @media (max-width: 1100px) { .mlayout { grid-template-columns: 1fr; } .mlayout > .mdetail { display: none; } }   /* schmal: Detail als Dialog (admin.js), die Liste springt nicht */
   @media (max-width: 700px) {
     .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
     .kpi { padding: 14px 16px; }
@@ -195,6 +197,8 @@
   .dialog.wide { width: min(1250px, 100%); }
   .dialog h2 { margin: 0 0 12px; font-size: 20px; line-height: 28px; font-weight: 700; }
   .dialog .btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
+  /* Fußzeile einer Karte mit mehreren Eingabezeilen: Speichern unten rechts (Karten mit einer Zeile: Knopf in der Zeile) */
+  .card .btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
   .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; }
   .preview { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--hover); min-height: 420px; }
   .preview iframe, .preview img { width: 100%; height: 72vh; border: 0; object-fit: contain; display: block; }
@@ -218,13 +222,17 @@
   .evlist[data-f="offen"] tr[data-status]:not([data-status="offen"]) { display: none; }
   .evlist[data-f="bezahlt"] tr[data-status]:not([data-status="bezahlt"]) { display: none; }
   .seg { display: flex; gap: 4px; }
-  /* Einheitliche Höhen */
+  /* Einheitliche Höhen: Eingabefelder und alle Knöpfe im Seiteninhalt 40 px (Werkzeugleiste, Filter, Formularzeilen, Kartenfußzeilen);
+     Dialoge behalten ihre 44-px-Knöpfe */
+  main#main .btn:not(.small) { min-height: 40px; line-height: 19px; }   /* auch zweizeilig beschriftete Knöpfe bleiben 40 px (2 × 19 px + Rahmen) */
   label.f input, label.f select, .row > .btn:not(.small), .row > label.btn:not(.small), .row > a.btn:not(.small) { height: 40px; min-height: 40px; box-sizing: border-box; }
   .row > .btn:not(.small), .row > label.btn:not(.small), .row > a.btn:not(.small) { display: inline-flex; align-items: center; }
   label.f input[type=color] { padding: 3px; }
   .tbl td { height: 52px; box-sizing: border-box; }
   .card > table.tbl th:first-child, .card > table.tbl td:first-child { padding-left: 0; }
   .card > table.tbl th:last-child, .card > table.tbl td:last-child { padding-right: 0; }
+  /* Tabelle im Rahmen (.scroll): Rahmenlinie liegt außerhalb des Textrasters, Kopfzelle beginnt auf der Kante der Kartenüberschrift */
+  .card > .scroll { margin-left: -1px; margin-right: -1px; }
   .tbl td .btn.small { min-height: 32px; height: 32px; }
   main .btn.ghost { border-color: var(--line); }
   main .btn.ghost:hover { border-color: var(--faint); }
@@ -232,8 +240,20 @@
   ol.steps { margin: 6px 0 12px; padding-left: 22px; line-height: 1.6; }
   details summary { cursor: pointer; }
   .card { overflow-x: auto; }
+  /* Karte oder Rahmen mit zu breitem Inhalt scrollt seitlich – ein Schatten an der Kante zeigt, dass dort noch Inhalt liegt
+     (Deckflächen in Kartenfarbe wandern mit dem Inhalt und geben den Schatten erst beim Scrollen frei) */
+  .card:not(.drop):not(.soft):not(.warnbox), .scroll {
+    background-image: linear-gradient(90deg, var(--card) 40%, transparent), linear-gradient(270deg, var(--card) 40%, transparent),
+      linear-gradient(90deg, color-mix(in srgb, var(--ink) 18%, transparent), transparent), linear-gradient(270deg, color-mix(in srgb, var(--ink) 18%, transparent), transparent);
+    background-position: left center, right center, left center, right center; background-size: 36px 100%, 36px 100%, 14px 100%, 14px 100%;
+    background-repeat: no-repeat; background-attachment: local, local, scroll, scroll; }
   /* Reiter */
-  .tabs { display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--hover); margin: 4px 0 20px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-sizing: border-box; width: fit-content; max-width: 100%; } .tabs::-webkit-scrollbar { display: none; } .tabs > button { flex: none; white-space: nowrap; }
+  /* position: relative, damit offsetLeft der Reiter relativ zur Leiste gilt (aktiver Reiter wird in die Leiste gescrollt) */
+  .tabs { position: relative; display: flex; gap: 4px; padding: 4px; border-radius: 12px; background: var(--hover); margin: 4px 0 20px; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-sizing: border-box; width: fit-content; max-width: 100%; } .tabs::-webkit-scrollbar { display: none; } .tabs > button { flex: none; white-space: nowrap; }
+  /* Bei Platzmangel: weiche Kante rechts/links als Hinweis, dass weitere Reiter folgen (Klassen setzt admin.js nach dem Messen) */
+  .tabs.more-r { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 36px), transparent); }
+  .tabs.more-l { -webkit-mask-image: linear-gradient(90deg, transparent, #000 36px); mask-image: linear-gradient(90deg, transparent, #000 36px); }
+  .tabs.more-l.more-r { -webkit-mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(90deg, transparent, #000 36px, #000 calc(100% - 36px), transparent); }
   /* Reiter der Module: immer eine Zeile (bei Platzmangel seitlich wischen) – keine zweite Zeile, nichts springt */
   .tabs.drinktabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-sizing: border-box; } .tabs.drinktabs::-webkit-scrollbar { display: none; }
   .tabs.drinktabs > button { flex: none; white-space: nowrap; }
@@ -247,9 +267,17 @@
   .greet { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
   .greet .date { font-size: 13px; font-weight: 600; color: var(--brand-ink); }
   .greet h2.page { margin: 4px 0 0; }
-  .alerts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
-  .alerts .banner { margin: 0; min-height: 56px; }
+  .alerts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; margin-bottom: 16px; }   /* eine Liste, höchstens 3 sichtbar (admin.js: „weitere anzeigen“) */
+  .alerts .banner { margin: 0; min-height: 56px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }   /* Link immer rechts mittig */
+  .alerts .banner > a { white-space: nowrap; }
+  .alerts .banner.extra { display: none; } .alerts.all .banner.extra { display: grid; }
+  .alerts .showall { grid-column: 1 / -1; justify-self: start; height: 32px; padding: 0 12px; border-radius: 8px; font-weight: 700; color: var(--brand-ink); background: var(--hover); }
   .modgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  /* gleichmäßiges Raster ohne Lücke in der letzten Zeile: bis 4 Karten eine Zeile, sonst 3 oder 4 Spalten – je nachdem, was die kleinere Lücke lässt (9 Karten → 3+3+3) */
+  .modgrid.cols1 { grid-template-columns: minmax(0, 1fr); } .modgrid.cols2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .modgrid.cols3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .modgrid.cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  @media (max-width: 1100px) { .modgrid.cols3, .modgrid.cols4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 560px) { .modgrid.cols2, .modgrid.cols3, .modgrid.cols4 { grid-template-columns: 1fr; } }
   .mcard { display: flex; flex-direction: column; gap: 14px; padding: 20px; border-radius: var(--radius); background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow); position: relative; overflow: hidden; }
   .mcard::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px; background: var(--brand); opacity: .9; }
   .mcard .mh { display: flex; align-items: center; gap: 12px; height: 40px; }
@@ -286,7 +314,10 @@
   .mods .mrow.off .ic { background: var(--hover); color: var(--faint); }
   .mods .mrow b { font-size: 15px; line-height: 20px; }
   .mods .mrow .d { font-size: 13px; line-height: 18px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-  .mods .mrow .ver { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .mods .mrow .ver { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+  /* Herkunft („im Paket“, „hochgeladen“) unter der Version – nicht neben dem Namen, damit keine Zeile höher wird als die andere; schmal (Version ausgeblendet) neben dem Namen */
+  .mods .mrow .srcb { display: none; margin-left: 6px; }
+  @media (max-width: 900px) { .mods .mrow .srcb { display: inline-flex; } }
   .mods .mrow .st { display: flex; justify-content: center; }
   .mods .mrow .act { display: flex; align-items: center; justify-content: space-between; }
   .menu { position: absolute; right: 20px; top: calc(100% - 12px); z-index: 25; width: 260px; padding: 6px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 2px; }
@@ -339,7 +370,11 @@
   @media (max-width: 640px) { .ugrid, .rolegrid, .permgrid { grid-template-columns: 1fr; } }
   .warnbox { border-color: var(--amber-line) !important; background: var(--amber-soft) !important; }
   /* Handy & schmale Fenster */
-  @media (max-width: 1100px) { .alerts, .two { grid-template-columns: 1fr; } }
+  @media (max-width: 1100px) { .two { grid-template-columns: 1fr; } }
+  /* Einstellungen einspaltig, sobald Modulliste (460 px) und Sprachen-Tabelle (772 px) nicht mehr neben die Unternavigation passen */
+  @media (max-width: 1150px) { .settings { grid-template-columns: minmax(0, 1fr); } .settings .subnav { position: static; flex-direction: row; flex-wrap: wrap; } }
+  /* Tabellenspalten, die bei schmalen Fenstern entfallen (class="hide-md" an th und td; ab 700 px zeigt die Kartenansicht wieder alles) */
+  @media (max-width: 1100px) and (min-width: 701px) { .tbl .hide-md { display: none; } }
   @media (max-width: 900px) {
     .shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
     nav.side { position: sticky; top: 0; height: auto; z-index: 15; border-right: 0; border-bottom: 1px solid var(--line); }
@@ -350,8 +385,6 @@
     .pagebar { padding: 18px 16px 0; }
     main#main { padding: 16px 16px 40px; }
     .pagebar:empty + main#main { padding-top: 20px; }
-    .settings { grid-template-columns: 1fr; }
-    .settings .subnav { position: static; flex-direction: row; flex-wrap: wrap; }
     .mods .mrow { grid-template-columns: 40px minmax(0, 1fr) 132px; }
     .mods .mrow .ver, .mods .mrow .st, .mods .mrow.head { display: none; }
     .split { grid-template-columns: 1fr; }
@@ -412,7 +445,7 @@
   .ds-leg { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: var(--muted); } .ds-leg i { width: 22px; height: 14px; border-radius: 3px; display: inline-block; } .ds-leg i:first-of-type { margin-left: 6px; } .ds-leg i:last-of-type { margin-right: 6px; }
   .ds-scroll { overflow-x: auto; padding-bottom: 4px; }
   .ds-heat { display: grid; grid-template-columns: 32px repeat(var(--w), minmax(14px, 1fr)); gap: 3px; min-width: calc(32px + var(--w) * 17px); align-items: center; }
-  .ds-heat .mo { font-size: 11.5px; color: var(--muted); white-space: nowrap; height: 16px; line-height: 16px; } .ds-heat .dl, .ds-bub .dl { font-size: 11.5px; color: var(--muted); }
+  .ds-heat .mo { font-size: 11.5px; color: var(--muted); white-space: nowrap; height: 16px; line-height: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; }   /* je Monat eine Zelle über alle seine Wochen (grid-column: span n) */ .ds-heat .dl, .ds-bub .dl { font-size: 11.5px; color: var(--muted); }
   .ds-heat i { display: block; aspect-ratio: 1; border-radius: 3px; background: var(--hover); } .ds-heat i.out { background: transparent; }
   .ds-bub { display: grid; grid-template-columns: 32px repeat(var(--h), minmax(40px, 1fr)); min-width: calc(32px + var(--h) * 40px); align-items: center; }
   .ds-bub .hh { font-size: 11.5px; color: var(--muted); text-align: center; height: 24px; line-height: 24px; font-variant-numeric: tabular-nums; }
@@ -479,7 +512,8 @@
   .langpick .lp.on, .langpick .lp:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
   .langpick .lp span { flex: 1; font-weight: 600; }
   .langpick .lp small { color: var(--muted); font-family: ui-monospace, monospace; }
-  @media (max-width: 760px) { .lgrid, .lgimp { grid-template-columns: 1fr; } .lbar { width: 70px; } }
+  @media (max-width: 1150px) { .lbar { width: 60px; } }   /* Sprachen-Tabelle passt bei 1024 px ohne Scrollen (Herkunft-Spalte: hide-md) */
+  @media (max-width: 760px) { .lgrid, .lgimp { grid-template-columns: 1fr; } }
 </style>
 </head>
 <body>
@@ -488,6 +522,7 @@
 <div id="askOverlay" class="overlay hidden"><div class="dialog" id="askBox"></div></div>
 <div id="toast" class="toast hidden"></div>
 <script src="artikel-icons.js"></script>
+<script src="names.js"></script>
 <script src="mail.js"></script>
 <script src="admin.js"></script>
 </body>

@@ -101,14 +101,14 @@
       const exOf = x => x.members.every(id => (o.rows.find(r => r.id === id) || {}).exempt);
       const fams = o.families.filter(x => (f === 'alle' || (f === 'fehlt' ? x.missing > 0 : f === 'befreit' ? x.members.some(id => (o.rows.find(r => r.id === id) || {}).exempt) : x.missing === 0 && !exOf(x))) && (!q || x.members.some(id => (o.rows.find(r => r.id === id) || {}).name.toLowerCase().includes(q))));
       const rowOf = id => o.rows.find(r => r.id === id);
-      $('awTbl').innerHTML = `<tr><th>${o.pool ? 'Familie / Mitglied' : 'Mitglied'}</th><th class="r">Soll</th><th class="r">geleistet</th><th>Fortschritt</th><th class="r">gemeldet</th><th class="r">fehlt</th><th class="r">Betrag</th><th></th></tr>`
+      $('awTbl').innerHTML = `<tr><th>${o.pool ? 'Familie / Mitglied' : 'Mitglied'}</th><th class="r">Soll</th><th class="r">geleistet</th><th>Fortschritt</th><th class="r hide-md">gemeldet</th><th class="r">fehlt</th><th class="r">Betrag</th><th></th></tr>`
         + (fams.length ? fams.map(x => {
           const many = x.members.length > 1;
           const head = `<tr><td>${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `${rowOf(x.head).exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(rowOf(x.head).why)}</div>`}</td>
-            <td class="r">${h(x.target)}</td><td class="r">${h(x.done)}</td><td>${bar(x.done, x.target)}</td><td class="r">${x.open ? h(x.open) : '<span class="muted s">–</span>'}</td>
+            <td class="r">${h(x.target)}</td><td class="r">${h(x.done)}</td><td>${bar(x.done, x.target)}</td><td class="r hide-md">${x.open ? h(x.open) : '<span class="muted s">–</span>'}</td>
             <td class="r ${x.missing ? 'neg' : ''}">${x.missing ? h(x.missing) : '✓'}</td><td class="r">${x.cents ? euro(x.cents) : '<span class="muted s">–</span>'}</td>
             <td class="r">${many ? '' : `<button class="btn small" data-tgt="${x.head}">Pflichtstunden …</button>`}</td></tr>`;
-          const subs = many && open.has(x.head) ? x.members.map(id => { const r = rowOf(id); return `<tr class="aw-sub"><td>${esc(GK.lastFirst(r.name))}${r.exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(r.why)}</div></td><td class="r">${h(r.target)}${r.override ? ' <span class="pill b">eigen</span>' : ''}</td><td class="r">${h(r.done)}</td><td></td><td class="r">${r.open ? h(r.open) : ''}</td><td></td><td></td><td class="r"><button class="btn small" data-tgt="${id}">Pflichtstunden …</button></td></tr>`; }).join('') : '';
+          const subs = many && open.has(x.head) ? x.members.map(id => { const r = rowOf(id); return `<tr class="aw-sub"><td>${esc(GK.lastFirst(r.name))}${r.exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(r.why)}</div></td><td class="r">${h(r.target)}${r.override ? ' <span class="pill b">eigen</span>' : ''}</td><td class="r">${h(r.done)}</td><td></td><td class="r hide-md">${r.open ? h(r.open) : ''}</td><td></td><td></td><td class="r"><button class="btn small" data-tgt="${id}">Pflichtstunden …</button></td></tr>`; }).join('') : '';
           return head + subs;
         }).join('') : `<tr><td colspan="8" class="muted" style="text-align:center;height:72px">${o.families.length ? 'Keine Treffer.' : 'Noch niemand mit Soll – unter Einstellungen die Vorgabe prüfen.'}</td></tr>`);
       $('awTbl').querySelectorAll('[data-tg]').forEach(b => { b.onclick = () => { const k = +b.dataset.tg; if (open.has(k)) open.delete(k); else open.add(k); draw(); }; });
@@ -140,7 +140,7 @@
     $('tgS').onclick = e => { const b = e.target.closest('[data-m]'); if (b) { mode = b.dataset.m; paint(); } };
     paint();
     $('c').onclick = closeDialog;
-    $('tgOk').onclick = async () => {
+    $('tgOk').onclick = () => GK.busy($('tgOk'), async () => {
       try {
         if (mode === 'befreit') {
           if (r.override) await api('target', 'PUT', { member_id: r.id, year: o.year, minutes: null, note: '' });
@@ -151,7 +151,7 @@
         }
         closeDialog(); toast('Gespeichert.'); after();
       } catch (e) { fail(e); }
-    };
+    });
   }
   async function addEntries(after, preset = {}) {
     const ev = await api('events?past=1&perm=1');
@@ -166,10 +166,10 @@
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="aeOk">Eintragen</button></div>`);
     $('c').onclick = closeDialog;
     $('aeQ').oninput = () => { const q = val('aeQ').toLowerCase(); $('aeL').querySelectorAll('[data-n]').forEach(l => { l.style.display = !q || l.dataset.n.includes(q) ? '' : 'none'; }); };
-    $('aeOk').onclick = async () => {
+    $('aeOk').onclick = () => GK.busy($('aeOk'), async () => {
       const ids = [...$('aeL').querySelectorAll('input:checked')].map(i => +i.value);
       try { await api('entries', 'POST', { member_ids: ids, date: val('aeD'), minutes: toMin(val('aeM')), event_id: val('aeE') || null, text: val('aeT') }); closeDialog(); toast(`${ids.length} × eingetragen.`); after(); } catch (e) { fail(e); }
-    };
+    });
   }
 
   /* ---------------------------------------------------------------- Einsätze */
@@ -215,10 +215,10 @@
     $('evPm').onchange = () => { if ($('evPm').checked && val('evK') === 'arbeit' && !val('evT')) { $('evK').value = 'theke'; $('evT').value = 'Thekendienst'; } pmPaint(); };
     pmPaint();
     $('c').onclick = closeDialog;
-    $('evOk').onclick = async () => {
+    $('evOk').onclick = () => GK.busy($('evOk'), async () => {
       const body = { permanent: $('evPm').checked, kind: val('evK'), title: val('evT'), date: val('evD') || st.meta.today, start: val('evS'), end: val('evE'), place: val('evP'), slots: val('evN') || null, note: val('evX') };
       try { if (e) await api('events/' + e.id, 'PUT', { ...body, active: $('evA').checked }); else await api('events', 'POST', { ...body, active: $('evA').checked, repeat_weeks: val('evR') || 0 }); closeDialog(); toast('Gespeichert.'); after(); } catch (x) { fail(x); }
-    };
+    });
     if ($('evDel')) $('evDel').onclick = async () => { if (!await ask('Einsatz löschen?')) return; try { await api('events/' + e.id, 'DELETE'); closeDialog(); after(); } catch (x) { fail(x); } };
   }
   function helpers(e, after) {
@@ -237,7 +237,7 @@
       <div class="aw-cols" style="margin-top:12px" id="ceL">${(e.signups.length ? e.signups : []).map(s => `<label class="chk"><input type="checkbox" value="${s.member_id}" checked> ${esc(GK.lastFirst(s.name))}</label>`).join('') || '<p class="muted">Niemand eingetragen – über „Helfer“ ergänzen oder „Stunden nachtragen“ nutzen.</p>'}</div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ceOk" ${e.signups.length ? '' : 'disabled'}>Gutschreiben</button></div>`);
     $('c').onclick = closeDialog;
-    $('ceOk').onclick = async () => { try { const r = await api(`events/${e.id}/close`, 'POST', { minutes: toMin(val('ceM')), members: [...$('ceL').querySelectorAll('input:checked')].map(i => +i.value) }); closeDialog(); toast(`${r.count} Helfer gutgeschrieben.`); after(); } catch (x) { fail(x); } };
+    $('ceOk').onclick = () => GK.busy($('ceOk'), async () => { try { const r = await api(`events/${e.id}/close`, 'POST', { minutes: toMin(val('ceM')), members: [...$('ceL').querySelectorAll('input:checked')].map(i => +i.value) }); closeDialog(); toast(`${r.count} Helfer gutgeschrieben.`); after(); } catch (x) { fail(x); } });
   }
 
   /* ---------------------------------------------------------------- Dienstpläne (Veranstaltungen mit Schichten) */
@@ -274,10 +274,10 @@
       <div class="btns">${p ? '<button class="btn danger" id="pDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pOk">Speichern</button></div>`, true);
     $('pF').onchange = () => { if (val('pU') < val('pF')) $('pU').value = val('pF'); };
     $('c').onclick = closeDialog;
-    $('pOk').onclick = async () => {
+    $('pOk').onclick = () => GK.busy($('pOk'), async () => {
       const body = { title: val('pT'), from_date: val('pF'), to_date: val('pU'), place: val('pP'), note: val('pN'), counts: $('pC').checked, published: $('pV').checked };
       try { const r = p ? await api('plans/' + p.id, 'PUT', body) : await api('plans', 'POST', body); closeDialog(); toast('Gespeichert.'); after(p ? p.id : r.id); } catch (x) { fail(x); }
-    };
+    });
     if ($('pDel')) $('pDel').onclick = async () => { if (!await ask(`Dienstplan „${p.title}“ mit allen Schichten und Eintragungen löschen?`, { ok: 'Löschen', danger: true })) return; try { await api('plans/' + p.id, 'DELETE'); closeDialog(); st.plan = null; after(null); } catch (x) { fail(x); } };
   }
   async function showPlan(el, id) {
@@ -307,7 +307,7 @@
         <div class="aw-grid" style="--c:2"><label class="f">Name<input id="cpT" value="${esc(p.title.replace(/\d{4}/, y => +y + 1))}"></label><label class="f">erster Tag<input id="cpF" type="date" value="${addDays(p.from_date, 364)}"></label></div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="cpOk">Kopieren</button></div>`);
       $('c').onclick = closeDialog;
-      $('cpOk').onclick = async () => { try { const r = await api(`plans/${p.id}/copy`, 'POST', { title: val('cpT'), from_date: val('cpF') }); closeDialog(); st.plan = r.id; toast('Kopiert.'); showPlan(el, r.id).catch(fail); } catch (x) { fail(x); } };
+      $('cpOk').onclick = () => GK.busy($('cpOk'), async () => { try { const r = await api(`plans/${p.id}/copy`, 'POST', { title: val('cpT'), from_date: val('cpF') }); closeDialog(); st.plan = r.id; toast('Kopiert.'); showPlan(el, r.id).catch(fail); } catch (x) { fail(x); } });
     };
     el.querySelectorAll('[data-add]').forEach(b => { b.onclick = () => shiftDialog(p, days, null, b.dataset.add, again); });
     el.querySelectorAll('[data-se]').forEach(b => { b.onclick = () => shiftDialog(p, days, d.shifts.find(e => e.id === +b.dataset.se), null, again); });
@@ -325,14 +325,14 @@
       <p class="muted s" style="margin:10px 0 0">Ohne Ende erscheint „ab 16 Uhr“. Ein Ende vor dem Beginn gilt als nach Mitternacht (z. B. 23:30–02:00).</p>
       <div class="btns">${e ? '<button class="btn danger" id="shDel" style="margin-right:auto">Löschen</button>' : '<label class="chk" style="margin-right:auto"><input type="checkbox" id="shMore"> danach weitere Schicht anlegen</label>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="shOk">Speichern</button></div>`, true);
     $('c').onclick = closeDialog;
-    $('shOk').onclick = async () => {
+    $('shOk').onclick = () => GK.busy($('shOk'), async () => {
       const body = { plan_id: p.id, kind: 'dienst', date: val('shD'), start: val('shS'), end: val('shE'), title: val('shT'), slots: val('shN') || null, note: val('shX'), counts: $('shC').checked };
       try {
         if (e) await api('events/' + e.id, 'PUT', { ...body, active: $('shA').checked }); else await api('events', 'POST', { ...body, active: true });
         const more = $('shMore') && $('shMore').checked; closeDialog(); toast('Gespeichert.'); after();
         if (more) setTimeout(() => shiftDialog(p, days, null, body.date, after), 150);
       } catch (x) { fail(x); }
-    };
+    });
     if ($('shDel')) $('shDel').onclick = async () => { if (!await ask(`Schicht „${e.title}“ (${when(e)}) löschen?${e.taken ? `\n\n${e.taken} Helfer sind eingetragen.` : ''}`, { ok: 'Löschen', danger: true })) return; try { await api('events/' + e.id, 'DELETE'); closeDialog(); after(); } catch (x) { fail(x); } };
   }
   function shiftHelpers(e, after) {
@@ -385,7 +385,7 @@
     $('esAdd').onclick = () => addEntries(again);
     const sel = () => [...el.querySelectorAll('[data-id]')].filter(c => c.checked).map(c => +c.dataset.id);
     if ($('esAll')) $('esAll').onchange = () => el.querySelectorAll('[data-id]').forEach(c => { c.checked = $('esAll').checked; });
-    if ($('esOk')) $('esOk').onclick = async () => { try { const r = await api('entries/review', 'POST', { ids: sel(), approve: true }); toast(`${r.count} bestätigt.`); again(); } catch (e) { fail(e); } };
+    if ($('esOk')) $('esOk').onclick = () => GK.busy($('esOk'), async () => { try { const r = await api('entries/review', 'POST', { ids: sel(), approve: true }); toast(`${r.count} bestätigt.`); again(); } catch (e) { fail(e); } });
     if ($('esNo')) $('esNo').onclick = async () => { const reason = await GK.askText('Ablehnen\nGrund (sieht das Mitglied in der App):', ''); if (reason == null) return; try { await api('entries/review', 'POST', { ids: sel(), approve: false, reason }); again(); } catch (e) { fail(e); } };
     el.querySelectorAll('[data-stop]').forEach(b => { b.onclick = async () => { try { await api(`entries/${b.dataset.stop}/stop`, 'POST', {}); toast('Ausgestempelt – bitte bestätigen.'); again(); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-del]').forEach(b => { b.onclick = async () => { if (!await ask('Eintrag löschen?')) return; try { await api('entries/' + b.dataset.del, 'DELETE'); again(); } catch (e) { fail(e); } }; });
@@ -394,7 +394,7 @@
       dialog(`<h2>Eintrag ändern</h2><div class="aw-grid" style="--c:2"><label class="f">Datum<input id="edD" type="date" value="${r.date}"></label><label class="f">Dauer in Stunden<input id="edM" inputmode="decimal" value="${String((r.minutes || 0) / 60).replace('.', ',')}"></label>
         <label class="f wall">Tätigkeit<input id="edT" value="${esc(r.text || '')}"></label></div><div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="edOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
-      $('edOk').onclick = async () => { try { await api('entries/' + r.id, 'PUT', { date: val('edD'), minutes: toMin(val('edM')), text: val('edT') }); closeDialog(); again(); } catch (e) { fail(e); } };
+      $('edOk').onclick = () => GK.busy($('edOk'), async () => { try { await api('entries/' + r.id, 'PUT', { date: val('edD'), minutes: toMin(val('edM')), text: val('edT') }); closeDialog(); again(); } catch (e) { fail(e); } });
     }; });
   }
 
@@ -448,5 +448,7 @@
   }
 
   void deTime;
-  GK.registerPage({ key: 'arbeitseinsatz', title: 'Helferdienste', perm: 'arbeitseinsatz', render, icon: 'arbeit' });
+  GK.registerPage({ key: 'arbeitseinsatz', title: 'Helferdienste', perm: 'arbeitseinsatz', render, icon: 'arbeit', order: 3 });
+  // Zähler im Menü: gemeldete Stunden, die noch zu bestätigen sind
+  if (GK.badges) GK.badges(async () => { if (!GK.can('arbeitseinsatz')) return {}; const m = await api('meta'); return { arbeitseinsatz: m.pending || 0 }; });
 })();

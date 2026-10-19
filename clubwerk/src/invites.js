@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS member_devices (
   locked_until   INTEGER
 );
 CREATE INDEX IF NOT EXISTS ix_devices_scope ON member_devices(scope, member_id);
+CREATE INDEX IF NOT EXISTS ix_devices_token ON member_devices(scope, token_hash);   -- whoIs bei jedem App-Aufruf
 `);
 for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT']]) {
   if (!db.prepare('PRAGMA table_info(member_devices)').all().some(x => x.name === c)) db.exec(`ALTER TABLE member_devices ADD COLUMN ${c} ${t}`);
@@ -39,7 +40,7 @@ const inviteHours = () => { const h = parseInt(getSetting('app_invite_hours', '2
 /* PIN-Fehlversuche: je 5 in Folge kurze Sperre (5 Min., ab 10 Fehlern 30 Min.), nach 15 insgesamt ist das Gerät gesperrt */
 const LOCK_STREAK = 5, LOCK_LONG_AFTER = 10, BLOCK_AFTER = 15;
 const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
-const now = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`; };
+const { nowTs: now } = require('./util');
 const SCOPE_RE = /^[a-z0-9_-]{2,30}$/;
 function scopeOk(scope) { if (!SCOPE_RE.test(scope)) throw new Error('Ungültiger Bereich.'); }
 function deviceLabel(ua) {
@@ -183,12 +184,6 @@ function checkMember(scope, memberId, pin) {
 }
 
 /** Übersicht für die Verwaltung */
-function list(scope) {
-  scopeOk(scope);
-  return db.prepare(`SELECT d.id, d.member_id, m.name, d.device, d.created_by, d.created_at, d.paired_at, d.last_used, d.invite_expires,
-      CASE WHEN d.token_hash IS NOT NULL THEN 'gekoppelt' WHEN d.blocked_at IS NOT NULL AND d.invite_hash IS NULL THEN 'gesperrt' WHEN d.invite_expires >= ? THEN 'eingeladen' ELSE 'abgelaufen' END AS status
-    FROM member_devices d JOIN members m ON m.id = d.member_id WHERE d.scope = ? AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(Date.now(), scope);
-}
 /** Darf das vorhandene Handy/die offene Einladung einen neuen Bereich mit Recht `perm` bekommen? */
 function issuerCovers(scope, memberId, perm) {
   const d = db.prepare('SELECT issuer_perms FROM member_devices WHERE scope = ? AND member_id = ?').get(scope, memberId);
@@ -207,4 +202,4 @@ async function qrSvg(text) {
   return QR.toString(String(text).slice(0, 600), { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
 }
 
-module.exports = { inviteHours, INVITE_HOURS, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, list, revoke, issuerCovers, createTransfer, redeemTransfer, qrSvg, deviceLabel };
+module.exports = { inviteHours, INVITE_HOURS, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, qrSvg };

@@ -2,7 +2,7 @@
 (() => {
   const $ = id => document.getElementById(id);
   const euro = c => (c / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-  const esc = s => String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const IDLE_MS = 60 * 1000;      // nach 60 s ohne Eingabe zurück zum Start
   const DONE_MS = 20 * 1000;      // Bestätigung 20 s sichtbar (Rückgängig möglich)
 
@@ -71,19 +71,8 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) { keepAwake(); load(); } });
 
   /* ---------- Sortierung nach Nachname ---------- */
-  // wie in der Verwaltung: „von/van/de …“ gehören zum Nachnamen, sortiert wird nach dem Kern (von der Heide → H)
-  const PARTICLES = new Set(['von', 'van', 'vom', 'zu', 'zum', 'zur', 'de', 'der', 'den', 'la', 'le', 'di', 'da', 'ten', 'op', 'del', 'dos']);
-  const splitName = n => {
-    const t = n.trim().replace(/\s+/g, ' ');
-    if (t.includes(',')) { const [l, ...f] = t.split(','); return { first: f.join(',').trim(), last: l.trim() }; }
-    const w = t.split(' ');
-    if (w.length < 2) return { first: '', last: t };
-    let i = w.length - 1;
-    while (i > 1 && PARTICLES.has(w[i - 1].toLowerCase())) i--;
-    return { first: w.slice(0, i).join(' '), last: w.slice(i).join(' ') };
-  };
-  const coreLast = n => { const l = splitName(n).last; return l.split(' ').filter(x => !PARTICLES.has(x.toLowerCase())).join(' ') || l; };
-  const lastName = n => splitName(n).last;
+  // wie in der Verwaltung und auf dem Server (names.js): „von/van/de …“ gehören zum Nachnamen, sortiert wird nach dem Kern (von der Heide → H)
+  const { splitName, coreLast, lastFirst } = window.CWNames;
   const deKey = v => v.toLocaleLowerCase('de').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss');
   const sortKey = m => (m.kind === 'mitglied' ? deKey(coreLast(m.name)) + '\u0001' + deKey(splitName(m.name).first) : deKey(m.name));
   const initial = m => coreLast(m.name).charAt(0).toLocaleUpperCase('de').replace(/[ÄÖÜ]/, c => ({ Ä: 'A', Ö: 'O', Ü: 'U' }[c]));
@@ -105,7 +94,6 @@
   // ruhige Pastellfarben für Initialen – je Name immer dieselbe
   const AVC = [['#F0ECFA', '#4B3A86'], ['#FCE7E4', '#9B2C1F'], ['#FFF1D6', '#8A4B08'], ['var(--brand-soft)', 'var(--brand-ink)'], ['#E3F0FB', '#1C5D99'], ['#FCEDE3', '#9A4A14']];
   const avStyle = n => { let h = 0; for (const ch of String(n || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const [b, f] = AVC[h % AVC.length]; return `--ab:${b};--af:${f}`; };
-  const lastFirst = n => { const { first, last } = splitName(n); return first ? `${last}, ${first}` : last; };
   /* „Bier alkoholfrei 0,33“ → Name „Bier alkoholfrei“ + Größe „0,33 l“ (für die zweite Zeile der Kachel) */
   const splitSize = n => { const m = String(n).match(/^(.+?)\s+(\d+[,.]\d+)\s*(l|ml|cl)?$/i); return m ? { name: m[1], size: m[2].replace('.', ',') + ' ' + (m[3] || 'l') } : { name: String(n), size: '' }; };
   const card = m => {

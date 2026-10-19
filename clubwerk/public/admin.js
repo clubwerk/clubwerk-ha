@@ -33,9 +33,18 @@
     toast.t = setTimeout(() => t.classList.add('hidden'), error ? 6000 : 3000);
   }
   const fail = e => toast(e.message, true);
+  /** Doppelklick-Schutz: Knopf sperren, solange fn() läuft (Beschriftung bleibt), danach wieder freigeben – auch bei Fehlern.
+   *  Verwendung: $('xOk').onclick = () => busy($('xOk'), async () => { … }); */
+  async function busy(btn, fn) {
+    if (btn && btn.disabled) return undefined;
+    if (btn) btn.disabled = true;
+    try { return await fn(); }
+    finally { if (btn && btn.isConnected) btn.disabled = false; }
+  }
 
   function dialog(html, wide = false) {
     $('dialog').className = 'dialog' + (wide ? ' wide' : '');
+    $('dialog').onchange = null;   // Ereignis-Handler eines früheren Dialogs (z. B. Serien-Dialog) gelten nicht weiter
     $('dialog').innerHTML = html;
     $('overlay').classList.remove('hidden');
     $('overlay').scrollTop = 0;
@@ -44,16 +53,8 @@
 
   /* ---------- Rückfragen im eigenen Fenster (statt Browser-Dialog) ---------- */
   const nl2br = t => esc(t).replace(/\n/g, '<br>');
-  /* Personen wie sortiert anzeigen: „Nachname, Vorname“ („von der Heide, Anna“); Mannschaften & Sonderkonten unverändert */
-  const NAME_PART = new Set(['von', 'van', 'vom', 'zu', 'zum', 'zur', 'de', 'der', 'den', 'la', 'le', 'di', 'da', 'ten', 'op', 'del', 'dos']);
-  function lastFirst(name, kind) {
-    const n = String(name || '').trim().replace(/\s+/g, ' ');
-    if ((kind && kind !== 'mitglied') || n.includes(',')) return n;
-    const w = n.split(' '); if (w.length < 2) return n;
-    let i = w.length - 1;
-    while (i > 1 && NAME_PART.has(w[i - 1].toLowerCase())) i--;
-    return w.slice(i).join(' ') + ', ' + w.slice(0, i).join(' ');
-  }
+  /* Personen wie sortiert anzeigen: „Nachname, Vorname“ („von der Heide, Anna“) – gemeinsame Zerlegung aus names.js */
+  const { lastFirst } = window.CWNames;
   const pName = m => esc(lastFirst(m.name, m.kind));
   /** ask(text, {title, ok, danger}) → Promise<boolean>. Erste Zeile wird zur Überschrift, wenn kein Titel angegeben ist. */
   function ask(text, o = {}) {
@@ -83,7 +84,7 @@
         <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn primary" id="askOk">${esc(o.ok || 'OK')}</button></div>`;
       $('askOverlay').classList.remove('hidden');
       const done = v => { $('askOverlay').classList.add('hidden'); resolve(v); };
-      $('askNo').onclick = () => done(null);
+      if ($('askNo')) $('askNo').onclick = () => done(null);
       $('askOk').onclick = () => done($('askIn').value);
       $('askIn').onkeydown = e => { if (e.key === 'Enter') done($('askIn').value); if (e.key === 'Escape') done(null); };
       $('askIn').focus(); $('askIn').select();
@@ -92,6 +93,7 @@
 
   /* ---------- Ungespeicherte Änderungen ---------- */
   let dirty = false;
+  let closeMenusBound = false;   // Seite „Module“: Klick-außerhalb-Listener nur einmal registrieren
   /** Formularbereich beobachten: jede Eingabe markiert „ungespeichert“ */
   function watch(el) { if (!el) return; const mark = e => { if (e.target.matches('input, select, textarea') && !e.target.closest('[data-nodirty]')) dirty = true; }; el.addEventListener('input', mark); el.addEventListener('change', mark); }
   const clean = () => { dirty = false; };
@@ -113,7 +115,7 @@
     const show = async k => {
       if (k !== cur && !(await leaveOk())) return;
       cur = k; sessionStorage.setItem(store, k);
-      el.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === k); if (b.dataset.tab === k) { const bar = b.parentNode; if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, b.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2); } });
+      el.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === k); if (b.dataset.tab === k) revealTab(b); });
       body.innerHTML = '<p class="muted">Lade …</p>';
       try { await onShow(k, body); } catch (e) { fail(e); }
     };
@@ -122,6 +124,19 @@
     const first = cur; cur = null; show(first);
     return { reload: () => { const k = cur; cur = null; show(k); } };
   }
+  /** Reiterleiste bei Platzmangel: aktiven Reiter mittig hineinscrollen und die Kanten weich auslaufen lassen (Hinweis auf weitere Reiter) */
+  function tabFade(bar) {
+    const more = bar.scrollWidth > bar.clientWidth + 1;
+    bar.classList.toggle('more-l', more && bar.scrollLeft > 1);
+    bar.classList.toggle('more-r', more && bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 1);
+    if (!bar.dataset.fade) { bar.dataset.fade = '1'; bar.addEventListener('scroll', () => tabFade(bar), { passive: true }); }
+  }
+  function revealTab(b) {
+    const bar = b.parentNode; if (!bar) return;
+    if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, b.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2);
+    tabFade(bar);
+  }
+  window.addEventListener('resize', () => document.querySelectorAll('#main .tabs').forEach(tabFade));
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay') && !$('dialog').dataset.sticky) closeDialog(); });
 
   /* Handy: Spaltennamen an jede Tabellenzelle hängen (für die Kartenansicht) */
@@ -247,7 +262,10 @@
   ];
   const GROUPS = [['start', ''], ['getraenke', 'Verkauf'], ['module', 'Module'], ['verein', 'Verein & System']];
   /* Module mit mehreren Seiten: ein Menüeintrag, die Seiten als Reiter unter der Überschrift (wie bei „Verkauf“) */
-  const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 10 } };
+  /* Feste Reihenfolge der Module im Menü (order): Verkauf 1 · Buchungssystem 2 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mitgliederverwaltung 7 · Buchhaltung 8;
+     Einzelseiten geben ihre Position über registerPage({ order }) an, sonst 50 (Reihenfolge der Registrierung) */
+  const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 1 } };
+  const PAGE_ORDER = {};
   /** Recht ohne Abteilungs-Einschränkung („!recht“ in registerPage) */
   const canFull = p => can(p) && !((me && me.deptOnly) || []).includes(p);
   const can1 = p => (String(p).startsWith('!') ? canFull(String(p).slice(1)) : can(p));
@@ -302,8 +320,10 @@
 
   function showShell() {
     const navBtn = (k, label, ic, badge) => `<button class="nav" data-p="${k}">${icon(ic)}<span>${esc(label)}</span>${badge ? `<span class="badge hidden" data-badge="${badge}"></span>` : ''}</button>`;
-    const groups = Object.entries(MODG).filter(([g]) => GPAGES(g).length).sort((a, b) => (a[1].order || 50) - (b[1].order || 50));
-    const mods = PAGES.filter(x => x[3] === 'module' && canAny(x[2]));
+    // Modul-Gruppen (mehrere Reiter) und Einzelseiten in einer Liste, nach fester Reihenfolge (order)
+    const groups = Object.entries(MODG).filter(([g]) => GPAGES(g).length).map(([g, m]) => ({ order: m.order || 50, html: navBtn('__' + g, m.label, m.icon || 'modul', g) }));
+    const mods = PAGES.filter(x => x[3] === 'module' && canAny(x[2])).map(([k, l]) => ({ order: PAGE_ORDER[k] || 50, html: navBtn(k, l, PAGE_ICON[k] || 'modul', k) }));
+    const modNav = [...groups, ...mods].sort((a, b) => a.order - b.order).map(x => x.html).join('');
     const verein = PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length));
     $('app').innerHTML = `<div class="shell">
       <nav class="side" id="side">
@@ -313,11 +333,10 @@
         <div class="navbody">
           <label class="search">${icon('suche')}<input id="navSearch" placeholder="Suchen" aria-label="Seite suchen" autocomplete="off"><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Strg K'}</kbd><div class="results hidden" id="navRes"></div></label>
           ${navBtn('uebersicht', 'Übersicht', 'uebersicht')}
-          ${groups.length || mods.length ? '<div class="grp">Module</div>' : ''}
-          ${groups.map(([g, m]) => navBtn('__' + g, m.label, m.icon || 'modul', g)).join('')}
-          ${mods.map(([k, l]) => navBtn(k, l, PAGE_ICON[k] || 'modul')).join('')}
+          ${modNav ? '<div class="grp">Module</div>' : ''}
+          ${modNav}
           ${verein.length ? '<div class="grp">Verein</div>' : ''}
-          ${verein.map(([k, l]) => navBtn(k, TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, PAGE_ICON[k] || 'modul', k === 'konten' ? 'konten' : '')).join('')}
+          ${verein.map(([k, l]) => navBtn(k, TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, PAGE_ICON[k] || 'modul', k === 'konten' || k === 'sicherung' ? k : '')).join('')}
         </div>
         <div class="userchip"><div class="who"><div class="av">${esc(initials(me.name || me.username))}</div>
           <div class="nm"><b>${esc(me.name || me.username)}</b><span>${me.role === 'oberadmin' ? 'Alle Rechte' : 'Admin'}</span></div></div><div class="ucbtns">
@@ -395,7 +414,7 @@
     t.innerHTML = GPAGES(g).map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
     t.querySelectorAll('[data-tab]').forEach(b => { b.onclick = e => { e.stopPropagation(); go(b.dataset.tab); }; });
     after.after(t);
-    const on = t.querySelector('.on'); if (on && t.scrollWidth > t.clientWidth) t.scrollLeft = Math.max(0, on.offsetLeft - 40);
+    const on = t.querySelector('.on'); if (on) revealTab(on); else tabFade(t);
   }
 
   /* Einleitung über Reitern immer gleich hoch (2 Zeilen), damit die Reiter beim Wechsel nicht springen – längere Texte per „mehr“ aufklappen */
@@ -447,10 +466,17 @@
       badges.deckel = t.open.length;
     }
     if (can('konten')) badges.konten = (await api('members').catch(() => ({ rows: [] }))).rows.filter(m => m.pending).length;
+    // Datensicherung: rot, wenn kein Sicherungspasswort gesetzt ist oder die letzte erfolgreiche Sicherung älter als 7 Tage ist (Status ist eine billige Abfrage)
+    if (can('einstellungen')) {
+      const b = await api('backups/status').catch(() => null);
+      badges.sicherung = b && (!b.hasKey || !b.last_ok || Date.now() - Date.parse(b.last_ok) > 7 * 24 * 3600000) ? '!' : 0;
+    }
     for (const fn of BADGE_HOOKS) { try { Object.assign(badges, await fn()); } catch (e) { /* egal */ } }
     // Menüeinträge: Seite selbst oder Summe der Seiten eines Moduls
     for (const g of Object.keys(MODG)) setB(g, GPAGES(g).reduce((a, x) => a + (badges[x[0]] || 0), 0), 'a');
+    PAGES.filter(x => x[3] === 'module').forEach(([k]) => setB(k, badges[k] || 0, 'a'));
     setB('konten', groupOf('konten') ? 0 : badges.konten || 0);
+    setB('sicherung', badges.sicherung || 0, 'r');
     if (groupOf(page)) setChrome(page);
   }
   const BADGE_HOOKS = [];
@@ -510,17 +536,19 @@
   /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
   window.GK = {
     $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, watch, clean, tabs, funcBox, funcImport, lastFirst, invite: (...a) => appInvite(...a), go: p => go(p),
+    scheme: () => SCHEME, ask, askText, watch, clean, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** Einstellungen öffnen, gleich im richtigen Bereich (z. B. 'bank') */
     openSettings: sec => { sset('cw_setsec', sec); if (page === 'einstellungen') RENDER.einstellungen(); else go('einstellungen'); },
     modules: () => cache.modules || [],
-    /** registerPage({ key, title, perm, render, group, before, icon, tab })
-     *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“) */
-    registerPage({ key, title, perm, render, group, before, icon, tab }) {
+    /** registerPage({ key, title, perm, render, group, before, icon, tab, order })
+     *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“)
+     *  order: Position im Menü unter „Module“ (Verkauf 1 … Buchhaltung 8; ohne Angabe 50 = hinten, in Registrierungsreihenfolge) */
+    registerPage({ key, title, perm, render, group, before, icon, tab, order }) {
       if (!/^[a-z0-9-]+$/.test(key) || PAGES.some(p => p[0] === key)) return;
       RENDER[key] = render;
       if (icon && ICO[icon]) PAGE_ICON[key] = icon;
+      if (order) PAGE_ORDER[key] = order;
       let gk = group === 'verein' ? 'verein' : 'module';
       if (group && typeof group === 'object' && /^[a-z0-9-]+$/.test(group.key || '')) { gk = 'g-' + group.key; if (!MODG[gk]) MODG[gk] = { label: group.label || title, icon: ICO[group.icon] ? group.icon : 'modul', order: group.order || 50 }; }
       if (tab) TAB_LABEL[key] = tab;
@@ -541,6 +569,8 @@
     /** Zahlen für Reiter-Abzeichen: fn() → { seitenschlüssel: Anzahl } */
     badges(fn) { BADGE_HOOKS.push(fn); },
     refreshBadges: () => refreshBadges(),
+    /** Einstellungsseite eines Moduls in Unterbereiche aufteilen: sectionize({ root, secs: [[key, label]], keyOf, store }) – siehe Kern-Einstellungen */
+    sectionize: o => sectionize(o),
   };
   // Kernseiten aus eigenen Dateien (z. B. mail.js), die vor admin.js geladen wurden
   (window.CW_PAGES || []).forEach(fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } });
@@ -554,7 +584,12 @@
     return list.map(m => ({ ...m, pageKey: pageOf(m) }));
   }
   const greeting = () => { const h = new Date().getHours(); return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'; };
-  const alertHtml = a => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}"><span>${esc(a.link || 'Ansehen')}</span> →</a>` : ''}</div>`;
+  const alertHtml = (a, i) => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}${i >= 3 ? ' extra' : ''}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}"><span>${esc(a.link || 'Ansehen')}</span> →</a>` : ''}</div>`;
+  /** Warnungen gebündelt: rote zuerst, höchstens 3 sichtbar, der Rest hinter „alle anzeigen“ */
+  const alertsHtml = alerts => {
+    const list = alerts.slice().sort((a, b) => (a.level === 'r' ? 0 : 1) - (b.level === 'r' ? 0 : 1));
+    return list.length ? `<div class="alerts">${list.map(alertHtml).join('')}${list.length > 3 ? `<button type="button" class="showall" data-showall>${list.length - 3} weitere Hinweise anzeigen</button>` : ''}</div>` : '';
+  };
   /** Eine Modulkarte – für alle Module gleich aufgebaut */
   function modCard({ ic, name, pill, big, det, go: g }) {
     return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3 title="${esc(name)}">${esc(name).replace(/(\p{Ll})(verwaltung|system|einsatz|dienste?|erfassung|haltung|buchung|steuerung)/gu, '$1\u00ad$2')}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
@@ -601,12 +636,13 @@
     const memberCard = mem ? modCard({ ic: 'konten', name: 'Mitglieder', pill: pending.length ? ['a', `${pending.length} neu`] : null,
       big: ['Aktive Mitglieder', String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length)], det: ['Mannschaften', String(mem.rows.filter(m => m.kind === 'mannschaft' && m.active).length)], go: 'konten' }) : '';
     const low = drinksOn ? stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock) : [];
+    const modCount = (drinksCard ? 1 : 0) + mods.length + (memberCard ? 1 : 0);   // Raster ohne Lücke: 1–4 Karten eine Zeile, sonst 3 (oder 4 bei Vielfachen von 4) Spalten
     const d = new Date();
     $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <h2 class="page"><span>${greeting()}</span>, <span>${esc((me.name || me.username).split(" ")[0])}</span></h2></div>
         <div class="row">${window.top === window ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}${drinksOn && can('bestellung') ? `<a class="btn primary" href="#bestellung" data-go="bestellung">${icon('getraenke', 16)}Bestellung</a>` : ''}</div></div>
-      ${alerts.length ? `<div class="alerts">${alerts.map(alertHtml).join('')}</div>` : ''}
-      <div class="modgrid">${drinksCard}${modCards}${memberCard}</div>
+      ${alertsHtml(alerts)}
+      <div class="modgrid cols${modCount <= 4 ? Math.max(1, modCount) : [4, 3].sort((a, b) => (a - modCount % a) % a - (b - modCount % b) % b)[0]}">${drinksCard}${modCards}${memberCard}</div>
       ${drinksOn ? `<div class="two">
         <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
           ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Alles im grünen Bereich.</p>'}</div>
@@ -614,6 +650,7 @@
           ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Getränke → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
       </div>` : ''}`;
     $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); go(a.dataset.go); }; });
+    const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.alerts').classList.add('all'); sa.remove(); };
   };
 
   /* =================== Lieferungen =================== */
@@ -844,7 +881,7 @@
           <td class="r"><input class="n" data-o="${r.id}" value="${r.suggest || ''}" inputmode="numeric" placeholder="0"></td></tr>`).join('')}</table></div>
         <p class="muted s">Mindestbestand und „bestellen bis“ stellt man unter „Artikel“ ein. Die Artikelnummern kommen automatisch aus den hochgeladenen Rechnungen.</p></div>
       <div class="card"><h3>E-Mail</h3>
-        ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px">Zum direkten Senden fehlt noch das Vereinspostfach – ${o.mayMailSetup ? '<a href="#einstellungen" data-gomail>Einstellungen → E-Mail-Versand</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → E-Mail-Versand ein'}. Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</div>`}
+        ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px">Zum direkten Senden fehlt noch das Vereinspostfach – ${o.mayMailSetup ? '<a href="#einstellungen" data-gomail>Einstellungen → Postfach</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → Postfach ein'}. Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</div>`}
         <div class="row"><label class="f" style="flex:1;min-width:240px">An (Lieferant)<input id="oMail" type="email" value="${esc(st.order_email)}" placeholder="bestellung@lieferant.de" autocomplete="off"></label>
           <label class="f" style="flex:1;min-width:240px">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
         <label class="f" style="margin-top:8px">Betreff<input id="oSubj"></label>
@@ -908,11 +945,11 @@
       <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
       <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
         <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
-        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Soll (Einzelartikel)</th><th class="r">= Gebinde + einzeln</th><th class="r">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">+ einzeln</th></tr>
-        ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted">${esc(s.category)}</td>
+        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Soll (Einzelartikel)</th><th class="r hide-md">= Gebinde + einzeln</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">+ einzeln</th></tr>
+        ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted hide-md">${esc(s.category)}</td>
           <td class="r ${s.stock < 0 ? 'neg' : ''}">${num(s.stock)}</td>
-          <td class="r muted">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : ''}</td>
-          <td class="r">${num(s.min_stock)}</td>
+          <td class="r muted hide-md">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : ''}</td>
+          <td class="r hide-md">${num(s.min_stock)}</td>
           <td class="r">${s.crate_size > 1 ? `<input class="n" data-c="${s.id}" inputmode="numeric">` : ''}</td>
           <td class="r"><input class="n" data-b="${s.id}" inputmode="numeric"></td></tr>`).join('')}</table></div>
         <p class="muted s">Nur ausgefüllte Zeilen werden übernommen. Leere Zeilen bleiben unverändert.</p></div>
@@ -962,8 +999,8 @@
     $('main').innerHTML = `<h2 class="page">Abgleich Lieferungen ↔ Buchungen</h2>
       <p class="lead">Was ist geliefert worden, was wurde gebucht? „Offen“ ist entweder noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
       ${rangeBar(r.from, r.to)}
-      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r">Verein frei</th><th class="r">Gast bar</th><th class="r">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
-      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted">${esc(x.category)}</td><td class="r">${num(x.delivered)}</td><td class="r">${num(x.konto)}</td><td class="r">${num(x.verein)}</td><td class="r">${num(x.gast)}</td><td class="r">${num(x.event)}</td><td class="r">${num(x.bruch + x.korrektur)}</td><td class="r">${num(x.open)}</td><td class="r ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
+      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r">Verein frei</th><th class="r">Gast bar</th><th class="r">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted hide-md">${esc(x.category)}</td><td class="r">${num(x.delivered)}</td><td class="r">${num(x.konto)}</td><td class="r">${num(x.verein)}</td><td class="r">${num(x.gast)}</td><td class="r">${num(x.event)}</td><td class="r">${num(x.bruch + x.korrektur)}</td><td class="r">${num(x.open)}</td><td class="r ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
       <tr class="sum"><td colspan="2">Summe</td><td class="r">${num(sum('delivered'))}</td><td class="r">${num(sum('konto'))}</td><td class="r">${num(sum('verein'))}</td><td class="r">${num(sum('gast'))}</td><td class="r">${num(sum('event'))}</td><td class="r">${num(sum('bruch') + sum('korrektur'))}</td><td class="r">${num(sum('open'))}</td><td class="r">${num(sum('inventur'))}</td><td class="r">${euro(sum('shrink_cents'))}</td></tr></table></div>`;
     bindRange('rng', (f, t) => RENDER.abgleich(f, t).catch(fail));
   };
@@ -1159,7 +1196,9 @@
       const max = Math.max(0, ...Object.values(days));
       const jan1 = `${year}-01-01`, start = addD(jan1, -dowI(jan1)), weeks = [];
       for (let w = 0; w < 54; w++) { const wd = addD(start, w * 7); if (wd > `${year}-12-31`) break; weeks.push(wd); }
-      return `<div class="ds-scroll"><div class="ds-heat" style="--w:${weeks.length}"><span></span>${weeks.map((w, i) => { const m = +addD(w, 6).slice(5, 7) - 1; const first = i === 0 || +addD(weeks[i - 1], 6).slice(5, 7) - 1 !== m; return `<span class="mo">${first && addD(w, 6).slice(0, 4) === String(year) ? MON[m] : ''}</span>`; }).join('')}
+      // Monatszeile: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat ihres Sonntags) – nichts läuft über
+      const months = []; weeks.forEach(w => { const d = addD(w, 6), key = d.slice(0, 4) === String(year) ? d.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
+      return `<div class="ds-scroll"><div class="ds-heat" style="--w:${weeks.length}"><span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key - 1] : ''}</span>`).join('')}
         ${WD.map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addD(w, r), v = days[day] || 0, inY = day.slice(0, 4) === String(year);
           return `<i class="${inY ? '' : 'out'}" ${inY ? `title="${deDate(day)}: ${fmt(v)}"` : ''} style="${inY && v ? `background:${heat(v, max)}` : ''}"></i>`; }).join('')}`).join('')}</div></div>`;
     }
@@ -1238,11 +1277,11 @@
         <div class="kpi"><div class="l">Stand der Liste</div><div class="v">${stand.slice(-5)}</div></div>
         <div class="kpi"><div class="l">Zuletzt abgerechnet</div><div class="v">${hist.length ? deDate(hist[0].created_at.slice(0, 10)) : '–'}</div></div>
       </div>
-      <div class="row" style="margin-bottom:14px">
+      <div class="toolbar">
         <a class="btn primary" href="${xls}">Excel herunterladen</a>
         ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste für die Vereinsverwaltung</button>' : ''}
         ${mayClose ? (r.rows.length ? `<button class="btn" id="settleAll">Alle ${r.rows.length} Konten als abgerechnet markieren</button>` : '')
-          : '<span class="muted s">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
+          : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
         <button class="btn ghost" id="reload">Liste aktualisieren</button>
       </div>
       <div class="scroll"><table class="tbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
@@ -1344,9 +1383,9 @@
         <label class="f">Konto<select id="ttM">${people.map(m => `<option value="${m.id}">${pName(m)}${m.kind === 'mannschaft' ? ' (Mannschaft)' : ''}</option>`).join('')}</select></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Übernehmen</button></div>`);
       $('c').onclick = closeDialog;
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         try { await api(`tabs/${t.id}/transfer`, 'POST', { memberId: Number($('ttM').value) }); closeDialog(); done('Auf das Konto übernommen.'); } catch (e) { fail(e); }
-      };
+      });
     });
     $('main').querySelectorAll('[data-tw]').forEach(b => b.onclick = () => {
       const t = find(b.dataset.tw);
@@ -1355,9 +1394,9 @@
         <label class="f">Begründung<input id="twN" placeholder="z. B. Gegner abgereist, nicht erreichbar"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ok">Abschreiben</button></div>`);
       $('c').onclick = closeDialog;
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         try { await api(`tabs/${t.id}/writeoff`, 'POST', { note: $('twN').value }); closeDialog(); done('Abgeschrieben.'); } catch (e) { fail(e); }
-      };
+      });
     });
   };
 
@@ -1436,7 +1475,7 @@
         </div>`;
       }).join('')}`;
     const again = () => RENDER.veranstaltungen({ filter: filt });
-    if ($('evAdd')) $('evAdd').onclick = async () => { try { await api('events', 'POST', { name: $('evName').value, date: $('evDate').value, copyFrom: $('evCopy').value || null }); toast('Angelegt – jetzt Getränke & Preise prüfen und aktivieren.'); again(); } catch (e) { fail(e); } };
+    if ($('evAdd')) $('evAdd').onclick = () => busy($('evAdd'), async () => { try { await api('events', 'POST', { name: $('evName').value, date: $('evDate').value, copyFrom: $('evCopy').value || null }); toast('Angelegt – jetzt Getränke & Preise prüfen und aktivieren.'); again(); } catch (e) { fail(e); } });
     const act = (sel, fn) => $('main').querySelectorAll(sel).forEach(b => b.onclick = () => Promise.resolve(fn(b)).then(r => { if (r !== false) again(); }).catch(fail));
     act('[data-on]', b => api(`events/${b.dataset.on}/activate`, 'POST', {}));
     act('[data-off]', b => api(`events/${b.dataset.off}/deactivate`, 'POST', {}));
@@ -1515,11 +1554,11 @@
     $('c').onclick = closeDialog;
     $('dAll').onclick = () => $('dialog').querySelectorAll('[data-d]').forEach(x => { x.checked = true; });
     $('dNone').onclick = () => $('dialog').querySelectorAll('[data-d]').forEach(x => { x.checked = false; });
-    $('ok').onclick = async () => {
+    $('ok').onclick = () => busy($('ok'), async () => {
       const articles = [...$('dialog').querySelectorAll('[data-d]:checked')].map(x => ({
         articleId: Number(x.dataset.d), price_cents: toCents($('dialog').querySelector(`[data-p="${x.dataset.d}"]`).value || '0') }));
       try { await api(`events/${ev.id}/articles`, 'PUT', { articles }); closeDialog(); toast(`${articles.length} Artikel gespeichert.`); RENDER.veranstaltungen(); } catch (e) { fail(e); }
-    };
+    });
   }
 
   /* =================== Artikel =================== */
@@ -1639,9 +1678,9 @@
       <div class="toolbar"><button class="btn primary" id="new">+ Neuer Artikel</button>
         <button class="btn ghost" id="catOrd">Reihenfolge der Kategorien …</button>
         <button class="btn ghost" id="aImp">Excel importieren …</button><a class="btn ghost" href="api/admin/articles/export.xlsx">Als Excel herunterladen</a></div>
-      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r">Gebinde</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th>Status</th><th></th></tr>
-      ${cache.articles.map(a => `<tr class="${a.active ? '' : 'off'}"><td><span class="art">${artTile(a)}<span>${esc(a.name)}</span></span></td><td>${esc(a.category)}</td><td class="r">${euro(a.price_cents)}</td><td class="r">${a.crate_size}</td>
-        <td class="r">${a.track_stock ? num(a.stock) : '–'}</td><td class="r">${a.track_stock ? num(a.min_stock) : ''}</td><td class="r">${a.track_stock && a.target_stock ? num(a.target_stock) : ''}</td><td>${a.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</td>
+      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r hide-md">Gebinde</th><th class="r">Bestand</th><th class="r hide-md">Mindest</th><th class="r hide-md">bestellen bis</th><th>Status</th><th></th></tr>
+      ${cache.articles.map(a => `<tr class="${a.active ? '' : 'off'}"><td><span class="art">${artTile(a)}<span>${esc(a.name)}</span></span></td><td>${esc(a.category)}</td><td class="r">${euro(a.price_cents)}</td><td class="r hide-md">${a.crate_size}</td>
+        <td class="r">${a.track_stock ? num(a.stock) : '–'}</td><td class="r hide-md">${a.track_stock ? num(a.min_stock) : ''}</td><td class="r hide-md">${a.track_stock && a.target_stock ? num(a.target_stock) : ''}</td><td>${a.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</td>
         <td class="r"><button class="btn small" data-e="${a.id}">Bearbeiten</button></td></tr>`).join('')}</table></div>`;
     $('new').onclick = async () => { if (await articleDialog(null)) RENDER.artikel(); };
     $('catOrd').onclick = async () => {
@@ -1657,9 +1696,9 @@
         $('coTbl').querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const i = +b.dataset.dn; [cats[i + 1], cats[i]] = [cats[i], cats[i + 1]]; draw(); });
         $('coAlpha').onclick = () => { cats.sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })); draw(); };
         $('c').onclick = closeDialog;
-        $('ok').onclick = async () => {
+        $('ok').onclick = () => busy($('ok'), async () => {
           try { await api('categories/order', 'PUT', { order: cats.map(c => c.name) }); closeDialog(); toast('Reihenfolge gespeichert – Tablets übernehmen sie beim nächsten Laden.'); RENDER.artikel(); } catch (e) { fail(e); }
-        };
+        });
       };
       draw();
     };
@@ -1716,10 +1755,10 @@
         $('ok').disabled = true; choice.clear();
         try { last = await send(false); draw(); } catch (e) { $('aPrev').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }
       };
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         if (open()) return;
         try { const d = await send(true); closeDialog(); toast(`${d.newCount} neu, ${d.takenCount || 0} aus der Datei übernommen, ${d.changeCount - (d.takenCount || 0)} unverändert gelassen.`); RENDER.artikel(); } catch (e) { fail(e); }
-      };
+      });
     };
     $('main').querySelectorAll('[data-e]').forEach(b => b.onclick = async () => {
       if (await articleDialog(cache.articles.find(a => a.id === Number(b.dataset.e)))) RENDER.artikel();
@@ -1771,12 +1810,14 @@
     };
     const ini = m => esc(initials(m.kind === 'mitglied' ? m.name : m.name.replace(/[()]/g, '')));
     const pinPill = m => m.hasPin ? `<span class="pill g">${m.kind === 'mannschaft' ? 'vom Vorstand' : 'gesetzt'}</span>${m.pinLocked ? ' <span class="pill r">gesperrt</span>' : ''}` : m.kind === 'mannschaft' ? '<span class="pill r">fehlt</span>' : '<span class="muted s">ohne</span>';
-    const detail = () => {
+    // Detailkarte rechts neben der Liste; bei schmalen Fenstern (≤ 1100 px) als Dialog, damit die Liste nicht springt
+    const narrow = () => window.matchMedia('(max-width: 1100px)').matches;
+    const detail = asDialog => {
       const m = cache.members.find(x => x.id === cache.mSel);
       const el = $('mDetail');
       el.classList.toggle('empty', !m);
       if (!m) { el.innerHTML = `<div class="mempty"><span class="mi">${icon('konten', 22)}</span><b>Mitglied auswählen</b><span class="muted s">Klick auf einen Namen zeigt hier Konto, PIN und Aktionen.</span></div>`; return; }
-      el.innerHTML = `<div class="mhead"><span class="av lg">${ini(m)}</span><div style="min-width:0"><h3>${esc(m.name)}</h3><div class="row" style="gap:6px"><span class="pill">${KIND[m.kind]}</span>${m.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</div></div></div>
+      const html = `<div class="mhead"><span class="av lg">${ini(m)}</span><div style="min-width:0"><h3>${esc(m.name)}</h3><div class="row" style="gap:6px"><span class="pill">${KIND[m.kind]}</span>${m.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</div></div></div>
         <dl class="facts">
           <div><dt>Offen</dt><dd class="${m.balance_cents > 0 ? 'neg' : ''}">${euro(m.balance_cents || 0)}</dd></div>
           ${m.eventOpen_cents ? `<div><dt>Veranstaltungen offen</dt><dd>${euro(m.eventOpen_cents)}</dd></div>` : ''}
@@ -1787,6 +1828,11 @@
         </dl>
         <div class="mact">${can('buchungen') ? `<button class="btn" data-log="${m.id}">Buchungen</button>` : ''}<button class="btn primary" data-ed="${m.id}">Bearbeiten</button>
           ${m.hasPin && m.kind !== 'mannschaft' ? `<button class="btn ghost" data-pin="${m.id}">PIN zurücksetzen</button>` : ''}</div>`;
+      if (asDialog) {
+        dialog(`<div class="mdetail" style="position:static;padding:0">${html}</div><div class="btns"><button class="btn ghost" id="mdClose">Schließen</button></div>`);
+        $('mdClose').onclick = closeDialog;
+        $('dialog').onclick = e => { if (e.target.closest('[data-ed],[data-pin],[data-log]')) { closeDialog(); $('main').onclick(e); } };   // Aktionen laufen über die Seite
+      } else el.innerHTML = html;
     };
     const draw = () => {
       const q = $('mSearch').value.trim().toLowerCase();
@@ -1803,8 +1849,7 @@
     draw();
     $('mSearch').oninput = draw;
     $('mFilter').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; cache.mFilter = b.dataset.f; $('mFilter').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b)); draw(); };
-    const pick = tr => { cache.mSel = Number(tr.dataset.sel); $('mTbl').querySelectorAll('tr[data-sel]').forEach(x => x.classList.toggle('on', x === tr)); detail();
-      if (window.matchMedia('(max-width: 1100px)').matches) $('mDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    const pick = tr => { cache.mSel = Number(tr.dataset.sel); $('mTbl').querySelectorAll('tr[data-sel]').forEach(x => x.classList.toggle('on', x === tr)); detail(narrow()); };
     $('mTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) pick(tr); };
     $('mTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(tr); } };
     if ($('abShow')) $('abShow').onclick = () => { cache.showAbsent = !cache.showAbsent; RENDER.konten(); };
@@ -1829,7 +1874,7 @@
       $('c').onclick = closeDialog; setTimeout(() => $('mName').focus(), 50);
       $('mKind').onchange = () => $('mPinL').classList.toggle('hidden', $('mKind').value !== 'mannschaft');
       $('mName').onkeydown = e => { if (e.key === 'Enter') $('mAdd').click(); };
-      $('mAdd').onclick = async () => { try { const r = await api('members', 'POST', { name: $('mName').value, kind: $('mKind').value, pin: $('mPin').value }); closeDialog(); toast('Angelegt.'); cache.mSel = r.id; RENDER.konten(); } catch (e) { fail(e); } };
+      $('mAdd').onclick = () => busy($('mAdd'), async () => { try { const r = await api('members', 'POST', { name: $('mName').value, kind: $('mKind').value, pin: $('mPin').value }); closeDialog(); toast('Angelegt.'); cache.mSel = r.id; RENDER.konten(); } catch (e) { fail(e); } });
     };
     $('mXls').onclick = () => {
       dialog(`<h2>Mitglieder aus Excel importieren</h2>
@@ -1861,18 +1906,18 @@
           $('ok').disabled = !d.newCount;
         } catch (e) { $('xlsPrev').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }
       };
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         try { const d = await send(true); closeDialog(); toast(`${d.added} Mitglieder angelegt.`); RENDER.konten(); } catch (e) { fail(e); }
-      };
+      });
     };
     $('mImp').onclick = () => {
       dialog(`<h2>Mitgliederliste einfügen</h2><p class="muted">Ein Name pro Zeile, z. B. aus Excel kopiert („Vorname Nachname“). Vorhandene Namen werden übersprungen.</p>
         <label class="f"><textarea id="impText" rows="12"></textarea></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Übernehmen</button></div>`);
       $('c').onclick = closeDialog;
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         try { const r = await api('members/import', 'POST', { text: $('impText').value, kind: 'mitglied' }); closeDialog(); toast(`${r.added} angelegt, ${r.skipped} schon vorhanden.`); RENDER.konten(); } catch (e) { fail(e); }
-      };
+      });
     };
     $('main').onclick = async e => {
       const ok = e.target.closest('[data-ok]'), mg = e.target.closest('[data-merge]'), rm = e.target.closest('[data-rm]');
@@ -1901,10 +1946,10 @@
           const ln = m.name.split(' ').pop(); $('mgSearch').value = ln; fill();
           $('mgSearch').oninput = fill;
           $('c').onclick = closeDialog;
-          $('ok2').onclick = async () => {
+          $('ok2').onclick = () => busy($('ok2'), async () => {
             if (!$('mgInto').value) { toast('Bitte ein Konto wählen.', true); return; }
             try { const r = await api(`members/${m.id}/merge`, 'POST', { intoId: Number($('mgInto').value) }); closeDialog(); toast(`${r.moved} Buchung(en) verschoben.`); refreshBadges(); RENDER.konten(); } catch (err) { fail(err); }
-          };
+          });
         }
         if (pin) {
           if (!await ask('PIN zurücksetzen?\n\nDas Mitglied legt beim nächsten Mal am Tablet eine neue PIN fest. Bis dahin sind Buchen und Stornieren von Plätzen am Tablet gesperrt.')) return;
@@ -1923,9 +1968,9 @@
           $('c').onclick = closeDialog;
           $('eKind').onchange = () => $('ePinRow').classList.toggle('hidden', $('eKind').value !== 'mannschaft');
           if ($('eApp')) appBox($('eApp'), m.id).catch(fail);
-          $('ok3').onclick = async () => {
+          $('ok3').onclick = () => busy($('ok3'), async () => {
             try { await api('members/' + m.id, 'PUT', { name: $('eName').value, kind: $('eKind').value, active: $('eAct').checked, pin: $('ePin').value }); closeDialog(); RENDER.konten(); } catch (err) { fail(err); }
-          };
+          });
           if ($('eDel')) $('eDel').onclick = async () => {
             if (!await ask(`„${m.name}“ löschen?\n\nDas Konto verschwindet aus allen Listen und vom Tablet. Wurde schon darauf gebucht, bleiben diese alten Buchungen in früheren Abrechnungen erhalten. Offene Beträge müssen vorher abgerechnet sein.`)) return;
             try { await api('members/' + m.id, 'DELETE'); closeDialog(); toast('Konto gelöscht.'); RENDER.konten(); } catch (err) { fail(err); }
@@ -2017,6 +2062,8 @@
     const oldN = r.rows.filter(x => x.device && x.device.oldAddress).length;
     const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', alt: x => x.device && x.device.oldAddress };
     let filt = FIL[cache.apFilter] ? cache.apFilter : 'alle';
+    // abgelehnte Tunnel-Anfrage der letzten 24 Stunden: Hinweis, damit der Vorstand ein falsch erkanntes Cloudflared-Add-on bemerkt
+    const rj = r.tunnel.lastReject && Date.now() - Date.parse(r.tunnel.lastReject.at) < 24 * 3600000 ? r.tunnel.lastReject : null;
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
       <p class="lead">Mitglieder bekommen <b>einen QR-Code</b>, legen <b>eine PIN</b> fest und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Die Getränke-PIN am Tablet bleibt davon unabhängig.</p>
       <div class="card" id="apSet"><h3>Adresse der App</h3>
@@ -2030,6 +2077,8 @@
         <div class="row" style="align-items:flex-end"><label class="f" style="flex:2;min-width:260px">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
           <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> eingeschaltet</label>
           <button class="btn primary" id="apExtSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button><button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button></div>
+        ${rj ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">${rj.why === 'aus' ? `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}), weil der externe Zugang ausgeschaltet war.`
+          : `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}). Kommt sie vom Cloudflared-Add-on, trage dessen IP-Adresse in der Add-on-Konfiguration von Clubwerk unter „proxy_addon_ip“ ein.`}</div>` : ''}
         <ol class="muted s" style="margin:12px 0 0;padding-left:18px;line-height:1.6">
           <li>Kostenloses Konto bei Cloudflare, eure Domain dort verwalten lassen (z. B. <code>meinverein.de</code>).</li>
           <li>Cloudflare → Zero Trust → Networking → Tunnels → „Tunnel erstellen“ (Cloudflared, Docker) → Token kopieren.</li>
@@ -2043,7 +2092,7 @@
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
-          <label class="f" style="flex:1;min-width:240px">Warnung bei gesperrtem Handy an${r.security.mailReady ? '' : ' (erst E-Mail-Versand einrichten)'}<input id="apMail" ${can('einstellungen') ? '' : 'disabled'} type="email" value="${esc(r.security.mailTo)}" placeholder="vorstand@verein.de"></label>
+          <label class="f" style="flex:1;min-width:240px">Warnung bei gesperrtem Handy an${r.security.mailReady ? '' : ' (erst Postfach einrichten)'}<input id="apMail" ${can('einstellungen') ? '' : 'disabled'} type="email" value="${esc(r.security.mailTo)}" placeholder="vorstand@verein.de"></label>
           <button class="btn primary" id="apSecSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button></div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
         <div class="row" style="margin-top:12px;gap:8px">
@@ -2056,10 +2105,10 @@
       <div class="card"><h3>Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3>
         ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['alt', 'alte Adresse']].filter(([k]) => k !== 'alt' || oldN)
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
-          <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th>zuletzt benutzt</th><th></th></tr>
+          <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
             ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td><label class="chk"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label></td>`; }).join('')}
-            <td class="muted s">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
+            <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
@@ -2174,7 +2223,7 @@
       if (!await ask(`Benutzer „${u.name || u.username}“ löschen? Die Einträge im Protokoll bleiben erhalten.`)) return;
       try { await api('users/' + u.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); RENDER.benutzer(); } catch (e) { fail(e); }
     };
-    $('ok').onclick = async () => {
+    $('ok').onclick = () => busy($('ok'), async () => {
       const body = fixed ? {} : { role: document.querySelector('[name=uRole]:checked').value, roles: [...document.querySelectorAll('[data-role]:checked')].map(x => +x.dataset.role),
         departments: [...document.querySelectorAll('[data-dep]:checked')].map(x => +x.dataset.dep), perms: [...document.querySelectorAll('[data-perm]:checked')].map(x => x.dataset.perm) };
       try {
@@ -2188,7 +2237,7 @@
         }
         closeDialog(); if (u) toast('Gespeichert.'); RENDER.benutzer();
       } catch (e) { $('uErr').textContent = e.message; }
-    };
+    });
   }
 
   function roleDialog(r, opt) {
@@ -2201,10 +2250,10 @@
       <div class="btns">${r && !r.users ? '<button class="btn danger" id="rDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
     if ($('rDel')) $('rDel').onclick = async () => { if (!await ask(`Rolle „${r.name}“ löschen?`)) return; try { await api('roles/' + r.id, 'DELETE'); closeDialog(); RENDER.benutzer(); } catch (e) { fail(e); } };
-    $('rOk').onclick = async () => {
+    $('rOk').onclick = () => busy($('rOk'), async () => {
       const body = { name: $('rNm').value, description: $('rDs').value, dept_scope: $('rSc').checked, perms: [...document.querySelectorAll('[data-rp]:checked')].map(x => x.dataset.rp) };
       try { if (r) await api('roles/' + r.id, 'PUT', body); else await api('roles', 'POST', body); closeDialog(); toast('Gespeichert.'); RENDER.benutzer(); } catch (e) { $('rErr').textContent = e.message; }
-    };
+    });
     void opt;
   }
 
@@ -2359,7 +2408,7 @@
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Drucken</button></div>`);
     if ($('bkSheet')) $('bkSheet').onclick = () => {
       sheetAsk(); $('c').onclick = closeDialog;
-      $('ok').onclick = async () => { try { await api('backups/password/check', 'POST', { password: $('nfPw').value }); const pw = $('nfPw').value; closeDialog(); notfallblatt(pw); } catch (e) { fail(e); } };
+      $('ok').onclick = () => busy($('ok'), async () => { try { await api('backups/password/check', 'POST', { password: $('nfPw').value }); const pw = $('nfPw').value; closeDialog(); notfallblatt(pw); } catch (e) { fail(e); } });
     };
     const afterSet = pw => {
       dialog(`<h2>Sicherungspasswort festgelegt</h2><div class="banner a" style="display:block">Jetzt bitte das Notfallblatt ausdrucken und sicher verwahren. Ohne das Passwort lässt sich keine Sicherung wiederherstellen.</div>
@@ -2379,11 +2428,11 @@
         <label class="f">Dein Passwort zur Bestätigung<input type="password" id="cpMy" autocomplete="current-password"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Ändern</button></div>`);
       $('c').onclick = closeDialog;
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         if ($('cp1').value !== $('cp2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
         const pw = $('cp1').value;
         try { await api('backups/password', 'POST', { password: pw, myPassword: $('cpMy').value }); closeDialog(); afterSet(pw); } catch (e) { fail(e); }
-      };
+      });
     };
     $('bkRun').onclick = async () => {
       $('bkRun').disabled = true; $('bkRun').textContent = 'Sichert …';
@@ -2408,13 +2457,13 @@
         <label class="f">Dein Passwort zur Bestätigung<input type="password" id="rsMy" autocomplete="current-password"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ok">Wiederherstellen</button></div>`);
       $('c').onclick = closeDialog;
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         $('ok').disabled = true; $('ok').textContent = 'Entschlüsselt …';
         try {
           const r = await api('backups/komplett/restore', 'POST', { source, target, file, password: $('rsPw').value, myPassword: $('rsMy').value });
           closeDialog(); toast(`Geprüft (Stand ${new Date(r.created).toLocaleString('de-DE')}) – wird beim Neustart übernommen.`); RENDER.sicherung();
         } catch (e) { $('ok').disabled = false; $('ok').textContent = 'Wiederherstellen'; fail(e); if (e.message && /Sicherungspasswort/.test(e.message)) $('rsPw').focus(); }
-      };
+      });
     };
     function bindRestore() {
       $('main').querySelectorAll('[data-krestore]').forEach(btn => btn.onclick = () => restoreDialog(btn.dataset.krestore, btn.dataset.file, fileDate(btn.dataset.file), true, btn.dataset.target || ''));
@@ -2527,14 +2576,14 @@
         } catch (e) { fail(e); }
         $('tgTest').disabled = false; $('tgTest').textContent = 'Verbindung testen';
       };
-      $('ok').onclick = async () => {
+      $('ok').onclick = () => busy($('ok'), async () => {
         $('ok').disabled = true;
         try {
           const body = { target: collect(), secret: secret() || undefined, myPassword: $('tgMy').value };
           await api(isNew ? 'backups/targets' : `backups/targets/${encodeURIComponent(t.id)}`, isNew ? 'POST' : 'PUT', body);
           closeDialog(); toast('Gespeichert – ab heute Nacht wird auch hierhin gesichert.'); RENDER.sicherung();
         } catch (e) { $('ok').disabled = false; fail(e); }
-      };
+      });
     };
     const dropboxDialog = () => {
       dialog(`<h2>Dropbox</h2><p class="muted">Verbunden mit <b>${esc(dx.account || 'Dropbox-App')}</b>. Alles liegt unter <code>Dropbox/Apps/&lt;App-Name&gt;/…</code>.</p>
@@ -2544,7 +2593,7 @@
         <div class="btns"><button class="btn danger" id="dxOff">Verbindung trennen</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
       $('c').onclick = closeDialog;
       $('dxRekey').onclick = () => { closeDialog(); dropboxSetup(); };
-      $('ok').onclick = async () => { try { await api('dropbox', 'PUT', { folder: $('dxFolder').value, enabled: $('dxOn').checked }); closeDialog(); toast('Gespeichert.'); RENDER.sicherung(); } catch (e) { fail(e); } };
+      $('ok').onclick = () => busy($('ok'), async () => { try { await api('dropbox', 'PUT', { folder: $('dxFolder').value, enabled: $('dxOn').checked }); closeDialog(); toast('Gespeichert.'); RENDER.sicherung(); } catch (e) { fail(e); } });
       $('dxOff').onclick = async () => { closeDialog(); if (!await ask('Dropbox-Verbindung trennen? Bereits hochgeladene Dateien bleiben in Dropbox.')) return; await api('dropbox/disconnect', 'POST', {}).catch(fail); RENDER.sicherung(); };
     };
     const dropboxSetup = async () => {
@@ -2670,13 +2719,13 @@
     $('unDl').addEventListener('click', () => { downloaded = true; $('unName').disabled = false; setTimeout(() => $('unName').focus(), 50); check(); });
     $('unName').oninput = check;
     $('unNo').onclick = closeDialog;
-    $('unOk').onclick = async () => {
+    $('unOk').onclick = () => busy($('unOk'), async () => {
       if (!await ask(`Wirklich „${name}“ deinstallieren?\n\nAlle Daten des Moduls werden jetzt gelöscht. Rückgängig nur über die heruntergeladene Sicherung.`, { ok: 'Ja, deinstallieren', danger: true })) return;
       try {
         await api(`extensions/${id}/uninstall`, 'POST', { file: bk.file, confirm: $('unName').value });
         closeDialog(); toast(`„${name}“ deinstalliert.`); location.hash = '#einstellungen'; location.reload();
       } catch (e) { fail(e); }
-    };
+    });
   }
   async function installModule(id, name) {
     let u;
@@ -2693,7 +2742,7 @@
       <div class="btns"><button class="btn" id="inNo">Abbrechen</button><button class="btn primary" id="inOk">Installieren</button></div>`);
     $('instFile').onchange = () => { const r = document.querySelector('[name=instSrc][value=upload]'); if (r) r.checked = true; };
     $('inNo').onclick = closeDialog;
-    $('inOk').onclick = async () => {
+    $('inOk').onclick = () => busy($('inOk'), async () => {
       const v = document.querySelector('[name=instSrc]:checked').value;
       $('inOk').disabled = true;
       try {
@@ -2708,7 +2757,7 @@
         await ask(`„${name}“ installiert\n\n${d.summary}. Das Modul ist aktiv.`, { okOnly: true, danger: false });
         location.hash = '#einstellungen'; location.reload();
       } catch (e) { $('inOk').disabled = false; fail(e); }
-    };
+    });
   }
 
 
@@ -2737,8 +2786,8 @@
         <label class="f">Vereinssprache<select id="lgClub" ${d.canEdit ? '' : 'disabled'}>${opt(d.club)}</select><span class="muted s">Für Tablet, Mitglieder-App, E-Mails, Excel- und PDF-Dateien – und als Vorgabe für alle.</span></label>
         <label class="f">Meine Sprache in diesem Browser<select id="lgMine">${opt(mine, 'Wie der Verein')}</select><span class="muted s">Ändert nur die Anzeige hier. Die Mitglieder-App folgt der Sprache des Handys, falls vorhanden.</span></label>
       </div>
-      <table class="tbl ltbl" style="margin-top:16px"><tr><th>Sprache</th><th>Code</th><th>Herkunft</th><th>Vollständig</th>${d.canEdit ? '<th class="r"></th>' : ''}</tr>
-        ${d.languages.map(l => `<tr><td class="lname"><b translate="no">${esc(l.name)}</b>${l.code === d.club ? ' <span class="pill g">Verein</span>' : ''}</td><td translate="no" class="lcode"><code>${esc(l.code)}</code></td><td>${esc(src(l))}</td><td class="lcov">${bar(l.coverage)}</td>
+      <table class="tbl ltbl" style="margin-top:16px"><tr><th>Sprache</th><th>Code</th><th class="hide-md">Herkunft</th><th>Vollständig</th>${d.canEdit ? '<th class="r"></th>' : ''}</tr>
+        ${d.languages.map(l => `<tr><td class="lname"><b translate="no">${esc(l.name)}</b>${l.code === d.club ? ' <span class="pill g">Verein</span>' : ''}</td><td translate="no" class="lcode"><code>${esc(l.code)}</code></td><td class="hide-md">${esc(src(l))}</td><td class="lcov">${bar(l.coverage)}</td>
           ${d.canEdit ? `<td class="r"><div class="lact"><a class="btn small" href="api/admin/sprachen/${encodeURIComponent(l.code)}/download">JSON</a><a class="btn small" href="api/admin/sprachen/${encodeURIComponent(l.code)}/download?format=xlsx">Excel</a>${l.custom ? `<button class="btn small danger" data-lrm="${esc(l.code)}" data-lb="${l.builtin || l.plugin ? 1 : 0}">${l.builtin || l.plugin ? 'Zurücksetzen' : 'Löschen'}</button>` : '<span></span>'}</div></td>` : ''}</tr>`).join('')}
       </table>
       ${d.canEdit ? `<h4 class="lh">Sprache hinzufügen oder Übersetzung verbessern</h4>
@@ -2855,24 +2904,28 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein & Logo'], ['bank', 'Bankkonten'], ['sprache', 'Sprachen'], ['mail', 'E-Mail-Versand'], ['module', 'Module'], ['tablet', 'Tablet & Kopfzeile'], ['getraenke', 'Verkauf'], ['update', 'Update'], ['konto', 'Mein Konto']];
-  const SETTING_OF = h => (/^Sprache/.test(h) ? 'sprache' : /^Mein Passwort/.test(h) ? 'konto' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo)/.test(h) ? 'verein' : /^E-Mail/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
+  const SETTING_SECS = [['verein', 'Verein & Logo'], ['bank', 'Bankkonten'], ['sprache', 'Sprachen'], ['mail', 'Postfach'], ['module', 'Module'], ['tablet', 'Tablet & Kopfzeile'], ['getraenke', 'Verkauf'], ['update', 'Update'], ['konto', 'Mein Konto']];
+  const SETTING_OF = h => (/^Sprache/.test(h) ? 'sprache' : /^Mein Passwort/.test(h) ? 'konto' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^Gemerkte Zuordnungen/.test(h) ? 'getraenke' : 'tablet');
-  function sectionize() {
-    const main = $('main');
-    const cards = [...main.children].filter(el => el.classList.contains('card'));
+  /** Karten eines Bereichs in Unterbereiche aufteilen (Unternavigation links, bei schmalen Fenstern oben) – für die Kern-Einstellungen und
+   *  die Einstellungsseiten der Module (GK.sectionize). o.root: Element mit den Karten (Standard #main) · o.secs: [[key, label]] ·
+   *  o.keyOf(überschrift) → key (Karten mit data-set="key" werden direkt zugeordnet) · o.store: Schlüssel für den gemerkten Bereich */
+  function sectionize(o = {}) {
+    const root = o.root || $('main'), SECS = o.secs || SETTING_SECS, keyOf = o.keyOf || SETTING_OF, store = o.store || 'cw_setsec';
+    const cards = [...root.children].filter(el => el.classList.contains('card') || el.dataset.set);
     if (!cards.length) return;
     const by = {};
-    cards.forEach(c => { const h = (c.querySelector('h3') || {}).textContent || ''; const k = c.dataset.set || SETTING_OF(window.CWI18N ? CWI18N.orig(h) : h.trim()); (by[k] = by[k] || []).push(c); });
-    const secs = SETTING_SECS.filter(([k]) => by[k]);
-    let cur = sget('cw_setsec'); if (!secs.some(([k]) => k === cur)) cur = secs[0][0];
+    cards.forEach(c => { const h = (c.querySelector('h3') || {}).textContent || ''; const k = c.dataset.set || keyOf(window.CWI18N ? CWI18N.orig(h) : h.trim()); (by[k] = by[k] || []).push(c); });
+    const secs = SECS.filter(([k]) => by[k]);
+    if (!secs.length) return;
+    let cur = sget(store); if (!secs.some(([k]) => k === cur)) cur = secs[0][0];
     const wrap = document.createElement('div'); wrap.className = 'settings';
     wrap.innerHTML = `<nav class="subnav" aria-label="Bereiche der Einstellungen">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}</button>`).join('')}</nav><div class="secbody"></div>`;
     const body = wrap.querySelector('.secbody');
     secs.forEach(([k]) => by[k].forEach(c => { c.dataset.secof = k; body.appendChild(c); }));
-    const head = main.querySelector('h2.page');
-    if (head && head.nextSibling) main.insertBefore(wrap, head.nextSibling); else main.appendChild(wrap);
-    const show = k => { cur = k; sset('cw_setsec', k); wrap.querySelectorAll('[data-sec]').forEach(b => b.classList.toggle('on', b.dataset.sec === k)); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
+    const head = root.querySelector(':scope > h2.page');
+    if (head) head.after(wrap); else root.prepend(wrap);
+    const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => b.classList.toggle('on', b.dataset.sec === k)); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
   }
@@ -2889,7 +2942,7 @@
           <td class="nw">${esc(fmtIbanC(a.iban))}</td><td>${a.departments.length ? esc(a.departments.map(dn).join(', ')) : '<span class="muted s">alle</span>'}</td>
           <td class="r">${r.manage ? `<button class="btn small" data-bk="${a.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>`
         : '<p class="muted">Noch kein Bankkonto angelegt.</p>'}
-      ${r.manage ? '<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="bkNew">+ Bankkonto</button></div>' : ''}`;
+      ${r.manage ? '<div class="btns"><button class="btn primary" id="bkNew">+ Bankkonto</button></div>' : ''}`;
     if ($('bkNew')) $('bkNew').onclick = () => bankDialog(null, r);
     box.querySelectorAll('[data-bk]').forEach(b => { b.onclick = () => bankDialog(r.rows.find(a => a.id === +b.dataset.bk), r); });
   }
@@ -2904,11 +2957,11 @@
       ${a ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bkA" ${a.active ? 'checked' : ''}> aktiv</label>` : ''}
       <div class="btns">${a ? '<button class="btn ghost danger" id="bkDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bkOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
-    $('bkOk').onclick = async () => {
+    $('bkOk').onclick = () => busy($('bkOk'), async () => {
       const body = { name: $('bkN').value, holder: $('bkH').value, iban: $('bkI').value, bic: $('bkB').value, bank: $('bkK').value, is_default: $('bkD').checked,
         departments: [...document.querySelectorAll('[data-bkd]:checked')].map(x => +x.dataset.bkd), ...(a ? { active: $('bkA').checked } : {}) };
       try { if (a) await api('bank-accounts/' + a.id, 'PUT', body); else await api('bank-accounts', 'POST', body); closeDialog(); toast('Gespeichert.'); renderBank().catch(fail); } catch (e) { fail(e); }
-    };
+    });
     if ($('bkDel')) $('bkDel').onclick = async () => {
       if (!await ask(`Bankkonto „${a.name}“ löschen?\n\nRechnungen, die es schon nennen, bleiben unverändert.`)) return;
       try { await api('bank-accounts/' + a.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); renderBank().catch(fail); } catch (e) { fail(e); }
@@ -2961,7 +3014,7 @@
         </div></div>
         <div id="logoColors" class="hidden" style="margin-top:12px"><div class="muted s" style="margin-bottom:6px">Farben im Logo – antippen, um sie als Vereinsfarbe zu übernehmen:</div><div class="row" id="swatches" style="gap:8px"></div></div>
         <p class="muted s">SVG, PNG, JPG oder WebP, max. 2 MB. Das Logo erscheint auf dem Tablet, in der Verwaltung und auf der Anmeldeseite und ist in jeder Datensicherung enthalten. Beim Hochladen wird das Grün aus dem Logo automatisch als Vereinsfarbe übernommen.</p></div>` : ''}
-      ${ml ? `<div class="card" id="mailCard"><h3>E-Mail-Versand</h3>
+      ${ml ? `<div class="card" id="mailCard"><h3>Postfach</h3>
         <p class="muted s" style="margin-top:0">Ein Postfach für alle Module: Bestellungen an den Lieferanten, Monatsnachweis der Zeiterfassung und Erweiterungen. Wohin die Mails gehen, legt jedes Modul selbst fest.</p>
         ${ml.ready ? `<div class="banner g" style="margin:0 0 12px">Eingerichtet – Absender ${esc(ml.from)}</div>` : '<div class="banner a" style="margin:0 0 12px">Noch nicht eingerichtet – ohne Postfach können Bestellung und Monatsnachweis nicht verschickt werden.</div>'}
         <div class="mailgrid">
@@ -2992,8 +3045,8 @@
               (x.unapproved || x.pending) && me.role === 'oberadmin' && x.hash ? `<button type="button" data-approve="${esc(x.id)}" data-fname="${esc(x.name)}" data-hash="${esc(x.hash)}">${x.pending ? 'Neue Version prüfen & freigeben …' : 'Prüfen & freigeben …'}</button>` : '',
             ].join('');
             return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', zeiterfassung: 'zeit' }[x.id] || 'modul', 20)}</span>
-              <div style="min-width:0"><b>${esc(x.name)}</b> <span class="pill" style="margin-left:6px;height:20px;font-size:11px">${esc(SRC[x.source] || x.source)}</span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}</div>
-              <span class="ver">${esc(x.version)}</span>
+              <div style="min-width:0"><b>${esc(x.name)}</b> <span class="pill srcb">${esc(SRC[x.source] || x.source)}</span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}</div>
+              <span class="ver">${esc(x.version)}<span class="pill srca">${esc(SRC[x.source] || x.source)}</span></span>
               <span class="st">${off ? '<span class="pill">nicht installiert</span>' : x.error ? '<span class="pill r">Fehler</span>' : x.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">aus</span>'}</span>
               <span class="act">${off ? (mayUn && !x.error ? `<button class="btn small primary" data-inst="${esc(x.id)}" data-fname="${esc(x.name)}" style="width:84px;padding:0">Installieren</button>` : '<span></span>')
                 : `<button class="switch ${x.active ? 'on' : ''}" role="switch" aria-checked="${x.active}" aria-label="${esc(x.name)} aktiv" data-ext="${esc(x.id)}" data-on="${x.active ? 0 : 1}" ${x.error || !mayCfg ? 'disabled' : ''}></button>`}
@@ -3007,11 +3060,11 @@
       ${ext && mayCfg ? `      <div class="card"><h3>Links in der Kopfzeile</h3>
         <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
         <div id="lnRows"></div>
-        <div class="row" style="margin-top:10px"><button class="btn" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
+        <div class="btns"><button class="btn ghost" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
       ${mayCfg ? `<div class="card"><h3>Leiste am Tablet</h3>
         <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der <b>Start-Reiter</b> erscheint beim Aufruf der Adresse (z. B. <code>…:3100</code>) und nach 30 Sekunden ohne Eingabe.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
-        <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
+        <div class="btns"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
       <div class="card"><h3>Tablet & Home Assistant</h3>
         <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. ${s.tabletPw && s.tabletPw.on ? 'Beim ersten Aufruf das Passwort der Buchungsseite eingeben.' : 'Die Buchungsseite braucht keine Anmeldung.'}</p>
         <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
@@ -3043,10 +3096,10 @@
           <label class="f">Dein Passwort zur Bestätigung<input type="password" id="apPw" autocomplete="current-password"></label>
           <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Freigeben</button></div>`);
         $('c').onclick = closeDialog;
-        $('ok').onclick = async () => {
+        $('ok').onclick = () => busy($('ok'), async () => {
           try { await api(`extensions/${b.dataset.approve}/approve`, 'POST', { password: $('apPw').value, hash: b.dataset.hash }); closeDialog(); toast('Freigegeben – bitte neu starten.'); if ($('extRestart')) $('extRestart').classList.remove('hidden'); }
           catch (e) { fail(e); }
-        };
+        });
       });
       $('main').querySelectorAll('[data-extdel]').forEach(b => b.onclick = async () => {
         if (!await ask(`Dateien von „${b.dataset.fname}“ entfernen?\n\nDie Erweiterung verschwindet nach einem Neustart ganz aus der Liste. Zum erneuten Installieren muss die ZIP-Datei wieder eingespielt werden. Die Modul-Sicherungen bleiben erhalten.`)) return;
@@ -3072,7 +3125,8 @@
         if (m && !was) { m.classList.remove('hidden'); b.classList.add('on'); }
       });
       $('main').querySelectorAll('.menu').forEach(m => m.addEventListener('click', () => setTimeout(closeMenus, 0)));
-      document.addEventListener('click', e => { if (!e.target.closest('.menu,[data-menu]')) { closeMenus(); document.querySelectorAll('.dots.on').forEach(d => d.classList.remove('on')); } });
+      // Klick außerhalb schließt die Menüs – ein einziger Listener für die ganze Sitzung (die Seite wird oft neu aufgebaut)
+      if (!closeMenusBound) { closeMenusBound = true; document.addEventListener('click', e => { if (!e.target.closest('.menu,[data-menu]')) { $('main').querySelectorAll('.menu').forEach(m => m.classList.add('hidden')); document.querySelectorAll('.dots.on').forEach(d => d.classList.remove('on')); } }); }
       $('main').querySelectorAll('[data-unin]').forEach(b => b.onclick = () => uninstallModule(b.dataset.unin, b.dataset.fname));
       $('main').querySelectorAll('[data-inst]').forEach(b => b.onclick = () => installModule(b.dataset.inst, b.dataset.fname));
     }

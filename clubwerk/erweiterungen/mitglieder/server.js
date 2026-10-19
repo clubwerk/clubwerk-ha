@@ -21,8 +21,7 @@ const isDate = fees.isDate;
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
 const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
 const mailOk = v => !v || /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i.test(String(v));
-const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-const deD = fees.deD;
+const { euro, deD } = require('../../src/util');
 const SALES = { payer: 'über den Hauptzahler', own_payer: 'eigener Eintrag, zahlt der Hauptzahler', own: 'eigener Eintrag, zahlt selbst' };
 
 /* ---------------------------------------------------------------- Lesen */
@@ -401,33 +400,41 @@ function activate(ctx) {
         bank = { iban: ib.iban, holder, mandate_date: b.mandate_date, bic: (sepa.checkBic(b.bic || '').bic) || null };
       }
     }
-    const id = createPerson(pi.fields, uname(req));
-    ctx.db.prepare('UPDATE mv_document SET member_id = ? WHERE id = ?').run(id, doc.id);
-    store.hist(id, uname(req), 'Dokument', null, doc.title);
-    if (fee) {
-      ctx.db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES (?,?,?,?,?,?,?)').run(id, fee.id, entry, null, null, null, null);
-      store.hist(id, uname(req), 'Beitrag', null, `${fee.name} ab ${deD(entry)}`);
+    // Alles in einer Transaktion: Kern-Konto, Vereinsdaten, Dokument, Beitrag, Bank, Abteilung – entweder ganz oder gar nicht
+    // (z. B. doppelte Mandatsreferenz darf kein halbes Mitglied ohne Beitrag und Bank hinterlassen)
+    let id, pending = false;
+    try {
+      ctx.db.transaction(() => {
+        id = createPerson(pi.fields, uname(req));
+        ctx.db.prepare('UPDATE mv_document SET member_id = ? WHERE id = ?').run(id, doc.id);
+        store.hist(id, uname(req), 'Dokument', null, doc.title);
+        if (fee) {
+          ctx.db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents, note) VALUES (?,?,?,?,?,?,?)').run(id, fee.id, entry, null, null, null, null);
+          store.hist(id, uname(req), 'Beitrag', null, `${fee.name} ab ${deD(entry)}`);
+        }
+        if (bank) {
+          const no = (ctx.db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(id) || {}).member_no || String(id);
+          ctx.db.prepare('INSERT INTO mv_bank(member_id, holder, iban, bic, bank, mandate_ref, mandate_date, mandate_revoked, updated_at) VALUES (?,?,?,?,?,?,?,?,?)').run(id, bank.holder, bank.iban, bank.bic, null, store.mandateRefFor(no), bank.mandate_date, null, nowTs());
+          store.hist(id, uname(req), 'Bankverbindung', null, sepa.maskIban(bank.iban));
+        }
+        if (full && b.department_id && ctx.db.prepare('SELECT 1 FROM mv_department WHERE id = ? AND active = 1').get(int(b.department_id)))
+          ctx.db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, status, booked_until) VALUES (?,?,?,?,?)').run(id, int(b.department_id), entry, 'aktiv', store.zusatzStart(int(b.department_id), entry));
+        if (req.mvScope) {   // Abteilungsadmin: neues Mitglied gehört gleich zu seiner Abteilung
+          const dep = Number((req.body || {}).department_id) || req.mvScope[0];
+          ctx.db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, status, booked_until) VALUES (?,?,?,?,?)').run(id, dep, entry, 'aktiv', store.zusatzStart(dep, entry));
+          if (needConfirm(req)) {   // erst nach Bestätigung durch die Vereinsverwaltung aktiv (Tablet, App, Beitragslauf)
+            ctx.db.prepare('UPDATE members SET active = 0 WHERE id = ?').run(id);
+            scopeChange(req, id, 'eintritt', { department_id: dep, entry_date: entry }, `Eintritt von ${pi.fields.first_name} ${pi.fields.last_name || ''}`.trim());
+            pending = true;
+          }
+        }
+      })();
+    } catch (e) {
+      console.error('Mitglied anlegen:', e.message);
+      return bad(res, /UNIQUE.*mandate_ref/.test(e.message) ? 'Diese Mandatsreferenz ist schon vergeben.' : /UNIQUE.*member_no/.test(e.message) ? 'Die Mitgliedsnummer ist schon vergeben.' : 'Das Mitglied konnte nicht angelegt werden: ' + e.message);
     }
-    if (bank) {
-      const no = (ctx.db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(id) || {}).member_no || String(id);
-      ctx.db.prepare('INSERT INTO mv_bank(member_id, holder, iban, bic, bank, mandate_ref, mandate_date, mandate_revoked, updated_at) VALUES (?,?,?,?,?,?,?,?,?)').run(id, bank.holder, bank.iban, bank.bic, null, store.mandateRefFor(no), bank.mandate_date, null, nowTs());
-      store.hist(id, uname(req), 'Bankverbindung', null, sepa.maskIban(bank.iban));
-    }
-    if (full && b.department_id && ctx.db.prepare('SELECT 1 FROM mv_department WHERE id = ? AND active = 1').get(int(b.department_id)))
-      ctx.db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, status, booked_until) VALUES (?,?,?,?,?)').run(id, int(b.department_id), entry, 'aktiv', store.zusatzStart(int(b.department_id), entry));
-    if (req.mvScope) {   // Abteilungsadmin: neues Mitglied gehört gleich zu seiner Abteilung
-      const dep = Number((req.body || {}).department_id) || req.mvScope[0];
-      const entry = pi.fields.entry_date || today();
-      ctx.db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, status, booked_until) VALUES (?,?,?,?,?)').run(id, dep, entry, 'aktiv', store.zusatzStart(dep, entry));
-      if (needConfirm(req)) {   // erst nach Bestätigung durch die Vereinsverwaltung aktiv (Tablet, App, Beitragslauf)
-        ctx.db.prepare('UPDATE members SET active = 0 WHERE id = ?').run(id);
-        scopeChange(req, id, 'eintritt', { department_id: dep, entry_date: entry }, `Eintritt von ${pi.fields.first_name} ${pi.fields.last_name || ''}`.trim());
-        ctx.audit(req.user, 'Mitglied angelegt (wartet auf Bestätigung)', `${pi.fields.first_name} ${pi.fields.last_name}`);
-        return res.json({ id, pending: true });
-      }
-    }
-    ctx.audit(req.user, 'Mitglied angelegt', `${pi.fields.first_name} ${pi.fields.last_name}`);
-    res.json({ id });
+    ctx.audit(req.user, pending ? 'Mitglied angelegt (wartet auf Bestätigung)' : 'Mitglied angelegt', `${pi.fields.first_name} ${pi.fields.last_name}`);
+    res.json(pending ? { id, pending: true } : { id });
   });
   admin.put('/member/:id', P, (req, res) => {
     const id = int(req.params.id); const p = personRow(id);
@@ -724,8 +731,10 @@ function activate(ctx) {
   });
 
   /* ---------- Datenschutz ---------- */
+  /* Datenauskunft (Art. 15 DSGVO) – mit den echten Rechten des Benutzers: ohne „Bankdaten“ bleibt die IBAN maskiert, ohne „Finanzen“
+     fehlen die Forderungen, ohne „Dokumente“ die Dokumentliste. Die vollständige Auskunft erzeugt ein Admin mit allen Rechten. */
   admin.get('/member/:id/auskunft', P, (req, res) => {
-    const id = int(req.params.id); const d = detail(id, { perms: ['mitglieder', 'mitglieder_bank', 'mitglieder_finanzen', 'mitglieder_dokumente'] });
+    const id = int(req.params.id); const d = detail(id, req.user);
     if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
     const core = ctx.db.prepare('SELECT name, kind, active, created_at, pin_hash IS NOT NULL AS hat_pin FROM members WHERE id = ?').get(id);
     const drinks = ctx.db.prepare("SELECT substr(created_at,1,7) monat, SUM(qty) anzahl, SUM(total_cents) cents FROM bookings WHERE member_id = ? AND cancelled_at IS NULL GROUP BY monat ORDER BY monat").all(id);
@@ -851,38 +860,41 @@ function activate(ctx) {
     return s;
   }
   admin.put('/settings', P, (req, res) => {
-    const b = req.body || {}; const errors = [];
-    const str = (k, max) => { if (b[k] !== undefined) SET(k, one(b[k], max)); };
-    const long = (k, max) => { if (b[k] !== undefined) SET(k, txt(b[k], max)); };
+    // Erst alles prüfen und in `pending` sammeln, dann in einer Transaktion schreiben – bei einem Fehler bleibt alles unverändert
+    const b = req.body || {}; const errors = []; const pending = [];
+    const put = (k, v) => pending.push([k, v]);
+    const str = (k, max) => { if (b[k] !== undefined) put(k, one(b[k], max)); };
+    const long = (k, max) => { if (b[k] !== undefined) put(k, txt(b[k], max)); };
     str('club_street', 80); str('club_city', 80); str('creditor_name', 70); str('club_bank', 70); str('notify_to', 300);
     long('due_text', 600); long('app_intro', 1500); long('work_text', 600); long('invoice_text', 800);
-    if (b.satzung_url !== undefined) { const u = one(b.satzung_url, 300); if (u && !/^https?:\/\//i.test(u)) errors.push('Die Satzung bitte als Adresse mit https:// angeben.'); else SET('satzung_url', u); }
-    if (b.creditor_id !== undefined) { const c = sepa.checkCreditorId(b.creditor_id); if (b.creditor_id && !c.ok) errors.push(c.error); else SET('creditor_id', c.ci); }
-    if (b.club_iban !== undefined && !/•/.test(String(b.club_iban))) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Die Vereins-IBAN darf nur ändern, wer das Recht „Finanzen“ hat.'); else { const i = sepa.checkIban(b.club_iban); if (b.club_iban && !i.ok) errors.push('Vereinskonto: ' + i.error); else SET('club_iban', i.iban); } }
-    if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Finanzen“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else SET('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
-    if (b.club_bic !== undefined) { const c = sepa.checkBic(b.club_bic); if (!c.ok) errors.push('Der BIC des Vereinskontos hat 8 oder 11 Zeichen.'); else SET('club_bic', c.bic); }
-    if (b.mandate_prefix !== undefined) SET('mandate_prefix', String(b.mandate_prefix).replace(/[^A-Za-z0-9]/g, '').slice(0, 10));
-    if (b.member_no_start !== undefined) SET('member_no_start', String(Math.max(1, int(b.member_no_start, 1))));
-    if (b.year_start !== undefined) { if (!/^(0[1-9]|1[0-2])-01$/.test(b.year_start)) errors.push('Das Beitragsjahr beginnt immer am Ersten eines Monats.'); else SET('year_start', b.year_start); }
-    if (b.prenotify_days !== undefined) { const n = int(b.prenotify_days); if (n < 1 || n > 30) errors.push('Die Vorabinformation braucht 1 bis 30 Tage (Standard 14; kürzer nur, wenn es so vereinbart ist).'); else SET('prenotify_days', n); }
-    if (b.drinks_due !== undefined) { if (b.drinks_due && !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(b.drinks_due)) errors.push('Ungültiger Termin für den Verkaufs-Einzug.'); else SET('drinks_due', b.drinks_due); }
-    if (b.app_tablet !== undefined) SET('app_tablet', b.app_tablet ? '1' : '0');
-    if (b.app_online !== undefined) SET('app_online', b.app_online ? '1' : '0');
-    for (const k of ['return_fee_cents', 'dunning_fee_cents']) if (b[k] !== undefined) SET(k, String(Math.max(0, Math.min(10000, int(b[k])))));
-    if (b.notice_months !== undefined) SET('notice_months', String(Math.max(0, Math.min(24, int(b.notice_months)))));
-    if (b.scope_confirm !== undefined) SET('scope_confirm', b.scope_confirm ? '1' : '0');
+    if (b.satzung_url !== undefined) { const u = one(b.satzung_url, 300); if (u && !/^https?:\/\//i.test(u)) errors.push('Die Satzung bitte als Adresse mit https:// angeben.'); else put('satzung_url', u); }
+    if (b.creditor_id !== undefined) { const c = sepa.checkCreditorId(b.creditor_id); if (b.creditor_id && !c.ok) errors.push(c.error); else put('creditor_id', c.ci); }
+    if (b.club_iban !== undefined && !/•/.test(String(b.club_iban))) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Die Vereins-IBAN darf nur ändern, wer das Recht „Finanzen“ hat.'); else { const i = sepa.checkIban(b.club_iban); if (b.club_iban && !i.ok) errors.push('Vereinskonto: ' + i.error); else put('club_iban', i.iban); } }
+    if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Finanzen“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else put('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
+    if (b.club_bic !== undefined) { const c = sepa.checkBic(b.club_bic); if (!c.ok) errors.push('Der BIC des Vereinskontos hat 8 oder 11 Zeichen.'); else put('club_bic', c.bic); }
+    if (b.mandate_prefix !== undefined) put('mandate_prefix', String(b.mandate_prefix).replace(/[^A-Za-z0-9]/g, '').slice(0, 10));
+    if (b.member_no_start !== undefined) put('member_no_start', String(Math.max(1, int(b.member_no_start, 1))));
+    if (b.year_start !== undefined) { if (!/^(0[1-9]|1[0-2])-01$/.test(b.year_start)) errors.push('Das Beitragsjahr beginnt immer am Ersten eines Monats.'); else put('year_start', b.year_start); }
+    if (b.prenotify_days !== undefined) { const n = int(b.prenotify_days); if (n < 1 || n > 30) errors.push('Die Vorabinformation braucht 1 bis 30 Tage (Standard 14; kürzer nur, wenn es so vereinbart ist).'); else put('prenotify_days', n); }
+    if (b.drinks_due !== undefined) { if (b.drinks_due && !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(b.drinks_due)) errors.push('Ungültiger Termin für den Verkaufs-Einzug.'); else put('drinks_due', b.drinks_due); }
+    if (b.app_tablet !== undefined) put('app_tablet', b.app_tablet ? '1' : '0');
+    if (b.app_online !== undefined) put('app_online', b.app_online ? '1' : '0');
+    for (const k of ['return_fee_cents', 'dunning_fee_cents']) if (b[k] !== undefined) put(k, String(Math.max(0, Math.min(10000, int(b[k])))));
+    if (b.notice_months !== undefined) put('notice_months', String(Math.max(0, Math.min(24, int(b.notice_months)))));
+    if (b.scope_confirm !== undefined) put('scope_confirm', b.scope_confirm ? '1' : '0');
     if (b.app_perms && typeof b.app_perms === 'object') {
       const clean = (defs, v) => Object.fromEntries(Object.keys(defs).map(k => [k, Boolean(v && v[k])]));
-      SET('app_perms', JSON.stringify({ view: clean(store.APP_VIEW, b.app_perms.view), edit: clean(store.APP_EDIT, b.app_perms.edit) }));
+      put('app_perms', JSON.stringify({ view: clean(store.APP_VIEW, b.app_perms.view), edit: clean(store.APP_EDIT, b.app_perms.edit) }));
     }
-    if (b.retention_years !== undefined) SET('retention_years', String(Math.max(0, Math.min(30, int(b.retention_years)))));
+    if (b.retention_years !== undefined) put('retention_years', String(Math.max(0, Math.min(30, int(b.retention_years)))));
     if (b.consents !== undefined && Array.isArray(b.consents)) {
       const list = b.consents.slice(0, 8).map((c, i) => ({ key: /^[a-z0-9_]{2,20}$/.test(c.key) ? c.key : 'e' + (i + 1), short: one(c.short, 40) || 'Einwilligung', text: txt(c.text, 700), required: Boolean(c.required) })).filter(c => c.text.length > 5);
-      SET('consents', JSON.stringify(list));
+      put('consents', JSON.stringify(list));
     }
     if (b.notify_to && String(b.notify_to).split(',').some(x => x.trim() && !mailOk(x.trim()))) errors.push('Ungültige E-Mail-Adresse bei „Benachrichtigung an“.');
-    ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', Object.keys(b).join(', '));
     if (errors.length) return bad(res, errors.join(' '));
+    ctx.db.transaction(() => { for (const [k, v] of pending) SET(k, v); })();
+    ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', pending.map(([k]) => k).join(', '));
     res.json({ ok: true, settings: settingsView(req.user) });
   });
 
@@ -961,6 +973,32 @@ function activate(ctx) {
     return true;
   };
   ctx.hooks.chargePaid = (id, date, via) => { ctx.db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ? AND status = 'offen'").run(isDate(date) ? date : today(), via || 'ueberweisung', id); };
+  /* für den Kern: Konto wird zusammengeführt (intoId) oder gelöscht (intoId = null). Läuft synchron in der Transaktion des Kerns,
+     VOR dem generischen Umhängen/Löschen aller Spalten mit Fremdschlüssel auf members(id). Hier nur, was der Kern nicht kennt:
+     Verlauf und Altersstufen-Hinweise (ohne Fremdschlüssel), Beitrittserklärungen, Dokument-Dateien, Zahler-Verweise von Angehörigen. */
+  ctx.hooks.memberRemoved = (fromId, intoId) => {
+    const from = ctx.db.prepare('SELECT name FROM members WHERE id = ?').get(fromId) || { name: String(fromId) };
+    if (intoId) {
+      // Angehörige, die über das alte Konto zahlten, zahlen jetzt über das Zielkonto; das Zielkonto zahlt nie über sich selbst
+      ctx.db.prepare('UPDATE mv_person SET payer_id = NULL WHERE member_id = ? AND payer_id = ?').run(intoId, fromId);
+      ctx.db.prepare('UPDATE mv_person SET payer_id = ? WHERE payer_id = ? AND member_id != ?').run(intoId, fromId, intoId);
+      ctx.db.prepare('UPDATE mv_history SET member_id = ? WHERE member_id = ?').run(intoId, fromId);
+      ctx.db.prepare('UPDATE mv_application SET member_id = ? WHERE member_id = ?').run(intoId, fromId);
+      // Altersstufen-Hinweise: beim Zielkonto schon vorhandene (UNIQUE) fallen weg
+      for (const n of ctx.db.prepare('SELECT id FROM mv_age_notice WHERE member_id = ?').all(fromId)) {
+        try { ctx.db.prepare('UPDATE mv_age_notice SET member_id = ? WHERE id = ?').run(intoId, n.id); } catch (e) { ctx.db.prepare('DELETE FROM mv_age_notice WHERE id = ?').run(n.id); }
+      }
+      store.hist(intoId, 'System', 'Zusammengeführt', null, `Konto „${from.name}“ (Nr. ${fromId}) übernommen`);
+      return;
+    }
+    // Löschen: Dateien der Dokumente entfernen (die Zeilen löscht der Kern über den Fremdschlüssel), Verweise ohne Fremdschlüssel lösen
+    for (const d of ctx.db.prepare('SELECT * FROM mv_document WHERE member_id = ?').all(fromId)) deleteDocumentFile(d);
+    ctx.db.prepare('UPDATE mv_person SET payer_id = NULL WHERE payer_id = ?').run(fromId);              // Angehörige zahlen wieder selbst
+    ctx.db.prepare('UPDATE mv_charge SET for_member_id = NULL WHERE for_member_id = ? AND member_id != ?').run(fromId, fromId);   // Forderungen des Zahlers bleiben
+    ctx.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(fromId);
+    ctx.db.prepare('DELETE FROM mv_age_notice WHERE member_id = ?').run(fromId);
+    ctx.db.prepare('UPDATE mv_application SET member_id = NULL WHERE member_id = ?').run(fromId);
+  };
   /* für den Kern: Abteilungen (Benutzer & Rollen) */
   ctx.hooks.bankAccountUsed = id => (Number(S('sepa_account')) === Number(id) ? 'Mitgliederverwaltung (Lastschriften)' : null);
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();

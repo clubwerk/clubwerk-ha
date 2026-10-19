@@ -1,6 +1,6 @@
 'use strict';
 /* Zentraler E-Mail-Versand: ein Postfach für alle Module (Bestellung, Zeiterfassung, Erweiterungen).
-   Eingetragen unter Einstellungen → E-Mail-Versand. Umgebungsvariablen SMTP_* nur als Rückfall. */
+   Eingetragen unter Einstellungen → Postfach. Umgebungsvariablen SMTP_* nur als Rückfall. */
 const { getSetting, setSetting } = require('./db');
 
 const K = k => 'mail_smtp_' + k;
@@ -40,7 +40,7 @@ function save(b) {
 
 function transport(pool) {
   const s = config();
-  if (!s.host || !s.from) throw new Error('Kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+  if (!s.host || !s.from) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
   const nodemailer = require('nodemailer');
   // 465 = verschlüsselt von Anfang an, 587 = Verschlüsselung (STARTTLS) ist Pflicht – sonst könnte jemand sie unterdrücken und das Passwort mitlesen
   return { s, t: nodemailer.createTransport({ host: s.host, port: s.port, secure: s.port === 465, requireTLS: s.port === 587, auth: s.user ? { user: s.user, pass: s.pass } : undefined,

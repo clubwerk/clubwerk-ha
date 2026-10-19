@@ -109,6 +109,9 @@ function register(sh) {
       }
     }
     if (!Object.keys(want).length && !consents) return bad(res, 'Du hast nichts geändert.');
+    // Neue E-Mail-Adresse (dorthin gehen künftig Bestätigungen) und Einwilligungen (gelten sofort) nur mit PIN – ein entsperrt
+    // herumliegendes Handy reicht dafür nicht. Anschrift und Telefon bestätigt ohnehin der Vorstand.
+    if ((want.email !== undefined || consents) && !req.pinOk()) return;
     // Einwilligungen gelten sofort (Widerruf muss ohne Hürde möglich sein) – Datenänderungen bestätigt der Vorstand
     if (consents) {
       const cur = JSON.parse(p.consents || '{}');

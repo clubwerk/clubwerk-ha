@@ -12,12 +12,7 @@ const pdf = require('./lib/pdf');
 
 let C, db;
 const VATS = [0, 7, 19];
-const pad = (n, l = 2) => String(n).padStart(l, '0');
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
-const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');
-const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+const { pad, today, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const txt = (v, max = 200) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
 const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
 const mailOk = v => !v || /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i.test(String(v));
@@ -285,7 +280,7 @@ function activate(ctx) {
   async function sendInvoice(id, req, { reminder = false } = {}) {
     const r = db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(id);
     const v = invView(r);
-    if (!ctx.mail.ready()) throw new Error('Für den Versand ist noch kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+    if (!ctx.mail.ready()) throw new Error('Für den Versand ist noch kein Postfach eingerichtet (Einstellungen → Postfach).');
     if (!v.recipient.email) throw new Error(`Für ${v.recipient.name} ist keine E-Mail-Adresse hinterlegt – bitte das PDF ausdrucken oder die Adresse ergänzen.`);
     const n = reminder ? r.reminders + 1 : 0;
     const title = reminder ? `${n > 1 ? n + '. ' : ''}Zahlungserinnerung` : 'Rechnung';
@@ -416,7 +411,7 @@ function activate(ctx) {
     const d = donOr404(req, res); if (!d) return;
     if (d.status !== 'aktiv') return bad(res, 'Diese Spendenquittung ist storniert.');
     const v = donView(d);
-    if (!ctx.mail.ready()) return bad(res, 'Für den Versand ist noch kein Postfach eingerichtet (Einstellungen → E-Mail-Versand).');
+    if (!ctx.mail.ready()) return bad(res, 'Für den Versand ist noch kein Postfach eingerichtet (Einstellungen → Postfach).');
     if (!v.donor.email) return bad(res, `Für ${v.donor.name} ist keine E-Mail-Adresse hinterlegt – bitte das PDF ausdrucken.`);
     const cl = club();
     await ctx.mail.send({ to: v.donor.email, subject: `Ihre Zuwendungsbestätigung ${d.no} – ${cl.name}`,
@@ -436,6 +431,11 @@ function activate(ctx) {
   });
 
   /* ---------- Übersicht, Erinnerungen, Funktionsdatei ---------- */
+  /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – Rechnungen und Spendenbescheinigungen behalten den Empfängertext,
+     der Verweis aufs Mitglied wandert bzw. entfällt (keine Fremdschlüssel, daher hier) */
+  ctx.hooks.memberRemoved = (fromId, intoId) => {
+    for (const t of ['bh_invoice', 'bh_donation']) db.prepare(`UPDATE ${t} SET member_id = ? WHERE member_id = ?`).run(intoId, fromId);
+  };
   ctx.hooks.overview = async () => {
     await syncMemberInvoices();
     const open = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen'").get();

@@ -8,11 +8,11 @@
       .bkm-view button { flex: 1; min-height: 36px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); }
       .bkm-view button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
       .bkm-planwrap { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
-      .bkm-plan { display: grid; grid-template-columns: 40px repeat(var(--n), minmax(0, 1fr)); }   /* ganzer Tag, alle Plätze in der Breite – kein Scrollen im Fenster */
+      .bkm-plan { display: grid; grid-template-columns: 52px repeat(var(--n), minmax(0, 1fr)); }   /* Zeitspalte 52 px: Uhrzeiten liegen ganz in der Karte */   /* ganzer Tag, alle Plätze in der Breite – kein Scrollen im Fenster */
       .bkm-plan .hd { position: relative; z-index: 3; background: var(--card); border-bottom: 1px solid var(--line); min-height: 48px; padding: 6px 4px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
       .bkm-plan .hd b { font-size: 14px; font-weight: 800; line-height: 18px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-plan .hd small { font-size: 11px; color: var(--muted); line-height: 14px; }
       .bkm-plan .tc { position: relative; border-right: 1px solid var(--line); }
-      .bkm-plan .tc span { position: absolute; right: 6px; transform: translateY(-50%); font-size: 11px; color: var(--faint, var(--muted)); font-variant-numeric: tabular-nums; }
+      .bkm-plan .tc span { position: absolute; right: 8px; transform: translateY(-50%); font-size: 11px; color: var(--faint, var(--muted)); font-variant-numeric: tabular-nums; }
       .bkm-plan .cl { position: relative; border-right: 1px solid var(--line); background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px); background-size: 100% var(--ph); }
       .bkm-plan .cl:last-child { border-right: 0; }
       .bkm-plan .zu { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--hover) 0 6px, transparent 6px 12px); pointer-events: none; }
@@ -153,7 +153,7 @@
       /** Übersicht: alle Plätze nebeneinander, Buchungen als Blöcke (wie im Vereinsheim-Plan) */
       function planHtml(rs, p, nowM) {
         const lo = Math.min(...rs.map(r => tm(r.open_from))), hi = Math.max(...rs.map(r => tm(r.open_to)));
-        const from = Math.floor(lo / 60) * 60, to = Math.ceil(hi / 60) * 60, T = 6, H = (to - from) / 60 * PH + T * 2;
+        const from = Math.floor(lo / 60) * 60, to = Math.ceil(hi / 60) * 60, T = 12, H = (to - from) / 60 * PH + T * 2;   // T: Rand oben/unten, damit die erste und letzte Uhrzeit nicht angeschnitten wird
         const y = m => T + (m - from) / 60 * PH;
         const isToday = day === data.today;
         const blk = (r, b) => {
@@ -264,10 +264,13 @@
           try {
             const q = await ctx.api('quote', 'POST', body());
             if (n !== qn) return;
-            if (!q.ok) { $q('bkmSum').textContent = ''; $q('bkmE').textContent = q.error; return; }
             $q('bkmE').textContent = '';
             $q('bkmSum').innerHTML = q.fee_cents ? `${q.lines.map(l => esc(l.text)).join('<br>')}<br><b>Zusammen ${euro(q.fee_cents)}</b> – wird mit deinem nächsten Beitragseinzug abgerechnet.` : lab && lab.free_rules ? `${esc(lab.name)} – Vereinstermin, kostenlos.` : 'Kostenlos.';
-          } catch (e) { /* Vorschau ist nur Hilfe */ }
+          } catch (e) {
+            if (n !== qn) return;
+            // 400 = Regelverstoß (zu lange, Kontingent, Mitspieler belegt …): als Hinweis zeigen; andere Fehler nur Vorschau
+            if (e.status === 400) { $q('bkmSum').textContent = ''; $q('bkmE').textContent = e.message; }
+          }
         };
         const chips = () => {
           if ($q('bkmPc')) $q('bkmPc').innerHTML = partners.map(id => `<span>${esc((data.people.find(x => x.id === id) || {}).name || '')}<button data-rp="${id}" aria-label="entfernen">×</button></span>`).join('');

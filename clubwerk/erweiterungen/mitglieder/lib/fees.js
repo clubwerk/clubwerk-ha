@@ -7,10 +7,8 @@
  *    Stichtag anteilig (volle Monate, der Eintrittsmonat zählt mit) – oder voll, wenn der Beitrag so eingestellt ist.
  *  - Ab dem Austritts- bzw. Enddatum beginnen keine neuen Zeiträume mehr.
  */
+const { pad, isDate, addDays, deD } = require('../../../src/util');   // gemeinsame Datums-Helfer des Kerns
 const MONTHS = { jahr: 12, halbjahr: 6, quartal: 3, monat: 1, einmalig: 0 };
-const pad = n => String(n).padStart(2, '0');
-const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
-const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 const addMonths = (s, n) => { const [y, m, d] = s.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1 + n, 1)); const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(Math.min(d, last))}`; };
 const monthIndex = s => Number(s.slice(0, 4)) * 12 + Number(s.slice(5, 7)) - 1;
 
@@ -85,7 +83,6 @@ function pickByAge(list, birth, day) {
 }
 
 const INTERVAL_LABEL ={ jahr: 'jährlich', halbjahr: 'halbjährlich', quartal: 'vierteljährlich', monat: 'monatlich', einmalig: 'einmalig' };
-const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');
 /** „05/2026–04/2027“ bzw. „Mai 2026“ für Buchungstexte */
 function periodText(from, to) {
   if (from === to) return deD(from);

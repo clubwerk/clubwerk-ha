@@ -35,29 +35,27 @@ const DEF = {
 };
 const HA_BASE = () => (process.env.HA_URL || 'http://supervisor/core/api').replace(/\/$/, '');
 const HA_TOKEN = () => process.env.SUPERVISOR_TOKEN || process.env.HA_TOKEN || '';
-const pad = n => String(n).padStart(2, '0');
-const localTs = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-const today = () => localTs().slice(0, 10);
-/* IDs von Türen und Zeitprofilen werden nie doppelt vergeben – auch nicht nach dem Löschen (Protokoll und Freischaltungen verweisen darauf) */
+const { pad, today, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
+/* IDs von Türen und Zeitprofilen werden nie doppelt vergeben – auch nicht nach dem Löschen (Protokoll und Freischaltungen verweisen darauf).
+   Die Prüfung in cleanCfg() arbeitet auf einer Kopie (`used`) ohne Datenbankzugriff; gespeichert wird erst mit der Konfiguration (saveUsedIds). */
 function usedIds() {
   let u; try { u = new Set(JSON.parse(getSetting('ext_zugang_used_ids', '[]'))); } catch (e) { u = new Set(); }
   const c = cfg(); for (const d of c.doors || []) u.add(d.id); for (const p of c.profiles || []) u.add(p.id);   // vorhandene zählen immer als vergeben
   return u;
 }
-/** Eine mitgeschickte ID annehmen, wenn sie gültig ist und hier noch nie vergeben war (wird dann als vergeben gemerkt) */
-function freshId(id, re) {
+/** Eine mitgeschickte ID annehmen, wenn sie gültig ist und hier noch nie vergeben war (wird in `used` als vergeben gemerkt) */
+function freshId(used, id, re) {
   if (!re.test(String(id || ''))) return false;
-  const used = usedIds(); if (used.has(String(id))) return false;
-  used.add(String(id)); setSetting('ext_zugang_used_ids', JSON.stringify([...used]));
+  if (used.has(String(id))) return false;
+  used.add(String(id));
   return true;
 }
-function newId() {
-  const used = usedIds(); const c = cfg();
-  for (const d of c.doors || []) used.add(d.id); for (const p of c.profiles || []) used.add(p.id);
+function newId(used) {
   let id; do { id = crypto.randomBytes(4).toString('hex'); } while (used.has(id));
-  used.add(id); setSetting('ext_zugang_used_ids', JSON.stringify([...used]));
+  used.add(id);
   return id;
 }
+const saveUsedIds = used => setSetting('ext_zugang_used_ids', JSON.stringify([...used]));
 
 function defaultProfiles() {
   const all = { 0: [['00:00', '24:00']], 1: [['00:00', '24:00']], 2: [['00:00', '24:00']], 3: [['00:00', '24:00']], 4: [['00:00', '24:00']], 5: [['00:00', '24:00']], 6: [['00:00', '24:00']] };
@@ -290,9 +288,10 @@ const pickDoor = (c, b, res) => {
 };
 
 /* Mitglieder-App: /api/m/zugang/… (Gerät + Freischaltung prüft der Kern, die PIN req.pinOk()) */
-function memberRoutes(r) {
+function memberRoutes(r, ctx) {
   r.get('/status', async (req, res) => res.json(await viewFor(req.member.id, cfg())));
-  r.post('/door', async (req, res) => {
+  // Bremse je Adresse zusätzlich zum Schreib-Limit je Gerät des Kerns: Türimpulse im Dauerfeuer und PIN-Prüfungen (scrypt) kosten
+  r.post('/door', ctx.rateLimit('zmdoor', 12, 60000), async (req, res) => {
     const c = cfg();
     if (c.wlanOnly && !isLocalIp(req.socket.remoteAddress)) return res.status(403).json({ error: 'Öffnen geht nur im Vereins-WLAN.' });
     const door = pickDoor(c, req.body || {}, res); if (!door) return;
@@ -362,10 +361,14 @@ function tabletRoutes(r, ctx) {
 }
 
 /* =================== Verwaltung =================== */
+/** Eingaben prüfen und zur fertigen Konfiguration zusammensetzen – OHNE etwas zu speichern. → { out, commit }
+ *  commit() schreibt nach save(out) die Nebenwirkungen: neu vergebene IDs merken, Mitglieder mit gelöschtem Zeitprofil auf den Standard setzen. */
 function cleanCfg(b, cleanName) {
   const c = cfg();
   const doorMap = new Map();   // alte/fremde Tür-ID → vergebene ID (für die Zeitprofile)
   const out = { ...c };
+  const used = usedIds();
+  let idsChanged = false, profilesChanged = false;
   if (b.vendor !== undefined) { if (!VENDORS.some(v => v.id === b.vendor)) throw new Error('Unbekannter Hersteller.'); out.vendor = b.vendor; }
   for (const k of ['wlanOnly', 'header', 'blockAll']) if (b[k] !== undefined) out[k] = Boolean(b[k]);
   if (b.appName !== undefined) out.appName = cleanName(b.appName, 20) || 'Zugang';
@@ -388,7 +391,9 @@ function cleanCfg(b, cleanName) {
       const sensor = String(d.sensor || '').trim();
       if (sensor && !/^binary_sensor\.[a-z0-9_]+$/.test(sensor)) throw new Error(`${name}: ungültiger Türkontakt.`);
       // vorhandene Tür behält ihre ID; eine neue ID wird nur angenommen, wenn sie hier noch nie vergeben war – sonst neu
-      let id = !seen.has(d.id) && (curDoors.has(String(d.id)) || freshId(d.id, /^[a-f0-9]{8}$/)) ? String(d.id) : newId();
+      const keep = !seen.has(d.id) && (curDoors.has(String(d.id)) || freshId(used, d.id, /^[a-f0-9]{8}$/));
+      const id = keep ? String(d.id) : newId(used);
+      if (!curDoors.has(id)) idsChanged = true;
       if (d.id) doorMap.set(String(d.id), id);
       seen.add(id);
       return { id, name, type, ref, sensor, pulseSec: Math.max(1, Math.min(30, parseInt(d.pulseSec, 10) || 3)) };
@@ -413,17 +418,16 @@ function cleanCfg(b, cleanName) {
           return [`${pad(Math.floor(am / 60))}:${pad(am % 60)}`, `${pad(Math.floor(zm / 60))}:${pad(zm % 60)}`];
         });
       }
-      let id = !seen.has(p.id) && (curProfiles.has(String(p.id)) || freshId(p.id, /^[a-z0-9]{3,20}$/)) ? String(p.id) : newId();
+      const keep = !seen.has(p.id) && (curProfiles.has(String(p.id)) || freshId(used, p.id, /^[a-z0-9]{3,20}$/));
+      const id = keep ? String(p.id) : newId(used);
+      if (!curProfiles.has(id)) idsChanged = true;
       seen.add(id);
       return { id, name, doors: p.doors === 'all' ? 'all' : (Array.isArray(p.doors) ? p.doors.map(x => doorMap.get(String(x)) || x).filter(x => doorIds.has(x)) : []), windows, isDefault: Boolean(p.isDefault) };
     });
     const defs = out.profiles.filter(p => p.isDefault);
     out.profiles.forEach(p => { p.isDefault = false; });
     (defs[0] || out.profiles[0]).isDefault = true;
-    // Mitglieder mit gelöschtem Profil → Standard
-    const def = out.profiles.find(p => p.isDefault).id;
-    const ids = out.profiles.map(p => p.id);
-    db.prepare(`UPDATE member_access SET profile = ? WHERE module = 'zugang' AND (profile IS NULL OR profile NOT IN (${ids.map(() => '?').join(',')}))`).run(def, ...ids);
+    profilesChanged = true;
   }
   if (b.blockDays !== undefined) {
     if (!Array.isArray(b.blockDays) || b.blockDays.length > 50) throw new Error('Ungültige Sperrtage.');
@@ -433,7 +437,15 @@ function cleanCfg(b, cleanName) {
       return { from, to, note: cleanName(x.note, 60) || '' };
     }).sort((a, b2) => a.from.localeCompare(b2.from));
   }
-  return out;
+  const commit = () => {
+    if (idsChanged) saveUsedIds(used);
+    if (profilesChanged) {   // Mitglieder mit gelöschtem Profil → Standard
+      const def = out.profiles.find(p => p.isDefault).id;
+      const ids = out.profiles.map(p => p.id);
+      db.prepare(`UPDATE member_access SET profile = ? WHERE module = 'zugang' AND (profile IS NULL OR profile NOT IN (${ids.map(() => '?').join(',')}))`).run(def, ...ids);
+    }
+  };
+  return { out, commit };
 }
 
 function activate(ctx) {
@@ -448,15 +460,15 @@ function activate(ctx) {
   ctx.hooks.shutdown = async () => { const p = [...pulseTimers.values()]; for (const t of p) clearTimeout(t.timer); await Promise.all(p.map(t => t.off())); };
   access = ctx.access;
   const tr = express.Router(); tabletRoutes(tr, ctx); ctx.tablet.use(tr);
-  memberRoutes(ctx.member);
+  memberRoutes(ctx.member, ctx);
   ctx.hooks.accessOptions = () => { const c = cfg(); return { profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault, text: profileText(p) })), defaultProfile: (c.profiles.find(p => p.isDefault) || c.profiles[0]).id }; };
   /* Funktionsexport/-import: Türen, Zeitprofile, Sperrtage, Einstellungen – ohne Freischaltungen und Protokoll */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { blockAll, ...rest } = c; void blockAll; return rest; };
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const keys = ['vendor', 'doors', 'profiles', 'wlanOnly', 'header', 'appName', 'subtitle', 'notify', 'openAlertMin', 'blockDays'];
-    const out = cleanCfg(Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]])), ctx.cleanName);
-    save(out); cache.at = 0;
+    const { out, commit } = cleanCfg(Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]])), ctx.cleanName);
+    db.transaction(() => { save(out); commit(); })(); cache.at = 0;
     return `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile${out.blockDays.length ? `, ${out.blockDays.length} Sperrzeiträume` : ''}`;
   };
   ctx.hooks.overview = async () => {
@@ -487,10 +499,10 @@ function activate(ctx) {
       profileTexts: Object.fromEntries(c.profiles.map(p => [p.id, profileText(p)])) });
   });
   admin.put('/config', need('zugang'), (req, res) => {
-    let out;
-    try { out = cleanCfg(req.body || {}, cleanName); } catch (e) { return bad(res, e.message); }
+    let out, commit;
+    try { ({ out, commit } = cleanCfg(req.body || {}, cleanName)); } catch (e) { return bad(res, e.message); }   // prüft nur, schreibt nichts
     const before = cfg();
-    save(out);
+    db.transaction(() => { save(out); commit(); })();   // Konfiguration, vergebene IDs und Zeitprofil-Zuordnungen zusammen
     cache.at = 0;
     if (before.blockAll !== out.blockAll) { log('sperre', req.user.name || req.user.username, null, out.blockAll ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben'); audit(req.user, out.blockAll ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', ''); }
     else audit(req.user, 'Zugang eingerichtet', `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile`);

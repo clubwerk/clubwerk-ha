@@ -33,8 +33,7 @@ const DEF = {
 const HA_BASE = () => (process.env.HA_URL || 'http://supervisor/core/api').replace(/\/$/, '');
 const HA_TOKEN = () => process.env.SUPERVISOR_TOKEN || process.env.HA_TOKEN || '';
 const HW_BASE = () => (process.env.HYDRAWISE_BASE || 'https://api.hydrawise.com/api/v1').replace(/\/$/, '');
-const pad = n => String(n).padStart(2, '0');
-const localTs = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const hhmm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 function cfg() {
@@ -441,6 +440,7 @@ function startPortApp(ctx) {
   app.set('trust proxy', false);
   app.use(ctx.require('./security').hostGuard());
   app.use(ctx.require('./security').hardenHeaders({ frame: 'DENY' }));
+  app.use(ctx.require('./security').compress());
   app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'same-origin');
@@ -470,7 +470,13 @@ function startPortApp(ctx) {
   app.use('/api', appRouter(ctx));
   app.use('/api', (req, res) => res.status(404).json({ error: 'Unbekannte Adresse.' }));
   app.use(express.static(path.join(__dirname, 'public'), { index: 'index.html', setHeaders: r => r.setHeader('Cache-Control', 'no-cache') }));
-  app.use((err, req, res, next) => { res.status(400).json({ error: 'Ungültige Anfrage.' }); }); // eslint-disable-line no-unused-vars
+  /* Fehler immer als JSON, ohne interne Details – echte Programmfehler landen im Protokoll statt als „Ungültige Anfrage“ unterzugehen */
+  app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+    if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Die Datei ist zu groß.' });
+    if (err && (err.type === 'entity.parse.failed' || (err.status >= 400 && err.status < 500))) return res.status(400).json({ error: 'Ungültige Anfrage.' });
+    console.error('Beregnung-Webapp:', err);
+    res.status(500).json({ error: 'Interner Fehler.' });
+  });
   const srv = ctx.require('./tls').listen(app, port, process.env.HOST || '0.0.0.0', 'Beregnung-Webapp');
   srv.on('error', e => console.error(`Beregnung: Port ${port} nicht nutzbar (${e.code || e.message}) – die Webapp ist nur über das Tablet erreichbar.`));
 }
@@ -528,11 +534,12 @@ function activate(ctx) {
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.plaetze.length && c.mode !== 'app'); };   // „nur Mitglieder-App“ gilt fürs eigene Handy, nicht fürs Vereinstablet
   /* Mitglieder-App: /api/m/beregnung/… (Gerät und Freischaltung prüft der Kern) */
   ctx.member.get('/status', async (req, res) => res.json({ ...(await status()), stopFree: Boolean(cfg().stopFree) }));
-  // In der Mitglieder-App ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet
-  ctx.member.post('/run', (req, res) => {
+  // In der Mitglieder-App ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet – dafür gebremst (10 je Minute),
+  // damit niemand im Sekundentakt Ventile schaltet (Home-Assistant-Aufrufe, Protokollflut, Verschleiß)
+  ctx.member.post('/run', ctx.rateLimit('bgmrun', 10, 60000), (req, res) => {
     try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.member.name) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
-  ctx.member.post('/stop', async (req, res) => {
+  ctx.member.post('/stop', ctx.rateLimit('bgmstop', 10, 60000), async (req, res) => {
     const b = req.body || {};
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
       try { const errs = await stopPlatz(parseInt(b.platz, 10), req.member.name); if (errs.length) return res.status(502).json({ error: 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!' }); return res.json({ ok: true }); }
@@ -643,7 +650,12 @@ function activate(ctx) {
   });
 
 
-  setInterval(() => { if (ctx.isActive()) tick(); }, 1000).unref();
+  // Der Ablauf läuft IMMER – auch bei ausgeschaltetem Modul: Zonen, die noch offen sind (state run/wait), müssen zu Ende laufen bzw.
+  // abgeschaltet werden. Nur neue Starts hängen am Modul (enqueue wird nur über aktive Routen erreicht).
+  setInterval(tick, 1000).unref();
+  // Modul wird in der Verwaltung ausgeschaltet oder Clubwerk beendet (Update, Neustart): nichts darf offen bleiben
+  ctx.hooks.deactivate = () => stopAll('System (Modul ausgeschaltet)');
+  ctx.hooks.shutdown = async () => { if (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) await stopAll('System (Beenden)'); };
   startPortApp(ctx);
 }
 const nextMonth = m => { const [y, mo] = m.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${pad(mo + 1)}`; };

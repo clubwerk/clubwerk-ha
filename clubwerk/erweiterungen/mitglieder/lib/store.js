@@ -10,9 +10,8 @@ const sepa = require('./sepa');
 let db, getSetting, setSetting;
 const S = (k, d = '') => getSetting('ext_mitglieder_' + k, d);
 const SET = (k, v) => setSetting('ext_mitglieder_' + k, v == null ? '' : String(v));
-const pad = n => String(n).padStart(2, '0');
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const nowTs = () => { const d = new Date(); return `${today()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
+const { today, nowTs } = require('../../../src/util');
+const { splitPersonName } = require('../../../src/db');   // Namenszerlegung: eine Quelle für Sortierung, Kern und Module
 
 function createTables() {
   db.exec(`
@@ -182,14 +181,10 @@ function ensurePerson(memberId) {
     db.prepare('INSERT INTO mv_person(member_id, first_name, last_name, entry_date) VALUES (?,?,?,?)').run(memberId, parts.first || null, parts.last || null, m ? (m.created_at || '').slice(0, 10) || null : null);
   }
 }
-const PARTICLES = new Set(['von', 'van', 'vom', 'zu', 'zum', 'zur', 'de', 'der', 'den', 'la', 'le', 'di', 'da', 'ten', 'op']);
+/** Vor-/Nachname: eingetragene Felder, sonst Zerlegung des Anzeigenamens wie überall (db.splitPersonName) */
 function splitName(m) {
   if (m.first_name || m.last_name) return { first: m.first_name || '', last: m.last_name || '' };
-  const n = String(m.name || '').trim();
-  if (n.includes(',')) { const [l, ...f] = n.split(','); return { first: f.join(',').trim(), last: l.trim() }; }
-  const w = n.split(/\s+/); if (w.length < 2) return { first: '', last: n };
-  let i = w.length - 1; while (i > 1 && PARTICLES.has(w[i - 1].toLowerCase())) i--;
-  return { first: w.slice(0, i).join(' '), last: w.slice(i).join(' ') };
+  return splitPersonName(m.name);
 }
 /** Name im Kern nachziehen (Tablet, App, Getränke zeigen ihn) */
 function syncCore(memberId) {

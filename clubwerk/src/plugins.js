@@ -157,13 +157,15 @@ function load({ app, admin, helpers }) {
     if (p.error) continue;   // nicht freigegeben oder fehlerhaft: kein Code, keine Dateien, keine Rechte
     for (const [k, v] of Object.entries(p.meta.perms || {})) if (/^[a-z0-9_]{2,40}$/.test(k) && !auth.PERMS[k] && !RESERVED_PERMS.has(k)) auth.PERMS[k] = String(v);
     const guard = (req, res, next) => (isActive(id) ? next() : res.status(404).json({ error: 'Diese Erweiterung ist nicht aktiv.' }));
+    // Seiten und Dateien einer ausgeschalteten Erweiterung: Text für Seiten, JSON für alles unter /api/
+    const inactive = (req, res) => (req.originalUrl.startsWith('/api/') ? res.status(404).json({ error: 'Diese Erweiterung ist nicht aktiv.' }) : res.status(404).type('text/plain; charset=utf-8').send('Erweiterung nicht aktiv'));
     const pub = path.join(p.dir, 'public');
     const slug = tabletSlug(p);
     if (fs.existsSync(pub) && slug && !p.meta.tablet.seite && fs.existsSync(path.join(pub, 'index.html'))) {
       // Seite unter /<pfad>/ ausliefern; <base> lässt alle relativen Adressen (Skripte, Stile, API) weiter auf /x/<id>/ zeigen –
       // so funktioniert sie auch hinter der Home-Assistant-Seitenleiste (Ingress) unverändert
       const page = (req, res) => {
-        if (!isActive(id)) return res.status(404).send('Erweiterung nicht aktiv');
+        if (!isActive(id)) return inactive(req, res);
         if (!req.path.endsWith('/')) return res.redirect(302, `${slug}/` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : ''));
         const html = tabletPage(id, `../x/${id}/`);
         if (!html) return res.status(404).end();
@@ -173,7 +175,7 @@ function load({ app, admin, helpers }) {
       // alte Adresse /x/<id>/ → neue Adresse (Lesezeichen und Tablets mit gespeicherter Seite)
       app.get([`/x/${id}/`, `/x/${id}/index.html`], (req, res) => res.redirect(302, `../../${slug}/` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
     }
-    if (fs.existsSync(pub)) app.use(`/x/${id}`, (req, res, next) => (isActive(id) ? next() : res.status(404).send('Erweiterung nicht aktiv')),
+    if (fs.existsSync(pub)) app.use(`/x/${id}`, (req, res, next) => (isActive(id) ? next() : inactive(req, res)),
       express.static(pub, { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
     const serverFile = path.join(p.dir, 'server.js');
     if (!fs.existsSync(serverFile)) continue;
@@ -185,7 +187,7 @@ function load({ app, admin, helpers }) {
         id, meta: p.meta, appVersion: APP_VERSION, tablet, admin: adminR, db, getSetting, setSetting, audit, auth,
         isActive: () => isActive(id), require: name => require(name), ...helpers,
         setting: (k, d) => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v),
-        hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → E-Mail-Versand)
+        hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → Postfach)
         bank: require('./bank'),   // Bankkonten des Vereins: list() · get(id) · def() · forDepartment(id) · pick({ id, department })
         // Übersetzen: ctx.T('Text {0}', [wert]) in der Sprache der Anfrage bzw. der Vereinssprache (Fehlermeldungen, E-Mails, Excel und PDF übersetzt der Kern selbst)
         T: (t, v) => require('./i18n').T(t, v), lang: () => require('./i18n').current(),
@@ -232,8 +234,13 @@ function setActive(id, on, user) {
   if (!p) throw new Error('Erweiterung nicht gefunden.');
   if (on && p.error) throw new Error(p.error);
   if (on && isUninstalled(id)) throw new Error('Das Modul ist nicht installiert – erst installieren.');
+  const was = isActive(id);
   setSetting(activeKey(id), on ? '1' : '0');
   audit(user, on ? 'Erweiterung aktiviert' : 'Erweiterung deaktiviert', `${p.meta.name} ${p.meta.version}`);
+  // Hook „deactivate“: laufende Vorgänge beenden (z. B. Beregnung: offene Ventile schließen) – darf das Ausschalten nicht verhindern
+  if (was && !on && typeof p.hooks.deactivate === 'function') {
+    Promise.resolve().then(() => p.hooks.deactivate(user)).catch(e => console.error(`Erweiterung „${id}“ beim Deaktivieren:`, e.message));
+  }
 }
 
 /** Einträge für die Kopfzeile am Tablet: aktive Erweiterungen (falls sie sich zeigen wollen) */

@@ -6,16 +6,10 @@
    Nicht geleistete Stunden landen im Beitragslauf der Mitgliederverwaltung (Stundensatz).
    ===================================================================================================== */
 let C;
-const pad = n => String(n).padStart(2, '0');
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
-const nowTs = () => { const d = new Date(); return `${today()} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`; };
-const isDate = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
+const { pad, today, nowTs, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
-const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
-const deD = s => (s ? `${s.slice(8, 10)}.${s.slice(5, 7)}.${s.slice(0, 4)}` : '');
 const hm = m => `${Math.floor(Math.abs(m) / 60)}:${pad(Math.abs(m) % 60)} h`;
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
-const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
 const isoDow = s => { const d = new Date(s + 'T12:00:00Z').getUTCDay(); return d === 0 ? 7 : d; };
 const WDL = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const ageAt = (b, day) => { if (!isDate(b)) return null; let a = +day.slice(0, 4) - +b.slice(0, 4); if (day.slice(5) < b.slice(5)) a--; return a; };
@@ -547,8 +541,10 @@ function activate(ctx) {
     return { kpis: [{ l: `Stunden geleistet ${o.label}`, v: `${Math.round(o.totals.done / 60)} von ${Math.round(o.totals.target / 60)} h` }, { l: 'zu bestätigen', v: pend }],
       alerts: pend ? [{ level: 'a', text: `${pend} gemeldete Arbeitsstunden warten auf Bestätigung.` }] : [] };
   };
-  ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year'].map(k => [k, S(k)])) });
-  ctx.hooks.importConfig = d => { for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && /^[a-z_]{3,20}$/.test(k)) SET(k, v.slice(0, 600)); return 'Einstellungen übernommen'; };
+  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year'];
+  ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
+  // nur bekannte Schlüssel übernehmen – eine fremde Datei darf keine beliebigen Einstellungen anlegen
+  ctx.hooks.importConfig = d => { for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) SET(k, v.slice(0, 600)); return 'Einstellungen übernommen'; };
 
   /* ---------------------------------------------------------------- Erinnerungen */
   async function daily() {

@@ -11,6 +11,23 @@ const db = new Database(DB_FILE);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 db.pragma('busy_timeout = 3000');
+db.pragma('synchronous = NORMAL');     // mit WAL sicher gegen Abstürze der App, deutlich weniger fsync als FULL
+db.pragma('cache_size = -16000');       // 16 MB Seitencache
+db.pragma('temp_store = MEMORY');
+/* Vorbereitete Abfragen wiederverwenden: der Code ruft db.prepare(sql) meist direkt in Schleifen auf – ohne Cache wird dieselbe SQL
+   jedes Mal neu kompiliert (bei der Übersicht der Helferdienste z. B. 5000-mal je Aufruf). Sicher, weil nirgends .iterate()/.pluck()/.raw()
+   benutzt wird (ein geteiltes Statement darf nicht gleichzeitig durchlaufen werden). Schemaänderungen erkennt SQLite selbst und kompiliert neu. */
+{
+  const rawPrepare = db.prepare.bind(db), cache = new Map(), MAX = 600;
+  db.prepare = sql => {
+    const hit = cache.get(sql);
+    if (hit) return hit;
+    const st = rawPrepare(sql);
+    if (typeof sql === 'string' && sql.length < 4000) { if (cache.size >= MAX) cache.delete(cache.keys().next().value); cache.set(sql, st); }
+    return st;
+  };
+  db.uncachePrepared = () => cache.clear();
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS settings (
@@ -457,5 +474,53 @@ db.prepare(`UPDATE bookings SET article_name = (SELECT name FROM articles a WHER
 /* v2.10: IDs nie doppelt vergeben (alle Tabellen auf AUTOINCREMENT, vorher Sicherung) */
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung nicht möglich, Daten unverändert –', e.message); }
 
-module.exports = { loadCategoryOrder, deKey, nameKey, splitPersonName, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, customArticleId };
+/* v3.13.3: Indizes für die häufigsten Abfragen – Bestand je Artikel (drei korrelierte Unterabfragen je Artikel bei jedem
+   Tablet-Refresh), Deckel, Veranstaltungen, Zahlungen, Gutschriften, Veranstaltungslisten je Mitglied */
+db.exec(`
+CREATE INDEX IF NOT EXISTS ix_bookings_article ON bookings(article_id) WHERE cancelled_at IS NULL;
+CREATE INDEX IF NOT EXISTS ix_delivery_items_article ON delivery_items(article_id);
+CREATE INDEX IF NOT EXISTS ix_stock_moves_article ON stock_moves(article_id);
+CREATE INDEX IF NOT EXISTS ix_bookings_tab ON bookings(tab_id);
+CREATE INDEX IF NOT EXISTS ix_bookings_event ON bookings(event_id);
+CREATE INDEX IF NOT EXISTS ix_bookings_payment ON bookings(payment_id);
+CREATE INDEX IF NOT EXISTS ix_bookings_credit ON bookings(credit_for);
+CREATE INDEX IF NOT EXISTS ix_guests_member ON event_guests(member_id);
+`);
+
+/* ---------- Verweise auf Mitglieder (Kern und Module) ----------
+   Module legen eigene Tabellen mit REFERENCES members(id) an (mv_person, bk_booking, aw_entry …). Beim Zusammenführen oder
+   endgültigen Löschen eines Mitglieds müssen diese Zeilen umgehängt bzw. entfernt werden, sonst scheitert der Fremdschlüssel. */
+const qid = n => `"${String(n).replace(/"/g, '""')}"`;
+/** Alle Spalten aller Tabellen, die auf members(id) verweisen → [{ table, column }]. Wird jedes Mal frisch ermittelt (billig; Module legen Tabellen beim Start an). */
+function memberRefs() {
+  const out = [];
+  for (const t of db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'members'").all()) {
+    let fks = [];
+    try { fks = db.prepare(`PRAGMA foreign_key_list(${qid(t.name)})`).all(); } catch (e) { continue; }
+    for (const fk of fks) if (fk.table === 'members' && (fk.to === null || fk.to === 'id')) out.push({ table: t.name, column: fk.from });
+  }
+  return out;
+}
+/**
+ * Verweis einer Tabelle von fromId auf intoId umhängen (intoId = null: Zeilen löschen). Scheitert das Umhängen an einem
+ * UNIQUE/PRIMARY KEY (z. B. mv_person.member_id, aw_target(member_id, year)), weil das Zielkonto dort schon eine Zeile hat,
+ * wird Zeile für Zeile versucht und die nicht umhängbare Zeile des alten Kontos gelöscht. → { moved, removed }
+ * Muss innerhalb einer Transaktion laufen.
+ */
+function rewireMemberRef(table, column, fromId, intoId) {
+  const t = qid(table), c = qid(column);
+  if (intoId == null) return { moved: 0, removed: db.prepare(`DELETE FROM ${t} WHERE ${c} = ?`).run(fromId).changes };
+  try { return { moved: db.prepare(`UPDATE ${t} SET ${c} = ? WHERE ${c} = ?`).run(intoId, fromId).changes, removed: 0 }; }
+  catch (e) {
+    if (!/SQLITE_CONSTRAINT/.test(e.code || '')) throw e;
+    let moved = 0, removed = 0;
+    for (const r of db.prepare(`SELECT rowid AS rid FROM ${t} WHERE ${c} = ?`).all(fromId)) {
+      try { db.prepare(`UPDATE ${t} SET ${c} = ? WHERE rowid = ?`).run(intoId, r.rid); moved++; }
+      catch (x) { if (!/SQLITE_CONSTRAINT/.test(x.code || '')) throw x; db.prepare(`DELETE FROM ${t} WHERE rowid = ?`).run(r.rid); removed++; }
+    }
+    return { moved, removed };
+  }
+}
+
+module.exports = { deKey, nameKey, splitPersonName, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, customArticleId, memberRefs, rewireMemberRef };
 loadCategoryOrder();

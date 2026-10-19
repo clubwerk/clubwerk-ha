@@ -40,8 +40,7 @@ CREATE INDEX IF NOT EXISTS ix_time_staff ON time_entries(staff_id, start_at);
 }
 
 const OPEN_LIMIT_MIN = 12 * 60;           // länger eingestempelt = vermutlich vergessen
-const pad = n => String(n).padStart(2, '0');
-const localTs = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const toDate = ts => new Date(ts.replace(' ', 'T'));
 const minutesBetween = (a, b) => Math.max(0, Math.floor((toDate(b) - toDate(a)) / 60000));
 const monthOf = ts => ts.slice(0, 7);
@@ -198,7 +197,7 @@ async function reportXlsx(month) {
 }
 
 /* ---------- E-Mail ---------- */
-// Versand über das zentrale Postfach (Einstellungen → E-Mail-Versand); hier nur der Empfänger
+// Versand über das zentrale Postfach (Einstellungen → Postfach); hier nur der Empfänger
 const mailReady = () => ctxRef.mail.ready();
 const mailTo = () => getSetting('zeit_mail_to', '');
 const validMails = v => String(v || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
@@ -268,7 +267,7 @@ function activate(ctx) {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const notes = [];
     if (typeof data.mailTo === 'string') { const t = data.mailTo.trim().slice(0, 300); if (!t || mailOk(t)) setSetting('zeit_mail_to', t); }
-    if (!mailReady()) notes.push('Postfach unter Einstellungen → E-Mail-Versand einrichten');
+    if (!mailReady()) notes.push('Postfach unter Einstellungen → Postfach einrichten');
     let added = 0;
     for (const x of Array.isArray(data.staff) ? data.staff.slice(0, 50) : []) {
       const name = ctx.cleanName(x.name, 60); if (name.length < 2) continue;
@@ -286,7 +285,7 @@ function activate(ctx) {
     const alerts = st.filter(x => x.forgotten).map(x => ({ level: 'a', text: `${x.name} ist seit über 12 Stunden eingestempelt – Ende nachtragen.` }));
     const err = getSetting('zeit_mail_error', '');
     if (err) alerts.push({ level: 'r', text: 'Monatsnachweis nicht verschickt: ' + err });
-    if (!mailReady()) alerts.push({ level: 'a', text: 'Noch kein Postfach eingerichtet (Einstellungen → E-Mail-Versand) – der Monatsnachweis kann nicht verschickt werden.' });
+    if (!mailReady()) alerts.push({ level: 'a', text: 'Noch kein Postfach eingerichtet (Einstellungen → Postfach) – der Monatsnachweis kann nicht verschickt werden.' });
     if (!st.length) return { kpis: [], alerts };
     return { kpis: [{ l: 'Personal', v: st.length }, { l: 'Gerade da', v: st.filter(x => x.in_since && !x.forgotten).map(x => x.name.split(' ')[0]).join(', ') || '–' }], alerts };
   };

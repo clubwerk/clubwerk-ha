@@ -97,7 +97,7 @@ function webdav(t, secret) {
     let cur = '';
     for (const part of dir.split('/').filter(Boolean)) {
       cur += '/' + part;
-      await req('MKCOL', cur + '/', { ok: [201, 405, 301, 200], what: 'Ordner anlegen' });   // 405 = gibt es schon
+      await req('MKCOL', cur + '/', { ok: [201, 405, 200], what: 'Ordner anlegen' });   // 405 = gibt es schon (Weiterleitungen 3xx lehnt req() vorher ab)
     }
   };
   const dirOf = sub => joinPath(t.folder, sub);

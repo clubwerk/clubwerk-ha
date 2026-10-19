@@ -23,7 +23,4 @@ function seedIfEmpty() {
   console.log(`Startdaten geladen: ${(data.members || []).length} Konten, ${(data.articles || []).length} Artikel.`);
 }
 
-/** (früher: vereinsspezifische Artikel nachträglich ergänzen – entfällt in der neutralen Version) */
-function addMissingArticles() {}
-
-module.exports = { seedIfEmpty, addMissingArticles };
+module.exports = { seedIfEmpty };
