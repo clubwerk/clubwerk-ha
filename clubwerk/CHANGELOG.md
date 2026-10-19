@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.19.1
+
+- Mitglieder-App: „Im Vereinsheim lokal öffnen“ bettet den Bereich jetzt als Inlay in die App ein, statt die ganze App unter der lokalen Adresse neu zu öffnen (kein Wechsel nach Safari mehr). PIN einmal eingeben, danach öffnet sich das Inlay beim nächsten Antippen von selbst; antwortet die lokale Adresse nicht, gibt es nach 8 s „In Safari öffnen“ als Ausweg. Einbetten ist nur zwischen den eigenen Adressen erlaubt.
+
 ## 3.19.0
 
 - Mitglieder-App: **Push-Benachrichtigungen** aufs Handy (iPhone als Home-Bildschirm-App ab iOS 16.4, Android im Browser). Der Vorstand legt unter Mitglieder-App → „Benachrichtigungen“ fest, welche Anlässe es im Verein gibt, stellt Vorläufe ein und kann Testnachrichten schicken; das Mitglied schaltet Push hinter dem Profilbild → „Benachrichtigungen“ je Handy ein und wählt je Anlass. Anlässe: Buchen (als Mitspieler eingetragen, Buchung geändert, Buchung storniert, Platz frei aus der Warteliste, Erinnerung vor dem Spiel mit Vorlauf), Helferdienste (Erinnerung am Vortag), Testnachricht. Versand verschlüsselt über Apple/Google, nur Titel und ein Satz, Protokoll in der Verwaltung, erloschene Abos werden aufgeräumt. Erweiterungen melden eigene Anlässe über `hooks.pushEvents` an (siehe ERWEITERUNGEN.md).

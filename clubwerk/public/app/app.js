@@ -3,6 +3,24 @@
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
   const $ = id => document.getElementById(id);
+  /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
+     (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
+  const EMBED = (() => { const m = location.search.match(/[?&]embed=([a-z0-9_-]{1,40})/); return m ? m[1] : ''; })();
+  const embedPost = (type, extra = {}) => { if (EMBED && window.parent !== window) { try { window.parent.postMessage({ clubwerk: 'embed', type, ...extra }, '*'); } catch (e) { /* egal */ } } };
+  if (EMBED) {
+    document.documentElement.classList.add('vh-embed');
+    let lastH = 0;
+    const sendSize = () => {   // Inhalt plus ggf. ein offenes Blatt (PIN, Hinweis) – das liegt fest über der Seite und zählt sonst nicht mit
+      const sheet = Math.max(0, ...[...document.querySelectorAll('.vh-sheet.show .vh-box')].map(b => b.offsetHeight + 80));
+      const main = document.querySelector('.vh-main');
+      const content = main ? main.offsetTop + main.scrollHeight : document.documentElement.scrollHeight;
+      const h = Math.ceil(Math.max(content, sheet, 240));
+      if (h !== lastH) { lastH = h; embedPost('size', { height: h }); }
+    };
+    try { new ResizeObserver(sendSize).observe(document.body); } catch (e) { /* unten der Zeitgeber */ }
+    setInterval(sendSize, 700);
+    window.addEventListener('load', sendSize);
+  }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* privat */ } } };
   // Die PIN bleibt nur im Speicher dieser Seite (bis sie neu geladen wird) – nicht im sessionStorage, der auf dem Home-Bildschirm
@@ -81,15 +99,35 @@
   const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
 
   const WLAN_T = 'Nur im Vereins-WLAN';
+  /* Lokale Adresse als Inlay: ein Rahmen mit nur diesem Bereich (?embed=…), Kopplung per Übergabecode im Fragment.
+     Meldet sich der Rahmen nicht binnen 8 s, bleibt der Hinweis stehen und es gibt den Ausweg „in Safari öffnen“. */
+  let embedFrame = null, embedOrigin = '', embedWorked = false;   // hat das Inlay einmal geantwortet, öffnet es sich beim nächsten Antippen von selbst
+  function embedLocal(el, id, r) {
+    const url = r.url + '/?embed=' + encodeURIComponent(id) + '#h=' + r.code;
+    embedOrigin = new URL(r.url).origin;
+    el.innerHTML = `<div class="vh-embedwrap"><iframe class="vh-embedframe" title="${esc(me.club)}" allow="" referrerpolicy="origin"></iframe>
+      <div class="vh-embedwait" id="embWait"><span>Verbinde mit der lokalen Adresse …</span></div></div>`;
+    const f = el.querySelector('iframe'); embedFrame = f; f.src = url;
+    const wait = $('embWait');
+    const timer = setTimeout(() => { if (wait && !wait.classList.contains('ok')) wait.innerHTML = `<span>Die lokale Adresse antwortet nicht – bist du im Vereins-WLAN?</span><button type="button" class="vh-btn sec" id="embOpen">In Safari öffnen</button><button type="button" class="vh-btn sec" id="embBack">Zurück</button>`;
+      const o = $('embOpen'); if (o) o.onclick = () => { location.href = url; }; const b = $('embBack'); if (b) b.onclick = () => show(id); }, 8000);
+    f.dataset.timer = String(timer);
+    cleanup = () => { clearTimeout(timer); embedFrame = null; };
+  }
+  window.addEventListener('message', ev => {
+    if (!embedFrame || ev.origin !== embedOrigin || !ev.data || ev.data.clubwerk !== 'embed') return;
+    if (ev.data.type === 'size' && Number(ev.data.height) > 0) { embedWorked = true; embedFrame.style.height = Math.min(4000, Math.max(300, Number(ev.data.height))) + 'px'; const w = $('embWait'); if (w) { w.classList.add('ok'); w.remove(); } clearTimeout(Number(embedFrame.dataset.timer)); }
+  });
   function show(id) {
     if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
-    current = id; store.set('va_tab', id);
+    current = id; if (!EMBED) store.set('va_tab', id);
     document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === id));
     const s = me.sections.find(x => x.id === id);
     const el = $('sec');
     if (!s) { el.innerHTML = ''; return; }
+    if (!s.ok && s.wlanOnly && embedWorked && me.lanUrl && !me.wlan) { el.innerHTML = ''; call('handover', 'POST', {}).then(r => { if (current === id) embedLocal(el, id, r); }).catch(() => { embedWorked = false; show(id); }); return; }
     if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl && !me.wlan ? `<button class="vh-btn" id="lanGo">Im Vereinsheim lokal öffnen</button><small class="vh-wlan-diag">Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'wird geprüft …'}</small>` : ''}</div>`;
-      const g = $('lanGo'); if (g) g.onclick = async () => { g.disabled = true; try { const r = await call('handover', 'POST', {}); location.href = r.url + '/#h=' + r.code; } catch (e) { toast(e.message, true); g.disabled = false; } };
+      const g = $('lanGo'); if (g) g.onclick = async () => { g.disabled = true; try { const r = await call('handover', 'POST', {}); embedLocal(el, id, r); } catch (e) { toast(e.message, true); g.disabled = false; } };
       return; }
     if (!s.ok) { el.innerHTML = `<div class="vh-empty">${esc(s.reason)}</div>`; return; }
     const sec = SECTIONS[id];
@@ -125,6 +163,13 @@
     if (!me.sections.length) { $('sec').innerHTML = '<div class="vh-empty">Für dich ist noch nichts freigeschaltet. Bitte beim Vorstand melden.</div>'; return; }
     for (const s of me.sections) if (s.ok) await loadScript(`m/${s.id}/member.js`);
     renderTabs();
+    if (EMBED) {   // Inlay: nur der gewünschte Bereich, keine Reiter/Fußzeile; Tab-Wahl nicht merken
+      $('tabs').classList.add('hidden');
+      const s0 = me.sections.find(s => s.id === EMBED);
+      if (!s0) { $('sec').innerHTML = '<div class="vh-empty">Dieser Bereich ist für dich nicht freigeschaltet.</div>'; embedPost('size', { height: 200 }); return; }
+      show(EMBED); embedPost('ready');
+      return;
+    }
     const last = store.get('va_tab');
     const first = (me.sections.find(s => s.ok) || me.sections[0]).id;
     show(me.sections.some(s => s.id === last && s.ok) ? last : first);

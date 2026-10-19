@@ -6379,6 +6379,10 @@
     "Vom Vorstand ausgelöst ({0}).": "Triggered by the board ({0}).",
     "Vorlauf": "Lead time",
     "Zuletzt gesendet ({0})": "Recently sent ({0})",
-    "Zum Ausprobieren – vom Mitglied selbst oder vom Vorstand ausgelöst.": "For trying it out – triggered by the member or by the board."
+    "Zum Ausprobieren – vom Mitglied selbst oder vom Vorstand ausgelöst.": "For trying it out – triggered by the member or by the board.",
+    "Die lokale Adresse antwortet nicht – bist du im Vereins-WLAN?": "The local address is not responding – are you on the club Wi-Fi?",
+    "In Safari öffnen": "Open in Safari",
+    "Verbinde mit der lokalen Adresse …": "Connecting to the local address …",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; frame-src 'self' {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; frame-src 'self' {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}"
   }
 }

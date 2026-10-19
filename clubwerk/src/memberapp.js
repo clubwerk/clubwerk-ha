@@ -27,7 +27,7 @@ function extAllowed(id) { const c = extCfg(); if (c[id] !== undefined) return Bo
 const awayReq = req => Boolean(req.viaTunnel) || !PRIVATE_IP(String(req.socket.remoteAddress || ''));
 /** darf dieses Mitglied den Bereich bei dieser Anfrage nutzen? (im WLAN immer; unterwegs, wenn der Bereich oder das Mitglied dafür freigegeben ist) */
 /** lokale HTTPS-Adresse der App (nur https ist von der öffentlichen Seite aus erreichbar – Browser blocken http als „Mixed Content“) */
-const lanUrl = () => { const u = getSetting('app_url', '').replace(/\/+$/, ''); return /^https:\/\//i.test(u) ? u : ''; };
+const lanUrl = () => { const u = getSetting('app_url', '').replace(/\/+$/, ''); return /^https:\/\//i.test(u) || (process.env.CW_TEST_LAN_HTTP === '1' && /^http:\/\/(localhost|127\.0\.0\.1)/.test(u)) ? u : ''; };
 const originOf = u => { try { return new URL(u).origin; } catch (e) { return ''; } };
 const awayOk = (req, id, row) => !awayReq(req) || extAllowed(id) || Boolean(row && row.away);
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
@@ -171,7 +171,9 @@ function startPort({ rateLimit, rateLimitKey }) {
     res.setHeader('Referrer-Policy', 'no-referrer');
     // Die App darf zusätzlich die lokale Adresse (im Vereinsheim) bzw. die öffentliche Adresse ansprechen
     const own = [originOf(lanUrl()), tunnelOn() ? originOf(tunnelUrl()) : ''].filter(Boolean);
-    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${own.join(' ')}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'`);
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ${own.join(' ')}; frame-src 'self' ${own.join(' ')}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' ${own.join(' ')}`);
+    // Die öffentliche App bettet im Vereinsheim die lokale Adresse ein (Inlay) – nur die eigenen Adressen dürfen einbetten
+    if (own.length) res.removeHeader('X-Frame-Options');
     // CORS nur zwischen den beiden eigenen Adressen (öffentlich ↔ lokal): die App von app.verein.de ruft im WLAN https://lan…:5001 auf
     const o = req.get('origin');
     if (o && own.includes(o)) {
