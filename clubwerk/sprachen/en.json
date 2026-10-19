@@ -6169,6 +6169,7 @@
     "Buchungs­system": "Booking system",
     "Helfer­dienste": "Volunteer duties",
     "Mitglieder­verwaltung": "Member management",
-    "Zeit­erfassung": "Time tracking"
+    "Zeit­erfassung": "Time tracking",
+    "public, max-age=604800": "public, max-age=604800"
   }
 }
