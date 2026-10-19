@@ -6311,6 +6311,15 @@
     "{0} · belegt {1} von {2}": "{0} · in use {1} of {2}",
     "Gebühren dieses Jahr": "Fees this year",
     "Offene Gebühren": "Open fees",
-    "offene Posten": "open items"
+    "offene Posten": "open items",
+    "Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. Lokale Adresse {0}: {1}": "At the clubhouse right now? This button opens the app via the local address – with your PIN. Local address {0}: {1}",
+    "Die lokale Adresse lässt sich nur im Vereins-WLAN einlösen.": "The local address can only be redeemed on the club Wi-Fi.",
+    "Dieser Code ist abgelaufen – bitte in der App erneut „Im Vereinsheim lokal öffnen“ antippen.": "This code has expired – please tap “Open locally at the clubhouse” in the app again.",
+    "Du öffnest die App über die lokale Adresse im Vereinsheim. Gib einmal deine PIN ein – danach merkt sich der Browser die Freischaltung auch hier.": "You are opening the app via the local address at the clubhouse. Enter your PIN once – after that the browser remembers the activation here too.",
+    "Es ist keine lokale Adresse mit https eingerichtet.": "No local https address has been set up.",
+    "Im Vereinsheim lokal öffnen": "Open locally at the clubhouse",
+    "Lokal verbunden – du bist im Vereinsheim.": "Connected locally – you are at the clubhouse.",
+    "Mitglieder-App: lokale Route im Vereinsheim übernommen": "Member app: local route adopted at the clubhouse",
+    "wird geprüft …": "checking …"
   }
 }

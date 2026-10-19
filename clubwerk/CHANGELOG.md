@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.18.0
+
+- Mitglieder-App: Start ohne Warten – die Inhalte erscheinen sofort über die aktuelle Adresse; die Prüfung der lokalen Adresse läuft im Hintergrund und schaltet bei Erfolg um (bisher wartete die App draußen bis zu 8 s).
+- Mitglieder-App: Lokale Route auch mit iCloud Privat-Relay. Der Bildschirm „Nur im Vereins-WLAN“ hat den Knopf „Im Vereinsheim lokal öffnen“: Die App wechselt per Seitenaufruf auf die lokale Adresse (`https://lan…:5001`) und nimmt die Kopplung über einen einmaligen Code mit (60 Sekunden gültig, nur mit PIN, nur aus dem Vereinsnetz einlösbar, im Protokoll vermerkt). Jedes Handy bekommt dafür einen zweiten Geräteschlüssel für die lokale Adresse; Sperre und Entfernen gelten für beide.
+- Doku: Cloudflare-Route mit `https://`-Dienst-URL und Ursprungs-Servername statt „No TLS Verify“; Hinweise zu DNS-Rebind-Schutz (Fritz!Box) und Privat-Relay.
+
 ## 3.17.4
 
 - Übersicht: Die Kachel „Buchungssystem“ zeigt jetzt wie „Verkauf“ groß die Summe der offenen Gebühren (ohne Mitgliederverwaltung: Gebühren des laufenden Jahres), darunter Buchungen heute und Belegung. Das Hinweis-Banner zu offenen Platzgebühren entfällt.

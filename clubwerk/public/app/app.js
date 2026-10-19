@@ -88,7 +88,9 @@
     const s = me.sections.find(x => x.id === id);
     const el = $('sec');
     if (!s) { el.innerHTML = ''; return; }
-    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl ? `<small class="vh-wlan-diag">Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'nicht geprüft (Handy bereits im WLAN)'}</small>` : ''}</div>`; return; }
+    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl && !me.wlan ? `<button class="vh-btn" id="lanGo">Im Vereinsheim lokal öffnen</button><small class="vh-wlan-diag">Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'wird geprüft …'}</small>` : ''}</div>`;
+      const g = $('lanGo'); if (g) g.onclick = async () => { g.disabled = true; try { const r = await call('handover', 'POST', {}); location.href = r.url + '/#h=' + r.code; } catch (e) { toast(e.message, true); g.disabled = false; } };
+      return; }
     if (!s.ok) { el.innerHTML = `<div class="vh-empty">${esc(s.reason)}</div>`; return; }
     const sec = SECTIONS[id];
     if (!sec) { el.innerHTML = '<div class="vh-empty">Dieser Bereich konnte nicht geladen werden.</div>'; return; }
@@ -100,9 +102,21 @@
     try { sec.render(el, ctx); } catch (e) { el.innerHTML = `<div class="vh-empty">Fehler: ${esc(e.message)}</div>`; }
   }
 
+  /* Lokale Route im Hintergrund prüfen – die Inhalte erscheinen sofort über die aktuelle Adresse; klappt die Prüfung,
+     wechselt die App auf die lokale Adresse und gibt WLAN-Bereiche frei (draußen läuft die Prüfung einfach ins Leere) */
+  let probing = null;
+  function probeInBackground() {
+    if (probing || me.wlan || !me.lanUrl || BASE) return;
+    probing = probeLan(me.lanUrl).then(async ok => {
+      if (!ok) { if (current && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); return; }   // Diagnosezeile aktualisieren
+      BASE = me.lanUrl + '/';
+      try { me = await call('me'); } catch (e) { BASE = ''; return; }
+      renderTabs();
+      if (current) show(current);
+    }).catch(() => {}).finally(() => { probing = null; });
+  }
   async function start() {
     me = await call('me');
-    if (!me.wlan && me.lanUrl && await probeLan(me.lanUrl)) { BASE = me.lanUrl + '/'; me = await call('me'); }   // im Vereinsheim: ab jetzt lokal
     $('club').textContent = me.club;
     document.title = `${me.appName} – ${me.club}`;
     if (!me.member) { lock(); return; }
@@ -110,6 +124,14 @@
     initPhoto();
     if (!me.sections.length) { $('sec').innerHTML = '<div class="vh-empty">Für dich ist noch nichts freigeschaltet. Bitte beim Vorstand melden.</div>'; return; }
     for (const s of me.sections) if (s.ok) await loadScript(`m/${s.id}/member.js`);
+    renderTabs();
+    const last = store.get('va_tab');
+    const first = (me.sections.find(s => s.ok) || me.sections[0]).id;
+    show(me.sections.some(s => s.id === last && s.ok) ? last : first);
+    probeInBackground();
+  }
+  async function renderTabs() {
+    for (const s of me.sections) if (s.ok && !SECTIONS[s.id]) { try { await loadScript(`m/${s.id}/member.js`); } catch (e) { /* Bereich bleibt leer */ } }
     const tabs = $('tabs');
     const TI = { buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
       beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
@@ -117,9 +139,6 @@
     tabs.innerHTML = me.sections.map(s => `<button data-t="${s.id}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('');
     tabs.classList.toggle('hidden', me.sections.length < 2);
     tabs.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.t));
-    const last = store.get('va_tab');
-    const first = (me.sections.find(s => s.ok) || me.sections[0]).id;
-    show(me.sections.some(s => s.id === last && s.ok) ? last : first);
   }
 
   /* ---------- Bilder mit Anmeldung (Profilbilder): <img data-auth-src="api/…"> – geladen mit dem Geräteschlüssel, angezeigt als data:-Adresse ---------- */
@@ -198,11 +217,13 @@
     toast('Code kopiert.');
   };
   $('installX').onclick = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); };
-  function transferFlow(code) {
+  let trMode = 'transfer';   // 'transfer' = Übernahme in die Home-Bildschirm-App, 'handover' = lokale Adresse im Vereinsheim
+  function transferFlow(code, mode = 'transfer') {
+    trMode = mode;
     $('lockSheet').classList.remove('show');
     $('trCode').value = code ? fmtCode(code) : '';
     $('trCode').classList.toggle('hidden', Boolean(code));
-    $('trText').textContent = code ? 'Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.' : 'Den Übernahme-Code findest du auf der Seite in Safari, auf der du freigeschaltet hast. Dazu deine PIN.';
+    $('trText').textContent = mode === 'handover' ? 'Du öffnest die App über die lokale Adresse im Vereinsheim. Gib einmal deine PIN ein – danach merkt sich der Browser die Freischaltung auch hier.' : code ? 'Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.' : 'Den Übernahme-Code findest du auf der Seite in Safari, auf der du freigeschaltet hast. Dazu deine PIN.';
     $('trErr').textContent = ''; $('trPin').value = '';
     $('trSheet').classList.add('show');
     setTimeout(() => (code ? $('trPin') : $('trCode')).focus(), 80);
@@ -227,13 +248,13 @@
     if (!/^\d{4,8}$/.test(pin)) { $('trErr').textContent = 'Bitte deine PIN eingeben.'; return; }
     $('trErr').textContent = 'Übernehme …';
     try {
-      const r = await call('transfer/redeem', 'POST', { code, pin });
+      const r = await call(trMode === 'handover' ? 'handover/redeem' : 'transfer/redeem', 'POST', { code, pin });
       store.set('va_geraet', r.device);
       if (dev() !== r.device) { $('trErr').textContent = 'Diese App kann nichts speichern – bitte in den Einstellungen prüfen.'; return; }
       sess.set(pin);
       history.replaceState(null, '', location.pathname + location.search);
       $('trSheet').classList.remove('show');
-      toast('Freigeschaltet – willkommen!', false, 4000);
+      toast(trMode === 'handover' ? 'Lokal verbunden – du bist im Vereinsheim.' : 'Freigeschaltet – willkommen!', false, 4000);
       start().catch(e => toast(e.message, true));
     } catch (e) { $('trErr').textContent = e.message; if (e.data && e.data.badCode) { $('trCode').classList.remove('hidden'); } }
   };
@@ -277,7 +298,15 @@
     const m = location.hash.match(/[#&]i=([A-Za-z0-9_-]{10,60})/);
     if (m) { call('me').then(x => { $('club').textContent = x.club; }).catch(() => {}); pair(m[1]); return; }
     const k = location.hash.match(/[#&]k=([A-Z2-9]{10})/);
+    const h = location.hash.match(/[#&]h=([A-Z2-9]{10})/);
     (async () => {
+      // lokale Adresse per Übergabecode (aus der öffentlichen App im Vereinsheim): kennt dieser Speicher das Gerät schon, einfach starten
+      if (h) {
+        history.replaceState(null, '', location.pathname + location.search);
+        let ok = false;
+        if (dev()) { try { ok = Boolean((await call('me')).member); } catch (e) { ok = false; } }
+        if (!ok) { call('me').then(x => { $('club').textContent = x.club; }).catch(() => {}); transferFlow(h[1], 'handover'); return; }
+      }
       // Startadresse mit Übernahme-Code: ist dieses Gerät schon freigeschaltet, einfach starten – sonst PIN abfragen und übernehmen
       if (k) {
         let ok = false;

@@ -256,6 +256,26 @@ function startPort({ rateLimit, rateLimitKey }) {
     audit(null, 'Mitglieder-App: Freischaltung in Home-Bildschirm-App übernommen', r.member);
     res.json({ ok: true, device: r.device, member: r.member });
   });
+  /* Lokale Route per Seitenaufruf (Vereinsheim, auch mit iCloud Privat-Relay): Code holen → Seite wechselt auf https://lan… → dort einlösen */
+  api.post('/handover', rateLimit('apphoc', 20, 60000), (req, res) => {
+    const url = lanUrl();
+    if (!url) return res.status(400).json({ error: 'Es ist keine lokale Adresse mit https eingerichtet.' });
+    const code = invites.createHandover(SCOPE, dev(req));
+    if (!code) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
+    res.json({ code, url });
+  });
+  api.post('/handover/redeem', rateLimit('apphor', 10, 60000), (req, res) => {
+    if (awayReq(req)) return res.status(403).json({ error: 'Die lokale Adresse lässt sich nur im Vereins-WLAN einlösen.' });
+    const ip = req.ip || '';
+    const wait = trFails.blocked(ip);
+    if (wait) return res.status(429).json({ error: `Zu viele Versuche – bitte in ${wait} Min. erneut versuchen.` });
+    const b = req.body || {};
+    const r = invites.redeemHandover(SCOPE, b.code, b.pin, req.get('host'));
+    if (!r.ok) { if (r.badCode) trFails.fail(ip); return res.status(r.status || 400).json({ error: r.error, pin: r.pin, badCode: r.badCode }); }
+    trFails.ok(ip);
+    audit(null, 'Mitglieder-App: lokale Route im Vereinsheim übernommen', r.member);
+    res.json({ ok: true, device: r.device, member: r.member });
+  });
   api.post('/verify-pin', rateLimit('apppin', 20, 60000), (req, res) => {
     const c = invites.check(SCOPE, dev(req), (req.body || {}).pin);
     if (!c.ok) return res.status(c.status).json({ error: c.error, pin: c.pin, device: c.device });

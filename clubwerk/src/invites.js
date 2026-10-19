@@ -29,9 +29,10 @@ CREATE TABLE IF NOT EXISTS member_devices (
 CREATE INDEX IF NOT EXISTS ix_devices_scope ON member_devices(scope, member_id);
 CREATE INDEX IF NOT EXISTS ix_devices_token ON member_devices(scope, token_hash);   -- whoIs bei jedem App-Aufruf
 `);
-for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT']]) {
+for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT'], ['token2_hash', 'TEXT'], ['handover_hash', 'TEXT'], ['handover_expires', 'INTEGER']]) {
   if (!db.prepare('PRAGMA table_info(member_devices)').all().some(x => x.name === c)) db.exec(`ALTER TABLE member_devices ADD COLUMN ${c} ${t}`);
 }
+db.exec('CREATE INDEX IF NOT EXISTS ix_devices_token2 ON member_devices(scope, token2_hash)');
 
 
 /* Gültigkeit einer Einladung in Stunden (Einstellung „app_invite_hours“: 1, 24 oder 168) */
@@ -84,7 +85,7 @@ function redeem(scope, inviteToken, pin, userAgent, host) {
   if (p.error) throw new Error(p.error);
   if (!/^\d{4,8}$/.test(String(pin || ''))) throw new Error('Die PIN muss aus 4 bis 8 Ziffern bestehen.');
   const device = crypto.randomBytes(24).toString('base64url');
-  const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?
+  const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, token2_hash = NULL, handover_hash = NULL, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?
     WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), auth.hashSecret(String(pin)), deviceLabel(userAgent), now(), cleanHost(host), scope, sha(inviteToken), Date.now());
   if (!r.changes) throw new Error('Diese Einladung ist ungültig oder wurde bereits verwendet.');
   return { device, member: p.member };
@@ -122,11 +123,37 @@ function redeemTransfer(scope, code, pin, userAgent, host) {
   return { ok: true, device, member: r.name };
 }
 
+/* Übergabe an die lokale Adresse (Vereinsheim): Die App unter der öffentlichen Adresse wechselt per Seitenaufruf auf
+   https://lan…:5001 und nimmt die Kopplung mit – über einen einmaligen Code (60 s), der nur mit der PIN und nur aus dem
+   Vereinsnetz eingelöst werden kann. Der Code gibt dem zweiten Speicherort (andere Adresse = anderer Browser-Speicher)
+   einen eigenen Geräteschlüssel (token2_hash) für dasselbe Gerät; der erste Schlüssel bleibt gültig. */
+const HANDOVER_MS = 60000;
+function createHandover(scope, deviceToken) {
+  const w = whoIs(scope, deviceToken);
+  if (!w) return null;
+  const code = [...crypto.randomBytes(10)].map(b => TR_ALPHA[b % 32]).join('');
+  db.prepare('UPDATE member_devices SET handover_hash = ?, handover_expires = ? WHERE id = ?').run(sha(code), Date.now() + HANDOVER_MS, w.deviceId);
+  return code;
+}
+function redeemHandover(scope, code, pin, host) {
+  scopeOk(scope);
+  const c = trNorm(code);
+  if (c.length !== 10) return { error: 'Der Code hat 10 Zeichen.', status: 400, badCode: true };
+  const d = db.prepare(`SELECT d.* FROM member_devices d JOIN members m ON m.id = d.member_id
+    WHERE d.scope = ? AND d.handover_hash = ? AND d.token_hash IS NOT NULL AND m.active = 1 AND m.deleted = 0`).get(scope, sha(c));
+  if (!d || !(d.handover_expires > Date.now())) return { error: 'Dieser Code ist abgelaufen – bitte in der App erneut „Im Vereinsheim lokal öffnen“ antippen.', status: 410, badCode: true };
+  const r = check(scope, null, pin, d);
+  if (!r.ok) return r;
+  const device = crypto.randomBytes(24).toString('base64url');
+  db.prepare('UPDATE member_devices SET token2_hash = ?, handover_hash = NULL, handover_expires = NULL, last_used = ?, paired_host = COALESCE(paired_host, ?) WHERE id = ?').run(sha(device), now(), cleanHost(host), d.id);
+  return { ok: true, device, member: r.name };
+}
+
 /** Gerät erkennen (ohne PIN) → { memberId, name } oder null */
 function whoIs(scope, deviceToken) {
   if (!deviceToken || !SCOPE_RE.test(scope)) return null;
   const r = db.prepare(`SELECT d.id, d.member_id, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
-    WHERE d.scope = ? AND d.token_hash = ? AND m.active = 1 AND m.deleted = 0`).get(scope, sha(deviceToken));
+    WHERE d.scope = ? AND (d.token_hash = ? OR d.token2_hash = ?) AND m.active = 1 AND m.deleted = 0`).get(scope, sha(deviceToken), sha(deviceToken));
   return r ? { deviceId: r.id, memberId: r.member_id, name: r.name } : null;
 }
 
@@ -161,7 +188,7 @@ function check(scope, deviceToken, pin, row, opts = {}) {
     if (opts.shared) return { error: 'Falsche PIN', status: 401, pin: true };
     const n = d.failed + 1, total = (d.failed_total || 0) + 1;
     if (total >= BLOCK_AFTER) {
-      db.prepare('UPDATE member_devices SET token_hash = NULL, failed = 0, failed_total = ?, locked_until = NULL, blocked_at = ? WHERE id = ?').run(total, now(), d.id);
+      db.prepare('UPDATE member_devices SET token_hash = NULL, token2_hash = NULL, handover_hash = NULL, failed = 0, failed_total = ?, locked_until = NULL, blocked_at = ? WHERE id = ?').run(total, now(), d.id);
       blockedAlert(scope, w.name, d.device, total);
       return { error: `PIN ${total}-mal falsch – dieses Handy ist jetzt gesperrt. Bitte beim Vorstand einen neuen QR-Code holen.`, status: 403, device: true };
     }
@@ -202,4 +229,4 @@ async function qrSvg(text) {
   return QR.toString(String(text).slice(0, 600), { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
 }
 
-module.exports = { inviteHours, INVITE_HOURS, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, qrSvg };
+module.exports = { inviteHours, INVITE_HOURS, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };
