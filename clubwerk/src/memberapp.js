@@ -65,6 +65,8 @@ function inClubNet(ip) {
   const n = v6net(ip);
   return n !== '' && clubNet.v6nets.includes(n);
 }
+/** darf dieses Mitglied den Bereich bei dieser Anfrage nutzen? (im WLAN immer; unterwegs, wenn der Bereich oder das Mitglied dafür freigegeben ist) */
+const awayOk = (req, id, row) => !awayReq(req) || extAllowed(id) || Boolean(row && row.away);
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
 /** private Absenderadresse (WLAN, Add-on-Netz, derselbe Rechner, link-local)? */
@@ -103,6 +105,8 @@ CREATE TABLE IF NOT EXISTS member_access (
 `);
 
 const { today } = require('./util');
+// 3.14.2: Ausnahme je Mitglied – Bereich auch von unterwegs nutzbar, obwohl er sonst nur im Vereins-WLAN gilt (Platzwart, Privat-Relay)
+try { db.exec('ALTER TABLE member_access ADD COLUMN away INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* gibt es schon */ }
 
 /* Module, die in der App erscheinen: id -> { name, label, order, dir, router, hooks, isActive } */
 const modules = new Map();
@@ -136,10 +140,10 @@ const access = {
   list: module => db.prepare(`SELECT a.*, m.name FROM member_access a JOIN members m ON m.id = a.member_id WHERE a.module = ? AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(module),
   set(memberId, module, fields = {}) {
     const cur = access.get(memberId, module);
-    const f = { profile: cur ? cur.profile : null, valid_until: cur ? cur.valid_until : null, blocked: cur ? cur.blocked : 0, ...fields };
-    db.prepare(`INSERT INTO member_access(member_id, module, profile, valid_until, blocked) VALUES (?,?,?,?,?)
-      ON CONFLICT(member_id, module) DO UPDATE SET profile = excluded.profile, valid_until = excluded.valid_until, blocked = excluded.blocked`)
-      .run(memberId, module, f.profile ?? null, f.valid_until || null, f.blocked ? 1 : 0);
+    const f = { profile: cur ? cur.profile : null, valid_until: cur ? cur.valid_until : null, blocked: cur ? cur.blocked : 0, away: cur ? cur.away : 0, ...fields };
+    db.prepare(`INSERT INTO member_access(member_id, module, profile, valid_until, blocked, away) VALUES (?,?,?,?,?,?)
+      ON CONFLICT(member_id, module) DO UPDATE SET profile = excluded.profile, valid_until = excluded.valid_until, blocked = excluded.blocked, away = excluded.away`)
+      .run(memberId, module, f.profile ?? null, f.valid_until || null, f.blocked ? 1 : 0, f.away ? 1 : 0);
   },
   remove: (memberId, module) => db.prepare('DELETE FROM member_access WHERE member_id = ? AND module = ?').run(memberId, module).changes > 0,
 };
@@ -150,10 +154,10 @@ function memberState(memberId) {
   // gekoppelt unter einer anderen Adresse als der öffentlichen? Dann braucht das Handy einen neuen QR-Code, um auch unterwegs zu funktionieren
   const th = tunnelOn() ? tunnelHost() : '';
   const oldAddress = Boolean(dev && dev.paired && th && (dev.paired_host || '') !== th);
-  const acc = db.prepare('SELECT module, profile, valid_until, blocked FROM member_access WHERE member_id = ?').all(memberId);
+  const acc = db.prepare('SELECT module, profile, valid_until, blocked, away FROM member_access WHERE member_id = ?').all(memberId);
   return {
     device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
-    access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked) }])),
+    access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked), away: Boolean(a.away) }])),
     // je Bereich angehakt? „für alle“-Bereiche gelten, bis sie für dieses Mitglied abgeschaltet werden
     granted: Object.fromEntries(activeModules().map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
   };
@@ -237,7 +241,7 @@ function startPort({ rateLimit, rateLimitKey }) {
     const w = invites.whoIs(SCOPE, dev(req));
     const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
-      if (c.ok && awayReq(req) && !extAllowed(id)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
+      if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
     res.json({ club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
@@ -309,7 +313,7 @@ function startPort({ rateLimit, rateLimitKey }) {
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
     const c = accessFor(w.memberId, req.params.id);
     if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
-    if (awayReq(req) && !extAllowed(req.params.id)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
+    if (!awayOk(req, req.params.id, c.row)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
     const go = () => {
       req.member = { id: w.memberId, name: w.name, access: c.row };
       /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
@@ -422,9 +426,17 @@ function adminRoutes(admin, { bad, need, auth }) {
     if (!mayModule(req, b.module)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
     const m = db.prepare("SELECT name FROM members WHERE id = ? AND deleted = 0 AND kind = 'mitglied'").get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
+    if (b.away !== undefined && b.grant === undefined) {   // Ausnahme „auch unterwegs“ (nur sinnvoll für Bereiche, die sonst nur im WLAN gelten)
+      const cur = access.get(id, b.module);
+      if (!mod.open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
+      if (b.away) access.set(id, b.module, { away: 1, blocked: cur ? cur.blocked : 0 });
+      else if (mod.open && cur && !cur.blocked) access.remove(id, b.module); else access.set(id, b.module, { away: 0 });
+      audit(req.user, `${mod.name}: ${b.away ? 'auch von unterwegs nutzbar' : 'nur noch im Vereins-WLAN'}`, m.name);
+      return res.json({ ok: true, ...memberState(id) });
+    }
     if (mod.open && (b.grant === false || b.grant === true)) {
-      // Bereich „für alle“: Haken weg = für dieses Mitglied abgeschaltet, Haken dran = wieder wie alle
-      if (b.grant) access.remove(id, b.module); else access.set(id, b.module, { blocked: 1 });
+      // Bereich „für alle“: Haken weg = für dieses Mitglied abgeschaltet, Haken dran = wieder wie alle (eine Ausnahme „unterwegs“ bleibt erhalten)
+      if (b.grant) { const cur = access.get(id, b.module); if (cur && cur.away) access.set(id, b.module, { blocked: 0 }); else access.remove(id, b.module); } else access.set(id, b.module, { blocked: 1 });
       audit(req.user, `${mod.name}: ${b.grant ? 'in der App freigeschaltet' : 'in der App abgeschaltet'}`, m.name);
       return res.json({ ok: true, reinvite: false, ...memberState(id) });
     }

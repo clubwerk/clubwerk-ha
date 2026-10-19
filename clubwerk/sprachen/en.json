@@ -6170,6 +6170,12 @@
     "Helfer­dienste": "Volunteer duties",
     "Mitglieder­verwaltung": "Member management",
     "Zeit­erfassung": "Time tracking",
-    "public, max-age=604800": "public, max-age=604800"
+    "public, max-age=604800": "public, max-age=604800",
+    "auch unterwegs": "also on the go",
+    "Zuerst den Bereich freischalten.": "Enable the area first.",
+    "auch von unterwegs nutzbar": "also usable on the go",
+    "nur noch im Vereins-WLAN": "club Wi-Fi only again",
+    "Auch von unterwegs nutzbar.": "Also usable on the go.",
+    "Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)": "Exception: use this area on the go as well (e.g. groundskeeper or phones with iCloud Private Relay)"
   }
 }
