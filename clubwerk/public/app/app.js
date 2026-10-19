@@ -15,8 +15,20 @@
   function toast(msg, err = false, ms = 3500) { const t = $('toast'); t.textContent = msg; t.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms); }
   function lock(text) { if (text) $('lockText').textContent = text; $('lockSheet').classList.add('show'); }
 
+  /* Im Vereinsheim direkt über das WLAN (lokale HTTPS-Adresse, Einstellung „Adresse im Vereins-WLAN“) statt über den Tunnel:
+     schneller, und Bereiche „nur im Vereins-WLAN“ (Beregnung, Türen) funktionieren – unabhängig von Privat-Relay o. Ä. */
+  let BASE = '';
+  const api = u => BASE + u;
+  async function probeLan(lanUrl) {
+    if (!lanUrl || location.origin === lanUrl) return false;
+    try {
+      const r = await fetch(lanUrl + '/api/ping', { signal: AbortSignal.timeout(1500), cache: 'no-store' });
+      const d = await r.json();
+      return Boolean(d && d.app === 'clubwerk' && d.wlan);
+    } catch (e) { return false; }
+  }
   async function call(url, method = 'GET', body) {
-    const r = await fetch('api/' + url, { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+    const r = await fetch(api('api/' + url), { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
     const d = await r.json().catch(() => ({}));
     if (r.status === 403 && d.device) { lock(d.error); throw Object.assign(new Error(d.error), { device: true }); }
     if (r.status === 429) { sess.del(); throw Object.assign(new Error(d.error || 'Zu viele Versuche – bitte warten.'), { status: 429, data: d }); }
@@ -83,6 +95,7 @@
 
   async function start() {
     me = await call('me');
+    if (!me.wlan && me.lanUrl && await probeLan(me.lanUrl)) { BASE = me.lanUrl + '/'; me = await call('me'); }   // im Vereinsheim: ab jetzt lokal
     $('club').textContent = me.club;
     document.title = `${me.appName} – ${me.club}`;
     if (!me.member) { lock(); return; }
@@ -107,7 +120,7 @@
   const loadAuthImg = async img => {
     const u = img.getAttribute('data-auth-src'); if (!u || img.dataset.loaded === u) return; img.dataset.loaded = u;
     try {
-      if (!imgCache.has(u)) imgCache.set(u, fetch(u, { headers: hdrs() }).then(r => (r.ok ? r.blob() : null)).then(b => (b ? new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); }) : null)));
+      if (!imgCache.has(u)) imgCache.set(u, fetch(api(u), { headers: hdrs() }).then(r => (r.ok ? r.blob() : null)).then(b => (b ? new Promise(res => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => res(null); fr.readAsDataURL(b); }) : null)));
       const d = await imgCache.get(u); if (d) img.src = d; else img.style.visibility = 'hidden';
     } catch (e) { /* ohne Bild */ }
   };

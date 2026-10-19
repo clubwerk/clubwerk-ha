@@ -6176,6 +6176,19 @@
     "auch von unterwegs nutzbar": "also usable on the go",
     "nur noch im Vereins-WLAN": "club Wi-Fi only again",
     "Auch von unterwegs nutzbar.": "Also usable on the go.",
-    "Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)": "Exception: use this area on the go as well (e.g. groundskeeper or phones with iCloud Private Relay)"
+    "Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)": "Exception: use this area on the go as well (e.g. groundskeeper or phones with iCloud Private Relay)",
+    "Lokale Route eingerichtet": "Local route set up",
+    "Lokale Route fehlt": "Local route missing",
+    "Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.": "Via the public address these areas then count as “on the go” even at the clubhouse – see the documentation, section “Member app on the go”.",
+    "Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.": "Unchecked areas only work on the club Wi-Fi – on the go the member sees a notice there. Only requests arriving directly at Home Assistant count as club Wi-Fi (not via the tunnel). For the app to use the local route at the clubhouse, the “Address on the club Wi-Fi” above must be an https address with a valid certificate. Individual members (groundskeeper, board) get the exception “also on the go” in the table.",
+    "Access-Control-Allow-Headers": "Access-Control-Allow-Headers",
+    "Access-Control-Allow-Methods": "Access-Control-Allow-Methods",
+    "Access-Control-Allow-Origin": "Access-Control-Allow-Origin",
+    "Access-Control-Max-Age": "Access-Control-Max-Age",
+    "Content-Type, X-Geraet, X-Clubwerk": "Content-Type, X-Geraet, X-Clubwerk",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'",
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
+    "Origin": "Origin",
+    "Vary": "Vary"
   }
 }

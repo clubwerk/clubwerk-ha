@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.15.0
+- **Mitglieder-App – lokale Route im Vereinsheim:** Die App unter der öffentlichen Adresse prüft beim Start, ob sie die lokale HTTPS-Adresse von Clubwerk erreicht („Adresse im Vereins-WLAN“, z. B. `https://lan.meinverein.de:5001`), und nutzt sie dann für alle Aufrufe: schneller, ohne Tunnel, und Bereiche „nur im Vereins-WLAN“ (Beregnung, Türen) funktionieren – unabhängig von iCloud Privat-Relay. Voraussetzung ist ein gültiges Zertifikat für die lokale Adresse (Anleitung in der Dokumentation: Cloudflare-DNS-Eintrag mit privater IP + Let's-Encrypt-Add-on mit DNS-Challenge). Dafür: CORS nur zwischen den beiden eigenen Adressen, Content-Security-Policy entsprechend erweitert.
+- **Regel geschärft:** Als Vereins-WLAN gilt nur noch, was direkt bei Home Assistant ankommt. Die Erkennung über die öffentliche IP des Vereinsanschlusses (3.14.0/3.14.1) entfällt – sie war nicht wasserdicht (Privat-Relay, Carrier-NAT). Die Ausnahme „auch unterwegs“ je Mitglied bleibt.
+- `/api/ping` zeigt `wlan` (direkt aus dem Vereinsnetz) und die gesehene Adresse.
+
 ## 3.14.2
 - **Mitglieder-App – Ausnahme „auch unterwegs“ je Mitglied:** Bereiche, die sonst nur im Vereins-WLAN gelten (z. B. Beregnung), lassen sich für einzelne Mitglieder auch von unterwegs freigeben – in der Tabelle unter Mitglieder-App neben dem Haken des Bereichs („auch unterwegs“, nur mit dem Recht des Bereichs). Gedacht für Platzwart oder Vorstand – und für Handys mit **iCloud Privat-Relay**: Dort leitet Apple den Verkehr über Cloudflare, sodass Clubwerk das Handy auch im Vereinsheim nicht am Vereinsanschluss erkennen kann (`/api/ping` zeigt dann eine Adresse `2a09:…`). Alternativ am iPhone: Einstellungen → WLAN → (i) beim Vereins-WLAN → „IP-Adressen-Tracking beschränken“ aus.
 
