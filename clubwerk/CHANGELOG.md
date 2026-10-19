@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.15.1
+**Fachaudit Getränkebuchung, Abrechnung und SEPA**
+- Tablet „Rückgängig“ lehnt bereits abgerechnete Buchungen ab (Meldung „bereits abgerechnet – bitte an den Vorstand wenden“); Abrechnung und Buchungen können nicht mehr auseinanderlaufen.
+- Doppeltes Buchen durch Doppeltipp oder WLAN-Aussetzer am Tablet wird verhindert: Jede Warenkorb-Buchung trägt einen Schlüssel, Wiederholungen innerhalb von 2 Minuten liefern das erste Ergebnis.
+- Beitragslauf: Positionen, die ein parallel laufender Lauf schon gebucht hat, werden innerhalb der Transaktion erkannt und übersprungen (Antwort nennt die Anzahl).
+- Bankverbindung bearbeiten: Mandatsdatum in der Zukunft wird abgelehnt; der Einzug warnt zusätzlich, wenn ein Mandat erst nach dem Einzugstag unterschrieben wurde.
+- SEPA: Download eines verworfenen Einzugs liefert einen klaren Fehler (410) statt einer leeren Datei; `CreDtTm` in Ortszeit mit Zeitzonenversatz.
+- Rücknahme eines Beitragslaufs nimmt Getränkeabrechnung und Posten in einer Transaktion zurück.
+- Mengen und Beträge mit Nachkommastellen werden am Tablet und beim Nachtrag abgewiesen statt stillschweigend abgeschnitten.
+- Veranstaltungs-Übernahme behält den ursprünglichen Buchungszeitpunkt (`created_at`).
+- Karte „Von unterwegs nutzbar“: bei ausgeschaltetem Tunnel steht „Nur im Vereins-WLAN (Tunnel aus)“ statt des Hinweises auf die lokale Route.
+
 ## 3.15.0
 - **Mitglieder-App – lokale Route im Vereinsheim:** Die App unter der öffentlichen Adresse prüft beim Start, ob sie die lokale HTTPS-Adresse von Clubwerk erreicht („Adresse im Vereins-WLAN“, z. B. `https://lan.meinverein.de:5001`), und nutzt sie dann für alle Aufrufe: schneller, ohne Tunnel, und Bereiche „nur im Vereins-WLAN“ (Beregnung, Türen) funktionieren – unabhängig von iCloud Privat-Relay. Voraussetzung ist ein gültiges Zertifikat für die lokale Adresse (Anleitung in der Dokumentation: Cloudflare-DNS-Eintrag mit privater IP + Let's-Encrypt-Add-on mit DNS-Challenge). Dafür: CORS nur zwischen den beiden eigenen Adressen, Content-Security-Policy entsprechend erweitert.
 - **Regel geschärft:** Als Vereins-WLAN gilt nur noch, was direkt bei Home Assistant ankommt. Die Erkennung über die öffentliche IP des Vereinsanschlusses (3.14.0/3.14.1) entfällt – sie war nicht wasserdicht (Privat-Relay, Carrier-NAT). Die Ausnahme „auch unterwegs“ je Mitglied bleibt.
