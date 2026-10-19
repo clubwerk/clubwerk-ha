@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.19.2
+
+- Mitglieder-App: Nach einem Netzwechsel (Mobilfunk → Vereins-WLAN) oder wenn die App wieder in den Vordergrund kommt, prüft sie die lokale Adresse erneut und gibt Beregnung/Zugang frei – bisher nur beim Start.
+
 ## 3.19.1
 
 - Mitglieder-App: „Im Vereinsheim lokal öffnen“ bettet den Bereich jetzt als Inlay in die App ein, statt die ganze App unter der lokalen Adresse neu zu öffnen (kein Wechsel nach Safari mehr). PIN einmal eingeben, danach öffnet sich das Inlay beim nächsten Antippen von selbst; antwortet die lokale Adresse nicht, gibt es nach 8 s „In Safari öffnen“ als Ausweg. Einbetten ist nur zwischen den eigenen Adressen erlaubt.

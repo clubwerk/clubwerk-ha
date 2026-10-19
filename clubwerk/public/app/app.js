@@ -142,9 +142,11 @@
 
   /* Lokale Route im Hintergrund prüfen – die Inhalte erscheinen sofort über die aktuelle Adresse; klappt die Prüfung,
      wechselt die App auf die lokale Adresse und gibt WLAN-Bereiche frei (draußen läuft die Prüfung einfach ins Leere) */
-  let probing = null;
-  function probeInBackground() {
-    if (probing || me.wlan || !me.lanUrl || BASE) return;
+  let probing = null, lastProbeAt = 0;
+  function probeInBackground(force = false) {
+    if (probing || !me || me.wlan || !me.lanUrl || BASE) return;
+    if (!force && Date.now() - lastProbeAt < 20000) return;
+    lastProbeAt = Date.now();
     probing = probeLan(me.lanUrl).then(async ok => {
       if (!ok) { if (current && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); return; }   // Diagnosezeile aktualisieren
       BASE = me.lanUrl + '/';
@@ -153,6 +155,11 @@
       if (current) show(current);
     }).catch(() => {}).finally(() => { probing = null; });
   }
+  // Netzwechsel (Mobilfunk → Vereins-WLAN) oder App wieder im Vordergrund: lokale Adresse erneut prüfen, WLAN-Bereiche ggf. freigeben
+  const recheck = () => { if (document.visibilityState !== 'visible') return; lanProbe = null; probeInBackground(true); if (current && !embedFrame && me && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); };
+  document.addEventListener('visibilitychange', recheck);
+  window.addEventListener('online', recheck);
+  window.addEventListener('pageshow', e => { if (e.persisted) recheck(); });
   async function start() {
     me = await call('me');
     $('club').textContent = me.club;
