@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.14.1
+- **Mitglieder-App – Vereins-WLAN über die öffentliche Adresse jetzt auch bei IPv6 erkannt:** Handys erreichen Cloudflare meist über IPv6; der Add-on-Container hat aber selbst keine IPv6-Adresse, deshalb kannte Clubwerk das IPv6-Netz des Vereins nicht und zeigte im Vereinsheim „Nur im Vereins-WLAN“. Clubwerk fragt die IPv6-Adressen des Home-Assistant-Rechners jetzt beim Supervisor ab (gleiches Netz wie die Handys im WLAN). Zur Diagnose liefert `https://app.…/api/ping` die gesehene Absenderadresse (`ip`) und ob sie als Vereins-WLAN erkannt wurde (`clubNet`); unter Mitglieder-App → „Von unterwegs nutzbar“ stehen die erkannten Netze.
+
 ## 3.14.0
 Große Qualitätsrunde: vier vollständige Prüfungen (Sicherheit, Code, Design/Symmetrie, Menüs) plus Performance – alle Befunde umgesetzt und mit neuen Testreihen abgesichert.
 

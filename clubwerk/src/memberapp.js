@@ -24,16 +24,28 @@ function extAllowed(id) { const c = extCfg(); if (c[id] !== undefined) return Bo
 /* Im Vereins-WLAN, aber über die öffentliche Adresse? Dann läuft die Anfrage trotzdem über Cloudflare. Erkennung: Die Absender-IP
    ist die öffentliche IP des Vereinsanschlusses (IPv4 gleich bzw. IPv6 im selben /64-Netz). Die eigene öffentliche IP fragt Clubwerk
    regelmäßig bei Cloudflare ab (cdn-cgi/trace). */
-const clubNet = { v4: '', v6: '', at: 0, busy: false };
+const clubNet = { v4: '', v6: '', v6nets: [], at: 0, busy: false, source: '' };
 async function refreshClubNet() {
   if (clubNet.busy) return; clubNet.busy = true;
   try {
-    if (process.env.CW_TEST_PUBLIC_IP !== undefined) { const [a, b] = process.env.CW_TEST_PUBLIC_IP.split(','); clubNet.v4 = a || ''; clubNet.v6 = b || ''; return; }
+    if (process.env.CW_TEST_PUBLIC_IP !== undefined) { const [a, b] = process.env.CW_TEST_PUBLIC_IP.split(','); clubNet.v4 = a || ''; clubNet.v6 = b || ''; clubNet.v6nets = b ? [v6net(b)] : []; return; }
+    // IPv6: Handys erreichen Cloudflare meist über IPv6, der Add-on-Container selbst hat aber keins. Die globalen IPv6-Adressen
+    // des Home-Assistant-Rechners (gleiches /64 wie die Handys im WLAN) liefert der Supervisor.
+    const nets = new Set();
+    if (process.env.SUPERVISOR_TOKEN) {
+      try {
+        const r = await fetch('http://supervisor/network/info', { headers: { Authorization: `Bearer ${process.env.SUPERVISOR_TOKEN}` }, signal: AbortSignal.timeout(5000) });
+        const d = await r.json();
+        for (const i of (d.data && d.data.interfaces) || []) for (const a of (i.ipv6 && i.ipv6.address) || []) { const ip = String(a).split('/')[0]; if (/^[23][0-9a-f]{3}:/i.test(ip)) { const n = v6net(ip); if (n) nets.add(n); } }
+        if (nets.size) clubNet.source = 'supervisor';
+      } catch (e) { /* kein Supervisor (Entwicklung) oder keine Antwort */ }
+    }
     const ask = async u => { try { const r = await fetch(u, { signal: AbortSignal.timeout(5000) }); const m = /(?:^|\n)ip=([0-9a-fA-F:.]+)/.exec(await r.text()); return m ? m[1] : ''; } catch (e) { return ''; } };
     // verschlüsselt abfragen: Die Antwort entscheidet mit, wer als „im Vereinsnetz“ gilt – unverschlüsselt könnte sie auf dem Weg verändert werden
     const [v4, v6] = await Promise.all([ask('https://1.1.1.1/cdn-cgi/trace'), ask('https://[2606:4700:4700::1111]/cdn-cgi/trace')]);
     if (v4 && !v4.includes(':')) clubNet.v4 = v4;
-    if (v6 && v6.includes(':')) clubNet.v6 = v6;
+    if (v6 && v6.includes(':')) { clubNet.v6 = v6; const n = v6net(v6); if (n) nets.add(n); }
+    if (nets.size) clubNet.v6nets = [...nets];
   } finally { clubNet.at = Date.now(); clubNet.busy = false; }
 }
 /** die ersten 64 Bit einer IPv6-Adresse (ausgeschrieben), auch bei „::“-Kurzschreibweise */
@@ -50,7 +62,8 @@ function inClubNet(ip) {
   ip = String(ip || '').replace(/^::ffff:/, '');
   if (!ip) return false;
   if (!ip.includes(':')) return Boolean(clubNet.v4) && ip === clubNet.v4;
-  return Boolean(clubNet.v6) && v6net(ip) !== '' && v6net(ip) === v6net(clubNet.v6);
+  const n = v6net(ip);
+  return n !== '' && clubNet.v6nets.includes(n);
 }
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
@@ -218,7 +231,8 @@ function startPort({ rateLimit, rateLimitKey }) {
 
   const api = express.Router();
   const dev = req => req.get('X-Geraet') || '';
-  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', tunnel: Boolean(req.viaTunnel), clubNet: Boolean(req.clubNet) }));
+  // Diagnose: ip = so sieht Clubwerk den Absender; clubNet = als Vereins-WLAN erkannt (bei „unterwegs“ im Vereinsheim: Adresse mit der unter Mitglieder-App angezeigten vergleichen)
+  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', tunnel: Boolean(req.viaTunnel), clubNet: Boolean(req.clubNet), ip: String(req.ip || '').replace(/^::ffff:/, ''), known: clubNet.at > 0 && (Boolean(clubNet.v4) || clubNet.v6nets.length > 0) }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
     const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) : a; }).map(([id, m]) => {
@@ -363,7 +377,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), clubIp: [clubNet.v4, clubNet.v6 ? v6net(clubNet.v6) + '::/64' : ''].filter(Boolean).join(' · '), lastReject: lastTunnelReject, proxyIps: TUNNEL_IPS }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), clubIp: [clubNet.v4, ...clubNet.v6nets.map(n => n + '::/64')].filter(Boolean).join(' · '), lastReject: lastTunnelReject, proxyIps: TUNNEL_IPS }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {

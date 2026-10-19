@@ -4530,6 +4530,7 @@
   "Prüft …",
   "Prüfwert (SHA-256): {0}",
   "public, max-age=31536000, immutable",
+  "public, max-age=604800",
   "QR {0} Std., Link {1}",
   "QR-Code",
   "QR-Code abgelaufen",
