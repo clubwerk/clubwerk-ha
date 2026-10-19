@@ -375,7 +375,17 @@ function startPort({ rateLimit, rateLimitKey }) {
   });
   app.use('/api', api);
   app.use('/api', (req, res) => res.status(404).json({ error: 'Unbekannte Adresse.' }));
-  app.use(express.static(path.join(__dirname, '..', 'public', 'app'), { index: 'index.html', setHeaders: r => r.setHeader('Cache-Control', 'no-cache') }));
+  /* Startseite der App: Skript und Stile mit Versionsnummer verknüpft (app.js?v=…) und nie zwischengespeichert –
+     Home-Bildschirm-Apps auf dem iPhone halten sonst nach einem Update noch tagelang das alte Skript fest */
+  const APP_DIR = path.join(__dirname, '..', 'public', 'app');
+  const appIndex = (req, res) => {
+    const v = encodeURIComponent(require('../package.json').version);
+    let html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8');
+    html = html.replace(/(href|src)="(app\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}"`);
+    res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).send(html);
+  };
+  app.get(['/', '/index.html'], appIndex);
+  app.use(express.static(APP_DIR, { index: false, setHeaders: (r, p) => r.setHeader('Cache-Control', /\.(js|html)$/.test(p) ? 'no-store' : 'no-cache') }));
   /* Fehler immer als JSON, ohne interne Details – echte Programmfehler landen im Protokoll statt als „Ungültige Anfrage“ unterzugehen */
   app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
     if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Die Datei ist zu groß.' });
