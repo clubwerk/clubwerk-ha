@@ -62,6 +62,15 @@ Formate in einer Spalte nie mischen; für die Anzeige `ctx.util.deD()` verwenden
 
 **E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → Postfach), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger.
 
+**Push-Benachrichtigungen (ab Clubwerk 3.19):** Die Erweiterung meldet ihre Anlässe an:
+`ctx.hooks.pushEvents = () => [{ id: 'erinnerung', label: 'Erinnerung', desc: 'Wann die Nachricht kommt', default: true, lead: { default: 120, label: 'Vorlauf' } }]`
+(`id` nur Kleinbuchstaben/Ziffern/Unterstrich; `lead` nur für Anlässe mit Vorlauf in Minuten). Der Vorstand gibt Anlässe unter
+Mitglieder-App → Benachrichtigungen frei (`default` ist die Vorgabe), jedes Mitglied wählt je Handy daraus. Senden:
+`ctx.push.send(memberIds, 'erinnerung', { title, body, url: './#meinmodul', tag })` – der Kern prüft Freigabe und Abos, verschlüsselt,
+protokolliert und räumt erloschene Abos weg; nicht freigegebene Anlässe werden still übersprungen. `ctx.push.enabled('erinnerung')`
+und `ctx.push.lead('erinnerung')` (Vorlauf in Minuten) für eigene Zeitgeber. Nur Titel und ein Satz senden – nichts, was in der
+App PIN-pflichtig ist (Bankdaten, Adressen).
+
 **Deinstallieren:** In `erweiterung.json` mit `"tabellen": ["meine_tabelle", …]` die eigenen Tabellen angeben (sonst gelten alle Tabellen mit dem Präfix `<id>_`) und bei Bedarf `"einstellungen": ["praefix_"]` für Einstellungen außerhalb von `ext_<id>_…`. Diese Daten landen in der Modul-Sicherung und werden beim Deinstallieren gelöscht.
 
 **Mitgliederverwaltung – Zahler vs. Familienmitgliedschaft:** Die Mitgliederverwaltung kennt zwei getrennte Zuordnungen je Person:

@@ -2066,6 +2066,31 @@
     await api(`app/member/${id}/access`, 'PUT', { module: mod, flags: { [flag]: on } }); toast(on ? 'Eingeschaltet.' : 'Ausgeschaltet.'); if (after) after();
   }); });
 
+  /** Push-Benachrichtigungen: Anlässe freigeben (Recht „Einstellungen“), Stand, Testnachricht */
+  async function pushCard(el) {
+    const r = await api('push');
+    const mayEdit = can('einstellungen');
+    const byMod = [];
+    for (const e of r.events) { let g = byMod.find(x => x.m === e.moduleName); if (!g) { g = { m: e.moduleName, ev: [] }; byMod.push(g); } g.ev.push(e); }
+    el.innerHTML = `<h3>Benachrichtigungen</h3>
+      <p class="muted s" style="margin-top:0">Kurze Hinweise aufs Handy (Push) aus der Mitglieder-App – auf dem iPhone in der Home-Bildschirm-App ab iOS 16.4, auf Android im Browser. Hier legst du fest, welche Anlässe es im Verein gibt; jedes Mitglied schaltet Push je Handy ein und wählt daraus. Es werden nur Titel und ein Satz gesendet, nichts PIN-Pflichtiges.</p>
+      <div class="row" style="gap:6px 22px;margin-bottom:6px"><span class="pill${r.subs ? ' g' : ''}">${r.subs} ${r.subs === 1 ? 'Handy' : 'Handys'} angemeldet · ${r.members} ${r.members === 1 ? 'Mitglied' : 'Mitglieder'}</span></div>
+      ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:72px;min-height:28px;border:1px solid var(--line);border-radius:8px;padding:0 6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
+      ${mayEdit ? `<div class="btns" style="margin-top:10px"><button class="btn primary" id="pshSave">Speichern</button>
+        <select id="pshWho" style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px"><option value="">– Testnachricht an –</option>${r.subscribed.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'}>Senden</button></div>` : ''}
+      ${r.recent.length ? `<details style="margin-top:10px"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member || '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
+    if (!mayEdit) return;
+    $('pshSave').onclick = () => busy($('pshSave'), async () => {
+      const events = {};
+      el.querySelectorAll('[data-pe]').forEach(c => { events[c.dataset.pe] = { on: c.checked }; });
+      el.querySelectorAll('[data-pl]').forEach(i => { events[i.dataset.pl] = { ...(events[i.dataset.pl] || {}), lead: +i.value }; });
+      try { await api('push', 'PUT', { events }); toast('Gespeichert.'); pushCard(el).catch(fail); } catch (e) { fail(e); }
+    });
+    $('pshTest').onclick = () => busy($('pshTest'), async () => {
+      const id = +$('pshWho').value; if (!id) { toast('Bitte ein Mitglied wählen.', true); return; }
+      try { const x = await api('push/test', 'POST', { memberId: id }); toast(x.ok ? `Testnachricht gesendet (${x.sent}).` : 'Nicht gesendet' + (x.skipped ? ': ' + x.skipped : ' – kein Handy mit Abo.'), !x.ok); pushCard(el).catch(fail); } catch (e) { fail(e); }
+    });
+  }
   RENDER.app = async () => {
     const r = await api('app');
     const mods = r.modules;
@@ -2114,6 +2139,7 @@
         <div id="moRows" class="torows">${mods.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label || m.name)}</b>
           <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < mods.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('')}</div>
         <div class="btns"><button class="btn primary" id="moSave">Speichern</button></div></div>` : ''}
+      <div class="card" id="pushCard" data-nodirty><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
       <div class="card"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & QR-Code</button></div>
@@ -2171,6 +2197,7 @@
       };
       draw();
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
+    pushCard($('pushCard')).catch(e => { $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
     }
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {

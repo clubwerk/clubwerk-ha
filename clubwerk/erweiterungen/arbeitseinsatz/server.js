@@ -535,6 +535,9 @@ function activate(ctx) {
     }
     return out;
   };
+  ctx.hooks.pushEvents = () => [
+    { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
+  ];
   ctx.hooks.overview = async () => {
     const pend = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n;
     const y = yearOf(today()); const o = await overview(y);
@@ -549,20 +552,23 @@ function activate(ctx) {
   /* ---------------------------------------------------------------- Erinnerungen */
   async function daily() {
     try {
-      if (!ctx.isActive() || !ctx.mail.ready()) return;
+      if (!ctx.isActive()) return;
       const c = cfg(), club = ctx.getSetting('club_name', '');
-      const mailOf = id => db.prepare('SELECT email FROM mv_person WHERE member_id = ?').get(id);
       const hasMv = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'mv_person'").get());
-      if (!hasMv) return;
+      const mailOk = ctx.mail.ready() && hasMv;
+      const mailOf = id => (hasMv ? db.prepare('SELECT email FROM mv_person WHERE member_id = ?').get(id) : null);
       if (c.remind_events) {
         const tm = addDays(today(), 1);
-        for (const s of db.prepare('SELECT s.id, s.member_id, e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND e.permanent = 0 AND s.reminded = 0').all(tm)) {
-          const m = mailOf(s.member_id); db.prepare('UPDATE aw_signup SET reminded = 1 WHERE id = ?').run(s.id);
+        for (const s of db.prepare('SELECT e.*, s.id AS signup_id, s.member_id FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND e.permanent = 0 AND s.reminded = 0').all(tm)) {
+          db.prepare('UPDATE aw_signup SET reminded = 1 WHERE id = ?').run(s.signup_id);   // (bis 3.18 stand hier die Termin-Nummer – die Erinnerung ging stündlich erneut raus)
+          // Push (ohne Mitgliederverwaltung und ohne Postfach möglich), E-Mail zusätzlich
+          if (ctx.push) ctx.push.send([s.member_id], 'erinnerung', { title: `Morgen: ${s.title}`, body: `${KIND[s.kind] || 'Dienst'} am ${WDL[isoDow(s.date)]}${s.start ? ' ab ' + s.start + ' Uhr' : ''}${s.place ? ' · ' + s.place : ''}`, url: './#arbeitseinsatz', tag: `aw-${s.id}` }).catch(() => {});
+          const m = mailOk ? mailOf(s.member_id) : null;
           if (!m || !m.email) continue;
           await ctx.mail.send({ to: m.email, subject: `Erinnerung: ${s.title} morgen`, text: [`Hallo,`, '', `du hast dich für morgen eingetragen: ${KIND[s.kind]} „${s.title}“${s.plan_id ? ` (${(db.prepare('SELECT title FROM aw_plan WHERE id = ?').get(s.plan_id) || {}).title || ''})` : ''} am ${deD(s.date)}${s.start ? ` um ${s.start} Uhr` : ''}${s.place ? `, ${s.place}` : ''}.`, '', `Falls etwas dazwischenkommt: ${cfg().contact ? `bitte bei ${cfg().contact} melden.` : 'bitte beim Verein melden.'}`, '', 'Danke für deine Hilfe!', club].join('\n') }).catch(() => {});
         }
       }
-      if (c.remind_date && today().slice(5) === c.remind_date && S('reminded_year') !== today().slice(0, 4)) {
+      if (mailOk && c.remind_date && today().slice(5) === c.remind_date && S('reminded_year') !== today().slice(0, 4)) {
         SET('reminded_year', today().slice(0, 4));
         const o = await overview(yearOf(today()));
         for (const f of o.families.filter(x => x.target > x.done)) {
@@ -574,8 +580,8 @@ function activate(ctx) {
       }
     } catch (e) { console.error('Arbeitseinsatz (täglich):', e.message); }
   }
-  setTimeout(daily, 20000).unref();
-  setInterval(daily, 60 * 60000).unref();
+  setTimeout(daily, process.env.CW_TEST_FAST ? 1500 : 20000).unref();
+  setInterval(daily, process.env.CW_TEST_FAST ? 1500 : 60 * 60000).unref();
 }
 
 module.exports = { activate };

@@ -212,10 +212,14 @@ function activate(ctx) {
   const mailBudget = ctx.require('./security').budget({ max: 20, windowMs: 3600000 });
   /** Mitspieler (und ggf. Bucher) informieren – Buchung, Änderung oder Storno. budget: Mitglieds-ID, auf deren Kontingent die Mails gehen */
   function mailPlayers(b, kind, { by = null, reason = '', toBooker = false, old = null, budget = null } = {}) {
-    if (!cfg().notify_partners) return;
     const ids = [...new Set([...(toBooker && b.member_id ? [b.member_id] : []), ...J(b.partners, [])])].filter(id => id !== by);
     if (!ids.length) return;
-    if (budget != null && !mailBudget.take('m' + budget, ids.length)) return;   // still weiter, aber keine Mail mehr
+    const pushEv = kind === 'storno' ? 'storno' : kind === 'aenderung' ? 'aenderung' : 'einladung';
+    { // Push (kurz, unabhängig von der E-Mail-Einstellung „Mitspieler informieren“)
+      const r0 = resource(b.resource_id) || { name: 'Platz' };
+      if (ctx.push) ctx.push.send(ids, pushEv, { title: kind === 'storno' ? `Storniert: ${r0.name} ${deD(b.date)}` : kind === 'aenderung' ? `Geändert: ${r0.name} ${deD(b.date)}` : `${nameOf(b.member_id)} hat dich eingetragen`, body: `${r0.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr${kind === 'storno' && reason ? ' – ' + reason : ''}`, url: './#buchung', tag: `buchung-${pushEv}-${b.id}` }).catch(() => {});
+    }
+    if (!cfg().notify_partners || (budget != null && !mailBudget.take('m' + budget, ids.length))) return;   // keine Mail (abgeschaltet oder Tageslimit)
     const r = resource(b.resource_id) || { name: 'Platz' };
     const when = `${r.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr`;
     const head = kind === 'storno' ? `Storniert: ${when}` : kind === 'aenderung' ? `Geändert: ${when}` : when;
@@ -380,7 +384,8 @@ function activate(ctx) {
   }
 
   /** E-Mail an Mitglieder (Adresse aus der Mitgliederverwaltung) */
-  async function notify(ids, subject, lines) {
+  async function notify(ids, subject, lines, pushEvent = null) {
+    if (pushEvent && ctx.push) ctx.push.send(ids, pushEvent, { title: subject, body: String((lines || []).find(l => l && !/^Hallo/.test(l)) || ''), url: './#buchung', tag: `buchung-${pushEvent}` }).catch(() => {});
     if (!ctx.mail.ready() || !mv()) return 0;
     let n = 0;
     for (const id of ids) {
@@ -409,7 +414,7 @@ function activate(ctx) {
     for (const w of ws) {
       if (!free(r, w.date, tm(w.start), tm(w.end))) continue;
       db.prepare('UPDATE bk_wait SET notified_at = ? WHERE id = ?').run(nowTs(), w.id);
-      notify([w.member_id], `Frei geworden: ${r.name} ${deD(w.date)}`, [`Du stehst auf der Warteliste – ${r.name} am ${WD[isoDow(w.date)]} ${deD(w.date)} um ${w.start} Uhr ist jetzt frei.`, '', 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App unter „Buchen“ zugreifst.']).catch(() => {});
+      notify([w.member_id], `Frei geworden: ${r.name} ${deD(w.date)}`, [`Du stehst auf der Warteliste – ${r.name} am ${WD[isoDow(w.date)]} ${deD(w.date)} um ${w.start} Uhr ist jetzt frei.`, '', 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App unter „Buchen“ zugreifst.'], 'warteliste').catch(() => {});
     }
   }
 
@@ -673,7 +678,7 @@ function activate(ctx) {
     } catch (x) { return res.status(x.conflicts ? 409 : 400).json({ error: x.message, conflicts: (x.conflicts || []).map(c => bview(c, { full: true })) }); }
     if (type === 'sperre' && b.force) for (const c of conflicts.filter(x => x.type !== 'sperre')) {
       await cancel(c, uname(req), `Platz gesperrt: ${title}`);
-      if (c.member_id) notify([c.member_id], `Buchung storniert: ${r.name} ${deD(c.date)}`, [`Deine Buchung ${r.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${title}`]).catch(() => {});
+      if (c.member_id) notify([c.member_id], `Buchung storniert: ${r.name} ${deD(c.date)}`, [`Deine Buchung ${r.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno').catch(() => {});
     }
     // Gastgebühr: bei Änderung neu berechnen (alte zurücknehmen, neue anlegen)
     const paying = label && label.free_rules ? 0 : guests.filter(g => !g.partner).length;
@@ -912,7 +917,7 @@ function activate(ctx) {
     for (const c of toCancel) {
       const b0 = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(c.id);
       await cancel(b0, uname(req), `Platz gesperrt: ${title}`);
-      if (b0.member_id && b0.type === 'buchung') notify([b0.member_id], `Buchung storniert: ${c.resource} ${deD(b0.date)}`, [`Deine Buchung ${c.resource} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, `Grund: ${title}`]).catch(() => {});
+      if (b0.member_id && b0.type === 'buchung') notify([b0.member_id], `Buchung storniert: ${c.resource} ${deD(b0.date)}`, [`Deine Buchung ${c.resource} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno').catch(() => {});
     }
     ctx.audit(req.user, type === 'sperre' ? 'Sperre angelegt' : 'Serienbuchung angelegt', `${title}: ${made} Termine${skipped ? `, ${skipped} belegt ausgelassen` : ''}${toCancel.length ? `, ${toCancel.length} storniert` : ''}`);
     res.json({ id, made, skipped, cancelled: toCancel.length });
@@ -1020,6 +1025,30 @@ function activate(ctx) {
     // Kachel wie beim Verkauf: groß die offenen Gebühren, darunter die Belegung – kein Hinweis-Banner
     return { kpis: [{ l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Jahr', v: euro(sum) }, { l: 'Buchungen heute', v: `${t} · belegt ${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
   };
+  /* Push-Anlässe (der Vorstand gibt frei, das Mitglied wählt je Handy) */
+  ctx.hooks.pushEvents = () => [
+    { id: 'einladung', label: 'Als Mitspieler eingetragen', desc: 'Jemand hat dich bei einer Buchung als Mitspieler eingetragen.', default: true },
+    { id: 'aenderung', label: 'Buchung geändert', desc: 'Eine Buchung, bei der du dabei bist, wurde verschoben oder geändert.', default: true },
+    { id: 'storno', label: 'Buchung storniert', desc: 'Eine Buchung, bei der du dabei bist, wurde storniert – auch durch den Verein (Platzsperre).', default: true },
+    { id: 'warteliste', label: 'Platz frei geworden', desc: 'Ein Termin von deiner Warteliste ist frei geworden.', default: true },
+    { id: 'erinnerung', label: 'Erinnerung vor dem Spiel', desc: 'Kurz vor deiner Buchung – an Buchende und Mitspieler.', default: true, lead: { default: 120, label: 'Vorlauf' } },
+  ];
+  try { db.exec('ALTER TABLE bk_booking ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* gibt es schon */ }
+  async function remind() {
+    if (!ctx.isActive() || !ctx.push || !ctx.push.enabled('erinnerung')) return;
+    const lead = ctx.push.lead('erinnerung') || 120;
+    const d = today(), nowM = nowMin(), from = nowM, to = nowM + lead;
+    const rows = db.prepare("SELECT * FROM bk_booking WHERE status = 'aktiv' AND type = 'buchung' AND date = ? AND reminded = 0 AND member_id IS NOT NULL").all(d)
+      .filter(b => { const st = tm(b.start); return st >= from && st <= to; });
+    for (const b of rows) {
+      db.prepare('UPDATE bk_booking SET reminded = 1 WHERE id = ?').run(b.id);
+      const r = resource(b.resource_id) || { name: 'Platz' };
+      const ids = [b.member_id, ...J(b.partners, [])];
+      await ctx.push.send(ids, 'erinnerung', { title: `Gleich: ${r.name} um ${b.start} Uhr`, body: `Deine Buchung ${r.name} ${deD(b.date)} ${b.start}–${b.end} Uhr${J(b.partners, []).length ? ' – mit ' + J(b.partners, []).map(nameOf).join(', ') : ''}`, url: './#buchung', tag: `buchung-erinnerung-${b.id}` }).catch(() => {});
+    }
+  }
+  setInterval(() => remind().catch(() => {}), process.env.CW_TEST_FAST ? 1500 : 60000).unref();
+  setTimeout(() => remind().catch(() => {}), 5000).unref();
   ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
     resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort, partner_required, solo_label, as_partner FROM bk_resource WHERE deleted = 0').all() });
   ctx.hooks.importConfig = d => {

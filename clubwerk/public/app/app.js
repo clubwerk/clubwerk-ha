@@ -160,7 +160,71 @@
     let p; try { p = await call('photo'); } catch (e) { return; }
     const paint = () => { b.innerHTML = p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member)); b.classList.remove('hidden'); };
     paint();
-    b.onclick = () => photoSheet(p, x => { p = x; paint(); });
+    b.onclick = () => accountSheet(() => photoSheet(p, x => { p = x; paint(); }));
+  }
+  /* ---------- Konto-Menü hinter dem Profilbild: Profilbild, Benachrichtigungen ---------- */
+  function accountSheet(openPhoto) {
+    let sh = $('accSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'accSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    sh.innerHTML = `<div class="vh-box"><h2>${esc(me.member)}</h2><div class="vh-menu">
+        <button type="button" id="accPhoto">Profilbild</button>
+        <button type="button" id="accPush">Benachrichtigungen</button></div>
+      <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">Schließen</button></div></div>`;
+    sh.querySelector('#accNo').onclick = () => sh.classList.remove('show');
+    sh.querySelector('#accPhoto').onclick = () => { sh.classList.remove('show'); openPhoto(); };
+    sh.querySelector('#accPush').onclick = () => { sh.classList.remove('show'); notifSheet().catch(e => toast(e.message, true)); };
+    sh.classList.add('show');
+  }
+
+  /* ---------- Push-Benachrichtigungen: Abo je Handy, Anlässe je Mitglied (nur die vom Vorstand freigegebenen) ---------- */
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64ToBytes = s => { const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
+  async function swReady() { const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; return reg; }
+  async function notifSheet() {
+    let sh = $('pushSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'pushSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const sup = pushSupported();
+    let reg = null, sub = null;
+    if (sup) { try { reg = await swReady(); sub = await reg.pushManager.getSubscription(); } catch (e) { reg = null; } }
+    let st = await call('push/state', 'POST', { endpoint: sub ? sub.endpoint : '' });
+    const on = () => Boolean(sub && st.subscribed);
+    const draw = () => {
+      const hint = !sup ? (isIOS ? 'Auf dem iPhone gibt es Benachrichtigungen nur in der Home-Bildschirm-App: unten auf Teilen → „Zum Home-Bildschirm“, dann dort einschalten.' : 'Dieser Browser unterstützt keine Push-Benachrichtigungen.')
+        : Notification.permission === 'denied' ? 'Benachrichtigungen sind für diese App im Handy gesperrt – bitte in den Einstellungen des Handys erlauben.' : '';
+      sh.innerHTML = `<div class="vh-box"><h2>Benachrichtigungen</h2>
+        <p class="vh-small" style="text-align:left">Kurze Hinweise aufs Handy, z. B. wenn dich jemand als Mitspieler einträgt. Gilt nur für dieses Handy.</p>
+        ${hint ? `<p class="vh-small" style="text-align:left;color:var(--ink)">${esc(hint)}</p>` : ''}
+        ${!st.events.length ? '<p class="vh-small" style="text-align:left">Der Verein hat noch keine Benachrichtigungen freigegeben.</p>' : ''}
+        ${sup && !hint && st.events.length ? `<label class="vh-switch"><input type="checkbox" id="pshOn" ${on() ? 'checked' : ''}><span>Benachrichtigungen auf diesem Handy</span></label>` : ''}
+        ${on() ? `<div class="vh-uses" id="pshEv">${st.events.map(e => `<label><input type="checkbox" data-k="${esc(e.key)}" ${e.on ? 'checked' : ''}><span>${esc(e.label)}${e.desc ? `<small>${esc(e.desc)}</small>` : ''}</span></label>`).join('')}</div>
+          <button type="button" class="vh-btn sec" id="pshTest" style="width:100%">Testnachricht schicken</button>` : ''}
+        <div class="vh-err" id="pshE"></div>
+        <div class="vh-row" style="margin-top:10px"><button class="no" id="pshNo" style="flex:1">Schließen</button></div></div>`;
+      sh.querySelector('#pshNo').onclick = () => sh.classList.remove('show');
+      const err = t => { sh.querySelector('#pshE').textContent = t; };
+      const sw = sh.querySelector('#pshOn');
+      if (sw) sw.onchange = async () => {
+        sw.disabled = true;
+        try {
+          if (sw.checked) {
+            const perm = await Notification.requestPermission();
+            if (perm !== 'granted') { sw.checked = false; err('Ohne Erlaubnis des Handys geht es nicht.'); draw(); return; }
+            if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(st.vapid) });
+            st = await call('push/subscribe', 'POST', { subscription: sub.toJSON() });
+            toast('Benachrichtigungen eingeschaltet.');
+          } else {
+            const ep = sub ? sub.endpoint : '';
+            if (sub) { try { await sub.unsubscribe(); } catch (e) { /* egal */ } sub = null; }
+            st = await call('push/unsubscribe', 'POST', { endpoint: ep });
+            toast('Benachrichtigungen ausgeschaltet.');
+          }
+        } catch (e) { err(e.message || 'Das hat nicht geklappt.'); }
+        draw();
+      };
+      sh.querySelectorAll('#pshEv input').forEach(c => { c.onchange = async () => { try { st = await call('push/events', 'PUT', { endpoint: sub.endpoint, events: { [c.dataset.k]: c.checked } }); } catch (e) { err(e.message); c.checked = !c.checked; } }; });
+      const t = sh.querySelector('#pshTest');
+      if (t) t.onclick = async () => { t.disabled = true; try { const r = await call('push/test', 'POST', { endpoint: sub.endpoint }); toast(r.ok ? 'Testnachricht gesendet – sie sollte gleich erscheinen.' : 'Nicht gesendet' + (r.skipped ? ': ' + r.skipped : '.'), !r.ok); } catch (e) { err(e.message); } t.disabled = false; };
+    };
+    draw();
+    sh.classList.add('show');
   }
   /** Bild im Handy quadratisch auf 400 × 400 verkleinern → data:image/jpeg */
   const shrink = file => new Promise((resolve, reject) => {

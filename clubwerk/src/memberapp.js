@@ -93,10 +93,12 @@ function accessFor(memberId, id) {
 /* Reihenfolge der Bereiche in der App (Reiter) und in der Freischaltungstabelle: Einstellung app_module_order (JSON-Liste von IDs),
    nicht gelistete Bereiche dahinter in der Reihenfolge der Module (order aus erweiterung.json) */
 const moduleOrder = () => { try { const x = JSON.parse(getSetting('app_module_order', '[]')); return Array.isArray(x) ? x.map(String) : []; } catch (e) { return []; } };
+const push = require('./push');
 const activeModules = () => {
   const ord = moduleOrder(), pos = id => { const i = ord.indexOf(id); return i < 0 ? 1e6 : i; };
   return [...modules.entries()].filter(([, m]) => m.isActive()).sort((a, b) => pos(a[0]) - pos(b[0]) || (a[1].order || 50) - (b[1].order || 50));
 };
+push.setModules(activeModules);
 
 /* ---------- Freischaltungen ---------- */
 const access = {
@@ -276,6 +278,35 @@ function startPort({ rateLimit, rateLimitKey }) {
     audit(null, 'Mitglieder-App: lokale Route im Vereinsheim übernommen', r.member);
     res.json({ ok: true, device: r.device, member: r.member });
   });
+  /* Push-Benachrichtigungen je Handy (Abo im Browser; Anlässe gibt der Vorstand frei) */
+  const whoDev = req => { const w = invites.whoIs(SCOPE, dev(req)); return w; };
+  const devLabel = req => { const d = db.prepare('SELECT device FROM member_devices WHERE id = ?').get((whoDev(req) || {}).deviceId); return d ? d.device : null; };
+  api.post('/push/state', rateLimit('apppst', 60, 60000), (req, res) => {
+    const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
+    res.json(push.state(w.memberId, String((req.body || {}).endpoint || '')));
+  });
+  api.post('/push/subscribe', rateLimit('apppsu', 20, 60000), (req, res) => {
+    const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
+    try {
+      const st = push.subscribe({ memberId: w.memberId, deviceId: w.deviceId, label: devLabel(req) }, (req.body || {}).subscription, process.env.CW_PUSH_ALLOW_HTTP === '1');
+      audit(null, 'Mitglieder-App: Push eingeschaltet', w.name);
+      res.json(st);
+    } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  api.post('/push/unsubscribe', rateLimit('apppsu', 20, 60000), (req, res) => {
+    const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
+    if (push.unsubscribe(w.memberId, (req.body || {}).endpoint)) audit(null, 'Mitglieder-App: Push ausgeschaltet', w.name);
+    res.json(push.state(w.memberId, ''));
+  });
+  api.put('/push/events', rateLimit('apppev', 60, 60000), (req, res) => {
+    const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
+    try { res.json(push.setEvents(w.memberId, (req.body || {}).endpoint, (req.body || {}).events)); } catch (e) { res.status(400).json({ error: e.message }); }
+  });
+  api.post('/push/test', rateLimit('apppte', 5, 60000), async (req, res) => {
+    const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
+    const r = await push.send(w.memberId, 'app.test', { title: `${getSetting('club_name', 'Verein')}: Testnachricht`, body: 'Push-Benachrichtigungen funktionieren auf diesem Handy.' }, { endpoint: String((req.body || {}).endpoint || '') });
+    res.json({ ok: r.sent > 0, sent: r.sent, skipped: r.skipped || null });
+  });
   api.post('/verify-pin', rateLimit('apppin', 20, 60000), (req, res) => {
     const c = invites.check(SCOPE, dev(req), (req.body || {}).pin);
     if (!c.ok) return res.status(c.status).json({ error: c.error, pin: c.pin, device: c.device });
@@ -357,6 +388,17 @@ function startPort({ rateLimit, rateLimitKey }) {
 /* ---------- Verwaltung ---------- */
 function adminRoutes(admin, { bad, need, auth }) {
   // Profilbild in der Verwaltung ansehen und bei Bedarf entfernen
+  /* Push-Benachrichtigungen: welche Anlässe es im Verein gibt (Recht „Einstellungen“), Überblick und Test */
+  admin.get('/push', need('konten', 'einstellungen', 'mitglieder'), (req, res) => res.json(push.adminState()));
+  admin.put('/push', need('konten', 'einstellungen'), (req, res) => { push.saveAdmin((req.body || {}).events, req.user); res.json(push.adminState()); });
+  admin.post('/push/test', need('konten', 'einstellungen'), async (req, res) => {
+    const id = parseInt((req.body || {}).memberId, 10);
+    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
+    if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const r = await push.send(id, 'app.test', { title: `${getSetting('club_name', 'Verein')}: Testnachricht`, body: `Vom Vorstand ausgelöst (${req.user.name || req.user.username || 'Verwaltung'}).` });
+    audit(req.user, 'Push-Benachrichtigungen: Testnachricht', `${m.name} – ${r.sent} gesendet${r.skipped ? ' (' + r.skipped + ')' : ''}`);
+    res.json({ ok: r.sent > 0, sent: r.sent, skipped: r.skipped || null });
+  });
   admin.get('/photo/:id', need('konten', 'mitglieder'), (req, res) => require('./photos').send(res, parseInt(req.params.id, 10), null));
   admin.delete('/photo/:id', need('konten', 'mitglieder'), (req, res) => { require('./photos').remove(parseInt(req.params.id, 10), req.user); res.json({ ok: true }); });
   // Wer darf? „Mitglieder“ (konten) oder das Recht des jeweiligen Moduls
@@ -402,7 +444,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const id = parseInt(req.params.id, 10);
     { const miss = missingFor(req, id); if (miss.length) return bad(res, `Zum Entfernen des Handys fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
     const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
-    invites.revoke(SCOPE, id);
+    invites.revoke(SCOPE, id); push.removeMember(id);
     audit(req.user, 'Mitglieder-App: Handy entfernt', m ? m.name : String(id));
     res.json({ ok: true });
   });
@@ -413,7 +455,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
     const miss = missingFor(req, id);
     if (miss.length) return bad(res, `Zum Entfernen aus der App fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403);
-    invites.revoke(SCOPE, id);
+    invites.revoke(SCOPE, id); push.removeMember(id);
     const n = db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id).changes;
     audit(req.user, 'Mitglieder-App: aus der App entfernt', `${m.name} (Handy und ${n} Freischaltung(en))`);
     res.json({ ok: true });
