@@ -1,5 +1,26 @@
 # Änderungen
 
+## 3.17.0
+## Tests
+
+- Neu `$S/work/bk17_test.js` (Ports 3390/5390/5391): **83 Prüfungen, ALLES OK** – A: KPI/Hinweis 0 → 1 · 5,00 € → nach Zahlung (`POST x/mitglieder/charges/:id/pay`) wieder 0; `/fees` offen/bezahlt/Datumsfilter; App 403 ohne Haken, Liste mit Haken, Eva 403, Haken entfernen/„auch unterwegs“ lässt Haken stehen, Audit, unbekannter Haken 400. B: Pflicht ohne alles 400 (Preisvorschau ebenso), mit Gast ok, Gerät → zweite Gerätebuchung + Verknüpfung + Anzeige, gleiches Gerät zur selben Zeit 400, Gerät ohne as_partner 400, Gerät + Mitspieler ok, Kontingent Platz (2) unverändert, Leihschläger trotz verknüpfter Ballmaschine (Gerätekontingent zählt sie nicht), Ändern verschiebt/ersetzt Gerät, solo ok/ohne Label 400, Storno App und Verwaltung stornieren Gerät mit (Protokoll), Tablet Pflicht/mit Ballmaschine, Verwaltung/Serie/Vereinstermin ohne Mitspieler ok, Export. D: moduleOrder → `/me` und Tabelle, nicht gelistete hinten, 403 ohne „Einstellungen“, Haken mit Modulrecht erlaubt. Zweiter Lauf ohne Mitgliederverwaltung: Hinweis „keine Zahlungsverfolgung“ in `/fees`, Übersicht und App.
+- Bestand: `bk` 6 ✘ (alle Mail/ECONNREFUSED 2525, akzeptiert) · `ext`, `sec2`, `rol`, `func`, `tab` ALLES OK · `app` (über `run_code.sh app`, HA-Mock) 44 ✔ ALLES OK · `i18n` ALLES OK.
+- Screenshots (`$S/bk17/`): `fees_1280.png` (Reiter Gebühren: drei KPI-Karten gleich hoch, Tabelle), `res_dialog_platz.png` / `res_dialog_geraet.png` (neue Felder in der 4er-Rasterzeile, Haken auf Feldhöhe), `app_order_1280.png` (Karte Reihenfolge, Zeilen 52 px, ↑↓ bündig), `app_table_1280.png` (Haken Buchen · Gebühren zeigen · Meine Daten auf einer Linie), `app_today_390.png` (Leiste „08:00–20:00 vorbei“, Plan ab 20:00), `app_today_open_390.png`, `app_today_slots_390.png` („12 vergangene Zeiten ausgeblendet“), `app_dialog_box_390.png` / `app_dialog_dev_390.png` („Mit wem spielst du?“, Chips, Buchen erst nach Wahl), `tab_board.png`, `tab_dialog.png` / `tab_dialog_dev.png` (Tablet). Skripte `$S/work/bk17_ui.py`, `$S/work/bk17_tab.py`.
+
+## CHANGELOG-Absatz (Vorschlag, nicht eingetragen)
+
+**3.17.0 – Platzgebühren, Mitspieler-Pflicht, Ballmaschine & Ballwand, Reihenfolge der App-Bereiche**
+- Buchungssystem: neuer Reiter „Gebühren“ (Gast- und Platzgebühren mit Zahlungsstand aus der Mitgliederverwaltung, Filter offen/bezahlt, Jahr); Übersicht zeigt „Offene Platzgebühren“ mit Hinweis. Mitglieder sehen ihre offenen Gebühren in der App („Meine Platzgebühren“), wenn in der Mitglieder-App der Haken „Gebühren zeigen“ gesetzt ist.
+- Plätze & Geräte: je Platz „Mitspieler: Pflicht“ und „Allein trainieren erlaubt“ (z. B. Ballwand); Geräte „als Mitspieler buchbar“ (z. B. Ballmaschine) – beim Buchen in App und Tablet unter „Mit wem spielst du?“ wählbar, die Ballmaschine wird im selben Zeitfenster mitgebucht und bei Änderung/Storno mitgeführt. Gerät und „allein“ kosten nichts und zählen nicht fürs Kontingent.
+- Mitglieder-App: heute beginnt die Übersicht bei der aktuellen Stunde (vergangene Stunden als aufklappbare Leiste), „Freie Zeiten“ blendet vergangene Zeiten aus.
+- Verwaltung → Mitglieder-App: Karte „Reihenfolge in der App“ legt die Reihenfolge der Bereiche (Reiter und Tabellenspalten) fest.
+
+## Hinweise / Entscheidungen
+
+- Verknüpfte Gerätebuchungen sind normale `bk_booking`-Zeilen (erscheinen in Belegung, Protokoll und Auswertung des Geräts) und werden über `partner_device_id` der Platzbuchung erkannt; eine eigene Spalte auf der Gerätebuchung war nicht nötig.
+- Pflicht ausgenommen: Verwaltung, Serien, Sperren **und** Vereinstermine (free_rules) – ein Medenspiel braucht keinen „Mitspieler“.
+- Haken je Mitglied sind generisch (`accessOptions().flags`), andere Module können sie ebenso anbieten.
+
 ## 3.16.0
 **Mitgliederverwaltung – Zahler und Familienmitgliedschaft getrennt.** Neben dem Zahler (wer die Beiträge, den Verkauf und die Lastschrift trägt) gibt es jetzt die Familienmitgliedschaft: Partner/in und Kinder bis 18 Jahre werden dem Oberhaupt mit Familienbeitrag zugeordnet und brauchen keine eigene Beitragsart; ein Vater kann weiterhin für erwachsene Kinder mit eigenem Beitrag zahlen. Höchstens zwei Erwachsene je Familie, Kinder, die 19 werden, meldet der Beitragslauf (keine stille Umstellung). Bestehende Familien werden beim Update automatisch übernommen. Neues Feld im Reiter „Zahlung & Familie“, in der Mitglieder-App, im Export, in der Datenauskunft und als Importspalte „Familie bei“. Helferdienste zählen den Familienpool nach der Familienmitgliedschaft.
 

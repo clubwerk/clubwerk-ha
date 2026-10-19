@@ -10,6 +10,8 @@
   const first = n => String(n || '').split(/[ ,]+/)[0];
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   let state = null, area = null;
+  /** Spieler samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
+  const whoTxt = (b, f = x => x) => `${(b.who || []).map(f).join(', ')}${b.partner_device_name ? ` + ${b.partner_device_name}` : ''}${b.solo_label ? ` · ${b.solo_label}` : ''}`;
   function toast(msg, error = false) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 4000); }
   async function call(p, body) {
     const r = await fetch(BASE + p, body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -31,7 +33,7 @@
       const lock = ov.find(b => b.type === 'sperre');
       let cls = 'free', label = r.quantity > 1 ? `frei (${r.quantity - ov.length})` : 'frei', b = null;
       if (lock) { cls = 'lock'; label = lock.title || 'gesperrt'; b = lock; }
-      else if (ov.length >= Math.max(1, r.quantity)) { b = ov[0]; cls = b.type === 'serie' ? 'busy serie' : 'busy'; label = b.label ? `${b.label.name}${b.type === 'buchung' && b.who ? ' · ' + b.who.map(first).join(', ') : ''}` : b.type === 'serie' ? (b.title || 'Training') : (b.who || []).map(first).join(', ') || 'belegt'; }
+      else if (ov.length >= Math.max(1, r.quantity)) { b = ov[0]; cls = b.type === 'serie' ? 'busy serie' : 'busy'; label = b.label ? `${b.label.name}${b.type === 'buchung' && b.who ? ' · ' + whoTxt(b, first) : ''}` : b.type === 'serie' ? (b.title || 'Training') : whoTxt(b, first) || 'belegt'; }
       if (e <= nowM) cls += ' past'; else if (s <= nowM) cls += ' now';
       out.push({ s, e, cls, label, b });
     }
@@ -73,7 +75,7 @@
     if (/free/.test(x.cls)) { if (!state.booking) return toast('Gebucht wird in der Mitglieder-App.'); return pickName(`${r.name} ab ${hhmm(s)} Uhr buchen`, tok => bookDlg(r, s, tok)); }
     const b = x.b || {};
     const canCancel = state.booking && b.type === 'buchung';
-    dlg(`<h2>${esc(r.name)} · ${b.start}–${b.end}</h2><div class="sub">${b.type === 'buchung' ? esc((b.who || []).join(', ')) : esc(b.title || '')}</div>
+    dlg(`<h2>${esc(r.name)} · ${b.start}–${b.end}</h2><div class="sub">${b.type === 'buchung' ? esc(whoTxt(b)) : esc(b.title || '')}</div>
       <div class="dlg-btns">${canCancel ? '<button id="x">Schließen</button><button class="ok" id="cx" style="background:var(--red);border-color:var(--red)">Stornieren …</button>' : '<button class="ok" id="x" style="grid-column:1/-1">Schließen</button>'}</div>`);
     $('x').onclick = closeDlg;
     if (canCancel) $('cx').onclick = () => pickName('Wer hat gebucht?', async tok => {
@@ -137,33 +139,53 @@
     for (const x of slots(r)) { if (x.s < s) continue; if (x.s !== maxEnd || !/free/.test(x.cls) || x.e - s > r.max_min) break; maxEnd = x.e; }
     const durs = []; for (let m = r.slot_min; s + m <= maxEnd; m += r.slot_min) durs.push(m);
     let sel = durs[Math.min(durs.length - 1, Math.max(0, (60 / r.slot_min | 0) - 1))];
-    const partners = [];
+    const partners = [], guests = [];
+    // „Mit wem spielst du?“: Mitglieder, Gäste, Gerät als Mitspieler (Ballmaschine), allein (Ballwand) – nur auf Plätzen
+    const devices = r.kind === 'platz' ? (state.plan.devices || []) : [];
+    let device = null, solo = false;
+    const withWho = r.kind === 'platz' && (state.max_partners || state.max_guests || devices.length || r.solo_label);
     void nowM;
     dlg(`<h2>${esc(r.name)} ab ${hhmm(s)} Uhr</h2><div class="sub">Wie lange?</div>
       <div class="durs">${durs.map(m => `<button data-m="${m}">${dur(m)}</button>`).join('')}</div>
-      ${state.max_partners ? `<div class="lbl">Mitspieler (optional)</div><div class="chips" id="pc"></div><input class="q" id="pq" placeholder="Name suchen" autocomplete="off" style="margin-top:6px"><div class="names" id="ph" style="grid-template-columns:1fr 1fr;max-height:22vh"></div>` : ''}
+      ${withWho ? `<div class="lbl who">Mit wem spielst du?${r.partner_required ? ' <span>(Pflicht)</span>' : ' <span>(optional)</span>'}</div><div class="req" id="req" hidden></div>` : ''}
+      ${state.max_partners ? `<div class="lbl">Mitspieler</div><div class="chips" id="pc"></div><input class="q" id="pq" placeholder="Name suchen" autocomplete="off" style="margin-top:6px"><div class="names" id="ph" style="grid-template-columns:1fr 1fr;max-height:22vh"></div>` : ''}
+      ${state.max_guests ? `<div class="lbl">Gäste <span>(${r.guest_fee_cents ? `${euro(r.guest_fee_cents)} je Gast` : 'ohne Gebühr'})</span></div><div class="chips" id="gc"></div><div class="row2" style="margin-top:6px"><input class="q" id="gq" placeholder="Vor- und Nachname des Gastes" autocomplete="off" maxlength="60"><button class="add" id="ga">+ Gast</button></div>` : ''}
+      ${devices.length || r.solo_label ? `<div class="lbl">${devices.length ? 'Gerät' : ''}${devices.length && r.solo_label ? ' / ' : ''}${r.solo_label ? 'allein' : ''} <span>(ohne Gebühr)</span></div><div class="pick" id="pk">${devices.map(x => `<button type="button" data-dev="${x.id}">${esc(x.name)}</button>`).join('')}${r.solo_label ? `<button type="button" data-solo="1">${esc(r.solo_label)} (allein)</button>` : ''}</div>` : ''}
       ${state.rules ? `<div class="rules">${esc(state.rules)}</div><label class="chk"><input type="checkbox" id="acc"> Ich halte mich an die Platzordnung.</label>` : ''}
       <div class="sub" id="fee" style="margin:10px 0 0;font-size:15px"></div><div class="perr" id="perr"></div><div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Buchen</button></div>`);
     let qn = 0;
+    const body = () => ({ token, resource_id: r.id, start: hhmm(s), minutes: sel, partners, guests, partner_device: device, solo });
+    /** Mitspieler-Pflicht: „Buchen“ erst aktiv, wenn Mitglied, Gast, Gerät oder „allein“ gewählt ist */
+    const paintPick = () => {
+      $('dialog').querySelectorAll('[data-dev]').forEach(b => b.classList.toggle('on', +b.dataset.dev === device));
+      const sb = $('dialog').querySelector('[data-solo]'); if (sb) sb.classList.toggle('on', solo);
+      const need = Boolean(r.partner_required && !(partners.length || guests.length || device || solo));
+      if ($('req')) { $('req').hidden = !need; $('req').textContent = `Auf diesem Platz ist ein Mitspieler Pflicht – wähle ${['Mitglied', 'Gast', ...devices.map(x => x.name), ...(r.solo_label ? [r.solo_label] : [])].join(', ').replace(/, ([^,]*)$/, ' oder $1')}.`; }
+      $('ok').disabled = need;
+    };
+    $('dialog').querySelectorAll('[data-dev]').forEach(b => { b.onclick = () => { device = device === +b.dataset.dev ? null : +b.dataset.dev; paintPick(); quote(); }; });
+    const sbtn = $('dialog').querySelector('[data-solo]'); if (sbtn) sbtn.onclick = () => { solo = !solo; paintPick(); quote(); };
+    const gchips = () => { if (!$('gc')) return; $('gc').innerHTML = guests.map((g, i) => `<span translate="no">${esc(g.name)}<button data-rg="${i}">×</button></span>`).join(''); $('gc').querySelectorAll('[data-rg]').forEach(b => { b.onclick = () => { guests.splice(+b.dataset.rg, 1); gchips(); paintPick(); quote(); }; }); };
+    if ($('ga')) $('ga').onclick = () => { const g = $('gq').value.trim(); if (g.length < 3) { $('perr').textContent = 'Bitte Vor- und Nachname des Gastes eintragen.'; return; } if (guests.length >= state.max_guests) { $('perr').textContent = `Höchstens ${state.max_guests} Gäste.`; return; } guests.push({ name: g, partner: false }); $('gq').value = ''; $('perr').textContent = ''; gchips(); paintPick(); quote(); };
     const quote = async () => {
       const n = ++qn;
-      try { const q = await call('x/buchung/quote', { token, resource_id: r.id, start: hhmm(s), minutes: sel, partners, guests: [] }); if (n !== qn) return;
+      try { const q = await call('x/buchung/quote', body()); if (n !== qn) return;
         $('perr').textContent = ''; $('fee').innerHTML = q.fee_cents ? `${q.lines.map(l => esc(l.text)).join('<br>')}<br><b>${euro(q.fee_cents)}</b> – mit dem nächsten Einzug` : ''; }
-      catch (e) { if (n !== qn) return; if (e.status === 400) { $('perr').textContent = e.message; $('fee').innerHTML = ''; } }   // Regelverstoß als Hinweis, sonst nur Vorschau
+      catch (e) { if (n !== qn) return; if (e.status === 400) { $('perr').textContent = r.partner_required && $('ok').disabled && /Pflicht/.test(e.message) ? '' : e.message; $('fee').innerHTML = ''; } }   // Regelverstoß als Hinweis, sonst nur Vorschau (Mitspieler-Pflicht steht schon oben)
     };
     const paint = () => { $('dialog').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', +b.dataset.m === sel)); $('ok').textContent = `Buchen bis ${hhmm(s + sel)} Uhr`; };
     $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { sel = +b.dataset.m; paint(); quote(); }; });
-    const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).ln || (state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); quote(); }; }); };
+    const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).ln || (state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); paintPick(); quote(); }; }); };
     if ($('pq')) $('pq').oninput = () => {
       const q = $('pq').value.trim().toLowerCase();
       $('ph').innerHTML = q.length < 2 ? '' : state.people.filter(p => !partners.includes(p.id) && (p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q))).slice(0, 8).map(p => `<button data-p="${p.id}" translate="no">${esc(p.ln || p.name)}</button>`).join('');
-      $('ph').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => { if (partners.length >= state.max_partners) return; partners.push(+b.dataset.p); $('pq').value = ''; $('ph').innerHTML = ''; chips(); quote(); }; });
+      $('ph').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => { if (partners.length >= state.max_partners) return; partners.push(+b.dataset.p); $('pq').value = ''; $('ph').innerHTML = ''; chips(); paintPick(); quote(); }; });
     };
-    paint(); quote();
+    paint(); paintPick(); quote();
     $('x').onclick = closeDlg;
     $('ok').onclick = async () => {
       try {
-        const res = await call('x/buchung/book', { token, resource_id: r.id, start: hhmm(s), minutes: sel, partners, guests: [], accept: $('acc') ? $('acc').checked : true });
+        const res = await call('x/buchung/book', { ...body(), accept: $('acc') ? $('acc').checked : true });
         closeDlg(); toast(`Gebucht: ${r.name} ${hhmm(s)}–${hhmm(s + sel)} Uhr${res.fee_cents ? ` · ${euro(res.fee_cents)}` : ''}`); load();
       } catch (e) { $('perr').textContent = e.message; if (e.status === 401) setTimeout(closeDlg, 1500); }
     };

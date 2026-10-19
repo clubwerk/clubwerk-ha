@@ -78,6 +78,14 @@
   .dialog .durs button.on { background: var(--brand); border-color: var(--brand); color: #fff; }
   .dialog .lbl { text-align: left; font-size: 14px; font-weight: 700; color: var(--muted); margin: 12px 0 6px; }
   .dialog .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-start; }
+  .dialog .lbl span { font-weight: 600; color: var(--muted); } .dialog .lbl.who { font-size: 17px; color: var(--ink); margin-top: 16px; }
+  .dialog .req { text-align: left; font-size: 14.5px; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 0 0 6px; }
+  .dialog .row2 button.add { height: 54px; border-radius: 12px; border: 1px solid var(--line); background: var(--hover); font: inherit; font-size: 16px; font-weight: 700; color: var(--ink); }
+  .dialog .row2 { grid-template-columns: minmax(0, 1fr) auto; } .dialog .row2 button.add { padding: 0 18px; }
+  .dialog .pick { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-start; }
+  .dialog .pick button { min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 700; color: var(--ink); }
+  .dialog .pick button.on { background: var(--brand-soft, var(--hover)); border-color: var(--brand); color: var(--brand-ink, var(--ink)); }
+  .dlg-btns button:disabled { opacity: .45; }
   .dialog .chips span { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 0 6px 0 14px; border-radius: 19px; background: var(--brand-soft); color: var(--brand-ink); font-weight: 700; }
   .dialog .chips span button { width: 28px; height: 28px; border-radius: 14px; border: 0; background: rgba(0,0,0,.06); font-size: 16px; color: inherit; }
   .dialog .rules { text-align: left; font-size: 14px; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; white-space: pre-wrap; max-height: 120px; overflow: auto; margin-top: 10px; }

@@ -75,7 +75,14 @@ function activate(ctx) {
     if (!lc.includes('use_mode')) db.exec("ALTER TABLE bk_label ADD COLUMN use_mode TEXT NOT NULL DEFAULT 'verwaltung'");   // verwaltung | alle | auswahl
     if (!lc.includes('use_functions')) db.exec("ALTER TABLE bk_label ADD COLUMN use_functions TEXT NOT NULL DEFAULT '[]'");   // Ämter aus der Mitgliederverwaltung
     if (!lc.includes('use_members')) db.exec("ALTER TABLE bk_label ADD COLUMN use_members TEXT NOT NULL DEFAULT '[]'");
-    if (!lc.includes('free_rules')) db.exec('ALTER TABLE bk_label ADD COLUMN free_rules INTEGER NOT NULL DEFAULT 0'); }   // Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf, Gebühren
+    if (!lc.includes('free_rules')) db.exec('ALTER TABLE bk_label ADD COLUMN free_rules INTEGER NOT NULL DEFAULT 0');   // Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf, Gebühren
+    // 3.17: Mitspieler-Pflicht je Platz, Allein-Training (z. B. „Ballwand“), Geräte als Mitspieler (z. B. Ballmaschine)
+    if (!cols.includes('partner_required')) db.exec('ALTER TABLE bk_resource ADD COLUMN partner_required INTEGER NOT NULL DEFAULT 0');
+    if (!cols.includes('solo_label')) db.exec('ALTER TABLE bk_resource ADD COLUMN solo_label TEXT');            // NULL = kein Allein-Training
+    if (!cols.includes('as_partner')) db.exec('ALTER TABLE bk_resource ADD COLUMN as_partner INTEGER NOT NULL DEFAULT 0');   // Gerät: „als Mitspieler buchbar“ (auf allen Plätzen)
+    const bc = db.prepare('PRAGMA table_info(bk_booking)').all().map(c => c.name);
+    if (!bc.includes('partner_device_id')) db.exec('ALTER TABLE bk_booking ADD COLUMN partner_device_id INTEGER');   // verknüpfte Gerätebuchung (id in bk_booking)
+    if (!bc.includes('solo')) db.exec('ALTER TABLE bk_booking ADD COLUMN solo INTEGER NOT NULL DEFAULT 0'); }
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
   const uname = req => req.user.name || req.user.username;
   const ar = fn => ctx.asyncRoute(fn);
@@ -139,14 +146,21 @@ function activate(ctx) {
   const photos = ctx.require('./photos');   // Profilbilder (nur wenn das Mitglied sie für die Platzbuchung freigegeben hat)
   const lastFirst = n => { const x = ctx.require('./db').splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };   // Anzeige „Nachname, Vorname“
   const nameOf = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
+  /** Geräte, die als Mitspieler gebucht werden können (Ballmaschine …) */
+  const partnerDevices = () => db.prepare("SELECT id, name FROM bk_resource WHERE deleted = 0 AND active = 1 AND kind = 'artikel' AND as_partner = 1 ORDER BY sort, name COLLATE NOCASE").all();
+  /** verknüpfte Gerätebuchung einer Platzbuchung (aktiv) → { booking, name } oder null */
+  const deviceOf = b => { if (!b.partner_device_id) return null; const d = db.prepare("SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.id = ? AND b.status = 'aktiv'").get(b.partner_device_id); return d ? { booking: d, name: d.rname } : null; };
+  const soloLabelOf = b => (b.solo ? (resource(b.resource_id) || {}).solo_label || 'allein' : null);
   const bview = (b, { me = null, names = true, full = false } = {}) => {
     const partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
     const mine = me != null && (b.member_id === me || partners.includes(me));
     const show = full || mine || (names && b.type === 'buchung');
     const lab = labelOf(b.label_id);
+    const dev = b.type === 'buchung' ? deviceOf(b) : null;
     const out = { id: b.id, resource_id: b.resource_id, date: b.date, start: b.start, end: b.end, type: b.type, label: lab ? { name: lab.name, color: lab.color } : null, title: b.type === 'buchung' && !lab ? null : (b.title || (lab && lab.name) || null), mine, own: me != null && b.member_id === me,
-      who: show && b.type === 'buchung' ? [b.member_id ? nameOf(b.member_id) : (b.title || (lab && lab.name) || 'Verein'), ...partners.map(nameOf), ...guests.map(guestLabel)] : null };
-    if (full) Object.assign(out, { member_id: b.member_id, partners, guests, fee_cents: b.fee_cents, charge_id: b.charge_id, series_id: b.series_id, note: b.note, source: b.source, status: b.status, created_by: b.created_by, created_at: b.created_at, title: b.title });
+      who: show && b.type === 'buchung' ? [b.member_id ? nameOf(b.member_id) : (b.title || (lab && lab.name) || 'Verein'), ...partners.map(nameOf), ...guests.map(guestLabel)] : null,
+      partner_device_name: dev ? dev.name : null, solo_label: b.type === 'buchung' ? soloLabelOf(b) : null };   // Anzeige „Muster, Max + Ballmaschine“ bzw. „… · Ballwand“
+    if (full) Object.assign(out, { member_id: b.member_id, partners, guests, fee_cents: b.fee_cents, charge_id: b.charge_id, series_id: b.series_id, note: b.note, source: b.source, status: b.status, created_by: b.created_by, created_at: b.created_at, title: b.title, partner_device_id: b.partner_device_id || null, solo: Boolean(b.solo) });
     return out;
   };
   const dayBookings = date => db.prepare("SELECT * FROM bk_booking WHERE date = ? AND status = 'aktiv' ORDER BY start").all(date);
@@ -171,13 +185,15 @@ function activate(ctx) {
   /** offene (noch nicht vorbei) Buchungen eines Mitglieds je Art */
   function openCount(mid, kind, exceptId = 0) {
     const d = today(), n = hhmm(nowMin());
+    // Gerätebuchungen, die als Mitspieler an einer Platzbuchung hängen (Ballmaschine), zählen nicht fürs Kontingent
     return db.prepare(`SELECT b.id, b.member_id, b.partners FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND r.kind = ? AND b.id != ?
-      AND (b.date > ? OR (b.date = ? AND b.end > ?))`).all(kind, exceptId, d, d, n)
+      AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`).all(kind, exceptId, d, d, n)
       .filter(b => b.member_id === mid || (cfg().count_partners && J(b.partners, []).includes(mid))).length;
   }
   /** gleiche Person zur gleichen Zeit schon gebucht (gleiche Art)? */
   function personBusy(mid, kind, date, s, e, exceptId = 0) {
-    return db.prepare(`SELECT b.member_id, b.partners FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND r.kind = ? AND b.date = ? AND b.start < ? AND b.end > ? AND b.id != ?`)
+    return db.prepare(`SELECT b.member_id, b.partners FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND r.kind = ? AND b.date = ? AND b.start < ? AND b.end > ? AND b.id != ?
+      AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`)
       .all(kind, date, hhmm(e), hhmm(s), exceptId).some(b => b.member_id === mid || J(b.partners, []).includes(mid));
   }
   /** Gäste: [{ name, partner }] – partner = Mitglied eines Partnervereins (keine Gastgebühr); alte Einträge waren nur Namen */
@@ -188,7 +204,7 @@ function activate(ctx) {
     const players = [b.member_id ? nameOf(b.member_id) : null, ...J(b.partners, []).map(nameOf)].filter(Boolean);
     const guests = normGuests(J(b.guests, []));
     return [`Platz:     ${r.name}`, `Wann:      ${WD[isoDow(b.date)]}, ${deD(b.date)} · ${b.start}–${b.end} Uhr`, `Gebucht von: ${b.member_id ? nameOf(b.member_id) : 'Verein'}`,
-      `Spieler:   ${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}`];
+      `Spieler:   ${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}${deviceOf(b) ? ` + ${deviceOf(b).name}` : ''}${b.solo ? ` · ${soloLabelOf(b)}` : ''}`];
   };
   /* Mail-Kontingent je buchendem Mitglied: höchstens 20 Mitspieler-Mails je Stunde. Buchen → Stornieren → Buchen ließe sich sonst
      beliebig wiederholen und würde das Vereinspostfach zum Spam-Versender an ausgesuchte Mitglieder machen. Darüber hinaus
@@ -266,6 +282,22 @@ function activate(ctx) {
       if (!memberRow(p)) throw new Error('Ein Mitspieler wurde nicht gefunden.');
       const w = await notAllowed(p); if (w) throw new Error(`${nameOf(p)}: ${w}`);
     }
+    // Mitspieler-Pflicht, Gerät als Mitspieler (Ballmaschine), Allein-Training (Ballwand) – nur auf Plätzen; Vereinstermine sind ausgenommen
+    let device = null, solo = false;
+    if (r.kind === 'platz') {
+      if (b.partner_device) {
+        device = resource(b.partner_device);
+        if (!device || device.deleted || !device.active || device.kind !== 'artikel' || !device.as_partner) throw new Error('Dieses Gerät kann nicht als Mitspieler gebucht werden.');
+        if (!String(device.days || '').includes(String(isoDow(date))) || s < tm(device.open_from) || e > tm(device.open_to)) throw new Error(`${device.name} ist zu dieser Zeit nicht buchbar (${WD[isoDow(date)]} ${device.open_from}–${device.open_to} Uhr).`);
+        const devOld = exceptId ? (db.prepare('SELECT partner_device_id FROM bk_booking WHERE id = ?').get(exceptId) || {}).partner_device_id : null;
+        if (!free(device, date, s, e, devOld || 0)) throw new Error(`${device.name} ist um ${hhmm(s)} belegt.`);
+      }
+      if (b.solo) { if (!r.solo_label) throw new Error(`Auf ${r.name} ist Allein-Training nicht vorgesehen.`); solo = true; }
+      if (r.partner_required && !club && !partners.length && !guests.length && !device && !solo) {
+        const opts = ['Mitglied', 'Gast', ...partnerDevices().map(x => x.name), ...(r.solo_label ? [r.solo_label] : [])];
+        throw new Error(`Auf diesem Platz ist ein Mitspieler Pflicht – ${opts.slice(0, -1).join(', ')} oder ${opts[opts.length - 1]}.`);
+      }
+    }
     // Platz einer Abteilung: Abteilungsmitglieder frei, andere zahlen Platzgebühr (oder dürfen gar nicht)
     let outsiders = [];
     if (r.department_id && mv()) {
@@ -285,7 +317,7 @@ function activate(ctx) {
       if (max && openCount(p, r.kind, exceptId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
     }
     for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, exceptId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
-    return { r, date, s, e, partners, guests, fee, lines, label, club, title: label ? txt(b.title, 80) || null : null };
+    return { r, date, s, e, partners, guests, fee, lines, label, club, title: label ? txt(b.title, 80) || null : null, device, solo };
   }
 
   /**
@@ -299,7 +331,7 @@ function activate(ctx) {
       if (!old || old.member_id !== mid || old.type !== 'buchung') throw new Error('Diese Buchung kannst du nicht ändern.');
       if (!canCancelNow(old)) throw new Error('Diese Buchung kann nicht mehr geändert werden.');
     }
-    const { r, date, s, e, partners, guests, fee, lines, label, title, club } = await check(mid, b, { exceptId: editId });
+    const { r, date, s, e, partners, guests, fee, lines, label, title, club, device, solo } = await check(mid, b, { exceptId: editId });
     let id = editId;
     db.transaction(() => {   // Prüfen und Eintragen in einem Schritt: zwei gleichzeitige Buchungen können sich nicht überholen
       if (!free(r, date, s, e, editId)) throw new Error('Gerade eben hat jemand anderes gebucht – bitte eine andere Zeit wählen.');
@@ -308,10 +340,19 @@ function activate(ctx) {
       const c = cfg(), max = r.kind === 'artikel' ? c.max_open_artikel : c.max_open_platz;
       for (const p of club ? [] : [mid, ...(c.count_partners ? partners : [])]) if (max && openCount(p, r.kind, editId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
       for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, editId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
-      if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, partners = ?, guests = ?, fee_cents = ?, label_id = ?, title = ?, charge_id = NULL WHERE id = ?')
-        .run(r.id, date, hhmm(s), hhmm(e), JSON.stringify(partners), JSON.stringify(guests), fee, label ? label.id : null, title, id);
-      else id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, source, created_by, label_id, title) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-        .run(r.id, date, hhmm(s), hhmm(e), 'buchung', mid, JSON.stringify(partners), JSON.stringify(guests), fee, source, nameOf(mid), label ? label.id : null, title).lastInsertRowid);
+      // Gerät als Mitspieler: eigene Buchung auf dem Gerät im selben Zeitfenster, verknüpft über partner_device_id
+      const devOld = old ? deviceOf(old) : null;
+      let devId = null;
+      if (device) {
+        if (!free(device, date, s, e, devOld ? devOld.booking.id : 0)) throw new Error(`${device.name} ist um ${hhmm(s)} belegt.`);
+        if (devOld && devOld.booking.resource_id === device.id) { db.prepare('UPDATE bk_booking SET date = ?, start = ?, end = ? WHERE id = ?').run(date, hhmm(s), hhmm(e), devOld.booking.id); devId = devOld.booking.id; }
+        else devId = Number(db.prepare("INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, fee_cents, source, created_by) VALUES (?,?,?,?,'buchung',?,0,?,?)").run(device.id, date, hhmm(s), hhmm(e), mid, source, nameOf(mid)).lastInsertRowid);
+      }
+      if (devOld && devOld.booking.id !== devId) db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = 'Buchung geändert' WHERE id = ?").run(nowTs(), nameOf(mid), devOld.booking.id);
+      if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, partners = ?, guests = ?, fee_cents = ?, label_id = ?, title = ?, charge_id = NULL, partner_device_id = ?, solo = ? WHERE id = ?')
+        .run(r.id, date, hhmm(s), hhmm(e), JSON.stringify(partners), JSON.stringify(guests), fee, label ? label.id : null, title, devId, solo ? 1 : 0, id);
+      else id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, source, created_by, label_id, title, partner_device_id, solo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+        .run(r.id, date, hhmm(s), hhmm(e), 'buchung', mid, JSON.stringify(partners), JSON.stringify(guests), fee, source, nameOf(mid), label ? label.id : null, title, devId, solo ? 1 : 0).lastInsertRowid);
     })();
     // alte Gebühr zurücknehmen, neue anlegen (Gast- und Platzgebühr: offener Posten beim buchenden Mitglied)
     if (old && old.charge_id) await ctx.callHooks('cancelCharge', old.charge_id, 'Buchung geändert', nameOf(mid));
@@ -354,6 +395,10 @@ function activate(ctx) {
   async function cancel(b, by, reason = '') {
     db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = ? WHERE id = ? AND status = 'aktiv'").run(nowTs(), by, txt(reason, 160) || null, b.id);
     if (b.charge_id) await ctx.callHooks('cancelCharge', b.charge_id, `Buchung storniert${reason ? ': ' + txt(reason, 80) : ''}`, by);
+    // Gerät als Mitspieler (Ballmaschine) hängt an der Platzbuchung: mit stornieren; wird die Gerätebuchung selbst storniert, Verknüpfung lösen
+    const dev = deviceOf(b);
+    if (dev) { db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = ? WHERE id = ? AND status = 'aktiv'").run(nowTs(), by, txt(reason, 160) || 'Platzbuchung storniert', dev.booking.id); await wakeWaitlist(dev.booking); }
+    db.prepare('UPDATE bk_booking SET partner_device_id = NULL WHERE partner_device_id = ?').run(b.id);
     await wakeWaitlist(b);
   }
   async function wakeWaitlist(b) {
@@ -373,18 +418,51 @@ function activate(ctx) {
     const c = cfg();
     const rs = resources(full).filter(r => !kind || r.kind === kind);
     return { date, dow: isoDow(date), resources: rs.map(r => ({ id: r.id, kind: r.kind, name: r.name, area: r.area || (r.kind === 'artikel' ? 'Geräte' : 'Plätze'), note: r.note, open_from: r.open_from, open_to: r.open_to,
-      slot_min: r.slot_min, max_min: r.max_min, quantity: r.quantity, department: r.department_id ? deptName(r.department_id) : null, outsiders: r.outsiders, outsider_fee_cents: r.outsider_fee_cents, open_today: String(r.days).includes(String(isoDow(date))), guest_fee_cents: feeOf(r), active: Boolean(r.active), days: r.days })),
+      slot_min: r.slot_min, max_min: r.max_min, quantity: r.quantity, department: r.department_id ? deptName(r.department_id) : null, outsiders: r.outsiders, outsider_fee_cents: r.outsider_fee_cents, open_today: String(r.days).includes(String(isoDow(date))), guest_fee_cents: feeOf(r), active: Boolean(r.active), days: r.days,
+      partner_required: Boolean(r.partner_required), solo_label: r.solo_label || null, as_partner: Boolean(r.as_partner) })),
+      devices: partnerDevices(),   // Geräte, die als Mitspieler wählbar sind (Ballmaschine …)
       bookings: dayBookings(date).filter(b => rs.some(r => r.id === b.resource_id)).map(b => bview(b, { me, names: c.show_names, full })),
       waits: me != null ? db.prepare('SELECT id, resource_id, start, end FROM bk_wait WHERE member_id = ? AND date = ?').all(me, date) : [] };
   }
   const myUpcoming = mid => {
     const d = today(), n = hhmm(nowMin());
-    return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?)) ORDER BY b.date, b.start`).all(d, d, n)
-      .filter(b => b.member_id === mid || J(b.partners, []).includes(mid)).map(b => ({ ...bview(b, { me: mid, full: false }), resource: b.rname, kind: b.kind, fee_cents: b.member_id === mid ? b.fee_cents : 0,
+    // verknüpfte Gerätebuchungen (Ballmaschine zur Platzbuchung) erscheinen nicht einzeln – die Platzbuchung zeigt „+ Ballmaschine“
+    return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?))
+      AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start`).all(d, d, n)
+      .filter(b => b.member_id === mid || J(b.partners, []).includes(mid)).map(b => { const dev = deviceOf(b); return { ...bview(b, { me: mid, full: false }), resource: b.rname, kind: b.kind, fee_cents: b.member_id === mid ? b.fee_cents : 0,
         canCancel: b.member_id === mid && canCancelNow(b), canEdit: b.member_id === mid && canCancelNow(b), ics: icsUrl(b.id),
-        ...(b.member_id === mid ? { edit: { resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '' } } : {}) }));
+        ...(b.member_id === mid ? { edit: { resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '', partner_device: dev ? dev.booking.resource_id : null, solo: Boolean(b.solo) } } : {}) }; });
   };
   const canCancelNow = b => { const lim = cfg().cancel_before_min; const st = Date.parse(`${b.date}T${b.start}:00`); return Date.now() <= st - lim * 60000; };
+
+  /* ---------- Platzgebühren (Gast- und Platzgebühr): offen, bezahlt, storniert ----------
+     Mit Mitgliederverwaltung hängt an der Buchung eine Forderung (charge_id), deren Status einmal gesammelt abgefragt wird (Hook chargeStatus).
+     Ohne Mitgliederverwaltung gibt es keine Zahlungsverfolgung – alle Gebühren gelten als „offen“ mit entsprechendem Hinweis. */
+  const feeText = (b, r) => {
+    const paying = normGuests(J(b.guests, [])).filter(g => !g.partner).length, parts = [];
+    if (paying) parts.push(`Gastgebühr (${paying} ${paying === 1 ? 'Gast' : 'Gäste'})`);
+    if (b.fee_cents - paying * feeOf(r) > 0) parts.push('Platzgebühr');
+    return parts.join(', ') || 'Gebühr';
+  };
+  /** Gebührenposten eines Zeitraums → { rows, tracked } · rows: { id, member_id, member, date, start, end, resource, text, fee_cents, status, paid_at, charge_id } */
+  async function feeRows({ from, to, memberId = null } = {}) {
+    const w = ["b.status = 'aktiv'", "b.type = 'buchung'", 'b.fee_cents > 0'], a = [];
+    if (from) { w.push('b.date >= ?'); a.push(from); }
+    if (to) { w.push('b.date <= ?'); a.push(to); }
+    if (memberId) { w.push('b.member_id = ?'); a.push(memberId); }
+    const rows = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE ${w.join(' AND ')} ORDER BY b.date DESC, b.start DESC LIMIT 5000`).all(...a);
+    const tracked = mv();
+    const st = tracked ? (await hook('chargeStatus', rows.map(b => b.charge_id).filter(Boolean)).catch(() => null)) || {} : {};
+    return { tracked, rows: rows.map(b => {
+      const c = b.charge_id ? st[b.charge_id] : null;
+      // offen = Forderung weder bezahlt noch storniert (keine Forderung angelegt → ebenfalls offen); ohne Mitgliederverwaltung: unbekannt (zählt als offen)
+      const status = !tracked ? 'unbekannt' : c && c.status === 'bezahlt' ? 'bezahlt' : c && c.status === 'storniert' ? 'storniert' : 'offen';
+      return { id: b.id, member_id: b.member_id, member: b.member_id ? lastFirst(nameOf(b.member_id)) : 'Verein', date: b.date, start: b.start, end: b.end, resource: b.rname, text: feeText(b, resource(b.resource_id) || {}), fee_cents: b.fee_cents, status, paid_at: c ? c.paid_at || null : null, charge_id: b.charge_id || null };
+    }) };
+  }
+  const isOpenFee = x => x.status === 'offen' || x.status === 'unbekannt';
+  const sumOf = rows => rows.reduce((x, r) => x + r.fee_cents, 0);
+  const NO_TRACK = 'Ohne Mitgliederverwaltung keine Zahlungsverfolgung – die Gebühren werden nur aufgelistet.';
 
   /* ---------- Kalender (.ics) – Link mit Prüfsumme, damit das Handy ihn ohne Anmeldung öffnen kann ---------- */
   const crypto = require('crypto');
@@ -410,6 +488,10 @@ function activate(ctx) {
   });
 
   /* ================================================================= Mitglieder-App (/api/m/buchung/…) */
+  /** Haken „Gebühren zeigen“ je Mitglied (Kern: member_access.flags, vom Kern geparst als req.member.access.flags) */
+  const feesOn = req => Boolean(req.member && req.member.access && req.member.access.flags && req.member.access.flags.fees);
+  // für die Freischaltungstabelle des Kerns: zusätzliche Haken je Mitglied
+  ctx.hooks.accessOptions = () => ({ flags: [{ id: 'fees', label: 'Gebühren zeigen', title: 'Das Mitglied sieht unter „Buchen“ seine offenen Platz- und Gastgebühren („Meine Platzgebühren“).' }] });
   M.post('/quote', rateLimit('bkq', 120, 60000), ar(async (req, res) => {   // Preisvorschau vor dem Buchen
     const b = req.body || {}, own = int(b.id) ? db.prepare("SELECT id FROM bk_booking WHERE id = ? AND member_id = ? AND status = 'aktiv'").get(int(b.id), req.member.id) : null;
     try { const q = await check(req.member.id, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
@@ -424,9 +506,16 @@ function activate(ctx) {
       mine: myUpcoming(mid), waits: db.prepare(`SELECT w.id, w.date, w.start, w.end, w.notified_at, r.name AS resource FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.date >= ? ORDER BY w.date, w.start`).all(mid, today()),
       people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
       labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })),
-      rights: { series: rightsOf(mid).series },
+      rights: { series: rightsOf(mid).series }, feesEnabled: feesOn(req),
       series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date,
         resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
+  }));
+  /* Meine Platzgebühren: nur, wenn der Vorstand es für dieses Mitglied freigeschaltet hat (Mitglieder-App → Haken „Gebühren zeigen“, member_access.flags) */
+  M.get('/fees', ar(async (req, res) => {
+    if (!feesOn(req)) return bad(res, 'Die Anzeige deiner Platzgebühren ist für dich nicht freigeschaltet.', 403);
+    const { rows, tracked } = await feeRows({ memberId: req.member.id, from: `${today().slice(0, 4)}-01-01` });
+    const open = rows.filter(isOpenFee);
+    res.json({ tracked, note: tracked ? null : NO_TRACK, items: open.map(x => ({ id: x.id, date: x.date, start: x.start, end: x.end, resource: x.resource, text: x.text, fee_cents: x.fee_cents })), sum_cents: sumOf(open), paid_cents: sumOf(rows.filter(x => x.status === 'bezahlt')) });
   }));
   // je Mitglied (nicht nur je Adresse – draußen teilen sich viele Handys eine Adresse, drinnen könnte eine wechseln): 10 Aktionen je Minute
   const perMember = rateLimitKey('bkmem', 10, 60000, req => 'm' + req.member.id);
@@ -546,6 +635,17 @@ function activate(ctx) {
     res.json(db.prepare(`SELECT b.*, r.name AS resource FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.date BETWEEN ? AND ? ${req.query.all ? '' : "AND b.status = 'aktiv'"} ORDER BY b.date, b.start LIMIT 2000`).all(from, to)
       .map(b => ({ ...bview(b, { full: true }), resource: b.resource })));
   });
+  /* Gebühren (Reiter „Gebühren“): ?from&to&status=alle|offen|bezahlt */
+  admin.get('/fees', P, ar(async (req, res) => {
+    const y = today().slice(0, 4);
+    const from = isDate(req.query.from) ? req.query.from : `${y}-01-01`, to = isDate(req.query.to) ? req.query.to : `${y}-12-31`;
+    const { rows, tracked } = await feeRows({ from, to });
+    const f = String(req.query.status || 'alle');
+    const open = rows.filter(isOpenFee), paid = rows.filter(x => x.status === 'bezahlt');
+    res.json({ from, to, tracked, note: tracked ? null : NO_TRACK, rows: f === 'offen' ? open : f === 'bezahlt' ? paid : rows,
+      totals: { all: { count: rows.length, cents: sumOf(rows) }, open: { count: open.length, cents: sumOf(open) }, paid: { count: paid.length, cents: sumOf(paid) } },
+      years: [...new Set([Number(y), ...db.prepare('SELECT DISTINCT substr(date,1,4) y FROM bk_booking WHERE fee_cents > 0').all().map(r => +r.y)])].sort((a, b) => b - a) });
+  }));
   /* Buchen in der Verwaltung: für ein Mitglied (ohne Kontingent/Vorlauf) oder als Sperre / Vereinsbuchung */
   async function adminSave(req, res, editId = 0) {
     const b = req.body || {};
@@ -573,6 +673,9 @@ function activate(ctx) {
       db.transaction(() => {
         if (type === 'buchung' && !free(r, b.date, s, e, editId)) throw new Error('Zu dieser Zeit ist schon gebucht.');
         if (type === 'sperre' && conflicts.length && !b.force) throw Object.assign(new Error(`${conflicts.length} Buchung(en) liegen in dieser Zeit.`), { conflicts });
+        // hängt ein Gerät als Mitspieler an der Buchung (Ballmaschine), wandert es mit – wenn es zur neuen Zeit frei ist
+        const dev = old ? deviceOf(old) : null;
+        if (dev) { const dr = resource(dev.booking.resource_id); if (dr && !free(dr, b.date, s, e, dev.booking.id)) throw new Error(`${dr.name} ist um ${hhmm(s)} belegt.`); db.prepare('UPDATE bk_booking SET date = ?, start = ?, end = ? WHERE id = ?').run(b.date, hhmm(s), hhmm(e), dev.booking.id); }
         if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, member_id = ?, partners = ?, guests = ?, title = ?, note = ?, label_id = ? WHERE id = ?')
           .run(r.id, b.date, hhmm(s), hhmm(e), mid ? mid.id : null, JSON.stringify(partners), JSON.stringify(guests), title || null, txt(b.note, 300) || null, label ? label.id : null, id);
         else id = Number(db.prepare('INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, guests, fee_cents, title, note, source, created_by, label_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
@@ -721,7 +824,9 @@ function activate(ctx) {
       slot_min: int(g('slot_min')), max_min: int(g('max_min')), quantity: Math.max(1, Math.min(99, int(g('quantity')) || 1)),
       guest_fee_cents: g('guest_fee_cents') === null || g('guest_fee_cents') === '' || g('guest_fee_cents') === undefined ? null : Math.max(0, Math.min(100000, int(g('guest_fee_cents')))),
       active: g('active') === undefined ? 1 : (g('active') ? 1 : 0), sort: int(g('sort')) || 100,
-      department_id: int(g('department_id')) || null, outsiders: g('outsiders') === 'gesperrt' ? 'gesperrt' : 'gebuehr', outsider_fee_cents: Math.max(0, Math.min(100000, int(g('outsider_fee_cents')))) };
+      department_id: int(g('department_id')) || null, outsiders: g('outsiders') === 'gesperrt' ? 'gesperrt' : 'gebuehr', outsider_fee_cents: Math.max(0, Math.min(100000, int(g('outsider_fee_cents')))),
+      // Mitspieler-Pflicht und Allein-Training nur bei Plätzen, „als Mitspieler buchbar“ nur bei Geräten
+      partner_required: g('kind') === 'artikel' ? 0 : (g('partner_required') ? 1 : 0), solo_label: g('kind') === 'artikel' ? null : (txt(g('solo_label'), 30) || null), as_partner: g('kind') === 'artikel' && g('as_partner') ? 1 : 0 };
     if (v.department_id && !departments().some(d => d.id === v.department_id)) return { error: 'Diese Abteilung gibt es nicht.' };
     if (v.name.length < 2) return { error: 'Bitte einen Namen eintragen (z. B. „Platz 1“).' };
     if (!v.days) return { error: 'Bitte mindestens einen Wochentag wählen.' };
@@ -916,14 +1021,19 @@ function activate(ctx) {
   };
 
   /* ---------- Übersicht, Funktionsdatei ---------- */
-  ctx.hooks.overview = () => {
+  ctx.hooks.overview = async () => {
     const d = today(), n = hhmm(nowMin());
     const t = db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND type = 'buchung'").get(d).n;
     const nowB = db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND start <= ? AND end > ?").get(d, n, n).n;
-    return { kpis: [{ l: 'Buchungen heute', v: t }, { l: 'gerade belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }], alerts: [] };
+    // offene Platzgebühren: mit Mitgliederverwaltung alle unbezahlten (eine Abfrage, chargeStatus einmal), ohne: alle Gebühren des laufenden Jahres
+    const { rows, tracked } = await feeRows(mv() ? {} : { from: `${d.slice(0, 4)}-01-01` });
+    const open = rows.filter(isOpenFee), sum = sumOf(open);
+    const alerts = [];
+    if (open.length) alerts.push({ level: 'a', text: `${open.length} offene ${open.length === 1 ? 'Platzgebühr' : 'Platzgebühren'} über ${euro(sum)} – Buchungssystem → Gebühren.${tracked ? '' : ' (' + NO_TRACK + ')'}` });
+    return { kpis: [{ l: 'Buchungen heute', v: t }, { l: 'gerade belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'Offene Platzgebühren', v: `${open.length} · ${euro(sum)}` }], alerts };
   };
   ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
-    resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort FROM bk_resource WHERE deleted = 0').all() });
+    resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort, partner_required, solo_label, as_partner FROM bk_resource WHERE deleted = 0').all() });
   ctx.hooks.importConfig = d => {
     if (!d || typeof d !== 'object') throw new Error('Leere Funktionsdatei.');
     for (const [k, v] of Object.entries(d.settings || {})) if (k in DEF && k !== 'blocked_fees' && typeof v === 'string') SET(k, v.slice(0, 2000));

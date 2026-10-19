@@ -2046,15 +2046,23 @@
       <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a && g ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
-        ${a && a.blocked && !m.open ? '<span class="pill r">gesperrt</span>' : ''}</div>`; }).join('')}
+        ${a && a.blocked && !m.open ? '<span class="pill r">gesperrt</span>' : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
       <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">${info.device ? 'Neuer QR-Code' : 'QR-Code erzeugen'}</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
     el.querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => { try { const rr = await api(`app/member/${memberId}/access`, 'PUT', { module: c.dataset.am, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); reload(); } catch (e) { fail(e); c.checked = !c.checked; } }; });
     el.querySelectorAll('[data-ap]').forEach(sel => { sel.onchange = async () => { try { await api(`app/member/${memberId}/access`, 'PUT', { module: sel.dataset.ap, profile: sel.value }); toast('Gespeichert.'); } catch (e) { fail(e); } }; });
+    bindFlags(el);
     $('apQr').onclick = () => { const html = $('dialog').innerHTML; void html; appInvite(memberId); };
     if ($('apRm')) $('apRm').onclick = async () => { if (await appRemove(memberId, info.name, Boolean(info.device))) reload(); };
   }
+
+  /** zusätzliche Haken eines Bereichs je Mitglied (Hook accessOptions().flags, z. B. Buchen → „Gebühren zeigen“) – gleiche Zeile wie „auch unterwegs“ */
+  const flagChks = (m, a, key) => ((m.options && m.options.flags) || []).map(f => `<label class="chk" style="display:inline-flex;margin-left:10px;vertical-align:middle" title="${esc(f.title || '')}"><input type="checkbox" data-af="${key}:${esc(f.id)}" ${a && a.flags && a.flags[f.id] ? 'checked' : ''}> <span class="muted s">${esc(f.label)}</span></label>`).join('');
+  const bindFlags = (root, after) => root.querySelectorAll('[data-af]').forEach(c => { c.onchange = async () => {
+    const [id, mod, flag] = c.dataset.af.split(':');
+    try { await api(`app/member/${id}/access`, 'PUT', { module: mod, flags: { [flag]: c.checked } }); toast(c.checked ? 'Eingeschaltet.' : 'Ausgeschaltet.'); if (after) after(); } catch (e) { fail(e); c.checked = !c.checked; }
+  }; });
 
   RENDER.app = async () => {
     const r = await api('app');
@@ -2099,6 +2107,11 @@
         <div class="row" style="margin-top:12px;gap:8px">
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
+      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty><h3>Reihenfolge in der App</h3>
+        <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Tabelle unten – von links nach rechts.</p>
+        <div id="moRows" class="torows">${mods.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label || m.name)}</b>
+          <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < mods.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('')}</div>
+        <div class="btns"><button class="btn primary" id="moSave">Speichern</button></div></div>` : ''}
       <div class="card"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & QR-Code</button></div>
@@ -2107,8 +2120,8 @@
         ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['alt', 'alte Adresse']].filter(([k]) => k !== 'alt' || oldN)
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
-          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
-            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td><label class="chk"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<label class="chk" style="display:inline-flex;margin-left:10px;vertical-align:middle" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)"><input type="checkbox" data-aw="${x.member_id}:${m.id}" ${a && a.away ? 'checked' : ''}> <span class="muted s">auch unterwegs</span></label>` : ''}</td>`; }).join('')}
+          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
+            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td style="white-space:nowrap"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<label class="chk" style="display:inline-flex;margin-left:10px;vertical-align:middle" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)"><input type="checkbox" data-aw="${x.member_id}:${m.id}" ${a && a.away ? 'checked' : ''}> <span class="muted s">auch unterwegs</span></label>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</td>`; }).join('')}
             <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
@@ -2145,6 +2158,18 @@
       const [id, mod] = c.dataset.aw.split(':');
       try { await api(`app/member/${id}/access`, 'PUT', { module: mod, away: c.checked }); toast(c.checked ? 'Auch von unterwegs nutzbar.' : 'Nur noch im Vereins-WLAN.'); } catch (e) { fail(e); c.checked = !c.checked; }
     }; });
+    bindFlags($('main'));
+    if ($('moRows')) {   // Reihenfolge der Bereiche: ↑ ↓ wie bei „Leiste am Tablet“
+      const items = mods.map(m => ({ id: m.id, label: m.label || m.name }));
+      const draw = () => {
+        $('moRows').innerHTML = items.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label)}</b>
+          <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('');
+        $('moRows').querySelectorAll('[data-mup]').forEach(b => { b.onclick = () => { const i = +b.dataset.mup; [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); }; });
+        $('moRows').querySelectorAll('[data-mdn]').forEach(b => { b.onclick = () => { const i = +b.dataset.mdn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
+      };
+      draw();
+      $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
+    }
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
       const x = r.rows.find(y => y.member_id === Number(b.dataset.ad));

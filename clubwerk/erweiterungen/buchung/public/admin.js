@@ -161,7 +161,9 @@
         .bk-chips { gap: 6px; } .bk-chips label { padding: 0 10px; min-width: 40px; justify-content: center; }
         .bk-tbl td:last-child::before { content: none; } .bk-tbl td:last-child:empty { display: none; }
       }
-      @media (max-width: 760px) { .bk-tbl .hm { display: none; } }`;
+      @media (max-width: 760px) { .bk-tbl .hm { display: none; } }
+      .bk-fees .mo { display: none; } @media (max-width: 760px) { .bk-fees .mo { display: block; } }
+      .bk-fees td.nw { white-space: nowrap; }`;
     document.head.appendChild(s);
   }
 
@@ -171,6 +173,7 @@
     'bk-labels': ['Buchungsarten', 'Kennzeichnung von Vereinsbuchungen und Serien mit Name und Farbe – z. B. Training, Medenspiel, Clubmeisterschaft.'],
     'bk-protokoll': ['Buchungsprotokoll', 'Alle Buchungen des Jahres – auch stornierte und Sperren –, filterbar nach Art, Platz und Namen, als CSV.'],
     'bk-auswertung': ['Auswertung', 'Auslastung je Platz und gesamt – gebuchte Stunden, Buchungen, Stornos, beliebte Zeiten, im Vergleich zum Vorjahr.'],
+    'bk-gebuehren': ['Gebühren', 'Gast- und Platzgebühren aus Buchungen – offen, bezahlt oder storniert (Zahlungsstand aus der Mitgliederverwaltung).'],
     'bk-plaetze': ['Plätze & Geräte', 'Was gebucht werden kann, mit Buchungszeiten, Zeitraster, Höchstdauer und Gastgebühr.'],
     'bk-einstellungen': ['Einstellungen', 'Regeln für Mitglieder: Vorlauf, Kontingent, Mitspieler, Gäste, Stornieren, Warteliste und Platzordnung.'],
   };
@@ -191,8 +194,10 @@
   /** gut lesbare Schrift auf der Farbe der Buchungsart */
   const ink = hex => { const n = parseInt(String(hex).slice(1), 16); const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? '#1b1f1c' : '#ffffff'; };
   const blkStyle = b => (b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent` : '');
+  /** Spieler einer Buchung samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
+  const whoTxt = b => `${(b.who || []).filter(w => !b.label || w !== b.label.name).join(', ')}${b.partner_device_name ? ` + ${b.partner_device_name}` : ''}${b.solo_label ? ` · ${b.solo_label}` : ''}`;
   const blkText = b => (b.type === 'buchung'
-    ? [b.label ? b.label.name : null, (b.who || []).filter(w => !b.label || w !== b.label.name).join(', ') || (b.title && (!b.label || b.title !== b.label.name) ? b.title : '')].filter(Boolean)
+    ? [b.label ? b.label.name : null, whoTxt(b) || (b.title && (!b.label || b.title !== b.label.name) ? b.title : '')].filter(Boolean)
     : [b.title || (b.label && b.label.name) || '', b.label && b.title && b.title !== b.label.name ? b.label.name : null].filter(Boolean));
   const monday = d => addDays(d, 1 - dow(d));
   async function showPlan(el) {
@@ -330,7 +335,7 @@
     dialog(`<h2>${esc(r.name || '')} · ${b.start}–${b.end}</h2>
       <p class="muted" style="margin-top:0">${deDate(b.date)} · ${pill(TYPE[b.type])}${b.label ? ` <span class="pill" style="background:${b.label.color};color:${ink(b.label.color)}">${esc(b.label.name)}</span>` : ''}${b.series_id ? ' · aus einer Serie' : ''}</p>
       <table class="tbl" style="margin-bottom:10px">
-        ${b.type === 'buchung' ? `<tr><td class="muted">Spieler</td><td><b>${esc((b.who || []).join(', ') || '–')}</b></td></tr>${b.title && b.member_id ? `<tr><td class="muted">Titel</td><td>${esc(b.title)}</td></tr>` : ''}` : `<tr><td class="muted">${b.type === 'sperre' ? 'Grund' : 'Titel'}</td><td><b>${esc(b.title || '')}</b></td></tr>`}
+        ${b.type === 'buchung' ? `<tr><td class="muted">Spieler</td><td><b>${esc(whoTxt(b) || '–')}</b></td></tr>${b.title && b.member_id ? `<tr><td class="muted">Titel</td><td>${esc(b.title)}</td></tr>` : ''}` : `<tr><td class="muted">${b.type === 'sperre' ? 'Grund' : 'Titel'}</td><td><b>${esc(b.title || '')}</b></td></tr>`}
         ${b.fee_cents ? `<tr><td class="muted">Gebühr</td><td>${euro(b.fee_cents)}${b.charge_id ? ' · offener Posten in der Mitgliederverwaltung' : ''}</td></tr>` : ''}
         ${b.note ? `<tr><td class="muted">Notiz</td><td>${esc(b.note)}</td></tr>` : ''}
         <tr><td class="muted">Eingetragen</td><td>${esc(b.created_by || '')} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</td></tr>
@@ -608,12 +613,36 @@
     $('syR').onchange = () => { st.sr = val('syR'); showStats(el).catch(fail); };
   }
 
+  /* ---------------------------------------------------------------- Gebühren (Gast- und Platzgebühren, Zahlungsstand aus der Mitgliederverwaltung) */
+  async function showFees(el) {
+    st.fe = st.fe || { year: new Date().getFullYear(), status: 'offen' };
+    const g = st.fe;
+    const d = await api(`fees?from=${g.year}-01-01&to=${g.year}-12-31&status=${g.status}`);
+    const STS = { offen: ['a', 'offen'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'], unbekannt: ['', 'ohne Zahlungsverfolgung'] };
+    const ICO = { o: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', p: '<path d="M4 12.5l5 5L20 6.5"/>', a: '<path d="M4 7h16v12H4zM4 11h16M8 15h3"/>' };
+    const ic = k => `<span class="bk-ki"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k]}</svg></span>`;
+    const kpi = (k, label, t, tone = '') => `<div class="card bk-kpi ${tone}"><div class="bk-kh">${ic(k)}<span>${label}</span></div><div class="bk-kv"><b>${euro(t.cents)}</b><span class="bk-d n">${t.count} Posten</span></div></div>`;
+    el.innerHTML = `<div class="filterbar"><div class="seg" id="feF">${[['alle', 'Alle'], ['offen', 'Offen'], ['bezahlt', 'Bezahlt']].map(([k, t]) => `<button type="button" data-f="${k}" class="${g.status === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+        <select id="feY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y, `Jahr ${y}`, g.year)).join('')}</select>
+        <span style="flex:1"></span><span class="muted s">${d.rows.length.toLocaleString('de-DE')} ${d.rows.length === 1 ? 'Posten' : 'Posten'}</span></div>
+      ${d.note ? `<div class="banner a" style="margin:0 0 16px;font-weight:400">${esc(d.note)}</div>` : ''}
+      <div class="bk-kpis" style="grid-template-columns:repeat(3, minmax(0, 1fr))">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${g.year}`, d.totals.all, 'b')}</div>
+      <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-tbl bk-fees"><tr><th>Mitglied</th><th class="hm">Datum</th><th class="hm">Platz</th><th class="hm">Text</th><th class="r">Betrag</th><th>Status</th></tr>
+        ${d.rows.map(x => `<tr data-b="${x.id}" data-d="${x.date}"><td><b>${esc(x.member)}</b><span class="muted s mo">${deDate(x.date)} · ${x.start}–${x.end}</span></td><td class="hm nw">${deDate(x.date)}<span class="muted s" style="display:block">${x.start}–${x.end}</span></td>
+          <td class="hm">${esc(x.resource)}</td><td class="hm">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? `<span class="muted s" style="display:block">${deDate(x.paid_at)}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="padding:24px 0;margin:0">Keine Gebühren in dieser Auswahl.</p>'}</div>
+      <p class="muted s">Gast- und Platzgebühren entstehen beim Buchen und werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung → Finanzen). Dort werden sie als bezahlt gebucht oder mit dem Einzug abgerechnet. Mitglieder sehen ihre offenen Gebühren in der App, wenn unter „Mitglieder-App“ der Haken „Gebühren zeigen“ gesetzt ist.</p>`;
+    const again = () => showFees(el).catch(fail);
+    el.querySelectorAll('#feF [data-f]').forEach(b => { b.onclick = () => { g.status = b.dataset.f; again(); }; });
+    $('feY').onchange = () => { g.year = +val('feY'); again(); };
+    el.querySelectorAll('tr[data-b]').forEach(tr => { tr.style.cursor = 'pointer'; tr.onclick = async () => { const day = await api('day?date=' + tr.dataset.d); const b = day.bookings.find(x => x.id === +tr.dataset.b); if (b) detail(b, again); }; });
+  }
+
   /* ---------------------------------------------------------------- Plätze & Geräte */
   async function showResources(el) {
     const list = await api('resources');
     el.innerHTML = `${can('buchung_einstellungen') ? '<div class="toolbar"><button class="btn primary" id="rsNew">+ Platz</button><button class="btn" id="rsNewA">+ Gerät</button></div>' : ''}
       <div class="card" style="padding:0 20px;overflow:auto">${list.length ? `<table class="tbl bk-tbl"><tr><th>Name</th><th class="hm">Buchbar</th><th class="hm">Raster</th><th class="hm">Gastgebühr</th><th class="r hm">kommende</th><th></th></tr>
-        ${list.map((r, i) => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.active ? '' : ' · inaktiv'}</span></td>
+        ${list.map((r, i) => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.kind === 'platz' && r.partner_required ? ' · Mitspieler Pflicht' : ''}${r.kind === 'platz' && r.solo_label ? ` · allein: ${esc(r.solo_label)}` : ''}${r.kind === 'artikel' && r.as_partner ? ' · als Mitspieler buchbar' : ''}${r.active ? '' : ' · inaktiv'}</span></td>
           <td class="hm">${esc(r.days === '1234567' ? 'täglich' : r.days.split('').map(d => WD[+d]).join(', '))} · ${r.open_from}–${r.open_to}</td><td class="hm">${dur(r.slot_min)} · max. ${dur(r.max_min)}</td>
           <td class="hm">${r.guest_fee_cents == null ? `<span class="muted s">Standard (${euro(st.meta.settings.guest_fee_cents)})</span>` : euro(r.guest_fee_cents)}</td><td class="r hm">${r.future || '–'}</td>
           <td class="r" style="white-space:nowrap">${can('buchung_einstellungen') ? `<span class="bk-ord"><button class="btn small" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button><button class="btn small" data-mv="${i}:1" ${i === list.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span><button class="btn small" data-ed="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="padding:24px;margin:0">Noch nichts angelegt.</p>'}</div>
@@ -642,7 +671,10 @@
         <label class="f">Höchstdauer am Stück<select id="rsM">${[15, 30, 45, 60, 90, 120, 180, 240, 360, 480].map(x => opt(x, dur(x), d.max_min)).join('')}</select></label>
         <label class="f">Anzahl (gleichzeitig buchbar)<input id="rsQ" inputmode="numeric" value="${d.quantity}"></label>
         <label class="f">Gastgebühr je Gast<input id="rsG" inputmode="decimal" value="${d.guest_fee_cents == null ? '' : centsToInput(d.guest_fee_cents)}" placeholder="Standard ${centsToInput(st.meta.settings.guest_fee_cents)}"></label>
-        <label class="f w2">Hinweis für Mitglieder<input id="rsH" value="${esc(d.note || '')}" placeholder="z. B. Sand – nach dem Spiel abziehen"></label>
+        <label class="f rs-pl">Mitspieler<select id="rsPR">${opt(0, 'optional', d.partner_required ? 1 : 0)}${opt(1, 'Pflicht', d.partner_required ? 1 : 0)}</select></label>
+        <label class="f rs-pl">Allein trainieren erlaubt, Bezeichnung<input id="rsSL" maxlength="30" value="${esc(d.solo_label || '')}" placeholder="z. B. Ballwand – leer = nein"></label>
+        <label class="chk rs-ar w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rsAP" ${d.as_partner ? 'checked' : ''}> als Mitspieler buchbar (z. B. Ballmaschine – auf allen Plätzen)</label>
+        <label class="f ${st.meta.departments.length ? 'w2' : 'wall'}">Hinweis für Mitglieder<input id="rsH" value="${esc(d.note || '')}" placeholder="z. B. Sand – nach dem Spiel abziehen"></label>
         ${st.meta.departments.length ? `<label class="f w2">Gehört der Abteilung<select id="rsD">${opt('', '– ganzer Verein –', d.department_id)}${st.meta.departments.map(x => opt(x.id, x.name, d.department_id)).join('')}</select></label>
         <label class="f rs-dep">Andere Mitglieder<select id="rsO">${opt('gebuehr', 'buchen mit Platzgebühr', d.outsiders)}${opt('gesperrt', 'dürfen nicht buchen', d.outsiders)}</select></label>
         <label class="f rs-dep">Platzgebühr je Person<input id="rsOF" inputmode="decimal" value="${centsToInput(d.outsider_fee_cents != null ? d.outsider_fee_cents : 500)}"></label>` : ''}
@@ -651,11 +683,15 @@
       <div class="btns">${isNew ? '' : '<button class="btn ghost danger" id="rsDel">Löschen</button><span style="flex:1"></span>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rsOk">Speichern</button></div>`, true);
     const depPaint = () => { if (!$('rsD')) return; const on = Boolean(val('rsD')); $('dialog').querySelectorAll('.rs-dep').forEach(x => { x.style.visibility = on ? '' : 'hidden'; }); if ($('rsOF')) $('rsOF').disabled = val('rsO') === 'gesperrt'; };
     if ($('rsD')) { $('rsD').onchange = depPaint; $('rsO').onchange = depPaint; } depPaint();
+    // Platz: Mitspieler-Pflicht und Allein-Training · Gerät: „als Mitspieler buchbar“ – je nach Art nur die passenden Felder
+    const kindPaint = () => { const ar = val('rsK') === 'artikel'; $('dialog').querySelectorAll('.rs-pl').forEach(x => { x.style.display = ar ? 'none' : ''; }); $('dialog').querySelectorAll('.rs-ar').forEach(x => { x.style.display = ar ? '' : 'none'; }); };
+    $('rsK').onchange = kindPaint; kindPaint();
     $('c').onclick = closeDialog;
     $('rsOk').onclick = () => GK.busy($('rsOk'), async () => {
       const body = { name: val('rsN'), kind: val('rsK'), area: val('rsA'), days: [...$('dialog').querySelectorAll('[data-d]:checked')].map(x => x.dataset.d).join(''),
         open_from: val('rsF'), open_to: val('rsT') === '23:59' ? '24:00' : val('rsT'), slot_min: +val('rsS'), max_min: +val('rsM'), quantity: +val('rsQ') || 1,
         guest_fee_cents: val('rsG') === '' ? null : toCents(val('rsG')), note: val('rsH'),
+        partner_required: +val('rsPR') === 1, solo_label: val('rsSL'), as_partner: $('rsAP').checked,
         ...($('rsD') ? { department_id: +val('rsD') || null, outsiders: val('rsO'), outsider_fee_cents: toCents(val('rsOF') || '0') } : {}), ...(isNew ? {} : { active: $('rsAc').checked }) };
       try { if (isNew) await api('resources', 'POST', body); else await api('resources/' + r.id, 'PUT', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
     });
@@ -738,6 +774,7 @@
   GK.registerPage({ key: 'bk-serien', title: 'Serien & Sperren', perm: ANY, render: pageRender('bk-serien', showSeries), group: G });
   GK.registerPage({ key: 'bk-protokoll', title: 'Buchungsprotokoll', perm: ANY, render: pageRender('bk-protokoll', showLog), group: G, tab: 'Protokoll' });
   GK.registerPage({ key: 'bk-auswertung', title: 'Auswertung', perm: ANY, render: pageRender('bk-auswertung', showStats), group: G });
+  GK.registerPage({ key: 'bk-gebuehren', title: 'Gebühren', perm: ANY, render: pageRender('bk-gebuehren', showFees), group: G });
   GK.registerPage({ key: 'bk-labels', title: 'Buchungsarten', perm: ANY, render: pageRender('bk-labels', showLabels), group: G });
   GK.registerPage({ key: 'bk-plaetze', title: 'Plätze & Geräte', perm: ANY, render: pageRender('bk-plaetze', showResources), group: G });
   GK.registerPage({ key: 'bk-einstellungen', title: 'Einstellungen', perm: 'buchung_einstellungen', render: pageRender('bk-einstellungen', showSettings), group: G });

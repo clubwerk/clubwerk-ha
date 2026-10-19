@@ -161,6 +161,12 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 
 **Auswertung & Protokoll:** Reiter „Auswertung“ (Auslastung je Platz und gesamt, Vorjahresvergleich, beliebte Zeiten) und „Protokoll“ (alle Buchungen, auch stornierte, als CSV).
 
+**Gebühren (offene Platzgebühren):** Reiter „Gebühren“ listet alle Gast- und Platzgebühren aus Buchungen mit Mitglied, Datum, Platz, Text, Betrag und Status (offen, bezahlt, storniert – der Zahlungsstand kommt aus der Mitgliederverwaltung, Filter Alle/Offen/Bezahlt und Jahr). Die Übersicht zeigt die Kennzahl „Offene Platzgebühren“ und einen Hinweis, solange etwas offen ist. Mitglieder sehen ihre offenen Posten in der App unter „Buchen“ → „Meine Platzgebühren“, sobald unter Verein → Mitglieder-App in der Spalte „Buchen“ der Haken „Gebühren zeigen“ gesetzt ist (Recht des Buchungssystems). Ohne Mitgliederverwaltung gibt es keine Zahlungsverfolgung – die Gebühren werden nur aufgelistet.
+
+**Mitspieler-Pflicht, Ballmaschine, Ballwand:** Unter Plätze & Geräte lässt sich je Platz „Mitspieler: Pflicht“ wählen – dann muss beim Buchen in App und Tablet („Mit wem spielst du?“) mindestens ein Mitglied, ein Gast, ein Gerät oder „allein“ gewählt sein; Verwaltung, Serien, Sperren und Vereinstermine sind davon ausgenommen. Mit „Allein trainieren erlaubt, Bezeichnung“ (z. B. „Ballwand“) gibt es den Chip „Ballwand (allein)“. Geräte mit dem Haken „als Mitspieler buchbar“ (z. B. Ballmaschine) erscheinen auf allen Plätzen als Chip: Clubwerk legt im selben Zeitfenster eine zweite Buchung auf dem Gerät an (ist es belegt, wird die Platzbuchung abgelehnt); Änderung und Storno der Platzbuchung gelten für das Gerät mit. Gerät und „allein“ zählen nicht fürs Kontingent und kosten nichts; weitere Mitspieler bleiben möglich. In Belegung und App steht dann „Muster, Max + Ballmaschine“ bzw. „… · Ballwand“.
+
+**Heute in der App:** Für den heutigen Tag zeigt die Übersicht nur noch ab der aktuellen Stunde; vergangene volle Stunden stehen als schmale Leiste „08:00–17:00 vorbei“ (antippen klappt sie auf). Unter „Freie Zeiten“ sind vergangene Zeiten ausgeblendet, je Platz mit Hinweis „n vergangene Zeiten ausgeblendet“ (antippen blendet ein). Andere Tage bleiben unverändert.
+
 ## E-Mail (Verein → E-Mail)
 Mails an Mitglieder schreiben wie in einem E-Mail-Programm (Recht „E-Mail“). Voraussetzung: Einstellungen → Postfach ist eingerichtet.
 - **Absender:** Unter „Absender“ trägt jeder seinen Namen, seine Antwortadresse und eine Unterschrift ein. Die Mail kommt vom Vereinspostfach („Anna Schmidt · TC Musterstadt <info@…>“), Antworten gehen an die eigene Adresse.
@@ -171,6 +177,7 @@ Mails an Mitglieder schreiben wie in einem E-Mail-Programm (Recht „E-Mail“).
 - **Abteilungen:** Mit einer Rolle „nur eigene Abteilung“ sind nur die eigenen Abteilungen und deren Mitglieder wählbar.
 
 ## Mitglieder-App: Bereiche und Profilbild
+- **Reihenfolge in der App:** Unter „Mitglieder-App“ → Karte „Reihenfolge in der App“ mit ↑ ↓ festlegen, in welcher Reihenfolge die Bereiche als Reiter in der App und als Spalten in der Freischaltungstabelle stehen (Recht „Einstellungen“). Nicht sortierte Bereiche stehen hinten.
 - **Bereiche je Mitglied:** Unter „Mitglieder-App“ hat jedes Mitglied für jeden aktiven Bereich (Buchen, Meine Daten, Dienste, Beregnung, Zugang …) einen Haken. Bereiche wie Buchen oder Meine Daten sind für neue Mitglieder vorausgewählt; ohne Haken verschwinden sie aus der App dieses Mitglieds. Beregnung und Zugang brauchen weiterhin das jeweilige Recht.
 - **Profilbild:** Das Mitglied tippt in der App oben rechts auf seinen Kreis, wählt ein Foto (wird im Handy auf 400 × 400 Pixel verkleinert) und hakt an, wo es erscheinen darf: Verkauf am Tablet, Platzbuchung, Helferdienste. Die Verwaltung sieht das Bild in der Mitgliederverwaltung und kann es mit einem Klick entfernen.
 
