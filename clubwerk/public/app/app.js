@@ -109,8 +109,8 @@
       <div class="vh-embedwait" id="embWait"><span>Verbinde mit der lokalen Adresse …</span></div></div>`;
     const f = el.querySelector('iframe'); embedFrame = f; f.src = url;
     const wait = $('embWait');
-    const timer = setTimeout(() => { if (wait && !wait.classList.contains('ok')) wait.innerHTML = `<span>Die lokale Adresse antwortet nicht – bist du im Vereins-WLAN?</span><button type="button" class="vh-btn sec" id="embOpen">In Safari öffnen</button><button type="button" class="vh-btn sec" id="embBack">Zurück</button>`;
-      const o = $('embOpen'); if (o) o.onclick = () => { location.href = url; }; const b = $('embBack'); if (b) b.onclick = () => show(id); }, 8000);
+    const timer = setTimeout(() => { if (wait && !wait.classList.contains('ok')) wait.innerHTML = `<span>Die lokale Adresse antwortet nicht – bist du im Vereins-WLAN? Dort kurz warten oder den Bereich noch einmal antippen.</span><button type="button" class="vh-btn sec" id="embBack">Zurück</button>`;
+      embedWorked = false; const b = $('embBack'); if (b) b.onclick = () => show(id); }, 8000);
     f.dataset.timer = String(timer);
     cleanup = () => { clearTimeout(timer); embedFrame = null; };
   }

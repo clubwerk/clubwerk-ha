@@ -129,7 +129,11 @@ a.btn.primary { color: #fff; }
   #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
   #gkHeader .topnav a { padding: 0 4px; font-size: 13.5px; }
   #gkHeader .topnav a svg { display: none; }
-  #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; hyphens: manual; }   /* Trennstellen setzt nav.js (weiche Trennstriche) */
+  #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; hyphens: manual; }   /* Trennstellen setzt nav.js (weiche Trennstriche) */  /* fünf und mehr Reiter am Handy: nichts abschneiden – volle Beschriftung, seitlich wischbar */
+  #gkHeader .topnav.many { grid-auto-columns: max-content; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: start; }
+  #gkHeader .topnav.many::-webkit-scrollbar { display: none; }
+  #gkHeader .topnav.many a { padding: 0 12px; }
+  #gkHeader .topnav.many a, #gkHeader .topnav.many a span { white-space: nowrap; }
 }
 
 /* ---------- Seitenkopf am Tablet: auf allen Seiten gleich ----------

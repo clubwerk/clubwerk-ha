@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.19.3
+
+- Mitglieder-App: Die lokale Adresse wird nur noch als Inlay in der App geöffnet – der Ausweg „In Safari öffnen“ ist entfernt. Antwortet die lokale Adresse nicht, bleibt die App mit Hinweis und „Zurück“ in sich.
+- Verwaltung am Handy: Datumsfelder in Dialogen ragten auf dem iPhone über den Rand hinaus – behoben.
+- Tablet-Kopfzeile am Handy: Bei fünf und mehr Reitern werden die Namen nicht mehr abgeschnitten, die Leiste ist seitlich wischbar.
+
 ## 3.19.2
 
 - Mitglieder-App: Nach einem Netzwechsel (Mobilfunk → Vereins-WLAN) oder wenn die App wieder in den Vordergrund kommt, prüft sie die lokale Adresse erneut und gibt Beregnung/Zugang frei – bisher nur beim Start.

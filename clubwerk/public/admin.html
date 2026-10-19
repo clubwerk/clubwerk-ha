@@ -161,6 +161,9 @@
   }
   label.f input:focus, label.f select:focus, label.f textarea:focus, .tbl input:focus, .tbl select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   label.f textarea { min-height: 120px; line-height: 20px; }
+  /* Datums-/Zeitfelder: iOS Safari gibt ihnen sonst eine eigene Breite und sie ragen aus dem Fenster */
+  label.f input[type=date], label.f input[type=time], label.f input[type=datetime-local], label.f input[type=month] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; width: 100%; text-align: left; }
+  label.f input[type=date]::-webkit-date-and-time-value, label.f input[type=time]::-webkit-date-and-time-value { text-align: left; }
   label.chk { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--ink); }
   input[type=checkbox], input[type=radio] { accent-color: var(--brand); width: 16px; height: 16px; }
   /* Schalter (an/aus) */
