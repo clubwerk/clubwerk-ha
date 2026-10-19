@@ -1017,9 +1017,8 @@ function activate(ctx) {
     // offene Platzgebühren: mit Mitgliederverwaltung alle unbezahlten (eine Abfrage, chargeStatus einmal), ohne: alle Gebühren des laufenden Jahres
     const { rows, tracked } = await feeRows(mv() ? {} : { from: `${d.slice(0, 4)}-01-01` });
     const open = rows.filter(isOpenFee), sum = sumOf(open);
-    const alerts = [];
-    if (open.length) alerts.push({ level: 'a', text: `${open.length} offene ${open.length === 1 ? 'Platzgebühr' : 'Platzgebühren'} über ${euro(sum)} – Buchungssystem → Gebühren.${tracked ? '' : ' (' + NO_TRACK + ')'}` });
-    return { kpis: [{ l: 'Buchungen heute', v: t }, { l: 'gerade belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'Offene Platzgebühren', v: `${open.length} · ${euro(sum)}` }], alerts };
+    // Kachel wie beim Verkauf: groß die offenen Gebühren, darunter die Belegung – kein Hinweis-Banner
+    return { kpis: [{ l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Jahr', v: euro(sum) }, { l: 'Buchungen heute', v: `${t} · belegt ${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
   };
   ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
     resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort, partner_required, solo_label, as_partner FROM bk_resource WHERE deleted = 0').all() });

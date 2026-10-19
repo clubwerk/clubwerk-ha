@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.17.4
+
+- Übersicht: Die Kachel „Buchungssystem“ zeigt jetzt wie „Verkauf“ groß die Summe der offenen Gebühren (ohne Mitgliederverwaltung: Gebühren des laufenden Jahres), darunter Buchungen heute und Belegung. Das Hinweis-Banner zu offenen Platzgebühren entfällt.
+- Mitglieder-App: Die Prüfung der lokalen Route beim Start wartet bis zu 4 s und versucht es zweimal (der erste HTTPS-Aufbau zu einer neuen Adresse dauert auf manchen Handys länger). Der Bildschirm „Nur im Vereins-WLAN“ zeigt unten klein, ob die lokale Adresse erreichbar war und woran es sonst lag.
+
 ## 3.17.3
 
 - Mitglieder-App → „Adresse der App“: Bei eingeschaltetem externem Zugang zeigte das Feld „Adresse im Vereins-WLAN“ nach dem Speichern wieder die öffentliche Adresse statt des gespeicherten Werts (nur Anzeige – gespeichert war richtig). Behoben; der Hinweis darunter nennt jetzt, welche Adresse im QR-Code landet und dass die WLAN-Adresse als lokale Route dient.

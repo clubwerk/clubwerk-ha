@@ -6301,6 +6301,16 @@
     "{0} Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port {1}. {2} Mit „Testen“ prüfen.": "{0} Leave empty = address at which the admin area is currently open, with port {1}. {2} Check with “Test”.",
     "Adresse im Vereins-WLAN": "Address in the club Wi-Fi",
     "Diese Adresse landet im QR-Code.": "This address goes into the QR code.",
-    "Im QR-Code landet die öffentliche Adresse {0} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).": "The QR code carries the public address {0} – the address here is what the app uses at the clubhouse as its local route (https only)."
+    "Im QR-Code landet die öffentliche Adresse {0} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).": "The QR code carries the public address {0} – the address here is what the app uses at the clubhouse as its local route (https only).",
+    "antwortet, gilt dort aber nicht als Vereins-WLAN": "responds, but the request does not count as club Wi-Fi there",
+    "antwortet, ist aber kein Clubwerk": "responds, but is not a Clubwerk",
+    "keine Antwort (Zeitüberschreitung)": "no reply (timed out)",
+    "Lokale Adresse {0}: {1}": "Local address {0}: {1}",
+    "nicht erreichbar{0}": "not reachable{0}",
+    "nicht geprüft (Handy bereits im WLAN)": "not checked (phone already on the Wi-Fi)",
+    "{0} · belegt {1} von {2}": "{0} · in use {1} of {2}",
+    "Gebühren dieses Jahr": "Fees this year",
+    "Offene Gebühren": "Open fees",
+    "offene Posten": "open items"
   }
 }

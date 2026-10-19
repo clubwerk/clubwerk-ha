@@ -19,13 +19,20 @@
      schneller, und Bereiche „nur im Vereins-WLAN“ (Beregnung, Türen) funktionieren – unabhängig von Privat-Relay o. Ä. */
   let BASE = '';
   const api = u => BASE + u;
+  let lanProbe = null;   // Ergebnis der Prüfung der lokalen Adresse (für den Hinweis „Nur im Vereins-WLAN“)
   async function probeLan(lanUrl) {
     if (!lanUrl || location.origin === lanUrl) return false;
-    try {
-      const r = await fetch(lanUrl + '/api/ping', { signal: AbortSignal.timeout(1500), cache: 'no-store' });
-      const d = await r.json();
-      return Boolean(d && d.app === 'clubwerk' && d.wlan);
-    } catch (e) { return false; }
+    // zwei Versuche: der erste HTTPS-Aufbau zu einer neuen Adresse dauert auf manchen Handys länger
+    for (let i = 0; i < 2; i++) {
+      try {
+        const r = await fetch(lanUrl + '/api/ping', { signal: AbortSignal.timeout(4000), cache: 'no-store' });
+        const d = await r.json();
+        if (d && d.app === 'clubwerk' && d.wlan) { lanProbe = { ok: true }; return true; }
+        lanProbe = { ok: false, why: d && d.app === 'clubwerk' ? 'antwortet, gilt dort aber nicht als Vereins-WLAN' : 'antwortet, ist aber kein Clubwerk' };
+        return false;
+      } catch (e) { lanProbe = { ok: false, why: e && e.name === 'TimeoutError' ? 'keine Antwort (Zeitüberschreitung)' : 'nicht erreichbar' + (e && e.message ? ' (' + e.message + ')' : '') }; }
+    }
+    return false;
   }
   async function call(url, method = 'GET', body) {
     const r = await fetch(api('api/' + url), { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
@@ -81,7 +88,7 @@
     const s = me.sections.find(x => x.id === id);
     const el = $('sec');
     if (!s) { el.innerHTML = ''; return; }
-    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span></div>`; return; }
+    if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl ? `<small class="vh-wlan-diag">Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'nicht geprüft (Handy bereits im WLAN)'}</small>` : ''}</div>`; return; }
     if (!s.ok) { el.innerHTML = `<div class="vh-empty">${esc(s.reason)}</div>`; return; }
     const sec = SECTIONS[id];
     if (!sec) { el.innerHTML = '<div class="vh-empty">Dieser Bereich konnte nicht geladen werden.</div>'; return; }

@@ -50,6 +50,7 @@ body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 .vh-wlan { display: grid; justify-items: center; gap: 8px; text-align: center; color: var(--muted); padding: 40px 18px; max-width: 360px; margin: 0 auto; line-height: 1.5; }
 .vh-wlan svg { width: 44px; height: 44px; color: var(--muted); }
 .vh-wlan b { color: var(--ink); font-size: 17px; }
+.vh-wlan-diag { margin-top: 14px; font-size: 12px; color: var(--muted); opacity: .8; word-break: break-all; }
 
 .vh-h { margin: 8px 0 0; font-size: 16px; font-weight: 800; color: var(--ink); }
 .vh-note { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.45; margin: 4px 0 0; }
