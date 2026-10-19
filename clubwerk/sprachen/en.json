@@ -6297,6 +6297,10 @@
     "Vor- und Nachname des Gastes": "Guest's first and last name",
     "vorbei · antippen zum Aufklappen": "over · tap to expand",
     "z. B. Ballwand – leer = nein": "e.g. practice wall – empty = no",
-    "Zeiten": "times"
+    "Zeiten": "times",
+    "{0} Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port {1}. {2} Mit „Testen“ prüfen.": "{0} Leave empty = address at which the admin area is currently open, with port {1}. {2} Check with “Test”.",
+    "Adresse im Vereins-WLAN": "Address in the club Wi-Fi",
+    "Diese Adresse landet im QR-Code.": "This address goes into the QR code.",
+    "Im QR-Code landet die öffentliche Adresse {0} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).": "The QR code carries the public address {0} – the address here is what the app uses at the clubhouse as its local route (https only)."
   }
 }
