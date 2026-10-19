@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.19.4
+
+- Mitglieder-App: Hält die Home-Bildschirm-App nach einem Update noch das alte Skript fest, lädt sie sich beim nächsten Start einmal selbst neu (Versionsabgleich mit dem Server). Die laufende Version steht im Konto-Menü hinter dem Profilbild.
+
 ## 3.19.3
 
 - Mitglieder-App: Die lokale Adresse wird nur noch als Inlay in der App geöffnet – der Ausweg „In Safari öffnen“ ist entfernt. Antwortet die lokale Adresse nicht, bleibt die App mit Hinweis und „Zurück“ in sich.

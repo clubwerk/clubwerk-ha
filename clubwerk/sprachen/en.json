@@ -6384,6 +6384,9 @@
     "In Safari öffnen": "Open in Safari",
     "Verbinde mit der lokalen Adresse …": "Connecting to the local address …",
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; frame-src 'self' {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; frame-src 'self' {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}",
-    "Die lokale Adresse antwortet nicht – bist du im Vereins-WLAN? Dort kurz warten oder den Bereich noch einmal antippen.": "The local address is not responding – are you on the club Wi-Fi? There, wait a moment or tap the section again."
+    "Die lokale Adresse antwortet nicht – bist du im Vereins-WLAN? Dort kurz warten oder den Bereich noch einmal antippen.": "The local address is not responding – are you on the club Wi-Fi? There, wait a moment or tap the section again.",
+    "· Server": "· server",
+    "· Server {0}": "· server {0}",
+    "Clubwerk {0}{1}": "Clubwerk {0}{1}"
   }
 }

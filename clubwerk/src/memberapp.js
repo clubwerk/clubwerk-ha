@@ -228,7 +228,7 @@ function startPort({ rateLimit, rateLimitKey }) {
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
-    res.json({ lanUrl: lanUrl(), wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
+    res.json({ version: require('../package.json').version, lanUrl: lanUrl(), wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
   });
   api.get('/invite', rateLimit('appinv', 30, 60000), (req, res) => {
     const p = invites.peek(SCOPE, String(req.query.t || ''));

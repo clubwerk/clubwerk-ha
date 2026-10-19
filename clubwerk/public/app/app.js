@@ -2,6 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
+  const APP_VER = '3.19.4';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -162,6 +163,8 @@
   window.addEventListener('pageshow', e => { if (e.persisted) recheck(); });
   async function start() {
     me = await call('me');
+    // Home-Bildschirm-Apps halten alte Skripte manchmal lange fest: stimmt die Version nicht mit dem Server überein, einmal neu laden
+    if (me.version && me.version !== APP_VER) { let done = false; try { done = sessionStorage.getItem('va_reloaded') === me.version; sessionStorage.setItem('va_reloaded', me.version); } catch (e) { done = true; } if (!done) { location.reload(); return; } }
     $('club').textContent = me.club;
     document.title = `${me.appName} – ${me.club}`;
     if (!me.member) { lock(); return; }
@@ -220,6 +223,7 @@
     sh.innerHTML = `<div class="vh-box"><h2>${esc(me.member)}</h2><div class="vh-menu">
         <button type="button" id="accPhoto">Profilbild</button>
         <button type="button" id="accPush">Benachrichtigungen</button></div>
+      <p class="vh-small" style="margin:10px 0 0">Clubwerk ${esc(APP_VER)}${me.version && me.version !== APP_VER ? ' · Server ' + esc(me.version) : ''}</p>
       <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">Schließen</button></div></div>`;
     sh.querySelector('#accNo').onclick = () => sh.classList.remove('show');
     sh.querySelector('#accPhoto').onclick = () => { sh.classList.remove('show'); openPhoto(); };
