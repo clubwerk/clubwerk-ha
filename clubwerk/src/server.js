@@ -647,12 +647,26 @@ app.post('/api/tablet/member', rateLimit('member', 5, 10 * 60000), (req, res) =>
   res.json(unlockResponse(db.prepare('SELECT * FROM members WHERE id = ?').get(id)));
 });
 
+// Idempotenz beim Tablet-Buchen: Der Client schickt je Warenkorb-Absenden eine zufällige requestId. Kommt dieselbe ID
+// desselben Kontos binnen 2 Minuten erneut (Doppeltipp, Wiederholung bei wackeligem WLAN), wird die erste Antwort
+// zurückgegeben statt noch einmal zu buchen. Nur im Speicher – nach einem Neustart ist die Liste leer.
+const BOOK_REPLAY_MS = 2 * 60000;
+const bookReplay = new Map();                                      // "konto|requestId" -> { at, body }
+const replayKey = (who, requestId) => {
+  if (typeof requestId !== 'string' || !/^[A-Za-z0-9_-]{8,64}$/.test(requestId)) return null;
+  const now = Date.now();
+  for (const [k, v] of bookReplay) if (now - v.at > BOOK_REPLAY_MS) bookReplay.delete(k);
+  return `${who}|${requestId}`;
+};
+
 app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
   // „pay“ aus älteren Tablet-Versionen wird weiter angenommen, aber nicht mehr ausgewertet: ob bar oder angeschrieben,
   // ergibt sich allein aus dem Konto (Deckel, Veranstaltungsliste, Mitglied …)
-  const { token, items } = req.body || {};
+  const { token, items, requestId } = req.body || {};
   const who = auth.checkTabletToken(token);
   if (!who) return bad(res, 'Sitzung abgelaufen. Bitte Namen erneut wählen.', 401);
+  const rkey = replayKey(who, requestId);
+  if (rkey && bookReplay.has(rkey)) return res.json(bookReplay.get(rkey).body);   // Wiederholung: Erstergebnis, keine neue Buchung
   if (!Array.isArray(items) || !items.length) return bad(res, 'Keine Artikel gewählt.');
   const ev = activeEvent();
 
@@ -692,6 +706,7 @@ app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
   const tx = db.transaction(() => {
     for (const it of items) {
       if (it && it.custom) {                              // frei eingegebener Betrag
+        if (!Number.isInteger(Number(it.cents))) throw new Error('Betrag bitte in ganzen Cent angeben.');   // keine Nachkommastellen stillschweigend abschneiden
         const cents = int(it.cents);
         if (cents < 10 || cents > 50000) throw new Error('Betrag bitte zwischen 0,10 € und 500 €.');
         const note = cleanName(it.note, 60) || null;
@@ -700,6 +715,7 @@ app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
         created.push({ id: Number(r.lastInsertRowid), name: 'Betrag' + (note ? ' (' + note + ')' : ''), qty: 1, total_cents: total, list_cents: cents });
         continue;
       }
+      if (!Number.isInteger(Number(it.qty))) throw new Error('Ungültige Menge.');
       const qty = int(it.qty);
       if (qty < 1 || qty > 99) throw new Error('Ungültige Menge.');
       const a = getArticle.get(int(it.articleId));
@@ -730,6 +746,7 @@ app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
       resp.eventOpen_cents = eventOpen(member.id);
     }
   }
+  if (rkey) bookReplay.set(rkey, { at: Date.now(), body: resp });
   res.json(resp);
 });
 
@@ -747,14 +764,19 @@ app.post('/api/tablet/undo', rateLimit('undo', 60, 60000), (req, res) => {
     if (!owners.includes(who)) return bad(res, 'Diese Buchung gehört nicht zu diesem Konto.', 403);
     if (b.tab_id && !db.prepare("SELECT 1 FROM guest_tabs WHERE id = ? AND status = 'offen'").get(b.tab_id)) return bad(res, 'Der Deckel ist schon bezahlt.');
     if (b.payment_id || b.transferred_at) return bad(res, 'Schon bezahlt bzw. übernommen – bitte an den Vorstand wenden.');
+    // Abgerechnete Buchungen dürfen am Tablet nicht mehr storniert werden – sonst passen Abrechnung und Buchungen
+    // nicht mehr zusammen; eine Gutschrift kann nur die Verwaltung erteilen.
+    if (b.settled_id) return bad(res, 'Diese Buchung ist bereits abgerechnet – bitte an den Vorstand wenden.');
     if (new Date(b.created_at.replace(' ', 'T')) < limit) {
       return bad(res, `Rückgängig ist nur ${UNDO_WINDOW_MIN} Minuten lang möglich. Bitte an den Vorstand wenden.`);
     }
   }
+  // settled_id IS NULL auch hier: schützt gegen eine Abrechnung zwischen Prüfung und UPDATE
   const upd = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = 'tablet'
-    WHERE id = ? AND cancelled_at IS NULL`);
+    WHERE id = ? AND cancelled_at IS NULL AND settled_id IS NULL`);
   let cancelled = 0;
   db.transaction(() => rows.forEach(b => { cancelled += upd.run(b.id).changes; }))();   // schon stornierte zählen nicht mit
+  if (!cancelled && rows.some(b => !b.cancelled_at)) return bad(res, 'Diese Buchung ist bereits abgerechnet – bitte an den Vorstand wenden.');
   res.json({ ok: true, cancelled });
 });
 
@@ -1953,6 +1975,8 @@ admin.post('/bookings', need('buchungen'), (req, res) => {
   const a = custom ? db.prepare('SELECT * FROM articles WHERE id = ?').get(customArticleId()) : db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0').get(int(articleId));
   const q = custom ? 1 : int(qty);
   const unit = custom ? int(amount_cents) : (a ? a.price_cents : 0);
+  if (!custom && !Number.isInteger(Number(qty))) return bad(res, 'Konto, Artikel und Menge (1–999) angeben.');   // ganze Stückzahlen
+  if (custom && !Number.isInteger(Number(amount_cents))) return bad(res, 'Betrag bitte in ganzen Cent angeben.');
   if (!m || !a || q < 1 || q > 999) return bad(res, 'Konto, Artikel und Menge (1–999) angeben.');
   if (custom && (unit < 10 || unit > 100000)) return bad(res, 'Betrag bitte zwischen 0,10 € und 1.000 €.');
   if (date && !isDate(date)) return bad(res, 'Datum ungültig.');
@@ -2494,7 +2518,6 @@ admin.post('/events/:id/transfer', need('uebernahme'), (req, res) => {
   const ev = getEvent(req.params.id);
   if (!ev) return bad(res, 'Nicht gefunden.', 404);
   const only = Array.isArray((req.body || {}).guestIds) ? req.body.guestIds.map(int) : null;
-  const last = lastSettlement() || '0000-00-00';
   let n = 0, cents = 0, people = 0;
   const skipped = [];
   db.transaction(() => {
@@ -2503,10 +2526,10 @@ admin.post('/events/:id/transfer', need('uebernahme'), (req, res) => {
       const open = guestOpen(g.id);
       if (!open) continue;
       if (!g.member_id) { skipped.push(g.name); continue; }
-      // Liegt die Buchung in einem schon abgeschlossenen Zeitraum, kommt sie in den laufenden – sonst würde sie nie berechnet
-      const r = db.prepare(`UPDATE bookings SET kind = 'konto', member_id = ?, transferred_at = datetime('now','localtime'), transferred_by = ?,
-          created_at = CASE WHEN date(created_at) <= ? THEN datetime('now','localtime') ELSE created_at END
-        WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(g.member_id, req.user.username, last, g.id);
+      // created_at bleibt der echte Buchungszeitpunkt. Abgerechnet wird die Übernahme trotzdem im nächsten Lauf: die
+      // Abrechnung nimmt alle offenen Konto-Buchungen (settled_id IS NULL) und grenzt über transferred_at ab, nicht über created_at.
+      const r = db.prepare(`UPDATE bookings SET kind = 'konto', member_id = ?, transferred_at = datetime('now','localtime'), transferred_by = ?
+        WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(g.member_id, req.user.username, g.id);
       n += r.changes; cents += open; people++;
     }
   })();

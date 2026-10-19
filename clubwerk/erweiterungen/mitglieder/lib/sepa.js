@@ -87,6 +87,16 @@ function earliestCollection(today, prenotifyDays = 14) {
  * pain.008.001.08 erzeugen.
  * o = { msgId, created (ISO), initiator, creditor: { name, iban, bic, ci }, batches: [{ id, seqTp: 'FRST'|'RCUR', date, txs: [{ e2e, cents, mandateId, mandateDate, name, iban, bic, text }] }] }
  */
+/** Erstellzeitpunkt (CreDtTm) als ISODateTime in Ortszeit mit Zeitzonenversatz, z. B. 2026-10-19T14:11:02+02:00 –
+ *  ohne Kennzeichen würde die UTC-Zeit wie Ortszeit wirken und 1–2 h daneben liegen. */
+function isoLocal(d = new Date()) {
+  const p = n => String(n).padStart(2, '0');
+  const off = -d.getTimezoneOffset(), sign = off < 0 ? '-' : '+', a = Math.abs(off);
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}${sign}${p(Math.floor(a / 60))}:${p(a % 60)}`;
+}
+/** created darf ein Date, eine ISO-Zeit mit „Z“/Versatz oder (alt) eine nackte Zeit sein; Sekundenbruchteile entfallen. */
+const creDtTm = v => (v instanceof Date ? isoLocal(v) : String(v || isoLocal()).replace(/\.\d+(?=Z|[+-]\d\d:?\d\d$|$)/, ''));
+
 function buildPain008(o) {
   const all = o.batches.flatMap(b => b.txs);
   const sum = all.reduce((s, t) => s + t.cents, 0);
@@ -96,7 +106,7 @@ function buildPain008(o) {
   parts.push('<?xml version="1.0" encoding="UTF-8"?>');
   parts.push('<Document xmlns="urn:iso:std:iso:20022:tech:xsd:pain.008.001.08" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">');
   parts.push('<CstmrDrctDbtInitn>');
-  parts.push(`<GrpHdr><MsgId>${xml(sepaText(o.msgId, 35).replace(/ /g, '-'))}</MsgId><CreDtTm>${xml(o.created.slice(0, 19))}</CreDtTm><NbOfTxs>${all.length}</NbOfTxs><CtrlSum>${amount(sum)}</CtrlSum>`
+  parts.push(`<GrpHdr><MsgId>${xml(sepaText(o.msgId, 35).replace(/ /g, '-'))}</MsgId><CreDtTm>${xml(creDtTm(o.created))}</CreDtTm><NbOfTxs>${all.length}</NbOfTxs><CtrlSum>${amount(sum)}</CtrlSum>`
     + `<InitgPty><Nm>${xml(sepaText(o.initiator || cr.name, 70))}</Nm></InitgPty></GrpHdr>`);
   for (const b of o.batches) {
     if (!b.txs.length) continue;
@@ -118,4 +128,4 @@ function buildPain008(o) {
   return parts.join('\n');
 }
 
-module.exports = { checkIban, checkBic, checkCreditorId, checkMandateRef, normIban, fmtIban, maskIban, sepaText, buildPain008, isBankDay, addDays, addBankDays, nextBankDay, earliestCollection };
+module.exports = { checkIban, checkBic, checkCreditorId, checkMandateRef, normIban, fmtIban, maskIban, sepaText, buildPain008, isoLocal, isBankDay, addDays, addBankDays, nextBankDay, earliestCollection };

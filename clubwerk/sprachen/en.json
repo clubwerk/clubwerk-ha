@@ -6189,6 +6189,15 @@
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'",
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' {0}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
     "Origin": "Origin",
-    "Vary": "Vary"
+    "Vary": "Vary",
+    ", {0} schon gebucht übersprungen": ", {0} skipped (already booked)",
+    "Betrag bitte in ganzen Cent angeben.": "Please enter the amount in whole cents.",
+    "Das Datum der Unterschrift darf nicht in der Zukunft liegen.": "The date of signature cannot be in the future.",
+    "Diese Buchung ist bereits abgerechnet – bitte an den Vorstand wenden.": "This booking has already been settled – please contact the board.",
+    "Dieser Einzug wurde verworfen – es gibt keine Datei mehr.": "This collection was discarded – the file no longer exists.",
+    "Mandat erst am {0} unterschrieben – nach dem Einzugstag": "Mandate signed only on {0} – after the collection date",
+    "Nur im Vereins-WLAN (Tunnel aus)": "Club Wi-Fi only (tunnel off)",
+    "{0} Positionen, {1} (bis {2}){3}": "{0} line items, {1} (until {2}){3}",
+    "– alle Bereiche gelten als im Vereinsheim genutzt.": "– all areas count as used at the clubhouse."
   }
 }

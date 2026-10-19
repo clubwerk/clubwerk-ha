@@ -159,7 +159,7 @@ function register(sh) {
     const pos = pv.positions.filter(p => !skip.has(p.key));
     if (!pos.length && !(pv.marks || []).length) return bad(res, pv.positions.length ? 'Alle Positionen abgewählt – es gibt nichts zu buchen.' : 'Keine Positionen – es ist alles schon abgerechnet.');
     const user = uname(req);
-    let runId, drinkBatch = null, created = 0, cents = 0;
+    let runId, drinkBatch = null, created = 0, cents = 0, skippedTotal = 0;
     db.transaction(() => {
       runId = Number(db.prepare('INSERT INTO mv_run(kind, until_date, filters, by_user) VALUES (?,?,?,?)').run(b.onlyDrinks ? 'getraenke' : 'beitrag', pv.until, '{}', user).lastInsertRowid);
       const prev = {}, prevMd = {};
@@ -174,18 +174,30 @@ function register(sh) {
         const r = C.drinks.settle(drinkPos.map(p => p.drinks_member), pv.drinks.asOf, pv.drinks.upTo, user, `Mitgliederverwaltung: Lauf ${runId}`, 'mv-');
         drinkBatch = r.batch; perMember = r.perMember;
       }
+      // Dublettenschutz: Die Vorschau entsteht vor der Transaktion (Hooks sind asynchron). Läuft ein zweiter Lauf parallel,
+      // kann derselbe Zeitraum schon gebucht sein – deshalb hier, innerhalb der Transaktion, noch einmal frisch prüfen:
+      // Zeitraum bereits bis period_from abgerechnet (booked_until) bzw. ext_key schon vorhanden → Position überspringen.
+      const mfBooked = db.prepare('SELECT booked_until FROM mv_member_fee WHERE id = ?'), mdBooked = db.prepare('SELECT booked_until FROM mv_member_department WHERE id = ?');
+      const extSeen = db.prepare('SELECT 1 FROM mv_charge WHERE ext_key = ?');
+      const covered = (row, from) => row && row.booked_until && from && row.booked_until >= from;
+      const alreadyBooked = p => (p.member_fee_id && !(p.member_fee_id in prev) && covered(mfBooked.get(p.member_fee_id), p.period_from))
+        || (p.member_dept_id && !(p.member_dept_id in prevMd) && covered(mdBooked.get(p.member_dept_id), p.period_from))
+        || (p.ext_key && extSeen.get(p.ext_key));
+      let skipped = 0;
       for (const p of pos) {
         let c = p.cents;
         if (p.kind === 'getraenke') { c = perMember[p.drinks_member]; if (!c) continue; }
+        if (alreadyBooked(p)) { skipped++; continue; }
         ins.run(p.member_id, p.for_member_id, p.kind, p.text, p.period_from, p.period_to, c, p.due_date, runId, p.member_fee_id || null, p.ext_key || null, user, p.member_dept_id || null);
         if (p.member_fee_id) bumpMf(p.member_fee_id, p.period_to);
         if (p.member_dept_id) bumpMd(p.member_dept_id, p.period_to);
         created++; cents += c;
       }
+      skippedTotal = skipped;
       db.prepare('UPDATE mv_run SET count = ?, cents = ?, drinks_batch = ?, filters = ? WHERE id = ?').run(created, cents, drinkBatch, JSON.stringify({ prev, prevMd, until: pv.until, drinks: Boolean(b.drinks || b.onlyDrinks), onlyDrinks: Boolean(b.onlyDrinks) }), runId);
     })();
-    C.audit(req.user, b.onlyDrinks ? 'Verkaufs-Einzug vorbereitet' : 'Beitragslauf', `${created} Positionen, ${euro(cents)} (bis ${deD(pv.until)})`);
-    res.json({ ok: true, run: runId, count: created, cents });
+    C.audit(req.user, b.onlyDrinks ? 'Verkaufs-Einzug vorbereitet' : 'Beitragslauf', `${created} Positionen, ${euro(cents)} (bis ${deD(pv.until)})${skippedTotal ? `, ${skippedTotal} schon gebucht übersprungen` : ''}`);
+    res.json({ ok: true, run: runId, count: created, cents, skipped: skippedTotal });
   }));
   admin.get('/runs', PF, (req, res) => res.json(db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM mv_charge c WHERE c.run_id = r.id AND c.status != 'offen') AS done FROM mv_run r ORDER BY r.id DESC LIMIT 50`).all()
     .map(r => ({ ...r, filters: undefined, undo: r.done === 0 }))));
@@ -194,16 +206,20 @@ function register(sh) {
     if (!r) return bad(res, 'Nicht gefunden.', 404);
     if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) return bad(res, 'Aus diesem Lauf wurde schon etwas eingezogen oder bezahlt – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
     const f = JSON.parse(r.filters || '{}');
-    if (r.drinks_batch) { const u = C.drinks.unsettle(r.drinks_batch); if (!u.ok) return bad(res, u.error); }
-    db.transaction(() => {
-      db.prepare('DELETE FROM mv_charge WHERE run_id = ?').run(r.id);
-      // Stand vor diesem Lauf – aber nie hinter das zurück, was spätere Läufe schon abgerechnet haben (sonst doppelt)
-      const later = (col, id) => (db.prepare(`SELECT MAX(period_to) t FROM mv_charge WHERE ${col} = ? AND status != 'storniert'`).get(id) || {}).t || null;
-      const keep = (val, t) => (t && (!val || t > val) ? t : val);
-      for (const [mfId, val] of Object.entries(f.prev || {})) db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run(keep(val, later('member_fee_id', int(mfId))), int(mfId));
-      for (const [mdId, val] of Object.entries(f.prevMd || {})) db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(keep(val, later('member_dept_id', int(mdId))), int(mdId));
-      db.prepare('DELETE FROM mv_run WHERE id = ?').run(r.id);
-    })();
+    // Getränkeabrechnung und Posten in einer Transaktion zurücknehmen – schlägt eines fehl, bleibt alles wie es war
+    // (sonst wären die Getränke wieder offen, die Posten aber noch da → beim nächsten Lauf doppelt)
+    try {
+      db.transaction(() => {
+        if (r.drinks_batch) { const u = C.drinks.unsettle(r.drinks_batch); if (!u.ok) throw Object.assign(new Error(u.error), { fachlich: true }); }
+        db.prepare('DELETE FROM mv_charge WHERE run_id = ?').run(r.id);
+        // Stand vor diesem Lauf – aber nie hinter das zurück, was spätere Läufe schon abgerechnet haben (sonst doppelt)
+        const later = (col, id) => (db.prepare(`SELECT MAX(period_to) t FROM mv_charge WHERE ${col} = ? AND status != 'storniert'`).get(id) || {}).t || null;
+        const keep = (val, t) => (t && (!val || t > val) ? t : val);
+        for (const [mfId, val] of Object.entries(f.prev || {})) db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run(keep(val, later('member_fee_id', int(mfId))), int(mfId));
+        for (const [mdId, val] of Object.entries(f.prevMd || {})) db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(keep(val, later('member_dept_id', int(mdId))), int(mdId));
+        db.prepare('DELETE FROM mv_run WHERE id = ?').run(r.id);
+      })();
+    } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
     C.audit(req.user, 'Beitragslauf zurückgenommen', `Lauf ${r.id}: ${r.count} Positionen, ${euro(r.cents)}`);
     res.json({ ok: true });
   });
@@ -295,6 +311,8 @@ function register(sh) {
       if ((p.payment || 'lastschrift') !== 'lastschrift') { other.push({ member_id: payer, name, payment: p.payment, cents: sum, count: list.length }); continue; }
       const b = bankRow(payer); const ms = mandateState(b);
       if (!ms.ok) { problems.push({ member_id: payer, name, reason: ms.reason, cents: sum, count: list.length }); continue; }
+      // Sicherheitsnetz für Altdaten: Unterschrift nach dem Fälligkeitstag würde die Bank ablehnen (DtOfSgntr > ReqdColltnDt)
+      if (b.mandate_date > day) { problems.push({ member_id: payer, name, reason: `Mandat erst am ${deD(b.mandate_date)} unterschrieben – nach dem Einzugstag`, cents: sum, count: list.length }); continue; }
       if (sum <= 0) { problems.push({ member_id: payer, name, reason: sum === 0 ? 'Summe 0 €' : `Guthaben ${euro(-sum)} – nichts einzuziehen`, cents: sum, count: list.length }); continue; }
       ok.push({ member_id: payer, name, member_no: p.member_no, cents: sum, count: list.length, charges: list.map(c => c.id), texts: list.map(c => c.text), seq: b.mandate_first_used ? 'RCUR' : 'FRST',
         holder: b.holder || name, iban: b.iban, bic: b.bic, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, masked: sepa.maskIban(b.iban) });
@@ -329,7 +347,7 @@ function register(sh) {
       const prevMandates = {};
       const batches = ['FRST', 'RCUR'].map(seq => ({ id: `${msgId}-${seq}`, seqTp: seq, date: plan.date, txs: txs.filter(x => x.seq === seq).map(x => ({
         e2e: `CW${id}-${x.member_id}`, cents: x.cents, mandateId: x.mandate_ref, mandateDate: x.mandate_date, name: x.holder, iban: x.iban, bic: x.bic, text: remittance(x) })) }));
-      const xmlStr = sepa.buildPain008({ msgId, created: new Date().toISOString(), initiator: plan.creditor.name, creditor: { name: plan.creditor.name, iban: store.account().iban, bic: store.account().bic, ci: S('creditor_id') }, batches });
+      const xmlStr = sepa.buildPain008({ msgId, created: sepa.isoLocal(), initiator: plan.creditor.name, creditor: { name: plan.creditor.name, iban: store.account().iban, bic: store.account().bic, ci: S('creditor_id') }, batches });
       for (const x of txs) {
         const bk = bankRow(x.member_id);
         prevMandates[x.member_id] = { first: bk.mandate_first_used, last: bk.mandate_last_used };
@@ -353,6 +371,7 @@ function register(sh) {
   });
   admin.get('/collections/:id/xml', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
+    if (k.status === 'verworfen' || !k.xml) return bad(res, 'Dieser Einzug wurde verworfen – es gibt keine Datei mehr.', 410);
     C.audit(req.user, 'SEPA-Datei heruntergeladen', `Einzug ${k.id} (${k.count} Lastschriften, ${euro(k.cents)})`);
     res.set({ 'Content-Type': 'application/xml; charset=utf-8', 'Content-Disposition': `attachment; filename="SEPA-Lastschrift_${k.collection_date}_${k.id}.xml"`, 'Cache-Control': 'no-store' }).send(k.xml);
   });

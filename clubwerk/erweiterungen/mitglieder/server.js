@@ -483,6 +483,9 @@ function activate(ctx) {
     let ref = b.mandate_ref !== undefined ? one(b.mandate_ref, 35) : cur.mandate_ref;
     if (ref) { const r = sepa.checkMandateRef(ref); if (!r.ok) return bad(res, 'Die Mandatsreferenz darf bis 35 Zeichen haben: Buchstaben, Ziffern und + ? / - : ( ) . , \' – keine Leerzeichen.'); }
     if (ref && ctx.db.prepare('SELECT 1 FROM mv_bank WHERE mandate_ref = ? AND member_id != ?').get(ref, id)) return bad(res, 'Diese Mandatsreferenz ist schon vergeben.');
+    // Gleiche Regel wie bei der Neuanlage: Die Unterschrift kann nicht in der Zukunft liegen (Tippfehler 2062 statt 2026 →
+    // Bank lehnt die Lastschrift ab, Mandatsverfall würde falsch berechnet)
+    if (b.mandate_date !== undefined && isDate(b.mandate_date) && b.mandate_date > today()) return bad(res, 'Das Datum der Unterschrift darf nicht in der Zukunft liegen.');
     if (b.newMandate) {   // neues Mandat (z. B. neue Bankverbindung): neue Referenz, Datum der Unterschrift
       if (!isDate(b.mandate_date)) return bad(res, 'Bitte das Datum der Unterschrift angeben.');
       const no = p.member_no || ctx.db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(id).member_no || String(id);

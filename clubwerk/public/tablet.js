@@ -11,6 +11,10 @@
   let session = null;   // { token, member?, event?, mode }
   let cart = new Map(); // articleId -> qty
   let customs = [];     // frei eingegebene Beträge: { cents, note }
+  // Schlüssel je Warenkorb-Absenden: Wiederholt das Tablet dieselbe Anfrage (Doppeltipp, WLAN-Aussetzer), bucht der
+  // Server nicht noch einmal, sondern antwortet mit dem ersten Ergebnis. Neue Auswahl → neuer Schlüssel.
+  let bookReqId = null;
+  const newReqId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
   let evFilter = '';
   let idleTimer = null;
 
@@ -609,6 +613,7 @@
   }
 
   function renderCart() {
+    bookReqId = null;                                   // Warenkorb hat sich geändert → nächstes Absenden ist eine neue Anfrage
     const items = [...cart.entries()].map(([id, q]) => ({ a: articles().find(x => x.id === id), q })).filter(x => x.a);
     $('cartList').innerHTML = (items.length || customs.length)
       ? items.map(({ a, q }) => { const nm = splitSize(a.name); return `<li><b class="nm">${esc(nm.name)}</b><span class="sb" title="${q} × ${euro(a.price_cents)}">${nm.size ? esc(nm.size) : euro(a.price_cents)}</span>
@@ -653,11 +658,14 @@
     if (!items.length) return;
     const btns = [$('bookBtn')];
     btns.forEach(b => { b.disabled = true; });
+    if (!bookReqId) bookReqId = newReqId();           // bleibt bei einem erneuten Versuch desselben Warenkorbs gleich
     try {
-      const r = await api('api/tablet/book', { token: session.token, items });
+      const r = await api('api/tablet/book', { token: session.token, items, requestId: bookReqId });
+      bookReqId = null;
       showDone(r);
     } catch (e) {
       toast(e.message, true);
+      if (e.status && e.status !== 401 && e.status < 500) bookReqId = null;   // fachlich abgelehnt → nächster Versuch ist eine neue Anfrage
       if (e.status === 401) backToStart(); else btns.forEach(b => { b.disabled = false; });
     }
   }
@@ -779,7 +787,7 @@
   }
   function backToStart() {
     if (session) api('api/tablet/logout', { token: session.token }).catch(() => {});
-    session = null; cart = new Map(); customs = []; letter = null; evFilter = ''; $('evSearch').value = '';
+    session = null; cart = new Map(); customs = []; bookReqId = null; letter = null; evFilter = ''; $('evSearch').value = '';
     clearTimeout(idleTimer);
     $('booking').classList.add('hidden');
     $('start').classList.remove('hidden');
