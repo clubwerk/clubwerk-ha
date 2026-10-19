@@ -2058,11 +2058,13 @@
   }
 
   /** zusätzliche Haken eines Bereichs je Mitglied (Hook accessOptions().flags, z. B. Buchen → „Gebühren zeigen“) – gleiche Zeile wie „auch unterwegs“ */
-  const flagChks = (m, a, key) => ((m.options && m.options.flags) || []).map(f => `<label class="chk" style="display:inline-flex;margin-left:10px;vertical-align:middle" title="${esc(f.title || '')}"><input type="checkbox" data-af="${key}:${esc(f.id)}" ${a && a.flags && a.flags[f.id] ? 'checked' : ''}> <span class="muted s">${esc(f.label)}</span></label>`).join('');
-  const bindFlags = (root, after) => root.querySelectorAll('[data-af]').forEach(c => { c.onchange = async () => {
-    const [id, mod, flag] = c.dataset.af.split(':');
-    try { await api(`app/member/${id}/access`, 'PUT', { module: mod, flags: { [flag]: c.checked } }); toast(c.checked ? 'Eingeschaltet.' : 'Ausgeschaltet.'); if (after) after(); } catch (e) { fail(e); c.checked = !c.checked; }
-  }; });
+  /* Zusatzschalter je Bereich als dezente Schaltflächen-Pills neben dem Haken (grün = an) */
+  const flagChks = (m, a, key) => ((m.options && m.options.flags) || []).map(f => { const on = Boolean(a && a.flags && a.flags[f.id]); return `<button type="button" class="pill tg${on ? ' on' : ''}" data-af="${key}:${esc(f.id)}" aria-pressed="${on}" title="${esc(f.title || '')}">${esc(f.label)}</button>`; }).join('');
+  const togglePill = async (b, save) => { const on = !b.classList.contains('on'); b.disabled = true; try { await save(on); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); } catch (e) { fail(e); } finally { b.disabled = false; } };
+  const bindFlags = (root, after) => root.querySelectorAll('[data-af]').forEach(b => { b.onclick = () => togglePill(b, async on => {
+    const [id, mod, flag] = b.dataset.af.split(':');
+    await api(`app/member/${id}/access`, 'PUT', { module: mod, flags: { [flag]: on } }); toast(on ? 'Eingeschaltet.' : 'Ausgeschaltet.'); if (after) after();
+  }); });
 
   RENDER.app = async () => {
     const r = await api('app');
@@ -2121,7 +2123,7 @@
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
-            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td style="white-space:nowrap"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<label class="chk" style="display:inline-flex;margin-left:10px;vertical-align:middle" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)"><input type="checkbox" data-aw="${x.member_id}:${m.id}" ${a && a.away ? 'checked' : ''}> <span class="muted s">auch unterwegs</span></label>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</td>`; }).join('')}
+            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td style="white-space:nowrap"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${x.member_id}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</td>`; }).join('')}
             <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
@@ -2154,10 +2156,10 @@
       const [id, mod] = c.dataset.am.split(':');
       try { const rr = await api(`app/member/${id}/access`, 'PUT', { module: mod, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); RENDER.app().catch(fail); } catch (e) { fail(e); c.checked = !c.checked; }
     }; });
-    $('main').querySelectorAll('[data-aw]').forEach(c => { c.onchange = async () => {
-      const [id, mod] = c.dataset.aw.split(':');
-      try { await api(`app/member/${id}/access`, 'PUT', { module: mod, away: c.checked }); toast(c.checked ? 'Auch von unterwegs nutzbar.' : 'Nur noch im Vereins-WLAN.'); } catch (e) { fail(e); c.checked = !c.checked; }
-    }; });
+    $('main').querySelectorAll('[data-aw]').forEach(b => { b.onclick = () => togglePill(b, async on => {
+      const [id, mod] = b.dataset.aw.split(':');
+      await api(`app/member/${id}/access`, 'PUT', { module: mod, away: on }); toast(on ? 'Auch von unterwegs nutzbar.' : 'Nur noch im Vereins-WLAN.');
+    }); });
     bindFlags($('main'));
     if ($('moRows')) {   // Reihenfolge der Bereiche: ↑ ↓ wie bei „Leiste am Tablet“
       const items = mods.map(m => ({ id: m.id, label: m.label || m.name }));

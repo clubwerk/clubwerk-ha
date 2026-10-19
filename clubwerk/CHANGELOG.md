@@ -1,5 +1,8 @@
 # Änderungen
 
+## 3.17.1
+- **Mitglieder-App – Zusatzschalter dezenter:** Die Haken „auch unterwegs“ und „Gebühren“ in der Freischaltungstabelle sind jetzt kleine Schaltflächen-Pills direkt neben dem Haken des Bereichs (grün = an), in einer Zeile ohne Versatz.
+
 ## 3.17.0
 **3.17.0 – Platzgebühren, Mitspieler-Pflicht, Ballmaschine & Ballwand, Reihenfolge der App-Bereiche**
 - Buchungssystem: neuer Reiter „Gebühren“ (Gast- und Platzgebühren mit Zahlungsstand aus der Mitgliederverwaltung, Filter offen/bezahlt, Jahr); Übersicht zeigt „Offene Platzgebühren“ mit Hinweis. Mitglieder sehen ihre offenen Gebühren in der App („Meine Platzgebühren“), wenn in der Mitglieder-App der Haken „Gebühren zeigen“ gesetzt ist.

@@ -491,7 +491,7 @@ function activate(ctx) {
   /** Haken „Gebühren zeigen“ je Mitglied (Kern: member_access.flags, vom Kern geparst als req.member.access.flags) */
   const feesOn = req => Boolean(req.member && req.member.access && req.member.access.flags && req.member.access.flags.fees);
   // für die Freischaltungstabelle des Kerns: zusätzliche Haken je Mitglied
-  ctx.hooks.accessOptions = () => ({ flags: [{ id: 'fees', label: 'Gebühren zeigen', title: 'Das Mitglied sieht unter „Buchen“ seine offenen Platz- und Gastgebühren („Meine Platzgebühren“).' }] });
+  ctx.hooks.accessOptions = () => ({ flags: [{ id: 'fees', label: 'Gebühren', title: 'Das Mitglied sieht unter „Buchen“ seine offenen Platz- und Gastgebühren („Meine Platzgebühren“).' }] });
   M.post('/quote', rateLimit('bkq', 120, 60000), ar(async (req, res) => {   // Preisvorschau vor dem Buchen
     const b = req.body || {}, own = int(b.id) ? db.prepare("SELECT id FROM bk_booking WHERE id = ? AND member_id = ? AND status = 'aktiv'").get(int(b.id), req.member.id) : null;
     try { const q = await check(req.member.id, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
