@@ -7424,6 +7424,11 @@
     "Termin ist": "date is",
     "Termine sind": "dates are",
     "Zu wenige Zusagen": "Too few confirmations",
-    "Zusagen / benötigt": "Confirmed / needed"
+    "Zusagen / benötigt": "Confirmed / needed",
+    "· spielt:": "· playing:",
+    "· spielt: {0}": "· playing: {0}",
+    "in {0} Mannschaften": "in {0} teams",
+    "Kann (alle Mannschaften)": "Can (all teams)",
+    "Kann nicht (alle Mannschaften)": "Can’t (all teams)"
   }
 }

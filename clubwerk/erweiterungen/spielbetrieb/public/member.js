@@ -39,7 +39,11 @@
       .sb-rr { display: flex; align-items: center; gap: 6px; padding-right: 10px; }
       .sb-det { grid-column: 1 / -1; padding: 0 14px 12px 72px; }
       .sb-det .sb-play { margin-top: 4px; } .sb-det .sb-line:first-child, .sb-det .sb-who:first-child { margin-top: 2px; }
-      @media (max-width: 360px) { .sb-det { padding-left: 14px; } }`;
+      @media (max-width: 360px) { .sb-det { padding-left: 14px; } }
+      /* Tag mit mehreren Mannschaften: aufgeklappt die einzelnen Mannschaften eingerückt, ohne zweiten Datumsblock */
+      .sb-sub { grid-column: 1 / -1; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--hover) 55%, var(--card)); }
+      .sb-sub .sb-row:first-child { border-top: 0; } .sb-sub .sb-row.open { background: transparent; }
+      .sb-sub .sb-rh { grid-template-columns: minmax(0, 1fr); padding-left: 72px; } .sb-sub .vh-date { display: none; }`;
     document.head.appendChild(s);
   }
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -67,29 +71,62 @@
         const games = d.games.filter(g => tab === 'alle' || String(g.team_id) === tab).filter(g => !g.past || g.date === d.today);
         // Saisonstart: noch offene Spieltage je Mannschaft mit einem Tipp beantworten
         const openBy = {}; d.games.filter(g => g.mine && !g.past && g.status === 'geplant' && !(g.me && g.me.state)).forEach(g => { openBy[g.team_id] = (openBy[g.team_id] || 0) + 1; });
-        const bulk = teams.filter(t => t.player && openBy[t.id] >= 3 && (tab === 'alle' || String(t.id) === tab));
+        // Sammelleiste: ab 3 offenen Terminen; in „Alle“ zählen alle Mannschaften zusammen (eine Leiste)
+        const bulk0 = teams.filter(t => t.player && openBy[t.id] && (tab === 'alle' || String(t.id) === tab));
+        const bulk = bulk0.reduce((n, t) => n + openBy[t.id], 0) >= 3 ? bulk0 : [];
+        const bulkIds = bulk.map(t => t.id).join(',');
         // Kopf: was zu tun ist und wen man bei Fragen anruft (Mannschaftsführer mit Handynummer – abschaltbar in den Einstellungen)
         const shown = teams.filter(t => tab === 'alle' || String(t.id) === tab);
         const openN = d.games.filter(g => g.mine && !g.past && g.status === 'geplant' && !(g.me && g.me.state) && shown.some(t => t.id === g.team_id)).length;
         const hasRt = games.some(g => g.kind === 'rahmen');
         const telOf = p => String(p || '').replace(/[^\d+]/g, '').replace(/^00/, '+').replace(/^0/, '+49');
-        const cts = shown.filter(t => t.contact && !t.contact.self);
+        // Ansprechpartner: dieselbe Person für mehrere Mannschaften nur einmal (mit allen Mannschaften dahinter)
+        const cts = []; for (const t of shown.filter(x => x.contact && !x.contact.self)) { const c0 = cts.find(c => c.contact.name === t.contact.name && c.contact.phone === t.contact.phone); if (c0) c0.names.push(t.name); else cts.push({ contact: t.contact, names: [t.name] }); }
         const head = `<div class="vh-card"><h3>${shown.length === 1 ? `<span translate="no">${esc(shown[0].name)}</span>` : 'Deine Mannschaften'}${shown.length === 1 && shown[0].league ? `<small translate="no">${esc(shown[0].league)}</small>` : ''}</h3>
           <p class="vh-lead">${openN ? `Bitte bei jedem Termin melden: <b>✓</b> ich kann · <b>✕</b> ich kann nicht. Danach stellt der Mannschaftsführer auf.${hasRt ? ' „Vorläufig“ heißt: Termin aus dem Rahmenterminplan, der Gegner kommt mit dem Spielplan.' : ''}` : 'Danke – alles beantwortet. Ändern geht jederzeit mit ✓ oder ✕.'}</p>
-          ${cts.length ? `<div class="vh-rows">${cts.map(t => `<div><span class="vh-tx"><strong translate="no">${esc(t.contact.name)}</strong><small>${esc(t.contact.role)}${shown.length > 1 ? ` · <span translate="no">${esc(t.name)}</span>` : ''}${t.contact.phone ? ` · ${esc(t.contact.phone)}` : ''}</small></span>${t.contact.phone ? `<a class="vh-btn sm sec" href="tel:${esc(telOf(t.contact.phone))}">Anrufen</a>` : ''}</div>`).join('')}</div>` : ''}</div>`;
+          ${cts.length ? `<div class="vh-rows">${cts.map(t => `<div><span class="vh-tx"><strong translate="no">${esc(t.contact.name)}</strong><small>${esc(t.contact.role)}${shown.length > 1 ? ` · <span translate="no">${esc(t.names.join(', '))}</span>` : ''}${t.contact.phone ? ` · ${esc(t.contact.phone)}` : ''}</small></span>${t.contact.phone ? `<a class="vh-btn sm sec" href="tel:${esc(telOf(t.contact.phone))}">Anrufen</a>` : ''}</div>`).join('')}</div>` : ''}</div>`;
         el.innerHTML = `${head}${teams.length > 1 ? `<div class="vh-seg">${[['alle', 'Alle'], ...teams.map(t => [String(t.id), t.name])].map(([k, l]) => `<button data-tab="${esc(k)}" class="${k === tab ? 'on' : ''}" translate="no">${esc(l)}</button>`).join('')}</div>` : ''}
-          ${bulk.map(t => `<div class="vh-bar a"><span><b translate="no">${esc(t.name)}</b>: ${openBy[t.id]} offen</span><button data-bulk="${t.id}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${t.id}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`).join('')}
-          ${games.length ? `<div class="vh-card flush">${games.map(row).join('')}</div>` : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
+          ${bulk.length > 1 ? `<div class="vh-bar a"><span><b>${bulk.reduce((n, t) => n + openBy[t.id], 0)} offen</b> in ${bulk.length} Mannschaften</span><button data-bulk="${bulkIds}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${bulkIds}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`
+            : bulk.map(t => `<div class="vh-bar a"><span><b translate="no">${esc(t.name)}</b>: ${openBy[t.id]} offen</span><button data-bulk="${t.id}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${t.id}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`).join('')}
+          ${games.length ? `<div class="vh-card flush">${(tab === 'alle' && teams.length > 1 ? byDay(games).map(([day, gs]) => (gs.length > 1 ? dayRow(day, gs) : row(gs[0]))) : games.map(row)).join('')}</div>` : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
           ${d.played ? `<p class="vh-lead" style="text-align:center;margin:4px 0 0">In dieser Saison hast du ${d.played}-mal gespielt.</p>` : ''}`;
         el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; draw(); }; });
-        el.querySelectorAll('[data-x]').forEach(b => { b.onclick = () => { const id = +b.dataset.x; if (openRows.has(id)) openRows.delete(id); else openRows.add(id); draw(); }; });
+        el.querySelectorAll('[data-x]').forEach(b => { b.onclick = () => { const id = /^d/.test(b.dataset.x) ? b.dataset.x : +b.dataset.x; if (openRows.has(id)) openRows.delete(id); else openRows.add(id); draw(); }; });
         el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(+b.dataset.g, b.dataset.ans); });
         el.querySelectorAll('[data-time]').forEach(b => { b.onclick = () => timeSheet(d.games.find(g => g.id === +b.dataset.time)); });
         el.querySelectorAll('[data-wd]').forEach(b => { b.onclick = () => withdrawSheet(d.games.find(g => g.id === +b.dataset.wd)); });
         el.querySelectorAll('[data-wdc]').forEach(b => { b.onclick = () => run(() => ctx.api('withdraw', 'POST', { game_id: +b.dataset.wdc, cancel: true }), 'Absage zurückgenommen – du bleibst aufgestellt.'); });
         el.querySelectorAll('[data-tk]').forEach(b => { b.onclick = () => run(() => ctx.api('task', 'POST', { task_id: +b.dataset.tk, take: b.dataset.take === '1' }), b.dataset.take === '1' ? 'Übernommen – danke!' : 'Abgegeben.'); });
         el.querySelectorAll('[data-lead]').forEach(b => { b.onclick = () => leadSheet(+b.dataset.lead); });
-        el.querySelectorAll('[data-bulk]').forEach(b => { b.onclick = () => run(() => ctx.api('avail/all', 'POST', { team_id: +b.dataset.bulk, state: b.dataset.st }), 'Gemeldet – danke!'); });
+        el.querySelectorAll('[data-bulk]').forEach(b => { b.onclick = () => run(async () => { for (const id of b.dataset.bulk.split(',')) await ctx.api('avail/all', 'POST', { team_id: +id, state: b.dataset.st }); }, 'Gemeldet – danke!'); });
+        el.querySelectorAll('[data-gans]').forEach(b => { b.onclick = () => answerDay(b.dataset.gans, b.dataset.ans); });
+      }
+      /* Mehrere Mannschaften: Termine am selben Tag zu einer Zeile zusammenfassen – ein ✓/✕ gilt für alle Mannschaften an dem Tag,
+         aufgeklappt lässt sich je Mannschaft einzeln antworten */
+      const answerable = g => g.mine && g.status !== 'abgesagt' && !g.past && (g.me || {}).role !== 'spielt';
+      function byDay(gs) { const m = new Map(); for (const g of gs) { if (!m.has(g.date)) m.set(g.date, []); m.get(g.date).push(g); } return [...m.entries()]; }
+      function dayRow(day, gs) {
+        const key = 'd' + day, open = openRows.has(key);
+        const ans = gs.filter(answerable), sts = ans.map(g => (g.me && g.me.state) || null);
+        const all = sts.length && sts.every(s => s === sts[0]) ? sts[0] : sts.some(Boolean) ? 'teils' : null;
+        const rt = gs.every(g => g.kind === 'rahmen');
+        const title = gs.map(g => g.team).join(' + ');
+        const lead = gs.some(g => g.lead), lt = lead ? (gs.every(g => g.status === 'abgesagt' || g.stats.ok) ? 'g' : 'r') : '';
+        const sub = all === 'teils' ? ans.map(g => `${g.team} ${g.me && g.me.state === 'ja' ? '✓' : g.me && g.me.state === 'nein' ? '✕' : 'offen'}`).join(' · ')
+          : rt ? 'vorläufig' : gs.map(g => `${g.team}${g.start ? ' ' + g.start : ''} ${g.home ? 'Heim' : 'ausw.'}`).join(' · ');
+        const roles = gs.filter(g => (g.me || {}).role === 'spielt').map(g => g.team);
+        const right = ans.length ? `<span class="vh-yn"><button class="y ${all === 'ja' ? 'on' : ''}" data-gans="${day}" data-ans="ja" aria-label="Kann (alle Mannschaften)">✓</button><button class="n ${all === 'nein' ? 'on' : ''}" data-gans="${day}" data-ans="nein" aria-label="Kann nicht (alle Mannschaften)">✕</button></span>`
+          : roles.length ? '<span class="vh-chip g">spielt</span>' : '';
+        return `<div class="sb-row sb-day${open ? ' open' : ''}">
+          <button class="sb-rh" data-x="${key}" aria-expanded="${open}"><span class="vh-date">${lead ? `<i class="${lt}"></i>` : ''}<b>${esc(day.slice(8, 10))}.${esc(day.slice(5, 7))}.</b><span>${esc(wd(day))}</span></span>
+            <span class="sb-tt"><strong translate="no">${esc(title)}${rt ? ` · ${gs.some(g => g.za) ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : ''}</strong><small>${esc(sub)}${all === null && ans.length ? ' · <em>offen</em>' : ''}${roles.length ? ` · spielt: ${esc(roles.join(', '))}` : ''}</small></span></button>
+          <span class="sb-rr">${right}</span>
+          ${open ? `<div class="sb-sub">${gs.map(row).join('')}</div>` : ''}</div>`;
+      }
+      async function answerDay(day, state) {
+        const gs = d.games.filter(g => g.date === day && answerable(g) && (tab === 'alle' || String(g.team_id) === tab));
+        const same = gs.every(g => g.me && g.me.state === state);   // nochmal tippen = für alle zurücknehmen
+        await run(async () => { for (const g of gs) await ctx.api('avail', 'POST', { game_id: g.id, state: same ? null : state }); });
       }
       /** eine Zeile je Spieltag: Datum · Titel · ✓/✕ (oder „spielt“/„Ersatz“) – Antippen klappt die Details auf */
       function row(g) {
