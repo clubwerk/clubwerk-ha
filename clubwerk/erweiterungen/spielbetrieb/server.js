@@ -135,16 +135,21 @@ function activate(ctx) {
   const gameTitle = (g, t) => (g.kind === 'rahmen' ? `${t ? t.name : 'Spiel'} · ${g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : `${t ? t.name : 'Spiel'} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`);
   const gameWhen = g => `${wd(g.date)} ${deD(g.date)}${g.start ? ` · ${g.start} Uhr` : ''}`;
 
+  /** Wer spielt am selben Tag schon in einer anderen Mannschaft? → Map member_id → Mannschaftsname (eine Person spielt je Tag nur einmal) */
+  const playingElsewhere = g => new Map(db.prepare(`SELECT l.member_id, t.name FROM sp_lineup l JOIN sp_game g2 ON g2.id = l.game_id JOIN sp_team t ON t.id = g2.team_id
+    WHERE g2.date = ? AND g2.id != ? AND g2.status = 'geplant' AND l.role = 'spielt'`).all(g.date, g.id).map(r => [r.member_id, r.name]));
   /** Zahlen und Ampel für einen Spieltag */
   function stats(g, t, ros) {
     ros = ros || roster(g.team_id);
-    const ids = new Set(ros.map(r => r.member_id));
+    const ids = new Set(ros.map(r => r.member_id)), busy = playingElsewhere(g);
     const av = db.prepare('SELECT member_id, state FROM sp_avail WHERE game_id = ?').all(g.id).filter(a => ids.has(a.member_id));
-    const yes = av.filter(a => a.state === 'ja').length, no = av.filter(a => a.state === 'nein').length;
+    // wer am selben Tag schon in einer anderen Mannschaft spielt, zählt hier nicht als Zusage
+    const yes = av.filter(a => a.state === 'ja' && !busy.has(a.member_id)).length, no = av.filter(a => a.state === 'nein').length;
     const lu = db.prepare('SELECT role, withdraw FROM sp_lineup WHERE game_id = ?').all(g.id);
     const playing = lu.filter(x => x.role === 'spielt').length, reserve = lu.filter(x => x.role === 'ersatz').length, withdraws = lu.filter(x => x.withdraw).length;
     const min = (t || team(g.team_id) || {}).min_players || 4;
-    return { roster: ros.length, yes, no, open: ros.length - yes - no, playing, reserve, withdraws, min, ok: yes >= min, lineupOk: playing >= min };
+    const elsewhere = av.filter(a => a.state === 'ja' && busy.has(a.member_id)).length;
+    return { roster: ros.length, yes, no, open: ros.length - yes - no - elsewhere, elsewhere, playing, reserve, withdraws, min, ok: yes >= min, lineupOk: playing >= min };
   }
 
   /* ---------- Nachrichten: Push immer, E-Mail zusätzlich (wenn Mitgliederverwaltung + Postfach + Einstellung) ---------- */
@@ -222,10 +227,11 @@ function activate(ctx) {
     const st = stats(g, t, ros);
     const out = { id: g.id, team_id: g.team_id, team: t ? t.name : '', league: g.league, date: g.date, start: g.start, home: Boolean(g.home), opponent: g.opponent, venue: g.venue,
       status: g.status, kind: g.kind, za: Boolean(g.za), released: Boolean(g.released), meet_time: g.meet_time, meet_place: g.meet_place, note: g.note, result: g.result, past: g.date < today(), stats: st, sent: g.lineup_sent_at };
+    const busy = playingElsewhere(g);
     const person = (id, name, inRoster) => {
       const a = av.get(id), l = lu.get(id);
       return { id, name, ln: lf(name), short: short(name), inRoster, state: a ? a.state : null, from: a ? a.from_t : null, until: a ? a.until_t : null, note: a ? a.note : null,
-        role: l ? l.role : null, withdraw: l ? Boolean(l.withdraw) : false, withdraw_note: l ? l.withdraw_note : null, rank: (ros.find(r => r.member_id === id) || {}).rank };
+        role: l ? l.role : null, elsewhere: busy.get(id) || null, withdraw: l ? Boolean(l.withdraw) : false, withdraw_note: l ? l.withdraw_note : null, rank: (ros.find(r => r.member_id === id) || {}).rank };
     };
     const people = ros.map(r => person(r.member_id, r.name, true));
     // Aushilfen aus anderen Mannschaften, die aufgestellt sind
@@ -350,6 +356,10 @@ function activate(ctx) {
     if (!isMember(memberId)) throw new Error('Mitglied nicht gefunden.');
     const a = db.prepare('SELECT state FROM sp_avail WHERE game_id = ? AND member_id = ?').get(g.id, memberId);
     if (a && a.state === 'nein') throw new Error(`${short(memberName(memberId))} hat für diesen Spieltag abgesagt.`);
+    const other = playingElsewhere(g).get(memberId);
+    if (other) throw new Error(`${short(memberName(memberId))} spielt an diesem Tag schon in ${other} – je Tag geht nur ein Einsatz.`);
+    // aufgestellt: eine Ersatz-Einplanung in einer anderen Mannschaft am selben Tag entfällt
+    if (role === 'spielt') db.prepare(`DELETE FROM sp_lineup WHERE member_id = ? AND role = 'ersatz' AND game_id IN (SELECT id FROM sp_game WHERE date = ? AND id != ?)`).run(memberId, g.date, g.id);
     db.prepare(`INSERT INTO sp_lineup(game_id, member_id, role, by_user) VALUES (?,?,?,?)
       ON CONFLICT(game_id, member_id) DO UPDATE SET role = excluded.role, by_user = excluded.by_user, at = datetime('now','localtime')`).run(g.id, memberId, role, by);
     if (role === 'spielt' && (!cur || cur.role !== 'spielt') && g.date >= today()) tell([memberId], 'aufgestellt', { title: `Du spielst: ${t.name}`, body: `${gameTitle(g, t)}, ${gameWhen(g)}` });
@@ -395,7 +405,10 @@ function activate(ctx) {
     const teams = myTeams(me);
     const cap = captainOf(me);
     const playIn = new Set(db.prepare('SELECT team_id FROM sp_player WHERE member_id = ?').all(me).map(r => r.team_id));
-    const games = futureGames(teams.map(t => t.id)).map(g => gameView(g, { viewer: me })).map(v => ({ ...v, mine: playIn.has(v.team_id), lead: cap.includes(v.team_id) }));
+    // eigene Einsätze je Tag: an einem Tag, an dem ich schon in einer Mannschaft spiele, steht bei den anderen „spielt in …“
+    const plays = db.prepare(`SELECT g.id, g.date, t.name FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id JOIN sp_team t ON t.id = g.team_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date >= ? AND g.status = 'geplant'`).all(me, addDays(today(), -1));
+    const games = futureGames(teams.map(t => t.id)).map(g => gameView(g, { viewer: me })).map(v => { const o = plays.find(x => x.date === v.date && x.id !== v.id);
+      return { ...v, mine: playIn.has(v.team_id), lead: cap.includes(v.team_id), elsewhere: o ? o.name : null }; });
     const past = db.prepare(`SELECT g.*, l.role FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date < ? AND g.date >= ? ORDER BY g.date DESC`).all(me, today(), `${today().slice(0, 4)}-01-01`);
     const contacts = c.capInfo ? await Promise.all(teams.map(t => contactOf(t, me))) : teams.map(() => null);
     res.json({ today: today(), teams: teams.map((t, i) => ({ id: t.id, name: t.name, league: t.league, min: t.min_players, lead: cap.includes(t.id), player: playIn.has(t.id), captain: t.captain_id ? short(memberName(t.captain_id)) : null, contact: contacts[i] })),

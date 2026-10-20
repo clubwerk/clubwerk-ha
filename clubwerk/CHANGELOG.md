@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.27.2
+
+- **Ein Einsatz je Tag (Spielbetrieb 1.3.2):** Wer an einem Tag in einer Mannschaft aufgestellt ist, kann am selben Tag in keiner anderen Mannschaft aufgestellt oder als Ersatz geführt werden (eine Ersatz-Einplanung dort entfällt automatisch). Der andere Mannschaftsführer sieht „spielt in Herren“, die Zusage zählt bei ihm nicht mehr mit (Ampel und Übersicht bleiben ehrlich). Der Spieler sieht beim anderen Spieltag „spielt in …“ statt ✓/✕. Rückmeldungen gehen wie bisher an alle betroffenen Mannschaftsführer – jeder sieht sie bei seinem Spieltag.
+
 ## 3.27.1
 
 - **Spieltage in mehreren Mannschaften (Spielbetrieb 1.3.1):** In „Alle“ steht jeder Tag nur noch einmal („Herren + Herren 30“). Ein ✓/✕ gilt für alle Mannschaften an diesem Tag; antippen klappt die einzelnen Mannschaften auf, um getrennt zu antworten („Herren ✕ · Herren 30 offen“). Eine gemeinsame Leiste „8 offen in 2 Mannschaften · Alle ✓ / Alle ✕“; derselbe Mannschaftsführer erscheint nur einmal.

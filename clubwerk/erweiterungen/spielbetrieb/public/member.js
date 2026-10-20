@@ -103,7 +103,7 @@
       }
       /* Mehrere Mannschaften: Termine am selben Tag zu einer Zeile zusammenfassen – ein ✓/✕ gilt für alle Mannschaften an dem Tag,
          aufgeklappt lässt sich je Mannschaft einzeln antworten */
-      const answerable = g => g.mine && g.status !== 'abgesagt' && !g.past && (g.me || {}).role !== 'spielt';
+      const answerable = g => g.mine && g.status !== 'abgesagt' && !g.past && (g.me || {}).role !== 'spielt' && !g.elsewhere;
       function byDay(gs) { const m = new Map(); for (const g of gs) { if (!m.has(g.date)) m.set(g.date, []); m.get(g.date).push(g); } return [...m.entries()]; }
       function dayRow(day, gs) {
         const key = 'd' + day, open = openRows.has(key);
@@ -112,14 +112,15 @@
         const rt = gs.every(g => g.kind === 'rahmen');
         const title = gs.map(g => g.team).join(' + ');
         const lead = gs.some(g => g.lead), lt = lead ? (gs.every(g => g.status === 'abgesagt' || g.stats.ok) ? 'g' : 'r') : '';
-        const sub = all === 'teils' ? ans.map(g => `${g.team} ${g.me && g.me.state === 'ja' ? '✓' : g.me && g.me.state === 'nein' ? '✕' : 'offen'}`).join(' · ')
+        const playsIn = gs.filter(g => (g.me || {}).role === 'spielt').map(g => g.team);
+        const sub = playsIn.length ? `Du spielst in ${playsIn.join(', ')}` : all === 'teils' ? ans.map(g => `${g.team} ${g.me && g.me.state === 'ja' ? '✓' : g.me && g.me.state === 'nein' ? '✕' : 'offen'}`).join(' · ')
           : rt ? 'vorläufig' : gs.map(g => `${g.team}${g.start ? ' ' + g.start : ''} ${g.home ? 'Heim' : 'ausw.'}`).join(' · ');
         const roles = gs.filter(g => (g.me || {}).role === 'spielt').map(g => g.team);
         const right = ans.length ? `<span class="vh-yn"><button class="y ${all === 'ja' ? 'on' : ''}" data-gans="${day}" data-ans="ja" aria-label="Kann (alle Mannschaften)">✓</button><button class="n ${all === 'nein' ? 'on' : ''}" data-gans="${day}" data-ans="nein" aria-label="Kann nicht (alle Mannschaften)">✕</button></span>`
           : roles.length ? '<span class="vh-chip g">spielt</span>' : '';
         return `<div class="sb-row sb-day${open ? ' open' : ''}">
           <button class="sb-rh" data-x="${key}" aria-expanded="${open}"><span class="vh-date">${lead ? `<i class="${lt}"></i>` : ''}<b>${esc(day.slice(8, 10))}.${esc(day.slice(5, 7))}.</b><span>${esc(wd(day))}</span></span>
-            <span class="sb-tt"><strong translate="no">${esc(title)}${rt ? ` · ${gs.some(g => g.za) ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : ''}</strong><small>${esc(sub)}${all === null && ans.length ? ' · <em>offen</em>' : ''}${roles.length ? ` · spielt: ${esc(roles.join(', '))}` : ''}</small></span></button>
+            <span class="sb-tt"><strong translate="no">${esc(title)}${rt ? ` · ${gs.some(g => g.za) ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : ''}</strong><small>${esc(sub)}${all === null && ans.length ? ' · <em>offen</em>' : ''}</small></span></button>
           <span class="sb-rr">${right}</span>
           ${open ? `<div class="sb-sub">${gs.map(row).join('')}</div>` : ''}</div>`;
       }
@@ -132,10 +133,10 @@
       function row(g) {
         const me = g.me || {}, s = g.stats, cancelled = g.status === 'abgesagt', open = openRows.has(g.id);
         const lt = cancelled ? '' : s.ok ? 'g' : 'r';
-        const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
+        const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt' && !g.elsewhere;
         const sub = g.kind === 'rahmen' ? `vorläufig${me.state === 'ja' && (me.from || me.until) ? ' · ' + [me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') : ''}`
           : [g.start ? `${g.start} Uhr` : '', g.home ? 'Heim' : 'auswärts', g.lead ? `${s.yes}/${s.min} können` : ''].filter(Boolean).join(' · ');
-        const tag = cancelled ? '<span class="vh-chip">abgesagt</span>' : me.role === 'spielt' ? `<span class="vh-chip ${me.withdraw ? 'a' : 'g'}">${me.withdraw ? 'Absage offen' : 'spielt'}</span>` : '';
+        const tag = cancelled ? '<span class="vh-chip">abgesagt</span>' : g.elsewhere && me.role !== 'spielt' ? `<span class="vh-chip" translate="no">spielt in ${esc(g.elsewhere)}</span>` : me.role === 'spielt' ? `<span class="vh-chip ${me.withdraw ? 'a' : 'g'}">${me.withdraw ? 'Absage offen' : 'spielt'}</span>` : '';
         const right = answerable ? `<span class="vh-yn"><button class="y ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}" aria-label="Kann">✓</button><button class="n ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}" aria-label="Kann nicht">✕</button></span>${me.role === 'ersatz' ? '<span class="vh-chip a">Ersatz</span>' : ''}` : tag;
         return `<div class="sb-row${cancelled ? ' x' : ''}${open ? ' open' : ''}">
           <button class="sb-rh" data-x="${g.id}" aria-expanded="${open}"><span class="vh-date">${g.lead ? `<i class="${lt}"></i>` : ''}<b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></span>
@@ -153,7 +154,7 @@
         else if (me.role === 'spielt' && me.withdraw) mine = `<div class="sb-play wd"><b>Du spielst – Absage angefragt</b><p>Der Mannschaftsführer muss die Absage bestätigen und Ersatz einplanen. Bis dahin bist du aufgestellt.</p><button data-wdc="${g.id}">Absage zurücknehmen</button></div>`;
         else if (me.role === 'spielt') mine = `<div class="sb-play"><b>Du spielst</b><p>${esc(meet || 'Der Mannschaftsführer schickt Treffpunkt und Aufstellung.')}</p><button data-wd="${g.id}">Kann doch nicht – Absage anfragen</button></div>`;
         else if (me.role === 'ersatz') mine = `<div class="sb-play"><b>Du bist Ersatz</b><p>${esc(meet || 'Halte dich bitte bereit.')}</p><button data-wd="${g.id}">Kann doch nicht</button></div>`;
-        const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
+        const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt' && !g.elsewhere;
         const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button class="vh-btn sm" data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="vh-btn sm sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
         return `          ${mine}
           ${!g.home && g.venue && g.kind !== 'rahmen' ? `<div class="sb-line"><span translate="no">${esc(g.venue)}</span></div>` : ''}${g.kind === 'rahmen' ? '<div class="sb-line"><span>Gegner und Heim/Auswärts kommen mit dem Spielplan.</span></div>' : ''}
@@ -197,8 +198,8 @@
         const act = async (path, body, msg) => { try { v = await ctx.api('lead/' + path, 'POST', { game_id: id, ...body }); if (msg) ctx.toast(msg); paint(); } catch (e) { ctx.toast(e.message, true); paint(); } };
         const paint = () => {
           const s = v.stats;
-          const av = p => (p.state === 'ja' ? `<span class="vh-chip g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="vh-chip r">kann nicht</span>' : '<span class="vh-chip">offen</span>');
-          const seg = p => `<div class="sb-seg">${[['spielt', 'spielt', ''], ['ersatz', 'Ersatz', 'e'], ['', '–', '']].map(([r, l, c]) => `<button data-role="${r}" data-p="${p.id}" class="${(p.role || '') === r ? 'on ' + c : ''}" ${p.state === 'nein' && r ? 'disabled' : ''}>${l}</button>`).join('')}</div>`;
+          const av = p => (p.elsewhere && !p.role ? `<span class="vh-chip r">spielt in <span translate="no">${esc(p.elsewhere)}</span></span>` : p.state === 'ja' ? `<span class="vh-chip g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="vh-chip r">kann nicht</span>' : '<span class="vh-chip">offen</span>');
+          const seg = p => `<div class="sb-seg">${[['spielt', 'spielt', ''], ['ersatz', 'Ersatz', 'e'], ['', '–', '']].map(([r, l, c]) => `<button data-role="${r}" data-p="${p.id}" class="${(p.role || '') === r ? 'on ' + c : ''}" ${(p.state === 'nein' || (p.elsewhere && !p.role)) && r ? 'disabled' : ''}>${l}</button>`).join('')}</div>`;
           const row = p => `<div class="sb-p ${p.withdraw ? 'wd' : ''}"><span class="rk">${p.inRoster ? esc(p.rank ?? '') : '+'}</span><div style="min-width:0"><strong translate="no">${esc(p.ln)}</strong><small>${av(p)}${p.note ? ' ' + esc(p.note) : ''}${p.inRoster ? '' : ' · Aushilfe'}</small></div>${seg(p)}
             ${p.withdraw ? `<div class="sb-wd"><span style="flex:2;font-size:13px;color:var(--amber);font-weight:700;align-self:center">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</span><button class="ok" data-acc="${p.id}">Bestätigen</button><button data-dec="${p.id}">Ablehnen</button></div>` : ''}</div>`;
           const order = [...v.people].sort((a, b) => (a.state === 'ja' ? 0 : a.state ? 2 : 1) - (b.state === 'ja' ? 0 : b.state ? 2 : 1) || (a.rank || 99) - (b.rank || 99));

@@ -7429,6 +7429,13 @@
     "· spielt: {0}": "· playing: {0}",
     "in {0} Mannschaften": "in {0} teams",
     "Kann (alle Mannschaften)": "Can (all teams)",
-    "Kann nicht (alle Mannschaften)": "Can’t (all teams)"
+    "Kann nicht (alle Mannschaften)": "Can’t (all teams)",
+    "{0} in anderer Mannschaft": "{0} in another team",
+    "{0} spielt an diesem Tag schon in {1} – je Tag geht nur ein Einsatz.": "{0} is already playing in {1} on this day – only one match per day.",
+    "Du spielst in": "You play in",
+    "Du spielst in {0}": "You play in {0}",
+    "Spielt an diesem Tag schon in einer anderen Mannschaft": "Already playing in another team on this day",
+    "spielt in": "plays in",
+    "spielt in {0}": "plays in {0}"
   }
 }
