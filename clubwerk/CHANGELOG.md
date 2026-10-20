@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.21.1
+
+- E-Mails zu Buchungen: Statt „In der App öffnen“ gibt es jetzt **„Zum Kalender hinzufügen“** direkt unter dem Termin in der Infokarte (bei neuen und geänderten Buchungen). Der Knopf öffnet die Kalenderdatei des Termins – auf dem iPhone fragt der Kalender dann direkt nach. Ist die App nicht von unterwegs erreichbar, hängt der Termin stattdessen als Kalenderdatei an der Mail. In der Textfassung steht der Link mit dabei.
+
 ## 3.21.0
 
 - **Verschlüsselung der persönlichen Daten (neu):** Adressen, Kontaktdaten, Geburtsdaten, Bankdaten, Unterschriften, Anträge, Änderungsverlauf, SEPA-Dateien, Buchhaltungs-Anschriften sowie Mitgliederdokumente, Profilfotos und Mail-Anhänge liegen auf Wunsch verschlüsselt auf der Platte (AES-256-GCM). Einschalten unter Datensicherung → „Verschlüsselung der persönlichen Daten“ – mit Wiederherstellungscode zum Ausdrucken (zwei Blätter: Vorsitz und Kassenwart) und Probe.

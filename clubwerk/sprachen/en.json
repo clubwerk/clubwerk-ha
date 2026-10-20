@@ -6712,6 +6712,9 @@
     "Zeichen": "Characters",
     "Zeichen {0}": "Characters {0}",
     "zwei Blätter drucken": "print two sheets",
-    "Zwei Blätter drucken": "Print two sheets"
+    "Zwei Blätter drucken": "Print two sheets",
+    "text/calendar; charset=utf-8; method=PUBLISH": "text/calendar; charset=utf-8; method=PUBLISH",
+    "Zum Kalender hinzufügen": "Add to calendar",
+    "Zum Kalender hinzufügen: {0}": "Add to calendar: {0}"
   }
 }

@@ -235,7 +235,8 @@ function activate(ctx) {
       : kind === 'aenderung' ? `${by ? nameOf(by) : 'Der Verein'} hat die Buchung geändert${old && (old.date !== b.date || old.start !== b.start || old.end !== b.end || old.resource_id !== b.resource_id) ? ` (vorher: ${ro.name}, ${WD[isoDow(old.date)]} ${deD(old.date)} · ${old.start}–${old.end} Uhr)` : ''}. So sieht sie jetzt aus:`
       : `${nameOf(b.member_id)} hat dich als Mitspieler eingetragen:`;
     const outro = kind === 'storno' ? 'Der Platz ist damit wieder frei.' : 'Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Buchen“.';
-    notify(ids, head, [intro, '', ...summary(b), '', outro], null, { heading: kind === 'storno' ? 'Buchung storniert' : kind === 'aenderung' ? 'Buchung geändert' : 'Du bist als Mitspieler eingetragen', intro, title: when, rows: summaryRows(b), outro }).catch(() => {});
+    notify(ids, head, [intro, '', ...summary(b), '', outro], null, { heading: kind === 'storno' ? 'Buchung storniert' : kind === 'aenderung' ? 'Buchung geändert' : 'Du bist als Mitspieler eingetragen', intro, title: when, rows: summaryRows(b), outro,
+      calendar: kind === 'storno' ? null : calendarFor(b) }).catch(() => {});
   }
   const guestLabel = g => `${g.name} (${g.partner ? 'Gast, Partnerverein' : 'Gast'})`;
   const feeOf = r => (r.guest_fee_cents != null ? r.guest_fee_cents : cfg().guest_fee_cents);
@@ -401,8 +402,13 @@ function activate(ctx) {
       if (!a || !a.email) continue;
       const hi = `Hallo ${String(a.name || '').split(' ')[0]},`, club = ctx.getSetting('club_name', 'Verein');
       // card = { title, rows, intro, outro }: gestaltete Infokarte in der HTML-Mail (Textfassung bleibt wie bisher)
-      const mc = card ? { heading: card.heading, before: [hi, '', card.intro || ''].join('\n'), title: card.title, rows: card.rows, after: [card.outro || '', '', 'Viele Grüße', club].join('\n'), button: true } : null;
-      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, '', 'Viele Grüße', club].join('\n'), card: mc }); n++; } catch (e) { /* weiter */ }
+      // Kalender: „Zum Kalender hinzufügen“ in der Infokarte (Link auf die .ics-Datei, von unterwegs erreichbar) – ohne öffentliche Adresse als Anhang
+      const cal = card && card.calendar;
+      const mc = card ? { heading: card.heading, before: [hi, '', card.intro || ''].join('\n'), title: card.title, rows: card.rows, after: [card.outro || '', '', 'Viele Grüße', club].join('\n'),
+        calendar: cal && cal.url ? { url: cal.url } : null } : null;
+      const calLine = cal && cal.url ? ['', `Zum Kalender hinzufügen: ${cal.url}`] : [];
+      const attachments = cal && !cal.url ? [{ filename: `termin-${cal.date}.ics`, content: cal.ics, contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] : undefined;
+      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, ...calLine, '', 'Viele Grüße', club].join('\n'), card: mc, attachments }); n++; } catch (e) { /* weiter */ }
     }
     return n;
   }
@@ -565,11 +571,13 @@ function activate(ctx) {
   const icsUrl = id => `api/p/buchung/ics/${id}?k=${icsToken(id)}`;
   const utc = (d, t) => new Date(`${d}T${t === '24:00' ? '23:59' : t}:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const icsEsc = v => String(v || '').replace(/\\/g, '\\\\').replace(/[;,]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
-  ctx.public.get('/ics/:id', (req, res) => {
-    const id = int(req.params.id), k = String(req.query.k || '');
-    const ok = k.length === 32 && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));
-    const b = ok ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(id) : null;
-    if (!b) return res.status(404).type('text/plain; charset=utf-8').send('Diese Buchung gibt es nicht (mehr).');
+  /** Kalender für eine Buchung in Mails: Link (wenn die App von unterwegs erreichbar ist) oder die Datei selbst als Anhang */
+  function calendarFor(b) {
+    if (!b || !b.id) return null;
+    const pub = ctx.getSetting('ext_tunnel', '0') === '1' ? String(ctx.getSetting('ext_tunnel_url', '') || '').replace(/\/+$/, '') : '';
+    return { url: pub ? `${pub}/${icsUrl(b.id)}` : null, ics: pub ? null : icsText(b), date: b.date };
+  }
+  function icsText(b) {
     const r = resource(b.resource_id) || { name: 'Platz' };
     const players = [b.member_id ? nameOf(b.member_id) : null, ...J(b.partners, []).map(nameOf), ...normGuests(J(b.guests, [])).map(g => g.name)].filter(Boolean);
     const club = ctx.getSetting('club_name', 'Verein');
@@ -578,6 +586,14 @@ function activate(ctx) {
       `UID:bk-${b.id}@clubwerk`, `DTSTAMP:${utc(today(), hhmm(nowMin()))}`, `DTSTART:${utc(b.date, b.start)}`, `DTEND:${utc(b.date, b.end)}`,
       `SUMMARY:${icsEsc(`${r.name} – ${club}`)}`, `LOCATION:${icsEsc(addr ? `${club}, ${addr}` : club)}`, `DESCRIPTION:${icsEsc(`Spieler: ${players.join(', ')}`)}`,
       'BEGIN:VALARM', 'TRIGGER:-PT1H', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(r.name)}`, 'END:VALARM', 'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
+    return ics;
+  }
+  ctx.public.get('/ics/:id', (req, res) => {
+    const id = int(req.params.id), k = String(req.query.k || '');
+    const ok = k.length === 32 && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));
+    const b = ok ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(id) : null;
+    if (!b) return res.status(404).type('text/plain; charset=utf-8').send('Diese Buchung gibt es nicht (mehr).');
+    const ics = icsText(b);
     res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `inline; filename="buchung-${b.date}.ics"`, 'Cache-Control': 'no-store' }).send(ics);
   });
 

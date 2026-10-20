@@ -55,7 +55,7 @@ function render({ subject, text, card, preheader }) {
   const heading = (card && card.heading) || String(subject || '').replace(new RegExp(`\\s+[–-]\\s+${club.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '');
   if (card && card.title && card.title === heading) card = { ...card, title: '' };
   let cardHtml = '';
-  if (card && (card.title || (card.rows && card.rows.length))) {
+  if (card && (card.title || (card.rows && card.rows.length) || card.calendar)) {
     const rows = (card.rows || []).filter(r => r && r[1] != null && r[1] !== '');
     cardHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 18px;background:${soft};border:1px solid ${line};border-radius:12px;">
       <tr><td style="padding:16px 18px;">
@@ -63,9 +63,11 @@ function render({ subject, text, card, preheader }) {
         ${rows.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows.map(([k, v]) => `<tr>
           <td style="padding:4px 12px 4px 0;width:34%;vertical-align:top;font:400 13.5px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#5b6660;">${esc(k)}</td>
           <td style="padding:4px 0;vertical-align:top;font:600 14.5px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2723;">${esc(v)}</td></tr>`).join('')}</table>` : ''}
+        ${card.calendar && /^https:\/\//i.test(String(card.calendar.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 2px;"><tr>
+          <td style="border-radius:10px;background:${c};"><a href="${esc(card.calendar.url)}" style="display:inline-block;padding:11px 18px;font:700 14.5px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(card.calendar.label || 'Zum Kalender hinzufügen')}</a></td></tr></table>` : ''}
       </td></tr></table>`;
   }
-  const btn = card && card.button ? (card.button === true ? { label: 'In der App öffnen', url: appUrl() } : card.button) : null;
+  const btn = card && card.button && card.button !== true ? card.button : null;   // eigener Knopf je Mail (kein pauschales „In der App öffnen“ mehr)
   const btnHtml = btn && /^https?:\/\//i.test(String(btn.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 6px;"><tr>
       <td style="border-radius:10px;background:${c};"><a href="${esc(btn.url)}" style="display:inline-block;padding:12px 20px;font:700 15px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(btn.label || 'Öffnen')}</a></td></tr></table>` : '';
   const pre = preheader || (card && card.title) || '';
