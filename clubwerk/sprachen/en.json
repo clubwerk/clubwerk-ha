@@ -7440,6 +7440,10 @@
     "Keine Antwort vom Verein – bitte kurz prüfen, ob es angekommen ist, und sonst noch einmal versuchen.": "No answer from the club – please check whether it went through, otherwise try again.",
     "Keine Verbindung zum Verein – bitte gleich noch einmal versuchen.": "No connection to the club – please try again in a moment.",
     "Dieser Tag ist vorbei.": "This day is over.",
-    "Ungültiger Tag.": "Invalid day."
+    "Ungültiger Tag.": "Invalid day.",
+    "+ Gäste": "+ Guests",
+    "Belegte Tage werden ausgelassen.": "Booked days are skipped.",
+    "nur für die Verwaltung sichtbar": "only visible to the administration",
+    "Wer spielt": "Who plays"
   }
 }

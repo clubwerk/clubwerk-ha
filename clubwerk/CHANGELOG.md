@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.27.6
+
+- **Buchung eintragen (Verwaltung, Buchungssystem 1.4.4):** übersichtlicher aufgebaut – Platz, Datum und Zeit (von–bis) in einer Zeile, dann Buchungsart und Titel, darunter „Wer spielt“ (Mitglied, Mitspieler). Gäste und Wiederholen klappen erst auf „+ Gäste“ bzw. „Wiederholen …“ auf; die interne Notiz steht unten über die ganze Breite.
+- **Standarddauer 1 Stunde:** Ein Klick in den Kalender oder „Neue Buchung“ schlägt eine Stunde vor; wird der Beginn verschoben, wandert das Ende mit.
+
 ## 3.27.5
 
 - **Platzbelegung in der App (Buchungssystem 1.4.3):** Buchungsarten (z. B. Medenspiel) behalten ihre Farbe auch bei eigenen Buchungen; die eigene Buchung erkennt man dann am Rahmen in Vereinsfarbe.
