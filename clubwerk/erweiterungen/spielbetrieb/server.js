@@ -456,13 +456,32 @@ function activate(ctx) {
     }
     res.json({ ok: true });
   });
+  /** Ein Tag, mehrere Mannschaften: alle beantwortbaren Spieltage dieses Tags in einer Anfrage (state ja | nein | null) */
+  M.post('/avail/day', rateLimit('spav', 120, 60000), (req, res) => {
+    const b = req.body || {}, me = req.member.id, st = b.state == null || b.state === '' ? null : b.state;
+    if (!isDate(b.date)) return bad(res, 'Ungültiger Tag.');
+    if (st && !['ja', 'nein'].includes(st)) return bad(res, 'Bitte „kann“ oder „kann nicht“ wählen.');
+    if (b.date < today()) return bad(res, 'Dieser Tag ist vorbei.');
+    const gs = db.prepare(`SELECT g.* FROM sp_game g JOIN sp_player p ON p.team_id = g.team_id AND p.member_id = ? JOIN sp_team t ON t.id = g.team_id AND t.active = 1
+      WHERE g.date = ? AND g.status = 'geplant' AND g.released = 1`).all(me, b.date)
+      .filter(g => !db.prepare("SELECT 1 FROM sp_lineup WHERE game_id = ? AND member_id = ? AND role = 'spielt'").get(g.id, me) && !playingElsewhere(g).has(me));
+    const ins = db.prepare(`INSERT INTO sp_avail(game_id, member_id, state) VALUES (?,?,?) ON CONFLICT(game_id, member_id) DO UPDATE SET state = excluded.state, from_t = NULL, until_t = NULL, at = datetime('now','localtime')`);
+    db.transaction(() => gs.forEach(g => {
+      const l = db.prepare('SELECT role FROM sp_lineup WHERE game_id = ? AND member_id = ?').get(g.id, me);
+      if (!st) { db.prepare('DELETE FROM sp_avail WHERE game_id = ? AND member_id = ?').run(g.id, me); if (l && l.role === 'ersatz') db.prepare('DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ?').run(g.id, me); return; }
+      ins.run(g.id, me, st);
+      if (st === 'nein' && l && l.role === 'ersatz') { const tm0 = team(g.team_id); db.prepare('DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ?').run(g.id, me); tell(leaders(tm0), 'absage', { title: `Ersatz sagt ab: ${short(req.member.name)}`, body: `${gameTitle(g, tm0)}, ${gameWhen(g)}` }); }
+    }))();
+    res.json({ ok: true, n: gs.length });
+  });
   /** Saisonstart: alle offenen Spieltage einer Mannschaft auf einmal beantworten */
   M.post('/avail/all', rateLimit('spav', 120, 60000), (req, res) => {
     const b = req.body || {}, me = req.member.id;
     if (!['ja', 'nein'].includes(b.state)) return bad(res, 'Bitte „kann“ oder „kann nicht“ wählen.');
-    const tid = int(b.team_id);
-    if (!db.prepare('SELECT 1 FROM sp_player WHERE team_id = ? AND member_id = ?').get(tid, me)) return bad(res, 'Du spielst nicht in dieser Mannschaft.', 403);
-    const open = db.prepare(`SELECT g.id FROM sp_game g WHERE g.team_id = ? AND g.date >= ? AND g.status = 'geplant' AND g.released = 1 AND NOT EXISTS (SELECT 1 FROM sp_avail a WHERE a.game_id = g.id AND a.member_id = ?)`).all(tid, today(), me);
+    // eine oder mehrere Mannschaften (team_ids) in einer Anfrage
+    const tids = (Array.isArray(b.team_ids) ? b.team_ids : [b.team_id]).map(int).filter(Boolean).slice(0, 20);
+    if (!tids.length || tids.some(tid => !db.prepare('SELECT 1 FROM sp_player WHERE team_id = ? AND member_id = ?').get(tid, me))) return bad(res, 'Du spielst nicht in dieser Mannschaft.', 403);
+    const open = tids.flatMap(tid => db.prepare(`SELECT g.id FROM sp_game g WHERE g.team_id = ? AND g.date >= ? AND g.status = 'geplant' AND g.released = 1 AND NOT EXISTS (SELECT 1 FROM sp_avail a WHERE a.game_id = g.id AND a.member_id = ?)`).all(tid, today(), me));
     const ins = db.prepare('INSERT INTO sp_avail(game_id, member_id, state) VALUES (?,?,?)');
     db.transaction(() => open.forEach(g => ins.run(g.id, me, b.state)))();
     res.json({ ok: true, n: open.length });

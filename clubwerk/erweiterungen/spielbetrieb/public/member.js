@@ -98,7 +98,7 @@
         el.querySelectorAll('[data-wdc]').forEach(b => { b.onclick = () => run(() => ctx.api('withdraw', 'POST', { game_id: +b.dataset.wdc, cancel: true }), 'Absage zurückgenommen – du bleibst aufgestellt.'); });
         el.querySelectorAll('[data-tk]').forEach(b => { b.onclick = () => run(() => ctx.api('task', 'POST', { task_id: +b.dataset.tk, take: b.dataset.take === '1' }), b.dataset.take === '1' ? 'Übernommen – danke!' : 'Abgegeben.'); });
         el.querySelectorAll('[data-lead]').forEach(b => { b.onclick = () => leadSheet(+b.dataset.lead); });
-        el.querySelectorAll('[data-bulk]').forEach(b => { b.onclick = () => run(async () => { for (const id of b.dataset.bulk.split(',')) await ctx.api('avail/all', 'POST', { team_id: +id, state: b.dataset.st }); }, 'Gemeldet – danke!'); });
+        el.querySelectorAll('[data-bulk]').forEach(b => { b.onclick = () => run(() => ctx.api('avail/all', 'POST', { team_ids: b.dataset.bulk.split(',').map(Number), state: b.dataset.st }), 'Gemeldet – danke!'); });
         el.querySelectorAll('[data-gans]').forEach(b => { b.onclick = () => answerDay(b.dataset.gans, b.dataset.ans); });
       }
       /* Mehrere Mannschaften: Termine am selben Tag zu einer Zeile zusammenfassen – ein ✓/✕ gilt für alle Mannschaften an dem Tag,
@@ -127,7 +127,7 @@
       async function answerDay(day, state) {
         const gs = d.games.filter(g => g.date === day && answerable(g) && (tab === 'alle' || String(g.team_id) === tab));
         const same = gs.every(g => g.me && g.me.state === state);   // nochmal tippen = für alle zurücknehmen
-        await run(async () => { for (const g of gs) await ctx.api('avail', 'POST', { game_id: g.id, state: same ? null : state }); });
+        await run(() => ctx.api('avail/day', 'POST', { date: day, state: same ? null : state }));   // eine Anfrage für alle Mannschaften
       }
       /** eine Zeile je Spieltag: Datum · Titel · ✓/✕ (oder „spielt“/„Ersatz“) – Antippen klappt die Details auf */
       function row(g) {

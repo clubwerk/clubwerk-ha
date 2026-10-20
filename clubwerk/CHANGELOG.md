@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.27.4
+
+- **Spieltage (Spielbetrieb 1.3.3):** Ein ✓/✕ in der Tageszeile (mehrere Mannschaften) und „Alle ✓ / Alle ✕“ über mehrere Mannschaften sind jetzt jeweils eine einzige Anfrage – schneller und schont den Spamschutz der Mitglieder-App.
+
 ## 3.27.3
 
 - **Stabiler bei Fehlern im Hintergrund:** Ein Fehler beim Versand von E-Mail oder Push (oder in einer anderen Hintergrundaufgabe) beendet das Add-on nicht mehr – er steht als „Fehler im Hintergrund (abgefangen)“ im Protokoll, die Buchung läuft durch. Vorher riss dabei die Verbindung ab („Load failed“ in der App).
