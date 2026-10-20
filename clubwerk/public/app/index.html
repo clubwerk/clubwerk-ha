@@ -51,11 +51,18 @@
 
 <div class="vh-sheet" id="pairSheet"><div class="vh-box">
   <h2 id="pairTitle">Willkommen</h2>
-  <p>Lege deine persönliche PIN fest (4–8 Ziffern). Damit ist dieses Handy freigeschaltet – nur für dich. Du brauchst die PIN bei jedem Öffnen oder Starten.</p>
+  <div id="pairSms" class="vh-step hidden">
+    <p>Zur Sicherheit bekommst du einen Code per SMS an <b id="pairPhone" translate="no"></b>.</p>
+    <div class="vh-row"><button class="no" id="pairSmsGo">Code per SMS senden</button></div>
+    <input class="vh-input pin hidden" id="pairOtp" type="text" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="Code aus der SMS">
+  </div>
+  <p id="pairText">Lege deine persönliche PIN fest (4–8 Ziffern). Damit ist dieses Handy freigeschaltet – nur für dich. Du brauchst die PIN bei jedem Öffnen oder Starten.</p>
   <input class="vh-input pin" id="pair1" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
   <input class="vh-input pin" id="pair2" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN wiederholen">
+  <p class="vh-small hidden" id="pairNote">Türen und Beregnung schalten sich frei, sobald du die App einmal im Vereins-WLAN öffnest.</p>
   <div class="vh-err" id="pairErr"></div>
   <div class="vh-row"><button class="ok" id="pairOk">Freischalten</button></div>
+  <button class="vh-skip hidden" id="pairSkip">Ohne SMS-Code weiter</button>
 </div></div>
 
 <div class="vh-sheet" id="lockSheet"><div class="vh-box">

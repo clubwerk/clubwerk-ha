@@ -29,7 +29,10 @@ CREATE TABLE IF NOT EXISTS member_devices (
 CREATE INDEX IF NOT EXISTS ix_devices_scope ON member_devices(scope, member_id);
 CREATE INDEX IF NOT EXISTS ix_devices_token ON member_devices(scope, token_hash);   -- whoIs bei jedem App-Aufruf
 `);
-for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT'], ['token2_hash', 'TEXT'], ['handover_hash', 'TEXT'], ['handover_expires', 'INTEGER']]) {
+for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT'], ['token2_hash', 'TEXT'], ['handover_hash', 'TEXT'], ['handover_expires', 'INTEGER'],
+  // 3.24: Einladung per Mail/Brief, „schon benutzt“ erkennen, gestufte Freischaltung (remote), zweiter Faktor per SMS
+  ['invite_kind', 'TEXT'], ['used_hash', 'TEXT'], ['used_at', 'TEXT'], ['used_alerted', 'INTEGER NOT NULL DEFAULT 0'], ['remote', 'INTEGER NOT NULL DEFAULT 0'], ['verified', 'TEXT'],
+  ['otp_hash', 'TEXT'], ['otp_expires', 'INTEGER'], ['otp_tries', 'INTEGER NOT NULL DEFAULT 0'], ['otp_day', 'TEXT'], ['otp_count', 'INTEGER NOT NULL DEFAULT 0'], ['otp_last', 'INTEGER']]) {
   if (!db.prepare('PRAGMA table_info(member_devices)').all().some(x => x.name === c)) db.exec(`ALTER TABLE member_devices ADD COLUMN ${c} ${t}`);
 }
 db.exec('CREATE INDEX IF NOT EXISTS ix_devices_token2 ON member_devices(scope, token2_hash)');
@@ -38,6 +41,9 @@ db.exec('CREATE INDEX IF NOT EXISTS ix_devices_token2 ON member_devices(scope, t
 /* Gültigkeit einer Einladung in Stunden (Einstellung „app_invite_hours“: 1, 24 oder 168) */
 const INVITE_HOURS = [1, 24, 168];
 const inviteHours = () => { const h = parseInt(getSetting('app_invite_hours', '24'), 10); return INVITE_HOURS.includes(h) ? h : 24; };
+/* Einladungen per E-Mail oder Brief: eigene Gültigkeit in Tagen (Einstellung „app_invite_mail_days“: 2, 7 oder 14) */
+const MAIL_DAYS = [2, 7, 14];
+const mailDays = () => { const d = parseInt(getSetting('app_invite_mail_days', '7'), 10); return MAIL_DAYS.includes(d) ? d : 7; };
 /* PIN-Fehlversuche: je 5 in Folge kurze Sperre (5 Min., ab 10 Fehlern 30 Min.), nach 15 insgesamt ist das Gerät gesperrt */
 const LOCK_STREAK = 5, LOCK_LONG_AFTER = 10, BLOCK_AFTER = 15;
 const sha = s => crypto.createHash('sha256').update(String(s)).digest('hex');
@@ -55,18 +61,18 @@ function deviceLabel(ua) {
 /* issuerPerms: Rechte des Admins, der die Einladung erzeugt hat ('*' = alle). Wird einem Mitglied später ein Bereich mit
    eigenem Recht (z. B. Türen) freigeschaltet, den dieser Admin nicht verwalten durfte, wird das Handy entkoppelt – sonst
    könnte jemand mit wenig Rechten vorab sein eigenes Handy koppeln und später Türzugang „erben“. */
-function create(scope, memberId, by, issuerPerms) {
+function create(scope, memberId, by, issuerPerms, { kind = 'qr' } = {}) {
   scopeOk(scope);
+  const hours = kind === 'qr' ? inviteHours() : mailDays() * 24;
   const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(memberId);
   if (!m) throw new Error('Mitglied nicht gefunden.');
   const token = crypto.randomBytes(18).toString('base64url');
   db.transaction(() => {
     db.prepare('DELETE FROM member_devices WHERE scope = ? AND member_id = ?').run(scope, m.id);
-    db.prepare('INSERT INTO member_devices(scope, member_id, invite_hash, invite_expires, created_by, issuer_perms) VALUES (?,?,?,?,?,?)')
-      .run(scope, m.id, sha(token), Date.now() + inviteHours() * 3600000, by || null, issuerPerms === '*' ? '*' : JSON.stringify(issuerPerms || []));
+    db.prepare('INSERT INTO member_devices(scope, member_id, invite_hash, invite_expires, created_by, issuer_perms, invite_kind) VALUES (?,?,?,?,?,?,?)')
+      .run(scope, m.id, sha(token), Date.now() + hours * 3600000, by || null, issuerPerms === '*' ? '*' : JSON.stringify(issuerPerms || []), ['mail', 'brief'].includes(kind) ? kind : 'qr');
   })();
-  const hours = inviteHours();
-  return { token, member: m.name, expiresHours: hours, expiresAt: Date.now() + hours * 3600000, allowLink: getSetting('app_invite_link', '0') === '1' };
+  return { token, memberId: m.id, member: m.name, kind, expiresHours: hours, expiresAt: Date.now() + hours * 3600000, allowLink: getSetting('app_invite_link', '0') === '1' };
 }
 
 /** Einladung ansehen (vor dem Einlösen: für wen ist sie?) */
@@ -74,22 +80,62 @@ function peek(scope, inviteToken) {
   scopeOk(scope);
   const r = db.prepare(`SELECT d.*, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = ? AND d.invite_hash = ?`).get(scope, sha(inviteToken || ''));
-  if (!r) return { error: 'Diese Einladung ist ungültig oder wurde bereits verwendet. Bitte beim Vorstand einen neuen QR-Code holen.' };
-  if (r.invite_expires < Date.now()) return { error: 'Diese Einladung ist abgelaufen. Bitte beim Vorstand einen neuen QR-Code holen.' };
-  return { member: r.name };
+  if (!r) {
+    // schon eingelöst? Dann war jemand schneller (oder das Mitglied selbst auf einem anderen Gerät) – melden
+    const u = inviteToken ? db.prepare(`SELECT d.*, m.name FROM member_devices d JOIN members m ON m.id = d.member_id WHERE d.scope = ? AND d.used_hash = ?`).get(scope, sha(inviteToken)) : null;
+    if (u) return { error: `Diese Einladung wurde bereits am ${String(u.used_at || '').slice(0, 16).replace(/^(\d{4})-(\d\d)-(\d\d)/, '$3.$2.$1')} Uhr auf einem Gerät (${u.device || 'unbekannt'}) eingelöst. Warst du das nicht, melde dich bitte sofort beim Vorstand.`, used: true, deviceId: u.id, memberId: u.member_id, member: u.name, alerted: Boolean(u.used_alerted), usedDevice: u.device };
+    return { error: 'Diese Einladung ist ungültig oder wurde bereits verwendet. Bitte beim Vorstand einen neuen QR-Code holen.' };
+  }
+  if (r.invite_expires < Date.now()) return { error: 'Diese Einladung ist abgelaufen. Bitte beim Vorstand eine neue Einladung holen.' };
+  return { member: r.name, memberId: r.member_id, kind: r.invite_kind || 'qr', deviceId: r.id };
 }
 
 /** Einladung einlösen: PIN festlegen, Gerät koppeln → Geräteschlüssel (nur jetzt einmal im Klartext) */
-function redeem(scope, inviteToken, pin, userAgent, host) {
+/* remote: gekoppelt von unterwegs ohne zweiten Faktor → Türen/Beregnung erst nach dem ersten Besuch im Vereins-WLAN
+   (oder Freigabe durch den Vorstand). verified: 'sms', wenn der SMS-Code stimmte. */
+function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, verified = null } = {}) {
   const p = peek(scope, inviteToken);
   if (p.error) throw new Error(p.error);
   if (!/^\d{4,8}$/.test(String(pin || ''))) throw new Error('Die PIN muss aus 4 bis 8 Ziffern bestehen.');
   const device = crypto.randomBytes(24).toString('base64url');
-  const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, token2_hash = NULL, handover_hash = NULL, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?
-    WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), auth.hashSecret(String(pin)), deviceLabel(userAgent), now(), cleanHost(host), scope, sha(inviteToken), Date.now());
+  const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, token2_hash = NULL, handover_hash = NULL, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?,
+      used_hash = ?, used_at = ?, used_alerted = 0, remote = ?, verified = ?, otp_hash = NULL, otp_expires = NULL, otp_tries = 0
+    WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), auth.hashSecret(String(pin)), deviceLabel(userAgent), now(), cleanHost(host), sha(inviteToken), now(), remote ? 1 : 0, verified, scope, sha(inviteToken), Date.now());
   if (!r.changes) throw new Error('Diese Einladung ist ungültig oder wurde bereits verwendet.');
-  return { device, member: p.member };
+  return { device, member: p.member, memberId: p.memberId, deviceId: p.deviceId, kind: p.kind };
 }
+
+/* ---------- Zweiter Faktor per SMS (nur beim Einlösen einer Einladung von unterwegs) ----------
+   6 Ziffern, 10 Minuten gültig, 5 Versuche je Code; je Mitglied höchstens 3 SMS am Tag und 60 Sekunden Abstand. */
+const OTP_MIN = 10, OTP_TRIES = 5, OTP_PER_DAY = 3, OTP_GAP = 60000;
+/** neuen Code für die offene Einladung erzeugen → { code } oder { error, status } (Code nur jetzt im Klartext) */
+function otpCreate(scope, inviteToken) {
+  const p = peek(scope, inviteToken); if (p.error) return { error: p.error, status: 410 };
+  const d = db.prepare('SELECT * FROM member_devices WHERE id = ?').get(p.deviceId);
+  const day = now().slice(0, 10), count = d.otp_day === day ? d.otp_count : 0;
+  if (d.otp_last && Date.now() - d.otp_last < OTP_GAP) return { error: `Bitte ${Math.ceil((OTP_GAP - (Date.now() - d.otp_last)) / 1000)} Sekunden warten, dann geht eine neue SMS.`, status: 429 };
+  if (count >= OTP_PER_DAY) return { error: `Heute wurden schon ${OTP_PER_DAY} SMS verschickt – bitte morgen noch einmal oder beim Vorstand melden.`, status: 429 };
+  const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
+  db.prepare('UPDATE member_devices SET otp_hash = ?, otp_expires = ?, otp_tries = 0, otp_day = ?, otp_count = ?, otp_last = ? WHERE id = ?').run(sha(`${d.id}:${code}`), Date.now() + OTP_MIN * 60000, day, count + 1, Date.now(), d.id);
+  return { code, memberId: d.member_id, minutes: OTP_MIN };
+}
+/** Code prüfen (vor dem Einlösen) → { ok } oder { error, status } */
+function otpCheck(scope, inviteToken, code) {
+  const p = peek(scope, inviteToken); if (p.error) return { error: p.error, status: 410 };
+  const d = db.prepare('SELECT * FROM member_devices WHERE id = ?').get(p.deviceId);
+  if (!d.otp_hash || !(d.otp_expires > Date.now())) return { error: 'Der SMS-Code ist abgelaufen – bitte einen neuen anfordern.', status: 400, otp: true };
+  if (!/^\d{6}$/.test(String(code || '').trim())) return { error: 'Bitte die 6 Ziffern aus der SMS eingeben.', status: 400, otp: true };
+  const a = Buffer.from(sha(`${d.id}:${String(code).trim()}`)), b = Buffer.from(d.otp_hash);
+  if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { ok: true };
+  const t = d.otp_tries + 1;
+  if (t >= OTP_TRIES) { db.prepare('UPDATE member_devices SET otp_hash = NULL, otp_expires = NULL, otp_tries = 0 WHERE id = ?').run(d.id); return { error: `Code ${OTP_TRIES}-mal falsch – bitte einen neuen anfordern.`, status: 400, otp: true }; }
+  db.prepare('UPDATE member_devices SET otp_tries = ? WHERE id = ?').run(t, d.id);
+  return { error: 'Der Code stimmt nicht.', status: 400, otp: true };
+}
+/** Gerät war im Vereins-WLAN (oder der Vorstand gibt es frei) → volle Freischaltung */
+function trust(deviceId) { return db.prepare('UPDATE member_devices SET remote = 0 WHERE id = ? AND remote = 1').run(deviceId).changes > 0; }
+/** „schon benutzt“-Warnung nur einmal je Einladung */
+function markAlerted(deviceId) { return db.prepare('UPDATE member_devices SET used_alerted = 1 WHERE id = ? AND used_alerted = 0').run(deviceId).changes > 0; }
 
 /* ---------- Übernahme in die Home-Bildschirm-App (iPhone) ----------
    iOS gibt einer Web-App auf dem Home-Bildschirm einen eigenen, leeren Speicher – die Freischaltung aus Safari kommt dort
@@ -152,9 +198,9 @@ function redeemHandover(scope, code, pin, host) {
 /** Gerät erkennen (ohne PIN) → { memberId, name } oder null */
 function whoIs(scope, deviceToken) {
   if (!deviceToken || !SCOPE_RE.test(scope)) return null;
-  const r = db.prepare(`SELECT d.id, d.member_id, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
+  const r = db.prepare(`SELECT d.id, d.member_id, d.remote, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = ? AND (d.token_hash = ? OR d.token2_hash = ?) AND m.active = 1 AND m.deleted = 0`).get(scope, sha(deviceToken), sha(deviceToken));
-  return r ? { deviceId: r.id, memberId: r.member_id, name: r.name } : null;
+  return r ? { deviceId: r.id, memberId: r.member_id, name: r.name, remote: Boolean(r.remote) } : null;
 }
 
 /** Gesperrtes Gerät: Protokoll + E-Mail an die eingetragene Adresse (Mitglieder-App → Sicherheit) */
@@ -229,4 +275,4 @@ async function qrSvg(text) {
   return QR.toString(String(text).slice(0, 600), { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
 }
 
-module.exports = { inviteHours, INVITE_HOURS, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };
+module.exports = { inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, OTP_PER_DAY, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };

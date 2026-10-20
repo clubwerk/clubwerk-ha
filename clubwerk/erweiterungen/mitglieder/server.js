@@ -1006,7 +1006,7 @@ function activate(ctx) {
   /* für andere Module (Buchhaltung): Anschrift eines Mitglieds, Forderung anlegen/abfragen/stornieren */
   ctx.hooks.memberAddress = id => {
     const p = personRow(id); if (!p) return null;
-    return { id, name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.name, street: p.street, zip: p.zip, city: p.city, country: p.country, email: p.email, member_no: p.member_no, payment: p.payment || 'lastschrift' };
+    return { id, name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.name, street: p.street, zip: p.zip, city: p.city, country: p.country, email: p.email, mobile: p.mobile || null, phone: p.phone || null, member_no: p.member_no, payment: p.payment || 'lastschrift' };
   };
   ctx.hooks.createCharge = ({ member_id, text, cents, due_date, kind = 'sonstiges', ext_key, by }) => {
     if (!personRow(member_id)) throw new Error('Mitglied nicht gefunden.');

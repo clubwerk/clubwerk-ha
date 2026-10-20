@@ -4,7 +4,7 @@
   const GK = window.GK;
   const { $, esc, toast, fail, dialog, closeDialog, ask, deDate } = GK;
   const api = (url, method, body) => GK.api('x/spielbetrieb/' + url, method, body);
-  const st = { meta: null, team: 0, past: false };
+  const st = { meta: null, team: 0, past: false, cal: false, year: 0 };
   const opt = (v, l, s) => `<option value="${esc(v)}" ${String(v) === String(s ?? '') ? 'selected' : ''}>${esc(l)}</option>`;
   const val = id => ($(id) ? $(id).value.trim() : '');
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
@@ -37,18 +37,40 @@
       .sp-sel > div:first-child { border-top: 0; }
       .sp-sel .rk { font-weight: 800; color: var(--muted); text-align: right; }
       .sp-sel button { min-height: 30px; height: 30px; padding: 0 9px; }
+      .sp-bar { height: 40px; margin-bottom: 8px; display: flex; align-items: center; }   /* Suchfeld links, Hinweis rechts – beide Listen beginnen auf gleicher Höhe */
+      label.f.sp-bar > input { height: 40px; }
       .sp-tasks > div { display: grid; grid-template-columns: minmax(0, 1fr) 240px auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
       .sp-tasks > div:first-child { border-top: 0; }
       .sp-g.rt h4 { color: var(--muted); } .sp-g.rt .sp-d { background: var(--hover); color: var(--ink); }
       .sp-rt td { vertical-align: middle; } .sp-rt select { min-height: 36px; height: 36px; min-width: 150px; }
       .sp-dl { display: flex; flex-wrap: wrap; gap: 4px; } .sp-dl span { background: var(--hover); border-radius: 6px; padding: 2px 6px; font-size: 12.5px; white-space: nowrap; } .sp-dl span.z { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+      .sp-calw { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }
+      .sp-cal { display: grid; grid-template-rows: auto repeat(31, minmax(26px, auto)); grid-auto-flow: column; grid-auto-columns: minmax(170px, 1fr); }
+      .sp-cal > div { border-left: 1px solid var(--line); border-top: 1px solid var(--line-soft); }
+      .sp-cal > .c1 { border-left: 0; }
+      .sp-cal .ch { border-top: 0; padding: 8px 6px; text-align: center; font-weight: 700; font-size: 13.5px; background: var(--hover); }
+      .sp-cal .cd { display: grid; grid-template-columns: 20px 20px minmax(0, 1fr); gap: 4px; align-items: center; padding: 2px 6px; font-size: 12px; }
+      .sp-cal .cd.we { background: var(--hover); }
+      .sp-cal .cd.td { box-shadow: inset 0 0 0 2px var(--brand); }
+      .sp-cal .cd.nx { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line-soft) 6px 7px); }
+      .sp-cal .cn { font-weight: 700; color: var(--ink); } .sp-cal .cw { color: var(--muted); }
+      .sp-cal .cg { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
+      .sp-cal .cc { font: 600 11px/16px inherit; font-family: inherit; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+      .sp-cal .cc.g { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
+      .sp-cal .cc.r { background: var(--red-soft, #fbe9e7); border-color: var(--red); color: var(--red); }
+      .sp-cal .cc.p { border-style: dashed; color: var(--muted); }
+      .sp-cal .cc.x { color: var(--muted); } .sp-cal .cc.s { text-decoration: line-through; }
+      .sp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+      .sp-legend .sp-cal { display: contents; } .sp-legend .li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+      @media print { .sp-calw { border: 0; overflow: visible; } .sp-cal { grid-auto-columns: minmax(0, 1fr); grid-template-rows: auto repeat(31, minmax(0, auto)); } .sp-cal .cd { font-size: 8.5px; padding: 0 3px; grid-template-columns: 13px 14px minmax(0, 1fr); gap: 2px; }
+        .sp-cal .cc { font-size: 7.5px; line-height: 11px; padding: 0 3px; } .sp-cal * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
       @media (max-width: 760px) { .sp-g { grid-template-columns: 6px 64px minmax(0, 1fr); } .sp-g .sp-nums { grid-column: 3; justify-content: flex-start; } .sp-d { width: 64px; } .sp-tasks > div { grid-template-columns: 1fr; } .sp-acts { display: grid; grid-template-columns: 1fr; width: 100%; } .sp-acts .btn { width: 100%; } }`;
     document.head.appendChild(s);
   }
 
   const PAGE = {
     'sp-spieltage': ['Spieltage', 'Alle Spieltage der Mannschaften – grün: genug Spieler haben zugesagt, rot: zu wenige. Antippen öffnet Verfügbarkeit und Aufstellung.'],
-    'sp-mannschaften': ['Mannschaften', 'Mannschaften mit Mannschaftsführer, Stellvertreter und Spielern in der Reihenfolge der Meldeliste. Eine Person kann in mehreren Mannschaften spielen.'],
+    'sp-mannschaften': ['Mannschaften', 'Mannschaften mit Mannschaftsführer, Stellvertretung und Spieler/innen in der Reihenfolge der Meldeliste. Eine Person kann in mehreren Mannschaften spielen.'],
     'sp-einstellungen': ['Einstellungen', 'Was Spieler sehen, Uhrzeiten, Aufgaben und Erinnerungen.'],
   };
   async function loadMeta() { st.meta = await api('meta'); return st.meta; }
@@ -70,16 +92,43 @@
   };
 
   /* ---------------- Spieltage ---------------- */
+  /** Kalender wie im Rahmenterminplan: je Monat eine Spalte, je Tag eine Zeile (gleiche Zeilenhöhe über alle Monate) */
+  const MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const WDS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const p2 = n => String(n).padStart(2, '0');
+  function calChip(g) {
+    const tag = g.kind === 'rahmen' ? (g.za ? 'Z/A' : 'RT') : g.home ? 'H' : 'A';
+    const cls = g.status === 'abgesagt' ? 'x s' : g.kind === 'rahmen' && !g.released ? 'p' : g.past ? 'x' : g.ok ? 'g' : 'r';
+    const tip = `${g.team} · ${g.kind === 'rahmen' ? (g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin') + ' (vorläufig)' : `${g.home ? 'Heim gegen' : 'Auswärts bei'} ${g.opponent}${g.start ? ' · ' + g.start + ' Uhr' : ''}`}${g.status === 'abgesagt' ? ' · abgesagt' : ` · ${g.yes} von ${g.min} können`}`;
+    return `<button type="button" class="cc ${cls}${g.za ? ' p' : ''}" data-g="${g.id}" title="${esc(tip)}"><span translate="no">${esc(g.team)}</span> ${tag}</button>`;
+  }
+  function calView(c, print = false) {
+    const by = {}; c.games.forEach(g => { (by[g.date] = by[g.date] || []).push(g); });
+    const mo = c.games.map(g => +g.date.slice(5, 7));
+    const a = mo.length ? Math.min(...mo) : 4, b = mo.length ? Math.max(...mo) : 9;
+    const months = []; for (let i = Math.min(a, 9); i <= Math.max(b, Math.min(a, 9) + 3); i++) months.push(i);   // mindestens 4 Monate (wie im Rahmenterminplan Mai–September)
+    const cells = months.map((mm, ci) => [`<div class="ch${ci ? '' : ' c1'}">${MON[mm - 1]} ${c.year}</div>`, ...Array.from({ length: 31 }, (x, i) => {
+      const iso = `${c.year}-${p2(mm)}-${p2(i + 1)}`, dt = new Date(iso + 'T12:00:00Z');
+      if (dt.getUTCMonth() + 1 !== mm) return `<div class="cd nx${ci ? '' : ' c1'}"></div>`;
+      const w = dt.getUTCDay();
+      return `<div class="cd${w === 0 || w === 6 ? ' we' : ''}${iso === c.today && !print ? ' td' : ''}${ci ? '' : ' c1'}"><span class="cn">${p2(i + 1)}</span><span class="cw">${WDS[w]}</span><span class="cg">${(by[iso] || []).map(calChip).join('')}</span></div>`;
+    })].join('')).join('');
+    return `<div class="sp-calw"><div class="sp-cal">${cells}</div></div>
+      <div class="sp-legend">${[['g', 'H', 'Heimspiel, genug Zusagen'], ['r', 'A', 'Auswärtsspiel, zu wenige Zusagen'], ['p', 'RT', 'vorläufig (Rahmentermin; Z/A = Zusatz-/Ausweichtag)'], ['x s', 'H', 'abgesagt']].map(([c, t, l]) => `<span class="li"><span class="sp-cal"><span class="cc ${c}">${t}</span></span>${l}</span>`).join('')}${print ? '' : '<span class="li">Antippen öffnet den Spieltag</span>'}</div>`;
+  }
   async function showGames(el) {
     const m = st.meta;
-    const games = await api(`games?past=${st.past ? 1 : 0}${st.team ? `&team=${st.team}` : ''}`);
+    const cal = st.cal ? await api(`calendar?${st.year ? `year=${st.year}&` : ''}${st.team ? `team=${st.team}` : ''}`) : null;
+    const games = cal ? [] : await api(`games?past=${st.past ? 1 : 0}${st.team ? `&team=${st.team}` : ''}`);
     el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:14px">
         <div class="row" style="gap:10px;align-items:flex-end"><label class="f" style="min-width:220px">Mannschaft<select id="spT">${opt(0, 'Alle Mannschaften', st.team)}${m.teams.filter(t => t.active).map(t => opt(t.id, t.name, st.team)).join('')}</select></label>
-          <div class="seg"><button type="button" data-past="0" class="${st.past ? '' : 'on'}">Kommende</button><button type="button" data-past="1" class="${st.past ? 'on' : ''}">Vergangene</button></div></div>
-        <div class="row sp-acts" style="gap:8px"><button class="btn" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button></div></div>
+          ${cal ? `<label class="f" style="min-width:110px">Jahr<select id="spY">${cal.years.map(y => opt(y, String(y), cal.year)).join('')}</select></label>` : ''}
+          <div class="seg"><button type="button" data-past="0" class="${!st.cal && !st.past ? 'on' : ''}">Kommende</button><button type="button" data-past="1" class="${!st.cal && st.past ? 'on' : ''}">Vergangene</button><button type="button" data-cal="1" class="${st.cal ? 'on' : ''}">Kalender</button></div></div>
+        <div class="row sp-acts" style="gap:8px">${cal ? '<button class="btn" id="spPrint" type="button">Drucken</button>' : ''}<button class="btn" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button></div></div>
       ${!m.teams.length ? '<div class="banner a"><span>Noch keine Mannschaften – zuerst unter „Mannschaften“ anlegen oder einfach den Spielplan importieren (Mannschaften entstehen dabei automatisch).</span></div>' : ''}
       ${m.rahmenPending ? `<div class="banner a" style="margin-bottom:14px"><span>${m.rahmenPending} vorläufige Termine aus dem Rahmenterminplan sind angelegt, aber noch nicht abgefragt – die Spieler sehen sie erst nach „Abfrage starten“.</span><button class="btn primary small" id="spRel" type="button">Abfrage starten</button></div>` : ''}
-      <div class="sp-games">${games.length ? games.map(g => g.kind === 'rahmen' ? `<div class="sp-g rt" data-g="${g.id}"><span class="lt ${!g.released || st.past ? 'x' : light(g.stats)}"></span>
+      ${cal ? calView(cal) : ''}
+      <div class="sp-games${cal ? ' hidden' : ''}">${cal ? '' : games.length ? games.map(g => g.kind === 'rahmen' ? `<div class="sp-g rt" data-g="${g.id}"><span class="lt ${!g.released || st.past ? 'x' : light(g.stats)}"></span>
           <div class="sp-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></div>
           <div style="min-width:0"><h4><span translate="no">${esc(g.team)}</span> · ${esc(rtTitle(g))}</h4>
             <div class="muted">vorläufig – Gegner und Heim/Auswärts kommen mit dem Spielplan${g.captain ? ' · MF ' + esc(g.captain) : ''}</div></div>
@@ -89,7 +138,14 @@
             <div class="muted">${g.home ? 'Heimspiel' : 'Auswärtsspiel'}${g.league ? ' · ' + esc(g.league) : ''}${g.captain ? ' · MF ' + esc(g.captain) : ''}${g.sent ? ' · Aufstellung verschickt' : ''}</div></div>
           <div class="sp-nums">${nums(g, st.past)}</div></div>`).join('') : `<p class="muted">${st.past ? 'Keine vergangenen Spieltage.' : 'Keine kommenden Spieltage.'}</p>`}</div>`;
     $('spT').onchange = () => { st.team = +$('spT').value; showGames(el).catch(fail); };
-    el.querySelectorAll('[data-past]').forEach(b => { b.onclick = () => { st.past = b.dataset.past === '1'; showGames(el).catch(fail); }; });
+    el.querySelectorAll('[data-past]').forEach(b => { b.onclick = () => { st.past = b.dataset.past === '1'; st.cal = false; showGames(el).catch(fail); }; });
+    el.querySelectorAll('[data-cal]').forEach(b => { b.onclick = () => { st.cal = true; showGames(el).catch(fail); }; });
+    if ($('spY')) $('spY').onchange = () => { st.year = +$('spY').value; showGames(el).catch(fail); };
+    if ($('spPrint')) $('spPrint').onclick = () => {
+      const tn = st.team ? (m.teams.find(t => t.id === st.team) || {}).name : 'Alle Mannschaften';
+      $('printArea').innerHTML = `<style>@page { size: A4 landscape; margin: 8mm; }</style><div class="pr"><h2 style="margin:0 0 4mm;font-size:13pt">Spieltage ${cal.year} – ${esc(tn)}</h2>${calView(cal, true)}</div>`;
+      document.body.classList.add('printing'); window.print(); document.body.classList.remove('printing');
+    };
     el.querySelectorAll('[data-g]').forEach(c => { c.onclick = () => gameDialog(+c.dataset.g, () => showGames(el).catch(fail)); });
     $('spNew').onclick = () => editGame(null, () => showGames(el).catch(fail));
     $('spImp').onclick = () => importDialog(() => pageRender('sp-spieltage', showGames)().catch(fail));
@@ -281,9 +337,9 @@
     const m = st.meta;
     el.innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:14px"><button class="btn primary" id="tmNew" type="button">+ Mannschaft</button></div>
       ${m.teams.length ? m.teams.map(t => `<div class="card sp-team ${t.active ? '' : 'off'}"><div style="min-width:0"><h4 translate="no">${esc(t.name)}${t.active ? '' : ' <span class="pill">nicht aktiv</span>'}</h4>
-          <div class="muted s">${[t.age_class ? `Altersklasse ${t.age_class}` : '', t.league, t.season, `mindestens ${t.min_players} Spieler`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
-          <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}</span>`).join('') : '<span class="muted">noch keine Spieler</span>'}</div></div>
-        <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler …</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
+          <div class="muted s">${[t.age_class ? `Altersklasse ${t.age_class}` : '', t.league, t.season, `mindestens ${t.min_players} Spieler/innen`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}</span>`).join('') : '<span class="muted">noch keine Spieler/innen</span>'}</div></div>
+        <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler/innen …</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
         : '<div class="card"><p class="muted" style="margin:0">Noch keine Mannschaften. Tipp: Beim Spielplan-Import werden die Mannschaften automatisch angelegt.</p></div>'}`;
     const again = () => pageRender('sp-mannschaften', showTeams)().catch(fail);
     $('tmNew').onclick = () => editTeam(null, again);
@@ -323,10 +379,10 @@
     const draw = () => {
       const inList = new Set(list.map(p => p.id));
       const hits = m.members.filter(x => !inList.has(x.id) && (!q || x.ln.toLowerCase().includes(q.toLowerCase()))).slice(0, 60);
-      dialog(`<h3>Spieler · <span translate="no">${esc(t.name)}</span></h3>
-        <p class="muted" style="margin:0 0 10px">Reihenfolge wie in der Meldeliste (Nr. 1 oben). Mit ▲ ▼ verschieben. Eine Person kann in mehreren Mannschaften stehen.</p>
-        <div class="sp-grid" style="--c:2"><div><h4 style="margin:0 0 6px">In der Mannschaft (${list.length})</h4><div class="sp-sel" translate="no">${list.map((p, i) => `<div><span class="rk">${i + 1}</span><span>${esc(p.ln)}</span><span class="nw"><button class="btn small ghost" data-up="${i}" type="button" ${i ? '' : 'disabled'} aria-label="nach oben">▲</button><button class="btn small ghost" data-dn="${i}" type="button" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten">▼</button><button class="btn small ghost" data-rm="${i}" type="button" aria-label="entfernen">✕</button></span></div>`).join('') || '<div><span></span><span class="muted">noch niemand</span><span></span></div>'}</div></div>
-          <div><h4 style="margin:0 0 6px">Hinzufügen</h4><label class="f" style="margin-bottom:8px"><input id="plQ" placeholder="Name suchen" value="${esc(q)}" aria-label="Name suchen"></label><div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}</span><button class="btn small" data-ad="${x.id}" type="button">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div></div></div>
+      dialog(`<h3>Spieler/innen · <span translate="no">${esc(t.name)}</span></h3>
+        <p class="muted" style="margin:0 0 10px">Links Mitglieder suchen und mit + in die Mannschaft holen. Rechts steht die Mannschaft in der Reihenfolge der Meldeliste (Nr. 1 oben), mit ▲ ▼ verschieben. Eine Person kann in mehreren Mannschaften stehen.</p>
+        <div class="sp-grid" style="--c:2"><div><h4 style="margin:0 0 6px">Mitglieder</h4><label class="f sp-bar"><input id="plQ" placeholder="Name suchen" value="${esc(q)}" aria-label="Name suchen"></label><div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}</span><button class="btn small" data-ad="${x.id}" type="button" aria-label="in die Mannschaft">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div></div>
+          <div><h4 style="margin:0 0 6px">In der Mannschaft (${list.length})</h4><div class="sp-bar muted s">Meldeliste – Nr. 1 oben</div><div class="sp-sel" translate="no">${list.map((p, i) => `<div><span class="rk">${i + 1}</span><span>${esc(p.ln)}</span><span class="nw"><button class="btn small ghost" data-up="${i}" type="button" ${i ? '' : 'disabled'} aria-label="nach oben">▲</button><button class="btn small ghost" data-dn="${i}" type="button" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten">▼</button><button class="btn small ghost" data-rm="${i}" type="button" aria-label="entfernen">✕</button></span></div>`).join('') || '<div><span></span><span class="muted">noch niemand – links mit + hinzufügen</span><span></span></div>'}</div></div></div>
         <div class="btns"><button class="btn ghost" id="plX" type="button">Abbrechen</button><button class="btn primary" id="plOk" type="button">Speichern</button></div>`, true);
       $('plX').onclick = closeDialog;
       $('plQ').oninput = () => { q = $('plQ').value; const pos = $('plQ').selectionStart; draw(); $('plQ').focus(); $('plQ').setSelectionRange(pos, pos); };

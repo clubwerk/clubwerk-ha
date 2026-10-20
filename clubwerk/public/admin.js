@@ -1995,9 +1995,10 @@
   };
 
   /* =================== Mitglieder-App (ein QR-Code, eine PIN) =================== */
-  const DEVSTAT = { gekoppelt: ['g', 'Handy freigeschaltet'], eingeladen: ['a', 'QR-Code offen'], abgelaufen: ['r', 'QR-Code abgelaufen'], gesperrt: ['r', 'gesperrt (falsche PINs)'] };
+  const DEVSTAT = { gekoppelt: ['g', 'Handy freigeschaltet'], eingeladen: ['a', 'QR-Code offen'], abgelaufen: ['r', 'Einladung abgelaufen'], gesperrt: ['r', 'gesperrt (falsche PINs)'] };
+  const INVKIND = { qr: 'QR-Code offen', mail: 'E-Mail-Einladung offen', brief: 'Einladungsbrief offen' };
   const hoursTxt = h => (h >= 48 ? `${h / 24} Tage` : h === 1 ? '1 Stunde' : `${h} Stunden`);
-  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${DEVSTAT[d.status][1]}</span>${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
+  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – Türen und Beregnung schalten sich beim ersten Öffnen im Vereins-WLAN frei">Türen/Beregnung erst im WLAN</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
   /** Entfernen: nur das Handy oder ganz aus der App? → 'device' | 'all' | null */
   function askRemove(name, hasDevice) {
     return new Promise(resolve => {
@@ -2052,6 +2053,84 @@
     } catch (e) { fail(e); }
   }
 
+  /** Briefe mit QR-Code drucken (eine Seite je Mitglied) */
+  function printLetters(letters) {
+    const club = cache.settings.clubName || '';
+    $('printArea').innerHTML = letters.map(l => `<div class="pr letter"><h1>${esc(club)}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(l.name)}</b></p>
+      <div style="width:70mm;height:70mm;margin:8mm auto">${l.svg}</div>
+      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>Eine eigene PIN für die App festlegen (4 bis 8 Ziffern).</li><li>Die Seite auf den Home-Bildschirm legen – fertig.</li></ol>
+      <p style="margin-top:8mm">Gilt einmal und bis ${new Date(l.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Persönlich – bitte nicht weitergeben.</p></div>`).join('');
+    document.body.classList.add('printing'); window.print(); document.body.classList.remove('printing');
+  }
+  /** Einladung per E-Mail an ein Mitglied */
+  async function inviteByMail(memberId, info) {
+    if (info.device && info.device.status === 'gekoppelt' && !await ask(`Einladung per E-Mail an ${info.name}?\n\nDas bisher freigeschaltete Handy (${info.device.label || 'Gerät'}) verliert sofort den Zugang.`, { ok: 'Einladung schicken', danger: true })) return false;
+    const r = await api(`app/member/${memberId}/invite-mail`, 'POST', {});
+    toast(`Einladung an ${r.to} geschickt – gilt ${r.days} Tage.${r.localOnly ? ' Hinweis: Ohne „Von unterwegs erreichbar“ funktioniert der Link nur im Vereins-WLAN.' : ''}`, false, 6000);
+    return true;
+  }
+  /** „Einladen …“: QR-Code am Bildschirm, per E-Mail, als Brief – und Freigabe eines von unterwegs gekoppelten Handys */
+  async function inviteMenu(memberId, after) {
+    try {
+      const info = await api('app/member/' + memberId), iv = info.invite || {};
+      const pick = await new Promise(resolve => {
+        $('askBox').innerHTML = `<h2>${esc(info.name)} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
+          <div class="rmopts"><button class="rmopt" data-v="qr"><b>QR-Code hier am Bildschirm</b><span>Das Mitglied scannt ihn mit dem Handy – am sichersten, weil es dabei vor Ort ist.</span></button>
+            <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Türen und Beregnung erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>
+            <button class="rmopt" data-v="brief"><b>Einladungsbrief drucken</b><span>QR-Code mit Anleitung auf Papier – zum Mitgeben oder per Post. Gilt ${iv.days || 7} Tage.</span></button>
+            ${info.device && info.device.remote ? '<button class="rmopt" data-v="trust"><b>Türen und Beregnung jetzt freigeben</b><span>Das Handy wurde von unterwegs ohne SMS-Code gekoppelt. Nur freigeben, wenn sicher ist, dass es dem Mitglied gehört.</span></button>' : ''}</div>
+          <div class="btns"><button class="btn" data-v="">Abbrechen</button></div>`;
+        $('askOverlay').classList.remove('hidden');
+        $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = () => { $('askOverlay').classList.add('hidden'); resolve(b.dataset.v); }; });
+      });
+      if (!pick) return;
+      if (pick === 'qr') return appInvite(memberId, after);
+      if (pick === 'mail') { if (await inviteByMail(memberId, info) && after) after(); return; }
+      if (pick === 'trust') { await api(`app/member/${memberId}/trust`, 'POST', {}); toast('Freigegeben – Türen und Beregnung funktionieren jetzt auch auf diesem Handy.'); if (after) after(); return; }
+      if (pick === 'brief') {
+        if (info.device && info.device.status === 'gekoppelt' && !await ask(`Einladungsbrief für ${info.name}?\n\nDas bisher freigeschaltete Handy (${info.device.label || 'Gerät'}) verliert sofort den Zugang.`, { ok: 'Brief erzeugen', danger: true })) return;
+        const r = await api('app/invites', 'POST', { kind: 'brief', ids: [memberId], force: true });
+        if (!r.letters.length) return toast(r.skipped.length ? r.skipped[0].reason : 'Kein Brief erzeugt.', true);
+        printLetters(r.letters); if (after) after();
+      }
+    } catch (e) { fail(e); }
+  }
+  /** Sammelversand: Einladungen per E-Mail oder als Briefe für viele Mitglieder */
+  function bulkInvites(r) {
+    const mail = new Set(r.mailIds || []);
+    const all = [...r.rows.map(x => ({ id: x.member_id, name: x.name, kind: x.kind, dev: x.device, inApp: true })), ...r.members.map(m => ({ id: m.id, name: m.name, kind: 'mitglied', dev: null, inApp: false }))];
+    let showNew = false, sel = new Set(all.filter(x => x.inApp && !(x.dev && x.dev.status === 'gekoppelt')).map(x => x.id));
+    const list = () => all.filter(x => x.inApp || showNew);
+    const draw = () => {
+      const L = list(), n = L.filter(x => sel.has(x.id)).length, nm = L.filter(x => sel.has(x.id) && mail.has(x.id)).length;
+      dialog(`<h2>Einladungen verschicken</h2>
+        <p class="muted" style="margin-top:0">Jedes ausgewählte Mitglied bekommt einen persönlichen Link (gilt ${r.security.inviteMailDays} Tage, einmal). Mitglieder mit bereits freigeschaltetem Handy werden übersprungen.${r.security.sms && r.security.sms.ready ? ' Von unterwegs wird mit einem Code per SMS bestätigt.' : ' Türen und Beregnung schalten sich bei Kopplung von unterwegs erst im Vereins-WLAN frei.'}</p>
+        <div class="row" style="align-items:center;gap:8px 18px;margin-bottom:8px"><label class="chk"><input type="checkbox" id="ivAll" ${n && n === L.filter(x => !(x.dev && x.dev.status === 'gekoppelt')).length ? 'checked' : ''}> alle ohne Handy</label>
+          ${r.members.length ? `<label class="chk"><input type="checkbox" id="ivNew" ${showNew ? 'checked' : ''}> auch Mitglieder, die noch nicht in der App sind (${r.members.length})</label>` : ''}</div>
+        <div class="invlist">${L.map(x => { const paired = x.dev && x.dev.status === 'gekoppelt'; return `<label><input type="checkbox" data-iv="${x.id}" ${sel.has(x.id) ? 'checked' : ''} ${paired ? 'disabled' : ''}><b>${pName(x)}</b>
+          <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s">${mail.has(x.id) ? 'E-Mail ✓' : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="muted" style="padding:10px 12px;margin:0">Niemand.</p>'}</div>
+        ${!r.security.mailReady ? '<p class="muted s" style="margin:10px 0 0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s" style="margin:10px 0 0">${n - nm} ohne E-Mail-Adresse – für sie Briefe drucken.</p>` : ''}
+        <div class="btns"><button class="btn" id="ivX">Abbrechen</button><button class="btn" id="ivBrief" ${n ? '' : 'disabled'}>${n} Brief(e) drucken</button><button class="btn primary" id="ivMail" ${nm && r.security.mailReady ? '' : 'disabled'}>${nm} E-Mail(s) schicken</button></div>`, true);
+      $('ivX').onclick = closeDialog;
+      $('ivAll').onchange = () => { list().forEach(x => { if (!(x.dev && x.dev.status === 'gekoppelt')) { if ($('ivAll').checked) sel.add(x.id); else sel.delete(x.id); } }); draw(); };
+      if ($('ivNew')) $('ivNew').onchange = () => { showNew = $('ivNew').checked; if (!showNew) r.members.forEach(m => sel.delete(m.id)); draw(); };
+      $('dialog').querySelectorAll('[data-iv]').forEach(c => { c.onchange = () => { if (c.checked) sel.add(+c.dataset.iv); else sel.delete(+c.dataset.iv); draw(); }; });
+      const run = kind => busy($(kind === 'mail' ? 'ivMail' : 'ivBrief'), async () => {
+        const ids = list().filter(x => sel.has(x.id) && (kind === 'brief' || mail.has(x.id))).map(x => x.id);
+        if (!await ask(kind === 'mail' ? `${ids.length} Einladung(en) per E-Mail verschicken?` : `${ids.length} Einladungsbrief(e) erzeugen und drucken?`, { ok: kind === 'mail' ? 'Verschicken' : 'Drucken' })) return;
+        try {
+          const x = await api('app/invites', 'POST', { kind, ids });
+          closeDialog();
+          if (kind === 'brief' && x.letters.length) printLetters(x.letters);
+          toast(`${x.done.length} ${kind === 'mail' ? 'E-Mail(s) verschickt' : 'Brief(e) erzeugt'}${x.skipped.length ? ` · ${x.skipped.length} übersprungen (${x.skipped.slice(0, 3).map(y => `${y.name}: ${y.reason}`).join('; ')}${x.skipped.length > 3 ? ' …' : ''})` : ''}.${x.localOnly && kind === 'mail' ? ' Ohne „Von unterwegs erreichbar“ funktionieren die Links nur im Vereins-WLAN.' : ''}`, Boolean(x.skipped.length && !x.done.length), 8000);
+          RENDER.app().catch(fail);
+        } catch (e) { fail(e); }
+      });
+      $('ivMail').onclick = () => run('mail'); $('ivBrief').onclick = () => run('brief');
+    };
+    draw();
+  }
+
   /** Freischaltungen eines Mitglieds (für den Bearbeiten-Dialog) – speichert sofort */
   async function appBox(el, memberId) {
     const info = await api('app/member/' + memberId);
@@ -2061,13 +2140,13 @@
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a && g ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
         ${a && a.blocked && !m.open ? '<span class="pill r">gesperrt</span>' : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
-      <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">${info.device ? 'Neuer QR-Code' : 'QR-Code erzeugen'}</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
+      <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">Einladen …</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
     el.querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => { try { const rr = await api(`app/member/${memberId}/access`, 'PUT', { module: c.dataset.am, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); reload(); } catch (e) { fail(e); c.checked = !c.checked; } }; });
     el.querySelectorAll('[data-ap]').forEach(sel => { sel.onchange = async () => { try { await api(`app/member/${memberId}/access`, 'PUT', { module: sel.dataset.ap, profile: sel.value }); toast('Gespeichert.'); } catch (e) { fail(e); } }; });
     bindFlags(el);
-    $('apQr').onclick = () => { const html = $('dialog').innerHTML; void html; appInvite(memberId); };
+    $('apQr').onclick = () => inviteMenu(memberId, reload);
     if ($('apRm')) $('apRm').onclick = async () => { if (await appRemove(memberId, info.name, Boolean(info.device))) reload(); };
   }
 
@@ -2104,6 +2183,30 @@
       const id = +$('pshWho').value; if (!id) { toast('Bitte ein Mitglied wählen.', true); return; }
       try { const x = await api('push/test', 'POST', { memberId: id }); toast(x.ok ? `Testnachricht gesendet (${x.sent}).` : 'Nicht gesendet' + (x.skipped ? ': ' + x.skipped : ' – kein Handy mit Abo.'), !x.ok); pushCard(el).catch(fail); } catch (e) { fail(e); }
     });
+  }
+  /** SMS-Stick für den zweiten Faktor: Anschluss wählen, prüfen, einschalten, Test-SMS */
+  async function smsCard(el) {
+    const x = await api('app/sms');
+    const st = x.status;
+    const opts = [...new Set([x.device, ...x.candidates].filter(Boolean))];
+    el.innerHTML = `<h3>Bestätigung per SMS <span class="pill ${x.ready ? 'g' : ''}" style="margin-left:6px">${x.ready ? 'an' : 'aus'}</span></h3>
+      <p class="muted s" style="margin-top:0">Zweiter Faktor für Einladungen per E-Mail oder Brief: Wer die App <b>von unterwegs</b> freischaltet, bekommt einen Code per SMS an die Handynummer aus der Mitgliederverwaltung. Dafür steckt ein LTE-USB-Stick mit SIM-Karte (ohne SIM-PIN) am Home-Assistant-Rechner – ohne Internet, ohne fremden Dienst. Ohne SMS (oder ohne Handynummer) schalten sich Türen und Beregnung erst beim ersten Öffnen im Vereins-WLAN frei.</p>
+      <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:240px">Anschluss des Sticks<select id="smsDev"><option value="">– wählen –</option>${opts.map(d => `<option value="${esc(d)}" ${d === x.device ? 'selected' : ''}>${esc(d)}</option>`).join('')}</select></label>
+        <button class="btn" id="smsFind" type="button">Anschlüsse suchen</button><button class="btn primary" id="smsSave" type="button">Speichern</button></div>
+      ${st ? `<div class="row" style="margin-top:10px;gap:6px;align-items:center">${st.ok ? '<span class="pill g">bereit</span>' : `<span class="pill r">${esc(st.error || 'nicht bereit')}</span>`}${st.model ? `<span class="pill">${esc(st.model)}</span>` : ''}${st.operator ? `<span class="pill">${esc(st.operator)}</span>` : ''}${st.signal != null ? `<span class="pill">Empfang ${st.signal} %</span>` : ''}</div>` : ''}
+      <div class="row" style="align-items:center;gap:10px;margin-top:12px"><label class="chk"><input type="checkbox" id="smsOn" ${x.on ? 'checked' : ''} ${x.device ? '' : 'disabled'}> SMS-Bestätigung einschalten</label></div>
+      <div class="row" style="align-items:flex-end;gap:10px;margin-top:12px"><label class="f" style="width:240px">Test an Handynummer<input id="smsNo" inputmode="tel" placeholder="0170 1234567"></label><button class="btn" id="smsTest" type="button" ${x.device ? '' : 'disabled'}>Test-SMS senden</button></div>
+      <p class="muted s" style="margin:10px 0 0">Geeignet sind LTE-Sticks mit seriellem Anschluss (AT-Befehle), nicht solche im „HiLink“-/Router-Modus. Nach dem Einstecken das Add-on einmal neu starten, dann „Anschlüsse suchen“. Je Mitglied höchstens 3 SMS am Tag.</p>`;
+    $('smsFind').onclick = () => busy($('smsFind'), async () => {
+      try { const d = await api('app/sms/detect', 'POST', {}); const ok = d.ports.filter(p => p.answers);
+        if (!d.ports.length) return toast('Kein serieller Anschluss gefunden – ist der Stick eingesteckt und das Add-on danach neu gestartet?', true);
+        $('smsDev').innerHTML = '<option value="">– wählen –</option>' + d.ports.map(p => `<option value="${esc(p.device)}">${esc(p.device)}${p.answers ? ' – antwortet' : ''}</option>`).join('');
+        if (ok.length) $('smsDev').value = ok[0].device;
+        toast(ok.length ? `${ok.length} Anschluss/Anschlüsse antworten – der erste ist ausgewählt.` : 'Anschlüsse gefunden, aber keiner antwortet auf AT-Befehle.', !ok.length);
+      } catch (e) { fail(e); } });
+    $('smsSave').onclick = () => busy($('smsSave'), async () => { try { await api('app/sms', 'PUT', { device: $('smsDev').value }); toast('Gespeichert.'); smsCard(el).catch(fail); } catch (e) { fail(e); } });
+    $('smsOn').onchange = async () => { try { await api('app/sms', 'PUT', { on: $('smsOn').checked }); toast($('smsOn').checked ? 'SMS-Bestätigung eingeschaltet.' : 'SMS-Bestätigung ausgeschaltet.'); smsCard(el).catch(fail); } catch (e) { fail(e); $('smsOn').checked = !$('smsOn').checked; } };
+    $('smsTest').onclick = () => busy($('smsTest'), async () => { try { const t = await api('app/sms/test', 'POST', { number: $('smsNo').value }); toast(`Test-SMS an ${t.to} verschickt.`); } catch (e) { fail(e); } });
   }
   RENDER.app = async () => {
     const r = await api('app');
@@ -2154,12 +2257,14 @@
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
+          <label class="f" style="width:200px">E-Mail/Brief gültig<select id="apDays" ${can('einstellungen') ? '' : 'disabled'}>${[2, 7, 14].map(d => `<option value="${d}" ${r.security.inviteMailDays === d ? 'selected' : ''}>${d} Tage</option>`).join('')}</select></label>
           <label class="f" style="flex:1;min-width:240px">Warnung bei gesperrtem Handy an${r.security.mailReady ? '' : ' (erst Postfach einrichten)'}<input id="apMail" ${can('einstellungen') ? '' : 'disabled'} type="email" value="${esc(r.security.mailTo)}" placeholder="vorstand@verein.de"></label>
           <button class="btn primary" id="apSecSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button></div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
         <div class="row" style="margin-top:12px;gap:8px">
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
+      ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
       ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty><h3>Reihenfolge in der App</h3>
         <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Tabelle unten – von links nach rechts.</p>
         <div id="moRows" class="torows">${mods.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label || m.name)}</b>
@@ -2168,16 +2273,16 @@
       <div class="card" id="pushCard" data-nodirty><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
       <div class="card"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
-          <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & QR-Code</button></div>
+          <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
-      <div class="card"><h3>Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3>
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
         ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['alt', 'alte Adresse']].filter(([k]) => k !== 'alt' || oldN)
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
             ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td style="white-space:nowrap"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${x.member_id}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</td>`; }).join('')}
             <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
-            <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
+            <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">Einladen …</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
     watch($('apSet')); watch($('apSec'));
@@ -2193,7 +2298,7 @@
       catch (e) { fail(e); } finally { $('apExtTest').disabled = false; }
     };
     watch($('apExt'));
-    $('apSecSave').onclick = async () => { try { await api('settings/app', 'PUT', { inviteHours: Number($('apHours').value), allowLink: $('apLink').checked, mailTo: $('apMail').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
+    $('apSecSave').onclick = async () => { try { await api('settings/app', 'PUT', { inviteHours: Number($('apHours').value), inviteMailDays: Number($('apDays').value), allowLink: $('apLink').checked, mailTo: $('apMail').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
     $('apLink').onchange = async () => { try { await api('settings/app', 'PUT', { allowLink: $('apLink').checked }); toast($('apLink').checked ? 'Link-Weitergabe erlaubt.' : 'Nur noch QR-Code am Bildschirm.'); } catch (e) { fail(e); } };
     $('apGo').onclick = async () => {
       const id = Number($('apNew').value);
@@ -2201,7 +2306,7 @@
       try {
         // angehakte Bereiche freischalten; „für alle“-Bereiche ohne Haken für dieses Mitglied abschalten
         for (const c of document.querySelectorAll('[data-nm]')) { const m = mods.find(x => x.id === c.dataset.nm); if (c.checked || (m && m.open)) await api(`app/member/${id}/access`, 'PUT', { module: c.dataset.nm, grant: c.checked }); }
-        appInvite(id, () => RENDER.app().catch(fail));
+        inviteMenu(id, () => RENDER.app().catch(fail));
       } catch (e) { fail(e); }
     };
     $('main').querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => {
@@ -2223,6 +2328,8 @@
       };
       draw();
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
+    }
+    if ($('smsCard')) smsCard($('smsCard')).catch(e => { $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
     if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
     const setSrc = ip => async () => { try { await api('settings/app', 'PUT', { tunnelSrc: ip }); toast(ip ? `Nur noch ${ip} gilt als Tunnel.` : 'Jede Adresse im Add-on-Netz gilt wieder als Tunnel.'); RENDER[page](); } catch (e) { fail(e); } };
     if ($('apSrcSet')) $('apSrcSet').onclick = setSrc($('apSrcSet').dataset.ip);
@@ -2230,8 +2337,8 @@
     if ($('apSrcOff')) $('apSrcOff').onclick = setSrc('');
     if ($('apNetSave')) $('apNetSave').onclick = () => busy($('apNetSave'), async () => { try { await api('settings/app', 'PUT', { wlanNets: $('apNets').value }); clubNetsMissing = !$('apNets').value.trim(); toast($('apNets').value.trim() ? 'Gespeichert – nur diese Netze gelten als Vereinsnetz.' : 'Gespeichert – jede private Adresse gilt als Vereinsnetz.'); } catch (e) { fail(e); } });
     pushCard($('pushCard')).catch(e => { $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
-    }
-    $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
+    $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => inviteMenu(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
+    if ($('apBulk')) $('apBulk').onclick = () => bulkInvites(r);
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
       const x = r.rows.find(y => y.member_id === Number(b.dataset.ad));
       if (await appRemove(x.member_id, x.name, Boolean(x.device))) RENDER.app().catch(fail);

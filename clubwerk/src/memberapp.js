@@ -31,6 +31,49 @@ const lanUrl = () => { const u = getSetting('app_url', '').replace(/\/+$/, ''); 
 const originOf = u => { try { return new URL(u).origin; } catch (e) { return ''; } };
 const awayOk = (req, id, row) => !awayReq(req) || extAllowed(id) || Boolean(row && row.away);
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
+const STAGED = 'Aus Sicherheitsgründen erst nach dem ersten Öffnen der App im Vereins-WLAN – oder nach Freigabe durch den Vorstand.';
+const sms = require('./sms');
+/** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile } */
+function contactOf(memberId) {
+  try { for (const p of require('./plugins').withHook('memberAddress')) { const a = p.hooks.memberAddress(memberId); if (a) return a; } } catch (e) { /* Modul-Fehler: keine Kontaktdaten */ }
+  return null;
+}
+const mailOf = id => { const a = contactOf(id); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
+/** Handynummer für den SMS-Code – nur, wenn SMS eingerichtet ist */
+const smsPhone = id => { if (!sms.ready()) return null; const a = contactOf(id); return a ? (sms.normPhone(a.mobile) || sms.normPhone(a.phone)) : null; };
+/** hat das Mitglied einen Bereich, der im Verein etwas schaltet (Türen, Beregnung)? */
+const deTs = ms => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: process.env.TZ || 'Europe/Berlin' });
+const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
+/** Einladung per E-Mail verschicken (Link mit Knopf, kurze Anleitung) */
+async function inviteMail(memberId, inv, by) {
+  const to = mailOf(memberId); if (!to) throw new Error('Keine E-Mail-Adresse hinterlegt.');
+  const mail = require('./mail'); if (!mail.ready()) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
+  const club = getSetting('club_name', 'Verein'), url = `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`;
+  const until = deTs(inv.expiresAt), phone = smsPhone(memberId);
+  const steps = ['Den Knopf unten auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), 'Eine eigene PIN für die App festlegen (4 bis 8 Ziffern).', 'Die Seite auf den Home-Bildschirm legen – fertig.'];
+  await mail.send({ to, subject: `Deine Mitglieder-App – ${club}`,
+    text: `Hallo ${firstName(inv.member)},\n\ndu kannst die Mitglieder-App von ${club} jetzt auf deinem Handy freischalten:\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n${url}\n\nDer Link gilt einmal und bis ${until} Uhr. Bitte nicht weiterleiten – wer ihn zuerst öffnet, bekommt den Zugang.\n\nViele Grüße\n${club}`,
+    card: { heading: 'Mitglieder-App freischalten', before: `Hallo ${firstName(inv.member)},\n\ndu kannst die Mitglieder-App von ${club} jetzt auf deinem Handy freischalten:`, title: 'So geht es', rows: steps.map((x, i) => [`${i + 1}.`, x]),
+      after: `Der Link gilt einmal und bis ${until} Uhr. Bitte nicht weiterleiten – wer ihn zuerst öffnet, bekommt den Zugang.\n\nViele Grüße\n${club}`, button: { label: 'App freischalten', url } } });
+  audit(by || null, 'Mitglieder-App: Einladung per E-Mail', `${inv.member} · gültig bis ${until}`);
+  return { to };
+}
+/** Bestätigung an das Mitglied nach jeder Kopplung – fällt so sofort auf, wenn jemand anderes die Einladung benutzt hat */
+function pairedMail(memberId, { device, remote, verified }) {
+  const to = mailOf(memberId); if (!to) return;
+  const mail = require('./mail'); if (!mail.ready()) return;
+  const m = db.prepare('SELECT name FROM members WHERE id = ?').get(memberId); if (!m) return;
+  const club = getSetting('club_name', 'Verein');
+  const dl = String(device || '');
+  const label = /iPhone/.test(dl) ? 'iPhone' : /iPad/.test(dl) ? 'iPad' : /Android/.test(dl) ? 'Android-Handy' : 'Gerät';
+  const note = remote && hasSensitive(memberId) ? 'Türen und Beregnung schalten sich frei, sobald du die App einmal im Vereins-WLAN öffnest.' : verified ? 'Bestätigt mit dem Code per SMS.' : '';
+  const warn = 'Warst du das nicht? Dann melde dich bitte sofort beim Vorstand – das Handy wird dann gesperrt.';
+  mail.send({ to, subject: `Mitglieder-App freigeschaltet – ${club}`,
+    text: `Hallo ${firstName(m.name)},\n\nauf einem ${label} wurde gerade die Mitglieder-App für dich freigeschaltet (${deTs(Date.now())} Uhr).${note ? '\n' + note : ''}\n\n${warn}\n\nViele Grüße\n${club}`,
+    card: { heading: 'Mitglieder-App freigeschaltet', before: `Hallo ${firstName(m.name)},`, title: 'Neues Gerät', rows: [['Gerät', label], ['Zeit', deTs(Date.now()) + ' Uhr'], ...(note ? [['Hinweis', note]] : [])], after: `${warn}\n\nViele Grüße\n${club}` } })
+    .catch(e => console.error('Bestätigungs-Mail:', e.message));
+}
+const hasSensitive = memberId => activeModules().some(([id, m]) => m.sensitive && accessFor(memberId, id).ok);
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
 /** private Absenderadresse (WLAN, Add-on-Netz, derselbe Rechner, link-local)? */
 const PRIVATE_IP = ip => /^(::ffff:)?(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip) || /^fe80:/i.test(ip);
@@ -171,13 +214,13 @@ const access = {
 
 /** Zustand eines Mitglieds für die Verwaltung */
 function memberState(memberId) {
-  const dev = db.prepare(`SELECT device, paired_at, last_used, invite_expires, blocked_at, paired_host, invite_hash IS NOT NULL AS invited, token_hash IS NOT NULL AS paired FROM member_devices WHERE scope = ? AND member_id = ?`).get(SCOPE, memberId);
+  const dev = db.prepare(`SELECT device, paired_at, last_used, invite_expires, blocked_at, paired_host, remote, verified, invite_kind, invite_hash IS NOT NULL AS invited, token_hash IS NOT NULL AS paired FROM member_devices WHERE scope = ? AND member_id = ?`).get(SCOPE, memberId);
   // gekoppelt unter einer anderen Adresse als der öffentlichen? Dann braucht das Handy einen neuen QR-Code, um auch unterwegs zu funktionieren
   const th = tunnelOn() ? tunnelHost() : '';
   const oldAddress = Boolean(dev && dev.paired && th && (dev.paired_host || '') !== th);
   const acc = db.prepare('SELECT module, profile, valid_until, blocked, away, flags FROM member_access WHERE member_id = ?').all(memberId);
   return {
-    device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
+    device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, remote: Boolean(dev.paired && dev.remote), verified: dev.verified || null, kind: dev.invite_kind || 'qr', expires: dev.invited ? dev.invite_expires : null, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
     access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked), away: Boolean(a.away), flags: parseFlags(a.flags) }])),
     // je Bereich angehakt? „für alle“-Bereiche gelten, bis sie für dieses Mitglied abgeschaltet werden
     granted: Object.fromEntries(activeModules().map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
@@ -272,23 +315,67 @@ function startPort({ rateLimit, rateLimitKey }) {
   api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: String(req.ip || '').replace(/^::ffff:/, '') }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
+    if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
     const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
+      if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
     res.json({ version: require('../package.json').version, lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
   });
+  /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
+  const usedAlert = p => {
+    if (!invites.markAlerted(p.deviceId)) return;
+    require('./security').securityAlert(`Mitglieder-App: Die Einladung für ${p.member} wurde geöffnet, war aber schon auf einem Gerät (${p.usedDevice || 'unbekannt'}) eingelöst. Hat das Mitglied sie nicht selbst benutzt, bitte das Handy unter „Mitglieder-App“ entfernen und eine neue Einladung schicken.`, 'used:' + p.deviceId);
+  };
   api.get('/invite', rateLimit('appinv', 30, 60000), (req, res) => {
     const p = invites.peek(SCOPE, String(req.query.t || ''));
-    if (p.error) return res.status(410).json(p);
-    res.json(p);
+    if (p.used) { usedAlert(p); return res.status(410).json({ error: p.error, used: true }); }
+    if (p.error) return res.status(410).json({ error: p.error });
+    const away = awayReq(req), phone = away ? smsPhone(p.memberId) : null;
+    res.json({ member: p.member, away, sms: Boolean(phone), phone: sms.maskPhone(phone), staged: away && !phone && hasSensitive(p.memberId) });
+  });
+  /** zweiter Faktor: Code per SMS an die hinterlegte Handynummer (nie an eine eingegebene) */
+  api.post('/invite/sms', rateLimit('appsms', 6, 600000), async (req, res) => {
+    const t = String((req.body || {}).t || '');
+    const p = invites.peek(SCOPE, t);
+    if (p.error) return res.status(410).json({ error: p.error });
+    if (!awayReq(req)) return res.status(400).json({ error: 'Im Vereins-WLAN ist kein SMS-Code nötig.' });
+    const phone = smsPhone(p.memberId);
+    if (!phone) return res.status(400).json({ error: 'Für dich ist keine Handynummer hinterlegt.' });
+    const o = invites.otpCreate(SCOPE, t);
+    if (o.error) return res.status(o.status).json({ error: o.error });
+    try {
+      await sms.send(phone, `${getSetting('club_name', 'Verein')}: Dein Code fuer die Mitglieder-App: ${o.code}. Gilt ${o.minutes} Minuten. Niemandem weitergeben.`);
+      audit(null, 'Mitglieder-App: SMS-Code verschickt', `${p.member} · ${sms.maskPhone(phone)}`);
+      res.json({ ok: true, phone: sms.maskPhone(phone), minutes: o.minutes });
+    } catch (e) {
+      audit(null, 'Mitglieder-App: SMS-Code nicht verschickt', `${p.member} · ${e.message}`);
+      res.status(502).json({ error: 'Die SMS konnte gerade nicht verschickt werden. Du kannst ohne Code weitermachen – Türen und Beregnung schalten sich dann beim ersten Öffnen im Vereins-WLAN frei.', smsFailed: true });
+    }
   });
   api.post('/pair', rateLimit('apppair', 10, 60000), (req, res) => {
+    const b = req.body || {}, t = String(b.t || '');
     try {
-      const out = invites.redeem(SCOPE, String((req.body || {}).t || ''), (req.body || {}).pin, req.get('user-agent'), req.get('host'));
-      audit(null, 'Mitglieder-App: Handy freigeschaltet', out.member);
-      res.json({ ok: true, device: out.device, member: out.member });
+      const p = invites.peek(SCOPE, t);
+      if (p.used) { usedAlert(p); return res.status(410).json({ error: p.error, used: true }); }
+      if (p.error) return res.status(400).json({ error: p.error });
+      const away = awayReq(req);
+      let remote = false, verified = null;
+      if (away) {
+        const phone = smsPhone(p.memberId);
+        if (phone && String(b.otp || '').trim()) {
+          const c = invites.otpCheck(SCOPE, t, b.otp);
+          if (!c.ok) return res.status(c.status).json({ error: c.error, otp: true });
+          verified = 'sms';
+        } else if (phone && !b.skipSms) return res.status(400).json({ error: 'Bitte zuerst den Code aus der SMS eingeben.', otp: true });
+        else remote = true;   // ohne zweiten Faktor von unterwegs: gestufte Freischaltung
+      }
+      const out = invites.redeem(SCOPE, t, b.pin, req.get('user-agent'), req.get('host'), { remote, verified });
+      audit(null, 'Mitglieder-App: Handy freigeschaltet', `${out.member}${verified ? ' · mit SMS-Code' : remote ? ' · von unterwegs (Türen/Beregnung erst im Vereins-WLAN)' : ''}`);
+      pairedMail(out.memberId, { device: req.get('user-agent'), remote, verified });
+      res.json({ ok: true, device: out.device, member: out.member, staged: remote && hasSensitive(out.memberId) });
     } catch (e) { res.status(400).json({ error: e.message }); }
   });
   /* Übernahme in die Home-Bildschirm-App (siehe invites.js) */
@@ -396,6 +483,10 @@ function startPort({ rateLimit, rateLimitKey }) {
     const c = accessFor(w.memberId, req.params.id);
     if (!c.ok) return res.status(403).json({ error: c.reason, denied: true });
     if (!awayOk(req, req.params.id, c.row)) return res.status(403).json({ error: WLAN_ONLY, denied: true, wlanOnly: true });
+    if (w.remote && m.sensitive) {
+      if (awayReq(req)) return res.status(403).json({ error: STAGED, denied: true, staged: true });
+      if (invites.trust(w.deviceId)) audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name);
+    }
     const go = () => {
       req.member = { id: w.memberId, name: w.name, access: c.row ? { ...c.row, flags: parseFlags(c.row.flags) } : null };
       /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
@@ -485,14 +576,17 @@ function adminRoutes(admin, { bad, need, auth }) {
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
-      security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
+    const canMail = Boolean(require('./plugins').withHook('memberAddress').length);
+    const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id)) : [];
+    res.json({ mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+      security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: Boolean(require('./plugins').withHook('memberAddress').length), sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
     const m = db.prepare('SELECT id, name, kind FROM members WHERE id = ? AND deleted = 0').get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
-    res.json({ member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
+    const em = mailOf(id);
+    res.json({ invite: { mail: Boolean(em && require('./mail').ready()), email: em, mailReady: require('./mail').ready(), sms: Boolean(smsPhone(id)), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) }, member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
   });
   admin.post('/app/member/:id/invite', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     { const miss = missingFor(req, parseInt(req.params.id, 10)); if (miss.length) return bad(res, `Für einen neuen QR-Code fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
@@ -501,6 +595,70 @@ function adminRoutes(admin, { bad, need, auth }) {
       audit(req.user, 'Mitglieder-App: QR-Einladung erzeugt', out.member);
       res.json(out);
     } catch (e) { bad(res, e.message); }
+  });
+  /* ----- Einladung per E-Mail (einzeln) und Sammelversand / Briefe ----- */
+  const inviteOne = async (req, id, kind) => {
+    const miss = missingFor(req, id); if (miss.length) return { error: `fehlendes Recht für ${miss.join(', ')}` };
+    if (kind === 'mail' && !mailOf(id)) return { error: 'keine E-Mail-Adresse' };
+    const inv = invites.create(SCOPE, id, req.user.name || req.user.username, req.user.role === 'oberadmin' ? '*' : req.user.perms, { kind });
+    if (kind === 'mail') { try { await inviteMail(id, inv, req.user); } catch (e) { invites.revoke(SCOPE, id); return { error: e.message }; } return { ok: true, member: inv.member }; }
+    audit(req.user, 'Mitglieder-App: Einladungsbrief', `${inv.member} · gültig bis ${deTs(inv.expiresAt)}`);
+    return { ok: true, member: inv.member, url: `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`, expiresAt: inv.expiresAt, svg: await invites.qrSvg(`${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`) };
+  };
+  admin.post('/app/member/:id/invite-mail', (req, res, next) => need(...permsAll())(req, res, next), async (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    if (!db.prepare("SELECT 1 FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const r = await inviteOne(req, id, 'mail');
+    if (r.error) return bad(res, r.error[0].toUpperCase() + r.error.slice(1) + '.');
+    res.json({ ok: true, to: mailOf(id), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()), ...memberState(id) });
+  });
+  /** viele auf einmal: kind 'mail' (E-Mail) oder 'brief' (QR-Codes zum Ausdrucken). Gekoppelte Handys bleiben, außer force. */
+  admin.post('/app/invites', (req, res, next) => need(...permsAll())(req, res, next), async (req, res) => {
+    const b = req.body || {}, kind = b.kind === 'brief' ? 'brief' : 'mail';
+    const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(x => parseInt(x, 10)).filter(Boolean))].slice(0, 500);
+    if (!ids.length) return bad(res, 'Bitte Mitglieder auswählen.');
+    if (kind === 'mail' && !require('./mail').ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
+    const done = [], skipped = [], letters = [];
+    for (const id of ids) {
+      const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(id);
+      if (!m) continue;
+      const st = memberState(id);
+      if (st.device && st.device.status === 'gekoppelt' && !b.force) { skipped.push({ name: m.name, reason: 'Handy schon gekoppelt' }); continue; }
+      const r = await inviteOne(req, id, kind);
+      if (r.error) skipped.push({ name: m.name, reason: r.error }); else { done.push(m.name); if (kind === 'brief') letters.push({ name: r.member, url: r.url, expiresAt: r.expiresAt, svg: r.svg }); }
+    }
+    if (kind === 'mail') audit(req.user, 'Mitglieder-App: Einladungen per E-Mail', `${done.length} verschickt${skipped.length ? `, ${skipped.length} übersprungen` : ''}`);
+    res.json({ ok: true, kind, done, skipped, letters, days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) });
+  });
+  /** von unterwegs gekoppeltes Handy: Türen/Beregnung freigeben (wie nach dem ersten Besuch im Vereins-WLAN) */
+  admin.post('/app/member/:id/trust', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
+    const id = parseInt(req.params.id, 10);
+    { const miss = missingFor(req, id); if (miss.length) return bad(res, `Dafür fehlt dir das Recht für: ${miss.join(', ')}.`, 403); }
+    const d = db.prepare('SELECT id FROM member_devices WHERE scope = ? AND member_id = ? AND token_hash IS NOT NULL').get(SCOPE, id);
+    if (!d || !invites.trust(d.id)) return bad(res, 'Kein Handy, das auf die Freigabe wartet.');
+    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
+    audit(req.user, 'Mitglieder-App: Handy freigegeben (Türen/Beregnung)', m ? m.name : String(id));
+    res.json({ ok: true, ...memberState(id) });
+  });
+  /* ----- SMS-Modem (zweiter Faktor) ----- */
+  const smsLimit = new Map();
+  const smsInfo = () => ({ on: sms.on(), device: sms.device(), ready: sms.ready(), candidates: sms.candidates() });
+  admin.get('/app/sms', need('einstellungen'), async (req, res) => res.json({ ...smsInfo(), status: sms.device() ? await sms.status() : null }));
+  admin.post('/app/sms/detect', need('einstellungen'), async (req, res) => res.json({ ports: await sms.detect() }));
+  admin.put('/app/sms', need('einstellungen'), (req, res) => {
+    const b = req.body || {};
+    if (b.device !== undefined) { const d = String(b.device || ''); if (d && !sms.validDevice(d)) return bad(res, 'Ungültiger Anschluss.'); setSetting('sms_device', d); }
+    if (b.on !== undefined) { if (b.on && !sms.device()) return bad(res, 'Bitte zuerst den Anschluss des Sticks wählen.'); setSetting('sms_on', b.on ? '1' : '0'); }
+    audit(req.user, 'Mitglieder-App: SMS-Bestätigung', `${sms.on() ? 'an' : 'aus'}${sms.device() ? ' · ' + sms.device() : ''}`);
+    res.json(smsInfo());
+  });
+  admin.post('/app/sms/test', need('einstellungen'), async (req, res) => {
+    const k = req.user.id || req.user.username, last = smsLimit.get(k) || [];
+    const recent = last.filter(t => Date.now() - t < 3600000); if (recent.length >= 5) return bad(res, 'Höchstens 5 Test-SMS pro Stunde.', 429);
+    const to = sms.normPhone((req.body || {}).number); if (!to) return bad(res, 'Bitte eine Handynummer eingeben (z. B. 0170 1234567).');
+    smsLimit.set(k, [...recent, Date.now()]);
+    try { await sms.send(to, `${getSetting('club_name', 'Verein')}: Test-SMS aus Clubwerk. Der Versand funktioniert.`); audit(req.user, 'Mitglieder-App: Test-SMS', sms.maskPhone(to)); res.json({ ok: true, to: sms.maskPhone(to) }); }
+    catch (e) { bad(res, e.message, 502); }
   });
   admin.delete('/app/member/:id/device', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
@@ -586,7 +744,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const b = req.body || {};
     // Adresse im QR-Code und Sicherheitseinstellungen nur mit „Einstellungen“ – sonst könnte jemand mit „Mitglieder“
     // alle späteren QR-Codes auf eine fremde Seite umleiten und Einladungen abgreifen
-    if ((b.url !== undefined || b.inviteHours !== undefined || b.allowLink !== undefined || b.mailTo !== undefined) && !req.user.perms.includes('einstellungen'))
+    if ((b.url !== undefined || b.inviteHours !== undefined || b.inviteMailDays !== undefined || b.allowLink !== undefined || b.mailTo !== undefined) && !req.user.perms.includes('einstellungen'))
       return bad(res, 'Adresse und Sicherheit der Mitglieder-App darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
     if (b.url !== undefined) { const u = String(b.url || '').trim().replace(/\/+$/, ''); if (u && !/^https?:\/\/[A-Za-z0-9.\-[\]:]+$/.test(u)) return bad(res, 'Bitte eine Adresse wie http://homeassistant.local:5001 eintragen.'); setSetting('app_url', u); }
     if ((b.tunnel !== undefined || b.tunnelUrl !== undefined) && !req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
@@ -634,6 +792,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       audit(req.user, 'Mitglieder-App: Reihenfolge der Bereiche geändert', activeModules().map(([, m]) => m.label || m.name).join(', '));
     }
     if (b.inviteHours !== undefined) { const h = parseInt(b.inviteHours, 10); if (!invites.INVITE_HOURS.includes(h)) return bad(res, 'Ungültige Gültigkeit.'); setSetting('app_invite_hours', String(h)); }
+    if (b.inviteMailDays !== undefined) { const d = parseInt(b.inviteMailDays, 10); if (!invites.MAIL_DAYS.includes(d)) return bad(res, 'Ungültige Gültigkeit.'); setSetting('app_invite_mail_days', String(d)); }
     if (b.allowLink !== undefined) setSetting('app_invite_link', b.allowLink ? '1' : '0');
     if (b.mailTo !== undefined) { const t = String(b.mailTo || '').trim(); if (t && !require('./mail').mailOk(t)) return bad(res, 'Bitte eine gültige E-Mail-Adresse eintragen (mehrere mit Komma).'); setSetting('security_mail_to', t); }
     if (b.inviteHours !== undefined || b.allowLink !== undefined || b.mailTo !== undefined) audit(req.user, 'Mitglieder-App: Sicherheit geändert', `QR ${getSetting('app_invite_hours', '24')} Std., Link ${getSetting('app_invite_link', '0') === '1' ? 'erlaubt' : 'aus'}`);

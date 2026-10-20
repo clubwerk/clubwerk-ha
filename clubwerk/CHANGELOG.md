@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.24.0
+
+- **Mitglieder-App ohne QR-Code im Vereinsheim einladen:** „Einladen …“ je Mitglied – QR-Code am Bildschirm, **per E-Mail** (Knopf „App freischalten“ mit Anleitung) oder **Einladungsbrief** zum Ausdrucken. „Einladungen verschicken …“ für viele auf einmal (E-Mail oder Briefe). Gültigkeit für E-Mail/Brief einstellbar (2, 7 oder 14 Tage).
+  - Bestätigungsmail an das Mitglied nach jeder Freischaltung; Warnung an den Vorstand, wenn eine schon benutzte Einladung erneut geöffnet wird.
+  - **Gestufte Freischaltung:** von unterwegs ohne zweiten Faktor freigeschaltete Handys bekommen Türen und Beregnung erst nach dem ersten Öffnen im Vereins-WLAN (oder Freigabe durch den Vorstand).
+  - **Bestätigung per SMS (optional):** LTE-USB-Stick mit SIM am Home-Assistant-Rechner schickt einen 6-stelligen Code an die Handynummer aus der Mitgliederverwaltung – ohne Internet. Einrichtung, Statusanzeige (SIM, Netz, Empfang) und Test-SMS unter Mitglieder-App. Das Add-on bekommt dafür Zugriff auf serielle Geräte (`uart`).
+- **Spielbetrieb – Kalender:** alle Spieltage eines Jahres im Layout des Rahmenterminplans (Monate als Spalten, Tage als Zeilen), mit Ampel, Heim/Auswärts, vorläufigen Terminen; zum Antippen und Drucken (A4 quer).
+- Spielbetrieb: Dieselbe Mannschaft (gleiche Altersklasse und Nummer) lässt sich nicht mehr doppelt anlegen – Vorschlag „Herren 30 II“. Bereits doppelte Mannschaften werden einmalig durchnummeriert.
+- Spielbetrieb: Spieler-Dialog umgedreht – links Mitglieder suchen, rechts die Mannschaft in Meldelisten-Reihenfolge; Beschriftung „Spieler/innen“.
+- Rahmenterminplan: Hessenliga-Mannschaften ohne eigene HL-Termine (z. B. D40) bekommen die Termine ihrer Altersklasse.
+
 ## 3.23.1
 
 - **Mehrere Mannschaften einer Altersklasse** („Herren 30 1“ / „Herren 30 2“, „Damen 1“ / „Damen II“): Der Spielplan-Import trennt sie jetzt anhand der Nummer beim Vereinsnamen („TC Frickhofen II“) – im Spielbetrieb und im Buchungssystem (eigene Plätze je Mannschaft). Vorher landeten alle Spiele einer Altersklasse bei einer Mannschaft. Bereits importierte Spiele werden weiter erkannt, nichts wird doppelt angelegt.

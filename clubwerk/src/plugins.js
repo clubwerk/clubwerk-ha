@@ -211,7 +211,9 @@ function load({ app, admin, helpers }) {
       };
       if (p.meta.mitgliederApp) memberapp.register(id, { name: p.meta.name, label: p.meta.mitgliederApp.label || p.meta.name, order: p.meta.mitgliederApp.order,
         dir: p.dir, router: member, hooks: p.hooks, isActive: () => isActive(id), perm: p.meta.verwaltung ? p.meta.verwaltung.recht : null,
-        open: p.meta.mitgliederApp.alle === true, away: p.meta.mitgliederApp.unterwegs !== false });   // alle = für jedes gekoppelte Handy ohne eigene Freischaltung
+        open: p.meta.mitgliederApp.alle === true, away: p.meta.mitgliederApp.unterwegs !== false,
+          // schaltet etwas im Verein (Türen, Beregnung): nach einer Kopplung von unterwegs ohne zweiten Faktor erst nach dem ersten Besuch im Vereins-WLAN
+          sensitive: p.meta.mitgliederApp.vertraulich === true || p.meta.mitgliederApp.unterwegs === false });   // alle = für jedes gekoppelte Handy ohne eigene Freischaltung
       memberapp.registerPublic(id, { router: publicR, dir: p.dir, isActive: () => isActive(id) });
       require(serverFile).activate(ctx);
     } catch (e) {

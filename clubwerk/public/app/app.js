@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.23.1';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.24.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -379,35 +379,69 @@
     } catch (e) { $('trErr').textContent = e.message; if (e.data && e.data.badCode) { $('trCode').classList.remove('hidden'); } }
   };
 
-  /* ---------- Einladung per QR-Code ---------- */
-  let inviteToken = '';
+  /* ---------- Einladung per QR-Code, Link aus der E-Mail oder Brief ---------- */
+  let inviteToken = '', inviteInfo = {}, skipSms = false;
   async function pair(t) {
-    inviteToken = t;
+    inviteToken = t; skipSms = false;
     history.replaceState(null, '', location.pathname + location.search);   // Einladung nicht in Lesezeichen/Verlauf behalten
     try {
       const p = await call('invite?t=' + encodeURIComponent(t));
+      inviteInfo = p;
       $('pairTitle').textContent = `Hallo ${p.member}`;
+      // von unterwegs mit hinterlegter Handynummer: zweiter Faktor per SMS
+      $('pairSms').classList.toggle('hidden', !p.sms);
+      $('pairPhone').textContent = p.phone || '';
+      $('pairOtp').classList.add('hidden'); $('pairOtp').value = '';
+      $('pairSkip').classList.add('hidden');
+      $('pairNote').classList.toggle('hidden', !p.staged);
+      $('pairText').textContent = p.sms ? 'Dann legst du deine persönliche PIN fest (4–8 Ziffern). Du brauchst sie bei jedem Öffnen oder Starten.' : 'Lege deine persönliche PIN fest (4–8 Ziffern). Damit ist dieses Handy freigeschaltet – nur für dich. Du brauchst die PIN bei jedem Öffnen oder Starten.';
+      $('pairErr').textContent = '';
       $('pairSheet').classList.add('show');
-      setTimeout(() => $('pair1').focus(), 80);
+      setTimeout(() => (p.sms ? $('pairSmsGo') : $('pair1')).focus(), 80);
     } catch (e) {
       if (dev()) { toast(e.message, true, 6000); start().catch(err => toast(err.message, true)); } else lock(e.message);
     }
   }
+  $('pairSmsGo').onclick = async () => {
+    $('pairErr').textContent = 'Sende SMS …'; $('pairSmsGo').disabled = true;
+    try {
+      const r = await call('invite/sms', 'POST', { t: inviteToken });
+      $('pairErr').textContent = '';
+      $('pairOtp').classList.remove('hidden'); $('pairOtp').focus();
+      $('pairSmsGo').textContent = 'Neuen Code senden';
+      toast(`Code an ${r.phone} geschickt – gilt ${r.minutes} Minuten.`, false, 4000);
+      setTimeout(() => { $('pairSmsGo').disabled = false; }, 60000);
+    } catch (e) {
+      $('pairErr').textContent = e.message; $('pairSmsGo').disabled = false;
+      if (e.data && e.data.smsFailed) $('pairSkip').classList.remove('hidden');
+    }
+  };
+  $('pairSkip').onclick = () => {
+    skipSms = true;
+    $('pairSms').classList.add('hidden'); $('pairSkip').classList.add('hidden');
+    $('pairNote').classList.remove('hidden'); $('pairErr').textContent = '';
+    $('pair1').focus();
+  };
   $('pairOk').onclick = async () => {
-    const a = $('pair1').value.trim(), b = $('pair2').value.trim();
+    const a = $('pair1').value.trim(), b = $('pair2').value.trim(), otp = $('pairOtp').value.trim();
+    if (inviteInfo.sms && !skipSms && !/^\d{6}$/.test(otp)) { $('pairErr').textContent = $('pairOtp').classList.contains('hidden') ? 'Bitte zuerst den Code per SMS anfordern' : 'Bitte die 6 Ziffern aus der SMS eingeben'; return; }
     if (!/^\d{4,8}$/.test(a)) { $('pairErr').textContent = 'Bitte 4 bis 8 Ziffern'; return; }
     if (a !== b) { $('pairErr').textContent = 'Die beiden Eingaben stimmen nicht überein'; $('pair2').value = ''; return; }
     $('pairErr').textContent = 'Schalte frei …';
     try {
-      const r = await call('pair', 'POST', { t: inviteToken, pin: a });
+      const r = await call('pair', 'POST', { t: inviteToken, pin: a, ...(inviteInfo.sms && !skipSms ? { otp } : {}), ...(skipSms ? { skipSms: true } : {}) });
       store.set('va_geraet', r.device);
       if (dev() !== r.device) { $('pairErr').textContent = 'Der Browser speichert nichts (privater Modus?) – bitte normal öffnen.'; return; }
       sess.set(a);
       $('pairSheet').classList.remove('show');
-      toast('Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
+      toast(r.staged ? 'Freigeschaltet – Türen und Beregnung folgen beim ersten Besuch im Vereins-WLAN.' : 'Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
       start().then(prepareTransfer).catch(e => toast(e.message, true));
-    } catch (e) { $('pairErr').textContent = e.message; }
+    } catch (e) {
+      $('pairErr').textContent = e.message;
+      if (e.data && e.data.otp) { $('pairOtp').value = ''; $('pairOtp').classList.remove('hidden'); $('pairOtp').focus(); }
+    }
   };
+  $('pairOtp').addEventListener('keydown', e => { if (e.key === 'Enter') $('pair1').focus(); });
   $('pair2').addEventListener('keydown', e => { if (e.key === 'Enter') $('pairOk').click(); });
   $('pair1').addEventListener('keydown', e => { if (e.key === 'Enter') $('pair2').focus(); });
 

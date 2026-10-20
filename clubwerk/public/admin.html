@@ -353,6 +353,13 @@
   .rmopt span { color: var(--muted); font-size: 13px; line-height: 1.45; }
   .rmopt:hover, .rmopt:focus-visible { border-color: var(--brand); outline: none; }
   .rmopt.danger b { color: var(--red); }
+  .rmopt:disabled { opacity: .55; cursor: default; border-color: var(--line); }
+  .invlist { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
+  .invlist > label { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line-soft); }
+  .invlist > label:first-child { border-top: 0; }
+  .letter { page-break-after: always; text-align: center; padding-top: 18mm; }
+  .letter:last-child { page-break-after: auto; }
+  .letter ol { text-align: left; display: inline-block; margin: 0 auto; font-size: 12pt; line-height: 1.6; }
   .rmopt.danger:hover, .rmopt.danger:focus-visible { border-color: var(--red); }
   .soft { background: var(--hover); }
   /* Reihenfolge am Tablet */

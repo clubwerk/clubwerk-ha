@@ -120,6 +120,11 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; }
 .vh-code { font: 700 22px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-align: center; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--field); color: var(--ink); margin-bottom: 12px; user-select: all; }
 .vh-input.vh-codein { text-align: center; font: 700 20px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; }
 #lockSheet .vh-row { margin-top: 14px; }
+/* Freischalten mit SMS-Code */
+.vh-step { padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+.vh-step .vh-input { margin: 10px 0 0; }
+.vh-skip { display: block; width: 100%; margin-top: 10px; min-height: 40px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 14px; text-decoration: underline; }
+.vh-skip.hidden { display: none; }
 .vh-foot { display: flex; justify-content: center; padding: 18px 0 6px; margin-top: auto; }   /* Sprachwahl immer unten – bei kurzem Inhalt am unteren Rand über der Tab-Leiste, sonst nach dem Inhalt */
 .vh-langbtn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line, #dfe3dc); background: transparent; color: var(--muted, #5d6b62); font: inherit; font-size: 14px; }
 .vh-langs { display: grid; gap: 8px; margin: 12px 0; }

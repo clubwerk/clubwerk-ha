@@ -43,7 +43,7 @@ Tablet-Routen mit dem Passwortschutz der Buchungsseite), `db` (SQLite, better-sq
 `audit(user, aktion, details)`, `need(recht)`, `rateLimit(name, max, ms)` (Bremse je Absenderadresse),
 `rateLimitKey(name, max, ms, req => schlüssel)` (Bremse je frei gewähltem Schlüssel, z. B. `req.member.id`), `bad(res, text)`, `int`, `cleanName`, `nowTs`,
 `util` (gemeinsame Helfer: `today()`, `nowTs()`, `isDate(s)`, `addDays(s, n)`, `deD(s)` → „TT.MM.JJJJ“, `euro(cents)`, `esc(html)`, `pad(n)`),
-`isActive()`, `hooks.tabletVisible = () => bool` (Link am Tablet nur zeigen, wenn sinnvoll), `hooks.appVisible = memberId => bool` (Bereich in der Mitglieder-App nur für bestimmte Mitglieder zeigen, z. B. nur für Spieler einer Mannschaft) und
+`isActive()`, `hooks.tabletVisible = () => bool` (Link am Tablet nur zeigen, wenn sinnvoll), `hooks.appVisible = memberId => bool` (Bereich in der Mitglieder-App nur für bestimmte Mitglieder zeigen, z. B. nur für Spieler einer Mannschaft). Bereiche mit `"unterwegs": false` oder `"vertraulich": true` unter `mitgliederApp` in der erweiterung.json gelten als vertraulich: Auf einem Handy, das von unterwegs ohne SMS-Code freigeschaltet wurde, gehen sie erst nach dem ersten Öffnen im Vereins-WLAN (oder nach Freigabe durch den Vorstand). `memberAddress(id)` der Mitgliederverwaltung liefert auch `mobile` und `phone`. Außerdem
 `require(name)` für die Bibliotheken von Clubwerk (`exceljs`, `pdfkit`, `nodemailer`, `express`).
 
 **Hooks für den Lebenszyklus (optional):** `ctx.hooks.shutdown = async () => {}` (Clubwerk wird beendet – Update, Neustart),
