@@ -74,11 +74,19 @@
     const x = slots(r).find(y => y.s === s); if (!x) return;
     if (/free/.test(x.cls)) { if (!state.booking) return toast('Gebucht wird in der Mitglieder-App.'); return pickName(`${r.name} ab ${hhmm(s)} Uhr buchen`, tok => bookDlg(r, s, tok)); }
     const b = x.b || {};
-    const canCancel = state.booking && b.type === 'buchung';
+    const canCancel = state.booking && (b.type === 'buchung' || (b.type === 'serie' && b.series));
     dlg(`<h2>${esc(r.name)} · ${b.start}–${b.end}</h2><div class="sub">${b.type === 'buchung' ? esc(whoTxt(b)) : esc(b.title || '')}</div>
-      <div class="dlg-btns">${canCancel ? '<button id="x">Schließen</button><button class="ok" id="cx" style="background:var(--red);border-color:var(--red)">Stornieren …</button>' : '<button class="ok" id="x" style="grid-column:1/-1">Schließen</button>'}</div>`);
+      <div class="dlg-btns">${canCancel ? `<button id="x">Schließen</button><button class="ok" id="cx" style="background:var(--red);border-color:var(--red)">${b.type === 'serie' ? 'Absagen …' : 'Stornieren …'}</button>` : '<button class="ok" id="x" style="grid-column:1/-1">Schließen</button>'}</div>`);
     $('x').onclick = closeDlg;
-    if (canCancel) $('cx').onclick = () => pickName('Wer hat gebucht?', async tok => {
+    if (canCancel && b.type === 'serie') $('cx').onclick = () => pickName('Wer hat die Serie gebucht?', tok => {   // Serientermin: nur heute · ab heute · ganze Serie
+      dlg(`<h2>Serie absagen</h2><div class="sub">${esc(b.title || r.name)} · ${b.start}–${b.end}</div>
+        <div class="dlg-btns" style="grid-template-columns:1fr"><button data-sc="one">Nur heute</button><button data-sc="following">Heute und alle folgenden</button><button data-sc="all">Gesamte Serie</button><button id="x">Abbrechen</button></div>`);
+      $('x').onclick = closeDlg;
+      document.querySelectorAll('[data-sc]').forEach(x => { x.onclick = async () => {
+        try { const r0 = await call('x/buchung/series-cancel', { token: tok, id: b.id, scope: x.dataset.sc }); closeDlg(); toast(`Abgesagt: ${r0.cancelled} ${r0.cancelled === 1 ? 'Termin' : 'Termine'}.`); load(); } catch (e) { closeDlg(); toast(e.message, true); }
+      }; });
+    });
+    else if (canCancel) $('cx').onclick = () => pickName('Wer hat gebucht?', async tok => {
       try { await call('x/buchung/cancel', { token: tok, id: b.id }); closeDlg(); toast('Storniert.'); load(); } catch (e) { closeDlg(); toast(e.message, true); }
     });
   }

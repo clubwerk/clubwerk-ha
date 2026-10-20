@@ -82,7 +82,12 @@ function activate(ctx) {
     if (!cols.includes('as_partner')) db.exec('ALTER TABLE bk_resource ADD COLUMN as_partner INTEGER NOT NULL DEFAULT 0');   // Gerät: „als Mitspieler buchbar“ (auf allen Plätzen)
     const bc = db.prepare('PRAGMA table_info(bk_booking)').all().map(c => c.name);
     if (!bc.includes('partner_device_id')) db.exec('ALTER TABLE bk_booking ADD COLUMN partner_device_id INTEGER');   // verknüpfte Gerätebuchung (id in bk_booking)
-    if (!bc.includes('solo')) db.exec('ALTER TABLE bk_booking ADD COLUMN solo INTEGER NOT NULL DEFAULT 0'); }
+    if (!bc.includes('solo')) db.exec('ALTER TABLE bk_booking ADD COLUMN solo INTEGER NOT NULL DEFAULT 0');
+    // 3.20: Wiederholungsregel je Serie (täglich, wöchentlich, alle n Wochen, monatlich) und Spielplan-Import (Schlüssel je Spiel)
+    if (!bc.includes('ext_key')) db.exec('ALTER TABLE bk_booking ADD COLUMN ext_key TEXT');
+    const sc = db.prepare('PRAGMA table_info(bk_series)').all().map(c => c.name);
+    if (!sc.includes('rule')) db.exec('ALTER TABLE bk_series ADD COLUMN rule TEXT');
+    db.exec('CREATE INDEX IF NOT EXISTS ix_bk_booking_ext ON bk_booking(ext_key)'); }
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
   const uname = req => req.user.name || req.user.username;
   const ar = fn => ctx.asyncRoute(fn);
@@ -157,7 +162,7 @@ function activate(ctx) {
     const show = full || mine || (names && b.type === 'buchung');
     const lab = labelOf(b.label_id);
     const dev = b.type === 'buchung' ? deviceOf(b) : null;
-    const out = { id: b.id, resource_id: b.resource_id, date: b.date, start: b.start, end: b.end, type: b.type, label: lab ? { name: lab.name, color: lab.color } : null, title: b.type === 'buchung' && !lab ? null : (b.title || (lab && lab.name) || null), mine, own: me != null && b.member_id === me,
+    const out = { id: b.id, resource_id: b.resource_id, date: b.date, start: b.start, end: b.end, type: b.type, series: b.series_id ? true : undefined, label: lab ? { name: lab.name, color: lab.color } : null, title: b.type === 'buchung' && !lab ? null : (b.title || (lab && lab.name) || null), mine, own: me != null && b.member_id === me,
       who: show && b.type === 'buchung' ? [b.member_id ? nameOf(b.member_id) : (b.title || (lab && lab.name) || 'Verein'), ...partners.map(nameOf), ...guests.map(guestLabel)] : null,
       partner_device_name: dev ? dev.name : null, solo_label: b.type === 'buchung' ? soloLabelOf(b) : null };   // Anzeige „Muster, Max + Ballmaschine“ bzw. „… · Ballwand“
     if (full) Object.assign(out, { member_id: b.member_id, partners, guests, fee_cents: b.fee_cents, charge_id: b.charge_id, series_id: b.series_id, note: b.note, source: b.source, status: b.status, created_by: b.created_by, created_at: b.created_at, title: b.title, partner_device_id: b.partner_device_id || null, solo: Boolean(b.solo) });
@@ -199,13 +204,15 @@ function activate(ctx) {
   /** Gäste: [{ name, partner }] – partner = Mitglied eines Partnervereins (keine Gastgebühr); alte Einträge waren nur Namen */
   const normGuests = list => (Array.isArray(list) ? list : []).map(g => (typeof g === 'string' ? { name: txt(g, 60), partner: false } : { name: txt(g && g.name, 60), partner: Boolean(g && g.partner) })).filter(g => g.name);
   /** Kurze, übersichtliche Zusammenfassung einer Buchung für E-Mails */
-  const summary = b => {
+  /** Eckdaten einer Buchung als Zeilen [Bezeichnung, Wert] – für die Infokarte der E-Mail und die Textfassung */
+  const summaryRows = b => {
     const r = resource(b.resource_id) || { name: 'Platz' };
     const players = [b.member_id ? nameOf(b.member_id) : null, ...J(b.partners, []).map(nameOf)].filter(Boolean);
     const guests = normGuests(J(b.guests, []));
-    return [`Platz:     ${r.name}`, `Wann:      ${WD[isoDow(b.date)]}, ${deD(b.date)} · ${b.start}–${b.end} Uhr`, `Gebucht von: ${b.member_id ? nameOf(b.member_id) : 'Verein'}`,
-      `Spieler:   ${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}${deviceOf(b) ? ` + ${deviceOf(b).name}` : ''}${b.solo ? ` · ${soloLabelOf(b)}` : ''}`];
+    return [['Platz', r.name], ['Wann', `${WD[isoDow(b.date)]}, ${deD(b.date)} · ${b.start}–${b.end} Uhr`], ['Gebucht von', b.member_id ? nameOf(b.member_id) : 'Verein'],
+      ['Spieler', `${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}${deviceOf(b) ? ` + ${deviceOf(b).name}` : ''}${b.solo ? ` · ${soloLabelOf(b)}` : ''}`]].filter(([, v]) => v);
   };
+  const summary = b => summaryRows(b).map(([k, v]) => `${k}: ${v}`);
   /* Mail-Kontingent je buchendem Mitglied: höchstens 20 Mitspieler-Mails je Stunde. Buchen → Stornieren → Buchen ließe sich sonst
      beliebig wiederholen und würde das Vereinspostfach zum Spam-Versender an ausgesuchte Mitglieder machen. Darüber hinaus
      geht die Aktion normal weiter, nur ohne Mail. Aktionen der Verwaltung (budget = null) zählen nicht. */
@@ -227,7 +234,8 @@ function activate(ctx) {
     const intro = kind === 'storno' ? `${by ? nameOf(by) : 'Der Verein'} hat diese Buchung storniert${reason ? ` (Grund: ${reason})` : ''}:`
       : kind === 'aenderung' ? `${by ? nameOf(by) : 'Der Verein'} hat die Buchung geändert${old && (old.date !== b.date || old.start !== b.start || old.end !== b.end || old.resource_id !== b.resource_id) ? ` (vorher: ${ro.name}, ${WD[isoDow(old.date)]} ${deD(old.date)} · ${old.start}–${old.end} Uhr)` : ''}. So sieht sie jetzt aus:`
       : `${nameOf(b.member_id)} hat dich als Mitspieler eingetragen:`;
-    notify(ids, head, [intro, '', ...summary(b), '', kind === 'storno' ? 'Der Platz ist damit wieder frei.' : 'Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Buchen“.']).catch(() => {});
+    const outro = kind === 'storno' ? 'Der Platz ist damit wieder frei.' : 'Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Buchen“.';
+    notify(ids, head, [intro, '', ...summary(b), '', outro], null, { heading: kind === 'storno' ? 'Buchung storniert' : kind === 'aenderung' ? 'Buchung geändert' : 'Du bist als Mitspieler eingetragen', intro, title: when, rows: summaryRows(b), outro }).catch(() => {});
   }
   const guestLabel = g => `${g.name} (${g.partner ? 'Gast, Partnerverein' : 'Gast'})`;
   const feeOf = r => (r.guest_fee_cents != null ? r.guest_fee_cents : cfg().guest_fee_cents);
@@ -384,16 +392,97 @@ function activate(ctx) {
   }
 
   /** E-Mail an Mitglieder (Adresse aus der Mitgliederverwaltung) */
-  async function notify(ids, subject, lines, pushEvent = null) {
+  async function notify(ids, subject, lines, pushEvent = null, card = null) {
     if (pushEvent && ctx.push) ctx.push.send(ids, pushEvent, { title: subject, body: String((lines || []).find(l => l && !/^Hallo/.test(l)) || ''), url: './#buchung', tag: `buchung-${pushEvent}` }).catch(() => {});
     if (!ctx.mail.ready() || !mv()) return 0;
     let n = 0;
     for (const id of ids) {
       const a = await hook('memberAddress', id).catch(() => null);
       if (!a || !a.email) continue;
-      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${ctx.getSetting('club_name', 'Verein')}`, text: [`Hallo ${String(a.name || '').split(' ')[0]},`, '', ...lines, '', 'Viele Grüße', ctx.getSetting('club_name', 'Verein')].join('\n') }); n++; } catch (e) { /* weiter */ }
+      const hi = `Hallo ${String(a.name || '').split(' ')[0]},`, club = ctx.getSetting('club_name', 'Verein');
+      // card = { title, rows, intro, outro }: gestaltete Infokarte in der HTML-Mail (Textfassung bleibt wie bisher)
+      const mc = card ? { heading: card.heading, before: [hi, '', card.intro || ''].join('\n'), title: card.title, rows: card.rows, after: [card.outro || '', '', 'Viele Grüße', club].join('\n'), button: true } : null;
+      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, '', 'Viele Grüße', club].join('\n'), card: mc }); n++; } catch (e) { /* weiter */ }
     }
     return n;
+  }
+
+  /* ---------- Termine einer Serie: nur diesen · diesen und folgende · gesamte Serie ----------
+     scope 'one' | 'following' | 'all' (all = alle kommenden, Vergangenes bleibt als Verlauf stehen) */
+  const SCOPES = ['one', 'following', 'all'];
+  function seriesTargets(b, scope) {
+    if (!b.series_id || scope === 'one') return [b];
+    return db.prepare("SELECT * FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ? ORDER BY date, start, id").all(b.series_id, scope === 'following' ? b.date : today());
+  }
+  async function scopeCancel(b, scope, by, reason = '') {
+    const list = seriesTargets(b, scope);
+    for (const x of list) await cancel(x, by, reason || (scope === 'one' ? 'Einzeltermin abgesagt' : 'Serie beendet'));
+    const sx = b.series_id ? db.prepare('SELECT * FROM bk_series WHERE id = ?').get(b.series_id) : null;
+    if (sx && scope !== 'one') {
+      if (scope === 'all' || b.date <= sx.from_date) db.prepare('UPDATE bk_series SET active = 0, to_date = MAX(from_date, ?) WHERE id = ?').run(addDays(today(), -1), sx.id);
+      else db.prepare('UPDATE bk_series SET to_date = ? WHERE id = ?').run(addDays(b.date, -1), sx.id);
+    }
+    return list.length;
+  }
+  /** Ändern im gewählten Umfang. f = { resource_id, start, end, title, note, label_id, member_id } (fehlende Felder bleiben).
+      Belegte Tage: Serien lassen sie aus, Sperren stornieren die Buchungen dort (nur mit force). preview → nur zählen. */
+  async function scopeEdit(b, scope, f, { by, force = false, preview = false, admin = false, noMax = false } = {}) {
+    const list = seriesTargets(b, scope);
+    const sx = b.series_id ? db.prepare('SELECT * FROM bk_series WHERE id = ?').get(b.series_id) : null;
+    const multi = sx && J(sx.resources, []).length > 1;
+    const changeRes = f.resource_id != null && int(f.resource_id) !== b.resource_id && !(multi && scope !== 'one');
+    const nr = changeRes ? resource(f.resource_id) : null;
+    if (changeRes && (!nr || nr.deleted)) throw new Error('Bitte einen Platz wählen.');
+    const s = tm(f.start != null ? f.start : b.start), e = tm(f.end != null ? f.end : b.end);
+    if (s == null || e == null || e <= s) throw new Error('Bitte die Uhrzeit prüfen.');
+    const ids = new Set(list.map(x => x.id));
+    const plan = [];
+    for (const t of list) {
+      const r = nr || resource(t.resource_id);
+      const ge = gridError(r, t.date, s, e, { admin, noMax });
+      if (ge) { if (scope === 'one') throw new Error(ge); plan.push({ t, r, skip: ge }); continue; }
+      const clash = db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ? AND id != ?").all(r.id, t.date, hhmm(e), hhmm(s), t.id).filter(c => !ids.has(c.id));
+      plan.push({ t, r, clash });
+    }
+    const clashes = plan.filter(p => p.clash && p.clash.length);
+    const out = { count: plan.filter(p => !p.skip).length, skipped: plan.filter(p => p.skip).map(p => ({ date: p.t.date, why: p.skip })), clash: clashes.map(p => ({ date: p.t.date, items: p.clash.map(c => bview(c, { full: true })) })) };
+    if (preview) return out;
+    if (clashes.length && !force) throw Object.assign(new Error(`${clashes.length} ${clashes.length === 1 ? 'Termin überschneidet' : 'Termine überschneiden'} sich mit anderen Buchungen.`), { status: 409, data: out });
+    const title = f.title !== undefined ? (txt(f.title, 80) || null) : undefined;
+    const label = f.label_id !== undefined ? (f.label_id ? labelRow(f.label_id) : null) : undefined;
+    const mid = f.member_id !== undefined ? (f.member_id ? memberRow(f.member_id) : null) : undefined;
+    let changed = 0; const skipped = out.skipped.map(x => x.date), cancelled = [];
+    for (const p of plan) {
+      if (p.skip) continue;
+      if (p.clash.length) {
+        if (p.t.type === 'sperre') { for (const c of p.clash.filter(c => c.type !== 'sperre')) { await cancel(c, by, `Platz gesperrt: ${p.t.title || ''}`); cancelled.push(c); } }
+        else { skipped.push(p.t.date); continue; }
+      }
+      db.prepare(`UPDATE bk_booking SET resource_id = ?, start = ?, end = ?${title !== undefined ? ', title = @t' : ''}${f.note !== undefined ? ', note = @n' : ''}${label !== undefined ? ', label_id = @l' : ''}${mid !== undefined ? ', member_id = @m' : ''} WHERE id = @id`.replace('resource_id = ?, start = ?, end = ?', 'resource_id = @r, start = @s, end = @e'))
+        .run({ r: p.r.id, s: hhmm(s), e: hhmm(e), t: title === undefined ? null : title, n: txt(f.note, 300) || null, l: label ? label.id : null, m: mid ? mid.id : null, id: p.t.id });
+      changed++;
+    }
+    // Serie fortschreiben: „alle“ ändert die Serie selbst, „folgende“ teilt sie (bis gestern alt, ab diesem Termin neu)
+    if (sx && scope !== 'one' && changed) {
+      const upd = { start: hhmm(s), end: hhmm(e) };
+      if (changeRes) upd.resources = JSON.stringify([nr.id]);
+      if (title !== undefined && title) upd.title = title;
+      if (f.note !== undefined) upd.note = txt(f.note, 300) || null;
+      if (label !== undefined) upd.label_id = label ? label.id : null;
+      if (mid !== undefined) upd.member_id = mid ? mid.id : null;
+      if (scope === 'all' || b.date <= sx.from_date) {
+        const k = Object.keys(upd); db.prepare(`UPDATE bk_series SET ${k.map(x => `${x} = ?`).join(', ')} WHERE id = ?`).run(...k.map(x => upd[x]), sx.id);
+      } else {
+        const nx = { ...sx, ...upd, from_date: b.date }; delete nx.id; delete nx.created_at;
+        const k = Object.keys(nx);
+        const nid = Number(db.prepare(`INSERT INTO bk_series(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(x => nx[x])).lastInsertRowid);
+        db.prepare('UPDATE bk_series SET to_date = ? WHERE id = ?').run(addDays(b.date, -1), sx.id);
+        db.prepare(`UPDATE bk_booking SET series_id = ? WHERE series_id = ? AND date >= ?`).run(nid, sx.id, b.date);
+      }
+    }
+    for (const c of cancelled) if (c.member_id && c.type === 'buchung') { const r0 = resource(c.resource_id) || { name: 'Platz' };
+      notify([c.member_id], `Buchung storniert: ${r0.name} ${deD(c.date)}`, [`Deine Buchung ${r0.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${b.title || 'Platzsperre'}`], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${r0.name} · ${WD[isoDow(c.date)]} ${deD(c.date)}`, rows: [['Platz', r0.name], ['Wann', `${WD[isoDow(c.date)]}, ${deD(c.date)} · ${c.start}–${c.end} Uhr`], ['Grund', b.title || 'Platzsperre']], outro: '' }).catch(() => {}); }
+    return { changed, skipped: [...new Set(skipped)], cancelled: cancelled.length };
   }
 
   /** Stornieren (Mitglied, Tablet oder Verwaltung) + Gastgebühr zurücknehmen + Warteliste benachrichtigen */
@@ -414,7 +503,7 @@ function activate(ctx) {
     for (const w of ws) {
       if (!free(r, w.date, tm(w.start), tm(w.end))) continue;
       db.prepare('UPDATE bk_wait SET notified_at = ? WHERE id = ?').run(nowTs(), w.id);
-      notify([w.member_id], `Frei geworden: ${r.name} ${deD(w.date)}`, [`Du stehst auf der Warteliste – ${r.name} am ${WD[isoDow(w.date)]} ${deD(w.date)} um ${w.start} Uhr ist jetzt frei.`, '', 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App unter „Buchen“ zugreifst.'], 'warteliste').catch(() => {});
+      notify([w.member_id], `Frei geworden: ${r.name} ${deD(w.date)}`, [`Du stehst auf der Warteliste – ${r.name} am ${WD[isoDow(w.date)]} ${deD(w.date)} um ${w.start} Uhr ist jetzt frei.`, '', 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App unter „Buchen“ zugreifst.'], 'warteliste', { intro: 'Du stehst auf der Warteliste – dieser Termin ist jetzt frei:', title: `${r.name} · ${WD[isoDow(w.date)]} ${deD(w.date)}`, rows: [['Platz', r.name], ['Wann', `${WD[isoDow(w.date)]}, ${deD(w.date)} · ${w.start}–${w.end} Uhr`]], outro: 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App buchst.' }).catch(() => {});
     }
   }
 
@@ -508,7 +597,7 @@ function activate(ctx) {
       people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
       labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })),
       rights: { series: rightsOf(mid).series },
-      series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date,
+      series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date, rule_text: ruleText(x),
         resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
   }));
   // je Mitglied (nicht nur je Adresse – draußen teilen sich viele Handys eine Adresse, drinnen könnte eine wechseln): 10 Aktionen je Minute
@@ -538,10 +627,12 @@ function activate(ctx) {
     if (!isDate(b.until) || b.until < b.date) return bad(res, 'Bitte angeben, bis wann die Serie läuft.');
     if (addDays(b.date, 366) < b.until) return bad(res, 'Höchstens ein Jahr am Stück.');
     const title = (label && txt(b.title, 80)) || (label ? label.name : `${nameOf(mid)} (Serie)`);
-    const sx = { type: 'serie', title, resources: JSON.stringify([r.id]), weekdays: String(isoDow(b.date)), start: hhmm(s), end: hhmm(e), from_date: b.date, to_date: b.until, member_id: mid, note: null, label_id: label ? label.id : null };
+    const ri = ruleInput({ ...b, weekdays: b.freq === 'weekly' || !b.freq ? (b.weekdays || String(isoDow(b.date))) : '' }, b.date);
+    const sx = { type: 'serie', title, resources: JSON.stringify([r.id]), weekdays: ri.weekdays, start: hhmm(s), end: hhmm(e), from_date: b.date, to_date: b.until, member_id: mid, note: null, label_id: label ? label.id : null, rule: JSON.stringify(ri.rule) };
     const days = seriesDays(sx);
+    if (!days.length) return bad(res, 'In diesem Zeitraum liegt kein Termin – bitte Zeitraum oder Wiederholung prüfen.');
     const busy = d => db.prepare("SELECT 1 FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ?").get(r.id, d, hhmm(e), hhmm(s));
-    if (b.preview) return res.json({ days: days.length, busy: days.filter(busy).map(deD) });
+    if (b.preview) return res.json({ days: days.length, rule: ruleText(sx), busy: days.filter(busy).map(deD) });
     let id, made = 0; const skipped = [];
     db.transaction(() => {
       const k = Object.keys(sx);
@@ -560,6 +651,25 @@ function activate(ctx) {
     db.prepare('UPDATE bk_series SET active = 0, to_date = MAX(from_date, ?) WHERE id = ?').run(addDays(today(), -1), sx.id);
     ctx.audit({ username: 'app', name: nameOf(req.member.id) }, 'Serie beendet (App)', `${sx.title}: ${fut.length} Termine entfernt`);
     res.json({ ok: true, removed: fut.length });
+  }));
+  /** eigene Serie in der App: nur diesen · diesen und folgende · gesamte Serie – absagen oder Uhrzeit/Platz ändern */
+  M.post('/series-booking/:id', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
+    const mid = req.member.id, x = req.body || {}, scope = SCOPES.includes(x.scope) ? x.scope : 'one';
+    const b0 = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(req.params.id));
+    if (!b0 || b0.member_id !== mid || !b0.series_id || b0.type !== 'serie') return bad(res, 'Diesen Serientermin kannst du nicht ändern.');
+    if (!canCancelNow(b0)) return bad(res, cfg().cancel_before_min ? `Ändern geht nur bis ${cfg().cancel_before_min} Minuten vor Beginn.` : 'Der Termin hat schon begonnen.');
+    try {
+      if (x.action === 'cancel') {
+        const n = await scopeCancel(b0, scope, nameOf(mid));
+        ctx.audit({ username: 'app', name: nameOf(mid) }, 'Serie: Termine abgesagt (App)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} Termin(e)`);
+        return res.json({ ok: true, cancelled: n });
+      }
+      const f = x.fields || {}, lab = b0.label_id ? labelRow(b0.label_id) : null;
+      const start = f.start, end = f.start && f.minutes ? hhmm(tm(f.start) + int(f.minutes)) : f.end;
+      const r = await scopeEdit(b0, scope, { start, end, resource_id: f.resource_id }, { by: nameOf(mid), preview: Boolean(x.preview), force: Boolean(x.force), noMax: Boolean(lab && lab.free_rules) });
+      if (!x.preview) ctx.audit({ username: 'app', name: nameOf(mid) }, 'Serie: Termine geändert (App)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${r.changed} geändert${r.skipped.length ? `, ${r.skipped.length} ausgelassen` : ''}`);
+      res.json({ ok: true, ...r });
+    } catch (e) { res.status(e.status || 400).json({ error: e.message, ...(e.data || {}) }); }
   }));
   M.post('/wait', rateLimit('bkapp', 60, 60000), perMember, (req, res) => {
     const c = cfg(), b = req.body || {}, mid = req.member.id;
@@ -610,6 +720,17 @@ function activate(ctx) {
     await cancel(b, nameOf(mid)); ctx.auth.dropTabletToken(req.body.token);
     mailPlayers(b, 'storno', { by: mid, budget: mid });
     res.json({ ok: true });
+  }));
+
+  T.post('/series-cancel', rateLimit('bktab', 60, 60000), ar(async (req, res) => {   // eigener Serientermin am Tablet: nur heute / ab heute / ganze Serie
+    const mid = tabletMember(req, res); if (!mid) return;
+    const x = req.body || {}, scope = SCOPES.includes(x.scope) ? x.scope : 'one';
+    const b0 = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(x.id));
+    if (!b0 || b0.member_id !== mid || !b0.series_id || b0.type !== 'serie') return bad(res, 'Diesen Serientermin kannst du nicht absagen.');
+    if (!canCancelNow(b0)) return bad(res, 'Absagen geht jetzt nicht mehr.');
+    const n = await scopeCancel(b0, scope, nameOf(mid)); ctx.auth.dropTabletToken(x.token);
+    ctx.audit({ username: 'tablet', name: nameOf(mid) }, 'Serie: Termine abgesagt (Tablet)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} Termin(e)`);
+    res.json({ ok: true, cancelled: n });
   }));
 
   /* ================================================================= Verwaltung */
@@ -678,7 +799,7 @@ function activate(ctx) {
     } catch (x) { return res.status(x.conflicts ? 409 : 400).json({ error: x.message, conflicts: (x.conflicts || []).map(c => bview(c, { full: true })) }); }
     if (type === 'sperre' && b.force) for (const c of conflicts.filter(x => x.type !== 'sperre')) {
       await cancel(c, uname(req), `Platz gesperrt: ${title}`);
-      if (c.member_id) notify([c.member_id], `Buchung storniert: ${r.name} ${deD(c.date)}`, [`Deine Buchung ${r.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno').catch(() => {});
+      if (c.member_id) notify([c.member_id], `Buchung storniert: ${r.name} ${deD(c.date)}`, [`Deine Buchung ${r.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${r.name} · ${WD[isoDow(c.date)]} ${deD(c.date)}`, rows: [['Platz', r.name], ['Wann', `${WD[isoDow(c.date)]}, ${deD(c.date)} · ${c.start}–${c.end} Uhr`], ['Grund', title]], outro: '' }).catch(() => {});
     }
     // Gastgebühr: bei Änderung neu berechnen (alte zurücknehmen, neue anlegen)
     const paying = label && label.free_rules ? 0 : guests.filter(g => !g.partner).length;
@@ -703,6 +824,25 @@ function activate(ctx) {
   /* Buchen in der Verwaltung: für ein Mitglied (ohne Kontingent/Vorlauf) oder als Sperre / Vereinsbuchung */
   admin.post('/bookings', P, ar(async (req, res) => adminSave(req, res)));
   admin.put('/bookings/:id', P, ar(async (req, res) => adminSave(req, res, int(req.params.id))));
+  /** Termin einer Serie/Sperre: nur diesen · diesen und folgende · gesamte Serie – stornieren oder ändern */
+  admin.post('/bookings/:id/scope', P, ar(async (req, res) => {
+    const b0 = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(req.params.id));
+    if (!b0) return bad(res, 'Diese Buchung gibt es nicht (mehr).', 404);
+    const x = req.body || {}, scope = SCOPES.includes(x.scope) ? x.scope : 'one';
+    if ((b0.series_id || b0.type !== 'buchung') && !may(req, 'buchung_serien')) return bad(res, 'Serien und Sperren ändern darf nur, wer das Recht „Serien & Sperren“ hat.', 403);
+    if (b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_stornieren') && x.action === 'cancel') return bad(res, 'Dafür fehlt das Recht „Buchungen stornieren“.', 403);
+    try {
+      if (x.action === 'cancel') {
+        const n = await scopeCancel(b0, scope, uname(req), txt(x.reason, 160));
+        ctx.audit(req.user, 'Serie: Termine storniert (Verwaltung)', `${b0.title || '#' + b0.id} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} Termin(e)`);
+        return res.json({ ok: true, cancelled: n });
+      }
+      const f = x.fields || {};
+      const r = await scopeEdit(b0, scope, f, { by: uname(req), force: Boolean(x.force), preview: Boolean(x.preview), admin: true });
+      if (!x.preview) ctx.audit(req.user, 'Serie: Termine geändert (Verwaltung)', `${b0.title || '#' + b0.id} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${r.changed} geändert${r.skipped.length ? `, ${r.skipped.length} ausgelassen` : ''}${r.cancelled ? `, ${r.cancelled} storniert` : ''}`);
+      res.json({ ok: true, ...r });
+    } catch (e) { res.status(e.status || 400).json({ error: e.message, ...(e.data || {}) }); }
+  }));
   admin.post('/bookings/:id/cancel', P, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(req.params.id));
     if (!b) return bad(res, 'Nicht gefunden.', 404);
@@ -871,19 +1011,188 @@ function activate(ctx) {
   });
 
   /* ---------- Serien & Sperren (wöchentlich, Zeitraum) ---------- */
-  admin.get('/series', P, (req, res) => res.json(db.prepare('SELECT * FROM bk_series ORDER BY active DESC, to_date DESC, id DESC').all().map(x => ({ ...x, resources: J(x.resources, []), label: labelOf(x.label_id),
+  admin.get('/series', P, (req, res) => res.json(db.prepare('SELECT * FROM bk_series ORDER BY active DESC, to_date DESC, id DESC').all().map(x => ({ ...x, resources: J(x.resources, []), label: labelOf(x.label_id), rule: ruleOf(x), rule_text: ruleText(x),
+    games: ruleOf(x).freq === 'import' ? db.prepare("SELECT COUNT(DISTINCT ext_key) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n : null,
     member: x.member_id ? nameOf(x.member_id) : null, count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n }))));
+  /* ---------- Wiederholungsregel einer Serie ----------
+     { freq: 'daily'|'weekly'|'monthly'|'import', interval: 1…12, monthly: 'day'|'nth' } – Wochentage stehen weiter in sx.weekdays.
+     Ohne Regel (Serien bis 3.19): wöchentlich an den Wochentagen. */
+  const ruleOf = sx => { const r = J(sx.rule, null) || {}; return { freq: ['daily', 'weekly', 'monthly', 'import'].includes(r.freq) ? r.freq : 'weekly', interval: Math.max(1, Math.min(12, int(r.interval) || 1)), monthly: r.monthly === 'nth' ? 'nth' : 'day' }; };
+  function ruleInput(b, fromDate) {
+    const freq = ['daily', 'weekly', 'monthly'].includes(b.freq) ? b.freq : 'weekly';
+    const interval = Math.max(1, Math.min(12, int(b.interval) || 1));
+    const rule = { freq, interval, monthly: b.monthly === 'nth' ? 'nth' : 'day' };
+    let weekdays = [...new Set(String(b.weekdays || '').replace(/[^1-7]/g, '').split(''))].sort().join('');
+    if (freq !== 'weekly' || !weekdays) weekdays = freq === 'weekly' && !weekdays ? '' : String(isoDow(fromDate));
+    return { rule, weekdays };
+  }
+  const WDLONG = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+  const nthOf = d => { const day = +d.slice(8, 10); const n = Math.ceil(day / 7); const last = +addDays(d, 7).slice(5, 7) !== +d.slice(5, 7); return { n, last }; };
+  /** Text wie „jeden Di, Do“, „alle 2 Wochen Di“, „täglich“, „monatlich am 15.“, „monatlich am 2. Dienstag“ */
+  function ruleText(sx) {
+    const r = ruleOf(sx), wd = String(sx.weekdays || '').split('').filter(Boolean).map(d => WD[+d]).join(', ');
+    if (r.freq === 'import') return 'Spielplan';
+    if (r.freq === 'daily') return r.interval === 1 ? 'täglich' : `alle ${r.interval} Tage`;
+    if (r.freq === 'monthly') {
+      const k = r.interval === 1 ? 'monatlich' : `alle ${r.interval} Monate`;
+      if (r.monthly === 'nth') { const { n } = nthOf(sx.from_date); return `${k} am ${n >= 5 ? 'letzten' : n + '.'} ${WDLONG[isoDow(sx.from_date)]}`; }
+      return `${k} am ${+sx.from_date.slice(8, 10)}.`;
+    }
+    return r.interval === 1 ? `jeden ${wd}` : `alle ${r.interval} Wochen ${wd}`;
+  }
   function seriesDays(sx) {
-    const out = []; const wd = String(sx.weekdays);
-    for (let d = sx.from_date, i = 0; d <= sx.to_date && i < 800; d = addDays(d, 1), i++) if (wd.includes(String(isoDow(d)))) out.push(d);
+    const out = [], r = ruleOf(sx), wd = String(sx.weekdays || ''), f = sx.from_date;
+    if (r.freq === 'import') return out;
+    const monday = d => addDays(d, 1 - isoDow(d));
+    const dayNo = d => Math.round(Date.parse(d + 'T12:00:00Z') / 86400000);
+    const w0 = dayNo(monday(f)), d0 = dayNo(f);
+    const { n: nth } = nthOf(f), dow0 = isoDow(f), dom0 = +f.slice(8, 10), m0 = +f.slice(0, 4) * 12 + +f.slice(5, 7) - 1;
+    for (let d = f, i = 0; d <= sx.to_date && i < 800; d = addDays(d, 1), i++) {
+      if (r.freq === 'daily') { if ((dayNo(d) - d0) % r.interval === 0) out.push(d); continue; }
+      if (r.freq === 'weekly') { if (wd.includes(String(isoDow(d))) && Math.round((dayNo(monday(d)) - w0) / 7) % r.interval === 0) out.push(d); continue; }
+      const m = +d.slice(0, 4) * 12 + +d.slice(5, 7) - 1;
+      if ((m - m0) % r.interval !== 0) continue;
+      if (r.monthly === 'day') { if (+d.slice(8, 10) === dom0) out.push(d); continue; }
+      if (isoDow(d) !== dow0) continue;
+      const x = nthOf(d);
+      if (nth >= 5 ? x.last : x.n === nth) out.push(d);
+    }
     return out;
   }
+  /* ---------- Spielplan-Import (Verband): einfügen, CSV/Excel oder .ics → Vereinstermine (Sperren) je Mannschaft ----------
+     Wiederholter Import erkennt Spiele am Schlüssel (Mannschaft + Heim + Gast) und verschiebt sie bei Verlegung, statt doppelt zu buchen. */
+  const IMP = require('./import.js');
+  const impKey = g => `imp:${IMP.norm(g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
+  const impTeams = () => { try { return JSON.parse(S('import_teams', '{}')) || {}; } catch (e) { return {}; } };
+  /** Vorschlag je Mannschaft: 2er → 1 Platz 3 Std., 4er → 2 Plätze 4 Std., 6er → 3 Plätze 5 Std. (sonst 2 Plätze, 3 Std.) */
+  function teamDefault(team, size) {
+    const saved = impTeams()[IMP.norm(team) || '_'];
+    const courts = resources().filter(r => r.kind === 'platz');
+    if (saved) return { resources: saved.resources.filter(id => courts.some(r => r.id === id)), hours: saved.hours };
+    const n = size ? Math.max(1, Math.min(courts.length, Math.ceil(size / 2))) : Math.min(2, courts.length);
+    return { resources: courts.slice(0, n).map(r => r.id), hours: size === 2 ? 3 : size === 6 ? 5 : size === 4 ? 4 : 3 };
+  }
+  const futureByKey = key => db.prepare("SELECT * FROM bk_booking WHERE ext_key = ? AND status = 'aktiv' AND date >= ? ORDER BY date, resource_id").all(key, today());
+  admin.post('/import/parse', PS, ar(async (req, res) => {
+    const b = req.body || {};
+    let parsed;
+    try {
+      const name = String(b.name || '').toLowerCase();
+      if (b.file) {
+        const buf = Buffer.from(String(b.file), 'base64');
+        if (buf.length > 3 * 1024 * 1024) return bad(res, 'Die Datei ist zu groß (höchstens 3 MB).');
+        if (/\.xlsx$/.test(name)) parsed = IMP.fromRows(await IMP.xlsxRows(buf, ctx.require('exceljs')));
+        else { const t = buf.toString('utf8'); parsed = /BEGIN:VCALENDAR/i.test(t) ? IMP.fromIcs(t) : IMP.fromRows(IMP.splitRows(t)); }
+      } else {
+        const t = String(b.text || '').slice(0, 500000);
+        parsed = /BEGIN:VCALENDAR/i.test(t) ? IMP.fromIcs(t) : IMP.fromRows(IMP.splitRows(t));
+      }
+    } catch (e) { return bad(res, 'Die Daten konnten nicht gelesen werden: ' + e.message); }
+    if (!parsed.games.length) return bad(res, 'Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
+    const club = txt(b.club, 80) || S('import_club', '') || IMP.guessClub(parsed.games) || ctx.getSetting('club_name', '');
+    const d0 = today(), teams = {};
+    const games = parsed.games.map(g => {
+      const key = impKey(g), home = IMP.isHomeGame(g, club), ex = futureByKey(key);
+      const t = g.team || '–';
+      if (!teams[t]) teams[t] = { team: t, size: g.size, count: 0, ...teamDefault(g.team, g.size) };
+      teams[t].count++;
+      const same = ex.length && ex[0].date === g.date && ex[0].start === g.start;
+      return { ...g, key, isHome: home, past: g.date < d0, noTime: !g.start, status: !ex.length ? 'neu' : same ? 'vorhanden' : 'verlegt', was: ex.length && !same ? { date: ex[0].date, start: ex[0].start } : null };
+    });
+    res.json({ club, games, skipped: parsed.skipped.slice(0, 30), teams: Object.values(teams), courts: resources().filter(r => r.kind === 'platz').map(r => ({ id: r.id, name: r.name })) });
+  }));
+  admin.post('/import/apply', PS, ar(async (req, res) => {
+    const b = req.body || {}, d0 = today();
+    const label = b.label_id ? labelOf(int(b.label_id)) : null;
+    const teamCfg = b.teams && typeof b.teams === 'object' ? b.teams : {};
+    const plan = [], problems = [], moved2 = [];
+    // Spiele zur gleichen Zeit (z. B. Damen und Herren am Sonntag um 9): Plätze nicht doppelt vergeben – die spätere Mannschaft bekommt freie andere Plätze
+    const taken = [];   // { id, date, s, e }
+    const courtsAll = resources().filter(r => r.kind === 'platz');
+    const overlapsTaken = (rid, date, s, e) => taken.some(t => t.id === rid && t.date === date && t.s < e && t.e > s);
+    const gamesIn = (Array.isArray(b.games) ? b.games : []).slice(0, 500).slice().sort((a, c) => String(a.date).localeCompare(String(c.date)) || String(a.start).localeCompare(String(c.start)));
+    for (const g0 of gamesIn) {
+      const g = { date: String(g0.date || ''), start: String(g0.start || ''), team: txt(g0.team, 40), home: txt(g0.home, 80), guest: txt(g0.guest, 80), league: txt(g0.league, 80), minutes: int(g0.minutes) || 0 };
+      if (!isDate(g.date) || g.date < d0) { problems.push(`${g.home} – ${g.guest}: liegt in der Vergangenheit`); continue; }
+      if (tm(g.start) == null) { problems.push(`${deD(g.date)} ${g.home} – ${g.guest}: keine Uhrzeit`); continue; }
+      const tc = teamCfg[g.team || '–'] || {};
+      let rs = [...new Set((Array.isArray(tc.resources) ? tc.resources : []).map(Number))].map(resource).filter(r => r && !r.deleted && r.kind === 'platz');
+      if (!rs.length) { problems.push(`${g.team || 'Mannschaft'}: keine Plätze gewählt`); continue; }
+      const hours = Math.max(1, Math.min(12, Number(tc.hours) || 4));
+      const s = tm(g.start), e = Math.min(24 * 60, s + (g.minutes || hours * 60));
+      if (rs.some(r => overlapsTaken(r.id, g.date, s, e))) {
+        const alt = courtsAll.filter(r => !overlapsTaken(r.id, g.date, s, e)).sort((a, c) => (rs.some(x => x.id === a.id) ? -1 : 0) - (rs.some(x => x.id === c.id) ? -1 : 0)).slice(0, rs.length);
+        if (alt.length < rs.length) { problems.push(`${deD(g.date)} ${g.start} ${g.team || ''}: nicht genug freie Plätze (gleichzeitig mit einem anderen Spiel)`); continue; }
+        moved2.push(`${deD(g.date)} ${g.start} ${g.team || 'Spiel'} → ${alt.map(r => r.name).join(', ')}`);
+        rs = alt;
+      }
+      for (const r of rs) taken.push({ id: r.id, date: g.date, s, e });
+      const key = impKey(g), ex = futureByKey(key);
+      const club = txt(b.club, 80) || '';
+      const opp = club && IMP.norm(g.home).includes(IMP.norm(club)) ? g.guest : club && IMP.norm(g.guest).includes(IMP.norm(club)) ? g.home : `${g.home} – ${g.guest}`;
+      const title = txt(`${g.team ? g.team + ' gegen ' : 'Spiel gegen '}${opp}`, 80);
+      const sameSlot = ex.length && ex.every(x => x.date === g.date && x.start === hhmm(s) && x.end === hhmm(e)) && ex.length === rs.length && rs.every(r => ex.some(x => x.resource_id === r.id));
+      const exIds = new Set(ex.map(x => x.id));
+      const clash = sameSlot ? [] : rs.flatMap(r => db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ?").all(r.id, g.date, hhmm(e), hhmm(s)).filter(c => !exIds.has(c.id) && c.ext_key !== key));
+      plan.push({ g, rs, s, e, key, ex, title, status: !ex.length ? 'neu' : sameSlot ? 'vorhanden' : 'verlegt', clash });
+    }
+    const clashes = plan.filter(p => p.clash.length).map(p => ({ date: p.g.date, start: p.g.start, title: p.title, items: p.clash.map(c => bview(c, { full: true })) }));
+    const sum = { neu: plan.filter(p => p.status === 'neu').length, verlegt: plan.filter(p => p.status === 'verlegt').length, vorhanden: plan.filter(p => p.status === 'vorhanden').length, problems, reassigned: moved2, clash: clashes };
+    if (b.preview) return res.json(sum);
+    const memberClash = clashes.reduce((n, c) => n + c.items.filter(x => x.type !== 'sperre').length, 0);
+    if (memberClash && !b.force) return res.status(409).json({ error: `${memberClash} bestehende Buchung(en) liegen zu Spielzeiten und würden storniert.`, ...sum });
+    const by = uname(req), toCancel = [];
+    // je Mannschaft eine Serie „Spielplan <Mannschaft>“ (Typ Sperre) – damit lassen sich alle Spiele einer Mannschaft gemeinsam ändern oder entfernen
+    const seriesFor = (team, rs, dates) => {
+      const title = `Spielplan ${team || 'Verein'}`;
+      let sx = db.prepare("SELECT * FROM bk_series WHERE type = 'sperre' AND active = 1 AND title = ? AND rule LIKE '%\"import\"%'").get(title);
+      const from = dates.reduce((a, c) => (c < a ? c : a)), to = dates.reduce((a, c) => (c > a ? c : a));
+      if (!sx) {
+        const id = Number(db.prepare("INSERT INTO bk_series(type, title, resources, weekdays, start, end, from_date, to_date, note, label_id, rule, created_by) VALUES ('sperre', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+          .run(title, JSON.stringify(rs.map(r => r.id)), String(isoDow(from)), '00:00', '24:00', from, to, 'aus dem Spielplan-Import', label ? label.id : null, JSON.stringify({ freq: 'import', interval: 1 }), by).lastInsertRowid);
+        return id;
+      }
+      db.prepare('UPDATE bk_series SET from_date = MIN(from_date, ?), to_date = MAX(to_date, ?), resources = ? WHERE id = ?').run(from, to, JSON.stringify([...new Set([...J(sx.resources, []), ...rs.map(r => r.id)])]), sx.id);
+      return sx.id;
+    };
+    const byTeam = {};
+    for (const p of plan) (byTeam[p.g.team || '–'] = byTeam[p.g.team || '–'] || []).push(p);
+    let made = 0, moved = 0;
+    db.transaction(() => {
+      for (const [team, ps] of Object.entries(byTeam)) {
+        const sid = seriesFor(team === '–' ? '' : team, [...new Map(ps.flatMap(p => p.rs).map(r => [r.id, r])).values()], ps.map(p => p.g.date));
+        const ins = db.prepare("INSERT INTO bk_booking(resource_id, date, start, end, type, title, note, series_id, source, created_by, label_id, ext_key) VALUES (?,?,?,?,'sperre',?,?,?,'import',?,?,?)");
+        for (const p of ps) {
+          if (p.status === 'vorhanden') continue;
+          toCancel.push(...p.clash.filter(c => c.type !== 'sperre'));
+          if (p.status === 'verlegt') { for (const x of p.ex) db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = 'Spiel verlegt (Spielplan-Import)' WHERE id = ?").run(nowTs(), by, x.id); moved++; }
+          else made++;
+          const note = [p.g.league, `${p.g.home} – ${p.g.guest}`].filter(Boolean).join(' · ').slice(0, 300);
+          for (const r of p.rs) ins.run(r.id, p.g.date, hhmm(p.s), hhmm(p.e), p.title, note, sid, by, label ? label.id : null, p.key);
+        }
+      }
+    })();
+    for (const c of toCancel) {
+      const b0 = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(c.id); if (!b0 || b0.status !== 'aktiv') continue;
+      await cancel(b0, by, 'Platz belegt: Mannschaftsspiel');
+      if (b0.member_id && b0.type === 'buchung') { const r0 = resource(b0.resource_id) || { name: 'Platz' };
+        notify([b0.member_id], `Buchung storniert: ${r0.name} ${deD(b0.date)}`, [`Deine Buchung ${r0.name} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, 'Grund: Mannschaftsspiel'], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${r0.name} · ${WD[isoDow(b0.date)]} ${deD(b0.date)}`, rows: [['Platz', r0.name], ['Wann', `${WD[isoDow(b0.date)]}, ${deD(b0.date)} · ${b0.start}–${b0.end} Uhr`], ['Grund', 'Mannschaftsspiel']], outro: '' }).catch(() => {}); }
+    }
+    // Vorgaben je Mannschaft und Vereinsname fürs nächste Mal merken
+    const saved = impTeams();
+    for (const [team, tc] of Object.entries(teamCfg)) if (tc && Array.isArray(tc.resources)) saved[IMP.norm(team === '–' ? '' : team) || '_'] = { resources: tc.resources.map(Number).filter(Boolean), hours: Math.max(1, Math.min(12, Number(tc.hours) || 4)) };
+    SET('import_teams', JSON.stringify(saved));
+    if (txt(b.club, 80)) SET('import_club', txt(b.club, 80));
+    ctx.audit(req.user, 'Spielplan importiert', `${made} neu, ${moved} verlegt, ${sum.vorhanden} unverändert${toCancel.length ? `, ${toCancel.length} Buchungen storniert` : ''}`);
+    res.json({ ok: true, made, moved, same: sum.vorhanden, cancelled: toCancel.length, problems });
+  }));
+
   admin.post('/series', PS, ar(async (req, res) => {
     const b = req.body || {};
     const type = b.type === 'sperre' ? 'sperre' : 'serie';
     const label = b.label_id ? labelOf(int(b.label_id)) : null;
     let title = txt(b.title, 80) || (label ? label.name : ''); const rs = [...new Set((Array.isArray(b.resources) ? b.resources : []).map(Number))].map(resource).filter(Boolean);
-    const weekdays = [...new Set(String(b.weekdays || '').replace(/[^1-7]/g, '').split(''))].sort().join('');
+    const { rule, weekdays } = ruleInput(b, isDate(b.from_date) ? b.from_date : today());
     const s = tm(b.start), e = tm(b.end);
     if (!rs.length) return bad(res, 'Bitte mindestens einen Platz wählen.');
     if (!weekdays) return bad(res, 'Bitte mindestens einen Wochentag wählen.');
@@ -895,12 +1204,13 @@ function activate(ctx) {
     // Titel ist freiwillig: sonst Buchungsart, gebuchtes Mitglied oder einfach „Serie“/„Sperre“
     if (title.length < 2 && type === 'serie' && !mid) return bad(res, 'Bitte ein Mitglied wählen, eine Buchungsart wählen oder einen Titel eintragen (z. B. „Training Jugend“).');
     if (title.length < 2) title = (mid && mid.name) || 'Sperre';
-    const sx = { type, title, resources: JSON.stringify(rs.map(r => r.id)), weekdays, start: hhmm(s), end: hhmm(e), from_date: b.from_date, to_date: b.to_date, member_id: mid ? mid.id : null, note: txt(b.note, 300) || null, label_id: label ? label.id : null };
+    const sx = { type, title, resources: JSON.stringify(rs.map(r => r.id)), weekdays, start: hhmm(s), end: hhmm(e), from_date: b.from_date, to_date: b.to_date, member_id: mid ? mid.id : null, note: txt(b.note, 300) || null, label_id: label ? label.id : null, rule: JSON.stringify(rule) };
     const days = seriesDays(sx);
+    if (!days.length) return bad(res, 'In diesem Zeitraum liegt kein Termin – bitte Zeitraum oder Wiederholung prüfen.');
     // Überschneidungen vorab zeigen; Sperren stornieren auf Wunsch die betroffenen Buchungen, Serien lassen belegte Tage aus
     const clash = [];
     for (const r of rs) for (const d of days) for (const c of db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ?").all(r.id, d, hhmm(e), hhmm(s))) clash.push({ ...bview(c, { full: true }), resource: r.name });
-    if (b.preview) return res.json({ days: days.length * rs.length, clash });
+    if (b.preview) return res.json({ days: days.length * rs.length, dates: days.slice(0, 400), rule: ruleText(sx), clash });
     let id, made = 0, skipped = 0;
     const toCancel = [];
     db.transaction(() => {
@@ -917,7 +1227,7 @@ function activate(ctx) {
     for (const c of toCancel) {
       const b0 = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(c.id);
       await cancel(b0, uname(req), `Platz gesperrt: ${title}`);
-      if (b0.member_id && b0.type === 'buchung') notify([b0.member_id], `Buchung storniert: ${c.resource} ${deD(b0.date)}`, [`Deine Buchung ${c.resource} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno').catch(() => {});
+      if (b0.member_id && b0.type === 'buchung') notify([b0.member_id], `Buchung storniert: ${c.resource} ${deD(b0.date)}`, [`Deine Buchung ${c.resource} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${c.resource} · ${WD[isoDow(b0.date)]} ${deD(b0.date)}`, rows: [['Platz', c.resource], ['Wann', `${WD[isoDow(b0.date)]}, ${deD(b0.date)} · ${b0.start}–${b0.end} Uhr`], ['Grund', title]], outro: '' }).catch(() => {});
     }
     ctx.audit(req.user, type === 'sperre' ? 'Sperre angelegt' : 'Serienbuchung angelegt', `${title}: ${made} Termine${skipped ? `, ${skipped} belegt ausgelassen` : ''}${toCancel.length ? `, ${toCancel.length} storniert` : ''}`);
     res.json({ id, made, skipped, cancelled: toCancel.length });

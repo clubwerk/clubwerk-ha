@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.20.0
+
+- Buchungssystem – **Serien mit Wiederholung:** täglich, wöchentlich (mit Wochentagen), alle 2/3/4 Wochen, monatlich am gleichen Tag oder am gleichen Wochentag (z. B. 2. Dienstag). In Serien & Sperren, im Buchungsdialog („wiederholen … bis“) und in der App (Sonderrecht Serien). Die Vorschau zeigt Anzahl, erste Termine und Überschneidungen.
+- Buchungssystem – **Serientermin antippen → „Nur diesen Termin“ / „Diesen und alle folgenden“ / „Gesamte Serie“** zum Ändern und Absagen: in der Verwaltung (Platz, Uhrzeit, Titel, Buchungsart, Notiz), in der App für eigene Serien (Beginn, Dauer, absagen) und am Tablet (absagen). „Folgende“ teilt die Serie sauber auf.
+- Buchungssystem – **Spielplan-Import:** Tabelle von der Verbandsseite einfügen (nuLiga „Begegnungen“) oder CSV/Excel/.ics wählen. Heimspiel-Erkennung (auch Spielort), Mannschaft und Plätze/Dauer aus der Liga („6er“ → 3 Plätze, 5 Std.), Vorgaben je Mannschaft gemerkt, gleichzeitige Spiele auf freie Plätze verteilt, Spiele als Vereinstermine je Mannschaft gebündelt, Buchungen zu Spielzeiten nach Bestätigung storniert. Erneuter Import erkennt Spielverlegungen.
+- **Neue E-Mails:** Alle Mails von Clubwerk kommen mit einem ruhigen HTML-Layout (Vereinslogo, Vereinsfarbe, klare Schrift, Fuß); Buchungsmails mit Infokarte (Platz, Wann, Gebucht von, Spieler) und Knopf „In der App öffnen“. Die Textfassung bleibt für Mailprogramme ohne HTML.
+- Kleinigkeit: Neue Serie in der Verwaltung schlug als Ende den 30.09. vor, auch wenn der schon vorbei war.
+
 ## 3.19.5
 
 - Mitglieder-App: Startseite und Skript werden mit Versionsnummer verknüpft und nie zwischengespeichert (`app.js?v=…`, `no-store`) – damit bekommt auch die Home-Bildschirm-App auf dem iPhone nach einem Update sofort den neuen Stand.

@@ -48,19 +48,25 @@ function transport(pool) {
 }
 /** Absender: immer das Vereinspostfach (sonst landen Mails im Spam), optional mit Anzeigenamen */
 const fromOf = (s, fromName) => (fromName ? { name: String(fromName).replace(/[\r\n"<>]/g, ' ').slice(0, 80), address: s.from } : s.from);
-function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fromName, raw }) {
+function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fromName, raw, card, plainOnly }) {
   if (!mailOk(to)) throw new Error('Keine gültige Empfänger-Adresse.');
   if (cc && !mailOk(cc)) throw new Error('Ungültige Adresse bei „Kopie an“.');
   if (replyTo && !mailOk(replyTo)) throw new Error('Ungültige Antwortadresse.');
   if (!raw) {   // Systemmails in der Sprache der Anfrage bzw. der Vereinssprache – selbst geschriebene Mails bleiben, wie sie sind
     const i18n = require('./i18n');
     subject = i18n.tr(String(subject || '')); text = i18n.tr(String(text || ''));
+    if (card) card = { ...card, heading: card.heading ? i18n.tr(String(card.heading)) : card.heading, title: card.title ? i18n.tr(String(card.title)) : card.title, before: card.before != null ? i18n.tr(String(card.before)) : card.before, after: card.after != null ? i18n.tr(String(card.after)) : card.after,
+      rows: (card.rows || []).map(([k, v]) => [i18n.tr(String(k)), v]), button: card.button && card.button !== true ? { ...card.button, label: i18n.tr(String(card.button.label || '')) } : card.button };
+  }
+  // Gestaltete HTML-Fassung (Logo, Vereinsfarbe, Infokarte) – die Textfassung bleibt für Mailprogramme ohne HTML
+  if (!html && !plainOnly) {
+    try { const r = require('./mailtpl').render({ subject, text, card }); html = r.html; attachments = [...(attachments || []), ...r.attachments]; } catch (e) { console.error('E-Mail-Layout:', e.message); }
   }
   return { from: fromOf(s, fromName), to: validMails(to).join(', '), cc: cc ? validMails(cc).join(', ') : undefined, bcc: bcc ? validMails(bcc).join(', ') : undefined,
     replyTo: replyTo || undefined, subject, text, html: html || undefined, attachments };
 }
 
-/** send({ to, cc, replyTo, subject, text, html, attachments, fromName, raw }) */
+/** send({ to, cc, replyTo, subject, text, html, attachments, fromName, raw, card }) – card = { before, title, rows: [[k, v]], after, button } für die Infokarte im HTML */
 async function send(o) {
   const { s, t } = transport(false);
   await t.sendMail(message(s, o));

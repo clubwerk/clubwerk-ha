@@ -42,7 +42,8 @@
       .bkm-slot b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; } .bkm-slot span { font-size: 11px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
       .bkm-slot.free { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); } .bkm-slot.free span { color: var(--brand-ink); }
       .bkm-slot.busy { background: var(--hover); color: var(--muted); } .bkm-slot.busy b { color: var(--muted); }
-      .bkm-slot.mine { background: var(--brand); border-color: var(--brand); color: #fff; } .bkm-slot.mine span { color: rgba(255,255,255,.9); }
+      .bkm-slot.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .bkm-scope { display: grid; gap: 8px; margin: 6px 0 4px; } .bkm-scope button { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; padding: 0 16px; font-family: inherit; } .bkm-slot.mine span { color: rgba(255,255,255,.9); }
       .bkm-slot.lock { background: repeating-linear-gradient(135deg, var(--red-soft) 0 6px, transparent 6px 12px); color: var(--red); border-color: var(--red-line, var(--line)); }
       .bkm-slot.past, .bkm-slot.closed { opacity: .38; }
       .bkm-slot.wait { box-shadow: inset 0 0 0 2px var(--amber); }
@@ -145,7 +146,7 @@
             : '<div class="bkm-card"><p class="bkm-empty">Hier ist noch nichts buchbar.</p></div>'}
           <div class="bkm-card"><h3>Meine Buchungen</h3><div class="bkm-list">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
               <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="bkm-empty">Keine offenen Buchungen.</p>'}</div>
-            ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="bkm-list">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
+            ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="bkm-list">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.rule_text || x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
             ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="bkm-list">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
         el.querySelectorAll('[data-d]').forEach(b => { b.onclick = () => { day = b.dataset.d; load(); }; });
         el.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
@@ -203,7 +204,10 @@
         const sl0 = slots(r, data.plan, day, tm(data.now), data.today); const x = sl0.find(y => y.s === s) || sl0.find(y => y.s <= s && y.e > s); if (!x) return;
         const st = x.state.split(' ')[0];
         if (st === 'free') { if (data.blocked) { ctx.toast(data.blocked, true); return; } return bookSheet(r, s); }
-        if (st === 'mine') { const m = data.mine.find(b => b.id === x.booking.id); if (m) (m.canEdit ? manageSheet(m) : cancelSheet(m)); return; }
+        if (st === 'mine') {
+          if (x.booking && x.booking.series && x.booking.own && x.booking.type === 'serie') return seriesSheet(r, x.booking);
+          const m = data.mine.find(b => b.id === x.booking.id); if (m) (m.canEdit ? manageSheet(m) : cancelSheet(m)); return;
+        }
         if (st === 'busy' || st === 'lock') return infoSheet(r, x);
       }
       function infoSheet(r, x) {
@@ -225,6 +229,56 @@
         const r = data.plan.resources.find(x => x.id === b.edit.resource_id);
         if (!r) { ctx.toast('Dieser Platz ist gerade nicht buchbar.', true); return; }
         bookSheet(r, tm(b.start), b);
+      }
+      /** eigener Serientermin: erst was (ändern/absagen), dann für wen (nur diesen · diesen und folgende · gesamte Serie) */
+      function seriesSheet(r, b) {
+        const sh = sheet();
+        const head = `<h2>${esc(b.title || r.name)}</h2><p>${esc(r.name)} · ${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)} · ${b.start}–${b.end} Uhr<br><small>Termin einer Serie</small></p>`;
+        const step1 = () => {
+          sh.innerHTML = `<div class="vh-box">${head}<div class="vh-row"><button class="no" id="bkmX" style="color:var(--red)">Absagen</button><button class="ok" id="bkmEd">Ändern</button></div>
+            <div class="vh-row" style="margin-top:8px"><button class="no" id="bkmNo">Schließen</button></div></div>`;
+          sh.classList.add('show');
+          sh.querySelector('#bkmNo').onclick = close;
+          sh.querySelector('#bkmX').onclick = () => scopeStep('cancel');
+          sh.querySelector('#bkmEd').onclick = () => scopeStep('edit');
+        };
+        const scopeStep = action => {
+          sh.innerHTML = `<div class="vh-box">${head}<p><b>${action === 'cancel' ? 'Was möchtest du absagen?' : 'Was möchtest du ändern?'}</b></p>
+            <div class="bkm-scope"><button data-sc="one">Nur diesen Termin</button><button data-sc="following">Diesen und alle folgenden</button><button data-sc="all">Gesamte Serie</button></div>
+            <div class="vh-err" id="bkmE"></div><div class="vh-row" style="margin-top:8px"><button class="no" id="bkmB">Zurück</button></div></div>`;
+          sh.querySelector('#bkmB').onclick = step1;
+          sh.querySelectorAll('[data-sc]').forEach(x => { x.onclick = () => (action === 'cancel' ? doCancel(x.dataset.sc, x.textContent) : editStep(x.dataset.sc, x.textContent)); });
+        };
+        const doCancel = async (scope, label) => {
+          try { const r0 = await ctx.api(`series-booking/${b.id}`, 'POST', { scope, action: 'cancel' }); close(); ctx.toast(`Abgesagt (${label.toLowerCase()}): ${r0.cancelled} ${r0.cancelled === 1 ? 'Termin' : 'Termine'}.`); load(); }
+          catch (e) { sh.querySelector('#bkmE').textContent = e.message; }
+        };
+        const editStep = (scope, label) => {
+          const len = tm(b.end) - tm(b.start), step = r.slot_min || 30;
+          const starts = []; for (let t = tm(r.open_from); t + step <= tm(r.open_to); t += step) starts.push(t);
+          const lens = []; for (let m = step; m <= Math.max(len, (r.max_min || 120)); m += step) lens.push(m);
+          sh.innerHTML = `<div class="vh-box">${head}<p><b>${esc(label)}</b> ändern</p>
+            <label class="l">Beginn</label><select class="vh-input" id="bkmS">${starts.map(t => `<option value="${hhmm(t)}" ${hhmm(t) === b.start ? 'selected' : ''}>${hhmm(t)} Uhr</option>`).join('')}</select>
+            <label class="l">Dauer</label><select class="vh-input" id="bkmM">${lens.map(m => `<option value="${m}" ${m === len ? 'selected' : ''}>${m % 60 ? m + ' Min.' : m / 60 + ' Std.'}</option>`).join('')}</select>
+            <div class="vh-err" id="bkmE"></div>
+            <div class="vh-row"><button class="no" id="bkmB">Zurück</button><button class="ok" id="bkmOk">Speichern</button></div></div>`;
+          sh.querySelector('#bkmB').onclick = () => scopeStep('edit');
+          const send = async force => {
+            const fields = { start: sh.querySelector('#bkmS').value, minutes: +sh.querySelector('#bkmM').value };
+            try {
+              const r0 = await ctx.api(`series-booking/${b.id}`, 'POST', { scope, action: 'edit', fields, force });
+              close(); ctx.toast(`Geändert: ${r0.changed} ${r0.changed === 1 ? 'Termin' : 'Termine'}${r0.skipped.length ? ` – ${r0.skipped.length} belegt und unverändert gelassen` : ''}.`); load();
+            } catch (e) {
+              if (e.status === 409 && !force) {
+                sh.querySelector('#bkmE').innerHTML = `${esc(e.message)} Diese Tage bleiben, wie sie sind.`;
+                const ok = sh.querySelector('#bkmOk'); ok.textContent = 'Trotzdem ändern'; ok.onclick = () => send(true); return;
+              }
+              sh.querySelector('#bkmE').textContent = e.message;
+            }
+          };
+          sh.querySelector('#bkmOk').onclick = () => send(false);
+        };
+        step1();
       }
       function manageSheet(b) {
         const sh = sheet();
@@ -263,7 +317,8 @@
             <div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Vor- und Nachname" autocomplete="off" maxlength="60"><button id="bkmGa" style="margin-bottom:10px">+ Gast</button></div>
             <label class="chk" style="margin-top:-2px"><input type="checkbox" id="bkmGp"> Mitglied in einem Partnerverein (keine Gastgebühr)</label>` : ''}
           ${devices.length || r.solo_label ? `<label class="l">${devices.length ? 'Gerät' : ''}${devices.length && r.solo_label ? ' / ' : ''}${r.solo_label ? 'allein' : ''} <span style="font-weight:500">(ohne Gebühr)</span></label><div class="bkm-pick" id="bkmPk">${devices.map(x => `<button type="button" data-dev="${x.id}">${esc(x.name)}</button>`).join('')}${r.solo_label ? `<button type="button" data-solo="1">${esc(r.solo_label)} (allein)</button>` : ''}</div>` : ''}
-          ${!ed && data.rights && data.rights.series ? `<label class="l">Jede Woche wiederholen bis <span style="font-weight:500">(optional – Serie)</span></label><input class="vh-input" type="date" id="bkmU" min="${addDays(day, 7)}" max="${addDays(day, 366)}">` : ''}
+          ${!ed && data.rights && data.rights.series ? `<label class="l">Wiederholen <span style="font-weight:500">(optional – Serie)</span></label><select class="vh-input" id="bkmRf"><option value="">nicht wiederholen</option><option value="daily:1">täglich</option><option value="weekly:1">jede Woche</option><option value="weekly:2">alle 2 Wochen</option><option value="weekly:3">alle 3 Wochen</option><option value="weekly:4">alle 4 Wochen</option><option value="monthly-day:1">jeden Monat am gleichen Tag</option><option value="monthly-nth:1">jeden Monat am gleichen Wochentag</option></select>
+            <div id="bkmUW" hidden><label class="l">bis</label><input class="vh-input" type="date" id="bkmU" min="${addDays(day, 1)}" max="${addDays(day, 366)}"></div>` : ''}
           ${set.rules ? `<div class="bkm-rules">${esc(set.rules)}</div><label class="chk"><input type="checkbox" id="bkmR" ${ed ? 'checked' : ''}> Ich halte mich an die Platzordnung.</label>` : ''}
           <div class="bkm-sum" id="bkmSum"></div>
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">Abbrechen</button><button class="ok" id="bkmOk">${ed ? 'Speichern' : 'Buchen'}</button></div></div>`;
@@ -337,13 +392,15 @@
         fillDur(); paintLab(); chips();
         $q('bkmD').onchange = sum;
         $q('bkmNo').onclick = close;
-        if ($q('bkmU')) $q('bkmU').onchange = () => { $q('bkmOk').textContent = $q('bkmU').value ? 'Serie anlegen' : 'Buchen'; };
+        const repeat = () => { const v = $q('bkmRf') ? $q('bkmRf').value : ''; if (!v) return null; const [k, n] = v.split(':'); return k === 'monthly-day' ? { freq: 'monthly', monthly: 'day', interval: +n } : k === 'monthly-nth' ? { freq: 'monthly', monthly: 'nth', interval: +n } : { freq: k, interval: +n }; };
+        if ($q('bkmRf')) $q('bkmRf').onchange = () => { const on = Boolean($q('bkmRf').value); $q('bkmUW').hidden = !on; if (on && !$q('bkmU').value) $q('bkmU').value = addDays(day, 56); $q('bkmOk').textContent = on ? 'Serie anlegen' : 'Buchen'; };
         $q('bkmOk').onclick = async () => {
           $q('bkmOk').disabled = true;
-          if ($q('bkmU') && $q('bkmU').value) {   // Serie (Sonderrecht): jede Woche am selben Wochentag
+          if (repeat()) {   // Serie (Sonderrecht): Wiederholung ab diesem Tag bis zum gewählten Datum
+            if (!$q('bkmU').value) { $q('bkmE').textContent = 'Bitte angeben, bis wann die Serie läuft.'; $q('bkmOk').disabled = false; return; }
             try {
-              const bd = body(); const r0 = await ctx.api('series', 'POST', { resource_id: r.id, date: day, start: bd.start, minutes: bd.minutes, label_id: bd.label_id, title: bd.title, until: $q('bkmU').value });
-              sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>Serie angelegt ✓</h2><p>${esc(r.name)} · jeden ${esc(wd(day, { weekday: 'long' }))} · ${bd.start}–${hhmm(tm(bd.start) + bd.minutes)} Uhr<br>${r0.made} Termine bis ${deD($q('bkmU').value)}${r0.skipped.length ? `<br>Schon belegt und ausgelassen: ${esc(r0.skipped.join(', '))}` : ''}</p><div class="vh-row"><button class="ok" id="bkmDone" style="flex:1">Fertig</button></div></div>`;
+              const bd = body(); const r0 = await ctx.api('series', 'POST', { resource_id: r.id, date: day, start: bd.start, minutes: bd.minutes, label_id: bd.label_id, title: bd.title, until: $q('bkmU').value, ...repeat() });
+              sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>Serie angelegt ✓</h2><p>${esc(r.name)} · ${esc(r0.rule || '')} · ${bd.start}–${hhmm(tm(bd.start) + bd.minutes)} Uhr<br>${r0.made} Termine bis ${deD($q('bkmU').value)}${r0.skipped.length ? `<br>Schon belegt und ausgelassen: ${esc(r0.skipped.join(', '))}` : ''}</p><div class="vh-row"><button class="ok" id="bkmDone" style="flex:1">Fertig</button></div></div>`;
               sh.querySelector('#bkmDone').onclick = close; load();
             } catch (e) { $q('bkmE').textContent = e.message; $q('bkmOk').disabled = false; }
             return;

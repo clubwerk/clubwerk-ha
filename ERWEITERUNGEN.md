@@ -60,7 +60,7 @@ eigene Protokolleinträge. Wirft der Hook, bricht der Kern ab und zeigt den Fehl
 und Sperren (z. B. Ablauf eines Ventils, Gerätesperre), ISO mit `Z` nur, wo der Kern es vorgibt (`locked_until` der Konten).
 Formate in einer Spalte nie mischen; für die Anzeige `ctx.util.deD()` verwenden.
 
-**E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → Postfach), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger.
+**E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → Postfach), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger. Seit 3.20 bekommt jede Mail automatisch ein gestaltetes HTML-Layout (Vereinslogo, Vereinsfarbe, Fuß); die Textfassung bleibt erhalten. Für eine Infokarte zusätzlich `card: { heading, before, title, rows: [['Platz', 'Platz 1'], ['Wann', 'Di, 20.10. 17:00']], after, button: { label, url } }` mitgeben (`button: true` = „In der App öffnen“ mit der Adresse der Mitglieder-App). Eigenes HTML (`html`) bleibt unverändert.
 
 **Push-Benachrichtigungen (ab Clubwerk 3.19):** Die Erweiterung meldet ihre Anlässe an:
 `ctx.hooks.pushEvents = () => [{ id: 'erinnerung', label: 'Erinnerung', desc: 'Wann die Nachricht kommt', default: true, lead: { default: 120, label: 'Vorlauf' } }]`

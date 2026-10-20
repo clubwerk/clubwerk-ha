@@ -17,12 +17,32 @@
   const dow = s => { const d = new Date(s + 'T12:00:00Z').getUTCDay(); return d === 0 ? 7 : d; };
   const dur = m => (m % 60 ? `${m} Min.` : `${m / 60} Std.`);
   const PX = 60;   // Pixel je Stunde im Belegungsplan
+  /* Wiederholung: Auswahl → { freq, interval, monthly } (gleich in Serie, Sperre und „wiederholen“ im Buchungsdialog) */
+  const REPEATS = [['daily:1', 'täglich'], ['weekly:1', 'wöchentlich'], ['weekly:2', 'alle 2 Wochen'], ['weekly:3', 'alle 3 Wochen'], ['weekly:4', 'alle 4 Wochen'], ['monthly-day:1', 'monatlich – gleicher Tag (z. B. jeden 15.)'], ['monthly-nth:1', 'monatlich – gleicher Wochentag (z. B. 2. Dienstag)']];
+  const repeatOpts = sel => REPEATS.map(([v, l]) => opt(v, l, sel)).join('');
+  const parseRepeat = v => { const [k, n] = String(v || 'weekly:1').split(':'); return k === 'monthly-day' ? { freq: 'monthly', monthly: 'day', interval: +n || 1 } : k === 'monthly-nth' ? { freq: 'monthly', monthly: 'nth', interval: +n || 1 } : { freq: k, interval: +n || 1 }; };
+  /** Umfang bei Serienterminen: 'one' | 'following' | 'all' | null (abgebrochen) */
+  function askScope(title, what) {
+    return new Promise(resolve => {
+      $('askBox').innerHTML = `<h2>${esc(title)}</h2><p>${esc(what)}</p>
+        <div class="bk-scope"><button class="btn" data-sc="one">Nur diesen Termin</button><button class="btn" data-sc="following">Diesen und alle folgenden</button><button class="btn" data-sc="all">Gesamte Serie</button></div>
+        <div class="btns"><button class="btn ghost" id="askNo">Abbrechen</button></div>`;
+      $('askOverlay').classList.remove('hidden');
+      const done = v => { $('askOverlay').classList.add('hidden'); document.removeEventListener('keydown', key); resolve(v); };
+      const key = e => { if (e.key === 'Escape') done(null); };
+      document.addEventListener('keydown', key);
+      $('askNo').onclick = () => done(null);
+      $('askBox').querySelectorAll('[data-sc]').forEach(b => { b.onclick = () => done(b.dataset.sc); });
+    });
+  }
+  const SCOPE_TXT = { one: 'nur dieser Termin', following: 'dieser und alle folgenden', all: 'alle kommenden Termine der Serie' };
 
   if (!document.getElementById('bkStyle')) {
     const s = document.createElement('style'); s.id = 'bkStyle';
     s.textContent = `
       .bk-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .bk-grid .w2 { grid-column: span 2; } .bk-grid .wall { grid-column: 1 / -1; }
+      .bk-scope { display: grid; gap: 8px; margin: 4px 0 14px; } .bk-scope .btn { justify-content: flex-start; height: 46px; font-size: 15px; }
       @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr 1fr; } .bk-grid .w2 { grid-column: 1 / -1; } }
       @media (max-width: 560px) { .bk-grid { grid-template-columns: 1fr; } }
       .bk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; }
@@ -169,7 +189,7 @@
 
   const PAGE = {
     'bk-belegung': ['Belegung', 'Wer spielt wann auf welchem Platz – in eine freie Stelle klicken, um für ein Mitglied zu buchen oder einen Platz zu sperren.'],
-    'bk-serien': ['Serien & Sperren', 'Feste wöchentliche Termine für Training und Mannschaften – und Sperren für Platzpflege, Turniere oder den Winter.'],
+    'bk-serien': ['Serien & Sperren', 'Wiederkehrende Termine für Training und Mannschaften (täglich, wöchentlich, alle n Wochen, monatlich), Spielpläne vom Verband – und Sperren für Platzpflege, Turniere oder den Winter.'],
     'bk-labels': ['Buchungsarten', 'Kennzeichnung von Vereinsbuchungen und Serien mit Name und Farbe – z. B. Training, Medenspiel, Clubmeisterschaft.'],
     'bk-protokoll': ['Buchungsprotokoll', 'Alle Buchungen des Jahres – auch stornierte und Sperren –, filterbar nach Art, Platz und Namen, als CSV.'],
     'bk-auswertung': ['Auswertung', 'Auslastung je Platz und gesamt – gebuchte Stunden, Buchungen, Stornos, beliebte Zeiten, im Vergleich zum Vorjahr.'],
@@ -292,7 +312,7 @@
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select><span class="bk-chips" id="bdPc"></span></label>
         <label class="f bd-b w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"><span class="muted s" style="font-weight:500">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label></label>
         <label class="f w2" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}"></label>
-        ${!ed && can('buchung_serien') ? '<label class="f" id="bdRL">wöchentlich wiederholen bis<input id="bdRep" type="date"></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">leer = nur dieser Termin · sonst jede Woche am selben Wochentag, belegte Tage werden ausgelassen</div>' : ''}
+        ${!ed && can('buchung_serien') ? `<label class="f" id="bdRL">wiederholen<select id="bdRf">${opt('', 'nicht wiederholen')}${repeatOpts('')}</select></label><label class="f" id="bdRU">bis<input id="bdRep" type="date" disabled></label><div class="f muted s" style="align-self:end;padding-bottom:11px" id="bdRH">belegte Tage werden ausgelassen</div>` : ''}
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
     const paint = () => {
@@ -304,6 +324,7 @@
 
     };
     $('dialog').querySelectorAll('#bdT [data-t]').forEach(b => { b.onclick = () => { type = b.dataset.t; paint(); }; });
+    if ($('bdRf')) $('bdRf').onchange = () => { $('bdRep').disabled = !val('bdRf'); if (val('bdRf') && !val('bdRep')) $('bdRep').value = addDays(val('bdD') || st.meta.today, 56); };
     const partners = ed ? (ed.partners || []).slice() : [];
     const chips = () => { $('bdPc').innerHTML = partners.map(id => `<label>${esc((m.people.find(p => p.id === id) || {}).name || '')} <button type="button" class="btn small ghost" data-rp="${id}" style="height:24px;padding:0 6px" aria-label="entfernen">×</button></label>`).join('');
       $('bdPc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = e => { e.preventDefault(); partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); }; }); };
@@ -314,9 +335,9 @@
       const body = { type, resource_id: +val('bdR'), date: val('bdD'), start: val('bdS'), end: val('bdE'), title: val('bdTi'), note: val('bdN'), force, label_id: +val('bdL') || null,
         member_id: type === 'buchung' ? +val('bdM') || null : null, partners: type === 'buchung' ? partners.slice() : [],
         guests: type === 'buchung' ? val('bdG').split(',').map(x => x.trim()).filter(Boolean).map(name => ({ name, partner: $('bdGp').checked })) : [] };
-      if (!ed && $('bdRep') && val('bdRep')) {   // Serie aus dem Kalender: gleicher Wochentag bis zum gewählten Datum, belegte Tage werden ausgelassen
-        const dw = new Date(body.date + 'T12:00:00').getDay() || 7;
-        const sb = { type: type === 'sperre' ? 'sperre' : 'serie', resources: [body.resource_id], weekdays: String(dw), start: body.start, end: body.end, from_date: body.date, to_date: val('bdRep'), title: body.title, label_id: body.label_id, member_id: body.member_id, note: body.note };
+      if (!ed && $('bdRf') && val('bdRf')) {   // Serie aus dem Kalender: Wiederholung ab diesem Tag bis zum gewählten Datum, belegte Tage werden ausgelassen
+        if (!val('bdRep')) { fail(new Error('Bitte angeben, bis wann wiederholt wird.')); return; }
+        const sb = { type: type === 'sperre' ? 'sperre' : 'serie', resources: [body.resource_id], weekdays: String(dow(body.date)), ...parseRepeat(val('bdRf')), start: body.start, end: body.end, from_date: body.date, to_date: val('bdRep'), title: body.title, label_id: body.label_id, member_id: body.member_id, note: body.note };
         try { const r = await api('series', 'POST', sb); closeDialog(); toast(`${r.made} Termine angelegt${r.skipped ? `, ${r.skipped} belegte ausgelassen` : ''}${r.cancelled ? `, ${r.cancelled} Buchungen storniert` : ''}.`); after(); } catch (e) { fail(e); }
         return;
       }
@@ -338,11 +359,20 @@
         ${b.type === 'buchung' ? `<tr><td class="muted">Spieler</td><td><b>${esc(whoTxt(b) || '–')}</b></td></tr>${b.title && b.member_id ? `<tr><td class="muted">Titel</td><td>${esc(b.title)}</td></tr>` : ''}` : `<tr><td class="muted">${b.type === 'sperre' ? 'Grund' : 'Titel'}</td><td><b>${esc(b.title || '')}</b></td></tr>`}
         ${b.fee_cents ? `<tr><td class="muted">Gebühr</td><td>${euro(b.fee_cents)}${b.charge_id ? ' · offener Posten in der Mitgliederverwaltung' : ''}</td></tr>` : ''}
         ${b.note ? `<tr><td class="muted">Notiz</td><td>${esc(b.note)}</td></tr>` : ''}
-        <tr><td class="muted">Eingetragen</td><td>${esc(b.created_by || '')} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</td></tr>
+        <tr><td class="muted">Eingetragen</td><td>${esc(b.created_by || '')} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung', import: 'Spielplan-Import' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</td></tr>
       </table>
-      ${b.type === 'serie' ? '<p class="muted s" style="margin:0 0 10px">Termin einer Serie – Zeiten ändern unter „Serien &amp; Sperren“.</p>' : ''}
-      <div class="btns">${(b.type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button>` : ''}<span style="flex:1"></span>${b.type !== 'serie' && (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
+
+      <div class="btns">${b.series_id ? (can('buchung_serien') ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Aufheben …' : 'Stornieren …'}</button>` : '') : (b.type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button>` : ''}<span style="flex:1"></span>${b.series_id ? (can('buchung_serien') ? '<button class="btn" id="bxE">Bearbeiten …</button>' : '') : (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
     $('c').onclick = closeDialog;
+    if (b.series_id) {   // Termin einer Serie oder Sperre: erst den Umfang wählen
+      if ($('bxE')) $('bxE').onclick = async () => { const sc = await askScope('Serientermin bearbeiten', `${b.title || ''} · ${deDate(b.date)} ${b.start}–${b.end}`); if (sc) { closeDialog(); seriesEdit(b, sc, after); } };
+      if ($('bxC')) $('bxC').onclick = async () => {
+        const sc = await askScope(b.type === 'sperre' ? 'Sperre aufheben' : 'Serientermin stornieren', `${b.title || ''} · ${deDate(b.date)} ${b.start}–${b.end}`); if (!sc) return;
+        if (!await ask(`${b.type === 'sperre' ? 'Aufheben' : 'Stornieren'}: ${SCOPE_TXT[sc]}?`, { ok: b.type === 'sperre' ? 'Aufheben' : 'Stornieren', danger: true })) return;
+        try { const r0 = await api(`bookings/${b.id}/scope`, 'POST', { scope: sc, action: 'cancel' }); closeDialog(); toast(`${r0.cancelled} ${r0.cancelled === 1 ? 'Termin' : 'Termine'} entfernt.`); after(); } catch (e) { fail(e); }
+      };
+      return;
+    }
     if ($('bxE')) $('bxE').onclick = () => { closeDialog(); bookDialog({ edit: b }, after); };
     if ($('bxC')) $('bxC').onclick = async () => {
       const why = await askText(b.type === 'sperre' ? 'Sperre aufheben?\nOptional ein Hinweis fürs Protokoll:' : `Buchung stornieren?\n${b.member_id ? 'Das Mitglied bekommt eine E-Mail. ' : ''}Grund (optional):`, '', { ok: b.type === 'sperre' ? 'Aufheben' : 'Stornieren' });
@@ -351,24 +381,119 @@
     };
   }
 
+  /** Serientermin(e) ändern: Platz, Uhrzeit, Titel, Buchungsart, Notiz – im gewählten Umfang, Überschneidungen werden vorher gezeigt */
+  function seriesEdit(b, scope, after) {
+    const m = st.meta, rs = m.resources.filter(r => r.active || r.id === b.resource_id);
+    dialog(`<h2>${b.type === 'sperre' ? 'Sperre' : 'Serie'} bearbeiten</h2>
+      <p class="muted" style="margin-top:0">${esc(b.title || '')} · ab ${deDate(b.date)} · <b>${esc(SCOPE_TXT[scope])}</b></p>
+      <div class="bk-grid" style="--c:4">
+        <label class="f w2">Platz / Gerät<select id="seR">${rs.map(r => opt(r.id, r.name, b.resource_id)).join('')}</select></label>
+        <label class="f">von<input id="seS" type="time" step="900" value="${b.start}"></label><label class="f">bis<input id="seE" type="time" step="900" value="${b.end}"></label>
+        <label class="f w2">${b.type === 'sperre' ? 'Grund' : 'Titel'}<input id="seT" value="${esc(b.title || '')}"></label>
+        <label class="f">Buchungsart<select id="seL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name, b.label_id || (b.label && (m.labels.find(x => x.name === b.label.name) || {}).id))).join('')}</select></label>
+        <label class="f">Notiz (intern)<input id="seN" value="${esc(b.note || '')}"></label>
+      </div>
+      <div id="seInfo"></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="seOk">Prüfen</button></div>`, true);
+    $('c').onclick = closeDialog;
+    let checked = false;
+    const fields = () => ({ resource_id: +val('seR'), start: val('seS'), end: val('seE'), title: val('seT'), label_id: +val('seL') || null, note: val('seN') });
+    $('dialog').onchange = () => { checked = false; $('seOk').textContent = 'Prüfen'; };
+    $('seOk').onclick = () => GK.busy($('seOk'), async () => {
+      try {
+        if (!checked) {
+          const p = await api(`bookings/${b.id}/scope`, 'POST', { scope, action: 'edit', fields: fields(), preview: true });
+          const cl = p.clash || [];
+          $('seInfo').innerHTML = `<div class="banner ${cl.length || p.skipped.length ? 'a' : ''}" style="display:block"><b>${p.count} ${p.count === 1 ? 'Termin' : 'Termine'}</b>${cl.length ? ` – an ${cl.length} ${cl.length === 1 ? 'Tag' : 'Tagen'} ist der Platz belegt${b.type === 'sperre' ? ' (die Buchungen dort werden storniert, die Mitglieder informiert)' : ' (diese Tage werden ausgelassen)'}: ${cl.slice(0, 12).map(c => deDate(c.date)).join(', ')}` : ' – keine Überschneidungen.'}${p.skipped.length ? `<br>Nicht möglich: ${p.skipped.slice(0, 8).map(x => `${deDate(x.date)} (${esc(x.why)})`).join(', ')}` : ''}</div>`;
+          checked = true; $('seOk').textContent = 'Speichern'; return;
+        }
+        const r0 = await api(`bookings/${b.id}/scope`, 'POST', { scope, action: 'edit', fields: fields(), force: true });
+        closeDialog(); toast(`${r0.changed} ${r0.changed === 1 ? 'Termin' : 'Termine'} geändert${r0.skipped.length ? `, ${r0.skipped.length} ausgelassen` : ''}${r0.cancelled ? `, ${r0.cancelled} Buchungen storniert` : ''}.`); after();
+      } catch (e) { fail(e); }
+    });
+  }
+
   /* ---------------------------------------------------------------- Serien & Sperren */
   async function showSeries(el) {
     const list = await api('series');
     const row = x => `<div class="bk-ser${x.active ? '' : ' off'}"><div style="min-width:0"><h4>${x.label ? `<i class="bk-dot" style="background:${x.label.color}"></i>` : ''}${esc(x.title)} ${pill(x.type === 'sperre' ? ['r', 'Sperre'] : ['b', 'Serie'])}${x.active ? '' : ' ' + pill(['', 'beendet'])}</h4>
-        <div class="muted">${[x.weekdays.split('').map(d => WD[+d]).join(', '), `${x.start}–${x.end} Uhr`, `${deDate(x.from_date)} – ${deDate(x.to_date)}`, x.resources.map(resName).join(', '), x.member ? `für ${x.member}` : '', x.active ? `${x.count} kommende Termine` : ''].filter(Boolean).map(esc).join(' · ')}</div></div>
+        <div class="muted">${(x.rule && x.rule.freq === 'import' ? ['Spielplan vom Verband', `${deDate(x.from_date)} – ${deDate(x.to_date)}`, x.resources.map(resName).join(', '), x.active ? `${x.games} kommende ${x.games === 1 ? 'Spiel' : 'Spiele'}` : '']
+          : [x.rule_text || x.weekdays.split('').map(d => WD[+d]).join(', '), `${x.start}–${x.end} Uhr`, `${deDate(x.from_date)} – ${deDate(x.to_date)}`, x.resources.map(resName).join(', '), x.member ? `für ${x.member}` : '', x.active ? `${x.count} kommende Termine` : '']).filter(Boolean).map(esc).join(' · ')}</div></div>
         <div>${x.active && can('buchung_serien') ? `<button class="btn small" data-end="${x.id}">${x.type === 'sperre' ? 'Aufheben' : 'Beenden'}</button>` : ''}</div></div>`;
     const act = list.filter(x => x.active), old = list.filter(x => !x.active);
-    el.innerHTML = `${can('buchung_serien') ? '<div class="toolbar"><button class="btn primary" id="srNew">+ Serie</button><button class="btn" id="srLock">+ Sperre über Zeitraum</button></div>' : ''}
+    el.innerHTML = `${can('buchung_serien') ? '<div class="toolbar"><button class="btn primary" id="srNew">+ Serie</button><button class="btn" id="srLock">+ Sperre über Zeitraum</button><button class="btn" id="srImp">Spielplan importieren</button></div>' : ''}
       <div class="card"><h3>Aktiv</h3>${act.length ? act.map(row).join('') : '<p class="muted">Keine. Zum Beispiel „Training Herren 40“ jeden Dienstag 18–20 Uhr auf Platz 1 und 2.</p>'}</div>
       ${old.length ? `<div class="card"><h3>Beendet</h3>${old.slice(0, 30).map(row).join('')}</div>` : ''}`;
     const again = () => showSeries(el).catch(fail);
     if ($('srNew')) $('srNew').onclick = () => seriesDialog('serie', again);
     if ($('srLock')) $('srLock').onclick = () => seriesDialog('sperre', again);
+    if ($('srImp')) $('srImp').onclick = () => importDialog(again);
     el.querySelectorAll('[data-end]').forEach(b => { b.onclick = async () => {
       const x = list.find(y => y.id === +b.dataset.end);
       if (!await ask(`${x.type === 'sperre' ? 'Sperre' : 'Serie'} „${x.title}“ ${x.type === 'sperre' ? 'aufheben' : 'beenden'}?\n\nDie ${x.count} kommenden Termine werden entfernt, vergangene bleiben stehen.`, { ok: x.type === 'sperre' ? 'Aufheben' : 'Beenden', danger: true })) return;
       try { const r = await api(`series/${x.id}/end`, 'POST'); toast(`${r.removed} Termine entfernt.`); again(); } catch (e) { fail(e); }
     }; });
+  }
+  /* ---------------------------------------------------------------- Spielplan-Import (Verband) */
+  function importDialog(after) {
+    dialog(`<h2>Spielplan importieren</h2>
+      <p class="muted" style="margin-top:0">Auf der Seite des Verbands die Tabelle mit den Begegnungen markieren (von „Datum“ bis zum letzten Spiel), kopieren und hier einfügen – z. B. nuLiga „Begegnungen“ mit „nur Heimspiele“. Oder eine Datei wählen: CSV, Excel oder Kalender (.ics, z. B. fussball.de „Spielplan exportieren“).</p>
+      <label class="f">Tabelle einfügen<textarea id="imT" rows="9" placeholder="Datum · Spielort · Liga · Heimmannschaft · Gastmannschaft …" style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;white-space:pre"></textarea></label>
+      <div class="row" style="margin-top:10px;align-items:center;gap:10px"><label class="btn" style="cursor:pointer">Datei wählen …<input type="file" id="imF" accept=".csv,.txt,.xlsx,.ics,text/calendar" hidden></label><span class="muted s" id="imFn">keine Datei</span></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="imGo">Einlesen</button></div>`, true);
+    $('c').onclick = closeDialog;
+    let file = null;
+    $('imF').onchange = () => { const f = $('imF').files[0]; if (!f) return; const fr = new FileReader(); fr.onload = () => { file = { name: f.name, file: String(fr.result).split(',')[1] }; $('imFn').textContent = f.name; }; fr.readAsDataURL(f); };
+    $('imGo').onclick = () => GK.busy($('imGo'), async () => {
+      try { const src = file || { text: $('imT').value }; const r = await api('import/parse', 'POST', src); r.__src = src; importReview(r, after); } catch (e) { fail(e); }
+    });
+  }
+  function importReview(r, after) {
+    const m = st.meta;
+    const teams = Object.fromEntries(r.teams.map(t => [t.team, { resources: t.resources.slice(), hours: t.hours }]));
+    const pick = new Set(r.games.filter(g => g.isHome && !g.past && !g.noTime && g.status !== 'vorhanden').map(g => g.key));
+    const ST = { neu: ['g', 'neu'], verlegt: ['a', 'verlegt'], vorhanden: ['', 'schon eingetragen'] };
+    const draw = () => {
+      const home = r.games.filter(g => g.isHome).length;
+      dialog(`<h2>Spielplan prüfen</h2>
+        <div class="bk-grid" style="--c:3"><label class="f">Euer Verein (für „Heimspiel“)<input id="imC" value="${esc(r.club)}"></label>
+          <label class="f">Buchungsart<select id="imL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
+          <div class="f muted s" style="align-self:end;padding-bottom:11px">${r.games.length} Spiele erkannt · ${home} Heimspiele${r.skipped.length ? ` · ${r.skipped.length} Zeilen nicht erkannt` : ''}</div></div>
+        <h3 style="margin:16px 0 6px">Plätze und Dauer je Mannschaft</h3>
+        <table class="tbl"><tr><th>Mannschaft</th><th>Spiele</th><th>Plätze</th><th>Dauer</th></tr>${r.teams.map(t => `<tr><td><b>${esc(t.team)}</b>${t.size ? ` <span class="muted s">${t.size}er</span>` : ''}</td><td>${t.count}</td>
+          <td><span class="bk-chips">${r.courts.map(c => `<label><input type="checkbox" data-tc="${esc(t.team)}" data-c="${c.id}" ${teams[t.team].resources.includes(c.id) ? 'checked' : ''}> ${esc(c.name)}</label>`).join('')}</span></td>
+          <td class="nw"><input type="number" min="1" max="12" step="0.5" data-th="${esc(t.team)}" value="${teams[t.team].hours}" style="width:64px;height:34px;border:1px solid var(--line);border-radius:8px;padding:0 6px"> Std.</td></tr>`).join('')}</table>
+        <h3 style="margin:16px 0 6px">Spiele</h3>
+        <div class="bk-clash" style="max-height:340px"><table class="tbl"><tr><th></th><th>Datum</th><th>Zeit</th><th>Mannschaft</th><th>Begegnung</th><th></th></tr>${r.games.map((g, i) => {
+          const off = g.past || g.noTime || g.status === 'vorhanden';
+          return `<tr style="${off ? 'opacity:.55' : ''}"><td><input type="checkbox" data-g="${i}" ${pick.has(g.key) ? 'checked' : ''} ${off ? 'disabled' : ''}></td><td class="nw">${GK.deDate(g.date)}</td><td class="nw">${esc(g.start || '–')}</td><td>${esc(g.team || '–')}</td>
+            <td>${esc(g.home)} – ${esc(g.guest)}${g.venue ? ` <span class="muted s">· ${esc(g.venue)}</span>` : ''}</td>
+            <td class="nw">${g.past ? pill(['', 'vorbei']) : g.noTime ? pill(['a', 'ohne Uhrzeit']) : !g.isHome ? pill(['', 'auswärts']) : pill(ST[g.status])}${g.was ? ` <span class="muted s">vorher ${GK.deDate(g.was.date)} ${esc(g.was.start)}</span>` : ''}</td></tr>`; }).join('')}</table></div>
+        <div id="imInfo"></div>
+        <div class="btns"><button class="btn ghost" id="imBack">Zurück</button><button class="btn primary" id="imOk">Prüfen</button></div>`, true);
+      $('imBack').onclick = () => importDialog(after);
+      $('dialog').querySelectorAll('[data-g]').forEach(c => { c.onchange = () => { const g = r.games[+c.dataset.g]; if (c.checked) pick.add(g.key); else pick.delete(g.key); reset(); }; });
+      $('dialog').querySelectorAll('[data-tc]').forEach(c => { c.onchange = () => { const t = teams[c.dataset.tc]; const id = +c.dataset.c; t.resources = c.checked ? [...new Set([...t.resources, id])] : t.resources.filter(x => x !== id); reset(); }; });
+      $('dialog').querySelectorAll('[data-th]').forEach(i => { i.onchange = () => { teams[i.dataset.th].hours = +i.value || 4; reset(); }; });
+      $('imC').onchange = async () => { try { const r2 = await api('import/parse', 'POST', { ...r.__src, club: $('imC').value }); { const src = r.__src; Object.assign(r, r2); r.__src = src; pick.clear(); r.games.filter(g => g.isHome && !g.past && !g.noTime && g.status !== 'vorhanden').forEach(g => pick.add(g.key)); draw(); } } catch (e) { fail(e); } };
+      let checked = false;
+      const reset = () => { checked = false; $('imOk').textContent = 'Prüfen'; $('imInfo').innerHTML = ''; };
+      const body = extra => ({ club: $('imC').value, label_id: +val('imL') || null, teams, games: r.games.filter(g => pick.has(g.key)), ...extra });
+      $('imOk').onclick = () => GK.busy($('imOk'), async () => {
+        try {
+          if (!pick.size) { toast('Bitte mindestens ein Spiel anhaken.', true); return; }
+          if (!checked) {
+            const p = await api('import/apply', 'POST', body({ preview: true }));
+            const mc = p.clash.reduce((n, c) => n + c.items.filter(x => x.type !== 'sperre').length, 0);
+            $('imInfo').innerHTML = `<div class="banner ${mc || p.problems.length ? 'a' : ''}" style="display:block"><b>${p.neu} neu</b>${p.verlegt ? ` · <b>${p.verlegt} verlegt</b>` : ''}${p.vorhanden ? ` · ${p.vorhanden} schon eingetragen` : ''}${mc ? `<br>${mc} Buchung(en) von Mitgliedern liegen zu Spielzeiten und werden storniert (mit E-Mail): ${p.clash.slice(0, 8).map(c => `${GK.deDate(c.date)} ${esc(c.start)}`).join(', ')}` : ''}${p.reassigned && p.reassigned.length ? `<br>Gleichzeitige Spiele – auf andere Plätze verteilt: ${p.reassigned.slice(0, 8).map(esc).join(' · ')}` : ''}${p.problems.length ? `<br>Nicht übernommen: ${p.problems.slice(0, 6).map(esc).join(' · ')}` : ''}</div>`;
+            checked = true; $('imOk').textContent = 'Übernehmen'; return;
+          }
+          const x = await api('import/apply', 'POST', body({ force: true }));
+          closeDialog(); toast(`Spielplan übernommen: ${x.made} neu${x.moved ? `, ${x.moved} verlegt` : ''}${x.cancelled ? `, ${x.cancelled} Buchungen storniert` : ''}.`); after();
+        } catch (e) { fail(e); }
+      });
+    };
+    draw();
   }
   function seriesDialog(type, after) {
     const m = st.meta, rs = m.resources.filter(r => r.active);
@@ -377,9 +502,10 @@
       <div class="bk-grid" style="--c:4">
         <label class="f">Buchungsart<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
         <label class="f">${type === 'sperre' ? 'Grund' : 'Titel'}<input id="sxT" placeholder="${type === 'sperre' ? 'optional, z. B. Winterpause' : 'optional – leer = Buchungsart oder Mitglied'}"></label>
-        <label class="f">vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : `${y}-09-30`}"></label>
+        <label class="f">vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
         <div class="f bkf wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
-        <div class="f bkf w2"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}" ${type === 'sperre' ? 'checked' : ''}> ${WD[d]}</label>`).join('')}</div></div>
+        <label class="f w2">Wiederholung<select id="sxRf">${repeatOpts(type === 'sperre' ? 'daily:1' : 'weekly:1')}</select></label>
+        <div class="f bkf w2" id="sxWD"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}"> ${WD[d]}</label>`).join('')}</div></div>
         <label class="f">von<input id="sxS" type="time" value="${type === 'sperre' ? '00:00' : '18:00'}" step="900"></label><label class="f">bis<input id="sxE" type="time" value="${type === 'sperre' ? '23:59' : '20:00'}" step="900"></label>
         ${type === 'serie' ? `<label class="f w2">Mitglied / Trainer (optional)<select id="sxM">${personOpts('')}</select></label>` : ''}
         <label class="f ${type === 'serie' ? 'w2' : 'wall'}">Notiz (intern)<input id="sxN"></label>
@@ -390,14 +516,18 @@
     $('c').onclick = closeDialog;
     let checked = false;
     const body = () => ({ type, title: val('sxT'), from_date: val('sxF'), to_date: val('sxU'), start: val('sxS') === '23:59' ? '24:00' : val('sxS'), end: val('sxE') === '23:59' ? '24:00' : val('sxE'),
-      resources: [...$('dialog').querySelectorAll('[data-r]:checked')].map(x => +x.dataset.r), weekdays: [...$('dialog').querySelectorAll('[data-d]:checked')].map(x => x.dataset.d).join(''),
+      resources: [...$('dialog').querySelectorAll('[data-r]:checked')].map(x => +x.dataset.r), weekdays: [...$('dialog').querySelectorAll('[data-d]:checked')].map(x => x.dataset.d).join(''), ...parseRepeat(val('sxRf')),
       member_id: $('sxM') ? +val('sxM') || null : null, note: val('sxN'), label_id: +val('sxL') || null });
+    const wdVis = () => { $('sxWD').style.visibility = parseRepeat(val('sxRf')).freq === 'weekly' ? '' : 'hidden'; };
+    const wdDefault = () => { const d = dow(val('sxF') || m.today); if (![...$('dialog').querySelectorAll('[data-d]:checked')].length) { const c = $('dialog').querySelector(`[data-d="${d}"]`); if (c) c.checked = true; } };
+    wdDefault(); wdVis();
+    $('sxRf').addEventListener('change', () => { wdVis(); wdDefault(); });
     $('dialog').onchange = () => { checked = false; if ($('sxOk')) $('sxOk').textContent = 'Prüfen'; };   // onchange statt addEventListener: das Dialog-Element bleibt bestehen, der Listener gilt nur für diesen Dialog
     $('sxOk').onclick = () => GK.busy($('sxOk'), async () => {
       try {
         if (!checked) {
           const p = await api('series', 'POST', { ...body(), preview: true });
-          $('sxClash').innerHTML = `<div class="banner ${p.clash.length ? 'a' : ''}" style="display:block"><b>${p.days} Termine</b>${p.clash.length ? ` – ${p.clash.length} überschneiden sich mit bestehenden Buchungen${type === 'sperre' ? ' (werden storniert)' : ' (werden ausgelassen)'}:` : ' – keine Überschneidungen.'}
+          $('sxClash').innerHTML = `<div class="banner ${p.clash.length ? 'a' : ''}" style="display:block"><b>${p.days} Termine</b> · ${esc(p.rule || '')}${p.dates && p.dates.length ? ` · ${p.dates.slice(0, 6).map(deDate).join(', ')}${p.dates.length > 6 ? ' …' : ''}` : ''}<br>${p.clash.length ? `${p.clash.length} überschneiden sich mit bestehenden Buchungen${type === 'sperre' ? ' (werden storniert)' : ' (werden ausgelassen)'}:` : 'Keine Überschneidungen.'}
             ${p.clash.length ? `<div class="bk-clash"><table class="tbl">${p.clash.slice(0, 60).map(c => `<tr><td class="nw">${deDate(c.date)}</td><td class="nw">${c.start}–${c.end}</td><td>${esc(c.resource)}</td><td>${esc(c.type === 'buchung' ? (c.who || []).join(', ') : c.title || '')}</td></tr>`).join('')}</table></div>` : ''}</div>`;
           checked = true; $('sxOk').textContent = type === 'sperre' ? 'Sperren' : 'Serie anlegen'; return;
         }
