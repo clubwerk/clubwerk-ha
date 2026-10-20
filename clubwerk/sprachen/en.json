@@ -6548,6 +6548,10 @@
     "Netze (mit Komma)": "Networks (comma-separated)",
     "Unterwegs bitte mit deiner PIN bestätigen.": "When away, please confirm with your PIN.",
     "Vereinsnetz": "Club network",
-    "Welche Adressen als Vereins-WLAN gelten. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: auf euer Netz einschränken – dann zählen Gast-WLAN, VPN oder andere interne Netze nicht als Vereinsheim. Das interne Home-Assistant-Netz zählt nie.": "Which addresses count as club Wi-Fi. Empty = every private address (192.168.…, 10.…). Recommended: restrict to your network – then guest Wi-Fi, VPN or other internal networks don't count as the clubhouse. The internal Home Assistant network never counts."
+    "Welche Adressen als Vereins-WLAN gelten. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: auf euer Netz einschränken – dann zählen Gast-WLAN, VPN oder andere interne Netze nicht als Vereinsheim. Das interne Home-Assistant-Netz zählt nie.": "Which addresses count as club Wi-Fi. Empty = every private address (192.168.…, 10.…). Recommended: restrict to your network – then guest Wi-Fi, VPN or other internal networks don't count as the clubhouse. The internal Home Assistant network never counts.",
+    "Das Formular ist veraltet – bitte die Seite neu laden.": "The form is out of date – please reload the page.",
+    "Das Formular war zu lange offen – bitte die Seite neu laden.": "The form was open too long – please reload the page.",
+    "Dieser Antrag wurde schon abgeschickt.": "This application has already been sent.",
+    "kein bekannter Push-Dienst": "not a known push service"
   }
 }

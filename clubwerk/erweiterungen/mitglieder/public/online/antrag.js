@@ -225,7 +225,7 @@
       try {
         let r;
         if (fixed) r = await o.post('antrag/sign', { code: o.code, consents: d.consents, ...body });
-        else r = await o.post('antrag', { data: { ...d, iban: d.iban.replace(/\s/g, '') }, ...body, ...(o.mode === 'online' ? { t: started, website: (el.querySelector('#afHp') || {}).value || '' } : {}) });
+        else r = await o.post('antrag', { data: { ...d, iban: d.iban.replace(/\s/g, '') }, ...body, ...(o.mode === 'online' ? { t: cfg.t || started, website: (el.querySelector('#afHp') || {}).value || '' } : {}) });
         done(r);
       } catch (e) { btn.disabled = false; btn.textContent = 'Verbindlich absenden'; err(e.message); }
     }

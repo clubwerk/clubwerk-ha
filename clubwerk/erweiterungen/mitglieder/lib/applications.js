@@ -324,17 +324,35 @@ function register(sh) {
 
   /* ---------- online (Port der Mitglieder-App, ohne Anmeldung) ---------- */
   const Pub = C.public;
+  /* Formular-Ticket: vom Server ausgestellt und signiert (Zeit + Zufall), frühestens nach 15 s und höchstens 6 Std. einlösbar, nur einmal */
+  const formKey = () => { let k = S('form_secret'); if (!/^[0-9a-f]{64}$/.test(k)) { k = crypto.randomBytes(32).toString('hex'); store.SET('form_secret', k); } return k; };
+  const formSig = (ts, n) => crypto.createHmac('sha256', formKey()).update(`antrag:${ts}:${n}`).digest('hex').slice(0, 32);
+  const formTicket = () => { const ts = Date.now(), n = crypto.randomBytes(9).toString('hex'); return `${ts}.${n}.${formSig(ts, n)}`; };
+  const usedTickets = new Map();   // Ticket → Ablauf (nur im Speicher; ältere als 6 Std. gelten ohnehin nicht)
+  function ticketCheck(t) {
+    const m = /^(\d{13})\.([0-9a-f]{18})\.([0-9a-f]{32})$/.exec(String(t || ''));
+    if (!m) return 'Das Formular ist veraltet – bitte die Seite neu laden.';
+    const ts = Number(m[1]), age = Date.now() - ts;
+    const a = Buffer.from(formSig(ts, m[2])), b = Buffer.from(m[3]);
+    if (!crypto.timingSafeEqual(a, b)) return 'Das Formular ist veraltet – bitte die Seite neu laden.';
+    if (age < 15000) return 'Bitte das Formular in Ruhe ausfüllen und dann noch einmal absenden.';
+    if (age > 6 * 3600000) return 'Das Formular war zu lange offen – bitte die Seite neu laden.';
+    if (usedTickets.has(m[0])) return 'Dieser Antrag wurde schon abgeschickt.';
+    return null;
+  }
+  const ticketUse = t => { const now = Date.now(); for (const [k, v] of usedTickets) if (v < now) usedTickets.delete(k); usedTickets.set(String(t), now + 6 * 3600000); };
   Pub.get('/antrag/config', (req, res) => {
     if (S('app_online', '0') !== '1') return res.status(404).json({ error: 'Der Online-Antrag ist ausgeschaltet.' });
-    res.json({ ...formConfig(), t: Date.now() });
+    res.json({ ...formConfig(), t: formTicket() });
   });
   Pub.post('/antrag', rateLimit('mvonline', 5, 60 * 60000), ar(async (req, res) => {
     if (S('app_online', '0') !== '1') return bad(res, 'Der Online-Antrag ist ausgeschaltet.', 404);
     const b = req.body || {};
     if (b.website) return res.json({ ok: true });                                  // Falle für Programme, die Formulare automatisch ausfüllen
-    if (!Number.isFinite(Number(b.t)) || Date.now() - Number(b.t) < 15000) return bad(res, 'Bitte das Formular in Ruhe ausfüllen und dann noch einmal absenden.');
+    const te = ticketCheck(b.t); if (te) return bad(res, te);
     const r = validate(b.data); if (r.error) return bad(res, r.error);
     if (!sigOk(b.sig_member) || !sigOk(b.sig_mandate)) return bad(res, 'Bitte beide Unterschriften leisten.');
+    ticketUse(b.t);
     if (db.prepare("SELECT COUNT(*) n FROM mv_application WHERE source = 'online' AND created_at > datetime('now','localtime','-1 day')").get().n > 40) return bad(res, 'Heute sind ungewöhnlich viele Anträge eingegangen – bitte morgen noch einmal versuchen.', 429);
     const id = Number(db.prepare("INSERT INTO mv_application(source, status, data) VALUES ('online', 'neu', ?)").run(JSON.stringify(r.v)).lastInsertRowid);
     await finalize(id, 'online', b.sig_member, b.sig_mandate);

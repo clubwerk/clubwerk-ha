@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.20.2
+
+Weitere Nachbesserungen aus der vertieften Code-Prüfung:
+
+- Online-Mitgliedsantrag: Die Mindest-Ausfüllzeit (15 s) hing an einem Zeitstempel, den der Browser selbst mitschickte – ein Programm konnte einfach einen alten Wert senden. Jetzt stellt der Server beim Öffnen ein signiertes Formular-Ticket aus: frühestens nach 15 Sekunden, höchstens 6 Stunden und nur einmal einlösbar.
+- Push-Nachrichten: Push-Abos werden nur noch für die bekannten Push-Dienste der Browser angenommen (Apple, Google, Mozilla, Microsoft). Ein Handy kann dem Server damit kein beliebiges Ziel – etwa ein Gerät im Vereinsnetz – als Push-Adresse unterschieben. Ältere Abos mit fremdem Ziel werden beim nächsten Versand verworfen.
+
 ## 3.20.1
 
 Sicherheits-Nachbesserungen aus einer externen Code-Prüfung:
