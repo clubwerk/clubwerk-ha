@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.20.1
+
+Sicherheits-Nachbesserungen aus einer externen Code-Prüfung:
+
+- Mitglieder-App – **Vereinsnetz genauer:** Das interne Home-Assistant-Netz (172.30.32.0/23) zählt nicht mehr als Vereins-WLAN. Neu unter Mitglieder-App → „Vereinsnetz“: festlegen, welche Netze als Vereinsheim gelten (z. B. `192.168.10.0/24`), Knopf „Mein Netz übernehmen“. Leer = wie bisher jede private Adresse. Türen (Zugang) nutzen jetzt dieselbe Regel.
+- Beregnung – **unterwegs nur mit PIN:** Hat ein Mitglied die Ausnahme „auch unterwegs“, fragt die App beim Starten von außerhalb nach der PIN. Im Vereins-WLAN bleibt es ein Tipp; Stoppen geht immer ohne PIN.
+
 ## 3.20.0
 
 - Buchungssystem – **Serien mit Wiederholung:** täglich, wöchentlich (mit Wochentagen), alle 2/3/4 Wochen, monatlich am gleichen Tag oder am gleichen Wochentag (z. B. 2. Dienstag). In Serien & Sperren, im Buchungsdialog („wiederholen … bis“) und in der App (Sonderrecht Serien). Die Vorschau zeigt Anzahl, erste Termine und Überschneidungen.

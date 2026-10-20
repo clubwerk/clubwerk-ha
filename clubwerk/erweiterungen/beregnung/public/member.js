@@ -30,7 +30,9 @@
         if (p.state !== 'idle') return ctx.toast(`${p.name} wird schon beregnet.`);
         if (p.blockedUntil) return ctx.toast(`${p.name} wurde gerade beregnet – wieder ab ${p.blockedUntil} Uhr.`);
         try {
-          const r = await ctx.api('run', 'POST', { platz: id });
+          let r;
+          try { r = await ctx.api('run', 'POST', { platz: id }); }
+          catch (e) { if (e.status !== 428 || !ctx.withPin) throw e; r = await ctx.withPin(`${p.name} starten`, pin => ctx.api('run', 'POST', { platz: id, pin })); }   // unterwegs: mit PIN
           if (r) ctx.toast(`${p.name} ${r.waitSec > 0 ? 'eingeplant – startet in ' + T().fmt(r.waitSec) : 'gestartet'} · ${Math.round(r.totalSec / 60)} Min.`);
         } catch (e) { ctx.toast(e.message, true, 5000); }
         refresh();

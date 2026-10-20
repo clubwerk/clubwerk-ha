@@ -2118,13 +2118,18 @@
           <li>Kostenloses Konto bei Cloudflare, eure Domain dort verwalten lassen (z. B. <code>meinverein.de</code>).</li>
           <li>Cloudflare → Zero Trust → Networking → Tunnels → „Tunnel erstellen“ (Cloudflared, Docker) → Token kopieren.</li>
           <li>In Home Assistant das Add-on <b>Cloudflared</b> installieren, den Token unter „Tunnel token“ eintragen, starten.</li>
-          <li>Im Tunnel unter „Routes“ → „Add route“ → „Published application“ anlegen: <code>app.meinverein.de</code> → Dienst <code>${r.https ? 'HTTPS' : 'HTTP'}</code>, URL <code>${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ „No TLS Verify“ einschalten' : ''}. <b>Nur diesen Port</b> freigeben.</li>
+          <li>Im Tunnel unter „Routes“ → „Add route“ → „Published application“ anlegen: <code>app.meinverein.de</code> → Dienst-URL <code>${r.https ? 'https' : 'http'}://${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ den Ursprungs-Servernamen (Name eures Zertifikats) eintragen' : ''}. <b>Nur diesen Port</b> freigeben.</li>
           <li>Hier die Adresse eintragen, einschalten, „Verbindung prüfen“ – neue QR-Codes enthalten dann die öffentliche Adresse und funktionieren im WLAN und unterwegs.</li></ol>
         <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p>
         <h4 style="margin:16px 0 6px">Von unterwegs nutzbar</h4>
         <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
         <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
-        <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
+        <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div>
+        <h4 style="margin:16px 0 6px">Vereinsnetz</h4>
+        <p class="muted s" style="margin:0 0 8px">Welche Adressen als Vereins-WLAN gelten. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: auf euer Netz einschränken – dann zählen Gast-WLAN, VPN oder andere interne Netze nicht als Vereinsheim. Das interne Home-Assistant-Netz zählt nie.</p>
+        <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:220px">Netze (mit Komma)<input id="apNets" data-nodirty value="${esc(r.tunnel.wlanNets || '')}" placeholder="z. B. 192.168.10.0/24" ${r.mayExt ? '' : 'disabled'}></label>
+          ${r.mayExt && /^\d+\.\d+\.\d+\.\d+$/.test(r.tunnel.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(r.tunnel.myIp) ? `<button class="btn" id="apNetMine" type="button">Mein Netz übernehmen (${esc(r.tunnel.myIp.replace(/\.\d+$/, '.0'))}/24)</button>` : ''}
+          ${r.mayExt ? '<button class="btn primary" id="apNetSave" type="button">Speichern</button>' : ''}</div></div>
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
@@ -2197,6 +2202,8 @@
       };
       draw();
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
+    if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
+    if ($('apNetSave')) $('apNetSave').onclick = () => busy($('apNetSave'), async () => { try { await api('settings/app', 'PUT', { wlanNets: $('apNets').value }); toast($('apNets').value.trim() ? 'Gespeichert – nur diese Netze gelten als Vereins-WLAN.' : 'Gespeichert – jede private Adresse gilt als Vereins-WLAN.'); } catch (e) { fail(e); } });
     pushCard($('pushCard')).catch(e => { $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
     }
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });

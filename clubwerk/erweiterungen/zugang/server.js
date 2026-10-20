@@ -244,10 +244,11 @@ async function watch() {
 }
 
 /* =================== Webapp-Schnittstelle =================== */
+/* Vereins-WLAN: dieselbe Regel wie der Kern (Mitglieder-App → „Vereinsnetz“; das interne Home-Assistant-Netz zählt nie) */
+let clubNet = null;
 function isLocalIp(ip) {
+  if (clubNet) return clubNet(ip);
   ip = String(ip || '').replace(/^::ffff:/, '');
-  // Das interne Home-Assistant-Netz (172.30.32.0/23: Supervisor, andere Add-ons wie NGINX/Cloudflared) zählt NICHT als
-  // Vereins-WLAN – sonst sähe jede Anfrage über einen solchen Proxy aus dem Internet „lokal“ aus.
   if (/^172\.30\.3[23]\./.test(ip)) return false;
   return /^(10\.|127\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip) || /^fe80:/i.test(ip);
 }
@@ -449,6 +450,7 @@ function cleanCfg(b, cleanName) {
 }
 
 function activate(ctx) {
+  try { clubNet = ctx.require('./memberapp').isClubNet; } catch (e) { clubNet = null; }
   ({ db, getSetting, setSetting, audit, auth } = ctx);
   express = ctx.require('express');
   H = ctx;

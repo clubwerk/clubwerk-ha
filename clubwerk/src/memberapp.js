@@ -24,7 +24,7 @@ function extAllowed(id) { const c = extCfg(); if (c[id] !== undefined) return Bo
 /* Vereins-WLAN = Anfrage kommt direkt aus dem privaten Netz bei Home Assistant an (nicht über den Tunnel). Die App erreicht
    im Vereinsheim die lokale HTTPS-Adresse (Einstellung „Adresse im Vereins-WLAN“) und nutzt sie dann für alle Aufrufe. */
 /** von außen (über den Tunnel oder von einer öffentlichen Absenderadresse)? */
-const awayReq = req => Boolean(req.viaTunnel) || !PRIVATE_IP(String(req.socket.remoteAddress || ''));
+const awayReq = req => Boolean(req.viaTunnel) || !isClubNet(String(req.socket.remoteAddress || ''));
 /** darf dieses Mitglied den Bereich bei dieser Anfrage nutzen? (im WLAN immer; unterwegs, wenn der Bereich oder das Mitglied dafür freigegeben ist) */
 /** lokale HTTPS-Adresse der App (nur https ist von der öffentlichen Seite aus erreichbar – Browser blocken http als „Mixed Content“) */
 const lanUrl = () => { const u = getSetting('app_url', '').replace(/\/+$/, ''); return /^https:\/\//i.test(u) || (process.env.CW_TEST_LAN_HTTP === '1' && /^http:\/\/(localhost|127\.0\.0\.1)/.test(u)) ? u : ''; };
@@ -34,6 +34,37 @@ const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
 /** private Absenderadresse (WLAN, Add-on-Netz, derselbe Rechner, link-local)? */
 const PRIVATE_IP = ip => /^(::ffff:)?(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip) || /^fe80:/i.test(ip);
+/* ---------- Was gilt als Vereins-WLAN? ----------
+   Nie: das interne Home-Assistant-Netz 172.30.32.0/23 (Supervisor, andere Add-ons – über diese Adressen kommen auch Proxy- und Tunnel-Anfragen).
+   Sind unter Mitglieder-App → „Von unterwegs erreichbar“ Vereinsnetze eingetragen (z. B. 192.168.10.0/24), zählen nur diese;
+   sonst jede private Adresse. Derselbe Rechner (127.0.0.1/::1) zählt immer (nur Prozesse im Add-on selbst). */
+const HA_INTERNAL = ip => /^172\.30\.3[23]\./.test(ip);
+function ipv4Int(ip) { const p = ip.split('.').map(Number); return p.length === 4 && p.every(n => n >= 0 && n <= 255) ? ((p[0] << 24) >>> 0) + (p[1] << 16) + (p[2] << 8) + p[3] : null; }
+function ipv6Big(ip) {
+  let [h, t] = ip.toLowerCase().split('::'); const a = h ? h.split(':') : [], b = t !== undefined ? (t ? t.split(':') : []) : null;
+  const parts = b ? [...a, ...Array(8 - a.length - b.length).fill('0'), ...b] : a; if (parts.length !== 8 || parts.some(x => !/^[0-9a-f]{1,4}$/.test(x))) return null;
+  return parts.reduce((acc, x) => (acc << 16n) + BigInt(parseInt(x, 16)), 0n);
+}
+/** „192.168.10.0/24, fd00::/8“ → Prüffunktion; ungültige Einträge werden übergangen */
+function cidrList(text) {
+  return String(text || '').split(/[\s,;]+/).map(x => x.trim()).filter(Boolean).map(c => {
+    const [net, bitsS] = c.split('/'); const v6 = net.includes(':');
+    const bits = bitsS === undefined ? (v6 ? 128 : 32) : Number(bitsS);
+    if (v6) { const n = ipv6Big(net); if (n == null || !(bits >= 0 && bits <= 128)) return null; const mask = bits === 0 ? 0n : ((1n << BigInt(bits)) - 1n) << BigInt(128 - bits); return ip => { const x = ipv6Big(ip); return x != null && (x & mask) === (n & mask); }; }
+    const n = ipv4Int(net); if (n == null || !(bits >= 0 && bits <= 32)) return null; const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+    return ip => { const x = ipv4Int(ip); return x != null && ((x & mask) >>> 0) === ((n & mask) >>> 0); };
+  }).filter(Boolean);
+}
+const validNets = text => String(text || '').split(/[\s,;]+/).filter(Boolean).every(c => cidrList(c).length === 1);
+let netCache = { raw: null, list: [] };
+function isClubNet(ipRaw) {
+  const ip = String(ipRaw || '').replace(/^::ffff:/, '');
+  if (!ip || HA_INTERNAL(ip)) return false;
+  if (/^127\./.test(ip) || ip === '::1') return true;
+  const raw = getSetting('app_wlan_nets', '');
+  if (netCache.raw !== raw) netCache = { raw, list: cidrList(raw) };
+  return netCache.list.length ? netCache.list.some(f => f(ip)) : PRIVATE_IP(ip);
+}
 /** von außen? Über den Tunnel und nicht aus dem Vereinsnetz – oder direkt von einer öffentlichen Adresse (versehentliche Portfreigabe am Router:
  *  dann kommt keine cf-Kopfzeile, die Anfrage darf trotzdem nicht als „im WLAN“ gelten) */
 /* Der Kopfzeile cf-connecting-ip (echte Absenderadresse hinter Cloudflare) wird nur geglaubt, wenn die Anfrage tatsächlich vom Tunnel kommt.
@@ -350,6 +381,7 @@ function startPort({ rateLimit, rateLimitKey }) {
     const go = () => {
       req.member = { id: w.memberId, name: w.name, access: c.row ? { ...c.row, flags: parseFlags(c.row.flags) } : null };
       /** PIN prüfen (bei jeder schaltenden Aktion) → true oder Antwort gesendet */
+      req.away = awayReq(req);   // unterwegs (Tunnel oder fremdes Netz) – Module können dann strenger sein (z. B. PIN vor dem Starten der Beregnung)
       req.pinOk = () => {
         const r = invites.check(SCOPE, dev(req), (req.body || {}).pin);
         if (r.ok) return true;
@@ -435,7 +467,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, proxyIps: TUNNEL_IPS }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -540,6 +572,13 @@ function adminRoutes(admin, { bad, need, auth }) {
       return bad(res, 'Adresse und Sicherheit der Mitglieder-App darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
     if (b.url !== undefined) { const u = String(b.url || '').trim().replace(/\/+$/, ''); if (u && !/^https?:\/\/[A-Za-z0-9.\-[\]:]+$/.test(u)) return bad(res, 'Bitte eine Adresse wie http://homeassistant.local:5001 eintragen.'); setSetting('app_url', u); }
     if ((b.tunnel !== undefined || b.tunnelUrl !== undefined) && !req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+    if (b.wlanNets !== undefined) {   // Vereinsnetze (CIDR) – leer = jede private Adresse
+      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Die Vereinsnetze darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+      const v = String(b.wlanNets || '').trim().slice(0, 300);
+      if (v && !validNets(v)) return bad(res, 'Bitte Netze wie 192.168.10.0/24 eintragen (mehrere mit Komma).');
+      setSetting('app_wlan_nets', v.split(/[\s,;]+/).filter(Boolean).join(', '));
+      audit(req.user, 'Mitglieder-App: Vereinsnetze geändert', v || 'alle privaten Adressen');
+    }
     if (b.tunnelUrl !== undefined) {
       const u = String(b.tunnelUrl || '').trim().replace(/\/+$/, '');
       if (u && !/^https:\/\/[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/i.test(u)) return bad(res, 'Bitte die öffentliche Adresse wie https://app.meinverein.de eintragen (mit https, ohne Port).');
@@ -592,4 +631,4 @@ function adminRoutes(admin, { bad, need, auth }) {
   void auth;
 }
 
-module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP };
+module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, validNets };

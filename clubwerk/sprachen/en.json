@@ -6534,6 +6534,20 @@
     "Was möchtest du ändern?": "What would you like to change?",
     "Wer hat die Serie gebucht?": "Who booked the series?",
     "Wiederholung": "Repetition",
-    "Wiederkehrende Termine für Training und Mannschaften (täglich, wöchentlich, alle n Wochen, monatlich), Spielpläne vom Verband – und Sperren für Platzpflege, Turniere oder den Winter.": "Recurring dates for training and teams (daily, weekly, every n weeks, monthly), association schedules – and closures for court maintenance, tournaments or winter."
+    "Wiederkehrende Termine für Training und Mannschaften (täglich, wöchentlich, alle n Wochen, monatlich), Spielpläne vom Verband – und Sperren für Platzpflege, Turniere oder den Winter.": "Recurring dates for training and teams (daily, weekly, every n weeks, monthly), association schedules – and closures for court maintenance, tournaments or winter.",
+    ", unter „TLS“ den Ursprungs-Servernamen (Name eures Zertifikats) eintragen": ", under “TLS” enter the origin server name (your certificate's name)",
+    "{0} starten": "Start {0}",
+    "→ Dienst-URL": "→ service URL",
+    "alle privaten Adressen": "all private addresses",
+    "Bitte Netze wie 192.168.10.0/24 eintragen (mehrere mit Komma).": "Please enter networks like 192.168.10.0/24 (several separated by commas).",
+    "Die Vereinsnetze darf nur ändern, wer das Recht „Einstellungen“ hat.": "Only users with the “Settings” permission may change the club networks.",
+    "Gespeichert – jede private Adresse gilt als Vereins-WLAN.": "Saved – every private address counts as club Wi-Fi.",
+    "Gespeichert – nur diese Netze gelten als Vereins-WLAN.": "Saved – only these networks count as club Wi-Fi.",
+    "Mein Netz übernehmen ({0}/24)": "Use my network ({0}/24)",
+    "Mitglieder-App: Vereinsnetze geändert": "Member app: club networks changed",
+    "Netze (mit Komma)": "Networks (comma-separated)",
+    "Unterwegs bitte mit deiner PIN bestätigen.": "When away, please confirm with your PIN.",
+    "Vereinsnetz": "Club network",
+    "Welche Adressen als Vereins-WLAN gelten. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: auf euer Netz einschränken – dann zählen Gast-WLAN, VPN oder andere interne Netze nicht als Vereinsheim. Das interne Home-Assistant-Netz zählt nie.": "Which addresses count as club Wi-Fi. Empty = every private address (192.168.…, 10.…). Recommended: restrict to your network – then guest Wi-Fi, VPN or other internal networks don't count as the clubhouse. The internal Home Assistant network never counts."
   }
 }

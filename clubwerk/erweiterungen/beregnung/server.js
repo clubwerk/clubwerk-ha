@@ -534,9 +534,14 @@ function activate(ctx) {
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.plaetze.length && c.mode !== 'app'); };   // „nur Mitglieder-App“ gilt fürs eigene Handy, nicht fürs Vereinstablet
   /* Mitglieder-App: /api/m/beregnung/… (Gerät und Freischaltung prüft der Kern) */
   ctx.member.get('/status', async (req, res) => res.json({ ...(await status()), stopFree: Boolean(cfg().stopFree) }));
-  // In der Mitglieder-App ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet – dafür gebremst (10 je Minute),
-  // damit niemand im Sekundentakt Ventile schaltet (Home-Assistant-Aufrufe, Protokollflut, Verschleiß)
+  // Im Vereins-WLAN ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet – dafür gebremst (10 je Minute),
+  // damit niemand im Sekundentakt Ventile schaltet. Unterwegs (Ausnahme „auch unterwegs“) zusätzlich mit PIN: ein gestohlener
+  // Geräteschlüssel allein reicht dann nicht, um aus der Ferne zu bewässern. Stoppen geht immer ohne PIN (Sicherheit vor Bequemlichkeit).
   ctx.member.post('/run', ctx.rateLimit('bgmrun', 10, 60000), (req, res) => {
+    if (req.away && typeof req.pinOk === 'function') {
+      if (!String((req.body || {}).pin || '')) return res.status(428).json({ error: 'Unterwegs bitte mit deiner PIN bestätigen.', needPin: true });   // ohne PIN: nachfragen (428), nicht als Fehlversuch zählen
+      if (!req.pinOk()) return;
+    }
     try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.member.name) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
   ctx.member.post('/stop', ctx.rateLimit('bgmstop', 10, 60000), async (req, res) => {
