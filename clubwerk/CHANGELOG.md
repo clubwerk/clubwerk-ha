@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.25.2
+
+- **Mitglieder-App im einheitlichen Design:** Buchen, Spieltage, Meine Daten und Dienste nutzen jetzt dieselben Bausteine – gleiche Karten mit gleichem Kopf (Aktion rechts), gleiche Zeilenlisten, ein einheitlicher Datumsblock vor jedem Termin, gleiche Marken, Umschalter, Hinweisleisten, Knöpfe und Formularfenster, gleiche Abstände. Module: Buchungssystem 1.3.3, Spielbetrieb 1.2.2, Helferdienste 2.0.2, Mitgliederverwaltung 1.7.1.
+- **Styleguide:** Der Teil für die Mitglieder-App ist jetzt eine vollständige Bausteintabelle (ERWEITERUNGEN.md); die Vorlage für neue Module enthält einen Beispielbereich für die App.
+- **Mitglieder-App (Verwaltung):** „Einladen“ und „Entfernen“ in der Liste der freigeschalteten Mitglieder sind kleine Symbolknöpfe (mit Hinweis beim Darüberfahren) – die Tabelle passt ohne seitliches Scrollen.
+
 ## 3.25.1
 
 - **Mitglieder-App, „Meine Daten“ (Mitgliederverwaltung 1.7.0):** Einwilligungen lassen sich wie die übrigen Angaben freigeben – „Sehen“ und „Ändern (erteilen und widerrufen)“ getrennt. Ausgeblendet erscheinen sie in der App nicht mehr; ein Widerruf geht dann formlos beim Vorstand.

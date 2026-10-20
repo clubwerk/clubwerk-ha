@@ -4,10 +4,6 @@
   if (!document.getElementById('bkmStyle')) {
     const s = document.createElement('style'); s.id = 'bkmStyle';
     s.textContent = `
-      .bkm-view { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); margin: 0 0 12px; }
-      .bkm-view button { flex: 1; min-height: 36px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); }
-      .bkm-view button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
-      .bkm-planwrap { background: var(--card); border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow); margin-bottom: 12px; overflow: hidden; }
       .bkm-plan { display: grid; grid-template-columns: 52px repeat(var(--n), minmax(0, 1fr)); }   /* Zeitspalte 52 px: Uhrzeiten liegen ganz in der Karte */   /* ganzer Tag, alle Plätze in der Breite – kein Scrollen im Fenster */
       .bkm-plan .hd { position: relative; z-index: 3; background: var(--card); border-bottom: 1px solid var(--line); min-height: 48px; padding: 6px 4px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
       .bkm-plan .hd b { font-size: 14px; font-weight: 800; line-height: 18px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-plan .hd small { font-size: 11px; color: var(--muted); line-height: 14px; }
@@ -23,26 +19,17 @@
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
-      .bkm-now { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px; margin-bottom: 12px; }
-      .bkm-now h4 { margin: 4px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      .bkm-now h3 + div { border-top: 0; }
       .bkm-now > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 14px; }
-      .bkm-now h4 + div { border-top: 0; }
       .bkm-now span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-now small { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
-      .bkm-now p { margin: 2px 0 4px; color: var(--muted); font-size: 14px; }
+      .bkm-now p { margin: 0; color: var(--muted); font-size: 14px; }
       .bkm-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
-      .bkm-hint { font-size: 12.5px; color: var(--muted); margin: -4px 2px 12px; }
-      .bkm-days { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px 4px; scrollbar-width: none; }
+      .bkm-hint { font-size: 12.5px; color: var(--muted); margin: -4px 2px 0; }
+      .bkm-days { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px -8px; scrollbar-width: none; }
       .bkm-days::-webkit-scrollbar { display: none; }
       .bkm-days button { flex: none; width: 58px; height: 62px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
       .bkm-days button span { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; } .bkm-days button b { font-size: 18px; font-weight: 800; }
       .bkm-days button.on { background: var(--brand); border-color: var(--brand); color: #fff; } .bkm-days button.on span { color: rgba(255,255,255,.85); }
-      .bkm-areas { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); margin: 0 0 12px; }
-      .bkm-areas button { flex: 1; min-height: 40px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 14.5px; font-weight: 700; color: var(--muted); }
-      .bkm-areas button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
-      .bkm-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 14px 16px; box-shadow: var(--shadow); margin-bottom: 12px; }
-      .bkm-card h3 { margin: 0 0 2px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-      .bkm-card h3 small { font-size: 12.5px; font-weight: 600; color: var(--muted); }
-      .bkm-note { font-size: 12.5px; color: var(--muted); margin: 0 0 10px; }
       .bkm-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 10px; }
       .bkm-slot { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; color: var(--ink); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
       .bkm-slot b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; } .bkm-slot span { font-size: 11px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
@@ -53,12 +40,7 @@
       .bkm-slot.lock { background: repeating-linear-gradient(135deg, var(--red-soft) 0 6px, transparent 6px 12px); color: var(--red); border-color: var(--red-line, var(--line)); }
       .bkm-slot.past, .bkm-slot.closed { opacity: .38; }
       .bkm-slot.wait { box-shadow: inset 0 0 0 2px var(--amber); }
-      .bkm-list > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line); }
-      .bkm-list > div:first-child { border-top: 0; padding-top: 4px; }
-      .bkm-list strong { display: block; font-size: 15px; } .bkm-list small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-      .bkm-list button { min-height: 40px; min-width: 104px; border-radius: 12px; border: 1px solid var(--line); background: transparent; color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; padding: 0 12px; }
-      .bkm-empty { color: var(--muted); font-size: 14px; margin: 4px 0 0; }
-      .bkm-sheet .vh-box { max-width: 440px; text-align: left; max-height: 88vh; overflow: auto; }
+      .bkm-sheet .vh-box { max-width: 460px; text-align: left; max-height: 88vh; overflow: auto; }
       .bkm-sheet label.l { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 4px; }
       .bkm-sheet .vh-select { font-size: 16px; }
       .bkm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
@@ -144,18 +126,18 @@
         const areas = [...new Set(p.resources.map(r => r.area))];
         if (!areas.includes(area)) area = areas[0] || null;
         const rs = p.resources.filter(r => r.area === area);
-        el.innerHTML = `${d.blocked ? `<div class="bkm-card" style="border-color:var(--amber)"><p class="bkm-empty" style="color:var(--ink)"><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</p></div>` : ''}<div class="bkm-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
-          ${areas.length > 1 ? `<div class="bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
-          <div class="bkm-view">${[['plan', 'Übersicht'], ['zeiten', 'Freie Zeiten']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
-          ${rs.length && view === 'plan' ? planHtml(rs, p, nowM) : rs.length ? rs.map(r => `<div class="bkm-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="bkm-note">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
+        el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}<div class="bkm-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
+          ${areas.length > 1 ? `<div class="vh-seg bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
+          <div class="vh-seg bkm-view">${[['plan', 'Übersicht'], ['zeiten', 'Freie Zeiten']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+          ${rs.length && view === 'plan' ? planHtml(rs, p, nowM) : rs.length ? rs.map(r => `<div class="vh-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="vh-lead">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
             ${(() => { const all = slots(r, p, day, nowM, d.today); const gone = day === d.today && !pastOpen ? all.filter(x => x.e <= nowM && !/^mine/.test(x.state)).length : 0; const shown = gone ? all.filter(x => !(x.e <= nowM && !/^mine/.test(x.state))) : all;
               return `<div class="bkm-slots">${shown.map(x => `<button class="bkm-slot ${x.state}" data-r="${r.id}" data-s="${x.s}" ${x.booking && x.booking.label && !x.booking.mine ? `style="box-shadow:inset 0 -4px 0 ${x.booking.label.color}"` : ''} ${/past|closed/.test(x.state) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span>${esc(x.label)}</span></button>`).join('')}</div>
               ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}`; })()}</div>`).join('')
-            : '<div class="bkm-card"><p class="bkm-empty">Hier ist noch nichts buchbar.</p></div>'}
-          <div class="bkm-card"><h3>Meine Buchungen</h3><div class="bkm-list">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
-              <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="bkm-empty">Keine offenen Buchungen.</p>'}</div>
-            ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="bkm-list">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.rule_text || x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
-            ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="bkm-list">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
+            : '<div class="vh-card"><p class="vh-none">Hier ist noch nichts buchbar.</p></div>'}
+          <div class="vh-card"><h3>Meine Buchungen</h3><div class="vh-rows">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
+              <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button class="vh-btn sm sec" data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="vh-none">Keine offenen Buchungen.</p>'}</div>
+            ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="vh-rows">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.rule_text || x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button class="vh-btn sm sec" data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
+            ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="vh-rows">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button class="vh-btn sm sec" data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
         el.querySelectorAll('[data-d]').forEach(b => { b.onclick = () => { day = b.dataset.d; load(); }; });
         el.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
         el.querySelectorAll('.bkm-view [data-v]').forEach(b => { b.onclick = () => { view = b.dataset.v; try { localStorage.setItem('bkm_view', view); } catch (e) { /* */ } draw(); }; });
@@ -205,10 +187,10 @@
           const soon = p.bookings.filter(b => tm(b.start) > nowM && tm(b.start) <= nowM + 60).sort((a, c) => tm(a.start) - tm(c.start));
           const line = (b, pre) => { const r = rs.find(x => x.id === b.resource_id); const nm = b.type === 'buchung' && b.who ? b.who.map(shortName).join(', ') : b.label ? b.label.name : b.title || (b.type === 'sperre' ? 'gesperrt' : 'belegt');
             return `<div><b>${esc(r ? r.name : '')}</b><span>${esc(nm)}</span><small>${pre}</small></div>`; };
-          if (play.length || soon.length) now = `<div class="bkm-now"><h4>Jetzt auf der Anlage</h4>${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
-            ${soon.length ? `<h4>In der nächsten Stunde</h4>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>`;
+          if (play.length || soon.length) now = `<div class="vh-card bkm-now"><h3>Jetzt auf der Anlage</h3>${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
+            ${soon.length ? `<h3 style="margin-top:12px">In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>`;
         }
-        return `${now}<div class="bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-plan" style="--n:${rs.length};--ph:${PH}px">
+        return `${now}<div class="vh-card flush bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-plan" style="--n:${rs.length};--ph:${PH}px">
           <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu'}</small></div>`).join('')}
           <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * PH}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
           ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);

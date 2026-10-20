@@ -6,25 +6,10 @@
   if (!document.getElementById('sbStyle')) {
     const s = document.createElement('style'); s.id = 'sbStyle';
     s.textContent = `
-      .sb-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; box-shadow: var(--shadow); }
-      .sb-card + .sb-card { margin-top: 12px; }
-      .sb-tabs { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); margin: 0 0 12px; overflow-x: auto; scrollbar-width: none; }
-      .sb-tabs button { flex: 1 0 auto; min-height: 40px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); padding: 0 14px; white-space: nowrap; }
-      .sb-tabs button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
-      .sb-head { display: grid; grid-template-columns: 58px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
-      .sb-d { width: 58px; height: 56px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; line-height: 1.05; }
-      .sb-d b { font-size: 16px; letter-spacing: -.02em; } .sb-d span { font-size: 11px; text-transform: uppercase; }
-      .sb-head strong { display: block; font-size: 15.5px; line-height: 1.3; } .sb-head small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-      .sb-light { width: 14px; height: 14px; border-radius: 50%; background: var(--line); justify-self: end; }
-      .sb-light.g { background: var(--brand); } .sb-light.r { background: var(--red); }
-      .sb-ans { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
-      .sb-ans button { min-height: 46px; border-radius: 13px; font: inherit; font-size: 15px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
-      .sb-ans button.yes.on { background: var(--brand); border-color: var(--brand); color: #fff; }
-      .sb-ans button.no.on { background: var(--red); border-color: var(--red); color: #fff; }
       .sb-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; font-size: 13.5px; color: var(--muted); }
       .sb-line button, .sb-link { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 6px 0; }
-      .sb-tag { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 9px; background: var(--hover); color: var(--muted); }
-      .sb-tag.g { background: var(--brand-soft); color: var(--brand-ink); } .sb-tag.a { background: var(--amber-soft); color: var(--amber); } .sb-tag.r { background: var(--red-soft); color: var(--red); }
+      .vh-chip { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 9px; background: var(--hover); color: var(--muted); }
+      .vh-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .vh-chip.a { background: var(--amber-soft); color: var(--amber); } .vh-chip.r { background: var(--red-soft); color: var(--red); }
       .sb-play { margin-top: 12px; padding: 12px; border-radius: 14px; background: var(--brand-soft); }
       .sb-play.wd { background: var(--amber-soft); }
       .sb-play b { display: block; font-size: 15px; color: var(--ink); } .sb-play p { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
@@ -34,42 +19,27 @@
       .sb-tasks > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
       .sb-tasks button { min-height: 36px; border-radius: 11px; font: inherit; font-size: 13.5px; font-weight: 700; border: 1px solid var(--brand); background: var(--brand); color: #fff; padding: 0 12px; }
       .sb-tasks button.sec { background: transparent; border-color: var(--line); color: var(--ink); }
-      .sb-lead { margin-top: 12px; width: 100%; min-height: 46px; border-radius: 13px; font: inherit; font-size: 15px; font-weight: 700; border: 1px solid var(--brand); background: transparent; color: var(--brand-ink); }
-      .sb-intro { font-size: 14px; color: var(--muted); line-height: 1.45; margin: 0 0 10px; }
-      .sb-bulk { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
-      .sb-bulk button { min-height: 42px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
-      .sb-sheet .vh-box { max-width: 520px; text-align: left; padding: 20px 16px 16px; }
-      .sb-sheet label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
-      .sb-sheet .vh-input { font-size: 16px; min-height: 48px; }
       .sb-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .sb-p { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
       .sb-p:first-of-type { border-top: 0; }
       .sb-p .rk { font-size: 12.5px; font-weight: 800; color: var(--muted); text-align: right; }
       .sb-p strong { display: block; font-size: 14.5px; } .sb-p small { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
       .sb-seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: var(--hover); }
-      .sb-seg button { min-height: 34px; min-width: 44px; border-radius: 9px; border: 0; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 0 8px; }
+      .sb-seg button { min-height: 34px; min-width: 38px; border-radius: 9px; border: 0; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 0 8px; }
       .sb-seg button.on { background: var(--brand); color: #fff; } .sb-seg button.on.e { background: var(--amber); }
       .sb-p.wd { background: var(--amber-soft); margin: 0 -16px; padding: 9px 16px; }
       .sb-wd { grid-column: 2 / -1; display: flex; gap: 8px; margin-top: 6px; }
       .sb-wd button { flex: 1; min-height: 38px; border-radius: 11px; font: inherit; font-size: 13.5px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
       .sb-wd button.ok { background: var(--brand); border-color: var(--brand); color: #fff; }
-      .sb-list { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
       .sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--line); }
       .sb-row:first-child { border-top: 0; } .sb-row.x { opacity: .6; } .sb-row.open { background: color-mix(in srgb, var(--hover) 45%, var(--card)); }
-      .sb-rh { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 4px 9px 16px; background: none; border: 0; font: inherit; color: inherit; text-align: left; min-width: 0; }
-      .sb-dd { position: relative; display: flex; flex-direction: column; align-items: center; line-height: 1.1; } .sb-dd b { font-size: 14px; font-weight: 800; color: var(--brand-ink); } .sb-dd small { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
-      .sb-dd i { position: absolute; top: 50%; left: -9px; margin-top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .sb-dd i.g { background: var(--brand); } .sb-dd i.r { background: var(--red); }
+      .sb-rh { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 4px 9px 14px; background: none; border: 0; font: inherit; color: inherit; text-align: left; min-width: 0; }
       .sb-tt { min-width: 0; } .sb-tt strong { display: block; font-size: 14.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .sb-tt small { display: block; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sb-tt em { font-style: normal; color: var(--amber); font-weight: 700; }
       .sb-rr { display: flex; align-items: center; gap: 6px; padding-right: 10px; }
-      .sb-yn { display: flex; gap: 4px; } .sb-yn button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 800; color: var(--muted); }
-      .sb-yn .y.on { background: var(--brand); border-color: var(--brand); color: #fff; } .sb-yn .n.on { background: var(--red); border-color: var(--red); color: #fff; }
-      .sb-det { grid-column: 1 / -1; padding: 0 14px 12px 68px; }
+      .sb-det { grid-column: 1 / -1; padding: 0 14px 12px 72px; }
       .sb-det .sb-play { margin-top: 4px; } .sb-det .sb-line:first-child, .sb-det .sb-who:first-child { margin-top: 2px; }
-      .sb-bulkrow { display: flex; align-items: center; gap: 6px; padding: 8px 10px 8px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--amber-soft); font-size: 14px; }
-      .sb-bulkrow span { flex: 1; min-width: 0; } .sb-bulkrow button { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
-      @media (max-width: 360px) { .sb-det { padding-left: 14px; } }
-      .sb-sec { font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 4px; }`;
+      @media (max-width: 360px) { .sb-det { padding-left: 14px; } }`;
     document.head.appendChild(s);
   }
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -83,7 +53,7 @@
       const { esc } = ctx;
       let d = null, tab = 'alle';
       const openRows = new Set();   // aufgeklappte Spieltage (bleiben nach dem Neuladen offen)
-      const sheet = () => { let sh = document.getElementById('sbSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'sbSheet'; sh.className = 'vh-sheet sb-sheet'; document.body.appendChild(sh); } return sh; };
+      const sheet = () => { let sh = document.getElementById('sbSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'sbSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       const close = () => { const s = document.getElementById('sbSheet'); if (s) s.classList.remove('show'); };
       ctx.onLeave(close);
 
@@ -98,10 +68,10 @@
         // Saisonstart: noch offene Spieltage je Mannschaft mit einem Tipp beantworten
         const openBy = {}; d.games.filter(g => g.mine && !g.past && g.status === 'geplant' && !(g.me && g.me.state)).forEach(g => { openBy[g.team_id] = (openBy[g.team_id] || 0) + 1; });
         const bulk = teams.filter(t => t.player && openBy[t.id] >= 3 && (tab === 'alle' || String(t.id) === tab));
-        el.innerHTML = `${teams.length > 1 ? `<div class="sb-tabs">${[['alle', 'Alle'], ...teams.map(t => [String(t.id), t.name])].map(([k, l]) => `<button data-tab="${esc(k)}" class="${k === tab ? 'on' : ''}" translate="no">${esc(l)}</button>`).join('')}</div>` : ''}
-          ${bulk.map(t => `<div class="sb-bulkrow"><span><b translate="no">${esc(t.name)}</b>: ${openBy[t.id]} offen</span><button data-bulk="${t.id}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${t.id}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`).join('')}
-          ${games.length ? `<div class="sb-list">${games.map(row).join('')}</div>` : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
-          ${d.played ? `<p class="vh-empty" style="padding:14px 0 0">In dieser Saison hast du ${d.played}-mal gespielt.</p>` : ''}`;
+        el.innerHTML = `${teams.length > 1 ? `<div class="vh-seg">${[['alle', 'Alle'], ...teams.map(t => [String(t.id), t.name])].map(([k, l]) => `<button data-tab="${esc(k)}" class="${k === tab ? 'on' : ''}" translate="no">${esc(l)}</button>`).join('')}</div>` : ''}
+          ${bulk.map(t => `<div class="vh-bar a"><span><b translate="no">${esc(t.name)}</b>: ${openBy[t.id]} offen</span><button data-bulk="${t.id}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${t.id}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`).join('')}
+          ${games.length ? `<div class="vh-card flush">${games.map(row).join('')}</div>` : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
+          ${d.played ? `<p class="vh-lead" style="text-align:center;margin:4px 0 0">In dieser Saison hast du ${d.played}-mal gespielt.</p>` : ''}`;
         el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; draw(); }; });
         el.querySelectorAll('[data-x]').forEach(b => { b.onclick = () => { const id = +b.dataset.x; if (openRows.has(id)) openRows.delete(id); else openRows.add(id); draw(); }; });
         el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(+b.dataset.g, b.dataset.ans); });
@@ -119,10 +89,10 @@
         const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
         const sub = g.kind === 'rahmen' ? `vorläufig${me.state === 'ja' && (me.from || me.until) ? ' · ' + [me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') : ''}`
           : [g.start ? `${g.start} Uhr` : '', g.home ? 'Heim' : 'auswärts', g.lead ? `${s.yes}/${s.min} können` : ''].filter(Boolean).join(' · ');
-        const tag = cancelled ? '<span class="sb-tag">abgesagt</span>' : me.role === 'spielt' ? `<span class="sb-tag ${me.withdraw ? 'a' : 'g'}">${me.withdraw ? 'Absage offen' : 'spielt'}</span>` : '';
-        const right = answerable ? `<span class="sb-yn"><button class="y ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}" aria-label="Kann">✓</button><button class="n ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}" aria-label="Kann nicht">✕</button></span>${me.role === 'ersatz' ? '<span class="sb-tag a">Ersatz</span>' : ''}` : tag;
+        const tag = cancelled ? '<span class="vh-chip">abgesagt</span>' : me.role === 'spielt' ? `<span class="vh-chip ${me.withdraw ? 'a' : 'g'}">${me.withdraw ? 'Absage offen' : 'spielt'}</span>` : '';
+        const right = answerable ? `<span class="vh-yn"><button class="y ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}" aria-label="Kann">✓</button><button class="n ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}" aria-label="Kann nicht">✕</button></span>${me.role === 'ersatz' ? '<span class="vh-chip a">Ersatz</span>' : ''}` : tag;
         return `<div class="sb-row${cancelled ? ' x' : ''}${open ? ' open' : ''}">
-          <button class="sb-rh" data-x="${g.id}" aria-expanded="${open}"><span class="sb-dd">${g.lead ? `<i class="${lt}"></i>` : ''}<b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><small>${esc(wd(g.date))}</small></span>
+          <button class="sb-rh" data-x="${g.id}" aria-expanded="${open}"><span class="vh-date">${g.lead ? `<i class="${lt}"></i>` : ''}<b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></span>
             <span class="sb-tt"><strong translate="no">${esc(title(g))}</strong><small>${esc(sub)}${!me.state && answerable ? ' · <em>offen</em>' : ''}</small></span></button>
           <span class="sb-rr">${right}</span>
           ${open ? `<div class="sb-det">${detail(g)}</div>` : ''}</div>`;
@@ -138,7 +108,7 @@
         else if (me.role === 'spielt') mine = `<div class="sb-play"><b>Du spielst</b><p>${esc(meet || 'Der Mannschaftsführer schickt Treffpunkt und Aufstellung.')}</p><button data-wd="${g.id}">Kann doch nicht – Absage anfragen</button></div>`;
         else if (me.role === 'ersatz') mine = `<div class="sb-play"><b>Du bist Ersatz</b><p>${esc(meet || 'Halte dich bitte bereit.')}</p><button data-wd="${g.id}">Kann doch nicht</button></div>`;
         const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
-        const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
+        const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button class="vh-btn sm" data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="vh-btn sm sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
         return `          ${mine}
           ${!g.home && g.venue && g.kind !== 'rahmen' ? `<div class="sb-line"><span translate="no">${esc(g.venue)}</span></div>` : ''}${g.kind === 'rahmen' ? '<div class="sb-line"><span>Gegner und Heim/Auswärts kommen mit dem Spielplan.</span></div>' : ''}
           ${answerable ? `${me.state === 'ja' && d.settings.times ? `<div class="sb-line"><span>${me.from || me.until ? esc([me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') + ' Uhr') : 'den ganzen Spieltag'}</span><button data-time="${g.id}">Uhrzeit angeben</button></div>` : ''}
@@ -146,7 +116,7 @@
           ${!cancelled && (d.settings.seeAvail || d.settings.seeLineup || g.lead) ? `<div class="sb-who">${play.length && (d.settings.seeLineup || g.lead) ? `<div>Aufgestellt: <b translate="no">${names(play)}</b>${res.length ? ` · Ersatz: <span translate="no">${names(res)}</span>` : ''}</div>` : ''}${d.settings.seeAvail || g.lead ? `<div>${yes.length ? `Können (${yes.length}): <span translate="no">${names(yes)}</span>` : 'Noch keine Zusagen.'}</div>` : ''}</div>` : ''}
           ${tasks}
           ${g.lead && !cancelled && g.kind === 'rahmen' ? `<div class="sb-line"><span>${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''} – aufstellen geht, sobald der Spielplan da ist.</span></div>` : ''}
-          ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="sb-lead" data-lead="${g.id}">Aufstellung${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}`;
+          ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="vh-btn sec wide" style="margin-top:12px" data-lead="${g.id}">Aufstellung${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}`;
       }
       async function run(fn, msg) { try { await fn(); if (msg) ctx.toast(msg); close(); await load(); } catch (e) { ctx.toast(e.message, true); } }
       function answer(id, state) {
@@ -181,20 +151,20 @@
         const act = async (path, body, msg) => { try { v = await ctx.api('lead/' + path, 'POST', { game_id: id, ...body }); if (msg) ctx.toast(msg); paint(); } catch (e) { ctx.toast(e.message, true); paint(); } };
         const paint = () => {
           const s = v.stats;
-          const av = p => (p.state === 'ja' ? `<span class="sb-tag g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="sb-tag r">kann nicht</span>' : '<span class="sb-tag">offen</span>');
+          const av = p => (p.state === 'ja' ? `<span class="vh-chip g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="vh-chip r">kann nicht</span>' : '<span class="vh-chip">offen</span>');
           const seg = p => `<div class="sb-seg">${[['spielt', 'spielt', ''], ['ersatz', 'Ersatz', 'e'], ['', '–', '']].map(([r, l, c]) => `<button data-role="${r}" data-p="${p.id}" class="${(p.role || '') === r ? 'on ' + c : ''}" ${p.state === 'nein' && r ? 'disabled' : ''}>${l}</button>`).join('')}</div>`;
           const row = p => `<div class="sb-p ${p.withdraw ? 'wd' : ''}"><span class="rk">${p.inRoster ? esc(p.rank ?? '') : '+'}</span><div style="min-width:0"><strong translate="no">${esc(p.ln)}</strong><small>${av(p)}${p.note ? ' ' + esc(p.note) : ''}${p.inRoster ? '' : ' · Aushilfe'}</small></div>${seg(p)}
             ${p.withdraw ? `<div class="sb-wd"><span style="flex:2;font-size:13px;color:var(--amber);font-weight:700;align-self:center">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</span><button class="ok" data-acc="${p.id}">Bestätigen</button><button data-dec="${p.id}">Ablehnen</button></div>` : ''}</div>`;
           const order = [...v.people].sort((a, b) => (a.state === 'ja' ? 0 : a.state ? 2 : 1) - (b.state === 'ja' ? 0 : b.state ? 2 : 1) || (a.rank || 99) - (b.rank || 99));
           sh.innerHTML = `<div class="vh-box"><h2 translate="no">${esc(title(v))}</h2><p>${esc(wd(v.date, true))}, ${esc(deD(v.date))}${v.start ? `, ${esc(v.start)} Uhr` : ''} · ${v.home ? 'Heimspiel' : 'Auswärtsspiel'}</p>
-            <div class="sb-line" style="margin:0 0 6px"><span class="sb-tag ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="sb-tag ${s.lineupOk ? 'g' : 'a'}">${s.playing} spielen · ${s.reserve} Ersatz</span></div>
+            <div class="sb-line" style="margin:0 0 6px;flex-wrap:wrap;justify-content:flex-start;gap:6px"><span class="vh-chip ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="vh-chip ${s.lineupOk ? 'g' : 'a'}">${s.playing} spielen · ${s.reserve} Ersatz</span></div>
             ${order.map(row).join('') || '<p>Noch keine Spieler in der Mannschaft.</p>'}
-            ${v.helpers.length ? `<div class="sb-sec">Aushilfe aus anderer Mannschaft</div><div class="sb-two" style="grid-template-columns:1fr auto;align-items:start"><select class="vh-select" id="sbH" style="min-height:46px;font-size:15px">${['<option value="">– wählen –</option>', ...v.helpers.map(h => `<option value="${h.id}">${esc(h.ln)} (${esc(h.team)})</option>`)].join('')}</select><button class="sb-link" id="sbHa" style="min-height:46px">als Ersatz</button></div>` : ''}
-            <div class="sb-sec">Treffpunkt & Hinweis</div>
+            ${v.helpers.length ? `<div class="vh-cap">Aushilfe aus anderer Mannschaft</div><div class="sb-two" style="grid-template-columns:1fr auto;align-items:start"><select class="vh-select" id="sbH" style="min-height:46px;font-size:15px">${['<option value="">– wählen –</option>', ...v.helpers.map(h => `<option value="${h.id}">${esc(h.ln)} (${esc(h.team)})</option>`)].join('')}</select><button class="sb-link" id="sbHa" style="min-height:46px">als Ersatz</button></div>` : ''}
+            <div class="vh-cap">Treffpunkt & Hinweis</div>
             <div class="sb-two"><div><label>Uhrzeit</label><input class="vh-input" type="time" id="sbMt" value="${esc(v.meet_time || '')}"></div><div><label>Ergebnis</label><input class="vh-input" id="sbR" value="${esc(v.result || '')}" placeholder="z. B. 5:4"></div></div>
             <label>Ort</label><input class="vh-input" id="sbMp" value="${esc(v.meet_place || '')}" placeholder="z. B. Parkplatz Vereinsheim">
             <label>Hinweis an die Mannschaft</label><input class="vh-input" id="sbNo" value="${esc(v.note || '')}" placeholder="optional">
-            ${v.tasks ? `<div class="sb-sec">Aufgaben</div>${v.tasks.map(x => `<div class="sb-two" style="grid-template-columns:1fr 1.3fr;align-items:center;margin-bottom:6px"><span style="font-size:14px">${esc(x.label)}</span><select class="vh-select" data-tk="${x.id}" style="min-height:42px;font-size:14.5px;margin:0"><option value="">– offen –</option>${v.people.filter(p => p.state !== 'nein').map(p => `<option value="${p.id}" ${x.member_id === p.id ? 'selected' : ''}>${esc(p.ln)}</option>`).join('')}</select></div>`).join('')}
+            ${v.tasks ? `<div class="vh-cap">Aufgaben</div>${v.tasks.map(x => `<div class="sb-two" style="grid-template-columns:1fr 1.3fr;align-items:center;margin-bottom:6px"><span style="font-size:14px">${esc(x.label)}</span><select class="vh-select" data-tk="${x.id}" style="min-height:42px;font-size:14.5px;margin:0"><option value="">– offen –</option>${v.people.filter(p => p.state !== 'nein').map(p => `<option value="${p.id}" ${x.member_id === p.id ? 'selected' : ''}>${esc(p.ln)}</option>`).join('')}</select></div>`).join('')}
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 6px">${v.taskKinds.map(k => `<button class="sb-link" data-tka="${esc(k.k)}">+ ${esc(k.l)}</button>`).join('')}</div>` : ''}
             <div class="vh-row" style="margin-top:12px"><button class="no" id="sbSave">Speichern</button><button class="no" id="sbRem" ${s.open ? '' : 'disabled'}>Offene erinnern</button></div>
             <div class="vh-row" style="margin-top:8px"><button class="no" id="sbX">Schließen</button><button class="ok" id="sbSend" ${s.playing ? '' : 'disabled'}>Aufstellung verschicken</button></div></div>`;

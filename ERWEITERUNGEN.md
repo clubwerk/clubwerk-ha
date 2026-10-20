@@ -128,9 +128,27 @@ Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farbe
 | `.overlay` > `.dialog`, `.pad`, `.pin-dots`, `.err`, `.done .big` | Fenster, PIN-Eingabe, Erfolgsmeldung | Ziffernblock 3 × 4, 68 px hohe Tasten |
 | `.gate` > `.gatecard` | Sperrseite (Tablet-Passwort) | unverändert übernehmen |
 
-**Mitglieder-App (public/member.js)** – Bausteine aus `kit.css` (`.vh-…`): Bereiche als kompakte Listen (eine Zeile je Eintrag, Details zum Aufklappen) statt großer Einzelkarten; Fenster als `.vh-sheet` > `.vh-box`; nie ein neues Browserfenster.
+**Mitglieder-App (public/member.js)** – nur Bausteine aus `kit.css` (`.vh-…`); ein Modul braucht dafür kein eigenes CSS. Der Bereich rendert direkt in `el`, der Abstand zwischen den Blöcken (12 px) kommt von der App. Vorbild: `vorlage-erweiterung/beispiel/public/member.js`.
 
-**Verwaltung (public/admin.js)** – über `GK`: Seitenkopf wie die übrigen Seiten (`h2.page` + `p.lead`), Karten `.card` mit `<h3>`, Formulare `label.f`, Tabellen `.tbl`, Marken `.pill` (`g`/`a`/`r`), Knöpfe `.btn` (`primary`, `small`, `ghost`, `danger`), Unterbereiche mit `GK.sectionize`. Überschriften fluchten mit den Feldern und Knöpfen darunter; nichts überlappt.
+| Baustein | Wofür | Regeln |
+|---|---|---|
+| `.vh-card` > `h3` | Karte mit Kopf | Kopf 16 px fett; rechts höchstens eine Textaktion (`<button>` im `h3`, z. B. „Ändern“); Zusatz als `<small>`. `.vh-card.flush` für Listen bis an den Rand |
+| `.vh-cap` | Gruppenüberschrift außerhalb von Karten | 12 px, Großbuchstaben, gedämpft – sparsam |
+| `.vh-rows` | Liste in einer Karte | eine Zeile je Eintrag, Trennlinie; links Text (`.vh-tx` mit `<strong>` + `<small>`), rechts Wert, Marke oder Knopf |
+| `.vh-date` | Datumsblock | `<b>31.05.</b><span>Mo</span>` – jeder Termin beginnt damit; `<i class="g|r|a">` als Status-Punkt |
+| `.vh-kv` | Angaben (Schlüssel/Wert) | `<dl>` mit `dt`/`dd`, Wert rechtsbündig |
+| `.vh-chip` `.g` `.a` `.r` | Statusmarke | ein, zwei Wörter („bezahlt“, „8 frei“, „offen“) |
+| `.vh-seg` | Umschalter | Ansicht, Mannschaft, Tag – oben im Bereich |
+| `.vh-bar` (`.a`) | Hinweisleiste oben | ein Satz, rechts kleine Knöpfe; `.a` = bitte erledigen |
+| `.vh-btn.sm` (`.sec`) | Knopf in Zeilen/Karten | 40 px; Hauptknopf gefüllt, sonst `.sec`; `.vh-btn.wide` volle Breite |
+| `.vh-yn` | Ja/Nein antworten | `button.y` / `button.n`, gewählt mit `.on` |
+| `.vh-big`, `.vh-prog` | große Zahl, Fortschritt | z. B. Stunden, Kontingent |
+| `.vh-none`, `.vh-lead` | leerer Inhalt, Erklärsatz in der Karte | ein Satz; ganz leerer Bereich: `.vh-empty` |
+| `.vh-danger` | gefährliche Aktion | immer ganz unten (Kündigen …) |
+| `.vh-sheet.vh-form` > `.vh-box` | Fenster mit Formular | `label` + `.vh-input`/`.vh-select`, Häkchen als `label.vh-check`, unten `.vh-row` mit `.no` / `.ok`; nie ein neues Browserfenster |
+| `.vh-tile` | große Aktionskachel | Beregnung, Türen – eine Kachel je Gerät |
+
+**Verwaltung (public/admin.js)** – über `GK`: Seitenkopf wie die übrigen Seiten (`h2.page` + `p.lead`), Karten `.card` mit `<h3>`, Formulare `label.f`, Tabellen `.tbl`, Marken `.pill` (`g`/`a`/`r`), Knöpfe `.btn` (`primary`, `small`, `ghost`, `danger`), Aktionen in Tabellenzeilen als Symbolknopf `.btn.ico` (mit `title`, zusammen in `.acts`), Unterbereiche mit `GK.sectionize`. Überschriften fluchten mit den Feldern und Knöpfen darunter; nichts überlappt.
 
 **Texte:** kurz, freundlich, in der Sprache der Mitglieder („Namen antippen“, nicht „Datensatz auswählen“). Uhrzeiten „19:00 Uhr“, Daten „Di, 20.10.“. Namen „Nachname, Vorname“ in Listen.
 

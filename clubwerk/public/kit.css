@@ -145,3 +145,75 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; }
 html.vh-embed body.vh-page { min-height: 0; background: transparent; }
 html.vh-embed .vh-top, html.vh-embed #installHint, html.vh-embed #langFoot, html.vh-embed #tabs { display: none !important; }
 html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
+
+/* ========== APP-KIT: Bausteine für die Bereiche der Mitglieder-App (public/member.js der Module) ==========
+   Regeln (siehe ERWEITERUNGEN.md → Styleguide): Inhalte stehen in Karten; jede Karte hat einen Kopf (h3, 16 px) mit höchstens
+   einer Textaktion rechts; Listen sind Zeilen mit Trennlinie (eine Zeile je Eintrag, Details zum Aufklappen); Termine beginnen
+   mit dem Datumsblock; Status als Marke; ein Hauptknopf je Karte. Nur Variablen-Farben, keine festen Werte. */
+.vh-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); margin: 0 0 12px; }
+.vh-card.flush { padding: 0; overflow: hidden; }
+.vh-card > h3, .vh-card .vh-ch { margin: 0 0 10px; font-size: 16px; line-height: 22px; font-weight: 800; color: var(--ink); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.vh-card > h3 small, .vh-card .vh-ch small { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.vh-card > h3:last-child { margin-bottom: 0; }
+.vh-card.flush > h3 { padding: 14px 16px 0; }
+.vh-link, .vh-card > h3 button, .vh-card .vh-ch button { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 4px 0; white-space: nowrap; cursor: pointer; }
+.vh-cap { margin: 18px 2px 8px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.vh-cap:first-child { margin-top: 2px; }
+.vh-lead { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.vh-none { margin: 0; font-size: 14px; color: var(--muted); }
+/* Zeilen */
+.vh-rows > * { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; min-width: 0; }
+.vh-rows > *:first-child { border-top: 0; padding-top: 2px; }
+.vh-rows > *:last-child { padding-bottom: 0; }
+.vh-card.flush .vh-rows > * { padding: 10px 16px; } .vh-card.flush .vh-rows > *:first-child { padding-top: 10px; }
+.vh-rows strong { display: block; font-size: 15px; line-height: 1.3; }
+.vh-rows small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.35; }
+.vh-rows b { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.vh-tx { min-width: 0; flex: 1; }
+.vh-tx strong, .vh-tx small { overflow: hidden; text-overflow: ellipsis; }
+/* Datumsblock: <span class="vh-date"><b>31.05.</b><span>Mo</span></span> */
+.vh-date { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; position: relative; }
+.vh-date b { font-size: 14px; font-weight: 800; letter-spacing: -.02em; } .vh-date span { font-size: 11px; font-weight: 700; text-transform: uppercase; opacity: .8; }
+.vh-date.today { background: var(--brand); color: #fff; }
+.vh-date i { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--card); background: var(--faint, var(--line)); }
+.vh-date i.g { background: var(--brand); } .vh-date i.r { background: var(--red); } .vh-date i.a { background: var(--amber); }
+/* Schlüssel/Wert */
+.vh-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
+.vh-kv dt { color: var(--muted); } .vh-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+/* Marken */
+.vh-chip { display: inline-block; font-size: 11.5px; font-weight: 800; line-height: 16px; padding: 2px 8px; border-radius: 9px; background: var(--hover); color: var(--muted); white-space: nowrap; vertical-align: 1px; }
+.vh-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .vh-chip.a { background: var(--amber-soft); color: var(--amber); } .vh-chip.r { background: var(--red-soft); color: var(--red); }
+/* Umschalter (Ansicht, Tage, Mannschaften) */
+.vh-seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); margin: 0 0 12px; overflow-x: auto; scrollbar-width: none; }
+.vh-seg::-webkit-scrollbar { display: none; }
+.vh-seg button { flex: 1 0 auto; min-height: 40px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); padding: 0 14px; white-space: nowrap; }
+.vh-seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+/* Knöpfe in Karten: klein (40 px) – Hauptknopf .vh-btn, Nebenknopf .vh-btn.sec */
+.vh-btn.sm { min-height: 40px; min-width: 104px; padding: 0 12px; font-size: 14px; border-radius: 12px; }
+.vh-btn.sec:disabled, .vh-btn:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); opacity: 1; }
+.vh-btn.wide { width: 100%; }
+.vh-yn { display: flex; gap: 4px; flex: none; }
+.vh-yn button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 800; color: var(--muted); }
+.vh-yn .y.on { background: var(--brand); border-color: var(--brand); color: #fff; } .vh-yn .n.on { background: var(--red); border-color: var(--red); color: #fff; }
+/* Hinweisleiste (oben im Bereich): neutral in Vereinsfarbe, .a = bitte erledigen */
+.vh-bar { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 8px 6px 14px; margin: 0 0 12px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 600; }
+.vh-bar.a { background: var(--amber-soft); color: var(--amber); }
+.vh-bar > span { flex: 1; min-width: 0; }
+.vh-bar button { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+/* Zahl groß + Fortschritt */
+.vh-big { display: flex; align-items: baseline; gap: 8px; } .vh-big b { font-size: 30px; line-height: 1.1; font-weight: 800; font-variant-numeric: tabular-nums; } .vh-big span { color: var(--muted); font-size: 15px; }
+.vh-prog { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 10px 0 8px; } .vh-prog i { display: block; height: 100%; background: var(--brand); border-radius: 5px; }
+/* Gefährliche Aktion (Kündigen …) – immer ganz unten */
+.vh-danger { width: 100%; min-height: 48px; border-radius: 14px; background: transparent; color: var(--red); border: 1px solid var(--red-line, var(--line)); font: inherit; font-weight: 700; font-size: 15px; margin: 4px 0 12px; }
+/* Fenster mit Formular */
+.vh-sheet.vh-form .vh-box { max-width: 460px; text-align: left; max-height: 88vh; overflow: auto; }
+.vh-sheet.vh-form label:not(.vh-check) { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
+.vh-sheet.vh-form .vh-input, .vh-sheet.vh-form .vh-select { font-size: 16px; min-height: 48px; margin-bottom: 10px; }
+.vh-check { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; color: var(--ink); font-weight: 500; line-height: 1.4; margin: 0 0 10px; }
+.vh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--brand); margin: 0; }
+/* Bereichsfläche: Abstand 12 px zwischen den Blöcken – Bausteine direkt darin ohne eigenen Außenabstand */
+.vh-sec { display: flex; flex-direction: column; gap: 12px; }
+.vh-sec > :is(.vh-card, .vh-bar, .vh-seg, .vh-danger) { margin: 0; }
+.vh-sec > .vh-cap { margin: 6px 2px -4px; }
+.vh-sec > .vh-cap:first-child { margin-top: 0; }
+.vh-lead:last-child { margin-bottom: 0; }

@@ -1,6 +1,6 @@
 {
   "name": "clubwerk",
-  "version": "3.25.1",
+  "version": "3.25.2",
   "verkaufVersion": "3.25.0",
   "private": true,
   "description": "Clubwerk – modulare Vereinsverwaltung als Home-Assistant-Add-on",

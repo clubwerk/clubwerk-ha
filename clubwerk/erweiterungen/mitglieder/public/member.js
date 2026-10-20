@@ -4,28 +4,10 @@
   if (!document.getElementById('mdStyle')) {
     const s = document.createElement('style'); s.id = 'mdStyle';
     s.textContent = `
-      .md-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px; box-shadow: var(--shadow); }
-      .md-card h3 { margin: 0 0 10px; font-size: 16px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 10px; }
-      .md-card h3 button { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 4px 0; }
       .md-head { display: flex; align-items: center; gap: 14px; }
       .md-av { width: 52px; height: 52px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 18px; flex: none; }
       .md-head b { display: block; font-size: 18px; } .md-head span { color: var(--muted); font-size: 13.5px; }
-      .md-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
-      .md-kv dt { color: var(--muted); } .md-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
-      .md-list { display: flex; flex-direction: column; }
-      .md-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
-      .md-list > div:first-child { border-top: 0; padding-top: 2px; }
-      .md-list small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-      .md-list b { white-space: nowrap; font-variant-numeric: tabular-nums; }
-      .md-tag { display: inline-block; font-size: 11.5px; font-weight: 800; padding: 2px 8px; border-radius: 9px; background: var(--hover); color: var(--muted); margin-left: 6px; }
-      .md-tag.a { background: var(--amber-soft); color: var(--amber); } .md-tag.g { background: var(--brand-soft); color: var(--brand-ink); }
-      .md-banner { background: var(--amber-soft); color: var(--amber); border-radius: 14px; padding: 12px 14px; font-size: 14px; font-weight: 600; }
-      .md-sheet .vh-box { max-width: 460px; text-align: left; max-height: 88vh; overflow: auto; }
-      .md-sheet label { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
-      .md-sheet .vh-input { font-size: 16px; min-height: 48px; }
-      .md-cons label { display: flex; gap: 12px; align-items: flex-start; font-size: 14px; color: var(--ink); font-weight: 500; line-height: 1.4; margin: 0 0 10px; }
-      .md-cons input { width: 22px; height: 22px; flex: none; accent-color: var(--brand); }
-      .md-danger { width: 100%; min-height: 48px; border-radius: 14px; background: transparent; color: var(--red); border: 1px solid var(--red-line, var(--line)); font: inherit; font-weight: 700; font-size: 15px; }`;
+      .vh-rows .md-r { text-align: right; white-space: normal; }`;
     document.head.appendChild(s);
   }
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
@@ -39,7 +21,7 @@
       let d = null;
       const sheet = (html) => {
         let sh = document.getElementById('mdSheet');
-        if (!sh) { sh = document.createElement('div'); sh.id = 'mdSheet'; sh.className = 'vh-sheet md-sheet'; document.body.appendChild(sh); }
+        if (!sh) { sh = document.createElement('div'); sh.id = 'mdSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); }
         sh.innerHTML = `<div class="vh-box">${html}</div>`; sh.classList.add('show');
         return sh;
       };
@@ -57,27 +39,27 @@
         const V = (d.perms && d.perms.view) || {}, E = (d.perms && d.perms.edit) || {};
         const showFees = V.beitraege !== false || d.departments.length || d.family.length > 1 || (d.familyMembership && d.familyMembership.length > 1);
         el.innerHTML = `
-          ${d.pending.length ? `<div class="md-banner">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
-          ${p.exit_date ? `<div class="md-banner">Deine Mitgliedschaft endet zum ${deD(p.exit_date)}.</div>` : ''}
-          <div class="md-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(p.status || 'Mitglied')}${p.entry_date ? ` seit ${deD(p.entry_date)}` : ''}</span></div></div></div>
-          ${showFees ? `<div class="md-card"><h3>Mitgliedschaft</h3><div class="md-list">
+          ${d.pending.length ? `<div class="vh-bar a">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
+          ${p.exit_date ? `<div class="vh-bar a">Deine Mitgliedschaft endet zum ${deD(p.exit_date)}.</div>` : ''}
+          <div class="vh-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(p.status || 'Mitglied')}${p.entry_date ? ` seit ${deD(p.entry_date)}` : ''}</span></div></div></div>
+          ${showFees ? `<div class="vh-card"><h3>Mitgliedschaft</h3><div class="vh-rows">
             ${V.beitraege === false ? '' : d.fees.map(f => `<div><span><span translate="no">${esc(f.name)}</span>${f.dept ? `<small>Zusatzbeitrag Abteilung <span translate="no">${esc(f.dept)}</span></small>` : ''}${f.who ? `<small>für ${esc(f.who)}</small>` : ''}${f.booked_until ? `<small>abgerechnet bis ${deD(f.booked_until)}</small>` : ''}</span><b>${euro(f.cents)} <small style="display:inline">${esc(f.interval)}</small></b></div>`).join('')
               || `<div><span>${d.familyHeadName ? `Dein Beitrag ist im Familienbeitrag von ${esc(d.familyHeadName)} enthalten.` : d.payerName ? `Dein Beitrag läuft über ${esc(d.payerName)}.` : 'Kein Beitrag hinterlegt.'}</span></div>`}
-            ${d.departments.length ? `<div><span>Abteilungen</span><b translate="no" style="white-space:normal;text-align:right">${d.departments.map(x => esc(x.name)).join(', ')}</b></div>` : ''}
-            ${d.familyMembership && d.familyMembership.length > 1 ? `<div><span>Familienmitgliedschaft</span><b style="white-space:normal;text-align:right">${d.familyMembership.map(f => esc(f.name) + (f.role === 'oberhaupt' ? ' (Oberhaupt)' : '')).join(', ')}</b></div>` : ''}
-            ${d.family.length > 1 ? `<div><span>${d.familyMembership && d.familyMembership.length > 1 ? 'Zahler' : 'Familie'}</span><b style="white-space:normal;text-align:right">${d.family.map(f => esc(f.name) + (f.head ? ' (zahlt)' : '')).join(', ')}</b></div>` : ''}
+            ${d.departments.length ? `<div><span>Abteilungen</span><b translate="no" class="md-r">${d.departments.map(x => esc(x.name)).join(', ')}</b></div>` : ''}
+            ${d.familyMembership && d.familyMembership.length > 1 ? `<div><span>Familienmitgliedschaft</span><b class="md-r">${d.familyMembership.map(f => esc(f.name) + (f.role === 'oberhaupt' ? ' (Oberhaupt)' : '')).join(', ')}</b></div>` : ''}
+            ${d.family.length > 1 ? `<div><span>${d.familyMembership && d.familyMembership.length > 1 ? 'Zahler' : 'Familie'}</span><b class="md-r">${d.family.map(f => esc(f.name) + (f.head ? ' (zahlt)' : '')).join(', ')}</b></div>` : ''}
           </div></div>` : ''}
-          ${d.isHead && V.posten !== false ? `<div class="md-card"><h3>Zahlungen${d.open_cents ? `<span class="md-tag a">offen ${euro(d.open_cents)}</span>` : ''}</h3><div class="md-list">
-            ${d.charges.slice(0, 12).map(c => `<div><span><span translate="no">${esc(c.text)}</span><small>${c.status === 'eingezogen' && c.collection_date ? `Lastschrift am ${deD(c.collection_date)}` : c.status === 'bezahlt' ? `bezahlt ${deD(c.paid_at)}` : `fällig ${deD(c.due_date)}`}<span class="md-tag ${(ST[c.status] || [''])[0]}">${esc((ST[c.status] || ['', c.status])[1])}</span></small></span><b>${euro(c.cents)}</b></div>`).join('') || '<div><span class="muted">Noch keine Zahlungen.</span></div>'}
+          ${d.isHead && V.posten !== false ? `<div class="vh-card"><h3>Zahlungen${d.open_cents ? `<span class="vh-chip a">offen ${euro(d.open_cents)}</span>` : ''}</h3><div class="vh-rows">
+            ${d.charges.slice(0, 12).map(c => `<div><span><span translate="no">${esc(c.text)}</span><small>${c.status === 'eingezogen' && c.collection_date ? `Lastschrift am ${deD(c.collection_date)}` : c.status === 'bezahlt' ? `bezahlt ${deD(c.paid_at)}` : `fällig ${deD(c.due_date)}`}<span class="vh-chip ${(ST[c.status] || [''])[0]}">${esc((ST[c.status] || ['', c.status])[1])}</span></small></span><b>${euro(c.cents)}</b></div>`).join('') || '<p class="vh-none">Noch keine Zahlungen.</p>'}
           </div></div>` : ''}
-          ${V.anschrift !== false || V.kontakt !== false || V.geburt !== false ? `<div class="md-card"><h3>Kontakt ${E.anschrift || E.kontakt ? '<button id="mdEdit">Ändern</button>' : ''}</h3><dl class="md-kv">
+          ${V.anschrift !== false || V.kontakt !== false || V.geburt !== false ? `<div class="vh-card"><h3>Kontakt ${E.anschrift || E.kontakt ? '<button id="mdEdit">Ändern</button>' : ''}</h3><dl class="vh-kv">
             ${V.anschrift !== false ? `<dt>Anschrift</dt><dd>${esc(p.street || '–')}<br>${esc([p.zip, p.city].filter(Boolean).join(' '))}</dd>` : ''}
             ${V.kontakt !== false ? `<dt>E-Mail</dt><dd>${esc(p.email || '–')}</dd><dt>Mobil</dt><dd>${esc(p.mobile || p.phone || '–')}</dd>` : ''}
             ${V.geburt !== false && p.birth_date ? `<dt>Geburtsdatum</dt><dd>${deD(p.birth_date)}</dd>` : ''}</dl></div>` : ''}
-          ${d.isHead && V.bank !== false ? `<div class="md-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="md-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
-            <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="md-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
-          ${V.einwilligungen !== false && d.consents.length ? `<div class="md-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="md-list">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
-          ${p.exit_date || !E.kuendigung ? '' : '<button class="md-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
+          ${d.isHead && V.bank !== false ? `<div class="vh-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="vh-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
+            <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="vh-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
+          ${V.einwilligungen !== false && d.consents.length ? `<div class="vh-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="vh-rows">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
+          ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
         on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit);
         void open;
@@ -101,7 +83,7 @@
         };
       }
       function editConsents() {
-        const sh = sheet(`<h2>Einwilligungen</h2><p>Freiwillige Einwilligungen kannst du jederzeit widerrufen – das gilt sofort. <span>Änderungen bestätigst du mit deiner PIN.</span></p><div class="md-cons">${d.consents.map(c => `<label><input type="checkbox" data-c="${esc(c.key)}" ${c.given ? 'checked' : ''} ${c.required ? 'disabled' : ''}><span><b>${esc(c.short)}</b>${c.required ? ' (für die Mitgliedschaft nötig)' : ''}<br>${esc(c.text)}</span></label>`).join('')}</div>
+        const sh = sheet(`<h2>Einwilligungen</h2><p>Freiwillige Einwilligungen kannst du jederzeit widerrufen – das gilt sofort. <span>Änderungen bestätigst du mit deiner PIN.</span></p><div>${d.consents.map(c => `<label class="vh-check"><input type="checkbox" data-c="${esc(c.key)}" ${c.given ? 'checked' : ''} ${c.required ? 'disabled' : ''}><span><b>${esc(c.short)}</b>${c.required ? ' (für die Mitgliedschaft nötig)' : ''}<br>${esc(c.text)}</span></label>`).join('')}</div>
           <div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Speichern</button></div>`);
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelector('#mdOk').onclick = async () => {
@@ -121,7 +103,7 @@
           <label>IBAN</label><input class="vh-input" id="mbI" autocomplete="off" spellcheck="false" style="text-transform:uppercase">
           <label>BIC (nur bei ausländischen Konten)</label><input class="vh-input" id="mbB" autocomplete="off">
           <label style="margin-top:6px">Unterschrift</label><div class="af-pad" id="mbPad" style="position:relative;height:150px;border:2px dashed var(--line);border-radius:14px;background:#fff;touch-action:none;overflow:hidden"><canvas style="position:absolute;inset:0;width:100%;height:100%"></canvas></div>
-          <div class="md-cons" style="margin-top:12px"><label><input type="checkbox" id="mbA"><span>Ich ermächtige den ${esc(d.creditor.name)}${d.creditor.ci ? ` (Gläubiger-ID ${esc(d.creditor.ci)})` : ''}, Zahlungen von meinem Konto per Lastschrift einzuziehen, und weise mein Kreditinstitut an, diese einzulösen. Ich kann innerhalb von acht Wochen ab Belastung die Erstattung verlangen.</span></label></div>
+          <div style="margin-top:12px"><label class="vh-check"><input type="checkbox" id="mbA"><span>Ich ermächtige den ${esc(d.creditor.name)}${d.creditor.ci ? ` (Gläubiger-ID ${esc(d.creditor.ci)})` : ''}, Zahlungen von meinem Konto per Lastschrift einzuziehen, und weise mein Kreditinstitut an, diese einzulösen. Ich kann innerhalb von acht Wochen ab Belastung die Erstattung verlangen.</span></label></div>
           <div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Unterschreiben</button></div>`);
         const pad = window.Antrag && window.Antrag.pad ? window.Antrag.pad(sh.querySelector('#mbPad')) : null;
         sh.querySelector('#mdNo').onclick = closeSheet;
@@ -139,9 +121,9 @@
       function quit() {
         const fam = d.isHead && d.family.length > 1;
         const sh = sheet(`<h2>Mitgliedschaft kündigen</h2><p>Nach der Satzung endet die Mitgliedschaft frühestens zum <b>${deD(d.notice.date)}</b>${d.notice.months ? ` (Kündigungsfrist ${d.notice.months} Monate zum Ende des Beitragsjahres)` : ''}. Der Vorstand bestätigt die Kündigung per E-Mail.</p>
-          ${fam ? `<div class="md-cons">${d.family.map(f => `<label><input type="checkbox" data-m="${f.id}" ${f.me ? 'checked' : ''}><span>${esc(f.name)}${f.head ? ' (zahlt)' : ''}</span></label>`).join('')}</div>` : ''}
+          ${fam ? `<div>${d.family.map(f => `<label class="vh-check"><input type="checkbox" data-m="${f.id}" ${f.me ? 'checked' : ''}><span>${esc(f.name)}${f.head ? ' (zahlt)' : ''}</span></label>`).join('')}</div>` : ''}
           <label>Grund (freiwillig)</label><input class="vh-input" id="mqR" maxlength="300">
-          <div class="md-cons" style="margin-top:10px"><label><input type="checkbox" id="mqC"><span>Ich möchte die Mitgliedschaft kündigen.</span></label></div>
+          <div style="margin-top:10px"><label class="vh-check"><input type="checkbox" id="mqC"><span>Ich möchte die Mitgliedschaft kündigen.</span></label></div>
           <div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk" style="background:var(--red)">Kündigen</button></div>`);
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelector('#mdOk').onclick = async () => {
