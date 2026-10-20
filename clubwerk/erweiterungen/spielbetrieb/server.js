@@ -224,14 +224,14 @@ function activate(ctx) {
   }
 
   /* ---------- Spieltage aus dem Spielplan übernehmen (eigener Import und Hook für das Buchungssystem) ---------- */
-  const impKey = g => `imp:${IMP.norm(g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
+  const impKey = g => `imp:${IMP.norm(g.teamBase || g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
   /** bestehende Mannschaft zu einer Spielplan-Bezeichnung: Import-Schlüssel, Name, sonst eindeutige Altersklasse („H40“ ↔ „Herren 40“) */
   function findTeam(label, league) {
     const key = IMP.norm(label || '') || '_';
     let t = db.prepare('SELECT * FROM sp_team WHERE import_key = ?').get(key) || db.prepare('SELECT * FROM sp_team WHERE lower(name) = lower(?)').get(label || '');
     if (!t) {
-      const ac = RTP.guessClass(label, league);
-      const l = ac ? db.prepare('SELECT * FROM sp_team WHERE active = 1 AND age_class = ?').all(ac) : [];
+      const ac = RTP.guessClass(label, league), no = IMP.teamNo(label);   // „H30 2“ → Herren 30 2 (Altersklasse + Mannschaftsnummer)
+      const l = ac ? db.prepare('SELECT * FROM sp_team WHERE active = 1 AND age_class = ?').all(ac).filter(x => IMP.teamNo(x.name) === no) : [];
       if (l.length === 1 && (!l[0].import_key || l[0].import_key === IMP.norm(l[0].name))) t = l[0];   // noch an keine andere Spielplan-Bezeichnung gebunden
     }
     return t;
@@ -249,9 +249,10 @@ function activate(ctx) {
   function upsertGames(games, club, by, { teamMap = {}, create = true } = {}) {
     const d0 = today(); const made = [], teamsMade = [], moved = [], same = [], skipped = [];
     const touched = new Set(), seen = {}; let converted = 0; const free = [];
+    IMP.numberTeams(games, club);
     db.transaction(() => {
       for (const g0 of games) {
-        const g = { date: String(g0.date || ''), start: isTime(g0.start) ? g0.start : null, team: txt(g0.team, 40), size: int(g0.size) || null, league: txt(g0.league, 80), home: txt(g0.home, 80), guest: txt(g0.guest, 80), venue: txt(g0.venue, 160) };
+        const g = { date: String(g0.date || ''), start: isTime(g0.start) ? g0.start : null, team: txt(g0.team, 40), teamBase: g0.teamBase ? txt(g0.teamBase, 40) : null, size: int(g0.size) || null, league: txt(g0.league, 80), home: txt(g0.home, 80), guest: txt(g0.guest, 80), venue: txt(g0.venue, 160) };
         if (!isDate(g.date) || g.date < d0 || !g.home || !g.guest) { skipped.push(g); continue; }
         const isHome = IMP.isHomeGame({ home: g.home, guest: g.guest, venue: g.venue }, club);
         const isAway = club && IMP.norm(g.guest).includes(IMP.norm(IMP.clubName(club)));
@@ -662,6 +663,7 @@ function activate(ctx) {
     } catch (e) { return bad(res, 'Die Daten konnten nicht gelesen werden: ' + e.message); }
     if (!parsed.games.length) return bad(res, 'Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
     const club = txt(b.club, 80) || cfg().club || IMP.guessClub(parsed.games) || ctx.getSetting('club_name', '');
+    IMP.numberTeams(parsed.games, club);   // „H30“ + „TC Frickhofen II“ → „H30 2“
     const d0 = today(), teams = {};
     const games = parsed.games.map(g => {
       const home = IMP.isHomeGame(g, club), away = !home && IMP.norm(g.guest).includes(IMP.norm(IMP.clubName(club)));

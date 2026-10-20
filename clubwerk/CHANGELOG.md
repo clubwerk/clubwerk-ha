@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.23.1
+
+- **Mehrere Mannschaften einer Altersklasse** („Herren 30 1“ / „Herren 30 2“, „Damen 1“ / „Damen II“): Der Spielplan-Import trennt sie jetzt anhand der Nummer beim Vereinsnamen („TC Frickhofen II“) – im Spielbetrieb und im Buchungssystem (eigene Plätze je Mannschaft). Vorher landeten alle Spiele einer Altersklasse bei einer Mannschaft. Bereits importierte Spiele werden weiter erkannt, nichts wird doppelt angelegt.
+
 ## 3.23.0
 
 - **Spielbetrieb: Rahmenterminplan importieren.** Die PDF des Verbands einlesen – für alle Mannschaften auf einmal entstehen vorläufige Termine nach Altersklasse (H40, D, HL H30 …), lange bevor der Spielplan feststeht.

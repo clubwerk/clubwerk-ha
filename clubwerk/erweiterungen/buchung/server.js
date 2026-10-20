@@ -1078,7 +1078,7 @@ function activate(ctx) {
   /* ---------- Spielplan-Import (Verband): einfügen, CSV/Excel oder .ics → Vereinstermine (Sperren) je Mannschaft ----------
      Wiederholter Import erkennt Spiele am Schlüssel (Mannschaft + Heim + Gast) und verschiebt sie bei Verlegung, statt doppelt zu buchen. */
   const IMP = require('./import.js');
-  const impKey = g => `imp:${IMP.norm(g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
+  const impKey = g => `imp:${IMP.norm(g.teamBase || g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
   const impTeams = () => { try { return JSON.parse(S('import_teams', '{}')) || {}; } catch (e) { return {}; } };
   /** Vorschlag je Mannschaft: 2er → 1 Platz 3 Std., 4er → 2 Plätze 4 Std., 6er → 3 Plätze 5 Std. (sonst 2 Plätze, 3 Std.) */
   function teamDefault(team, size) {
@@ -1106,6 +1106,7 @@ function activate(ctx) {
     } catch (e) { return bad(res, 'Die Daten konnten nicht gelesen werden: ' + e.message); }
     if (!parsed.games.length) return bad(res, 'Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
     const club = txt(b.club, 80) || S('import_club', '') || IMP.guessClub(parsed.games) || ctx.getSetting('club_name', '');
+    IMP.numberTeams(parsed.games, club);   // „Herren 30 2“: zweite Mannschaft getrennt
     const d0 = today(), teams = {};
     const games = parsed.games.map(g => {
       const key = impKey(g), home = IMP.isHomeGame(g, club), ex = futureByKey(key);
@@ -1123,13 +1124,14 @@ function activate(ctx) {
     const label = b.label_id ? labelOf(int(b.label_id)) : null;
     const teamCfg = b.teams && typeof b.teams === 'object' ? b.teams : {};
     const plan = [], problems = [], moved2 = [];
+    if (Array.isArray(b.games)) IMP.numberTeams(b.games, b.club || S('import_club', '') || ctx.getSetting('club_name', ''));
     // Spiele zur gleichen Zeit (z. B. Damen und Herren am Sonntag um 9): Plätze nicht doppelt vergeben – die spätere Mannschaft bekommt freie andere Plätze
     const taken = [];   // { id, date, s, e }
     const courtsAll = resources().filter(r => r.kind === 'platz');
     const overlapsTaken = (rid, date, s, e) => taken.some(t => t.id === rid && t.date === date && t.s < e && t.e > s);
     const gamesIn = (Array.isArray(b.games) ? b.games : []).slice(0, 500).slice().sort((a, c) => String(a.date).localeCompare(String(c.date)) || String(a.start).localeCompare(String(c.start)));
     for (const g0 of gamesIn) {
-      const g = { date: String(g0.date || ''), start: String(g0.start || ''), team: txt(g0.team, 40), home: txt(g0.home, 80), guest: txt(g0.guest, 80), league: txt(g0.league, 80), minutes: int(g0.minutes) || 0 };
+      const g = { date: String(g0.date || ''), start: String(g0.start || ''), team: txt(g0.team, 40), teamBase: g0.teamBase ? txt(g0.teamBase, 40) : null, home: txt(g0.home, 80), guest: txt(g0.guest, 80), league: txt(g0.league, 80), minutes: int(g0.minutes) || 0 };
       if (!isDate(g.date) || g.date < d0) { problems.push(`${g.home} – ${g.guest}: liegt in der Vergangenheit`); continue; }
       if (tm(g.start) == null) { problems.push(`${deD(g.date)} ${g.home} – ${g.guest}: keine Uhrzeit`); continue; }
       const tc = teamCfg[g.team || '–'] || {};

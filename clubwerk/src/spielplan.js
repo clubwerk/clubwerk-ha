@@ -161,4 +161,27 @@ function isHomeGame(g, club) {
   return has(g.venue) || has(g.home);
 }
 
-module.exports = { splitRows, fromRows, fromIcs, xlsxRows, guessClub, isHomeGame, teamOf, norm, clubName, parseDate, parseTime };
+/* ---------- Mehrere Mannschaften einer Altersklasse („Herren 30 1“, „Herren 30 2“) ---------- */
+const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
+/** Mannschaftsnummer aus einem Namen: „TC Frickhofen II“ → 2, „Herren 30 2“ → 2, „Damen 1“ → 1, „Herren 30“ → 1 (die Klasse zählt nicht) */
+function teamNo(name) {
+  const s = clean(name).replace(/\b(Herren|Damen|Junioren|Juniorinnen|Knaben|Mädchen)\s*\d{2}\b/gi, ' ').replace(/\b[HDUKM]\d{2}\b/g, ' ').replace(/\(\s*\d+\s*er\s*\)/gi, ' ').trim();
+  const m = s.match(/(?:^|\s)(\d{1,2}|[IVX]{1,4})\.?$/i); if (!m) return 1;
+  const n = /^\d+$/.test(m[1]) ? +m[1] : ROMAN[m[1].toLowerCase()];
+  return n && n >= 1 && n <= 9 ? n : 1;
+}
+/** Spiele der zweiten, dritten … Mannschaft bekommen die Nummer an die Bezeichnung: „H30“ + „TC Frickhofen II“ → „H30 2“.
+    Die Nummer steht beim eigenen Verein (Heim- oder Gastmannschaft). Mehrfach aufrufen schadet nicht. */
+function numberTeams(games, club) {
+  const ck = norm(clubName(club || '')); if (!ck) return games;
+  for (const g of games) {
+    const own = [g.home, g.guest].find(x => norm(x).includes(ck)); if (!own) continue;
+    const n = teamNo(own); if (n < 2 || !g.team) continue;
+    const suf = new RegExp(`\\s${n}$`);
+    if (!g.teamBase) g.teamBase = g.team.replace(suf, '');   // Schlüssel bleibt wie bisher (Heim/Gast enthalten die Nummer schon)
+    if (!suf.test(g.team)) g.team = `${g.team} ${n}`;
+  }
+  return games;
+}
+
+module.exports = { splitRows, fromRows, fromIcs, xlsxRows, guessClub, isHomeGame, teamOf, norm, clubName, parseDate, parseTime, teamNo, numberTeams };
