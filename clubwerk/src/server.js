@@ -1,4 +1,5 @@
 'use strict';
+require('./logtime');   // Zeitstempel im Protokoll
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');

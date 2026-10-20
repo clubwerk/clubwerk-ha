@@ -2,6 +2,8 @@
 set -e
 # Neue Dateien (Datenbank, Sicherungen, Belege) nur für das Programm selbst lesbar
 umask 077
+# Zeitstempel wie im Protokoll von Clubwerk selbst
+log() { echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*"; }
 # Alle Daten (Datenbank, Belege) liegen in /data – das sichert Home Assistant automatisch mit.
 export DATA_DIR=/data
 export PORT=3100
@@ -20,7 +22,7 @@ if [ -f /data/options.json ]; then
   if [ -n "$SSL_ON" ]; then
     CF=$(node -e "try{process.stdout.write(require('/data/options.json').certfile||'fullchain.pem')}catch(e){}")
     KF=$(node -e "try{process.stdout.write(require('/data/options.json').keyfile||'privkey.pem')}catch(e){}")
-    case "$CF$KF" in *..*|*/*) echo "HTTPS: Dateinamen ohne Ordner angeben";; *) export SSL_CERT="/ssl/$CF" SSL_KEY="/ssl/$KF";; esac
+    case "$CF$KF" in *..*|*/*) log "HTTPS: Dateinamen ohne Ordner angeben";; *) export SSL_CERT="/ssl/$CF" SSL_KEY="/ssl/$KF";; esac
   fi
   # Nur wenn ein Proxy-Add-on (z. B. Cloudflared, NGINX) davor sitzt: dessen IP, damit die echte Absenderadresse gezählt wird.
   # Erlaubt sind private Adressen (Add-on-Netz 172.30.x, aber auch ein Proxy auf einem anderen Rechner im Vereins-WLAN); die
@@ -36,7 +38,7 @@ for V in SUPERVISOR_TOKEN HASSIO_TOKEN; do
   if [ -z "$CUR" ] && [ -r "/run/s6/container_environment/$V" ]; then export "$V=$(cat "/run/s6/container_environment/$V")"; fi
 done
 [ -z "${SUPERVISOR_TOKEN:-}" ] && [ -n "${HASSIO_TOKEN:-}" ] && export SUPERVISOR_TOKEN="$HASSIO_TOKEN"
-if [ -n "${SUPERVISOR_TOKEN:-}" ]; then echo "Verbindung zu Home Assistant: Zugangsschlüssel vorhanden."; else echo "WARNUNG: Kein Zugangsschlüssel von Home Assistant (SUPERVISOR_TOKEN) – Türen, Beregnung und Updates funktionieren so nicht."; fi
+if [ -n "${SUPERVISOR_TOKEN:-}" ]; then log "Verbindung zu Home Assistant: Zugangsschlüssel vorhanden."; else log "WARNUNG: Kein Zugangsschlüssel von Home Assistant (SUPERVISOR_TOKEN) – Türen, Beregnung und Updates funktionieren so nicht."; fi
 
-echo "Clubwerk startet (Daten in /data) ..."
+log "Clubwerk startet (Daten in /data) ..."
 exec node /app/src/server.js
