@@ -80,7 +80,7 @@ function register(sh) {
       fees: V.beitraege ? feeRows : [], family: V.familie ? family : [], familyMembership: V.familie ? familyMembership : [], familyHeadName: famHead && famHead !== id && V.familie ? (personRow(famHead) || {}).name : null, isHead, payerName: payer !== id && V.familie ? (personRow(payer) || {}).name : null,
       open_cents: V.posten ? charges.filter(c => c.status === 'offen').reduce((s, c) => s + c.cents, 0) : 0, charges: V.posten ? charges : [],
       bank: b && V.bank ? { iban: sepa.maskIban(b.iban), holder: b.holder, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, ok: mandateState(b).ok } : null,
-      consents: consentList().map(c => ({ key: c.key, short: c.short, text: c.text, required: Boolean(c.required), given: Boolean(consents[c.key]), date: consents[c.key] || null })),
+      consents: !V.einwilligungen ? [] : consentList().map(c => ({ key: c.key, short: c.short, text: c.text, required: Boolean(c.required), given: Boolean(consents[c.key]), date: consents[c.key] || null })),
       pending: db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen' ORDER BY id").all(id).map(c => ({ ...c, label: KIND[c.kind] })),
       notice: { date: noticeDate(), months: parseInt(S('notice_months', '3'), 10) || 0, satzung: S('satzung_url') || null },
       creditor: { ci: S('creditor_id') || null, name: club().name },
@@ -105,7 +105,7 @@ function register(sh) {
     }
     if (want.email && !mailOk(want.email)) return bad(res, 'Die E-Mail-Adresse sieht nicht gültig aus.');
     let consents = null;
-    if (b.consents && typeof b.consents === 'object') {
+    if (b.consents && typeof b.consents === 'object' && ap.einwilligungen) {
       const cur = JSON.parse(p.consents || '{}');
       for (const c of consentList()) {
         const on = Boolean(b.consents[c.key]);

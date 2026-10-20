@@ -76,7 +76,7 @@
             ${V.geburt !== false && p.birth_date ? `<dt>Geburtsdatum</dt><dd>${deD(p.birth_date)}</dd>` : ''}</dl></div>` : ''}
           ${d.isHead && V.bank !== false ? `<div class="md-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="md-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
             <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="md-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
-          <div class="md-card"><h3>Einwilligungen <button id="mdCons">Ändern</button></h3><div class="md-list">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>
+          ${V.einwilligungen !== false && d.consents.length ? `<div class="md-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="md-list">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
           ${p.exit_date || !E.kuendigung ? '' : '<button class="md-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
         on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit);

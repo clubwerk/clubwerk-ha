@@ -7324,6 +7324,9 @@
     "vergangene Zeiten wieder einklappen": "collapse past times again",
     "vorläufig": "provisional",
     "warten auf WLAN": "waiting for Wi-Fi",
-    "zuletzt {0} {1}": "last {0} {1}"
+    "zuletzt {0} {1}": "last {0} {1}",
+    "Einwilligungen {0}": "Consents {0}",
+    "Einwilligungen ändern (erteilen und widerrufen)": "Change consents (give and withdraw)",
+    "Was Mitglieder in der App sehen und selbst ändern dürfen. Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand (z. B. per E-Mail).": "What members may see and change themselves in the app. The board always confirms changes to data. If consents are hidden in the app, members withdraw them informally with the board (e.g. by email)."
   }
 }

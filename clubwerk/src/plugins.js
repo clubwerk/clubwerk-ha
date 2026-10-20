@@ -14,6 +14,8 @@ const express = require('express');
 const { db, getSetting, setSetting, audit } = require('./db');
 const auth = require('./auth');
 const APP_VERSION = require('../package.json').version;
+// Verkauf hat eine eigene Modulversion (package.json „verkaufVersion“) – die Add-on-Version zählt alles zusammen
+const VERKAUF_VERSION = require('../package.json').verkaufVersion || APP_VERSION;
 const memberapp = require('./memberapp');
 
 const UPLOAD_DIR = path.join(process.env.DATA_DIR || path.join(__dirname, '..', 'data'), 'erweiterungen');   // über die Verwaltung hochgeladen
@@ -64,7 +66,7 @@ const plugins = new Map();   // id -> { meta, dir, source, error, hooks }
 const DRINK_PERMS = ['lieferungen', 'bestand', 'bestellung', 'buchungen', 'export', 'abrechnung', 'veranstaltungen', 'uebernahme', 'artikel'];
 plugins.set('getraenke', {
   builtin: true, dir: null, source: 'mitgeliefert', error: null, hooks: {},   // ein Modul wie alle anderen (nur der Code steckt im Kern)
-  meta: { id: 'getraenke', name: 'Verkauf', version: APP_VERSION, standardAktiv: true, kurz: 'Am Tablet buchen statt Strichliste.',
+  meta: { id: 'getraenke', name: 'Verkauf', version: VERKAUF_VERSION, standardAktiv: true, kurz: 'Am Tablet buchen statt Strichliste.',
     beschreibung: 'Verkauf am Tablet statt Strichliste – Getränke, Speisen, Vereinsartikel, Bälle … Artikel und Preise, Konten & PINs, Lieferungen & Belege einlesen, Bestand, Bestellung, Veranstaltungen, Gäste-Deckel, Abrechnung & Export.',
     perms: Object.fromEntries(DRINK_PERMS.map(k => [k, auth.PERMS[k]])), tablet: { label: 'Verkauf', seite: '' } },
 });

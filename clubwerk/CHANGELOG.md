@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.25.1
+
+- **Mitglieder-App, „Meine Daten“ (Mitgliederverwaltung 1.7.0):** Einwilligungen lassen sich wie die übrigen Angaben freigeben – „Sehen“ und „Ändern (erteilen und widerrufen)“ getrennt. Ausgeblendet erscheinen sie in der App nicht mehr; ein Widerruf geht dann formlos beim Vorstand.
+- **Modulversionen:** Verkauf hat eine eigene Versionsnummer (bleibt 3.25.0, da unverändert). Jedes geänderte Modul bekommt künftig seine eigene neue Nummer; die Add-on-Version zählt alles zusammen.
+
 ## 3.25.0
 
 - **Einheitliches Design (Styleguide):** Alle Tablet-Seiten – Verkauf, Zeiterfassung, Mitglied werden, Helferdienste, Plätze – nutzen dieselben Bausteine: gleiche Breite, gleicher Seitenkopf mit Untertitel, gleiches Raster, gleiche Kacheln, Leerzustände, Hauptknöpfe, PIN-Fenster und Sperrseite. Der Styleguide steht in ERWEITERUNGEN.md, die Vorlage für neue Module nutzt ihn.

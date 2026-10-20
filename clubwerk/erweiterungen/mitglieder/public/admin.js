@@ -1228,7 +1228,7 @@
         <table class="tbl" id="eCons"><tr><th style="width:200px">Kurzname</th><th>Text auf dem Formular</th><th style="width:80px">Pflicht</th><th style="width:100px"></th></tr>
           ${s.consents.map((c, i) => consentRow(c, i)).join('')}</table>
         <div class="row" style="justify-content:space-between;margin-top:10px"><div class="row"><button class="btn" id="eConsAdd">+ Einwilligung</button><a class="btn" href="${BASE}applications-blank.pdf" target="_blank">Formular ansehen (PDF)</a></div><button class="btn primary" id="eSave2">Speichern</button></div></div>
-      <div class="card" data-sec="app"><h3>Mitglieder-App: „Meine Daten“</h3><p class="muted s" style="margin-top:0">Was Mitglieder in der App sehen und selbst ändern dürfen. Änderungen an Daten bestätigt immer der Vorstand. Einwilligungen (z. B. Fotos auf der Homepage) kann jedes Mitglied jederzeit widerrufen – das bleibt immer möglich.</p>
+      <div class="card" data-sec="app"><h3>Mitglieder-App: „Meine Daten“</h3><p class="muted s" style="margin-top:0">Was Mitglieder in der App sehen und selbst ändern dürfen. Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand (z. B. per E-Mail).</p>
         <div class="mv-grid" style="--c:2"><div><div class="mv-sub">Sehen</div><div class="mv-cons">${Object.entries(s.app_labels.view).map(([k, l]) => `<label class="chk"><input type="checkbox" data-apv="${k}" ${s.app_perms.view[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
           <div><div class="mv-sub">Ändern</div><div class="mv-cons">${Object.entries(s.app_labels.edit).map(([k, l]) => `<label class="chk"><input type="checkbox" data-ape="${k}" ${s.app_perms.edit[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div></div>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveApp">Speichern</button></div></div>
@@ -1263,7 +1263,7 @@
     if ($('eSave2')) $('eSave2').onclick = () => save({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() });
     if ($('eSaveScope')) $('eSaveScope').onclick = () => save({ scope_confirm: $('eScope').checked });
     if ($('eSaveApp')) {
-      const syncApp = () => { [['anschrift', 'anschrift'], ['kontakt', 'kontakt'], ['bank', 'bank']].forEach(([v, e]) => { const vi = el.querySelector(`[data-apv="${v}"]`), ei = el.querySelector(`[data-ape="${e}"]`); if (vi && ei) { ei.disabled = !vi.checked; if (!vi.checked) ei.checked = false; } }); };
+      const syncApp = () => { [['anschrift', 'anschrift'], ['kontakt', 'kontakt'], ['bank', 'bank'], ['einwilligungen', 'einwilligungen']].forEach(([v, e]) => { const vi = el.querySelector(`[data-apv="${v}"]`), ei = el.querySelector(`[data-ape="${e}"]`); if (vi && ei) { ei.disabled = !vi.checked; if (!vi.checked) ei.checked = false; } }); };
       el.querySelectorAll('[data-apv]').forEach(c => { c.addEventListener('change', syncApp); }); syncApp();
       $('eSaveApp').onclick = () => save({ app_perms: { view: Object.fromEntries([...el.querySelectorAll('[data-apv]')].map(c => [c.dataset.apv, c.checked])), edit: Object.fromEntries([...el.querySelectorAll('[data-ape]')].map(c => [c.dataset.ape, c.checked])) } });
     }

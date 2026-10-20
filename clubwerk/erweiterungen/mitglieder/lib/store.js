@@ -150,13 +150,13 @@ function familyFromPayers(memberIds = null, day = today()) {
   return n;
 }
 /** Mitglieder-App „Meine Daten“: was Mitglieder sehen und ändern dürfen (Einstellung der Verwaltung) */
-const APP_VIEW = { anschrift: 'Anschrift', kontakt: 'Telefon & E-Mail', geburt: 'Geburtsdatum', abteilungen: 'Abteilungen', beitraege: 'Beiträge', familie: 'Familie', posten: 'Forderungen & Zahlungen', bank: 'Bankverbindung & Mandat' };
-const APP_EDIT = { anschrift: 'Anschrift ändern', kontakt: 'Telefon & E-Mail ändern', bank: 'Bankverbindung ändern (neues SEPA-Mandat mit Unterschrift)', kuendigung: 'Kündigen (Austritt beantragen)' };
+const APP_VIEW = { anschrift: 'Anschrift', kontakt: 'Telefon & E-Mail', geburt: 'Geburtsdatum', abteilungen: 'Abteilungen', beitraege: 'Beiträge', familie: 'Familie', posten: 'Forderungen & Zahlungen', bank: 'Bankverbindung & Mandat', einwilligungen: 'Einwilligungen' };
+const APP_EDIT = { anschrift: 'Anschrift ändern', kontakt: 'Telefon & E-Mail ändern', bank: 'Bankverbindung ändern (neues SEPA-Mandat mit Unterschrift)', kuendigung: 'Kündigen (Austritt beantragen)', einwilligungen: 'Einwilligungen ändern (erteilen und widerrufen)' };
 function appPerms() {
   let cur = {}; try { cur = JSON.parse(S('app_perms', '{}')) || {}; } catch (e) { cur = {}; }
   const pick = (defs, have) => Object.fromEntries(Object.keys(defs).map(k => [k, have && have[k] !== undefined ? Boolean(have[k]) : true]));
   const view = pick(APP_VIEW, cur.view), edit = pick(APP_EDIT, cur.edit);
-  if (!view.anschrift) edit.anschrift = false; if (!view.kontakt) edit.kontakt = false; if (!view.bank) edit.bank = false;   // ändern nur, was man sieht
+  if (!view.anschrift) edit.anschrift = false; if (!view.kontakt) edit.kontakt = false; if (!view.bank) edit.bank = false; if (!view.einwilligungen) edit.einwilligungen = false;   // ändern nur, was man sieht
   return { view, edit };
 }
 
