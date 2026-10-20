@@ -120,6 +120,34 @@ async function create(o) {
  * @param {object} o { password?, key? (hex), outDir }
  * @returns {object} manifest
  */
+const MAX_ENTRIES = 500000, MAX_BYTES = 50 * 1024 ** 3;
+/** Liste des Archivs prüfen (tar -tv): wirft bei unerwarteten Einträgen */
+function checkArchive(tgz) {
+  return new Promise((resolve, reject) => {
+    const t = spawn('tar', ['-tvzf', tgz, '--numeric-owner'], { stdio: ['ignore', 'pipe', 'pipe'] });
+    const roots = new Set([DB_NAME, DB_ALT, 'manifest.json', ...DIRS]);
+    let buf = '', n = 0, bytes = 0, bad = null;
+    const line = l => {
+      if (!l || bad) return;
+      const m = /^(\S)\S*\s+\S+\s+(\d+)\s+\d{4}-\d\d-\d\d\s+\d\d:\d\d(?::\d\d)?\s+(.+)$/.exec(l);
+      if (!m) { bad = 'unlesbarer Eintrag'; return; }
+      const [, type, size, name0] = m, name = name0.replace(/\/+$/, '');
+      if (type !== '-' && type !== 'd') { bad = `Verknüpfung oder Sonderdatei (${name.slice(0, 80)})`; return; }
+      if (name.startsWith('/') || name.split('/').some(x => x === '..' || x === '') || !roots.has(name.split('/')[0].replace(/^\.\//, ''))) { bad = `unerwarteter Pfad (${name.slice(0, 80)})`; return; }
+      if (++n > MAX_ENTRIES) { bad = 'zu viele Einträge'; return; }
+      if ((bytes += Number(size)) > MAX_BYTES) bad = 'zu groß';
+    };
+    t.stdout.on('data', c => { buf += c; const ls = buf.split('\n'); buf = ls.pop(); ls.forEach(line); });
+    let err = ''; t.stderr.on('data', c => { err += c; });
+    t.on('error', e => reject(new Error('tar nicht verfügbar: ' + e.message)));
+    t.on('close', code => {
+      line(buf);
+      if (bad) return reject(new Error('Die Sicherung enthält ungültige Einträge: ' + bad + '.'));
+      if (code !== 0) return reject(new Error('Die Sicherung lässt sich nicht lesen: ' + String(err).slice(0, 200)));
+      resolve({ entries: n, bytes });
+    });
+  });
+}
 async function extract(file, o) {
   const { head, dataStart, dataEnd, tag } = readHeader(file);
   let key = null;
@@ -139,6 +167,8 @@ async function extract(file, o) {
     if (/auth|unable to authenticate/i.test(e.message)) throw new Error('Die Sicherungsdatei wurde verändert oder ist beschädigt.');
     throw new Error('Entschlüsseln fehlgeschlagen: ' + e.message);
   }
+  // Inhalt vor dem Entpacken prüfen: nur normale Dateien und Ordner, nur bekannte Namen, keine Pfade nach oben, Größe begrenzt
+  try { await checkArchive(payload); } catch (e) { try { fs.unlinkSync(payload); } catch (x) { /* */ } throw e; }
   const tar = spawn('tar', ['-xzf', payload, '-C', o.outDir, '--no-same-owner', '--no-same-permissions'], { stdio: ['ignore', 'ignore', 'pipe'] });
   let err = ''; tar.stderr.on('data', c => { err += c; });
   const exited = new Promise((res, rej) => { tar.on('close', res); tar.on('error', e => rej(new Error('tar nicht verfügbar: ' + e.message))); });
@@ -174,4 +204,4 @@ function list(dir) {
 }
 const validName = f => NAME_RE.test(String(f || '')) || LEGACY_RE.test(String(f || ''));
 
-module.exports = { MAGIC, EXT, DB_NAME, DIRS, NAME_RE, newKey, deriveKey, keyId, readHeader, create, extract, generations, list, validName, sha256File };
+module.exports = { checkArchive, MAGIC, EXT, DB_NAME, DIRS, NAME_RE, newKey, deriveKey, keyId, readHeader, create, extract, generations, list, validName, sha256File };

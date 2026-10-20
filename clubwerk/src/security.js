@@ -141,8 +141,13 @@ function ownV6Prefixes() {
 }
 function lanSource(raw, { extra } = {}) {
   const ip = normIp(raw);
-  if (privateSource(ip)) return true;
+  if (!ip) return false;
   if (extra && extra(ip)) return true;
+  if (/^127\./.test(ip) || ip === '::1') return true;
+  // Sind Vereinsnetze eingetragen, gelten nur diese (plus Seitenleiste/Proxy über „extra“) – nicht mehr jedes private Netz
+  let clubList = false;
+  try { const ma = require('./memberapp'); clubList = ma.hasClubNets(); if (clubList) return ma.inClubNets(ip); } catch (e) { /* */ }
+  if (privateSource(ip)) return true;
   if (/^[23][0-9a-f]{3}:/.test(ip)) {
     try { if (require('./memberapp').inClubNets(ip)) return true; } catch (e) { /* */ }
     const p = v6Prefix64(ip); if (p && ownV6Prefixes().has(p)) return true;

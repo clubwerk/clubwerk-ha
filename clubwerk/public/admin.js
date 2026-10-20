@@ -162,13 +162,14 @@
   const can = p => Boolean(me && me.perms.includes(p));
 
   let SCHEME = 'http';   // Schema der direkten Adressen (Tablet, Mitglieder-App, Beregnung)
+  let tabletPwMissing = false, clubNetsMissing = false;
   async function start() {
     const [s] = await Promise.all([fetch('api/admin/status').then(r => r.json()), loadBrand()]);
     permLabels = s.permLabels || {};
     SCHEME = s.https ? 'https' : 'http';
     if (!s.configured) return showSetup(s.modules || [], s);
     if (!s.loggedIn) return showLogin();
-    me = s.user;
+    me = s.user; tabletPwMissing = Boolean(s.tabletPwMissing); clubNetsMissing = Boolean(s.clubNetsMissing);
     await loadExtensions().catch(() => {});
     showShell();
     if (brand.iconNeeded) makeAppIcon().catch(e => console.warn('App-Symbol:', e));
@@ -224,12 +225,14 @@
       <label class="f">Benutzername<input id="un" value="admin" disabled></label><br>
       <label class="f">Passwort (mind. 8 Zeichen)<input type="password" id="pw1" autocomplete="new-password"></label><br>
       <label class="f">Passwort wiederholen<input type="password" id="pw2" autocomplete="new-password"></label><br>
+      <label class="f">Passwort für das Tablet (mind. 8 Zeichen, anders als das Adminpasswort)<input type="password" id="tpw" autocomplete="new-password"></label>
+      <p class="muted s" style="margin:4px 0 14px">Das Tablet im Vereinsheim wird einmal damit freigeschaltet und bleibt es dann. Schützt die Namen und Konten der Mitglieder vor anderen Geräten im WLAN.</p>
       <button class="btn primary" id="go">Adminkonto einrichten</button> <span class="err" id="err"></span></div>`;
     wireLogos();
     $('go').onclick = async () => {
       if ($('pw1').value !== $('pw2').value) { $('err').textContent = 'Die Passwörter stimmen nicht überein.'; return; }
       const modules = Object.fromEntries([...document.querySelectorAll('[data-mod]')].map(c => [c.dataset.mod, c.checked]));
-      try { await api('setup', 'POST', { clubName: $('club').value, password: $('pw1').value, modules, code: $('scode') ? $('scode').value : undefined }); start(); }
+      try { await api('setup', 'POST', { clubName: $('club').value, password: $('pw1').value, tabletPassword: $('tpw').value, modules, code: $('scode') ? $('scode').value : undefined }); start(); }
       catch (e) { $('err').textContent = e.message; }
     };
   }
@@ -621,6 +624,9 @@
         big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
         det: ['Nachbestellen', `${low.length} Artikel`], go: low.length && can('bestellung') ? 'bestellung' : first });
     }
+    if (clubNetsMissing) alerts.push({ level: 'a', who: 'Sicherheit', text: 'Kein Vereinsnetz eingetragen – jedes private Netz (auch Gast-WLAN oder VPN) kommt an Verwaltung und Tablet. Empfohlen: unter Mitglieder-App → „Vereinsnetz“ euer Netz eintragen.', go: 'app', link: 'Eintragen' });
+    if (tabletPwMissing && can('einstellungen')) sset('cw_setsec', 'tablet');   // „Festlegen“ öffnet gleich den richtigen Bereich
+    if (tabletPwMissing) alerts.push({ level: 'r', who: 'Sicherheit', text: can('einstellungen') ? 'Für das Tablet ist noch kein Passwort vergeben – das Tablet bleibt gesperrt, bis eins festgelegt ist.' : 'Für das Tablet ist noch kein Passwort vergeben – bitte einen Admin mit Recht „Einstellungen“ bitten, eins festzulegen.', ...(can('einstellungen') ? { go: 'einstellungen', link: 'Festlegen' } : {}) });
     const pending = mem ? mem.rows.filter(m => m.pending) : [];
     if (pending.length) alerts.push({ level: 'a', who: 'Mitglieder', text: `${pending.length} neue Einträge vom Tablet zu bestätigen.`, go: 'konten', link: 'Prüfen' });
     // Ohne HTTPS gehen PIN und Geräteschlüssel der Mitglieder-App unverschlüsselt durchs WLAN – bei Türen ein echtes Risiko
@@ -2126,10 +2132,17 @@
         <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
         <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div>
         <h4 style="margin:16px 0 6px">Vereinsnetz</h4>
-        <p class="muted s" style="margin:0 0 8px">Welche Adressen als Vereins-WLAN gelten. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: auf euer Netz einschränken – dann zählen Gast-WLAN, VPN oder andere interne Netze nicht als Vereinsheim. Das interne Home-Assistant-Netz zählt nie.</p>
+        <p class="muted s" style="margin:0 0 8px">Welche Adressen als Vereinsnetz gelten – für die Mitglieder-App (Beregnung, Türen) <b>und</b> für Verwaltung, Tablet und Beregnungs-Webapp. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: euer Netz eintragen – dann kommen Gast-WLAN, VPN oder andere interne Netze nicht mehr an Verwaltung und Tablet. Die Home-Assistant-Seitenleiste funktioniert immer; das interne Home-Assistant-Netz zählt nie als Vereinsheim.</p>
+        ${r.tunnel.wlanNets ? '' : '<div class="banner a" style="margin:0 0 8px;font-weight:400">Noch kein Vereinsnetz eingetragen – jedes private Netz gilt als Vereinsheim.</div>'}
         <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:220px">Netze (mit Komma)<input id="apNets" data-nodirty value="${esc(r.tunnel.wlanNets || '')}" placeholder="z. B. 192.168.10.0/24" ${r.mayExt ? '' : 'disabled'}></label>
           ${r.mayExt && /^\d+\.\d+\.\d+\.\d+$/.test(r.tunnel.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(r.tunnel.myIp) ? `<button class="btn" id="apNetMine" type="button">Mein Netz übernehmen (${esc(r.tunnel.myIp.replace(/\.\d+$/, '.0'))}/24)</button>` : ''}
           ${r.mayExt ? '<button class="btn primary" id="apNetSave" type="button">Speichern</button>' : ''}</div></div>
+      ${r.tunnel.on && r.mayExt ? `<div class="card" id="apSrc"><h3>Tunnel-Quelle</h3>
+        <p class="muted s" style="margin:0 0 8px">Von welcher Adresse im Home-Assistant-Netz der Cloudflare Tunnel ankommt. Festgelegt glaubt die App die Absenderangabe des Tunnels nur noch dieser einen Adresse – kein anderes Add-on kann sich dann als Tunnel ausgeben. Startet das Cloudflared-Add-on später unter einer anderen Adresse, steht oben „abgelehnt“ mit der neuen Adresse – dann hier neu festlegen.</p>
+        <div class="row" style="align-items:center;gap:10px">${r.tunnel.src ? `<span class="pill g">Festgelegt: ${esc(r.tunnel.src)}</span><button class="btn" id="apSrcOff" type="button">Wieder jede Adresse im Add-on-Netz zulassen</button>`
+          : r.tunnel.lastOk ? `<span class="pill">Zuletzt gesehen: ${esc(r.tunnel.lastOk.ip)}</span><button class="btn primary" id="apSrcSet" type="button" data-ip="${esc(r.tunnel.lastOk.ip)}">Nur diese Quelle zulassen</button>`
+          : '<span class="muted s">Noch keine Anfrage über den Tunnel seit dem letzten Neustart – einmal die öffentliche Adresse aufrufen, dann diese Seite neu laden.</span>'}
+          ${r.tunnel.lastReject && r.tunnel.lastReject.why === 'quelle' && r.tunnel.src ? `<button class="btn" id="apSrcNew" type="button" data-ip="${esc(r.tunnel.lastReject.ip)}">Neue Quelle ${esc(r.tunnel.lastReject.ip)} übernehmen</button>` : ''}</div></div>` : ''}
       <div class="card" id="apSec"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
@@ -2203,7 +2216,11 @@
       draw();
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
     if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
-    if ($('apNetSave')) $('apNetSave').onclick = () => busy($('apNetSave'), async () => { try { await api('settings/app', 'PUT', { wlanNets: $('apNets').value }); toast($('apNets').value.trim() ? 'Gespeichert – nur diese Netze gelten als Vereins-WLAN.' : 'Gespeichert – jede private Adresse gilt als Vereins-WLAN.'); } catch (e) { fail(e); } });
+    const setSrc = ip => async () => { try { await api('settings/app', 'PUT', { tunnelSrc: ip }); toast(ip ? `Nur noch ${ip} gilt als Tunnel.` : 'Jede Adresse im Add-on-Netz gilt wieder als Tunnel.'); RENDER[page](); } catch (e) { fail(e); } };
+    if ($('apSrcSet')) $('apSrcSet').onclick = setSrc($('apSrcSet').dataset.ip);
+    if ($('apSrcNew')) $('apSrcNew').onclick = setSrc($('apSrcNew').dataset.ip);
+    if ($('apSrcOff')) $('apSrcOff').onclick = setSrc('');
+    if ($('apNetSave')) $('apNetSave').onclick = () => busy($('apNetSave'), async () => { try { await api('settings/app', 'PUT', { wlanNets: $('apNets').value }); clubNetsMissing = !$('apNets').value.trim(); toast($('apNets').value.trim() ? 'Gespeichert – nur diese Netze gelten als Vereinsnetz.' : 'Gespeichert – jede private Adresse gilt als Vereinsnetz.'); } catch (e) { fail(e); } });
     pushCard($('pushCard')).catch(e => { $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
     }
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
@@ -3058,16 +3075,16 @@
         <label class="f">aus den letzten … Tagen<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label>
         <button class="btn" id="saveTop">Speichern</button></div>
         <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p></div>
-      <div class="card"><h3>Buchungsseite mit Passwort schützen</h3>
-        ${s.tabletPw.on ? `<div class="banner g">Eingeschaltet${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
-          : '<div class="banner a">Ausgeschaltet – jeder im Vereins-WLAN kann die Buchungsseite öffnen.</div>'}
+      <div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
+        ${s.tabletPw.on ? `<div class="banner g">Vergeben${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
+          : '<div class="banner r">Noch kein Passwort vergeben – das Tablet ist gesperrt, bis hier eins festgelegt ist.</div>'}
         <div class="row">
-          <label class="f">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 6 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
+          <label class="f">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 8 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
           <label class="f">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
-          <button class="btn ${s.tabletPw.on ? '' : 'primary'}" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Schutz einschalten'}</button>
+          <button class="btn ${s.tabletPw.on ? '' : 'primary'}" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button>
         </div>
-        ${s.tabletPw.on ? '<div class="row" style="margin-top:10px"><button class="btn" id="tpOut">Alle Geräte abmelden</button><button class="btn danger" id="tpOff">Schutz ausschalten</button></div>' : ''}
-        <p class="muted s">Gedacht für den Fall, dass nicht jeder im WLAN buchen soll: Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Ohne Passwort kommen weiterhin angemeldete Admins und der Aufruf über die Home-Assistant-Seitenleiste auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p></div>
+        ${s.tabletPw.on ? '<div class="row" style="margin-top:10px"><button class="btn" id="tpOut">Alle Geräte abmelden</button></div>' : ''}
+        <p class="muted s">Pflicht zum Schutz der Mitgliederdaten: Ohne Passwort könnte jedes Gerät im WLAN die Namen und Konten am Tablet sehen. Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen immer auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p></div>
       ${s.allowedHosts !== undefined ? `<div class="card"><h3>Weitere Adressen</h3><div class="row">
         <label class="f" style="flex:1;min-width:260px">Namen, unter denen die Verwaltung erreichbar ist (mit Komma getrennt)<input id="hostList" value="${esc(s.allowedHosts)}" placeholder="verein.duckdns.org"></label>
         <button class="btn" id="hostSave">Speichern</button></div>
@@ -3132,7 +3149,7 @@
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
         <div class="btns"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
       <div class="card"><h3>Tablet & Home Assistant</h3>
-        <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. ${s.tabletPw && s.tabletPw.on ? 'Beim ersten Aufruf das Passwort der Buchungsseite eingeben.' : 'Die Buchungsseite braucht keine Anmeldung.'}</p>
+        <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. Beim ersten Aufruf das Passwort für das Tablet eingeben.</p>
         <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
     $('savePw').onclick = async () => { try { await api('password', 'POST', { current: $('pwCur').value, next: $('pwNew').value }); toast('Passwort geändert.'); $('pwCur').value = $('pwNew').value = ''; } catch (e) { fail(e); } };
     if ($('clubColorPick')) {
@@ -3231,17 +3248,13 @@
       if ($('tpPw1').value !== $('tpPw2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
       try {
         await api('settings/tablet-password', 'PUT', { password: $('tpPw1').value });
-        toast(s.tabletPw.on ? 'Passwort geändert – alle anderen Geräte müssen es neu eingeben.' : 'Schutz eingeschaltet. Dieses Gerät ist freigeschaltet.');
+        toast(s.tabletPw.on ? 'Passwort geändert – alle anderen Geräte müssen es neu eingeben.' : 'Passwort festgelegt. Am Tablet einmal eingeben – dieses Gerät ist schon freigeschaltet.'); tabletPwMissing = false;
         RENDER.einstellungen();
       } catch (e) { fail(e); }
     };
     if ($('tpOut')) $('tpOut').onclick = async () => {
       if (!await ask('Alle freigeschalteten Geräte abmelden? Danach muss auch das Tablet im Vereinsheim das Passwort neu eingeben.')) return;
       try { await api('settings/tablet-password/logout-all', 'POST', {}); toast('Alle Geräte abgemeldet.'); } catch (e) { fail(e); }
-    };
-    if ($('tpOff')) $('tpOff').onclick = async () => {
-      if (!await ask('Passwortschutz ausschalten? Danach kann jeder im WLAN die Buchungsseite öffnen.')) return;
-      try { await api('settings/tablet-password', 'DELETE'); toast('Schutz ausgeschaltet.'); RENDER.einstellungen(); } catch (e) { fail(e); }
     };
     if ($('saveTop')) $('saveTop').onclick = async () => {
       try { await api('settings', 'PUT', { topN: $('topN').value, topDays: $('topDays').value }); toast('Gespeichert.'); } catch (e) { fail(e); }

@@ -65,6 +65,8 @@ function isClubNet(ipRaw) {
   if (netCache.raw !== raw) netCache = { raw, list: cidrList(raw) };
   return netCache.list.length ? netCache.list.some(f => f(ip)) : PRIVATE_IP(ip);
 }
+/** sind Vereinsnetze eingetragen? */
+function hasClubNets() { const raw = getSetting('app_wlan_nets', ''); if (netCache.raw !== raw) netCache = { raw, list: cidrList(raw) }; return netCache.list.length > 0; }
 /** steht die Adresse in den eingetragenen Vereinsnetzen? (ohne Liste: nein) */
 function inClubNets(ipRaw) {
   const ip = String(ipRaw || '').replace(/^::ffff:/, '');
@@ -84,9 +86,13 @@ function fromTunnel(sock) {
   const ip = String(sock || '').replace(/^::ffff:/, '');
   if (!ip) return false;
   if (TUNNEL_IPS.includes(ip)) return true;
-  if (/^172\.30\.3[23]\.\d{1,3}$/.test(ip)) return true;
-  return ip === '127.0.0.1' || ip === '::1';
+  if (ip === '127.0.0.1' || ip === '::1') return true;
+  // In der Verwaltung festgelegte Tunnel-Quelle (Mitglieder-App → „Tunnel-Quelle festlegen“): dann nur noch diese eine Adresse
+  const pin = getSetting('tunnel_src', '');
+  if (pin) return ip === pin;
+  return /^172\.30\.3[23]\.\d{1,3}$/.test(ip);
 }
+let lastTunnelOk = null;   // zuletzt angenommene Tunnel-Quelle (nur im Speicher) – zum Festlegen in der Verwaltung
 /** zuletzt abgelehnte Tunnel-Anfrage (nur im Speicher) – damit der Vorstand in der Verwaltung sieht, wenn das Cloudflared-Add-on
  *  von einer anderen Adresse kommt als erwartet, statt dass sich Mitglieder draußen über eine „kaputte“ App wundern */
 let lastTunnelReject = null;
@@ -198,8 +204,10 @@ function startPort({ rateLimit, rateLimitKey }) {
     if (!tunnelOn()) { noteTunnelReject(sock, req, 'aus'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
     // cf-Kopfzeile von einem Gerät, das nicht der Tunnel ist (z. B. aus dem Vereins-WLAN): nicht glauben, Anfrage ablehnen
     if (!fromTunnel(sock)) { noteTunnelReject(sock, req, 'quelle'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
-    const ip = String(cf).trim().slice(0, 45);
-    if (/^[0-9a-fA-F:.]+$/.test(ip)) Object.defineProperty(req, 'ip', { value: ip, configurable: true });
+    const ip = String(cf).trim();
+    if (!require('net').isIP(ip)) { noteTunnelReject(sock, req, 'kopf'); return res.status(400).json({ error: 'Ungültige Anfrage.' }); }
+    Object.defineProperty(req, 'ip', { value: ip, configurable: true });
+    lastTunnelOk = { ip: sock.replace(/^::ffff:/, '').slice(0, 45), at: new Date().toISOString() };
     req.viaTunnel = true;
     res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     next();
@@ -474,7 +482,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -579,10 +587,21 @@ function adminRoutes(admin, { bad, need, auth }) {
       return bad(res, 'Adresse und Sicherheit der Mitglieder-App darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
     if (b.url !== undefined) { const u = String(b.url || '').trim().replace(/\/+$/, ''); if (u && !/^https?:\/\/[A-Za-z0-9.\-[\]:]+$/.test(u)) return bad(res, 'Bitte eine Adresse wie http://homeassistant.local:5001 eintragen.'); setSetting('app_url', u); }
     if ((b.tunnel !== undefined || b.tunnelUrl !== undefined) && !req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+    if (b.tunnelSrc !== undefined) {   // Tunnel-Quelle festlegen (leer = jede Adresse im Add-on-Netz)
+      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+      const t = String(b.tunnelSrc || '').trim();
+      if (t && !/^172\.30\.3[23]\.\d{1,3}$/.test(t) && !require('net').isIP(t)) return bad(res, 'Bitte eine IP-Adresse eintragen.');
+      setSetting('tunnel_src', t);
+      audit(req.user, 'Mitglieder-App: Tunnel-Quelle', t || 'jede Adresse im Add-on-Netz');
+    }
     if (b.wlanNets !== undefined) {   // Vereinsnetze (CIDR) – leer = jede private Adresse
       if (!req.user.perms.includes('einstellungen')) return bad(res, 'Die Vereinsnetze darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
       const v = String(b.wlanNets || '').trim().slice(0, 300);
       if (v && !validNets(v)) return bad(res, 'Bitte Netze wie 192.168.10.0/24 eintragen (mehrere mit Komma).');
+      // nicht selbst aussperren: Wer direkt (nicht über die Seitenleiste) verwaltet, muss im neuen Netz liegen
+      const me = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+      const direct = !(req.get('X-Ingress-Path') && me === '172.30.32.2') && !/^127\./.test(me) && me !== '::1';
+      if (v && direct && !cidrList(v).some(f => f(me))) return bad(res, `Dein Gerät (${me}) läge nicht in diesen Netzen – du würdest dich aus Verwaltung und Tablet aussperren. Bitte dein Netz mit eintragen.`);
       setSetting('app_wlan_nets', v.split(/[\s,;]+/).filter(Boolean).join(', '));
       audit(req.user, 'Mitglieder-App: Vereinsnetze geändert', v || 'alle privaten Adressen');
     }
@@ -638,4 +657,4 @@ function adminRoutes(admin, { bad, need, auth }) {
   void auth;
 }
 
-module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, validNets };
+module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };

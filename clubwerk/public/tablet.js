@@ -22,14 +22,23 @@
     const opts = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
     const r = await fetch(url, opts);
     const data = await r.json().catch(() => ({}));
-    if (r.status === 401 && data.gate) { showGate(); throw Object.assign(new Error(data.error), { status: 401, gate: true }); }
+    if (r.status === 401 && data.gate) { showGate(data.unset); throw Object.assign(new Error(data.error), { status: 401, gate: true }); }
     if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status });
     return data;
   }
 
   /* ---------- Optionaler Passwortschutz der Buchungsseite ---------- */
   let gateShown = false;
-  function showGate() {
+  function showGate(unset) {
+    $('gate').classList.toggle('unset', Boolean(unset));
+    if (unset) {   // noch kein Passwort vergeben: Hinweis statt Eingabefeld, alle 30 s neu prüfen
+      $('gateTitle').textContent = 'Tablet noch nicht eingerichtet';
+      $('gateText').textContent = 'Zum Schutz der Mitgliederdaten braucht das Tablet ein Passwort. Bitte in der Verwaltung unter Einstellungen → Tablet & Kopfzeile → „Passwort für das Tablet“ eins festlegen – danach hier eingeben.';
+      clearTimeout(showGate.t); showGate.t = setTimeout(() => { gateShown = false; load(); }, 30000);
+    } else {
+      $('gateTitle').textContent = 'Buchungsseite gesperrt';
+      $('gateText').innerHTML = 'Bitte das Passwort des Vereins eingeben. <br>Dieses Gerät bleibt danach freigeschaltet.';
+    }
     if (gateShown) return;
     gateShown = true;
     session = null;

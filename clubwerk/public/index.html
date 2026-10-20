@@ -247,6 +247,7 @@
   .gatecard p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
   .gatecard input { height: 56px; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; font-size: 21px; text-align: center; background: var(--field); }
   .gatecard input:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .gate.unset #gatePw, .gate.unset #gateGo, .gate.unset #gateErr { display: none; }
   .gatecard .gerr { color: var(--red); font-weight: 700; font-size: 15px; }
   .gatecard .gerr:empty { display: none; }
   .gatecard .btn { height: 56px; font-size: 18px; justify-content: center; }
@@ -326,8 +327,8 @@
 <div id="gate" class="gate hidden"><div class="gatecard">
   <span class="logo-badge hidden" id="gateLogoBox"><img id="gateLogo" alt="Vereinslogo"></span>
   <div class="gateclub" id="gateClub"></div>
-  <h2>Buchungsseite gesperrt</h2>
-  <p>Bitte das Passwort des Vereins eingeben. <br>Dieses Gerät bleibt danach freigeschaltet.</p>
+  <h2 id="gateTitle">Buchungsseite gesperrt</h2>
+  <p id="gateText">Bitte das Passwort des Vereins eingeben. <br>Dieses Gerät bleibt danach freigeschaltet.</p>
   <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password" enterkeyhint="go">
   <div class="gerr" id="gateErr"></div>
   <button class="btn primary" id="gateGo">Freischalten</button>

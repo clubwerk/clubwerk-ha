@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.20.4
+
+- **Passwort für das Tablet ist jetzt Pflicht** (Schutz der Mitgliederdaten): Ohne Passwort bleibt die Buchungsseite für normale Geräte gesperrt; das Tablet zeigt „Tablet noch nicht eingerichtet“, die Übersicht der Verwaltung einen roten Hinweis mit „Festlegen“. Bei der Ersteinrichtung wird es gleich mit abgefragt (mind. 8 Zeichen, nicht zu leicht, anders als das Adminpasswort). Ausschalten geht nicht mehr, nur ändern. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen weiterhin immer hinein. **Nach dem Update: einmal unter Einstellungen → Tablet & Kopfzeile ein Passwort festlegen und am Tablet eingeben.**
+- **Vereinsnetz gilt jetzt auch für Verwaltung, Tablet und Beregnungs-Webapp:** Ist es eingetragen, kommen nur noch Geräte aus diesen Netzen (plus Seitenleiste) an Port 3100 und 5000 – Gast-WLAN, VPN und andere Add-ons nicht mehr. Schutz vor Selbstaussperren beim Speichern; Hinweis in der Übersicht, solange kein Vereinsnetz eingetragen ist.
+- Mitglieder-App – **Tunnel-Quelle festlegen:** Die Absenderangabe des Cloudflare Tunnels kann auf die eine Adresse beschränkt werden, von der der Tunnel tatsächlich kommt („Nur diese Quelle zulassen“). Ungültige Absenderangaben werden abgelehnt.
+- Komplettsicherung: Vor dem Entpacken wird die Inhaltsliste geprüft – nur normale Dateien und Ordner mit bekannten Namen, keine Verknüpfungen, keine Pfade nach oben, Größe begrenzt.
+
 ## 3.20.3
 
 Nachbesserungen aus der Gesamtprüfung (Security und Datensicherheit):

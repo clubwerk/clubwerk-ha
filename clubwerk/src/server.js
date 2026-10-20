@@ -70,7 +70,7 @@ app.set('trust proxy', TRUSTED_PROXIES);
    Add-on durch, die Seitenleiste muss dann trotzdem funktionieren. */
 /* Port 3100 nur aus dem eigenen Netz: eine öffentliche Absenderadresse (Portfreigabe am Router) wird abgewiesen.
    Seitenleiste (Supervisor) und ein eingetragenes Proxy-Add-on kommen aus dem Add-on-Netz und sind damit „eigenes Netz“. */
-app.use(require('./security').lanOnly({ label: 'Die Verwaltung und das Tablet', extra: ip => TRUSTED_PROXIES.includes(ip) }));
+app.use(require('./security').lanOnly({ label: 'Die Verwaltung und das Tablet', extra: ip => TRUSTED_PROXIES.includes(ip) || INGRESS_IPS.includes(ip) }));
 app.use((req, res, next) => {
   const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
   const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
@@ -434,13 +434,22 @@ function gateCookieOk(req) {
   const a = Buffer.from(sig, 'hex'), b = Buffer.from(gateSig(ver), 'hex');
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
-const gateOk = req => !gateOn() || gateCookieOk(req) || viaIngress(req) || Boolean(auth.currentUser(req));
+/* Das Tablet-Passwort ist Pflicht (Schutz der Mitgliederdaten): Solange keins vergeben ist, bleibt die Buchungsseite für normale
+   Geräte gesperrt – nur angemeldete Admins und die Home-Assistant-Seitenleiste kommen herein. (Tests: CW_TEST_TABLET_OPEN=1) */
+const gateOpenForTests = () => process.env.CW_TEST_TABLET_OPEN === '1' && !gateOn();
+const GATE_UNSET = 'Für das Tablet ist noch kein Passwort vergeben. Bitte in der Verwaltung unter Einstellungen → Tablet & Kopfzeile → „Passwort für das Tablet“ eins festlegen.';
+function tabletPwError(pw) {
+  if (pw.length < 8 || pw.length > 200) return 'Das Passwort für das Tablet braucht mindestens 8 Zeichen.';
+  if (/^(.)\1+$|^(12345678|123456789|1234567890|87654321|passwort\d*|password\d*|tennis\d*|verein\d*|qwertz\w*|abcdefgh)$/i.test(pw)) return 'Dieses Passwort ist zu leicht zu erraten – bitte ein anderes wählen.';
+  return null;
+}
+const gateOk = req => gateOpenForTests() || (gateOn() && gateCookieOk(req)) || viaIngress(req) || Boolean(auth.currentUser(req));
 const gateCookie = req => `${GATE_COOKIE}=${gateVer()}.${gateSig(gateVer())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${GATE_MAX_AGE}${req.secure ? '; Secure' : ''}`;
 
-app.get('/api/gate', (req, res) => res.json({ on: gateOn(), ok: gateOk(req) }));
+app.get('/api/gate', (req, res) => res.json({ on: true, set: gateOn(), ok: gateOk(req) }));
 const gateAll = require('./security').limiter({ per: 30, baseMs: 15 * 60000 });   // insgesamt, über alle Geräte
 app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => {
-  if (!gateOn()) return res.json({ ok: true });
+  if (!gateOn()) return bad(res, GATE_UNSET, 409);
   const wait = gateAll.blocked('all');
   if (wait) return bad(res, `Zu viele falsche Passwörter – bitte in ${wait} Min. erneut versuchen.`, 429);
   const pw = String((req.body || {}).password || '');
@@ -455,6 +464,7 @@ app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => {
 });
 app.use('/api/tablet', (req, res, next) => {
   if (gateOk(req)) return next();
+  if (!gateOn()) return res.status(401).json({ error: GATE_UNSET, gate: true, unset: true });
   res.status(401).json({ error: 'Die Buchungsseite ist geschützt – bitte das Passwort eingeben.', gate: true });
 });
 
@@ -866,6 +876,8 @@ function suggestUsername(first, last, exceptId = 0) {
 app.get('/api/admin/status', (req, res) => {
   const u = auth.currentUser(req);
   res.json({ configured: auth.adminConfigured(), loggedIn: Boolean(u), https: tls.enabled(),
+    tabletPwMissing: u && auth.adminConfigured() ? !gateOn() : undefined,
+    clubNetsMissing: u && auth.adminConfigured() && u.perms.includes('einstellungen') ? !require('./memberapp').hasClubNets() : undefined,
     user: u ? { id: u.id, username: u.username, name: u.name, role: u.role, perms: u.perms, deptOnly: u.deptOnly, depts: u.depts, builtin: Boolean(u.builtin) } : null,
     permLabels: u ? plugins.visiblePerms() : undefined,   // die Rechte verraten die installierten Module – erst nach der Anmeldung
     setupCode: !auth.adminConfigured() && setupNeedsCode(req) ? true : undefined,
@@ -899,14 +911,19 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
       return bad(res, 'Der Einrichtungscode stimmt nicht. Er steht im Protokoll des Add-ons (Home Assistant → Einstellungen → Add-ons → Clubwerk → Protokoll).', 403);
     }
   }
-  const { password, clubName } = req.body || {};
+  const { password, clubName, tabletPassword } = req.body || {};
   const club = cleanName(clubName, 60);
   if (clubName !== undefined && club.length < 3) return bad(res, 'Bitte den Namen des Vereins eingeben.');
   if (!pwOk(password)) return bad(res, PW_MSG);
+  if (tabletPassword !== undefined) {
+    const tp = String(tabletPassword || ''); const pe = tabletPwError(tp); if (pe) return bad(res, pe);
+    if (tp === String(password)) return bad(res, 'Bitte für das Tablet ein anderes Passwort als für das Adminkonto wählen.');
+  }
   if (club) setSetting('club_name', club);
   const mods = (req.body || {}).modules;
   if (mods && typeof mods === 'object') for (const p of plugins.list()) if (mods[p.id] !== undefined && !p.error) setSetting(`ext_${p.id}_active`, mods[p.id] ? '1' : '0');
   auth.createUser({ username: 'admin', name: 'Adminkonto', password: String(password), role: 'oberadmin', builtin: true });
+  if (tabletPassword !== undefined) { setSetting('tablet_pw_hash', auth.hashSecret(String(tabletPassword))); setSetting('tablet_pw_at', nowTs()); setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex')); }
   audit('admin', 'Adminkonto eingerichtet');
   const r = auth.login('admin', String(password), req.ip);
   res.setHeader('Set-Cookie', cookieOpts(r.token, req));
@@ -1121,7 +1138,7 @@ admin.put('/settings/hosts', need('einstellungen'), (req, res) => {
 });
 admin.put('/settings/tablet-password', need('einstellungen'), (req, res) => {
   const pw = String((req.body || {}).password || '');
-  if (pw.length < 6 || pw.length > 200) return bad(res, 'Das Passwort für die Buchungsseite braucht mindestens 6 Zeichen.');
+  const pe = tabletPwError(pw); if (pe) return bad(res, pe);
   const first = !gateOn();
   setSetting('tablet_pw_hash', auth.hashSecret(pw));
   setSetting('tablet_pw_at', nowTs());
@@ -1136,11 +1153,7 @@ admin.post('/settings/tablet-password/logout-all', need('einstellungen'), (req, 
   audit(req.user, 'Buchungsseite: alle Geräte abgemeldet');
   res.json({ ok: true });
 });
-admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => {
-  db.prepare("DELETE FROM settings WHERE key IN ('tablet_pw_hash','tablet_pw_at')").run();
-  audit(req.user, 'Buchungsseite: Passwortschutz ausgeschaltet');
-  res.json({ ok: true });
-});
+admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => bad(res, 'Das Passwort für das Tablet ist Pflicht und lässt sich nur ändern, nicht ausschalten.'));
 /* ---------- Sprachen ---------- */
 admin.get('/sprachen', (req, res) => {
   res.json({ languages: i18n.list(), club: i18n.clubLang(), canEdit: req.user.perms.includes('einstellungen'), app: APP_VERSION });
