@@ -94,7 +94,14 @@
       .bkm-form .vh-seg { margin-bottom: 12px; }
       .bkm-form .bkm-chips:empty { display: none; }
       .bkm-form .bkm-sum { margin: 4px 0 6px; }
-      .bkm-form .vh-link { color: var(--brand-ink); }`;
+      .bkm-form .vh-link { color: var(--brand-ink); }
+      /* Ansicht „Ausführlich“: breite Platzspalten (wischen), Uhrzeiten und Platznamen bleiben stehen, ganze Namen in den Blöcken */
+      .bkm-scroll.on { overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+      .bkm-plan.wide { grid-template-columns: 52px repeat(var(--n), minmax(150px, 1fr)); min-width: 100%; width: max-content; }
+      .bkm-plan.wide .cl { scroll-snap-align: start; scroll-margin-left: 52px; }
+      .bkm-plan.wide .tc, .bkm-plan.wide > .hd:first-child { position: sticky; left: 0; z-index: 5; background: var(--card); }
+      .bkm-plan.wide .bkm-blk { padding: 5px 8px; }
+      .bkm-plan.wide .bkm-blk > b, .bkm-plan.wide .bkm-blk > span { font-size: 12.5px; height: 16px; line-height: 16px; }`;
     document.head.appendChild(s);
   }
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
@@ -108,7 +115,8 @@
   /** „Thorsten Schardt“ → „Thorsten S.“ – passt auch in schmale Platz-Spalten */
   const shortName = n => { const t = String(n || '').trim(); if (t.includes(',')) { const [l, f] = t.split(',').map(x => x.trim()); return f ? `${f.split(/\s+/)[0]} ${l[0]}.` : l; } const w = t.split(/\s+/); return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : t; };
 
-  const PH = 56;   // Pixel je Stunde in der Übersicht
+  const PH = 56;   // Pixel je Stunde in der Übersicht (kompakt)
+  const PHW = 80;  // ausführlich: höher, damit die ganzen Namen in die Blöcke passen
   const ink = hex => { const n = parseInt(String(hex).slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) > 160 ? '#1b1f1c' : '#ffffff'; };
   let view = 'plan'; try { view = localStorage.getItem('bkm_view') || 'plan'; } catch (e) { /* */ }
   /** Spieler samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
@@ -157,8 +165,8 @@
         const rs = p.resources.filter(r => r.area === area);
         el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}<div class="bkm-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
           ${areas.length > 1 ? `<div class="vh-seg bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
-          <div class="vh-seg bkm-view">${[['plan', 'Übersicht'], ['zeiten', 'Freie Zeiten']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
-          ${rs.length && view === 'plan' ? planHtml(rs, p, nowM) : rs.length ? rs.map(r => `<div class="vh-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="vh-lead">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
+          <div class="vh-seg bkm-view">${[['plan', 'Kompakt'], ['wide', 'Ausführlich'], ['zeiten', 'Freie Zeiten']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+          ${rs.length && (view === 'plan' || view === 'wide') ? planHtml(rs, p, nowM) : rs.length ? rs.map(r => `<div class="vh-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="vh-lead">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
             ${(() => { const all = slots(r, p, day, nowM, d.today); const gone = day === d.today && !pastOpen ? all.filter(x => x.e <= nowM && !/^mine/.test(x.state)).length : 0; const shown = gone ? all.filter(x => !(x.e <= nowM && !/^mine/.test(x.state))) : all;
               return `<div class="bkm-slots">${shown.map(x => `<button class="bkm-slot ${x.state}" data-r="${r.id}" data-s="${x.s}" ${x.booking && x.booking.label && !x.booking.mine ? `style="box-shadow:inset 0 -4px 0 ${x.booking.label.color}"` : ''} ${/past|closed/.test(x.state) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span>${esc(x.label)}</span></button>`).join('')}</div>
               ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}`; })()}</div>`).join('')
@@ -177,7 +185,7 @@
           const r = p.resources.find(x => x.id === +c.dataset.r); if (!r || !r.open_today) return;
           const bk = e.target.closest('.bkm-blk');
           if (bk) { const s0 = +bk.dataset.s; return slotTap(r, s0); }
-          const from = +c.dataset.from, m = from + (e.clientY - c.getBoundingClientRect().top - 6) / PH * 60;
+          const from = +c.dataset.from, m = from + (e.clientY - c.getBoundingClientRect().top - 6) / (view === 'wide' ? PHW : PH) * 60;
           const o = tm(r.open_from); const s0 = o + Math.floor((m - o) / r.slot_min) * r.slot_min;
           if (s0 < o || s0 + r.slot_min > tm(r.open_to)) return;
           slotTap(r, s0);
@@ -197,12 +205,13 @@
         // heute: vergangene volle Stunden zusammenklappen – die Ansicht beginnt bei der aktuellen Stunde (Tipp auf die Leiste klappt auf)
         const cut = isToday ? Math.min(to - 60, Math.floor(nowM / 60) * 60) : from0;
         const folded = isToday && !pastOpen && cut > from0;
-        const from = folded ? cut : from0, H = (to - from) / 60 * PH + T * 2;
-        const y = m => T + (Math.max(m, from) - from) / 60 * PH;
+        const wide = view === 'wide', ph = wide ? PHW : PH;   // ausführlich: breite Spalten zum Wischen, ganze Namen
+        const from = folded ? cut : from0, H = (to - from) / 60 * ph + T * 2;
+        const y = m => T + (Math.max(m, from) - from) / 60 * ph;
         const blk = (r, b) => {
-          const s0 = tm(b.start), e0 = tm(b.end), h = Math.max(20, y(e0) - y(s0) - 2), n = Math.max(1, Math.floor((h - 8) / 15));
+          const s0 = tm(b.start), e0 = tm(b.end), h = Math.max(20, y(e0) - y(s0) - 2), n = Math.max(1, Math.floor((h - (wide ? 10 : 8)) / (wide ? 16 : 15)));
           // Spieler je eine Zeile („Thorsten S.“) – auf einen Blick, wer gerade spielt; die Uhrzeit nur, wenn noch Platz ist
-          const names = b.type === 'buchung' && b.who ? [...b.who.map(shortName), ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
+          const names = b.type === 'buchung' && b.who ? [...b.who.map(wide ? (x => x) : shortName), ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
           const head = b.type === 'sperre' ? (b.title || 'gesperrt') : b.label ? b.label.name : b.type === 'serie' ? (b.title || 'Training') : '';
           const time = `${b.start}–${b.end}`;
           let ln = head ? [[head, 'b'], ...names.map(x => [x, '']), ...(!names.length && b.title && b.title !== head ? [[b.title, '']] : [])] : names.length ? names.map(x => [x, 'b']) : [[b.mine ? 'Meine Buchung' : 'belegt', 'b']];
@@ -224,16 +233,16 @@
             ${nowShown ? `<div class="bkm-nowbody">${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
             ${soon.length ? `<h3>In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>` : ''}</div>`;
         }
-        return `${now}<div class="vh-card flush bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-plan" style="--n:${rs.length};--ph:${PH}px">
+        return `${now}<div class="vh-card flush bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-scroll${wide ? ' on' : ''}"><div class="bkm-plan${wide ? ' wide' : ''}" style="--n:${rs.length};--ph:${ph}px">
           <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu'}</small></div>`).join('')}
-          <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * PH}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
+          <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * ph}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
           ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);
             const bs = p.bookings.filter(b => b.resource_id === r.id && tm(b.end) > from);
             return `<div class="cl" data-r="${r.id}" data-from="${from}" style="height:${H}px;background-position:0 ${T}px">
               ${r.open_today ? `${o > from ? `<div class="zu" style="top:0;height:${y(o)}px"></div>` : ''}<div class="zu" style="top:${y(c)}px;bottom:0"></div>` : '<div class="zu" style="top:0;bottom:0"></div>'}
               ${isToday && nowM > from ? `<div class="past" style="height:${Math.min(H, y(nowM))}px"></div>` : ''}${isToday && nowM > from && nowM < to ? `<div class="nowl" style="top:${y(nowM)}px"></div>` : ''}
               ${bs.map(b => blk(r, b)).join('')}</div>`; }).join('')}
-        </div></div><p class="bkm-hint">Freie Stelle antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</p>`;
+        </div></div></div><p class="bkm-hint">${wide && rs.length > 2 ? 'Seitlich wischen für weitere Plätze · ' : ''}Freie Stelle antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</p>`;
       }
       function slotTap(r, s) {
         const sl0 = slots(r, data.plan, day, tm(data.now), data.today); const x = sl0.find(y => y.s === s) || sl0.find(y => y.s <= s && y.e > s); if (!x) return;

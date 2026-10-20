@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.26.3
+
+- **Platzbelegung „Ausführlich“ (Buchungssystem 1.4.2):** Neben „Kompakt“ (alle Plätze auf einen Blick) gibt es die Ansicht „Ausführlich“: breite Platzspalten zum seitlichen Wischen, die Uhrzeiten bleiben links stehen, in den Blöcken stehen die ganzen Namen. Die gewählte Ansicht merkt sich das Handy.
+
 ## 3.26.2
 
 - **Buchungsfenster neu gestaltet (Buchungssystem 1.4.1):** alle Felder gleich hoch (48 px), gleiche Beschriftungen, kompakter Aufbau: Für wen · Dauer/Art · Mitspieler. Gast, Gerät/allein und Wiederholen klappen erst auf Antippen auf („+ Gast“, „Wiederholen …“), die Platzordnung als Häkchen mit „lesen“.

@@ -7374,6 +7374,10 @@
     "Name des Gastes": "Guest name",
     "Ohne Mitspieler": "Without partner",
     "wählen.": "choose.",
-    "Wiederholen …": "Repeat …"
+    "Wiederholen …": "Repeat …",
+    "Ausführlich": "Detailed",
+    "Kompakt": "Compact",
+    "{0}Freie Stelle antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.": "{0}Tap a free slot to book · tap your own booking to change or cancel it.",
+    "Seitlich wischen für weitere Plätze ·": "Swipe sideways for more courts ·"
   }
 }
