@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.25.2';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.26.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -128,6 +128,7 @@
     if (!s) { el.innerHTML = ''; return; }
     if (!s.ok && s.wlanOnly && embedWorked && me.lanUrl && !me.wlan) { el.innerHTML = ''; call('handover', 'POST', {}).then(r => { if (current === id) embedLocal(el, id, r); }).catch(() => { embedWorked = false; show(id); }); return; }
     if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl && !me.wlan ? `<button class="vh-btn" id="lanGo">Im Vereinsheim lokal öffnen</button><small class="vh-wlan-diag">Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'wird geprüft …'}</small>` : ''}</div>`;
+      wlanRetry(id);
       const g = $('lanGo'); if (g) g.onclick = async () => { g.disabled = true; try { const r = await call('handover', 'POST', {}); embedLocal(el, id, r); } catch (e) { toast(e.message, true); g.disabled = false; } };
       return; }
     if (!s.ok) { el.innerHTML = `<div class="vh-empty">${esc(s.reason)}</div>`; return; }
@@ -143,7 +144,16 @@
 
   /* Lokale Route im Hintergrund prüfen – die Inhalte erscheinen sofort über die aktuelle Adresse; klappt die Prüfung,
      wechselt die App auf die lokale Adresse und gibt WLAN-Bereiche frei (draußen läuft die Prüfung einfach ins Leere) */
-  let probing = null, lastProbeAt = 0;
+  let probing = null, lastProbeAt = 0, wlanTries = 0, wlanTimer = null;
+  /* WLAN-Bereich offen, lokale Adresse noch nicht erreicht: sofort und dann noch einige Male nachprüfen – das Handy wechselt
+     oft erst ein paar Sekunden nach dem Öffnen der App vom Mobilfunk ins Vereins-WLAN (vorher scheitert die Prüfung mit „Load failed“) */
+  function wlanRetry(id) {
+    clearTimeout(wlanTimer);
+    if (!me || me.wlan || !me.lanUrl || BASE || wlanTries >= 5) return;
+    const wait = wlanTries === 0 ? 0 : 6000;
+    wlanTries++;
+    wlanTimer = setTimeout(() => { if (current === id && document.visibilityState === 'visible') probeInBackground(true); }, wait);
+  }
   function probeInBackground(force = false) {
     if (probing || !me || me.wlan || !me.lanUrl || BASE) return;
     if (!force && Date.now() - lastProbeAt < 20000) return;
@@ -169,7 +179,7 @@
     const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = c;
   }
   const colorCheck = () => { if (document.visibilityState === 'visible') call('ping').then(x => applyColor(x.color)).catch(() => {}); };
-  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); lanProbe = null; probeInBackground(true); if (current && !embedFrame && me && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); };
+  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); lanProbe = null; wlanTries = 0; probeInBackground(true); if (current && !embedFrame && me && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); };
   document.addEventListener('visibilitychange', recheck);
   window.addEventListener('online', recheck);
   window.addEventListener('pageshow', e => { if (e.persisted) recheck(); });
@@ -193,9 +203,10 @@
       show(EMBED); embedPost('ready');
       return;
     }
-    const last = store.get('va_tab');
+    // Startseite: fester Bereich (Verwaltung → Mitglieder-App → Bereiche) oder der zuletzt genutzte; sonst der erste verfügbare
+    const last = store.get('va_tab'), okId = id => id && me.sections.some(s => s.id === id && s.ok);
     const first = (me.sections.find(s => s.ok) || me.sections[0]).id;
-    show(me.sections.some(s => s.id === last && s.ok) ? last : first);
+    show(okId(me.start) ? me.start : okId(last) ? last : first);
     probeInBackground();
   }
   async function renderTabs() {
@@ -206,7 +217,7 @@
     const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
     tabs.innerHTML = me.sections.map(s => `<button data-t="${s.id}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('');
     tabs.classList.toggle('hidden', me.sections.length < 2);
-    tabs.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.t));
+    tabs.querySelectorAll('button').forEach(b => b.onclick = () => { wlanTries = 0; show(b.dataset.t); });
   }
 
   /* ---------- Bilder mit Anmeldung (Profilbilder): <img data-auth-src="api/…"> – geladen mit dem Geräteschlüssel, angezeigt als data:-Adresse ---------- */

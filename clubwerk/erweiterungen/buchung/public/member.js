@@ -19,8 +19,16 @@
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
-      .bkm-now h3 + div { border-top: 0; }
-      .bkm-now > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 14px; }
+      .bkm-nowbar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
+      .bkm-nowbar b { font-size: 14.5px; font-weight: 800; white-space: nowrap; } .bkm-nowbar span { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
+      .bkm-nowbar i { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: -4px 2px 0 0; flex: none; transition: transform .15s; }
+      .bkm-now.show .bkm-nowbar i { transform: rotate(-135deg); margin-top: 4px; }
+      .bkm-nowbody { padding: 6px 16px 12px; border-top: 1px solid var(--line); }
+      .bkm-nowbody h3 { margin: 10px 0 2px; font-size: 13px; font-weight: 800; color: var(--muted); }
+      .bkm-nowbody > div:first-child, .bkm-now h3 + div { border-top: 0; }
+      .bkm-nowbody > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 14px; }
+      .bkm-nowbody > div[data-nl] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+      .bkm-nowbody > div.open span { white-space: normal; overflow: visible; }
       .bkm-now span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-now small { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
       .bkm-now p { margin: 0; color: var(--muted); font-size: 14px; }
       .bkm-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
@@ -110,6 +118,8 @@
       const { esc } = ctx;
       let day = null, area = null, data = null;
       let pastOpen = false;   // heute: vergangene Stunden aufgeklappt?
+      let nowShown = false;   // „Jetzt auf der Anlage“ aufgeklappt?
+      const nowOpen = new Set();   // „Jetzt auf der Anlage“: aufgeklappte Zeilen (alle Namen statt einer Zeile)
       const sheet = () => { let sh = document.getElementById('bkmSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'bkmSheet'; sh.className = 'vh-sheet bkm-sheet'; document.body.appendChild(sh); } return sh; };
       const close = () => { const s = document.getElementById('bkmSheet'); if (s) s.classList.remove('show'); };
       ctx.onLeave(() => { close(); clearInterval(timer); });
@@ -134,7 +144,7 @@
               return `<div class="bkm-slots">${shown.map(x => `<button class="bkm-slot ${x.state}" data-r="${r.id}" data-s="${x.s}" ${x.booking && x.booking.label && !x.booking.mine ? `style="box-shadow:inset 0 -4px 0 ${x.booking.label.color}"` : ''} ${/past|closed/.test(x.state) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span>${esc(x.label)}</span></button>`).join('')}</div>
               ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}`; })()}</div>`).join('')
             : '<div class="vh-card"><p class="vh-none">Hier ist noch nichts buchbar.</p></div>'}
-          <div class="vh-card"><h3>Meine Buchungen</h3><div class="vh-rows">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.own ? '' : ' · eingetragen als Mitspieler'}</small></span>
+          <div class="vh-card"><h3>Meine Buchungen</h3><div class="vh-rows">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.for_name ? ` · für ${esc(b.for_name)}` : b.own ? (b.booked_by ? ` · gebucht von ${esc(b.booked_by)}` : '') : ' · eingetragen als Mitspieler'}</small></span>
               <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button class="vh-btn sm sec" data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="vh-none">Keine offenen Buchungen.</p>'}</div>
             ${d.series && d.series.length ? `<h3 style="margin-top:14px">Meine Serien</h3><div class="vh-rows">${d.series.map(x => `<div><span><strong>${esc(x.title)}</strong><small>${esc(x.resources.join(', '))} · ${esc(x.rule_text || x.weekdays.split('').map(n => ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][+n]).join(', '))} ${x.start}–${x.end} · bis ${deD(x.to_date)} · ${x.count} Termine</small></span><button class="vh-btn sm sec" data-se="${x.id}">Beenden</button></div>`).join('')}</div>` : ''}
             ${d.waits.length ? `<h3 style="margin-top:14px">Warteliste</h3><div class="vh-rows">${d.waits.map(w => `<div><span><strong>${esc(w.resource)} · ${w.start} Uhr</strong><small>${deD(w.date)}${w.notified_at ? ' · frei geworden – schnell buchen!' : ''}</small></span><button class="vh-btn sm sec" data-w="${w.id}">Entfernen</button></div>`).join('')}</div>` : ''}</div>`;
@@ -142,6 +152,8 @@
         el.querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
         el.querySelectorAll('.bkm-view [data-v]').forEach(b => { b.onclick = () => { view = b.dataset.v; try { localStorage.setItem('bkm_view', view); } catch (e) { /* */ } draw(); }; });
         el.querySelectorAll('[data-past]').forEach(b => { b.onclick = () => { pastOpen = !pastOpen; draw(); }; });
+        el.querySelectorAll('[data-nowt]').forEach(b => { b.onclick = () => { nowShown = !nowShown; draw(); }; });
+        el.querySelectorAll('[data-nl]').forEach(b => { b.onclick = () => { const id = +b.dataset.nl; if (nowOpen.has(id)) nowOpen.delete(id); else nowOpen.add(id); b.classList.toggle('open'); b.setAttribute('aria-expanded', String(nowOpen.has(id))); }; });
         el.querySelectorAll('.bkm-plan .cl[data-r]').forEach(c => { c.onclick = e => {
           const r = p.resources.find(x => x.id === +c.dataset.r); if (!r || !r.open_today) return;
           const bk = e.target.closest('.bkm-blk');
@@ -182,13 +194,16 @@
         };
         // heute: wer gerade spielt und wer gleich kommt – kompakt über dem Raster
         let now = '';
-        if (isToday) {
+        if (isToday && data.settings.show_now !== false) {
           const play = rs.map(r => ({ r, b: p.bookings.find(b => b.resource_id === r.id && tm(b.start) <= nowM && tm(b.end) > nowM) })).filter(x => x.b);
           const soon = p.bookings.filter(b => tm(b.start) > nowM && tm(b.start) <= nowM + 60).sort((a, c) => tm(a.start) - tm(c.start));
           const line = (b, pre) => { const r = rs.find(x => x.id === b.resource_id); const nm = b.type === 'buchung' && b.who ? b.who.map(shortName).join(', ') : b.label ? b.label.name : b.title || (b.type === 'sperre' ? 'gesperrt' : 'belegt');
-            return `<div><b>${esc(r ? r.name : '')}</b><span>${esc(nm)}</span><small>${pre}</small></div>`; };
-          if (play.length || soon.length) now = `<div class="vh-card bkm-now"><h3>Jetzt auf der Anlage</h3>${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
-            ${soon.length ? `<h3 style="margin-top:12px">In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>`;
+            return `<div class="${nowOpen.has(b.id) ? 'open' : ''}" data-nl="${b.id}" role="button" tabindex="0" aria-expanded="${nowOpen.has(b.id)}"><b>${esc(r ? r.name : '')}</b><span>${esc(nm)}</span><small>${pre}</small></div>`; };
+          // eingeklappt: eine Zeile mit Zusammenfassung – der Kalender zum Buchen bleibt im Mittelpunkt; antippen zeigt Plätze und Namen
+          const sumTxt = [play.length ? `${play.length} belegt` : 'alles frei', soon.length ? `${soon.length} ${soon.length === 1 ? 'kommt' : 'kommen'}` : ''].filter(Boolean).join(' · ');
+          if (play.length || soon.length) now = `<div class="vh-card flush bkm-now${nowShown ? ' show' : ''}"><button class="bkm-nowbar" data-nowt aria-expanded="${nowShown}"><b>Jetzt auf der Anlage</b><span>${esc(sumTxt)}</span><i aria-hidden="true"></i></button>
+            ${nowShown ? `<div class="bkm-nowbody">${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
+            ${soon.length ? `<h3>In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>` : ''}</div>`;
         }
         return `${now}<div class="vh-card flush bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-plan" style="--n:${rs.length};--ph:${PH}px">
           <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu'}</small></div>`).join('')}
@@ -305,10 +320,16 @@
         const devices = r.kind === 'platz' ? (p.devices || []) : [];
         let device = ed && ed.edit.partner_device && devices.some(x => x.id === ed.edit.partner_device) ? ed.edit.partner_device : null, solo = Boolean(ed && ed.edit.solo && r.solo_label);
         const withWho = r.kind === 'platz' && (set.max_partners || set.max_guests || devices.length || r.solo_label);
+        // Sonderrecht „für andere buchen“: für ein Mitglied ohne Handy buchen (Kontingent, Regeln und Gebühren gelten für dieses Mitglied)
+        const mayFor = Boolean(data.rights && data.rights.forOthers);
+        let forMember = ed ? ed.edit.for_member || null : null;
+        const personName = id => ((data.people || []).find(x => x.id === id) || {}).ln || ((data.people || []).find(x => x.id === id) || {}).name || (ed && ed.for_name) || '';
         const sh = sheet();
         sh.innerHTML = `<div class="vh-box"><h2>${ed ? 'Buchung ändern' : esc(r.name)}</h2><p>${ed ? `${esc(r.name)} · ` : ''}${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}${ed ? '' : ` · ab ${hhmm(s)} Uhr`}</p>
           ${labels.length ? `<label class="l">Art der Buchung</label><select class="vh-select" id="bkmL"><option value="">Normale Buchung</option>${labels.map(l => `<option value="${l.id}" ${lab && lab.id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
             <div id="bkmTw"><label class="l">Titel <span style="font-weight:500">(optional)</span></label><input class="vh-input" id="bkmT" maxlength="80" placeholder="z. B. Herren 40 gegen TC Musterstadt" value="${esc(ed ? ed.edit.title || '' : '')}"></div>` : ''}
+          ${ed && forMember ? `<p class="bkm-sum" style="margin:0 0 10px">Gebucht für <b>${esc(ed.for_name || personName(forMember))}</b></p>` : !ed && mayFor ? `<label class="l">Für wen?</label><div class="bkm-pick" id="bkmFw"><button type="button" data-fw="me" class="on">Für mich</button><button type="button" data-fw="other">Für ein anderes Mitglied</button></div>
+            <div id="bkmFo" hidden><div class="bkm-chips" id="bkmFc"></div><input class="vh-input" id="bkmFq" placeholder="Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmFh" hidden></div></div>` : ''}
           ${ed ? `<label class="l">Beginn</label><select class="vh-select" id="bkmS">${starts.map(x => `<option value="${x}" ${x === s ? 'selected' : ''}>${hhmm(x)} Uhr</option>`).join('')}</select>` : ''}
           <label class="l">Dauer</label><select class="vh-select" id="bkmD"></select>
           ${withWho ? `<h3 class="l">Mit wem spielst du?${r.partner_required ? ' <span style="font-weight:500;color:var(--muted)">(Pflicht)</span>' : ''}</h3><div class="bkm-req" id="bkmReq" hidden></div>` : ''}
@@ -341,7 +362,7 @@
           if ($q('bkmGm')) $q('bkmGm').textContent = lab && lab.free_rules ? '(optional, ohne Gebühr)' : `(optional${r.guest_fee_cents ? `, ${euro(r.guest_fee_cents)} je Gast` : ''})`;
         };
         let qn = 0;
-        const body = () => ({ id: ed ? ed.id : undefined, resource_id: r.id, date: day, start: hhmm(start()), minutes: +$q('bkmD').value, partners, guests, label_id: lab ? lab.id : null, title: lab && $q('bkmT') ? $q('bkmT').value.trim() : '', partner_device: device, solo });
+        const body = () => ({ id: ed ? ed.id : undefined, resource_id: r.id, date: day, start: hhmm(start()), minutes: +$q('bkmD').value, partners, guests, label_id: lab ? lab.id : null, title: lab && $q('bkmT') ? $q('bkmT').value.trim() : '', partner_device: device, solo, for_member: forMember || undefined });
         /** Mitspieler-Pflicht: „Buchen“ erst aktiv, wenn Mitglied, Gast, Gerät oder „allein“ gewählt ist */
         const chosen = () => partners.length || guests.length || device || solo || (lab && lab.free_rules);
         const paintPick = () => {
@@ -395,7 +416,28 @@
         $q('bkmNo').onclick = close;
         const repeat = () => { const v = $q('bkmRf') ? $q('bkmRf').value : ''; if (!v) return null; const [k, n] = v.split(':'); return k === 'monthly-day' ? { freq: 'monthly', monthly: 'day', interval: +n } : k === 'monthly-nth' ? { freq: 'monthly', monthly: 'nth', interval: +n } : { freq: k, interval: +n }; };
         if ($q('bkmRf')) $q('bkmRf').onchange = () => { const on = Boolean($q('bkmRf').value); $q('bkmUW').hidden = !on; if (on && !$q('bkmU').value) $q('bkmU').value = addDays(day, 56); $q('bkmOk').textContent = on ? 'Serie anlegen' : 'Buchen'; };
+        if ($q('bkmFw')) {
+          const paintFor = () => {
+            $q('bkmFc').innerHTML = forMember ? `<span>${esc(personName(forMember))}<button data-rf="1" aria-label="entfernen">×</button></span>` : '';
+            $q('bkmFq').hidden = Boolean(forMember);
+            const x = $q('bkmFc').querySelector('[data-rf]'); if (x) x.onclick = () => { forMember = null; paintFor(); sum(); };
+            if ($q('bkmRf')) { $q('bkmRf').disabled = Boolean(forMember) || $q('bkmFo').hidden === false; }
+          };
+          $q('bkmFw').querySelectorAll('[data-fw]').forEach(b => { b.onclick = () => {
+            $q('bkmFw').querySelectorAll('[data-fw]').forEach(x => x.classList.toggle('on', x === b));
+            const other = b.dataset.fw === 'other'; $q('bkmFo').hidden = !other; if (!other) forMember = null;
+            paintFor(); if (other && !forMember) $q('bkmFq').focus(); sum();
+          }; });
+          $q('bkmFq').oninput = () => {
+            const q = $q('bkmFq').value.trim().toLowerCase(), h = $q('bkmFh');
+            const hits = q.length < 2 ? [] : (data.people || []).filter(x => x.name.toLowerCase().includes(q) || (x.ln || '').toLowerCase().includes(q)).slice(0, 6);
+            h.hidden = !hits.length; h.innerHTML = hits.map(x => `<button type="button" data-fp="${x.id}">${esc(x.ln || x.name)}</button>`).join('');
+            h.querySelectorAll('[data-fp]').forEach(b => { b.onclick = () => { forMember = +b.dataset.fp; $q('bkmFq').value = ''; h.hidden = true; paintFor(); sum(); }; });
+          };
+          paintFor();
+        }
         $q('bkmOk').onclick = async () => {
+          if ($q('bkmFo') && !$q('bkmFo').hidden && !forMember) { $q('bkmE').textContent = 'Bitte das Mitglied wählen, für das du buchst.'; return; }
           $q('bkmOk').disabled = true;
           if (repeat()) {   // Serie (Sonderrecht): Wiederholung ab diesem Tag bis zum gewählten Datum
             if (!$q('bkmU').value) { $q('bkmE').textContent = 'Bitte angeben, bis wann die Serie läuft.'; $q('bkmOk').disabled = false; return; }
@@ -409,7 +451,7 @@
           try {
             const bd = body(); const res = await ctx.api('book', 'POST', { ...bd, accept: $q('bkmR') ? $q('bkmR').checked : true });
             const s0 = start(), m = bd.minutes;
-            sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>${ed ? 'Gespeichert ✓' : 'Gebucht ✓'}</h2><p>${esc(r.name)} · ${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}<br><b>${hhmm(s0)}–${hhmm(s0 + m)} Uhr</b>${lab ? `<br>${esc(lab.name)}` : ''}${device ? `<br>+ ${esc((devices.find(x => x.id === device) || {}).name || 'Gerät')}` : ''}${solo ? `<br>${esc(r.solo_label)} (allein)` : ''}${partners.length ? `<br>${ed ? 'Deine Mitspieler werden informiert.' : 'Deine Mitspieler bekommen eine E-Mail.'}` : ''}${res.fee_cents ? `<br>Gebühr ${euro(res.fee_cents)}` : ''}</p>
+            sh.innerHTML = `<div class="vh-box" style="text-align:center"><h2>${ed ? 'Gespeichert ✓' : 'Gebucht ✓'}</h2><p>${res.for_name ? `für <b>${esc(res.for_name)}</b><br>` : ''}${esc(r.name)} · ${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}<br><b>${hhmm(s0)}–${hhmm(s0 + m)} Uhr</b>${lab ? `<br>${esc(lab.name)}` : ''}${device ? `<br>+ ${esc((devices.find(x => x.id === device) || {}).name || 'Gerät')}` : ''}${solo ? `<br>${esc(r.solo_label)} (allein)` : ''}${partners.length ? `<br>${ed ? 'Deine Mitspieler werden informiert.' : 'Deine Mitspieler bekommen eine E-Mail.'}` : ''}${res.fee_cents ? `<br>Gebühr ${euro(res.fee_cents)}` : ''}</p>
               <div class="vh-row"><button class="no" id="bkmDone">Fertig</button><a class="ok bkm-cal" href="${esc(res.ics)}" id="bkmCal">In den Kalender</a></div></div>`;
             sh.querySelector('#bkmDone').onclick = close; sh.querySelector('#bkmCal').addEventListener('click', () => setTimeout(close, 400));
             load();

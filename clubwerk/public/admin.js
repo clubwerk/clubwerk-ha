@@ -2285,6 +2285,10 @@
         <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
         <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
         <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
+      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Startseite der App</h3>
+        <p class="muted s" style="margin-top:0">Dieser Bereich erscheint, wenn ein Mitglied die App öffnet. „Zuletzt genutzt“: dort, wo das Mitglied zuletzt war. Ist der Startbereich für jemanden nicht freigeschaltet (oder gerade nur im Vereins-WLAN nutzbar), öffnet die App den ersten verfügbaren Bereich.</p>
+        <div class="row"><label class="f" style="min-width:260px">Startseite<select id="apStart"><option value="">Zuletzt genutzter Bereich</option>${mods.map(m => `<option value="${esc(m.id)}" ${r.startSection === m.id ? 'selected' : ''}>${esc(m.label || m.name)}</option>`).join('')}</select></label>
+          <button class="btn primary" id="apStartOk" style="align-self:flex-end">Speichern</button></div></div>` : ''}
       ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Reihenfolge in der App</h3>
         <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Mitgliederliste – von links nach rechts.</p>
         <div id="moRows" class="torows">${mods.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label || m.name)}</b>
@@ -2353,6 +2357,7 @@
         $('moRows').querySelectorAll('[data-mdn]').forEach(b => { b.onclick = () => { const i = +b.dataset.mdn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
       };
       draw();
+      if ($('apStartOk')) $('apStartOk').onclick = () => busy($('apStartOk'), async () => { try { await api('settings/app', 'PUT', { startSection: $('apStart').value }); toast('Gespeichert – gilt beim nächsten Öffnen der App.'); } catch (e) { fail(e); } });
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
     }
     if ($('smsCard')) smsCard($('smsCard')).catch(e => { $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });

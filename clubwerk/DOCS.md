@@ -163,6 +163,14 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 
 **Sonderrechte in der App:** Unter Einstellungen → „Sonderrechte in der Mitglieder-App“ einzelnen Mitgliedern erlauben, in der App Serien zu buchen (täglich, wöchentlich, alle n Wochen oder monatlich, bis zu einem Jahr; belegte Tage werden übersprungen; unter „Meine Serien“ beenden) und/oder mit bestimmten Buchungsarten zu buchen. In der Verwaltung lassen sich Serien auch direkt im Belegungsplan anlegen: beim neuen Termin „wöchentlich wiederholen bis“ wählen (Recht „Serien & Sperren“).
 
+**Für andere buchen:** Mit dem Sonderrecht „darf für andere buchen“ wählt ein Mitglied beim Buchen oben „Für ein anderes Mitglied“ – z. B. für ein älteres Mitglied ohne Handy. Die Buchung läuft auf dieses Mitglied: Kontingent, Sperren und Gebühren gelten für es, es bekommt eine E-Mail (sofern hinterlegt). Wer gebucht hat, sieht die Buchung unter „Meine Buchungen“ („für …“) und kann sie ändern oder stornieren; in der Verwaltung steht „für ein anderes Mitglied gebucht“.
+
+**„Jetzt auf der Anlage“:** Über dem Kalender steht eingeklappt eine Zeile („1 belegt · 1 kommt“); antippen zeigt, wer gerade spielt und wer in der nächsten Stunde kommt. Abschaltbar unter Buchungssystem → Einstellungen.
+
+**Startseite der Mitglieder-App:** Unter Mitglieder-App → Bereiche → „Startseite der App“ einen festen Bereich wählen (z. B. Buchen) oder „Zuletzt genutzter Bereich“. Ist der Bereich für ein Mitglied nicht freigeschaltet, öffnet die App den ersten verfügbaren.
+
+**Kalender:** Bestätigungs-Mails zu Buchungen und Spieltagen enthalten den Termin als Kalendereintrag im Anhang – antippen und „Hinzufügen“.
+
 **Auswertung & Protokoll:** Reiter „Auswertung“ (Auslastung je Platz und gesamt, Vorjahresvergleich, beliebte Zeiten) und „Protokoll“ (alle Buchungen, auch stornierte, als CSV).
 
 **Gebühren (offene Platzgebühren):** Reiter „Gebühren“ listet alle Gast- und Platzgebühren aus Buchungen mit Mitglied, Datum, Platz, Text, Betrag und Status (offen, bezahlt, storniert – der Zahlungsstand kommt aus der Mitgliederverwaltung, Filter Alle/Offen/Bezahlt und Jahr). Die Kachel „Buchungssystem“ auf der Übersicht zeigt groß die Summe der offenen Gebühren (ohne Mitgliederverwaltung: die Gebühren des laufenden Jahres) und die Zahl der offenen Posten. Ohne Mitgliederverwaltung gibt es keine Zahlungsverfolgung – die Gebühren werden nur aufgelistet.

@@ -160,7 +160,7 @@ function activate(ctx) {
       const hi = `Hallo ${String(a.name || '').split(' ')[0]},`;
       try {
         await ctx.mail.send({ to: a.email, subject: `${title} – ${club}`, text: [hi, '', ...mail.lines, '', 'Viele Grüße', club].join('\n'),
-          card: { heading: mail.heading || title, before: [hi, '', mail.intro || ''].join('\n'), title: mail.cardTitle, rows: mail.rows, after: [mail.outro || '', '', 'Viele Grüße', club].join('\n'), calendar: mail.calendar || null },
+          card: { heading: mail.heading || title, before: [hi, '', mail.intro || ''].join('\n'), title: mail.cardTitle, rows: mail.rows, after: [mail.outro || '', ...(mail.attachments ? ['', 'Der Termin hängt als Kalendereintrag an – antippen und „Hinzufügen“.'] : []), '', 'Viele Grüße', club].join('\n'), calendar: mail.calendar || null },
           attachments: mail.attachments });
       } catch (e) { /* nächste Person */ }
     }
@@ -190,7 +190,8 @@ function activate(ctx) {
   });
   function calendarFor(g) {
     const pub = ctx.getSetting('ext_tunnel', '0') === '1' ? String(ctx.getSetting('ext_tunnel_url', '') || '').replace(/\/+$/, '') : '';
-    return pub ? { calendar: { url: `${pub}/api/p/spielbetrieb/ics/${g.id}?k=${icsToken(g.id)}` } } : { attachments: [{ filename: `spieltag-${g.date}.ics`, content: icsText(g), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] };
+    void pub;   // immer als Anhang: iOS Mail & Co. öffnen dann direkt „Zum Kalender hinzufügen“ (ein Link öffnete Safari)
+    return { attachments: [{ filename: `spieltag-${g.date}.ics`, content: icsText(g), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] };
   }
   const gameRows = (g, t) => [['Mannschaft', t.name], ['Gegner', `${g.opponent} (${g.home ? 'Heimspiel' : 'Auswärtsspiel'})`], ['Wann', gameWhen(g)],
     ...(g.meet_time || g.meet_place ? [['Treffpunkt', [g.meet_time ? `${g.meet_time} Uhr` : '', g.meet_place || ''].filter(Boolean).join(', ')]] : []),

@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.26.0
+
+- **Für andere buchen (Buchungssystem 1.4.0, Spielbetrieb 1.2.3):** Neues Sonderrecht „darf für andere buchen“. Damit bucht ein Mitglied in der App für ein anderes – etwa für ein älteres Mitglied ohne Handy. Kontingent, Regeln und Gebühren gelten für das Mitglied, für das gebucht wird; es bekommt eine E-Mail. Die Buchung steht beim Buchenden unter „Meine Buchungen“ („für …“) und lässt sich dort ändern und stornieren.
+- **„Jetzt auf der Anlage“:** eingeklappt als eine Zeile über dem Kalender („1 belegt · 1 kommt“) – antippen zeigt Plätze und Namen, eine Zeile antippen alle Namen. Abschaltbar unter Buchungssystem → Einstellungen.
+- **Startseite der Mitglieder-App:** Unter Mitglieder-App → Bereiche einstellbar – ein fester Bereich (z. B. Buchen) oder der zuletzt genutzte (wie bisher).
+- **Kalender in E-Mails:** Buchungs- und Spieltag-Mails haben den Termin immer als Kalendereintrag im Anhang. Antippen öffnet direkt „Zum Kalender hinzufügen“ (iPhone-Mail, Gmail …) – der Knopf, der Safari öffnete, entfällt.
+- **Mitglieder-App im Vereins-WLAN:** Beim Öffnen eines WLAN-Bereichs (Beregnung, Türen) prüft die App die lokale Adresse sofort und danach noch einige Male – wechselt das Handy erst kurz nach dem Öffnen ins Vereins-WLAN, wird der Bereich trotzdem frei.
+- **Sonderrechte (Verwaltung):** Bearbeiten und Entfernen als Symbolknöpfe.
+
 ## 3.25.2
 
 - **Mitglieder-App im einheitlichen Design:** Buchen, Spieltage, Meine Daten und Dienste nutzen jetzt dieselben Bausteine – gleiche Karten mit gleichem Kopf (Aktion rechts), gleiche Zeilenlisten, ein einheitlicher Datumsblock vor jedem Termin, gleiche Marken, Umschalter, Hinweisleisten, Knöpfe und Formularfenster, gleiche Abstände. Module: Buchungssystem 1.3.3, Spielbetrieb 1.2.2, Helferdienste 2.0.2, Mitgliederverwaltung 1.7.1.

@@ -359,7 +359,7 @@
         ${b.type === 'buchung' ? `<tr><td class="muted">Spieler</td><td><b>${esc(whoTxt(b) || '–')}</b></td></tr>${b.title && b.member_id ? `<tr><td class="muted">Titel</td><td>${esc(b.title)}</td></tr>` : ''}` : `<tr><td class="muted">${b.type === 'sperre' ? 'Grund' : 'Titel'}</td><td><b>${esc(b.title || '')}</b></td></tr>`}
         ${b.fee_cents ? `<tr><td class="muted">Gebühr</td><td>${euro(b.fee_cents)}${b.charge_id ? ' · offener Posten in der Mitgliederverwaltung' : ''}</td></tr>` : ''}
         ${b.note ? `<tr><td class="muted">Notiz</td><td>${esc(b.note)}</td></tr>` : ''}
-        <tr><td class="muted">Eingetragen</td><td>${esc(b.created_by || '')} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung', import: 'Spielplan-Import' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</td></tr>
+        <tr><td class="muted">Eingetragen</td><td>${esc(b.created_by || '')}${b.booked_by ? ' (für ein anderes Mitglied gebucht)' : ''} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung', import: 'Spielplan-Import' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</td></tr>
       </table>
 
       <div class="btns">${b.series_id ? (can('buchung_serien') ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Aufheben …' : 'Stornieren …'}</button>` : '') : (b.type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button>` : ''}<span style="flex:1"></span>${b.series_id ? (can('buchung_serien') ? '<button class="btn" id="bxE">Bearbeiten …</button>' : '') : (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
@@ -850,6 +850,7 @@
           ${chk('count_partners', 'Mitspieler zählen beim Kontingent mit (wer mitspielt, kann nicht gleichzeitig selbst buchen)')}
           ${chk('notify_partners', 'Mitspieler bekommen eine E-Mail, wenn sie eingetragen werden')}
           ${chk('show_names', 'Namen in der Belegung für alle Mitglieder sichtbar (sonst nur „belegt“)')}
+          ${chk('show_now', 'Mitglieder-App: „Jetzt auf der Anlage“ über der Belegung zeigen (wer gerade spielt und wer in der nächsten Stunde kommt)')}
           ${chk('waitlist', 'Warteliste: bei belegter Zeit vormerken, E-Mail sobald frei')}
           ${chk('tablet_booking', 'Am Tablet im Vereinsheim buchen (für heute, mit Name und PIN)')}</div>
         <p class="muted s">Gastgebühren werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung) und mit dem nächsten Einzug abgerechnet. Wird die Buchung storniert, entfällt der Posten.</p>
@@ -861,9 +862,10 @@
       <div class="card" data-set="ordnung"><h3>Platzordnung</h3><p class="muted s" style="margin-top:0">Wird vor jeder Buchung angezeigt und muss bestätigt werden. Leer lassen, wenn nicht nötig.</p>
         <label class="f"><textarea id="bs_rules" rows="5" placeholder="z. B. Bitte nur mit Tennisschuhen spielen. Plätze nach dem Spiel abziehen und Linien kehren.">${esc(s.rules)}</textarea></label>
         ${save('bsOkOrd')}</div>
-      <div class="card" id="bkRights" data-set="app" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr) oder mit bestimmten Buchungsarten buchen – zusätzlich zu den Rechten an der Buchungsart selbst.</p>
+      <div class="card" id="bkRights" data-set="app" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr), für andere Mitglieder buchen (z. B. für ein älteres Mitglied ohne Handy – Kontingent, Regeln und Gebühren gelten dann für dieses Mitglied) oder mit bestimmten Buchungsarten buchen – zusätzlich zu den Rechten an der Buchungsart selbst.</p>
         <div class="bk-grid" style="--c:4"><label class="f w2">Mitglied<select id="rtM"><option value="">– Mitglied wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
-          <label class="chk w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rtS"> darf Serien anlegen</label>
+          <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="rtS"> darf Serien anlegen</label>
+          <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="rtF"> darf für andere buchen</label>
           <div class="f bkf wall"><span>darf mit diesen Buchungsarten buchen</span><div class="bk-chips">${st.meta.labels.filter(l => l.active).map(l => `<label><input type="checkbox" data-rl="${l.id}"><i class="bk-dot" style="background:${l.color};margin-right:0"></i>${esc(l.name)}</label>`).join('')}</div></div></div>
         <div class="btns"><button class="btn primary" id="rtOk">Sonderrechte speichern</button></div>
         <div id="rtList" style="margin-top:8px"></div></div>
@@ -878,14 +880,14 @@
       const l = await api('rights');
       const lab = id => st.meta.labels.find(x => x.id === id);
       $('rtList').innerHTML = l.length ? `<table class="tbl bk-tbl"><tr><th>Mitglied</th><th>Sonderrechte</th><th></th></tr>${l.map(r => `<tr><td><b>${esc(GK.lastFirst(r.name, 'mitglied'))}</b></td>
-        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.labels.map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
-        <td class="r nw"><button class="btn small" data-rte="${r.member_id}">Bearbeiten</button> <button class="btn small ghost" data-rtd="${r.member_id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch niemand mit Sonderrechten.</p>';
-      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
+        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.for_others ? pill(['b', 'für andere buchen']) : ''}${r.labels.map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
+        <td class="r"><span class="acts"><button class="btn ico" data-rte="${r.member_id}" title="Bearbeiten" aria-label="Bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="btn ico danger-h" data-rtd="${r.member_id}" title="Sonderrechte entfernen" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch niemand mit Sonderrechten.</p>';
+      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; $('rtF').checked = r.for_others; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
       $('rtList').querySelectorAll('[data-rtd]').forEach(b => { b.onclick = async () => { try { await api('rights/' + b.dataset.rtd, 'DELETE'); toast('Sonderrechte entfernt.'); rtLoad(); } catch (e) { fail(e); } }; });
     };
     $('rtOk').onclick = () => GK.busy($('rtOk'), async () => {
-      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl) });
-        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; $('rtS').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtLoad(); } catch (e) { fail(e); }
+      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, for_others: $('rtF').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl) });
+        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; $('rtS').checked = false; $('rtF').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtLoad(); } catch (e) { fail(e); }
     });
     rtLoad().catch(fail);
     // Speichern je Karte: nur die Felder der jeweiligen Karte werden gesendet (der Server übernimmt nur, was dabei ist)
@@ -893,7 +895,7 @@
     $('bsOk').onclick = () => saveCard($('bsOk'), () => {
       const b = { guest_fee_cents: toCents(val('bs_guest_fee') || '0'), cancel_before_min: +val('bs_cancel_before_min') };
       for (const k of ['advance_days', 'max_open_platz', 'max_open_artikel', 'max_partners', 'max_guests', 'max_waits']) b[k] = +val('bs_' + k);
-      for (const k of ['count_partners', 'notify_partners', 'show_names', 'waitlist', 'tablet_booking']) b[k] = $('bs_' + k).checked;
+      for (const k of ['count_partners', 'notify_partners', 'show_names', 'show_now', 'waitlist', 'tablet_booking']) b[k] = $('bs_' + k).checked;
       return b;
     });
     if ($('bsOkWer')) $('bsOkWer').onclick = () => saveCard($('bsOkWer'), () => ({ allowed_status: [...el.querySelectorAll('[data-st]:checked')].map(x => x.dataset.st), blocked_fees: [...el.querySelectorAll('[data-bf]:checked')].map(x => +x.dataset.bf) }));

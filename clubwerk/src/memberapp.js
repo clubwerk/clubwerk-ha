@@ -324,7 +324,7 @@ function startPort({ rateLimit, rateLimitKey }) {
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
-    res.json({ version: require('../package.json').version, color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
+    res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
   });
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
@@ -582,7 +582,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const canMail = Boolean(require('./plugins').withHook('memberAddress').length);
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id)) : [];
-    res.json({ mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ startSection: getSetting('app_start', ''), mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: Boolean(require('./plugins').withHook('memberAddress').length), sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -788,6 +788,12 @@ function adminRoutes(admin, { bad, need, auth }) {
       for (const [k, v] of Object.entries(b.extModules && typeof b.extModules === 'object' ? b.extModules : {})) if (modules.has(k)) next[k] = Boolean(v);
       setSetting('app_ext_modules', JSON.stringify(next));
       audit(req.user, 'Mitglieder-App: von unterwegs nutzbar', activeModules().map(([k, m]) => `${m.label || m.name}: ${extAllowed(k) ? 'ja' : 'nein'}`).join(', '));
+    }
+    if (b.startSection !== undefined) {   // Startseite der App: fester Bereich oder '' = zuletzt genutzter
+      const s = String(b.startSection || '');
+      if (s && !modules.has(s)) return bad(res, 'Diesen Bereich gibt es nicht.');
+      setSetting('app_start', s);
+      audit(req.user, 'Mitglieder-App: Startseite', s ? modules.get(s).label || modules.get(s).name || s : 'zuletzt genutzter Bereich');
     }
     if (b.moduleOrder !== undefined) {   // Reihenfolge der Bereiche in der App
       if (!req.user.perms.includes('einstellungen')) return bad(res, 'Die Reihenfolge der Bereiche darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
