@@ -488,8 +488,10 @@
             $('imInfo').innerHTML = `<div class="banner ${mc || p.problems.length ? 'a' : ''}" style="display:block"><b>${p.neu} neu</b>${p.verlegt ? ` · <b>${p.verlegt} verlegt</b>` : ''}${p.vorhanden ? ` · ${p.vorhanden} schon eingetragen` : ''}${mc ? `<br>${mc} Buchung(en) von Mitgliedern liegen zu Spielzeiten und werden storniert (mit E-Mail): ${p.clash.slice(0, 8).map(c => `${GK.deDate(c.date)} ${esc(c.start)}`).join(', ')}` : ''}${p.reassigned && p.reassigned.length ? `<br>Gleichzeitige Spiele – auf andere Plätze verteilt: ${p.reassigned.slice(0, 8).map(esc).join(' · ')}` : ''}${p.problems.length ? `<br>Nicht übernommen: ${p.problems.slice(0, 6).map(esc).join(' · ')}` : ''}</div>`;
             checked = true; $('imOk').textContent = 'Übernehmen'; return;
           }
-          const x = await api('import/apply', 'POST', body({ force: true }));
-          closeDialog(); toast(`Spielplan übernommen: ${x.made} neu${x.moved ? `, ${x.moved} verlegt` : ''}${x.cancelled ? `, ${x.cancelled} Buchungen storniert` : ''}.`); after();
+          // alle erkannten Spiele mitschicken: Ist der Spielbetrieb aktiv, übernimmt er auch die Auswärtsspiele als Spieltage
+          const x = await api('import/apply', 'POST', body({ force: true, all: GK.modules().includes('spielbetrieb') ? r.games.filter(g => !g.past) : undefined }));
+          const sp = x.spielbetrieb;
+          closeDialog(); toast(`Spielplan übernommen: ${x.made} neu${x.moved ? `, ${x.moved} verlegt` : ''}${x.cancelled ? `, ${x.cancelled} Buchungen storniert` : ''}.${sp ? ` Spielbetrieb: ${sp.made} Spieltage neu${sp.moved ? `, ${sp.moved} verlegt` : ''}${sp.teamsMade ? `, ${sp.teamsMade} Mannschaft(en) angelegt` : ''}.` : ''}`); after();
         } catch (e) { fail(e); }
       });
     };

@@ -1117,8 +1117,9 @@ function activate(ctx) {
     });
     res.json({ club, games, skipped: parsed.skipped.slice(0, 30), teams: Object.values(teams), courts: resources().filter(r => r.kind === 'platz').map(r => ({ id: r.id, name: r.name })) });
   }));
-  admin.post('/import/apply', PS, ar(async (req, res) => {
-    const b = req.body || {}, d0 = today();
+  /** Spielplan übernehmen (Heimspiele als Platzbelegung) – von der Verwaltung und vom Spielbetrieb (Hook) genutzt → { status, body } */
+  async function applyImport(b, user) {
+    const d0 = today();
     const label = b.label_id ? labelOf(int(b.label_id)) : null;
     const teamCfg = b.teams && typeof b.teams === 'object' ? b.teams : {};
     const plan = [], problems = [], moved2 = [];
@@ -1154,10 +1155,10 @@ function activate(ctx) {
     }
     const clashes = plan.filter(p => p.clash.length).map(p => ({ date: p.g.date, start: p.g.start, title: p.title, items: p.clash.map(c => bview(c, { full: true })) }));
     const sum = { neu: plan.filter(p => p.status === 'neu').length, verlegt: plan.filter(p => p.status === 'verlegt').length, vorhanden: plan.filter(p => p.status === 'vorhanden').length, problems, reassigned: moved2, clash: clashes };
-    if (b.preview) return res.json(sum);
+    if (b.preview) return { status: 200, body: sum };
     const memberClash = clashes.reduce((n, c) => n + c.items.filter(x => x.type !== 'sperre').length, 0);
-    if (memberClash && !b.force) return res.status(409).json({ error: `${memberClash} bestehende Buchung(en) liegen zu Spielzeiten und würden storniert.`, ...sum });
-    const by = uname(req), toCancel = [];
+    if (memberClash && !b.force) return { status: 409, body: { error: `${memberClash} bestehende Buchung(en) liegen zu Spielzeiten und würden storniert.`, ...sum } };
+    const by = user.name || user.username || String(user), toCancel = [];
     // je Mannschaft eine Serie „Spielplan <Mannschaft>“ (Typ Sperre) – damit lassen sich alle Spiele einer Mannschaft gemeinsam ändern oder entfernen
     const seriesFor = (team, rs, dates) => {
       const title = `Spielplan ${team || 'Verein'}`;
@@ -1199,9 +1200,26 @@ function activate(ctx) {
     for (const [team, tc] of Object.entries(teamCfg)) if (tc && Array.isArray(tc.resources)) saved[IMP.norm(team === '–' ? '' : team) || '_'] = { resources: tc.resources.map(Number).filter(Boolean), hours: Math.max(1, Math.min(12, Number(tc.hours) || 4)) };
     SET('import_teams', JSON.stringify(saved));
     if (txt(b.club, 80)) SET('import_club', txt(b.club, 80));
-    ctx.audit(req.user, 'Spielplan importiert', `${made} neu, ${moved} verlegt, ${sum.vorhanden} unverändert${toCancel.length ? `, ${toCancel.length} Buchungen storniert` : ''}`);
-    res.json({ ok: true, made, moved, same: sum.vorhanden, cancelled: toCancel.length, problems });
+    ctx.audit(user, 'Spielplan importiert', `${made} neu, ${moved} verlegt, ${sum.vorhanden} unverändert${toCancel.length ? `, ${toCancel.length} Buchungen storniert` : ''}`);
+    return { status: 200, body: { ok: true, made, moved, same: sum.vorhanden, cancelled: toCancel.length, problems } };
+  }
+  admin.post('/import/apply', PS, ar(async (req, res) => {
+    const b = req.body || {};
+    const r = await applyImport(b, req.user);
+    // Spielbetrieb aktiv: alle erkannten Spiele (auch Auswärtsspiele) dort als Spieltage übernehmen
+    if (r.status === 200 && !b.preview && Array.isArray(b.all) && b.all.length) {
+      const sp = (await ctx.callHooks('spielplanGames', { games: b.all.slice(0, 1000), club: txt(b.club, 80), user: req.user })).find(x => x.id === 'spielbetrieb');
+      if (sp && sp.result) r.body.spielbetrieb = sp.result;
+    }
+    res.status(r.status).json(r.body);
   }));
+  /* Spielbetrieb: Heimspiele mit den gemerkten Plätzen je Mannschaft belegen */
+  ctx.hooks.bookImportedGames = async ({ games, club, user, preview = false, force = false }) => {
+    const saved = impTeams(), teams = {};
+    for (const g of games || []) { const k = g.team || '–'; const t = saved[IMP.norm(g.team || '') || '_']; if (t) teams[k] = t; }
+    const r = await applyImport({ games: (games || []).filter(g => teams[g.team || '–']), club, teams, preview, force }, user || 'Spielbetrieb');   // nur Mannschaften mit gemerkten Plätzen
+    return { status: r.status, ...r.body, noCourts: [...new Set((games || []).map(g => g.team || '–').filter(k => !teams[k]))] };
+  };
 
   admin.post('/series', PS, ar(async (req, res) => {
     const b = req.body || {};

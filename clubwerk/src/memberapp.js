@@ -124,12 +124,15 @@ function register(id, info) { modules.set(id, info); }
 /* Öffentliche Teile von Modulen (ohne Anmeldung, z. B. Online-Mitgliedsantrag) */
 const publics = new Map();
 function registerPublic(id, info) { publics.set(id, info); }
+const appVisible = (m, memberId) => { try { return !(m.hooks && typeof m.hooks.appVisible === 'function') || Boolean(m.hooks.appVisible(memberId)); } catch (e) { return false; } };
 /** Freischaltung für ein Modul: Module mit „alle“ gelten für jedes gekoppelte Handy (außer ausdrücklich gesperrt) */
 function accessFor(memberId, id) {
   const m = modules.get(id);
   if (m && m.open) {
     const r = access.get(memberId, id);
     if (r && r.blocked) return { ok: false, row: r, reason: 'Dieser Bereich ist für dich gesperrt – bitte beim Vorstand melden.' };
+    // Modul entscheidet selbst, für wen es da ist (z. B. Spielbetrieb: nur Spieler und Mannschaftsführer)
+    if (!appVisible(m, memberId)) return { ok: false, row: r, reason: 'Dieser Bereich ist für dich nicht vorgesehen.' };
     return { ok: true, row: r };
   }
   return access.check(memberId, id);
@@ -269,7 +272,7 @@ function startPort({ rateLimit, rateLimitKey }) {
   api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: String(req.ip || '').replace(/^::ffff:/, '') }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
-    const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) : a; }).map(([id, m]) => {
+    const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };

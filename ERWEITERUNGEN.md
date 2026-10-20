@@ -43,7 +43,7 @@ Tablet-Routen mit dem Passwortschutz der Buchungsseite), `db` (SQLite, better-sq
 `audit(user, aktion, details)`, `need(recht)`, `rateLimit(name, max, ms)` (Bremse je Absenderadresse),
 `rateLimitKey(name, max, ms, req => schlüssel)` (Bremse je frei gewähltem Schlüssel, z. B. `req.member.id`), `bad(res, text)`, `int`, `cleanName`, `nowTs`,
 `util` (gemeinsame Helfer: `today()`, `nowTs()`, `isDate(s)`, `addDays(s, n)`, `deD(s)` → „TT.MM.JJJJ“, `euro(cents)`, `esc(html)`, `pad(n)`),
-`isActive()`, `hooks.tabletVisible = () => bool` (Link am Tablet nur zeigen, wenn sinnvoll) und
+`isActive()`, `hooks.tabletVisible = () => bool` (Link am Tablet nur zeigen, wenn sinnvoll), `hooks.appVisible = memberId => bool` (Bereich in der Mitglieder-App nur für bestimmte Mitglieder zeigen, z. B. nur für Spieler einer Mannschaft) und
 `require(name)` für die Bibliotheken von Clubwerk (`exceljs`, `pdfkit`, `nodemailer`, `express`).
 
 **Hooks für den Lebenszyklus (optional):** `ctx.hooks.shutdown = async () => {}` (Clubwerk wird beendet – Update, Neustart),
@@ -60,7 +60,7 @@ eigene Protokolleinträge. Wirft der Hook, bricht der Kern ab und zeigt den Fehl
 und Sperren (z. B. Ablauf eines Ventils, Gerätesperre), ISO mit `Z` nur, wo der Kern es vorgibt (`locked_until` der Konten).
 Formate in einer Spalte nie mischen; für die Anzeige `ctx.util.deD()` verwenden.
 
-**E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → Postfach), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger. Seit 3.20 bekommt jede Mail automatisch ein gestaltetes HTML-Layout (Vereinslogo, Vereinsfarbe, Fuß); die Textfassung bleibt erhalten. Für eine Infokarte zusätzlich `card: { heading, before, title, rows: [['Platz', 'Platz 1'], ['Wann', 'Di, 20.10. 17:00']], after, button: { label, url } }` mitgeben (`button: true` = „In der App öffnen“ mit der Adresse der Mitglieder-App). Eigenes HTML (`html`) bleibt unverändert.
+**E-Mail:** `ctx.mail.send({ to, cc, subject, text, attachments })` verschickt über das zentrale Postfach (Einstellungen → Postfach), `ctx.mail.ready()` sagt, ob eins eingerichtet ist. Eigene Postfach-Einstellungen braucht eine Erweiterung nicht – nur den Empfänger. Seit 3.20 bekommt jede Mail automatisch ein gestaltetes HTML-Layout (Vereinslogo, Vereinsfarbe, Fuß); die Textfassung bleibt erhalten. Für eine Infokarte zusätzlich `card: { heading, before, title, rows: [['Platz', 'Platz 1'], ['Wann', 'Di, 20.10. 17:00']], after, button: { label, url }, calendar: { label, url } }` mitgeben (`calendar` setzt einen Knopf wie „Zum Kalender hinzufügen“ direkt in die Karte, z. B. auf eine .ics-Adresse). Eigenes HTML (`html`) bleibt unverändert.
 
 **Push-Benachrichtigungen (ab Clubwerk 3.19):** Die Erweiterung meldet ihre Anlässe an:
 `ctx.hooks.pushEvents = () => [{ id: 'erinnerung', label: 'Erinnerung', desc: 'Wann die Nachricht kommt', default: true, lead: { default: 120, label: 'Vorlauf' } }]`
@@ -80,6 +80,8 @@ Für andere Module gibt es `ctx.hooks.familyOf(id) → { head, members, kind }`:
 ohne eine solche die Zahlergruppe (`'zahler'`) bzw. die Person allein (`'einzeln'`), wenn ihre Zahlergruppe schon eine Familie enthält –
 die Helferdienste bilden daraus den Familienpool. `ctx.hooks.memberInfo(id)` liefert `payer`, `family_of` und `fee` (mit `viaFamily`/`viaPayer`,
 wenn der Beitrag vom Oberhaupt bzw. Zahler stammt). Der Verkauf „beim Zahler“ nutzt bewusst nur den Zahler.
+
+**Spielplan (Buchung ↔ Spielbetrieb):** Den Parser für den Verbands-Spielplan gibt es im Kern (`src/spielplan.js`). Übernimmt das Buchungssystem einen Spielplan, ruft es `ctx.hooks.spielplanGames(rows, { all, user })` auf (der Spielbetrieb legt daraus Spieltage an, mit `all` auch Auswärtsspiele). Umgekehrt bucht `ctx.hooks.bookImportedGames(rows, { user })` des Buchungssystems Plätze für Heimspiele von Mannschaften, für die Plätze hinterlegt sind.
 
 **Funktionsexport/-import (optional):** Mit `ctx.hooks.exportConfig = () => ({...})` und
 `ctx.hooks.importConfig = (data, { user }) => 'Zusammenfassung'` bekommt die Erweiterung in der Verwaltung die Knöpfe

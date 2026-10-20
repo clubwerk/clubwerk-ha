@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.22.0
+
+- **Neues Modul „Spielbetrieb“:** Mannschaften mit Mannschaftsführer, Stellvertreter und Spielern (auch in mehreren Mannschaften), Spielplan-Import vom Verband mit Heim- und Auswärtsspielen, Verfügbarkeit „kann“ / „kann nicht“ (optional mit Uhrzeit) und Aufstellung in der Mitglieder-App.
+  - Ampel rot/grün je Spieltag nach Mindestanzahl Spieler.
+  - Absagen nach der Aufstellung muss der Mannschaftsführer bestätigen.
+  - Einstellbar, was Spieler von den anderen sehen; Aufgaben (Fahrer, Bewirtung …) und automatische Erinnerungen jeweils optional.
+  - Läuft auch ohne Mitgliederverwaltung (dann nur Push).
+- Buchungssystem: Der Spielplan-Import legt bei aktivem Spielbetrieb die Spieltage mit an.
+- Für Erweiterungen: `hooks.appVisible`, Spielplan-Parser im Kern, Hooks `spielplanGames` / `bookImportedGames`.
+
 ## 3.21.2
 
 - Protokoll des Add-ons: Jede Zeile beginnt jetzt mit Datum und Uhrzeit (Ortszeit), z. B. `[2026-10-20 14:47:03] Clubwerk auf Port 3100 …` – auch die Meldungen beim Start.

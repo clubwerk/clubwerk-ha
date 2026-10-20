@@ -236,6 +236,15 @@ Dienstpläne für Veranstaltungen, Arbeitseinsätze und Thekendienste planen, St
 - **Stunden erfassen:** am Tablet ein- und ausstempeln (vor dem Ausstempeln kommt eine Rückfrage; unter 5 Minuten wird nichts gewertet). (Name + PIN wie bei den Getränken; mit PIN gelten die Stunden sofort als bestätigt), in der App melden (der Vorstand bestätigt unter „Stunden“) oder in der Verwaltung nachtragen.
 - **Abrechnung:** Nach Ablauf des Jahres kommen fehlende Stunden × Stundensatz (z. B. 15 €) beim nächsten Beitragslauf der Mitgliederverwaltung als Posten „Arbeitsstunden“ beim Zahler dazu – jedes Jahr nur einmal, frühestens ab dem Jahr, in dem das Modul eingeführt wurde („Abrechnen ab Jahr“). Auf Wunsch erinnert Clubwerk an einem festen Tag alle, denen noch Stunden fehlen.
 
+## Modul Spielbetrieb
+Mannschaften, Spieltage, Verfügbarkeit und Aufstellung – für Sportwart, Mannschaftsführer und Spieler. Funktioniert auch ohne Mitgliederverwaltung (dann nur Push-Nachrichten, keine E-Mails).
+- **Mannschaften:** Unter Spielbetrieb → Mannschaften anlegen (Name, Liga, Saison, Mindestanzahl Spieler je Spieltag), Mannschaftsführer und Stellvertreter wählen und über „Spieler …“ die Spieler in Meldelisten-Reihenfolge eintragen. Eine Person kann in mehreren Mannschaften spielen. Das alles macht der Sportwart mit dem Recht „Spielbetrieb“; Mannschaftsführer brauchen kein Konto in der Verwaltung.
+- **Spielplan:** „Spielplan importieren …“ liest die Tabelle des Verbands (alle Heim- und Auswärtsspiele des Vereins), ordnet die Mannschaften zu und legt die Spieltage an; verschobene Spiele werden erkannt. Ist das Buchungssystem aktiv, kann der Import zugleich Plätze für Heimspiele buchen. Spieltage lassen sich auch von Hand anlegen.
+- **Spieler (Mitglieder-App → Spieltage):** je Spieltag „Kann“ oder „Kann nicht“, optional mit „kann ab / bis … Uhr“ und Hinweis. Nochmal tippen nimmt die Antwort zurück. Ist man aufgestellt und kann doch nicht, geht eine **Absage-Anfrage** an den Mannschaftsführer – bis er bestätigt, bleibt man aufgestellt.
+- **Mannschaftsführer (in der App):** „Aufstellung“ am Spieltag – je Spieler „spielt“, „Ersatz“ oder „–“, Absagen bestätigen oder ablehnen, Treffpunkt und Hinweis, Aufgaben verteilen, Offene erinnern, Aufstellung verschicken. Dasselbe geht in der Verwaltung im Spieltag.
+- **Ampel:** grün, wenn mindestens so viele Spieler können wie die Mannschaft braucht, sonst rot – in der Liste, in der App des Mannschaftsführers und in der Übersicht.
+- **Einstellungen:** ob Spieler sehen, wer sonst kann und wer aufgestellt ist; Uhrzeit-Angabe an/aus; **Aufgaben** je Spieltag (z. B. Fahrer nur auswärts, Bewirtung nur daheim) an/aus; **automatische Erinnerungen** (Spieler ohne Antwort X Tage vorher, Warnung an den Mannschaftsführer Y Tage vorher) an/aus; wichtige Nachrichten zusätzlich per E-Mail.
+
 ## Installation in Home Assistant
 
 ### Variante A: lokales Add-on (empfohlen für den Anfang)
