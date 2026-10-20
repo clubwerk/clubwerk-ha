@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.26.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.26.1';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -274,8 +274,8 @@
         ${hint ? `<p class="vh-small" style="text-align:left;color:var(--ink)">${esc(hint)}</p>` : ''}
         ${!st.events.length ? '<p class="vh-small" style="text-align:left">Der Verein hat noch keine Benachrichtigungen freigegeben.</p>' : ''}
         ${sup && !hint && st.events.length ? `<label class="vh-switch"><input type="checkbox" id="pshOn" ${on() ? 'checked' : ''}><span>Benachrichtigungen auf diesem Handy</span></label>` : ''}
-        ${on() ? `<div class="vh-uses" id="pshEv">${st.events.map(e => `<label><input type="checkbox" data-k="${esc(e.key)}" ${e.on ? 'checked' : ''}><span>${esc(e.label)}${e.desc ? `<small>${esc(e.desc)}</small>` : ''}</span></label>`).join('')}</div>
-          <button type="button" class="vh-btn sec" id="pshTest" style="width:100%">Testnachricht schicken</button>` : ''}
+        ${sup && !hint && st.events.length ? '<p class="vh-small" style="text-align:left;margin-top:-4px">Welche Hinweise kommen, legt der Verein fest.</p>' : ''}
+        ${on() ? `<button type="button" class="vh-btn sec" id="pshTest" style="width:100%">Testnachricht schicken</button>` : ''}
         <div class="vh-err" id="pshE"></div>
         <div class="vh-row" style="margin-top:10px"><button class="no" id="pshNo" style="flex:1">Schließen</button></div></div>`;
       sh.querySelector('#pshNo').onclick = () => sh.classList.remove('show');
@@ -299,7 +299,6 @@
         } catch (e) { err(e.message || 'Das hat nicht geklappt.'); }
         draw();
       };
-      sh.querySelectorAll('#pshEv input').forEach(c => { c.onchange = async () => { try { st = await call('push/events', 'PUT', { endpoint: sub.endpoint, events: { [c.dataset.k]: c.checked } }); } catch (e) { err(e.message); c.checked = !c.checked; } }; });
       const t = sh.querySelector('#pshTest');
       if (t) t.onclick = async () => { t.disabled = true; try { const r = await call('push/test', 'POST', { endpoint: sub.endpoint }); toast(r.ok ? 'Testnachricht gesendet – sie sollte gleich erscheinen.' : 'Nicht gesendet' + (r.skipped ? ': ' + r.skipped : '.'), !r.ok); } catch (e) { err(e.message); } t.disabled = false; };
     };

@@ -165,7 +165,7 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
     if (!m || !m.active || m.deleted) { db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(mid); continue; }
     const rows = db.prepare('SELECT * FROM push_subs WHERE member_id = ?' + (opts.endpoint ? ' AND endpoint = ?' : '')).all(...(opts.endpoint ? [mid, opts.endpoint] : [mid]));
     for (const r of rows) {
-      if (parseEv(r.events)[key] === false) continue;
+      // Welche Anlässe kommen, legt der Vorstand zentral fest (push_events) – das Mitglied schaltet je Handy nur an oder aus
       const res = await deliver(r, payload);
       if (res.status >= 200 && res.status < 300) { sent++; db.prepare("UPDATE push_subs SET last_ok = datetime('now','localtime'), fails = 0 WHERE id = ?").run(r.id); log(mid, key, title, true, null); }
       else if (res.status === 404 || res.status === 410) { db.prepare('DELETE FROM push_subs WHERE id = ?').run(r.id); log(mid, key, title, false, `Abo erloschen (${res.status})`); }

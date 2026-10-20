@@ -65,7 +65,7 @@ Formate in einer Spalte nie mischen; für die Anzeige `ctx.util.deD()` verwenden
 **Push-Benachrichtigungen (ab Clubwerk 3.19):** Die Erweiterung meldet ihre Anlässe an:
 `ctx.hooks.pushEvents = () => [{ id: 'erinnerung', label: 'Erinnerung', desc: 'Wann die Nachricht kommt', default: true, lead: { default: 120, label: 'Vorlauf' } }]`
 (`id` nur Kleinbuchstaben/Ziffern/Unterstrich; `lead` nur für Anlässe mit Vorlauf in Minuten). Der Vorstand gibt Anlässe unter
-Mitglieder-App → Benachrichtigungen frei (`default` ist die Vorgabe), jedes Mitglied wählt je Handy daraus. Senden:
+Mitglieder-App → Benachrichtigungen frei (`default` ist die Vorgabe), das Mitglied schaltet Benachrichtigungen je Handy nur an oder aus (keine eigene Auswahl der Anlässe). Senden:
 `ctx.push.send(memberIds, 'erinnerung', { title, body, url: './#meinmodul', tag })` – der Kern prüft Freigabe und Abos, verschlüsselt,
 protokolliert und räumt erloschene Abos weg; nicht freigegebene Anlässe werden still übersprungen. `ctx.push.enabled('erinnerung')`
 und `ctx.push.lead('erinnerung')` (Vorlauf in Minuten) für eigene Zeitgeber. Nur Titel und ein Satz senden – nichts, was in der

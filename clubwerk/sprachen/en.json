@@ -7363,6 +7363,8 @@
     "Startseite": "Start page",
     "Startseite der App": "Start page of the app",
     "zuletzt genutzter Bereich": "last used section",
-    "Zuletzt genutzter Bereich": "Last used section"
+    "Zuletzt genutzter Bereich": "Last used section",
+    "Kurze Hinweise aufs Handy (Push) aus der Mitglieder-App – auf dem iPhone in der Home-Bildschirm-App ab iOS 16.4, auf Android im Browser. Hier legst du fest, welche Anlässe es im Verein gibt; jedes Mitglied schaltet Push je Handy nur ein oder aus – welche Hinweise kommen, entscheidest du hier zentral. Es werden nur Titel und ein Satz gesendet, nichts PIN-Pflichtiges.": "Short notices on the phone (push) from the member app – on the iPhone in the home-screen app from iOS 16.4, on Android in the browser. Here you decide which occasions exist in the club; each member only switches push on or off per phone – which notices arrive is decided centrally here. Only a title and one sentence are sent, nothing that needs a PIN.",
+    "Welche Hinweise kommen, legt der Verein fest.": "Which notices arrive is decided by the club."
   }
 }

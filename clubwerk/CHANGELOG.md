@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.26.1
+
+- **Benachrichtigungen zentral:** In der Mitglieder-App schaltet das Mitglied Benachrichtigungen je Handy nur noch an oder aus. Welche Hinweise kommen, legt allein der Vorstand fest (Mitglieder-App → Benachrichtigungen); frühere Abwahlen einzelner Anlässe am Handy gelten nicht mehr.
+
 ## 3.26.0
 
 - **Für andere buchen (Buchungssystem 1.4.0, Spielbetrieb 1.2.3):** Neues Sonderrecht „darf für andere buchen“. Damit bucht ein Mitglied in der App für ein anderes – etwa für ein älteres Mitglied ohne Handy. Kontingent, Regeln und Gebühren gelten für das Mitglied, für das gebucht wird; es bekommt eine E-Mail. Die Buchung steht beim Buchenden unter „Meine Buchungen“ („für …“) und lässt sich dort ändern und stornieren.
