@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.27.3
+
+- **Stabiler bei Fehlern im Hintergrund:** Ein Fehler beim Versand von E-Mail oder Push (oder in einer anderen Hintergrundaufgabe) beendet das Add-on nicht mehr – er steht als „Fehler im Hintergrund (abgefangen)“ im Protokoll, die Buchung läuft durch. Vorher riss dabei die Verbindung ab („Load failed“ in der App).
+- **Mitglieder-App:** Statt „Load failed“ eine verständliche Meldung; Abfragen im Vereins-WLAN werden bei einem Verbindungsabbruch einmal über die öffentliche Adresse wiederholt.
+
 ## 3.27.2
 
 - **Ein Einsatz je Tag (Spielbetrieb 1.3.2):** Wer an einem Tag in einer Mannschaft aufgestellt ist, kann am selben Tag in keiner anderen Mannschaft aufgestellt oder als Ersatz geführt werden (eine Ersatz-Einplanung dort entfällt automatisch). Der andere Mannschaftsführer sieht „spielt in Herren“, die Zusage zählt bei ihm nicht mehr mit (Ampel und Übersicht bleiben ehrlich). Der Spieler sieht beim anderen Spieltag „spielt in …“ statt ✓/✕. Rückmeldungen gehen wie bisher an alle betroffenen Mannschaftsführer – jeder sieht sie bei seinem Spieltag.

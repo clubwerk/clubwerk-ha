@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.27.2';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.27.3';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -54,7 +54,14 @@
     return false;
   }
   async function call(url, method = 'GET', body) {
-    const r = await fetch(api('api/' + url), { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+    const opts = { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined };
+    let r;
+    try { r = await fetch(api('api/' + url), opts); } catch (e) {
+      // Verbindung abgerissen („Load failed“): Abfragen im Vereins-WLAN einmal über die öffentliche Adresse wiederholen;
+      // Änderungen (Buchen …) nicht blind wiederholen – das Mitglied sieht nach und tippt ggf. noch einmal
+      if (BASE && method === 'GET') { const keep = BASE; BASE = ''; try { r = await fetch(api('api/' + url), opts); } catch (e2) { r = null; } if (!r) BASE = keep; }
+      if (!r) throw Object.assign(new Error(method === 'GET' ? 'Keine Verbindung zum Verein – bitte gleich noch einmal versuchen.' : 'Keine Antwort vom Verein – bitte kurz prüfen, ob es angekommen ist, und sonst noch einmal versuchen.'), { network: true });
+    }
     const d = await r.json().catch(() => ({}));
     if (r.status === 403 && d.device) { lock(d.error); throw Object.assign(new Error(d.error), { device: true }); }
     if (r.status === 429) { sess.del(); throw Object.assign(new Error(d.error || 'Zu viele Versuche – bitte warten.'), { status: 429, data: d }); }

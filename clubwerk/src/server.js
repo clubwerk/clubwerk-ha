@@ -3530,5 +3530,9 @@ async function shutdown(why, code = 0) {
   try { db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) { console.error(e.message); }
   process.exit(code);
 }
+/* Ein Fehler in einer Hintergrundaufgabe (Mail, Push, Hook ohne await) darf nie das ganze Add-on beenden – sonst reißen alle
+   laufenden Anfragen ab („Load failed“ in der App). Protokollieren und weiterlaufen. */
+process.on('unhandledRejection', e => { console.error('Fehler im Hintergrund (abgefangen):', e && e.stack ? e.stack : e); });
+process.on('uncaughtException', e => { console.error('Unerwarteter Fehler (abgefangen):', e && e.stack ? e.stack : e); });
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));
