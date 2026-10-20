@@ -369,7 +369,7 @@ function routes(admin, { need, bad }) {
     const xt = String(req.get('X-Type') || '').toLowerCase();
     const f = { id: crypto.randomBytes(8).toString('hex'), name, size: buf.length, type: /^[a-z]+\/[a-z0-9.+-]+$/.test(xt) && !/html|javascript|xml/.test(xt) ? xt : 'application/octet-stream' };
     fs.mkdirSync(fileDir(m.id), { recursive: true });
-    fs.writeFileSync(filePath(m.id, f), buf, { mode: 0o600 });
+    require('./vault').writeFile(filePath(m.id, f), buf);   // verschlüsselt, wenn der Tresor eingeschaltet ist
     files.push(f);
     db.prepare('UPDATE mail_message SET files = ?, updated_at = ? WHERE id = ?').run(JSON.stringify(files), now(), m.id);
     res.json({ ok: true, file: f, files });
@@ -387,8 +387,9 @@ function routes(admin, { need, bad }) {
     if (!visible(req, m)) return res.status(404).end();
     const f = J(m.files, []).find(x => x.id === req.params.fid);
     if (!f || !fs.existsSync(filePath(m.id, f))) return res.status(404).end();
-    res.set({ 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}`, 'X-Content-Type-Options': 'nosniff' });
-    fs.createReadStream(filePath(m.id, f)).pipe(res);
+    let buf; try { buf = require('./vault').readFile(filePath(m.id, f)); } catch (e) { return e.vaultLocked ? bad(res, e.message, 423) : res.status(404).end(); }
+    res.set({ 'Content-Type': 'application/octet-stream', 'Content-Disposition': `attachment; filename*=UTF-8''${encodeURIComponent(f.name)}`, 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
+    res.end(buf);
   });
 
   /* Vorschau und Versand */

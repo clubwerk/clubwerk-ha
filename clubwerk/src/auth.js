@@ -73,11 +73,15 @@ function adminConfigured() {
 function createUser({ username, name, password, role = 'admin', perms = [], builtin = false, roles = [], departments = [], memberId = null }) {
   const r = db.prepare('INSERT INTO admin_users(username, name, pw_hash, role, perms, builtin, roles, departments, member_id) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(username, name || username, hashSecret(password), role, JSON.stringify(perms.filter(p => PERMS[p])), builtin ? 1 : 0, JSON.stringify(roles), JSON.stringify(departments), memberId);
+  vaultHook('onPassword', Number(r.lastInsertRowid), password);
   return Number(r.lastInsertRowid);
 }
 
+/* Tresor (verschlüsselte persönliche Daten): Anmeldung entsperrt ihn, neue Passwörter bekommen eine Schlüsselkopie */
+function vaultHook(fn, ...a) { try { require('./vault')[fn](...a); } catch (e) { console.error('Tresor:', e.message); } }
 function setPassword(userId, pw) {
   db.prepare('UPDATE admin_users SET pw_hash = ? WHERE id = ?').run(hashSecret(pw), userId);
+  vaultHook('onPassword', userId, pw);
   for (const [k, v] of sessions) if (v.userId === userId) sessions.delete(k);
 }
 
@@ -112,6 +116,7 @@ function login(username, pw, ip = '', scope = 'admin', { trusted = false } = {})
     return { ok: false, error: 'Benutzername oder Passwort falsch.', locked: c >= 5, manyFails: uf.n === 25 || uf.n === 100 };
   }
   fails.delete(key); accountLimit.ok(name);
+  if (scope === 'admin') vaultHook('onLogin', u.id, pw);
   db.prepare("UPDATE admin_users SET last_login = datetime('now','localtime') WHERE id = ?").run(u.id);
   const token = crypto.randomBytes(24).toString('hex');
   sessions.set(token, { userId: u.id, scope, expiresAt: now + ADMIN_TTL_MS, maxAt: now + ADMIN_MAX_MS });

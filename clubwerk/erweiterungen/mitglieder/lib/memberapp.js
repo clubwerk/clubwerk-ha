@@ -14,6 +14,8 @@ function register(sh) {
   const { S, today, nowTs } = store;
   const { need, bad, int } = C;
   const db = C.db, admin = C.admin, M = C.member;
+  // Tresor gesperrt (nach einem Neustart): eigene Daten erst wieder nach dem Entsperren – sonst sähe das Mitglied leere Felder
+  M.use((req, res, next) => (C.require('./vault').locked() ? res.status(423).json({ error: 'Deine Daten sind gerade verschlossen (nach einem Neustart im Vereinsheim). Bitte später noch einmal versuchen.' }) : next()));
   const P = need('mitglieder');
   const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), ci: S('creditor_id') });
   const sigOk = s => typeof s === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s) && s.length < 280000;

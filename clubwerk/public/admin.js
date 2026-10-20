@@ -21,6 +21,7 @@
     const r = await fetch('api/admin/' + url, opts);
     const data = await r.json().catch(() => ({}));
     if (r.status === 401 && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
+    if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
     if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd });
     return data;
   }
@@ -33,6 +34,8 @@
     toast.t = setTimeout(() => t.classList.add('hidden'), error ? 6000 : 3000);
   }
   const fail = e => toast(e.message, true);
+  /** Fehler beim Aufbau einer Seite: Tresor verschlossen → Hinweis mit „Öffnen“ statt nur einer Meldung */
+  const pageFail = e => (e && e.vaultLocked ? vaultLockedPage() : fail(e));
   /** Doppelklick-Schutz: Knopf sperren, solange fn() läuft (Beschriftung bleibt), danach wieder freigeben – auch bei Fehlern.
    *  Verwendung: $('xOk').onclick = () => busy($('xOk'), async () => { … }); */
   async function busy(btn, fn) {
@@ -450,13 +453,13 @@
     $('main').innerHTML = '<p class="muted">Lade …</p>';
     // Seitenwechsel während eine langsame Seite noch lädt: endet die alte Seite nach der neuen, hätte sie den Inhalt überschrieben → neue Seite neu zeichnen
     const gen = go.gen = (go.gen || 0) + 1;
-    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; RENDER[page]().catch(fail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); } }); };
+    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; RENDER[page]().catch(pageFail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); } }); };
     const settle = () => {
       if (gen === go.gen) { if (go.stale === gen) redraw(); else { go.fin = gen; placeDrinkTabs(); } return; }
       // alte Seite fertig: aktuelle schon fertig → neu zeichnen, sonst merken (die aktuelle zeichnet sich am Ende neu)
       if (go.fin === go.gen) redraw(); else go.stale = go.gen;
     };
-    RENDER[p]().catch(fail).finally(settle);
+    RENDER[p]().catch(pageFail).finally(settle);
     window.scrollTo(0, 0);
   }
 
@@ -609,6 +612,10 @@
     const bkSt = can('einstellungen') ? await api('backups/status').catch(() => null) : null;
     if (page !== 'uebersicht') return;   // inzwischen woandershin gewechselt – nichts überschreiben
     const alerts = [];
+    const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
+    if (page !== 'uebersicht') return;
+    if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} E-Mail(s) warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
+    else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     let drinksCard = '';
     if (drinksOn) {
@@ -2376,8 +2383,110 @@
   /* =================== Datensicherung =================== */
   const size = b => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
   const KIND_B = { auto: 'nächtlich', manuell: 'von Hand', 'vor-wiederherstellung': 'vor Wiederherstellung', hochgeladen: 'hochgeladen', komplett: 'aus Komplettsicherung' };
+  /* ---------- Tresor: Verschlüsselung der persönlichen Daten ---------- */
+  const VAULT_WHAT = 'Adressen, Telefon, E-Mail, Geburtsdaten, Bankdaten, Unterschriften, Beitrittserklärungen, Dokumente, Profilfotos, Notizen, Änderungsverlauf und die Kontaktdaten in der Buchhaltung';
+  function vaultSheets(code) {
+    const club = esc((brand && brand.clubName) || '');
+    const d = new Date().toLocaleDateString('de-DE');
+    const sheet = who => `<div style="page-break-after:always;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;padding:28px 34px;max-width:720px">
+      <div style="font-size:15px;color:#555">${club}</div>
+      <h1 style="font-size:24px;margin:6px 0 4px">Wiederherstellungscode</h1>
+      <div style="font-size:15px;margin-bottom:22px">für die verschlüsselten persönlichen Daten in Clubwerk · erstellt am ${d}</div>
+      <div style="font:700 30px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:2px;border:2px solid #111;border-radius:12px;padding:18px 16px;text-align:center">${esc(code)}</div>
+      <h2 style="font-size:17px;margin:26px 0 8px">Wofür?</h2>
+      <p style="font-size:14px;line-height:1.5;margin:0">Normalerweise öffnet die Anmeldung eines Admins die persönlichen Daten. Mit diesem Code öffnet man sie, wenn das nicht mehr geht – z. B. wenn niemand mehr ein Admin-Passwort kennt oder eine Sicherung auf einem neuen Gerät eingespielt wird. <b>Ohne Code und ohne Admin-Passwort sind die Daten für immer verloren.</b></p>
+      <h2 style="font-size:17px;margin:20px 0 8px">So aufbewahren</h2>
+      <ul style="font-size:14px;line-height:1.6;margin:0;padding-left:20px"><li>In einem verschlossenen Umschlag – <b>nicht im Vereinsheim</b>.</li><li>Nicht fotografieren, nicht in eine Cloud oder Mail.</li><li>Es gibt zwei gleiche Blätter: eins beim Vorsitz, eins beim Kassenwart.</li><li>Bei einem Vorstandswechsel in Clubwerk einen neuen Code erzeugen – der alte gilt dann nicht mehr.</li></ul>
+      <h2 style="font-size:17px;margin:20px 0 8px">So benutzen</h2>
+      <p style="font-size:14px;line-height:1.5;margin:0">In der Verwaltung anmelden → Datensicherung → „Verschlüsselung der persönlichen Daten“ → Code und das eigene Passwort eingeben.</p>
+      <table style="width:100%;margin-top:34px;font-size:14px;border-collapse:collapse"><tr>
+        <td style="width:50%;padding-right:20px"><div style="border-bottom:1px solid #111;height:30px"></div>Ausfertigung für (${who})</td>
+        <td style="width:50%;padding-left:20px"><div style="border-bottom:1px solid #111;height:30px"></div>Datum, Unterschrift</td></tr></table></div>`;
+    return sheet('Vorsitz') + sheet('Kassenwart');
+  }
+  function vaultUnlockHtml(prefix) {
+    return `<div class="row" style="align-items:flex-end;gap:10px;margin-top:10px">
+      <label class="f" style="flex:1;min-width:240px">Wiederherstellungscode<input id="${prefix}Code" placeholder="XXXX-XXXX-XXXX-XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:1px"></label>
+      <label class="f" style="flex:1;min-width:200px">Dein Passwort<input id="${prefix}Pw" type="password" autocomplete="current-password"></label>
+      <button class="btn primary" id="${prefix}Go" type="button">Öffnen</button></div>`;
+  }
+  function wireUnlock(prefix, done) {
+    if (!$(prefix + 'Go')) return;
+    $(prefix + 'Go').onclick = () => busy($(prefix + 'Go'), async () => {
+      try { await api('vault/unlock', 'POST', { code: $(prefix + 'Code').value, password: $(prefix + 'Pw').value }); toast('Geöffnet – die persönlichen Daten sind wieder lesbar.'); vaultState = null; done(); } catch (e) { fail(e); }
+    });
+  }
+  let vaultState = null;
+  /** Bereich mit persönlichen Daten aufgerufen, Tresor verschlossen: Hinweis + Öffnen mit Code */
+  function vaultLockedPage() {
+    if ($('vaultLock')) return;
+    $('main').innerHTML = `<div class="card" id="vaultLock" style="max-width:760px"><h3>Persönliche Daten verschlossen</h3>
+      <p class="muted" style="margin:0 0 6px">Nach einem Neustart sind Adressen, Bankdaten und Dokumente verschlüsselt, bis sich ein Admin mit Schlüssel anmeldet. Dein Konto hat noch keinen – das passiert automatisch bei der ersten Anmeldung, während die Daten offen sind. Bis dahin hier mit dem <b>Wiederherstellungscode</b> öffnen (das Blatt beim Vorsitz bzw. Kassenwart).</p>
+      <p class="muted s" style="margin:0">Tablet, Buchungen, Türen und Beregnung laufen weiter; E-Mails an Mitglieder warten und gehen nach dem Öffnen raus.</p>
+      ${vaultUnlockHtml('vl')}</div>`;
+    wireUnlock('vl', () => RENDER[page]().catch(pageFail));
+  }
+  async function renderVaultCard() {
+    const box = $('vaultCard'); if (!box) return;
+    const v = vaultState = await api('vault');
+    const when = iso => (iso ? new Date(iso).toLocaleDateString('de-DE') : '–');
+    let body;
+    if (!v.on) body = `<div class="banner a">Ausgeschaltet – die persönlichen Daten liegen unverschlüsselt auf dem Home Assistant. Wer den Rechner mitnimmt, kann sie lesen.</div>
+      <p class="muted s" style="margin:8px 0">Eingeschaltet werden ${VAULT_WHAT} verschlüsselt gespeichert. Namen, Getränkekonten, Buchungen, Türen und Beregnung bleiben lesbar – der Vereinsbetrieb läuft nach einem Neustart sofort weiter. Die Daten öffnen sich automatisch, sobald sich ein Admin anmeldet.</p>
+      ${v.may ? '<div class="row"><button class="btn primary" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}`;
+    else if (v.locked) body = `<div class="banner r">Verschlossen – seit dem letzten Neustart hat sich noch kein Admin mit Schlüssel angemeldet.${v.waitingMails ? ` ${v.waitingMails} E-Mail(s) warten.` : ''}</div>
+      <p class="muted s" style="margin:8px 0 0">Dein Konto hat ${v.mine ? 'einen Schlüssel – bitte einmal ab- und wieder anmelden.' : 'noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen; danach öffnet auch deine Anmeldung die Daten.'}</p>
+      ${v.mine ? '' : vaultUnlockHtml('va')}`;
+    else body = `<div class="banner g">Eingeschaltet seit ${when(v.since)} – ${VAULT_WHAT} liegen verschlüsselt auf der Platte und sind nur im Arbeitsspeicher entschlüsselt.</div>
+      <p class="muted s" style="margin:8px 0">Wiederherstellungscode vom ${when(v.codeAt)}. Nach einem Neustart öffnet die erste Anmeldung eines Admins die Daten${v.mine ? ' – dein Konto hat einen Schlüssel' : ''}.</p>
+      ${v.may ? '<div class="row"><button class="btn" id="vaCode" type="button">Neuen Wiederherstellungscode erzeugen</button><button class="btn danger" id="vaOff" type="button">Verschlüsselung ausschalten</button></div>' : ''}`;
+    box.innerHTML = `<div class="card"><h3>Verschlüsselung der persönlichen Daten</h3>${body}</div>`;
+    wireUnlock('va', () => RENDER.sicherung().catch(fail));
+    if ($('vaOn')) $('vaOn').onclick = () => vaultEnable(v);
+    if ($('vaCode')) $('vaCode').onclick = async () => {
+      const pw = await askText('Neuer Wiederherstellungscode\nDer bisherige Code gilt danach nicht mehr. Bitte dein Passwort eingeben.', '', { password: true, ok: 'Erzeugen' }); if (!pw) return;
+      try { const r = await api('vault/new-code', 'POST', { password: pw }); vaultShowCode(r.code, () => { closeDialog(); renderVaultCard().catch(fail); }, 'Fertig'); } catch (e) { fail(e); }
+    };
+    if ($('vaOff')) $('vaOff').onclick = async () => {
+      const pw = await askText('Verschlüsselung ausschalten?\nDie persönlichen Daten liegen danach wieder unverschlüsselt auf dem Home Assistant. Bitte dein Passwort eingeben.', '', { password: true, ok: 'Ausschalten' }); if (!pw) return;
+      try { await api('vault/disable', 'POST', { password: pw }); toast('Verschlüsselung ausgeschaltet.'); renderVaultCard().catch(fail); } catch (e) { fail(e); }
+    };
+  }
+  function vaultShowCode(code, next, nextLabel = 'Weiter') {
+    dialog(`<h3>Wiederherstellungscode</h3>
+      <p class="muted" style="margin:0 0 10px">Bitte jetzt <b>zwei Blätter drucken</b> – eins für den Vorsitz, eins für den Kassenwart – und verschlossen aufbewahren, nicht im Vereinsheim. Der Code wird nur dieses eine Mal angezeigt.</p>
+      <div style="font:700 24px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:2px;text-align:center;border:2px solid var(--line);border-radius:12px;padding:14px 10px;margin:4px 0 14px;word-break:break-all">${esc(code)}</div>
+      <div class="btns"><button class="btn" id="vcPrint" type="button">Zwei Blätter drucken</button><button class="btn primary" id="vcNext" type="button">${esc(nextLabel)}</button></div>`);
+    let printed = false;
+    $('vcPrint').onclick = () => { printed = true; printHtml(vaultSheets(code)); };
+    $('vcNext').onclick = async () => { if (!printed && !await ask('Die Blätter wurden noch nicht gedruckt. Trotzdem weiter? Ohne Code können die Daten verloren gehen, wenn niemand mehr ein Admin-Passwort kennt.', { ok: 'Trotzdem weiter' })) return; next(); };
+  }
+  async function vaultEnable(v) {
+    const pw = await askText('Verschlüsselung einschalten\nBitte dein Passwort eingeben. Danach zeigt Clubwerk einmalig den Wiederherstellungscode zum Ausdrucken.', '', { password: true, ok: 'Weiter' }); if (!pw) return;
+    let prep; try { prep = await api('vault/prepare', 'POST', { password: pw }); } catch (e) { return fail(e); }
+    vaultShowCode(prep.code, () => {
+      dialog(`<h3>Probe</h3>
+        <p class="muted" style="margin:0 0 10px">Damit niemand mit einem falsch abgeschriebenen Code dasteht: Bitte vom gedruckten Blatt die Zeichen an <b>Stelle ${prep.positions.join(', ')}</b> eintippen (ohne Bindestriche gezählt).</p>
+        <label class="f">Zeichen ${prep.positions.join(' · ')}<input id="vpT" maxlength="5" autocomplete="off" autocapitalize="characters" spellcheck="false" style="font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:4px;text-align:center;font-size:20px"></label>
+        ${v.oldPlain ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="vpDel" checked> Die ${v.oldPlain} älteren, unverschlüsselten Schnappschüsse der Datenbank auf diesem Gerät löschen (empfohlen – sie enthalten die Daten im Klartext). Die verschlüsselten Komplettsicherungen bleiben.</label>` : ''}
+        <p class="muted s" style="margin:10px 0 0">Das Verschlüsseln dauert wenige Sekunden. Vorher legt Clubwerk eine Sicherung an.</p>
+        <div class="btns"><button class="btn ghost" id="vpC" type="button">Abbrechen</button><button class="btn primary" id="vpGo" type="button">Verschlüsseln</button></div>`);
+      $('vpC').onclick = closeDialog;
+      $('vpGo').onclick = () => busy($('vpGo'), async () => {
+        try {
+          const r = await api('vault/enable', 'POST', { password: pw, typed: $('vpT').value, deleteOld: $('vpDel') ? $('vpDel').checked : false });
+          closeDialog(); toast(`Verschlüsselt${r.files ? ` – auch ${r.files} Datei(en)` : ''}${r.removed ? `, ${r.removed} alte Schnappschüsse gelöscht` : ''}.`);
+          vaultAlert = null; RENDER.sicherung().catch(fail);
+        } catch (e) { fail(e); }
+      });
+      setTimeout(() => $('vpT') && $('vpT').focus(), 50);
+    });
+  }
+  let vaultAlert = null;
+
   RENDER.sicherung = async () => {
     const [b, dx, st] = await Promise.all([api('backups'), api('dropbox'), api('backups/status')]);
+    setTimeout(() => renderVaultCard().catch(fail), 0);
     const owner = me.role === 'oberadmin';
     const when = iso => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
     const fileDate = f => { const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})(\d{2}))?/); return m ? `${m[3]}.${m[2]}.${m[1].slice(2)}${m[4] ? `, ${m[4]}:${m[5]}` : ''}` : f; };
@@ -2396,6 +2505,7 @@
         <div class="kpi ${st.targetsOn && st.targetsOk < st.targetsOn ? 'warn' : ''}"><div class="l">Sicherungsziele</div><div class="v">${st.targetsOn ? `${st.targetsOk} von ${st.targetsOn} in Ordnung` : 'keins'}</div><div class="muted s">${st.targetsOn ? esc(st.targets.filter(t => t.enabled).map(t => t.name).join(' · ')) : 'Sicherung bleibt nur hier auf dem Gerät'}</div></div>
       </div>
       ${st.last_error && !st.targets.some(t => t.last_error && st.last_error.includes(t.name + ':')) ? `<div class="banner r">Letzter Fehler: ${esc(st.last_error.slice(25))}</div>` : ''}
+ <div id="vaultCard"></div>
       <div class="card"><h3>Jetzt</h3><div class="row">
         <button class="btn primary" id="bkRun" ${st.hasKey ? '' : 'disabled'}>Jetzt sichern</button>
         <button class="btn" id="bkProbe" ${st.local.length ? '' : 'disabled'}>Letzte Sicherung prüfen</button>

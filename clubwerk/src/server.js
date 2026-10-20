@@ -922,7 +922,8 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (club) setSetting('club_name', club);
   const mods = (req.body || {}).modules;
   if (mods && typeof mods === 'object') for (const p of plugins.list()) if (mods[p.id] !== undefined && !p.error) setSetting(`ext_${p.id}_active`, mods[p.id] ? '1' : '0');
-  auth.createUser({ username: 'admin', name: 'Adminkonto', password: String(password), role: 'oberadmin', builtin: true });
+  const adminId = auth.createUser({ username: 'admin', name: 'Adminkonto', password: String(password), role: 'oberadmin', builtin: true });
+  if (process.env.CW_TEST_VAULT === '1') { const v = require('./vault'); v.prepare(adminId); v.enable(adminId, String(password)); }   // nur Tests: alles mit eingeschaltetem Tresor prüfen
   if (tabletPassword !== undefined) { setSetting('tablet_pw_hash', auth.hashSecret(String(tabletPassword))); setSetting('tablet_pw_at', nowTs()); setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex')); }
   audit('admin', 'Adminkonto eingerichtet');
   const r = auth.login('admin', String(password), req.ip);
@@ -954,6 +955,11 @@ admin.use(auth.requireAdmin);
 const DRINK_ADMIN = /^\/(articles|deliveries|upload|beleg|supplier-map|stock|shrinkage|order|settings\/order|events|event-members|tabs|bookings|balances|settle|settle-history|export\.xlsx|abtippliste|categories)(\/|$)/;
 admin.use((req, res, next) => (DRINK_ADMIN.test(normPath(req.path)) && !plugins.isActive('getraenke')
   ? res.status(404).json({ error: 'Das Modul „Verkauf“ ist ausgeschaltet.' }) : next()));
+/* Tresor gesperrt: Bereiche mit persönlichen Daten (Mitgliederverwaltung, Buchhaltung, E-Mail an Mitglieder) zeigen einen
+   Sperrhinweis statt Platzhaltern – und niemand speichert versehentlich leere Felder über echte Daten */
+const VAULT_AREAS = /^\/(x\/(mitglieder|buchhaltung)|mail|extensions\/(mitglieder|buchhaltung)\/(export|import))(\/|$)/;
+admin.use((req, res, next) => (VAULT_AREAS.test(normPath(req.path)) && require('./vault').locked()
+  ? res.status(423).json({ error: 'Die persönlichen Daten sind nach einem Neustart noch verschlossen. Sie öffnen sich, sobald sich ein Admin mit Schlüssel anmeldet – oder mit dem Wiederherstellungscode.', vaultLocked: true }) : next()));
 app.use('/api/admin', admin);
 
 admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
@@ -1088,6 +1094,7 @@ admin.put('/users/:id', need('benutzer'), (req, res) => {
   db.prepare('UPDATE admin_users SET name = ?, role = ?, perms = ?, active = ?, roles = ?, departments = ?, member_id = ? WHERE id = ?')
     .run(name, role, perms, active, roles ? JSON.stringify(roles) : u.roles, depts ? JSON.stringify(depts) : u.departments, memberId, u.id);
   auth.dropUserSessions(u.id);   // geänderte Rechte gelten sofort
+  if (!active) require('./vault').dropUser(u.id);   // gesperrter Benutzer: seine Schlüsselkopie für den Tresor entfällt
   audit(req.user, 'Admin geändert', `${u.username}: ${role}${active ? '' : ', gesperrt'} ${role === 'admin' ? perms : ''}${roles ? ' Rollen ' + roles.join(',') : ''}`);
   res.json({ ok: true });
 });
@@ -1098,6 +1105,7 @@ admin.delete('/users/:id', need('benutzer'), (req, res) => {
   if (u.builtin) return bad(res, 'Das Adminkonto kann nicht gelöscht werden.');
   if (u.id === req.user.id) return bad(res, 'Du kannst dich nicht selbst löschen.');
   db.prepare('DELETE FROM admin_users WHERE id = ?').run(u.id);
+  require('./vault').dropUser(u.id);
   auth.dropUserSessions(u.id);
   audit(req.user, 'Admin gelöscht', u.username);
   res.json({ ok: true });
@@ -1154,6 +1162,49 @@ admin.post('/settings/tablet-password/logout-all', need('einstellungen'), (req, 
   res.json({ ok: true });
 });
 admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => bad(res, 'Das Passwort für das Tablet ist Pflicht und lässt sich nur ändern, nicht ausschalten.'));
+/* ---------- Tresor: Verschlüsselung der persönlichen Daten ---------- */
+const ownPwOk = (req, pw) => { const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id); return Boolean(u && pw && auth.verifySecret(String(pw), u.pw_hash)); };
+const vaultPwLimit = rateLimit('vaultpw', 10, 10 * 60000);
+admin.get('/vault', (req, res) => {
+  const v = require('./vault');
+  res.json({ ...v.status(req.user.id), may: req.user.perms.includes('einstellungen'),
+    oldPlain: v.on() ? undefined : (() => { try { return backup.list().length; } catch (e) { return 0; } })() });
+});
+admin.post('/vault/prepare', need('einstellungen'), vaultPwLimit, (req, res) => {
+  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  try { res.json(require('./vault').prepare(req.user.id)); } catch (e) { bad(res, e.message); }
+});
+admin.post('/vault/enable', need('einstellungen'), vaultPwLimit, asyncRoute(async (req, res) => {
+  const b = req.body || {}; const vault = require('./vault');
+  if (!ownPwOk(req, b.password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  try { if (!vault.confirmCode(req.user.id, b.typed)) return bad(res, 'Die Zeichen passen nicht zum Wiederherstellungscode – bitte auf dem Ausdruck nachsehen.'); } catch (e) { return bad(res, e.message); }
+  try { await backup.snapshot(db, 'vor-verschluesselung'); } catch (e) { return bad(res, 'Vorher konnte keine Sicherung angelegt werden: ' + e.message); }
+  let r; try { r = vault.enable(req.user.id, String(b.password)); } catch (e) { console.error('Tresor einschalten:', e); return bad(res, 'Das Einschalten ist fehlgeschlagen: ' + e.message, 500); }
+  // alte, unverschlüsselte Schnappschüsse der Datenbank auf diesem Gerät entfernen (sie enthielten die Daten im Klartext)
+  let removed = 0;
+  if (b.deleteOld) for (const f of fs.readdirSync(backup.BACKUP_DIR).filter(x => /\.db$/.test(x))) { try { fs.unlinkSync(path.join(backup.BACKUP_DIR, f)); removed++; } catch (e) { /* weiter */ } }
+  if (b.deleteOld) try { await backup.snapshot(db, 'verschluesselt'); } catch (e) { /* nächste Nacht */ }
+  audit(req.user, 'Tresor eingeschaltet', `${r.files} Dateien verschlüsselt, ${removed} alte Schnappschüsse entfernt, ${r.ms} ms`);
+  res.json({ ok: true, ...r, removed });
+}));
+admin.post('/vault/unlock', vaultPwLimit, (req, res) => {
+  const b = req.body || {}; const vault = require('./vault');
+  if (!ownPwOk(req, b.password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  let ok = false; try { ok = vault.unlockWithCode(b.code); } catch (e) { return bad(res, e.message); }
+  if (!ok) { audit(req.user, 'Tresor: falscher Wiederherstellungscode'); return bad(res, 'Der Wiederherstellungscode stimmt nicht.', 401); }
+  vault.onPassword(req.user.id, String(b.password));   // ab jetzt öffnet auch die Anmeldung dieses Admins den Tresor
+  audit(req.user, 'Tresor mit Wiederherstellungscode geöffnet');
+  res.json({ ok: true });
+});
+admin.post('/vault/new-code', need('einstellungen'), vaultPwLimit, (req, res) => {
+  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  try { const code = require('./vault').newRecovery(); audit(req.user, 'Tresor: neuer Wiederherstellungscode'); res.json({ code }); } catch (e) { bad(res, e.message, e.status || 400); }
+});
+admin.post('/vault/disable', need('einstellungen'), vaultPwLimit, (req, res) => {
+  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  try { require('./vault').disable(); audit(req.user, 'Tresor ausgeschaltet'); res.json({ ok: true }); } catch (e) { bad(res, e.message, e.status || 400); }
+});
+
 /* ---------- Sprachen ---------- */
 admin.get('/sprachen', (req, res) => {
   res.json({ languages: i18n.list(), club: i18n.clubLang(), canEdit: req.user.perms.includes('einstellungen'), app: APP_VERSION });
@@ -3189,6 +3240,11 @@ try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth });
 require('./mailer').routes(admin, { bad, need });
+/* Tresor: Kopie der persönlichen Daten im Arbeitsspeicher anlegen (gesperrt bis zur ersten Admin-Anmeldung) – erst jetzt,
+   da alle Module ihre Tabellen angelegt haben */
+const vault = require('./vault');
+try { vault.start(); } catch (e) { console.error('Tresor beim Start:', e); }
+vault.onUnlock(() => vault.flushMail(o => require('./mail').send(o)).then(n => { if (n) audit(null, 'Tresor: wartende E-Mails verschickt', String(n)); }));
 memberapp.startPort({ rateLimit, rateLimitKey });
 
 function navLinks() {

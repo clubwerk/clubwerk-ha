@@ -496,7 +496,7 @@ function memberRefs() {
   const out = [];
   for (const t of db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name <> 'members'").all()) {
     let fks = [];
-    try { fks = db.prepare(`PRAGMA foreign_key_list(${qid(t.name)})`).all(); } catch (e) { continue; }
+    try { fks = db.prepare(`PRAGMA main.foreign_key_list(${qid(t.name)})`).all(); } catch (e) { continue; }   // main: die Kopie des Tresors (TEMP) hat keine Fremdschlüssel
     for (const fk of fks) if (fk.table === 'members' && (fk.to === null || fk.to === 'id')) out.push({ table: t.name, column: fk.from });
   }
   return out;

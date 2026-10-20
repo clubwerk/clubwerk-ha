@@ -28,6 +28,7 @@ function version(id, use) {
   const r = typeof id === 'object' ? id : row(id);
   if (!r || !r.photo) return null;
   if (use && !J(r.photo_use).includes(use)) return null;
+  if (require('./vault').locked()) return null;   // Tresor verschlossen: Bilder nicht lesbar → Initialen statt leerem Bild
   return r.photo.slice(-16, -4);
 }
 function info(id, isActive) {
@@ -44,7 +45,7 @@ function save(id, dataUrl, use, who) {
   if (buf[0] !== 0xff || buf[1] !== 0xd8 || buf[2] !== 0xff || buf[buf.length - 2] !== 0xff || buf[buf.length - 1] !== 0xd9) throw new Error('Das ist kein gültiges JPEG-Bild.');
   fs.mkdirSync(DIR, { recursive: true });
   const name = `${r.id}-${crypto.randomBytes(6).toString('hex')}.jpg`;
-  fs.writeFileSync(path.join(DIR, name), buf, { mode: 0o600 });
+  require('./vault').writeFile(path.join(DIR, name), buf);   // verschlüsselt, wenn der Tresor eingeschaltet ist
   const old = file(r);
   db.prepare('UPDATE members SET photo = ?, photo_use = ? WHERE id = ?').run(name, JSON.stringify(cleanUse(use)), r.id);
   if (old) try { fs.unlinkSync(old); } catch (e) { /* weg */ }
@@ -63,8 +64,9 @@ function remove(id, who) {
 function send(res, id, use) {
   const r = row(id), f = file(r);
   if (!f || (use && !J(r.photo_use).includes(use)) || !fs.existsSync(f)) return res.status(404).end();
+  let buf; try { buf = require('./vault').readFile(f, { cacheIt: true }); } catch (e) { return res.status(404).end(); }   // gesperrt: Initialen statt Bild
   res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'", 'X-Content-Type-Options': 'nosniff' });
-  fs.createReadStream(f).pipe(res);
+  res.end(buf);
 }
 
 module.exports = { USES, MODULE_OF, version, info, save, setUse, remove, send, DIR };

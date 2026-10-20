@@ -50,6 +50,11 @@ function transport(pool) {
 const fromOf = (s, fromName) => (fromName ? { name: String(fromName).replace(/[\r\n"<>]/g, ' ').slice(0, 80), address: s.from } : s.from);
 function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fromName, raw, card, plainOnly }) {
   if (!mailOk(to)) throw new Error('Keine gültige Empfänger-Adresse.');
+  // Anhänge aus dem Tresor (verschlüsselte Dokumente) entschlüsselt mitschicken
+  if (attachments && attachments.some(a => a && a.path)) {
+    const vault = require('./vault');
+    attachments = attachments.map(a => (a && a.path ? (() => { const { path: p, ...rest } = a; return { ...rest, content: vault.readFile(p) }; })() : a));
+  }
   if (cc && !mailOk(cc)) throw new Error('Ungültige Adresse bei „Kopie an“.');
   if (replyTo && !mailOk(replyTo)) throw new Error('Ungültige Antwortadresse.');
   if (!raw) {   // Systemmails in der Sprache der Anfrage bzw. der Vereinssprache – selbst geschriebene Mails bleiben, wie sie sind
@@ -67,14 +72,24 @@ function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fr
 }
 
 /** send({ to, cc, replyTo, subject, text, html, attachments, fromName, raw, card }) – card = { before, title, rows: [[k, v]], after, button } für die Infokarte im HTML */
+/* Tresor gesperrt (nach einem Neustart, bis sich ein Admin anmeldet): Die Adressen der Mitglieder sind dann Platzhalter
+   (gesperrt-<id>@clubwerk.invalid). Solche Mails warten verschlüsselt und gehen nach dem Entsperren raus. */
+function parked(o) {
+  const vault = require('./vault');
+  if (!vault.on() || !(vault.hasPlaceholder(o.to) || vault.hasPlaceholder(o.cc) || vault.hasPlaceholder(o.bcc))) return false;
+  if (!vault.locked()) return false;
+  vault.queueMail(o);
+  return true;
+}
 async function send(o) {
+  if (parked(o)) return { queued: true };
   const { s, t } = transport(false);
   await t.sendMail(message(s, o));
 }
 /** Viele Mails nacheinander über eine Verbindung: const x = session(); await x.send({…}); x.close() */
 function session() {
   const { s, t } = transport(true);
-  return { send: o => t.sendMail(message(s, o)), close: () => { try { t.close(); } catch (e) { /* zu */ } } };
+  return { send: o => (parked(o) ? Promise.resolve({ queued: true }) : t.sendMail(message(s, o))), close: () => { try { t.close(); } catch (e) { /* zu */ } } };
 }
 
 module.exports = { config, publicConfig, ready, save, send, session, validMails, mailOk };

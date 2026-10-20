@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.21.0
+
+- **Verschlüsselung der persönlichen Daten (neu):** Adressen, Kontaktdaten, Geburtsdaten, Bankdaten, Unterschriften, Anträge, Änderungsverlauf, SEPA-Dateien, Buchhaltungs-Anschriften sowie Mitgliederdokumente, Profilfotos und Mail-Anhänge liegen auf Wunsch verschlüsselt auf der Platte (AES-256-GCM). Einschalten unter Datensicherung → „Verschlüsselung der persönlichen Daten“ – mit Wiederherstellungscode zum Ausdrucken (zwei Blätter: Vorsitz und Kassenwart) und Probe.
+  - Ohne Internet und ohne weiteres Gerät: Nach einem Neustart öffnet die erste Anmeldung eines Admins die Daten. Bis dahin laufen Tablet, Buchungen, Türen und Beregnung weiter; E-Mails an Mitglieder warten und gehen danach raus.
+  - Schnell: Im Betrieb liegt eine entschlüsselte Kopie nur im Arbeitsspeicher – Listen und Suche sind so schnell wie bisher.
+  - Neue Online-Anträge und Änderungswünsche werden auch im verschlossenen Zustand angenommen (öffentlicher Schlüssel).
+  - Hinweis in der Übersicht, solange die Verschlüsselung aus ist bzw. die Daten nach einem Neustart noch zu sind.
+
 ## 3.20.4
 
 - **Passwort für das Tablet ist jetzt Pflicht** (Schutz der Mitgliederdaten): Ohne Passwort bleibt die Buchungsseite für normale Geräte gesperrt; das Tablet zeigt „Tablet noch nicht eingerichtet“, die Übersicht der Verwaltung einen roten Hinweis mit „Festlegen“. Bei der Ersteinrichtung wird es gleich mit abgefragt (mind. 8 Zeichen, nicht zu leicht, anders als das Adminpasswort). Ausschalten geht nicht mehr, nur ändern. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen weiterhin immer hinein. **Nach dem Update: einmal unter Einstellungen → Tablet & Kopfzeile ein Passwort festlegen und am Tablet eingeben.**

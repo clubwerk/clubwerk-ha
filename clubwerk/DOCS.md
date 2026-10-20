@@ -347,6 +347,18 @@ Clubwerk ist mehrsprachig: Deutsch und Englisch sind dabei, weitere Sprachen las
 - Excel-Vorlagen (Mitglieder, Artikel) werden in jeder Sprache wieder erkannt – auch eine englische Artikelliste lässt sich importieren.
 - Eigene Daten (Namen, Artikel, Kategorien) werden nie übersetzt.
 
+## Verschlüsselung der persönlichen Daten
+Damit ein gestohlener Home Assistant (oder eine kopierte Festplatte) keine Mitgliederdaten preisgibt, speichert Clubwerk die persönlichen Daten auf Wunsch **verschlüsselt** (AES-256-GCM). Einschalten unter **Datensicherung → „Verschlüsselung der persönlichen Daten“** (Recht „Einstellungen“).
+
+- **Verschlüsselt:** Adresse, Telefon, Handy, E-Mail, Geburtsdatum, Notizen und Zusatzfelder der Mitglieder, Bankdaten (Kontoinhaber, IBAN, BIC, Bank), Beitrittserklärungen und Änderungswünsche samt Unterschriften, Änderungsverlauf, SEPA-Dateien, Empfängerlisten von Rundmails, Kontaktdaten und Anschriften in der Buchhaltung – und die Dateien: Mitgliederdokumente, Profilfotos, Mail-Anhänge.
+- **Lesbar bleiben:** Namen, Getränkekonten und Verkäufe, Platzbuchungen, Türrechte und Beregnung. So läuft der Vereinsbetrieb nach einem Neustart oder Stromausfall sofort weiter. PINs und Passwörter waren schon immer nur als Prüfwert gespeichert.
+- **Ohne Internet, ohne weiteres Gerät:** Der Schlüssel ist mit den Passwörtern der Admins verschlossen. Nach einem Neustart sind die Daten zu, bis sich **ein Admin in der Verwaltung anmeldet** – auch über die Home-Assistant-Seitenleiste von unterwegs. Danach liegen sie bis zum nächsten Neustart entschlüsselt nur im Arbeitsspeicher. Jeder Admin bekommt seine Schlüsselkopie automatisch (beim Anlegen, bei einem neuen Passwort oder bei der ersten Anmeldung, während die Daten offen sind).
+- **Solange zu:** Tablet, Buchungen, Türen und Beregnung laufen. E-Mails an Mitglieder (z. B. Buchungsbestätigungen) warten verschlüsselt und gehen nach dem Öffnen raus; Push-Nachrichten gehen sofort. Profilfotos erscheinen als Initialen, „Meine Daten“ in der App und die Bereiche Mitgliederverwaltung, Buchhaltung und E-Mail zeigen einen Hinweis. Neue Online-Anträge und Änderungswünsche werden trotzdem angenommen – sie werden mit einem öffentlichen Schlüssel verschlüsselt, für den Clubwerk kein Geheimnis braucht.
+- **Wiederherstellungscode:** Beim Einschalten zeigt Clubwerk einmalig einen Code und druckt zwei Blätter (Vorsitz und Kassenwart); zur Probe werden drei Zeichen abgefragt. Der Code öffnet die Daten, wenn kein Admin-Passwort mehr hilft (z. B. Sicherung auf neuem Gerät). **Ohne Code und ohne Admin-Passwort sind die Daten verloren.** Bei einem Vorstandswechsel einen neuen Code erzeugen – der alte gilt dann nicht mehr.
+- **Beim Einschalten** legt Clubwerk vorher eine Sicherung an, verschlüsselt alle vorhandenen Daten und Dateien und räumt die Datenbankdatei auf (keine Klartext-Reste). Ältere, unverschlüsselte Schnappschüsse auf dem Gerät können gleich mit gelöscht werden (empfohlen). Home-Assistant-Backups von vorher enthalten die Daten noch unverschlüsselt – bei Bedarf dort löschen.
+- **Geschwindigkeit:** Listen und Suche sind so schnell wie ohne Verschlüsselung (sie lesen die Kopie im Arbeitsspeicher). Das Öffnen nach einem Neustart dauert bei einigen tausend Mitgliedern unter einer Sekunde bis wenige Sekunden.
+- **Grenzen:** Wer bei laufendem Server ins Vereinsnetz kommt, wird wie bisher durch Passwörter und Rechte aufgehalten. Bankdaten sieht in der Verwaltung weiterhin nur, wer das Recht „Bankdaten“ hat.
+
 ## Sicherheit
 Clubwerk öffnet echte Türen und schaltet die Beregnung – deshalb ist sie gegen Angriffe aus dem WLAN abgesichert. Das Wichtigste:
 

@@ -213,7 +213,7 @@ function saveDocument(memberId, buf, { kind = 'sonstiges', title, filename, user
   if (!t) throw new Error('Bitte PDF, Foto (JPG, PNG, WebP, HEIC), Word- oder Textdatei hochladen.');
   fs.mkdirSync(DOC_DIR, { recursive: true, mode: 0o700 });
   const file = `${memberId || 'antrag'}_${Date.now().toString(36)}_${crypto.randomBytes(4).toString('hex')}.${t.ext}`;
-  fs.writeFileSync(path.join(DOC_DIR, file), buf, { mode: 0o600 });
+  C.require('./vault').writeFile(path.join(DOC_DIR, file), buf);   // verschlüsselt, wenn der Tresor eingeschaltet ist
   const id = Number(C.db.prepare('INSERT INTO mv_document(member_id, application_id, kind, title, file, mime, size, sha256, by_user) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(memberId || null, applicationId, DOC_KIND[kind] ? kind : 'sonstiges', one(title || filename || DOC_KIND[kind] || 'Dokument', 120), file, t.mime, buf.length, store.sha256(buf), user || null).lastInsertRowid);
   return id;
@@ -260,7 +260,7 @@ function daily() {
       C.db.prepare("UPDATE member_access SET blocked = 1 WHERE member_id = ?").run(g.member_id);
       C.audit(null, 'Mitglied ausgetreten (automatisch ausgeblendet)', C.db.prepare('SELECT name FROM members WHERE id = ?').get(g.member_id).name);
     }
-    if (ageScanFn) ageScanFn();
+    if (ageScanFn && !C.require('./vault').locked()) ageScanFn();   // Geburtsdaten sind im gesperrten Tresor nicht lesbar
   } catch (e) { console.error('Mitgliederverwaltung (täglich):', e.message); }
 }
 
@@ -269,6 +269,7 @@ function activate(ctx) {
   C = ctx;
   store.init({ db: ctx.db, getSetting: ctx.getSetting, setSetting: ctx.setSetting });
   DOC_DIR = path.join(ctx.require('./db').DATA_DIR, 'mitglieder-dokumente');
+  ctx.require('./vault').onUnlock(() => { if (ageScanFn && ctx.isActive()) ageScanFn(); });   // nach dem Entsperren nachholen
   try { store.fillNames(); } catch (e) { /* Tabellen entstehen beim ersten Start */ }
   const { need, bad, int, rateLimit } = ctx;
   const admin = ctx.admin;
@@ -766,7 +767,8 @@ function activate(ctx) {
     const safe = String(d.title).replace(/[^\wäöüÄÖÜß .-]+/g, '_').slice(0, 80) + (d.title.toLowerCase().endsWith('.' + ext) ? '' : '.' + ext);
     res.set({ 'Content-Type': d.mime || 'application/octet-stream', 'Content-Disposition': `${req.query.dl ? 'attachment' : 'inline'}; filename*=UTF-8''${encodeURIComponent(safe)}`,
       'Content-Security-Policy': "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; object-src 'self'", 'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store' });
-    res.sendFile(f);
+    let buf; try { buf = ctx.require('./vault').readFile(f); } catch (e) { res.removeHeader('Content-Disposition'); res.set('Content-Type', 'application/json'); return bad(res, e.message, e.vaultLocked ? 423 : 500); }
+    res.end(buf);
   });
   admin.delete('/documents/:id', PD, (req, res) => {
     const d = ctx.db.prepare('SELECT * FROM mv_document WHERE id = ?').get(int(req.params.id));
