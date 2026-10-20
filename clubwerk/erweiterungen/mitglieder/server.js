@@ -167,6 +167,9 @@ const LABEL = { salutation: 'Anrede', title: 'Titel', first_name: 'Vorname', las
   notice_date: 'Kündigung eingegangen', payer_id: 'Zahler', family_of: 'Familienmitgliedschaft bei', drinks_to_payer: 'Verkauf beim Zahler', payment: 'Zahlungsart', key_no: 'Schlüsselnummer', notes: 'Notizen', member_no: 'Mitgliedsnummer',
   iban: 'IBAN', holder: 'Kontoinhaber', bic: 'BIC', bank: 'Kreditinstitut', mandate_ref: 'Mandatsreferenz', mandate_date: 'Mandat unterschrieben', mandate_revoked: 'Mandat widerrufen' };
 
+/** Felder, die ein Abteilungsadmin nicht ändern darf (Vereinsverwaltung) */
+const SCOPE_LOCKED = ['member_no', 'status', 'entry_date', 'key_no', 'payment', 'notes'];
+
 function savePerson(id, fields, user) {
   store.ensurePerson(id);
   const cur = C.db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id);
@@ -347,6 +350,10 @@ function activate(ctx) {
       }
       for (const f of feeList) if (f.kind === 'zusatz') f.members = per[f.id] || 0;
     }
+    if (req.mvScope) {   // Abteilungsadmin: Zahlen nur für die eigene(n) Abteilung(en)
+      for (const d of depts) if (!req.mvScope.includes(d.id)) d.members = null;
+      for (const f of feeList) if (!(f.kind === 'zusatz' && req.mvScope.includes(f.department_id))) f.members = null;
+    }
     res.json({ depts, fees: feeList, settings: settingsView(req.user), perms: { bank: req.user.perms.includes('mitglieder_bank'), finance: req.user.perms.includes('mitglieder_finanzen'), docs: req.user.perms.includes('mitglieder_dokumente'), settings: req.user.perms.includes('einstellungen') },
       counts: req.mvScope ? { applications: ctx.db.prepare("SELECT * FROM mv_application WHERE status IN ('eingegangen','unterschrift')").all().filter(a => appInScope(a, req.mvScope)).length,
         changes: ctx.db.prepare("SELECT member_id FROM mv_change WHERE status = 'offen'").all().filter(c => inScope(c.member_id, req.mvScope)).length }
@@ -449,6 +456,15 @@ function activate(ctx) {
     if (p.anonymized_at) return bad(res, 'Dieses Mitglied ist anonymisiert.');
     const pi = personInput(req.body || {}, { ...p, member_id: p.member_id || id }); if (pi.error) return bad(res, pi.error);
     const b = req.body || {};
+    if (req.mvScope) {   // Abteilungsadmin: nur Personen- und Kontaktdaten; Vereinsdaten und Einwilligungen pflegt die Vereinsverwaltung
+      const norm = (k, v) => k === 'status' ? (v || 'aktiv') : String(v == null ? '' : v);
+      const changed = SCOPE_LOCKED.filter(k => pi.fields[k] !== undefined && norm(k, pi.fields[k]) !== norm(k, p[k]));
+      const cur = JSON.parse(p.consents || '{}');
+      const consChanged = b.consents && typeof b.consents === 'object' && consentList().some(c => Boolean(b.consents[c.key]) !== Boolean(cur[c.key]));
+      if (changed.length || consChanged) return bad(res, `${[...changed.map(k => LABEL[k]), ...(consChanged ? ['Einwilligungen'] : [])].join(', ')}: das pflegt die Vereinsverwaltung, nicht die Abteilung.`, 403);
+      for (const k of SCOPE_LOCKED) delete pi.fields[k];
+      delete b.consents;
+    }
     if (b.consents && typeof b.consents === 'object') {
       const cur = JSON.parse(p.consents || '{}'); const next = {};
       for (const c of consentList()) { if (b.consents[c.key]) next[c.key] = cur[c.key] || today(); }

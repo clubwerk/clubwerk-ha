@@ -65,6 +65,13 @@ function isClubNet(ipRaw) {
   if (netCache.raw !== raw) netCache = { raw, list: cidrList(raw) };
   return netCache.list.length ? netCache.list.some(f => f(ip)) : PRIVATE_IP(ip);
 }
+/** steht die Adresse in den eingetragenen Vereinsnetzen? (ohne Liste: nein) */
+function inClubNets(ipRaw) {
+  const ip = String(ipRaw || '').replace(/^::ffff:/, '');
+  const raw = getSetting('app_wlan_nets', '');
+  if (netCache.raw !== raw) netCache = { raw, list: cidrList(raw) };
+  return Boolean(ip) && netCache.list.some(f => f(ip));
+}
 /** von außen? Über den Tunnel und nicht aus dem Vereinsnetz – oder direkt von einer öffentlichen Adresse (versehentliche Portfreigabe am Router:
  *  dann kommt keine cf-Kopfzeile, die Anfrage darf trotzdem nicht als „im WLAN“ gelten) */
 /* Der Kopfzeile cf-connecting-ip (echte Absenderadresse hinter Cloudflare) wird nur geglaubt, wenn die Anfrage tatsächlich vom Tunnel kommt.
@@ -259,7 +266,7 @@ function startPort({ rateLimit, rateLimitKey }) {
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
-    res.json({ version: require('../package.json').version, lanUrl: lanUrl(), wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
+    res.json({ version: require('../package.json').version, lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
   });
   api.get('/invite', rateLimit('appinv', 30, 60000), (req, res) => {
     const p = invites.peek(SCOPE, String(req.query.t || ''));
@@ -631,4 +638,4 @@ function adminRoutes(admin, { bad, need, auth }) {
   void auth;
 }
 
-module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, validNets };
+module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, validNets };

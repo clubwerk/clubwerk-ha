@@ -112,7 +112,54 @@ function hostGuard({ bypass } = {}) {
   };
 }
 const resetHostCache = () => { hostCache.at = 0; };
+
+/* ---------- Nur aus dem eigenen Netz (Verwaltung/Tablet 3100, Beregnungs-Webapp 5000) ----------
+   Diese Ports sind nie fürs Internet gedacht. Leitet ein Router sie versehentlich weiter, kommt die Anfrage mit einer
+   öffentlichen Absenderadresse an – die wird hier abgewiesen, egal was in den Kopfzeilen steht (geprüft wird die echte
+   Socket-Adresse). Erlaubt: Loopback, private IPv4-Netze (10/8, 172.16/12, 192.168/16), CGNAT/VPN (100.64/10, z. B. Tailscale),
+   Link-Local, IPv6 ULA (fc00::/7) und Link-Local (fe80::/10). Öffentliche IPv6-Adressen (2000::/3) gelten als „eigenes Netz“
+   nur, wenn sie in den eingetragenen Vereinsnetzen stehen – sonst nur aus dem gleichen /64-Präfix wie eine eigene Adresse. */
+function v4Int(ip) { const m = /^(\d+)\.(\d+)\.(\d+)\.(\d+)$/.exec(ip); return m && m.slice(1).every(x => +x < 256) ? ((+m[1] << 24) >>> 0) + (+m[2] << 16) + (+m[3] << 8) + +m[4] : null; }
+function inV4(ip, cidr) { const [n, b] = cidr.split('/'); const a = v4Int(ip), c = v4Int(n); if (a == null || c == null) return false; const bits = +b; return bits === 0 || (a >>> (32 - bits)) === (c >>> (32 - bits)); }
+const normIp = ip => String(ip || '').trim().replace(/^::ffff:(?=\d+\.)/i, '').replace(/%.*$/, '').toLowerCase();
+function privateSource(raw) {
+  const ip = normIp(raw);
+  if (!ip) return false;
+  if (v4Int(ip) != null) return ['127.0.0.0/8', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '100.64.0.0/10', '169.254.0.0/16'].some(c => inV4(ip, c));
+  if (ip === '::1') return true;
+  return /^f[cd][0-9a-f]{2}:/.test(ip) || /^fe[89ab][0-9a-f]:/.test(ip);
+}
+function v6Prefix64(ip) {   // die ersten vier Blöcke einer (ggf. verkürzten) IPv6-Adresse
+  const [h, t] = ip.split('::'); const a = h ? h.split(':') : [], b = t != null && t ? t.split(':') : [];
+  const full = t != null ? [...a, ...Array(8 - a.length - b.length).fill('0'), ...b] : a;
+  return full.length === 8 ? full.slice(0, 4).map(x => parseInt(x || '0', 16)).join(':') : null;
+}
+function ownV6Prefixes() {
+  const out = new Set();
+  try { for (const l of Object.values(require('os').networkInterfaces())) for (const a of l || []) if (a.family === 'IPv6' && /^[23]/.test(a.address)) { const p = v6Prefix64(a.address.toLowerCase()); if (p) out.add(p); } } catch (e) { /* */ }
+  return out;
+}
+function lanSource(raw, { extra } = {}) {
+  const ip = normIp(raw);
+  if (privateSource(ip)) return true;
+  if (extra && extra(ip)) return true;
+  if (/^[23][0-9a-f]{3}:/.test(ip)) {
+    try { if (require('./memberapp').inClubNets(ip)) return true; } catch (e) { /* */ }
+    const p = v6Prefix64(ip); if (p && ownV6Prefixes().has(p)) return true;
+  }
+  return false;
+}
+function lanOnly({ label = 'Clubwerk', extra } = {}) {
+  return (req, res, next) => {
+    const ip = req.socket && req.socket.remoteAddress;
+    if (lanSource(ip, { extra })) return next();
+    securityAlert(`${label}: Anfrage von öffentlicher Adresse ${normIp(ip)} abgewiesen (${String(req.method)} ${String(req.path || '').slice(0, 80)}). Ist der Port am Router freigegeben? Bitte die Freigabe entfernen.`, `lanonly:${label}`);
+    const msg = `${label} ist nur im Vereinsnetz erreichbar.`;
+    if (String(req.path || '').startsWith('/api/')) return res.status(403).json({ error: msg });
+    res.status(403).type('text/plain; charset=utf-8').send(msg + '\n\nVon unterwegs ist nur die Mitglieder-App über den Cloudflare Tunnel vorgesehen.');
+  };
+}
 /** Antworten komprimieren (gzip/brotli je nach Browser) – Skripte, Stile, JSON, SVG; Bilder/Archive bleiben unverändert */
 const compression = require('compression');
 const compress = () => compression({ threshold: 1024, level: 6, filter: (req, res) => { const t = String(res.getHeader('Content-Type') || ''); return /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/.test(t) || compression.filter(req, res); } });
-module.exports = { compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
+module.exports = { privateSource, lanSource, lanOnly, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };

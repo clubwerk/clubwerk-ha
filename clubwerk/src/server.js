@@ -68,6 +68,9 @@ app.set('trust proxy', TRUSTED_PROXIES);
    (hostGuard-Umgehung unten). Ausgenommen bleibt nur echter Ingress – erkannt an der Socket-Adresse des Supervisors, nicht an einer
    Kopfzeile: Ist Home Assistant selbst über Cloudflare erreichbar, reicht der Supervisor die cf-Kopfzeilen des Browsers an das
    Add-on durch, die Seitenleiste muss dann trotzdem funktionieren. */
+/* Port 3100 nur aus dem eigenen Netz: eine öffentliche Absenderadresse (Portfreigabe am Router) wird abgewiesen.
+   Seitenleiste (Supervisor) und ein eingetragenes Proxy-Add-on kommen aus dem Add-on-Netz und sind damit „eigenes Netz“. */
+app.use(require('./security').lanOnly({ label: 'Die Verwaltung und das Tablet', extra: ip => TRUSTED_PROXIES.includes(ip) }));
 app.use((req, res, next) => {
   const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
   const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');

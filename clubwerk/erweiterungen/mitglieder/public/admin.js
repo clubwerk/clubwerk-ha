@@ -318,6 +318,12 @@
       ${ro ? '' : '<div class="row" style="justify-content:flex-end"><button class="btn primary" id="sSave">Speichern</button></div>'}`;
     GK.watch(el);
     if (ro) { el.querySelectorAll('input, select, textarea').forEach(x => { x.disabled = true; }); return; }
+    if (st.meta.scope) {   // Abteilungsadmin: Vereinsdaten und Einwilligungen pflegt die Vereinsverwaltung
+      ['sNo', 'sStatus', 'sEntry', 'sKey', 'sNotes'].forEach(i => { if ($(i)) $(i).disabled = true; });
+      el.querySelectorAll('[data-cons]').forEach(x => { x.disabled = true; });
+      const h = document.createElement('p'); h.className = 'muted s'; h.textContent = 'Mitgliedsnummer, Status, Eintritt, Schlüsselnummer, Notizen und Einwilligungen pflegt die Vereinsverwaltung.';
+      $('sSave').parentNode.prepend(h); h.style.marginRight = 'auto';
+    }
     $('sSave').onclick = async () => {
       try {
         await api('member/' + p.id, 'PUT', { salutation: val('sSal'), title: val('sTitle'), first_name: val('sFirst'), last_name: val('sLast'), birth_date: val('sBirth') || null, gender: val('sGen'), member_no: val('sNo'),
@@ -1199,16 +1205,16 @@
         ${m.fees.some(f => f.kind !== 'zusatz') ? `<table class="tbl"><tr><th>Bezeichnung</th><th class="r">Betrag</th><th>Rhythmus</th><th>Alter</th><th>Familie</th><th>Arbeitsstunden</th><th>Formular</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind !== 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc(f.name)}</b>${f.department_id ? `<div class="muted s">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</div>` : ''}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}${f.interval === 'einmalig' ? '' : `<div class="muted s">${esc(PRS[f.prorate] || '')}</div>`}</td>
             <td>${f.age_min != null || f.age_max != null ? `${f.age_min ?? 0}–${f.age_max ?? '…'}` : '–'}</td><td>${f.family ? '<span class="pill g">ja</span>' : '–'}</td><td>${f.work_minutes === 0 ? 'keine' : f.work_minutes ? (f.work_minutes / 60).toLocaleString('de-DE') + ' h' : 'Vorgabe'}</td>
-            <td>${f.on_form ? '✓' : '–'}</td><td class="r">${f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Beitragsarten – z. B. „Erwachsene ab 19 Jahre“, „Jugendliche 12–18“, „Familie“. Oder per Import (S-Verein, WISO Mein Verein, verein.cloud) unter Mitglieder → Import.</p>'}</div>
+            <td>${f.on_form ? '✓' : '–'}</td><td class="r">${f.members == null ? '–' : f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Beitragsarten – z. B. „Erwachsene ab 19 Jahre“, „Jugendliche 12–18“, „Familie“. Oder per Import (S-Verein, WISO Mein Verein, verein.cloud) unter Mitglieder → Import.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Zusatzbeiträge der Abteilungen</h3><button class="btn small primary" id="zNew" ${m.depts.length ? '' : 'disabled'}>+ Zusatzbeitrag</button></div>
         ${m.fees.some(f => f.kind === 'zusatz') ? `<table class="tbl"><tr><th>Abteilung</th><th>Bezeichnung</th><th>Alter</th><th class="r">Betrag</th><th>Rhythmus</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind === 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</b></td><td translate="no">${esc(f.name)}</td>
             <td>${f.age_min != null || f.age_max != null ? `${f.age_min ?? 0}–${f.age_max ?? '…'}` : 'alle'}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}<div class="muted s">${esc(PRS[f.prorate] || '')}</div></td>
-            <td class="r">${f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>`
+            <td class="r">${f.members == null ? '–' : f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>`
           : '<p class="muted">Keine. Beispiel: Abteilung Padel – „Padel Erwachsene“ ab 19 Jahre 60 €, „Padel Jugend“ bis 18 Jahre 30 €. Jede Person in der Abteilung zahlt den Beitrag ihres Alters zusätzlich zum Beitrag des Hauptvereins – in Familien beim Hauptzahler.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3><button class="btn small primary" id="dNew">+ Abteilung</button></div>
-        ${m.depts.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Verband</th><th class="r">Mitglieder</th><th></th></tr>${m.depts.map(d => `<tr class="${d.active ? '' : 'off'}"><td><b translate="no">${esc(d.name)}</b></td><td>${esc(d.federation || '–')}</td><td class="r">${d.members}</td>
-          <td class="r nw"><button class="btn small" data-de="${d.id}">Bearbeiten</button> ${d.members ? '' : `<button class="btn small danger" data-dx="${d.id}">Löschen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Abteilungen.</p>'}</div>
+        ${m.depts.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Verband</th><th class="r">Mitglieder</th><th></th></tr>${m.depts.map(d => `<tr class="${d.active ? '' : 'off'}"><td><b translate="no">${esc(d.name)}</b></td><td>${esc(d.federation || '–')}</td><td class="r">${d.members == null ? '–' : d.members}</td>
+          <td class="r nw"><button class="btn small" data-de="${d.id}">Bearbeiten</button> ${d.members || d.members == null ? '' : `<button class="btn small danger" data-dx="${d.id}">Löschen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Abteilungen.</p>'}</div>
 `;
     const tC = `      <div class="card" data-sec="antrag"><h3>Beitrittserklärung</h3><div class="mv-cons" style="margin-bottom:14px">
           <label class="chk"><input type="checkbox" id="eTab" ${s.app_tablet ? 'checked' : ''}> Am Tablet: „Mitglied werden“ (selbst ausfüllen und unterschreiben, oder mit Code aus der Verwaltung)</label>
@@ -1298,7 +1304,7 @@
         <label class="chk" id="feOL"><input type="checkbox" id="feO" ${!f || f.on_form ? 'checked' : ''}> Auf der Beitrittserklärung zur Auswahl</label>
         ${f ? `<label class="chk"><input type="checkbox" id="feAct" ${f.active ? 'checked' : ''}> aktiv</label>` : ''}</div>
       <p class="muted s" id="feHint"></p>
-      <div class="btns">${f && !f.members ? '<button class="btn danger" id="feDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="feOk">Speichern</button></div>`);
+      <div class="btns">${f && f.members === 0 ? '<button class="btn danger" id="feDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="feOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
     const sync = () => {
       const z = val('feK') === 'zusatz';

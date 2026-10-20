@@ -6552,6 +6552,17 @@
     "Das Formular ist veraltet – bitte die Seite neu laden.": "The form is out of date – please reload the page.",
     "Das Formular war zu lange offen – bitte die Seite neu laden.": "The form was open too long – please reload the page.",
     "Dieser Antrag wurde schon abgeschickt.": "This application has already been sent.",
-    "kein bekannter Push-Dienst": "not a known push service"
+    "kein bekannter Push-Dienst": "not a known push service",
+    ": das pflegt die Vereinsverwaltung, nicht die Abteilung.": ": this is maintained by the club administration, not the department.",
+    "{0} ist nur im Vereinsnetz erreichbar.": "{0} is only reachable from the club network.",
+    "{0}: Anfrage von öffentlicher Adresse {1} abgewiesen ({2} {3}). Ist der Port am Router freigegeben? Bitte die Freigabe entfernen.": "{0}: request from public address {1} rejected ({2} {3}). Is the port forwarded on the router? Please remove the forwarding.",
+    "{0}: das pflegt die Vereinsverwaltung, nicht die Abteilung.": "{0}: this is maintained by the club administration, not the department.",
+    "Die Beregnungs-Webapp": "The irrigation web app",
+    "Die Sicherungsdatei hat ungültige Angaben im Kopf.": "The backup file has invalid header information.",
+    "Die Verwaltung und das Tablet": "The administration and the tablet",
+    "Entschlüsseln fehlgeschlagen:": "Decryption failed:",
+    "Entschlüsseln fehlgeschlagen: {0}": "Decryption failed: {0}",
+    "Mitgliedsnummer, Status, Eintritt, Schlüsselnummer, Notizen und Einwilligungen pflegt die Vereinsverwaltung.": "Membership number, status, entry date, key number, notes and consents are maintained by the club administration.",
+    "Von unterwegs ist nur die Mitglieder-App über den Cloudflare Tunnel vorgesehen.": "From outside, only the member app via the Cloudflare tunnel is intended."
   }
 }

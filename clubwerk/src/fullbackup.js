@@ -27,6 +27,10 @@ const LEGACY_RE = /^(\d{4}-\d{2}-\d{2})(?:_(\d{6}))?_Vereinsheim\.vhsicherung$/;
 const DB_NAME = 'clubwerk.db', DB_ALT = 'vereinsheim.db';
 
 function deriveKey(password, kdf) {
+  // Werte stammen aus dem (unverschlüsselten) Kopf der Datei – nur übliche scrypt-Werte zulassen, sonst könnte eine präparierte Datei Rechenzeit/Speicher binden
+  const k = kdf || {}, N = Number(k.N), r = Number(k.r), p = Number(k.p), salt = Buffer.from(String(k.salt || ''), 'base64');
+  if (!(Number.isInteger(N) && N >= 1024 && N <= 1048576 && (N & (N - 1)) === 0 && Number.isInteger(r) && r >= 1 && r <= 16 && Number.isInteger(p) && p >= 1 && p <= 4 && salt.length >= 8 && salt.length <= 64 && 128 * N * r <= 128 * 1024 * 1024))
+    throw new Error('Die Sicherungsdatei hat ungültige Angaben im Kopf.');
   return crypto.scryptSync(String(password), Buffer.from(kdf.salt, 'base64'), 32, { N: kdf.N, r: kdf.r, p: kdf.p, maxmem: 128 * 1024 * 1024 });
 }
 const keyId = key => crypto.createHash('sha256').update(key).digest('hex').slice(0, 16);
@@ -126,18 +130,20 @@ async function extract(file, o) {
   fs.mkdirSync(o.outDir, { recursive: true, mode: 0o700 });
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(head.iv, 'base64'));
   decipher.setAuthTag(tag);
-  const tar = spawn('tar', ['-xzf', '-', '-C', o.outDir, '--no-same-owner', '--no-same-permissions'], { stdio: ['pipe', 'ignore', 'pipe'] });
+  // Erst vollständig entschlüsseln und den Prüfwert (GCM-Tag) bestätigen – erst danach sieht tar überhaupt ein Byte.
+  const payload = path.join(path.dirname(path.resolve(o.outDir)), `.inhalt-${crypto.randomBytes(6).toString('hex')}.tgz`);   // neben dem Zielordner, nicht darin
+  try {
+    await pipeline(fs.createReadStream(file, { start: dataStart, end: dataEnd - 1 }), decipher, fs.createWriteStream(payload, { mode: 0o600 }));
+  } catch (e) {
+    try { fs.unlinkSync(payload); } catch (x) { /* */ }
+    if (/auth|unable to authenticate/i.test(e.message)) throw new Error('Die Sicherungsdatei wurde verändert oder ist beschädigt.');
+    throw new Error('Entschlüsseln fehlgeschlagen: ' + e.message);
+  }
+  const tar = spawn('tar', ['-xzf', payload, '-C', o.outDir, '--no-same-owner', '--no-same-permissions'], { stdio: ['ignore', 'ignore', 'pipe'] });
   let err = ''; tar.stderr.on('data', c => { err += c; });
   const exited = new Promise((res, rej) => { tar.on('close', res); tar.on('error', e => rej(new Error('tar nicht verfügbar: ' + e.message))); });
-  exited.catch(() => {});
-  try {
-    await pipeline(fs.createReadStream(file, { start: dataStart, end: dataEnd - 1 }), decipher, tar.stdin);
-  } catch (e) {
-    tar.kill();
-    if (/auth|unable to authenticate/i.test(e.message)) throw new Error('Die Sicherungsdatei wurde verändert oder ist beschädigt.');
-    throw new Error('Entpacken fehlgeschlagen: ' + e.message);
-  }
-  const code = await exited;
+  let code;
+  try { code = await exited; } finally { try { fs.unlinkSync(payload); } catch (x) { /* */ } }
   if (code !== 0) throw new Error('Entpacken fehlgeschlagen: ' + String(err).slice(0, 200));
   let manifest;
   try { manifest = JSON.parse(fs.readFileSync(path.join(o.outDir, 'manifest.json'), 'utf8')); } catch (e) { throw new Error('In der Sicherung fehlt das Inhaltsverzeichnis.'); }

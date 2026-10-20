@@ -438,6 +438,7 @@ function startPortApp(ctx) {
   const app = express();
   app.disable('x-powered-by');
   app.set('trust proxy', false);
+  app.use(ctx.require('./security').lanOnly({ label: 'Die Beregnungs-Webapp' }));   // nie aus dem Internet (versehentliche Portfreigabe)
   app.use(ctx.require('./security').hostGuard());
   app.use(ctx.require('./security').hardenHeaders({ frame: 'DENY' }));
   app.use(ctx.require('./security').compress());

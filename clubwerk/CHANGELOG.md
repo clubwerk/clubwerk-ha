@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.20.3
+
+Nachbesserungen aus der Gesamtprüfung (Security und Datensicherheit):
+
+- **Verwaltung/Tablet (Port 3100) und Beregnungs-Webapp (Port 5000) nur noch aus dem eigenen Netz:** Kommt eine Anfrage direkt von einer öffentlichen Internet-Adresse (z. B. weil der Port am Router versehentlich freigegeben ist), wird sie abgewiesen und als Sicherheitshinweis gemeldet. Geprüft wird die echte Absenderadresse, nicht eine Kopfzeile. Seitenleiste, Heimnetz, VPN (auch Tailscale) und IPv6 im eigenen Netz funktionieren wie bisher.
+- **Abteilungsadmins:** dürfen Personen- und Kontaktdaten ihrer Mitglieder ändern, aber nicht mehr Mitgliedsnummer, Status, Eintritt, Schlüsselnummer, Zahlungsart, Notizen und Einwilligungen – das pflegt die Vereinsverwaltung. Die Felder sind für sie ausgegraut. In der Übersicht sehen sie Mitgliederzahlen nur noch für die eigene Abteilung.
+- Mitglieder-App: Die lokale Adresse im Vereinsheim wird nur noch an gekoppelte Handys herausgegeben.
+- Komplettsicherung: Beim Wiederherstellen wird die Datei erst vollständig entschlüsselt und ihr Prüfwert bestätigt, bevor überhaupt entpackt wird. Unplausible Schlüsselparameter im Dateikopf werden abgelehnt.
+
 ## 3.20.2
 
 Weitere Nachbesserungen aus der vertieften Code-Prüfung:
