@@ -75,7 +75,26 @@
       .bkm-pick button { display: inline-flex; align-items: center; min-height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 14px; font-weight: 700; }
       .bkm-pick button.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
       .bkm-sheet h3.l { margin: 10px 0 4px; font-size: 14.5px; font-weight: 800; }
-      .bkm-req { font-size: 13px; color: var(--amber-ink, var(--muted)); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; }`;
+      .bkm-req { font-size: 13px; color: var(--amber-ink, var(--muted)); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; margin: 0 0 10px; }
+      /* Buchungsfenster: alle Felder 48 px, gleiche Beschriftungen, Seltenes eingeklappt (.bkm-fold) */
+      .bkm-form .vh-input, .bkm-form .vh-select { height: 48px; min-height: 48px; font-size: 16px; border-radius: 12px; padding: 0 14px; margin: 0 0 12px; }
+      .bkm-form label.l { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
+      .bkm-form label.l span { font-weight: 500; } .bkm-form label.l .vh-chip { font-weight: 800; }
+      .bkm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } .bkm-two.one { grid-template-columns: 1fr; } .bkm-two .span2 { grid-column: 1 / -1; } .bkm-two > div { min-width: 0; }
+      .bkm-lh { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 6px; } .bkm-lh label.l { margin: 0; }
+      .bkm-links { display: flex; gap: 16px; flex: none; }
+      .bkm-fold { padding: 12px 12px 0; margin: 0 0 12px; border-radius: 12px; background: var(--hover); }
+      .bkm-fold .vh-check { margin-bottom: 12px; }
+      .bkm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .bkm-row2 .vh-btn { height: 48px; min-height: 48px; padding: 0 14px; font-size: 15px; border-radius: 12px; }
+      .bkm-form p.bkm-req { margin: -4px 0 12px; font-size: 13px; color: var(--amber); font-weight: 600; }
+      .bkm-form p.bkm-for { margin: 0 0 12px; font-size: 14.5px; color: var(--ink); }
+      .bkm-more { display: block; margin: 0 0 12px; }
+      .bkm-rl { margin: 2px 0 10px; } .bkm-rl .vh-check { margin: 0; flex: 1; }
+      .bkm-form .bkm-rules { margin: 0 0 12px; }
+      .bkm-form .vh-seg { margin-bottom: 12px; }
+      .bkm-form .bkm-chips:empty { display: none; }
+      .bkm-form .bkm-sum { margin: 4px 0 6px; }
+      .bkm-form .vh-link { color: var(--brand-ink); }`;
     document.head.appendChild(s);
   }
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
@@ -325,27 +344,37 @@
         let forMember = ed ? ed.edit.for_member || null : null;
         const personName = id => ((data.people || []).find(x => x.id === id) || {}).ln || ((data.people || []).find(x => x.id === id) || {}).name || (ed && ed.for_name) || '';
         const sh = sheet();
-        sh.innerHTML = `<div class="vh-box"><h2>${ed ? 'Buchung ändern' : esc(r.name)}</h2><p>${ed ? `${esc(r.name)} · ` : ''}${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}${ed ? '' : ` · ab ${hhmm(s)} Uhr`}</p>
-          ${labels.length ? `<label class="l">Art der Buchung</label><select class="vh-select" id="bkmL"><option value="">Normale Buchung</option>${labels.map(l => `<option value="${l.id}" ${lab && lab.id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select>
-            <div id="bkmTw"><label class="l">Titel <span style="font-weight:500">(optional)</span></label><input class="vh-input" id="bkmT" maxlength="80" placeholder="z. B. Herren 40 gegen TC Musterstadt" value="${esc(ed ? ed.edit.title || '' : '')}"></div>` : ''}
-          ${ed && forMember ? `<p class="bkm-sum" style="margin:0 0 10px">Gebucht für <b>${esc(ed.for_name || personName(forMember))}</b></p>` : !ed && mayFor ? `<label class="l">Für wen?</label><div class="bkm-pick" id="bkmFw"><button type="button" data-fw="me" class="on">Für mich</button><button type="button" data-fw="other">Für ein anderes Mitglied</button></div>
-            <div id="bkmFo" hidden><div class="bkm-chips" id="bkmFc"></div><input class="vh-input" id="bkmFq" placeholder="Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmFh" hidden></div></div>` : ''}
-          ${ed ? `<label class="l">Beginn</label><select class="vh-select" id="bkmS">${starts.map(x => `<option value="${x}" ${x === s ? 'selected' : ''}>${hhmm(x)} Uhr</option>`).join('')}</select>` : ''}
-          <label class="l">Dauer</label><select class="vh-select" id="bkmD"></select>
-          ${withWho ? `<h3 class="l">Mit wem spielst du?${r.partner_required ? ' <span style="font-weight:500;color:var(--muted)">(Pflicht)</span>' : ''}</h3><div class="bkm-req" id="bkmReq" hidden></div>` : ''}
-          ${set.max_partners ? `<label class="l">Mitspieler <span style="font-weight:500" id="bkmPm"></span></label><div class="bkm-chips" id="bkmPc"></div>
-            <input class="vh-input" id="bkmPq" placeholder="Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmPh" hidden></div>` : ''}
-          ${set.max_guests ? `<label class="l">Gäste <span style="font-weight:500" id="bkmGm"></span></label><div class="bkm-chips" id="bkmGc"></div>
-            <div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Vor- und Nachname" autocomplete="off" maxlength="60"><button id="bkmGa" style="margin-bottom:10px">+ Gast</button></div>
-            <label class="chk" style="margin-top:-2px"><input type="checkbox" id="bkmGp"> Mitglied in einem Partnerverein (keine Gastgebühr)</label>` : ''}
-          ${devices.length || r.solo_label ? `<label class="l">${devices.length ? 'Gerät' : ''}${devices.length && r.solo_label ? ' / ' : ''}${r.solo_label ? 'allein' : ''} <span style="font-weight:500">(ohne Gebühr)</span></label><div class="bkm-pick" id="bkmPk">${devices.map(x => `<button type="button" data-dev="${x.id}">${esc(x.name)}</button>`).join('')}${r.solo_label ? `<button type="button" data-solo="1">${esc(r.solo_label)} (allein)</button>` : ''}</div>` : ''}
-          ${!ed && data.rights && data.rights.series ? `<label class="l">Wiederholen <span style="font-weight:500">(optional – Serie)</span></label><select class="vh-input" id="bkmRf"><option value="">nicht wiederholen</option><option value="daily:1">täglich</option><option value="weekly:1">jede Woche</option><option value="weekly:2">alle 2 Wochen</option><option value="weekly:3">alle 3 Wochen</option><option value="weekly:4">alle 4 Wochen</option><option value="monthly-day:1">jeden Monat am gleichen Tag</option><option value="monthly-nth:1">jeden Monat am gleichen Wochentag</option></select>
-            <div id="bkmUW" hidden><label class="l">bis</label><input class="vh-input" type="date" id="bkmU" min="${addDays(day, 1)}" max="${addDays(day, 366)}"></div>` : ''}
-          ${set.rules ? `<div class="bkm-rules">${esc(set.rules)}</div><label class="chk"><input type="checkbox" id="bkmR" ${ed ? 'checked' : ''}> Ich halte mich an die Platzordnung.</label>` : ''}
+        /* Aufbau (Styleguide): Kopf · Für wen · Dauer/Art · Mitspieler (Gast, Gerät eingeklappt) · Wiederholen (eingeklappt) · Platzordnung · Preis · Knöpfe.
+           Alle Felder 48 px hoch, Beschriftungen gleich; Seltenes erst auf Antippen. */
+        sh.innerHTML = `<div class="vh-box bkm-form"><h2>${ed ? 'Buchung ändern' : esc(r.name)}</h2><p>${ed ? `${esc(r.name)} · ` : ''}${esc(wd(day, { weekday: 'long' }))}, ${deD(day)}${ed ? '' : ` · ab ${hhmm(s)} Uhr`}</p>
+          ${ed && forMember ? `<p class="bkm-for">Gebucht für <b>${esc(ed.for_name || personName(forMember))}</b></p>` : !ed && mayFor ? `<div class="vh-seg" id="bkmFw"><button type="button" data-fw="me" class="on">Für mich</button><button type="button" data-fw="other">Für ein anderes Mitglied</button></div>
+            <div id="bkmFo" hidden><div class="bkm-chips" id="bkmFc"></div><input class="vh-input" id="bkmFq" placeholder="Für wen? Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmFh" hidden></div></div>` : ''}
+          <div class="bkm-two${labels.length || ed ? '' : ' one'}">
+            ${ed ? `<div><label class="l">Beginn</label><select class="vh-select" id="bkmS">${starts.map(x => `<option value="${x}" ${x === s ? 'selected' : ''}>${hhmm(x)} Uhr</option>`).join('')}</select></div>` : ''}
+            <div><label class="l">Dauer</label><select class="vh-select" id="bkmD"></select></div>
+            ${labels.length ? `<div${ed ? ' class="span2"' : ''}><label class="l">Art</label><select class="vh-select" id="bkmL"><option value="">Normale Buchung</option>${labels.map(l => `<option value="${l.id}" ${lab && lab.id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>` : ''}</div>
+          ${labels.length ? `<div id="bkmTw"><label class="l">Titel <span>(optional)</span></label><input class="vh-input" id="bkmT" maxlength="80" placeholder="z. B. Herren 40 gegen TC Musterstadt" value="${esc(ed ? ed.edit.title || '' : '')}"></div>` : ''}
+          ${withWho ? `<div class="bkm-lh"><label class="l">Mitspieler${r.partner_required ? ' <span class="vh-chip a">Pflicht</span>' : ''} <span id="bkmPm"></span></label>
+              <span class="bkm-links">${set.max_guests ? '<button type="button" class="vh-link" id="bkmGt">+ Gast</button>' : ''}${devices.length || r.solo_label ? `<button type="button" class="vh-link" id="bkmDt">${esc(devices.length ? devices[0].name : r.solo_label)}${devices.length + (r.solo_label ? 1 : 0) > 1 ? ' …' : ''}</button>` : ''}</span></div>
+            <div class="bkm-chips" id="bkmPc"></div><div class="bkm-chips" id="bkmGc"></div>
+            ${set.max_partners ? '<input class="vh-input" id="bkmPq" placeholder="Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmPh" hidden></div>' : ''}
+            ${set.max_guests ? `<div class="bkm-fold" id="bkmGw" hidden><label class="l">Gast <span id="bkmGm"></span></label><div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Name des Gastes" autocomplete="off" maxlength="60"><button type="button" class="vh-btn sec" id="bkmGa">Hinzufügen</button></div>
+              <label class="vh-check"><input type="checkbox" id="bkmGp"> Mitglied in einem Partnerverein (keine Gastgebühr)</label></div>` : ''}
+            ${devices.length || r.solo_label ? `<div class="bkm-fold" id="bkmDw" hidden><label class="l">Ohne Mitspieler <span>(ohne Gebühr)</span></label><div class="bkm-pick" id="bkmPk">${devices.map(x => `<button type="button" data-dev="${x.id}">${esc(x.name)}</button>`).join('')}${r.solo_label ? `<button type="button" data-solo="1">${esc(r.solo_label)} (allein)</button>` : ''}</div></div>` : ''}
+            <p class="bkm-req" id="bkmReq" hidden></p>` : ''}
+          ${!ed && data.rights && data.rights.series ? `<button type="button" class="vh-link bkm-more" id="bkmRt">Wiederholen …</button>
+            <div class="bkm-fold" id="bkmRw" hidden><div class="bkm-two one" id="bkmRg"><div><label class="l">Wiederholen</label><select class="vh-select" id="bkmRf"><option value="">nicht wiederholen</option><option value="daily:1">täglich</option><option value="weekly:1">jede Woche</option><option value="weekly:2">alle 2 Wochen</option><option value="weekly:3">alle 3 Wochen</option><option value="weekly:4">alle 4 Wochen</option><option value="monthly-day:1">jeden Monat am gleichen Tag</option><option value="monthly-nth:1">jeden Monat am gleichen Wochentag</option></select></div>
+              <div id="bkmUW" hidden><label class="l">bis</label><input class="vh-input" type="date" id="bkmU" min="${addDays(day, 1)}" max="${addDays(day, 366)}"></div></div></div>` : ''}
+          ${set.rules ? `<div class="bkm-lh bkm-rl"><label class="vh-check"><input type="checkbox" id="bkmR" ${ed ? 'checked' : ''}> Ich halte mich an die Platzordnung.</label><button type="button" class="vh-link" id="bkmRr">lesen</button></div>
+            <div class="bkm-rules" id="bkmRules" hidden>${esc(set.rules)}</div>` : ''}
           <div class="bkm-sum" id="bkmSum"></div>
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">Abbrechen</button><button class="ok" id="bkmOk">${ed ? 'Speichern' : 'Buchen'}</button></div></div>`;
         sh.classList.add('show');
         const $q = id => sh.querySelector('#' + id);
+        const fold = (btn, box, focus) => { if ($q(btn)) $q(btn).onclick = () => { const o = $q(box).hidden; $q(box).hidden = !o; $q(btn).classList.toggle('on', o); if (o && focus && $q(focus)) $q(focus).focus(); }; };
+        fold('bkmGt', 'bkmGw', 'bkmGq'); fold('bkmDt', 'bkmDw'); fold('bkmRt', 'bkmRw'); fold('bkmRr', 'bkmRules');
+        if (guests.length && $q('bkmGw')) $q('bkmGw').hidden = false;
+        if ((device || solo) && $q('bkmDw')) $q('bkmDw').hidden = false;
         const start = () => ($q('bkmS') ? +$q('bkmS').value : s);
         // längstmögliche Dauer: bis zur nächsten belegten Zeit, Schluss oder Höchstdauer (Vereinstermin: ohne Höchstdauer)
         const fillDur = () => {
@@ -358,8 +387,8 @@
         };
         const paintLab = () => {
           if ($q('bkmTw')) $q('bkmTw').style.display = lab ? '' : 'none';
-          if ($q('bkmPm')) $q('bkmPm').textContent = `(optional, max. ${maxP()})`;
-          if ($q('bkmGm')) $q('bkmGm').textContent = lab && lab.free_rules ? '(optional, ohne Gebühr)' : `(optional${r.guest_fee_cents ? `, ${euro(r.guest_fee_cents)} je Gast` : ''})`;
+          if ($q('bkmPm')) $q('bkmPm').textContent = `max. ${maxP()}`;
+          if ($q('bkmGm')) $q('bkmGm').textContent = lab && lab.free_rules ? 'ohne Gebühr' : r.guest_fee_cents ? `${euro(r.guest_fee_cents)} je Gast` : '';
         };
         let qn = 0;
         const body = () => ({ id: ed ? ed.id : undefined, resource_id: r.id, date: day, start: hhmm(start()), minutes: +$q('bkmD').value, partners, guests, label_id: lab ? lab.id : null, title: lab && $q('bkmT') ? $q('bkmT').value.trim() : '', partner_device: device, solo, for_member: forMember || undefined });
@@ -369,7 +398,7 @@
           sh.querySelectorAll('[data-dev]').forEach(b => b.classList.toggle('on', +b.dataset.dev === device));
           const sb = sh.querySelector('[data-solo]'); if (sb) sb.classList.toggle('on', solo);
           const need = Boolean(r.partner_required && !chosen());
-          if ($q('bkmReq')) { $q('bkmReq').hidden = !need; $q('bkmReq').textContent = `Auf diesem Platz ist ein Mitspieler Pflicht – wähle ${['Mitglied', 'Gast', ...devices.map(x => x.name), ...(r.solo_label ? [r.solo_label] : [])].join(', ').replace(/, ([^,]*)$/, ' oder $1')}.`; }
+          if ($q('bkmReq')) { $q('bkmReq').hidden = !need; $q('bkmReq').textContent = `Bitte ${['ein Mitglied', 'einen Gast', ...devices.map(x => x.name), ...(r.solo_label ? [r.solo_label] : [])].join(', ').replace(/, ([^,]*)$/, ' oder $1')} wählen.`; }
           $q('bkmOk').disabled = need;
         };
         sh.querySelectorAll('[data-dev]').forEach(b => { b.onclick = () => { device = device === +b.dataset.dev ? null : +b.dataset.dev; paintPick(); sum(); }; });
@@ -415,7 +444,7 @@
         $q('bkmD').onchange = sum;
         $q('bkmNo').onclick = close;
         const repeat = () => { const v = $q('bkmRf') ? $q('bkmRf').value : ''; if (!v) return null; const [k, n] = v.split(':'); return k === 'monthly-day' ? { freq: 'monthly', monthly: 'day', interval: +n } : k === 'monthly-nth' ? { freq: 'monthly', monthly: 'nth', interval: +n } : { freq: k, interval: +n }; };
-        if ($q('bkmRf')) $q('bkmRf').onchange = () => { const on = Boolean($q('bkmRf').value); $q('bkmUW').hidden = !on; if (on && !$q('bkmU').value) $q('bkmU').value = addDays(day, 56); $q('bkmOk').textContent = on ? 'Serie anlegen' : 'Buchen'; };
+        if ($q('bkmRf')) $q('bkmRf').onchange = () => { const on = Boolean($q('bkmRf').value); $q('bkmUW').hidden = !on; $q('bkmRg').classList.toggle('one', !on); if (on && !$q('bkmU').value) $q('bkmU').value = addDays(day, 56); $q('bkmOk').textContent = on ? 'Serie anlegen' : 'Buchen'; };
         if ($q('bkmFw')) {
           const paintFor = () => {
             $q('bkmFc').innerHTML = forMember ? `<span>${esc(personName(forMember))}<button data-rf="1" aria-label="entfernen">×</button></span>` : '';

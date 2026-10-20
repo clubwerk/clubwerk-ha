@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.26.2
+
+- **Buchungsfenster neu gestaltet (Buchungssystem 1.4.1):** alle Felder gleich hoch (48 px), gleiche Beschriftungen, kompakter Aufbau: Für wen · Dauer/Art · Mitspieler. Gast, Gerät/allein und Wiederholen klappen erst auf Antippen auf („+ Gast“, „Wiederholen …“), die Platzordnung als Häkchen mit „lesen“.
+- **Mitglieder-App lädt Bereiche nach jedem Update neu:** Die Dateien der Bereiche tragen die Versionsnummer – das Handy hält keine alte Fassung mehr fest.
+
 ## 3.26.1
 
 - **Benachrichtigungen zentral:** In der Mitglieder-App schaltet das Mitglied Benachrichtigungen je Handy nur noch an oder aus. Welche Hinweise kommen, legt allein der Vorstand fest (Mitglieder-App → Benachrichtigungen); frühere Abwahlen einzelner Anlässe am Handy gelten nicht mehr.
