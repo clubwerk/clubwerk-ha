@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.27.5
+
+- **Platzbelegung in der App (Buchungssystem 1.4.3):** Buchungsarten (z. B. Medenspiel) behalten ihre Farbe auch bei eigenen Buchungen; die eigene Buchung erkennt man dann am Rahmen in Vereinsfarbe.
+
 ## 3.27.4
 
 - **Spieltage (Spielbetrieb 1.3.3):** Ein ✓/✕ in der Tageszeile (mehrere Mannschaften) und „Alle ✓ / Alle ✕“ über mehrere Mannschaften sind jetzt jeweils eine einzige Anfrage – schneller und schont den Spamschutz der Mitglieder-App.

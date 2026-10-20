@@ -19,6 +19,7 @@
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
       .bkm-nowbar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
       .bkm-nowbar b { font-size: 14.5px; font-weight: 800; white-space: nowrap; } .bkm-nowbar span { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
       .bkm-nowbar i { width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: -4px 2px 0 0; flex: none; transition: transform .15s; }
@@ -217,8 +218,9 @@
           let ln = head ? [[head, 'b'], ...names.map(x => [x, '']), ...(!names.length && b.title && b.title !== head ? [[b.title, '']] : [])] : names.length ? names.map(x => [x, 'b']) : [[b.mine ? 'Meine Buchung' : 'belegt', 'b']];
           if (ln.length < n) ln.push([time, 'tm']);
           else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
-          const st = b.mine ? '' : b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
-          return `<button class="bkm-blk ${b.mine ? 'mine' : ''} ${b.type === 'sperre' ? 'sperre' : ''}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`;
+          // Buchungsart (z. B. Medenspiel) behält immer ihre Farbe – auch bei eigenen Buchungen; „meine“ zeigt dann ein Rahmen in Vereinsfarbe
+          const st = b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
+          return `<button class="bkm-blk ${b.mine ? 'mine' : ''} ${b.label ? 'lab' : ''} ${b.type === 'sperre' ? 'sperre' : ''}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`;
         };
         // heute: wer gerade spielt und wer gleich kommt – kompakt über dem Raster
         let now = '';
