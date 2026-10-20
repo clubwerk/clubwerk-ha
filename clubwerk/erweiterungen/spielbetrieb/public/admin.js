@@ -39,7 +39,10 @@
       .sp-sel button { min-height: 30px; height: 30px; padding: 0 9px; }
       .sp-tasks > div { display: grid; grid-template-columns: minmax(0, 1fr) 240px auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
       .sp-tasks > div:first-child { border-top: 0; }
-      @media (max-width: 760px) { .sp-g { grid-template-columns: 6px 64px minmax(0, 1fr); } .sp-g .sp-nums { grid-column: 3; justify-content: flex-start; } .sp-d { width: 64px; } .sp-tasks > div { grid-template-columns: 1fr; } }`;
+      .sp-g.rt h4 { color: var(--muted); } .sp-g.rt .sp-d { background: var(--hover); color: var(--ink); }
+      .sp-rt td { vertical-align: middle; } .sp-rt select { min-height: 36px; height: 36px; min-width: 150px; }
+      .sp-dl { display: flex; flex-wrap: wrap; gap: 4px; } .sp-dl span { background: var(--hover); border-radius: 6px; padding: 2px 6px; font-size: 12.5px; white-space: nowrap; } .sp-dl span.z { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
+      @media (max-width: 760px) { .sp-g { grid-template-columns: 6px 64px minmax(0, 1fr); } .sp-g .sp-nums { grid-column: 3; justify-content: flex-start; } .sp-d { width: 64px; } .sp-tasks > div { grid-template-columns: 1fr; } .sp-acts { display: grid; grid-template-columns: 1fr; width: 100%; } .sp-acts .btn { width: 100%; } }`;
     document.head.appendChild(s);
   }
 
@@ -58,9 +61,11 @@
     };
   }
   const light = s => (s.ok ? 'g' : 'r');
+  const rtTitle = g => (g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin');
   const nums = (g, past) => {
     const s = g.stats;
     if (g.status === 'abgesagt') return '<span class="pill">abgesagt</span>';
+    if (g.kind === 'rahmen' && !g.released) return '<span class="pill">noch nicht abgefragt</span>';
     return `<span class="pill ${past ? '' : light(s)}">${s.yes} von ${s.min} können</span>${s.open && !past ? `<span class="pill">${s.open} offen</span>` : ''}${s.playing ? `<span class="pill ${s.lineupOk ? 'g' : 'a'}">${s.playing} aufgestellt</span>` : ''}${s.withdraws ? `<span class="pill a">${s.withdraws} Absage-Anfrage</span>` : ''}${g.result ? `<span class="pill">${esc(g.result)}</span>` : ''}`;
   };
 
@@ -71,9 +76,14 @@
     el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:14px">
         <div class="row" style="gap:10px;align-items:flex-end"><label class="f" style="min-width:220px">Mannschaft<select id="spT">${opt(0, 'Alle Mannschaften', st.team)}${m.teams.filter(t => t.active).map(t => opt(t.id, t.name, st.team)).join('')}</select></label>
           <div class="seg"><button type="button" data-past="0" class="${st.past ? '' : 'on'}">Kommende</button><button type="button" data-past="1" class="${st.past ? 'on' : ''}">Vergangene</button></div></div>
-        <div class="row" style="gap:8px"><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button></div></div>
+        <div class="row sp-acts" style="gap:8px"><button class="btn" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button></div></div>
       ${!m.teams.length ? '<div class="banner a"><span>Noch keine Mannschaften – zuerst unter „Mannschaften“ anlegen oder einfach den Spielplan importieren (Mannschaften entstehen dabei automatisch).</span></div>' : ''}
-      <div class="sp-games">${games.length ? games.map(g => `<div class="sp-g" data-g="${g.id}"><span class="lt ${g.status === 'abgesagt' || st.past ? 'x' : light(g.stats)}"></span>
+      ${m.rahmenPending ? `<div class="banner a" style="margin-bottom:14px"><span>${m.rahmenPending} vorläufige Termine aus dem Rahmenterminplan sind angelegt, aber noch nicht abgefragt – die Spieler sehen sie erst nach „Abfrage starten“.</span><button class="btn primary small" id="spRel" type="button">Abfrage starten</button></div>` : ''}
+      <div class="sp-games">${games.length ? games.map(g => g.kind === 'rahmen' ? `<div class="sp-g rt" data-g="${g.id}"><span class="lt ${!g.released || st.past ? 'x' : light(g.stats)}"></span>
+          <div class="sp-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></div>
+          <div style="min-width:0"><h4><span translate="no">${esc(g.team)}</span> · ${esc(rtTitle(g))}</h4>
+            <div class="muted">vorläufig – Gegner und Heim/Auswärts kommen mit dem Spielplan${g.captain ? ' · MF ' + esc(g.captain) : ''}</div></div>
+          <div class="sp-nums">${nums(g, st.past)}</div></div>` : `<div class="sp-g" data-g="${g.id}"><span class="lt ${g.status === 'abgesagt' || st.past ? 'x' : light(g.stats)}"></span>
           <div class="sp-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}${g.start ? ' ' + esc(g.start) : ''}</span></div>
           <div style="min-width:0"><h4><span translate="no">${esc(g.team)}</span> ${g.home ? 'gegen' : 'bei'} <span translate="no">${esc(g.opponent)}</span></h4>
             <div class="muted">${g.home ? 'Heimspiel' : 'Auswärtsspiel'}${g.league ? ' · ' + esc(g.league) : ''}${g.captain ? ' · MF ' + esc(g.captain) : ''}${g.sent ? ' · Aufstellung verschickt' : ''}</div></div>
@@ -83,6 +93,11 @@
     el.querySelectorAll('[data-g]').forEach(c => { c.onclick = () => gameDialog(+c.dataset.g, () => showGames(el).catch(fail)); });
     $('spNew').onclick = () => editGame(null, () => showGames(el).catch(fail));
     $('spImp').onclick = () => importDialog(() => pageRender('sp-spieltage', showGames)().catch(fail));
+    $('spRtp').onclick = () => rahmenDialog(() => pageRender('sp-spieltage', showGames)().catch(fail));
+    if ($('spRel')) $('spRel').onclick = () => GK.busy($('spRel'), async () => {
+      if (!await ask(`${m.rahmenPending} vorläufige Termine in der App zeigen und die Spieler per Push bitten, „kann“ oder „kann nicht“ zu melden?`, { ok: 'Abfrage starten' })) return;
+      try { const r = await api('rahmen/release', 'POST', {}); toast(`Abfrage gestartet: ${r.games} Termine, ${r.players} Spieler benachrichtigt.`); pageRender('sp-spieltage', showGames)().catch(fail); } catch (e) { fail(e); }
+    });
   }
 
   function editGame(g, after) {
@@ -109,6 +124,7 @@
   /** Spieltag: Verfügbarkeit aller Spieler, Aufstellung, Absage-Anfragen, Treffpunkt, Aufgaben */
   async function gameDialog(id, after) {
     let v = await api('games/' + id);
+    if (v.kind === 'rahmen') return rahmenGame(v, after);
     const draw = () => {
       const s = v.stats, cfg = st.meta.settings;
       const AV = p => (p.state === 'ja' ? `<span class="pill g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="pill r">kann nicht</span>' : '<span class="pill">offen</span>');
@@ -145,6 +161,74 @@
     draw();
   }
 
+  /** Vorläufiger Termin: nur Verfügbarkeit (Aufstellung erst mit dem Spielplan) */
+  function rahmenGame(v, after) {
+    const id = v.id;
+    const draw = () => {
+      const s = v.stats;
+      const row = p => `<tr><td class="r muted">${esc(p.rank ?? '')}</td><td><b translate="no">${esc(p.ln)}</b>${p.note ? `<div class="muted s">${esc(p.note)}</div>` : ''}</td>
+        <td><select data-av="${p.id}" aria-label="Verfügbarkeit">${opt('', 'offen', p.state || '')}${opt('ja', 'kann', p.state)}${opt('nein', 'kann nicht', p.state)}</select>${p.state === 'ja' && (p.from || p.until) ? `<div class="muted" style="font-size:12px;margin-top:3px">${p.from ? 'ab ' + esc(p.from) : ''}${p.from && p.until ? ' ' : ''}${p.until ? 'bis ' + esc(p.until) : ''}</div>` : ''}</td></tr>`;
+      dialog(`<h3><span translate="no">${esc(v.team)}</span> · ${esc(rtTitle(v))}</h3>
+        <p class="muted" style="margin:-4px 0 12px">${esc(wd(v.date))} ${esc(deDate(v.date))} · vorläufig aus dem Rahmenterminplan – Gegner, Uhrzeit und Heim/Auswärts kommen mit dem Spielplan-Import, die Rückmeldungen bleiben dabei erhalten.${v.released ? '' : ' <b>Noch nicht abgefragt.</b>'}</p>
+        <div class="row" style="gap:8px;margin-bottom:10px"><span class="pill ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="pill">${s.no} ${s.no === 1 ? 'kann' : 'können'} nicht</span><span class="pill">${s.open} offen</span></div>
+        <div class="scroll" style="max-height:50vh"><table class="tbl sp-ros"><tr><th class="r" style="width:36px">Nr.</th><th>Spieler</th><th>Verfügbarkeit</th></tr>${v.people.filter(p => p.inRoster).map(row).join('') || '<tr><td colspan="3" class="muted">Noch keine Spieler in dieser Mannschaft.</td></tr>'}</table></div>
+        <div class="btns"><button class="btn danger" id="rgDel" type="button" style="margin-right:auto">Termin löschen</button><button class="btn" id="rgRem" type="button" ${s.open && v.released ? '' : 'disabled'}>Offene erinnern</button><button class="btn ghost" id="rgC" type="button">Schließen</button></div>`, true);
+      $('dialog').querySelectorAll('[data-av]').forEach(x => { x.onchange = async () => { try { v = await api(`games/${id}/avail`, 'POST', { member_id: +x.dataset.av, state: x.value }); } catch (e) { fail(e); } draw(); }; });
+      $('rgRem').onclick = () => GK.busy($('rgRem'), async () => { try { const r = await api(`games/${id}/remind`, 'POST', {}); toast(`${r.n} Spieler erinnert.`); } catch (e) { fail(e); } });
+      $('rgDel').onclick = async () => { if (!await ask('Vorläufigen Termin löschen? Die Rückmeldungen dazu gehen verloren.', { ok: 'Löschen', danger: true })) return; try { await api('games/' + id, 'DELETE'); closeDialog(); toast('Gelöscht.'); after(); } catch (e) { fail(e); } };
+      $('rgC').onclick = () => { closeDialog(); after(); };
+    };
+    draw();
+  }
+
+  /* ---------------- Rahmenterminplan (vorläufige Termine je Altersklasse) ---------------- */
+  function rahmenDialog(after) {
+    dialog(`<h3>Rahmenterminplan importieren</h3>
+      <p class="muted" style="margin:0 0 12px">Der Verband veröffentlicht lange vor dem Spielplan den Rahmenterminplan mit den Spieltagen je Altersklasse. Daraus entstehen vorläufige Termine, für die sich die Spieler schon melden können. Kommt später der Spielplan, wird aus jedem vorläufigen Termin der echte Spieltag – die Rückmeldungen bleiben erhalten; Termine ohne Spiel entfallen.</p>
+      <div class="row" style="gap:10px;align-items:center"><label class="btn" style="cursor:pointer">PDF wählen …<input id="rtF" type="file" accept=".pdf,application/pdf" style="display:none"></label><span class="muted s" id="rtFn">Rahmenterminplan als PDF (z. B. von der Verbandsseite)</span></div>
+      <div class="btns"><button class="btn ghost" id="rtC" type="button">Abbrechen</button><button class="btn primary" id="rtGo" type="button" disabled>Weiter</button></div>`);
+    let file = null;
+    $('rtC').onclick = closeDialog;
+    $('rtF').onchange = () => { const f = $('rtF').files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { file = String(r.result).split(',')[1]; $('rtFn').textContent = f.name; $('rtGo').disabled = false; }; r.readAsDataURL(f); };
+    $('rtGo').onclick = () => GK.busy($('rtGo'), async () => { try { rahmenReview(await api('rahmen/parse', 'POST', { file }), after); } catch (e) { fail(e); } });
+  }
+  function rahmenReview(r, after) {
+    const cls = Object.keys(r.classes);
+    const sel = {}; r.teams.forEach(t => { sel[t.id] = t.games ? '' : t.age_class || ''; });
+    let za = r.za;
+    const dm = d => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
+    const draw = () => {
+      const row = t => {
+        if (t.games) return `<tr><td><b translate="no">${esc(t.name)}</b>${t.league ? `<div class="muted s">${esc(t.league)}</div>` : ''}</td><td>${esc(t.age_class || t.guess || '–')}</td><td class="muted">Spielplan schon importiert (${t.games} Spieltage) – keine vorläufigen Termine nötig.</td></tr>`;
+        const c = r.classes[sel[t.id]];
+        const ds = c ? [...c.dates.map(d => ({ d, z: 0 })), ...(za ? c.za.map(d => ({ d, z: 1 })) : [])].filter(x => x.d >= r.today).sort((a, b) => (a.d < b.d ? -1 : 1)) : [];
+        return `<tr><td><b translate="no">${esc(t.name)}</b>${t.league ? `<div class="muted s">${esc(t.league)}</div>` : ''}</td>
+          <td><select data-cl="${t.id}" aria-label="Altersklasse">${opt('', '– nicht übernehmen –', sel[t.id])}${cls.map(k => opt(k, k, sel[t.id])).join('')}</select>${!t.age_class && t.guess ? `<div class="muted s">„${esc(t.guess)}“ steht nicht im Plan</div>` : ''}</td>
+          <td>${ds.length ? `<div class="sp-dl">${ds.map(x => `<span class="${x.z ? 'z' : ''}" title="${esc(wd(x.d))}${x.z ? ' · Zusatz-/Ausweichtag' : ''}">${esc(wd(x.d))} ${esc(dm(x.d))}</span>`).join('')}</div>` : '<span class="muted">–</span>'}
+</td></tr>`;
+      };
+      const n = r.teams.filter(t => sel[t.id]).length;
+      dialog(`<h3>Rahmenterminplan ${esc(r.year)} prüfen</h3>
+        <p class="muted" style="margin:0 0 10px">Je Mannschaft die Altersklasse aus dem Plan wählen (vorgeschlagen aus Name und Liga). Angezeigt sind die erkannten Termine ab heute – bitte einmal mit der PDF vergleichen.</p>
+        <div class="scroll" style="max-height:52vh"><table class="tbl sp-rt"><tr><th>Mannschaft</th><th>Altersklasse</th><th>Termine</th></tr>${r.teams.map(row).join('') || '<tr><td colspan="3" class="muted">Noch keine aktiven Mannschaften.</td></tr>'}</table></div>
+        <label class="chk" style="margin-top:10px"><input type="checkbox" id="rtZa" ${za ? 'checked' : ''}> Zusatz- und Ausweichtage (Z/A) auch abfragen <span class="muted s">– gestrichelt; werden nur bei Bedarf genutzt</span></label>
+        <div class="btns"><button class="btn ghost" id="rtC" type="button">Abbrechen</button><button class="btn primary" id="rtOk" type="button" ${n ? '' : 'disabled'}>Für ${n} Mannschaft(en) übernehmen</button></div>`, true);
+      $('rtC').onclick = closeDialog;
+      $('rtZa').onchange = () => { za = $('rtZa').checked; draw(); };
+      $('dialog').querySelectorAll('[data-cl]').forEach(x => { x.onchange = () => { sel[+x.dataset.cl] = x.value; draw(); }; });
+      $('rtOk').onclick = () => GK.busy($('rtOk'), async () => {
+        try {
+          const used = Object.fromEntries(Object.values(sel).filter(Boolean).map(k => [k, r.classes[k]]));
+          const x = await api('rahmen/apply', 'POST', { classes: used, assign: sel, za });
+          closeDialog();
+          toast(`${x.made} vorläufige Termine angelegt${x.removed ? `, ${x.removed} entfernt` : ''}. Die Spieler sehen sie nach „Abfrage starten“.`);
+          after();
+        } catch (e) { fail(e); }
+      });
+    };
+    draw();
+  }
+
   /* ---------------- Spielplan-Import ---------------- */
   function importDialog(after) {
     dialog(`<h3>Spielplan importieren</h3>
@@ -170,7 +254,7 @@
         <div class="row" style="gap:10px;align-items:flex-end;margin-bottom:10px"><label class="f" style="min-width:260px">Unser Verein heißt in der Tabelle<input id="imCl" value="${esc(r.club)}"></label>
           <div class="muted s" style="padding-bottom:10px">${own.length} kommende Spiele des Vereins · ${own.filter(g => g.isHome).length} Heim, ${own.filter(g => !g.isHome).length} auswärts</div></div>
         <h4 style="margin:6px 0">Mannschaften</h4>
-        <div class="sp-grid" style="--c:3">${r.teams.map(t => `<label class="f">${esc(t.team === '–' ? 'ohne Angabe' : t.team)} (${t.count} Spiele)<select data-tm="${esc(t.team)}">${opt(0, `neu anlegen${t.size ? ` (${t.size}er)` : ''}`, teamSel[t.team])}${m.teams.map(x => opt(x.id, x.name, teamSel[t.team])).join('')}</select></label>`).join('')}</div>
+        <div class="sp-grid" style="--c:3">${r.teams.map(t => `<label class="f">${esc(t.team === '–' ? 'ohne Angabe' : t.team)} (${t.count} Spiele)<select data-tm="${esc(t.team)}">${opt(0, `neu anlegen${t.size ? ` (${t.size}er)` : ''}`, teamSel[t.team])}${m.teams.map(x => opt(x.id, x.name, teamSel[t.team])).join('')}</select>${t.rahmenKeep || t.rahmenDrop ? `<span class="muted s" style="font-weight:500">Vorläufige Termine: ${t.rahmenKeep} ${t.rahmenKeep === 1 ? 'wird' : 'werden'} zum Spieltag${t.rahmenDrop ? `, ${t.rahmenDrop} entfallen (spielfrei)` : ''}</span>` : ''}</label>`).join('')}</div>
         <div class="scroll" style="max-height:36vh;margin-top:12px"><table class="tbl"><tr><th></th><th>Datum</th><th>Mannschaft</th><th>Begegnung</th><th></th></tr>${own.map((g, i) => `<tr><td><input type="checkbox" data-g="${i}" ${pick.has(g.key) ? 'checked' : ''}></td><td class="nw">${esc(when(g))}</td><td>${esc(g.team || '–')}</td>
           <td>${esc(g.home)} – ${esc(g.guest)} <span class="pill ${g.isHome ? 'g' : ''}">${g.isHome ? 'Heim' : 'Auswärts'}</span></td><td>${g.status === 'neu' ? '<span class="pill g">neu</span>' : g.status === 'verlegt' ? '<span class="pill a">verlegt</span>' : '<span class="pill">schon da</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Keine kommenden Spiele des Vereins gefunden – stimmt der Vereinsname oben?</td></tr>'}</table></div>
         ${r.buchung ? '<label class="chk" style="margin-top:10px"><input type="checkbox" id="imB"> Heimspiele auch im Buchungssystem als Platzbelegung eintragen (Plätze wie beim letzten Import je Mannschaft)</label>' : ''}
@@ -185,7 +269,7 @@
           const x = await api('import/apply', 'POST', { club: $('imCl').value, teams, games: own.filter(g => pick.has(g.key)), book: $('imB') ? $('imB').checked : false, force: true });
           closeDialog();
           const bk = x.booking ? ` Buchungssystem: ${x.booking.made || 0} Platzbelegungen${x.booking.noCourts && x.booking.noCourts.length ? ` – für ${x.booking.noCourts.join(', ')} sind noch keine Plätze hinterlegt (einmal im Buchungssystem importieren)` : ''}.` : '';
-          toast(`${x.made} Spieltage neu${x.moved ? `, ${x.moved} verlegt` : ''}${x.teamsMade ? `, Mannschaften angelegt: ${x.teams.join(', ')}` : ''}.${bk}`); after();
+          toast(`${x.made} Spieltage neu${x.converted ? ` (davon ${x.converted} aus vorläufigen Terminen)` : ''}${x.free ? `, ${x.free} vorläufige Termine entfallen` : ''}${x.moved ? `, ${x.moved} verlegt` : ''}${x.teamsMade ? `, Mannschaften angelegt: ${x.teams.join(', ')}` : ''}.${bk}`); after();
         } catch (e) { fail(e); }
       });
     };
@@ -197,7 +281,7 @@
     const m = st.meta;
     el.innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:14px"><button class="btn primary" id="tmNew" type="button">+ Mannschaft</button></div>
       ${m.teams.length ? m.teams.map(t => `<div class="card sp-team ${t.active ? '' : 'off'}"><div style="min-width:0"><h4 translate="no">${esc(t.name)}${t.active ? '' : ' <span class="pill">nicht aktiv</span>'}</h4>
-          <div class="muted s">${[t.league, t.season, `mindestens ${t.min_players} Spieler`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="muted s">${[t.age_class ? `Altersklasse ${t.age_class}` : '', t.league, t.season, `mindestens ${t.min_players} Spieler`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
           <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}</span>`).join('') : '<span class="muted">noch keine Spieler</span>'}</div></div>
         <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler …</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
         : '<div class="card"><p class="muted" style="margin:0">Noch keine Mannschaften. Tipp: Beim Spielplan-Import werden die Mannschaften automatisch angelegt.</p></div>'}`;
@@ -211,9 +295,10 @@
     const pick = (id, sel) => `<select id="${id}">${opt('', '– niemand –', sel || '')}${m.members.map(x => opt(x.id, x.ln, sel)).join('')}</select>`;
     dialog(`<h3>${t.id ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'}</h3>
       <div class="sp-grid" style="--c:2">
-        <label class="f">Name<input id="etN" value="${esc(t.name)}" placeholder="z. B. Herren 40 I"></label>
+        <label class="f wall">Name<input id="etN" value="${esc(t.name)}" placeholder="z. B. Herren 40 I"></label>
         <label class="f">Liga<input id="etL" value="${esc(t.league || '')}" placeholder="z. B. H40 (4er) Bezirksliga"></label>
         <label class="f">Saison<input id="etS" value="${esc(t.season || '')}" placeholder="z. B. Sommer 2027"></label>
+        <label class="f">Altersklasse (Rahmenterminplan)<input id="etK" value="${esc(t.age_class || '')}" placeholder="z. B. H40, D, HL H30"></label>
         <label class="f">Mindestens Spieler pro Spieltag<input id="etM" type="number" min="1" max="20" value="${esc(t.min_players)}"></label>
         <label class="f">Mannschaftsführer${pick('etC', t.captain_id)}</label>
         <label class="f">Stellvertreter${pick('etV', t.vice_id)}</label>
@@ -223,7 +308,7 @@
       <div class="btns">${t.id ? '<button class="btn danger" id="etDel" type="button" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="etX" type="button">Abbrechen</button><button class="btn primary" id="etOk" type="button">Speichern</button></div>`);
     $('etX').onclick = closeDialog;
     $('etOk').onclick = () => GK.busy($('etOk'), async () => {
-      const body = { name: val('etN'), league: val('etL'), season: val('etS'), min_players: +val('etM'), captain_id: +val('etC') || null, vice_id: +val('etV') || null, active: $('etA').checked };
+      const body = { name: val('etN'), age_class: val('etK'), league: val('etL'), season: val('etS'), min_players: +val('etM'), captain_id: +val('etC') || null, vice_id: +val('etV') || null, active: $('etA').checked };
       try { if (t.id) await api('teams/' + t.id, 'PUT', body); else await api('teams', 'POST', body); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); }
     });
     if ($('etDel')) $('etDel').onclick = async () => {

@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.23.0
+
+- **Spielbetrieb: Rahmenterminplan importieren.** Die PDF des Verbands einlesen – für alle Mannschaften auf einmal entstehen vorläufige Termine nach Altersklasse (H40, D, HL H30 …), lange bevor der Spielplan feststeht.
+  - Prüfseite je Mannschaft mit den erkannten Terminen; Altersklasse wird aus Name/Liga vorgeschlagen und ist änderbar.
+  - Zusatz- und Ausweichtage (Z/A) optional.
+  - Spieler sehen die Termine nach „Abfrage starten“ und melden „kann“ / „kann nicht“ wie gewohnt.
+  - Der Spielplan-Import macht aus den vorläufigen Terminen die echten Spieltage – Rückmeldungen bleiben. Termine ohne Spiel entfallen; wer „kann“ gemeldet hatte, bekommt eine Sammelnachricht „spielfrei“.
+- Mannschaften haben jetzt eine Altersklasse (Feld „Altersklasse (Rahmenterminplan)“).
+
 ## 3.22.0
 
 - **Neues Modul „Spielbetrieb“:** Mannschaften mit Mannschaftsführer, Stellvertreter und Spielern (auch in mehreren Mannschaften), Spielplan-Import vom Verband mit Heim- und Auswärtsspielen, Verfügbarkeit „kann“ / „kann nicht“ (optional mit Uhrzeit) und Aufstellung in der Mitglieder-App.

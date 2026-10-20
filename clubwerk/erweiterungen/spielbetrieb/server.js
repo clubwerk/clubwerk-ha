@@ -60,6 +60,12 @@ CREATE TABLE IF NOT EXISTS sp_task (
 );
 CREATE INDEX IF NOT EXISTS ix_sp_task_game ON sp_task(game_id);
 `);
+  // 3.23: Altersklasse (Rahmenterminplan) und vorläufige Spieltage
+  const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c);
+  if (!has('sp_team', 'age_class')) db.exec('ALTER TABLE sp_team ADD COLUMN age_class TEXT');
+  if (!has('sp_game', 'kind')) db.exec("ALTER TABLE sp_game ADD COLUMN kind TEXT NOT NULL DEFAULT 'spiel'");   // spiel | rahmen (vorläufig)
+  if (!has('sp_game', 'za')) db.exec('ALTER TABLE sp_game ADD COLUMN za INTEGER NOT NULL DEFAULT 0');           // Zusatz-/Ausweichtermin
+  if (!has('sp_game', 'released')) db.exec('ALTER TABLE sp_game ADD COLUMN released INTEGER NOT NULL DEFAULT 1'); // in der App sichtbar
 }
 
 function activate(ctx) {
@@ -72,6 +78,7 @@ function activate(ctx) {
   const admin = ctx.admin, M = ctx.member;
   const ar = fn => ctx.asyncRoute(fn);
   const IMP = ctx.require('./spielplan');
+  const RTP = require('./rahmen');
   const { splitPersonName } = ctx.require('./db');
   const lf = n => { const x = splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };
   const short = n => { const x = splitPersonName(n); return x.first ? `${x.first} ${String(x.last || '')[0] || ''}.` : x.last; };
@@ -88,6 +95,7 @@ function activate(ctx) {
     remindDays: Math.max(1, Math.min(30, int(S('remind_days', '7')) || 7)),
     captainDays: Math.max(1, Math.min(30, int(S('captain_days', '5')) || 5)),
     mail: S('mail', '1') === '1',
+    za: S('za', '0') === '1',                     // Zusatz-/Ausweichtage des Rahmenterminplans abfragen
     club: S('import_club', ''),
   });
 
@@ -103,7 +111,7 @@ function activate(ctx) {
     WHERE t.active = 1 AND (p.member_id IS NOT NULL OR t.captain_id = ? OR t.vice_id = ?) ORDER BY t.sort, t.name`).all(memberId, memberId, memberId);
   const isCaptain = (memberId, teamId) => captainOf(memberId).includes(Number(teamId));
   const leaders = t => [t.captain_id, t.vice_id].filter(Boolean);
-  const gameTitle = (g, t) => `${t ? t.name : 'Spiel'} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`;
+  const gameTitle = (g, t) => (g.kind === 'rahmen' ? `${t ? t.name : 'Spiel'} · ${g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : `${t ? t.name : 'Spiel'} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`);
   const gameWhen = g => `${wd(g.date)} ${deD(g.date)}${g.start ? ` · ${g.start} Uhr` : ''}`;
 
   /** Zahlen und Ampel für einen Spieltag */
@@ -177,6 +185,7 @@ function activate(ctx) {
     { id: 'verlegt', label: 'Spielbetrieb: Spieltag verlegt/abgesagt', desc: 'Ein Spieltag deiner Mannschaft wurde verlegt oder abgesagt.', default: true },
     { id: 'erinnerung', label: 'Spielbetrieb: Bitte Verfügbarkeit melden', desc: 'Erinnerung vor dem Spieltag, wenn du noch nicht geantwortet hast (nur wenn Erinnerungen eingeschaltet sind).', default: true },
     { id: 'knapp', label: 'Spielbetrieb: Zu wenige Spieler', desc: 'An den Mannschaftsführer, wenn für einen nahen Spieltag zu wenige können.', default: true },
+    { id: 'rahmen', label: 'Spielbetrieb: Vorläufige Termine', desc: 'Der Sportwart fragt die Termine aus dem Rahmenterminplan ab – oder deine Mannschaft hat an einem davon spielfrei.', default: true },
     { id: 'aufgabe', label: 'Spielbetrieb: Aufgabe übernommen/zugeteilt', desc: 'Eine Aufgabe für einen Spieltag (z. B. Fahrer) wurde dir zugeteilt.', default: true },
   ];
   /** Mitglieder-App: nur für Spieler und Mannschaftsführer */
@@ -190,7 +199,7 @@ function activate(ctx) {
     const lu = new Map(db.prepare('SELECT * FROM sp_lineup WHERE game_id = ?').all(g.id).map(x => [x.member_id, x]));
     const st = stats(g, t, ros);
     const out = { id: g.id, team_id: g.team_id, team: t ? t.name : '', league: g.league, date: g.date, start: g.start, home: Boolean(g.home), opponent: g.opponent, venue: g.venue,
-      status: g.status, meet_time: g.meet_time, meet_place: g.meet_place, note: g.note, result: g.result, past: g.date < today(), stats: st, sent: g.lineup_sent_at };
+      status: g.status, kind: g.kind, za: Boolean(g.za), released: Boolean(g.released), meet_time: g.meet_time, meet_place: g.meet_place, note: g.note, result: g.result, past: g.date < today(), stats: st, sent: g.lineup_sent_at };
     const person = (id, name, inRoster) => {
       const a = av.get(id), l = lu.get(id);
       return { id, name, ln: lf(name), short: short(name), inRoster, state: a ? a.state : null, from: a ? a.from_t : null, until: a ? a.until_t : null, note: a ? a.note : null,
@@ -216,12 +225,22 @@ function activate(ctx) {
 
   /* ---------- Spieltage aus dem Spielplan übernehmen (eigener Import und Hook für das Buchungssystem) ---------- */
   const impKey = g => `imp:${IMP.norm(g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
+  /** bestehende Mannschaft zu einer Spielplan-Bezeichnung: Import-Schlüssel, Name, sonst eindeutige Altersklasse („H40“ ↔ „Herren 40“) */
+  function findTeam(label, league) {
+    const key = IMP.norm(label || '') || '_';
+    let t = db.prepare('SELECT * FROM sp_team WHERE import_key = ?').get(key) || db.prepare('SELECT * FROM sp_team WHERE lower(name) = lower(?)').get(label || '');
+    if (!t) {
+      const ac = RTP.guessClass(label, league);
+      const l = ac ? db.prepare('SELECT * FROM sp_team WHERE active = 1 AND age_class = ?').all(ac) : [];
+      if (l.length === 1 && (!l[0].import_key || l[0].import_key === IMP.norm(l[0].name))) t = l[0];   // noch an keine andere Spielplan-Bezeichnung gebunden
+    }
+    return t;
+  }
   function teamFor(label, size, league, create, made) {
     const key = IMP.norm(label || '') || '_';
-    let t = db.prepare('SELECT * FROM sp_team WHERE import_key = ?').get(key);
-    if (!t) t = db.prepare('SELECT * FROM sp_team WHERE lower(name) = lower(?)').get(label || 'Mannschaft');
+    let t = findTeam(label, league);
     if (!t && create) {
-      const id = Number(db.prepare('INSERT INTO sp_team(name, league, min_players, import_key) VALUES (?,?,?,?)').run(txt(label || 'Mannschaft', 60), txt(league, 80) || null, size || 4, key).lastInsertRowid);
+      const id = Number(db.prepare('INSERT INTO sp_team(name, league, min_players, import_key, age_class) VALUES (?,?,?,?,?)').run(txt(label || 'Mannschaft', 60), txt(league, 80) || null, size || 4, key, RTP.guessClass(label, league)).lastInsertRowid);
       t = team(id); made.push(t.name);
     } else if (t && !t.import_key) db.prepare('UPDATE sp_team SET import_key = ? WHERE id = ?').run(key, t.id);
     return t;
@@ -229,6 +248,7 @@ function activate(ctx) {
   /** games: [{ date, start, team, size, league, home, guest, venue }] – Heim/Gast entscheidet der Vereinsname */
   function upsertGames(games, club, by, { teamMap = {}, create = true } = {}) {
     const d0 = today(); const made = [], teamsMade = [], moved = [], same = [], skipped = [];
+    const touched = new Set(), seen = {}; let converted = 0; const free = [];
     db.transaction(() => {
       for (const g0 of games) {
         const g = { date: String(g0.date || ''), start: isTime(g0.start) ? g0.start : null, team: txt(g0.team, 40), size: int(g0.size) || null, league: txt(g0.league, 80), home: txt(g0.home, 80), guest: txt(g0.guest, 80), venue: txt(g0.venue, 160) };
@@ -242,8 +262,14 @@ function activate(ctx) {
         const ck = IMP.norm(IMP.clubName(club || ''));
         const opp = ck && IMP.norm(g.home).includes(ck) ? g.guest : ck && IMP.norm(g.guest).includes(ck) ? g.home : (isHome ? g.guest : g.home);
         const key = impKey(g);
+        touched.add(t.id); (seen[t.id] = seen[t.id] || new Set()).add(g.date);
         const ex = db.prepare('SELECT * FROM sp_game WHERE ext_key = ? AND team_id = ?').get(key, t.id);
-        if (!ex) {
+        const rt = !ex && db.prepare("SELECT * FROM sp_game WHERE team_id = ? AND date = ? AND kind = 'rahmen' ORDER BY za, id LIMIT 1").get(t.id, g.date);
+        if (rt) {   // vorläufiger Termin wird zum echten Spieltag – Rückmeldungen bleiben
+          db.prepare("UPDATE sp_game SET kind = 'spiel', za = 0, released = 1, start = ?, home = ?, opponent = ?, venue = ?, league = ?, ext_key = ?, status = 'geplant' WHERE id = ?")
+            .run(g.start, isHome ? 1 : 0, opp, isHome ? null : (g.venue || null), g.league || null, key, rt.id);
+          made.push(g); converted++;
+        } else if (!ex) {
           db.prepare('INSERT INTO sp_game(team_id, date, start, home, opponent, venue, league, ext_key, created_by) VALUES (?,?,?,?,?,?,?,?,?)')
             .run(t.id, g.date, g.start, isHome ? 1 : 0, opp, isHome ? null : (g.venue || null), g.league || null, key, by);
           made.push(g);
@@ -252,14 +278,32 @@ function activate(ctx) {
           moved.push({ id: ex.id, was: `${deD(ex.date)}${ex.start ? ' ' + ex.start : ''}` });
         } else same.push(g);
       }
+      // übrige vorläufige Termine der Mannschaften im Spielplan: spielfrei → entfernen
+      for (const tid of touched) {
+        for (const r of db.prepare("SELECT * FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND date >= ?").all(tid, d0)) {
+          if (seen[tid].has(r.date)) continue;
+          const yes = db.prepare("SELECT member_id FROM sp_avail WHERE game_id = ? AND state = 'ja'").all(r.id).map(x => x.member_id);
+          free.push({ team_id: tid, date: r.date, released: r.released, yes });
+          for (const x of ['sp_avail', 'sp_lineup', 'sp_task']) db.prepare(`DELETE FROM ${x} WHERE game_id = ?`).run(r.id);
+          db.prepare('DELETE FROM sp_game WHERE id = ?').run(r.id);
+        }
+      }
     })();
+    // spielfrei: eine Sammelnachricht je Spieler (nur an die, die „kann“ gemeldet hatten)
+    const per = {};
+    for (const f of free.filter(x => x.released)) for (const id of f.yes) (per[id] = per[id] || []).push(f);
+    for (const [id, list] of Object.entries(per)) {
+      const byTeam = {}; list.forEach(f => (byTeam[f.team_id] = byTeam[f.team_id] || []).push(f.date));
+      const body = Object.entries(byTeam).map(([tid, ds]) => `${(team(tid) || {}).name}: ${ds.sort().map(d => `${wd(d)} ${deD(d).slice(0, 6)}`).join(', ')}`).join(' · ');
+      tell([Number(id)], 'rahmen', { title: 'Spielplan da – an diesen Tagen spielfrei', body });
+    }
     // verlegte Spieltage: Mannschaft informieren
     for (const m of moved) {
       const g = game(m.id), t = team(g.team_id);
       tell([...roster(t.id).map(r => r.member_id), ...leaders(t)], 'verlegt', { title: `Verlegt: ${gameTitle(g, t)}`, body: `Neu: ${gameWhen(g)} (vorher ${m.was})` });
     }
     if (club) SET('import_club', club);
-    return { made: made.length, moved: moved.length, same: same.length, skipped: skipped.length, teamsMade: teamsMade.length, teams: teamsMade };
+    return { made: made.length, moved: moved.length, same: same.length, skipped: skipped.length, teamsMade: teamsMade.length, teams: teamsMade, converted, free: free.length };
   }
   ctx.hooks.spielplanGames = ({ games, club, user }) => {
     const r = upsertGames(Array.isArray(games) ? games : [], txt(club, 80) || cfg().club || ctx.getSetting('club_name', ''), user ? (user.name || user.username) : 'Import');
@@ -278,6 +322,7 @@ function activate(ctx) {
       return;
     }
     if (!['spielt', 'ersatz'].includes(role)) throw new Error('Unbekannte Rolle.');
+    if (g.kind === 'rahmen') throw new Error('Vorläufiger Termin – aufstellen geht erst, wenn der Spielplan da ist.');
     if (!isMember(memberId)) throw new Error('Mitglied nicht gefunden.');
     const a = db.prepare('SELECT state FROM sp_avail WHERE game_id = ? AND member_id = ?').get(g.id, memberId);
     if (a && a.state === 'nein') throw new Error(`${short(memberName(memberId))} hat für diesen Spieltag abgesagt.`);
@@ -303,6 +348,7 @@ function activate(ctx) {
   }
   async function sendLineup(g, by) {
     const t = team(g.team_id); const lu = db.prepare(`SELECT l.*, m.name FROM sp_lineup l JOIN members m ON m.id = l.member_id WHERE l.game_id = ? ORDER BY l.role DESC, COALESCE(l.pos, 99), name_key(m.name, m.kind)`).all(g.id);
+    if (g.kind === 'rahmen') throw new Error('Vorläufiger Termin – aufstellen geht erst, wenn der Spielplan da ist.');
     if (!lu.length) throw new Error('Noch niemand aufgestellt.');
     const spielt = lu.filter(x => x.role === 'spielt').map(x => short(x.name)), ersatz = lu.filter(x => x.role === 'ersatz').map(x => short(x.name));
     const rows = [...gameRows(g, t), ['Es spielen', spielt.join(', ') || '–'], ...(ersatz.length ? [['Ersatz', ersatz.join(', ')]] : [])];
@@ -313,7 +359,7 @@ function activate(ctx) {
   }
 
   /* ================================================================= Mitglieder-App (/api/m/spielbetrieb/…) */
-  const futureGames = teamIds => (teamIds.length ? db.prepare(`SELECT * FROM sp_game WHERE team_id IN (${teamIds.map(() => '?').join(',')}) AND date >= ? ORDER BY date, start`).all(...teamIds, addDays(today(), -1)) : []);
+  const futureGames = teamIds => (teamIds.length ? db.prepare(`SELECT * FROM sp_game WHERE team_id IN (${teamIds.map(() => '?').join(',')}) AND date >= ? AND released = 1 ORDER BY date, start`).all(...teamIds, addDays(today(), -1)) : []);
   M.get('/me', (req, res) => {
     const me = req.member.id, c = cfg();
     const teams = myTeams(me);
@@ -326,7 +372,7 @@ function activate(ctx) {
   });
   const myGame = (req, res) => {
     const g = game((req.body || {}).game_id || req.params.id);
-    if (!g) { bad(res, 'Spieltag nicht gefunden.', 404); return null; }
+    if (!g || !g.released) { bad(res, 'Spieltag nicht gefunden.', 404); return null; }
     const me = req.member.id;
     const ok = isCaptain(me, g.team_id) || db.prepare('SELECT 1 FROM sp_player WHERE team_id = ? AND member_id = ?').get(g.team_id, me) || db.prepare('SELECT 1 FROM sp_lineup WHERE game_id = ? AND member_id = ?').get(g.id, me);
     if (!ok) { bad(res, 'Dieser Spieltag gehört nicht zu deinen Mannschaften.', 403); return null; }
@@ -334,7 +380,7 @@ function activate(ctx) {
   };
   const leadGame = (req, res) => {
     const g = game((req.body || {}).game_id || req.params.id);
-    if (!g) { bad(res, 'Spieltag nicht gefunden.', 404); return null; }
+    if (!g || !g.released) { bad(res, 'Spieltag nicht gefunden.', 404); return null; }
     if (!isCaptain(req.member.id, g.team_id)) { bad(res, 'Das darf nur der Mannschaftsführer.', 403); return null; }
     return g;
   };
@@ -372,7 +418,7 @@ function activate(ctx) {
     if (!['ja', 'nein'].includes(b.state)) return bad(res, 'Bitte „kann“ oder „kann nicht“ wählen.');
     const tid = int(b.team_id);
     if (!db.prepare('SELECT 1 FROM sp_player WHERE team_id = ? AND member_id = ?').get(tid, me)) return bad(res, 'Du spielst nicht in dieser Mannschaft.', 403);
-    const open = db.prepare(`SELECT g.id FROM sp_game g WHERE g.team_id = ? AND g.date >= ? AND g.status = 'geplant' AND NOT EXISTS (SELECT 1 FROM sp_avail a WHERE a.game_id = g.id AND a.member_id = ?)`).all(tid, today(), me);
+    const open = db.prepare(`SELECT g.id FROM sp_game g WHERE g.team_id = ? AND g.date >= ? AND g.status = 'geplant' AND g.released = 1 AND NOT EXISTS (SELECT 1 FROM sp_avail a WHERE a.game_id = g.id AND a.member_id = ?)`).all(tid, today(), me);
     const ins = db.prepare('INSERT INTO sp_avail(game_id, member_id, state) VALUES (?,?,?)');
     db.transaction(() => open.forEach(g => ins.run(g.id, me, b.state)))();
     res.json({ ok: true, n: open.length });
@@ -466,6 +512,7 @@ function activate(ctx) {
       if (mid && mid !== x.member_id) tell([mid], 'aufgabe', { title: `Aufgabe: ${x.label}`, body: `${gameTitle(g, t)}, ${gameWhen(g)}` });
       return;
     }
+    if (g.kind === 'rahmen') throw new Error('Vorläufiger Termin – Aufgaben gibt es erst mit dem Spielplan.');
     const kinds = cfg().taskKinds; const k = kinds.find(x => x.k === b.kind);
     const label = txt(b.label, 60) || (k ? k.l : ''); if (!label) throw new Error('Bitte die Aufgabe benennen.');
     db.prepare('INSERT INTO sp_task(game_id, kind, label, member_id) VALUES (?,?,?,?)').run(g.id, k ? k.k : 'eigene', label, b.member_id ? int(b.member_id) : null);
@@ -485,7 +532,8 @@ function activate(ctx) {
   admin.get('/meta', P, (req, res) => {
     const c = cfg();
     res.json({ today: today(), teams: db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all().map(teamRow), members: membersList(), settings: c,
-      buchung: ctx.isModuleActive('buchung'), mitglieder: ctx.isModuleActive('mitglieder'), club: c.club || ctx.getSetting('club_name', '') });
+      buchung: ctx.isModuleActive('buchung'), mitglieder: ctx.isModuleActive('mitglieder'), club: c.club || ctx.getSetting('club_name', ''),
+      rahmenPending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ?").get(today()).n });
   });
   const teamInput = (b, cur = {}) => {
     const name = txt(b.name !== undefined ? b.name : cur.name, 60); if (name.length < 2) throw new Error('Bitte die Mannschaft benennen (z. B. „Herren 40 I“).');
@@ -493,20 +541,21 @@ function activate(ctx) {
     const cap = b.captain_id !== undefined ? (int(b.captain_id) || null) : cur.captain_id, vice = b.vice_id !== undefined ? (int(b.vice_id) || null) : cur.vice_id;
     if (cap && !isMember(cap)) throw new Error('Mannschaftsführer nicht gefunden.'); if (vice && !isMember(vice)) throw new Error('Stellvertreter nicht gefunden.');
     if (cap && vice && cap === vice) throw new Error('Mannschaftsführer und Stellvertreter sind dieselbe Person.');
-    return { name, league: txt(b.league !== undefined ? b.league : cur.league, 80) || null, season: txt(b.season !== undefined ? b.season : cur.season, 30) || null, min_players: min, captain_id: cap || null, vice_id: vice || null,
+    const ac = txt(b.age_class !== undefined ? b.age_class : cur.age_class, 30) || null;
+    return { age_class: ac, name, league: txt(b.league !== undefined ? b.league : cur.league, 80) || null, season: txt(b.season !== undefined ? b.season : cur.season, 30) || null, min_players: min, captain_id: cap || null, vice_id: vice || null,
       active: b.active !== undefined ? (b.active ? 1 : 0) : (cur.active ?? 1), note: txt(b.note !== undefined ? b.note : cur.note, 300) || null };
   };
   admin.post('/teams', P, (req, res) => {
     let v; try { v = teamInput(req.body || {}); } catch (e) { return bad(res, e.message); }
-    const id = Number(db.prepare('INSERT INTO sp_team(name, league, season, min_players, captain_id, vice_id, active, note, import_key) VALUES (?,?,?,?,?,?,?,?,?)')
-      .run(v.name, v.league, v.season, v.min_players, v.captain_id, v.vice_id, v.active, v.note, IMP.norm(v.name)).lastInsertRowid);
+    const id = Number(db.prepare('INSERT INTO sp_team(name, league, season, min_players, captain_id, vice_id, active, note, import_key, age_class) VALUES (?,?,?,?,?,?,?,?,?,?)')
+      .run(v.name, v.league, v.season, v.min_players, v.captain_id, v.vice_id, v.active, v.note, IMP.norm(v.name), v.age_class || RTP.guessClass(v.name, v.league)).lastInsertRowid);
     ctx.audit(req.user, 'Spielbetrieb: Mannschaft angelegt', v.name);
     res.json({ id });
   });
   admin.put('/teams/:id', P, (req, res) => {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     let v; try { v = teamInput(req.body || {}, t); } catch (e) { return bad(res, e.message); }
-    db.prepare('UPDATE sp_team SET name = ?, league = ?, season = ?, min_players = ?, captain_id = ?, vice_id = ?, active = ?, note = ? WHERE id = ?').run(v.name, v.league, v.season, v.min_players, v.captain_id, v.vice_id, v.active, v.note, t.id);
+    db.prepare('UPDATE sp_team SET name = ?, league = ?, season = ?, min_players = ?, captain_id = ?, vice_id = ?, active = ?, note = ?, age_class = ? WHERE id = ?').run(v.name, v.league, v.season, v.min_players, v.captain_id, v.vice_id, v.active, v.note, v.age_class, t.id);
     ctx.audit(req.user, 'Spielbetrieb: Mannschaft geändert', v.name);
     res.json({ ok: true });
   });
@@ -545,13 +594,20 @@ function activate(ctx) {
     const tid = int(b.team_id !== undefined ? b.team_id : cur.team_id); if (!team(tid)) throw new Error('Bitte eine Mannschaft wählen.');
     const date = b.date !== undefined ? String(b.date) : cur.date; if (!isDate(date)) throw new Error('Bitte das Datum prüfen.');
     const start = b.start !== undefined ? (isTime(b.start) ? b.start : null) : cur.start;
-    const opponent = txt(b.opponent !== undefined ? b.opponent : cur.opponent, 80); if (opponent.length < 2) throw new Error('Bitte den Gegner eintragen.');
+    const opponent = txt(b.opponent !== undefined ? b.opponent : cur.opponent, 80); if (opponent.length < 2 && cur.kind !== 'rahmen') throw new Error('Bitte den Gegner eintragen.');
     return { team_id: tid, date, start, home: (b.home !== undefined ? b.home : cur.home ?? 1) ? 1 : 0, opponent, venue: txt(b.venue !== undefined ? b.venue : cur.venue, 160) || null,
       status: ['geplant', 'abgesagt'].includes(b.status) ? b.status : (cur.status || 'geplant'), meet_time: isTime(b.meet_time) ? b.meet_time : (b.meet_time === '' ? null : cur.meet_time || null),
       meet_place: b.meet_place !== undefined ? (txt(b.meet_place, 120) || null) : cur.meet_place || null, note: b.note !== undefined ? (txt(b.note, 300) || null) : cur.note || null, result: b.result !== undefined ? (txt(b.result, 20) || null) : cur.result || null };
   };
   admin.post('/games', P, (req, res) => {
     let v; try { v = gameInput(req.body || {}); } catch (e) { return bad(res, e.message); }
+    const rt = db.prepare("SELECT id FROM sp_game WHERE team_id = ? AND date = ? AND kind = 'rahmen' ORDER BY za, id LIMIT 1").get(v.team_id, v.date);
+    if (rt) {   // von Hand eingetragener Spieltag ersetzt den vorläufigen Termin – Rückmeldungen bleiben
+      db.prepare("UPDATE sp_game SET kind = 'spiel', za = 0, released = 1, start = ?, home = ?, opponent = ?, venue = ?, status = ?, meet_time = ?, meet_place = ?, note = ?, result = ? WHERE id = ?")
+        .run(v.start, v.home, v.opponent, v.venue, v.status, v.meet_time, v.meet_place, v.note, v.result, rt.id);
+      ctx.audit(req.user, 'Spielbetrieb: Spieltag angelegt', `${team(v.team_id).name} ${deD(v.date)} ${v.opponent}`);
+      return res.json({ id: rt.id, converted: true });
+    }
     const id = Number(db.prepare('INSERT INTO sp_game(team_id, date, start, home, opponent, venue, status, meet_time, meet_place, note, result, created_by) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)')
       .run(v.team_id, v.date, v.start, v.home, v.opponent, v.venue, v.status, v.meet_time, v.meet_place, v.note, v.result, uname(req)).lastInsertRowid);
     ctx.audit(req.user, 'Spielbetrieb: Spieltag angelegt', `${team(v.team_id).name} ${deD(v.date)} ${v.opponent}`);
@@ -610,12 +666,18 @@ function activate(ctx) {
     const games = parsed.games.map(g => {
       const home = IMP.isHomeGame(g, club), away = !home && IMP.norm(g.guest).includes(IMP.norm(IMP.clubName(club)));
       const key = impKey(g); const t = g.team || '–';
-      const known = db.prepare('SELECT id, name FROM sp_team WHERE import_key = ?').get(IMP.norm(g.team || '') || '_') || db.prepare('SELECT id, name FROM sp_team WHERE lower(name) = lower(?)').get(g.team || '');
+      const known = findTeam(g.team || '', g.league);
       if (!teams[t]) teams[t] = { team: t, size: g.size, league: g.league, count: 0, team_id: known ? known.id : null, known: known ? known.name : null };
       if (home || away) teams[t].count++;
       const ex = db.prepare('SELECT * FROM sp_game WHERE ext_key = ?').get(key);
       return { ...g, key, isHome: home, own: home || away, past: g.date < d0, status: !ex ? 'neu' : ex.date === g.date && (!g.start || ex.start === g.start) ? 'vorhanden' : 'verlegt' };
     });
+    for (const t of Object.values(teams)) {
+      if (!t.team_id) continue;
+      const own = new Set(games.filter(g => (g.team || '–') === t.team && g.own && !g.past).map(g => g.date));
+      const rt = db.prepare("SELECT date FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND date >= ?").all(t.team_id, d0).map(r => r.date);
+      t.rahmenKeep = rt.filter(d => own.has(d)).length; t.rahmenDrop = rt.filter(d => !own.has(d)).length;
+    }
     res.json({ club, games, teams: Object.values(teams).filter(t => t.count), skipped: parsed.skipped.slice(0, 30), buchung: ctx.isModuleActive('buchung') });
   }));
   admin.post('/import/apply', P, ar(async (req, res) => {
@@ -633,10 +695,73 @@ function activate(ctx) {
     res.json({ ok: true, ...r });
   }));
 
+  /* ----- Rahmenterminplan (vorläufige Spieltage, bevor der Spielplan feststeht) ----- */
+  const imported = tid => db.prepare("SELECT COUNT(*) n FROM sp_game WHERE team_id = ? AND kind = 'spiel' AND ext_key IS NOT NULL AND date >= ?").get(tid, today()).n;
+  admin.post('/rahmen/parse', P, ar(async (req, res) => {
+    const b = req.body || {};
+    const buf = Buffer.from(String(b.file || ''), 'base64');
+    if (!buf.length) return bad(res, 'Bitte die PDF des Rahmenterminplans wählen.');
+    if (buf.length > 8 * 1024 * 1024) return bad(res, 'Die Datei ist zu groß (höchstens 8 MB).');
+    if (buf.slice(0, 5).toString() !== '%PDF-') return bad(res, 'Das ist keine PDF-Datei.');
+    let r; try { r = await RTP.parsePdf(buf); } catch (e) { return bad(res, e.message); }
+    if (!Object.keys(r.classes).length) return bad(res, 'Keine Altersklassen erkannt.');
+    const teams = db.prepare('SELECT * FROM sp_team WHERE active = 1 ORDER BY sort, name').all().map(t => {
+      const g = t.age_class || RTP.guessClass(t.name, t.league);
+      return { id: t.id, name: t.name, league: t.league, age_class: r.classes[g] ? g : null, guess: g,
+        rahmen: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND date >= ?").get(t.id, today()).n,
+        games: imported(t.id) };
+    });
+    res.json({ year: r.year, classes: r.classes, notes: r.notes, teams, today: today(), za: cfg().za });
+  }));
+  admin.post('/rahmen/apply', P, (req, res) => {
+    const b = req.body || {};
+    const classes = b.classes && typeof b.classes === 'object' ? b.classes : {};
+    const assign = b.assign && typeof b.assign === 'object' ? b.assign : {};
+    const za = Boolean(b.za); SET('za', za ? '1' : '0');
+    const d0 = today(); let made = 0, removed = 0, kept = 0, teamsN = 0; const skippedT = [];
+    const dates = l => (Array.isArray(l) ? l : []).slice(0, 60).map(String).filter(isDate);
+    db.transaction(() => {
+      for (const [tid0, cls0] of Object.entries(assign).slice(0, 60)) {
+        const t = team(tid0); if (!t) continue;
+        const cls = txt(cls0, 30) || null;
+        db.prepare('UPDATE sp_team SET age_class = ? WHERE id = ?').run(cls, t.id);
+        const c = cls && classes[cls]; if (!c) continue;
+        if (imported(t.id)) { skippedT.push(t.name); continue; }   // Spielplan schon da – keine Platzhalter mehr
+        teamsN++;
+        const want = new Map(); dates(c.dates).forEach(d => want.set(d, 0)); if (za) dates(c.za).forEach(d => { if (!want.has(d)) want.set(d, 1); });
+        for (const [d, z] of want) {
+          if (d < d0) continue;
+          if (db.prepare('SELECT 1 FROM sp_game WHERE team_id = ? AND date = ?').get(t.id, d)) { kept++; continue; }   // schon ein (echter oder vorläufiger) Spieltag
+          db.prepare("INSERT INTO sp_game(team_id, date, home, opponent, kind, za, released, created_by) VALUES (?,?,1,'','rahmen',?,0,?)").run(t.id, d, z, uname(req)); made++;
+        }
+        // vorläufige Termine, die im Plan nicht (mehr) stehen
+        for (const r of db.prepare("SELECT id, date FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND date >= ?").all(t.id, d0)) {
+          if (want.has(r.date)) continue;
+          for (const x of ['sp_avail', 'sp_lineup', 'sp_task']) db.prepare(`DELETE FROM ${x} WHERE game_id = ?`).run(r.id);
+          db.prepare('DELETE FROM sp_game WHERE id = ?').run(r.id); removed++;
+        }
+      }
+    })();
+    ctx.audit(req.user, 'Spielbetrieb: Rahmenterminplan übernommen', `${teamsN} Mannschaften, ${made} Termine neu, ${removed} entfernt`);
+    res.json({ ok: true, teams: teamsN, made, removed, kept, skipped: skippedT, pending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ?").get(d0).n });
+  });
+  /** Abfrage starten: vorläufige Termine in der App zeigen und die Spieler benachrichtigen */
+  admin.post('/rahmen/release', P, (req, res) => {
+    const tid = int((req.body || {}).team_id);
+    const rows = db.prepare(`SELECT * FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ? ${tid ? 'AND team_id = ?' : ''}`).all(...(tid ? [today(), tid] : [today()]));
+    if (!rows.length) return bad(res, 'Keine neuen vorläufigen Termine.');
+    db.transaction(() => rows.forEach(g => db.prepare('UPDATE sp_game SET released = 1 WHERE id = ?').run(g.id)))();
+    const per = {};
+    for (const g of rows) { const t = team(g.team_id); for (const id of [...roster(t.id).map(r => r.member_id)]) { (per[id] = per[id] || { n: 0, teams: new Set() }); per[id].n++; per[id].teams.add(t.name); } }
+    for (const [id, x] of Object.entries(per)) tell([Number(id)], 'rahmen', { title: 'Saisonplanung: Wann kannst du?', body: `${x.n} vorläufige Termine (${[...x.teams].join(', ')}) – bitte in der App „kann“ oder „kann nicht“ melden.` });
+    ctx.audit(req.user, 'Spielbetrieb: Abfrage gestartet', `${rows.length} vorläufige Termine, ${Object.keys(per).length} Spieler`);
+    res.json({ ok: true, games: rows.length, players: Object.keys(per).length });
+  });
+
   /* ----- Einstellungen ----- */
   admin.put('/settings', P, (req, res) => {
     const b = req.body || {};
-    for (const k of ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'mail']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
+    for (const k of ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'mail', 'za']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
     if (b.remind_days !== undefined) SET('remind_days', Math.max(1, Math.min(30, int(b.remind_days) || 7)));
     if (b.captain_days !== undefined) SET('captain_days', Math.max(1, Math.min(30, int(b.captain_days) || 5)));
     if (Array.isArray(b.task_kinds)) {
@@ -649,7 +774,7 @@ function activate(ctx) {
 
   /* ----- Übersicht der Verwaltung ----- */
   ctx.hooks.overview = async () => {
-    const soon = db.prepare("SELECT * FROM sp_game WHERE date >= ? AND date <= ? AND status = 'geplant' ORDER BY date").all(today(), addDays(today(), 14));
+    const soon = db.prepare("SELECT * FROM sp_game WHERE date >= ? AND date <= ? AND status = 'geplant' AND released = 1 ORDER BY date").all(today(), addDays(today(), 14));
     const red = soon.filter(g => !stats(g).ok);
     const wd2 = db.prepare("SELECT COUNT(*) n FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.withdraw = 1 AND g.date >= ?").get(today()).n;
     return { kpis: [{ l: 'Spieltage in 14 Tagen', v: String(soon.length) }, { l: 'Mannschaften', v: String(db.prepare('SELECT COUNT(*) n FROM sp_team WHERE active = 1').get().n) }],
@@ -662,10 +787,10 @@ function activate(ctx) {
     const c = cfg(); if (!c.remind) return;
     try {
       const d0 = today();
-      for (const g of db.prepare("SELECT * FROM sp_game WHERE status = 'geplant' AND rem_players = 0 AND date >= ? AND date <= ?").all(d0, addDays(d0, c.remindDays))) {
+      for (const g of db.prepare("SELECT * FROM sp_game WHERE status = 'geplant' AND released = 1 AND rem_players = 0 AND date >= ? AND date <= ?").all(d0, addDays(d0, c.remindDays))) {
         remindOpen(g); db.prepare('UPDATE sp_game SET rem_players = 1 WHERE id = ?').run(g.id);
       }
-      for (const g of db.prepare("SELECT * FROM sp_game WHERE status = 'geplant' AND rem_captain = 0 AND date >= ? AND date <= ?").all(d0, addDays(d0, c.captainDays))) {
+      for (const g of db.prepare("SELECT * FROM sp_game WHERE status = 'geplant' AND released = 1 AND rem_captain = 0 AND date >= ? AND date <= ?").all(d0, addDays(d0, c.captainDays))) {
         const t = team(g.team_id), st = stats(g, t);
         if (!st.ok) tell(leaders(t), 'knapp', { title: `Zu wenige Spieler: ${t.name}`, body: `${gameTitle(g, t)}, ${gameWhen(g)} – ${st.yes} von ${st.min} können, ${st.open} offen.` });
         db.prepare('UPDATE sp_game SET rem_captain = 1 WHERE id = ?').run(g.id);
@@ -684,12 +809,12 @@ function activate(ctx) {
   };
 
   /* ----- Funktionsexport: Mannschaften und Einstellungen ----- */
-  ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds'].map(k => [k, S(k)])) });
+  ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note, age_class FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].map(k => [k, S(k)])) });
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     let n = 0;
-    for (const t of Array.isArray(data.teams) ? data.teams.slice(0, 60) : []) { const name = txt(t.name, 60); if (name.length < 2 || db.prepare('SELECT 1 FROM sp_team WHERE lower(name) = lower(?)').get(name)) continue; db.prepare('INSERT INTO sp_team(name, league, season, min_players, active, note, import_key) VALUES (?,?,?,?,?,?,?)').run(name, txt(t.league, 80) || null, txt(t.season, 30) || null, Math.max(1, Math.min(20, int(t.min_players) || 4)), t.active === 0 ? 0 : 1, txt(t.note, 300) || null, IMP.norm(name)); n++; }
-    for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds'].includes(k)) SET(k, v.slice(0, 2000));
+    for (const t of Array.isArray(data.teams) ? data.teams.slice(0, 60) : []) { const name = txt(t.name, 60); if (name.length < 2 || db.prepare('SELECT 1 FROM sp_team WHERE lower(name) = lower(?)').get(name)) continue; db.prepare('INSERT INTO sp_team(name, league, season, min_players, active, note, import_key, age_class) VALUES (?,?,?,?,?,?,?,?)').run(name, txt(t.league, 80) || null, txt(t.season, 30) || null, Math.max(1, Math.min(20, int(t.min_players) || 4)), t.active === 0 ? 0 : 1, txt(t.note, 300) || null, IMP.norm(name), txt(t.age_class, 30) || null); n++; }
+    for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
     return `${n} Mannschaft(en) und die Einstellungen übernommen – Spieler und Spieltage bitte neu zuordnen bzw. importieren`;
   };
 }

@@ -59,7 +59,7 @@
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
   const wd = (d, long) => (long ? WDL : WD)[new Date(d + 'T12:00:00').getDay()];
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
-  const title = g => `${g.team} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`;
+  const title = g => (g.kind === 'rahmen' ? `${g.team} · ${g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : `${g.team} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`);
 
   window.VA.registerSection({
     id: 'spielbetrieb',
@@ -109,7 +109,7 @@
         const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
         const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
         return `<div class="sb-card"><div class="sb-head"><div class="sb-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></div>
-            <div style="min-width:0"><strong translate="no">${esc(title(g))}</strong><small>${esc([g.start ? `${g.start} Uhr` : '', g.home ? 'Heimspiel' : 'Auswärtsspiel', g.league].filter(Boolean).join(' · '))}</small>${!g.home && g.venue ? `<small translate="no">${esc(g.venue)}</small>` : ''}</div>
+            <div style="min-width:0"><strong translate="no">${esc(title(g))}</strong><small>${g.kind === 'rahmen' ? 'vorläufig – Gegner und Heim/Auswärts kommen mit dem Spielplan' : esc([g.start ? `${g.start} Uhr` : '', g.home ? 'Heimspiel' : 'Auswärtsspiel', g.league].filter(Boolean).join(' · '))}</small>${!g.home && g.venue ? `<small translate="no">${esc(g.venue)}</small>` : ''}</div>
             ${g.lead ? `<span class="sb-light ${lt}" title="${s.ok ? 'genug Spieler' : 'zu wenige Spieler'}"></span>` : '<span></span>'}</div>
           ${mine}
           ${answerable ? `<div class="sb-ans"><button class="yes ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}">Kann</button><button class="no ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}">Kann nicht</button></div>
@@ -117,7 +117,8 @@
             ${!me.state ? '<div class="sb-line"><span>Bitte melde dich für diesen Spieltag.</span></div>' : ''}` : ''}
           ${!cancelled && (d.settings.seeAvail || d.settings.seeLineup || g.lead) ? `<div class="sb-who">${play.length && (d.settings.seeLineup || g.lead) ? `<div>Aufgestellt: <b translate="no">${names(play)}</b>${res.length ? ` · Ersatz: <span translate="no">${names(res)}</span>` : ''}</div>` : ''}${d.settings.seeAvail || g.lead ? `<div>${yes.length ? `Können (${yes.length}): <span translate="no">${names(yes)}</span>` : 'Noch keine Zusagen.'}</div>` : ''}</div>` : ''}
           ${tasks}
-          ${g.lead && !cancelled ? `<button class="sb-lead" data-lead="${g.id}">Aufstellung · ${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''}${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}</div>`;
+          ${g.lead && !cancelled && g.kind === 'rahmen' ? `<div class="sb-line"><span>${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''} – aufstellen geht, sobald der Spielplan da ist.</span></div>` : ''}
+          ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="sb-lead" data-lead="${g.id}">Aufstellung · ${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''}${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}</div>`;
       }
       async function run(fn, msg) { try { await fn(); if (msg) ctx.toast(msg); close(); await load(); } catch (e) { ctx.toast(e.message, true); } }
       function answer(id, state) {
