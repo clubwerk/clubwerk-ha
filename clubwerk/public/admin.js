@@ -198,21 +198,41 @@
   }
 
   let brand = { logo: null };
-  /** Aus dem Vereinslogo ein quadratisches PNG fürs Handy (Home-Bildschirm) zeichnen und hochladen */
+  /** Aus dem Vereinslogo ein quadratisches PNG fürs Handy (Home-Bildschirm) zeichnen und hochladen:
+   *  Hintergrund in Vereinsfarbe, Logo groß (leere Ränder abgeschnitten) mit schmalem weißem Rahmen –
+   *  rundes Logo im weißen Ring, eckiges im weißen Rahmen mit runden Ecken. Neu bei Logo- oder Farbwechsel. */
   async function makeAppIcon() {
     if (!brand.logo) return;
     const img = new Image();
     await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = brand.logo; });
+    const w0 = img.naturalWidth || img.width || 512, h0 = img.naturalHeight || img.height || 512;
+    // leere (durchsichtige oder weiße) Ränder des Logos finden
+    const t = document.createElement('canvas'); t.width = w0; t.height = h0; const tg = t.getContext('2d', { willReadFrequently: true });
+    tg.drawImage(img, 0, 0, w0, h0);
+    let x0 = 0, y0 = 0, x1 = w0, y1 = h0;
+    try {
+      const d = tg.getImageData(0, 0, w0, h0).data, ink = (x, y) => { const i = (y * w0 + x) * 4; return d[i + 3] > 24 && (d[i] < 235 || d[i + 1] < 235 || d[i + 2] < 235); };
+      let a = w0, b = h0, c2 = -1, e = -1;
+      for (let y = 0; y < h0; y += 1) for (let x = 0; x < w0; x += 1) if (ink(x, y)) { if (x < a) a = x; if (x > c2) c2 = x; if (y < b) b = y; if (y > e) e = y; }
+      if (c2 > a && e > b) { x0 = a; y0 = b; x1 = c2 + 1; y1 = e + 1; }
+    } catch (err) { /* Bild nicht lesbar – ganzes Logo nehmen */ }
+    const w = x1 - x0, h = y1 - y0, round = Math.abs(w / h - 1) < 0.12;
     const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d');
-    g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S);
-    const w = img.naturalWidth || img.width || S, h = img.naturalHeight || img.height || S;
-    const k = Math.min((S * 0.84) / w, (S * 0.84) / h);
-    g.drawImage(img, (S - w * k) / 2, (S - h * k) / 2, w * k, h * k);
+    g.fillStyle = /^#[0-9a-f]{6}$/i.test(brand.color || '') ? brand.color : '#1f6b3a'; g.fillRect(0, 0, S, S);
+    const F = 14, box = S * 0.80;                       // Rahmen 14 px, Logo samt Rahmen 80 % der Fläche
+    const k = Math.min((box - 2 * F) / w, (box - 2 * F) / h), dw = w * k, dh = h * k, dx = (S - dw) / 2, dy = (S - dh) / 2;
+    g.fillStyle = '#ffffff';
+    if (round) { g.beginPath(); g.arc(S / 2, S / 2, dw / 2 + F, 0, Math.PI * 2); g.fill(); g.save(); g.beginPath(); g.arc(S / 2, S / 2, dw / 2, 0, Math.PI * 2); g.clip(); }
+    else { const r = 40; g.beginPath(); g.roundRect ? g.roundRect(dx - F, dy - F, dw + 2 * F, dh + 2 * F, r) : g.rect(dx - F, dy - F, dw + 2 * F, dh + 2 * F); g.fill(); g.save(); }
+    g.drawImage(img, x0, y0, w, h, dx, dy, dw, dh);
+    g.restore();
     const blob = await new Promise(r => c.toBlob(r, 'image/png'));
     await fetch('api/admin/logo-icon', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'image/png' }, body: blob });
     brand.iconNeeded = false;
   }
+  /** nach Farb- oder Logowechsel: Symbol neu zeichnen, wenn nötig */
+  const refreshIcon = () => loadBrand().then(() => { if (brand.iconNeeded && can('einstellungen')) return makeAppIcon(); }).catch(e => console.warn('App-Symbol:', e));
   const loadBrand = () => fetch('api/branding').then(r => r.json()).then(b => { brand = b; }).catch(() => {});
   const logoImg = cls => (brand.logo ? `<div class="${cls}"><img src="${esc(brand.logo)}" alt="Vereinslogo" data-logo></div>` : '');
   const wireLogos = () => document.querySelectorAll('img[data-logo]').forEach(i => { i.onerror = () => i.parentNode.remove(); });
@@ -591,7 +611,7 @@
     return list.map(m => ({ ...m, pageKey: pageOf(m) }));
   }
   const greeting = () => { const h = new Date().getHours(); return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'; };
-  const alertHtml = (a, i) => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}${i >= 3 ? ' extra' : ''}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}"><span>${esc(a.link || 'Ansehen')}</span> →</a>` : ''}</div>`;
+  const alertHtml = (a, i) => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}${i >= 3 ? ' extra' : ''}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}><span>${esc(a.link || 'Ansehen')}</span> →</a>` : ''}</div>`;
   /** Warnungen gebündelt: rote zuerst, höchstens 3 sichtbar, der Rest hinter „alle anzeigen“ */
   const alertsHtml = alerts => {
     const list = alerts.slice().sort((a, b) => (a.level === 'r' ? 0 : 1) - (b.level === 'r' ? 0 : 1));
@@ -632,7 +652,7 @@
         big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
         det: ['Nachbestellen', `${low.length} Artikel`], go: low.length && can('bestellung') ? 'bestellung' : first });
     }
-    if (clubNetsMissing) alerts.push({ level: 'a', who: 'Sicherheit', text: 'Kein Vereinsnetz eingetragen – jedes private Netz (auch Gast-WLAN oder VPN) kommt an Verwaltung und Tablet. Empfohlen: unter Mitglieder-App → „Vereinsnetz“ euer Netz eintragen.', go: 'app', link: 'Eintragen' });
+    if (clubNetsMissing) alerts.push({ level: 'a', who: 'Sicherheit', text: 'Kein Vereinsnetz eingetragen – jedes private Netz (auch Gast-WLAN oder VPN) kommt an Verwaltung und Tablet. Empfohlen: unter Mitglieder-App → Verbindung → „Vereinsnetz“ euer Netz eintragen.', go: 'app', sec: ['cw_appsec', 'verbindung'], link: 'Eintragen' });
     if (tabletPwMissing && can('einstellungen')) sset('cw_setsec', 'tablet');   // „Festlegen“ öffnet gleich den richtigen Bereich
     if (tabletPwMissing) alerts.push({ level: 'r', who: 'Sicherheit', text: can('einstellungen') ? 'Für das Tablet ist noch kein Passwort vergeben – das Tablet bleibt gesperrt, bis eins festgelegt ist.' : 'Für das Tablet ist noch kein Passwort vergeben – bitte einen Admin mit Recht „Einstellungen“ bitten, eins festzulegen.', ...(can('einstellungen') ? { go: 'einstellungen', link: 'Festlegen' } : {}) });
     const pending = mem ? mem.rows.filter(m => m.pending) : [];
@@ -663,7 +683,7 @@
         <div class="card"><h3>Letzte Lieferungen</h3>${del && del.length ? `<table class="tbl"><tr><th>Datum</th><th>Lieferant</th><th class="r">Einzelartikel</th></tr>
           ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Getränke → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
       </div>` : ''}`;
-    $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); go(a.dataset.go); }; });
+    $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); if (a.dataset.secstore) sset(a.dataset.secstore, a.dataset.sec); go(a.dataset.go); }; });   // Hinweis führt direkt in den passenden Unterbereich
     const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.alerts').classList.add('all'); sa.remove(); };
   };
 
@@ -2212,19 +2232,19 @@
     const r = await api('app');
     const mods = r.modules;
     const oldN = r.rows.filter(x => x.device && x.device.oldAddress).length;
-    const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', alt: x => x.device && x.device.oldAddress };
+    const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', eing: x => x.device && x.device.status === 'eingeladen', wlan: x => x.device && x.device.remote, alt: x => x.device && x.device.oldAddress };
     let filt = FIL[cache.apFilter] ? cache.apFilter : 'alle';
     // abgelehnte Tunnel-Anfrage der letzten 24 Stunden: Hinweis, damit der Vorstand ein falsch erkanntes Cloudflared-Add-on bemerkt
     const rj = r.tunnel.lastReject && Date.now() - Date.parse(r.tunnel.lastReject.at) < 24 * 3600000 ? r.tunnel.lastReject : null;
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
-      <p class="lead">Mitglieder bekommen <b>einen QR-Code</b>, legen <b>eine PIN</b> fest und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Die Getränke-PIN am Tablet bleibt davon unabhängig.</p>
-      <div class="card" id="apSet"><h3>Adresse der App</h3>
+      <p class="lead">Mitglieder bekommen <b>eine Einladung</b> (QR-Code, E-Mail oder Brief), nutzen <b>eine PIN</b> und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p>
+      <div class="card" id="apSet" data-set="verbindung"><h3>Adresse der App</h3>
         <div class="row"><label class="f" style="flex:2;min-width:260px">Adresse im Vereins-WLAN<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.lanUrl || '')}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
           <label class="f" style="flex:1;min-width:160px">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
           <button class="btn primary" id="apSave">Speichern</button><a class="btn" id="apTest" target="_blank" rel="noopener">Testen ↗</a></div>
         ${!r.lanUrl && !(r.tunnel && r.tunnel.on) ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">Noch keine Adresse eingetragen – im QR-Code landet <b>${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}</b>. ${/\.local$/i.test(location.hostname) ? 'Adressen mit „.local“ öffnen manche Handys nicht – besser ohne „.local“ (z. B. <b>' + (r.https ? 'https' : 'http') + '://' + esc(location.hostname.replace(/\.local$/i, '')) + ':' + (r.port || 5001) + '</b>) oder mit der IP-Adresse von Home Assistant.' : ''}</div>` : ''}
         <p class="muted s" style="margin:8px 0 0">${r.tunnel && r.tunnel.on ? `<span>Im QR-Code landet die öffentliche Adresse ${esc(r.url)} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).</span>` : '<span>Diese Adresse landet im QR-Code.</span>'} Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port ${r.port || 5001}. ${r.https ? 'Mit HTTPS hier den Namen eintragen, für den das Zertifikat gilt (z. B. <code>https://tcf-vereinsheim.duckdns.org:' + (r.port || 5001) + '</code>) – mit einer IP-Adresse meldet das Handy einen Zertifikatsfehler.' : `Bei Fernzugriff (z. B. Nabu Casa) oder wenn Handys „.local“-Adressen nicht öffnen, hier die Adresse im Vereins-WLAN eintragen – den Gerätenamen ohne „.local“ (z. B. <code>http://tcfhomeassistant:${r.port || 5001}</code>) oder die IP-Adresse (z. B. <code>http://192.168.178.20:${r.port || 5001}</code>).`} Mit „Testen“ prüfen.</p></div>
-      <div class="card" id="apExt"><h3>Von unterwegs erreichbar <span class="pill ${r.tunnel.on ? 'g' : ''}" style="margin-left:6px">${r.tunnel.on ? 'an' : 'aus'}</span></h3>
+      <div class="card" id="apExt" data-set="verbindung"><h3>Von unterwegs erreichbar <span class="pill ${r.tunnel.on ? 'g' : ''}" style="margin-left:6px">${r.tunnel.on ? 'an' : 'aus'}</span></h3>
         <p class="muted s" style="margin-top:0">Über einen <b>Cloudflare Tunnel</b> wird nur die Mitglieder-App aus dem Internet erreichbar – ohne offenen Port am Router. Verwaltung, Tablet und Beregnung bleiben im Vereins-WLAN, auch wenn der Tunnel falsch eingestellt ist.</p>
         <div class="row" style="align-items:flex-end"><label class="f" style="flex:2;min-width:260px">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
           <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> eingeschaltet</label>
@@ -2237,24 +2257,20 @@
           <li>In Home Assistant das Add-on <b>Cloudflared</b> installieren, den Token unter „Tunnel token“ eintragen, starten.</li>
           <li>Im Tunnel unter „Routes“ → „Add route“ → „Published application“ anlegen: <code>app.meinverein.de</code> → Dienst-URL <code>${r.https ? 'https' : 'http'}://${/^\d+\.\d+\.\d+\.\d+$/.test(location.hostname) ? esc(location.hostname) : 'IP-Adresse-von-Home-Assistant'}:${r.port || 5001}</code>${r.https ? ', unter „TLS“ den Ursprungs-Servernamen (Name eures Zertifikats) eintragen' : ''}. <b>Nur diesen Port</b> freigeben.</li>
           <li>Hier die Adresse eintragen, einschalten, „Verbindung prüfen“ – neue QR-Codes enthalten dann die öffentliche Adresse und funktionieren im WLAN und unterwegs.</li></ol>
-        <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p>
-        <h4 style="margin:16px 0 6px">Von unterwegs nutzbar</h4>
-        <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
-        <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
-        <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div>
-        <h4 style="margin:16px 0 6px">Vereinsnetz</h4>
+        <p class="muted s" style="margin:8px 0 0">Bereits gekoppelte Handys behalten die alte Adresse – für unterwegs bitte einen neuen QR-Code erzeugen.${oldN ? ` <b>${oldN === 1 ? '1 Handy mit alter Adresse' : `${oldN} Handys mit alter Adresse`}</b> – Filter „alte Adresse“ unten.` : ''}</p></div>
+      <div class="card" id="apNet" data-set="verbindung"><h3>Vereinsnetz</h3>
         <p class="muted s" style="margin:0 0 8px">Welche Adressen als Vereinsnetz gelten – für die Mitglieder-App (Beregnung, Türen) <b>und</b> für Verwaltung, Tablet und Beregnungs-Webapp. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: euer Netz eintragen – dann kommen Gast-WLAN, VPN oder andere interne Netze nicht mehr an Verwaltung und Tablet. Die Home-Assistant-Seitenleiste funktioniert immer; das interne Home-Assistant-Netz zählt nie als Vereinsheim.</p>
         ${r.tunnel.wlanNets ? '' : '<div class="banner a" style="margin:0 0 8px;font-weight:400">Noch kein Vereinsnetz eingetragen – jedes private Netz gilt als Vereinsheim.</div>'}
         <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:220px">Netze (mit Komma)<input id="apNets" data-nodirty value="${esc(r.tunnel.wlanNets || '')}" placeholder="z. B. 192.168.10.0/24" ${r.mayExt ? '' : 'disabled'}></label>
           ${r.mayExt && /^\d+\.\d+\.\d+\.\d+$/.test(r.tunnel.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(r.tunnel.myIp) ? `<button class="btn" id="apNetMine" type="button">Mein Netz übernehmen (${esc(r.tunnel.myIp.replace(/\.\d+$/, '.0'))}/24)</button>` : ''}
           ${r.mayExt ? '<button class="btn primary" id="apNetSave" type="button">Speichern</button>' : ''}</div></div>
-      ${r.tunnel.on && r.mayExt ? `<div class="card" id="apSrc"><h3>Tunnel-Quelle</h3>
+      ${r.tunnel.on && r.mayExt ? `<div class="card" id="apSrc" data-set="verbindung"><h3>Tunnel-Quelle</h3>
         <p class="muted s" style="margin:0 0 8px">Von welcher Adresse im Home-Assistant-Netz der Cloudflare Tunnel ankommt. Festgelegt glaubt die App die Absenderangabe des Tunnels nur noch dieser einen Adresse – kein anderes Add-on kann sich dann als Tunnel ausgeben. Startet das Cloudflared-Add-on später unter einer anderen Adresse, steht oben „abgelehnt“ mit der neuen Adresse – dann hier neu festlegen.</p>
         <div class="row" style="align-items:center;gap:10px">${r.tunnel.src ? `<span class="pill g">Festgelegt: ${esc(r.tunnel.src)}</span><button class="btn" id="apSrcOff" type="button">Wieder jede Adresse im Add-on-Netz zulassen</button>`
           : r.tunnel.lastOk ? `<span class="pill">Zuletzt gesehen: ${esc(r.tunnel.lastOk.ip)}</span><button class="btn primary" id="apSrcSet" type="button" data-ip="${esc(r.tunnel.lastOk.ip)}">Nur diese Quelle zulassen</button>`
           : '<span class="muted s">Noch keine Anfrage über den Tunnel seit dem letzten Neustart – einmal die öffentliche Adresse aufrufen, dann diese Seite neu laden.</span>'}
           ${r.tunnel.lastReject && r.tunnel.lastReject.why === 'quelle' && r.tunnel.src ? `<button class="btn" id="apSrcNew" type="button" data-ip="${esc(r.tunnel.lastReject.ip)}">Neue Quelle ${esc(r.tunnel.lastReject.ip)} übernehmen</button>` : ''}</div></div>` : ''}
-      <div class="card" id="apSec"><h3>Sicherheit</h3>
+      <div class="card" id="apSec" data-set="sicherheit"><h3>Sicherheit</h3>
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
           <label class="f" style="width:200px">E-Mail/Brief gültig<select id="apDays" ${can('einstellungen') ? '' : 'disabled'}>${[2, 7, 14].map(d => `<option value="${d}" ${r.security.inviteMailDays === d ? 'selected' : ''}>${d} Tage</option>`).join('')}</select></label>
@@ -2264,19 +2280,23 @@
         <div class="row" style="margin-top:12px;gap:8px">
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
-      ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
-      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty><h3>Reihenfolge in der App</h3>
-        <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Tabelle unten – von links nach rechts.</p>
+      ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="sicherheit"><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
+      <div class="card" id="apAway" data-set="bereiche"><h3>Von unterwegs nutzbar</h3>
+        <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
+        <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
+        <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
+      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Reihenfolge in der App</h3>
+        <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Mitgliederliste – von links nach rechts.</p>
         <div id="moRows" class="torows">${mods.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label || m.name)}</b>
           <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < mods.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('')}</div>
         <div class="btns"><button class="btn primary" id="moSave">Speichern</button></div></div>` : ''}
-      <div class="card" id="pushCard" data-nodirty><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
-      <div class="card"><h3>Mitglied freischalten</h3>
+      <div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
+      <div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
-        ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['alt', 'alte Adresse']].filter(([k]) => k !== 'alt' || oldN)
+      <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
+        ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'warten auf WLAN'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
@@ -2285,6 +2305,12 @@
             <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">Einladen …</button> <button class="btn small" data-ad="${x.member_id}">Entfernen …</button></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
+    // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
+    const APP_SECS = [['mitglieder', 'Mitglieder'], ['bereiche', 'Bereiche'], ['push', 'Benachrichtigungen'], ['verbindung', 'Verbindung'], ['sicherheit', 'Sicherheit']];
+    sectionize({ secs: APP_SECS, keyOf: () => 'mitglieder', store: 'cw_appsec', label: 'Bereiche der Mitglieder-App',
+      badges: { verbindung: !r.tunnel.wlanNets && r.mayExt ? 'Noch kein Vereinsnetz eingetragen' : rj ? 'Tunnel-Anfrage abgelehnt' : oldN ? 'Handys mit alter Adresse' : false,
+        sicherheit: r.security.sms && r.security.sms.on && !r.security.sms.ready ? 'SMS-Stick nicht bereit' : false,
+        mitglieder: r.rows.some(FIL.wlan) ? 'Handys warten auf die WLAN-Freigabe' : false } });
     watch($('apSet')); watch($('apSec'));
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
     $('apUrl').addEventListener('input', setTest); setTest();
@@ -3221,7 +3247,8 @@
     if (!secs.length) return;
     let cur = sget(store); if (!secs.some(([k]) => k === cur)) cur = secs[0][0];
     const wrap = document.createElement('div'); wrap.className = 'settings';
-    wrap.innerHTML = `<nav class="subnav" aria-label="Bereiche der Einstellungen">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}</button>`).join('')}</nav><div class="secbody"></div>`;
+    const badge = o.badges || {};
+    wrap.innerHTML = `<nav class="subnav" aria-label="${esc(o.label || 'Bereiche der Einstellungen')}">${secs.map(([k, l]) => `<button type="button" data-sec="${k}"><span>${esc(l)}</span>${badge[k] ? `<span class="sdot" title="${esc(badge[k] === true ? 'Hier ist etwas zu tun' : badge[k])}"></span>` : ''}</button>`).join('')}</nav><div class="secbody"></div>`;
     const body = wrap.querySelector('.secbody');
     secs.forEach(([k]) => by[k].forEach(c => { c.dataset.secof = k; body.appendChild(c); }));
     const head = root.querySelector(':scope > h2.page');
@@ -3480,13 +3507,14 @@
     if ($('saveClub')) $('saveClub').onclick = async () => {
       try {
         await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value });
-        toast('Gespeichert.');
+        toast('Gespeichert.'); refreshIcon();
         document.querySelector('link[href^="theme.css"]').href = 'theme.css?' + Date.now();
       } catch (e) { fail(e); }
     };
     const applyColor = async (hex, quiet) => {
       try {
         await api('settings', 'PUT', { clubColor: hex });
+        refreshIcon();
         $('clubColor').value = $('clubColorPick').value = hex;
         document.querySelector('link[href^="theme.css"]').href = 'theme.css?' + Date.now();
         document.querySelectorAll('#swatches .swatch').forEach(b => b.classList.toggle('on', b.dataset.c === hex));

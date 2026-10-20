@@ -36,15 +36,17 @@
     render();
   }
 
+  const initials = n => String(n || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase();
   function render() {
+    // Kachel wie im Verkauf: Initialen · Name + Tätigkeit/Zeit · Marke rechts (da / nicht da / vergessen)
     $('staff').innerHTML = state.staff.map(s => {
-      const st = s.forgotten ? `nicht ausgestempelt seit ${dayLabel(s.in_since)} ${clock(s.in_since)}`
-        : s.in_since ? `da seit ${dayLabel(s.in_since) === 'heute' ? '' : dayLabel(s.in_since) + ' '}${clock(s.in_since)} Uhr`
-          : s.last_out ? `nicht da · zuletzt ${dayLabel(s.last_out)} ${clock(s.last_out)}` : 'nicht da';
-      return `<button data-id="${s.id}" class="${s.forgotten ? 'warn' : s.in_since ? 'isin' : ''}"><b>${esc(s.name)}</b><span class="job">${esc(s.job || '')}</span><span class="st">${st}</span></button>`;
+      const line = s.forgotten ? `nicht ausgestempelt seit ${dayLabel(s.in_since)} ${clock(s.in_since)}`
+        : s.in_since ? `seit ${dayLabel(s.in_since) === 'heute' ? '' : dayLabel(s.in_since) + ' '}${clock(s.in_since)} Uhr`
+          : s.last_out ? `zuletzt ${dayLabel(s.last_out)} ${clock(s.last_out)}` : '';
+      const chip = s.forgotten ? '<span class="tk-chip r">vergessen</span>' : s.in_since ? '<span class="tk-chip g">da</span>' : '<span class="tk-chip">nicht da</span>';
+      return `<button data-id="${s.id}" class="tk-tile ${s.forgotten ? 'warn' : s.in_since ? 'on' : ''}"><i class="av">${esc(initials(s.name))}</i><span class="tk-txt"><b>${esc(s.name)}</b><span>${esc([s.job, line].filter(Boolean).join(' · '))}</span></span>${chip}</button>`;
     }).join('');
-    $('hint').classList.toggle('hidden', !state.staff.length);
-    if (!state.staff.length) $('staff').innerHTML = '<p class="empty" style="grid-column:1/-1">Noch kein Personal angelegt – in der Verwaltung unter „Zeiterfassung“.</p>';
+    if (!state.staff.length) $('staff').innerHTML = '<p class="tk-empty" style="grid-column:1/-1;margin:0">Noch kein Personal angelegt – in der Verwaltung unter „Zeiterfassung“.</p>';
     $('staff').querySelectorAll('button[data-id]').forEach(b => b.onclick = () => askPin(state.staff.find(s => s.id === Number(b.dataset.id))));
   }
 

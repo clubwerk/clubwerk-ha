@@ -31,6 +31,8 @@ const lanUrl = () => { const u = getSetting('app_url', '').replace(/\/+$/, ''); 
 const originOf = u => { try { return new URL(u).origin; } catch (e) { return ''; } };
 const awayOk = (req, id, row) => !awayReq(req) || extAllowed(id) || Boolean(row && row.away);
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
+/** Vereinsfarbe (Verwaltung → Einstellungen) – die App übernimmt sie beim Start und, solange sie offen ist, ohne Neuladen */
+const appColor = () => { const c = getSetting('club_color', '#1f6b3a'); return /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : '#1f6b3a'; };
 const STAGED = 'Aus Sicherheitsgründen erst nach dem ersten Öffnen der App im Vereins-WLAN – oder nach Freigabe durch den Vorstand.';
 const sms = require('./sms');
 /** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile } */
@@ -297,7 +299,7 @@ function startPort({ rateLimit, rateLimitKey }) {
     // mit Übernahme-Code: die Home-Bildschirm-App startet mit #k=…, damit sie die Freischaltung übernehmen kann (iPhone)
     const k = /^[A-Z2-9]{10}$/.test(String(req.query.k || '')) ? String(req.query.k) : '';
     res.set('Cache-Control', 'no-store');
-    res.json({ name: `${getSetting('club_name', 'Verein')} – ${name}`, short_name: name, start_url: k ? `./#k=${k}` : './', scope: './', display: 'standalone', background_color: '#f6f5f1', theme_color: getSetting('club_color', '#1f6b3a'),
+    res.json({ name: `${getSetting('club_name', 'Verein')} – ${name}`, short_name: name, start_url: k ? `./#k=${k}` : './', scope: './', display: 'standalone', background_color: '#f6f5f1', theme_color: appColor(),
       icons: [{ src: 'icon.png', sizes: '512x512', type: 'image/png', purpose: 'any' }] });
   });
   // Seiten der Module (public/member.js)
@@ -312,7 +314,7 @@ function startPort({ rateLimit, rateLimitKey }) {
   const api = express.Router();
   const dev = req => req.get('X-Geraet') || '';
   // Diagnose: ip = so sieht Clubwerk den Absender; wlan = Anfrage kam direkt aus dem Vereinsnetz (nicht über den Tunnel)
-  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: String(req.ip || '').replace(/^::ffff:/, '') }));
+  api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', color: appColor(), club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: String(req.ip || '').replace(/^::ffff:/, '') }));
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
@@ -322,7 +324,7 @@ function startPort({ rateLimit, rateLimitKey }) {
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
-    res.json({ version: require('../package.json').version, lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
+    res.json({ version: require('../package.json').version, color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
   });
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
@@ -334,7 +336,7 @@ function startPort({ rateLimit, rateLimitKey }) {
     if (p.used) { usedAlert(p); return res.status(410).json({ error: p.error, used: true }); }
     if (p.error) return res.status(410).json({ error: p.error });
     const away = awayReq(req), phone = away ? smsPhone(p.memberId) : null;
-    res.json({ member: p.member, away, sms: Boolean(phone), phone: sms.maskPhone(phone), staged: away && !phone && hasSensitive(p.memberId) });
+    res.json({ member: p.member, hasPin: p.hasPin, away, sms: Boolean(phone), phone: sms.maskPhone(phone), staged: away && !phone && hasSensitive(p.memberId) });
   });
   /** zweiter Faktor: Code per SMS an die hinterlegte Handynummer (nie an eine eingegebene) */
   api.post('/invite/sms', rateLimit('appsms', 6, 600000), async (req, res) => {
@@ -376,7 +378,7 @@ function startPort({ rateLimit, rateLimitKey }) {
       audit(null, 'Mitglieder-App: Handy freigeschaltet', `${out.member}${verified ? ' · mit SMS-Code' : remote ? ' · von unterwegs (Türen/Beregnung erst im Vereins-WLAN)' : ''}`);
       pairedMail(out.memberId, { device: req.get('user-agent'), remote, verified });
       res.json({ ok: true, device: out.device, member: out.member, staged: remote && hasSensitive(out.memberId) });
-    } catch (e) { res.status(400).json({ error: e.message }); }
+    } catch (e) { res.status(400).json({ error: e.message, ...(e.pin ? { pinWrong: true } : {}) }); }
   });
   /* Übernahme in die Home-Bildschirm-App (siehe invites.js) */
   api.post('/transfer', rateLimit('apptrc', 20, 60000), (req, res) => {
@@ -522,7 +524,9 @@ function startPort({ rateLimit, rateLimitKey }) {
   const appIndex = (req, res) => {
     const v = encodeURIComponent(require('../package.json').version);
     let html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8');
-    html = html.replace(/(href|src)="(app\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}"`);
+    const col = appColor();
+    html = html.replace(/(href|src)="(app\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}${f === 'theme.css' ? '-' + col.slice(1) : ''}"`)
+      .replace(/<meta name="theme-color" content="#[0-9a-fA-F]{6}">/, `<meta name="theme-color" content="${col}">`);   // Statusleiste am Handy in Vereinsfarbe
     res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).send(html);
   };
   app.get(['/', '/index.html'], appIndex);

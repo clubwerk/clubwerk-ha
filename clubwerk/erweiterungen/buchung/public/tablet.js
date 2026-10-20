@@ -53,6 +53,9 @@
     try { state = await call('x/buchung/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     draw();
   }
+  /* vergangene Zeiten wie in der Mitglieder-App einklappen – die Ansicht beginnt bei der aktuellen Zeit; Tipp auf die Leiste klappt auf,
+     nach einer Minute klappt es wieder zu (das Tablet steht für alle da) */
+  let pastOpen = false, pastTimer = null;
   function draw() {
     const p = state.plan;
     const rs = p.resources.filter(r => r.open_today);
@@ -65,10 +68,16 @@
     $('areas').style.display = areas.length > 1 ? '' : 'none';
     $('areas').querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
     $('board').style.setProperty('--n', Math.min(Math.max(list.length, 1), 6));
-    $('board').innerHTML = list.length ? list.map(r => `<div class="bk-col"><h3>${esc(r.name)}<small>${r.open_from}–${r.open_to} Uhr</small></h3><div class="bk-slots">
-        ${merge(slots(r)).map(x => `<button class="bk-slot ${x.cls}${x.n > 1 ? ' multi' : ''}" data-r="${r.id}" data-s="${x.s}" style="${x.n > 1 ? `min-height:${x.n * 52 + (x.n - 1) * 8}px;` : ''}${x.b && x.b.label ? `box-shadow:inset 5px 0 0 ${x.b.label.color}` : ''}" ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}${x.n > 1 ? `<small>–${hhmm(x.e)}</small>` : ''}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
+    const all = list.map(r => merge(slots(r)));
+    const pastAll = all.flat().filter(x => /past/.test(x.cls));
+    const fold = pastAll.length > 0 && !pastOpen;
+    const pf = pastAll.length ? Math.min(...pastAll.map(x => x.s)) : 0, pt = pastAll.length ? Math.max(...pastAll.map(x => x.e)) : 0;
+    const bar = pastAll.length ? `<button class="bk-past" id="bkPast" style="grid-column:1/-1">${fold ? `<b>${hhmm(pf)}–${hhmm(pt)}</b> vorbei · antippen zum Aufklappen` : 'vergangene Zeiten wieder einklappen'}</button>` : '';
+    $('board').innerHTML = list.length ? bar + list.map((r, i) => `<div class="bk-col"><h3>${esc(r.name)}<small>${r.open_from}–${r.open_to} Uhr</small></h3><div class="bk-slots">
+        ${all[i].filter(x => !fold || !/past/.test(x.cls)).map(x => `<button class="bk-slot ${x.cls}${x.n > 1 ? ' multi' : ''}" data-r="${r.id}" data-s="${x.s}" style="${x.n > 1 ? `min-height:${x.n * 52 + (x.n - 1) * 8}px;` : ''}${x.b && x.b.label ? `box-shadow:inset 5px 0 0 ${x.b.label.color}` : ''}" ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}${x.n > 1 ? `<small>–${hhmm(x.e)}</small>` : ''}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
       : '<div class="bk-empty" style="grid-column:1/-1">Heute ist nichts buchbar.</div>';
     $('board').querySelectorAll('.bk-slot').forEach(b => { b.onclick = () => tap(list.find(r => r.id === +b.dataset.r), +b.dataset.s); });
+    if ($('bkPast')) $('bkPast').onclick = () => { pastOpen = !pastOpen; clearTimeout(pastTimer); if (pastOpen) pastTimer = setTimeout(() => { pastOpen = false; draw(); }, 60000); draw(); };
   }
   function tap(r, s) {
     const x = slots(r).find(y => y.s === s); if (!x) return;

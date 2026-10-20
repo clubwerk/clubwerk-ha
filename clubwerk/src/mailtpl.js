@@ -50,8 +50,8 @@ function render({ subject, text, card, preheader }) {
   const initials = club.split(/\s+/).filter(w => /^[A-ZÄÖÜ]/.test(w)).map(w => w[0]).slice(0, 2).join('') || club.slice(0, 2).toUpperCase();
   const head = `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
       <td style="vertical-align:middle;padding-right:12px;">${lg ? `<img src="cid:vereinslogo@clubwerk" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border-radius:10px;border:0;">`
-        : `<div style="width:40px;height:40px;border-radius:10px;background:${c};color:#ffffff;font:700 15px/40px -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;text-align:center;">${esc(initials)}</div>`}</td>
-      <td style="vertical-align:middle;font:700 16px/1.3 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2723;">${esc(club)}</td></tr></table>`;
+        : `<div style="width:40px;height:40px;border-radius:10px;background:${c};color:#ffffff;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:40px;text-align:center;">${esc(initials)}</div>`}</td>
+      <td style="vertical-align:middle;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;line-height:1.3;color:#1f2723;">${esc(club)}</td></tr></table>`;
   const heading = (card && card.heading) || String(subject || '').replace(new RegExp(`\\s+[–-]\\s+${club.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '');
   if (card && card.title && card.title === heading) card = { ...card, title: '' };
   let cardHtml = '';
@@ -59,29 +59,29 @@ function render({ subject, text, card, preheader }) {
     const rows = (card.rows || []).filter(r => r && r[1] != null && r[1] !== '');
     cardHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 18px;background:${soft};border:1px solid ${line};border-radius:12px;">
       <tr><td style="padding:16px 18px;">
-        ${card.title ? `<div style="font:700 17px/1.35 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2723;margin:0 0 ${rows.length ? 10 : 0}px;">${esc(card.title)}</div>` : ''}
+        ${card.title ? `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;line-height:1.35;color:#1f2723;margin:0 0 ${rows.length ? 10 : 0}px;">${esc(card.title)}</div>` : ''}
         ${rows.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows.map(([k, v]) => `<tr>
-          <td style="padding:4px 12px 4px 0;width:34%;vertical-align:top;font:400 13.5px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#5b6660;">${esc(k)}</td>
-          <td style="padding:4px 0;vertical-align:top;font:600 14.5px/1.45 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2723;">${esc(v)}</td></tr>`).join('')}</table>` : ''}
+          <td style="padding:4px 12px 4px 0;width:34%;vertical-align:top;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:400;line-height:1.45;color:#5b6660;">${esc(k)}</td>
+          <td style="padding:4px 0;vertical-align:top;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:600;line-height:1.45;color:#1f2723;">${esc(v)}</td></tr>`).join('')}</table>` : ''}
         ${card.calendar && /^https:\/\//i.test(String(card.calendar.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 2px;"><tr>
-          <td style="border-radius:10px;background:${c};"><a href="${esc(card.calendar.url)}" style="display:inline-block;padding:11px 18px;font:700 14.5px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(card.calendar.label || 'Zum Kalender hinzufügen')}</a></td></tr></table>` : ''}
+          <td style="border-radius:10px;background:${c};"><a href="${esc(card.calendar.url)}" style="display:inline-block;padding:11px 18px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(card.calendar.label || 'Zum Kalender hinzufügen')}</a></td></tr></table>` : ''}
       </td></tr></table>`;
   }
   const btn = card && card.button && card.button !== true ? card.button : null;   // eigener Knopf je Mail (kein pauschales „In der App öffnen“ mehr)
   const btnHtml = btn && /^https?:\/\//i.test(String(btn.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 6px;"><tr>
-      <td style="border-radius:10px;background:${c};"><a href="${esc(btn.url)}" style="display:inline-block;padding:12px 20px;font:700 15px/1 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(btn.label || 'Öffnen')}</a></td></tr></table>` : '';
+      <td style="border-radius:10px;background:${c};"><a href="${esc(btn.url)}" style="display:inline-block;padding:12px 20px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(btn.label || 'Öffnen')}</a></td></tr></table>` : '';
   const pre = preheader || (card && card.title) || '';
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${esc(subject)}</title></head>
-<body style="margin:0;padding:0;background:#f2f4f3;">
+<body style="margin:0;padding:0;background:#f2f4f3;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 ${pre ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc(pre)}</div>` : ''}
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f4f3;"><tr><td align="center" style="padding:24px 12px;">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f2f4f3;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;"><tr><td align="center" style="padding:24px 12px;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e3e8e5;">
     <tr><td style="height:5px;background:${c};font-size:0;line-height:0;">&nbsp;</td></tr>
     <tr><td style="padding:22px 26px 6px;">${head}</td></tr>
-    <tr><td style="padding:14px 26px 22px;"><div style="font:700 20px/1.3 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#1f2723;margin:0 0 14px;">${esc(heading)}</div>
-      <div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">${(() => { const main = card && (card.before != null || card.after != null) ? body(card.before) + cardHtml + body(card.after) : cardHtml + body(text);
+    <tr><td style="padding:14px 26px 22px;"><div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;line-height:1.3;color:#1f2723;margin:0 0 14px;">${esc(heading)}</div>
+      <div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${(() => { const main = card && (card.before != null || card.after != null) ? body(card.before) + cardHtml + body(card.after) : cardHtml + body(text);
         return main.includes('<!--SIG-->') ? main.replace('<!--SIG-->', btnHtml) : main + btnHtml; })()}</div></td></tr>
-    <tr><td style="padding:18px 26px 22px;border-top:1px solid #edf1ef;font:400 12px/1.5 -apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#8a948f;">
+    <tr><td style="padding:18px 26px 22px;border-top:1px solid #edf1ef;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;font-weight:400;line-height:1.5;color:#8a948f;">
       Diese Nachricht wurde automatisch von ${esc(club)} verschickt.</td></tr>
   </table>
 </td></tr></table></body></html>`;

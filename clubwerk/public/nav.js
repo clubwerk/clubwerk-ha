@@ -30,12 +30,18 @@
         const ini = w.filter(x => /^[A-Za-zÄÖÜäöü]/.test(x)).map(x => x[0]).join('').slice(0, 2).toUpperCase();
         document.getElementById('clubMark').textContent = ini || 'V';
       }
-      if (b.color) { const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', b.color); }
+      if (b.color) {
+        const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', b.color);
+        // Vereinsfarbe geändert (Verwaltung → Einstellungen): Farben ohne Neuladen übernehmen
+        if (nav.color && nav.color !== b.color) { const l = document.querySelector('link[rel="stylesheet"][href*="theme.css"]'); if (l) { const n = l.cloneNode(); n.href = l.getAttribute('href').split('?')[0] + '?c=' + b.color.slice(1); n.onload = () => l.remove(); l.after(n); } }
+        nav.color = b.color;
+      }
       if (b.logo) {
         const src = base + b.logo;
         if (logo.getAttribute('src') !== src) { logo.onerror = () => { box.classList.add('hidden'); hdr.classList.remove('haslogo'); }; logo.onload = () => { box.classList.remove('hidden'); hdr.classList.add('haslogo'); }; logo.src = src; }
       } else { box.classList.add('hidden'); hdr.classList.remove('haslogo'); }
     }).catch(() => {});
+    const nav = {};
     brand();
     setInterval(brand, 5 * 60 * 1000);
   }

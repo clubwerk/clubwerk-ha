@@ -18,11 +18,17 @@
       .bkm-plan .zu { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--hover) 0 6px, transparent 6px 12px); pointer-events: none; }
       .bkm-plan .past { position: absolute; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--hover) 70%, transparent); pointer-events: none; }
       .bkm-plan .nowl { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 2; pointer-events: none; }
-      .bkm-blk { position: absolute; left: 3px; right: 3px; border-radius: 9px; padding: 4px 6px; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 1;
+      .bkm-blk { position: absolute; left: 3px; right: 3px; border-radius: 9px; padding: 4px 6px; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 3;   /* über der Jetzt-Linie – Namen bleiben lesbar */
         background: var(--hover); color: var(--ink); border-color: var(--line); }
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .bkm-now { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 10px 14px; margin-bottom: 12px; }
+      .bkm-now h4 { margin: 4px 0 4px; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+      .bkm-now > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 14px; }
+      .bkm-now h4 + div { border-top: 0; }
+      .bkm-now span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-now small { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+      .bkm-now p { margin: 2px 0 4px; color: var(--muted); font-size: 14px; }
       .bkm-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
       .bkm-hint { font-size: 12.5px; color: var(--muted); margin: -4px 2px 12px; }
       .bkm-days { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px 4px; scrollbar-width: none; }
@@ -90,6 +96,8 @@
   const wd = (s, o = { weekday: 'short' }) => new Date(s + 'T12:00:00').toLocaleDateString('de-DE', o);
   const dur = m => (m % 60 ? (m > 60 ? `${Math.floor(m / 60)} Std. ${m % 60} Min.` : `${m} Min.`) : `${m / 60} Std.`);
   const first = n => String(n || '').split(/[ ,]+/)[0];
+  /** „Thorsten Schardt“ → „Thorsten S.“ – passt auch in schmale Platz-Spalten */
+  const shortName = n => { const t = String(n || '').trim(); if (t.includes(',')) { const [l, f] = t.split(',').map(x => x.trim()); return f ? `${f.split(/\s+/)[0]} ${l[0]}.` : l; } const w = t.split(/\s+/); return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : t; };
 
   const PH = 56;   // Pixel je Stunde in der Übersicht
   const ink = hex => { const n = parseInt(String(hex).slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) > 160 ? '#1b1f1c' : '#ffffff'; };
@@ -180,16 +188,27 @@
         const y = m => T + (Math.max(m, from) - from) / 60 * PH;
         const blk = (r, b) => {
           const s0 = tm(b.start), e0 = tm(b.end), h = Math.max(20, y(e0) - y(s0) - 2), n = Math.max(1, Math.floor((h - 8) / 15));
-          const who = b.type === 'buchung' && b.who ? whoTxt(b) : '';
-          const main = b.type === 'sperre' ? (b.title || 'gesperrt') : b.label ? b.label.name : b.type === 'serie' ? (b.title || 'Training') : who || (b.mine ? 'Meine Buchung' : 'belegt');
-          const sub = b.label || b.type === 'serie' ? (who || (b.title && b.title !== main ? b.title : '')) : '';
+          // Spieler je eine Zeile („Thorsten S.“) – auf einen Blick, wer gerade spielt; die Uhrzeit nur, wenn noch Platz ist
+          const names = b.type === 'buchung' && b.who ? [...b.who.map(shortName), ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
+          const head = b.type === 'sperre' ? (b.title || 'gesperrt') : b.label ? b.label.name : b.type === 'serie' ? (b.title || 'Training') : '';
           const time = `${b.start}–${b.end}`;
-          let ln = [[main, 'b'], ...(sub ? [[sub, '']] : []), [time, 'tm']];
-          if (ln.length > n) ln = n === 1 ? [[`${main} · ${time}`, 'b']] : ln.slice(0, n);
+          let ln = head ? [[head, 'b'], ...names.map(x => [x, '']), ...(!names.length && b.title && b.title !== head ? [[b.title, '']] : [])] : names.length ? names.map(x => [x, 'b']) : [[b.mine ? 'Meine Buchung' : 'belegt', 'b']];
+          if (ln.length < n) ln.push([time, 'tm']);
+          else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
           const st = b.mine ? '' : b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
           return `<button class="bkm-blk ${b.mine ? 'mine' : ''} ${b.type === 'sperre' ? 'sperre' : ''}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`;
         };
-        return `<div class="bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-plan" style="--n:${rs.length};--ph:${PH}px">
+        // heute: wer gerade spielt und wer gleich kommt – kompakt über dem Raster
+        let now = '';
+        if (isToday) {
+          const play = rs.map(r => ({ r, b: p.bookings.find(b => b.resource_id === r.id && tm(b.start) <= nowM && tm(b.end) > nowM) })).filter(x => x.b);
+          const soon = p.bookings.filter(b => tm(b.start) > nowM && tm(b.start) <= nowM + 60).sort((a, c) => tm(a.start) - tm(c.start));
+          const line = (b, pre) => { const r = rs.find(x => x.id === b.resource_id); const nm = b.type === 'buchung' && b.who ? b.who.map(shortName).join(', ') : b.label ? b.label.name : b.title || (b.type === 'sperre' ? 'gesperrt' : 'belegt');
+            return `<div><b>${esc(r ? r.name : '')}</b><span>${esc(nm)}</span><small>${pre}</small></div>`; };
+          if (play.length || soon.length) now = `<div class="bkm-now"><h4>Jetzt auf der Anlage</h4>${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
+            ${soon.length ? `<h4>In der nächsten Stunde</h4>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>`;
+        }
+        return `${now}<div class="bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-plan" style="--n:${rs.length};--ph:${PH}px">
           <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu'}</small></div>`).join('')}
           <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * PH}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
           ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);

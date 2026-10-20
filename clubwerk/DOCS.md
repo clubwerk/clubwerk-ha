@@ -193,7 +193,7 @@ Unter **Mitglieder-App → „Einladen …“** (je Mitglied) gibt es drei Wege:
 
 Für viele auf einmal: **„Einladungen verschicken …“** über der Mitgliederliste – alle ohne gekoppeltes Handy vorausgewählt, wahlweise auch Mitglieder, die noch nicht in der App sind; per E-Mail oder als Briefe. Wer schon ein Handy hat, wird übersprungen.
 
-Das Mitglied legt beim Öffnen des Links seine App-PIN selbst fest – niemand muss sie vorher kennen. E-Mail-Einladungen und Briefe gelten einmal und so viele Tage wie unter **Sicherheit → „E-Mail/Brief gültig“** eingestellt (2, 7 oder 14).
+**Eine PIN für App und Verkauf:** Hat das Mitglied am Tablet schon eine PIN, gibt es beim Freischalten genau diese ein (5 Versuche, dann ist die Einladung verbraucht). Hat es noch keine, legt es sie in der App fest (4–6 Ziffern) – sie gilt dann auch am Tablet. Wer die PIN am Tablet ändert, ändert sie auch in der App. Vergessen? „PIN zurücksetzen“ in der Verwaltung, danach am Tablet neu festlegen. E-Mail-Einladungen und Briefe gelten einmal und so viele Tage wie unter **Sicherheit → „E-Mail/Brief gültig“** eingestellt (2, 7 oder 14).
 
 **Absicherung, falls eine Einladung in falsche Hände gerät:**
 - Nach jeder Freischaltung bekommt das Mitglied eine Bestätigungsmail („Warst du das nicht? Dann melde dich beim Vorstand“).

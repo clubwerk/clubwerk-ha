@@ -6,19 +6,15 @@
 <title>Beispiel</title>
 <link rel="stylesheet" href="../../style.css">
 <link rel="stylesheet" href="../../theme.css">
-<style>
-  header.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; background: var(--green); color: #fff; }
-  header.top h1 { margin: 0; font-size: 22px; }
-  header.top nav { display: flex; align-items: center; gap: 22px; }
-  header.top nav a { color: #fff; opacity: .75; font-size: 15px; text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
-  header.top nav a.on { opacity: 1; font-weight: 700; border-bottom-color: #fff; }
-  header.top .clock { font-size: 20px; opacity: .9; }
-  main { padding: 18px 22px; }
-</style>
+<!-- Gestaltung: nur das Tablet-Kit aus style.css (siehe ERWEITERUNGEN.md → „Styleguide“). Eigene Regeln nur für Dinge, die es dort nicht gibt. -->
 </head>
-<body>
+<body class="tk">
 <header id="gkHeader"></header>
-<main><ul id="list"></ul></main>
+<main>
+  <div class="tab-head"><div><h1 class="tab-title">Notizen</h1><p class="tab-sub">Was hier zu tun ist – ein Satz.</p></div></div>
+  <h2 class="sec">Alle Notizen</h2>
+  <div class="tk-grid" id="list"></div>
+</main>
 <!-- Kopfzeile wie auf allen Tablet-Seiten: data-active = id der Erweiterung -->
 <script src="../../nav.js" data-base="../../" data-active="beispiel"></script>
 <script src="tablet.js"></script>

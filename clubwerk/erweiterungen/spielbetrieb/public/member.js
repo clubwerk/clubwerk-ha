@@ -53,6 +53,22 @@
       .sb-wd { grid-column: 2 / -1; display: flex; gap: 8px; margin-top: 6px; }
       .sb-wd button { flex: 1; min-height: 38px; border-radius: 11px; font: inherit; font-size: 13.5px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
       .sb-wd button.ok { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .sb-list { background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); overflow: hidden; }
+      .sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--line); }
+      .sb-row:first-child { border-top: 0; } .sb-row.x { opacity: .6; } .sb-row.open { background: color-mix(in srgb, var(--hover) 45%, var(--card)); }
+      .sb-rh { display: grid; grid-template-columns: 46px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 4px 9px 16px; background: none; border: 0; font: inherit; color: inherit; text-align: left; min-width: 0; }
+      .sb-dd { position: relative; display: flex; flex-direction: column; align-items: center; line-height: 1.1; } .sb-dd b { font-size: 14px; font-weight: 800; color: var(--brand-ink); } .sb-dd small { font-size: 11px; color: var(--muted); text-transform: uppercase; font-weight: 700; }
+      .sb-dd i { position: absolute; top: 50%; left: -9px; margin-top: -4px; width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .sb-dd i.g { background: var(--brand); } .sb-dd i.r { background: var(--red); }
+      .sb-tt { min-width: 0; } .sb-tt strong { display: block; font-size: 14.5px; line-height: 1.25; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .sb-tt small { display: block; font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .sb-tt em { font-style: normal; color: var(--amber); font-weight: 700; }
+      .sb-rr { display: flex; align-items: center; gap: 6px; padding-right: 10px; }
+      .sb-yn { display: flex; gap: 4px; } .sb-yn button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 800; color: var(--muted); }
+      .sb-yn .y.on { background: var(--brand); border-color: var(--brand); color: #fff; } .sb-yn .n.on { background: var(--red); border-color: var(--red); color: #fff; }
+      .sb-det { grid-column: 1 / -1; padding: 0 14px 12px 68px; }
+      .sb-det .sb-play { margin-top: 4px; } .sb-det .sb-line:first-child, .sb-det .sb-who:first-child { margin-top: 2px; }
+      .sb-bulkrow { display: flex; align-items: center; gap: 6px; padding: 8px 10px 8px 14px; margin-bottom: 10px; border-radius: 14px; background: var(--amber-soft); font-size: 14px; }
+      .sb-bulkrow span { flex: 1; min-width: 0; } .sb-bulkrow button { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+      @media (max-width: 360px) { .sb-det { padding-left: 14px; } }
       .sb-sec { font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 16px 0 4px; }`;
     document.head.appendChild(s);
   }
@@ -66,6 +82,7 @@
     render(el, ctx) {
       const { esc } = ctx;
       let d = null, tab = 'alle';
+      const openRows = new Set();   // aufgeklappte Spieltage (bleiben nach dem Neuladen offen)
       const sheet = () => { let sh = document.getElementById('sbSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'sbSheet'; sh.className = 'vh-sheet sb-sheet'; document.body.appendChild(sh); } return sh; };
       const close = () => { const s = document.getElementById('sbSheet'); if (s) s.classList.remove('show'); };
       ctx.onLeave(close);
@@ -82,11 +99,11 @@
         const openBy = {}; d.games.filter(g => g.mine && !g.past && g.status === 'geplant' && !(g.me && g.me.state)).forEach(g => { openBy[g.team_id] = (openBy[g.team_id] || 0) + 1; });
         const bulk = teams.filter(t => t.player && openBy[t.id] >= 3 && (tab === 'alle' || String(t.id) === tab));
         el.innerHTML = `${teams.length > 1 ? `<div class="sb-tabs">${[['alle', 'Alle'], ...teams.map(t => [String(t.id), t.name])].map(([k, l]) => `<button data-tab="${esc(k)}" class="${k === tab ? 'on' : ''}" translate="no">${esc(l)}</button>`).join('')}</div>` : ''}
-          ${bulk.map(t => `<div class="sb-card"><p class="sb-intro"><b translate="no">${esc(t.name)}</b>: Für ${openBy[t.id]} Spieltage hast du noch nichts gemeldet. Einzelne Termine kannst du danach jederzeit ändern.</p>
-            <div class="sb-bulk"><button data-bulk="${t.id}" data-st="ja">Bei allen: kann</button><button data-bulk="${t.id}" data-st="nein">Bei allen: kann nicht</button></div></div>`).join('')}
-          ${games.length ? games.map(card).join('') : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
+          ${bulk.map(t => `<div class="sb-bulkrow"><span><b translate="no">${esc(t.name)}</b>: ${openBy[t.id]} offen</span><button data-bulk="${t.id}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${t.id}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`).join('')}
+          ${games.length ? `<div class="sb-list">${games.map(row).join('')}</div>` : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
           ${d.played ? `<p class="vh-empty" style="padding:14px 0 0">In dieser Saison hast du ${d.played}-mal gespielt.</p>` : ''}`;
         el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; draw(); }; });
+        el.querySelectorAll('[data-x]').forEach(b => { b.onclick = () => { const id = +b.dataset.x; if (openRows.has(id)) openRows.delete(id); else openRows.add(id); draw(); }; });
         el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(+b.dataset.g, b.dataset.ans); });
         el.querySelectorAll('[data-time]').forEach(b => { b.onclick = () => timeSheet(d.games.find(g => g.id === +b.dataset.time)); });
         el.querySelectorAll('[data-wd]').forEach(b => { b.onclick = () => withdrawSheet(d.games.find(g => g.id === +b.dataset.wd)); });
@@ -95,8 +112,22 @@
         el.querySelectorAll('[data-lead]').forEach(b => { b.onclick = () => leadSheet(+b.dataset.lead); });
         el.querySelectorAll('[data-bulk]').forEach(b => { b.onclick = () => run(() => ctx.api('avail/all', 'POST', { team_id: +b.dataset.bulk, state: b.dataset.st }), 'Gemeldet – danke!'); });
       }
-      function card(g) {
-        const me = g.me || {}, s = g.stats, cancelled = g.status === 'abgesagt';
+      /** eine Zeile je Spieltag: Datum · Titel · ✓/✕ (oder „spielt“/„Ersatz“) – Antippen klappt die Details auf */
+      function row(g) {
+        const me = g.me || {}, s = g.stats, cancelled = g.status === 'abgesagt', open = openRows.has(g.id);
+        const lt = cancelled ? '' : s.ok ? 'g' : 'r';
+        const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
+        const sub = g.kind === 'rahmen' ? `vorläufig${me.state === 'ja' && (me.from || me.until) ? ' · ' + [me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') : ''}`
+          : [g.start ? `${g.start} Uhr` : '', g.home ? 'Heim' : 'auswärts', g.lead ? `${s.yes}/${s.min} können` : ''].filter(Boolean).join(' · ');
+        const tag = cancelled ? '<span class="sb-tag">abgesagt</span>' : me.role === 'spielt' ? `<span class="sb-tag ${me.withdraw ? 'a' : 'g'}">${me.withdraw ? 'Absage offen' : 'spielt'}</span>` : '';
+        const right = answerable ? `<span class="sb-yn"><button class="y ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}" aria-label="Kann">✓</button><button class="n ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}" aria-label="Kann nicht">✕</button></span>${me.role === 'ersatz' ? '<span class="sb-tag a">Ersatz</span>' : ''}` : tag;
+        return `<div class="sb-row${cancelled ? ' x' : ''}${open ? ' open' : ''}">
+          <button class="sb-rh" data-x="${g.id}" aria-expanded="${open}"><span class="sb-dd">${g.lead ? `<i class="${lt}"></i>` : ''}<b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><small>${esc(wd(g.date))}</small></span>
+            <span class="sb-tt"><strong translate="no">${esc(title(g))}</strong><small>${esc(sub)}${!me.state && answerable ? ' · <em>offen</em>' : ''}</small></span></button>
+          <span class="sb-rr">${right}</span>
+          ${open ? `<div class="sb-det">${detail(g)}</div>` : ''}</div>`;
+      }
+      function detail(g) {        const me = g.me || {}, s = g.stats, cancelled = g.status === 'abgesagt';
         const lt = cancelled ? '' : s.ok ? 'g' : 'r';
         const meet = [g.meet_time ? `Treffpunkt ${g.meet_time} Uhr` : '', g.meet_place || ''].filter(Boolean).join(' · ');
         const yes = (g.people || []).filter(p => p.state === 'ja'), play = (g.people || []).filter(p => p.role === 'spielt'), res = (g.people || []).filter(p => p.role === 'ersatz');
@@ -108,17 +139,14 @@
         else if (me.role === 'ersatz') mine = `<div class="sb-play"><b>Du bist Ersatz</b><p>${esc(meet || 'Halte dich bitte bereit.')}</p><button data-wd="${g.id}">Kann doch nicht</button></div>`;
         const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt';
         const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
-        return `<div class="sb-card"><div class="sb-head"><div class="sb-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></div>
-            <div style="min-width:0"><strong translate="no">${esc(title(g))}</strong><small>${g.kind === 'rahmen' ? 'vorläufig – Gegner und Heim/Auswärts kommen mit dem Spielplan' : esc([g.start ? `${g.start} Uhr` : '', g.home ? 'Heimspiel' : 'Auswärtsspiel', g.league].filter(Boolean).join(' · '))}</small>${!g.home && g.venue ? `<small translate="no">${esc(g.venue)}</small>` : ''}</div>
-            ${g.lead ? `<span class="sb-light ${lt}" title="${s.ok ? 'genug Spieler' : 'zu wenige Spieler'}"></span>` : '<span></span>'}</div>
-          ${mine}
-          ${answerable ? `<div class="sb-ans"><button class="yes ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}">Kann</button><button class="no ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}">Kann nicht</button></div>
-            ${me.state === 'ja' && d.settings.times ? `<div class="sb-line"><span>${me.from || me.until ? esc([me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') + ' Uhr') : 'den ganzen Spieltag'}</span><button data-time="${g.id}">Uhrzeit angeben</button></div>` : ''}
-            ${!me.state ? '<div class="sb-line"><span>Bitte melde dich für diesen Spieltag.</span></div>' : ''}` : ''}
+        return `          ${mine}
+          ${!g.home && g.venue && g.kind !== 'rahmen' ? `<div class="sb-line"><span translate="no">${esc(g.venue)}</span></div>` : ''}${g.kind === 'rahmen' ? '<div class="sb-line"><span>Gegner und Heim/Auswärts kommen mit dem Spielplan.</span></div>' : ''}
+          ${answerable ? `${me.state === 'ja' && d.settings.times ? `<div class="sb-line"><span>${me.from || me.until ? esc([me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') + ' Uhr') : 'den ganzen Spieltag'}</span><button data-time="${g.id}">Uhrzeit angeben</button></div>` : ''}
+            ${!me.state ? '<div class="sb-line"><span>Bitte oben mit ✓ oder ✕ melden.</span></div>' : ''}` : ''}
           ${!cancelled && (d.settings.seeAvail || d.settings.seeLineup || g.lead) ? `<div class="sb-who">${play.length && (d.settings.seeLineup || g.lead) ? `<div>Aufgestellt: <b translate="no">${names(play)}</b>${res.length ? ` · Ersatz: <span translate="no">${names(res)}</span>` : ''}</div>` : ''}${d.settings.seeAvail || g.lead ? `<div>${yes.length ? `Können (${yes.length}): <span translate="no">${names(yes)}</span>` : 'Noch keine Zusagen.'}</div>` : ''}</div>` : ''}
           ${tasks}
           ${g.lead && !cancelled && g.kind === 'rahmen' ? `<div class="sb-line"><span>${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''} – aufstellen geht, sobald der Spielplan da ist.</span></div>` : ''}
-          ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="sb-lead" data-lead="${g.id}">Aufstellung · ${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''}${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}</div>`;
+          ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="sb-lead" data-lead="${g.id}">Aufstellung${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}`;
       }
       async function run(fn, msg) { try { await fn(); if (msg) ctx.toast(msg); close(); await load(); } catch (e) { ctx.toast(e.message, true); } }
       function answer(id, state) {

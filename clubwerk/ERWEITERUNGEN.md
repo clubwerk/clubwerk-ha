@@ -96,16 +96,43 @@ Daten liegen in der Datenbank von Clubwerk und sind in jeder Datensicherung enth
 ## Tablet-Seite (public/index.html)
 
 Pfade relativ angeben (`../../style.css`, `../../api/...`), damit die Seite auch über Home Assistant (Ingress) funktioniert.
-Die gemeinsame Kopfzeile bindet ihr so ein:
+Die gemeinsame Kopfzeile bindet ihr so ein (Gestaltung der Seite: siehe „Styleguide“ unten, `<body class="tk">`):
 
 ```html
-<header class="top"><h1>Titel</h1><nav id="topnav"><span class="clock" id="clock"></span></nav></header>
+<header id="gkHeader"></header>
 <script src="../../nav.js" data-base="../../" data-active="beispiel"></script>
 ```
 
 Mit `nav.js` kehrt die Seite nach 30 Sekunden ohne Eingabe automatisch zum Start-Reiter zurück.
 
 Am Tablet erscheint die Seite unter `/<pfad>/` (z. B. `/beispiel/`). Clubwerk setzt dabei `<base href="../x/<id>/">` – relative Adressen in der Seite (`tablet.js`, `../../style.css`, `../../api/tablet/…`) funktionieren deshalb unverändert wie unter `/x/<id>/`. Ist der Pfad belegt (Dateien der Hauptseite, `api`, `x` …) oder schon vergeben, bleibt die Seite unter `/x/<id>/`. Ist die Erweiterung Start-Reiter, erscheint sie direkt unter `/`.
+
+## Styleguide – so sehen alle Seiten gleich aus
+
+Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farben, Schriftgrößen oder Abstände nur, wenn es den Baustein nicht gibt – und dann nur über die Farbvariablen (`--brand`, `--brand-soft`, `--brand-ink`, `--muted`, `--line`, `--card`, `--hover`, `--red`, `--amber` …), nie mit festen Farbwerten. So passen helles und dunkles Design und die Vereinsfarbe von selbst.
+
+**Tablet (public/index.html)** – `<body class="tk">`, dann nur Bausteine des Tablet-Kits aus `style.css`:
+
+| Baustein | Wofür | Regeln |
+|---|---|---|
+| `<main>` | Seite | volle Breite, 24 px Rand (Handy 16/12 px) – keine eigene `max-width` |
+| `.tab-head` > `.tab-title` + `.tab-sub` | Seitenkopf | Titel als Frage oder Name („Wer bucht?“), **immer** ein Untertitel, der sagt, was man hier tut; rechts optional Suche/Auswahl |
+| `h2.sec` | Abschnitt | 12 px, Großbuchstaben, gedämpft; optional `<small>` mit Zusatz |
+| `.tk-grid` | Raster | 4 Spalten (ab 1600 px 5, schmal 2, Handy 1), Abstand 16 px; `.span2` für doppelte Breite |
+| `.tk-tile` | Kachel | 80 px hoch: `.av` (Initialen) oder `.tk-ico` (Symbol) · `.tk-txt` mit `<b>` Titel und `<span>` Zeile · optional `.tk-chip` rechts; `.on` = aktiv/da, `.warn` = Achtung |
+| `.tk-tile.big` | Aktionskachel | Symbol oben, Titel 20 px, kurzer Text – für Einstiege wie „Mitglied werden“ |
+| `.tk-chip` `.g` `.a` `.r` | Statusmarke | ein, zwei Wörter („da“, „nicht da“, „vergessen“) |
+| `.tk-empty` | Leerzustand | gestrichelter Kasten, ein Satz, der sagt, was als Nächstes geht |
+| `.tk-big` | Hauptknopf | 64 px, Vereinsfarbe – höchstens einer je Bereich |
+| `.tk-cols` | zwei Bereiche nebeneinander | schmal untereinander |
+| `.overlay` > `.dialog`, `.pad`, `.pin-dots`, `.err`, `.done .big` | Fenster, PIN-Eingabe, Erfolgsmeldung | Ziffernblock 3 × 4, 68 px hohe Tasten |
+| `.gate` > `.gatecard` | Sperrseite (Tablet-Passwort) | unverändert übernehmen |
+
+**Mitglieder-App (public/member.js)** – Bausteine aus `kit.css` (`.vh-…`): Bereiche als kompakte Listen (eine Zeile je Eintrag, Details zum Aufklappen) statt großer Einzelkarten; Fenster als `.vh-sheet` > `.vh-box`; nie ein neues Browserfenster.
+
+**Verwaltung (public/admin.js)** – über `GK`: Seitenkopf wie die übrigen Seiten (`h2.page` + `p.lead`), Karten `.card` mit `<h3>`, Formulare `label.f`, Tabellen `.tbl`, Marken `.pill` (`g`/`a`/`r`), Knöpfe `.btn` (`primary`, `small`, `ghost`, `danger`), Unterbereiche mit `GK.sectionize`. Überschriften fluchten mit den Feldern und Knöpfen darunter; nichts überlappt.
+
+**Texte:** kurz, freundlich, in der Sprache der Mitglieder („Namen antippen“, nicht „Datensatz auswählen“). Uhrzeiten „19:00 Uhr“, Daten „Di, 20.10.“. Namen „Nachname, Vorname“ in Listen.
 
 ## Verwaltungsseite (public/admin.js)
 

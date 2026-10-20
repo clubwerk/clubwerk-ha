@@ -281,7 +281,7 @@
       try { const r = await api('api/tablet/unlock', { guestId: g.id, pin }); closeDialog(); open(r); return true; }
       catch (e) { check.lastError = e.message; return false; }
     };
-    pinDialog(g.name, 'Bitte deine PIN eingeben', check);
+    pinDialog(g.name, 'Bitte deine PIN eingeben', check, { max: 8 });
   }
 
   /* Namen auf die Veranstaltungsliste setzen: Mitglied suchen oder frei eintragen */
@@ -352,12 +352,12 @@
   });
 
   /* ---------- PIN ---------- */
-  function pinDialog(title, sub, onDone, { allowEmpty = false } = {}) {
+  function pinDialog(title, sub, onDone, { allowEmpty = false, max = 6 } = {}) {   // max 8 beim Entsperren: aus der Mitglieder-App übernommene PINs können länger sein
     let pin = '';
     const draw = (err = '') => {
       $('dialog').innerHTML = `
         <h2>${esc(title)}</h2><div class="muted">${esc(sub)}</div>
-        <div class="pin-dots">${[0, 1, 2, 3, 4, 5].map(i => `<span class="${i < pin.length ? 'f' : ''}" style="${i >= 4 && i >= pin.length ? 'opacity:.3' : ''}"></span>`).join('')}</div>
+        <div class="pin-dots">${Array.from({ length: Math.max(6, pin.length) }, (x, i) => i).map(i => `<span class="${i < pin.length ? 'f' : ''}" style="${i >= 4 && i >= pin.length ? 'opacity:.3' : ''}"></span>`).join('')}</div>
         <div class="pad">
           ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}
           <button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button>
@@ -379,7 +379,7 @@
         if (r === false) { pin = ''; draw(onDone.lastError || 'PIN falsch.'); } else closeDialog();
         return;
       }
-      if (pin.length < 6) pin += key;
+      if (pin.length < max) pin += key;
       draw();
     };
   }
@@ -402,7 +402,7 @@
         return true;
       } catch (e) { check.lastError = e.message; return false; }
     };
-    pinDialog(m.name, 'Bitte deine PIN eingeben', check);
+    pinDialog(m.name, 'Bitte deine PIN eingeben', check, { max: 8 });
   }
 
   /* ---------- Buchen ---------- */
@@ -759,7 +759,7 @@
   }
   /** neue PIN zweimal eingeben und speichern (cur = bisherige PIN, leer beim ersten Mal) */
   function setNewPin(cur, sub) {
-    pinDialog('Neue PIN', sub || '4 bis 6 Ziffern – gilt für Verkauf, Platzbuchung und Helferdienste', async pin1 => {
+    pinDialog('Neue PIN', sub || '4 bis 6 Ziffern – gilt für Verkauf, Platzbuchung, Helferdienste und die Mitglieder-App', async pin1 => {
       closeDialog();
       setTimeout(() => pinDialog('PIN wiederholen', 'Zur Sicherheit noch einmal eingeben', async pin2 => {
         if (pin2 !== pin1) { closeDialog(); setTimeout(() => { toast('Die beiden PINs stimmen nicht überein – bitte noch einmal.', true); setNewPin(cur, sub); }, 0); return true; }
@@ -775,7 +775,7 @@
   }
   /** erstes Mal ohne PIN: gleich zum Festlegen auffordern */
   function askFirstPin() {
-    $('dialog').innerHTML = `<h2>Kein PIN vergeben</h2><div class="muted" style="margin:6px 0 4px;line-height:1.5">Lege jetzt deine PIN fest. Sie schützt dein Konto und gilt für alles im Vereinsheim – Verkauf, Platzbuchung (Buchen und Stornieren nur mit PIN) und Helferdienste.</div>
+    $('dialog').innerHTML = `<h2>Kein PIN vergeben</h2><div class="muted" style="margin:6px 0 4px;line-height:1.5">Lege jetzt deine PIN fest. Sie schützt dein Konto und gilt für alles im Vereinsheim – Verkauf, Platzbuchung (Buchen und Stornieren nur mit PIN), Helferdienste und die Mitglieder-App.</div>
       <div class="pinchoice"><button class="btn" data-c="later">Später</button><button class="btn primary" data-c="set">PIN festlegen</button></div>`;
     $('overlay').classList.remove('hidden');
     $('dialog').onclick = e => {
@@ -786,7 +786,7 @@
   }
   $('pinBtn').addEventListener('click', () => {
     if (!session.member.hasPin) { setNewPin(''); return; }
-    pinDialog('Aktuelle PIN', 'Zur Sicherheit erst die bisherige PIN eingeben', async cur => { closeDialog(); setTimeout(() => setNewPin(cur), 0); return true; });
+    pinDialog('Aktuelle PIN', 'Zur Sicherheit erst die bisherige PIN eingeben', async cur => { closeDialog(); setTimeout(() => setNewPin(cur), 0); return true; }, { max: 8 });
   });
 
   /* ---------- Zurück zum Start ---------- */
@@ -808,6 +808,11 @@
   document.addEventListener('pointerdown', () => { if (session) bumpIdle(); keepAwake(); }, { passive: true });
 
   setInterval(() => { if (!session) load(); }, 60 * 1000);
+  /* Der Browser stellt beim Zurückkehren (Reiter „Verkauf“, Zurück-Taste, Neuladen) alte Eingaben wieder her oder füllt sie vor –
+     dann stünde ein alter Suchbegriff oben, ohne dass gefiltert wird. Deshalb bei jedem Anzeigen leeren. */
+  const clearSearch = () => { let ch = false; for (const id of ['nameSearch', 'evSearch']) { const el = $(id); if (el && el.value) { el.value = ''; ch = true; } } if (ch && !session) { letter = null; evFilter = ''; if (state.members.length) renderStart(); } };
+  clearSearch();
+  window.addEventListener('pageshow', clearSearch);
   load();
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 })();

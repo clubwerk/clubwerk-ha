@@ -17,10 +17,10 @@
 
   async function load() {
     try { state = await call('x/arbeitseinsatz/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
-    $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="aw-tile" data-r="${r.member_id}"><div><b>${esc(r.name)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></div><span class="t">${since(r.in_at)}</span></button>`).join('')
-      : '<div class="aw-empty">Niemand eingestempelt.</div>';
-    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="aw-tile ev"><div><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></div></div>`).join('')
-      : '<div class="aw-empty">Heute ist nichts geplant – du kannst trotzdem einen Einsatz beginnen.</div>';
+    $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="tk-tile on" data-r="${r.member_id}"><i class="av">${esc(String(r.name || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</i><span class="tk-txt"><b>${esc(r.name)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></span><span class="t">${since(r.in_at)}</span></button>`).join('')
+      : '<div class="tk-empty">Niemand eingestempelt.</div>';
+    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="tk-tile"><span class="tk-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></span><span class="tk-txt"><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></span></div>`).join('')
+      : '<div class="tk-empty">Heute ist nichts geplant – du kannst trotzdem einen Einsatz beginnen.</div>';
     $('note').textContent = state.text || '';
     $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; confirmStop(p, state.running.find(x => x.member_id === p.id)); }; });
   }

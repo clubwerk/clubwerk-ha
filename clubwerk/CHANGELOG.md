@@ -1,5 +1,18 @@
 # Änderungen
 
+## 3.25.0
+
+- **Einheitliches Design (Styleguide):** Alle Tablet-Seiten – Verkauf, Zeiterfassung, Mitglied werden, Helferdienste, Plätze – nutzen dieselben Bausteine: gleiche Breite, gleicher Seitenkopf mit Untertitel, gleiches Raster, gleiche Kacheln, Leerzustände, Hauptknöpfe, PIN-Fenster und Sperrseite. Der Styleguide steht in ERWEITERUNGEN.md, die Vorlage für neue Module nutzt ihn.
+- **Eine PIN für Mitglieder-App und Verkauf:** Wer im Verkauf schon eine PIN hat, gibt beim Freischalten der App genau diese ein; wer noch keine hat, legt sie in der App fest und sie gilt auch am Tablet. PIN am Tablet geändert → gilt sofort auch in der App. Bisher getrennte PINs werden einmalig zusammengeführt (die App-PIN gilt).
+- **Mitglieder-App (Verwaltung):** Seite in Unterbereiche geteilt – Mitglieder, Bereiche, Benachrichtigungen, Verbindung, Sicherheit; roter Punkt, wo etwas zu tun ist; Filter „eingeladen“ und „warten auf WLAN“.
+- **Vereinsfarbe:** Die Mitglieder-App übernimmt eine neue Farbe beim Start bzw. beim Zurückholen in den Vordergrund (ohne Neuladen), auch die Statusleiste am Handy; das Tablet beim nächsten Abgleich.
+- **Platzübersicht in der App:** „Jetzt auf der Anlage“ (wer gerade spielt, wer gleich kommt); in den Blöcken stehen die Spieler einzeln („Thorsten S.“).
+- **Plätze am Tablet:** Vergangene Zeiten sind eingeklappt (antippen klappt auf, nach einer Minute wieder zu).
+- **Spieltage in der App:** kompakte Liste – eine Zeile je Spieltag mit ✓/✕, Details zum Aufklappen.
+- **E-Mails:** Schrift, Größe und Fettung auch in GMX/Web.de und anderen strengen Mailprogrammen korrekt.
+- Tablet: Das Suchfeld im Verkauf ist beim Zurückkehren immer leer (der Browser füllte alte Eingaben ein).
+- **App-Symbol (Home-Bildschirm):** Hintergrund in Vereinsfarbe, Vereinslogo groß mit schmalem weißem Rahmen (leere Ränder des Logos werden abgeschnitten). Wird bei Logo- oder Farbwechsel neu erzeugt. Auf dem iPhone erscheint das neue Symbol, wenn die App neu auf den Home-Bildschirm gelegt wird.
+
 ## 3.24.0
 
 - **Mitglieder-App ohne QR-Code im Vereinsheim einladen:** „Einladen …“ je Mitglied – QR-Code am Bildschirm, **per E-Mail** (Knopf „App freischalten“ mit Anleitung) oder **Einladungsbrief** zum Ausdrucken. „Einladungen verschicken …“ für viele auf einmal (E-Mail oder Briefe). Gültigkeit für E-Mail/Brief einstellbar (2, 7 oder 14 Tage).

@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.24.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.25.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -157,12 +157,25 @@
     }).catch(() => {}).finally(() => { probing = null; });
   }
   // Netzwechsel (Mobilfunk → Vereins-WLAN) oder App wieder im Vordergrund: lokale Adresse erneut prüfen, WLAN-Bereiche ggf. freigeben
-  const recheck = () => { if (document.visibilityState !== 'visible') return; lanProbe = null; probeInBackground(true); if (current && !embedFrame && me && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); };
+  /* Vereinsfarbe übernehmen: beim Start (Antwort von /me) und wenn die App wieder in den Vordergrund kommt –
+     eine Home-Bildschirm-App „startet“ meist so, ohne neu zu laden. Keine regelmäßige Abfrage. */
+  let appCol = ((document.querySelector('meta[name="theme-color"]') || {}).content || '').toLowerCase();
+  function applyColor(c) {
+    c = String(c || '').toLowerCase();
+    if (!/^#[0-9a-f]{6}$/.test(c) || c === appCol) return;
+    appCol = c;
+    const l = document.querySelector('link[rel="stylesheet"][href^="theme.css"]');
+    if (l) { const n = l.cloneNode(); n.href = `theme.css?c=${c.slice(1)}`; n.onload = () => l.remove(); l.after(n); }   // neue Farben laden, alte erst danach entfernen – kein Flackern
+    const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = c;
+  }
+  const colorCheck = () => { if (document.visibilityState === 'visible') call('ping').then(x => applyColor(x.color)).catch(() => {}); };
+  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); lanProbe = null; probeInBackground(true); if (current && !embedFrame && me && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); };
   document.addEventListener('visibilitychange', recheck);
   window.addEventListener('online', recheck);
   window.addEventListener('pageshow', e => { if (e.persisted) recheck(); });
   async function start() {
     me = await call('me');
+    applyColor(me.color);
     // Home-Bildschirm-Apps halten alte Skripte manchmal lange fest: stimmt die Version nicht mit dem Server überein, einmal neu laden
     if (me.version && me.version !== APP_VER) { let done = false; try { done = sessionStorage.getItem('va_reloaded') === me.version; sessionStorage.setItem('va_reloaded', me.version); } catch (e) { done = true; } if (!done) { location.reload(); return; } }
     $('club').textContent = me.club;
@@ -394,7 +407,11 @@
       $('pairOtp').classList.add('hidden'); $('pairOtp').value = '';
       $('pairSkip').classList.add('hidden');
       $('pairNote').classList.toggle('hidden', !p.staged);
-      $('pairText').textContent = p.sms ? 'Dann legst du deine persönliche PIN fest (4–8 Ziffern). Du brauchst sie bei jedem Öffnen oder Starten.' : 'Lege deine persönliche PIN fest (4–8 Ziffern). Damit ist dieses Handy freigeschaltet – nur für dich. Du brauchst die PIN bei jedem Öffnen oder Starten.';
+      // eine PIN für alles: wer im Verkauf schon eine hat, gibt sie ein – sonst neue festlegen (gilt dann auch am Tablet)
+      $('pairText').textContent = p.hasPin ? `${p.sms ? 'Dann gib' : 'Gib'} deine PIN ein – dieselbe wie im Verkauf am Tablet. Vergessen? Der Vorstand setzt sie zurück.`
+        : `${p.sms ? 'Dann legst du' : 'Lege'} deine persönliche PIN fest (4–6 Ziffern). Sie gilt auch im Verkauf am Tablet.`;
+      $('pair2').classList.toggle('hidden', Boolean(p.hasPin));
+      $('pair1').maxLength = p.hasPin ? 8 : 6; $('pair1').placeholder = p.hasPin ? 'Deine PIN' : 'PIN'; $('pair1').value = ''; $('pair2').value = '';
       $('pairErr').textContent = '';
       $('pairSheet').classList.add('show');
       setTimeout(() => (p.sms ? $('pairSmsGo') : $('pair1')).focus(), 80);
@@ -425,8 +442,8 @@
   $('pairOk').onclick = async () => {
     const a = $('pair1').value.trim(), b = $('pair2').value.trim(), otp = $('pairOtp').value.trim();
     if (inviteInfo.sms && !skipSms && !/^\d{6}$/.test(otp)) { $('pairErr').textContent = $('pairOtp').classList.contains('hidden') ? 'Bitte zuerst den Code per SMS anfordern' : 'Bitte die 6 Ziffern aus der SMS eingeben'; return; }
-    if (!/^\d{4,8}$/.test(a)) { $('pairErr').textContent = 'Bitte 4 bis 8 Ziffern'; return; }
-    if (a !== b) { $('pairErr').textContent = 'Die beiden Eingaben stimmen nicht überein'; $('pair2').value = ''; return; }
+    if (inviteInfo.hasPin ? !/^\d{4,8}$/.test(a) : !/^\d{4,6}$/.test(a)) { $('pairErr').textContent = inviteInfo.hasPin ? 'Bitte deine PIN eingeben' : 'Bitte 4 bis 6 Ziffern'; return; }
+    if (!inviteInfo.hasPin && a !== b) { $('pairErr').textContent = 'Die beiden Eingaben stimmen nicht überein'; $('pair2').value = ''; return; }
     $('pairErr').textContent = 'Schalte frei …';
     try {
       const r = await call('pair', 'POST', { t: inviteToken, pin: a, ...(inviteInfo.sms && !skipSms ? { otp } : {}), ...(skipSms ? { skipSms: true } : {}) });
@@ -438,12 +455,13 @@
       start().then(prepareTransfer).catch(e => toast(e.message, true));
     } catch (e) {
       $('pairErr').textContent = e.message;
+      if (e.data && e.data.pinWrong) { $('pair1').value = ''; $('pair1').focus(); }
       if (e.data && e.data.otp) { $('pairOtp').value = ''; $('pairOtp').classList.remove('hidden'); $('pairOtp').focus(); }
     }
   };
   $('pairOtp').addEventListener('keydown', e => { if (e.key === 'Enter') $('pair1').focus(); });
   $('pair2').addEventListener('keydown', e => { if (e.key === 'Enter') $('pairOk').click(); });
-  $('pair1').addEventListener('keydown', e => { if (e.key === 'Enter') $('pair2').focus(); });
+  $('pair1').addEventListener('keydown', e => { if (e.key === 'Enter') { if (inviteInfo.hasPin) $('pairOk').click(); else $('pair2').focus(); } });
 
   // Logo
   const lg = $('logo'); lg.onload = () => $('logoBox').classList.remove('hidden'); lg.src = 'logo';

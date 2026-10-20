@@ -214,7 +214,10 @@ app.get('/vereinslogo', (req, res) => {
   res.send(data);
 });
 /* Symbol für Home-Bildschirm/Manifest: aus dem Logo erzeugtes PNG, sonst ein PNG/JPG-Logo, sonst das Standard-Symbol */
-const iconFresh = () => Boolean(getSetting('club_icon', '')) && getSetting('club_icon_ver', '') === getSetting('club_logo_ver', 'std');
+/* Symbol neu zeichnen, wenn sich Logo, Vereinsfarbe oder die Gestaltung (ICON_DESIGN) ändern */
+const ICON_DESIGN = '2';   // 2: Vereinsfarbe als Hintergrund, Logo groß mit schmalem weißem Rahmen
+const iconKey = () => `${getSetting('club_logo_ver', 'std')}:${clubColor()}:${ICON_DESIGN}`;
+const iconFresh = () => Boolean(getSetting('club_icon', '')) && getSetting('club_icon_ver', '') === iconKey();
 app.get('/vereinsicon.png', (req, res) => {
   res.set('Cache-Control', 'no-cache');
   if (iconFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon', ''), 'base64'));
@@ -842,6 +845,8 @@ app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
   if (!validPin(newPin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
   db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
       pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?`).run(auth.hashSecret(newPin), m.id);
+  // eine PIN für alles: gilt ab sofort auch in der Mitglieder-App
+  require('./invites').pinToApp(m.id, db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(m.id).pin_hash);
   audit('tablet', m.pin_hash ? 'PIN geändert' : 'PIN festgelegt', m.name);
   res.json({ ok: true, hasPin: true });
 });
@@ -1262,7 +1267,7 @@ admin.post('/logo-icon', need('einstellungen'), express.raw({ type: () => true, 
   const b = req.body;
   if (!b || b.length < 100 || b.readUInt32BE(0) !== 0x89504e47) return bad(res, 'Kein PNG.');
   setSetting('club_icon', b.toString('base64'));
-  setSetting('club_icon_ver', getSetting('club_logo_ver', 'std'));
+  setSetting('club_icon_ver', iconKey());
   res.json({ ok: true });
 });
 admin.delete('/logo', need('einstellungen'), (req, res) => {

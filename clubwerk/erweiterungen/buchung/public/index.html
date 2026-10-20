@@ -22,15 +22,6 @@
   header.top nav a { color: #fff; opacity: .75; font-size: 15px; text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
   header.top nav a.on { opacity: 1; font-weight: 700; border-bottom-color: #fff; }
   header.top nav .ext { font-size: 12px; opacity: .8; }
-  main { padding: 24px 24px 40px; }
-  .overlay { position: fixed; inset: 0; background: rgba(20,20,18,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .dialog { background: var(--card); border-radius: 20px; padding: 22px 24px; width: min(520px, 100%); max-height: 88vh; overflow: auto; text-align: center; }
-  .dialog h2 { margin: 0 0 4px; font-size: 24px; } .dialog .sub { color: var(--muted); font-size: 17px; margin-bottom: 14px; }
-  .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
-  .pin-dots span { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--brand); } .pin-dots span.f { background: var(--brand); }
-  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-  .pad button { height: 70px; border-radius: 14px; background: var(--hover); font-size: 28px; font-weight: 700; color: var(--ink); border: 0; font-family: inherit; }
-  .pad button.fn { font-size: 18px; background: transparent; border: 1px solid var(--line); }
   .perr { color: var(--red); font-weight: 700; min-height: 22px; margin-top: 10px; }
   .pin-note { font-size: 16px; line-height: 1.5; color: var(--muted); margin: 14px 0 4px; text-align: center; }
   .names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: left; max-height: 50vh; overflow: auto; margin-top: 10px; }
@@ -44,21 +35,13 @@
   .dlg-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 14px; }
   .dlg-btns button { height: 56px; border-radius: 14px; font: inherit; font-size: 18px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
   .dlg-btns .ok { background: var(--brand); border-color: var(--brand); color: #fff; }
-  .gate { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
-  .gatecard { width: min(440px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 30px 28px; display: flex; flex-direction: column; text-align: center; gap: 14px; }
-  .gatecard h2 { margin: 0; font-size: 24px; }
-  .gatecard p { margin: 0; color: var(--muted); font-size: 16px; line-height: 1.45; }
-  .gatecard input { height: 58px; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; font-size: 22px; text-align: center; background: #fff; }
-  .gatecard .gerr { color: var(--red); font-weight: 600; font-size: 15px; }
-  .gatecard .gerr:empty { display: none; }
-  .gatecard .btn { height: 58px; font-size: 19px; justify-content: center; }
 
-  .bk-top { max-width: 1280px; margin-left: auto; margin-right: auto; }   /* Seitenkopf: gemeinsame Regeln .tab-head/.tab-title/.tab-sub in style.css */
+    /* Gestaltung: Tablet-Kit in style.css (Seite, Seitenkopf, Fenster, PIN-Feld, Sperrseite) – hier nur der Platzplan */
   .bk-areas { display: inline-flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); }
   .bk-areas button { min-height: 44px; min-width: 120px; padding: 0 18px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 16px; font-weight: 700; color: var(--muted); }
   .bk-areas button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
-  .bk-board { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 14px; max-width: 1280px; margin: 0 auto; }
-  .bk-col { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 12px; box-shadow: var(--shadow); min-width: 0; }
+  .bk-board { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 16px; }
+  .bk-col { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px; box-shadow: var(--shadow); min-width: 0; }
   .bk-col h3 { margin: 2px 4px 10px; font-size: 18px; text-align: center; } .bk-col h3 small { display: block; font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 2px; }
   .bk-slots { display: flex; flex-direction: column; gap: 8px; }
   .bk-slot { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: 10px; min-height: 52px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; color: var(--ink); text-align: left; }
@@ -70,6 +53,8 @@
  .bk-slot b small { display: block; font-size: 13px; font-weight: 600; color: var(--muted); margin-top: 2px; }
   .names button.ph { display: flex; align-items: center; gap: 10px; } .names button.ph img { width: 36px; height: 36px; border-radius: 50%; object-fit: cover; flex: none; }
   .names-hint { grid-column: 1 / -1; color: var(--muted); font-size: 15px; padding: 14px 4px; text-align: center; }
+  .bk-past { display: flex; justify-content: center; align-items: center; gap: 8px; min-height: 44px; border-radius: 14px; border: 1px dashed var(--line); background: var(--card); color: var(--muted); font: inherit; font-size: 15px; }
+  .bk-past b { color: var(--ink); font-variant-numeric: tabular-nums; }
   .bk-slot.past { opacity: .4; } .bk-slot.now { box-shadow: inset 4px 0 0 var(--brand); }
   .bk-empty { color: var(--muted); font-size: 16px; text-align: center; padding: 30px; }
   .dialog .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; }
@@ -93,10 +78,10 @@
   @media (max-width: 900px) { .bk-board { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
-<body>
+<body class="tk">
 <header id="gkHeader"></header>
 <main>
-  <div class="bk-top tab-head"><div><h1 class="tab-title" id="dayTitle">Heute</h1><p class="tab-sub" id="daySub">Freie Zeit antippen zum Buchen</p></div><div class="bk-areas" id="areas"></div></div>
+  <div class="tab-head"><div><h1 class="tab-title" id="dayTitle">Heute</h1><p class="tab-sub" id="daySub">Freie Zeit antippen zum Buchen</p></div><div class="bk-areas" id="areas"></div></div>
   <div class="bk-board" id="board"></div>
 </main>
 <div id="gate" class="gate hidden"><div class="gatecard">

@@ -6,7 +6,7 @@
    Neue Einladung = altes Gerät verliert sofort den Zugang. Jeder Bereich (scope) hat eigene PINs –
    unabhängig von der Getränke-PIN. Gespeichert werden nur Hashes, nie Schlüssel oder PINs im Klartext. */
 const crypto = require('crypto');
-const { db, getSetting, audit } = require('./db');
+const { db, getSetting, setSetting, audit } = require('./db');
 const auth = require('./auth');
 
 db.exec(`
@@ -32,7 +32,9 @@ CREATE INDEX IF NOT EXISTS ix_devices_token ON member_devices(scope, token_hash)
 for (const [c, t] of [['failed_total', 'INTEGER NOT NULL DEFAULT 0'], ['blocked_at', 'TEXT'], ['issuer_perms', 'TEXT'], ['transfer_hash', 'TEXT'], ['transfer_expires', 'INTEGER'], ['paired_host', 'TEXT'], ['token2_hash', 'TEXT'], ['handover_hash', 'TEXT'], ['handover_expires', 'INTEGER'],
   // 3.24: Einladung per Mail/Brief, „schon benutzt“ erkennen, gestufte Freischaltung (remote), zweiter Faktor per SMS
   ['invite_kind', 'TEXT'], ['used_hash', 'TEXT'], ['used_at', 'TEXT'], ['used_alerted', 'INTEGER NOT NULL DEFAULT 0'], ['remote', 'INTEGER NOT NULL DEFAULT 0'], ['verified', 'TEXT'],
-  ['otp_hash', 'TEXT'], ['otp_expires', 'INTEGER'], ['otp_tries', 'INTEGER NOT NULL DEFAULT 0'], ['otp_day', 'TEXT'], ['otp_count', 'INTEGER NOT NULL DEFAULT 0'], ['otp_last', 'INTEGER']]) {
+  ['otp_hash', 'TEXT'], ['otp_expires', 'INTEGER'], ['otp_tries', 'INTEGER NOT NULL DEFAULT 0'], ['otp_day', 'TEXT'], ['otp_count', 'INTEGER NOT NULL DEFAULT 0'], ['otp_last', 'INTEGER'],
+  // 3.24: eine PIN für App und Verkauf – pin_synced = alte, getrennt vergebene PINs einmalig abgeglichen
+  ['pin_synced', 'INTEGER NOT NULL DEFAULT 0']]) {
   if (!db.prepare('PRAGMA table_info(member_devices)').all().some(x => x.name === c)) db.exec(`ALTER TABLE member_devices ADD COLUMN ${c} ${t}`);
 }
 db.exec('CREATE INDEX IF NOT EXISTS ix_devices_token2 ON member_devices(scope, token2_hash)');
@@ -87,7 +89,8 @@ function peek(scope, inviteToken) {
     return { error: 'Diese Einladung ist ungültig oder wurde bereits verwendet. Bitte beim Vorstand einen neuen QR-Code holen.' };
   }
   if (r.invite_expires < Date.now()) return { error: 'Diese Einladung ist abgelaufen. Bitte beim Vorstand eine neue Einladung holen.' };
-  return { member: r.name, memberId: r.member_id, kind: r.invite_kind || 'qr', deviceId: r.id };
+  const mp = scope === 'app' ? db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(r.member_id) : null;
+  return { member: r.name, memberId: r.member_id, kind: r.invite_kind || 'qr', deviceId: r.id, hasPin: Boolean(mp && mp.pin_hash) };
 }
 
 /** Einladung einlösen: PIN festlegen, Gerät koppeln → Geräteschlüssel (nur jetzt einmal im Klartext) */
@@ -96,12 +99,29 @@ function peek(scope, inviteToken) {
 function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, verified = null } = {}) {
   const p = peek(scope, inviteToken);
   if (p.error) throw new Error(p.error);
-  if (!/^\d{4,8}$/.test(String(pin || ''))) throw new Error('Die PIN muss aus 4 bis 8 Ziffern bestehen.');
+  /* Eine PIN für alles: Hat das Mitglied schon eine (Verkauf am Tablet), gilt sie auch hier und muss stimmen –
+     wer nur die Einladung hat, kennt sie nicht. Nach 5 falschen Eingaben ist die Einladung verbraucht. */
+  let pinHash;
+  if (p.hasPin) {
+    const m = db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(p.memberId);
+    if (!auth.verifySecret(String(pin || ''), m.pin_hash)) {
+      const d = db.prepare('SELECT failed FROM member_devices WHERE id = ?').get(p.deviceId), n = (d ? d.failed : 0) + 1;
+      if (n >= 5) { db.prepare('UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, failed = 0 WHERE id = ?').run(p.deviceId); audit(null, 'Mitglieder-App: Einladung nach 5 falschen PINs ungültig', p.member); throw new Error('PIN 5-mal falsch – diese Einladung gilt nicht mehr. Bitte beim Vorstand eine neue holen (er kann auch die PIN zurücksetzen).'); }
+      db.prepare('UPDATE member_devices SET failed = ? WHERE id = ?').run(n, p.deviceId);
+      const e = new Error(`Die PIN stimmt nicht – es ist dieselbe wie im Verkauf am Tablet. Noch ${5 - n} Versuch(e).`); e.pin = true; throw e;
+    }
+    pinHash = m.pin_hash;
+  } else {
+    if (!/^\d{4,6}$/.test(String(pin || ''))) throw new Error('Die PIN muss aus 4 bis 6 Ziffern bestehen.');
+    pinHash = auth.hashSecret(String(pin));
+  }
   const device = crypto.randomBytes(24).toString('base64url');
   const r = db.prepare(`UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, token_hash = ?, token2_hash = NULL, handover_hash = NULL, pin_hash = ?, device = ?, paired_at = ?, paired_host = ?,
       used_hash = ?, used_at = ?, used_alerted = 0, remote = ?, verified = ?, otp_hash = NULL, otp_expires = NULL, otp_tries = 0
-    WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), auth.hashSecret(String(pin)), deviceLabel(userAgent), now(), cleanHost(host), sha(inviteToken), now(), remote ? 1 : 0, verified, scope, sha(inviteToken), Date.now());
+    WHERE scope = ? AND invite_hash = ? AND invite_expires >= ?`).run(sha(device), pinHash, deviceLabel(userAgent), now(), cleanHost(host), sha(inviteToken), now(), remote ? 1 : 0, verified, scope, sha(inviteToken), Date.now());
   if (!r.changes) throw new Error('Diese Einladung ist ungültig oder wurde bereits verwendet.');
+  db.prepare('UPDATE member_devices SET failed = 0, pin_synced = 1 WHERE id = ?').run(p.deviceId);
+  if (scope === 'app' && !p.hasPin) setMemberPin(p.memberId, pinHash, 'Mitglieder-App');   // neue PIN gilt ab jetzt auch im Verkauf
   return { device, member: p.member, memberId: p.memberId, deviceId: p.deviceId, kind: p.kind };
 }
 
@@ -131,6 +151,22 @@ function otpCheck(scope, inviteToken, code) {
   if (t >= OTP_TRIES) { db.prepare('UPDATE member_devices SET otp_hash = NULL, otp_expires = NULL, otp_tries = 0 WHERE id = ?').run(d.id); return { error: `Code ${OTP_TRIES}-mal falsch – bitte einen neuen anfordern.`, status: 400, otp: true }; }
   db.prepare('UPDATE member_devices SET otp_tries = ? WHERE id = ?').run(t, d.id);
   return { error: 'Der Code stimmt nicht.', status: 400, otp: true };
+}
+/* ---------- Eine PIN für Mitglieder-App und Verkauf ---------- */
+/** PIN (Hash) als Verkaufs-PIN übernehmen */
+function setMemberPin(memberId, hash, by) {
+  db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ? AND kind = 'mitglied'`).run(hash, by, memberId);
+}
+/** neue Verkaufs-PIN auch in der App (gekoppeltes Handy) setzen */
+function pinToApp(memberId, hash) {
+  return db.prepare("UPDATE member_devices SET pin_hash = ?, pin_synced = 1, failed = 0, locked_until = NULL WHERE scope = 'app' AND member_id = ? AND token_hash IS NOT NULL").run(hash, memberId).changes > 0;
+}
+/** einmalig beim Start: App-PIN vorhanden, im Verkauf keine → übernehmen */
+function syncPinsOnce() {
+  const rows = db.prepare(`SELECT d.member_id, d.pin_hash FROM member_devices d JOIN members m ON m.id = d.member_id
+    WHERE d.scope = 'app' AND d.token_hash IS NOT NULL AND d.pin_hash IS NOT NULL AND m.pin_hash IS NULL AND m.kind = 'mitglied' AND m.deleted = 0`).all();
+  for (const r of rows) setMemberPin(r.member_id, r.pin_hash, 'Mitglieder-App');
+  if (rows.length) audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', `${rows.length} Mitglied(er)`);
 }
 /** Gerät war im Vereins-WLAN (oder der Vorstand gibt es frei) → volle Freischaltung */
 function trust(deviceId) { return db.prepare('UPDATE member_devices SET remote = 0 WHERE id = ? AND remote = 1').run(deviceId).changes > 0; }
@@ -244,6 +280,11 @@ function check(scope, deviceToken, pin, row, opts = {}) {
   }
   if (opts.shared) db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(now(), d.id);
   else db.prepare('UPDATE member_devices SET failed = 0, failed_total = 0, locked_until = NULL, last_used = ? WHERE id = ?').run(now(), d.id);
+  if (scope === 'app' && !d.pin_synced && !opts.shared) {   // vor 3.24 getrennt vergeben: die App-PIN gilt ab jetzt auch im Verkauf
+    const m = db.prepare('SELECT pin_hash, kind FROM members WHERE id = ?').get(d.member_id);
+    if (m && m.kind === 'mitglied' && (!m.pin_hash || !auth.verifySecret(String(pin), m.pin_hash))) { setMemberPin(d.member_id, d.pin_hash, 'Mitglieder-App'); audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', w.name); }
+    db.prepare('UPDATE member_devices SET pin_synced = 1 WHERE id = ?').run(d.id);
+  }
   return { ok: true, name: w.name, memberId: w.memberId };
 }
 
@@ -275,4 +316,7 @@ async function qrSvg(text) {
   return QR.toString(String(text).slice(0, 600), { type: 'svg', margin: 1, errorCorrectionLevel: 'M' });
 }
 
-module.exports = { inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, OTP_PER_DAY, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };
+/* einmalig mit 3.24: bisher getrennte PINs zusammenführen (nicht bei jedem Start – sonst käme nach „PIN zurücksetzen“ die alte zurück) */
+try { if (getSetting('pin_sync_324', '0') !== '1') { syncPinsOnce(); setSetting('pin_sync_324', '1'); } } catch (e) { console.error('PIN-Abgleich:', e.message); }
+
+module.exports = { setMemberPin, pinToApp, syncPinsOnce, inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, OTP_PER_DAY, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };
