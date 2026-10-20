@@ -68,7 +68,16 @@
         // Saisonstart: noch offene Spieltage je Mannschaft mit einem Tipp beantworten
         const openBy = {}; d.games.filter(g => g.mine && !g.past && g.status === 'geplant' && !(g.me && g.me.state)).forEach(g => { openBy[g.team_id] = (openBy[g.team_id] || 0) + 1; });
         const bulk = teams.filter(t => t.player && openBy[t.id] >= 3 && (tab === 'alle' || String(t.id) === tab));
-        el.innerHTML = `${teams.length > 1 ? `<div class="vh-seg">${[['alle', 'Alle'], ...teams.map(t => [String(t.id), t.name])].map(([k, l]) => `<button data-tab="${esc(k)}" class="${k === tab ? 'on' : ''}" translate="no">${esc(l)}</button>`).join('')}</div>` : ''}
+        // Kopf: was zu tun ist und wen man bei Fragen anruft (Mannschaftsführer mit Handynummer – abschaltbar in den Einstellungen)
+        const shown = teams.filter(t => tab === 'alle' || String(t.id) === tab);
+        const openN = d.games.filter(g => g.mine && !g.past && g.status === 'geplant' && !(g.me && g.me.state) && shown.some(t => t.id === g.team_id)).length;
+        const hasRt = games.some(g => g.kind === 'rahmen');
+        const telOf = p => String(p || '').replace(/[^\d+]/g, '').replace(/^00/, '+').replace(/^0/, '+49');
+        const cts = shown.filter(t => t.contact && !t.contact.self);
+        const head = `<div class="vh-card"><h3>${shown.length === 1 ? `<span translate="no">${esc(shown[0].name)}</span>` : 'Deine Mannschaften'}${shown.length === 1 && shown[0].league ? `<small translate="no">${esc(shown[0].league)}</small>` : ''}</h3>
+          <p class="vh-lead">${openN ? `Bitte bei jedem Termin melden: <b>✓</b> ich kann · <b>✕</b> ich kann nicht. Danach stellt der Mannschaftsführer auf.${hasRt ? ' „Vorläufig“ heißt: Termin aus dem Rahmenterminplan, der Gegner kommt mit dem Spielplan.' : ''}` : 'Danke – alles beantwortet. Ändern geht jederzeit mit ✓ oder ✕.'}</p>
+          ${cts.length ? `<div class="vh-rows">${cts.map(t => `<div><span class="vh-tx"><strong translate="no">${esc(t.contact.name)}</strong><small>${esc(t.contact.role)}${shown.length > 1 ? ` · <span translate="no">${esc(t.name)}</span>` : ''}${t.contact.phone ? ` · ${esc(t.contact.phone)}` : ''}</small></span>${t.contact.phone ? `<a class="vh-btn sm sec" href="tel:${esc(telOf(t.contact.phone))}">Anrufen</a>` : ''}</div>`).join('')}</div>` : ''}</div>`;
+        el.innerHTML = `${head}${teams.length > 1 ? `<div class="vh-seg">${[['alle', 'Alle'], ...teams.map(t => [String(t.id), t.name])].map(([k, l]) => `<button data-tab="${esc(k)}" class="${k === tab ? 'on' : ''}" translate="no">${esc(l)}</button>`).join('')}</div>` : ''}
           ${bulk.map(t => `<div class="vh-bar a"><span><b translate="no">${esc(t.name)}</b>: ${openBy[t.id]} offen</span><button data-bulk="${t.id}" data-st="ja" aria-label="Bei allen: kann">Alle ✓</button><button data-bulk="${t.id}" data-st="nein" aria-label="Bei allen: kann nicht">Alle ✕</button></div>`).join('')}
           ${games.length ? `<div class="vh-card flush">${games.map(row).join('')}</div>` : `<div class="vh-empty">Keine anstehenden Spieltage${tab === 'alle' ? '' : ' für diese Mannschaft'}.</div>`}
           ${d.played ? `<p class="vh-lead" style="text-align:center;margin:4px 0 0">In dieser Saison hast du ${d.played}-mal gespielt.</p>` : ''}`;

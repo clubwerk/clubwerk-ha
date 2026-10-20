@@ -217,3 +217,4 @@ html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
 .vh-sec > .vh-cap { margin: 6px 2px -4px; }
 .vh-sec > .vh-cap:first-child { margin-top: 0; }
 .vh-lead:last-child { margin-bottom: 0; }
+a.vh-btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }

@@ -64,11 +64,39 @@
       .sp-legend .sp-cal { display: contents; } .sp-legend .li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
       @media print { .sp-calw { border: 0; overflow: visible; } .sp-cal { grid-auto-columns: minmax(0, 1fr); grid-template-rows: auto repeat(31, minmax(0, auto)); } .sp-cal .cd { font-size: 8.5px; padding: 0 3px; grid-template-columns: 13px 14px minmax(0, 1fr); gap: 2px; }
         .sp-cal .cc { font-size: 7.5px; line-height: 11px; padding: 0 3px; } .sp-cal * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
-      @media (max-width: 760px) { .sp-g { grid-template-columns: 6px 64px minmax(0, 1fr); } .sp-g .sp-nums { grid-column: 3; justify-content: flex-start; } .sp-d { width: 64px; } .sp-tasks > div { grid-template-columns: 1fr; } .sp-acts { display: grid; grid-template-columns: 1fr; width: 100%; } .sp-acts .btn { width: 100%; } }`;
+      @media (max-width: 760px) { .sp-g { grid-template-columns: 6px 64px minmax(0, 1fr); } .sp-g .sp-nums { grid-column: 3; justify-content: flex-start; } .sp-d { width: 64px; } .sp-tasks > div { grid-template-columns: 1fr; } .sp-acts { display: grid; grid-template-columns: 1fr; width: 100%; } .sp-acts .btn { width: 100%; } }
+      /* Sportwart-Übersicht */
+      .sp-kbar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin-top: 6px; } .sp-kbar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+      .sp-al { display: grid; gap: 0; }
+      .sp-ksub { min-height: 18px; display: flex; align-items: center; font-size: 12.5px; color: var(--muted); }
+      .sp-al > div { display: grid; grid-template-columns: 10px 84px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line-soft, var(--line)); }
+      .sp-al > div:first-child { border-top: 0; padding-top: 2px; }
+      .sp-al .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); } .sp-al .dot.r { background: var(--red); }
+      .sp-al .dd { white-space: nowrap; font-weight: 800; font-variant-numeric: tabular-nums; font-size: 13.5px; }
+      .sp-dt { display: grid; gap: 16px; }
+      .sp-th { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
+      .sp-th h3 { margin: 0; } .sp-th .muted { font-size: 13px; margin-top: 3px; }
+      .sp-rate { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .sp-rate b { font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; } .sp-rate .btn { white-space: nowrap; } .sp-rate .sp-kbar { width: 120px; margin: 0; }
+      .sp-mx { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; }
+      .sp-mx table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13px; }
+      .sp-mx th, .sp-mx td { padding: 6px; text-align: center; border-bottom: 1px solid var(--line-soft, var(--line)); white-space: nowrap; }
+      .sp-mx tr:last-child td { border-bottom: 0; }
+      .sp-mx th:first-child, .sp-mx td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); text-align: left; padding-left: 12px; min-width: 170px; border-right: 1px solid var(--line); }
+      .sp-mx thead th { background: var(--hover); font-weight: 700; color: var(--muted); font-size: 12px; } .sp-mx thead th:first-child { background: var(--hover); }
+      .sp-mx thead button { all: unset; cursor: pointer; display: grid; justify-items: center; gap: 1px; min-width: 52px; } .sp-mx thead button b { color: var(--ink); font-size: 12.5px; }
+      .sp-mx thead button:hover b { color: var(--brand-ink); text-decoration: underline; }
+      .sp-mx .lt { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--line); } .sp-mx .lt.g { background: var(--brand); } .sp-mx .lt.r { background: var(--red); }
+      .sp-c { display: inline-grid; place-items: center; width: 28px; height: 26px; border-radius: 7px; font-weight: 800; font-size: 13px; background: var(--hover); color: var(--faint, var(--muted)); }
+      .sp-c.y { background: var(--brand-soft); color: var(--brand-ink); } .sp-c.n { background: var(--red-soft); color: var(--red); }
+      .sp-c.p { box-shadow: inset 0 0 0 2px var(--brand); } .sp-c.e { box-shadow: inset 0 0 0 2px var(--amber); } .sp-c.w { box-shadow: inset 0 0 0 2px var(--red); }
+      .sp-mx td.op { color: var(--amber); font-weight: 800; } .sp-mx tfoot td { font-weight: 800; background: var(--hover); }
+      .sp-mx tfoot td.ok { color: var(--brand-ink); } .sp-mx tfoot td.no { color: var(--red); }
+      .sp-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--muted); align-items: center; } .sp-leg span { display: inline-flex; align-items: center; gap: 6px; } .sp-leg .sp-c { width: 22px; height: 20px; font-size: 11px; }`;
     document.head.appendChild(s);
   }
 
   const PAGE = {
+    'sp-uebersicht': ['Übersicht', 'Rückmeldungen aller Mannschaften auf einen Blick – wo zu wenige können, wer noch nicht geantwortet hat und was als Nächstes ansteht.'],
     'sp-spieltage': ['Spieltage', 'Alle Spieltage der Mannschaften – grün: genug Spieler haben zugesagt, rot: zu wenige. Antippen öffnet Verfügbarkeit und Aufstellung.'],
     'sp-mannschaften': ['Mannschaften', 'Mannschaften mit Mannschaftsführer, Stellvertretung und Spieler/innen in der Reihenfolge der Meldeliste. Eine Person kann in mehreren Mannschaften spielen.'],
     'sp-einstellungen': ['Einstellungen', 'Was Spieler sehen, Uhrzeiten, Aufgaben und Erinnerungen.'],
@@ -396,12 +424,37 @@
   }
 
   /* ---------------- Einstellungen ---------------- */
+  /* ---------- Sportwart-Übersicht ---------- */
+  async function showDash(el) {
+    const d = await api('dashboard'), k = d.kpi;
+    const dd = x => `${wd(x)} ${x.slice(8, 10)}.${x.slice(5, 7)}.`;
+    const addD = (x, n) => { const z = new Date(x + 'T12:00:00'); z.setDate(z.getDate() + n); return z.toISOString().slice(0, 10); };
+    const kpi = (l, v, sub, warn) => `<div class="kpi${warn ? ' warn' : ''}"><span class="l">${esc(l)}</span><span class="v">${v}</span><div class="sp-ksub">${sub || ''}</div></div>`;
+    const rateBar = r => `<div class="sp-kbar"><i style="width:${r || 0}%"></i></div>`;
+    const full = d.teams.filter(t => t.matrix.length && t.games.length), empty = d.teams.filter(t => !(t.matrix.length && t.games.length));
+    el.innerHTML = `<div class="kpis">
+        ${kpi('Rückmeldequote', k.rate == null ? '–' : k.rate + ' %', `<div class="sp-kbar" style="flex:1;margin:0"><i style="width:${k.rate || 0}%"></i></div>`)}
+        ${kpi('Spieltage in den nächsten 14 Tagen', k.next14, `bis ${dd(addD(d.today, 14))}`)}
+        ${kpi('Zu wenige Zusagen', k.crit, k.crit ? 'in den nächsten 14 Tagen' : 'alles im grünen Bereich', k.crit > 0)}
+        ${kpi('Offene Absage-Anfragen', k.withdraws, k.withdraws ? 'Mannschaftsführer entscheidet' : 'keine', k.withdraws > 0)}</div>
+      <div class="card"><h3>Braucht Aufmerksamkeit</h3>${d.alerts.length ? `<div class="sp-al">${d.alerts.map(a => `<div><span class="dot ${a.level}"></span><span class="dd">${dd(a.date)}</span><span><b translate="no">${esc(a.team)}</b> · ${esc(a.text)}</span><button class="btn small" data-og="${a.game_id}">Öffnen</button></div>`).join('')}</div>` : '<p class="muted" style="margin:0">Alles im grünen Bereich – für die nächsten 14 Tage können überall genug Spieler/innen.</p>'}</div>
+      <div class="sp-dt">${full.length ? full.map(t => `<div class="card"><div class="sp-th"><div><h3 translate="no">${esc(t.name)}</h3><div class="muted">${[t.league, t.captain ? `MF ${t.captain}` : 'kein Mannschaftsführer', t.vice ? `Stv. ${t.vice}` : '', `${t.roster} Spieler/innen`, `mind. ${t.min}`].filter(Boolean).map(esc).join(' · ')}${t.pending ? ` · <span class="pill a">${t.pending} vorläufige Termine nicht abgefragt</span>` : ''}</div></div>
+          <div class="sp-rate">${t.rate == null ? '<span class="muted">keine Termine</span>' : `<b>${t.rate} %</b><div>${rateBar(t.rate)}<span class="muted s">beantwortet</span></div>`}${t.matrix.some(m => m.open) ? `<button class="btn small" data-rm="${t.id}">Offene erinnern</button>` : ''}</div></div>
+        ${t.games.length && t.matrix.length ? `<div class="sp-mx"><table><thead><tr><th>Spieler/in</th>${t.games.map(g => `<th><button data-og="${g.id}" title="${esc(g.kind === 'rahmen' ? (g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin') : `${g.home ? 'gegen' : 'bei'} ${g.opponent}`)}"><b><span class="lt ${g.ok ? 'g' : g.near ? 'r' : ''}"></span> ${dd(g.date)}</b><span>${g.kind === 'rahmen' ? (g.za ? 'Z/A' : 'vorl.') : g.home ? 'Heim' : 'ausw.'}</span></button></th>`).join('')}<th>offen</th></tr></thead>
+          <tbody>${t.matrix.map(m => `<tr><td><span class="muted" style="display:inline-block;width:22px">${m.rank < 99 ? m.rank : ''}</span><span translate="no">${esc(m.ln)}</span></td>${m.cells.map(c => `<td><span class="sp-c ${c.s === 'ja' ? 'y' : c.s === 'nein' ? 'n' : ''} ${c.w ? 'w' : c.r === 'spielt' ? 'p' : c.r === 'ersatz' ? 'e' : ''}">${c.s === 'ja' ? '✓' : c.s === 'nein' ? '✕' : '·'}</span></td>`).join('')}<td class="${m.open ? 'op' : 'muted'}">${m.open || '–'}</td></tr>`).join('')}</tbody>
+          <tfoot><tr><td>Zusagen / benötigt</td>${t.games.map(g => `<td class="${g.ok ? 'ok' : 'no'}">${g.yes}/${g.min}</td>`).join('')}<td></td></tr></tfoot></table></div>` : `<p class="muted" style="margin:10px 0 0">${t.matrix.length ? 'Keine anstehenden Spieltage.' : 'Noch keine Spieler/innen in der Mannschaft.'}</p>`}</div>`).join('') : ''}${empty.length ? `<div class="card"><h3>Ohne Spieler/innen oder anstehende Termine</h3><div class="sp-pl" style="margin:0">${empty.map(t => `<span translate="no"><b>${t.roster}</b>${esc(t.name)}</span>`).join('')}</div><p class="muted s" style="margin:8px 0 0">Spieler/innen trägst du unter „Mannschaften“ ein, Termine kommen über den Spielplan- oder Rahmenterminplan-Import.</p></div>` : ''}${!d.teams.length ? '<div class="card"><p class="muted" style="margin:0">Noch keine aktiven Mannschaften.</p></div>' : ''}</div>
+      ${d.teams.some(t => t.games.length) ? `<div class="sp-leg"><span><i class="sp-c y">✓</i> kann</span><span><i class="sp-c n">✕</i> kann nicht</span><span><i class="sp-c">·</i> offen</span><span><i class="sp-c y p">✓</i> aufgestellt</span><span><i class="sp-c y e">✓</i> Ersatz</span><span><i class="sp-c w">✓</i> Absage-Anfrage</span><span><span class="lt g" style="width:8px;height:8px;border-radius:50%;background:var(--brand)"></span> genug Zusagen</span></div>` : ''}`;
+    el.querySelectorAll('[data-og]').forEach(b => { b.onclick = () => gameDialog(+b.dataset.og, () => showDash(el).catch(fail)); });
+    el.querySelectorAll('[data-rm]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { const r = await api(`teams/${b.dataset.rm}/remind`, 'POST', {}); toast(r.n ? `${r.n} Spieler/innen erinnert.` : 'Niemand mit offenen Terminen.'); } catch (e) { fail(e); } }); });
+  }
+
   async function showSettings(el) {
     const s = st.meta.settings;
     const chk = (k, l, on, hint) => `<label class="chk" style="align-items:flex-start;margin:8px 0"><input type="checkbox" id="ss_${k}" ${on ? 'checked' : ''} style="margin-top:3px"> <span><b>${esc(l)}</b>${hint ? `<br><span class="muted s">${esc(hint)}</span>` : ''}</span></label>`;
     el.innerHTML = `<div class="card"><h3>Was Spieler in der App sehen</h3>
         ${chk('see_avail', 'Wer sonst kann', s.seeAvail, 'Spieler sehen die Namen der anderen, die für einen Spieltag „kann“ gemeldet haben.')}
         ${chk('see_lineup', 'Aufstellung', s.seeLineup, 'Spieler sehen, wer aufgestellt ist. Der Mannschaftsführer sieht immer alles.')}
+        ${chk('cap_info', 'Mannschaftsführer mit Handynummer', s.capInfo, 'Oben in „Spieltage“ stehen Mannschaftsführer (sonst Stellvertretung) und Handynummer aus der Mitgliederverwaltung – für Rückfragen, mit „Anrufen“.')}
         ${chk('times', '„kann ab …“ / „kann bis …“ Uhr anbieten', s.times, 'Optional zur Zusage – z. B. wenn jemand erst später kommt oder früher weg muss.')}</div>
       <div class="card"><h3>Aufgaben</h3>
         ${chk('tasks', 'Aufgaben je Spieltag', s.tasks, 'Der Mannschaftsführer verteilt Aufgaben, Spieler können offene Aufgaben in der App übernehmen.')}
@@ -421,12 +474,13 @@
     $('ssOk').onclick = () => GK.busy($('ssOk'), async () => {
       read();
       const b = { task_kinds: kinds.filter(k => k.l.trim()), remind_days: +val('ss_remind_days'), captain_days: +val('ss_captain_days') };
-      for (const k of ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'mail']) b[k] = $('ss_' + k).checked;
+      for (const k of ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'mail']) b[k] = $('ss_' + k).checked;
       try { const r = await api('settings', 'PUT', b); st.meta.settings = r.settings; toast('Gespeichert.'); } catch (e) { fail(e); }
     });
   }
 
   const G = { key: 'spielbetrieb', label: 'Spielbetrieb', icon: 'pokal', order: 2.5 };   // Menü: nach dem Buchungssystem
+  GK.registerPage({ key: 'sp-uebersicht', title: 'Übersicht', perm: 'spielbetrieb', render: pageRender('sp-uebersicht', showDash), group: G });
   GK.registerPage({ key: 'sp-spieltage', title: 'Spieltage', perm: 'spielbetrieb', render: pageRender('sp-spieltage', showGames), group: G });
   GK.registerPage({ key: 'sp-mannschaften', title: 'Mannschaften', perm: 'spielbetrieb', render: pageRender('sp-mannschaften', showTeams), group: G });
   GK.registerPage({ key: 'sp-einstellungen', title: 'Einstellungen', perm: 'spielbetrieb', render: pageRender('sp-einstellungen', showSettings), group: G });

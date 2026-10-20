@@ -108,6 +108,7 @@ function activate(ctx) {
   const cfg = () => ({
     seeAvail: S('see_avail', '1') === '1',        // Spieler sehen, wer sonst kann
     seeLineup: S('see_lineup', '1') === '1',      // Spieler sehen die Aufstellung
+    capInfo: S('cap_info', '1') === '1',          // Mannschaftsführer mit Handynummer oben in der App (für Rückfragen)
     times: S('times', '1') === '1',               // „kann ab / bis … Uhr“ anbieten
     tasks: S('tasks', '0') === '1',               // Aufgaben je Spieltag
     taskKinds: J(S('task_kinds', ''), null) || DEFAULT_TASKS,
@@ -383,16 +384,23 @@ function activate(ctx) {
 
   /* ================================================================= Mitglieder-App (/api/m/spielbetrieb/…) */
   const futureGames = teamIds => (teamIds.length ? db.prepare(`SELECT * FROM sp_game WHERE team_id IN (${teamIds.map(() => '?').join(',')}) AND date >= ? AND released = 1 ORDER BY date, start`).all(...teamIds, addDays(today(), -1)) : []);
-  M.get('/me', (req, res) => {
+  /** Ansprechpartner einer Mannschaft für die App: Mannschaftsführer (sonst Stellvertretung) mit Handynummer aus der Mitgliederverwaltung */
+  async function contactOf(t, viewer) {
+    const id = t.captain_id || t.vice_id; if (!id) return null;
+    const a = await mvHook('memberAddress', id).catch(() => null);
+    return { name: memberName(id), role: t.captain_id ? 'Mannschaftsführer' : 'Stellvertretung', phone: (a && (a.mobile || a.phone)) || null, self: id === viewer };
+  }
+  M.get('/me', ar(async (req, res) => {
     const me = req.member.id, c = cfg();
     const teams = myTeams(me);
     const cap = captainOf(me);
     const playIn = new Set(db.prepare('SELECT team_id FROM sp_player WHERE member_id = ?').all(me).map(r => r.team_id));
     const games = futureGames(teams.map(t => t.id)).map(g => gameView(g, { viewer: me })).map(v => ({ ...v, mine: playIn.has(v.team_id), lead: cap.includes(v.team_id) }));
     const past = db.prepare(`SELECT g.*, l.role FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date < ? AND g.date >= ? ORDER BY g.date DESC`).all(me, today(), `${today().slice(0, 4)}-01-01`);
-    res.json({ today: today(), teams: teams.map(t => ({ id: t.id, name: t.name, league: t.league, min: t.min_players, lead: cap.includes(t.id), player: playIn.has(t.id), captain: t.captain_id ? short(memberName(t.captain_id)) : null })),
+    const contacts = c.capInfo ? await Promise.all(teams.map(t => contactOf(t, me))) : teams.map(() => null);
+    res.json({ today: today(), teams: teams.map((t, i) => ({ id: t.id, name: t.name, league: t.league, min: t.min_players, lead: cap.includes(t.id), player: playIn.has(t.id), captain: t.captain_id ? short(memberName(t.captain_id)) : null, contact: contacts[i] })),
       games, played: past.length, settings: { times: c.times, tasks: c.tasks, seeAvail: c.seeAvail, seeLineup: c.seeLineup } });
-  });
+  }));
   const myGame = (req, res) => {
     const g = game((req.body || {}).game_id || req.params.id);
     if (!g || !g.released) { bad(res, 'Spieltag nicht gefunden.', 404); return null; }
@@ -552,6 +560,49 @@ function activate(ctx) {
   const membersList = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 AND pending = 0 ORDER BY name_key(name, kind)").all().map(m => ({ id: m.id, ln: lf(m.name) }));
   const teamRow = t => ({ ...t, captain: t.captain_id ? lf(memberName(t.captain_id)) : null, vice: t.vice_id ? lf(memberName(t.vice_id)) : null,
     players: roster(t.id).map(r => ({ id: r.member_id, ln: lf(r.name), rank: r.rank })) });
+  /* ---------- Sportwart-Übersicht: Rückmeldungen aller Mannschaften auf einen Blick ---------- */
+  admin.get('/dashboard', P, (req, res) => {
+    const d0 = today(), soon = addDays(d0, 14), c = cfg();
+    const alerts = []; let ans = 0, tot = 0, crit = 0, next14 = 0, wds = 0;
+    const teams = db.prepare('SELECT * FROM sp_team WHERE active = 1 ORDER BY sort, name').all().map(t => {
+      const ros = roster(t.id);
+      const gs = db.prepare("SELECT * FROM sp_game WHERE team_id = ? AND date >= ? AND released = 1 AND status = 'geplant' ORDER BY date, start LIMIT 10").all(t.id, d0);
+      const ids = gs.map(g => g.id), qs = ids.map(() => '?').join(',');
+      const av = ids.length ? db.prepare(`SELECT game_id, member_id, state FROM sp_avail WHERE game_id IN (${qs})`).all(...ids) : [];
+      const lu = ids.length ? db.prepare(`SELECT game_id, member_id, role, withdraw FROM sp_lineup WHERE game_id IN (${qs})`).all(...ids) : [];
+      const key = (g, m) => g + ':' + m, A = new Map(av.map(a => [key(a.game_id, a.member_id), a.state])), L = new Map(lu.map(l => [key(l.game_id, l.member_id), l]));
+      const games = gs.map(g => {
+        const s = stats(g, t, ros), near = g.date <= soon, due = g.kind !== 'rahmen' && g.date <= addDays(d0, c.captainDays) && !g.lineup_sent_at;
+        if (near) next14++;
+        if (near && !s.ok) { crit++; alerts.push({ level: 'r', team: t.name, team_id: t.id, game_id: g.id, date: g.date, text: `erst ${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''}` }); }
+        if (due && s.ok) alerts.push({ level: 'a', team: t.name, team_id: t.id, game_id: g.id, date: g.date, text: 'Aufstellung noch nicht verschickt' });
+        if (s.withdraws) { wds += s.withdraws; alerts.push({ level: 'a', team: t.name, team_id: t.id, game_id: g.id, date: g.date, text: `${s.withdraws} Absage-Anfrage${s.withdraws > 1 ? 'n' : ''} offen` }); }
+        return { id: g.id, date: g.date, start: g.start, kind: g.kind, za: Boolean(g.za), home: Boolean(g.home), opponent: g.opponent, sent: Boolean(g.lineup_sent_at), near, ...s };
+      });
+      let tA = 0;
+      const matrix = ros.map(r => { const cells = gs.map(g => { const st0 = A.get(key(g.id, r.member_id)) || null, l = L.get(key(g.id, r.member_id)); if (st0) tA++; return { s: st0, r: l ? l.role : null, w: Boolean(l && l.withdraw) }; });
+        return { id: r.member_id, ln: lf(r.name), rank: r.rank, cells, open: cells.filter(x => !x.s).length }; });
+      ans += tA; tot += ros.length * gs.length;
+      return { id: t.id, name: t.name, league: t.league, min: t.min_players, captain: t.captain_id ? lf(memberName(t.captain_id)) : null, vice: t.vice_id ? lf(memberName(t.vice_id)) : null,
+        roster: ros.length, games, matrix, rate: ros.length * gs.length ? Math.round(tA / (ros.length * gs.length) * 100) : null,
+        pending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND released = 0 AND date >= ?").get(t.id, d0).n };
+    });
+    alerts.sort((a, b) => a.date.localeCompare(b.date) || (a.level === 'r' ? -1 : 1));
+    res.json({ today: d0, kpi: { rate: tot ? Math.round(ans / tot * 100) : null, next14, crit, withdraws: wds, teams: teams.length }, alerts: alerts.slice(0, 30), teams });
+  });
+  /** alle Spieler einer Mannschaft mit offenen Rückmeldungen erinnern (eine Nachricht je Person) */
+  admin.post('/teams/:id/remind', P, (req, res) => {
+    const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
+    const gs = db.prepare("SELECT id FROM sp_game WHERE team_id = ? AND date >= ? AND released = 1 AND status = 'geplant'").all(t.id, today()).map(g => g.id);
+    const ids = [];
+    for (const r of roster(t.id)) {
+      const n = gs.filter(g => !db.prepare('SELECT 1 FROM sp_avail WHERE game_id = ? AND member_id = ?').get(g, r.member_id)).length;
+      if (!n) continue; ids.push(r.member_id);
+      tell([r.member_id], 'erinnerung', { title: `${t.name}: bitte Spieltage beantworten`, body: `${n} ${n === 1 ? 'Termin ist' : 'Termine sind'} noch offen – bitte in der App „kann“ oder „kann nicht“ melden.` });
+    }
+    ctx.audit(req.user, 'Spielbetrieb: Mannschaft erinnert', `${t.name}: ${ids.length} Spieler/innen`);
+    res.json({ ok: true, n: ids.length });
+  });
   admin.get('/meta', P, (req, res) => {
     const c = cfg();
     res.json({ today: today(), teams: db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all().map(teamRow), members: membersList(), settings: c,
@@ -799,7 +850,7 @@ function activate(ctx) {
   /* ----- Einstellungen ----- */
   admin.put('/settings', P, (req, res) => {
     const b = req.body || {};
-    for (const k of ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'mail', 'za']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
+    for (const k of ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'mail', 'za']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
     if (b.remind_days !== undefined) SET('remind_days', Math.max(1, Math.min(30, int(b.remind_days) || 7)));
     if (b.captain_days !== undefined) SET('captain_days', Math.max(1, Math.min(30, int(b.captain_days) || 5)));
     if (Array.isArray(b.task_kinds)) {
@@ -847,12 +898,12 @@ function activate(ctx) {
   };
 
   /* ----- Funktionsexport: Mannschaften und Einstellungen ----- */
-  ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note, age_class FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].map(k => [k, S(k)])) });
+  ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note, age_class FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].map(k => [k, S(k)])) });
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     let n = 0;
     for (const t of Array.isArray(data.teams) ? data.teams.slice(0, 60) : []) { const name = txt(t.name, 60); if (name.length < 2 || dupOf({ name, league: t.league, age_class: t.age_class })) continue; db.prepare('INSERT INTO sp_team(name, league, season, min_players, active, note, import_key, age_class) VALUES (?,?,?,?,?,?,?,?)').run(name, txt(t.league, 80) || null, txt(t.season, 30) || null, Math.max(1, Math.min(20, int(t.min_players) || 4)), t.active === 0 ? 0 : 1, txt(t.note, 300) || null, IMP.norm(name), txt(t.age_class, 30) || null); n++; }
-    for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
+    for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
     return `${n} Mannschaft(en) und die Einstellungen übernommen – Spieler und Spieltage bitte neu zuordnen bzw. importieren`;
   };
 }

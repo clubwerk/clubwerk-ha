@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.27.0
+
+- **Spielbetrieb – Übersicht für den Sportwart (Spielbetrieb 1.3.0):** Neue erste Seite „Übersicht“: Kennzahlen (Rückmeldequote, Spieltage der nächsten 14 Tage, zu wenige Zusagen, offene Absage-Anfragen), „Braucht Aufmerksamkeit“ (zu wenige Zusagen, Aufstellung noch nicht verschickt, Absage-Anfragen – mit „Öffnen“) und je Mannschaft eine Rückmelde-Matrix: Spieler/innen × die nächsten Termine mit ✓/✕/offen, aufgestellt, Ersatz, Absage-Anfrage, Zusagen je Termin und „Offene erinnern“ (eine Nachricht je Person mit der Zahl offener Termine).
+- **Spieltage in der App:** Kopfkarte mit Mannschaft und Liga, kurzer Anleitung (✓ kann · ✕ kann nicht; was „vorläufig“ heißt) und dem Mannschaftsführer (sonst Stellvertretung) mit Handynummer und „Anrufen“. Abschaltbar unter Spielbetrieb → Einstellungen.
+
 ## 3.26.3
 
 - **Platzbelegung „Ausführlich“ (Buchungssystem 1.4.2):** Neben „Kompakt“ (alle Plätze auf einen Blick) gibt es die Ansicht „Ausführlich“: breite Platzspalten zum seitlichen Wischen, die Uhrzeiten bleiben links stehen, in den Blöcken stehen die ganzen Namen. Die gewählte Ansicht merkt sich das Handy.
