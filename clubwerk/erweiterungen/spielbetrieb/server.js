@@ -59,6 +59,11 @@ CREATE TABLE IF NOT EXISTS sp_task (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_sp_task_game ON sp_task(game_id);
+-- Gastspieler/innen: keine Vereinsmitglieder (members.kind = 'extern'), antworten über einen persönlichen Link oder der Mannschaftsführer trägt ein
+CREATE TABLE IF NOT EXISTS sp_extern (
+  member_id INTEGER NOT NULL PRIMARY KEY REFERENCES members(id), phone TEXT, club TEXT, token TEXT NOT NULL UNIQUE,
+  created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), last_seen TEXT
+);
 `);
   // 3.23: Altersklasse (Rahmenterminplan) und vorläufige Spieltage
   const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c);
@@ -101,6 +106,31 @@ function activate(ctx) {
   })();
   const { splitPersonName } = ctx.require('./db');
   const lf = n => { const x = splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };
+  /* ---------- Gastspieler/innen ---------- */
+  const extRow = id => db.prepare('SELECT * FROM sp_extern WHERE member_id = ?').get(int(id));
+  const extIds = () => new Set(db.prepare('SELECT member_id FROM sp_extern').all().map(r => r.member_id));
+  const newToken = () => crypto.randomBytes(18).toString('base64url');
+  const normPhone = s => String(s || '').replace(/[^\d+ /()-]/g, '').trim().slice(0, 30) || null;
+  function makeExtern(b, by) {
+    const first = txt(b.first_name, 40), last = txt(b.last_name, 40);
+    const name = txt(b.name, 60) || [first, last].filter(Boolean).join(' ');
+    if (name.length < 3 || !/\s/.test(name.trim())) throw new Error('Bitte Vor- und Nachnamen eintragen.');
+    const sp = splitPersonName(name);
+    const id = Number(db.prepare("INSERT INTO members(name, kind, first_name, last_name, active) VALUES (?, 'extern', ?, ?, 1)").run(name, first || sp.first || null, last || sp.last || null).lastInsertRowid);
+    db.prepare('INSERT INTO sp_extern(member_id, phone, club, token, created_by) VALUES (?,?,?,?,?)').run(id, normPhone(b.phone), txt(b.club, 60) || null, newToken(), by);
+    return id;
+  }
+  /** öffentliche Adresse für den persönlichen Link (von unterwegs über den Tunnel, sonst die Adresse im Vereins-WLAN) */
+  const linkBase = () => {
+    const pub = ctx.getSetting('ext_tunnel', '0') === '1' ? String(ctx.getSetting('ext_tunnel_url', '') || '').replace(/\/+$/, '') : '';
+    return pub || String(ctx.getSetting('app_url', '') || '').replace(/\/+$/, '');
+  };
+  const guestLink = id => { const e = extRow(id); const b = linkBase(); return e && b ? `${b}/p/spielbetrieb/#t=${e.token}` : null; };
+  const extView = id => { const e = extRow(id); return e ? { phone: e.phone, club: e.club, link: guestLink(id), last_seen: e.last_seen } : null; };
+  function addToTeam(teamId, memberId) {
+    const n = db.prepare('SELECT COALESCE(MAX(rank), 0) n FROM sp_player WHERE team_id = ? AND rank < 99').get(teamId).n;
+    db.prepare('INSERT INTO sp_player(team_id, member_id, rank) VALUES (?,?,?) ON CONFLICT(team_id, member_id) DO NOTHING').run(teamId, memberId, n + 1);
+  }
   const short = n => { const x = splitPersonName(n); return x.first ? `${x.first} ${String(x.last || '')[0] || ''}.` : x.last; };
   const uname = req => (req.user ? req.user.name || req.user.username : req.member ? req.member.name : 'App');
 
@@ -187,6 +217,38 @@ function activate(ctx) {
       `SUMMARY:${icsEsc(`${gameTitle(g, t)}`)}`, `LOCATION:${icsEsc(g.home ? club : (g.venue || g.opponent))}`, `DESCRIPTION:${icsEsc([g.league, meet, g.note].filter(Boolean).join(' · '))}`,
       'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
   }
+  /* ---------- Persönlicher Link für Gastspieler/innen (ohne App, ohne PIN): /p/spielbetrieb/#t=<token> ---------- */
+  const guestByToken = tok => (typeof tok === 'string' && /^[A-Za-z0-9_-]{20,40}$/.test(tok) ? db.prepare("SELECT e.*, m.name FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE e.token = ? AND m.deleted = 0").get(tok) : null);
+  function guestView(e) {
+    const tids = db.prepare('SELECT p.team_id FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').all(e.member_id).map(r => r.team_id);
+    const games = futureGames(tids).filter(g => g.date >= today()).map(g => {
+      const a = db.prepare('SELECT state FROM sp_avail WHERE game_id = ? AND member_id = ?').get(g.id, e.member_id), l = db.prepare('SELECT role FROM sp_lineup WHERE game_id = ? AND member_id = ?').get(g.id, e.member_id);
+      const t = team(g.team_id), other = playingElsewhere(g).get(e.member_id);
+      return { id: g.id, date: g.date, start: g.start, team: t.name, home: Boolean(g.home), opponent: g.opponent, venue: g.venue, kind: g.kind, za: Boolean(g.za), status: g.status,
+        state: a ? a.state : null, role: l ? l.role : null, elsewhere: other || null, meet_time: l && l.role ? g.meet_time : null, meet_place: l && l.role ? g.meet_place : null };
+    });
+    const caps = tids.map(id => team(id)).map(t => ({ team: t.name, captain: t.captain_id ? memberName(t.captain_id) : null }));
+    return { name: e.name, club: ctx.getSetting('club_name', 'Verein'), color: ctx.getSetting('club_color', '#1f6b3a'), teams: caps, games };
+  }
+  ctx.public.get('/g/:token', (req, res) => {
+    const e = guestByToken(req.params.token); if (!e) return res.status(404).json({ error: 'Dieser Link gilt nicht (mehr). Bitte beim Mannschaftsführer einen neuen holen.' });
+    db.prepare("UPDATE sp_extern SET last_seen = datetime('now','localtime') WHERE member_id = ?").run(e.member_id);
+    res.set('Cache-Control', 'no-store').json(guestView(e));
+  });
+  ctx.public.post('/g/:token', rateLimit('spguest', 60, 60000), (req, res) => {
+    const e = guestByToken(req.params.token); if (!e) return res.status(404).json({ error: 'Dieser Link gilt nicht (mehr). Bitte beim Mannschaftsführer einen neuen holen.' });
+    const b = req.body || {}, st = b.state == null || b.state === '' ? null : b.state;
+    if (st && !['ja', 'nein'].includes(st)) return bad(res, 'Bitte „kann“ oder „kann nicht“ wählen.');
+    const view = guestView(e), ids = (Array.isArray(b.game_ids) ? b.game_ids : [b.game_id]).map(int);
+    const gs = view.games.filter(g => ids.includes(g.id) && g.status === 'geplant' && g.role !== 'spielt' && !g.elsewhere);
+    if (!gs.length) return bad(res, 'Dieser Termin kann nicht (mehr) beantwortet werden.');
+    db.transaction(() => gs.forEach(g => {
+      if (!st) db.prepare('DELETE FROM sp_avail WHERE game_id = ? AND member_id = ?').run(g.id, e.member_id);
+      else db.prepare(`INSERT INTO sp_avail(game_id, member_id, state) VALUES (?,?,?) ON CONFLICT(game_id, member_id) DO UPDATE SET state = excluded.state, note = NULL, at = datetime('now','localtime')`).run(g.id, e.member_id, st);
+      if (st === 'nein') db.prepare("DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ? AND role = 'ersatz'").run(g.id, e.member_id);
+    }))();
+    res.json(guestView(e));
+  });
   ctx.public.get('/ics/:id', (req, res) => {
     const id = int(req.params.id), k = String(req.query.k || '');
     const ok = k.length === 32 && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));
@@ -227,11 +289,11 @@ function activate(ctx) {
     const st = stats(g, t, ros);
     const out = { id: g.id, team_id: g.team_id, team: t ? t.name : '', league: g.league, date: g.date, start: g.start, home: Boolean(g.home), opponent: g.opponent, venue: g.venue,
       status: g.status, kind: g.kind, za: Boolean(g.za), released: Boolean(g.released), meet_time: g.meet_time, meet_place: g.meet_place, note: g.note, result: g.result, past: g.date < today(), stats: st, sent: g.lineup_sent_at };
-    const busy = playingElsewhere(g);
+    const busy = playingElsewhere(g), ext = extIds();
     const person = (id, name, inRoster) => {
       const a = av.get(id), l = lu.get(id);
       return { id, name, ln: lf(name), short: short(name), inRoster, state: a ? a.state : null, from: a ? a.from_t : null, until: a ? a.until_t : null, note: a ? a.note : null,
-        role: l ? l.role : null, elsewhere: busy.get(id) || null, withdraw: l ? Boolean(l.withdraw) : false, withdraw_note: l ? l.withdraw_note : null, rank: (ros.find(r => r.member_id === id) || {}).rank };
+        role: l ? l.role : null, ext: ext.has(id), elsewhere: busy.get(id) || null, withdraw: l ? Boolean(l.withdraw) : false, withdraw_note: l ? l.withdraw_note : null, rank: (ros.find(r => r.member_id === id) || {}).rank };
     };
     const people = ros.map(r => person(r.member_id, r.name, true));
     // Aushilfen aus anderen Mannschaften, die aufgestellt sind
@@ -239,7 +301,7 @@ function activate(ctx) {
     const showAll = full || (viewer && t && leaders(t).includes(viewer));
     if (showAll) out.people = people;
     else {
-      out.people = people.filter(p => (c.seeAvail && p.state === 'ja') || (c.seeLineup && p.role)).map(p => ({ id: p.id, short: p.short, ln: p.ln, state: c.seeAvail ? p.state : null, role: c.seeLineup ? p.role : null }));
+      out.people = people.filter(p => (c.seeAvail && p.state === 'ja') || (c.seeLineup && p.role)).map(p => ({ id: p.id, short: p.short, ln: p.ln, ext: p.ext, state: c.seeAvail ? p.state : null, role: c.seeLineup ? p.role : null }));
       if (!c.seeAvail && !c.seeLineup) out.people = [];
     }
     if (viewer) {
@@ -527,7 +589,9 @@ function activate(ctx) {
     // Aushilfen: Spieler anderer Mannschaften (für Ersatz aus unteren Mannschaften)
     const inRoster = new Set(v.people.map(p => p.id));
     v.helpers = db.prepare(`SELECT DISTINCT m.id, m.name, t.name AS team FROM sp_player p JOIN members m ON m.id = p.member_id JOIN sp_team t ON t.id = p.team_id
-      WHERE t.active = 1 AND p.team_id != ? AND m.deleted = 0 AND m.active = 1 ORDER BY name_key(m.name, m.kind)`).all(g.team_id).filter(m => !inRoster.has(m.id)).map(m => ({ id: m.id, ln: lf(m.name), team: m.team }));
+      WHERE t.active = 1 AND p.team_id != ? AND m.deleted = 0 AND m.active = 1 ORDER BY name_key(m.name, m.kind)`).all(g.team_id).filter(m => !inRoster.has(m.id)).map(m => ({ id: m.id, ln: lf(m.name), team: m.team, ext: Boolean(extRow(m.id)) }));
+    v.externs = v.people.filter(p => p.ext).map(p => ({ id: p.id, ln: p.ln, ...extView(p.id) }));
+    v.linkReady = Boolean(linkBase());
     v.taskKinds = cfg().taskKinds.filter(k => k.when === 'immer' || (k.when === 'heim') === Boolean(g.home));
     v.min = t.min_players;
     return v;
@@ -537,6 +601,34 @@ function activate(ctx) {
     const b = req.body || {};
     try { setLineup(g, int(b.member_id), b.role || null, req.member.name); } catch (e) { return bad(res, e.message); }
     res.json(leadView(game(g.id)));
+  });
+  /* Mannschaftsführer: Gastspieler/in anlegen (gleich in die Mannschaft), Verfügbarkeit für Gäste eintragen, Link holen */
+  const leadTeam = (req, res) => {
+    const g = (req.body || {}).game_id ? game((req.body || {}).game_id) : null;
+    const tid = g ? g.team_id : int((req.body || {}).team_id);
+    if (!tid || !isCaptain(req.member.id, tid)) { bad(res, 'Das darf nur der Mannschaftsführer.', 403); return null; }
+    return { t: team(tid), g };
+  };
+  M.post('/lead/extern', rateLimit('spext', 30, 3600000), (req, res) => {
+    const x = leadTeam(req, res); if (!x) return;
+    let id; try { id = makeExtern(req.body || {}, req.member.name); } catch (e) { return bad(res, e.message); }
+    addToTeam(x.t.id, id);
+    ctx.audit(null, 'Spielbetrieb: Gastspieler/in angelegt', `${memberName(id)} → ${x.t.name} (Mannschaftsführer ${req.member.name})`);
+    res.json({ ...(x.g ? leadView(game(x.g.id)) : {}), ok: true, ext_id: id, link: guestLink(id) });
+  });
+  M.post('/lead/avail', (req, res) => {
+    const g = leadGame(req, res); if (!g) return;
+    const b = req.body || {}, mid = int(b.member_id);
+    if (!extRow(mid) || !db.prepare('SELECT 1 FROM sp_player WHERE team_id = ? AND member_id = ?').get(g.team_id, mid)) return bad(res, 'Verfügbarkeit trägst du nur für Gastspieler/innen deiner Mannschaft ein – Mitglieder melden sich selbst.');
+    if (b.state && !['ja', 'nein'].includes(b.state)) return bad(res, 'Bitte „kann“ oder „kann nicht“ wählen.');
+    if (!b.state) db.prepare('DELETE FROM sp_avail WHERE game_id = ? AND member_id = ?').run(g.id, mid);
+    else db.prepare(`INSERT INTO sp_avail(game_id, member_id, state, note) VALUES (?,?,?,?) ON CONFLICT(game_id, member_id) DO UPDATE SET state = excluded.state, note = excluded.note, at = datetime('now','localtime')`).run(g.id, mid, b.state, `eingetragen von ${short(req.member.name)}`);
+    res.json(leadView(game(g.id)));
+  });
+  M.post('/lead/extlink', (req, res) => {
+    const mid = int((req.body || {}).member_id), e = extRow(mid);
+    if (!e || !db.prepare('SELECT 1 FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND (t.captain_id = ? OR t.vice_id = ?)').get(mid, req.member.id, req.member.id)) return bad(res, 'Nur für Gastspieler/innen deiner Mannschaft.', 403);
+    res.json({ ok: true, name: memberName(mid), link: guestLink(mid) });
   });
   M.post('/lead/withdraw', (req, res) => {
     const g = leadGame(req, res); if (!g) return;
@@ -591,7 +683,7 @@ function activate(ctx) {
   /* ================================================================= Verwaltung (/api/admin/x/spielbetrieb/…) */
   const membersList = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 AND pending = 0 ORDER BY name_key(name, kind)").all().map(m => ({ id: m.id, ln: lf(m.name) }));
   const teamRow = t => ({ ...t, captain: t.captain_id ? lf(memberName(t.captain_id)) : null, vice: t.vice_id ? lf(memberName(t.vice_id)) : null,
-    players: roster(t.id).map(r => ({ id: r.member_id, ln: lf(r.name), rank: r.rank })) });
+    players: roster(t.id).map(r => { const e = extView(r.member_id); return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(e), ...(e ? { phone: e.phone, club: e.club, link: e.link, last_seen: e.last_seen } : {}) }; }) });
   /* ---------- Sportwart-Übersicht: Rückmeldungen aller Mannschaften auf einen Blick ---------- */
   admin.get('/dashboard', P, (req, res) => {
     const d0 = today(), soon = addDays(d0, 14), c = cfg();
@@ -613,7 +705,7 @@ function activate(ctx) {
       });
       let tA = 0;
       const matrix = ros.map(r => { const cells = gs.map(g => { const st0 = A.get(key(g.id, r.member_id)) || null, l = L.get(key(g.id, r.member_id)); if (st0) tA++; return { s: st0, r: l ? l.role : null, w: Boolean(l && l.withdraw) }; });
-        return { id: r.member_id, ln: lf(r.name), rank: r.rank, cells, open: cells.filter(x => !x.s).length }; });
+        return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(extRow(r.member_id)), cells, open: cells.filter(x => !x.s).length }; });
       ans += tA; tot += ros.length * gs.length;
       return { id: t.id, name: t.name, league: t.league, min: t.min_players, captain: t.captain_id ? lf(memberName(t.captain_id)) : null, vice: t.vice_id ? lf(memberName(t.vice_id)) : null,
         roster: ros.length, games, matrix, rate: ros.length * gs.length ? Math.round(tA / (ros.length * gs.length) * 100) : null,
@@ -627,7 +719,8 @@ function activate(ctx) {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     const gs = db.prepare("SELECT id FROM sp_game WHERE team_id = ? AND date >= ? AND released = 1 AND status = 'geplant'").all(t.id, today()).map(g => g.id);
     const ids = [];
-    for (const r of roster(t.id)) {
+    const ext = extIds();
+    for (const r of roster(t.id).filter(x => !ext.has(x.member_id))) {   // Gastspieler/innen haben keine App – sie bekommen ihren Link vom Mannschaftsführer
       const n = gs.filter(g => !db.prepare('SELECT 1 FROM sp_avail WHERE game_id = ? AND member_id = ?').get(g, r.member_id)).length;
       if (!n) continue; ids.push(r.member_id);
       tell([r.member_id], 'erinnerung', { title: `${t.name}: bitte Spieltage beantworten`, body: `${n} ${n === 1 ? 'Termin ist' : 'Termine sind'} noch offen – bitte in der App „kann“ oder „kann nicht“ melden.` });
@@ -637,7 +730,8 @@ function activate(ctx) {
   });
   admin.get('/meta', P, (req, res) => {
     const c = cfg();
-    res.json({ today: today(), teams: db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all().map(teamRow), members: membersList(), settings: c,
+    const externs = db.prepare("SELECT m.id, m.name, e.club FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE m.deleted = 0 ORDER BY name_key(m.name, m.kind)").all().map(m => ({ id: m.id, ln: lf(m.name), club: m.club, ext: true }));
+    res.json({ today: today(), teams: db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all().map(teamRow), members: membersList(), externs, linkReady: Boolean(linkBase()), settings: c,
       buchung: ctx.isModuleActive('buchung'), mitglieder: ctx.isModuleActive('mitglieder'), club: c.club || ctx.getSetting('club_name', ''),
       rahmenPending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ?").get(today()).n });
   });
@@ -679,6 +773,36 @@ function activate(ctx) {
     res.json({ ok: true });
   });
   /** Spielerliste (Meldeliste) einer Mannschaft: [{ id, rank }] – Reihenfolge = Meldeliste */
+  /* Gastspieler/innen (Verwaltung): anlegen und gleich in die Mannschaft, bearbeiten, Link erneuern, entfernen */
+  admin.post('/teams/:id/extern', P, (req, res) => {
+    const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
+    let id; try { id = makeExtern(req.body || {}, uname(req)); } catch (e) { return bad(res, e.message); }
+    addToTeam(t.id, id);
+    ctx.audit(req.user, 'Spielbetrieb: Gastspieler/in angelegt', `${memberName(id)} → ${t.name}`);
+    res.json({ ok: true, id, link: guestLink(id), players: teamRow(team(t.id)).players });
+  });
+  admin.put('/extern/:id', P, (req, res) => {
+    const e = extRow(req.params.id); if (!e) return bad(res, 'Gastspieler/in nicht gefunden.', 404);
+    const b = req.body || {};
+    if (b.name !== undefined) { const n = txt(b.name, 60); if (n.length < 3 || !/\s/.test(n)) return bad(res, 'Bitte Vor- und Nachnamen eintragen.'); const sp = splitPersonName(n); db.prepare('UPDATE members SET name = ?, first_name = ?, last_name = ? WHERE id = ?').run(n, sp.first || null, sp.last || null, e.member_id); }
+    db.prepare('UPDATE sp_extern SET phone = ?, club = ? WHERE member_id = ?').run(b.phone !== undefined ? normPhone(b.phone) : e.phone, b.club !== undefined ? txt(b.club, 60) || null : e.club, e.member_id);
+    if (b.renew) db.prepare('UPDATE sp_extern SET token = ? WHERE member_id = ?').run(newToken(), e.member_id);   // alter Link gilt dann nicht mehr
+    ctx.audit(req.user, 'Spielbetrieb: Gastspieler/in geändert', `${memberName(e.member_id)}${b.renew ? ' · neuer Link' : ''}`);
+    res.json({ ok: true, ...extView(e.member_id) });
+  });
+  admin.delete('/extern/:id', P, (req, res) => {
+    const e = extRow(req.params.id); if (!e) return bad(res, 'Gastspieler/in nicht gefunden.', 404);
+    const name = memberName(e.member_id);
+    db.transaction(() => {
+      db.prepare('DELETE FROM sp_player WHERE member_id = ?').run(e.member_id);
+      db.prepare('DELETE FROM sp_avail WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(e.member_id, today());
+      db.prepare('DELETE FROM sp_lineup WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(e.member_id, today());
+      db.prepare('UPDATE sp_extern SET token = ? WHERE member_id = ?').run(newToken(), e.member_id);
+      db.prepare('UPDATE members SET active = 0, deleted = 1 WHERE id = ?').run(e.member_id);   // vergangene Aufstellungen bleiben lesbar
+    })();
+    ctx.audit(req.user, 'Spielbetrieb: Gastspieler/in entfernt', name);
+    res.json({ ok: true });
+  });
   admin.put('/teams/:id/players', P, (req, res) => {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     const list = (Array.isArray((req.body || {}).players) ? req.body.players : []).slice(0, 60).map((p, i) => ({ id: int(p.id || p), rank: int(p.rank) || i + 1 })).filter(p => isMember(p.id));

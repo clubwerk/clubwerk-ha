@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.28.0
+
+- **Gastspieler/innen (Spielbetrieb 1.4.0):** Mannschaften können jetzt auch Personen aufnehmen, die nicht Mitglied im Verein sind (z. B. Spielgemeinschaft mit dem Nachbarverein). Anlegen geht in der Verwaltung (Mannschaft → Spieler/innen → „+ Gastspieler/in anlegen“) und für den Mannschaftsführer direkt in der App (Rückmeldungen → „Gastspieler/in“).
+- **Persönlicher Link statt Konto:** Jeder Gast bekommt einen eigenen Link (🔗 kopieren bzw. „Link teilen“) und meldet sich darüber selbst zu den Spieltagen zurück – ohne Anmeldung und ohne Mitglieder-App. Der Mannschaftsführer kann die Rückmeldung alternativ selbst eintragen (✓/✕ in seiner Übersicht).
+- **Überall als „Gast“ gekennzeichnet:** in der Mannschaft, im Sportwart-Dashboard und in der Aufstellung. Gäste erscheinen nicht in der Mitgliederliste, am Tablet oder bei Buchungen. Auch für Gäste gilt: ein Einsatz je Tag.
+- **Link erneuern / entfernen:** Ein weitergegebener Link lässt sich jederzeit ungültig machen („Neuer Link …“); „Ganz entfernen …“ nimmt den Gast aus allen Mannschaften.
+- Hinweis: Damit der Link von unterwegs funktioniert, braucht die Mitglieder-App eine öffentliche Adresse (Tunnel oder eigene App-Adresse in den Einstellungen).
+
 ## 3.27.6
 
 - **Buchung eintragen (Verwaltung, Buchungssystem 1.4.4):** übersichtlicher aufgebaut – Platz, Datum und Zeit (von–bis) in einer Zeile, dann Buchungsart und Titel, darunter „Wer spielt“ (Mitglied, Mitspieler). Gäste und Wiederholen klappen erst auf „+ Gäste“ bzw. „Wiederholen …“ auf; die interne Notiz steht unten über die ganze Breite.

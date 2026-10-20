@@ -38,6 +38,9 @@
       .sp-sel > div:first-child { border-top: 0; }
       .sp-sel .rk { font-weight: 800; color: var(--muted); text-align: right; }
       .sp-sel button { min-height: 30px; height: 30px; padding: 0 9px; }
+      .sp-gast { font-style: normal; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: var(--amber-soft); color: var(--amber); margin-left: 4px; }
+      .sp-newx { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--hover); }
+      .sp-sel > div.ext { background: color-mix(in srgb, var(--hover) 60%, transparent); }
       .sp-bar { height: 40px; margin-bottom: 8px; display: flex; align-items: center; }   /* Suchfeld links, Hinweis rechts – beide Listen beginnen auf gleicher Höhe */
       label.f.sp-bar > input { height: 40px; }
       .sp-tasks > div { display: grid; grid-template-columns: minmax(0, 1fr) 240px auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
@@ -214,7 +217,7 @@
       const s = v.stats, cfg = st.meta.settings;
       const AV = p => (p.state === 'ja' ? `<span class="pill g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="pill r">kann nicht</span>' : '<span class="pill">offen</span>');
       const row = p => `<tr class="${p.withdraw ? 'wd' : ''}"><td class="r muted">${p.inRoster ? esc(p.rank ?? '') : ''}</td>
-        <td><b translate="no">${esc(p.ln)}</b>${p.inRoster ? '' : ' <span class="pill">Aushilfe</span>'}${p.elsewhere ? ` <span class="pill r">spielt in <span translate="no">${esc(p.elsewhere)}</span></span>` : ''}${p.note ? `<div class="muted s">${esc(p.note)}</div>` : ''}${p.withdraw ? `<div class="s" style="color:var(--amber);font-weight:700">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</div>` : ''}</td>
+        <td><b translate="no">${esc(p.ln)}</b>${p.ext ? ' <span class="pill">Gast</span>' : ''}${p.inRoster ? '' : ' <span class="pill">Aushilfe</span>'}${p.elsewhere ? ` <span class="pill r">spielt in <span translate="no">${esc(p.elsewhere)}</span></span>` : ''}${p.note ? `<div class="muted s">${esc(p.note)}</div>` : ''}${p.withdraw ? `<div class="s" style="color:var(--amber);font-weight:700">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</div>` : ''}</td>
         <td>${p.inRoster ? `<select data-av="${p.id}" aria-label="Verfügbarkeit">${opt('', 'offen', p.state || '')}${opt('ja', 'kann', p.state)}${opt('nein', 'kann nicht', p.state)}</select>${p.state === 'ja' && (p.from || p.until) ? `<div class="muted" style="font-size:12px;margin-top:3px">${p.from ? 'ab ' + esc(p.from) : ''}${p.from && p.until ? ' ' : ''}${p.until ? 'bis ' + esc(p.until) : ''}</div>` : ''}` : AV(p)}</td>
         <td><select data-lu="${p.id}" aria-label="Aufstellung" title="${p.elsewhere && !p.role ? esc(BUSY_T) : ''}" ${p.elsewhere && !p.role ? 'disabled' : ''}>${opt('', '–', p.role || '')}${opt('spielt', 'spielt', p.role)}${opt('ersatz', 'Ersatz', p.role)}</select></td>
         <td class="r nw">${p.withdraw ? `<button class="btn small" data-wd="${p.id}" data-acc="1" type="button">Absage bestätigen</button> <button class="btn small ghost" data-wd="${p.id}" data-acc="0" type="button">ablehnen</button>` : ''}</td></tr>`;
@@ -367,7 +370,7 @@
     el.innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:14px"><button class="btn primary" id="tmNew" type="button">+ Mannschaft</button></div>
       ${m.teams.length ? m.teams.map(t => `<div class="card sp-team ${t.active ? '' : 'off'}"><div style="min-width:0"><h4 translate="no">${esc(t.name)}${t.active ? '' : ' <span class="pill">nicht aktiv</span>'}</h4>
           <div class="muted s">${[t.age_class ? `Altersklasse ${t.age_class}` : '', t.league, t.season, `mindestens ${t.min_players} Spieler/innen`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
-          <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}</span>`).join('') : '<span class="muted">noch keine Spieler/innen</span>'}</div></div>
+          <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}${p.ext ? ' <i class="sp-gast">Gast</i>' : ''}</span>`).join('') : '<span class="muted">noch keine Spieler/innen</span>'}</div></div>
         <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler/innen …</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
         : '<div class="card"><p class="muted" style="margin:0">Noch keine Mannschaften. Tipp: Beim Spielplan-Import werden die Mannschaften automatisch angelegt.</p></div>'}`;
     const again = () => pageRender('sp-mannschaften', showTeams)().catch(fail);
@@ -402,23 +405,57 @@
     };
   }
   /** Spieler zuordnen – die Reihenfolge ist die Meldeliste */
+  /** Spieler/innen einer Mannschaft: Mitglieder und Gastspieler/innen (kein Vereinsmitglied, antworten über einen persönlichen Link) */
   function playersDialog(t, after) {
-    const m = st.meta; let list = t.players.map(p => ({ id: p.id, ln: p.ln }));
-    let q = '';
+    const m = st.meta; let list = t.players.map(p => ({ id: p.id, ln: p.ln, ext: p.ext }));
+    const info = new Map(t.players.filter(p => p.ext).map(p => [p.id, { phone: p.phone, club: p.club, link: p.link, last_seen: p.last_seen }]));
+    let q = '', edit = 0, newOpen = false;
+    const pool = () => [...m.members.map(x => ({ ...x, ext: false })), ...(m.externs || []).map(x => ({ ...x, ext: true }))];
+    const copy = async (link, name) => {
+      if (!link) return fail(new Error('Für den Link muss die Mitglieder-App eine Adresse haben (Mitglieder-App → Verbindung).'));
+      try { await navigator.clipboard.writeText(link); toast(`Link für ${name} kopiert – z. B. per WhatsApp schicken.`); } catch (e) { await GK.askText('Link zum Kopieren:', link, { ok: 'Schließen' }); }
+    };
     const draw = () => {
       const inList = new Set(list.map(p => p.id));
-      const hits = m.members.filter(x => !inList.has(x.id) && (!q || x.ln.toLowerCase().includes(q.toLowerCase()))).slice(0, 60);
+      const hits = pool().filter(x => !inList.has(x.id) && (!q || x.ln.toLowerCase().includes(q.toLowerCase()))).sort((a, b) => a.ln.localeCompare(b.ln, 'de')).slice(0, 60);
+      const ed = edit ? list.find(p => p.id === edit) : null, ei = ed ? info.get(ed.id) || {} : {};
       dialog(`<h3>Spieler/innen · <span translate="no">${esc(t.name)}</span></h3>
-        <p class="muted" style="margin:0 0 10px">Links Mitglieder suchen und mit + in die Mannschaft holen. Rechts steht die Mannschaft in der Reihenfolge der Meldeliste (Nr. 1 oben), mit ▲ ▼ verschieben. Eine Person kann in mehreren Mannschaften stehen.</p>
-        <div class="sp-grid" style="--c:2"><div><h4 style="margin:0 0 6px">Mitglieder</h4><label class="f sp-bar"><input id="plQ" placeholder="Name suchen" value="${esc(q)}" aria-label="Name suchen"></label><div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}</span><button class="btn small" data-ad="${x.id}" type="button" aria-label="in die Mannschaft">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div></div>
-          <div><h4 style="margin:0 0 6px">In der Mannschaft (${list.length})</h4><div class="sp-bar muted s">Meldeliste – Nr. 1 oben</div><div class="sp-sel" translate="no">${list.map((p, i) => `<div><span class="rk">${i + 1}</span><span>${esc(p.ln)}</span><span class="nw"><button class="btn small ghost" data-up="${i}" type="button" ${i ? '' : 'disabled'} aria-label="nach oben">▲</button><button class="btn small ghost" data-dn="${i}" type="button" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten">▼</button><button class="btn small ghost" data-rm="${i}" type="button" aria-label="entfernen">✕</button></span></div>`).join('') || '<div><span></span><span class="muted">noch niemand – links mit + hinzufügen</span><span></span></div>'}</div></div></div>
+        <p class="muted" style="margin:0 0 10px">Links suchen und mit + in die Mannschaft holen – Mitglieder und <b>Gastspieler/innen</b> (kein Vereinsmitglied, z. B. Spielgemeinschaft). Rechts die Meldeliste (Nr. 1 oben), mit ▲ ▼ verschieben. Gäste antworten über einen persönlichen Link oder der Mannschaftsführer trägt für sie ein.</p>
+        <div class="sp-grid" style="--c:2"><div><h4 style="margin:0 0 6px">Mitglieder &amp; Gäste</h4><label class="f sp-bar"><input id="plQ" placeholder="Name suchen" value="${esc(q)}" aria-label="Name suchen"></label>
+            <div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}${x.ext ? ` <span class="pill">Gast${x.club ? ' · ' + esc(x.club) : ''}</span>` : ''}</span><button class="btn small" data-ad="${x.id}" data-ext="${x.ext ? 1 : 0}" type="button" aria-label="in die Mannschaft">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div>
+            <div class="sp-newx">${newOpen ? `<div class="sp-grid" style="--c:2;gap:8px 10px"><label class="f">Vorname<input id="xF" autocomplete="off"></label><label class="f">Nachname<input id="xL" autocomplete="off"></label>
+              <label class="f">Verein (optional)<input id="xC" placeholder="z. B. TC Dehrn"></label><label class="f">Handy (optional)<input id="xP" inputmode="tel" placeholder="für Rückfragen"></label></div>
+              <div class="btns" style="margin-top:8px"><button class="btn ghost" id="xX" type="button">Abbrechen</button><button class="btn primary" id="xOk" type="button">Gast anlegen</button></div>` : '<button class="btn" id="xNew" type="button">+ Gastspieler/in anlegen</button>'}</div></div>
+          <div><h4 style="margin:0 0 6px">In der Mannschaft (${list.length})</h4><div class="sp-bar muted s">Meldeliste – Nr. 1 oben</div><div class="sp-sel" translate="no">${list.map((p, i) => `<div class="${p.ext ? 'ext' : ''}"><span class="rk">${i + 1}</span><span>${esc(p.ln)}${p.ext ? ' <span class="pill">Gast</span>' : ''}</span><span class="nw">${p.ext ? `<button class="btn small ghost" data-lk="${p.id}" type="button" title="Persönlichen Link kopieren" aria-label="Link kopieren">🔗</button><button class="btn small ghost" data-ed="${p.id}" type="button" title="Bearbeiten" aria-label="Bearbeiten">✎</button>` : ''}<button class="btn small ghost" data-up="${i}" type="button" ${i ? '' : 'disabled'} aria-label="nach oben">▲</button><button class="btn small ghost" data-dn="${i}" type="button" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten">▼</button><button class="btn small ghost" data-rm="${i}" type="button" aria-label="entfernen">✕</button></span></div>`).join('') || '<div><span></span><span class="muted">noch niemand – links mit + hinzufügen</span><span></span></div>'}</div>
+            ${ed ? `<div class="sp-newx"><b translate="no">${esc(ed.ln)}</b> <span class="muted s">${ei.last_seen ? `Link zuletzt geöffnet ${esc(deDate(ei.last_seen.slice(0, 10)))}` : 'Link noch nicht geöffnet'}</span>
+              <div class="sp-grid" style="--c:2;gap:8px 10px;margin-top:8px"><label class="f">Name<input id="eN" value="${esc((m.externs || []).find(x => x.id === ed.id) ? ed.ln.split(', ').reverse().join(' ') : ed.ln)}"></label><label class="f">Verein<input id="eC" value="${esc(ei.club || '')}"></label><label class="f">Handy<input id="eP" inputmode="tel" value="${esc(ei.phone || '')}"></label></div>
+              <div class="btns" style="margin-top:8px;justify-content:space-between"><span class="row" style="gap:8px"><button class="btn ghost danger" id="eDel" type="button">Ganz entfernen …</button><button class="btn ghost" id="eNew" type="button">Neuer Link …</button></span><span class="row" style="gap:8px"><button class="btn ghost" id="eX" type="button">Schließen</button><button class="btn primary" id="eOk" type="button">Speichern</button></span></div></div>` : ''}</div></div>
         <div class="btns"><button class="btn ghost" id="plX" type="button">Abbrechen</button><button class="btn primary" id="plOk" type="button">Speichern</button></div>`, true);
       $('plX').onclick = closeDialog;
       $('plQ').oninput = () => { q = $('plQ').value; const pos = $('plQ').selectionStart; draw(); $('plQ').focus(); $('plQ').setSelectionRange(pos, pos); };
-      $('dialog').querySelectorAll('[data-ad]').forEach(b => { b.onclick = () => { const x = m.members.find(y => y.id === +b.dataset.ad); list.push({ id: x.id, ln: x.ln }); draw(); }; });
+      $('dialog').querySelectorAll('[data-ad]').forEach(b => { b.onclick = () => { const x = pool().find(y => y.id === +b.dataset.ad); list.push({ id: x.id, ln: x.ln, ext: x.ext }); draw(); }; });
       $('dialog').querySelectorAll('[data-rm]').forEach(b => { b.onclick = () => { list.splice(+b.dataset.rm, 1); draw(); }; });
       $('dialog').querySelectorAll('[data-up]').forEach(b => { b.onclick = () => { const i = +b.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); }; });
       $('dialog').querySelectorAll('[data-dn]').forEach(b => { b.onclick = () => { const i = +b.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); }; });
+      $('dialog').querySelectorAll('[data-lk]').forEach(b => { b.onclick = () => { const p = list.find(x => x.id === +b.dataset.lk); copy((info.get(p.id) || {}).link, p.ln); }; });
+      $('dialog').querySelectorAll('[data-ed]').forEach(b => { b.onclick = () => { edit = edit === +b.dataset.ed ? 0 : +b.dataset.ed; draw(); }; });
+      if ($('xNew')) $('xNew').onclick = () => { newOpen = true; draw(); $('xF').focus(); };
+      if ($('xX')) $('xX').onclick = () => { newOpen = false; draw(); };
+      if ($('xOk')) $('xOk').onclick = () => GK.busy($('xOk'), async () => {
+        try {
+          const r = await api(`teams/${t.id}/extern`, 'POST', { first_name: val('xF'), last_name: val('xL'), club: val('xC'), phone: val('xP') });
+          const p = r.players.find(x => x.id === r.id);
+          list.push({ id: p.id, ln: p.ln, ext: true }); info.set(p.id, { phone: p.phone, club: p.club, link: p.link });
+          (m.externs = m.externs || []).push({ id: p.id, ln: p.ln, club: p.club, ext: true });
+          newOpen = false; draw(); toast(`${p.ln} angelegt – Link mit 🔗 kopieren und schicken.`);
+        } catch (e) { fail(e); }
+      });
+      if (ed) {
+        $('eX').onclick = () => { edit = 0; draw(); };
+        $('eOk').onclick = () => GK.busy($('eOk'), async () => { try { const r = await api(`extern/${ed.id}`, 'PUT', { name: val('eN'), club: val('eC'), phone: val('eP') }); info.set(ed.id, { ...ei, ...r }); const nm = val('eN').trim().split(/\s+/); ed.ln = nm.length > 1 ? `${nm.slice(-1)[0]}, ${nm.slice(0, -1).join(' ')}` : nm[0]; edit = 0; draw(); toast('Gespeichert.'); } catch (e) { fail(e); } });
+        $('eNew').onclick = async () => { if (!await ask(`Neuen Link für ${ed.ln} erzeugen?\n\nDer bisherige Link gilt dann nicht mehr.`, { ok: 'Neuer Link' })) return; try { const r = await api(`extern/${ed.id}`, 'PUT', { renew: true }); info.set(ed.id, { ...ei, ...r }); draw(); copy(r.link, ed.ln); } catch (e) { fail(e); } };
+        $('eDel').onclick = async () => { if (!await ask(`${ed.ln} ganz entfernen?\n\nAus allen Mannschaften, künftige Rückmeldungen und Aufstellungen werden gelöscht, der Link gilt nicht mehr.`, { ok: 'Entfernen', danger: true })) return; try { await api(`extern/${ed.id}`, 'DELETE'); list = list.filter(x => x.id !== ed.id); m.externs = (m.externs || []).filter(x => x.id !== ed.id); edit = 0; draw(); toast('Entfernt.'); } catch (e) { fail(e); } };
+      }
       $('plOk').onclick = () => GK.busy($('plOk'), async () => { try { await api(`teams/${t.id}/players`, 'PUT', { players: list.map((p, i) => ({ id: p.id, rank: i + 1 })) }); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); } });
     };
     draw();
@@ -442,7 +479,7 @@
       <div class="sp-dt">${full.length ? full.map(t => `<div class="card"><div class="sp-th"><div><h3 translate="no">${esc(t.name)}</h3><div class="muted">${[t.league, t.captain ? `MF ${t.captain}` : 'kein Mannschaftsführer', t.vice ? `Stv. ${t.vice}` : '', `${t.roster} Spieler/innen`, `mind. ${t.min}`].filter(Boolean).map(esc).join(' · ')}${t.pending ? ` · <span class="pill a">${t.pending} vorläufige Termine nicht abgefragt</span>` : ''}</div></div>
           <div class="sp-rate">${t.rate == null ? '<span class="muted">keine Termine</span>' : `<b>${t.rate} %</b><div>${rateBar(t.rate)}<span class="muted s">beantwortet</span></div>`}${t.matrix.some(m => m.open) ? `<button class="btn small" data-rm="${t.id}">Offene erinnern</button>` : ''}</div></div>
         ${t.games.length && t.matrix.length ? `<div class="sp-mx"><table><thead><tr><th>Spieler/in</th>${t.games.map(g => `<th><button data-og="${g.id}" title="${esc(g.kind === 'rahmen' ? (g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin') : `${g.home ? 'gegen' : 'bei'} ${g.opponent}`)}"><b><span class="lt ${g.ok ? 'g' : g.near ? 'r' : ''}"></span> ${dd(g.date)}</b><span>${g.kind === 'rahmen' ? (g.za ? 'Z/A' : 'vorl.') : g.home ? 'Heim' : 'ausw.'}</span></button></th>`).join('')}<th>offen</th></tr></thead>
-          <tbody>${t.matrix.map(m => `<tr><td><span class="muted" style="display:inline-block;width:22px">${m.rank < 99 ? m.rank : ''}</span><span translate="no">${esc(m.ln)}</span></td>${m.cells.map(c => `<td><span class="sp-c ${c.s === 'ja' ? 'y' : c.s === 'nein' ? 'n' : ''} ${c.w ? 'w' : c.r === 'spielt' ? 'p' : c.r === 'ersatz' ? 'e' : ''}">${c.s === 'ja' ? '✓' : c.s === 'nein' ? '✕' : '·'}</span></td>`).join('')}<td class="${m.open ? 'op' : 'muted'}">${m.open || '–'}</td></tr>`).join('')}</tbody>
+          <tbody>${t.matrix.map(m => `<tr><td><span class="muted" style="display:inline-block;width:22px">${m.rank < 99 ? m.rank : ''}</span><span translate="no">${esc(m.ln)}</span>${m.ext ? ' <i class="sp-gast">Gast</i>' : ''}</td>${m.cells.map(c => `<td><span class="sp-c ${c.s === 'ja' ? 'y' : c.s === 'nein' ? 'n' : ''} ${c.w ? 'w' : c.r === 'spielt' ? 'p' : c.r === 'ersatz' ? 'e' : ''}">${c.s === 'ja' ? '✓' : c.s === 'nein' ? '✕' : '·'}</span></td>`).join('')}<td class="${m.open ? 'op' : 'muted'}">${m.open || '–'}</td></tr>`).join('')}</tbody>
           <tfoot><tr><td>Zusagen / benötigt</td>${t.games.map(g => `<td class="${g.ok ? 'ok' : 'no'}">${g.yes}/${g.min}</td>`).join('')}<td></td></tr></tfoot></table></div>` : `<p class="muted" style="margin:10px 0 0">${t.matrix.length ? 'Keine anstehenden Spieltage.' : 'Noch keine Spieler/innen in der Mannschaft.'}</p>`}</div>`).join('') : ''}${empty.length ? `<div class="card"><h3>Ohne Spieler/innen oder anstehende Termine</h3><div class="sp-pl" style="margin:0">${empty.map(t => `<span translate="no"><b>${t.roster}</b>${esc(t.name)}</span>`).join('')}</div><p class="muted s" style="margin:8px 0 0">Spieler/innen trägst du unter „Mannschaften“ ein, Termine kommen über den Spielplan- oder Rahmenterminplan-Import.</p></div>` : ''}${!d.teams.length ? '<div class="card"><p class="muted" style="margin:0">Noch keine aktiven Mannschaften.</p></div>' : ''}</div>
       ${d.teams.some(t => t.games.length) ? `<div class="sp-leg"><span><i class="sp-c y">✓</i> kann</span><span><i class="sp-c n">✕</i> kann nicht</span><span><i class="sp-c">·</i> offen</span><span><i class="sp-c y p">✓</i> aufgestellt</span><span><i class="sp-c y e">✓</i> Ersatz</span><span><i class="sp-c w">✓</i> Absage-Anfrage</span><span><span class="lt g" style="width:8px;height:8px;border-radius:50%;background:var(--brand)"></span> genug Zusagen</span></div>` : ''}`;
     el.querySelectorAll('[data-og]').forEach(b => { b.onclick = () => gameDialog(+b.dataset.og, () => showDash(el).catch(fail)); });

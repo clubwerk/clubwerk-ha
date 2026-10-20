@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS members (
   id            INTEGER PRIMARY KEY,
   name          TEXT NOT NULL,
   kind          TEXT NOT NULL DEFAULT 'mitglied'
-                CHECK (kind IN ('mitglied','mannschaft','verein','gast')),
+                CHECK (kind IN ('mitglied','mannschaft','verein','gast','extern')),
   pin_hash      TEXT,
   active        INTEGER NOT NULL DEFAULT 1,
   failed_pins   INTEGER NOT NULL DEFAULT 0,
@@ -473,6 +473,24 @@ db.prepare(`UPDATE bookings SET article_name = (SELECT name FROM articles a WHER
 
 /* v2.10: IDs nie doppelt vergeben (alle Tabellen auf AUTOINCREMENT, vorher Sicherung) */
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung nicht möglich, Daten unverändert –', e.message); }
+/* Personenart „extern“ (Gastspieler/innen im Spielbetrieb – kein Vereinsmitglied, kein Konto) in der Prüfregel der Tabelle members
+   ergänzen. Nur der Text der CHECK-Regel ändert sich (keine Daten, kein Umbau der Tabelle): offiziell dokumentierter Weg über writable_schema. */
+try {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'members'").get();
+  const KIND_EXT = ['gast', 'extern'].map(k => `'${k}'`).join(',') + '))';
+  if (row && /CHECK \(kind IN \('mitglied','mannschaft','verein','gast'\)\)/.test(row.sql)) {
+    const sql = row.sql.replace(/'gast'\)\)/, KIND_EXT);
+    const ver = db.pragma('schema_version', { simple: true });
+    db.unsafeMode(true);
+    try {
+      db.pragma('writable_schema = ON');
+      db.prepare("UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'members'").run(sql);
+      db.pragma(`schema_version = ${ver + 1}`);
+    } finally { db.pragma('writable_schema = OFF'); db.unsafeMode(false); }
+    const ok = db.pragma('quick_check', { simple: true });
+    console.log(`Personenart „extern“ ergänzt (Prüfung: ${ok}).`);
+  }
+} catch (e) { console.error('Personenart „extern“ konnte nicht ergänzt werden –', e.message); }
 
 /* v3.13.3: Indizes für die häufigsten Abfragen – Bestand je Artikel (drei korrelierte Unterabfragen je Artikel bei jedem
    Tablet-Refresh), Deckel, Veranstaltungen, Zahlungen, Gutschriften, Veranstaltungslisten je Mitglied */

@@ -43,7 +43,9 @@
       /* Tag mit mehreren Mannschaften: aufgeklappt die einzelnen Mannschaften eingerückt, ohne zweiten Datumsblock */
       .sb-sub { grid-column: 1 / -1; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--hover) 55%, var(--card)); }
       .sb-sub .sb-row:first-child { border-top: 0; } .sb-sub .sb-row.open { background: transparent; }
-      .sb-sub .sb-rh { grid-template-columns: minmax(0, 1fr); padding-left: 72px; } .sb-sub .vh-date { display: none; }`;
+      .sb-sub .sb-rh { grid-template-columns: minmax(0, 1fr); padding-left: 72px; } .sb-sub .vh-date { display: none; }
+      .sb-gx { align-items: center; flex-wrap: wrap; } .sb-gx > span:first-child { flex: 1 0 100%; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+      .sb-gx .sb-link { margin-left: auto; }`;
     document.head.appendChild(s);
   }
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
@@ -163,6 +165,7 @@
           ${!cancelled && (d.settings.seeAvail || d.settings.seeLineup || g.lead) ? `<div class="sb-who">${play.length && (d.settings.seeLineup || g.lead) ? `<div>Aufgestellt: <b translate="no">${names(play)}</b>${res.length ? ` · Ersatz: <span translate="no">${names(res)}</span>` : ''}</div>` : ''}${d.settings.seeAvail || g.lead ? `<div>${yes.length ? `Können (${yes.length}): <span translate="no">${names(yes)}</span>` : 'Noch keine Zusagen.'}</div>` : ''}</div>` : ''}
           ${tasks}
           ${g.lead && !cancelled && g.kind === 'rahmen' ? `<div class="sb-line"><span>${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''} – aufstellen geht, sobald der Spielplan da ist.</span></div>` : ''}
+          ${g.lead && !cancelled && g.kind === 'rahmen' ? `<button class="vh-btn sec wide" style="margin-top:12px" data-lead="${g.id}">Rückmeldungen · Gäste eintragen</button>` : ''}
           ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="vh-btn sec wide" style="margin-top:12px" data-lead="${g.id}">Aufstellung${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}`;
       }
       async function run(fn, msg) { try { await fn(); if (msg) ctx.toast(msg); close(); await load(); } catch (e) { ctx.toast(e.message, true); } }
@@ -192,7 +195,16 @@
       }
 
       /* ---------- Mannschaftsführer: Aufstellung ---------- */
+      /** persönlichen Link eines Gasts teilen: Teilen-Menü des Handys (WhatsApp, Nachrichten …), sonst kopieren */
+      async function shareLink(mid) {
+        let r; try { r = await ctx.api('lead/extlink', 'POST', { member_id: mid }); } catch (e) { ctx.toast(e.message, true); return; }
+        if (!r.link) { ctx.toast('Für den Link braucht die Mitglieder-App eine Adresse von unterwegs – bitte beim Vorstand melden.', true); return; }
+        const text = `Hallo ${r.name.split(' ')[0]}, hier kannst du für unsere Spieltage zu- oder absagen: ${r.link}`;
+        try { if (navigator.share) { await navigator.share({ title: 'Spieltage', text }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
+        try { await navigator.clipboard.writeText(text); ctx.toast('Link kopiert – jetzt z. B. in WhatsApp einfügen.'); } catch (e) { ctx.toast(r.link); }
+      }
       async function leadSheet(id) {
+        let addOpen = false;
         const sh = sheet();
         let v; try { v = await ctx.api('lead/' + id); } catch (e) { ctx.toast(e.message, true); return; }
         const act = async (path, body, msg) => { try { v = await ctx.api('lead/' + path, 'POST', { game_id: id, ...body }); if (msg) ctx.toast(msg); paint(); } catch (e) { ctx.toast(e.message, true); paint(); } };
@@ -200,21 +212,28 @@
           const s = v.stats;
           const av = p => (p.elsewhere && !p.role ? `<span class="vh-chip r">spielt in <span translate="no">${esc(p.elsewhere)}</span></span>` : p.state === 'ja' ? `<span class="vh-chip g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="vh-chip r">kann nicht</span>' : '<span class="vh-chip">offen</span>');
           const seg = p => `<div class="sb-seg">${[['spielt', 'spielt', ''], ['ersatz', 'Ersatz', 'e'], ['', '–', '']].map(([r, l, c]) => `<button data-role="${r}" data-p="${p.id}" class="${(p.role || '') === r ? 'on ' + c : ''}" ${(p.state === 'nein' || (p.elsewhere && !p.role)) && r ? 'disabled' : ''}>${l}</button>`).join('')}</div>`;
-          const row = p => `<div class="sb-p ${p.withdraw ? 'wd' : ''}"><span class="rk">${p.inRoster ? esc(p.rank ?? '') : '+'}</span><div style="min-width:0"><strong translate="no">${esc(p.ln)}</strong><small>${av(p)}${p.note ? ' ' + esc(p.note) : ''}${p.inRoster ? '' : ' · Aushilfe'}</small></div>${seg(p)}
+          const rt = v.kind === 'rahmen';
+          const gx = p => (p.ext ? `<div class="sb-wd sb-gx"><span>Gast – für ihn/sie eintragen:</span><span class="vh-yn"><button class="y ${p.state === 'ja' ? 'on' : ''}" data-xa="${p.id}" data-st="ja" aria-label="Kann">✓</button><button class="n ${p.state === 'nein' ? 'on' : ''}" data-xa="${p.id}" data-st="nein" aria-label="Kann nicht">✕</button></span><button class="sb-link" data-xl="${p.id}">Link teilen</button></div>` : '');
+          const row = p => `<div class="sb-p ${p.withdraw ? 'wd' : ''}"><span class="rk">${p.inRoster ? esc(p.rank ?? '') : '+'}</span><div style="min-width:0"><strong translate="no">${esc(p.ln)}${p.ext ? ' <span class="vh-chip a">Gast</span>' : ''}</strong><small>${av(p)}${p.note ? ' ' + esc(p.note) : ''}${p.inRoster ? '' : ' · Aushilfe'}</small></div>${rt ? '<span></span>' : seg(p)}${gx(p)}
             ${p.withdraw ? `<div class="sb-wd"><span style="flex:2;font-size:13px;color:var(--amber);font-weight:700;align-self:center">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</span><button class="ok" data-acc="${p.id}">Bestätigen</button><button data-dec="${p.id}">Ablehnen</button></div>` : ''}</div>`;
           const order = [...v.people].sort((a, b) => (a.state === 'ja' ? 0 : a.state ? 2 : 1) - (b.state === 'ja' ? 0 : b.state ? 2 : 1) || (a.rank || 99) - (b.rank || 99));
           sh.innerHTML = `<div class="vh-box"><h2 translate="no">${esc(title(v))}</h2><p>${esc(wd(v.date, true))}, ${esc(deD(v.date))}${v.start ? `, ${esc(v.start)} Uhr` : ''} · ${v.home ? 'Heimspiel' : 'Auswärtsspiel'}</p>
             <div class="sb-line" style="margin:0 0 6px;flex-wrap:wrap;justify-content:flex-start;gap:6px"><span class="vh-chip ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="vh-chip ${s.lineupOk ? 'g' : 'a'}">${s.playing} spielen · ${s.reserve} Ersatz</span></div>
             ${order.map(row).join('') || '<p>Noch keine Spieler in der Mannschaft.</p>'}
             ${v.helpers.length ? `<div class="vh-cap">Aushilfe aus anderer Mannschaft</div><div class="sb-two" style="grid-template-columns:1fr auto;align-items:start"><select class="vh-select" id="sbH" style="min-height:46px;font-size:15px">${['<option value="">– wählen –</option>', ...v.helpers.map(h => `<option value="${h.id}">${esc(h.ln)} (${esc(h.team)})</option>`)].join('')}</select><button class="sb-link" id="sbHa" style="min-height:46px">als Ersatz</button></div>` : ''}
-            <div class="vh-cap">Treffpunkt & Hinweis</div>
+            <div class="vh-cap">Gastspieler/in</div>
+            ${addOpen ? `<div class="sb-two"><div><label>Vorname</label><input class="vh-input" id="gxF" autocomplete="off"></div><div><label>Nachname</label><input class="vh-input" id="gxL" autocomplete="off"></div></div>
+              <div class="sb-two"><div><label>Verein (optional)</label><input class="vh-input" id="gxC"></div><div><label>Handy (optional)</label><input class="vh-input" id="gxP" inputmode="tel"></div></div>
+              <div class="vh-row" style="margin-bottom:6px"><button class="no" id="gxX">Abbrechen</button><button class="ok" id="gxOk">Anlegen</button></div>`
+              : '<button class="vh-btn sec wide" id="gxNew">+ Gastspieler/in anlegen</button><p class="vh-lead" style="margin:6px 0 0">Kein Vereinsmitglied (z. B. Spielgemeinschaft). Gäste antworten über ihren persönlichen Link – oder du trägst oben für sie ein.</p>'}
+            ${rt ? '' : `<div class="vh-cap">Treffpunkt & Hinweis</div>
             <div class="sb-two"><div><label>Uhrzeit</label><input class="vh-input" type="time" id="sbMt" value="${esc(v.meet_time || '')}"></div><div><label>Ergebnis</label><input class="vh-input" id="sbR" value="${esc(v.result || '')}" placeholder="z. B. 5:4"></div></div>
             <label>Ort</label><input class="vh-input" id="sbMp" value="${esc(v.meet_place || '')}" placeholder="z. B. Parkplatz Vereinsheim">
             <label>Hinweis an die Mannschaft</label><input class="vh-input" id="sbNo" value="${esc(v.note || '')}" placeholder="optional">
             ${v.tasks ? `<div class="vh-cap">Aufgaben</div>${v.tasks.map(x => `<div class="sb-two" style="grid-template-columns:1fr 1.3fr;align-items:center;margin-bottom:6px"><span style="font-size:14px">${esc(x.label)}</span><select class="vh-select" data-tk="${x.id}" style="min-height:42px;font-size:14.5px;margin:0"><option value="">– offen –</option>${v.people.filter(p => p.state !== 'nein').map(p => `<option value="${p.id}" ${x.member_id === p.id ? 'selected' : ''}>${esc(p.ln)}</option>`).join('')}</select></div>`).join('')}
               <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 6px">${v.taskKinds.map(k => `<button class="sb-link" data-tka="${esc(k.k)}">+ ${esc(k.l)}</button>`).join('')}</div>` : ''}
-            <div class="vh-row" style="margin-top:12px"><button class="no" id="sbSave">Speichern</button><button class="no" id="sbRem" ${s.open ? '' : 'disabled'}>Offene erinnern</button></div>
-            <div class="vh-row" style="margin-top:8px"><button class="no" id="sbX">Schließen</button><button class="ok" id="sbSend" ${s.playing ? '' : 'disabled'}>Aufstellung verschicken</button></div></div>`;
+            <div class="vh-row" style="margin-top:12px"><button class="no" id="sbSave">Speichern</button><button class="no" id="sbRem" ${s.open ? '' : 'disabled'}>Offene erinnern</button></div>`}
+            <div class="vh-row" style="margin-top:8px"><button class="no" id="sbX">Schließen</button>${rt ? '' : `<button class="ok" id="sbSend" ${s.playing ? '' : 'disabled'}>Aufstellung verschicken</button>`}</div></div>`;
           sh.classList.add('show');
           sh.querySelectorAll('[data-role]').forEach(b => { b.onclick = () => act('lineup', { member_id: +b.dataset.p, role: b.dataset.role || null }); });
           sh.querySelectorAll('[data-acc]').forEach(b => { b.onclick = () => act('withdraw', { member_id: +b.dataset.acc, accept: true }, 'Absage bestätigt – bitte Ersatz aufstellen.'); });
@@ -222,6 +241,17 @@
           sh.querySelectorAll('[data-tk]').forEach(x => { x.onchange = () => act('task', { task_id: +x.dataset.tk, member_id: +x.value || null }); });
           sh.querySelectorAll('[data-tka]').forEach(x => { x.onclick = () => act('task', { kind: x.dataset.tka }); });
           if (sh.querySelector('#sbHa')) sh.querySelector('#sbHa').onclick = () => { const h = +sh.querySelector('#sbH').value; if (h) act('lineup', { member_id: h, role: 'ersatz' }); };
+          // Gäste: Verfügbarkeit eintragen, Link teilen (Teilen-Menü des Handys – kein neues Fenster), neu anlegen
+          sh.querySelectorAll('[data-xa]').forEach(b => { b.onclick = () => { const p = v.people.find(x => x.id === +b.dataset.xa); act('avail', { member_id: p.id, state: p.state === b.dataset.st ? null : b.dataset.st }); }; });
+          sh.querySelectorAll('[data-xl]').forEach(b => { b.onclick = () => shareLink(+b.dataset.xl); });
+          if (sh.querySelector('#gxNew')) sh.querySelector('#gxNew').onclick = () => { addOpen = true; paint(); sh.querySelector('#gxF').focus(); };
+          if (sh.querySelector('#gxX')) sh.querySelector('#gxX').onclick = () => { addOpen = false; paint(); };
+          if (sh.querySelector('#gxOk')) sh.querySelector('#gxOk').onclick = async () => {
+            const q = s0 => sh.querySelector(s0).value;
+            try { const r = await ctx.api('lead/extern', 'POST', { game_id: id, first_name: q('#gxF'), last_name: q('#gxL'), club: q('#gxC'), phone: q('#gxP') }); v = r; addOpen = false; paint(); ctx.toast('Angelegt – jetzt den Link teilen.'); shareLink(r.ext_id); }
+            catch (e) { ctx.toast(e.message, true); }
+          };
+          if (!sh.querySelector('#sbSave')) { sh.querySelector('#sbX').onclick = () => { close(); load(); }; return; }
           sh.querySelector('#sbSave').onclick = () => act('info', { meet_time: sh.querySelector('#sbMt').value, meet_place: sh.querySelector('#sbMp').value, note: sh.querySelector('#sbNo').value, result: sh.querySelector('#sbR').value }, 'Gespeichert.');
           sh.querySelector('#sbRem').onclick = async () => { try { const r = await ctx.api('lead/remind', 'POST', { game_id: id }); ctx.toast(`${r.n} Spieler erinnert.`); } catch (e) { ctx.toast(e.message, true); } };
           sh.querySelector('#sbSend').onclick = () => act('send', {}, 'Aufstellung verschickt.');

@@ -497,7 +497,7 @@ app.get('/api/tablet/state', (req, res) => {
   const photos = require('./photos');
   // Profilbild-Kennung gleich mitlesen (photos.version nimmt die Zeile) statt je Mitglied eine eigene Abfrage
   const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin, photo, photo_use
-    FROM members WHERE active = 1 AND deleted = 0 ORDER BY name_key(name, kind)`).all()
+    FROM members WHERE active = 1 AND deleted = 0 AND kind != 'extern' ORDER BY name_key(name, kind)`).all()   // Gastspieler/innen (Spielbetrieb) haben kein Konto
     .map(({ photo, photo_use, ...m }) => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending), ph: m.kind === 'mitglied' ? photos.version({ photo, photo_use }, 'verkauf') : null }));
   // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen) und markieren (Familie)
   const hidden = new Set(), family = new Set();
@@ -655,7 +655,7 @@ app.post('/api/tablet/member', rateLimit('member', 5, 10 * 60000), (req, res) =>
   const name = cleanName((req.body || {}).name, 61);
   if (name.length < 5 || name.split(' ').length < 2) return bad(res, 'Bitte Vor- und Nachnamen eingeben.');
   if (name.length > 60 || /[<>{}]/.test(name)) return bad(res, 'Bitte nur den Namen eingeben.');
-  const same = db.prepare('SELECT * FROM members WHERE lower(name) = lower(?) AND deleted = 0').get(name);
+  const same = db.prepare("SELECT * FROM members WHERE lower(name) = lower(?) AND deleted = 0 AND kind != 'extern'").get(name);
   if (same && same.active) return bad(res, `„${same.name}“ gibt es schon – bitte in der Namensliste suchen.`);
   if (same && !same.active) return bad(res, 'Dieser Name ist gesperrt. Bitte an den Vorstand wenden.');
   const newToday = db.prepare(`SELECT COUNT(*) n FROM members WHERE pending = 1 AND date(created_at) = date('now','localtime')`).get().n;
@@ -1347,7 +1347,7 @@ admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veran
       COALESCE((SELECT SUM(total_cents) FROM bookings b WHERE b.member_id = m.id AND b.kind = 'konto'
         AND b.cancelled_at IS NULL AND b.settled_id IS NULL), 0) AS balance_cents,
       (SELECT COUNT(*) FROM bookings b WHERE b.member_id = m.id AND b.cancelled_at IS NULL) AS bookings
-    FROM members m WHERE m.deleted = 0 ORDER BY m.pending DESC, m.active DESC,
+    FROM members m WHERE m.deleted = 0 AND m.kind != 'extern' ORDER BY m.pending DESC, m.active DESC,
       CASE m.kind WHEN 'mitglied' THEN 1 WHEN 'mannschaft' THEN 2 WHEN 'verein' THEN 3 ELSE 4 END, name_key(m.name, m.kind)`).all();
   res.json({ from, to, seasonStart: seasonStart(), rows: rows.map(r => ({ ...r, last_seen: r.last_seen || null, hasPin: Boolean(r.hasPin), pinLocked: Boolean(r.pinLocked),
     active: Boolean(r.active), pending: Boolean(r.pending), eventOpen_cents: eventOpen(r.id) })) });
@@ -1359,7 +1359,7 @@ admin.post('/members/:id/confirm', need('konten'), (req, res) => {
   if (!m) return bad(res, 'Nicht gefunden.', 404);
   const name = cleanName((req.body || {}).name || m.name);
   if (!name) return bad(res, 'Name fehlt.');
-  const clash = db.prepare('SELECT id FROM members WHERE lower(name) = lower(?) AND id != ? AND deleted = 0').get(name, m.id);
+  const clash = db.prepare("SELECT id FROM members WHERE lower(name) = lower(?) AND id != ? AND deleted = 0 AND kind != 'extern'").get(name, m.id);
   if (clash) return bad(res, 'Diesen Namen gibt es schon. Bitte stattdessen „Zusammenführen“ wählen.');
   db.prepare('UPDATE members SET name = ?, pending = 0 WHERE id = ?').run(name, m.id);
   audit(req.user, 'Neues Mitglied bestätigt', m.name === name ? name : `${m.name} → ${name}`);
@@ -1421,7 +1421,7 @@ admin.post('/members', need('konten'), (req, res) => {
   if (!name) return bad(res, 'Name fehlt.');
   if (!KINDS.includes(kind)) return bad(res, 'Unbekannter Kontotyp.');
   if ((kind === 'verein' || kind === 'gast') && !req.user.perms.includes('einstellungen')) return bad(res, 'Konten der Art „Verein“ oder „Gast“ darf nur anlegen, wer das Recht „Einstellungen“ hat.', 403);
-  if (db.prepare('SELECT 1 FROM members WHERE lower(name) = lower(?) AND deleted = 0').get(name)) return bad(res, 'Diesen Namen gibt es schon.');
+  if (db.prepare("SELECT 1 FROM members WHERE lower(name) = lower(?) AND deleted = 0 AND kind != 'extern'").get(name)) return bad(res, 'Diesen Namen gibt es schon.');
   const pin = String((req.body || {}).pin || '');
   if (kind === 'mannschaft' && !validPin(pin)) return bad(res, 'Mannschaftskonten brauchen eine PIN (4 bis 6 Ziffern), die der Vorstand vergibt.');
   const r = db.prepare(`INSERT INTO members(name, kind, pin_hash, pin_changed_at, pin_changed_by) VALUES (?,?,?,?,?)`)
@@ -1465,7 +1465,7 @@ admin.post('/members/:id/reset-pin', need('konten', 'mitglieder'), (req, res) =>
 admin.post('/members/import', need('konten'), (req, res) => {
   const text = String((req.body || {}).text || '');
   const kind = KINDS.includes((req.body || {}).kind) ? req.body.kind : 'mitglied';
-  const existing = new Set(db.prepare('SELECT lower(name) n FROM members WHERE deleted = 0').all().map(r => r.n));
+  const existing = new Set(db.prepare("SELECT lower(name) n FROM members WHERE deleted = 0 AND kind != 'extern'").all().map(r => r.n));
   const ins = db.prepare('INSERT INTO members(name, kind) VALUES (?,?)');
   let added = 0, skipped = 0;
   db.transaction(() => {
@@ -1554,7 +1554,7 @@ async function readMemberExcel(buf) {
 admin.post('/members/import-excel', need('konten'), express.raw({ type: () => true, limit: '5mb' }), asyncRoute(async (req, res) => {
   let data;
   try { data = await readMemberExcel(req.body); } catch (e) { return bad(res, e.message); }
-  const existing = new Map(db.prepare('SELECT lower(name) n, active FROM members WHERE deleted = 0').all().map(r => [r.n, r.active]));
+  const existing = new Map(db.prepare("SELECT lower(name) n, active FROM members WHERE deleted = 0 AND kind != 'extern'").all().map(r => [r.n, r.active]));
   const seen = new Set();
   const rows = data.rows.map(r => {
     const team = r.kind === 'mannschaft';
