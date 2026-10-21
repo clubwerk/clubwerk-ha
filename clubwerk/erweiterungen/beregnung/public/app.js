@@ -71,6 +71,7 @@
       if (r.status === 403 && d.app) { lock(d.error); return; }
       if (!r.ok) throw new Error(d.error);
       pl = d.plaetze || []; T.prime(pl); draw(); $('stop').classList.toggle('hidden', !pl.length);
+      $('tiles').classList.toggle('offline', !d.online); $('stop').disabled = !d.online;   // ohne Verbindung nichts startbar – wie bei den Türen
       $('dot').className = 'vh-dot ' + (d.online ? 'ok' : 'err');
       $('st').textContent = d.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
       timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);

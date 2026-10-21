@@ -84,7 +84,7 @@
   document.head.appendChild(style);
 
   const kb = n => (n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1).replace('.', ',')} MB`);
-  const deT = s => (s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
+  const deT = s => (s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
   const okMail = m => /^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(m);
   const emptySpec = () => ({ groups: [], members: [], addresses: [], lists: [], payer: true });
 
@@ -246,7 +246,7 @@
     if (!st.spec.lists) st.spec.lists = [];
     const me = O.me;
     body.innerHTML = `<div class="card ml-card" id="mlBox">
-        <div class="ml-line"><b>${esc(T('Von'))}</b><div class="ml-from"><span translate="no"><b>${esc(me.name || '–')}</b> · ${esc(O.club)} &lt;${esc(O.from || '–')}&gt;</span>
+        <div class="ml-line"><b>${esc(T('Von'))}</b><div class="ml-from"><span translate="no"><b>${esc(me.name || '–')}</b> · ${esc(O.club)} ${O.from ? `&lt;${esc(O.from)}&gt;` : `<span class="muted">(${esc(T('noch kein Postfach'))})</span>`}</span>
           <span class="muted">${me.reply_to ? `${esc(T('Antworten an'))} <span translate="no">${esc(me.reply_to)}</span>` : esc(T('Antworten gehen ans Vereinspostfach'))} · <a href="#" id="mlMe">${esc(T('ändern'))}</a></span></div></div>
         <div class="ml-line"><b>${esc(T('An'))}</b><div class="ml-chips" id="mlTo"></div></div>
         <div class="ml-meta"><label class="chk"><input type="checkbox" id="mlPayer" ${st.spec.payer !== false ? 'checked' : ''}> ${esc(T('Ohne eigene Adresse an den Zahler (z. B. Eltern)'))}</label>
@@ -468,7 +468,7 @@
       <p class="muted s">${esc(T('Absender in den Mails'))}: <b translate="no" id="meP"></b></p>
       <label class="f" style="margin-top:6px">${esc(T('Unterschrift'))}</label><div class="card ml-card" style="box-shadow:none;border:1px solid var(--line)"><div id="meEd"></div></div>
       <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="meSave">${esc(T('Speichern'))}</button></div></div>`;
-    const prev = () => { $('meP').textContent = `${$('meN').value.trim() ? $('meN').value.trim() + ' · ' : ''}${O.club} <${O.from || '–'}>`; };
+    const prev = () => { $('meP').textContent = `${$('meN').value.trim() ? $('meN').value.trim() + ' · ' : ''}${O.club}${O.from ? ` <${O.from}>` : ` (${T('noch kein Postfach')})`}`; };
     $('meN').oninput = prev; prev();
     const ed = editor($('meEd'), me.signature || '', { placeholders: false, minimal: true });
     ed.el.style.minHeight = '110px'; ed.el.dataset.ph = T('z. B. Viele Grüße, Anna Schmidt · 2. Vorsitzende · 0171 …');

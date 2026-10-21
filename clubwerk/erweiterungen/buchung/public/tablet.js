@@ -5,6 +5,8 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const BASE = '../../api/tablet/';
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+  /** alle offenen Plätze mit gleicher Öffnungszeit? Dann steht sie nicht unter jedem Spaltenkopf (die Zeitachse zeigt sie) */
+  const sameHours = rs => { const o = rs.filter(r => r.open_today); return o.length > 1 && o.every(r => r.open_from === o[0].open_from && r.open_to === o[0].open_to); };
   const addDay = d => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
   const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const dur = m => (m % 60 ? (m > 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} Std.` : `${m} Min.`) : `${m / 60} Std.`);
@@ -97,7 +99,7 @@
     };
     return `<div class="bk-plan">${cut > from0 ? `<button class="bk-past" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · antippen zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}
       <div class="bk-grid" style="--n:${rs.length};--ph:${PH}px">
-        <div class="hd"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_from}–${r.open_to}</small></div>`).join('')}
+        <div class="hd"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}
         <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PH}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
         ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);
           const bs = p.bookings.filter(b => b.resource_id === r.id && tm(b.end) > from);
@@ -129,11 +131,11 @@
     });
   }
   function pickName(title, next) {
-    dlg(`<h2>Wer bist du?</h2><div class="sub">${esc(title)}</div><input class="q" id="q" placeholder="Namen eingeben" autocomplete="off"><div class="names" id="nm"></div><div class="dlg-btns" style="grid-template-columns:1fr"><button id="x">Abbrechen</button></div>`);
+    dlg(`<h2>Wer bist du?</h2><div class="sub">${esc(title)}</div><input class="q" id="q" placeholder="Namen eingeben" autocomplete="off"><div class="vh-names" id="nm"></div><div class="dlg-btns" style="grid-template-columns:1fr"><button id="x">Abbrechen</button></div>`);
     const draw = () => {   // im Vereinsheim keine Namen vorschlagen – erst nach Eingabe (mind. 2 Buchstaben)
       const q = $('q').value.trim().toLowerCase();
       const hits = q.length < 2 ? [] : state.people.filter(p => p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q)).slice(0, 30);
-      $('nm').innerHTML = q.length < 2 ? '<div class="names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no" class="${p.ph ? 'ph' : ''}">${p.ph ? `<img src="api/tablet/photo/${p.id}?u=buchung&v=${esc(p.ph)}" alt="">` : ''}<span>${esc(p.ln || p.name)}</span></button>`).join('') : '<div class="names-hint">Niemand gefunden.</div>';
+      $('nm').innerHTML = q.length < 2 ? '<div class="vh-names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no" class="${p.ph ? 'ph' : ''}">${p.ph ? `<img src="api/tablet/photo/${p.id}?u=buchung&v=${esc(p.ph)}" alt="">` : ''}<span>${esc(p.ln || p.name)}</span></button>`).join('') : '<div class="vh-names-hint">Niemand gefunden.</div>';
       $('nm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => unlock(state.people.find(p => p.id === +b.dataset.p), title, next); });
     };
     draw(); $('q').oninput = draw; $('x').onclick = closeDlg; setTimeout(() => $('q').focus(), 50);

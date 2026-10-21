@@ -257,6 +257,27 @@ customArticleId();
   })();
 })();
 
+/** Lesbare Änderungsliste fürs Protokoll – nie interne Schlüssel: „Vorlauf (Tage): 7 → 14 · Gastgebühr: 5,00 € → 6,00 €“.
+ *  labels: { schlüssel: 'Bezeichnung' | ['Bezeichnung', 'bool'|'euro'|'text'|'list'] } – Schlüssel ohne Bezeichnung erscheinen nicht. */
+function auditDiff(labels, before = {}, after = {}) {
+  const fmt = (v, kind, k) => {
+    if (v === undefined || v === null || v === '') return '–';
+    if (kind === 'bool' || typeof v === 'boolean') return [true, 1, '1', 'true'].includes(v) ? 'ja' : 'nein';
+    if (kind === 'euro' || /_cents$/.test(k)) return (Number(v) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+    if (kind === 'list' || Array.isArray(v)) return (Array.isArray(v) ? v : String(v).split(',')).filter(x => x !== '').join(', ') || '–';
+    const t = typeof v === 'object' ? JSON.stringify(v) : String(v);
+    return kind === 'text' || t.length > 60 ? null : t;   // lange Texte: nur „geändert“
+  };
+  const out = [];
+  for (const [k, l] of Object.entries(labels)) {
+    if (after[k] === undefined) continue;
+    const [label, kind] = Array.isArray(l) ? l : [l];
+    const a = fmt(before[k], kind, k), b = fmt(after[k], kind, k);
+    if (JSON.stringify(before[k] ?? '') === JSON.stringify(after[k] ?? '') || (a !== null && a === b)) continue;
+    out.push(a === null || b === null ? `${label} geändert` : `${label}: ${a} → ${b}`);
+  }
+  return out.join(' · ');
+}
 function audit(user, action, detail) {
   try {
     db.prepare('INSERT INTO audit_log(username, action, detail) VALUES (?,?,?)')
@@ -540,5 +561,5 @@ function rewireMemberRef(table, column, fromId, intoId) {
   }
 }
 
-module.exports = { deKey, nameKey, splitPersonName, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, customArticleId, memberRefs, rewireMemberRef };
+module.exports = { deKey, nameKey, splitPersonName, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
 loadCategoryOrder();

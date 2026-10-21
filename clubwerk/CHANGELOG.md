@@ -1,5 +1,38 @@
 # Änderungen
 
+## 3.30.2
+
+**Mitgliederverwaltung (1.8.0) – Familien**
+- **Familienmitglieder zahlen über das Oberhaupt:** „Wer zahlt?“ ist für Partner/in und Kinder gesperrt, Zahler ist automatisch das Oberhaupt. Bestehende Familien werden beim Start angeglichen. Einstellbar bleibt nur, wie am Tablet gebucht wird.
+- **Kein eigener Beitrag in der Familie:** „+ Beitrag“ entfällt; Zuordnungen mit eigenem Beitrag werden abgelehnt, die Liste markiert Doppelungen („eigener Beitrag trotz Familienmitgliedschaft“).
+- **Konto & Mandat und Dokumente** zeigen „Familienmitglied von …“ mit Link zum Oberhaupt; Konto und Mandat sind ausgegraut, Beitrittserklärung und SEPA-Mandat werden beim Oberhaupt abgelegt.
+- Abteilungen bleiben möglich – der Zusatzbeitrag wird dem Oberhaupt belastet (steht jetzt so in der Karte).
+- **Mitglieder im Menü** öffnet immer die ganze Liste mit leerer Suche.
+- **Beitragsarten sortierbar** (↑ ↓) – die Reihenfolge gilt auch für Auswahlfelder und die Beitrittserklärung. Alter steht als „ab 19“ statt „19–…“.
+- **„Meine Daten“** (was Mitglieder in der App sehen und ändern dürfen) steht jetzt unter Verein → Mitglieder-App → Meine Daten.
+- Anträge: Erklär-Kacheln entfallen, die Knöpfe stehen rechts in der Reiterzeile.
+
+**Mitglieder-App**
+- **Bereiche ein- und ausschalten:** Unter Mitglieder-App → Bereiche schaltet „In der App“ einen Bereich für alle aus und wieder ein – Freischaltungen bleiben erhalten. „Allen entziehen“ entfällt.
+- Reiterleiste unten immer einzeilig, Meldungen erscheinen unten statt über dem Vereinsnamen, Buchungen im Plan werden nicht mehr abgeschnitten, Spieltitel dürfen zweizeilig sein.
+
+**Beregnung (1.3.1)**
+- Nur der Knopf „Starten“ startet – nicht mehr die ganze Kachel.
+- Ohne Verbindung zur Anlage sind die Kacheln ausgegraut wie bei den Türen.
+- Der Hinweis „Fehler heute“ auf der Übersicht verschwindet, sobald das Protokoll angesehen wurde („Protokoll öffnen“ führt direkt hin).
+- Behoben: Fehlermeldung „Cannot set properties of null“ nach dem Wechsel von der Beregnung zu einer anderen Seite.
+
+**Protokoll**
+- Keine internen Schlüssel mehr: Einstellungen stehen als „Vorlauf (Tage im Voraus): 7 → 14“, Rechte mit ihren Namen, Browser als „Chrome · Windows“. Zeit einzeilig mit vierstelliger Jahreszahl.
+
+**Logo im PDF:** Bei SVG-Logos fehlte das Logo seit 3.25.0 in Beitrittserklärung, Rechnungen und E-Mails. Die Verwaltung erzeugt jetzt ein PNG dafür – nach dem Update einmal die Verwaltung öffnen.
+
+**Einheitliches Design (Prüfung aller 209 Ansichten)**
+- Tablet hochkant: Kopfzeile wird zweizeilig, wenn die Reiter nicht passen – nichts überlappt mehr.
+- „Wer bist du?“ ist überall dieselbe Namensauswahl (Plätze, Helferdienste, Zugang): Hinweis über die volle Breite, Treffer in zwei Spalten, Namen einzeilig. PIN-Feld: „OK“ ist der grüne Hauptknopf.
+- Verwaltung: Knöpfe wie „+ Neues Mitglied“ stehen rechts in der Reiterzeile; Reiter springen beim Wechsel nicht mehr; Untertitel ohne verwaiste Wörter; ein Leerzustand für alle Listen; gesperrte Knöpfe grau und lesbar; Feldbeschriftungen beginnen groß; lange Dialoge behalten Speichern/Abbrechen unten sichtbar; Meldungen verschwinden beim Seitenwechsel.
+- Einzelseiten: Sonderrechte im Raster, Buchungsdialog ohne schwebende Knöpfe, Postfach mit Speichern unten rechts, Türen ohne abgeschnittene Auswahlfelder, Einwilligungstexte mehrzeilig, Übersichtskacheln mit einzeiligen Titeln, „Einstellungen exportieren/importieren“ statt „Funktion …“.
+
 ## 3.30.1
 
 - **Tablet: weitere Tage buchen (Buchungssystem 1.6.0):** Über dem Belegungsplan lassen sich wie in der Mitglieder-App die Tage bis zum Vorlauf wählen und dort buchen – mit denselben Regeln. Nach 2 Minuten ohne Eingabe springt das Tablet wieder auf „heute“.

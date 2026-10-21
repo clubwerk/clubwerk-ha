@@ -33,11 +33,11 @@
 
   function pickName() {
     const busy = new Set(state.running.map(r => r.member_id));
-    dlg(`<h2>Wer bist du?</h2><input class="q" id="q" placeholder="Namen eingeben" autocomplete="off"><div class="names" id="nm"></div><div class="dlg-btns" style="grid-template-columns:1fr"><button id="x">Abbrechen</button></div>`);
+    dlg(`<h2>Wer bist du?</h2><div class="sub">Einsatz beginnen</div><input class="q" id="q" placeholder="Namen eingeben" autocomplete="off"><div class="vh-names" id="nm"></div><div class="dlg-btns" style="grid-template-columns:1fr"><button id="x">Abbrechen</button></div>`);
     const draw = () => {   // im Vereinsheim keine Namen vorschlagen – erst nach Eingabe (mind. 2 Buchstaben)
       const q = $('q').value.trim().toLowerCase();
       const hits = q.length < 2 ? [] : state.people.filter(p => !busy.has(p.id) && (p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q))).slice(0, 30);
-      $('nm').innerHTML = q.length < 2 ? '<div class="names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}">${esc(p.ln || p.name)}</button>`).join('') : '<div class="names-hint">Niemand gefunden.</div>';
+      $('nm').innerHTML = q.length < 2 ? '<div class="vh-names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>' : hits.length ? hits.map(p => `<button data-p="${p.id}" translate="no"><span>${esc(p.ln || p.name)}</span></button>`).join('') : '<div class="vh-names-hint">Niemand gefunden.</div>';
       $('nm').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => unlock(state.people.find(p => p.id === +b.dataset.p), 'Einsatz beginnen', tok => chooseWork(tok)); });
     };
     draw(); $('q').oninput = draw; $('x').onclick = closeDlg; setTimeout(() => $('q').focus(), 50);

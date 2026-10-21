@@ -11,7 +11,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { db, getSetting, setSetting, audit } = require('./db');
+const { db, getSetting, setSetting, audit, auditDiff } = require('./db');
 const auth = require('./auth');
 const APP_VERSION = require('../package.json').version;
 // Verkauf hat eine eigene Modulversion (package.json „verkaufVersion“) – die Add-on-Version zählt alles zusammen
@@ -186,7 +186,7 @@ function load({ app, admin, helpers }) {
       app.use(`/api/tablet/x/${id}`, guard, tablet);       // Passwortschutz der Buchungsseite greift hier mit
       admin.use(`/x/${id}`, guard, adminR);                 // nur angemeldete Admins
       const ctx = {
-        id, meta: p.meta, appVersion: APP_VERSION, tablet, admin: adminR, db, getSetting, setSetting, audit, auth,
+        id, meta: p.meta, appVersion: APP_VERSION, tablet, admin: adminR, db, getSetting, setSetting, audit, auditDiff, auth,
         isActive: () => isActive(id), require: name => require(name), ...helpers,
         setting: (k, d) => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v),
         hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → Postfach)

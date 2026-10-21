@@ -579,8 +579,10 @@ function activate(ctx) {
     if (!st.online) alerts.push({ level: 'r', text: 'Keine Verbindung zur Bewässerungsanlage' + (st.error ? ` (${st.error})` : '') });
     if (c.mode === 'pin' && !getSetting('ext_beregnung_pin_hash', '')) alerts.push({ level: 'a', text: 'Noch keine Vereins-PIN festgelegt.' });
     const day = localTs().slice(0, 10);
-    const errs = db.prepare("SELECT COUNT(*) n FROM irr_log WHERE at >= ? AND action = 'fehler'").get(day).n;
-    if (errs) alerts.push({ level: 'r', text: `${errs} Fehler heute – siehe Protokoll.` });
+    // Fehler zählen nur, bis jemand das Protokoll angesehen hat – danach verschwindet der Hinweis (neue Fehler zeigen ihn wieder)
+    const seen = getSetting('ext_beregnung_err_seen', ''), since = seen > day ? seen : day;
+    const errs = db.prepare("SELECT COUNT(*) n FROM irr_log WHERE at > ? AND action = 'fehler'").get(since === day ? day + ' 00:00:00' : since).n;
+    if (errs) alerts.push({ level: 'r', text: `${errs} ${errs === 1 ? 'neuer Fehler' : 'neue Fehler'} heute.`, link: 'Protokoll öffnen', sec: ['tab_beregnung', 'protokoll'] });
     const runs = db.prepare("SELECT COUNT(*) n FROM irr_log WHERE at >= ? AND action = 'start'").get(day).n;
     const running = st.plaetze.filter(p => p.state !== 'idle').map(p => p.name);
     return { kpis: [{ l: 'Plätze', v: c.plaetze.length }, { l: 'Heute manuell gestartet', v: runs }, { l: 'Läuft gerade', v: running.length ? running.join(', ') : '–' }], alerts };
@@ -642,6 +644,7 @@ function activate(ctx) {
     const cur = localTs().slice(0, 7);
     if (!months.includes(cur)) months.unshift(cur);
     const m = /^\d{4}-\d{2}$/.test(String(req.query.month)) ? String(req.query.month) : cur;
+    setSetting('ext_beregnung_err_seen', localTs());   // Protokoll angesehen: Fehler-Hinweis auf der Übersicht erledigt
     res.json({ month: m, months, rows: monthRows(m) });
   });
   async function logXlsx(m) {

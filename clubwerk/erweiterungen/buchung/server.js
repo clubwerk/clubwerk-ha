@@ -1364,8 +1364,14 @@ function activate(ctx) {
 
   /* ---------- Einstellungen ---------- */
   admin.get('/settings', P, (req, res) => res.json(cfg()));
+  // Bezeichnungen fürs Protokoll (wie in den Einstellungen)
+  const SET_LABELS = { advance_days: 'Vorlauf (Tage im Voraus)', max_open_platz: 'Offene Platzbuchungen je Mitglied', max_open_artikel: 'Offene Gerätebuchungen je Mitglied',
+    cancel_before_min: ['Stornieren bis … vor Beginn (Min.)'], max_partners: 'Mitspieler höchstens', max_guests: 'Gäste höchstens', guest_fee_cents: ['Gastgebühr je Gast', 'euro'], max_waits: 'Warteliste: Einträge je Mitglied',
+    count_partners: ['Mitspieler zählen beim Kontingent', 'bool'], notify_partners: ['Mitspieler bekommen eine E-Mail', 'bool'], show_names: ['Namen in der Belegung sichtbar', 'bool'],
+    show_now: ['„Jetzt auf der Anlage“ in der App', 'bool'], waitlist: ['Warteliste', 'bool'], tablet_booking: ['Am Tablet buchen', 'bool'], allowed_status: ['Wer darf buchen', 'list'], blocked_fees: ['Gesperrte Beitragsarten', 'text'], rules: ['Platzordnung', 'text'] };
   admin.put('/settings', PE, (req, res) => {
     const b = req.body || {};
+    const before = cfg();
     const num = (k, min, max) => { if (b[k] !== undefined) SET(k, Math.max(min, Math.min(max, int(b[k])))); };
     num('advance_days', 0, 365); num('max_open_platz', 0, 50); num('max_open_artikel', 0, 50); num('max_partners', 0, 10); num('max_guests', 0, 10);
     num('guest_fee_cents', 0, 100000); num('cancel_before_min', 0, 7 * 24 * 60); num('max_waits', 1, 20);
@@ -1374,7 +1380,8 @@ function activate(ctx) {
     if (b.blocked_fees !== undefined) SET('blocked_fees', (Array.isArray(b.blocked_fees) ? b.blocked_fees : []).map(Number).filter(Number.isInteger).slice(0, 50).join(','));
     infoCache.clear();
     if (b.rules !== undefined) SET('rules', String(b.rules).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').slice(0, 2000));
-    ctx.audit(req.user, 'Buchungssystem: Einstellungen geändert', Object.keys(b).join(', '));
+    const diff = ctx.auditDiff ? ctx.auditDiff(SET_LABELS, before, cfg()) : '';
+    if (diff) ctx.audit(req.user, 'Buchungssystem: Einstellungen geändert', diff);
     res.json({ ok: true, settings: cfg() });
   });
 

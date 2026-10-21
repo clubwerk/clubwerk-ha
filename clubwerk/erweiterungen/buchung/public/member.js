@@ -14,9 +14,9 @@
       .bkm-plan .zu { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--hover) 0 6px, transparent 6px 12px); pointer-events: none; }
       .bkm-plan .past { position: absolute; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--hover) 70%, transparent); pointer-events: none; }
       .bkm-plan .nowl { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 2; pointer-events: none; }
-      .bkm-blk { position: absolute; left: 3px; right: 3px; border-radius: 9px; padding: 4px 6px; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 3;   /* über der Jetzt-Linie – Namen bleiben lesbar */
+      .bkm-blk { position: absolute; left: 3px; right: 3px; border-radius: 9px; padding: 4px 5px; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 3;   /* über der Jetzt-Linie – Namen bleiben lesbar */
         background: var(--hover); color: var(--ink); border-color: var(--line); }
-      .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bkm-blk > b:first-child { height: auto; max-height: 30px; white-space: normal; overflow-wrap: anywhere; hyphens: auto; -webkit-hyphens: auto; }   /* Buchungsart darf umbrechen statt „Meden…“ */
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
       .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
@@ -103,6 +103,8 @@
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+  /** alle offenen Plätze mit gleicher Öffnungszeit? Dann steht sie nicht unter jedem Spaltenkopf (die Zeitachse zeigt sie) */
+  const sameHours = rs => { const o = rs.filter(r => r.open_today); return o.length > 1 && o.every(r => r.open_from === o[0].open_from && r.open_to === o[0].open_to); };
   const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const wd = (s, o = { weekday: 'short' }) => new Date(s + 'T12:00:00').toLocaleDateString('de-DE', o);
@@ -209,7 +211,8 @@
           // Spieler je eine Zeile („Thorsten S.“) – auf einen Blick, wer gerade spielt; die Uhrzeit nur, wenn noch Platz ist
           const names = b.type === 'buchung' && b.who ? [...b.who.map(wide ? (x => x) : shortName), ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
           const head = b.type === 'sperre' ? (b.title || 'gesperrt') : b.label ? b.label.name : b.type === 'serie' ? (b.title || 'Training') : '';
-          const time = `${b.start}–${b.end}`;
+          const hm = t => (wide || t.slice(3) !== '00' ? t : String(+t.slice(0, 2)));   // schmal: volle Stunden kurz („20–22“), damit die Zeit nicht abgeschnitten wird
+          const time = `${hm(b.start)}–${hm(b.end)}`;
           let ln = head ? [[head, 'b'], ...names.map(x => [x, '']), ...(!names.length && b.title && b.title !== head ? [[b.title, '']] : [])] : names.length ? names.map(x => [x, 'b']) : [[b.mine ? 'Meine Buchung' : 'belegt', 'b']];
           if (ln.length < n) ln.push([time, 'tm']);
           else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
@@ -231,7 +234,7 @@
             ${soon.length ? `<h3>In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>` : ''}</div>`;
         }
         return `${now}<div class="vh-card flush bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-scroll${wide ? ' on' : ''}"><div class="bkm-plan${wide ? ' wide' : ''}" style="--n:${rs.length};--ph:${ph}px">
-          <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu'}</small></div>`).join('')}
+          <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${!r.open_today ? '<small>heute zu</small>' : sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}
           <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * ph}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
           ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);
             const bs = p.bookings.filter(b => b.resource_id === r.id && tm(b.end) > from);

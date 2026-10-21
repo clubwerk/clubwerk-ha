@@ -44,6 +44,8 @@ body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 .vh-tabs button { flex: 1; max-width: 200px; min-height: 52px; border-radius: 14px; font-size: 12.5px; font-weight: 700; color: var(--muted);
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
 .vh-tabs button svg { width: 22px; height: 22px; }
+.vh-tabs button { min-width: 0; padding: 0 4px; } .vh-tabs button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* Beschriftung immer einzeilig */
+@media (max-width: 420px) { .vh-tabs { gap: 2px; padding-left: 6px; padding-right: 6px; } .vh-tabs button { font-size: 11px; padding: 0 1px; letter-spacing: -.01em; } }   /* sechs Bereiche passen ausgeschrieben nebeneinander */
 .vh-tabs button.on { background: var(--brand-soft); color: var(--brand-ink); }
 .vh-tabs button.wlan { opacity: .45; }
 .vh-tabs button.wlan.on { opacity: .7; }
@@ -113,7 +115,8 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-row .ok { background: var(--brand); color: #fff; flex: 1.4; }
 .vh-row .no { background: var(--hover); color: var(--muted); border: 1px solid var(--line); }
 
-.vh-toast { position: fixed; top: calc(16px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%) translateY(-12px); background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-size: 15px; font-weight: 600; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 110; max-width: 90vw; text-align: center; box-shadow: var(--shadow-pop); }
+.vh-toast { position: fixed; bottom: calc(84px + env(safe-area-inset-bottom)); left: 50%; width: max-content; transform: translateX(-50%) translateY(12px);   /* unten über der Reiterleiste – verdeckt nie Kopfzeile oder Vereinsnamen */
+  background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-size: 15px; font-weight: 600; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 110; max-width: min(92vw, 440px); text-align: center; box-shadow: var(--shadow-pop); }
 .vh-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .vh-toast.err { background: var(--red); color: #fff; }
 
@@ -236,7 +239,8 @@ body.embedded .vh-main .tab-head { margin: 0 0 16px; }
 body.embedded .vh-status { width: fit-content; max-width: 100%; margin: 0 0 4px; }
 body.embedded .vh-main h2.sec { margin: 20px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
 body.embedded .vh-empty { padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--line); background: transparent; box-shadow: none; color: var(--muted); font-size: 15px; }
-body.embedded .vh-stop { min-height: 64px; margin-top: 16px; font-size: 18px; }
+body.embedded .vh-stop { min-height: 64px; margin-top: 16px; font-size: 18px; width: calc(50% - 8px); }   /* Aktion halb breit wie die großen Tablet-Kacheln (span 2 von 4) */
+@media (max-width: 900px) { body.embedded .vh-stop { width: 100%; } }
 body.embedded .vh-note { text-align: left; margin-top: 14px; font-size: 15px; }
 body.embedded .vh-sheet .vh-box { max-width: 560px; padding: 24px; border-radius: 20px; border-top: 1px solid var(--line); }
 body.embedded .vh-box h2 { font-size: 22px; } body.embedded .vh-box p { font-size: 16px; }
@@ -252,3 +256,19 @@ body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius:
 .vh-days button.on { background: var(--brand); border-color: var(--brand); color: #fff; } .vh-days button.on span { color: rgba(255,255,255,.85); }
 .vh-days button.nav { width: 44px; font-size: 22px; font-weight: 700; color: var(--muted); }
 .vh-days button:disabled { opacity: .35; cursor: default; }
+
+/* ---------- Namensauswahl „Wer bist du?“ (Tablet: Plätze, Helferdienste, Zugang) – eine Komponente für alle ----------
+   Hinweis über die volle Breite, Treffer in zwei gleich breiten Spalten, Namen einzeilig */
+.vh-names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; max-height: 50vh; overflow: auto; text-align: left; }
+.vh-names button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 56px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer; }
+.vh-names button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vh-names button img { width: 36px; height: 36px; flex: none; border-radius: 50%; object-fit: cover; }
+.vh-names button.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--brand-soft); }
+.vh-names-hint { grid-column: 1 / -1; color: var(--muted); font-size: 15px; line-height: 1.4; padding: 14px 4px; text-align: center; }
+
+/* Anlage nicht erreichbar (Beregnung): Kacheln wie eine nicht erreichbare Tür – ausgegraut, nichts startbar */
+.vh-tiles.offline .vh-tile { opacity: .75; pointer-events: none; }
+.vh-tiles.offline .vh-tile::before { background: var(--hover); } .vh-tiles.offline .vh-tile::after { background: var(--muted); }
+.vh-tiles.offline .vh-tile .vh-name { color: var(--muted); }
+.vh-tiles.offline .vh-tile button, .vh-tiles.offline .vh-tile .vh-pill { background: var(--hover) !important; color: var(--muted) !important; border-color: var(--line) !important; }
+.vh-stop:disabled { opacity: .5; cursor: default; }

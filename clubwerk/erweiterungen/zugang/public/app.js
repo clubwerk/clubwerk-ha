@@ -30,8 +30,8 @@
   function drawNames() {
     const q = $('q').value.trim().toLowerCase();
     const hits = q.length < 2 ? [] : members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 12);
-    $('nm').innerHTML = q.length < 2 ? '<div class="hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>'
-      : hits.length ? hits.map(m => `<button type="button" data-m="${m.id}" class="${who === m.id ? 'on' : ''}" translate="no">${esc(m.name)}</button>`).join('') : '<div class="hint">Kein Treffer.</div>';
+    $('nm').innerHTML = q.length < 2 ? '<div class="vh-names-hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>'
+      : hits.length ? hits.map(m => `<button type="button" data-m="${m.id}" class="${who === m.id ? 'on' : ''}" translate="no"><span>${esc(m.name)}</span></button>`).join('') : '<div class="vh-names-hint">Kein Treffer.</div>';
     $('nm').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { who = +b.dataset.m; drawNames(); $('pin').focus(); }; });
   }
   $('q').oninput = () => { who = null; drawNames(); };

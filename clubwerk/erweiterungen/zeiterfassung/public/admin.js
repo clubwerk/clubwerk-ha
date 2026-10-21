@@ -52,14 +52,14 @@
           ${sel.entries.map(e => `<tr><td>${zday(e.start_at)}</td><td>${zclock(e.start_at)}</td><td>${e.end_at ? zclock(e.end_at) + (e.end_at.slice(0, 10) !== e.start_at.slice(0, 10) ? ' <span class="muted s">(+1)</span>' : '') : '–'}</td>
             <td class="r">${e.end_at ? zhm(e.minutes) : '–'}</td><td>${flagCell(e)}</td><td class="r"><button class="btn small" data-ze="${e.id}">Bearbeiten</button></td></tr>`).join('')}
           <tr class="sum"><td>Summe</td><td></td><td></td><td class="r">${zhm(sel.minutes)}</td><td>→ abgerechnet <b>${zhm(sel.rounded)} Std.</b>${sel.open ? ' <span class="muted s">(offene Einsätze nicht enthalten)</span>' : ''}</td><td></td></tr></table>`
-          : '<p class="muted">Keine Einsätze in diesem Monat.</p>'}</div>`
+          : '<p class="empty">Keine Einsätze in diesem Monat.</p>'}</div>`
         : `<div class="card"><h3>Alle Personen</h3>
         ${r.staff.length ? `<table class="tbl"><tr><th>Name</th><th>Tätigkeit</th><th class="r">Einsätze</th><th class="r">genau</th><th class="r">abgerechnet</th><th class="r">Satz</th><th class="r">Betrag</th><th></th></tr>
           ${r.staff.map(x => `<tr><td><b>${esc(x.name)}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}${x.forgotten ? ' <span class="pill r">nicht ausgestempelt</span>' : x.open ? ' <span class="pill a">gerade da</span>' : ''}</td><td>${esc(x.job || '')}</td>
             <td class="r">${x.count}</td><td class="r">${zhm(x.minutes)}</td><td class="r"><b>${zhm(x.rounded)}</b></td><td class="r">${x.rate_cents != null ? euro(x.rate_cents) : '–'}</td><td class="r">${x.amount_cents != null ? euro(x.amount_cents) : '–'}</td>
             <td class="r"><button class="btn small" data-zs="${x.id}">Einsätze</button></td></tr>`).join('')}
           <tr class="sum"><td>Summe</td><td></td><td class="r">${tot.cnt}</td><td class="r">${zhm(tot.min)}</td><td class="r">${zhm(tot.rnd)}</td><td></td><td class="r">${tot.anyRate ? euro(tot.amt) : '–'}</td><td></td></tr></table>`
-          : '<p class="muted">Noch kein Personal angelegt – oben auf „Personal verwalten“.</p>'}</div>`}
+          : '<p class="empty">Noch kein Personal angelegt – oben auf „Personal verwalten“.</p>'}</div>`}
       <div class="card"><h3>Monatsnachweis per E-Mail</h3>
         <div class="row">
           <label class="f" style="flex:1;min-width:260px">Empfänger (Kassiererin; mehrere mit Komma)<input id="zTo" value="${esc(m.to)}" placeholder="kasse@beispiel.de" autocomplete="email"></label>
@@ -116,7 +116,7 @@
       <p class="muted" style="margin-top:0">Jede Person stempelt am Tablet mit ihrer eigenen PIN. Der Stundensatz ist nur hier in der Verwaltung sichtbar. Eine Änderung gilt ab dem laufenden Monat – abgeschlossene Monate behalten ihren Satz.</p>
       ${list.length ? `<table class="tbl"><tr><th>Name</th><th>Tätigkeit</th><th class="r">Stundensatz</th><th></th></tr>
         ${list.map(x => `<tr class="${x.active ? '' : 'off'}"><td><b>${esc(x.name)}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}</td><td>${esc(x.job || '')}</td>
-          <td class="r">${x.rate_cents != null ? euro(x.rate_cents) : '–'}</td><td class="r"><button class="btn small" data-zp="${x.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="muted">Noch niemand angelegt.</p>'}
+          <td class="r">${x.rate_cents != null ? euro(x.rate_cents) : '–'}</td><td class="r"><button class="btn small" data-zp="${x.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch niemand angelegt.</p>'}
       <div class="btns"><button class="btn" id="zpX">Schließen</button><button class="btn primary" id="zpNew">+ Person anlegen</button></div>`, false);
     $('zpX').onclick = () => { closeDialog(); GK.RENDER.zeit(); };
     $('zpNew').onclick = () => zPersonDialog(null);

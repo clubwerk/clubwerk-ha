@@ -194,10 +194,13 @@ function register(id, info) { modules.set(id, info); }
 /* Öffentliche Teile von Modulen (ohne Anmeldung, z. B. Online-Mitgliedsantrag) */
 const publics = new Map();
 function registerPublic(id, info) { publics.set(id, info); }
+/** Bereiche, die der Verein in der App ausgeschaltet hat (Reiter weg für alle, Freischaltungen bleiben erhalten) */
+const appOff = () => { try { return new Set(JSON.parse(getSetting('app_off', '[]')) || []); } catch (e) { return new Set(); } };
 const appVisible = (m, memberId) => { try { return !(m.hooks && typeof m.hooks.appVisible === 'function') || Boolean(m.hooks.appVisible(memberId)); } catch (e) { return false; } };
 /** Freischaltung für ein Modul: Module mit „alle“ gelten für jedes gekoppelte Handy (außer ausdrücklich gesperrt) */
 function accessFor(memberId, id) {
   const m = modules.get(id);
+  if (appOff().has(id)) return { ok: false, row: null, reason: 'Dieser Bereich ist in der App gerade ausgeschaltet.' };
   if (m && m.open) {
     const r = access.get(memberId, id);
     if (r && r.blocked) return { ok: false, row: r, reason: 'Dieser Bereich ist für dich gesperrt – bitte beim Vorstand melden.' };
@@ -259,7 +262,7 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
   try { options = m.hooks.accessOptions ? m.hooks.accessOptions() : null; } catch (e) { options = null; }
   // Profile nur für eigens freizuschaltende Bereiche; zusätzliche Haken (flags) auch für „für alle“-Bereiche
-  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), away: extAllowed(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
+  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), away: extAllowed(id), on: !appOff().has(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
 });
 
 /* ---------- Port der Mitglieder-App ---------- */
@@ -351,7 +354,8 @@ function startPort({ rateLimit, rateLimitKey }) {
   api.get('/me', (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
-    const sections = w ? activeModules().filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
+    const off = appOff();
+    const sections = w ? activeModules().filter(([id, m]) => !off.has(id)).filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
@@ -801,6 +805,13 @@ function adminRoutes(admin, { bad, need, auth }) {
       if (t && !/^172\.30\.3[23]\.\d{1,3}$/.test(t) && !require('net').isIP(t)) return bad(res, 'Bitte eine IP-Adresse eintragen.');
       setSetting('tunnel_src', t);
       audit(req.user, 'Mitglieder-App: Tunnel-Quelle', t || 'jede Adresse im Add-on-Netz');
+    }
+    if (b.sectionsOn !== undefined) {   // { modul: true|false } – Bereich in der App zeigen (aus: Reiter für alle weg, Freischaltungen bleiben)
+      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Nur mit dem Recht „Einstellungen“.', 403);
+      const off = appOff();
+      for (const [k, v] of Object.entries(b.sectionsOn || {})) if (modules.has(k)) { if (v) off.delete(k); else off.add(k); }
+      setSetting('app_off', JSON.stringify([...off]));
+      audit(req.user, 'Mitglieder-App: Bereiche ein-/ausgeschaltet', Object.entries(b.sectionsOn || {}).filter(([k]) => modules.has(k)).map(([k, v]) => `${(modules.get(k) || {}).label || k}: ${v ? 'an' : 'aus'}`).join(', '));
     }
     if (b.preselect !== undefined) {   // { modul: true|false } – beim Freischalten vorausgewählt
       if (!req.user.perms.includes('einstellungen')) return bad(res, 'Nur mit dem Recht „Einstellungen“.', 403);

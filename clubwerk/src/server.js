@@ -235,7 +235,7 @@ app.get('/manifest.webmanifest', (req, res) => {
 });
 app.get('/api/branding', (req, res) => {
   const l = logoInfo();
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), iconNeeded: Boolean(l) && !iconFresh() });
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
 });
 
 /* Startseite: der eingestellte Start-Reiter (Einstellungen → Leiste am Tablet) erscheint direkt unter „/“ – ohne Umweg über eine andere Adresse */
@@ -1024,6 +1024,8 @@ admin.delete('/bank-accounts/:id', (req, res) => {
   if (used.length) return bad(res, `Das Konto wird noch verwendet: ${used.join(', ')}. Stattdessen auf „inaktiv“ setzen.`);
   bank.remove(cur.id); audit(req.user, 'Bankkonto gelöscht', cur.name); res.json({ ok: true });
 });
+/** Rechte fürs Protokoll mit ihren Namen („Lieferungen & Belege hochladen“), nie als interne Schlüssel */
+const permNames = list => (list || []).map(k => auth.PERMS[k] || k).join(', ') || 'keine';
 admin.post('/users', need('benutzer'), (req, res) => {
   const { username, name, password, role, perms } = req.body || {};
   const b = req.body || {};
@@ -1040,7 +1042,7 @@ admin.post('/users', need('benutzer'), (req, res) => {
   const roles = roleIds(b.roles) || [], depts = deptIds(b.departments) || [];
   const id = auth.createUser({ username: un, name: nm, password: String(password),
     role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [], roles, departments: depts, memberId });
-  audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roles.map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).join(', '), Array.isArray(perms) ? perms.join(', ') : ''].filter(Boolean).join(' · ')})`);
+  audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roles.map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).join(', '), Array.isArray(perms) ? permNames(perms) : ''].filter(Boolean).join(' · ')})`);
   res.json({ id, username: un });
 });
 
@@ -1056,7 +1058,7 @@ admin.post('/roles', need('benutzer'), (req, res) => {
   const r = roleInput(req.body || {}); if (r.error) return bad(res, r.error);
   if (db.prepare('SELECT 1 FROM admin_roles WHERE name = ?').get(r.v.name)) return bad(res, 'Diese Rolle gibt es schon.');
   const id = Number(db.prepare('INSERT INTO admin_roles(name, description, perms, dept_scope, sort) VALUES (?,?,?,?,?)').run(r.v.name, r.v.description, r.v.perms, r.v.dept_scope, r.v.sort).lastInsertRowid);
-  audit(req.user, 'Rolle angelegt', `${r.v.name}: ${jarr(r.v.perms).join(', ')}`);
+  audit(req.user, 'Rolle angelegt', `${r.v.name}: ${permNames(jarr(r.v.perms))}`);
   res.json({ id });
 });
 admin.put('/roles/:id', need('benutzer'), (req, res) => {
@@ -1065,7 +1067,7 @@ admin.put('/roles/:id', need('benutzer'), (req, res) => {
   if (db.prepare('SELECT 1 FROM admin_roles WHERE name = ? AND id != ?').get(r.v.name, cur.id)) return bad(res, 'Diese Rolle gibt es schon.');
   db.prepare('UPDATE admin_roles SET name = ?, description = ?, perms = ?, dept_scope = ?, sort = ? WHERE id = ?').run(r.v.name, r.v.description, r.v.perms, r.v.dept_scope, r.v.sort, cur.id);
   for (const u of db.prepare('SELECT id, roles FROM admin_users').all()) if (jarr(u.roles).map(Number).includes(cur.id)) auth.dropUserSessions(u.id);   // gilt sofort
-  audit(req.user, 'Rolle geändert', `${r.v.name}: ${jarr(r.v.perms).join(', ')}${r.v.dept_scope ? ' (nur eigene Abteilung)' : ''}`);
+  audit(req.user, 'Rolle geändert', `${r.v.name}: ${permNames(jarr(r.v.perms))}${r.v.dept_scope ? ' (nur eigene Abteilung)' : ''}`);
   res.json({ ok: true });
 });
 admin.delete('/roles/:id', need('benutzer'), (req, res) => {
@@ -1270,8 +1272,16 @@ admin.post('/logo-icon', need('einstellungen'), express.raw({ type: () => true, 
   setSetting('club_icon_ver', iconKey());
   res.json({ ok: true });
 });
+/* Logo als schlichtes PNG (vom Browser aus dem SVG gezeichnet) – für PDFs und E-Mails; gilt für genau diesen Logo-Stand */
+admin.post('/logo-png', need('einstellungen'), express.raw({ type: () => true, limit: '2mb' }), (req, res) => {
+  const b = req.body;
+  if (!b || b.length < 100 || b.readUInt32BE(0) !== 0x89504e47) return bad(res, 'Kein PNG.');
+  setSetting('club_logo_png', b.toString('base64'));
+  setSetting('club_logo_png_ver', getSetting('club_logo_ver', 'std'));
+  res.json({ ok: true });
+});
 admin.delete('/logo', need('einstellungen'), (req, res) => {
-  db.prepare("DELETE FROM settings WHERE key IN ('club_logo','club_logo_type','club_logo_ver','club_icon','club_icon_ver')").run();
+  db.prepare("DELETE FROM settings WHERE key IN ('club_logo','club_logo_type','club_logo_ver','club_icon','club_icon_ver','club_logo_png','club_logo_png_ver')").run();
   audit(req.user, 'Vereinslogo entfernt');
   res.json({ ok: true, logo: logoUrl() });
 });
@@ -3284,7 +3294,7 @@ admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
   const keys = new Set(tabletItems().map(x => x.key));
   const order = (Array.isArray((req.body || {}).order) ? req.body.order : []).map(String).filter(k => keys.has(k)).slice(0, 40);
   setSetting('tablet_order', JSON.stringify(order));
-  audit(req.user, 'Reihenfolge am Tablet geändert', order.join(', '));
+  { const lab = new Map(tabletItems().map(x => [x.key, x.label || x.name || x.key])); audit(req.user, 'Reihenfolge am Tablet geändert', order.map(k => lab.get(k) || k).join(', ')); }
   const start = (req.body || {}).start;
   if (start !== undefined && keys.has(String(start)) && String(start) !== getSetting('tablet_start', '')) {
     setSetting('tablet_start', String(start));

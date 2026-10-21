@@ -101,9 +101,9 @@
     const q = new URLSearchParams({ status: f.status, ...(f.year ? { year: f.year } : {}) });
     const rows = await api('invoices?' + q);
     const years = []; for (let y = m.year; y >= m.year - 5; y--) years.push(y);
-    el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Offen</div><div class="v">${euro(k.open.c)}</div><div class="s muted">${k.open.n} Rechnung(en)</div></div>
-        <div class="kpi"><div class="l">Überfällig</div><div class="v ${k.overdue.n ? 'neg' : ''}">${euro(k.overdue.c)}</div><div class="s muted">${k.overdue.n} Rechnung(en)</div></div>
-        <div class="kpi"><div class="l">Bezahlt ${m.year}</div><div class="v">${euro(k.paidYear.c)}</div><div class="s muted">${k.paidYear.n} Rechnung(en)</div></div></div>
+    el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Offen</div><div class="v">${euro(k.open.c)}</div><div class="s muted">${k.open.n} ${k.open.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div>
+        <div class="kpi"><div class="l">Überfällig</div><div class="v ${k.overdue.n ? 'neg' : ''}">${euro(k.overdue.c)}</div><div class="s muted">${k.overdue.n} ${k.overdue.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div>
+        <div class="kpi"><div class="l">Bezahlt ${m.year}</div><div class="v">${euro(k.paidYear.c)}</div><div class="s muted">${k.paidYear.n} ${k.paidYear.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div></div>
       <div class="filterbar"><div class="seg" id="biS">${[['offen', 'Offen'], ['ueber', 'Überfällig'], ['bezahlt', 'Bezahlt'], ['storniert', 'Storniert'], ['alle', 'Alle']].map(([k, l]) => `<button type="button" data-f="${k}" class="${f.status === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <label class="f bh-yr">Jahr<select id="biY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label>
         <span style="flex:1"></span><button class="btn" id="biYear">Jahresrechnungen …</button><button class="btn primary" id="biNew">+ Neue Rechnung</button></div>
@@ -113,7 +113,7 @@
           <td class="hm nw">${deDate(r.date)}</td><td class="hm nw ${r.overdue ? 'neg' : ''}">${deDate(r.due_date)}</td><td class="r"><b>${euro(r.gross)}</b></td>
           <td>${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' && r.paid_at ? `<span class="bh-sub">${deDate(r.paid_at)}</span>` : ''}</td>
           <td><div class="bh-acts"><a class="btn small" href="${BASE}invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a><button class="btn small" data-inv="${r.id}">…</button></div></td></tr>`).join('')}</table>`
-        : `<p class="muted" style="padding:24px;margin:0;text-align:center">Keine Rechnungen${f.status !== 'alle' ? ' mit diesem Status' : ''}.</p>`}</div>`;
+        : `<p class="empty">Keine Rechnungen${f.status !== 'alle' ? ' mit diesem Status' : ''}.</p>`}</div>`;
     $('biS').querySelectorAll('button').forEach(b => { b.onclick = () => { f.status = b.dataset.f; showInvoices(el).catch(fail); }; });
     $('biY').onchange = () => { f.year = val('biY'); showInvoices(el).catch(fail); };
     const reload = async () => { await loadMeta(); await showInvoices(el); if (GK.refreshBadges) GK.refreshBadges(); };
@@ -139,7 +139,7 @@
       </div>
       <h3 style="margin:18px 0 6px">Positionen</h3><div id="biItems"></div>
       <label class="f" style="margin-top:10px">Hinweis auf der Rechnung (optional)<textarea id="biNote" rows="2" placeholder="z. B. Vielen Dank für die Unterstützung unserer Jugendabteilung!"></textarea></label>
-      <label class="chk" style="margin-top:10px"><input type="checkbox" id="biSend" ${m.mail ? '' : 'disabled'}> gleich per E-Mail an den Empfänger senden${m.mail ? '' : ' <span class="muted s">(kein Postfach eingerichtet)</span>'}</label>
+      <label class="chk" style="margin-top:10px"><input type="checkbox" id="biSend" ${m.mail ? '' : 'disabled'}> Gleich per E-Mail an den Empfänger senden${m.mail ? '' : ' <span class="muted s">(kein Postfach eingerichtet)</span>'}</label>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="biOk">Rechnung erstellen</button></div>`, true);
     let ed = null;
     const fillRec = () => {
@@ -241,13 +241,13 @@
         ${y.rows.length ? `<table class="tbl" style="margin-top:12px"><tr><th style="width:36px"><input type="checkbox" id="yrAll" ${todo.length ? 'checked' : 'disabled'} aria-label="alle"></th><th>Firma</th><th class="r">Betrag</th><th></th></tr>
           ${y.rows.map(r => `<tr class="${r.done ? 'off' : ''}"><td><input type="checkbox" data-yr="${r.id}" ${r.done ? 'disabled' : 'checked'} aria-label="${esc(r.name)}"></td><td><b>${esc(r.name)}</b><span class="bh-sub">${esc(r.items.map(i => i.text).join(', '))}</span></td>
             <td class="r">${euro(r.gross)}</td><td class="r">${r.done ? `<span class="pill g">${esc(r.done)}</span>` : r.email ? '' : '<span class="muted s">ohne E-Mail</span>'}</td></tr>`).join('')}</table>`
-          : '<p class="muted">Noch keine Firma mit Jahrespositionen angelegt.</p>'}
-        <label class="chk" style="margin-top:12px"><input type="checkbox" id="yrSend" ${m.mail ? '' : 'disabled'}> gleich per E-Mail verschicken (wo eine Adresse hinterlegt ist)</label>
-        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="yrOk" ${todo.length ? '' : 'disabled'}>${todo.length} Rechnung(en) erstellen</button></div>`, true);
+          : '<p class="empty">Noch keine Firma mit Jahrespositionen angelegt.</p>'}
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="yrSend" ${m.mail ? '' : 'disabled'}> Gleich per E-Mail verschicken (wo eine Adresse hinterlegt ist)</label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="yrOk" ${todo.length ? '' : 'disabled'}>${todo.length} ${todo.length === 1 ? 'Rechnung' : 'Rechnungen'} erstellen</button></div>`, true);
       $('c').onclick = closeDialog;
       $('yrY').onchange = () => { year = +val('yrY'); paint().catch(fail); };
       const boxes = () => [...$('dialog').querySelectorAll('[data-yr]:not(:disabled)')];
-      const count = () => { const n = boxes().filter(b => b.checked).length; $('yrOk').textContent = `${n} Rechnung(en) erstellen`; $('yrOk').disabled = !n; };
+      const count = () => { const n = boxes().filter(b => b.checked).length; $('yrOk').textContent = `${n} ${n === 1 ? 'Rechnung' : 'Rechnungen'} erstellen`; $('yrOk').disabled = !n; };
       if ($('yrAll')) $('yrAll').onchange = () => { boxes().forEach(b => { b.checked = $('yrAll').checked; }); count(); };
       boxes().forEach(b => { b.onchange = count; });
       $('yrOk').onclick = () => GK.busy($('yrOk'), async () => {
@@ -257,7 +257,7 @@
           const r = await api('yearly', 'POST', { year, date: val('yrD'), period: val('yrP'), partner_ids: ids, send: $('yrSend').checked });
           closeDialog();
           const sent = r.created.filter(x => x.sent).length;
-          toast(`${r.created.length} Rechnung(en) erstellt${sent ? `, ${sent} verschickt` : ''}${r.skipped.length ? ` – übersprungen: ${r.skipped.join(', ')}` : ''}.`, r.skipped.length > 0);
+          toast(`${r.created.length} ${r.created.length === 1 ? 'Rechnung' : 'Rechnungen'} erstellt${sent ? `, ${sent} verschickt` : ''}${r.skipped.length ? ` – übersprungen: ${r.skipped.join(', ')}` : ''}.`, r.skipped.length > 0);
           after();
         } catch (e) { fail(e); $('yrOk').disabled = false; }
       });
@@ -276,7 +276,7 @@
         ${rows.map(p => `<tr class="${p.active ? '' : 'off'}" data-q="${esc((p.name + ' ' + (p.city || '') + ' ' + (p.contact || '')).toLowerCase())}"><td><b>${esc(p.name)}</b><span class="bh-sub">${esc([p.zip, p.city].filter(Boolean).join(' ') || '–')}${p.active ? '' : ' · inaktiv'}</span></td>
           <td class="hm">${esc(p.contact || '–')}${p.email ? `<span class="bh-sub">${esc(p.email)}</span>` : ''}</td>
           <td class="r">${p.items.length ? euro(yearSum(p)) : '<span class="muted s">–</span>'}</td><td class="r hm">${p.open ? euro(p.open) : '<span class="muted s">–</span>'}</td>
-          <td class="hm">${p.lastYearly ? `Jahresrechnung ${p.lastYearly}` : p.invoices ? `${p.invoices} Rechnung(en)` : '<span class="muted s">–</span>'}</td>
+          <td class="hm">${p.lastYearly ? `Jahresrechnung ${p.lastYearly}` : p.invoices ? `${p.invoices} ${p.invoices === 1 ? 'Rechnung' : 'Rechnungen'}` : '<span class="muted s">–</span>'}</td>
           <td><div class="bh-acts"><button class="btn small" data-bill="${p.id}" ${p.active ? '' : 'disabled'}>Rechnung</button><button class="btn small" data-ed="${p.id}">Bearbeiten</button></div></td></tr>`).join('')}</table>`
         : '<p class="muted" style="padding:24px;margin:0;text-align:center">Noch keine Firmen angelegt. Lege deine Sponsoren einmal an – mit den jährlichen Positionen, dann sind die Rechnungen jedes Jahr mit zwei Klicks erstellt.</p>'}</div>`;
     const reload = async () => { await loadMeta(); await showPartners(el); };
@@ -305,7 +305,7 @@
       <h3 style="margin:18px 0 2px">Jahrespositionen</h3><p class="muted s" style="margin:0 0 6px">Was diese Firma jedes Jahr bekommt – z. B. Bandenwerbung, Trikotwerbung, Anzeige im Vereinsheft. Leer lassen, wenn nur einzeln abgerechnet wird.</p>
       <div id="pItems"></div>
       <label class="f" style="margin-top:10px">Notiz (intern)<textarea id="pNo" rows="2">${v('note')}</textarea></label>
-      ${p ? `<label class="chk" style="margin-top:10px"><input type="checkbox" id="pA" ${p.active ? 'checked' : ''}> aktiv (inaktive Firmen bekommen keine Jahresrechnung)</label>` : ''}
+      ${p ? `<label class="chk" style="margin-top:10px"><input type="checkbox" id="pA" ${p.active ? 'checked' : ''}> Aktiv (inaktive Firmen bekommen keine Jahresrechnung)</label>` : ''}
       <div class="btns">${p ? '<button class="btn ghost danger" id="pDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pOk">Speichern</button></div>`, true);
     const ed = itemsEditor($('pItems'), p ? p.items : [], {});
     if (!(p && p.items.length)) { /* leerer Editor: eine leere Zeile, wird beim Speichern ignoriert */ }
@@ -326,7 +326,7 @@
     const rows = await api('donations?' + new URLSearchParams(f.year ? { year: f.year } : {}));
     const years = []; for (let y = m.year; y >= m.year - 5; y--) years.push(y);
     const act = rows.filter(r => r.status === 'aktiv');
-    el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Bestätigt ${m.year}</div><div class="v">${euro(m.kpis.donations.c)}</div><div class="s muted">${m.kpis.donations.n} Quittung(en)</div></div>
+    el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Bestätigt ${m.year}</div><div class="v">${euro(m.kpis.donations.c)}</div><div class="s muted">${m.kpis.donations.n} ${m.kpis.donations.n === 1 ? 'Quittung' : 'Quittungen'}</div></div>
         <div class="kpi"><div class="l">Geldspenden${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind === 'geld').reduce((s, r) => s + r.cents, 0))}</div></div>
         <div class="kpi"><div class="l">Sachspenden &amp; Verzicht${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind !== 'geld').reduce((s, r) => s + r.cents, 0))}</div></div></div>
       <div class="filterbar"><label class="f bh-yr">Jahr<select id="bdY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label>
@@ -336,7 +336,7 @@
           <td><b>${esc(r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' · storniert' : ''}</span></td>
           <td class="hm">${esc(DKIND[r.kind])}</td><td class="hm nw">${deDate(r.date)}</td><td class="r"><b>${euro(r.cents)}</b></td>
           <td><div class="bh-acts"><a class="btn small" href="${BASE}donations/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>${r.status === 'aktiv' ? `<button class="btn small" data-dsend="${r.id}" ${r.donor.email && m.mail ? '' : 'disabled'}>Senden</button><button class="btn small ghost" data-dx="${r.id}">Storno</button>` : ''}</div></td></tr>`).join('')}</table>`
-        : '<p class="muted" style="padding:24px;margin:0;text-align:center">Noch keine Spendenquittungen.</p>'}</div>`;
+        : '<p class="empty">Noch keine Spendenquittungen.</p>'}</div>`;
     const reload = async () => { await loadMeta(); await showDonations(el); };
     $('bdY').onchange = () => { f.year = val('bdY'); showDonations(el).catch(fail); };
     $('bdNew').onclick = () => donationDialog(reload);
@@ -406,7 +406,7 @@
           <label class="f w2">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div>${save('absender')}</div>
       <div class="card" data-set="bank"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 200px;min-width:0">Bankkonten</h3><button class="btn" id="bsBank">Bankkonten verwalten …</button></div>
         <p class="muted s" style="margin-top:0">Die Konten werden zentral unter Einstellungen → Bankkonten gepflegt. Auf der Rechnung steht das Konto der Abteilung, sonst das Standardkonto – im Rechnungsdialog änderbar.</p>
-        ${st.meta.accounts.length ? `<table class="tbl">${st.meta.accounts.map(a => `<tr><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (st.meta.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch kein Bankkonto angelegt.</p>'}</div>
+        ${st.meta.accounts.length ? `<table class="tbl">${st.meta.accounts.map(a => `<tr><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (st.meta.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Bankkonto angelegt.</p>'}</div>
       <div class="card" data-set="rechnungen"><h3>Rechnungen</h3>
         <div class="bh-grid">${inp('tax_no', 'Steuernummer')}${inp('vat_id', 'USt-IdNr.', { ph: 'optional' })}
           <label class="f">Umsatzsteuer (Vorgabe)<select id="bs_vat_default">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', s.vat_default)).join('')}</select></label>

@@ -412,8 +412,13 @@ function activate(ctx) {
     stop(e, 'offen'); res.json({ ok: true });
   });
 
+  const SET_LABELS = { default_minutes: 'Minuten je Mitglied und Jahr', rate_cents: ['Stundensatz für fehlende Stunden', 'euro'], min_age: 'Ab Alter', max_age: 'Bis Alter', year_mode: 'Abrechnungsjahr',
+    start_year: 'Abrechnen ab Jahr', round: 'Am Tablet runden auf (Minuten)', remind_date: 'Erinnerung an fehlende Stunden', text: ['Hinweis für Mitglieder', 'text'], contact: 'Kontakt für kurzfristige Absagen', notify: 'Absagen per E-Mail an',
+    pool_family: ['Familien gemeinsam zählen', 'bool'], exempt_passive: ['Passive und Ehrenmitglieder befreit', 'bool'], prorate: ['Bei Ein- oder Austritt anteilig', 'bool'], tablet_auto: ['Tablet-Stunden sofort bestätigt', 'bool'],
+    app_report: ['Stunden in der App melden', 'bool'], remind_events: ['Helfer am Vortag erinnern', 'bool'] };
   admin.put('/settings', P, (req, res) => {
     const b = req.body || {};
+    const before = cfg();
     const num = (k, lo, hi) => { if (b[k] !== undefined) SET(k, Math.max(lo, Math.min(hi, int(b[k])))); };
     num('default_minutes', 0, 20000); num('start_year', 2000, 2100); num('min_age', 0, 99); num('max_age', 0, 120); num('rate_cents', 0, 100000); num('round', 1, 60);
     for (const k of ['pool_family', 'exempt_passive', 'prorate', 'tablet_auto', 'app_report', 'remind_events']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
@@ -422,7 +427,7 @@ function activate(ctx) {
     if (b.text !== undefined) SET('text', txt(b.text, 600));
     if (b.contact !== undefined) SET('contact', txt(b.contact, 120));
     if (b.notify !== undefined) { const l = String(b.notify || '').split(/[,;\s]+/).filter(Boolean); if (l.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return bad(res, 'Bitte gültige E-Mail-Adressen eintragen (mehrere mit Komma).'); SET('notify', l.slice(0, 5).join(', ')); }
-    ctx.audit(req.user, 'Arbeitseinsatz: Einstellungen geändert', Object.keys(b).join(', '));
+    { const diff = ctx.auditDiff ? ctx.auditDiff(SET_LABELS, before, cfg()) : ''; if (diff) ctx.audit(req.user, 'Helferdienste: Einstellungen geändert', diff); }
     res.json({ ok: true, cfg: cfg() });
   });
 

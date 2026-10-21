@@ -12,6 +12,8 @@
   const val = id => ($(id) ? $(id).value.trim() : undefined);
   const pill = ([c, t]) => `<span class="pill ${c}">${esc(t)}</span>`;
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+  /** alle offenen Plätze mit gleicher Öffnungszeit? Dann steht sie nicht unter jedem Spaltenkopf (die Zeitachse zeigt sie) */
+  const sameHours = rs => { const o = rs.filter(r => r.open_today); return o.length > 1 && o.every(r => r.open_from === o[0].open_from && r.open_to === o[0].open_to); };
   const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
   const dow = s => { const d = new Date(s + 'T12:00:00Z').getUTCDay(); return d === 0 ? 7 : d; };
@@ -41,12 +43,13 @@
     const s = document.createElement('style'); s.id = 'bkStyle';
     s.textContent = `
       .bk-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
+      .bk-rights { display: grid; gap: 6px; padding-top: 4px; } .bk-sub { margin: 20px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
       .bk-grid .w2 { grid-column: span 2; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
       /* Buchungsfenster der Verwaltung */
       .bd-form .bd-w3 { grid-column: span 3; }
       .bd-time { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; } .bd-time > span { color: var(--muted); }
       .bd-sec { margin: 6px 0 -6px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-      .bd-links { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-top: -6px; } .bd-links .bk-chips:empty { display: none; } .bd-btns { display: flex; gap: 8px; margin-left: auto; }
+      .bd-links { display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap; } .bd-links .bk-chips:empty { display: none; } .bd-btns { display: flex; gap: 8px; }   /* Zusatzangaben links bündig mit den Feldern – nicht schwebend rechts */
       .bd-links .btn.on { background: var(--hover); }
       .bd-fold { padding: 12px 14px; border-radius: 12px; background: var(--hover); margin-top: -6px; }
       .bd-gn { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding-bottom: 4px; }
@@ -242,13 +245,14 @@
     if (week) {
       st.res = st.res || (st.meta.resources.find(r => r.active) || {}).id;
       wk = await api(`week?from=${monday(st.day)}&resource=${st.res || ''}`);
-      if (!wk.resource) { el.innerHTML = '<div class="card"><p class="muted" style="margin:0">Noch keine Plätze angelegt – unter „Plätze &amp; Geräte“ anlegen.</p></div>'; return; }
+      if (!wk.resource) { el.innerHTML = '<div class="card"><p class="empty">Noch keine Plätze angelegt – unter „Plätze &amp; Geräte“ anlegen.</p></div>'; return; }
       const r = wk.resource;
       cols = wk.days.map(d => ({ key: d.date, date: d.date, r, open: d.open, head: new Date(d.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }), sub: d.date === td ? 'heute' : '' }));
       bookingsOf = c => wk.bookings.filter(b => b.date === c.date);
     } else {
       p = await api('day?date=' + st.day);
-      cols = p.resources.filter(r => r.active).map(r => ({ key: r.id, date: st.day, r, open: r.open_today, head: r.name, sub: r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity}×` : ''}` : (r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu') }));   // wie am Tablet und in der App: Öffnungszeit unter dem Namen
+      const act = p.resources.filter(r => r.active), same = sameHours(act.filter(r => r.kind !== 'artikel'));
+      cols = act.map(r => ({ key: r.id, date: st.day, r, open: r.open_today, head: r.name, sub: r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity}×` : ''}` : !r.open_today ? 'heute zu' : same ? '' : `${r.open_from}–${r.open_to}` }));   // wie am Tablet und in der App: Öffnungszeit nur, wenn sie sich unterscheidet
       bookingsOf = c => p.bookings.filter(b => b.resource_id === c.r.id);
     }
     const lo = Math.min(...cols.map(c => tm(c.r.open_from)), 8 * 60), hi = Math.max(...cols.map(c => tm(c.r.open_to)), 20 * 60);
@@ -270,15 +274,16 @@
     const nowM = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
     const all = week ? wk.bookings : p.bookings;
     const used = new Map(); all.forEach(b => { if (b.label) used.set(b.label.name, b.label.color); });
+    const bkTools = `${can('buchung_serien') ? '<button class="btn" id="bkLock">+ Sperre</button>' : ''}${can('buchung_buchen') ? '<button class="btn primary" id="bkNew">+ Buchung</button>' : ''}`;   // rechts in der Reiterzeile
     el.innerHTML = `<div class="bk-bar"><div class="seg" id="bkV" style="width:fit-content"><button type="button" data-v="tag" class="${week ? '' : 'on'}">Tag</button><button type="button" data-v="woche" class="${week ? 'on' : ''}">Woche</button></div>
         ${week ? `<select id="bkRes" class="bk-sel" data-nodirty>${st.meta.resources.filter(r => r.active).map(r => opt(r.id, r.name, st.res)).join('')}</select>` : ''}
         ${week ? `<span class="day"><button class="btn" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn" id="bkNext" aria-label="vor">›</button></span>`
           : `<div class="vh-days bk-days" id="bkDays"><button class="nav" id="bkPrev" aria-label="Woche zurück">‹</button>${Array.from({ length: 7 }, (_, i) => addDays(monday(st.day), i)).map(d => `<button data-d="${d}" class="${d === st.day ? 'on' : ''}"><span>${d === td ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}.</b></button>`).join('')}<button class="nav" id="bkNext" aria-label="Woche vor">›</button></div>
              <input type="date" id="bkDay" class="bk-pick" value="${st.day}" data-nodirty title="Datum wählen" aria-label="Datum wählen">`}
         <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : monday(st.day) !== monday(td)) ? '' : 'display:none'}">Heute</button><b class="ttl">${esc(title)}</b>
-        <span class="bk-act">${can('buchung_serien') ? '<button class="btn" id="bkLock">+ Sperre</button>' : ''}${can('buchung_buchen') ? '<button class="btn primary" id="bkNew">+ Buchung</button>' : ''}</span></div>
+        ${GK.tabTools ? '' : `<span class="bk-act">${bkTools}</span>`}</div>
       ${cols.length ? `<div class="card bk-wrap">${isToday && cut > from0 ? `<button type="button" class="bk-pastbar" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · klicken zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}<div class="bk-plan" style="--n:${cols.length}">
-        <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}<small>${esc(c.sub || '')}</small></div>`).join('')}
+        <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</div>`).join('')}
         <div class="times" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PX}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
         ${cols.map(c => { const r = c.r; const L = lanes(bookingsOf(c).filter(b => tm(b.end) > from)); const o = tm(r.open_from), cl = tm(r.open_to);
           return `<div class="col" data-c="${esc(c.key)}" style="height:${H}px;background-position:0 ${TOP}px">
@@ -292,7 +297,7 @@
           </div>`; }).join('')}
       </div></div>
       <div class="bk-legend">${[...used].map(([n, c]) => `<span><i style="background:${c}"></i>${esc(n)}</span>`).join('')}<span><i style="background:var(--brand-soft);border:1px solid var(--brand)"></i>Buchung</span><span><i style="background:var(--red-soft);border:1px solid var(--red)"></i>Sperre</span><span><i style="background:repeating-linear-gradient(135deg, var(--hover) 0 3px, transparent 3px 6px);border:1px solid var(--line)"></i>nicht buchbar</span></div>`
-        : '<div class="card"><p class="muted" style="margin:0">Noch keine Plätze angelegt – unter „Plätze &amp; Geräte“ anlegen.</p></div>'}`;
+        : '<div class="card"><p class="empty">Noch keine Plätze angelegt – unter „Plätze &amp; Geräte“ anlegen.</p></div>'}`;
     const again = () => showPlan(el).catch(fail);
     const go = d => { st.day = d; again(); };
     el.querySelectorAll('#bkV [data-v]').forEach(b => { b.onclick = () => { st.view = b.dataset.v; again(); }; });
@@ -302,6 +307,7 @@
     $('bkDay').onchange = () => { if (val('bkDay')) go(val('bkDay')); };
     if ($('bkToday')) $('bkToday').onclick = () => go(td);
     if ($('bkPast')) $('bkPast').onclick = () => { st.pastOpen = !st.pastOpen; again(); };
+    if (GK.tabTools && !GK.tabTools(bkTools, el.querySelector('.bk-bar'))) el.querySelector('.bk-bar').insertAdjacentHTML('beforeend', `<span class="bk-act">${bkTools}</span>`);
     if ($('bkNew')) $('bkNew').onclick = () => bookDialog({ date: st.day, resource_id: week ? st.res : undefined }, again);
     if ($('bkLock')) $('bkLock').onclick = () => bookDialog({ date: st.day, type: 'sperre', resource_id: week ? st.res : undefined }, again);
     if (can('buchung_buchen') || can('buchung_serien')) el.querySelectorAll('.col[data-c]').forEach(c => { c.onclick = e => {
@@ -334,11 +340,11 @@
         <div class="bd-sec wall bd-b">Wer spielt</div>
         <label class="f bd-b w2">Mitglied (bucht)<select id="bdM">${personOpts(ed ? ed.member_id : '', '– Verein (Buchungsart oder Titel) –')}</select></label>
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
-        <div class="wall bd-links"><span class="bk-chips bd-b" id="bdPc"></span><span class="bd-btns"><button type="button" class="btn small ghost bd-b" id="bdGt">+ Gäste</button>${!ed && can('buchung_serien') ? '<button type="button" class="btn small ghost" id="bdRt">Wiederholen …</button>' : ''}</span></div>
+        <div class="wall bd-links"><span class="bk-chips bd-b" id="bdPc"></span><span class="bd-btns"><button type="button" class="btn small bd-b" id="bdGt">+ Gäste</button>${!ed && can('buchung_serien') ? '<button type="button" class="btn small" id="bdRt">Wiederholen …</button>' : ''}</span></div>
         <div class="bd-b wall bd-fold" id="bdGw" hidden><div class="bk-grid" style="--c:4">
           <label class="f w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"></label>
           <div class="f w2 bd-gn"><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label><span class="muted s">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span></div></div></div>
-        ${!ed && can('buchung_serien') ? `<div class="wall bd-fold" id="bdRw" hidden><div class="bk-grid" style="--c:4"><label class="f" id="bdRL">wiederholen<select id="bdRf">${opt('', 'nicht wiederholen')}${repeatOpts('')}</select></label><label class="f" id="bdRU">bis<input id="bdRep" type="date" disabled></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">Belegte Tage werden ausgelassen.</div></div></div>` : ''}
+        ${!ed && can('buchung_serien') ? `<div class="wall bd-fold" id="bdRw" hidden><div class="bk-grid" style="--c:4"><label class="f" id="bdRL">Wiederholen<select id="bdRf">${opt('', 'nicht wiederholen')}${repeatOpts('')}</select></label><label class="f" id="bdRU">Bis<input id="bdRep" type="date" disabled></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">Belegte Tage werden ausgelassen.</div></div></div>` : ''}
         <label class="f wall" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}" placeholder="nur für die Verwaltung sichtbar"></label>
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
@@ -421,7 +427,7 @@
       <p class="muted" style="margin-top:0">${esc(b.title || '')} · ab ${deDate(b.date)} · <b>${esc(SCOPE_TXT[scope])}</b></p>
       <div class="bk-grid" style="--c:4">
         <label class="f w2">Platz / Gerät<select id="seR">${rs.map(r => opt(r.id, r.name, b.resource_id)).join('')}</select></label>
-        <label class="f">von<input id="seS" type="time" step="900" value="${b.start}"></label><label class="f">bis<input id="seE" type="time" step="900" value="${b.end}"></label>
+        <label class="f">Von<input id="seS" type="time" step="900" value="${b.start}"></label><label class="f">Bis<input id="seE" type="time" step="900" value="${b.end}"></label>
         <label class="f w2">${b.type === 'sperre' ? 'Grund' : 'Titel'}<input id="seT" value="${esc(b.title || '')}"></label>
         <label class="f">Buchungsart<select id="seL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name, b.label_id || (b.label && (m.labels.find(x => x.name === b.label.name) || {}).id))).join('')}</select></label>
         <label class="f">Notiz (intern)<input id="seN" value="${esc(b.note || '')}"></label>
@@ -455,7 +461,7 @@
         <div>${x.active && can('buchung_serien') ? `<button class="btn small" data-end="${x.id}">${x.type === 'sperre' ? 'Aufheben' : 'Beenden'}</button>` : ''}</div></div>`;
     const act = list.filter(x => x.active), old = list.filter(x => !x.active);
     el.innerHTML = `${can('buchung_serien') ? '<div class="toolbar"><button class="btn primary" id="srNew">+ Serie</button><button class="btn" id="srLock">+ Sperre über Zeitraum</button><button class="btn" id="srImp">Spielplan importieren</button></div>' : ''}
-      <div class="card"><h3>Aktiv</h3>${act.length ? act.map(row).join('') : '<p class="muted">Keine. Zum Beispiel „Training Herren 40“ jeden Dienstag 18–20 Uhr auf Platz 1 und 2.</p>'}</div>
+      <div class="card"><h3>Aktiv</h3>${act.length ? act.map(row).join('') : '<p class="empty">Keine. Zum Beispiel „Training Herren 40“ jeden Dienstag 18–20 Uhr auf Platz 1 und 2.</p>'}</div>
       ${old.length ? `<div class="card"><h3>Beendet</h3>${old.slice(0, 30).map(row).join('')}</div>` : ''}`;
     const again = () => showSeries(el).catch(fail);
     if ($('srNew')) $('srNew').onclick = () => seriesDialog('serie', again);
@@ -537,11 +543,11 @@
       <div class="bk-grid" style="--c:4">
         <label class="f">Buchungsart<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
         <label class="f">${type === 'sperre' ? 'Grund' : 'Titel'}<input id="sxT" placeholder="${type === 'sperre' ? 'optional, z. B. Winterpause' : 'optional – leer = Buchungsart oder Mitglied'}"></label>
-        <label class="f">vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
+        <label class="f">Vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">Bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
         <div class="f bkf wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
         <label class="f w2">Wiederholung<select id="sxRf">${repeatOpts(type === 'sperre' ? 'daily:1' : 'weekly:1')}</select></label>
         <div class="f bkf w2" id="sxWD"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}"> ${WD[d]}</label>`).join('')}</div></div>
-        <label class="f">von<input id="sxS" type="time" value="${type === 'sperre' ? '00:00' : '18:00'}" step="900"></label><label class="f">bis<input id="sxE" type="time" value="${type === 'sperre' ? '23:59' : '20:00'}" step="900"></label>
+        <label class="f">Von<input id="sxS" type="time" value="${type === 'sperre' ? '00:00' : '18:00'}" step="900"></label><label class="f">Bis<input id="sxE" type="time" value="${type === 'sperre' ? '23:59' : '20:00'}" step="900"></label>
         ${type === 'serie' ? `<label class="f w2">Mitglied / Trainer (optional)<select id="sxM">${personOpts('')}</select></label>` : ''}
         <label class="f ${type === 'serie' ? 'w2' : 'wall'}">Notiz (intern)<input id="sxN"></label>
       </div>
@@ -582,7 +588,7 @@
         ${rows.map(l => `<tr class="${l.active ? '' : 'off'}"><td><i class="bk-dot" style="background:${l.color}"></i><b>${esc(l.name)}</b>${l.active ? '' : ' <span class="muted s">· inaktiv</span>'}</td>
           <td class="hm">${esc(useText(l))}${l.free_rules ? ' ' + pill(['b', 'Vereinstermin']) : ''}</td>
           <td class="r hm"><span class="pill g">${l.used}</span></td><td class="r">${can('buchung_einstellungen') ? `<button class="btn small" data-le="${l.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>`
-        : '<p class="muted" style="padding:24px;margin:0">Keine Buchungsarten gefunden.</p>';
+        : '<p class="empty">Keine Buchungsarten gefunden.</p>';
       $('lbList').querySelectorAll('[data-le]').forEach(b => { b.onclick = () => labelDialog(list.find(l => l.id === +b.dataset.le), again); });
     };
     el.innerHTML = `<div class="filterbar"><label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="lbQ" placeholder="Buchungsart suchen" value="${esc(st.lq || '')}" data-nodirty></label>
@@ -596,9 +602,9 @@
   }
   const PALETTE = ['#e53935', '#d81b60', '#8e24aa', '#5e35b1', '#3949ab', '#1e88e5', '#039be5', '#00897b', '#43a047', '#7cb342', '#c0ca33', '#fdd835', '#ffb300', '#fb8c00', '#f4511e', '#6d4c41', '#757575', '#546e7a', '#1b5e20', '#0d1b4f'];
   /** Kurzbeschreibung „Wer darf buchen?“ */
-  const useText = l => (l.use_mode === 'alle' ? 'alle Mitglieder (auch in der App)' : l.use_mode === 'auswahl'
-    ? [...(l.use_functions || []), (l.use_members || []).length ? `${l.use_members.length} ${l.use_members.length === 1 ? 'Person' : 'Personen'}` : ''].filter(Boolean).join(', ') || 'niemand ausgewählt'
-    : 'nur Verwaltung');
+  const useText = l => (l.use_mode === 'alle' ? 'Alle Mitglieder (auch in der App)' : l.use_mode === 'auswahl'
+    ? [...(l.use_functions || []), (l.use_members || []).length ? `${l.use_members.length} ${l.use_members.length === 1 ? 'Person' : 'Personen'}` : ''].filter(Boolean).join(', ') || 'Niemand ausgewählt'
+    : 'Nur Verwaltung');
   function labelDialog(l, after) {
     const m = st.meta;
     let color = l ? l.color : PALETTE[5], mode = l ? l.use_mode : 'verwaltung';
@@ -613,11 +619,11 @@
           <div class="seg" id="lbU" style="width:fit-content">${[['verwaltung', 'Nur Verwaltung'], ['alle', 'Alle Mitglieder'], ['auswahl', 'Bestimmte Ämter & Personen']].map(([k, t]) => `<button type="button" data-u="${k}">${t}</button>`).join('')}</div>
           <p class="muted s" id="lbUh"></p>
           <div id="lbUa" class="bk-grid" style="--c:2">
-            <div class="f bkf"><span>Ämter (aus der Mitgliederverwaltung)</span>${allFns.length ? `<div class="bk-chips">${allFns.map(f => `<label><input type="checkbox" data-fn="${esc(f)}" ${fns.has(f) ? 'checked' : ''}>${esc(f)}</label>`).join('')}</div>` : '<p class="muted s">Noch keine Ämter – beim Mitglied unter „Ehrungen &amp; Ämter“ eintragen, z. B. „Trainer“ oder „Mannschaftsführer Herren 40“.</p>'}</div>
+            <div class="f bkf"><span>Ämter (aus der Mitgliederverwaltung)</span>${allFns.length ? `<div class="bk-chips">${allFns.map(f => `<label><input type="checkbox" data-fn="${esc(f)}" ${fns.has(f) ? 'checked' : ''}>${esc(f)}</label>`).join('')}</div>` : '<p class="empty">Noch keine Ämter – beim Mitglied unter „Ehrungen &amp; Ämter“ eintragen, z. B. „Trainer“ oder „Mannschaftsführer Herren 40“.</p>'}</div>
             <label class="f">Einzelne Mitglieder<select id="lbM"><option value="">+ Mitglied hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select><span class="bk-chips" id="lbMc"></span></label>
           </div></div></div>
         <label class="chk wall"><input type="checkbox" id="lbF" ${l && l.free_rules ? 'checked' : ''}> Vereinstermin: ohne Höchstdauer, Kontingent, Vorlauf und Gebühren (z. B. Training, Medenspiel)</label>
-        ${l ? `<label class="chk wall"><input type="checkbox" id="lbA" ${l.active ? 'checked' : ''}> aktiv (inaktive Buchungsarten sind nicht mehr wählbar, bestehende Termine behalten sie)</label>` : ''}</div>
+        ${l ? `<label class="chk wall"><input type="checkbox" id="lbA" ${l.active ? 'checked' : ''}> Aktiv (inaktive Buchungsarten sind nicht mehr wählbar, bestehende Termine behalten sie)</label>` : ''}</div>
       <div class="btns">${l ? '<button class="btn ghost danger" id="lbDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="lbOk">Speichern</button></div>`, true);
     const HINT = { verwaltung: 'Nur in der Verwaltung wählbar (Recht „für Mitglieder buchen“) – Mitglieder sehen es in der App nicht.',
       alle: 'Jedes Mitglied, das buchen darf, kann die Buchungsart in der App wählen (z. B. „Clubmeisterschaft“).',
@@ -679,7 +685,7 @@
         <select id="lgS" class="bk-sel" data-nodirty>${opt('termin', 'nach Termin', g.sort)}${opt('eingetragen', 'nach Eintragung', g.sort)}</select>
         <span style="flex:1"></span><span class="muted s">${d.total.toLocaleString('de-DE')} ${d.total === 1 ? 'Eintrag' : 'Einträge'}${d.total > shown.length ? ` · ${shown.length} angezeigt` : ''}</span>
         <a class="btn" href="${BASE}log.csv?${qs}" download><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m0 0-4-4m4 4 4-4M5 20h14"/></svg>CSV</a></div>
-      <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-lg"><tr><th>Spieler / Buchungsart</th><th>Platz</th><th>Termin</th><th>Status</th><th class="r">Eingetragen</th></tr>${rows}</table>${d.rows.length > shown.length ? '<div style="display:flex;justify-content:center;padding:16px 0"><button class="btn" id="lgMore">Weitere anzeigen</button></div>' : ''}` : '<p class="muted" style="padding:24px 0;margin:0">Keine Einträge für diese Auswahl.</p>'}</div>`;
+      <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-lg"><tr><th>Spieler / Buchungsart</th><th>Platz</th><th>Termin</th><th>Status</th><th class="r">Eingetragen</th></tr>${rows}</table>${d.rows.length > shown.length ? '<div style="display:flex;justify-content:center;padding:16px 0"><button class="btn" id="lgMore">Weitere anzeigen</button></div>' : ''}` : '<p class="empty">Keine Einträge für diese Auswahl.</p>'}</div>`;
     if ($('lgMore')) $('lgMore').onclick = () => { g.n = (g.n || 200) + 300; const y0 = window.scrollY; showLog(el).then(() => window.scrollTo(0, y0)).catch(fail); };
     const again = () => showLog(el).catch(fail);
     el.querySelectorAll('#lgF [data-f]').forEach(b => { b.onclick = () => { g.f = b.dataset.f; g.n = 200; again(); }; });
@@ -753,9 +759,9 @@
         ${hl('Ø Dauer · Ø Vorlauf', c.count ? `${Math.round(c.minutes / c.count)} Min.` : '–', d.lead != null ? `gebucht ${d.lead < 1 ? `${Math.round(d.lead * 24)} Std.` : `${d.lead.toLocaleString('de-DE', { maximumFractionDigits: 1 })} Tage`} vorher` : '&nbsp;')}</div>
       <div class="bk-two">
         <div class="card"><h3>Auslastung je Platz</h3>${d.perRes.length ? `<div class="bk-res">${d.perRes.map(r => `<div class="bk-rr"><b>${esc(r.name)}</b><div class="bk-meter"><i style="width:${Math.min(100, r.rate * 100)}%"></i><em style="left:${Math.min(100, r.prevRate * 100)}%" title="${d.year - 1}: ${pct(r.prevRate)}"></em></div><span class="r">${pct(r.rate)}</span><span class="r muted">${hrs(r.minutes)} Std.</span></div>`).join('')}</div>
-          <p class="muted s" style="margin:12px 0 0">Gebuchte Zeit im Verhältnis zur buchbaren Zeit (Öffnungszeiten ohne Sperren). Strich = ${d.year - 1}.</p>` : '<p class="muted">Keine Plätze.</p>'}
+          <p class="muted s" style="margin:12px 0 0">Gebuchte Zeit im Verhältnis zur buchbaren Zeit (Öffnungszeiten ohne Sperren). Strich = ${d.year - 1}.</p>` : '<p class="empty">Keine Plätze.</p>'}
           <div class="bk-mini"><div><span>Spieler</span><b>${c.players}</b>${delta(c.players, p.players)}</div><div><span>mit Gästen</span><b>${c.guests}</b>${delta(c.guests, p.guests)}</div><div><span>mit Buchungsart</span><b>${c.labeled}</b>${delta(c.labeled, p.labeled)}</div></div></div>
-        <div class="card"><h3>Verwendung nach Art &amp; Buchungsart</h3>${d.kinds.length ? donut(d.kinds.map(k => ({ name: k.name, v: k.minutes, color: k.color || 'var(--brand)', sub: `${hrs(k.minutes)} Std. · ${k.count}×` })), `${hrs(d.kinds.reduce((x, k) => x + k.minutes, 0))}`, 'Stunden') : '<p class="muted">Noch keine Buchungen in diesem Jahr.</p>'}</div>
+        <div class="card"><h3>Verwendung nach Art &amp; Buchungsart</h3>${d.kinds.length ? donut(d.kinds.map(k => ({ name: k.name, v: k.minutes, color: k.color || 'var(--brand)', sub: `${hrs(k.minutes)} Std. · ${k.count}×` })), `${hrs(d.kinds.reduce((x, k) => x + k.minutes, 0))}`, 'Stunden') : '<p class="empty">Noch keine Buchungen in diesem Jahr.</p>'}</div>
       </div>
       <div class="card"><div class="bk-ch"><h3>Jahr ${d.year} · ${hrs(c.minutes)} gebuchte Stunden</h3>${legend()}</div>
         <div class="bk-heatwrap"><div class="bk-heat" style="--w:${weeks.length}">
@@ -766,7 +772,7 @@
       <div class="bk-two">
         <div class="card"><div class="bk-ch"><h3>Gebuchte Stunden je Monat</h3><span class="bk-leg"><i style="background:var(--brand)"></i>${d.year}<i style="background:var(--line);margin-left:10px"></i>${d.year - 1}</span></div>
           <div class="bk-bars">${MON.map((m, i) => `<div class="bk-bar1" title="${m} ${d.year}: ${hrs(c.month[i])} Std. · ${d.year - 1}: ${hrs(p.month[i])} Std."><div class="bk-bpair"><i class="p" style="height:${p.month[i] / mmax * 100}%"></i><i style="height:${c.month[i] / mmax * 100}%"></i></div><span>${m.slice(0, 3)}</span></div>`).join('')}</div></div>
-        <div class="card"><h3>Wer spielt am meisten?</h3>${d.top.length ? `<ol class="bk-top">${d.top.map((t, i) => `<li><span class="n">${i + 1}</span><b>${esc(t.name)}</b><div class="bk-meter"><i style="width:${t.minutes / d.top[0].minutes * 100}%"></i></div><span class="r">${hrs(t.minutes)} Std.</span></li>`).join('')}</ol>` : '<p class="muted">Noch keine Buchungen in diesem Jahr.</p>'}</div>
+        <div class="card"><h3>Wer spielt am meisten?</h3>${d.top.length ? `<ol class="bk-top">${d.top.map((t, i) => `<li><span class="n">${i + 1}</span><b>${esc(t.name)}</b><div class="bk-meter"><i style="width:${t.minutes / d.top[0].minutes * 100}%"></i></div><span class="r">${hrs(t.minutes)} Std.</span></li>`).join('')}</ol>` : '<p class="empty">Noch keine Buchungen in diesem Jahr.</p>'}</div>
       </div>
       <div class="card"><div class="bk-ch"><h3>Wann wird gespielt?</h3>${legend()}</div>
         ${hours.length ? `<div class="bk-heatwrap"><div class="bk-bub" style="--h:${hours.length}"><span></span>${hours.map(h => `<span class="hh">${hhmm(h * 60)}</span>`).join('')}
@@ -794,7 +800,7 @@
       <div class="bk-kpis" style="grid-template-columns:repeat(3, minmax(0, 1fr))">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${g.year}`, d.totals.all, 'b')}</div>
       <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-tbl bk-fees"><tr><th>Mitglied</th><th class="hm">Datum</th><th class="hm">Platz</th><th class="hm">Text</th><th class="r">Betrag</th><th>Status</th></tr>
         ${d.rows.map(x => `<tr data-b="${x.id}" data-d="${x.date}"><td><b>${esc(x.member)}</b><span class="muted s mo">${deDate(x.date)} · ${x.start}–${x.end}</span></td><td class="hm nw">${deDate(x.date)}<span class="muted s" style="display:block">${x.start}–${x.end}</span></td>
-          <td class="hm">${esc(x.resource)}</td><td class="hm">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? `<span class="muted s" style="display:block">${deDate(x.paid_at)}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="padding:24px 0;margin:0">Keine Gebühren in dieser Auswahl.</p>'}</div>
+          <td class="hm">${esc(x.resource)}</td><td class="hm">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? `<span class="muted s" style="display:block">${deDate(x.paid_at)}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Gebühren in dieser Auswahl.</p>'}</div>
       <p class="muted s">Gast- und Platzgebühren entstehen beim Buchen und werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung → Finanzen). Dort werden sie als bezahlt gebucht oder mit dem Einzug abgerechnet. Mitglieder sehen ihre offenen Gebühren in der App, wenn unter „Mitglieder-App“ der Haken „Gebühren zeigen“ gesetzt ist.</p>`;
     const again = () => showFees(el).catch(fail);
     el.querySelectorAll('#feF [data-f]').forEach(b => { b.onclick = () => { g.status = b.dataset.f; again(); }; });
@@ -810,7 +816,7 @@
         ${list.map((r, i) => `<tr class="${r.active ? '' : 'off'}"><td><b>${esc(r.name)}</b><span class="muted s" style="display:block">${r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity} Stück` : ''}` : esc(r.area || 'Platz')}${r.department_id ? ` · Abteilung ${esc((st.meta.departments.find(x => x.id === r.department_id) || {}).name || '')}${r.outsiders === 'gesperrt' ? ' (nur Abteilung)' : ` (andere ${euro(r.outsider_fee_cents)})`}` : ''}${r.kind === 'platz' && r.partner_required ? ' · Mitspieler Pflicht' : ''}${r.kind === 'platz' && r.solo_label ? ` · allein: ${esc(r.solo_label)}` : ''}${r.kind === 'artikel' && r.as_partner ? ' · als Mitspieler buchbar' : ''}${r.active ? '' : ' · inaktiv'}</span></td>
           <td class="hm">${esc(r.days === '1234567' ? 'täglich' : r.days.split('').map(d => WD[+d]).join(', '))} · ${r.open_from}–${r.open_to}</td><td class="hm">${dur(r.slot_min)} · max. ${dur(r.max_min)}</td>
           <td class="hm">${r.guest_fee_cents == null ? `<span class="muted s">Standard (${euro(st.meta.settings.guest_fee_cents)})</span>` : euro(r.guest_fee_cents)}</td><td class="r hm">${r.future || '–'}</td>
-          <td class="r" style="white-space:nowrap">${can('buchung_einstellungen') ? `<span class="bk-ord"><button class="btn small" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button><button class="btn small" data-mv="${i}:1" ${i === list.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span><button class="btn small" data-ed="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted" style="padding:24px;margin:0">Noch nichts angelegt.</p>'}</div>
+          <td class="r" style="white-space:nowrap">${can('buchung_einstellungen') ? `<span class="bk-ord"><button class="btn small" data-mv="${i}:-1" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button><button class="btn small" data-mv="${i}:1" ${i === list.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span><button class="btn small" data-ed="${r.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch nichts angelegt.</p>'}</div>
       ${list.length > 1 && can('buchung_einstellungen') ? '<p class="muted s" style="margin:10px 2px 0">Mit ↑ ↓ legst du die Reihenfolge fest – so stehen Plätze und Geräte im Belegungsplan, in der Mitglieder-App und am Tablet.</p>' : ''}`;
     const again = async () => { await loadMeta(); showResources(el).catch(fail); };
     if ($('rsNew')) $('rsNew').onclick = () => resDialog({ kind: 'platz' }, again);
@@ -831,19 +837,19 @@
         <label class="f">Art<select id="rsK">${opt('platz', 'Platz', d.kind)}${opt('artikel', 'Gerät / Artikel', d.kind)}</select></label>
         <label class="f">Bereich (Reiter)<input id="rsA" value="${esc(d.area || '')}" placeholder="${art ? 'Geräte' : 'z. B. Tennis, Padel'}"></label>
         <div class="f bkf wall"><span>buchbar an</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(x => `<label><input type="checkbox" data-d="${x}" ${String(d.days).includes(String(x)) ? 'checked' : ''}> ${WD[x]}</label>`).join('')}</div></div>
-        <label class="f">von<input id="rsF" type="time" value="${d.open_from}" step="900"></label><label class="f">bis<input id="rsT" type="time" value="${d.open_to === '24:00' ? '23:59' : d.open_to}" step="900"></label>
+        <label class="f">Von<input id="rsF" type="time" value="${d.open_from}" step="900"></label><label class="f">Bis<input id="rsT" type="time" value="${d.open_to === '24:00' ? '23:59' : d.open_to}" step="900"></label>
         <label class="f">Zeitraster<select id="rsS">${[15, 30, 45, 60, 90, 120].map(x => opt(x, dur(x), d.slot_min)).join('')}</select></label>
         <label class="f">Höchstdauer am Stück<select id="rsM">${[15, 30, 45, 60, 90, 120, 180, 240, 360, 480].map(x => opt(x, dur(x), d.max_min)).join('')}</select></label>
         <label class="f">Anzahl (gleichzeitig buchbar)<input id="rsQ" inputmode="numeric" value="${d.quantity}"></label>
         <label class="f">Gastgebühr je Gast<input id="rsG" inputmode="decimal" value="${d.guest_fee_cents == null ? '' : centsToInput(d.guest_fee_cents)}" placeholder="Standard ${centsToInput(st.meta.settings.guest_fee_cents)}"></label>
         <label class="f rs-pl">Mitspieler<select id="rsPR">${opt(0, 'optional', d.partner_required ? 1 : 0)}${opt(1, 'Pflicht', d.partner_required ? 1 : 0)}</select></label>
         <label class="f rs-pl">Allein trainieren erlaubt, Bezeichnung<input id="rsSL" maxlength="30" value="${esc(d.solo_label || '')}" placeholder="z. B. Ballwand – leer = nein"></label>
-        <label class="chk rs-ar w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rsAP" ${d.as_partner ? 'checked' : ''}> als Mitspieler buchbar (z. B. Ballmaschine – auf allen Plätzen)</label>
+        <label class="chk rs-ar w2" style="align-self:end;min-height:40px"><input type="checkbox" id="rsAP" ${d.as_partner ? 'checked' : ''}> Als Mitspieler buchbar (z. B. Ballmaschine – auf allen Plätzen)</label>
         <label class="f ${st.meta.departments.length ? 'w2' : 'wall'}">Hinweis für Mitglieder<input id="rsH" value="${esc(d.note || '')}" placeholder="z. B. Sand – nach dem Spiel abziehen"></label>
         ${st.meta.departments.length ? `<label class="f w2">Gehört der Abteilung<select id="rsD">${opt('', '– ganzer Verein –', d.department_id)}${st.meta.departments.map(x => opt(x.id, x.name, d.department_id)).join('')}</select></label>
         <label class="f rs-dep">Andere Mitglieder<select id="rsO">${opt('gebuehr', 'buchen mit Platzgebühr', d.outsiders)}${opt('gesperrt', 'dürfen nicht buchen', d.outsiders)}</select></label>
         <label class="f rs-dep">Platzgebühr je Person<input id="rsOF" inputmode="decimal" value="${centsToInput(d.outsider_fee_cents != null ? d.outsider_fee_cents : 500)}"></label>` : ''}
-        ${isNew ? '' : `<label class="chk wall"><input type="checkbox" id="rsAc" ${d.active ? 'checked' : ''}> aktiv (inaktive Plätze sind nicht buchbar und nicht im Plan)</label>`}
+        ${isNew ? '' : `<label class="chk wall"><input type="checkbox" id="rsAc" ${d.active ? 'checked' : ''}> Aktiv (inaktive Plätze sind nicht buchbar und nicht im Plan)</label>`}
       </div>
       <div class="btns">${isNew ? '' : '<button class="btn ghost danger" id="rsDel">Löschen</button><span style="flex:1"></span>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rsOk">Speichern</button></div>`, true);
     const depPaint = () => { if (!$('rsD')) return; const on = Boolean(val('rsD')); $('dialog').querySelectorAll('.rs-dep').forEach(x => { x.style.visibility = on ? '' : 'hidden'; }); if ($('rsOF')) $('rsOF').disabled = val('rsO') === 'gesperrt'; };
@@ -897,12 +903,13 @@
         ${save('bsOkOrd')}</div>
       <div class="card" id="bkRights" data-set="app" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr), für andere Mitglieder buchen (z. B. für ein älteres Mitglied ohne Handy – Kontingent, Regeln und Gebühren gelten dann für dieses Mitglied) oder mit bestimmten bzw. allen Buchungsarten buchen – zusätzlich zu den Rechten an der Buchungsart selbst.</p>
         <div class="bk-grid" style="--c:4"><label class="f w2">Mitglied<select id="rtM"><option value="">– Mitglied wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
-          <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="rtS"> darf Serien anlegen</label>
-          <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="rtF"> darf für andere buchen</label>
-          <label class="chk wall"><input type="checkbox" id="rtA"> darf mit allen Buchungsarten buchen <span class="muted s">(auch mit künftig angelegten)</span></label>
+          <div class="f w2"><span>Rechte</span><div class="bk-rights">
+            <label class="chk"><input type="checkbox" id="rtS"> Darf Serien anlegen</label>
+            <label class="chk"><input type="checkbox" id="rtF"> Darf für andere buchen</label>
+            <label class="chk"><input type="checkbox" id="rtA"> Darf mit allen Buchungsarten buchen <span class="muted s">(auch mit künftig angelegten)</span></label></div></div>
           <div class="f bkf wall" id="rtLabs"><span>darf mit diesen Buchungsarten buchen</span><div class="bk-chips">${st.meta.labels.filter(l => l.active).map(l => `<label><input type="checkbox" data-rl="${l.id}"><i class="bk-dot" style="background:${l.color};margin-right:0"></i>${esc(l.name)}</label>`).join('')}</div></div></div>
         <div class="btns"><button class="btn primary" id="rtOk">Sonderrechte speichern</button></div>
-        <div id="rtList" style="margin-top:8px"></div></div>
+        <h4 class="bk-sub">Mitglieder mit Sonderrechten</h4><div id="rtList"></div></div>
       <div class="card" data-set="app"><h3>Von unterwegs buchen</h3>
         <p class="muted s" style="margin:0">Damit Mitglieder auch außerhalb des Vereins-WLANs buchen können, wird nur die Mitglieder-App über einen <b>Cloudflare Tunnel</b> erreichbar gemacht – ohne offenen Port am Router; Verwaltung und Tablet bleiben intern. Einrichtung: <a href="#app" data-goapp>Verein → Mitglieder-App → „Von unterwegs erreichbar“</a> und die Anleitung in der Dokumentation.</p></div>
       <div id="bkFunc" data-set="transfer"></div>`;
@@ -918,7 +925,7 @@
       const lab = id => st.meta.labels.find(x => x.id === id);
       $('rtList').innerHTML = l.length ? `<table class="tbl bk-tbl"><tr><th>Mitglied</th><th>Sonderrechte</th><th></th></tr>${l.map(r => `<tr><td><b>${esc(GK.lastFirst(r.name, 'mitglied'))}</b></td>
         <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.for_others ? pill(['b', 'für andere buchen']) : ''}${r.all_labels ? pill(['b', 'alle Buchungsarten']) : ''}${(r.all_labels ? [] : r.labels).map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
-        <td class="r"><span class="acts"><button class="btn ico" data-rte="${r.member_id}" title="Bearbeiten" aria-label="Bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="btn ico danger-h" data-rtd="${r.member_id}" title="Sonderrechte entfernen" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch niemand mit Sonderrechten.</p>';
+        <td class="r"><span class="acts"><button class="btn ico" data-rte="${r.member_id}" title="Bearbeiten" aria-label="Bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="btn ico danger-h" data-rtd="${r.member_id}" title="Sonderrechte entfernen" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>` : '<p class="empty">Noch niemand mit Sonderrechten.</p>';
       $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; $('rtF').checked = r.for_others; $('rtA').checked = r.all_labels; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); rtAll(); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
       $('rtList').querySelectorAll('[data-rtd]').forEach(b => { b.onclick = async () => { try { await api('rights/' + b.dataset.rtd, 'DELETE'); toast('Sonderrechte entfernt.'); rtLoad(); } catch (e) { fail(e); } }; });
     };

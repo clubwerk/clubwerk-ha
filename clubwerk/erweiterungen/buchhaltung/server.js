@@ -170,6 +170,7 @@ function activate(ctx) {
   admin.get('/settings', P, (req, res) => res.json(settings()));
   admin.put('/settings', P, (req, res) => {
     const b = req.body || {}; const err = [];
+    const before = settings();
     for (const k of ['street', 'city', 'tax_no', 'vat_id', 'phone', 'finanzamt', 'fa_tax_no', 'veranlagungszeitraum', 'signer', 'signer_role', 'place']) if (b[k] !== undefined) C.setSetting2(k, one(b[k], 120));
     for (const k of ['footer', 'intro', 'zwecke']) if (b[k] !== undefined) C.setSetting2(k, txt(b[k], 600));
     if (b.email !== undefined) { if (!mailOk(one(b.email, 120))) err.push('Die E-Mail-Adresse ist ungültig.'); else C.setSetting2('email', one(b.email, 120)); }
@@ -179,7 +180,10 @@ function activate(ctx) {
     for (const k of ['inv_prefix', 'don_prefix']) if (b[k] !== undefined) C.setSetting2(k, String(b[k]).replace(/[^A-Za-z0-9-]/g, '').slice(0, 8));
     if (b.bescheid_type !== undefined) C.setSetting2('bescheid_type', b.bescheid_type === 'feststellung' ? 'feststellung' : 'freistellung');
     if (b.bescheid_date !== undefined) { if (b.bescheid_date && !isDate(b.bescheid_date)) err.push('Das Datum des Bescheids ist ungültig.'); else C.setSetting2('bescheid_date', b.bescheid_date || ''); }
-    ctx.audit(req.user, 'Buchhaltung: Einstellungen geändert', Object.keys(b).join(', '));
+    { const L = { street: 'Straße', city: 'PLZ und Ort', tax_no: 'Steuernummer', vat_id: 'USt-IdNr.', phone: 'Telefon', email: 'E-Mail', finanzamt: 'Finanzamt', fa_tax_no: 'Steuernummer (Finanzamt)', veranlagungszeitraum: 'Veranlagungszeitraum',
+        signer: 'Unterschrift', signer_role: 'Funktion', place: 'Ort', footer: ['Fußzeile', 'text'], intro: ['Einleitung', 'text'], zwecke: ['Satzungszwecke', 'text'], vat_default: 'Umsatzsteuer (Standard, %)', small_business: ['Kleinunternehmer', 'bool'],
+        due_days: 'Zahlungsziel (Tage)', remind_days: 'Erinnerung nach (Tagen)', inv_prefix: 'Rechnungsnummer-Vorsilbe', don_prefix: 'Quittungsnummer-Vorsilbe', bescheid_type: 'Art des Bescheids', bescheid_date: 'Datum des Bescheids' };
+      const diff = ctx.auditDiff ? ctx.auditDiff(L, before, settings()) : ''; if (diff) ctx.audit(req.user, 'Buchhaltung: Einstellungen geändert', diff); }
     if (err.length) return bad(res, err.join(' '));
     res.json({ ok: true, settings: settings() });
   });

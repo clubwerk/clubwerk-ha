@@ -6,7 +6,7 @@
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   const num = n => Number(n || 0).toLocaleString('de-DE');
   const deDate = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
-  const deTime = t => (t ? new Date(t.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
+  const deTime = t => (t ? new Date(t.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
   const pinInfo = m => m.pin_changed_at ? `<div class="muted s">${m.hasPin ? 'geändert' : (m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? 'zurückgesetzt' : 'entfernt')} ${deTime(m.pin_changed_at)}${m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? ' · ' + esc(m.pin_changed_by) : ''}</div>` : '';
   const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   const toCents = v => Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) * 100);
@@ -229,6 +229,13 @@
     g.restore();
     const blob = await new Promise(r => c.toBlob(r, 'image/png'));
     await fetch('api/admin/logo-icon', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'image/png' }, body: blob });
+    // dazu das Logo selbst als PNG (leere Ränder abgeschnitten, durchsichtig) – für PDFs (Beitrittserklärung, Rechnungen) und E-Mails,
+    // die kein SVG darstellen können
+    const L = 800, kk = Math.min(1, L / Math.max(w, h)) * (Math.max(w, h) < 400 ? 400 / Math.max(w, h) : 1), pc = document.createElement('canvas');
+    pc.width = Math.round(w * kk); pc.height = Math.round(h * kk);
+    pc.getContext('2d').drawImage(img, x0, y0, w, h, 0, 0, pc.width, pc.height);
+    const pblob = await new Promise(r => pc.toBlob(r, 'image/png'));
+    await fetch('api/admin/logo-png', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'image/png' }, body: pblob });
     brand.iconNeeded = false;
   }
   /** nach Farb- oder Logowechsel: Symbol neu zeichnen, wenn nötig */
@@ -277,6 +284,19 @@
 
   /* ---------- Rahmen ---------- */
   // [Seite, Titel, nötiges Recht (null = alle Admins)]
+  let tabToolsOwner = null;   // Inhalt, zu dem die Knöpfe in der Reiterzeile gehören
+  /* Reiterzeile pflegen: Knöpfe entfernen, wenn ihr Inhalt verschwindet; eine Knopfleiste (.toolbar mit nur Knöpfen) ganz oben im
+     Seiteninhalt wandert automatisch rechts in die Reiterzeile – so stehen „+ Neu …“ und Co. auf allen Seiten an derselben Stelle */
+  new MutationObserver(() => {
+    if (tabToolsOwner && !document.body.contains(tabToolsOwner)) { tabToolsOwner = null; const b = $('tabTools'); if (b) b.innerHTML = ''; }
+    const box = $('tabTools'), row = box && box.parentElement; if (!row || row.parentElement !== $('main')) return;
+    const next = row.nextElementSibling; if (!next) return;
+    const tb = next.matches('.toolbar') ? next : next.firstElementChild && next.firstElementChild.matches('.toolbar') ? next.firstElementChild : null;
+    if (!tb || tb.querySelector('input, select, textarea') || !tb.querySelector('.btn, button')) return;
+    const owner = tb.nextElementSibling || tb.parentElement;
+    box.replaceChildren(...tb.childNodes); tb.remove(); tabToolsOwner = owner;
+  }).observe(document.documentElement, { childList: true, subtree: true });
+  const APP_EXTRA = [];   // Reiter der Seite „Mitglieder-App“, die Module beisteuern
   const PAGES = [
     ['uebersicht', 'Übersicht', null, 'start'],
     ['lieferungen', 'Lieferungen & Belege', 'lieferungen', 'getraenke'], ['bestellung', 'Bestellung', 'bestellung', 'getraenke'],
@@ -428,20 +448,23 @@
     const bar = $('pagebar'); if (!bar) return;
     if (!pg || p === 'uebersicht') { bar.innerHTML = ''; return; }
     bar.innerHTML = `<div class="crumb">${g ? 'Module · ' + esc(MODG[g].label) : pg[3] === 'module' ? 'Module · ' + esc(pg[1]) : esc(GROUP_LABEL[pg[3]] || '')}</div>`;
-    const old = $('main') && $('main').querySelector(':scope > .drinktabs'); if (old) old.remove();
+    const old = $('main') && $('main').querySelector('.tabrow:has(> .drinktabs)'); if (old) old.remove();
     placeDrinkTabs();
   }
   /* Getränke-Unterseiten als Reiter unter Überschrift und Einleitung – an derselben Stelle wie die Reiter der anderen Module */
   function placeDrinkTabs() {
     const g = groupOf(page);
-    const m = $('main'); if (!m || !g || m.querySelector(':scope > .drinktabs')) return;
+    const m = $('main'); if (!m || !g || m.querySelector('.tabrow:has(> .drinktabs)')) return;
     const h = m.querySelector(':scope > h2.page'); if (!h) return;
     h.textContent = T(MODG[g].label);   // überall gleich: Überschrift = Seite im Menü, der Reiter zeigt den Bereich
     const after = fixLead(h);
     const t = document.createElement('div'); t.className = 'tabs drinktabs'; t.setAttribute('role', 'tablist');
     t.innerHTML = GPAGES(g).map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
     t.querySelectorAll('[data-tab]').forEach(b => { b.onclick = e => { e.stopPropagation(); go(b.dataset.tab); }; });
-    after.after(t);
+    // Reiterzeile: links die Reiter, rechts die Knöpfe der Seite („+ Neu …“, Export) – siehe GK.tabTools
+    const row = document.createElement('div'); row.className = 'tabrow';
+    row.append(t); row.insertAdjacentHTML('beforeend', '<div class="tabtools" id="tabTools"></div>');
+    after.after(row);
     const on = t.querySelector('.on'); if (on) revealTab(on); else tabFade(t);
   }
 
@@ -463,6 +486,7 @@
 
   async function go(p) {
     if (!(await leaveOk())) { setChrome(page); return; }
+    { const t = $('toast'); if (t) { clearTimeout(toast.t); t.classList.add('hidden'); } }   // Meldungen der vorigen Seite verschwinden beim Wechsel
     if (!RENDER[p] || !allowed(p)) p = 'uebersicht';
     page = p;
     history.replaceState(null, '', '#' + p);
@@ -518,8 +542,8 @@
 
   function rangeBar(from, to, id = 'rng') {
     return `<div class="row" id="${id}" style="margin-bottom:14px">
-      <label class="f">von<input type="date" name="from" value="${from}"></label>
-      <label class="f">bis<input type="date" name="to" value="${to}"></label>
+      <label class="f">Von<input type="date" name="from" value="${from}"></label>
+      <label class="f">Bis<input type="date" name="to" value="${to}"></label>
       <button class="btn" data-r="apply">Anzeigen</button>
       <button class="btn ghost" data-r="season">Ganze Saison</button></div>`;
   }
@@ -557,7 +581,7 @@
     if (!el) return;
     el.innerHTML = `<div class="card"><h3>Einstellungen übertragen</h3>
       <p class="muted s" style="margin-top:0">Alle Einstellungen von „${esc(name)}“ als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. PINs, Passwörter und Schlüssel sind nicht enthalten.</p>
-      <div class="row"><a class="btn" href="api/admin/extensions/${esc(id)}/export" download>Funktion exportieren</a><button class="btn" data-fbimp="1">Funktion importieren …</button></div></div>`;
+      <div class="row"><a class="btn" href="api/admin/extensions/${esc(id)}/export" download>Einstellungen exportieren</a><button class="btn" data-fbimp="1">Einstellungen importieren …</button></div></div>`;
     el.querySelector('[data-fbimp]').onclick = () => funcImport(id, name, after);
   }
 
@@ -569,6 +593,17 @@
     /** Einstellungen öffnen, gleich im richtigen Bereich (z. B. 'bank') */
     openSettings: sec => { sset('cw_setsec', sec); if (page === 'einstellungen') RENDER.einstellungen(); else go('einstellungen'); },
     modules: () => cache.modules || [],
+    /** Knöpfe einer Seite rechts in die Reiterzeile setzen (statt in eine eigene Zeile darüber): GK.tabTools(html, owner).
+     *  owner = Element des Seiteninhalts; verschwindet es (andere Ansicht), werden die Knöpfe entfernt. Rückgabe: Container oder null (Seite ohne Reiter) */
+    tabTools(html, owner) {
+      placeDrinkTabs();
+      const box = $('tabTools'); if (!box) return null;
+      box.innerHTML = html || ''; tabToolsOwner = owner || null;
+      return box;
+    },
+    /** Eigener Reiter auf der Seite „Mitglieder-App“ (Verein): registerAppSection({ key, label, perm, render(el) }) –
+     *  el ist eine leere Karte, render füllt sie (Überschrift, Felder, Speichern) */
+    registerAppSection({ key, label, perm, render }) { if (/^[a-z0-9-]+$/.test(key) && !APP_EXTRA.some(x => x.key === key)) APP_EXTRA.push({ key, label, perm, render }); },
     /** registerPage({ key, title, perm, render, group, before, icon, tab, order })
      *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“)
      *  order: Position im Menü unter „Module“ (Verkauf 1 … Buchhaltung 8; ohne Angabe 50 = hinten, in Registrierungsreihenfolge) */
@@ -620,7 +655,7 @@
   };
   /** Eine Modulkarte – für alle Module gleich aufgebaut */
   function modCard({ ic, name, pill, big, det, go: g }) {
-    return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3 title="${esc(name)}">${esc(name).replace(/(\p{Ll})(verwaltung|system|einsatz|dienste?|erfassung|haltung|buchung|steuerung)/gu, '$1\u00ad$2')}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
+    return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3 title="${esc(name)}">${esc(name)}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
       <div class="big"><span>${esc(big ? big[0] : '')}</span><b>${esc(big ? big[1] : '–')}</b></div>
       <div class="det">${det ? `<span>${esc(det[0])}</span><b>${esc(det[1])}</b>` : ''}</div>
       ${g ? `<a class="open" href="#${g}" data-go="${g}">Öffnen<span aria-hidden="true">→</span></a>` : '<span class="open" style="visibility:hidden">–</span>'}</section>`;
@@ -649,7 +684,7 @@
       if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.credit_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
       (ev || []).filter(e => e.open_credit_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_credit_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
       const first = DRINKS()[0][0];
-      drinksCard = modCard({ ic: 'verkauf', name: 'Verkauf', pill: low.length ? ['a', `${low.length} knapp`] : ['g', 'alles gut'],
+      drinksCard = modCard({ ic: 'verkauf', name: 'Verkauf', pill: low.length ? ['a', `${low.length} knapp`] : ['g', 'Alles gut'],
         big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
         det: ['Nachbestellen', `${low.length} Artikel`], go: low.length && can('bestellung') ? 'bestellung' : first });
     }
@@ -661,11 +696,11 @@
     // Ohne HTTPS gehen PIN und Geräteschlüssel der Mitglieder-App unverschlüsselt durchs WLAN – bei Türen ein echtes Risiko
     if (SCHEME !== 'https' && (cache.modules || []).some(m => m === 'zugang' || m === 'beregnung') && can('einstellungen'))
       alerts.push({ level: 'r', who: 'Sicherheit', text: 'HTTPS ist aus: Mitglieder-App, Türen und Beregnung laufen im WLAN unverschlüsselt. Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
-    mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, go: m.pageKey })));
+    mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, go: m.pageKey, link: a.link, sec: Array.isArray(a.sec) && a.sec.length === 2 ? a.sec.map(String) : undefined })));   // sec: Unterbereich, in dem der Hinweis erledigt wird
     const modCards = mods.map(m => {
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
       const gk = (PAGES.find(x => x[0] === m.pageKey) || [])[3];
-      return modCard({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, pill: bad ? ['r', 'Störung'] : warn ? ['a', 'Hinweis'] : ['g', 'läuft'],
+      return modCard({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, pill: bad ? ['r', 'Störung'] : warn ? ['a', 'Hinweis'] : ['g', 'Läuft'],
         big: m.kpis[0] ? [m.kpis[0].l, m.kpis[0].v] : null, det: m.kpis[1] ? [m.kpis[1].l, m.kpis[1].v] : null, go: m.pageKey });
     }).join('');
     const memberCard = mem ? modCard({ ic: 'konten', name: 'Mitglieder', pill: pending.length ? ['a', `${pending.length} neu`] : null,
@@ -682,7 +717,7 @@
         <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
           ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Alles im grünen Bereich.</p>'}</div>
         <div class="card"><h3>Letzte Lieferungen</h3>${del && del.length ? `<table class="tbl"><tr><th>Datum</th><th>Lieferant</th><th class="r">Einzelartikel</th></tr>
-          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Getränke → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
+          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Verkauf → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
       </div>` : ''}`;
     $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); if (a.dataset.secstore) sset(a.dataset.secstore, a.dataset.sec); go(a.dataset.go); }; });   // Hinweis führt direkt in den passenden Unterbereich
     const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.alerts').classList.add('all'); sa.remove(); };
@@ -710,7 +745,7 @@
           <td>${esc(DOCKIND[d.doc_kind] || '')} ${esc(d.doc_no || '')} ${d.file ? `<a href="api/admin/beleg/${encodeURIComponent(d.file)}" target="_blank">ansehen</a>` : ''}</td>
           <td class="r">${d.total_cents == null ? '' : euro(d.total_cents)}</td><td class="r">${num(d.total)}</td>
           <td class="r"><button class="btn small" data-show="${d.id}">Positionen</button> <button class="btn small danger" data-del="${d.id}">Löschen</button></td></tr>`).join('')}</table>`
-          : '<p class="muted">Noch keine Lieferungen.</p>'}</div>`;
+          : '<p class="empty">Noch keine Lieferungen.</p>'}</div>`;
 
     const drop = $('drop');
     ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
@@ -996,7 +1031,7 @@
           <label class="f" style="flex:1;min-width:160px">Notiz<input id="mvNote"></label>
           <button class="btn" id="mvSave">Buchen</button></div></div>
       <div class="card"><h3>Letzte Bestandsänderungen</h3>${moves.length ? `<table class="tbl"><tr><th>Datum</th><th>Artikel</th><th>Grund</th><th class="r">Einzelartikel</th><th>Notiz</th></tr>
-        ${moves.map(m => `<tr><td>${deDate(m.date)}</td><td>${esc(m.name)}</td><td>${esc(m.reason)}</td><td class="r ${m.qty < 0 ? 'neg' : ''}">${num(m.qty)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine.</p>'}</div>`;
+        ${moves.map(m => `<tr><td>${deDate(m.date)}</td><td>${esc(m.name)}</td><td>${esc(m.reason)}</td><td class="r ${m.qty < 0 ? 'neg' : ''}">${num(m.qty)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Bestandsänderungen.</p>'}</div>`;
 
     $('saveInv').onclick = async () => {
       const counts = [];
@@ -1279,8 +1314,8 @@
         ${hl('Stoßzeit', best[0] ? `${['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'][best[1]]} ${best[2]}–${best[2] + 1} Uhr` : '–', best[0] ? `${num(best[0])} Artikel im Jahr` : '&nbsp;')}
         ${hl('Ø je Buchung', c.count ? euro(c.revenue / c.count) : '–', c.count ? `${(c.units / c.count).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Artikel je Buchung` : '&nbsp;')}</div>
       <div class="ds-two">
-        <div class="card"><h3>Die meistverkauften Artikel</h3>${d.top.length ? `<ol class="ds-top">${d.top.map((a, i) => `<li><span class="n">${i + 1}</span><b>${esc(a.name)}</b><div class="ds-meter"><i style="width:${a.units / d.top[0].units * 100}%"></i></div><span class="r">${num(a.units)} ×</span><span class="r muted">${Math.round(a.units / allUnits * 100)} %</span>${DS.delta(a.units, a.prev)}</li>`).join('')}</ol>` : '<p class="muted">Noch keine Verkäufe in diesem Jahr.</p>'}</div>
-        <div class="card"><h3>Umsatz nach Kategorie</h3>${d.cats.length ? DS.donut(d.cats.map((k, i) => ({ name: k.name, v: k.cents || k.units, color: DS.PAL[i % DS.PAL.length] })), euro(c.revenue).replace(/,\d\d\s/, ' '), 'Umsatz') : '<p class="muted">Noch keine Verkäufe.</p>'}
+        <div class="card"><h3>Die meistverkauften Artikel</h3>${d.top.length ? `<ol class="ds-top">${d.top.map((a, i) => `<li><span class="n">${i + 1}</span><b>${esc(a.name)}</b><div class="ds-meter"><i style="width:${a.units / d.top[0].units * 100}%"></i></div><span class="r">${num(a.units)} ×</span><span class="r muted">${Math.round(a.units / allUnits * 100)} %</span>${DS.delta(a.units, a.prev)}</li>`).join('')}</ol>` : '<p class="empty">Noch keine Verkäufe in diesem Jahr.</p>'}</div>
+        <div class="card"><h3>Umsatz nach Kategorie</h3>${d.cats.length ? DS.donut(d.cats.map((k, i) => ({ name: k.name, v: k.cents || k.units, color: DS.PAL[i % DS.PAL.length] })), euro(c.revenue).replace(/,\d\d\s/, ' '), 'Umsatz') : '<p class="empty">Noch keine Verkäufe.</p>'}
           ${d.kinds.length ? `<div class="ds-mini" style="grid-template-columns:repeat(${Math.min(4, d.kinds.length)}, minmax(0, 1fr))">${d.kinds.slice(0, 4).map(k => `<div><span>${esc(k.name)}</span><b>${num(k.units)}</b><small>${euro(k.cents)}</small></div>`).join('')}</div>` : ''}</div>
       </div>
       <div class="card"><div class="ds-ch"><h3>Jahr ${d.year} · ${num(c.units)} verkaufte Artikel</h3>${DS.legend()}</div>${DS.calendar(d.year, d.days, v => `${num(v)} Artikel`)}</div>
@@ -1330,7 +1365,7 @@
           ${hist.map(h => `<tr><td>${deTime(h.created_at)}</td><td>${h.names ? esc(h.names) : (h.batch.startsWith('alle-') ? 'alle' : '') + ' ' + h.members + ' Konten'}</td>
             <td class="r">${euro(h.cents)}</td><td>${esc(h.by_user || '')}</td>
             <td class="r">${h.undo ? `<button class="btn small" data-undo="${esc(h.batch)}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table>`
-          : '<p class="muted">Noch keine.</p>'}</div>` : ''}
+          : '<p class="empty">Noch keine Abrechnungen.</p>'}</div>` : ''}
       <div class="card" style="margin-top:16px"><h3>Auswertung für einen Zeitraum</h3>
         <p class="muted">Gilt für die Kennzahlen hier und die Blätter „Buchungen“, „Abgleich“ und „Veranstaltungen“ in der Excel-Datei.</p>
         ${rangeBar(r.from, r.to)}
@@ -1390,13 +1425,13 @@
           <td>${deTime(t.created_at)}</td><td class="r"><b>${euro(t.open_cents)}</b></td>
           <td class="r" style="white-space:nowrap">${mayPay ? `<button class="btn small" data-tp="${t.id}" data-m="bar">Bar bezahlt</button> <button class="btn small" data-tp="${t.id}" data-m="karte">Karte bezahlt</button>` : ''}
             ${mayClose ? ` <button class="btn small" data-tt="${t.id}">Auf Konto …</button> <button class="btn small danger" data-tw="${t.id}">Abschreiben …</button>` : ''}</td></tr>`).join('')}</table>`
-          : '<p class="muted">Keine offenen Deckel.</p>'}</div>
+          : '<p class="empty">Keine offenen Deckel.</p>'}</div>
       <div class="card" style="margin-top:16px"><h3>Geschlossen (letzte ${r.days} Tage)</h3>
         ${r.closed.length ? `<table class="tbl"><tr><th>Deckel</th><th>geschlossen</th><th>Status</th><th class="r">Betrag</th><th>von</th><th></th></tr>
         ${r.closed.map(t => `<tr><td><b>${esc(t.name)}</b><div class="muted s">${items(t)}</div></td><td>${deTime(t.closed_at)}</td><td>${ST[t.status](t)}</td>
           <td class="r">${euro(t.status === 'abgeschrieben' ? t.sum_cents : t.cents)}</td><td>${esc(t.closed_by || '')}</td>
           <td class="r">${t.status === 'bezahlt' && mayPay ? `<button class="btn small" data-tr="${t.id}">Wieder öffnen</button>` : ''}</td></tr>`).join('')}</table>`
-          : '<p class="muted">Noch keine.</p>'}</div>`;
+          : '<p class="muted">In diesem Zeitraum nichts geschlossen.</p>'}</div>`;
     const find = id => r.open.find(t => t.id === Number(id)) || r.closed.find(t => t.id === Number(id));
     const done = msg => { toast(msg); refreshBadges(); RENDER.deckel(); };
     $('main').querySelectorAll('[data-tp]').forEach(b => b.onclick = async () => {
@@ -1643,7 +1678,7 @@
           <label class="f">Bestellen bis<input name="target_stock" value="${x.target_stock || ''}" placeholder="2× Mindest" inputmode="numeric"></label></div>
         <p class="muted s" style="margin:6px 0 0">Mindestbestand und „Bestellen bis“ in Einzelartikeln (Flaschen, Tüten, Dosen …).</p>
         <div class="row" style="margin-top:12px"><label class="chk"><input type="checkbox" name="track_stock" ${x.track_stock ? 'checked' : ''}> Bestand führen</label>
-          <label class="chk"><input type="checkbox" name="active" ${x.active ? 'checked' : ''}> auf dem Tablet anzeigen</label></div>
+          <label class="chk"><input type="checkbox" name="active" ${x.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label></div>
         <div class="artlook"><div id="aPrevT"></div><div style="min-width:0">
           <div class="seg" id="aMode">${[['icon', 'Symbol'], ['image', 'Eigenes Bild'], ['none', 'Ohne']].map(([k, l]) => `<button type="button" data-m="${k}">${l}</button>`).join('')}</div>
           <div id="aModeIcon"><div class="icgrid">${(window.ArtIcons ? ArtIcons.groups : []).map(([g, gl]) => `<div class="gl">${esc(gl)}</div>${ArtIcons.list.filter(i => i.group === g).map(i => `<button type="button" data-ic="${i.key}" title="${esc(i.label)}" aria-label="${esc(i.label)}" style="${ArtIcons.style(i.key)}">${ArtIcons.svg(i.key, 22)}</button>`).join('')}`).join('')}</div></div>
@@ -1997,7 +2032,7 @@
             <label class="f">Typ<select id="eKind">${Object.entries(KIND).map(([k, l]) => `<option value="${k}" ${k === m.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
             <div class="${m.kind === 'mannschaft' ? '' : 'hidden'}" id="ePinRow" style="margin-top:12px"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
               <p class="muted s" style="margin:6px 0 0">Mannschaftskonten buchen nur mit dieser PIN. Sie wird hier vom Vorstand vergeben und kann am Tablet nicht geändert werden.</p></div>
-            <label class="chk" style="margin-top:12px"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> auf dem Tablet anzeigen</label>
+            <label class="chk" style="margin-top:12px"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label>
             ${m.kind === 'mitglied' && !m.pending && (cache.appModules || []).length ? '<div class="card soft" id="eApp" style="margin:14px 0 0"><p class="muted">Lade …</p></div>' : ''}
             <div class="btns">${special ? '' : '<button class="btn danger" id="eDel" style="margin-right:auto">Löschen</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok3">Speichern</button></div>`);
           $('c').onclick = closeDialog;
@@ -2127,9 +2162,9 @@
       dialog(`<h2>Einladungen verschicken</h2>
         <p class="muted" style="margin-top:0">Jedes ausgewählte Mitglied bekommt einen persönlichen Link (gilt ${r.security.inviteMailDays} Tage, einmal). Mitglieder mit bereits freigeschaltetem Handy werden übersprungen.${r.security.sms && r.security.sms.ready ? ' Von unterwegs wird mit einem Code per SMS bestätigt.' : ' Türen und Beregnung schalten sich bei Kopplung von unterwegs erst im Vereins-WLAN frei.'}</p>
         <div class="row" style="align-items:center;gap:8px 18px;margin-bottom:8px"><label class="chk"><input type="checkbox" id="ivAll" ${n && n === L.filter(x => !(x.dev && x.dev.status === 'gekoppelt')).length ? 'checked' : ''}> alle ohne Handy</label>
-          ${r.members.length ? `<label class="chk"><input type="checkbox" id="ivNew" ${showNew ? 'checked' : ''}> auch Mitglieder, die noch nicht in der App sind (${r.members.length})</label>` : ''}</div>
+          ${r.members.length ? `<label class="chk"><input type="checkbox" id="ivNew" ${showNew ? 'checked' : ''}> Auch Mitglieder, die noch nicht in der App sind (${r.members.length})</label>` : ''}</div>
         <div class="invlist">${L.map(x => { const paired = x.dev && x.dev.status === 'gekoppelt'; return `<label><input type="checkbox" data-iv="${x.id}" ${sel.has(x.id) ? 'checked' : ''} ${paired ? 'disabled' : ''}><b>${pName(x)}</b>
-          <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s">${mail.has(x.id) ? 'E-Mail ✓' : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="muted" style="padding:10px 12px;margin:0">Niemand.</p>'}</div>
+          <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s">${mail.has(x.id) ? 'E-Mail ✓' : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="empty">Niemand.</p>'}</div>
         ${!r.security.mailReady ? '<p class="muted s" style="margin:10px 0 0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s" style="margin:10px 0 0">${n - nm} ohne E-Mail-Adresse – für sie Briefe drucken.</p>` : ''}
         <div class="btns"><button class="btn" id="ivX">Abbrechen</button><button class="btn" id="ivBrief" ${n ? '' : 'disabled'}>${n} Brief(e) drucken</button><button class="btn primary" id="ivMail" ${nm && r.security.mailReady ? '' : 'disabled'}>${nm} E-Mail(s) schicken</button></div>`, true);
       $('ivX').onclick = closeDialog;
@@ -2250,7 +2285,7 @@
       <div class="card" id="apExt" data-set="verbindung"><h3>Von unterwegs erreichbar <span class="pill ${r.tunnel.on ? 'g' : ''}" style="margin-left:6px">${r.tunnel.on ? 'an' : 'aus'}</span></h3>
         <p class="muted s" style="margin-top:0">Über einen <b>Cloudflare Tunnel</b> wird nur die Mitglieder-App aus dem Internet erreichbar – ohne offenen Port am Router. Verwaltung, Tablet und Beregnung bleiben im Vereins-WLAN, auch wenn der Tunnel falsch eingestellt ist.</p>
         <div class="row" style="align-items:flex-end"><label class="f" style="flex:2;min-width:260px">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
-          <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> eingeschaltet</label>
+          <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> Eingeschaltet</label>
           <button class="btn primary" id="apExtSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button><button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button></div>
         ${rj ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">${rj.why === 'aus' ? `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}), weil der externe Zugang ausgeschaltet war.`
           : rj.why === 'direkt' ? `Zuletzt wurde eine direkte Anfrage aus dem Internet von ${esc(rj.ip)} abgewiesen (${esc(deTime(rj.at))}). Das deutet auf eine Portfreigabe am Router hin – bitte dort entfernen. Von unterwegs ist nur der Cloudflare Tunnel vorgesehen.`
@@ -2285,14 +2320,13 @@
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
         <div class="row" style="margin-top:12px;gap:8px">
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
-          <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
+          <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
       ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="sicherheit"><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
       ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Wer sieht welchen Bereich?</h3>
-        <p class="muted s" style="margin-top:0">Bereiche „für alle“ sieht jedes freigeschaltete Handy (einzelne Mitglieder lassen sich unter „Mitglieder“ sperren). Die übrigen – z. B. Beregnung und Türen – sieht nur, wem du sie ausdrücklich freischaltest. „Vorausgewählt“ bestimmt, ob der Haken beim Freischalten schon gesetzt ist.</p>
-        <table class="tbl"><tr><th>Bereich</th><th>Wer</th><th>Beim Freischalten</th><th></th></tr>
-          ${mods.map(m => `<tr><td><b translate="no">${esc(m.label || m.name)}</b></td><td>${m.open ? '<span class="pill g">für alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
-            <td><label class="chk"><input type="checkbox" data-pre="${esc(m.id)}" ${m.preselect ? 'checked' : ''}> vorausgewählt</label></td>
-            <td class="r">${!m.open && m.count ? `<button class="btn small" data-rvk="${esc(m.id)}" data-n="${m.count}">Allen entziehen …</button>` : ''}</td></tr>`).join('')}</table></div>` : ''}
+        <p class="muted s" style="margin-top:0">Mit „In der App“ schaltest du einen Bereich für alle aus und wieder ein – Freischaltungen bleiben dabei erhalten. Bereiche „für alle“ sieht jedes freigeschaltete Handy (einzelne Mitglieder lassen sich unter „Mitglieder“ sperren). Die übrigen – z. B. Beregnung und Türen – sieht nur, wem du sie ausdrücklich freischaltest. „Vorausgewählt“ bestimmt, ob der Haken beim Freischalten schon gesetzt ist.</p>
+        <table class="tbl"><tr><th style="width:110px">In der App</th><th>Bereich</th><th>Wer</th><th>Beim Freischalten</th></tr>
+          ${mods.map(m => `<tr class="${m.on === false ? 'off' : ''}"><td><button class="switch ${m.on !== false ? 'on' : ''}" role="switch" aria-checked="${m.on !== false}" aria-label="${esc(m.label || m.name)} in der App zeigen" data-son="${esc(m.id)}"></button></td><td><b translate="no">${esc(m.label || m.name)}</b>${m.on === false ? ' <span class="pill">ausgeschaltet</span>' : ''}</td><td>${m.open ? '<span class="pill g">für alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
+            <td><label class="chk"><input type="checkbox" data-pre="${esc(m.id)}" ${m.preselect ? 'checked' : ''}> Vorausgewählt</label></td></tr>`).join('')}</table></div>` : ''}
       <div class="card" id="apAway" data-set="bereiche"><h3>Von unterwegs nutzbar</h3>
         <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
         <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
@@ -2300,7 +2334,6 @@
       ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Reiter in der App</h3>
         <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Mitgliederliste – von links nach rechts. Der <b>Start-Reiter</b> erscheint, wenn ein Mitglied die App öffnet. Ist er für jemanden nicht freigeschaltet (oder gerade nur im Vereins-WLAN nutzbar), öffnet die App den ersten verfügbaren Bereich.</p>
         <div id="moRows" class="torows"></div>
-        <label class="chk" style="margin-top:12px"><input type="radio" name="moStart" value="" data-mst="" ${r.startSection ? '' : 'checked'}> Kein fester Start – die App öffnet den zuletzt genutzten Bereich</label>
         <div class="btns"><button class="btn primary" id="moSave">Speichern</button></div></div>` : ''}
       <div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
       <div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
@@ -2316,14 +2349,18 @@
             <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r"><span class="acts"><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
-          : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
+          : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>`;
     // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
     const APP_SECS = [['mitglieder', 'Mitglieder'], ['bereiche', 'Bereiche'], ['push', 'Benachrichtigungen'], ['verbindung', 'Verbindung'], ['sicherheit', 'Sicherheit']];
+    // Bereiche, die Module beisteuern (z. B. „Meine Daten“ der Mitgliederverwaltung) – stehen hinter „Bereiche“
+    const extras = APP_EXTRA.filter(x => !x.perm || canAny(x.perm));
+    extras.forEach((x, i) => { APP_SECS.splice(2 + i, 0, [x.key, x.label]); $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="${x.key}" id="apx-${x.key}"><p class="muted" style="margin:0">Lade …</p></div>`); });
     sectionize({ secs: APP_SECS, keyOf: () => 'mitglieder', store: 'cw_appsec', label: 'Bereiche der Mitglieder-App',
       badges: { verbindung: !r.tunnel.wlanNets && r.mayExt ? 'Noch kein Vereinsnetz eingetragen' : rj ? (rj.why === 'direkt' ? 'Anfrage aus dem Internet abgewiesen' : 'Tunnel-Anfrage abgelehnt') : oldN ? 'Handys mit alter Adresse' : false,
         sicherheit: r.security.sms && r.security.sms.on && !r.security.sms.ready ? 'SMS-Stick nicht bereit' : false,
         mitglieder: r.rows.some(FIL.wlan) ? 'Handys warten auf die WLAN-Freigabe' : false } });
     watch($('apSet')); watch($('apSec'));
+    extras.forEach(x => { const box = $('apx-' + x.key); Promise.resolve().then(() => x.render(box)).then(() => watch(box)).catch(e => { box.innerHTML = `<p class="muted" style="margin:0">${esc(e.message)}</p>`; }); });
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
     $('apUrl').addEventListener('input', setTest); setTest();
     $('apSave').onclick = async () => { try { await api('settings/app', 'PUT', can('einstellungen') ? { url: $('apUrl').value, name: $('apName').value } : { name: $('apName').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
@@ -2362,9 +2399,12 @@
       const card = $('moRows').closest('.card');
       card.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.mst !== undefined) startId = e.target.dataset.mst; });
       const draw = () => {
-        $('moRows').innerHTML = items.map((m, i) => `<div class="torow"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label)}</b><span class="muted s">Bereich</span>
+        $('moRows').innerHTML = items.map((m, i) => `<div class="torow"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label)}</b><span class="muted s"></span>
           <label class="chk tostart"><input type="radio" name="moStart" data-mst="${esc(m.id)}" ${startId === m.id ? 'checked' : ''}> Start</label>
-          <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('');
+          <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('')
+          // letzte Zeile im selben Raster: ohne festen Start öffnet die App den zuletzt genutzten Bereich
+          + `<div class="torow"><span class="ton"></span><b>Kein fester Start <span class="muted s" style="font-weight:400">· öffnet den zuletzt genutzten Bereich</span></b><span class="muted s"></span>
+          <label class="chk tostart"><input type="radio" name="moStart" data-mst="" ${startId ? '' : 'checked'}> Start</label><span class="toact"></span></div>`;
         $('moRows').querySelectorAll('[data-mup]').forEach(b => { b.onclick = () => { const i = +b.dataset.mup; [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); }; });
         $('moRows').querySelectorAll('[data-mdn]').forEach(b => { b.onclick = () => { const i = +b.dataset.mdn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
       };
@@ -2375,10 +2415,10 @@
     $('main').querySelectorAll('[data-pre]').forEach(c => { c.onchange = async () => {
       const o = {}; $('main').querySelectorAll('[data-pre]').forEach(x => { o[x.dataset.pre] = x.checked; });
       try { await api('settings/app', 'PUT', { preselect: o }); toast('Gespeichert.'); } catch (e) { c.checked = !c.checked; fail(e); } }; });
-    $('main').querySelectorAll('[data-rvk]').forEach(b => { b.onclick = async () => {
-      const m = mods.find(x => x.id === b.dataset.rvk);
-      if (!await ask(`„${m.label || m.name}“ allen entziehen?\n\n${b.dataset.n} Mitglieder verlieren diesen Bereich in der Mitglieder-App. Danach einzeln unter „Mitglieder“ wieder freischalten (z. B. Platzwart, Vorstand).`, { ok: 'Allen entziehen', danger: true })) return;
-      try { const r = await api(`app/module/${m.id}/revoke-all`, 'POST', {}); toast(`${r.removed} Freischaltungen entfernt.`); RENDER.app().catch(fail); } catch (e) { fail(e); } }; });
+    // Bereich in der App ein-/ausschalten: aus = Reiter für alle weg, Freischaltungen bleiben für später erhalten
+    $('main').querySelectorAll('[data-son]').forEach(b => { b.onclick = () => busy(b, async () => {
+      const on = !b.classList.contains('on'), m = mods.find(x => x.id === b.dataset.son);
+      try { await api('settings/app', 'PUT', { sectionsOn: { [m.id]: on } }); toast(on ? `„${m.label || m.name}“ ist in der App wieder da.` : `„${m.label || m.name}“ ist in der App ausgeschaltet – Freischaltungen bleiben erhalten.`); RENDER.app().catch(fail); } catch (e) { fail(e); } }); });
     if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
     $('main').querySelectorAll('[data-hnet]').forEach(b => { b.onclick = () => { const v = $('apNets').value.trim(); if (!v.split(/[\s,;]+/).includes(b.dataset.hnet)) $('apNets').value = v ? v + ', ' + b.dataset.hnet : b.dataset.hnet; }; });
     if ($('apDirect')) $('apDirect').onchange = async () => { const on = $('apDirect').checked;
@@ -2432,7 +2472,7 @@
       <div class="ugrid"><label class="chk ucard"><input type="radio" name="uRole" value="admin" ${!u || u.role === 'admin' ? 'checked' : ''}> <span><b>Nach Rollen</b><br><span class="muted s">Rollen unten ankreuzen (und ggf. einzelne Rechte)</span></span></label>
         <label class="chk ucard"><input type="radio" name="uRole" value="oberadmin" ${u && u.role === 'oberadmin' ? 'checked' : ''}> <span><b>Alle Rechte</b><br><span class="muted s">wie das Adminkonto – inkl. Benutzer, Einstellungen, Datensicherung</span></span></label></div>
       <div id="uRoleBox">
-        <div class="rolegrid">${roles.map(r => `<label class="chk ucard"><input type="checkbox" data-role="${r.id}" ${myRoles.includes(r.id) ? 'checked' : ''}> <span><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<br><span class="muted s">${esc(r.description || '')}</span></span></label>`).join('') || '<p class="muted">Noch keine Rollen – unter „Rollen“ anlegen.</p>'}</div>
+        <div class="rolegrid">${roles.map(r => `<label class="chk ucard"><input type="checkbox" data-role="${r.id}" ${myRoles.includes(r.id) ? 'checked' : ''}> <span><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<br><span class="muted s">${esc(r.description || '')}</span></span></label>`).join('') || '<p class="empty">Noch keine Rollen – unter „Rollen“ anlegen.</p>'}</div>
         <div id="uDeptBox" class="card soft" style="margin-top:12px"><h3 style="margin:0 0 8px">Abteilung(en) für „eigene Abteilung“</h3>
           ${depts.length ? `<div class="permgrid">${depts.map(d => `<label class="chk"><input type="checkbox" data-dep="${d.id}" ${myDepts.includes(d.id) ? 'checked' : ''}> <span translate="no">${esc(d.name)}</span></label>`).join('')}</div>` : '<p class="muted" style="margin:0">Abteilungen gibt es in der Mitgliederverwaltung.</p>'}</div>
         <details class="udet"${extra.length ? ' open' : ''}><summary>Zusätzliche Einzelrechte${extra.length ? ` (${extra.length})` : ''}</summary>${permList(extra, 'data-perm')}</details>
@@ -2519,8 +2559,8 @@
     const deptName = id => (opt.departments.find(d => d.id === id) || {}).name;
     $('main').innerHTML = `<h2 class="page">Benutzer & Rechte</h2>
       <p class="lead">Jeder meldet sich mit eigenem Benutzernamen an – so ist nachvollziehbar, wer was geändert hat. <b>Rollen</b> bündeln Rechte (z. B. Kassenwart, Abteilungsleitung); ein Benutzer kann mehrere Rollen haben.</p>
-      <div class="tabs" id="uTab" role="tablist"><button type="button" data-t="benutzer" class="${userTab === 'benutzer' ? 'on' : ''}">Benutzer <span class="badge">${users.length}</span></button><button type="button" data-t="rollen" class="${userTab === 'rollen' ? 'on' : ''}">Rollen <span class="badge">${opt.roles.length}</span></button></div>
-      <div class="toolbar"><button class="btn primary" id="uNew">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div>
+      <div class="tabrow"><div class="tabs" id="uTab" role="tablist"><button type="button" data-t="benutzer" class="${userTab === 'benutzer' ? 'on' : ''}">Benutzer <span class="badge">${users.length}</span></button><button type="button" data-t="rollen" class="${userTab === 'rollen' ? 'on' : ''}">Rollen <span class="badge">${opt.roles.length}</span></button></div>
+      <div class="tabtools"><button class="btn primary" id="uNew">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div></div>
       <div class="scroll" id="uBody"></div>`;
     if (userTab === 'rollen') {
       $('uBody').innerHTML = `<table class="tbl"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
@@ -2666,7 +2706,7 @@
     const [b, dx, st] = await Promise.all([api('backups'), api('dropbox'), api('backups/status')]);
     setTimeout(() => renderVaultCard().catch(fail), 0);
     const owner = me.role === 'oberadmin';
-    const when = iso => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
+    const when = iso => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
     const fileDate = f => { const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})(\d{2}))?/); return m ? `${m[3]}.${m[2]}.${m[1].slice(2)}${m[4] ? `, ${m[4]}:${m[5]}` : ''}` : f; };
     // beide Listen (hier / Dropbox) gleich aufgebaut: Stand | Größe | Aktionen – gleiche Spaltenbreiten, gleicher Rahmen
     const kTable = (title, rows) => `<div class="scroll" style="max-height:40vh"><table class="tbl" style="table-layout:fixed"><tr><th>${title}</th><th class="r" style="width:110px">Größe</th><th class="r" style="width:320px"></th></tr>${rows}</table></div>`;
@@ -2695,10 +2735,10 @@
         ${st.hasKey ? `<p class="muted s" style="margin-top:0">Festgelegt am ${esc(deTime(st.pwAt))} Uhr. Wird es geändert, lassen sich ältere Sicherungen weiter mit dem damaligen Passwort öffnen.</p>`
           : '<p class="muted s" style="margin-top:0">Mit diesem Passwort werden alle Sicherungen verschlüsselt. <b>Ohne das Passwort ist eine Sicherung wertlos</b> – deshalb danach unbedingt das Notfallblatt ausdrucken und sicher verwahren (z. B. beim Kassenwart oder im Tresor).</p>'}
         ${owner ? (st.hasKey ? '<div class="row"><button class="btn" id="bkPwChange">Passwort ändern …</button><button class="btn" id="bkSheet">Notfallblatt drucken …</button></div>' : `<div class="row">
-          <label class="f">Sicherungspasswort (mind. 10 Zeichen)<input type="password" id="bkPw1" autocomplete="new-password"></label>
-          <label class="f">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
-          <label class="f">Dein Passwort zur Bestätigung<input type="password" id="bkMy" autocomplete="current-password"></label>
-          <button class="btn primary" id="bkPwSet">Festlegen</button></div>`) : '<p class="muted s">Festlegen und ändern darf nur ein Benutzer mit allen Rechten.</p>'}</div>
+          <label class="f" style="flex:1;min-width:180px">Sicherungspasswort (mind. 10 Zeichen)<input type="password" id="bkPw1" autocomplete="new-password"></label>
+          <label class="f" style="flex:1;min-width:180px">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
+          <label class="f" style="flex:1;min-width:180px">Dein Passwort zur Bestätigung<input type="password" id="bkMy" autocomplete="current-password"></label>
+          <button class="btn primary" id="bkPwSet" style="align-self:flex-end">Festlegen</button></div>`) : '<p class="muted s">Festlegen und ändern darf nur ein Benutzer mit allen Rechten.</p>'}</div>
 
       <div class="card"><h3>Zeitplan &amp; Aufbewahrung</h3><div class="row">
         <label class="f" style="flex:1;min-width:140px">Uhrzeit<select id="bkHour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === st.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 Uhr</option>`).join('')}</select></label>
@@ -2729,7 +2769,7 @@
       <div class="card"><h3>Wiederherstellen</h3>
         <p class="muted s" style="margin-top:0">Eine Komplettsicherung ersetzt beim nächsten Neustart <b>alles</b>: Datenbank, Belege, Bilder und Erweiterungen. Der aktuelle Stand wird vorher beiseitegelegt. ${owner ? '' : 'Wiederherstellen darf nur ein Benutzer mit allen Rechten.'}</p>
         ${st.local.length ? kTable('Hier in der App', st.local.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td>
-            <td class="r"><a class="btn small" href="api/admin/backups/komplett/file/${encodeURIComponent(x.file)}">Herunterladen</a>${owner ? ` <button class="btn small danger" data-krestore="local" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join('')) : '<p class="muted">Noch keine Komplettsicherung hier in der App.</p>'}
+            <td class="r"><a class="btn small" href="api/admin/backups/komplett/file/${encodeURIComponent(x.file)}">Herunterladen</a>${owner ? ` <button class="btn small danger" data-krestore="local" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join('')) : '<p class="empty">Noch keine Komplettsicherung hier in der App.</p>'}
         ${st.targets.map(t => `<div id="tgf_${esc(t.id)}" style="margin-top:12px"></div>`).join('')}
         ${owner ? `<div class="row" style="margin-top:12px"><label class="btn">Komplettsicherung hochladen …<input type="file" id="bkUp" accept=".cwbackup,.vhsicherung,application/octet-stream" hidden></label>
           <span class="muted s" style="align-self:center">z. B. nach einer Neuinstallation: zuerst einrichten, dann hier die Datei vom USB-Stick wählen.</span></div>` : ''}
@@ -2741,7 +2781,7 @@
         ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th>Datei</th><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
         ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr><td>${esc(x.file)}</td>
           <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || '')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
-          <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="muted">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
+          <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
 
     // Sicherungen auf den Zielen nachladen (braucht etwas länger) – je Ziel eine Tabelle im gleichen Aufbau
     for (const t of st.targets) api(`backups/targets/${encodeURIComponent(t.id)}/files`).then(r => {
@@ -3017,6 +3057,12 @@
   }
 
   /* =================== Protokoll =================== */
+  /** Browserkennung im Protokoll lesbar: „Mozilla/5.0 (Windows NT 10.0; …) Chrome/141…“ → „Chrome · Windows“ (ganzer Text im Tooltip) */
+  const shortUA = t => t.replace(/Mozilla\/5\.0[^]*$/, ua => {
+    const b = /Edg\//.test(ua) ? 'Edge' : /OPR\//.test(ua) ? 'Opera' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+    const o = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'macOS' : /Linux/.test(ua) ? 'Linux' : '';
+    return o ? `${b} · ${o}` : b;
+  });
   RENDER.protokoll = async () => {
     const rows = await api('audit');
     $('main').innerHTML = `<h2 class="page">Protokoll</h2>
@@ -3027,7 +3073,7 @@
       const q = $('aq').value.trim().toLowerCase();
       $('at').innerHTML = '<tr><th>Zeit</th><th>Wer</th><th>Aktion</th><th>Details</th></tr>' + rows
         .filter(r => !q || `${r.username} ${r.action} ${r.detail}`.toLowerCase().includes(q))
-        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td>${deTime(r.at)}</td><td>${esc(r.username || '')}</td><td>${esc(r.action)}</td><td class="muted">${esc(r.detail || '')}</td></tr>`).join('');
+        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td class="nw">${deTime(r.at)}</td><td>${esc(r.username || '–')}</td><td>${esc(r.action)}</td><td class="muted"${/Mozilla\//.test(r.detail || '') ? ` title="${esc(r.detail)}"` : ''}>${esc(shortUA(r.detail || ''))}</td></tr>`).join('');
     };
     draw(); $('aq').oninput = draw;
   };
@@ -3217,7 +3263,7 @@
       return;
     }
     const res = u.reserves.length ? `<div class="scroll" style="margin-top:14px"><table class="tbl" style="table-layout:fixed"><tr><th>Frühere Version (Reserve)</th><th style="width:170px">gesichert am</th><th class="r" style="width:220px"></th></tr>
-      ${u.reserves.map(r => `<tr><td><b>${esc(r.version)}</b></td><td>${esc(new Date(r.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }))}</td>
+      ${u.reserves.map(r => `<tr><td><b>${esc(r.version)}</b></td><td>${esc(new Date(r.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }))}</td>
         <td class="r">${u.viaIngress ? `<button class="btn small" data-rb="${esc(r.name)}" data-rv="${esc(r.version)}">Zurück auf ${esc(r.version)} …</button>` : ''}</td></tr>`).join('')}</table></div>` : '';
     el.innerHTML = `<div class="kpis" style="margin-bottom:12px"><div class="kpi"><div class="l">Installiert</div><div class="v">${esc(u.current)}</div></div>
         <div class="kpi"><div class="l">Neues Paket</div><div class="v">${u.staged ? esc(u.staged.version) : '–'}</div></div>
@@ -3317,7 +3363,7 @@
         ${r.rows.map(a => `<tr class="${a.active ? '' : 'off'}"><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}${a.active ? '' : ' <span class="pill">inaktiv</span>'}${a.bank ? `<br><span class="muted s">${esc(a.bank)}</span>` : ''}</td>
           <td class="nw">${esc(fmtIbanC(a.iban))}</td><td>${a.departments.length ? esc(a.departments.map(dn).join(', ')) : '<span class="muted s">alle</span>'}</td>
           <td class="r">${r.manage ? `<button class="btn small" data-bk="${a.id}">Bearbeiten</button>` : ''}</td></tr>`).join('')}</table>`
-        : '<p class="muted">Noch kein Bankkonto angelegt.</p>'}
+        : '<p class="empty">Noch kein Bankkonto angelegt.</p>'}
       ${r.manage ? '<div class="btns"><button class="btn primary" id="bkNew">+ Bankkonto</button></div>' : ''}`;
     if ($('bkNew')) $('bkNew').onclick = () => bankDialog(null, r);
     box.querySelectorAll('[data-bk]').forEach(b => { b.onclick = () => bankDialog(r.rows.find(a => a.id === +b.dataset.bk), r); });
@@ -3330,7 +3376,7 @@
         <label class="f">Kreditinstitut<input id="bkK" value="${v('bank')}"></label><label class="f"><span>&nbsp;</span><label class="chk" style="min-height:40px"><input type="checkbox" id="bkD" ${!a || a.is_default ? 'checked' : ''}> Standardkonto</label></label></div>
       ${r.departments.length ? `<h3 style="margin:16px 0 4px">Abteilungen (optional)</h3><p class="muted s" style="margin:0 0 8px">Rechnungen dieser Abteilungen nennen dieses Konto. Ohne Auswahl gilt das Konto für den ganzen Verein.</p>
         <div class="permgrid">${r.departments.filter(d => d.active !== 0).map(d => `<label class="chk"><input type="checkbox" data-bkd="${d.id}" ${a && a.departments.includes(d.id) ? 'checked' : ''}> ${esc(d.name)}</label>`).join('')}</div>` : ''}
-      ${a ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bkA" ${a.active ? 'checked' : ''}> aktiv</label>` : ''}
+      ${a ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bkA" ${a.active ? 'checked' : ''}> Aktiv</label>` : ''}
       <div class="btns">${a ? '<button class="btn ghost danger" id="bkDel">Löschen</button><span style="flex:1"></span>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bkOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
     $('bkOk').onclick = () => busy($('bkOk'), async () => {
@@ -3365,7 +3411,7 @@
         <p class="muted s">Die Farbe gilt für Tablet, Verwaltung und Excel-Export. Tablets übernehmen sie beim nächsten Neuladen.</p></div>
       <div class="card"><h3>Startseite am Tablet: „Ich bin öfter hier:“</h3><div class="row">
         <label class="f">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${s.topN}" inputmode="numeric"></label>
-        <label class="f">aus den letzten … Tagen<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label>
+        <label class="f">Aus den letzten … Tagen<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label>
         <button class="btn primary" id="saveTop">Speichern</button></div>
         <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p></div>
       <div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
@@ -3397,17 +3443,18 @@
           <label class="f">Server (SMTP)<input id="mlH" value="${esc(ml.host)}" placeholder="z. B. mail.gmx.net" autocomplete="off"></label>
           <label class="f">Port<input id="mlP" value="${esc(ml.port)}" inputmode="numeric"></label>
           <label class="f">Absender-Adresse<input id="mlF" value="${esc(ml.from)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
-          <button class="btn primary" id="mlSave">Postfach speichern</button>
           <label class="f">Benutzer<input id="mlU" value="${esc(ml.user)}" autocomplete="off"></label>
           <label class="f">Passwort${ml.hasPass ? ' (gespeichert – leer = unverändert)' : ''}<input id="mlW" type="password" autocomplete="new-password"></label>
-          <label class="f">Testmail an<input id="mlT" type="email" placeholder="deine@adresse.de" autocomplete="email"></label>
-          <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'}>Testmail senden</button>
         </div>
+        <div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:12px">
+          <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testmail an<input id="mlT" type="email" placeholder="deine@adresse.de" autocomplete="email"></label>
+            <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'} title="${ml.ready ? '' : 'Erst das Postfach speichern'}">Testmail senden</button></div>
+          <button class="btn primary" id="mlSave">Postfach speichern</button></div>
         <p class="muted s">Am besten ein eigenes Vereinspostfach. Die Daten stehen beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“, Port meist 587 (manchmal 465). Beispiele: GMX mail.gmx.net, WEB.DE smtp.web.de, IONOS smtp.ionos.de, Strato smtp.strato.de; bei Gmail ein App-Passwort verwenden. Das Passwort wird nie wieder angezeigt und ist in keinem Export enthalten.</p></div>` : ''}
       ${map ? `<div class="card"><h3>Gemerkte Zuordnungen von Lieferanten-Artikeln</h3>
         ${map.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
           ${map.map(m => `<tr><td>${esc(m.supplier)}</td><td>${/^lidl:/.test(m.art_no) ? '<span class="muted">–</span>' : esc(m.art_no)}</td><td>${esc(m.text || '')}</td><td>${m.article_id ? esc(m.article) : '<span class="muted">ignoriert</span>'}</td><td class="r">${m.pack_size}</td>
-            <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="muted">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload.</p>'}</div>` : ''}
+            <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="empty">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload.</p>'}</div>` : ''}
       ${me.role === 'oberadmin' ? '<div class="card" id="updCard"><h3>Update von Clubwerk</h3><div id="updBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       ${ext ? `<div class="card"><h3>Module & Erweiterungen</h3>
         ${ext.all.length ? `<div class="mods" id="modList">
@@ -3428,7 +3475,7 @@
                 : `<button class="switch ${x.active ? 'on' : ''}" role="switch" aria-checked="${x.active}" aria-label="${esc(x.name)} aktiv" data-ext="${esc(x.id)}" data-on="${x.active ? 0 : 1}" ${x.error || !mayCfg ? 'disabled' : ''}></button>`}
                 <button type="button" class="dots" data-menu="${esc(x.id)}" aria-label="Weitere Aktionen für ${esc(x.name)}" style="${items ? '' : 'visibility:hidden'}">${icon('punkte', 18)}</button></span>
               ${items ? `<div class="menu hidden" data-menufor="${esc(x.id)}">${items}</div>` : ''}</div>`;
-          }).join('')}</div>` : '<p class="muted">Keine Module vorhanden.</p>'}
+          }).join('')}</div>` : '<p class="empty">Keine Module vorhanden.</p>'}
         <p class="muted s" style="margin:12px 0 0">Schalter aus = ausgeblendet, Daten bleiben. Über <b>⋯</b>: Einstellungen exportieren/importieren (ohne PINs und Schlüssel) und Deinstallieren (mit Pflicht-Sicherung). Mitglieder und Konten bleiben immer erhalten.</p>
         ${me.role === 'oberadmin' ? `<div class="row" style="margin-top:10px;align-items:center"><label class="btn primary" style="cursor:pointer">Erweiterung einspielen (ZIP) …<input type="file" id="extZip" accept=".zip,application/zip" class="hidden"></label>
           <button class="btn hidden" id="extRestart">Jetzt neu starten</button></div>
@@ -3511,7 +3558,7 @@
         $('lnRows').innerHTML = links.map((l, i) => `<div class="row" style="flex-wrap:nowrap;margin-top:${i ? 10 : 0}px">
           <label class="f" style="width:220px">Beschriftung<input data-ll="${i}" value="${esc(l.label)}" maxlength="30" placeholder="z. B. Platzbuchung"></label>
           <label class="f" style="flex:1;min-width:0">Adresse<input data-lu="${i}" value="${esc(l.url)}" placeholder="https://…"></label>
-          <button class="btn ghost" data-lx="${i}">Entfernen</button></div>`).join('') || '<p class="muted" style="margin:0">Noch keine Links.</p>';
+          <button class="btn ghost" data-lx="${i}">Entfernen</button></div>`).join('') || '<p class="empty">Noch keine Links.</p>';
         $('lnRows').querySelectorAll('[data-ll]').forEach(x => x.oninput = () => { links[+x.dataset.ll].label = x.value; });
         $('lnRows').querySelectorAll('[data-lu]').forEach(x => x.oninput = () => { links[+x.dataset.lu].url = x.value; });
         $('lnRows').querySelectorAll('[data-lx]').forEach(x => x.onclick = () => { links.splice(+x.dataset.lx, 1); rowsHtml(); });
@@ -3528,7 +3575,7 @@
       const draw = () => {
         $('toRows').innerHTML = items.length ? items.map((x, i) => `<div class="torow"><span class="ton">${i + 1}</span><b translate="no">${esc(x.label)}</b><span class="muted s">${x.url ? 'Link' : 'Modul'}</span>
           <label class="chk tostart"><input type="radio" name="toStart" data-st="${esc(x.key)}" ${x.key === start ? 'checked' : ''}> Start</label>
-          <span class="toact"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach links">↑</button><button class="btn small" data-dn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach rechts">↓</button></span></div>`).join('') : '<p class="muted" style="margin:0">Kein Modul mit Tablet-Seite aktiv.</p>';
+          <span class="toact"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach links">↑</button><button class="btn small" data-dn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach rechts">↓</button></span></div>`).join('') : '<p class="empty">Kein Modul mit Tablet-Seite aktiv.</p>';
         $('toRows').querySelectorAll('[data-up]').forEach(b => { b.onclick = () => { const i = +b.dataset.up; [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); }; });
         $('toRows').querySelectorAll('[data-dn]').forEach(b => { b.onclick = () => { const i = +b.dataset.dn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
         $('toRows').querySelectorAll('[data-st]').forEach(r => { r.onchange = () => { start = r.dataset.st; }; });

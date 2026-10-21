@@ -52,7 +52,7 @@ function brand(club = {}) {
     const type = g('club_logo_type');
     try {
       if (type === 'png' || type === 'jpg') logo = Buffer.from(g('club_logo'), 'base64');
-      else if (type && g('club_icon') && g('club_icon_ver') === g('club_logo_ver', 'std')) logo = Buffer.from(g('club_icon'), 'base64');
+      else if (type && g('club_logo_png') && g('club_logo_png_ver') === g('club_logo_ver', 'std')) logo = Buffer.from(g('club_logo_png'), 'base64');   // SVG-Logo: vom Browser gezeichnetes PNG
     } catch (e) { logo = null; }
     if (!isImg(logo)) logo = null;
   }

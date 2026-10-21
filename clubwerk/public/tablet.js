@@ -132,7 +132,7 @@
     $('evHead').innerHTML = `Liste „${esc(ev.name)}“ <small>${all.length} ${all.length === 1 ? 'Name' : 'Namen'} · A–Z</small>`;
     $('evSearch').classList.toggle('hidden', all.length < 16);
     $('evNames').innerHTML = list.map(guestCard).join('') ||
-      `<div class="muted" style="grid-column:1/-1;font-size:17px;padding:8px 2px">${all.length ? 'Kein Name passt zur Suche.' : 'Noch niemand auf der Liste – mit „+ Namen hinzufügen“ den eigenen Namen eintragen.'}</div>`;
+      `<div class="tk-empty" style="grid-column:1/-1">${all.length ? 'Kein Name passt zur Suche.' : 'Noch niemand auf der Liste – mit „+ Namen hinzufügen“ den eigenen Namen eintragen.'}</div>`;
   }
 
   function renderStart() {
@@ -172,7 +172,7 @@
     // Gesamtliste immer vollständig (die häufigen stehen oben zusätzlich)
     const match = m => m.name.toLocaleLowerCase('de').includes(q) || lastFirst(m.name).toLocaleLowerCase('de').includes(q);
     const list = q ? people.filter(match) : letter ? people.filter(m => initial(m) === letter) : people;
-    $('names').innerHTML = list.map(card).join('') || `<div class="muted" style="grid-column:1/-1;font-size:16px;padding:8px 2px">Kein Name passt – oder „Ich bin neu“ antippen.</div>`;
+    $('names').innerHTML = list.map(card).join('') || `<div class="tk-empty" style="grid-column:1/-1">Kein Name passt – oder „Ich bin neu“ antippen.</div>`;
 
     // ganz unten: Mannschaften/Gruppen, Verein (kostenfrei), Gast
     const teams = state.members.filter(m => m.kind === 'mannschaft' && (!q || m.name.toLocaleLowerCase('de').includes(q)));

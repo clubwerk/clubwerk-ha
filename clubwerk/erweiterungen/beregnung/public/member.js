@@ -21,6 +21,7 @@
           const v = await ctx.api('status');
           pl = v.plaetze; T().prime(pl); draw();
           document.getElementById('bgStop').classList.toggle('hidden', !pl.length);   // ohne Plätze kein Not-Aus
+          document.getElementById('bgTiles').classList.toggle('offline', !v.online); document.getElementById('bgStop').disabled = !v.online;
           document.getElementById('bgDot').className = 'vh-dot ' + (v.online ? 'ok' : 'err');
           document.getElementById('bgSt').textContent = v.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
           if (alive) timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);

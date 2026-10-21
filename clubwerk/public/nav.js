@@ -65,7 +65,20 @@
     nav.classList.toggle('hidden', links.length < 2);   // nur ein Bereich: keine Reiter nötig
     nav.classList.toggle('many', links.length >= 5);     // fünf und mehr Reiter: ohne Symbole, damit die Beschriftungen bei 1280 px nicht abgeschnitten werden
     const adm = document.getElementById('adminLink'); if (adm) adm.classList.toggle('on', active === 'verwaltung');
+    fit();
   }
+  /* Passen die Reiter nicht neben Logo und „Verwaltung“ (z. B. Tablet hochkant), wird die Kopfzeile zweizeilig:
+     oben Verein, Uhr und Verwaltung, darunter alle Reiter in voller Breite – nie überlappend, nie abgeschnitten. */
+  function fit() {
+    const head = document.getElementById('gkHeader'), nav = document.getElementById('topnav'); if (!head || !nav) return;
+    head.classList.remove('stack');
+    if (nav.classList.contains('hidden') || window.innerWidth <= 640) return;
+    const n = nav.getBoundingClientRect(), r = head.querySelector('.hright'), b = head.querySelector('.brand');
+    const hit = el => { if (!el) return false; const x = el.getBoundingClientRect(); return x.width > 0 && x.left < n.right - 1 && x.right > n.left + 1; };
+    if (nav.scrollWidth > nav.clientWidth + 1 || hit(r) || hit(b)) head.classList.add('stack');
+  }
+  window.addEventListener('resize', () => { clearTimeout(fit.t); fit.t = setTimeout(fit, 120); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   function load() {
     fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : { items: [] })).then(d => render(d.items || [], d.start)).catch(() => render([]));
   }

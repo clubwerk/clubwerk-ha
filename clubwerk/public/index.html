@@ -72,10 +72,9 @@
   /* A–Z: nur vorhandene Buchstaben, gleichmäßig über die volle Breite */
   .letters { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
   .letters.few { justify-content: flex-start; }
-  .letters button { min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; font-size: 16px; font-weight: 700; color: #36423B; }
-  :root[data-theme="dark"] .letters button { color: var(--ink); }
+  .letters button { min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; font-size: 16px; font-weight: 700; color: var(--ink); background: var(--card); border: 1px solid var(--line); }   /* alle Buchstaben als gleich große Felder – „Alle“ ist nur das aktive */
   :root[data-theme="dark"] .letters button.on { color: var(--bg); }
-  .letters button.on { background: var(--ink); color: var(--bg); }
+  .letters button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
   .letters button.all { padding: 0 14px; font-size: 14px; }
   /* untere Reihe: vier gleich breite Knöpfe auf dem Raster der Namenskacheln */
   .bottomrow { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 16px; margin-top: 24px; }

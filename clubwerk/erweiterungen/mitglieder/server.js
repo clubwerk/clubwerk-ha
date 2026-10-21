@@ -85,7 +85,7 @@ function listRows(q = {}) {
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
-      issues: [!r.complete && 'unvollständig', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
+      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'unvollständig', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -342,7 +342,7 @@ function activate(ctx) {
   admin.get('/meta', P, (req, res) => {
     const depts = ctx.db.prepare('SELECT d.*, (SELECT COUNT(*) FROM mv_member_department md WHERE md.department_id = d.id AND (md.exit_date IS NULL OR md.exit_date >= ?)) AS members FROM mv_department d ORDER BY d.sort, d.name').all(today());
     const feeList = ctx.db.prepare(`SELECT f.*, CASE WHEN f.kind = 'zusatz' THEN (SELECT COUNT(*) FROM mv_member_department md WHERE md.department_id = f.department_id AND (md.exit_date IS NULL OR md.exit_date >= ?))
-      ELSE (SELECT COUNT(*) FROM mv_member_fee mf WHERE mf.fee_id = f.id AND (mf.end_date IS NULL OR mf.end_date >= ?)) END AS members FROM mv_fee f ORDER BY f.kind = 'zusatz', f.department_id, COALESCE(f.age_min, 0), f.sort, f.name`).all(today(), today());
+      ELSE (SELECT COUNT(*) FROM mv_member_fee mf WHERE mf.fee_id = f.id AND (mf.end_date IS NULL OR mf.end_date >= ?)) END AS members FROM mv_fee f ORDER BY f.kind = 'zusatz', CASE WHEN f.kind = 'zusatz' THEN f.department_id END, CASE WHEN f.kind = 'zusatz' THEN COALESCE(f.age_min, 0) END, f.sort, f.name`).all(today(), today());   // Hauptverein: Reihenfolge wie festgelegt (↑ ↓)
     // Zusatzbeiträge: zählen, wer heute tatsächlich diese Altersstufe zahlt (ohne Befreite)
     if (feeList.some(f => f.kind === 'zusatz')) {
       const per = {};
@@ -476,11 +476,27 @@ function activate(ctx) {
     savePerson(id, pi.fields, uname(req));
     res.json({ ok: true });
   });
+  /* Familienmitglieder zahlen über das Oberhaupt (bzw. dessen Zahler) – ältere Datenstände beim Start angleichen */
+  try {
+    for (const r of ctx.db.prepare('SELECT x.member_id, x.payer_id, x.family_of FROM mv_person x WHERE x.family_of IS NOT NULL AND x.family_of != x.member_id').all()) {
+      const want = store.payerOf(r.family_of);
+      if (want && want !== r.member_id && r.payer_id !== want && !ctx.db.prepare('SELECT 1 FROM mv_person WHERE payer_id = ? AND member_id != ?').get(r.member_id, r.member_id)) {
+        ctx.db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(want, r.member_id);
+        store.hist(r.member_id, 'System', 'Zahler', null, `${(personRow(want) || {}).name || want} (Oberhaupt der Familienmitgliedschaft)`);
+      }
+    }
+  } catch (e) { console.error('[mitglieder] Zahler der Familien angleichen:', e.message); }
   /* Familie / abweichender Zahler */
   admin.put('/member/:id/payer', P, (req, res) => {
     const id = int(req.params.id); const b = req.body || {};
     if (!personRow(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
     let payer = b.payer_id ? int(b.payer_id) : null;
+    { const me = personRow(id);
+      if (me && me.family_of) {   // Familienmitgliedschaft: Geld läuft immer über das Oberhaupt (bzw. dessen Zahler) – nur der Verkauf ist einstellbar
+        const want = store.payerOf(me.family_of);
+        if (payer && store.payerOf(payer) !== want) return bad(res, `${me.name} gehört zur Familienmitgliedschaft von ${(personRow(me.family_of) || {}).name || '…'} – gezahlt wird über das Oberhaupt. Erst unter „Familienmitgliedschaft“ lösen.`);
+        payer = want;
+      } }
     if (payer) {
       if (personRow(payer)) payer = store.payerOf(payer);   // zahlt der Gewählte selbst über jemanden, gilt dessen Hauptzahler
       if (payer === id) return bad(res, 'Ein Mitglied kann nicht für sich selbst als Zahler eingetragen werden.');
@@ -509,12 +525,21 @@ function activate(ctx) {
       if (ctx.db.prepare('SELECT 1 FROM mv_person WHERE family_of = ? AND member_id != ?').get(id, id)) return bad(res, `${p.name} ist selbst Oberhaupt einer Familienmitgliedschaft – erst die Angehörigen lösen.`);
       if (store.isExited(h)) return bad(res, `${h.name} ist ausgetreten.`);
       if (!store.familyFee(head)) return bad(res, `${h.name} hat keinen Familienbeitrag – bitte zuerst unter „Mitgliedschaft“ eine Beitragsart mit Familienbeitrag zuweisen.`);
+      if (head !== p.family_of) {
+        const own = ctx.db.prepare("SELECT f.name FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.kind != 'zusatz' AND (mf.end_date IS NULL OR mf.end_date >= ?)").all(id, today());
+        const ownN = own.map(x => x.name).join(', ');
+        if (own.length) return bad(res, `${p.name} hat noch einen eigenen Beitrag (${ownN}). In der Familienmitgliedschaft ist er im Familienbeitrag enthalten – bitte den eigenen Beitrag unter „Mitgliedschaft“ zuerst beenden oder entfernen.`);
+        if (ctx.db.prepare('SELECT 1 FROM mv_person WHERE payer_id = ? AND member_id != ?').get(id, id)) return bad(res, `Über ${p.name} zahlen noch andere Mitglieder – in der Familie zahlt das Oberhaupt. Bitte diese Angehörigen zuerst umhängen.`);
+      }
       if (store.isAdult(p.birth_date) && p.family_of !== head) {
         const others = store.familyMembers(head).filter(f => f.role === 'partner' && f.id !== id && !store.isExited(f));
         if (others.length) return bad(res, 'In einer Familienmitgliedschaft dürfen nur zwei Erwachsene sein – das Oberhaupt und ein Partner.');
       }
     }
     savePerson(id, { family_of: head }, uname(req));
+    // Zahler folgt der Familie: dabei → Oberhaupt (bzw. dessen Zahler); gelöst → zahlt wieder selbst, wenn bisher das Oberhaupt zahlte
+    if (head) { const want = store.payerOf(head); if (p.payer_id !== want) savePerson(id, { payer_id: want === id ? null : want }, uname(req)); }
+    else if (p.family_of && p.payer_id && p.payer_id === store.payerOf(p.family_of)) savePerson(id, { payer_id: null }, uname(req));
     res.json({ ok: true, family: store.familyMembers(head || store.familyHead(id)) });
   });
   /* Bankverbindung & Mandat */
@@ -630,6 +655,7 @@ function activate(ctx) {
     const p = personRow(id);
     if (!p || !f) return bad(res, 'Nicht gefunden.', 404);
     if (f.kind === 'zusatz') return bad(res, `„${f.name}“ ist ein Zusatzbeitrag der Abteilung – er gilt automatisch für alle, die der Abteilung angehören.`);
+    if (p.family_of) return bad(res, `${p.name} ist in der Familienmitgliedschaft von ${(personRow(p.family_of) || {}).name || '…'} enthalten – ein eigener Beitrag ist nicht möglich. Erst unter „Zahlung & Familie“ aus der Familie lösen.`);
     const m = mfInput({ start_date: today(), ...b }); if (m.error) return bad(res, m.error);
     const ae = feeAgeError(f, p, m.v.start_date); if (ae) return bad(res, ae);
     store.ensurePerson(id);
@@ -859,6 +885,14 @@ function activate(ctx) {
       if (z && (!md.booked_until || z > md.booked_until)) ctx.db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(z, md.id);
     }
   };
+  /* Reihenfolge der Beitragsarten (Liste, Auswahlfelder, Beitrittserklärung) */
+  admin.put('/fees/order', P, (req, res) => {
+    const ids = (Array.isArray((req.body || {}).ids) ? req.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 200);
+    const up = ctx.db.prepare("UPDATE mv_fee SET sort = ? WHERE id = ? AND kind != 'zusatz'");
+    ctx.db.transaction(() => ids.forEach((id, i) => up.run((i + 1) * 10, id)))();
+    ctx.audit(req.user, 'Mitgliederverwaltung: Reihenfolge der Beitragsarten', ids.map(id => (ctx.db.prepare('SELECT name FROM mv_fee WHERE id = ?').get(id) || {}).name).filter(Boolean).join(', '));
+    res.json({ ok: true });
+  });
   admin.post('/fees', P, (req, res) => {
     const f = feeInput(req.body || {}); if (f.error) return bad(res, f.error);
     const k = Object.keys(f.v);
@@ -943,8 +977,16 @@ function activate(ctx) {
     }
     if (b.notify_to && String(b.notify_to).split(',').some(x => x.trim() && !mailOk(x.trim()))) errors.push('Ungültige E-Mail-Adresse bei „Benachrichtigung an“.');
     if (errors.length) return bad(res, errors.join(' '));
+    const prevSet = Object.fromEntries(pending.map(([k]) => [k, S(k, '')]));   // alte Werte fürs Protokoll
     ctx.db.transaction(() => { for (const [k, v] of pending) SET(k, v); })();
-    ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', pending.map(([k]) => k).join(', '));
+    { const L = { club_street: 'Straße', club_city: 'PLZ und Ort', creditor_name: 'Zahlungsempfänger', club_bank: 'Kreditinstitut', notify_to: 'Benachrichtigung an', due_text: ['Hinweis zu Beitrag & Fälligkeit', 'text'],
+        app_intro: ['Begrüßung im Formular', 'text'], work_text: ['Hinweis Arbeitseinsatz', 'text'], invoice_text: ['Rechnungstext', 'text'], satzung_url: 'Satzung (Link)', creditor_id: 'Gläubiger-ID', club_iban: ['Vereins-IBAN', 'text'],
+        sepa_account: ['Konto für Lastschriften', 'text'], club_bic: 'BIC', mandate_prefix: 'Mandatsreferenz-Vorsilbe', member_no_start: 'Mitgliedsnummern ab', year_start: 'Beginn des Beitragsjahres', prenotify_days: 'Vorabinformation (Tage)',
+        drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_fee_cents: ['Mahngebühr', 'euro'],
+        notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
+      const after = {}; for (const [k, v] of pending) { after[k] = String(v); }
+      const diff = ctx.auditDiff ? ctx.auditDiff(L, Object.fromEntries(Object.keys(after).map(k => [k, prevSet[k]])), after) : '';
+      if (diff) ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', diff); }
     res.json({ ok: true, settings: settingsView(req.user) });
   });
 

@@ -60,10 +60,6 @@
       .mv-fees label b { margin-left: auto; font-variant-numeric: tabular-nums; }
       .mv-sum { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 14px 0 0; border-top: 1px solid var(--line-soft); margin-top: 14px; }
       .mv-sum b { font-size: 18px; font-variant-numeric: tabular-nums; }
-      .mv-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
-      .mv-steps > div { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--card); font-size: 13px; color: var(--muted); }
-      .mv-steps b { display: block; color: var(--ink); font-size: 14px; margin-bottom: 2px; }
-      @media (max-width: 900px) { .mv-steps { grid-template-columns: 1fr 1fr; } }
       .mv-sig { max-width: 220px; max-height: 70px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
       .mv-diff td:nth-child(2) { color: var(--muted); text-decoration: line-through; }
       .mv-lsb th, .mv-lsb td { text-align: right; } .mv-lsb th:first-child, .mv-lsb td:first-child { text-align: left; }
@@ -72,9 +68,10 @@
       .mv-sub { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted, #667); text-transform: uppercase; letter-spacing: .04em; }
       .mv-two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; } .mv-two > .card { margin-bottom: 16px; display: flex; flex-direction: column; } .mv-two > .card > .row:last-child { margin-top: auto; padding-top: 12px; }
       @media (max-width: 1000px) { .mv-two { grid-template-columns: 1fr; } }
+      .mv-lockinfo { margin-bottom: 16px; } .mv-locked { opacity: .5; } .mv-locked input, .mv-locked select, .mv-locked textarea { background: var(--hover); }
       .mv-depchk { display: flex; flex-wrap: wrap; gap: 4px 14px; } .mv-depchk label.chk { font-size: 13.5px; white-space: nowrap; }
       .mv-sub { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
-      .mv-fsel { width: 180px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }`;
+      .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }`;
     document.head.appendChild(s);
   }
 
@@ -117,9 +114,12 @@
       await fn(pageEl());
     };
   }
-  const render = pageRender('mitglieder', el => (st.detail ? showDetail(el, st.detail) : showList(el)));
-  const reloadTab = () => GK.go(current);
-  const openMember = id => { st.detail = id; st.sub = 'stamm'; if (current === 'mitglieder') showDetail(pageEl(), id).catch(fail); else GK.go('mitglieder'); };
+  /* Klick auf „Mitgliederverwaltung“ bzw. den Reiter „Mitglieder“ zeigt immer die ganze Liste: kein zuletzt geöffnetes Mitglied, Suche und Filter leer.
+     Nur wenn das Modul selbst hinspringt (Mitglied öffnen, Seite neu laden), bleibt der Zustand erhalten. */
+  const listRender = pageRender('mitglieder', el => (st.detail ? showDetail(el, st.detail) : showList(el)));
+  const render = () => { if (!st.keep) { st.detail = null; st.sub = 'stamm'; st.f = { status: 'aktuell', q: '', dept: '', fee: '' }; } st.keep = false; return listRender(); };
+  const reloadTab = () => { st.keep = true; GK.go(current); };
+  const openMember = id => { st.detail = id; st.sub = 'stamm'; if (current === 'mitglieder') showDetail(pageEl(), id).catch(fail); else { st.keep = true; GK.go('mitglieder'); } };
 
   /* ================================================================= Liste */
   async function showList(el) {
@@ -127,8 +127,9 @@
     const m = st.meta;
     const cur = st.rows.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym');
     const y = m.today.slice(0, 4);
-    el.innerHTML = `<div class="toolbar"><button class="btn primary" id="mvNew">+ Neues Mitglied</button><button class="btn ghost" id="mvApp">Beitrittserklärung am Tablet …</button>
-        ${SC() ? '' : '<button class="btn ghost" id="mvImp">Import …</button><button class="btn ghost" id="mvXls">Excel-Liste …</button>'}</div>
+    // Knöpfe rechts in der Reiterzeile (Beitrittserklärungen am Tablet: Reiter „Anträge“)
+    const tools = `${SC() ? '' : '<button class="btn" id="mvXls">Excel-Liste …</button><button class="btn" id="mvImp">Import …</button>'}<button class="btn primary" id="mvNew">+ Neues Mitglied</button>`;
+    el.innerHTML = `${GK.tabTools ? '' : `<div class="toolbar">${tools}</div>`}
       <div class="kpis">
         <div class="kpi"><div class="l">Mitglieder</div><div class="v">${cur.length}</div></div>
         <div class="kpi"><div class="l">Eintritte ${y}</div><div class="v">${cur.filter(r => r.entry_date && r.entry_date.startsWith(y)).length}</div></div>
@@ -170,8 +171,8 @@
     const open = tr => { st.detail = +tr.dataset.sel; st.sub = 'stamm'; showDetail(el, st.detail).catch(fail); window.scrollTo({ top: 0 }); };
     $('mvTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) open(tr); };
     $('mvTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(tr); } };
+    if (GK.tabTools && !GK.tabTools(tools, $('mvTbl'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('mvNew').onclick = () => newMember(el);
-    $('mvApp').onclick = () => applicationForm();
     if ($('mvImp')) $('mvImp').onclick = () => importDialog();
     if ($('mvXls')) $('mvXls').onclick = () => exportDialog();
   }
@@ -345,17 +346,17 @@
       : x.zusatz_nomatch ? (x.zusatz_age != null ? `<span class="pill">beitragsfrei</span><div class="muted s">keine Altersstufe für ${x.zusatz_age} Jahre</div>` : '<span class="pill a">Geburtsdatum fehlt</span>') : '<span class="muted s">–</span>') + '</div>';
     const depRows = d.departments.map(x => `<tr class="${x.exit_date && x.exit_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(x.name)}</b></td><td>${esc(x.status)}</td><td class="nw">${deDate(x.entry_date) || '–'}</td><td class="nw">${x.exit_date ? deDate(x.exit_date) : '–'}</td><td>${zText(x)}</td>
       <td class="r nw">${myDept(x.department_id) ? `<button class="btn small" data-md="${x.id}">Bearbeiten</button> <button class="btn small danger" data-mdx="${x.id}">Entfernen</button>` : ''}</td></tr>`).join('');
-    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() ? '' : '<button class="btn small primary" id="fAdd">+ Beitrag</button>'}</div>
+    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() || d.familyHead ? '' : '<button class="btn small primary" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
           : `<p class="muted">${d.familyHead ? `Kein eigener Beitrag – im Familienbeitrag von ${esc(d.familyHead.name)} enthalten (Reiter „Zahlung & Familie“).` : p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt.' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small primary" id="dAdd">+ Abteilung</button>'}</div>
         ${d.departments.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Zusatzbeitrag</th><th></th></tr>${depRows}</table>
-          <p class="muted s" style="margin-bottom:0">Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.</p>` : '<p class="muted">Keiner Abteilung zugeordnet.</p>'}</div>
+          <p class="muted s" style="margin-bottom:0">${d.familyHead ? `Der Zusatzbeitrag wird ${esc(d.familyHead.name)} (Oberhaupt) zusätzlich zum Familienbeitrag belastet.` : 'Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.'}</p>` : '<p class="empty">Keiner Abteilung zugeordnet.</p>'}</div>
       <div class="mv-two">
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ehrungen</h3><button class="btn small" id="hAdd">+ Ehrung</button></div>
-          ${d.honors.length ? `<table class="tbl">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted">Keine.</p>'}</div>
+          ${d.honors.length ? `<table class="tbl">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ehrungen eingetragen.</p>'}</div>
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ämter & Funktionen</h3><button class="btn small" id="aAdd">+ Amt</button></div>
-          ${d.functions.length ? `<table class="tbl">${d.functions.map(h => `<tr class="${h.to_date && h.to_date < m.today ? 'off' : ''}"><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.from_date) || ''}${h.to_date ? ' – ' + deDate(h.to_date) : ''}</td><td class="r"><button class="btn small danger" data-ax="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted">Keine.</p>'}</div>
+          ${d.functions.length ? `<table class="tbl">${d.functions.map(h => `<tr class="${h.to_date && h.to_date < m.today ? 'off' : ''}"><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.from_date) || ''}${h.to_date ? ' – ' + deDate(h.to_date) : ''}</td><td class="r"><button class="btn small danger" data-ax="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ämter oder Funktionen.</p>'}</div>
       </div>`;
     const feeDialog = f => {
       dialog(`<h2>${f ? esc(f.name) : 'Beitrag zuordnen'}</h2><div class="mv-grid" style="--c:2">
@@ -365,9 +366,9 @@
           const ok = list.filter(fits), no = list.filter(x => !fits(x));
           return ok.map(x => opt(x.id, feeLabel(x))).join('') + (no.length ? `<optgroup label="${esc(p.age == null ? 'mit Altersgrenze – erst Geburtsdatum eintragen' : `passt nicht zum Alter (${p.age} Jahre)`)}">${no.map(x => `<option value="${x.id}" disabled>${esc(feeLabel(x))}</option>`).join('')}</optgroup>` : '');
         })()}</select></label>`}
-        <label class="f">ab<input id="fStart" type="date" value="${esc(f ? f.start_date : (p.entry_date || m.today))}"></label><label class="f">bis (leer = unbefristet)<input id="fEnd" type="date" value="${esc(f ? f.end_date || '' : '')}"></label>
+        <label class="f">Ab<input id="fStart" type="date" value="${esc(f ? f.start_date : (p.entry_date || m.today))}"></label><label class="f">Bis (leer = unbefristet)<input id="fEnd" type="date" value="${esc(f ? f.end_date || '' : '')}"></label>
         <label class="f">Abweichender Betrag (leer = laut Beitragsart)<input id="fCents" inputmode="decimal" value="${f && f.cents != null ? centsToInput(f.cents) : ''}" placeholder="z. B. 54,00"></label>
-        <label class="f">abgerechnet bis<input id="fBooked" type="date" value="${esc(f ? f.booked_until || '' : '')}"></label>
+        <label class="f">Abgerechnet bis<input id="fBooked" type="date" value="${esc(f ? f.booked_until || '' : '')}"></label>
         <label class="f wall">Notiz<input id="fNote" value="${esc(f ? f.note || '' : '')}" placeholder="z. B. Ermäßigung bis Ausbildungsende"></label></div>
         <p class="muted s">„Abgerechnet bis“ setzt der Beitragslauf selbst. Nur ändern, wenn Beiträge außerhalb von Clubwerk abgerechnet wurden.</p>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="fOk">Speichern</button></div>`);
@@ -410,7 +411,7 @@
       });
     };
     $('hAdd').onclick = () => simple('honors', 'Ehrung', '<label class="f">Datum<input type="date" data-k="date"></label><label class="f">Notiz<input data-k="note"></label>');
-    $('aAdd').onclick = () => simple('functions', 'Amt / Funktion', '<label class="f">von<input type="date" data-k="from_date"></label><label class="f">bis<input type="date" data-k="to_date"></label>');
+    $('aAdd').onclick = () => simple('functions', 'Amt / Funktion', '<label class="f">Von<input type="date" data-k="from_date"></label><label class="f">Bis<input type="date" data-k="to_date"></label>');
     el.querySelectorAll('[data-hx]').forEach(b => { b.onclick = async () => { try { await api('honors/' + b.dataset.hx, 'DELETE'); again(); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-ax]').forEach(b => { b.onclick = async () => { try { await api('functions/' + b.dataset.ax, 'DELETE'); again(); } catch (e) { fail(e); } }; });
   }
@@ -429,10 +430,11 @@
     el.innerHTML = `<div class="mv-two">
       <div class="card"><h3>Wer zahlt?</h3>
         <div class="mv-grid" style="--c:1">
-          <label class="f">Zahler<select id="pPayer"><option value="">${esc(p.name)} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
+          <label class="f">Zahler<select id="pPayer" ${d.familyHead ? 'disabled' : ''}><option value="">${esc(p.name)} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
           <label class="f ${p.payer_id ? '' : 'hidden'}" id="pDrinksL">Verkauf am Tablet<select id="pSales">${opt('payer', 'Über den Hauptzahler (nicht in der Liste)', p.sales_mode || 'payer')}${opt('own_payer', 'Eigener Eintrag – zahlt der Hauptzahler', p.sales_mode)}${opt('own', 'Eigener Eintrag – zahlt selbst', p.sales_mode)}</select></label>
           <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
         </div>
+        ${d.familyHead ? `<div class="banner b mv-lockinfo"><span><b>Familienmitglied von ${esc(d.familyHead.name)}</b> – gezahlt wird immer über das Oberhaupt. Einstellbar ist nur, wie am Tablet gebucht wird.</span></div>` : ''}
         <p class="muted s">Der Zahler ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf aller Angehörigen laufen über sein Konto und Mandat – auch für erwachsene Kinder mit eigenem Beitrag. Am Tablet bucht die Zahlergruppe standardmäßig auf den Namen des Hauptzahlers.</p>
         ${d.payerGroup.length ? `<h4 class="mv-sub">Zahlergruppe</h4><table class="tbl">${d.payerGroup.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.head ? '<span class="pill g">Hauptzahler</span>' : `<span class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</span>`}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>` : ''}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pSave">Speichern</button></div></div>
@@ -442,11 +444,11 @@
         </div>
         <p class="muted s">${isHead ? `${esc(p.name)} ist Oberhaupt: der eigene Familienbeitrag deckt Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre ab. Ein Oberhaupt kann nicht selbst einer anderen Familie zugeordnet sein.`
           : `Wählbar sind Mitglieder mit aktivem Familienbeitrag. Wer zugeordnet ist, braucht keine eigene Beitragsart – Zusatzbeiträge der Abteilungen bleiben je Person. Erlaubt: Oberhaupt, ein/e Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre.${!d.familyFee && famFeeIds.size === 0 ? ' Noch keine Beitragsart mit Familienbeitrag angelegt (Beiträge → Beitragsarten).' : ''}`}</p>
-        ${d.family.length ? `<h4 class="mv-sub">Familie</h4>${famTable(d.family)}` : d.familyFee ? '<p class="muted">Noch keine Angehörigen zugeordnet – unten hinzufügen.</p>' : ''}
+        ${d.family.length ? `<h4 class="mv-sub">Familie</h4>${famTable(d.family)}` : d.familyFee ? '<p class="empty">Noch keine Angehörigen zugeordnet – unten hinzufügen.</p>' : ''}
         ${isHead || d.familyFee ? `<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>${addable.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, '')).join('')}</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>` : ''}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
       ${d.charges ? `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Forderungen & Zahlungen</h3><div class="row">${head && d.charges.some(c => c.status === 'offen') ? `<a class="btn small" href="${BASE}invoice.pdf?member=${id}" target="_blank">Rechnung (PDF)</a>` : ''}<button class="btn small primary" id="pCharge">+ Forderung</button></div></div>
-        ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="muted">Noch keine Forderungen.</p>'}
+        ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="empty">Noch keine Forderungen.</p>'}
         ${d.drinksOpen ? `<p class="muted s">Dazu noch nicht abgerechneter Verkauf: <b>${euro(d.drinksOpen)}</b></p>` : ''}</div>` : ''}`;
     GK.watch(el);
     $('pPayer').onchange = () => { $('pDrinksL').classList.toggle('hidden', !val('pPayer')); $('pPay').disabled = Boolean(val('pPayer')); };
@@ -467,12 +469,15 @@
 
   function subBank(el, d, again) {
     const p = d.person, b = d.bank || {}, id = p.id;
-    if (p.payer_id) { el.innerHTML = `<div class="card"><p class="muted" style="margin:0">Für ${esc(p.name)} zahlt ${esc(d.payer ? d.payer.name : 'ein anderes Mitglied')} – Bankverbindung und Mandat stehen beim Zahler.</p></div>`; return; }
+    // Familienmitglied oder abweichender Zahler: Konto und Mandat gehören dem Oberhaupt/Zahler – hier nur ausgegraut zur Orientierung
+    const lockTo = d.familyHead || (p.payer_id ? (d.payer || { id: p.payer_id, name: 'ein anderes Mitglied' }) : null);
+    const lockBanner = lockTo ? `<div class="banner b mv-lockinfo"><span><b>${d.familyHead ? `Familienmitglied von ${esc(lockTo.name)}` : `Zahler: ${esc(lockTo.name)}`}</b> – Beiträge laufen über Konto und Mandat ${d.familyHead ? 'des Oberhaupts' : 'des Zahlers'}. Hier ist nichts einzutragen.</span>${lockTo.id ? `<a href="#" data-lockopen="${lockTo.id}">${esc(lockTo.name)} öffnen →</a>` : ''}</div>` : '';
+    const lockUp = () => { if (!lockTo) return; el.insertAdjacentHTML('afterbegin', lockBanner); el.querySelectorAll('.card').forEach(c => c.classList.add('mv-locked')); el.querySelectorAll('.card input, .card select, .card textarea, .card button').forEach(x => { x.disabled = true; }); const a = el.querySelector('[data-lockopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.lockopen); }; };
     const stPill = b.state ? (b.state.ok ? ['g', 'Mandat gültig'] : ['r', b.state.reason]) : ['', 'keine Bankverbindung'];
     if (!st.meta.perms.bank) {
       el.innerHTML = `<div class="card"><h3>Konto & Mandat ${pill(stPill)}</h3><dl class="facts" style="margin:0">
         <p>IBAN: <b>${esc(b.masked || '–')}</b><br>Mandatsreferenz: <b>${esc(b.mandate_ref || '–')}</b>${b.mandate_date ? ` vom ${deDate(b.mandate_date)}` : ''}</p></dl>
-        <p class="muted s">Vollständige Bankdaten sieht und ändert nur, wer das Recht „Bankdaten“ hat.</p></div>`; return;
+        <p class="muted s">Vollständige Bankdaten sieht und ändert nur, wer das Recht „Bankdaten“ hat.</p></div>`; lockUp(); return;
     }
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:12px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bankverbindung</h3>${pill(stPill)}</div>
       <div class="mv-grid" style="--c:4">
@@ -484,14 +489,15 @@
       <div class="card"><h3>SEPA-Lastschriftmandat</h3>
       <div class="mv-grid" style="--c:4">
         <label class="f w2">Mandatsreferenz<input id="bRef" value="${esc(b.mandate_ref || '')}" placeholder="wird bei „Neues Mandat“ vergeben"></label>
-        <label class="f">unterschrieben am<input id="bDate" type="date" value="${esc(b.mandate_date || '')}"></label>
-        <label class="f">zuletzt benutzt<input id="bUsed" type="date" value="${esc(b.mandate_last_used || '')}" title="leer = noch nie benutzt → nächste Lastschrift ist eine Erstlastschrift"></label>
+        <label class="f">Unterschrieben am<input id="bDate" type="date" value="${esc(b.mandate_date || '')}"></label>
+        <label class="f">Zuletzt benutzt<input id="bUsed" type="date" value="${esc(b.mandate_last_used || '')}" title="leer = noch nie benutzt → nächste Lastschrift ist eine Erstlastschrift"></label>
       </div>
       <p class="muted s">${b.mandate_first_used ? `Erstmals benutzt am ${deDate(b.mandate_first_used)} – weitere Lastschriften sind Folgelastschriften.` : 'Noch nie benutzt – die nächste Lastschrift ist eine Erstlastschrift. Bei einem Mandat aus der bisherigen Vereinsverwaltung bitte „zuletzt benutzt“ eintragen.'}
         Ein Mandat verfällt, wenn es 36 Monate nicht benutzt wurde.${b.mandate_revoked ? ` <b>Widerrufen am ${deDate(b.mandate_revoked)}.</b>` : ''}</p>
       <div class="row" style="justify-content:space-between"><div class="row">${b.mandate_ref ? `<button class="btn ghost" id="bRevoke">${b.mandate_revoked ? 'Widerruf aufheben' : 'Mandat widerrufen'}</button>` : ''}<button class="btn ghost" id="bNew">Neues Mandat …</button></div>
         <button class="btn primary" id="bSave">Speichern</button></div></div>`;
     GK.watch(el);
+    lockUp();
     let t = null;
     $('bIban').oninput = () => { clearTimeout(t); t = setTimeout(async () => { const v = val('bIban'); if (v.replace(/\s/g, '').length < 15) { $('bIbanInfo').textContent = ''; return; } const r = await api('iban-check?iban=' + encodeURIComponent(v)).catch(() => null); if (r) { $('bIbanInfo').textContent = r.ok ? '✓ gültig' : '· ' + r.error; $('bIbanInfo').style.color = r.ok ? 'var(--brand-ink)' : 'var(--red)'; } }, 350); };
     const save = async extra => {
@@ -513,15 +519,19 @@
   }
 
   function subDocs(el, d, again) {
-    const id = d.person.id;
-    el.innerHTML = `<div class="card"><h3>Dokument ablegen</h3><div class="row">
-        <label class="f">Art<select id="dKind">${Object.entries(DOCK).map(([k, l]) => opt(k, l)).join('')}</select></label>
-        <label class="f" style="flex:1;min-width:220px">Bezeichnung (optional)<input id="dTitle" placeholder="z. B. Beitrittserklärung 2019"></label>
+    const id = d.person.id, fh = d.familyHead;
+    // Familienmitglied: Beitrittserklärung und SEPA-Mandat der Familie liegen beim Oberhaupt – hier nur persönliche Unterlagen
+    const kinds = Object.entries(DOCK).filter(([k]) => !(fh && (k === 'antrag' || k === 'mandat')) && !(d.person.payer_id && k === 'mandat'));
+    el.innerHTML = `${fh ? `<div class="banner b mv-lockinfo"><span><b>Familienmitglied von ${esc(fh.name)}</b> – Beitrittserklärung und SEPA-Mandat der Familie liegen beim Oberhaupt. Hier nur persönliche Unterlagen ablegen.</span><a href="#" data-fhopen="${fh.id}">${esc(fh.name)} öffnen →</a></div>` : ''}
+      <div class="card"><h3>Dokument ablegen</h3><div class="row">
+        <label class="f">Art<select id="dKind">${kinds.map(([k, l]) => opt(k, l)).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:220px">Bezeichnung (optional)<input id="dTitle" placeholder="${fh ? 'z. B. Schülerausweis 2026' : 'z. B. Beitrittserklärung 2019'}"></label>
         <button class="btn primary" id="dUp">Datei wählen & hochladen</button></div>
         <p class="muted s" style="margin-bottom:0">PDF, Foto (JPG, PNG, HEIC), Word oder Text, bis 15 MB. Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten.</p></div>
       <div class="card"><h3>Ablage</h3>${d.documents.length ? `<table class="tbl"><tr><th>Dokument</th><th>Art</th><th>Datum</th><th>von</th><th class="r">Größe</th><th></th></tr>
         ${d.documents.map(x => `<tr><td><b>${esc(x.title)}</b></td><td>${esc(DOCK[x.kind] || x.kind)}</td><td class="nw">${deTime(x.created_at)}</td><td>${esc(x.by_user || '')}</td><td class="r">${Math.max(1, Math.round(x.size / 1024))} KB</td>
-          <td class="r nw"><a class="btn small" href="${BASE}documents/${x.id}" target="_blank" rel="noopener">Öffnen</a> <button class="btn small danger" data-dx="${x.id}">Löschen</button></td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Dokumente.</p>'}</div>`;
+          <td class="r nw"><a class="btn small" href="${BASE}documents/${x.id}" target="_blank" rel="noopener">Öffnen</a> <button class="btn small danger" data-dx="${x.id}">Löschen</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
+    { const a = el.querySelector('[data-fhopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.fhopen); }; }
     $('dUp').onclick = async () => {
       const f = await pickFile('.pdf,.jpg,.jpeg,.png,.webp,.heic,.docx,.txt,application/pdf,image/*'); if (!f) return;
       try { await upload(`member/${id}/documents?kind=${encodeURIComponent(val('dKind'))}&title=${encodeURIComponent(val('dTitle') || f.name)}`, f); toast('Hochgeladen.'); again(); } catch (e) { fail(e); }
@@ -534,7 +544,7 @@
     el.innerHTML = `<div class="card"><h3>Mitglieder-App</h3><p style="margin:0">${app.device ? `Handy <b>${esc(app.device.status)}</b>${app.device.last_used ? ` · zuletzt ${deTime(app.device.last_used)}` : ''}` : 'Kein Handy freigeschaltet.'}
         <span class="muted s"> · Freischalten unter „Mitglieder-App“; „Meine Daten“ sieht jedes freigeschaltete Handy.</span></p></div>
       <div class="card"><h3>Änderungsverlauf</h3>${d.history.length ? `<table class="tbl"><tr><th style="width:150px">Zeitpunkt</th><th>Feld</th><th>vorher</th><th>nachher</th><th>von</th></tr>
-        ${d.history.map(h => `<tr><td class="nw">${deTime(h.at)}</td><td><b>${esc(h.field)}</b></td><td class="muted">${esc(h.old || '–')}</td><td>${esc(h.new || '–')}</td><td class="muted s">${esc(h.by_user || '')}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Änderungen.</p>'}</div>`;
+        ${d.history.map(h => `<tr><td class="nw">${deTime(h.at)}</td><td><b>${esc(h.field)}</b></td><td class="muted">${esc(h.old || '–')}</td><td>${esc(h.new || '–')}</td><td class="muted s">${esc(h.by_user || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Änderungen.</p>'}</div>`;
   }
 
   function exitDialog(d, again) {
@@ -705,18 +715,19 @@
     const [apps, changes, all] = await Promise.all([api('applications'), api('changes'), st.app === 'alle' ? api('applications?status=alle') : null]);
     const waiting = apps.filter(a => a.status === 'eingegangen'), signing = apps.filter(a => a.status === 'unterschrift');
     const s = st.meta.settings;
-    el.innerHTML = `<div class="toolbar"><button class="btn primary" id="aNew">+ Beitrittserklärung zur Unterschrift am Tablet</button><a class="btn ghost" href="${BASE}applications-blank.pdf" target="_blank">Formular zum Ausdrucken (PDF)</a>
-        <button class="btn ghost" id="aOnline">${s.app_online ? 'Online-Antrag: Link anzeigen' : 'Online-Antrag einschalten …'}</button></div>
-      <div class="mv-steps"><div><b>1 · Daten erfassen</b>in der Verwaltung, am Tablet oder online</div><div><b>2 · Unterschreiben</b>am Tablet mit Code – Beitrittserklärung und SEPA-Mandat</div>
-        <div><b>3 · Bestätigen</b>Mitglieder, Familie, Beitrag und Mandat entstehen</div><div><b>4 · Willkommen</b>E-Mail mit Mitgliedsnummer, Mandatsreferenz und PDF</div></div>
-      <div class="card"><h3>Warten auf Bestätigung <span class="muted s">(${waiting.length})</span></h3>${waiting.length ? appTable(waiting) : '<p class="muted">Keine neuen Beitrittserklärungen.</p>'}</div>
-      <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="muted">Nichts offen.</p>'}</div>
+    // Knöpfe rechts in der Reiterzeile; die Schritte (erfassen → unterschreiben → bestätigen) erklärt der Ablauf selbst
+    const tools = `<a class="btn" href="${BASE}applications-blank.pdf" target="_blank">Formular (PDF)</a><button class="btn" id="aOnline">${s.app_online ? 'Online-Antrag: Link …' : 'Online-Antrag …'}</button>
+      <button class="btn primary" id="aNew" title="Daten erfassen, dann am Tablet mit Code unterschreiben">+ Beitrittserklärung</button>`;
+    el.innerHTML = `${GK.tabTools ? '' : `<div class="toolbar">${tools}</div>`}
+      <div class="card" id="aWait"><h3>Warten auf Bestätigung <span class="muted s">(${waiting.length})</span></h3>${waiting.length ? appTable(waiting) : '<p class="empty">Keine neuen Beitrittserklärungen.</p>'}</div>
+      <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="empty">Nichts offen.</p>'}</div>
       <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
         ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="nw">${deTime(c.created_at)}</td>
           <td class="s">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
-          <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small primary" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Keine offenen Änderungswünsche.</p>'}</div>
+          <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small primary" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Änderungswünsche.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
-        ${all ? (all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status)).length ? appTable(all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status))) : '<p class="muted">Noch nichts im Archiv.</p>') : ''}</div>`;
+        ${all ? (all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status)).length ? appTable(all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status))) : '<p class="empty">Noch nichts im Archiv.</p>') : ''}</div>`;
+    if (GK.tabTools && !GK.tabTools(tools, $('aWait'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('aNew').onclick = () => applicationForm();
     $('aArch').onclick = () => { st.app = st.app === 'alle' ? 'offen' : 'alle'; showApplications(el).catch(fail); };
     $('aOnline').onclick = () => onlineInfo();
@@ -946,8 +957,8 @@
     el.innerHTML = `${finKpis(f)}<div class="mv-two">
       <div class="card"><h3>Beitragslauf</h3>
         <p class="muted s" style="margin-top:0">Erzeugt die Beiträge aller Mitglieder bis zum Stichtag als offene Posten – anteilig nach Eintritt, jeder Zeitraum nur einmal. Danach unter „Lastschriften“ einziehen oder Rechnungen schicken.</p>
-        <div class="mv-grid" style="--c:2"><label class="f">abrechnen bis<input id="rUntil" type="date" value="${today}"></label>
-          <label class="f">nur Zahlungsart<select id="rPay"><option value="">alle</option>${Object.entries(PAY).map(([k, l]) => opt(k, l)).join('')}</select></label></div>
+        <div class="mv-grid" style="--c:2"><label class="f">Abrechnen bis<input id="rUntil" type="date" value="${today}"></label>
+          <label class="f">Nur Zahlungsart<select id="rPay"><option value="">alle</option>${Object.entries(PAY).map(([k, l]) => opt(k, l)).join('')}</select></label></div>
         <div class="mv-cons" style="margin-top:12px">${m.drinks ? `<label class="chk"><input type="checkbox" id="rDrinks"> Verkauf mit abbuchen <span class="muted s">(offene Verkaufskonten der Mitglieder${f.drinksOpen != null ? ': ' + euro(f.drinksOpen) : ''})</span></label>` : ''}
           ${m.arbeit ? '<label class="chk"><input type="checkbox" id="rExtra" checked> Nicht geleistete Arbeitsstunden mit abrechnen</label>' : ''}</div>
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rPrev">Vorschau</button></div></div>
@@ -958,7 +969,7 @@
       <div id="rOut"></div>
       <div class="card"><h3>Bisherige Läufe</h3>${runs.length ? `<table class="tbl"><tr><th>Lauf</th><th>Art</th><th>bis</th><th class="r">Positionen</th><th class="r">Summe</th><th>von</th><th></th></tr>
         ${runs.map(r => `<tr><td class="nw">${deTime(r.created_at)}</td><td>${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'}</td><td class="nw">${deDate(r.until_date)}</td><td class="r">${r.count}</td><td class="r">${euro(r.cents)}</td><td class="muted s">${esc(r.by_user || '')}</td>
-          <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button> ${r.undo ? `<button class="btn small danger" data-rundo="${r.id}">Zurücknehmen</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted">Noch kein Lauf.</p>'}</div>`;
+          <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button> ${r.undo ? `<button class="btn small danger" data-rundo="${r.id}">Zurücknehmen</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>`;
     const opts = only => ({ until: val('rUntil'), payment: val('rPay') || undefined, drinks: only || ($('rDrinks') ? $('rDrinks').checked : false), onlyDrinks: Boolean(only), extra: $('rExtra') ? $('rExtra').checked : true });
     const preview = async only => {
       const o = opts(only);
@@ -971,7 +982,7 @@
           ${pv.positions.map(p => `<tr><td><input type="checkbox" data-key="${esc(p.key)}" checked></td><td><b>${esc(GK.lastFirst(p.payer_name))}</b></td><td translate="no">${esc(p.text)}</td><td>${esc(KIND[p.kind] || p.kind)}</td><td class="nw">${deDate(p.due_date)}</td><td>${esc(PAY[p.payment] || p.payment)}</td><td class="r">${euro(p.cents)}</td></tr>`).join('')}</table></div>
           <div class="mv-sum"><span>${Object.entries(pv.totals.byKind).map(([k, c]) => `${esc(GK.T(KIND[k] || k))}: <b style="font-size:14px">${euro(c)}</b>`).join(' · ')}</span><span>Summe <b id="rSum">${euro(pv.totals.cents)}</b></span></div>
           <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="rCancel">Verwerfen</button><button class="btn primary" id="rGo">${only ? 'Verkauf abrechnen' : 'Beiträge abrechnen'}</button></div>`
-          : '<p class="muted">Nichts abzurechnen – alles ist schon bis zu diesem Tag abgerechnet.</p>'}</div>`;
+          : '<p class="empty">Nichts abzurechnen – alles ist schon bis zu diesem Tag abgerechnet.</p>'}</div>`;
       if (!pv.positions.length) return;
       const sum = () => { $('rSum').textContent = euro(pv.positions.filter(p => !skip.has(p.key)).reduce((s, p) => s + p.cents, 0)); };
       $('rOut').querySelectorAll('[data-key]').forEach(c => { c.onchange = () => { if (c.checked) skip.delete(c.dataset.key); else skip.add(c.dataset.key); sum(); }; });
@@ -1002,8 +1013,8 @@
     el.querySelectorAll('[data-cpay]').forEach(b => { b.onclick = async () => {
       const c = await get(+b.dataset.cpay);
       dialog(`<h2>Zahlung erfassen</h2><p class="muted" style="margin-top:0">${esc(c.payer_name)}: ${esc(c.text)} – ${euro(c.cents)}</p>
-        <div class="mv-grid" style="--c:3"><label class="f">Betrag<input id="pyC" inputmode="decimal" value="${centsToInput(c.cents)}"></label><label class="f">am<input id="pyD" type="date" value="${st.meta.today}"></label>
-          <label class="f">per<select id="pyV">${opt('ueberweisung', 'Überweisung')}${opt('bar', 'bar')}${opt('lastschrift', 'Lastschrift')}${opt('verrechnet', 'verrechnet')}</select></label></div>
+        <div class="mv-grid" style="--c:3"><label class="f">Betrag<input id="pyC" inputmode="decimal" value="${centsToInput(c.cents)}"></label><label class="f">Datum<input id="pyD" type="date" value="${st.meta.today}"></label>
+          <label class="f">Zahlungsweg<select id="pyV">${opt('ueberweisung', 'Überweisung')}${opt('bar', 'bar')}${opt('lastschrift', 'Lastschrift')}${opt('verrechnet', 'verrechnet')}</select></label></div>
         <p class="muted s">Weniger als der Betrag = Teilzahlung, der Rest bleibt offen.</p>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pyOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
@@ -1024,7 +1035,7 @@
     dialog(`<h2>${c ? 'Posten ändern' : 'Forderung anlegen'}</h2><div class="mv-grid" style="--c:2">
       ${c || member_id ? '' : `<label class="f wall">Mitglied<select id="chM">${memberOptions('')}</select></label>`}
       <label class="f wall">Buchungstext<input id="chT" value="${esc(c ? c.text : '')}" placeholder="z. B. Hallenmiete Wintersaison"></label>
-      <label class="f">Betrag (Gutschrift mit Minus)<input id="chC" inputmode="decimal" value="${c ? centsToInput(c.cents) : ''}"></label><label class="f">fällig am<input id="chD" type="date" value="${esc(c ? c.due_date : st.meta.today)}"></label>
+      <label class="f">Betrag (Gutschrift mit Minus)<input id="chC" inputmode="decimal" value="${c ? centsToInput(c.cents) : ''}"></label><label class="f">Fällig am<input id="chD" type="date" value="${esc(c ? c.due_date : st.meta.today)}"></label>
       ${c ? '' : `<label class="f">Art<select id="chK">${['sonstiges', 'aufnahme', 'beitrag', 'getraenke'].map(k => opt(k, KIND[k])).join('')}</select></label>`}</div>
       ${c ? '' : '<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>'}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="chOk">Speichern</button></div>`);
@@ -1046,7 +1057,7 @@
         <span class="muted s" style="margin-left:auto">${r.rows.length} Posten · ${euro(r.sum)}</span><button class="btn primary" id="cNew">+ Forderung</button></div>
       ${st.cf === 'eingezogen' && r.rows.length ? `<div class="banner g"><span>Diese Posten stecken in einer eingereichten Lastschrift. Erst wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen), hier markieren und „Zahlung erfolgt“ buchen. Rücklastschriften vorher im Einzug beim Zahler erfassen.</span></div>
         <div class="toolbar"><label class="chk"><input type="checkbox" id="cAll"> Alle markieren</label><span class="muted s" id="cSel"></span><button class="btn primary" id="cPaid" style="margin-left:auto" disabled>Zahlung erfolgt</button></div>` : ''}
-      <div class="card">${r.rows.length ? chargeTable(r.rows, { select: st.cf === 'eingezogen' }) : '<p class="muted">Keine Posten.</p>'}</div>`;
+      <div class="card">${r.rows.length ? chargeTable(r.rows, { select: st.cf === 'eingezogen' }) : '<p class="empty">Keine Posten.</p>'}</div>`;
     if ($('cPaid')) {
       const sel = () => [...el.querySelectorAll('[data-csel]:checked')].map(x => +x.dataset.csel);
       const upd = () => { const s = sel(); $('cPaid').disabled = !s.length; $('cSel').textContent = s.length ? `${s.length} ausgewählt · ${euro(r.rows.filter(c => s.includes(c.id)).reduce((t, c) => t + c.cents, 0))}` : ''; $('cAll').checked = s.length === r.rows.length; };
@@ -1073,7 +1084,7 @@
         ${list.map(k => `<tr class="${k.status === 'verworfen' ? 'off' : ''}"><td class="nw"><b>${deDate(k.collection_date)}</b><div class="muted s">${esc(k.msg_id)}</div></td>
           <td>${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}${k.returned ? ` <span class="pill r">${k.returned} zurück</span>` : ''}</td>
           <td class="r">${k.count}</td><td class="r">${euro(k.cents)}</td><td class="nw">${k.prenotified_at ? deTime(k.prenotified_at) : '<span class="muted s">noch nicht</span>'}</td>
-          <td class="r nw">${k.status !== 'verworfen' ? `<button class="btn small" data-kopen="${k.id}">Details</button> <a class="btn small primary" href="${BASE}collections/${k.id}/xml" download>SEPA-Datei</a>` : ''}</td></tr>`).join('')}</table>` : '<p class="muted">Noch kein Einzug.</p>'}
+          <td class="r nw">${k.status !== 'verworfen' ? `<button class="btn small" data-kopen="${k.id}">Details</button> <a class="btn small primary" href="${BASE}collections/${k.id}/xml" download>SEPA-Datei</a>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Einzug.</p>'}
         <p class="muted s" style="margin-bottom:0">Die SEPA-Datei (pain.008.001.08) im Online-Banking unter „Sammellastschrift / SEPA-Datei hochladen“ einreichen. Kam nach 1–2 Wochen nichts zurück: „Zahlung erfolgt“ buchen – im Einzug oder unter „Offene Posten → Im Einzug“.</p></div>`;
     $('kPrev').onclick = async () => {
       try {
@@ -1086,7 +1097,7 @@
           ${p.ok.length ? `<div class="scroll" style="max-height:48vh;margin-top:12px"><table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>Konto</th><th>Mandat</th><th>Art</th><th>Posten</th><th class="r">Betrag</th></tr>
             ${p.ok.map(x => `<tr><td><input type="checkbox" data-kx="${x.member_id}" checked></td><td><b>${esc(GK.lastFirst(x.name))}</b></td><td class="nw">${esc(x.masked)}</td><td>${esc(x.mandate_ref)}</td><td>${x.seq === 'FRST' ? '<span class="pill b">Erst</span>' : '<span class="pill">Folge</span>'}</td><td class="s" translate="no">${esc(x.texts.join(', '))}</td><td class="r">${euro(x.cents)}</td></tr>`).join('')}</table></div>
             <div class="mv-sum"><span class="muted s">An ${esc(p.creditor.name)} · ${esc(p.creditor.iban)} · Gläubiger-ID ${esc(p.creditor.ci)}</span><span>Summe <b id="kSum">${euro(p.total)}</b></span></div>
-            <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="kGo" ${p.ready && p.bankDay ? '' : 'disabled'}>Einzug erstellen</button></div>` : '<p class="muted" style="margin-top:12px">Keine fälligen Lastschriften.</p>'}`;
+            <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="kGo" ${p.ready && p.bankDay ? '' : 'disabled'}>Einzug erstellen</button></div>` : '<p class="empty">Keine fälligen Lastschriften.</p>'}`;
         $('kOut').querySelectorAll('[data-kx]').forEach(c => { c.onchange = () => { if (c.checked) skip.delete(+c.dataset.kx); else skip.add(+c.dataset.kx); $('kSum').textContent = euro(p.ok.filter(x => !skip.has(x.member_id)).reduce((s, x) => s + x.cents, 0)); }; });
         if ($('kGo')) $('kGo').onclick = async () => {
           try { const r = await api('collections', 'POST', { date: val('kDate'), skip: [...skip] }); toast('Einzug erstellt – jetzt die Vorabinformation verschicken.'); again(); setTimeout(() => collectionDetail(r.id, again), 300); }
@@ -1134,12 +1145,12 @@
     const payers = [...new Set(all.rows.map(c => c.member_id))].map(id => { const list = all.rows.filter(c => c.member_id === id); return { id, name: list[0].payer_name, payment: list[0].payment, cents: list.reduce((s, c) => s + c.cents, 0), n: list.length }; }).filter(p => p.cents > 0 && p.payment !== 'lastschrift');
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Rechnungen (Zahlungsart Rechnung/bar)</h3><button class="btn primary" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button></div>
         ${payers.length ? `<table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>${payers.map(p => `<tr><td><input type="checkbox" data-inv="${p.id}" checked></td><td><b>${esc(GK.lastFirst(p.name))}</b></td><td class="r">${p.n}</td><td class="r">${euro(p.cents)}</td>
-          <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${p.id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="muted">Keine offenen Rechnungen.</p>'}</div>
+          <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${p.id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Rechnungen.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
-          <div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px">überfällig seit mehr als<select id="dDays" data-nodirty>${[0, 7, 14, 30, 60].map(n => opt(n, n + ' Tagen', st.dd)).join('')}</select></label><button class="btn primary" id="dSend" ${rows.length ? '' : 'disabled'}>Ausgewählte mahnen</button></div></div>
+          <div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Überfällig seit mehr als<select id="dDays" data-nodirty>${[0, 7, 14, 30, 60].map(n => opt(n, n + ' Tagen', st.dd)).join('')}</select></label><button class="btn primary" id="dSend" ${rows.length ? '' : 'disabled'}>Ausgewählte mahnen</button></div></div>
         ${rows.length ? `<table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>älteste Fälligkeit</th><th>Mahnstufe</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>
           ${rows.map(r => `<tr><td><input type="checkbox" data-dun="${r.member_id}" checked></td><td><b>${esc(GK.lastFirst(r.name))}</b>${r.email ? '' : ' <span class="pill a">keine E-Mail</span>'}</td><td class="nw">${deDate(r.oldest)}</td><td>${r.level ? `${r.level}. ${r.dunned_at ? '· ' + deDate(r.dunned_at) : ''}` : '–'}</td><td class="r">${r.n}</td><td class="r">${euro(r.cents)}</td>
-            <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${r.member_id}&dunning=${(r.level || 0) + 1}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="muted">Nichts zu mahnen.</p>'}
+            <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${r.member_id}&dunning=${(r.level || 0) + 1}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Nichts zu mahnen.</p>'}
         <p class="muted s" style="margin-bottom:0">Erste Stufe = freundliche Zahlungserinnerung, ab der zweiten Mahnung kommt die Mahngebühr aus den Einstellungen dazu (${euro(st.meta.settings.dunning_fee_cents)}).</p></div>`;
     $('dDays').onchange = () => { st.dd = +val('dDays'); finDunning(el, again).catch(fail); };
     const send = async (attr, dunning) => {
@@ -1163,7 +1174,7 @@
         <div class="kpi"><div class="l">Durchschnittsalter</div><div class="v">${s.avgAge != null ? String(s.avgAge).replace('.', ',') : '–'}</div></div>
         ${s.byGender.filter(g => g.g !== 'x' || g.n).slice(0, 2).map(g => `<div class="kpi"><div class="l">${G[g.g]}</div><div class="v">${g.n}</div></div>`).join('')}</div>
       <div class="mv-two">
-        <div class="card"><h3>Abteilungen</h3>${s.depts.length ? `<table class="tbl">${s.depts.map(d => `<tr><td><b>${esc(d.name)}</b></td><td class="r">${d.n}</td></tr>`).join('')}</table>` : '<p class="muted">Keine Abteilungen angelegt.</p>'}</div>
+        <div class="card"><h3>Abteilungen</h3>${s.depts.length ? `<table class="tbl">${s.depts.map(d => `<tr><td><b>${esc(d.name)}</b></td><td class="r">${d.n}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Abteilungen angelegt.</p>'}</div>
         <div class="card"><h3>Ein- und Austritte</h3><table class="tbl"><tr><th>Jahr</th><th class="r">Eintritte</th><th class="r">Austritte</th><th class="r">Saldo</th></tr>
           ${s.years.slice().reverse().filter(y => y.in || y.out || y.year >= +s.day.slice(0, 4) - 2).map(y => `<tr><td>${y.year}</td><td class="r">${y.in}</td><td class="r">${y.out}</td><td class="r ${y.in - y.out < 0 ? 'neg' : ''}">${y.in - y.out > 0 ? '+' : ''}${y.in - y.out}</td></tr>`).join('')}</table></div></div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn primary" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
@@ -1171,7 +1182,7 @@
           ${s.lsb.groups.map((g, i) => `<tr><td>${esc(g)}</td><td>${s.lsb.total[i].m}</td><td>${s.lsb.total[i].w}</td><td>${s.lsb.total[i].d}</td><td>${s.lsb.total[i].x}</td><td><b>${sum(s.lsb.total[i])}</b></td></tr>`).join('')}</table>
         ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} Mitglied(er) ohne Geburtsdatum sind nicht enthalten.</p>` : ''}</div>
       <div class="mv-two">
-        <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl">${s.events.map(e => `<tr><td class="nw">${deDate(e.date)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.kind)}</td><td class="r">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="muted">Keine.</p>'}</div>
+        <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl">${s.events.map(e => `<tr><td class="nw">${deDate(e.date)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.kind)}</td><td class="r">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>
         <div class="card"><h3>E-Mail an Mitglieder</h3><p class="muted" style="margin-top:0">Rundmails schreibst du jetzt unter <b>Verein → E-Mail</b> – mit Gruppen (Status, Abteilungen, Ämter, Beiträge), Verteilern, Anhängen, Vorlagen und Zustellstatus.</p>
           ${GK.can('email') ? '<div class="row" style="justify-content:flex-end"><button class="btn primary" id="rmGo">E-Mail schreiben</button></div>' : '<p class="muted s">Dafür ist das Recht „E-Mail“ nötig.</p>'}</div></div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
@@ -1204,21 +1215,21 @@
     const tB = `      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge Hauptverein</h3><button class="btn small primary" id="fNew">+ Beitragsart</button></div>
         ${m.fees.some(f => f.kind !== 'zusatz') ? `<table class="tbl"><tr><th>Bezeichnung</th><th class="r">Betrag</th><th>Rhythmus</th><th>Alter</th><th>Familie</th><th>Arbeitsstunden</th><th>Formular</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind !== 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc(f.name)}</b>${f.department_id ? `<div class="muted s">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</div>` : ''}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}${f.interval === 'einmalig' ? '' : `<div class="muted s">${esc(PRS[f.prorate] || '')}</div>`}</td>
-            <td>${f.age_min != null || f.age_max != null ? `${f.age_min ?? 0}–${f.age_max ?? '…'}` : '–'}</td><td>${f.family ? '<span class="pill g">ja</span>' : '–'}</td><td>${f.work_minutes === 0 ? 'keine' : f.work_minutes ? (f.work_minutes / 60).toLocaleString('de-DE') + ' h' : 'Vorgabe'}</td>
-            <td>${f.on_form ? '✓' : '–'}</td><td class="r">${f.members == null ? '–' : f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Beitragsarten – z. B. „Erwachsene ab 19 Jahre“, „Jugendliche 12–18“, „Familie“. Oder per Import (S-Verein, WISO Mein Verein, verein.cloud) unter Mitglieder → Import.</p>'}</div>
+            <td class="nw">${f.age_min != null && f.age_max == null ? `ab ${f.age_min}` : f.age_max != null && !f.age_min ? `bis ${f.age_max}` : f.age_min != null || f.age_max != null ? `${f.age_min}–${f.age_max}` : '–'}</td><td>${f.family ? '<span class="pill g">ja</span>' : '–'}</td><td>${f.work_minutes === 0 ? 'keine' : f.work_minutes ? (f.work_minutes / 60).toLocaleString('de-DE') + ' h' : 'Vorgabe'}</td>
+            <td>${f.on_form ? '✓' : '–'}</td><td class="r">${f.members == null ? '–' : f.members}</td><td class="r nw"><span class="toact"><button class="btn small" data-fmv="${f.id}:-1" aria-label="nach oben" title="nach oben">↑</button><button class="btn small" data-fmv="${f.id}:1" aria-label="nach unten" title="nach unten">↓</button></span> <button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table><p class="muted s" style="margin:10px 0 0">Mit ↑ ↓ legst du die Reihenfolge fest – so erscheinen die Beitragsarten auch in Auswahlfeldern und auf der Beitrittserklärung.</p>` : '<p class="empty">Noch keine Beitragsarten – z. B. „Erwachsene ab 19 Jahre“, „Jugendliche 12–18“, „Familie“. Oder per Import (S-Verein, WISO Mein Verein, verein.cloud) unter Mitglieder → Import.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Zusatzbeiträge der Abteilungen</h3><button class="btn small primary" id="zNew" ${m.depts.length ? '' : 'disabled'}>+ Zusatzbeitrag</button></div>
         ${m.fees.some(f => f.kind === 'zusatz') ? `<table class="tbl"><tr><th>Abteilung</th><th>Bezeichnung</th><th>Alter</th><th class="r">Betrag</th><th>Rhythmus</th><th class="r">Mitglieder</th><th></th></tr>
           ${m.fees.filter(f => f.kind === 'zusatz').map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</b></td><td translate="no">${esc(f.name)}</td>
-            <td>${f.age_min != null || f.age_max != null ? `${f.age_min ?? 0}–${f.age_max ?? '…'}` : 'alle'}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}<div class="muted s">${esc(PRS[f.prorate] || '')}</div></td>
+            <td class="nw">${f.age_min != null && f.age_max == null ? `ab ${f.age_min}` : f.age_max != null && !f.age_min ? `bis ${f.age_max}` : f.age_min != null || f.age_max != null ? `${f.age_min}–${f.age_max}` : 'alle'}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}<div class="muted s">${esc(PRS[f.prorate] || '')}</div></td>
             <td class="r">${f.members == null ? '–' : f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>`
           : '<p class="muted">Keine. Beispiel: Abteilung Padel – „Padel Erwachsene“ ab 19 Jahre 60 €, „Padel Jugend“ bis 18 Jahre 30 €. Jede Person in der Abteilung zahlt den Beitrag ihres Alters zusätzlich zum Beitrag des Hauptvereins – in Familien beim Hauptzahler.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3><button class="btn small primary" id="dNew">+ Abteilung</button></div>
         ${m.depts.length ? `<table class="tbl"><tr><th>Abteilung</th><th>Verband</th><th class="r">Mitglieder</th><th></th></tr>${m.depts.map(d => `<tr class="${d.active ? '' : 'off'}"><td><b translate="no">${esc(d.name)}</b></td><td>${esc(d.federation || '–')}</td><td class="r">${d.members == null ? '–' : d.members}</td>
-          <td class="r nw"><button class="btn small" data-de="${d.id}">Bearbeiten</button> ${d.members || d.members == null ? '' : `<button class="btn small danger" data-dx="${d.id}">Löschen</button>`}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Abteilungen.</p>'}</div>
+          <td class="r nw"><button class="btn small" data-de="${d.id}">Bearbeiten</button> ${d.members || d.members == null ? '' : `<button class="btn small danger" data-dx="${d.id}">Löschen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Abteilungen.</p>'}</div>
 `;
     const tC = `      <div class="card" data-sec="antrag"><h3>Beitrittserklärung</h3><div class="mv-cons" style="margin-bottom:14px">
           <label class="chk"><input type="checkbox" id="eTab" ${s.app_tablet ? 'checked' : ''}> Am Tablet: „Mitglied werden“ (selbst ausfüllen und unterschreiben, oder mit Code aus der Verwaltung)</label>
-          <label class="chk"><input type="checkbox" id="eOnl" ${s.app_online ? 'checked' : ''}> Online über die Adresse der Mitglieder-App (<code>/p/mitglieder/</code>)</label></div>
+          <label class="chk"><input type="checkbox" id="eOnl" ${s.app_online ? 'checked' : ''}> <span>Online über die Adresse der Mitglieder-App (<code>/p/mitglieder/</code>)</span></label></div>
         <div class="mv-grid" style="--c:2">
           <label class="f wall">Begrüßung oben im Formular<textarea id="eIntro" style="min-height:70px">${esc(s.app_intro)}</textarea></label>
           <label class="f">Hinweis zu Beitrag & Fälligkeit<textarea id="eDue" style="min-height:70px" placeholder="z. B. Der Jahresbeitrag wird zum 01.05. eingezogen, die Getränkekasse zum 01.12.">${esc(s.due_text)}</textarea></label>
@@ -1228,16 +1239,12 @@
         <table class="tbl" id="eCons"><tr><th style="width:200px">Kurzname</th><th>Text auf dem Formular</th><th style="width:80px">Pflicht</th><th style="width:100px"></th></tr>
           ${s.consents.map((c, i) => consentRow(c, i)).join('')}</table>
         <div class="row" style="justify-content:space-between;margin-top:10px"><div class="row"><button class="btn" id="eConsAdd">+ Einwilligung</button><a class="btn" href="${BASE}applications-blank.pdf" target="_blank">Formular ansehen (PDF)</a></div><button class="btn primary" id="eSave2">Speichern</button></div></div>
-      <div class="card" data-sec="app"><h3>Mitglieder-App: „Meine Daten“</h3><p class="muted s" style="margin-top:0">Was Mitglieder in der App sehen und selbst ändern dürfen. Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand (z. B. per E-Mail).</p>
-        <div class="mv-grid" style="--c:2"><div><div class="mv-sub">Sehen</div><div class="mv-cons">${Object.entries(s.app_labels.view).map(([k, l]) => `<label class="chk"><input type="checkbox" data-apv="${k}" ${s.app_perms.view[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
-          <div><div class="mv-sub">Ändern</div><div class="mv-cons">${Object.entries(s.app_labels.edit).map(([k, l]) => `<label class="chk"><input type="checkbox" data-ape="${k}" ${s.app_perms.edit[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div></div>
-        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveApp">Speichern</button></div></div>
       <div class="card" data-sec="daten"><h3>Mitglieder übernehmen</h3><p class="muted s" style="margin-top:0">Aus S-Verein, WISO Mein Verein, verein.cloud oder einer eigenen CSV-/Excel-Liste. Clubwerk erkennt das Format, die Spalten ordnest du bei Bedarf selbst zu. Vorhandene Personen werden ergänzt, nichts wird doppelt angelegt.</p>
         <div class="row"><button class="btn" id="eImp">Import …</button></div></div>
       <div class="card" data-sec="daten"><h3>Datenschutz</h3><p class="muted s" style="margin-top:0">Nach dem Austritt werden Mitgliedsdaten noch für Beiträge, Spendenquittungen und gesetzliche Fristen gebraucht (Kassenbelege meist 10 Jahre). Danach im Mitglied „Anonymisieren“. Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied).</p>
         <div class="row"><label class="f">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric" style="width:220px"></label><button class="btn primary" id="eSave3">Speichern</button></div></div>
       <div id="eFunc" data-sec="daten"></div>`;
-    const SECS = [['verein', 'Verein & SEPA'], ['antrag', 'Beitrittserklärung'], ['app', 'Mitglieder-App'], ['daten', 'Import & Datenschutz']];
+    const SECS = [['verein', 'Verein & SEPA'], ['antrag', 'Beitrittserklärung'], ['daten', 'Import & Datenschutz']];   // „Meine Daten“ der App: Verein → Mitglieder-App
     if (!SECS.some(x => x[0] === st.set)) st.set = 'verein';
     el.innerHTML = part === 'catalog' ? tB : `<div class="seg" id="eSeg" style="width:fit-content;margin-bottom:16px">${SECS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.set === k ? 'on' : ''}">${l}</button>`).join('')}</div>${tA}${tS}${tC}`;
     if (part !== 'catalog') {
@@ -1262,18 +1269,18 @@
     if ($('eConsAdd')) $('eConsAdd').onclick = () => { $('eCons').insertAdjacentHTML('beforeend', consentRow({ key: 'e' + Date.now().toString(36).slice(-5), short: '', text: '', required: false })); bindCons(); };
     if ($('eSave2')) $('eSave2').onclick = () => save({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() });
     if ($('eSaveScope')) $('eSaveScope').onclick = () => save({ scope_confirm: $('eScope').checked });
-    if ($('eSaveApp')) {
-      const syncApp = () => { [['anschrift', 'anschrift'], ['kontakt', 'kontakt'], ['bank', 'bank'], ['einwilligungen', 'einwilligungen']].forEach(([v, e]) => { const vi = el.querySelector(`[data-apv="${v}"]`), ei = el.querySelector(`[data-ape="${e}"]`); if (vi && ei) { ei.disabled = !vi.checked; if (!vi.checked) ei.checked = false; } }); };
-      el.querySelectorAll('[data-apv]').forEach(c => { c.addEventListener('change', syncApp); }); syncApp();
-      $('eSaveApp').onclick = () => save({ app_perms: { view: Object.fromEntries([...el.querySelectorAll('[data-apv]')].map(c => [c.dataset.apv, c.checked])), edit: Object.fromEntries([...el.querySelectorAll('[data-ape]')].map(c => [c.dataset.ape, c.checked])) } });
-    }
     if ($('eSave3')) $('eSave3').onclick = () => save({ retention_years: +val('eRet2') });
     if ($('fNew')) $('fNew').onclick = () => feeEdit(null, () => showSettings(el, part));
     if ($('zNew')) $('zNew').onclick = () => feeEdit(null, () => showSettings(el, part), { kind: 'zusatz' });
+    el.querySelectorAll('[data-fmv]').forEach(b => { b.onclick = () => GK.busy(b, async () => {
+      const [id, d] = b.dataset.fmv.split(':').map(Number), ids = m.fees.filter(f => f.kind !== 'zusatz').map(f => f.id), i = ids.indexOf(id), j = i + d;
+      if (i < 0 || j < 0 || j >= ids.length) return;
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+      try { await api('fees/order', 'PUT', { ids }); await loadMeta(); showSettings(el, part).catch(fail); } catch (e) { fail(e); } }); });
     el.querySelectorAll('[data-fe]').forEach(b => { b.onclick = () => feeEdit(m.fees.find(f => f.id === +b.dataset.fe), () => showSettings(el, part)); });
     const deptEdit = d => {
       dialog(`<h2>${d ? 'Abteilung bearbeiten' : 'Neue Abteilung'}</h2><div class="mv-grid" style="--c:2"><label class="f">Name<input id="dnN" value="${esc(d ? d.name : '')}"></label><label class="f">Fachverband (optional)<input id="dnF" value="${esc(d ? d.federation || '' : '')}" placeholder="z. B. Hessischer Tennis-Verband"></label>
-        <label class="f">Reihenfolge<input id="dnS" value="${d ? d.sort : 0}" inputmode="numeric"></label>${d ? `<label class="chk" style="align-self:end;height:40px"><input type="checkbox" id="dnA" ${d.active ? 'checked' : ''}> aktiv (zur Auswahl angeboten)</label>` : ''}</div>
+        <label class="f">Reihenfolge<input id="dnS" value="${d ? d.sort : 0}" inputmode="numeric"></label>${d ? `<label class="chk" style="align-self:end;height:40px"><input type="checkbox" id="dnA" ${d.active ? 'checked' : ''}> Aktiv (zur Auswahl angeboten)</label>` : ''}</div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="dnOk">Speichern</button></div>`);
       $('c').onclick = closeDialog;
       $('dnOk').onclick = () => GK.busy($('dnOk'), async () => { const body = { name: val('dnN'), federation: val('dnF'), sort: +val('dnS') || 0, ...(d ? { active: $('dnA').checked } : {}) };
@@ -1283,7 +1290,7 @@
     el.querySelectorAll('[data-de]').forEach(b => { b.onclick = () => deptEdit(m.depts.find(d => d.id === +b.dataset.de)); });
     el.querySelectorAll('[data-dx]').forEach(b => { b.onclick = async () => { if (!await ask('Abteilung löschen?')) return; try { await api('departments/' + b.dataset.dx, 'DELETE'); showSettings(el, part).catch(fail); } catch (e) { fail(e); } }; });
   }
-  const consentRow = (c, i) => `<tr data-c="${esc(c.key)}"><td><input data-k="short" value="${esc(c.short)}" placeholder="z. B. Homepage" style="width:100%"></td><td><input data-k="text" value="${esc(c.text)}" style="width:100%"></td>
+  const consentRow = (c, i) => `<tr data-c="${esc(c.key)}"><td style="vertical-align:top"><input data-k="short" value="${esc(c.short)}" placeholder="z. B. Homepage" style="width:100%"></td><td><textarea data-k="text" rows="2" style="width:100%;min-height:58px;resize:vertical">${esc(c.text)}</textarea></td>
     <td><input type="checkbox" data-k="req" ${c.required ? 'checked' : ''} aria-label="Pflicht"></td><td class="r"><button class="btn small danger" data-cx="${i}">Entfernen</button></td></tr>`;
 
   function feeEdit(f, after, preset = {}) {
@@ -1302,7 +1309,7 @@
       <label class="f wall">Hinweis (intern)<input id="feNote" value="${esc(f ? f.note || '' : '')}"></label></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk" id="feFL"><input type="checkbox" id="feF" ${f && f.family ? 'checked' : ''}> Familienbeitrag – gilt für den Hauptzahler und alle Angehörigen (Partner/in, Kinder)</label>
         <label class="chk" id="feOL"><input type="checkbox" id="feO" ${!f || f.on_form ? 'checked' : ''}> Auf der Beitrittserklärung zur Auswahl</label>
-        ${f ? `<label class="chk"><input type="checkbox" id="feAct" ${f.active ? 'checked' : ''}> aktiv</label>` : ''}</div>
+        ${f ? `<label class="chk"><input type="checkbox" id="feAct" ${f.active ? 'checked' : ''}> Aktiv</label>` : ''}</div>
       <p class="muted s" id="feHint"></p>
       <div class="btns">${f && f.members === 0 ? '<button class="btn danger" id="feDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="feOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
@@ -1325,6 +1332,22 @@
   }
 
   const G = { key: 'mitglieder', label: 'Mitgliederverwaltung', icon: 'ausweis', order: 7 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
+
+  /* „Meine Daten“: was Mitglieder in der App sehen und ändern dürfen – als Reiter auf der Seite Verein → Mitglieder-App */
+  async function appDataCard(el) {
+    await loadMeta();
+    const s = st.meta.settings;
+    el.innerHTML = `<h3>„Meine Daten“ in der App</h3><p class="muted s" style="margin-top:0">Was Mitglieder in der App sehen und selbst ändern dürfen. Änderungen an Daten bestätigt immer der Vorstand. Sind die Einwilligungen in der App ausgeblendet, widerrufen Mitglieder sie formlos beim Vorstand (z. B. per E-Mail).</p>
+        <div class="mv-grid" style="--c:2"><div><div class="mv-sub">Sehen</div><div class="mv-cons">${Object.entries(s.app_labels.view).map(([k, l]) => `<label class="chk"><input type="checkbox" data-apv="${k}" ${s.app_perms.view[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div>
+          <div><div class="mv-sub">Ändern</div><div class="mv-cons">${Object.entries(s.app_labels.edit).map(([k, l]) => `<label class="chk"><input type="checkbox" data-ape="${k}" ${s.app_perms.edit[k] ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div></div></div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveApp">Speichern</button></div>`;
+    const syncApp = () => { [['anschrift', 'anschrift'], ['kontakt', 'kontakt'], ['bank', 'bank'], ['einwilligungen', 'einwilligungen']].forEach(([v, e]) => { const vi = el.querySelector(`[data-apv="${v}"]`), ei = el.querySelector(`[data-ape="${e}"]`); if (vi && ei) { ei.disabled = !vi.checked; if (!vi.checked) ei.checked = false; } }); };
+    el.querySelectorAll('[data-apv]').forEach(c => { c.addEventListener('change', syncApp); }); syncApp();
+    $('eSaveApp').onclick = () => GK.busy($('eSaveApp'), async () => {
+      try { await api('settings', 'PUT', { app_perms: { view: Object.fromEntries([...el.querySelectorAll('[data-apv]')].map(c => [c.dataset.apv, c.checked])), edit: Object.fromEntries([...el.querySelectorAll('[data-ape]')].map(c => [c.dataset.ape, c.checked])) } }); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); }
+    });
+  }
+  if (GK.registerAppSection) GK.registerAppSection({ key: 'meinedaten', label: 'Meine Daten', perm: '!mitglieder', render: appDataCard });
   GK.registerPage({ key: 'mitglieder', title: 'Mitglieder', perm: 'mitglieder', render, group: G });
   GK.registerPage({ key: 'mv-beitraege', title: 'Beiträge', perm: '!mitglieder', render: pageRender('mv-beitraege', showFees), group: G });
   GK.registerPage({ key: 'mv-einzug', title: 'Einzug & Zahlungen', perm: 'mitglieder_finanzen', render: pageRender('mv-einzug', showFinance), group: G });

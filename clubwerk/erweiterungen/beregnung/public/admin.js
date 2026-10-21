@@ -17,13 +17,13 @@
 
   function plaetzeHtml() {
     const c = st.cfg;
-    if (!c.plaetze.length) return '<p class="muted">Noch keine Plätze angelegt.</p>';
+    if (!c.plaetze.length) return '<p class="empty">Noch keine Plätze angelegt.</p>';
     return c.plaetze.map((p, i) => `<div class="card soft" style="margin:0 0 12px">
       <div class="row" style="align-items:flex-end;flex-wrap:nowrap">
         <label class="f" style="flex:1">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}" placeholder="z. B. Platz 1"></label>
         <label class="f" style="flex:2">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Erst Vorne, dann Hinten · je 2 min"></label>
-        <button class="btn small" data-pu="${i}" ${i === 0 ? 'disabled' : ''} title="nach oben">▲</button>
-        <button class="btn small" data-pd="${i}" ${i === c.plaetze.length - 1 ? 'disabled' : ''} title="nach unten">▼</button>
+        <button class="btn small" data-pu="${i}" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button>
+        <button class="btn small" data-pd="${i}" ${i === c.plaetze.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button>
         <button class="btn small danger" data-px="${i}">Platz löschen</button>
       </div>
       <table class="tbl" style="margin-top:10px"><tr><th style="width:52px">Reihe</th><th>Zone (Gerät)</th><th style="width:170px">Bezeichnung</th><th class="r" style="width:120px">Minuten</th><th style="width:110px"></th></tr>
@@ -92,10 +92,12 @@
             Zusätzlich sehen Mitglieder mit Freischaltung die Beregnung in der <a href="#app" data-goapp>Mitglieder-App</a>.</p></div>`;
         const alive = () => document.body.contains(el) && $('bTiles');
         const draw = () => {
+          if (!alive()) { clearInterval(tick); clearTimeout(timer); return; }   // Seite schon verlassen (Antwort kam nach dem Wechsel) – nichts mehr zeichnen
           $('bOff').innerHTML = s.online ? '' : `<div class="banner r">Keine Verbindung zur Bewässerungsanlage${s.error ? ': ' + esc(s.error) : ''}</div>`;
           $('bTiles').innerHTML = s.plaetze.length ? T.html(s.plaetze, esc) : '<div class="vh-empty">Noch keine Plätze – unter „Plätze &amp; Anbindung“ anlegen.</div>';
           $('bNext').textContent = s.next ? `Nächste automatische Beregnung: ${s.next}` : '';
           $('bStop').classList.toggle('hidden', !s.plaetze.length);
+          $('bTiles').classList.toggle('offline', !s.online); $('bStop').disabled = !s.online;
           $('bTiles').querySelectorAll('[data-p]').forEach(x => { x.onclick = async () => {
             const p = s.plaetze.find(y => y.id === +x.dataset.p); if (!p || p.state !== 'idle') return;
             try { await api('run', 'POST', { platz: p.id }); toast(`${p.name}: Beregnung gestartet.`); refresh(); } catch (e) { fail(e); } }; });
@@ -105,6 +107,7 @@
         async function refresh() {
           clearTimeout(timer); if (!alive()) return clearInterval(tick);
           try { s = await api('status'); T.prime(s.plaetze); draw(); } catch (e) { /* nächster Versuch */ }
+          if (!alive()) return;
           timer = setTimeout(refresh, s.plaetze.some(p => p.state !== 'idle') ? 5000 : 20000);
         }
         T.prime(s.plaetze); draw(); timer = setTimeout(refresh, 5000);
@@ -175,11 +178,11 @@
     const act = { start: '<span class="pill g">Start</span>', stop: '<span class="pill a">Stopp</span>', fehler: '<span class="pill r">Fehler</span>', kopplung: '<span class="pill b">Freischaltung</span>' };
     const mName = m => new Date(+m.slice(0, 4), +m.slice(5, 7) - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
     $('bLog').innerHTML = `<div class="row" style="margin-bottom:10px"><label class="f">Monat<select id="bMonth">${r.months.map(m => `<option value="${m}" ${m === r.month ? 'selected' : ''}>${mName(m)}</option>`).join('')}</select></label>
-      <a class="btn" href="api/admin/x/beregnung/log.xlsx?month=${r.month}">Excel</a></div>
+      <a class="btn" href="api/admin/x/beregnung/log.xlsx?month=${r.month}">Als Excel exportieren</a></div>
       ${r.rows.length ? `<table class="tbl"><tr><th>Zeitpunkt</th><th>Aktion</th><th>Platz</th><th class="r">Minuten</th><th>Wer</th><th>Hinweis</th></tr>
-        ${r.rows.map(x => `<tr><td>${x.at.slice(8, 10)}.${x.at.slice(5, 7)}. ${x.at.slice(11, 16)}</td><td>${act[x.action] || esc(x.action)}</td><td>${esc(x.platz || '')}</td>
-          <td class="r">${x.sec ? minTxt(x.sec) : ''}</td><td>${esc(x.who || '')}</td><td class="muted s">${esc(x.detail || '')}</td></tr>`).join('')}</table>`
-        : '<p class="muted">In diesem Monat wurde nichts manuell beregnet.</p>'}`;
+        ${r.rows.map(x => `<tr><td class="nw">${x.at.slice(8, 10)}.${x.at.slice(5, 7)}.${x.at.slice(0, 4)}, ${x.at.slice(11, 16)}</td><td>${act[x.action] || esc(x.action)}</td><td class="nw">${esc(x.platz || '–')}</td>
+          <td class="r nw">${x.sec ? minTxt(x.sec) : '–'}</td><td>${esc(x.who || '–')}</td><td class="muted s">${esc(x.detail || '')}</td></tr>`).join('')}</table>`
+        : '<p class="empty">In diesem Monat wurde nichts manuell beregnet.</p>'}`;
     $('bMonth').onchange = () => { st.month = $('bMonth').value; loadLog().catch(fail); };
   }
 

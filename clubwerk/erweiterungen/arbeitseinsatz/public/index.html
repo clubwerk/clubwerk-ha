@@ -10,14 +10,14 @@
 <title>Arbeitseinsatz</title>
 <link rel="stylesheet" href="../../style.css">
 <link rel="stylesheet" href="../../theme.css">
+<link rel="stylesheet" href="../../kit.css">
 <style>
   /* Gestaltung: Tablet-Kit in style.css (Seite, Abschnitte, Kacheln, Fenster, PIN-Feld, Sperrseite) – hier nur Besonderheiten der Helferdienste */
   .tk-tile .t { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--brand-ink); white-space: nowrap; }
   .aw-note { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 14px 0 0; }
   .aw-note:empty { display: none; }
   .perr { color: var(--red); font-weight: 700; min-height: 22px; margin-top: 10px; }
-  .names { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; text-align: left; max-height: 50vh; overflow: auto; margin-top: 10px; }
-  .names button, .choice button { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); padding: 0 12px; text-align: left; }
+  .choice button { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 600; color: var(--ink); padding: 0 12px; text-align: left; }
   .choice { display: flex; flex-direction: column; gap: 8px; text-align: left; }
   .choice button { display: flex; align-items: center; gap: 10px; }
   .choice button::before { content: ''; flex: none; width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--line); box-sizing: border-box; }
@@ -27,8 +27,6 @@
   .dlg-btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 14px; }
   .dlg-btns button { height: 56px; border-radius: 14px; font: inherit; font-size: 18px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
   .dlg-btns .ok { background: var(--brand); border-color: var(--brand); color: #fff; }
-  .names-hint { grid-column: 1 / -1; color: var(--muted); font-size: 15px; padding: 14px 4px; text-align: center; }
-  @media (max-width: 800px) { .names { grid-template-columns: 1fr 1fr; } }
 </style>
 </head>
 <body class="tk">

@@ -5,7 +5,7 @@
   const { $, esc, toast, fail } = GK;
   const api = (url, method, body) => GK.api('x/zugang/' + url, method, body);
   const DAYS = [['1', 'Montag'], ['2', 'Dienstag'], ['3', 'Mittwoch'], ['4', 'Donnerstag'], ['5', 'Freitag'], ['6', 'Samstag'], ['0', 'Sonntag']];
-  const TYPE = { lock: 'Schloss (auf-/abschließen)', impulse: 'Türöffner / Relais (Impuls)', cover: 'Tor / Antrieb (öffnen/schließen)' };
+  const TYPE = { lock: 'Schloss', impulse: 'Türöffner (Impuls)', cover: 'Tor / Antrieb' };   // kurz, damit nichts im Auswahlfeld abgeschnitten wird
   const TDOM = { lock: ['lock'], impulse: ['switch', 'button'], cover: ['cover'] };
   const st = { d: null, c: null, month: null };
   const dt = ts => (ts ? `${ts.slice(8, 10)}.${ts.slice(5, 7)}.${ts.slice(2, 4)} ${ts.slice(11, 16)}` : '–');
@@ -28,22 +28,22 @@
   function devOptions(doms, sel, emptyLabel) {
     const list = doms.flatMap(d => (st.d.devices && st.d.devices[d]) || []);
     const has = list.some(x => x.ref === sel);
-    return `<option value="">${emptyLabel}</option>${!has && sel ? `<option value="${esc(sel)}" selected>${esc(sel)} (nicht gefunden)</option>` : ''}`
+    return `<option value="">${emptyLabel}</option>${!has && sel ? `<option value="${esc(sel)}" selected>${esc(sel)} – fehlt</option>` : ''}`
       + list.map(x => `<option value="${esc(x.ref)}" ${x.ref === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   }
 
   /* ---------- Türen ---------- */
   function doorsHtml() {
     const c = st.c;
-    if (!c.doors.length) return '<p class="muted">Noch keine Türen angelegt.</p>';
-    return `<table class="tbl"><tr><th>Name</th><th style="width:220px">Art</th><th>Gerät in Home Assistant</th><th>Türkontakt (optional)</th><th class="r" style="width:90px">Impuls s</th><th style="width:170px"></th></tr>
+    if (!c.doors.length) return '<p class="empty">Noch keine Türen angelegt.</p>';
+    return `<table class="tbl"><tr><th>Name</th><th style="width:170px">Art</th><th>Gerät in Home Assistant</th><th>Türkontakt</th><th class="r" style="width:100px">Impuls (Sek.)</th><th style="width:190px"></th></tr>
       ${c.doors.map((d, i) => `<tr>
         <td><input data-dn="${i}" maxlength="30" value="${esc(d.name)}" placeholder="z. B. Haustür" style="width:100%"></td>
         <td><select data-dt="${i}" style="width:100%">${Object.entries(TYPE).map(([k, v]) => `<option value="${k}" ${d.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
         <td><select data-dr="${i}" style="width:100%">${devOptions(TDOM[d.type], d.ref, '– Gerät wählen –')}</select></td>
         <td><select data-ds="${i}" style="width:100%">${devOptions(['binary_sensor'], d.sensor, '– keiner –')}</select></td>
         <td class="r"><input data-dp="${i}" inputmode="numeric" value="${d.pulseSec || 3}" style="width:60px;text-align:right" ${d.type === 'impulse' ? '' : 'disabled'}></td>
-        <td class="r" style="white-space:nowrap"><button class="btn small" data-du="${i}" ${i === 0 ? 'disabled' : ''}>▲</button> <button class="btn small" data-dd="${i}" ${i === c.doors.length - 1 ? 'disabled' : ''}>▼</button> <button class="btn small danger" data-dx="${i}">Entfernen</button></td></tr>`).join('')}</table>`;
+        <td class="r" style="white-space:nowrap"><button class="btn small" data-du="${i}" ${i === 0 ? 'disabled' : ''} aria-label="nach oben">↑</button> <button class="btn small" data-dd="${i}" ${i === c.doors.length - 1 ? 'disabled' : ''} aria-label="nach unten">↓</button> <button class="btn small danger" data-dx="${i}">Entfernen</button></td></tr>`).join('')}</table>`;
   }
   /* ---------- Zeitprofile ---------- */
   function profilesHtml() {
@@ -68,7 +68,7 @@
     const c = st.c;
     return `${c.blockDays.length ? `<table class="tbl"><tr><th style="width:170px">von</th><th style="width:170px">bis</th><th>Grund</th><th style="width:110px"></th></tr>
       ${c.blockDays.map((b, i) => `<tr><td><input type="date" data-bf="${i}" value="${b.from}"></td><td><input type="date" data-bt="${i}" value="${b.to}"></td><td><input data-bn="${i}" maxlength="60" value="${esc(b.note || '')}" placeholder="z. B. Platzsanierung" style="width:100%"></td>
-        <td class="r"><button class="btn small" data-bx="${i}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="muted">Keine Sperrtage.</p>'}
+        <td class="r"><button class="btn small" data-bx="${i}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Sperrtage.</p>'}
       <div class="row" style="margin-top:8px"><button class="btn small" id="zBAdd">+ Sperrzeitraum</button></div>`;
   }
 
@@ -215,7 +215,7 @@
           <td><input type="date" data-mu="${x.member_id}" data-nodirty value="${x.valid_until || ''}" title="leer = unbegrenzt"></td>
           <td class="muted s hide-md">${x.last_used ? GK.deTime(x.last_used) : '–'}</td>
           <td class="r" style="white-space:nowrap">${x.device !== 'gekoppelt' ? `<button class="btn small" data-mq="${x.member_id}">QR-Code</button> ` : ''}<button class="btn small" data-mb="${x.member_id}">${x.blocked ? 'Entsperren' : 'Sperren'}</button> <button class="btn small danger" data-mx="${x.member_id}">Entziehen</button></td></tr>`).join('')}</table>`
-        : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
+        : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>`;
     const reload = () => loadMembers(el).catch(fail);
     const put = (id, body) => api(`app/member/${id}/access`, 'PUT', { module: 'zugang', ...body }).then(() => true);
     const core = (url, m, b) => GK.api(url, m, b);
@@ -246,7 +246,7 @@
       <a class="btn" href="api/admin/x/zugang/log.xlsx?month=${r.month}">Excel</a></div>
       ${r.rows.length ? `<table class="tbl"><tr><th>Zeitpunkt</th><th>Aktion</th><th>Tür</th><th>Wer</th><th>Hinweis</th></tr>
         ${r.rows.map(x => { const a = A[x.action] || ['', x.action]; return `<tr><td>${dt(x.at)}</td><td><span class="pill ${a[0]}">${a[1]}</span></td><td>${esc(x.door || '')}</td><td>${esc(x.who || '')}</td><td class="muted s">${esc(x.detail || '')}</td></tr>`; }).join('')}</table>`
-        : '<p class="muted">Keine Einträge in diesem Monat.</p>'}`;
+        : '<p class="empty">Keine Einträge in diesem Monat.</p>'}`;
     $('zMonth').onchange = () => { st.month = $('zMonth').value; loadLog().catch(fail); };
   }
 

@@ -14,7 +14,7 @@ function tint(hex, t) {   // Richtung Weiß mischen (0 = Farbe, 1 = weiß)
 /** Logo als eingebettetes Bild (PNG/JPG – SVG zeigen viele Mailprogramme nicht) */
 function logo() {
   try {
-    if (getSetting('club_icon', '') && getSetting('club_icon_ver', '') === getSetting('club_logo_ver', 'std')) return { content: Buffer.from(getSetting('club_icon', ''), 'base64'), contentType: 'image/png', ext: 'png' };
+    if (getSetting('club_logo_png', '') && getSetting('club_logo_png_ver', '') === getSetting('club_logo_ver', 'std')) return { content: Buffer.from(getSetting('club_logo_png', ''), 'base64'), contentType: 'image/png', ext: 'png' };
     const t = getSetting('club_logo_type', '');
     if (getSetting('club_logo', '') && /png|jpe?g/i.test(t)) return { content: Buffer.from(getSetting('club_logo', ''), 'base64'), contentType: /png/i.test(t) ? 'image/png' : 'image/jpeg', ext: /png/i.test(t) ? 'png' : 'jpg' };
   } catch (e) { /* ohne Logo */ }

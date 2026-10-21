@@ -125,7 +125,7 @@
       <p class="muted s" id="tgH" style="margin:0 0 14px"></p>
       <div class="aw-grid" style="--c:2">
         <label class="f tg-e">Soll in Stunden (nur ${esc(o.label)})<input id="tgM" inputmode="decimal" value="${r.override ? String(r.target / 60).replace('.', ',') : ''}"></label>
-        <label class="f tg-b">befreit bis (leer = dauerhaft)<input id="tgU" type="date" value="${esc(r.exempt_until || '')}"></label>
+        <label class="f tg-b">Befreit bis (leer = dauerhaft)<input id="tgU" type="date" value="${esc(r.exempt_until || '')}"></label>
         <label class="f tg-g">Grund<input id="tgN" maxlength="120" value="${esc(r.exempt ? r.exempt_note || '' : '')}" placeholder="z. B. Vorstandsamt, Trainer"></label></div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="tgOk">Speichern</button></div>`);
     const HINT = { auto: 'Soll nach den Regeln unter Einstellungen (Vorgabe, Beitragsart, Alter, Status).', eigen: 'Abweichendes Soll nur für diesen Zeitraum.',
@@ -185,7 +185,7 @@
           ${!e.permanent && e.signups.length ? `<div class="aw-people">${e.signups.map(s => `<span class="pill g">${esc(s.name)}</span>`).join('')}</div>` : ''}</div>
         <div class="acts">${!e.permanent && e.date <= st.meta.today ? `<button class="btn small primary" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}${e.permanent ? '' : `<button class="btn small" data-evp="${e.id}">Helfer</button>`}<button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`;
     el.innerHTML = `<div class="toolbar"><button class="btn primary" id="evNew">+ Einsatz / Thekendienst</button><button class="btn ghost" id="evPast">${st.past ? 'Kommende anzeigen' : 'Vergangene anzeigen'}</button></div>
-      ${st.past ? '' : `<div class="card"><h3>Dauerhaft (ganzjährig)</h3><p class="muted s" style="margin-top:0">Ohne festen Termin – z. B. Thekendienst. Solange aktiv, kann man ihn am Tablet beim Einstempeln wählen.</p>${perm.length ? perm.map(row).join('') : '<p class="muted">Keine. Beim Anlegen „dauerhaft“ wählen.</p>'}</div>`}
+      ${st.past ? '' : `<div class="card"><h3>Dauerhaft (ganzjährig)</h3><p class="muted s" style="margin-top:0">Ohne festen Termin – z. B. Thekendienst. Solange aktiv, kann man ihn am Tablet beim Einstempeln wählen.</p>${perm.length ? perm.map(row).join('') : '<p class="empty">Keine. Beim Anlegen „dauerhaft“ wählen.</p>'}</div>`}
       <div class="card"><h3>${st.past ? 'Vergangene Einsätze' : 'Kommende Einsätze'}</h3>${dated.length ? dated.map(row).join('')
         : `<p class="muted">${st.past ? 'Keine vergangenen Einsätze.' : 'Nichts geplant – mit „+ Einsatz / Thekendienst“ anlegen. Mitglieder tragen sich dann in der Mitglieder-App unter „Dienste“ ein.'}</p>`}</div>`;
     const again = () => showEvents(el).catch(fail);
@@ -203,12 +203,12 @@
     const dur = e && e.start && e.end ? '' : '';
     dialog(`<h2>${e ? 'Einsatz bearbeiten' : 'Neuer Einsatz'}</h2><div class="aw-grid" style="--c:3">
       <label class="f">Art<select id="evK">${Object.entries(KIND).map(([k, l]) => opt(k, l, e ? e.kind : 'arbeit')).join('')}</select></label><label class="f w2">Titel<input id="evT" value="${esc(e ? e.title : '')}" placeholder="z. B. Frühjahrsputz Plätze"></label>
-      <label class="chk wall" style="min-height:32px"><input type="checkbox" id="evPm" ${e && e.permanent ? 'checked' : ''}> dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar</label>
-      <label class="f aw-dated">Datum<input id="evD" type="date" value="${esc(e ? e.date : st.meta.today)}"></label><label class="f aw-dated">von<input id="evS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f aw-dated">bis<input id="evE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
+      <label class="chk wall" style="min-height:32px"><input type="checkbox" id="evPm" ${e && e.permanent ? 'checked' : ''}> Dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar</label>
+      <label class="f aw-dated">Datum<input id="evD" type="date" value="${esc(e ? e.date : st.meta.today)}"></label><label class="f aw-dated">Von<input id="evS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f aw-dated">Bis<input id="evE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
       <label class="f w2" id="evPL">Ort / Treffpunkt<input id="evP" value="${esc(e ? e.place || '' : '')}"></label><label class="f aw-dated">Helfer gesucht (leer = beliebig)<input id="evN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}"></label>
       <label class="f wall">Hinweis für die Helfer<input id="evX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Arbeitshandschuhe mitbringen"></label>
-      ${e ? '' : '<label class="f aw-dated">wöchentlich wiederholen (Wochen)<input id="evR" inputmode="numeric" placeholder="0"></label>'}
-      <label class="chk ${e ? 'wall' : 'w2'}" id="evAL" style="min-height:40px;align-self:end"><input type="checkbox" id="evA" ${!e || !e.cancelled ? 'checked' : ''}> aktiv – steht am Tablet und in der Mitglieder-App</label></div>
+      ${e ? '' : '<label class="f aw-dated">Wöchentlich wiederholen (Wochen)<input id="evR" inputmode="numeric" placeholder="0"></label>'}
+      <label class="chk ${e ? 'wall' : 'w2'}" id="evAL" style="min-height:40px;align-self:end"><input type="checkbox" id="evA" ${!e || !e.cancelled ? 'checked' : ''}> Aktiv – steht am Tablet und in der Mitglieder-App</label></div>
       <div class="btns">${e ? '<button class="btn danger" id="evDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="evOk">Speichern</button></div>`);
     void dur;
     const pmPaint = () => { const pm = $('evPm').checked; $('dialog').querySelectorAll('.aw-dated').forEach(x => { x.style.display = pm ? 'none' : ''; }); $('evPL').classList.toggle('wall', pm); $('evPL').classList.toggle('w2', !pm); if (!e) { $('evAL').classList.toggle('wall', pm); $('evAL').classList.toggle('w2', !pm); } };
@@ -234,7 +234,7 @@
     const def = e.start && e.end ? (((+e.end.slice(0, 2) * 60 + +e.end.slice(3)) - (+e.start.slice(0, 2) * 60 + +e.start.slice(3))) + 1440) % 1440 || '' : '';
     dialog(`<h2>Stunden gutschreiben: ${esc(e.title)}</h2><p class="muted" style="margin-top:0">Alle angekreuzten Helfer bekommen die Stunden bestätigt. Wer schon Stunden zu diesem Einsatz hat, wird übersprungen.</p>
       <label class="f" style="max-width:240px">Dauer in Stunden<input id="ceM" inputmode="decimal" value="${def ? String(def / 60).replace('.', ',') : ''}"></label>
-      <div class="aw-cols" style="margin-top:12px" id="ceL">${(e.signups.length ? e.signups : []).map(s => `<label class="chk"><input type="checkbox" value="${s.member_id}" checked> ${esc(GK.lastFirst(s.name))}</label>`).join('') || '<p class="muted">Niemand eingetragen – über „Helfer“ ergänzen oder „Stunden nachtragen“ nutzen.</p>'}</div>
+      <div class="aw-cols" style="margin-top:12px" id="ceL">${(e.signups.length ? e.signups : []).map(s => `<label class="chk"><input type="checkbox" value="${s.member_id}" checked> ${esc(GK.lastFirst(s.name))}</label>`).join('') || '<p class="empty">Niemand eingetragen – über „Helfer“ ergänzen oder „Stunden nachtragen“ nutzen.</p>'}</div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ceOk" ${e.signups.length ? '' : 'disabled'}>Gutschreiben</button></div>`);
     $('c').onclick = closeDialog;
     $('ceOk').onclick = () => GK.busy($('ceOk'), async () => { try { const r = await api(`events/${e.id}/close`, 'POST', { minutes: toMin(val('ceM')), members: [...$('ceL').querySelectorAll('input:checked')].map(i => +i.value) }); closeDialog(); toast(`${r.count} Helfer gutgeschrieben.`); after(); } catch (x) { fail(x); } });
@@ -266,11 +266,11 @@
   }
   function planDialog(p, after) {
     dialog(`<h2>${p ? 'Dienstplan bearbeiten' : 'Neuer Dienstplan'}</h2><div class="aw-grid" style="--c:4">
-      <label class="f w2">Veranstaltung<input id="pT" value="${esc(p ? p.title : '')}" placeholder="z. B. Kirmes 2026"></label><label class="f">erster Tag<input id="pF" type="date" value="${esc(p ? p.from_date : st.meta.today)}"></label><label class="f">letzter Tag<input id="pU" type="date" value="${esc(p ? p.to_date : st.meta.today)}"></label>
+      <label class="f w2">Veranstaltung<input id="pT" value="${esc(p ? p.title : '')}" placeholder="z. B. Kirmes 2026"></label><label class="f">Erster Tag<input id="pF" type="date" value="${esc(p ? p.from_date : st.meta.today)}"></label><label class="f">Letzter Tag<input id="pU" type="date" value="${esc(p ? p.to_date : st.meta.today)}"></label>
       <label class="f wall">Ort<input id="pP" value="${esc(p ? p.place || '' : '')}" placeholder="z. B. Festzelt am Vereinsheim"></label>
       <label class="f wall">Infos für alle Helfer<textarea id="pN" rows="3" placeholder="z. B. Bitte ein paar Minuten vor Schichtbeginn da sein. Nach Ende wird gemeinsam aufgeräumt.">${esc(p ? p.note || '' : '')}</textarea></label>
-      <label class="chk w2"><input type="checkbox" id="pC" ${!p || p.counts ? 'checked' : ''}> zählt zu den Arbeitsstunden</label>
-      <label class="chk w2"><input type="checkbox" id="pV" ${!p || p.published ? 'checked' : ''}> veröffentlicht – in der Mitglieder-App sichtbar</label></div>
+      <label class="chk w2"><input type="checkbox" id="pC" ${!p || p.counts ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
+      <label class="chk w2"><input type="checkbox" id="pV" ${!p || p.published ? 'checked' : ''}> Veröffentlicht – in der Mitglieder-App sichtbar</label></div>
       <div class="btns">${p ? '<button class="btn danger" id="pDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pOk">Speichern</button></div>`, true);
     $('pF').onchange = () => { if (val('pU') < val('pF')) $('pU').value = val('pF'); };
     $('c').onclick = closeDialog;
@@ -295,7 +295,7 @@
         <div class="acts"><button class="btn" id="plEd">Bearbeiten</button><button class="btn" id="plPrint">Drucken</button><a class="btn" href="${BASE}plans/${p.id}/xlsx">Excel</a>${d.drinks && !p.sales ? '<button class="btn" id="plSale">In den Verkauf übernehmen</button>' : ''}<button class="btn" id="plCopy">Als Vorlage kopieren</button>${p.published ? '' : '<button class="btn primary" id="plPub">Veröffentlichen</button>'}</div></div>
       ${p.note ? `<div class="card aw-note"><b>Infos für alle Helfer</b><div>${esc(p.note)}</div></div>` : ''}
       ${days.map(day => { const sh = d.shifts.filter(e => e.date === day);
-        return `<div class="card"><div class="aw-dh"><h3>${esc(dayLong(day))}</h3><button class="btn small" data-add="${day}">+ Schicht</button></div>${sh.length ? sh.map(row).join('') : '<p class="muted" style="margin:0">Keine Schichten an diesem Tag.</p>'}</div>`; }).join('')}`;
+        return `<div class="card"><div class="aw-dh"><h3>${esc(dayLong(day))}</h3><button class="btn small" data-add="${day}">+ Schicht</button></div>${sh.length ? sh.map(row).join('') : '<p class="empty">Keine Schichten an diesem Tag.</p>'}</div>`; }).join('')}`;
     const again = () => showPlan(el, id).catch(fail);
     $('plBack').onclick = () => { st.plan = null; showPlans(el).catch(fail); };
     $('plEd').onclick = () => planDialog(p, x => { if (!x) showPlans(el).catch(fail); else again(); });
@@ -304,7 +304,7 @@
     if ($('plSale')) $('plSale').onclick = async () => { if (!await ask(`„${p.title}“ als Veranstaltung im Verkauf anlegen (am ${deDate(p.from_date)}, alle Artikel zum Normalpreis)?`, { ok: 'Übernehmen' })) return; try { await api(`plans/${p.id}/sales`, 'POST', {}); toast('Im Verkauf unter „Veranstaltungen“ angelegt.'); again(); } catch (x) { fail(x); } };
     $('plCopy').onclick = async () => {
       dialog(`<h2>Als Vorlage kopieren</h2><p class="muted" style="margin-top:0">Gleiche Schichten an neuen Tagen – z. B. für die Kirmes im nächsten Jahr. Helfer werden nicht übernommen, der neue Plan ist zunächst ein Entwurf.</p>
-        <div class="aw-grid" style="--c:2"><label class="f">Name<input id="cpT" value="${esc(p.title.replace(/\d{4}/, y => +y + 1))}"></label><label class="f">erster Tag<input id="cpF" type="date" value="${addDays(p.from_date, 364)}"></label></div>
+        <div class="aw-grid" style="--c:2"><label class="f">Name<input id="cpT" value="${esc(p.title.replace(/\d{4}/, y => +y + 1))}"></label><label class="f">Erster Tag<input id="cpF" type="date" value="${addDays(p.from_date, 364)}"></label></div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="cpOk">Kopieren</button></div>`);
       $('c').onclick = closeDialog;
       $('cpOk').onclick = () => GK.busy($('cpOk'), async () => { try { const r = await api(`plans/${p.id}/copy`, 'POST', { title: val('cpT'), from_date: val('cpF') }); closeDialog(); st.plan = r.id; toast('Kopiert.'); showPlan(el, r.id).catch(fail); } catch (x) { fail(x); } });
@@ -316,14 +316,14 @@
   }
   function shiftDialog(p, days, e, day, after) {
     dialog(`<h2>${e ? 'Schicht bearbeiten' : 'Neue Schicht'}</h2><div class="aw-grid" style="--c:4">
-      <label class="f w2">Tag<select id="shD">${days.map(x => opt(x, dayLong(x), e ? e.date : day)).join('')}</select></label><label class="f">von<input id="shS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f">bis (optional)<input id="shE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
+      <label class="f w2">Tag<select id="shD">${days.map(x => opt(x, dayLong(x), e ? e.date : day)).join('')}</select></label><label class="f">Von<input id="shS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f">Bis (optional)<input id="shE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
       <label class="f w2">Was<input id="shT" value="${esc(e ? e.title : '')}" placeholder="z. B. Theke, Sektbar, Kasse, Zeltaufbau" list="shTL"><datalist id="shTL">${['Theke', 'Sektbar', 'Kasse', 'Grill', 'Kuchentheke', 'Aufbau', 'Abbau', 'Zeltaufbau', 'Aufräumen', 'Einlass'].map(x => `<option value="${x}">`).join('')}</datalist></label>
       <label class="f w2">Helfer gesucht (leer = beliebig viele)<input id="shN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}" placeholder="z. B. 8"></label>
       <label class="f wall">Infos zur Schicht<input id="shX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Bitte ein paar Minuten vorher einfinden"></label>
-      <label class="chk w2"><input type="checkbox" id="shC" ${(e ? e.counts : p.counts) ? 'checked' : ''}> zählt zu den Arbeitsstunden</label>
-      ${e ? `<label class="chk w2"><input type="checkbox" id="shA" ${e.cancelled ? '' : 'checked'}> aktiv (sonst ausgeblendet)</label>` : ''}</div>
+      <label class="chk w2"><input type="checkbox" id="shC" ${(e ? e.counts : p.counts) ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
+      ${e ? `<label class="chk w2"><input type="checkbox" id="shA" ${e.cancelled ? '' : 'checked'}> Aktiv (sonst ausgeblendet)</label>` : ''}</div>
       <p class="muted s" style="margin:10px 0 0">Ohne Ende erscheint „ab 16 Uhr“. Ein Ende vor dem Beginn gilt als nach Mitternacht (z. B. 23:30–02:00).</p>
-      <div class="btns">${e ? '<button class="btn danger" id="shDel" style="margin-right:auto">Löschen</button>' : '<label class="chk" style="margin-right:auto"><input type="checkbox" id="shMore"> danach weitere Schicht anlegen</label>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="shOk">Speichern</button></div>`, true);
+      <div class="btns">${e ? '<button class="btn danger" id="shDel" style="margin-right:auto">Löschen</button>' : '<label class="chk" style="margin-right:auto"><input type="checkbox" id="shMore"> Danach weitere Schicht anlegen</label>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="shOk">Speichern</button></div>`, true);
     $('c').onclick = closeDialog;
     $('shOk').onclick = () => GK.busy($('shOk'), async () => {
       const body = { plan_id: p.id, kind: 'dienst', date: val('shD'), start: val('shS'), end: val('shE'), title: val('shT'), slots: val('shN') || null, note: val('shX'), counts: $('shC').checked };
@@ -424,14 +424,14 @@
       <div class="row" style="justify-content:flex-end"><button class="btn primary" id="sSave">Speichern</button></div></div>
       <div class="card" data-nodirty><h3>Befreite Mitglieder</h3><p class="muted s" style="margin-top:0">Befreite Mitglieder können wie alle Stunden leisten (sie werden erfasst), haben aber kein Soll – es wird nichts eingezogen. Optional befristet.</p>
         <div class="aw-grid" style="--c:4"><label class="f">Mitglied<select id="exM"><option value="">– Mitglied wählen –</option>${(st.meta.members || []).map(m => opt(m.id, GK.lastFirst(m.name))).join('')}</select></label>
-          <label class="f">Grund<input id="exN" placeholder="z. B. Vorstand, Krankheit"></label><label class="f">befreit bis (leer = dauerhaft)<input id="exU" type="date"></label>
+          <label class="f">Grund<input id="exN" placeholder="z. B. Vorstand, Krankheit"></label><label class="f">Befreit bis (leer = dauerhaft)<input id="exU" type="date"></label>
           <label class="f"><span>&nbsp;</span><button class="btn primary" id="exAdd">Befreien</button></label></div>
         <div id="exList" style="margin-top:12px"></div></div>
       <div id="sFunc"></div>`;
     GK.watch(el.querySelector('.card'));
     const exLoad = async () => {
       const l = await api('exempt');
-      $('exList').innerHTML = l.length ? `<table class="tbl">${l.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b></td><td>${esc(x.note || '')}</td><td class="nw">${x.until_date ? 'bis ' + deDate(x.until_date) : 'dauerhaft'}</td><td class="r"><button class="btn small" data-exd="${x.member_id}">Aufheben</button></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Niemand befreit.</p>';
+      $('exList').innerHTML = l.length ? `<table class="tbl">${l.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b></td><td>${esc(x.note || '')}</td><td class="nw">${x.until_date ? 'bis ' + deDate(x.until_date) : 'dauerhaft'}</td><td class="r"><button class="btn small" data-exd="${x.member_id}">Aufheben</button></td></tr>`).join('')}</table>` : '<p class="empty">Niemand befreit.</p>';
       $('exList').querySelectorAll('[data-exd]').forEach(b => { b.onclick = async () => { try { await api('exempt/' + b.dataset.exd, 'DELETE'); toast('Befreiung aufgehoben.'); exLoad(); } catch (e) { fail(e); } }; });
     };
     $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
