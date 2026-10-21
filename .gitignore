@@ -7,6 +7,7 @@ node_modules
 # Werkzeuge: lokale Ausgaben und Laufdaten
 werkzeuge/ausgabe/
 werkzeuge/.geheim-muster
+werkzeuge/geheim-muster.txt
 werkzeuge/demo/daten/
 werkzeuge/demo/server.log
 werkzeuge/demo/server.pid

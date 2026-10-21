@@ -11,4 +11,4 @@ Hilfsmittel für die Entwicklung. Sie gehören nicht zum Add-on, Home Assistant 
 | `demo/` | Demo-Server mit erfundenen Daten: `start.sh`, `stop.sh`, `demo.sql`. |
 | `tests/` | Rund 50 erweiterte Testreihen mit Vergleich gegen die bekannten Fehlschläge (`erwartet.txt`). |
 | `design-pruefstand/` | Automatische Design-Prüfung aller Oberflächen. |
-| `.geheim-muster` | Nur lokal. Zeichenfolgen, die nie im Repository stehen dürfen. |
+| `geheim-muster.txt` | Nur lokal. Zeichenfolgen, die nie im Repository stehen dürfen. |

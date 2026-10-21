@@ -49,7 +49,9 @@ withha() { # Server mit Home-Assistant- und Hydrawise-Nachbildung (3240/5240/524
 # Test-Mailserver (Port 2525): legt jede Mail als $S/smtp/mailN.json ab
 [ -d "$H/hilfen/smtp/node_modules" ] || (cd "$H/hilfen/smtp" && npm ci --silent --no-audit --no-fund)
 mkdir -p "$S/smtp"; cp "$H/hilfen/smtp/srv.js" "$S/smtp/"; ln -sfn "$H/hilfen/smtp/node_modules" "$S/smtp/node_modules"
-node "$S/smtp/srv.js" > "$S/smtp/srv.log" 2>&1 & SMTP_PID=$!
+smtp_up() { node -e "require('net').connect(2525,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))" 2>/dev/null; }
+smtp_start() { node "$S/smtp/srv.js" >> "$S/smtp/srv.log" 2>&1 & SMTP_PID=$!; for i in $(seq 1 20); do smtp_up && return; sleep 0.25; done; echo "Test-Mailserver startet nicht – siehe $S/smtp/srv.log"; }
+smtp_start
 RES=$S/ergebnis.txt; : > "$RES"
 run() { local out=$S/t_$1${2:-}.out; (cd "$W" && timeout 600 node "$1_test.js" "$S" ${2:-} > "$out" 2>&1)
   echo "== $1: $(grep -c '^✘' "$out") Fehler · $(grep -c '^✔' "$out") ok"
@@ -58,6 +60,7 @@ run() { local out=$S/t_$1${2:-}.out; (cd "$W" && timeout 600 node "$1_test.js" "
   grep '^✘' "$out" | sed -e "s/^/$1: /" -e 's/  .*$//' >> "$RES"; }   # nur Testreihe und Testname vergleichen, nicht die Details
 NAMES="${*:-$(cat "$H/namen.txt")}"
 for t in $NAMES; do
+  smtp_up || { echo "Test-Mailserver war weg – neu gestartet"; smtp_start; }
   case $t in
     harden) plain harden 3193 BEREGNUNG_PORT=5193 MEMBER_PORT=5194; run harden ;;
     priv) seeded priv 3201; run priv ;;

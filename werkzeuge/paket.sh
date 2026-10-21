@@ -23,10 +23,10 @@ echo "== 3. Übersetzungen"
 node "$W/i18n/extract.js" > /dev/null || fail "Textextraktion"
 node "$W/i18n/fehlend.js" || fail "Englische Übersetzungen fehlen – siehe werkzeuge/i18n/ANLEITUNG-EN.md"
 echo "== 4. Geheimnisse"
-MUSTER=$W/.geheim-muster   # lokal, nie im Repository: eine Zeichenfolge pro Zeile (alter API-Schlüssel, echte PIN, echte Passwörter …)
-[ -f "$MUSTER" ] || fail "werkzeuge/.geheim-muster fehlt – einmal anlegen (siehe CLAUDE.md, Abschnitt Geheimnisse)"
+MUSTER=$W/.geheim-muster; [ -f "$MUSTER" ] || MUSTER=$W/geheim-muster.txt   # lokal, nie im Repository: eine Zeichenfolge pro Zeile (alter API-Schlüssel, echte PIN, echte Passwörter …)
+[ -f "$MUSTER" ] || fail "werkzeuge/geheim-muster.txt fehlt – einmal anlegen (siehe CLAUDE.md, Abschnitt Geheimnisse)"
 PAT=$(mktemp); grep -v '^\s*#' "$MUSTER" | grep -v '^\s*$' > "$PAT"
-TREFFER=$( (git -C "$R" ls-files; git -C "$R" ls-files --others --exclude-standard) | grep -v "^werkzeuge/.geheim-muster$" | tr '\n' '\0' | xargs -0 grep -IlF -f "$PAT" 2>/dev/null); rm -f "$PAT"
+TREFFER=$( (git -C "$R" ls-files; git -C "$R" ls-files --others --exclude-standard) | grep -v "^werkzeuge/\.\?geheim-muster\(\.txt\)\?$" | tr '\n' '\0' | xargs -0 grep -IlF -f "$PAT" 2>/dev/null); rm -f "$PAT"
 [ -z "$TREFFER" ] || fail "Geheimnis gefunden in: $TREFFER"
 grep -rIlE "BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY" "$A" --exclude-dir=node_modules && fail "privater Schlüssel im Paket"
 find "$A" -path "$A/node_modules" -prune -o \( -name "*.db" -o -name "*.csv" -o -name ".env" \) -print | grep -q . && fail "Datenbank-/CSV-/Env-Datei im Paket"

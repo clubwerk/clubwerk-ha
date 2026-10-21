@@ -26,7 +26,7 @@ pip install playwright && python3 -m playwright install chromium webkit
 # für die Testreihe „targets“: pip install wsgidav cheroot pyftpdlib asyncssh
 ```
 
-Danach `werkzeuge/.geheim-muster` anlegen (siehe Abschnitt Geheimnisse).
+Danach `werkzeuge/geheim-muster.txt` anlegen bzw. von Thorsten erhalten (siehe Abschnitt Geheimnisse). Auch der Name `werkzeuge/.geheim-muster` funktioniert.
 
 **Demo-Server** mit erfundenen Daten: `bash werkzeuge/demo/start.sh`. Jeder Start lädt die Daten frisch, `--behalten` setzt sie nicht zurück. Beenden mit `bash werkzeuge/demo/stop.sh`.
 
@@ -81,7 +81,7 @@ PINs der Demo: Mitglieder 2468, Zeiterfassung 1234 und 5678.
 
 - **Nie echte Vereinsdaten ins Repository**: keine Mitgliedernamen, keine CSV-Exporte, keine Datenbanken. Das Repository ist öffentlich. Demo- und Testdaten sind erfunden (`werkzeuge/demo/demo.sql`, `werkzeuge/tests/fixtures/names.json`).
 - Testwerte sind `Test-Kennwort-42` (Admin), `Theke-Abend7` (Tablet) und die PINs 2468, 1234, 5678. Echte Passwörter, PINs, API-Schlüssel und Tunnel-Tokens kommen nie in Code, Tests, Doku oder Commits.
-- `werkzeuge/.geheim-muster` liegt nur lokal und ist in `.gitignore`. Pro Zeile steht dort eine Zeichenfolge, die nie im Repository stehen darf, etwa der alte API-Schlüssel der Beregnung, echte PINs oder echte Passwörter. `werkzeuge/paket.sh` bricht ab, wenn eine davon irgendwo vorkommt. Fehlt die Datei, Thorsten bitten, sie anzulegen.
+- `werkzeuge/geheim-muster.txt` (oder `.geheim-muster`) liegt nur lokal und ist in `.gitignore`. Pro Zeile steht dort eine Zeichenfolge, die nie im Repository stehen darf, etwa der alte API-Schlüssel der Beregnung, echte PINs oder echte Passwörter. `werkzeuge/paket.sh` bricht ab, wenn eine davon irgendwo vorkommt. Fehlt die Datei, Thorsten bitten, sie anzulegen.
 - Exporte und Sicherungen enthalten keine PINs, Passwörter oder Schlüssel. Die Tests prüfen das.
 - Zugangsdaten gibt Claude nie für Thorsten ein, und ein vollständiges Token gibt Claude nie aus.
 
