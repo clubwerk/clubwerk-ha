@@ -104,7 +104,7 @@
             ${ha ? `<p class="muted s" style="margin:8px 0 0">Einrichtung: in Home Assistant unter Einstellungen → Geräte &amp; Dienste die <b>${esc(vend.setup)}</b> hinzufügen. Jede Zone erscheint dann als Ventil oder Schalter${d.filtered ? ' – angeboten werden nur Geräte dieses Herstellers' : ''}.
               Tipp: Die Standard-Laufzeit der Zone in der Hersteller-App mindestens so lang einstellen wie hier.</p>${d.haAvailable ? '' : '<div class="banner a" style="margin-top:8px">Das Add-on hat keinen Zugriff auf Home Assistant. Bitte das Add-on neu bauen und starten.</div>'}`
             : `<div class="row" style="margin-top:10px"><label class="f" style="flex:1;min-width:260px">Hydrawise-API-Key<input id="bKey" type="password" data-nodirty autocomplete="off" placeholder="${d.hasKey ? 'gespeichert – zum Ändern neu eintragen' : 'aus hydrawise.com → Konto → Einstellungen'}"></label>
-                <button class="btn" id="bKeySave">Key speichern</button>${d.hasKey ? '<button class="btn" id="bKeyDel">Key löschen</button>' : ''}</div>
+                <button class="btn primary" id="bKeySave">Key speichern</button>${d.hasKey ? '<button class="btn" id="bKeyDel">Key löschen</button>' : ''}</div>
               <p class="muted s" style="margin:8px 0 0">Der Key bleibt auf dem Server und ist im Browser nie sichtbar. Zonennummer = Anschluss am Controller (1, 2, 3 …).</p>`}</div>
           <div class="card"><h3>Plätze &amp; Zonen</h3><div id="bPl">${plaetzeHtml()}</div>
             <div class="row" style="justify-content:space-between"><button class="btn" id="bAddPl">+ Platz</button><button class="btn primary" id="bSaveP">Plätze speichern</button></div></div>
@@ -135,7 +135,7 @@
             <label class="chk" style="margin-top:12px"><input type="checkbox" id="bStopFree" ${c.stopFree ? 'checked' : ''}> Roter Stopp-Knopf funktioniert ohne PIN</label>
             <label class="chk" style="margin-top:8px"><input type="checkbox" id="bHeader" ${c.header ? 'checked' : ''}> Zusätzlich als „Beregnung“ in der Kopfzeile am Tablet (nicht bei „nur Mitglieder-App“)</label></div>
           <div class="card" id="bPinCard"><h3>Vereins-PIN</h3><div class="row"><label class="f" style="flex:1;min-width:240px">Vereins-PIN (4–8 Ziffern) · ${d.hasPin ? 'festgelegt' : '<b style="color:var(--red)">noch nicht festgelegt</b>'}<input id="bPin" data-nodirty inputmode="numeric" maxlength="8" autocomplete="off" placeholder="${d.hasPin ? 'neue PIN eintragen' : 'PIN festlegen'}"></label>
-            <button class="btn" id="bPinSave">PIN speichern</button></div></div>
+            <button class="btn primary" id="bPinSave">PIN speichern</button></div></div>
           <div class="card"><h3>Eigene Webapp</h3><div class="row"><label class="f" style="flex:1;min-width:200px">Name auf dem Homescreen<input id="bApp" maxlength="20" value="${esc(c.appName)}"></label>
             <label class="f" style="flex:1;min-width:200px">Untertitel<input id="bSub" maxlength="40" value="${esc(c.subtitle)}"></label></div>
             ${ha ? `<div class="row" style="margin-top:12px"><label class="f" style="flex:1;min-width:240px">Anzeige „nächste automatische Beregnung“ (optional)<select id="bNext"><option value="">– keine –</option>${(d.sensors || []).map(x => `<option value="${esc(x.ref)}" ${x.ref === c.nextEntity ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>

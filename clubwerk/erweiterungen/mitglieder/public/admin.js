@@ -1235,7 +1235,7 @@
       <div class="card" data-sec="daten"><h3>Mitglieder übernehmen</h3><p class="muted s" style="margin-top:0">Aus S-Verein, WISO Mein Verein, verein.cloud oder einer eigenen CSV-/Excel-Liste. Clubwerk erkennt das Format, die Spalten ordnest du bei Bedarf selbst zu. Vorhandene Personen werden ergänzt, nichts wird doppelt angelegt.</p>
         <div class="row"><button class="btn" id="eImp">Import …</button></div></div>
       <div class="card" data-sec="daten"><h3>Datenschutz</h3><p class="muted s" style="margin-top:0">Nach dem Austritt werden Mitgliedsdaten noch für Beiträge, Spendenquittungen und gesetzliche Fristen gebraucht (Kassenbelege meist 10 Jahre). Danach im Mitglied „Anonymisieren“. Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied).</p>
-        <div class="row"><label class="f">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric" style="width:220px"></label><button class="btn" id="eSave3">Speichern</button></div></div>
+        <div class="row"><label class="f">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric" style="width:220px"></label><button class="btn primary" id="eSave3">Speichern</button></div></div>
       <div id="eFunc" data-sec="daten"></div>`;
     const SECS = [['verein', 'Verein & SEPA'], ['antrag', 'Beitrittserklärung'], ['app', 'Mitglieder-App'], ['daten', 'Import & Datenschutz']];
     if (!SECS.some(x => x[0] === st.set)) st.set = 'verein';

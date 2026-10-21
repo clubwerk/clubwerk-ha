@@ -63,7 +63,7 @@
       <div class="card"><h3>Monatsnachweis per E-Mail</h3>
         <div class="row">
           <label class="f" style="flex:1;min-width:260px">Empfänger (Kassiererin; mehrere mit Komma)<input id="zTo" value="${esc(m.to)}" placeholder="kasse@beispiel.de" autocomplete="email"></label>
-          <button class="btn" id="zToSave">Speichern</button>
+          <button class="btn primary" id="zToSave">Speichern</button>
           <button class="btn" id="zTest" ${m.ready ? '' : 'disabled'}>Testmail senden</button>
           <button class="btn" id="zSend" ${m.ready ? '' : 'disabled'}>${esc(prevName)} jetzt senden</button>
         </div>

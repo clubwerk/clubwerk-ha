@@ -108,6 +108,8 @@
   .impcard .seg button.on { background: var(--brand); color: #fff; }
   /* Werkzeugleiste, Filter, Mitglieder mit Detailansicht */
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
+  /* Einheitlich: Aktionen einer Seite stehen rechts, die Hauptaktion ganz rechts (Suche und Filter links). Reine Knopfleisten werden daher gespiegelt. */
+  .toolbar:not(:has(.seg, .search, input, select, .tabs, label)) { flex-direction: row-reverse; justify-content: flex-start; }
   .filterbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 0 0 16px; }
   .filterbar .search { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line); color: var(--muted); width: 260px; box-sizing: border-box; }
   .filterbar .search:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
@@ -306,13 +308,10 @@
   .minikpis .mk .v { font-size: 20px; font-weight: 700; }
   .minikpis .mk.warn { background: var(--amber-soft); }
   /* Einstellungen: Unterbereiche */
-  .settings { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 24px; align-items: start; }
-  .settings .subnav { display: flex; flex-direction: column; gap: 2px; position: sticky; top: 20px; }
-  .settings .subnav button { height: 40px; padding: 0 12px; border-radius: 10px; text-align: left; font-weight: 600; color: var(--ink); }
-  .settings .subnav button:hover { background: var(--hover); }
-  .settings .subnav button { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .settings .subnav .sdot { width: 8px; height: 8px; border-radius: 50%; background: var(--red); flex: none; }
-  .settings .subnav button.on { background: var(--card); box-shadow: 0 0 0 1px var(--line); color: var(--brand-ink); font-weight: 700; }
+  .settings { display: block; }
+  .secseg { width: fit-content; max-width: 100%; margin: 0 0 16px; } .seg .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
+  .tabs .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
+  .tabs button.on .sdot { display: none; }
   /* Modulliste */
   .mods { border-radius: var(--radius); border: 1px solid var(--line); background: var(--card); overflow: visible; }
   .mods .mrow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 72px 112px 132px; align-items: center; gap: 16px; min-height: 80px; padding: 12px 20px; border-bottom: 1px solid var(--line-soft); position: relative; }
@@ -387,7 +386,6 @@
   /* Handy & schmale Fenster */
   @media (max-width: 1100px) { .two { grid-template-columns: 1fr; } }
   /* Einstellungen einspaltig, sobald Modulliste (460 px) und Sprachen-Tabelle (772 px) nicht mehr neben die Unternavigation passen */
-  @media (max-width: 1150px) { .settings { grid-template-columns: minmax(0, 1fr); } .settings .subnav { position: static; flex-direction: row; flex-wrap: wrap; } }
   /* Tabellenspalten, die bei schmalen Fenstern entfallen (class="hide-md" an th und td; ab 700 px zeigt die Kartenansicht wieder alles) */
   @media (max-width: 1100px) and (min-width: 701px) { .tbl .hide-md { display: none; } }
   @media (max-width: 900px) {

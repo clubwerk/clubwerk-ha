@@ -7,7 +7,7 @@
       const { esc } = ctx;
       el.innerHTML = `<div class="vh-status"><span class="vh-dot busy" id="bgDot"></span><span id="bgSt">Verbinde …</span></div>
         <div id="bgTiles" style="display:flex;flex-direction:column;gap:12px"></div>
-        <button class="vh-stop" id="bgStop">■ Alle Zonen ausschalten</button>`;
+        <button class="vh-stop hidden" id="bgStop">■ Alle Zonen ausschalten</button>`;
       let pl = [], timer = null, alive = true;
       const T = () => window.BeregnungTiles;
       const draw = () => {
@@ -20,6 +20,7 @@
         try {
           const v = await ctx.api('status');
           pl = v.plaetze; T().prime(pl); draw();
+          document.getElementById('bgStop').classList.toggle('hidden', !pl.length);   // ohne Plätze kein Not-Aus
           document.getElementById('bgDot').className = 'vh-dot ' + (v.online ? 'ok' : 'err');
           document.getElementById('bgSt').textContent = v.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
           if (alive) timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);

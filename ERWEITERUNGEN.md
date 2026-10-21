@@ -148,7 +148,21 @@ Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farbe
 | `.vh-sheet.vh-form` > `.vh-box` | Fenster mit Formular | `label` + `.vh-input`/`.vh-select`, Häkchen als `label.vh-check`, unten `.vh-row` mit `.no` / `.ok`; nie ein neues Browserfenster |
 | `.vh-tile` | große Aktionskachel | Beregnung, Türen – eine Kachel je Gerät |
 
-**Verwaltung (public/admin.js)** – über `GK`: Seitenkopf wie die übrigen Seiten (`h2.page` + `p.lead`), Karten `.card` mit `<h3>`, Formulare `label.f`, Tabellen `.tbl`, Marken `.pill` (`g`/`a`/`r`), Knöpfe `.btn` (`primary`, `small`, `ghost`, `danger`), Aktionen in Tabellenzeilen als Symbolknopf `.btn.ico` (mit `title`, zusammen in `.acts`), Unterbereiche mit `GK.sectionize`. Überschriften fluchten mit den Feldern und Knöpfen darunter; nichts überlappt.
+**Verwaltung (public/admin.js)** – über `GK`, nach diesen festen Regeln (ab 3.29.1 überall gleich):
+
+| Baustein | Regel |
+|---|---|
+| Seitenkopf | `h2.page` = **Name der Seite wie im Menü** (bei Modulen mit mehreren Seiten der Modulname – Clubwerk setzt ihn selbst), darunter `p.lead` mit einem Satz zum aktuellen Bereich |
+| Navigation, Ebene 1 | **Reiter oben** (`GK.tabs` oder Seiten mit `group` in `registerPage`) – kein Seitenmenü |
+| Navigation, Ebene 2 | Segment-Umschalter `.seg` (innerhalb eines Reiters; `GK.sectionize` macht das von selbst) |
+| Aktionsleiste | `.toolbar` direkt unter den Reitern: Suche und Filter links, **Aktionen rechts, Hauptaktion („+ Neu …“) ganz rechts**; eine reine Knopfleiste wird automatisch rechts ausgerichtet |
+| Karten | `.card` mit `<h3>`; Formulare `label.f`; Tabellen `.tbl`; Marken `.pill` (`g`/`a`/`r`) |
+| Speichern | der Absende-Knopf eines Formulars ist immer `.btn.primary` (unten rechts, bei einzeiligen Formularen am Zeilenende) |
+| Knöpfe | `.btn` (`primary`, `small`, `ghost`, `danger`); Aktionen in Tabellenzeilen als Symbolknopf `.btn.ico` (mit `title`, zusammen in `.acts`) |
+| Leerzustand | ein Satz in der Karte, der sagt, was als Nächstes geht |
+| Reihenfolge/Start festlegen | Liste `.torows` mit ↑ ↓ und Radio „Start“ – wie „Leiste am Tablet“ und „Reiter in der App“ |
+
+Überschriften fluchten mit den Feldern und Knöpfen darunter; nichts überlappt.
 
 **Texte:** kurz, freundlich, in der Sprache der Mitglieder („Namen antippen“, nicht „Datensatz auswählen“). Uhrzeiten „19:00 Uhr“, Daten „Di, 20.10.“. Namen „Nachname, Vorname“ in Listen.
 

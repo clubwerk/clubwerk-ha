@@ -436,6 +436,7 @@
     const g = groupOf(page);
     const m = $('main'); if (!m || !g || m.querySelector(':scope > .drinktabs')) return;
     const h = m.querySelector(':scope > h2.page'); if (!h) return;
+    h.textContent = T(MODG[g].label);   // überall gleich: Überschrift = Seite im Menü, der Reiter zeigt den Bereich
     const after = fixLead(h);
     const t = document.createElement('div'); t.className = 'tabs drinktabs'; t.setAttribute('role', 'tablist');
     t.innerHTML = GPAGES(g).map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${badges[k] ? `<span class="badge">${badges[k]}</span>` : ''}</button>`).join('');
@@ -2290,14 +2291,10 @@
         <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
         <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
         <div class="row" style="gap:6px 22px;align-items:center">${mods.map(m => `<label class="chk"><input type="checkbox" data-away="${m.id}" data-nodirty ${m.away ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
-      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Startseite der App</h3>
-        <p class="muted s" style="margin-top:0">Dieser Bereich erscheint, wenn ein Mitglied die App öffnet. „Zuletzt genutzt“: dort, wo das Mitglied zuletzt war. Ist der Startbereich für jemanden nicht freigeschaltet (oder gerade nur im Vereins-WLAN nutzbar), öffnet die App den ersten verfügbaren Bereich.</p>
-        <div class="row"><label class="f" style="min-width:260px">Startseite<select id="apStart"><option value="">Zuletzt genutzter Bereich</option>${mods.map(m => `<option value="${esc(m.id)}" ${r.startSection === m.id ? 'selected' : ''}>${esc(m.label || m.name)}</option>`).join('')}</select></label>
-          <button class="btn primary" id="apStartOk" style="align-self:flex-end">Speichern</button></div></div>` : ''}
-      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Reihenfolge in der App</h3>
-        <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Mitgliederliste – von links nach rechts.</p>
-        <div id="moRows" class="torows">${mods.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label || m.name)}</b>
-          <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < mods.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('')}</div>
+      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Reiter in der App</h3>
+        <p class="muted s" style="margin-top:0">So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Mitgliederliste – von links nach rechts. Der <b>Start-Reiter</b> erscheint, wenn ein Mitglied die App öffnet. Ist er für jemanden nicht freigeschaltet (oder gerade nur im Vereins-WLAN nutzbar), öffnet die App den ersten verfügbaren Bereich.</p>
+        <div id="moRows" class="torows"></div>
+        <label class="chk" style="margin-top:12px"><input type="radio" name="moStart" value="" data-mst="" ${r.startSection ? '' : 'checked'}> Kein fester Start – die App öffnet den zuletzt genutzten Bereich</label>
         <div class="btns"><button class="btn primary" id="moSave">Speichern</button></div></div>` : ''}
       <div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
       <div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
@@ -2355,15 +2352,18 @@
     bindFlags($('main'));
     if ($('moRows')) {   // Reihenfolge der Bereiche: ↑ ↓ wie bei „Leiste am Tablet“
       const items = mods.map(m => ({ id: m.id, label: m.label || m.name }));
+      let startId = r.startSection || '';
+      const card = $('moRows').closest('.card');
+      card.addEventListener('change', e => { if (e.target.dataset && e.target.dataset.mst !== undefined) startId = e.target.dataset.mst; });
       const draw = () => {
-        $('moRows').innerHTML = items.map((m, i) => `<div class="torow" style="grid-template-columns:32px minmax(0,1fr) auto"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label)}</b>
+        $('moRows').innerHTML = items.map((m, i) => `<div class="torow"><span class="ton">${i + 1}</span><b translate="no">${esc(m.label)}</b><span class="muted s">Bereich</span>
+          <label class="chk tostart"><input type="radio" name="moStart" data-mst="${esc(m.id)}" ${startId === m.id ? 'checked' : ''}> Start</label>
           <span class="toact"><button class="btn small" data-mup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-mdn="${i}" ${i < items.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></div>`).join('');
         $('moRows').querySelectorAll('[data-mup]').forEach(b => { b.onclick = () => { const i = +b.dataset.mup; [items[i - 1], items[i]] = [items[i], items[i - 1]]; draw(); }; });
         $('moRows').querySelectorAll('[data-mdn]').forEach(b => { b.onclick = () => { const i = +b.dataset.mdn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
       };
       draw();
-      if ($('apStartOk')) $('apStartOk').onclick = () => busy($('apStartOk'), async () => { try { await api('settings/app', 'PUT', { startSection: $('apStart').value }); toast('Gespeichert – gilt beim nächsten Öffnen der App.'); } catch (e) { fail(e); } });
-      $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id) }); toast('Gespeichert – die App übernimmt es beim nächsten Laden.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
+      $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id), startSection: startId }); toast('Gespeichert – die App übernimmt es beim nächsten Öffnen.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
     }
     if ($('smsCard')) smsCard($('smsCard')).catch(e => { $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
     if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
@@ -2506,8 +2506,8 @@
     const deptName = id => (opt.departments.find(d => d.id === id) || {}).name;
     $('main').innerHTML = `<h2 class="page">Benutzer & Rechte</h2>
       <p class="lead">Jeder meldet sich mit eigenem Benutzernamen an – so ist nachvollziehbar, wer was geändert hat. <b>Rollen</b> bündeln Rechte (z. B. Kassenwart, Abteilungsleitung); ein Benutzer kann mehrere Rollen haben.</p>
-      <div class="toolbar"><div class="seg" id="uTab"><button type="button" data-t="benutzer" class="${userTab === 'benutzer' ? 'on' : ''}">Benutzer <span class="cnt">${users.length}</span></button><button type="button" data-t="rollen" class="${userTab === 'rollen' ? 'on' : ''}">Rollen <span class="cnt">${opt.roles.length}</span></button></div>
-        <button class="btn primary" id="uNew" style="margin-left:auto">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div>
+      <div class="tabs" id="uTab" role="tablist"><button type="button" data-t="benutzer" class="${userTab === 'benutzer' ? 'on' : ''}">Benutzer <span class="badge">${users.length}</span></button><button type="button" data-t="rollen" class="${userTab === 'rollen' ? 'on' : ''}">Rollen <span class="badge">${opt.roles.length}</span></button></div>
+      <div class="toolbar"><button class="btn primary" id="uNew">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div>
       <div class="scroll" id="uBody"></div>`;
     if (userTab === 'rollen') {
       $('uBody').innerHTML = `<table class="tbl"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
@@ -2692,7 +2692,7 @@
         <label class="f" style="flex:1;min-width:140px">Tägliche behalten<input id="bkDaily" class="n" value="${st.daily}" inputmode="numeric"></label>
         <label class="f" style="flex:1;min-width:140px">Wöchentliche<input id="bkWeekly" class="n" value="${st.weekly}" inputmode="numeric"></label>
         <label class="f" style="flex:1;min-width:140px">Monatliche<input id="bkMonthly" class="n" value="${st.monthly}" inputmode="numeric"></label>
-        <button class="btn" id="bkSave">Speichern</button></div>
+        <button class="btn primary" id="bkSave">Speichern</button></div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="bkReadable" data-nodirty ${st.readable ? 'checked' : ''}> Zusätzlich lesbare Auszüge der aktiven Module hochladen (Excel, unverschlüsselt – z. B. Getränke-Stand, Arbeitszeiten, Tür- und Beregnungsprotokoll)</label>
         <p class="muted s">Auf den Sicherungszielen bleiben die neuesten ${st.daily} Tage, dazu je Woche (${st.weekly}) und je Monat (${st.monthly}) die jüngste Sicherung – so reicht der Verlauf weit zurück, ohne dass der Speicher voll läuft. Für einzelne Ziele lässt sich das abweichend einstellen. Hier in der App bleiben die letzten 3.</p></div>
 
@@ -2965,7 +2965,7 @@
         </ol>
         <div class="row"><label class="f" style="flex:1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
           <label class="f" style="flex:1">App secret<input id="dxSecret" type="password" placeholder="${d.hasSecret ? '•••••• (gespeichert)' : ''}" autocomplete="new-password"></label></div>
-        <div class="btns" style="justify-content:flex-start;margin-top:0"><button class="btn" id="dxSaveKeys">Speichern</button></div>
+        <div class="btns" style="justify-content:flex-start;margin-top:0"><button class="btn primary" id="dxSaveKeys">Speichern</button></div>
         ${d.authUrl && d.hasSecret ? `<ol class="steps" start="4" style="margin-top:14px">
           <li><a class="btn small primary" href="${esc(d.authUrl)}" target="_blank" rel="noopener">Bei Dropbox freigeben ↗</a> – im neuen Fenster <b>Zulassen</b> klicken.</li>
           <li>Den angezeigten Code kopieren und hier einfügen:</li></ol>
@@ -3280,12 +3280,15 @@
     let cur = sget(store); if (!secs.some(([k]) => k === cur)) cur = secs[0][0];
     const wrap = document.createElement('div'); wrap.className = 'settings';
     const badge = o.badges || {};
-    wrap.innerHTML = `<nav class="subnav" aria-label="${esc(o.label || 'Bereiche der Einstellungen')}">${secs.map(([k, l]) => `<button type="button" data-sec="${k}"><span>${esc(l)}</span>${badge[k] ? `<span class="sdot" title="${esc(badge[k] === true ? 'Hier ist etwas zu tun' : badge[k])}"></span>` : ''}</button>`).join('')}</nav><div class="secbody"></div>`;
+    // gleiche Reiter wie in den Arbeitsbereichen (Verkauf, Beregnung …) – ein Navigationsmuster für die ganze Verwaltung
+    const nested = root !== $('main');   // innerhalb eines Reiters: zweite Ebene als Segment-Umschalter (wie überall)
+    const navCls = nested ? ['seg', 'secseg'].join(' ') : 'tabs';
+    wrap.innerHTML = `<div class="${navCls}" role="tablist" aria-label="${esc(o.label || 'Bereiche der Einstellungen')}">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}${badge[k] ? `<span class="sdot" title="${esc(badge[k] === true ? 'Hier ist etwas zu tun' : badge[k])}"></span>` : ''}</button>`).join('')}</div><div class="secbody"></div>`;
     const body = wrap.querySelector('.secbody');
     secs.forEach(([k]) => by[k].forEach(c => { c.dataset.secof = k; body.appendChild(c); }));
     const head = root.querySelector(':scope > h2.page');
-    if (head) head.after(wrap); else root.prepend(wrap);
-    const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => b.classList.toggle('on', b.dataset.sec === k)); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
+    if (head) fixLead(head).after(wrap); else root.prepend(wrap);
+    const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k && !nested) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
   }
@@ -3335,22 +3338,22 @@
     const inst = ext ? ext.all.filter(x => x.installed !== false) : [], notInst = ext ? ext.all.filter(x => x.installed === false) : [];
     const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
     const mayBank = ['einstellungen', 'buchhaltung', 'mitglieder_finanzen'].some(canFull) || (me && me.role === 'oberadmin');
-    $('main').innerHTML = `<h2 class="page">Einstellungen</h2>
+    $('main').innerHTML = `<h2 class="page">Einstellungen</h2><p class="lead">Grundeinstellungen des Vereins – Name, Logo, Bankkonten, Sprache, Postfach, Module, Tablet und dein eigenes Konto.</p>
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       <div class="card"><h3>Mein Passwort ändern</h3><div class="row">
         <label class="f">Aktuelles Passwort<input type="password" id="pwCur" autocomplete="current-password"></label>
         <label class="f">Neues Passwort<input type="password" id="pwNew" autocomplete="new-password"></label>
-        <button class="btn" id="savePw">Ändern</button></div></div>
+        <button class="btn primary" id="savePw">Ändern</button></div></div>
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3><div class="row"><label class="f" style="min-width:300px">Vereinsname<input id="club" value="${esc(s.clubName)}"></label>
         <label class="f">Vereinsfarbe<span class="row" style="gap:6px"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;padding:2px">
           <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label>
-        <button class="btn" id="saveClub">Speichern</button></div>
+        <button class="btn primary" id="saveClub">Speichern</button></div>
         <p class="muted s">Die Farbe gilt für Tablet, Verwaltung und Excel-Export. Tablets übernehmen sie beim nächsten Neuladen.</p></div>
       <div class="card"><h3>Startseite am Tablet: „Ich bin öfter hier:“</h3><div class="row">
         <label class="f">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${s.topN}" inputmode="numeric"></label>
         <label class="f">aus den letzten … Tagen<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label>
-        <button class="btn" id="saveTop">Speichern</button></div>
+        <button class="btn primary" id="saveTop">Speichern</button></div>
         <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p></div>
       <div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
         ${s.tabletPw.on ? `<div class="banner g">Vergeben${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
@@ -3358,13 +3361,13 @@
         <div class="row">
           <label class="f">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 8 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
           <label class="f">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
-          <button class="btn ${s.tabletPw.on ? '' : 'primary'}" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button>
+          <button class="btn primary" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button>
         </div>
         ${s.tabletPw.on ? '<div class="row" style="margin-top:10px"><button class="btn" id="tpOut">Alle Geräte abmelden</button></div>' : ''}
         <p class="muted s">Pflicht zum Schutz der Mitgliederdaten: Ohne Passwort könnte jedes Gerät im WLAN die Namen und Konten am Tablet sehen. Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen immer auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p></div>
       ${s.allowedHosts !== undefined ? `<div class="card"><h3>Weitere Adressen</h3><div class="row">
         <label class="f" style="flex:1;min-width:260px">Namen, unter denen die Verwaltung erreichbar ist (mit Komma getrennt)<input id="hostList" value="${esc(s.allowedHosts)}" placeholder="verein.duckdns.org"></label>
-        <button class="btn" id="hostSave">Speichern</button></div>
+        <button class="btn primary" id="hostSave">Speichern</button></div>
         <p class="muted s">Schutz gegen Angriffe über fremde Webseiten: Clubwerk antwortet nur unter IP-Adressen, Namen wie <b>homeassistant.local</b>, den Namen aus dem HTTPS-Zertifikat und den Adressen der Apps. Wer einen anderen Namen benutzt (z. B. eine eigene DuckDNS-Adresse ohne Zertifikat), trägt ihn hier ein.</p></div>` : ''}
       <div class="card"><h3>Vereinslogo</h3><div class="row" style="align-items:center">
         <div class="logoprev" id="logoPrev">${s.logo ? `<img src="${esc(s.logo)}" alt="Vereinslogo">` : '<span class="muted s">kein Logo</span>'}</div>

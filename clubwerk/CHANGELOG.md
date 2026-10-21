@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.29.1
+
+Einheitliches Design in der ganzen Verwaltung und der Mitglieder-App:
+
+- **Überall Reiter oben:** Auch Einstellungen und Mitglieder-App haben jetzt die Reiter oben wie Verkauf, Beregnung oder Zugang – kein Seitenmenü mehr. Unterbereiche innerhalb eines Reiters (z. B. Buchungssystem → Einstellungen) erscheinen einheitlich als Umschalter darunter.
+- **Gleicher Seitenkopf:** Die Überschrift zeigt immer den Namen der Seite wie im Menü (z. B. „Verkauf“, „Buchungssystem“), der Satz darunter erklärt den gewählten Reiter. Bei Mitglieder-App und Einstellungen steht die Einleitung wieder oben.
+- **Startseite überall gleich festlegen:** In der Mitglieder-App legt man Reihenfolge und Start-Reiter jetzt in einer Liste fest – genauso wie bei „Leiste am Tablet“ („Reiter in der App“, ↑ ↓ und „Start“).
+- **Aktionen rechts:** „+ Neu …“ und weitere Aktionen stehen auf allen Seiten rechts über der Liste, die Hauptaktion ganz rechts; Suche und Filter links.
+- **Speichern** ist überall der grüne Hauptknopf; Benutzer & Rechte hat Reiter für Benutzer und Rollen.
+- **Mitglieder-App:** leere Bereiche (z. B. „Noch keine Plätze eingerichtet“) erscheinen als Karte wie überall; „Alle Zonen ausschalten“ erscheint erst, wenn es Plätze gibt (auch in der Beregnungs-Webapp).
+- Gestaltungsregeln für Module ergänzt (ERWEITERUNGEN.md).
+
 ## 3.29.0
 
 Sicherheit und Datenschutz nach dem Tiefen-Review:

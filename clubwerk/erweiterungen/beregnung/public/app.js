@@ -70,7 +70,7 @@
       if (r.status === 401 && d.login) { $('loginSheet').classList.add('show'); return; }
       if (r.status === 403 && d.app) { lock(d.error); return; }
       if (!r.ok) throw new Error(d.error);
-      pl = d.plaetze || []; T.prime(pl); draw();
+      pl = d.plaetze || []; T.prime(pl); draw(); $('stop').classList.toggle('hidden', !pl.length);
       $('dot').className = 'vh-dot ' + (d.online ? 'ok' : 'err');
       $('st').textContent = d.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
       timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);

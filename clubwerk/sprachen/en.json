@@ -7552,6 +7552,13 @@
     "zu langer Name": "name too long",
     "Zu wenig freier Speicher (frei {0} MB, nötig etwa {1} MB). Bitte erst Platz schaffen – es wurde nichts verändert.": "Not enough free space ({0} MB free, about {1} MB needed). Please free up space first – nothing was changed.",
     "Zuletzt wurde eine direkte Anfrage aus dem Internet von {0} abgewiesen ({1}). Das deutet auf eine Portfreigabe am Router hin – bitte dort entfernen. Von unterwegs ist nur der Cloudflare Tunnel vorgesehen.": "Recently a direct request from the internet from {0} was rejected ({1}). This indicates a port forwarding on the router – please remove it there. From outside only the Cloudflare Tunnel is intended.",
-    "Zuletzt wurde eine Tunnel-Anfrage von {0} abgelehnt ({1}). Kommt sie vom Cloudflared-Add-on, unten unter „Tunnel-Quelle“ diese Adresse übernehmen.": "Recently a tunnel request from {0} was rejected ({1}). If it comes from the Cloudflared add-on, adopt this address below under “Tunnel source”."
+    "Zuletzt wurde eine Tunnel-Anfrage von {0} abgelehnt ({1}). Kommt sie vom Cloudflared-Add-on, unten unter „Tunnel-Quelle“ diese Adresse übernehmen.": "Recently a tunnel request from {0} was rejected ({1}). If it comes from the Cloudflared add-on, adopt this address below under “Tunnel source”.",
+    "Bereich": "Section",
+    "erscheint, wenn ein Mitglied die App öffnet. Ist er für jemanden nicht freigeschaltet (oder gerade nur im Vereins-WLAN nutzbar), öffnet die App den ersten verfügbaren Bereich.": "appears when a member opens the app. If it is not unlocked for someone (or only usable in the club Wi-Fi right now), the app opens the first available section.",
+    "Gespeichert – die App übernimmt es beim nächsten Öffnen.": "Saved – the app applies it the next time it is opened.",
+    "Grundeinstellungen des Vereins – Name, Logo, Bankkonten, Sprache, Postfach, Module, Tablet und dein eigenes Konto.": "Basic club settings – name, logo, bank accounts, language, mailbox, modules, tablet and your own account.",
+    "Kein fester Start – die App öffnet den zuletzt genutzten Bereich": "No fixed start – the app opens the last used section",
+    "Reiter in der App": "Tabs in the app",
+    "So stehen die Bereiche als Reiter in der Mitglieder-App und als Spalten in der Mitgliederliste – von links nach rechts. Der": "This is the order of the sections as tabs in the member app and as columns in the member list – from left to right. The"
   }
 }
