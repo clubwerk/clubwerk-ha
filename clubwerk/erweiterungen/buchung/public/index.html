@@ -75,6 +75,14 @@
   .dialog .rules { text-align: left; font-size: 14px; color: var(--muted); background: var(--field); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; white-space: pre-wrap; max-height: 120px; overflow: auto; margin-top: 10px; }
   .dialog .chk { display: flex; gap: 10px; align-items: center; justify-content: flex-start; font-size: 16px; margin-top: 10px; text-align: left; } .dialog .chk input { width: 24px; height: 24px; }
   .bk-plan .bk-past { grid-column: 1 / -1; width: 100%; border-radius: 0; border: 0; border-bottom: 1px solid var(--line); }   /* Leiste „vorbei“ zwischen Spaltenköpfen und Zeitraster – wie in Verwaltung und App */   /* Leiste „vorbei“ oben im Plan – wie in Verwaltung und App */
+  /* Handy: Plätze behalten ihre volle Breite (kein „Plat…“), der Plan lässt sich seitlich wischen, die Uhrzeiten bleiben links stehen */
+  @media (max-width: 640px) {
+    .bk-plan { overflow-x: auto; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; container-type: inline-size; }
+    .bk-grid { grid-template-columns: 52px repeat(var(--n), minmax(120px, 1fr)); min-width: calc(52px + var(--n) * 120px); }
+    .bk-plan .bk-grid .hd:first-child, .bk-plan .bk-grid .tc { position: sticky; left: 0; z-index: 5; background: var(--card); box-shadow: 1px 0 0 var(--line); }
+    .bk-grid .tc span { right: 6px; font-size: 13px; }
+    .bk-plan .bk-grid .bk-past { position: sticky; left: 0; z-index: 6; width: 100cqw; justify-self: start; }   /* Leiste „vorbei“ bleibt beim Wischen im Bild */
+  }
 </style>
 </head>
 <body class="tk">

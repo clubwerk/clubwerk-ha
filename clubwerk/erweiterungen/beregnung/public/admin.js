@@ -19,9 +19,9 @@
     const c = st.cfg;
     if (!c.plaetze.length) return '<p class="empty">Noch keine Plätze angelegt.</p>';
     return c.plaetze.map((p, i) => `<div class="card soft" style="margin:0 0 12px">
-      <div class="row" style="align-items:flex-end;flex-wrap:nowrap">
-        <label class="f" style="flex:1">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}" placeholder="z. B. Platz 1"></label>
-        <label class="f" style="flex:2">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Erst Vorne, dann Hinten · je 2 min"></label>
+      <div class="row" style="align-items:flex-end">
+        <label class="f" style="flex:1 1 180px">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}" placeholder="z. B. Platz 1"></label>
+        <label class="f" style="flex:2 1 240px">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Erst Vorne, dann Hinten · je 2 min"></label>
         <button class="btn small" data-pu="${i}" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button>
         <button class="btn small" data-pd="${i}" ${i === c.plaetze.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button>
         <button class="btn small danger" data-px="${i}">Platz löschen</button>

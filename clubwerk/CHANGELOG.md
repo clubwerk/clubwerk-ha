@@ -1,5 +1,18 @@
 # Änderungen
 
+## 3.30.5
+
+**Design-Prüfstand:** Ab jetzt prüft ein automatischer Prüfstand vor jeder Version alle Oberflächen – Verwaltung (auch im Tablet-Rahmen), Tablet, Mitglieder-App und Beregnungs-Webapp – in Handy-, Tablet- und Rechnergröße, hell und dunkel, rund 1 000 Ansichten mit Fenstern, Reitern, Menü und Scrollen bis ganz unten. Ohne grünes Ergebnis wird kein Paket gebaut. Was er in dieser Version gefunden hat:
+
+- **iPhone zoomte beim Antippen von Eingabefeldern:** Felder hatten weniger als 16 px Schrift. Am Handy jetzt überall 16 px – kein Hineinzoomen mehr.
+- **Seite scrollte hinter geöffneten Fenstern:** Bei offenem Fenster (Verwaltung, Tablet, App) steht die Seite dahinter jetzt still.
+- **Menü am Handy:** Bei wenig Bildschirmhöhe wurden die Menüeinträge zusammengedrückt – jetzt scrollt das Menü, die Einträge behalten ihre Höhe.
+- **Lesbarkeit:** Nebentexte (Spaltenköpfe, Abschnittstitel, Hinweise) waren zu blass – jetzt in Hell und Dunkel mindestens 4,5 : 1 Kontrast. Buchungsarten mit hellen Farben (z. B. Orange) bekommen automatisch dunkle Schrift statt weißer.
+- **Platzplan am Tablet/Handy:** Plätze behalten ihre volle Breite („Platz 2“ statt „Plat…“); der Plan lässt sich seitlich wischen, die Uhrzeiten bleiben links stehen.
+- **Formulare am Handy:** Felder einer Zeile stehen untereinander in voller Breite statt zusammengedrückt (z. B. Verkauf → Nachtragen, Beregnung → Plätze); alle Auswahllisten sehen gleich aus.
+- **Tippflächen am Handy:** „mehr“ unter Einleitungen, Links in Hinweisen, Farbkreise der Buchungsarten, Spiele im Kalender, Textknöpfe in der App („Ändern“) sind groß genug zum sicheren Antippen.
+- Spielbetrieb: Kalender-Einträge mit korrekter Schrift (ungültige Schriftangabe entfernt).
+
 ## 3.30.4
 
 - **Tablet (Plätze):** Der aktive Reiter in der Kopfzeile hatte auf der Platzseite noch einen weißen Unterstrich aus der alten Kopfzeile – entfernt, alle Reiter sehen jetzt gleich aus (auch bei eigenen Links).

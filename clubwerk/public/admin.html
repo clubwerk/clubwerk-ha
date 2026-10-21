@@ -13,8 +13,8 @@
 <style>
   body { font-size: 14px; line-height: 20px; }
   /* ---------- Rahmen: Seitenleiste + Inhalt ---------- */
-  .shell { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; }
-  nav.side { background: var(--card); border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; min-width: 0; }
+  .shell { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
+  nav.side { background: var(--card); border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; min-width: 0; }
   nav.side .brandbox { display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: var(--brand); color: #fff; min-height: 76px; box-sizing: border-box; }
   nav.side .brandbox .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--brand); font-weight: 800; font-size: 14px; }
   nav.side .brandbox .mark img { max-width: 36px; max-height: 36px; object-fit: contain; }
@@ -22,6 +22,7 @@
   nav.side .brandbox small { display: block; font-size: 12px; line-height: 16px; opacity: .85; }
   nav.side .brandbox > div { min-width: 0; }
   nav.side .navbody { flex: 1; overflow: auto; padding: 16px 12px; display: flex; flex-direction: column; gap: 2px; }
+  nav.side .navbody > * { flex-shrink: 0; }   /* wenig Höhe: Menü scrollt, Einträge werden nie zusammengedrückt */
   nav.side .search { position: relative; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; margin-bottom: 12px; border-radius: 10px; background: var(--hover); color: var(--muted); }
   nav.side .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 14px; color: var(--ink); }
   nav.side .search kbd { font-family: inherit; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 6px; background: var(--card); color: var(--muted); }
@@ -74,6 +75,8 @@
   .leadbox.open > p.lead + p.lead { margin-top: 8px; }
   .leadbox .leadmore { position: absolute; right: 0; bottom: 0; padding: 0 0 0 10px; border: 0; background: var(--bg); font: inherit; font-weight: 600; color: var(--brand-ink); cursor: pointer; }
   .leadbox.open .leadmore { position: static; padding: 0; margin-top: 4px; background: none; }
+  @media (max-width: 640px) { .row > label.f { flex: 1 1 100% !important; } }   /* Handy: Felder einer Zeile untereinander, volle Breite – nie zusammengedrückt */
+  @media (max-width: 640px) { .leadbox .leadmore, .leadbox.open .leadmore { position: static; display: inline-flex; align-items: center; min-height: 32px; padding: 0; margin: 0; background: none; } }   /* Handy: „mehr“ als eigene, gut tippbare Zeile unter dem Text */
   /* Karten, Kennzahlen */
   .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; box-shadow: var(--shadow); }
   .card h3 { margin: 0 0 12px; font-size: 16px; line-height: 24px; font-weight: 700; }
@@ -163,6 +166,8 @@
   .row > h3:first-child { line-height: 40px; }
   label.f { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
   label.f { min-width: 0; } label.f > input, label.f > select, label.f > textarea { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
+  /* Jede Auswahlliste sieht gleich aus – auch ohne eigenes Feld drumherum (Klassenregeln gehen vor) */
+  :where(select) { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background-color: var(--field); color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 500; box-sizing: border-box; }
   label.f input, label.f select, label.f textarea, .tbl input, .tbl select {
     min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: 14px; font-weight: 500; color: var(--ink);
     transition: border-color .15s, box-shadow .15s;
@@ -225,6 +230,7 @@
   .banner.b { background: var(--blue-soft); color: var(--blue); border-color: transparent; }   /* Hinweis (Information, kein Fehler) */
   .banner a, .kpi a { color: inherit; }
   .banner a { font-weight: 700; margin-left: auto; }
+  @media (max-width: 640px) { .banner a { display: inline-flex; align-items: center; min-height: 32px; } }   /* Handy: Link im Hinweis gut antippbar */
   .login { max-width: 420px; margin: 12vh auto; }
   .login.card { padding: 32px; border-radius: 20px; text-align: center; }   /* wie die Fenster am Tablet: mittig, Hauptknopf über die volle Breite */
   .login h2.page { margin: 0 0 4px; } .login p.lead { margin: 0 0 20px; }

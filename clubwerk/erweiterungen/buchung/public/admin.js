@@ -89,9 +89,9 @@
       .bk-plan .hd.today { color: var(--brand-ink); box-shadow: inset 0 -3px 0 var(--brand); }
       .bk-sel { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; vertical-align: -1px; }
-      .bk-pal { display: grid; grid-template-columns: repeat(7, 30px); gap: 10px; align-items: center; width: fit-content; }
-      .bk-pal .bk-own { grid-column: span 2; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }   /* eigene Farbe klar beschriftet, nicht als 21. Kreis */
-      .bk-pal button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
+      .bk-pal { display: grid; grid-template-columns: repeat(7, 34px); gap: 10px; align-items: center; width: fit-content; }
+      .bk-pal .bk-own { grid-column: span 2; display: inline-flex; align-items: center; min-height: 34px; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }   /* eigene Farbe klar beschriftet, nicht als 21. Kreis */
+      .bk-pal button { width: 34px; height: 34px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
       .bk-pal button.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--card) inset; }
       .bk-pal input[type=color] { width: 40px; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--card); }
       .bk-prev { display: inline-block; padding: 6px 12px; border-radius: 8px; font-weight: 800; font-size: 13px; }
@@ -230,7 +230,7 @@
   /* ---------------------------------------------------------------- Belegung (Tag: alle Plätze · Woche: ein Platz, 7 Tage) */
   const can = p => Boolean(st.meta && st.meta.can && st.meta.can[p]);
   /** gut lesbare Schrift auf der Farbe der Buchungsart */
-  const ink = hex => { const n = parseInt(String(hex).slice(1), 16); const r = n >> 16 & 255, g = n >> 8 & 255, b = n & 255; return (0.299 * r + 0.587 * g + 0.114 * b) > 160 ? '#1b1f1c' : '#ffffff'; };
+  const ink = hex => { if (!/^#[0-9a-f]{6}$/i.test(String(hex))) return '#ffffff'; const n = parseInt(String(hex).slice(1), 16); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return 1.05 / (L + 0.05) >= (L + 0.05) / 0.0631 ? '#ffffff' : '#1b1f1c'; };   // Schriftfarbe mit dem besseren Kontrast (WCAG) zur Buchungsart-Farbe
   const blkStyle = b => (b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent` : '');
   /** Spieler einer Buchung samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
   const whoTxt = b => `${(b.who || []).filter(w => !b.label || w !== b.label.name).join(', ')}${b.partner_device_name ? ` + ${b.partner_device_name}` : ''}${b.solo_label ? ` · ${b.solo_label}` : ''}`;
@@ -651,7 +651,7 @@
   /* ---------------------------------------------------------------- Buchungsprotokoll */
   const AVC = ['#2f6fd6', '#8a4fd6', '#1f9a6b', '#e07b16', '#c2185b', '#00838f', '#6d4c41', '#5e35b1', '#b22a2a', '#2e7d32'];
   const avatar = p => { const parts = String(p.name).split(',').map(x => x.trim()); const ini = ((parts[1] || '')[0] || '') + ((parts[0] || '')[0] || '');
-    return p.ph ? `<span class="bk-av"><img src="api/admin/photo/${p.id}?v=${esc(p.ph)}" alt="" loading="lazy"></span>` : `<span class="bk-av" style="background:${AVC[p.id % AVC.length]}">${esc(ini.toUpperCase() || '?')}</span>`; };
+    return p.ph ? `<span class="bk-av"><img src="api/admin/photo/${p.id}?v=${esc(p.ph)}" alt="" loading="lazy"></span>` : `<span class="bk-av" style="background:${AVC[p.id % AVC.length]};color:${ink(AVC[p.id % AVC.length])}">${esc(ini.toUpperCase() || '?')}</span>`; };
   const ago = ts => { const d = (Date.now() - Date.parse(String(ts).replace(' ', 'T'))) / 1000; if (d < 3600) return `vor ${Math.max(1, Math.round(d / 60))} Min.`; if (d < 86400) return `vor ${Math.round(d / 3600)} Std.`; if (d < 86400 * 45) return `vor ${Math.round(d / 86400)} Tagen`; if (d < 86400 * 365) return `vor ${Math.round(d / 86400 / 30)} Monaten`; return `vor ${(d / 86400 / 365).toLocaleString('de-DE', { maximumFractionDigits: 1 })} Jahren`; };
   async function showLog(el) {
     st.lg = st.lg || { f: 'alle', year: new Date().getFullYear(), resource: '', sort: 'termin', q: '' };
@@ -668,7 +668,7 @@
       const head = key !== last ? `<tr class="bk-lgd"><td colspan="5">${esc(new Date(key + 'T12:00:00').toLocaleDateString('de-DE', WDL))}</td></tr>` : ''; last = key;
       const col = r.label ? r.label.color : r.type === 'sperre' ? 'var(--red)' : 'var(--brand)';
       const who = r.people.length ? `<div class="bk-lgp">${r.people.slice(0, 4).map(p => `<div>${avatar(p)}<span>${esc(p.name)}</span></div>`).join('')}${r.people.length > 4 ? `<div class="muted s">+ ${r.people.length - 4} weitere</div>` : ''}</div>`
-        : `<div class="bk-lgp"><div><span class="bk-av" style="background:${col}">${r.type === 'sperre' ? '×' : '★'}</span><span>${esc(r.title || (r.label && r.label.name) || 'Verein')}</span></div></div>`;
+        : `<div class="bk-lgp"><div><span class="bk-av" style="background:${col};color:${r.label ? ink(r.label.color) : '#fff'}">${r.type === 'sperre' ? '×' : '★'}</span><span>${esc(r.title || (r.label && r.label.name) || 'Verein')}</span></div></div>`;
       const tags = [r.label ? `<span class="pill" style="background:${r.label.color};color:${ink(r.label.color)}">${esc(r.label.name)}</span>` : '', r.type === 'sperre' ? pill(['r', 'Sperre']) : r.type === 'serie' ? pill(['b', 'Serie']) : '',
         r.guests.length ? `<span class="pill a" title="${esc(r.guests.join(', '))}">${r.guests.length} ${r.guests.length === 1 ? 'Gast' : 'Gäste'}</span>` : '', r.fee_cents ? `<span class="pill">${euro(r.fee_cents)}</span>` : ''].filter(Boolean).join('');
       const s0 = STS[r.status];

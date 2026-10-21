@@ -1,0 +1,2 @@
+# Regel | Element enthält | Zustand enthält | Begründung
+ueberlappung | div.leadbox > p.lead | | „mehr“ steht bewusst mit Hintergrund über dem Ende der zweizeiligen Einleitung (Desktop/Tablet); am Handy steht es als eigene Zeile darunter

@@ -59,7 +59,8 @@
       .sp-cal .cd.nx { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line-soft) 6px 7px); }
       .sp-cal .cn { font-weight: 700; color: var(--ink); } .sp-cal .cw { color: var(--muted); }
       .sp-cal .cg { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
-      .sp-cal .cc { font: 600 11px/16px inherit; font-family: inherit; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+      .sp-cal .cc { font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+      @media (max-width: 640px) { .sp-cal .cc { line-height: 30px; } }   /* Handy: Spiele im Kalender gut antippbar */
       .sp-cal .cc.g { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
       .sp-cal .cc.r { background: var(--red-soft, #fbe9e7); border-color: var(--red); color: var(--red); }
       .sp-cal .cc.p { border-style: dashed; color: var(--muted); }

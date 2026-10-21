@@ -26,7 +26,7 @@
   .ml-chip.bad{background:var(--red-soft);color:var(--red)}
   .ml-chip button{width:20px;height:20px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;font-size:15px;line-height:1;color:inherit;opacity:.7}
   .ml-chip button:hover{opacity:1;background:rgba(0,0,0,.08)}
-  .ml-in{flex:1 1 180px;min-width:140px;border:0;background:transparent;font:inherit;font-size:14px;height:30px;outline:none;color:var(--ink)}
+  .ml-in{flex:1 1 180px;min-width:140px;border:0;background:transparent;font:inherit;font-size:14px;height:32px;outline:none;color:var(--ink)}
   .ml-sug{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:30;background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-pop);max-height:320px;overflow:auto;padding:6px}
   .ml-sug button{display:flex;width:100%;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border-radius:8px;text-align:left;font-size:14px}
   .ml-sug button.on,.ml-sug button:hover{background:var(--hover)}
