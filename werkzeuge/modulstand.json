@@ -20,12 +20,12 @@
   "hash": "ca85aca1e40965190473aab84c0546088232d592"
  },
  "mitglieder": {
-  "version": "1.8.1",
-  "hash": "1243de9f06c10bca52873c3a8a4c2d5185840a74"
+  "version": "1.8.2",
+  "hash": "281de100f524040c96c8b2f59b9b4549e731f05e"
  },
  "spielbetrieb": {
-  "version": "1.4.5",
-  "hash": "62bb858e6cfd45bb215a514546b288ec032c6137"
+  "version": "1.4.6",
+  "hash": "fb3e19c8174c72ce0f79f66fcba51602ce410b62"
  },
  "zeiterfassung": {
   "version": "1.0.6",
