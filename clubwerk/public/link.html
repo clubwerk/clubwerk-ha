@@ -11,18 +11,10 @@
 <link rel="stylesheet" href="theme.css">
 <style>
   html, body { height: 100%; }
+  body { height: 100dvh; }   /* iPhone: sichtbare Höhe ohne die Safari-Leisten */
   body { display: flex; flex-direction: column; overflow: hidden; }
-  header.top { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 14px 22px; background: var(--green); color: #fff; flex: none; }
-  header.top h1 { margin: 0; font-size: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  header.top nav { display: flex; align-items: center; gap: 22px; }
-  header.top nav a { color: #fff; opacity: .75; font-size: 15px; text-decoration: none; padding: 4px 0; border-bottom: 2px solid transparent; }
-  header.top nav a.on { opacity: 1; font-weight: 700; border-bottom-color: #fff; }
-  header.top nav .ext { font-size: 12px; opacity: .8; }
-  header.top .clock { font-size: 20px; font-variant-numeric: tabular-nums; opacity: .9; }
-  iframe { flex: 1; width: 100%; border: 0; background: #fff; }
+  iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #fff; }
   .msg { margin: 40px auto; color: var(--muted); font-size: 18px; text-align: center; }
-  @media (orientation: landscape) and (max-height: 820px) { header.top { padding: 8px 22px; } }
-  @media (max-width: 640px) { header.top { padding: 10px 14px; flex-wrap: wrap; } header.top h1 { font-size: 17px; } header.top .clock { display: none; } }
 </style>
 </head>
 <body>

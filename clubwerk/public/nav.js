@@ -66,6 +66,9 @@
     nav.classList.toggle('many', links.length >= 5);     // fünf und mehr Reiter: ohne Symbole, damit die Beschriftungen bei 1280 px nicht abgeschnitten werden
     const adm = document.getElementById('adminLink'); if (adm) adm.classList.toggle('on', active === 'verwaltung');
     fit();
+    // Wischbare Leiste (Handy, viele Reiter): den aktiven Reiter ganz ins Bild holen, nicht halb am Rand stehen lassen
+    const on = nav.querySelector('a.on');
+    if (on && nav.scrollWidth > nav.clientWidth + 1) nav.scrollLeft = Math.max(0, on.offsetLeft - (nav.clientWidth - on.offsetWidth) / 2);
   }
   /* Passen die Reiter nicht neben Logo und „Verwaltung“ (z. B. Tablet hochkant), wird die Kopfzeile zweizeilig:
      oben Verein, Uhr und Verwaltung, darunter alle Reiter in voller Breite – nie überlappend, nie abgeschnitten. */

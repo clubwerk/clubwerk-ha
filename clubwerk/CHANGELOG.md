@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.30.4
+
+- **Tablet (Plätze):** Der aktive Reiter in der Kopfzeile hatte auf der Platzseite noch einen weißen Unterstrich aus der alten Kopfzeile – entfernt, alle Reiter sehen jetzt gleich aus (auch bei eigenen Links).
+- **Kopfzeile am Handy:** Bei wischbarer Reiterleiste wird der aktive Reiter automatisch ganz ins Bild geholt statt halb am Rand zu stehen.
+- **Verwaltung am Handy:** Das Buchungssystem war durch die Tagesleiste breiter als der Bildschirm (Seite ließ sich seitlich verschieben) – die Tage lassen sich jetzt wischen. Alle 16 Seiten mit ihren Reitern auf 390 px geprüft.
+- **Verwaltung im Tablet-Rahmen (iPhone):** Die Seite ließ sich nicht bis ganz nach unten scrollen, weil das Ende unter der Safari-Leiste lag – die Höhe richtet sich jetzt nach dem sichtbaren Bereich (auch bei eigenen Links).
+- **Menü am Handy:** Das geöffnete Menü deckt die Seite ganz ab, nur das Menü scrollt; die Seite dahinter bleibt stehen. Der Tastenhinweis „⌘K / Strg K“ erscheint nur noch, wo es eine Tastatur gibt.
+
 ## 3.30.3
 
 Alle übrigen Punkte aus der Design-Prüfung:

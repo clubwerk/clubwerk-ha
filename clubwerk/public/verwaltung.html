@@ -11,8 +11,9 @@
 <link rel="stylesheet" href="theme.css">
 <style>
   html, body { height: 100%; }
+  body { height: 100dvh; }   /* iPhone: sichtbare Höhe ohne die Safari-Leisten – sonst liegt das Ende der Verwaltung unter der Leiste */
   body { display: flex; flex-direction: column; overflow: hidden; margin: 0; }
-  iframe { flex: 1; width: 100%; border: 0; background: var(--bg); }
+  iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: var(--bg); }
 </style>
 </head>
 <body>

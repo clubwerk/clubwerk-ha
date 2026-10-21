@@ -61,7 +61,7 @@
       .bk-bar .day { display: inline-flex; align-items: center; gap: 6px; }
       .bk-bar .day input { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-bar .day b { min-width: 34px; text-align: center; font-size: 14px; }
-      .bk-bar .bk-days { margin: 0; padding: 0; overflow: visible; }
+      .bk-bar .bk-days { margin: 0; padding: 2px; max-width: 100%; min-width: 0; overflow-x: auto; }   /* schmale Fenster: Tage wischen, nie breiter als die Seite */
       .bk-bar .bk-pick { height: 62px; border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-wrap { overflow-x: auto; padding: 0 !important; }
       .bk-plan { display: grid; grid-template-columns: 58px repeat(var(--n), minmax(150px, 1fr)); min-width: calc(58px + var(--n) * 150px); }
