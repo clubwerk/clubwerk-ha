@@ -68,6 +68,9 @@
         background-image: linear-gradient(to bottom, var(--line-soft) 1px, transparent 1px); background-size: 100% ${PX}px; }
       .bk-plan .col:last-child { border-right: 0; }
       .bk-plan .closed { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--hover) 0 6px, transparent 6px 12px); pointer-events: none; }
+      .bk-pastbar { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 40px; border: 0; border-bottom: 1px solid var(--line); background: var(--card); color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; }
+      .bk-pastbar b { color: var(--ink); font-variant-numeric: tabular-nums; }
+      .bk-plan .pastsh { position: absolute; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--hover) 70%, transparent); pointer-events: none; }
       .bk-plan .now { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 1; pointer-events: none; }
       .bk-blk { position: absolute; border-radius: 9px; padding: 5px 8px; box-sizing: border-box; overflow: hidden; font-size: 12.5px; line-height: 1.3; cursor: pointer; border: 1px solid transparent; text-align: left; font: inherit; }
       .bk-blk b { display: block; font-size: 12px; font-variant-numeric: tabular-nums; } .bk-blk span { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -243,13 +246,18 @@
       bookingsOf = c => wk.bookings.filter(b => b.date === c.date);
     } else {
       p = await api('day?date=' + st.day);
-      cols = p.resources.filter(r => r.active).map(r => ({ key: r.id, date: st.day, r, open: r.open_today, head: r.name, sub: r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity}×` : ''}` : (r.area || 'Platz') }));
+      cols = p.resources.filter(r => r.active).map(r => ({ key: r.id, date: st.day, r, open: r.open_today, head: r.name, sub: r.kind === 'artikel' ? `Gerät${r.quantity > 1 ? ` · ${r.quantity}×` : ''}` : (r.open_today ? `${r.open_from}–${r.open_to}` : 'heute zu') }));   // wie am Tablet und in der App: Öffnungszeit unter dem Namen
       bookingsOf = c => p.bookings.filter(b => b.resource_id === c.r.id);
     }
     const lo = Math.min(...cols.map(c => tm(c.r.open_from)), 8 * 60), hi = Math.max(...cols.map(c => tm(c.r.open_to)), 20 * 60);
     const TOP = 12;   // Luft oben, damit die erste Uhrzeit nicht abgeschnitten wird
-    const from = Math.floor(lo / 60) * 60, to = Math.ceil(hi / 60) * 60, H = (to - from) / 60 * PX + TOP * 2;
-    const y = m => TOP + (m - from) / 60 * PX;
+    const nowM0 = (() => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); })();
+    // heute (Tagesansicht): vergangene Stunden eingeklappt – wie am Tablet und in der Mitglieder-App; die Leiste klappt sie auf
+    const from0 = Math.floor(lo / 60) * 60, to = Math.ceil(hi / 60) * 60;
+    const isToday = !week && st.day === td, cut = isToday ? Math.min(to - 60, Math.floor(nowM0 / 60) * 60) : from0;
+    const folded = isToday && !st.pastOpen && cut > from0;
+    const from = folded ? cut : from0, H = (to - from) / 60 * PX + TOP * 2;
+    const y = m => TOP + (Math.max(m, from) - from) / 60 * PX;
     const title = week ? `${new Date(cols[0].date + 'T12:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'short' })} – ${new Date(cols[6].date + 'T12:00:00').toLocaleDateString('de-DE', { day: 'numeric', month: 'short', year: 'numeric' })}`
       : new Date(st.day + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
     const lanes = bs => {   // überlappende Buchungen (Geräte mit Menge > 1) nebeneinander
@@ -265,13 +273,13 @@
         <span class="day"><button class="btn" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn" id="bkNext" aria-label="vor">›</button></span>
         <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : st.day !== td) ? '' : 'visibility:hidden'}">Heute</button><b class="ttl">${esc(title)}</b>
         <span class="bk-act">${can('buchung_serien') ? '<button class="btn" id="bkLock">+ Sperre</button>' : ''}${can('buchung_buchen') ? '<button class="btn primary" id="bkNew">+ Buchung</button>' : ''}</span></div>
-      ${cols.length ? `<div class="card bk-wrap"><div class="bk-plan" style="--n:${cols.length}">
+      ${cols.length ? `<div class="card bk-wrap">${isToday && cut > from0 ? `<button type="button" class="bk-pastbar" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · klicken zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}<div class="bk-plan" style="--n:${cols.length}">
         <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}<small>${esc(c.sub || '')}</small></div>`).join('')}
         <div class="times" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PX}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
-        ${cols.map(c => { const r = c.r; const L = lanes(bookingsOf(c)); const o = tm(r.open_from), cl = tm(r.open_to);
+        ${cols.map(c => { const r = c.r; const L = lanes(bookingsOf(c).filter(b => tm(b.end) > from)); const o = tm(r.open_from), cl = tm(r.open_to);
           return `<div class="col" data-c="${esc(c.key)}" style="height:${H}px;background-position:0 ${TOP}px">
             ${c.open ? `${o > from ? `<div class="closed" style="top:0;height:${y(o)}px"></div>` : `<div class="closed" style="top:0;height:${TOP}px"></div>`}${cl < to ? `<div class="closed" style="top:${y(cl)}px;bottom:0"></div>` : ''}` : '<div class="closed" style="top:0;bottom:0"></div>'}
-            ${c.date === td && nowM > from && nowM < to ? `<div class="now" style="top:${y(nowM)}px"></div>` : ''}
+            ${c.date === td && nowM > from ? `<div class="pastsh" style="height:${Math.min(H, y(nowM))}px"></div>` : ''}${c.date === td && nowM > from && nowM < to ? `<div class="now" style="top:${y(nowM)}px"></div>` : ''}
             ${L.list.map(({ b, l }) => { const w = 100 / L.n; const h = Math.max(22, y(tm(b.end)) - y(tm(b.start)) - 2); const t = blkText(b);
               const time = `${b.start}–${b.end}`, n = Math.max(1, Math.floor((h - 8) / 15));
               let ln = t[0] ? [[t[0], 'b'], ...(t[1] ? [[t[1], '']] : []), [time, 'tm']] : [[time, 'b']];
@@ -288,6 +296,7 @@
     $('bkPrev').onclick = () => go(addDays(st.day, week ? -7 : -1)); $('bkNext').onclick = () => go(addDays(st.day, week ? 7 : 1));
     $('bkDay').onchange = () => { if (val('bkDay')) go(val('bkDay')); };
     if ($('bkToday')) $('bkToday').onclick = () => go(td);
+    if ($('bkPast')) $('bkPast').onclick = () => { st.pastOpen = !st.pastOpen; again(); };
     if ($('bkNew')) $('bkNew').onclick = () => bookDialog({ date: st.day, resource_id: week ? st.res : undefined }, again);
     if ($('bkLock')) $('bkLock').onclick = () => bookDialog({ date: st.day, type: 'sperre', resource_id: week ? st.res : undefined }, again);
     if (can('buchung_buchen') || can('buchung_serien')) el.querySelectorAll('.col[data-c]').forEach(c => { c.onclick = e => {

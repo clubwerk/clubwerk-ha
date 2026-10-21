@@ -39,16 +39,6 @@
     }
     return out;
   }
-  /** aufeinanderfolgende Zeiten derselben Buchung optisch zu einem Block zusammenfassen */
-  function merge(list) {
-    const out = [];
-    for (const x of list) {
-      const last = out[out.length - 1];
-      if (last && x.b && last.b && last.b.id === x.b.id && /past/.test(last.cls) === /past/.test(x.cls)) { last.e = x.e; last.n++; if (/now/.test(x.cls) && !/now/.test(last.cls)) last.cls += ' now'; }
-      else out.push({ ...x, n: 1 });
-    }
-    return out;
-  }
   async function load() {
     try { state = await call('x/buchung/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     draw();
@@ -67,20 +57,50 @@
     $('areas').innerHTML = areas.length > 1 ? areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('') : '';
     $('areas').style.display = areas.length > 1 ? '' : 'none';
     $('areas').querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });
-    $('board').style.setProperty('--n', Math.min(Math.max(list.length, 1), 6));
-    const all = list.map(r => merge(slots(r)));
-    const pastAll = all.flat().filter(x => /past/.test(x.cls));
-    const fold = pastAll.length > 0 && !pastOpen;
-    const pf = pastAll.length ? Math.min(...pastAll.map(x => x.s)) : 0, pt = pastAll.length ? Math.max(...pastAll.map(x => x.e)) : 0;
-    const bar = pastAll.length ? `<button class="bk-past" id="bkPast" style="grid-column:1/-1">${fold ? `<b>${hhmm(pf)}–${hhmm(pt)}</b> vorbei · antippen zum Aufklappen` : 'vergangene Zeiten wieder einklappen'}</button>` : '';
-    $('board').innerHTML = list.length ? bar + list.map((r, i) => `<div class="bk-col"><h3>${esc(r.name)}<small>${r.open_from}–${r.open_to} Uhr</small></h3><div class="bk-slots">
-        ${all[i].filter(x => !fold || !/past/.test(x.cls)).map(x => `<button class="bk-slot ${x.cls}${x.n > 1 ? ' multi' : ''}" data-r="${r.id}" data-s="${x.s}" style="${x.n > 1 ? `min-height:${x.n * 52 + (x.n - 1) * 8}px;` : ''}${x.b && x.b.label ? `box-shadow:inset 5px 0 0 ${x.b.label.color}` : ''}" ${/past/.test(x.cls) ? 'disabled' : ''}><b>${hhmm(x.s)}${x.n > 1 ? `<small>–${hhmm(x.e)}</small>` : ''}</b><span translate="no">${esc(x.label)}</span></button>`).join('')}</div></div>`).join('')
-      : '<div class="bk-empty" style="grid-column:1/-1">Heute ist nichts buchbar.</div>';
-    $('board').querySelectorAll('.bk-slot').forEach(b => { b.onclick = () => tap(list.find(r => r.id === +b.dataset.r), +b.dataset.s); });
+    $('board').innerHTML = list.length ? planHtml(list) : '<div class="bk-empty">Heute ist nichts buchbar.</div>';
+    $('board').querySelectorAll('.bk-grid .cl').forEach(c => { c.onclick = e => {
+      const r = list.find(x => x.id === +c.dataset.r); if (!r) return;
+      const blk = e.target.closest('.bk-blk');
+      const m = blk ? +blk.dataset.s : +c.dataset.from + (e.clientY - c.getBoundingClientRect().top - TOP) / PH * 60;
+      const o = tm(r.open_from); tap(r, o + Math.floor((m - o) / r.slot_min) * r.slot_min);
+    }; });
     if ($('bkPast')) $('bkPast').onclick = () => { pastOpen = !pastOpen; clearTimeout(pastTimer); if (pastOpen) pastTimer = setTimeout(() => { pastOpen = false; draw(); }, 60000); draw(); };
   }
+  const PH = 72, TOP = 14;   // Pixel je Stunde · Rand oben/unten, damit die erste und letzte Uhrzeit nicht angeschnitten wird
+  const ink = hex => { const n = parseInt(String(hex).slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) > 160 ? '#1b1f1c' : '#ffffff'; };
+  /** Belegungsplan wie in Verwaltung und Mitglieder-App: vergangene Stunden eingeklappt, Jetzt-Linie, Buchungsarten in ihrer Farbe */
+  function planHtml(rs) {
+    const p = state.plan, nowM = tm(state.now);
+    const lo = Math.min(...rs.map(r => tm(r.open_from))), hi = Math.max(...rs.map(r => tm(r.open_to)));
+    const from0 = Math.floor(lo / 60) * 60, to = Math.ceil(hi / 60) * 60;
+    const cut = Math.min(to - 60, Math.floor(nowM / 60) * 60), folded = !pastOpen && cut > from0;
+    const from = folded ? cut : from0, H = (to - from) / 60 * PH + TOP * 2;
+    const y = m => TOP + (Math.max(m, from) - from) / 60 * PH;
+    const blk = b => {
+      const s0 = tm(b.start), e0 = tm(b.end), h = Math.max(24, y(e0) - y(s0) - 2), n = Math.max(1, Math.floor((h - 12) / 20));
+      const names = b.type === 'buchung' && b.who ? [...b.who, ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
+      const head = b.type === 'sperre' ? (b.title || 'gesperrt') : b.label ? b.label.name : b.type === 'serie' ? (b.title || 'Training') : '';
+      let ln = head ? [[head, 'b'], ...names.map(x => [x, ''])] : names.length ? [[names.join(', '), 'b']] : [['belegt', 'b']];
+      if (ln.length < n) ln.push([`${b.start}–${b.end}`, 'tm']);
+      else if (ln.length > n) ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${ln.length - n + 1} weitere`, 'tm']];
+      const st = b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
+      return `<button class="bk-blk ${esc(b.type)}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b translate="no">${esc(x)}</b>` : `<span class="${c}" translate="no">${esc(x)}</span>`)).join('')}</button>`;
+    };
+    return `<div class="bk-plan">${cut > from0 ? `<button class="bk-past" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · antippen zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}
+      <div class="bk-grid" style="--n:${rs.length};--ph:${PH}px">
+        <div class="hd"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b><small>${r.open_from}–${r.open_to}</small></div>`).join('')}
+        <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PH}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
+        ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);
+          const bs = p.bookings.filter(b => b.resource_id === r.id && tm(b.end) > from);
+          return `<div class="cl" data-r="${r.id}" data-from="${from}" style="height:${H}px;background-position:0 ${TOP}px">
+            ${o > from ? `<div class="zu" style="top:0;height:${y(o)}px"></div>` : ''}<div class="zu" style="top:${y(c)}px;bottom:0"></div>
+            ${nowM > from ? `<div class="past" style="height:${Math.min(H, y(nowM))}px"></div>` : ''}${nowM > from && nowM < to ? `<div class="nowl" style="top:${y(nowM)}px"></div>` : ''}
+            ${bs.map(blk).join('')}</div>`; }).join('')}
+      </div></div>`;
+  }
   function tap(r, s) {
-    const x = slots(r).find(y => y.s === s); if (!x) return;
+    const sl = slots(r); const x = sl.find(y => y.s === s) || sl.find(y => y.s <= s && y.e > s); if (!x) return;
+    if (/past/.test(x.cls) && /free/.test(x.cls)) return toast('Diese Zeit ist schon vorbei.');
     if (/free/.test(x.cls)) { if (!state.booking) return toast('Gebucht wird in der Mitglieder-App.'); return pickName(`${r.name} ab ${hhmm(s)} Uhr buchen`, tok => bookDlg(r, s, tok)); }
     const b = x.b || {};
     const canCancel = state.booking && (b.type === 'buchung' || (b.type === 'serie' && b.series));

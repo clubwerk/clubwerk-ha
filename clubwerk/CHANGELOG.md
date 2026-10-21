@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.29.2
+
+- **Platzbelegung überall gleich (Buchungssystem 1.5.0):** Das Tablet zeigt die Plätze jetzt im selben Belegungsplan wie Verwaltung und Mitglieder-App – Plätze nebeneinander, Zeitachse links, Buchungen als Blöcke (Buchungsarten in ihrer Farbe, Jetzt-Linie). Freie Stelle antippen bucht, Buchung antippen storniert.
+- Unter jedem Platz steht überall die Öffnungszeit (in der Verwaltung stand vorher „Plätze“).
+- Vergangene Stunden des heutigen Tages sind überall gleich eingeklappt – jetzt auch in der Verwaltung; ein Klick auf die Leiste klappt sie auf.
+
 ## 3.29.1
 
 Einheitliches Design in der ganzen Verwaltung und der Mitglieder-App:
