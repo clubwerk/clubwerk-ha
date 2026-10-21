@@ -150,7 +150,7 @@ function guessClub(games) {
   const best = [...n.values()].sort((a, b) => b.c - a.c)[0];
   return best && best.c >= Math.max(2, games.length * 0.6) ? best.name : '';
 }
-/** „TC Frickhofen II“ → „TC Frickhofen“ (Mannschaftsnummer und Zusätze weg) */
+/** „TC Musterstadt II“ → „TC Musterstadt“ (Mannschaftsnummer und Zusätze weg) */
 const clubName = t => clean(t).replace(/\s+(I{1,3}|IV|V|VI{0,3}|\d+)$/i, '').replace(/\s*\((x|\d+)\)$/i, '').trim();
 const clubKey = t => norm(clubName(t));
 /** Heimspiel: Spielort nennt den Verein (nuLiga trägt ihn ein, wenn ein Gastspiel bei euch stattfindet), sonst Heimmannschaft ist der Verein.
@@ -163,14 +163,14 @@ function isHomeGame(g, club) {
 
 /* ---------- Mehrere Mannschaften einer Altersklasse („Herren 30 1“, „Herren 30 2“) ---------- */
 const ROMAN = { i: 1, ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8 };
-/** Mannschaftsnummer aus einem Namen: „TC Frickhofen II“ → 2, „Herren 30 2“ → 2, „Damen 1“ → 1, „Herren 30“ → 1 (die Klasse zählt nicht) */
+/** Mannschaftsnummer aus einem Namen: „TC Musterstadt II“ → 2, „Herren 30 2“ → 2, „Damen 1“ → 1, „Herren 30“ → 1 (die Klasse zählt nicht) */
 function teamNo(name) {
   const s = clean(name).replace(/\b(Herren|Damen|Junioren|Juniorinnen|Knaben|Mädchen)\s*\d{2}\b/gi, ' ').replace(/\b[HDUKM]\d{2}\b/g, ' ').replace(/\(\s*\d+\s*er\s*\)/gi, ' ').trim();
   const m = s.match(/(?:^|\s)(\d{1,2}|[IVX]{1,4})\.?$/i); if (!m) return 1;
   const n = /^\d+$/.test(m[1]) ? +m[1] : ROMAN[m[1].toLowerCase()];
   return n && n >= 1 && n <= 9 ? n : 1;
 }
-/** Spiele der zweiten, dritten … Mannschaft bekommen die Nummer an die Bezeichnung: „H30“ + „TC Frickhofen II“ → „H30 2“.
+/** Spiele der zweiten, dritten … Mannschaft bekommen die Nummer an die Bezeichnung: „H30“ + „TC Musterstadt II“ → „H30 2“.
     Die Nummer steht beim eigenen Verein (Heim- oder Gastmannschaft). Mehrfach aufrufen schadet nicht. */
 function numberTeams(games, club) {
   const ck = norm(clubName(club || '')); if (!ck) return games;

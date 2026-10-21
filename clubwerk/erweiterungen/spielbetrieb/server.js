@@ -919,7 +919,7 @@ function activate(ctx) {
     } catch (e) { return bad(res, 'Die Daten konnten nicht gelesen werden: ' + e.message); }
     if (!parsed.games.length) return bad(res, 'Keine Spiele erkannt. Bitte die ganze Tabelle mit Datum, Heim- und Gastmannschaft einfügen (oder eine CSV-, Excel- oder Kalenderdatei wählen).');
     const club = txt(b.club, 80) || cfg().club || IMP.guessClub(parsed.games) || ctx.getSetting('club_name', '');
-    IMP.numberTeams(parsed.games, club);   // „H30“ + „TC Frickhofen II“ → „H30 2“
+    IMP.numberTeams(parsed.games, club);   // „H30“ + „TC Musterstadt II“ → „H30 2“
     const d0 = today(), teams = {};
     const games = parsed.games.map(g => {
       const home = IMP.isHomeGame(g, club), away = !home && IMP.norm(g.guest).includes(IMP.norm(IMP.clubName(club)));

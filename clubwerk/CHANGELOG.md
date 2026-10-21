@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.30.6
+
+- **Neutral für jeden Verein:** Beispiele in Änderungsprotokoll, Anleitung und Programmkommentaren nennen keinen echten Verein und keine echte Adresse mehr („TC Musterstadt“, „app.dein-verein.de“). Gefunden hat das die neue Geheimnis-Prüfung, die vor jeder Version läuft.
+- **Für Entwickler:** Das Repository enthält jetzt alle Werkzeuge für die Weiterentwicklung (Ordner `werkzeuge/`, Anleitung in `CLAUDE.md`): Paket-Skript mit allen Prüfungen, Demo-Server mit erfundenen Daten, rund 50 erweiterte Testreihen, Design-Prüfstand, Übersetzungswerkzeuge.
+
 ## 3.30.5
 
 **Design-Prüfstand:** Ab jetzt prüft ein automatischer Prüfstand vor jeder Version alle Oberflächen – Verwaltung (auch im Tablet-Rahmen), Tablet, Mitglieder-App und Beregnungs-Webapp – in Handy-, Tablet- und Rechnergröße, hell und dunkel, rund 1 000 Ansichten mit Fenstern, Reitern, Menü und Scrollen bis ganz unten. Ohne grünes Ergebnis wird kein Paket gebaut. Was er in dieser Version gefunden hat:
@@ -228,7 +233,7 @@ Sicherheit und Datenschutz nach dem Tiefen-Review:
 
 ## 3.23.1
 
-- **Mehrere Mannschaften einer Altersklasse** („Herren 30 1“ / „Herren 30 2“, „Damen 1“ / „Damen II“): Der Spielplan-Import trennt sie jetzt anhand der Nummer beim Vereinsnamen („TC Frickhofen II“) – im Spielbetrieb und im Buchungssystem (eigene Plätze je Mannschaft). Vorher landeten alle Spiele einer Altersklasse bei einer Mannschaft. Bereits importierte Spiele werden weiter erkannt, nichts wird doppelt angelegt.
+- **Mehrere Mannschaften einer Altersklasse** („Herren 30 1“ / „Herren 30 2“, „Damen 1“ / „Damen II“): Der Spielplan-Import trennt sie jetzt anhand der Nummer beim Vereinsnamen („TC Musterstadt II“) – im Spielbetrieb und im Buchungssystem (eigene Plätze je Mannschaft). Vorher landeten alle Spiele einer Altersklasse bei einer Mannschaft. Bereits importierte Spiele werden weiter erkannt, nichts wird doppelt angelegt.
 
 ## 3.23.0
 
@@ -421,7 +426,7 @@ Große Qualitätsrunde: vier vollständige Prüfungen (Sicherheit, Code, Design/
 - **Saubere Adressen am Tablet:** Statt `/x/mitglieder/` heißen die Seiten jetzt wie ihre Reiter – `/plaetze/`, `/helferdienste/`, `/mitglied-werden/`, `/zeiterfassung/`, `/beregnung/`, `/zugang/`, Verkauf auch unter `/verkauf`. Alte Adressen mit `/x/…/` (Lesezeichen, gespeicherte Tablets) leiten automatisch weiter; auch über die Home-Assistant-Seitenleiste funktioniert alles wie bisher.
 - **Start-Reiter einstellbar:** Unter Einstellungen → Tablet & Kopfzeile → „Leiste am Tablet“ (bisher „Reihenfolge am Tablet“) legt ein Auswahlknopf „Start“ fest, welcher Reiter beim Aufruf der Adresse (`…:3100`) erscheint – direkt unter dieser Adresse, ohne Weiterleitung. Dorthin kehrt das Tablet auch nach 30 Sekunden ohne Eingabe zurück. Vorgabe bleibt Verkauf; ist das Start-Modul abgeschaltet, erscheint wieder Verkauf.
 - Erweiterungen können im Manifest unter `tablet.pfad` ihre Adresse festlegen (siehe ERWEITERUNGEN.md).
-- **Mitglieder-App – Vereins-WLAN auch über die öffentliche Adresse erkannt:** Wer im Vereins-WLAN die App über die öffentliche Adresse (z. B. `app.tc-frickhofen.org`) öffnet, wurde bisher wie „unterwegs“ behandelt, weil die Anfrage über Cloudflare kommt – Beregnung zeigte „Nur im Vereins-WLAN“. Clubwerk ermittelt jetzt regelmäßig die Internet-Adresse des Vereinsanschlusses und erkennt Handys im Vereins-WLAN daran (IPv4 gleich bzw. IPv6 im selben Netz). Die erkannte Adresse steht unter Mitglieder-App → „Von unterwegs nutzbar“.
+- **Mitglieder-App – Vereins-WLAN auch über die öffentliche Adresse erkannt:** Wer im Vereins-WLAN die App über die öffentliche Adresse (z. B. `app.dein-verein.de`) öffnet, wurde bisher wie „unterwegs“ behandelt, weil die Anfrage über Cloudflare kommt – Beregnung zeigte „Nur im Vereins-WLAN“. Clubwerk ermittelt jetzt regelmäßig die Internet-Adresse des Vereinsanschlusses und erkennt Handys im Vereins-WLAN daran (IPv4 gleich bzw. IPv6 im selben Netz). Die erkannte Adresse steht unter Mitglieder-App → „Von unterwegs nutzbar“.
 - **Übernahme-Code kopieren:** Neben dem Code im Hinweis „Auf den Home-Bildschirm“ gibt es einen Kopierknopf.
 
 ## 3.12.0

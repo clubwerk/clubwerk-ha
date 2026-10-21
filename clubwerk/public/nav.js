@@ -23,7 +23,7 @@
     box.classList.add('hidden');
     const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => {
       if (b.clubName) {
-        // „TC Grün-Weiß Frickhofen“ → zwei Zeilen: „TC Grün-Weiß“ / „Frickhofen“
+        // „TC Grün-Weiß Musterstadt“ → zwei Zeilen: „TC Grün-Weiß“ / „Musterstadt“
         const w = b.clubName.trim().split(/\s+/);
         document.getElementById('club').textContent = w.length > 2 ? w.slice(0, -1).join(' ') : b.clubName;
         document.getElementById('club2').textContent = w.length > 2 ? w[w.length - 1] : '';
