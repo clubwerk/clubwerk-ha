@@ -1,0 +1,40 @@
+const B='http://127.0.0.1:3233/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,200):'')); if(!c) fails++;};
+const jar=()=>{const c={}; const f=async(url,method='GET',body,extra={})=>{const h={'X-Getraenke':'1',Cookie:Object.entries(c).map(([k,v])=>k+'='+v).join('; '),...extra}; if(body!==undefined)h['Content-Type']='application/json';
+  const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); for(const sc of r.headers.getSetCookie()){const [kv]=sc.split(';'); const i=kv.indexOf('='); c[kv.slice(0,i)]=kv.slice(i+1);} f.last=r.headers.getSetCookie(); return [r.status, await r.json().catch(()=>({}))];}; f.c=c; return f;};
+(async()=>{
+  const A=jar(), T=jar(), T2=jar(); let s,j;
+  await A('api/admin/setup','POST',{clubName:'SV Test',password:'Test-Kennwort-42'});
+  [s,j]=await T('api/tablet/state'); ok('Ohne Passwort: Tablet gesperrt (Pflicht)', s===401 && j.gate && j.unset, JSON.stringify(j));
+  [s,j]=await T('api/gate'); ok('Gate: noch kein Passwort', j.on===true && j.set===false && j.ok===false, JSON.stringify(j));
+  [s,j]=await T('api/gate/login','POST',{password:'irgendwas'}); ok('Freischalten ohne Passwort nicht möglich', s===409, j.error);
+  [s,j]=await A('api/tablet/state'); ok('Admin kommt auch ohne Tablet-Passwort ans Tablet', s===200);
+  [s,j]=await A('api/admin/status'); ok('Verwaltung meldet fehlendes Tablet-Passwort', j.tabletPwMissing===true, JSON.stringify(j.tabletPwMissing));
+  [s,j]=await A('api/admin/settings/tablet-password','PUT',{password:'12345678'}); ok('Zu leichtes Passwort abgelehnt', s===400 && /leicht/.test(j.error), j.error);
+  [s,j]=await A('api/admin/settings/tablet-password','PUT',{password:'1234567'}); ok('Zu kurz abgelehnt (unter 8)', s===400, j.error);
+  [s,j]=await A('api/admin/settings/tablet-password','PUT',{password:'durst2026'}); ok('Schutz eingeschaltet', s===200 && A.last.some(x=>x.startsWith('gtablet=') && /Max-Age=34560000/.test(x)), A.last);
+  [s,j]=await T('api/tablet/state'); ok('Tablet gesperrt', s===401 && j.gate===true, s);
+  [s,j]=await T('api/tablet/book','POST',{token:'x',items:[]}); ok('Buchen gesperrt', s===401 && j.gate);
+  [s,j]=await T('api/branding'); ok('Branding frei', s===200 && j.clubName==='SV Test');
+  [s,j]=await A('api/tablet/state'); ok('Admin-Browser darf (Session)', s===200);
+  [s,j]=await T('api/tablet/state','GET',undefined,{'X-Ingress-Path':'/api/hassio_ingress/abc'}); ok('Gefälschter Ingress-Kopf von außen hilft nicht', s===401);
+  [s,j]=await T('api/gate/login','POST',{password:'falsch'}); ok('Falsches Passwort', s===401, j.error);
+  [s,j]=await T('api/gate/login','POST',{password:'durst2026'}); ok('Richtiges Passwort', s===200 && T.c.gtablet);
+  [s,j]=await T('api/tablet/state'); ok('Tablet frei', s===200);
+  T2.c.gtablet=T.c.gtablet.replace(/.$/,c=>c==='0'?'1':'0'); [s]=await T2('api/tablet/state'); ok('Manipuliertes Cookie gesperrt', s===401);
+  [s]=await A('api/admin/settings/tablet-password/logout-all','POST',{}); [s]=await T('api/tablet/state'); ok('Alle abmelden sperrt Tablet', s===401);
+  await T('api/gate/login','POST',{password:'durst2026'}); [s]=await T('api/tablet/state'); ok('Wieder frei', s===200);
+  await A('api/admin/settings/tablet-password','PUT',{password:'neuesPW99'}); [s]=await T('api/tablet/state'); ok('Neues Passwort sperrt Tablet', s===401);
+  [s,j]=await T('api/gate/login','POST',{password:'durst2026'}); ok('Altes Passwort gilt nicht mehr', s===401);
+  [s,j]=await A('api/admin/settings'); ok('Status in Einstellungen', j.tabletPw.on && j.tabletPw.since, JSON.stringify(j.tabletPw));
+  // Rechte
+  await A('api/admin/users','POST',{username:'wart',name:'Wart',password:'wart12345',role:'admin',perms:['bestand']});
+  const W=jar(); await W('api/admin/login','POST',{username:'wart',password:'wart12345'}); [s]=await W('api/admin/settings/tablet-password','DELETE'); ok('Ohne Recht nicht ausschaltbar', s===403, s);
+  [s,j]=await A('api/admin/settings/tablet-password','DELETE'); ok('Ausschalten nicht mehr möglich (Pflicht)', s===400 && /Pflicht/.test(j.error), j.error);
+  [s,j]=await T('api/tablet/state'); ok('… Tablet bleibt geschützt', s===401);
+  [s,j]=await A('api/admin/status'); ok('kein Hinweis mehr in der Verwaltung', j.tabletPwMissing===false);
+  [,j]=await A('api/admin/audit'); ok('Protokoll', ['eingeschaltet','geändert','abgemeldet','freigeschaltet','falsches'].every(w=>JSON.stringify(j).includes(w)));
+  // Bremse
+  await A('api/admin/settings/tablet-password','PUT',{password:'durst2026'}); const X=jar(); let last;
+  for(let i=0;i<12;i++){ [last]=await X('api/gate/login','POST',{password:'x'+i}); } ok('Durchprobieren gebremst', last===429, last);
+  console.log(fails?`${fails} FEHLER`:'ALLES OK'); process.exit(fails?1:0);
+})();

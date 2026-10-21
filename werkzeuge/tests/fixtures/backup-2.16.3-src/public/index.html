@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1f6b3a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="vereinsicon.png">
+<title>Getränke buchen</title>
+<script src="theme-init.js"></script>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* Tablet – Design nach dem Entwurf „Buchen mit Artikel-Logos“: weiße Kopfzeile, ruhige Fläche, kompakte 60-px-Kacheln,
+     Auswahl als feste Spalte rechts. Vereinsfarbe: Vereinszeichen, Strich oben, Auswahl, Mengen, Buchen-Knopf, „Gerade oft hier“. */
+  :root { --np: 16px; }
+  body { user-select: none; -webkit-user-select: none; overscroll-behavior: none; background: var(--bg); }
+  main { padding: 24px; }
+  body.bookmode main { padding: 0; }
+  /* Initialen: ruhige Pastellfarben je Name, dunkel automatisch abgedunkelt */
+  .av { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 22px; background: var(--ab, var(--brand-soft)); color: var(--af, var(--brand-ink));
+    display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-style: normal; }
+  :root[data-theme="dark"] .av { background: color-mix(in srgb, var(--af, var(--brand)) 26%, transparent); color: color-mix(in srgb, var(--af, var(--brand)) 45%, #fff); }
+  .av.sq { border-radius: 12px; width: 40px; height: 40px; flex-basis: 40px; }
+  .lock { width: 14px; height: 14px; color: var(--faint); flex: none; }
+
+  /* Startseite */
+  .starthead { display: grid; grid-template-columns: minmax(0, 1fr) 296px; gap: 16px; align-items: center; margin-bottom: 16px; }
+  .starthead h1 { margin: 0; font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -.02em; }
+  .namesearch { display: flex; align-items: center; gap: 12px; height: 52px; padding: 0 12px 0 16px; border-radius: 14px; background: var(--card); border: 1px solid var(--line); color: var(--muted); }
+  .namesearch:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .namesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 16px; color: var(--ink); }
+  .namesearch button { width: 32px; height: 32px; border-radius: 16px; background: var(--hover); color: var(--muted); font-size: 14px; }
+  .event-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--amber-soft); border: 1px solid var(--amber-line); border-radius: 16px;
+    padding: 14px 16px 14px 20px; margin-bottom: 16px; font-size: 18px; }
+  .event-banner strong { color: var(--amber); }
+  h2.sec { margin: 20px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6B776F; display: flex; align-items: baseline; gap: 10px; }
+  :root[data-theme="dark"] h2.sec { color: var(--muted); }
+  h2.sec small { font-weight: 500; font-size: 12px; color: var(--faint); letter-spacing: 0; text-transform: none; }
+  #topBox h2.sec, #tabsBox h2.sec { margin-top: 0; }
+  #topBox { margin-bottom: 4px; }
+  #tabsBox { background: var(--amber-soft); border: 1px solid var(--amber-line); border-radius: 18px; padding: 14px; margin-bottom: 16px; }
+  #tabsBox h2.sec { color: var(--amber); }
+  /* ein gemeinsames Raster für Namen, Mannschaften und die untere Reihe: 4 Spalten (breit 5, schmal 2) */
+  :root { --cols: 4; }
+  @media (min-width: 1600px) { :root { --cols: 5; } }
+  .names { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 16px; }
+  .names button { display: flex; align-items: center; gap: 12px; height: 80px; padding: 0 16px; border-radius: 16px; text-align: left; background: var(--card); border: 1px solid var(--line); transition: transform .05s, border-color .12s; }
+  .names button:active { transform: scale(.98); }
+  .names button .nm { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+  .names button b { display: flex; align-items: center; gap: 6px; font-size: 17px; line-height: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .names button .nm > span { color: var(--muted); font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .names.quick button { height: 64px; border: 0; background: var(--brand-soft); }
+  .names.quick button .av { width: 40px; height: 40px; flex-basis: 40px; border-radius: 20px; background: var(--card); color: var(--brand); }
+  .names.quick button b { color: var(--brand-ink); }
+  .names.quick button .nm > span { display: none; }
+  .names button.pending { border-style: dashed; }
+  .names button .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 800; }
+  .names button .tag.ok { background: var(--brand-soft); color: var(--brand-ink); }
+  .names button.tabt .nm > span { color: var(--amber); font-weight: 700; }
+  .names button.addtab { border-style: dashed; background: transparent; }
+  .names button.addtab b { color: var(--amber); }
+  .names button.paid { background: var(--hover); }
+  .names button.paid b { text-decoration: line-through; text-decoration-color: var(--faint); }
+  .names button.manual .nm > span { font-style: italic; }
+  .names button .amt { display: inline; font-size: 13px; font-weight: 700; color: var(--amber); }
+  /* A–Z: nur vorhandene Buchstaben, gleichmäßig über die volle Breite */
+  .letters { display: flex; justify-content: space-between; align-items: center; gap: 4px; margin-bottom: 16px; flex-wrap: wrap; }
+  .letters.few { justify-content: flex-start; }
+  .letters button { min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; font-size: 16px; font-weight: 700; color: #36423B; }
+  :root[data-theme="dark"] .letters button { color: var(--ink); }
+  :root[data-theme="dark"] .letters button.on { color: var(--bg); }
+  .letters button.on { background: var(--ink); color: var(--bg); }
+  .letters button.all { padding: 0 14px; font-size: 14px; }
+  /* untere Reihe: vier gleich breite Knöpfe auf dem Raster der Namenskacheln */
+  .bottomrow { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
+  .bottomrow .special { display: contents; }
+  .bottomrow .btn, .special button { height: 64px; border-radius: 16px; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 0 12px; }
+  .special button { background: var(--card); border: 1px solid var(--line); color: var(--ink); }
+  .special button small { display: none; }
+  .special .cnt { height: 24px; line-height: 24px; padding: 0 10px; border-radius: 12px; background: var(--amber-soft); color: var(--amber); font-size: 13px; font-weight: 700; }
+  .newrow { margin: 16px 0 6px; }
+  .newrow .btn { min-height: 56px; font-size: 17px; border-radius: 16px; }
+  .evhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .search { min-height: 48px; font-size: 17px; padding: 6px 14px; border: 1px solid var(--line); border-radius: 12px; min-width: 260px; background: var(--field); }
+  #evAdd { min-height: 56px; font-size: 17px; }
+
+  /* Dialog-Bausteine */
+  .sugg { display: grid; gap: 8px; margin: 6px 0 4px; }
+  .sugg button { text-align: left; min-height: 54px; padding: 8px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font-size: 17px; }
+  .sugg button small { color: var(--muted); font-size: 13px; margin-left: 6px; }
+  .sugg button.free { border-style: dashed; background: var(--amber-soft); }
+  .amount { font-size: 44px; font-weight: 800; text-align: center; margin: 10px 0 6px; font-variant-numeric: tabular-nums; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .chips button { min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); font-size: 15px; font-weight: 600; }
+  .chips button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  input.big { width: 100%; min-height: 56px; font-size: 21px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; margin: 14px 0 4px; background: var(--field); }
+  input.big:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  #payBtn { width: 100%; min-height: 56px; font-size: 18px; margin-top: 12px; }
+  .paybtns { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .paybtns .btn { min-height: 72px; font-size: 20px; }
+  .paybtns .btn:only-child { grid-column: 1 / -1; }
+
+  /* ---------- Buchen: links alle Artikel auf einen Blick, rechts die Auswahl (volle Höhe) ---------- */
+  .bk { display: grid; grid-template-columns: minmax(0, 1fr) 320px; height: calc(100vh - 72px); height: calc(100dvh - 72px); }
+  .bkmain { padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; overflow: auto; }
+  /* kleinere Tablets (z. B. iPad 1024 × 768): schmalere Auswahl-Spalte, damit die Artikelnamen Platz haben */
+  @media (max-width: 1150px) { .bk { grid-template-columns: minmax(0, 1fr) 272px; } .bkmain { padding: 12px 14px; gap: 10px; } .cart { padding: 14px 16px 16px; } .cart li { grid-template-columns: minmax(0, 1fr) 104px 60px; } #bookBtn { font-size: 16px; } }
+  .who { display: flex; align-items: center; gap: 12px; min-height: 48px; }
+  .who .av { width: 40px; height: 40px; flex-basis: 40px; border-radius: 20px; }
+  .who .whot { flex: 1; min-width: 0; }
+  .who h2 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .note { font-size: 13px; line-height: 16px; color: var(--muted); }
+  .who .note.free { color: var(--blue); font-weight: 700; }
+  .who .note.cash { color: var(--amber); font-weight: 700; }
+  .sub-actions { display: flex; gap: 8px; flex: none; }
+  .sub-actions .btn { min-height: 40px; height: 40px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; color: #36423B; border-color: var(--line); }
+  :root[data-theme="dark"] .sub-actions .btn { color: var(--ink); }
+
+  /* Kategorien: alle rasten auf denselben Spalten ein; kleine Kategorien stehen nebeneinander */
+  /* Kachelhöhe: Platz für bis zu 3 Zeilen Name + Größe/Preis; tablet.js wählt Höhe und Spaltenbreite so,
+     dass jeder Name vollständig lesbar ist und nichts gescrollt werden muss */
+  .cats-flow { --gap: 8px; --tmin: 150px; --th: 84px; --ti: 46px; --nl: 3; --nf: 14px; --nlh: 17px; display: flex; flex-wrap: wrap; column-gap: var(--gap); row-gap: 12px; }
+  .cats-flow.xxl { --th: 112px; --ti: 62px; --nl: 3; --nf: 16px; --nlh: 19px; --sf: 14px; }
+  .cats-flow.xl { --th: 96px; --ti: 54px; --nl: 3; --nf: 15px; --nlh: 18px; --sf: 13px; }
+  .cats-flow.packed { position: relative; display: block; }
+  .cats-flow.packed .cat { position: absolute; }
+  .cats-flow.packed .arts { row-gap: var(--brg, var(--gap)); }
+  .cats-flow.d1 { --th: 76px; --ti: 42px; --nl: 3; --nf: 13px; --nlh: 16px; row-gap: 10px; }
+  .cats-flow.d2 { --th: 68px; --ti: 38px; --nl: 3; --nf: 12.5px; --nlh: 15px; --sf: 11.5px; row-gap: 8px; }
+  .cats-flow.d3 { --th: 62px; --ti: 36px; --nl: 3; --nf: 12px; --nlh: 14px; --sf: 11.5px; row-gap: 8px; }
+  .cats-flow.d4 { --th: 52px; --ti: 30px; --nl: 3; --nf: 11px; --nlh: 12.5px; --sf: 10.5px; row-gap: 6px; }
+  .cats-flow.d5 { --th: 46px; --ti: 30px; --nl: 1; --nf: 12px; --nlh: 15px; --sf: 11px; row-gap: 6px; }
+  .cats-flow .cat { flex: none; width: calc(var(--span, 1) * var(--tw, 150px) + (var(--span, 1) - 1) * var(--gap)); display: flex; flex-direction: column; gap: 6px; }
+  .cat h3 { margin: 0; height: 16px; font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6B776F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  :root[data-theme="dark"] .cat h3 { color: var(--muted); }
+  .arts { display: grid; grid-template-columns: repeat(var(--span, 1), var(--tw, 150px)); gap: var(--gap); }
+  .arts button { position: relative; height: var(--th); padding: 0 10px 0 10px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 12px; text-align: left;
+    background: var(--card); box-shadow: 0 0 0 1px var(--line); color: var(--ink); transition: background .12s, box-shadow .12s, transform .05s; }
+  .arts button:active { transform: scale(.97); }
+  .arts .ti { position: relative; width: var(--ti); height: var(--ti); flex: 0 0 var(--ti); border-radius: 10px; background: var(--ib, var(--hover)); color: var(--if, #36423B);
+    display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
+  :root[data-theme="dark"] .arts .ti:not(.img) { background: color-mix(in srgb, var(--if, var(--brand)) 22%, transparent); color: color-mix(in srgb, var(--if, var(--brand)) 55%, #fff); }
+  .arts .ti svg { width: 64%; height: 64%; }
+  .arts .ti img { width: 100%; height: 100%; object-fit: contain; border-radius: 10px; }
+  .arts .ti.img { background: #fff; box-shadow: inset 0 0 0 1px var(--line-soft); }
+  .arts .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; }
+  .arts .tx b { max-width: 100%; font-size: var(--nf); line-height: var(--nlh); font-weight: 700; white-space: normal; overflow: hidden; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: var(--nl); line-clamp: var(--nl); }
+  .arts .tx { gap: 1px; }
+  .arts .tx .sub { max-width: 100%; font-size: var(--sf, 12px); line-height: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .arts button.sel { background: var(--brand-soft); box-shadow: 0 0 0 2px var(--brand); }
+  .arts .badge { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: #fff;
+    font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card); }
+  .arts button.out { opacity: .5; }
+  .arts button.out .sub::after { content: " · leer?"; color: var(--red); font-weight: 600; }
+  .arts button.custom { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+  .arts button.custom.sel { box-shadow: 0 0 0 2px var(--brand); }
+
+  /* Auswahl */
+  .cart { background: var(--card); border-left: 1px solid var(--line); padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .cart h3 { margin: 0; height: 48px; flex: none; display: flex; align-items: center; justify-content: space-between; font-size: 18px; line-height: 24px; font-weight: 700; }
+  .cart h3 span { font-size: 13px; font-weight: 600; color: var(--muted); }
+  .cart ul { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: auto; }
+  /* Zeile: oben der Name über die volle Breite (bis 2 Zeilen), darunter Größe · Preis | − Menge + | Summe */
+  .cart li { display: grid; grid-template-columns: minmax(0, 1fr) 112px 64px; grid-template-areas: "nm nm nm" "sb st ls"; align-items: center; column-gap: 8px; row-gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
+  .cart li .nm { grid-area: nm; font-size: 14px; line-height: 17px; font-weight: 700; overflow: hidden; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+  .cart li .sb { grid-area: sb; min-width: 0; font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .cart li .st { grid-area: st; }
+  .cart li .ls { grid-area: ls; }
+  .cart li .st { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; }
+  .cart li .st b { text-align: center; font-variant-numeric: tabular-nums; }
+  .cart li button { width: 36px; height: 36px; border-radius: 10px; background: var(--hover); color: var(--ink); font-size: 18px; font-weight: 700; }
+  .cart li .ls { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cart li.empty { display: block; height: auto; border: 0; margin-top: 24px; text-align: center; color: var(--muted); line-height: 1.5; }
+  .cart .sum { display: flex; align-items: baseline; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--line); flex: none; }
+  .cart .sum span { font-size: 15px; font-weight: 600; color: var(--muted); }
+  .cart .sum b { font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+  #bookBtn { height: 64px; flex: none; border-radius: 16px; font-size: 18px; font-weight: 700; }
+  .clearbtn { height: 40px; flex: none; border-radius: 10px; color: var(--muted); font-size: 15px; font-weight: 600; }
+  .clearbtn:disabled { visibility: hidden; }
+  .tabbox { padding-top: 12px; border-top: 1px solid var(--line); flex: none; }
+  .tabbox h3 { height: auto; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin: 0 0 6px; }
+  .tabbox ul { flex: none; max-height: 24vh; }
+  .tabbox li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; grid-template-areas: none; gap: 6px; height: auto; padding: 5px 0; font-size: 14px; align-items: baseline; }
+  .tabbox li .q { text-align: right; font-weight: 700; }
+  .tabbox li .t { text-align: right; font-variant-numeric: tabular-nums; }
+  .tabbox li.paid { color: var(--muted); text-decoration: line-through; }
+  .tabbox .sum { border: 0; padding-top: 8px; }
+  .tabbox .sum span { font-size: 15px; }
+  .tabbox .sum span:last-child { font-weight: 700; color: var(--ink); }
+
+  /* Fenster */
+  .overlay { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .dialog { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px; width: min(560px, 100%); max-height: 92vh; overflow: auto; box-shadow: var(--shadow-pop); }
+  .dialog h2 { margin: 0 0 6px; font-size: 22px; }
+  .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
+  .pin-dots span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--brand); }
+  .pin-dots span.f { background: var(--brand); }
+  .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .pad button { height: 68px; border-radius: 14px; background: var(--hover); font-size: 26px; font-weight: 700; }
+  .pad button:active { background: var(--brand-soft); }
+  .pad button.fn { font-size: 17px; background: transparent; border: 1px solid var(--line); }
+  .pinchoice { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 18px; }
+  .pinchoice .btn { min-height: 64px; font-size: 18px; justify-content: center; }
+  .err { color: var(--red); min-height: 24px; text-align: center; margin-top: 10px; font-weight: 700; }
+  .done { text-align: center; }
+  .done .big { width: 72px; height: 72px; margin: 4px auto 8px; border-radius: 36px; background: var(--brand); color: #fff; font-size: 40px; line-height: 72px; }
+  .done ul { list-style: none; padding: 0; font-size: 18px; margin: 12px 0; }
+  .done .total { font-size: 26px; font-weight: 800; margin: 6px 0 4px; }
+  .done .cashhint { background: var(--amber-soft); color: var(--amber); padding: 10px; border-radius: 12px; font-weight: 800; font-size: 19px; }
+  .done .freehint { background: var(--blue-soft); color: var(--blue); padding: 10px; border-radius: 12px; font-weight: 800; }
+  .done .row { display: flex; gap: 10px; justify-content: center; margin-top: 16px; }
+  .done .row .btn { min-height: 56px; font-size: 18px; min-width: 180px; }
+  table.acc { width: 100%; border-collapse: collapse; font-size: 15px; }
+  table.acc td { padding: 7px 4px; border-bottom: 1px solid var(--line-soft); }
+  table.acc td.r { text-align: right; white-space: nowrap; }
+
+  @media (max-width: 900px) {
+    .bk { grid-template-columns: 1fr; height: auto; }
+    .bkmain { overflow: visible; }
+    .cart { border-left: 0; border-top: 1px solid var(--line); }
+    .cart ul { max-height: none; }
+    .starthead { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 640px) {
+    main { padding: 16px 12px 28px; }
+    :root { --cols: 2; }
+    .names, .bottomrow { gap: 10px; }
+    .who { flex-wrap: wrap; }
+    .bkmain { padding: 12px; }
+  }
+
+  /* Passwortschutz der Buchungsseite */
+  .gate { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .gatecard { width: min(440px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 30px 28px; box-shadow: var(--shadow-pop);
+    display: flex; flex-direction: column; align-items: stretch; text-align: center; gap: 14px; user-select: text; -webkit-user-select: text; border-top: 4px solid var(--brand); }
+  .gatecard .logo-badge { align-self: center; display: flex; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 6px; }
+  .gatecard .logo-badge img { height: 72px; max-width: 200px; object-fit: contain; }
+  .gatecard .gateclub { font-size: 16px; font-weight: 700; color: var(--brand-ink); }
+  .gatecard .gateclub:empty { display: none; }
+  .gatecard h2 { margin: 0; font-size: 23px; }
+  .gatecard p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+  .gatecard input { height: 56px; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; font-size: 21px; text-align: center; background: var(--field); }
+  .gatecard input:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .gatecard .gerr { color: var(--red); font-weight: 700; font-size: 15px; }
+  .gatecard .gerr:empty { display: none; }
+  .gatecard .btn { height: 56px; font-size: 18px; justify-content: center; }
+  @media (max-width: 640px) { .gatecard { padding: 26px 20px; } .gatecard p br { display: none; } }
+</style>
+</head>
+<body>
+<header id="gkHeader"></header>
+
+<main>
+  <!-- Startseite: Konto wählen -->
+  <section id="start">
+    <div id="eventBanner" class="event-banner hidden">
+      <div>Veranstaltung: <strong id="eventName"></strong><br><span class="muted" style="font-size:15px">Namen antippen und anschreiben – bezahlt wird am Ende bar oder mit Karte</span></div>
+      <button class="btn" id="eventBtn" style="min-height:56px;font-size:17px">Barverkauf ohne Namen</button>
+    </div>
+    <div id="evBox" class="hidden">
+      <div class="evhead"><h2 class="sec" id="evHead">Liste</h2>
+        <input id="evSearch" class="search hidden" placeholder="Namen suchen …" autocomplete="off"></div>
+      <div class="names" id="evNames"></div>
+      <div class="newrow"><button class="btn primary" id="evAdd">+ Namen hinzufügen</button></div>
+    </div>
+    <div id="normalBox">
+    <div class="starthead"><h1>Wer bucht?</h1>
+      <label class="namesearch"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="nameSearch" placeholder="Namen tippen" aria-label="Namen suchen" autocomplete="off" autocapitalize="words"><button type="button" id="nameClear" class="hidden" aria-label="Suche leeren">✕</button></label></div>
+    <div id="tabsBox" class="hidden">
+      <h2 class="sec">Gäste-Deckel <small>offen · bezahlt wird vor der Heimfahrt</small></h2>
+      <div class="names" id="tabs"></div>
+    </div>
+    <div id="topBox">
+      <h2 class="sec">Gerade oft hier <small id="topNote"></small></h2>
+      <div class="names quick" id="top"></div>
+    </div>
+    <h2 class="sec" id="allHead">Alle Mitglieder</h2>
+    <div class="letters" id="letters"></div>
+    <div class="names" id="names"></div>
+    <div id="teamBox"><h2 class="sec">Mannschaften & Gruppen</h2>
+    <div class="names teams" id="teams"></div></div>
+    <div class="bottomrow"><button class="btn primary" id="newBtn"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Ich bin neu</button><div class="special" id="special"></div></div>
+    </div>
+  </section>
+
+  <!-- Buchen -->
+  <section id="booking" class="hidden">
+    <div class="bk">
+      <div class="bkmain" id="bkMain">
+        <div class="who">
+          <span class="av" id="whoAv"></span>
+          <div class="whot"><h2 id="whoName"></h2><div class="note" id="whoNote"></div></div>
+          <div class="sub-actions">
+            <button class="btn" id="accBtn">Mein Konto</button>
+            <button class="btn" id="pinBtn">PIN</button>
+            <button class="btn" id="cancelBtn">Anderes Mitglied</button>
+          </div>
+        </div>
+        <div id="cats"></div>
+      </div>
+      <aside class="cart" aria-label="Deine Auswahl">
+        <h3>Deine Auswahl<span id="cartCount"></span></h3>
+        <ul id="cartList"></ul>
+        <div class="sum"><span>Summe</span><b id="cartSum">0,00 €</b></div>
+        <button class="btn primary" id="bookBtn" disabled>Buchen</button>
+        <button type="button" class="clearbtn" id="clearBtn">Auswahl leeren</button>
+        <div id="tabBox" class="tabbox hidden">
+          <h3 id="tabHead">Bisher auf der Liste</h3>
+          <ul id="tabList"></ul>
+          <div class="sum small"><span>offen</span><span id="tabSum">0,00 €</span></div>
+          <button class="btn primary hidden" id="payBtn">Jetzt bezahlen</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+</main>
+
+<!-- Optionaler Passwortschutz: deckt alles ab, bis das Gerät freigeschaltet ist -->
+<div id="gate" class="gate hidden"><div class="gatecard">
+  <span class="logo-badge hidden" id="gateLogoBox"><img id="gateLogo" alt="Vereinslogo"></span>
+  <div class="gateclub" id="gateClub"></div>
+  <h2>Buchungsseite gesperrt</h2>
+  <p>Bitte das Passwort des Vereins eingeben. <br>Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password" enterkeyhint="go">
+  <div class="gerr" id="gateErr"></div>
+  <button class="btn primary" id="gateGo">Freischalten</button>
+</div></div>
+<div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
+<div id="toast" class="toast hidden"></div>
+
+<script src="nav.js" data-base="" data-active="getraenke"></script>
+<script src="artikel-icons.js"></script>
+<script src="tablet.js"></script>
+</body>
+</html>

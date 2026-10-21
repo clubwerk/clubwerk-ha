@@ -1,5 +1,19 @@
 node_modules/
+node_modules
 *.db
 *.db-*
 *.csv
 .DS_Store
+# Werkzeuge: lokale Ausgaben und Laufdaten
+werkzeuge/ausgabe/
+werkzeuge/.geheim-muster
+werkzeuge/demo/daten/
+werkzeuge/demo/server.log
+werkzeuge/demo/server.pid
+werkzeuge/demo/keine-erweiterungen/
+werkzeuge/design-pruefstand/ausgabe/
+werkzeuge/design-pruefstand/lauf.log
+werkzeuge/i18n/ausgabe/
+__pycache__/
+CLAUDE.local.md
+!werkzeuge/tests/fixtures/*.csv

@@ -28,12 +28,15 @@ Prüft alle Clubwerk-Oberflächen automatisch, bevor eine Version erscheint. Ohn
 
 Ausnahmen stehen mit Begründung in `erlaubt.txt`.
 
-**Starten** (gegen einen Test-Server mit Beispieldaten)
+**Starten** (gegen den Demo-Server mit erfundenen Daten)
 
 ```
-pip install playwright
-CW_ADMIN_PW=… CW_TABLET_PW=… python3 gate.py ausgabe        # vollständig, ca. 10 Minuten
-CW_ADMIN_PW=… CW_TABLET_PW=… python3 gate.py ausgabe --schnell
+pip install playwright && python3 -m playwright install chromium   # einmal
+bash werkzeuge/demo/start.sh
+python3 werkzeuge/design-pruefstand/gate.py            # vollständig, ca. 10 Minuten
+python3 werkzeuge/design-pruefstand/gate.py --schnell  # Zwischenstand: Handy + Rechner, dunkel
 ```
 
-Das Ergebnis liegt in `ausgabe/befunde.txt`, dazu markierte Bilder jeder betroffenen Ansicht.
+Das Ergebnis liegt in `ausgabe/befunde.txt`, dazu markierte Bilder jeder betroffenen Ansicht. Ein grüner Volllauf legt `ausgabe/gruen` an; `werkzeuge/paket.sh` verlangt dieses Zeichen und dass es neuer ist als jede Programmdatei.
+
+**Safari (WebKit):** Wo Playwright-WebKit installierbar ist (`python3 -m playwright install webkit`, z. B. auf dem Mac), zusätzlich `--webkit` angeben – dann laufen die Handy-Ansichten auch in der Safari-Technik.

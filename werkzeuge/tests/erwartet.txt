@@ -1,0 +1,42 @@
+abtipp: ✘ Leer -> Standard
+abtipp: ✘ Standardtext
+age: ✘ Hinweise erkannt
+ber2: ✘ Hydrawise run Zone 1 mit Dauer
+ber2: ✘ Key gespeichert
+ber2: ✘ Key nie ausgeliefert
+ber2: ✘ Nächste aus Hydrawise
+ber2: ✘ Start
+ber2: ✘ Zonen per Nummer
+ber2: ✘ auf Hydrawise umgestellt
+ber2: ✘ dann Zone 2
+ber3: ✘ Einladung
+ber3: ✘ Einladung ansehen
+ber3: ✘ Einladung nur einmal
+ber3: ✘ Falsche PIN
+ber3: ✘ Falscher Geräteschlüssel
+ber3: ✘ Gekoppelt
+ber3: ✘ Gerät erkannt
+ber3: ✘ Modus Einladung
+ber3: ✘ Ohne Gerät gesperrt
+ber3: ✘ PIN ohne Gerät nutzlos
+ber3: ✘ QR-SVG
+ber3: ✘ Start mit Gerät + PIN
+ber3: ✘ Status mit Gerät
+ber3: ✘ Verbrauchter Code
+ber3: ✘ Zu kurze PIN
+ber: ✘ In Kopfzeile
+dbx: ✘ Excel + Datenbank in Dropbox, alte gelöscht
+dbx: ✘ Jetzt hochladen
+dbx: ✘ Protokoll
+dbx: ✘ Status zeigt letzten Export
+inact: ✘ 13 nicht da
+mod: ✘ Ersteinrichtung bietet Module an
+mod: ✘ Mit Personal → Zeiterfassung
+v114: ✘ Alte Buchungen behalten Namen
+v114: ✘ Mit offenem Betrag nicht löschbar
+v114: ✘ Mitglied entfernt PIN
+v114: ✘ Nach Abrechnung gelöscht (Historie bleibt)
+v114: ✘ Offener Betrag bleibt
+v114: ✘ Verkaufter Artikel entfernt, Historie bleibt
+zeit: ✘ Erweiterungen gelistet
+zeit: ✘ Link an mit Personal

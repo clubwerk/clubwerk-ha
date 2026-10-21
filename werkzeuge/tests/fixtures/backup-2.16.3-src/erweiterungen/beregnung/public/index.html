@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Beregnung</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.png">
+  <link rel="apple-touch-icon" href="icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1f6b3a">
+  <script src="theme-init.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="theme.css">
+  <link rel="stylesheet" href="kit.css">
+</head>
+<body class="vh-page">
+<header class="vh-top">
+  <div class="vh-logo hidden" id="logoBox"><img id="logo" alt="Vereinslogo"></div>
+  <h1 id="club">&nbsp;</h1>
+  <p id="subtitle">Bewässerungssteuerung</p>
+</header>
+<main class="vh-main">
+  <div class="vh-status"><span class="vh-dot busy" id="dot"></span><span id="st">Verbinde mit der Bewässerungsanlage …</span></div>
+  <p class="vh-note hidden" id="next"></p>
+  <div id="tiles" style="display:flex;flex-direction:column;gap:12px"></div>
+  <button class="vh-stop" id="stop">■ Alle Zonen ausschalten</button>
+  <p class="vh-note hidden" id="who"></p>
+</main>
+
+<div class="vh-sheet" id="pinSheet"><div class="vh-box">
+  <h2 id="pinTitle">PIN eingeben</h2>
+  <p id="pinText">Zur Bedienung der Bewässerung</p>
+  <input class="vh-input pin" id="pinIn" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
+  <div class="vh-err" id="pinErr"></div>
+  <div class="vh-row"><button class="no" id="pinNo">Abbrechen</button><button class="ok" id="pinOk">OK</button></div>
+</div></div>
+
+<div class="vh-sheet" id="loginSheet"><div class="vh-box">
+  <h2>Anmelden</h2>
+  <p>Die Beregnung ist nur mit persönlichem Zugang bedienbar.</p>
+  <input class="vh-input" id="loginUser" type="text" autocomplete="username" autocapitalize="none" placeholder="Benutzername">
+  <input class="vh-input" id="loginPw" type="password" autocomplete="current-password" placeholder="Passwort">
+  <div class="vh-err" id="loginErr"></div>
+  <div class="vh-row"><button class="ok" id="loginOk">Anmelden</button></div>
+</div></div>
+
+<div class="vh-sheet" id="lockSheet"><div class="vh-box">
+  <h2>Mitglieder-App</h2>
+  <p id="lockText">Die Beregnung ist nur für freigeschaltete Mitglieder in der Mitglieder-App bedienbar. Bitte beim Vorstand melden.</p>
+</div></div>
+
+<div class="vh-toast" id="toast"></div>
+<script src="plaetze.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

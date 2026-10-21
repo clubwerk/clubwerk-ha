@@ -1,0 +1,129 @@
+/* ---------- Grundlagen (Version 2.8: neues Design) ----------
+   Vereinsfarbe kommt aus theme.css (--green …) und taucht als Markenfarbe überall auf:
+   Hauptknöpfe, aktive Menüpunkte, Reiter, Schalter, Links, Kopfbereich. */
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(fonts/jakarta-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(fonts/jakarta-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+:root {
+  --green: #1f6b3a;
+  --green-dark: #164b29;
+  --green-soft: #e9f0eb;
+  --green-over: #d2e1d8;
+  --green-line: #b7d0c0;
+  --green-muted: #84ae93;
+  --brand: var(--green); --brand-ink: var(--green-dark); --brand-soft: var(--green-soft);
+  --ink: #131a16;
+  --muted: #5e6a63;
+  --faint: #8b958f;
+  --line: #e4e9e5;
+  --line-soft: #eef2ef;
+  --bg: #f5f7f5;
+  --card: #ffffff;
+  --field: #ffffff;
+  --hover: #f2f5f3;
+  --red: #b42318;
+  --red-soft: #fdecea;
+  --red-line: #f1c4be;
+  --amber: #8a4b08;
+  --amber-soft: #fdf3e2;
+  --amber-line: #f3ddb6;
+  --blue-soft: #e3f0fb;
+  --blue: #1c5d99;
+  --shadow: 0 1px 2px rgba(19,26,22,.04), 0 1px 3px rgba(19,26,22,.06);
+  --shadow-pop: 0 16px 40px rgba(19,26,22,.16), 0 2px 6px rgba(19,26,22,.06);
+  --radius: 16px;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: 'tnum' 0;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9efeb; --muted: #9ba69f; --faint: #6f7a74; --line: #26302a; --line-soft: #1e2722;
+  --bg: #0d1310; --card: #151c18; --field: #111814; --hover: #1b241f;
+  --red: #f4a79c; --red-soft: #2a1714; --red-line: #5a2a24;
+  --amber: #f2c580; --amber-soft: #2a2112; --amber-line: #5a4520;
+  --blue-soft: #132434; --blue: #8ec2f0;
+  --shadow: none; --shadow-pop: 0 16px 40px rgba(0,0,0,.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--line); font-weight: 600; color: var(--ink);
+  transition: background .15s, border-color .15s, transform .05s;
+}
+.btn:hover { background: var(--hover); }
+a.btn { text-decoration: none; color: var(--ink); }
+a.btn.primary { color: #fff; }
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }
+.btn.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+:root[data-theme="dark"] .btn.primary:hover { background: var(--green-muted); border-color: var(--green-muted); }
+.btn.primary:disabled { background: var(--green-muted); border-color: var(--green-muted); }
+.btn.danger { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--hover); }
+.btn.small { min-height: 34px; padding: 0 12px; font-size: 13.5px; border-radius: 9px; }
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 13px 20px; border-radius: 12px; box-shadow: var(--shadow-pop);
+  font-size: 15px; font-weight: 600; z-index: 50; max-width: 90vw; text-align: center;
+}
+.toast.error { background: var(--red); color: #fff; }
+:root[data-theme="dark"] .toast.error { color: #2a1714; }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+/* Kopfzeile am Tablet (alle Seiten, auch Erweiterungen) */
+#topnav a { white-space: nowrap; }
+@media (max-width: 640px) {
+  #topnav { flex-wrap: wrap; row-gap: 4px; column-gap: 18px !important; }
+}
+
+/* ---------- Kopfzeile am Tablet: auf allen Seiten identisch ----------
+   Links Vereinszeichen + Name, Mitte die Bereiche (gleich breite Reiter, exakt mittig), rechts Uhr + Verwaltung.
+   Links und rechts gleich breit, damit die Mitte wirklich mittig steht. Vereinsfarbe: Zeichen, Strich oben, aktive Markierung. */
+#gkHeader { display: grid; grid-template-columns: 296px minmax(0, 1fr) 296px; align-items: center; gap: 16px; height: 72px; padding: 0 24px;
+  background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); box-shadow: inset 0 3px 0 var(--brand); box-sizing: border-box; flex: none; }
+#gkHeader .brand { grid-column: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+#gkHeader .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; letter-spacing: .02em; }
+#gkHeader.haslogo .mark { display: none; }
+#gkHeader .logo-badge { display: flex; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #fff; border: 1px solid var(--line); padding: 3px; align-items: center; justify-content: center; box-sizing: border-box; }
+#gkHeader .logo-badge img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+#gkHeader .bt { display: flex; flex-direction: column; min-width: 0; }
+#gkHeader h1 { margin: 0; font-size: 16px; line-height: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gkHeader #club2 { font-size: 13px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gkHeader #club2:empty { display: none; }
+#gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: 148px; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); max-width: 100%; }
+#gkHeader .topnav a { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; border-radius: 10px; color: var(--muted); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; min-width: 0; overflow: hidden; }
+#gkHeader .topnav a span { overflow: hidden; text-overflow: ellipsis; }
+#gkHeader .topnav a.on { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(19,26,22,.12); }
+#gkHeader .topnav a.on svg { color: var(--brand); }
+#gkHeader .topnav .ext { font-size: 12px; opacity: .7; }
+#gkHeader .hright { grid-column: 3; grid-row: 1; justify-self: end; display: flex; align-items: center; gap: 16px; }
+#gkHeader .clock { font-size: 15px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#gkHeader .admin { height: 44px; display: flex; align-items: center; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+#gkHeader .admin.on { border-color: var(--brand); color: var(--brand-ink); }
+#gkHeader .hright, #gkHeader .brand { min-width: 0; overflow: hidden; }
+@media (max-width: 1100px) {
+  #gkHeader { grid-template-columns: minmax(0, 1fr) auto auto; gap: 12px; padding: 0 16px; }
+  #gkHeader .clock { display: none; }
+  #gkHeader .topnav { grid-auto-columns: minmax(0, 128px); }
+  #gkHeader .topnav a { padding: 0 8px; font-size: 14px; }
+}
+@media (max-width: 640px) {
+  #gkHeader { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 10px 12px; row-gap: 10px; }
+  #gkHeader .hright { grid-column: 2; }
+  #gkHeader .clock { display: none; }
+  #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
+  #gkHeader .topnav a { padding: 0 6px; font-size: 14px; }
+}

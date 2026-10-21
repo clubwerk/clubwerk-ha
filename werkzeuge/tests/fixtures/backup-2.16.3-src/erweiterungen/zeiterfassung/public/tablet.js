@@ -1,0 +1,118 @@
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const pad = n => String(n).padStart(2, '0');
+  const hm = min => `${Math.floor(min / 60)}:${pad(min % 60)}`;
+  const clock = ts => ts.slice(11, 16);
+  const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const dayLabel = ts => {
+    const d = new Date(ts.replace(' ', 'T')), t = new Date();
+    if (d.toDateString() === t.toDateString()) return 'heute';
+    const y = new Date(t); y.setDate(t.getDate() - 1);
+    if (d.toDateString() === y.toDateString()) return 'gestern';
+    return `${WD[d.getDay()]} ${pad(d.getDate())}.${pad(d.getMonth() + 1)}.`;
+  };
+  let state = { staff: [] };
+  let closeTimer = null;
+
+  function toast(msg, error = false) {
+    const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : '');
+    clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 3500);
+  }
+  async function api(url, body) {
+    const opts = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+    const r = await fetch(url, opts);
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401 && data.gate) { showGate(); throw Object.assign(new Error(data.error), { gate: true }); }
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status });
+    return data;
+  }
+
+
+  async function load() {
+    try { state = await api('../../api/tablet/x/zeiterfassung/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
+    // Vereinsname und Logo: gemeinsame Kopfzeile (nav.js)
+    render();
+  }
+
+  function render() {
+    $('staff').innerHTML = state.staff.map(s => {
+      const st = s.forgotten ? `nicht ausgestempelt seit ${dayLabel(s.in_since)} ${clock(s.in_since)}`
+        : s.in_since ? `da seit ${dayLabel(s.in_since) === 'heute' ? '' : dayLabel(s.in_since) + ' '}${clock(s.in_since)} Uhr`
+          : s.last_out ? `nicht da · zuletzt ${dayLabel(s.last_out)} ${clock(s.last_out)}` : 'nicht da';
+      return `<button data-id="${s.id}" class="${s.forgotten ? 'warn' : s.in_since ? 'isin' : ''}"><b>${esc(s.name)}</b><span class="job">${esc(s.job || '')}</span><span class="st">${st}</span></button>`;
+    }).join('');
+    $('hint').classList.toggle('hidden', !state.staff.length);
+    if (!state.staff.length) $('staff').innerHTML = '<p class="empty" style="grid-column:1/-1">Noch kein Personal angelegt – in der Verwaltung unter „Zeiterfassung“.</p>';
+    $('staff').querySelectorAll('button[data-id]').forEach(b => b.onclick = () => askPin(state.staff.find(s => s.id === Number(b.dataset.id))));
+  }
+
+  function closeDialog() { clearTimeout(closeTimer); $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; }
+
+  function askPin(s) {
+    let pin = '';
+    const goingOut = Boolean(s.in_since) && !s.forgotten;
+    $('dialog').className = 'dialog';
+    $('dialog').innerHTML = `<h2>${esc(s.name)}</h2><div class="sub">PIN eingeben zum <b>${goingOut ? 'Gehen' : 'Kommen'}</b></div>
+      <div class="pin-dots" id="dots"></div>
+      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}
+        <button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div>
+      <div class="err" id="perr"></div>`;
+    $('overlay').classList.remove('hidden');
+    const dots = () => { $('dots').innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<span class="${i < pin.length ? 'f' : ''}"></span>`).join(''); };
+    dots();
+    const submit = async () => {
+      if (pin.length < 4) { $('perr').textContent = 'Die PIN hat mindestens 4 Ziffern.'; return; }
+      try { done(await api('../../api/tablet/x/zeiterfassung/stamp', { staffId: s.id, pin })); }
+      catch (e) { if (e.gate) return closeDialog(); pin = ''; dots(); $('perr').textContent = e.message; }
+    };
+    $('dialog').querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
+      const k = b.dataset.k;
+      if (k === 'x') return closeDialog();
+      if (k === 'ok') return submit();
+      if (pin.length < 6) { pin += k; dots(); $('perr').textContent = ''; }
+    });
+    clearTimeout(closeTimer); closeTimer = setTimeout(closeDialog, 60000);
+  }
+
+  function done(r) {
+    const first = r.name.split(' ')[0];
+    const T = {
+      in: [`Hallo, ${first}!`, `Kommen ${clock(r.at)} Uhr`, '✓', ''],
+      'in-after-forgotten': [`Hallo, ${first}!`, `Kommen ${clock(r.at)} Uhr`, '✓', '<p class="note">Beim letzten Mal wurde nicht ausgestempelt. Bitte dem Vorstand sagen, wann Schluss war.</p>'],
+      out: [`Tschüss, ${first}!`, `Gehen ${clock(r.at)} Uhr`, '✓', ''],
+      undo: ['Zurückgenommen', 'Einstempeln gelöscht', '↺', '<p class="note">Du warst gerade erst eingestempelt – das wurde als Versehen gelöscht.</p>'],
+    }[r.action];
+    $('dialog').className = 'dialog done';
+    $('dialog').innerHTML = `<div class="big">${T[2]}</div><h2>${esc(T[0])}</h2><div class="when">${T[1]}</div>
+      <div class="kv">${r.action === 'out' ? `<span>Heute</span><b>${clock(r.since)} – ${clock(r.at)} · ${hm(r.today_minutes)} Std.</b>` : ''}
+        <span>${new Date().toLocaleString('de-DE', { month: 'long' })} bisher</span><b>${hm(r.month_minutes)} Std.</b></div>
+      ${T[3]}<button class="btn primary" id="okBtn">OK</button>`;
+    $('okBtn').onclick = closeDialog;
+    clearTimeout(closeTimer); closeTimer = setTimeout(closeDialog, 12000);
+    load();
+  }
+
+  /* Passwortschutz (wie Buchungsseite) */
+  let gateShown = false;
+  function showGate() {
+    if (gateShown) return; gateShown = true; closeDialog();
+    $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = '';
+    setTimeout(() => $('gatePw').focus(), 50);
+  }
+  async function gateLogin() {
+    try {
+      const r = await fetch('../../api/gate/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: $('gatePw').value }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { $('gateErr').textContent = d.error || 'Das hat nicht geklappt.'; return; }
+      gateShown = false; $('gate').classList.add('hidden'); load();
+    } catch (e) { $('gateErr').textContent = 'Keine Verbindung zum Server.'; }
+  }
+  $('gateGo').onclick = gateLogin;
+  $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
+
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  setInterval(() => { if ($('overlay').classList.contains('hidden')) load(); }, 30000);
+  load();
+})();

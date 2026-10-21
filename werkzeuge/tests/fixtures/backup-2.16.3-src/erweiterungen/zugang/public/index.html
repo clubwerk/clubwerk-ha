@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1f6b3a">
+  <title>Zugang</title>
+  <link rel="stylesheet" href="../../style.css">
+  <link rel="stylesheet" href="../../theme.css">
+  <link rel="stylesheet" href="../../kit.css">
+</head>
+<body class="vh-page embedded">
+<header id="gkHeader"></header>
+<main class="vh-main">
+  <div class="vh-status"><span class="vh-dot busy" id="dot"></span><span id="st">Verbinde …</span></div>
+  <div id="doors" style="display:flex;flex-direction:column;gap:12px"></div>
+  <p class="vh-note">Zum Öffnen antippen, deinen Namen wählen und deine App-PIN eingeben.</p>
+</main>
+<div class="vh-sheet" id="sheet"><div class="vh-box">
+  <h2 id="title">Tür öffnen</h2>
+  <p>Wer bist du? Name wählen und App-PIN eingeben.</p>
+  <select class="vh-select" id="who"></select>
+  <input class="vh-input pin" id="pin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
+  <div class="vh-err" id="err"></div>
+  <div class="vh-row"><button class="no" id="no">Abbrechen</button><button class="ok" id="ok">OK</button></div>
+</div></div>
+<div class="vh-toast" id="toast"></div>
+<script src="../../nav.js" data-base="../../" data-active="zugang"></script>
+<script src="doors.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

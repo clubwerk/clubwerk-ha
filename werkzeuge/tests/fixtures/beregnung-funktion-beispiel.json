@@ -1,0 +1,75 @@
+{
+  "format": "vereinsheim-funktion",
+  "module": "beregnung",
+  "name": "Beregnung",
+  "version": "1.2.0",
+  "exported": "2026-10-16 12:00:00",
+  "club": "TC Grün-Weiß Musterstadt",
+  "data": {
+    "vendor": "hydrawise_api",
+    "mode": "pin",
+    "stopFree": false,
+    "cooldownMin": 0,
+    "header": false,
+    "appName": "Beregnung",
+    "subtitle": "Bewässerungssteuerung",
+    "nextEntity": "",
+    "notify": "",
+    "plaetze": [
+      {
+        "name": "Platz 1",
+        "sub": "Erst Vorne, dann Hinten · je 2 min",
+        "zones": [
+          {
+            "ref": "1",
+            "label": "Vorne",
+            "sec": 120
+          },
+          {
+            "ref": "2",
+            "label": "Hinten",
+            "sec": 120
+          }
+        ]
+      },
+      {
+        "name": "Platz 2",
+        "sub": "Erst Vorne, dann Hinten · je 2 min",
+        "zones": [
+          {
+            "ref": "3",
+            "label": "Vorne",
+            "sec": 120
+          },
+          {
+            "ref": "4",
+            "label": "Hinten",
+            "sec": 120
+          }
+        ]
+      },
+      {
+        "name": "Platz 3",
+        "sub": "Eine Zone · 3 min",
+        "zones": [
+          {
+            "ref": "5",
+            "label": "",
+            "sec": 180
+          }
+        ]
+      },
+      {
+        "name": "Platz 4",
+        "sub": "Eine Zone · 3 min",
+        "zones": [
+          {
+            "ref": "6",
+            "label": "",
+            "sec": 180
+          }
+        ]
+      }
+    ]
+  }
+}

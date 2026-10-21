@@ -1,0 +1,3032 @@
+'use strict';
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
+const crypto = require('crypto');
+const { spawn } = require('child_process');
+const express = require('express');
+const backup = require('./backup');
+const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
+const { db, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit } = require('./db');
+const artIcons = require('./articleicons');
+const { securityAlert } = require('./security');
+/* v2.9: vorhandenen Artikeln einmalig ein passendes Symbol geben (danach frei änderbar) */
+if (!getSetting('art_icons_v1')) {
+  const upd = db.prepare('UPDATE articles SET icon = ? WHERE id = ?');
+  db.transaction(() => { for (const a of db.prepare('SELECT id, name, category FROM articles WHERE custom = 0 AND icon IS NULL').all()) { const k = artIcons.guess(a.name, a.category); if (k) upd.run(k, a.id); } })();
+  setSetting('art_icons_v1', '1');
+}
+const mail = require('./mail');
+const modules = require('./modules');
+const auth = require('./auth');
+const plugins = require('./plugins');
+const invoices = require('./invoices');
+const dropbox = require('./dropbox');
+const fullbackup = require('./fullbackup');
+const targets = require('./targets');
+const selfupdate = require('./selfupdate');
+const APP_VERSION = require('../package.json').version;
+const { buildWorkbook } = require('./export');
+const { seedIfEmpty, addMissingArticles } = require('./seed');
+
+const PORT = Number(process.env.PORT || 3100);
+const HOST = process.env.HOST || '0.0.0.0';
+const tls = require('./tls');
+// Innerer HTTP-Port: Seitenleiste von Home Assistant (INGRESS_PORT) bzw. bei HTTPS für interne Abrufe
+if (process.env.INGRESS_PORT) process.env.INTERNAL_PORT = process.env.INGRESS_PORT;
+else if (tls.enabled() && !process.env.INTERNAL_PORT) process.env.INTERNAL_PORT = String(PORT + 99);
+const UNDO_WINDOW_MIN = 2;
+
+seedIfEmpty();
+addMissingArticles();
+
+/* Notfall: Passwort des Adminkontos vergessen → in Home Assistant unter Add-on → Konfiguration
+   „notfall_passwort“ setzen und neu starten. Nur wer Home-Assistant-Admin ist, kommt dorthin. */
+(function emergencyPassword() {
+  const pw = process.env.EMERGENCY_PW || '';
+  if (!pw) return;
+  if (pw.length < 8 || pw.length > 200) { console.error('Notfall-Passwort ignoriert: 8 bis 200 Zeichen nötig.'); return; }
+  const authM = require('./auth');
+  let u = db.prepare('SELECT * FROM admin_users WHERE builtin = 1').get();
+  if (!u) { authM.createUser({ username: 'admin', name: 'Adminkonto', password: pw, role: 'oberadmin', builtin: true }); u = { username: 'admin' }; }
+  else { db.prepare('UPDATE admin_users SET active = 1 WHERE id = ?').run(u.id); authM.setPassword(u.id, pw); }
+  audit('system', 'Notfall-Passwort gesetzt', u.username);
+  console.log(`Notfall-Passwort für das Adminkonto „${u.username}“ gesetzt. Bitte die Option „notfall_passwort“ wieder leeren und das Add-on neu starten.`);
+})();
+
+const app = express();
+app.disable('x-powered-by');
+// Nur dem Home-Assistant-Ingress-Proxy glauben, wer der eigentliche Absender ist. Alle anderen Geräte im WLAN
+// könnten die Kopfzeile X-Forwarded-For fälschen und so die Bremse gegen Durchprobieren aushebeln.
+app.set('trust proxy', (process.env.TRUSTED_PROXY || '172.30.32.2').split(',').map(x => x.trim()).filter(Boolean));
+
+/* ---------- Sicherheits-Header ---------- */
+app.use(require('./security').hostGuard({ bypass: req => viaIngress(req) }));
+app.use(require('./security').hardenHeaders({ frame: 'SAMEORIGIN' }));
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
+  res.setHeader('Content-Security-Policy', [
+    "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
+    `frame-src 'self'${embedOrigins()}`, "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'",
+  ].join('; '));
+  next();
+});
+
+/* ---------- einfache Bremse gegen Durchprobieren (pro IP) ---------- */
+const hits = new Map();
+function rateLimit(key, max, windowMs) {
+  return (req, res, next) => {
+    const k = key + '|' + (req.ip || '?');
+    const now = Date.now();
+    const h = hits.get(k);
+    if (!h || h.reset < now) { hits.set(k, { n: 1, reset: now + windowMs }); return next(); }
+    if (++h.n > max) return res.status(429).json({ error: 'Zu viele Versuche. Bitte kurz warten.' });
+    next();
+  };
+}
+setInterval(() => { const now = Date.now(); for (const [k, v] of hits) if (v.reset < now) hits.delete(k); }, 60000).unref();
+
+app.use(express.json({ limit: '1mb' }));
+
+/* Admin-Änderungen nur mit eigenem Kopfzeilen-Feld → fremde Webseiten können nichts im Namen eines Admins auslösen */
+app.use('/api/admin', (req, res, next) => {
+  if (req.method === 'GET' || req.method === 'HEAD') return next();
+  if (req.get('X-Getraenke') !== '1') return res.status(403).json({ error: 'Anfrage abgelehnt.' });
+  next();
+});
+
+/* ---------- Vereinsfarbe ---------- */
+const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR : '#1f6b3a';
+const clubColor = () => { const c = getSetting('club_color', DEFAULT_COLOR); return /^#[0-9a-f]{6}$/i.test(c) ? c : DEFAULT_COLOR; };
+function mix(hex, to, t) {
+  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const b = to === 'white' ? [255, 255, 255] : to === 'black' ? [0, 0, 0] : [1, 3, 5].map(i => parseInt(to.slice(i, i + 2), 16));
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+function themeVars(c = clubColor()) {
+  return { green: c, 'green-dark': mix(c, 'black', 0.3), 'green-soft': mix(c, 'white', 0.9), 'green-over': mix(c, 'white', 0.8),
+    'green-line': mix(c, 'white', 0.68), 'green-muted': mix(c, 'white', 0.45) };
+}
+/* Dunkles Design: Vereinsfarbe bleibt erkennbar, Flächen dunkel, Schrift auf Vereinsfarbe-Tönen hell */
+function themeVarsDark(c = clubColor()) {
+  return { green: mix(c, 'white', 0.08), 'green-dark': mix(c, 'white', 0.55), 'green-soft': mix(c, '#0d1310', 0.78), 'green-over': mix(c, '#0d1310', 0.66),
+    'green-line': mix(c, '#0d1310', 0.55), 'green-muted': mix(c, '#0d1310', 0.35) };
+}
+app.get('/theme.css', (req, res) => {
+  res.type('text/css').set('Cache-Control', 'no-cache');
+  const css = o => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(';');
+  res.send(`:root{${css(themeVars())}}:root[data-theme="dark"]{${css(themeVarsDark())}}`);
+});
+app.get('/icon.svg', (req, res) => {
+  // Vereinslogo als Symbol, sofern es ein SVG ist – sonst das neutrale Getränke-Symbol in Vereinsfarbe
+  const l = logoInfo();
+  let svg;
+  if (l && l.type === 'svg') svg = l.custom ? Buffer.from(getSetting('club_logo', ''), 'base64').toString('utf8') : fs.readFileSync(DEFAULT_LOGO, 'utf8');
+  else svg = fs.readFileSync(path.join(__dirname, '..', 'public', 'icon.svg'), 'utf8').replace(/#1f6b3a/gi, clubColor())
+    .replace(/#e8f2ea/gi, themeVars()['green-soft']);
+  res.type('image/svg+xml').set({ 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" }).send(svg);
+});
+
+/* ---------- Vereinslogo (liegt in der Datenbank → steckt in jeder Sicherung) ---------- */
+const LOGO_TYPES = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
+const DEFAULT_LOGO = path.join(__dirname, '..', 'public', 'vereinslogo.svg');
+function logoInfo() {
+  const type = getSetting('club_logo_type');
+  if (type && LOGO_TYPES[type]) return { type, ver: getSetting('club_logo_ver', '1'), custom: true };
+  if (fs.existsSync(DEFAULT_LOGO)) return { type: 'svg', ver: 'std', custom: false };
+  return null;
+}
+const logoUrl = () => { const l = logoInfo(); return l ? `vereinslogo?v=${encodeURIComponent(l.ver)}` : null; };
+/** Erkennt das Bildformat am Inhalt; SVGs werden auf gefährliche Bestandteile geprüft und bereinigt. */
+function checkLogo(buf) {
+  if (!buf || !buf.length) return { error: 'Keine Datei empfangen.' };
+  if (buf.length > 2 * 1024 * 1024) return { error: 'Das Logo ist zu groß (max. 2 MB).' };
+  if (buf.slice(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return { type: 'png', data: buf };
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { type: 'jpg', data: buf };
+  if (buf.slice(0, 4).toString() === 'RIFF' && buf.slice(8, 12).toString() === 'WEBP') return { type: 'webp', data: buf };
+  let s = buf.toString('utf8').replace(/^﻿/, '');
+  if (!/<svg[\s>]/i.test(s)) return { error: 'Bitte ein Logo als SVG, PNG, JPG oder WebP hochladen.' };
+  if (/<!ENTITY|<!DOCTYPE[^>]*\[/i.test(s)) return { error: 'SVG mit eingebetteten Definitionen wird nicht angenommen.' };
+  if (/<\s*(script|foreignObject|iframe|embed|object|audio|video|handler|listener)\b/i.test(s)) return { error: 'Das SVG enthält Skripte oder eingebettete Inhalte – bitte eine einfache SVG-Datei verwenden.' };
+  // auch versteckte Varianten ablehnen: Zeichen-Codes (&#…), Namensräume (svg:script), Animation von Verweisen
+  if (/&#|\bscript\b|<\s*[\w-]+:(script|foreignObject|iframe|embed|object|handler|listener)\b|attributeName\s*=\s*["']?\s*(xlink:)?href/i.test(s)) return { error: 'Das SVG enthält Skripte oder versteckte Inhalte – bitte eine einfache SVG-Datei verwenden (oder PNG).' };
+  s = s.replace(/<\?xml[^>]*\?>/gi, '').replace(/<!DOCTYPE[^>]*>/gi, '').replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/\son[a-z]+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '')                       // Ereignis-Attribute
+    .replace(/\s(?:xlink:)?href\s*=\s*("|')\s*(?!#|data:image\/(?:png|jpe?g|gif|webp);)[^"']*\1/gi, '') // nur interne Verweise
+    .replace(/url\(\s*(['"]?)\s*(?!#)[^)]*\)/gi, 'none')                                  // keine externen CSS-Quellen
+    .replace(/@import[^;]*;?/gi, '');
+  if (/javascript:/i.test(s)) return { error: 'Das SVG enthält Skripte – bitte eine einfache SVG-Datei verwenden.' };
+  return { type: 'svg', data: Buffer.from(s.trim(), 'utf8') };
+}
+app.get('/vereinslogo', (req, res) => {
+  const l = logoInfo();
+  if (!l) return res.status(404).end();
+  const data = l.custom ? Buffer.from(getSetting('club_logo', ''), 'base64') : fs.readFileSync(DEFAULT_LOGO);
+  res.set({ 'Content-Type': LOGO_TYPES[l.type], 'Cache-Control': req.query.v ? 'public, max-age=31536000, immutable' : 'no-cache',
+    'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src data:", 'Content-Disposition': 'inline' });
+  res.send(data);
+});
+/* Symbol für Home-Bildschirm/Manifest: aus dem Logo erzeugtes PNG, sonst ein PNG/JPG-Logo, sonst das Standard-Symbol */
+const iconFresh = () => Boolean(getSetting('club_icon', '')) && getSetting('club_icon_ver', '') === getSetting('club_logo_ver', 'std');
+app.get('/vereinsicon.png', (req, res) => {
+  res.set('Cache-Control', 'no-cache');
+  if (iconFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon', ''), 'base64'));
+  const l = logoInfo();
+  if (l && l.custom && (l.type === 'png' || l.type === 'jpg')) return res.type(LOGO_TYPES[l.type]).send(Buffer.from(getSetting('club_logo', ''), 'base64'));
+  res.sendFile(path.join(__dirname, '..', 'public', 'icon-512.png'));
+});
+app.get('/api/branding', (req, res) => {
+  const l = logoInfo();
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), iconNeeded: Boolean(l) && !iconFresh() });
+});
+
+/* Ohne Modul „Getränke“ zeigt die Startseite das erste aktive Modul mit Tablet-Seite (sonst eine schlichte Startseite) */
+app.get(['/', '/index.html'], (req, res, next) => {
+  if (plugins.isActive('getraenke')) return next();
+  const first = plugins.tabletNav().find(i => i.href);
+  res.redirect(302, first ? first.href : 'start.html');
+});
+
+app.use('/app', (req, res) => res.status(404).end());
+// Seiten der Erweiterungen binden die gemeinsamen Stile relativ ein („style.css“) – am Tablet liegen sie zwei Ebenen höher
+app.get(/^\/x\/[a-z0-9-]+\/(style|kit|theme)\.css$/, (req, res) => res.redirect(302, '../../' + req.path.split('/').pop()));   // Mitglieder-App nur über ihren eigenen Port
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  extensions: ['html'],
+  setHeaders: (res, file) => { if (/\.(html|js|css|webmanifest)$/.test(file)) res.setHeader('Cache-Control', 'no-cache'); },
+}));
+
+/* ---------- Hilfen ---------- */
+/** Freischaltungen der Module (Beregnung, Zugang …) eines Mitglieds entfernen – vor Löschen/Zusammenführen */
+function dropMemberExtras(memberId) {
+  db.prepare('DELETE FROM member_devices WHERE member_id = ?').run(memberId);
+  db.prepare('DELETE FROM member_access WHERE member_id = ?').run(memberId);
+}
+const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
+const int = (v, d = 0) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : d);
+const bad = (res, msg, code = 400) => res.status(code).json({ error: msg });
+const asyncRoute = fn => (req, res) => Promise.resolve(fn(req, res)).catch(err => {
+  console.error(err);
+  bad(res, 'Interner Fehler – bitte im Add-on-Protokoll nachsehen.', 500);
+});
+/** Namen: Leerzeichen glätten, keine Steuerzeichen, kein =,+,-,@ am Anfang (Schutz für Excel). */
+const cleanName = (v, max = 80) => String(v || '').replace(/[\u0000-\u001f<>{}]/g, '').replace(/\s+/g, ' ').trim()
+  .replace(/^[=+\-@]+/, '').slice(0, max);
+
+function defaultRange(q) {
+  const last = lastSettlement();
+  let from = isDate(q.from) ? q.from : null;
+  if (!from) {
+    if (last) {
+      const d = new Date(last + 'T12:00:00');
+      d.setDate(d.getDate() + 1);
+      from = d.toISOString().slice(0, 10);
+    } else {
+      from = '2000-01-01';
+    }
+  }
+  const to = isDate(q.to) ? q.to : today();
+  if (!isDate(q.from) && from > to) from = to;     // heute komplett abgerechnet → Auswertung ab heute
+  return { from, to };
+}
+
+/** Offene Konto-Buchungen (noch nicht als abgerechnet markiert) */
+const OPEN_KONTO = `kind = 'konto' AND cancelled_at IS NULL AND settled_id IS NULL`;
+function memberBalance(memberId) {
+  return db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS cents, COALESCE(SUM(qty),0) AS items
+    FROM bookings WHERE member_id = ? AND ${OPEN_KONTO}`).get(memberId);
+}
+const nowTs = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
+/** Stand einer Liste: Zeitpunkt + höchste Buchungsnummer. Was danach eingetragen (auch rückdatiert nachgetragen)
+ *  oder von einer Veranstaltung übernommen wurde, gehört nicht dazu. */
+const maxBookingId = () => db.prepare('SELECT COALESCE(MAX(id),0) n FROM bookings').get().n;
+const CUT = p => `${p}id <= ? AND ${p}created_at <= ? AND (${p}transferred_at IS NULL OR ${p}transferred_at <= ?)`;
+const isTs = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(v);
+
+function validPin(pin) {
+  return typeof pin === 'string' && /^\d{4,6}$/.test(pin);
+}
+
+/* =====================================================================
+   Tablet
+   ===================================================================== */
+/* „Ich bin öfter hier“: Anzahl und Zeitraum stellt ein Admin mit allen Rechten ein */
+const topN = () => Math.max(0, Math.min(60, int(getSetting('top_n', '15'), 15)));
+const topDays = () => Math.max(1, Math.min(365, int(getSetting('top_days', '30'), 30)));
+
+function activeEvent(withGuests = false) {
+  const ev = db.prepare('SELECT id, name, date FROM events WHERE active = 1 AND closed_at IS NULL LIMIT 1').get();
+  if (!ev) return null;
+  ev.articles = db.prepare(`SELECT a.id, a.name, a.category, ea.price_cents, a.icon, a.image
+    FROM event_articles ea JOIN articles a ON a.id = ea.article_id
+    WHERE ea.event_id = ? AND a.custom = 0 ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(ev.id);
+  if (withGuests) {
+    // Für die Namensliste am Tablet: keine Beträge, nur ob jemand schon alles bezahlt hat
+    ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id AS memberId, m.pin_hash IS NOT NULL AS hasPin,
+        (SELECT COUNT(*) FROM bookings b WHERE b.event_guest_id = g.id AND b.cancelled_at IS NULL) AS n,
+        (SELECT COUNT(*) FROM bookings b WHERE b.event_guest_id = g.id AND b.cancelled_at IS NULL AND b.kind = 'event'
+           AND b.payment_id IS NULL AND b.transferred_at IS NULL) AS openN
+      FROM event_guests g LEFT JOIN members m ON m.id = g.member_id
+      WHERE g.event_id = ? ORDER BY name_key(g.name, 'mitglied')`).all(ev.id)
+      .map(g => ({ id: g.id, name: g.name, memberId: g.memberId, paid: g.n > 0 && g.openN === 0, open_cents: guestOpen(g.id) }));
+  }
+  return ev;
+}
+
+/** Offene (noch nicht bezahlte, nicht übernommene) Buchungen eines Namens auf der Veranstaltungsliste */
+const OPEN_GUEST = `kind = 'event' AND cancelled_at IS NULL AND payment_id IS NULL AND transferred_at IS NULL`;
+function guestOpen(guestId) {
+  return db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS cents FROM bookings WHERE event_guest_id = ? AND ${OPEN_GUEST}`).get(guestId).cents;
+}
+/** Namen auf die Liste der laufenden Veranstaltung setzen (oder vorhandenen Eintrag zurückgeben). */
+function addGuest(ev, { memberId, name }, by) {
+  if (memberId) {
+    const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1").get(int(memberId));
+    if (!m) throw new Error('Mitglied nicht gefunden.');
+    if (!['mitglied', 'mannschaft'].includes(m.kind)) throw new Error('Dieses Konto kann nicht auf die Liste.');
+    const g = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND member_id = ?').get(ev.id, m.id);
+    if (g) return g;
+    const id = Number(db.prepare('INSERT INTO event_guests(event_id, name, member_id, created_by) VALUES (?,?,?,?)').run(ev.id, m.name, m.id, by).lastInsertRowid);
+    return db.prepare('SELECT * FROM event_guests WHERE id = ?').get(id);
+  }
+  const n = cleanName(name, 60);
+  if (n.length < 2) throw new Error('Bitte einen Namen eingeben.');
+  const g = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND lower(name) = lower(?)').get(ev.id, n);
+  if (g) return g;
+  // Genau ein aktives Mitglied mit diesem Namen → gleich verknüpfen
+  const m = db.prepare("SELECT * FROM members WHERE lower(name) = lower(?) AND active = 1 AND kind IN ('mitglied','mannschaft')").all(n);
+  if (m.length === 1) return addGuest(ev, { memberId: m[0].id }, by);
+  if (db.prepare('SELECT COUNT(*) n FROM event_guests WHERE event_id = ?').get(ev.id).n >= 500) throw new Error('Die Liste ist voll.');
+  const id = Number(db.prepare('INSERT INTO event_guests(event_id, name, created_by) VALUES (?,?,?)').run(ev.id, n, by).lastInsertRowid);
+  return db.prepare('SELECT * FROM event_guests WHERE id = ?').get(id);
+}
+function guestResponse(g, ev) {
+  const r = { token: auth.issueTabletToken('guest:' + g.id), guest: { id: g.id, name: g.name, memberId: g.member_id },
+    event: { id: ev.id, name: ev.name }, private: guestPrivateOk(g) };
+  if (r.private) r.open_cents = guestOpen(g.id);
+  return r;
+}
+
+/** Die 30 Mitglieder mit den meisten Getränken in den letzten 90 Tagen. */
+function topMembers() {
+  return db.prepare(`SELECT b.member_id AS id, SUM(b.qty) AS n
+    FROM bookings b JOIN members m ON m.id = b.member_id
+    WHERE b.cancelled_at IS NULL AND m.kind = 'mitglied' AND m.active = 1
+      AND b.kind IN ('konto','event') AND date(b.created_at) >= date('now','localtime', ?)
+    GROUP BY b.member_id ORDER BY n DESC LIMIT ?`).all(`-${topDays()} days`, topN()).map(r => r.id);
+}
+
+function eventOpen(memberId) {
+  return db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS cents FROM bookings
+    WHERE member_id = ? AND event_guest_id IS NOT NULL AND ${OPEN_GUEST}`).get(memberId).cents;
+}
+
+/* ---------- Optional: Buchungsseite mit Masterpasswort schützen ----------
+   Ist ein Passwort gesetzt, braucht jedes Gerät einmal das Passwort und bekommt dann ein langlebiges Cookie.
+   Passwort ändern oder „alle Geräte abmelden“ macht alle bisherigen Freigaben ungültig.
+   Ohne Passwort durch: angemeldete Admins am selben Gerät und Aufrufe über die Home-Assistant-Seitenleiste (Ingress). */
+const GATE_COOKIE = 'gtablet';
+const GATE_MAX_AGE = 400 * 24 * 3600;      // Höchstwert, den Browser für Cookies erlauben
+const INGRESS_IPS = (process.env.TRUSTED_PROXY || '172.30.32.2').split(',').map(x => x.trim()).filter(Boolean);
+const gateOn = () => Boolean(getSetting('tablet_pw_hash'));
+function gateSecret() {
+  let k = getSetting('tablet_gate_secret');
+  if (!k) { k = crypto.randomBytes(32).toString('hex'); setSetting('tablet_gate_secret', k); }
+  return k;
+}
+const gateVer = () => getSetting('tablet_pw_ver', '1');
+const gateSig = ver => crypto.createHmac('sha256', gateSecret()).update('buchungsseite:' + ver).digest('hex');
+const viaIngress = req => Boolean(req.get('X-Ingress-Path')) && INGRESS_IPS.includes(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''));
+function gateCookieOk(req) {
+  const [ver, sig] = String(auth.parseCookies(req)[GATE_COOKIE] || '').split('.');
+  if (!ver || !sig || ver !== gateVer()) return false;
+  const a = Buffer.from(sig, 'hex'), b = Buffer.from(gateSig(ver), 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+const gateOk = req => !gateOn() || gateCookieOk(req) || viaIngress(req) || Boolean(auth.currentUser(req));
+const gateCookie = req => `${GATE_COOKIE}=${gateVer()}.${gateSig(gateVer())}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${GATE_MAX_AGE}${req.secure ? '; Secure' : ''}`;
+
+app.get('/api/gate', (req, res) => res.json({ on: gateOn(), ok: gateOk(req) }));
+const gateAll = require('./security').limiter({ per: 30, baseMs: 15 * 60000 });   // insgesamt, über alle Geräte
+app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => {
+  if (!gateOn()) return res.json({ ok: true });
+  const wait = gateAll.blocked('all');
+  if (wait) return bad(res, `Zu viele falsche Passwörter – bitte in ${wait} Min. erneut versuchen.`, 429);
+  const pw = String((req.body || {}).password || '');
+  if (!pw || !auth.verifySecret(pw, getSetting('tablet_pw_hash'))) {
+    if (gateAll.fail('all').locked) securityAlert('Für die Buchungsseite wurde 30-mal ein falsches Passwort eingegeben. Neue Geräte können sich vorübergehend nicht freischalten; bereits freigeschaltete Tablets funktionieren weiter.', 'gate-all');
+    audit(null, 'Buchungsseite: falsches Passwort', req.ip);
+    return bad(res, 'Das Passwort stimmt nicht.', 401);
+  }
+  audit(null, 'Buchungsseite freigeschaltet', `${req.ip} · ${String(req.get('User-Agent') || '').slice(0, 120)}`);
+  res.setHeader('Set-Cookie', gateCookie(req));
+  res.json({ ok: true });
+});
+app.use('/api/tablet', (req, res, next) => {
+  if (gateOk(req)) return next();
+  res.status(401).json({ error: 'Die Buchungsseite ist geschützt – bitte das Passwort eingeben.', gate: true });
+});
+
+// Pfad normalisiert prüfen (Groß-/Kleinschreibung, Schrägstrich am Ende) – Express nimmt beide Schreibweisen an
+const normPath = p => String(p || '').toLowerCase().replace(/\/+$/, '').replace(/\/{2,}/g, '/');
+const DRINK_TABLET = /^\/api\/tablet\/(state|unlock|undo|book|account|pin|member|tab|tab\/pay|event\/guest|logout|artikelbild(\/.*)?)$/;
+app.use((req, res, next) => (DRINK_TABLET.test(normPath(req.path)) && !plugins.isActive('getraenke')
+  ? res.status(404).json({ error: 'Das Modul „Getränke“ ist ausgeschaltet.' }) : next()));
+
+app.get('/api/tablet/artikelbild/:file', (req, res) => {
+  const p = artIcons.imagePath(DATA_DIR, req.params.file);
+  if (!p) return res.status(404).end();
+  res.setHeader('Content-Type', artIcons.mimeOf(req.params.file));
+  res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.sendFile(p);
+});
+
+app.get('/api/tablet/state', (req, res) => {
+  const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin
+    FROM members WHERE active = 1 AND deleted = 0 ORDER BY name_key(name, kind)`).all()
+    .map(m => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending) }));
+  const stock = new Map(stockList().map(s => [s.id, s]));
+  const articles = db.prepare('SELECT id, name, category, price_cents, icon, image FROM articles WHERE active = 1 AND custom = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all()
+    .map(a => {
+      const s = stock.get(a.id);
+      return { ...a, soldOut: Boolean(s && s.track_stock && s.delivered > 0 && s.stock <= 0) };
+    });
+  res.json({
+    clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'),
+    members, articles, top: topN() ? topMembers() : [], topDays: topDays(), event: activeEvent(true), color: clubColor(), logo: logoUrl(),
+    tabs: openTabs(),
+  });
+});
+
+/* Datenschutz: Offene Beträge und Buchungsverlauf gibt es am Tablet nur für Konten mit PIN.
+   (Ein Token für ein Konto mit PIN wird nur nach richtiger PIN ausgegeben.) */
+const privateOk = m => Boolean(m && m.pin_hash);
+// Veranstaltungsliste ist exklusiv (nur Buchungen dieser Veranstaltung, nie das Getränkekonto) –
+// das Thekenpersonal muss sie für jeden sehen können, auch ohne PIN
+const guestPrivateOk = () => true;
+
+function unlockResponse(m) {
+  const r = {
+    token: auth.issueTabletToken(m.id),
+    member: { id: m.id, name: m.name, kind: m.kind, hasPin: Boolean(m.pin_hash), pending: Boolean(m.pending) },
+    private: privateOk(m),
+  };
+  if (r.private) { r.balance = memberBalance(m.id); r.eventOpen_cents = eventOpen(m.id); }
+  return r;
+}
+
+app.post('/api/tablet/unlock', rateLimit('unlock', 40, 60000), (req, res) => {
+  const { memberId, eventId, guestId, tabId, pin } = req.body || {};
+  if (tabId) {
+    const t = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(tabId));
+    if (!t) return bad(res, 'Dieser Deckel ist schon bezahlt oder geschlossen.', 404);
+    return res.json(tabResponse(t));
+  }
+  if (guestId) {
+    const ev = activeEvent();
+    const g = ev && db.prepare('SELECT * FROM event_guests WHERE id = ? AND event_id = ?').get(int(guestId), ev.id);
+    if (!g) return bad(res, 'Dieser Name steht nicht auf der Liste der laufenden Veranstaltung.', 404);
+    return res.json(guestResponse(g, ev));             // Thekenbetrieb: keine PIN
+  }
+  if (eventId) {
+    const ev = activeEvent();
+    if (!ev || ev.id !== int(eventId)) return bad(res, 'Diese Veranstaltung ist nicht aktiv.');
+    return res.json({ token: auth.issueTabletToken('event:' + ev.id), event: { id: ev.id, name: ev.name } });
+  }
+  const m = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(int(memberId));
+  if (!m) return bad(res, 'Konto nicht gefunden.', 404);
+  if (m.kind === 'mannschaft' && !m.pin_hash) return bad(res, 'Für dieses Mannschaftskonto ist noch keine PIN vergeben – bitte an den Vorstand wenden.', 403);
+  if (m.pin_hash) {
+    const err = checkPin(m, pin);
+    if (err) return bad(res, err.msg, err.code);
+  }
+  res.json(unlockResponse(m));
+});
+
+/** PIN prüfen inkl. Sperre nach 5 Fehlversuchen. Die Sperre verdoppelt sich bei jeder weiteren Fehlserie
+ *  (5 min, 10, 20, 40 … höchstens 24 h) und steht im Protokoll. Gibt null oder { msg, code } zurück. */
+function checkPin(m, pin) {
+  if (m.locked_until && m.locked_until > new Date().toISOString()) {
+    const until = new Date(m.locked_until).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit', timeZone: process.env.TZ || 'Europe/Berlin' });
+    return { msg: `Zu viele falsche PINs – gesperrt bis ${until} Uhr. Der Vorstand kann die PIN zurücksetzen.`, code: 429 };
+  }
+  if (!auth.verifySecret(String(pin || ''), m.pin_hash)) {
+    const fails = m.failed_pins + 1;
+    if (fails >= 5) {
+      const strikes = (m.pin_strikes || 0) + 1;
+      const mins = Math.min(5 * 2 ** (strikes - 1), 24 * 60);
+      db.prepare('UPDATE members SET failed_pins = 0, pin_strikes = ?, locked_until = ? WHERE id = ?')
+        .run(strikes, new Date(Date.now() + mins * 60000).toISOString(), m.id);
+      audit('tablet', 'PIN gesperrt', `${m.name}: 5 falsche PINs, Sperre ${mins >= 60 ? Math.round(mins / 60) + ' h' : mins + ' min'}`);
+    } else db.prepare('UPDATE members SET failed_pins = ? WHERE id = ?').run(fails, m.id);
+    return { msg: 'PIN falsch.', code: 401 };
+  }
+  if (m.failed_pins || m.pin_strikes || m.locked_until) db.prepare('UPDATE members SET failed_pins = 0, pin_strikes = 0, locked_until = NULL WHERE id = ?').run(m.id);
+  return null;
+}
+
+/* Veranstaltung: Namen am Tablet auf die Abrechnungsliste setzen (aus der Mitgliederliste oder frei) */
+app.post('/api/tablet/event/guest', rateLimit('guest', 40, 10 * 60000), (req, res) => {
+  const ev = activeEvent();
+  if (!ev) return bad(res, 'Es läuft gerade keine Veranstaltung.');
+  const { memberId, name } = req.body || {};
+  let g;
+  try { g = addGuest(ev, { memberId, name }, 'tablet'); } catch (e) { return bad(res, e.message); }
+  res.json(guestResponse(g, ev));
+});
+
+/* ---------- Gäste-Deckel ---------- */
+const tabOpen = id => db.prepare('SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE tab_id = ? AND cancelled_at IS NULL').get(id).c;
+function openTabs() {
+  return db.prepare(`SELECT t.id, t.name, t.created_at FROM guest_tabs t WHERE t.status = 'offen' ORDER BY t.created_at`).all()
+    .map(t => ({ ...t, open_cents: tabOpen(t.id) }));
+}
+function tabResponse(t) {
+  return { token: auth.issueTabletToken('tab:' + t.id), tab: { id: t.id, name: t.name }, open_cents: tabOpen(t.id) };
+}
+/* Neuen Deckel öffnen – gibt es schon einen offenen mit diesem Namen, wird der genommen */
+app.post('/api/tablet/tab', rateLimit('tab', 30, 10 * 60000), (req, res) => {
+  if (activeEvent()) return bad(res, 'Während der Veranstaltung bitte die Veranstaltungsliste nutzen.');
+  const name = cleanName((req.body || {}).name, 60);
+  if (name.length < 2) return bad(res, 'Bitte einen Namen eingeben, z. B. „Gastmannschaft SV Musterdorf“.');
+  let t = db.prepare("SELECT * FROM guest_tabs WHERE status = 'offen' AND lower(name) = lower(?)").get(name);
+  if (!t) {
+    if (db.prepare("SELECT COUNT(*) n FROM guest_tabs WHERE status = 'offen'").get().n >= 60) return bad(res, 'Zu viele offene Deckel. Bitte erst welche bezahlen lassen.');
+    const id = Number(db.prepare("INSERT INTO guest_tabs(name, created_by) VALUES (?, 'tablet')").run(name).lastInsertRowid);
+    t = db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(id);
+    audit('tablet', 'Gäste-Deckel geöffnet', name);
+  }
+  res.json(tabResponse(t));
+});
+/* Bezahlen am Tablet (Thekenpersonal): Deckel komplett bar oder mit Karte */
+app.post('/api/tablet/tab/pay', rateLimit('tabpay', 30, 10 * 60000), (req, res) => {
+  const { token, method } = req.body || {};
+  const who = auth.checkTabletToken(token);
+  if (typeof who !== 'string' || !who.startsWith('tab:')) return bad(res, 'Sitzung abgelaufen. Bitte den Deckel erneut wählen.', 401);
+  if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
+  const t = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(who.slice(4)));
+  if (!t) return bad(res, 'Dieser Deckel ist schon geschlossen.');
+  const cents = closeTab(t, { status: 'bezahlt', method, by: 'tablet' });
+  auth.dropTabletToken(token);
+  res.json({ ok: true, cents, method, name: t.name });
+});
+/** Deckel schließen (bezahlt / übernommen / abgeschrieben). Leere Deckel werden einfach gelöscht. */
+function closeTab(t, { status, method = null, by, memberId = null, note = null }) {
+  const cents = tabOpen(t.id);
+  db.transaction(() => {
+    if (!cents && !db.prepare('SELECT 1 FROM bookings WHERE tab_id = ? AND cancelled_at IS NULL').get(t.id)) {
+      db.prepare('UPDATE bookings SET tab_id = NULL WHERE tab_id = ?').run(t.id);
+      db.prepare('DELETE FROM guest_tabs WHERE id = ?').run(t.id);
+      return;
+    }
+    db.prepare(`UPDATE guest_tabs SET status = ?, method = ?, cents = ?, member_id = ?, note = ?, closed_at = datetime('now','localtime'), closed_by = ? WHERE id = ?`)
+      .run(status, method, cents, memberId, note, by, t.id);
+    if (status === 'bezahlt') db.prepare('UPDATE bookings SET paid_cash = 1 WHERE tab_id = ? AND cancelled_at IS NULL').run(t.id);
+    if (status === 'uebernommen') db.prepare(`UPDATE bookings SET kind = 'konto', member_id = ?, transferred_at = datetime('now','localtime'), transferred_by = ?
+      WHERE tab_id = ? AND cancelled_at IS NULL`).run(memberId, by, t.id);
+    if (status === 'abgeschrieben') db.prepare("UPDATE bookings SET kind = 'verein', total_cents = 0 WHERE tab_id = ? AND cancelled_at IS NULL").run(t.id);
+  })();
+  const what = { bezahlt: method === 'karte' ? 'mit Karte bezahlt' : 'bar bezahlt', uebernommen: 'auf Konto übernommen', abgeschrieben: 'abgeschrieben' }[status];
+  audit(by, 'Gäste-Deckel ' + what, `${t.name}: ${(cents / 100).toFixed(2)} €${note ? ' – ' + note : ''}`);
+  return cents;
+}
+
+/* Neu im Verein: jeder darf sich am Tablet anlegen, ein Admin bestätigt später. */
+app.post('/api/tablet/member', rateLimit('member', 5, 10 * 60000), (req, res) => {
+  const name = cleanName((req.body || {}).name, 61);
+  if (name.length < 5 || name.split(' ').length < 2) return bad(res, 'Bitte Vor- und Nachnamen eingeben.');
+  if (name.length > 60 || /[<>{}]/.test(name)) return bad(res, 'Bitte nur den Namen eingeben.');
+  const same = db.prepare('SELECT * FROM members WHERE lower(name) = lower(?) AND deleted = 0').get(name);
+  if (same && same.active) return bad(res, `„${same.name}“ gibt es schon – bitte in der Namensliste suchen.`);
+  if (same && !same.active) return bad(res, 'Dieser Name ist gesperrt. Bitte an den Vorstand wenden.');
+  const today = db.prepare(`SELECT COUNT(*) n FROM members WHERE pending = 1 AND date(created_at) = date('now','localtime')`).get().n;
+  if (today >= 15) return bad(res, 'Heute wurden schon viele neue Namen angelegt. Bitte an den Vorstand wenden.', 429);
+  const id = Number(db.prepare("INSERT INTO members(name, kind, pending) VALUES (?, 'mitglied', 1)").run(name).lastInsertRowid);
+  res.json(unlockResponse(db.prepare('SELECT * FROM members WHERE id = ?').get(id)));
+});
+
+app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
+  const { token, items, pay } = req.body || {};
+  const who = auth.checkTabletToken(token);
+  if (!who) return bad(res, 'Sitzung abgelaufen. Bitte Namen erneut wählen.', 401);
+  if (!Array.isArray(items) || !items.length) return bad(res, 'Keine Artikel gewählt.');
+  const ev = activeEvent();
+
+  let member = null, guest = null, tab = null, kind, paidCash = null;
+  if (typeof who === 'string' && who.startsWith('tab:')) {
+    tab = db.prepare("SELECT * FROM guest_tabs WHERE id = ? AND status = 'offen'").get(int(who.slice(4)));
+    if (!tab) return bad(res, 'Dieser Deckel ist schon bezahlt oder geschlossen.', 401);
+    if (ev) return bad(res, 'Während der Veranstaltung bitte die Veranstaltungsliste nutzen.');
+    kind = 'gast'; paidCash = 0;                          // angeschrieben, bezahlt wird am Ende
+  } else if (typeof who === 'string' && who.startsWith('event:')) {
+    if (!ev || ev.id !== int(who.slice(6))) return bad(res, 'Die Veranstaltung ist beendet.');
+    kind = 'event'; paidCash = 1;                         // Barverkauf ohne Namen
+  } else if (typeof who === 'string' && who.startsWith('guest:')) {
+    guest = db.prepare('SELECT * FROM event_guests WHERE id = ?').get(int(who.slice(6)));
+    if (!guest || !ev || guest.event_id !== ev.id) return bad(res, 'Die Veranstaltung ist beendet.', 401);
+    kind = 'event'; paidCash = 0;                         // wird auf der Veranstaltungsliste angeschrieben
+  } else {
+    member = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(who);
+    if (!member) return bad(res, 'Konto nicht gefunden.');
+    kind = { mitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[member.kind];
+    if (ev && (kind === 'verein' || kind === 'gast')) return bad(res, 'Während der Veranstaltung wird nur auf die Veranstaltungsliste gebucht – für Gäste „Barverkauf ohne Namen“.');
+    if (ev && kind === 'konto') {                         // während einer Veranstaltung immer auf deren Liste
+      guest = addGuest(ev, { memberId: member.id }, 'tablet');
+      kind = 'event'; paidCash = 0;
+    }
+  }
+  void pay;
+
+  // Bei laufender Veranstaltung gelten nur deren Getränke und Preise
+  const evPrice = ev ? new Map(ev.articles.map(a => [a.id, a.price_cents])) : null;
+  const getArticle = db.prepare('SELECT * FROM articles WHERE id = ?');
+  const insB = db.prepare(`INSERT INTO bookings(member_id, article_id, event_id, kind, qty, unit_cents, total_cents, paid_cash, event_guest_id, note, tab_id)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+  const ins = { run: (...a) => insB.run(...a, tab ? tab.id : null) };
+  const created = [];
+  const memberId = member ? member.id : (guest ? guest.member_id : null);
+  if (items.length > 30) return bad(res, 'Zu viele Positionen.');
+  const tx = db.transaction(() => {
+    for (const it of items) {
+      if (it && it.custom) {                              // frei eingegebener Betrag
+        const cents = int(it.cents);
+        if (cents < 10 || cents > 50000) throw new Error('Betrag bitte zwischen 0,10 € und 500 €.');
+        const note = cleanName(it.note, 60) || null;
+        const total = kind === 'verein' ? 0 : cents;
+        const r = ins.run(memberId, customArticleId(), ev ? ev.id : null, kind, 1, cents, total, paidCash, guest ? guest.id : null, note);
+        created.push({ id: Number(r.lastInsertRowid), name: 'Betrag' + (note ? ' (' + note + ')' : ''), qty: 1, total_cents: total, list_cents: cents });
+        continue;
+      }
+      const qty = int(it.qty);
+      if (qty < 1 || qty > 99) throw new Error('Ungültige Menge.');
+      const a = getArticle.get(int(it.articleId));
+      if (!a || a.custom) throw new Error('Artikel nicht verfügbar.');
+      let price = a.price_cents;
+      if (evPrice) {
+        if (!evPrice.has(a.id)) throw new Error(`„${a.name}“ gibt es bei dieser Veranstaltung nicht.`);
+        price = evPrice.get(a.id);
+      } else if (!a.active) throw new Error('Artikel nicht verfügbar.');
+      const total = kind === 'verein' ? 0 : price * qty;
+      const r = ins.run(memberId, a.id, ev ? ev.id : null, kind, qty, price, total, paidCash, guest ? guest.id : null, null);
+      created.push({ id: Number(r.lastInsertRowid), name: a.name, qty, total_cents: total, list_cents: price * qty });
+    }
+  });
+  try { tx(); } catch (e) { return bad(res, e.message); }
+
+  const resp = { bookings: created, kind, paid_cash: paidCash, event: ev ? ev.name : null,
+    total_cents: created.reduce((s, b) => s + b.total_cents, 0) };
+  if (tab) {
+    resp.tab = { id: tab.id, name: tab.name }; resp.open_cents = tabOpen(tab.id);
+  } else if (guest) {
+    resp.guest = { id: guest.id, name: guest.name }; resp.private = guestPrivateOk(guest);
+    if (resp.private) resp.open_cents = guestOpen(guest.id);
+  } else if (member) {
+    resp.private = privateOk(member);
+    if (resp.private) {
+      resp.balance = memberBalance(member.id);
+      resp.eventOpen_cents = eventOpen(member.id);
+    }
+  }
+  res.json(resp);
+});
+
+app.post('/api/tablet/undo', rateLimit('undo', 60, 60000), (req, res) => {
+  const { token, bookingIds } = req.body || {};
+  const who = auth.checkTabletToken(token);
+  if (!who) return bad(res, 'Sitzung abgelaufen. Rückgängig bitte über den Vorstand.', 401);
+  if (!Array.isArray(bookingIds) || !bookingIds.length) return bad(res, 'Nichts zum Zurücknehmen.');
+  const ids = bookingIds.map(i => int(i));
+  const rows = db.prepare(`SELECT * FROM bookings WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+  const limit = new Date(Date.now() - UNDO_WINDOW_MIN * 60000);
+  for (const b of rows) {
+    if (b.kind === 'event') return bad(res, 'Bei Veranstaltungen storniert nur der Vorstand (Verwaltung → Buchungen).', 403);
+    const owners = [b.tab_id ? 'tab:' + b.tab_id : null, b.event_guest_id ? 'guest:' + b.event_guest_id : null, b.member_id, b.member_id === null && !b.event_guest_id && !b.tab_id ? 'event:' + b.event_id : null];
+    if (!owners.includes(who)) return bad(res, 'Diese Buchung gehört nicht zu diesem Konto.', 403);
+    if (b.tab_id && !db.prepare("SELECT 1 FROM guest_tabs WHERE id = ? AND status = 'offen'").get(b.tab_id)) return bad(res, 'Der Deckel ist schon bezahlt.');
+    if (b.payment_id || b.transferred_at) return bad(res, 'Schon bezahlt bzw. übernommen – bitte an den Vorstand wenden.');
+    if (new Date(b.created_at.replace(' ', 'T')) < limit) {
+      return bad(res, `Rückgängig ist nur ${UNDO_WINDOW_MIN} Minuten lang möglich. Bitte an den Vorstand wenden.`);
+    }
+  }
+  const upd = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = 'tablet'
+    WHERE id = ? AND cancelled_at IS NULL`);
+  db.transaction(() => rows.forEach(b => upd.run(b.id)))();
+  res.json({ ok: true, cancelled: rows.length });
+});
+
+app.get('/api/tablet/account', (req, res) => {
+  const who = auth.checkTabletToken(req.query.token);
+  if (typeof who === 'string' && who.startsWith('tab:')) {
+    const t = db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(int(who.slice(4)));
+    if (!t) return bad(res, 'Sitzung abgelaufen.', 401);
+    const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
+        b.qty, b.total_cents, b.kind FROM bookings b JOIN articles a ON a.id = b.article_id
+      WHERE b.tab_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at DESC LIMIT 200`).all(t.id);
+    return res.json({ tab: { id: t.id, name: t.name }, rows, open_cents: tabOpen(t.id) });
+  }
+  if (typeof who === 'string' && who.startsWith('guest:')) {
+    const g = db.prepare('SELECT g.*, e.name AS event FROM event_guests g JOIN events e ON e.id = g.event_id WHERE g.id = ?').get(int(who.slice(6)));
+    if (!g) return bad(res, 'Sitzung abgelaufen.', 401);
+    if (!guestPrivateOk(g)) return bad(res, 'Nicht verfügbar.', 403);
+    const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
+        b.qty, b.total_cents, b.kind, b.payment_id, b.transferred_at, p.method
+      FROM bookings b JOIN articles a ON a.id = b.article_id LEFT JOIN event_payments p ON p.id = b.payment_id
+      WHERE b.event_guest_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at DESC LIMIT 200`).all(g.id);
+    return res.json({ guest: { id: g.id, name: g.name }, event: g.event, rows, open_cents: guestOpen(g.id) });
+  }
+  if (!who || typeof who !== 'number') return bad(res, 'Sitzung abgelaufen.', 401);
+  if (!privateOk(db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(who))) return bad(res, 'Konto und Verlauf sind nur mit PIN sichtbar.', 403);
+  // Offene Konto-Buchungen (seit der letzten Abrechnung dieses Mitglieds) + sonstige der letzten 60 Tage
+  const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
+      b.qty, b.total_cents, b.kind, b.paid_cash, b.transferred_at, e.name AS event
+    FROM bookings b JOIN articles a ON a.id = b.article_id LEFT JOIN events e ON e.id = b.event_id
+    WHERE b.member_id = ? AND b.cancelled_at IS NULL
+      AND ((b.kind = 'konto' AND b.settled_id IS NULL) OR (b.kind <> 'konto' AND date(b.created_at) >= date('now','localtime','-60 days')))
+    ORDER BY b.created_at DESC LIMIT 200`).all(who);
+  const last = db.prepare('SELECT MAX(until_at) t FROM member_settlements WHERE member_id = ?').get(who).t;
+  res.json({ lastSettled: last, rows, balance: memberBalance(who), eventOpen_cents: eventOpen(who) });
+});
+
+app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
+  const { token, currentPin, newPin } = req.body || {};
+  const who = auth.checkTabletToken(token);
+  if (!who || typeof who !== 'number') return bad(res, 'Sitzung abgelaufen.', 401);
+  const m = db.prepare('SELECT * FROM members WHERE id = ?').get(who);
+  if (m.kind !== 'mitglied') return bad(res, 'Für dieses Konto kann keine PIN gesetzt werden.');
+  if (m.pin_hash) {
+    const err = checkPin(m, currentPin);                 // zählt in dieselbe Sperre wie das Entsperren
+    if (err) return bad(res, err.msg === 'PIN falsch.' ? 'Aktuelle PIN falsch.' : err.msg, err.code);
+  }
+  if (newPin === '' || newPin === null) {
+    db.prepare("UPDATE members SET pin_hash = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?").run(m.id);
+    audit('tablet', 'PIN entfernt', m.name);
+    return res.json({ ok: true, hasPin: false });
+  }
+  if (!validPin(newPin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
+  db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
+      pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?`).run(auth.hashSecret(newPin), m.id);
+  audit('tablet', m.pin_hash ? 'PIN geändert' : 'PIN festgelegt', m.name);
+  res.json({ ok: true, hasPin: true });
+});
+
+app.post('/api/tablet/logout', (req, res) => {
+  auth.dropTabletToken((req.body || {}).token);
+  res.json({ ok: true });
+});
+
+/* =====================================================================
+   Admin – Anmeldung, Benutzer, Rechte
+   ===================================================================== */
+const cookieOpts = (token, req) => `gadmin=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${8 * 3600}${req && req.secure ? '; Secure' : ''}`;
+const need = auth.need;
+const cleanUser = u => ({ id: u.id, username: u.username, name: u.name, role: u.role, perms: auth.userPerms(u),
+  active: Boolean(u.active), last_login: u.last_login, builtin: Boolean(u.builtin) });
+
+app.get('/api/admin/status', (req, res) => {
+  const u = auth.currentUser(req);
+  res.json({ configured: auth.adminConfigured(), loggedIn: Boolean(u), https: tls.enabled(),
+    user: u ? { id: u.id, username: u.username, name: u.name, role: u.role, perms: u.perms, builtin: Boolean(u.builtin) } : null, permLabels: plugins.visiblePerms(),
+    setupCode: !auth.adminConfigured() && setupNeedsCode(req) ? true : undefined,
+    modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.description, active: p.active })) });
+});
+
+const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };
+const PW_MSG = 'Das Passwort braucht 8 bis 200 Zeichen.';
+function validUsername(n) { return /^[a-z0-9._-]{3,30}$/i.test(n); }
+
+/* Erste Einrichtung: Wer vor dem Verein an die frische Installation kommt, darf sie nicht übernehmen können.
+   Über die Home-Assistant-Seitenleiste (nur HA-Admins) geht es direkt; von jedem anderen Gerät braucht es den
+   Einrichtungscode, der beim Start im Protokoll des Add-ons steht (Einstellungen → Add-ons → Vereinsheimverwaltung → Protokoll). */
+let SETUP_CODE = null, setupFails = 0;
+function newSetupCode() {
+  const A = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  SETUP_CODE = Array.from(crypto.randomBytes(8), b => A[b % A.length]).join('').replace(/(.{4})/, '$1-');
+  console.log(`\n================================================================\n  Erste Einrichtung – Einrichtungscode: ${SETUP_CODE}\n  (nur nötig, wenn die Verwaltung nicht über die Home-Assistant-Seitenleiste geöffnet wird)\n================================================================\n`);
+}
+if (!auth.adminConfigured() && process.env.VH_TEST_NO_SETUP_CODE !== '1') newSetupCode();
+const setupNeedsCode = req => Boolean(SETUP_CODE) && !viaIngress(req);
+app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
+  if (auth.adminConfigured()) return bad(res, 'Das Adminkonto ist bereits eingerichtet.', 403);
+  if (setupNeedsCode(req)) {
+    const given = String((req.body || {}).code || '').trim().toUpperCase().replace(/\s/g, '');
+    const want = SETUP_CODE.replace('-', '');
+    const g = Buffer.from(given.replace('-', '').padEnd(want.length, ' ').slice(0, 64)), w = Buffer.from(want.padEnd(g.length, ' '));
+    if (g.length !== w.length || !crypto.timingSafeEqual(g, w)) {
+      if (++setupFails >= 10) { setupFails = 0; newSetupCode(); }   // nach 10 Fehlversuchen gibt es einen neuen Code
+      audit(null, 'Erste Einrichtung: falscher Einrichtungscode', req.ip);
+      return bad(res, 'Der Einrichtungscode stimmt nicht. Er steht im Protokoll des Add-ons (Home Assistant → Einstellungen → Add-ons → Vereinsheimverwaltung → Protokoll).', 403);
+    }
+  }
+  const { password, clubName } = req.body || {};
+  const club = cleanName(clubName, 60);
+  if (clubName !== undefined && club.length < 3) return bad(res, 'Bitte den Namen des Vereins eingeben.');
+  if (!pwOk(password)) return bad(res, PW_MSG);
+  if (club) setSetting('club_name', club);
+  const mods = (req.body || {}).modules;
+  if (mods && typeof mods === 'object') for (const p of plugins.list()) if (mods[p.id] !== undefined && !p.error) setSetting(`ext_${p.id}_active`, mods[p.id] ? '1' : '0');
+  auth.createUser({ username: 'admin', name: 'Adminkonto', password: String(password), role: 'oberadmin', builtin: true });
+  audit('admin', 'Adminkonto eingerichtet');
+  const r = auth.login('admin', String(password), req.ip);
+  res.setHeader('Set-Cookie', cookieOpts(r.token, req));
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
+  const { username, password } = req.body || {};
+  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req) });
+  if (!r.ok) {
+    audit(String(username || '').slice(0, 30), r.locked ? 'Anmeldung gesperrt (5 Fehlversuche)' : 'Anmeldung fehlgeschlagen', req.ip);
+    if (r.manyFails) securityAlert(`Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`);
+    return bad(res, r.error, 401);
+  }
+  audit(String(username).toLowerCase(), 'Anmeldung', req.ip);
+  res.setHeader('Set-Cookie', cookieOpts(r.token, req));
+  res.json({ ok: true });
+});
+
+app.post('/api/admin/logout', (req, res) => {
+  auth.logout(auth.parseCookies(req).gadmin);
+  res.setHeader('Set-Cookie', 'gadmin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+  res.json({ ok: true });
+});
+
+const admin = express.Router();
+admin.use(auth.requireAdmin);
+const DRINK_ADMIN = /^\/(articles|deliveries|upload|beleg|supplier-map|stock|shrinkage|order|settings\/order|events|event-members|tabs|bookings|balances|settle|settle-history|export\.xlsx|abtippliste|categories)(\/|$)/;
+admin.use((req, res, next) => (DRINK_ADMIN.test(normPath(req.path)) && !plugins.isActive('getraenke')
+  ? res.status(404).json({ error: 'Das Modul „Getränke“ ist ausgeschaltet.' }) : next()));
+app.use('/api/admin', admin);
+
+admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
+  const { current, next } = req.body || {};
+  const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.user.id);
+  if (!auth.verifySecret(String(current || ''), u.pw_hash)) return bad(res, 'Aktuelles Passwort falsch.', 401);
+  if (!pwOk(next)) return bad(res, PW_MSG);
+  auth.setPassword(u.id, String(next));
+  const r = auth.login(u.username, String(next), req.ip);
+  res.setHeader('Set-Cookie', cookieOpts(r.token, req));
+  res.json({ ok: true });
+});
+
+/* ---------- Benutzerverwaltung (Adminkonto und Benutzer mit allen Rechten) ---------- */
+admin.get('/users', need('benutzer'), (req, res) => {
+  res.json(db.prepare('SELECT * FROM admin_users ORDER BY builtin DESC, role DESC, username').all().map(cleanUser));
+});
+
+admin.post('/users', need('benutzer'), (req, res) => {
+  const { username, name, password, role, perms } = req.body || {};
+  const un = String(username || '').trim().toLowerCase();
+  if (!validUsername(un)) return bad(res, 'Benutzername: 3–30 Zeichen, nur Buchstaben, Ziffern, Punkt, Minus.');
+  if (db.prepare('SELECT 1 FROM admin_users WHERE username = ?').get(un)) return bad(res, 'Diesen Benutzernamen gibt es schon.');
+  if (!pwOk(password)) return bad(res, PW_MSG);
+  const id = auth.createUser({ username: un, name: cleanName(name, 60), password: String(password),
+    role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [] });
+  audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : (Array.isArray(perms) ? perms.join(', ') : '')})`);
+  res.json({ id });
+});
+
+admin.put('/users/:id', need('benutzer'), (req, res) => {
+  const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(int(req.params.id));
+  if (!u) return bad(res, 'Nicht gefunden.', 404);
+  const b = req.body || {};
+  const role = b.role === undefined ? u.role : (b.role === 'oberadmin' ? 'oberadmin' : 'admin');
+  const active = b.active === undefined ? u.active : (b.active ? 1 : 0);
+  if (u.builtin) {
+    if (role !== 'oberadmin' || !active) return bad(res, 'Das Adminkonto behält immer alle Rechte und kann nicht gesperrt werden.');
+    if (b.name !== undefined && String(b.name).trim() !== u.name) return bad(res, 'Der Name des Adminkontos ist fest.');
+  }
+  if (u.id === req.user.id && (role !== 'oberadmin' || !active)) return bad(res, 'Du kannst dich nicht selbst herabstufen oder sperren.');
+  const perms = Array.isArray(b.perms) ? JSON.stringify(b.perms.filter(p => auth.PERMS[p])) : u.perms;
+  const name = u.builtin ? u.name : (b.name !== undefined ? String(b.name).trim().slice(0, 60) : u.name);
+  db.prepare('UPDATE admin_users SET name = ?, role = ?, perms = ?, active = ? WHERE id = ?').run(name, role, perms, active, u.id);
+  auth.dropUserSessions(u.id);   // geänderte Rechte gelten sofort
+  audit(req.user, 'Admin geändert', `${u.username}: ${role}${active ? '' : ', gesperrt'} ${role === 'admin' ? perms : ''}`);
+  res.json({ ok: true });
+});
+
+admin.delete('/users/:id', need('benutzer'), (req, res) => {
+  const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(int(req.params.id));
+  if (!u) return bad(res, 'Nicht gefunden.', 404);
+  if (u.builtin) return bad(res, 'Das Adminkonto kann nicht gelöscht werden.');
+  if (u.id === req.user.id) return bad(res, 'Du kannst dich nicht selbst löschen.');
+  db.prepare('DELETE FROM admin_users WHERE id = ?').run(u.id);
+  auth.dropUserSessions(u.id);
+  audit(req.user, 'Admin gelöscht', u.username);
+  res.json({ ok: true });
+});
+
+admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 * 60000), (req, res) => {
+  // mit dem eigenen Passwort bestätigen – eine fremde, offen gelassene Sitzung reicht nicht, um Passwörter zu ändern
+  const me = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
+  if (!me || !auth.verifySecret(String((req.body || {}).myPassword || ''), me.pw_hash)) return bad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.', 401);
+  const pw = String((req.body || {}).password || '');
+  if (!pwOk(pw)) return bad(res, PW_MSG);
+  const u = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(int(req.params.id));
+  if (!u) return bad(res, 'Nicht gefunden.', 404);
+  auth.setPassword(u.id, pw);
+  audit(req.user, 'Passwort neu vergeben', u.username);
+  res.json({ ok: true });
+});
+
+/* ---------- Einstellungen ---------- */
+const ORDER_KEYS = { order_supplier: '', order_email: '', order_cc: '', customer_no: '', delivery_address: '', order_sender: '', order_phone: '' };
+const orderSettings = () => Object.fromEntries(Object.entries(ORDER_KEYS).map(([k, d]) => [k, getSetting(k, d)]));
+
+admin.get('/settings', (req, res) => {
+  const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), lastSettlement: lastSettlement(),
+    order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
+    topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined,
+    allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
+});
+/* Weitere Adressen (Namen), unter denen die Verwaltung erreichbar sein soll – z. B. verein.duckdns.org */
+admin.put('/settings/hosts', need('einstellungen'), (req, res) => {
+  const list = String((req.body || {}).hosts || '').toLowerCase().split(/[\s,;]+/).map(h => h.trim().replace(/^https?:\/\//, '').replace(/[/:].*$/, '')).filter(Boolean);
+  if (list.length > 20 || list.some(h => !/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/.test(h))) return bad(res, 'Bitte nur Namen wie verein.duckdns.org eintragen (höchstens 20, mit Komma getrennt).');
+  setSetting('allowed_hosts', [...new Set(list)].join(', '));
+  require('./security').resetHostCache();
+  audit(req.user, 'Weitere Adressen geändert', getSetting('allowed_hosts', '') || '–');
+  res.json({ ok: true, hosts: getSetting('allowed_hosts', '') });
+});
+admin.put('/settings/tablet-password', need('einstellungen'), (req, res) => {
+  const pw = String((req.body || {}).password || '');
+  if (pw.length < 6 || pw.length > 200) return bad(res, 'Das Passwort für die Buchungsseite braucht mindestens 6 Zeichen.');
+  const first = !gateOn();
+  setSetting('tablet_pw_hash', auth.hashSecret(pw));
+  setSetting('tablet_pw_at', nowTs());
+  setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));   // bisherige Geräte müssen das neue Passwort eingeben
+  audit(req.user, first ? 'Buchungsseite: Passwortschutz eingeschaltet' : 'Buchungsseite: Passwort geändert');
+  res.setHeader('Set-Cookie', gateCookie(req));                         // dieses Gerät bleibt freigeschaltet
+  res.json({ ok: true });
+});
+admin.post('/settings/tablet-password/logout-all', need('einstellungen'), (req, res) => {
+  if (!gateOn()) return bad(res, 'Der Passwortschutz ist nicht eingeschaltet.');
+  setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));
+  audit(req.user, 'Buchungsseite: alle Geräte abgemeldet');
+  res.json({ ok: true });
+});
+admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => {
+  db.prepare("DELETE FROM settings WHERE key IN ('tablet_pw_hash','tablet_pw_at')").run();
+  audit(req.user, 'Buchungsseite: Passwortschutz ausgeschaltet');
+  res.json({ ok: true });
+});
+admin.post('/logo', need('einstellungen'), express.raw({ type: () => true, limit: '3mb' }), (req, res) => {
+  const r = checkLogo(req.body);
+  if (r.error) return bad(res, r.error);
+  setSetting('club_logo', r.data.toString('base64'));
+  setSetting('club_logo_type', r.type);
+  setSetting('club_logo_ver', String(Date.now()));
+  db.prepare("DELETE FROM settings WHERE key IN ('club_icon','club_icon_ver')").run();   // App-Symbol wird aus dem neuen Logo neu erzeugt
+  audit(req.user, 'Vereinslogo hochgeladen', r.type.toUpperCase() + ', ' + Math.round(r.data.length / 1024) + ' KB');
+  res.json({ ok: true, logo: logoUrl(), type: r.type });
+});
+/* App-Symbol (PNG, quadratisch) für den Home-Bildschirm – iPhones nehmen dafür kein SVG. Der Browser der Verwaltung
+   zeichnet es aus dem Vereinslogo und lädt es hier hoch. */
+admin.post('/logo-icon', need('einstellungen'), express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
+  const b = req.body;
+  if (!b || b.length < 100 || b.readUInt32BE(0) !== 0x89504e47) return bad(res, 'Kein PNG.');
+  setSetting('club_icon', b.toString('base64'));
+  setSetting('club_icon_ver', getSetting('club_logo_ver', 'std'));
+  res.json({ ok: true });
+});
+admin.delete('/logo', need('einstellungen'), (req, res) => {
+  db.prepare("DELETE FROM settings WHERE key IN ('club_logo','club_logo_type','club_logo_ver','club_icon','club_icon_ver')").run();
+  audit(req.user, 'Vereinslogo entfernt');
+  res.json({ ok: true, logo: logoUrl() });
+});
+admin.put('/settings', need('einstellungen'), (req, res) => {
+  const name = cleanName((req.body || {}).clubName);
+  if (name) setSetting('club_name', name);
+  const color = String((req.body || {}).clubColor || '').trim();
+  if (color) {
+    if (!/^#[0-9a-f]{6}$/i.test(color)) return bad(res, 'Farbe bitte als Hex-Wert, z. B. #1f6b3a.');
+    setSetting('club_color', color.toLowerCase());
+  }
+  const b = req.body || {};
+  if (b.topN !== undefined) { const n = int(b.topN, -1); if (n < 0 || n > 60) return bad(res, '„Ich bin öfter hier“: Anzahl 0–60 (0 = ausblenden).'); setSetting('top_n', String(n)); }
+  if (b.topDays !== undefined) { const d = int(b.topDays, 0); if (d < 1 || d > 365) return bad(res, '„Ich bin öfter hier“: Zeitraum 1–365 Tage.'); setSetting('top_days', String(d)); }
+  audit(req.user, 'Einstellungen geändert', [name && 'Vereinsname', color && 'Farbe ' + color,
+    b.topN !== undefined && `Öfter hier: ${b.topN} aus ${b.topDays} Tagen`].filter(Boolean).join(', '));
+  res.json({ ok: true });
+});
+/* Empfänger der Bestell-Mail (Lieferant/Kopie) nur mit „Einstellungen“ ändern – sonst ließe sich über das Vereinspostfach
+   an beliebige Adressen schreiben (Phishing im Namen des Vereins) */
+const ORDER_MAIL_KEYS = ['order_email', 'order_cc'];
+const orderMailChange = (req, b) => !req.user.perms.includes('einstellungen') && ORDER_MAIL_KEYS.some(k => b[k] !== undefined && String(b[k]).trim().toLowerCase() !== getSetting(k, '').trim().toLowerCase());
+admin.put('/settings/order', need('bestellung'), (req, res) => {
+  const b = req.body || {};
+  if (orderMailChange(req, b)) return bad(res, 'Die E-Mail-Adresse des Lieferanten darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+  for (const k of Object.keys(ORDER_KEYS)) if (b[k] !== undefined) setSetting(k, String(b[k]).trim().slice(0, 200));
+  res.json({ ok: true });
+});
+/* Bestellung direkt über das Vereinspostfach senden */
+admin.post('/order/send', need('bestellung'), rateLimit('ordermail', 10, 10 * 60000), async (req, res) => {
+  const b = req.body || {};
+  const to = String(b.to || '').trim(), cc = String(b.cc || '').trim();
+  const subject = String(b.subject || '').trim().slice(0, 200), text = String(b.text || '').slice(0, 20000);
+  if (!mail.ready()) return bad(res, 'Noch kein Postfach eingerichtet – Einstellungen → E-Mail-Versand.');
+  if (!mail.mailOk(to)) return bad(res, 'Bitte bei „An“ eine gültige E-Mail-Adresse des Lieferanten eintragen.');
+  if (cc && !mail.mailOk(cc)) return bad(res, 'Bitte bei „Kopie an“ eine gültige E-Mail-Adresse eintragen (oder leer lassen).');
+  if (!subject || !text.trim()) return bad(res, 'Betreff und Text dürfen nicht leer sein.');
+  if (orderMailChange(req, { order_email: to, order_cc: cc })) return bad(res, 'Bestellungen gehen nur an die gespeicherte Adresse des Lieferanten. Eine neue Adresse trägt ein Admin mit dem Recht „Einstellungen“ ein.', 403);
+  try {
+    await mail.send({ to, cc, subject, text });
+    setSetting('order_email', to); setSetting('order_cc', cc);
+    setSetting('order_last_sent', `${nowTs()} · ${to}`);
+    audit(req.user, 'Bestellung gesendet', `an ${to}${cc ? ', Kopie ' + cc : ''} · ${subject}`);
+    res.json({ ok: true, to, cc, at: nowTs() });
+  } catch (e) { bad(res, 'Senden fehlgeschlagen: ' + e.message, 502); }
+});
+
+/* ---------- Zentraler E-Mail-Versand ---------- */
+admin.get('/mail', need('einstellungen'), (req, res) => res.json(mail.publicConfig()));
+admin.put('/mail', need('einstellungen'), (req, res) => {
+  try { const d = mail.save(req.body || {}); audit(req.user, 'E-Mail-Versand geändert', d); res.json({ ok: true, ...mail.publicConfig() }); }
+  catch (e) { bad(res, e.message); }
+});
+admin.post('/mail/test', need('einstellungen'), rateLimit('mailtest', 6, 10 * 60000), async (req, res) => {
+  const to = String((req.body || {}).to || '').trim();
+  try {
+    await mail.send({ to, subject: `Test – ${getSetting('club_name', 'Vereinsheim')}`, text: 'Diese Testnachricht kommt von der Vereinsheimverwaltung. Der E-Mail-Versand funktioniert.' });
+    res.json({ ok: true });
+  } catch (e) { bad(res, 'Test fehlgeschlagen: ' + e.message, 502); }
+});
+
+/* ---------- Mitglieder ---------- */
+const KINDS = ['mitglied', 'mannschaft', 'verein', 'gast'];
+
+admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veranstaltungen', 'uebernahme'), (req, res) => {
+  const { from, to } = defaultRange(req.query);
+  const rows = db.prepare(`SELECT m.id, m.name, m.kind, m.active, m.pending, m.created_at, m.pin_hash IS NOT NULL AS hasPin,
+      m.pin_changed_at, m.pin_changed_by, m.locked_until > strftime('%Y-%m-%dT%H:%M:%fZ','now') AS pinLocked,
+      MAX(COALESCE((SELECT MAX(created_at) FROM bookings b WHERE b.member_id = m.id AND b.cancelled_at IS NULL), ''),
+          COALESCE((SELECT MAX(created_at) FROM event_guests g WHERE g.member_id = m.id), '')) AS last_seen,
+      COALESCE((SELECT SUM(total_cents) FROM bookings b WHERE b.member_id = m.id AND b.kind = 'konto'
+        AND b.cancelled_at IS NULL AND b.settled_id IS NULL), 0) AS balance_cents,
+      (SELECT COUNT(*) FROM bookings b WHERE b.member_id = m.id AND b.cancelled_at IS NULL) AS bookings
+    FROM members m WHERE m.deleted = 0 ORDER BY m.pending DESC, m.active DESC,
+      CASE m.kind WHEN 'mitglied' THEN 1 WHEN 'mannschaft' THEN 2 WHEN 'verein' THEN 3 ELSE 4 END, name_key(m.name, m.kind)`).all();
+  res.json({ from, to, seasonStart: seasonStart(), rows: rows.map(r => ({ ...r, last_seen: r.last_seen || null, hasPin: Boolean(r.hasPin), pinLocked: Boolean(r.pinLocked),
+    active: Boolean(r.active), pending: Boolean(r.pending), eventOpen_cents: eventOpen(r.id) })) });
+});
+
+/* Am Tablet angelegtes Mitglied bestätigen (optional mit korrigiertem Namen) */
+admin.post('/members/:id/confirm', need('konten'), (req, res) => {
+  const m = db.prepare('SELECT * FROM members WHERE id = ?').get(int(req.params.id));
+  if (!m) return bad(res, 'Nicht gefunden.', 404);
+  const name = cleanName((req.body || {}).name || m.name);
+  if (!name) return bad(res, 'Name fehlt.');
+  const clash = db.prepare('SELECT id FROM members WHERE lower(name) = lower(?) AND id != ? AND deleted = 0').get(name, m.id);
+  if (clash) return bad(res, 'Diesen Namen gibt es schon. Bitte stattdessen „Zusammenführen“ wählen.');
+  db.prepare('UPDATE members SET name = ?, pending = 0 WHERE id = ?').run(name, m.id);
+  audit(req.user, 'Neues Mitglied bestätigt', m.name === name ? name : `${m.name} → ${name}`);
+  res.json({ ok: true });
+});
+
+/* Doppelt angelegtes Mitglied: Buchungen auf das richtige Konto verschieben, Duplikat löschen */
+admin.post('/members/:id/merge', need('konten'), (req, res) => {
+  const from = db.prepare('SELECT * FROM members WHERE id = ?').get(int(req.params.id));
+  const into = db.prepare('SELECT * FROM members WHERE id = ?').get(int((req.body || {}).intoId));
+  if (!from || !into || from.id === into.id) return bad(res, 'Bitte das richtige Zielkonto wählen.');
+  let moved = 0;
+  db.transaction(() => {
+    moved = db.prepare('UPDATE bookings SET member_id = ? WHERE member_id = ?').run(into.id, from.id).changes;
+    // Einträge auf Veranstaltungslisten mitnehmen; steht das Zielkonto dort schon, werden beide Einträge vereint
+    for (const g of db.prepare('SELECT * FROM event_guests WHERE member_id = ?').all(from.id)) {
+      const dup = db.prepare('SELECT id FROM event_guests WHERE event_id = ? AND member_id = ?').get(g.event_id, into.id);
+      if (dup) {
+        db.prepare('UPDATE bookings SET event_guest_id = ? WHERE event_guest_id = ?').run(dup.id, g.id);
+        db.prepare('UPDATE event_payments SET guest_id = ? WHERE guest_id = ?').run(dup.id, g.id);
+        db.prepare('DELETE FROM event_guests WHERE id = ?').run(g.id);
+      } else db.prepare('UPDATE event_guests SET member_id = ?, name = ? WHERE id = ?').run(into.id, into.name, g.id);
+    }
+    dropMemberExtras(from.id);
+    db.prepare('DELETE FROM members WHERE id = ?').run(from.id);
+  })();
+  audit(req.user, 'Konten zusammengeführt', `${from.name} → ${into.name} (${moved} Buchungen)`);
+  res.json({ ok: true, moved });
+});
+
+/* Konto löschen: ohne Buchungen endgültig; mit früheren Buchungen verschwindet es aus allen Listen und vom Tablet,
+   die alten Buchungen bleiben (Bestand, frühere Abrechnungen). Offene Beträge müssen vorher abgerechnet sein. */
+admin.delete('/members/:id', need('konten'), (req, res) => {
+  const m = db.prepare('SELECT * FROM members WHERE id = ? AND deleted = 0').get(int(req.params.id));
+  if (!m) return res.json({ ok: true });
+  if (m.kind === 'verein' || m.kind === 'gast') return bad(res, 'Die Sonderkonten „Verein“ und „Gast“ können nicht gelöscht werden – bei Bedarf ausblenden.');
+  const open = memberBalance(m.id).cents, evOpen = eventOpen(m.id);
+  if (open || evOpen) return bad(res, `${m.name} hat noch ${((open + evOpen) / 100).toFixed(2).replace('.', ',')} € offen – bitte erst abrechnen${evOpen ? ' bzw. von der Veranstaltungsliste übernehmen' : ''}.`);
+  const n = db.prepare('SELECT COUNT(*) n FROM bookings WHERE member_id = ?').get(m.id).n
+    + db.prepare('SELECT COUNT(*) n FROM member_settlements WHERE member_id = ?').get(m.id).n
+    + db.prepare('SELECT COUNT(*) n FROM guest_tabs WHERE member_id = ?').get(m.id).n;
+  db.transaction(() => {
+    db.prepare('UPDATE event_guests SET member_id = NULL WHERE member_id = ?').run(m.id);   // bleibt als freier Name stehen
+    dropMemberExtras(m.id);   // Einladungen/gekoppelte Geräte (Beregnung, Zugang …) erlöschen
+    if (n) db.prepare('UPDATE members SET deleted = 1, active = 0, pending = 0, pin_hash = NULL WHERE id = ?').run(m.id);
+    else db.prepare('DELETE FROM members WHERE id = ?').run(m.id);
+  })();
+  audit(req.user, 'Konto gelöscht', m.name + (n ? ' (frühere Buchungen bleiben erhalten)' : ''));
+  res.json({ ok: true, kept: Boolean(n) });
+});
+
+admin.post('/members', need('konten'), (req, res) => {
+  const name = cleanName((req.body || {}).name);
+  const kind = (req.body || {}).kind || 'mitglied';
+  if (!name) return bad(res, 'Name fehlt.');
+  if (!KINDS.includes(kind)) return bad(res, 'Unbekannter Kontotyp.');
+  if ((kind === 'verein' || kind === 'gast') && !req.user.perms.includes('einstellungen')) return bad(res, 'Konten der Art „Verein“ oder „Gast“ darf nur anlegen, wer das Recht „Einstellungen“ hat.', 403);
+  if (db.prepare('SELECT 1 FROM members WHERE lower(name) = lower(?) AND deleted = 0').get(name)) return bad(res, 'Diesen Namen gibt es schon.');
+  const pin = String((req.body || {}).pin || '');
+  if (kind === 'mannschaft' && !validPin(pin)) return bad(res, 'Mannschaftskonten brauchen eine PIN (4 bis 6 Ziffern), die der Vorstand vergibt.');
+  const r = db.prepare(`INSERT INTO members(name, kind, pin_hash, pin_changed_at, pin_changed_by) VALUES (?,?,?,?,?)`)
+    .run(name, kind, kind === 'mannschaft' ? auth.hashSecret(pin) : null, kind === 'mannschaft' ? nowTs() : null, kind === 'mannschaft' ? req.user.username : null);
+  audit(req.user, 'Konto angelegt', `${name} (${kind})`);
+  res.json({ id: Number(r.lastInsertRowid) });
+});
+
+admin.put('/members/:id', need('konten'), (req, res) => {
+  const m = db.prepare('SELECT * FROM members WHERE id = ?').get(int(req.params.id));
+  if (!m) return bad(res, 'Nicht gefunden.', 404);
+  const b = req.body || {};
+  const name = b.name !== undefined ? cleanName(b.name) : m.name;
+  const kind = b.kind !== undefined ? b.kind : m.kind;
+  // Art „Verein“ bucht kostenlos – Wechsel von/zu Verein oder Gast nur mit „Einstellungen“ (sonst könnte man sich freie Getränke schalten)
+  if (kind !== m.kind && ['verein', 'gast'].some(k => k === kind || k === m.kind) && !req.user.perms.includes('einstellungen'))
+    return bad(res, 'Die Art „Verein“ oder „Gast“ darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+  if (!name) return bad(res, 'Name fehlt.');
+  if (!KINDS.includes(kind)) return bad(res, 'Unbekannter Kontotyp.');
+  const active = b.active !== undefined ? (b.active ? 1 : 0) : m.active;
+  const pin = b.pin ? String(b.pin) : '';
+  if (pin && kind !== 'mannschaft') return bad(res, 'Eine PIN legen Mitglieder am Tablet selbst fest.');
+  if (pin && !validPin(pin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
+  if (kind === 'mannschaft' && !pin && !m.pin_hash) return bad(res, 'Mannschaftskonten brauchen eine PIN (4 bis 6 Ziffern).');
+  db.prepare('UPDATE members SET name = ?, kind = ?, active = ? WHERE id = ?').run(name, kind, active, m.id);
+  if (kind !== m.kind) { audit(req.user, 'Kontoart geändert', `${name}: ${m.kind} → ${kind}`); if (kind === 'verein') securityAlert(`Das Konto „${name}“ wurde von ${req.user.name || req.user.username} auf „Verein (kostenfrei)“ umgestellt. Buchungen darauf kosten nichts.`, 'verein-' + m.id); }
+  if (pin) db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`)
+    .run(auth.hashSecret(pin), req.user.username, m.id);
+  audit(req.user, 'Konto geändert', `${m.name}${name !== m.name ? ' → ' + name : ''}${active ? '' : ', ausgeblendet'}${pin ? ', PIN neu vergeben' : ''}`);
+  res.json({ ok: true });
+});
+
+admin.post('/members/:id/reset-pin', need('konten'), (req, res) => {
+  const m = db.prepare('SELECT name FROM members WHERE id = ?').get(int(req.params.id));
+  db.prepare(`UPDATE members SET pin_hash = NULL, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
+      pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`).run(req.user.username, int(req.params.id));
+  audit(req.user, 'PIN zurückgesetzt', m && m.name);
+  res.json({ ok: true });
+});
+
+admin.post('/members/import', need('konten'), (req, res) => {
+  const text = String((req.body || {}).text || '');
+  const kind = KINDS.includes((req.body || {}).kind) ? req.body.kind : 'mitglied';
+  const existing = new Set(db.prepare('SELECT lower(name) n FROM members WHERE deleted = 0').all().map(r => r.n));
+  const ins = db.prepare('INSERT INTO members(name, kind) VALUES (?,?)');
+  let added = 0, skipped = 0;
+  db.transaction(() => {
+    for (const line of text.split(/\r?\n/)) {
+      const name = cleanName(line.replace(/[;\t]+/g, ' '));
+      if (!name) continue;
+      if (existing.has(name.toLowerCase())) { skipped++; continue; }
+      ins.run(name.slice(0, 80), kind); existing.add(name.toLowerCase()); added++;
+    }
+  })();
+  res.json({ added, skipped });
+});
+
+/* Saison = Kalenderjahr (wie „Ganze Saison“ in der Verwaltung) */
+const seasonStart = () => today().slice(0, 4) + '-01-01';
+
+/* Mitglieder, die diese Saison nicht da waren, entfernen:
+   ohne jede Buchung → löschen, mit früheren Buchungen → ausblenden (Abrechnungen bleiben nachvollziehbar).
+   Wer noch etwas offen hat, wird übersprungen. */
+admin.post('/members/remove-inactive', need('konten'), (req, res) => {
+  const ids = Array.isArray((req.body || {}).ids) ? [...new Set(req.body.ids.map(int))].filter(Boolean) : [];
+  if (!ids.length) return bad(res, 'Kein Mitglied gewählt.');
+  const since = seasonStart();
+  let deleted = 0, hidden = 0; const skipped = [];
+  db.transaction(() => {
+    for (const id of ids) {
+      const m = db.prepare("SELECT * FROM members WHERE id = ? AND kind = 'mitglied'").get(id);
+      if (!m) continue;
+      const seen = db.prepare(`SELECT (SELECT COUNT(*) FROM bookings WHERE member_id = ? AND cancelled_at IS NULL AND date(created_at) >= ?)
+        + (SELECT COUNT(*) FROM event_guests WHERE member_id = ? AND date(created_at) >= ?) n`).get(id, since, id, since).n;
+      if (seen) { skipped.push(m.name + ' (war diese Saison da)'); continue; }
+      if (memberBalance(id).cents || eventOpen(id)) { skipped.push(m.name + ' (hat noch offene Beträge)'); continue; }
+      const any = db.prepare('SELECT COUNT(*) n FROM bookings WHERE member_id = ?').get(id).n;
+      if (!any && !db.prepare('SELECT 1 FROM member_settlements WHERE member_id = ?').get(id)) {
+        db.prepare('UPDATE event_guests SET member_id = NULL WHERE member_id = ?').run(id);
+        dropMemberExtras(id);
+        db.prepare('DELETE FROM members WHERE id = ?').run(id); deleted++;
+      } else { db.prepare('UPDATE members SET active = 0 WHERE id = ?').run(id); hidden++; }
+    }
+  })();
+  audit(req.user, 'Inaktive Mitglieder entfernt', `${deleted} gelöscht, ${hidden} ausgeblendet${skipped.length ? ', übersprungen: ' + skipped.join(', ') : ''}`.slice(0, 500));
+  res.json({ ok: true, deleted, hidden, skipped });
+});
+
+/* Mitgliederliste als Excel (Spalten „Vorname“ und „Nachname“): erst Vorschau, dann mit commit=1 anlegen */
+async function readMemberExcel(buf) {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  if (!buf || buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) throw new Error('Bitte eine Excel-Datei (.xlsx) hochladen. Alte .xls-Dateien vorher in Excel als .xlsx speichern.');
+  try { await wb.xlsx.load(buf); } catch (e) { throw new Error('Die Excel-Datei lässt sich nicht lesen.'); }
+  const norm = v => String(v || '').toLowerCase().replace(/[^a-zäöüß]/g, '');
+  const txt = c => { try { return cleanName(c.text, 40); } catch (e) { return ''; } };
+  for (const ws of wb.worksheets) {
+    for (let r = 1; r <= Math.min(ws.rowCount, 15); r++) {
+      let vn = 0, nn = 0, tc = 0, pc = 0;
+      ws.getRow(r).eachCell((c, col) => {
+        const h = norm(c.text);
+        if (!tc && ['typ', 'kontotyp', 'art', 'konto'].includes(h)) tc = col;
+        if (!pc && ['pin', 'pincode', 'mannschaftspin'].includes(h)) pc = col;
+        if (!vn && ['vorname', 'vornamen', 'rufname', 'firstname'].includes(h)) vn = col;
+        if (!nn && ['nachname', 'familienname', 'name', 'zuname', 'lastname'].includes(h)) nn = col;
+      });
+      if (!vn || !nn) continue;
+      const out = [];
+      for (let i = r + 1; i <= ws.rowCount && out.length < 3000; i++) {
+        const row = ws.getRow(i);
+        const v = txt(row.getCell(vn)), n = txt(row.getCell(nn));
+        if (!v && !n) continue;
+        const t = tc ? norm(txt(row.getCell(tc))) : '';
+        const pin = pc ? String(row.getCell(pc).text || '').replace(/\D/g, '') : '';
+        out.push({ line: i, first: v, last: n, kind: /mannschaft|team|gruppe/.test(t) ? 'mannschaft' : 'mitglied', pin });
+      }
+      return { sheet: ws.name, rows: out };
+    }
+  }
+  throw new Error('Keine Überschriften „Vorname“ und „Nachname“ gefunden. Bitte die erste Zeile so beschriften (Vorlage herunterladen).');
+}
+
+admin.post('/members/import-excel', need('konten'), express.raw({ type: () => true, limit: '5mb' }), asyncRoute(async (req, res) => {
+  let data;
+  try { data = await readMemberExcel(req.body); } catch (e) { return bad(res, e.message); }
+  const existing = new Map(db.prepare('SELECT lower(name) n, active FROM members WHERE deleted = 0').all().map(r => [r.n, r.active]));
+  const seen = new Set();
+  const rows = data.rows.map(r => {
+    const team = r.kind === 'mannschaft';
+    const name = cleanName(`${r.first} ${r.last}`, 80);
+    let status = 'neu';
+    if (team ? name.length < 2 : (!r.first || !r.last || name.length < 4)) status = 'unvollständig';
+    else if (!team && /[0-9@]/.test(name)) status = 'ungültig';
+    else if (existing.has(name.toLowerCase())) status = existing.get(name.toLowerCase()) ? 'vorhanden' : 'ausgeblendet';
+    else if (seen.has(name.toLowerCase())) status = 'doppelt';
+    seen.add(name.toLowerCase());
+    const pinOk = !team || validPin(r.pin);
+    return { line: r.line, name, status, kind: r.kind, first: cleanName(r.first, 40), last: cleanName(r.last, 40), pin: team ? r.pin : '', pinMissing: !pinOk };
+  });
+  const neu = rows.filter(r => r.status === 'neu');
+  if (req.query.commit === '1') {
+    const ins = db.prepare('INSERT INTO members(name, kind, first_name, last_name, pin_hash, pin_changed_at, pin_changed_by) VALUES (?, ?, ?, ?, ?, ?, ?)');
+    db.transaction(() => neu.forEach(r => {
+      const team = r.kind === 'mannschaft', pin = team && !r.pinMissing ? auth.hashSecret(r.pin) : null;
+      ins.run(r.name, r.kind, team ? null : r.first, team ? null : r.last, pin, pin ? nowTs() : null, pin ? req.user.username : null);
+    }))();
+    audit(req.user, 'Mitglieder aus Excel importiert', `${neu.length} neu, ${rows.length - neu.length} übersprungen`);
+  }
+  res.json({ sheet: data.sheet, rows: rows.map(({ pin, ...r }) => r), added: req.query.commit === '1' ? neu.length : 0, newCount: neu.length });
+}));
+
+admin.get('/members/import-vorlage.xlsx', need('konten'), asyncRoute(async (req, res) => {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Mitglieder');
+  ws.columns = [{ header: 'Vorname', key: 'v', width: 22 }, { header: 'Nachname', key: 'n', width: 26 }, { header: 'Typ', key: 't', width: 16 }, { header: 'PIN', key: 'p', width: 10 }];
+  ws.getRow(1).font = { bold: true };
+  ws.addRow({ v: 'Max', n: 'Mustermann', t: 'Mitglied' });
+  ws.addRow({ v: '', n: 'Herren 1', t: 'Mannschaft', p: '4711' });
+  res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="Mitglieder_Vorlage.xlsx"' });
+  await wb.xlsx.write(res);
+  res.end();
+}));
+
+/* ---------- Artikel ---------- */
+function articleFromBody(b, base = {}) {
+  const a = {
+    name: b.name !== undefined ? cleanName(b.name) : base.name,
+    category: b.category !== undefined ? String(b.category).trim().slice(0, 40) || 'Sonstiges' : base.category,
+    price_cents: b.price_cents !== undefined ? int(b.price_cents, -1) : base.price_cents,
+    crate_size: b.crate_size !== undefined ? int(b.crate_size, 1) : base.crate_size,
+    min_stock: b.min_stock !== undefined ? int(b.min_stock, 0) : base.min_stock,
+    target_stock: b.target_stock !== undefined ? int(b.target_stock, 0) : (base.target_stock || 0),
+    track_stock: b.track_stock !== undefined ? (b.track_stock ? 1 : 0) : base.track_stock,
+    active: b.active !== undefined ? (b.active ? 1 : 0) : base.active,
+    sort: b.sort !== undefined ? int(b.sort, 100) : base.sort,
+    icon: b.icon !== undefined ? (b.icon && artIcons.has(String(b.icon)) ? String(b.icon) : null) : (base.icon === undefined ? null : base.icon),
+  };
+  if (!a.name) throw new Error('Name fehlt.');
+  if (!(a.price_cents >= 0)) throw new Error('Preis ungültig.');
+  if (!(a.crate_size >= 1 && a.crate_size <= 100)) throw new Error('Kistengröße bitte zwischen 1 und 100.');
+  if (a.price_cents > 100000) throw new Error('Preis ungültig.');
+  return a;
+}
+
+admin.get('/articles', (req, res) => res.json(stockList()));
+
+/* Artikelliste als Excel: herunterladen, bearbeiten, wieder einspielen (auch zum Übernehmen von einem anderen Verein) */
+const ART_COLS = ['ID', 'Artikel', 'Kategorie', 'Preis', 'Kiste', 'Bestand führen', 'Mindestbestand', 'Bestellen bis', 'Aktiv'];
+admin.get('/articles/export.xlsx', need('artikel'), asyncRoute(async (req, res) => {
+  const ExcelJS = require('exceljs');
+  const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Artikel');
+  ws.columns = ART_COLS.map((h, i) => ({ header: h, width: [8, 34, 16, 10, 8, 15, 15, 14, 8][i] }));
+  ws.getRow(1).font = { bold: true };
+  for (const a of db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all()) {
+    ws.addRow([a.id, a.name, a.category, a.price_cents / 100, a.crate_size, a.track_stock ? 'ja' : 'nein', a.min_stock, a.target_stock, a.active ? 'ja' : 'nein']);
+  }
+  ws.getColumn(4).numFmt = '#,##0.00 "€"';
+  ws.getColumn(1).font = { color: { argb: 'FF8B958F' } };
+  res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="Artikel.xlsx"' });
+  await wb.xlsx.write(res); res.end();
+}));
+admin.post('/articles/import-excel', need('artikel'), express.raw({ type: () => true, limit: '5mb' }), asyncRoute(async (req, res) => {
+  const ExcelJS = require('exceljs');
+  const buf = req.body;
+  if (!buf || buf.length < 4 || buf[0] !== 0x50 || buf[1] !== 0x4b) return bad(res, 'Bitte eine Excel-Datei (.xlsx) hochladen.');
+  const wb = new ExcelJS.Workbook();
+  try { await wb.xlsx.load(buf); } catch (e) { return bad(res, 'Die Excel-Datei lässt sich nicht lesen.'); }
+  const norm = v => String(v || '').toLowerCase().replace(/[^a-zäöüß]/g, '');
+  const want = { id: ['id', 'artikelid'], name: ['artikel', 'name', 'bezeichnung', 'produkt'], cat: ['spalte', 'kategorie', 'gruppe'], price: ['preis', 'vkpreis', 'verkaufspreis'],
+    crate: ['kiste', 'kistengröße', 'flaschenjekiste', 'gebinde'], track: ['bestandführen', 'bestand'], min: ['mindestbestand', 'mindest'],
+    target: ['bestellenbis'], active: ['aktiv'] };
+  let cols = null, ws = null, head = 0;
+  for (const w of wb.worksheets) {
+    for (let r = 1; r <= Math.min(w.rowCount, 10) && !cols; r++) {
+      const c = {};
+      w.getRow(r).eachCell((cell, col) => { const h = norm(cell.text); for (const [k, list] of Object.entries(want)) if (!c[k] && list.includes(h)) c[k] = col; });
+      if (c.name && c.price) { cols = c; ws = w; head = r; }
+    }
+    if (cols) break;
+  }
+  if (!cols) return bad(res, 'Keine Überschriften „Artikel“ und „Preis“ gefunden. Am einfachsten die Artikelliste als Excel herunterladen und als Vorlage nehmen.');
+  const txt = (row, k) => (cols[k] ? String(row.getCell(cols[k]).text || '').trim() : '');
+  const num = s => { if (String(s).trim() === '') return NaN; const n = Number(String(s).replace(/[€\s]/g, '').replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return Number.isFinite(n) ? n : NaN; };
+  const yes = (s, d) => (s === '' ? d : !/^(nein|n|0|false|no)$/i.test(s));
+  // Abgleich: zuerst über die ID (nur Artikel, die es hier gibt), sonst über den Namen. Gelöschte Artikel werden nie wiederbelebt –
+  // ein gleichnamiger neuer Artikel bekommt eine neue ID. IDs aus der Datei, die es hier nicht gibt, werden nie übernommen.
+  const live = db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0').all();
+  const byId = new Map(live.map(a => [a.id, a])), byName = new Map(live.map(a => [a.name.toLowerCase(), a]));
+  const FIELDS = ['name', 'category', 'price_cents', 'crate_size', 'track_stock', 'min_stock', 'target_stock', 'active'];
+  const rows = []; const seenName = new Set(), seenId = new Set();
+  for (let i = head + 1; i <= ws.rowCount && rows.length < 500; i++) {
+    const row = ws.getRow(i); const name = cleanName(txt(row, 'name'), 60);
+    if (!name) continue;
+    const price = num(txt(row, 'price'));
+    const fileId = /^\d{1,9}$/.test(txt(row, 'id')) ? Number(txt(row, 'id')) : null;
+    const a = { name, category: (txt(row, 'cat') || 'Sonstiges').slice(0, 40), price_cents: Math.round(price * 100),
+      crate_size: Math.max(1, Math.min(100, int(txt(row, 'crate'), 1))), track_stock: yes(txt(row, 'track'), true) ? 1 : 0,
+      min_stock: Math.max(0, int(txt(row, 'min'), 0)), target_stock: Math.max(0, int(txt(row, 'target'), 0)), active: yes(txt(row, 'active'), true) ? 1 : 0 };
+    const e = (fileId && byId.get(fileId)) || byName.get(name.toLowerCase()) || null;
+    let status = 'neu', match = null;
+    if (!Number.isFinite(price) || price < 0 || price > 1000) status = 'Preis ungültig';
+    else if ((e && seenId.has(e.id)) || seenName.has(name.toLowerCase())) status = 'doppelt';
+    else if (e) {
+      // Name gleich, aber andere ID in der Datei → trotzdem derselbe Artikel (Name ist hier eindeutig)
+      const diff = FIELDS.filter(k => e[k] !== a[k]);
+      status = diff.length ? 'ändern' : 'unverändert';
+      match = fileId === e.id ? 'id' : 'name';
+      a.id = e.id;
+      if (diff.length) a.current = Object.fromEntries(FIELDS.map(k => [k, e[k]]));
+      a.diff = diff;
+      // Umbenennen auf einen Namen, den schon ein anderer Artikel trägt, geht nicht
+      if (diff.includes('name')) { const o = byName.get(name.toLowerCase()); if (o && o.id !== e.id) { status = 'Name schon vergeben'; } }
+      seenId.add(e.id);
+    }
+    seenName.add(name.toLowerCase());
+    rows.push({ line: i, status, match, fileId, ...a });
+  }
+  const inFile = new Set(rows.filter(r => r.id).map(r => r.id));
+  const others = live.filter(a => a.active && !inFile.has(a.id));
+  // Entscheidung je Artikel: „take“ = IDs, bei denen die Werte aus der Datei übernommen werden; alle anderen behalten den Bestand
+  const take = new Set(String(req.query.take || '').split(',').filter(x => /^\d+$/.test(x)).map(Number));
+  if (req.query.commit === '1') {
+    if (req.query.hideOthers === '1') { const h = db.prepare('UPDATE articles SET active = 0 WHERE id = ?'); db.transaction(() => others.forEach(a => h.run(a.id)))(); }
+    const ins = db.prepare('INSERT INTO articles(name, category, price_cents, crate_size, track_stock, min_stock, target_stock, active, sort, icon) VALUES (?,?,?,?,?,?,?,?,?,?)');
+    const upd = db.prepare('UPDATE articles SET name = ?, category = ?, price_cents = ?, crate_size = ?, track_stock = ?, min_stock = ?, target_stock = ?, active = ? WHERE id = ?');
+    const setSort = db.prepare('UPDATE articles SET sort = ? WHERE id = ?');
+    // Reihenfolge der Datei = Reihenfolge am Tablet
+    db.transaction(() => rows.forEach((r, i) => {
+      const sort = (i + 1) * 10;
+      if (r.status === 'neu') ins.run(r.name, r.category, r.price_cents, r.crate_size, r.track_stock, r.min_stock, r.target_stock, r.active, sort, artIcons.guess(r.name, r.category));
+      if (r.status === 'ändern' && take.has(r.id)) upd.run(r.name, r.category, r.price_cents, r.crate_size, r.track_stock, r.min_stock, r.target_stock, r.active, r.id);
+      if (r.id && ((r.status === 'ändern' && take.has(r.id)) || r.status === 'unverändert')) setSort.run(sort, r.id);
+    }))();
+    const taken = rows.filter(r => r.status === 'ändern' && take.has(r.id));
+    audit(req.user, 'Artikel aus Excel importiert', `${rows.filter(r => r.status === 'neu').length} neu, ${taken.length} aus der Datei übernommen, ${rows.filter(r => r.status === 'ändern').length - taken.length} unverändert gelassen`);
+  }
+  res.json({ rows, newCount: rows.filter(r => r.status === 'neu').length, changeCount: rows.filter(r => r.status === 'ändern').length,
+    takenCount: req.query.commit === '1' ? rows.filter(r => r.status === 'ändern' && take.has(r.id)).length : undefined, others: others.map(a => a.name) });
+}));
+
+admin.post('/articles', need('artikel'), (req, res) => {
+  let a;
+  try { a = articleFromBody(req.body || {}, { category: 'Sonstiges', price_cents: 0, crate_size: 1, min_stock: 0, track_stock: 1, active: 1, sort: 100 }); }
+  catch (e) { return bad(res, e.message); }
+  if ((req.body || {}).icon === undefined) a.icon = artIcons.guess(a.name, a.category);
+  const r = db.prepare(`INSERT INTO articles(name, category, price_cents, crate_size, min_stock, target_stock, track_stock, active, sort, icon)
+    VALUES (@name,@category,@price_cents,@crate_size,@min_stock,@target_stock,@track_stock,@active,@sort,@icon)`).run(a);
+  audit(req.user, 'Artikel angelegt', `${a.name} ${(a.price_cents / 100).toFixed(2)} €`);
+  res.json({ id: Number(r.lastInsertRowid) });
+});
+
+admin.put('/articles/:id', need('artikel'), (req, res) => {
+  const base = db.prepare('SELECT * FROM articles WHERE id = ?').get(int(req.params.id));
+  if (!base || base.custom) return bad(res, 'Nicht gefunden.', 404);
+  let a;
+  try { a = articleFromBody(req.body || {}, base); } catch (e) { return bad(res, e.message); }
+  db.prepare(`UPDATE articles SET name=@name, category=@category, price_cents=@price_cents, crate_size=@crate_size,
+    min_stock=@min_stock, target_stock=@target_stock, track_stock=@track_stock, active=@active, sort=@sort, icon=@icon WHERE id=@id`).run({ ...a, id: base.id });
+  if (base.price_cents !== a.price_cents || base.name !== a.name || base.active !== a.active) {
+    audit(req.user, 'Artikel geändert', `${base.name}: ${(base.price_cents / 100).toFixed(2)} € → ${(a.price_cents / 100).toFixed(2)} €${a.active ? '' : ', ausgeblendet'}`);
+  }
+  res.json({ ok: true });
+});
+
+/* Eigenes Artikelbild: kommt im Browser bereits verkleinert (quadratisch, 384 px) als WebP/PNG/JPG an */
+admin.put('/articles/:id/image', need('artikel'), express.raw({ type: () => true, limit: artIcons.MAX_BYTES + 1024 }), (req, res) => {
+  const a = db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0 AND deleted = 0').get(int(req.params.id));
+  if (!a) return bad(res, 'Nicht gefunden.', 404);
+  let file;
+  try { file = artIcons.saveImage(DATA_DIR, a.id, Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0)); } catch (e) { return bad(res, e.message); }
+  if (a.image && a.image !== file) artIcons.removeImage(DATA_DIR, a.image);
+  db.prepare('UPDATE articles SET image = ? WHERE id = ?').run(file, a.id);
+  audit(req.user, 'Artikelbild geändert', a.name);
+  res.json({ ok: true, image: file });
+});
+admin.delete('/articles/:id/image', need('artikel'), (req, res) => {
+  const a = db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0').get(int(req.params.id));
+  if (!a) return bad(res, 'Nicht gefunden.', 404);
+  if (a.image) { artIcons.removeImage(DATA_DIR, a.image); db.prepare('UPDATE articles SET image = NULL WHERE id = ?').run(a.id); audit(req.user, 'Artikelbild entfernt', a.name); }
+  res.json({ ok: true });
+});
+
+/* Artikel löschen: nie verkauft/geliefert → endgültig; sonst aus allen Listen und vom Tablet entfernt,
+   alte Buchungen und Lieferungen bleiben (Bestand und Abrechnung stimmen weiter). */
+admin.delete('/articles/:id', need('artikel'), (req, res) => {
+  const a = db.prepare('SELECT * FROM articles WHERE id = ? AND deleted = 0').get(int(req.params.id));
+  if (!a) return res.json({ ok: true });
+  if (a.custom) return bad(res, 'Dieser Systemartikel kann nicht gelöscht werden.');
+  const n = db.prepare('SELECT COUNT(*) n FROM bookings WHERE article_id = ?').get(a.id).n
+    + db.prepare('SELECT COUNT(*) n FROM delivery_items WHERE article_id = ?').get(a.id).n
+    + db.prepare('SELECT COUNT(*) n FROM stock_moves WHERE article_id = ?').get(a.id).n;
+  db.transaction(() => {
+    db.prepare('DELETE FROM event_articles WHERE article_id = ?').run(a.id);
+    db.prepare('DELETE FROM supplier_map WHERE article_id = ?').run(a.id);
+    if (n) db.prepare('UPDATE articles SET deleted = 1, active = 0 WHERE id = ?').run(a.id);
+    else db.prepare('DELETE FROM articles WHERE id = ?').run(a.id);
+  })();
+  if (!n && a.image) artIcons.removeImage(DATA_DIR, a.image);
+  audit(req.user, 'Artikel gelöscht', a.name + (n ? ' (frühere Buchungen/Lieferungen bleiben erhalten)' : ''));
+  res.json({ ok: true, kept: Boolean(n) });
+});
+
+/* Reihenfolge der Kategorien (Tablet, Listen, Exporte); innerhalb einer Kategorie alphabetisch */
+const categoryList = () => db.prepare(`SELECT category, COUNT(*) n, SUM(active) act FROM articles WHERE custom = 0 AND deleted = 0
+  GROUP BY category ORDER BY cat_rank(category), de_key(category)`).all();
+admin.get('/categories', (req, res) => res.json(categoryList()));
+admin.put('/categories/order', need('artikel'), (req, res) => {
+  const order = Array.isArray((req.body || {}).order) ? req.body.order.map(c => String(c).trim().slice(0, 40)).filter(Boolean) : null;
+  if (!order) return bad(res, 'Ungültige Reihenfolge.');
+  setSetting('category_order', JSON.stringify([...new Set(order)].slice(0, 100)));
+  audit(req.user, 'Reihenfolge der Kategorien geändert', order.join(' · '));
+  res.json({ ok: true, categories: categoryList() });
+});
+
+/* ---------- Lieferungen ---------- */
+admin.get('/deliveries', need('lieferungen'), (req, res) => {
+  const list = db.prepare('SELECT * FROM deliveries ORDER BY date DESC, id DESC LIMIT 300').all();
+  const items = db.prepare(`SELECT di.*, a.name, a.crate_size FROM delivery_items di JOIN articles a ON a.id = di.article_id
+    WHERE di.delivery_id = ?`);
+  res.json(list.map(d => {
+    const its = items.all(d.id).map(i => ({ ...i, total: i.crates * i.crate_size + i.bottles }));
+    return { ...d, items: its, total: its.reduce((s, i) => s + i.total, 0) };
+  }));
+});
+
+/* Beleg hochladen (PDF, Foto) → wird gespeichert und, falls möglich, ausgelesen. */
+const BELEG_DIR = path.join(DATA_DIR, 'belege');
+const TRASH_DIR = path.join(BELEG_DIR, 'papierkorb');
+fs.mkdirSync(BELEG_DIR, { recursive: true });
+const ALLOWED = { 'application/pdf': '.pdf', 'image/jpeg': '.jpg', 'image/png': '.png', 'image/heic': '.heic', 'image/webp': '.webp' };
+const fileOk = f => typeof f === 'string' && /^[\w-]+\.(pdf|jpg|png|heic|webp)$/.test(f) && fs.existsSync(path.join(BELEG_DIR, f));
+/** Echte Dateisignatur statt nur Dateiendung prüfen. */
+function signatureOk(buf, ext) {
+  const h = buf.subarray(0, 16);
+  if (ext === '.pdf') return buf.subarray(0, 1024).includes('%PDF-');
+  if (ext === '.jpg') return h[0] === 0xff && h[1] === 0xd8 && h[2] === 0xff;
+  if (ext === '.png') return h.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
+  if (ext === '.webp') return h.subarray(0, 4).toString() === 'RIFF' && h.subarray(8, 12).toString() === 'WEBP';
+  if (ext === '.heic') return h.subarray(4, 8).toString() === 'ftyp';
+  return false;
+}
+/* Abgebrochene Uploads (älter als 1 Tag, keiner Lieferung zugeordnet) aufräumen */
+function cleanupUploads() {
+  const used = new Set(db.prepare('SELECT file FROM deliveries WHERE file IS NOT NULL').all().map(r => r.file));
+  for (const f of fs.readdirSync(BELEG_DIR)) {
+    const st = fs.statSync(path.join(BELEG_DIR, f));
+    if (!used.has(f) && Date.now() - st.mtimeMs > 24 * 3600 * 1000) invoices.removeFile(path.join(BELEG_DIR, f));
+  }
+}
+
+admin.post('/upload', need('lieferungen'), express.raw({ type: () => true, limit: '25mb' }), asyncRoute(async (req, res) => {
+  const mime = String(req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  let orig = String(req.headers['x-filename'] || 'beleg');
+  try { orig = decodeURIComponent(orig); } catch (e) { /* kaputt kodierter Name: so übernehmen */ }
+  const ext = ALLOWED[mime] || (/\.pdf$/i.test(orig) ? '.pdf' : null);
+  if (!ext) return bad(res, 'Bitte eine PDF-Datei oder ein Foto (JPG, PNG) hochladen.');
+  if (!req.body || !req.body.length) return bad(res, 'Die Datei ist leer.');
+  if (!signatureOk(req.body, ext)) return bad(res, 'Die Datei passt nicht zu ihrem Typ. Bitte das Original-PDF oder Foto hochladen.');
+  const name = `${Date.now()}-${crypto.randomBytes(3).toString('hex')}${ext}`;
+  const file = path.join(BELEG_DIR, name);
+  fs.writeFileSync(file, req.body);
+  let parsed;
+  try { parsed = await invoices.readUpload(db, file, ext === '.pdf' ? 'application/pdf' : mime); }
+  catch (e) { console.error('Beleg lesen:', e); parsed = { supplier: '', docNo: null, docKind: 'lieferung', lines: [], hasText: false }; }
+  res.json({ fileId: name, originalName: cleanName(orig, 120), ...parsed });
+}));
+
+admin.delete('/upload/:file', need('lieferungen'), (req, res) => {
+  const f = req.params.file;
+  const used = db.prepare('SELECT 1 FROM deliveries WHERE file = ?').get(f);
+  if (fileOk(f) && !used) invoices.removeFile(path.join(BELEG_DIR, f));
+  res.json({ ok: true });
+});
+
+admin.get('/beleg/:file', need('lieferungen'), (req, res) => {
+  if (!fileOk(req.params.file)) return bad(res, 'Beleg nicht gefunden.', 404);
+  res.sendFile(path.join(BELEG_DIR, req.params.file));
+});
+
+admin.get('/supplier-map', need('lieferungen','bestellung'), (req, res) => {
+  res.json(db.prepare(`SELECT sm.*, a.name AS article FROM supplier_map sm LEFT JOIN articles a ON a.id = sm.article_id
+    ORDER BY sm.supplier, sm.art_no`).all());
+});
+admin.delete('/supplier-map', need('lieferungen'), (req, res) => {
+  const { supplier, artNo } = req.body || {};
+  db.prepare('DELETE FROM supplier_map WHERE supplier = ? AND art_no = ?').run(String(supplier || ''), String(artNo || ''));
+  res.json({ ok: true });
+});
+
+/**
+ * Lieferung speichern – von Hand oder aus einem ausgelesenen Beleg.
+ * items: [{ articleId, crates, bottles, artNo?, text?, ignore?, packSize?, cost_cents? }]
+ */
+admin.post('/deliveries', need('lieferungen'), (req, res) => {
+  const { date, supplier, note, items, fileId, docNo, docKind, total_cents: totalCents, remember } = req.body || {};
+  if (!isDate(date)) return bad(res, 'Datum fehlt.');
+  const sup = String(supplier || '').trim().slice(0, 80);
+  if (!sup) return bad(res, 'Lieferant fehlt.');
+  if (fileId && !fileOk(fileId)) return bad(res, 'Der hochgeladene Beleg wurde nicht gefunden. Bitte erneut hochladen.');
+  const doc = docNo ? String(docNo).trim().slice(0, 40) : null;
+  if (doc && db.prepare('SELECT 1 FROM deliveries WHERE supplier = ? AND doc_no = ?').get(sup, doc)) {
+    return bad(res, `Beleg ${doc} von ${sup} ist schon gespeichert. Doppelte Belege würden den Bestand verfälschen.`, 409);
+  }
+  const all = Array.isArray(items) ? items : [];
+  const clean = all
+    .filter(i => !i.ignore)
+    .map(i => ({ articleId: int(i.articleId), crates: int(i.crates), bottles: int(i.bottles),
+      artNo: i.artNo ? String(i.artNo).slice(0, 20) : null, text: i.text ? String(i.text).slice(0, 80) : null,
+      cost: i.cost_cents === undefined || i.cost_cents === null ? null : int(i.cost_cents) }));
+  if (clean.some(i => !i.articleId && (i.crates || i.bottles))) {
+    return bad(res, 'Bitte jeder Position einen Artikel zuordnen oder sie auf „ignorieren“ stellen.');
+  }
+  const rows = clean.filter(i => i.articleId && (i.crates || i.bottles));
+  if (!rows.length) return bad(res, 'Keine Positionen eingetragen.');
+  const kind = ['rechnung', 'gutschrift', 'lieferung', 'kassenbon'].includes(docKind) ? docKind : 'lieferung';
+
+  let id;
+  try { db.transaction(() => {
+    id = Number(db.prepare(`INSERT INTO deliveries(date, supplier, note, doc_no, doc_kind, file, total_cents)
+      VALUES (?,?,?,?,?,?,?)`).run(date, sup, note ? String(note).slice(0, 300) : null, doc, kind,
+      fileId || null, totalCents === undefined || totalCents === null || totalCents === '' ? null : int(totalCents)).lastInsertRowid);
+    const ins = db.prepare(`INSERT INTO delivery_items(delivery_id, article_id, crates, bottles, supplier_art_no, supplier_text, cost_cents)
+      VALUES (?,?,?,?,?,?,?)`);
+    const artOk = db.prepare('SELECT 1 FROM articles WHERE id = ?');
+    rows.forEach(i => {
+      if (!artOk.get(i.articleId)) throw new Error('Unbekannter Artikel.');
+      if (Math.abs(i.crates) > 1000 || Math.abs(i.bottles) > 10000) throw new Error('Menge unplausibel.');
+      ins.run(id, i.articleId, i.crates, i.bottles, i.artNo, i.text, i.cost);
+    });
+    if (remember !== false) {
+      const up = db.prepare(`INSERT INTO supplier_map(supplier, art_no, article_id, pack_size, text) VALUES (?,?,?,?,?)
+        ON CONFLICT(supplier, art_no) DO UPDATE SET article_id = excluded.article_id, pack_size = excluded.pack_size, text = excluded.text`);
+      for (const i of all) {
+        if (!i.artNo || i.single) continue;
+        up.run(sup, String(i.artNo).slice(0, 20), i.ignore ? null : int(i.articleId) || null, Math.max(1, int(i.packSize, 1)),
+          i.text ? String(i.text).slice(0, 80) : null);
+      }
+    }
+  })(); } catch (e) {
+    if (/UNIQUE/.test(e.message)) return bad(res, `Den Beleg ${doc} von ${sup} gibt es schon.`);
+    if (/Unbekannter Artikel|unplausibel/.test(e.message)) return bad(res, e.message === 'Unbekannter Artikel.' ? 'Eine Position ist keinem gültigen Artikel zugeordnet. Bitte prüfen.' : 'Eine Menge ist unplausibel (über 1000 Kisten bzw. 10.000 Stück).');
+    throw e;
+  }
+  audit(req.user, 'Lieferung gespeichert', `${sup} ${date}${doc ? ' Beleg ' + doc : ''} (${rows.length} Positionen)`);
+  res.json({ id });
+});
+
+admin.delete('/deliveries/:id', need('lieferungen'), (req, res) => {
+  const d = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(int(req.params.id));
+  if (!d) return res.json({ ok: true });
+  db.prepare('DELETE FROM deliveries WHERE id = ?').run(d.id);
+  // Beleg nicht sofort vernichten: 90 Tage im Papierkorb (steckt auch in der Komplettsicherung)
+  if (d.file && fileOk(d.file)) {
+    try { fs.mkdirSync(TRASH_DIR, { recursive: true }); fs.renameSync(path.join(BELEG_DIR, d.file), path.join(TRASH_DIR, d.file)); }
+    catch (e) { /* Datei schon weg */ }
+  }
+  audit(req.user, 'Lieferung gelöscht', `${d.supplier} ${d.date}${d.doc_no ? ' Beleg ' + d.doc_no : ''}`);
+  res.json({ ok: true });
+});
+
+/* ---------- Bestand ---------- */
+admin.get('/stock', (req, res) => res.json(stockList()));
+
+admin.get('/stock/moves', need('bestand'), (req, res) => {
+  res.json(db.prepare(`SELECT sm.*, a.name FROM stock_moves sm JOIN articles a ON a.id = sm.article_id
+    ORDER BY sm.date DESC, sm.id DESC LIMIT 200`).all());
+});
+
+admin.post('/stock/move', need('bestand'), (req, res) => {
+  const { articleId, qty, reason, date, note } = req.body || {};
+  if (!['bruch', 'korrektur'].includes(reason)) return bad(res, 'Grund ungültig.');
+  let q = int(qty);
+  if (!q || Math.abs(q) > 10000) return bad(res, 'Menge fehlt oder ist unplausibel.');
+  const art = db.prepare('SELECT name FROM articles WHERE id = ?').get(int(articleId));
+  if (!art) return bad(res, 'Bitte einen Artikel wählen.');
+  if (reason === 'bruch') q = -Math.abs(q);
+  audit(req.user, reason === 'bruch' ? 'Bruch gebucht' : 'Bestand korrigiert', `${art.name}: ${q}`);
+  db.prepare('INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,?,?,?)')
+    .run(int(articleId), q, reason, isDate(date) ? date : today(), note ? String(note).slice(0, 200) : null);
+  res.json({ ok: true });
+});
+
+admin.post('/stock/inventory', need('bestand'), (req, res) => {
+  const { date, counts, force } = req.body || {};
+  const d = isDate(date) ? date : today();
+  if (d > today()) return bad(res, 'Das Inventurdatum darf nicht in der Zukunft liegen.');
+  const current = new Map(stockList().map(s => [s.id, s.stock]));
+  // Plausibilität: Tippfehler wie 2400 statt 24 abfangen
+  const names = new Map(stockList().map(s => [s.id, s.name]));
+  const odd = [];
+  for (const c of Array.isArray(counts) ? counts : []) {
+    if (c.counted === '' || c.counted === null || c.counted === undefined) continue;
+    const id = int(c.articleId), n = Number(c.counted);
+    if (!current.has(id)) continue;
+    if (!Number.isInteger(n) || n < 0 || n > 20000) return bad(res, `${names.get(id)}: gezählte Menge ungültig (0 bis 20.000 Stück).`);
+    const soll = Math.max(0, current.get(id));
+    if (Math.abs(n - soll) > Math.max(48, soll * 2)) odd.push(`${names.get(id)}: gezählt ${n}, Soll ${soll}`);
+  }
+  if (odd.length && !force) return res.status(409).json({ error: 'Ungewöhnlich große Abweichung', confirm: true, odd });
+  const ins = db.prepare(`INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?, 'inventur', ?, ?)`);
+  const result = [];
+  db.transaction(() => {
+    for (const c of Array.isArray(counts) ? counts : []) {
+      if (c.counted === '' || c.counted === null || c.counted === undefined) continue;
+      const id = int(c.articleId);
+      if (!current.has(id)) continue;
+      const diff = int(c.counted) - current.get(id);
+      if (diff !== 0) {
+        ins.run(id, diff, d, `Inventur: gezählt ${int(c.counted)}, Soll ${current.get(id)}`);
+        result.push({ articleId: id, diff });
+      }
+    }
+  })();
+  audit(req.user, 'Inventur', `${result.length} Abweichungen`);
+  res.json({ ok: true, changes: result });
+});
+
+/** Schwundauswertung: Zugänge, Abgänge, Differenzen je Artikel im Zeitraum. */
+function shrinkage(from, to) {
+  const arts = db.prepare('SELECT id, name, category, price_cents, crate_size, sort FROM articles WHERE custom = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all();
+  const deliv = db.prepare(`SELECT COALESCE(SUM(di.crates * a.crate_size + di.bottles),0) n FROM delivery_items di
+    JOIN deliveries d ON d.id = di.delivery_id JOIN articles a ON a.id = di.article_id
+    WHERE di.article_id = ? AND d.date BETWEEN ? AND ?`);
+  const book = db.prepare(`SELECT kind, COALESCE(SUM(qty),0) n FROM bookings WHERE article_id = ? AND cancelled_at IS NULL
+    AND date(created_at) BETWEEN ? AND ? GROUP BY kind`);
+  const moves = db.prepare(`SELECT reason, COALESCE(SUM(qty),0) n FROM stock_moves WHERE article_id = ? AND date BETWEEN ? AND ?
+    GROUP BY reason`);
+  return arts.map(a => {
+    const k = { konto: 0, verein: 0, gast: 0, event: 0 };
+    book.all(a.id, from, to).forEach(r => { k[r.kind] = r.n; });
+    const m = { bruch: 0, inventur: 0, korrektur: 0 };
+    moves.all(a.id, from, to).forEach(r => { m[r.reason] = r.n; });
+    const delivered = deliv.get(a.id, from, to).n;
+    const booked = k.konto + k.verein + k.gast + k.event;
+    return {
+      id: a.id, name: a.name, category: a.category, price_cents: a.price_cents,
+      delivered, booked, ...k, bruch: m.bruch, inventur: m.inventur, korrektur: m.korrektur,
+      open: delivered + m.bruch + m.korrektur - booked,
+      shrink_cents: -Math.min(0, m.inventur) * a.price_cents,
+    };
+  }).filter(r => r.delivered || r.booked || r.bruch || r.inventur || r.korrektur);
+}
+
+admin.get('/shrinkage', need('bestand', 'abrechnung', 'export'), (req, res) => {
+  const { from, to } = defaultRange(req.query);
+  res.json({ from, to, rows: shrinkage(from, to) });
+});
+
+/* ---------- Buchungen ---------- */
+admin.get('/bookings', need('buchungen'), (req, res) => {
+  const { from, to } = defaultRange(req.query);
+  const params = [from, to];
+  let where = '';
+  if (req.query.memberId) { where += ' AND b.member_id = ?'; params.push(int(req.query.memberId)); }
+  if (req.query.eventId) { where += ' AND b.event_id = ?'; params.push(int(req.query.eventId)); }
+  const rows = db.prepare(`SELECT b.*, ${ARTICLE_LABEL} AS article, COALESCE(m.name, g.name, 'Deckel: ' || t.name) AS member, g.name AS guest,
+      g.member_id IS NULL AND g.id IS NOT NULL AS manual_guest, e.name AS event, p.method AS pay_method, t.status AS tab_status, t.method AS tab_method
+    FROM bookings b JOIN articles a ON a.id = b.article_id
+    LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
+    LEFT JOIN event_guests g ON g.id = b.event_guest_id LEFT JOIN event_payments p ON p.id = b.payment_id
+    LEFT JOIN guest_tabs t ON t.id = b.tab_id
+    WHERE date(b.created_at) BETWEEN ? AND ? ${where}
+    ORDER BY b.created_at DESC, b.id DESC LIMIT 1000`).all(...params);
+  res.json({ from, to, rows });
+});
+
+admin.post('/bookings', need('buchungen'), (req, res) => {
+  const { memberId, articleId, qty, date, amount_cents, note } = req.body || {};
+  const m = db.prepare('SELECT * FROM members WHERE id = ?').get(int(memberId));
+  const custom = amount_cents !== undefined && amount_cents !== null && amount_cents !== '';
+  const a = custom ? db.prepare('SELECT * FROM articles WHERE id = ?').get(customArticleId()) : db.prepare('SELECT * FROM articles WHERE id = ? AND custom = 0').get(int(articleId));
+  const q = custom ? 1 : int(qty);
+  const unit = custom ? int(amount_cents) : (a ? a.price_cents : 0);
+  if (!m || !a || q < 1 || q > 999) return bad(res, 'Konto, Artikel und Menge (1–999) angeben.');
+  if (custom && (unit < 10 || unit > 100000)) return bad(res, 'Betrag bitte zwischen 0,10 € und 1.000 €.');
+  if (date && !isDate(date)) return bad(res, 'Datum ungültig.');
+  if (isDate(date) && date > today()) return bad(res, 'Das Datum darf nicht in der Zukunft liegen.');
+  const kind = { mitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[m.kind];
+  const total = kind === 'verein' ? 0 : unit * q;
+  const ts = isDate(date) ? `${date} 12:00:00` : new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19).replace('T', ' ');
+  const txt = custom ? (cleanName(note, 60) || null) : null;
+  const r = db.prepare(`INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, created_at, note)
+    VALUES (?,?,?,?,?,?,?,?)`).run(m.id, a.id, kind, q, unit, total, ts, txt);
+  audit(req.user, 'Buchung nachgetragen', `${m.name}: ${custom ? 'Betrag ' + (unit / 100).toFixed(2) + ' €' + (txt ? ' (' + txt + ')' : '') : q + ' × ' + a.name}${isDate(date) ? ' am ' + date : ''}`);
+  res.json({ id: Number(r.lastInsertRowid) });
+});
+
+admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
+  const b = db.prepare(`SELECT b.*, COALESCE(b.article_name, a.name) AS article, a.custom, m.name AS member FROM bookings b JOIN articles a ON a.id = b.article_id
+    LEFT JOIN members m ON m.id = b.member_id WHERE b.id = ?`).get(int(req.params.id));
+  if (!b) return bad(res, 'Nicht gefunden.', 404);
+  if (b.cancelled_at) return res.json({ ok: false });
+  if (b.payment_id) return bad(res, 'Diese Buchung ist schon bezahlt. Bitte zuerst unter „Veranstaltungen“ die Zahlung zurücknehmen, sonst stimmt die Kasse nicht mehr.');
+  if (b.tab_id && b.kind !== 'konto') {
+    const t = db.prepare('SELECT status FROM guest_tabs WHERE id = ?').get(b.tab_id);
+    if (t && t.status !== 'offen') return bad(res, 'Dieser Gäste-Deckel ist schon geschlossen. Bitte zuerst unter „Gäste-Deckel“ wieder öffnen, sonst stimmt die Kasse nicht mehr.');
+  }
+  const what = `${b.member || 'Barverkauf'}: ${b.custom ? 'Betrag ' + (b.total_cents / 100).toFixed(2) + ' €' : b.qty + ' × ' + b.article} vom ${b.created_at.slice(0, 10)}`;
+  if (b.settled_id) {
+    if (db.prepare('SELECT 1 FROM bookings WHERE credit_for = ? AND cancelled_at IS NULL').get(b.id)) return bad(res, 'Dafür wurde schon eine Gutschrift gebucht.');
+    // Schon abgerechnet (in der Vereinsverwaltung abgebucht): nicht mehr ändern, sondern Gutschrift auf die nächste Abrechnung
+    if (b.total_cents <= 0) return bad(res, 'Diese Buchung ist schon abgerechnet und kann nicht mehr storniert werden.');
+    const note = ('Storno ' + (b.custom ? (b.note || 'Betrag') : b.qty + ' × ' + b.article) + ' vom ' + b.created_at.slice(0, 10)).slice(0, 80);
+    db.transaction(() => {
+      db.prepare(`INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, note, credit_for) VALUES (?,?,'konto',1,?,?,?,?)`)
+        .run(b.member_id, customArticleId(), -b.total_cents, -b.total_cents, note, b.id);
+      if (!b.custom) db.prepare(`INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,'korrektur',?,?)`)
+        .run(b.article_id, b.qty, today(), 'Storno aus abgerechnetem Zeitraum');
+    })();
+    audit(req.user, 'Gutschrift (Storno abgerechnet)', `${what}, ${(b.total_cents / 100).toFixed(2)} € für die nächste Abrechnung gutgeschrieben`);
+    return res.json({ ok: true, credit: true, message: `Die Buchung ist schon abgerechnet. Deshalb wurde eine Gutschrift über ${(b.total_cents / 100).toFixed(2).replace('.', ',')} € gebucht – sie wird bei der nächsten Abrechnung abgezogen.` });
+  }
+  const r = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ?
+    WHERE id = ? AND cancelled_at IS NULL`).run(req.user.username, b.id);
+  if (r.changes) audit(req.user, 'Buchung storniert', what);
+  res.json({ ok: r.changes > 0 });
+});
+
+/* ---------- Abrechnung / Salden ---------- */
+/* Name wie beim Buchen (Spalte article_name); ältere Buchungen ohne Eintrag zeigen den aktuellen Namen */
+const ARTICLE_LABEL = `CASE WHEN a.custom = 1 THEN a.name || COALESCE(': ' || b.note, '') ELSE COALESCE(b.article_name, a.name) END`;
+/** Offene Beträge je Konto (Stand asOf): alle noch nicht abgerechneten Konto-Buchungen */
+function balances(asOf = nowTs(), upTo = maxBookingId()) {
+  const rows = db.prepare(`SELECT m.id, m.name, m.kind, a.category, SUM(b.qty) AS qty, SUM(b.total_cents) AS cents, MIN(b.created_at) AS first_at
+    FROM bookings b JOIN members m ON m.id = b.member_id JOIN articles a ON a.id = b.article_id
+    WHERE b.${OPEN_KONTO.replace(/ AND /g, ' AND b.')} AND ${CUT('b.')}
+    GROUP BY m.id, a.category ORDER BY m.kind, name_key(m.name, m.kind)`).all(upTo, asOf, asOf);
+  const lastAt = db.prepare('SELECT MAX(until_at) t FROM member_settlements WHERE member_id = ?');
+  const map = new Map();
+  for (const r of rows) {
+    if (!map.has(r.id)) map.set(r.id, { id: r.id, name: r.name, kind: r.kind, total_cents: 0, items: 0, byCategory: {}, since: r.first_at });
+    const e = map.get(r.id);
+    e.byCategory[r.category] = (e.byCategory[r.category] || 0) + r.qty;
+    e.total_cents += r.cents; e.items += r.qty;
+    if (r.first_at < e.since) e.since = r.first_at;
+  }
+  return [...map.values()].map(e => ({ ...e, lastSettled: lastAt.get(e.id).t, eventOpen_cents: eventOpen(e.id) }));
+}
+
+admin.get('/balances', need('abrechnung', 'export'), (req, res) => {
+  const asOf = nowTs(), upTo = maxBookingId();
+  const list = balances(asOf, upTo);
+  const { from, to } = defaultRange(req.query);
+  const sums = db.prepare(`SELECT kind, COALESCE(SUM(total_cents),0) cents, COALESCE(SUM(qty),0) qty,
+      COALESCE(SUM(unit_cents * qty),0) list_cents
+    FROM bookings WHERE cancelled_at IS NULL AND date(created_at) BETWEEN ? AND ? GROUP BY kind`).all(from, to);
+  // Hinweis: Was Mitglieder auf Veranstaltungslisten noch offen haben, kommt erst nach der Übernahme auf die Getränkeliste
+  const evOpen = db.prepare(`SELECT e.name, SUM(b.total_cents) c FROM bookings b JOIN events e ON e.id = b.event_id
+    JOIN event_guests g ON g.id = b.event_guest_id WHERE g.member_id IS NOT NULL AND b.${OPEN_GUEST.replace(/ AND /g, ' AND b.')}
+    GROUP BY e.id ORDER BY e.date`).all();
+  const categories = db.prepare('SELECT category FROM articles WHERE deleted = 0 OR id IN (SELECT article_id FROM bookings) GROUP BY category ORDER BY cat_rank(category), de_key(category)').all().map(r => r.category);
+  res.json({ asOf, upTo, from, to, categories, rows: list, sums, total_cents: list.reduce((s, r) => s + r.total_cents, 0), eventOpen: evOpen });
+});
+
+/* ---------- Abtippliste für die Vereinsverwaltung (ohne Importfunktion) ----------
+   Gleicher Stand wie Liste/Export (asOf/upTo), sortiert nach Nachname, mit fertigem Buchungstext. */
+const NAME_PARTICLES = new Set(['von', 'van', 'vom', 'zu', 'zum', 'zur', 'de', 'der', 'den', 'la', 'le', 'di', 'da', 'ten', 'op']);
+function splitName(m) {
+  if (m.first_name && m.last_name && `${m.first_name} ${m.last_name}`.toLowerCase() === String(m.name).toLowerCase())
+    return { first: m.first_name, last: m.last_name };
+  const n = String(m.name).trim();
+  if (n.includes(',')) { const [l, ...f] = n.split(','); return { first: f.join(',').trim(), last: l.trim() }; }
+  const w = n.split(/\s+/);
+  if (w.length < 2) return { first: '', last: n };
+  let i = w.length - 1;
+  while (i > 1 && NAME_PARTICLES.has(w[i - 1].toLowerCase())) i--;
+  return { first: w.slice(0, i).join(' '), last: w.slice(i).join(' ') };
+}
+const BT_DEFAULT = 'Getränke {von} – {bis}';
+const deD = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
+function abtippliste(asOf, upTo) {
+  const list = balances(asOf, upTo);
+  const extra = db.prepare('SELECT first_name, last_name FROM members WHERE id = ?');
+  const rows = list.map(r => {
+    const person = r.kind === 'mitglied';
+    const nm = person ? splitName({ ...r, ...extra.get(r.id) }) : { first: '', last: r.name };
+    return { id: r.id, name: r.name, kind: r.kind, first: nm.first, last: nm.last, cents: r.total_cents, items: r.items, since: r.since };
+  });
+  const coll = new Intl.Collator('de', { sensitivity: 'base' });
+  const { nameKey } = require('./db');
+  rows.sort((a, b) => (a.kind === 'mitglied' ? 0 : 1) - (b.kind === 'mitglied' ? 0 : 1) || (nameKey(a.name, a.kind) < nameKey(b.name, b.kind) ? -1 : nameKey(a.name, a.kind) > nameKey(b.name, b.kind) ? 1 : 0));
+  const last = lastSettlement();
+  const firstOpen = rows.reduce((m, r) => (!m || r.since < m ? r.since : m), '');
+  const von = last && last !== '2000-01-01' ? last : firstOpen;
+  const tpl = getSetting('buchungstext', BT_DEFAULT) || BT_DEFAULT;
+  const text = tpl.replace(/\{von\}/g, deD(von)).replace(/\{bis\}/g, deD(asOf)).replace(/\{verein\}/g, getSetting('club_name', 'Unser Verein'))
+    .replace(/\{jahr\}/g, asOf.slice(0, 4));
+  return { asOf, upTo, von: von ? von.slice(0, 10) : null, bis: asOf.slice(0, 10), template: tpl, text, rows,
+    total_cents: rows.reduce((s, r) => s + r.cents, 0), clubName: getSetting('club_name', 'Unser Verein') };
+}
+admin.get('/abtippliste', need('abrechnung', 'export'), (req, res) => {
+  const fixed = isTs(req.query.asOf) && req.query.asOf <= nowTs() && req.query.upTo !== undefined;
+  res.json(abtippliste(fixed ? req.query.asOf : nowTs(), fixed ? Math.min(int(req.query.upTo), maxBookingId()) : maxBookingId()));
+});
+admin.put('/abtippliste/text', need('abrechnung'), (req, res) => {
+  const t = String((req.body || {}).template || '').replace(/[\r\n\t]+/g, ' ').trim().slice(0, 140);
+  setSetting('buchungstext', t || BT_DEFAULT);
+  res.json({ ok: true, template: t || BT_DEFAULT });
+});
+
+/* Kassierer: nach dem Abbuchen in der Vereinsverwaltung einzelne oder alle Konten als abgerechnet markieren.
+   Erfasst werden nur Buchungen bis zum Stand der angezeigten Liste bzw. des Exports (asOf) –
+   was danach am Tablet gebucht wurde, bleibt offen für die nächste Abrechnung. */
+admin.post('/settle', need('abrechnung'), (req, res) => {
+  const b = req.body || {};
+  const asOf = isTs(b.asOf) ? b.asOf : null;
+  if (!asOf) return bad(res, 'Stand der Liste fehlt – bitte die Seite neu laden.');
+  const upTo = int(b.upTo);
+  if (asOf > nowTs() || upTo < 0 || upTo > maxBookingId()) return bad(res, 'Ungültiger Stand.');
+  const all = !Array.isArray(b.memberIds);
+  const ids = all ? null : [...new Set(b.memberIds.map(int))].filter(Boolean);
+  if (!all && !ids.length) return bad(res, 'Kein Konto gewählt.');
+  const batch = (all ? 'alle-' : 'einzeln-') + Date.now().toString(36) + crypto.randomBytes(2).toString('hex');
+  const open = db.prepare(`SELECT member_id, SUM(total_cents) c, SUM(qty) n, COUNT(*) k FROM bookings
+    WHERE ${OPEN_KONTO} AND member_id IS NOT NULL AND ${CUT('')} GROUP BY member_id`).all(upTo, asOf, asOf)
+    .filter(r => all || ids.includes(r.member_id));
+  if (!open.length) return bad(res, 'Es gibt nichts Offenes abzurechnen.');
+  let cents = 0, bookings = 0;
+  db.transaction(() => {
+    for (const r of open) {
+      const id = Number(db.prepare(`INSERT INTO member_settlements(member_id, cents, items, until_at, batch, by_user, note)
+        VALUES (?,?,?,?,?,?,?)`).run(r.member_id, r.c, r.n, asOf, batch, req.user.username, b.note ? cleanName(b.note, 100) : null).lastInsertRowid);
+      bookings += db.prepare(`UPDATE bookings SET settled_id = ? WHERE member_id = ? AND ${OPEN_KONTO} AND ${CUT('')}`)
+        .run(id, r.member_id, upTo, asOf, asOf).changes;
+      cents += r.c;
+    }
+  })();
+  const names = all ? `${open.length} Konten` : db.prepare(`SELECT group_concat(name, ', ') n FROM members WHERE id IN (${open.map(() => '?').join(',')})`)
+    .get(...open.map(r => r.member_id)).n;
+  audit(req.user, all ? 'Alle Konten abgerechnet' : 'Konto abgerechnet', `${names}: ${(cents / 100).toFixed(2)} € (Stand ${asOf.slice(0, 16)})`);
+  res.json({ ok: true, members: open.length, bookings, cents, batch });
+});
+
+admin.get('/settle-history', need('abrechnung'), (req, res) => {
+  const rows = db.prepare(`SELECT s.batch, MIN(s.created_at) created_at, MAX(s.until_at) until_at, MAX(s.by_user) by_user,
+      COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, ', ') names
+    FROM member_settlements s JOIN members m ON m.id = s.member_id
+    GROUP BY s.batch ORDER BY MIN(s.id) DESC LIMIT 30`).all();
+  const newest = rows.length ? rows[0].batch : null;
+  res.json(rows.map(r => ({ ...r, names: r.members <= 3 ? r.names : null, undo: r.batch === newest && !r.batch.startsWith('stichtag-') })));
+});
+
+/* Fehlklick: nur die jüngste Abrechnung lässt sich zurücknehmen */
+admin.delete('/settle/:batch', need('abrechnung'), (req, res) => {
+  const batch = String(req.params.batch);
+  const newest = db.prepare('SELECT batch FROM member_settlements ORDER BY id DESC LIMIT 1').get();
+  if (!newest || newest.batch !== batch || batch.startsWith('stichtag-')) return bad(res, 'Nur die letzte Abrechnung kann zurückgenommen werden.');
+  const ids = db.prepare('SELECT id FROM member_settlements WHERE batch = ?').all(batch).map(r => r.id);
+  const credited = db.prepare(`SELECT COUNT(*) n FROM bookings c JOIN bookings o ON o.id = c.credit_for
+    WHERE c.cancelled_at IS NULL AND o.settled_id IN (${ids.map(() => '?').join(',')})`).get(...ids).n;
+  if (credited) return bad(res, 'Seit dieser Abrechnung wurde daraus schon etwas storniert (Gutschrift) – Zurücknehmen ist nicht mehr möglich.');
+  const sum = db.prepare('SELECT SUM(cents) c, COUNT(*) n FROM member_settlements WHERE batch = ?').get(batch);
+  db.transaction(() => {
+    const q = ids.map(() => '?').join(',');
+    db.prepare(`UPDATE bookings SET settled_id = NULL WHERE settled_id IN (${q})`).run(...ids);
+    db.prepare(`DELETE FROM member_settlements WHERE id IN (${q})`).run(...ids);
+  })();
+  audit(req.user, 'Abrechnung zurückgenommen', `${sum.n} Konten, ${((sum.c || 0) / 100).toFixed(2)} €`);
+  res.json({ ok: true });
+});
+
+/* ---------- Gäste-Deckel (Verwaltung) ---------- */
+const TAB_VIEW = need('veranstaltungen', 'uebernahme', 'abrechnung', 'export');
+function tabRows(where, ...params) {
+  const items = db.prepare(`SELECT b.id, b.created_at, b.qty, b.total_cents, b.unit_cents, ${ARTICLE_LABEL} AS article
+    FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.tab_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at`);
+  return db.prepare(`SELECT t.*, m.name AS member FROM guest_tabs t LEFT JOIN members m ON m.id = t.member_id WHERE ${where}`).all(...params)
+    .map(t => {
+      const it = items.all(t.id);
+      return { ...t, items: it, open_cents: t.status === 'offen' ? it.reduce((s, x) => s + x.total_cents, 0) : 0,
+        sum_cents: t.status === 'offen' || t.status === 'abgeschrieben' ? it.reduce((s, x) => s + x.unit_cents * x.qty, 0) : (t.cents || 0),
+        last_at: it.length ? it[it.length - 1].created_at : t.created_at };
+    });
+}
+admin.get('/tabs', TAB_VIEW, (req, res) => {
+  const days = Math.min(365, Math.max(1, int(req.query.days, 30)));
+  const open = tabRows("t.status = 'offen' ORDER BY t.created_at");
+  const closed = tabRows("t.status <> 'offen' AND date(t.closed_at) >= date('now','localtime', ?) ORDER BY t.closed_at DESC", `-${days} days`);
+  const today = db.prepare(`SELECT method, COALESCE(SUM(cents),0) c, COUNT(*) n FROM guest_tabs
+    WHERE status = 'bezahlt' AND date(closed_at) = date('now','localtime') GROUP BY method`).all();
+  res.json({ open, closed, days, today: Object.fromEntries(today.map(r => [r.method, r])) });
+});
+const getTab = id => db.prepare('SELECT * FROM guest_tabs WHERE id = ?').get(int(id));
+admin.post('/tabs/:id/pay', need('veranstaltungen', 'uebernahme'), (req, res) => {
+  const t = getTab(req.params.id);
+  if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
+  const method = (req.body || {}).method;
+  if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
+  res.json({ ok: true, cents: closeTab(t, { status: 'bezahlt', method, by: req.user.username }) });
+});
+admin.post('/tabs/:id/transfer', need('uebernahme'), (req, res) => {
+  const t = getTab(req.params.id);
+  if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
+  const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','mannschaft')").get(int((req.body || {}).memberId));
+  if (!m) return bad(res, 'Bitte ein Mitglied oder eine Mannschaft wählen.');
+  res.json({ ok: true, cents: closeTab(t, { status: 'uebernommen', memberId: m.id, by: req.user.username, note: 'auf ' + m.name }) });
+});
+admin.post('/tabs/:id/writeoff', need('uebernahme'), (req, res) => {
+  const t = getTab(req.params.id);
+  if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
+  const note = cleanName((req.body || {}).note, 120);
+  if (note.length < 3) return bad(res, 'Bitte kurz begründen, warum abgeschrieben wird.');
+  res.json({ ok: true, cents: closeTab(t, { status: 'abgeschrieben', by: req.user.username, note }) });
+});
+/* Fehlklick am Tablet: „bezahlt“ zurücknehmen → Deckel wieder offen */
+admin.post('/tabs/:id/reopen', need('veranstaltungen', 'uebernahme'), (req, res) => {
+  const t = getTab(req.params.id);
+  if (!t || t.status !== 'bezahlt') return bad(res, 'Nur bezahlte Deckel lassen sich wieder öffnen.');
+  db.transaction(() => {
+    db.prepare("UPDATE guest_tabs SET status = 'offen', method = NULL, cents = NULL, closed_at = NULL, closed_by = NULL WHERE id = ?").run(t.id);
+    db.prepare('UPDATE bookings SET paid_cash = 0 WHERE tab_id = ? AND cancelled_at IS NULL').run(t.id);
+  })();
+  audit(req.user, 'Gäste-Deckel wieder geöffnet', `${t.name}: ${((t.cents || 0) / 100).toFixed(2)} € ${t.method || ''} zurückgenommen`);
+  res.json({ ok: true });
+});
+
+/* ---------- Veranstaltungen: eigene Getränkeliste + eigene Abrechnungsliste ---------- */
+function eventSummary(id) {
+  const ev = db.prepare('SELECT * FROM events WHERE id = ?').get(id);
+  if (!ev) return null;
+  ev.articles = db.prepare(`SELECT ea.article_id AS id, a.name, a.category, ea.price_cents
+    FROM event_articles ea JOIN articles a ON a.id = ea.article_id WHERE ea.event_id = ? AND a.custom = 0 ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(id);
+  ev.items = db.prepare(`SELECT a.name, a.category, a.custom, SUM(b.qty) qty, SUM(b.total_cents) total_cents,
+      SUM(CASE WHEN b.kind = 'verein' THEN b.qty ELSE 0 END) free_qty
+    FROM bookings b JOIN articles a ON a.id = b.article_id
+    WHERE b.event_id = ? AND b.cancelled_at IS NULL GROUP BY a.id ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(id);
+  ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id, m.name AS member_name, g.created_by, g.created_at,
+      COALESCE(SUM(b.qty),0) qty, COALESCE(SUM(b.total_cents),0) total_cents,
+      COALESCE(SUM(CASE WHEN b.kind = 'event' AND b.payment_id IS NULL AND b.transferred_at IS NULL THEN b.total_cents END),0) open_cents,
+      COALESCE(SUM(CASE WHEN p.method = 'bar' THEN b.total_cents END),0) bar_cents,
+      COALESCE(SUM(CASE WHEN p.method = 'karte' THEN b.total_cents END),0) karte_cents,
+      COALESCE(SUM(CASE WHEN b.transferred_at IS NOT NULL THEN b.total_cents END),0) transferred_cents,
+      COUNT(b.id) n
+    FROM event_guests g LEFT JOIN members m ON m.id = g.member_id
+    LEFT JOIN bookings b ON b.event_guest_id = g.id AND b.cancelled_at IS NULL
+    LEFT JOIN event_payments p ON p.id = b.payment_id
+    WHERE g.event_id = ? GROUP BY g.id ORDER BY name_key(g.name, 'mitglied')`).all(id);
+  ev.payments = db.prepare(`SELECT p.*, g.name FROM event_payments p JOIN event_guests g ON g.id = p.guest_id
+    WHERE p.event_id = ? ORDER BY p.at DESC, p.id DESC`).all(id);
+  const sale = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_id = ? AND cancelled_at IS NULL
+    AND event_guest_id IS NULL AND (kind = 'gast' OR (kind = 'event' AND paid_cash = 1))`).get(id).c;
+  const sumG = k => ev.guests.reduce((t, g) => t + g[k], 0);
+  ev.sale_cents = sale;                                   // sofort bar (Barverkauf ohne Namen, Gastkonto)
+  ev.bar_cents = sale + sumG('bar_cents');                // gehört in die Kasse
+  ev.karte_cents = sumG('karte_cents');
+  ev.transferred_cents = sumG('transferred_cents');
+  ev.open_cents = sumG('open_cents');
+  ev.open_member_cents = ev.guests.filter(g => g.member_id).reduce((t, g) => t + g.open_cents, 0);
+  ev.open_manual = ev.guests.filter(g => !g.member_id && g.open_cents > 0).map(g => ({ id: g.id, name: g.name, open_cents: g.open_cents }));
+  ev.total_cents = ev.items.reduce((t, i) => t + i.total_cents, 0);
+  ev.expected_cents = ev.bar_cents;
+  return ev;
+}
+const getEvent = id => db.prepare('SELECT * FROM events WHERE id = ?').get(int(id));
+const getGuest = (evId, gid) => db.prepare('SELECT * FROM event_guests WHERE id = ? AND event_id = ?').get(int(gid), int(evId));
+
+admin.get('/events', need('veranstaltungen', 'uebernahme'), (req, res) => {
+  const ids = db.prepare('SELECT id FROM events WHERE deleted = 0 ORDER BY date DESC, id DESC LIMIT 100').all();
+  res.json(ids.map(r => eventSummary(r.id)));
+});
+
+/* Veranstaltung löschen: geht, wenn noch nichts gebucht wurde – oder wenn sie beendet ist und nichts mehr offen ist.
+   Mit Buchungen verschwindet sie aus der Liste; Umsatz und Bestand bleiben in den Auswertungen erhalten. */
+admin.delete('/events/:id', need('veranstaltungen'), (req, res) => {
+  const ev = db.prepare('SELECT * FROM events WHERE id = ? AND deleted = 0').get(int(req.params.id));
+  if (!ev) return res.json({ ok: true });
+  if (ev.active) return bad(res, 'Die Veranstaltung ist noch aktiv – bitte zuerst deaktivieren.');
+  const booked = db.prepare('SELECT COUNT(*) n FROM bookings WHERE event_id = ? AND cancelled_at IS NULL').get(ev.id).n;
+  if (booked) {
+    const open = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_id = ? AND event_guest_id IS NOT NULL AND ${OPEN_GUEST}`).get(ev.id).c;
+    if (open) return bad(res, `Auf der Liste sind noch ${(open / 100).toFixed(2).replace('.', ',')} € offen – erst bezahlen lassen oder auf die Getränkeliste übernehmen.`);
+  }
+  db.transaction(() => {
+    if (booked) db.prepare('UPDATE events SET deleted = 1 WHERE id = ?').run(ev.id);
+    else {
+      db.prepare('DELETE FROM bookings WHERE event_id = ?').run(ev.id);   // nur stornierte
+      db.prepare('DELETE FROM event_payments WHERE event_id = ?').run(ev.id);
+      db.prepare('DELETE FROM event_guests WHERE event_id = ?').run(ev.id);
+      db.prepare('DELETE FROM event_articles WHERE event_id = ?').run(ev.id);
+      db.prepare('DELETE FROM events WHERE id = ?').run(ev.id);
+    }
+  })();
+  audit(req.user, 'Veranstaltung gelöscht', `${ev.name} (${ev.date})${booked ? ' – Umsätze bleiben in den Auswertungen' : ''}`);
+  res.json({ ok: true, kept: Boolean(booked) });
+});
+
+/* Namensvorschläge für die Abrechnungsliste (auch ohne Recht „Mitglieder“) */
+admin.get('/event-members', need('veranstaltungen', 'uebernahme'), (req, res) => {
+  res.json(db.prepare("SELECT id, name, kind FROM members WHERE active = 1 AND kind IN ('mitglied','mannschaft') ORDER BY name_key(name, kind)").all());
+});
+
+function saveEventArticles(eventId, list) {
+  const clean = (Array.isArray(list) ? list : [])
+    .map(a => ({ id: int(a.articleId), price: int(a.price_cents, -1) }))
+    .filter(a => a.id && a.price >= 0 && a.price <= 100000 && db.prepare('SELECT 1 FROM articles WHERE id = ? AND custom = 0').get(a.id));
+  db.transaction(() => {
+    db.prepare('DELETE FROM event_articles WHERE event_id = ?').run(eventId);
+    const ins = db.prepare('INSERT INTO event_articles(event_id, article_id, price_cents) VALUES (?,?,?)');
+    clean.forEach(a => ins.run(eventId, a.id, a.price));
+  })();
+  return clean.length;
+}
+
+admin.post('/events', need('veranstaltungen'), (req, res) => {
+  const { name, date, copyFrom } = req.body || {};
+  const n = cleanName(name, 80);
+  if (!n) return bad(res, 'Name fehlt.');
+  const id = Number(db.prepare('INSERT INTO events(name, date) VALUES (?,?)').run(n, isDate(date) ? date : today()).lastInsertRowid);
+  // Getränkeliste vorbelegen: von einer früheren Veranstaltung oder alle aktiven Artikel (inkl. Snacks, Bälle) zum Normalpreis
+  const src = copyFrom ? db.prepare('SELECT article_id AS articleId, price_cents FROM event_articles WHERE event_id = ?').all(int(copyFrom)) : [];
+  saveEventArticles(id, src.length ? src : db.prepare(`SELECT id AS articleId, price_cents FROM articles
+    WHERE active = 1 AND custom = 0 AND deleted = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)`).all());
+  audit(req.user, 'Veranstaltung angelegt', n);
+  res.json({ id });
+});
+
+admin.put('/events/:id/articles', need('veranstaltungen'), (req, res) => {
+  const ev = getEvent(req.params.id);
+  if (!ev) return bad(res, 'Nicht gefunden.', 404);
+  if (ev.closed_at) return bad(res, 'Die Veranstaltung ist abgeschlossen.');
+  res.json({ ok: true, count: saveEventArticles(ev.id, (req.body || {}).articles) });
+});
+
+admin.post('/events/:id/activate', need('veranstaltungen'), (req, res) => {
+  const ev = getEvent(req.params.id);
+  if (!ev) return bad(res, 'Nicht gefunden.', 404);
+  if (ev.closed_at) return bad(res, 'Die Veranstaltung ist bereits abgeschlossen.');
+  if (!db.prepare('SELECT COUNT(*) n FROM event_articles WHERE event_id = ?').get(ev.id).n) {
+    return bad(res, 'Bitte zuerst festlegen, welche Getränke es gibt.');
+  }
+  db.transaction(() => {
+    db.prepare('UPDATE events SET active = 0').run();
+    db.prepare('UPDATE events SET active = 1 WHERE id = ?').run(ev.id);
+  })();
+  audit(req.user, 'Veranstaltung aktiviert', ev.name);
+  res.json({ ok: true });
+});
+
+admin.post('/events/:id/deactivate', need('veranstaltungen'), (req, res) => {
+  const ev = getEvent(req.params.id);
+  if (!ev) return bad(res, 'Nicht gefunden.', 404);
+  db.prepare('UPDATE events SET active = 0 WHERE id = ?').run(ev.id);
+  audit(req.user, 'Veranstaltung deaktiviert', ev.name);
+  res.json({ ok: true });
+});
+
+/* Abrechnungsliste: Namen hinzufügen (Mitglied oder frei), umbenennen / Mitglied zuordnen, entfernen */
+admin.post('/events/:id/guests', need('veranstaltungen'), (req, res) => {
+  const ev = getEvent(req.params.id);
+  if (!ev) return bad(res, 'Nicht gefunden.', 404);
+  if (ev.closed_at) return bad(res, 'Die Veranstaltung ist abgeschlossen.');
+  try {
+    const g = addGuest(ev, req.body || {}, req.user.username);
+    res.json({ id: g.id });
+  } catch (e) { bad(res, e.message); }
+});
+
+admin.put('/events/:id/guests/:gid', need('veranstaltungen', 'uebernahme'), (req, res) => {
+  const g = getGuest(req.params.id, req.params.gid);
+  if (!g) return bad(res, 'Nicht gefunden.', 404);
+  const b = req.body || {};
+  let memberId = g.member_id, name = g.name;
+  if (b.memberId !== undefined) {
+    if (b.memberId === null || b.memberId === '') memberId = null;
+    else {
+      const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','mannschaft')").get(int(b.memberId));
+      if (!m) return bad(res, 'Mitglied nicht gefunden.');
+      const dup = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND member_id = ? AND id <> ?').get(g.event_id, m.id, g.id);
+      if (dup) {
+        // steht schon auf der Liste (z. B. doppelt eingetragen): Einträge zusammenführen
+        db.transaction(() => {
+          db.prepare('UPDATE bookings SET event_guest_id = ?, member_id = CASE WHEN transferred_at IS NULL THEN ? ELSE member_id END WHERE event_guest_id = ?').run(dup.id, m.id, g.id);
+          db.prepare('UPDATE event_payments SET guest_id = ? WHERE guest_id = ?').run(dup.id, g.id);
+          db.prepare('DELETE FROM event_guests WHERE id = ?').run(g.id);
+        })();
+        audit(req.user, 'Veranstaltungsliste zusammengeführt', `${g.name} → ${dup.name}`);
+        return res.json({ ok: true, merged: dup.name });
+      }
+      memberId = m.id;
+      if (b.name === undefined) name = m.name;
+    }
+  }
+  if (b.name !== undefined) { name = cleanName(b.name, 60); if (name.length < 2) return bad(res, 'Bitte einen Namen eingeben.'); }
+  db.transaction(() => {
+    db.prepare('UPDATE event_guests SET name = ?, member_id = ? WHERE id = ?').run(name, memberId, g.id);
+    // offene Buchungen gehören dann zum zugeordneten Mitglied
+    db.prepare(`UPDATE bookings SET member_id = ? WHERE event_guest_id = ? AND transferred_at IS NULL`).run(memberId, g.id);
+  })();
+  audit(req.user, 'Veranstaltungsliste geändert', `${g.name} → ${name}${memberId ? ' (Mitglied)' : ''}`);
+  res.json({ ok: true });
+});
+
+admin.delete('/events/:id/guests/:gid', need('veranstaltungen'), (req, res) => {
+  const g = getGuest(req.params.id, req.params.gid);
+  if (!g) return bad(res, 'Nicht gefunden.', 404);
+  if (db.prepare('SELECT COUNT(*) n FROM bookings WHERE event_guest_id = ? AND cancelled_at IS NULL').get(g.id).n) {
+    return bad(res, 'Auf diesem Namen gibt es Buchungen – erst stornieren (unter „Buchungen“), dann entfernen.');
+  }
+  db.transaction(() => {
+    db.prepare('UPDATE bookings SET event_guest_id = NULL WHERE event_guest_id = ?').run(g.id);
+    db.prepare('DELETE FROM event_guests WHERE id = ?').run(g.id);
+  })();
+  res.json({ ok: true });
+});
+
+/* „Hat bezahlt“ (bar oder Karte): deckt alle offenen Buchungen dieses Namens */
+admin.post('/events/:id/guests/:gid/pay', need('veranstaltungen'), (req, res) => {
+  const g = getGuest(req.params.id, req.params.gid);
+  if (!g) return bad(res, 'Nicht gefunden.', 404);
+  const method = (req.body || {}).method;
+  if (!['bar', 'karte'].includes(method)) return bad(res, 'Bitte bar oder Karte wählen.');
+  let cents = 0;
+  db.transaction(() => {
+    cents = guestOpen(g.id);
+    if (!cents) return;
+    const pid = Number(db.prepare('INSERT INTO event_payments(event_id, guest_id, method, cents, by_user) VALUES (?,?,?,?,?)')
+      .run(g.event_id, g.id, method, cents, req.user.username).lastInsertRowid);
+    db.prepare(`UPDATE bookings SET payment_id = ? WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(pid, g.id);
+  })();
+  if (!cents) return bad(res, 'Bei diesem Namen ist nichts offen.');
+  audit(req.user, 'Veranstaltung: hat bezahlt', `${g.name}: ${(cents / 100).toFixed(2)} € ${method === 'bar' ? 'bar' : 'mit Karte'}`);
+  res.json({ ok: true, cents });
+});
+
+admin.delete('/events/:id/payments/:pid', need('veranstaltungen'), (req, res) => {
+  const p = db.prepare('SELECT p.*, g.name FROM event_payments p JOIN event_guests g ON g.id = p.guest_id WHERE p.id = ? AND p.event_id = ?')
+    .get(int(req.params.pid), int(req.params.id));
+  if (!p) return bad(res, 'Nicht gefunden.', 404);
+  db.transaction(() => {
+    db.prepare('UPDATE bookings SET payment_id = NULL WHERE payment_id = ?').run(p.id);
+    db.prepare('DELETE FROM event_payments WHERE id = ?').run(p.id);
+  })();
+  audit(req.user, 'Veranstaltung: Zahlung zurückgenommen', `${p.name}: ${(p.cents / 100).toFixed(2)} € ${p.method}`);
+  res.json({ ok: true });
+});
+
+/* Kassierer: was nicht bezahlt wurde, auf die normale Getränkeliste (Mitgliederkonten) übernehmen */
+admin.post('/events/:id/transfer', need('uebernahme'), (req, res) => {
+  const ev = getEvent(req.params.id);
+  if (!ev) return bad(res, 'Nicht gefunden.', 404);
+  const only = Array.isArray((req.body || {}).guestIds) ? req.body.guestIds.map(int) : null;
+  const last = lastSettlement() || '0000-00-00';
+  let n = 0, cents = 0, people = 0;
+  const skipped = [];
+  db.transaction(() => {
+    const guests = db.prepare('SELECT * FROM event_guests WHERE event_id = ?').all(ev.id).filter(g => !only || only.includes(g.id));
+    for (const g of guests) {
+      const open = guestOpen(g.id);
+      if (!open) continue;
+      if (!g.member_id) { skipped.push(g.name); continue; }
+      // Liegt die Buchung in einem schon abgeschlossenen Zeitraum, kommt sie in den laufenden – sonst würde sie nie berechnet
+      const r = db.prepare(`UPDATE bookings SET kind = 'konto', member_id = ?, transferred_at = datetime('now','localtime'), transferred_by = ?,
+          created_at = CASE WHEN date(created_at) <= ? THEN datetime('now','localtime') ELSE created_at END
+        WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(g.member_id, req.user.username, last, g.id);
+      n += r.changes; cents += open; people++;
+    }
+  })();
+  audit(req.user, 'Veranstaltung übernommen', `${ev.name}: ${people} Personen, ${(cents / 100).toFixed(2)} € auf die Getränkeliste`);
+  res.json({ ok: true, transferred: n, people, cents, skipped });
+});
+
+admin.post('/events/:id/close', need('veranstaltungen'), (req, res) => {
+  const cash = (req.body || {}).cash_cents;
+  const ev = getEvent(req.params.id);
+  if (!ev) return bad(res, 'Nicht gefunden.', 404);
+  const c = cash === '' || cash === undefined || cash === null ? null : int(cash);
+  db.prepare(`UPDATE events SET active = 0, closed_at = datetime('now','localtime'), cash_cents = ?, note = ? WHERE id = ?`)
+    .run(c, (req.body || {}).note ? String(req.body.note).slice(0, 300) : null, ev.id);
+  audit(req.user, 'Veranstaltung abgeschlossen', `${ev.name}${c === null ? '' : ', Kasse ' + (c / 100).toFixed(2) + ' €'}`);
+  res.json({ ok: true });
+});
+
+/* ---------- Bestellung beim Getränkehändler ---------- */
+admin.get('/order', need('bestellung'), (req, res) => {
+  const settings = orderSettings();
+  const artNo = db.prepare(`SELECT art_no, text, pack_size FROM supplier_map WHERE supplier = ? AND article_id = ?
+    ORDER BY rowid DESC LIMIT 1`);
+  const rows = stockList().filter(s => s.active && s.track_stock).map(s => {
+    const target = s.target_stock || s.min_stock * 2;
+    const low = s.min_stock > 0 && s.delivered > 0 && s.stock <= s.min_stock;   // nur Artikel, die schon geliefert wurden
+    const crates = low ? Math.max(1, Math.ceil((target - s.stock) / s.crate_size)) : 0;
+    const map = artNo.get(settings.order_supplier, s.id);
+    return { id: s.id, name: s.name, category: s.category, stock: s.stock, min_stock: s.min_stock, target_stock: target,
+      crate_size: s.crate_size, low, suggest: crates, art_no: map ? map.art_no : '',
+      supplier_text: map && map.text ? map.text.replace(/-?€/g, '').replace(/\s+/g, ' ').trim() : '' };
+  });
+  res.json({ settings, clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), rows, mailReady: mail.ready(), mayMailSetup: req.user.perms.includes('einstellungen'), lastSent: getSetting('order_last_sent', '') });
+});
+
+/* ---------- Export & Sicherung ---------- */
+async function buildExport(from, to, asOf = nowTs(), upTo = maxBookingId()) {
+  const bookings = db.prepare(`SELECT b.*, ${ARTICLE_LABEL} AS article, COALESCE(b.article_category, a.category) AS category, COALESCE(m.name, g.name, 'Deckel: ' || t.name) AS member, e.name AS event,
+      p.method AS pay_method, t.status AS tab_status, t.method AS tab_method
+    FROM bookings b JOIN articles a ON a.id = b.article_id
+    LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
+    LEFT JOIN event_guests g ON g.id = b.event_guest_id LEFT JOIN event_payments p ON p.id = b.payment_id
+    LEFT JOIN guest_tabs t ON t.id = b.tab_id
+    WHERE b.cancelled_at IS NULL AND date(b.created_at) BETWEEN ? AND ? ORDER BY b.created_at`).all(from, to);
+  const events = db.prepare('SELECT id FROM events WHERE date BETWEEN ? AND ? ORDER BY date').all(from, to).map(r => eventSummary(r.id));
+  const tabs = tabRows("date(t.created_at) BETWEEN ? AND ? ORDER BY t.created_at", from, to);
+  const categories = db.prepare('SELECT category FROM articles WHERE deleted = 0 OR id IN (SELECT article_id FROM bookings) GROUP BY category ORDER BY cat_rank(category), de_key(category)').all().map(r => r.category);
+  const wb = await buildWorkbook({
+    clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), from, to, color: clubColor(),
+    balances: balances(asOf, upTo), asOf, openBookings: openBookings(asOf, upTo), categories, bookings, shrink: shrinkage(from, to), stock: stockList(), events, tabs,
+  });
+  return wb;
+}
+
+function openBookings(asOf, upTo) {
+  return db.prepare(`SELECT b.created_at, b.qty, b.unit_cents, b.total_cents, b.transferred_at, ${ARTICLE_LABEL} AS article, m.name AS member
+    FROM bookings b JOIN articles a ON a.id = b.article_id JOIN members m ON m.id = b.member_id
+    WHERE b.${OPEN_KONTO.replace(/ AND /g, ' AND b.')} AND ${CUT('b.')} ORDER BY name_key(m.name, m.kind), b.created_at`).all(upTo, asOf, asOf);
+}
+
+admin.get('/export.xlsx', need('abrechnung', 'export'), asyncRoute(async (req, res) => {
+  const { from, to } = defaultRange(req.query);
+  const fixed = isTs(req.query.asOf) && req.query.asOf <= nowTs() && req.query.upTo !== undefined;
+  const wb = await buildExport(from, to, fixed ? req.query.asOf : nowTs(), fixed ? Math.min(int(req.query.upTo), maxBookingId()) : maxBookingId());
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+  res.setHeader('Content-Disposition', `attachment; filename="Getraenke_${from}_bis_${to}.xlsx"`);
+  audit(req.user, 'Excel exportiert', `${from} bis ${to}`);
+  await wb.xlsx.write(res);
+  res.end();
+}));
+
+/* ---------- Dropbox: täglicher Export (alle Rechte) ---------- */
+const dbxCfg = () => ({ appKey: getSetting('dropbox_app_key', ''), appSecret: getSetting('dropbox_app_secret', ''),
+  refresh: getSetting('dropbox_refresh', ''), folder: getSetting('dropbox_folder', '/Vereinsheim'),
+  keep: int(getSetting('dropbox_keep', '7'), 7), enabled: getSetting('dropbox_enabled', '1') === '1' });
+const dbxReady = c => Boolean(c.appKey && c.appSecret && c.refresh);
+/* ---------- Datensicherung (Kern, unabhängig von den Modulen) ----------
+   Jede Nacht: verschlüsselte Komplettsicherung (Datenbank aller Module, Belege, Bilder, Erweiterungen) – lokal die
+   letzten 3, in Dropbox nach Generationen (täglich/wöchentlich/monatlich). Optional lesbare Auszüge der Module (Excel).
+   Monatlich eine Probe-Wiederherstellung, die prüft, ob sich die letzte Sicherung vollständig entschlüsseln lässt. */
+const KOMPLETT_DIR = path.join(backup.BACKUP_DIR, 'komplett');
+const INCOMING_DIR = path.join(DATA_DIR, '.sicherung-eingang');
+const bkKey = () => ({ key: getSetting('backup_enc_key', ''), kdf: (() => { try { return JSON.parse(getSetting('backup_kdf', '')); } catch (e) { return null; } })() });
+const bkHasKey = () => Boolean(getSetting('backup_enc_key', '') && bkKey().kdf);
+const bkCfg = () => ({ hour: Math.max(0, Math.min(23, int(getSetting('backup_hour', '3'), 3))), daily: Math.max(1, Math.min(60, int(getSetting('backup_daily', '7'), 7))),
+  weekly: Math.max(0, Math.min(52, int(getSetting('backup_weekly', '4'), 4))), monthly: Math.max(0, Math.min(120, int(getSetting('backup_monthly', '12'), 12))),
+  readable: getSetting('backup_readable', '1') === '1' });
+let bkRunning = false;
+
+/** Lesbare Auszüge der aktiven Module: [{ name, buffer }] – jedes Modul liefert seinen eigenen Teil */
+async function readableExports() {
+  const out = [];
+  if (plugins.isActive('getraenke')) {
+    const { from, to } = defaultRange({});
+    const wb = await buildExport(from, to);
+    out.push({ name: 'Getraenke-Stand.xlsx', buffer: Buffer.from(await wb.xlsx.writeBuffer()) });
+  }
+  for (const p of plugins.withHook('backupExports')) {
+    try { for (const f of (await p.hooks.backupExports()) || []) if (f && f.name && f.buffer) out.push({ name: String(f.name).replace(/[^\w.-]/g, '_').slice(0, 80), buffer: Buffer.from(f.buffer) }); }
+    catch (e) { console.error(`Sicherung – Auszug ${p.meta.id}:`, e.message); }
+  }
+  return out;
+}
+
+/* ---------- Sicherungsziele: Dropbox + beliebig viele WebDAV/SFTP/FTPS-Ziele ---------- */
+const MAX_TARGETS = 6;
+const tgList = () => { try { const l = JSON.parse(getSetting('backup_targets', '[]')); return Array.isArray(l) ? l : []; } catch (e) { return []; } };
+const tgSave = l => setSetting('backup_targets', JSON.stringify(l));
+const tgSecretKey = id => `backup_target_${id}_secret`;
+const tgStatus = id => { try { return JSON.parse(getSetting(`backup_target_${id}_status`, '{}')) || {}; } catch (e) { return {}; } };
+const tgSetStatus = (id, o) => setSetting(`backup_target_${id}_status`, JSON.stringify({ ...tgStatus(id), ...o, last_try: new Date().toISOString() }));
+/** Alle eingeschalteten Ziele (Dropbox zuerst) mit Adapter */
+function activeTargets() {
+  const out = [];
+  const c = dbxCfg();
+  if (dbxReady(c) && c.enabled) out.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', retention: null, adapter: () => targets.dropboxTarget(c) });
+  for (const t of tgList()) if (t.enabled) out.push({ ...t, adapter: () => targets.open(t, getSetting(tgSecretKey(t.id), '')) });
+  return out;
+}
+function targetById(id) {
+  if (id === 'dropbox') { const c = dbxCfg(); return dbxReady(c) ? { id, name: 'Dropbox', type: 'dropbox', adapter: () => targets.dropboxTarget(c) } : null; }
+  const t = tgList().find(x => x.id === id);
+  return t ? { ...t, adapter: () => targets.open(t, getSetting(tgSecretKey(t.id), '')) } : null;
+}
+/** Übersicht für die Verwaltung – nie mit Zugangsdaten */
+function targetsView() {
+  const c = dbxCfg();
+  const rows = [];
+  if (dbxReady(c)) rows.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', typeLabel: 'Dropbox', enabled: c.enabled, where: `Apps/…${c.folder}`, account: getSetting('dropbox_account', ''), ...tgStatus('dropbox') });
+  for (const t of tgList()) rows.push({ ...targets.publicView(t, getSetting(tgSecretKey(t.id), '')), where: t.type === 'webdav' ? `${t.url}${t.folder}` : `${t.host}:${t.port}${t.folder}`, ...tgStatus(t.id) });
+  return rows;
+}
+
+async function runBackup(by = 'automatisch') {
+  if (!bkHasKey()) throw new Error('Noch kein Sicherungspasswort festgelegt (Datensicherung → Sicherungspasswort).');
+  if (bkRunning) throw new Error('Die Sicherung läuft gerade schon.');
+  bkRunning = true;
+  const day = backup.stamp().slice(0, 10);
+  try {
+    const k = bkKey();
+    const r = await fullbackup.create({ db, dataDir: DATA_DIR, outDir: KOMPLETT_DIR, key: k.key, kdf: k.kdf, appVersion: APP_VERSION, club: getSetting('club_name', ''), standalone: backup.standalone });
+    // lokal nur die letzten 3 (alles Weitere steckt im Home-Assistant-Backup bzw. in Dropbox)
+    for (const old of fullbackup.list(KOMPLETT_DIR).slice(3)) { try { fs.unlinkSync(path.join(KOMPLETT_DIR, old.file)); } catch (e) { /* egal */ } }
+    const parts = [`Komplettsicherung ${r.size >= 1048576 ? (r.size / 1048576).toFixed(1).replace('.', ',') + ' MB' : Math.max(1, Math.round(r.size / 1024)) + ' KB'}`];
+    const g = bkCfg();
+    const list = activeTargets();
+    let lesbarFiles = null; const failed = [];
+    for (const tg of list) {
+      const a = tg.adapter();
+      try {
+        await a.put('Komplett', `${day}_Vereinsheim${fullbackup.EXT}`, { path: r.path });
+        let lesbar = 0;
+        if (g.readable) { if (!lesbarFiles) lesbarFiles = await readableExports(); for (const f of lesbarFiles) { await a.put('Lesbar', `${day}_${f.name}`, { buffer: f.buffer }); lesbar++; } }
+        let removed = 0;
+        const ret = tg.retention || g;
+        for (const sub of ['Komplett', 'Lesbar']) {
+          const files = await a.list(sub);
+          const del = new Set(fullbackup.generations(files.map(e => e.name), ret));
+          for (const e of files) if (del.has(e.name)) { await a.remove(sub, e.name); removed++; }
+        }
+        tgSetStatus(tg.id, { last_ok: new Date().toISOString(), last_error: '', msg: `${lesbar ? lesbar + ' lesbare Auszüge, ' : ''}${removed} ältere aufgeräumt` });
+        parts.push(`${tg.name} ✓` + (lesbar ? ` (+${lesbar} lesbar)` : ''));
+      } catch (e) {
+        tgSetStatus(tg.id, { last_error: `${new Date().toISOString()} ${e.message}` });
+        failed.push(`${tg.name}: ${e.message}`);
+        parts.push(`${tg.name} ✗`);
+        securityAlert(`Die Datensicherung konnte nicht nach „${tg.name}“ übertragen werden: ${e.message}`, `backup-target-${tg.id}-${day}`);
+      } finally { await a.close(); }
+    }
+    if (!list.length) parts.push('nur lokal (kein Sicherungsziel eingerichtet)');
+    const msg = `${day}: ${parts.join(', ')}`;
+    setSetting('backup_last_ok', new Date().toISOString()); setSetting('backup_last_msg', msg); setSetting('backup_last_error', failed.length ? `${new Date().toISOString()} ${failed.join(' · ')}` : ''); setSetting('backup_last_day', day);
+    audit(by, 'Datensicherung', msg);
+    return msg;
+  } catch (e) {
+    setSetting('backup_last_error', `${new Date().toISOString()} ${e.message}`);
+    securityAlert(`Die Datensicherung ist fehlgeschlagen: ${e.message}`, 'backup-fail-' + day);
+    throw e;
+  } finally { bkRunning = false; }
+}
+
+/** Probe-Wiederherstellung: letzte lokale Sicherung vollständig entschlüsseln, entpacken und prüfen – ohne etwas zu überschreiben */
+async function probeBackup() {
+  const last = fullbackup.list(KOMPLETT_DIR)[0];
+  if (!last) throw new Error('Noch keine Komplettsicherung vorhanden.');
+  const tmp = fs.mkdtempSync(path.join(DATA_DIR, '.probe-'));
+  try {
+    const man = await fullbackup.extract(path.join(KOMPLETT_DIR, last.file), { key: bkKey().key, outDir: tmp });
+    const err = backup.validate(path.join(tmp, 'vereinsheim.db'));
+    if (err) throw new Error(err);
+    for (const [d, n] of Object.entries(man.dirs || {})) {
+      const have = fs.existsSync(path.join(tmp, d)) ? fs.readdirSync(path.join(tmp, d), { recursive: true, withFileTypes: true }).filter(e => e.isFile()).length : 0;
+      if (have !== n) throw new Error(`Ordner „${d}“: ${have} statt ${n} Dateien.`);
+    }
+    const msg = `${last.file}: lesbar und vollständig (${Object.entries(man.dirs || {}).map(([d, n]) => `${n} ${d}`).join(', ') || 'nur Datenbank'})`;
+    setSetting('backup_probe_at', new Date().toISOString()); setSetting('backup_probe_ok', '1'); setSetting('backup_probe_msg', msg);
+    return msg;
+  } catch (e) {
+    setSetting('backup_probe_at', new Date().toISOString()); setSetting('backup_probe_ok', '0'); setSetting('backup_probe_msg', e.message);
+    securityAlert(`Die Probe-Wiederherstellung der Datensicherung ist fehlgeschlagen: ${e.message}`, 'backup-probe');
+    throw e;
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+}
+
+/** Zustand für Übersicht und Seite „Datensicherung“ */
+function backupStatus() {
+  const lastOk = getSetting('backup_last_ok', '');
+  const age = lastOk ? (Date.now() - Date.parse(lastOk)) / 3600000 : Infinity;
+  const tv = targetsView();
+  const on = tv.filter(t => t.enabled);
+  // Ziel gilt als gestört, wenn der letzte Versuch fehlschlug und es seit zwei Tagen (oder noch nie) geklappt hat
+  const broken = on.filter(t => t.last_error && (!t.last_ok || Date.now() - Date.parse(t.last_ok) > 48 * 3600000));
+  const warn = !bkHasKey() ? 'Noch kein Sicherungspasswort festgelegt – es wird nichts gesichert.'
+    : age > 48 ? (lastOk ? 'Seit mehr als zwei Tagen keine erfolgreiche Sicherung.' : 'Noch keine Komplettsicherung erstellt.')
+    : broken.length ? `Sicherungsziel ${broken.map(t => `„${t.name}“`).join(', ')} ${broken.length > 1 ? 'sind' : 'ist'} nicht erreichbar – die Sicherung kommt dort nicht an.`
+    : getSetting('backup_probe_ok', '') === '0' ? 'Die letzte Probe-Wiederherstellung ist fehlgeschlagen.'
+    : !on.length ? 'Kein Sicherungsziel eingerichtet – die Sicherung liegt nur hier auf dem Gerät. Bitte Dropbox, ein NAS oder eine Cloud als Ziel einrichten.' : '';
+  return { hasKey: bkHasKey(), pwAt: getSetting('backup_pw_at', ''), ...bkCfg(), dropbox: on.some(t => t.id === 'dropbox'),
+    targets: tv, targetsOk: on.length - broken.length, targetsOn: on.length,
+    last_ok: lastOk, last_msg: getSetting('backup_last_msg', ''), last_error: getSetting('backup_last_error', ''),
+    probe_at: getSetting('backup_probe_at', ''), probe_ok: getSetting('backup_probe_ok', '') === '1', probe_msg: getSetting('backup_probe_msg', ''),
+    local: fullbackup.list(KOMPLETT_DIR), warn, warnLevel: !warn ? '' : (!bkHasKey() || (age <= 48 && !broken.length && getSetting('backup_probe_ok', '') !== '0')) ? 'a' : 'r' };
+}
+
+/** Nur das Adminkonto/„alle Rechte“ und mit eigenem Passwort bestätigt */
+function ownerConfirm(req, res) {
+  if (req.user.role !== 'oberadmin') { bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403); return false; }
+  const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
+  if (!u || !auth.verifySecret(String((req.body || {}).myPassword || ''), u.pw_hash)) { bad(res, 'Dein Passwort stimmt nicht.', 401); return false; }
+  return true;
+}
+
+admin.get('/backups/status', need('einstellungen'), (req, res) => res.json(backupStatus()));
+admin.put('/backups/settings', need('einstellungen'), (req, res) => {
+  const b = req.body || {};
+  const num = (v, lo, hi) => { const n = parseInt(v, 10); if (!(n >= lo && n <= hi)) throw new Error('Ungültiger Wert.'); return String(n); };
+  try {
+    if (b.hour !== undefined) setSetting('backup_hour', num(b.hour, 0, 23));
+    if (b.daily !== undefined) setSetting('backup_daily', num(b.daily, 1, 60));
+    if (b.weekly !== undefined) setSetting('backup_weekly', num(b.weekly, 0, 52));
+    if (b.monthly !== undefined) setSetting('backup_monthly', num(b.monthly, 0, 120));
+  } catch (e) { return bad(res, 'Bitte gültige Zahlen eintragen (Uhrzeit 0–23, Tage 1–60, Wochen 0–52, Monate 0–120).'); }
+  if (b.readable !== undefined) setSetting('backup_readable', b.readable ? '1' : '0');
+  audit(req.user, 'Datensicherung eingestellt', JSON.stringify(bkCfg()));
+  res.json({ ok: true, ...backupStatus() });
+});
+admin.post('/backups/password', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), (req, res) => {
+  if (!ownerConfirm(req, res)) return;
+  let k; try { k = fullbackup.newKey((req.body || {}).password); } catch (e) { return bad(res, e.message); }
+  const had = bkHasKey();
+  setSetting('backup_kdf', JSON.stringify(k.kdf)); setSetting('backup_enc_key', k.key); setSetting('backup_pw_at', nowTs());
+  audit(req.user, had ? 'Sicherungspasswort geändert' : 'Sicherungspasswort festgelegt', k.kid.slice(0, 8));
+  res.json({ ok: true, changed: had });
+});
+/* Sicherungspasswort prüfen (für das Notfallblatt) – nur „alle Rechte“, gebremst */
+admin.post('/backups/password/check', need('einstellungen'), rateLimit('bkcheck', 10, 10 * 60000), (req, res) => {
+  if (req.user.role !== 'oberadmin') return bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403);
+  const k = bkKey(); if (!k.key || !k.kdf) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
+  let ok = false; try { ok = fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf)) === fullbackup.keyId(Buffer.from(k.key, 'hex')); } catch (e) { ok = false; }
+  if (!ok) return bad(res, 'Das Sicherungspasswort stimmt nicht.', 401);
+  res.json({ ok: true });
+});
+admin.post('/backups/run', need('einstellungen'), asyncRoute(async (req, res) => {
+  try { res.json({ ok: true, msg: await runBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
+}));
+admin.post('/backups/probe', need('einstellungen'), asyncRoute(async (req, res) => {
+  try { res.json({ ok: true, msg: await probeBackup() }); } catch (e) { bad(res, e.message); }
+}));
+admin.get('/backups/komplett/file/:file', need('einstellungen'), (req, res) => {
+  if (!fullbackup.validName(req.params.file) || !fs.existsSync(path.join(KOMPLETT_DIR, req.params.file))) return bad(res, 'Sicherung nicht gefunden.', 404);
+  audit(req.user, 'Komplettsicherung heruntergeladen', req.params.file);
+  res.download(path.join(KOMPLETT_DIR, req.params.file), req.params.file);
+});
+/* Sicherungen in Dropbox (für „Wiederherstellen aus Dropbox“) und alte, unverschlüsselte Dateien aus früheren Versionen */
+admin.get('/backups/remote', need('einstellungen'), asyncRoute(async (req, res) => {
+  const c = dbxCfg();
+  if (!dbxReady(c)) return res.json({ connected: false, files: [], legacy: 0 });
+  try {
+    const files = (await dropbox.listFolder(c, `${c.folder}/Komplett`)).filter(e => e['.tag'] === 'file' && fullbackup.validName(e.name))
+      .map(e => ({ file: e.name, size: e.size, mtime: e.server_modified })).sort((a, b) => (a.file < b.file ? 1 : -1));
+    let legacy = 0;
+    for (const sub of ['Datenbank', 'Excel']) legacy += (await dropbox.listFolder(c, `${c.folder}/${sub}`)).filter(e => e['.tag'] === 'file').length;
+    res.json({ connected: true, files, legacy });
+  } catch (e) { bad(res, e.message, 502); }
+}));
+admin.post('/backups/remote/cleanup-legacy', need('einstellungen'), asyncRoute(async (req, res) => {
+  if (!ownerConfirm(req, res)) return;
+  const c = dbxCfg(); if (!dbxReady(c)) return bad(res, 'Dropbox ist nicht verbunden.');
+  let n = 0;
+  for (const sub of ['Datenbank', 'Excel']) for (const e of await dropbox.listFolder(c, `${c.folder}/${sub}`)) if (e['.tag'] === 'file') { await dropbox.remove(c, e.path_lower); n++; }
+  audit(req.user, 'Alte unverschlüsselte Dropbox-Sicherungen gelöscht', `${n} Dateien`);
+  res.json({ ok: true, removed: n });
+}));
+/* ---------- Sicherungsziele verwalten ----------
+   Ansehen und Testen: „Einstellungen“. Anlegen, ändern, ein-/ausschalten, löschen: nur „alle Rechte“ mit eigenem Passwort –
+   ein Ziel bekommt jede Nacht die (verschlüsselte) Sicherung, und Abschalten nähme dem Verein die Sicherung außer Haus. */
+admin.get('/backups/targets', need('einstellungen'), (req, res) => res.json({ targets: targetsView(), types: targets.TYPES, max: MAX_TARGETS }));
+/** Verbindung prüfen – mit gespeicherten oder (beim Anlegen/Bearbeiten) eingegebenen Daten */
+admin.post('/backups/targets/test', need('einstellungen'), rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
+  if (req.user.role !== 'oberadmin') return bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403);
+  const b = req.body || {};
+  const old = b.id ? tgList().find(x => x.id === b.id) : null;
+  let t; try { t = targets.clean({ ...(b.target || {}), allowInsecure: true }, old); } catch (e) { return bad(res, e.message); }
+  const secret = b.secret ? String(b.secret) : old ? getSetting(tgSecretKey(old.id), '') : '';
+  const a = targets.open(t, secret);
+  try { const r = await a.test(); res.json({ ok: true, fingerprint: r.fingerprint || null }); }
+  catch (e) { if (e.needConfirm || e.changed) return res.json({ ok: false, needConfirm: true, changed: Boolean(e.changed), fingerprint: e.fingerprint, error: e.message }); bad(res, e.message); }
+  finally { await a.close(); }
+}));
+admin.post('/backups/targets/:id/test', need('einstellungen'), rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
+  const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  const a = tg.adapter();
+  try { await a.test(); tgSetStatus(tg.id, { tested: new Date().toISOString(), test_error: '' }); res.json({ ok: true }); }
+  catch (e) { tgSetStatus(tg.id, { test_error: e.message }); bad(res, e.message); }
+  finally { await a.close(); }
+}));
+/** Anlegen/Bearbeiten: wird nur gespeichert, wenn die Verbindung klappt (inkl. bestätigtem Fingerabdruck) */
+async function saveTarget(req, res, old) {
+  if (!ownerConfirm(req, res)) return;
+  const b = req.body || {};
+  if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
+  let t; try { t = targets.clean(b.target || {}, old); } catch (e) { return res.status(400).json({ error: e.message, needInsecure: Boolean(e.needInsecure) }); }
+  const secret = b.secret ? String(b.secret).slice(0, 20000) : old ? getSetting(tgSecretKey(old.id), '') : '';
+  if (!secret) return bad(res, t.type === 'sftp' && t.auth === 'key' ? 'Bitte den privaten Schlüssel einfügen.' : 'Bitte das Passwort eintragen.');
+  if (t.enabled) {
+    const a = targets.open(t, secret);
+    try { await a.test(); }
+    catch (e) { return res.status(400).json({ error: e.message, needConfirm: Boolean(e.needConfirm || e.changed), fingerprint: e.fingerprint || null }); }
+    finally { await a.close(); }
+  }
+  const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
+  setSetting(tgSecretKey(t.id), secret);
+  audit(req.user, old ? 'Sicherungsziel geändert' : 'Sicherungsziel angelegt', `${t.name} (${targets.TYPES[t.type]}${t.enabled ? '' : ', aus'})`);
+  if (old && old.enabled && !t.enabled) securityAlert(`Das Sicherungsziel „${t.name}“ wurde von ${req.user.name || req.user.username} ausgeschaltet.`, 'tg-off-' + t.id);
+  res.json({ ok: true, targets: targetsView() });
+}
+admin.post('/backups/targets', need('einstellungen'), rateLimit('tgsave', 20, 10 * 60000), asyncRoute(async (req, res) => saveTarget(req, res, null)));
+admin.put('/backups/targets/:id', need('einstellungen'), rateLimit('tgsave', 20, 10 * 60000), asyncRoute(async (req, res) => {
+  const old = tgList().find(x => x.id === String(req.params.id)); if (!old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  return saveTarget(req, res, old);
+}));
+admin.delete('/backups/targets/:id', need('einstellungen'), (req, res) => {
+  if (!ownerConfirm(req, res)) return;
+  const old = tgList().find(x => x.id === String(req.params.id)); if (!old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  tgSave(tgList().filter(x => x.id !== old.id));
+  db.prepare('DELETE FROM settings WHERE key IN (?, ?)').run(tgSecretKey(old.id), `backup_target_${old.id}_status`);
+  audit(req.user, 'Sicherungsziel entfernt', old.name);
+  securityAlert(`Das Sicherungsziel „${old.name}“ wurde von ${req.user.name || req.user.username} entfernt. Die Dateien dort bleiben erhalten.`, 'tg-del-' + old.id);
+  res.json({ ok: true, targets: targetsView() });
+});
+/** Komplettsicherungen auf einem Ziel (für „Wiederherstellen“) */
+admin.get('/backups/targets/:id/files', need('einstellungen'), asyncRoute(async (req, res) => {
+  const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  const a = tg.adapter();
+  try { res.json({ files: (await a.list('Komplett')).filter(f => fullbackup.validName(f.name)).map(f => ({ file: f.name, size: f.size, mtime: f.mtime })).sort((x, y) => (x.file < y.file ? 1 : -1)) }); }
+  catch (e) { bad(res, e.message, 502); }
+  finally { await a.close(); }
+}));
+
+/* ---------- Update per ZIP-Upload (nur Seitenleiste von Home Assistant, nur „alle Rechte“, mit Passwort) ---------- */
+const UPDATE_DIR = path.join(DATA_DIR, '.update');
+const RESERVE_DIR = path.join(DATA_DIR, 'update-reserve');
+let staged = null;   // geprüftes, noch nicht übernommenes Paket
+let updating = false;
+const updGuard = (req, res) => {
+  if (req.user.role !== 'oberadmin') { bad(res, 'Updates einspielen darf nur ein Benutzer mit allen Rechten.', 403); return false; }
+  if (!viaIngress(req) && process.env.VH_TEST_UPDATE_ANYWHERE !== '1') { bad(res, 'Updates gehen aus Sicherheitsgründen nur über die Home-Assistant-Seitenleiste.', 403); return false; }
+  return true;
+};
+admin.get('/update/status', need('einstellungen'), asyncRoute(async (req, res) => {
+  const o = await selfupdate.origin();
+  res.json({ current: APP_VERSION, addonDir: Boolean(o.dir), origin: o.kind, mounted: o.mounted, supervisorError: o.supervisorError || '', supervisor: Boolean(process.env.SUPERVISOR_TOKEN),
+    viaIngress: viaIngress(req) || process.env.VH_TEST_UPDATE_ANYWHERE === '1', owner: req.user.role === 'oberadmin', updating,
+    staged: staged ? { version: staged.version, files: staged.files, size: staged.size, depsChanged: staged.depsChanged, changelog: staged.changelog } : null,
+    reserves: selfupdate.reserves(RESERVE_DIR), lastError: getSetting('update_last_error', ''), lastOk: getSetting('update_last_ok', '') });
+}));
+admin.post('/update/upload', need('einstellungen'), rateLimit('updup', 10, 10 * 60000), express.raw({ type: () => true, limit: '200mb' }), asyncRoute(async (req, res) => {
+  if (!updGuard(req, res)) return;
+  if (!selfupdate.findAddonDir()) return bad(res, 'Diese Installation kommt nicht aus dem Ordner „addons“ (z. B. über GitHub) – Updates bitte über Home Assistant → Einstellungen → Add-ons.');
+  if (!req.body || req.body.length < 100) return bad(res, 'Die Datei ist leer.');
+  try {
+    const info = await selfupdate.inspect(req.body, path.join(UPDATE_DIR, 'neu'), { currentVersion: APP_VERSION, currentDir: selfupdate.findAddonDir() });
+    if (!info.newer) { staged = null; return bad(res, info.same ? `Version ${info.version} ist bereits installiert.` : `Das Paket (${info.version}) ist älter als die installierte Version ${APP_VERSION}. Zurück zu einer früheren Version geht über „Vorherige Version“.`); }
+    staged = info;
+    audit(req.user, 'Update hochgeladen und geprüft', `${APP_VERSION} → ${info.version}`);
+    res.json({ ok: true, current: APP_VERSION, ...info });
+  } catch (e) { staged = null; bad(res, e.message); }
+}));
+/** Übernehmen: Sicherung, Ordner tauschen, Home Assistant aktualisieren lassen (im Hintergrund) */
+async function applyFolder(req, res, newDir, label) {
+  const dir = selfupdate.findAddonDir();
+  if (!dir) return bad(res, 'Der Add-on-Ordner wurde nicht gefunden.');
+  updating = true;
+  try {
+    // vorher sichern: Komplettsicherung (falls Sicherungspasswort festgelegt), sonst Datenbank-Schnappschuss
+    try { if (bkHasKey()) await runBackup(req.user.username); else await backup.snapshot(db, 'manuell'); }
+    catch (e) { updating = false; return bad(res, 'Die Sicherung vor dem Update ist fehlgeschlagen – Update abgebrochen: ' + e.message); }
+    const reserve = selfupdate.swap(dir, newDir, RESERVE_DIR, APP_VERSION);
+    setSetting('update_last_error', '');
+    audit(req.user, label, `${APP_VERSION} → ${selfupdate.yamlField(fs.readFileSync(path.join(dir, 'config.yaml'), 'utf8'), 'version')} (Reserve ${reserve})`);
+    securityAlert(`Die Vereinsheimverwaltung wird von ${req.user.name || req.user.username} aktualisiert (${label}).`, 'update-' + Date.now());
+    res.json({ ok: true, reserve, supervisor: Boolean(process.env.SUPERVISOR_TOKEN) });
+  } catch (e) { updating = false; return bad(res, 'Update fehlgeschlagen: ' + e.message); }
+  // Antwort ist raus – jetzt Home Assistant bitten, neu zu bauen (dabei wird diese Version beendet)
+  setTimeout(async () => {
+    try { const r = await selfupdate.triggerUpdate(); console.log('Update ausgelöst:', r); setSetting('update_last_ok', new Date().toISOString()); }
+    catch (e) { console.error('Update auslösen:', e.message); setSetting('update_last_error', e.message); updating = false; }
+  }, 500);
+}
+admin.post('/update/apply', need('einstellungen'), rateLimit('updapply', 5, 10 * 60000), asyncRoute(async (req, res) => {
+  if (!updGuard(req, res) || !ownerConfirm(req, res)) return;
+  if (!staged) return bad(res, 'Bitte zuerst das Update-Paket hochladen.');
+  if (updating) return bad(res, 'Das Update läuft bereits.');
+  staged = null;
+  return applyFolder(req, res, path.join(UPDATE_DIR, 'neu'), 'Update eingespielt');
+}));
+admin.post('/update/rollback', need('einstellungen'), rateLimit('updapply', 5, 10 * 60000), asyncRoute(async (req, res) => {
+  if (!updGuard(req, res) || !ownerConfirm(req, res)) return;
+  const name = String((req.body || {}).name || '');
+  const r = selfupdate.reserves(RESERVE_DIR).find(x => x.name === name);
+  if (!r) return bad(res, 'Diese frühere Version gibt es nicht (mehr).');
+  // Reserve erst kopieren – beim Tausch wird die aktuelle Version selbst zur Reserve
+  const tmp = path.join(UPDATE_DIR, 'zurueck'); fs.rmSync(tmp, { recursive: true, force: true }); fs.cpSync(path.join(RESERVE_DIR, name), tmp, { recursive: true });
+  return applyFolder(req, res, tmp, `Zurück auf Version ${r.version}`);
+}));
+/* Fehler beim Auslösen nach Neustart zurücksetzen, sobald die neue Version läuft */
+if (getSetting('update_running_version', '') !== APP_VERSION) { setSetting('update_running_version', APP_VERSION); setSetting('update_last_error', ''); }
+/* Komplettsicherung von einem anderen Gerät hochladen (gestreamt, ohne alles in den Speicher zu laden) */
+admin.post('/backups/komplett/upload', need('einstellungen'), asyncRoute(async (req, res) => {
+  if (req.user.role !== 'oberadmin') return bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403);
+  fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
+  for (const f of fs.readdirSync(INCOMING_DIR)) { try { if (Date.now() - fs.statSync(path.join(INCOMING_DIR, f)).mtimeMs > 6 * 3600000) fs.unlinkSync(path.join(INCOMING_DIR, f)); } catch (e) { /* egal */ } }
+  const id = crypto.randomBytes(12).toString('hex');
+  const dest = path.join(INCOMING_DIR, `up_${id}${fullbackup.EXT}`);
+  let n = 0; const MAX = 4 * 1024 * 1024 * 1024;
+  const guard = new (require('stream').Transform)({ transform(c, e, cb) { n += c.length; if (n > MAX) cb(new Error('Die Datei ist zu groß.')); else cb(null, c); } });
+  try { await require('stream/promises').pipeline(req, guard, fs.createWriteStream(dest, { mode: 0o600 })); }
+  catch (e) { try { fs.unlinkSync(dest); } catch (x) { /* egal */ } return bad(res, 'Hochladen fehlgeschlagen: ' + e.message); }
+  let h; try { h = fullbackup.readHeader(dest).head; } catch (e) { fs.unlinkSync(dest); return bad(res, e.message); }
+  res.json({ ok: true, id, created: h.created, app: h.app, size: n, sameKey: h.kid === (bkHasKey() ? fullbackup.keyId(Buffer.from(bkKey().key, 'hex')) : '') });
+}));
+/* Wiederherstellen aus einer Komplettsicherung (lokal, aus Dropbox oder hochgeladen) – wirksam beim nächsten Neustart */
+admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrestore', 6, 10 * 60000), asyncRoute(async (req, res) => {
+  if (!ownerConfirm(req, res)) return;
+  const b = req.body || {};
+  let src = null, temp = false;
+  try {
+    if (b.source === 'local') { if (fullbackup.validName(b.file) && fs.existsSync(path.join(KOMPLETT_DIR, b.file))) src = path.join(KOMPLETT_DIR, b.file); }
+    else if (b.source === 'upload') { if (/^[a-f0-9]{24}$/.test(String(b.file || ''))) { src = path.join(INCOMING_DIR, `up_${b.file}${fullbackup.EXT}`); temp = true; if (!fs.existsSync(src)) src = null; } }
+    else if (b.source === 'dropbox' || b.source === 'target') {
+      const tg = targetById(b.source === 'dropbox' ? 'dropbox' : String(b.target || ''));
+      if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+      if (fullbackup.validName(b.file)) {
+        fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
+        src = path.join(INCOMING_DIR, `dl_${crypto.randomBytes(8).toString('hex')}${fullbackup.EXT}`); temp = true;
+        const a = tg.adapter();
+        try { await a.get('Komplett', b.file, src); } finally { await a.close(); }
+      }
+    }
+    if (!src) return bad(res, 'Sicherung nicht gefunden.', 404);
+    const tmp = fs.mkdtempSync(path.join(DATA_DIR, '.wiederherstellung-'));
+    try {
+      const pw = String(b.password || '');
+      const man = await fullbackup.extract(src, pw ? { password: pw, outDir: tmp } : { key: bkHasKey() ? bkKey().key : null, outDir: tmp });
+      const err = backup.validate(path.join(tmp, 'vereinsheim.db'));
+      if (err) throw new Error(err);
+      const name = `getraenke_${backup.stamp()}_komplett.db`;
+      fs.renameSync(path.join(tmp, 'vereinsheim.db'), path.join(backup.BACKUP_DIR, name));
+      backup.markRestore(name);
+      backup.stageDirs(tmp, name, fullbackup.DIRS);
+      audit(req.user, 'Wiederherstellung aus Komplettsicherung vorgemerkt', `${b.source}: ${b.file} (Stand ${man.created})`);
+      res.json({ ok: true, restart: true, created: man.created, club: man.club, dirs: man.dirs });
+    } catch (e) {
+      if (e.needPassword) { if (b.source === 'upload') temp = false; return res.status(400).json({ error: e.message, needPassword: true }); }
+      throw e;
+    } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  } catch (e) { bad(res, e.message); }
+  finally { if (temp && src) { try { fs.unlinkSync(src); } catch (e) { /* egal */ } } }
+}));
+
+admin.get('/dropbox', need('einstellungen'), (req, res) => {
+  const c = dbxCfg();
+  res.json({ appKey: c.appKey, hasSecret: Boolean(c.appSecret), connected: dbxReady(c), folder: c.folder, keep: c.keep, enabled: c.enabled,
+    account: getSetting('dropbox_account', ''), authUrl: c.appKey ? dropbox.authUrl(c.appKey) : null,
+    last_ok: getSetting('dropbox_last_ok', ''), last_msg: getSetting('dropbox_last_msg', ''), last_error: getSetting('dropbox_last_error', '') });
+});
+admin.put('/dropbox', need('einstellungen'), (req, res) => {
+  const b = req.body || {};
+  if (b.appKey !== undefined) {
+    const k = String(b.appKey).trim();
+    if (k && !/^[a-z0-9]{8,40}$/i.test(k)) return bad(res, 'Der App key sieht nicht richtig aus.');
+    if (k !== getSetting('dropbox_app_key', '')) setSetting('dropbox_refresh', '');   // andere App → neu verbinden
+    setSetting('dropbox_app_key', k);
+  }
+  if (b.appSecret) {
+    const sec = String(b.appSecret).trim();
+    if (!/^[a-z0-9]{8,40}$/i.test(sec)) return bad(res, 'Das App secret sieht nicht richtig aus.');
+    setSetting('dropbox_app_secret', sec);
+  }
+  if (b.folder !== undefined) setSetting('dropbox_folder', dropbox.cleanFolder(b.folder));
+  if (b.keep !== undefined) setSetting('dropbox_keep', String(Math.max(0, Math.min(3650, int(b.keep, 7)))));
+  if (b.enabled !== undefined) {
+    if (!b.enabled && getSetting('dropbox_enabled', '1') === '1') securityAlert(`Die nächtliche Sicherung nach Dropbox wurde von ${req.user.name || req.user.username} pausiert.`, 'dbx-off');
+    setSetting('dropbox_enabled', b.enabled ? '1' : '0');
+  }
+  audit(req.user, 'Dropbox-Einstellungen geändert');
+  res.json({ ok: true });
+});
+admin.post('/dropbox/connect', need('einstellungen'), asyncRoute(async (req, res) => {
+  const c = dbxCfg();
+  if (!c.appKey || !c.appSecret) return bad(res, 'Bitte zuerst App key und App secret speichern.');
+  const code = String((req.body || {}).code || '').trim();
+  if (!/^[\w-]{10,200}$/.test(code)) return bad(res, 'Bitte den Code aus dem Dropbox-Fenster einfügen.');
+  try {
+    const refresh = await dropbox.exchangeCode(c.appKey, c.appSecret, code);
+    setSetting('dropbox_refresh', refresh);
+    let who = '';
+    try { who = await dropbox.account({ ...c, refresh }); } catch (e) { /* App ohne Kontoberechtigung – egal */ }
+    setSetting('dropbox_account', who);
+    audit(req.user, 'Dropbox verbunden', who);
+    res.json({ ok: true, account: who });
+  } catch (e) { bad(res, e.message); }
+}));
+admin.post('/dropbox/disconnect', need('einstellungen'), asyncRoute(async (req, res) => {
+  const c = dbxCfg();
+  if (dbxReady(c)) await dropbox.revoke(c);
+  setSetting('dropbox_refresh', ''); setSetting('dropbox_account', '');
+  audit(req.user, 'Dropbox getrennt');
+  res.json({ ok: true });
+}));
+admin.post('/dropbox/run', need('einstellungen'), asyncRoute(async (req, res) => {
+  try { res.json({ ok: true, msg: await runBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
+}));
+
+/* ---------- Datensicherung (alle Rechte) ---------- */
+admin.get('/backups', need('einstellungen'), (req, res) => {
+  res.json({ list: backup.list(), pending: backup.pendingRestore(), restored: restoredMsg,
+    beleg_count: fs.readdirSync(BELEG_DIR).length });
+});
+
+admin.post('/backups', need('einstellungen'), asyncRoute(async (req, res) => {
+  const file = await backup.snapshot(db, 'manuell');
+  audit(req.user, 'Sicherung erstellt', file);
+  res.json({ file });
+}));
+
+admin.get('/backups/file/:file', need('einstellungen'), (req, res) => {
+  const f = req.params.file;
+  if (!backup.safeName(f) || !fs.existsSync(path.join(backup.BACKUP_DIR, f))) return bad(res, 'Nicht gefunden.', 404);
+  audit(req.user, 'Sicherung heruntergeladen', f);
+  res.download(path.join(backup.BACKUP_DIR, f), f);
+});
+
+/* Komplettsicherung: frischer Datenbank-Schnappschuss + alle Belege und Artikelbilder als .tar.gz */
+/* (die frühere unverschlüsselte Komplettsicherung als .tar.gz entfällt – ersetzt durch die verschlüsselte Komplettsicherung) */
+
+admin.post('/backups/upload', need('einstellungen'), express.raw({ type: () => true, limit: '200mb' }), asyncRoute(async (req, res) => {
+  if (!req.body || req.body.length < 100) return bad(res, 'Die Datei ist leer.');
+  const name = `getraenke_${backup.stamp()}_hochgeladen.db`;
+  const file = path.join(backup.BACKUP_DIR, name);
+  fs.writeFileSync(file, req.body);
+  const err = backup.validate(file);
+  if (err) { fs.unlinkSync(file); return bad(res, err); }
+  audit(req.user, 'Sicherung hochgeladen', name);
+  res.json({ file: name });
+}));
+
+admin.post('/backups/restore', need('einstellungen'), asyncRoute(async (req, res) => {
+  const f = String((req.body || {}).file || '');
+  try { backup.markRestore(f); } catch (e) { return bad(res, e.message); }
+  audit(req.user, 'Wiederherstellung vorgemerkt', f);
+  res.json({ ok: true });
+}));
+
+admin.delete('/backups/restore', need('einstellungen'), (req, res) => {
+  backup.cancelRestore();
+  audit(req.user, 'Wiederherstellung abgebrochen');
+  res.json({ ok: true });
+});
+
+/* Neustart: beendet den Prozess, der Watchdog von Home Assistant startet das Add-on neu */
+admin.post('/restart', need('einstellungen'), (req, res) => {
+  audit(req.user, 'Neustart ausgelöst');
+  res.json({ ok: true });
+  setTimeout(() => shutdown('Neustart über die Verwaltung', 1), 300);
+});
+
+admin.get('/audit', need('einstellungen'), (req, res) => {
+  res.json(db.prepare('SELECT * FROM audit_log ORDER BY id DESC LIMIT 500').all());
+});
+
+/* ---------- Kennzahlen für Home Assistant (ohne Namen, nur Summen) ---------- */
+/* Nur für Home Assistant selbst (internes Add-on-Netz 172.30.32.0/23 bzw. derselbe Rechner) – nicht für Geräte im WLAN */
+// nur Home Assistant selbst (172.30.32.1) und der Supervisor (172.30.32.2) – nicht andere Add-ons (z. B. Cloudflared/NGINX, 172.30.33.x)
+const fromHomeAssistant = req => { const ip = String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''); return ip === '172.30.32.1' || ip === '172.30.32.2' || ip === '127.0.0.1' || ip === '::1'; };
+app.get('/api/ha/summary', (req, res, next) => (fromHomeAssistant(req) ? next() : res.status(403).json({ error: 'Nur für Home Assistant.' })), (req, res) => {
+  const { from, to } = defaultRange({});
+  const sums = {
+    open_cents: db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE ${OPEN_KONTO}`).get().c,
+    today_items: db.prepare(`SELECT COALESCE(SUM(qty),0) n FROM bookings WHERE cancelled_at IS NULL AND date(created_at) = date('now','localtime')`).get().n,
+  };
+  const low = stockList().filter(s => s.active && s.track_stock && s.delivered > 0 && s.stock <= s.min_stock);
+  const ev = db.prepare('SELECT name FROM events WHERE active = 1 LIMIT 1').get();
+  res.json({
+    open_eur: sums.open_cents / 100, items_today: sums.today_items, since: from,
+    low_stock_count: low.length, low_stock: low.map(s => `${s.name} (${s.stock})`).join(', '),
+    event_active: Boolean(ev), event: ev ? ev.name : '',
+  });
+});
+
+/* ---------- Erweiterungen & eigene Links in der Kopfzeile ---------- */
+plugins.load({ app, admin, helpers: { need, rateLimit, bad, int, cleanName, nowTs, invites: require('./invites') } });
+try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung der Erweiterungs-Tabellen fehlgeschlagen –', e.message); }
+const memberapp = require('./memberapp');
+memberapp.adminRoutes(admin, { bad, need, auth });
+memberapp.startPort({ rateLimit });
+
+function navLinks() {
+  try { const l = JSON.parse(getSetting('nav_links', '[]')); return Array.isArray(l) ? l.map(x => ({ label: x.label, url: x.url })) : []; } catch (e) { return []; }
+}
+/* Eingebettete Links: nur genau diese Adressen dürfen im Rahmen (iframe) unter der Kopfzeile laufen */
+function embedOrigins() {
+  try { return [...new Set(navLinks().map(l => new URL(l.url).origin))].map(o => ' ' + o).join(''); } catch (e) { return ''; }
+}
+app.get('/api/tablet/nav', (req, res) => {
+  res.json({ items: [...plugins.tabletNav(), ...navLinks().map((l, i) => ({ id: 'link' + i, label: l.label, href: 'link.html?i=' + i, url: l.url }))] });
+});
+admin.get('/extensions', (req, res) => {
+  const all = plugins.list();
+  // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
+  res.json({ modules: plugins.activeIds(), appModules: require('./memberapp').moduleInfo().map(m => m.id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung })),
+    all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all : undefined, links: navLinks() });
+});
+/* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) */
+admin.get('/overview/modules', async (req, res) => {
+  const out = [];
+  for (const p of plugins.withHook('overview')) {
+    const perm = p.meta.verwaltung && p.meta.verwaltung.recht;
+    if (perm && !req.user.perms.includes(perm)) continue;
+    try { const o = await Promise.race([p.hooks.overview(), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 6000))]);
+      if (o) out.push({ id: p.meta.id, name: p.meta.name, page: p.meta.verwaltung ? p.meta.verwaltung.seite || p.meta.id : p.meta.id, kpis: o.kpis || [], alerts: o.alerts || [] }); }
+    catch (e) { out.push({ id: p.meta.id, name: p.meta.name, page: p.meta.id, kpis: [], alerts: [{ level: 'r', text: 'Status nicht abrufbar: ' + e.message }] }); }
+  }
+  res.json(out);
+});
+/* Erweiterung als ZIP einspielen / entfernen (wirkt nach Neustart) */
+admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () => true, limit: '25mb' }), asyncRoute(async (req, res) => {
+  if (req.user.role !== 'oberadmin') return bad(res, 'Erweiterungen einspielen darf nur ein Benutzer mit allen Rechten.', 403);
+  try {
+    const r = await plugins.installZip(req.body);
+    audit(req.user, r.update ? 'Erweiterung aktualisiert' : 'Erweiterung hochgeladen', `${r.name} ${r.version}`);
+    res.json({ ok: true, ...r, restart: true });
+  } catch (e) { bad(res, e.message); }
+}));
+/* Erweiterung aus dem Netzwerkordner freigeben: nur das Adminkonto/„alle Rechte“, mit Passwort bestätigt */
+admin.post('/extensions/:id/approve', need('einstellungen'), rateLimit('approve', 10, 10 * 60000), (req, res) => {
+  if (req.user.role !== 'oberadmin') return bad(res, 'Erweiterungen freigeben darf nur ein Benutzer mit allen Rechten.', 403);
+  const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
+  if (!u || !auth.verifySecret(String((req.body || {}).password || ''), u.pw_hash)) return bad(res, 'Passwort falsch.', 401);
+  try { const r = plugins.approve(String(req.params.id), String((req.body || {}).hash || '')); audit(req.user, 'Erweiterung freigegeben', `${r.name} (${r.hash.slice(0, 12)})`); res.json({ ok: true, restart: true }); }
+  catch (e) { bad(res, e.message); }
+});
+admin.delete('/extensions/:id', need('einstellungen'), (req, res) => {
+  if (req.user.role !== 'oberadmin') return bad(res, 'Nur mit allen Rechten.', 403);
+  try { const n = plugins.removeUploaded(String(req.params.id)); audit(req.user, 'Erweiterung entfernt', n); res.json({ ok: true, restart: true }); }
+  catch (e) { bad(res, e.message); }
+});
+/* ---------- Module deinstallieren / installieren (Recht „deinstallieren“) ----------
+   Ablauf: Sicherung erstellen → herunterladen → Modulnamen eintippen → deinstallieren. Installieren optional mit Sicherung. */
+/* Deinstallieren/Sichern/Einspielen: „Deinstallieren“ UND das Recht des Moduls selbst (bzw. „Einstellungen“) –
+   sonst käme man über eine Sicherung an Daten, die man im Modul gar nicht sehen darf (z. B. Stundenlöhne) */
+const modPerm = p => (p.builtin ? 'einstellungen' : p.meta.verwaltung && p.meta.verwaltung.recht) || null;
+const findMod = (req, res) => {
+  const p = plugins.get(String(req.params.id)); if (!p) { bad(res, 'Modul nicht gefunden.', 404); return null; }
+  const perm = modPerm(p);
+  if (perm && !req.user.perms.includes(perm) && !req.user.perms.includes('einstellungen')) { bad(res, `Dafür brauchst du zusätzlich das Recht für „${p.meta.name}“.`, 403); return null; }
+  return p;
+};
+admin.get('/extensions/:id/usage', need('deinstallieren'), (req, res) => {
+  const p = findMod(req, res); if (!p) return;
+  res.json({ id: p.meta.id, name: p.meta.name, ...modules.usage(p), backups: modules.listBackups(p.meta.id) });
+});
+admin.post('/extensions/:id/backup', need('deinstallieren'), asyncRoute(async (req, res) => {
+  const p = findMod(req, res); if (!p) return;
+  const file = await modules.backup(p, req.user);
+  audit(req.user, 'Modul-Sicherung erstellt', `${p.meta.name}: ${file}`);
+  res.json({ ok: true, file, usage: modules.usage(p) });
+}));
+admin.get('/extensions/backups/:file', need('deinstallieren'), (req, res) => {
+  const f = modules.backupPath(req.params.file);
+  if (!f) return bad(res, 'Sicherung nicht gefunden.', 404);
+  const p = plugins.get(String(req.params.file).split('_')[0]);
+  if (p) { const perm = modPerm(p); if (perm && !req.user.perms.includes(perm) && !req.user.perms.includes('einstellungen')) return bad(res, `Dafür brauchst du zusätzlich das Recht für „${p.meta.name}“.`, 403); }
+  res.download(f, path.basename(f));
+});
+admin.post('/extensions/:id/uninstall', need('deinstallieren'), (req, res) => {
+  const p = findMod(req, res); if (!p) return;
+  const b = req.body || {};
+  if (modules.isUninstalled(p.meta.id)) return bad(res, 'Das Modul ist schon deinstalliert.');
+  const f = modules.backupPath(b.file);
+  if (!f || !String(b.file).startsWith(p.meta.id + '_') || Date.now() - fs.statSync(f).mtimeMs > 2 * 3600000)
+    return bad(res, 'Zuerst eine aktuelle Sicherung dieses Moduls erstellen und herunterladen.');
+  if (String(b.confirm || '').trim().toLocaleLowerCase('de') !== String(p.meta.name).toLocaleLowerCase('de'))
+    return bad(res, `Zum Bestätigen bitte genau „${p.meta.name}“ eintippen.`);
+  const u = modules.usage(p);
+  modules.wipe(p);
+  setSetting(`ext_${p.meta.id}_active`, '0');
+  modules.setUninstalled(p.meta.id, true);
+  audit(req.user, 'Modul deinstalliert', `${p.meta.name} – ${u.total} Datensätze gelöscht, Sicherung ${b.file}`);
+  res.json({ ok: true });
+});
+admin.post('/extensions/:id/install', need('deinstallieren'), express.raw({ type: ['application/zip', 'application/octet-stream'], limit: '100mb' }), express.json({ limit: '1mb' }), asyncRoute(async (req, res) => {
+  const p = findMod(req, res); if (!p) return;
+  if (p.error) return bad(res, p.error);
+  // Einspielen nur bei deinstalliertem Modul – nie über laufende Daten hinweg
+  if (!modules.isUninstalled(p.meta.id)) return bad(res, 'Das Modul ist installiert. Eine Sicherung lässt sich nur nach dem Deinstallieren einspielen.');
+  const rr = p.meta.verwaltung && p.meta.verwaltung.recht;
+  if (rr && !req.user.perms.includes(rr) && !req.user.perms.includes('einstellungen')) return bad(res, `Zum Installieren von „${p.meta.name}“ brauchst du zusätzlich das Recht dieses Moduls.`, 403);
+  let summary = 'ohne Daten (neu)';
+  try {
+    if (Buffer.isBuffer(req.body) && req.body.length) summary = await modules.restore(p, req.body);
+    else if (req.body && req.body.file) {
+      const f = modules.backupPath(req.body.file);
+      if (!f || !String(req.body.file).startsWith(p.meta.id + '_')) return bad(res, 'Sicherung nicht gefunden.');
+      summary = await modules.restore(p, fs.readFileSync(f));
+    }
+  } catch (e) { return bad(res, e.message); }
+  modules.setUninstalled(p.meta.id, false);
+  setSetting(`ext_${p.meta.id}_active`, '1');
+  audit(req.user, 'Modul installiert', `${p.meta.name} – ${summary}`);
+  res.json({ ok: true, summary });
+}));
+/* Funktionsimport/-export: Einstellungen eines Moduls als Datei (ohne PINs, Passwörter, Schlüssel) */
+const mayConfig = (req, p) => req.user.perms.includes('einstellungen') || (p.meta.verwaltung && req.user.perms.includes(p.meta.verwaltung.recht));
+admin.get('/extensions/:id/export', async (req, res) => {
+  const p = plugins.get(String(req.params.id));
+  if (!p || !plugins.isActive(p.meta.id) || typeof p.hooks.exportConfig !== 'function') return bad(res, 'Für dieses Modul gibt es keinen Export.', 404);
+  if (!mayConfig(req, p)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
+  const data = await p.hooks.exportConfig();
+  const body = { format: 'vereinsheim-funktion', module: p.meta.id, name: p.meta.name, version: p.meta.version, exported: nowTs(), club: getSetting('club_name', ''), data };
+  res.setHeader('Content-Disposition', `attachment; filename="${p.meta.id}-funktion.json"`);
+  res.type('application/json').send(JSON.stringify(body, null, 2));
+});
+admin.post('/extensions/:id/import', express.json({ limit: '2mb' }), async (req, res) => {
+  const p = plugins.get(String(req.params.id));
+  if (!p || !plugins.isActive(p.meta.id) || typeof p.hooks.importConfig !== 'function') return bad(res, 'Für dieses Modul gibt es keinen Import.', 404);
+  if (!mayConfig(req, p)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
+  const b = req.body || {};
+  if (b.format !== 'vereinsheim-funktion' || !b.data) return bad(res, 'Das ist keine Funktionsdatei der Vereinsheimverwaltung.');
+  if (b.module !== p.meta.id) return bad(res, `Diese Datei gehört zum Modul „${b.name || b.module}“, nicht zu „${p.meta.name}“.`);
+  try {
+    const summary = await p.hooks.importConfig(b.data, { user: req.user });
+    audit(req.user, `${p.meta.name}: Funktionsimport`, summary || '');
+    res.json({ ok: true, summary });
+  } catch (e) { bad(res, e.message); }
+});
+admin.put('/extensions/:id', need('einstellungen'), (req, res) => {
+  try { plugins.setActive(String(req.params.id), Boolean((req.body || {}).active), req.user); res.json({ ok: true }); }
+  catch (e) { bad(res, e.message); }
+});
+admin.put('/settings/links', need('einstellungen'), (req, res) => {
+  const raw = Array.isArray((req.body || {}).links) ? req.body.links : null;
+  if (!raw) return bad(res, 'Ungültige Liste.');
+  if (raw.length > 8) return bad(res, 'Höchstens 8 Links.');
+  const out = [];
+  for (const l of raw) {
+    const label = cleanName(l.label, 30), url = String(l.url || '').trim();
+    if (!label && !url) continue;
+    if (!label) return bad(res, 'Jeder Link braucht eine Beschriftung.');
+    let u; try { u = new URL(url); } catch (e) { return bad(res, `„${label}“: bitte eine vollständige Adresse mit https:// eintragen.`); }
+    if (!/^https?:$/.test(u.protocol)) return bad(res, `„${label}“: nur http- und https-Adressen sind erlaubt.`);
+    out.push({ label, url: u.href.slice(0, 500) });
+  }
+  setSetting('nav_links', JSON.stringify(out));
+  audit(req.user, 'Links in der Kopfzeile geändert', out.map(l => l.label).join(', ') || '(keine)');
+  res.json({ ok: true, links: out });
+});
+
+app.use('/api', (req, res) => bad(res, 'Unbekannte Adresse.', 404));
+
+/* Fehler immer als JSON, ohne interne Details */
+app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
+  if (err && err.type === 'entity.too.large') return bad(res, 'Die Datei ist zu groß.', 413);
+  if (err && err.type === 'entity.parse.failed') return bad(res, 'Ungültige Anfrage.', 400);
+  console.error(err);
+  bad(res, 'Interner Fehler – bitte im Add-on-Protokoll nachsehen.', 500);
+});
+
+/* ---------- Start, nächtliche Sicherung, sauberes Beenden ---------- */
+try { cleanupUploads(); } catch (e) { console.error('Aufräumen:', e.message); }
+if (restoredMsg) { console.log(restoredMsg); audit('system', 'Wiederherstellung', restoredMsg); }
+
+let lastAuto = null;
+async function nightly() {
+  const now = new Date();
+  const day = backup.stamp().slice(0, 10);   // lokales Datum
+  if (now.getHours() >= 3 && lastAuto !== day) {
+    const have = backup.list().some(b => b.file.startsWith(`getraenke_${day}_`) && b.file.endsWith('_auto.db'));
+    lastAuto = day;
+    if (!have) {
+      try { const f = await backup.snapshot(db, 'auto'); console.log('Nächtliche Sicherung:', f); }
+      catch (e) { console.error('Nächtliche Sicherung fehlgeschlagen:', e.message); }
+    }
+  }
+  // Belege im Papierkorb nach 90 Tagen endgültig löschen
+  try {
+    for (const f of fs.existsSync(TRASH_DIR) ? fs.readdirSync(TRASH_DIR) : []) {
+      const p = path.join(TRASH_DIR, f);
+      if (Date.now() - fs.statSync(p).mtimeMs > 90 * 86400000) fs.unlinkSync(p);
+    }
+  } catch (e) { console.error('Papierkorb:', e.message); }
+  // Komplettsicherung: einmal am Tag ab der eingestellten Uhrzeit, bei Fehler stündlich neuer Versuch; monatlich Probe-Wiederherstellung
+  if (bkHasKey() && now.getHours() >= bkCfg().hour && getSetting('backup_last_day', '') !== day && Date.now() - dbxLastTry > 55 * 60 * 1000) {
+    dbxLastTry = Date.now();
+    try {
+      console.log('Datensicherung:', await runBackup());
+      const pAt = getSetting('backup_probe_at', '');
+      if (!pAt || Date.now() - Date.parse(pAt) > 30 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
+    } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
+  }
+}
+let dbxLastTry = 0;
+setInterval(nightly, 10 * 60 * 1000).unref();
+setTimeout(nightly, 30 * 1000).unref();
+
+/* Hauptport (Tablet, Verwaltung, Handys): mit HTTPS, sobald ein Zertifikat eingerichtet ist */
+const server = tls.listen(app, PORT, HOST, 'Vereinsheimverwaltung');
+console.log(`Datenbank: ${DB_FILE}`);
+/* Innerer Port ohne Verschlüsselung – nur für die Home-Assistant-Seitenleiste (Supervisor) und Abrufe des Programms an sich selbst */
+let inner = null;
+if (process.env.INTERNAL_PORT && String(process.env.INTERNAL_PORT) !== String(PORT)) {
+  const allowed = new Set([...INGRESS_IPS, '127.0.0.1', '::1']);
+  inner = require('http').createServer((req, res) => {
+    if (!allowed.has(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) { res.writeHead(403); res.end(); return; }
+    app(req, res);
+  });
+  inner.listen(parseInt(process.env.INTERNAL_PORT, 10), process.env.INGRESS_PORT ? '0.0.0.0' : '127.0.0.1');
+}
+
+let stopping = false;
+async function shutdown(why, code = 0) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`Vereinsheimverwaltung wird beendet (${why}) …`);
+  server.close();
+  if (inner) inner.close();
+  // Module aufräumen lassen (z. B. Türimpulse abschalten) – höchstens 3 Sekunden
+  try {
+    await Promise.race([Promise.allSettled(plugins.withHook('shutdown').map(p => p.hooks.shutdown())), new Promise(r => setTimeout(r, 3000))]);
+  } catch (e) { console.error('Beenden:', e.message); }
+  // Datenbank sauber schließen und SOFORT beenden – danach darf kein Zeitgeber mehr auf die Datenbank zugreifen
+  try { db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) { console.error(e.message); }
+  process.exit(code);
+}
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

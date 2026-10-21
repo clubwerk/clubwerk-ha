@@ -1,0 +1,1 @@
+module.exports = { activate(ctx) { ctx.member.post('/boom', () => { throw new Error('boom'); }); ctx.member.get('/ok', (req, res) => res.json({ ok: true })); } };

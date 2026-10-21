@@ -1,0 +1,190 @@
+'use strict';
+/* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
+   Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const store = { get(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* privat */ } } };
+  const sess = { get(k) { try { return sessionStorage.getItem(k) || ''; } catch (e) { return ''; } }, set(k, v) { try { sessionStorage.setItem(k, v); } catch (e) { /* egal */ } }, del(k) { try { sessionStorage.removeItem(k); } catch (e) { /* egal */ } } };
+  const dev = () => store.get('va_geraet');
+  const hdrs = (x = {}) => { const h = { ...x }; if (dev()) h['X-Geraet'] = dev(); return h; };
+
+  function toast(msg, err = false, ms = 3500) { const t = $('toast'); t.textContent = msg; t.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), ms); }
+  function lock(text) { if (text) $('lockText').textContent = text; $('lockSheet').classList.add('show'); }
+
+  async function call(url, method = 'GET', body) {
+    const r = await fetch('api/' + url, { method, headers: hdrs(body ? { 'Content-Type': 'application/json' } : {}), body: body ? JSON.stringify(body) : undefined });
+    const d = await r.json().catch(() => ({}));
+    if (r.status === 403 && d.device) { lock(d.error); throw Object.assign(new Error(d.error), { device: true }); }
+    if (r.status === 429) { sess.del('va_pin'); throw Object.assign(new Error(d.error || 'Zu viele Versuche – bitte warten.'), { status: 429, data: d }); }
+    if (r.status === 401 && d.pin) { sess.del('va_pin'); throw Object.assign(new Error(d.error || 'Falsche PIN'), { pin: true }); }
+    if (!r.ok) throw Object.assign(new Error(d.error || `Fehler ${r.status}`), { status: r.status, data: d });
+    return d;
+  }
+
+  /* ---------- PIN: einmal je Sitzung, bei Fehler neu ---------- */
+  let pinCb = null;
+  function askPin(title) {
+    return new Promise((resolve, reject) => {
+      $('pinTitle').textContent = title || 'PIN eingeben';
+      $('pinErr').textContent = ''; $('pinIn').value = '';
+      $('pinSheet').classList.add('show');
+      pinCb = { resolve, reject };
+      setTimeout(() => $('pinIn').focus(), 80);
+    });
+  }
+  $('pinOk').onclick = () => { const v = $('pinIn').value.trim(); if (!v) { $('pinErr').textContent = 'Bitte PIN eingeben'; return; } $('pinSheet').classList.remove('show'); const c = pinCb; pinCb = null; if (c) c.resolve(v); };
+  $('pinNo').onclick = () => { $('pinSheet').classList.remove('show'); const c = pinCb; pinCb = null; if (c) c.reject(Object.assign(new Error('abgebrochen'), { cancel: true })); };
+  $('pinIn').addEventListener('keydown', e => { if (e.key === 'Enter') $('pinOk').click(); });
+  /** Aktion mit PIN ausführen: fn(pin) → Promise. Fragt die PIN nur, wenn noch keine in dieser Sitzung bestätigt wurde. */
+  async function withPin(title, fn) {
+    let pin = sess.get('va_pin');
+    for (let i = 0; i < 4; i++) {
+      if (!pin) { try { pin = await askPin(title); } catch (e) { return null; } }
+      try { const r = await fn(pin); sess.set('va_pin', pin); return r; }
+      catch (e) {
+        if (e.pin) { pin = ''; toast(e.message, true); continue; }
+        throw e;
+      }
+    }
+    return null;
+  }
+
+  /* ---------- Bereiche ---------- */
+  const SECTIONS = {};
+  window.VA = { registerSection(s) { SECTIONS[s.id] = s; } };
+  let me = null, current = null, cleanup = null;
+  const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
+
+  function show(id) {
+    if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
+    current = id; store.set('va_tab', id);
+    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === id));
+    const s = me.sections.find(x => x.id === id);
+    const el = $('sec');
+    if (!s) { el.innerHTML = ''; return; }
+    if (!s.ok) { el.innerHTML = `<div class="vh-empty">${esc(s.reason)}</div>`; return; }
+    const sec = SECTIONS[id];
+    if (!sec) { el.innerHTML = '<div class="vh-empty">Dieser Bereich konnte nicht geladen werden.</div>'; return; }
+    el.innerHTML = '';
+    const ctx = {
+      api: (p, method, body) => call(`m/${id}/${p}`, method, body), withPin, toast, esc, member: me.member,
+      onLeave: fn => { cleanup = fn; },
+    };
+    try { sec.render(el, ctx); } catch (e) { el.innerHTML = `<div class="vh-empty">Fehler: ${esc(e.message)}</div>`; }
+  }
+
+  async function start() {
+    me = await call('me');
+    $('club').textContent = me.club;
+    document.title = `${me.appName} – ${me.club}`;
+    if (!me.member) { lock(); return; }
+    $('who').textContent = me.member;
+    if (!me.sections.length) { $('sec').innerHTML = '<div class="vh-empty">Für dich ist noch nichts freigeschaltet. Bitte beim Vorstand melden.</div>'; return; }
+    for (const s of me.sections) if (s.ok) await loadScript(`m/${s.id}/member.js`);
+    const tabs = $('tabs');
+    const TI = { zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
+      beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>' };
+    const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
+    tabs.innerHTML = me.sections.map(s => `<button data-t="${s.id}">${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('');
+    tabs.classList.toggle('hidden', me.sections.length < 2);
+    tabs.querySelectorAll('button').forEach(b => b.onclick = () => show(b.dataset.t));
+    const last = store.get('va_tab');
+    show(me.sections.some(s => s.id === last) ? last : me.sections[0].id);
+  }
+
+  /* ---------- Übernahme in die Home-Bildschirm-App (iPhone: eigener Speicher je Home-Bildschirm-App) ---------- */
+  const standalone = () => { try { return window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true; } catch (e) { return false; } };
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const fmtCode = c => c.slice(0, 5) + '-' + c.slice(5);
+  async function prepareTransfer() {
+    if (standalone() || !dev()) return;
+    try {
+      const r = await call('transfer', 'POST', {});
+      // Startadresse der Home-Bildschirm-App mit Code (Manifest und aktuelle Adresse – je nach iOS-Version zählt das eine oder das andere)
+      const m = document.querySelector('link[rel="manifest"]'); if (m) m.setAttribute('href', 'manifest.json?k=' + r.code);
+      history.replaceState(null, '', location.pathname + location.search + '#k=' + r.code);
+      if (isIOS && store.get('va_hint_off') !== '1') { $('installCode').textContent = fmtCode(r.code); $('installHint').classList.remove('hidden'); }
+    } catch (e) { /* kein Code – App lässt sich trotzdem per QR neu freischalten */ }
+  }
+  $('installX').onclick = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); };
+  function transferFlow(code) {
+    $('lockSheet').classList.remove('show');
+    $('trCode').value = code ? fmtCode(code) : '';
+    $('trCode').classList.toggle('hidden', Boolean(code));
+    $('trText').textContent = code ? 'Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.' : 'Den Übernahme-Code findest du auf der Seite in Safari, auf der du freigeschaltet hast. Dazu deine PIN.';
+    $('trErr').textContent = ''; $('trPin').value = '';
+    $('trSheet').classList.add('show');
+    setTimeout(() => (code ? $('trPin') : $('trCode')).focus(), 80);
+  }
+  $('lockCode').onclick = () => transferFlow('');
+  $('trNo').onclick = () => { $('trSheet').classList.remove('show'); lock(); };
+  $('trPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('trOk').click(); });
+  $('trOk').onclick = async () => {
+    const code = $('trCode').value.toUpperCase().replace(/[^A-Z0-9]/g, ''), pin = $('trPin').value.trim();
+    if (code.length !== 10) { $('trErr').textContent = 'Der Code hat 10 Zeichen.'; return; }
+    if (!/^\d{4,8}$/.test(pin)) { $('trErr').textContent = 'Bitte deine PIN eingeben.'; return; }
+    $('trErr').textContent = 'Übernehme …';
+    try {
+      const r = await call('transfer/redeem', 'POST', { code, pin });
+      store.set('va_geraet', r.device);
+      if (dev() !== r.device) { $('trErr').textContent = 'Diese App kann nichts speichern – bitte in den Einstellungen prüfen.'; return; }
+      sess.set('va_pin', pin);
+      history.replaceState(null, '', location.pathname + location.search);
+      $('trSheet').classList.remove('show');
+      toast('Freigeschaltet – willkommen!', false, 4000);
+      start().catch(e => toast(e.message, true));
+    } catch (e) { $('trErr').textContent = e.message; if (e.data && e.data.badCode) { $('trCode').classList.remove('hidden'); } }
+  };
+
+  /* ---------- Einladung per QR-Code ---------- */
+  let inviteToken = '';
+  async function pair(t) {
+    inviteToken = t;
+    history.replaceState(null, '', location.pathname + location.search);   // Einladung nicht in Lesezeichen/Verlauf behalten
+    try {
+      const p = await call('invite?t=' + encodeURIComponent(t));
+      $('pairTitle').textContent = `Hallo ${p.member}`;
+      $('pairSheet').classList.add('show');
+      setTimeout(() => $('pair1').focus(), 80);
+    } catch (e) {
+      if (dev()) { toast(e.message, true, 6000); start().catch(err => toast(err.message, true)); } else lock(e.message);
+    }
+  }
+  $('pairOk').onclick = async () => {
+    const a = $('pair1').value.trim(), b = $('pair2').value.trim();
+    if (!/^\d{4,8}$/.test(a)) { $('pairErr').textContent = 'Bitte 4 bis 8 Ziffern'; return; }
+    if (a !== b) { $('pairErr').textContent = 'Die beiden Eingaben stimmen nicht überein'; $('pair2').value = ''; return; }
+    $('pairErr').textContent = 'Schalte frei …';
+    try {
+      const r = await call('pair', 'POST', { t: inviteToken, pin: a });
+      store.set('va_geraet', r.device);
+      if (dev() !== r.device) { $('pairErr').textContent = 'Der Browser speichert nichts (privater Modus?) – bitte normal öffnen.'; return; }
+      sess.set('va_pin', a);
+      $('pairSheet').classList.remove('show');
+      toast('Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
+      start().then(prepareTransfer).catch(e => toast(e.message, true));
+    } catch (e) { $('pairErr').textContent = e.message; }
+  };
+  $('pair2').addEventListener('keydown', e => { if (e.key === 'Enter') $('pairOk').click(); });
+  $('pair1').addEventListener('keydown', e => { if (e.key === 'Enter') $('pair2').focus(); });
+
+  // Logo
+  const lg = $('logo'); lg.onload = () => $('logoBox').classList.remove('hidden'); lg.src = 'logo';
+
+  window.addEventListener('load', () => {
+    const m = location.hash.match(/[#&]i=([A-Za-z0-9_-]{10,60})/);
+    if (m) { call('me').then(x => { $('club').textContent = x.club; }).catch(() => {}); pair(m[1]); return; }
+    const k = location.hash.match(/[#&]k=([A-Z2-9]{10})/);
+    (async () => {
+      // Startadresse mit Übernahme-Code: ist dieses Gerät schon freigeschaltet, einfach starten – sonst PIN abfragen und übernehmen
+      if (k) {
+        let ok = false;
+        if (dev()) { try { ok = Boolean((await call('me')).member); } catch (e) { ok = false; } }
+        if (!ok) { call('me').then(x => { $('club').textContent = x.club; }).catch(() => {}); transferFlow(k[1]); return; }
+      }
+      await start();
+      if (me && me.member) prepareTransfer();
+    })().catch(e => { if (!e.device) toast('Keine Verbindung zum Server', true); });
+  });
+})();

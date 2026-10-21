@@ -3,8 +3,9 @@
 Läuft gegen den Demo-Server (3801/5801/5803) und prüft alle Oberflächen in Handy-, Tablet- und Rechnergröße,
 hell und dunkel, mit Bedienabläufen (Reiter, Fenster, Menü, bis ganz unten scrollen) und statischen Regeln im Quelltext.
 
-  python3 gate.py OUTDIR            vollständig
-  python3 gate.py OUTDIR --schnell  nur Handy + Rechner, nur dunkel (für Zwischenstände)
+  python3 werkzeuge/design-pruefstand/gate.py            vollständig → werkzeuge/design-pruefstand/ausgabe
+  python3 werkzeuge/design-pruefstand/gate.py --schnell  nur Handy + Rechner, nur dunkel (für Zwischenstände)
+Vorher den Demo-Server starten: bash werkzeuge/demo/start.sh
 
 Ergebnis: OUTDIR/befunde.json, OUTDIR/befunde.txt, markierte Bilder; Rückgabewert 1, wenn es offene Befunde gibt.
 Ausnahmen mit Begründung stehen in erlaubt.txt (Regel | Element-Teil | Zustand-Teil | Begründung)."""
@@ -12,14 +13,14 @@ import asyncio, json, os, re, sys, glob
 from playwright.async_api import async_playwright
 
 D = os.path.dirname(os.path.abspath(__file__)); LINT = open(D + '/lint.js').read()
-OUT = os.path.abspath(sys.argv[1]); QUICK = '--schnell' in sys.argv
+OUT = os.path.abspath(next((a for a in sys.argv[1:] if not a.startswith('--')), os.path.join(D, 'ausgabe'))); QUICK = '--schnell' in sys.argv; WEBKIT = '--webkit' in sys.argv
 APP = os.environ.get('CW_APP', os.path.join(D, '..', '..', 'clubwerk'))
 os.makedirs(OUT, exist_ok=True)
 for f in glob.glob(OUT + '/*.png') + glob.glob(OUT + '/gruen'): os.remove(f)
 B = os.environ.get('CW_URL', 'http://127.0.0.1:3801/'); MB = os.environ.get('CW_APP_URL', 'http://127.0.0.1:5803/'); BB = os.environ.get('CW_BEREGNUNG_URL', 'http://127.0.0.1:5801/')
 H = {'Content-Type': 'application/json', 'X-Clubwerk': '1'}
 slug = lambda t: re.sub(r'[^a-z0-9]+', '-', t.lower().replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')).strip('-')[:20]
-ADMIN_PW = os.environ['CW_ADMIN_PW']; TABLET_PW = os.environ['CW_TABLET_PW']   # Zugangsdaten des Test-Servers
+ADMIN_PW = os.environ.get('CW_ADMIN_PW', 'Test-Kennwort-42'); TABLET_PW = os.environ.get('CW_TABLET_PW', 'Theke-Abend7')   # Zugangsdaten des Demo-Servers (werkzeuge/demo)
 FIND = []; ERRS = []; STATES = [0]; SEEN = set()
 
 REACH = r'''async () => {
@@ -237,7 +238,7 @@ async def app(b, w, h, scheme, tag):
         except Exception: return {}
     await A('api/admin/login', 'POST', {'username': 'admin', 'password': ADMIN_PW})
     ms = await A('api/admin/members'); lst = ms if isinstance(ms, list) else ms.get('rows', [])
-    wid = [m for m in lst if m.get('active', 1)][0]['id']   # erstes aktives Mitglied der Testdaten
+    wid = [m for m in lst if m.get('kind', 'mitglied') == 'mitglied' and '(' not in m.get('name', '')][0]['id']   # erstes echtes Mitglied der Demo-Daten
     for mod in ['buchung', 'spielbetrieb', 'arbeitseinsatz', 'mitglieder', 'beregnung', 'zugang', 'verkauf']: await A(f'api/admin/app/member/{wid}/access', 'PUT', {'module': mod, 'grant': True})
     inv = await A(f'api/admin/app/member/{wid}/invite', 'POST', {})
     cx = await b.new_context(locale='de-DE', timezone_id='Europe/Berlin', viewport={'width': w, 'height': h}, color_scheme=scheme, has_touch=True, is_mobile=True)
@@ -294,22 +295,27 @@ async def main():
         sx = 'd' if sc == 'dark' else 'h'
         sizes_t = [(390, 664, 'TH')] + ([] if QUICK else [(800, 1280, 'TP')]) + [(1280, 800, 'TL')]
         sizes_a = [(390, 664, 'AH')] + ([] if QUICK else [(1024, 768, 'AT')]) + [(1440, 900, 'AR')]
-        for w, h, t in sizes_t: jobs.append(('tablet', w, h, sc, f'{t}{sx}'))
-        for w, h, t in sizes_a: jobs.append(('admin', w, h, sc, f'{t}{sx}'))
-        jobs.append(('app', 390, 664, sc, f'MH{sx}'))
+        for w, h, t in sizes_t: jobs.append(('chromium', 'tablet', w, h, sc, f'{t}{sx}'))
+        for w, h, t in sizes_a: jobs.append(('chromium', 'admin', w, h, sc, f'{t}{sx}'))
+        jobs.append(('chromium', 'app', 390, 664, sc, f'MH{sx}'))
+        if WEBKIT:   # Safari-Technik: die Handy-Ansichten zusätzlich
+            jobs += [('webkit', 'tablet', 390, 664, sc, f'W-TH{sx}'), ('webkit', 'admin', 390, 664, sc, f'W-AH{sx}'), ('webkit', 'app', 390, 664, sc, f'W-MH{sx}')]
     sem = asyncio.Semaphore(6)
     async with async_playwright() as p:
-        b = await p.chromium.launch()
+        browsers = {'chromium': await p.chromium.launch()}
+        if WEBKIT:
+            try: browsers['webkit'] = await p.webkit.launch()
+            except Exception as e: ERRS.append('WebKit fehlt – einmal: python3 -m playwright install webkit (' + str(e).split(chr(10))[0][:80] + ')'); jobs[:] = [j for j in jobs if j[0] != 'webkit']
         async def run(j):
             async with sem:
-                kind, w, h, sc, tag = j
+                eng, kind, w, h, sc, tag = j; b = browsers[eng]
                 try:
                     if kind == 'tablet': await tablet(b, w, h, sc, tag)
                     elif kind == 'admin': await admin(b, w, h, sc, tag)
                     else: await app(b, w, h, sc, tag)
-                except Exception as e: ERRS.append(f'{tag}: ABBRUCH {str(e)[:120]}')
+                except Exception as e: ERRS.append(f'{tag}: ABBRUCH ' + str(e).split(chr(10))[0][:120])
         await asyncio.gather(*[run(j) for j in jobs])
-        await b.close()
+        for b in browsers.values(): await b.close()
     open_ = [f for f in FIND if not f['erlaubt']]
     groups = {}
     for f in open_: groups.setdefault((f['rule'], f.get('el', '')), []).append(f)

@@ -1,0 +1,2733 @@
+'use strict';
+(() => {
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+  const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const num = n => Number(n || 0).toLocaleString('de-DE');
+  const deDate = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
+  const deTime = t => (t ? new Date(t.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '');
+  const pinInfo = m => m.pin_changed_at ? `<div class="muted s">${m.hasPin ? 'geändert' : (m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? 'zurückgesetzt' : 'entfernt')} ${deTime(m.pin_changed_at)}${m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? ' · ' + esc(m.pin_changed_by) : ''}</div>` : '';
+  const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  const toCents = v => Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) * 100);
+  const centsToInput = c => ((c || 0) / 100).toFixed(2).replace('.', ',');
+  const KIND = { mitglied: 'Mitglied', mannschaft: 'Mannschaft', verein: 'Verein (kostenfrei)', gast: 'Gast (bar)' };
+  const BKIND = { konto: ['Konto', 'g'], verein: ['Verein frei', 'b'], gast: ['Gast bar', 'a'], event: ['Veranstaltung', 'a'] };
+  const DOCKIND = { rechnung: 'Rechnung', gutschrift: 'Gutschrift', lieferung: 'Lieferschein', kassenbon: 'Kassenbon' };
+
+  async function api(url, method = 'GET', body) {
+    const opts = { method, headers: { 'X-Getraenke': '1' } };
+    if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+    const r = await fetch('api/admin/' + url, opts);
+    const data = await r.json().catch(() => ({}));
+    if (r.status === 401 && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd });
+    return data;
+  }
+
+  function toast(msg, error = false) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast' + (error ? ' error' : '');
+    clearTimeout(toast.t);
+    toast.t = setTimeout(() => t.classList.add('hidden'), error ? 6000 : 3000);
+  }
+  const fail = e => toast(e.message, true);
+
+  function dialog(html, wide = false) {
+    $('dialog').className = 'dialog' + (wide ? ' wide' : '');
+    $('dialog').innerHTML = html;
+    $('overlay').classList.remove('hidden');
+    $('overlay').scrollTop = 0;
+  }
+  function closeDialog() { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; }
+
+  /* ---------- Rückfragen im eigenen Fenster (statt Browser-Dialog) ---------- */
+  const nl2br = t => esc(t).replace(/\n/g, '<br>');
+  /* Personen wie sortiert anzeigen: „Nachname, Vorname“ („von der Heide, Anna“); Mannschaften & Sonderkonten unverändert */
+  const NAME_PART = new Set(['von', 'van', 'vom', 'zu', 'zum', 'zur', 'de', 'der', 'den', 'la', 'le', 'di', 'da', 'ten', 'op', 'del', 'dos']);
+  function lastFirst(name, kind) {
+    const n = String(name || '').trim().replace(/\s+/g, ' ');
+    if ((kind && kind !== 'mitglied') || n.includes(',')) return n;
+    const w = n.split(' '); if (w.length < 2) return n;
+    let i = w.length - 1;
+    while (i > 1 && NAME_PART.has(w[i - 1].toLowerCase())) i--;
+    return w.slice(i).join(' ') + ', ' + w.slice(0, i).join(' ');
+  }
+  const pName = m => esc(lastFirst(m.name, m.kind));
+  /** ask(text, {title, ok, danger}) → Promise<boolean>. Erste Zeile wird zur Überschrift, wenn kein Titel angegeben ist. */
+  function ask(text, o = {}) {
+    return new Promise(resolve => {
+      const parts = String(text).split('\n\n');
+      const title = o.title || parts.shift();
+      const body = o.title ? String(text) : parts.join('\n\n');
+      const danger = o.danger ?? /löschen|entziehen|sperren|zurücknehmen|zurücksetzen|wiederherstellen|trennen|ausschalten|abmelden|neu starten|stornieren/i.test(title + body);
+      const okLabel = o.ok || (/löschen/i.test(title) ? 'Löschen' : /stornieren/i.test(title) ? 'Stornieren' : danger ? 'Ja, ausführen' : 'OK');
+      $('askBox').innerHTML = `<h2>${nl2br(title)}</h2>${body ? `<p>${nl2br(body)}</p>` : ''}
+        <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn ${danger ? 'danger' : 'primary'}" id="askOk">${esc(okLabel)}</button></div>`;
+      $('askOverlay').classList.remove('hidden');
+      const done = v => { $('askOverlay').classList.add('hidden'); document.removeEventListener('keydown', key); resolve(v); };
+      const key = e => { if (e.key === 'Escape') done(false); };
+      document.addEventListener('keydown', key);
+      if ($('askNo')) $('askNo').onclick = () => done(false);
+      $('askOk').onclick = () => done(true);
+      $('askOk').focus();
+    });
+  }
+  /** askText(text, value, {ok}) → Promise<string|null> */
+  function askText(text, value = '', o = {}) {
+    return new Promise(resolve => {
+      const parts = String(text).split('\n'); const title = parts.shift();
+      $('askBox').innerHTML = `<h2>${esc(title)}</h2>${parts.length ? `<p>${nl2br(parts.join('\n'))}</p>` : ''}
+        <label class="f"><input id="askIn" value="${esc(value)}" autocomplete="off" type="${o.password ? 'password' : 'text'}"></label>
+        <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn primary" id="askOk">${esc(o.ok || 'OK')}</button></div>`;
+      $('askOverlay').classList.remove('hidden');
+      const done = v => { $('askOverlay').classList.add('hidden'); resolve(v); };
+      $('askNo').onclick = () => done(null);
+      $('askOk').onclick = () => done($('askIn').value);
+      $('askIn').onkeydown = e => { if (e.key === 'Enter') done($('askIn').value); if (e.key === 'Escape') done(null); };
+      $('askIn').focus(); $('askIn').select();
+    });
+  }
+
+  /* ---------- Ungespeicherte Änderungen ---------- */
+  let dirty = false;
+  /** Formularbereich beobachten: jede Eingabe markiert „ungespeichert“ */
+  function watch(el) { if (!el) return; const mark = e => { if (e.target.matches('input, select, textarea') && !e.target.closest('[data-nodirty]')) dirty = true; }; el.addEventListener('input', mark); el.addEventListener('change', mark); }
+  const clean = () => { dirty = false; };
+  async function leaveOk() {
+    if (!dirty) return true;
+    const ok = await ask('Änderungen verwerfen?\n\nDu hast hier etwas geändert, aber noch nicht gespeichert.', { ok: 'Verwerfen', danger: true });
+    if (ok) dirty = false;
+    return ok;
+  }
+  window.addEventListener('beforeunload', e => { if (dirty) { e.preventDefault(); e.returnValue = ''; } });
+
+  /** Reiter innerhalb einer Seite. tabs: [[key, label]], merkt sich den Reiter je Seite. */
+  function tabs(el, key, list, onShow) {
+    const store = `tab_${key}`;
+    let cur = sessionStorage.getItem(store);
+    if (!list.some(t => t[0] === cur)) cur = list[0][0];
+    el.innerHTML = `<div class="tabs">${list.map(([k, l]) => `<button data-tab="${k}">${esc(l)}</button>`).join('')}</div><div class="tabbody"></div>`;
+    const body = el.querySelector('.tabbody');
+    const show = async k => {
+      if (k !== cur && !(await leaveOk())) return;
+      cur = k; sessionStorage.setItem(store, k);
+      el.querySelectorAll('[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === k));
+      body.innerHTML = '<p class="muted">Lade …</p>';
+      try { await onShow(k, body); } catch (e) { fail(e); }
+    };
+    el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => show(b.dataset.tab); });
+    cur = cur || list[0][0];
+    const first = cur; cur = null; show(first);
+    return { reload: () => { const k = cur; cur = null; show(k); } };
+  }
+  $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay') && !$('dialog').dataset.sticky) closeDialog(); });
+
+  /* Handy: Spaltennamen an jede Tabellenzelle hängen (für die Kartenansicht) */
+  function labelTables(root) {
+    root.querySelectorAll('table.tbl').forEach(t => {
+      const head = t.querySelector('tr'); if (!head || !head.querySelector('th')) return;
+      const names = [...head.children].map(th => th.textContent.trim());
+      t.querySelectorAll('tr').forEach(tr => { if (tr === head) return; let i = 0; [...tr.children].forEach(td => { if (!td.hasAttribute('data-label')) td.setAttribute('data-label', td.colSpan > 1 ? '' : names[i] || ''); i += td.colSpan || 1; }); });
+    });
+  }
+  new MutationObserver(() => { labelTables(document); }).observe(document.getElementById('app'), { childList: true, subtree: true });
+  new MutationObserver(() => { labelTables($('dialog')); }).observe($('dialog'), { childList: true, subtree: true });
+
+  /* ---------- Anmeldung ---------- */
+  let me = null, permLabels = {};
+  const can = p => Boolean(me && me.perms.includes(p));
+
+  let SCHEME = 'http';   // Schema der direkten Adressen (Tablet, Mitglieder-App, Beregnung)
+  async function start() {
+    const [s] = await Promise.all([fetch('api/admin/status').then(r => r.json()), loadBrand()]);
+    permLabels = s.permLabels || {};
+    SCHEME = s.https ? 'https' : 'http';
+    if (!s.configured) return showSetup(s.modules || [], s);
+    if (!s.loggedIn) return showLogin();
+    me = s.user;
+    await loadExtensions().catch(() => {});
+    showShell();
+    if (brand.iconNeeded) makeAppIcon().catch(e => console.warn('App-Symbol:', e));
+  }
+
+  /* ---------- Erweiterungen: Verwaltungsseiten der aktiven Erweiterungen nachladen ---------- */
+  let extLoaded = new Set();
+  async function loadExtensions() {
+    const r = await api('extensions');
+    cache.extLinks = r.links || [];
+    cache.modules = r.modules || [];
+    cache.appModules = r.appModules || [];
+    for (const x of r.ui) {
+      if (extLoaded.has(x.id)) continue;
+      extLoaded.add(x.id);
+      await new Promise(res => {
+        const sc = document.createElement('script');
+        sc.src = `x/${x.id}/admin.js?v=${encodeURIComponent(x.version)}`;
+        sc.onload = res; sc.onerror = () => { console.error('Erweiterung', x.id, 'konnte nicht geladen werden'); res(); };
+        document.head.appendChild(sc);
+      });
+    }
+  }
+
+  let brand = { logo: null };
+  /** Aus dem Vereinslogo ein quadratisches PNG fürs Handy (Home-Bildschirm) zeichnen und hochladen */
+  async function makeAppIcon() {
+    if (!brand.logo) return;
+    const img = new Image();
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = brand.logo; });
+    const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#ffffff'; g.fillRect(0, 0, S, S);
+    const w = img.naturalWidth || img.width || S, h = img.naturalHeight || img.height || S;
+    const k = Math.min((S * 0.84) / w, (S * 0.84) / h);
+    g.drawImage(img, (S - w * k) / 2, (S - h * k) / 2, w * k, h * k);
+    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+    await fetch('api/admin/logo-icon', { method: 'POST', headers: { 'X-Getraenke': '1', 'Content-Type': 'image/png' }, body: blob });
+    brand.iconNeeded = false;
+  }
+  const loadBrand = () => fetch('api/branding').then(r => r.json()).then(b => { brand = b; }).catch(() => {});
+  const logoImg = cls => (brand.logo ? `<div class="${cls}"><img src="${esc(brand.logo)}" alt="Vereinslogo" data-logo></div>` : '');
+  const wireLogos = () => document.querySelectorAll('img[data-logo]').forEach(i => { i.onerror = () => i.parentNode.remove(); });
+
+  function showSetup(mods = [], st = {}) {
+    $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Erste Einrichtung</h2>
+      <p class="lead">Willkommen! Trage den Namen eures Vereins ein und lege das Passwort für das <b>Adminkonto</b> fest. Es darf alles, kann nicht gelöscht werden und legt weitere Benutzer mit eigenen Rechten an. Logo und Vereinsfarbe stellt ihr danach unter „Einstellungen“ ein.</p>
+      <label class="f">Name des Vereins<input id="club" placeholder="z. B. SV Musterdorf 1920 e.V." autocomplete="organization"></label><br>
+      ${mods.length ? `<div class="f" style="margin-bottom:14px"><span>Was soll die Vereinsheimverwaltung können? <span class="muted">(später unter „Einstellungen“ änderbar)</span></span>
+        ${mods.map(m => `<label class="chk" style="margin-top:8px;align-items:flex-start"><input type="checkbox" data-mod="${esc(m.id)}" ${m.active ? 'checked' : ''} style="margin-top:3px">
+          <span><b>${esc(m.name)}</b><br><span class="muted s">${esc(m.description)}</span></span></label>`).join('')}</div>` : ''}
+      ${st.setupCode ? `<label class="f">Einrichtungscode <span class="muted">(steht in Home Assistant unter Einstellungen → Add-ons → Vereinsheimverwaltung → Protokoll)</span><input id="scode" placeholder="XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><br>` : ''}
+      <label class="f">Benutzername<input id="un" value="admin" disabled></label><br>
+      <label class="f">Passwort (mind. 8 Zeichen)<input type="password" id="pw1" autocomplete="new-password"></label><br>
+      <label class="f">Passwort wiederholen<input type="password" id="pw2" autocomplete="new-password"></label><br>
+      <button class="btn primary" id="go">Adminkonto einrichten</button> <span class="err" id="err"></span></div>`;
+    wireLogos();
+    $('go').onclick = async () => {
+      if ($('pw1').value !== $('pw2').value) { $('err').textContent = 'Die Passwörter stimmen nicht überein.'; return; }
+      const modules = Object.fromEntries([...document.querySelectorAll('[data-mod]')].map(c => [c.dataset.mod, c.checked]));
+      try { await api('setup', 'POST', { clubName: $('club').value, password: $('pw1').value, modules, code: $('scode') ? $('scode').value : undefined }); start(); }
+      catch (e) { $('err').textContent = e.message; }
+    };
+  }
+
+  function showLogin() {
+    me = null;
+    $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Verwaltung</h2>
+      <p class="lead">Vereinsheimverwaltung – bitte anmelden.</p>
+      <form id="lf"><label class="f">Benutzername<input id="un" autocomplete="username" autocapitalize="none" autofocus></label><br>
+      <label class="f">Passwort<input type="password" id="pw" autocomplete="current-password"></label><br>
+      <button class="btn primary">Anmelden</button> <span class="err" id="err"></span></form>
+      ${window.top === window ? '<p class="muted s" style="margin-top:18px"><a href="./">Zurück zur Buchungsseite</a></p>' : ''}</div>`;
+    wireLogos();
+    $('lf').onsubmit = async e => {
+      e.preventDefault();
+      try { await api('login', 'POST', { username: $('un').value, password: $('pw').value }); start(); } catch (err) { $('err').textContent = err.message; }
+    };
+  }
+
+  /* ---------- Rahmen ---------- */
+  // [Seite, Titel, nötiges Recht (null = alle Admins)]
+  const PAGES = [
+    ['uebersicht', 'Übersicht', null, 'start'],
+    ['lieferungen', 'Lieferungen & Belege', 'lieferungen', 'getraenke'], ['bestellung', 'Bestellung', 'bestellung', 'getraenke'],
+    ['bestand', 'Bestand & Inventur', 'bestand', 'getraenke'], ['abgleich', 'Abgleich', 'bestand', 'getraenke'], ['buchungen', 'Buchungen', 'buchungen', 'getraenke'],
+    ['abrechnung', 'Abrechnung & Export', ['abrechnung', 'export'], 'getraenke'], ['veranstaltungen', 'Veranstaltungen', ['veranstaltungen', 'uebernahme'], 'getraenke'],
+    ['deckel', 'Gäste-Deckel', ['veranstaltungen', 'uebernahme', 'abrechnung', 'export'], 'getraenke'], ['artikel', 'Artikel', 'artikel', 'getraenke'],
+    ['konten', 'Mitglieder & Konten', 'konten', 'verein'], ['app', 'Mitglieder-App', 'konten', 'verein'], ['benutzer', 'Benutzer & Rechte', 'benutzer', 'verein'],
+    ['sicherung', 'Datensicherung', 'einstellungen', 'verein'], ['protokoll', 'Protokoll', 'einstellungen', 'verein'], ['einstellungen', 'Einstellungen', null, 'verein'],
+  ];
+  const GROUPS = [['start', ''], ['getraenke', 'Getränke'], ['module', 'Module'], ['verein', 'Verein & System']];
+  const canAny = r => !r || (Array.isArray(r) ? r.some(can) : can(r));
+  const allowed = p => { const x = PAGES.find(y => y[0] === p); return x && canAny(x[2]); };
+  let page = location.hash.slice(1) || 'uebersicht';
+  let cache = { articles: [], members: [], settings: {} };
+
+  /* Symbole fürs Menü (Strichzeichnungen, 18 px) */
+  const ICO = {
+    uebersicht: '<rect x="3" y="3" width="7" height="9" rx="2"/><rect x="14" y="3" width="7" height="5" rx="2"/><rect x="14" y="12" width="7" height="9" rx="2"/><rect x="3" y="16" width="7" height="5" rx="2"/>',
+    getraenke: '<path d="M8 2h8M9 2v4.5a4 4 0 0 1-1 2.6L6.8 10.5A4 4 0 0 0 6 13v7a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-7a4 4 0 0 0-.8-2.5L16 9.1a4 4 0 0 1-1-2.6V2"/>',
+    beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>',
+    zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
+    zeit: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    konten: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/>',
+    app: '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>',
+    benutzer: '<path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6z"/>',
+    sicherung: '<ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>',
+    protokoll: '<path d="M8 6h13M8 12h13M8 18h13M3.5 6h.01M3.5 12h.01M3.5 18h.01"/>',
+    einstellungen: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    modul: '<path d="M10 3H5a2 2 0 0 0-2 2v5h3a2 2 0 1 1 0 4H3v5a2 2 0 0 0 2 2h5v-3a2 2 0 1 1 4 0v3h5a2 2 0 0 0 2-2v-5h-3a2 2 0 1 1 0-4h3V5a2 2 0 0 0-2-2h-5v3a2 2 0 1 1-4 0z"/>',
+    suche: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    mond: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
+    sonne: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    tablet: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/>',
+    abmelden: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
+    menue: '<path d="M4 6h16M4 12h16M4 18h16"/>',
+    punkte: '<circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none"/>',
+  };
+  const icon = (k, sz = 18) => `<svg aria-hidden="true" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k] || ICO.modul}</svg>`;
+  const PAGE_ICON = { uebersicht: 'uebersicht', beregnung: 'beregnung', zugang: 'zugang', zeit: 'zeit', konten: 'konten', app: 'app', benutzer: 'benutzer', sicherung: 'sicherung', protokoll: 'protokoll', einstellungen: 'einstellungen' };
+  const TAB_LABEL = { lieferungen: 'Lieferungen', bestand: 'Bestand', abrechnung: 'Abrechnung', deckel: 'Deckel', konten: 'Mitglieder' };
+  const DRINKS = () => PAGES.filter(x => x[3] === 'getraenke' && canAny(x[2]));
+  const isDrinks = p => PAGES.some(x => x[0] === p && x[3] === 'getraenke');
+  const GROUP_LABEL = { getraenke: 'Getränke', module: 'Module', verein: 'Verein & System' };
+  const initials = n => String(n || '?').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+  const sget = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
+  const sset = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) { /* egal */ } };
+  const theme = () => document.documentElement.getAttribute('data-theme') || 'light';
+  function setTheme(t) { document.documentElement.setAttribute('data-theme', t); try { localStorage.setItem('vh_theme', t); } catch (e) { /* egal */ } const b = $('themeBtn'); if (b) { b.innerHTML = icon(t === 'dark' ? 'sonne' : 'mond', 16); b.title = t === 'dark' ? 'Helles Design' : 'Dunkles Design'; } }
+  let badges = {};
+
+  function showShell() {
+    const navBtn = (k, label, ic, badge) => `<button class="nav" data-p="${k}">${icon(ic)}<span>${esc(label)}</span>${badge ? `<span class="badge hidden" data-badge="${badge}"></span>` : ''}</button>`;
+    const drinks = DRINKS();
+    const mods = PAGES.filter(x => x[3] === 'module' && canAny(x[2]));
+    const verein = PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length));
+    $('app').innerHTML = `<div class="shell">
+      <nav class="side" id="side">
+        <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : '<span id="clubIni"></span>'}</div>
+          <div><b id="clubName">Vereinsheim</b><small>Vereinsheimverwaltung</small></div>
+          <button class="menutoggle" id="menuT" aria-label="Menü">${icon('menue', 16)}<span id="menuCur">Menü</span></button></div>
+        <div class="navbody">
+          <label class="search">${icon('suche')}<input id="navSearch" placeholder="Suchen" aria-label="Seite suchen" autocomplete="off"><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Strg K'}</kbd><div class="results hidden" id="navRes"></div></label>
+          ${navBtn('uebersicht', 'Übersicht', 'uebersicht')}
+          ${drinks.length || mods.length ? '<div class="grp">Module</div>' : ''}
+          ${drinks.length ? navBtn('__getraenke', 'Getränke', 'getraenke', 'getraenke') : ''}
+          ${mods.map(([k, l]) => navBtn(k, l, PAGE_ICON[k] || 'modul')).join('')}
+          ${verein.length ? '<div class="grp">Verein</div>' : ''}
+          ${verein.map(([k, l]) => navBtn(k, TAB_LABEL[k] && k === 'konten' ? 'Mitglieder' : l, PAGE_ICON[k] || 'modul', k === 'konten' ? 'konten' : '')).join('')}
+        </div>
+        <div class="userchip"><div class="who"><div class="av">${esc(initials(me.name || me.username))}</div>
+          <div class="nm"><b>${esc(me.name || me.username)}</b><span>${me.role === 'oberadmin' ? 'Alle Rechte' : 'Admin'}</span></div></div><div class="ucbtns">
+          ${window.top === window ? `<a class="iconbtn" href="./" target="_blank" title="Tablet-Seite öffnen" aria-label="Tablet-Seite öffnen">${icon('tablet', 16)}</a>` : ''}
+          <button class="iconbtn" id="themeBtn" aria-label="Hell oder dunkel"></button>
+          <button class="iconbtn" id="logout" title="Abmelden" aria-label="Abmelden">${icon('abmelden', 16)}</button></div></div>
+      </nav>
+      <div class="content"><div class="pagebar" id="pagebar"></div><main id="main"></main></div></div>`;
+    wireLogos();
+    setTheme(theme());
+    $('themeBtn').onclick = () => setTheme(theme() === 'dark' ? 'light' : 'dark');
+    $('side').addEventListener('click', e => {
+      const b = e.target.closest('button.nav[data-p]'); if (!b) return;
+      if (b.dataset.p === '__getraenke') { const last = sget('vh_drinks'); go(last && DRINKS().some(x => x[0] === last) ? last : DRINKS()[0][0]); }
+      else go(b.dataset.p);
+    });
+    $('menuT').onclick = () => $('side').classList.toggle('open');
+    $('logout').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
+    bindSearch();
+    api('settings').then(s => { cache.settings = s; $('clubName').textContent = s.clubName; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
+    refreshBadges();
+    go(page);
+  }
+
+  /* Suche im Menü: alle erlaubten Seiten (auch die Reiter von Getränke), Strg/⌘ + K springt hinein */
+  function bindSearch() {
+    const inp = $('navSearch'), box = $('navRes');
+    let hits = [], sel = 0;
+    const all = () => PAGES.filter(x => canAny(x[2]) && RENDER[x[0]] && (x[0] !== 'app' || (cache.appModules || []).length));
+    const draw = () => {
+      const q = inp.value.trim().toLowerCase();
+      if (!q) { box.classList.add('hidden'); return; }
+      hits = all().filter(x => x[1].toLowerCase().includes(q) || (GROUP_LABEL[x[3]] || '').toLowerCase().includes(q)).slice(0, 8);
+      sel = 0;
+      box.innerHTML = hits.length ? hits.map((x, i) => `<button type="button" data-i="${i}" class="${i === sel ? 'sel' : ''}">${esc(x[1])}<span>${esc(GROUP_LABEL[x[3]] || '')}</span></button>`).join('') : '<span class="muted s" style="padding:8px 10px">Nichts gefunden</span>';
+      box.classList.remove('hidden');
+    };
+    const pick = i => { const x = hits[i]; if (!x) return; inp.value = ''; box.classList.add('hidden'); inp.blur(); go(x[0]); };
+    inp.addEventListener('input', draw);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, Math.min(hits.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1))); box.querySelectorAll('button').forEach((b, i) => b.classList.toggle('sel', i === sel)); }
+      if (e.key === 'Enter') { e.preventDefault(); pick(sel); }
+      if (e.key === 'Escape') { inp.value = ''; box.classList.add('hidden'); inp.blur(); }
+    });
+    box.addEventListener('mousedown', e => { const b = e.target.closest('button[data-i]'); if (b) { e.preventDefault(); pick(+b.dataset.i); } });
+    inp.addEventListener('blur', () => setTimeout(() => box.classList.add('hidden'), 120));
+    if (!window.__vhKey) {
+      window.__vhKey = true;
+      document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && $('navSearch')) { e.preventDefault(); $('side').classList.add('open'); $('navSearch').focus(); } });
+    }
+  }
+
+  /* Menü markieren, Kopf über der Seite (Bereich + Reiter von Getränke) */
+  function setChrome(p) {
+    const drinks = isDrinks(p);
+    if (drinks) sset('vh_drinks', p);
+    document.querySelectorAll('#side button.nav').forEach(b => b.classList.toggle('on', drinks ? b.dataset.p === '__getraenke' : b.dataset.p === p));
+    const pg = PAGES.find(x => x[0] === p);
+    if ($('menuCur')) $('menuCur').textContent = pg ? (drinks ? 'Getränke' : p === 'konten' ? 'Mitglieder' : pg[1]) : 'Menü';
+    const bar = $('pagebar'); if (!bar) return;
+    if (!pg || p === 'uebersicht') { bar.innerHTML = ''; return; }
+    bar.innerHTML = `<div class="crumb">${drinks ? 'Module · Getränke' : pg[3] === 'module' ? 'Module · ' + esc(pg[1]) : esc(GROUP_LABEL[pg[3]] || '')}</div>`;
+    const old = $('main') && $('main').querySelector(':scope > .drinktabs'); if (old) old.remove();
+    placeDrinkTabs();
+  }
+  /* Getränke-Unterseiten als Reiter unter Überschrift und Einleitung – an derselben Stelle wie die Reiter der anderen Module */
+  function placeDrinkTabs() {
+    const m = $('main'); if (!m || !isDrinks(page) || m.querySelector(':scope > .drinktabs')) return;
+    const h = m.querySelector(':scope > h2.page'); if (!h) return;
+    let after = h; while (after.nextElementSibling && after.nextElementSibling.matches('p.lead')) after = after.nextElementSibling;
+    const t = document.createElement('div'); t.className = 'tabs drinktabs'; t.setAttribute('role', 'tablist');
+    t.innerHTML = DRINKS().map(([k, l]) => `<button role="tab" data-tab="${k}" class="${k === page ? 'on' : ''}">${esc(TAB_LABEL[k] || l)}${k === 'deckel' && badges.deckel ? `<span class="badge">${badges.deckel}</span>` : ''}</button>`).join('');
+    t.querySelectorAll('[data-tab]').forEach(b => { b.onclick = e => { e.stopPropagation(); go(b.dataset.tab); }; });
+    after.after(t);
+  }
+
+  async function go(p) {
+    if (!(await leaveOk())) { setChrome(page); return; }
+    if (!RENDER[p] || !allowed(p)) p = 'uebersicht';
+    page = p;
+    history.replaceState(null, '', '#' + p);
+    if (!go.obs && $('main')) { go.obs = new MutationObserver(() => placeDrinkTabs()); go.obs.observe($('main'), { childList: true }); }
+    setChrome(p);
+    $('side').classList.remove('open');
+    $('main').onclick = null; $('main').oninput = null;
+    $('main').innerHTML = '<p class="muted">Lade …</p>';
+    RENDER[p]().catch(fail);
+    window.scrollTo(0, 0);
+  }
+
+  window.addEventListener('hashchange', () => { const p = location.hash.slice(1); if (me && p && p !== page) go(p); });
+
+  async function refreshBadges() {
+    const setB = (k, n, cls) => { const b = document.querySelector(`[data-badge="${k}"]`); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); if (cls) b.classList.add(cls); } };
+    if (canAny(['veranstaltungen', 'uebernahme', 'abrechnung', 'export'])) {
+      const t = await api('tabs?days=1').catch(() => ({ open: [] }));
+      badges.deckel = t.open.length;
+      setB('getraenke', t.open.length, 'a');
+      if (isDrinks(page)) setChrome(page);
+    }
+    if (!can('konten')) return;
+    const n = (await api('members').catch(() => ({ rows: [] }))).rows.filter(m => m.pending).length;
+    setB('konten', n);
+  }
+
+  async function loadArticles() { cache.articles = await api('articles'); return cache.articles; }
+  async function loadMembers() { const r = await api('members'); cache.members = r.rows; cache.seasonStart = r.seasonStart; return cache.members; }
+  const articleOptions = (sel, { ignore = false, create = false, empty = '— Artikel wählen —' } = {}) =>
+    `<option value="">${empty}</option>${ignore ? `<option value="ignore" ${sel === 'ignore' ? 'selected' : ''}>— ignorieren (kein Getränk) —</option>` : ''}
+     ${cache.articles.filter(a => a.active || a.id === sel).map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
+     ${create && can('artikel') ? '<option value="new">+ neuen Artikel anlegen …</option>' : ''}`;
+
+  function rangeBar(from, to, id = 'rng') {
+    return `<div class="row" id="${id}" style="margin-bottom:14px">
+      <label class="f">von<input type="date" name="from" value="${from}"></label>
+      <label class="f">bis<input type="date" name="to" value="${to}"></label>
+      <button class="btn" data-r="apply">Anzeigen</button>
+      <button class="btn ghost" data-r="season">Ganze Saison</button></div>`;
+  }
+  function bindRange(id, cb) {
+    const box = $(id);
+    box.addEventListener('click', e => {
+      const b = e.target.closest('[data-r]'); if (!b) return;
+      if (b.dataset.r === 'season') { box.querySelector('[name=from]').value = new Date().getFullYear() + '-01-01'; box.querySelector('[name=to]').value = today(); }
+      cb(box.querySelector('[name=from]').value, box.querySelector('[name=to]').value);
+    });
+  }
+
+  const RENDER = {};
+
+  /* Funktionsimport: Einstellungen eines Moduls aus einer Exportdatei übernehmen */
+  function funcImport(id, name, after) {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      let body;
+      try { body = JSON.parse(await f.text()); } catch (e) { return fail(new Error('Die Datei ist keine gültige Exportdatei.')); }
+      if (!body || body.format !== 'vereinsheim-funktion') return fail(new Error('Die Datei ist keine Funktions-Exportdatei der Vereinsheimverwaltung.'));
+      if (body.module !== id) return fail(new Error(`Die Datei gehört zum Modul „${body.name || body.module}“, nicht zu „${name}“.`));
+      if (!await ask(`Einstellungen für „${name}“ importieren?\n\nQuelle: ${body.club || 'unbekannt'}${body.exported ? ', ' + body.exported : ''}\n\nDie bisherigen Einstellungen dieses Moduls werden ersetzt. Buchungen, Protokolle und Freischaltungen bleiben erhalten.`)) return;
+      try {
+        const r = await api('extensions/' + id + '/import', 'POST', body);
+        await ask(`Import abgeschlossen.\n\n${r.summary || ''}`, { okOnly: true, danger: false }).catch(() => {});
+        if (after) after(); else location.reload();
+      } catch (e) { fail(e); }
+    };
+    inp.click();
+  }
+  /** Karte „Funktion exportieren / importieren“ für die Seite eines Moduls */
+  function funcBox(el, id, name, after) {
+    if (!el) return;
+    el.innerHTML = `<div class="card"><h3>Einstellungen übertragen</h3>
+      <p class="muted s" style="margin-top:0">Alle Einstellungen von „${esc(name)}“ als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. PINs, Passwörter und Schlüssel sind nicht enthalten.</p>
+      <div class="row"><a class="btn" href="api/admin/extensions/${esc(id)}/export" download>Funktion exportieren</a><button class="btn" data-fbimp="1">Funktion importieren …</button></div></div>`;
+    el.querySelector('[data-fbimp]').onclick = () => funcImport(id, name, after);
+  }
+
+  /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
+  window.GK = {
+    $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, RENDER,
+    scheme: () => SCHEME, ask, askText, watch, clean, tabs, funcBox, funcImport, lastFirst, invite: (...a) => appInvite(...a), go: p => go(p),
+    me: () => me,
+    /** registerPage({ key, title, perm, render }) – erscheint im Menü vor „Benutzer & Rechte“ */
+    registerPage({ key, title, perm, render }) {
+      if (!/^[a-z0-9-]+$/.test(key) || PAGES.some(p => p[0] === key)) return;
+      RENDER[key] = render;
+      PAGES.push([key, title, perm || null, 'module']);
+    },
+  };
+
+  /* =================== Übersicht =================== */
+  /** Modul-Daten (Warnungen + Kennzahlen) aller aktiven Erweiterungen */
+  async function moduleOverview() {
+    const list = await api('overview/modules').catch(() => []);
+    const pageOf = m => (PAGES.some(p => p[0] === m.page) ? m.page : PAGES.some(p => p[0] === m.id) ? m.id : null);
+    return list.map(m => ({ ...m, pageKey: pageOf(m) }));
+  }
+  const greeting = () => { const h = new Date().getHours(); return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'; };
+  const alertHtml = a => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}">${esc(a.link || 'Ansehen')} →</a>` : ''}</div>`;
+  /** Eine Modulkarte – für alle Module gleich aufgebaut */
+  function modCard({ ic, name, pill, big, det, go: g }) {
+    return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3>${esc(name)}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
+      <div class="big"><span>${esc(big ? big[0] : '')}</span><b>${esc(big ? big[1] : '–')}</b></div>
+      <div class="det">${det ? `<span>${esc(det[0])}</span><b>${esc(det[1])}</b>` : ''}</div>
+      ${g ? `<a class="open" href="#${g}" data-go="${g}">Öffnen<span aria-hidden="true">→</span></a>` : '<span class="open" style="visibility:hidden">–</span>'}</section>`;
+  }
+
+  RENDER.uebersicht = async () => {
+    const drinksOn = (cache.modules || []).includes('getraenke') && DRINKS().length;
+    const [stock, bal, ev, del, mem, mods] = await Promise.all([
+      drinksOn ? api('stock') : null, drinksOn && (can('abrechnung') || can('export')) ? api('balances') : null, drinksOn && can('veranstaltungen') ? api('events') : null,
+      drinksOn && can('lieferungen') ? api('deliveries') : null, can('konten') ? api('members') : null, moduleOverview()]);
+    const bkSt = can('einstellungen') ? await api('backups/status').catch(() => null) : null;
+    if (page !== 'uebersicht') return;   // inzwischen woandershin gewechselt – nichts überschreiben
+    const alerts = [];
+    if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
+    let drinksCard = '';
+    if (drinksOn) {
+      const low = stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock);
+      const neg = stock.filter(x => x.track_stock && x.stock < 0);
+      const active = ev && ev.find(e => e.active);
+      if (low.length) alerts.push({ level: 'a', who: 'Getränke', text: `${low.length} ${low.length === 1 ? 'Artikel' : 'Artikel'} fast leer: ${low.slice(0, 3).map(l => l.name).join(', ')}${low.length > 3 ? ' …' : ''}`, go: can('bestellung') ? 'bestellung' : null, link: 'Bestellen' });
+      if (neg.length && can('lieferungen')) alerts.push({ level: 'r', who: 'Getränke', text: `Negativer Bestand bei ${neg.map(n => n.name).join(', ')} – vermutlich fehlt eine Lieferung.`, go: 'lieferungen', link: 'Beleg hochladen' });
+      if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.credit_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
+      (ev || []).filter(e => e.open_credit_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_credit_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
+      const first = DRINKS()[0][0];
+      drinksCard = modCard({ ic: 'getraenke', name: 'Getränke', pill: low.length ? ['a', `${low.length} knapp`] : ['g', 'alles gut'],
+        big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
+        det: ['Nachbestellen', `${low.length} Artikel`], go: low.length && can('bestellung') ? 'bestellung' : first });
+    }
+    const pending = mem ? mem.rows.filter(m => m.pending) : [];
+    if (pending.length) alerts.push({ level: 'a', who: 'Mitglieder', text: `${pending.length} neue Einträge vom Tablet zu bestätigen.`, go: 'konten', link: 'Prüfen' });
+    // Ohne HTTPS gehen PIN und Geräteschlüssel der Mitglieder-App unverschlüsselt durchs WLAN – bei Türen ein echtes Risiko
+    if (SCHEME !== 'https' && (cache.modules || []).some(m => m === 'zugang' || m === 'beregnung') && can('einstellungen'))
+      alerts.push({ level: 'r', who: 'Sicherheit', text: 'HTTPS ist aus: Mitglieder-App, Türen und Beregnung laufen im WLAN unverschlüsselt. Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
+    mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, go: m.pageKey })));
+    const modCards = mods.map(m => {
+      const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
+      return modCard({ ic: PAGE_ICON[m.pageKey] || PAGE_ICON[m.id] || 'modul', name: m.name, pill: bad ? ['r', 'Störung'] : warn ? ['a', 'Hinweis'] : ['g', 'läuft'],
+        big: m.kpis[0] ? [m.kpis[0].l, m.kpis[0].v] : null, det: m.kpis[1] ? [m.kpis[1].l, m.kpis[1].v] : null, go: m.pageKey });
+    }).join('');
+    const memberCard = mem ? modCard({ ic: 'konten', name: 'Mitglieder', pill: pending.length ? ['a', `${pending.length} neu`] : null,
+      big: ['Aktive Mitglieder', String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length)], det: ['Mannschaften', String(mem.rows.filter(m => m.kind === 'mannschaft' && m.active).length)], go: 'konten' }) : '';
+    const low = drinksOn ? stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock) : [];
+    const d = new Date();
+    $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
+        <h2 class="page">${greeting()}, ${esc((me.name || me.username).split(' ')[0])}</h2></div>
+        <div class="row">${window.top === window ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}${drinksOn && can('bestellung') ? `<a class="btn primary" href="#bestellung" data-go="bestellung">${icon('getraenke', 16)}Bestellung</a>` : ''}</div></div>
+      ${alerts.length ? `<div class="alerts">${alerts.map(alertHtml).join('')}</div>` : ''}
+      <div class="modgrid">${drinksCard}${modCards}${memberCard}</div>
+      ${drinksOn ? `<div class="two">
+        <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
+          ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Alles im grünen Bereich.</p>'}</div>
+        <div class="card"><h3>Letzte Lieferungen</h3>${del && del.length ? `<table class="tbl"><tr><th>Datum</th><th>Lieferant</th><th class="r">Einzelartikel</th></tr>
+          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Getränke → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
+      </div>` : ''}`;
+    $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); go(a.dataset.go); }; });
+  };
+
+  /* =================== Lieferungen =================== */
+  RENDER.lieferungen = async () => {
+    await loadArticles();
+    const list = await api('deliveries');
+    cache.suppliers = [...new Set(list.map(d => d.supplier).filter(Boolean)), 'Lidl'].slice(0, 20);   // Vorschläge aus bisherigen Lieferungen
+    $('main').innerHTML = `<h2 class="page">Lieferungen & Belege</h2>
+      <p class="lead">Rechnung als PDF hierher ziehen oder fotografieren – Positionen werden automatisch erkannt und dem Bestand gutgeschrieben.</p>
+      <div class="drop card" id="drop">
+        <div class="big">Rechnungen hier ablegen</div>
+        <div class="muted">PDF vom Getränkehändler, Lidl-Kassenbon (Screenshot aus Lidl Plus oder Foto) oder sonstiger Beleg · mehrere Dateien auf einmal möglich</div>
+        <div class="row">
+          <label class="btn primary">Dateien wählen<input type="file" id="fileIn" accept="application/pdf,image/*" multiple hidden></label>
+          <label class="btn">Foto aufnehmen<input type="file" id="camIn" accept="image/*" capture="environment" hidden></label>
+          <button class="btn ghost" id="manual">Ohne Beleg erfassen</button>
+        </div>
+      </div>
+      <div class="card"><h3>Erfasste Lieferungen</h3>
+        ${list.length ? `<table class="tbl"><tr><th>Lieferdatum</th><th>Lieferant</th><th>Beleg</th><th class="r">Betrag</th><th class="r">Einzelartikel</th><th></th></tr>
+        ${list.map(d => `<tr><td>${deDate(d.date)}</td><td>${esc(d.supplier)}</td>
+          <td>${esc(DOCKIND[d.doc_kind] || '')} ${esc(d.doc_no || '')} ${d.file ? `<a href="api/admin/beleg/${encodeURIComponent(d.file)}" target="_blank">ansehen</a>` : ''}</td>
+          <td class="r">${d.total_cents == null ? '' : euro(d.total_cents)}</td><td class="r">${num(d.total)}</td>
+          <td class="r"><button class="btn small" data-show="${d.id}">Positionen</button> <button class="btn small danger" data-del="${d.id}">Löschen</button></td></tr>`).join('')}</table>`
+          : '<p class="muted">Noch keine Lieferungen.</p>'}</div>`;
+
+    const drop = $('drop');
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+    drop.addEventListener('drop', e => handleFiles([...e.dataTransfer.files]));
+    $('fileIn').onchange = e => handleFiles([...e.target.files]);
+    $('camIn').onchange = e => handleFiles([...e.target.files]);
+    $('manual').onclick = () => reviewDelivery({ fileId: null, supplier: '', lines: [], docKind: 'lieferung' }, []);
+
+    $('main').querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
+      const d = list.find(x => x.id === Number(b.dataset.show));
+      dialog(`<h2>${esc(d.supplier)} · ${deDate(d.date)}</h2>
+        <table class="tbl"><tr><th>Artikel</th><th>Lieferanten-Text</th><th class="r">Kisten</th><th class="r">Einzelartikel lose</th><th class="r">Einzelartikel gesamt</th></tr>
+        ${d.items.map(i => `<tr><td>${esc(i.name)}</td><td class="muted">${esc(i.supplier_text || '')}</td><td class="r">${num(i.crates)}</td><td class="r">${num(i.bottles)}</td><td class="r">${num(i.total)}</td></tr>`).join('')}
+        <tr class="sum"><td colspan="4">Summe</td><td class="r">${num(d.total)}</td></tr></table>
+        <div class="btns"><button class="btn primary" id="x">Schließen</button></div>`);
+      $('x').onclick = closeDialog;
+    });
+    $('main').querySelectorAll('[data-del]').forEach(b => b.onclick = async () => {
+      if (!await ask('Diese Lieferung samt Beleg löschen? Der Bestand wird entsprechend reduziert.')) return;
+      await api('deliveries/' + b.dataset.del, 'DELETE').catch(fail);
+      toast('Lieferung gelöscht.'); RENDER.lieferungen();
+    });
+  };
+
+  async function handleFiles(files) {
+    const queue = files.filter(Boolean);
+    for (let i = 0; i < queue.length; i++) {
+      const f = queue[i];
+      toast(`Lese ${f.name} …`);
+      let parsed;
+      try {
+        const r = await fetch('api/admin/upload', {
+          method: 'POST', body: f,
+          headers: { 'Content-Type': f.type || 'application/octet-stream', 'X-Filename': encodeURIComponent(f.name), 'X-Getraenke': '1' },
+        });
+        parsed = await r.json();
+        if (r.status === 401) { showLogin(); return; }
+        if (!r.ok) throw new Error(parsed.error || 'Upload fehlgeschlagen');
+      } catch (e) { fail(e); continue; }
+      const done = await reviewDelivery(parsed, queue.slice(i + 1).map(x => x.name));
+      if (done === 'abort') break;
+    }
+    RENDER.lieferungen();
+  }
+
+  /** Prüfdialog für einen hochgeladenen Beleg (oder leere Erfassung). Gibt 'saved' | 'skip' | 'abort' zurück. */
+  function reviewDelivery(p, rest) {
+    return new Promise(resolve => {
+      const lines = p.lines.map(l => ({ ...l, choice: l.ignore ? 'ignore' : (l.articleId || '') }));
+      if (!lines.length) lines.push({ manual: true, choice: '', crates: '', bottles: '' });
+      const isPdf = p.fileId && /\.pdf$/i.test(p.fileId);
+      const src = p.fileId ? 'api/admin/beleg/' + encodeURIComponent(p.fileId) : '';
+      const date = p.deliveryDate || p.date || today();
+      const auto = p.lines.length > 0;
+      const chk = p.check ? (p.check.ok
+        ? ` Summe ${euro(p.check.sum_cents)} stimmt mit dem Bon überein ✓`
+        : p.allChecked
+          ? `</div><div class="banner a">Alle Getränke-Positionen sind nachgerechnet ✓. Die Summe weicht um ${euro(Math.abs(p.total_cents - p.check.sum_cents))} vom Beleg ab – das liegt an unlesbaren Pfand-/Leergut-Zeilen und ist für den Bestand egal.`
+          : `</div><div class="banner a">Summe der Positionen (${euro(p.check.sum_cents)}) weicht vom Beleg (${euro(p.total_cents)}) ab – bitte die markierten Mengen mit dem Bild vergleichen.`) : '';
+      const info = !p.fileId ? '' : auto
+        ? `<div class="banner g">${p.lines.filter(l => !l.deposit).length} Positionen ${p.ocr ? 'per Bilderkennung ' : ''}erkannt${p.lines.some(l => l.deposit) ? ` (dazu ${p.lines.filter(l => l.deposit).length} Pfand-/Leergut-Zeilen, automatisch ignoriert)` : ''}.${chk} Bitte kurz prüfen – Zuordnungen werden für das nächste Mal gemerkt.</div>`
+        : `<div class="banner a">Auf diesem Beleg ist kein lesbarer Text (Foto/Scan). Bitte die Kisten unten von Hand eintragen – der Beleg wird mitgespeichert.</div>`;
+      const dup = p.duplicateOf ? `<div class="banner r">Achtung: Beleg ${esc(p.docNo)} ist bereits gespeichert (Lieferung vom ${deDate(p.duplicateOf.date)}). Bitte nicht doppelt erfassen.</div>` : '';
+
+      dialog(`<h2>${p.fileId ? 'Beleg prüfen' : 'Lieferung erfassen'}${p.originalName ? ' · ' + esc(p.originalName) : ''}</h2>
+        ${dup}${info}
+        <div class="${p.fileId ? 'split' : ''}">
+          ${p.fileId ? `<div class="preview">${isPdf ? `<iframe src="${src}#view=FitH"></iframe>` : `<img src="${src}" alt="Beleg">`}</div>` : ''}
+          <div>
+            <div class="row" style="margin-bottom:12px">
+              <label class="f" style="flex:2;min-width:180px">Lieferant<input id="dSup" list="supList" value="${esc(p.supplier || '')}" placeholder="z. B. Getränkehandel Muster"></label>
+              <label class="f">Lieferdatum<input type="date" id="dDate" value="${date}"></label>
+            </div>
+            <div class="row" style="margin-bottom:12px">
+              <label class="f">Belegart<select id="dKind">${Object.entries(DOCKIND).map(([k, l]) => `<option value="${k}" ${k === (p.docKind || 'lieferung') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+              <label class="f">Beleg-Nr.<input id="dNo" value="${esc(p.docNo || '')}" style="width:140px"></label>
+              <label class="f">Betrag €<input id="dSum" value="${p.total_cents == null ? '' : centsToInput(p.total_cents)}" style="width:110px"></label>
+            </div>
+            <datalist id="supList">${(cache.suppliers || []).map(x => `<option>${esc(x)}</option>`).join('')}</datalist>
+            <div class="scroll" style="max-height:52vh"><table class="tbl" id="lines"></table></div>
+            <div class="row" style="margin-top:10px;justify-content:space-between">
+              <button class="btn small" id="addLine">+ Zeile</button>
+              <div class="muted" id="sumInfo"></div>
+            </div>
+          </div>
+        </div>
+        <div class="btns">
+          ${rest.length ? `<span class="muted" style="margin-right:auto;align-self:center">Danach noch ${rest.length} Datei(en)</span>` : ''}
+          <button class="btn ghost" id="cancel">${p.fileId ? 'Verwerfen' : 'Abbrechen'}</button>
+          ${rest.length ? '<button class="btn" id="abort">Alle abbrechen</button>' : ''}
+          <button class="btn primary" id="save">Lieferung speichern</button>
+        </div>`, true);
+      $('dialog').dataset.sticky = '1';
+
+      const art = id => cache.articles.find(a => a.id === Number(id));
+      function bottlesOf(l) {
+        if (l.manual) { const a = art(l.choice); return (Number(l.crates) || 0) * (a ? a.crate_size : 0) + (Number(l.bottles) || 0); }
+        return l.single ? Number(l.qty) || 0 : (Number(l.qty) || 0) * (Number(l.packSize) || 1);
+      }
+      function draw() {
+        $('lines').innerHTML = `<tr><th>Auf dem Beleg</th><th class="r">Menge</th><th>Artikel in der App</th><th class="r">je Kiste</th><th class="r">Einzelartikel</th><th></th></tr>` +
+          lines.map((l, i) => l.manual
+            ? `<tr><td class="muted">von Hand</td>
+                <td class="r"><input class="n" data-i="${i}" data-k="crates" value="${esc(l.crates)}" placeholder="Kisten" inputmode="numeric"><br>
+                  <input class="n" data-i="${i}" data-k="bottles" value="${esc(l.bottles)}" placeholder="+ einzeln" inputmode="numeric" style="margin-top:4px"></td>
+                <td><select data-i="${i}" data-k="choice">${articleOptions(Number(l.choice) || l.choice, { create: true })}</select></td>
+                <td class="r muted">${art(l.choice) ? art(l.choice).crate_size + 'er' : ''}</td>
+                <td class="r">${num(bottlesOf(l))}</td>
+                <td><button class="btn small ghost" data-rm="${i}" aria-label="Zeile entfernen">✕</button></td></tr>`
+            : `<tr class="${l.choice === 'ignore' ? 'off' : ''}"><td>${esc(l.text)}<div class="muted s">${l.noArtNo ? `${num(l.qty)} × ${euro(l.unit_cents)}` : 'Art.-Nr. ' + esc(l.artNo)}${l.checked === false ? ' · <span class="pill a">bitte Menge prüfen</span>' : (l.note ? ' · ' + esc(l.note) : '')}${l.source === 'gemerkt' ? ' · <span class="pill g">gemerkt</span>' : l.source === 'offen' ? ' · <span class="pill r">bitte zuordnen</span>' : ''}</div></td>
+                <td class="r">${l.deposit ? '' : l.checked === false ? `<input class="n" style="width:56px" data-i="${i}" data-k="qty" value="${esc(l.qty)}" inputmode="numeric">` : num(l.qty)} ${l.deposit ? '' : l.single ? 'einzeln' : (l.unitLabel || 'Ki.')}</td>
+                <td><select data-i="${i}" data-k="choice">${articleOptions(l.choice === 'ignore' ? 'ignore' : Number(l.choice), { ignore: true, create: true })}</select></td>
+                <td class="r">${l.single || l.choice === 'ignore' ? '' : `<input class="n" style="width:56px" data-i="${i}" data-k="packSize" value="${esc(l.packSize)}" inputmode="numeric">`}</td>
+                <td class="r">${l.choice === 'ignore' ? '–' : num(bottlesOf(l))}</td><td></td></tr>`).join('');
+        const total = lines.filter(l => l.choice && l.choice !== 'ignore').reduce((s, l) => s + bottlesOf(l), 0);
+        const open = lines.filter(l => !l.choice && (l.manual ? (l.crates || l.bottles) : true)).length;
+        $('sumInfo').innerHTML = `${num(total)} Einzelartikel ins Lager` + (open ? ` · <span class="neg">${open} Position(en) ohne Zuordnung</span>` : '');
+      }
+      draw();
+
+      $('lines').addEventListener('change', async e => {
+        const el = e.target.closest('[data-i]'); if (!el) return;
+        const l = lines[Number(el.dataset.i)], k = el.dataset.k;
+        if (k === 'choice' && el.value === 'new') {
+          const created = await articleDialog(null, { name: l.text ? prettify(l.text) : '', crate_size: l.packSize || 1 }, true);
+          $('dialog').dataset.sticky = '1';
+          l.choice = created ? created : '';
+          draw(); return;
+        }
+        l[k] = k === 'choice' ? (el.value === 'ignore' ? 'ignore' : (Number(el.value) || '')) : el.value;
+        draw();
+      });
+      $('lines').addEventListener('input', e => {
+        const el = e.target.closest('input[data-i]'); if (!el) return;
+        lines[Number(el.dataset.i)][el.dataset.k] = el.value;
+        clearTimeout(draw.t); draw.t = setTimeout(() => { const f = document.activeElement; const sel = f && f.dataset ? [f.dataset.i, f.dataset.k] : null; draw(); if (sel) { const n = $('lines').querySelector(`[data-i="${sel[0]}"][data-k="${sel[1]}"]`); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } }, 400);
+      });
+      $('lines').addEventListener('click', e => {
+        const b = e.target.closest('[data-rm]'); if (!b) return;
+        lines.splice(Number(b.dataset.rm), 1); if (!lines.length) lines.push({ manual: true, choice: '', crates: '', bottles: '' }); draw();
+      });
+      $('addLine').onclick = () => { lines.push({ manual: true, choice: '', crates: '', bottles: '' }); draw(); };
+
+      const finish = async how => {
+        if (how !== 'saved' && p.fileId) await api('upload/' + encodeURIComponent(p.fileId), 'DELETE').catch(() => {});
+        delete $('dialog').dataset.sticky;
+        closeDialog(); resolve(how);
+      };
+      $('cancel').onclick = () => finish('skip');
+      if ($('abort')) $('abort').onclick = () => finish('abort');
+      $('save').onclick = async () => {
+        const items = [];
+        for (const l of lines) {
+          if (l.manual) {
+            if (!l.choice && !l.crates && !l.bottles) continue;
+            items.push({ articleId: l.choice, crates: Number(l.crates) || 0, bottles: Number(l.bottles) || 0 });
+            continue;
+          }
+          if (l.choice === 'ignore') { items.push({ ignore: true, artNo: l.artNo, text: l.text, single: l.single }); continue; }
+          const a = art(l.choice);
+          const pack = Number(l.packSize) || 1;
+          let crates = 0, bottles = 0;
+          const q = Number(l.qty) || 0;
+          if (l.single) bottles = q;
+          else if (a && pack === a.crate_size) crates = q;
+          else bottles = q * pack;
+          items.push({ articleId: l.choice || 0, crates, bottles, artNo: l.artNo, text: l.text, packSize: pack, single: l.single, cost_cents: l.line_cents });
+        }
+        const sum = $('dSum').value.trim();
+        try {
+          await api('deliveries', 'POST', {
+            date: $('dDate').value, supplier: $('dSup').value, docNo: $('dNo').value || null, docKind: $('dKind').value,
+            total_cents: sum ? toCents(sum) : null, fileId: p.fileId, items,
+          });
+          toast('Lieferung gespeichert – Bestand aktualisiert.');
+          finish('saved');
+        } catch (e) { fail(e); }
+      };
+    });
+  }
+  const prettify = t => t.replace(/\b(\d{1,2})\s*\/\s*(0?,\d+)/, '$2').replace(/-€/g, '').replace(/\s+/g, ' ').trim();
+
+  /* =================== Bestellung =================== */
+  RENDER.bestellung = async () => {
+    const o = await api('order');
+    const st = o.settings;
+    const rows = o.rows;
+    $('main').innerHTML = `<h2 class="page">Bestellung</h2>
+      <p class="lead">Vorschlag aus Bestand, Mindestbestand und „bestellen bis“. Kisten anpassen und die Bestellung direkt an den Lieferanten senden – oder den Text kopieren.</p>
+      <div class="card"><h3>Bestelldaten</h3><div class="row">
+        <label class="f" style="flex:1;min-width:220px">Lieferant<input id="oSup" value="${esc(st.order_supplier)}"></label>
+        <label class="f">Kunden-Nr.<input id="oCust" value="${esc(st.customer_no)}" style="width:110px"></label></div>
+        <div class="row" style="margin-top:10px">
+        <label class="f" style="flex:1;min-width:280px">Lieferadresse<input id="oAddr" value="${esc(st.delivery_address)}"></label>
+        <label class="f">Absender (Name)<input id="oSender" value="${esc(st.order_sender || me.name || '')}"></label>
+        <label class="f">Telefon für Rückfragen<input id="oPhone" value="${esc(st.order_phone)}"></label>
+        <button class="btn" id="oSave">Merken</button></div></div>
+      <div class="card"><h3>Was bestellen?</h3>
+        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Art.-Nr.</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th class="r">Kisten</th></tr>
+        ${rows.map(r => `<tr class="${r.low ? '' : 'off'}"><td>${esc(r.name)} ${r.low ? '<span class="pill a">knapp</span>' : ''}<div class="muted s">${esc(r.supplier_text || '')}</div></td>
+          <td>${esc(r.art_no) || '<span class="muted s">–</span>'}</td><td class="r ${r.stock < 0 ? 'neg' : ''}">${num(r.stock)}</td><td class="r">${num(r.min_stock)}</td><td class="r">${num(r.target_stock)}</td>
+          <td class="r"><input class="n" data-o="${r.id}" value="${r.suggest || ''}" inputmode="numeric" placeholder="0"></td></tr>`).join('')}</table></div>
+        <p class="muted s">Mindestbestand und „bestellen bis“ stellt man unter „Artikel“ ein. Die Artikelnummern kommen automatisch aus den hochgeladenen Rechnungen.</p></div>
+      <div class="card"><h3>E-Mail</h3>
+        ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px">Zum direkten Senden fehlt noch das Vereinspostfach – ${o.mayMailSetup ? '<a href="#einstellungen" data-gomail>Einstellungen → E-Mail-Versand</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → E-Mail-Versand ein'}. Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</div>`}
+        <div class="row"><label class="f" style="flex:1;min-width:240px">An (Lieferant)<input id="oMail" type="email" value="${esc(st.order_email)}" placeholder="bestellung@lieferant.de" autocomplete="off"></label>
+          <label class="f" style="flex:1;min-width:240px">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
+        <label class="f" style="margin-top:8px">Betreff<input id="oSubj"></label>
+        <label class="f" style="margin-top:8px">Text<textarea id="oText" rows="16" style="font-family:inherit"></textarea></label>
+        <div class="row" style="margin-top:10px;align-items:center"><button class="btn primary" id="oSend" ${o.mailReady ? '' : 'disabled'}>Bestellung jetzt senden</button><button class="btn" id="oCopy">Text kopieren</button><a class="btn" id="oMailBtn" href="#">In E-Mail-Programm öffnen</a>
+          <span class="muted s" id="oInfo"></span></div>
+        ${o.lastSent ? `<p class="muted s" style="margin:8px 0 0">Zuletzt gesendet: ${esc(deTime(o.lastSent.split(' · ')[0]))} Uhr an ${esc(o.lastSent.split(' · ')[1] || '')}</p>` : ''}</div>`;
+
+    const build = () => {
+      const lines = rows.map(r => ({ r, n: Number(($('main').querySelector(`[data-o="${r.id}"]`) || {}).value) || 0 })).filter(x => x.n > 0);
+      const date = new Date().toLocaleDateString('de-DE');
+      $('oSubj').value = `Bestellung ${o.clubName}${$('oCust').value ? ' (Kd.-Nr. ' + $('oCust').value + ')' : ''} vom ${date}`;
+      $('oText').value = `Guten Tag,\n\nhiermit bestellen wir für den ${o.clubName}${$('oCust').value ? ' (Kunden-Nr. ' + $('oCust').value + ')' : ''}:\n\n` +
+        (lines.length ? lines.map(({ r, n }) => `- ${n} ${n === 1 ? 'Kiste' : 'Kisten'} ${r.supplier_text || r.name}${r.art_no ? ' (Art.-Nr. ' + r.art_no + ')' : ''}`).join('\n') : '- (bitte Mengen eintragen)') +
+        `\n\nLieferadresse: ${$('oAddr').value}\nLeergut geben wir bei der Lieferung mit.\n` +
+        `${$('oPhone').value ? 'Rückfragen gern unter ' + $('oPhone').value + '.\n' : ''}\nVielen Dank und viele Grüße\n${$('oSender').value}\n${o.clubName}`;
+      $('oMailBtn').href = `mailto:${encodeURIComponent($('oMail').value)}?${$('oCc').value ? 'cc=' + encodeURIComponent($('oCc').value) + '&' : ''}subject=${encodeURIComponent($('oSubj').value)}&body=${encodeURIComponent($('oText').value)}`;
+      $('oInfo').textContent = `${lines.length} Positionen, ${lines.reduce((s, x) => s + x.n, 0)} Kisten`;
+    };
+    build();
+    $('main').oninput = e => { if (e.target.closest('[data-o], #oCust, #oAddr, #oSender, #oPhone, #oMail, #oCc')) build(); };
+    $('oSave').onclick = async () => {
+      try {
+        await api('settings/order', 'PUT', { order_supplier: $('oSup').value, order_email: $('oMail').value, order_cc: $('oCc').value, customer_no: $('oCust').value,
+          delivery_address: $('oAddr').value, order_sender: $('oSender').value, order_phone: $('oPhone').value });
+        toast('Bestelldaten gemerkt.');
+      } catch (e) { fail(e); }
+    };
+    const gm = $('main').querySelector('[data-gomail]'); if (gm) gm.onclick = e => { e.preventDefault(); go('einstellungen'); };
+    $('oSend').onclick = async () => {
+      const to = $('oMail').value.trim(), cc = $('oCc').value.trim();
+      const lines = rows.filter(r => (Number(($('main').querySelector(`[data-o="${r.id}"]`) || {}).value) || 0) > 0);
+      if (!to) return fail(new Error('Bitte bei „An“ die E-Mail-Adresse des Lieferanten eintragen.'));
+      if (!lines.length && !await ask('Keine Mengen eingetragen\n\nTrotzdem senden?', { danger: false, ok: 'Trotzdem senden' })) return;
+      if (!await ask(`Bestellung jetzt senden?\n\nAn: ${to}${cc ? '\nKopie an: ' + cc : ''}\nBetreff: ${$('oSubj').value}\n${$('oInfo').textContent}\n\nDie E-Mail geht sofort raus und kann nicht zurückgeholt werden.`, { danger: false, ok: 'Jetzt senden' })) return;
+      $('oSend').disabled = true; $('oSend').textContent = 'Wird gesendet …';
+      try {
+        await api('order/send', 'POST', { to, cc, subject: $('oSubj').value, text: $('oText').value });
+        await ask(`Bestellung gesendet\n\nDie Bestellung ist an ${to}${cc ? ' (Kopie an ' + cc + ')' : ''} raus. Im Protokoll vermerkt.`, { okOnly: true, danger: false });
+        RENDER.bestellung();
+      } catch (e) { fail(e); $('oSend').disabled = false; $('oSend').textContent = 'Bestellung jetzt senden'; }
+    };
+    $('oCopy').onclick = async () => {
+      const text = `Betreff: ${$('oSubj').value}\n\n${$('oText').value}`;
+      let ok = false;
+      try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
+      if (!ok) {   // im Vereins-WLAN ohne HTTPS: klassisches Kopieren
+        const ta = $('oText'); const keep = ta.value; ta.value = text; ta.select(); ta.setSelectionRange(0, text.length);
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        ta.value = keep;
+      }
+      toast(ok ? 'Bestelltext kopiert – jetzt in die E-Mail einfügen.' : 'Kopieren nicht möglich – bitte Text markieren und kopieren.', !ok);
+    };
+  };
+
+  /* =================== Bestand =================== */
+  RENDER.bestand = async () => {
+    const [stock, moves] = await Promise.all([loadArticles(), api('stock/moves')]);
+    const tracked = stock.filter(s => s.track_stock && s.active);
+    $('main').innerHTML = `<h2 class="page">Bestand & Inventur</h2>
+      <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
+      <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
+        <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
+        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Soll (Einzelartikel)</th><th class="r">= Kisten + einzeln</th><th class="r">Mindestbestand</th><th class="r">Gezählt: Kisten</th><th class="r">+ einzeln</th></tr>
+        ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted">${esc(s.category)}</td>
+          <td class="r ${s.stock < 0 ? 'neg' : ''}">${num(s.stock)}</td>
+          <td class="r muted">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : ''}</td>
+          <td class="r">${num(s.min_stock)}</td>
+          <td class="r">${s.crate_size > 1 ? `<input class="n" data-c="${s.id}" inputmode="numeric">` : ''}</td>
+          <td class="r"><input class="n" data-b="${s.id}" inputmode="numeric"></td></tr>`).join('')}</table></div>
+        <p class="muted s">Nur ausgefüllte Zeilen werden übernommen. Leere Zeilen bleiben unverändert.</p></div>
+      <div class="card"><h3>Bruch oder Korrektur buchen</h3>
+        <div class="row"><label class="f">Artikel<select id="mvArt">${articleOptions(null)}</select></label>
+          <label class="f">Grund<select id="mvReason"><option value="bruch">Bruch / verdorben</option><option value="korrektur">Korrektur (+/−)</option></select></label>
+          <label class="f">Einzelartikel<input id="mvQty" class="n" inputmode="numeric" style="width:100px"></label>
+          <label class="f">Datum<input type="date" id="mvDate" value="${today()}"></label>
+          <label class="f" style="flex:1;min-width:160px">Notiz<input id="mvNote"></label>
+          <button class="btn" id="mvSave">Buchen</button></div></div>
+      <div class="card"><h3>Letzte Bestandsänderungen</h3>${moves.length ? `<table class="tbl"><tr><th>Datum</th><th>Artikel</th><th>Grund</th><th class="r">Einzelartikel</th><th>Notiz</th></tr>
+        ${moves.map(m => `<tr><td>${deDate(m.date)}</td><td>${esc(m.name)}</td><td>${esc(m.reason)}</td><td class="r ${m.qty < 0 ? 'neg' : ''}">${num(m.qty)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine.</p>'}</div>`;
+
+    $('saveInv').onclick = async () => {
+      const counts = [];
+      for (const s of tracked) {
+        const c = $('main').querySelector(`[data-c="${s.id}"]`), b = $('main').querySelector(`[data-b="${s.id}"]`);
+        const cv = c ? c.value.trim() : '', bv = b.value.trim();
+        if (cv === '' && bv === '') continue;
+        counts.push({ articleId: s.id, counted: (Number(cv) || 0) * s.crate_size + (Number(bv) || 0) });
+      }
+      if (!counts.length) { toast('Bitte mindestens eine gezählte Menge eintragen.', true); return; }
+      try {
+        let r;
+        try { r = await api('stock/inventory', 'POST', { date: $('invDate').value, counts }); }
+        catch (e) {
+          if (e.status !== 409 || !e.odd) throw e;
+          if (!await ask('Ungewöhnlich große Abweichung – bitte prüfen:\n\n' + e.odd.join('\n') + '\n\nTrotzdem so speichern?')) return;
+          r = await api('stock/inventory', 'POST', { date: $('invDate').value, counts, force: true });
+        }
+        toast(r.changes.length ? `Inventur gespeichert – ${r.changes.length} Abweichung(en) erfasst.` : 'Inventur gespeichert – alles stimmt.');
+        RENDER.bestand();
+      } catch (e) { fail(e); }
+    };
+    $('mvSave').onclick = async () => {
+      try {
+        await api('stock/move', 'POST', { articleId: $('mvArt').value, reason: $('mvReason').value, qty: $('mvQty').value, date: $('mvDate').value, note: $('mvNote').value });
+        toast('Gebucht.'); RENDER.bestand();
+      } catch (e) { fail(e); }
+    };
+  };
+
+  /* =================== Abgleich =================== */
+  RENDER.abgleich = async (from, to) => {
+    const r = await api(`shrinkage?from=${from || new Date().getFullYear() + '-01-01'}&to=${to || today()}`);
+    const sum = k => r.rows.reduce((s, x) => s + (x[k] || 0), 0);
+    $('main').innerHTML = `<h2 class="page">Abgleich Lieferungen ↔ Buchungen</h2>
+      <p class="lead">Was ist geliefert worden, was wurde gebucht? „Offen“ ist entweder noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
+      ${rangeBar(r.from, r.to)}
+      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r">Verein frei</th><th class="r">Gast bar</th><th class="r">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted">${esc(x.category)}</td><td class="r">${num(x.delivered)}</td><td class="r">${num(x.konto)}</td><td class="r">${num(x.verein)}</td><td class="r">${num(x.gast)}</td><td class="r">${num(x.event)}</td><td class="r">${num(x.bruch + x.korrektur)}</td><td class="r">${num(x.open)}</td><td class="r ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
+      <tr class="sum"><td colspan="2">Summe</td><td class="r">${num(sum('delivered'))}</td><td class="r">${num(sum('konto'))}</td><td class="r">${num(sum('verein'))}</td><td class="r">${num(sum('gast'))}</td><td class="r">${num(sum('event'))}</td><td class="r">${num(sum('bruch') + sum('korrektur'))}</td><td class="r">${num(sum('open'))}</td><td class="r">${num(sum('inventur'))}</td><td class="r">${euro(sum('shrink_cents'))}</td></tr></table></div>`;
+    bindRange('rng', (f, t) => RENDER.abgleich(f, t).catch(fail));
+  };
+
+  /* =================== Buchungen =================== */
+  function openLog(memberId) {
+    page = 'buchungen';
+    history.replaceState(null, '', '#buchungen');
+    setChrome('buchungen');
+    $('main').onclick = null; $('main').oninput = null;
+    RENDER.buchungen('2000-01-01', null, memberId).catch(fail);
+  }
+  RENDER.buchungen = async (from, to, memberId) => {
+    await Promise.all([loadArticles(), loadMembers()]);
+    const q = new URLSearchParams();
+    if (from) q.set('from', from); if (to) q.set('to', to); if (memberId) q.set('memberId', memberId);
+    const r = await api('bookings?' + q);
+    $('main').innerHTML = `<h2 class="page">Buchungen</h2><p class="lead">Alle Buchungen im Zeitraum. Falschbuchungen hier stornieren oder vergessene Getränke nachtragen.</p>
+      ${rangeBar(r.from, r.to)}
+      <div class="row" style="margin-bottom:14px"><label class="f">Nur Konto<select id="bMem"><option value="">alle</option>${cache.members.map(m => `<option value="${m.id}" ${Number(memberId) === m.id ? 'selected' : ''}>${pName(m)}</option>`).join('')}</select></label>
+        ${memberId ? (() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
+          return `<div class="kpi" style="padding:8px 14px"><div class="l">${esc((cache.members.find(m => m.id === Number(memberId)) || {}).name || '')} im Zeitraum</div>
+            <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })() : ''}</div>
+      <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:nowrap">
+        <label class="f" style="flex:1;min-width:0">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:0">Artikel<select id="nbArt">${articleOptions(null)}<option value="__betrag">— freier Betrag … —</option></select></label>
+        <label class="f" id="nbQtyL">Menge<input id="nbQty" class="n" value="1" inputmode="numeric" style="width:80px"></label>
+        <label class="f hidden" id="nbAmtL">Betrag €<input id="nbAmt" class="n" placeholder="0,00" inputmode="decimal" style="width:90px"></label>
+        <label class="f hidden" id="nbNoteL">Wofür?<input id="nbNote" placeholder="z. B. Startgeld" maxlength="60"></label>
+        <label class="f">Datum<input type="date" id="nbDate" value="${today()}"></label>
+        <button class="btn" id="nbSave">Nachtragen</button></div></div>
+      <div class="scroll"><table class="tbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
+      ${r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s">${esc(b.event)}</div>` : ''}</td>
+        <td><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
+          : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
+          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
+        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Keine Buchungen im Zeitraum.</td></tr>'}</table></div>`;
+    bindRange('rng', (f, t) => RENDER.buchungen(f, t, $('bMem').value).catch(fail));
+    $('bMem').onchange = () => RENDER.buchungen(r.from, r.to, $('bMem').value).catch(fail);
+    $('nbArt').onchange = () => { const amt = $('nbArt').value === '__betrag'; $('nbQtyL').classList.toggle('hidden', amt); $('nbAmtL').classList.toggle('hidden', !amt); $('nbNoteL').classList.toggle('hidden', !amt); };
+    $('nbSave').onclick = async () => {
+      const amt = $('nbArt').value === '__betrag';
+      const body = amt ? { memberId: $('nbMem').value, amount_cents: toCents($('nbAmt').value || '0'), note: $('nbNote').value, date: $('nbDate').value }
+        : { memberId: $('nbMem').value, articleId: $('nbArt').value, qty: $('nbQty').value, date: $('nbDate').value };
+      try { await api('bookings', 'POST', body); toast('Nachgetragen.'); RENDER.buchungen(r.from, r.to, memberId); } catch (e) { fail(e); }
+    };
+    $('main').querySelectorAll('[data-cx]').forEach(b => b.onclick = async () => {
+      if (!await ask('Diese Buchung stornieren?')) return;
+      try {
+        const x = await api(`bookings/${b.dataset.cx}/cancel`, 'POST', {});
+        toast(x && x.message ? x.message : 'Storniert.');
+      } catch (e) { fail(e); }
+      RENDER.buchungen(r.from, r.to, memberId);
+    });
+  };
+
+  /* ---------- Abtippliste: Beträge von Hand in die Vereinsverwaltung übertragen ---------- */
+  function copyText(t) {
+    const done = () => toast(`„${t.length > 40 ? t.slice(0, 40) + '…' : t}“ kopiert.`);
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(done, () => copyFallback(t, done));
+    copyFallback(t, done);
+  }
+  function copyFallback(t, done) {        // im Vereins-WLAN läuft die Seite meist über http – dort gibt es keine Clipboard-API
+    const ta = document.createElement('textarea');
+    ta.value = t; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+    document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, t.length);
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) { /* egal */ }
+    ta.remove();
+    ok ? done() : toast('Kopieren nicht möglich – bitte markieren und von Hand kopieren.', true);
+  }
+  function printHtml(html) {
+    let p = $('printArea');
+    if (!p) { p = document.createElement('div'); p.id = 'printArea'; document.body.appendChild(p); }
+    p.innerHTML = html;
+    document.body.classList.add('printing');
+    const off = () => { document.body.classList.remove('printing'); p.innerHTML = ''; window.removeEventListener('afterprint', off); };
+    window.addEventListener('afterprint', off);
+    setTimeout(() => window.print(), 50);
+  }
+  const TICK_KEY = 'abtipp-erledigt';
+  const ticksGet = () => { try { return JSON.parse(localStorage.getItem(TICK_KEY) || '{}'); } catch (e) { return {}; } };
+  const ticksSet = t => { try { localStorage.setItem(TICK_KEY, JSON.stringify(t)); } catch (e) { /* egal */ } };
+  const plain = c => ((c || 0) / 100).toFixed(2).replace('.', ',');
+
+  async function abtippDialog(asOf, upTo) {
+    const q = `asOf=${encodeURIComponent(asOf)}&upTo=${upTo}`;
+    let d = await api('abtippliste?' + q);
+    const mayEdit = can('abrechnung');
+    const ticks = ticksGet();
+    const isDone = x => ticks[x.id] === x.cents;          // Haken gilt nur, solange der Betrag gleich bleibt
+    const stand = deTime(d.asOf);
+    dialog(`<h2>Abtippliste für die Vereinsverwaltung</h2>
+      <p class="muted" style="margin-top:0">Stand ${stand} Uhr – genau die Beträge aus Liste und Excel. Nach Nachnamen sortiert, Mannschaften am Ende.
+        Haken setzen, sobald ein Betrag eingetragen ist; die Haken bleiben auf diesem Gerät erhalten.</p>
+      <div class="row" style="flex-wrap:nowrap;margin-bottom:6px">
+        <label class="f" style="flex:1;min-width:0">Buchungstext${mayEdit ? ' – Vorlage, Platzhalter {von} {bis} {jahr} {verein}' : ''}
+          <input id="btTpl" value="${esc(d.template)}" maxlength="140" ${mayEdit ? '' : 'disabled'}></label>
+      </div>
+      <div class="row" style="flex-wrap:nowrap;margin-bottom:14px">
+        <label class="f" style="flex:1;min-width:0">So wird er eingetragen<input id="btOut" value="${esc(d.text)}" readonly></label>
+        <button class="btn" id="btCopy">Buchungstext kopieren</button>
+      </div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
+        <b id="abProg"></b><span class="muted s">Zum Kopieren auf den Betrag tippen</span>
+      </div>
+      <div class="scroll" style="max-height:52vh"><table class="tbl" id="abTbl">
+        <tr><th style="width:44px"></th><th style="width:44px" class="r">Nr.</th><th>Nachname</th><th>Vorname</th><th class="r">Betrag</th></tr>
+        ${d.rows.map((x, i) => `<tr data-row="${x.id}" class="${isDone(x) ? 'off' : ''}">
+          <td><input type="checkbox" data-tick="${x.id}" ${isDone(x) ? 'checked' : ''} style="width:22px;height:22px;margin:0"></td>
+          <td class="r">${i + 1}</td><td><b>${esc(x.last)}</b></td>
+          <td>${x.kind === 'mitglied' ? esc(x.first) : '<span class="pill">Mannschaft</span>'}</td>
+          <td class="r"><button class="btn small" data-copy="${plain(x.cents)}" style="min-width:96px;justify-content:flex-end">${euro(x.cents)}</button></td></tr>`).join('')}
+        <tr class="sum"><td></td><td></td><td>Summe</td><td>${d.rows.length} Konten</td><td class="r">${euro(d.total_cents)}</td></tr>
+      </table></div>
+      <div class="btns"><button class="btn ghost" id="abReset">Haken zurücksetzen</button><button class="btn" id="abPrint">Drucken / als PDF speichern</button><button class="btn primary" id="abClose">Schließen</button></div>`, false);
+    const prog = () => { const n = d.rows.filter(isDone).length; $('abProg').textContent = `${n} von ${d.rows.length} eingetragen`; };
+    prog();
+    $('abClose').onclick = closeDialog;
+    $('btCopy').onclick = () => copyText($('btOut').value);
+    $('abTbl').querySelectorAll('[data-copy]').forEach(b => b.onclick = () => copyText(b.dataset.copy));
+    $('abTbl').querySelectorAll('[data-tick]').forEach(c => c.onchange = () => {
+      const x = d.rows.find(y => y.id === Number(c.dataset.tick));
+      if (c.checked) ticks[x.id] = x.cents; else delete ticks[x.id];
+      ticksSet(ticks);
+      c.closest('tr').classList.toggle('off', c.checked);
+      prog();
+    });
+    $('abReset').onclick = () => {
+      d.rows.forEach(x => delete ticks[x.id]); ticksSet(ticks);
+      $('abTbl').querySelectorAll('[data-tick]').forEach(c => { c.checked = false; c.closest('tr').classList.remove('off'); });
+      prog();
+    };
+    if (mayEdit) $('btTpl').onchange = async () => {
+      try {
+        await api('abtippliste/text', 'PUT', { template: $('btTpl').value });
+        d = { ...d, ...(await api('abtippliste?' + q)), rows: d.rows };
+        $('btTpl').value = d.template; $('btOut').value = d.text;
+        toast('Buchungstext gespeichert.');
+      } catch (e) { fail(e); }
+    };
+    $('abPrint').onclick = () => printHtml(abtippPrint(d, stand));
+  }
+
+  function abtippPrint(d, stand) {
+    const rows = d.rows.map((x, i) => `<tr><td class="c"><span class="box"></span></td><td class="c">${i + 1}</td><td><b>${esc(x.last)}</b></td>
+      <td>${x.kind === 'mitglied' ? esc(x.first) : 'Mannschaft'}</td><td class="r">${euro(x.cents)}</td></tr>`).join('');
+    return `<div class="pr">
+      <div class="prhead"><div><div class="prclub">${esc(d.clubName)}</div><h1>Getränkeabrechnung – Abtippliste</h1></div>
+        <div class="prmeta">Stand ${esc(stand)} Uhr · ${d.rows.length} Konten · ${euro(d.total_cents)}<br>gedruckt ${esc(deTime(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19)))}${me ? ' von ' + esc(me.name) : ''}</div></div>
+      <div class="prtext"><span>Buchungstext</span><b>${esc(d.text)}</b></div>
+      <table><thead><tr><th class="c">✓</th><th class="c">Nr.</th><th>Nachname</th><th>Vorname</th><th class="r">Betrag</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td></td><td></td><td>Summe</td><td>${d.rows.length} Konten</td><td class="r">${euro(d.total_cents)}</td></tr></tfoot></table>
+    </div>`;
+  }
+
+  /* =================== Abrechnung =================== */
+  RENDER.abrechnung = async (from, to) => {
+    const q = new URLSearchParams(); if (from) q.set('from', from); if (to) q.set('to', to);
+    const mayClose = can('abrechnung');
+    const [r, hist] = await Promise.all([api('balances?' + q), mayClose ? api('settle-history') : []]);
+    const used = new Set(r.rows.flatMap(x => Object.keys(x.byCategory)));
+    const cats = [...(r.categories || []).filter(c => used.has(c)), ...[...used].filter(c => !(r.categories || []).includes(c))];   // Reihenfolge wie im Excel
+    const s = Object.fromEntries(r.sums.map(x => [x.kind, x]));
+    const xls = `api/admin/export.xlsx?from=${r.from}&to=${r.to}&asOf=${encodeURIComponent(r.asOf)}&upTo=${r.upTo}`;
+    const stand = deTime(r.asOf);
+    $('main').innerHTML = `<h2 class="page">Abrechnung & Export</h2>
+      <p class="lead">Ablauf für den Kassierer: <b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
+        <b>3.</b> hier einzelne oder alle Konten als <b>abgerechnet</b> markieren – ihr offener Betrag steht danach auf 0. Erfasst wird genau der Stand der Liste (${stand} Uhr); was danach am Tablet gebucht wird, bleibt für die nächste Abrechnung offen.</p>
+      ${r.eventOpen.length ? `<div class="banner r" style="margin-bottom:14px">Auf ${r.eventOpen.length === 1 ? 'der Liste' : 'den Listen'} ${r.eventOpen.map(e => `„${esc(e.name)}“ (${euro(e.c)})`).join(', ')} haben Mitglieder noch offene Beträge.
+        Diese erscheinen hier erst, wenn der Kassierer sie unter „Veranstaltungen“ auf die Getränkeliste übernimmt – am besten vor dem Export.</div>` : ''}
+      <div class="kpis">
+        <div class="kpi"><div class="l">Offen gesamt</div><div class="v">${euro(r.total_cents)}</div></div>
+        <div class="kpi"><div class="l">Konten mit offenem Betrag</div><div class="v">${r.rows.length}</div></div>
+        <div class="kpi"><div class="l">Stand der Liste</div><div class="v">${stand.slice(-5)}</div></div>
+        <div class="kpi"><div class="l">Zuletzt abgerechnet</div><div class="v">${hist.length ? deDate(hist[0].created_at.slice(0, 10)) : '–'}</div></div>
+      </div>
+      <div class="row" style="margin-bottom:14px">
+        <a class="btn primary" href="${xls}">Excel herunterladen</a>
+        ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste für die Vereinsverwaltung</button>' : ''}
+        ${mayClose ? (r.rows.length ? `<button class="btn" id="settleAll">Alle ${r.rows.length} Konten als abgerechnet markieren</button>` : '')
+          : '<span class="muted s">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
+        <button class="btn ghost" id="reload">Liste aktualisieren</button>
+      </div>
+      <div class="scroll"><table class="tbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
+        ${r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
+          <td>${deDate(x.since.slice(0, 10))}</td>${cats.map(c => `<td class="r">${x.byCategory[c] || ''}</td>`).join('')}<td class="r">${euro(x.total_cents)}</td>
+          ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`).join('')
+          || `<tr><td class="muted" colspan="${cats.length + 3 + (mayClose ? 1 : 0)}">Keine offenen Beträge – alles abgerechnet.</td></tr>`}
+        ${r.rows.length ? `<tr class="sum"><td>Summe</td><td></td>${cats.map(c => `<td class="r">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>
+      ${mayClose ? `<div class="card" style="margin-top:16px"><h3>Bisherige Abrechnungen</h3>
+        ${hist.length ? `<table class="tbl"><tr><th>markiert am</th><th>Konten</th><th class="r">Betrag</th><th>von</th><th></th></tr>
+          ${hist.map(h => `<tr><td>${deTime(h.created_at)}</td><td>${h.names ? esc(h.names) : (h.batch.startsWith('alle-') ? 'alle' : '') + ' ' + h.members + ' Konten'}</td>
+            <td class="r">${euro(h.cents)}</td><td>${esc(h.by_user || '')}</td>
+            <td class="r">${h.undo ? `<button class="btn small" data-undo="${esc(h.batch)}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table>`
+          : '<p class="muted">Noch keine.</p>'}</div>` : ''}
+      <div class="card" style="margin-top:16px"><h3>Auswertung für einen Zeitraum</h3>
+        <p class="muted">Gilt für die Kennzahlen hier und die Blätter „Buchungen“, „Abgleich“ und „Veranstaltungen“ in der Excel-Datei.</p>
+        ${rangeBar(r.from, r.to)}
+        <div class="kpis">
+          <div class="kpi"><div class="l">Auf Konten gebucht</div><div class="v">${euro(s.konto?.cents)}</div></div>
+          <div class="kpi"><div class="l">Gäste bar & Deckel</div><div class="v">${euro(s.gast?.cents)}</div></div>
+          <div class="kpi"><div class="l">Veranstaltungen (Soll)</div><div class="v">${euro(s.event?.cents)}</div></div>
+          <div class="kpi"><div class="l">Kostenfrei (Wert)</div><div class="v">${euro(s.verein?.list_cents)}</div></div>
+        </div></div>`;
+    bindRange('rng', (f, t) => RENDER.abrechnung(f, t).catch(fail));
+    $('reload').onclick = () => RENDER.abrechnung(from, to).catch(fail);
+    if ($('abtipp')) $('abtipp').onclick = () => abtippDialog(r.asOf, r.upTo).catch(fail);
+    const settle = async (ids, text) => {
+      if (!await ask(text)) return;
+      try {
+        const x = await api('settle', 'POST', ids ? { asOf: r.asOf, upTo: r.upTo, memberIds: ids } : { asOf: r.asOf, upTo: r.upTo });
+        toast(`${x.members === 1 ? '1 Konto' : x.members + ' Konten'} abgerechnet (${euro(x.cents)}).`);
+        RENDER.abrechnung(from, to);
+      } catch (e) { fail(e); }
+    };
+    if ($('settleAll')) $('settleAll').onclick = () => settle(null,
+      `Alle ${r.rows.length} Konten über zusammen ${euro(r.total_cents)} als abgerechnet markieren?\n\nNur tun, wenn die Beträge in der Vereinsverwaltung abgebucht sind. Erfasst wird der Stand ${stand} Uhr.`);
+    $('main').querySelectorAll('[data-settle]').forEach(btn => btn.onclick = () => {
+      const x = r.rows.find(y => y.id === Number(btn.dataset.settle));
+      settle([x.id], `${x.name}: ${euro(x.total_cents)} als abgerechnet markieren?`);
+    });
+    $('main').querySelectorAll('[data-undo]').forEach(btn => btn.onclick = async () => {
+      if (!await ask('Diese Abrechnung zurücknehmen? Die Beträge sind danach wieder offen.')) return;
+      try { await api('settle/' + encodeURIComponent(btn.dataset.undo), 'DELETE'); toast('Zurückgenommen.'); RENDER.abrechnung(from, to); } catch (e) { fail(e); }
+    });
+  };
+
+  /* =================== Veranstaltungen =================== */
+  /* =================== Gäste-Deckel =================== */
+  RENDER.deckel = async () => {
+    const [r] = await Promise.all([api('tabs?days=30'), cache.members ? null : loadMembers()]);
+    const mayPay = can('veranstaltungen') || can('uebernahme'), mayClose = can('uebernahme');
+    const day = 86400000, now = Date.now();
+    const age = t => Math.floor((now - new Date(t.created_at.replace(' ', 'T')).getTime()) / day);
+    const items = t => t.items.map(i => `${i.qty}× ${esc(i.article)}`).join(', ');
+    const openSum = r.open.reduce((a, t) => a + t.open_cents, 0);
+    const old = r.open.filter(t => age(t) >= 1).length;
+    const ST = { bezahlt: t => `<span class="pill g">${t.method === 'karte' ? 'Karte' : 'bar'} bezahlt</span>`, uebernommen: t => `<span class="pill b">übernommen${t.member ? ': ' + esc(t.member) : ''}</span>`,
+      abgeschrieben: t => `<span class="pill r">abgeschrieben</span>${t.note ? `<div class="muted s">${esc(t.note)}</div>` : ''}` };
+    $('main').innerHTML = `<h2 class="page">Gäste-Deckel</h2>
+      <p class="lead">Gäste und gegnerische Mannschaften schreiben am Tablet auf einen Deckel an und zahlen vor der Heimfahrt – das Thekenpersonal tippt dort auf „Bezahlen“ (bar oder Karte). Hier siehst du, was noch offen ist; vergessene Deckel können nachträglich abgehakt${mayClose ? ', auf ein Konto übernommen oder abgeschrieben' : ''} werden.</p>
+      <div class="kpis">
+        <div class="kpi"><div class="l">Offene Deckel</div><div class="v">${r.open.length}</div></div>
+        <div class="kpi"><div class="l">Noch offen</div><div class="v">${euro(openSum)}</div></div>
+        <div class="kpi"><div class="l">Heute bar bezahlt</div><div class="v">${euro(r.today.bar ? r.today.bar.c : 0)}</div></div>
+        <div class="kpi"><div class="l">Heute mit Karte</div><div class="v">${euro(r.today.karte ? r.today.karte.c : 0)}</div></div>
+      </div>
+      ${old ? `<div class="banner r" style="margin-bottom:14px">${old === 1 ? 'Ein Deckel ist' : old + ' Deckel sind'} seit mehr als einem Tag offen – vermutlich vergessen zu bezahlen.</div>` : ''}
+      <div class="card"><h3>Offen</h3>
+        ${r.open.length ? `<table class="tbl"><tr><th>Deckel</th><th>geöffnet</th><th class="r">offen</th><th></th></tr>
+        ${r.open.map(t => `<tr><td><b>${esc(t.name)}</b>${age(t) >= 1 ? ` <span class="pill r">seit ${age(t)} ${age(t) === 1 ? 'Tag' : 'Tagen'}</span>` : ''}<div class="muted s">${items(t) || 'noch nichts angeschrieben'}</div></td>
+          <td>${deTime(t.created_at)}</td><td class="r"><b>${euro(t.open_cents)}</b></td>
+          <td class="r" style="white-space:nowrap">${mayPay ? `<button class="btn small" data-tp="${t.id}" data-m="bar">Bar bezahlt</button> <button class="btn small" data-tp="${t.id}" data-m="karte">Karte bezahlt</button>` : ''}
+            ${mayClose ? ` <button class="btn small" data-tt="${t.id}">Auf Konto …</button> <button class="btn small danger" data-tw="${t.id}">Abschreiben …</button>` : ''}</td></tr>`).join('')}</table>`
+          : '<p class="muted">Keine offenen Deckel.</p>'}</div>
+      <div class="card" style="margin-top:16px"><h3>Geschlossen (letzte ${r.days} Tage)</h3>
+        ${r.closed.length ? `<table class="tbl"><tr><th>Deckel</th><th>geschlossen</th><th>Status</th><th class="r">Betrag</th><th>von</th><th></th></tr>
+        ${r.closed.map(t => `<tr><td><b>${esc(t.name)}</b><div class="muted s">${items(t)}</div></td><td>${deTime(t.closed_at)}</td><td>${ST[t.status](t)}</td>
+          <td class="r">${euro(t.status === 'abgeschrieben' ? t.sum_cents : t.cents)}</td><td>${esc(t.closed_by || '')}</td>
+          <td class="r">${t.status === 'bezahlt' && mayPay ? `<button class="btn small" data-tr="${t.id}">Wieder öffnen</button>` : ''}</td></tr>`).join('')}</table>`
+          : '<p class="muted">Noch keine.</p>'}</div>`;
+    const find = id => r.open.find(t => t.id === Number(id)) || r.closed.find(t => t.id === Number(id));
+    const done = msg => { toast(msg); refreshBadges(); RENDER.deckel(); };
+    $('main').querySelectorAll('[data-tp]').forEach(b => b.onclick = async () => {
+      const t = find(b.dataset.tp);
+      if (!await ask(`„${t.name}“: ${euro(t.open_cents)} ${b.dataset.m === 'karte' ? 'mit Karte' : 'bar'} bezahlt?`)) return;
+      try { await api(`tabs/${t.id}/pay`, 'POST', { method: b.dataset.m }); done('Als bezahlt abgehakt.'); } catch (e) { fail(e); }
+    });
+    $('main').querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => {
+      const t = find(b.dataset.tr);
+      if (!await ask(`Zahlung von „${t.name}“ (${euro(t.cents)}) zurücknehmen? Der Deckel ist danach wieder offen.`)) return;
+      try { await api(`tabs/${t.id}/reopen`, 'POST', {}); done('Deckel wieder geöffnet.'); } catch (e) { fail(e); }
+    });
+    $('main').querySelectorAll('[data-tt]').forEach(b => b.onclick = () => {
+      const t = find(b.dataset.tt);
+      const people = cache.members.filter(m => m.active && !m.pending && (m.kind === 'mitglied' || m.kind === 'mannschaft'))
+        .sort((a, c) => (a.kind === c.kind ? 0 : a.kind === 'mannschaft' ? -1 : 1));   // innerhalb: Reihenfolge vom Server (nach Nachname)
+      dialog(`<h2>Deckel auf ein Konto übernehmen</h2>
+        <p class="muted">„${esc(t.name)}“ über ${euro(t.open_cents)} wird auf das gewählte Getränkekonto gebucht und mit der nächsten Abrechnung berechnet – z. B. auf die eigene Mannschaft, die den Gegner eingeladen hat.</p>
+        <label class="f">Konto<select id="ttM">${people.map(m => `<option value="${m.id}">${pName(m)}${m.kind === 'mannschaft' ? ' (Mannschaft)' : ''}</option>`).join('')}</select></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Übernehmen</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = async () => {
+        try { await api(`tabs/${t.id}/transfer`, 'POST', { memberId: Number($('ttM').value) }); closeDialog(); done('Auf das Konto übernommen.'); } catch (e) { fail(e); }
+      };
+    });
+    $('main').querySelectorAll('[data-tw]').forEach(b => b.onclick = () => {
+      const t = find(b.dataset.tw);
+      dialog(`<h2>Deckel abschreiben</h2>
+        <p class="muted">„${esc(t.name)}“ über ${euro(t.open_cents)} wird nicht mehr kassiert. Die Getränke zählen als kostenfrei (Bestand stimmt weiter), die Begründung steht im Protokoll.</p>
+        <label class="f">Begründung<input id="twN" placeholder="z. B. Gegner abgereist, nicht erreichbar"></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ok">Abschreiben</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = async () => {
+        try { await api(`tabs/${t.id}/writeoff`, 'POST', { note: $('twN').value }); closeDialog(); done('Abgeschrieben.'); } catch (e) { fail(e); }
+      };
+    });
+  };
+
+  RENDER.veranstaltungen = async (keep = {}) => {
+    const [list, people] = await Promise.all([api('events'), api('event-members'), loadArticles()]);
+    const canEv = can('veranstaltungen'), canTr = can('uebernahme');
+    const filt = keep.filter || {};
+    const STATUS = g => {
+      const p = [];
+      if (g.open_cents) p.push(`<span class="pill a">offen ${euro(g.open_cents)}</span>`);
+      if (g.bar_cents) p.push(`<span class="pill g">bar bezahlt ${euro(g.bar_cents)}</span>`);
+      if (g.karte_cents) p.push(`<span class="pill g">Karte ${euro(g.karte_cents)}</span>`);
+      if (g.transferred_cents) p.push(`<span class="pill b">auf Getränkeliste ${euro(g.transferred_cents)}</span>`);
+      return p.join(' ') || '<span class="muted s">noch nichts</span>';
+    };
+    const guestRow = (e, g) => {
+      const done = !g.open_cents && g.total_cents > 0;
+      const btns = [];
+      if (g.open_cents && canEv) btns.push(`<button class="btn small primary" data-pay="bar" data-ev="${e.id}" data-g="${g.id}">Bar bezahlt</button>`,
+        `<button class="btn small" data-pay="karte" data-ev="${e.id}" data-g="${g.id}">Karte bezahlt</button>`);
+      if (!g.member_id && g.open_cents && (canEv || canTr)) btns.push(`<button class="btn small ghost" data-link="${g.id}" data-ev="${e.id}">Mitglied zuordnen</button>`);
+      if (!g.n && canEv && !e.closed_at) btns.push(`<button class="btn small ghost" data-rmg="${g.id}" data-ev="${e.id}" aria-label="Namen entfernen">✕</button>`);
+      return `<tr class="${done ? 'paidrow' : ''}" data-status="${g.open_cents ? 'offen' : (g.total_cents ? 'bezahlt' : 'leer')}">
+        <td><span class="gname">${esc(g.name)}</span> ${g.member_id ? '<span class="pill">Mitglied</span>' : '<span class="pill a">Gast – kein Konto</span>'}
+          ${g.member_id && g.member_name && g.member_name !== g.name ? `<div class="muted s">→ ${esc(g.member_name)}</div>` : ''}</td>
+        <td class="r">${g.qty}</td><td class="r">${euro(g.total_cents)}</td><td>${STATUS(g)}</td>
+        <td class="r" style="white-space:nowrap">${btns.join(' ')}</td></tr>`;
+    };
+    $('main').innerHTML = `<h2 class="page">Veranstaltungen</h2>
+      <p class="lead">Jede Veranstaltung hat eine eigene Getränkeliste mit eigenen Preisen und eine eigene <b>Abrechnungsliste</b>. Am Tablet tragen sich die Leute ein (aus der Mitgliederliste oder frei) und schreiben den Tag über an. Wer am Ende bar oder mit Karte zahlt, wird hier als „bezahlt“ abgehakt. Was offen bleibt, übernimmt der Kassierer per Knopf auf die Getränkeliste.</p>
+      ${canEv ? `<div class="card"><h3>Neue Veranstaltung</h3><div class="row">
+        <label class="f" style="flex:1;min-width:220px">Name<input id="evName" placeholder="z. B. Löffelcup 2027"></label>
+        <label class="f">Datum<input type="date" id="evDate" value="${today()}"></label>
+        <label class="f">Getränke & Preise übernehmen von<select id="evCopy"><option value="">alle Artikel zum Normalpreis</option>${list.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
+        <button class="btn primary" id="evAdd">Anlegen</button></div></div>` : ''}
+      <datalist id="peopleList">${people.map(m => `<option value="${esc(m.name)}">`).join('')}</datalist>
+      ${list.length ? '' : '<div class="card muted">Noch keine Veranstaltung angelegt.</div>'}
+      ${list.map(e => {
+        const st = e.closed_at ? '<span class="pill">Kasse abgeschlossen</span>' : e.active ? '<span class="pill a">aktiv – Tablet bucht auf diese Liste</span>' : '<span class="pill b">nicht aktiv</span>';
+        const f = filt[e.id] || 'alle';
+        const open = e.guests.filter(g => g.open_cents);
+        const memberOpen = open.filter(g => g.member_id);
+        return `<div class="card" data-evcard="${e.id}"><div class="row" style="justify-content:space-between">
+          <h3 style="margin:0">${esc(e.name)} · ${deDate(e.date)} ${st}</h3>
+          ${canEv ? `<div class="row">${e.closed_at ? '' : `<button class="btn small" data-drinks="${e.id}">Getränke & Preise (${e.articles.length})</button>
+            ${e.active ? `<button class="btn small" data-off="${e.id}">Deaktivieren</button>` : `<button class="btn small primary" data-on="${e.id}">Aktivieren</button>`}`}
+            <button class="btn small" data-close="${e.id}">${e.closed_at ? 'Kasse neu zählen' : 'Kasse zählen & abschließen'}</button>
+            ${e.active ? '' : `<button class="btn small danger" data-evdel="${e.id}">Löschen</button>`}</div>` : ''}</div>
+        <div class="kpis" style="margin-top:12px">
+          <div class="kpi"><div class="l">Umsatz</div><div class="v">${euro(e.total_cents)}</div></div>
+          <div class="kpi"><div class="l">Bar (gehört in die Kasse)</div><div class="v">${euro(e.bar_cents)}</div>${e.sale_cents ? `<div class="muted s">davon ${euro(e.sale_cents)} ohne Namen</div>` : ''}
+            ${e.cash_cents != null ? `<div class="s ${e.cash_cents - e.bar_cents < 0 ? 'neg' : 'muted'}">gezählt ${euro(e.cash_cents)} · Differenz ${euro(e.cash_cents - e.bar_cents)}</div>` : ''}</div>
+          <div class="kpi"><div class="l">Mit Karte bezahlt</div><div class="v">${euro(e.karte_cents)}</div></div>
+          <div class="kpi"><div class="l">Auf Getränkeliste übernommen</div><div class="v">${euro(e.transferred_cents)}</div></div>
+          <div class="kpi ${e.open_cents ? 'warn' : ''}"><div class="l">Noch offen</div><div class="v">${euro(e.open_cents)}</div><div class="muted s">${open.length} ${open.length === 1 ? 'Name' : 'Namen'}</div></div>
+        </div>
+        ${canTr && e.open_cents ? `<div class="banner a" style="display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap">
+          <span>${memberOpen.length ? `Kassierer: ${memberOpen.length} ${memberOpen.length === 1 ? 'Mitglied hat' : 'Mitglieder haben'} ${euro(e.open_member_cents)} nicht direkt bezahlt.` : 'Kassierer: Alle Mitglieder sind erledigt.'}${e.open_manual.length ? ` <br><span style="font-weight:400">Nicht übernehmbar (Gast ohne Konto – erst „Mitglied zuordnen“ oder bar kassieren): ${e.open_manual.map(x => esc(x.name) + ' ' + euro(x.open_cents)).join(', ')}</span>` : ''}</span>
+          ${memberOpen.length ? `<button class="btn primary" data-transfer="${e.id}">Übernehmen auf Getränkeliste (${euro(e.open_member_cents)})</button>` : ''}</div>` : ''}
+        <div class="row" style="justify-content:space-between;margin:14px 0 8px">
+          <h3 style="margin:0">Abrechnungsliste <span class="muted s">${e.guests.length} Namen</span></h3>
+          <div class="row">
+            <div class="seg">${['alle', 'offen', 'bezahlt'].map(k => `<button class="btn small ${f === k ? 'primary' : ''}" data-filt="${k}" data-ev="${e.id}">${k[0].toUpperCase() + k.slice(1)}</button>`).join('')}</div>
+            ${canEv && !e.closed_at ? `<input id="gAdd${e.id}" list="peopleList" placeholder="Name oder Mitglied …" style="min-height:36px;padding:4px 10px;border:1px solid var(--line);border-radius:10px;min-width:220px">
+              <button class="btn small" data-addg="${e.id}">+ Hinzufügen</button>` : ''}
+          </div></div>
+        <div class="scroll" style="max-height:60vh"><table class="tbl evlist" data-f="${f}"><tr><th>Name</th><th class="r">Stück</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
+          ${e.guests.map(g => guestRow(e, g)).join('') || '<tr><td colspan="5" class="muted">Noch niemand auf der Liste – Namen hier hinzufügen oder am Tablet eintragen lassen.</td></tr>'}</table></div>
+        ${e.payments.length ? `<details style="margin-top:10px"><summary>Zahlungen (${e.payments.length})</summary>
+          <table class="tbl" style="margin-top:6px"><tr><th>Zeit</th><th>Name</th><th>Art</th><th class="r">Betrag</th><th>abgehakt von</th><th></th></tr>
+          ${e.payments.map(p => `<tr><td>${deTime(p.at)}</td><td>${esc(p.name)}</td><td>${p.method === 'bar' ? 'bar' : 'Karte'}</td><td class="r">${euro(p.cents)}</td><td>${esc(p.by_user || '')}</td>
+            <td class="r">${canEv ? `<button class="btn small ghost" data-unpay="${p.id}" data-ev="${e.id}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table></details>` : ''}
+        <details style="margin-top:10px"><summary>Verkaufte Artikel (${e.items.reduce((t, i) => t + i.qty, 0)} Stück)</summary>
+          <table class="tbl" style="margin-top:6px"><tr><th>Artikel</th><th class="r">Menge</th><th class="r">Umsatz</th><th class="r">Verein frei</th></tr>
+          ${e.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${euro(i.total_cents)}</td><td class="r">${i.free_qty || ''}</td></tr>`).join('') || '<tr><td class="muted" colspan="4">Noch nichts gebucht.</td></tr>'}</table></details>
+        </div>`;
+      }).join('')}`;
+    const again = () => RENDER.veranstaltungen({ filter: filt });
+    if ($('evAdd')) $('evAdd').onclick = async () => { try { await api('events', 'POST', { name: $('evName').value, date: $('evDate').value, copyFrom: $('evCopy').value || null }); toast('Angelegt – jetzt Getränke & Preise prüfen und aktivieren.'); again(); } catch (e) { fail(e); } };
+    const act = (sel, fn) => $('main').querySelectorAll(sel).forEach(b => b.onclick = () => Promise.resolve(fn(b)).then(r => { if (r !== false) again(); }).catch(fail));
+    act('[data-on]', b => api(`events/${b.dataset.on}/activate`, 'POST', {}));
+    act('[data-off]', b => api(`events/${b.dataset.off}/deactivate`, 'POST', {}));
+    act('[data-filt]', b => { filt[b.dataset.ev] = b.dataset.filt; });
+    act('[data-pay]', async b => {
+      const ev = list.find(x => x.id === Number(b.dataset.ev)); const g = ev.guests.find(x => x.id === Number(b.dataset.g));
+      const r = await api(`events/${ev.id}/guests/${g.id}/pay`, 'POST', { method: b.dataset.pay });
+      toast(`${g.name}: ${euro(r.cents)} ${b.dataset.pay === 'bar' ? 'bar' : 'mit Karte'} bezahlt ✓`);
+    });
+    act('[data-unpay]', async b => {
+      if (!await ask('Diese Zahlung zurücknehmen? Der Betrag ist dann wieder offen.')) return false;
+      await api(`events/${b.dataset.ev}/payments/${b.dataset.unpay}`, 'DELETE');
+    });
+    act('[data-rmg]', b => api(`events/${b.dataset.ev}/guests/${b.dataset.rmg}`, 'DELETE'));
+    const addGuest = async evId => {
+      const v = $('gAdd' + evId).value.trim(); if (!v) return false;
+      const m = people.find(x => x.name.toLocaleLowerCase('de') === v.toLocaleLowerCase('de'));
+      await api(`events/${evId}/guests`, 'POST', m ? { memberId: m.id } : { name: v });
+      toast(m ? `${m.name} (Mitglied) hinzugefügt.` : `„${v}“ als Gast hinzugefügt.`);
+    };
+    act('[data-addg]', b => addGuest(b.dataset.addg));
+    $('main').querySelectorAll('input[id^="gAdd"]').forEach(i => i.onkeydown = e => { if (e.key === 'Enter') addGuest(i.id.slice(4)).then(r => { if (r !== false) again(); }).catch(fail); });
+    act('[data-link]', async b => {
+      const ev = list.find(x => x.id === Number(b.dataset.ev)); const g = ev.guests.find(x => x.id === Number(b.dataset.link));
+      const v = await new Promise(res => {
+        dialog(`<h2>„${esc(g.name)}“ einem Mitglied zuordnen</h2>
+          <p class="muted">Danach kann der offene Betrag auf dessen Getränkekonto übernommen werden.</p>
+          <label class="f">Mitglied<input id="lnk" list="peopleList" placeholder="Name eingeben …" autocomplete="off"></label>
+          <div class="err" id="lnkErr" style="text-align:left"></div>
+          <div class="btns"><button class="btn ghost" id="lc">Abbrechen</button><button class="btn primary" id="lo">Zuordnen</button></div>`);
+        setTimeout(() => $('lnk').focus(), 30);
+        $('lc').onclick = () => { closeDialog(); res(null); };
+        $('lo').onclick = () => {
+          const m = people.find(x => x.name.toLocaleLowerCase('de') === $('lnk').value.trim().toLocaleLowerCase('de'));
+          if (!m) { $('lnkErr').textContent = 'Bitte ein Mitglied aus der Liste wählen.'; return; }
+          closeDialog(); res(m);
+        };
+      });
+      if (!v) return false;
+      const r = await api(`events/${ev.id}/guests/${g.id}`, 'PUT', { memberId: v.id, name: g.name });
+      toast(r.merged ? `„${g.name}“ mit ${r.merged} zusammengeführt.` : `„${g.name}“ → ${v.name} zugeordnet.`);
+    });
+    act('[data-transfer]', async b => {
+      const ev = list.find(x => x.id === Number(b.dataset.transfer));
+      const names = ev.guests.filter(g => g.open_cents && g.member_id);
+      if (!await ask(`${euro(ev.open_member_cents)} von ${names.length} ${names.length === 1 ? 'Mitglied' : 'Mitgliedern'} auf die Getränkeliste übernehmen?\n\n${names.map(g => '• ' + g.name + ' ' + euro(g.open_cents)).join('\n')}`)) return false;
+      const r = await api(`events/${ev.id}/transfer`, 'POST', {});
+      toast(`${r.people} ${r.people === 1 ? 'Person' : 'Personen'} mit ${euro(r.cents)} auf die Getränkeliste übernommen.`);
+    });
+    act('[data-close]', async b => {
+      const ev = list.find(x => x.id === Number(b.dataset.close));
+      const v = await askText(`Bargeld aus „${ev.name}“ zählen und in Euro eintragen.\nSoll in der Kasse: ${euro(ev.bar_cents)} (Kartenzahlungen ${euro(ev.karte_cents)} sind nicht in der Kasse).\nLeer lassen, wenn nicht getrennt gezählt:`, ev.cash_cents == null ? '' : centsToInput(ev.cash_cents));
+      if (v === null) return false;
+      await api(`events/${ev.id}/close`, 'POST', { cash_cents: v.trim() ? toCents(v) : null });
+      if (ev.open_cents) toast('Abgeschlossen. Offene Beträge können weiter abgehakt bzw. vom Kassierer übernommen werden.');
+    });
+    act('[data-evdel]', async b => {
+      const ev = list.find(x => x.id === Number(b.dataset.evdel));
+      if (!await ask(`Veranstaltung „${ev.name}“ (${deDate(ev.date)}) löschen?\n\n${ev.total_cents ? 'Sie verschwindet aus der Liste. Umsatz und Bestand bleiben in den Auswertungen erhalten.' : 'Es wurde noch nichts gebucht – sie wird vollständig gelöscht.'}`)) return false;
+      await api(`events/${ev.id}`, 'DELETE');
+      toast('Veranstaltung gelöscht.');
+    });
+    $('main').querySelectorAll('[data-drinks]').forEach(b => b.onclick = () => eventDrinks(list.find(x => x.id === Number(b.dataset.drinks))));
+  };
+
+  function eventDrinks(ev) {
+    const chosen = new Map(ev.articles.map(a => [a.id, a.price_cents]));
+    const arts = cache.articles.slice();
+    dialog(`<h2>Getränke & Artikel bei „${esc(ev.name)}“</h2>
+      <p class="muted">Nur angehakte Getränke erscheinen während der Veranstaltung auf dem Tablet – mit dem Preis aus der rechten Spalte.</p>
+      <div class="row" style="margin-bottom:8px"><button class="btn small" id="dAll">alle Artikel</button><button class="btn small" id="dNone">keine</button></div>
+      <div class="scroll" style="max-height:55vh"><table class="tbl"><tr><th></th><th>Artikel</th><th class="r">Normalpreis</th><th class="r">Preis bei der Veranstaltung</th></tr>
+      ${arts.map(a => `<tr class="${a.active ? '' : 'off'}"><td><input type="checkbox" data-d="${a.id}" ${chosen.has(a.id) ? 'checked' : ''}></td><td>${esc(a.name)}${a.active ? '' : ' <span class="muted s">(sonst ausgeblendet)</span>'}</td>
+        <td class="r">${euro(a.price_cents)}</td><td class="r"><input class="n" data-p="${a.id}" value="${centsToInput(chosen.has(a.id) ? chosen.get(a.id) : a.price_cents)}" style="width:90px"> €</td></tr>`).join('')}</table></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+    $('c').onclick = closeDialog;
+    $('dAll').onclick = () => $('dialog').querySelectorAll('[data-d]').forEach(x => { x.checked = true; });
+    $('dNone').onclick = () => $('dialog').querySelectorAll('[data-d]').forEach(x => { x.checked = false; });
+    $('ok').onclick = async () => {
+      const articles = [...$('dialog').querySelectorAll('[data-d]:checked')].map(x => ({
+        articleId: Number(x.dataset.d), price_cents: toCents($('dialog').querySelector(`[data-p="${x.dataset.d}"]`).value || '0') }));
+      try { await api(`events/${ev.id}/articles`, 'PUT', { articles }); closeDialog(); toast(`${articles.length} Getränke gespeichert.`); RENDER.veranstaltungen(); } catch (e) { fail(e); }
+    };
+  }
+
+  /* =================== Artikel =================== */
+  /* ---------- Artikeldarstellung: eigenes Bild, Symbol oder Kürzel ---------- */
+  const artAbbr = n => { const w = String(n || '').replace(/[0-9,.()]+/g, ' ').trim().split(/\s+/).filter(Boolean); return esc(((w[0] || '?')[0] + (w[1] ? w[1][0] : (w[0] || '').slice(1, 2))).toUpperCase()); };
+  const artImgUrl = f => 'api/tablet/artikelbild/' + encodeURIComponent(f);
+  function artTile(a, cls = '') {
+    const inner = a.image ? `<img src="${artImgUrl(a.image)}" alt="">` : a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.svg(a.icon, cls.includes('lg') ? 40 : 20) : artAbbr(a.name);
+    const st = !a.image && a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ` style="${ArtIcons.style(a.icon)}"` : '';
+    return `<span class="atile ${cls}${a.image ? ' img' : ''}"${st}>${inner}</span>`;
+  }
+  /** Bild im Browser quadratisch verkleinern (384 px, eingepasst, transparenter Rand) → WebP oder PNG */
+  function shrinkImage(file) {
+    return new Promise((resolve, reject) => {
+      if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type) && !/\.(png|jpe?g|webp|svg)$/i.test(file.name)) return reject(new Error('Bitte ein Bild als PNG, JPG, WebP oder SVG wählen.'));
+      if (file.size > 2 * 1024 * 1024) return reject(new Error('Das Bild ist größer als 2 MB.'));
+      const url = URL.createObjectURL(file); const img = new Image();
+      img.onload = () => {
+        const S = 384, c = document.createElement('canvas'); c.width = S; c.height = S;
+        const w = img.naturalWidth || S, h = img.naturalHeight || S, k = Math.min(S / w, S / h);
+        const dw = Math.round(w * k), dh = Math.round(h * k);
+        const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, (S - dw) / 2, (S - dh) / 2, dw, dh);
+        URL.revokeObjectURL(url);
+        c.toBlob(b => { if (b && b.type === 'image/webp') resolve(b); else c.toBlob(p => p ? resolve(p) : reject(new Error('Bild konnte nicht verarbeitet werden.')), 'image/png'); }, 'image/webp', 0.9);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Die Datei lässt sich nicht als Bild öffnen.')); };
+      img.src = url;
+    });
+  }
+
+  function articleDialog(a, preset = {}, nested = false) {
+    return new Promise(resolve => {
+      const x = a || { name: '', category: '', price_cents: 150, crate_size: 20, min_stock: 0, target_stock: 0, track_stock: 1, active: 1, sort: 100, ...preset };
+      const cats = [...new Set(cache.articles.map(y => y.category))];
+      // Aus dem Beleg-Dialog heraus: eigenes Fenster darüber, damit der Beleg-Dialog erhalten bleibt
+      const holder = nested ? document.createElement('div') : null;
+      if (nested) { holder.className = 'overlay'; holder.style.zIndex = 30; holder.innerHTML = '<div class="dialog" id="artDlg"></div>'; document.body.appendChild(holder); }
+      const box = nested ? holder.querySelector('#artDlg') : $('dialog');
+      const html = `<h2>${a ? 'Artikel bearbeiten' : 'Neuer Artikel'}</h2>
+        <div class="row"><label class="f" style="flex:2;min-width:240px">Name (so steht er auf dem Tablet)<input name="name" value="${esc(x.name)}"></label>
+          <label class="f">Kategorie<input name="category" list="catList" value="${esc(x.category)}" placeholder="z. B. Bier"></label></div>
+        <datalist id="catList">${cats.map(c => `<option>${esc(c)}</option>`).join('')}</datalist>
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;align-items:end">
+          <label class="f">Preis €<input name="price" value="${centsToInput(x.price_cents)}" inputmode="decimal"></label>
+          <label class="f">Einzelartikel je Kiste<input name="crate_size" value="${x.crate_size}" inputmode="numeric"></label>
+          <label class="f">Mindestbestand<input name="min_stock" value="${x.min_stock}" inputmode="numeric"></label>
+          <label class="f">Bestellen bis<input name="target_stock" value="${x.target_stock || ''}" placeholder="2× Mindest" inputmode="numeric"></label></div>
+        <p class="muted s" style="margin:6px 0 0">Mindestbestand und „Bestellen bis“ in Einzelartikeln (Flaschen, Tüten, Dosen …).</p>
+        <div class="row" style="margin-top:12px"><label class="chk"><input type="checkbox" name="track_stock" ${x.track_stock ? 'checked' : ''}> Bestand führen</label>
+          <label class="chk"><input type="checkbox" name="active" ${x.active ? 'checked' : ''}> auf dem Tablet anzeigen</label></div>
+        <div class="artlook"><div id="aPrevT"></div><div style="min-width:0">
+          <div class="seg" id="aMode">${[['icon', 'Symbol'], ['image', 'Eigenes Bild'], ['none', 'Ohne']].map(([k, l]) => `<button type="button" data-m="${k}">${l}</button>`).join('')}</div>
+          <div id="aModeIcon"><div class="icgrid">${(window.ArtIcons ? ArtIcons.groups : []).map(([g, gl]) => `<div class="gl">${esc(gl)}</div>${ArtIcons.list.filter(i => i.group === g).map(i => `<button type="button" data-ic="${i.key}" title="${esc(i.label)}" aria-label="${esc(i.label)}" style="${ArtIcons.style(i.key)}">${ArtIcons.svg(i.key, 22)}</button>`).join('')}`).join('')}</div></div>
+          <div id="aModeImage"><div class="imgpick"><label class="btn"><input type="file" id="aImg" accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg" hidden>Bild wählen …</label><span class="muted s" id="aImgName"></span></div>
+            <p class="muted s" style="margin:8px 0 0">PNG, JPG, WebP oder SVG, höchstens 2 MB. Wird automatisch quadratisch auf 384 × 384 Pixel verkleinert. Am besten ein Logo oder Foto auf hellem oder transparentem Hintergrund.</p></div>
+          <div id="aModeNone"><p class="muted s" style="margin:0">Am Tablet steht dann ein Kürzel aus dem Namen in der Kachel.</p></div>
+        </div></div>
+        <div class="err" id="aErr" style="text-align:left"></div>
+        <div class="btns">${a && !nested ? '<button class="btn danger" data-a="delete" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" data-a="cancel">Abbrechen</button><button class="btn primary" data-a="save">Speichern</button></div>`;
+      if (nested) box.innerHTML = html; else dialog(html);
+      const done = v => { if (nested) holder.remove(); else closeDialog(); resolve(v); };
+      // Darstellung am Tablet: Symbol / eigenes Bild / ohne
+      const look = { mode: x.image ? 'image' : x.icon ? 'icon' : (a ? 'none' : 'icon'), icon: x.icon || null, blob: null, previewUrl: null };
+      const q = sel => box.querySelector(sel);
+      const drawLook = () => {
+        q('#aMode').querySelectorAll('[data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === look.mode));
+        ['Icon', 'Image', 'None'].forEach(k => q('#aMode' + k).classList.toggle('hidden', look.mode !== k.toLowerCase()));
+        q('.icgrid').querySelectorAll('[data-ic]').forEach(b => b.classList.toggle('on', b.dataset.ic === look.icon));
+        const nm = q('[name=name]').value;
+        const t = look.mode === 'image' ? (look.previewUrl ? `<span class="atile lg"><img src="${look.previewUrl}" alt=""></span>` : x.image ? artTile({ image: x.image }, 'lg') : `<span class="atile lg">${artAbbr(nm)}</span>`)
+          : look.mode === 'icon' && look.icon ? artTile({ icon: look.icon }, 'lg') : `<span class="atile lg">${artAbbr(nm)}</span>`;
+        q('#aPrevT').innerHTML = t;
+      };
+      drawLook();
+      q('[name=name]').addEventListener('input', drawLook);
+      q('#aMode').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (!b) return; look.mode = b.dataset.m; drawLook(); });
+      q('.icgrid').addEventListener('click', e => { const b = e.target.closest('[data-ic]'); if (!b) return; look.icon = b.dataset.ic; drawLook(); });
+      q('#aImg').addEventListener('change', async () => {
+        const f = q('#aImg').files[0]; if (!f) return;
+        q('#aErr').textContent = '';
+        try { look.blob = await shrinkImage(f); if (look.previewUrl) URL.revokeObjectURL(look.previewUrl); look.previewUrl = URL.createObjectURL(look.blob); q('#aImgName').textContent = f.name; drawLook(); }
+        catch (err) { look.blob = null; q('#aErr').textContent = err.message; q('#aImg').value = ''; }
+      });
+      box.onclick = async e => {
+        const b = e.target.closest('[data-a]'); if (!b) return;
+        if (b.dataset.a === 'cancel') return done(null);
+        if (b.dataset.a === 'delete') {
+          if (!await ask(`„${a.name}“ löschen?\n\nDer Artikel verschwindet aus allen Listen und vom Tablet. Wurde er schon verkauft oder geliefert, bleiben diese alten Buchungen für Bestand und Abrechnung erhalten.`)) return;
+          try { await api('articles/' + a.id, 'DELETE'); await loadArticles(); toast('Artikel gelöscht.'); done(a.id); } catch (err) { box.querySelector('#aErr').textContent = err.message; }
+          return;
+        }
+        const f = n => box.querySelector(`[name=${n}]`);
+        const body = { name: f('name').value, category: f('category').value, price_cents: toCents(f('price').value || '0'), crate_size: Number(f('crate_size').value),
+          min_stock: Number(f('min_stock').value) || 0, target_stock: Number(f('target_stock').value) || 0, track_stock: f('track_stock').checked, active: f('active').checked,
+          icon: look.mode === 'icon' ? look.icon : look.mode === 'none' ? null : (look.icon || null) };
+        if (look.mode === 'image' && !look.blob && !x.image) { box.querySelector('#aErr').textContent = 'Bitte ein Bild wählen – oder „Symbol“ bzw. „Ohne“.'; return; }
+        try {
+          const r = a ? await api('articles/' + a.id, 'PUT', body) : await api('articles', 'POST', body);
+          const id = a ? a.id : r.id;
+          if (look.mode === 'image' && look.blob) {
+            const up = await fetch(`api/admin/articles/${id}/image`, { method: 'PUT', body: look.blob, headers: { 'Content-Type': look.blob.type || 'application/octet-stream', 'X-Getraenke': '1' } });
+            const d = await up.json().catch(() => ({}));
+            if (!up.ok) throw new Error(d.error || 'Bild konnte nicht gespeichert werden.');
+          } else if (look.mode !== 'image' && x.image) await api(`articles/${id}/image`, 'DELETE');
+          await loadArticles();
+          toast('Artikel gespeichert.');
+          done(a ? a.id : r.id);
+        } catch (err) { box.querySelector('#aErr').textContent = err.message; }
+      };
+    });
+  }
+
+  RENDER.artikel = async () => {
+    await loadArticles();
+    $('main').innerHTML = `<h2 class="page">Artikel</h2>
+      <p class="lead">Die <b>Kategorie</b> bestimmt, wie Artikel in der Abrechnung zusammengefasst werden (wie die Spalten der bisherigen Strichliste). Die Reihenfolge der Kategorien legst du unter „Reihenfolge der Kategorien“ fest – so erscheinen sie am Tablet und in allen Listen; innerhalb einer Kategorie wird alphabetisch sortiert.</p>
+      <div class="toolbar"><button class="btn primary" id="new">+ Neuer Artikel</button>
+        <button class="btn ghost" id="catOrd">Reihenfolge der Kategorien …</button>
+        <button class="btn ghost" id="aImp">Excel importieren …</button><a class="btn ghost" href="api/admin/articles/export.xlsx">Als Excel herunterladen</a></div>
+      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r">Kiste</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th>Status</th><th></th></tr>
+      ${cache.articles.map(a => `<tr class="${a.active ? '' : 'off'}"><td><span class="art">${artTile(a)}<span>${esc(a.name)}</span></span></td><td>${esc(a.category)}</td><td class="r">${euro(a.price_cents)}</td><td class="r">${a.crate_size}</td>
+        <td class="r">${a.track_stock ? num(a.stock) : '–'}</td><td class="r">${a.track_stock ? num(a.min_stock) : ''}</td><td class="r">${a.track_stock && a.target_stock ? num(a.target_stock) : ''}</td><td>${a.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</td>
+        <td class="r"><button class="btn small" data-e="${a.id}">Bearbeiten</button></td></tr>`).join('')}</table></div>`;
+    $('new').onclick = async () => { if (await articleDialog(null)) RENDER.artikel(); };
+    $('catOrd').onclick = async () => {
+      let cats = (await api('categories')).map(c => ({ name: c.category, n: c.n, act: c.act }));
+      const draw = () => {
+        dialog(`<h2>Reihenfolge der Kategorien</h2>
+          <p class="muted" style="margin-top:0">So erscheinen die Kategorien am Tablet (von oben links nach unten rechts) und in Bestand, Abrechnung und Exporten. Die Artikel innerhalb einer Kategorie stehen alphabetisch.</p>
+          <table class="tbl" id="coTbl">${cats.map((c, i) => `<tr><td class="r" style="width:44px">${i + 1}.</td><td><b>${esc(c.name)}</b> <span class="muted s">${c.n} ${c.n === 1 ? 'Artikel' : 'Artikel'}${c.act < c.n ? `, ${c.n - c.act} ausgeblendet` : ''}</span></td>
+            <td class="r" style="white-space:nowrap;width:120px"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben" style="width:46px;justify-content:center">▲</button>
+              <button class="btn small" data-dn="${i}" ${i < cats.length - 1 ? '' : 'disabled'} aria-label="nach unten" style="width:46px;justify-content:center">▼</button></td></tr>`).join('')}</table>
+          <div class="btns"><button class="btn ghost" id="coAlpha" style="margin-right:auto">Alphabetisch</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
+        $('coTbl').querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [cats[i - 1], cats[i]] = [cats[i], cats[i - 1]]; draw(); });
+        $('coTbl').querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const i = +b.dataset.dn; [cats[i + 1], cats[i]] = [cats[i], cats[i + 1]]; draw(); });
+        $('coAlpha').onclick = () => { cats.sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })); draw(); };
+        $('c').onclick = closeDialog;
+        $('ok').onclick = async () => {
+          try { await api('categories/order', 'PUT', { order: cats.map(c => c.name) }); closeDialog(); toast('Reihenfolge gespeichert – Tablets übernehmen sie beim nächsten Laden.'); RENDER.artikel(); } catch (e) { fail(e); }
+        };
+      };
+      draw();
+    };
+    $('aImp').onclick = () => {
+      dialog(`<h2>Artikel aus Excel importieren</h2>
+        <p class="muted">Spalten <b>Artikel</b>, <b>Kategorie</b>, <b>Preis</b>, optional <b>ID</b>, <b>Kiste</b>, <b>Bestand führen</b>, <b>Mindestbestand</b>, <b>Bestellen bis</b>, <b>Aktiv</b>.
+          Erkannt wird ein vorhandener Artikel an seiner <b>ID</b> (Spalte aus „Als Excel herunterladen“), sonst am Namen. Neue Artikel bekommen immer eine neue ID – IDs werden nie doppelt vergeben.
+          Weicht ein vorhandener Artikel ab, entscheidest du je Artikel, welche Fassung gilt.</p>
+        <label class="f">Datei<input type="file" id="aFile" accept=".xlsx"></label>
+        <div id="aPrev"></div>
+        <label class="chk hidden" id="aHideL" style="margin-top:10px"><input type="checkbox" id="aHide"> <span id="aHideT"></span></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok" disabled>Übernehmen</button></div>`, true);
+      $('c').onclick = closeDialog;
+      let last = null; const choice = new Map();   // Artikel-ID → 'datei' | 'bestand'
+      const send = async commit => {
+        const take = [...choice].filter(([, v]) => v === 'datei').map(([k]) => k).join(',');
+        const r = await fetch('api/admin/articles/import-excel' + (commit ? '?commit=1&take=' + take + ($('aHide').checked ? '&hideOthers=1' : '') : ''), { method: 'POST', body: $('aFile').files[0],
+          headers: { 'Content-Type': 'application/octet-stream', 'X-Getraenke': '1' } });
+        const d = await r.json().catch(() => ({}));
+        if (!r.ok) throw new Error(d.error || 'Import fehlgeschlagen');
+        return d;
+      };
+      const F = { name: 'Name', category: 'Kategorie', price_cents: 'Preis', crate_size: 'Kiste', track_stock: 'Bestand führen', min_stock: 'Mindest', target_stock: 'Bestellen bis', active: 'Aktiv' };
+      const fmt = (k, v) => k === 'price_cents' ? euro(v) : (k === 'track_stock' || k === 'active') ? (v ? 'ja' : 'nein') : esc(String(v));
+      const open = () => last.rows.filter(r => r.status === 'ändern' && !choice.has(r.id)).length;
+      const draw = () => {
+        const d = last;
+        const ch = d.rows.filter(r => r.status === 'ändern');
+        $('aPrev').innerHTML = `<p><b>${d.newCount}</b> neu · <b>${ch.length}</b> vorhanden mit Abweichungen · ${d.rows.filter(r => r.status === 'unverändert').length} unverändert · ${d.rows.filter(r => !['neu', 'ändern', 'unverändert'].includes(r.status)).length} übersprungen</p>
+          ${ch.length ? `<div class="impdecide"><div class="row" style="align-items:center;justify-content:space-between;margin:0 0 8px"><b>Vorhandene Artikel – welche Fassung soll gelten?</b>
+            <span class="row" style="gap:8px"><button class="btn small" data-all="bestand">Überall Bestand behalten</button><button class="btn small" data-all="datei">Überall Datei übernehmen</button></span></div>
+            ${ch.map(r => `<div class="impcard ${choice.has(r.id) ? 'done' : ''}"><div class="impname"><b>${esc(r.current.name)}</b> <span class="muted s">ID ${r.id} · erkannt an ${r.match === 'id' ? 'der ID' : 'dem Namen'}</span></div>
+              <table class="tbl"><tr><th></th>${r.diff.map(k => `<th>${F[k]}</th>`).join('')}</tr>
+                <tr><td class="muted">Bestand</td>${r.diff.map(k => `<td>${fmt(k, r.current[k])}</td>`).join('')}</tr>
+                <tr><td class="muted">Datei</td>${r.diff.map(k => `<td><b>${fmt(k, r[k])}</b></td>`).join('')}</tr></table>
+              <div class="seg" role="radiogroup" aria-label="Fassung für ${esc(r.current.name)}"><button type="button" data-pick="${r.id}" data-v="bestand" class="${choice.get(r.id) === 'bestand' ? 'on' : ''}">Bestand behalten</button><button type="button" data-pick="${r.id}" data-v="datei" class="${choice.get(r.id) === 'datei' ? 'on' : ''}">Aus Datei übernehmen</button></div></div>`).join('')}</div>` : ''}
+          <details style="margin-top:10px"><summary class="muted">Alle Zeilen der Datei anzeigen</summary>
+          <div class="scroll" style="max-height:240px"><table class="tbl"><tr><th class="r">Zeile</th><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th>Status</th></tr>
+            ${d.rows.map(r => `<tr class="${r.status === 'neu' || r.status === 'ändern' ? '' : 'off'}"><td class="r">${r.line}</td><td>${esc(r.name)}${r.id ? ` <span class="muted s">ID ${r.id}</span>` : ''}</td><td>${esc(r.category)}</td><td class="r">${Number.isFinite(r.price_cents) ? euro(r.price_cents) : '–'}</td>
+              <td>${r.status === 'neu' ? '<span class="pill g">neu</span>' : r.status === 'ändern' ? '<span class="pill b">abweichend</span>' : esc(r.status)}</td></tr>`).join('')}</table></div></details>`;
+        $('aHideL').classList.toggle('hidden', !d.others.length);
+        $('aHideT').textContent = `Artikel, die nicht in der Datei stehen, ausblenden (${d.others.length}: ${d.others.slice(0, 6).join(', ')}${d.others.length > 6 ? ' …' : ''})`;
+        const n = open();
+        $('ok').disabled = n > 0 || !(d.newCount + ch.length + d.others.length);
+        $('ok').textContent = n ? `Noch ${n} Artikel entscheiden` : 'Übernehmen';
+      };
+      $('aPrev').onclick = e => {
+        const p = e.target.closest('[data-pick]'), all = e.target.closest('[data-all]');
+        if (p) choice.set(Number(p.dataset.pick), p.dataset.v);
+        if (all) last.rows.filter(r => r.status === 'ändern').forEach(r => choice.set(r.id, all.dataset.all));
+        if (p || all) draw();
+      };
+      $('aFile').onchange = async () => {
+        $('ok').disabled = true; choice.clear();
+        try { last = await send(false); draw(); } catch (e) { $('aPrev').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }
+      };
+      $('ok').onclick = async () => {
+        if (open()) return;
+        try { const d = await send(true); closeDialog(); toast(`${d.newCount} neu, ${d.takenCount || 0} aus der Datei übernommen, ${d.changeCount - (d.takenCount || 0)} unverändert gelassen.`); RENDER.artikel(); } catch (e) { fail(e); }
+      };
+    };
+    $('main').querySelectorAll('[data-e]').forEach(b => b.onclick = async () => {
+      if (await articleDialog(cache.articles.find(a => a.id === Number(b.dataset.e)))) RENDER.artikel();
+    });
+  };
+
+  /* =================== Konten =================== */
+  RENDER.konten = async () => {
+    await loadMembers();
+    const pending = cache.members.filter(m => m.pending);
+    const others = cache.members.filter(m => !m.pending && m.kind === 'mitglied');
+    // Diese Saison nicht da: kein Buchen, kein Eintrag auf einer Veranstaltungsliste seit Saisonbeginn
+    // (nur Mitglieder, die schon länger als 60 Tage angelegt sind – sonst stünde nach einem Import jeder hier)
+    const cutoff = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
+    const absent = others.filter(m => m.active && (!m.last_seen || m.last_seen.slice(0, 10) < cache.seasonStart) && m.created_at.slice(0, 10) < cutoff);
+    const absentOpen = m => m.balance_cents || m.eventOpen_cents;
+    $('main').innerHTML = `<h2 class="page">Mitglieder & Konten</h2>
+      <p class="lead">Neue Mitglieder können sich am Tablet selbst eintragen und sofort buchen. Hier bestätigt ein Admin den Eintrag – oder führt ihn mit einem vorhandenen Konto zusammen, falls jemand doppelt angelegt wurde.</p>
+      ${pending.length ? `<div class="card warnbox"><h3>Neu am Tablet eingetragen – bitte prüfen (${pending.length})</h3>
+        <table class="tbl"><tr><th>Name (anpassbar)</th><th>eingetragen</th><th class="r">Buchungen</th><th></th></tr>
+        ${pending.map(m => `<tr><td><input data-pn="${m.id}" value="${esc(m.name)}" style="min-width:220px"></td><td>${deTime(m.created_at)}</td><td class="r">${m.bookings}</td>
+          <td class="r"><button class="btn small primary" data-ok="${m.id}">Bestätigen</button>
+            <button class="btn small" data-merge="${m.id}">Ist schon Mitglied …</button>
+            ${m.bookings ? '' : `<button class="btn small danger" data-rm="${m.id}">Löschen</button>`}</td></tr>`).join('')}</table></div>` : ''}
+      ${absent.length ? `<div class="card warnbox">
+        <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Diese Saison nicht da (${absent.length})</h3>
+          <div class="row"><button class="btn" id="abShow">${cache.showAbsent ? 'Liste zuklappen' : 'Liste anzeigen'}</button>
+          ${cache.showAbsent && absent.some(m => !absentOpen(m)) ? `<button class="btn danger" id="abAll">Alle ${absent.filter(m => !absentOpen(m)).length} entfernen</button>` : ''}</div></div>
+        ${cache.showAbsent ? `<p class="muted" style="margin:10px 0">Seit Saisonbeginn (${deDate(cache.seasonStart)}) nichts gebucht und auf keiner Veranstaltungsliste. „Entfernen“ löscht Mitglieder ohne jede Buchung; wer früher schon gebucht hat, wird nur ausgeblendet (die alten Abrechnungen bleiben erhalten, „Bearbeiten“ holt ihn zurück).</p>
+          <table class="tbl"><tr><th>Name</th><th>zuletzt da</th><th>angelegt</th><th class="r">offen</th><th></th></tr>
+          ${absent.map(m => `<tr><td>${pName(m)}</td><td>${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : '<span class="muted">nie</span>'}</td><td>${deDate(m.created_at.slice(0, 10))}</td>
+            <td class="r">${absentOpen(m) ? euro((m.balance_cents || 0) + (m.eventOpen_cents || 0)) : ''}</td>
+            <td class="r">${absentOpen(m) ? '<span class="muted s">erst abrechnen</span>' : `<button class="btn small danger" data-abrm="${m.id}">${m.bookings ? 'Ausblenden' : 'Entfernen'}</button>`}</td></tr>`).join('')}</table>` : ''}</div>` : ''}
+      <div class="toolbar"><button class="btn primary" id="mNew">+ Neues Mitglied</button><button class="btn ghost" id="mXls">Excel importieren …</button><button class="btn ghost" id="mImp">Liste einfügen …</button></div>
+      <div class="kpis">${(() => { const vis = cache.members.filter(m => !m.pending && m.active);
+        const open = vis.reduce((a, m) => a + (m.balance_cents || 0), 0);
+        return [['Aktive Mitglieder', vis.filter(m => m.kind === 'mitglied').length], ['Mannschaften & Gruppen', vis.filter(m => m.kind === 'mannschaft').length],
+          ['Mit PIN geschützt', vis.filter(m => m.hasPin).length], ['Offen auf Konten', euro(open)]].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join(''); })()}</div>
+      <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mSearch" placeholder="Name suchen" aria-label="Name suchen"></label>
+        <div class="seg" id="mFilter" role="tablist">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
+          .filter(([k]) => k !== 'sonder' || (cache.modules || []).includes('getraenke')).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
+      <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel" id="mTbl"></table></div></div><aside class="mdetail card" id="mDetail"></aside></div>`;
+    const showAll = (cache.modules || []).includes('getraenke');
+    const base = cache.members.filter(m => !m.pending && (showAll || (m.kind !== 'verein' && m.kind !== 'gast')));
+    const FILTER = {
+      alle: m => m.active, mitglied: m => m.active && m.kind === 'mitglied', mannschaft: m => m.active && m.kind === 'mannschaft',
+      sonder: m => m.active && (m.kind === 'verein' || m.kind === 'gast'), offen: m => (m.balance_cents || 0) > 0, aus: m => !m.active,
+    };
+    const ini = m => esc(initials(m.kind === 'mitglied' ? m.name : m.name.replace(/[()]/g, '')));
+    const pinPill = m => m.hasPin ? `<span class="pill g">${m.kind === 'mannschaft' ? 'vom Vorstand' : 'gesetzt'}</span>${m.pinLocked ? ' <span class="pill r">gesperrt</span>' : ''}` : m.kind === 'mannschaft' ? '<span class="pill r">fehlt</span>' : '<span class="muted s">ohne</span>';
+    const detail = () => {
+      const m = cache.members.find(x => x.id === cache.mSel);
+      const el = $('mDetail');
+      el.classList.toggle('empty', !m);
+      if (!m) { el.innerHTML = `<div class="mempty"><span class="mi">${icon('konten', 22)}</span><b>Mitglied auswählen</b><span class="muted s">Klick auf einen Namen zeigt hier Konto, PIN und Aktionen.</span></div>`; return; }
+      el.innerHTML = `<div class="mhead"><span class="av lg">${ini(m)}</span><div style="min-width:0"><h3>${esc(m.name)}</h3><div class="row" style="gap:6px"><span class="pill">${KIND[m.kind]}</span>${m.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</div></div></div>
+        <dl class="facts">
+          <div><dt>Offen</dt><dd class="${m.balance_cents > 0 ? 'neg' : ''}">${euro(m.balance_cents || 0)}</dd></div>
+          ${m.eventOpen_cents ? `<div><dt>Veranstaltungen offen</dt><dd>${euro(m.eventOpen_cents)}</dd></div>` : ''}
+          <div><dt>PIN</dt><dd>${pinPill(m)}${pinInfo(m)}</dd></div>
+          <div><dt>Zuletzt da</dt><dd>${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : '<span class="muted">noch nie</span>'}</dd></div>
+          <div><dt>Buchungen gesamt</dt><dd>${m.bookings || 0}</dd></div>
+          <div><dt>Angelegt</dt><dd>${m.created_at ? deDate(m.created_at.slice(0, 10)) : ''}</dd></div>
+        </dl>
+        <div class="mact">${can('buchungen') ? `<button class="btn" data-log="${m.id}">Buchungen</button>` : ''}<button class="btn primary" data-ed="${m.id}">Bearbeiten</button>
+          ${m.hasPin && m.kind !== 'mannschaft' ? `<button class="btn ghost" data-pin="${m.id}">PIN zurücksetzen</button>` : ''}</div>`;
+    };
+    const draw = () => {
+      const q = $('mSearch').value.trim().toLowerCase();
+      const f = FILTER[cache.mFilter || 'alle'] || FILTER.alle;
+      const match = m => !q || m.name.toLowerCase().includes(q) || lastFirst(m.name, m.kind).toLowerCase().includes(q);
+      Object.keys(FILTER).forEach(k => { const c = $('main').querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = base.filter(m => FILTER[k](m) && match(m)).length; });
+      const rows = base.filter(m => f(m) && match(m));
+      $('mTbl').innerHTML = `<tr><th>Name</th><th>Typ</th><th>PIN</th><th>Zuletzt da</th><th class="r">Offen</th></tr>` +
+        (rows.length ? rows.map(m => `<tr data-sel="${m.id}" class="${m.active ? '' : 'off'} ${cache.mSel === m.id ? 'on' : ''}" tabindex="0"><td><span class="who"><span class="av">${ini(m)}</span><b>${pName(m)}</b></span></td><td>${KIND[m.kind]}</td>
+          <td>${pinPill(m)}</td><td>${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : '<span class="muted s">–</span>'}</td><td class="r">${m.balance_cents ? euro(m.balance_cents) : '<span class="muted s">–</span>'}</td></tr>`).join('')
+          : '<tr><td colspan="5" class="muted" style="text-align:center;height:72px">Keine Treffer.</td></tr>');
+      detail();
+    };
+    draw();
+    $('mSearch').oninput = draw;
+    $('mFilter').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; cache.mFilter = b.dataset.f; $('mFilter').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b)); draw(); };
+    const pick = tr => { cache.mSel = Number(tr.dataset.sel); $('mTbl').querySelectorAll('tr[data-sel]').forEach(x => x.classList.toggle('on', x === tr)); detail();
+      if (window.matchMedia('(max-width: 1100px)').matches) $('mDetail').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
+    $('mTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) pick(tr); };
+    $('mTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(tr); } };
+    if ($('abShow')) $('abShow').onclick = () => { cache.showAbsent = !cache.showAbsent; RENDER.konten(); };
+    const removeAbsent = async (ids, text) => {
+      if (!await ask(text)) return;
+      try {
+        const r = await api('members/remove-inactive', 'POST', { ids });
+        toast([r.deleted && `${r.deleted} gelöscht`, r.hidden && `${r.hidden} ausgeblendet`, r.skipped.length && `${r.skipped.length} übersprungen`].filter(Boolean).join(', ') || 'Nichts geändert.');
+        refreshBadges(); RENDER.konten();
+      } catch (e) { fail(e); }
+    };
+    if ($('abAll')) $('abAll').onclick = () => { const ids = absent.filter(m => !absentOpen(m)).map(m => m.id);
+      removeAbsent(ids, `${ids.length} Mitglieder entfernen, die diese Saison nicht da waren?\n\nOhne Buchungen → gelöscht, sonst ausgeblendet.`); };
+    $('main').querySelectorAll('[data-abrm]').forEach(b => b.onclick = () => { const m = absent.find(x => x.id === Number(b.dataset.abrm));
+      removeAbsent([m.id], m.bookings ? `${m.name} ausblenden? Die bisherigen Buchungen bleiben erhalten.` : `${m.name} löschen?`); });
+    $('mNew').onclick = () => {
+      dialog(`<h2>Neues Mitglied oder Konto</h2>
+        <div class="row"><label class="f" style="flex:1;min-width:220px">Name<input id="mName" placeholder="Vorname Nachname" autocomplete="off"></label>
+        <label class="f">Typ<select id="mKind">${Object.entries(KIND).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label></div>
+        <label class="f hidden" id="mPinL" style="margin-top:12px">PIN der Mannschaft (Pflicht)<input id="mPin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="mAdd">Anlegen</button></div>`);
+      $('c').onclick = closeDialog; setTimeout(() => $('mName').focus(), 50);
+      $('mKind').onchange = () => $('mPinL').classList.toggle('hidden', $('mKind').value !== 'mannschaft');
+      $('mName').onkeydown = e => { if (e.key === 'Enter') $('mAdd').click(); };
+      $('mAdd').onclick = async () => { try { const r = await api('members', 'POST', { name: $('mName').value, kind: $('mKind').value, pin: $('mPin').value }); closeDialog(); toast('Angelegt.'); cache.mSel = r.id; RENDER.konten(); } catch (e) { fail(e); } };
+    };
+    $('mXls').onclick = () => {
+      dialog(`<h2>Mitglieder aus Excel importieren</h2>
+        <p class="muted">Excel-Datei (.xlsx) mit den Spalten <b>Vorname</b> und <b>Nachname</b> (Überschrift in der ersten Zeile). Optional Spalte <b>Typ</b> = „Mannschaft“ für Mannschaften/Gruppen (Name dann in „Nachname“) und Spalte <b>PIN</b> mit der Mannschafts-PIN (4–6 Ziffern; fehlt sie, bitte danach unter „Bearbeiten“ vergeben). Weitere Spalten werden ignoriert, vorhandene Namen übersprungen.
+          <a href="api/admin/members/import-vorlage.xlsx" style="color:var(--green);font-weight:600">Vorlage herunterladen</a></p>
+        <label class="f">Datei<input type="file" id="xlsFile" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"></label>
+        <div id="xlsPrev"></div>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok" disabled>Anlegen</button></div>`);
+      $('c').onclick = closeDialog;
+      const send = async commit => {
+        const f = $('xlsFile').files[0];
+        const r = await fetch('api/admin/members/import-excel' + (commit ? '?commit=1' : ''), { method: 'POST', body: f,
+          headers: { 'Content-Type': 'application/octet-stream', 'X-Getraenke': '1' } });
+        const d = await r.json().catch(() => ({}));
+        if (r.status === 401) { showLogin(); throw new Error('Bitte anmelden.'); }
+        if (!r.ok) throw new Error(d.error || 'Import fehlgeschlagen');
+        return d;
+      };
+      $('xlsFile').onchange = async () => {
+        $('ok').disabled = true; $('xlsPrev').innerHTML = '<p class="muted">Wird gelesen …</p>';
+        try {
+          const d = await send(false);
+          const cnt = st => d.rows.filter(r => r.status === st).length;
+          const skip = d.rows.filter(r => r.status !== 'neu');
+          $('xlsPrev').innerHTML = `<p><b>${d.newCount}</b> neue Mitglieder · ${cnt('vorhanden')} schon vorhanden${cnt('ausgeblendet') ? ` · ${cnt('ausgeblendet')} ausgeblendet` : ''}${cnt('doppelt') ? ` · ${cnt('doppelt')} doppelt in der Datei` : ''}${cnt('unvollständig') + cnt('ungültig') ? ` · ${cnt('unvollständig') + cnt('ungültig')} unvollständig/ungültig` : ''}</p>
+            <div class="scroll" style="max-height:280px"><table class="tbl"><tr><th class="r">Zeile</th><th>Name</th><th>Status</th></tr>
+            ${[...d.rows.filter(r => r.status === 'neu'), ...skip].map(r => `<tr${r.status === 'neu' ? '' : ' class="off"'}><td class="r">${r.line}</td><td>${esc(r.name)}${r.kind === 'mannschaft' ? ` <span class="pill">Mannschaft</span>${r.pinMissing ? ' <span class="pill r">PIN fehlt</span>' : ''}` : ''}</td><td>${r.status === 'neu' ? '<span class="pill g">neu</span>' : esc(r.status)}</td></tr>`).join('')}</table></div>`;
+          $('ok').textContent = d.newCount ? `${d.newCount} Mitglieder anlegen` : 'Nichts Neues';
+          $('ok').disabled = !d.newCount;
+        } catch (e) { $('xlsPrev').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }
+      };
+      $('ok').onclick = async () => {
+        try { const d = await send(true); closeDialog(); toast(`${d.added} Mitglieder angelegt.`); RENDER.konten(); } catch (e) { fail(e); }
+      };
+    };
+    $('mImp').onclick = () => {
+      dialog(`<h2>Mitgliederliste einfügen</h2><p class="muted">Ein Name pro Zeile, z. B. aus Excel kopiert („Vorname Nachname“). Vorhandene Namen werden übersprungen.</p>
+        <label class="f"><textarea id="impText" rows="12"></textarea></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Übernehmen</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = async () => {
+        try { const r = await api('members/import', 'POST', { text: $('impText').value, kind: 'mitglied' }); closeDialog(); toast(`${r.added} angelegt, ${r.skipped} schon vorhanden.`); RENDER.konten(); } catch (e) { fail(e); }
+      };
+    };
+    $('main').onclick = async e => {
+      const ok = e.target.closest('[data-ok]'), mg = e.target.closest('[data-merge]'), rm = e.target.closest('[data-rm]');
+      const pin = e.target.closest('[data-pin]'), ed = e.target.closest('[data-ed]'), log = e.target.closest('[data-log]');
+      if (log) { openLog(Number(log.dataset.log)); return; }
+      try {
+        if (ok) {
+          await api(`members/${ok.dataset.ok}/confirm`, 'POST', { name: $('main').querySelector(`[data-pn="${ok.dataset.ok}"]`).value });
+          toast('Bestätigt.'); refreshBadges(); RENDER.konten();
+        }
+        if (rm) {
+          if (!await ask('Diesen Eintrag löschen?')) return;
+          await api('members/' + rm.dataset.rm, 'DELETE'); refreshBadges(); RENDER.konten();
+        }
+        if (mg) {
+          const m = pending.find(x => x.id === Number(mg.dataset.merge));
+          dialog(`<h2>„${esc(m.name)}“ zusammenführen</h2>
+            <p class="muted">Die ${m.bookings} Buchung(en) werden auf das gewählte Konto verschoben, der doppelte Eintrag wird gelöscht.</p>
+            <label class="f">Richtiges Konto<input id="mgSearch" placeholder="Name suchen"></label>
+            <label class="f" style="margin-top:8px"><select id="mgInto" size="8" style="min-height:200px"></select></label>
+            <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok2">Zusammenführen</button></div>`);
+          const fill = () => {
+            const q = $('mgSearch').value.trim().toLowerCase();
+            $('mgInto').innerHTML = others.filter(o => !q || o.name.toLowerCase().includes(q)).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+          };
+          const ln = m.name.split(' ').pop(); $('mgSearch').value = ln; fill();
+          $('mgSearch').oninput = fill;
+          $('c').onclick = closeDialog;
+          $('ok2').onclick = async () => {
+            if (!$('mgInto').value) { toast('Bitte ein Konto wählen.', true); return; }
+            try { const r = await api(`members/${m.id}/merge`, 'POST', { intoId: Number($('mgInto').value) }); closeDialog(); toast(`${r.moved} Buchung(en) verschoben.`); refreshBadges(); RENDER.konten(); } catch (err) { fail(err); }
+          };
+        }
+        if (pin) {
+          if (!await ask('PIN zurücksetzen? Danach kann am Tablet ohne PIN gebucht werden, bis das Mitglied eine neue festlegt.')) return;
+          await api(`members/${pin.dataset.pin}/reset-pin`, 'POST', {}); toast('PIN zurückgesetzt.'); RENDER.konten();
+        }
+        if (ed) {
+          const m = cache.members.find(x => x.id === Number(ed.dataset.ed));
+          const special = m.kind === 'verein' || m.kind === 'gast';
+          dialog(`<h2>Konto bearbeiten</h2><div class="row"><label class="f" style="flex:1">Name<input id="eName" value="${esc(m.name)}"></label>
+            <label class="f">Typ<select id="eKind">${Object.entries(KIND).map(([k, l]) => `<option value="${k}" ${k === m.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+            <div class="${m.kind === 'mannschaft' ? '' : 'hidden'}" id="ePinRow" style="margin-top:12px"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
+              <p class="muted s" style="margin:6px 0 0">Mannschaftskonten buchen nur mit dieser PIN. Sie wird hier vom Vorstand vergeben und kann am Tablet nicht geändert werden.</p></div>
+            <label class="chk" style="margin-top:12px"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> auf dem Tablet anzeigen</label>
+            ${m.kind === 'mitglied' && !m.pending && (cache.appModules || []).length ? '<div class="card soft" id="eApp" style="margin:14px 0 0"><p class="muted">Lade …</p></div>' : ''}
+            <div class="btns">${special ? '' : '<button class="btn danger" id="eDel" style="margin-right:auto">Löschen</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok3">Speichern</button></div>`);
+          $('c').onclick = closeDialog;
+          $('eKind').onchange = () => $('ePinRow').classList.toggle('hidden', $('eKind').value !== 'mannschaft');
+          if ($('eApp')) appBox($('eApp'), m.id).catch(fail);
+          $('ok3').onclick = async () => {
+            try { await api('members/' + m.id, 'PUT', { name: $('eName').value, kind: $('eKind').value, active: $('eAct').checked, pin: $('ePin').value }); closeDialog(); RENDER.konten(); } catch (err) { fail(err); }
+          };
+          if ($('eDel')) $('eDel').onclick = async () => {
+            if (!await ask(`„${m.name}“ löschen?\n\nDas Konto verschwindet aus allen Listen und vom Tablet. Wurde schon darauf gebucht, bleiben diese alten Buchungen in früheren Abrechnungen erhalten. Offene Beträge müssen vorher abgerechnet sein.`)) return;
+            try { await api('members/' + m.id, 'DELETE'); closeDialog(); toast('Konto gelöscht.'); RENDER.konten(); } catch (err) { fail(err); }
+          };
+        }
+      } catch (err) { fail(err); }
+    };
+  };
+
+  /* =================== Mitglieder-App (ein QR-Code, eine PIN) =================== */
+  const DEVSTAT = { gekoppelt: ['g', 'Handy freigeschaltet'], eingeladen: ['a', 'QR-Code offen'], abgelaufen: ['r', 'QR-Code abgelaufen'], gesperrt: ['r', 'gesperrt (falsche PINs)'] };
+  const hoursTxt = h => (h >= 48 ? `${h / 24} Tage` : h === 1 ? '1 Stunde' : `${h} Stunden`);
+  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${DEVSTAT[d.status][1]}</span>` : '<span class="pill">ohne Handy</span>');
+  const appUrl = info => (info.url || `${info.https ? 'https' : 'http'}://${location.hostname}:${info.port || 5001}`).replace(/\/+$/, '');
+
+  /** QR-Code für ein Mitglied erzeugen und anzeigen. after() wird nach „Fertig“ aufgerufen. */
+  async function appInvite(memberId, after) {
+    try {
+      const info = await api('app/member/' + memberId);
+      if (info.device && info.device.status === 'gekoppelt' && !await ask(`Neuer QR-Code für ${info.name}?\n\nDas bisher freigeschaltete Handy (${info.device.label || 'Gerät'}) verliert sofort den Zugang.`, { ok: 'Neuen QR-Code erzeugen', danger: true })) return;
+      const r = await api(`app/member/${memberId}/invite`, 'POST', {});
+      const url = `${appUrl(info)}/#i=${r.token}`;
+      const q = await api('qr', 'POST', { url });
+      const mods = Object.keys(info.access || {}).map(k => (info.modules.find(m => m.id === k) || {}).label).filter(Boolean);
+      dialog(`<h2>QR-Code für ${esc(r.member)}</h2>
+        <p class="muted">Mit dem Handy von ${esc(r.member)} <b>direkt hier am Bildschirm</b> scannen (Kamera-App). Gilt <b>einmal</b> und ${hoursTxt(r.expiresHours)}. Dabei legt das Mitglied seine persönliche App-PIN fest. Den Code nicht abfotografieren oder weiterschicken – wer ihn zuerst scannt, bekommt den Zugang.
+        ${mods.length ? `Freigeschaltet: <b>${mods.map(esc).join(', ')}</b>.` : '<b>Noch kein Bereich freigeschaltet</b> – bitte danach unter „Mitglieder-App“ ankreuzen.'}</p>
+        ${!info.url ? `<div class="banner a" style="font-weight:400">Die Adresse wurde automatisch ermittelt: <b>${esc(appUrl(info))}</b>.${/\.local$/i.test(location.hostname) ? ' Adressen mit „.local“ öffnen manche Handys nicht.' : ''} Bitte einmal unter <b>Mitglieder-App → Adresse der App</b> die Adresse eintragen, unter der Handys im Vereins-WLAN Home Assistant erreichen (z. B. ohne „.local“ oder mit IP-Adresse), dann einen neuen QR-Code erzeugen.</div>` : ''}
+        <div class="qrbox">${q.svg}</div>
+        ${r.allowLink ? `<label class="f">Oder diesen Link schicken (nur an das Mitglied selbst)<input id="qrUrl" readonly value="${esc(url)}"></label>` : ''}
+        <div class="btns">${r.allowLink ? '<button class="btn" id="qrCopy">Link kopieren</button>' : ''}<button class="btn" id="qrPrint">Drucken</button><button class="btn primary" id="qrX">Fertig</button></div>`);
+      if ($('qrCopy')) $('qrCopy').onclick = async () => { try { await navigator.clipboard.writeText(url); } catch (e) { $('qrUrl').select(); document.execCommand('copy'); } toast('Link kopiert.'); };
+      $('qrPrint').onclick = () => {
+        $('printArea').innerHTML = `<div class="pr" style="text-align:center;padding-top:20mm"><h1>${esc(cache.settings.clubName || '')}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(r.member)}</b></p>
+          <div style="width:80mm;height:80mm;margin:10mm auto">${q.svg}</div><p>Mit der Handy-Kamera scannen, PIN festlegen, fertig.<br>Gilt einmal und bis ${new Date(r.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Bitte persönlich übergeben.</p></div>`;
+        document.body.classList.add('printing'); window.print(); document.body.classList.remove('printing');
+      };
+      $('qrX').onclick = () => { closeDialog(); if (after) after(); };
+    } catch (e) { fail(e); }
+  }
+
+  /** Freischaltungen eines Mitglieds (für den Bearbeiten-Dialog) – speichert sofort */
+  async function appBox(el, memberId) {
+    const info = await api('app/member/' + memberId);
+    if (!info.modules.length) { el.remove(); return; }
+    el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angekreuzten Bereiche. Änderungen hier gelten sofort.</p>
+      <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
+      ${info.modules.map(m => { const a = info.access[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${a ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
+        ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
+        ${a && a.blocked ? '<span class="pill r">gesperrt</span>' : ''}</div>`; }).join('')}
+      <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">${info.device ? 'Neuer QR-Code' : 'QR-Code erzeugen'}</button>${info.device ? '<button class="btn small" id="apRm">Handy entfernen</button>' : ''}</div>`;
+    el.dataset.nodirty = '1';
+    const reload = () => appBox(el, memberId).catch(fail);
+    el.querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => { try { const rr = await api(`app/member/${memberId}/access`, 'PUT', { module: c.dataset.am, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); reload(); } catch (e) { fail(e); c.checked = !c.checked; } }; });
+    el.querySelectorAll('[data-ap]').forEach(sel => { sel.onchange = async () => { try { await api(`app/member/${memberId}/access`, 'PUT', { module: sel.dataset.ap, profile: sel.value }); toast('Gespeichert.'); } catch (e) { fail(e); } }; });
+    $('apQr').onclick = () => { const html = $('dialog').innerHTML; void html; appInvite(memberId); };
+    if ($('apRm')) $('apRm').onclick = async () => { if (!await ask(`Handy von ${info.name} entfernen?\n\nDie App funktioniert auf diesem Handy sofort nicht mehr. Die Freischaltungen bleiben – mit einem neuen QR-Code ist das Mitglied wieder dabei.`, { ok: 'Handy entfernen' })) return; try { await api(`app/member/${memberId}/device`, 'DELETE'); toast('Handy entfernt.'); reload(); } catch (e) { fail(e); } };
+  }
+
+  RENDER.app = async () => {
+    const r = await api('app');
+    const mods = r.modules;
+    $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
+      <p class="lead">Mitglieder bekommen <b>einen QR-Code</b>, legen <b>eine PIN</b> fest und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Die Getränke-PIN am Tablet bleibt davon unabhängig.</p>
+      <div class="card" id="apSet"><h3>Adresse der App</h3>
+        <div class="row"><label class="f" style="flex:2;min-width:260px">Adresse im Vereins-WLAN (landet im QR-Code)<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.url)}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
+          <label class="f" style="flex:1;min-width:160px">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
+          <button class="btn primary" id="apSave">Speichern</button><a class="btn" id="apTest" target="_blank" rel="noopener">Testen ↗</a></div>
+        ${!r.url ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">Noch keine Adresse eingetragen – im QR-Code landet <b>${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}</b>. ${/\.local$/i.test(location.hostname) ? 'Adressen mit „.local“ öffnen manche Handys nicht – besser ohne „.local“ (z. B. <b>' + (r.https ? 'https' : 'http') + '://' + esc(location.hostname.replace(/\.local$/i, '')) + ':' + (r.port || 5001) + '</b>) oder mit der IP-Adresse von Home Assistant.' : ''}</div>` : ''}
+        <p class="muted s" style="margin:8px 0 0">Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port ${r.port || 5001}. ${r.https ? 'Mit HTTPS hier den Namen eintragen, für den das Zertifikat gilt (z. B. <code>https://tcf-vereinsheim.duckdns.org:' + (r.port || 5001) + '</code>) – mit einer IP-Adresse meldet das Handy einen Zertifikatsfehler.' : `Bei Fernzugriff (z. B. Nabu Casa) oder wenn Handys „.local“-Adressen nicht öffnen, hier die Adresse im Vereins-WLAN eintragen – den Gerätenamen ohne „.local“ (z. B. <code>http://tcfhomeassistant:${r.port || 5001}</code>) oder die IP-Adresse (z. B. <code>http://192.168.178.20:${r.port || 5001}</code>).`} Mit „Testen“ prüfen.</p></div>
+      <div class="card" id="apSec"><h3>Sicherheit</h3>
+        <div class="row" style="align-items:flex-end">
+          <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
+          <label class="f" style="flex:1;min-width:240px">Warnung bei gesperrtem Handy an${r.security.mailReady ? '' : ' (erst E-Mail-Versand einrichten)'}<input id="apMail" ${can('einstellungen') ? '' : 'disabled'} type="email" value="${esc(r.security.mailTo)}" placeholder="vorstand@verein.de"></label>
+          <button class="btn primary" id="apSecSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button></div>
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
+        <div class="row" style="margin-top:12px;gap:8px">
+          <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
+          <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
+      <div class="card"><h3>Mitglied freischalten</h3>
+        <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
+          ${mods.map(m => `<label class="chk" style="height:42px"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}
+          <button class="btn primary" id="apGo">Freischalten & QR-Code</button></div></div>
+      <div class="card"><h3>Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3>
+        ${r.rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th>zuletzt benutzt</th><th></th></tr>
+          ${r.rows.map(x => `<tr><td><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
+            ${mods.map(m => { const a = x.access[m.id]; return `<td><label class="chk"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${a ? 'checked' : ''}>${a && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</label></td>`; }).join('')}
+            <td class="muted s">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
+            <td class="r" style="white-space:nowrap"><button class="btn small" data-aq="${x.member_id}">${x.device ? 'Neuer QR-Code' : 'QR-Code'}</button> ${x.device ? `<button class="btn small" data-ad="${x.member_id}">Handy entfernen</button>` : ''}</td></tr>`).join('')}</table>`
+          : '<p class="muted">Noch niemand freigeschaltet.</p>'}</div>`;
+    watch($('apSet')); watch($('apSec'));
+    const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
+    $('apUrl').addEventListener('input', setTest); setTest();
+    $('apSave').onclick = async () => { try { await api('settings/app', 'PUT', can('einstellungen') ? { url: $('apUrl').value, name: $('apName').value } : { name: $('apName').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
+    $('apSecSave').onclick = async () => { try { await api('settings/app', 'PUT', { inviteHours: Number($('apHours').value), allowLink: $('apLink').checked, mailTo: $('apMail').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
+    $('apLink').onchange = async () => { try { await api('settings/app', 'PUT', { allowLink: $('apLink').checked }); toast($('apLink').checked ? 'Link-Weitergabe erlaubt.' : 'Nur noch QR-Code am Bildschirm.'); } catch (e) { fail(e); } };
+    $('apGo').onclick = async () => {
+      const id = Number($('apNew').value);
+      if (!id) return toast('Bitte zuerst ein Mitglied wählen.', true);
+      try {
+        for (const c of document.querySelectorAll('[data-nm]')) if (c.checked) await api(`app/member/${id}/access`, 'PUT', { module: c.dataset.nm, grant: true });
+        appInvite(id, () => RENDER.app().catch(fail));
+      } catch (e) { fail(e); }
+    };
+    $('main').querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => {
+      const [id, mod] = c.dataset.am.split(':');
+      try { const rr = await api(`app/member/${id}/access`, 'PUT', { module: mod, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); RENDER.app().catch(fail); } catch (e) { fail(e); c.checked = !c.checked; }
+    }; });
+    $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => appInvite(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
+    $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
+      const x = r.rows.find(y => y.member_id === Number(b.dataset.ad));
+      if (!await ask(`Handy von ${x.name} entfernen?\n\nDie App funktioniert auf diesem Handy sofort nicht mehr. Die Freischaltungen bleiben – mit einem neuen QR-Code ist das Mitglied wieder dabei.`, { ok: 'Handy entfernen' })) return;
+      try { await api(`app/member/${x.member_id}/device`, 'DELETE'); toast('Handy entfernt.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
+    }; });
+  };
+
+  /* =================== Benutzer & Rechte =================== */
+  function userDialog(u) {
+    const perms = u ? u.perms : [];
+    const fixed = Boolean(u && u.builtin);
+    dialog(`<h2>${fixed ? 'Adminkonto' : u ? 'Benutzer bearbeiten' : 'Neuer Benutzer'}</h2>
+      ${fixed ? '<div class="banner g" style="margin-bottom:10px">Das Adminkonto hat immer alle Rechte. Name und Benutzername sind fest, es kann nicht gesperrt oder gelöscht werden – nur das Passwort lässt sich ändern.</div>' : ''}
+      <div class="row"><label class="f">Benutzername<input id="uUn" value="${esc(u ? u.username : '')}" ${u ? 'disabled' : ''} autocapitalize="none"></label>
+        <label class="f" style="flex:1;min-width:200px">Anzeigename<input id="uNm" value="${esc(u ? u.name : '')}" ${fixed ? 'disabled' : ''}></label></div>
+      ${u ? '' : '<div class="row" style="margin-top:10px"><label class="f">Start-Passwort (mind. 8 Zeichen)<input id="uPw" type="text" autocomplete="off"></label></div>'}
+      <div class="row" style="margin-top:12px"><label class="chk"><input type="radio" name="uRole" value="admin" ${!u || u.role === 'admin' ? 'checked' : ''} ${fixed ? 'disabled' : ''}> Ausgewählte Rechte</label>
+        <label class="chk"><input type="radio" name="uRole" value="oberadmin" ${u && u.role === 'oberadmin' ? 'checked' : ''} ${fixed ? 'disabled' : ''}> Alle Rechte – wie das Adminkonto (inkl. Benutzer, Einstellungen, Datensicherung)</label></div>
+      <div class="card" style="margin-top:10px" id="uPerms"><h3>Rechte</h3>
+        ${Object.entries(permLabels).map(([k, l]) => `<label class="chk" style="margin:6px 0"><input type="checkbox" data-perm="${k}" ${perms.includes(k) ? 'checked' : ''}> ${esc(l)}</label>`).join('')}</div>
+      ${u ? `<div class="row" style="align-items:center">${fixed ? '' : `<label class="chk"><input type="checkbox" id="uAct" ${u.active ? 'checked' : ''}> Zugang aktiv</label>`}
+        <button class="btn small" id="uReset">Neues Passwort vergeben</button>
+        ${fixed || u.id === me.id ? '' : '<button class="btn small danger" id="uDel">Benutzer löschen</button>'}</div>` : ''}
+      <div class="err" id="uErr" style="text-align:left"></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
+    const syncRole = () => { const all = document.querySelector('[name=uRole]:checked').value === 'oberadmin';
+      $('uPerms').style.opacity = all ? .4 : 1; $('uPerms').querySelectorAll('input').forEach(i => { i.disabled = all; }); };
+    document.querySelectorAll('[name=uRole]').forEach(r => { r.onchange = syncRole; }); syncRole();
+    $('c').onclick = closeDialog;
+    if (u) $('uReset').onclick = async () => {
+      const pw = await askText(`Neues Passwort für ${u.username} (mind. 8 Zeichen):`, '', { ok: 'Passwort setzen' });
+      if (!pw) return;
+      const mine = await askText('Zur Bestätigung: dein eigenes Passwort', '', { ok: 'Bestätigen', password: true });
+      if (!mine) return;
+      try { await api(`users/${u.id}/password`, 'POST', { password: pw, myPassword: mine }); toast('Passwort gesetzt – bitte persönlich weitergeben.'); } catch (e) { fail(e); }
+    };
+    if ($('uDel')) $('uDel').onclick = async () => {
+      if (!await ask(`Benutzer „${u.name || u.username}“ löschen? Die Einträge im Protokoll bleiben erhalten.`)) return;
+      try { await api('users/' + u.id, 'DELETE'); closeDialog(); toast('Gelöscht.'); RENDER.benutzer(); } catch (e) { fail(e); }
+    };
+    $('ok').onclick = async () => {
+      const body = { name: $('uNm').value, role: document.querySelector('[name=uRole]:checked').value,
+        perms: [...document.querySelectorAll('[data-perm]:checked')].map(x => x.dataset.perm) };
+      try {
+        if (u) await api('users/' + u.id, 'PUT', fixed ? {} : { ...body, active: $('uAct').checked });
+        else await api('users', 'POST', { ...body, username: $('uUn').value, password: $('uPw').value });
+        closeDialog(); toast('Gespeichert.'); RENDER.benutzer();
+      } catch (e) { $('uErr').textContent = e.message; }
+    };
+  }
+
+  const PERM_SHORT = { lieferungen: 'Lieferungen', bestand: 'Bestand', bestellung: 'Bestellung', buchungen: 'Buchungen', export: 'Export',
+    abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Mitglieder' };
+  RENDER.benutzer = async () => {
+    const users = await api('users');
+    $('main').innerHTML = `<h2 class="page">Benutzer & Rechte</h2>
+      <p class="lead">Das <b>Adminkonto</b> und Benutzer mit <b>allen Rechten</b> legen weitere Benutzer an und entscheiden, welche Bereiche sie sehen. Jeder meldet sich mit eigenem Benutzernamen an – so ist nachvollziehbar, wer was übertragen oder storniert hat.</p>
+      <div class="row" style="margin-bottom:14px"><button class="btn primary" id="uNew">+ Neuer Benutzer</button></div>
+      <div class="scroll"><table class="tbl"><tr><th>Benutzer</th><th>Rolle</th><th>Rechte</th><th>Letzte Anmeldung</th><th></th></tr>
+      ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b>${esc(u.name || u.username)}</b><div class="muted s">${esc(u.username)}</div></td>
+        <td>${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>' : 'ausgewählte Rechte'}${u.active ? '' : ' <span class="pill">gesperrt</span>'}</td>
+        <td>${u.role === 'oberadmin' ? '<span class="muted s">alle</span>' : (u.perms.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || p)}</span>`).join(' ') || '<span class="muted s">keine</span>')}</td>
+        <td>${u.last_login ? deTime(u.last_login) : '<span class="muted s">noch nie</span>'}</td>
+        <td class="r"><button class="btn small" data-u="${u.id}">Bearbeiten</button></td></tr>`).join('')}</table></div>`;
+    $('uNew').onclick = () => userDialog(null);
+    $('main').querySelectorAll('[data-u]').forEach(b => b.onclick = () => userDialog(users.find(x => x.id === Number(b.dataset.u))));
+  };
+
+  /* =================== Datensicherung =================== */
+  const size = b => (b > 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB');
+  const KIND_B = { auto: 'nächtlich', manuell: 'von Hand', 'vor-wiederherstellung': 'vor Wiederherstellung', hochgeladen: 'hochgeladen', komplett: 'aus Komplettsicherung' };
+  RENDER.sicherung = async () => {
+    const [b, dx, st] = await Promise.all([api('backups'), api('dropbox'), api('backups/status')]);
+    const owner = me.role === 'oberadmin';
+    const when = iso => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }) : '–');
+    const fileDate = f => { const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})(\d{2}))?/); return m ? `${m[3]}.${m[2]}.${m[1].slice(2)}${m[4] ? `, ${m[4]}:${m[5]}` : ''}` : f; };
+    // beide Listen (hier / Dropbox) gleich aufgebaut: Stand | Größe | Aktionen – gleiche Spaltenbreiten, gleicher Rahmen
+    const kTable = (title, rows) => `<div class="scroll" style="max-height:40vh"><table class="tbl" style="table-layout:fixed"><tr><th>${title}</th><th class="r" style="width:110px">Größe</th><th class="r" style="width:320px"></th></tr>${rows}</table></div>`;
+    const okPill = (ok, t) => `<span class="pill ${ok ? 'g' : 'a'}">${t}</span>`;
+    $('main').innerHTML = `<h2 class="page">Datensicherung</h2>
+      <p class="lead">Jede Nacht entsteht eine <b>verschlüsselte Komplettsicherung</b> mit allem, was die Vereinsheimverwaltung enthält – alle Module, Benutzer, Einstellungen, Belege, Bilder und Erweiterungen – und geht an die eingerichteten Sicherungsziele (Dropbox, NAS, Cloud, FRITZ!Box). Lesen lässt sie sich nur mit dem Sicherungspasswort. Zusätzlich steckt alles in jedem Home-Assistant-Backup.</p>
+      ${b.restored ? `<div class="banner g">${esc(b.restored)}</div>` : ''}
+      ${b.pending ? `<div class="banner a" style="display:block">Beim nächsten Neustart wird <b>${esc(b.pending)}</b> wiederhergestellt${/_komplett\.db$/.test(b.pending) ? ' (mit Belegen, Bildern und Erweiterungen)' : ''}. Der aktuelle Stand wird vorher automatisch beiseitegelegt.
+        <div class="row" style="margin-top:8px"><button class="btn small primary" id="bRestart">Jetzt neu starten</button><button class="btn small" id="bCancel">Abbrechen</button></div></div>` : ''}
+      ${st.warn ? `<div class="banner ${st.warnLevel || 'a'}">${esc(st.warn)}</div>` : ''}
+      <div class="kpis">
+        <div class="kpi ${st.last_error && !st.last_ok ? 'warn' : ''}"><div class="l">Letzte Sicherung</div><div class="v">${st.last_ok ? when(st.last_ok) : 'noch keine'}</div><div class="muted s">${esc(st.last_msg ? st.last_msg.replace(/^\d{4}-\d{2}-\d{2}: /, '') : (st.hasKey ? 'täglich ab ' + st.hour + ' Uhr' : 'Sicherungspasswort fehlt'))}</div></div>
+        <div class="kpi ${st.probe_at && !st.probe_ok ? 'warn' : ''}"><div class="l">Probe-Wiederherstellung</div><div class="v">${st.probe_at ? (st.probe_ok ? 'in Ordnung' : 'Fehler') : 'noch keine'}</div><div class="muted s">${st.probe_at ? 'am ' + when(st.probe_at) : 'einmal im Monat automatisch'}</div></div>
+        <div class="kpi ${st.targetsOn && st.targetsOk < st.targetsOn ? 'warn' : ''}"><div class="l">Sicherungsziele</div><div class="v">${st.targetsOn ? `${st.targetsOk} von ${st.targetsOn} in Ordnung` : 'keins'}</div><div class="muted s">${st.targetsOn ? esc(st.targets.filter(t => t.enabled).map(t => t.name).join(' · ')) : 'Sicherung bleibt nur hier auf dem Gerät'}</div></div>
+      </div>
+      ${st.last_error && !st.targets.some(t => t.last_error && st.last_error.includes(t.name + ':')) ? `<div class="banner r">Letzter Fehler: ${esc(st.last_error.slice(25))}</div>` : ''}
+      <div class="card"><h3>Jetzt</h3><div class="row">
+        <button class="btn primary" id="bkRun" ${st.hasKey ? '' : 'disabled'}>Jetzt sichern</button>
+        <button class="btn" id="bkProbe" ${st.local.length ? '' : 'disabled'}>Letzte Sicherung prüfen</button>
+        ${st.local[0] ? `<a class="btn" href="api/admin/backups/komplett/file/${encodeURIComponent(st.local[0].file)}">Letzte Komplettsicherung herunterladen (${size(st.local[0].size)})</a>` : ''}</div>
+        <p class="muted s">Die heruntergeladene Datei (<code>.vhsicherung</code>) eignet sich als zweites Exemplar außer Haus, z. B. auf einem USB-Stick. Sie ist verschlüsselt.</p>
+        ${st.probe_msg ? `<p class="muted s">Letzte Prüfung: ${esc(st.probe_msg)}</p>` : ''}</div>
+
+      <div class="card"><h3>Sicherungspasswort ${okPill(st.hasKey, st.hasKey ? 'festgelegt' : 'fehlt')}</h3>
+        ${st.hasKey ? `<p class="muted s" style="margin-top:0">Festgelegt am ${esc(deTime(st.pwAt))} Uhr. Wird es geändert, lassen sich ältere Sicherungen weiter mit dem damaligen Passwort öffnen.</p>`
+          : '<p class="muted s" style="margin-top:0">Mit diesem Passwort werden alle Sicherungen verschlüsselt. <b>Ohne das Passwort ist eine Sicherung wertlos</b> – deshalb danach unbedingt das Notfallblatt ausdrucken und sicher verwahren (z. B. beim Kassenwart oder im Tresor).</p>'}
+        ${owner ? (st.hasKey ? '<div class="row"><button class="btn" id="bkPwChange">Passwort ändern …</button><button class="btn" id="bkSheet">Notfallblatt drucken …</button></div>' : `<div class="row">
+          <label class="f">Sicherungspasswort (mind. 10 Zeichen)<input type="password" id="bkPw1" autocomplete="new-password"></label>
+          <label class="f">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
+          <label class="f">Dein Passwort zur Bestätigung<input type="password" id="bkMy" autocomplete="current-password"></label>
+          <button class="btn primary" id="bkPwSet">Festlegen</button></div>`) : '<p class="muted s">Festlegen und ändern darf nur ein Benutzer mit allen Rechten.</p>'}</div>
+
+      <div class="card"><h3>Zeitplan &amp; Aufbewahrung</h3><div class="row">
+        <label class="f" style="flex:1;min-width:140px">Uhrzeit<select id="bkHour">${Array.from({ length: 24 }, (_, h) => `<option value="${h}" ${h === st.hour ? 'selected' : ''}>${String(h).padStart(2, '0')}:00 Uhr</option>`).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:140px">Tägliche behalten<input id="bkDaily" class="n" value="${st.daily}" inputmode="numeric"></label>
+        <label class="f" style="flex:1;min-width:140px">Wöchentliche<input id="bkWeekly" class="n" value="${st.weekly}" inputmode="numeric"></label>
+        <label class="f" style="flex:1;min-width:140px">Monatliche<input id="bkMonthly" class="n" value="${st.monthly}" inputmode="numeric"></label>
+        <button class="btn" id="bkSave">Speichern</button></div>
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="bkReadable" data-nodirty ${st.readable ? 'checked' : ''}> Zusätzlich lesbare Auszüge der aktiven Module hochladen (Excel, unverschlüsselt – z. B. Getränke-Stand, Arbeitszeiten, Tür- und Beregnungsprotokoll)</label>
+        <p class="muted s">Auf den Sicherungszielen bleiben die neuesten ${st.daily} Tage, dazu je Woche (${st.weekly}) und je Monat (${st.monthly}) die jüngste Sicherung – so reicht der Verlauf weit zurück, ohne dass der Speicher voll läuft. Für einzelne Ziele lässt sich das abweichend einstellen. Hier in der App bleiben die letzten 3.</p></div>
+
+      <div class="card"><h3>Sicherungsziele ${st.targetsOn ? okPill(st.targetsOk === st.targetsOn, `${st.targetsOk} von ${st.targetsOn} in Ordnung`) : '<span class="pill a">keins eingerichtet</span>'}</h3>
+        <p class="muted s" style="margin-top:0">Wohin die verschlüsselte Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten – z. B. Dropbox außer Haus und das NAS oder die FRITZ!Box im Vereinsheim.</p>
+        ${st.targets.length ? `<div class="scroll"><table class="tbl"><tr><th>Ziel</th><th>Art</th><th>Ort</th><th style="width:150px">Zuletzt erfolgreich</th><th style="width:130px">Status</th><th class="r" style="width:300px"></th></tr>
+          ${st.targets.map(t => { const bad = t.enabled && t.last_error && (!t.last_ok || t.last_error.slice(0, 24) > t.last_ok); return `<tr class="${t.enabled ? '' : 'off'}"><td><b>${esc(t.name)}</b>${t.insecure ? ' <span class="pill a">unverschlüsselt</span>' : ''}</td><td>${esc(t.typeLabel)}</td>
+            <td class="muted s" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.where)}">${esc(t.where)}</td>
+            <td>${t.last_ok ? when(t.last_ok) : '–'}</td>
+            <td>${!t.enabled ? '<span class="pill">aus</span>' : bad ? `<span class="pill r" title="${esc(t.last_error.slice(25))}">Fehler</span>` : t.last_ok ? '<span class="pill g">in Ordnung</span>' : '<span class="pill">noch nicht</span>'}</td>
+            <td class="r"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}${owner && t.id !== 'dropbox' ? ` <button class="btn small danger" data-tgdel="${esc(t.id)}">Entfernen</button>` : ''}</td></tr>
+            ${bad ? `<tr><td colspan="6"><div class="banner r" style="margin:0">${esc(t.name)}: ${esc(t.last_error.slice(25))}</div></td></tr>` : ''}`; }).join('')}</table></div>` : ''}
+        <div class="row" style="margin-top:12px">
+          ${owner ? '<button class="btn primary" id="tgAdd">Ziel hinzufügen …</button>' : ''}
+          ${owner || !dx.connected ? `<button class="btn" id="dxSetup">${dx.connected ? 'Dropbox neu verbinden …' : 'Dropbox verbinden …'}</button>` : ''}
+        </div>
+        ${owner ? '' : '<p class="muted s">Ziele anlegen, ändern und entfernen darf nur ein Benutzer mit allen Rechten.</p>'}
+        <div id="dxLegacy"></div>
+      </div>
+
+      <div class="card"><h3>Wiederherstellen</h3>
+        <p class="muted s" style="margin-top:0">Eine Komplettsicherung ersetzt beim nächsten Neustart <b>alles</b>: Datenbank, Belege, Bilder und Erweiterungen. Der aktuelle Stand wird vorher beiseitegelegt. ${owner ? '' : 'Wiederherstellen darf nur ein Benutzer mit allen Rechten.'}</p>
+        ${st.local.length ? kTable('Hier in der App', st.local.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td>
+            <td class="r"><a class="btn small" href="api/admin/backups/komplett/file/${encodeURIComponent(x.file)}">Herunterladen</a>${owner ? ` <button class="btn small danger" data-krestore="local" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join('')) : '<p class="muted">Noch keine Komplettsicherung hier in der App.</p>'}
+        ${st.targets.map(t => `<div id="tgf_${esc(t.id)}" style="margin-top:12px"></div>`).join('')}
+        ${owner ? `<div class="row" style="margin-top:12px"><label class="btn">Komplettsicherung hochladen …<input type="file" id="bkUp" accept=".vhsicherung,application/octet-stream" hidden></label>
+          <span class="muted s" style="align-self:center">z. B. nach einer Neuinstallation: zuerst einrichten, dann hier die Datei vom USB-Stick wählen.</span></div>` : ''}
+      </div>
+
+      <div class="card"><h3>Datenbank-Schnappschüsse</h3>
+        <p class="muted s" style="margin-top:0">Zusätzlich sichert die App jede Nacht nur die Datenbank (die letzten 14 Nächte) – praktisch, um schnell einen Fehler der letzten Tage rückgängig zu machen.</p>
+        <div class="row" style="margin-bottom:12px"><button class="btn" id="bNow">Schnappschuss jetzt</button><label class="btn">.db-Datei einspielen …<input type="file" id="bUp" accept=".db,application/octet-stream" hidden></label></div>
+        ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th>Datei</th><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
+        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr><td>${esc(x.file)}</td>
+          <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || '')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
+          <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="muted">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
+
+    // Sicherungen auf den Zielen nachladen (braucht etwas länger) – je Ziel eine Tabelle im gleichen Aufbau
+    for (const t of st.targets) api(`backups/targets/${encodeURIComponent(t.id)}/files`).then(r => {
+      const el = $('tgf_' + t.id); if (!el || !r.files.length) return;
+      el.innerHTML = kTable('In ' + esc(t.name), r.files.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td><td class="r">${owner ? `<button class="btn small danger" data-krestore="target" data-target="${esc(t.id)}" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join(''));
+      bindRestore();
+    }).catch(() => { const el = $('tgf_' + t.id); if (el) el.innerHTML = `<p class="muted s" style="margin:0">${esc(t.name)}: gerade nicht erreichbar – Sicherungen dort lassen sich im Moment nicht auflisten.</p>`; });
+    // alte, unverschlüsselte Dateien früherer Versionen in Dropbox
+    if (dx.connected) api('backups/remote').then(r => {
+      if ($('dxLegacy') && r.legacy) $('dxLegacy').innerHTML = `<div class="banner a" style="margin-top:12px;display:block">In Dropbox liegen noch ${r.legacy} Dateien aus früheren Versionen in <code>Datenbank</code> und <code>Excel</code> – <b>unverschlüsselt</b>.
+        ${owner ? '<div class="row" style="margin-top:8px"><button class="btn small" id="dxLegacyDel">Alte Dateien löschen …</button></div>' : ''}</div>`;
+      if ($('dxLegacyDel')) $('dxLegacyDel').onclick = async () => {
+        const pw = await askText(`Die ${r.legacy} alten, unverschlüsselten Dateien in Dropbox löschen?\n\nDie neuen, verschlüsselten Sicherungen bleiben erhalten. Bitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Löschen' });
+        if (pw === null) return;
+        try { const x = await api('backups/remote/cleanup-legacy', 'POST', { myPassword: pw }); toast(`${x.removed} Dateien gelöscht.`); RENDER.sicherung(); } catch (e) { fail(e); }
+      };
+    }).catch(() => { /* Dropbox gerade nicht erreichbar – steht in der Zieltabelle */ });
+
+    const notfallblatt = pw => printHtml(`<div class="pr nf">
+      <div class="prhead"><div><div class="prclub">${esc(cache.settings.clubName || '')}</div><h1>Notfallblatt Datensicherung</h1></div><div class="prmeta">Vereinsheimverwaltung<br>erstellt am ${new Date().toLocaleDateString('de-DE')}</div></div>
+      <p><b>Sicher verwahren!</b> Wer dieses Blatt hat, kann die Sicherungen des Vereins lesen. Ohne dieses Passwort lässt sich keine Sicherung wiederherstellen.</p>
+      <div class="nflabel">Sicherungspasswort</div><div class="nfpw">${esc(pw)}</div>
+      <h2>Wo liegen die Sicherungen?</h2>
+      <ul>${st.targets.map(t => `<li>${esc(t.name)} (${esc(t.typeLabel)}): <b>${esc(t.where)}/Komplett</b></li>`).join('')}
+        <li>Je Tag eine Datei, z. B. <i>2026-10-17_Vereinsheim.vhsicherung</i></li>
+        <li>In jedem Home-Assistant-Backup (Einstellungen → System → Backups)</li></ul>
+      <h2>Wiederherstellen nach einem Totalausfall</h2>
+      <ol><li>Home Assistant einrichten und das Add-on „Vereinsheimverwaltung“ installieren und starten.</li>
+        <li>In der Seitenleiste „Vereinsheim“ öffnen und mit einem beliebigen Passwort einrichten.</li>
+        <li>Datensicherung → Wiederherstellen → „Komplettsicherung hochladen …“ (oder erst das Sicherungsziel wieder einrichten und dort die Sicherung wählen).</li>
+        <li>Das Sicherungspasswort von diesem Blatt eingeben und das Add-on neu starten. Danach gelten wieder die alten Benutzer und Passwörter.</li></ol>
+      <div class="prfoot"><span>Aufbewahrt bei: ______________________________</span><span>Datum: ____________</span></div></div>`);
+    const sheetAsk = () => dialog(`<h2>Notfallblatt drucken</h2><p class="muted">Zum Drucken bitte das Sicherungspasswort eingeben – es wird nirgends gespeichert.</p>
+      <label class="f">Sicherungspasswort<input type="password" id="nfPw" autocomplete="off"></label>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Drucken</button></div>`);
+    if ($('bkSheet')) $('bkSheet').onclick = () => {
+      sheetAsk(); $('c').onclick = closeDialog;
+      $('ok').onclick = async () => { try { await api('backups/password/check', 'POST', { password: $('nfPw').value }); const pw = $('nfPw').value; closeDialog(); notfallblatt(pw); } catch (e) { fail(e); } };
+    };
+    const afterSet = pw => {
+      dialog(`<h2>Sicherungspasswort festgelegt</h2><div class="banner a" style="display:block">Jetzt bitte das Notfallblatt ausdrucken und sicher verwahren. Ohne das Passwort lässt sich keine Sicherung wiederherstellen.</div>
+        <div class="btns"><button class="btn ghost" id="c">Später</button><button class="btn primary" id="ok">Notfallblatt drucken</button></div>`);
+      $('c').onclick = () => { closeDialog(); RENDER.sicherung(); };
+      $('ok').onclick = () => { closeDialog(); notfallblatt(pw); RENDER.sicherung(); };
+    };
+    if ($('bkPwSet')) $('bkPwSet').onclick = async () => {
+      if ($('bkPw1').value !== $('bkPw2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
+      const pw = $('bkPw1').value;
+      try { await api('backups/password', 'POST', { password: pw, myPassword: $('bkMy').value }); afterSet(pw); } catch (e) { fail(e); }
+    };
+    if ($('bkPwChange')) $('bkPwChange').onclick = () => {
+      dialog(`<h2>Sicherungspasswort ändern</h2><p class="muted">Neue Sicherungen werden mit dem neuen Passwort verschlüsselt. Ältere Sicherungen lassen sich weiter mit dem bisherigen Passwort öffnen – das alte Notfallblatt also aufheben.</p>
+        <label class="f">Neues Sicherungspasswort (mind. 10 Zeichen)<input type="password" id="cp1" autocomplete="new-password"></label>
+        <label class="f">Wiederholen<input type="password" id="cp2" autocomplete="new-password"></label>
+        <label class="f">Dein Passwort zur Bestätigung<input type="password" id="cpMy" autocomplete="current-password"></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Ändern</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = async () => {
+        if ($('cp1').value !== $('cp2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
+        const pw = $('cp1').value;
+        try { await api('backups/password', 'POST', { password: pw, myPassword: $('cpMy').value }); closeDialog(); afterSet(pw); } catch (e) { fail(e); }
+      };
+    };
+    $('bkRun').onclick = async () => {
+      $('bkRun').disabled = true; $('bkRun').textContent = 'Sichert …';
+      try { const r = await api('backups/run', 'POST', {}); toast('Gesichert: ' + r.msg.replace(/^\d{4}-\d{2}-\d{2}: /, '')); } catch (e) { fail(e); }
+      RENDER.sicherung();
+    };
+    $('bkProbe').onclick = async () => {
+      $('bkProbe').disabled = true; $('bkProbe').textContent = 'Prüft …';
+      try { const r = await api('backups/probe', 'POST', {}); toast('In Ordnung: ' + r.msg); } catch (e) { fail(e); }
+      RENDER.sicherung();
+    };
+    $('bkSave').onclick = async () => {
+      try { await api('backups/settings', 'PUT', { hour: $('bkHour').value, daily: $('bkDaily').value, weekly: $('bkWeekly').value, monthly: $('bkMonthly').value }); toast('Gespeichert.'); RENDER.sicherung(); } catch (e) { fail(e); }
+    };
+    $('bkReadable').onchange = async () => { try { await api('backups/settings', 'PUT', { readable: $('bkReadable').checked }); toast($('bkReadable').checked ? 'Lesbare Auszüge werden mit hochgeladen.' : 'Nur noch die verschlüsselte Komplettsicherung.'); } catch (e) { fail(e); } };
+
+    // Wiederherstellen aus einer Komplettsicherung
+    const restoreDialog = (source, file, label, sameKey = true, target = '') => {
+      dialog(`<h2>Komplettsicherung wiederherstellen?</h2>
+        <div class="banner r" style="display:block">Stand vom <b>${esc(label)}</b>. Beim nächsten Neustart werden Datenbank, Belege, Bilder und Erweiterungen ersetzt – alles seitdem Gebuchte und Eingetragene geht verloren. Der aktuelle Stand wird vorher beiseitegelegt.</div>
+        <label class="f">Sicherungspasswort ${sameKey ? '<span class="muted s">(nur nötig, wenn die Sicherung mit einem anderen Passwort erstellt wurde)</span>' : ''}<input type="password" id="rsPw" autocomplete="off"></label>
+        <label class="f">Dein Passwort zur Bestätigung<input type="password" id="rsMy" autocomplete="current-password"></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ok">Wiederherstellen</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = async () => {
+        $('ok').disabled = true; $('ok').textContent = 'Entschlüsselt …';
+        try {
+          const r = await api('backups/komplett/restore', 'POST', { source, target, file, password: $('rsPw').value, myPassword: $('rsMy').value });
+          closeDialog(); toast(`Geprüft (Stand ${new Date(r.created).toLocaleString('de-DE')}) – wird beim Neustart übernommen.`); RENDER.sicherung();
+        } catch (e) { $('ok').disabled = false; $('ok').textContent = 'Wiederherstellen'; fail(e); if (e.message && /Sicherungspasswort/.test(e.message)) $('rsPw').focus(); }
+      };
+    };
+    function bindRestore() {
+      $('main').querySelectorAll('[data-krestore]').forEach(btn => btn.onclick = () => restoreDialog(btn.dataset.krestore, btn.dataset.file, fileDate(btn.dataset.file), true, btn.dataset.target || ''));
+    }
+    bindRestore();
+    if ($('bkUp')) $('bkUp').onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      toast('Wird hochgeladen …');
+      try {
+        const r = await fetch('api/admin/backups/komplett/upload', { method: 'POST', body: f, headers: { 'Content-Type': 'application/octet-stream', 'X-Getraenke': '1' } });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Fehler');
+        restoreDialog('upload', j.id, new Date(j.created).toLocaleString('de-DE'), j.sameKey);
+      } catch (err) { fail(err); }
+      e.target.value = '';
+    };
+
+    /* ---------- Sicherungsziele ---------- */
+    const tgById = id => st.targets.find(t => t.id === id);
+    $('main').querySelectorAll('[data-tgtest]').forEach(btn => btn.onclick = async () => {
+      btn.disabled = true; btn.textContent = 'Prüft …';
+      try { await api(`backups/targets/${encodeURIComponent(btn.dataset.tgtest)}/test`, 'POST', {}); toast(`„${tgById(btn.dataset.tgtest).name}“: Verbindung in Ordnung.`); } catch (e) { fail(e); }
+      btn.disabled = false; btn.textContent = 'Testen';
+    });
+    $('main').querySelectorAll('[data-tgdel]').forEach(btn => btn.onclick = async () => {
+      const t = tgById(btn.dataset.tgdel);
+      const pw = await askText(`Sicherungsziel „${t.name}“ entfernen?\n\nDie Dateien dort bleiben erhalten, es wird nur nicht mehr dorthin gesichert. Bitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Entfernen' });
+      if (pw === null) return;
+      try { await api(`backups/targets/${encodeURIComponent(t.id)}`, 'DELETE', { myPassword: pw }); toast('Entfernt.'); RENDER.sicherung(); } catch (e) { fail(e); }
+    });
+    $('main').querySelectorAll('[data-tgedit]').forEach(btn => btn.onclick = () => (btn.dataset.tgedit === 'dropbox' ? dropboxDialog() : targetDialog(tgById(btn.dataset.tgedit))));
+    if ($('tgAdd')) $('tgAdd').onclick = () => targetDialog(null);
+    if ($('dxSetup')) $('dxSetup').onclick = () => dropboxSetup();
+
+    const HINTS = {
+      webdav: 'Nextcloud/ownCloud: <code>https://cloud.example.de/remote.php/dav/files/BENUTZER</code> · Hetzner Storage Box: <code>https://uXXXXX.your-storagebox.de</code> · Synology/QNAP: WebDAV im NAS einschalten, dann <code>https://nas.local:5006</code>.',
+      sftp: 'Synology: Systemsteuerung → Dateidienste → FTP → „SFTP-Dienst aktivieren“. Am besten einen eigenen Benutzer anlegen, der nur den Sicherungsordner sieht.',
+      ftp: 'FRITZ!Box mit USB-Speicher: Heimnetz → USB/Speicher → „Zugriff über FTP aktiv“ und unter System → FRITZ!Box-Benutzer einen Benutzer mit NAS-Recht anlegen; Server <code>fritz.box</code>, Verbindung „FTPS (explizit)“, Port 21.',
+    };
+    const targetDialog = t => {
+      const isNew = !t;
+      let typ = t ? t.type : 'webdav';
+      let fp = t ? (t.hostKey || t.certFp || '') : '';
+      const v = (k, d = '') => (t && t[k] !== undefined && t[k] !== null ? t[k] : d);
+      const pwPh = t && t.hasSecret ? 'placeholder="•••••• (gespeichert – leer lassen = unverändert)"' : '';
+      const fieldsHtml = () => typ === 'webdav' ? `
+          <div class="row"><label class="f" style="flex:1">WebDAV-Adresse<input id="tgUrl" value="${esc(v('url'))}" placeholder="https://cloud.example.de/remote.php/dav/files/verein"></label></div>
+          <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Passwort / App-Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`
+        : typ === 'sftp' ? `
+          <div class="row"><label class="f" style="flex:1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="nas.local oder 192.168.178.20"></label><label class="f" style="flex:1">Port<input id="tgPort" class="n" value="${esc(v('port', 22))}" inputmode="numeric"></label></div>
+          <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Anmeldung<select id="tgAuth"><option value="password" ${v('auth') !== 'key' ? 'selected' : ''}>Passwort</option><option value="key" ${v('auth') === 'key' ? 'selected' : ''}>Privater Schlüssel</option></select></label></div>
+          <div id="tgSecretBox"></div>`
+        : `
+          <div class="row"><label class="f" style="flex:1">Verbindung<select id="tgMode"><option value="ftps" ${v('mode', 'ftps') === 'ftps' ? 'selected' : ''}>FTPS (explizit, empfohlen)</option><option value="ftps-implicit" ${v('mode') === 'ftps-implicit' ? 'selected' : ''}>FTPS (implizit, Port 990)</option><option value="ftp" ${v('mode') === 'ftp' ? 'selected' : ''}>FTP – unverschlüsselt</option></select></label></div>
+          <div class="row"><label class="f" style="flex:1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="fritz.box"></label><label class="f" style="flex:1">Port<input id="tgPort" class="n" value="${esc(v('port', 21))}" inputmode="numeric"></label></div>
+          <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`;
+      const secretBox = () => { if (!$('tgSecretBox')) return; $('tgSecretBox').innerHTML = $('tgAuth').value === 'key'
+        ? `<label class="f">Privater Schlüssel (OpenSSH, beginnt mit -----BEGIN …)<textarea id="tgKey" rows="5" style="font-family:ui-monospace,monospace;font-size:12px" ${t && t.hasSecret ? 'placeholder="(gespeichert – leer lassen = unverändert)"' : ''}></textarea></label>`
+        : `<div class="row"><label class="f" style="flex:1">Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`; };
+      const fpBox = (f, changed) => {
+        if (!f) { $('tgFp').innerHTML = ''; return; }
+        $('tgFp').innerHTML = `<div class="banner ${changed ? 'r' : 'a'}" style="margin-top:8px;display:block">${changed ? '<b>Achtung: Der Server meldet sich anders als bisher.</b> Nur bestätigen, wenn er bewusst neu eingerichtet oder das Zertifikat erneuert wurde.<br>' : ''}
+          ${typ === 'sftp' ? 'Fingerabdruck des Servers' : 'Fingerabdruck des Zertifikats'}:<div style="font-family:ui-monospace,monospace;font-size:12.5px;word-break:break-all;margin:6px 0">${esc(f)}</div>
+          <label class="chk"><input type="checkbox" id="tgFpOk" ${fp === f ? 'checked' : ''}> Stimmt mit der Anzeige im Gerät überein – diesem Server vertrauen</label></div>`;
+        $('tgFpOk').onchange = () => { fp = $('tgFpOk').checked ? f : ''; };
+      };
+      dialog(`<h2>${isNew ? 'Sicherungsziel hinzufügen' : 'Sicherungsziel bearbeiten'}</h2>
+        <div class="row"><label class="f" style="flex:1">Art<select id="tgType" ${isNew ? '' : 'disabled'}><option value="dropbox">Dropbox (App key + App secret)</option><option value="webdav">WebDAV (Nextcloud, NAS, Storage Box …)</option><option value="sftp">SFTP (SSH)</option><option value="ftp">FTPS / FTP (z. B. FRITZ!Box)</option></select></label>
+          <label class="f" style="flex:1">Name<input id="tgName" value="${esc(v('name'))}" placeholder="z. B. NAS Vereinsheim"></label></div>
+        <p class="muted s" id="tgHint" style="margin:0 0 8px"></p>
+        <div id="tgFields"></div>
+        <div class="row"><label class="f" style="flex:1">Ordner auf dem Ziel<input id="tgFolder" value="${esc(v('folder', '/Vereinsheim'))}"></label></div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="tgOwnRet" ${t && t.retention ? 'checked' : ''}> Eigene Aufbewahrung für dieses Ziel (sonst wie oben eingestellt)</label>
+        <div class="row ${t && t.retention ? '' : 'hidden'}" id="tgRet" style="margin-top:8px">
+          <label class="f" style="flex:1">Tägliche<input id="tgD" class="n" value="${esc(t && t.retention ? t.retention.daily : st.daily)}" inputmode="numeric"></label>
+          <label class="f" style="flex:1">Wöchentliche<input id="tgW" class="n" value="${esc(t && t.retention ? t.retention.weekly : st.weekly)}" inputmode="numeric"></label>
+          <label class="f" style="flex:1">Monatliche<input id="tgM" class="n" value="${esc(t && t.retention ? t.retention.monthly : st.monthly)}" inputmode="numeric"></label></div>
+        <div id="tgFp"></div><div id="tgIns"></div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="tgOn" ${!t || t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
+        <label class="f" style="margin-top:8px">Dein Passwort zur Bestätigung<input type="password" id="tgMy" autocomplete="current-password"></label>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn" id="tgTest">Verbindung testen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+      const draw = () => { $('tgType').value = typ; $('tgHint').innerHTML = HINTS[typ]; $('tgFields').innerHTML = fieldsHtml();
+        if ($('tgAuth')) { secretBox(); $('tgAuth').onchange = secretBox; }
+        if ($('tgMode')) $('tgMode').onchange = () => { fp = ''; fpBox(''); $('tgPort').value = $('tgMode').value === 'ftps-implicit' ? 990 : 21; insBox(); };
+        fpBox(fp); insBox(); };
+      const insBox = () => { const ins = (typ === 'ftp' && $('tgMode') && $('tgMode').value === 'ftp') || (typ === 'webdav' && /^http:/i.test(($('tgUrl') || {}).value || ''));
+        $('tgIns').innerHTML = ins ? '<div class="banner r" style="margin-top:8px;display:block">Unverschlüsselt: Das Passwort geht im Klartext durchs Netz. Die Sicherung selbst bleibt verschlüsselt. Nur im eigenen Netz verwenden.<label class="chk" style="margin-top:6px"><input type="checkbox" id="tgInsOk"> Verstanden, trotzdem verwenden</label></div>' : ''; };
+      $('tgType').onchange = () => { if ($('tgType').value === 'dropbox') { closeDialog(); dropboxSetup(); return; } typ = $('tgType').value; fp = ''; draw(); };
+      $('tgFields').addEventListener('input', e => { if (e.target.id === 'tgUrl') insBox(); if (e.target.id === 'tgHost' || e.target.id === 'tgPort') { fp = ''; fpBox(''); } });
+      $('tgOwnRet').onchange = () => $('tgRet').classList.toggle('hidden', !$('tgOwnRet').checked);
+      draw();
+      const collect = () => {
+        const o = { type: typ, name: $('tgName').value, folder: $('tgFolder').value, enabled: $('tgOn').checked, allowInsecure: Boolean($('tgInsOk') && $('tgInsOk').checked) };
+        if ($('tgUrl')) o.url = $('tgUrl').value;
+        if ($('tgHost')) { o.host = $('tgHost').value; o.port = $('tgPort').value; }
+        o.user = $('tgUser').value;
+        if ($('tgAuth')) o.auth = $('tgAuth').value;
+        if ($('tgMode')) o.mode = $('tgMode').value;
+        if (typ === 'sftp') o.hostKey = fp; if (typ === 'ftp') o.certFp = fp;
+        o.retention = $('tgOwnRet').checked ? { daily: $('tgD').value, weekly: $('tgW').value, monthly: $('tgM').value } : null;
+        return o;
+      };
+      const secret = () => ($('tgKey') ? $('tgKey').value : $('tgPw') ? $('tgPw').value : '');
+      $('c').onclick = closeDialog;
+      $('tgTest').onclick = async () => {
+        $('tgTest').disabled = true; $('tgTest').textContent = 'Prüft …';
+        try {
+          const r = await api('backups/targets/test', 'POST', { id: t ? t.id : undefined, target: collect(), secret: secret() || undefined });
+          if (r.needConfirm) { fpBox(r.fingerprint, r.changed); toast('Bitte den Fingerabdruck prüfen und bestätigen, dann erneut testen.', true); }
+          else { if (r.fingerprint && !fp) { fp = r.fingerprint; } toast('Verbindung in Ordnung – Testdatei geschrieben und gelöscht.'); }
+        } catch (e) { fail(e); }
+        $('tgTest').disabled = false; $('tgTest').textContent = 'Verbindung testen';
+      };
+      $('ok').onclick = async () => {
+        $('ok').disabled = true;
+        try {
+          const body = { target: collect(), secret: secret() || undefined, myPassword: $('tgMy').value };
+          await api(isNew ? 'backups/targets' : `backups/targets/${encodeURIComponent(t.id)}`, isNew ? 'POST' : 'PUT', body);
+          closeDialog(); toast('Gespeichert – ab heute Nacht wird auch hierhin gesichert.'); RENDER.sicherung();
+        } catch (e) { $('ok').disabled = false; fail(e); }
+      };
+    };
+    const dropboxDialog = () => {
+      dialog(`<h2>Dropbox</h2><p class="muted">Verbunden mit <b>${esc(dx.account || 'Dropbox-App')}</b>. Alles liegt unter <code>Dropbox/Apps/&lt;App-Name&gt;/…</code>.</p>
+        <div class="row"><label class="f" style="flex:1">Ordner in Dropbox<input id="dxFolder" value="${esc(dx.folder)}"></label></div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="dxOn" ${dx.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
+        <div class="row" style="margin-top:12px"><button class="btn" id="dxRekey">App key / Secret ändern, neu verbinden …</button></div>
+        <div class="btns"><button class="btn danger" id="dxOff">Verbindung trennen</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
+      $('c').onclick = closeDialog;
+      $('dxRekey').onclick = () => { closeDialog(); dropboxSetup(); };
+      $('ok').onclick = async () => { try { await api('dropbox', 'PUT', { folder: $('dxFolder').value, enabled: $('dxOn').checked }); closeDialog(); toast('Gespeichert.'); RENDER.sicherung(); } catch (e) { fail(e); } };
+      $('dxOff').onclick = async () => { closeDialog(); if (!await ask('Dropbox-Verbindung trennen? Bereits hochgeladene Dateien bleiben in Dropbox.')) return; await api('dropbox/disconnect', 'POST', {}).catch(fail); RENDER.sicherung(); };
+    };
+    const dropboxSetup = async () => {
+      const d = await api('dropbox');
+      dialog(`<h2>Dropbox verbinden</h2>
+        ${d.connected ? `<div class="banner a"><span>Zurzeit verbunden mit <b>${esc(d.account || 'Dropbox-App')}</b>. Mit neuen Schlüsseln oder einem neuen Code wird die Verbindung ersetzt – bereits hochgeladene Dateien bleiben in Dropbox.</span></div>` : ''}
+        <ol class="steps">
+          <li>Auf <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">dropbox.com/developers/apps</a> mit dem Vereins-Dropbox-Konto anmelden → <b>Create app</b> → <b>Scoped access</b> → <b>App folder</b> → Name z. B. „Vereinsname-Vereinsheim“.</li>
+          <li>Reiter <b>Permissions</b>: <code>files.metadata.read</code>, <code>files.content.write</code>, <code>files.content.read</code> und <code>account_info.read</code> anhaken → <b>Submit</b>.</li>
+          <li>Reiter <b>Settings</b>: <b>App key</b> und <b>App secret</b> hier eintragen und speichern.</li>
+        </ol>
+        <div class="row"><label class="f" style="flex:1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
+          <label class="f" style="flex:1">App secret<input id="dxSecret" type="password" placeholder="${d.hasSecret ? '•••••• (gespeichert)' : ''}" autocomplete="new-password"></label></div>
+        <div class="btns" style="justify-content:flex-start;margin-top:0"><button class="btn" id="dxSaveKeys">Speichern</button></div>
+        ${d.authUrl && d.hasSecret ? `<ol class="steps" start="4" style="margin-top:14px">
+          <li><a class="btn small primary" href="${esc(d.authUrl)}" target="_blank" rel="noopener">Bei Dropbox freigeben ↗</a> – im neuen Fenster <b>Zulassen</b> klicken.</li>
+          <li>Den angezeigten Code kopieren und hier einfügen:</li></ol>
+          <div class="row"><label class="f" style="flex:1">Code von Dropbox<input id="dxCode" autocomplete="off"></label></div>` : ''}
+        <div class="btns"><button class="btn ghost" id="c">Schließen</button>${d.authUrl && d.hasSecret ? '<button class="btn primary" id="dxConnect">Verbinden</button>' : ''}</div>`, true);
+      $('c').onclick = closeDialog;
+      $('dxSaveKeys').onclick = async () => { try { await api('dropbox', 'PUT', { appKey: $('dxKey').value, appSecret: $('dxSecret').value || undefined }); toast('Gespeichert – jetzt bei Dropbox freigeben.'); dropboxSetup(); } catch (e) { fail(e); } };
+      if ($('dxConnect')) $('dxConnect').onclick = async () => { try { const r = await api('dropbox/connect', 'POST', { code: $('dxCode').value }); closeDialog(); toast('Dropbox verbunden' + (r.account ? ': ' + r.account : '') + '.'); RENDER.sicherung(); } catch (e) { fail(e); } };
+    };
+    $('bNow').onclick = async () => { try { const r = await api('backups', 'POST', {}); toast('Gesichert: ' + r.file); RENDER.sicherung(); } catch (e) { fail(e); } };
+    if ($('bCancel')) $('bCancel').onclick = async () => { await api('backups/restore', 'DELETE').catch(fail); RENDER.sicherung(); };
+    if ($('bRestart')) $('bRestart').onclick = restartApp;
+    $('bUp').onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      try {
+        const r = await fetch('api/admin/backups/upload', { method: 'POST', body: f, headers: { 'Content-Type': 'application/octet-stream', 'X-Getraenke': '1' } });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Fehler');
+        toast('Sicherung geprüft und abgelegt.'); RENDER.sicherung();
+      } catch (err) { fail(err); }
+    };
+    $('main').querySelectorAll('[data-restore]').forEach(btn => btn.onclick = async () => {
+      if (!await ask(`„${btn.dataset.restore}“ wiederherstellen?\n\nNur die Datenbank wird ersetzt (Belege und Bilder bleiben). Alle Buchungen seit dieser Sicherung gehen dabei verloren. Der aktuelle Stand wird vorher automatisch gesichert. Die Wiederherstellung passiert beim Neustart.`)) return;
+      try { await api('backups/restore', 'POST', { file: btn.dataset.restore }); RENDER.sicherung(); } catch (e) { fail(e); }
+    });
+  };
+  async function restartApp() {
+    if (!await ask('Vereinsheimverwaltung jetzt neu starten? Das Tablet ist dafür etwa eine Minute nicht erreichbar.')) return;
+    await api('restart', 'POST', {}).catch(() => {});
+    $('main').innerHTML = '<h2 class="page">Neustart …</h2><p class="lead">Die Seite lädt automatisch neu, sobald die Verwaltung wieder da ist. Klappt das nicht, das Add-on in Home Assistant unter Einstellungen → Add-ons → Vereinsheim neu starten (dort sollte „Watchdog“ eingeschaltet sein).</p>';
+    const t0 = Date.now();
+    const poll = async () => {
+      try { const r = await fetch('api/admin/status'); if (r.ok && Date.now() - t0 > 3000) { location.reload(); return; } } catch (e) { /* noch nicht da */ }
+      if (Date.now() - t0 < 180000) setTimeout(poll, 2000);
+    };
+    setTimeout(poll, 3000);
+  }
+
+  /* =================== Protokoll =================== */
+  RENDER.protokoll = async () => {
+    const rows = await api('audit');
+    $('main').innerHTML = `<h2 class="page">Protokoll</h2>
+      <p class="lead">Wer hat wann was geändert? Die letzten 500 Einträge – Anmeldungen, Stornos, Übertragungen, Abschlüsse, Preisänderungen, Lieferungen, Sicherungen.</p>
+      <div class="row" style="margin-bottom:12px"><label class="f" style="min-width:260px">Filtern<input id="aq" placeholder="Name oder Aktion"></label></div>
+      <div class="scroll"><table class="tbl" id="at"></table></div>`;
+    const draw = () => {
+      const q = $('aq').value.trim().toLowerCase();
+      $('at').innerHTML = '<tr><th>Zeit</th><th>Wer</th><th>Aktion</th><th>Details</th></tr>' + rows
+        .filter(r => !q || `${r.username} ${r.action} ${r.detail}`.toLowerCase().includes(q))
+        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td>${deTime(r.at)}</td><td>${esc(r.username || '')}</td><td>${esc(r.action)}</td><td class="muted">${esc(r.detail || '')}</td></tr>`).join('');
+    };
+    draw(); $('aq').oninput = draw;
+  };
+
+  /** Liest die prägenden Farben aus dem Logo (Bild auf Canvas zeichnen, Pixel zählen; bei SVG exakte Hex-Werte bevorzugen). */
+  async function logoColors(url) {
+    const blob = await fetch(url, { cache: 'reload' }).then(r => { if (!r.ok) throw new Error(); return r.blob(); });
+    const svgHex = blob.type.includes('svg') ? [...new Set(((await blob.text()).match(/#[0-9a-f]{6}\b|#[0-9a-f]{3}\b/gi) || [])
+      .map(h => (h.length === 4 ? '#' + [...h.slice(1)].map(x => x + x).join('') : h).toLowerCase()))] : [];
+    const img = new Image();
+    const src = URL.createObjectURL(blob);
+    await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = src; });
+    const W = 160, H = Math.max(1, Math.round(W * (img.naturalHeight || 1) / (img.naturalWidth || 1))) || W;
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = Math.min(H, 400);
+    const cx = cv.getContext('2d'); cx.drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(src);
+    const px = cx.getImageData(0, 0, cv.width, cv.height).data;
+    const buckets = new Map();
+    for (let i = 0; i < px.length; i += 4) {
+      if (px[i + 3] < 200) continue;
+      const [r, g, b] = [px[i], px[i + 1], px[i + 2]];
+      const mx = Math.max(r, g, b), mn = Math.min(r, g, b);
+      if (mx - mn < 40 || mx < 40 || mn > 225) continue;          // Weiß, Schwarz, Grau überspringen
+      const k = (r >> 4) << 8 | (g >> 4) << 4 | (b >> 4);
+      const e = buckets.get(k) || { n: 0, r: 0, g: 0, b: 0 }; e.n++; e.r += r; e.g += g; e.b += b; buckets.set(k, e);
+    }
+    const hex = (r, g, b) => '#' + [r, g, b].map(v => Math.round(v).toString(16).padStart(2, '0')).join('');
+    const rgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+    const dist = (a, b) => a.reduce((t, v, i) => t + (v - b[i]) ** 2, 0);
+    let list = [...buckets.values()].sort((a, b) => b.n - a.n).map(e => ({ n: e.n, c: [e.r / e.n, e.g / e.n, e.b / e.n] }));
+    const merged = [];                                              // ähnliche Töne zusammenfassen
+    for (const e of list) { const m = merged.find(x => dist(x.c, e.c) < 900); if (m) m.n += e.n; else merged.push(e); }
+    const top = merged.length ? merged[0].n : 0;
+    const colors = merged.filter(e => e.n >= top * 0.08).slice(0, 6).map(e => {
+      const exact = svgHex.map(h => [h, dist(rgb(h), e.c)]).sort((a, b) => a[1] - b[1])[0];
+      return { n: e.n, hex: exact && exact[1] < 2500 ? exact[0] : hex(...e.c) };
+    });
+    const isGreen = h => { const [r, g, b] = rgb(h); return g > r + 15 && g >= b; };
+    const uniq = [...new Set(colors.map(c => c.hex))];
+    return { colors: uniq, green: (colors.find(c => isGreen(c.hex)) || colors[0] || {}).hex || null };
+  }
+
+  /* =================== Einstellungen =================== */
+  /* ---------- Modul deinstallieren: Pflicht-Sicherung + doppelte Bestätigung ---------- */
+  async function uninstallModule(id, name) {
+    let u;
+    try { u = await api(`extensions/${id}/usage`); } catch (e) { return fail(e); }
+    const amount = [u.total ? `${u.total.toLocaleString('de-DE')} Datensätze` : '', u.files ? `${u.files} Dateien (Belege)` : '', u.access ? `${u.access} Freischaltungen` : '', u.settings ? `${u.settings} Einstellungen` : ''].filter(Boolean).join(', ') || 'keine Daten';
+    if (!await ask(`Modul „${name}“ deinstallieren?\n\nGelöscht werden ${u.what}\nBetroffen: ${amount}.\n\nZuerst wird eine Sicherung erstellt, die du herunterladen musst. Mit ihr lässt sich beim erneuten Installieren alles wiederherstellen.`, { ok: 'Weiter: Sicherung erstellen', danger: true })) return;
+    let bk;
+    try { bk = await api(`extensions/${id}/backup`, 'POST', {}); } catch (e) { return fail(e); }
+    dialog(`<h2>„${esc(name)}“ deinstallieren</h2>
+      <p><b>Schritt 1:</b> Sicherung herunterladen und gut aufbewahren (enthält alle Daten des Moduls, auch PINs und Schlüssel).</p>
+      <p><a class="btn primary" id="unDl" href="api/admin/extensions/backups/${encodeURIComponent(bk.file)}" download>Sicherung herunterladen</a> <span class="muted s">${esc(bk.file)}</span></p>
+      <p><b>Schritt 2:</b> Zum Bestätigen den Modulnamen <b>${esc(name)}</b> eintippen.</p>
+      <label class="f"><input id="unName" autocomplete="off" placeholder="${esc(name)}" disabled></label>
+      <p class="muted s">Die Sicherung bleibt zusätzlich in der Verwaltung gespeichert und wird beim Installieren angeboten.</p>
+      <div class="btns"><button class="btn" id="unNo">Abbrechen</button><button class="btn danger" id="unOk" disabled>Endgültig deinstallieren</button></div>`);
+    let downloaded = false;
+    const check = () => { $('unOk').disabled = !(downloaded && $('unName').value.trim().toLocaleLowerCase('de') === name.toLocaleLowerCase('de')); };
+    $('unDl').addEventListener('click', () => { downloaded = true; $('unName').disabled = false; setTimeout(() => $('unName').focus(), 50); check(); });
+    $('unName').oninput = check;
+    $('unNo').onclick = closeDialog;
+    $('unOk').onclick = async () => {
+      if (!await ask(`Wirklich „${name}“ deinstallieren?\n\nAlle Daten des Moduls werden jetzt gelöscht. Rückgängig nur über die heruntergeladene Sicherung.`, { ok: 'Ja, deinstallieren', danger: true })) return;
+      try {
+        await api(`extensions/${id}/uninstall`, 'POST', { file: bk.file, confirm: $('unName').value });
+        closeDialog(); toast(`„${name}“ deinstalliert.`); location.hash = '#einstellungen'; location.reload();
+      } catch (e) { fail(e); }
+    };
+  }
+  async function installModule(id, name) {
+    let u;
+    try { u = await api(`extensions/${id}/usage`); } catch (e) { return fail(e); }
+    const fmt = b => `${new Date(b.at).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' })} · ${b.size < 1048576 ? Math.max(1, Math.round(b.size / 1024)) + ' KB' : (b.size / 1048576).toFixed(1).replace('.', ',') + ' MB'}`;
+    dialog(`<h2>„${esc(name)}“ installieren</h2>
+      <p class="muted" style="margin-top:0">Mit welchen Daten?</p>
+      <div class="instopts">
+        ${u.backups.map((b, i) => `<label class="chk"><input type="radio" name="instSrc" value="${esc(b.file)}" ${i ? '' : 'checked'}> Sicherung vom ${esc(fmt(b))}</label>`).join('')}
+        <label class="chk"><input type="radio" name="instSrc" value="upload" ${u.backups.length ? '' : 'checked'}> Sicherung aus Datei …</label>
+        <input type="file" id="instFile" accept=".zip,application/zip" style="margin:0 0 0 28px">
+        <label class="chk"><input type="radio" name="instSrc" value=""> Ohne Daten – neu beginnen</label>
+      </div>
+      <div class="btns"><button class="btn" id="inNo">Abbrechen</button><button class="btn primary" id="inOk">Installieren</button></div>`);
+    $('instFile').onchange = () => { const r = document.querySelector('[name=instSrc][value=upload]'); if (r) r.checked = true; };
+    $('inNo').onclick = closeDialog;
+    $('inOk').onclick = async () => {
+      const v = document.querySelector('[name=instSrc]:checked').value;
+      $('inOk').disabled = true;
+      try {
+        let d;
+        if (v === 'upload') {
+          const f = $('instFile').files[0];
+          if (!f) { $('inOk').disabled = false; return fail(new Error('Bitte die Sicherungsdatei auswählen.')); }
+          const r = await fetch(`api/admin/extensions/${id}/install`, { method: 'POST', headers: { 'X-Getraenke': '1', 'Content-Type': 'application/zip' }, body: f });
+          d = await r.json().catch(() => ({})); if (!r.ok) throw new Error(d.error || 'Installieren fehlgeschlagen.');
+        } else d = await api(`extensions/${id}/install`, 'POST', v ? { file: v } : {});
+        closeDialog();
+        await ask(`„${name}“ installiert\n\n${d.summary}. Das Modul ist aktiv.`, { okOnly: true, danger: false });
+        location.hash = '#einstellungen'; location.reload();
+      } catch (e) { $('inOk').disabled = false; fail(e); }
+    };
+  }
+
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); renderUpdate().catch(() => {}); };
+
+  /* ---------- Update per ZIP-Upload ---------- */
+  async function renderUpdate() {
+    const el = $('updBody'); if (!el) return;
+    const u = await api('update/status');
+    if (!u.addonDir) {
+      el.innerHTML = `<p>Installiert: <b>${esc(u.current)}</b></p>` + (u.origin === 'repository'
+        ? '<p class="muted s">Diese Installation kommt aus einem Add-on-Repository (z. B. GitHub). Neue Versionen zeigt Home Assistant unter <b>Einstellungen → Add-ons</b> mit „Aktualisieren“ an.</p>'
+        : `<div class="banner a" style="display:block"><b>Das Hochladen ist noch nicht freigeschaltet.</b> Home Assistant hat die neuen Rechte des Add-ons (Zugriff auf den Ordner „addons“) noch nicht übernommen – „Neu bauen“ reicht dafür nicht. So geht es einmalig:
+          <ol style="margin:8px 0 0 18px;padding:0;font-weight:500"><li>Einstellungen → Add-ons → <b>Add-on-Store</b> → oben rechts <b>⋮ → Nach Updates suchen</b>.</li>
+          <li>Zurück zum Add-on „Vereinsheim“ → <b>Aktualisieren</b> klicken (nicht „Neu bauen“). Erscheint kein „Aktualisieren“, liegt im Ordner „addons“ noch die gleiche Version wie installiert – dann zuerst das neue Paket per Samba hineinkopieren.</li>
+          <li>Danach diese Seite neu laden.</li></ol></div>${u.supervisorError ? `<p class="muted s">Hinweis von Home Assistant: ${esc(u.supervisorError)}</p>` : ''}`);
+      return;
+    }
+    const res = u.reserves.length ? `<div class="scroll" style="margin-top:14px"><table class="tbl" style="table-layout:fixed"><tr><th>Frühere Version (Reserve)</th><th style="width:170px">gesichert am</th><th class="r" style="width:220px"></th></tr>
+      ${u.reserves.map(r => `<tr><td><b>${esc(r.version)}</b></td><td>${esc(new Date(r.at).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' }))}</td>
+        <td class="r">${u.viaIngress ? `<button class="btn small" data-rb="${esc(r.name)}" data-rv="${esc(r.version)}">Zurück auf ${esc(r.version)} …</button>` : ''}</td></tr>`).join('')}</table></div>` : '';
+    el.innerHTML = `<div class="kpis" style="margin-bottom:12px"><div class="kpi"><div class="l">Installiert</div><div class="v">${esc(u.current)}</div></div>
+        <div class="kpi"><div class="l">Neues Paket</div><div class="v">${u.staged ? esc(u.staged.version) : '–'}</div></div>
+        <div class="kpi"><div class="l">Letztes Update</div><div class="v">${u.lastOk ? esc(new Date(u.lastOk).toLocaleDateString('de-DE')) : '–'}</div></div></div>
+      ${u.lastError ? `<div class="banner r" style="display:block">Home Assistant hat das Update nicht automatisch gestartet (${esc(u.lastError)}). Die neuen Dateien liegen schon bereit: <b>Einstellungen → Add-ons → Vereinsheim → Aktualisieren</b> (oder „Neu bauen“).</div>` : ''}
+      ${!u.viaIngress ? '<div class="banner a" style="display:block">Updates gehen aus Sicherheitsgründen nur, wenn die Verwaltung über die <b>Home-Assistant-Seitenleiste</b> geöffnet ist.</div>' : `
+      <p class="muted s" style="margin-top:0">Das Gesamtpaket (ZIP) hier hochladen – genau die Datei, die sonst per Samba kopiert wird. Die Vereinsheimverwaltung prüft das Paket, legt vorher automatisch eine Sicherung an, ersetzt den Ordner und lässt Home Assistant die neue Version bauen. Der bisherige Stand bleibt als Reserve erhalten.</p>
+      <div class="row"><label class="btn primary">ZIP-Paket hochladen …<input type="file" id="updFile" accept=".zip,application/zip" hidden></label></div>
+      <div id="updStage"></div>`}
+      ${res}`;
+    if ($('updFile')) $('updFile').onchange = async e => {
+      const f = e.target.files[0]; if (!f) return;
+      $('updStage').innerHTML = '<p class="muted" style="margin-top:12px">Wird hochgeladen und geprüft …</p>';
+      try {
+        const r = await fetch('api/admin/update/upload', { method: 'POST', body: f, headers: { 'Content-Type': 'application/zip', 'X-Getraenke': '1' } });
+        const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Fehler');
+        await renderUpdate();   // Kennzahlen + geprüftes Paket anzeigen
+      } catch (err) { $('updStage').innerHTML = ''; fail(err); }
+      e.target.value = '';
+    };
+    if (u.staged && $('updStage')) stageView({ current: u.current, ...u.staged });
+    el.querySelectorAll('[data-rb]').forEach(b => b.onclick = async () => {
+      const pw = await askText(`Zurück auf Version ${b.dataset.rv}?\n\nVorher wird automatisch gesichert. Die Daten (Mitglieder, Buchungen …) bleiben, nur das Programm wird ersetzt. Bitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Zurück' });
+      if (pw === null) return;
+      try { await api('update/rollback', 'POST', { name: b.dataset.rb, myPassword: pw }); waitForRestart(); } catch (e) { fail(e); }
+    });
+  }
+  /** Änderungsliste (einfaches Markdown: ## Version, - Punkt, **fett**) sicher darstellen */
+  const mdLite = t => esc(t).split('\n').map(l => l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')).map(l => (/^## /.test(l) ? `<div style="font-weight:700;margin:8px 0 2px">Version ${l.slice(3)}</div>` : /^- /.test(l) ? `<div style="padding-left:14px;text-indent:-10px">• ${l.slice(2)}</div>` : l ? `<div>${l}</div>` : '')).join('');
+  function stageView(j) {
+    $('updStage').innerHTML = `<div class="banner g" style="margin-top:12px;display:block"><b>Paket geprüft:</b> Version ${esc(j.current)} → <b>${esc(j.version)}</b> · ${j.files} Dateien · ${(j.size / 1048576).toFixed(1).replace('.', ',')} MB
+        ${j.depsChanged ? '<br>Diese Version bringt neue Bibliotheken mit – das Neubauen dauert etwas länger und braucht Internet.' : ''}</div>
+      ${j.changelog ? `<details style="margin-top:8px"><summary>Was ist neu?</summary><div class="muted s" style="margin-top:6px;line-height:1.5">${mdLite(j.changelog)}</div></details>` : ''}
+      <div class="row" style="margin-top:12px"><label class="f" style="flex:1;max-width:340px">Dein Passwort zur Bestätigung<input type="password" id="updPw" autocomplete="current-password"></label>
+        <button class="btn primary" id="updGo">Update auf ${esc(j.version)} einspielen</button></div>`;
+    $('updGo').onclick = async () => {
+      $('updGo').disabled = true; $('updGo').textContent = 'Sichert und ersetzt …';
+      try { await api('update/apply', 'POST', { myPassword: $('updPw').value }); waitForRestart(); }
+      catch (e) { $('updGo').disabled = false; $('updGo').textContent = `Update auf ${j.version} einspielen`; fail(e); }
+    };
+  }
+  /** Nach dem Auslösen: warten, bis die alte Version weg und die neue da ist, dann neu laden */
+  function waitForRestart() {
+    dialog(`<h2>Update läuft</h2><p>Home Assistant baut jetzt die neue Version. Das dauert meist 2 bis 10 Minuten. Diese Seite lädt sich danach von selbst neu – bitte offen lassen.</p><div class="vh-dots" id="updWait">Warte auf Home Assistant …</div>`);
+    let wentDown = false; const t0 = Date.now();
+    const tick = async () => {
+      let up = false, st = null;
+      try { const r = await fetch('api/admin/update/status', { headers: { 'X-Getraenke': '1' }, cache: 'no-store' }); up = true; if (r.ok) st = await r.json(); } catch (e) { up = false; }
+      if (!up) { wentDown = true; if ($('updWait')) $('updWait').textContent = 'Neue Version wird gebaut und gestartet …'; }
+      if (up && wentDown) { location.reload(); return; }
+      if (up && st && st.lastError) { closeDialog(); renderUpdate(); return; }
+      if (Date.now() - t0 > 20 * 60000) { if ($('updWait')) $('updWait').textContent = 'Das dauert ungewöhnlich lange – bitte unter Einstellungen → Add-ons → Vereinsheim nachsehen.'; return; }
+      setTimeout(tick, 4000);
+    };
+    setTimeout(tick, 3000);
+  }
+  /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
+  const SETTING_SECS = [['verein', 'Verein & Logo'], ['mail', 'E-Mail-Versand'], ['module', 'Module'], ['tablet', 'Tablet & Kopfzeile'], ['getraenke', 'Getränke'], ['update', 'Update'], ['konto', 'Mein Konto']];
+  const SETTING_OF = h => (/^Mein Passwort/.test(h) ? 'konto' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo)/.test(h) ? 'verein' : /^E-Mail/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
+    : /^Gemerkte Zuordnungen/.test(h) ? 'getraenke' : 'tablet');
+  function sectionize() {
+    const main = $('main');
+    const cards = [...main.children].filter(el => el.classList.contains('card'));
+    if (!cards.length) return;
+    const by = {};
+    cards.forEach(c => { const h = (c.querySelector('h3') || {}).textContent || ''; const k = SETTING_OF(h.trim()); (by[k] = by[k] || []).push(c); });
+    const secs = SETTING_SECS.filter(([k]) => by[k]);
+    let cur = sget('vh_setsec'); if (!secs.some(([k]) => k === cur)) cur = secs[0][0];
+    const wrap = document.createElement('div'); wrap.className = 'settings';
+    wrap.innerHTML = `<nav class="subnav" aria-label="Bereiche der Einstellungen">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}</button>`).join('')}</nav><div class="secbody"></div>`;
+    const body = wrap.querySelector('.secbody');
+    secs.forEach(([k]) => by[k].forEach(c => { c.dataset.secof = k; body.appendChild(c); }));
+    const head = main.querySelector('h2.page');
+    if (head && head.nextSibling) main.insertBefore(wrap, head.nextSibling); else main.appendChild(wrap);
+    const show = k => { cur = k; sset('vh_setsec', k); wrap.querySelectorAll('[data-sec]').forEach(b => b.classList.toggle('on', b.dataset.sec === k)); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
+    wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
+    show(cur);
+  }
+  async function renderSettings() {
+    const mayCfg = can('einstellungen'), mayUn = can('deinstallieren');
+    const [s, map, ext, ml] = await Promise.all([api('settings'), can('lieferungen') ? api('supplier-map') : null, mayCfg || mayUn ? api('extensions') : null, mayCfg ? api('mail') : null]);
+    let links = ext ? ext.links.slice() : [];
+    const SRC = { eingebaut: 'im Paket', mitgeliefert: 'im Paket', hochgeladen: 'hochgeladen', nachinstalliert: 'per Samba' };
+    const inst = ext ? ext.all.filter(x => x.installed !== false) : [], notInst = ext ? ext.all.filter(x => x.installed === false) : [];
+    const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
+    $('main').innerHTML = `<h2 class="page">Einstellungen</h2>
+      <div class="card"><h3>Mein Passwort ändern</h3><div class="row">
+        <label class="f">Aktuelles Passwort<input type="password" id="pwCur" autocomplete="current-password"></label>
+        <label class="f">Neues Passwort<input type="password" id="pwNew" autocomplete="new-password"></label>
+        <button class="btn" id="savePw">Ändern</button></div></div>
+      ${can('einstellungen') ? `<div class="card"><h3>Verein</h3><div class="row"><label class="f" style="min-width:300px">Vereinsname<input id="club" value="${esc(s.clubName)}"></label>
+        <label class="f">Vereinsfarbe<span class="row" style="gap:6px"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;padding:2px">
+          <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label>
+        <button class="btn" id="saveClub">Speichern</button></div>
+        <p class="muted s">Die Farbe gilt für Tablet, Verwaltung und Excel-Export. Tablets übernehmen sie beim nächsten Neuladen.</p></div>
+      <div class="card"><h3>Startseite am Tablet: „Ich bin öfter hier:“</h3><div class="row">
+        <label class="f">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${s.topN}" inputmode="numeric"></label>
+        <label class="f">aus den letzten … Tagen<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label>
+        <button class="btn" id="saveTop">Speichern</button></div>
+        <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p></div>
+      <div class="card"><h3>Buchungsseite mit Passwort schützen</h3>
+        ${s.tabletPw.on ? `<div class="banner g">Eingeschaltet${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
+          : '<div class="banner a">Ausgeschaltet – jeder im Vereins-WLAN kann die Buchungsseite öffnen.</div>'}
+        <div class="row">
+          <label class="f">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 6 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
+          <label class="f">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
+          <button class="btn ${s.tabletPw.on ? '' : 'primary'}" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Schutz einschalten'}</button>
+        </div>
+        ${s.tabletPw.on ? '<div class="row" style="margin-top:10px"><button class="btn" id="tpOut">Alle Geräte abmelden</button><button class="btn danger" id="tpOff">Schutz ausschalten</button></div>' : ''}
+        <p class="muted s">Gedacht für den Fall, dass nicht jeder im WLAN Getränke buchen soll: Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Ohne Passwort kommen weiterhin angemeldete Admins und der Aufruf über die Home-Assistant-Seitenleiste auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p></div>
+      ${s.allowedHosts !== undefined ? `<div class="card"><h3>Weitere Adressen</h3><div class="row">
+        <label class="f" style="flex:1;min-width:260px">Namen, unter denen die Verwaltung erreichbar ist (mit Komma getrennt)<input id="hostList" value="${esc(s.allowedHosts)}" placeholder="verein.duckdns.org"></label>
+        <button class="btn" id="hostSave">Speichern</button></div>
+        <p class="muted s">Schutz gegen Angriffe über fremde Webseiten: Die Vereinsheimverwaltung antwortet nur unter IP-Adressen, Namen wie <b>homeassistant.local</b>, den Namen aus dem HTTPS-Zertifikat und den Adressen der Apps. Wer einen anderen Namen benutzt (z. B. eine eigene DuckDNS-Adresse ohne Zertifikat), trägt ihn hier ein.</p></div>` : ''}
+      <div class="card"><h3>Vereinslogo</h3><div class="row" style="align-items:center">
+        <div class="logoprev" id="logoPrev">${s.logo ? `<img src="${esc(s.logo)}" alt="Vereinslogo">` : '<span class="muted s">kein Logo</span>'}</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <label class="btn primary" style="cursor:pointer">Logo hochladen …<input type="file" id="logoFile" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp" class="hidden"></label>
+          ${s.logoCustom ? '<button class="btn ghost" id="logoDel">Logo entfernen</button>' : ''}
+        </div></div>
+        <div id="logoColors" class="hidden" style="margin-top:12px"><div class="muted s" style="margin-bottom:6px">Farben im Logo – antippen, um sie als Vereinsfarbe zu übernehmen:</div><div class="row" id="swatches" style="gap:8px"></div></div>
+        <p class="muted s">SVG, PNG, JPG oder WebP, max. 2 MB. Das Logo erscheint auf dem Tablet, in der Verwaltung und auf der Anmeldeseite und ist in jeder Datensicherung enthalten. Beim Hochladen wird das Grün aus dem Logo automatisch als Vereinsfarbe übernommen.</p></div>` : ''}
+      ${ml ? `<div class="card" id="mailCard"><h3>E-Mail-Versand</h3>
+        <p class="muted s" style="margin-top:0">Ein Postfach für alle Module: Bestellungen an den Lieferanten, Monatsnachweis der Zeiterfassung und Erweiterungen. Wohin die Mails gehen, legt jedes Modul selbst fest.</p>
+        ${ml.ready ? `<div class="banner g" style="margin:0 0 12px">Eingerichtet – Absender ${esc(ml.from)}</div>` : '<div class="banner a" style="margin:0 0 12px">Noch nicht eingerichtet – ohne Postfach können Bestellung und Monatsnachweis nicht verschickt werden.</div>'}
+        <div class="mailgrid">
+          <label class="f">Server (SMTP)<input id="mlH" value="${esc(ml.host)}" placeholder="z. B. mail.gmx.net" autocomplete="off"></label>
+          <label class="f">Port<input id="mlP" value="${esc(ml.port)}" inputmode="numeric"></label>
+          <label class="f">Absender-Adresse<input id="mlF" value="${esc(ml.from)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
+          <button class="btn primary" id="mlSave">Postfach speichern</button>
+          <label class="f">Benutzer<input id="mlU" value="${esc(ml.user)}" autocomplete="off"></label>
+          <label class="f">Passwort${ml.hasPass ? ' (gespeichert – leer = unverändert)' : ''}<input id="mlW" type="password" autocomplete="new-password"></label>
+          <label class="f">Testmail an<input id="mlT" type="email" placeholder="deine@adresse.de" autocomplete="email"></label>
+          <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'}>Testmail senden</button>
+        </div>
+        <p class="muted s">Am besten ein eigenes Vereinspostfach. Die Daten stehen beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“, Port meist 587 (manchmal 465). Beispiele: GMX mail.gmx.net, WEB.DE smtp.web.de, IONOS smtp.ionos.de, Strato smtp.strato.de; bei Gmail ein App-Passwort verwenden. Das Passwort wird nie wieder angezeigt und ist in keinem Export enthalten.</p></div>` : ''}
+      ${map ? `<div class="card"><h3>Gemerkte Zuordnungen von Lieferanten-Artikeln</h3>
+        ${map.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
+          ${map.map(m => `<tr><td>${esc(m.supplier)}</td><td>${/^lidl:/.test(m.art_no) ? '<span class="muted">–</span>' : esc(m.art_no)}</td><td>${esc(m.text || '')}</td><td>${m.article_id ? esc(m.article) : '<span class="muted">ignoriert</span>'}</td><td class="r">${m.pack_size}</td>
+            <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="muted">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload.</p>'}</div>` : ''}
+      ${me.role === 'oberadmin' ? '<div class="card" id="updCard"><h3>Update der Vereinsheimverwaltung</h3><div id="updBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
+      ${ext ? `<div class="card"><h3>Module & Erweiterungen</h3>
+        ${ext.all.length ? `<div class="mods" id="modList">
+          <div class="mrow head"><span></span><span>Modul</span><span class="ver">Version</span><span class="st">Status</span><span>Aktiv</span></div>
+          ${ext.all.map(x => {
+            const off = x.installed === false;
+            const items = [
+              !off && x.active && x.configIO ? `<a href="api/admin/extensions/${esc(x.id)}/export" download>Einstellungen exportieren</a><button type="button" data-fimp="${esc(x.id)}" data-fname="${esc(x.name)}">Einstellungen importieren</button>` : '',
+              !off && mayUn ? `<div class="sep"></div><button type="button" class="danger" data-unin="${esc(x.id)}" data-fname="${esc(x.name)}">Deinstallieren …</button>` : '',
+              off && x.source === 'hochgeladen' && me.role === 'oberadmin' ? `<button type="button" class="danger" data-extdel="${esc(x.id)}" data-fname="${esc(x.name)}">Dateien entfernen</button>` : '',
+              (x.unapproved || x.pending) && me.role === 'oberadmin' && x.hash ? `<button type="button" data-approve="${esc(x.id)}" data-fname="${esc(x.name)}" data-hash="${esc(x.hash)}">${x.pending ? 'Neue Version prüfen & freigeben …' : 'Prüfen & freigeben …'}</button>` : '',
+            ].join('');
+            return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', zeiterfassung: 'zeit' }[x.id] || 'modul', 20)}</span>
+              <div style="min-width:0"><b>${esc(x.name)}</b> <span class="pill" style="margin-left:6px;height:20px;font-size:11px">${esc(SRC[x.source] || x.source)}</span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}</div>
+              <span class="ver">${esc(x.version)}</span>
+              <span class="st">${off ? '<span class="pill">nicht installiert</span>' : x.error ? '<span class="pill r">Fehler</span>' : x.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">aus</span>'}</span>
+              <span class="act">${off ? (mayUn && !x.error ? `<button class="btn small primary" data-inst="${esc(x.id)}" data-fname="${esc(x.name)}" style="width:84px;padding:0">Installieren</button>` : '<span></span>')
+                : `<button class="switch ${x.active ? 'on' : ''}" role="switch" aria-checked="${x.active}" aria-label="${esc(x.name)} aktiv" data-ext="${esc(x.id)}" data-on="${x.active ? 0 : 1}" ${x.error || !mayCfg ? 'disabled' : ''}></button>`}
+                <button type="button" class="dots" data-menu="${esc(x.id)}" aria-label="Weitere Aktionen für ${esc(x.name)}" style="${items ? '' : 'visibility:hidden'}">${icon('punkte', 18)}</button></span>
+              ${items ? `<div class="menu hidden" data-menufor="${esc(x.id)}">${items}</div>` : ''}</div>`;
+          }).join('')}</div>` : '<p class="muted">Keine Module vorhanden.</p>'}
+        <p class="muted s" style="margin:12px 0 0">Schalter aus = ausgeblendet, Daten bleiben. Über <b>⋯</b>: Einstellungen exportieren/importieren (ohne PINs und Schlüssel) und Deinstallieren (mit Pflicht-Sicherung). Mitglieder und Konten bleiben immer erhalten.</p>
+        ${me.role === 'oberadmin' ? `<div class="row" style="margin-top:10px;align-items:center"><label class="btn primary" style="cursor:pointer">Erweiterung einspielen (ZIP) …<input type="file" id="extZip" accept=".zip,application/zip" class="hidden"></label>
+          <button class="btn hidden" id="extRestart">Jetzt neu starten</button></div>
+        <p class="muted s">Eine Erweiterung ist eine ZIP-Datei mit <code>erweiterung.json</code>. Eine neuere Version einer hochgeladenen Erweiterung ersetzt die alte. Wirksam nach einem Neustart. Alternativ per Samba in <code>share/vereinsheim/erweiterungen</code> kopieren.</p>` : ''}</div>` : ''}
+      ${ext && mayCfg ? `      <div class="card"><h3>Links in der Kopfzeile</h3>
+        <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
+        <div id="lnRows"></div>
+        <div class="row" style="margin-top:10px"><button class="btn" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
+      <div class="card"><h3>Tablet & Home Assistant</h3>
+        <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. ${s.tabletPw && s.tabletPw.on ? 'Beim ersten Aufruf das Passwort der Buchungsseite eingeben.' : 'Die Buchungsseite braucht keine Anmeldung.'}</p>
+        <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
+    $('savePw').onclick = async () => { try { await api('password', 'POST', { current: $('pwCur').value, next: $('pwNew').value }); toast('Passwort geändert.'); $('pwCur').value = $('pwNew').value = ''; } catch (e) { fail(e); } };
+    if ($('clubColorPick')) {
+      $('clubColorPick').oninput = () => { $('clubColor').value = $('clubColorPick').value; };
+      $('clubColor').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor').value)) $('clubColorPick').value = $('clubColor').value; };
+    }
+    if ($('mlSave')) {
+      $('mlSave').onclick = async () => {
+        try { await api('mail', 'PUT', { host: $('mlH').value, port: $('mlP').value, user: $('mlU').value, pass: $('mlW').value, from: $('mlF').value }); toast('Postfach gespeichert – jetzt eine Testmail senden.'); location.hash = '#einstellungen'; RENDER.einstellungen().then(() => $('mailCard') && $('mailCard').scrollIntoView()); } catch (e) { fail(e); }
+      };
+      $('mlTest').onclick = async () => {
+        if (!$('mlT').value.trim()) return fail(new Error('Bitte bei „Testmail an“ eine Adresse eintragen.'));
+        $('mlTest').disabled = true;
+        try { await api('mail/test', 'POST', { to: $('mlT').value }); toast('Testmail verschickt – bitte im Postfach nachsehen.'); } catch (e) { fail(e); }
+        $('mlTest').disabled = false;
+      };
+    }
+    if (ext) {
+      $('main').querySelectorAll('[data-ext]').forEach(b => b.onclick = async () => {
+        try { await api('extensions/' + b.dataset.ext, 'PUT', { active: b.dataset.on === '1' }); location.hash = '#einstellungen'; location.reload(); } catch (e) { fail(e); }
+      });
+      $('main').querySelectorAll('[data-fimp]').forEach(b => b.onclick = () => funcImport(b.dataset.fimp, b.dataset.fname));
+      $('main').querySelectorAll('[data-approve]').forEach(b => b.onclick = () => {
+        dialog(`<h2>Erweiterung „${esc(b.dataset.fname)}“ freigeben?</h2>
+          <div class="banner a">Eine Erweiterung ist Programmcode, der mit allen Rechten in der Vereinsheimverwaltung läuft – sie kann z. B. Türen und Ventile über Home Assistant schalten. Gib sie nur frei, wenn du weißt, woher sie stammt und wer sie in den Ordner gelegt hat.</div>
+          <p class="muted">Freigegeben wird genau dieser Stand (Prüfsumme <code>${esc(b.dataset.hash.slice(0, 16))}</code>). Er wird in einen geschützten Bereich kopiert und läuft von dort – spätere Änderungen im Netzwerkordner erscheinen hier als neue Version zum Prüfen. Wirksam nach einem Neustart.</p>
+          <label class="f">Dein Passwort zur Bestätigung<input type="password" id="apPw" autocomplete="current-password"></label>
+          <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Freigeben</button></div>`);
+        $('c').onclick = closeDialog;
+        $('ok').onclick = async () => {
+          try { await api(`extensions/${b.dataset.approve}/approve`, 'POST', { password: $('apPw').value, hash: b.dataset.hash }); closeDialog(); toast('Freigegeben – bitte neu starten.'); if ($('extRestart')) $('extRestart').classList.remove('hidden'); }
+          catch (e) { fail(e); }
+        };
+      });
+      $('main').querySelectorAll('[data-extdel]').forEach(b => b.onclick = async () => {
+        if (!await ask(`Dateien von „${b.dataset.fname}“ entfernen?\n\nDie Erweiterung verschwindet nach einem Neustart ganz aus der Liste. Zum erneuten Installieren muss die ZIP-Datei wieder eingespielt werden. Die Modul-Sicherungen bleiben erhalten.`)) return;
+        try { await api('extensions/' + b.dataset.extdel, 'DELETE'); toast('Entfernt – bitte neu starten.'); $('extRestart').classList.remove('hidden'); b.closest('tr').style.opacity = .4; b.disabled = true; } catch (e) { fail(e); }
+      });
+      if ($('extRestart')) $('extRestart').onclick = restartApp;
+      if ($('extZip')) $('extZip').onchange = async () => {
+        const f = $('extZip').files[0]; $('extZip').value = ''; if (!f) return;
+        if (f.size > 25 * 1024 * 1024) return fail(new Error('Die Datei ist zu groß (max. 25 MB).'));
+        try {
+          const r = await fetch('api/admin/extensions/upload', { method: 'POST', headers: { 'X-Getraenke': '1', 'Content-Type': 'application/zip' }, body: f });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'Hochladen fehlgeschlagen.');
+          toast(`${d.name} ${d.version} ${d.update ? 'aktualisiert' : 'eingespielt'} – wirksam nach dem Neustart.`);
+          $('extRestart').classList.remove('hidden'); $('extRestart').classList.add('primary');
+        } catch (e) { fail(e); }
+      };
+      const closeMenus = () => $('main').querySelectorAll('.menu').forEach(m => m.classList.add('hidden'));
+      $('main').querySelectorAll('[data-menu]').forEach(b => b.onclick = e => {
+        e.stopPropagation();
+        const m = $('main').querySelector(`[data-menufor="${b.dataset.menu}"]`); const was = m && !m.classList.contains('hidden');
+        closeMenus(); $('main').querySelectorAll('.dots').forEach(d => d.classList.remove('on'));
+        if (m && !was) { m.classList.remove('hidden'); b.classList.add('on'); }
+      });
+      $('main').querySelectorAll('.menu').forEach(m => m.addEventListener('click', () => setTimeout(closeMenus, 0)));
+      document.addEventListener('click', e => { if (!e.target.closest('.menu,[data-menu]')) { closeMenus(); document.querySelectorAll('.dots.on').forEach(d => d.classList.remove('on')); } });
+      $('main').querySelectorAll('[data-unin]').forEach(b => b.onclick = () => uninstallModule(b.dataset.unin, b.dataset.fname));
+      $('main').querySelectorAll('[data-inst]').forEach(b => b.onclick = () => installModule(b.dataset.inst, b.dataset.fname));
+    }
+    if (ext && $('lnRows')) {
+      const rowsHtml = () => {
+        $('lnRows').innerHTML = links.map((l, i) => `<div class="row" style="flex-wrap:nowrap;margin-top:${i ? 10 : 0}px">
+          <label class="f" style="width:220px">Beschriftung<input data-ll="${i}" value="${esc(l.label)}" maxlength="30" placeholder="z. B. Platzbuchung"></label>
+          <label class="f" style="flex:1;min-width:0">Adresse<input data-lu="${i}" value="${esc(l.url)}" placeholder="https://…"></label>
+          <button class="btn ghost" data-lx="${i}">Entfernen</button></div>`).join('') || '<p class="muted" style="margin:0">Noch keine Links.</p>';
+        $('lnRows').querySelectorAll('[data-ll]').forEach(x => x.oninput = () => { links[+x.dataset.ll].label = x.value; });
+        $('lnRows').querySelectorAll('[data-lu]').forEach(x => x.oninput = () => { links[+x.dataset.lu].url = x.value; });
+        $('lnRows').querySelectorAll('[data-lx]').forEach(x => x.onclick = () => { links.splice(+x.dataset.lx, 1); rowsHtml(); });
+        $('lnAdd').disabled = links.length >= 8;
+      };
+      rowsHtml();
+      $('lnAdd').onclick = () => { if (links.length < 8) { links.push({ label: '', url: '' }); rowsHtml(); } };
+      $('lnSave').onclick = async () => {
+        try { const r = await api('settings/links', 'PUT', { links }); links = r.links; rowsHtml(); toast('Links gespeichert – Tablets übernehmen sie beim nächsten Laden.'); } catch (e) { fail(e); }
+      };
+    }
+    if ($('hostSave')) $('hostSave').onclick = async () => { try { const r = await api('settings/hosts', 'PUT', { hosts: $('hostList').value }); $('hostList').value = r.hosts; toast('Gespeichert.'); } catch (e) { fail(e); } };
+    if ($('tpSave')) $('tpSave').onclick = async () => {
+      if ($('tpPw1').value !== $('tpPw2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
+      try {
+        await api('settings/tablet-password', 'PUT', { password: $('tpPw1').value });
+        toast(s.tabletPw.on ? 'Passwort geändert – alle anderen Geräte müssen es neu eingeben.' : 'Schutz eingeschaltet. Dieses Gerät ist freigeschaltet.');
+        RENDER.einstellungen();
+      } catch (e) { fail(e); }
+    };
+    if ($('tpOut')) $('tpOut').onclick = async () => {
+      if (!await ask('Alle freigeschalteten Geräte abmelden? Danach muss auch das Tablet im Vereinsheim das Passwort neu eingeben.')) return;
+      try { await api('settings/tablet-password/logout-all', 'POST', {}); toast('Alle Geräte abgemeldet.'); } catch (e) { fail(e); }
+    };
+    if ($('tpOff')) $('tpOff').onclick = async () => {
+      if (!await ask('Passwortschutz ausschalten? Danach kann jeder im WLAN die Buchungsseite öffnen.')) return;
+      try { await api('settings/tablet-password', 'DELETE'); toast('Schutz ausgeschaltet.'); RENDER.einstellungen(); } catch (e) { fail(e); }
+    };
+    if ($('saveTop')) $('saveTop').onclick = async () => {
+      try { await api('settings', 'PUT', { topN: $('topN').value, topDays: $('topDays').value }); toast('Gespeichert.'); } catch (e) { fail(e); }
+    };
+    if ($('saveClub')) $('saveClub').onclick = async () => {
+      try {
+        await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value });
+        toast('Gespeichert.');
+        document.querySelector('link[href^="theme.css"]').href = 'theme.css?' + Date.now();
+      } catch (e) { fail(e); }
+    };
+    const applyColor = async (hex, quiet) => {
+      try {
+        await api('settings', 'PUT', { clubColor: hex });
+        $('clubColor').value = $('clubColorPick').value = hex;
+        document.querySelector('link[href^="theme.css"]').href = 'theme.css?' + Date.now();
+        document.querySelectorAll('#swatches .swatch').forEach(b => b.classList.toggle('on', b.dataset.c === hex));
+        if (!quiet) toast('Vereinsfarbe ' + hex + ' übernommen.');
+      } catch (e) { fail(e); }
+    };
+    const showSwatches = (colors, chosen) => {
+      if (!colors.length) return;
+      $('swatches').innerHTML = colors.map(c => `<button class="swatch${c === chosen ? ' on' : ''}" data-c="${c}" title="${c}" style="background:${c}"></button>`).join('');
+      $('swatches').querySelectorAll('.swatch').forEach(b => b.onclick = () => applyColor(b.dataset.c));
+      $('logoColors').classList.remove('hidden');
+    };
+    if ($('logoFile')) {
+      if (s.logo) logoColors(s.logo).then(c => showSwatches(c.colors, s.clubColor)).catch(() => {});
+      $('logoFile').onchange = async () => {
+        const f = $('logoFile').files[0]; if (!f) return;
+        if (f.size > 2 * 1024 * 1024) return fail(new Error('Das Logo ist zu groß (max. 2 MB).'));
+        try {
+          const r = await fetch('api/admin/logo', { method: 'POST', headers: { 'X-Getraenke': '1', 'Content-Type': 'application/octet-stream' }, body: f });
+          const d = await r.json().catch(() => ({}));
+          if (!r.ok) throw new Error(d.error || 'Hochladen fehlgeschlagen.');
+          brand.logo = d.logo;
+          const c = await logoColors(d.logo).catch(() => ({ colors: [], green: null }));
+          if (c.green) await applyColor(c.green, true);
+          await makeAppIcon().catch(() => {});
+          toast(c.green ? `Logo gespeichert – Vereinsfarbe ${c.green} aus dem Logo übernommen.` : 'Logo gespeichert.');
+          showShell();   // Navigation mit neuem Logo
+        } catch (e) { fail(e); }
+      };
+    }
+    if ($('logoDel')) $('logoDel').onclick = async () => {
+      try { const d = await api('logo', 'DELETE'); brand.logo = d.logo; toast('Logo entfernt.'); showShell(); } catch (e) { fail(e); }
+    };
+    $('main').querySelectorAll('[data-sup]').forEach(b => b.onclick = async () => {
+      await api('supplier-map', 'DELETE', { supplier: b.dataset.sup, artNo: b.dataset.no }).catch(fail); RENDER.einstellungen();
+    });
+  };
+
+  start().catch(fail);
+})();
