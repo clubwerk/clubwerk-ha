@@ -62,7 +62,7 @@ const iso = d => d.toISOString().slice(0, 10);
   [s, j] = await A('api/admin/extensions'); ok('Modul aktiv', j.modules.includes('mitglieder'), JSON.stringify(j.modules));
   await A('api/admin/mail', 'PUT', { host: '127.0.0.1', port: 2525, user: '', from: 'verein@test.de' });
   // ---- Einstellungen
-  [s, j] = await A(X('settings'), 'PUT', { creditor_id: 'DE46ZZZ00000387335', club_iban: 'DE02120300000000202051', club_bic: 'BYLADEM1001', mandate_prefix: 'TCF', year_start: '05-01', club_street: 'Am Sportplatz 1', club_city: '65599 Musterstadt', notify_to: 'vorstand@test.de', member_no_start: '2000', app_online: true });
+  [s, j] = await A(X('settings'), 'PUT', { creditor_id: 'DE98ZZZ09999999999', club_iban: 'DE02120300000000202051', club_bic: 'BYLADEM1001', mandate_prefix: 'TCF', year_start: '05-01', club_street: 'Am Sportplatz 1', club_city: '65599 Musterstadt', notify_to: 'vorstand@test.de', member_no_start: '2000', app_online: true });
   ok('Einstellungen', s === 200, j.error);
   [s, j] = await A(X('settings'), 'PUT', { creditor_id: 'DE00ZZZ00000000000' }); ok('Falsche Gläubiger-ID abgelehnt', s === 400, j.error);
   [s, j] = await A(X('settings'), 'PUT', { year_start: '05-15' }); ok('Beitragsjahr nur am Ersten', s === 400);
@@ -140,7 +140,7 @@ const iso = d => d.toISOString().slice(0, 10);
   ok('FRST + RCUR getrennt', /<SeqTp>FRST<\/SeqTp>/.test(buf) && /<SeqTp>RCUR<\/SeqTp>/.test(buf) && /TCF2000/.test(buf) && /ALT-77/.test(buf));
   [s, j] = await A(X(`collections/${coll}/prenotify`), 'POST', {}); await sleep(800);
   ok('Vorabinformation', s === 200 && j.sent === 2, JSON.stringify(j));
-  ok('Vorab-Mail mit Mandat', mails().some(m => m.to === 'max@test.de' && /TCF2000/.test(m.text) && /DE46ZZZ00000387335/.test(m.text)));
+  ok('Vorab-Mail mit Mandat', mails().some(m => m.to === 'max@test.de' && /TCF2000/.test(m.text) && /DE98ZZZ09999999999/.test(m.text)));
   [s, , r, buf] = await A(X(`collections/${coll}/letters.pdf?all=1`)); ok('Briefe-PDF', s === 200 && buf.slice(0, 4).toString() === '%PDF');
   [s, j] = await A(X(`collections/${coll}/return`), 'POST', { member_id: lena, fee_cents: 350, reason: 'Konto erloschen' }); ok('Rücklastschrift', s === 200, j.error);
   [s, j] = await A(X(`charges?member=${lena}&status=offen`)); ok('Posten wieder offen + Gebühr', j.rows.some(c => c.kind === 'ruecklastschrift' && c.cents === 350) && j.rows.length >= 3, j.rows.map(c => c.text).join('|'));

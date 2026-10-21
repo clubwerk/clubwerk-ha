@@ -62,7 +62,7 @@ const iso = d => d.toISOString().slice(0, 10);
   ok('Setup', s === 200, JSON.stringify(j));
   const W = p => 'api/admin/x/arbeitseinsatz/' + p;
   const y = new Date().getFullYear(), py = y - 1;
-  await A(X('settings'), 'PUT', { creditor_id: 'DE46ZZZ00000387335', club_iban: 'DE02120300000000202051', mandate_prefix: 'TCF' });
+  await A(X('settings'), 'PUT', { creditor_id: 'DE98ZZZ09999999999', club_iban: 'DE02120300000000202051', mandate_prefix: 'TCF' });
   const fee = async b => (await A(X('fees'), 'POST', b))[1].id;
   const fFam = await fee({ name: 'Familie', cents: 18500, family: 1 });
   const fErw = await fee({ name: 'Erwachsene', cents: 10800, age_min: 19 });
@@ -185,7 +185,8 @@ const iso = d => d.toISOString().slice(0, 10);
   const before = mails().length;
   [s, j] = await A('api/m/arbeitseinsatz/signup', 'POST', { event_id: sZa, remove: true }, { base: M, dev }); ok('Austragen (mehr als 24 h vorher)', s === 200, j.error);
   await sleep(700); { const ms = mails(); void before; ok('Verwaltung per Mail informiert', ms.some(m => m.to.includes('vorstand@test.de') && /Absage/.test(m.subject) && /ausgetragen/.test(m.text)), JSON.stringify(ms.map(m => [m.to, m.subject]))); }
-  [s, j] = await A(W('events'), 'POST', { title: 'Morgen früh', date: pd(1), start: '06:00', end: '08:00', slots: 5, kind: 'arbeit' }); const soon = j.ids[0];
+  const tIn2 = new Date(Date.now() + 2 * 3600e3), pIn2 = n => String(n).padStart(2, '0');   // in zwei Stunden – unabhängig von der Uhrzeit des Testlaufs
+  [s, j] = await A(W('events'), 'POST', { title: 'Gleich', date: `${tIn2.getFullYear()}-${pIn2(tIn2.getMonth() + 1)}-${pIn2(tIn2.getDate())}`, start: `${pIn2(tIn2.getHours())}:00`, end: `${pIn2(Math.min(23, tIn2.getHours() + 1))}:59`, slots: 5, kind: 'arbeit' }); const soon = j.ids[0];
   await A('api/m/arbeitseinsatz/signup', 'POST', { event_id: soon }, { base: M, dev: dev2 });
   [s, j] = await A('api/m/arbeitseinsatz/signup', 'POST', { event_id: soon, remove: true }, { base: M, dev: dev2 }); ok('Unter 24 h: nur über den Kontakt', s === 400 && /Thorsten, 0170 123/.test(j.error), j.error);
   [s, j] = await A(W(`events/${soon}/signup`), 'POST', { member_id: lena, remove: true }); ok('Verwaltung trägt trotzdem aus', s === 200);

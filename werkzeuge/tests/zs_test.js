@@ -58,7 +58,7 @@ const iso = d => d.toISOString().slice(0, 10);
   let s, j;
   await start();
   [s, j] = await A('api/admin/setup', 'POST', { clubName: 'TC Test', password: 'Test-Kennwort-42', modules: { getraenke: true, mitglieder: true } });
-  await A(X('settings'), 'PUT', { creditor_id: 'DE46ZZZ00000387335', club_iban: 'DE02120300000000202051', mandate_prefix: 'TCF', year_start: '05-01' });
+  await A(X('settings'), 'PUT', { creditor_id: 'DE98ZZZ09999999999', club_iban: 'DE02120300000000202051', mandate_prefix: 'TCF', year_start: '05-01' });
   const y = new Date().getFullYear();
   [s, j] = await A(X('departments'), 'POST', { name: 'Padel' }); const padel = j.id;
   const fee = async b => { const r = await A(X('fees'), 'POST', b); return r[1].id || r; };

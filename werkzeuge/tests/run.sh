@@ -46,7 +46,9 @@ mkdir -p "$S/smtp"; cp "$H/hilfen/smtp/srv.js" "$S/smtp/"; ln -sfn "$H/hilfen/sm
 node "$S/smtp/srv.js" > "$S/smtp/srv.log" 2>&1 & SMTP_PID=$!
 RES=$S/ergebnis.txt; : > "$RES"
 run() { local out=$S/t_$1.out; (cd "$W" && timeout 600 node "$1_test.js" "$S" > "$out" 2>&1)
-  echo "== $1: $(grep -c '^✘' "$out") Fehler · $(grep -c '^✔' "$out") ok"; grep '^✘' "$out" | sed -e "s/^/$1: /" -e 's/  .*$//' >> "$RES"; }   # nur Testreihe und Testname vergleichen, nicht die Details
+  echo "== $1: $(grep -c '^✘' "$out") Fehler · $(grep -c '^✔' "$out") ok"
+  grep -q '^✔' "$out" || { echo "$1: ✘ Testreihe abgebrochen" >> "$RES"; tail -5 "$out"; }   # kein einziges ✔ = Absturz, nie still durchwinken
+  grep '^✘' "$out" | sed -e "s/^/$1: /" -e 's/  .*$//' >> "$RES"; }   # nur Testreihe und Testname vergleichen, nicht die Details
 NAMES="${*:-$(cat "$H/namen.txt")}"
 for t in $NAMES; do
   case $t in

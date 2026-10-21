@@ -51,7 +51,7 @@ const Y = +today.slice(0, 4);
   [s, j] = await A('api/admin/setup', 'POST', { clubName: 'TC Test', password: 'Test-Kennwort-42', modules: { getraenke: true, mitglieder: true, buchhaltung: true } });
   ok('Setup mit Buchhaltung', s === 200, JSON.stringify(j));
   await A('api/admin/mail', 'PUT', { host: '127.0.0.1', port: 2525, user: '', from: 'verein@test.de' });
-  await A(MV('settings'), 'PUT', { creditor_id: 'DE46ZZZ00000387335', club_iban: 'DE02120300000000202051', club_street: 'Sportplatzweg 1', club_city: '65599 Dornburg' });
+  await A(MV('settings'), 'PUT', { creditor_id: 'DE98ZZZ09999999999', club_iban: 'DE02120300000000202051', club_street: 'Sportplatzweg 1', club_city: '65599 Dornburg' });
   [s, j] = await A(X('meta')); ok('Meta ohne Bankkonto', s === 200 && j.mv === true && j.accounts.length === 0, JSON.stringify(j.accounts));
   // zentrale Bankkonten
   [s, j] = await A('api/admin/bank-accounts', 'POST', { name: 'Vereinskonto', iban: 'DE02 1203 0000 0000 2020 52' }); ok('Bankkonto: Prüfziffer', s === 400, j.error);

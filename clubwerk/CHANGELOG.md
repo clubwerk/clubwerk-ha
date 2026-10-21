@@ -2,7 +2,7 @@
 
 ## 3.30.6
 
-- **Neutral für jeden Verein:** Beispiele in Änderungsprotokoll, Anleitung und Programmkommentaren nennen keinen echten Verein und keine echte Adresse mehr („TC Musterstadt“, „app.dein-verein.de“). Gefunden hat das die neue Geheimnis-Prüfung, die vor jeder Version läuft.
+- **Neutral für jeden Verein:** Beispiele in Änderungsprotokoll, Anleitung und Programmkommentaren nennen keinen echten Verein und keine echte Adresse mehr („TC Musterstadt“, „app.dein-verein.de“, Gerätename „homeassistant“, Kürzel „TCM“). Gefunden hat das die neue Geheimnis-Prüfung, die vor jeder Version läuft.
 - **Für Entwickler:** Das Repository enthält jetzt alle Werkzeuge für die Weiterentwicklung (Ordner `werkzeuge/`, Anleitung in `CLAUDE.md`): Paket-Skript mit allen Prüfungen, Demo-Server mit erfundenen Daten, rund 50 erweiterte Testreihen, Design-Prüfstand, Übersetzungswerkzeuge.
 
 ## 3.30.5

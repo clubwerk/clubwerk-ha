@@ -59,7 +59,7 @@ const TODAY = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toIS
   let s, j;
   await start();
   await A('api/admin/setup', 'POST', { clubName: 'TC Test', password: 'Test-Kennwort-42', modules: { getraenke: true, mitglieder: true } });
-  await A(X('settings'), 'PUT', { creditor_id: 'DE46ZZZ00000387335', club_iban: 'DE02120300000000202051', mandate_prefix: 'TCF', year_start: '01-01' });
+  await A(X('settings'), 'PUT', { creditor_id: 'DE98ZZZ09999999999', club_iban: 'DE02120300000000202051', mandate_prefix: 'TCF', year_start: '01-01' });
   const y = +TODAY.slice(0, 4);
   const padel = (await A(X('departments'), 'POST', { name: 'Padel' }))[1].id;
   const fee = async b => (await A(X('fees'), 'POST', b))[1].id;

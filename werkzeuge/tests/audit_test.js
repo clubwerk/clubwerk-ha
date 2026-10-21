@@ -40,7 +40,7 @@ let srv;
   for (let i = 0; i < 80; i++) { try { const r = await fetch(B + 'api/admin/status'); if (r.status) break; } catch (e) { /* */ } await sleep(250); }
   let s, j;
   [s, j] = await A('api/admin/setup', 'POST', { clubName: 'TC Audit', password: 'Test-Kennwort-42', modules: { getraenke: true, buchung: true, mitglieder: true } }); ok('S0', 'Setup', s === 200, JSON.stringify(j));
-  [s, j] = await A(X('settings'), 'PUT', { creditor_id: 'DE46ZZZ00000387335', club_iban: 'DE02120300000000202051', club_bic: 'BYLADEM1001', mandate_prefix: 'TCA', creditor_name: 'TC Audit & Söhne e.V.' }); ok('S1', 'SEPA-Einstellungen', s === 200, j.error);
+  [s, j] = await A(X('settings'), 'PUT', { creditor_id: 'DE98ZZZ09999999999', club_iban: 'DE02120300000000202051', club_bic: 'BYLADEM1001', mandate_prefix: 'TCA', creditor_name: 'TC Audit & Söhne e.V.' }); ok('S1', 'SEPA-Einstellungen', s === 200, j.error);
   [s, j] = await A(X('fees'), 'POST', { name: 'Erwachsene', cents: 12000, interval: 'jahr', kind: 'grund' }); fee = j.id; ok('S2', 'Beitragsart', s === 200 && fee, j.error);
   [s, j] = await newMember({ first_name: 'Anna', last_name: 'Alpha' }); const anna = j.id; ok('S3', 'Mitglied Anna (Rechnung)', s === 200 && anna, j.error);
   [s, j] = await newMember({ first_name: 'Bernd', last_name: 'Beta', iban: 'DE89 3704 0044 0532 0130 00', holder: 'Bernd & Söhne <Beta> "Ü"', mandate_date: '2025-01-10' }); const bernd = j.id; ok('S4', 'Mitglied Bernd (Lastschrift, Sonderzeichen im Kontoinhaber)', s === 200 && bernd, j.error);
@@ -225,7 +225,7 @@ let srv;
     const ibans = tags(xml, 'IBAN');
     ok('T8.10', 'IBANs im XML prüfsummenrichtig (eigene mod97), ohne Leerzeichen', ibans.length === 2 && ibans.every(i => /^[A-Z]{2}\d{2}[A-Z0-9]+$/.test(i) && ibanOk(i)), JSON.stringify(ibans));
     const ci = tags(xml, 'Id').filter(v => /^[A-Z]{2}\d{2}[A-Z0-9]{3}/.test(v));
-    ok('T8.11', 'Gläubiger-ID im CdtrSchmeId, Schema SEPA', ci.includes('DE46ZZZ00000387335') && /<CdtrSchmeId><Id><PrvtId><Othr><Id>DE46ZZZ00000387335<\/Id><SchmeNm><Prtry>SEPA<\/Prtry>/.test(xml), JSON.stringify(ci));
+    ok('T8.11', 'Gläubiger-ID im CdtrSchmeId, Schema SEPA', ci.includes('DE98ZZZ09999999999') && /<CdtrSchmeId><Id><PrvtId><Othr><Id>DE98ZZZ09999999999<\/Id><SchmeNm><Prtry>SEPA<\/Prtry>/.test(xml), JSON.stringify(ci));
     const [, mb] = await A(X(`member/${bernd}`)); const bank = mb.bank || {};
     ok('T8.12', 'Mandatsreferenz und Unterschriftsdatum wie im Mitglied', tags(xml, 'MndtId')[0] === bank.mandate_ref && tags(xml, 'DtOfSgntr')[0] === '2025-01-10' && /^[A-Za-z0-9+?/\-:().,']{1,35}$/.test(bank.mandate_ref || ''), JSON.stringify([tags(xml, 'MndtId'), tags(xml, 'DtOfSgntr'), bank.mandate_ref]));
     ok('T8.13', 'SeqTp FRST bei erstmaliger Nutzung, Fälligkeit = gewählter Bankarbeitstag', tags(xml, 'SeqTp')[0] === 'FRST' && tags(xml, 'ReqdColltnDt')[0] === earliest, JSON.stringify([tags(xml, 'SeqTp'), tags(xml, 'ReqdColltnDt'), earliest]));
