@@ -6,7 +6,7 @@
     render(el, ctx) {
       const { esc } = ctx;
       el.innerHTML = `<div class="vh-status"><span class="vh-dot busy" id="bgDot"></span><span id="bgSt">Verbinde …</span></div>
-        <div id="bgTiles" style="display:flex;flex-direction:column;gap:12px"></div>
+        <div id="bgTiles" class="vh-tiles zones"></div>
         <button class="vh-stop hidden" id="bgStop">■ Alle Zonen ausschalten</button>`;
       let pl = [], timer = null, alive = true;
       const T = () => window.BeregnungTiles;

@@ -15,11 +15,13 @@
   }
   const since = ts => { const m = Math.max(0, Math.round((Date.now() - new Date(ts.replace(' ', 'T')).getTime()) / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 
+  /** Datumsblock wie überall (Verwaltung, Mitglieder-App): Datum groß, Wochentag klein darunter */
+  const dateBlk = d => { const x = new Date((d || new Date().toISOString().slice(0, 10)) + 'T12:00:00'); return `<span class="tk-date"><b>${String(x.getDate()).padStart(2, '0')}.${String(x.getMonth() + 1).padStart(2, '0')}.</b><span>${x.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span></span>`; };
   async function load() {
     try { state = await call('x/arbeitseinsatz/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="tk-tile on" data-r="${r.member_id}"><i class="av">${esc(String(r.name || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</i><span class="tk-txt"><b>${esc(r.name)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></span><span class="t">${since(r.in_at)}</span></button>`).join('')
       : '<div class="tk-empty">Niemand eingestempelt.</div>';
-    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="tk-tile"><span class="tk-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg></span><span class="tk-txt"><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></span></div>`).join('')
+    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="tk-tile">${dateBlk(e.date)}<span class="tk-txt"><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></span></div>`).join('')
       : '<div class="tk-empty">Heute ist nichts geplant – du kannst trotzdem einen Einsatz beginnen.</div>';
     $('note').textContent = state.text || '';
     $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; confirmStop(p, state.running.find(x => x.member_id === p.id)); }; });

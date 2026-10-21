@@ -137,6 +137,12 @@ Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farbe
 6. Belegungen (Plätze) im gemeinsamen Belegungsplan – derselbe wie in Verwaltung und Mitglieder-App.
 7. Seiten aus der Mitglieder-App (Kit `.vh-…`) bekommen am Tablet über `body.embedded` automatisch dieses Aussehen.
 
+**Gleiche Sache = gleiches Aussehen in allen Oberflächen (ab 3.30.0):**
+- **Geräte bedienen** (Türen, Beregnung): überall dieselbe Gerätekachel – Raster `.vh-tiles` (mit `.doors` bzw. `.zones` für das Symbol) und das gemeinsame Skript des Moduls (`doors.js`, `plaetze.js`). Das gilt für Mitglieder-App, Tablet, eigene Webapp **und** Verwaltung (die Verwaltung lädt `kit.css` mit). Handy 2, ab 700 px 3, ab 1000 px 4 Kacheln je Zeile.
+- **Belegungen**: überall der gemeinsame Belegungsplan (Plätze nebeneinander, Zeitachse, Blöcke in der Farbe der Buchungsart).
+- **Termine**: überall ein Datumsblock – Datum groß, Wochentag klein darunter (`.vh-date` in der App, `.tk-date` am Tablet, gleicher Aufbau in der Verwaltung).
+- Wer eine Funktion in einer Oberfläche ändert, prüft die anderen Oberflächen mit.
+
 **Mitglieder-App (public/member.js)** – nur Bausteine aus `kit.css` (`.vh-…`); ein Modul braucht dafür kein eigenes CSS. Der Bereich rendert direkt in `el`, der Abstand zwischen den Blöcken (12 px) kommt von der App. Vorbild: `vorlage-erweiterung/beispiel/public/member.js`.
 
 | Baustein | Wofür | Regeln |

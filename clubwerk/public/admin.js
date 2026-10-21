@@ -2287,6 +2287,12 @@
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
           <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt (ab 10: 30 Minuten), nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>
       ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="sicherheit"><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
+      ${can('einstellungen') && mods.length ? `<div class="card" data-nodirty data-set="bereiche"><h3>Wer sieht welchen Bereich?</h3>
+        <p class="muted s" style="margin-top:0">Bereiche „für alle“ sieht jedes freigeschaltete Handy (einzelne Mitglieder lassen sich unter „Mitglieder“ sperren). Die übrigen – z. B. Beregnung und Türen – sieht nur, wem du sie ausdrücklich freischaltest. „Vorausgewählt“ bestimmt, ob der Haken beim Freischalten schon gesetzt ist.</p>
+        <table class="tbl"><tr><th>Bereich</th><th>Wer</th><th>Beim Freischalten</th><th></th></tr>
+          ${mods.map(m => `<tr><td><b translate="no">${esc(m.label || m.name)}</b></td><td>${m.open ? '<span class="pill g">für alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
+            <td><label class="chk"><input type="checkbox" data-pre="${esc(m.id)}" ${m.preselect ? 'checked' : ''}> vorausgewählt</label></td>
+            <td class="r">${!m.open && m.count ? `<button class="btn small" data-rvk="${esc(m.id)}" data-n="${m.count}">Allen entziehen …</button>` : ''}</td></tr>`).join('')}</table></div>` : ''}
       <div class="card" id="apAway" data-set="bereiche"><h3>Von unterwegs nutzbar</h3>
         <p class="muted s" style="margin:0 0 8px">Nicht angehakte Bereiche funktionieren nur im Vereins-WLAN – unterwegs sieht das Mitglied dort einen Hinweis. Als Vereins-WLAN gilt nur, was direkt bei Home Assistant ankommt (nicht über den Tunnel). Damit die App im Vereinsheim lokal zugreift, muss die „Adresse im Vereins-WLAN“ oben eine https-Adresse mit gültigem Zertifikat sein. Einzelne Mitglieder (Platzwart, Vorstand) bekommen in der Tabelle die Ausnahme „auch unterwegs“.</p>
         <p class="muted s" style="margin:0 0 8px">${!r.tunnel.on ? '<span class="pill">Nur im Vereins-WLAN (Tunnel aus)</span> – alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche dann auch im Vereinsheim als „unterwegs“ – Anleitung in der Dokumentation, Abschnitt „Mitglieder-App von unterwegs“.'}</p>
@@ -2300,7 +2306,7 @@
       <div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
-        <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" checked> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
+        <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
       <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
         ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'warten auf WLAN'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
@@ -2366,6 +2372,13 @@
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id), startSection: startId }); toast('Gespeichert – die App übernimmt es beim nächsten Öffnen.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
     }
     if ($('smsCard')) smsCard($('smsCard')).catch(e => { $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
+    $('main').querySelectorAll('[data-pre]').forEach(c => { c.onchange = async () => {
+      const o = {}; $('main').querySelectorAll('[data-pre]').forEach(x => { o[x.dataset.pre] = x.checked; });
+      try { await api('settings/app', 'PUT', { preselect: o }); toast('Gespeichert.'); } catch (e) { c.checked = !c.checked; fail(e); } }; });
+    $('main').querySelectorAll('[data-rvk]').forEach(b => { b.onclick = async () => {
+      const m = mods.find(x => x.id === b.dataset.rvk);
+      if (!await ask(`„${m.label || m.name}“ allen entziehen?\n\n${b.dataset.n} Mitglieder verlieren diesen Bereich in der Mitglieder-App. Danach einzeln unter „Mitglieder“ wieder freischalten (z. B. Platzwart, Vorstand).`, { ok: 'Allen entziehen', danger: true })) return;
+      try { const r = await api(`app/module/${m.id}/revoke-all`, 'POST', {}); toast(`${r.removed} Freischaltungen entfernt.`); RENDER.app().catch(fail); } catch (e) { fail(e); } }; });
     if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
     $('main').querySelectorAll('[data-hnet]').forEach(b => { b.onclick = () => { const v = $('apNets').value.trim(); if (!v.split(/[\s,;]+/).includes(b.dataset.hnet)) $('apNets').value = v ? v + ', ' + b.dataset.hnet : b.dataset.hnet; }; });
     if ($('apDirect')) $('apDirect').onchange = async () => { const on = $('apDirect').checked;

@@ -81,18 +81,35 @@
       const d = await loadCfg(); const c = st.cfg;
       const ha = c.backend !== 'hydrawise';
       if (k === 'bedienen') {
-        const s = await api('status');
-        const ST = { run: ['g', 'läuft'], auto: ['g', 'Automatik läuft'], wait: ['a', 'wartet'], idle: ['', 'bereit'] };
-        el.innerHTML = `${s.online ? '' : `<div class="banner r">Keine Verbindung zur Bewässerungsanlage${s.error ? ': ' + esc(s.error) : ''}</div>`}
-          <div class="card"><h3>Plätze</h3>${s.plaetze.length ? `<table class="tbl"><tr><th>Platz</th><th>Zonen</th><th>Zustand</th><th class="r">Restzeit</th></tr>
-            ${s.plaetze.map(p => `<tr><td><b>${esc(p.name)}</b></td><td class="muted s">${esc(p.sub)}</td><td><span class="pill ${ST[p.state][0]}">${ST[p.state][1]}</span>${p.phase ? ` <span class="muted s">${esc(p.phase)}</span>` : ''}${p.blockedUntil ? ` <span class="muted s">wieder ab ${esc(p.blockedUntil)}</span>` : ''}</td>
-              <td class="r">${p.remain != null ? Math.floor(p.remain / 60) + ':' + String(p.remain % 60).padStart(2, '0') : '–'}</td></tr>`).join('')}</table>` : '<p class="muted">Noch keine Plätze – unter „Plätze &amp; Anbindung“ anlegen.</p>'}
-            ${s.next ? `<p class="muted s" style="margin:10px 0 0">Nächste automatische Beregnung: ${esc(s.next)}</p>` : ''}
-            <div class="row" style="margin-top:12px"><button class="btn danger" id="bStop">Jetzt alles stoppen</button><button class="btn" id="bRe">Aktualisieren</button></div></div>
+        // dieselben Kacheln wie in der Mitglieder-App, am Tablet und in der Beregnungs-Webapp (plaetze.js + kit.css)
+        if (!window.BeregnungTiles) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'x/beregnung/plaetze.js?v=' + encodeURIComponent(GK.version || ''); sc.onload = ok; sc.onerror = () => no(new Error('Kacheln konnten nicht geladen werden.')); document.head.appendChild(sc); });
+        const T = window.BeregnungTiles;
+        let s = await api('status'), timer = null, tick = null;
+        el.innerHTML = `<div id="bOff"></div><div class="card"><h3>Plätze</h3><div class="vh-tiles zones" id="bTiles"></div>
+            <p class="muted s" id="bNext" style="margin:12px 0 0"></p>
+            <div class="row" style="margin-top:12px"><button class="btn danger" id="bStop">■ Alle Zonen ausschalten</button></div></div>
           <div class="card"><h3>Wer darf bedienen?</h3><p style="margin:0"><span>${esc(MODES.find(m => m[0] === c.mode)[1])}</span>${c.mode === 'pin' ? ` · Webapp: <b>${GK.scheme ? GK.scheme() : 'http'}://&lt;Adresse von Home Assistant&gt;:${d.port || 5000}</b>` : ''}.
             Zusätzlich sehen Mitglieder mit Freischaltung die Beregnung in der <a href="#app" data-goapp>Mitglieder-App</a>.</p></div>`;
-        $('bStop').onclick = async () => { if (!await GK.ask('Alle Zonen jetzt ausschalten?\n\nLaufende und geplante Beregnungen werden sofort beendet.', { ok: 'Alles stoppen', danger: true })) return; try { const r = await api('stop', 'POST', {}); toast(r.ok ? 'Alle Zonen gestoppt.' : 'Nicht alles ließ sich stoppen: ' + r.errors.join('; '), !r.ok); } catch (e) { fail(e); } };
-        $('bRe').onclick = () => GK.RENDER.beregnung().catch(fail);
+        const alive = () => document.body.contains(el) && $('bTiles');
+        const draw = () => {
+          $('bOff').innerHTML = s.online ? '' : `<div class="banner r">Keine Verbindung zur Bewässerungsanlage${s.error ? ': ' + esc(s.error) : ''}</div>`;
+          $('bTiles').innerHTML = s.plaetze.length ? T.html(s.plaetze, esc) : '<div class="vh-empty">Noch keine Plätze – unter „Plätze &amp; Anbindung“ anlegen.</div>';
+          $('bNext').textContent = s.next ? `Nächste automatische Beregnung: ${s.next}` : '';
+          $('bStop').classList.toggle('hidden', !s.plaetze.length);
+          $('bTiles').querySelectorAll('[data-p]').forEach(x => { x.onclick = async () => {
+            const p = s.plaetze.find(y => y.id === +x.dataset.p); if (!p || p.state !== 'idle') return;
+            try { await api('run', 'POST', { platz: p.id }); toast(`${p.name}: Beregnung gestartet.`); refresh(); } catch (e) { fail(e); } }; });
+          $('bTiles').querySelectorAll('[data-stop]').forEach(x => { x.onclick = async e => { e.stopPropagation();
+            try { const r = await api('stop', 'POST', { platz: +x.dataset.stop }); toast(r.ok ? 'Gestoppt.' : 'Nicht alles ließ sich stoppen.', !r.ok); refresh(); } catch (e2) { fail(e2); } }; });
+        };
+        async function refresh() {
+          clearTimeout(timer); if (!alive()) return clearInterval(tick);
+          try { s = await api('status'); T.prime(s.plaetze); draw(); } catch (e) { /* nächster Versuch */ }
+          timer = setTimeout(refresh, s.plaetze.some(p => p.state !== 'idle') ? 5000 : 20000);
+        }
+        T.prime(s.plaetze); draw(); timer = setTimeout(refresh, 5000);
+        tick = setInterval(() => { if (!alive()) { clearInterval(tick); clearTimeout(timer); return; } if (T.tick(s.plaetze)) draw(); }, 1000);
+        $('bStop').onclick = async () => { if (!await GK.ask('Alle Zonen jetzt ausschalten?\n\nLaufende und geplante Beregnungen werden sofort beendet.', { ok: 'Alles stoppen', danger: true })) return; try { const r = await api('stop', 'POST', {}); toast(r.ok ? 'Alle Zonen gestoppt.' : 'Nicht alles ließ sich stoppen: ' + r.errors.join('; '), !r.ok); refresh(); } catch (e) { fail(e); } };
         el.querySelector('[data-goapp]').onclick = e => { e.preventDefault(); GK.go('app'); };
         return;
       }

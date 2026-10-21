@@ -623,8 +623,16 @@ function activate(ctx) {
     audit(req.user, key ? 'Beregnung: Hydrawise-API-Key gespeichert' : 'Beregnung: Hydrawise-API-Key gelöscht', '');
     res.json({ ok: true });
   });
+  /* Bedienen in der Verwaltung – dieselben Kacheln wie in Mitglieder-App und am Tablet: Platz starten, einzeln oder alles stoppen */
+  admin.post('/run', need('beregnung'), (req, res) => {
+    try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.user.name || req.user.username) }); } catch (e) { res.status(400).json({ error: e.message }); }
+  });
   admin.post('/stop', need('beregnung'), async (req, res) => {
-    const errs = await stopAll(req.user.name || req.user.username);
+    const b = req.body || {}, who = req.user.name || req.user.username;
+    if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
+      try { const errs = await stopPlatz(parseInt(b.platz, 10), who); return res.json({ ok: !errs.length, errors: errs }); } catch (e) { return res.status(400).json({ error: e.message }); }
+    }
+    const errs = await stopAll(who);
     res.json({ ok: !errs.length, errors: errs });
   });
   admin.get('/status', need('beregnung'), async (req, res) => res.json(await status()));

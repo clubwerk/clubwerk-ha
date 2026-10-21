@@ -132,7 +132,7 @@
       if (k === 'bedienen') {
         el.innerHTML = `${d.error ? `<div class="banner r">Keine Verbindung zu Home Assistant: ${esc(d.error)}</div>` : ''}
           ${c.blockAll ? '<div class="banner r">Zugang ist für alle gesperrt. Niemand kann über die App öffnen – nur die Fernbedienung hier.</div>' : ''}
-          <div class="card"><h3>Türen jetzt bedienen</h3><div id="zRemote"><p class="muted">Lade …</p></div></div>
+          <div class="card"><h3>Türen</h3><div id="zRemote"><p class="muted">Lade …</p></div></div>
           <div class="card"><h3>Notfall</h3><div class="row" style="align-items:center"><button class="btn ${c.blockAll ? 'primary' : 'danger'}" id="zBlockAll">${c.blockAll ? 'Sperre für alle aufheben' : 'Sofort alle sperren'}</button>
             <span class="muted s" style="flex:1;min-width:220px">Sperrt die App für alle Mitglieder (z. B. bei Verlust oder Missbrauch). Die Fernbedienung oben funktioniert weiter.</span></div></div>`;
         $('zBlockAll').onclick = async () => {
@@ -185,19 +185,17 @@
   };
 
   /* ---------- Fernbedienung ---------- */
+  /** Türen aus der Ferne bedienen – dieselben Kacheln wie in der Mitglieder-App und am Tablet (doors.js + kit.css) */
   async function loadRemote() {
+    if (!window.ZugangDoors) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'x/zugang/doors.js'; sc.onload = ok; sc.onerror = () => no(new Error('Kacheln konnten nicht geladen werden.')); document.head.appendChild(sc); });
     const r = await api('doors');
-    if (!r.doors.length) { $('zRemote').innerHTML = '<p class="muted">Noch keine Türen eingerichtet – unter „Türen“ anlegen.</p>'; return; }
-    const L = { auf: 'Aufschließen', zu: 'Abschließen', oeffnen: 'Öffnen' }, C = { auf: 'Öffnen', zu: 'Schließen' };
-    $('zRemote').innerHTML = `<table class="tbl"><tr><th>Tür</th><th>Zustand</th><th></th></tr>${r.doors.map(d => `<tr><td><b>${esc(d.name)}</b></td>
-      <td>${d.jammed ? '<span class="pill r">blockiert</span> ' : ''}${d.offline ? '<span class="pill r">nicht erreichbar</span>' : esc(d.state)}</td>
-      <td class="r" style="white-space:nowrap">${[...d.can].sort((x, y) => (x === 'zu') - (y === 'zu')).map(a => `<button class="btn small ${a === 'zu' ? '' : 'primary'}" data-ra="${d.id}:${a}" ${d.offline ? 'disabled' : ''}>${(d.type === 'cover' ? C : L)[a]}</button>`).join(' ')}</td></tr>`).join('')}</table>`;
-    $('zRemote').querySelectorAll('[data-ra]').forEach(b => { b.onclick = async () => {
-      const [id, a] = b.dataset.ra.split(':');
-      const d = r.doors.find(x => x.id === id);
-      if (!await GK.ask(`${d.name}: ${(d.type === 'cover' ? C : L)[a]}?\n\nWird sofort aus der Ferne ausgeführt und protokolliert.`, { ok: (d.type === 'cover' ? C : L)[a], danger: false })) return;
+    if (!r.doors.length) { $('zRemote').innerHTML = '<div class="vh-empty">Noch keine Türen eingerichtet – unter „Türen“ anlegen.</div>'; return; }
+    $('zRemote').innerHTML = `<div class="vh-tiles doors">${window.ZugangDoors.html(r.doors, esc, false)}</div>`;
+    $('zRemote').querySelectorAll('[data-d]').forEach(b => { b.onclick = async () => {
+      const d = r.doors.find(x => x.id === b.dataset.d), a = b.dataset.a, lab = window.ZugangDoors.label(d, a);
+      if (!await GK.ask(`${d.name}: ${lab}?\n\nWird sofort aus der Ferne ausgeführt und protokolliert.`, { ok: lab, danger: false })) return;
       b.disabled = true;
-      try { await api(`doors/${id}/${a}`, 'POST', {}); toast('Befehl gesendet.'); setTimeout(() => loadRemote().catch(fail), 1500); } catch (e) { fail(e); b.disabled = false; }
+      try { await api(`doors/${d.id}/${a}`, 'POST', {}); toast('Befehl gesendet.'); setTimeout(() => loadRemote().catch(fail), 1500); } catch (e) { fail(e); b.disabled = false; }
     }; });
   }
 

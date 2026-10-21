@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.30.0
+
+- **Beregnung nur für ausgewählte Mitglieder:** Unter Mitglieder-App → Bereiche → „Wer sieht welchen Bereich?“ steht für jeden Bereich, ob ihn alle sehen oder nur ausgewählte Mitglieder. Beregnung und Türen sind beim Freischalten nicht mehr vorausgewählt (einstellbar je Bereich). Mit „Allen entziehen …“ verschwindet die Beregnung auf einen Schlag bei allen Mitgliedern – danach einzeln für Platzwart oder Vorstand wieder freischalten.
+- **Gleiche Bedienung überall (Beregnung 1.3.0, Zugang 1.2.0):** Beregnung und Türen sehen in Verwaltung, Mitglieder-App, Tablet und Beregnungs-Webapp gleich aus – dieselben Kacheln mit Symbol, Namen, Zustand und Knöpfen. In der Verwaltung lässt sich ein Platz jetzt auch direkt starten und einzeln stoppen; Restzeiten laufen mit.
+- **Termine überall mit gleichem Datumsblock** (Datum groß, Wochentag darunter) – jetzt auch bei den Helferdiensten in der Verwaltung und am Tablet.
+- Regel festgehalten: gleiche Sache = gleiches Aussehen in allen Oberflächen (ERWEITERUNGEN.md).
+
 ## 3.29.4
 
 - **Tablet: Browser trägt den Benutzernamen nicht mehr in die Namenssuche ein.** Chrome hielt die Suche für das Benutzerfeld zum Tablet-Passwort und füllte dort den gespeicherten Verwaltungs-Benutzernamen ein. Das Passwortfeld des Tablets hat jetzt ein eigenes (unsichtbares) Benutzerfeld „Vereinsheim“ in einem eigenen Formular – die Suche bleibt leer.

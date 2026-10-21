@@ -7,7 +7,7 @@
     render(el, ctx) {
       const { esc } = ctx;
       el.innerHTML = `<div class="vh-status"><span class="vh-dot busy" id="zgDot"></span><span id="zgSt">Verbinde …</span></div>
-        <div id="zgDoors" style="display:flex;flex-direction:column;gap:12px"></div><p class="vh-note" id="zgInfo"></p>`;
+        <div id="zgDoors" class="vh-tiles doors"></div><p class="vh-note" id="zgInfo"></p>`;
       let doors = [], timer = null, alive = true;
       async function refresh() {
         clearTimeout(timer);

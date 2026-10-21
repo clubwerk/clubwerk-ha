@@ -193,6 +193,8 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-tile.big > .tk-txt > span { font-size: 15px; line-height: 22px; white-space: normal; }
 .tk-ico { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; }
 .tk-ico svg { width: 22px; height: 22px; }
+.tk-date { width: 56px; height: 56px; flex: 0 0 56px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; font-variant-numeric: tabular-nums; }   /* Datumsblock wie in Verwaltung und App */
+.tk-date b { font-size: 17px; font-weight: 800; } .tk-date span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .tk-chip { flex: none; font-size: 13px; line-height: 18px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--hover); color: var(--muted); white-space: nowrap; }
 .tk-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .tk-chip.a { background: var(--amber-soft); color: var(--amber); } .tk-chip.r { background: var(--red-soft); color: var(--red); }
 .tk-grid > .tk-empty { grid-column: 1 / -1; }

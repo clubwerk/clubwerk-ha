@@ -253,11 +253,13 @@ function memberState(memberId) {
     granted: Object.fromEntries(activeModules().map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
   };
 }
+/** Beim Freischalten vorausgewählt? Bereiche, die im Verein etwas schalten (Türen, Beregnung), standardmäßig nicht – nur für ausgewählte Mitglieder */
+const preselect = id => { const m = modules.get(id); let o = {}; try { o = JSON.parse(getSetting('app_preselect', '{}')) || {}; } catch (e) { o = {}; } return id in o ? Boolean(o[id]) : !(m && m.sensitive && !m.open); };
 const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
   try { options = m.hooks.accessOptions ? m.hooks.accessOptions() : null; } catch (e) { options = null; }
   // Profile nur für eigens freizuschaltende Bereiche; zusätzliche Haken (flags) auch für „für alle“-Bereiche
-  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), away: extAllowed(id), options: options ? (m.open ? { flags: options.flags || null } : options) : null };
+  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), away: extAllowed(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
 });
 
 /* ---------- Port der Mitglieder-App ---------- */
@@ -715,6 +717,16 @@ function adminRoutes(admin, { bad, need, auth }) {
     audit(req.user, 'Mitglieder-App: aus der App entfernt', `${m.name} (Handy und ${n} Freischaltung(en))`);
     res.json({ ok: true });
   });
+  /** Bereich (Türen, Beregnung …) allen Mitgliedern auf einmal entziehen – z. B. wenn er nur noch für Platzwart und Vorstand da sein soll */
+  admin.post('/app/module/:id/revoke-all', need('einstellungen'), (req, res) => {
+    const mod = modules.get(req.params.id);
+    if (!mod || mod.open) return bad(res, 'Diesen Bereich gibt es nicht oder er gilt für alle.');
+    const keep = new Set((Array.isArray((req.body || {}).keep) ? req.body.keep : []).map(Number));
+    const rows = access.list(req.params.id).filter(r => !keep.has(r.member_id));
+    db.transaction(() => rows.forEach(r => access.remove(r.member_id, req.params.id)))();
+    audit(req.user, 'Mitglieder-App: Bereich allen entzogen', `${mod.label || mod.name}: ${rows.length} Mitglieder${keep.size ? `, ${keep.size} behalten` : ''}`);
+    res.json({ ok: true, removed: rows.length });
+  });
   admin.put('/app/member/:id/access', (req, res) => {
     const id = parseInt(req.params.id, 10);
     const b = req.body || {};
@@ -789,6 +801,12 @@ function adminRoutes(admin, { bad, need, auth }) {
       if (t && !/^172\.30\.3[23]\.\d{1,3}$/.test(t) && !require('net').isIP(t)) return bad(res, 'Bitte eine IP-Adresse eintragen.');
       setSetting('tunnel_src', t);
       audit(req.user, 'Mitglieder-App: Tunnel-Quelle', t || 'jede Adresse im Add-on-Netz');
+    }
+    if (b.preselect !== undefined) {   // { modul: true|false } – beim Freischalten vorausgewählt
+      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Nur mit dem Recht „Einstellungen“.', 403);
+      const o = {}; for (const [k, v] of Object.entries(b.preselect || {})) if (modules.has(k)) o[k] = Boolean(v);
+      setSetting('app_preselect', JSON.stringify(o));
+      audit(req.user, 'Mitglieder-App: Vorauswahl beim Freischalten', Object.entries(o).map(([k, v]) => `${(modules.get(k) || {}).label || k}: ${v ? 'ja' : 'nein'}`).join(', '));
     }
     if (b.directPublic !== undefined) {
       if (!req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
