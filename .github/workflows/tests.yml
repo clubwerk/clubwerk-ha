@@ -1,0 +1,22 @@
+name: Tests
+on:
+  push:
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Abhängigkeiten
+        run: cd clubwerk && npm ci --no-audit --no-fund
+      - name: Sicherheitsprüfung der Abhängigkeiten
+        run: cd clubwerk && npm audit --omit=dev --audit-level=high
+        continue-on-error: true
+      - name: Syntax
+        run: find clubwerk -name '*.js' -not -path '*/node_modules/*' -print0 | xargs -0 -n1 node --check
+      - name: Tests
+        run: bash tests/run.sh

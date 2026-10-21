@@ -2236,6 +2236,8 @@
     let filt = FIL[cache.apFilter] ? cache.apFilter : 'alle';
     // abgelehnte Tunnel-Anfrage der letzten 24 Stunden: Hinweis, damit der Vorstand ein falsch erkanntes Cloudflared-Add-on bemerkt
     const rj = r.tunnel.lastReject && Date.now() - Date.parse(r.tunnel.lastReject.at) < 24 * 3600000 ? r.tunnel.lastReject : null;
+    const myNet = /^\d+\.\d+\.\d+\.\d+$/.test(r.tunnel.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(r.tunnel.myIp) ? r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24' : '';
+    const hostNetBtns = (r.tunnel.hostNets || []).filter(n => n !== myNet).map(n => `<button class="btn" type="button" data-hnet="${esc(n)}">Netz von Home Assistant übernehmen (${esc(n)})</button>`).join('');
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
       <p class="lead">Mitglieder bekommen <b>eine Einladung</b> (QR-Code, E-Mail oder Brief), nutzen <b>eine PIN</b> und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p>
       <div class="card" id="apSet" data-set="verbindung"><h3>Adresse der App</h3>
@@ -2250,7 +2252,8 @@
           <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> eingeschaltet</label>
           <button class="btn primary" id="apExtSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button><button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button></div>
         ${rj ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">${rj.why === 'aus' ? `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}), weil der externe Zugang ausgeschaltet war.`
-          : `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}). Kommt sie vom Cloudflared-Add-on, trage dessen IP-Adresse in der Add-on-Konfiguration von Clubwerk unter „proxy_addon_ip“ ein.`}</div>` : ''}
+          : rj.why === 'direkt' ? `Zuletzt wurde eine direkte Anfrage aus dem Internet von ${esc(rj.ip)} abgewiesen (${esc(deTime(rj.at))}). Das deutet auf eine Portfreigabe am Router hin – bitte dort entfernen. Von unterwegs ist nur der Cloudflare Tunnel vorgesehen.`
+          : `Zuletzt wurde eine Tunnel-Anfrage von ${esc(rj.ip)} abgelehnt (${esc(deTime(rj.at))}). Kommt sie vom Cloudflared-Add-on, unten unter „Tunnel-Quelle“ diese Adresse übernehmen.`}</div>` : ''}
         <ol class="muted s" style="margin:12px 0 0;padding-left:18px;line-height:1.6">
           <li>Kostenloses Konto bei Cloudflare, eure Domain dort verwalten lassen (z. B. <code>meinverein.de</code>).</li>
           <li>Cloudflare → Zero Trust → Networking → Tunnels → „Tunnel erstellen“ (Cloudflared, Docker) → Token kopieren.</li>
@@ -2263,9 +2266,11 @@
         ${r.tunnel.wlanNets ? '' : '<div class="banner a" style="margin:0 0 8px;font-weight:400">Noch kein Vereinsnetz eingetragen – jedes private Netz gilt als Vereinsheim.</div>'}
         <div class="row" style="align-items:flex-end;gap:10px"><label class="f" style="flex:1;min-width:220px">Netze (mit Komma)<input id="apNets" data-nodirty value="${esc(r.tunnel.wlanNets || '')}" placeholder="z. B. 192.168.10.0/24" ${r.mayExt ? '' : 'disabled'}></label>
           ${r.mayExt && /^\d+\.\d+\.\d+\.\d+$/.test(r.tunnel.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(r.tunnel.myIp) ? `<button class="btn" id="apNetMine" type="button">Mein Netz übernehmen (${esc(r.tunnel.myIp.replace(/\.\d+$/, '.0'))}/24)</button>` : ''}
-          ${r.mayExt ? '<button class="btn primary" id="apNetSave" type="button">Speichern</button>' : ''}</div></div>
+          ${r.mayExt ? hostNetBtns : ''}
+          ${r.mayExt ? '<button class="btn primary" id="apNetSave" type="button">Speichern</button>' : ''}</div>
+        <label class="chk" style="margin-top:12px"><input type="checkbox" id="apDirect" data-nodirty ${r.tunnel.directPublic ? 'checked' : ''} ${r.mayExt ? '' : 'disabled'}> Direkte Verbindungen aus dem Internet zur Mitglieder-App erlauben (ohne Tunnel – nicht empfohlen)</label></div>
       ${r.tunnel.on && r.mayExt ? `<div class="card" id="apSrc" data-set="verbindung"><h3>Tunnel-Quelle</h3>
-        <p class="muted s" style="margin:0 0 8px">Von welcher Adresse im Home-Assistant-Netz der Cloudflare Tunnel ankommt. Festgelegt glaubt die App die Absenderangabe des Tunnels nur noch dieser einen Adresse – kein anderes Add-on kann sich dann als Tunnel ausgeben. Startet das Cloudflared-Add-on später unter einer anderen Adresse, steht oben „abgelehnt“ mit der neuen Adresse – dann hier neu festlegen.</p>
+        <p class="muted s" style="margin:0 0 8px">Von welcher Adresse im Home-Assistant-Netz der Cloudflare Tunnel ankommt. Festgelegt glaubt die App die Absenderangabe des Tunnels nur noch dieser einen Adresse – auch nicht mehr dem Proxy-Add-on aus der Add-on-Konfiguration; kein anderes Add-on kann sich dann als Tunnel ausgeben. Empfohlen, sobald der Tunnel läuft. Startet das Cloudflared-Add-on später unter einer anderen Adresse, steht oben „abgelehnt“ mit der neuen Adresse – dann hier neu festlegen.</p>
         <div class="row" style="align-items:center;gap:10px">${r.tunnel.src ? `<span class="pill g">Festgelegt: ${esc(r.tunnel.src)}</span><button class="btn" id="apSrcOff" type="button">Wieder jede Adresse im Add-on-Netz zulassen</button>`
           : r.tunnel.lastOk ? `<span class="pill">Zuletzt gesehen: ${esc(r.tunnel.lastOk.ip)}</span><button class="btn primary" id="apSrcSet" type="button" data-ip="${esc(r.tunnel.lastOk.ip)}">Nur diese Quelle zulassen</button>`
           : '<span class="muted s">Noch keine Anfrage über den Tunnel seit dem letzten Neustart – einmal die öffentliche Adresse aufrufen, dann diese Seite neu laden.</span>'}
@@ -2312,7 +2317,7 @@
     // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
     const APP_SECS = [['mitglieder', 'Mitglieder'], ['bereiche', 'Bereiche'], ['push', 'Benachrichtigungen'], ['verbindung', 'Verbindung'], ['sicherheit', 'Sicherheit']];
     sectionize({ secs: APP_SECS, keyOf: () => 'mitglieder', store: 'cw_appsec', label: 'Bereiche der Mitglieder-App',
-      badges: { verbindung: !r.tunnel.wlanNets && r.mayExt ? 'Noch kein Vereinsnetz eingetragen' : rj ? 'Tunnel-Anfrage abgelehnt' : oldN ? 'Handys mit alter Adresse' : false,
+      badges: { verbindung: !r.tunnel.wlanNets && r.mayExt ? 'Noch kein Vereinsnetz eingetragen' : rj ? (rj.why === 'direkt' ? 'Anfrage aus dem Internet abgewiesen' : 'Tunnel-Anfrage abgelehnt') : oldN ? 'Handys mit alter Adresse' : false,
         sicherheit: r.security.sms && r.security.sms.on && !r.security.sms.ready ? 'SMS-Stick nicht bereit' : false,
         mitglieder: r.rows.some(FIL.wlan) ? 'Handys warten auf die WLAN-Freigabe' : false } });
     watch($('apSet')); watch($('apSec'));
@@ -2362,6 +2367,10 @@
     }
     if ($('smsCard')) smsCard($('smsCard')).catch(e => { $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
     if ($('apNetMine')) $('apNetMine').onclick = () => { $('apNets').value = r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24'; };
+    $('main').querySelectorAll('[data-hnet]').forEach(b => { b.onclick = () => { const v = $('apNets').value.trim(); if (!v.split(/[\s,;]+/).includes(b.dataset.hnet)) $('apNets').value = v ? v + ', ' + b.dataset.hnet : b.dataset.hnet; }; });
+    if ($('apDirect')) $('apDirect').onchange = async () => { const on = $('apDirect').checked;
+      if (on && !await ask('Direkte Verbindungen aus dem Internet erlauben?\n\nDann kommt die Mitglieder-App auch über eine Portfreigabe am Router an – ohne den Schutz des Cloudflare Tunnels und meist ohne HTTPS. Nur einschalten, wenn ihr einen eigenen Reverse Proxy mit HTTPS davor betreibt.', { ok: 'Erlauben', danger: true })) { $('apDirect').checked = false; return; }
+      try { await api('settings/app', 'PUT', { directPublic: on }); toast(on ? 'Direkte Verbindungen erlaubt.' : 'Direkte Verbindungen aus dem Internet werden abgewiesen.'); } catch (e) { $('apDirect').checked = !on; fail(e); } };
     const setSrc = ip => async () => { try { await api('settings/app', 'PUT', { tunnelSrc: ip }); toast(ip ? `Nur noch ${ip} gilt als Tunnel.` : 'Jede Adresse im Add-on-Netz gilt wieder als Tunnel.'); RENDER[page](); } catch (e) { fail(e); } };
     if ($('apSrcSet')) $('apSrcSet').onclick = setSrc($('apSrcSet').dataset.ip);
     if ($('apSrcNew')) $('apSrcNew').onclick = setSrc($('apSrcNew').dataset.ip);
@@ -2524,6 +2533,23 @@
   const KIND_B = { auto: 'nächtlich', manuell: 'von Hand', 'vor-wiederherstellung': 'vor Wiederherstellung', hochgeladen: 'hochgeladen', komplett: 'aus Komplettsicherung' };
   /* ---------- Tresor: Verschlüsselung der persönlichen Daten ---------- */
   const VAULT_WHAT = 'Adressen, Telefon, E-Mail, Geburtsdaten, Bankdaten, Unterschriften, Beitrittserklärungen, Dokumente, Profilfotos, Notizen, Änderungsverlauf und die Kontaktdaten in der Buchhaltung';
+  /* ehrlich: was der Tresor schützt – und was bewusst lesbar bleibt (muss zu SPEC/FILE_DIRS in src/vault.js passen) */
+  const VAULT_SCOPE = `<details style="margin-top:10px"><summary>Was genau verschlüsselt wird – und was nicht</summary>
+    <div class="row" style="align-items:flex-start;gap:20px;margin-top:8px">
+      <div style="flex:1;min-width:240px"><b>Verschlüsselt</b><ul class="s" style="margin:6px 0 0;padding-left:18px">
+        <li>Mitglieder: Geburtsdatum, Anschrift, Telefon, Handy, E-Mail, Schlüsselnummer, Notizen, Zusatzfelder</li>
+        <li>Bankdaten (Kontoinhaber, IBAN, BIC), Lastschrift-Dateien</li>
+        <li>Online-Anträge, Änderungsanträge, Unterschriften, Änderungsverlauf</li>
+        <li>Buchhaltung: Kontaktdaten der Partner, Rechnungsempfänger, Spender</li>
+        <li>Gastspieler/innen: Handynummer · externe Helfer: Notiz</li>
+        <li>E-Mail-Adressen der Empfänger von Rundmails</li>
+        <li>Dateien: Mitglieder-Dokumente, Profilfotos, Mail-Anhänge</li></ul></div>
+      <div style="flex:1;min-width:240px"><b>Bleibt lesbar</b> (wird für den Betrieb gebraucht)<ul class="s" style="margin:6px 0 0;padding-left:18px">
+        <li>Namen – für Tablet, Buchungen, Suche und Sortierung</li>
+        <li>Mitgliedsnummer, Status, Ein-/Austritt, Abteilungen, Beiträge, Einwilligungen</li>
+        <li>Getränkekonten, Platzbuchungen, Arbeitsstunden, Spielbetrieb, Protokolle</li>
+        <li>Belege der Buchhaltung, Artikelbilder, Erweiterungen</li></ul></div></div>
+    <p class="muted s" style="margin:8px 0 0">Der Tresor schützt vor dem Auslesen der Festplatte bzw. einer Sicherungskopie der Datenbank. Gegen jemanden, der in der laufenden Verwaltung angemeldet ist, schützen die Rechte der Admins.</p></details>`;
   function vaultSheets(code) {
     const club = esc((brand && brand.clubName) || '');
     const d = new Date().toLocaleDateString('de-DE');
@@ -2572,13 +2598,13 @@
     let body;
     if (!v.on) body = `<div class="banner a">Ausgeschaltet – die persönlichen Daten liegen unverschlüsselt auf dem Home Assistant. Wer den Rechner mitnimmt, kann sie lesen.</div>
       <p class="muted s" style="margin:8px 0">Eingeschaltet werden ${VAULT_WHAT} verschlüsselt gespeichert. Namen, Getränkekonten, Buchungen, Türen und Beregnung bleiben lesbar – der Vereinsbetrieb läuft nach einem Neustart sofort weiter. Die Daten öffnen sich automatisch, sobald sich ein Admin anmeldet.</p>
-      ${v.may ? '<div class="row"><button class="btn primary" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}`;
+      ${v.may ? '<div class="row"><button class="btn primary" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}${VAULT_SCOPE}`;
     else if (v.locked) body = `<div class="banner r">Verschlossen – seit dem letzten Neustart hat sich noch kein Admin mit Schlüssel angemeldet.${v.waitingMails ? ` ${v.waitingMails} E-Mail(s) warten.` : ''}</div>
       <p class="muted s" style="margin:8px 0 0">Dein Konto hat ${v.mine ? 'einen Schlüssel – bitte einmal ab- und wieder anmelden.' : 'noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen; danach öffnet auch deine Anmeldung die Daten.'}</p>
       ${v.mine ? '' : vaultUnlockHtml('va')}`;
     else body = `<div class="banner g">Eingeschaltet seit ${when(v.since)} – ${VAULT_WHAT} liegen verschlüsselt auf der Platte und sind nur im Arbeitsspeicher entschlüsselt.</div>
       <p class="muted s" style="margin:8px 0">Wiederherstellungscode vom ${when(v.codeAt)}. Nach einem Neustart öffnet die erste Anmeldung eines Admins die Daten${v.mine ? ' – dein Konto hat einen Schlüssel' : ''}.</p>
-      ${v.may ? '<div class="row"><button class="btn" id="vaCode" type="button">Neuen Wiederherstellungscode erzeugen</button><button class="btn danger" id="vaOff" type="button">Verschlüsselung ausschalten</button></div>' : ''}`;
+      ${v.may ? '<div class="row"><button class="btn" id="vaCode" type="button">Neuen Wiederherstellungscode erzeugen</button><button class="btn danger" id="vaOff" type="button">Verschlüsselung ausschalten</button></div>' : ''}${VAULT_SCOPE}`;
     box.innerHTML = `<div class="card"><h3>Verschlüsselung der persönlichen Daten</h3>${body}</div>`;
     wireUnlock('va', () => RENDER.sicherung().catch(fail));
     if ($('vaOn')) $('vaOn').onclick = () => vaultEnable(v);
@@ -3210,7 +3236,8 @@
   const mdLite = t => esc(t).split('\n').map(l => l.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>')).map(l => (/^## /.test(l) ? `<div style="font-weight:700;margin:8px 0 2px">Version ${l.slice(3)}</div>` : /^- /.test(l) ? `<div style="padding-left:14px;text-indent:-10px">• ${l.slice(2)}</div>` : l ? `<div>${l}</div>` : '')).join('');
   function stageView(j) {
     $('updStage').innerHTML = `<div class="banner g" style="margin-top:12px;display:block"><b>Paket geprüft:</b> Version ${esc(j.current)} → <b>${esc(j.version)}</b> · ${j.files} Dateien · ${(j.size / 1048576).toFixed(1).replace('.', ',')} MB
-        ${j.depsChanged ? '<br>Diese Version bringt neue Bibliotheken mit – das Neubauen dauert etwas länger und braucht Internet.' : ''}</div>
+        ${j.depsChanged ? '<br>Diese Version bringt neue Bibliotheken mit – das Neubauen dauert etwas länger und braucht Internet.' : ''}
+        ${j.shaShort ? `<br>Prüfsumme <code translate="no" style="user-select:all">${esc(j.shaShort)}</code> – zum Gegenprüfen steht dieselbe Zahl im GitHub-Repository in „PRUEFSUMMEN.md“ bei Version ${esc(j.version)}. Weicht sie ab, das Paket nicht übernehmen.` : ''}</div>
       ${j.changelog ? `<details style="margin-top:8px"><summary>Was ist neu?</summary><div class="muted s" style="margin-top:6px;line-height:1.5">${mdLite(j.changelog)}</div></details>` : ''}
       <div class="row" style="margin-top:12px"><label class="f" style="flex:1;max-width:340px">Dein Passwort zur Bestätigung<input type="password" id="updPw" autocomplete="current-password"></label>
         <button class="btn primary" id="updGo">Update auf ${esc(j.version)} einspielen</button></div>`;

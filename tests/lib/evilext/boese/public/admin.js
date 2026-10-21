@@ -1,0 +1,1 @@
+window.BOESE='v1';

@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS sp_extern (
   const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c);
   if (!has('sp_team', 'age_class')) db.exec('ALTER TABLE sp_team ADD COLUMN age_class TEXT');
   if (!has('sp_game', 'kind')) db.exec("ALTER TABLE sp_game ADD COLUMN kind TEXT NOT NULL DEFAULT 'spiel'");   // spiel | rahmen (vorläufig)
+  if (!has('sp_extern', 'token_at')) { db.exec('ALTER TABLE sp_extern ADD COLUMN token_at TEXT'); db.exec('UPDATE sp_extern SET token_at = created_at'); }   // 3.29: Links verfallen
   if (!has('sp_game', 'za')) db.exec('ALTER TABLE sp_game ADD COLUMN za INTEGER NOT NULL DEFAULT 0');           // Zusatz-/Ausweichtermin
   if (!has('sp_game', 'released')) db.exec('ALTER TABLE sp_game ADD COLUMN released INTEGER NOT NULL DEFAULT 1'); // in der App sichtbar
 }
@@ -117,7 +118,7 @@ function activate(ctx) {
     if (name.length < 3 || !/\s/.test(name.trim())) throw new Error('Bitte Vor- und Nachnamen eintragen.');
     const sp = splitPersonName(name);
     const id = Number(db.prepare("INSERT INTO members(name, kind, first_name, last_name, active) VALUES (?, 'extern', ?, ?, 1)").run(name, first || sp.first || null, last || sp.last || null).lastInsertRowid);
-    db.prepare('INSERT INTO sp_extern(member_id, phone, club, token, created_by) VALUES (?,?,?,?,?)').run(id, normPhone(b.phone), txt(b.club, 60) || null, newToken(), by);
+    db.prepare("INSERT INTO sp_extern(member_id, phone, club, token, created_by, token_at) VALUES (?,?,?,?,?,datetime('now','localtime'))").run(id, normPhone(b.phone), txt(b.club, 60) || null, newToken(), by);
     return id;
   }
   /** öffentliche Adresse für den persönlichen Link (von unterwegs über den Tunnel, sonst die Adresse im Vereins-WLAN) */
@@ -125,7 +126,17 @@ function activate(ctx) {
     const pub = ctx.getSetting('ext_tunnel', '0') === '1' ? String(ctx.getSetting('ext_tunnel_url', '') || '').replace(/\/+$/, '') : '';
     return pub || String(ctx.getSetting('app_url', '') || '').replace(/\/+$/, '');
   };
-  const guestLink = id => { const e = extRow(id); const b = linkBase(); return e && b ? `${b}/p/spielbetrieb/#t=${e.token}` : null; };
+  /* Ein Link verfällt, wenn er 12 Monate nicht benutzt wurde oder der Gast in keiner aktiven Mannschaft mehr ist. Wer weiter mitspielt,
+     bekommt beim nächsten Teilen durch Sportwart oder Mannschaftsführer automatisch einen neuen Link (der alte bleibt ungültig). */
+  const LINK_DAYS = 365;
+  const inActiveTeam = id => Boolean(db.prepare('SELECT 1 FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').get(int(id)));
+  const linkAged = e => Boolean(db.prepare(`SELECT 1 WHERE COALESCE(?, ?, ?) < datetime('now','localtime','-${LINK_DAYS} days')`).get(e.last_seen, e.token_at, e.created_at));
+  const renewToken = id => db.prepare("UPDATE sp_extern SET token = ?, token_at = datetime('now','localtime'), last_seen = NULL WHERE member_id = ?").run(newToken(), int(id));
+  const guestLink = id => {
+    let e = extRow(id); const b = linkBase(); if (!e || !b) return null;
+    if (linkAged(e)) { renewToken(id); e = extRow(id); }
+    return `${b}/p/spielbetrieb/#t=${e.token}`;
+  };
   const extView = id => { const e = extRow(id); return e ? { phone: e.phone, club: e.club, link: guestLink(id), last_seen: e.last_seen } : null; };
   function addToTeam(teamId, memberId) {
     const n = db.prepare('SELECT COALESCE(MAX(rank), 0) n FROM sp_player WHERE team_id = ? AND rank < 99').get(teamId).n;
@@ -218,7 +229,10 @@ function activate(ctx) {
       'END:VEVENT', 'END:VCALENDAR'].join('\r\n') + '\r\n';
   }
   /* ---------- Persönlicher Link für Gastspieler/innen (ohne App, ohne PIN): /p/spielbetrieb/#t=<token> ---------- */
-  const guestByToken = tok => (typeof tok === 'string' && /^[A-Za-z0-9_-]{20,40}$/.test(tok) ? db.prepare("SELECT e.*, m.name FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE e.token = ? AND m.deleted = 0").get(tok) : null);
+  const guestByToken = tok => {
+    const e = typeof tok === 'string' && /^[A-Za-z0-9_-]{20,40}$/.test(tok) ? db.prepare("SELECT e.*, m.name FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE e.token = ? AND m.deleted = 0").get(tok) : null;
+    return e && !linkAged(e) && inActiveTeam(e.member_id) ? e : null;   // abgelaufen oder in keiner Mannschaft mehr: Link gilt nicht
+  };
   function guestView(e) {
     const tids = db.prepare('SELECT p.team_id FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').all(e.member_id).map(r => r.team_id);
     const games = futureGames(tids).filter(g => g.date >= today()).map(g => {
@@ -786,7 +800,7 @@ function activate(ctx) {
     const b = req.body || {};
     if (b.name !== undefined) { const n = txt(b.name, 60); if (n.length < 3 || !/\s/.test(n)) return bad(res, 'Bitte Vor- und Nachnamen eintragen.'); const sp = splitPersonName(n); db.prepare('UPDATE members SET name = ?, first_name = ?, last_name = ? WHERE id = ?').run(n, sp.first || null, sp.last || null, e.member_id); }
     db.prepare('UPDATE sp_extern SET phone = ?, club = ? WHERE member_id = ?').run(b.phone !== undefined ? normPhone(b.phone) : e.phone, b.club !== undefined ? txt(b.club, 60) || null : e.club, e.member_id);
-    if (b.renew) db.prepare('UPDATE sp_extern SET token = ? WHERE member_id = ?').run(newToken(), e.member_id);   // alter Link gilt dann nicht mehr
+    if (b.renew) renewToken(e.member_id);   // alter Link gilt dann nicht mehr
     ctx.audit(req.user, 'Spielbetrieb: Gastspieler/in geändert', `${memberName(e.member_id)}${b.renew ? ' · neuer Link' : ''}`);
     res.json({ ok: true, ...extView(e.member_id) });
   });
@@ -797,7 +811,7 @@ function activate(ctx) {
       db.prepare('DELETE FROM sp_player WHERE member_id = ?').run(e.member_id);
       db.prepare('DELETE FROM sp_avail WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(e.member_id, today());
       db.prepare('DELETE FROM sp_lineup WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(e.member_id, today());
-      db.prepare('UPDATE sp_extern SET token = ? WHERE member_id = ?').run(newToken(), e.member_id);
+      renewToken(e.member_id);
       db.prepare('UPDATE members SET active = 0, deleted = 1 WHERE id = ?').run(e.member_id);   // vergangene Aufstellungen bleiben lesbar
     })();
     ctx.audit(req.user, 'Spielbetrieb: Gastspieler/in entfernt', name);

@@ -3010,7 +3010,7 @@ admin.post('/update/upload', need('einstellungen'), rateLimit('updup', 10, 10 * 
       const info = await selfupdate.inspect(req.uploadFile, path.join(UPDATE_DIR, 'neu'), { currentVersion: APP_VERSION, currentDir: selfupdate.findAddonDir() });
       if (!info.newer) { staged = null; return bad(res, info.same ? `Version ${info.version} ist bereits installiert.` : `Das Paket (${info.version}) ist älter als die installierte Version ${APP_VERSION}. Zurück zu einer früheren Version geht über „Vorherige Version“.`); }
       staged = info;
-      audit(req.user, 'Update hochgeladen und geprüft', `${APP_VERSION} → ${info.version}`);
+      audit(req.user, 'Update hochgeladen und geprüft', `${APP_VERSION} → ${info.version} · Prüfsumme ${info.shaShort}`);
       res.json({ ok: true, current: APP_VERSION, ...info });
     } catch (e) { staged = null; bad(res, e.message); }
   } finally { dropUpload(req); }

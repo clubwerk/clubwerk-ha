@@ -11,6 +11,7 @@
  * Bei einer Installation über ein GitHub-Repository gibt es den Ordner nicht – dann kommen Updates über Home Assistant.
  */
 const fs = require('fs');
+const crypto = require('crypto');
 const path = require('path');
 
 const SLUG = 'clubwerk';
@@ -89,8 +90,28 @@ async function inspect(src, outDir, { currentVersion, currentDir }) {
     const parts = ch.split(/^## /m).slice(1).filter(p => verNum((p.match(/^\[?(\d+\.\d+\.\d+)/) || [])[1]) > verNum(currentVersion));
     changelog = parts.map(p => '## ' + p.trim()).join('\n\n').slice(0, 6000);
   } catch (e) { /* kein Changelog */ }
-  return { version, files, size: total, depsChanged, changelog, newer: verNum(version) > verNum(currentVersion), same: verNum(version) === verNum(currentVersion) };
+  const sha = contentHash(outDir);
+  return { version, files, size: total, depsChanged, changelog, sha, shaShort: shortHash(sha), newer: verNum(version) > verNum(currentVersion), same: verNum(version) === verNum(currentVersion) };
 }
+
+/**
+ * Inhalts-Prüfsumme eines Add-on-Ordners: SHA-256 über alle Dateien (sortierte Pfade + Inhalt), unabhängig davon, wie das ZIP gepackt wurde.
+ * Dieselbe Zahl steht für jede Version in PRUEFSUMMEN.md im GitHub-Repository – so lässt sich ein hochgeladenes Paket unabhängig gegenprüfen.
+ */
+function contentHash(dir) {
+  const files = [];
+  const walk = (d, rel) => { for (const e of fs.readdirSync(d, { withFileTypes: true }).sort((a, b) => (a.name < b.name ? -1 : 1))) {
+    const r = rel ? rel + '/' + e.name : e.name;
+    if (/(^|\/)(__MACOSX|\.DS_Store|\.git|node_modules)(\/|$)/.test(r)) continue;
+    if (e.isDirectory()) walk(path.join(d, e.name), r); else if (e.isFile()) files.push(r);
+  } };
+  walk(dir, '');
+  const h = crypto.createHash('sha256');
+  for (const r of files.sort()) h.update(r + '\0' + crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, r))).digest('hex') + '\n');
+  return h.digest('hex');
+}
+/** zum Vorlesen/Vergleichen: die ersten 32 Zeichen in Vierergruppen */
+const shortHash = h => String(h || '').slice(0, 32).replace(/(.{4})(?=.)/g, '$1 ');
 
 /** Bisherigen Ordner sichern und den neuen einsetzen. Gibt den Namen der Reserve zurück. */
 function swap(addonDir, newDir, reserveRoot, currentVersion) {
@@ -156,4 +177,4 @@ async function origin() {
   return { kind, mounted, dir: findAddonDir(root), slug: info && info.slug, supervisorError: info && info.error };
 }
 
-module.exports = { origin, SLUG, findAddonDir, inspect, swap, reserves, triggerUpdate, verNum, yamlField };
+module.exports = { contentHash, shortHash, origin, SLUG, findAddonDir, inspect, swap, reserves, triggerUpdate, verNum, yamlField };

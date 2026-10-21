@@ -130,13 +130,38 @@ const TUNNEL_IPS = (process.env.TRUSTED_PROXY || '').split(',').map(x => x.trim(
 function fromTunnel(sock) {
   const ip = String(sock || '').replace(/^::ffff:/, '');
   if (!ip) return false;
-  if (TUNNEL_IPS.includes(ip)) return true;
-  if (ip === '127.0.0.1' || ip === '::1') return true;
-  // In der Verwaltung festgelegte Tunnel-Quelle (Mitglieder-App → „Tunnel-Quelle festlegen“): dann nur noch diese eine Adresse
+  // In der Verwaltung festgelegte Tunnel-Quelle (Mitglieder-App → „Tunnel-Quelle“): dann gilt NUR diese eine Adresse –
+  // auch nicht mehr das Proxy-Add-on (proxy_addon_ip) oder derselbe Rechner
   const pin = getSetting('tunnel_src', '');
   if (pin) return ip === pin;
+  if (TUNNEL_IPS.includes(ip)) return true;
+  if (ip === '127.0.0.1' || ip === '::1') return true;
   return /^172\.30\.3[23]\.\d{1,3}$/.test(ip);
 }
+/* Netze des Home-Assistant-Rechners (Supervisor → network/info) – Vorschlag fürs Vereinsnetz, wenn die Verwaltung über die Seitenleiste läuft.
+   Einmal beim ersten Aufruf geholt, danach höchstens alle 6 Stunden (kein unnötiger Verkehr). */
+let hostNetC = { at: 0, nets: [] };
+function hostNetsCached() {
+  if (process.env.SUPERVISOR_TOKEN && Date.now() - hostNetC.at > 6 * 3600000) {
+    hostNetC.at = Date.now();
+    fetch((process.env.SUPERVISOR_URL || 'http://supervisor').replace(/\/$/, '') + '/network/info', { headers: { Authorization: 'Bearer ' + process.env.SUPERVISOR_TOKEN }, signal: AbortSignal.timeout(5000) })
+      .then(r => r.json()).then(d => { hostNetC.nets = netsFromInfo(d && d.data); }).catch(() => { /* kein Vorschlag */ });
+  }
+  return hostNetC.nets;
+}
+/** „192.168.10.188/24“ → „192.168.10.0/24“ (nur private IPv4-Netze, keine Docker-/Add-on-Netze) */
+function netsFromInfo(info) {
+  const out = new Set();
+  for (const itf of (info && info.interfaces) || []) for (const a of (itf.ipv4 && itf.ipv4.address) || []) {
+    const [ip, bitsS] = String(a).split('/'); const bits = Number(bitsS); const n = ipv4Int(ip);
+    if (n == null || !(bits >= 8 && bits <= 30) || !PRIVATE_IP(ip) || HA_INTERNAL(ip) || /^127\./.test(ip)) continue;
+    const mask = (0xffffffff << (32 - bits)) >>> 0, net = (n & mask) >>> 0;
+    out.add(`${net >>> 24}.${(net >>> 16) & 255}.${(net >>> 8) & 255}.${net & 255}/${bits}`);
+  }
+  return [...out].slice(0, 4);
+}
+/** direkte Verbindungen von öffentlichen Adressen (ohne Tunnel) erlauben? Standard: nein */
+const directOk = () => getSetting('app_direct_public', '0') === '1';
 let lastTunnelOk = null;   // zuletzt angenommene Tunnel-Quelle (nur im Speicher) – zum Festlegen in der Verwaltung
 /** zuletzt abgelehnte Tunnel-Anfrage (nur im Speicher) – damit der Vorstand in der Verwaltung sieht, wenn das Cloudflared-Add-on
  *  von einer anderen Adresse kommt als erwartet, statt dass sich Mitglieder draußen über eine „kaputte“ App wundern */
@@ -247,8 +272,14 @@ function startPort({ rateLimit, rateLimitKey }) {
   // Anfragen über den Tunnel: echte Absender-IP für die Sperren bei Fehlversuchen (sonst teilten sich alle Handys draußen eine IP)
   app.use((req, res, next) => {
     const cf = req.get('cf-connecting-ip');
-    if (!cf) return next();
     const sock = String(req.socket.remoteAddress || '');
+    if (!cf) {
+      // Direkt (ohne Tunnel) von einer öffentlichen Adresse – meist eine Portfreigabe am Router: ablehnen, außer bewusst erlaubt
+      if (directOk() || require('./security').notPublic(sock)) return next();
+      noteTunnelReject(sock, req, 'direkt');
+      require('./security').securityAlert(`Mitglieder-App: direkte Anfrage von öffentlicher Adresse ${sock.replace(/^::ffff:/, '').slice(0, 45)} abgewiesen. Ist Port ${process.env.MEMBER_PORT || '5001'} am Router freigegeben? Von unterwegs ist nur der Cloudflare Tunnel vorgesehen – bitte die Freigabe entfernen.`, 'app-direct');
+      return res.status(403).json({ error: 'Die Mitglieder-App ist von unterwegs nur über die öffentliche Adresse des Vereins erreichbar.' });
+    }
     if (!tunnelOn()) { noteTunnelReject(sock, req, 'aus'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
     // cf-Kopfzeile von einem Gerät, das nicht der Tunnel ist (z. B. aus dem Vereins-WLAN): nicht glauben, Anfrage ablehnen
     if (!fromTunnel(sock)) { noteTunnelReject(sock, req, 'quelle'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
@@ -582,7 +613,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const canMail = Boolean(require('./plugins').withHook('memberAddress').length);
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id)) : [];
-    res.json({ startSection: getSetting('app_start', ''), mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ startSection: getSetting('app_start', ''), mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: String(req.ip || req.socket.remoteAddress || '').replace(/^::ffff:/, '') }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: Boolean(require('./plugins').withHook('memberAddress').length), sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -759,6 +790,11 @@ function adminRoutes(admin, { bad, need, auth }) {
       setSetting('tunnel_src', t);
       audit(req.user, 'Mitglieder-App: Tunnel-Quelle', t || 'jede Adresse im Add-on-Netz');
     }
+    if (b.directPublic !== undefined) {
+      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Den externen Zugang darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+      setSetting('app_direct_public', b.directPublic ? '1' : '0');
+      audit(req.user, 'Mitglieder-App: direkter Zugang ohne Tunnel', b.directPublic ? 'erlaubt' : 'gesperrt');
+    }
     if (b.wlanNets !== undefined) {   // Vereinsnetze (CIDR) – leer = jede private Adresse
       if (!req.user.perms.includes('einstellungen')) return bad(res, 'Die Vereinsnetze darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
       const v = String(b.wlanNets || '').trim().slice(0, 300);
@@ -829,4 +865,4 @@ function adminRoutes(admin, { bad, need, auth }) {
   void auth;
 }
 
-module.exports = { register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };
+module.exports = { netsFromInfo, register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };

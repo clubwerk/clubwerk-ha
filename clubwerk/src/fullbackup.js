@@ -121,31 +121,84 @@ async function create(o) {
  * @returns {object} manifest
  */
 const MAX_ENTRIES = 500000, MAX_BYTES = 50 * 1024 ** 3;
-/** Liste des Archivs prüfen (tar -tv): wirft bei unerwarteten Einträgen */
+/**
+ * Archiv vor dem Entpacken prüfen – mit eigenem Leser der tar-Köpfe (strukturierte Felder: Typ, Name, Größe), nicht über die
+ * Textausgabe von „tar -tv“. Erlaubt sind nur normale Dateien und Ordner unter den bekannten Namen; lange Namen (GNU „L“, pax „x“)
+ * werden ausgewertet. Wirft bei allem anderen (Verknüpfungen, Geräte, Pfade nach oben, absolute Pfade, zu viele/zu große Einträge).
+ */
 function checkArchive(tgz) {
+  const roots = new Set([DB_NAME, DB_ALT, 'manifest.json', ...DIRS]);
   return new Promise((resolve, reject) => {
-    const t = spawn('tar', ['-tvzf', tgz, '--numeric-owner'], { stdio: ['ignore', 'pipe', 'pipe'] });
-    const roots = new Set([DB_NAME, DB_ALT, 'manifest.json', ...DIRS]);
-    let buf = '', n = 0, bytes = 0, bad = null;
-    const line = l => {
-      if (!l || bad) return;
-      const m = /^(\S)\S*\s+\S+\s+(\d+)\s+\d{4}-\d\d-\d\d\s+\d\d:\d\d(?::\d\d)?\s+(.+)$/.exec(l);
-      if (!m) { bad = 'unlesbarer Eintrag'; return; }
-      const [, type, size, name0] = m, name = name0.replace(/\/+$/, '');
-      if (type !== '-' && type !== 'd') { bad = `Verknüpfung oder Sonderdatei (${name.slice(0, 80)})`; return; }
-      if (name.startsWith('/') || name.split('/').some(x => x === '..' || x === '') || !roots.has(name.split('/')[0].replace(/^\.\//, ''))) { bad = `unerwarteter Pfad (${name.slice(0, 80)})`; return; }
-      if (++n > MAX_ENTRIES) { bad = 'zu viele Einträge'; return; }
-      if ((bytes += Number(size)) > MAX_BYTES) bad = 'zu groß';
+    let buf = Buffer.alloc(0), skip = 0, n = 0, bytes = 0, bad = null, ended = false;
+    let longName = null, paxName = null, meta = null;   // meta: { kind: 'L'|'x', left, chunks }
+    const fail = why => { if (!bad) bad = why; };
+    const str = (b, o, l) => { const x = b.subarray(o, o + l); const z = x.indexOf(0); return (z >= 0 ? x.subarray(0, z) : x).toString('utf8'); };
+    const num = (b, o, l) => { if (b[o] & 0x80) { fail('ungewöhnliche Größenangabe'); return 0; } const t = str(b, o, l).trim(); if (!/^[0-7]*$/.test(t)) { fail('unlesbarer Eintrag'); return 0; } return t ? parseInt(t, 8) : 0; };
+    const pad = x => (512 - (x % 512)) % 512;
+    const checkName = (name0, type) => {
+      const name = name0.replace(/^\.\//, '').replace(/\/+$/, '');
+      if (!name || name === '.') return;   // Wurzel „./“
+      if (/[\u0000-\u001f\\]/.test(name)) return fail(`ungültiger Name (${JSON.stringify(name.slice(0, 60))})`);
+      if (name.startsWith('/') || name.split('/').some(x => x === '..' || x === '' || x === '.')) return fail(`unerwarteter Pfad (${name.slice(0, 80)})`);
+      if (!roots.has(name.split('/')[0])) return fail(`unerwarteter Pfad (${name.slice(0, 80)})`);
+      if (type === 'd' && !DIRS.includes(name.split('/')[0])) return fail(`unerwarteter Ordner (${name.slice(0, 80)})`);
     };
-    t.stdout.on('data', c => { buf += c; const ls = buf.split('\n'); buf = ls.pop(); ls.forEach(line); });
-    let err = ''; t.stderr.on('data', c => { err += c; });
-    t.on('error', e => reject(new Error('tar nicht verfügbar: ' + e.message)));
-    t.on('close', code => {
-      line(buf);
-      if (bad) return reject(new Error('Die Sicherung enthält ungültige Einträge: ' + bad + '.'));
-      if (code !== 0) return reject(new Error('Die Sicherung lässt sich nicht lesen: ' + String(err).slice(0, 200)));
-      resolve({ entries: n, bytes });
+    const header = h => {
+      if (h.every(x => x === 0)) { ended = true; return 0; }
+      // Prüfsumme des Kopfes
+      let sum = 0; for (let i = 0; i < 512; i++) sum += (i >= 148 && i < 156) ? 32 : h[i];
+      if (num(h, 148, 8) !== sum) { fail('beschädigter Eintrag'); return 0; }
+      const type = String.fromCharCode(h[156] || 48), size = num(h, 124, 12);
+      if (type === 'L' || type === 'x') { if (size > 64 * 1024) { fail('zu langer Name'); return 0; } meta = { kind: type, left: size, chunks: [] }; return size + pad(size); }
+      if (type === 'g') { fail('globaler Zusatzkopf'); return 0; }
+      let name = str(h, 0, 100); const magic = str(h, 257, 6);
+      if (magic.startsWith('ustar')) { const pre = str(h, 345, 155); if (pre) name = pre + '/' + name; }
+      if (paxName != null) name = paxName; else if (longName != null) name = longName;
+      paxName = null; longName = null;
+      const kind = type === '0' || type === '7' ? '-' : type === '5' ? 'd' : null;
+      if (!kind) { fail(`Verknüpfung oder Sonderdatei (${name.slice(0, 80)})`); return 0; }
+      checkName(name, kind);
+      if (++n > MAX_ENTRIES) fail('zu viele Einträge');
+      if ((bytes += size) > MAX_BYTES) fail('zu groß');
+      return kind === '-' ? size + pad(size) : 0;
+    };
+    const metaDone = () => {
+      const data = Buffer.concat(meta.chunks).subarray(0, meta.size0);
+      if (meta.kind === 'L') longName = str(data, 0, data.length);
+      else { // pax: „<len> key=value\n“
+        let o = 0; while (o < data.length) { const sp = data.indexOf(32, o); if (sp < 0) { fail('unlesbarer Zusatzkopf'); break; } const len = parseInt(data.subarray(o, sp).toString(), 10); if (!(len > 0)) { fail('unlesbarer Zusatzkopf'); break; }
+          const kv = data.subarray(sp + 1, o + len - 1).toString('utf8'); const eq = kv.indexOf('='); const k = kv.slice(0, eq), v = kv.slice(eq + 1);
+          if (k === 'path') paxName = v; else if (k === 'linkpath') fail('Verknüpfung'); else if (k === 'size' && !/^\d+$/.test(v)) fail('unlesbarer Zusatzkopf'); else if (k === 'size' && Number(v) > MAX_BYTES) fail('zu groß');
+          o += len; }
+      }
+      meta = null;
+    };
+    const gz = fs.createReadStream(tgz).pipe(require('zlib').createGunzip());
+    gz.on('data', chunk => {
+      if (bad || ended) return;
+      buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
+      while (!bad && !ended) {
+        if (meta && meta.left > 0) {   // Inhalt eines Namens-Kopfes sammeln
+          const take = Math.min(meta.left, buf.length); if (!take) break;
+          meta.chunks.push(buf.subarray(0, take)); buf = buf.subarray(take); meta.left -= take; meta.size0 = (meta.size0 || 0) + take;
+          if (meta.left === 0) { skip = pad(meta.size0); metaDone(); }
+          continue;
+        }
+        if (skip) { const t = Math.min(skip, buf.length); buf = buf.subarray(t); skip -= t; if (skip) break; continue; }
+        if (buf.length < 512) break;
+        const h = buf.subarray(0, 512); buf = buf.subarray(512);
+        const s2 = header(h);
+        if (meta) { skip = 0; if (meta.left === 0) { meta.size0 = 0; metaDone(); } } else skip = s2;
+      }
+      if (bad || ended) gz.destroy();
     });
+    const done = () => {
+      if (bad) return reject(new Error('Die Sicherung enthält ungültige Einträge: ' + bad + '.'));
+      if (!ended && (meta || skip || buf.length)) return reject(new Error('Die Sicherung ist unvollständig.'));
+      resolve({ entries: n, bytes });
+    };
+    gz.on('end', done); gz.on('close', () => { if (bad || ended) done(); });
+    gz.on('error', e => (bad || ended ? done() : reject(new Error('Die Sicherung lässt sich nicht lesen: ' + e.message))));
   });
 }
 async function extract(file, o) {
@@ -156,6 +209,7 @@ async function extract(file, o) {
   if (!key) throw Object.assign(new Error('Bitte das Sicherungspasswort eingeben.'), { needPassword: true });
   if (head.kid && head.kid !== keyId(key)) throw Object.assign(new Error(o.password ? 'Das Sicherungspasswort stimmt nicht.' : 'Diese Sicherung wurde mit einem anderen Sicherungspasswort erstellt – bitte das damalige Passwort eingeben.'), { needPassword: true });
   fs.mkdirSync(o.outDir, { recursive: true, mode: 0o700 });
+  if (fs.readdirSync(o.outDir).length) throw new Error('Wiederherstellung nur in einen leeren Ordner.');   // nie bestehende Daten überschreiben
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(head.iv, 'base64'));
   decipher.setAuthTag(tag);
   // Erst vollständig entschlüsseln und den Prüfwert (GCM-Tag) bestätigen – erst danach sieht tar überhaupt ein Byte.

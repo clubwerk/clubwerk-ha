@@ -93,9 +93,9 @@ function knownHosts() {
 function hostAllowed(hostHeader) {
   let h = String(hostHeader || '').trim().toLowerCase();
   if (!h) return false;
-  if (h.startsWith('[')) return /^\[[0-9a-f:.]+\](:\d+)?$/.test(h);   // IPv6-Adresse
+  if (h.startsWith('[')) { const m = /^\[([0-9a-f:.]+)\](:\d+)?$/.exec(h); return Boolean(m) && require('net').isIPv6(m[1]); }   // gültige IPv6-Adresse
   h = h.replace(/:\d+$/, '').replace(/\.$/, '');
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return true;            // IPv4-Adresse
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return h.split('.').every(x => Number(x) <= 255 && !/^0\d/.test(x));   // gültige IPv4-Adresse (keine 999.…, keine führenden Nullen)
   if (!/^[a-z0-9.-]+$/.test(h)) return false;
   if (!h.includes('.') || h === 'localhost' || LOCAL_SUFFIX.test(h)) return true;
   if (/^[0-9a-f]{8}-[a-z0-9_-]+$/.test(h)) return true;              // interner Add-on-Name im Home-Assistant-Netz
@@ -154,6 +154,14 @@ function lanSource(raw, { extra } = {}) {
   }
   return false;
 }
+/** nicht aus dem Internet: private Adresse (auch Gast-WLAN, VPN) oder eine IPv6-Adresse aus dem eigenen Netz dieses Rechners */
+function notPublic(raw) {
+  const ip = normIp(raw);
+  if (!ip) return false;
+  if (privateSource(ip)) return true;
+  if (/^[23][0-9a-f]{3}:/.test(ip)) { const p = v6Prefix64(ip); if (p && ownV6Prefixes().has(p)) return true; }
+  return false;
+}
 function lanOnly({ label = 'Clubwerk', extra } = {}) {
   return (req, res, next) => {
     const ip = req.socket && req.socket.remoteAddress;
@@ -167,4 +175,4 @@ function lanOnly({ label = 'Clubwerk', extra } = {}) {
 /** Antworten komprimieren (gzip/brotli je nach Browser) – Skripte, Stile, JSON, SVG; Bilder/Archive bleiben unverändert */
 const compression = require('compression');
 const compress = () => compression({ threshold: 1024, level: 6, filter: (req, res) => { const t = String(res.getHeader('Content-Type') || ''); return /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/.test(t) || compression.filter(req, res); } });
-module.exports = { privateSource, lanSource, lanOnly, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
+module.exports = { notPublic, privateSource, lanSource, lanOnly, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };

@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.29.0
+
+Sicherheit und Datenschutz nach dem Tiefen-Review:
+
+- **Tresor ausschalten ohne Risiko:** Vorher wurden die Schlüssel gelöscht und erst danach die Dateien (Fotos, Dokumente, Mail-Anhänge) entschlüsselt – ein Abbruch mittendrin hätte Dateien unlesbar gemacht. Jetzt: freien Speicher prüfen, alle Dateien einzeln entschlüsseln und prüfen, erst dann Datenbank und Schlüssel umstellen. Scheitert etwas, bleibt der Tresor eingeschaltet und alles wieder verschlüsselt.
+- **Unterbrochene Läufe:** Bricht das Ein- oder Ausschalten ab (Neustart, Stromausfall), bringt Clubwerk beim nächsten Start alles in einen sicheren Zustand und vermerkt das im Protokoll. Halb geschriebene Zwischendateien werden entfernt.
+- **Tresor erweitert:** zusätzlich Schlüsselnummer der Mitglieder, Handynummer der Gastspieler/innen, Notizen zu Buchhaltungs-Partnern und externen Helfern. Ältere Einträge werden beim ersten Start automatisch nachverschlüsselt. In der Verwaltung steht jetzt genau, was verschlüsselt wird – und was bewusst lesbar bleibt (Namen, Mitgliedsnummer, Belege …).
+- **Mitglieder-App von außen nur über den Tunnel:** Direkte Anfragen aus dem Internet (z. B. durch eine Portfreigabe am Router) werden abgewiesen und gemeldet. Gast-WLAN und VPN funktionieren weiter. Wer bewusst einen eigenen Reverse Proxy betreibt, kann das unter Mitglieder-App → Verbindung erlauben.
+- **Tunnel-Quelle wirklich exklusiv:** Ist sie festgelegt, gilt nur noch diese eine Adresse – auch nicht mehr das Proxy-Add-on aus der Konfiguration.
+- **Vereinsnetz:** Ohne eingetragenes Vereinsnetz schlägt die Verwaltung das Netz von Home Assistant zum Übernehmen vor (auch, wenn man über die Seitenleiste arbeitet).
+- **Sicherung zurückspielen:** Der Inhalt wird jetzt mit einem eigenen Leser der Archiv-Köpfe geprüft statt über die Textausgabe von tar; Verknüpfungen, Gerätedateien, Pfade nach oben, Steuerzeichen und fremde Namen werden abgelehnt. Wiederhergestellt wird nur in einen leeren Ordner.
+- **Gastlinks verfallen:** nach 12 Monaten ohne Nutzung oder wenn der Gast in keiner aktiven Mannschaft mehr ist. Beim nächsten Teilen entsteht automatisch ein neuer Link (Spielbetrieb 1.4.1).
+- **Update-Paket gegenprüfen:** Nach dem Hochladen zeigt Clubwerk eine Prüfsumme des Paketinhalts; dieselbe Zahl steht in „PRUEFSUMMEN.md“ im GitHub-Repository.
+- Adressprüfung akzeptiert nur noch gültige IP-Adressen.
+- **Tests im Repository:** Die automatischen Tests (Sicherheit, Tresor, Sicherung, Rechte …) liegen jetzt im Ordner `tests/` des GitHub-Repositorys und laufen bei jeder Änderung automatisch.
+
 ## 3.28.0
 
 - **Gastspieler/innen (Spielbetrieb 1.4.0):** Mannschaften können jetzt auch Personen aufnehmen, die nicht Mitglied im Verein sind (z. B. Spielgemeinschaft mit dem Nachbarverein). Anlegen geht in der Verwaltung (Mannschaft → Spieler/innen → „+ Gastspieler/in anlegen“) und für den Mannschaftsführer direkt in der App (Rückmeldungen → „Gastspieler/in“).

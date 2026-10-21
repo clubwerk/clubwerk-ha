@@ -47,14 +47,16 @@ CREATE TABLE IF NOT EXISTS vault_mail (
 const PH_MAIL = "CASE WHEN {c} IS NULL THEN NULL ELSE 'gesperrt-' || {k} || '@clubwerk.invalid' END";
 const PH_JSON = "CASE WHEN {c} IS NULL THEN NULL ELSE '{}' END";
 const SPEC = [
-  { t: 'mv_person', k: 'member_id', c: ['birth_date', 'street', 'zip', 'city', 'country', 'address_extra', 'phone', 'mobile', 'email', 'notes', 'extra'], ph: { email: PH_MAIL, extra: PH_JSON } },
+  { t: 'mv_person', k: 'member_id', c: ['birth_date', 'street', 'zip', 'city', 'country', 'address_extra', 'phone', 'mobile', 'email', 'key_no', 'notes', 'extra'], ph: { email: PH_MAIL, extra: PH_JSON } },
   { t: 'mv_bank', k: 'member_id', c: ['holder', 'iban', 'bic', 'bank'] },
   { t: 'mv_application', k: 'id', c: ['data', 'sig_member', 'sig_mandate'], ph: { data: PH_JSON } },
   { t: 'mv_change', k: 'id', c: ['data', 'signature'], ph: { data: PH_JSON } },
   { t: 'mv_history', k: 'id', c: ['old', 'new'] },
   { t: 'mv_collection', k: 'id', c: ['xml'] },
   { t: 'mail_recipient', k: 'id', c: ['email'] },
-  { t: 'bh_partner', k: 'id', c: ['contact', 'street', 'zip', 'city', 'email', 'phone'] },
+  { t: 'bh_partner', k: 'id', c: ['contact', 'street', 'zip', 'city', 'email', 'phone', 'note'] },
+  { t: 'sp_extern', k: 'member_id', c: ['phone'] },        // Gastspieler/innen (Spielbetrieb)
+  { t: 'aw_extern', k: 'id', c: ['note'] },                // externe Helfer (Arbeitsdienst)
   { t: 'bh_invoice', k: 'id', c: ['recipient'] },
   { t: 'bh_donation', k: 'id', c: ['donor'] },
 ];
@@ -316,27 +318,62 @@ function confirmCode(userId, typed) {
   const c = normCode(pending.code);
   return normCode(typed) === pending.pos.map(p => c[p - 1]).join('');
 }
-function encryptFiles(fn) {
-  let n = 0;
+/** alle Dateien in den Tresor-Ordnern (rekursiv) */
+function fileList() {
+  const out = [];
   for (const d of FILE_DIRS) {
-    const dir = path.join(DATA_DIR, d);
-    let list = []; try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { continue; }
-    const walk = (base, entries) => { for (const e of entries) {
-      const p = path.join(base, e.name);
-      if (e.isDirectory()) { walk(p, fs.readdirSync(p, { withFileTypes: true })); continue; }
-      if (!e.isFile()) continue;
-      const raw = fs.readFileSync(p); const out = fn(raw);
-      if (out && out !== raw) { fs.writeFileSync(p + '.tmp', out, { mode: 0o600 }); fs.renameSync(p + '.tmp', p); n++; }
-    } };
-    walk(dir, list);
+    const walk = dir => { let list = []; try { list = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
+      for (const e of list) { const p = path.join(dir, e.name); if (e.isDirectory()) walk(p); else if (e.isFile()) out.push(p); } };
+    walk(path.join(DATA_DIR, d));
+  }
+  return out;
+}
+/** Reste eines abgebrochenen Laufs (halb geschriebene .cwtmp-Dateien) entfernen */
+function dropTemps() { let n = 0; for (const p of fileList()) if (p.endsWith('.cwtmp')) { try { fs.unlinkSync(p); n++; } catch (e) { /* weiter */ } } return n; }
+/** genug Platz für den Umbau? (größte Datei als Zwischenkopie + Puffer) */
+function checkSpace(files) {
+  let biggest = 0; for (const p of files) { try { biggest = Math.max(biggest, fs.statSync(p).size); } catch (e) { /* weiter */ } }
+  let free = Infinity; try { const st = fs.statfsSync(DATA_DIR); free = st.bavail * st.bsize; } catch (e) { /* ältere Node-Version: nicht prüfbar */ }
+  const need = biggest * 2 + 20 * 1024 * 1024;
+  if (free < need) throw new Error(`Zu wenig freier Speicher (frei ${Math.round(free / 1048576)} MB, nötig etwa ${Math.round(need / 1048576)} MB). Bitte erst Platz schaffen – es wurde nichts verändert.`);
+}
+/** jede Datei einzeln umwandeln: in eine Zwischendatei schreiben, prüfen, dann atomar ersetzen. Bricht beim ersten Fehler ab. */
+function encryptFiles(fn, check) {
+  let n = 0;
+  for (const p of fileList()) {
+    if (p.endsWith('.cwtmp')) continue;
+    const raw = fs.readFileSync(p); const out = fn(raw);
+    if (!out || out === raw) continue;
+    if (check && !check(out, raw)) throw new Error(`Prüfung fehlgeschlagen: ${path.basename(p)}`);
+    const tmp = p + '.cwtmp';
+    fs.writeFileSync(tmp, out, { mode: 0o600 });
+    if (fs.statSync(tmp).size !== out.length) { try { fs.unlinkSync(tmp); } catch (e) { /* */ } throw new Error(`Schreiben fehlgeschlagen: ${path.basename(p)}`); }
+    fs.renameSync(tmp, p); n++;
   }
   cache.clear(); cacheBytes = 0;
   return n;
+}
+/* Ablauf-Merker „vault_job“ (enc/dec): läuft gerade ein Umbau der Dateien? Bricht der Lauf ab (Neustart, Stromausfall, voller Speicher),
+   erkennt start() das und stellt einen sicheren Zustand her: Der Tresor bleibt dann EINGESCHALTET und alle Dateien werden (mit dem
+   öffentlichen Schlüssel, ohne Passwort) wieder verschlüsselt. Die Schlüssel werden erst gelöscht, wenn alle Dateien lesbar entschlüsselt sind. */
+const setJob = j => (j ? setSetting('vault_job', j) : db.prepare("DELETE FROM settings WHERE key = 'vault_job'").run());
+function resumeJob() {
+  const job = getSetting('vault_job', '');
+  const temps = dropTemps();
+  if (!job) { if (temps) console.log(`Tresor: ${temps} Zwischendateien entfernt.`); return null; }
+  if (!ON) { setJob(null); return null; }
+  const n = encryptFiles(raw => (isEncFile(raw) ? raw : encFile(raw)));
+  setJob(null);
+  const msg = job === 'dec' ? 'Das Ausschalten des Tresors wurde unterbrochen – der Tresor bleibt eingeschaltet, alle Dateien sind wieder verschlüsselt.' : 'Das Einschalten des Tresors wurde unterbrochen und jetzt zu Ende geführt.';
+  console.log(`Tresor: ${msg} (${n} Dateien)`);
+  try { audit(null, 'Tresor: unterbrochenen Lauf abgeschlossen', `${msg} (${n} Dateien)`); } catch (e) { /* */ }
+  return { job, files: n };
 }
 /** Einschalten: Schlüssel speichern, vorhandene Daten verschlüsseln, alte Reste aus der Datei entfernen */
 function enable(userId, password) {
   if (!pending || pending.userId !== userId) throw new Error('Bitte noch einmal von vorne beginnen.');
   const { dk, code } = pending;
+  dropTemps(); checkSpace(fileList());
   const kp = crypto.generateKeyPairSync('x25519');
   const t0 = Date.now();
   db.transaction(() => {
@@ -347,13 +384,15 @@ function enable(userId, password) {
     wrapFor(0, normCode(code), RC_N);
     wrapFor(userId, password);
     setSetting('vault_on', '1'); setSetting('vault_since', new Date().toISOString()); ON = true;
+    setJob('enc');
     for (const s of SPEC) {
       if (!mainHas(s.t)) continue;
       const cols = db.prepare(`PRAGMA main.table_info(${q(s.t)})`).all().map(c => c.name);
       for (const c of s.c.filter(x => cols.includes(x))) db.exec(`UPDATE main.${q(s.t)} SET ${q(c)} = cw_enc(${q(c)}) WHERE ${q(c)} IS NOT NULL AND cw_isenc(${q(c)}) = 0`);
     }
   })();
-  const files = encryptFiles(raw => (isEncFile(raw) ? raw : encFile(raw)));
+  const files = encryptFiles(raw => (isEncFile(raw) ? raw : encFile(raw)), out => isEncFile(out));
+  setJob(null);
   purge();
   rebuild();
   pending = null;
@@ -373,19 +412,42 @@ function newRecovery() {
 function disable() {
   if (!on()) return;
   if (!DK) throw lockedErr();
+  dropTemps();
+  const list = fileList(); checkSpace(list);
+  // 1. Dateien entschlüsseln – Schlüssel bleiben dabei erhalten. Jede Datei wird vor dem Ersetzen vollständig entschlüsselt (GCM prüft die Echtheit).
+  setJob('dec');
+  let files;
+  try { files = encryptFiles(raw => (isEncFile(raw) ? decFile(raw) : raw)); }
+  catch (e) {
+    // zurück in den sicheren Zustand: alles wieder verschlüsseln, Tresor bleibt an
+    try { encryptFiles(raw => (isEncFile(raw) ? raw : encFile(raw))); setJob(null); } catch (e2) { console.error('Tresor – Rückweg:', e2.message); }
+    throw new Error(`Ausschalten abgebrochen, der Tresor bleibt eingeschaltet: ${e.message}`);
+  }
+  // 2. Datenbank entschlüsseln und erst dann die Schlüssel löschen – alles in einer Transaktion
   dropShadow();
-  db.transaction(() => {
-    for (const s of SPEC) {
-      if (!mainHas(s.t)) continue;
-      const cols = db.prepare(`PRAGMA main.table_info(${q(s.t)})`).all().map(c => c.name);
-      for (const c of s.c.filter(x => cols.includes(x))) db.exec(`UPDATE main.${q(s.t)} SET ${q(c)} = cw_plain(${q(c)}) WHERE cw_isenc(${q(c)}) = 1`);
-    }
-    setSetting('vault_on', '0'); ON = false;
-    db.prepare("DELETE FROM settings WHERE key IN ('vault_pub','vault_priv','vault_since','vault_code_at')").run();
-    db.prepare('DELETE FROM vault_wrap').run();
-  })();
-  encryptFiles(raw => (isEncFile(raw) ? decFile(raw) : raw));
+  try {
+    db.transaction(() => {
+      for (const s of SPEC) {
+        if (!mainHas(s.t)) continue;
+        const cols = db.prepare(`PRAGMA main.table_info(${q(s.t)})`).all().map(c => c.name);
+        for (const c of s.c.filter(x => cols.includes(x))) {
+          db.exec(`UPDATE main.${q(s.t)} SET ${q(c)} = cw_plain(${q(c)}) WHERE cw_isenc(${q(c)}) = 1`);
+          const left = db.prepare(`SELECT COUNT(*) n FROM main.${q(s.t)} WHERE cw_isenc(${q(c)}) = 1`).get().n;
+          if (left) throw new Error(`${left} Einträge in ${s.t}.${c} ließen sich nicht entschlüsseln`);
+        }
+      }
+      setSetting('vault_on', '0'); ON = false;
+      db.prepare("DELETE FROM settings WHERE key IN ('vault_pub','vault_priv','vault_since','vault_code_at','vault_job')").run();
+      db.prepare('DELETE FROM vault_wrap').run();
+    })();
+  } catch (e) {
+    ON = true;
+    try { encryptFiles(raw => (isEncFile(raw) ? raw : encFile(raw))); setJob(null); } catch (e2) { console.error('Tresor – Rückweg:', e2.message); }
+    rebuild();
+    throw new Error(`Ausschalten abgebrochen, der Tresor bleibt eingeschaltet: ${e.message}`);
+  }
   DK = null; PRIV = null; PUB = null; built = null;
+  return { files };
 }
 
 /* ---------- Status ---------- */
@@ -395,7 +457,20 @@ function status(userId) {
     waitingMails: db.prepare('SELECT COUNT(*) n FROM vault_mail').get().n };
 }
 /** beim Start: Kopie (gesperrt) anlegen – nachdem alle Module ihre Tabellen angelegt haben */
-function start() { ON = getSetting('vault_on', '0') === '1'; if (ON) { pubKey(); rebuild(); } }
+/** Felder, die erst mit einer neueren Version in die Liste kamen (oder Module, die später eingeschaltet wurden): beim Start nachverschlüsseln */
+function upgradeSpec() {
+  let n = 0;
+  db.transaction(() => {
+    for (const s of SPEC) {
+      if (!mainHas(s.t)) continue;
+      const cols = db.prepare(`PRAGMA main.table_info(${q(s.t)})`).all().map(c => c.name);
+      for (const c of s.c.filter(x => cols.includes(x))) n += db.prepare(`UPDATE main.${q(s.t)} SET ${q(c)} = cw_enc(${q(c)}) WHERE ${q(c)} IS NOT NULL AND ${q(c)} != '' AND cw_isenc(${q(c)}) = 0`).run().changes;
+    }
+  })();
+  if (n) { console.log(`Tresor: ${n} weitere Einträge verschlüsselt.`); try { db.pragma('wal_checkpoint(TRUNCATE)'); db.exec('VACUUM'); db.pragma('wal_checkpoint(TRUNCATE)'); } catch (e) { console.error('Tresor – Aufräumen:', e.message); } }
+  return n;
+}
+function start() { ON = getSetting('vault_on', '0') === '1'; if (ON) { pubKey(); try { upgradeSpec(); } catch (e) { console.error('Tresor – Nachverschlüsseln:', e.message); } rebuild(); } try { resumeJob(); } catch (e) { console.error('Tresor – unterbrochener Lauf:', e.message); } }
 
 /* ---------- Mail-Warteschlange (Platzhalter-Adressen im gesperrten Zustand) ---------- */
 const hasPlaceholder = v => (Array.isArray(v) ? v : String(v || '').split(/[,;]\s*/)).some(x => PLACEHOLDER_RE.test(String(x).trim()));
