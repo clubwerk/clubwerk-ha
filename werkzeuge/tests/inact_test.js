@@ -17,8 +17,11 @@ async function T(url,body){const r=await fetch(B+url,{method:'POST',headers:{'Co
   [,j]=await A('api/admin/balances'); await A('api/admin/settle','POST',{asOf:j.asOf,upTo:j.upTo});   // alles abgerechnet
   const old=absent.find(m=>m.bookings>0); const never=absent.find(m=>m.bookings===0); const withOpen=absent.find(m=>m.bookings===0 && m.id!==never.id);
   const st=await (await fetch(B+'api/tablet/state')).json(); const art=st.articles.find(a=>!a.custom);
+  if (!old || !never || !withOpen) ok('Testdaten für das Entfernen vorhanden', false, 'zu wenige abwesende Mitglieder');
+  else {
   [s,j]=await A('api/admin/bookings','POST',{memberId:withOpen.id,articleId:art.id,qty:1,date:'2025-09-01'}); if(s!==200) console.log(j);
   [s,j]=await A('api/admin/members/remove-inactive','POST',{ids:[withOpen.id, old.id, never.id, ms[50].id]}); ok('Entfernen', s===200 && j.deleted===1 && j.hidden===1 && j.skipped.length===2, JSON.stringify(j));
   [,j]=await A('api/admin/members'); ok('gelöscht / ausgeblendet', !j.rows.find(m=>m.id===never.id) && j.rows.find(m=>m.id===old.id).active===false);
+  }
   console.log(fails?fails+' Fehler':'alles ok');
 })();

@@ -111,7 +111,9 @@ PINs der Demo: Mitglieder 2468, Zeiterfassung 1234 und 5678.
 - `bash tests/run.sh` enthält die Kerntests. Sie laufen auch in GitHub Actions.
 - `bash werkzeuge/tests/run.sh [namen…]` startet rund 50 erweiterte Testreihen. Die Liste steht in `werkzeuge/tests/namen.txt`. Bekannte Fehlschläge stehen in `werkzeuge/tests/erwartet.txt`, und nur **neue** Fehlschläge lassen den Lauf scheitern.
 - Einen bekannten Fehlschlag behebt man im Code. Danach `CW_ERWARTET_SPEICHERN=1 bash werkzeuge/tests/run.sh` und die Änderung an `erwartet.txt` bewusst committen. Neue Fehlschläge nie einfach in `erwartet.txt` eintragen.
-- Für neue Funktionen eine passende Testreihe ergänzen oder erweitern. Die Tests sind HTTP-Tests gegen einen eigenen Server mit den Ausgaben `✔`/`✘`.
+- Fehlersuche: `CW_TEST_BEHALTEN=1 bash werkzeuge/tests/run.sh <name>` behält die Ausgaben (`t_<name>.out`) und die Serverprotokolle.
+- Eine Testreihe ohne ein einziges `✔` oder mit Stacktrace gilt als abgebrochen und damit als Fehler.
+- Für neue Funktionen eine passende Testreihe ergänzen oder erweitern. Die Tests sind HTTP-Tests gegen einen eigenen Server mit den Ausgaben `✔`/`✘`. Zeitabhängige Tests rechnen relativ zur aktuellen Uhrzeit, nie mit festen Uhrzeiten wie „morgen 6 Uhr“.
 
 ## Design-Prüfstand
 
@@ -143,5 +145,6 @@ Texte werden über `public/i18n-core.js` zur Laufzeit übersetzt. Der deutsche T
 
 ## Offene Themen
 
-- **Platzbelegung (Fußball, Teilflächen):** Geplant ist ein eigenes Modul „Platzbelegung“ für Plätze, die zugeteilt statt selbst gebucht werden. Es umfasst Felder mit Teilflächen-Raster (ganz, ½, ¼), Mannschaften (aus dem Spielbetrieb, falls aktiv), Trainingspläne, Heimspiele und Sperren mit Push, Kabinen sowie Flutlicht über Home Assistant. Das Buchungssystem bleibt unverändert. Vor dem Bau beantwortet Thorsten die offenen Fragen: Name, Teilung, wer plant, Mannschaften, Kabinen in Stufe 1, Flutlicht, Pilotverein. Erst danach Stufe 1 bauen.
+- **20 bekannte Fehlschläge in `werkzeuge/tests/erwartet.txt` klären** (mod, age, abtipp, inact, v114, zeit, ber, dbx): bei jedem entscheiden, ob die Erwartung veraltet ist (Test anpassen) oder ein echter Fehler vorliegt (Code korrigieren). Besonders `v114` (Mitglieder entfernen mit offenem Betrag/Historie) und `dbx` (Dropbox-Export) genau ansehen. Ziel: `erwartet.txt` leer.
+- **Platzbelegung (Fußball, Teilflächen):** Der ausführliche Plan steht in `planung/platzbelegung.md`. Geplant ist ein eigenes Modul „Platzbelegung“ für Plätze, die zugeteilt statt selbst gebucht werden. Es umfasst Felder mit Teilflächen-Raster (ganz, ½, ¼), Mannschaften (aus dem Spielbetrieb, falls aktiv), Trainingspläne, Heimspiele und Sperren mit Push, Kabinen sowie Flutlicht über Home Assistant. Das Buchungssystem bleibt unverändert. Vor dem Bau beantwortet Thorsten die offenen Fragen: Name, Teilung, wer plant, Mannschaften, Kabinen in Stufe 1, Flutlicht, Pilotverein. Erst danach Stufe 1 bauen.
 - Bekannte Kleinigkeit: Im Buchungssystem rutschen die Knöpfe der Reiterzeile bei schmalen Fenstern unter die Reiter.

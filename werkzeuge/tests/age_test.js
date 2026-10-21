@@ -87,9 +87,9 @@ const TODAY = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toIS
   [s, j] = await A(X('member/' + teen)); ok('Neuer Beitrag ab 01.01.', j.fees.some(f => f.name === 'Erwachsene' && f.start_date === `${y + 1}-01-01`) && j.fees.some(f => f.name === 'Jugend' && f.end_date === `${y}-12-31`), JSON.stringify(j.fees.map(f => [f.name, f.start_date, f.end_date])));
   [s, j] = await A(X('age-notices/' + nZ.id), 'POST', { action: 'belassen' }); ok('Belassen', s === 200);
   [s, j] = await A(X('member/' + teen)); ok('Zusatz fest auf Jugend', j.departments[0].fee_id === zJ, JSON.stringify(j.departments[0]));
-  [s, j] = await A(X('age-notices/' + nFam.id), 'POST', { action: 'belassen' });
+  if (nFam) [s, j] = await A(X('age-notices/' + nFam.id), 'POST', { action: 'belassen' });   // Familien-Hinweis gibt es nur, wenn die Familienregeln einen erzeugen
   [s, j] = await A(X('age-notices')); ok('Keine erneuten Hinweise', j.length === 0, JSON.stringify(j.map(n => n.kind)));
-  [s, j] = await A(X('age-notices/' + nFam.id), 'POST', { action: 'umstellen' }); ok('Doppelt entscheiden abgelehnt', s === 400);
+  [s, j] = await A(X('age-notices/' + nFee.id), 'POST', { action: 'umstellen' }); ok('Doppelt entscheiden abgelehnt', s === 400);
   const log = fs.readFileSync(S + '/age_srv.log', 'utf8'); ok('Keine Fehler im Log', !/TypeError|ReferenceError|SqliteError|is not a function/.test(log), log.split('\n').filter(l => /Error/.test(l)).slice(0, 5).join(' / '));
   console.log(fails ? `\n${fails} FEHLER` : '\nALLES OK');
   if (process.env.KEEP) { await A('api/admin/users', 'POST', { name: 'Anna Abteilung', password: 'Test-Kennwort-42', roles: [3], departments: [padel] }); const t2 = await mk('Junior', `${y - 19}-11-30`); await A(X(`member/${t2}/fees`), 'POST', { fee_id: fJ, start_date: '2020-01-01' }); await A(X('age-notices')); return; }

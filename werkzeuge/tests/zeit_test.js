@@ -1,4 +1,4 @@
-const B='http://127.0.0.1:3234/'; const DB=process.argv[2]+'/r_z/getraenke.db'; const MAILDIR=process.argv[2]+'/smtp';
+const B='http://127.0.0.1:3234/'; const DB=process.argv[2]+'/r_z/clubwerk.db'; /* seit 3.0 heißt die Datenbank clubwerk.db */ const MAILDIR=process.argv[2]+'/smtp';
 let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,220):'')); if(!c) fails++;};
 const fs=require('fs'); const Database=require(process.env.CW_APP + '/node_modules/better-sqlite3');
 const mk=()=>{let ck=''; return async function A(url,method='GET',body){const h={'X-Getraenke':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; const ct=r.headers.get('content-type')||''; return [r.status, ct.includes('json')?await r.json():Buffer.from(await r.arrayBuffer())];};};
@@ -31,7 +31,8 @@ const pad=n=>String(n).padStart(2,'0'); const d=new Date(); const prev=d.getMont
   const st=new Date(new Date(e.start_at.replace(' ','T'))-125*60000); const lts=x=>`${x.getFullYear()}-${pad(x.getMonth()+1)}-${pad(x.getDate())} ${pad(x.getHours())}:${pad(x.getMinutes())}`;
   [s,j]=await A('api/admin/x/zeiterfassung/entries/'+e.id,'PUT',{start:lts(st),note:''}); ok('Korrektur ohne Begründung abgelehnt', s===400, j.error);
   [s,j]=await A('api/admin/x/zeiterfassung/entries/'+e.id,'PUT',{start:lts(st),note:'Test vorverlegt'}); ok('Korrektur', s===200, JSON.stringify(j));
-  [s,j]=await T('api/tablet/x/zeiterfassung/stamp',{staffId:maria,pin:'1234'}); ok('Gehen mit Tagesdauer', j.action==='out' && j.today_minutes>=125 && j.today_minutes<=127, JSON.stringify(j));
+  [s,j]=await T('api/tablet/x/zeiterfassung/stamp',{staffId:maria,pin:'1234'}); { const now=new Date(), mid=now.getHours()*60+now.getMinutes(); const over=mid<125;   // Schicht über Mitternacht: „heute“ zählt erst ab 0 Uhr
+    ok('Gehen mit Tagesdauer', j.action==='out' && (over ? j.today_minutes<=mid+1 && j.month_minutes>=125 : j.today_minutes>=125 && j.today_minutes<=127), JSON.stringify(j)); }
   // Vormonat nachtragen: 20:18 genau → 20:15
   const days=[[2,'16:04','18:11'],[7,'09:00','11:12'],[9,'16:10','18:05'],[14,'08:55','11:20'],[16,'15:30','18:30'],[21,'09:02','11:06'],[23,'16:00','18:14'],[28,'08:59','11:25'],[29,'16:07','18:02']];
   for (const [dd,a,b] of days) { [s,j]=await A('api/admin/x/zeiterfassung/entries','POST',{staffId:maria,start:`${prev}-${pad(dd)} ${a}`,end:`${prev}-${pad(dd)} ${b}`,note:'aus Papierliste'}); if(s!==200) console.log(j); }

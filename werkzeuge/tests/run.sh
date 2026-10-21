@@ -2,8 +2,8 @@
 # Erweiterte Testreihen (rund 50, zusätzlich zu tests/run.sh im Repository-Hauptordner).
 #   bash werkzeuge/tests/run.sh              alle
 #   bash werkzeuge/tests/run.sh bk mv ber    nur diese
+#   CW_TEST_BEHALTEN=1 bash werkzeuge/tests/run.sh bk   Ausgaben (t_bk.out) und Serverprotokolle zur Fehlersuche behalten
 # Vergleich mit werkzeuge/tests/erwartet.txt (Testreihe: Testname der bekannten Fehlschläge). Neue Fehlschläge → Rückgabewert 1.
-# Hinweis: „zeit: Gehen mit Tagesdauer“ schlägt kurz nach Mitternacht fehl (Schicht über Mitternacht) – dann tagsüber wiederholen.
 # Voraussetzungen: einmal „npm ci“ in clubwerk/ (den Test-Mailserver installiert der Lauf selbst). Für „targets“ zusätzlich: pip install wsgidav cheroot pyftpdlib asyncssh
 # Für „migrate“: der alte Stand 2.16.3 liegt in fixtures/backup-2.16.3-src; seine Bibliotheken holt der Test beim ersten Lauf (npm ci).
 set -u
@@ -18,11 +18,17 @@ export CW_TEST_NO_SETUP_CODE=1 VH_TEST_NO_SETUP_CODE=1 CW_TEST_TABLET_OPEN=1
 PIDS=()
 start_bg() { "$@" & PIDS+=($!); }
 kill_srv() { for p in "${PIDS[@]:-}"; do [ -n "$p" ] && { pkill -P "$p" 2>/dev/null; kill "$p" 2>/dev/null; }; done; PIDS=(); sleep 0.7; }
-trap 'kill_srv; kill ${SMTP_PID:-0} 2>/dev/null; rm -rf "$S"' EXIT
-srv() { # name port [ENV=… …]
+trap 'kill_srv; kill ${SMTP_PID:-0} 2>/dev/null; if [ "${CW_TEST_BEHALTEN:-}" = 1 ]; then echo "Ausgaben behalten: $S (t_<name>.out, r_<name>.log)"; else rm -rf "$S"; fi' EXIT
+srv() { # name port [ENV=… …]   – frische Daten
   local n=$1 p=$2; shift 2; local D=$S/r_$n; rm -rf "$D"; mkdir -p "$D"
-  start_bg bash -c "cd \"$CW_APP\" && exec env DATA_DIR=\"$D\" PORT=$p $* TRUSTED_PROXY=172.30.32.2 EXT_DIR=\"$S/none\" node src/server.js > \"$S/r_$n.log\" 2>&1"
+  SRV_CMD="cd \"$CW_APP\" && exec env EXT_DIR=\"$S/none\" DATA_DIR=\"$D\" PORT=$p TRUSTED_PROXY=172.30.32.2 $* node src/server.js >> \"$S/r_$n.log\" 2>&1"; SRV_PORT=$p   # eigene ENV-Angaben gehen vor
+  start_bg bash -c "$SRV_CMD"; SRV_PID=$!
   for i in $(seq 1 60); do curl -s -o /dev/null "http://127.0.0.1:$p/" && return; sleep 0.25; done
+}
+restart_srv() { # letzten Server mit denselben Daten neu starten (Test: übersteht ein laufender Vorgang den Neustart?)
+  kill "$SRV_PID" 2>/dev/null; for i in $(seq 1 40); do curl -s -o /dev/null "http://127.0.0.1:$SRV_PORT/" || break; sleep 0.25; done
+  start_bg bash -c "$SRV_CMD"; SRV_PID=$!
+  for i in $(seq 1 60); do curl -s -o /dev/null "http://127.0.0.1:$SRV_PORT/" && return; sleep 0.25; done
 }
 seed() { # Testdaten mit erfundenen Namen vorbereiten (vor srv)
   local D=$S/r_$1; rm -rf "$D"; mkdir -p "$D"
@@ -45,9 +51,10 @@ withha() { # Server mit Home-Assistant- und Hydrawise-Nachbildung (3240/5240/524
 mkdir -p "$S/smtp"; cp "$H/hilfen/smtp/srv.js" "$S/smtp/"; ln -sfn "$H/hilfen/smtp/node_modules" "$S/smtp/node_modules"
 node "$S/smtp/srv.js" > "$S/smtp/srv.log" 2>&1 & SMTP_PID=$!
 RES=$S/ergebnis.txt; : > "$RES"
-run() { local out=$S/t_$1.out; (cd "$W" && timeout 600 node "$1_test.js" "$S" > "$out" 2>&1)
+run() { local out=$S/t_$1${2:-}.out; (cd "$W" && timeout 600 node "$1_test.js" "$S" ${2:-} > "$out" 2>&1)
   echo "== $1: $(grep -c '^✘' "$out") Fehler · $(grep -c '^✔' "$out") ok"
-  grep -q '^✔' "$out" || { echo "$1: ✘ Testreihe abgebrochen" >> "$RES"; tail -5 "$out"; }   # kein einziges ✔ = Absturz, nie still durchwinken
+  # Absturz erkennen – kein einziges ✔ oder ein Fehler-Stacktrace mitten im Lauf; nie still durchwinken
+  if ! grep -q '^✔' "$out" || grep -qE '^(ABBRUCH|[A-Za-z]*Error[:[ ])|^ +at .+:[0-9]+:[0-9]+\)?$' "$out"; then echo "$1: ✘ Testreihe abgebrochen" >> "$RES"; grep -m3 -E 'Error|ABBRUCH' "$out"; fi
   grep '^✘' "$out" | sed -e "s/^/$1: /" -e 's/  .*$//' >> "$RES"; }   # nur Testreihe und Testname vergleichen, nicht die Details
 NAMES="${*:-$(cat "$H/namen.txt")}"
 for t in $NAMES; do
@@ -56,8 +63,8 @@ for t in $NAMES; do
     priv) seeded priv 3201; run priv ;;
     gate) seeded gate 3233 CW_TEST_TABLET_OPEN=0; run gate ;;
     zug|app) withha "$t"; run "$t" ;;
-    ber) withha ber; run ber; run ber2; run ber3 ;;
-    ber2|ber3) ;;   # laufen mit ber auf demselben Server
+    ber) withha ber; run ber; run ber2 a; restart_srv; run ber2 b; run ber2 ;;   # ber2: Beregnung läuft über einen Neustart weiter, dann Hydrawise direkt
+    ber2) ;;   # läuft mit ber auf demselben Server
     abtipp) plain abtipp 3232; run abtipp ;;
     admin) seeded admin 3208; run admin ;;
     api) seeded api 3196; run api ;;
@@ -69,7 +76,7 @@ for t in $NAMES; do
     neutral) plain neutral 3211; run neutral ;;
     settle) seeded settle 3205; run settle ;;
     v114) plain v114 3236; run v114 ;;
-    zeit) srv z 3234; run zeit ;;
+    zeit) mkdir -p "$S/ext_z" && cp -R "$CW_APP/vorlage-erweiterung/beispiel" "$S/ext_z/"; srv z 3234 EXT_DIR="$S/ext_z"; run zeit ;;   # mit Beispiel-Erweiterung im Ordner (Freigabe-Test)
     dbx) start_bg node "$W/fake_dropbox.js"; sleep 0.5; plain dbx 3199 DROPBOX_API=http://localhost:3299 DROPBOX_CONTENT=http://localhost:3299; run dbx ;;
     shutdown) start_bg node "$W/ha_mock.js"; sleep 0.5; run shutdown ;;
     migrate) if [ ! -d "$OLD/node_modules" ]; then (cd "$OLD" && npm ci --silent --no-audit --no-fund) || echo "migrate: npm ci für den alten Stand fehlgeschlagen"; fi
