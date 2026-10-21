@@ -325,15 +325,16 @@
 </main>
 
 <!-- Optionaler Passwortschutz: deckt alles ab, bis das Gerät freigeschaltet ist -->
-<div id="gate" class="gate hidden"><div class="gatecard">
+<div id="gate" class="gate hidden"><form class="gatecard" id="gateForm" autocomplete="on" action="#">
   <span class="logo-badge hidden" id="gateLogoBox"><img id="gateLogo" alt="Vereinslogo"></span>
   <div class="gateclub" id="gateClub"></div>
   <h2 id="gateTitle">Buchungsseite gesperrt</h2>
   <p id="gateText">Bitte das Passwort des Vereins eingeben. <br>Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="text" name="username" autocomplete="username" value="Vereinsheim" tabindex="-1" aria-hidden="true" readonly style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
   <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password" enterkeyhint="go">
   <div class="gerr" id="gateErr"></div>
-  <button class="btn primary" id="gateGo">Freischalten</button>
-</div></div>
+  <button type="button" class="btn primary" id="gateGo">Freischalten</button>
+</form></div>
 <div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
 <div id="toast" class="toast hidden"></div>
 

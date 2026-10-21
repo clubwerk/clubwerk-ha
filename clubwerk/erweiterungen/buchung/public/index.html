@@ -93,13 +93,14 @@
   <h2 class="sec" id="daySec">Heute</h2>
   <div class="bk-board" id="board"></div>
 </main>
-<div id="gate" class="gate hidden"><div class="gatecard">
+<div id="gate" class="gate hidden"><form class="gatecard" id="gateForm" autocomplete="on" action="#">
   <h2>Seite gesperrt</h2>
   <p>Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="text" name="username" autocomplete="username" value="Vereinsheim" tabindex="-1" aria-hidden="true" readonly style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
   <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password">
   <div class="gerr" id="gateErr"></div>
-  <button class="btn primary" id="gateGo">Freischalten</button>
-</div></div>
+  <button type="button" class="btn primary" id="gateGo">Freischalten</button>
+</form></div>
 <div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
 <div id="toast" class="toast hidden"></div>
 <script src="../../nav.js" data-base="../../" data-active="buchung"></script>

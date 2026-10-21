@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.29.4
+
+- **Tablet: Browser trägt den Benutzernamen nicht mehr in die Namenssuche ein.** Chrome hielt die Suche für das Benutzerfeld zum Tablet-Passwort und füllte dort den gespeicherten Verwaltungs-Benutzernamen ein. Das Passwortfeld des Tablets hat jetzt ein eigenes (unsichtbares) Benutzerfeld „Vereinsheim“ in einem eigenen Formular – die Suche bleibt leer.
+
 ## 3.29.3
 
 Tablet: alle Seiten nach denselben Regeln – nichts mehr „zusammengestückelt“:
