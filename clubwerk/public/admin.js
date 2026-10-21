@@ -271,9 +271,9 @@
     me = null;
     $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Verwaltung</h2>
       <p class="lead">Clubwerk – bitte anmelden.</p>
-      <form id="lf"><label class="f">Benutzername<input id="un" autocomplete="username" autocapitalize="none" autofocus></label><br>
-      <label class="f">Passwort<input type="password" id="pw" autocomplete="current-password"></label><br>
-      <button class="btn primary">Anmelden</button> <span class="err" id="err"></span></form>
+      <form id="lf" class="loginform"><label class="f">Benutzername<input id="un" autocomplete="username" autocapitalize="none" autofocus></label>
+      <label class="f">Passwort<input type="password" id="pw" autocomplete="current-password"></label>
+      <button class="btn primary">Anmelden</button><span class="err" id="err"></span></form>
       ${window.top === window ? '<p class="muted s" style="margin-top:18px"><a href="./">Zurück zur Buchungsseite</a></p>' : ''}</div>`;
     wireLogos();
     $('lf').onsubmit = async e => {
@@ -671,7 +671,7 @@
     const alerts = [];
     const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
     if (page !== 'uebersicht') return;
-    if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} E-Mail(s) warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
+    if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} ${vs.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     let drinksCard = '';
@@ -834,7 +834,7 @@
           </div>
         </div>
         <div class="btns">
-          ${rest.length ? `<span class="muted" style="margin-right:auto;align-self:center">Danach noch ${rest.length} Datei(en)</span>` : ''}
+          ${rest.length ? `<span class="muted" style="margin-right:auto;align-self:center">Danach noch ${rest.length} ${rest.length === 1 ? 'Datei' : 'Dateien'}</span>` : ''}
           <button class="btn ghost" id="cancel">${p.fileId ? 'Verwerfen' : 'Abbrechen'}</button>
           ${rest.length ? '<button class="btn" id="abort">Alle abbrechen</button>' : ''}
           <button class="btn primary" id="save">Lieferung speichern</button>
@@ -863,7 +863,7 @@
                 <td class="r">${l.choice === 'ignore' ? '–' : num(bottlesOf(l))}</td><td></td></tr>`).join('');
         const total = lines.filter(l => l.choice && l.choice !== 'ignore').reduce((s, l) => s + bottlesOf(l), 0);
         const open = lines.filter(l => !l.choice && (l.manual ? (l.crates || l.bottles) : true)).length;
-        $('sumInfo').innerHTML = `${num(total)} Einzelartikel ins Lager` + (open ? ` · <span class="neg">${open} Position(en) ohne Zuordnung</span>` : '');
+        $('sumInfo').innerHTML = `${num(total)} Einzelartikel ins Lager` + (open ? ` · <span class="neg">${open} ${open === 1 ? 'Position' : 'Positionen'} ohne Zuordnung</span>` : '');
       }
       draw();
 
@@ -951,7 +951,7 @@
           <td class="r"><input class="n" data-o="${r.id}" value="${r.suggest || ''}" inputmode="numeric" placeholder="0"></td></tr>`).join('')}</table></div>
         <p class="muted s">Mindestbestand und „bestellen bis“ stellt man unter „Artikel“ ein. Die Artikelnummern kommen automatisch aus den hochgeladenen Rechnungen.</p></div>
       <div class="card"><h3>E-Mail</h3>
-        ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px">Zum direkten Senden fehlt noch das Vereinspostfach – ${o.mayMailSetup ? '<a href="#einstellungen" data-gomail>Einstellungen → Postfach</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → Postfach ein'}. Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</div>`}
+        ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px"><span>Zum direkten Senden fehlt noch das Vereinspostfach (${o.mayMailSetup ? '<a href="#einstellungen" data-gomail style="margin:0">Einstellungen → Postfach</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → Postfach ein'}). Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</span></div>`}
         <div class="row"><label class="f" style="flex:1;min-width:240px">An (Lieferant)<input id="oMail" type="email" value="${esc(st.order_email)}" placeholder="bestellung@lieferant.de" autocomplete="off"></label>
           <label class="f" style="flex:1;min-width:240px">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
         <label class="f" style="margin-top:8px">Betreff<input id="oSubj"></label>
@@ -1015,12 +1015,12 @@
       <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
       <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
         <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
-        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Soll (Einzelartikel)</th><th class="r hide-md">= Gebinde + einzeln</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">+ einzeln</th></tr>
+        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Soll (Stück)</th><th class="r hide-md">Soll in Gebinden</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">Gezählt: Stück</th></tr>
         ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted hide-md">${esc(s.category)}</td>
           <td class="r ${s.stock < 0 ? 'neg' : ''}">${num(s.stock)}</td>
-          <td class="r muted hide-md">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : ''}</td>
+          <td class="r muted hide-md">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : '–'}</td>
           <td class="r hide-md">${num(s.min_stock)}</td>
-          <td class="r">${s.crate_size > 1 ? `<input class="n" data-c="${s.id}" inputmode="numeric">` : ''}</td>
+          <td class="r">${s.crate_size > 1 ? `<input class="n" data-c="${s.id}" inputmode="numeric">` : '<span class="muted">–</span>'}</td>
           <td class="r"><input class="n" data-b="${s.id}" inputmode="numeric"></td></tr>`).join('')}</table></div>
         <p class="muted s">Nur ausgefüllte Zeilen werden übernommen. Leere Zeilen bleiben unverändert.</p></div>
       <div class="card"><h3>Bruch oder Korrektur buchen</h3>
@@ -1050,7 +1050,7 @@
           if (!await ask('Ungewöhnlich große Abweichung – bitte prüfen:\n\n' + e.odd.join('\n') + '\n\nTrotzdem so speichern?')) return;
           r = await api('stock/inventory', 'POST', { date: $('invDate').value, counts, force: true });
         }
-        toast(r.changes.length ? `Inventur gespeichert – ${r.changes.length} Abweichung(en) erfasst.` : 'Inventur gespeichert – alles stimmt.');
+        toast(r.changes.length ? `Inventur gespeichert – ${r.changes.length} ${r.changes.length === 1 ? 'Abweichung' : 'Abweichungen'} erfasst.` : 'Inventur gespeichert – alles stimmt.');
         RENDER.bestand();
       } catch (e) { fail(e); }
     };
@@ -2005,7 +2005,7 @@
         if (mg) {
           const m = pending.find(x => x.id === Number(mg.dataset.merge));
           dialog(`<h2>„${esc(m.name)}“ zusammenführen</h2>
-            <p class="muted">Die ${m.bookings} Buchung(en) werden auf das gewählte Konto verschoben, der doppelte Eintrag wird gelöscht.</p>
+            <p class="muted">Die ${m.bookings} ${m.bookings === 1 ? 'Buchung' : 'Buchungen'} werden auf das gewählte Konto verschoben, der doppelte Eintrag wird gelöscht.</p>
             <label class="f">Richtiges Konto<input id="mgSearch" placeholder="Name suchen"></label>
             <label class="f" style="margin-top:8px"><select id="mgInto" size="8" style="min-height:200px"></select></label>
             <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok2">Zusammenführen</button></div>`);
@@ -2018,7 +2018,7 @@
           $('c').onclick = closeDialog;
           $('ok2').onclick = () => busy($('ok2'), async () => {
             if (!$('mgInto').value) { toast('Bitte ein Konto wählen.', true); return; }
-            try { const r = await api(`members/${m.id}/merge`, 'POST', { intoId: Number($('mgInto').value) }); closeDialog(); toast(`${r.moved} Buchung(en) verschoben.`); refreshBadges(); RENDER.konten(); } catch (err) { fail(err); }
+            try { const r = await api(`members/${m.id}/merge`, 'POST', { intoId: Number($('mgInto').value) }); closeDialog(); toast(`${r.moved} ${r.moved === 1 ? 'Buchung' : 'Buchungen'} verschoben.`); refreshBadges(); RENDER.konten(); } catch (err) { fail(err); }
           });
         }
         if (pin) {
@@ -2166,19 +2166,19 @@
         <div class="invlist">${L.map(x => { const paired = x.dev && x.dev.status === 'gekoppelt'; return `<label><input type="checkbox" data-iv="${x.id}" ${sel.has(x.id) ? 'checked' : ''} ${paired ? 'disabled' : ''}><b>${pName(x)}</b>
           <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s">${mail.has(x.id) ? 'E-Mail ✓' : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="empty">Niemand.</p>'}</div>
         ${!r.security.mailReady ? '<p class="muted s" style="margin:10px 0 0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s" style="margin:10px 0 0">${n - nm} ohne E-Mail-Adresse – für sie Briefe drucken.</p>` : ''}
-        <div class="btns"><button class="btn" id="ivX">Abbrechen</button><button class="btn" id="ivBrief" ${n ? '' : 'disabled'}>${n} Brief(e) drucken</button><button class="btn primary" id="ivMail" ${nm && r.security.mailReady ? '' : 'disabled'}>${nm} E-Mail(s) schicken</button></div>`, true);
+        <div class="btns"><button class="btn" id="ivX">Abbrechen</button><button class="btn" id="ivBrief" ${n ? '' : 'disabled'}>${n} ${n === 1 ? 'Brief' : 'Briefe'} drucken</button><button class="btn primary" id="ivMail" ${nm && r.security.mailReady ? '' : 'disabled'}>${nm} ${nm === 1 ? 'E-Mail' : 'E-Mails'} schicken</button></div>`, true);
       $('ivX').onclick = closeDialog;
       $('ivAll').onchange = () => { list().forEach(x => { if (!(x.dev && x.dev.status === 'gekoppelt')) { if ($('ivAll').checked) sel.add(x.id); else sel.delete(x.id); } }); draw(); };
       if ($('ivNew')) $('ivNew').onchange = () => { showNew = $('ivNew').checked; if (!showNew) r.members.forEach(m => sel.delete(m.id)); draw(); };
       $('dialog').querySelectorAll('[data-iv]').forEach(c => { c.onchange = () => { if (c.checked) sel.add(+c.dataset.iv); else sel.delete(+c.dataset.iv); draw(); }; });
       const run = kind => busy($(kind === 'mail' ? 'ivMail' : 'ivBrief'), async () => {
         const ids = list().filter(x => sel.has(x.id) && (kind === 'brief' || mail.has(x.id))).map(x => x.id);
-        if (!await ask(kind === 'mail' ? `${ids.length} Einladung(en) per E-Mail verschicken?` : `${ids.length} Einladungsbrief(e) erzeugen und drucken?`, { ok: kind === 'mail' ? 'Verschicken' : 'Drucken' })) return;
+        if (!await ask(kind === 'mail' ? `${ids.length} ${ids.length === 1 ? 'Einladung' : 'Einladungen'} per E-Mail verschicken?` : `${ids.length} ${ids.length === 1 ? 'Einladungsbrief' : 'Einladungsbriefe'} erzeugen und drucken?`, { ok: kind === 'mail' ? 'Verschicken' : 'Drucken' })) return;
         try {
           const x = await api('app/invites', 'POST', { kind, ids });
           closeDialog();
           if (kind === 'brief' && x.letters.length) printLetters(x.letters);
-          toast(`${x.done.length} ${kind === 'mail' ? 'E-Mail(s) verschickt' : 'Brief(e) erzeugt'}${x.skipped.length ? ` · ${x.skipped.length} übersprungen (${x.skipped.slice(0, 3).map(y => `${y.name}: ${y.reason}`).join('; ')}${x.skipped.length > 3 ? ' …' : ''})` : ''}.${x.localOnly && kind === 'mail' ? ' Ohne „Von unterwegs erreichbar“ funktionieren die Links nur im Vereins-WLAN.' : ''}`, Boolean(x.skipped.length && !x.done.length), 8000);
+          toast(`${x.done.length} ${kind === 'mail' ? (x.done.length === 1 ? 'E-Mail verschickt' : 'E-Mails verschickt') : (x.done.length === 1 ? 'Brief erzeugt' : 'Briefe erzeugt')}${x.skipped.length ? ` · ${x.skipped.length} übersprungen (${x.skipped.slice(0, 3).map(y => `${y.name}: ${y.reason}`).join('; ')}${x.skipped.length > 3 ? ' …' : ''})` : ''}.${x.localOnly && kind === 'mail' ? ' Ohne „Von unterwegs erreichbar“ funktionieren die Links nur im Vereins-WLAN.' : ''}`, Boolean(x.skipped.length && !x.done.length), 8000);
           RENDER.app().catch(fail);
         } catch (e) { fail(e); }
       });
@@ -2224,9 +2224,10 @@
     el.innerHTML = `<h3>Benachrichtigungen</h3>
       <p class="muted s" style="margin-top:0">Kurze Hinweise aufs Handy (Push) aus der Mitglieder-App – auf dem iPhone in der Home-Bildschirm-App ab iOS 16.4, auf Android im Browser. Hier legst du fest, welche Anlässe es im Verein gibt; jedes Mitglied schaltet Push je Handy nur ein oder aus – welche Hinweise kommen, entscheidest du hier zentral. Es werden nur Titel und ein Satz gesendet, nichts PIN-Pflichtiges.</p>
       <div class="row" style="gap:6px 22px;margin-bottom:6px"><span class="pill${r.subs ? ' g' : ''}">${r.subs} ${r.subs === 1 ? 'Handy' : 'Handys'} angemeldet · ${r.members} ${r.members === 1 ? 'Mitglied' : 'Mitglieder'}</span></div>
-      ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:72px;min-height:28px;border:1px solid var(--line);border-radius:8px;padding:0 6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
-      ${mayEdit ? `<div class="btns" style="margin-top:10px"><button class="btn primary" id="pshSave">Speichern</button>
-        <select id="pshWho" style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px"><option value="">– Testnachricht an –</option>${r.subscribed.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'}>Senden</button></div>` : ''}
+      ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start;margin:0"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:90px;margin-top:6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
+      ${mayEdit ? `<div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:14px">
+        <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testnachricht an<select id="pshWho"><option value="">– Mitglied wählen –</option>${r.subscribed.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'} title="${r.subscribed.length ? '' : 'Noch kein Handy für Push angemeldet'}">Senden</button></div>
+        <button class="btn primary" id="pshSave">Speichern</button></div>` : ''}
       ${r.recent.length ? `<details style="margin-top:10px"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member || '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
     if (!mayEdit) return;
     $('pshSave').onclick = () => busy($('pshSave'), async () => {
@@ -2473,7 +2474,7 @@
         <label class="chk ucard"><input type="radio" name="uRole" value="oberadmin" ${u && u.role === 'oberadmin' ? 'checked' : ''}> <span><b>Alle Rechte</b><br><span class="muted s">wie das Adminkonto – inkl. Benutzer, Einstellungen, Datensicherung</span></span></label></div>
       <div id="uRoleBox">
         <div class="rolegrid">${roles.map(r => `<label class="chk ucard"><input type="checkbox" data-role="${r.id}" ${myRoles.includes(r.id) ? 'checked' : ''}> <span><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<br><span class="muted s">${esc(r.description || '')}</span></span></label>`).join('') || '<p class="empty">Noch keine Rollen – unter „Rollen“ anlegen.</p>'}</div>
-        <div id="uDeptBox" class="card soft" style="margin-top:12px"><h3 style="margin:0 0 8px">Abteilung(en) für „eigene Abteilung“</h3>
+        <div id="uDeptBox" class="card soft" style="margin-top:12px"><h3 style="margin:0 0 8px">Abteilungen für „eigene Abteilung“</h3>
           ${depts.length ? `<div class="permgrid">${depts.map(d => `<label class="chk"><input type="checkbox" data-dep="${d.id}" ${myDepts.includes(d.id) ? 'checked' : ''}> <span translate="no">${esc(d.name)}</span></label>`).join('')}</div>` : '<p class="muted" style="margin:0">Abteilungen gibt es in der Mitgliederverwaltung.</p>'}</div>
         <details class="udet"${extra.length ? ' open' : ''}><summary>Zusätzliche Einzelrechte${extra.length ? ` (${extra.length})` : ''}</summary>${permList(extra, 'data-perm')}</details>
       </div>`}
@@ -2535,7 +2536,7 @@
     dialog(`<h2>${r ? 'Rolle bearbeiten' : 'Neue Rolle'}</h2>
       <div class="ugrid"><label class="f">Name<input id="rNm" value="${esc(r ? r.name : '')}" maxlength="40" placeholder="z. B. Jugendwart"></label>
         <label class="f">Beschreibung<input id="rDs" value="${esc(r ? r.description || '' : '')}" maxlength="300"></label></div>
-      <label class="chk ucard" style="margin-top:12px"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilung(en)</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer.</span></span></label>
+      <label class="chk ucard" style="margin-top:12px"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer.</span></span></label>
       <h3 class="usec">Rechte</h3>${permList(r ? r.perms : [], 'data-rp')}
       <div class="err" id="rErr" style="text-align:left"></div>
       <div class="btns">${r && !r.users ? '<button class="btn danger" id="rDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rOk">Speichern</button></div>`);
@@ -2652,7 +2653,7 @@
     if (!v.on) body = `<div class="banner a">Ausgeschaltet – die persönlichen Daten liegen unverschlüsselt auf dem Home Assistant. Wer den Rechner mitnimmt, kann sie lesen.</div>
       <p class="muted s" style="margin:8px 0">Eingeschaltet werden ${VAULT_WHAT} verschlüsselt gespeichert. Namen, Getränkekonten, Buchungen, Türen und Beregnung bleiben lesbar – der Vereinsbetrieb läuft nach einem Neustart sofort weiter. Die Daten öffnen sich automatisch, sobald sich ein Admin anmeldet.</p>
       ${v.may ? '<div class="row"><button class="btn primary" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}${VAULT_SCOPE}`;
-    else if (v.locked) body = `<div class="banner r">Verschlossen – seit dem letzten Neustart hat sich noch kein Admin mit Schlüssel angemeldet.${v.waitingMails ? ` ${v.waitingMails} E-Mail(s) warten.` : ''}</div>
+    else if (v.locked) body = `<div class="banner r">Verschlossen – seit dem letzten Neustart hat sich noch kein Admin mit Schlüssel angemeldet.${v.waitingMails ? ` ${v.waitingMails} ${v.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}</div>
       <p class="muted s" style="margin:8px 0 0">Dein Konto hat ${v.mine ? 'einen Schlüssel – bitte einmal ab- und wieder anmelden.' : 'noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen; danach öffnet auch deine Anmeldung die Daten.'}</p>
       ${v.mine ? '' : vaultUnlockHtml('va')}`;
     else body = `<div class="banner g">Eingeschaltet seit ${when(v.since)} – ${VAULT_WHAT} liegen verschlüsselt auf der Platte und sind nur im Arbeitsspeicher entschlüsselt.</div>
@@ -2693,7 +2694,7 @@
       $('vpGo').onclick = () => busy($('vpGo'), async () => {
         try {
           const r = await api('vault/enable', 'POST', { password: pw, typed: $('vpT').value, deleteOld: $('vpDel') ? $('vpDel').checked : false });
-          closeDialog(); toast(`Verschlüsselt${r.files ? ` – auch ${r.files} Datei(en)` : ''}${r.removed ? `, ${r.removed} alte Schnappschüsse gelöscht` : ''}.`);
+          closeDialog(); toast(`Verschlüsselt${r.files ? ` – auch ${r.files} ${r.files === 1 ? 'Datei' : 'Dateien'}` : ''}${r.removed ? `, ${r.removed} alte Schnappschüsse gelöscht` : ''}.`);
           vaultAlert = null; RENDER.sicherung().catch(fail);
         } catch (e) { fail(e); }
       });
@@ -3195,7 +3196,7 @@
     const d = await api('sprachen');
     const L = window.CWI18N, mine = L ? L.chosen() : '';
     const src = l => l.code === 'de' ? (l.custom ? `Ausgangssprache, ${l.customCount} Begriffe angepasst` : 'Ausgangssprache')
-      : l.builtin ? (l.custom ? `mitgeliefert, ${l.customCount} Texte angepasst` : 'mitgeliefert') : l.plugin ? (l.custom ? 'aus Erweiterung, angepasst' : 'aus Erweiterung') : 'importiert';
+      : l.builtin ? (l.custom ? `Mitgeliefert, ${l.customCount} Texte angepasst` : 'Mitgeliefert') : l.plugin ? (l.custom ? 'Aus Erweiterung, angepasst' : 'Aus Erweiterung') : 'Importiert';
     const bar = p => `<div class="lbar" title="${p} %"><i style="width:${Math.max(0, Math.min(100, p))}%"></i></div><span class="lpct">${String(p).replace('.', ',')} %</span>`;
     const opt = (sel, first) => (first ? `<option value="">${esc(first)}</option>` : '') + d.languages.map(l => `<option value="${esc(l.code)}" ${l.code === sel ? 'selected' : ''} translate="no">${esc(l.name)}</option>`).join('');
     box.innerHTML = `
@@ -3409,25 +3410,25 @@
           <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label>
         <button class="btn primary" id="saveClub">Speichern</button></div>
         <p class="muted s">Die Farbe gilt für Tablet, Verwaltung und Excel-Export. Tablets übernehmen sie beim nächsten Neuladen.</p></div>
-      <div class="card"><h3>Startseite am Tablet: „Ich bin öfter hier:“</h3><div class="row">
-        <label class="f">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${s.topN}" inputmode="numeric"></label>
-        <label class="f">Aus den letzten … Tagen<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label>
-        <button class="btn primary" id="saveTop">Speichern</button></div>
-        <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p></div>
+      <div class="card"><h3>Startseite am Tablet – „Gerade oft hier“</h3><div class="row">
+        <label class="f" style="flex:1;min-width:200px">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${s.topN}" inputmode="numeric"></label>
+        <label class="f" style="flex:1;min-width:200px">Zeitraum (Tage)<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label></div>
+        <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p>
+        <div class="btns"><button class="btn primary" id="saveTop">Speichern</button></div></div>
       <div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
         ${s.tabletPw.on ? `<div class="banner g">Vergeben${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
           : '<div class="banner r">Noch kein Passwort vergeben – das Tablet ist gesperrt, bis hier eins festgelegt ist.</div>'}
         <div class="row">
-          <label class="f">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 8 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
-          <label class="f">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
-          <button class="btn primary" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button>
+          <label class="f" style="flex:1;min-width:200px">${s.tabletPw.on ? 'Neues Passwort' : 'Passwort'} (mind. 8 Zeichen)<input type="password" id="tpPw1" autocomplete="new-password"></label>
+          <label class="f" style="flex:1;min-width:200px">Passwort wiederholen<input type="password" id="tpPw2" autocomplete="new-password"></label>
         </div>
-        ${s.tabletPw.on ? '<div class="row" style="margin-top:10px"><button class="btn" id="tpOut">Alle Geräte abmelden</button></div>' : ''}
-        <p class="muted s">Pflicht zum Schutz der Mitgliederdaten: Ohne Passwort könnte jedes Gerät im WLAN die Namen und Konten am Tablet sehen. Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen immer auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p></div>
+        <p class="muted s">Pflicht zum Schutz der Mitgliederdaten: Ohne Passwort könnte jedes Gerät im WLAN die Namen und Konten am Tablet sehen. Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen immer auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p>
+        <div class="btns">${s.tabletPw.on ? '<button class="btn" id="tpOut">Alle Geräte abmelden</button>' : ''}<button class="btn primary" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button></div></div>
       ${s.allowedHosts !== undefined ? `<div class="card"><h3>Weitere Adressen</h3><div class="row">
         <label class="f" style="flex:1;min-width:260px">Namen, unter denen die Verwaltung erreichbar ist (mit Komma getrennt)<input id="hostList" value="${esc(s.allowedHosts)}" placeholder="verein.duckdns.org"></label>
-        <button class="btn primary" id="hostSave">Speichern</button></div>
-        <p class="muted s">Schutz gegen Angriffe über fremde Webseiten: Clubwerk antwortet nur unter IP-Adressen, Namen wie <b>homeassistant.local</b>, den Namen aus dem HTTPS-Zertifikat und den Adressen der Apps. Wer einen anderen Namen benutzt (z. B. eine eigene DuckDNS-Adresse ohne Zertifikat), trägt ihn hier ein.</p></div>` : ''}
+</div>
+        <p class="muted s">Schutz gegen Angriffe über fremde Webseiten: Clubwerk antwortet nur unter IP-Adressen, Namen wie <b>homeassistant.local</b>, den Namen aus dem HTTPS-Zertifikat und den Adressen der Apps. Wer einen anderen Namen benutzt (z. B. eine eigene DuckDNS-Adresse ohne Zertifikat), trägt ihn hier ein.</p>
+        <div class="btns"><button class="btn primary" id="hostSave">Speichern</button></div></div>` : ''}
       <div class="card"><h3>Vereinslogo</h3><div class="row" style="align-items:center">
         <div class="logoprev" id="logoPrev">${s.logo ? `<img src="${esc(s.logo)}" alt="Vereinslogo">` : '<span class="muted s">kein Logo</span>'}</div>
         <div style="display:flex;flex-direction:column;gap:8px">
@@ -3467,10 +3468,10 @@
               off && x.source === 'hochgeladen' && me.role === 'oberadmin' ? `<button type="button" class="danger" data-extdel="${esc(x.id)}" data-fname="${esc(x.name)}">Dateien entfernen</button>` : '',
               (x.unapproved || x.pending) && me.role === 'oberadmin' && x.hash ? `<button type="button" data-approve="${esc(x.id)}" data-fname="${esc(x.name)}" data-hash="${esc(x.hash)}">${x.pending ? 'Neue Version prüfen & freigeben …' : 'Prüfen & freigeben …'}</button>` : '',
             ].join('');
-            return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', zeiterfassung: 'zeit' }[x.id] || 'modul', 20)}</span>
+            return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon(({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', zeiterfassung: 'zeit' })[x.id] || (MODG['g-' + x.id] && MODG['g-' + x.id].icon) || PAGE_ICON[x.id] || 'modul', 20)}</span>
               <div style="min-width:0"><b>${esc(x.name)}</b> <span class="pill srcb">${esc(SRC[x.source] || x.source)}</span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}</div>
               <span class="ver">${esc(x.version)}<span class="pill srca">${esc(SRC[x.source] || x.source)}</span></span>
-              <span class="st">${off ? '<span class="pill">nicht installiert</span>' : x.error ? '<span class="pill r">Fehler</span>' : x.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">aus</span>'}</span>
+              <span class="st">${off ? '<span class="pill">Nicht installiert</span>' : x.error ? '<span class="pill r">Fehler</span>' : x.active ? '<span class="pill g">Aktiv</span>' : '<span class="pill">Aus</span>'}</span>
               <span class="act">${off ? (mayUn && !x.error ? `<button class="btn small primary" data-inst="${esc(x.id)}" data-fname="${esc(x.name)}" style="width:84px;padding:0">Installieren</button>` : '<span></span>')
                 : `<button class="switch ${x.active ? 'on' : ''}" role="switch" aria-checked="${x.active}" aria-label="${esc(x.name)} aktiv" data-ext="${esc(x.id)}" data-on="${x.active ? 0 : 1}" ${x.error || !mayCfg ? 'disabled' : ''}></button>`}
                 <button type="button" class="dots" data-menu="${esc(x.id)}" aria-label="Weitere Aktionen für ${esc(x.name)}" style="${items ? '' : 'visibility:hidden'}">${icon('punkte', 18)}</button></span>

@@ -713,7 +713,7 @@ function activate(ctx) {
     try {
       if (x.action === 'cancel') {
         const n = await scopeCancel(b0, scope, nameOf(mid));
-        ctx.audit({ username: 'app', name: nameOf(mid) }, 'Serie: Termine abgesagt (App)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} Termin(e)`);
+        ctx.audit({ username: 'app', name: nameOf(mid) }, 'Serie: Termine abgesagt (App)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} ${n === 1 ? 'Termin' : 'Termine'}`);
         return res.json({ ok: true, cancelled: n });
       }
       const f = x.fields || {}, lab = b0.label_id ? labelRow(b0.label_id) : null;
@@ -785,7 +785,7 @@ function activate(ctx) {
     if (!b0 || b0.member_id !== mid || !b0.series_id || b0.type !== 'serie') return bad(res, 'Diesen Serientermin kannst du nicht absagen.');
     if (!canCancelNow(b0)) return bad(res, 'Absagen geht jetzt nicht mehr.');
     const n = await scopeCancel(b0, scope, nameOf(mid)); ctx.auth.dropTabletToken(x.token);
-    ctx.audit({ username: 'tablet', name: nameOf(mid) }, 'Serie: Termine abgesagt (Tablet)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} Termin(e)`);
+    ctx.audit({ username: 'tablet', name: nameOf(mid) }, 'Serie: Termine abgesagt (Tablet)', `${b0.title} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} ${n === 1 ? 'Termin' : 'Termine'}`);
     res.json({ ok: true, cancelled: n });
   }));
 
@@ -843,7 +843,7 @@ function activate(ctx) {
     try {
       db.transaction(() => {
         if (type === 'buchung' && !free(r, b.date, s, e, editId)) throw new Error('Zu dieser Zeit ist schon gebucht.');
-        if (type === 'sperre' && conflicts.length && !b.force) throw Object.assign(new Error(`${conflicts.length} Buchung(en) liegen in dieser Zeit.`), { conflicts });
+        if (type === 'sperre' && conflicts.length && !b.force) throw Object.assign(new Error(`${conflicts.length} ${conflicts.length === 1 ? 'Buchung' : 'Buchungen'} liegen in dieser Zeit.`), { conflicts });
         // hängt ein Gerät als Mitspieler an der Buchung (Ballmaschine), wandert es mit – wenn es zur neuen Zeit frei ist
         const dev = old ? deviceOf(old) : null;
         if (dev) { const dr = resource(dev.booking.resource_id); if (dr && !free(dr, b.date, s, e, dev.booking.id)) throw new Error(`${dr.name} ist um ${hhmm(s)} belegt.`); db.prepare('UPDATE bk_booking SET date = ?, start = ?, end = ? WHERE id = ?').run(b.date, hhmm(s), hhmm(e), dev.booking.id); }
@@ -890,7 +890,7 @@ function activate(ctx) {
     try {
       if (x.action === 'cancel') {
         const n = await scopeCancel(b0, scope, uname(req), txt(x.reason, 160));
-        ctx.audit(req.user, 'Serie: Termine storniert (Verwaltung)', `${b0.title || '#' + b0.id} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} Termin(e)`);
+        ctx.audit(req.user, 'Serie: Termine storniert (Verwaltung)', `${b0.title || '#' + b0.id} · ${({ one: 'nur dieser', following: 'dieser und folgende', all: 'alle kommenden' })[scope]} · ${n} ${n === 1 ? 'Termin' : 'Termine'}`);
         return res.json({ ok: true, cancelled: n });
       }
       const f = x.fields || {};

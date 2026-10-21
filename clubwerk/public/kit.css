@@ -62,6 +62,7 @@ body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 /* ---------- Gerätekachel (Beregnung, Türen) – EINE Gestaltung für Mitglieder-App, Tablet, Beregnungs-Webapp und Verwaltung ----------
    Symbol oben (44 px), Name, Zeile darunter, Bedienknöpfe unten über die ganze Breite. Raster .vh-tiles: Handy 2, ab 700 px 3, ab 1000 px 4 Spalten. */
 .vh-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .vh-tiles > .vh-tile:only-child { grid-column: 1 / -1; } }   /* Handy: ein einzelnes Gerät nimmt die ganze Breite ein */
 @media (min-width: 700px) { .vh-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
 @media (min-width: 1000px) { .vh-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .vh-tiles > .vh-empty { grid-column: 1 / -1; margin: 0; }
@@ -97,9 +98,9 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 /* Dialog (PIN, Einladung, Hinweise) */
 .vh-sheet { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
 .vh-sheet.show { display: flex; }
-.vh-box { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 24px 22px 20px; width: 100%; max-width: 360px; text-align: center; box-shadow: var(--shadow-pop); border-top: 4px solid var(--brand); }
+.vh-box { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 24px 22px 20px; width: 100%; max-width: 360px; text-align: center; box-shadow: var(--shadow-pop); }   /* ohne farbigen Randstreifen – wie alle Fenster */
 .vh-box h2 { margin: 0 0 6px; font-size: 20px; }
-.vh-box p { margin: 0 0 16px; font-size: 14.5px; color: var(--muted); line-height: 1.45; }
+.vh-box p { margin: 0 0 16px; font-size: 14.5px; color: var(--muted); line-height: 1.45; text-wrap: pretty; }
 .vh-input, .vh-select { width: 100%; min-height: 54px; border: 1px solid var(--line); border-radius: 14px; padding: 0 14px; font-size: 18px; background: var(--field); color: var(--ink); margin-bottom: 10px; }
 .vh-input, .vh-select { box-sizing: border-box; max-width: 100%; }
 /* Datum/Uhrzeit auf dem iPhone: sonst breiter als das Fenster und mittig */
@@ -109,7 +110,7 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-input.pin { text-align: center; font-size: 24px; letter-spacing: .4em; font-weight: 700; }
 .vh-input.pin::placeholder { letter-spacing: normal; font-size: 16px; font-weight: 500; }
 .vh-input:focus, .vh-select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-.vh-err { min-height: 20px; font-size: 14px; font-weight: 600; color: var(--red); margin-bottom: 8px; }
+.vh-err { min-height: 20px; font-size: 14px; font-weight: 600; color: var(--red); margin-bottom: 8px; } .vh-err:empty { min-height: 0; margin-bottom: 4px; }   /* ohne Meldung kein Loch über dem Knopf */
 .vh-row { display: flex; gap: 10px; }
 .vh-row button { flex: 1; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; }
 .vh-row .ok { background: var(--brand); color: #fff; flex: 1.4; }

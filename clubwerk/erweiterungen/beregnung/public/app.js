@@ -49,7 +49,7 @@
     if (info.mode === 'login') return fn('');
     let pin = sess.get();
     for (let i = 0; i < 4; i++) {
-      if (!pin) { try { pin = await askPin(title, embedded ? 'Vereins-PIN eingeben' : 'Zur Bedienung der Bewässerung'); } catch (e) { return null; } }
+      if (!pin) { try { pin = await askPin(title, embedded ? 'Vereins-PIN eingeben' : 'Zur Bedienung der Beregnung.'); } catch (e) { return null; } }
       try { const r = await fn(pin); sess.set(pin); return r; } catch (e) { if (e.pin) { pin = ''; toast(e.message, true); continue; } throw e; }
     }
     return null;
@@ -136,7 +136,7 @@
     if (info.mode === 'pin' && !embedded) {
       let pin = sess.get();
       while (true) {
-        if (!pin) { try { pin = await askPin('PIN eingeben', 'Bitte anmelden, um die Bewässerung zu bedienen', true); } catch (e) { return; } }
+        if (!pin) { try { pin = await askPin('PIN eingeben', 'Bitte mit deiner PIN anmelden, um die Beregnung zu bedienen.', true); } catch (e) { return; } }
         try { await post('verify-pin', { pin }); sess.set(pin); break; } catch (e) { pin = ''; toast(e.message, true); if (!e.pin) break; }
       }
     }

@@ -1011,7 +1011,7 @@ function activate(ctx) {
       const ch = ctx.db.prepare("SELECT member_id, kind FROM mv_change WHERE status = 'offen'").all().filter(c => c.kind !== 'bank' && inScope(c.member_id, scope)).length;
       if (ch) al.push({ level: 'a', text: `${ch} Änderungswunsch/-wünsche aus der Mitglieder-App.` });
       const inc = mine.filter(r => scopedIssues(r.issues).length).length;
-      if (inc) al.push({ level: 'a', text: `${inc} Mitglied(er) deiner Abteilung mit fehlenden Angaben (z. B. E-Mail).` });
+      if (inc) al.push({ level: 'a', text: `${inc} ${inc === 1 ? 'Mitglied' : 'Mitglieder'} deiner Abteilung mit fehlenden Angaben (z. B. E-Mail).` });
       return { kpis: [{ l: 'Mitglieder deiner Abteilung', v: mine.length }, { l: 'Austritte angekündigt', v: mine.filter(r => r.leaving).length }, { l: 'Eintritte ' + today().slice(0, 4), v: mine.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts: al };
     }
     const rows = listRows({ status: 'aktuell' });
@@ -1026,14 +1026,14 @@ function activate(ctx) {
     const ret = parseInt(S('retention_years', '0'), 10) || 0;
     if (ret) {
       const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
-      if (old) alerts.push({ level: 'a', text: `${old} ausgetretene(s) Mitglied(er) seit über ${ret} Jahren – bitte prüfen und anonymisieren.` });
+      if (old) alerts.push({ level: 'a', text: `${old} ${old === 1 ? 'ausgetretenes Mitglied' : 'ausgetretene Mitglieder'} seit über ${ret} Jahren – bitte prüfen und anonymisieren.` });
     }
     // Lastschrift eingereicht, aber noch nicht als bezahlt gebucht → Kassierer erinnern, sobald Rückläufer unwahrscheinlich sind
     const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
     for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))
       alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Einzug & Zahlungen → Offene Posten → Im Einzug“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
     const ageN = ageScanFn ? ageScanFn() : 0;
-    if (ageN) alerts.push({ level: 'a', text: `${ageN} Mitglied(er) rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-beitraege', link: 'Entscheiden' });
+    if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied' : 'Mitglieder'} rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-beitraege', link: 'Entscheiden' });
     const leaving = rows.filter(r => r.leaving).length;
     return { kpis: [{ l: 'Mitglieder', v: rows.length }, { l: 'Austritte angekündigt', v: leaving }, { l: 'Eintritte ' + today().slice(0, 4), v: rows.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts };
   };
@@ -1128,7 +1128,7 @@ function activate(ctx) {
       if (first) zusatzBegin(fi.v.department_id);
     }
     if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) SET(k, v.slice(0, 2000));
-    return `${d} Abteilung(en), ${f} Beitragsart(en) und die Einstellungen übernommen – Gläubiger-ID und Vereinskonto bitte selbst eintragen`;
+    return `${d} ${d === 1 ? 'Abteilung' : 'Abteilungen'}, ${f} ${f === 1 ? 'Beitragsart' : 'Beitragsarten'} und die Einstellungen übernommen – Gläubiger-ID und Vereinskonto bitte selbst eintragen`;
   };
 
   setTimeout(daily, 15000).unref();

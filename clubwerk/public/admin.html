@@ -209,12 +209,15 @@
   .dialog .btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; flex-wrap: wrap; }
   .dialog > .btns:last-child { position: sticky; bottom: 0; margin: 20px -24px -24px; padding: 14px 24px 20px; background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 20px 20px; z-index: 2; }   /* lange Dialoge: Speichern/Abbrechen bleiben unten sichtbar */
   /* Fußzeile einer Karte mit mehreren Eingabezeilen: Speichern unten rechts (Karten mit einer Zeile: Knopf in der Zeile) */
+  .btns { display: flex; justify-content: flex-end; gap: 12px; flex-wrap: wrap; }   /* Speichern & Co. immer rechts – auch unter mehreren Karten */
   .card .btns { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .card > .banner:not(:last-child) { margin-bottom: 14px; }   /* Hinweis in einer Karte: Abstand zu den Feldern darunter */
   .split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; }
   .preview { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--hover); min-height: 420px; }
   .preview iframe, .preview img { width: 100%; height: 72vh; border: 0; object-fit: contain; display: block; }
   /* Hinweise */
   .banner { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; padding: 14px 18px; border-radius: 14px; margin-bottom: 12px; font-weight: 600; border: 1px solid transparent; }
+  .banner:not(:has(> a, > button, > .row, > span + *)) { display: block; }   /* reiner Fließtext (auch mit Links/Fettdruck darin) bleibt ein Satz – kein Auseinanderreißen */
   .banner.a { background: var(--amber-soft); color: var(--amber); border-color: var(--amber-line); }
   .banner.r { background: var(--red-soft); color: var(--red); border-color: var(--red-line); }
   .banner.g { background: var(--brand-soft); color: var(--brand-ink); border-color: var(--green-line); }
@@ -222,7 +225,9 @@
   .banner a, .kpi a { color: inherit; }
   .banner a { font-weight: 700; margin-left: auto; }
   .login { max-width: 420px; margin: 12vh auto; }
-  .login.card { padding: 28px; border-top: 6px solid var(--brand); }
+  .login.card { padding: 32px; border-radius: 20px; text-align: center; }   /* wie die Fenster am Tablet: mittig, Hauptknopf über die volle Breite */
+  .login h2.page { margin: 0 0 4px; } .login p.lead { margin: 0 0 20px; }
+  .loginform { display: grid; gap: 14px; text-align: left; } .loginform .btn.primary { width: 100%; justify-content: center; min-height: 48px; margin-top: 6px; } .loginform .err:empty { display: none; } .loginform .err { text-align: center; }
   .login .loginlogo { text-align: center; margin-bottom: 14px; }
   .login .loginlogo img { max-height: 96px; max-width: 70%; object-fit: contain; }
   .login a { color: var(--brand-ink); font-weight: 700; }
@@ -329,7 +334,7 @@
   .mods .mrow .ic { width: 40px; height: 40px; border-radius: 12px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; }
   .mods .mrow.off .ic { background: var(--hover); color: var(--faint); }
   .mods .mrow b { font-size: 15px; line-height: 20px; }
-  .mods .mrow .d { font-size: 13px; line-height: 18px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .mods .mrow .d { font-size: 13px; line-height: 18px; color: var(--muted); text-wrap: pretty; }   /* Beschreibung vollständig – nicht mitten im Wort gekürzt */
   .mods .mrow .ver { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
   /* Herkunft („im Paket“, „hochgeladen“) unter der Version – nicht neben dem Namen, damit keine Zeile höher wird als die andere; schmal (Version ausgeblendet) neben dem Namen */
   .mods .mrow .srcb { display: none; margin-left: 6px; }
@@ -518,7 +523,7 @@
   .ltbl td { vertical-align: middle; }
   .lcov, .lname, .lcode { white-space: nowrap; }
   .ltbl td.r { width: 1%; white-space: nowrap; }
-  .lact { display: inline-grid; grid-template-columns: auto auto 118px; gap: 6px; justify-items: stretch; }
+  .lact { display: inline-flex; gap: 6px; justify-content: flex-end; }   /* Knöpfe bündig am rechten Rand */
   .lact .btn { justify-content: center; }
   .lbar { display: inline-block; width: 90px; height: 8px; border-radius: 4px; background: var(--hover); vertical-align: middle; overflow: hidden; }
   .lbar i { display: block; height: 100%; background: var(--brand); border-radius: 4px; }

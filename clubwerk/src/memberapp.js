@@ -718,7 +718,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     if (miss.length) return bad(res, `Zum Entfernen aus der App fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403);
     invites.revoke(SCOPE, id); push.removeMember(id);
     const n = db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id).changes;
-    audit(req.user, 'Mitglieder-App: aus der App entfernt', `${m.name} (Handy und ${n} Freischaltung(en))`);
+    audit(req.user, 'Mitglieder-App: aus der App entfernt', `${m.name} (Handy und ${n} ${n === 1 ? 'Freischaltung' : 'Freischaltungen'})`);
     res.json({ ok: true });
   });
   /** Bereich (Türen, Beregnung …) allen Mitgliedern auf einmal entziehen – z. B. wenn er nur noch für Platzwart und Vorstand da sein soll */

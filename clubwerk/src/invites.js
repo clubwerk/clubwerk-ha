@@ -108,7 +108,7 @@ function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, veri
       const d = db.prepare('SELECT failed FROM member_devices WHERE id = ?').get(p.deviceId), n = (d ? d.failed : 0) + 1;
       if (n >= 5) { db.prepare('UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, failed = 0 WHERE id = ?').run(p.deviceId); audit(null, 'Mitglieder-App: Einladung nach 5 falschen PINs ungültig', p.member); throw new Error('PIN 5-mal falsch – diese Einladung gilt nicht mehr. Bitte beim Vorstand eine neue holen (er kann auch die PIN zurücksetzen).'); }
       db.prepare('UPDATE member_devices SET failed = ? WHERE id = ?').run(n, p.deviceId);
-      const e = new Error(`Die PIN stimmt nicht – es ist dieselbe wie im Verkauf am Tablet. Noch ${5 - n} Versuch(e).`); e.pin = true; throw e;
+      const e = new Error(`Die PIN stimmt nicht – es ist dieselbe wie im Verkauf am Tablet. Noch ${5 - n} ${(5 - n) === 1 ? 'Versuch' : 'Versuche'}.`); e.pin = true; throw e;
     }
     pinHash = m.pin_hash;
   } else {
@@ -166,7 +166,7 @@ function syncPinsOnce() {
   const rows = db.prepare(`SELECT d.member_id, d.pin_hash FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = 'app' AND d.token_hash IS NOT NULL AND d.pin_hash IS NOT NULL AND m.pin_hash IS NULL AND m.kind = 'mitglied' AND m.deleted = 0`).all();
   for (const r of rows) setMemberPin(r.member_id, r.pin_hash, 'Mitglieder-App');
-  if (rows.length) audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', `${rows.length} Mitglied(er)`);
+  if (rows.length) audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', `${rows.length} ${rows.length === 1 ? 'Mitglied' : 'Mitglieder'}`);
 }
 /** Gerät war im Vereins-WLAN (oder der Vorstand gibt es frei) → volle Freischaltung */
 function trust(deviceId) { return db.prepare('UPDATE member_devices SET remote = 0 WHERE id = ? AND remote = 1').run(deviceId).changes > 0; }

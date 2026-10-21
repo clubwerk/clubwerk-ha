@@ -59,7 +59,7 @@ function ensureAutoincrement(db, dataDir) {
   } finally {
     db.pragma(`foreign_keys = ${fkWas ? 'ON' : 'OFF'}`);
   }
-  console.log(`IDs: ${todo.length} Tabelle(n) auf „nie doppelt vergeben“ umgestellt (${todo.map(t => t.name).join(', ')}).${hasData ? ' Sicherung: ' + path.basename(file) : ''}`);
+  console.log(`IDs: ${todo.length} ${todo.length === 1 ? 'Tabelle' : 'Tabellen'} auf „nie doppelt vergeben“ umgestellt (${todo.map(t => t.name).join(', ')}).${hasData ? ' Sicherung: ' + path.basename(file) : ''}`);
   return todo.map(t => t.name);
 }
 

@@ -367,7 +367,7 @@ function activate(ctx) {
         out.push({ ...r, name: p.name, sent });
       } catch (e) { skipped.push(`${p.name} (${e.message})`); }
     }
-    ctx.audit(req.user, 'Jahresrechnungen erstellt', `${year}: ${out.length} Rechnung(en)`);
+    ctx.audit(req.user, 'Jahresrechnungen erstellt', `${year}: ${out.length} ${out.length === 1 ? 'Rechnung' : 'Rechnungen'}`);
     res.json({ created: out, skipped });
   }));
 
@@ -444,7 +444,7 @@ function activate(ctx) {
     await syncMemberInvoices();
     const open = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen'").get();
     const over = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen' AND due_date < ?").get(today());
-    const alerts = over.n ? [{ level: 'a', text: `${over.n} Rechnung(en) überfällig (${euro(over.c)}) – Zahlungserinnerung schicken?`, go: 'bh-rechnungen', link: 'Ansehen' }] : [];
+    const alerts = over.n ? [{ level: 'a', text: `${over.n} ${over.n === 1 ? 'Rechnung' : 'Rechnungen'} überfällig (${euro(over.c)}) – Zahlungserinnerung schicken?`, go: 'bh-rechnungen', link: 'Ansehen' }] : [];
     const y = Number(today().slice(0, 4));
     const pend = db.prepare("SELECT COUNT(*) n FROM bh_partner p WHERE p.active = 1 AND p.items != '[]' AND NOT EXISTS (SELECT 1 FROM bh_invoice i WHERE i.partner_id = p.id AND i.yearly = ? AND i.status != 'storniert')").get(y).n;
     return { kpis: [{ l: 'Offene Rechnungen', v: `${open.n} · ${euro(open.c)}` }, { l: `Jahresrechnungen ${y} offen`, v: pend }], alerts };

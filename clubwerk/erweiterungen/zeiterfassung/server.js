@@ -278,7 +278,7 @@ function activate(ctx) {
       added++;
     }
     if (added) notes.push(`PINs für ${added} neue Person(en) unter „Personal verwalten“ vergeben`);
-    return `${added} Person(en) angelegt, Empfänger des Monatsnachweises übernommen${notes.length ? ' – ' + notes.join(', ') : ''}`;
+    return `${added} ${added === 1 ? 'Person' : 'Personen'} angelegt, Empfänger des Monatsnachweises übernommen${notes.length ? ' – ' + notes.join(', ') : ''}`;
   };
   ctx.hooks.overview = async () => {
     const st = staffState();

@@ -44,7 +44,7 @@
     s.textContent = `
       .bk-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .bk-rights { display: grid; gap: 6px; padding-top: 4px; } .bk-sub { margin: 20px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
-      .bk-grid .w2 { grid-column: span 2; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
+      .bk-grid .w2 { grid-column: span 2; } .bk-grid .w3 { grid-column: span 3; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
       /* Buchungsfenster der Verwaltung */
       .bd-form .bd-w3 { grid-column: span 3; }
       .bd-time { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; } .bd-time > span { color: var(--muted); }
@@ -55,7 +55,7 @@
       .bd-gn { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding-bottom: 4px; }
       @media (max-width: 900px) { .bd-form .bd-w3 { grid-column: 1 / -1; } }
       .bk-scope { display: grid; gap: 8px; margin: 4px 0 14px; } .bk-scope .btn { justify-content: flex-start; height: 46px; font-size: 15px; }
-      @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr 1fr; } .bk-grid .w2 { grid-column: 1 / -1; } }
+      @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr 1fr; } .bk-grid .w2, .bk-grid .w3 { grid-column: 1 / -1; } }
       @media (max-width: 560px) { .bk-grid { grid-template-columns: 1fr; } }
       .bk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; }
       .bk-bar .day { display: inline-flex; align-items: center; gap: 6px; }
@@ -74,7 +74,7 @@
       .bk-plan .col:last-child { border-right: 0; }
       .bk-plan .closed { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(135deg, var(--hover) 0 6px, transparent 6px 12px); pointer-events: none; }
       .bk-pastbar { display: flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 40px; border: 0; border-bottom: 1px solid var(--line); background: var(--card); color: var(--muted); font: inherit; font-size: 13.5px; cursor: pointer; }
-      .bk-pastbar b { color: var(--ink); font-variant-numeric: tabular-nums; }
+      .bk-pastbar b { color: var(--ink); font-variant-numeric: tabular-nums; } .bk-plan > .bk-pastbar { grid-column: 1 / -1; }
       .bk-plan .pastsh { position: absolute; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--hover) 70%, transparent); pointer-events: none; }
       .bk-plan .now { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 1; pointer-events: none; }
       .bk-blk { position: absolute; border-radius: 9px; padding: 5px 8px; box-sizing: border-box; overflow: hidden; font-size: 12.5px; line-height: 1.3; cursor: pointer; border: 1px solid transparent; text-align: left; font: inherit; }
@@ -90,6 +90,7 @@
       .bk-sel { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; vertical-align: -1px; }
       .bk-pal { display: grid; grid-template-columns: repeat(7, 30px); gap: 10px; align-items: center; width: fit-content; }
+      .bk-pal .bk-own { grid-column: span 2; display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }   /* eigene Farbe klar beschriftet, nicht als 21. Kreis */
       .bk-pal button { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; padding: 0; }
       .bk-pal button.on { border-color: var(--ink); box-shadow: 0 0 0 2px var(--card) inset; }
       .bk-pal input[type=color] { width: 40px; height: 32px; border: 1px solid var(--line); border-radius: 8px; padding: 2px; background: var(--card); }
@@ -282,8 +283,8 @@
              <input type="date" id="bkDay" class="bk-pick" value="${st.day}" data-nodirty title="Datum wählen" aria-label="Datum wählen">`}
         <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : monday(st.day) !== monday(td)) ? '' : 'display:none'}">Heute</button><b class="ttl">${esc(title)}</b>
         ${GK.tabTools ? '' : `<span class="bk-act">${bkTools}</span>`}</div>
-      ${cols.length ? `<div class="card bk-wrap">${isToday && cut > from0 ? `<button type="button" class="bk-pastbar" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · klicken zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}<div class="bk-plan" style="--n:${cols.length}">
-        <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</div>`).join('')}
+      ${cols.length ? `<div class="card bk-wrap"><div class="bk-plan" style="--n:${cols.length}">
+        <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</div>`).join('')}${isToday && cut > from0 ? `<button type="button" class="bk-pastbar" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · klicken zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}
         <div class="times" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PX}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
         ${cols.map(c => { const r = c.r; const L = lanes(bookingsOf(c).filter(b => tm(b.end) > from)); const o = tm(r.open_from), cl = tm(r.open_to);
           return `<div class="col" data-c="${esc(c.key)}" style="height:${H}px;background-position:0 ${TOP}px">
@@ -524,13 +525,13 @@
           if (!checked) {
             const p = await api('import/apply', 'POST', body({ preview: true }));
             const mc = p.clash.reduce((n, c) => n + c.items.filter(x => x.type !== 'sperre').length, 0);
-            $('imInfo').innerHTML = `<div class="banner ${mc || p.problems.length ? 'a' : ''}" style="display:block"><b>${p.neu} neu</b>${p.verlegt ? ` · <b>${p.verlegt} verlegt</b>` : ''}${p.vorhanden ? ` · ${p.vorhanden} schon eingetragen` : ''}${mc ? `<br>${mc} Buchung(en) von Mitgliedern liegen zu Spielzeiten und werden storniert (mit E-Mail): ${p.clash.slice(0, 8).map(c => `${GK.deDate(c.date)} ${esc(c.start)}`).join(', ')}` : ''}${p.reassigned && p.reassigned.length ? `<br>Gleichzeitige Spiele – auf andere Plätze verteilt: ${p.reassigned.slice(0, 8).map(esc).join(' · ')}` : ''}${p.problems.length ? `<br>Nicht übernommen: ${p.problems.slice(0, 6).map(esc).join(' · ')}` : ''}</div>`;
+            $('imInfo').innerHTML = `<div class="banner ${mc || p.problems.length ? 'a' : ''}" style="display:block"><b>${p.neu} neu</b>${p.verlegt ? ` · <b>${p.verlegt} verlegt</b>` : ''}${p.vorhanden ? ` · ${p.vorhanden} schon eingetragen` : ''}${mc ? `<br>${mc} ${mc === 1 ? 'Buchung' : 'Buchungen'} von Mitgliedern liegen zu Spielzeiten und werden storniert (mit E-Mail): ${p.clash.slice(0, 8).map(c => `${GK.deDate(c.date)} ${esc(c.start)}`).join(', ')}` : ''}${p.reassigned && p.reassigned.length ? `<br>Gleichzeitige Spiele – auf andere Plätze verteilt: ${p.reassigned.slice(0, 8).map(esc).join(' · ')}` : ''}${p.problems.length ? `<br>Nicht übernommen: ${p.problems.slice(0, 6).map(esc).join(' · ')}` : ''}</div>`;
             checked = true; $('imOk').textContent = 'Übernehmen'; return;
           }
           // alle erkannten Spiele mitschicken: Ist der Spielbetrieb aktiv, übernimmt er auch die Auswärtsspiele als Spieltage
           const x = await api('import/apply', 'POST', body({ force: true, all: GK.modules().includes('spielbetrieb') ? r.games.filter(g => !g.past) : undefined }));
           const sp = x.spielbetrieb;
-          closeDialog(); toast(`Spielplan übernommen: ${x.made} neu${x.moved ? `, ${x.moved} verlegt` : ''}${x.cancelled ? `, ${x.cancelled} Buchungen storniert` : ''}.${sp ? ` Spielbetrieb: ${sp.made} Spieltage neu${sp.moved ? `, ${sp.moved} verlegt` : ''}${sp.teamsMade ? `, ${sp.teamsMade} Mannschaft(en) angelegt` : ''}.` : ''}`); after();
+          closeDialog(); toast(`Spielplan übernommen: ${x.made} neu${x.moved ? `, ${x.moved} verlegt` : ''}${x.cancelled ? `, ${x.cancelled} Buchungen storniert` : ''}.${sp ? ` Spielbetrieb: ${sp.made} Spieltage neu${sp.moved ? `, ${sp.moved} verlegt` : ''}${sp.teamsMade ? `, ${sp.teamsMade} ${sp.teamsMade === 1 ? 'Mannschaft' : 'Mannschaften'} angelegt` : ''}.` : ''}`); after();
         } catch (e) { fail(e); }
       });
     };
@@ -541,15 +542,15 @@
     const y = +m.today.slice(0, 4);
     dialog(`<h2>${type === 'sperre' ? 'Sperre über einen Zeitraum' : 'Neue Serie'}</h2>
       <div class="bk-grid" style="--c:4">
-        <label class="f">Buchungsart<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
-        <label class="f">${type === 'sperre' ? 'Grund' : 'Titel'}<input id="sxT" placeholder="${type === 'sperre' ? 'optional, z. B. Winterpause' : 'optional – leer = Buchungsart oder Mitglied'}"></label>
-        <label class="f">Vom<input id="sxF" type="date" value="${m.today}"></label><label class="f">Bis<input id="sxU" type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
+        <label class="f w2">Buchungsart<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
+        <label class="f w2">${type === 'sperre' ? 'Grund' : 'Titel (leer = Buchungsart oder Mitglied)'}<input id="sxT" placeholder="${type === 'sperre' ? 'optional, z. B. Winterpause' : 'optional, z. B. Training Herren 40'}"></label>
+        <label class="f w2">Erster Tag<input id="sxF" type="date" value="${m.today}"></label><label class="f w2">Letzter Tag<input id="sxU" type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
         <div class="f bkf wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
         <label class="f w2">Wiederholung<select id="sxRf">${repeatOpts(type === 'sperre' ? 'daily:1' : 'weekly:1')}</select></label>
         <div class="f bkf w2" id="sxWD"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}"> ${WD[d]}</label>`).join('')}</div></div>
-        <label class="f">Von<input id="sxS" type="time" value="${type === 'sperre' ? '00:00' : '18:00'}" step="900"></label><label class="f">Bis<input id="sxE" type="time" value="${type === 'sperre' ? '23:59' : '20:00'}" step="900"></label>
+        <label class="f">Beginn<input id="sxS" type="time" value="${type === 'sperre' ? '00:00' : '18:00'}" step="900"></label><label class="f">Ende<input id="sxE" type="time" value="${type === 'sperre' ? '23:59' : '20:00'}" step="900"></label>
         ${type === 'serie' ? `<label class="f w2">Mitglied / Trainer (optional)<select id="sxM">${personOpts('')}</select></label>` : ''}
-        <label class="f ${type === 'serie' ? 'w2' : 'wall'}">Notiz (intern)<input id="sxN"></label>
+        <label class="f wall">Notiz (intern)<input id="sxN" placeholder="nur für die Verwaltung sichtbar"></label>
       </div>
       <p class="muted s">${type === 'sperre' ? 'Buchungen von Mitgliedern im gesperrten Zeitraum werden storniert, die Mitglieder bekommen eine E-Mail.' : 'Tage, an denen der Platz schon belegt ist, werden ausgelassen.'}</p>
       <div id="sxClash"></div>
@@ -611,10 +612,10 @@
     const fns = new Set(l ? l.use_functions : []), mem = l ? l.use_members.slice() : [];
     const allFns = [...new Set([...(m.functions || []), ...fns])];
     dialog(`<h2>${l ? esc(l.name) : 'Neue Buchungsart'}</h2>
-      <div class="bk-grid" style="--c:2"><label class="f">Name<input id="lbN" value="${esc(l ? l.name : '')}" placeholder="z. B. Medenspiel Herren 40" maxlength="40"></label>
+      <div class="bk-grid" style="--c:4"><label class="f w3">Name<input id="lbN" value="${esc(l ? l.name : '')}" placeholder="z. B. Medenspiel Herren 40" maxlength="40"></label>
         <label class="f">Reihenfolge<input id="lbS" inputmode="numeric" value="${l ? l.sort : 100}"></label>
-        <div class="f bkf wall"><span>Farbe</span><div class="bk-pal">${PALETTE.map(c => `<button type="button" data-col="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<input type="color" id="lbC" value="${color}" aria-label="eigene Farbe"></div></div>
-        <div class="f bkf wall"><span>Vorschau</span><div><span class="bk-prev" id="lbP"></span></div></div>
+        <div class="f bkf w3"><span>Farbe</span><div class="bk-pal">${PALETTE.map(c => `<button type="button" data-col="${c}" style="background:${c}" aria-label="${c}"></button>`).join('')}<label class="bk-own" title="Eigene Farbe wählen"><input type="color" id="lbC" value="${color}" aria-label="Eigene Farbe">Eigene</label></div></div>
+        <div class="f bkf"><span>Vorschau</span><div><span class="bk-prev" id="lbP"></span></div></div>
         <div class="f bkf wall"><span>Wer darf mit dieser Buchungsart buchen?</span><div class="bk-use">
           <div class="seg" id="lbU" style="width:fit-content">${[['verwaltung', 'Nur Verwaltung'], ['alle', 'Alle Mitglieder'], ['auswahl', 'Bestimmte Ämter & Personen']].map(([k, t]) => `<button type="button" data-u="${k}">${t}</button>`).join('')}</div>
           <p class="muted s" id="lbUh"></p>

@@ -115,7 +115,7 @@ function register(sh) {
       const names = a => `${[...new Set(a.map(x => x.name))].slice(0, 6).join(', ')}${a.length > 6 ? ' …' : ''}`;
       if (mFree.length) info.push(`${mFree.length} Zeitraum/Zeiträume im Eintrittsjahr beitragsfrei (${names(mFree)}) – wird als abgerechnet vermerkt.`);
       if (mAge.length) info.push(`${mAge.length} Zeitraum/Zeiträume ohne Zusatzbeitrag, weil keine Altersstufe passt (${names(mAge)}) – wird als abgerechnet vermerkt.`);
-      if (sh.ageOpen) { const n = sh.ageScan ? sh.ageScan() : sh.ageOpen(); if (n) info.push(`${n} Altersstufen-Hinweis(e) offen – bis zur Entscheidung läuft der bisherige Beitrag weiter (Beiträge → Altersstufen).`); }
+      if (sh.ageOpen) { const n = sh.ageScan ? sh.ageScan() : sh.ageOpen(); if (n) info.push(`${n} ${n === 1 ? 'Altersstufen-Hinweis' : 'Altersstufen-Hinweise'} offen – bis zur Entscheidung läuft der bisherige Beitrag weiter (Beiträge → Altersstufen).`); }
       // Familienmitgliedschaft ohne Deckung: das Oberhaupt hat (am Stichtag) keinen Familienbeitrag mehr
       for (const r of db.prepare(`SELECT m.name, p.family_of, h.name AS head_name FROM mv_person p JOIN members m ON m.id = p.member_id JOIN members h ON h.id = p.family_of
           WHERE p.family_of IS NOT NULL AND m.deleted = 0 AND p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?)`).all(until)) {
@@ -124,7 +124,7 @@ function register(sh) {
       // ohne Beitrag (Hinweis) – wer über eine Familienmitgliedschaft abgedeckt ist, braucht keinen eigenen
       const noFee = db.prepare(`SELECT m.name FROM members m JOIN mv_person p ON p.member_id = m.id WHERE m.kind = 'mitglied' AND m.deleted = 0 AND p.anonymized_at IS NULL
         AND (p.exit_date IS NULL OR p.exit_date >= ?) AND p.payer_id IS NULL AND p.family_of IS NULL AND p.status != 'ehren' AND NOT EXISTS (SELECT 1 FROM mv_member_fee mf WHERE mf.member_id = m.id AND (mf.end_date IS NULL OR mf.end_date >= ?))`).all(until, until);
-      if (noFee.length) info.push(`${noFee.length} Mitglied(er) ohne Beitrag: ${noFee.slice(0, 8).map(x => x.name).join(', ')}${noFee.length > 8 ? ' …' : ''}`);
+      if (noFee.length) info.push(`${noFee.length} ${noFee.length === 1 ? 'Mitglied' : 'Mitglieder'} ohne Beitrag: ${noFee.slice(0, 8).map(x => x.name).join(', ')}${noFee.length > 8 ? ' …' : ''}`);
       // Positionen anderer Module (z. B. Arbeitsstunden)
       if (o.extra !== false) {
         for (const h of await C.callHooks('beitragsPositionen', { until })) {

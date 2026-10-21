@@ -44,7 +44,7 @@
       .sp-bar { height: 40px; margin-bottom: 8px; display: flex; align-items: center; }   /* Suchfeld links, Hinweis rechts – beide Listen beginnen auf gleicher Höhe */
       label.f.sp-bar > input { height: 40px; }
       .sp-tasks > div { display: grid; grid-template-columns: minmax(0, 1fr) 240px auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
-      .sp-tasks > div:first-child { border-top: 0; }
+      .sp-tasks > div:first-child { border-top: 0; } .sp-dim { opacity: .5; }   /* abhängige Felder, solange der Haken fehlt */
       .sp-g.rt h4 { color: var(--muted); } .sp-g.rt .sp-d { background: var(--hover); color: var(--ink); }
       .sp-rt td { vertical-align: middle; } .sp-rt select { min-height: 36px; height: 36px; min-width: 150px; }
       .sp-dl { display: flex; flex-wrap: wrap; gap: 4px; } .sp-dl span { background: var(--hover); border-radius: 6px; padding: 2px 6px; font-size: 12.5px; white-space: nowrap; } .sp-dl span.z { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
@@ -301,7 +301,7 @@
         <p class="muted" style="margin:0 0 10px">Je Mannschaft die Altersklasse aus dem Plan wählen (vorgeschlagen aus Name und Liga). Angezeigt sind die erkannten Termine ab heute – bitte einmal mit der PDF vergleichen.</p>
         <div class="scroll" style="max-height:52vh"><table class="tbl sp-rt"><tr><th>Mannschaft</th><th>Altersklasse</th><th>Termine</th></tr>${r.teams.map(row).join('') || '<tr><td colspan="3" class="muted">Noch keine aktiven Mannschaften.</td></tr>'}</table></div>
         <label class="chk" style="margin-top:10px"><input type="checkbox" id="rtZa" ${za ? 'checked' : ''}> Zusatz- und Ausweichtage (Z/A) auch abfragen <span class="muted s">– gestrichelt; werden nur bei Bedarf genutzt</span></label>
-        <div class="btns"><button class="btn ghost" id="rtC" type="button">Abbrechen</button><button class="btn primary" id="rtOk" type="button" ${n ? '' : 'disabled'}>Für ${n} Mannschaft(en) übernehmen</button></div>`, true);
+        <div class="btns"><button class="btn ghost" id="rtC" type="button">Abbrechen</button><button class="btn primary" id="rtOk" type="button" ${n ? '' : 'disabled'}>Für ${n} ${n === 1 ? 'Mannschaft' : 'Mannschaften'} übernehmen</button></div>`, true);
       $('rtC').onclick = closeDialog;
       $('rtZa').onchange = () => { za = $('rtZa').checked; draw(); };
       $('dialog').querySelectorAll('[data-cl]').forEach(x => { x.onchange = () => { sel[+x.dataset.cl] = x.value; draw(); }; });
@@ -497,7 +497,7 @@
         ${chk('times', '„kann ab …“ / „kann bis …“ Uhr anbieten', s.times, 'Optional zur Zusage – z. B. wenn jemand erst später kommt oder früher weg muss.')}</div>
       <div class="card"><h3>Aufgaben</h3>
         ${chk('tasks', 'Aufgaben je Spieltag', s.tasks, 'Der Mannschaftsführer verteilt Aufgaben, Spieler können offene Aufgaben in der App übernehmen.')}
-        <div class="sp-tasks" id="tkList">${s.taskKinds.map((k, i) => `<div><label class="f"><input data-tl="${i}" value="${esc(k.l)}" aria-label="Aufgabe" placeholder="Aufgabe"></label><label class="f"><select data-tw="${i}" aria-label="Wann">${opt('immer', 'bei jedem Spiel', k.when)}${opt('heim', 'nur bei Heimspielen', k.when)}${opt('auswaerts', 'nur bei Auswärtsspielen', k.when)}</select></label><button class="btn ghost" data-tr="${i}" type="button">entfernen</button></div>`).join('')}</div>
+        <div class="sp-tasks" id="tkList">${s.taskKinds.map((k, i) => `<div><label class="f"><input data-tl="${i}" value="${esc(k.l)}" aria-label="Aufgabe" placeholder="Aufgabe"></label><label class="f"><select data-tw="${i}" aria-label="Wann">${opt('immer', 'bei jedem Spiel', k.when)}${opt('heim', 'nur bei Heimspielen', k.when)}${opt('auswaerts', 'nur bei Auswärtsspielen', k.when)}</select></label><button class="btn small danger" data-tr="${i}" type="button">Entfernen</button></div>`).join('')}</div>
         <div class="row" style="margin-top:8px"><button class="btn small" id="tkAdd" type="button">+ Aufgabe</button></div></div>
       <div class="card"><h3>Erinnerungen & Nachrichten</h3>
         ${chk('remind', 'Automatische Erinnerungen', s.remind, 'Spieler, die noch nicht geantwortet haben, bekommen vor dem Spieltag eine Push-Nachricht; der Mannschaftsführer eine Warnung, wenn zu wenige können.')}
@@ -505,6 +505,14 @@
         ${chk('mail', 'Wichtige Nachrichten auch per E-Mail', s.mail, st.meta.mitglieder ? 'Aufstellung und Absage-Anfragen zusätzlich per E-Mail (Adresse aus der Mitgliederverwaltung). Push kommt immer.' : 'Braucht die Mitgliederverwaltung (E-Mail-Adressen). Ohne sie gibt es nur Push.')}
         <p class="muted s">Welche Push-Nachrichten es gibt, legt der Vorstand unter Mitglieder-App → Benachrichtigungen fest.</p></div>
       <div class="btns"><button class="btn primary" id="ssOk" type="button">Speichern</button></div>`;
+    // Abhängige Felder nur bedienbar, wenn ihr Haken gesetzt ist
+    const dep = () => {
+      const t = $('ss_tasks').checked, r = $('ss_remind').checked;
+      $('tkList').closest('.card').querySelectorAll('#tkList input, #tkList select, #tkList button, #tkAdd').forEach(x => { x.disabled = !t; });
+      $('tkList').classList.toggle('sp-dim', !t);
+      ['ss_remind_days', 'ss_captain_days'].forEach(id => { $(id).disabled = !r; $(id).closest('.f').classList.toggle('sp-dim', !r); });
+    };
+    $('ss_tasks').addEventListener('change', dep); $('ss_remind').addEventListener('change', dep); dep();
     let kinds = s.taskKinds.map(k => ({ ...k }));
     const read = () => { el.querySelectorAll('[data-tl]').forEach(x => { kinds[+x.dataset.tl].l = x.value; }); el.querySelectorAll('[data-tw]').forEach(x => { kinds[+x.dataset.tw].when = x.value; }); };
     const redrawKinds = () => { st.meta.settings.taskKinds = kinds; showSettings(el).then(() => {}).catch(fail); };

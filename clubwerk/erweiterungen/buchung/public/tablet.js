@@ -97,9 +97,9 @@
       const st = b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
       return `<button class="bk-blk ${esc(b.type)}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b translate="no">${esc(x)}</b>` : `<span class="${c}" translate="no">${esc(x)}</span>`)).join('')}</button>`;
     };
-    return `<div class="bk-plan">${cut > from0 ? `<button class="bk-past" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · antippen zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}
+    return `<div class="bk-plan">
       <div class="bk-grid" style="--n:${rs.length};--ph:${PH}px">
-        <div class="hd"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}
+        <div class="hd"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}${cut > from0 ? `<button class="bk-past" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · antippen zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}
         <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PH}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
         ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);
           const bs = p.bookings.filter(b => b.resource_id === r.id && tm(b.end) > from);

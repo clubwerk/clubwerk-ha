@@ -205,6 +205,7 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-chip { flex: none; font-size: 13px; line-height: 18px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--hover); color: var(--muted); white-space: nowrap; }
 .tk-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .tk-chip.a { background: var(--amber-soft); color: var(--amber); } .tk-chip.r { background: var(--red-soft); color: var(--red); }
 .tk-grid > .tk-empty { grid-column: 1 / -1; }
+.tk-grid > .tk-tile.big:only-child { grid-column: 1 / -1; }   /* einzige Aktion eines Abschnitts: ganze Zeile wie Leerzustand – keine halbe Karte mit Loch daneben */
 .tk-empty { padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--line); color: var(--muted); font-size: 15px; line-height: 22px; background: transparent; }
 .tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: #fff; font: inherit; font-size: 18px; font-weight: 700; }
 .tk-big:active { transform: scale(.99); }

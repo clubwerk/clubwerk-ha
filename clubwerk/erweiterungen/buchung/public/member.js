@@ -64,7 +64,7 @@
       .vh-row a.ok.bkm-cal { display: flex; align-items: center; justify-content: center; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; text-decoration: none; color: #fff; flex: 1.4; }
       /* heute: vergangene volle Stunden als schmale Leiste zusammengeklappt */
       .bkm-past { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 34px; border: 0; border-bottom: 1px solid var(--line); background: var(--hover); color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 700; }
-      .bkm-past b { font-variant-numeric: tabular-nums; font-weight: 800; } .bkm-past span { font-weight: 600; }
+      .bkm-plan > .bkm-past { grid-column: 1 / -1; } .bkm-plan.wide > .bkm-past { justify-content: flex-start; padding-left: 12px; } .bkm-past b { font-variant-numeric: tabular-nums; font-weight: 800; } .bkm-past span { font-weight: 600; }
       .bkm-hidden { display: block; width: 100%; min-height: 36px; margin-top: 10px; border: 1px dashed var(--line); border-radius: 12px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; font-weight: 700; }
       /* „Mit wem spielst du?“ – wählbare Chips (Gerät als Mitspieler, allein) */
       .bkm-pick { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
@@ -233,8 +233,8 @@
             ${nowShown ? `<div class="bkm-nowbody">${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
             ${soon.length ? `<h3>In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>` : ''}</div>`;
         }
-        return `${now}<div class="vh-card flush bkm-planwrap">${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}<div class="bkm-scroll${wide ? ' on' : ''}"><div class="bkm-plan${wide ? ' wide' : ''}" style="--n:${rs.length};--ph:${ph}px">
-          <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${!r.open_today ? '<small>heute zu</small>' : sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}
+        return `${now}<div class="vh-card flush bkm-planwrap"><div class="bkm-scroll${wide ? ' on' : ''}"><div class="bkm-plan${wide ? ' wide' : ''}" style="--n:${rs.length};--ph:${ph}px">
+          <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${!r.open_today ? '<small>heute zu</small>' : sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}
           <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * ph}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
           ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);
             const bs = p.bookings.filter(b => b.resource_id === r.id && tm(b.end) > from);

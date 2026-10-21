@@ -48,19 +48,20 @@
   /* ---------- Zeitprofile ---------- */
   function profilesHtml() {
     const c = st.c;
-    return c.profiles.map((p, i) => `<div class="card soft" style="margin:0 0 12px">
+    return c.profiles.map((p, i) => `<div class="card" style="margin:0 0 12px">
       <div class="row" style="align-items:flex-end;flex-wrap:nowrap">
         <label class="f" style="flex:1 1 180px;min-width:180px">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}"></label>
         <label class="row" style="align-items:center;gap:8px;flex-wrap:nowrap;min-height:40px;margin:0"><input type="radio" name="zDef" data-pdef="${i}" ${p.isDefault ? 'checked' : ''} style="width:20px;height:20px;flex:none"> <span>Standard bei neuer Freischaltung</span></label>
         <button class="btn small danger" data-px="${i}" ${c.profiles.length < 2 ? 'disabled' : ''}>Profil löschen</button>
       </div>
-      <div class="row" style="margin-top:10px;align-items:center;gap:14px;flex-wrap:wrap"><span class="muted s">Türen:</span>
-        <label class="row" style="align-items:center;gap:6px"><input type="checkbox" data-pall="${i}" ${p.doors === 'all' ? 'checked' : ''} style="width:18px;height:18px"> alle (auch künftige)</label>
-        ${c.doors.map(d => `<label class="row" style="align-items:center;gap:6px"><input type="checkbox" data-pd="${i}" value="${d.id}" ${p.doors === 'all' || (p.doors || []).includes(d.id) ? 'checked' : ''} ${p.doors === 'all' ? 'disabled' : ''} style="width:18px;height:18px"> ${esc(d.name)}</label>`).join('')}
-      </div>
-      <table class="tbl" style="margin-top:8px"><tr><th style="width:130px">Tag</th><th>Zeiten (z. B. 07:00–23:00, mehrere mit Komma; leer = geschlossen; „ganztägig“)</th></tr>
+      <div class="f" style="margin-top:12px"><span>Türen</span><div class="row" style="align-items:center;gap:8px 18px;flex-wrap:wrap">
+        <label class="chk"><input type="checkbox" data-pall="${i}" ${p.doors === 'all' ? 'checked' : ''}> Alle (auch künftige)</label>
+        ${c.doors.map(d => `<label class="chk"><input type="checkbox" data-pd="${i}" value="${d.id}" ${p.doors === 'all' || (p.doors || []).includes(d.id) ? 'checked' : ''} ${p.doors === 'all' ? 'disabled' : ''}> ${esc(d.name)}</label>`).join('')}
+      </div></div>
+      <table class="tbl" style="margin-top:12px"><tr><th style="width:130px">Tag</th><th>Zeiten</th></tr>
         ${DAYS.map(([k, n]) => `<tr><td>${n}</td><td><input data-pw="${i}.${k}" value="${esc(winText((p.windows || {})[k]))}" placeholder="geschlossen" style="width:100%"></td></tr>`).join('')}
       </table>
+      <p class="muted s" style="margin:8px 0 0">Zeiten wie 07:00–23:00, mehrere mit Komma; leer = geschlossen; „ganztägig“ = rund um die Uhr.</p>
       <div class="row" style="margin-top:8px"><button class="btn small" data-pcopy="${i}">Montag auf alle Tage übertragen</button><button class="btn small" data-pwork="${i}">Montag auf Mo–Fr übertragen</button></div>
     </div>`).join('');
   }

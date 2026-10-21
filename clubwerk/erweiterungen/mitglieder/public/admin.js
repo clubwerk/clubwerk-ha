@@ -62,7 +62,7 @@
       .mv-sum b { font-size: 18px; font-variant-numeric: tabular-nums; }
       .mv-sig { max-width: 220px; max-height: 70px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
       .mv-diff td:nth-child(2) { color: var(--muted); text-decoration: line-through; }
-      .mv-lsb th, .mv-lsb td { text-align: right; } .mv-lsb th:first-child, .mv-lsb td:first-child { text-align: left; }
+      .mv-lsb { table-layout: fixed; } .mv-lsb th, .mv-lsb td { text-align: right; font-variant-numeric: tabular-nums; } .mv-lsb th:first-child, .mv-lsb td:first-child { text-align: left; width: 22%; }   /* Zahlenspalten gleich breit */
       .mv-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; margin: 4px 0 12px; }
       .tbl td.nw, .tbl th.nw { white-space: nowrap; }
       .mv-sub { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted, #667); text-transform: uppercase; letter-spacing: .04em; }
@@ -250,7 +250,7 @@
       <div class="mv-head">${p.photo ? `<button type="button" class="av lg mv-ph" id="mvPh" title="Profilbild (vom Mitglied in der App hochgeladen) – antippen zum Entfernen"><img src="api/admin/photo/${id}?v=${esc(p.photo)}" alt=""></button>` : `<span class="av lg">${ini(p.name)}</span>`}<div style="min-width:0"><h2>${esc(p.name)}</h2>
         <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
           ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}${d.familyHead ? `<span class="pill b">Familie von ${esc(d.familyHead.name)}</span>` : ''}
-          ${d.changes.length ? `<span class="pill a">${d.changes.length} Änderung(en) aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
+          ${d.changes.length ? `<span class="pill a">${d.changes.length} ${d.changes.length === 1 ? 'Änderung' : 'Änderungen'} aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
         <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">Austritt zurücknehmen</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
           ${p.has_pin && !SC() && !p.anonymized_at ? '<button class="btn ghost" id="mvPin">PIN zurücksetzen</button>' : ''}${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}</div></div>
       ${(d.ageNotices || []).map(n => `<div class="banner a"><span><b>Altersstufe:</b> ${esc(n.label)}${n.dept ? ` (<span translate="no">${esc(n.dept)}</span>)` : ''} – ab ${deDate(n.due_date)}: ${ageFrom(n)} → ${ageTo(n)}. Bis zur Entscheidung läuft der bisherige Beitrag weiter.</span>
@@ -1147,7 +1147,7 @@
         ${payers.length ? `<table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>${payers.map(p => `<tr><td><input type="checkbox" data-inv="${p.id}" checked></td><td><b>${esc(GK.lastFirst(p.name))}</b></td><td class="r">${p.n}</td><td class="r">${euro(p.cents)}</td>
           <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${p.id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Rechnungen.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
-          <div class="row"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Überfällig seit mehr als<select id="dDays" data-nodirty>${[0, 7, 14, 30, 60].map(n => opt(n, n + ' Tagen', st.dd)).join('')}</select></label><button class="btn primary" id="dSend" ${rows.length ? '' : 'disabled'}>Ausgewählte mahnen</button></div></div>
+          <div class="row"><select id="dDays" data-nodirty aria-label="Überfällig seit" style="width:auto">${[0, 7, 14, 30, 60].map(n => opt(n, n ? `Überfällig seit mehr als ${n} Tagen` : 'Alle überfälligen', st.dd)).join('')}</select><button class="btn primary" id="dSend" ${rows.length ? '' : 'disabled'}>Ausgewählte mahnen</button></div></div>
         ${rows.length ? `<table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>älteste Fälligkeit</th><th>Mahnstufe</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>
           ${rows.map(r => `<tr><td><input type="checkbox" data-dun="${r.member_id}" checked></td><td><b>${esc(GK.lastFirst(r.name))}</b>${r.email ? '' : ' <span class="pill a">keine E-Mail</span>'}</td><td class="nw">${deDate(r.oldest)}</td><td>${r.level ? `${r.level}. ${r.dunned_at ? '· ' + deDate(r.dunned_at) : ''}` : '–'}</td><td class="r">${r.n}</td><td class="r">${euro(r.cents)}</td>
             <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${r.member_id}&dunning=${(r.level || 0) + 1}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Nichts zu mahnen.</p>'}
@@ -1178,9 +1178,9 @@
         <div class="card"><h3>Ein- und Austritte</h3><table class="tbl"><tr><th>Jahr</th><th class="r">Eintritte</th><th class="r">Austritte</th><th class="r">Saldo</th></tr>
           ${s.years.slice().reverse().filter(y => y.in || y.out || y.year >= +s.day.slice(0, 4) - 2).map(y => `<tr><td>${y.year}</td><td class="r">${y.in}</td><td class="r">${y.out}</td><td class="r ${y.in - y.out < 0 ? 'neg' : ''}">${y.in - y.out > 0 ? '+' : ''}${y.in - y.out}</td></tr>`).join('')}</table></div></div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn primary" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
-        <table class="tbl mv-lsb"><tr><th>Altersgruppe</th><th>männlich</th><th>weiblich</th><th>divers</th><th>ohne Angabe</th><th>gesamt</th></tr>
+        <table class="tbl mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Divers</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
           ${s.lsb.groups.map((g, i) => `<tr><td>${esc(g)}</td><td>${s.lsb.total[i].m}</td><td>${s.lsb.total[i].w}</td><td>${s.lsb.total[i].d}</td><td>${s.lsb.total[i].x}</td><td><b>${sum(s.lsb.total[i])}</b></td></tr>`).join('')}</table>
-        ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} Mitglied(er) ohne Geburtsdatum sind nicht enthalten.</p>` : ''}</div>
+        ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten.</p>` : ''}</div>
       <div class="mv-two">
         <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl">${s.events.map(e => `<tr><td class="nw">${deDate(e.date)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.kind)}</td><td class="r">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>
         <div class="card"><h3>E-Mail an Mitglieder</h3><p class="muted" style="margin-top:0">Rundmails schreibst du jetzt unter <b>Verein → E-Mail</b> – mit Gruppen (Status, Abteilungen, Ämter, Beiträge), Verteilern, Anhängen, Vorlagen und Zustellstatus.</p>
@@ -1300,13 +1300,13 @@
       <label class="f">Art<select id="feK">${opt('grund', 'Beitrag Hauptverein', kind)}${opt('zusatz', 'Zusatzbeitrag einer Abteilung', kind)}</select></label>
       <label class="f w2" id="feDL">Abteilung<select translate="no" id="feD"><option value="">${esc(GK.T('Hauptverein'))}</option>${m.depts.map(d => opt(d.id, d.name, f ? f.department_id : preset.department_id)).join('')}</select></label>
       <label class="f w2">Bezeichnung (wie auf dem Formular)<input id="feN" value="${esc(f ? f.name : '')}" placeholder="z. B. Erwachsene ab 19 Jahre"></label>
-      <label class="f">Betrag<input id="feC" inputmode="decimal" value="${f ? centsToInput(f.cents) : ''}"></label>
+      <label class="f">Betrag (€)<input id="feC" inputmode="decimal" value="${f ? centsToInput(f.cents) : ''}"></label>
       <label class="f">Rhythmus<select id="feI">${Object.entries(INTERVAL).map(([k, l]) => opt(k, l, f ? f.interval : 'jahr')).join('')}</select></label>
       <label class="f">Im Eintrittsjahr<select id="feP">${Object.entries(PRORATE).map(([k, l]) => opt(k, l, f && f.prorate)).join('')}</select></label>
+      <label class="f" id="feWL">Arbeitsstunden im Jahr<input id="feW" inputmode="decimal" value="${f && f.work_minutes != null ? String(f.work_minutes / 60).replace('.', ',') : ''}" placeholder="Vorgabe des Moduls"></label>
       <label class="f">Mindestalter<input id="feA1" inputmode="numeric" value="${f && f.age_min != null ? f.age_min : ''}" placeholder="–"></label>
       <label class="f">Höchstalter<input id="feA2" inputmode="numeric" value="${f && f.age_max != null ? f.age_max : ''}" placeholder="–"></label>
-      <label class="f" id="feWL">Arbeitsstunden im Jahr<input id="feW" inputmode="decimal" value="${f && f.work_minutes != null ? String(f.work_minutes / 60).replace('.', ',') : ''}" placeholder="Vorgabe des Moduls"></label>
-      <label class="f wall">Hinweis (intern)<input id="feNote" value="${esc(f ? f.note || '' : '')}"></label></div>
+      <label class="f">Hinweis (intern)<input id="feNote" value="${esc(f ? f.note || '' : '')}"></label></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk" id="feFL"><input type="checkbox" id="feF" ${f && f.family ? 'checked' : ''}> Familienbeitrag – gilt für den Hauptzahler und alle Angehörigen (Partner/in, Kinder)</label>
         <label class="chk" id="feOL"><input type="checkbox" id="feO" ${!f || f.on_form ? 'checked' : ''}> Auf der Beitrittserklärung zur Auswahl</label>
         ${f ? `<label class="chk"><input type="checkbox" id="feAct" ${f.active ? 'checked' : ''}> Aktiv</label>` : ''}</div>

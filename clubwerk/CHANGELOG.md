@@ -1,5 +1,19 @@
 # Änderungen
 
+## 3.30.3
+
+Alle übrigen Punkte aus der Design-Prüfung:
+- **Tablet:** Einzelne Aktion („Einsatz beginnen“) über die ganze Zeile wie die Leerzustände; die Leiste „vorbei · aufklappen“ steht zwischen Spaltenköpfen und Zeitraster (auch in Verwaltung und App); Anmeldung zur Verwaltung sieht aus wie die übrigen Fenster (mittig, Knopf über die volle Breite).
+- **Mitglieder-App:** Ein einzelnes Gerät (z. B. eine Tür) nimmt die ganze Breite ein; Fenster ohne farbigen Randstreifen, ausgewogener Text, kein Loch über dem Knopf.
+- **Buchungssystem:** Buchungsart-Dialog mit schmalem Feld „Reihenfolge“ und beschrifteter eigener Farbe; Serien-Dialog mit „Erster/Letzter Tag“, „Beginn/Ende“ und Notiz über die ganze Breite.
+- **Mitgliederverwaltung:** Beitragsart-Dialog mit Mindest- und Höchstalter nebeneinander, Betrag in €; Mahnungen mit einzeiliger Auswahl; Bestandserhebung mit gleich breiten Zahlenspalten.
+- **Mitglieder-App-Verwaltung:** Testnachricht in eigener Zeile, Speichern rechts; Minutenfeld in Standardhöhe.
+- **Einstellungen:** Tablet & Kopfzeile, Passwort, Weitere Adressen – Speichern immer unten rechts; Module mit ihren Symbolen und vollständiger Beschreibung, Status groß geschrieben; Sprachen-Knöpfe bündig.
+- **Verkauf:** Bestellung und Zeiterfassung mit vollständigem Hinweissatz statt zerrissenem Text; Bestand mit verständlichen Spaltenköpfen und „–“ statt Lücken.
+- **Zugang:** Zeitprofile als normale Karten, „Türen“ als Feldbeschriftung, Hilfetext unter der Tabelle.
+- **Spielbetrieb:** Aufgaben und Erinnerungsfelder sind ausgegraut, solange ihr Haken fehlt; „Entfernen“ einheitlich.
+- Überall: richtige Einzahl/Mehrzahl statt „Rechnung(en)“, Speichern-Leisten rechtsbündig, Hinweisbalken bleiben ein zusammenhängender Satz.
+
 ## 3.30.2
 
 **Mitgliederverwaltung (1.8.0) – Familien**

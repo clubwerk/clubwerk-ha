@@ -24,14 +24,14 @@
     const q = `month=${r.month}${sel ? '&staff=' + sel.id : ''}`;
     const m = r.mail;
     const prevName = (() => { const [y, mo] = m.prev.split('-').map(Number); return new Date(y, mo - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' }); })();
-    const mailLine = !m.ready ? `<div class="banner a">Noch kein Postfach für den Versand eingerichtet – ${GK.can('einstellungen') ? '<a href="#einstellungen" data-gomail>Einstellungen → Postfach</a>' : 'bitte einen Admin mit Recht „Einstellungen“ bitten (Einstellungen → Postfach)'}.</div>`
+    const mailLine = !m.ready ? `<div class="banner a"><span>Noch kein Postfach für den Versand eingerichtet (${GK.can('einstellungen') ? '<a href="#einstellungen" data-gomail style="margin:0">Einstellungen → Postfach</a>' : 'bitte einen Admin mit Recht „Einstellungen“ bitten: Einstellungen → Postfach'}).</span></div>`
       : m.error ? `<div class="banner r">Letzter Versand fehlgeschlagen: ${esc(m.error)}</div>`
         : m.sentMonth ? `<div class="banner g">Monatsnachweis ${esc(m.sentMonth.split('-').reverse().join('/'))} verschickt am ${deTime(m.sentAt)} Uhr an ${esc(m.to)}.</div>` : '';
     const flagCell = e => [!e.end_at ? (e.forgotten ? '<span class="pill r">nicht ausgestempelt</span>' : '<span class="pill a">noch da</span>') : '',
       e.manual ? '<span class="pill b">nachgetragen</span>' : '', e.edited_at && !e.manual ? `<span class="pill">korrigiert von ${esc(e.edited_by)}${e.orig_start ? ` · vorher ${zclock(e.orig_start)}–${zclock(e.orig_end) || 'offen'}` : ''}</span>` : '',
       e.note ? `<span class="muted s">${esc(e.note)}</span>` : ''].filter(Boolean).join(' ');
     $('main').innerHTML = `<h2 class="page">Zeiterfassung</h2>
-      <p class="lead">Personal stempelt am Tablet unter „Zeiterfassung“ mit eigener PIN ein und aus. Gespeichert werden die echten Zeiten; gerundet wird nur die <b>Monatssumme</b> je Person auf die Viertelstunde (bis 3 Minuten ab-, ab 4 Minuten aufgerundet). Am <b>1. jedes Monats</b> geht der Nachweis des Vormonats per E-Mail an die Kassiererin.</p>
+      <p class="lead">Personal stempelt am Tablet unter „Zeiterfassung“ mit eigener PIN ein und aus. Gespeichert werden die echten Zeiten; gerundet wird nur die <b>Monatssumme</b> je Person auf die Viertelstunde (bis 3 Minuten ab-, ab 4 Minuten aufgerundet). Am <b>1.&nbsp;jedes Monats</b> geht der Nachweis des Vormonats per E-Mail an die Kassiererin.</p>
       ${mailLine}
       <div class="row" style="margin-bottom:14px">
         <label class="f">Monat<select id="zMonth">${r.months.map(x => `<option value="${x}" ${x === r.month ? 'selected' : ''}>${new Date(+x.slice(0, 4), +x.slice(5, 7) - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' })}</option>`).join('')}</select></label>

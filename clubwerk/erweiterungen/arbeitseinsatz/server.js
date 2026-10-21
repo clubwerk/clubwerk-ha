@@ -307,7 +307,7 @@ function activate(ctx) {
     const p = db.prepare('SELECT * FROM aw_plan WHERE id = ?').get(int(req.params.id)); if (!p) return bad(res, 'Nicht gefunden.', 404);
     const r = planInput(req.body || {}, p); if (r.error) return bad(res, r.error);
     const out = db.prepare('SELECT COUNT(*) n FROM aw_event WHERE plan_id = ? AND (date < ? OR date > ?)').get(p.id, r.v.from_date, r.v.to_date).n;
-    if (out) return bad(res, `${out} Schicht(en) liegen außerhalb der neuen Tage – erst verschieben oder löschen.`);
+    if (out) return bad(res, `${out} ${out === 1 ? 'Schicht' : 'Schichten'} liegen außerhalb der neuen Tage – erst verschieben oder löschen.`);
     const k = Object.keys(r.v);
     db.prepare(`UPDATE aw_plan SET ${k.map(x => `${x} = ?`).join(', ')} WHERE id = ?`).run(...k.map(x => r.v[x]), p.id);
     if (r.v.counts !== p.counts) db.prepare('UPDATE aw_event SET counts = ? WHERE plan_id = ?').run(r.v.counts, p.id);
@@ -388,7 +388,7 @@ function activate(ctx) {
     if (!ids.length) return bad(res, 'Bitte ein Mitglied wählen.');
     const r = entryInput(b); if (r.error) return bad(res, r.error);
     for (const mid of ids) db.prepare("INSERT INTO aw_entry(member_id, event_id, date, minutes, text, status, source, by_user, reviewed_by, reviewed_at) VALUES (?,?,?,?,?, 'bestaetigt', 'verwaltung', ?, ?, ?)").run(mid, r.v.event_id, r.v.date, r.v.minutes, r.v.text, uname(req), uname(req), nowTs());
-    ctx.audit(req.user, 'Arbeitsstunden nachgetragen', `${ids.length} Mitglied(er), ${hm(r.v.minutes)} am ${deD(r.v.date)}`);
+    ctx.audit(req.user, 'Arbeitsstunden nachgetragen', `${ids.length} ${ids.length === 1 ? 'Mitglied' : 'Mitglieder'}, ${hm(r.v.minutes)} am ${deD(r.v.date)}`);
     res.json({ ok: true });
   });
   admin.put('/entries/:id', P, (req, res) => {

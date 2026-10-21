@@ -1037,7 +1037,7 @@ function activate(ctx) {
     const red = soon.filter(g => !stats(g).ok);
     const wd2 = db.prepare("SELECT COUNT(*) n FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.withdraw = 1 AND g.date >= ?").get(today()).n;
     return { kpis: [{ l: 'Spieltage in 14 Tagen', v: String(soon.length) }, { l: 'Mannschaften', v: String(db.prepare('SELECT COUNT(*) n FROM sp_team WHERE active = 1').get().n) }],
-      alerts: [...(red.length ? [{ level: 'a', text: `${red.length} Spieltag(e) in den nächsten 14 Tagen mit zu wenigen Zusagen.` }] : []), ...(wd2 ? [{ level: 'a', text: `${wd2} offene Absage-Anfrage(n).` }] : [])] };
+      alerts: [...(red.length ? [{ level: 'a', text: `${red.length} ${red.length === 1 ? 'Spieltag' : 'Spieltage'} in den nächsten 14 Tagen mit zu wenigen Zusagen.` }] : []), ...(wd2 ? [{ level: 'a', text: `${wd2} offene Absage-Anfrage(n).` }] : [])] };
   };
 
   /* ----- Erinnerungen (optional) ----- */
@@ -1074,7 +1074,7 @@ function activate(ctx) {
     let n = 0;
     for (const t of Array.isArray(data.teams) ? data.teams.slice(0, 60) : []) { const name = txt(t.name, 60); if (name.length < 2 || dupOf({ name, league: t.league, age_class: t.age_class })) continue; db.prepare('INSERT INTO sp_team(name, league, season, min_players, active, note, import_key, age_class) VALUES (?,?,?,?,?,?,?,?)').run(name, txt(t.league, 80) || null, txt(t.season, 30) || null, Math.max(1, Math.min(20, int(t.min_players) || 4)), t.active === 0 ? 0 : 1, txt(t.note, 300) || null, IMP.norm(name), txt(t.age_class, 30) || null); n++; }
     for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
-    return `${n} Mannschaft(en) und die Einstellungen übernommen – Spieler und Spieltage bitte neu zuordnen bzw. importieren`;
+    return `${n} ${n === 1 ? 'Mannschaft' : 'Mannschaften'} und die Einstellungen übernommen – Spieler und Spieltage bitte neu zuordnen bzw. importieren`;
   };
 }
 
