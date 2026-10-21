@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.30.1
+
+- **Tablet: weitere Tage buchen (Buchungssystem 1.6.0):** Über dem Belegungsplan lassen sich wie in der Mitglieder-App die Tage bis zum Vorlauf wählen und dort buchen – mit denselben Regeln. Nach 2 Minuten ohne Eingabe springt das Tablet wieder auf „heute“.
+- **Tagesauswahl überall gleich:** Verwaltung, Tablet und Mitglieder-App nutzen dieselben Tagesknöpfe (Wochentag klein, Tag groß, heute markiert). In der Verwaltung blättern die Pfeile wochenweise; das Datumsfeld zum Springen bleibt daneben.
+- **Sonderrecht „darf mit allen Buchungsarten buchen“:** Unter Buchungssystem → Einstellungen → Mitglieder-App → Sonderrechte lässt sich einem Mitglied jede aktive Buchungsart freigeben, auch künftig angelegte; die Einzelauswahl wird dann ausgegraut. In der Liste steht „alle Buchungsarten“.
+
 ## 3.30.0
 
 - **Beregnung nur für ausgewählte Mitglieder:** Unter Mitglieder-App → Bereiche → „Wer sieht welchen Bereich?“ steht für jeden Bereich, ob ihn alle sehen oder nur ausgewählte Mitglieder. Beregnung und Türen sind beim Freischalten nicht mehr vorausgewählt (einstellbar je Bereich). Mit „Allen entziehen …“ verschwindet die Beregnung auf einen Schlag bei allen Mitgliedern – danach einzeln für Platzwart oder Vorstand wieder freischalten.

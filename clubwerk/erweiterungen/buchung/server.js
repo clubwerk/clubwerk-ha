@@ -67,6 +67,7 @@ function activate(ctx) {
   const may = (req, p) => req.user.perms.includes(p);
   { const rc = db.prepare('PRAGMA table_info(bk_rights)').all().map(c => c.name);
     if (!rc.includes('for_others')) db.exec('ALTER TABLE bk_rights ADD COLUMN for_others INTEGER NOT NULL DEFAULT 0');   // darf in der App für andere Mitglieder buchen
+    if (!rc.includes('all_labels')) db.exec('ALTER TABLE bk_rights ADD COLUMN all_labels INTEGER NOT NULL DEFAULT 0');   // darf mit allen aktiven Buchungsarten buchen
     const bc = db.prepare('PRAGMA table_info(bk_booking)').all().map(c => c.name);
     if (!bc.includes('booked_by_id')) db.exec('ALTER TABLE bk_booking ADD COLUMN booked_by_id INTEGER');   // gebucht von (Mitglied, das für ein anderes gebucht hat)
   }
@@ -123,11 +124,12 @@ function activate(ctx) {
   const functionsOf = mid => { try { const d = today(); return db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(mid, d, d).map(x => String(x.name).trim().toLowerCase()); } catch (e) { return []; } };
   const functionNames = () => { try { return [...new Set(db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')); } catch (e) { return []; } };
   /** Sonderrechte einzelner Mitglieder in der App (Serien anlegen, bestimmte Buchungsarten) */
-  const rightsOf = mid => { const r = mid ? db.prepare('SELECT * FROM bk_rights WHERE member_id = ?').get(mid) : null; return { series: Boolean(r && r.series), forOthers: Boolean(r && r.for_others), labels: r ? J(r.labels, []).map(Number) : [] }; };
+  const rightsOf = mid => { const r = mid ? db.prepare('SELECT * FROM bk_rights WHERE member_id = ?').get(mid) : null; return { series: Boolean(r && r.series), forOthers: Boolean(r && r.for_others), allLabels: Boolean(r && r.all_labels), labels: r ? J(r.labels, []).map(Number) : [] }; };
   /** darf dieses Mitglied (App, Tablet) mit der Buchungsart buchen? */
   const labelForMember = (l, mid) => {
     if (!l || !l.active || !mid) return false;
-    if (l.use_mode === 'alle' || rightsOf(mid).labels.includes(l.id)) return true;
+    const rt = rightsOf(mid);
+    if (l.use_mode === 'alle' || rt.allLabels || rt.labels.includes(l.id)) return true;
     if (l.use_mode !== 'auswahl') return false;
     if (J(l.use_members, []).map(Number).includes(mid)) return true;
     const f = J(l.use_functions, []).map(x => String(x).trim().toLowerCase()); if (!f.length) return false;
@@ -739,7 +741,10 @@ function activate(ctx) {
   T.get('/state', ar(async (req, res) => {
     const c = cfg();
     const ok = new Set((await eligiblePeople(0)).map(p => p.id));
-    res.json({ today: today(), now: hhmm(nowMin()), booking: c.tablet_booking, rules: c.rules, max_partners: c.max_partners, max_guests: c.max_guests, plan: dayPlan(today(), { me: null }),
+    // Tag wählbar wie in der Mitglieder-App: heute bis Vorlauf (advance_days)
+    const max = addDays(today(), c.advance_days), q = String(req.query.date || '');
+    const date = isDate(q) && q >= today() && q <= max ? q : today();
+    res.json({ today: today(), date, max, now: hhmm(nowMin()), booking: c.tablet_booking, rules: c.rules, max_partners: c.max_partners, max_guests: c.max_guests, plan: dayPlan(date, { me: null }),
       people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(p => ({ ...p, ln: lastFirst(p.name), ph: photos.version(p.id, 'buchung') })) : [] });
   }));
   // Buchen und Stornieren am Tablet nur mit PIN (zentrale PIN des Mitglieds, wie im Verkauf)
@@ -753,14 +758,15 @@ function activate(ctx) {
   T.post('/quote', rateLimit('bktab', 120, 60000), ar(async (req, res) => {
     const mid = ctx.auth.checkTabletToken((req.body || {}).token);
     if (!mid || typeof mid !== 'number') return bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401);
-    try { const q = await check(mid, { ...(req.body || {}), date: today() }, { dry: true }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
+    const d = isDate(String((req.body || {}).date || '')) ? req.body.date : today();
+    try { const q = await check(mid, { ...(req.body || {}), date: d }, { dry: true }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
   }));
   T.post('/book', rateLimit('bktab', 60, 60000), ar(async (req, res) => {
     if (!cfg().tablet_booking) return bad(res, 'Buchen am Tablet ist ausgeschaltet.');
     const mid = tabletMember(req, res); if (!mid) return;
     const b = req.body || {};
-    if (b.date && b.date !== today()) return bad(res, 'Am Tablet wird nur für heute gebucht.');
-    try { const r = await memberBook(mid, { ...b, id: 0, date: today() }, 'tablet'); ctx.auth.dropTabletToken(b.token); res.json({ ok: true, ...r }); } catch (e) { bad(res, e.message); }
+    const d = isDate(String(b.date || '')) ? b.date : today();   // Vorlauf und Regeln prüft memberBook wie in der App
+    try { const r = await memberBook(mid, { ...b, id: 0, date: d }, 'tablet'); ctx.auth.dropTabletToken(b.token); res.json({ ok: true, ...r }); } catch (e) { bad(res, e.message); }
   }));
   T.post('/cancel', rateLimit('bktab', 60, 60000), ar(async (req, res) => {
     const mid = tabletMember(req, res); if (!mid) return;
@@ -1344,14 +1350,14 @@ function activate(ctx) {
   });
 
   /* ---------- Sonderrechte einzelner Mitglieder (App) ---------- */
-  admin.get('/rights', P, (req, res) => res.json(db.prepare('SELECT r.*, m.name FROM bk_rights r JOIN members m ON m.id = r.member_id ORDER BY name_key(m.name, m.kind)').all().map(r => ({ ...r, series: Boolean(r.series), for_others: Boolean(r.for_others), labels: J(r.labels, []) }))));
+  admin.get('/rights', P, (req, res) => res.json(db.prepare('SELECT r.*, m.name FROM bk_rights r JOIN members m ON m.id = r.member_id ORDER BY name_key(m.name, m.kind)').all().map(r => ({ ...r, series: Boolean(r.series), for_others: Boolean(r.for_others), all_labels: Boolean(r.all_labels), labels: J(r.labels, []) }))));
   admin.put('/rights', PE, (req, res) => {
     const b = req.body || {}; const m = memberRow(b.member_id); if (!m) return bad(res, 'Bitte ein Mitglied wählen.');
     const ls = [...new Set((Array.isArray(b.labels) ? b.labels : []).map(Number))].filter(id => labelRow(id));
-    if (!b.series && !b.for_others && !ls.length) { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(m.id); return res.json({ ok: true, removed: true }); }
-    db.prepare('INSERT INTO bk_rights(member_id, series, for_others, labels, note, updated_by, updated_at) VALUES (?,?,?,?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET series = excluded.series, for_others = excluded.for_others, labels = excluded.labels, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at')
-      .run(m.id, b.series ? 1 : 0, b.for_others ? 1 : 0, JSON.stringify(ls), txt(b.note, 120) || null, uname(req), nowTs());
-    ctx.audit(req.user, 'Buchungssystem: Sonderrechte', `${m.name}: ${[b.series ? 'Serien' : '', b.for_others ? 'für andere buchen' : '', ...ls.map(id => labelRow(id).name)].filter(Boolean).join(', ')}`);
+    if (!b.series && !b.for_others && !b.all_labels && !ls.length) { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(m.id); return res.json({ ok: true, removed: true }); }
+    db.prepare('INSERT INTO bk_rights(member_id, series, for_others, all_labels, labels, note, updated_by, updated_at) VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET series = excluded.series, for_others = excluded.for_others, all_labels = excluded.all_labels, labels = excluded.labels, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at')
+      .run(m.id, b.series ? 1 : 0, b.for_others ? 1 : 0, b.all_labels ? 1 : 0, JSON.stringify(b.all_labels ? [] : ls), txt(b.note, 120) || null, uname(req), nowTs());
+    ctx.audit(req.user, 'Buchungssystem: Sonderrechte', `${m.name}: ${[b.series ? 'Serien' : '', b.for_others ? 'für andere buchen' : '', b.all_labels ? 'alle Buchungsarten' : '', ...(b.all_labels ? [] : ls).map(id => labelRow(id).name)].filter(Boolean).join(', ')}`);
     res.json({ ok: true });
   });
   admin.delete('/rights/:id', PE, (req, res) => { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(int(req.params.id)); res.json({ ok: true }); });

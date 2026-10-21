@@ -5,11 +5,12 @@
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const BASE = '../../api/tablet/';
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
+  const addDay = d => { const x = new Date(d + 'T12:00:00'); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
   const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
   const dur = m => (m % 60 ? (m > 60 ? `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} Std.` : `${m} Min.`) : `${m / 60} Std.`);
   const first = n => String(n || '').split(/[ ,]+/)[0];
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-  let state = null, area = null;
+  let state = null, area = null, day = null;   // day: gewählter Tag (null = heute)
   /** Spieler samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
   const whoTxt = (b, f = x => x) => `${(b.who || []).map(f).join(', ')}${b.partner_device_name ? ` + ${b.partner_device_name}` : ''}${b.solo_label ? ` · ${b.solo_label}` : ''}`;
   function toast(msg, error = false) { const t = $('toast'); t.textContent = msg; t.className = 'toast' + (error ? ' error' : ''); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.add('hidden'), 4000); }
@@ -25,7 +26,7 @@
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay')) closeDlg(); });
 
   function slots(r) {
-    const p = state.plan, nowM = tm(state.now), out = [];
+    const p = state.plan, nowM = state.date === state.today ? tm(state.now) : -1, out = [];
     const o = tm(r.open_from), c = tm(r.open_to);
     for (let s = o; s + r.slot_min <= c; s += r.slot_min) {
       const e = s + r.slot_min;
@@ -40,7 +41,7 @@
     return out;
   }
   async function load() {
-    try { state = await call('x/buchung/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
+    try { state = await call('x/buchung/state' + (day ? '?date=' + day : '')); day = state.date === state.today ? null : state.date; } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     draw();
   }
   /* vergangene Zeiten wie in der Mitglieder-App einklappen – die Ansicht beginnt bei der aktuellen Zeit; Tipp auf die Leiste klappt auf,
@@ -52,7 +53,13 @@
     const areas = [...new Set(rs.map(r => r.area))];
     if (!areas.includes(area)) area = areas[0] || null;
     const list = rs.filter(r => r.area === area);
-    const dayTxt = `Heute, ${new Date(state.today + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    const dLong = new Date(state.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    const dayTxt = state.date === state.today ? `Heute, ${dLong}` : dLong;
+    // Tagesauswahl wie in der Mitglieder-App und in der Verwaltung: heute bis zum Vorlauf
+    const dl = []; for (let d = state.today; d <= state.max && dl.length < 31; d = addDay(d)) dl.push(d);
+    $('days').innerHTML = dl.map(d => `<button data-d="${d}" class="${d === state.date ? 'on' : ''}"><span>${d === state.today ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}.</b></button>`).join('');
+    $('days').querySelectorAll('[data-d]').forEach(b => { b.onclick = () => { day = b.dataset.d === state.today ? null : b.dataset.d; pastOpen = false; load(); }; });
+    const on = $('days').querySelector('.on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
     $('dayTitle').textContent = 'Plätze';
     $('daySub').textContent = state.booking ? 'Freie Stelle im Plan antippen zum Buchen – Buchung antippen zum Stornieren.' : 'Gebucht wird in der Mitglieder-App.';
     $('daySec').textContent = dayTxt;
@@ -72,10 +79,10 @@
   const ink = hex => { const n = parseInt(String(hex).slice(1), 16); return (0.299 * (n >> 16 & 255) + 0.587 * (n >> 8 & 255) + 0.114 * (n & 255)) > 160 ? '#1b1f1c' : '#ffffff'; };
   /** Belegungsplan wie in Verwaltung und Mitglieder-App: vergangene Stunden eingeklappt, Jetzt-Linie, Buchungsarten in ihrer Farbe */
   function planHtml(rs) {
-    const p = state.plan, nowM = tm(state.now);
+    const p = state.plan, isToday = state.date === state.today, nowM = isToday ? tm(state.now) : -1;
     const lo = Math.min(...rs.map(r => tm(r.open_from))), hi = Math.max(...rs.map(r => tm(r.open_to)));
     const from0 = Math.floor(lo / 60) * 60, to = Math.ceil(hi / 60) * 60;
-    const cut = Math.min(to - 60, Math.floor(nowM / 60) * 60), folded = !pastOpen && cut > from0;
+    const cut = isToday ? Math.min(to - 60, Math.floor(nowM / 60) * 60) : from0, folded = !pastOpen && cut > from0;
     const from = folded ? cut : from0, H = (to - from) / 60 * PH + TOP * 2;
     const y = m => TOP + (Math.max(m, from) - from) / 60 * PH;
     const blk = b => {
@@ -103,7 +110,7 @@
   function tap(r, s) {
     const sl = slots(r); const x = sl.find(y => y.s === s) || sl.find(y => y.s <= s && y.e > s); if (!x) return;
     if (/past/.test(x.cls) && /free/.test(x.cls)) return toast('Diese Zeit ist schon vorbei.');
-    if (/free/.test(x.cls)) { if (!state.booking) return toast('Gebucht wird in der Mitglieder-App.'); return pickName(`${r.name} ab ${hhmm(s)} Uhr buchen`, tok => bookDlg(r, s, tok)); }
+    if (/free/.test(x.cls)) { if (!state.booking) return toast('Gebucht wird in der Mitglieder-App.'); return pickName(`${r.name} ${state.date === state.today ? '' : `am ${new Date(state.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' })} `}ab ${hhmm(s)} Uhr buchen`, tok => bookDlg(r, s, tok)); }
     const b = x.b || {};
     const canCancel = state.booking && (b.type === 'buchung' || (b.type === 'serie' && b.series));
     dlg(`<h2>${esc(r.name)} · ${b.start}–${b.end}</h2><div class="sub">${b.type === 'buchung' ? esc(whoTxt(b)) : esc(b.title || '')}</div>
@@ -193,7 +200,7 @@
       ${state.rules ? `<div class="rules">${esc(state.rules)}</div><label class="chk"><input type="checkbox" id="acc"> Ich halte mich an die Platzordnung.</label>` : ''}
       <div class="sub" id="fee" style="margin:10px 0 0;font-size:15px"></div><div class="perr" id="perr"></div><div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Buchen</button></div>`);
     let qn = 0;
-    const body = () => ({ token, resource_id: r.id, start: hhmm(s), minutes: sel, partners, guests, partner_device: device, solo });
+    const body = () => ({ token, resource_id: r.id, date: state.date, start: hhmm(s), minutes: sel, partners, guests, partner_device: device, solo });
     /** Mitspieler-Pflicht: „Buchen“ erst aktiv, wenn Mitglied, Gast, Gerät oder „allein“ gewählt ist */
     const paintPick = () => {
       $('dialog').querySelectorAll('[data-dev]').forEach(b => b.classList.toggle('on', +b.dataset.dev === device));
@@ -242,7 +249,8 @@
   }
   $('gateGo').onclick = gateLogin;
   $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
-  setInterval(() => { if ($('overlay').classList.contains('hidden')) load(); }, 30000);
+  let idle = 0; document.addEventListener('pointerdown', () => { idle = 0; }, true);
+  setInterval(() => { idle += 30; if (idle >= 120 && day) { day = null; pastOpen = false; } if ($('overlay').classList.contains('hidden')) load(); }, 30000);   // nach 2 Minuten ohne Eingabe wieder „heute“
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   load();
 })();

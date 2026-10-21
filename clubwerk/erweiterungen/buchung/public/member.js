@@ -34,11 +34,6 @@
       .bkm-now p { margin: 0; color: var(--muted); font-size: 14px; }
       .bkm-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
       .bkm-hint { font-size: 12.5px; color: var(--muted); margin: -4px 2px 0; }
-      .bkm-days { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px -8px; scrollbar-width: none; }
-      .bkm-days::-webkit-scrollbar { display: none; }
-      .bkm-days button { flex: none; width: 58px; height: 62px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
-      .bkm-days button span { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; } .bkm-days button b { font-size: 18px; font-weight: 800; }
-      .bkm-days button.on { background: var(--brand); border-color: var(--brand); color: #fff; } .bkm-days button.on span { color: rgba(255,255,255,.85); }
       .bkm-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 10px; }
       .bkm-slot { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; color: var(--ink); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
       .bkm-slot b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; } .bkm-slot span { font-size: 11px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
@@ -164,7 +159,7 @@
         const areas = [...new Set(p.resources.map(r => r.area))];
         if (!areas.includes(area)) area = areas[0] || null;
         const rs = p.resources.filter(r => r.area === area);
-        el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}<div class="bkm-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
+        el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}<div class="vh-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}.</b></button>`).join('')}</div>
           ${areas.length > 1 ? `<div class="vh-seg bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
           <div class="vh-seg bkm-view">${[['plan', 'Kompakt'], ['wide', 'Ausführlich'], ['zeiten', 'Freie Zeiten']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
           ${rs.length && (view === 'plan' || view === 'wide') ? planHtml(rs, p, nowM) : rs.length ? rs.map(r => `<div class="vh-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="vh-lead">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
@@ -196,7 +191,7 @@
         el.querySelectorAll('[data-se]').forEach(b => { b.onclick = async () => { const x = d.series.find(y => y.id === +b.dataset.se); if (!confirm(`Serie „${x.title}“ beenden? Die ${x.count} kommenden Termine werden freigegeben.`)) return; try { const r0 = await ctx.api(`series/${x.id}/end`, 'POST', {}); ctx.toast(`Beendet – ${r0.removed} Termine freigegeben.`); load(); } catch (e) { ctx.toast(e.message, true); } }; });
         el.querySelectorAll('[data-e]').forEach(b => { b.onclick = () => editBooking(d.mine.find(x => x.id === +b.dataset.e)); });
         el.querySelectorAll('[data-w]').forEach(b => { b.onclick = async () => { try { await ctx.api('wait', 'POST', { remove: true, id: +b.dataset.w }); ctx.toast('Von der Warteliste entfernt.'); load(); } catch (e) { ctx.toast(e.message, true); } }; });
-        const on = el.querySelector('.bkm-days .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+        const on = el.querySelector('.vh-days .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
       }
       /** Übersicht: alle Plätze nebeneinander, Buchungen als Blöcke (wie im Vereinsheim-Plan) */
       function planHtml(rs, p, nowM) {

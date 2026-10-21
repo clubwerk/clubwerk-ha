@@ -41,7 +41,7 @@
     const s = document.createElement('style'); s.id = 'bkStyle';
     s.textContent = `
       .bk-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
-      .bk-grid .w2 { grid-column: span 2; } .bk-grid .wall { grid-column: 1 / -1; }
+      .bk-grid .w2 { grid-column: span 2; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
       /* Buchungsfenster der Verwaltung */
       .bd-form .bd-w3 { grid-column: span 3; }
       .bd-time { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; } .bd-time > span { color: var(--muted); }
@@ -58,6 +58,8 @@
       .bk-bar .day { display: inline-flex; align-items: center; gap: 6px; }
       .bk-bar .day input { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-bar .day b { min-width: 34px; text-align: center; font-size: 14px; }
+      .bk-bar .bk-days { margin: 0; padding: 0; overflow: visible; }
+      .bk-bar .bk-pick { height: 62px; border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-wrap { overflow-x: auto; padding: 0 !important; }
       .bk-plan { display: grid; grid-template-columns: 58px repeat(var(--n), minmax(150px, 1fr)); min-width: calc(58px + var(--n) * 150px); }
       .bk-plan .hd { position: sticky; top: 0; z-index: 2; background: var(--card); border-bottom: 1px solid var(--line); padding: 12px 10px; font-weight: 800; font-size: 14px; text-align: center; min-height: 48px; box-sizing: border-box; display: flex; flex-direction: column; justify-content: center; }
@@ -270,8 +272,10 @@
     const used = new Map(); all.forEach(b => { if (b.label) used.set(b.label.name, b.label.color); });
     el.innerHTML = `<div class="bk-bar"><div class="seg" id="bkV" style="width:fit-content"><button type="button" data-v="tag" class="${week ? '' : 'on'}">Tag</button><button type="button" data-v="woche" class="${week ? 'on' : ''}">Woche</button></div>
         ${week ? `<select id="bkRes" class="bk-sel" data-nodirty>${st.meta.resources.filter(r => r.active).map(r => opt(r.id, r.name, st.res)).join('')}</select>` : ''}
-        <span class="day"><button class="btn" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn" id="bkNext" aria-label="vor">›</button></span>
-        <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : st.day !== td) ? '' : 'visibility:hidden'}">Heute</button><b class="ttl">${esc(title)}</b>
+        ${week ? `<span class="day"><button class="btn" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn" id="bkNext" aria-label="vor">›</button></span>`
+          : `<div class="vh-days bk-days" id="bkDays"><button class="nav" id="bkPrev" aria-label="Woche zurück">‹</button>${Array.from({ length: 7 }, (_, i) => addDays(monday(st.day), i)).map(d => `<button data-d="${d}" class="${d === st.day ? 'on' : ''}"><span>${d === td ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}.</b></button>`).join('')}<button class="nav" id="bkNext" aria-label="Woche vor">›</button></div>
+             <input type="date" id="bkDay" class="bk-pick" value="${st.day}" data-nodirty title="Datum wählen" aria-label="Datum wählen">`}
+        <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : monday(st.day) !== monday(td)) ? '' : 'display:none'}">Heute</button><b class="ttl">${esc(title)}</b>
         <span class="bk-act">${can('buchung_serien') ? '<button class="btn" id="bkLock">+ Sperre</button>' : ''}${can('buchung_buchen') ? '<button class="btn primary" id="bkNew">+ Buchung</button>' : ''}</span></div>
       ${cols.length ? `<div class="card bk-wrap">${isToday && cut > from0 ? `<button type="button" class="bk-pastbar" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · klicken zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}<div class="bk-plan" style="--n:${cols.length}">
         <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}<small>${esc(c.sub || '')}</small></div>`).join('')}
@@ -293,7 +297,8 @@
     const go = d => { st.day = d; again(); };
     el.querySelectorAll('#bkV [data-v]').forEach(b => { b.onclick = () => { st.view = b.dataset.v; again(); }; });
     if ($('bkRes')) $('bkRes').onchange = () => { st.res = +val('bkRes'); again(); };
-    $('bkPrev').onclick = () => go(addDays(st.day, week ? -7 : -1)); $('bkNext').onclick = () => go(addDays(st.day, week ? 7 : 1));
+    $('bkPrev').onclick = () => go(addDays(st.day, -7)); $('bkNext').onclick = () => go(addDays(st.day, 7));   // Tagesansicht: Pfeile blättern wochenweise, die Tage wählt man direkt (wie in App und Tablet)
+    el.querySelectorAll('#bkDays [data-d]').forEach(b => { b.onclick = () => go(b.dataset.d); });
     $('bkDay').onchange = () => { if (val('bkDay')) go(val('bkDay')); };
     if ($('bkToday')) $('bkToday').onclick = () => go(td);
     if ($('bkPast')) $('bkPast').onclick = () => { st.pastOpen = !st.pastOpen; again(); };
@@ -880,7 +885,7 @@
           ${chk('show_names', 'Namen in der Belegung für alle Mitglieder sichtbar (sonst nur „belegt“)')}
           ${chk('show_now', 'Mitglieder-App: „Jetzt auf der Anlage“ über der Belegung zeigen (wer gerade spielt und wer in der nächsten Stunde kommt)')}
           ${chk('waitlist', 'Warteliste: bei belegter Zeit vormerken, E-Mail sobald frei')}
-          ${chk('tablet_booking', 'Am Tablet im Vereinsheim buchen (für heute, mit Name und PIN)')}</div>
+          ${chk('tablet_booking', 'Am Tablet im Vereinsheim buchen (mit Name und PIN – wie in der App bis zum Vorlauf)')}</div>
         <p class="muted s">Gastgebühren werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung) und mit dem nächsten Einzug abgerechnet. Wird die Buchung storniert, entfällt der Posten.</p>
         ${save('bsOk')}</div>
       ${st.meta.mv ? `<div class="card" data-set="wer"><h3>Wer darf buchen?</h3><p class="muted s" style="margin-top:0">Gilt für die buchende Person und alle Mitspieler (aus der Mitgliederverwaltung). Die Verwaltung kann immer für jeden buchen.</p>
@@ -890,11 +895,12 @@
       <div class="card" data-set="ordnung"><h3>Platzordnung</h3><p class="muted s" style="margin-top:0">Wird vor jeder Buchung angezeigt und muss bestätigt werden. Leer lassen, wenn nicht nötig.</p>
         <label class="f"><textarea id="bs_rules" rows="5" placeholder="z. B. Bitte nur mit Tennisschuhen spielen. Plätze nach dem Spiel abziehen und Linien kehren.">${esc(s.rules)}</textarea></label>
         ${save('bsOkOrd')}</div>
-      <div class="card" id="bkRights" data-set="app" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr), für andere Mitglieder buchen (z. B. für ein älteres Mitglied ohne Handy – Kontingent, Regeln und Gebühren gelten dann für dieses Mitglied) oder mit bestimmten Buchungsarten buchen – zusätzlich zu den Rechten an der Buchungsart selbst.</p>
+      <div class="card" id="bkRights" data-set="app" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr), für andere Mitglieder buchen (z. B. für ein älteres Mitglied ohne Handy – Kontingent, Regeln und Gebühren gelten dann für dieses Mitglied) oder mit bestimmten bzw. allen Buchungsarten buchen – zusätzlich zu den Rechten an der Buchungsart selbst.</p>
         <div class="bk-grid" style="--c:4"><label class="f w2">Mitglied<select id="rtM"><option value="">– Mitglied wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
           <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="rtS"> darf Serien anlegen</label>
           <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="rtF"> darf für andere buchen</label>
-          <div class="f bkf wall"><span>darf mit diesen Buchungsarten buchen</span><div class="bk-chips">${st.meta.labels.filter(l => l.active).map(l => `<label><input type="checkbox" data-rl="${l.id}"><i class="bk-dot" style="background:${l.color};margin-right:0"></i>${esc(l.name)}</label>`).join('')}</div></div></div>
+          <label class="chk wall"><input type="checkbox" id="rtA"> darf mit allen Buchungsarten buchen <span class="muted s">(auch mit künftig angelegten)</span></label>
+          <div class="f bkf wall" id="rtLabs"><span>darf mit diesen Buchungsarten buchen</span><div class="bk-chips">${st.meta.labels.filter(l => l.active).map(l => `<label><input type="checkbox" data-rl="${l.id}"><i class="bk-dot" style="background:${l.color};margin-right:0"></i>${esc(l.name)}</label>`).join('')}</div></div></div>
         <div class="btns"><button class="btn primary" id="rtOk">Sonderrechte speichern</button></div>
         <div id="rtList" style="margin-top:8px"></div></div>
       <div class="card" data-set="app"><h3>Von unterwegs buchen</h3>
@@ -904,18 +910,21 @@
     if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bk' });
     GK.watch(el);
     const goApp = el.querySelector('[data-goapp]'); if (goApp) goApp.onclick = e => { e.preventDefault(); GK.go('app'); };
+    /* „alle Buchungsarten“ schließt die Einzelauswahl ein – die Chips werden dann gesperrt */
+    const rtAll = () => { const on = $('rtA').checked; $('rtLabs').classList.toggle('dim', on); el.querySelectorAll('[data-rl]').forEach(c => { c.disabled = on; }); };
+    $('rtA').onchange = rtAll;
     const rtLoad = async () => {
       const l = await api('rights');
       const lab = id => st.meta.labels.find(x => x.id === id);
       $('rtList').innerHTML = l.length ? `<table class="tbl bk-tbl"><tr><th>Mitglied</th><th>Sonderrechte</th><th></th></tr>${l.map(r => `<tr><td><b>${esc(GK.lastFirst(r.name, 'mitglied'))}</b></td>
-        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.for_others ? pill(['b', 'für andere buchen']) : ''}${r.labels.map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
+        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.for_others ? pill(['b', 'für andere buchen']) : ''}${r.all_labels ? pill(['b', 'alle Buchungsarten']) : ''}${(r.all_labels ? [] : r.labels).map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
         <td class="r"><span class="acts"><button class="btn ico" data-rte="${r.member_id}" title="Bearbeiten" aria-label="Bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="btn ico danger-h" data-rtd="${r.member_id}" title="Sonderrechte entfernen" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Noch niemand mit Sonderrechten.</p>';
-      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; $('rtF').checked = r.for_others; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
+      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; $('rtF').checked = r.for_others; $('rtA').checked = r.all_labels; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); rtAll(); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
       $('rtList').querySelectorAll('[data-rtd]').forEach(b => { b.onclick = async () => { try { await api('rights/' + b.dataset.rtd, 'DELETE'); toast('Sonderrechte entfernt.'); rtLoad(); } catch (e) { fail(e); } }; });
     };
     $('rtOk').onclick = () => GK.busy($('rtOk'), async () => {
-      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, for_others: $('rtF').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl) });
-        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; $('rtS').checked = false; $('rtF').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtLoad(); } catch (e) { fail(e); }
+      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, for_others: $('rtF').checked, all_labels: $('rtA').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl) });
+        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; $('rtS').checked = false; $('rtF').checked = false; $('rtA').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtAll(); rtLoad(); } catch (e) { fail(e); }
     });
     rtLoad().catch(fail);
     // Speichern je Karte: nur die Felder der jeweiligen Karte werden gesendet (der Server übernimmt nur, was dabei ist)
