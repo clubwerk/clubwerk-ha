@@ -102,7 +102,7 @@ PINs der Demo: Mitglieder 2468, Zeiterfassung 1234 und 5678.
    - Design-Prüfstand
 4. `node werkzeuge/pruef.js` trägt die Prüfsumme in `PRUEFSUMMEN.md` ein.
 5. Committen und pushen. Commit-Text auf Deutsch, `Clubwerk X.Y.Z: …`.
-6. `node werkzeuge/modver.js save clubwerk`, `werkzeuge/modulstand.json` mitcommitten, dann `git tag vX.Y.Z && git push --tags`.
+6. `node werkzeuge/modver.js save clubwerk`, `werkzeuge/modulstand.json` mitcommitten und pushen. Optional `git tag vX.Y.Z && git push --tags`. Als veröffentlicht gilt eine Version durch ihren Eintrag in `PRUEFSUMMEN.md`.
 7. Prüfen, dass GitHub Actions grün ist: `gh run list --limit 3`.
 8. Thorsten das ZIP aus `werkzeuge/ausgabe/` geben. Dazu eine kurze Zusammenfassung der Änderungen in Alltagssprache.
 

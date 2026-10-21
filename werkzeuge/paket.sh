@@ -3,6 +3,7 @@
 #   bash werkzeuge/paket.sh            alle Prüfungen, dann werkzeuge/ausgabe/clubwerk-<version>.zip
 #   bash werkzeuge/paket.sh --ohne-tests   Testreihen überspringen (nur für Zwischenstände, nie für eine Auslieferung)
 # Bricht bei jedem Fehler ab. Danach: node werkzeuge/pruef.js, committen, pushen, node werkzeuge/modver.js save clubwerk (Datei mitcommitten).
+# Eine Version gilt als veröffentlicht, sobald sie in PRUEFSUMMEN.md steht – dieselbe Nummer lässt sich dann nicht noch einmal bauen.
 set -u
 R=$(cd "$(dirname "$0")/.." && pwd); A=$R/clubwerk; W=$R/werkzeuge; cd "$R"
 fail() { echo "ABBRUCH: $*"; exit 1; }
@@ -14,7 +15,7 @@ LV=$(node -p "const l=require('$A/package-lock.json'); [l.version, (l.packages||
 [ "$V" = "$AV" ] || fail "config.yaml $V ≠ APP_VER $AV in public/app/app.js (sonst lädt die Mitglieder-App nach dem Update nicht neu)"
 [ "$LV" = "$V $V" ] || fail "package-lock.json hat „$LV“ statt zweimal $V"
 grep -q "^## $V\$" "$A/CHANGELOG.md" || fail "CHANGELOG.md hat keinen Abschnitt „## $V“"
-git -C "$R" tag | grep -qx "v$V" && fail "Version $V gibt es schon – jede Änderung braucht eine neue Nummer"
+grep -q "^| $V |" "$R/PRUEFSUMMEN.md" && fail "Version $V ist schon veröffentlicht (steht in PRUEFSUMMEN.md) – jede Änderung braucht eine neue Nummer"
 echo "   $V"
 echo "== 2. Modulversionen"
 node "$W/modver.js" check "$A" || fail "Modul geändert ohne neue Versionsnummer (erweiterungen/<modul>/erweiterung.json bzw. verkaufVersion in package.json)"
@@ -50,4 +51,4 @@ echo "== 7. ZIP"
 mkdir -p "$W/ausgabe"; Z=$W/ausgabe/clubwerk-$V.zip; rm -f "$Z"
 (cd "$R" && zip -qr "$Z" clubwerk -x "clubwerk/node_modules/*" "clubwerk/data/*" "*.DS_Store") || fail "zip"
 echo "   $Z ($(du -h "$Z" | cut -f1))"
-echo "Fertig. Weiter: node werkzeuge/pruef.js · committen · pushen · node werkzeuge/modver.js save clubwerk (mitcommitten) · git tag v$V"
+echo "Fertig. Weiter: node werkzeuge/pruef.js · committen · pushen · node werkzeuge/modver.js save clubwerk (mitcommitten)"
