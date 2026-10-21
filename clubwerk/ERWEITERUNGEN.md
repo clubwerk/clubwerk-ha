@@ -116,7 +116,7 @@ Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farbe
 | Baustein | Wofür | Regeln |
 |---|---|---|
 | `<main>` | Seite | volle Breite, 24 px Rand (Handy 16/12 px) – keine eigene `max-width` |
-| `.tab-head` > `.tab-title` + `.tab-sub` | Seitenkopf | Titel als Frage oder Name („Wer bucht?“), **immer** ein Untertitel, der sagt, was man hier tut; rechts optional Suche/Auswahl |
+| `.tab-head` > `.tab-title` + `.tab-sub` | Seitenkopf | Titel = **Name des Reiters in der Kopfzeile** („Verkauf“, „Plätze“), **immer** ein Untertitel, der sagt, was man hier tut; rechts optional Suche/Auswahl |
 | `h2.sec` | Abschnitt | 12 px, Großbuchstaben, gedämpft; optional `<small>` mit Zusatz |
 | `.tk-grid` | Raster | 4 Spalten (ab 1600 px 5, schmal 2, Handy 1), Abstand 16 px; `.span2` für doppelte Breite |
 | `.tk-tile` | Kachel | 80 px hoch: `.av` (Initialen) oder `.tk-ico` (Symbol) · `.tk-txt` mit `<b>` Titel und `<span>` Zeile · optional `.tk-chip` rechts; `.on` = aktiv/da, `.warn` = Achtung |
@@ -124,9 +124,18 @@ Alle Module folgen denselben Regeln. Vorbild ist die Verkaufsseite. Eigene Farbe
 | `.tk-chip` `.g` `.a` `.r` | Statusmarke | ein, zwei Wörter („da“, „nicht da“, „vergessen“) |
 | `.tk-empty` | Leerzustand | gestrichelter Kasten, ein Satz, der sagt, was als Nächstes geht |
 | `.tk-big` | Hauptknopf | 64 px, Vereinsfarbe – höchstens einer je Bereich |
-| `.tk-cols` | zwei Bereiche nebeneinander | schmal untereinander |
+| `.tk-cols` | (nicht mehr verwenden) | Bereiche stehen untereinander, jeder mit `h2.sec` und eigenem `.tk-grid` |
 | `.overlay` > `.dialog`, `.pad`, `.pin-dots`, `.err`, `.done .big` | Fenster, PIN-Eingabe, Erfolgsmeldung | Ziffernblock 3 × 4, 68 px hohe Tasten |
 | `.gate` > `.gatecard` | Sperrseite (Tablet-Passwort) | unverändert übernehmen |
+
+**Feste Regeln für jede Tablet-Seite (ab 3.29.3):**
+1. Seitenkopf wie oben, darunter nur Abschnitte: **jede** Liste beginnt mit `h2.sec` („Was möchtest du tun?“, „Personal“, „Gerade im Einsatz“, „Türen“ …).
+2. Einstiege/Aktionen („Einsatz beginnen“, „Ich möchte Mitglied werden“) sind `.tk-tile.big.span2` mit Symbol oben – unter „Was möchtest du tun?“. Keine großen Einzelknöpfe.
+3. Personen, Termine und Konten sind `.tk-tile` (Initialen bzw. Symbol links, Marke rechts) im 4-Spalten-Raster `.tk-grid`.
+4. Geräte (Türen, Beregnungsplätze) sind große Kacheln mit Symbol oben und den Bedienknöpfen unten – vier je Zeile.
+5. Leere Abschnitte: `.tk-empty` über die ganze Breite. Namen werden nie aufgelistet, sondern nach 2 Buchstaben gesucht; danach Ziffernblock für die PIN.
+6. Belegungen (Plätze) im gemeinsamen Belegungsplan – derselbe wie in Verwaltung und Mitglieder-App.
+7. Seiten aus der Mitglieder-App (Kit `.vh-…`) bekommen am Tablet über `body.embedded` automatisch dieses Aussehen.
 
 **Mitglieder-App (public/member.js)** – nur Bausteine aus `kit.css` (`.vh-…`); ein Modul braucht dafür kein eigenes CSS. Der Bereich rendert direkt in `el`, der Abstand zwischen den Blöcken (12 px) kommt von der App. Vorbild: `vorlage-erweiterung/beispiel/public/member.js`.
 

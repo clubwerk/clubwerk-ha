@@ -12,7 +12,6 @@
 <link rel="stylesheet" href="../../theme.css">
 <style>
   /* Gestaltung: Tablet-Kit in style.css (Seite, Abschnitte, Kacheln, Fenster, PIN-Feld, Sperrseite) – hier nur Besonderheiten der Helferdienste */
-  .aw-list { display: flex; flex-direction: column; gap: 12px; }
   .tk-tile .t { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--brand-ink); white-space: nowrap; }
   .aw-note { color: var(--muted); font-size: 15px; line-height: 1.5; margin: 14px 0 0; }
   .aw-note:empty { display: none; }
@@ -34,11 +33,14 @@
 </head>
 <body class="tk">
 <header id="gkHeader"></header>
-<main><div class="tab-head"><div><h1 class="tab-title">Helferdienste</h1><p class="tab-sub">Wer gerade im Einsatz ist und welche Dienste heute anstehen – antippen zum Beginnen oder Beenden.</p></div></div>
-<div class="tk-cols">
-  <section><h2 class="sec">Gerade im Einsatz</h2><div class="aw-list" id="running"></div></section>
-  <section><h2 class="sec">Heute</h2><div class="aw-list" id="events"></div><button class="tk-big" id="startBtn" style="margin-top:12px">Einsatz beginnen</button><p class="aw-note" id="note"></p></section>
-</div></main>
+<main><div class="tab-head"><div><h1 class="tab-title">Helferdienste</h1><p class="tab-sub">Einsatz beginnen oder deinen Namen unter „Gerade im Einsatz“ antippen, um ihn zu beenden.</p></div></div>
+<h2 class="sec">Was möchtest du tun?</h2>
+<div class="tk-grid">
+  <button class="tk-tile big span2" id="startBtn"><span class="tk-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></svg></span><span class="tk-txt"><b>Einsatz beginnen</b><span>Namen wählen und PIN eingeben – deine Stunden laufen, bis du dich wieder austrägst.</span></span></button>
+</div>
+<h2 class="sec">Gerade im Einsatz</h2><div class="tk-grid" id="running"></div>
+<h2 class="sec">Heute geplant</h2><div class="tk-grid" id="events"></div><p class="aw-note" id="note"></p>
+</main>
 <div id="gate" class="gate hidden"><div class="gatecard">
   <h2>Seite gesperrt</h2>
   <p>Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.</p>

@@ -52,8 +52,10 @@
     const areas = [...new Set(rs.map(r => r.area))];
     if (!areas.includes(area)) area = areas[0] || null;
     const list = rs.filter(r => r.area === area);
-    $('dayTitle').textContent = `Heute, ${new Date(state.today + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}`;
-    $('daySub').textContent = state.booking ? 'Freie Zeit antippen zum Buchen – belegte antippen zum Stornieren.' : 'Gebucht wird in der Mitglieder-App.';
+    const dayTxt = `Heute, ${new Date(state.today + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}`;
+    $('dayTitle').textContent = 'Plätze';
+    $('daySub').textContent = state.booking ? 'Freie Stelle im Plan antippen zum Buchen – Buchung antippen zum Stornieren.' : 'Gebucht wird in der Mitglieder-App.';
+    $('daySec').textContent = dayTxt;
     $('areas').innerHTML = areas.length > 1 ? areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('') : '';
     $('areas').style.display = areas.length > 1 ? '' : 'none';
     $('areas').querySelectorAll('[data-a]').forEach(b => { b.onclick = () => { area = b.dataset.a; draw(); }; });

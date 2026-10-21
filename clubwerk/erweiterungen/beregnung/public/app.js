@@ -117,7 +117,7 @@
 
   async function loadInfo() {
     info = await (await fetch(API + 'info', { credentials: 'same-origin' })).json();
-    $('club').textContent = info.club || '';
+    if (!embedded) $('club').textContent = info.club || '';   // am Tablet setzt die gemeinsame Kopfzeile den Vereinsnamen (gleiche id)
     $('subtitle').textContent = info.subtitle || '';
     document.title = `${info.appName || 'Beregnung'} – ${info.club || ''}`;
     const w = $('who');

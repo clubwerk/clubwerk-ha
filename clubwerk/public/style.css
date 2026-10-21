@@ -108,7 +108,7 @@ a.btn.primary { color: #fff; }
 #gkHeader h1 { margin: 0; font-size: 16px; line-height: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #gkHeader #club2 { font-size: 13px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #gkHeader #club2:empty { display: none; }
-#gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); max-width: 100%; }
+#gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); max-width: 100%; }
 #gkHeader .topnav a { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; min-width: 0; box-sizing: border-box; border-radius: 10px; color: var(--muted); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; min-width: 0; overflow: hidden; }
 #gkHeader .topnav a span { overflow: hidden; text-overflow: ellipsis; }
 #gkHeader .topnav a svg { flex: none; }
@@ -195,6 +195,7 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-ico svg { width: 22px; height: 22px; }
 .tk-chip { flex: none; font-size: 13px; line-height: 18px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--hover); color: var(--muted); white-space: nowrap; }
 .tk-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .tk-chip.a { background: var(--amber-soft); color: var(--amber); } .tk-chip.r { background: var(--red-soft); color: var(--red); }
+.tk-grid > .tk-empty { grid-column: 1 / -1; }
 .tk-empty { padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--line); color: var(--muted); font-size: 15px; line-height: 22px; background: transparent; }
 .tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: #fff; font: inherit; font-size: 18px; font-weight: 700; }
 .tk-big:active { transform: scale(.99); }

@@ -24,8 +24,9 @@
     clearTimeout(idle); idle = null;
     try { cfg = await call('antrag/config'); } catch (e) { if (!e.gate) app.innerHTML = '<p class="tk-empty">Keine Verbindung zum Server.</p>'; return; }
     if (!cfg.tablet) { app.innerHTML = '<p class="tk-empty">Beitrittserklärungen am Tablet sind ausgeschaltet.</p>'; return; }
-    app.innerHTML = `<div class="tab-head"><div><h1 class="tab-title">Mitglied werden im ${esc(cfg.club.name)}</h1>
-      <p class="tab-sub">${esc(cfg.intro || 'Beitrittserklärung direkt hier ausfüllen und unterschreiben – ganz ohne Papier.')}</p></div></div>
+    app.innerHTML = `<div class="tab-head"><div><h1 class="tab-title">Mitglied werden</h1>
+      <p class="tab-sub">${esc(cfg.intro || `Beitrittserklärung für den ${cfg.club.name} direkt hier ausfüllen und unterschreiben – ganz ohne Papier.`)}</p></div></div>
+      <h2 class="sec">Was möchtest du tun?</h2>
       <div class="tk-grid">
         <button class="tk-tile big span2" id="mwSelf"><span class="tk-ico">${ICON('<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/>')}</span><span class="tk-txt"><b>Ich möchte Mitglied werden</b><span>Formular ausfüllen, Mitgliedschaft wählen und unterschreiben – auch für die ganze Familie.</span></span></button>
         <button class="tk-tile big span2" id="mwCode"><span class="tk-ico">${ICON('<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>')}</span><span class="tk-txt"><b>Ich habe einen Code</b><span>Der Vorstand hat deine Daten schon eingetragen? Code eingeben, prüfen und unterschreiben.</span></span></button>

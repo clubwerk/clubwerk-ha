@@ -4,7 +4,7 @@
   const API = '../../api/tablet/x/zugang/';
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  let doors = [], members = [], pending = null, timer = null;
+  let doors = [], members = [], pending = null, timer = null, who = null;
   function toast(msg, err) { const t = $('toast'); t.textContent = msg; t.className = 'vh-toast show' + (err ? ' err' : ''); clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 3500); }
   async function refresh() {
     clearTimeout(timer);
@@ -22,17 +22,26 @@
     const d = doors.find(x => x.id === id);
     pending = { id, action };
     $('title').textContent = `${d.name}: ${window.ZugangDoors.label(d, action)}`;
-    $('who').innerHTML = '<option value="">– Name wählen –</option>' + members.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('');
+    who = null; $('q').value = ''; drawNames();
     $('pin').value = ''; $('err').textContent = '';
-    $('sheet').classList.add('show');
+    $('sheet').classList.add('show'); setTimeout(() => $('q').focus(), 50);
   }
+  /** im Vereinsheim keine Namen vorschlagen – erst nach Eingabe (mind. 2 Buchstaben), wie überall am Tablet */
+  function drawNames() {
+    const q = $('q').value.trim().toLowerCase();
+    const hits = q.length < 2 ? [] : members.filter(m => m.name.toLowerCase().includes(q)).slice(0, 12);
+    $('nm').innerHTML = q.length < 2 ? '<div class="hint">Bitte die ersten Buchstaben des Vor- oder Nachnamens eingeben.</div>'
+      : hits.length ? hits.map(m => `<button type="button" data-m="${m.id}" class="${who === m.id ? 'on' : ''}" translate="no">${esc(m.name)}</button>`).join('') : '<div class="hint">Kein Treffer.</div>';
+    $('nm').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => { who = +b.dataset.m; drawNames(); $('pin').focus(); }; });
+  }
+  $('q').oninput = () => { who = null; drawNames(); };
   $('no').onclick = () => { $('sheet').classList.remove('show'); pending = null; };
   $('pin').addEventListener('keydown', e => { if (e.key === 'Enter') $('ok').click(); });
   $('ok').onclick = async () => {
-    if (!$('who').value) { $('err').textContent = 'Bitte deinen Namen wählen'; return; }
+    if (!who) { $('err').textContent = 'Bitte deinen Namen wählen'; return; }
     if (!$('pin').value) { $('err').textContent = 'Bitte PIN eingeben'; return; }
     $('err').textContent = 'Prüfe …';
-    const r = await fetch(API + 'door', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ door: pending.id, action: pending.action, member: $('who').value, pin: $('pin').value }) });
+    const r = await fetch(API + 'door', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ door: pending.id, action: pending.action, member: who, pin: $('pin').value }) });
     const d = await r.json().catch(() => ({}));
     $('pin').value = '';   // PIN am gemeinsamen Tablet nie behalten
     if (r.status === 401) { $('err').textContent = d.error || 'Falsche PIN'; return; }

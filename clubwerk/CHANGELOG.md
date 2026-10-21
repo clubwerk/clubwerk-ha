@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.29.3
+
+Tablet: alle Seiten nach denselben Regeln – nichts mehr „zusammengestückelt“:
+
+- **Gleicher Aufbau überall:** Titel = Name in der Kopfzeile (Verkauf, Helferdienste, Beregnung, Plätze, Mitglied werden, Zeiterfassung, Zugang), darunter ein Satz, was man tut, dann Abschnitte mit Überschrift und dem gleichen Kachelraster.
+- **Aktionen als große Kacheln mit Symbol:** „Einsatz beginnen“ (Helferdienste) sieht jetzt aus wie „Ich möchte Mitglied werden“ – unter „Was möchtest du tun?“. Der große grüne Einzelknopf und die zwei Spalten sind weg.
+- **Zugang und Beregnung** passen sich am Tablet an: volle Breite, große Kacheln mit Symbol (Schloss, Tropfen) vier je Zeile, Fenster in der Mitte wie bei den übrigen Seiten. Bei Zugang wird der Name jetzt wie überall gesucht (nach 2 Buchstaben) statt aus einer langen Liste gewählt.
+- **Kopfzeile:** Bei vielen Reitern werden die Namen nicht mehr abgeschnitten („Helferdiens…“).
+- **Zeiterfassung** hat die Überschrift „Personal“, Plätze zeigt das Datum als Abschnitt über dem Plan.
+- Gestaltungsregeln fürs Tablet in ERWEITERUNGEN.md festgehalten.
+
 ## 3.29.2
 
 - **Platzbelegung überall gleich (Buchungssystem 1.5.0):** Das Tablet zeigt die Plätze jetzt im selben Belegungsplan wie Verwaltung und Mitglieder-App – Plätze nebeneinander, Zeitachse links, Buchungen als Blöcke (Buchungsarten in ihrer Farbe, Jetzt-Linie). Freie Stelle antippen bucht, Buchung antippen storniert.
