@@ -16,12 +16,12 @@ function logo() {
   } catch (e) { /* ohne Logo */ }
   return null;
 }
-/** Breite für 40 px Höhe – das Logo behält sein Seitenverhältnis (PNG: Maße aus dem Kopf der Datei), höchstens 120 px */
+/** Breite für 40 px Höhe – das Logo behält sein Seitenverhältnis (PNG: Maße aus dem Kopf der Datei), höchstens 80 px */
 function logoWidth(lg) {
   const b = lg.content;
   if (lg.ext !== 'png' || b.length < 24 || b.readUInt32BE(12) !== 0x49484452) return 40;
   const w = b.readUInt32BE(16), h = b.readUInt32BE(20);
-  return w && h ? Math.max(20, Math.min(120, Math.round(40 * w / h))) : 40;
+  return w && h ? Math.max(20, Math.min(80, Math.round(40 * w / h))) : 40;
 }
 
 /** Klartext → Absätze/Listen; „Hallo …,“ und der Gruß am Ende werden erkannt */
