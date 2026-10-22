@@ -42,7 +42,7 @@ echo "== 6. Design-Prüfstand"
 G=$W/design-pruefstand/ausgabe
 if [ ! -f "$G/gruen" ] || [ -n "$(find "$A/public" "$A/erweiterungen" "$A/src" -type f -newer "$G/gruen" | head -1)" ]; then
   bash "$W/demo/start.sh" || fail "Demo-Server"
-  python3 "$W/design-pruefstand/gate.py" $([ "$(uname)" = Darwin ] && python3 -c "import playwright" 2>/dev/null && echo --webkit) > "$W/design-pruefstand/lauf.log" 2>&1
+  python3 "$W/design-pruefstand/gate.py" $(python3 -c "import os; from playwright.sync_api import sync_playwright as s; p = s().start(); print('--webkit' if os.path.exists(p.webkit.executable_path) else ''); p.stop()" 2>/dev/null)   # Safari-Technik mitprüfen, sobald WebKit installiert ist (Windows/WSL, Linux, Mac) > "$W/design-pruefstand/lauf.log" 2>&1
   rc=$?; bash "$W/demo/stop.sh"
   tail -1 "$W/design-pruefstand/lauf.log"
   [ $rc -eq 0 ] || { head -40 "$G/befunde.txt"; fail "Design-Prüfstand nicht grün (Bilder: werkzeuge/design-pruefstand/ausgabe)"; }

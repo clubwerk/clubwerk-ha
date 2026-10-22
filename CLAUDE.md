@@ -19,11 +19,16 @@ Falls `CLAUDE.local.md` existiert, enthält sie den privaten Hintergrund (Verein
 
 ## Einrichtung (einmal)
 
+Thorsten arbeitet unter **Windows mit WSL** (Ubuntu). Alle Werkzeuge sind Bash-Skripte und laufen in WSL. Das Repository liegt **innerhalb von WSL** (z. B. `~/clubwerk-ha`), nicht unter `C:\`. Sonst gibt es Probleme mit Zeilenenden und Geschwindigkeit. Claude Code läuft im WSL-Terminal in diesem Ordner. Dateien aus dem Windows-Downloadordner liegen in WSL unter `/mnt/c/Users/<Name>/Downloads/`.
+
 ```bash
+sudo apt update && sudo apt install -y git curl python3-pip build-essential
+# Node.js 22 (z. B. über nvm: https://github.com/nvm-sh/nvm), danach:
+
 cd clubwerk && npm ci && cd ..
 cd werkzeuge/i18n && npm ci && cd ../..
-pip install playwright && python3 -m playwright install chromium webkit
-# für die Testreihe „targets“: pip install wsgidav cheroot pyftpdlib asyncssh
+pip install --break-system-packages playwright && python3 -m playwright install --with-deps chromium webkit
+# für die Testreihe „targets“: pip install --break-system-packages wsgidav cheroot pyftpdlib asyncssh
 ```
 
 Danach `werkzeuge/geheim-muster.txt` anlegen bzw. von Thorsten erhalten (siehe Abschnitt Geheimnisse). Auch der Name `werkzeuge/.geheim-muster` funktioniert.
@@ -132,7 +137,7 @@ Jeweils in Handy-, Tablet- und Rechnergröße, hell und dunkel, mit Reitern, Fen
 - Scrollen hinter Fenstern oder dem Menü
 - Regeln im Quelltext
 
-Auf dem Mac mit `--webkit` laufen die Handy-Ansichten zusätzlich in der Safari-Technik.
+Mit `--webkit` laufen die Handy-Ansichten zusätzlich in der Safari-Technik. `paket.sh` schaltet das automatisch ein, sobald WebKit installiert ist.
 
 - Zwischendurch reicht ein schneller Lauf: `python3 werkzeuge/design-pruefstand/gate.py --schnell` (Demo-Server muss laufen).
 - Ausnahmen kommen nur mit Begründung in `erlaubt.txt`. Vorher den Befund im Bild ansehen. Viele Treffer sind echte Fehler.

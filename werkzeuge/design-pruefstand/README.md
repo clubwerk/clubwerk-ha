@@ -39,4 +39,4 @@ python3 werkzeuge/design-pruefstand/gate.py --schnell  # Zwischenstand: Handy + 
 
 Das Ergebnis liegt in `ausgabe/befunde.txt`, dazu markierte Bilder jeder betroffenen Ansicht. Ein grüner Volllauf legt `ausgabe/gruen` an; `werkzeuge/paket.sh` verlangt dieses Zeichen und dass es neuer ist als jede Programmdatei.
 
-**Safari (WebKit):** Wo Playwright-WebKit installierbar ist (`python3 -m playwright install webkit`, z. B. auf dem Mac), zusätzlich `--webkit` angeben – dann laufen die Handy-Ansichten auch in der Safari-Technik.
+**Safari (WebKit):** Ist Playwright-WebKit installiert (`python3 -m playwright install --with-deps webkit`, unter Windows in WSL, unter Linux oder auf dem Mac), zusätzlich `--webkit` angeben – `werkzeuge/paket.sh` macht das automatisch – dann laufen die Handy-Ansichten auch in der Safari-Technik.
