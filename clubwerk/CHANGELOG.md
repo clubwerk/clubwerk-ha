@@ -20,6 +20,7 @@
 - **Vergebene Mitgliedsnummern kommen nie wieder:** auch nicht, wenn ein Mitglied gelöscht wird oder beim Wiedereintritt eine neue Nummer bekommt.
 
 **Korrekturen**
+- **Verkauf am Tablet, viele Artikel mit Bildern:** Wird die Artikelseite neu aufgebaut, etwa nach „Auswahl leeren“, erscheinen die Bilder sofort und blinken nicht mehr kurz leer. Die lange Liste „Deine Auswahl“ springt nicht mehr zur Seite, wenn ihre Scrollleiste erscheint. (Dass bei jedem Tipp die ganze Seite neu aufgebaut wurde, ist schon seit 3.32 behoben.)
 - **Beitrag einer Person:** Helferstunden-Vorgabe und „Diese Beitragsarten dürfen nicht buchen“ richten sich immer nach dem Hauptbeitrag. Bisher konnte eine einmalige Gebühr wie die Aufnahmegebühr bei einem Wiedereintritt oder ein Zusatzbeitrag vom selben Tag den Hauptbeitrag verdrängen. Dann galt zum Beispiel ein Mitglied mit „Unterstützend“ (keine Helferstunden) plötzlich als stundenpflichtig.
 - **Für später abgesichert:** Eine neue automatische Leistungsprüfung schlägt Alarm, wenn eine dieser Seiten wieder deutlich mehr Abfragen braucht.
 

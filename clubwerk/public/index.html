@@ -160,7 +160,7 @@
   .cart { background: var(--card); border-left: 1px solid var(--line); padding: 16px 20px 20px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
   .cart h3 { margin: 0; height: 48px; flex: none; display: flex; align-items: center; justify-content: space-between; font-size: 18px; line-height: 24px; font-weight: 700; }
   .cart h3 span { font-size: 13px; font-weight: 600; color: var(--muted); }
-  .cart ul { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: auto; }
+  .cart ul { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow: auto; scrollbar-gutter: stable; }   /* Platz für die Scrollleiste fest – lange Auswahl springt nicht zur Seite */
   /* Zeile: oben der Name über die volle Breite (bis 2 Zeilen), darunter Größe · Preis | − Menge + | Summe */
   .cart li { display: grid; grid-template-columns: minmax(0, 1fr) 112px 64px; grid-template-areas: "nm nm nm" "sb st ls"; align-items: center; column-gap: 8px; row-gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--line-soft); }
   .cart li .nm { grid-area: nm; font-size: 14px; line-height: 17px; font-weight: 700; overflow: hidden; overflow-wrap: break-word; hyphens: auto; -webkit-hyphens: auto; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }

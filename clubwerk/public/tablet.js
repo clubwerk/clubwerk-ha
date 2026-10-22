@@ -112,11 +112,12 @@
   const guestCard = g => {
     const tag = g.paid ? '<span class="tag ok">bezahlt</span>' : '';
     return `<button data-g="${g.id}" class="${g.paid ? 'paid' : ''} ${g.memberId ? '' : 'manual'}"><i class="av" style="${avStyle(g.name)}">${initials(g.name)}</i>
-      <span class="nm"><b>${esc(g.name)}${tag}</b><span>${g.memberId ? 'Mitglied' : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
+      <span class="nm"><b>${esc(g.memberId ? lastFirst(g.name, g.kind) : g.name)}${tag}</b><span>${g.memberId ? 'Mitglied' : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
   };
   /* Artikel: eigenes Bild, Symbol oder Kürzel */
   const tileStyle = a => (!a.image && a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.style(a.icon) : '');
-  const artInner = (a, sz) => a.image ? `<img src="api/tablet/artikelbild/${encodeURIComponent(a.image)}" alt="" loading="lazy">`
+  // Artikelbilder sofort laden (nicht „lazy“): wird die Kachelseite neu aufgebaut, erscheinen sie aus dem Zwischenspeicher, ohne kurz leer zu blinken
+  const artInner = (a, sz) => a.image ? `<img src="api/tablet/artikelbild/${encodeURIComponent(a.image)}" alt="">`
     : a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.svg(a.icon, sz) : initials(a.name);
 
   function renderEventList() {
