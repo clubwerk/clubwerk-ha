@@ -1,5 +1,20 @@
 # Änderungen
 
+## 3.34.0
+
+**Schneller – geprüft mit einem großen Musterverein** (500 Mitglieder, 40 Mannschaften, rund 6 800 Platzbuchungen und 21 000 Getränkebuchungen, gemessen wie auf einem älteren Tablet)
+- **Verwaltung › Verkauf › Buchungen:** 4,3 s → 0,7 s. **Veranstaltungen:** 2,2 s → 0,9 s. **Abrechnung:** 1,1 s → 0,5 s. Lange Listen zeigen zuerst 150 Einträge, „Weitere anzeigen“ holt den Rest. Summen rechnen wie bisher über alles. Außerdem werden Beträge und Datumsangaben in allen Listen schneller dargestellt.
+- **Weniger Arbeit für den Server:** Über alle Seiten braucht Clubwerk jetzt gut ein Viertel der bisherigen Datenbankabfragen (190 000 → 55 000). Bisher wurde vieles für jeden Eintrag einzeln nachgeschlagen, etwa Name, Foto oder Einstellungen. Am meisten bringt das:
+  - Buchungsprotokoll: 25 000 → 60 Abfragen
+  - Tablet › Plätze: 14 000 → 120
+  - Mitglieder-App › Buchen: 9 400 → 130
+  - Spieltage: 4 100 → 80
+  - Verwaltung › Mitglieder-App: 8 500 → 660
+  - Helferdienste-Übersicht und Startseite der Verwaltung: 27 000 → 7 500
+  Was die Seiten anzeigen, ist unverändert. Für jede geänderte Anfrage wurden die Antworten vorher und nachher Zeichen für Zeichen verglichen.
+- **Anmeldung in der Verwaltung:** 1,6 s → 1,1 s.
+- **Für später abgesichert:** Eine neue automatische Leistungsprüfung schlägt Alarm, wenn eine dieser Seiten wieder deutlich mehr Abfragen braucht.
+
 ## 3.33.0
 
 **Mitglied löschen – sicher**

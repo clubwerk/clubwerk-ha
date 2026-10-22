@@ -26,6 +26,7 @@ function looksText(t) {
   if (/^(https?:|mailto:|data:|\/\/|\.\/|\.\.\/|#|api\/|\/api)/.test(t)) return false;
   if (/^[\w.\-\/]+\.(js|css|png|svg|json|html|db|pem|yaml|xlsx|pdf|zip|woff2)$/i.test(t)) return false;
   if (/\b(SELECT|INSERT|UPDATE|DELETE|CREATE TABLE|ALTER TABLE|WHERE|FROM \w+ WHERE|PRAGMA|COALESCE)\b/.test(t)) return false;
+  if (/^[a-z_]\w*(\s*,\s*[\w ]+)+$/.test(t) && /_\w|IS NOT NULL/.test(t)) return false;   // SQL-Spaltenlisten („device, paired_at, …“)
   if (/^[a-z-]+:\s*[^ ]+;?$/.test(t) && !/[äöüß]/.test(t)) return false;
   if (/(var\(--|px\b|;\s*[a-z-]+:|rgba?\(|#[0-9a-f]{3,6}\b|^\.[a-z]|=>|\(\)|\$\{)/i.test(t) && !/[äöüß]/i.test(t)) return false;
   if (!/\{\d+\}/.test(t) && /^[a-z][a-z0-9_\-.:\/]*$/.test(lit.trim()) && !/[äöüß]/.test(lit) && !EXTRA.has(t)) return false;     // Schlüssel, Klassen, IDs

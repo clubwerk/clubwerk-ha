@@ -7951,6 +7951,8 @@
   "Zahlt über:": "Pays via:",
   "Zahlt über: {0}": "Pays via: {0}",
   "(frühere Buchungen und Zahlungen bleiben erhalten)": "(earlier bookings and payments are kept)",
-  "Bitte deine PIN eingeben – {0}": "Please enter your PIN – {0}"
+  "Bitte deine PIN eingeben – {0}": "Please enter your PIN – {0}",
+  "noch {0}": "{0} more",
+  "Weitere {0} anzeigen": "Show {0} more"
  }
 }
