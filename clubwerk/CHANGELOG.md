@@ -8,7 +8,7 @@
 - **Kein Flackern mehr beim Wechseln:** Beim Wechsel zwischen Verkauf, Plätzen, Helferdiensten usw. bleibt die Kopfzeile mit Vereinsname, Logo und Reitern ruhig stehen. Bisher wurde sie auf jeder Seite leer aufgebaut und danach gefüllt.
 
 **Spielbetrieb**
-- **Gastspieler ohne Mannschaft gehören nicht mehr zum Spielbetrieb:** Wird eine Mannschaft gelöscht oder ein Gastspieler aus seiner letzten Meldeliste genommen, wird er ganz entfernt. Sein persönlicher Link gilt dann nicht mehr. Bisher blieb er stehen und musste einzeln entfernt werden. Wer noch in einer anderen Mannschaft spielt, bleibt.
+- **Mannschaft löschen nimmt ihre Gastspieler mit:** Spielen sie in keiner anderen Mannschaft, werden sie ganz entfernt, und ihr persönlicher Link gilt nicht mehr. Bisher blieben sie stehen und mussten einzeln entfernt werden. Wer nur aus einer Meldeliste genommen wird, bleibt wie bisher auswählbar. Sein Link gilt, sobald er wieder eingetragen ist.
 - Die Rückfrage beim Löschen einer Mannschaft zählt genau auf, was mitgeht: Spieltage, Meldeliste und die Gastspieler, die dadurch ganz entfernt werden.
 
 **Fehler behoben**

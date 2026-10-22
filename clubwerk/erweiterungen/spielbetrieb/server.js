@@ -782,7 +782,8 @@ function activate(ctx) {
     renewToken(mid);
     db.prepare('UPDATE members SET active = 0, deleted = 1 WHERE id = ?').run(mid);   // vergangene Aufstellungen bleiben lesbar
   }
-  /** Gastspieler/innen, die nur in dieser Mannschaft (bzw. in keiner mehr) spielen – ohne Mannschaft gehören sie nicht mehr zum Spielbetrieb */
+  /** Gastspieler/innen, die nur in dieser Mannschaft (bzw. in keiner mehr) spielen – wird die Mannschaft gelöscht, gehören sie nicht mehr zum Spielbetrieb.
+      (Nur aus der Meldeliste genommen: Link gilt vorübergehend nicht, beim Wiedereintragen wieder – siehe tests/glink_test.js) */
   const onlyHere = teamId => db.prepare(`SELECT e.member_id FROM sp_extern e JOIN members m ON m.id = e.member_id
     WHERE m.deleted = 0 AND NOT EXISTS (SELECT 1 FROM sp_player p WHERE p.member_id = e.member_id AND p.team_id IS NOT ?)`).all(teamId).map(r => r.member_id);
   const dropOrphans = by => { const ids = onlyHere(null); ids.forEach(removeExtern); if (ids.length) ctx.audit(by, 'Spielbetrieb: Gastspieler/in entfernt (keine Mannschaft mehr)', ids.map(memberName).join(', ')); return ids.map(id => lf(memberName(id))); };
@@ -832,16 +833,14 @@ function activate(ctx) {
   admin.put('/teams/:id/players', P, (req, res) => {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     const list = (Array.isArray((req.body || {}).players) ? req.body.players : []).slice(0, 60).map((p, i) => ({ id: int(p.id || p), rank: int(p.rank) || i + 1 })).filter(p => isMember(p.id));
-    let removed = [];
     db.transaction(() => {
       const keep = new Set(list.map(p => p.id));
       for (const r of db.prepare('SELECT member_id FROM sp_player WHERE team_id = ?').all(t.id)) if (!keep.has(r.member_id)) db.prepare('DELETE FROM sp_player WHERE team_id = ? AND member_id = ?').run(t.id, r.member_id);
       const up = db.prepare('INSERT INTO sp_player(team_id, member_id, rank) VALUES (?,?,?) ON CONFLICT(team_id, member_id) DO UPDATE SET rank = excluded.rank');
       list.forEach(p => up.run(t.id, p.id, p.rank));
-      removed = dropOrphans(req.user);
     })();
     ctx.audit(req.user, 'Spielbetrieb: Spieler zugeordnet', `${t.name}: ${list.length} Spieler`);
-    res.json({ ok: true, players: teamRow(team(t.id)).players, removed });
+    res.json({ ok: true, players: teamRow(team(t.id)).players });
   });
   /** Spieltage (Übersicht mit Ampel) */
   admin.get('/games', P, (req, res) => {
