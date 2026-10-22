@@ -178,6 +178,7 @@ function savePerson(id, fields, user) {
   const shown = (k, v) => k === 'notes' ? (v ? '…' : '') : (k === 'payer_id' || k === 'family_of') && v ? (C.db.prepare('SELECT name FROM members WHERE id = ?').get(v) || {}).name || v : v;   // Verlauf: Namen statt Nummern
   for (const k of keys) store.hist(id, user, LABEL[k] || k, shown(k, cur[k]), shown(k, fields[k]));
   C.db.prepare(`UPDATE mv_person SET ${keys.map(k => `${k} = ?`).join(', ')}, updated_at = ? WHERE member_id = ?`).run(...keys.map(k => fields[k]), nowTs(), id);
+  if (keys.includes('member_no')) store.noteMemberNo(fields.member_no);
   if (keys.includes('first_name') || keys.includes('last_name')) store.syncCore(id);
 }
 
@@ -185,7 +186,9 @@ function savePerson(id, fields, user) {
 function createPerson(fields, user, { memberNo } = {}) {
   const name = [fields.first_name, fields.last_name].filter(Boolean).join(' ');
   const id = Number(C.db.prepare("INSERT INTO members(name, kind, first_name, last_name) VALUES (?, 'mitglied', ?, ?)").run(name, fields.first_name || null, fields.last_name || null).lastInsertRowid);
-  C.db.prepare('INSERT INTO mv_person(member_id, member_no, entry_date) VALUES (?,?,?)').run(id, memberNo || fields.member_no || store.nextMemberNo(), fields.entry_date || today());
+  const no = memberNo || fields.member_no || store.nextMemberNo();
+  C.db.prepare('INSERT INTO mv_person(member_id, member_no, entry_date) VALUES (?,?,?)').run(id, no, fields.entry_date || today());
+  store.noteMemberNo(no);
   const f = { ...fields }; delete f.member_no;
   savePerson(id, f, user);
   C.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(id);   // beim Anlegen kein Änderungsverlauf
@@ -745,15 +748,25 @@ function activate(ctx) {
       scopeChange(req, id, 'rueckkehr', { date: today() }, `Rückkehr von ${p.name}`);
       return res.json({ ok: true, pending: true });
     }
-    reenterMember(id, uname(req));
-    ctx.audit(req.user, 'Mitglied: Austritt zurückgenommen', p.name);
-    res.json({ ok: true });
+    const no = reenterMember(id, uname(req));
+    ctx.audit(req.user, no ? 'Mitglied: Wiedereintritt' : 'Mitglied: Austritt zurückgenommen', no ? `${p.name} – neue Mitgliedsnummer ${no}` : p.name);
+    res.json({ ok: true, member_no: no });
   });
-  /** Austritt zurücknehmen: Beiträge und Abteilungen wieder öffnen (auch aus „Meldungen“ der Abteilungsleitung) */
+  /** Austritt zurücknehmen: Beiträge und Abteilungen wieder öffnen (auch aus „Meldungen“ der Abteilungsleitung).
+   *  War der Austritt schon wirksam, ist es ein Wiedereintritt: neue Mitgliedsnummer (die alte wird nie wieder vergeben), Eintritt heute,
+   *  neue Mandatsreferenz – das alte SEPA-Mandat gilt nicht mehr, bis ein neues unterschrieben ist. → neue Nummer oder null */
   function reenterMember(id, by) {
-    const p = personRow(id); if (!p || !p.exit_date) return;
+    const p = personRow(id); if (!p || !p.exit_date) return null;
     const uname = () => by;
-    savePerson(id, { exit_date: null, exit_reason: null, notice_date: null }, uname());
+    const again = p.exit_date < today();
+    const no = again ? store.nextMemberNo() : null;
+    savePerson(id, { exit_date: null, exit_reason: null, notice_date: null, ...(again ? { member_no: no, entry_date: today() } : {}) }, uname());
+    const bank = again && ctx.db.prepare('SELECT mandate_ref, mandate_date FROM mv_bank WHERE member_id = ?').get(id);
+    if (bank && (bank.mandate_ref || bank.mandate_date)) {
+      ctx.db.prepare('UPDATE mv_bank SET mandate_ref = ?, mandate_date = NULL, mandate_first_used = NULL, mandate_last_used = NULL, mandate_notified = NULL, mandate_revoked = NULL, updated_at = ? WHERE member_id = ?')
+        .run(store.mandateRefFor(no), nowTs(), id);
+      store.hist(id, uname(), 'SEPA-Mandat', bank.mandate_ref || bank.mandate_date, 'neues Mandat nötig (Wiedereintritt)');
+    }
     // Beiträge und Abteilungen, die mit dem Austritt endeten, wieder öffnen – ab dem laufenden Zeitraum, ohne die Pause nachzuberechnen
     const reopened = [];
     for (const mf of ctx.db.prepare('SELECT mf.*, f.interval, f.name FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND mf.end_date = ?').all(id, p.exit_date)) {
@@ -768,6 +781,7 @@ function activate(ctx) {
     if (reopened.length) store.hist(id, uname(), 'Wieder aufgenommen', null, reopened.join(', '));
     ctx.db.prepare('UPDATE members SET active = 1 WHERE id = ?').run(id);
     ctx.db.prepare('UPDATE member_access SET blocked = 0 WHERE member_id = ?').run(id);
+    return no;
   }
 
   /* ---------- Dokumente ---------- */

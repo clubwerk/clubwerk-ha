@@ -192,7 +192,7 @@ function register(sh) {
     }
     if (c.kind === 'eintritt') rows = [{ field: 'Abteilung', old: null, new: (db.prepare('SELECT name FROM mv_department WHERE id = ?').get(d.department_id) || {}).name || '–' }, { field: 'Eintritt', old: null, new: deD(d.entry_date) }];
     if (c.kind === 'austritt') rows = [{ field: 'Austritt zum', old: null, new: deD(d.exit_date) }, ...(d.reason ? [{ field: 'Grund', old: null, new: d.reason }] : []), ...(d.withDependents ? [{ field: 'Angehörige', old: null, new: 'treten mit aus' }] : [])];
-    if (c.kind === 'rueckkehr') rows = [{ field: 'Rückkehr', old: deD(p.exit_date) ? `Austritt ${deD(p.exit_date)}` : null, new: 'Austritt zurücknehmen' }];
+    if (c.kind === 'rueckkehr') rows = [{ field: 'Rückkehr', old: deD(p.exit_date) ? `Austritt ${deD(p.exit_date)}` : null, new: p.exit_date && p.exit_date < today() ? 'Wiedereintritt (neue Mitgliedsnummer)' : 'Austritt zurücknehmen' }];
     return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, created_by: c.created_by || null, scope: SCOPE_KINDS.includes(c.kind), exit_date: d.exit_date || null, name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
       rows, kuendigung: c.kind === 'kuendigung' ? d : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
   }

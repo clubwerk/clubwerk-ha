@@ -136,7 +136,7 @@ function register(sh) {
         if (mid && db.prepare("SELECT 1 FROM members WHERE id = ? AND kind = 'mitglied' AND deleted = 0").get(mid)) {
           store.ensurePerson(mid);
           const cur = db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(mid);
-          if (!cur.member_no) db.prepare('UPDATE mv_person SET member_no = ? WHERE member_id = ?').run(store.nextMemberNo(), mid);
+          if (!cur.member_no) { const no = store.nextMemberNo(); db.prepare('UPDATE mv_person SET member_no = ? WHERE member_id = ?').run(no, mid); store.noteMemberNo(no); }
           savePerson(mid, fields, by);
           db.prepare('UPDATE members SET pending = 0, active = 1 WHERE id = ?').run(mid);
         } else mid = createPerson(fields, by);

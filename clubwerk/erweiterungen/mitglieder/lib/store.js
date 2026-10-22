@@ -210,10 +210,17 @@ function syncCore(memberId) {
   const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim();
   if (name.length >= 2) db.prepare('UPDATE members SET name = ?, first_name = ?, last_name = ? WHERE id = ?').run(name, p.first_name || null, p.last_name || null, memberId);
 }
+/** Nächste Mitgliedsnummer (nur Vorschlag, reserviert nichts). Einmal vergebene Nummern kommen nie wieder – auch nicht nach Löschen,
+ *  Anonymisieren oder Wiedereintritt: die höchste je gespeicherte Nummer merkt sich member_no_max (s. noteMemberNo). */
 function nextMemberNo() {
   const max = db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n || 0;
   const start = parseInt(S('member_no_start', '1'), 10) || 1;
-  return String(Math.max(max + 1, start));
+  return String(Math.max(max + 1, (parseInt(S('member_no_max', '0'), 10) || 0) + 1, start));
+}
+/** gespeicherte Mitgliedsnummer merken (höchste je vergebene) – nach jedem Schreiben einer Nummer aufrufen */
+function noteMemberNo(no) {
+  if (!/^\d{1,12}$/.test(String(no || ''))) return;
+  if (Number(no) > (parseInt(S('member_no_max', '0'), 10) || 0)) SET('member_no_max', String(Number(no)));
 }
 function mandateRefFor(memberNo) {
   const pre = S('mandate_prefix', '').replace(/[^A-Za-z0-9]/g, '').slice(0, 10);
@@ -298,8 +305,11 @@ function account() {
 /* ---------- Beiträge ---------- */
 
 module.exports = {
-  init(o) { ({ db, getSetting, setSetting } = o); createTables(); migrate(); },
-  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, mandateRefFor, hist,
+  init(o) {
+    ({ db, getSetting, setSetting } = o); createTables(); migrate();
+    noteMemberNo(db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n);   // Bestand: höchste Nummer gilt als vergeben
+  },
+  S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, noteMemberNo, mandateRefFor, hist,
   payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, fullName, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };
