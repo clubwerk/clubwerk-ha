@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.33.0
+
+**Mitglied löschen – sicher**
+- **Neu in der Mitgliederverwaltung:** Beim Mitglied gibt es jetzt den Knopf „Löschen …“. Gedacht ist er vor allem für versehentlich, doppelt oder falsch angelegte Mitglieder. Für echte Austritte bleibt der Weg „Austritt“ und danach „Anonymisieren“.
+- **Gelöscht wird nur, wenn nichts mehr am Mitglied hängt.** Sonst zeigt Clubwerk eine Liste, was zuerst zu lösen ist, zum Beispiel „Beitrag zugeordnet: Erwachsene“, „Zahlt für: Muster, Lena“, „Spielt in: Herren 30 (Spielbetrieb)“ oder „2 kommende Buchungen (Buchungssystem)“. Geprüft werden:
+  - Verkauf: offener Betrag und offene Veranstaltungslisten
+  - Mitgliederverwaltung: Beiträge, Abteilungen, Zahler und Familie, offene Forderungen, Ämter und Ehrungen
+  - Spielbetrieb: Mannschaften
+  - Buchungssystem: kommende Buchungen, Serien und Warteliste
+  - Helferdienste: kommende Einsätze und noch nicht bestätigte Stunden
+  - Buchhaltung: offene Rechnungen
+  - Verwaltung: ein verbundener Benutzer
+- Vergangenes sperrt nicht: Alte Buchungen, Abrechnungen und bezahlte Forderungen bleiben mit dem Namen erhalten.
+- **Dieselbe Prüfung gilt für „Löschen“ unter Verkauf → Mitglieder & Konten und für „Inaktive entfernen“.** Bisher wurden dort Beiträge, Mannschaften und Buchungen im Hintergrund einfach mit entfernt.
+- Löschen dürfen Benutzer mit dem Recht „Konten“ oder dem vollen Recht „Mitglieder“. Abteilungsleitungen dürfen es nicht.
+
 ## 3.32.0
 
 **Verkauf am Tablet**

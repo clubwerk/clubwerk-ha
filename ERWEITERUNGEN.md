@@ -53,6 +53,9 @@ gelöscht (`intoId = null`). Der Hook läuft **synchron** in der Transaktion des
 `REFERENCES members(id)` – auch in Modultabellen – generisch umhängt bzw. löscht (bei UNIQUE-Konflikt fällt die Zeile des alten Kontos weg).
 Im Hook erledigt das Modul nur, was der Kern nicht sieht: Verweise ohne Fremdschlüssel (z. B. Verlauf, IDs in JSON-Listen), Dateien,
 eigene Protokolleinträge. Wirft der Hook, bricht der Kern ab und zeigt den Fehlertext an.
+Vor dem endgültigen Löschen fragt der Kern `ctx.hooks.memberLinks = id => ['Spielt in: Herren 30', …]` (synchron): Jedes Modul nennt in
+Alltagssprache, was in **seinen** Daten noch am Mitglied hängt (laufende Zuordnungen, Kommendes, Offenes – nicht Vergangenes). Steht
+irgendwo etwas, löscht der Kern nicht und zeigt die Liste (mit dem Modulnamen dahinter). Leere Liste = nichts im Weg.
 
 **Datums-/Zeitformate:** Fachliche Tage und Zeitpunkte stehen in der Datenbank in lokaler Zeit ohne Zonenangabe –
 `JJJJ-MM-TT` bzw. `JJJJ-MM-TT HH:MM:SS` (wie SQLites `datetime('now','localtime')`; genau das liefern `ctx.util.today()` und

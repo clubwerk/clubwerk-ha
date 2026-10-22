@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const backup = require('./backup');
 const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
-const { db, splitPersonName, nameKey, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, memberRefs, rewireMemberRef } = require('./db');
+const { db, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, memberRefs, rewireMemberRef } = require('./db');
 const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
 const { today, nowTs, isDate, addDays, deD } = util;
@@ -286,6 +286,21 @@ function dropMemberExtras(fromId, intoId = null) {
     if (intoId == null && KEEP_HISTORY.has(table)) continue;
     rewireMemberRef(table, column, fromId, intoId);
   }
+}
+/** Wodurch hängt ein Mitglied noch im Verein? Lesbare Gründe, leer = darf gelöscht werden. Jedes Modul prüft seine Daten (Hook memberLinks);
+ *  Vergangenes (alte Buchungen, Abrechnungen, bezahlte Forderungen) zählt nicht – es bleibt mit dem Namen als Verlauf stehen. */
+function memberLinks(id) {
+  const out = [];
+  const open = memberBalance(id).cents, ev = eventOpen(id);
+  if (open) out.push(`Offener Betrag im Verkauf: ${euro(open)}`);
+  if (ev) out.push(`Offen auf einer Veranstaltungsliste: ${euro(ev)}`);
+  const u = db.prepare('SELECT username FROM admin_users WHERE member_id = ?').get(id);
+  if (u) out.push(`Verbunden mit dem Benutzer „${u.username}“ der Verwaltung`);
+  for (const p of plugins.withHook('memberLinks')) {
+    try { for (const t of p.hooks.memberLinks(id) || []) out.push(`${t} (${p.meta.name})`); }
+    catch (e) { out.push(`${p.meta.name}: Prüfung fehlgeschlagen (${e.message})`); }
+  }
+  return out;
 }
 /** Zusammenführen/Löschen in einer Transaktion; Datenbankfehler (z. B. Fremdschlüssel eines Moduls) werden zur verständlichen Meldung */
 function memberTx(fn) {
@@ -1402,12 +1417,14 @@ admin.post('/members/:id/merge', need('konten'), (req, res) => {
 
 /* Konto löschen: ohne Buchungen endgültig; mit früheren Buchungen verschwindet es aus allen Listen und vom Tablet,
    die alten Buchungen bleiben (Bestand, frühere Abrechnungen). Offene Beträge müssen vorher abgerechnet sein. */
-admin.delete('/members/:id', need('konten'), (req, res) => {
+// Löschen dürfen „Konten“ (Verkauf) und „Mitglieder“ mit vollem Recht – nicht Abteilungsleitungen, die nur ihre Abteilung sehen
+admin.delete('/members/:id', need('konten', 'mitglieder'), (req, res) => {
+  if (!req.user.perms.includes('konten') && (req.user.deptOnly || []).includes('mitglieder')) return bad(res, 'Löschen dürfen nur Benutzer mit vollem Recht „Mitglieder“.', 403);
   const m = db.prepare('SELECT * FROM members WHERE id = ? AND deleted = 0').get(int(req.params.id));
   if (!m) return res.json({ ok: true });
   if (m.kind === 'verein' || m.kind === 'gast') return bad(res, 'Die Sonderkonten „Verein“ und „Gast“ können nicht gelöscht werden – bei Bedarf ausblenden.');
-  const open = memberBalance(m.id).cents, evOpen = eventOpen(m.id);
-  if (open || evOpen) return bad(res, `${m.name} hat noch ${euro(open + evOpen)} offen – bitte erst abrechnen${evOpen ? ' bzw. von der Veranstaltungsliste übernehmen' : ''}.`);
+  const links = memberLinks(m.id);
+  if (links.length) return res.status(409).json({ error: `${lastFirst(m.name, m.kind)} kann noch nicht gelöscht werden:\n• ${links.join('\n• ')}`, links });
   const n = db.prepare('SELECT COUNT(*) n FROM bookings WHERE member_id = ?').get(m.id).n
     + db.prepare('SELECT COUNT(*) n FROM member_settlements WHERE member_id = ?').get(m.id).n
     + db.prepare('SELECT COUNT(*) n FROM guest_tabs WHERE member_id = ?').get(m.id).n;
@@ -1505,7 +1522,7 @@ admin.post('/members/remove-inactive', need('konten'), (req, res) => {
       const seen = db.prepare(`SELECT (SELECT COUNT(*) FROM bookings WHERE member_id = ? AND cancelled_at IS NULL AND date(created_at) >= ?)
         + (SELECT COUNT(*) FROM event_guests WHERE member_id = ? AND date(created_at) >= ?) n`).get(id, since, id, since).n;
       if (seen) { skipped.push(m.name + ' (war diese Saison da)'); continue; }
-      if (memberBalance(id).cents || eventOpen(id)) { skipped.push(m.name + ' (hat noch offene Beträge)'); continue; }
+      if (memberLinks(id).length) { skipped.push(m.name + ' (noch verknüpft)'); continue; }
       const any = db.prepare('SELECT COUNT(*) n FROM bookings WHERE member_id = ?').get(id).n
         + db.prepare('SELECT COUNT(*) n FROM member_settlements WHERE member_id = ?').get(id).n
         + db.prepare('SELECT COUNT(*) n FROM guest_tabs WHERE member_id = ?').get(id).n;

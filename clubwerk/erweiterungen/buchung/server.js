@@ -1391,6 +1391,16 @@ function activate(ctx) {
 
   /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – synchron in der Transaktion des Kerns, vor dem generischen
      Umhängen der Spalten mit Fremdschlüssel (bk_booking.member_id, bk_rights). Hier: Warteliste, Serien und Mitspieler-Listen (JSON). */
+  /* Mitglied löschen: kommende Buchungen (auch als Mitspieler), laufende Serien, Warteliste – Vergangenes bleibt als Verlauf */
+  ctx.hooks.memberLinks = id => {
+    const d0 = today(), out = [];
+    const n = db.prepare(`SELECT COUNT(*) n FROM bk_booking b WHERE b.status = 'aktiv' AND b.date >= ? AND (b.member_id = ? OR EXISTS (SELECT 1 FROM json_each(b.partners) j WHERE j.value = ?))`).get(d0, id, id).n;
+    if (n) out.push(`${n} ${n === 1 ? 'kommende Buchung' : 'kommende Buchungen'}`);
+    const s = db.prepare('SELECT COUNT(*) n FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ?').get(id, d0).n;
+    if (s) out.push(`${s} ${s === 1 ? 'laufende Serie' : 'laufende Serien'}`);
+    if (db.prepare('SELECT 1 FROM bk_wait WHERE member_id = ? AND date >= ?').get(id, d0)) out.push('Auf der Warteliste');
+    return out;
+  };
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     if (intoId) {
       for (const w of db.prepare('SELECT id FROM bk_wait WHERE member_id = ?').all(fromId)) {

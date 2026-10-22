@@ -437,6 +437,11 @@ function activate(ctx) {
   /* ---------- Übersicht, Erinnerungen, Funktionsdatei ---------- */
   /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – Rechnungen und Spendenbescheinigungen behalten den Empfängertext,
      der Verweis aufs Mitglied wandert bzw. entfällt (keine Fremdschlüssel, daher hier) */
+  /* Mitglied löschen: offene Rechnungen sperren (bezahlte, stornierte und Spendenquittungen bleiben mit Namen erhalten) */
+  ctx.hooks.memberLinks = id => {
+    const n = db.prepare("SELECT COUNT(*) n FROM bh_invoice WHERE member_id = ? AND status = 'offen'").get(id).n;
+    return n ? [`${n} offene ${n === 1 ? 'Rechnung' : 'Rechnungen'}`] : [];
+  };
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     for (const t of ['bh_invoice', 'bh_donation']) db.prepare(`UPDATE ${t} SET member_id = ? WHERE member_id = ?`).run(intoId, fromId);
   };

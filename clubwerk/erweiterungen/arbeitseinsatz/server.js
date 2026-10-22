@@ -543,6 +543,15 @@ function activate(ctx) {
     }
     return out;
   };
+  /* Mitglied löschen: kommende Einsätze und noch nicht bestätigte Stunden sperren (bestätigte Stunden sind Verlauf) */
+  ctx.hooks.memberLinks = id => {
+    const out = [];
+    const n = db.prepare('SELECT COUNT(*) n FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND e.date >= ? AND e.cancelled = 0').get(id, today()).n;
+    if (n) out.push(`Für ${n} ${n === 1 ? 'kommenden Einsatz' : 'kommende Einsätze'} eingetragen`);
+    const o = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE member_id = ? AND status IN ('offen', 'laeuft')").get(id).n;
+    if (o) out.push(`${o} noch nicht bestätigte ${o === 1 ? 'Stundenmeldung' : 'Stundenmeldungen'}`);
+    return out;
+  };
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
   ];

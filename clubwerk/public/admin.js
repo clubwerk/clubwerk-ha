@@ -22,7 +22,7 @@
     const data = await r.json().catch(() => ({}));
     if (r.status === 401 && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
     if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
-    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd });
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links });
     return data;
   }
 
@@ -45,6 +45,20 @@
     finally { if (btn && btn.isConnected) btn.disabled = false; }
   }
 
+  /** Mitglied löschen – derselbe Weg in „Mitglieder & Konten“ und in der Mitgliederverwaltung. Hängt es noch irgendwo
+   *  (Beitrag, Zahler, Mannschaft, kommende Buchung …), löscht der Server nicht und nennt, was erst zu lösen ist. */
+  async function deleteMember(m, done) {
+    const nm = lastFirst(m.name, m.kind);
+    if (!await ask(`„${nm}“ löschen?\n\nDas Konto verschwindet aus allen Listen und vom Tablet. Frühere Buchungen und Abrechnungen bleiben mit dem Namen erhalten.`)) return;
+    try { await api('members/' + m.id, 'DELETE'); closeDialog(); toast(`„${nm}“ gelöscht.`); done(); }
+    catch (e) {
+      if (!e.links) { fail(e); return; }
+      dialog(`<h2>„${esc(nm)}“ kann noch nicht gelöscht werden</h2><p class="muted">Bitte zuerst lösen:</p>
+        <ul style="margin:8px 0 0;padding-left:20px;line-height:1.6">${e.links.map(l => `<li>${esc(l)}</li>`).join('')}</ul>
+        <div class="btns"><button class="btn primary" id="dlOk" type="button">OK</button></div>`);
+      $('dlOk').onclick = closeDialog;
+    }
+  }
   function dialog(html, wide = false) {
     $('dialog').className = 'dialog' + (wide ? ' wide' : '');
     $('dialog').onchange = null;   // Ereignis-Handler eines früheren Dialogs (z. B. Serien-Dialog) gelten nicht weiter
@@ -602,7 +616,7 @@
   /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
   window.GK = {
     $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, watch, clean, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
+    scheme: () => SCHEME, ask, askText, deleteMember, watch, clean, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** Einstellungen öffnen, gleich im richtigen Bereich (z. B. 'bank') */
     openSettings: sec => { sset('cw_setsec', sec); if (page === 'einstellungen') RENDER.einstellungen(); else go('einstellungen'); },
@@ -2044,10 +2058,7 @@
           $('ok3').onclick = () => busy($('ok3'), async () => {
             try { await api('members/' + m.id, 'PUT', { name: $('eName').value, kind: $('eKind').value, active: $('eAct').checked, pin: $('ePin').value }); closeDialog(); RENDER.konten(); } catch (err) { fail(err); }
           });
-          if ($('eDel')) $('eDel').onclick = async () => {
-            if (!await ask(`„${m.name}“ löschen?\n\nDas Konto verschwindet aus allen Listen und vom Tablet. Wurde schon darauf gebucht, bleiben diese alten Buchungen in früheren Abrechnungen erhalten. Offene Beträge müssen vorher abgerechnet sein.`)) return;
-            try { await api('members/' + m.id, 'DELETE'); closeDialog(); toast('Konto gelöscht.'); RENDER.konten(); } catch (err) { fail(err); }
-          };
+          if ($('eDel')) $('eDel').onclick = () => deleteMember(m, () => RENDER.konten());
         }
       } catch (err) { fail(err); }
     };

@@ -1065,6 +1065,28 @@ function activate(ctx) {
   /* für den Kern: Konto wird zusammengeführt (intoId) oder gelöscht (intoId = null). Läuft synchron in der Transaktion des Kerns,
      VOR dem generischen Umhängen/Löschen aller Spalten mit Fremdschlüssel auf members(id). Hier nur, was der Kern nicht kennt:
      Verlauf und Altersstufen-Hinweise (ohne Fremdschlüssel), Beitrittserklärungen, Dokument-Dateien, Zahler-Verweise von Angehörigen. */
+  /* ----- Mitglied löschen: Was hängt noch daran? (Kern fragt vor dem Löschen; Vergangenes zählt nicht, bezahlte Forderungen auch nicht) ----- */
+  ctx.hooks.memberLinks = id => {
+    const q = (sql, ...a) => ctx.db.prepare(sql).all(...a), d0 = today(), lf = ctx.require('./db').lastFirst, names = rows => rows.map(r => lf(r.name, r.kind)).join(', ');
+    const out = [], p = ctx.db.prepare('SELECT payer_id, family_of FROM mv_person WHERE member_id = ?').get(id) || {};
+    const fee = q('SELECT f.name FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?)', id, d0);
+    if (fee.length) out.push('Beitrag zugeordnet: ' + fee.map(r => r.name).join(', '));
+    const dep = q('SELECT d.name FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? AND (md.exit_date IS NULL OR md.exit_date >= ?)', id, d0);
+    if (dep.length) out.push('Abteilung: ' + dep.map(r => r.name).join(', '));
+    const payFor = q('SELECT m.name, m.kind FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.payer_id = ? AND p.member_id != ? AND m.deleted = 0', id, id);
+    if (payFor.length) out.push('Zahlt für: ' + names(payFor));
+    if (p.payer_id && p.payer_id !== id) out.push('Zahlt über: ' + names(q('SELECT name, kind FROM members WHERE id = ?', p.payer_id)));
+    const fam = q('SELECT m.name, m.kind FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.family_of = ? AND p.member_id != ? AND m.deleted = 0', id, id);
+    if (fam.length) out.push('Familie: ' + names(fam));
+    if (p.family_of && p.family_of !== id) out.push('Gehört zur Familie von: ' + names(q('SELECT name, kind FROM members WHERE id = ?', p.family_of)));
+    const open = ctx.db.prepare("SELECT COUNT(*) n FROM mv_charge WHERE (member_id = ? OR for_member_id = ?) AND status IN ('offen', 'eingezogen')").get(id, id).n;
+    if (open) out.push(`${open} offene ${open === 1 ? 'Forderung' : 'Forderungen'}`);
+    const fn = q('SELECT name FROM mv_function WHERE member_id = ? AND (to_date IS NULL OR to_date >= ?)', id, d0);
+    if (fn.length) out.push('Amt: ' + fn.map(r => r.name).join(', '));
+    const hon = q('SELECT name FROM mv_honor WHERE member_id = ?', id);
+    if (hon.length) out.push('Ehrung: ' + hon.map(r => r.name).join(', '));
+    return out;
+  };
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     const from = ctx.db.prepare('SELECT name FROM members WHERE id = ?').get(fromId) || { name: String(fromId) };
     if (intoId) {

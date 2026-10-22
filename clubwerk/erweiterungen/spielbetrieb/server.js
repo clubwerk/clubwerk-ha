@@ -1075,6 +1075,15 @@ function activate(ctx) {
   setTimeout(tick, 20000).unref();
   setInterval(tick, process.env.CW_TEST_FAST ? 1500 : 30 * 60000).unref();
 
+  /* ----- Mitglied löschen: Mannschaften, in denen es spielt oder die es führt ----- */
+  ctx.hooks.memberLinks = id => {
+    const out = [], ts = rows => rows.map(r => r.name).join(', ');
+    const play = db.prepare('SELECT t.name FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? ORDER BY t.sort, t.name').all(id);
+    if (play.length) out.push('Spielt in: ' + ts(play));
+    const lead = db.prepare('SELECT name FROM sp_team WHERE captain_id = ? OR vice_id = ? ORDER BY sort, name').all(id, id);
+    if (lead.length) out.push('Mannschaftsführer/Stellvertreter: ' + ts(lead));
+    return out;
+  };
   /* ----- Mitglied zusammengeführt/gelöscht: Mannschaftsführer-Verweise ----- */
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     db.prepare('UPDATE sp_team SET captain_id = ? WHERE captain_id = ?').run(intoId, fromId);
