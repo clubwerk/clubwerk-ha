@@ -86,6 +86,42 @@ PINs der Demo: Mitglieder 2468, Zeiterfassung 1234 und 5678.
 **Sprache**
 - Jeder neue sichtbare Text braucht eine englische Übersetzung (britisches Englisch). Siehe Abschnitt Übersetzungen.
 
+## Arbeitsweise beim Programmieren
+
+Diese Regeln sollen typische Fehler vermeiden. Sie setzen auf Sorgfalt statt Tempo. Bei Kleinigkeiten mit Augenmaß anwenden.
+
+**1. Erst denken, dann programmieren.** Nichts unterstellen, Unklarheiten offen ansprechen, Abwägungen nennen.
+- Annahmen ausdrücklich nennen. Wenn etwas unsicher ist, nachfragen.
+- Gibt es mehrere Deutungen, alle vorlegen und nicht still eine auswählen.
+- Gibt es einen einfacheren Weg, ihn vorschlagen. Widersprechen, wenn es angebracht ist.
+- Ist etwas unklar, anhalten, benennen, was unklar ist, und fragen.
+
+**2. Einfachheit zuerst.** So wenig Code wie nötig, nichts auf Vorrat.
+- Keine Funktionen über die Aufgabe hinaus.
+- Keine Abstraktionen für Code, der nur einmal gebraucht wird.
+- Keine „Flexibilität“ oder Einstellbarkeit, um die niemand gebeten hat.
+- Keine Fehlerbehandlung für Fälle, die nicht eintreten können.
+- Werden es 200 Zeilen, wo 50 reichen, neu schreiben.
+
+Prüffrage: Würde ein erfahrener Entwickler das überladen finden? Dann vereinfachen.
+
+**3. Gezielte Änderungen.** Nur anfassen, was nötig ist. Nur den eigenen Kram aufräumen.
+- Benachbarten Code, Kommentare oder Formatierung nicht „verbessern“.
+- Nichts umbauen, was nicht kaputt ist.
+- Den vorhandenen Stil übernehmen, auch wenn man es selbst anders machen würde.
+- Fällt fremder toter Code auf, ihn erwähnen, nicht löschen.
+- Was durch die eigene Änderung überflüssig wird (Importe, Variablen, Funktionen), entfernen. Vorhandenen toten Code nur auf Wunsch löschen.
+
+Prüffrage: Lässt sich jede geänderte Zeile direkt auf die Aufgabe zurückführen?
+
+**4. Zielgerichtet arbeiten.** Erfolgskriterien festlegen und so lange prüfen, bis sie erfüllt sind.
+- „Prüfung einbauen“ heißt: Tests für ungültige Eingaben schreiben, dann grün machen.
+- „Fehler beheben“ heißt: einen Test schreiben, der den Fehler nachstellt, dann grün machen.
+- „Umbauen“ heißt: Die Tests sind vorher und nachher grün.
+- Bei Aufgaben mit mehreren Schritten einen kurzen Plan nennen, je Schritt mit der Prüfung, die zeigt, dass er erledigt ist.
+
+Die Regeln wirken, wenn Änderungen kleiner werden, seltener wegen Überladung neu geschrieben werden muss und Rückfragen vor dem Bauen kommen statt nach dem Fehler.
+
 ## Daten und Geheimnisse
 
 - **Nie echte Vereinsdaten ins Repository**: keine Mitgliedernamen, keine CSV-Exporte, keine Datenbanken. Das Repository ist öffentlich. Demo- und Testdaten sind erfunden (`werkzeuge/demo/demo.sql`, `werkzeuge/tests/fixtures/names.json`).
