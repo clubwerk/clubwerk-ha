@@ -1,35 +1,35 @@
 {
  "verkauf": {
-  "version": "3.26.1",
-  "hash": "aea600d4c11670dbaa7ccd6d6b0879ea8d9c5568"
+  "version": "3.27.0",
+  "hash": "074495f1abcdd6b5bf08cfd108628137b195b3a4"
  },
  "arbeitseinsatz": {
-  "version": "2.1.0",
-  "hash": "546d3651496ddcd841aaa5c71ad75f0e8a1c242a"
+  "version": "2.1.1",
+  "hash": "b46c151c0fd7bee06e0144ef5b38771a9f5bac16"
  },
  "beregnung": {
   "version": "1.3.5",
   "hash": "c3213fea5b3340d2b456c1c693dd4ccf2d5d0501"
  },
  "buchhaltung": {
-  "version": "1.1.0",
-  "hash": "4f969958afbab8310a58e8f7a5f821c7f9462140"
+  "version": "1.1.1",
+  "hash": "9705e739468d5399be7bcb5caa16e6a1278693eb"
  },
  "buchung": {
-  "version": "1.7.0",
-  "hash": "301dbab74795babf7bd4aa7bab1f4a87bd8bc262"
+  "version": "1.7.1",
+  "hash": "114603cc90e780101da504b6b9ddbf4bb100d940"
  },
  "mitglieder": {
-  "version": "1.10.0",
-  "hash": "230158c01b41c54b41f9d325b060d03bae10bb57"
+  "version": "1.10.1",
+  "hash": "8a8bb995752e2cb3adbed4105924c67cce3d21c8"
  },
  "spielbetrieb": {
-  "version": "1.5.0",
-  "hash": "68bac24e6e0876162f5c5934f2237f0da215ced9"
+  "version": "1.5.1",
+  "hash": "5d689e8d925343bb55b01c1f121f093fdf554327"
  },
  "zeiterfassung": {
-  "version": "1.0.8",
-  "hash": "c12681e5b32bbacfe6666f235bbaf426ac5d18af"
+  "version": "1.0.9",
+  "hash": "ec571495b24ea919af004a46933b640124514fd6"
  },
  "zugang": {
   "version": "1.2.4",
