@@ -771,7 +771,7 @@ function activate(ctx) {
     const reopened = [];
     for (const mf of ctx.db.prepare('SELECT mf.*, f.interval, f.name FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND mf.end_date = ?').all(id, p.exit_date)) {
       if (mf.interval === 'einmalig') continue;
-      const z = fees.addDays(store.periodStart(today(), mf.interval), -1);
+      const z = fees.addDays(again ? today() : store.periodStart(today(), mf.interval), -1);   // Wiedereintritt: ab heute wie ein neues Mitglied (anteilig)
       ctx.db.prepare('UPDATE mv_member_fee SET end_date = NULL, booked_until = ? WHERE id = ?').run(!mf.booked_until || z > mf.booked_until ? z : mf.booked_until, mf.id); reopened.push(mf.name);
     }
     for (const md of ctx.db.prepare('SELECT md.*, d.name FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? AND md.exit_date = ?').all(id, p.exit_date)) {

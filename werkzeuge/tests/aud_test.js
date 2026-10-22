@@ -115,7 +115,7 @@ const TODAY = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toIS
   await A(X(`member/${bk}/exit`), 'POST', { exit_date: `${y - 3}-12-31` });
   [s, j] = await A(X(`member/${bk}/reenter`), 'POST', {}); ok('8 Rückkehr', s === 200, j.error);
   [s, j] = await A(X('member/' + bk)); ok('8 Beitrag und Abteilung wieder offen', !j.fees[0].end_date && !j.departments[0].exit_date, JSON.stringify([j.fees[0], j.departments[0]]));
-  j = await prev(); zp = j.positions.filter(p => p.for_member_id === bk); ok('8 Nur laufendes Jahr', zp.length === 2 && zp.every(p => p.period_from === `${y}-01-01`), JSON.stringify(zp.map(p => p.text)));
+  j = await prev(); zp = j.positions.filter(p => p.for_member_id === bk); ok('8 Ab Wiedereintritt wie ein neues Mitglied (Beitrag und Abteilung gleich)', zp.length === 2 && zp.every(p => p.period_from.slice(0, 7) === new Date().toISOString().slice(0, 7)), JSON.stringify(zp.map(p => [p.period_from, p.text])));
   // 15) alles abgewählt
   j = await prev(); [s, j] = await A(X('runs'), 'POST', { until: TODAY, skip: j.positions.map(p => p.key) });
   ok('15 Meldung bei allem abgewählt', s === 400 && /abgewählt/.test(j.error) || s === 200, j.error);

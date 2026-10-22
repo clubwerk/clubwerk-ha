@@ -15,7 +15,7 @@
 - **Anmeldung in der Verwaltung:** 1,6 s → 1,1 s.
 
 **Wiedereintritt und Mitgliedsnummern**
-- **Wiedereintritt:** Ist der Austritt schon wirksam, heißt der Knopf beim Mitglied jetzt „Wiedereintritt …“. Das Mitglied bekommt dann eine neue Mitgliedsnummer und als Eintritt das heutige Datum. Hatte es ein SEPA-Mandat, wird eine neue Mandatsreferenz angelegt, und für Lastschriften muss ein neues Mandat unterschrieben werden. Alte Nummer und altes Mandat stehen im Änderungsverlauf. Alles Bisherige wie Buchungen, Stunden und Zahlungen bleibt beim Mitglied.
+- **Wiedereintritt:** Ist der Austritt schon wirksam, heißt der Knopf beim Mitglied jetzt „Wiedereintritt …“. Das Mitglied bekommt dann eine neue Mitgliedsnummer und als Eintritt das heutige Datum. Hatte es ein SEPA-Mandat, wird eine neue Mandatsreferenz angelegt, und für Lastschriften muss ein neues Mandat unterschrieben werden. Beitrag und Abteilungsbeiträge laufen ab dem Wiedereintritt wie bei einem neuen Mitglied, also je nach Einstellung anteilig fürs restliche Jahr. Alte Nummer und altes Mandat stehen im Änderungsverlauf. Alles Bisherige wie Buchungen, Stunden und Zahlungen bleibt beim Mitglied.
 - **Austritt zurücknehmen** (Austritt noch nicht wirksam, zum Beispiel zurückgezogene Kündigung): wie bisher, die Nummer bleibt.
 - **Vergebene Mitgliedsnummern kommen nie wieder:** auch nicht, wenn ein Mitglied gelöscht wird oder beim Wiedereintritt eine neue Nummer bekommt.
 
