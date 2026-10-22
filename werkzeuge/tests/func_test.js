@@ -4,7 +4,8 @@ const S = process.argv[2]; const APP = process.env.CW_APP;
 const JSZip = require(APP + '/node_modules/jszip');
 const DATA = S + '/r_func'; fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(DATA, { recursive: true });
 const B = 'http://127.0.0.1:3240/'; let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 300) : '')); if (!c) fails++; };
-let ck = ''; async function A(url, method = 'GET', body, raw) { const h = { 'X-Getraenke': '1', Cookie: ck }; if (body !== undefined) h['Content-Type'] = raw ? 'application/zip' : 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && sc.startsWith('gadmin=') && !sc.startsWith('gadmin=;')) ck = sc.split(';')[0]; const t = await r.text(); let j = {}; try { j = JSON.parse(t); } catch (e) { /* */ } return [r.status, j, r, t]; }
+const PW = 'Test-Kennwort-42';
+let ck = ''; async function A(url, method = 'GET', body, raw) { const h = { 'X-Getraenke': '1', Cookie: ck }; if (body !== undefined) h['Content-Type'] = raw ? 'application/zip' : 'application/json'; if (raw) h['X-Mein-Passwort'] = encodeURIComponent(raw === true ? PW : raw); const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && sc.startsWith('gadmin=') && !sc.startsWith('gadmin=;')) ck = sc.split(';')[0]; const t = await r.text(); let j = {}; try { j = JSON.parse(t); } catch (e) { /* */ } return [r.status, j, r, t]; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let srv;
 async function start() {
@@ -58,6 +59,7 @@ async function zipDir(dir, prefix = '') { const z = new JSZip(); const add = (d,
   // --- Rechte: Export für deaktiviertes Modul
   [s] = await A('api/admin/extensions/getraenke/export'); ok('Modul ohne Export → 404', s === 404);
   // --- ZIP hochladen
+  [s, j] = await A('api/admin/extensions/upload', 'POST', await zipDir(APP + '/vorlage-erweiterung/beispiel', 'beispiel/'), 'falsch'); ok('Einspielen nur mit dem eigenen Passwort', s === 401, JSON.stringify(j));
   [s, j] = await A('api/admin/extensions/upload', 'POST', await zipDir(APP + '/vorlage-erweiterung/beispiel', 'beispiel/'), true);
   ok('Beispiel hochgeladen', s === 200 && j.id === 'beispiel' && j.restart && !j.update, JSON.stringify(j));
   ok('liegt in DATA_DIR/erweiterungen', fs.existsSync(DATA + '/erweiterungen/beispiel/erweiterung.json'));

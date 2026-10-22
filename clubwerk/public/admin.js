@@ -2518,6 +2518,11 @@
     $('ok').onclick = () => busy($('ok'), async () => {
       const body = fixed ? {} : { role: document.querySelector('[name=uRole]:checked').value, roles: [...document.querySelectorAll('[data-role]:checked')].map(x => +x.dataset.role),
         departments: [...document.querySelectorAll('[data-dep]:checked')].map(x => +x.dataset.dep), perms: [...document.querySelectorAll('[data-perm]:checked')].map(x => x.dataset.perm) };
+      if (body.role === 'oberadmin' && !(u && u.role === 'oberadmin')) {   // „alle Rechte“ vergeben: mit dem eigenen Passwort bestätigen
+        const mine = await askText('Zur Bestätigung: dein eigenes Passwort', '', { ok: 'Bestätigen', password: true });
+        if (!mine) return;
+        body.myPassword = mine;
+      }
       try {
         if (u) await api('users/' + u.id, 'PUT', fixed ? {} : { ...body, name: $('uNm').value, member_id: $('uMem').value ? +$('uMem').value : null, active: $('uAct').checked });
         else {
@@ -2536,7 +2541,7 @@
     dialog(`<h2>${r ? 'Rolle bearbeiten' : 'Neue Rolle'}</h2>
       <div class="ugrid"><label class="f">Name<input id="rNm" value="${esc(r ? r.name : '')}" maxlength="40" placeholder="z. B. Jugendwart"></label>
         <label class="f">Beschreibung<input id="rDs" value="${esc(r ? r.description || '' : '')}" maxlength="300"></label></div>
-      <label class="chk ucard" style="margin-top:12px"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer.</span></span></label>
+      <label class="chk ucard" style="margin-top:12px"><input type="checkbox" id="rSc" ${r && r.dept_scope ? 'checked' : ''}> <span><b>Nur Mitglieder der eigenen Abteilungen</b><br><span class="muted s">Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer. Gilt nur für die Rechte „Mitglieder“ und „E-Mail an Mitglieder“ – andere Rechte bitte in einer eigenen Rolle vergeben.</span></span></label>
       <h3 class="usec">Rechte</h3>${permList(r ? r.perms : [], 'data-rp')}
       <div class="err" id="rErr" style="text-align:left"></div>
       <div class="btns">${r && !r.users ? '<button class="btn danger" id="rDel" style="margin-right:auto">Löschen</button>' : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="rOk">Speichern</button></div>`);
@@ -3041,8 +3046,9 @@
       } catch (err) { fail(err); }
     };
     $('main').querySelectorAll('[data-restore]').forEach(btn => btn.onclick = async () => {
-      if (!await ask(`„${btn.dataset.restore}“ wiederherstellen?\n\nNur die Datenbank wird ersetzt (Belege und Bilder bleiben). Alle Buchungen seit dieser Sicherung gehen dabei verloren. Der aktuelle Stand wird vorher automatisch gesichert. Die Wiederherstellung passiert beim Neustart.`)) return;
-      try { await api('backups/restore', 'POST', { file: btn.dataset.restore }); RENDER.sicherung(); } catch (e) { fail(e); }
+      const pw = await askText(`„${btn.dataset.restore}“ wiederherstellen?\n\nNur die Datenbank wird ersetzt (Belege und Bilder bleiben). Alle Buchungen seit dieser Sicherung gehen dabei verloren. Der aktuelle Stand wird vorher automatisch gesichert. Die Wiederherstellung passiert beim Neustart.\n\nBitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Wiederherstellen' });
+      if (pw === null || pw === '') return;
+      try { await api('backups/restore', 'POST', { file: btn.dataset.restore, myPassword: pw }); RENDER.sicherung(); } catch (e) { fail(e); }
     });
   };
   async function restartApp() {
@@ -3533,8 +3539,10 @@
       if ($('extZip')) $('extZip').onchange = async () => {
         const f = $('extZip').files[0]; $('extZip').value = ''; if (!f) return;
         if (f.size > 25 * 1024 * 1024) return fail(new Error('Die Datei ist zu groß (max. 25 MB).'));
+        const pw = await askText(`„${f.name}“ einspielen?\n\nErweiterungen laufen als Programm in Clubwerk. Bitte nur Dateien aus sicherer Quelle einspielen und mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Einspielen' });
+        if (pw === null || pw === '') return;
         try {
-          const r = await fetch('api/admin/extensions/upload', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'application/zip' }, body: f });
+          const r = await fetch('api/admin/extensions/upload', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'application/zip', 'X-Mein-Passwort': encodeURIComponent(pw) }, body: f });
           const d = await r.json().catch(() => ({}));
           if (!r.ok) throw new Error(d.error || 'Hochladen fehlgeschlagen.');
           toast(`${d.name} ${d.version} ${d.update ? 'aktualisiert' : 'eingespielt'} – wirksam nach dem Neustart.`);

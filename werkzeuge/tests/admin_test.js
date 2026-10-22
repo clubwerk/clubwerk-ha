@@ -8,7 +8,8 @@ const jar={}; async function A(who,url,method='GET',body){const h={'X-Getraenke'
   [s,j]=await A('a',`api/admin/users/${adm.id}`,'PUT',{role:'admin'}); ok('Rolle fest', s===400, j.error);
   [s,j]=await A('a',`api/admin/users/${adm.id}`,'PUT',{active:false}); ok('nicht sperrbar', s===400, j.error);
   [s,j]=await A('a',`api/admin/users/${adm.id}`,'DELETE'); ok('nicht löschbar', s===400, j.error);
-  [s,j]=await A('a','api/admin/users','POST',{username:'thorsten',name:'Thorsten',password:'thorsten123',role:'oberadmin'}); const tid=j.id; ok('Benutzer mit allen Rechten', s===200);
+  [s,j]=await A('a','api/admin/users','POST',{username:'thorsten',name:'Thorsten',password:'thorsten123',role:'oberadmin'}); ok('Alle Rechte vergeben nur mit eigenem Passwort', s===401);
+  [s,j]=await A('a','api/admin/users','POST',{username:'thorsten',name:'Thorsten',password:'thorsten123',role:'oberadmin',myPassword:'Test-Kennwort-42'}); const tid=j.id; ok('Benutzer mit allen Rechten', s===200);
   [s]=await A('t','api/admin/login','POST',{username:'thorsten',password:'thorsten123'});
   [s,j]=await A('t','api/admin/users'); ok('…sieht Benutzerverwaltung', s===200 && j.length===2);
   [s,j]=await A('t','api/admin/users','POST',{username:'kasse',name:'Kasse',password:'kasse12345',role:'admin',perms:['abrechnung']}); const kid=j.id; ok('…legt Benutzer an', s===200);

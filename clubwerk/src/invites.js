@@ -63,12 +63,20 @@ function deviceLabel(ua) {
 /* issuerPerms: Rechte des Admins, der die Einladung erzeugt hat ('*' = alle). Wird einem Mitglied später ein Bereich mit
    eigenem Recht (z. B. Türen) freigeschaltet, den dieser Admin nicht verwalten durfte, wird das Handy entkoppelt – sonst
    könnte jemand mit wenig Rechten vorab sein eigenes Handy koppeln und später Türzugang „erben“. */
+/** Push-Abos entkoppelter oder gesperrter Handys entfernen – sonst bekäme ein verlorenes Handy weiter Nachrichten des Mitglieds */
+function dropPush(deviceIds) {
+  if (!deviceIds.length) return;
+  try { const push = require('./push'); for (const id of deviceIds) push.removeDevice(id); } catch (e) { /* Push nicht verfügbar */ }
+}
+const deviceIdsOf = (scope, memberId) => db.prepare('SELECT id FROM member_devices WHERE scope = ? AND member_id = ?').all(scope, memberId).map(r => r.id);
+
 function create(scope, memberId, by, issuerPerms, { kind = 'qr' } = {}) {
   scopeOk(scope);
   const hours = kind === 'qr' ? inviteHours() : mailDays() * 24;
   const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(memberId);
   if (!m) throw new Error('Mitglied nicht gefunden.');
   const token = crypto.randomBytes(18).toString('base64url');
+  dropPush(deviceIdsOf(scope, m.id));
   db.transaction(() => {
     db.prepare('DELETE FROM member_devices WHERE scope = ? AND member_id = ?').run(scope, m.id);
     db.prepare('INSERT INTO member_devices(scope, member_id, invite_hash, invite_expires, created_by, issuer_perms, invite_kind) VALUES (?,?,?,?,?,?,?)')
@@ -157,9 +165,16 @@ function otpCheck(scope, inviteToken, code) {
 function setMemberPin(memberId, hash, by) {
   db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ? AND kind = 'mitglied'`).run(hash, by, memberId);
 }
-/** neue Verkaufs-PIN auch in der App (gekoppeltes Handy) setzen */
-function pinToApp(memberId, hash) {
-  return db.prepare("UPDATE member_devices SET pin_hash = ?, pin_synced = 1, failed = 0, locked_until = NULL WHERE scope = 'app' AND member_id = ? AND token_hash IS NOT NULL").run(hash, memberId).changes > 0;
+/** neue Verkaufs-PIN auch in der App (gekoppeltes Handy) setzen – nur auf Geräten, deren PIN die bisherige war.
+ *  Wer die alte App-PIN nicht kennt (z. B. erste PIN am Tablet nach „PIN zurücksetzen“), ändert die App-PIN nicht –
+ *  sonst könnte jeder am Tablet die PIN eines Mitglieds mit App festlegen und damit dessen Türen öffnen. */
+function pinToApp(memberId, hash, oldPin) {
+  if (!oldPin) return false;
+  const upd = db.prepare('UPDATE member_devices SET pin_hash = ?, pin_synced = 1, failed = 0, locked_until = NULL WHERE id = ?');
+  let n = 0;
+  for (const d of db.prepare("SELECT id, pin_hash FROM member_devices WHERE scope = 'app' AND member_id = ? AND token_hash IS NOT NULL").all(memberId))
+    if (d.pin_hash && auth.verifySecret(String(oldPin), d.pin_hash)) n += upd.run(hash, d.id).changes;
+  return n > 0;
 }
 /** einmalig beim Start: App-PIN vorhanden, im Verkauf keine → übernehmen */
 function syncPinsOnce() {
@@ -271,6 +286,7 @@ function check(scope, deviceToken, pin, row, opts = {}) {
     const n = d.failed + 1, total = (d.failed_total || 0) + 1;
     if (total >= BLOCK_AFTER) {
       db.prepare('UPDATE member_devices SET token_hash = NULL, token2_hash = NULL, handover_hash = NULL, failed = 0, failed_total = ?, locked_until = NULL, blocked_at = ? WHERE id = ?').run(total, now(), d.id);
+      dropPush([d.id]);
       blockedAlert(scope, w.name, d.device, total);
       return { error: `PIN ${total}-mal falsch – dieses Handy ist jetzt gesperrt. Bitte beim Vorstand einen neuen QR-Code holen.`, status: 403, device: true };
     }
@@ -307,6 +323,7 @@ function issuerCovers(scope, memberId, perm) {
 }
 function revoke(scope, memberId) {
   scopeOk(scope);
+  dropPush(deviceIdsOf(scope, memberId));
   return db.prepare('DELETE FROM member_devices WHERE scope = ? AND member_id = ?').run(scope, memberId).changes > 0;
 }
 

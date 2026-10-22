@@ -1,5 +1,27 @@
 # Änderungen
 
+## 3.31.0
+
+**Sicherheitsprüfung:** Clubwerk wurde gründlich auf Sicherheitslücken durchgesehen – Anmeldung, Rechte, Tablet, Mitglieder-App, Tresor, Sicherungen und alle Module. Eine Lücke, über die jemand aus dem Internet hineinkommt, gab es nicht. Behoben ist alles, was gefunden wurde:
+
+- **PIN am Tablet (wichtig):** Hatte der Vorstand die PIN eines Mitglieds zurückgesetzt, konnte jemand am Tablet eine neue PIN festlegen – und die galt dann auch in der Mitglieder-App des Mitglieds, z. B. zum Öffnen der Türen. Jetzt ändert eine am Tablet neu festgelegte PIN die App-PIN nicht mehr. Dort gilt die PIN erst nach einer Änderung mit der bisherigen PIN oder nach dem nächsten Koppeln.
+- **Mitglieder-App einrichten:** Einen QR-Code oder eine Einladung für ein Mitglied erzeugt nur noch, wer das Mitglied verwalten darf (Recht „Mitglieder“ bzw. „Mitglieder anlegen“; Abteilungsleitungen nur für die eigene Abteilung). Ein Recht wie „Beregnung“ allein reicht nicht mehr, um ein Handy als Mitglied zu koppeln.
+- **Buchungssystem:** Wer Belegungen nur ansehen darf, konnte über „nur dieser Termin“ trotzdem Buchungen verlegen. Ändern braucht jetzt überall das Recht „für Mitglieder buchen“.
+- **Rollen „nur eigene Abteilung(en)“:** Gelten nur für „Mitglieder“ und „E-Mail an Mitglieder“. Andere Rechte (z. B. Bankdaten, Helferstunden) hätten in so einer Rolle für alle Mitglieder gegolten – sie lassen sich dort nicht mehr ankreuzen und wirken in bestehenden Rollen nicht mehr. Bitte solche Rechte in einer eigenen Rolle vergeben. PIN zurücksetzen dürfen Abteilungsleitungen nur noch in der eigenen Abteilung.
+- **Modul-Sicherungen und Tresor:** Mit eingeschaltetem Tresor standen Adressen und Bankdaten in der Modul-Sicherung (vor dem Deinstallieren) unverschlüsselt. Jetzt bleiben sie darin verschlüsselt. War der Tresor beim Sichern gesperrt, gingen die Daten verloren – auch das ist behoben.
+- **Anmeldung in der Verwaltung:** Die Sperre nach vielen falschen Passwörtern ließ sich mit sehr vielen Schein-Anmeldungen aufheben – jetzt nicht mehr. Und: Geräte, an denen man sich schon einmal angemeldet hat, sperrt die Pause nach 20 Fehlversuchen nicht mehr aus. So kann ein Fremder im WLAN den Admin nicht mehr mit falschen Passwörtern aussperren.
+- **Mit dem eigenen Passwort bestätigen:** Erweiterung hochladen, eine Datenbank-Sicherung wiederherstellen und einem Benutzer „alle Rechte“ geben.
+- **Sicherungsziele:** Der Verbindungstest verwendet das gespeicherte Passwort nur noch für denselben Server. FTPS (z. B. FRITZ!Box) prüft das Zertifikat jetzt auch beim Übertragen der Dateien.
+- **Lesbare Auszüge** (Excel mit Namen, Beträgen, Türprotokoll) gehen nicht mehr von selbst mit ins Sicherungsziel, weil sie unverschlüsselt sind. Wer sie möchte, schaltet sie unter Einstellungen → Sicherung wieder ein.
+- **Kleinere Punkte:**
+  - Im PDF eines Mitgliedsantrags ist die IBAN ohne Recht „Bankdaten“ abgekürzt.
+  - Verlorene oder gesperrte Handys bekommen nach einem neuen QR-Code keine Push-Nachrichten mehr.
+  - Die Beregnungs-Webapp ist auch dann nicht von außen erreichbar, wenn ein Tunnel versehentlich auf sie zeigt.
+  - Über ein Proxy-Add-on (z. B. NGINX) sind Verwaltung und Tablet aus dem Internet nicht mehr erreichbar.
+  - „Türen nur im Vereins-WLAN“ gilt bei jedem Tunnel-Aufbau.
+  - Online-Mitgliedsanträge sind je Anschluss begrenzt, damit niemand die Tagesgrenze für alle aufbraucht.
+  - Zeiterfassung: Falsche PINs sperren eine Person nur noch kurz (höchstens eine Stunde); gegen Durchprobieren zählt zusätzlich das Gerät.
+
 ## 3.30.6
 
 - **Neutral für jeden Verein:** Beispiele in Änderungsprotokoll, Anleitung und Programmkommentaren nennen keinen echten Verein und keine echte Adresse mehr („TC Musterstadt“, „app.dein-verein.de“, Gerätename „homeassistant“, Kürzel „TCM“). Gefunden hat das die neue Geheimnis-Prüfung, die vor jeder Version läuft.

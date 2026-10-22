@@ -1100,6 +1100,7 @@ function activate(ctx) {
   /* für andere Module (Arbeitseinsatz) */
   /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);
+  ctx.hooks.memberInScope = (id, depts) => inScope(Number(id), (depts || []).map(Number).filter(Number.isInteger));
   ctx.hooks.memberInfo = id => {
     const p = personRow(id); if (!p) return null;
     const fee = ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(id, today());

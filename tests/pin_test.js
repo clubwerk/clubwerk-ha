@@ -81,7 +81,17 @@ const stop = async () => { srv.kill(); await sleep(800); };
   [s, j] = await A(`api/admin/members/${carl}/reset-pin`, 'POST', {}); await stop(); await start(); await A('api/admin/login', 'POST', { username: 'admin', password: 'Test-Kennwort-42' });
   ok('Zurückgesetzt bleibt zurückgesetzt', !await tabletHasPin(carl));
   [s, j] = await T('api/tablet/unlock', { memberId: carl }); [s, j] = await T('api/tablet/pin', { token: j.token, newPin: '8642' });
-  [s, j] = await M('api/verify-pin', 'POST', { pin: '8642' }, devC); ok('Neue PIN am Tablet → gilt in der App', s === 200, JSON.stringify(j));
+  // Sicherheit: Nach „PIN zurücksetzen“ kann jeder am Tablet eine erste PIN festlegen – sie darf die App-PIN NICHT überschreiben
+  // (sonst öffnet ein Fremder mit „seiner“ PIN über die App-PIN Türen). Die App behält ihre PIN, bis das Mitglied neu koppelt.
+  [s, j] = await M('api/verify-pin', 'POST', { pin: '8642' }, devC); ok('Erste PIN am Tablet nach Zurücksetzen ändert die App-PIN nicht', s === 401, s + JSON.stringify(j));
+  [s, j] = await T('api/tablet/unlock', { memberId: carl, pin: '8642' }); ok('Carl am Tablet mit neuer PIN', s === 200, s + JSON.stringify(j));
+  [s, j] = await T('api/tablet/pin', { token: j.token, currentPin: '8642', newPin: '8643' }); ok('… und PIN am Tablet geändert', s === 200, s + JSON.stringify(j));
+  [s, j] = await M('api/verify-pin', 'POST', { pin: '8643' }, devC); ok('… auch eine zweite Änderung mit der Tablet-PIN ändert die App-PIN nicht', s === 401, s + JSON.stringify(j));
+  [s, j] = await M('api/verify-pin', 'POST', { pin: '4321' }, devC); ok('… die App gilt weiter mit ihrer bisherigen PIN', s === 200, s + JSON.stringify(j));
+  const pinNow = await tabletPin(carl, '4321') ? '4321' : '8643';   // Altbestand: die App-PIN wurde beim Öffnen in den Verkauf übernommen
+  [s, j] = await A(`api/admin/app/member/${carl}/invite`, 'POST', {}); [s, j] = await M('api/pair', 'POST', { t: j.token, pin: pinNow }); const devC2 = j.device; ok('Carl neu gekoppelt (mit der Tablet-PIN)', s === 200 && devC2, s + JSON.stringify(j));
+  [s, j] = await T('api/tablet/unlock', { memberId: carl, pin: pinNow }); [s, j] = await T('api/tablet/pin', { token: j.token, currentPin: pinNow, newPin: '8644' }); ok('PIN am Tablet mit der alten PIN geändert', s === 200, s + JSON.stringify(j));
+  [s, j] = await M('api/verify-pin', 'POST', { pin: '8644' }, devC2); ok('… die geänderte PIN gilt in der App', s === 200, s + JSON.stringify(j));
   // 7) lange App-PIN (8 Ziffern, Altbestand) am Tablet eingebbar
   console.log(fails ? `${fails} FEHLER` : 'ALLES OK');
   srv.kill(); process.exit(fails ? 1 : 0);

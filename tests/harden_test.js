@@ -39,11 +39,11 @@ const ok=(n,cond,extra='')=>console.log((cond?'✔':'✘')+' '+n+(extra?'  '+ext
  let [,bl]=await c('o','admin/backups'); ok('Liste', bl.list.length>=1);
  // seit 2.x: Komplettsicherung nur noch verschlüsselt (.cwbackup, siehe backup_test.js) – die alte unverschlüsselte .tar.gz gibt es nicht mehr
  const tr=await fetch(B+'admin/backup-komplett.tar.gz',{headers:{cookie:jar.o}}); ok('Alte unverschlüsselte Komplettsicherung .tar.gz gibt es nicht mehr', tr.status!==200, String(tr.status));
- [s]=await c('o','admin/backups/restore','POST',{file:'../../etc/passwd'}); ok('Pfad-Trick abgelehnt', s===400);
+ [s]=await c('o','admin/backups/restore','POST',{file:'../../etc/passwd',myPassword:'Test-Kennwort-42'}); ok('Pfad-Trick abgelehnt', s===400);
  [s]=await c('o','admin/backups/upload','POST',Buffer.from('kein sqlite'.repeat(20)),{'Content-Type':'application/octet-stream'}); ok('falsche Sicherungsdatei abgelehnt', s===400);
  // Zustand merken, dann Buchung nach der Sicherung, dann Wiederherstellung vormerken
  [,u]=await c('t','tablet/unlock','POST',{memberId:4}); await c('t','tablet/book','POST',{token:u.token,pay:'bar',items:[{articleId:art.id,qty:5}]});
- [s]=await c('o','admin/backups/restore','POST',{file:b1.file}); ok('Wiederherstellung vorgemerkt', s===200);
+ [s]=await c('o','admin/backups/restore','POST',{file:b1.file}); ok('Ohne Passwort keine Wiederherstellung', s===401); [s]=await c('o','admin/backups/restore','POST',{file:b1.file,myPassword:'Test-Kennwort-42'}); ok('Wiederherstellung vorgemerkt', s===200);
  let [,au]=await c('o','admin/audit'); ok('Protokoll führt Aktionen', au.length>10, au.slice(0,4).map(a=>a.action).join(' | '));
  [s]=await c('o','admin/restart','POST',{}); ok('Neustart ausgelöst', s===200);
 })();

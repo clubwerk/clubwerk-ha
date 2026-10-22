@@ -294,7 +294,7 @@ function memberRoutes(r, ctx) {
   // Bremse je Adresse zusätzlich zum Schreib-Limit je Gerät des Kerns: Türimpulse im Dauerfeuer und PIN-Prüfungen (scrypt) kosten
   r.post('/door', ctx.rateLimit('zmdoor', 12, 60000), async (req, res) => {
     const c = cfg();
-    if (c.wlanOnly && !isLocalIp(req.socket.remoteAddress)) return res.status(403).json({ error: 'Öffnen geht nur im Vereins-WLAN.' });
+    if (c.wlanOnly && (req.away || req.viaTunnel || !isLocalIp(req.socket.remoteAddress))) return res.status(403).json({ error: 'Öffnen geht nur im Vereins-WLAN.' });
     const door = pickDoor(c, req.body || {}, res); if (!door) return;
     if (!req.pinOk()) return;
     await operate(res, c, req.member, door, req.body.action);

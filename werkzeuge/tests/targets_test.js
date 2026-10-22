@@ -41,9 +41,14 @@ const MY = { myPassword: 'Test-Kennwort-42' };
   [s, j] = await A('a', 'api/admin/backups/targets', 'POST', { target: { type: 'ftp', mode: 'ftp', host: '127.0.0.1', port: 2122, user: 'verein' }, secret: 'ftppass123', ...MY }); ok('Reines FTP nur mit Bestätigung', s === 400 && j.needInsecure);
   let r; [s, j, r] = await A('a', 'api/admin/backups/targets'); const txt = JSON.stringify(j);
   ok('Liste ohne Zugangsdaten', s === 200 && j.targets.length === 3 && !/davpass|sftppass|ftppass/.test(txt) && j.targets.every(t => t.hasSecret), txt.slice(0, 200));
+  { const dav = j.targets.find(t => t.type === 'webdav');
+    [s, j] = await A('a', 'api/admin/backups/targets/test', 'POST', { id: dav.id, target: { ...dav, url: 'http://127.0.0.1:9/fremd' } });
+    ok('Test an eine geänderte Adresse schickt das gespeicherte Passwort nicht mit', s === 400 && /Passwort/.test(j.error), s + ' ' + j.error);
+    [s, j] = await A('a', 'api/admin/backups/targets/test', 'POST', { id: dav.id, target: { ...dav } }); ok('… am unveränderten Ziel gilt das gespeicherte Passwort', s === 200 && j.ok, s + JSON.stringify(j)); }
   // alte Dateien auf der FRITZ!Box (Aufbewahrung je Ziel)
   const fdir = S + '/srv/ftp/Vereinsheim/Komplett'; fs.mkdirSync(fdir, { recursive: true });
   for (let i = 1; i <= 10; i++) fs.writeFileSync(`${fdir}/2026-0${1 + (i % 8)}-1${i % 10}_Clubwerk.cwbackup`, 'alt');
+  await A('a', 'api/admin/backups/settings', 'PUT', { readable: true });
   [s, j] = await A('a', 'api/admin/backups/run', 'POST', {}); ok('Sicherung an alle drei Ziele', s === 200 && /Nextcloud ✓/.test(j.msg) && /NAS ✓/.test(j.msg) && /FRITZ!Box ✓/.test(j.msg), j.msg || j.error);
   const day = new Date().toLocaleDateString('sv-SE'); const fn = `${day}_Clubwerk.cwbackup`;
   const local = fs.readdirSync(DATA + '/backups/komplett').sort().reverse()[0]; const sz = fs.statSync(DATA + '/backups/komplett/' + local).size;

@@ -395,7 +395,7 @@ function application(club, a, feeList, s) {
   fields([['Gläubiger-Identifikationsnummer', club.ci || '–', 2], ['Mandatsreferenz', d.mandate_ref || 'wird gesondert mitgeteilt', 2]]);
   para(legal, 8.6, INK, 12);
   fields([['Kontoinhaber/in', d.holder, 2], ['Kreditinstitut', d.bank, 2]]);
-  fields([['IBAN', fmtIban(d.iban), 3], ['BIC', d.bic, 1]]);
+  fields([['IBAN', d.iban_shown || fmtIban(d.iban), 3], ['BIC', d.bic, 1]]);
   sigBlock(a.sig_mandate, place, `Unterschrift Kontoinhaber/in${d.holder ? ' – ' + d.holder : ''}`);
 
   // Nachweis der elektronischen Unterschrift

@@ -887,6 +887,12 @@ function activate(ctx) {
     const x = req.body || {}, scope = SCOPES.includes(x.scope) ? x.scope : 'one';
     if ((b0.series_id || b0.type !== 'buchung') && !may(req, 'buchung_serien')) return bad(res, 'Serien und Sperren ändern darf nur, wer das Recht „Serien & Sperren“ hat.', 403);
     if (b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_stornieren') && x.action === 'cancel') return bad(res, 'Dafür fehlt das Recht „Buchungen stornieren“.', 403);
+    // Ändern einer Einzelbuchung braucht dasselbe Recht wie PUT /bookings/:id (sonst reicht „Belegung ansehen“ zum Verlegen)
+    if (x.action !== 'cancel' && b0.type === 'buchung' && !b0.series_id && !may(req, 'buchung_buchen')) return bad(res, 'Für andere buchen und Buchungen ändern darf nur, wer das Recht „für Mitglieder buchen“ hat.', 403);
+    if (x.action !== 'cancel' && x.fields && x.fields.label_id != null && int(x.fields.label_id) !== b0.label_id) {
+      const label = labelRow(int(x.fields.label_id));
+      if (label && !labelForUser(req, label)) return bad(res, `Die Buchungsart „${label.name}“ dürfen nur bestimmte Personen verwenden.`, 403);
+    }
     try {
       if (x.action === 'cancel') {
         const n = await scopeCancel(b0, scope, uname(req), txt(x.reason, 160));

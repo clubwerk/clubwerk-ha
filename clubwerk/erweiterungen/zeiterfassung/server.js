@@ -257,7 +257,10 @@ function activate(ctx) {
   // Wer schon mit der Zeiterfassung gearbeitet hat (vor den Erweiterungen fest eingebaut), bekommt sie automatisch aktiv
   if (getSetting('ext_zeiterfassung_active') === null && db.prepare('SELECT 1 FROM staff LIMIT 1').get()) setSetting('ext_zeiterfassung_active', '1');
   ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM staff WHERE active = 1 LIMIT 1').get());
-  const zlim = ctx.require('./security').limiter();   // Fehlversuche je Person
+  // Fehlversuche je Person: kurze Pause (höchstens 1 Std.) – sonst könnte jeder am Tablet eine Kraft tagelang am Einstempeln hindern.
+  // Gegen Durchprobieren zählt zusätzlich je Gerät, mit wachsender Sperre bis 24 Std.
+  const zlim = ctx.require('./security').limiter({ maxMs: 3600000 });
+  const zdev = ctx.require('./security').limiter({ per: 10, baseMs: 15 * 60000 });
   /* Funktionsexport/-import: Personal (Name, Tätigkeit, aktueller Stundensatz) und Versand – ohne PINs, Zeiten und Passwort */
   ctx.hooks.exportConfig = () => {
     return { mailTo: mailTo(),
@@ -305,9 +308,12 @@ function activate(ctx) {
     const s = db.prepare('SELECT * FROM staff WHERE id = ? AND active = 1').get(int(staffId));
     if (!s) return bad(res, 'Unbekannte Person.', 404);
     // wachsende Sperre je Person (5 Min., 10, 20 … 24 Std.) – Erraten einer PIN dauert so praktisch ewig
-    const w = zlim.blocked(s.id);
+    const dev = String(req.ip || '');
+    const w = Math.max(zlim.blocked(s.id), zdev.blocked(dev));
     if (w) return bad(res, `Zu viele falsche PINs – bitte ${w} Min. warten.`, 429);
     if (!auth.verifySecret(String(pin || ''), s.pin_hash)) {
+      const d = zdev.fail(dev);
+      if (d.locked) { audit(null, 'Zeiterfassung: Gerät gesperrt (falsche PINs)', `${dev} · ${d.minutes} Min.`); ctxRef.require('./security').securityAlert(`Bei der Zeiterfassung wurden an einem Gerät (${dev}) viele falsche PINs eingegeben. Das Gerät ist jetzt ${d.minutes} Minuten gesperrt.`, 'zeit-dev'); }
       const r = zlim.fail(s.id);
       if (r.locked) {
         audit(null, 'Zeiterfassung: PIN gesperrt', `${s.name} · ${r.minutes} Min.`);

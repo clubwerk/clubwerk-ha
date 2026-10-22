@@ -17,6 +17,10 @@ const crypto = require('crypto');
 const SECRET_KEY_RE = /(hash|_key|pass|pw|token|secret)/i;
 // Spalten mit Geheimnissen (PIN-Hashes, Geräteschlüssel …) kommen nie in eine Modul-Sicherung
 const SECRET_COL_RE = /(hash|token|secret|passw|^pin$|_pin$|api_key)/i;
+/* Tresor: Sicherungen lesen und schreiben immer die echte Tabelle (main) – mit den verschlüsselten Werten.
+   Ohne „main.“ träfe man die entschlüsselte Kopie im Arbeitsspeicher (Klartext in der ZIP-Datei) bzw. im gesperrten Zustand nur Platzhalter. */
+const vault = () => require('./vault');
+const encCols = t => new Set(((vault().SPEC.find(x => x.t === t) || {}).c) || []);
 const stripSecrets = rows => rows.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !SECRET_COL_RE.test(k))));
 /* Jede Sicherung wird mit einem Schlüssel unterschrieben, den nur dieses System kennt. Eingespielt werden nur
    unveränderte Sicherungen dieses Systems – eine selbst gebaute oder bearbeitete Datei wird abgelehnt. */
@@ -81,7 +85,8 @@ async function backup(p, user) {
   const data = {
     format: 'clubwerk-modul', module: p.meta.id, name: p.meta.name, version: p.meta.version, created: new Date().toISOString(),
     club: getSetting('club_name', ''), by: user ? user.username : '',
-    tables: Object.fromEntries(sp.tables.map(t => [t, stripSecrets(db.prepare(`SELECT * FROM ${q(t)}`).all())])),
+    tables: Object.fromEntries(sp.tables.map(t => [t, stripSecrets(db.prepare(`SELECT * FROM main.${q(t)}`).all())])),
+    vault: vault().on(),
     settings: Object.fromEntries(settingKeys(sp).map(k => [k, getSetting(k)])),
     memberAccess: hasAccessTable() ? db.prepare('SELECT * FROM member_access WHERE module = ?').all(p.meta.id) : [],
   };
@@ -123,11 +128,11 @@ function wipe(p) {
   const sp = spec(p);
   db.pragma('foreign_keys = OFF');
   try {
-    db.transaction(() => {
-      for (const t of sp.tables) db.prepare(`DELETE FROM ${q(t)}`).run();
+    vault().suspend(() => db.transaction(() => {
+      for (const t of sp.tables) db.prepare(`DELETE FROM main.${q(t)}`).run();
       for (const k of settingKeysAll(sp)) db.prepare('DELETE FROM settings WHERE key = ?').run(k);   // beim Löschen auch PINs/Schlüssel
       if (hasAccessTable()) db.prepare('DELETE FROM member_access WHERE module = ?').run(p.meta.id);
-    })();
+    })());
   } finally { db.pragma('foreign_keys = ON'); }
   if (sp.files && fs.existsSync(sp.files)) {
     for (const d of fs.readdirSync(sp.files, { withFileTypes: true })) fs.rmSync(path.join(sp.files, d.name), { recursive: true, force: true });
@@ -157,13 +162,17 @@ async function restore(p, src) {
   const sp = spec(p);
   const have = new Set(allTables());
   const tables = Object.keys(data.tables || {}).filter(t => sp.tables.includes(t) && have.has(t));   // nie fremde Tabellen (z. B. Benutzer) überschreiben
+  const V = vault();
+  const encIn = tables.some(t => { const ec = encCols(t); return ec.size && (data.tables[t] || []).some(r => [...ec].some(c => V.isEnc(r[c]))); });
+  if (encIn && !V.on()) throw new Error('Diese Sicherung wurde bei eingeschaltetem Tresor erstellt und enthält verschlüsselte Daten. Bitte zuerst den Tresor wieder einschalten.');
   let n = 0;
   db.pragma('foreign_keys = OFF');
   try {
-    db.transaction(() => {
-      for (const t of sp.tables) db.prepare(`DELETE FROM ${q(t)}`).run();
+    V.suspend(() => db.transaction(() => {
+      for (const t of sp.tables) db.prepare(`DELETE FROM main.${q(t)}`).run();
       for (const t of tables) {
-        const info = db.prepare(`PRAGMA table_info(${q(t)})`).all();
+        const info = db.prepare(`PRAGMA main.table_info(${q(t)})`).all();
+        const ec = V.on() ? encCols(t) : new Set();
         const cols = new Set(info.map(c => c.name));
         // Pflicht-Geheimnisspalten (z. B. PIN) bekommen einen unbrauchbaren Platzhalter → PIN muss neu vergeben werden
         const mustSecret = info.filter(c => SECRET_COL_RE.test(c.name) && c.notnull && c.dflt_value === null).map(c => c.name);
@@ -171,9 +180,10 @@ async function restore(p, src) {
           const row = { ...row0 };
           for (const k of Object.keys(row)) if (SECRET_COL_RE.test(k)) delete row[k];   // nie Geheimnisse aus einer Datei übernehmen
           for (const c of mustSecret) row[c] = 'neu-vergeben';
+          for (const c of ec) if (row[c] != null && !V.isEnc(row[c])) row[c] = V.encValue(row[c]);   // ältere Sicherung im Klartext → verschlüsselt ablegen
           const keys = Object.keys(row).filter(k => cols.has(k));
           if (!keys.length) continue;
-          db.prepare(`INSERT OR REPLACE INTO ${q(t)} (${keys.map(q).join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map(k => row[k]));
+          db.prepare(`INSERT OR REPLACE INTO main.${q(t)} (${keys.map(q).join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map(k => row[k]));
           n++;
         }
       }
@@ -187,7 +197,7 @@ async function restore(p, src) {
           db.prepare(`INSERT OR REPLACE INTO member_access (${keys.map(q).join(',')}) VALUES (${keys.map(() => '?').join(',')})`).run(...keys.map(k => row[k]));
         }
       }
-    })();
+    })());
   } finally { db.pragma('foreign_keys = ON'); }
   let files = 0;
   if (sp.files) {

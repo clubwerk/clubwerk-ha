@@ -2,6 +2,8 @@ const B='http://127.0.0.1:3236/'; let fails=0; const ok=(n,c,x='')=>{console.log
 let ck=''; async function A(url,method='GET',body){const h={'X-Getraenke':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; const ct=r.headers.get('content-type')||''; return [r.status, ct.includes('json')?await r.json():Buffer.from(await r.arrayBuffer())];}
 async function T(url,body){const r=await fetch(B+url,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return [r.status, await r.json().catch(()=>({}))];}
 const ExcelJS=require(process.env.CW_APP + '/node_modules/exceljs');
+// db.js nur für die Sortierfunktion laden – mit eigenem Datenordner, sonst legt es eine Datenbank im Paketordner clubwerk/data an
+process.env.DATA_DIR = require('path').join(process.argv[2] || require('os').tmpdir(), 'v114_sortierung');
 (async()=>{
   let s,j; await A('api/admin/setup','POST',{clubName:'SV Test',password:'Test-Kennwort-42'});
   for (const n of ['Zora Abel','Jonas von der Heide','Anna Becker','Örni Ösch','Karl Müller','Lena Ziegler']) await A('api/admin/members','POST',{name:n,kind:'mitglied'});

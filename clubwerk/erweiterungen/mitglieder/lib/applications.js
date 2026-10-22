@@ -271,6 +271,7 @@ function register(sh) {
     if (a.document_id) return res.redirect(303, `../../documents/${a.document_id}`);
     // noch nicht unterschrieben: Vorschau ohne Unterschriften (z. B. zum Ausdrucken für die Unterschrift auf Papier)
     const data = JSON.parse(a.data);
+    if (!req.user.perms.includes('mitglieder_bank') && data.iban) { const i = sepa.normIban(data.iban); data.iban_shown = `${i.slice(0, 4)} •••• •••• ${i.slice(-4)}`; data.iban = ''; data.bic = ''; }   // volle IBAN nur mit Recht „Bankdaten“
     const buf = await pdf.application(club(), { data }, formFees(), pdfSettings(data));
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': 'inline; filename="Beitrittserklaerung.pdf"' }).send(buf);
   }));
@@ -345,6 +346,9 @@ function register(sh) {
     if (S('app_online', '0') !== '1') return res.status(404).json({ error: 'Der Online-Antrag ist ausgeschaltet.' });
     res.json({ ...formConfig(), t: formTicket() });
   });
+  // Tagesgrenze je Adressbereich (IPv4 /24, IPv6 /64): sonst füllt ein Absender mit wechselnden Adressen die Grenze für alle
+  const netBudget = C.require('./security').budget({ max: 4, windowMs: 24 * 3600000 });
+  const netKey = ip => { const a = String(ip || '').replace(/^::ffff:/, ''); return a.includes(':') ? a.split(':').slice(0, 4).join(':') : a.split('.').slice(0, 3).join('.'); };
   Pub.post('/antrag', rateLimit('mvonline', 5, 60 * 60000), ar(async (req, res) => {
     if (S('app_online', '0') !== '1') return bad(res, 'Der Online-Antrag ist ausgeschaltet.', 404);
     const b = req.body || {};
@@ -353,6 +357,7 @@ function register(sh) {
     const r = validate(b.data); if (r.error) return bad(res, r.error);
     if (!sigOk(b.sig_member) || !sigOk(b.sig_mandate)) return bad(res, 'Bitte beide Unterschriften leisten.');
     ticketUse(b.t);
+    if (!netBudget.take(netKey(req.ip))) return bad(res, 'Von diesem Anschluss sind heute schon mehrere Anträge eingegangen – bitte morgen noch einmal versuchen oder den Vorstand ansprechen.', 429);
     if (db.prepare("SELECT COUNT(*) n FROM mv_application WHERE source = 'online' AND created_at > datetime('now','localtime','-1 day')").get().n > 40) return bad(res, 'Heute sind ungewöhnlich viele Anträge eingegangen – bitte morgen noch einmal versuchen.', 429);
     const id = Number(db.prepare("INSERT INTO mv_application(source, status, data) VALUES ('online', 'neu', ?)").run(JSON.stringify(r.v)).lastInsertRowid);
     await finalize(id, 'online', b.sig_member, b.sig_mandate);

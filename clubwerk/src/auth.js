@@ -1,6 +1,6 @@
 'use strict';
 const crypto = require('crypto');
-const { db } = require('./db');
+const { db, getSetting, setSetting } = require('./db');
 
 function hashSecret(secret) {
   const salt = crypto.randomBytes(16).toString('hex');
@@ -18,6 +18,9 @@ function verifySecret(secret, stored) {
 }
 
 /* ---------- Rechte ---------- */
+/** Rechte, die Module auf die eigenen Abteilungen einschränken (nur diese wirken in Rollen „nur eigene Abteilung(en)“) */
+const DEPT_PERMS = ['mitglieder', 'email'];
+
 const PERMS = {
   lieferungen: 'Lieferungen & Belege hochladen',
   bestand: 'Bestand, Inventur & Abgleich',
@@ -53,8 +56,19 @@ function permInfo(u) {
   if (u.role === 'oberadmin') return { perms: [...Object.keys(PERMS).filter(p => permFilter(p)), 'benutzer', 'einstellungen'], deptOnly: [] };
   const ok = p => PERMS[p] && permFilter(p);
   const full = new Set(parse(u.perms).filter(ok)), scoped = new Set();
-  for (const r of rolesOf(u)) for (const p of r.perms.filter(ok)) (r.dept_scope ? scoped : full).add(p);
+  // Rollen „nur eigene Abteilung(en)“ geben nur Rechte, die ein Modul wirklich auf Abteilungen einschränkt – andere würden sonst für alle gelten
+  for (const r of rolesOf(u)) for (const p of r.perms.filter(ok)) if (!r.dept_scope) full.add(p); else if (DEPT_PERMS.includes(p)) scoped.add(p);
   return { perms: [...new Set([...full, ...scoped])], deptOnly: [...scoped].filter(p => !full.has(p)) };
+}
+
+/** Darf dieser Benutzer das Mitglied verwalten? Volle Rechte „Mitglieder“/„Mitglieder anlegen“ → ja;
+ *  „Mitglieder“ nur für eigene Abteilung(en) → nur Mitglieder dieser Abteilungen (fragt die Mitgliederverwaltung). */
+function memberAllowed(user, memberId) {
+  if (!user) return false;
+  const dept = user.deptOnly || [];
+  if (user.perms.includes('konten') || (user.perms.includes('mitglieder') && !dept.includes('mitglieder'))) return true;
+  if (!dept.includes('mitglieder') || !(user.depts || []).length) return false;
+  try { return require('./plugins').withHook('memberInScope').some(p => p.hooks.memberInScope(memberId, user.depts)); } catch (e) { return false; }
 }
 
 const DUMMY_HASH = hashSecret(crypto.randomBytes(8).toString('hex'));
@@ -92,27 +106,47 @@ const userFails = new Map();
 // Je Konto über alle Absender: nach je 20 Fehlversuchen Pause (15 Min., dann doppelt …). Gegen Angreifer mit vielen Adressen.
 // Über die Home-Assistant-Seitenleiste (trusted) gilt diese Pause nicht – so kann niemand den echten Admin aussperren.
 const accountLimit = require('./security').limiter({ per: 20, baseMs: 15 * 60000 });
-function login(username, pw, ip = '', scope = 'admin', { trusted = false } = {}) {
+/* Bekannte Geräte: Nach einer erfolgreichen Anmeldung bekommt das Gerät ein signiertes Cookie. Die Pause je Konto (20 Fehlversuche)
+   gilt für bekannte Geräte nicht – so kann ein Fremder im WLAN den echten Admin nicht mit falschen Passwörtern aussperren. */
+const DEVICE_COOKIE = 'gdev';
+function deviceSecret() {
+  let k = getSetting('admin_device_secret');
+  if (!k) { k = crypto.randomBytes(32).toString('hex'); setSetting('admin_device_secret', k); }
+  return k;
+}
+const deviceSig = (name, rnd) => crypto.createHmac('sha256', deviceSecret()).update('geraet:' + name + ':' + rnd).digest('hex');
+function deviceCookie(username, secure) {
+  const name = String(username || '').trim().toLowerCase(), rnd = crypto.randomBytes(12).toString('hex');
+  return `${DEVICE_COOKIE}=${encodeURIComponent(name)}.${rnd}.${deviceSig(name, rnd)}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${365 * 24 * 3600}${secure ? '; Secure' : ''}`;
+}
+function knownDevice(req, username) {
+  const parts = String(parseCookies(req)[DEVICE_COOKIE] || '').split('.'), sig = parts.pop(), rnd = parts.pop(), n = parts.join('.');   // Benutzernamen dürfen Punkte enthalten
+  const name = String(username || '').trim().toLowerCase();
+  if (!n || !rnd || !sig || n !== name || !/^[0-9a-f]{24}$/.test(rnd) || !/^[0-9a-f]{64}$/.test(sig)) return false;
+  return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(deviceSig(name, rnd), 'hex'));
+}
+
+function login(username, pw, ip = '', scope = 'admin', { trusted = false, known = false } = {}) {
   const name = String(username || '').trim().toLowerCase();
   const key = name + '|' + String(ip || '');
   const now = Date.now();
   const f = fails.get(key);
   if (f && f.until > now) return { ok: false, error: 'Zu viele Fehlversuche. Bitte in ein paar Minuten erneut versuchen.' };
-  const accMin = trusted ? 0 : accountLimit.blocked(name);
+  const accMin = trusted || known ? 0 : accountLimit.blocked(name);
   if (accMin) return { ok: false, error: `Für dieses Konto gab es zu viele Fehlversuche – Anmeldung in ${accMin} Min. wieder möglich (über die Home-Assistant-Seitenleiste sofort).` };
   const u = db.prepare('SELECT * FROM admin_users WHERE username = ? AND active = 1').get(name);
   const ok = verifySecret(pw, u ? u.pw_hash : DUMMY_HASH);   // gleiche Rechenzeit, auch wenn es den Namen nicht gibt
   if (!u || !ok) {
     const strikes = f ? f.strikes || 0 : 0;
     const c = (f ? f.count : 0) + 1;
-    if (!f && fails.size >= FAILS_MAX) fails.delete(fails.keys().next().value);
+    if (!f && fails.size >= FAILS_MAX) { for (const [k, v] of fails) if (!(v.until > now)) { fails.delete(k); break; } }   // laufende Sperren nicht verdrängen
     // Sperre verdoppelt sich bei jeder weiteren Fehlserie: 5 min, 10, 20 … höchstens 24 h
     if (c >= 5) fails.set(key, { count: 0, strikes: strikes + 1, until: now + Math.min(5 * 60000 * 2 ** strikes, 24 * 3600000), last: now });
     else fails.set(key, { count: c, strikes, until: 0, last: now });
     const uf = userFails.get(name) || { n: 0, since: now };
     if (now - uf.since > 24 * 3600000) { uf.n = 0; uf.since = now; }
     uf.n++; if (userFails.size > FAILS_MAX) userFails.delete(userFails.keys().next().value); userFails.set(name, uf);
-    if (!trusted) accountLimit.fail(name);
+    if (!trusted && !known && u) accountLimit.fail(name);   // nur echte Konten zählen (erfundene Namen füllen sonst die Liste)
     return { ok: false, error: 'Benutzername oder Passwort falsch.', locked: c >= 5, manyFails: uf.n === 25 || uf.n === 100 };
   }
   fails.delete(key); accountLimit.ok(name);
@@ -198,7 +232,7 @@ setInterval(() => {
 }, 60 * 1000).unref();
 
 module.exports = {
-  PERMS, hashSecret, verifySecret, permInfo, setPermFilter,
+  PERMS, DEPT_PERMS, hashSecret, verifySecret, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
   adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, currentUser, requireAdmin, need,
   issueTabletToken, checkTabletToken, dropTabletToken,
 };

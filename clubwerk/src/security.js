@@ -31,7 +31,12 @@ function limiter({ per = 5, baseMs = 5 * 60000, maxMs = 24 * 3600000, size = 200
       const now = Date.now(); const f = m.get(key) || { n: 0, strikes: 0, until: 0 };
       f.n++; let locked = false;
       if (f.n >= per) { f.until = now + Math.min(baseMs * 2 ** f.strikes, maxMs); f.strikes++; f.n = 0; locked = true; }
-      if (!m.has(key) && m.size >= size) m.delete(m.keys().next().value);
+      if (!m.has(key) && m.size >= size) {
+        // laufende Sperren nie verdrängen – sonst hebt eine Flut erfundener Schlüssel jede Sperre auf
+        let drop = null; for (const [k, v] of m) if (!(v.until > now)) { drop = k; break; }
+        if (drop === null) return { locked: false, strikes: 0, minutes: 0 };   // voll mit Sperren: diesen Schlüssel nicht mitzählen
+        m.delete(drop);
+      }
       m.set(key, f);
       return { locked, strikes: f.strikes, minutes: locked ? Math.ceil((f.until - now) / 60000) : 0 };
     },
@@ -162,6 +167,17 @@ function notPublic(raw) {
   if (/^[23][0-9a-f]{3}:/.test(ip)) { const p = v6Prefix64(ip); if (p && ownV6Prefixes().has(p)) return true; }
   return false;
 }
+/** Nie über den Cloudflare Tunnel: Anfragen mit cf-Kopfzeilen oder an die öffentliche Tunnel-Adresse abweisen (bypass: z. B. echte Seitenleiste) */
+function noTunnel({ label = 'Clubwerk', bypass } = {}) {
+  return (req, res, next) => {
+    const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
+    const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
+    if (!(req.get('cf-connecting-ip') || req.get('cf-ray') || (ext && host === ext)) || (bypass && bypass(req))) return next();
+    const msg = `${label} ist von außen nicht erreichbar.`;
+    if (String(req.path || '').startsWith('/api/')) return res.status(403).json({ error: msg });
+    res.status(403).type('text/plain; charset=utf-8').send(msg + '\n\nÜber den Tunnel nur die Mitglieder-App freigeben (Port der Mitglieder-App).');
+  };
+}
 function lanOnly({ label = 'Clubwerk', extra } = {}) {
   return (req, res, next) => {
     const ip = req.socket && req.socket.remoteAddress;
@@ -175,4 +191,4 @@ function lanOnly({ label = 'Clubwerk', extra } = {}) {
 /** Antworten komprimieren (gzip/brotli je nach Browser) – Skripte, Stile, JSON, SVG; Bilder/Archive bleiben unverändert */
 const compression = require('compression');
 const compress = () => compression({ threshold: 1024, level: 6, filter: (req, res) => { const t = String(res.getHeader('Content-Type') || ''); return /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/.test(t) || compression.filter(req, res); } });
-module.exports = { notPublic, privateSource, lanSource, lanOnly, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
+module.exports = { notPublic, privateSource, lanSource, lanOnly, noTunnel, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };

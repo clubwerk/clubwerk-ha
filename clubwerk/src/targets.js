@@ -202,32 +202,51 @@ function sftp(t, secret) {
 }
 
 /* ---------- FTP / FTPS ---------- */
+/** TLS-Optionen, die nur genau das bestätigte Zertifikat annehmen (auch selbst signiert, z. B. FRITZ!Box) */
+function pinnedTls(peer, fp) {
+  const tls = require('tls'), pem = raw => `-----BEGIN CERTIFICATE-----\n${raw.toString('base64').replace(/(.{64})/g, '$1\n')}\n-----END CERTIFICATE-----\n`;
+  const ca = [...tls.rootCertificates]; const seenRaw = new Set();
+  for (let c = peer; c && c.raw && !seenRaw.has(c.fingerprint256); c = c.issuerCertificate) { seenRaw.add(c.fingerprint256); ca.push(pem(c.raw)); }
+  return { rejectUnauthorized: true, ca, checkServerIdentity: (host, cert) => (cert && cert.fingerprint256 === fp ? undefined : err('FTPS: Die Datenverbindung meldet ein anderes Zertifikat – abgebrochen.')) };
+}
 function ftp(t, secret) {
   const basic = require('basic-ftp');
   let c = null, seen = null;
   const connect = async ({ learn = false } = {}) => {
     if (c) return;
-    const cl = new basic.Client(TIMEOUT);
     const host = t.host.replace(/^\[|\]$/g, '');
     const tlsOpt = { rejectUnauthorized: false, servername: /^[\d.]+$|:/.test(host) ? undefined : host };
+    const open = async opt => {
+      const cl = new basic.Client(TIMEOUT);
+      try {
+        if (t.mode === 'ftps-implicit') await cl.connectImplicitTLS(host, t.port, opt);
+        else { await cl.connect(host, t.port); if (t.mode === 'ftps') await cl.useTLS(opt); }
+      } catch (e) { cl.close(); throw e; }
+      return cl;
+    };
+    let cl;
     try {
-      if (t.mode === 'ftps-implicit') await cl.connectImplicitTLS(host, t.port, tlsOpt);
-      else { await cl.connect(host, t.port); if (t.mode === 'ftps') await cl.useTLS(tlsOpt); }
+      cl = await open(tlsOpt);
       if (t.mode !== 'ftp') {
         // Zertifikat prüfen, BEVOR Benutzer und Passwort gesendet werden
-        const cert = cl.ftp.socket.getPeerCertificate && cl.ftp.socket.getPeerCertificate();
+        const cert = cl.ftp.socket.getPeerCertificate && cl.ftp.socket.getPeerCertificate(true);
         seen = cert && cert.fingerprint256 ? cert.fingerprint256 : null;
         if (!seen) throw err('FTPS: Der Server hat kein Zertifikat gesendet.');
         if (learn || !t.certFp) throw err('Fingerabdruck des Zertifikats bitte prüfen und bestätigen.', { fingerprint: seen, needConfirm: true });
         if (seen !== t.certFp) throw err(`Der Server meldet sich mit einem ANDEREN Zertifikat (${seen.slice(0, 23)}…) als bestätigt. Aus Sicherheitsgründen abgebrochen – falls das Zertifikat erneuert wurde, das Ziel bearbeiten und neu bestätigen.`, { fingerprint: seen, changed: true });
+        /* Neu verbinden und dabei NUR das bestätigte Zertifikat annehmen. Die Datenverbindungen (Upload/Download) übernehmen
+           Sitzung und Prüfung dieser Verbindung – so kann sich dort kein anderer Server mit eigenem Zertifikat einklinken. */
+        cl.close();
+        cl = await open({ ...tlsOpt, ...pinnedTls(cert, t.certFp) });
       }
       await cl.login(t.user, secret || '');
       await cl.useDefaultSettings();
     } catch (e) {
-      cl.close();
+      if (cl) cl.close();
       if (e.needConfirm || e.changed) throw e;
       if (/530|login|password/i.test(e.message)) throw err('FTP: Benutzername oder Passwort falsch.');
       if (/AUTH|TLS|SSL/i.test(e.message) && t.mode === 'ftps') throw err('Der Server unterstützt kein FTPS (AUTH TLS). Bei der FRITZ!Box: FTP-Zugriff erlauben und „verschlüsselt“ aktivieren.');
+      if (/certificate|Zertifikat/i.test(e.message)) throw err('FTPS: Das Zertifikat des Servers ließ sich nicht bestätigen – abgebrochen.');
       throw err('FTP nicht erreichbar: ' + String(e.message).slice(0, 160));
     }
     c = cl;

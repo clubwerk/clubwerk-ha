@@ -10,6 +10,7 @@ const path = require('path');
 const express = require('express');
 const { db, getSetting, setSetting, audit } = require('./db');
 const invites = require('./invites');
+const auth = require('./auth');
 const tls = require('./tls');
 const INTERNAL = () => tls.internalBase();
 const SCOPE = 'app';
@@ -603,6 +604,9 @@ function adminRoutes(admin, { bad, need, auth }) {
     const m = modules.get(module);
     return m && m.perm ? req.user.perms.includes(m.perm) : req.user.perms.includes('konten');
   };
+  /* Einladung/QR-Code koppelt ein Handy als dieses Mitglied (Meine Daten, Buchen, Dienste) – das darf nur, wer das Mitglied
+     verwalten darf („Mitglieder anlegen“ bzw. „Mitglieder“, bei Abteilungsadmins nur in der eigenen Abteilung). Modulrechte allein reichen nicht. */
+  const NO_INVITE = 'Einen QR-Code oder eine Einladung für die Mitglieder-App erzeugt nur, wer das Mitglied verwalten darf (Recht „Mitglieder“) – bitte einen Admin mit diesem Recht fragen.';
   // QR-Code/Handy eines Mitglieds: nur, wer alle Bereiche verwalten darf, die das Mitglied hat
   // (sonst könnte jemand mit nur „Beregnung“ das Handy eines Mitglieds mit Türzugang übernehmen)
   /** Bereiche des Mitglieds, für die dem Admin das Recht fehlt (leer = darf).
@@ -630,6 +634,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     res.json({ invite: { mail: Boolean(em && require('./mail').ready()), email: em, mailReady: require('./mail').ready(), sms: Boolean(smsPhone(id)), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) }, member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
   });
   admin.post('/app/member/:id/invite', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
+    if (!auth.memberAllowed(req.user, parseInt(req.params.id, 10))) return bad(res, NO_INVITE, 403);
     { const miss = missingFor(req, parseInt(req.params.id, 10)); if (miss.length) return bad(res, `Für einen neuen QR-Code fehlt dir das Recht für: ${miss.join(', ')} – bitte einen Admin mit diesem Recht fragen.`, 403); }
     try {
       const out = invites.create(SCOPE, parseInt(req.params.id, 10), req.user.name || req.user.username, req.user.role === 'oberadmin' ? '*' : req.user.perms);
@@ -639,6 +644,7 @@ function adminRoutes(admin, { bad, need, auth }) {
   });
   /* ----- Einladung per E-Mail (einzeln) und Sammelversand / Briefe ----- */
   const inviteOne = async (req, id, kind) => {
+    if (!auth.memberAllowed(req.user, id)) return { error: 'fehlendes Recht „Mitglieder“' };
     const miss = missingFor(req, id); if (miss.length) return { error: `fehlendes Recht für ${miss.join(', ')}` };
     if (kind === 'mail' && !mailOf(id)) return { error: 'keine E-Mail-Adresse' };
     const inv = invites.create(SCOPE, id, req.user.name || req.user.username, req.user.role === 'oberadmin' ? '*' : req.user.perms, { kind });

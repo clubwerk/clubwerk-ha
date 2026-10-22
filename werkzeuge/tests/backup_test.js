@@ -47,6 +47,8 @@ const login = async () => { await A('a', 'api/admin/login', 'POST', { username: 
   await A('a', 'api/admin/dropbox', 'PUT', { appKey: 'appkey12345', appSecret: 'secretsecret12' });
   [s, j] = await A('a', 'api/admin/dropbox/connect', 'POST', { code: 'GUTERCODE1234567890' }); ok('Dropbox verbunden', s === 200, j.error);
   await fetch(DBX + '/_seed');
+  [s, j] = await A('a', 'api/admin/backups/status'); ok('Lesbare Auszüge von Haus aus aus (unverschlüsselt)', s === 200 && j.readable === false, JSON.stringify(j.readable));
+  await A('a', 'api/admin/backups/settings', 'PUT', { readable: true });
   [s, j] = await A('a', 'api/admin/backups/run', 'POST', {}); ok('Sicherung mit Dropbox', s === 200 && /Dropbox ✓ \(\+4 lesbar\)/.test(j.msg), j.msg || j.error);
   let files = (await (await fetch(DBX + '/_files')).json()).map(x => x[0]);
   const day = new Date().toLocaleDateString('sv-SE');

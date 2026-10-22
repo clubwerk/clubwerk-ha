@@ -416,7 +416,7 @@ function appRouter(ctx) {
   r.post('/login', rateLimit('blogin', 10, 60000), (req, res) => {
     const { username, password } = req.body || {};
     if (req.get('X-Clubwerk') !== '1' && req.get('X-Getraenke') !== '1') return res.status(403).json({ error: 'Ungültige Anfrage.' });
-    const out = auth.login(username, password, req.ip, 'beregnung');
+    const out = auth.login(username, password, req.ip, 'beregnung', { known: Boolean(auth.knownDevice && auth.knownDevice(req, username)) });
     if (!out.ok) { audit(String(username || '').slice(0, 30), 'Beregnung: Anmeldung fehlgeschlagen', req.ip); return res.status(401).json({ error: out.error }); }
     audit(String(username || '').toLowerCase(), 'Beregnung: Anmeldung', req.ip);
     res.setHeader('Set-Cookie', `gbereg=${out.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${8 * 3600}${req.secure ? '; Secure' : ''}`);
@@ -439,6 +439,7 @@ function startPortApp(ctx) {
   app.disable('x-powered-by');
   app.set('trust proxy', false);
   app.use(ctx.require('./security').lanOnly({ label: 'Die Beregnungs-Webapp' }));   // nie aus dem Internet (versehentliche Portfreigabe)
+  if (ctx.require('./security').noTunnel) app.use(ctx.require('./security').noTunnel({ label: 'Die Beregnungs-Webapp' }));   // auch nicht, wenn ein Tunnel versehentlich auf diesen Port zeigt
   app.use(ctx.require('./security').hostGuard());
   app.use(ctx.require('./security').hardenHeaders({ frame: 'DENY' }));
   app.use(ctx.require('./security').compress());

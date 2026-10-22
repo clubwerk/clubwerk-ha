@@ -72,6 +72,15 @@ app.set('trust proxy', TRUSTED_PROXIES);
 /* Port 3100 nur aus dem eigenen Netz: eine öffentliche Absenderadresse (Portfreigabe am Router) wird abgewiesen.
    Seitenleiste (Supervisor) und ein eingetragenes Proxy-Add-on kommen aus dem Add-on-Netz und sind damit „eigenes Netz“. */
 app.use(require('./security').lanOnly({ label: 'Die Verwaltung und das Tablet', extra: ip => TRUSTED_PROXIES.includes(ip) || INGRESS_IPS.includes(ip) }));
+/* Über ein eingetragenes Proxy-Add-on (z. B. NGINX) zählt der echte Absender: kommt er aus dem Internet, wird abgewiesen.
+   Die Seitenleiste (Supervisor) bleibt ausgenommen – dort meldet Home Assistant selbst an. */
+app.use((req, res, next) => {
+  const sock = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  if (!TRUSTED_PROXIES.includes(sock) || INGRESS_IPS.includes(sock) || require('./security').lanSource(req.ip)) return next();
+  const msg = 'Die Verwaltung und das Tablet sind nur im Vereinsnetz erreichbar.';
+  if (req.path.startsWith('/api/')) return res.status(403).json({ error: msg });
+  res.status(403).type('text/plain; charset=utf-8').send(msg);
+});
 app.use((req, res, next) => {
   const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
   const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
@@ -846,7 +855,8 @@ app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
   db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
       pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?`).run(auth.hashSecret(newPin), m.id);
   // eine PIN für alles: gilt ab sofort auch in der Mitglieder-App
-  require('./invites').pinToApp(m.id, db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(m.id).pin_hash);
+  // nur mit der bisherigen PIN als Nachweis (die erste PIN am Tablet ändert eine vorhandene App-PIN nicht)
+  require('./invites').pinToApp(m.id, db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(m.id).pin_hash, m.pin_hash ? String(currentPin) : null);
   audit('tablet', m.pin_hash ? 'PIN geändert' : 'PIN festgelegt', m.name);
   res.json({ ok: true, hasPin: true });
 });
@@ -939,14 +949,14 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
 
 app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
   const { username, password } = req.body || {};
-  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req) });
+  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known: auth.knownDevice(req, username) });
   if (!r.ok) {
     audit(String(username || '').slice(0, 30), r.locked ? 'Anmeldung gesperrt (5 Fehlversuche)' : 'Anmeldung fehlgeschlagen', req.ip);
     if (r.manyFails) securityAlert(`Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`);
     return bad(res, r.error, 401);
   }
   audit(String(username).toLowerCase(), 'Anmeldung', req.ip);
-  res.setHeader('Set-Cookie', cookieOpts(r.token, req));
+  res.setHeader('Set-Cookie', [cookieOpts(r.token, req), auth.deviceCookie(username, req.secure)]);
   res.json({ ok: true });
 });
 
@@ -1029,6 +1039,7 @@ const permNames = list => (list || []).map(k => auth.PERMS[k] || k).join(', ') |
 admin.post('/users', need('benutzer'), (req, res) => {
   const { username, name, password, role, perms } = req.body || {};
   const b = req.body || {};
+  if (role === 'oberadmin' && !ownerConfirm(req, res)) return;   // „alle Rechte“ vergeben nur mit dem eigenen Passwort
   const memberId = memberOk(b.member_id);
   if (b.member_id && !memberId) return bad(res, 'Mitglied nicht gefunden.');
   if (memberId && db.prepare('SELECT 1 FROM admin_users WHERE member_id = ?').get(memberId)) return bad(res, 'Für dieses Mitglied gibt es schon einen Benutzer.');
@@ -1051,6 +1062,9 @@ const roleInput = (b, cur = {}) => {
   const name = cleanName(b.name !== undefined ? b.name : cur.name, 40);
   if (name.length < 2) return { error: 'Bitte einen Namen für die Rolle eintragen.' };
   const perms = Array.isArray(b.perms) ? [...new Set(b.perms.filter(p => auth.PERMS[p]))] : jarr(cur.perms);
+  const scoped = b.dept_scope !== undefined ? Boolean(b.dept_scope) : Boolean(cur.dept_scope);
+  const wide = scoped ? perms.filter(p => !auth.DEPT_PERMS.includes(p)) : [];
+  if (wide.length) return { error: `„Nur eigene Abteilung(en)“ gilt nur für die Rechte ${auth.DEPT_PERMS.map(p => '„' + auth.PERMS[p] + '“').join(' und ')}. Diese Rechte würden für alle Mitglieder gelten – bitte in einer eigenen Rolle vergeben: ${permNames(wide)}.` };
   return { v: { name, description: b.description !== undefined ? String(b.description || '').replace(/[<>]/g, '').trim().slice(0, 300) || null : cur.description || null,
     perms: JSON.stringify(perms), dept_scope: b.dept_scope !== undefined ? (b.dept_scope ? 1 : 0) : (cur.dept_scope || 0), sort: b.sort !== undefined ? int(b.sort) : (cur.sort || 0) } };
 };
@@ -1090,6 +1104,7 @@ admin.put('/users/:id', need('benutzer'), (req, res) => {
     if (b.name !== undefined && String(b.name).trim() !== u.name) return bad(res, 'Der Name des Adminkontos ist fest.');
   }
   if (u.id === req.user.id && (role !== 'oberadmin' || !active)) return bad(res, 'Du kannst dich nicht selbst herabstufen oder sperren.');
+  if (role === 'oberadmin' && u.role !== 'oberadmin' && !ownerConfirm(req, res)) return;   // auf „alle Rechte“ hochstufen nur mit dem eigenen Passwort
   const perms = Array.isArray(b.perms) ? JSON.stringify(b.perms.filter(p => auth.PERMS[p])) : u.perms;
   const name = u.builtin ? u.name : (b.name !== undefined ? String(b.name).trim().slice(0, 60) : u.name);
   const roles = roleIds(b.roles), depts = deptIds(b.departments);
@@ -1465,6 +1480,7 @@ admin.put('/members/:id', need('konten'), (req, res) => {
 });
 
 admin.post('/members/:id/reset-pin', need('konten', 'mitglieder'), (req, res) => {
+  if (!auth.memberAllowed(req.user, int(req.params.id))) return bad(res, 'Als Abteilungsadmin kannst du nur Mitglieder deiner Abteilung(en) bearbeiten.', 403);
   const m = db.prepare('SELECT name FROM members WHERE id = ?').get(int(req.params.id));
   db.prepare(`UPDATE members SET pin_hash = NULL, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
       pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`).run(req.user.username, int(req.params.id));
@@ -2699,7 +2715,7 @@ const bkKey = () => ({ key: getSetting('backup_enc_key', ''), kdf: (() => { try 
 const bkHasKey = () => Boolean(getSetting('backup_enc_key', '') && bkKey().kdf);
 const bkCfg = () => ({ hour: Math.max(0, Math.min(23, int(getSetting('backup_hour', '3'), 3))), daily: Math.max(1, Math.min(60, int(getSetting('backup_daily', '7'), 7))),
   weekly: Math.max(0, Math.min(52, int(getSetting('backup_weekly', '4'), 4))), monthly: Math.max(0, Math.min(120, int(getSetting('backup_monthly', '12'), 12))),
-  readable: getSetting('backup_readable', '1') === '1' });
+  readable: getSetting('backup_readable', '0') === '1' });   // Standard aus: die Auszüge (Namen, Beträge, Türprotokoll) liegen unverschlüsselt im Ziel
 let bkRunning = false;
 
 /** Lesbare Auszüge der aktiven Module: [{ name, buffer }] – jedes Modul liefert seinen eigenen Teil */
@@ -2841,7 +2857,10 @@ function backupStatus() {
 function ownerConfirm(req, res) {
   if (req.user.role !== 'oberadmin') { bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403); return false; }
   const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!u || !auth.verifySecret(String((req.body || {}).myPassword || ''), u.pw_hash)) { bad(res, 'Dein Passwort stimmt nicht.', 401); return false; }
+  // bei Datei-Uploads (Rohdaten) kommt das Passwort in der Kopfzeile X-Mein-Passwort (URL-kodiert)
+  let pw = (req.body && !Buffer.isBuffer(req.body) && req.body.myPassword) || '';
+  if (!pw && req.get('X-Mein-Passwort')) { try { pw = decodeURIComponent(req.get('X-Mein-Passwort')); } catch (e) { pw = ''; } }
+  if (!u || !auth.verifySecret(String(pw), u.pw_hash)) { bad(res, 'Dein Passwort stimmt nicht.', 401); return false; }
   return true;
 }
 
@@ -2916,7 +2935,10 @@ admin.post('/backups/targets/test', need('einstellungen'), rateLimit('tgtest', 2
   const b = req.body || {};
   const old = b.id ? tgList().find(x => x.id === b.id) : null;
   let t; try { t = targets.clean({ ...(b.target || {}), allowInsecure: true }, old); } catch (e) { return bad(res, e.message); }
-  const secret = b.secret ? String(b.secret) : old ? getSetting(tgSecretKey(old.id), '') : '';
+  // Das gespeicherte Passwort nur für denselben Server verwenden – sonst ließe es sich mit einer geänderten Adresse an einen fremden Server schicken
+  const same = old && ['type', 'url', 'host', 'port', 'user', 'mode', 'insecure', 'hostKey', 'certFp'].every(k => (t[k] ?? '') === (old[k] ?? ''));
+  if (old && !same && !b.secret && t.auth !== 'key') return bad(res, 'Die Adresse oder der Server hat sich geändert – bitte das Passwort für den Test noch einmal eingeben.');
+  const secret = b.secret ? String(b.secret) : same ? getSetting(tgSecretKey(old.id), '') : '';
   const a = targets.open(t, secret);
   try { const r = await a.test(); res.json({ ok: true, fingerprint: r.fingerprint || null }); }
   catch (e) { if (e.needConfirm || e.changed) return res.json({ ok: false, needConfirm: true, changed: Boolean(e.changed), fingerprint: e.fingerprint, error: e.message }); bad(res, e.message); }
@@ -3207,6 +3229,7 @@ admin.post('/backups/upload', need('einstellungen'), streamUpload(200 * MB, '.db
 }));
 
 admin.post('/backups/restore', need('einstellungen'), asyncRoute(async (req, res) => {
+  if (!ownerConfirm(req, res)) return;   // ersetzt die ganze Datenbank (auch Benutzer und Rechte) – nur mit Passwort
   const f = String((req.body || {}).file || '');
   try { backup.markRestore(f); } catch (e) { return bad(res, e.message); }
   audit(req.user, 'Wiederherstellung vorgemerkt', f);
@@ -3328,6 +3351,7 @@ admin.get('/overview/modules', asyncRoute(async (req, res) => {
 /* Erweiterung als ZIP einspielen / entfernen (wirkt nach Neustart) */
 admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () => true, limit: '25mb' }), asyncRoute(async (req, res) => {
   if (req.user.role !== 'oberadmin') return bad(res, 'Erweiterungen einspielen darf nur ein Benutzer mit allen Rechten.', 403);
+  if (!ownerConfirm(req, res)) return;   // Erweiterungen laufen als Programmcode im Add-on – wie die Freigabe nur mit Passwort
   try {
     const r = await plugins.installZip(req.body);
     audit(req.user, r.update ? 'Erweiterung aktualisiert' : 'Erweiterung hochgeladen', `${r.name} ${r.version}`);

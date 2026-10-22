@@ -7852,6 +7852,27 @@
   "Zeitraum (Tage)": "Period (days)",
   "Zum direkten Senden fehlt noch das Vereinspostfach (": "The club mailbox for sending directly is still missing (",
   "Zum direkten Senden fehlt noch das Vereinspostfach ({0}). Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.": "The club mailbox for sending directly is still missing ({0}). Until then: copy the text or open it in your email program.",
-  "Zur Bedienung der Beregnung.": "For operating the irrigation."
+  "Zur Bedienung der Beregnung.": "For operating the irrigation.",
+  ". Diese Rechte würden für alle Mitglieder gelten – bitte in einer eigenen Rolle vergeben: {0}.": ". These permissions would apply to all members – please grant them in a separate role: {0}.",
+  "„{0}“ einspielen?": "Import “{0}”?",
+  "„Nur eigene Abteilung(en)“ gilt nur für die Rechte": "“Own department(s) only” applies only to the permissions",
+  "„Nur eigene Abteilung(en)“ gilt nur für die Rechte {0}. Diese Rechte würden für alle Mitglieder gelten – bitte in einer eigenen Rolle vergeben: {1}.": "“Own department(s) only” applies only to the permissions {0}. These permissions would apply to all members – please grant them in a separate role: {1}.",
+  "{0} ist von außen nicht erreichbar.": "{0} cannot be reached from outside.",
+  "{0}={1}.{2}.{3}; HttpOnly; SameSite=Strict; Path=/; Max-Age={4}{5}": "{0}={1}.{2}.{3}; HttpOnly; SameSite=Strict; Path=/; Max-Age={4}{5}",
+  "Als Abteilungsadmin kannst du nur Mitglieder deiner Abteilung(en) bearbeiten.": "As a department admin you can only edit members of your department(s).",
+  "Bei der Zeiterfassung wurden an einem Gerät ({0}) viele falsche PINs eingegeben. Das Gerät ist jetzt {1} Minuten gesperrt.": "Many wrong PINs were entered for time tracking on one device ({0}). The device is now locked for {1} minutes.",
+  "Bitte mit deinem Passwort bestätigen.": "Please confirm with your password.",
+  "Die Adresse oder der Server hat sich geändert – bitte das Passwort für den Test noch einmal eingeben.": "The address or server has changed – please enter the password again for the test.",
+  "Die Verwaltung und das Tablet sind nur im Vereinsnetz erreichbar.": "The admin area and the tablet can only be reached on the club network.",
+  "Diese Sicherung wurde bei eingeschaltetem Tresor erstellt und enthält verschlüsselte Daten. Bitte zuerst den Tresor wieder einschalten.": "This backup was made with the vault switched on and contains encrypted data. Please switch the vault on again first.",
+  "Einen QR-Code oder eine Einladung für die Mitglieder-App erzeugt nur, wer das Mitglied verwalten darf (Recht „Mitglieder“) – bitte einen Admin mit diesem Recht fragen.": "Only someone who may manage the member (permission “Members”) can create a QR code or invitation for the member app – please ask an admin with this permission.",
+  "Einspielen": "Import",
+  "Erweiterungen laufen als Programm in Clubwerk. Bitte nur Dateien aus sicherer Quelle einspielen und mit deinem Passwort bestätigen.": "Extensions run as program code in Clubwerk. Only import files from a trusted source and confirm with your password.",
+  "fehlendes Recht „Mitglieder“": "missing permission “Members”",
+  "FTPS: Das Zertifikat des Servers ließ sich nicht bestätigen – abgebrochen.": "FTPS: the server certificate could not be confirmed – cancelled.",
+  "FTPS: Die Datenverbindung meldet ein anderes Zertifikat – abgebrochen.": "FTPS: the data connection reports a different certificate – cancelled.",
+  "Für Abteilungsleitungen: Mitglieder ihrer Abteilung sehen, Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen. Welche Abteilung, steht beim Benutzer. Gilt nur für die Rechte „Mitglieder“ und „E-Mail an Mitglieder“ – andere Rechte bitte in einer eigenen Rolle vergeben.": "For department heads: see members of their department, change master data, record resignations, add new members and accept applications for this department. Which department is set on the user. Applies only to the permissions “Members” and “Email to members” – please grant other permissions in a separate role.",
+  "Von diesem Anschluss sind heute schon mehrere Anträge eingegangen – bitte morgen noch einmal versuchen oder den Vorstand ansprechen.": "Several applications have already been received from this connection today – please try again tomorrow or contact the board.",
+  "Zeiterfassung: Gerät gesperrt (falsche PINs)": "Time tracking: device locked (wrong PINs)"
  }
 }
