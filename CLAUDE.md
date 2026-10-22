@@ -17,21 +17,25 @@ Falls `CLAUDE.local.md` existiert, enthält sie den privaten Hintergrund (Verein
 | `werkzeuge/` | Paket bauen, Modulversionen, Prüfsummen, Übersetzungen, Demo-Server, erweiterte Tests, Design-Prüfstand. |
 | `ERWEITERUNGEN.md` | Entwicklerdoku für Module: Styleguide, Bausteine, Protokoll, Übersetzungen. Vor Arbeiten an Modulen lesen. |
 
-## Einrichtung (einmal)
+## Einrichtung
 
-Thorsten arbeitet unter **Windows mit WSL** (Ubuntu). Alle Werkzeuge sind Bash-Skripte und laufen in WSL. Das Repository liegt **innerhalb von WSL** (z. B. `~/clubwerk-ha`), nicht unter `C:\`. Sonst gibt es Probleme mit Zeilenenden und Geschwindigkeit. Claude Code läuft im WSL-Terminal in diesem Ordner. Dateien aus dem Windows-Downloadordner liegen in WSL unter `/mnt/c/Users/<Name>/Downloads/`.
+**Hauptweg: Claude Code in der Cloud** (claude.ai/code oder Claude-App). Thorsten arbeitet ohne lokale Installation. Jede Sitzung richtet sich beim Start selbst ein: Der SessionStart-Hook in `.claude/settings.json` ruft `werkzeuge/sitzung-einrichten.sh` auf (etwa 20 Sekunden). Das Skript erledigt:
+- `npm ci` in `clubwerk/`, `werkzeuge/i18n`, im Test-Mailserver und im alten Stand 2.16.3, mit lokalen Node-Headern, falls nodejs.org gesperrt ist
+- Playwright und die Python-Testserver
+- `werkzeuge/geheim-muster.txt` und `CLAUDE.local.md` aus den Umgebungsvariablen `CW_GEHEIM_MUSTER_B64` und `CW_PRIVAT_B64` der Cloud-Umgebung (base64)
+
+Fehlen diese Variablen, bricht `paket.sh` bei der Geheimnis-Prüfung ab. Dann Thorsten bitten, sie in der Cloud-Umgebung einzutragen.
+
+- Neue Versionen gehen nach grünem `paket.sh` per Commit direkt auf `main` (nicht nur als Branch). Thorsten holt das Paket dann von GitHub: https://github.com/clubwerk/clubwerk-ha/archive/refs/heads/main.zip herunterladen, entpacken und den Ordner `clubwerk-ha-main/clubwerk` wie gewohnt in Home Assistant einsetzen. Das ist derselbe Inhalt wie das ZIP aus `werkzeuge/ausgabe/`. Sag ihm am Ende jeder Version genau das, zusammen mit der Versionsnummer.
+- Den Demo-Server kann Thorsten in der Cloud nicht im Browser öffnen. Ansichten deshalb selbst per Playwright-Screenshot prüfen und ihm die Bilder zeigen.
+
+**Lokal (optional, z. B. Windows mit WSL):** Das Repository innerhalb von WSL klonen, nicht unter `C:\`. Dann:
 
 ```bash
-sudo apt update && sudo apt install -y git curl python3-pip build-essential
-# Node.js 22 (z. B. über nvm: https://github.com/nvm-sh/nvm), danach:
-
-cd clubwerk && npm ci && cd ..
-cd werkzeuge/i18n && npm ci && cd ../..
-pip install --break-system-packages playwright && python3 -m playwright install --with-deps chromium webkit
-# für die Testreihe „targets“: pip install --break-system-packages wsgidav cheroot pyftpdlib asyncssh
+sudo apt update && sudo apt install -y git curl python3-pip build-essential   # dazu Node.js 22
+bash werkzeuge/sitzung-einrichten.sh --lokal
+python3 -m playwright install --with-deps chromium webkit
 ```
-
-Danach `werkzeuge/geheim-muster.txt` anlegen bzw. von Thorsten erhalten (siehe Abschnitt Geheimnisse). Auch der Name `werkzeuge/.geheim-muster` funktioniert.
 
 **Demo-Server** mit erfundenen Daten: `bash werkzeuge/demo/start.sh`. Jeder Start lädt die Daten frisch, `--behalten` setzt sie nicht zurück. Beenden mit `bash werkzeuge/demo/stop.sh`.
 
@@ -109,7 +113,7 @@ PINs der Demo: Mitglieder 2468, Zeiterfassung 1234 und 5678.
 5. Committen und pushen. Commit-Text auf Deutsch, `Clubwerk X.Y.Z: …`.
 6. `node werkzeuge/modver.js save clubwerk`, `werkzeuge/modulstand.json` mitcommitten und pushen. Optional `git tag vX.Y.Z && git push --tags`. Als veröffentlicht gilt eine Version durch ihren Eintrag in `PRUEFSUMMEN.md`.
 7. Prüfen, dass GitHub Actions grün ist: `gh run list --limit 3`.
-8. Thorsten das ZIP aus `werkzeuge/ausgabe/` geben. Dazu eine kurze Zusammenfassung der Änderungen in Alltagssprache.
+8. Thorsten Bescheid geben: Versionsnummer, kurze Zusammenfassung in Alltagssprache und wo er das Paket bekommt (in der Cloud: Download von GitHub, siehe Einrichtung; lokal: ZIP aus `werkzeuge/ausgabe/`).
 
 ## Tests
 
