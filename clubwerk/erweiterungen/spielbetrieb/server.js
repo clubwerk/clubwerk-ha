@@ -774,13 +774,35 @@ function activate(ctx) {
     ctx.audit(req.user, 'Spielbetrieb: Mannschaft geändert', v.name);
     res.json({ ok: true });
   });
+  /** Gastspieler/in ganz entfernen: aus allen Mannschaften, künftige Rückmeldungen und Aufstellungen weg, der Link gilt nicht mehr */
+  function removeExtern(mid) {
+    db.prepare('DELETE FROM sp_player WHERE member_id = ?').run(mid);
+    db.prepare('DELETE FROM sp_avail WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(mid, today());
+    db.prepare('DELETE FROM sp_lineup WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(mid, today());
+    renewToken(mid);
+    db.prepare('UPDATE members SET active = 0, deleted = 1 WHERE id = ?').run(mid);   // vergangene Aufstellungen bleiben lesbar
+  }
+  /** Gastspieler/innen, die nur in dieser Mannschaft (bzw. in keiner mehr) spielen – ohne Mannschaft gehören sie nicht mehr zum Spielbetrieb */
+  const onlyHere = teamId => db.prepare(`SELECT e.member_id FROM sp_extern e JOIN members m ON m.id = e.member_id
+    WHERE m.deleted = 0 AND NOT EXISTS (SELECT 1 FROM sp_player p WHERE p.member_id = e.member_id AND p.team_id IS NOT ?)`).all(teamId).map(r => r.member_id);
+  const dropOrphans = by => { const ids = onlyHere(null); ids.forEach(removeExtern); if (ids.length) ctx.audit(by, 'Spielbetrieb: Gastspieler/in entfernt (keine Mannschaft mehr)', ids.map(memberName).join(', ')); return ids.map(id => lf(memberName(id))); };
+  /** Was beim Löschen der Mannschaft mitgeht – für die Rückfrage in der Verwaltung */
+  admin.get('/teams/:id/delete-info', P, (req, res) => {
+    const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
+    res.json({ games: db.prepare('SELECT COUNT(*) n FROM sp_game WHERE team_id = ?').get(t.id).n, players: db.prepare('SELECT COUNT(*) n FROM sp_player WHERE team_id = ?').get(t.id).n,
+      guests: onlyHere(t.id).map(id => lf(memberName(id))).sort((a, b) => a.localeCompare(b, 'de')) });
+  });
   admin.delete('/teams/:id', P, (req, res) => {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     const n = db.prepare('SELECT COUNT(*) n FROM sp_game WHERE team_id = ?').get(t.id).n;
     if (n && !(req.body || {}).force && req.query.force !== '1') return bad(res, `Die Mannschaft hat ${n} Spieltage – zum Löschen bitte bestätigen (oder auf „nicht aktiv“ stellen).`, 409);
-    db.prepare('DELETE FROM sp_team WHERE id = ?').run(t.id);   // Spieler, Spieltage und alles daran löscht die Datenbank mit (ON DELETE CASCADE)
+    let removed = [];
+    db.transaction(() => {
+      db.prepare('DELETE FROM sp_team WHERE id = ?').run(t.id);   // Spieler, Spieltage und alles daran löscht die Datenbank mit (ON DELETE CASCADE)
+      removed = dropOrphans(req.user);
+    })();
     ctx.audit(req.user, 'Spielbetrieb: Mannschaft gelöscht', t.name);
-    res.json({ ok: true });
+    res.json({ ok: true, removed });
   });
   /** Spielerliste (Meldeliste) einer Mannschaft: [{ id, rank }] – Reihenfolge = Meldeliste */
   /* Gastspieler/innen (Verwaltung): anlegen und gleich in die Mannschaft, bearbeiten, Link erneuern, entfernen */
@@ -803,27 +825,23 @@ function activate(ctx) {
   admin.delete('/extern/:id', P, (req, res) => {
     const e = extRow(req.params.id); if (!e) return bad(res, 'Gastspieler/in nicht gefunden.', 404);
     const name = memberName(e.member_id);
-    db.transaction(() => {
-      db.prepare('DELETE FROM sp_player WHERE member_id = ?').run(e.member_id);
-      db.prepare('DELETE FROM sp_avail WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(e.member_id, today());
-      db.prepare('DELETE FROM sp_lineup WHERE member_id = ? AND game_id IN (SELECT id FROM sp_game WHERE date >= ?)').run(e.member_id, today());
-      renewToken(e.member_id);
-      db.prepare('UPDATE members SET active = 0, deleted = 1 WHERE id = ?').run(e.member_id);   // vergangene Aufstellungen bleiben lesbar
-    })();
+    db.transaction(() => removeExtern(e.member_id))();
     ctx.audit(req.user, 'Spielbetrieb: Gastspieler/in entfernt', name);
     res.json({ ok: true });
   });
   admin.put('/teams/:id/players', P, (req, res) => {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     const list = (Array.isArray((req.body || {}).players) ? req.body.players : []).slice(0, 60).map((p, i) => ({ id: int(p.id || p), rank: int(p.rank) || i + 1 })).filter(p => isMember(p.id));
+    let removed = [];
     db.transaction(() => {
       const keep = new Set(list.map(p => p.id));
       for (const r of db.prepare('SELECT member_id FROM sp_player WHERE team_id = ?').all(t.id)) if (!keep.has(r.member_id)) db.prepare('DELETE FROM sp_player WHERE team_id = ? AND member_id = ?').run(t.id, r.member_id);
       const up = db.prepare('INSERT INTO sp_player(team_id, member_id, rank) VALUES (?,?,?) ON CONFLICT(team_id, member_id) DO UPDATE SET rank = excluded.rank');
       list.forEach(p => up.run(t.id, p.id, p.rank));
+      removed = dropOrphans(req.user);
     })();
     ctx.audit(req.user, 'Spielbetrieb: Spieler zugeordnet', `${t.name}: ${list.length} Spieler`);
-    res.json({ ok: true, players: teamRow(team(t.id)).players });
+    res.json({ ok: true, players: teamRow(team(t.id)).players, removed });
   });
   /** Spieltage (Übersicht mit Ampel) */
   admin.get('/games', P, (req, res) => {

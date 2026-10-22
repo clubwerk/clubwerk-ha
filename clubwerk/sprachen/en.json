@@ -7892,6 +7892,18 @@
   "Mannschaftsführer warnen (Tage vorher)": "Warn team captains (days before)",
   "Nachrichten auch per E-Mail": "Messages by email too",
   "Spieler erinnern (Tage vorher)": "Remind players (days before)",
-  "Zusatz-/Ausweichtage abfragen": "Ask about extra/alternative dates"
+  "Zusatz-/Ausweichtage abfragen": "Ask about extra/alternative dates",
+  "{0} {1} mit Verfügbarkeiten und Aufstellungen": "{0} {1} with availability and line-ups",
+  "die Meldeliste mit {0} {1}": "the squad list with {0} {1}",
+  "Entfernt werden": "This will remove",
+  "Entfernt werden {0}.": "This will remove {0}.",
+  "Gastspieler/innen ohne andere Mannschaft – sie werden ganz entfernt, ihr persönlicher Link gilt dann nicht mehr:": "Guest players without another team – they will be removed completely and their personal link will stop working:",
+  "Gespeichert. In keiner Mannschaft mehr und deshalb entfernt:": "Saved. No longer in any team and therefore removed:",
+  "Gespeichert. In keiner Mannschaft mehr und deshalb entfernt: {0}": "Saved. No longer in any team and therefore removed: {0}",
+  "Mannschaft „{0}“ löschen?": "Delete team “{0}”?",
+  "Mannschaft „{0}“ löschen?{1}{2}": "Delete team “{0}”?{1}{2}",
+  "Spielbetrieb: Gastspieler/in entfernt (keine Mannschaft mehr)": "Match play: guest player removed (no team left)",
+  "Spielern": "players",
+  "Tipp: „nicht aktiv“ behält alles.": "Tip: “not active” keeps everything."
  }
 }

@@ -95,9 +95,18 @@ const usage = async () => (await A('api/admin/extensions/spielbetrieb/usage'))[1
   // 4. Mannschaft mit Spieltagen löschen
   await A(X('games'), 'POST', { team_id: team, date: d2, home: 0, opponent: 'TC Irgendwo' });
   await A(X(`games/${g2}/avail`), 'POST', { member_id: max, state: 'ja' });
+  // Gastspieler/innen: wer in einer anderen Mannschaft spielt, bleibt; wer nur hier spielt, geht mit
+  [s, j] = await A(X('teams'), 'POST', { name: 'Damen 30', min_players: 2 }); const team2 = j.id;
+  [s, j] = await A(X(`teams/${team2}/extern`), 'POST', { name: 'Hanna Hilfe', club: 'TC Nachbarort' }); const hanna = j.id;
+  { const [, m] = await A(X('meta')); const cur = (m.teams.find(t => t.id === team) || {}).players || []; await A(X(`teams/${team}/players`), 'PUT', { players: [...cur.map(p => p.id), hanna] }); }
+  [s, j] = await A(X(`teams/${team}/delete-info`)); ok('Rückfrage nennt, was mitgeht', s === 200 && j.games === 2 && j.players >= 5 && JSON.stringify(j.guests) === JSON.stringify(['Gast, Gerd']), JSON.stringify(j));
   [s, j] = await A(X(`teams/${team}`), 'DELETE'); ok('Mannschaft mit Spieltagen: ohne Bestätigung 409', s === 409 && /2 Spieltage/.test(j.error), s + ' ' + JSON.stringify(j));
   [s, j] = await A(X('meta')); ok('… Mannschaft noch da', j.teams.some(t => t.id === team));
-  [s, j] = await A(X(`teams/${team}`), 'DELETE', { force: true }); ok('Mannschaft mit force gelöscht', s === 200, JSON.stringify(j));
+  [s, j] = await A(X(`teams/${team}`), 'DELETE', { force: true }); ok('Mannschaft mit force gelöscht', s === 200 && JSON.stringify(j.removed) === JSON.stringify(['Gast, Gerd']), JSON.stringify(j));
+  [s, j] = await A(X('meta')); ok('Gastspieler/in ohne Mannschaft entfernt, die andere bleibt', !(j.externs || []).some(x => x.id === gast) && (j.externs || []).some(x => x.id === hanna), JSON.stringify(j.externs));
+  [s, j] = await A(X(`teams/${team2}/players`), 'PUT', { players: [] }); ok('Aus der letzten Meldeliste genommen → entfernt', s === 200 && JSON.stringify(j.removed) === JSON.stringify(['Hilfe, Hanna']), JSON.stringify(j));
+  [s, j] = await A(X('meta')); ok('… nicht mehr im Spielbetrieb', !(j.externs || []).some(x => x.id === hanna));
+  await A(X(`teams/${team2}`), 'DELETE', { force: true });
   [s, j] = await A(X('meta')); ok('Mannschaft weg', !j.teams.some(t => t.id === team));
   [s, j] = await A(X('games')); ok('Spieltage weg', Array.isArray(j) && j.length === 0, JSON.stringify(j).slice(0, 200));
   u = await usage();

@@ -7,6 +7,10 @@
 - **Nur noch Namen in der Liste:** Der Hinweis „Familie“ und das Schloss-Symbol sind weg. Familienmitglieder und Personen, für die jemand anderes zahlt, erscheinen nur, wenn in der Mitgliederverwaltung bei ihnen „Verkauf am Tablet: bucht selbst“ eingestellt ist. Voreingestellt ist „über den Hauptzahler (nicht in der Liste)“.
 - **Kein Flackern mehr beim Wechseln:** Beim Wechsel zwischen Verkauf, Plätzen, Helferdiensten usw. bleibt die Kopfzeile mit Vereinsname, Logo und Reitern ruhig stehen. Bisher wurde sie auf jeder Seite leer aufgebaut und danach gefüllt.
 
+**Spielbetrieb**
+- **Gastspieler ohne Mannschaft gehören nicht mehr zum Spielbetrieb:** Wird eine Mannschaft gelöscht oder ein Gastspieler aus seiner letzten Meldeliste genommen, wird er ganz entfernt. Sein persönlicher Link gilt dann nicht mehr. Bisher blieb er stehen und musste einzeln entfernt werden. Wer noch in einer anderen Mannschaft spielt, bleibt.
+- Die Rückfrage beim Löschen einer Mannschaft zählt genau auf, was mitgeht: Spieltage, Meldeliste und die Gastspieler, die dadurch ganz entfernt werden.
+
 **Fehler behoben**
 - Startseite der Verwaltung: Der offene Betrag im Verkauf und bei den Mitgliedern wird wieder richtig angezeigt.
 - Buchungssystem: Die Mail „Für dich gebucht“ zeigt wieder Platz, Tag und Uhrzeit. Bei geänderten Buchungen kommt die Push-Nachricht auch dann, wenn Mails an Mitspieler ausgeschaltet sind.
