@@ -8,31 +8,31 @@
   "hash": "538917bc3f590fa4c388641b9f8329c4896528d9"
  },
  "beregnung": {
-  "version": "1.3.3",
-  "hash": "7d71c5b2397a1cc23a56a555a46bc3073128f8e0"
+  "version": "1.3.4",
+  "hash": "758d9da21323968f3a9a37fb9a3f33ee74ed43bb"
  },
  "buchhaltung": {
   "version": "1.0.2",
   "hash": "9a825dfc88e6f0be13c7ced4362ed1ed25928010"
  },
  "buchung": {
-  "version": "1.6.4",
-  "hash": "ca85aca1e40965190473aab84c0546088232d592"
+  "version": "1.6.5",
+  "hash": "aaec17458ff0f61289b669402466ba1f99129a83"
  },
  "mitglieder": {
-  "version": "1.8.2",
-  "hash": "281de100f524040c96c8b2f59b9b4549e731f05e"
+  "version": "1.8.3",
+  "hash": "7c67db3cc3f28a6cb7b000c1fe8f3f8635b71ebf"
  },
  "spielbetrieb": {
   "version": "1.4.6",
   "hash": "fb3e19c8174c72ce0f79f66fcba51602ce410b62"
  },
  "zeiterfassung": {
-  "version": "1.0.6",
-  "hash": "a1cac273eeca7524484498ef2dc3182463bf31e5"
+  "version": "1.0.7",
+  "hash": "eeda1576c0f3c3fb73e1b5a6eef511ed7875dade"
  },
  "zugang": {
-  "version": "1.2.2",
-  "hash": "9d30249202d86a7940adaaa5a393ecd3e964acc2"
+  "version": "1.2.3",
+  "hash": "5da85bb525101bc70155b005122f46c6a01aa97b"
  }
 }
