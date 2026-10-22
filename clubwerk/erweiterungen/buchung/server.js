@@ -160,17 +160,27 @@ function activate(ctx) {
   const partnerDevices = () => db.prepare("SELECT id, name FROM bk_resource WHERE deleted = 0 AND active = 1 AND kind = 'artikel' AND as_partner = 1 ORDER BY sort, name COLLATE NOCASE").all();
   /** verknüpfte Gerätebuchung einer Platzbuchung (aktiv) → { booking, name } oder null */
   const deviceOf = b => { if (!b.partner_device_id) return null; const d = db.prepare("SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.id = ? AND b.status = 'aktiv'").get(b.partner_device_id); return d ? { booking: d, name: d.rname } : null; };
-  const soloLabelOf = b => (b.solo ? (resource(b.resource_id) || {}).solo_label || 'allein' : null);
-  const bview = (b, { me = null, names = true, full = false } = {}) => {
+  const soloLabelOf = (b, res = resource) => (b.solo ? (res(b.resource_id) || {}).solo_label || 'allein' : null);
+  /** Nachschlagen für Listen: Mitglieder, Buchungsarten, Plätze und Gerätebuchungen je einmal vorab laden (bei Bedarf),
+      statt einer Abfrage je Eintrag – gleiche Ergebnisse wie nameOf, labelOf, resource und deviceOf */
+  function lookups() {
+    const lazy = sql => { let m = null; return () => m || (m = new Map(db.prepare(sql).all().map(x => [x.id, x]))); };
+    const mem = lazy('SELECT id, name, photo, photo_use FROM members'), lab = lazy('SELECT id, name, color FROM bk_label'), res = lazy('SELECT * FROM bk_resource');
+    const dev = lazy("SELECT b.id, b.resource_id, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.id IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL)");
+    return { member: id => mem().get(id) || null, name: id => (mem().get(id) || {}).name || '?', label: id => (id ? lab().get(id) : null), res: id => res().get(int(id)),
+      dev: b => { const d = b.partner_device_id ? dev().get(b.partner_device_id) : null; return d ? { booking: d, name: d.rname } : null; } };
+  }
+  const single = { name: nameOf, label: labelOf, res: resource, dev: deviceOf };   // einzeln abfragen (einzelne Buchung)
+  const bview = (b, { me = null, names = true, full = false, lk = single } = {}) => {
     const partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
     const mine = me != null && (b.member_id === me || partners.includes(me));
     const show = full || mine || (names && b.type === 'buchung');
-    const lab = labelOf(b.label_id);
-    const dev = b.type === 'buchung' ? deviceOf(b) : null;
+    const lab = lk.label(b.label_id);
+    const dev = b.type === 'buchung' ? lk.dev(b) : null;
     const out = { id: b.id, resource_id: b.resource_id, date: b.date, start: b.start, end: b.end, type: b.type, series: b.series_id ? true : undefined, label: lab ? { name: lab.name, color: lab.color } : null, title: b.type === 'buchung' && !lab ? null : (b.title || (lab && lab.name) || null), mine, own: me != null && b.member_id === me,
-      who: show && b.type === 'buchung' ? [b.member_id ? nameOf(b.member_id) : (b.title || (lab && lab.name) || 'Verein'), ...partners.map(nameOf), ...guests.map(guestLabel)] : null,
-      partner_device_name: dev ? dev.name : null, solo_label: b.type === 'buchung' ? soloLabelOf(b) : null };   // Anzeige „Muster, Max + Ballmaschine“ bzw. „… · Ballwand“
-    if (full) Object.assign(out, { booked_by: b.booked_by_id ? nameOf(b.booked_by_id) : null, member_id: b.member_id, partners, guests, fee_cents: b.fee_cents, charge_id: b.charge_id, series_id: b.series_id, note: b.note, source: b.source, status: b.status, created_by: b.created_by, created_at: b.created_at, title: b.title, partner_device_id: b.partner_device_id || null, solo: Boolean(b.solo) });
+      who: show && b.type === 'buchung' ? [b.member_id ? lk.name(b.member_id) : (b.title || (lab && lab.name) || 'Verein'), ...partners.map(lk.name), ...guests.map(guestLabel)] : null,
+      partner_device_name: dev ? dev.name : null, solo_label: b.type === 'buchung' ? soloLabelOf(b, lk.res) : null };   // Anzeige „Muster, Max + Ballmaschine“ bzw. „… · Ballwand“
+    if (full) Object.assign(out, { booked_by: b.booked_by_id ? lk.name(b.booked_by_id) : null, member_id: b.member_id, partners, guests, fee_cents: b.fee_cents, charge_id: b.charge_id, series_id: b.series_id, note: b.note, source: b.source, status: b.status, created_by: b.created_by, created_at: b.created_at, title: b.title, partner_device_id: b.partner_device_id || null, solo: Boolean(b.solo) });
     return out;
   };
   const dayBookings = date => db.prepare("SELECT * FROM bk_booking WHERE date = ? AND status = 'aktiv' ORDER BY start").all(date);
@@ -194,11 +204,11 @@ function activate(ctx) {
   }
   /** offene (noch nicht vorbei) Buchungen eines Mitglieds je Art */
   function openCount(mid, kind, exceptId = 0) {
-    const d = today(), n = hhmm(nowMin());
+    const d = today(), n = hhmm(nowMin()), cp = cfg().count_partners;
     // Gerätebuchungen, die als Mitspieler an einer Platzbuchung hängen (Ballmaschine), zählen nicht fürs Kontingent
     return db.prepare(`SELECT b.id, b.member_id, b.partners FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND r.kind = ? AND b.id != ?
       AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`).all(kind, exceptId, d, d, n)
-      .filter(b => b.member_id === mid || (cfg().count_partners && J(b.partners, []).includes(mid))).length;
+      .filter(b => b.member_id === mid || (cp && J(b.partners, []).includes(mid))).length;
   }
   /** gleiche Person zur gleichen Zeit schon gebucht (gleiche Art)? */
   function personBusy(mid, kind, date, s, e, exceptId = 0) {
@@ -257,7 +267,7 @@ function activate(ctx) {
       { heading: 'Für dich gebucht', intro, title: when, rows: summaryRows(b), outro: 'Viel Spaß beim Spielen!', calendar: calendarFor(b) }).catch(() => {});
   }
   const guestLabel = g => `${g.name} (${g.partner ? 'Gast, Partnerverein' : 'Gast'})`;
-  const feeOf = r => (r.guest_fee_cents != null ? r.guest_fee_cents : cfg().guest_fee_cents);
+  const feeOf = (r, c = null) => (r.guest_fee_cents != null ? r.guest_fee_cents : (c || cfg()).guest_fee_cents);   // c: Einstellungen, wenn schon geladen
 
   /* ---------- Wer darf buchen? (Mitgliedsstatus, Beitragsart, Abteilung – aus der Mitgliederverwaltung) ---------- */
   const STATUS = { aktiv: 'aktiv', passiv: 'passiv', ehren: 'Ehrenmitglied', ruhend: 'ruhend', ausgetreten: 'ausgetreten' };
@@ -270,8 +280,11 @@ function activate(ctx) {
   /** → null (darf) oder Grund */
   async function notAllowed(id) {
     if (!mv()) return null;
-    const i = await info(id); if (!i) return null;
-    const c = cfg();
+    return whyNot(await info(id), cfg());
+  }
+  /** Grund aus den Mitgliedsdaten i (memberInfo) und den Einstellungen c – oder null */
+  function whyNot(i, c) {
+    if (!i) return null;
     const st = i.status || 'aktiv';   // ohne erfasste Mitgliedsdaten gilt „aktiv“
     if (!c.allowed_status.includes(st)) return `Mit der Mitgliedschaft „${STATUS[st] || st}“ kann nicht gebucht werden.`;
     if (i.fee && c.blocked_fees.includes(i.fee.id)) return `Mit der Beitragsart „${i.fee.name}“ kann nicht gebucht werden.`;
@@ -280,9 +293,11 @@ function activate(ctx) {
   const deptName = id => ((mvSync('departments') || []).find(d => d.id === id) || {}).name || 'Abteilung';
   const departments = () => (mvSync('departments') || []).filter(d => d.active).map(d => ({ id: d.id, name: d.name }));
   const feeList = () => mvSync('fees') || [];
-  async function eligiblePeople(exceptId) {
-    const out = [];
-    for (const p of people()) if (p.id !== exceptId && !(await notAllowed(p.id))) out.push(p);
+  async function eligiblePeople(exceptId) {   // Einstellungen und Modulprüfung einmal, nicht je Mitglied
+    const list = people().filter(p => p.id !== exceptId);
+    if (!mv()) return list;
+    const c = cfg(), out = [];
+    for (const p of list) if (!whyNot(await info(p.id), c)) out.push(p);
     return out;
   }
 
@@ -536,25 +551,25 @@ function activate(ctx) {
   /** Tagesplan für Anzeige (App, Tablet, Verwaltung) */
   function dayPlan(date, { me = null, full = false, kind = null } = {}) {
     const c = cfg();
-    const rs = resources(full).filter(r => !kind || r.kind === kind);
+    const rs = resources(full).filter(r => !kind || r.kind === kind), lk = lookups();
     return { date, dow: isoDow(date), resources: rs.map(r => ({ id: r.id, kind: r.kind, name: r.name, area: r.area || (r.kind === 'artikel' ? 'Geräte' : 'Plätze'), note: r.note, open_from: r.open_from, open_to: r.open_to,
-      slot_min: r.slot_min, max_min: r.max_min, quantity: r.quantity, department: r.department_id ? deptName(r.department_id) : null, outsiders: r.outsiders, outsider_fee_cents: r.outsider_fee_cents, open_today: String(r.days).includes(String(isoDow(date))), guest_fee_cents: feeOf(r), active: Boolean(r.active), days: r.days,
+      slot_min: r.slot_min, max_min: r.max_min, quantity: r.quantity, department: r.department_id ? deptName(r.department_id) : null, outsiders: r.outsiders, outsider_fee_cents: r.outsider_fee_cents, open_today: String(r.days).includes(String(isoDow(date))), guest_fee_cents: feeOf(r, c), active: Boolean(r.active), days: r.days,
       partner_required: Boolean(r.partner_required), solo_label: r.solo_label || null, as_partner: Boolean(r.as_partner) })),
       devices: partnerDevices(),   // Geräte, die als Mitspieler wählbar sind (Ballmaschine …)
-      bookings: dayBookings(date).filter(b => rs.some(r => r.id === b.resource_id)).map(b => bview(b, { me, names: c.show_names, full })),
+      bookings: dayBookings(date).filter(b => rs.some(r => r.id === b.resource_id)).map(b => bview(b, { me, names: c.show_names, full, lk })),
       waits: me != null ? db.prepare('SELECT id, resource_id, start, end FROM bk_wait WHERE member_id = ? AND date = ?').all(me, date) : [] };
   }
   const myUpcoming = mid => {
-    const d = today(), n = hhmm(nowMin());
+    const d = today(), n = hhmm(nowMin()), fo = rightsOf(mid).forOthers, lim = cfg().cancel_before_min, key = S('ics_key'), lk = lookups();
     // verknüpfte Gerätebuchungen (Ballmaschine zur Platzbuchung) erscheinen nicht einzeln – die Platzbuchung zeigt „+ Ballmaschine“
     return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?))
       AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start`).all(d, d, n)
-      .filter(b => b.member_id === mid || J(b.partners, []).includes(mid) || (b.booked_by_id === mid && rightsOf(mid).forOthers)).map(b => { const dev = deviceOf(b), own = b.member_id === mid, forOther = !own && b.booked_by_id === mid && rightsOf(mid).forOthers;
-        return { ...bview(b, { me: mid, full: false }), who: bview(b, { me: b.member_id, full: false }).who, resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? nameOf(b.member_id) : null, booked_by: own && b.booked_by_id ? nameOf(b.booked_by_id) : null,
-        canCancel: (own || forOther) && canCancelNow(b), canEdit: (own || forOther) && canCancelNow(b), ics: icsUrl(b.id),
+      .filter(b => b.member_id === mid || J(b.partners, []).includes(mid) || (b.booked_by_id === mid && fo)).map(b => { const dev = lk.dev(b), own = b.member_id === mid, forOther = !own && b.booked_by_id === mid && fo;
+        return { ...bview(b, { me: mid, full: false, lk }), who: bview(b, { me: b.member_id, full: false, lk }).who, resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? lk.name(b.member_id) : null, booked_by: own && b.booked_by_id ? lk.name(b.booked_by_id) : null,
+        canCancel: (own || forOther) && canCancelNow(b, lim), canEdit: (own || forOther) && canCancelNow(b, lim), ics: icsUrl(b.id, key),
         ...(own || forOther ? { edit: { for_member: forOther ? b.member_id : null, resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '', partner_device: dev ? dev.booking.resource_id : null, solo: Boolean(b.solo) } } : {}) }; });
   };
-  const canCancelNow = b => { const lim = cfg().cancel_before_min; const st = Date.parse(`${b.date}T${b.start}:00`); return Date.now() <= st - lim * 60000; };
+  const canCancelNow = (b, lim = cfg().cancel_before_min) => { const st = Date.parse(`${b.date}T${b.start}:00`); return Date.now() <= st - lim * 60000; };
 
   /* ---------- Platzgebühren (Gast- und Platzgebühr): offen, bezahlt, storniert ----------
      Mit Mitgliederverwaltung hängt an der Buchung eine Forderung (charge_id), deren Status einmal gesammelt abgefragt wird (Hook chargeStatus).
@@ -574,11 +589,12 @@ function activate(ctx) {
     const rows = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE ${w.join(' AND ')} ORDER BY b.date DESC, b.start DESC LIMIT 5000`).all(...a);
     const tracked = mv();
     const st = tracked ? (await hook('chargeStatus', rows.map(b => b.charge_id).filter(Boolean)).catch(() => null)) || {} : {};
+    const lk = lookups();
     return { tracked, rows: rows.map(b => {
       const c = b.charge_id ? st[b.charge_id] : null;
       // offen = Forderung weder bezahlt noch storniert (keine Forderung angelegt → ebenfalls offen); ohne Mitgliederverwaltung: unbekannt (zählt als offen)
       const status = !tracked ? 'unbekannt' : c && c.status === 'bezahlt' ? 'bezahlt' : c && c.status === 'storniert' ? 'storniert' : 'offen';
-      return { id: b.id, member_id: b.member_id, member: b.member_id ? lastFirst(nameOf(b.member_id)) : 'Verein', date: b.date, start: b.start, end: b.end, resource: b.rname, text: feeText(b, resource(b.resource_id) || {}), fee_cents: b.fee_cents, status, paid_at: c ? c.paid_at || null : null, charge_id: b.charge_id || null };
+      return { id: b.id, member_id: b.member_id, member: b.member_id ? lastFirst(lk.name(b.member_id)) : 'Verein', date: b.date, start: b.start, end: b.end, resource: b.rname, text: feeText(b, lk.res(b.resource_id) || {}), fee_cents: b.fee_cents, status, paid_at: c ? c.paid_at || null : null, charge_id: b.charge_id || null };
     }) };
   }
   const isOpenFee = x => x.status === 'offen' || x.status === 'unbekannt';
@@ -588,8 +604,8 @@ function activate(ctx) {
   /* ---------- Kalender (.ics) – Link mit Prüfsumme, damit das Handy ihn ohne Anmeldung öffnen kann ---------- */
   const crypto = require('crypto');
   if (!S('ics_key')) SET('ics_key', crypto.randomBytes(24).toString('hex'));
-  const icsToken = id => crypto.createHmac('sha256', S('ics_key')).update('bk' + id).digest('hex').slice(0, 32);
-  const icsUrl = id => `api/p/buchung/ics/${id}?k=${icsToken(id)}`;
+  const icsToken = (id, key = S('ics_key')) => crypto.createHmac('sha256', key).update('bk' + id).digest('hex').slice(0, 32);
+  const icsUrl = (id, key) => `api/p/buchung/ics/${id}?k=${icsToken(id, key)}`;
   const utc = (d, t) => new Date(`${d}T${t === '24:00' ? '23:59' : t}:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const icsEsc = v => String(v || '').replace(/\\/g, '\\\\').replace(/[;,]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
   /** Kalender für eine Buchung in Mails: die .ics-Datei als Anhang */
@@ -636,7 +652,7 @@ function activate(ctx) {
     try { const q = await check(a.target, b, { dry: true, exceptId: own ? own.id : 0 }); res.json({ ok: true, fee_cents: q.fee, lines: q.lines }); } catch (e) { bad(res, e.message); }
   }));
   M.get('/me', ar(async (req, res) => {
-    const mid = req.member.id, c = cfg();
+    const mid = req.member.id, c = cfg(), rt = rightsOf(mid);
     const date = isDate(req.query.date) ? req.query.date : today();
     const max = addDays(today(), c.advance_days);
     res.json({ today: today(), now: hhmm(nowMin()), max, settings: { show_now: c.show_now, advance_days: c.advance_days, max_partners: c.max_partners, max_guests: c.max_guests, rules: c.rules, waitlist: c.waitlist,
@@ -645,8 +661,8 @@ function activate(ctx) {
       mine: myUpcoming(mid), waits: db.prepare(`SELECT w.id, w.date, w.start, w.end, w.notified_at, r.name AS resource FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.date >= ? ORDER BY w.date, w.start`).all(mid, today()),
       people: (await eligiblePeople(mid)).map(p => ({ ...p, ln: lastFirst(p.name) })), blocked: await notAllowed(mid),
       labels: labels().filter(l => labelForMember(l, mid)).map(l => ({ id: l.id, name: l.name, color: l.color, free_rules: Boolean(l.free_rules) })),
-      rights: { series: rightsOf(mid).series, forOthers: rightsOf(mid).forOthers },
-      series: rightsOf(mid).series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date, rule_text: ruleText(x),
+      rights: { series: rt.series, forOthers: rt.forOthers },
+      series: rt.series ? db.prepare("SELECT * FROM bk_series WHERE member_id = ? AND active = 1 AND to_date >= ? AND type = 'serie' ORDER BY from_date").all(mid, today()).map(x => ({ id: x.id, title: x.title, weekdays: x.weekdays, start: x.start, end: x.end, from_date: x.from_date, to_date: x.to_date, rule_text: ruleText(x),
         resources: J(x.resources, []).map(id => (resource(id) || {}).name).filter(Boolean), count: db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE series_id = ? AND status = 'aktiv' AND date >= ?").get(x.id, today()).n })) : [] });
   }));
   // je Mitglied (nicht nur je Adresse – draußen teilen sich viele Handys eine Adresse, drinnen könnte eine wechseln): 10 Aktionen je Minute
@@ -744,7 +760,7 @@ function activate(ctx) {
     const max = addDays(today(), c.advance_days), q = String(req.query.date || '');
     const date = isDate(q) && q >= today() && q <= max ? q : today();
     res.json({ today: today(), date, max, now: hhmm(nowMin()), booking: c.tablet_booking, rules: c.rules, max_partners: c.max_partners, max_guests: c.max_guests, plan: dayPlan(date, { me: null }),
-      people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(p => ({ ...p, ln: lastFirst(p.name), ph: photos.version(p.id, 'buchung') })) : [] });
+      people: c.tablet_booking ? db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin, photo, photo_use FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(p => ok.has(p.id)).map(({ photo, photo_use, ...p }) => ({ ...p, ln: lastFirst(p.name), ph: photos.version({ photo, photo_use }, 'buchung') })) : [] });
   }));
   // Buchen und Stornieren am Tablet nur mit PIN (zentrale PIN des Mitglieds, wie im Verkauf)
   const tabletMember = (req, res) => {
@@ -796,14 +812,14 @@ function activate(ctx) {
     const from = isDate(req.query.from) ? req.query.from : today();
     const r = resource(req.query.resource) || resources()[0];
     if (!r) return res.json({ days: [], bookings: [], resource: null });
-    const days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
+    const lk = lookups(), days = Array.from({ length: 7 }, (_, i) => addDays(from, i));
     res.json({ resource: { ...r, guest_fee_cents: feeOf(r) }, days: days.map(d => ({ date: d, open: String(r.days).includes(String(isoDow(d))) })),
-      bookings: db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date BETWEEN ? AND ? AND status = 'aktiv' ORDER BY date, start").all(r.id, days[0], days[6]).map(b => bview(b, { full: true })) });
+      bookings: db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date BETWEEN ? AND ? AND status = 'aktiv' ORDER BY date, start").all(r.id, days[0], days[6]).map(b => bview(b, { full: true, lk })) });
   });
   admin.get('/bookings', P, (req, res) => {   // Liste (Suche, Auswertung)
-    const from = isDate(req.query.from) ? req.query.from : today(), to = isDate(req.query.to) ? req.query.to : addDays(from, 30);
+    const lk = lookups(), from = isDate(req.query.from) ? req.query.from : today(), to = isDate(req.query.to) ? req.query.to : addDays(from, 30);
     res.json(db.prepare(`SELECT b.*, r.name AS resource FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.date BETWEEN ? AND ? ${req.query.all ? '' : "AND b.status = 'aktiv'"} ORDER BY b.date, b.start LIMIT 2000`).all(from, to)
-      .map(b => ({ ...bview(b, { full: true }), resource: b.resource })));
+      .map(b => ({ ...bview(b, { full: true, lk }), resource: b.resource })));
   });
   /* Gebühren (Reiter „Gebühren“): ?from&to&status=alle|offen|bezahlt */
   admin.get('/fees', P, ar(async (req, res) => {
@@ -927,10 +943,10 @@ function activate(ctx) {
     if (f === 'label') w.push('b.label_id IS NOT NULL');
     if (f === 'sperre') w.push("b.type = 'sperre'");
     const order = q.sort === 'eingetragen' ? 'b.created_at DESC, b.id DESC' : 'b.date DESC, b.start DESC, b.id DESC';
-    const now = `${today()} ${hhmm(nowMin())}`;
+    const now = `${today()} ${hhmm(nowMin())}`, lk = lookups();
     let rows = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE ${w.join(' AND ')} ORDER BY ${order} LIMIT 5000`).all(...a).map(b => {
-      const lab = labelOf(b.label_id), partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
-      const people = [b.member_id, ...partners].filter(Boolean).map(id => ({ id, name: lastFirst(nameOf(id)), ph: photos.version(id, 'buchung') }));
+      const lab = lk.label(b.label_id), partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
+      const people = [b.member_id, ...partners].filter(Boolean).map(id => ({ id, name: lastFirst(lk.name(id)), ph: photos.version(lk.member(id), 'buchung') }));
       return { id: b.id, date: b.date, start: b.start, end: b.end, type: b.type, resource: b.rname, resource_id: b.resource_id, label: lab ? { name: lab.name, color: lab.color } : null, title: b.title,
         people, guests: guests.map(g => g.name + (g.partner ? ' (Partnerverein)' : '')), fee_cents: b.fee_cents, source: b.source, created_by: b.created_by, created_at: b.created_at,
         status: b.status === 'storniert' ? 'storniert' : `${b.date} ${b.end}` <= now ? 'abgeschlossen' : `${b.date} ${b.start}` <= now ? 'laeuft' : 'anstehend',
@@ -960,7 +976,7 @@ function activate(ctx) {
     const all = resources(true).filter(r => r.kind === 'platz');
     const sel = req.query.resource ? all.filter(r => r.id === int(req.query.resource)) : all;
     const ids = sel.map(r => r.id);
-    const t0 = today();
+    const t0 = today(), look = lookups();
     const calc = yy => {
       const from = `${yy}-01-01`, to = `${yy}-12-31`;
       const rows = ids.length ? db.prepare(`SELECT * FROM bk_booking WHERE date BETWEEN ? AND ? AND type != 'sperre' AND resource_id IN (${ids.map(() => '?').join(',')})`).all(from, to, ...ids) : [];
@@ -969,10 +985,11 @@ function activate(ctx) {
       // verfügbare Zeit: Öffnungszeiten an buchbaren Tagen, im laufenden Jahr bis heute; Sperren abziehen
       const until = yy === Number(t0.slice(0, 4)) ? t0 : to;
       let avail = 0;
+      const lockRows = ids.length ? db.prepare(`SELECT resource_id, start, end FROM bk_booking WHERE type = 'sperre' AND status = 'aktiv' AND date BETWEEN ? AND ? AND resource_id IN (${ids.map(() => '?').join(',')})`).all(from, until, ...ids) : [];
       const perRes = sel.map(r => {
         let a = 0;
         if (from <= until) for (let d = from; d <= until; d = addDays(d, 1)) if (String(r.days).includes(String(isoDow(d)))) a += tm(r.open_to) - tm(r.open_from);
-        const locks = db.prepare("SELECT start, end FROM bk_booking WHERE resource_id = ? AND type = 'sperre' AND status = 'aktiv' AND date BETWEEN ? AND ?").all(r.id, from, until).reduce((x, b) => x + Math.max(0, tm(b.end) - tm(b.start)), 0);
+        const locks = lockRows.filter(b => b.resource_id === r.id).reduce((x, b) => x + Math.max(0, tm(b.end) - tm(b.start)), 0);
         a = Math.max(0, a - locks); avail += a;
         const used = act.filter(b => b.resource_id === r.id && b.date <= until).reduce((x, b) => x + mins(b), 0);
         const all2 = act.filter(b => b.resource_id === r.id).reduce((x, b) => x + mins(b), 0);
@@ -995,13 +1012,13 @@ function activate(ctx) {
     const lo = sel.length ? Math.min(...sel.map(r => tm(r.open_from))) : 8 * 60, hi = sel.length ? Math.max(...sel.map(r => tm(r.open_to))) : 22 * 60;
     // nach Art: Buchungsart, Mitgliederbuchung, Serie ohne Buchungsart
     const kinds = new Map();
-    c.act.forEach(b => { const l = labelOf(b.label_id); const k = l ? l.name : b.type === 'serie' ? 'Serie ohne Buchungsart' : 'Mitgliederbuchung'; const v = kinds.get(k) || { name: k, color: l ? l.color : b.type === 'serie' ? '#7a7f87' : null, minutes: 0, count: 0 }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); });
+    c.act.forEach(b => { const l = look.label(b.label_id); const k = l ? l.name : b.type === 'serie' ? 'Serie ohne Buchungsart' : 'Mitgliederbuchung'; const v = kinds.get(k) || { name: k, color: l ? l.color : b.type === 'serie' ? '#7a7f87' : null, minutes: 0, count: 0 }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); });
     // Sperren als eigene Art (Platzpflege, Turniere …)
     if (ids.length) { const lk = db.prepare(`SELECT * FROM bk_booking WHERE date BETWEEN ? AND ? AND type = 'sperre' AND status = 'aktiv' AND resource_id IN (${ids.map(() => '?').join(',')})`).all(c.from, c.to, ...ids);
-      for (const b of lk) { const l = labelOf(b.label_id); const k = l ? l.name : 'Gesperrt'; const v = kinds.get(k) || { name: k, color: l ? l.color : '#b0b4ba', minutes: 0, count: 0, lock: !l }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); } }
+      for (const b of lk) { const l = look.label(b.label_id); const k = l ? l.name : 'Gesperrt'; const v = kinds.get(k) || { name: k, color: l ? l.color : '#b0b4ba', minutes: 0, count: 0, lock: !l }; v.minutes += c.mins(b); v.count++; kinds.set(k, v); } }
     // Wer spielt am meisten? (Bucher und Mitspieler, Stunden)
     const pm = new Map(); c.act.filter(b => b.type === 'buchung').forEach(b => { for (const id of [b.member_id, ...J(b.partners, [])].filter(Boolean)) pm.set(id, (pm.get(id) || 0) + c.mins(b)); });
-    const top = [...pm.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, m]) => ({ name: lastFirst(nameOf(id)), minutes: m }));
+    const top = [...pm.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10).map(([id, m]) => ({ name: lastFirst(look.name(id)), minutes: m }));
     const app = c.act.filter(b => b.type === 'buchung' && b.source !== 'verwaltung' && b.created_at);
     const lead = app.length ? app.reduce((x, b) => x + Math.max(0, (Date.parse(b.date + 'T' + b.start) - Date.parse(String(b.created_at).replace(' ', 'T'))) / 86400000), 0) / app.length : null;
     const pick = x => ({ minutes: x.minutes, count: x.act.length, cancelled: x.can.length, rate: x.avail ? x.usedAll / x.avail : 0, players: x.players, guests: x.guests, labeled: x.labeled, month: x.month, monthCount: x.monthCount, monthCan: x.monthCan });
