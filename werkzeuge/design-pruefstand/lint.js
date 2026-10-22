@@ -51,6 +51,8 @@
         if (cr < (big ? 3 : 4.5)) add('kontrast', e, { cr: Math.round(cr * 100) / 100, fg: s.color, bg: 'rgb(' + bg.slice(0, 3).map(Math.round).join(',') + ')' });
       }
     }
+    /* Haken und Auswahlpunkte sind quadratisch – gestaucht/gestreckt sehen sie je Browser anders aus (am iPhone riesig) */
+    if (e.tagName === 'INPUT' && ['checkbox', 'radio'].includes(e.type) && s.appearance !== 'none' && r.width > 0 && Math.abs(r.width - r.height) > 2) add('haken-verzerrt', e, { w: Math.round(r.width), h: Math.round(r.height) });
     if (phone) {
       /* 7) iPhone zoomt beim Antippen in Felder unter 16 px hinein */
       if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.tagName) && !['checkbox', 'radio', 'range', 'color', 'file', 'hidden', 'submit', 'button'].includes(e.type) && parseFloat(s.fontSize) < 16) add('ios-zoom', e, { fs: s.fontSize });

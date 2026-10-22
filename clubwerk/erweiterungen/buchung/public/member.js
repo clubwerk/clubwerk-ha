@@ -77,14 +77,14 @@
       .bkm-form label.l { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
       .bkm-form label.l span { font-weight: 500; } .bkm-form label.l .vh-chip { font-weight: 800; }
       .bkm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } .bkm-two.one { grid-template-columns: 1fr; } .bkm-two .span2 { grid-column: 1 / -1; } .bkm-two > div { min-width: 0; }
+      @media (max-width: 520px) { .bkm-two { grid-template-columns: 1fr; } }   /* Handy: Dauer und Art untereinander – sonst abgeschnitten */
       .bkm-lh { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 6px; } .bkm-lh label.l { margin: 0; }
       .bkm-links { display: flex; gap: 16px; flex: none; }
       .bkm-fold { padding: 12px 12px 0; margin: 0 0 12px; border-radius: 12px; background: var(--hover); }
       .bkm-fold .vh-check { margin-bottom: 12px; }
       .bkm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .bkm-row2 .vh-btn { height: 48px; min-height: 48px; padding: 0 14px; font-size: 15px; border-radius: 12px; }
-      .bkm-form p.bkm-req { margin: -4px 0 12px; font-size: 13px; color: var(--amber); font-weight: 600; }
+      .bkm-form p.bkm-req { text-wrap: wrap; margin: -4px 0 12px; padding: 0; border: 0; background: none; font-size: 13px; color: var(--muted); font-weight: 500; }
       .bkm-form p.bkm-for { margin: 0 0 12px; font-size: 14.5px; color: var(--ink); }
-      .bkm-more { display: block; margin: 0 0 12px; }
       .bkm-rl { margin: 2px 0 10px; } .bkm-rl .vh-check { margin: 0; flex: 1; }
       .bkm-form .bkm-rules { margin: 0 0 12px; }
       .bkm-form .vh-seg { margin-bottom: 12px; }
@@ -364,16 +364,15 @@
             <div><label class="l">Dauer</label><select class="vh-select" id="bkmD"></select></div>
             ${labels.length ? `<div${ed ? ' class="span2"' : ''}><label class="l">Art</label><select class="vh-select" id="bkmL"><option value="">Normale Buchung</option>${labels.map(l => `<option value="${l.id}" ${lab && lab.id === l.id ? 'selected' : ''}>${esc(l.name)}</option>`).join('')}</select></div>` : ''}</div>
           ${labels.length ? `<div id="bkmTw"><label class="l">Titel <span>(optional)</span></label><input class="vh-input" id="bkmT" maxlength="80" placeholder="z. B. Herren 40 gegen TC Musterstadt" value="${esc(ed ? ed.edit.title || '' : '')}"></div>` : ''}
-          ${withWho ? `<div class="bkm-lh"><label class="l">Mitspieler${r.partner_required ? ' <span class="vh-chip a">Pflicht</span>' : ''} <span id="bkmPm"></span></label>
+          ${withWho ? `<div class="bkm-lh"><label class="l">Mitspieler <span id="bkmPm"></span></label>
               <span class="bkm-links">${set.max_guests ? '<button type="button" class="vh-link" id="bkmGt">+ Gast</button>' : ''}${devices.length || r.solo_label ? `<button type="button" class="vh-link" id="bkmDt">${esc(devices.length ? devices[0].name : r.solo_label)}${devices.length + (r.solo_label ? 1 : 0) > 1 ? ' …' : ''}</button>` : ''}</span></div>
             <div class="bkm-chips" id="bkmPc"></div><div class="bkm-chips" id="bkmGc"></div>
             ${set.max_partners ? '<input class="vh-input" id="bkmPq" placeholder="Name suchen" autocomplete="off"><div class="bkm-hits" id="bkmPh" hidden></div>' : ''}
-            ${set.max_guests ? `<div class="bkm-fold" id="bkmGw" hidden><label class="l">Gast <span id="bkmGm"></span></label><div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Name des Gastes" autocomplete="off" maxlength="60"><button type="button" class="vh-btn sec" id="bkmGa">Hinzufügen</button></div>
+            ${set.max_guests ? `<div class="bkm-fold" id="bkmGw" hidden><label class="l">Gast hinzufügen <span id="bkmGm"></span></label><div class="bkm-row2"><input class="vh-input" id="bkmGq" placeholder="Name" autocomplete="off" maxlength="60"><button type="button" class="vh-btn sec" id="bkmGa">Hinzufügen</button></div>
               <label class="vh-check"><input type="checkbox" id="bkmGp"> Mitglied in einem Partnerverein (keine Gastgebühr)</label></div>` : ''}
             ${devices.length || r.solo_label ? `<div class="bkm-fold" id="bkmDw" hidden><label class="l">Ohne Mitspieler <span>(ohne Gebühr)</span></label><div class="bkm-pick" id="bkmPk">${devices.map(x => `<button type="button" data-dev="${x.id}">${esc(x.name)}</button>`).join('')}${r.solo_label ? `<button type="button" data-solo="1">${esc(r.solo_label)} (allein)</button>` : ''}</div></div>` : ''}
             <p class="bkm-req" id="bkmReq" hidden></p>` : ''}
-          ${!ed && data.rights && data.rights.series ? `<button type="button" class="vh-link bkm-more" id="bkmRt">Wiederholen …</button>
-            <div class="bkm-fold" id="bkmRw" hidden><div class="bkm-two one" id="bkmRg"><div><label class="l">Wiederholen</label><select class="vh-select" id="bkmRf"><option value="">nicht wiederholen</option><option value="daily:1">täglich</option><option value="weekly:1">jede Woche</option><option value="weekly:2">alle 2 Wochen</option><option value="weekly:3">alle 3 Wochen</option><option value="weekly:4">alle 4 Wochen</option><option value="monthly-day:1">jeden Monat am gleichen Tag</option><option value="monthly-nth:1">jeden Monat am gleichen Wochentag</option></select></div>
+          ${!ed && data.rights && data.rights.series ? `<div><div class="bkm-two one" id="bkmRg"><div><label class="l">Wiederholen</label><select class="vh-select" id="bkmRf"><option value="">nicht wiederholen</option><option value="daily:1">täglich</option><option value="weekly:1">jede Woche</option><option value="weekly:2">alle 2 Wochen</option><option value="weekly:3">alle 3 Wochen</option><option value="weekly:4">alle 4 Wochen</option><option value="monthly-day:1">jeden Monat am gleichen Tag</option><option value="monthly-nth:1">jeden Monat am gleichen Wochentag</option></select></div>
               <div id="bkmUW" hidden><label class="l">bis</label><input class="vh-input" type="date" id="bkmU" min="${addDays(day, 1)}" max="${addDays(day, 366)}"></div></div></div>` : ''}
           ${set.rules ? `<div class="bkm-lh bkm-rl"><label class="vh-check"><input type="checkbox" id="bkmR" ${ed ? 'checked' : ''}> Ich halte mich an die Platzordnung.</label><button type="button" class="vh-link" id="bkmRr">lesen</button></div>
             <div class="bkm-rules" id="bkmRules" hidden>${esc(set.rules)}</div>` : ''}
@@ -382,7 +381,7 @@
         sh.classList.add('show');
         const $q = id => sh.querySelector('#' + id);
         const fold = (btn, box, focus) => { if ($q(btn)) $q(btn).onclick = () => { const o = $q(box).hidden; $q(box).hidden = !o; $q(btn).classList.toggle('on', o); if (o && focus && $q(focus)) $q(focus).focus(); }; };
-        fold('bkmGt', 'bkmGw', 'bkmGq'); fold('bkmDt', 'bkmDw'); fold('bkmRt', 'bkmRw'); fold('bkmRr', 'bkmRules');
+        fold('bkmGt', 'bkmGw', 'bkmGq'); fold('bkmDt', 'bkmDw'); fold('bkmRr', 'bkmRules');
         if (guests.length && $q('bkmGw')) $q('bkmGw').hidden = false;
         if ((device || solo) && $q('bkmDw')) $q('bkmDw').hidden = false;
         const start = () => ($q('bkmS') ? +$q('bkmS').value : s);
@@ -397,7 +396,7 @@
         };
         const paintLab = () => {
           if ($q('bkmTw')) $q('bkmTw').style.display = lab ? '' : 'none';
-          if ($q('bkmPm')) $q('bkmPm').textContent = `max. ${maxP()}`;
+          if ($q('bkmPm')) $q('bkmPm').textContent = `${r.partner_required ? 'Pflicht · ' : ''}max. ${maxP()}`;
           if ($q('bkmGm')) $q('bkmGm').textContent = lab && lab.free_rules ? 'ohne Gebühr' : r.guest_fee_cents ? `${euro(r.guest_fee_cents)} je Gast` : '';
         };
         let qn = 0;
@@ -408,7 +407,7 @@
           sh.querySelectorAll('[data-dev]').forEach(b => b.classList.toggle('on', +b.dataset.dev === device));
           const sb = sh.querySelector('[data-solo]'); if (sb) sb.classList.toggle('on', solo);
           const need = Boolean(r.partner_required && !chosen());
-          if ($q('bkmReq')) { $q('bkmReq').hidden = !need; $q('bkmReq').textContent = `Bitte ${['ein Mitglied', 'einen Gast', ...devices.map(x => x.name), ...(r.solo_label ? [r.solo_label] : [])].join(', ').replace(/, ([^,]*)$/, ' oder $1')} wählen.`; }
+          if ($q('bkmReq')) { $q('bkmReq').hidden = !need; $q('bkmReq').textContent = `Zum Buchen ${['ein Mitglied', 'einen Gast', ...devices.map(x => x.name), ...(r.solo_label ? [r.solo_label] : [])].join(', ').replace(/, ([^,]*)$/, ' oder $1')} dazunehmen.`; }
           $q('bkmOk').disabled = need;
         };
         sh.querySelectorAll('[data-dev]').forEach(b => { b.onclick = () => { device = device === +b.dataset.dev ? null : +b.dataset.dev; paintPick(); sum(); }; });

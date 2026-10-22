@@ -1,5 +1,23 @@
 # Änderungen
 
+## 3.36.0
+
+**Spielbetrieb: Hinweise beim Zuordnen von Spielern**
+- Wer für die Altersklasse einer Mannschaft zu jung ist, bekommt einen Hinweis, zum Beispiel „wird 2027 erst 38 (H40)“. Maßgeblich ist das Saisonjahr: Für die Herren 40 im Sommer 2027 darf spielen, wer 2027 40 wird, egal an welchem Tag. Das Saisonjahr kommt aus dem Feld „Saison“ („Sommer 2027“ ergibt 2027, „Winter 2026/27“ ergibt 2027), sonst gilt das laufende Jahr.
+- Bei Damenmannschaften gibt es einen Hinweis, wenn ein Mann zugeordnet ist. Jugendmannschaften sind gemischt und bekommen keinen Hinweis.
+- Es bleibt bei Hinweisen. Zuordnen und Speichern gehen immer. Die Hinweise stehen in der Spielerauswahl und in der Mannschaftsübersicht.
+- Geburtsjahr und Geschlecht kommen aus der Mitgliederverwaltung. Ohne sie gibt es keine Hinweise. Fehlt bei einer Mannschaft mit Altersklasse das Geburtsdatum, steht „Geburtsdatum fehlt“ dabei.
+
+**Mitglieder-App: Buchen übersichtlicher**
+- Am Handy stehen Dauer und Art untereinander und werden nicht mehr abgeschnitten.
+- „Pflicht · max. 3“ steht ruhig neben „Mitspieler“. Der Hinweis, was zum Buchen fehlt, ist ein schlichter Satz statt eines gelben Kastens.
+- „Wiederholen“ ist ein normales Auswahlfeld wie „Dauer“ statt eines eigenen Links. Der Gast-Bereich heißt „Gast hinzufügen“ und schneidet nichts mehr ab.
+
+**Verwaltung**
+- **Mitglieder-App › Mitglieder: „zuletzt benutzt“ stimmt wieder.** Bisher zählte nur die PIN-Eingabe. Wer angemeldet blieb, stand tagelang auf einem alten Datum. Jetzt zählt jede Nutzung.
+- **Haken in Tabellen** sind überall gleich groß und quadratisch. Bisher wurden sie in Tabellen gestaucht und waren am iPhone riesig. In der Handy-Ansicht sitzen bei „Beregnung“ und „Türen“ Haken und „unterwegs“ zusammen rechts, wie in den anderen Zeilen.
+- Der Design-Prüfstand meldet verzerrte Haken jetzt selbst.
+
 ## 3.35.0
 
 **Kalender in E-Mails: Knopf statt Anhang**

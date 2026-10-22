@@ -719,9 +719,19 @@ function activate(ctx) {
   }
 
   /* ================================================================= Verwaltung (/api/admin/x/spielbetrieb/…) */
-  const membersList = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 AND pending = 0 ORDER BY name_key(name, kind)").all().map(m => ({ id: m.id, ln: lf(m.name) }));
+  /** Jahrgang/Geschlecht aus der Mitgliederverwaltung (ohne sie: keine Hinweise) */
+  const facts = () => { const r = ctx.callHooksSync('birthGender').find(x => x.id === 'mitglieder'); return r && r.result ? r.result : null; };
+  const factsOf = (f, id) => (f ? { y: (f[id] || {}).y || null, g: (f[id] || {}).g || null } : {});
+  /** Was die Mannschaft verlangt – nur für Hinweise: Mindestalter im Saisonjahr („Herren 40“: wer 2027 40 wird, darf im Sommer 2027 spielen), Damen */
+  function needOf(t) {
+    const c = classOf(t) || '', s = String(t.season || ''), m = s.match(/(\d{4})\s*\/\s*(\d{2,4})\b/), y = s.match(/\b(\d{4})\b/);
+    const year = m ? (m[2].length === 2 ? Number(m[1].slice(0, 2) + m[2]) : Number(m[2])) : y ? Number(y[1]) : Number(today().slice(0, 4));   // Winter 2026/27 → 2027
+    const a = c.match(/^(?:HL )?[HD](\d{2})$/);
+    return { year, age: a ? Number(a[1]) : 0, women: /^(?:HL )?D(\d{2})?$/.test(c), cls: c };
+  }
+  const membersList = (f = facts()) => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 AND pending = 0 ORDER BY name_key(name, kind)").all().map(m => ({ id: m.id, ln: lf(m.name), ...factsOf(f, m.id) }));
   /** Meldelisten, Namen und Gastspieler-Angaben für mehrere Mannschaften auf einmal (für teamRow) */
-  const teamPre = ts => ({ ros: rosters(ts.map(t => t.id)), names: namesOf(ts.flatMap(leaders)), base: linkBase(),
+  const teamPre = ts => ({ facts: facts(), ros: rosters(ts.map(t => t.id)), names: namesOf(ts.flatMap(leaders)), base: linkBase(),
     ext: new Map(db.prepare('SELECT * FROM sp_extern').all().map(e => [e.member_id, e])),
     aged: new Set(db.prepare(`SELECT member_id FROM sp_extern WHERE COALESCE(last_seen, token_at, created_at) < datetime('now','localtime','-${LINK_DAYS} days')`).all().map(r => r.member_id)) });
   /** wie extView(), aus vorab geladenen Daten – ein abgelaufener Link geht wie bisher über extView() (wird dabei erneuert) */
@@ -730,8 +740,8 @@ function activate(ctx) {
     if (x.base && x.aged.has(id)) return extView(id);
     return { phone: e.phone, club: e.club, link: x.base ? `${x.base}/p/spielbetrieb/#t=${e.token}` : null, last_seen: e.last_seen };
   };
-  const teamRow = (t, x = teamPre([t])) => ({ ...t, captain: t.captain_id ? lf(x.names.get(t.captain_id) || '') : null, vice: t.vice_id ? lf(x.names.get(t.vice_id) || '') : null,
-    players: (x.ros.get(t.id) || []).map(r => { const e = extViewPre(r.member_id, x); return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(e), ...(e ? { phone: e.phone, club: e.club, link: e.link, last_seen: e.last_seen } : {}) }; }) });
+  const teamRow = (t, x = teamPre([t])) => ({ ...t, need: needOf(t), captain: t.captain_id ? lf(x.names.get(t.captain_id) || '') : null, vice: t.vice_id ? lf(x.names.get(t.vice_id) || '') : null,
+    players: (x.ros.get(t.id) || []).map(r => { const e = extViewPre(r.member_id, x); return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(e), ...(e ? {} : factsOf(x.facts, r.member_id)), ...(e ? { phone: e.phone, club: e.club, link: e.link, last_seen: e.last_seen } : {}) }; }) });
   /* ---------- Sportwart-Übersicht: Rückmeldungen aller Mannschaften auf einen Blick ---------- */
   admin.get('/dashboard', P, (req, res) => {
     const d0 = today(), soon = addDays(d0, 14), c = cfg();
@@ -784,7 +794,7 @@ function activate(ctx) {
     const c = cfg();
     const externs = db.prepare("SELECT m.id, m.name, e.club FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE m.deleted = 0 ORDER BY name_key(m.name, m.kind)").all().map(m => ({ id: m.id, ln: lf(m.name), club: m.club, ext: true }));
     const ts = db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all(), x = teamPre(ts);
-    res.json({ today: today(), teams: ts.map(t => teamRow(t, x)), members: membersList(), externs, linkReady: Boolean(linkBase()), settings: c,
+    res.json({ today: today(), teams: ts.map(t => teamRow(t, x)), members: membersList(x.facts), externs, linkReady: Boolean(linkBase()), settings: c,
       buchung: ctx.isModuleActive('buchung'), mitglieder: ctx.isModuleActive('mitglieder'), club: c.club || ctx.getSetting('club_name', ''),
       rahmenPending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ?").get(today()).n });
   });

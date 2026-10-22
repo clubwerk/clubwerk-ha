@@ -38,6 +38,7 @@
       .sp-sel > div:first-child { border-top: 0; }
       .sp-sel .rk { font-weight: 800; color: var(--muted); text-align: right; }
       .sp-sel button { min-height: 30px; height: 30px; padding: 0 9px; }
+      .sp-gast.sp-warn { background: var(--red-soft); color: var(--red); }
       .sp-gast { font-style: normal; font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: var(--amber-soft); color: var(--amber); margin-left: 4px; }
       .sp-newx { margin-top: 10px; padding: 12px; border-radius: 12px; background: var(--hover); }
       .sp-sel > div.ext { background: color-mix(in srgb, var(--hover) 60%, transparent); }
@@ -369,12 +370,19 @@
   }
 
   /* ---------------- Mannschaften ---------------- */
+  /** Hinweis (keine Sperre), wenn jemand nicht zur Mannschaft passt: zu jung für die Altersklasse im Saisonjahr, Mann bei den Damen. Jugend: gemischt, kein Hinweis */
+  function fitHint(t, p) {
+    const n = t.need || {}, h = []; if (p.ext || !st.meta.mitglieder) return '';
+    if (n.age) { if (!p.y) h.push('Geburtsdatum fehlt'); else if (n.year - p.y < n.age) h.push(`wird ${n.year} erst ${n.year - p.y} (${n.cls})`); }
+    if (n.women && p.g === 'm') h.push('männlich – Damenmannschaft');
+    return h.join(' · ');
+  }
   async function showTeams(el) {
     const m = st.meta;
     el.innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:14px"><button class="btn primary" id="tmNew" type="button">+ Mannschaft</button></div>
       ${m.teams.length ? m.teams.map(t => `<div class="card sp-team ${t.active ? '' : 'off'}"><div style="min-width:0"><h4 translate="no">${esc(t.name)}${t.active ? '' : ' <span class="pill">nicht aktiv</span>'}</h4>
           <div class="muted s">${[t.age_class ? `Altersklasse ${t.age_class}` : '', t.league, t.season, `mindestens ${t.min_players} Spieler/innen`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
-          <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}${p.ext ? ' <i class="sp-gast">Gast</i>' : ''}</span>`).join('') : '<span class="muted">noch keine Spieler/innen</span>'}</div></div>
+          <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}${p.ext ? ' <i class="sp-gast">Gast</i>' : ''}${fitHint(t, p) ? ` <i class="sp-gast sp-warn">${esc(fitHint(t, p))}</i>` : ''}</span>`).join('') : '<span class="muted">noch keine Spieler/innen</span>'}</div></div>
         <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler/innen …</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
         : '<div class="card"><p class="empty">Noch keine Mannschaften. Tipp: Beim Spielplan-Import werden die Mannschaften automatisch angelegt.</p></div>'}`;
     const again = () => pageRender('sp-mannschaften', showTeams)().catch(fail);
@@ -414,7 +422,7 @@
   /** Spieler zuordnen – die Reihenfolge ist die Meldeliste */
   /** Spieler/innen einer Mannschaft: Mitglieder und Gastspieler/innen (kein Vereinsmitglied, antworten über einen persönlichen Link) */
   function playersDialog(t, after) {
-    const m = st.meta; let list = t.players.map(p => ({ id: p.id, ln: p.ln, ext: p.ext }));
+    const m = st.meta; let list = t.players.map(p => ({ id: p.id, ln: p.ln, ext: p.ext, y: p.y, g: p.g }));
     const info = new Map(t.players.filter(p => p.ext).map(p => [p.id, { phone: p.phone, club: p.club, link: p.link, last_seen: p.last_seen }]));
     let q = '', edit = 0, newOpen = false;
     const pool = () => [...m.members.map(x => ({ ...x, ext: false })), ...(m.externs || []).map(x => ({ ...x, ext: true }))];
@@ -429,18 +437,18 @@
       dialog(`<h3>Spieler/innen · <span translate="no">${esc(t.name)}</span></h3>
         <p class="muted" style="margin:0 0 10px">Links suchen und mit + in die Mannschaft holen – Mitglieder und <b>Gastspieler/innen</b> (kein Vereinsmitglied, z. B. Spielgemeinschaft). Rechts die Meldeliste (Nr. 1 oben), mit ▲ ▼ verschieben. Gäste antworten über einen persönlichen Link oder der Mannschaftsführer trägt für sie ein.</p>
         <div class="sp-grid" style="--c:2"><div><h4 style="margin:0 0 6px">Mitglieder &amp; Gäste</h4><label class="f sp-bar"><input id="plQ" placeholder="Name suchen" value="${esc(q)}" aria-label="Name suchen"></label>
-            <div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}${x.ext ? ` <span class="pill">Gast${x.club ? ' · ' + esc(x.club) : ''}</span>` : ''}</span><button class="btn small" data-ad="${x.id}" data-ext="${x.ext ? 1 : 0}" type="button" aria-label="in die Mannschaft">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div>
+            <div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}${x.ext ? ` <span class="pill">Gast${x.club ? ' · ' + esc(x.club) : ''}</span>` : ''}${fitHint(t, x) ? ` <span class="pill a">${esc(fitHint(t, x))}</span>` : ''}</span><button class="btn small" data-ad="${x.id}" data-ext="${x.ext ? 1 : 0}" type="button" aria-label="in die Mannschaft">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div>
             <div class="sp-newx">${newOpen ? `<div class="sp-grid" style="--c:2;gap:8px 10px"><label class="f">Vorname<input id="xF" autocomplete="off"></label><label class="f">Nachname<input id="xL" autocomplete="off"></label>
               <label class="f">Verein (optional)<input id="xC" placeholder="z. B. TC Dehrn"></label><label class="f">Handy (optional)<input id="xP" inputmode="tel" placeholder="für Rückfragen"></label></div>
               <div class="btns" style="margin-top:8px"><button class="btn ghost" id="xX" type="button">Abbrechen</button><button class="btn primary" id="xOk" type="button">Gast anlegen</button></div>` : '<button class="btn" id="xNew" type="button">+ Gastspieler/in anlegen</button>'}</div></div>
-          <div><h4 style="margin:0 0 6px">In der Mannschaft (${list.length})</h4><div class="sp-bar muted s">Meldeliste – Nr. 1 oben</div><div class="sp-sel" translate="no">${list.map((p, i) => `<div class="${p.ext ? 'ext' : ''}"><span class="rk">${i + 1}</span><span>${esc(p.ln)}${p.ext ? ' <span class="pill">Gast</span>' : ''}</span><span class="nw">${p.ext ? `<button class="btn small ghost" data-lk="${p.id}" type="button" title="Persönlichen Link kopieren" aria-label="Link kopieren">🔗</button><button class="btn small ghost" data-ed="${p.id}" type="button" title="Bearbeiten" aria-label="Bearbeiten">✎</button>` : ''}<button class="btn small ghost" data-up="${i}" type="button" ${i ? '' : 'disabled'} aria-label="nach oben">▲</button><button class="btn small ghost" data-dn="${i}" type="button" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten">▼</button><button class="btn small ghost" data-rm="${i}" type="button" aria-label="entfernen">✕</button></span></div>`).join('') || '<div><span></span><span class="muted">noch niemand – links mit + hinzufügen</span><span></span></div>'}</div>
+          <div><h4 style="margin:0 0 6px">In der Mannschaft (${list.length})</h4><div class="sp-bar muted s">Meldeliste – Nr. 1 oben</div><div class="sp-sel" translate="no">${list.map((p, i) => `<div class="${p.ext ? 'ext' : ''}"><span class="rk">${i + 1}</span><span>${esc(p.ln)}${p.ext ? ' <span class="pill">Gast</span>' : ''}${fitHint(t, p) ? ` <span class="pill a">${esc(fitHint(t, p))}</span>` : ''}</span><span class="nw">${p.ext ? `<button class="btn small ghost" data-lk="${p.id}" type="button" title="Persönlichen Link kopieren" aria-label="Link kopieren">🔗</button><button class="btn small ghost" data-ed="${p.id}" type="button" title="Bearbeiten" aria-label="Bearbeiten">✎</button>` : ''}<button class="btn small ghost" data-up="${i}" type="button" ${i ? '' : 'disabled'} aria-label="nach oben">▲</button><button class="btn small ghost" data-dn="${i}" type="button" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten">▼</button><button class="btn small ghost" data-rm="${i}" type="button" aria-label="entfernen">✕</button></span></div>`).join('') || '<div><span></span><span class="muted">noch niemand – links mit + hinzufügen</span><span></span></div>'}</div>
             ${ed ? `<div class="sp-newx"><b translate="no">${esc(ed.ln)}</b> <span class="muted s">${ei.last_seen ? `Link zuletzt geöffnet ${esc(deDate(ei.last_seen.slice(0, 10)))}` : 'Link noch nicht geöffnet'}</span>
               <div class="sp-grid" style="--c:2;gap:8px 10px;margin-top:8px"><label class="f">Name<input id="eN" value="${esc((m.externs || []).find(x => x.id === ed.id) ? ed.ln.split(', ').reverse().join(' ') : ed.ln)}"></label><label class="f">Verein<input id="eC" value="${esc(ei.club || '')}"></label><label class="f">Handy<input id="eP" inputmode="tel" value="${esc(ei.phone || '')}"></label></div>
               <div class="btns" style="margin-top:8px;justify-content:space-between"><span class="row" style="gap:8px"><button class="btn ghost danger" id="eDel" type="button">Ganz entfernen …</button><button class="btn ghost" id="eNew" type="button">Neuer Link …</button></span><span class="row" style="gap:8px"><button class="btn ghost" id="eX" type="button">Schließen</button><button class="btn primary" id="eOk" type="button">Speichern</button></span></div></div>` : ''}</div></div>
         <div class="btns"><button class="btn ghost" id="plX" type="button">Abbrechen</button><button class="btn primary" id="plOk" type="button">Speichern</button></div>`, true);
       $('plX').onclick = closeDialog;
       $('plQ').oninput = () => { q = $('plQ').value; const pos = $('plQ').selectionStart; draw(); $('plQ').focus(); $('plQ').setSelectionRange(pos, pos); };
-      $('dialog').querySelectorAll('[data-ad]').forEach(b => { b.onclick = () => { const x = pool().find(y => y.id === +b.dataset.ad); list.push({ id: x.id, ln: x.ln, ext: x.ext }); draw(); }; });
+      $('dialog').querySelectorAll('[data-ad]').forEach(b => { b.onclick = () => { const x = pool().find(y => y.id === +b.dataset.ad); list.push({ id: x.id, ln: x.ln, ext: x.ext, y: x.y, g: x.g }); draw(); }; });
       $('dialog').querySelectorAll('[data-rm]').forEach(b => { b.onclick = () => { list.splice(+b.dataset.rm, 1); draw(); }; });
       $('dialog').querySelectorAll('[data-up]').forEach(b => { b.onclick = () => { const i = +b.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); }; });
       $('dialog').querySelectorAll('[data-dn]').forEach(b => { b.onclick = () => { const i = +b.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); }; });

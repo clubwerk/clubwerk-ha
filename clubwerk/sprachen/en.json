@@ -7965,6 +7965,13 @@
   "Wiedereintritt von {0}?": "Readmit {0}?",
   "Logo ließ sich nicht zeichnen (leer)": "The logo could not be drawn (empty)",
   "Zu deinem Kalender hinzufügen": "Add to your calendar",
-  "Zu deinem Kalender hinzufügen: {0}": "Add to your calendar: {0}"
+  "Zu deinem Kalender hinzufügen: {0}": "Add to your calendar: {0}",
+  "{0}max. {1}": "{0}max. {1}",
+  "Gast hinzufügen": "Add guest",
+  "männlich – Damenmannschaft": "male – women's team",
+  "Pflicht ·": "Required ·",
+  "wird {0} erst {1} ({2})": "only turns {1} in {0} ({2})",
+  "Zum Buchen": "To book,",
+  "Zum Buchen {0} dazunehmen.": "To book, add {0}."
  }
 }

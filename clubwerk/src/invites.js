@@ -249,8 +249,10 @@ function redeemHandover(scope, code, pin, host) {
 /** Gerät erkennen (ohne PIN) → { memberId, name } oder null */
 function whoIs(scope, deviceToken) {
   if (!deviceToken || !SCOPE_RE.test(scope)) return null;
-  const r = db.prepare(`SELECT d.id, d.member_id, d.remote, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
+  const r = db.prepare(`SELECT d.id, d.member_id, d.remote, d.last_used, m.name FROM member_devices d JOIN members m ON m.id = d.member_id
     WHERE d.scope = ? AND (d.token_hash = ? OR d.token2_hash = ?) AND m.active = 1 AND m.deleted = 0`).get(scope, sha(deviceToken), sha(deviceToken));
+  // „zuletzt benutzt“: jede Nutzung zählt, nicht nur die PIN-Eingabe (die App bleibt angemeldet) – höchstens alle 10 Minuten geschrieben
+  if (r && (!r.last_used || r.last_used < now(new Date(Date.now() - 600000)))) db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(now(), r.id);
   return r ? { deviceId: r.id, memberId: r.member_id, name: r.name, remote: Boolean(r.remote) } : null;
 }
 

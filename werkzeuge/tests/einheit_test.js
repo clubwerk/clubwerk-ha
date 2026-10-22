@@ -52,5 +52,19 @@ ok('Einzelflaschen mit Bruch', r.lines[1] && r.lines[1].single && r.lines[1].qty
 ok('Firmenname ohne „Getränke“', inv.parseInvoiceText('Musterhandel GmbH\nRechnung').supplier === 'Musterhandel GmbH', inv.parseInvoiceText('Musterhandel GmbH\nRechnung').supplier);
 ok('Gutschrift erkannt', inv.parseInvoiceText('Getränke Beispiel\nGutschrift\n').docKind === 'gutschrift');
 
+/* ---------- Mitglieder-App: „zuletzt benutzt“ zählt jede Nutzung (nicht nur die PIN-Eingabe), höchstens alle 10 Minuten geschrieben ---------- */
+{
+  const inv = require(path.join(APP, 'src/invites')), sha = x => require('crypto').createHash('sha256').update(x).digest('hex'), { nowTs } = require(path.join(APP, 'src/util'));
+  const mid = Number(dbm.db.prepare("INSERT INTO members(name) VALUES ('Lea Abel')").run().lastInsertRowid);
+  const did = Number(dbm.db.prepare("INSERT INTO member_devices(scope, member_id, token_hash) VALUES ('app', ?, ?)").run(mid, sha('geraet-1')).lastInsertRowid);
+  const lu = () => dbm.db.prepare('SELECT last_used FROM member_devices WHERE id = ?').get(did).last_used, ago = m => nowTs(new Date(Date.now() - m * 60000));
+  ok('App-Aufruf ohne PIN erkennt das Handy', inv.whoIs('app', 'geraet-1') && inv.whoIs('app', 'geraet-1').memberId === mid);
+  ok('… und setzt „zuletzt benutzt“', lu() && lu() >= ago(1), lu());
+  dbm.db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(ago(5), did); inv.whoIs('app', 'geraet-1');
+  ok('… vor 5 Minuten: nicht neu geschrieben', lu() === ago(5) || lu() < ago(4), lu());
+  dbm.db.prepare('UPDATE member_devices SET last_used = ? WHERE id = ?').run(ago(60 * 48), did); inv.whoIs('app', 'geraet-1');
+  ok('… vor zwei Tagen: aktualisiert', lu() >= ago(1), lu());
+}
+
 dbm.db.close(); fs.rmSync(process.env.DATA_DIR, { recursive: true, force: true });
 console.log(fails ? fails + ' FEHLER' : 'alles ok'); process.exit(fails ? 1 : 0);

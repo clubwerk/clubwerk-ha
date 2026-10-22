@@ -1141,6 +1141,9 @@ function activate(ctx) {
   /* für andere Module (Arbeitseinsatz) */
   /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);
+  /** Jahrgang und Geschlecht aller Personen (für Hinweise im Spielbetrieb, z. B. Altersklasse H40) → { id: { y, g } } */
+  ctx.hooks.birthGender = () => Object.fromEntries(ctx.db.prepare('SELECT member_id, birth_date, gender FROM mv_person WHERE anonymized_at IS NULL').all()
+    .map(r => [r.member_id, { y: /^\d{4}-/.test(r.birth_date || '') ? Number(r.birth_date.slice(0, 4)) : null, g: r.gender || null }]));
   ctx.hooks.memberInScope = (id, depts) => inScope(Number(id), (depts || []).map(Number).filter(Number.isInteger));
   /* Beitrag einer Person = ihr Hauptbeitrag (kein Abteilungs-Zusatzbeitrag, keine einmalige Gebühr); bei gleichem Beginn der zuletzt eingetragene */
   ctx.hooks.memberInfo = id => {

@@ -168,7 +168,7 @@
   label.f { min-width: 0; } label.f > input, label.f > select, label.f > textarea { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
   /* Jede Auswahlliste sieht gleich aus – auch ohne eigenes Feld drumherum (Klassenregeln gehen vor) */
   :where(select) { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background-color: var(--field); color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 500; box-sizing: border-box; }
-  label.f input, label.f select, label.f textarea, .tbl input, .tbl select {
+  label.f input, label.f select, label.f textarea, .tbl input:not([type=checkbox]):not([type=radio]), .tbl select {   /* Haken bleiben 16 px – sonst gestaucht bzw. am iPhone riesig */
     min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: 14px; font-weight: 500; color: var(--ink);
     transition: border-color .15s, box-shadow .15s;
   }
@@ -178,7 +178,7 @@
   label.f input[type=date], label.f input[type=time], label.f input[type=datetime-local], label.f input[type=month] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; width: 100%; text-align: left; }
   label.f input[type=date]::-webkit-date-and-time-value, label.f input[type=time]::-webkit-date-and-time-value { text-align: left; }
   label.chk { display: flex; gap: 10px; align-items: center; font-size: 14px; color: var(--ink); }
-  input[type=checkbox], input[type=radio] { accent-color: var(--brand); width: 16px; height: 16px; }
+  input[type=checkbox], input[type=radio] { accent-color: var(--brand); width: 16px; height: 16px; flex: none; }
   /* Schalter (an/aus) */
   .switch { position: relative; width: 44px; height: 24px; flex: 0 0 44px; border-radius: 12px; background: var(--line); transition: background .15s; padding: 0; }
   .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 10px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: left .15s; }
@@ -311,6 +311,8 @@
   .mcard h3 { margin: 0; min-width: 0; font-size: 16px; line-height: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .mcard .mh .pill { justify-self: start; height: 20px; font-size: 11.5px; }
   .pill.tg { height: 22px; padding: 0 9px; margin-left: 6px; font-size: 11.5px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; font-family: inherit; }
+  /* Haken eines Bereichs samt Zusatzschaltern als eine Gruppe – in der Handy-Ansicht (Karten) bündig rechts wie die übrigen Zeilen */
+  .ap-cell { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px 0; vertical-align: middle; }
   .pill.tg.on { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
   .pill.tg:disabled { opacity: .6; cursor: default; }
   .mcard .big { display: flex; flex-direction: column; gap: 2px; }
