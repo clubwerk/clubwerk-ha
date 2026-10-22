@@ -29,12 +29,20 @@ npm_dir werkzeuge/tests/fixtures/backup-2.16.3-src
 # Python: Playwright (Design-Prüfstand) und Testserver für Sicherungsziele
 python3 -c "import playwright" 2>/dev/null || { log "pip: playwright"; pip install -q --break-system-packages playwright 2>/dev/null || pip install -q playwright || true; }
 python3 -c "import wsgidav, cheroot, pyftpdlib, asyncssh" 2>/dev/null || { log "pip: Testserver"; pip install -q --break-system-packages wsgidav cheroot pyftpdlib asyncssh 2>/dev/null || true; }
-python3 - <<'E' 2>/dev/null || { log "Chromium für Playwright installieren"; python3 -m playwright install chromium >/dev/null 2>&1 || log "Chromium-Download gesperrt – Design-Prüfstand braucht einen vorinstallierten Browser"; }
+chromium_da() { python3 - <<'E' 2>/dev/null
 import os
 from playwright.sync_api import sync_playwright
 p = sync_playwright().start(); ok = os.path.exists(p.chromium.executable_path); p.stop()
 raise SystemExit(0 if ok else 1)
 E
+}
+# Cloud: Browser-Download ist gesperrt, vorinstalliert ist Chromium 1194. Dazu passt Playwright 1.56.
+chromium_da || { log "Chromium für Playwright installieren"; python3 -m playwright install chromium >/dev/null 2>&1 || true; }
+chromium_da || if [ -d /opt/pw-browsers/chromium-1194 ]; then
+  log "Chromium-Download gesperrt – Playwright 1.56 passend zum vorinstallierten Chromium"
+  pip install -q --break-system-packages "playwright==1.56.0" 2>/dev/null || pip install -q "playwright==1.56.0" || true
+fi
+chromium_da || log "Kein passendes Chromium – Design-Prüfstand braucht einen vorinstallierten Browser"
 
 # Private Dateien aus der Cloud-Umgebung (nie committen – beide stehen in .gitignore)
 if [ -n "${CW_GEHEIM_MUSTER_B64:-}" ]; then echo "$CW_GEHEIM_MUSTER_B64" | base64 -d > werkzeuge/geheim-muster.txt 2>/dev/null && log "geheim-muster.txt angelegt"; else log "Hinweis: CW_GEHEIM_MUSTER_B64 fehlt in der Cloud-Umgebung – paket.sh bricht ohne Geheimnis-Muster ab"; fi
