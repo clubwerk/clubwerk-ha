@@ -7,8 +7,14 @@
 - **Nur noch Namen in der Liste:** Der Hinweis „Familie“ und das Schloss-Symbol sind weg. Familienmitglieder und Personen, für die jemand anderes zahlt, erscheinen nur, wenn in der Mitgliederverwaltung bei ihnen „Verkauf am Tablet: bucht selbst“ eingestellt ist. Voreingestellt ist „über den Hauptzahler (nicht in der Liste)“.
 - **Kein Flackern mehr beim Wechseln:** Beim Wechsel zwischen Verkauf, Plätzen, Helferdiensten usw. bleibt die Kopfzeile mit Vereinsname, Logo und Reitern ruhig stehen. Bisher wurde sie auf jeder Seite leer aufgebaut und danach gefüllt.
 
+**Verwaltung am Tablet**
+- **Automatisch abmelden:** Wer die Verwaltung über den Knopf „Verwaltung“ am Tablet öffnet, wird nach einer Minute ohne Eingabe abgemeldet. So bleibt sie nicht offen, wenn jemand vergisst, sich abzumelden. Ruft man die Verwaltung direkt auf (Adresse `…:3801/admin.html` oder Seitenleiste von Home Assistant), bleibt man wie bisher angemeldet.
+
+**Mitglieder**
+- **Geschlecht:** Zur Auswahl stehen nur noch „männlich“ und „weiblich“, im Mitgliedsantrag (am Tablet und online) und in der Mitgliederverwaltung. Auch der Import nimmt nur diese beiden Angaben. Die Bestandserhebung für den Landessportbund behält ihren Aufbau, damit das Format für den Verband gleich bleibt.
+
 **Spielbetrieb**
-- **Mannschaft löschen nimmt ihre Gastspieler mit:** Spielen sie in keiner anderen Mannschaft, werden sie ganz entfernt, und ihr persönlicher Link gilt nicht mehr. Bisher blieben sie stehen und mussten einzeln entfernt werden. Wer nur aus einer Meldeliste genommen wird, bleibt wie bisher auswählbar. Sein Link gilt, sobald er wieder eingetragen ist.
+- **Gastspieler ohne Mannschaft gehören nicht mehr zum Spielbetrieb:** Wird eine Mannschaft gelöscht oder ein Gastspieler aus seiner letzten Meldeliste genommen, wird er ganz entfernt, und sein persönlicher Link gilt nicht mehr. Bisher blieb er stehen und musste einzeln entfernt werden. Wer noch in einer anderen Mannschaft spielt, bleibt. Kommt jemand zurück, legt man ihn neu an und schickt ihm den neuen Link.
 - Die Rückfrage beim Löschen einer Mannschaft zählt genau auf, was mitgeht: Spieltage, Meldeliste und die Gastspieler, die dadurch ganz entfernt werden.
 
 **Fehler behoben**

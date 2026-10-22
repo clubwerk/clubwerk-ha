@@ -8,7 +8,7 @@
   const st = { meta: null, rows: [], f: { status: 'aktuell', q: '', dept: '', fee: '' }, detail: null, sub: 'stamm', fin: 'lauf', app: 'offen' };
   const STATUS = { aktiv: ['g', 'aktiv'], passiv: ['b', 'passiv'], ehren: ['b', 'Ehrenmitglied'], ruhend: ['', 'ruhend'], ausgetreten: ['', 'ausgetreten'], anonym: ['', 'anonymisiert'] };
   const PAY = { lastschrift: 'Lastschrift', rechnung: 'Rechnung', bar: 'bar' };
-  const GENDER = { m: 'männlich', w: 'weiblich', d: 'divers' };
+  const GENDER = { m: 'männlich', w: 'weiblich' };
   const INTERVAL = { jahr: 'jährlich', halbjahr: 'halbjährlich', quartal: 'vierteljährlich', monat: 'monatlich', einmalig: 'einmalig' };
   const PRS = { anteilig: 'anteilig', voll: 'voller Betrag', frei: 'Eintrittsjahr frei' };
   const PRORATE = { anteilig: 'anteilig (volle Monate)', voll: 'voller Betrag', frei: 'Eintrittsjahr frei' };

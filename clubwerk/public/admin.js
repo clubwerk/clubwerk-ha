@@ -270,6 +270,19 @@
     };
   }
 
+  /* Verwaltung am Tablet (eingebettet unter der Tablet-Kopfzeile, verwaltung.html): nach 60 s ohne Eingabe abmelden – das Tablet
+     steht für alle zugänglich. Direkt aufgerufen (admin.html, Seitenleiste von Home Assistant) bleibt man angemeldet. */
+  const onTablet = (() => { try { return window.parent !== window && /\/verwaltung\.html$/.test(window.parent.location.pathname); } catch (e) { return false; } })();
+  if (onTablet) {
+    let last = Date.now();
+    ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'scroll'].forEach(ev => window.addEventListener(ev, () => { last = Date.now(); }, { capture: true, passive: true }));
+    setInterval(async () => {
+      if (!me || Date.now() - last < 60000) return;
+      await api('logout', 'POST', {}).catch(() => {});
+      closeDialog(); showLogin(); toast('Nach einer Minute ohne Eingabe abgemeldet.');
+    }, 5000);
+  }
+
   function showLogin() {
     me = null;
     $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Verwaltung</h2>

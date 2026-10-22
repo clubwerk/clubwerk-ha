@@ -116,7 +116,7 @@
       <div class="af-grid" style="--c:2">
         <label class="af-f">Vorname<input data-p="first_name" value="${esc(p.first_name)}" autocomplete="off"></label><label class="af-f">Nachname<input data-p="last_name" value="${esc(p.last_name)}" autocomplete="off"></label>
         <label class="af-f">Geburtsdatum<input data-p="birth_date" type="date" value="${esc(p.birth_date)}" max="${cfg.today}"></label>
-        ${i === 0 ? `<label class="af-f">Geschlecht<select data-p="gender"><option value="">– bitte wählen –</option>${[['w', 'weiblich'], ['m', 'männlich'], ['d', 'divers']].map(([k, l]) => `<option value="${k}" ${p.gender === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`
+        ${i === 0 ? `<label class="af-f">Geschlecht<select data-p="gender"><option value="">– bitte wählen –</option>${[['w', 'weiblich'], ['m', 'männlich']].map(([k, l]) => `<option value="${k}" ${p.gender === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`
           : `<label class="af-f">Rolle<select data-p="role"><option value="partner" ${p.role === 'partner' ? 'selected' : ''}>Partner/in</option><option value="kind" ${p.role !== 'partner' ? 'selected' : ''}>Kind</option></select></label>`}
       </div></div>`;
     const readPersons = () => el.querySelectorAll('.af-person').forEach(box => { const p = d.persons[+box.dataset.i]; box.querySelectorAll('[data-p]').forEach(i => { p[i.dataset.p] = i.value.trim(); }); });

@@ -40,7 +40,7 @@ function register(sh) {
   const deToIso = v => { const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})/.exec(String(v || '').trim()); return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : (fees.isDate(String(v || '').trim()) ? String(v).trim() : null); };
   const money = v => { const s = String(v || '').replace(/[€\s]/g, ''); if (!s) return null; const n = Number(s.replace(/\.(?=\d{3}(\D|$))/g, '').replace(',', '.')); return Number.isFinite(n) ? Math.round(n * 100) : null; };
   const INTERVAL = { jahr: 'jahr', jährlich: 'jahr', halbjahr: 'halbjahr', halbjährlich: 'halbjahr', quartal: 'quartal', vierteljährlich: 'quartal', monat: 'monat', monatlich: 'monat', einmalig: 'einmalig', einmal: 'einmalig' };
-  const GENDER = { männlich: 'm', maennlich: 'm', m: 'm', weiblich: 'w', w: 'w', f: 'w', divers: 'd', d: 'd' };
+  const GENDER = { männlich: 'm', maennlich: 'm', m: 'm', weiblich: 'w', w: 'w', f: 'w' };
   const STATUS = { aktiv: 'aktiv', passiv: 'passiv', ehrenmitglied: 'ehren', ehren: 'ehren', ruhend: 'ruhend', fördermitglied: 'passiv', unterstützend: 'passiv' };
   const PAY = { lastschrift: 'lastschrift', rechnung: 'rechnung', überweisung: 'rechnung', bar: 'bar', barzahler: 'bar' };
 
@@ -167,7 +167,7 @@ function register(sh) {
     return null;
   };
   const PAY2 = v => { const s = norm(v); if (!s) return null; if (/lastschrift|einzug|bankeinzug|sepa|abbuchung|^ja$|^1$/.test(s)) return 'lastschrift'; if (/bar/.test(s)) return 'bar'; if (/ueberweis|rechnung|selbstzahler|^nein$|^0$/.test(s)) return 'rechnung'; return null; };
-  const GENDER2 = v => { const s = norm(v); if (!s) return null; if (/^(m|maennlich|herr|male)$/.test(s)) return 'm'; if (/^(w|f|weiblich|frau|female)$/.test(s)) return 'w'; if (/^(d|divers|x)$/.test(s)) return 'd'; return null; };
+  const GENDER2 = v => { const s = norm(v); if (!s) return null; if (/^(m|maennlich|herr|male)$/.test(s)) return 'm'; if (/^(w|f|weiblich|frau|female)$/.test(s)) return 'w'; return null; };
   const STATUS2 = v => { const s = norm(v); if (!s) return 'aktiv'; if (/ehren/.test(s)) return 'ehren'; if (/ruh/.test(s)) return 'ruhend'; if (/passiv|foerder|unterstuetz|inaktiv/.test(s)) return 'passiv'; return 'aktiv'; };
 
   /** Zeilen + Zuordnung → Datensätze (gleiche Form wie beim verein.cloud-Leser) */

@@ -104,9 +104,9 @@ const usage = async () => (await A('api/admin/extensions/spielbetrieb/usage'))[1
   [s, j] = await A(X('meta')); ok('… Mannschaft noch da', j.teams.some(t => t.id === team));
   [s, j] = await A(X(`teams/${team}`), 'DELETE', { force: true }); ok('Mannschaft mit force gelöscht', s === 200 && JSON.stringify(j.removed) === JSON.stringify(['Gast, Gerd']), JSON.stringify(j));
   [s, j] = await A(X('meta')); ok('Gastspieler/in ohne Mannschaft entfernt, die andere bleibt', !(j.externs || []).some(x => x.id === gast) && (j.externs || []).some(x => x.id === hanna), JSON.stringify(j.externs));
-  [s, j] = await A(X(`teams/${team2}/players`), 'PUT', { players: [] }); ok('Nur aus der Meldeliste genommen → bleibt (Wiedereintragen möglich)', s === 200 && !('removed' in j), JSON.stringify(j));
-  [s, j] = await A(X('meta')); ok('… noch auswählbar', (j.externs || []).some(x => x.id === hanna));
-  [s, j] = await A(X(`teams/${team2}`), 'DELETE', { force: true }); ok('Leere Mannschaft gelöscht → Gastspieler/in ohne Mannschaft entfernt', s === 200 && JSON.stringify(j.removed) === JSON.stringify(['Hilfe, Hanna']), JSON.stringify(j));
+  [s, j] = await A(X(`teams/${team2}/players`), 'PUT', { players: [] }); ok('Aus der letzten Meldeliste genommen → entfernt', s === 200 && JSON.stringify(j.removed) === JSON.stringify(['Hilfe, Hanna']), JSON.stringify(j));
+  [s, j] = await A(X('meta')); ok('… nicht mehr im Spielbetrieb', !(j.externs || []).some(x => x.id === hanna));
+  await A(X(`teams/${team2}`), 'DELETE', { force: true });
   [s, j] = await A(X('meta')); ok('Mannschaft weg', !j.teams.some(t => t.id === team));
   [s, j] = await A(X('games')); ok('Spieltage weg', Array.isArray(j) && j.length === 0, JSON.stringify(j).slice(0, 200));
   u = await usage();

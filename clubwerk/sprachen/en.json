@@ -7904,6 +7904,7 @@
   "Mannschaft „{0}“ löschen?{1}{2}": "Delete team “{0}”?{1}{2}",
   "Spielbetrieb: Gastspieler/in entfernt (keine Mannschaft mehr)": "Match play: guest player removed (no team left)",
   "Spielern": "players",
-  "Tipp: „nicht aktiv“ behält alles.": "Tip: “not active” keeps everything."
+  "Tipp: „nicht aktiv“ behält alles.": "Tip: “not active” keeps everything.",
+  "Nach einer Minute ohne Eingabe abgemeldet.": "Signed out after one minute without input."
  }
 }

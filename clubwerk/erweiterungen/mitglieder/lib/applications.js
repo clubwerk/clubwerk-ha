@@ -44,7 +44,7 @@ function register(sh) {
     const d = raw && typeof raw === 'object' ? raw : {};
     const validDepts = new Set(formDepts().map(x => x.id));
     const persons = (Array.isArray(d.persons) ? d.persons : []).slice(0, 10).map((p, i) => ({
-      first_name: one(p.first_name, 60), last_name: one(p.last_name, 60), birth_date: isDate(p.birth_date) ? p.birth_date : '', gender: ['m', 'w', 'd'].includes(p.gender) ? p.gender : '',
+      first_name: one(p.first_name, 60), last_name: one(p.last_name, 60), birth_date: isDate(p.birth_date) ? p.birth_date : '', gender: ['m', 'w'].includes(p.gender) ? p.gender : '',
       role: i === 0 ? 'haupt' : (p.role === 'partner' ? 'partner' : 'kind'), mobile: one(p.mobile, 40), email: one(p.email, 120).toLowerCase(), fee_id: p.fee_id ? int(p.fee_id) : null,
       departments: [...new Set((Array.isArray(p.departments) ? p.departments : []).map(Number))].filter(id => validDepts.has(id)).slice(0, 10) }));
     if (!persons.length) return { error: 'Bitte mindestens eine Person eintragen.' };

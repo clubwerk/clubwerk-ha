@@ -463,7 +463,7 @@
         $('eNew').onclick = async () => { if (!await ask(`Neuen Link für ${ed.ln} erzeugen?\n\nDer bisherige Link gilt dann nicht mehr.`, { ok: 'Neuer Link' })) return; try { const r = await api(`extern/${ed.id}`, 'PUT', { renew: true }); info.set(ed.id, { ...ei, ...r }); draw(); copy(r.link, ed.ln); } catch (e) { fail(e); } };
         $('eDel').onclick = async () => { if (!await ask(`${ed.ln} ganz entfernen?\n\nAus allen Mannschaften, künftige Rückmeldungen und Aufstellungen werden gelöscht, der Link gilt nicht mehr.`, { ok: 'Entfernen', danger: true })) return; try { await api(`extern/${ed.id}`, 'DELETE'); list = list.filter(x => x.id !== ed.id); m.externs = (m.externs || []).filter(x => x.id !== ed.id); edit = 0; draw(); toast('Entfernt.'); } catch (e) { fail(e); } };
       }
-      $('plOk').onclick = () => GK.busy($('plOk'), async () => { try { await api(`teams/${t.id}/players`, 'PUT', { players: list.map((p, i) => ({ id: p.id, rank: i + 1 })) }); closeDialog(); toast('Gespeichert.'); after(); } catch (e) { fail(e); } });
+      $('plOk').onclick = () => GK.busy($('plOk'), async () => { try { const r = await api(`teams/${t.id}/players`, 'PUT', { players: list.map((p, i) => ({ id: p.id, rank: i + 1 })) }); closeDialog(); toast(r.removed.length ? `Gespeichert. In keiner Mannschaft mehr und deshalb entfernt: ${r.removed.join(' · ')}` : 'Gespeichert.'); after(); } catch (e) { fail(e); } });
     };
     draw();
   }

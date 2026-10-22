@@ -32,15 +32,16 @@ const rawDb = () => { const D = require(APP + '/node_modules/better-sqlite3'); r
   const tok = l => l.split('#t=')[1];
   const G = async t => (await fetch(MB + 'api/p/spielbetrieb/g/' + t)).status;
   ok('Link gilt', await G(tok(link1)) === 200);
-  [s, j] = await A(`api/admin/x/spielbetrieb/teams/${T}/players`, 'PUT', { players: [] }); ok('Aus der Mannschaft genommen', s === 200, j.error);
-  ok('… Link gilt nicht mehr', await G(tok(link1)) === 404);
-  [s, j] = await A(`api/admin/x/spielbetrieb/teams/${T}/players`, 'PUT', { players: [{ id: gid, rank: 1 }] });
-  ok('Wieder in der Mannschaft → Link gilt wieder', await G(tok(link1)) === 200);
   { const D = require(APP + '/node_modules/better-sqlite3'); const d = new D(DATA + '/clubwerk.db'); d.prepare("UPDATE sp_extern SET last_seen = datetime('now','localtime','-400 days')").run(); d.close(); }
   ok('13 Monate nicht benutzt → Link abgelaufen', await G(tok(link1)) === 404);
   [s, j] = await A('api/admin/x/spielbetrieb/meta'); const link2 = (JSON.stringify(j).match(/"link":"([^"]+)"/) || [])[1];
   ok('Beim Teilen: neuer Link', link2 && tok(link2) !== tok(link1), link2);
   ok('… der neue gilt', await G(tok(link2)) === 200);
   ok('… der alte bleibt ungültig', await G(tok(link1)) === 404);
+  // aus der letzten Meldeliste genommen → ganz aus dem Spielbetrieb, der Link gilt nicht mehr (auch nicht nach Wiedereintragen)
+  [s, j] = await A(`api/admin/x/spielbetrieb/teams/${T}/players`, 'PUT', { players: [] }); ok('Aus der Mannschaft genommen → entfernt', s === 200 && j.removed.length === 1, JSON.stringify(j));
+  ok('… Link gilt nicht mehr', await G(tok(link2)) === 404);
+  [s, j] = await A(`api/admin/x/spielbetrieb/teams/${T}/players`, 'PUT', { players: [{ id: gid, rank: 1 }] });
+  ok('… auch nicht nach Wiedereintragen', await G(tok(link2)) === 404 && !j.players.some(p => p.id === gid), JSON.stringify(j.players));
   await stopSrv(); console.log(fails ? `\n${fails} FEHLER` : '\nALLES OK'); process.exit(fails ? 1 : 0);
 })().catch(async e => { console.error(e); if (srv) srv.kill(); process.exit(1); });

@@ -139,7 +139,7 @@ function personInput(b, cur = {}) {
   set('first_name', one(b.first_name, 60) || null);
   set('last_name', one(b.last_name, 60) || null);
   set('birth_date', isDate(b.birth_date) ? b.birth_date : null);
-  set('gender', ['m', 'w', 'd'].includes(b.gender) ? b.gender : null);
+  set('gender', ['m', 'w'].includes(b.gender) ? b.gender : null);
   set('street', one(b.street, 80) || null); set('zip', one(b.zip, 10) || null); set('city', one(b.city, 60) || null);
   set('country', one(b.country, 40) || null); set('address_extra', one(b.address_extra, 80) || null);
   set('phone', one(b.phone, 40) || null); set('mobile', one(b.mobile, 40) || null);
