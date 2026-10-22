@@ -4,7 +4,7 @@
 #   bash werkzeuge/tests/run.sh bk mv ber    nur diese
 #   CW_TEST_BEHALTEN=1 bash werkzeuge/tests/run.sh bk   Ausgaben (t_bk.out) und Serverprotokolle zur Fehlersuche behalten
 # Vergleich mit werkzeuge/tests/erwartet.txt (Testreihe: Testname der bekannten Fehlschläge). Neue Fehlschläge → Rückgabewert 1.
-# Voraussetzungen: einmal „npm ci“ in clubwerk/ (den Test-Mailserver installiert der Lauf selbst). Für „targets“ zusätzlich: pip install wsgidav cheroot pyftpdlib asyncssh
+# Voraussetzungen: einmal „npm ci“ in clubwerk/ (den Test-Mailserver installiert der Lauf selbst). Für „targets“ zusätzlich: pip install wsgidav cheroot pyftpdlib asyncssh pyopenssl
 # Für „migrate“: der alte Stand 2.16.3 liegt in fixtures/backup-2.16.3-src; seine Bibliotheken holt der Test beim ersten Lauf (npm ci).
 set -u
 ND=$(dirname "$(dirname "$(readlink -f "$(command -v node)")")"); [ -d "$ND/include/node" ] && export npm_config_nodedir="$ND"   # native Module ohne Download der Node-Header bauen

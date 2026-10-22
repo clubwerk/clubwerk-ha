@@ -28,7 +28,7 @@ npm_dir werkzeuge/tests/fixtures/backup-2.16.3-src
 
 # Python: Playwright (Design-Prüfstand) und Testserver für Sicherungsziele
 python3 -c "import playwright" 2>/dev/null || { log "pip: playwright"; pip install -q --break-system-packages playwright 2>/dev/null || pip install -q playwright || true; }
-python3 -c "import wsgidav, cheroot, pyftpdlib, asyncssh" 2>/dev/null || { log "pip: Testserver"; pip install -q --break-system-packages wsgidav cheroot pyftpdlib asyncssh 2>/dev/null || true; }
+python3 -c "import wsgidav, cheroot, pyftpdlib, asyncssh, OpenSSL" 2>/dev/null || { log "pip: Testserver"; pip install -q --break-system-packages wsgidav cheroot pyftpdlib asyncssh pyopenssl 2>/dev/null || true; }
 chromium_da() { python3 - <<'E' 2>/dev/null
 import os
 from playwright.sync_api import sync_playwright
