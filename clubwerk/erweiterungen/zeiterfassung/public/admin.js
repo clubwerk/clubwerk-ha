@@ -124,7 +124,7 @@
   }
 
   function zPersonDialog(p) {
-    dialog(`<h2>${p ? esc(p.name) + ' bearbeiten' : 'Person anlegen'}</h2>
+    dialog(`<h2>${p ? esc(GK.lastFirst(p.name)) + ' bearbeiten' : 'Person anlegen'}</h2>
       <div class="row" style="flex-wrap:nowrap"><label class="f" style="flex:1">Name<input id="zpN" maxlength="60" value="${p ? esc(p.name) : ''}" placeholder="Vor- und Nachname"></label>
         <label class="f" style="flex:1">Tätigkeit<input id="zpJ" maxlength="40" value="${p ? esc(p.job || '') : ''}" placeholder="z. B. Reinigung, Hausmeister"></label></div><br>
       <div class="row" style="flex-wrap:nowrap"><label class="f" style="flex:1">${p ? 'Neue PIN (leer = unverändert)' : 'PIN (4–6 Ziffern)'}<input id="zpP" inputmode="numeric" maxlength="6" autocomplete="off"></label>

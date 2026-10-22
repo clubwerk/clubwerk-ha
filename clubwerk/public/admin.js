@@ -1131,7 +1131,7 @@
       ${rangeBar(r.from, r.to)}
       <div class="row" style="margin-bottom:14px"><label class="f">Nur Konto<select id="bMem"><option value="">alle</option>${cache.members.map(m => `<option value="${m.id}" ${Number(memberId) === m.id ? 'selected' : ''}>${pName(m)}</option>`).join('')}</select></label>
         ${memberId ? (() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
-          return `<div class="kpi" style="padding:8px 14px"><div class="l">${(m => m ? pName(m) : '')(cache.members.find(m => m.id === Number(memberId)))} im Zeitraum</div>
+          return `<div class="kpi" style="padding:8px 14px"><div class="l">${esc((m => m ? lastFirst(m.name, m.kind) : '')(cache.members.find(m => m.id === Number(memberId))))} im Zeitraum</div>
             <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })() : ''}</div>
       <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:nowrap">
         <label class="f" style="flex:1;min-width:0">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
@@ -2011,7 +2011,7 @@
           const skip = d.rows.filter(r => r.status !== 'neu');
           $('xlsPrev').innerHTML = `<p><b>${d.newCount}</b> neue Mitglieder · ${cnt('vorhanden')} schon vorhanden${cnt('ausgeblendet') ? ` · ${cnt('ausgeblendet')} ausgeblendet` : ''}${cnt('doppelt') ? ` · ${cnt('doppelt')} doppelt in der Datei` : ''}${cnt('unvollständig') + cnt('ungültig') ? ` · ${cnt('unvollständig') + cnt('ungültig')} unvollständig/ungültig` : ''}</p>
             <div class="scroll" style="max-height:280px"><table class="tbl"><tr><th class="r">Zeile</th><th>Name</th><th>Status</th></tr>
-            ${[...d.rows.filter(r => r.status === 'neu'), ...skip].map(r => `<tr${r.status === 'neu' ? '' : ' class="off"'}><td class="r">${r.line}</td><td>${esc(r.name)}${r.kind === 'mannschaft' ? ` <span class="pill">Mannschaft</span>${r.pinMissing ? ' <span class="pill r">PIN fehlt</span>' : ''}` : ''}</td><td>${r.status === 'neu' ? '<span class="pill g">neu</span>' : esc(r.status)}</td></tr>`).join('')}</table></div>`;
+            ${[...d.rows.filter(r => r.status === 'neu'), ...skip].map(r => `<tr${r.status === 'neu' ? '' : ' class="off"'}><td class="r">${r.line}</td><td>${esc(lastFirst(r.name, r.kind))}${r.kind === 'mannschaft' ? ` <span class="pill">Mannschaft</span>${r.pinMissing ? ' <span class="pill r">PIN fehlt</span>' : ''}` : ''}</td><td>${r.status === 'neu' ? '<span class="pill g">neu</span>' : esc(r.status)}</td></tr>`).join('')}</table></div>`;
           $('ok').textContent = d.newCount ? `${d.newCount} Mitglieder anlegen` : 'Nichts Neues';
           $('ok').disabled = !d.newCount;
         } catch (e) { $('xlsPrev').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }
@@ -2044,7 +2044,7 @@
         }
         if (mg) {
           const m = pending.find(x => x.id === Number(mg.dataset.merge));
-          dialog(`<h2>„${esc(m.name)}“ zusammenführen</h2>
+          dialog(`<h2>„${esc(lastFirst(m.name, m.kind))}“ zusammenführen</h2>
             <p class="muted">Die ${m.bookings} ${m.bookings === 1 ? 'Buchung' : 'Buchungen'} werden auf das gewählte Konto verschoben, der doppelte Eintrag wird gelöscht.</p>
             <label class="f">Richtiges Konto<input id="mgSearch" placeholder="Name suchen"></label>
             <label class="f" style="margin-top:8px"><select id="mgInto" size="8" style="min-height:200px"></select></label>
@@ -2124,7 +2124,7 @@
       const url = `${appUrl(info)}/#i=${r.token}`;
       const q = await api('qr', 'POST', { url });
       const mods = info.modules.filter(m => (info.granted || {})[m.id]).map(m => m.label || m.name);
-      dialog(`<h2>QR-Code für ${esc(r.member)}</h2>
+      dialog(`<h2>QR-Code für ${esc(lastFirst(r.member))}</h2>
         <p class="muted">Mit dem Handy von ${esc(r.member)} <b>direkt hier am Bildschirm</b> scannen (Kamera-App). Gilt <b>einmal</b> und ${hoursTxt(r.expiresHours)}. Dabei legt das Mitglied seine persönliche App-PIN fest. Den Code nicht abfotografieren oder weiterschicken – wer ihn zuerst scannt, bekommt den Zugang.
         ${mods.length ? `Freigeschaltet: <b>${mods.map(esc).join(', ')}</b>.` : '<b>Noch kein Bereich freigeschaltet</b> – bitte danach unter „Mitglieder-App“ ankreuzen.'}</p>
         ${!info.url ? `<div class="banner a" style="font-weight:400">Die Adresse wurde automatisch ermittelt: <b>${esc(appUrl(info))}</b>.${/\.local$/i.test(location.hostname) ? ' Adressen mit „.local“ öffnen manche Handys nicht.' : ''} Bitte einmal unter <b>Mitglieder-App → Adresse der App</b> die Adresse eintragen, unter der Handys im Vereins-WLAN Home Assistant erreichen (z. B. ohne „.local“ oder mit IP-Adresse), dann einen neuen QR-Code erzeugen.</div>` : ''}
@@ -2159,7 +2159,7 @@
   async function inviteMenu(memberId, after) {
     try {
       const info = await api('app/member/' + memberId), iv = info.invite || {};
-      const pick = await askBoxOpen(`<h2>${esc(info.name)} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
+      const pick = await askBoxOpen(`<h2>${esc(lastFirst(info.name))} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
           <div class="rmopts"><button class="rmopt" data-v="qr"><b>QR-Code hier am Bildschirm</b><span>Das Mitglied scannt ihn mit dem Handy – am sichersten, weil es dabei vor Ort ist.</span></button>
             <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Türen und Beregnung erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>
             <button class="rmopt" data-v="brief"><b>Einladungsbrief drucken</b><span>QR-Code mit Anleitung auf Papier – zum Mitgeben oder per Post. Gilt ${iv.days || 7} Tage.</span></button>

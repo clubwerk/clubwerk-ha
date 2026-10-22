@@ -19,6 +19,10 @@
 - **Austritt zurücknehmen** (Austritt noch nicht wirksam, zum Beispiel zurückgezogene Kündigung): wie bisher, die Nummer bleibt.
 - **Vergebene Mitgliedsnummern kommen nie wieder:** auch nicht, wenn ein Mitglied gelöscht wird oder beim Wiedereintritt eine neue Nummer bekommt.
 
+**Namen überall „Nachname, Vorname“**
+- Listen, Tabellen, Auswahlfelder, Kacheln und Überschriften zeigen Personen jetzt durchgehend als „Nachname, Vorname“ und sortieren nach Nachnamen. Neu umgestellt sind zum Beispiel Verkauf › Buchungen, Deckel, Gäste und Zahlungen, Abrechnung, Benutzer, Helferdienste, Zeiterfassung, Rechnungen und Spendenquittungen an Mitglieder sowie Überschriften wie „Austritt von …“.
+- In ganzen Sätzen, Anreden, Briefen, auf Ausdrucken für die Person und bei frei eingetippten Gastnamen bleibt die gewohnte Reihenfolge „Vorname Nachname“. Mannschaften und Firmen stehen wie geschrieben.
+
 **Korrekturen**
 - **Verkauf am Tablet, viele Artikel mit Bildern:** Wird die Artikelseite neu aufgebaut, etwa nach „Auswahl leeren“, erscheinen die Bilder sofort und blinken nicht mehr kurz leer. Die lange Liste „Deine Auswahl“ springt nicht mehr zur Seite, wenn ihre Scrollleiste erscheint. (Dass bei jedem Tipp die ganze Seite neu aufgebaut wurde, ist schon seit 3.32 behoben.)
 - **Beitrag einer Person:** Helferstunden-Vorgabe und „Diese Beitragsarten dürfen nicht buchen“ richten sich immer nach dem Hauptbeitrag. Bisher konnte eine einmalige Gebühr wie die Aufnahmegebühr bei einem Wiedereintritt oder ein Zusatzbeitrag vom selben Tag den Hauptbeitrag verdrängen. Dann galt zum Beispiel ein Mitglied mit „Unterstützend“ (keine Helferstunden) plötzlich als stundenpflichtig.

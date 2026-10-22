@@ -109,7 +109,7 @@
         <span style="flex:1"></span><button class="btn" id="biYear">Jahresrechnungen …</button><button class="btn primary" id="biNew">+ Neue Rechnung</button></div>
       <div class="card" style="padding:0;overflow:auto">${rows.length ? `<table class="tbl bh-tbl"><tr><th>Nr.</th><th>Empfänger</th><th class="hm">Datum</th><th class="hm">Fällig</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
         ${rows.map(r => `<tr class="${r.status === 'storniert' ? 'off' : ''}"><td class="nw"><b>${esc(r.no)}</b></td>
-          <td><b>${esc(r.recipient.name)}</b><span class="bh-sub">${r.kind === 'member' ? 'Mitglied' : 'Firma'}${r.period ? ' · ' + esc(r.period) : ''}${r.sent_at ? ' · verschickt' : ''}${r.reminders ? ` · ${r.reminders}× erinnert` : ''}</span></td>
+          <td><b>${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}</b><span class="bh-sub">${r.kind === 'member' ? 'Mitglied' : 'Firma'}${r.period ? ' · ' + esc(r.period) : ''}${r.sent_at ? ' · verschickt' : ''}${r.reminders ? ` · ${r.reminders}× erinnert` : ''}</span></td>
           <td class="hm nw">${deDate(r.date)}</td><td class="hm nw ${r.overdue ? 'neg' : ''}">${deDate(r.due_date)}</td><td class="r"><b>${euro(r.gross)}</b></td>
           <td>${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' && r.paid_at ? `<span class="bh-sub">${deDate(r.paid_at)}</span>` : ''}</td>
           <td><div class="bh-acts"><a class="btn small" href="${BASE}invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a><button class="btn small" data-inv="${r.id}">…</button></div></td></tr>`).join('')}</table>`
@@ -333,7 +333,7 @@
         <span style="flex:1"></span><button class="btn primary" id="bdNew" ${m.donationReady ? '' : 'disabled title="Erst die Angaben zum Freistellungsbescheid eintragen"'}>+ Neue Spendenquittung</button></div>
       <div class="card" style="padding:0;overflow:auto">${rows.length ? `<table class="tbl bh-tbl"><tr><th>Nr.</th><th>Spender</th><th class="hm">Art</th><th class="hm">Tag der Zuwendung</th><th class="r">Betrag</th><th></th></tr>
         ${rows.map(r => `<tr class="${r.status !== 'aktiv' ? 'off' : ''}"><td class="nw"><b>${esc(r.no)}</b></td>
-          <td><b>${esc(r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' · storniert' : ''}</span></td>
+          <td><b>${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' · storniert' : ''}</span></td>
           <td class="hm">${esc(DKIND[r.kind])}</td><td class="hm nw">${deDate(r.date)}</td><td class="r"><b>${euro(r.cents)}</b></td>
           <td><div class="bh-acts"><a class="btn small" href="${BASE}donations/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>${r.status === 'aktiv' ? `<button class="btn small" data-dsend="${r.id}" ${r.donor.email && m.mail ? '' : 'disabled'}>Senden</button><button class="btn small ghost" data-dx="${r.id}">Storno</button>` : ''}</div></td></tr>`).join('')}</table>`
         : '<p class="empty">Noch keine Spendenquittungen.</p>'}</div>`;

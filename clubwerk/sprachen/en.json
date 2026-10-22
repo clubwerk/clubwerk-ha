@@ -7953,6 +7953,15 @@
   "(frühere Buchungen und Zahlungen bleiben erhalten)": "(earlier bookings and payments are kept)",
   "Bitte deine PIN eingeben – {0}": "Please enter your PIN – {0}",
   "noch {0}": "{0} more",
-  "Weitere {0} anzeigen": "Show {0} more"
+  "Weitere {0} anzeigen": "Show {0} more",
+  "{0} – neue Mitgliedsnummer {1}": "{0} – new membership number {1}",
+  "{0} bekommt eine neue Mitgliedsnummer (die bisherige {1} wird nicht wieder vergeben) und als Eintritt das heutige Datum. Bei Lastschrift ist ein neues SEPA-Mandat nötig. Beiträge und Abteilungen, die zum Austritt beendet wurden, laufen wieder – bitte danach prüfen.": "{0} gets a new membership number (the previous number {1} will never be reused) and today as the joining date. For direct debit, a new SEPA mandate is required. Fees and departments that ended with the exit run again – please check them afterwards.",
+  "Mitglied: Wiedereintritt": "Member: rejoined",
+  "neues Mandat nötig (Wiedereintritt)": "new mandate required (rejoining)",
+  "Wieder aufgenommen – neue Mitgliedsnummer {0}.": "Rejoined – new membership number {0}.",
+  "Wieder aufnehmen": "Readmit",
+  "Wiedereintritt …": "Rejoin …",
+  "Wiedereintritt (neue Mitgliedsnummer)": "Rejoining (new membership number)",
+  "Wiedereintritt von {0}?": "Readmit {0}?"
  }
 }

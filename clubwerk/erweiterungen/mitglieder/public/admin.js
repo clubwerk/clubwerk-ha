@@ -158,8 +158,8 @@
           <td class="muted">${esc(r.member_no || '–')}</td>
           <td><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}</span></span></td>
           <td class="r">${r.age ?? '<span class="muted s">–</span>'}</td><td translate="no">${esc(r.depts) || '<span class="muted s">–</span>'}</td>
-          <td>${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>` || (r.payer_id ? `<span class="muted s">über ${esc(r.payer_name)}</span>` : '<span class="muted s">–</span>')}</td>
-          <td class="nw">${r.payer_id ? `<span class="muted s">über ${esc(r.payer_name)}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
+          <td>${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>` || (r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : '<span class="muted s">–</span>')}</td>
+          <td class="nw">${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
           <td>${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ') || ''}</td></tr>`).join('')
           : `<tr><td colspan="7" class="muted" style="text-align:center;height:72px">${st.rows.length ? 'Keine Treffer.' : 'Noch keine Mitglieder – oben anlegen oder importieren (S-Verein, WISO, verein.cloud …).'}</td></tr>`);
     };
@@ -247,9 +247,9 @@
     const SUBS = [['stamm', 'Stammdaten'], ['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ...(d.documents ? [['dokumente', `Dokumente${d.documents.length ? ' (' + d.documents.length + ')' : ''}`]] : []), ['verlauf', 'Verlauf']];
     if (!SUBS.some(s => s[0] === st.sub)) st.sub = 'stamm';
     el.innerHTML = `<button class="mv-back" id="mvBack">← Alle Mitglieder</button>
-      <div class="mv-head">${p.photo ? `<button type="button" class="av lg mv-ph" id="mvPh" title="Profilbild (vom Mitglied in der App hochgeladen) – antippen zum Entfernen"><img src="api/admin/photo/${id}?v=${esc(p.photo)}" alt=""></button>` : `<span class="av lg">${ini(p.name)}</span>`}<div style="min-width:0"><h2>${esc(p.name)}</h2>
+      <div class="mv-head">${p.photo ? `<button type="button" class="av lg mv-ph" id="mvPh" title="Profilbild (vom Mitglied in der App hochgeladen) – antippen zum Entfernen"><img src="api/admin/photo/${id}?v=${esc(p.photo)}" alt=""></button>` : `<span class="av lg">${ini(p.name)}</span>`}<div style="min-width:0"><h2>${esc(GK.lastFirst(p.name))}</h2>
         <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
-          ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}${d.familyHead ? `<span class="pill b">Familie von ${esc(d.familyHead.name)}</span>` : ''}
+          ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(GK.lastFirst(d.payer.name))}</span>` : ''}${d.familyHead ? `<span class="pill b">Familie von ${esc(GK.lastFirst(d.familyHead.name))}</span>` : ''}
           ${d.changes.length ? `<span class="pill a">${d.changes.length} ${d.changes.length === 1 ? 'Änderung' : 'Änderungen'} aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
         <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">${p.exited ? 'Wiedereintritt …' : 'Austritt zurücknehmen'}</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
           ${p.has_pin && !SC() && !p.anonymized_at ? '<button class="btn ghost" id="mvPin">PIN zurücksetzen</button>' : ''}${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}${SC() || p.anonymized_at ? '' : '<button class="btn danger" id="mvDel">Löschen …</button>'}</div></div>
@@ -558,7 +558,7 @@
   function exitDialog(d, again) {
     const p = d.person, seen = new Set(), fam = [...(d.payerGroup || []), ...(d.family || [])].filter(f => !f.head && f.id !== p.id && !seen.has(f.id) && seen.add(f.id));   // Zahlergruppe und Familienmitgliedschaft
     const yearEnd = (() => { const ys = st.meta.settings.year_start || '01-01'; const y = +st.meta.today.slice(0, 4); for (const yy of [y, y + 1]) { const e = new Date(`${yy}-${ys}T00:00:00Z`); e.setUTCDate(e.getUTCDate() - 1); const s = e.toISOString().slice(0, 10); if (s >= st.meta.today) return s; } return st.meta.today; })();
-    dialog(`<h2>Austritt von ${esc(p.name)}</h2>
+    dialog(`<h2>Austritt von ${esc(GK.lastFirst(p.name))}</h2>
       <div class="mv-grid" style="--c:2"><label class="f">Austritt zum<input id="xDate" type="date" value="${yearEnd}"></label><label class="f">Kündigung eingegangen am<input id="xNotice" type="date" value="${st.meta.today}"></label>
       <label class="f wall">Grund (optional)<input id="xReason" placeholder="z. B. Umzug"></label>
       <label class="f wall">Kündigungsschreiben o. ä. (optional, PDF oder Foto)<input id="xDoc" type="file" accept="application/pdf,image/*"></label></div>
@@ -675,12 +675,12 @@
         ${prev.warnings.concat(prev.conflicts).map(w => `<div class="banner a"><span>${esc(w)}</span></div>`).join('')}
         ${sim.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Ähnliche Namen im Bestand <span class="muted s">(${sim.length})</span></h3>
           <p class="muted s" style="margin:0 0 10px">Spitznamen, Kurzformen oder andere Schreibweise (z. B. Benni – Benedikt, Susi – Susanne). Beim Zusammenführen überschreiben die Daten aus der Datei die vorhandenen; Getränkekonto, PIN und App bleiben erhalten. Bei gleichem Geburtsdatum ist „zusammenführen“ vorgewählt.</p>
-          ${sim.map(r => `<div class="imp-simrow"><div><b translate="no">${esc(r.name)}</b><span class="muted s">Zeile ${r.line}${r.member_no ? ` · Nr. ${esc(r.member_no)}` : ''}${r.birth_date ? ` · ${deDate(r.birth_date)}` : ''}</span></div>
+          ${sim.map(r => `<div class="imp-simrow"><div><b translate="no">${esc(GK.lastFirst(r.name))}</b><span class="muted s">Zeile ${r.line}${r.member_no ? ` · Nr. ${esc(r.member_no)}` : ''}${r.birth_date ? ` · ${deDate(r.birth_date)}` : ''}</span></div>
             <select data-sim="${r.line}" translate="no">${r.suggest.map(c => `<option value="${c.id}" ${dec[r.line] === c.id ? 'selected' : ''}>${esc(sugLabel(c))}</option>`).join('')}<option value="neu" ${dec[r.line] === 'neu' ? 'selected' : ''}>als neues Mitglied anlegen</option></select></div>`).join('')}</div>` : ''}
         ${prev.depts.length ? `<p><b>Neue Abteilungen:</b> <span translate="no">${esc(prev.depts.join(', '))}</span></p>` : ''}
         ${prev.fees.length ? `<p><b>Neue Beitragsarten:</b> <span translate="no">${prev.fees.map(f => esc(`${f.name} (${euro(f.cents)} ${INTERVAL[f.interval]})`)).join(', ')}</span> <span class="muted s">– Altersgrenzen und Familientarif danach unter Beiträge prüfen.</span></p>` : ''}
         <div class="scroll" style="max-height:44vh"><table class="tbl"><tr><th>Zeile</th><th>Nr.</th><th>Name</th><th>Aktion</th><th>Abteilungen</th><th>Beiträge</th><th>Mandat</th></tr>
-          ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(r.name)}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
+          ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
       const acts = () => sim.forEach(r => { const td = document.querySelector(`[data-act="${r.line}"]`); if (td) td.innerHTML = dec[r.line] === 'neu' ? '<span class="pill g">neu</span>' : '<span class="pill b">zusammenführen</span>'; });
       document.querySelectorAll('[data-sim]').forEach(sel => { sel.onchange = () => { dec[sel.dataset.sim] = sel.value === 'neu' ? 'neu' : Number(sel.value); $('iKN').textContent = prev.new - merged(); $('iKU').textContent = prev.update + merged(); acts(); }; });
       acts();
@@ -931,7 +931,7 @@
     el.innerHTML = `<div class="card"><h3>Altersstufen</h3>
       <p class="muted s" style="margin-top:0">Wer älter wird und nicht mehr in seinen Beitrag passt, aus dem Familienbeitrag herauswächst oder in eine höhere Stufe des Zusatzbeitrags kommt, steht hier. Bis zur Entscheidung läuft der <b>bisherige Beitrag weiter</b>. „So belassen“ wird gemerkt – es kommt kein neuer Hinweis.</p>
       ${rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Anlass</th><th>bisher</th><th>neu</th><th class="nw">ab</th><th></th></tr>${rows.map(n => `<tr>
-          <td><a href="#" data-agem="${n.member_id}"><b>${esc(GK.lastFirst(n.name || ''))}</b></a>${n.payer_name ? `<div class="muted s">zahlt über ${esc(n.payer_name)}</div>` : ''}</td>
+          <td><a href="#" data-agem="${n.member_id}"><b>${esc(GK.lastFirst(n.name || ''))}</b></a>${n.payer_name ? `<div class="muted s">zahlt über ${esc(GK.lastFirst(n.payer_name))}</div>` : ''}</td>
           <td>${esc(n.label)}${n.dept ? ` <span class="muted s" translate="no">(${esc(n.dept)})</span>` : ''}<div class="muted s">${n.age} Jahre</div></td>
           <td>${ageFrom(n)}</td><td>${ageTo(n)}</td><td class="nw">${deDate(n.due_date)}</td>
           <td class="r nw"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small primary" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></td></tr>`).join('')}</table>`
@@ -1020,7 +1020,7 @@
     const get = async id => (await api('charges?status=alle')).rows.find(c => c.id === id);
     el.querySelectorAll('[data-cpay]').forEach(b => { b.onclick = async () => {
       const c = await get(+b.dataset.cpay);
-      dialog(`<h2>Zahlung erfassen</h2><p class="muted" style="margin-top:0">${esc(c.payer_name)}: ${esc(c.text)} – ${euro(c.cents)}</p>
+      dialog(`<h2>Zahlung erfassen</h2><p class="muted" style="margin-top:0">${esc(GK.lastFirst(c.payer_name))}: ${esc(c.text)} – ${euro(c.cents)}</p>
         <div class="mv-grid" style="--c:3"><label class="f">Betrag<input id="pyC" inputmode="decimal" value="${centsToInput(c.cents)}"></label><label class="f">Datum<input id="pyD" type="date" value="${st.meta.today}"></label>
           <label class="f">Zahlungsweg<select id="pyV">${opt('ueberweisung', 'Überweisung')}${opt('bar', 'bar')}${opt('lastschrift', 'Lastschrift')}${opt('verrechnet', 'verrechnet')}</select></label></div>
         <p class="muted s">Weniger als der Betrag = Teilzahlung, der Rest bleibt offen.</p>
@@ -1031,7 +1031,7 @@
     el.querySelectorAll('[data-ced]').forEach(b => { b.onclick = async () => chargeDialog(await get(+b.dataset.ced), {}, again); });
     el.querySelectorAll('[data-ccx]').forEach(b => { b.onclick = async () => {
       const c = await get(+b.dataset.ccx);
-      dialog(`<h2>Posten stornieren</h2><p class="muted" style="margin-top:0">${esc(c.payer_name)}: ${esc(c.text)} – ${euro(c.cents)}</p>
+      dialog(`<h2>Posten stornieren</h2><p class="muted" style="margin-top:0">${esc(GK.lastFirst(c.payer_name))}: ${esc(c.text)} – ${euro(c.cents)}</p>
         <label class="f">Grund<input id="cxR" placeholder="z. B. doppelt, Ermäßigung"></label>
         ${c.kind === 'beitrag' ? '<label class="chk" style="margin-top:12px"><input type="checkbox" id="cxRe"> Zeitraum beim nächsten Beitragslauf neu abrechnen</label>' : ''}
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="cxOk">Stornieren</button></div>`);
@@ -1126,7 +1126,7 @@
       <div class="scroll" style="max-height:56vh"><table class="tbl"><tr><th>Zahler</th><th>E-Mail</th><th>Posten</th><th class="r">Betrag</th><th></th></tr>
         ${k.rows.map(r => `<tr class="${r.returned ? 'off' : ''}"><td><b>${esc(GK.lastFirst(r.name))}</b>${r.member_no ? `<div class="muted s">Nr. ${esc(r.member_no)}</div>` : ''}</td><td class="s">${esc(r.email || '–')}</td><td class="s" translate="no">${esc(r.texts)}</td><td class="r">${euro(r.cents)}</td>
           <td class="r">${k.status !== 'verworfen' ? `<button class="btn small danger" data-ret="${r.member_id}">Rücklastschrift</button>` : ''}</td></tr>`).join('')}
-        ${k.returnedOnly.map(r => `<tr class="off"><td><b>${esc(r.name)}</b></td><td></td><td class="s">zurückgebucht</td><td></td><td></td></tr>`).join('')}</table></div>
+        ${k.returnedOnly.map(r => `<tr class="off"><td><b>${esc(GK.lastFirst(r.name))}</b></td><td></td><td class="s">zurückgebucht</td><td></td><td></td></tr>`).join('')}</table></div>
       <div class="btns"><button class="btn primary" id="c">Schließen</button></div>`, true);
     $('c').onclick = () => { closeDialog(); again(); };
     $('kMail').onclick = async () => { if (!await ask(`Vorabinformation an ${k.rows.filter(r => r.email).length} Zahler schicken?\n\nJede/r bekommt Betrag, Termin, Mandatsreferenz und Gläubiger-ID. ${k.rows.filter(r => !r.email).length} ohne E-Mail – für sie gibt es die Briefe als PDF.`, { ok: 'Senden', danger: false })) return;
@@ -1136,7 +1136,7 @@
     if ($('kDel')) $('kDel').onclick = async () => { if (!await ask('Einzug verwerfen?\n\nNur, wenn die SEPA-Datei NICHT bei der Bank eingereicht wurde. Alle Posten werden wieder offen.', { ok: 'Verwerfen' })) return; try { await api('collections/' + id, 'DELETE'); closeDialog(); toast('Verworfen.'); again(); } catch (e) { fail(e); } };
     document.querySelectorAll('[data-ret]').forEach(b => { b.onclick = () => {
       const r = k.rows.find(x => x.member_id === +b.dataset.ret);
-      dialog(`<h2>Rücklastschrift ${esc(r.name)}</h2><p class="muted" style="margin-top:0">${euro(r.cents)} – die Posten werden wieder offen.</p>
+      dialog(`<h2>Rücklastschrift ${esc(GK.lastFirst(r.name))}</h2><p class="muted" style="margin-top:0">${euro(r.cents)} – die Posten werden wieder offen.</p>
         <div class="mv-grid" style="--c:2"><label class="f">Grund<select id="rtR">${['Rücklastschrift', 'Widerspruch', 'Konto erloschen', 'mangelnde Deckung', 'Mandat fehlt'].map(x => opt(x, x)).join('')}</select></label>
           <label class="f">Gebühr weiterberechnen<input id="rtF" inputmode="decimal" value="${centsToInput(st.meta.settings.return_fee_cents)}"></label></div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="rtM"> Mandat sperren (keine weiteren Lastschriften)</label>
