@@ -5,6 +5,7 @@
 # Bricht bei jedem Fehler ab. Danach: node werkzeuge/pruef.js, committen, pushen, node werkzeuge/modver.js save clubwerk (Datei mitcommitten).
 # Eine Version gilt als veröffentlicht, sobald sie in PRUEFSUMMEN.md steht – dieselbe Nummer lässt sich dann nicht noch einmal bauen.
 set -u
+ND=$(dirname "$(dirname "$(readlink -f "$(command -v node)")")"); [ -d "$ND/include/node" ] && export npm_config_nodedir="$ND"   # native Module ohne Download der Node-Header bauen
 R=$(cd "$(dirname "$0")/.." && pwd); A=$R/clubwerk; W=$R/werkzeuge; cd "$R"
 fail() { echo "ABBRUCH: $*"; exit 1; }
 echo "== 1. Versionen"

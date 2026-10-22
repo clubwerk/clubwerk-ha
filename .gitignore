@@ -18,3 +18,4 @@ werkzeuge/i18n/ausgabe/
 __pycache__/
 CLAUDE.local.md
 !werkzeuge/tests/fixtures/*.csv
+.claude/settings.local.json

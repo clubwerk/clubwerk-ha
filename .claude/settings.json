@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"$CLAUDE_PROJECT_DIR\"/werkzeuge/sitzung-einrichten.sh",
+            "timeout": 900
+          }
+        ]
+      }
+    ]
+  }
+}

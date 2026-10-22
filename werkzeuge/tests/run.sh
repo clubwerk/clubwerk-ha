@@ -7,6 +7,7 @@
 # Voraussetzungen: einmal „npm ci“ in clubwerk/ (den Test-Mailserver installiert der Lauf selbst). Für „targets“ zusätzlich: pip install wsgidav cheroot pyftpdlib asyncssh
 # Für „migrate“: der alte Stand 2.16.3 liegt in fixtures/backup-2.16.3-src; seine Bibliotheken holt der Test beim ersten Lauf (npm ci).
 set -u
+ND=$(dirname "$(dirname "$(readlink -f "$(command -v node)")")"); [ -d "$ND/include/node" ] && export npm_config_nodedir="$ND"   # native Module ohne Download der Node-Header bauen
 H=$(cd "$(dirname "$0")" && pwd)
 export CW_APP=${CW_APP:-$(cd "$H/../../clubwerk" && pwd)}
 S=$(mktemp -d "${TMPDIR:-/tmp}/cwtest.XXXXXX"); W=$S/work
