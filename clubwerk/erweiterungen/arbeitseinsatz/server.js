@@ -89,8 +89,8 @@ function activate(ctx) {
     return db.prepare(`SELECT m.id, m.name, m.active FROM members m WHERE m.kind = 'mitglied' AND m.deleted = 0 AND m.pending = 0 ORDER BY name_key(m.name, m.kind)`).all();
   }
   /** Soll in Minuten für ein Mitglied im Jahr y → { minutes, why } */
-  async function target(id, y, info, pre = null) {   // pre: vorab geladene Ausnahmen (Übersicht: eine Abfrage statt je Mitglied)
-    const c = cfg(); const per = period(y);
+  async function target(id, y, info, pre = null) {   // pre: vorab geladene Ausnahmen, Einstellungen und Zeitraum (Übersicht: einmal statt je Mitglied)
+    const c = pre ? pre.c : cfg(); const per = pre ? pre.per : period(y);
     const ov = pre ? pre.ov.get(id) : db.prepare('SELECT * FROM aw_target WHERE member_id = ? AND year = ?').get(id, y);
     if (ov && ov.minutes != null) return { minutes: ov.minutes, why: ov.note ? `Ausnahme: ${ov.note}` : 'eigene Vorgabe' };
     // dauerhaft befreit: Stunden zählen weiter, aber kein Soll und nichts wird eingezogen
@@ -127,13 +127,14 @@ function activate(ctx) {
     // je Jahr einmal laden statt je Mitglied (Übersicht und Beitragslauf laufen über alle Mitglieder)
     const sums = st => new Map(db.prepare(`SELECT member_id, SUM(minutes) n FROM aw_entry WHERE status = ? AND date BETWEEN ? AND ? GROUP BY member_id`).all(st, p0.from, p0.to).map(r => [r.member_id, r.n]));
     const doneBy = sums('bestaetigt'), openBy = sums('offen');
-    const pre = { ov: new Map(db.prepare('SELECT * FROM aw_target WHERE year = ?').all(y).map(r => [r.member_id, r])), ex: new Map(db.prepare('SELECT * FROM aw_exempt').all().map(r => [r.member_id, r])) };
+    const pre = { c, per: p0, ov: new Map(db.prepare('SELECT * FROM aw_target WHERE year = ?').all(y).map(r => [r.member_id, r])), ex: new Map(db.prepare('SELECT * FROM aw_exempt').all().map(r => [r.member_id, r])) };
+    const withMv = mv();
     for (const p of people()) {
-      const info = mv() ? await hook('memberInfo', p.id) : null;
-      if (info && info.status === 'ausgetreten' && info.exit_date && info.exit_date < period(y).from) continue;
+      const info = withMv ? await hook('memberInfo', p.id) : null;
+      if (info && info.status === 'ausgetreten' && info.exit_date && info.exit_date < p0.from) continue;
       const t = await target(p.id, y, info, pre);
       const done = doneBy.get(p.id) || 0, open = openBy.get(p.id) || 0;
-      const fam = mv() ? await hook('familyOf', p.id) : null;
+      const fam = withMv ? await hook('familyOf', p.id) : null;
       rows.push({ id: p.id, name: p.name, target: t.minutes, why: t.why, done, open, head: fam ? fam.head : p.id, exempt: Boolean(t.exempt), exempt_until: t.exempt ? t.until || null : null, exempt_note: t.exempt ? t.note || '' : '', override: Boolean(pre.ov.get(p.id) && pre.ov.get(p.id).minutes != null) });
     }
     const groups = new Map();

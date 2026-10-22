@@ -9,7 +9,8 @@
   const EST = { laeuft: ['b', 'läuft'], offen: ['a', 'zu bestätigen'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'] };
   const SRC = { verwaltung: 'Verwaltung', app: 'App', tablet: 'Tablet' };
   const st = { meta: null, year: null, past: false, es: 'offen' };
-  const h = m => { const v = (m || 0) / 60; return `${v.toLocaleString('de-DE', { maximumFractionDigits: 2 })} h`; };
+  const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });   // einmal anlegen statt je Zeile
+  const h = m => `${HF.format((m || 0) / 60)} h`;
   const toMin = v => Math.round(Number(String(v || '').replace(',', '.')) * 60);
   const pill = ([c, t]) => `<span class="pill ${c}">${esc(t)}</span>`;
   const opt = (v, l, s) => `<option value="${esc(v)}" ${String(v) === String(s ?? '') ? 'selected' : ''}>${esc(l)}</option>`;

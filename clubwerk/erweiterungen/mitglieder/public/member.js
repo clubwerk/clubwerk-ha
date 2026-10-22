@@ -10,7 +10,8 @@
       .vh-rows .md-r { text-align: right; white-space: normal; }`;
     document.head.appendChild(s);
   }
-  const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
+  const euro = c => EUR.format((c || 0) / 100);
   const deD = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
   const ST = { offen: ['a', 'offen'], eingezogen: ['', 'wird abgebucht'], bezahlt: ['g', 'bezahlt'] };
 

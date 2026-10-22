@@ -101,7 +101,8 @@
     document.head.appendChild(s);
   }
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
-  const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
+  const euro = c => EUR.format((c || 0) / 100);
   const tm = s => +s.slice(0, 2) * 60 + +s.slice(3, 5);
   /** alle offenen Plätze mit gleicher Öffnungszeit? Dann steht sie nicht unter jedem Spaltenkopf (die Zeitachse zeigt sie) */
   const sameHours = rs => { const o = rs.filter(r => r.open_today); return o.length > 1 && o.every(r => r.open_from === o[0].open_from && r.open_to === o[0].open_to); };

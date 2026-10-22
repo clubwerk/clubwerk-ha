@@ -3,10 +3,13 @@
   const $ = id => document.getElementById(id);
   const T = window.T || ((s, v) => String(s).replace(/\{(\w+)\}/g, (m, k) => (v && v[k] !== undefined ? v[k] : m)));   // Übersetzen (i18n.js); ohne Sprachdatei bleibt Deutsch
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
-  const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
-  const num = n => Number(n || 0).toLocaleString('de-DE');
+  // Formatierer einmal anlegen – toLocaleString baut sie sonst bei jedem Betrag/Datum neu (bei langen Listen spürbar langsam)
+  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' }), NUM = new Intl.NumberFormat('de-DE');
+  const DT = new Intl.DateTimeFormat('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  const euro = c => EUR.format((c || 0) / 100);
+  const num = n => NUM.format(Number(n || 0));
   const deDate = d => (d ? d.slice(0, 10).split('-').reverse().join('.') : '');
-  const deTime = t => (t ? new Date(t.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '');
+  const deTime = t => (t ? DT.format(new Date(t.replace(' ', 'T'))) : '');
   const pinInfo = m => m.pin_changed_at ? `<div class="muted s">${m.hasPin ? 'geändert' : (m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? 'zurückgesetzt' : 'entfernt')} ${deTime(m.pin_changed_at)}${m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? ' · ' + esc(m.pin_changed_by) : ''}</div>` : '';
   const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   const toCents = v => Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) * 100);
@@ -158,6 +161,24 @@
   }
   window.addEventListener('resize', () => document.querySelectorAll('#main .tabs').forEach(tabFade));
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay') && !$('dialog').dataset.sticky) closeDialog(); });
+
+  /* Lange Tabellen: erst 150 Zeilen, der Rest auf Knopfdruck – sonst baut der Browser tausende Zeilen auf einmal auf.
+     rows: fertige <tr>-Zeilen, cols: Spaltenzahl. Knöpfe in den Zeilen über einen Klick auf die Tabelle anbinden, dann wirken sie auch in nachgeladenen Zeilen. */
+  const MORE_STEP = 150, moreRest = new Map(); let moreSeq = 0;
+  const moreRow = (id, left, cols) => `<tr class="more"><td colspan="${cols}" style="text-align:center"><button class="btn small" type="button" data-more="${id}">Weitere ${Math.min(MORE_STEP, left)} anzeigen</button> <span class="muted s">noch ${left}</span></td></tr>`;
+  function moreRows(rows, cols) {
+    if (rows.length <= MORE_STEP) return rows.join('');
+    const id = String(++moreSeq); moreRest.set(id, { rows: rows.slice(MORE_STEP), cols });
+    if (moreRest.size > 20) moreRest.delete(moreRest.keys().next().value);   // Listen früherer Ansichten vergessen
+    return rows.slice(0, MORE_STEP).join('') + moreRow(id, rows.length - MORE_STEP, cols);
+  }
+  document.addEventListener('click', e => {
+    const b = e.target.closest('[data-more]'), m = b && moreRest.get(b.dataset.more); if (!m) return;
+    const tr = b.closest('tr'), table = tr.closest('table'), next = m.rows.splice(0, MORE_STEP);
+    tr.insertAdjacentHTML('beforebegin', next.join('') + (m.rows.length ? moreRow(b.dataset.more, m.rows.length, m.cols) : ''));
+    tr.remove(); if (!m.rows.length) moreRest.delete(b.dataset.more);
+    labelTables(table.parentNode);
+  });
 
   /* Handy: Spaltennamen an jede Tabellenzelle hängen (für die Kartenansicht) */
   function labelTables(root) {
@@ -1120,12 +1141,12 @@
         <label class="f hidden" id="nbNoteL">Wofür?<input id="nbNote" placeholder="z. B. Startgeld" maxlength="60"></label>
         <label class="f">Datum<input type="date" id="nbDate" value="${today()}"></label>
         <button class="btn" id="nbSave">Nachtragen</button></div></div>
-      <div class="scroll"><table class="tbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
-      ${r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s">${esc(b.event)}</div>` : ''}</td>
+      <div class="scroll"><table class="tbl" id="buTbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
+      ${moreRows(r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s">${esc(b.event)}</div>` : ''}</td>
         <td><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
           : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
           : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
-        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`).join('') || '<tr><td colspan="7" class="muted">Keine Buchungen im Zeitraum.</td></tr>'}</table></div>`;
+        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`), 7) || '<tr><td colspan="7" class="muted">Keine Buchungen im Zeitraum.</td></tr>'}</table></div>`;
     bindRange('rng', (f, t) => RENDER.buchungen(f, t, $('bMem').value).catch(fail));
     $('bMem').onchange = () => RENDER.buchungen(r.from, r.to, $('bMem').value).catch(fail);
     $('nbArt').onchange = () => { const amt = $('nbArt').value === '__betrag'; $('nbQtyL').classList.toggle('hidden', amt); $('nbAmtL').classList.toggle('hidden', !amt); $('nbNoteL').classList.toggle('hidden', !amt); };
@@ -1135,14 +1156,15 @@
         : { memberId: $('nbMem').value, articleId: $('nbArt').value, qty: $('nbQty').value, date: $('nbDate').value };
       try { await api('bookings', 'POST', body); toast('Nachgetragen.'); RENDER.buchungen(r.from, r.to, memberId); } catch (e) { fail(e); }
     };
-    $('main').querySelectorAll('[data-cx]').forEach(b => b.onclick = async () => {
+    $('buTbl').onclick = async e => {
+      const b = e.target.closest('[data-cx]'); if (!b) return;
       if (!await ask('Diese Buchung stornieren?')) return;
       try {
         const x = await api(`bookings/${b.dataset.cx}/cancel`, 'POST', {});
         toast(x && x.message ? x.message : 'Storniert.');
       } catch (e) { fail(e); }
       RENDER.buchungen(r.from, r.to, memberId);
-    });
+    };
   };
 
   /* ---------- Abtippliste: Beträge von Hand in die Vereinsverwaltung übertragen ---------- */
@@ -1371,10 +1393,10 @@
           : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
         <button class="btn ghost" id="reload">Liste aktualisieren</button>
       </div>
-      <div class="scroll"><table class="tbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
-        ${r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
+      <div class="scroll"><table class="tbl" id="abTbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
+        ${moreRows(r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
           <td>${deDate(x.since.slice(0, 10))}</td>${cats.map(c => `<td class="r">${x.byCategory[c] || ''}</td>`).join('')}<td class="r">${euro(x.total_cents)}</td>
-          ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`).join('')
+          ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`), cats.length + 3 + (mayClose ? 1 : 0))
           || `<tr><td class="muted" colspan="${cats.length + 3 + (mayClose ? 1 : 0)}">Keine offenen Beträge – alles abgerechnet.</td></tr>`}
         ${r.rows.length ? `<tr class="sum"><td>Summe</td><td></td>${cats.map(c => `<td class="r">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>
       ${mayClose ? `<div class="card" style="margin-top:16px"><h3>Bisherige Abrechnungen</h3>
@@ -1405,10 +1427,11 @@
     };
     if ($('settleAll')) $('settleAll').onclick = () => settle(null,
       `Alle ${r.rows.length} Konten über zusammen ${euro(r.total_cents)} als abgerechnet markieren?\n\nNur tun, wenn die Beträge in der Vereinsverwaltung abgebucht sind. Erfasst wird der Stand ${stand} Uhr.`);
-    $('main').querySelectorAll('[data-settle]').forEach(btn => btn.onclick = () => {
+    $('abTbl').onclick = e => {
+      const btn = e.target.closest('[data-settle]'); if (!btn) return;
       const x = r.rows.find(y => y.id === Number(btn.dataset.settle));
       settle([x.id], `${x.name}: ${euro(x.total_cents)} als abgerechnet markieren?`);
-    });
+    };
     $('main').querySelectorAll('[data-undo]').forEach(btn => btn.onclick = async () => {
       if (!await ask('Diese Abrechnung zurücknehmen? Die Beträge sind danach wieder offen.')) return;
       try { await api('settle/' + encodeURIComponent(btn.dataset.undo), 'DELETE'); toast('Zurückgenommen.'); RENDER.abrechnung(from, to); } catch (e) { fail(e); }

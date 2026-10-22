@@ -1,7 +1,8 @@
 'use strict';
 (() => {
   const $ = id => document.getElementById(id);
-  const euro = c => (c / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Betrag
+  const euro = c => EUR.format(c / 100);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const IDLE_MS = 60 * 1000;      // nach 60 s ohne Eingabe zurück zum Start
   const DONE_MS = 20 * 1000;      // Bestätigung 20 s sichtbar (Rückgängig möglich)

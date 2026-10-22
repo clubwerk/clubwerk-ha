@@ -4,6 +4,7 @@
 const fs = require('fs'); const http = require('http'); const { AsyncLocalStorage } = require('async_hooks');
 const path = require('path');
 const LOG = process.env.CW_ZAEHLER_LOG; if (!LOG) return;
+const SQL = process.env.CW_ZAEHLER_SQL === '1';   // zusätzlich die Abfragetexte je Anfrage mitschreiben (Fehlersuche)
 const als = new AsyncLocalStorage();
 const out = fs.createWriteStream(LOG, { flags: 'a' });
 
@@ -14,7 +15,7 @@ http.Server.prototype.emit = function (ev, req, res) {
   const c = { q: 0, qms: 0, t0: process.hrtime.bigint() }, url = req.url;   // Express kürzt req.url in Unter-Routern
   res.on('finish', () => {
     const ms = Number(process.hrtime.bigint() - c.t0) / 1e6;
-    out.write(JSON.stringify({ t: Date.now(), port: this.address() && this.address().port, m: req.method, url, ms: +ms.toFixed(2), q: c.q, qms: +c.qms.toFixed(2) }) + '\n');
+    out.write(JSON.stringify({ t: Date.now(), port: this.address() && this.address().port, m: req.method, url, ms: +ms.toFixed(2), q: c.q, qms: +c.qms.toFixed(2), ...(SQL ? { sql: c.sql } : {}) }) + '\n');
   });
   return als.run(c, () => emit.apply(this, arguments));
 };
@@ -27,6 +28,6 @@ for (const fn of ['run', 'get', 'all', 'iterate']) {
   proto[fn] = function () {
     const c = als.getStore(); if (!c) return orig.apply(this, arguments);
     const t = process.hrtime.bigint();
-    try { return orig.apply(this, arguments); } finally { c.q++; c.qms += Number(process.hrtime.bigint() - t) / 1e6; }
+    try { return orig.apply(this, arguments); } finally { c.q++; c.qms += Number(process.hrtime.bigint() - t) / 1e6; if (SQL) (c.sql = c.sql || []).push(this.source.replace(/\s+/g, ' ').slice(0, 160) + (/FROM settings/.test(this.source) ? ' ← ' + arguments[0] : '')); }
   };
 }

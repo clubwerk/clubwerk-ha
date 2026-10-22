@@ -12,8 +12,9 @@
       .ds-faces { display: flex; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); margin-left: -4px; }`;
     document.head.appendChild(s);
   }
-  const hh = m => `${((m || 0) / 60).toLocaleString('de-DE', { maximumFractionDigits: 2 })} h`;
-  const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
+  const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Zeile
+  const hh = m => `${HF.format((m || 0) / 60)} h`;
+  const euro = c => EUR.format((c || 0) / 100);
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
   const ST = { offen: ['a', 'wird geprüft'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'], laeuft: ['', 'läuft'] };
   const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Einsatz' };
