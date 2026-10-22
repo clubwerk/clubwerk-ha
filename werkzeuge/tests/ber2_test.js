@@ -1,5 +1,5 @@
 const B='http://127.0.0.1:3240/', P='http://127.0.0.1:5240/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,240):'')); if(!c) fails++;};
-let ck=''; async function A(url,method='GET',body,base=B){const h={'X-Getraenke':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(base+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(base===B&&sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({}))];}
+let ck=''; async function A(url,method='GET',body,base=B){const h={'X-Clubwerk':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(base+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(base===B&&sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({}))];}
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{ let s,j; const phase=process.argv[3];   // a: starten · (Server-Neustart) · b: Folgezone läuft weiter · ohne: Hydrawise direkt
   await A('api/admin/login','POST',{username:'admin',password:'Test-Kennwort-42'});

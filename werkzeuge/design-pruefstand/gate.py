@@ -282,6 +282,9 @@ def static_scan():
             for m in re.finditer(r'(min-height|height|max-height)\s*:\s*100vh', line):
                 seg = line[m.start():m.start() + 120]
                 if 'dvh' not in line: items.append({'rule': 'iphone-hoehe-100vh', 'el': f'{rel}:{n}', 'text': line.strip()[:90]})
+            # Schrift auf Vereins- oder Warnfarbe nie fest weiß: im dunklen Modus bzw. bei heller Vereinsfarbe fehlt sonst der Kontrast (--on-brand / --on-red)
+            if re.search(r'background(-color)?\s*:\s*var\(--(brand|red)\)', line) and re.search(r'(?<![-\w])color\s*:\s*(#fff(fff)?|white)\b', line, re.I):
+                items.append({'rule': 'feste-schrift-auf-token', 'el': f'{rel}:{n}', 'text': line.strip()[:90]})
             if (rel.startswith('public/app/') or re.search(r'/public/(member|app)\.js$', rel)) and re.search(r'target=["\\\']?_blank|window\.open\(', line):
                 items.append({'rule': 'app-neues-fenster', 'el': f'{rel}:{n}', 'text': line.strip()[:90]})
     record('quelltext', items)

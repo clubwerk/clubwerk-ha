@@ -81,6 +81,8 @@ ohne eine solche die Zahlergruppe (`'zahler'`) bzw. die Person allein (`'einzeln
 die Helferdienste bilden daraus den Familienpool. `ctx.hooks.memberInfo(id)` liefert `payer`, `family_of` und `fee` (mit `viaFamily`/`viaPayer`,
 wenn der Beitrag vom Oberhaupt bzw. Zahler stammt). Der Verkauf „beim Zahler“ nutzt bewusst nur den Zahler.
 
+**Daten der Mitgliederverwaltung nur über Hooks** – nie deren Tabellen (`mv_*`) oder Einstellungen (`ext_mitglieder_*`) direkt lesen. Hooks antworten nur, solange die Mitgliederverwaltung eingeschaltet ist. Für Abfragen mitten in einer Berechnung gibt es `ctx.callHooksSync(name, …)` (wie `callHooks`, aber ohne `await`, nur für Hooks, die sofort antworten). Die Mitgliederverwaltung bietet: `departments()` (alle Abteilungen mit `active`), `functionsOf(id)` und `functionNames()` (Ämter), `fees()` (aktive Beiträge ohne Zusatzbeiträge), `memberNumbers()` (`{ id: Mitgliedsnummer }`), `clubInfo()` (`{ street, city, yearStart }`), `memberAddress(id)` und `memberInfo(id)`.
+
 **Spielplan (Buchung ↔ Spielbetrieb):** Den Parser für den Verbands-Spielplan gibt es im Kern (`src/spielplan.js`). Übernimmt das Buchungssystem einen Spielplan, ruft es `ctx.hooks.spielplanGames(rows, { all, user })` auf (der Spielbetrieb legt daraus Spieltage an, mit `all` auch Auswärtsspiele). Umgekehrt bucht `ctx.hooks.bookImportedGames(rows, { user })` des Buchungssystems Plätze für Heimspiele von Mannschaften, für die Plätze hinterlegt sind.
 
 **Funktionsexport/-import (optional):** Mit `ctx.hooks.exportConfig = () => ({...})` und

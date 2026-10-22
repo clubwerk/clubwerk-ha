@@ -1,7 +1,7 @@
 const { spawn } = require('child_process'); const fs = require('fs');
 const S = process.argv[2]; const DATA = S + '/r_sd'; fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(DATA);
 const B = 'http://127.0.0.1:3295/'; let ck = ''; let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 200) : '')); if (!c) fails++; };
-async function A(url, method = 'GET', body) { const h = { 'X-Getraenke': '1', Cookie: ck }; if (body !== undefined) h['Content-Type'] = 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc)) ck = sc.split(';')[0]; return [r.status, await r.json().catch(() => ({}))]; }
+async function A(url, method = 'GET', body) { const h = { 'X-Clubwerk': '1', Cookie: ck }; if (body !== undefined) h['Content-Type'] = 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc)) ck = sc.split(';')[0]; return [r.status, await r.json().catch(() => ({}))]; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   let log = '';

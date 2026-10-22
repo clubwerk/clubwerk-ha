@@ -6,7 +6,11 @@
    ctx.db, ctx.getSetting/setSetting, ctx.audit, ctx.bad, ctx.int, ctx.cleanName, ctx.rateLimit, ctx.nowTs
    ctx.isActive() – ist die Erweiterung gerade eingeschaltet? (z. B. für Hintergrundaufgaben)
    ctx.hooks.tabletVisible = () => true|false – Link am Tablet nur zeigen, wenn sinnvoll
-   ctx.require('exceljs' | 'pdfkit' | 'nodemailer' | …) – Bibliotheken von Clubwerk mitbenutzen */
+   ctx.require('exceljs' | 'pdfkit' | 'nodemailer' | …) – Bibliotheken von Clubwerk mitbenutzen
+   ctx.util – gemeinsame Helfer (today, nowTs, deD, euro, esc …)
+   Andere Module nur über Hooks: ctx.isModuleActive('mitglieder'), await ctx.callHooks('memberAddress', id) bzw.
+   ctx.callHooksSync('departments') – nie fremde Tabellen direkt lesen (siehe ERWEITERUNGEN.md)
+   Protokoll von Einstellungen: ctx.audit(user, 'Beispiel: Einstellungen geändert', ctx.auditDiff(LABELS, vorher, nachher)) */
 exports.activate = ctx => {
   const { db, need, bad, cleanName } = ctx;
   db.exec('CREATE TABLE IF NOT EXISTS beispiel_notizen (id INTEGER PRIMARY KEY, text TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT (datetime(\'now\',\'localtime\')))');

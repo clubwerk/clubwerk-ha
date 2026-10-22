@@ -77,7 +77,6 @@ const DUMMY_HASH = hashSecret(crypto.randomBytes(8).toString('hex'));
 const ADMIN_TTL_MS = 8 * 60 * 60 * 1000;
 const ADMIN_MAX_MS = 24 * 60 * 60 * 1000;   // spätestens nach 24 h neu anmelden, auch bei Dauerbetrieb
 const sessions = new Map(); // token -> { userId, expiresAt, maxAt }
-const fails = new Map();    // username -> { count, until, strikes }
 const FAILS_MAX = 5000;     // Obergrenze, damit erfundene Benutzernamen den Speicher nicht füllen
 
 function adminConfigured() {
@@ -106,6 +105,8 @@ const userFails = new Map();
 // Je Konto über alle Absender: nach je 20 Fehlversuchen Pause (15 Min., dann doppelt …). Gegen Angreifer mit vielen Adressen.
 // Über die Home-Assistant-Seitenleiste (trusted) gilt diese Pause nicht – so kann niemand den echten Admin aussperren.
 const accountLimit = require('./security').limiter({ per: 20, baseMs: 15 * 60000 });
+// Je Benutzername und Absender: nach je 5 Fehlversuchen Pause, die sich verdoppelt (5 Min., 10, 20 … höchstens 24 h)
+const ipLimit = require('./security').limiter({ per: 5, baseMs: 5 * 60000, size: FAILS_MAX });
 /* Bekannte Geräte: Nach einer erfolgreichen Anmeldung bekommt das Gerät ein signiertes Cookie. Die Pause je Konto (20 Fehlversuche)
    gilt für bekannte Geräte nicht – so kann ein Fremder im WLAN den echten Admin nicht mit falschen Passwörtern aussperren. */
 const DEVICE_COOKIE = 'gdev';
@@ -130,26 +131,20 @@ function login(username, pw, ip = '', scope = 'admin', { trusted = false, known 
   const name = String(username || '').trim().toLowerCase();
   const key = name + '|' + String(ip || '');
   const now = Date.now();
-  const f = fails.get(key);
-  if (f && f.until > now) return { ok: false, error: 'Zu viele Fehlversuche. Bitte in ein paar Minuten erneut versuchen.' };
+  if (ipLimit.blocked(key)) return { ok: false, error: 'Zu viele Fehlversuche. Bitte in ein paar Minuten erneut versuchen.' };
   const accMin = trusted || known ? 0 : accountLimit.blocked(name);
   if (accMin) return { ok: false, error: `Für dieses Konto gab es zu viele Fehlversuche – Anmeldung in ${accMin} Min. wieder möglich (über die Home-Assistant-Seitenleiste sofort).` };
   const u = db.prepare('SELECT * FROM admin_users WHERE username = ? AND active = 1').get(name);
   const ok = verifySecret(pw, u ? u.pw_hash : DUMMY_HASH);   // gleiche Rechenzeit, auch wenn es den Namen nicht gibt
   if (!u || !ok) {
-    const strikes = f ? f.strikes || 0 : 0;
-    const c = (f ? f.count : 0) + 1;
-    if (!f && fails.size >= FAILS_MAX) { for (const [k, v] of fails) if (!(v.until > now)) { fails.delete(k); break; } }   // laufende Sperren nicht verdrängen
-    // Sperre verdoppelt sich bei jeder weiteren Fehlserie: 5 min, 10, 20 … höchstens 24 h
-    if (c >= 5) fails.set(key, { count: 0, strikes: strikes + 1, until: now + Math.min(5 * 60000 * 2 ** strikes, 24 * 3600000), last: now });
-    else fails.set(key, { count: c, strikes, until: 0, last: now });
+    const { locked } = ipLimit.fail(key);
     const uf = userFails.get(name) || { n: 0, since: now };
     if (now - uf.since > 24 * 3600000) { uf.n = 0; uf.since = now; }
     uf.n++; if (userFails.size > FAILS_MAX) userFails.delete(userFails.keys().next().value); userFails.set(name, uf);
     if (!trusted && !known && u) accountLimit.fail(name);   // nur echte Konten zählen (erfundene Namen füllen sonst die Liste)
-    return { ok: false, error: 'Benutzername oder Passwort falsch.', locked: c >= 5, manyFails: uf.n === 25 || uf.n === 100 };
+    return { ok: false, error: 'Benutzername oder Passwort falsch.', locked, manyFails: uf.n === 25 || uf.n === 100 };
   }
-  fails.delete(key); accountLimit.ok(name);
+  ipLimit.ok(key); accountLimit.ok(name);
   if (scope === 'admin') vaultHook('onLogin', u.id, pw);
   db.prepare("UPDATE admin_users SET last_login = datetime('now','localtime') WHERE id = ?").run(u.id);
   const token = crypto.randomBytes(24).toString('hex');
@@ -227,8 +222,6 @@ setInterval(() => {
   const now = Date.now();
   for (const [k, v] of sessions) if (v.expiresAt < now) sessions.delete(k);
   for (const [k, v] of tabletTokens) if (v.expiresAt < now) tabletTokens.delete(k);
-  // Fehlversuche nach 24 h ohne neuen Versuch vergessen
-  for (const [k, v] of fails) if (v.until < now && now - (v.last || 0) > 24 * 3600000) fails.delete(k);
 }, 60 * 1000).unref();
 
 module.exports = {

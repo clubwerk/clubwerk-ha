@@ -7,7 +7,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 function client(base) {
   let ck = '';
   return async (url, method = 'GET', body, type) => {
-    const h = { 'X-Getraenke': '1', 'X-Clubwerk': '1', Cookie: ck }; let b = body;
+    const h = { 'X-Getraenke': '1', 'X-Clubwerk': '1', Cookie: ck }; let b = body;   // X-Getraenke für den alten Stand 2.16.3
     if (body !== undefined && !type) { h['Content-Type'] = 'application/json'; b = JSON.stringify(body); } else if (type) h['Content-Type'] = type;
     const r = await fetch(base + url, { method, headers: h, body: b });
     const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc) && !/^gadmin=;/.test(sc)) ck = sc.split(';')[0];

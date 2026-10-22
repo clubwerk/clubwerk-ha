@@ -82,7 +82,7 @@ function strings(code) {
   return out;
 }
 function meta(code) {
-  if (code === 'de') { const c = customRow('de'); return c ? { ...DE } : DE; }
+  if (code === 'de') return DE;
   const c = customRow(code); const b = builtin().get(code);
   if (c) return { code, name: c.name, locale: c.locale || code, dir: c.dir === 'rtl' ? 'rtl' : 'ltr' };
   return b ? b.meta : null;

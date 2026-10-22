@@ -207,6 +207,15 @@ function load({ app, admin, helpers }) {
           }
           return out;
         },
+        /** wie callHooks, aber für Hooks, die sofort antworten (keine Promises) – für Abfragen mitten in einer Berechnung */
+        callHooksSync: (name, ...args) => {
+          const out = [];
+          for (const q of plugins.values()) {
+            if (q.meta.id === id || typeof q.hooks[name] !== 'function' || !isActive(q.meta.id)) continue;
+            try { out.push({ id: q.meta.id, name: q.meta.name, result: q.hooks[name](...args) }); } catch (e) { console.error(`Hook ${name} (${q.meta.id}):`, e.message); }
+          }
+          return out;
+        },
         isModuleActive: other => isActive(other),
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden
         entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
@@ -279,7 +288,7 @@ async function installZip(buf) {
   const files = Object.values(zip.files).filter(f => !f.dir && !/(^|\/)(__MACOSX|\.DS_Store)/.test(f.name));
   if (!files.length || files.length > 500) throw new Error('Das ZIP enthält keine oder zu viele Dateien.');
   // angegebene Größe vor dem Entpacken prüfen (gegen „ZIP-Bomben“)
-  if (files.reduce((a, f) => a + ((f._data && f._data.uncompressedSize) || 0), 0) > 20 * 1024 * 1024) throw new Error('Die Erweiterung ist zu groß (höchstens 20 MB).');
+  if (require('./util').zipSize(files) > 20 * 1024 * 1024) throw new Error('Die Erweiterung ist zu groß (höchstens 20 MB).');
   // erweiterung.json direkt im ZIP oder in genau einem Ordner darin
   const metaFile = files.filter(f => /(^|\/)erweiterung\.json$/.test(f.name)).sort((a, b) => a.name.length - b.name.length)[0];
   if (!metaFile) throw new Error('Im ZIP fehlt die Datei „erweiterung.json“.');
@@ -293,7 +302,7 @@ async function installZip(buf) {
   if (meta.minApp && verNum(APP_VERSION) < verNum(meta.minApp)) throw new Error(`Diese Erweiterung braucht Clubwerk ${meta.minApp} oder neuer (installiert: ${APP_VERSION}).`);
   let total = 0;
   const out = [];
-  const unsafe = Object.values(zip.files).find(f => f.unsafeOriginalName && f.unsafeOriginalName !== f.name);
+  const unsafe = require('./util').zipUnsafe(zip);
   if (unsafe) throw new Error(`Ungültiger Dateipfad im ZIP: ${unsafe.unsafeOriginalName}`);
   for (const f of files) {
     if (!f.name.startsWith(root)) continue;

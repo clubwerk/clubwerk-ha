@@ -44,9 +44,9 @@ async function inspect(src, outDir, { currentVersion, currentDir }) {
   try { zip = await JSZip.loadAsync(Buffer.isBuffer(src) ? src : fs.readFileSync(src)); } catch (e) { throw new Error('Die Datei ist kein gültiges ZIP-Archiv.'); }
   const entries = Object.values(zip.files);
   if (entries.length > MAX_FILES) throw new Error('Das ZIP enthält zu viele Dateien.');
-  const unsafe = entries.find(f => f.unsafeOriginalName && f.unsafeOriginalName !== f.name);
+  const { zipSize, zipUnsafe } = require('./util'), unsafe = zipUnsafe(zip);
   if (unsafe) throw new Error(`Ungültiger Pfad im ZIP: ${unsafe.unsafeOriginalName}`);
-  if (entries.reduce((a, f) => a + ((f._data && f._data.uncompressedSize) || 0), 0) > MAX_TOTAL) throw new Error('Das Paket ist zu groß.');
+  if (zipSize(entries) > MAX_TOTAL) throw new Error('Das Paket ist zu groß.');
   // Add-on-Ordner im ZIP finden: der flachste Ordner mit config.yaml + Dockerfile
   const cfgs = entries.filter(f => !f.dir && /(^|\/)config\.yaml$/.test(f.name)).map(f => f.name.slice(0, -'config.yaml'.length))
     .filter(root => zip.file(root + 'Dockerfile')).sort((a, b) => a.length - b.length);

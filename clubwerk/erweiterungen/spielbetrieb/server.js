@@ -7,7 +7,7 @@
    (Fahrer, Bewirtung …) und Erinnerungen. Läuft ohne Mitgliederverwaltung (dann ohne E-Mail, nur Push).
    ===================================================================================================== */
 const crypto = require('crypto');
-const { today, nowTs, isDate, addDays, deD } = require('../../src/util');
+const { today, isDate, addDays, deD } = require('../../src/util');
 
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -106,7 +106,7 @@ function activate(ctx) {
     }
   })();
   const { splitPersonName } = ctx.require('./db');
-  const lf = n => { const x = splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };
+  const lf = ctx.require('./db').lastFirst;
   /* ---------- Gastspieler/innen ---------- */
   const extRow = id => db.prepare('SELECT * FROM sp_extern WHERE member_id = ?').get(int(id));
   const extIds = () => new Set(db.prepare('SELECT member_id FROM sp_extern').all().map(r => r.member_id));
@@ -198,7 +198,7 @@ function activate(ctx) {
   async function tell(ids, ev, { title, body, mail = null }) {
     ids = [...new Set((ids || []).filter(Boolean).map(Number))];
     if (!ids.length) return;
-    if (ctx.push) ctx.push.send(ids, ev, { title, body, url: './#spielbetrieb', tag: `sp-${ev}` }).catch(() => {});
+    ctx.push.send(ids, ev, { title, body, url: './#spielbetrieb', tag: `sp-${ev}` }).catch(() => {});
     if (!mail || !cfg().mail || !ctx.mail.ready() || !ctx.isModuleActive('mitglieder')) return;
     const club = ctx.getSetting('club_name', 'Verein');
     for (const id of ids) {
@@ -390,8 +390,7 @@ function activate(ctx) {
           if (seen[tid].has(r.date)) continue;
           const yes = db.prepare("SELECT member_id FROM sp_avail WHERE game_id = ? AND state = 'ja'").all(r.id).map(x => x.member_id);
           free.push({ team_id: tid, date: r.date, released: r.released, yes });
-          for (const x of ['sp_avail', 'sp_lineup', 'sp_task']) db.prepare(`DELETE FROM ${x} WHERE game_id = ?`).run(r.id);
-          db.prepare('DELETE FROM sp_game WHERE id = ?').run(r.id);
+          db.prepare('DELETE FROM sp_game WHERE id = ?').run(r.id);   // Rückmeldungen, Aufstellung, Aufgaben löscht die Datenbank mit (ON DELETE CASCADE)
         }
       }
     })();
@@ -779,10 +778,7 @@ function activate(ctx) {
     const t = team(req.params.id); if (!t) return bad(res, 'Mannschaft nicht gefunden.', 404);
     const n = db.prepare('SELECT COUNT(*) n FROM sp_game WHERE team_id = ?').get(t.id).n;
     if (n && !(req.body || {}).force && req.query.force !== '1') return bad(res, `Die Mannschaft hat ${n} Spieltage – zum Löschen bitte bestätigen (oder auf „nicht aktiv“ stellen).`, 409);
-    db.transaction(() => {
-      for (const g of db.prepare('SELECT id FROM sp_game WHERE team_id = ?').all(t.id)) for (const x of ['sp_avail', 'sp_lineup', 'sp_task']) db.prepare(`DELETE FROM ${x} WHERE game_id = ?`).run(g.id);
-      db.prepare('DELETE FROM sp_game WHERE team_id = ?').run(t.id); db.prepare('DELETE FROM sp_player WHERE team_id = ?').run(t.id); db.prepare('DELETE FROM sp_team WHERE id = ?').run(t.id);
-    })();
+    db.prepare('DELETE FROM sp_team WHERE id = ?').run(t.id);   // Spieler, Spieltage und alles daran löscht die Datenbank mit (ON DELETE CASCADE)
     ctx.audit(req.user, 'Spielbetrieb: Mannschaft gelöscht', t.name);
     res.json({ ok: true });
   });
@@ -886,7 +882,7 @@ function activate(ctx) {
   });
   admin.delete('/games/:id', P, (req, res) => {
     const g = game(req.params.id); if (!g) return bad(res, 'Spieltag nicht gefunden.', 404);
-    db.transaction(() => { for (const x of ['sp_avail', 'sp_lineup', 'sp_task']) db.prepare(`DELETE FROM ${x} WHERE game_id = ?`).run(g.id); db.prepare('DELETE FROM sp_game WHERE id = ?').run(g.id); })();
+    db.prepare('DELETE FROM sp_game WHERE id = ?').run(g.id);
     ctx.audit(req.user, 'Spielbetrieb: Spieltag gelöscht', `${deD(g.date)} ${g.opponent}`);
     res.json({ ok: true });
   });
@@ -996,7 +992,6 @@ function activate(ctx) {
         // vorläufige Termine, die im Plan nicht (mehr) stehen
         for (const r of db.prepare("SELECT id, date FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND date >= ?").all(t.id, d0)) {
           if (want.has(r.date)) continue;
-          for (const x of ['sp_avail', 'sp_lineup', 'sp_task']) db.prepare(`DELETE FROM ${x} WHERE game_id = ?`).run(r.id);
           db.prepare('DELETE FROM sp_game WHERE id = ?').run(r.id); removed++;
         }
       }
@@ -1018,8 +1013,10 @@ function activate(ctx) {
   });
 
   /* ----- Einstellungen ----- */
+  const SET_LABELS = { seeAvail: 'Wer sonst kann', seeLineup: 'Aufstellung', capInfo: 'Mannschaftsführer mit Handynummer', times: '„kann ab …“ anbieten', tasks: 'Aufgaben je Spieltag',
+    taskKinds: ['Aufgaben', 'text'], remind: 'Automatische Erinnerungen', remindDays: 'Spieler erinnern (Tage vorher)', captainDays: 'Mannschaftsführer warnen (Tage vorher)', mail: 'Nachrichten auch per E-Mail', za: 'Zusatz-/Ausweichtage abfragen' };
   admin.put('/settings', P, (req, res) => {
-    const b = req.body || {};
+    const b = req.body || {}, before = cfg();
     for (const k of ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'mail', 'za']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
     if (b.remind_days !== undefined) SET('remind_days', Math.max(1, Math.min(30, int(b.remind_days) || 7)));
     if (b.captain_days !== undefined) SET('captain_days', Math.max(1, Math.min(30, int(b.captain_days) || 5)));
@@ -1027,7 +1024,7 @@ function activate(ctx) {
       const kinds = b.task_kinds.slice(0, 12).map((k, i) => ({ k: (txt(k.k, 20).toLowerCase().replace(/[^a-z0-9]/g, '') || `a${i}`), l: txt(k.l, 40), when: ['heim', 'auswaerts', 'immer'].includes(k.when) ? k.when : 'immer' })).filter(k => k.l);
       SET('task_kinds', JSON.stringify(kinds));
     }
-    ctx.audit(req.user, 'Spielbetrieb: Einstellungen geändert', '');
+    { const diff = ctx.auditDiff(SET_LABELS, before, cfg()); if (diff) ctx.audit(req.user, 'Spielbetrieb: Einstellungen geändert', diff); }
     res.json({ ok: true, settings: cfg() });
   });
 

@@ -58,11 +58,11 @@ function budget({ max = 20, windowMs = 3600000, size = 2000 } = {}) {
   };
 }
 /** Gemeinsame Sicherheits-Header für alle Ports (Verwaltung/Tablet, Mitglieder-App, Beregnung) */
-function hardenHeaders({ frame = 'SAMEORIGIN' } = {}) {
+function hardenHeaders({ frame = 'SAMEORIGIN', camera = '' } = {}) {
   return (req, res, next) => {
     res.setHeader('X-Frame-Options', frame);   // Schutz gegen Einbetten in fremde Seiten (Klick-Fallen) – zusätzlich zu frame-ancestors
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
-    if (!res.getHeader('Permissions-Policy')) res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
+    res.setHeader('Permissions-Policy', `camera=(${camera}), microphone=(), geolocation=(), payment=(), usb=()`);
     // HTTPS: Browser merken sich einen Tag lang, nur noch verschlüsselt zu verbinden (ohne Subdomains – Home Assistant selbst bleibt unberührt)
     if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=86400');
     // Antworten der Schnittstellen (Konten, Beträge, Namen) nie im Browser- oder Proxy-Zwischenspeicher ablegen
@@ -168,12 +168,11 @@ function notPublic(raw) {
   return false;
 }
 /** Nie über den Cloudflare Tunnel: Anfragen mit cf-Kopfzeilen oder an die öffentliche Tunnel-Adresse abweisen (bypass: z. B. echte Seitenleiste) */
-function noTunnel({ label = 'Clubwerk', bypass } = {}) {
+function noTunnel({ label = 'Clubwerk', msg = `${label} ist von außen nicht erreichbar.`, bypass } = {}) {
   return (req, res, next) => {
     const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
     const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
     if (!(req.get('cf-connecting-ip') || req.get('cf-ray') || (ext && host === ext)) || (bypass && bypass(req))) return next();
-    const msg = `${label} ist von außen nicht erreichbar.`;
     if (String(req.path || '').startsWith('/api/')) return res.status(403).json({ error: msg });
     res.status(403).type('text/plain; charset=utf-8').send(msg + '\n\nÜber den Tunnel nur die Mitglieder-App freigeben (Port der Mitglieder-App).');
   };
@@ -191,4 +190,4 @@ function lanOnly({ label = 'Clubwerk', extra } = {}) {
 /** Antworten komprimieren (gzip/brotli je nach Browser) – Skripte, Stile, JSON, SVG; Bilder/Archive bleiben unverändert */
 const compression = require('compression');
 const compress = () => compression({ threshold: 1024, level: 6, filter: (req, res) => { const t = String(res.getHeader('Content-Type') || ''); return /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/.test(t) || compression.filter(req, res); } });
-module.exports = { notPublic, privateSource, lanSource, lanOnly, noTunnel, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
+module.exports = { normIp, notPublic, privateSource, lanSource, lanOnly, noTunnel, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };

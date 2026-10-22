@@ -271,9 +271,9 @@ function activate(ctx) {
   DOC_DIR = path.join(ctx.require('./db').DATA_DIR, 'mitglieder-dokumente');
   ctx.require('./vault').onUnlock(() => { if (ageScanFn && ctx.isActive()) ageScanFn(); });   // nach dem Entsperren nachholen
   try { store.fillNames(); } catch (e) { /* Tabellen entstehen beim ersten Start */ }
-  const { need, bad, int, rateLimit } = ctx;
+  const { need, bad, int } = ctx;
   const admin = ctx.admin;
-  const P = need('mitglieder'), PB = need('mitglieder_bank'), PF = need('mitglieder_finanzen'), PD = need('mitglieder_dokumente');
+  const P = need('mitglieder'), PB = need('mitglieder_bank'), PD = need('mitglieder_dokumente');
   const uname = req => req.user.name || req.user.username;
   const ar = fn => ctx.asyncRoute(fn);
   const express = ctx.require('express');
@@ -394,7 +394,6 @@ function activate(ctx) {
     const b = req.body || {}, f0 = pi.fields, full = !req.mvScope;
     const miss = [['last_name', 'Nachname'], ['birth_date', 'Geburtsdatum'], ['street', 'Straße'], ['zip', 'PLZ'], ['city', 'Ort'], ['email', 'E-Mail'], ['mobile', 'Handynummer']].filter(([k]) => !f0[k]).map(([, l]) => l);
     if (miss.length) return bad(res, `Für ein neues Mitglied fehlen noch: ${miss.join(', ')}.`);
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(f0.email)) return bad(res, 'Bitte eine gültige E-Mail-Adresse eintragen.');
     if (String(f0.mobile).replace(/\D/g, '').length < 7) return bad(res, 'Bitte eine gültige Handynummer eintragen.');
     // von Hand ausgefüllte Beitrittserklärung gehört dazu (mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“)
     const doc = ctx.db.prepare('SELECT * FROM mv_document WHERE id = ? AND member_id IS NULL AND application_id IS NULL AND by_user = ?').get(int(b.doc_id), uname(req));
@@ -813,7 +812,7 @@ function activate(ctx) {
     const id = int(req.params.id); const d = detail(id, req.user);
     if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
     const core = ctx.db.prepare('SELECT name, kind, active, created_at, pin_hash IS NOT NULL AS hat_pin FROM members WHERE id = ?').get(id);
-    const drinks = ctx.db.prepare("SELECT substr(created_at,1,7) monat, SUM(qty) anzahl, SUM(total_cents) cents FROM bookings WHERE member_id = ? AND cancelled_at IS NULL GROUP BY monat ORDER BY monat").all(id);
+    const drinks = ctx.drinks.byMonth(id);
     const out = { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
       ehrungen: d.honors, aemter: d.functions, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
@@ -985,7 +984,7 @@ function activate(ctx) {
         drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_fee_cents: ['Mahngebühr', 'euro'],
         notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
       const after = {}; for (const [k, v] of pending) { after[k] = String(v); }
-      const diff = ctx.auditDiff ? ctx.auditDiff(L, Object.fromEntries(Object.keys(after).map(k => [k, prevSet[k]])), after) : '';
+      const diff = ctx.auditDiff(L, Object.fromEntries(Object.keys(after).map(k => [k, prevSet[k]])), after);
       if (diff) ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', diff); }
     res.json({ ok: true, settings: settingsView(req.user) });
   });
@@ -1037,13 +1036,11 @@ function activate(ctx) {
     const leaving = rows.filter(r => r.leaving).length;
     return { kpis: [{ l: 'Mitglieder', v: rows.length }, { l: 'Austritte angekündigt', v: leaving }, { l: 'Eintritte ' + today().slice(0, 4), v: rows.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts };
   };
-  /* für den Kern: Tablet-Liste im Verkauf – Angehörige „über den Hauptzahler“ ausblenden, Hauptzahler als „Familie“ markieren */
+  /* für den Kern: Tablet-Liste im Verkauf – Angehörige „über den Hauptzahler“ ausblenden; sichtbar sind sie nur mit „bucht selbst“ */
   ctx.hooks.tabletMembers = () => {
     const rows = ctx.db.prepare(`SELECT p.member_id, p.payer_id FROM mv_person p JOIN members m ON m.id = p.member_id
       WHERE p.payer_id IS NOT NULL AND p.payer_id != p.member_id AND p.sales_mode = 'payer' AND m.deleted = 0 AND m.active = 1 AND p.anonymized_at IS NULL`).all();
-    const hidden = [], family = new Set();
-    for (const r of rows) { const head = store.payerOf(r.member_id); if (head === r.member_id) continue; hidden.push(r.member_id); family.add(head); }
-    return { hidden, family: [...family] };
+    return { hidden: rows.filter(r => store.payerOf(r.member_id) !== r.member_id).map(r => r.member_id) };
   };
   /* für andere Module (Buchhaltung): Anschrift eines Mitglieds, Forderung anlegen/abfragen/stornieren */
   ctx.hooks.memberAddress = id => {
@@ -1097,6 +1094,12 @@ function activate(ctx) {
   /* für den Kern: Abteilungen (Benutzer & Rollen) */
   ctx.hooks.bankAccountUsed = id => (Number(S('sepa_account')) === Number(id) ? 'Mitgliederverwaltung (Lastschriften)' : null);
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();
+  /* für andere Module (Buchungssystem, Buchhaltung, Helferdienste) – antworten sofort, also auch über callHooksSync */
+  ctx.hooks.functionsOf = id => { const d = today(); return ctx.db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(id, d, d).map(x => String(x.name).trim()); };
+  ctx.hooks.functionNames = () => [...new Set(ctx.db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de'));
+  ctx.hooks.fees = () => ctx.db.prepare("SELECT id, name FROM mv_fee WHERE active = 1 AND kind != 'zusatz' ORDER BY sort, name").all();
+  ctx.hooks.memberNumbers = () => Object.fromEntries(ctx.db.prepare('SELECT member_id, member_no FROM mv_person WHERE member_no IS NOT NULL').all().map(r => [r.member_id, r.member_no]));
+  ctx.hooks.clubInfo = () => ({ street: S('club_street', ''), city: S('club_city', ''), yearStart: S('year_start', '01-01') });
   /* für andere Module (Arbeitseinsatz) */
   /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);

@@ -1,5 +1,5 @@
 const B='http://127.0.0.1:3238/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,200):'')); if(!c) fails++;};
-let ck=''; async function A(url,method='GET',body){const h={'X-Getraenke':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),redirect:'manual'}); const sc=r.headers.get('set-cookie'); if(sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({})), r];}
+let ck=''; async function A(url,method='GET',body){const h={'X-Clubwerk':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),redirect:'manual'}); const sc=r.headers.get('set-cookie'); if(sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({})), r];}
 (async()=>{
   let s,j,r;
   [s,j]=await A('api/admin/status'); ok('Ersteinrichtung bietet Module an', j.modules && j.modules.map(m=>m.id).join()==='beregnung,getraenke,zeiterfassung,zugang', JSON.stringify(j.modules?.map(m=>m.id+':'+m.active)));

@@ -3,14 +3,10 @@
    Jede Mail behält ihre Textfassung (für Mailprogramme ohne HTML); das HTML wird daraus erzeugt.
    Optional strukturiert: card = { title, rows: [[Bezeichnung, Wert], …], button: { label, url } }.
    Nur Tabellen und Inline-Stile – so sieht es auch in Outlook, Gmail und Apple Mail gleich aus. */
-const { getSetting } = require('./db');
+const { getSetting, clubColor: color, mixColor } = require('./db');
 
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const color = () => { const c = getSetting('club_color', process.env.CLUB_COLOR || '#1f6b3a'); return /^#[0-9a-f]{6}$/i.test(c) ? c : '#1f6b3a'; };
-function tint(hex, t) {   // Richtung Weiß mischen (0 = Farbe, 1 = weiß)
-  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map(v => Math.round(v + (255 - v) * t));
-  return '#' + a.map(v => v.toString(16).padStart(2, '0')).join('');
-}
+const tint = (hex, t) => mixColor(hex, 'white', t);   // Richtung Weiß mischen (0 = Farbe, 1 = weiß)
 /** Logo als eingebettetes Bild (PNG/JPG – SVG zeigen viele Mailprogramme nicht) */
 function logo() {
   try {
@@ -19,11 +15,6 @@ function logo() {
     if (getSetting('club_logo', '') && /png|jpe?g/i.test(t)) return { content: Buffer.from(getSetting('club_logo', ''), 'base64'), contentType: /png/i.test(t) ? 'image/png' : 'image/jpeg', ext: /png/i.test(t) ? 'png' : 'jpg' };
   } catch (e) { /* ohne Logo */ }
   return null;
-}
-/** Adresse der Mitglieder-App für „In der App öffnen“ (öffentlich, sonst im WLAN) */
-function appUrl() {
-  const pub = getSetting('ext_tunnel', '0') === '1' ? getSetting('ext_tunnel_url', '') : '';
-  return String(pub || getSetting('app_url', '') || '').replace(/\/+$/, '');
 }
 
 /** Klartext → Absätze/Listen; „Hallo …,“ und der Gruß am Ende werden erkannt */
@@ -88,4 +79,4 @@ ${pre ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc
   return { html, attachments: att };
 }
 
-module.exports = { render, appUrl, esc };
+module.exports = { render, esc };

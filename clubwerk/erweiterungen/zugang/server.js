@@ -9,9 +9,8 @@
    plus Zeitprofil (Wochentage, Uhrzeiten, Türen). Ein Profil ist Standard und wird bei jeder Freischaltung vergeben.
    Geöffnet wird in der Mitglieder-App (Bereich „Türen“), optional zusätzlich am Tablet (Name wählen + App-PIN).
    Es wird nie automatisch abgeschlossen. */
-const path = require('path');
 const crypto = require('crypto');
-let db, getSetting, setSetting, audit, auth, H, express, access;
+let db, getSetting, setSetting, audit, H, express, access, lastFirst;
 const MOD = 'zugang';
 const APP = 'app';   // Geräte-Kopplung der Mitglieder-App
 
@@ -33,8 +32,7 @@ const DEF = {
   vendor: 'other', doors: [], profiles: [], wlanOnly: true, header: false, appName: 'Zugang', subtitle: 'Türen öffnen',
   notify: '', openAlertMin: 0, blockAll: false, blockDays: [],
 };
-const HA_BASE = () => (process.env.HA_URL || 'http://supervisor/core/api').replace(/\/$/, '');
-const HA_TOKEN = () => process.env.SUPERVISOR_TOKEN || process.env.HA_TOKEN || '';
+const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung bzw. Zugang)
 const { pad, today, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 /* IDs von Türen und Zeitprofilen werden nie doppelt vergeben – auch nicht nach dem Löschen (Protokoll und Freischaltungen verweisen darauf).
    Die Prüfung in cleanCfg() arbeitet auf einer Kopie (`used`) ohne Datenbankzugriff; gespeichert wird erst mit der Konfiguration (saveUsedIds). */
@@ -150,19 +148,10 @@ function mayOpen(memberId, door, c = cfg()) {
 }
 
 /* =================== Home Assistant =================== */
-async function haCall(method, p, body) {
-  if (!HA_TOKEN()) throw new Error('Clubwerk hat keinen Zugangsschlüssel für Home Assistant bekommen. Bitte das Add-on einmal neu starten; hilft das nicht, im Protokoll des Add-ons die Zeile „Verbindung zu Home Assistant“ prüfen.');
-  const r = await fetch(HA_BASE() + p, { method, headers: { Authorization: 'Bearer ' + HA_TOKEN(), 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(10000) });
-  if (r.status === 401 || r.status === 403) throw new Error(`Home Assistant verweigert den Zugriff (${r.status}). Bitte das Add-on einmal neu starten.`);
-  if (!r.ok) throw new Error(`Home Assistant antwortet mit ${r.status}`);
-  const t = await r.text();
-  try { return JSON.parse(t); } catch (e) { return t; }
-}
 let cache = { at: 0, states: null, err: null };
 async function states(force) {
   if (!force && Date.now() - cache.at < 3000) { if (cache.err) throw cache.err; return cache.states; }
-  try { const s = await haCall('GET', '/states'); const m = new Map((Array.isArray(s) ? s : []).map(x => [x.entity_id, x])); cache = { at: Date.now(), states: m, err: null }; return m; }
+  try { const s = await ha.call('GET', '/states'); const m = new Map((Array.isArray(s) ? s : []).map(x => [x.entity_id, x])); cache = { at: Date.now(), states: m, err: null }; return m; }
   catch (e) { cache = { at: Date.now(), states: null, err: e }; throw e; }
 }
 async function deviceList(c) {
@@ -171,7 +160,7 @@ async function deviceList(c) {
   let ids = null;
   const v = VENDORS.find(x => x.id === c.vendor);
   if (v && v.integration) {
-    try { const r = await haCall('POST', '/template', { template: `{{ integration_entities('${v.integration}') | tojson }}` }); if (Array.isArray(r) && r.length) ids = new Set(r); } catch (e) { /* alles anbieten */ }
+    try { const r = await ha.integrationEntities(v.integration); if (Array.isArray(r) && r.length) ids = new Set(r); } catch (e) { /* alles anbieten */ }
   }
   for (const s of st.values()) {
     const dom = s.entity_id.split('.')[0];
@@ -204,28 +193,22 @@ const pulseTimers = new Map();
 async function act(door, action) {
   const dom = door.ref.split('.')[0];
   if (door.type === 'lock') {
-    if (action === 'zu') await haCall('POST', '/services/lock/lock', { entity_id: door.ref });
-    else await haCall('POST', '/services/lock/unlock', { entity_id: door.ref });
+    if (action === 'zu') await ha.call('POST', '/services/lock/lock', { entity_id: door.ref });
+    else await ha.call('POST', '/services/lock/unlock', { entity_id: door.ref });
   } else if (door.type === 'cover') {
-    await haCall('POST', `/services/cover/${action === 'zu' ? 'close_cover' : 'open_cover'}`, { entity_id: door.ref });
+    await ha.call('POST', `/services/cover/${action === 'zu' ? 'close_cover' : 'open_cover'}`, { entity_id: door.ref });
   } else if (dom === 'button') {
-    await haCall('POST', '/services/button/press', { entity_id: door.ref });
+    await ha.call('POST', '/services/button/press', { entity_id: door.ref });
   } else {
-    await haCall('POST', '/services/switch/turn_on', { entity_id: door.ref });
+    await ha.call('POST', '/services/switch/turn_on', { entity_id: door.ref });
     clearTimeout((pulseTimers.get(door.id) || {}).timer);
     const sec = Math.max(1, Math.min(30, parseInt(door.pulseSec, 10) || 3));
-    const off = () => { pulseTimers.delete(door.id); return haCall('POST', '/services/switch/turn_off', { entity_id: door.ref }).catch(e => notify(`${door.name}: Türöffner ließ sich nicht ausschalten (${e.message}).`)); };
+    const off = () => { pulseTimers.delete(door.id); return ha.call('POST', '/services/switch/turn_off', { entity_id: door.ref }).catch(e => notify(`${door.name}: Türöffner ließ sich nicht ausschalten (${e.message}).`)); };
     pulseTimers.set(door.id, { timer: setTimeout(off, sec * 1000), off });
   }
   cache.at = 0;
 }
-async function notify(text) {
-  const c = cfg();
-  if (!c.notify || !HA_TOKEN()) return;
-  const svc = String(c.notify).replace(/^notify\./, '');
-  if (!/^[a-z0-9_]+$/.test(svc)) return;
-  try { await haCall('POST', '/services/notify/' + svc, { title: 'Zugang', message: text }); } catch (e) { console.error('Zugang: Benachrichtigung fehlgeschlagen:', e.message); }
-}
+const notify = text => ha.notify(cfg().notify, 'Zugang', text);
 
 /* Tür steht zu lange offen → einmal melden */
 const openSince = new Map();
@@ -335,7 +318,7 @@ function tabletRoutes(r, ctx) {
   r.get('/members', (req, res) => {
     res.json({ members: db.prepare(`SELECT m.id, m.name FROM member_access a JOIN members m ON m.id = a.member_id
       JOIN member_devices d ON d.member_id = m.id AND d.scope = ? AND d.token_hash IS NOT NULL
-      WHERE a.module = ? AND a.blocked = 0 AND m.active = 1 AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(APP, MOD) });
+      WHERE a.module = ? AND a.blocked = 0 AND m.active = 1 AND m.deleted = 0 ORDER BY name_key(m.name, m.kind)`).all(APP, MOD).map(m => ({ ...m, ln: lastFirst(m.name) })) });
   });
   r.get('/status', async (req, res) => {
     const c = cfg();
@@ -388,7 +371,7 @@ function cleanCfg(b, cleanName) {
       if (!type) throw new Error(`${name}: bitte die Art wählen.`);
       const ref = String(d.ref || '').trim();
       if (!new RegExp(`^(${TYPES[type].join('|')})\\.[a-z0-9_]+$`).test(ref)) throw new Error(`${name}: bitte ein passendes Gerät auswählen.`);
-      { const own = H.entityOwner && H.entityOwner(ref); if (own) throw new Error(`${name}: „${ref}“ gehört schon zum Modul ${own} und kann hier nicht verwendet werden.`); }
+      { const own = H.entityOwner(ref); if (own) throw new Error(`${name}: „${ref}“ gehört schon zum Modul ${own} und kann hier nicht verwendet werden.`); }
       const sensor = String(d.sensor || '').trim();
       if (sensor && !/^binary_sensor\.[a-z0-9_]+$/.test(sensor)) throw new Error(`${name}: ungültiger Türkontakt.`);
       // vorhandene Tür behält ihre ID; eine neue ID wird nur angenommen, wenn sie hier noch nie vergeben war – sonst neu
@@ -451,7 +434,7 @@ function cleanCfg(b, cleanName) {
 
 function activate(ctx) {
   try { clubNet = ctx.require('./memberapp').isClubNet; } catch (e) { clubNet = null; }
-  ({ db, getSetting, setSetting, audit, auth } = ctx);
+  ({ db, getSetting, setSetting, audit } = ctx); ({ lastFirst } = ctx.require('./db'));
   express = ctx.require('express');
   H = ctx;
   createTables();
@@ -497,7 +480,7 @@ function activate(ctx) {
     const c = cfg();
     let devices = null, filtered = false, error = null;
     try { const d = await deviceList(c); devices = d.list; filtered = d.filtered; } catch (e) { error = e.message; }
-    res.json({ cfg: c, vendors: VENDORS.map(({ id, name, setup }) => ({ id, name, setup })), devices, filtered, error, haAvailable: Boolean(HA_TOKEN()),
+    res.json({ cfg: c, vendors: VENDORS.map(({ id, name, setup }) => ({ id, name, setup })), devices, filtered, error, haAvailable: ha.available(),
       profileTexts: Object.fromEntries(c.profiles.map(p => [p.id, profileText(p)])) });
   });
   admin.put('/config', need('zugang'), (req, res) => {

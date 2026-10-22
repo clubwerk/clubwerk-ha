@@ -50,14 +50,15 @@ CREATE TABLE IF NOT EXISTS bh_donation (
 
 /* ---------------------------------------------------------------- Einstellungen */
 const DEF = { street: '', city: '', tax_no: '', vat_id: '', phone: '', email: '', vat_default: '19', small_business: '0', inv_prefix: 'R-', due_days: '14',
-  footer: '', intro: '', remind_days: '14', don_prefix: 'SQ-', finanzamt: '', fa_tax_no: '', bescheid_type: 'freistellung', bescheid_date: '', veranlagungszeitraum: '',
+  footer: '', intro: '', don_prefix: 'SQ-', finanzamt: '', fa_tax_no: '', bescheid_type: 'freistellung', bescheid_date: '', veranlagungszeitraum: '',
   zwecke: 'des Sports (§ 52 Abs. 2 Satz 1 Nr. 21 AO)', signer: '', signer_role: 'Vorsitzende/r', place: '' };
 const S = k => C.setting(k, DEF[k] != null ? DEF[k] : '');
-const mv = k => C.getSetting(`ext_mitglieder_${k}`, '');   // Vorgaben aus der Mitgliederverwaltung (Anschrift, Vereinskonto)
+const mvSync = (name, ...a) => { const x = C.callHooksSync(name, ...a).find(y => y.id === 'mitglieder'); return x ? x.result : null; };   // null ohne Mitgliederverwaltung
 function settings() {
   const o = Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)]));
-  o.small_business = o.small_business === '1'; o.vat_default = Number(o.vat_default) || 0; o.due_days = Number(o.due_days) || 14; o.remind_days = Number(o.remind_days) || 14;
-  o.fallback = { street: mv('club_street'), city: mv('club_city') };
+  o.small_business = o.small_business === '1'; o.vat_default = Number(o.vat_default) || 0; o.due_days = Number(o.due_days) || 14;
+  const ci = mvSync('clubInfo') || {};
+  o.fallback = { street: ci.street || '', city: ci.city || '' };   // Vorgabe aus der Mitgliederverwaltung
   return o;
 }
 /** Bankverbindung als Momentaufnahme für eine Rechnung */
@@ -99,7 +100,7 @@ function nextNo(table, prefix, year) {
   const n = last ? (parseInt(last.no.slice(pre.length), 10) || 0) + 1 : 1;
   return pre + pad(n, 4);
 }
-const departments = () => { try { return db.prepare('SELECT id, name FROM mv_department WHERE active = 1 ORDER BY sort, name').all(); } catch (e) { return []; } };
+const departments = () => (mvSync('departments') || []).filter(d => d.active).map(d => ({ id: d.id, name: d.name }));
 const partnerRow = id => db.prepare('SELECT * FROM bh_partner WHERE id = ?').get(id);
 async function memberAddr(id) {
   const r = (await C.callHooks('memberAddress', id)).find(x => x.result);
@@ -155,8 +156,7 @@ function activate(ctx) {
     const y = Number(today().slice(0, 4));
     const sum = (where, ...a) => db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE ${where}`).get(...a);
     const members = db.prepare("SELECT m.id, m.name, m.active FROM members m WHERE m.kind = 'mitglied' ORDER BY m.active DESC, name_key(m.name, m.kind)").all();
-    let nos = {};
-    try { nos = Object.fromEntries(db.prepare('SELECT member_id, member_no FROM mv_person WHERE member_no IS NOT NULL').all().map(r => [r.member_id, r.member_no])); } catch (e) { nos = {}; }
+    const nos = mvSync('memberNumbers') || {};
     res.json({ today: today(), year: y, settings: settings(), mv: ctx.isModuleActive('mitglieder'), mail: ctx.mail.ready(),
       kpis: { open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), paidYear: sum("status = 'bezahlt' AND year = ?", y),
         donations: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM bh_donation WHERE status = 'aktiv' AND year = ?").get(y) },
@@ -176,14 +176,14 @@ function activate(ctx) {
     if (b.email !== undefined) { if (!mailOk(one(b.email, 120))) err.push('Die E-Mail-Adresse ist ungültig.'); else C.setSetting2('email', one(b.email, 120)); }
     if (b.vat_default !== undefined) C.setSetting2('vat_default', String(VATS.includes(Number(b.vat_default)) ? Number(b.vat_default) : 19));
     if (b.small_business !== undefined) C.setSetting2('small_business', b.small_business ? '1' : '0');
-    for (const [k, min, max] of [['due_days', 0, 120], ['remind_days', 1, 120]]) if (b[k] !== undefined) C.setSetting2(k, String(Math.max(min, Math.min(max, int(b[k])))));
+    if (b.due_days !== undefined) C.setSetting2('due_days', String(Math.max(0, Math.min(120, int(b.due_days)))));
     for (const k of ['inv_prefix', 'don_prefix']) if (b[k] !== undefined) C.setSetting2(k, String(b[k]).replace(/[^A-Za-z0-9-]/g, '').slice(0, 8));
     if (b.bescheid_type !== undefined) C.setSetting2('bescheid_type', b.bescheid_type === 'feststellung' ? 'feststellung' : 'freistellung');
     if (b.bescheid_date !== undefined) { if (b.bescheid_date && !isDate(b.bescheid_date)) err.push('Das Datum des Bescheids ist ungültig.'); else C.setSetting2('bescheid_date', b.bescheid_date || ''); }
     { const L = { street: 'Straße', city: 'PLZ und Ort', tax_no: 'Steuernummer', vat_id: 'USt-IdNr.', phone: 'Telefon', email: 'E-Mail', finanzamt: 'Finanzamt', fa_tax_no: 'Steuernummer (Finanzamt)', veranlagungszeitraum: 'Veranlagungszeitraum',
         signer: 'Unterschrift', signer_role: 'Funktion', place: 'Ort', footer: ['Fußzeile', 'text'], intro: ['Einleitung', 'text'], zwecke: ['Satzungszwecke', 'text'], vat_default: 'Umsatzsteuer (Standard, %)', small_business: ['Kleinunternehmer', 'bool'],
-        due_days: 'Zahlungsziel (Tage)', remind_days: 'Erinnerung nach (Tagen)', inv_prefix: 'Rechnungsnummer-Vorsilbe', don_prefix: 'Quittungsnummer-Vorsilbe', bescheid_type: 'Art des Bescheids', bescheid_date: 'Datum des Bescheids' };
-      const diff = ctx.auditDiff ? ctx.auditDiff(L, before, settings()) : ''; if (diff) ctx.audit(req.user, 'Buchhaltung: Einstellungen geändert', diff); }
+        due_days: 'Zahlungsziel (Tage)', inv_prefix: 'Rechnungsnummer-Vorsilbe', don_prefix: 'Quittungsnummer-Vorsilbe', bescheid_type: 'Art des Bescheids', bescheid_date: 'Datum des Bescheids' };
+      const diff = ctx.auditDiff(L, before, settings()); if (diff) ctx.audit(req.user, 'Buchhaltung: Einstellungen geändert', diff); }
     if (err.length) return bad(res, err.join(' '));
     res.json({ ok: true, settings: settings() });
   });

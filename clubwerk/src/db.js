@@ -26,7 +26,6 @@ db.pragma('temp_store = MEMORY');
     if (typeof sql === 'string' && sql.length < 4000) { if (cache.size >= MAX) cache.delete(cache.keys().next().value); cache.set(sql, st); }
     return st;
   };
-  db.uncachePrepared = () => cache.clear();
 }
 
 db.exec(`
@@ -270,7 +269,7 @@ function auditDiff(labels, before = {}, after = {}) {
   };
   const out = [];
   for (const [k, l] of Object.entries(labels)) {
-    if (after[k] === undefined) continue;
+    if (!l || after[k] === undefined) continue;
     const [label, kind] = Array.isArray(l) ? l : [l];
     const a = fmt(before[k], kind, k), b = fmt(after[k], kind, k);
     if (JSON.stringify(before[k] ?? '') === JSON.stringify(after[k] ?? '') || (a !== null && a === b)) continue;
@@ -374,6 +373,21 @@ function splitPersonName(name) {
   let i = w.length - 1;
   while (i > 1 && NAME_PARTICLES.has(w[i - 1].toLowerCase())) i--;
   return { first: w.slice(0, i).join(' '), last: w.slice(i).join(' ') };
+}
+/* ---------- Vereinsfarbe (Verwaltung → Einstellungen) – für Oberflächen, Mails, Excel und App gleich ---------- */
+const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR.toLowerCase() : '#1f6b3a';
+const clubColor = () => { const c = getSetting('club_color', DEFAULT_COLOR); return /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : DEFAULT_COLOR; };
+/** Farbe mischen: to = 'white' | 'black' | '#rrggbb', t = Anteil (0 = Farbe, 1 = Ziel) */
+function mixColor(hex, to, t) {
+  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
+  const b = to === 'white' ? [255, 255, 255] : to === 'black' ? [0, 0, 0] : [1, 3, 5].map(i => parseInt(to.slice(i, i + 2), 16));
+  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+/** Anzeige „Nachname, Vorname“ (wie window.CWNames.lastFirst) – Mannschaften und Sonderkonten (kind ≠ mitglied) unverändert */
+function lastFirst(name, kind) {
+  if (kind && kind !== 'mitglied') return String(name || '').trim();
+  const { first, last } = splitPersonName(name);
+  return first ? `${last}, ${first}` : last;
 }
 function nameKey(name, kind) {
   if (kind && kind !== 'mitglied') return deKey(name);
@@ -561,5 +575,5 @@ function rewireMemberRef(table, column, fromId, intoId) {
   }
 }
 
-module.exports = { deKey, nameKey, splitPersonName, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
+module.exports = { deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
 loadCategoryOrder();

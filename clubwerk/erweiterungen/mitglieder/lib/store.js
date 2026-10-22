@@ -296,12 +296,10 @@ function account() {
 }
 
 /* ---------- Beiträge ---------- */
-function feeCents(mf, fee) { return mf.cents != null ? mf.cents : fee.cents; }
-function feeLabel(fee) { return `${fee.name} (${(fee.cents / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' })} ${fees.INTERVAL_LABEL[fee.interval]})`; }
 
 module.exports = {
   init(o) { ({ db, getSetting, setSetting } = o); createTables(); migrate(); },
   S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, mandateRefFor, hist,
-  payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, fullName, feeCents, feeLabel, sepa, fees,
+  payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, fullName, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

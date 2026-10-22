@@ -70,7 +70,7 @@ function register(sh) {
         const byDept = new Map();
         for (const f of zfees) { if (!byDept.has(f.department_id)) byDept.set(f.department_id, []); byDept.get(f.department_id).push(f); }
         const allZ = db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz'").all();
-        const hold = sh.ageHold ? sh.ageHold() : new Map();   // offene Altersstufen-Hinweise: bisherige Stufe läuft weiter
+        const hold = sh.ageHold();   // offene Altersstufen-Hinweise: bisherige Stufe läuft weiter
         const mds = db.prepare(`SELECT md.*, d.name AS dept_name, p.birth_date, p.exit_date AS p_exit, p.entry_date AS p_entry, m.name AS person_name
           FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id JOIN mv_person p ON p.member_id = md.member_id JOIN members m ON m.id = md.member_id
           WHERE m.deleted = 0 AND p.anonymized_at IS NULL AND md.fee_free = 0 AND NOT EXISTS (SELECT 1 FROM mv_change x WHERE x.member_id = m.id AND x.kind = 'eintritt' AND x.status = 'offen')`).all();

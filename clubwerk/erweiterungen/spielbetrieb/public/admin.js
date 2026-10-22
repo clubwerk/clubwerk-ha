@@ -154,11 +154,12 @@
     const m = st.meta;
     const cal = st.cal ? await api(`calendar?${st.year ? `year=${st.year}&` : ''}${st.team ? `team=${st.team}` : ''}`) : null;
     const games = cal ? [] : await api(`games?past=${st.past ? 1 : 0}${st.team ? `&team=${st.team}` : ''}`);
+    const acts = `${cal ? '<button class="btn" id="spPrint" type="button">Drucken</button>' : ''}<button class="btn" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button>`;
     el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:14px">
         <div class="row" style="gap:10px;align-items:flex-end"><label class="f" style="min-width:220px">Mannschaft<select id="spT">${opt(0, 'Alle Mannschaften', st.team)}${m.teams.filter(t => t.active).map(t => opt(t.id, t.name, st.team)).join('')}</select></label>
           ${cal ? `<label class="f" style="min-width:110px">Jahr<select id="spY">${cal.years.map(y => opt(y, String(y), cal.year)).join('')}</select></label>` : ''}
           <div class="seg"><button type="button" data-past="0" class="${!st.cal && !st.past ? 'on' : ''}">Kommende</button><button type="button" data-past="1" class="${!st.cal && st.past ? 'on' : ''}">Vergangene</button><button type="button" data-cal="1" class="${st.cal ? 'on' : ''}">Kalender</button></div></div>
-        <div class="row sp-acts" style="gap:8px">${cal ? '<button class="btn" id="spPrint" type="button">Drucken</button>' : ''}<button class="btn" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button></div></div>
+        <span id="spActs"></span></div>
       ${!m.teams.length ? '<div class="banner a"><span>Noch keine Mannschaften – zuerst unter „Mannschaften“ anlegen oder einfach den Spielplan importieren (Mannschaften entstehen dabei automatisch).</span></div>' : ''}
       ${m.rahmenPending ? `<div class="banner a" style="margin-bottom:14px"><span>${m.rahmenPending} vorläufige Termine aus dem Rahmenterminplan sind angelegt, aber noch nicht abgefragt – die Spieler sehen sie erst nach „Abfrage starten“.</span><button class="btn primary small" id="spRel" type="button">Abfrage starten</button></div>` : ''}
       ${cal ? calView(cal) : ''}
@@ -172,13 +173,14 @@
             <div class="muted">${g.home ? 'Heimspiel' : 'Auswärtsspiel'}${g.league ? ' · ' + esc(g.league) : ''}${g.captain ? ' · MF ' + esc(g.captain) : ''}${g.sent ? ' · Aufstellung verschickt' : ''}</div></div>
           <div class="sp-nums">${nums(g, st.past)}</div></div>`).join('') : `<p class="muted">${st.past ? 'Keine vergangenen Spieltage.' : 'Keine kommenden Spieltage.'}</p>`}</div>`;
     $('spT').onchange = () => { st.team = +$('spT').value; showGames(el).catch(fail); };
+    // Knöpfe rechts in die Reiterzeile (Baustein GK.tabTools); ohne Reiterzeile in der Filterleiste
+    if (!GK.tabTools(acts, el.firstElementChild)) $('spActs').outerHTML = `<div class="row sp-acts" style="gap:8px">${acts}</div>`;
     el.querySelectorAll('[data-past]').forEach(b => { b.onclick = () => { st.past = b.dataset.past === '1'; st.cal = false; showGames(el).catch(fail); }; });
     el.querySelectorAll('[data-cal]').forEach(b => { b.onclick = () => { st.cal = true; showGames(el).catch(fail); }; });
     if ($('spY')) $('spY').onchange = () => { st.year = +$('spY').value; showGames(el).catch(fail); };
     if ($('spPrint')) $('spPrint').onclick = () => {
       const tn = st.team ? (m.teams.find(t => t.id === st.team) || {}).name : 'Alle Mannschaften';
-      $('printArea').innerHTML = `<style>@page { size: A4 landscape; margin: 8mm; }</style><div class="pr"><h2 style="margin:0 0 4mm;font-size:13pt">Spieltage ${cal.year} – ${esc(tn)}</h2>${calView(cal, true)}</div>`;
-      document.body.classList.add('printing'); window.print(); document.body.classList.remove('printing');
+      GK.printHtml(`<style>@page { size: A4 landscape; margin: 8mm; }</style><div class="pr"><h2 style="margin:0 0 4mm;font-size:13pt">Spieltage ${cal.year} – ${esc(tn)}</h2>${calView(cal, true)}</div>`);
     };
     el.querySelectorAll('[data-g]').forEach(c => { c.onclick = () => gameDialog(+c.dataset.g, () => showGames(el).catch(fail)); });
     $('spNew').onclick = () => editGame(null, () => showGames(el).catch(fail));

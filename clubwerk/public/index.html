@@ -26,7 +26,6 @@
   .av { overflow: hidden; } .av img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
   :root[data-theme="dark"] .av { background: color-mix(in srgb, var(--af, var(--brand)) 26%, transparent); color: color-mix(in srgb, var(--af, var(--brand)) 45%, #fff); }
   .av.sq { border-radius: 12px; width: 40px; height: 40px; flex-basis: 40px; }
-  .lock { width: 14px; height: 14px; color: var(--faint); flex: none; }
 
   /* Startseite */
   .starthead { grid-template-columns: minmax(0, 1fr) 296px; }   /* Seitenkopf: gemeinsame Regeln .tab-head/.tab-title in style.css; rechts die Namenssuche */
@@ -38,8 +37,7 @@
   .event-banner { display: flex; align-items: center; justify-content: space-between; gap: 16px; background: var(--amber-soft); border: 1px solid var(--amber-line); border-radius: 16px;
     padding: 14px 16px 14px 20px; margin-bottom: 16px; font-size: 18px; }
   .event-banner strong { color: var(--amber); }
-  h2.sec { margin: 20px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6B776F; display: flex; align-items: baseline; gap: 10px; }
-  :root[data-theme="dark"] h2.sec { color: var(--muted); }
+  h2.sec { margin: 20px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: baseline; gap: 10px; }
   h2.sec small { font-weight: 500; font-size: 12px; color: var(--faint); letter-spacing: 0; text-transform: none; }
   #topBox h2.sec, #tabsBox h2.sec { margin-top: 0; }
   #topBox { margin-bottom: 4px; }
@@ -61,7 +59,6 @@
   .names button.pending { border-style: dashed; }
   .names button .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 800; }
   .names button .tag.ok { background: var(--brand-soft); color: var(--brand-ink); }
-  .names button .tag.fam { background: var(--brand-soft); color: var(--brand-ink); margin-left: 6px; vertical-align: 1px; }
   .names button.tabt .nm > span { color: var(--amber); font-weight: 700; }
   .names button.addtab { border-style: dashed; background: transparent; }
   .names button.addtab b { color: var(--amber); }
@@ -97,7 +94,7 @@
   .amount { font-size: 44px; font-weight: 800; text-align: center; margin: 10px 0 6px; font-variant-numeric: tabular-nums; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
   .chips button { min-height: 44px; padding: 0 16px; border-radius: 22px; border: 1px solid var(--line); background: var(--card); font-size: 15px; font-weight: 600; }
-  .chips button.on { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .chips button.on { background: var(--brand); color: var(--on-brand); border-color: var(--brand); }
   input.big { width: 100%; min-height: 56px; font-size: 21px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; margin: 14px 0 4px; background: var(--field); }
   input.big:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   #payBtn { width: 100%; min-height: 56px; font-size: 18px; margin-top: 12px; }
@@ -118,8 +115,7 @@
   .who .note.free { color: var(--blue); font-weight: 700; }
   .who .note.cash { color: var(--amber); font-weight: 700; }
   .sub-actions { display: flex; gap: 8px; flex: none; }
-  .sub-actions .btn { min-height: 40px; height: 40px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; color: #36423B; border-color: var(--line); }
-  :root[data-theme="dark"] .sub-actions .btn { color: var(--ink); }
+  .sub-actions .btn { min-height: 40px; height: 40px; padding: 0 16px; border-radius: 10px; font-size: 15px; font-weight: 600; color: color-mix(in srgb, var(--ink), var(--muted)); border-color: var(--line); }
 
   /* Kategorien: alle rasten auf denselben Spalten ein; kleine Kategorien stehen nebeneinander */
   /* Kachelhöhe: Platz für bis zu 3 Zeilen Name + Größe/Preis; tablet.js wählt Höhe und Spaltenbreite so,
@@ -136,13 +132,12 @@
   .cats-flow.d4 { --th: 52px; --ti: 30px; --nl: 3; --nf: 11px; --nlh: 12.5px; --sf: 10.5px; row-gap: 6px; }
   .cats-flow.d5 { --th: 46px; --ti: 30px; --nl: 1; --nf: 12px; --nlh: 15px; --sf: 11px; row-gap: 6px; }
   .cats-flow .cat { flex: none; width: calc(var(--span, 1) * var(--tw, 150px) + (var(--span, 1) - 1) * var(--gap)); display: flex; flex-direction: column; gap: 6px; }
-  .cat h3 { margin: 0; height: 16px; font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #6B776F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  :root[data-theme="dark"] .cat h3 { color: var(--muted); }
+  .cat h3 { margin: 0; height: 16px; font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .arts { display: grid; grid-template-columns: repeat(var(--span, 1), var(--tw, 150px)); gap: var(--gap); }
   .arts button { position: relative; height: var(--th); padding: 0 10px 0 10px; display: flex; align-items: center; gap: 10px; border: 0; border-radius: 12px; text-align: left;
     background: var(--card); box-shadow: 0 0 0 1px var(--line); color: var(--ink); transition: background .12s, box-shadow .12s, transform .05s; }
   .arts button:active { transform: scale(.97); }
-  .arts .ti { position: relative; width: var(--ti); height: var(--ti); flex: 0 0 var(--ti); border-radius: 10px; background: var(--ib, var(--hover)); color: var(--if, #36423B);
+  .arts .ti { position: relative; width: var(--ti); height: var(--ti); flex: 0 0 var(--ti); border-radius: 10px; background: var(--ib, var(--hover)); color: var(--if, color-mix(in srgb, var(--ink), var(--muted)));
     display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
   :root[data-theme="dark"] .arts .ti:not(.img) { background: color-mix(in srgb, var(--if, var(--brand)) 22%, transparent); color: color-mix(in srgb, var(--if, var(--brand)) 55%, #fff); }
   .arts .ti svg { width: 64%; height: 64%; }
@@ -154,7 +149,7 @@
   .arts .tx { gap: 1px; }
   .arts .tx .sub { max-width: 100%; font-size: var(--sf, 12px); line-height: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .arts button.sel { background: var(--brand-soft); box-shadow: 0 0 0 2px var(--brand); }
-  .arts .badge { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: #fff;
+  .arts .badge { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--on-brand);
     font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card); }
   .arts button.out { opacity: .5; }
   .arts button.out .sub::after { content: " · leer?"; color: var(--red); font-weight: 600; }
@@ -209,7 +204,7 @@
   .pinchoice .btn { min-height: 64px; font-size: 18px; justify-content: center; }
   .err { color: var(--red); min-height: 24px; text-align: center; margin-top: 10px; font-weight: 700; }
   .done { text-align: center; }
-  .done .big { width: 72px; height: 72px; margin: 4px auto 8px; border-radius: 36px; background: var(--brand); color: #fff; font-size: 40px; line-height: 72px; }
+  .done .big { width: 72px; height: 72px; margin: 4px auto 8px; border-radius: 36px; background: var(--brand); color: var(--on-brand); font-size: 40px; line-height: 72px; }
   .done ul { list-style: none; padding: 0; font-size: 18px; margin: 12px 0; }
   .done .total { font-size: 26px; font-weight: 800; margin: 6px 0 4px; }
   .done .cashhint { background: var(--amber-soft); color: var(--amber); padding: 10px; border-radius: 12px; font-weight: 800; font-size: 19px; }

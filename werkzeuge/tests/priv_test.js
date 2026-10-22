@@ -1,5 +1,5 @@
 const B='http://localhost:3201/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,140):'')); if(!c) fails++;};
-let ck=''; async function A(url,method='GET',body){const h={'X-Getraenke':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(sc) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({}))];}
+let ck=''; async function A(url,method='GET',body){const h={'X-Clubwerk':'1',Cookie:ck}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(sc) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({}))];}
 async function T(url,body){const r=await fetch(B+url,body===undefined?{}:{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)}); return [r.status, await r.json().catch(()=>({}))];}
 (async()=>{
   await A('api/admin/setup','POST',{username:'thorsten',name:'T',password:'Test-Kennwort-42'});

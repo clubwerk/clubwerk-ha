@@ -28,7 +28,7 @@
       .af-person + .af-person { margin-top: 12px; }
       .af-person .af-ph { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 800; min-height: 40px; }
       .af-btn { height: 52px; padding: 0 22px; border-radius: 14px; font-size: 17px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; font-family: inherit; }
-      .af-btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .af-btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .af-btn.small { height: 40px; font-size: 15px; padding: 0 14px; border-radius: 10px; }
       .af-btn:disabled { opacity: .45; cursor: default; }
       .af-nav { display: flex; justify-content: space-between; gap: 12px; }
@@ -61,8 +61,8 @@
       .af-pad { position: relative; height: 190px; border: 2px dashed var(--green-line, var(--line)); border-radius: 16px; background: #fff; touch-action: none; overflow: hidden; }
       .af-pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
       .af-pad .af-line { position: absolute; left: 24px; right: 24px; bottom: 44px; border-bottom: 1px solid #c9cfc9; pointer-events: none; }
-      .af-pad .af-x { position: absolute; left: 24px; bottom: 50px; color: #9aa39b; font-size: 22px; pointer-events: none; }
-      .af-pad .af-ph2 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #9aa39b; font-size: 16px; pointer-events: none; }
+      .af-pad .af-x { position: absolute; left: 24px; bottom: 50px; color: #66716a; font-size: 22px; pointer-events: none; }
+      .af-pad .af-ph2 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #66716a; font-size: 16px; pointer-events: none; }   /* Unterschriftsfeld bleibt auch dunkel weiß – daher feste, lesbare Farbe */
       .af-pad.signed .af-ph2 { display: none; }
       .af-mandate { font-size: 13.5px; color: var(--muted); line-height: 1.5; background: var(--hover); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
       .af-done { text-align: center; padding: 34px 22px; }
@@ -183,7 +183,7 @@
             ${d.persons.some(p => (p.departments || []).length) ? `<dt>Abteilungen</dt><dd>${d.persons.filter(p => (p.departments || []).length).map(p => `${esc(p.first_name)}: ${p.departments.map(id => { const dep = (cfg.departments || []).find(x => x.id === id); const df = dep && deptFee(dep, p.birth_date); return dep ? `${esc(dep.name)}${df ? ' ' + euro(df.cents) : ''}` : ''; }).join(', ')}`).join('<br>')}</dd>` : ''}<dt>Konto</dt><dd>${esc(d.holder)} · ${esc(fmtIban(d.iban))}</dd></dl>
           ${cfg.due_text ? `<p class="af-info">${esc(cfg.due_text)}</p>` : ''}`;
       }
-      if (k === 'consent') h = `<h2>Einverständnis</h2><p class="af-sub">Bitte lesen und ankreuzen.${cfg.satzung_url ? ` Die <a href="${esc(cfg.satzung_url)}" target="_blank" rel="noopener">Satzung</a> gibt es online.` : ''}</p>
+      if (k === 'consent') h = `<h2>Einverständnis</h2><p class="af-sub">Bitte lesen und ankreuzen.${!cfg.satzung_url ? '' : o.mode === 'online' ? ` Die <a href="${esc(cfg.satzung_url)}" target="_blank" rel="noopener">Satzung</a> gibt es online.` : ` Die Satzung gibt es online unter <span translate="no">${esc(cfg.satzung_url)}</span>.`}</p>
         <div class="af-cons">${cfg.consents.map(c => `<label><input type="checkbox" data-c="${esc(c.key)}" ${d.consents[c.key] ? 'checked' : ''}><span><b>${esc(c.short)}${c.required ? ' (erforderlich)' : ' (freiwillig)'}</b>${esc(c.text)}</span></label>`).join('')}</div>`;
       if (k === 'sign') {
         const who = minor() ? (d.signer || 'gesetzlicher Vertreter') : `${d.persons[0].first_name} ${d.persons[0].last_name}`;

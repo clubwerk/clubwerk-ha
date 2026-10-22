@@ -8,6 +8,7 @@ const backup = require('./backup');
 const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
 const { db, splitPersonName, nameKey, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, memberRefs, rewireMemberRef } = require('./db');
 const util = require('./util');
+const { euro } = util;   // Beträge überall gleich: „12,50 €“
 const { today, nowTs, isDate, addDays, deD } = util;
 const artIcons = require('./articleicons');
 const { securityAlert } = require('./security');
@@ -75,30 +76,20 @@ app.use(require('./security').lanOnly({ label: 'Die Verwaltung und das Tablet', 
 /* Über ein eingetragenes Proxy-Add-on (z. B. NGINX) zählt der echte Absender: kommt er aus dem Internet, wird abgewiesen.
    Die Seitenleiste (Supervisor) bleibt ausgenommen – dort meldet Home Assistant selbst an. */
 app.use((req, res, next) => {
-  const sock = String(req.socket.remoteAddress || '').replace(/^::ffff:/, '');
+  const sock = normIp(req.socket.remoteAddress);
   if (!TRUSTED_PROXIES.includes(sock) || INGRESS_IPS.includes(sock) || require('./security').lanSource(req.ip)) return next();
   const msg = 'Die Verwaltung und das Tablet sind nur im Vereinsnetz erreichbar.';
   if (req.path.startsWith('/api/')) return res.status(403).json({ error: msg });
   res.status(403).type('text/plain; charset=utf-8').send(msg);
 });
-app.use((req, res, next) => {
-  const ext = getSetting('ext_tunnel', '0') === '1' ? (() => { try { return new URL(getSetting('ext_tunnel_url', '')).hostname; } catch (e) { return ''; } })() : '';
-  const host = String(req.headers.host || '').toLowerCase().replace(/:\d+$/, '');
-  if ((req.get('cf-connecting-ip') || req.get('cf-ray') || (ext && host === ext)) && !viaIngress(req)) {
-    const msg = 'Die Verwaltung und die Tablet-Seiten sind von außen nicht erreichbar.';
-    if (req.path.startsWith('/api/')) return res.status(403).json({ error: msg });   // Schnittstelle: immer JSON { error }
-    return res.status(403).type('text/plain; charset=utf-8').send(msg + '\n\nÜber den Tunnel nur die Mitglieder-App freigeben (Port der Mitglieder-App).');
-  }
-  next();
-});
+app.use(require('./security').noTunnel({ msg: 'Die Verwaltung und die Tablet-Seiten sind von außen nicht erreichbar.', bypass: req => viaIngress(req) }));
 app.use(require('./security').hostGuard({ bypass: req => viaIngress(req) }));
-app.use(require('./security').hardenHeaders({ frame: 'SAMEORIGIN' }));
+app.use(require('./security').hardenHeaders({ frame: 'SAMEORIGIN', camera: 'self' }));
 app.use(require('./security').compress());
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=()');
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
     `frame-src 'self'${embedOrigins()}`, "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'",
@@ -116,56 +107,48 @@ app.get('/i18n.js', (req, res) => {
 });
 
 /* ---------- einfache Bremse gegen Durchprobieren (pro IP oder je frei wählbarem Schlüssel) ----------
-   Begrenzte Größe: Wer über den Tunnel mit vielen Absenderadressen kommt, kann den Speicher nicht füllen – die ältesten
-   Einträge fallen heraus (Map hält die Einfügereihenfolge; beim Neustart eines Fensters wird der Eintrag neu eingefügt). */
-const hits = new Map();
-const HITS_MAX = 20000;
+   Ein Kontingent je Name (security.budget, begrenzte Größe: viele Absenderadressen füllen den Speicher nicht).
+   Routen mit demselben Namen teilen sich das Kontingent. */
+const budgets = new Map();
 /** Bremse je Schlüssel: keyFn(req) liefert z. B. die Mitglieds-ID oder den Hash des Gerätetokens */
 function rateLimitKey(key, max, windowMs, keyFn) {
+  if (!budgets.has(key)) budgets.set(key, require('./security').budget({ max, windowMs, size: 20000 }));
+  const b = budgets.get(key);
   return (req, res, next) => {
     let who = '?';
     try { who = String(keyFn(req) || '?'); } catch (e) { who = '?'; }
-    const k = key + '|' + who;
-    const now = Date.now();
-    const h = hits.get(k);
-    if (!h || h.reset < now) {
-      hits.delete(k);
-      if (hits.size >= HITS_MAX) hits.delete(hits.keys().next().value);
-      hits.set(k, { n: 1, reset: now + windowMs });
-      return next();
-    }
-    if (++h.n > max) return res.status(429).json({ error: 'Zu viele Versuche. Bitte kurz warten.' });
+    if (!b.take(who)) return res.status(429).json({ error: 'Zu viele Versuche. Bitte kurz warten.' });
     next();
   };
 }
 /** Bremse je Absenderadresse (req.ip – hinter dem Ingress-Proxy bzw. Proxy-Add-on die echte Adresse, siehe trust proxy) */
 const rateLimit = (key, max, windowMs) => rateLimitKey(key, max, windowMs, req => req.ip || '?');
-setInterval(() => { const now = Date.now(); for (const [k, v] of hits) if (v.reset < now) hits.delete(k); }, 60000).unref();
 
 app.use(express.json({ limit: '1mb' }));
 
 /* Admin-Änderungen nur mit eigenem Kopfzeilen-Feld → fremde Webseiten können nichts im Namen eines Admins auslösen */
 app.use('/api/admin', (req, res, next) => {
   if (req.method === 'GET' || req.method === 'HEAD') return next();
-  if (req.get('X-Clubwerk') !== '1' && req.get('X-Getraenke') !== '1') return res.status(403).json({ error: 'Anfrage abgelehnt.' });
+  if (req.get('X-Clubwerk') !== '1') return res.status(403).json({ error: 'Anfrage abgelehnt.' });
   next();
 });
 
 /* ---------- Vereinsfarbe ---------- */
-const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR : '#1f6b3a';
-const clubColor = () => { const c = getSetting('club_color', DEFAULT_COLOR); return /^#[0-9a-f]{6}$/i.test(c) ? c : DEFAULT_COLOR; };
-function mix(hex, to, t) {
-  const a = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16));
-  const b = to === 'white' ? [255, 255, 255] : to === 'black' ? [0, 0, 0] : [1, 3, 5].map(i => parseInt(to.slice(i, i + 2), 16));
-  return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
+const { clubColor, mixColor: mix } = require('./db');
+const { normIp } = require('./security');
+/** Schrift auf einer Fläche dieser Farbe: Weiß oder Dunkel – je nachdem, was mehr Kontrast hat (z. B. Gelb als Vereinsfarbe) */
+function onColor(hex) {
+  const L = h => { const v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(x => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
+  const l = L(hex);
+  return 1.05 / (l + 0.05) >= (l + 0.05) / (L('#131a16') + 0.05) ? '#fff' : '#131a16';
 }
 function themeVars(c = clubColor()) {
-  return { green: c, 'green-dark': mix(c, 'black', 0.3), 'green-soft': mix(c, 'white', 0.9), 'green-over': mix(c, 'white', 0.8),
+  return { 'on-brand': onColor(c), green: c, 'green-dark': mix(c, 'black', 0.3), 'green-soft': mix(c, 'white', 0.9), 'green-over': mix(c, 'white', 0.8),
     'green-line': mix(c, 'white', 0.68), 'green-muted': mix(c, 'white', 0.45) };
 }
 /* Dunkles Design: Vereinsfarbe bleibt erkennbar, Flächen dunkel, Schrift auf Vereinsfarbe-Tönen hell */
 function themeVarsDark(c = clubColor()) {
-  return { green: mix(c, 'white', 0.08), 'green-dark': mix(c, 'white', 0.55), 'green-soft': mix(c, '#0d1310', 0.78), 'green-over': mix(c, '#0d1310', 0.66),
+  return { 'on-brand': onColor(mix(c, 'white', 0.08)), green: mix(c, 'white', 0.08), 'green-dark': mix(c, 'white', 0.55), 'green-soft': mix(c, '#0d1310', 0.78), 'green-over': mix(c, '#0d1310', 0.66),
     'green-line': mix(c, '#0d1310', 0.55), 'green-muted': mix(c, '#0d1310', 0.35) };
 }
 app.get('/theme.css', (req, res) => {
@@ -402,8 +385,7 @@ function addGuest(ev, { memberId, name }, by) {
 }
 function guestResponse(g, ev) {
   const r = { token: auth.issueTabletToken('guest:' + g.id), guest: { id: g.id, name: g.name, memberId: g.member_id },
-    event: { id: ev.id, name: ev.name }, private: guestPrivateOk(g) };
-  if (r.private) r.open_cents = guestOpen(g.id);
+    event: { id: ev.id, name: ev.name }, private: true, open_cents: guestOpen(g.id) };
   return r;
 }
 
@@ -440,7 +422,7 @@ function gateSecret() {
 }
 const gateVer = () => getSetting('tablet_pw_ver', '1');
 const gateSig = ver => crypto.createHmac('sha256', gateSecret()).update('buchungsseite:' + ver).digest('hex');
-const viaIngress = req => Boolean(req.get('X-Ingress-Path')) && INGRESS_IPS.includes(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''));
+const viaIngress = req => Boolean(req.get('X-Ingress-Path')) && INGRESS_IPS.includes(normIp(req.socket.remoteAddress));
 function gateCookieOk(req) {
   const [ver, sig] = String(auth.parseCookies(req)[GATE_COOKIE] || '').split('.');
   if (!ver || !sig || ver !== gateVer()) return false;
@@ -508,10 +490,10 @@ app.get('/api/tablet/state', (req, res) => {
   const members = db.prepare(`SELECT id, name, kind, pending, pin_hash IS NOT NULL AS hasPin, photo, photo_use
     FROM members WHERE active = 1 AND deleted = 0 AND kind != 'extern' ORDER BY name_key(name, kind)`).all()   // Gastspieler/innen (Spielbetrieb) haben kein Konto
     .map(({ photo, photo_use, ...m }) => ({ ...m, hasPin: Boolean(m.hasPin), pending: Boolean(m.pending), ph: m.kind === 'mitglied' ? photos.version({ photo, photo_use }, 'verkauf') : null }));
-  // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen) und markieren (Familie)
-  const hidden = new Set(), family = new Set();
-  for (const p of plugins.withHook('tabletMembers')) { try { const r = p.hooks.tabletMembers() || {}; (r.hidden || []).forEach(id => hidden.add(id)); (r.family || []).forEach(id => family.add(id)); } catch (e) { /* Modul-Fehler blendet nichts aus */ } }
-  members.forEach(m => { if (hidden.has(m.id)) m.hidden = true; if (family.has(m.id)) m.family = true; });
+  // Module können Konten in der Namensliste ausblenden (z. B. Angehörige, die über den Hauptzahler buchen)
+  const hidden = new Set();
+  for (const p of plugins.withHook('tabletMembers')) { try { const r = p.hooks.tabletMembers() || {}; (r.hidden || []).forEach(id => hidden.add(id)); } catch (e) { /* Modul-Fehler blendet nichts aus */ } }
+  members.forEach(m => { if (hidden.has(m.id)) m.hidden = true; });
   const stock = new Map(stockList().map(s => [s.id, s]));
   const articles = db.prepare('SELECT id, name, category, price_cents, icon, image FROM articles WHERE active = 1 AND custom = 0 ORDER BY cat_rank(category), de_key(category), de_key(name)').all()
     .map(a => {
@@ -528,9 +510,6 @@ app.get('/api/tablet/state', (req, res) => {
 /* Datenschutz: Offene Beträge und Buchungsverlauf gibt es am Tablet nur für Konten mit PIN.
    (Ein Token für ein Konto mit PIN wird nur nach richtiger PIN ausgegeben.) */
 const privateOk = m => Boolean(m && m.pin_hash);
-// Veranstaltungsliste ist exklusiv (nur Buchungen dieser Veranstaltung, nie das Getränkekonto) –
-// das Thekenpersonal muss sie für jeden sehen können, auch ohne PIN
-const guestPrivateOk = () => true;
 
 function unlockResponse(m) {
   const r = {
@@ -654,7 +633,7 @@ function closeTab(t, { status, method = null, by, memberId = null, note = null }
     if (status === 'abgeschrieben') db.prepare("UPDATE bookings SET kind = 'verein', total_cents = 0 WHERE tab_id = ? AND cancelled_at IS NULL").run(t.id);
   })();
   const what = { bezahlt: method === 'karte' ? 'mit Karte bezahlt' : 'bar bezahlt', uebernommen: 'auf Konto übernommen', abgeschrieben: 'abgeschrieben' }[status];
-  audit(by, 'Gäste-Deckel ' + what, `${t.name}: ${(cents / 100).toFixed(2)} €${note ? ' – ' + note : ''}`);
+  audit(by, 'Gäste-Deckel ' + what, `${t.name}: ${euro(cents)}${note ? ' – ' + note : ''}`);
   return cents;
 }
 
@@ -763,8 +742,9 @@ app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
   if (tab) {
     resp.tab = { id: tab.id, name: tab.name }; resp.open_cents = tabOpen(tab.id);
   } else if (guest) {
-    resp.guest = { id: guest.id, name: guest.name }; resp.private = guestPrivateOk(guest);
-    if (resp.private) resp.open_cents = guestOpen(guest.id);
+    // Veranstaltungsliste ist exklusiv (nur Buchungen dieser Veranstaltung, nie das Getränkekonto) –
+    // das Thekenpersonal muss sie für jeden sehen können, auch ohne PIN
+    resp.guest = { id: guest.id, name: guest.name }; resp.private = true; resp.open_cents = guestOpen(guest.id);
   } else if (member) {
     resp.private = privateOk(member);
     if (resp.private) {
@@ -819,7 +799,6 @@ app.get('/api/tablet/account', (req, res) => {
   if (typeof who === 'string' && who.startsWith('guest:')) {
     const g = db.prepare('SELECT g.*, e.name AS event FROM event_guests g JOIN events e ON e.id = g.event_id WHERE g.id = ?').get(int(who.slice(6)));
     if (!g) return bad(res, 'Sitzung abgelaufen.', 401);
-    if (!guestPrivateOk(g)) return bad(res, 'Nicht verfügbar.', 403);
     const rows = db.prepare(`SELECT b.created_at, CASE WHEN a.custom = 1 THEN 'Betrag' || COALESCE(' (' || b.note || ')', '') ELSE COALESCE(b.article_name, a.name) END AS name,
         b.qty, b.total_cents, b.kind, b.payment_id, b.transferred_at, p.method
       FROM bookings b JOIN articles a ON a.id = b.article_id LEFT JOIN event_payments p ON p.id = b.payment_id
@@ -978,10 +957,15 @@ admin.use((req, res, next) => (VAULT_AREAS.test(normPath(req.path)) && require('
   ? res.status(423).json({ error: 'Die persönlichen Daten sind nach einem Neustart noch verschlossen. Sie öffnen sich, sobald sich ein Admin mit Schlüssel anmeldet – oder mit dem Wiederherstellungscode.', vaultLocked: true }) : next()));
 app.use('/api/admin', admin);
 
+/** eigenes Passwort des angemeldeten Benutzers prüfen (Bestätigung heikler Aktionen) */
+function ownPwOk(req, pw) { const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id); return Boolean(u && pw && auth.verifySecret(String(pw), u.pw_hash)); }
+/** nur für Benutzer mit allen Rechten */
+const owner = (req, res, next) => (req.user.role === 'oberadmin' ? next() : bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403));
+
 admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
   const { current, next } = req.body || {};
   const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!auth.verifySecret(String(current || ''), u.pw_hash)) return bad(res, 'Aktuelles Passwort falsch.', 401);
+  if (!ownPwOk(req, current)) return bad(res, 'Aktuelles Passwort falsch.', 401);
   if (!pwOk(next)) return bad(res, PW_MSG);
   auth.setPassword(u.id, String(next));
   const r = auth.login(u.username, String(next), req.ip);
@@ -1136,8 +1120,7 @@ admin.delete('/users/:id', need('benutzer'), (req, res) => {
 
 admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 * 60000), (req, res) => {
   // mit dem eigenen Passwort bestätigen – eine fremde, offen gelassene Sitzung reicht nicht, um Passwörter zu ändern
-  const me = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!me || !auth.verifySecret(String((req.body || {}).myPassword || ''), me.pw_hash)) return bad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.', 401);
+  if (!ownPwOk(req, (req.body || {}).myPassword)) return bad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.', 401);
   const pw = String((req.body || {}).password || '');
   if (!pwOk(pw)) return bad(res, PW_MSG);
   const u = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(int(req.params.id));
@@ -1186,7 +1169,6 @@ admin.post('/settings/tablet-password/logout-all', need('einstellungen'), (req, 
 });
 admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => bad(res, 'Das Passwort für das Tablet ist Pflicht und lässt sich nur ändern, nicht ausschalten.'));
 /* ---------- Tresor: Verschlüsselung der persönlichen Daten ---------- */
-const ownPwOk = (req, pw) => { const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id); return Boolean(u && pw && auth.verifySecret(String(pw), u.pw_hash)); };
 const vaultPwLimit = rateLimit('vaultpw', 10, 10 * 60000);
 admin.get('/vault', (req, res) => {
   const v = require('./vault');
@@ -1425,7 +1407,7 @@ admin.delete('/members/:id', need('konten'), (req, res) => {
   if (!m) return res.json({ ok: true });
   if (m.kind === 'verein' || m.kind === 'gast') return bad(res, 'Die Sonderkonten „Verein“ und „Gast“ können nicht gelöscht werden – bei Bedarf ausblenden.');
   const open = memberBalance(m.id).cents, evOpen = eventOpen(m.id);
-  if (open || evOpen) return bad(res, `${m.name} hat noch ${((open + evOpen) / 100).toFixed(2).replace('.', ',')} € offen – bitte erst abrechnen${evOpen ? ' bzw. von der Veranstaltungsliste übernehmen' : ''}.`);
+  if (open || evOpen) return bad(res, `${m.name} hat noch ${euro(open + evOpen)} offen – bitte erst abrechnen${evOpen ? ' bzw. von der Veranstaltungsliste übernehmen' : ''}.`);
   const n = db.prepare('SELECT COUNT(*) n FROM bookings WHERE member_id = ?').get(m.id).n
     + db.prepare('SELECT COUNT(*) n FROM member_settlements WHERE member_id = ?').get(m.id).n
     + db.prepare('SELECT COUNT(*) n FROM guest_tabs WHERE member_id = ?').get(m.id).n;
@@ -1745,7 +1727,7 @@ admin.post('/articles', need('artikel'), (req, res) => {
   if ((req.body || {}).icon === undefined) a.icon = artIcons.guess(a.name, a.category);
   const r = db.prepare(`INSERT INTO articles(name, category, price_cents, crate_size, min_stock, target_stock, track_stock, active, sort, icon)
     VALUES (@name,@category,@price_cents,@crate_size,@min_stock,@target_stock,@track_stock,@active,@sort,@icon)`).run(a);
-  audit(req.user, 'Artikel angelegt', `${a.name} ${(a.price_cents / 100).toFixed(2)} €`);
+  audit(req.user, 'Artikel angelegt', `${a.name} ${euro(a.price_cents)}`);
   res.json({ id: Number(r.lastInsertRowid) });
 });
 
@@ -1757,7 +1739,7 @@ admin.put('/articles/:id', need('artikel'), (req, res) => {
   db.prepare(`UPDATE articles SET name=@name, category=@category, price_cents=@price_cents, crate_size=@crate_size,
     min_stock=@min_stock, target_stock=@target_stock, track_stock=@track_stock, active=@active, sort=@sort, icon=@icon WHERE id=@id`).run({ ...a, id: base.id });
   if (base.price_cents !== a.price_cents || base.name !== a.name || base.active !== a.active) {
-    audit(req.user, 'Artikel geändert', `${base.name}: ${(base.price_cents / 100).toFixed(2)} € → ${(a.price_cents / 100).toFixed(2)} €${a.active ? '' : ', ausgeblendet'}`);
+    audit(req.user, 'Artikel geändert', `${base.name}: ${euro(base.price_cents)} → ${euro(a.price_cents)}${a.active ? '' : ', ausgeblendet'}`);
   }
   res.json({ ok: true });
 });
@@ -2086,7 +2068,7 @@ admin.post('/bookings', need('buchungen'), (req, res) => {
   const txt = custom ? (cleanName(note, 60) || null) : null;
   const r = db.prepare(`INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, created_at, note)
     VALUES (?,?,?,?,?,?,?,?)`).run(m.id, a.id, kind, q, unit, total, ts, txt);
-  audit(req.user, 'Buchung nachgetragen', `${m.name}: ${custom ? 'Betrag ' + (unit / 100).toFixed(2) + ' €' + (txt ? ' (' + txt + ')' : '') : q + ' × ' + a.name}${isDate(date) ? ' am ' + date : ''}`);
+  audit(req.user, 'Buchung nachgetragen', `${m.name}: ${custom ? 'Betrag ' + euro(unit) + (txt ? ' (' + txt + ')' : '') : q + ' × ' + a.name}${isDate(date) ? ' am ' + date : ''}`);
   res.json({ id: Number(r.lastInsertRowid) });
 });
 
@@ -2100,7 +2082,7 @@ admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
     const t = db.prepare('SELECT status FROM guest_tabs WHERE id = ?').get(b.tab_id);
     if (t && t.status !== 'offen') return bad(res, 'Dieser Gäste-Deckel ist schon geschlossen. Bitte zuerst unter „Gäste-Deckel“ wieder öffnen, sonst stimmt die Kasse nicht mehr.');
   }
-  const what = `${b.member || 'Barverkauf'}: ${b.custom ? 'Betrag ' + (b.total_cents / 100).toFixed(2) + ' €' : b.qty + ' × ' + b.article} vom ${b.created_at.slice(0, 10)}`;
+  const what = `${b.member || 'Barverkauf'}: ${b.custom ? 'Betrag ' + euro(b.total_cents) : b.qty + ' × ' + b.article} vom ${b.created_at.slice(0, 10)}`;
   if (b.settled_id) {
     if (db.prepare('SELECT 1 FROM bookings WHERE credit_for = ? AND cancelled_at IS NULL').get(b.id)) return bad(res, 'Dafür wurde schon eine Gutschrift gebucht.');
     // Schon abgerechnet (in der Vereinsverwaltung abgebucht): nicht mehr ändern, sondern Gutschrift auf die nächste Abrechnung
@@ -2112,8 +2094,8 @@ admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
       if (!b.custom) db.prepare(`INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,'korrektur',?,?)`)
         .run(b.article_id, b.qty, today(), 'Storno aus abgerechnetem Zeitraum');
     })();
-    audit(req.user, 'Gutschrift (Storno abgerechnet)', `${what}, ${(b.total_cents / 100).toFixed(2)} € für die nächste Abrechnung gutgeschrieben`);
-    return res.json({ ok: true, credit: true, message: `Die Buchung ist schon abgerechnet. Deshalb wurde eine Gutschrift über ${(b.total_cents / 100).toFixed(2).replace('.', ',')} € gebucht – sie wird bei der nächsten Abrechnung abgezogen.` });
+    audit(req.user, 'Gutschrift (Storno abgerechnet)', `${what}, ${euro(b.total_cents)} für die nächste Abrechnung gutgeschrieben`);
+    return res.json({ ok: true, credit: true, message: `Die Buchung ist schon abgerechnet. Deshalb wurde eine Gutschrift über ${euro(b.total_cents)} gebucht – sie wird bei der nächsten Abrechnung abgezogen.` });
   }
   const r = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ?
     WHERE id = ? AND cancelled_at IS NULL`).run(req.user.username, b.id);
@@ -2244,25 +2226,12 @@ admin.post('/settle', need('abrechnung'), (req, res) => {
   const all = !Array.isArray(b.memberIds);
   const ids = all ? null : [...new Set(b.memberIds.map(int))].filter(Boolean);
   if (!all && !ids.length) return bad(res, 'Kein Konto gewählt.');
-  const batch = (all ? 'alle-' : 'einzeln-') + Date.now().toString(36) + crypto.randomBytes(2).toString('hex');
-  const open = db.prepare(`SELECT member_id, SUM(total_cents) c, SUM(qty) n, COUNT(*) k FROM bookings
-    WHERE ${OPEN_KONTO} AND member_id IS NOT NULL AND ${CUT('')} GROUP BY member_id`).all(upTo, asOf, asOf)
-    .filter(r => all || ids.includes(r.member_id));
-  if (!open.length) return bad(res, 'Es gibt nichts Offenes abzurechnen.');
-  let cents = 0, bookings = 0;
-  db.transaction(() => {
-    for (const r of open) {
-      const id = Number(db.prepare(`INSERT INTO member_settlements(member_id, cents, items, until_at, batch, by_user, note)
-        VALUES (?,?,?,?,?,?,?)`).run(r.member_id, r.c, r.n, asOf, batch, req.user.username, b.note ? cleanName(b.note, 100) : null).lastInsertRowid);
-      bookings += db.prepare(`UPDATE bookings SET settled_id = ? WHERE member_id = ? AND ${OPEN_KONTO} AND ${CUT('')}`)
-        .run(id, r.member_id, upTo, asOf, asOf).changes;
-      cents += r.c;
-    }
-  })();
-  const names = all ? `${open.length} Konten` : db.prepare(`SELECT group_concat(name, ', ') n FROM members WHERE id IN (${open.map(() => '?').join(',')})`)
-    .get(...open.map(r => r.member_id)).n;
-  audit(req.user, all ? 'Alle Konten abgerechnet' : 'Konto abgerechnet', `${names}: ${(cents / 100).toFixed(2)} € (Stand ${asOf.slice(0, 16)})`);
-  res.json({ ok: true, members: open.length, bookings, cents, batch });
+  const r = drinks.settle(ids, asOf, upTo, req.user.username, b.note ? cleanName(b.note, 100) : null, all ? 'alle-' : 'einzeln-');
+  if (!r.batch) return bad(res, 'Es gibt nichts Offenes abzurechnen.');
+  const mids = Object.keys(r.perMember).map(Number);
+  const names = all ? `${r.members} Konten` : db.prepare(`SELECT group_concat(name, ', ') n FROM members WHERE id IN (${mids.map(() => '?').join(',')})`).get(...mids).n;
+  audit(req.user, all ? 'Alle Konten abgerechnet' : 'Konto abgerechnet', `${names}: ${euro(r.cents)} (Stand ${asOf.slice(0, 16)})`);
+  res.json({ ok: true, members: r.members, bookings: r.bookings, cents: r.cents, batch: r.batch });
 });
 
 admin.get('/settle-history', need('abrechnung'), (req, res) => {
@@ -2286,25 +2255,28 @@ const drinks = {
     return id;
   },
   event: id => db.prepare('SELECT id, name, date, active, closed_at FROM events WHERE id = ?').get(int(id)) || null,
+  /** Verkauf eines Mitglieds je Monat (Datenauskunft) – auch bei ausgeschaltetem Verkauf, die Daten sind ja gespeichert */
+  byMonth: id => db.prepare("SELECT substr(created_at,1,7) monat, SUM(qty) anzahl, SUM(total_cents) cents FROM bookings WHERE member_id = ? AND cancelled_at IS NULL GROUP BY monat ORDER BY monat").all(int(id)),
   /** offene Beträge je Konto zum jetzigen Stand → { asOf, upTo, rows: [{ id, name, kind, total_cents, items, since }] } */
   open() { const asOf = nowTs(), upTo = maxBookingId(); return { asOf, upTo, rows: balances(asOf, upTo) }; },
   /** Konten als abgerechnet markieren (nur Buchungen bis asOf/upTo) → { batch, cents, perMember: { id: cents } } */
+  /** Konten abrechnen bis zum Stand asOf/upTo – memberIds = null: alle Konten mit offenem Betrag */
   settle(memberIds, asOf, upTo, username, note, prefix = 'modul-') {
-    const ids = [...new Set((memberIds || []).map(int))].filter(Boolean);
-    if (!ids.length || !isTs(asOf)) return { batch: null, cents: 0, perMember: {} };
-    const batch = prefix + Date.now().toString(36) + crypto.randomBytes(2).toString('hex');
+    const ids = memberIds === null ? null : [...new Set((memberIds || []).map(int))].filter(Boolean);
+    if ((ids && !ids.length) || !isTs(asOf)) return { batch: null, cents: 0, perMember: {}, members: 0, bookings: 0 };
+    const batch = prefix + Date.now().toString(36) + crypto.randomBytes(2).toString('hex'), up = Math.min(int(upTo), maxBookingId());
     const open = db.prepare(`SELECT member_id, SUM(total_cents) c, SUM(qty) n FROM bookings
-      WHERE ${OPEN_KONTO} AND member_id IS NOT NULL AND ${CUT('')} GROUP BY member_id`).all(Math.min(int(upTo), maxBookingId()), asOf, asOf).filter(r => ids.includes(r.member_id));
-    const perMember = {}; let cents = 0;
+      WHERE ${OPEN_KONTO} AND member_id IS NOT NULL AND ${CUT('')} GROUP BY member_id`).all(up, asOf, asOf).filter(r => !ids || ids.includes(r.member_id));
+    const perMember = {}; let cents = 0, bookings = 0;
     db.transaction(() => {
       for (const r of open) {
         const id = Number(db.prepare(`INSERT INTO member_settlements(member_id, cents, items, until_at, batch, by_user, note) VALUES (?,?,?,?,?,?,?)`)
           .run(r.member_id, r.c, r.n, asOf, batch, username || null, note ? String(note).slice(0, 100) : null).lastInsertRowid);
-        db.prepare(`UPDATE bookings SET settled_id = ? WHERE member_id = ? AND ${OPEN_KONTO} AND ${CUT('')}`).run(id, r.member_id, Math.min(int(upTo), maxBookingId()), asOf, asOf);
+        bookings += db.prepare(`UPDATE bookings SET settled_id = ? WHERE member_id = ? AND ${OPEN_KONTO} AND ${CUT('')}`).run(id, r.member_id, up, asOf, asOf).changes;
         perMember[r.member_id] = r.c; cents += r.c;
       }
     })();
-    return { batch: open.length ? batch : null, cents, perMember };
+    return { batch: open.length ? batch : null, cents, perMember, members: open.length, bookings };
   },
   /** Abrechnung eines Moduls zurücknehmen (z. B. wenn ein Einzug verworfen wird) – nur solange daraus nichts storniert wurde */
   unsettle(batch) {
@@ -2323,17 +2295,9 @@ admin.delete('/settle/:batch', need('abrechnung'), (req, res) => {
   const batch = String(req.params.batch);
   const newest = db.prepare('SELECT batch FROM member_settlements ORDER BY id DESC LIMIT 1').get();
   if (!newest || newest.batch !== batch || batch.startsWith('stichtag-')) return bad(res, 'Nur die letzte Abrechnung kann zurückgenommen werden.');
-  const ids = db.prepare('SELECT id FROM member_settlements WHERE batch = ?').all(batch).map(r => r.id);
-  const credited = db.prepare(`SELECT COUNT(*) n FROM bookings c JOIN bookings o ON o.id = c.credit_for
-    WHERE c.cancelled_at IS NULL AND o.settled_id IN (${ids.map(() => '?').join(',')})`).get(...ids).n;
-  if (credited) return bad(res, 'Seit dieser Abrechnung wurde daraus schon etwas storniert (Gutschrift) – Zurücknehmen ist nicht mehr möglich.');
   const sum = db.prepare('SELECT SUM(cents) c, COUNT(*) n FROM member_settlements WHERE batch = ?').get(batch);
-  db.transaction(() => {
-    const q = ids.map(() => '?').join(',');
-    db.prepare(`UPDATE bookings SET settled_id = NULL WHERE settled_id IN (${q})`).run(...ids);
-    db.prepare(`DELETE FROM member_settlements WHERE id IN (${q})`).run(...ids);
-  })();
-  audit(req.user, 'Abrechnung zurückgenommen', `${sum.n} Konten, ${((sum.c || 0) / 100).toFixed(2)} €`);
+  if (!drinks.unsettle(batch).ok) return bad(res, 'Seit dieser Abrechnung wurde daraus schon etwas storniert (Gutschrift) – Zurücknehmen ist nicht mehr möglich.');
+  audit(req.user, 'Abrechnung zurückgenommen', `${sum.n} Konten, ${euro(sum.c || 0)}`);
   res.json({ ok: true });
 });
 
@@ -2388,7 +2352,7 @@ admin.post('/tabs/:id/reopen', need('veranstaltungen', 'uebernahme'), (req, res)
     db.prepare("UPDATE guest_tabs SET status = 'offen', method = NULL, cents = NULL, closed_at = NULL, closed_by = NULL WHERE id = ?").run(t.id);
     db.prepare('UPDATE bookings SET paid_cash = 0 WHERE tab_id = ? AND cancelled_at IS NULL').run(t.id);
   })();
-  audit(req.user, 'Gäste-Deckel wieder geöffnet', `${t.name}: ${((t.cents || 0) / 100).toFixed(2)} € ${t.method || ''} zurückgenommen`);
+  audit(req.user, 'Gäste-Deckel wieder geöffnet', `${t.name}: ${euro(t.cents || 0)} ${t.method || ''} zurückgenommen`);
   res.json({ ok: true });
 });
 
@@ -2446,7 +2410,7 @@ admin.delete('/events/:id', need('veranstaltungen'), (req, res) => {
   const booked = db.prepare('SELECT COUNT(*) n FROM bookings WHERE event_id = ? AND cancelled_at IS NULL').get(ev.id).n;
   if (booked) {
     const open = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_id = ? AND event_guest_id IS NOT NULL AND ${OPEN_GUEST}`).get(ev.id).c;
-    if (open) return bad(res, `Auf der Liste sind noch ${(open / 100).toFixed(2).replace('.', ',')} € offen – erst bezahlen lassen oder auf die Konten übernehmen.`);
+    if (open) return bad(res, `Auf der Liste sind noch ${euro(open)} offen – erst bezahlen lassen oder auf die Konten übernehmen.`);
   }
   db.transaction(() => {
     if (booked) db.prepare('UPDATE events SET deleted = 1 WHERE id = ?').run(ev.id);
@@ -2596,7 +2560,7 @@ admin.post('/events/:id/guests/:gid/pay', need('veranstaltungen'), (req, res) =>
     db.prepare(`UPDATE bookings SET payment_id = ? WHERE event_guest_id = ? AND ${OPEN_GUEST}`).run(pid, g.id);
   })();
   if (!cents) return bad(res, 'Bei diesem Namen ist nichts offen.');
-  audit(req.user, 'Veranstaltung: hat bezahlt', `${g.name}: ${(cents / 100).toFixed(2)} € ${method === 'bar' ? 'bar' : 'mit Karte'}`);
+  audit(req.user, 'Veranstaltung: hat bezahlt', `${g.name}: ${euro(cents)} ${method === 'bar' ? 'bar' : 'mit Karte'}`);
   res.json({ ok: true, cents });
 });
 
@@ -2608,7 +2572,7 @@ admin.delete('/events/:id/payments/:pid', need('veranstaltungen'), (req, res) =>
     db.prepare('UPDATE bookings SET payment_id = NULL WHERE payment_id = ?').run(p.id);
     db.prepare('DELETE FROM event_payments WHERE id = ?').run(p.id);
   })();
-  audit(req.user, 'Veranstaltung: Zahlung zurückgenommen', `${p.name}: ${(p.cents / 100).toFixed(2)} € ${p.method}`);
+  audit(req.user, 'Veranstaltung: Zahlung zurückgenommen', `${p.name}: ${euro(p.cents)} ${p.method}`);
   res.json({ ok: true });
 });
 
@@ -2632,7 +2596,7 @@ admin.post('/events/:id/transfer', need('uebernahme'), (req, res) => {
       n += r.changes; cents += open; people++;
     }
   })();
-  audit(req.user, 'Veranstaltung übernommen', `${ev.name}: ${people} Personen, ${(cents / 100).toFixed(2)} € auf die Konten`);
+  audit(req.user, 'Veranstaltung übernommen', `${ev.name}: ${people} Personen, ${euro(cents)} auf die Konten`);
   res.json({ ok: true, transferred: n, people, cents, skipped });
 });
 
@@ -2643,7 +2607,7 @@ admin.post('/events/:id/close', need('veranstaltungen'), (req, res) => {
   const c = cash === '' || cash === undefined || cash === null ? null : int(cash);
   db.prepare(`UPDATE events SET active = 0, closed_at = datetime('now','localtime'), cash_cents = ?, note = ? WHERE id = ?`)
     .run(c, (req.body || {}).note ? String(req.body.note).slice(0, 300) : null, ev.id);
-  audit(req.user, 'Veranstaltung abgeschlossen', `${ev.name}${c === null ? '' : ', Kasse ' + (c / 100).toFixed(2) + ' €'}`);
+  audit(req.user, 'Veranstaltung abgeschlossen', `${ev.name}${c === null ? '' : ', Kasse ' + euro(c)}`);
   res.json({ ok: true });
 });
 
@@ -2703,7 +2667,7 @@ admin.get('/export.xlsx', need('abrechnung', 'export'), asyncRoute(async (req, r
 /* ---------- Dropbox: täglicher Export (alle Rechte) ---------- */
 const dbxCfg = () => ({ appKey: getSetting('dropbox_app_key', ''), appSecret: getSetting('dropbox_app_secret', ''),
   refresh: getSetting('dropbox_refresh', ''), folder: getSetting('dropbox_folder', '/Clubwerk'),
-  keep: int(getSetting('dropbox_keep', '7'), 7), enabled: getSetting('dropbox_enabled', '1') === '1' });
+  enabled: getSetting('dropbox_enabled', '1') === '1' });
 const dbxReady = c => Boolean(c.appKey && c.appSecret && c.refresh);
 /* ---------- Datensicherung (Kern, unabhängig von den Modulen) ----------
    Jede Nacht: verschlüsselte Komplettsicherung (Datenbank aller Module, Belege, Bilder, Erweiterungen) – lokal die
@@ -2856,11 +2820,10 @@ function backupStatus() {
 /** Nur das Adminkonto/„alle Rechte“ und mit eigenem Passwort bestätigt */
 function ownerConfirm(req, res) {
   if (req.user.role !== 'oberadmin') { bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403); return false; }
-  const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
   // bei Datei-Uploads (Rohdaten) kommt das Passwort in der Kopfzeile X-Mein-Passwort (URL-kodiert)
   let pw = (req.body && !Buffer.isBuffer(req.body) && req.body.myPassword) || '';
   if (!pw && req.get('X-Mein-Passwort')) { try { pw = decodeURIComponent(req.get('X-Mein-Passwort')); } catch (e) { pw = ''; } }
-  if (!u || !auth.verifySecret(String(pw), u.pw_hash)) { bad(res, 'Dein Passwort stimmt nicht.', 401); return false; }
+  if (!ownPwOk(req, pw)) { bad(res, 'Dein Passwort stimmt nicht.', 401); return false; }
   return true;
 }
 
@@ -2887,8 +2850,7 @@ admin.post('/backups/password', need('einstellungen'), rateLimit('bkpw', 10, 10 
   res.json({ ok: true, changed: had });
 });
 /* Sicherungspasswort prüfen (für das Notfallblatt) – nur „alle Rechte“, gebremst */
-admin.post('/backups/password/check', need('einstellungen'), rateLimit('bkcheck', 10, 10 * 60000), (req, res) => {
-  if (req.user.role !== 'oberadmin') return bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403);
+admin.post('/backups/password/check', need('einstellungen'), owner, rateLimit('bkcheck', 10, 10 * 60000), (req, res) => {
   const k = bkKey(); if (!k.key || !k.kdf) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
   let ok = false; try { ok = fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf)) === fullbackup.keyId(Buffer.from(k.key, 'hex')); } catch (e) { ok = false; }
   if (!ok) return bad(res, 'Das Sicherungspasswort stimmt nicht.', 401);
@@ -2930,8 +2892,7 @@ admin.post('/backups/remote/cleanup-legacy', need('einstellungen'), asyncRoute(a
    ein Ziel bekommt jede Nacht die (verschlüsselte) Sicherung, und Abschalten nähme dem Verein die Sicherung außer Haus. */
 admin.get('/backups/targets', need('einstellungen'), (req, res) => res.json({ targets: targetsView(), types: targets.TYPES, max: MAX_TARGETS }));
 /** Verbindung prüfen – mit gespeicherten oder (beim Anlegen/Bearbeiten) eingegebenen Daten */
-admin.post('/backups/targets/test', need('einstellungen'), rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
-  if (req.user.role !== 'oberadmin') return bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403);
+admin.post('/backups/targets/test', need('einstellungen'), owner, rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
   const b = req.body || {};
   const old = b.id ? tgList().find(x => x.id === b.id) : null;
   let t; try { t = targets.clean({ ...(b.target || {}), allowInsecure: true }, old); } catch (e) { return bad(res, e.message); }
@@ -3087,8 +3048,7 @@ admin.post('/update/rollback', need('einstellungen'), rateLimit('updapply', 5, 1
 /* Fehler beim Auslösen nach Neustart zurücksetzen, sobald die neue Version läuft */
 if (getSetting('update_running_version', '') !== APP_VERSION) { setSetting('update_running_version', APP_VERSION); setSetting('update_last_error', ''); }
 /* Komplettsicherung von einem anderen Gerät hochladen (gestreamt, ohne alles in den Speicher zu laden) */
-admin.post('/backups/komplett/upload', need('einstellungen'), asyncRoute(async (req, res) => {
-  if (req.user.role !== 'oberadmin') return bad(res, 'Das darf nur ein Benutzer mit allen Rechten.', 403);
+admin.post('/backups/komplett/upload', need('einstellungen'), owner, asyncRoute(async (req, res) => {
   fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
   for (const f of fs.readdirSync(INCOMING_DIR)) { try { if (Date.now() - fs.statSync(path.join(INCOMING_DIR, f)).mtimeMs > 6 * 3600000) fs.unlinkSync(path.join(INCOMING_DIR, f)); } catch (e) { /* egal */ } }
   const id = crypto.randomBytes(12).toString('hex');
@@ -3140,9 +3100,8 @@ admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrest
 
 admin.get('/dropbox', need('einstellungen'), (req, res) => {
   const c = dbxCfg();
-  res.json({ appKey: c.appKey, hasSecret: Boolean(c.appSecret), connected: dbxReady(c), folder: c.folder, keep: c.keep, enabled: c.enabled,
-    account: getSetting('dropbox_account', ''), authUrl: c.appKey ? dropbox.authUrl(c.appKey) : null,
-    last_ok: getSetting('dropbox_last_ok', ''), last_msg: getSetting('dropbox_last_msg', ''), last_error: getSetting('dropbox_last_error', '') });
+  res.json({ appKey: c.appKey, hasSecret: Boolean(c.appSecret), connected: dbxReady(c), folder: c.folder, enabled: c.enabled,
+    account: getSetting('dropbox_account', ''), authUrl: c.appKey ? dropbox.authUrl(c.appKey) : null });
 });
 admin.put('/dropbox', need('einstellungen'), (req, res) => {
   const b = req.body || {};
@@ -3158,7 +3117,6 @@ admin.put('/dropbox', need('einstellungen'), (req, res) => {
     setSetting('dropbox_app_secret', sec);
   }
   if (b.folder !== undefined) setSetting('dropbox_folder', dropbox.cleanFolder(b.folder));
-  if (b.keep !== undefined) setSetting('dropbox_keep', String(Math.max(0, Math.min(3650, int(b.keep, 7)))));
   if (b.enabled !== undefined) {
     if (!b.enabled && getSetting('dropbox_enabled', '1') === '1') securityAlert(`Die nächtliche Sicherung nach Dropbox wurde von ${req.user.name || req.user.username} pausiert.`, 'dbx-off');
     setSetting('dropbox_enabled', b.enabled ? '1' : '0');
@@ -3187,9 +3145,6 @@ admin.post('/dropbox/disconnect', need('einstellungen'), asyncRoute(async (req, 
   setSetting('dropbox_refresh', ''); setSetting('dropbox_account', '');
   audit(req.user, 'Dropbox getrennt');
   res.json({ ok: true });
-}));
-admin.post('/dropbox/run', need('einstellungen'), asyncRoute(async (req, res) => {
-  try { res.json({ ok: true, msg: await runBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
 }));
 
 /* ---------- Datensicherung (alle Rechte) ---------- */
@@ -3256,9 +3211,9 @@ admin.get('/audit', need('einstellungen'), (req, res) => {
 /* ---------- Kennzahlen für Home Assistant (ohne Namen, nur Summen) ---------- */
 /* Nur für Home Assistant selbst (internes Add-on-Netz 172.30.32.0/23 bzw. derselbe Rechner) – nicht für Geräte im WLAN */
 // nur Home Assistant selbst (172.30.32.1) und der Supervisor (172.30.32.2) – nicht andere Add-ons (z. B. Cloudflared/NGINX, 172.30.33.x)
-const fromHomeAssistant = req => { const ip = String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''); return ip === '172.30.32.1' || ip === '172.30.32.2' || ip === '127.0.0.1' || ip === '::1'; };
+const fromHomeAssistant = req => { const ip = normIp(req.socket.remoteAddress); return ip === '172.30.32.1' || ip === '172.30.32.2' || ip === '127.0.0.1' || ip === '::1'; };
 app.get('/api/ha/summary', (req, res, next) => (fromHomeAssistant(req) ? next() : res.status(403).json({ error: 'Nur für Home Assistant.' })), (req, res) => {
-  const { from, to } = defaultRange({});
+  const { from } = defaultRange({});
   const sums = {
     open_cents: db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE ${OPEN_KONTO}`).get().c,
     today_items: db.prepare(`SELECT COALESCE(SUM(qty),0) n FROM bookings WHERE cancelled_at IS NULL AND date(created_at) = date('now','localtime')`).get().n,
@@ -3350,7 +3305,6 @@ admin.get('/overview/modules', asyncRoute(async (req, res) => {
 }));
 /* Erweiterung als ZIP einspielen / entfernen (wirkt nach Neustart) */
 admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () => true, limit: '25mb' }), asyncRoute(async (req, res) => {
-  if (req.user.role !== 'oberadmin') return bad(res, 'Erweiterungen einspielen darf nur ein Benutzer mit allen Rechten.', 403);
   if (!ownerConfirm(req, res)) return;   // Erweiterungen laufen als Programmcode im Add-on – wie die Freigabe nur mit Passwort
   try {
     const r = await plugins.installZip(req.body);
@@ -3359,15 +3313,12 @@ admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () =
   } catch (e) { bad(res, e.message); }
 }));
 /* Erweiterung aus dem Netzwerkordner freigeben: nur das Adminkonto/„alle Rechte“, mit Passwort bestätigt */
-admin.post('/extensions/:id/approve', need('einstellungen'), rateLimit('approve', 10, 10 * 60000), (req, res) => {
-  if (req.user.role !== 'oberadmin') return bad(res, 'Erweiterungen freigeben darf nur ein Benutzer mit allen Rechten.', 403);
-  const u = db.prepare('SELECT pw_hash FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!u || !auth.verifySecret(String((req.body || {}).password || ''), u.pw_hash)) return bad(res, 'Passwort falsch.', 401);
+admin.post('/extensions/:id/approve', need('einstellungen'), owner, rateLimit('approve', 10, 10 * 60000), (req, res) => {
+  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Passwort falsch.', 401);
   try { const r = plugins.approve(String(req.params.id), String((req.body || {}).hash || '')); audit(req.user, 'Erweiterung freigegeben', `${r.name} (${r.hash.slice(0, 12)})`); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
-admin.delete('/extensions/:id', need('einstellungen'), (req, res) => {
-  if (req.user.role !== 'oberadmin') return bad(res, 'Nur mit allen Rechten.', 403);
+admin.delete('/extensions/:id', need('einstellungen'), owner, (req, res) => {
   try { const n = plugins.removeUploaded(String(req.params.id)); audit(req.user, 'Erweiterung entfernt', n); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
@@ -3531,9 +3482,8 @@ async function nightly() {
     } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
   } catch (e) { console.error('Nächtliche Aufgaben:', e); }
 }
-const nightlySafe = () => nightly().catch(e => console.error('Nächtliche Aufgaben:', e));
-setInterval(nightlySafe, 10 * 60 * 1000).unref();
-setTimeout(nightlySafe, 30 * 1000).unref();
+setInterval(nightly, 10 * 60 * 1000).unref();
+setTimeout(nightly, 30 * 1000).unref();
 
 /* Hauptport (Tablet, Verwaltung, Handys): mit HTTPS, sobald ein Zertifikat eingerichtet ist */
 const server = tls.listen(app, PORT, HOST, 'Clubwerk');
@@ -3543,7 +3493,7 @@ let inner = null;
 if (process.env.INTERNAL_PORT && String(process.env.INTERNAL_PORT) !== String(PORT)) {
   const allowed = new Set([...INGRESS_IPS, '127.0.0.1', '::1']);
   inner = require('http').createServer((req, res) => {
-    if (!allowed.has(String(req.socket.remoteAddress || '').replace(/^::ffff:/, ''))) { res.writeHead(403); res.end(); return; }
+    if (!allowed.has(normIp(req.socket.remoteAddress))) { res.writeHead(403); res.end(); return; }
     app(req, res);
   });
   inner.listen(parseInt(process.env.INTERNAL_PORT, 10), process.env.INGRESS_PORT ? '0.0.0.0' : '127.0.0.1');

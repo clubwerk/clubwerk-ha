@@ -129,7 +129,7 @@
     const y = m.today.slice(0, 4);
     // Knöpfe rechts in der Reiterzeile (Beitrittserklärungen am Tablet: Reiter „Anträge“)
     const tools = `${SC() ? '' : '<button class="btn" id="mvXls">Excel-Liste …</button><button class="btn" id="mvImp">Import …</button>'}<button class="btn primary" id="mvNew">+ Neues Mitglied</button>`;
-    el.innerHTML = `${GK.tabTools ? '' : `<div class="toolbar">${tools}</div>`}
+    el.innerHTML = `
       <div class="kpis">
         <div class="kpi"><div class="l">Mitglieder</div><div class="v">${cur.length}</div></div>
         <div class="kpi"><div class="l">Eintritte ${y}</div><div class="v">${cur.filter(r => r.entry_date && r.entry_date.startsWith(y)).length}</div></div>
@@ -171,7 +171,7 @@
     const open = tr => { st.detail = +tr.dataset.sel; st.sub = 'stamm'; showDetail(el, st.detail).catch(fail); window.scrollTo({ top: 0 }); };
     $('mvTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) open(tr); };
     $('mvTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(tr); } };
-    if (GK.tabTools && !GK.tabTools(tools, $('mvTbl'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
+    if (!GK.tabTools(tools, $('mvTbl'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('mvNew').onclick = () => newMember(el);
     if ($('mvImp')) $('mvImp').onclick = () => importDialog();
     if ($('mvXls')) $('mvXls').onclick = () => exportDialog();
@@ -718,7 +718,7 @@
     // Knöpfe rechts in der Reiterzeile; die Schritte (erfassen → unterschreiben → bestätigen) erklärt der Ablauf selbst
     const tools = `<a class="btn" href="${BASE}applications-blank.pdf" target="_blank">Formular (PDF)</a><button class="btn" id="aOnline">${s.app_online ? 'Online-Antrag: Link …' : 'Online-Antrag …'}</button>
       <button class="btn primary" id="aNew" title="Daten erfassen, dann am Tablet mit Code unterschreiben">+ Beitrittserklärung</button>`;
-    el.innerHTML = `${GK.tabTools ? '' : `<div class="toolbar">${tools}</div>`}
+    el.innerHTML = `
       <div class="card" id="aWait"><h3>Warten auf Bestätigung <span class="muted s">(${waiting.length})</span></h3>${waiting.length ? appTable(waiting) : '<p class="empty">Keine neuen Beitrittserklärungen.</p>'}</div>
       <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="empty">Nichts offen.</p>'}</div>
       <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
@@ -727,7 +727,7 @@
           <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small primary" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Änderungswünsche.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
         ${all ? (all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status)).length ? appTable(all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status))) : '<p class="empty">Noch nichts im Archiv.</p>') : ''}</div>`;
-    if (GK.tabTools && !GK.tabTools(tools, $('aWait'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
+    if (!GK.tabTools(tools, $('aWait'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('aNew').onclick = () => applicationForm();
     $('aArch').onclick = () => { st.app = st.app === 'alle' ? 'offen' : 'alle'; showApplications(el).catch(fail); };
     $('aOnline').onclick = () => onlineInfo();

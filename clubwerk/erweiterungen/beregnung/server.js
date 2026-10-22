@@ -30,8 +30,7 @@ const DEF = {
   backend: 'ha', vendor: '', mode: 'pin', stopFree: false, cooldownMin: 0, header: false,
   appName: 'Beregnung', webappUrl: '', subtitle: 'Bewässerungssteuerung', nextEntity: '', notify: '', plaetze: [],
 };
-const HA_BASE = () => (process.env.HA_URL || 'http://supervisor/core/api').replace(/\/$/, '');
-const HA_TOKEN = () => process.env.SUPERVISOR_TOKEN || process.env.HA_TOKEN || '';
+const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung bzw. Zugang)
 const HW_BASE = () => (process.env.HYDRAWISE_BASE || 'https://api.hydrawise.com/api/v1').replace(/\/$/, '');
 const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const hhmm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -76,17 +75,6 @@ const log = (action, who, platz, sec, detail) =>
   db.prepare('INSERT INTO irr_log(at, who, action, platz, sec, detail) VALUES (?,?,?,?,?,?)').run(localTs(), who || null, action, platz ?? null, sec ?? null, detail || null);
 
 /* =================== Anbindung =================== */
-async function haCall(method, p, body) {
-  if (!HA_TOKEN()) throw new Error('Clubwerk hat keinen Zugangsschlüssel für Home Assistant bekommen. Bitte das Add-on einmal neu starten; hilft das nicht, im Protokoll des Add-ons die Zeile „Verbindung zu Home Assistant“ prüfen.');
-  const r = await fetch(HA_BASE() + p, {
-    method, headers: { Authorization: 'Bearer ' + HA_TOKEN(), 'Content-Type': 'application/json' },
-    body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(10000),
-  });
-  if (r.status === 401 || r.status === 403) throw new Error(`Home Assistant verweigert den Zugriff (${r.status}). Bitte das Add-on einmal neu starten.`);
-  if (!r.ok) throw new Error(`Home Assistant antwortet mit ${r.status}`);
-  const t = await r.text();
-  try { return JSON.parse(t); } catch (e) { return t; }
-}
 async function hwCall(endpoint, params = {}) {
   const key = getSetting('ext_beregnung_hw_key', '');
   if (!key) throw new Error('Kein Hydrawise-API-Key eingetragen.');
@@ -116,7 +104,7 @@ async function readController(force) {
       }
       data = { zones, list: relays.map(z => ({ ref: String(z.relay), name: `Zone ${z.relay}${z.name ? ' – ' + z.name : ''}` })), next };
     } else {
-      const states = await haCall('GET', '/states');
+      const states = await ha.call('GET', '/states');
       const zones = {}, list = [], sensors = [];
       for (const s of Array.isArray(states) ? states : []) {
         const dom = s.entity_id.split('.')[0];
@@ -137,7 +125,7 @@ async function readController(force) {
       const v = vendorOf(c);
       if (v.integration) {
         try {
-          const ids = await haCall('POST', '/template', { template: `{{ integration_entities('${v.integration}') | tojson }}` });
+          const ids = await ha.integrationEntities(v.integration);
           const set = new Set(Array.isArray(ids) ? ids : []);
           const f = list.filter(x => set.has(x.ref) && (!v.domains || v.domains.includes(x.ref.split('.')[0])));
           if (f.length) { shown = f; filtered = true; }
@@ -162,8 +150,8 @@ async function zoneOn(ref, sec) {
     await hwCall('setzone.php', { action: 'run', period_id: 999, relay_id: z.relay_id, custom: sec });
   } else {
     const dom = ref.split('.')[0];
-    if (dom === 'valve') await haCall('POST', '/services/valve/open_valve', { entity_id: ref });
-    else await haCall('POST', '/services/switch/turn_on', { entity_id: ref });
+    if (dom === 'valve') await ha.call('POST', '/services/valve/open_valve', { entity_id: ref });
+    else await ha.call('POST', '/services/switch/turn_on', { entity_id: ref });
   }
   cache.at = 0;
 }
@@ -175,19 +163,12 @@ async function zoneOff(ref) {
     if (z) await hwCall('setzone.php', { action: 'stop', relay_id: z.relay_id });
   } else {
     const dom = ref.split('.')[0];
-    if (dom === 'valve') await haCall('POST', '/services/valve/close_valve', { entity_id: ref });
-    else await haCall('POST', '/services/switch/turn_off', { entity_id: ref });
+    if (dom === 'valve') await ha.call('POST', '/services/valve/close_valve', { entity_id: ref });
+    else await ha.call('POST', '/services/switch/turn_off', { entity_id: ref });
   }
   cache.at = 0;
 }
-async function notify(text) {
-  const c = cfg();
-  if (!c.notify || !HA_TOKEN()) return;
-  const svc = String(c.notify).replace(/^notify\./, '');
-  if (!/^[a-z0-9_]+$/.test(svc)) return;
-  try { await haCall('POST', '/services/notify/' + svc, { title: 'Beregnung', message: text }); }
-  catch (e) { console.error('Beregnung: Benachrichtigung fehlgeschlagen:', e.message); }
-}
+const notify = text => ha.notify(cfg().notify, 'Beregnung', text);
 
 /* =================== Ablauf (übersteht Neustarts) =================== */
 let busy = false;
@@ -415,8 +396,8 @@ function appRouter(ctx) {
   });
   r.post('/login', rateLimit('blogin', 10, 60000), (req, res) => {
     const { username, password } = req.body || {};
-    if (req.get('X-Clubwerk') !== '1' && req.get('X-Getraenke') !== '1') return res.status(403).json({ error: 'Ungültige Anfrage.' });
-    const out = auth.login(username, password, req.ip, 'beregnung', { known: Boolean(auth.knownDevice && auth.knownDevice(req, username)) });
+    if (req.get('X-Clubwerk') !== '1') return res.status(403).json({ error: 'Ungültige Anfrage.' });
+    const out = auth.login(username, password, req.ip, 'beregnung', { known: auth.knownDevice(req, username) });
     if (!out.ok) { audit(String(username || '').slice(0, 30), 'Beregnung: Anmeldung fehlgeschlagen', req.ip); return res.status(401).json({ error: out.error }); }
     audit(String(username || '').toLowerCase(), 'Beregnung: Anmeldung', req.ip);
     res.setHeader('Set-Cookie', `gbereg=${out.token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${8 * 3600}${req.secure ? '; Secure' : ''}`);
@@ -439,7 +420,7 @@ function startPortApp(ctx) {
   app.disable('x-powered-by');
   app.set('trust proxy', false);
   app.use(ctx.require('./security').lanOnly({ label: 'Die Beregnungs-Webapp' }));   // nie aus dem Internet (versehentliche Portfreigabe)
-  if (ctx.require('./security').noTunnel) app.use(ctx.require('./security').noTunnel({ label: 'Die Beregnungs-Webapp' }));   // auch nicht, wenn ein Tunnel versehentlich auf diesen Port zeigt
+  app.use(ctx.require('./security').noTunnel({ label: 'Die Beregnungs-Webapp' }));   // auch nicht, wenn ein Tunnel versehentlich auf diesen Port zeigt
   app.use(ctx.require('./security').hostGuard());
   app.use(ctx.require('./security').hardenHeaders({ frame: 'DENY' }));
   app.use(ctx.require('./security').compress());
@@ -516,7 +497,7 @@ function cleanCfg(body, cleanName) {
       return { name, sub: cleanName(p.sub, 60) || '', zones: zones.map(z => {
         const ref = String((z && z.ref) || '').trim();
         if (out.backend === 'hydrawise' ? !/^\d{1,3}$/.test(ref) : !/^(valve|switch)\.[a-z0-9_]+$/.test(ref)) throw new Error(`${name}: bitte für jede Zone ein Gerät auswählen.`);
-        if (out.backend !== 'hydrawise') { const own = H.entityOwner && H.entityOwner(ref); if (own) throw new Error(`${name}: „${ref}“ gehört schon zum Modul ${own} und kann hier nicht verwendet werden.`); }
+        if (out.backend !== 'hydrawise') { const own = H.entityOwner(ref); if (own) throw new Error(`${name}: „${ref}“ gehört schon zum Modul ${own} und kann hier nicht verwendet werden.`); }
         const sec = Math.round(Number(z.sec));
         if (!(sec >= 10 && sec <= 3600)) throw new Error(`${name}: Laufzeit zwischen 10 Sekunden und 60 Minuten.`);
         return { ref, label: cleanName(z.label, 20) || '', sec };
@@ -597,7 +578,7 @@ function activate(ctx) {
     let list = [], sensors = [], error = null;
     try { const d = await readController(true); list = d.list; sensors = d.sensors || []; } catch (e) { error = e.message; }
     res.json({ cfg: cfg(), vendors: VENDORS.map(({ id, name, backend, setup }) => ({ id, name, backend, setup })), filtered: Boolean(list.length) && Boolean(cache.data && cache.data.filtered), hasKey: Boolean(getSetting('ext_beregnung_hw_key', '')), hasPin: Boolean(getSetting('ext_beregnung_pin_hash', '')),
-      haAvailable: Boolean(HA_TOKEN()), port: parseInt(process.env.BEREGNUNG_PORT || '5000', 10) || null, list, sensors, error });
+      haAvailable: ha.available(), port: parseInt(process.env.BEREGNUNG_PORT || '5000', 10) || null, list, sensors, error });
   });
   admin.put('/config', need('beregnung'), (req, res) => {
     let out;

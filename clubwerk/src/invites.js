@@ -59,10 +59,6 @@ function deviceLabel(ua) {
   return (os + (br ? ' · ' + br : '')).slice(0, 60);
 }
 
-/** Einladung erzeugen – ersetzt (sperrt) ein bisher gekoppeltes Gerät dieses Mitglieds in diesem Bereich */
-/* issuerPerms: Rechte des Admins, der die Einladung erzeugt hat ('*' = alle). Wird einem Mitglied später ein Bereich mit
-   eigenem Recht (z. B. Türen) freigeschaltet, den dieser Admin nicht verwalten durfte, wird das Handy entkoppelt – sonst
-   könnte jemand mit wenig Rechten vorab sein eigenes Handy koppeln und später Türzugang „erben“. */
 /** Push-Abos entkoppelter oder gesperrter Handys entfernen – sonst bekäme ein verlorenes Handy weiter Nachrichten des Mitglieds */
 function dropPush(deviceIds) {
   if (!deviceIds.length) return;
@@ -70,6 +66,10 @@ function dropPush(deviceIds) {
 }
 const deviceIdsOf = (scope, memberId) => db.prepare('SELECT id FROM member_devices WHERE scope = ? AND member_id = ?').all(scope, memberId).map(r => r.id);
 
+/** Einladung erzeugen – ersetzt (sperrt) ein bisher gekoppeltes Gerät dieses Mitglieds in diesem Bereich */
+/* issuerPerms: Rechte des Admins, der die Einladung erzeugt hat ('*' = alle). Wird einem Mitglied später ein Bereich mit
+   eigenem Recht (z. B. Türen) freigeschaltet, den dieser Admin nicht verwalten durfte, wird das Handy entkoppelt – sonst
+   könnte jemand mit wenig Rechten vorab sein eigenes Handy koppeln und später Türzugang „erben“. */
 function create(scope, memberId, by, issuerPerms, { kind = 'qr' } = {}) {
   scopeOk(scope);
   const hours = kind === 'qr' ? inviteHours() : mailDays() * 24;
@@ -196,11 +196,11 @@ function markAlerted(deviceId) { return db.prepare('UPDATE member_devices SET us
 const TR_ALPHA = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';   // ohne 0/O, 1/I – gut abzutippen
 const TR_DAYS = 7;
 const trNorm = c => String(c || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const newTrCode = () => [...crypto.randomBytes(10)].map(b => TR_ALPHA[b % 32]).join('');   // 10 Zeichen, 50 Bit
 function createTransfer(scope, deviceToken) {
   const w = whoIs(scope, deviceToken);
   if (!w) return null;
-  const bytes = crypto.randomBytes(10);
-  const code = [...bytes].map(b => TR_ALPHA[b % 32]).join('');
+  const code = newTrCode();
   db.prepare('UPDATE member_devices SET transfer_hash = ?, transfer_expires = ? WHERE id = ?').run(sha(code), Date.now() + TR_DAYS * 86400000, w.deviceId);
   return code;
 }
@@ -228,7 +228,7 @@ const HANDOVER_MS = 60000;
 function createHandover(scope, deviceToken) {
   const w = whoIs(scope, deviceToken);
   if (!w) return null;
-  const code = [...crypto.randomBytes(10)].map(b => TR_ALPHA[b % 32]).join('');
+  const code = newTrCode();
   db.prepare('UPDATE member_devices SET handover_hash = ?, handover_expires = ? WHERE id = ?').run(sha(code), Date.now() + HANDOVER_MS, w.deviceId);
   return code;
 }
@@ -313,7 +313,6 @@ function checkMember(scope, memberId, pin) {
   return check(scope, null, pin, d, { shared: true });
 }
 
-/** Übersicht für die Verwaltung */
 /** Darf das vorhandene Handy/die offene Einladung einen neuen Bereich mit Recht `perm` bekommen? */
 function issuerCovers(scope, memberId, perm) {
   const d = db.prepare('SELECT issuer_perms FROM member_devices WHERE scope = ? AND member_id = ?').get(scope, memberId);

@@ -7,6 +7,8 @@
   const active = (me && me.dataset.active) || 'getraenke';
   const activeLabel = (me && me.dataset.label) || document.title;   // Beschriftung, falls die aktuelle Seite nicht in der Leiste steht
   let homeId = 'getraenke';   // erste Seite in der Kopfzeile = Startseite (dorthin geht es nach 30 s zurück)
+  /* Letzter Stand von Vereinsname, Logo und Reitern: beim Seitenwechsel sofort zeichnen statt leer anfangen (sonst flackert die Kopfzeile) */
+  const keep = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } } };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   /* Kopfzeile aufbauen: Logo · Vereinsname | Getränke · [Erweiterungen] · [Links] · Verwaltung · Uhr – überall identisch */
   const hdr = document.getElementById('gkHeader');
@@ -21,7 +23,7 @@
     tick(); setInterval(tick, 2000);
     const logo = document.getElementById('logo'), box = document.getElementById('logoBox');
     box.classList.add('hidden');
-    const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => {
+    const apply = (b, fresh) => {
       if (b.clubName) {
         // „TC Grün-Weiß Musterstadt“ → zwei Zeilen: „TC Grün-Weiß“ / „Musterstadt“
         const w = b.clubName.trim().split(/\s+/);
@@ -33,15 +35,18 @@
       if (b.color) {
         const m = document.querySelector('meta[name=theme-color]'); if (m) m.setAttribute('content', b.color);
         // Vereinsfarbe geändert (Verwaltung → Einstellungen): Farben ohne Neuladen übernehmen
-        if (nav.color && nav.color !== b.color) { const l = document.querySelector('link[rel="stylesheet"][href*="theme.css"]'); if (l) { const n = l.cloneNode(); n.href = l.getAttribute('href').split('?')[0] + '?c=' + b.color.slice(1); n.onload = () => l.remove(); l.after(n); } }
-        nav.color = b.color;
+        if (fresh && nav.color && nav.color !== b.color) { const l = document.querySelector('link[rel="stylesheet"][href*="theme.css"]'); if (l) { const n = l.cloneNode(); n.href = l.getAttribute('href').split('?')[0] + '?c=' + b.color.slice(1); n.onload = () => l.remove(); l.after(n); } }
+        if (fresh) nav.color = b.color;
       }
       if (b.logo) {
         const src = base + b.logo;
+        if (!fresh) { box.classList.remove('hidden'); hdr.classList.add('haslogo'); }   // Logo liegt im Browser-Zwischenspeicher – Platz gleich freihalten
         if (logo.getAttribute('src') !== src) { logo.onerror = () => { box.classList.add('hidden'); hdr.classList.remove('haslogo'); }; logo.onload = () => { box.classList.remove('hidden'); hdr.classList.add('haslogo'); }; logo.src = src; }
       } else { box.classList.add('hidden'); hdr.classList.remove('haslogo'); }
-    }).catch(() => {});
+    };
     const nav = {};
+    const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => { keep.set('cw_brand', { clubName: b.clubName, color: b.color, logo: b.logo }); apply(b, true); }).catch(() => {});
+    const last = keep.get('cw_brand'); if (last) apply(last, false);
     brand();
     setInterval(brand, 5 * 60 * 1000);
   }
@@ -50,7 +55,7 @@
     if (!nav) return;
     const links = [];
     // Reihenfolge vom Server: eingebaute Module (Getränke), Erweiterungen, eigene Links; die erste ist die Startseite
-    items.forEach(i => links.push(i.external ? i : { ...i, href: base + i.href || './' }));
+    items.forEach(i => links.push(i.external ? i : { ...i, href: base + (i.href || './') }));
     // Seite, die nicht in der Leiste steht (Einstellungen → Leiste am Tablet): eigenen Reiter als aktiv anhängen, damit man sieht, wo man ist
     if (items.length && active !== 'verwaltung' && active !== 'start' && !links.some(l => l.id === active)) links.push({ id: active, label: activeLabel, href: '' });
     homeId = start || (items.length ? items[0].id : null);   // Start-Reiter (Einstellungen → Leiste am Tablet)
@@ -83,9 +88,9 @@
   window.addEventListener('resize', () => { clearTimeout(fit.t); fit.t = setTimeout(fit, 120); });
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fit);
   function load() {
-    fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : { items: [] })).then(d => render(d.items || [], d.start)).catch(() => render([]));
+    fetch(base + 'api/tablet/nav').then(r => (r.ok ? r.json() : { items: [] })).then(d => { keep.set('cw_nav', { items: d.items || [], start: d.start }); render(d.items || [], d.start); }).catch(() => {});
   }
-  render([]);
+  { const last = keep.get('cw_nav'); render((last && last.items) || [], last && last.start); }
   load();
   setInterval(load, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });

@@ -1,5 +1,5 @@
 const B='http://127.0.0.1:3233/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,200):'')); if(!c) fails++;};
-const jar=()=>{const c={}; const f=async(url,method='GET',body,extra={})=>{const h={'X-Getraenke':'1',Cookie:Object.entries(c).map(([k,v])=>k+'='+v).join('; '),...extra}; if(body!==undefined)h['Content-Type']='application/json';
+const jar=()=>{const c={}; const f=async(url,method='GET',body,extra={})=>{const h={'X-Clubwerk':'1',Cookie:Object.entries(c).map(([k,v])=>k+'='+v).join('; '),...extra}; if(body!==undefined)h['Content-Type']='application/json';
   const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); for(const sc of r.headers.getSetCookie()){const [kv]=sc.split(';'); const i=kv.indexOf('='); c[kv.slice(0,i)]=kv.slice(i+1);} f.last=r.headers.getSetCookie(); return [r.status, await r.json().catch(()=>({}))];}; f.c=c; return f;};
 (async()=>{
   const A=jar(), T=jar(), T2=jar(); let s,j;

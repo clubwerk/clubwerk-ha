@@ -5,8 +5,8 @@
  * eingeschaltet sind: Datenbank (alle Module, Benutzer, Einstellungen, Logo), Belege, Artikelbilder und die
  * freigegebenen bzw. hochgeladenen Erweiterungen.
  *
- * Dateiformat .vhsicherung:
- *   "VHSICH01" | Länge des Kopfes (4 Byte) | Kopf (JSON: Schlüsselableitung, IV, Schlüssel-Kennung, Datum)
+ * Dateiformat .cwbackup (Sicherungen der Vorgängerversion: .vhsicherung mit "VHSICH01"):
+ *   "CWSICH01" | Länge des Kopfes (4 Byte) | Kopf (JSON: Schlüsselableitung, IV, Schlüssel-Kennung, Datum)
  *   | verschlüsseltes tar.gz (AES-256-GCM) | Prüfwert (16 Byte)
  * Der Schlüssel wird mit scrypt aus dem Sicherungspasswort abgeleitet. Ohne dieses Passwort lässt sich die Datei
  * nicht lesen – und jede Veränderung fällt beim Entschlüsseln auf.
@@ -74,8 +74,7 @@ async function create(o) {
   const key = Buffer.from(o.key, 'hex');
   fs.mkdirSync(o.outDir, { recursive: true, mode: 0o700 });
   const stage = fs.mkdtempSync(path.join(o.dataDir, '.sicherung-'));
-  const d = new Date(); const p = n => String(n).padStart(2, '0');
-  const name = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_Clubwerk${EXT}`;
+  const d = new Date(), name = `${require('./util').fileStamp(d)}_Clubwerk${EXT}`;
   const dest = path.join(o.outDir, name);
   const part = dest + '.part';
   try {

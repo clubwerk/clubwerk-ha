@@ -1,6 +1,6 @@
 // Zugang (Türen): Ende-zu-Ende über die Mitglieder-App (/api/m/zugang/…) – angepasst an die vereinheitlichte App (3.11+), Oktober 2026
 const B='http://127.0.0.1:3240/', P='http://127.0.0.1:5243/', HA='http://127.0.0.1:5241/api/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,260):'')); if(!c) fails++;};
-let ck=''; async function A(url,method='GET',body,base=B,dev){const h={'X-Getraenke':'1',Cookie:base===B?ck:''}; if(dev)h['X-Geraet']=dev; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(base+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(base===B&&sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({}))];}
+let ck=''; async function A(url,method='GET',body,base=B,dev){const h={'X-Clubwerk':'1',Cookie:base===B?ck:''}; if(dev)h['X-Geraet']=dev; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(base+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)}); const sc=r.headers.get('set-cookie'); if(base===B&&sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({}))];}
 const calls=async()=>(await (await fetch(HA+'_calls',{headers:{Authorization:'Bearer tok'}})).json());
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 const now=new Date(), wd=now.getDay();

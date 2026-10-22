@@ -59,20 +59,26 @@
   /* Personen wie sortiert anzeigen: „Nachname, Vorname“ („von der Heide, Anna“) – gemeinsame Zerlegung aus names.js */
   const { lastFirst } = window.CWNames;
   const pName = m => esc(lastFirst(m.name, m.kind));
+  /** Rückfrage-Fenster (#askBox) öffnen: bind(done) setzt die Knöpfe, Escape bricht überall gleich ab (→ cancel) */
+  function askBoxOpen(html, cancel, bind) {
+    return new Promise(resolve => {
+      $('askBox').innerHTML = html;
+      $('askOverlay').classList.remove('hidden');
+      const key = e => { if (e.key === 'Escape') done(cancel); };
+      const done = v => { $('askOverlay').classList.add('hidden'); document.removeEventListener('keydown', key); resolve(v); };
+      document.addEventListener('keydown', key);
+      bind(done);
+    });
+  }
   /** ask(text, {title, ok, danger}) → Promise<boolean>. Erste Zeile wird zur Überschrift, wenn kein Titel angegeben ist. */
   function ask(text, o = {}) {
-    return new Promise(resolve => {
-      const parts = String(text).split('\n\n');
-      const title = o.title || parts.shift();
-      const body = o.title ? String(text) : parts.join('\n\n');
-      const danger = o.danger ?? /löschen|entziehen|sperren|zurücknehmen|zurücksetzen|wiederherstellen|trennen|ausschalten|abmelden|neu starten|stornieren/i.test(title + body);
-      const okLabel = o.ok || (/löschen/i.test(title) ? 'Löschen' : /stornieren/i.test(title) ? 'Stornieren' : danger ? 'Ja, ausführen' : 'OK');
-      $('askBox').innerHTML = `<h2>${nl2br(title)}</h2>${body ? `<p>${nl2br(body)}</p>` : ''}
-        <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn ${danger ? 'danger' : 'primary'}" id="askOk">${esc(okLabel)}</button></div>`;
-      $('askOverlay').classList.remove('hidden');
-      const done = v => { $('askOverlay').classList.add('hidden'); document.removeEventListener('keydown', key); resolve(v); };
-      const key = e => { if (e.key === 'Escape') done(false); };
-      document.addEventListener('keydown', key);
+    const parts = String(text).split('\n\n');
+    const title = o.title || parts.shift();
+    const body = o.title ? String(text) : parts.join('\n\n');
+    const danger = o.danger ?? /löschen|entziehen|sperren|zurücknehmen|zurücksetzen|wiederherstellen|trennen|ausschalten|abmelden|neu starten|stornieren/i.test(title + body);
+    const okLabel = o.ok || (/löschen/i.test(title) ? 'Löschen' : /stornieren/i.test(title) ? 'Stornieren' : danger ? 'Ja, ausführen' : 'OK');
+    return askBoxOpen(`<h2>${nl2br(title)}</h2>${body ? `<p>${nl2br(body)}</p>` : ''}
+      <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn ${danger ? 'danger' : 'primary'}" id="askOk">${esc(okLabel)}</button></div>`, false, done => {
       if ($('askNo')) $('askNo').onclick = () => done(false);
       $('askOk').onclick = () => done(true);
       $('askOk').focus();
@@ -80,16 +86,13 @@
   }
   /** askText(text, value, {ok}) → Promise<string|null> */
   function askText(text, value = '', o = {}) {
-    return new Promise(resolve => {
-      const parts = String(text).split('\n'); const title = parts.shift();
-      $('askBox').innerHTML = `<h2>${esc(title)}</h2>${parts.length ? `<p>${nl2br(parts.join('\n'))}</p>` : ''}
+    const parts = String(text).split('\n'); const title = parts.shift();
+    return askBoxOpen(`<h2>${esc(title)}</h2>${parts.length ? `<p>${nl2br(parts.join('\n'))}</p>` : ''}
         <label class="f"><input id="askIn" value="${esc(value)}" autocomplete="off" type="${o.password ? 'password' : 'text'}"></label>
-        <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn primary" id="askOk">${esc(o.ok || 'OK')}</button></div>`;
-      $('askOverlay').classList.remove('hidden');
-      const done = v => { $('askOverlay').classList.add('hidden'); resolve(v); };
+        <div class="btns">${o.okOnly ? '' : '<button class="btn ghost" id="askNo">Abbrechen</button>'}<button class="btn primary" id="askOk">${esc(o.ok || 'OK')}</button></div>`, null, done => {
       if ($('askNo')) $('askNo').onclick = () => done(null);
       $('askOk').onclick = () => done($('askIn').value);
-      $('askIn').onkeydown = e => { if (e.key === 'Enter') done($('askIn').value); if (e.key === 'Escape') done(null); };
+      $('askIn').onkeydown = e => { if (e.key === 'Enter') done($('askIn').value); };
       $('askIn').focus(); $('askIn').select();
     });
   }
@@ -306,7 +309,6 @@
     ['konten', 'Mitglieder & Konten', 'konten', 'verein'], ['app', 'Mitglieder-App', 'konten', 'verein'], ['benutzer', 'Benutzer & Rechte', 'benutzer', 'verein'],
     ['sicherung', 'Datensicherung', 'einstellungen', 'verein'], ['protokoll', 'Protokoll', 'einstellungen', 'verein'], ['einstellungen', 'Einstellungen', null, 'verein'],
   ];
-  const GROUPS = [['start', ''], ['getraenke', 'Verkauf'], ['module', 'Module'], ['verein', 'Verein & System']];
   /* Module mit mehreren Seiten: ein Menüeintrag, die Seiten als Reiter unter der Überschrift (wie bei „Verkauf“) */
   /* Feste Reihenfolge der Module im Menü (order): Verkauf 1 · Buchungssystem 2 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mitgliederverwaltung 7 · Buchhaltung 8;
      Einzelseiten geben ihre Position über registerPage({ order }) an, sonst 50 (Reihenfolge der Registrierung) */
@@ -356,7 +358,6 @@
   const GPAGES = g => PAGES.filter(x => x[3] === g && canAny(x[2]));
   const DRINKS = () => GPAGES('getraenke');
   const groupOf = p => { const x = PAGES.find(y => y[0] === p); return x && MODG[x[3]] ? x[3] : null; };
-  const isDrinks = p => groupOf(p) === 'getraenke';
   const GROUP_LABEL = new Proxy({ module: 'Module', verein: 'Verein & System' }, { get: (o, k) => (MODG[k] ? MODG[k].label : o[k]) });
   const initials = n => String(n || '?').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const sget = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
@@ -679,10 +680,10 @@
       const low = stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock);
       const neg = stock.filter(x => x.track_stock && x.stock < 0);
       const active = ev && ev.find(e => e.active);
-      if (low.length) alerts.push({ level: 'a', who: 'Verkauf', text: `${low.length} ${low.length === 1 ? 'Artikel' : 'Artikel'} fast leer: ${low.slice(0, 3).map(l => l.name).join(', ')}${low.length > 3 ? ' …' : ''}`, go: can('bestellung') ? 'bestellung' : null, link: 'Bestellen' });
+      if (low.length) alerts.push({ level: 'a', who: 'Verkauf', text: `${low.length} Artikel fast leer: ${low.slice(0, 3).map(l => l.name).join(', ')}${low.length > 3 ? ' …' : ''}`, go: can('bestellung') ? 'bestellung' : null, link: 'Bestellen' });
       if (neg.length && can('lieferungen')) alerts.push({ level: 'r', who: 'Verkauf', text: `Negativer Bestand bei ${neg.map(n => n.name).join(', ')} – vermutlich fehlt eine Lieferung.`, go: 'lieferungen', link: 'Beleg hochladen' });
-      if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.credit_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
-      (ev || []).filter(e => e.open_credit_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_credit_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
+      if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.open_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
+      (ev || []).filter(e => e.open_member_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_member_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
       const first = DRINKS()[0][0];
       drinksCard = modCard({ ic: 'verkauf', name: 'Verkauf', pill: low.length ? ['a', `${low.length} knapp`] : ['g', 'Alles gut'],
         big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
@@ -994,17 +995,7 @@
         RENDER.bestellung();
       } catch (e) { fail(e); $('oSend').disabled = false; $('oSend').textContent = 'Bestellung jetzt senden'; }
     };
-    $('oCopy').onclick = async () => {
-      const text = `Betreff: ${$('oSubj').value}\n\n${$('oText').value}`;
-      let ok = false;
-      try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); ok = true; } } catch (e) { ok = false; }
-      if (!ok) {   // im Vereins-WLAN ohne HTTPS: klassisches Kopieren
-        const ta = $('oText'); const keep = ta.value; ta.value = text; ta.select(); ta.setSelectionRange(0, text.length);
-        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
-        ta.value = keep;
-      }
-      toast(ok ? 'Bestelltext kopiert – jetzt in die E-Mail einfügen.' : 'Kopieren nicht möglich – bitte Text markieren und kopieren.', !ok);
-    };
+    $('oCopy').onclick = () => copyText(`Betreff: ${$('oSubj').value}\n\n${$('oText').value}`, 'Bestelltext kopiert – jetzt in die E-Mail einfügen.');
   };
 
   /* =================== Bestand =================== */
@@ -1128,8 +1119,8 @@
   };
 
   /* ---------- Abtippliste: Beträge von Hand in die Vereinsverwaltung übertragen ---------- */
-  function copyText(t) {
-    const done = () => toast(`„${t.length > 40 ? t.slice(0, 40) + '…' : t}“ kopiert.`);
+  function copyText(t, msg) {
+    const done = () => toast(msg || `„${t.length > 40 ? t.slice(0, 40) + '…' : t}“ kopiert.`);
     if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(done, () => copyFallback(t, done));
     copyFallback(t, done);
   }
@@ -1285,7 +1276,6 @@
     }
     return { PAL, delta, spark, donut, legend, kpi, calendar, bubbles, monthBars, num, WDL, heat };
   })();
-  GK.dash = DS;
 
   const svState = { year: new Date().getFullYear(), cat: '' };
   RENDER.auswertung = async () => {
@@ -1758,7 +1748,7 @@
       const draw = () => {
         dialog(`<h2>Reihenfolge der Kategorien</h2>
           <p class="muted" style="margin-top:0">So erscheinen die Kategorien am Tablet (von oben links nach unten rechts) und in Bestand, Abrechnung und Exporten. Die Artikel innerhalb einer Kategorie stehen alphabetisch.</p>
-          <table class="tbl" id="coTbl">${cats.map((c, i) => `<tr><td class="r" style="width:44px">${i + 1}.</td><td><b>${esc(c.name)}</b> <span class="muted s">${c.n} ${c.n === 1 ? 'Artikel' : 'Artikel'}${c.act < c.n ? `, ${c.n - c.act} ausgeblendet` : ''}</span></td>
+          <table class="tbl" id="coTbl">${cats.map((c, i) => `<tr><td class="r" style="width:44px">${i + 1}.</td><td><b>${esc(c.name)}</b> <span class="muted s">${c.n} Artikel${c.act < c.n ? `, ${c.n - c.act} ausgeblendet` : ''}</span></td>
             <td class="r" style="white-space:nowrap;width:120px"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben" style="width:46px;justify-content:center">▲</button>
               <button class="btn small" data-dn="${i}" ${i < cats.length - 1 ? '' : 'disabled'} aria-label="nach unten" style="width:46px;justify-content:center">▼</button></td></tr>`).join('')}</table>
           <div class="btns"><button class="btn ghost" id="coAlpha" style="margin-right:auto">Alphabetisch</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
@@ -2011,7 +2001,7 @@
             <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok2">Zusammenführen</button></div>`);
           const fill = () => {
             const q = $('mgSearch').value.trim().toLowerCase();
-            $('mgInto').innerHTML = others.filter(o => !q || o.name.toLowerCase().includes(q)).map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('');
+            $('mgInto').innerHTML = others.filter(o => !q || o.name.toLowerCase().includes(q) || lastFirst(o.name, o.kind).toLowerCase().includes(q)).map(o => `<option value="${o.id}">${pName(o)}</option>`).join('');
           };
           const ln = m.name.split(' ').pop(); $('mgSearch').value = ln; fill();
           $('mgSearch').oninput = fill;
@@ -2057,15 +2047,10 @@
   const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – Türen und Beregnung schalten sich beim ersten Öffnen im Vereins-WLAN frei">Türen/Beregnung erst im WLAN</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
   /** Entfernen: nur das Handy oder ganz aus der App? → 'device' | 'all' | null */
   function askRemove(name, hasDevice) {
-    return new Promise(resolve => {
-      $('askBox').innerHTML = `<h2>${esc(name)} entfernen</h2><p>Was soll passieren?</p>
+    return askBoxOpen(`<h2>${esc(name)} entfernen</h2><p>Was soll passieren?</p>
         <div class="rmopts">${hasDevice ? `<button class="rmopt" id="rmDev"><b>Nur Handy entfernen</b><span>Die App funktioniert auf dem Handy sofort nicht mehr. Die Freischaltungen bleiben – mit einem neuen QR-Code ist das Mitglied wieder dabei.</span></button>` : ''}
           <button class="rmopt danger" id="rmAll"><b>Ganz aus der App entfernen</b><span>${hasDevice ? 'Handy und alle Freischaltungen' : 'Alle Freischaltungen'} werden gelöscht. Das Mitglied verschwindet aus der Liste und kann später wieder freigeschaltet werden.</span></button></div>
-        <div class="btns"><button class="btn ghost" id="askNo">Abbrechen</button></div>`;
-      $('askOverlay').classList.remove('hidden');
-      const done = v => { $('askOverlay').classList.add('hidden'); document.removeEventListener('keydown', key); resolve(v); };
-      const key = e => { if (e.key === 'Escape') done(null); };
-      document.addEventListener('keydown', key);
+        <div class="btns"><button class="btn ghost" id="askNo">Abbrechen</button></div>`, null, done => {
       $('askNo').onclick = () => done(null);
       if ($('rmDev')) $('rmDev').onclick = () => done('device');
       $('rmAll').onclick = () => done('all');
@@ -2099,11 +2084,10 @@
         <div class="qrbox">${q.svg}</div>
         ${r.allowLink ? `<label class="f">Oder diesen Link schicken (nur an das Mitglied selbst)<input id="qrUrl" readonly value="${esc(url)}"></label>` : ''}
         <div class="btns">${r.allowLink ? '<button class="btn" id="qrCopy">Link kopieren</button>' : ''}<button class="btn" id="qrPrint">Drucken</button><button class="btn primary" id="qrX">Fertig</button></div>`);
-      if ($('qrCopy')) $('qrCopy').onclick = async () => { try { await navigator.clipboard.writeText(url); } catch (e) { $('qrUrl').select(); document.execCommand('copy'); } toast('Link kopiert.'); };
+      if ($('qrCopy')) $('qrCopy').onclick = () => copyText(url, 'Link kopiert.');
       $('qrPrint').onclick = () => {
-        $('printArea').innerHTML = `<div class="pr" style="text-align:center;padding-top:20mm"><h1>${esc(cache.settings.clubName || '')}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(r.member)}</b></p>
-          <div style="width:80mm;height:80mm;margin:10mm auto">${q.svg}</div><p>Mit der Handy-Kamera scannen, PIN festlegen, fertig.<br>Gilt einmal und bis ${new Date(r.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Bitte persönlich übergeben.</p></div>`;
-        document.body.classList.add('printing'); window.print(); document.body.classList.remove('printing');
+        printHtml(`<div class="pr" style="text-align:center;padding-top:20mm"><h1>${esc(cache.settings.clubName || '')}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(r.member)}</b></p>
+          <div style="width:80mm;height:80mm;margin:10mm auto">${q.svg}</div><p>Mit der Handy-Kamera scannen, PIN festlegen, fertig.<br>Gilt einmal und bis ${new Date(r.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Bitte persönlich übergeben.</p></div>`);
       };
       $('qrX').onclick = () => { closeDialog(); if (after) after(); };
     } catch (e) { fail(e); }
@@ -2112,11 +2096,10 @@
   /** Briefe mit QR-Code drucken (eine Seite je Mitglied) */
   function printLetters(letters) {
     const club = cache.settings.clubName || '';
-    $('printArea').innerHTML = letters.map(l => `<div class="pr letter"><h1>${esc(club)}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(l.name)}</b></p>
+    printHtml(letters.map(l => `<div class="pr letter"><h1>${esc(club)}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(l.name)}</b></p>
       <div style="width:70mm;height:70mm;margin:8mm auto">${l.svg}</div>
-      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>Eine eigene PIN für die App festlegen (4 bis 8 Ziffern).</li><li>Die Seite auf den Home-Bildschirm legen – fertig.</li></ol>
-      <p style="margin-top:8mm">Gilt einmal und bis ${new Date(l.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Persönlich – bitte nicht weitergeben.</p></div>`).join('');
-    document.body.classList.add('printing'); window.print(); document.body.classList.remove('printing');
+      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).</li><li>Die Seite auf den Home-Bildschirm legen – fertig.</li></ol>
+      <p style="margin-top:8mm">Gilt einmal und bis ${new Date(l.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Persönlich – bitte nicht weitergeben.</p></div>`).join(''));
   }
   /** Einladung per E-Mail an ein Mitglied */
   async function inviteByMail(memberId, info) {
@@ -2129,15 +2112,13 @@
   async function inviteMenu(memberId, after) {
     try {
       const info = await api('app/member/' + memberId), iv = info.invite || {};
-      const pick = await new Promise(resolve => {
-        $('askBox').innerHTML = `<h2>${esc(info.name)} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
+      const pick = await askBoxOpen(`<h2>${esc(info.name)} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
           <div class="rmopts"><button class="rmopt" data-v="qr"><b>QR-Code hier am Bildschirm</b><span>Das Mitglied scannt ihn mit dem Handy – am sichersten, weil es dabei vor Ort ist.</span></button>
             <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Türen und Beregnung erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>
             <button class="rmopt" data-v="brief"><b>Einladungsbrief drucken</b><span>QR-Code mit Anleitung auf Papier – zum Mitgeben oder per Post. Gilt ${iv.days || 7} Tage.</span></button>
             ${info.device && info.device.remote ? '<button class="rmopt" data-v="trust"><b>Türen und Beregnung jetzt freigeben</b><span>Das Handy wurde von unterwegs ohne SMS-Code gekoppelt. Nur freigeben, wenn sicher ist, dass es dem Mitglied gehört.</span></button>' : ''}</div>
-          <div class="btns"><button class="btn" data-v="">Abbrechen</button></div>`;
-        $('askOverlay').classList.remove('hidden');
-        $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = () => { $('askOverlay').classList.add('hidden'); resolve(b.dataset.v); }; });
+          <div class="btns"><button class="btn" data-v="">Abbrechen</button></div>`, '', done => {
+        $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = () => done(b.dataset.v); });
       });
       if (!pick) return;
       if (pick === 'qr') return appInvite(memberId, after);
@@ -2226,7 +2207,7 @@
       <div class="row" style="gap:6px 22px;margin-bottom:6px"><span class="pill${r.subs ? ' g' : ''}">${r.subs} ${r.subs === 1 ? 'Handy' : 'Handys'} angemeldet · ${r.members} ${r.members === 1 ? 'Mitglied' : 'Mitglieder'}</span></div>
       ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start;margin:0"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:90px;height:36px;margin-top:6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
       ${mayEdit ? `<div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:14px">
-        <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testnachricht an<select id="pshWho"><option value="">– Mitglied wählen –</option>${r.subscribed.map(m => `<option value="${m.id}">${esc(m.name)}</option>`).join('')}</select></label><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'} title="${r.subscribed.length ? '' : 'Noch kein Handy für Push angemeldet'}">Senden</button></div>
+        <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testnachricht an<select id="pshWho"><option value="">– Mitglied wählen –</option>${r.subscribed.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'} title="${r.subscribed.length ? '' : 'Noch kein Handy für Push angemeldet'}">Senden</button></div>
         <button class="btn primary" id="pshSave">Speichern</button></div>` : ''}
       ${r.recent.length ? `<details style="margin-top:10px"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member || '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
     if (!mayEdit) return;
@@ -2452,7 +2433,7 @@
   };
 
   /* =================== Benutzer & Rechte =================== */
-  let userTab = 'benutzer';
+  let userTab = (() => { try { return sessionStorage.getItem('tab_benutzer') === 'rollen' ? 'rollen' : 'benutzer'; } catch (e) { return 'benutzer'; } })();   // Reiter wird gemerkt wie bei tabs()
   const permList = (sel, attr) => `<div class="permgrid">${Object.entries(permLabels).map(([k, l]) => `<label class="chk"><input type="checkbox" ${attr}="${k}" ${sel.includes(k) ? 'checked' : ''}> <span>${esc(l)}</span></label>`).join('')}</div>`;
   async function userDialog(u, opt) {
     const fixed = Boolean(u && u.builtin);
@@ -2583,7 +2564,8 @@
           <td class="r"><button class="btn small" data-u="${u.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-u]').forEach(b => { b.onclick = () => userDialog(users.find(x => x.id === Number(b.dataset.u)), opt).catch(fail); });
     }
-    $('uTab').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; userTab = b.dataset.t; RENDER.benutzer().catch(fail); };
+    { const on = $('uTab').querySelector('.on'); if (on) revealTab(on); }
+    $('uTab').onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; userTab = b.dataset.t; try { sessionStorage.setItem('tab_benutzer', userTab); } catch (x) { /* ohne Speicher */ } RENDER.benutzer().catch(fail); };
     $('uNew').onclick = () => (userTab === 'rollen' ? roleDialog(null, opt) : userDialog(null, opt).catch(fail));
   };
 
@@ -2637,10 +2619,9 @@
   function wireUnlock(prefix, done) {
     if (!$(prefix + 'Go')) return;
     $(prefix + 'Go').onclick = () => busy($(prefix + 'Go'), async () => {
-      try { await api('vault/unlock', 'POST', { code: $(prefix + 'Code').value, password: $(prefix + 'Pw').value }); toast('Geöffnet – die persönlichen Daten sind wieder lesbar.'); vaultState = null; done(); } catch (e) { fail(e); }
+      try { await api('vault/unlock', 'POST', { code: $(prefix + 'Code').value, password: $(prefix + 'Pw').value }); toast('Geöffnet – die persönlichen Daten sind wieder lesbar.'); done(); } catch (e) { fail(e); }
     });
   }
-  let vaultState = null;
   /** Bereich mit persönlichen Daten aufgerufen, Tresor verschlossen: Hinweis + Öffnen mit Code */
   function vaultLockedPage() {
     if ($('vaultLock')) return;
@@ -2652,7 +2633,7 @@
   }
   async function renderVaultCard() {
     const box = $('vaultCard'); if (!box) return;
-    const v = vaultState = await api('vault');
+    const v = await api('vault');
     const when = iso => (iso ? new Date(iso).toLocaleDateString('de-DE') : '–');
     let body;
     if (!v.on) body = `<div class="banner a">Ausgeschaltet – die persönlichen Daten liegen unverschlüsselt auf dem Home Assistant. Wer den Rechner mitnimmt, kann sie lesen.</div>
@@ -2700,13 +2681,12 @@
         try {
           const r = await api('vault/enable', 'POST', { password: pw, typed: $('vpT').value, deleteOld: $('vpDel') ? $('vpDel').checked : false });
           closeDialog(); toast(`Verschlüsselt${r.files ? ` – auch ${r.files} ${r.files === 1 ? 'Datei' : 'Dateien'}` : ''}${r.removed ? `, ${r.removed} alte Schnappschüsse gelöscht` : ''}.`);
-          vaultAlert = null; RENDER.sicherung().catch(fail);
+          RENDER.sicherung().catch(fail);
         } catch (e) { fail(e); }
       });
       setTimeout(() => $('vpT') && $('vpT').focus(), 50);
     });
   }
-  let vaultAlert = null;
 
   RENDER.sicherung = async () => {
     const [b, dx, st] = await Promise.all([api('backups'), api('dropbox'), api('backups/status')]);
@@ -3401,7 +3381,6 @@
     const [s, map, ext, ml] = await Promise.all([api('settings'), can('lieferungen') ? api('supplier-map') : null, mayCfg || mayUn ? api('extensions') : null, mayCfg ? api('mail') : null]);
     let links = ext ? ext.links.slice() : [];
     const SRC = { eingebaut: 'im Paket', mitgeliefert: 'im Paket', hochgeladen: 'hochgeladen', nachinstalliert: 'per Samba' };
-    const inst = ext ? ext.all.filter(x => x.installed !== false) : [], notInst = ext ? ext.all.filter(x => x.installed === false) : [];
     const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
     const mayBank = ['einstellungen', 'buchhaltung', 'mitglieder_finanzen'].some(canFull) || (me && me.role === 'oberadmin');
     $('main').innerHTML = `<h2 class="page">Einstellungen</h2><p class="lead">Grundeinstellungen des Vereins – Name, Logo, Bankkonten, Sprache, Postfach, Module, Tablet und dein eigenes Konto.</p>

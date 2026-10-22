@@ -4,7 +4,7 @@ const S = process.argv[2]; const APP = process.env.CW_APP;
 const DATA = S + '/r_snap'; fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(DATA, { recursive: true });
 const B = 'http://127.0.0.1:3253/';
 let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 220) : '')); if (!c) fails++; };
-let ck = ''; async function A(url, method = 'GET', body) { const h = { 'X-Getraenke': '1', Cookie: ck }; if (body !== undefined) h['Content-Type'] = 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && sc.startsWith('gadmin=') && !sc.startsWith('gadmin=;')) ck = sc.split(';')[0]; return [r.status, await r.json().catch(() => ({}))]; }
+let ck = ''; async function A(url, method = 'GET', body) { const h = { 'X-Clubwerk': '1', Cookie: ck }; if (body !== undefined) h['Content-Type'] = 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && sc.startsWith('gadmin=') && !sc.startsWith('gadmin=;')) ck = sc.split(';')[0]; return [r.status, await r.json().catch(() => ({}))]; }
 const T = async (url, body) => { const r = await fetch(B + url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}); return [r.status, await r.json().catch(() => ({}))]; };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {

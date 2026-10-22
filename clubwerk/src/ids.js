@@ -63,10 +63,4 @@ function ensureAutoincrement(db, dataDir) {
   return todo.map(t => t.name);
 }
 
-/** Prüfen, ob eine Tabelle IDs nie doppelt vergibt */
-const isSafe = (db, table) => {
-  const r = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?").get(table);
-  return Boolean(r && !PK_RE.test(r.sql));
-};
-
-module.exports = { ensureAutoincrement, isSafe, PK_RE };
+module.exports = { ensureAutoincrement, PK_RE };

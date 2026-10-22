@@ -17,7 +17,6 @@
  *  - WebDAV: Umleitungen werden nicht verfolgt (sonst könnte das Passwort an eine andere Adresse gehen).
  */
 const fs = require('fs');
-const path = require('path');
 const crypto = require('crypto');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
@@ -27,10 +26,7 @@ const NAME_OK = /^[\w.-]{1,120}$/;
 const HOST_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$|^\d{1,3}(\.\d{1,3}){3}$|^\[[0-9a-f:]+\]$/i;
 const TIMEOUT = 60000;
 
-function cleanFolder(f) {
-  const s = String(f || '').replace(/\\/g, '/').replace(/[<>:"|?*\u0000-\u001f]/g, '').split('/').map(x => x.trim()).filter(x => x && x !== '.' && x !== '..').join('/');
-  return '/' + s.slice(0, 200);
-}
+const { cleanFolder } = require('./dropbox');   // gleiche Regeln für alle Ziele
 const joinPath = (...parts) => ('/' + parts.join('/')).replace(/\/+/g, '/').replace(/\/$/, '') || '/';
 const sshFingerprint = key => 'SHA256:' + crypto.createHash('sha256').update(key).digest('base64').replace(/=+$/, '');
 const err = (msg, extra = {}) => Object.assign(new Error(msg), extra);
@@ -169,7 +165,7 @@ function sftp(t, secret) {
   const mk = async dir => { if (!(await c.exists(dir))) await c.mkdir(dir, true); };
   return {
     async test() {
-      if (!t.hostKey) { await connect({ learn: true }).catch(e => { throw e; }); }
+      if (!t.hostKey) { await connect({ learn: true }); }
       await connect(); await mk(dirOf('Komplett'));
       const p = joinPath(dirOf('Komplett'), '.vh-test');
       await c.put(Buffer.from('ok'), p); await c.delete(p, true);
@@ -308,4 +304,4 @@ function open(t, secret) {
 /** Für die Anzeige: nie das Geheimnis, nur ob eins hinterlegt ist */
 const publicView = (t, hasSecret) => ({ ...t, hasSecret: Boolean(hasSecret), typeLabel: t.type === 'ftp' ? (t.mode === 'ftp' ? 'FTP' : 'FTPS') : TYPES[t.type] });
 
-module.exports = { TYPES, clean, open, dropboxTarget, publicView, cleanFolder, sshFingerprint };
+module.exports = { TYPES, clean, open, dropboxTarget, publicView, sshFingerprint };

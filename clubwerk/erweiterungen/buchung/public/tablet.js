@@ -196,7 +196,7 @@
     dlg(`<h2>${esc(r.name)} ab ${hhmm(s)} Uhr</h2><div class="sub">Wie lange?</div>
       <div class="durs">${durs.map(m => `<button data-m="${m}">${dur(m)}</button>`).join('')}</div>
       ${withWho ? `<div class="lbl who">Mit wem spielst du?${r.partner_required ? ' <span>(Pflicht)</span>' : ' <span>(optional)</span>'}</div><div class="req" id="req" hidden></div>` : ''}
-      ${state.max_partners ? `<div class="lbl">Mitspieler</div><div class="chips" id="pc"></div><input class="q" id="pq" placeholder="Name suchen" autocomplete="off" style="margin-top:6px"><div class="names" id="ph" style="grid-template-columns:1fr 1fr;max-height:22vh"></div>` : ''}
+      ${state.max_partners ? `<div class="lbl">Mitspieler</div><div class="chips" id="pc"></div><input class="q" id="pq" placeholder="Name suchen" autocomplete="off" style="margin-top:6px"><div class="vh-names" id="ph" style="max-height:22vh"></div>` : ''}
       ${state.max_guests ? `<div class="lbl">Gäste <span>(${r.guest_fee_cents ? `${euro(r.guest_fee_cents)} je Gast` : 'ohne Gebühr'})</span></div><div class="chips" id="gc"></div><div class="row2" style="margin-top:6px"><input class="q" id="gq" placeholder="Vor- und Nachname des Gastes" autocomplete="off" maxlength="60"><button class="add" id="ga">+ Gast</button></div>` : ''}
       ${devices.length || r.solo_label ? `<div class="lbl">${devices.length ? 'Gerät' : ''}${devices.length && r.solo_label ? ' / ' : ''}${r.solo_label ? 'allein' : ''} <span>(ohne Gebühr)</span></div><div class="pick" id="pk">${devices.map(x => `<button type="button" data-dev="${x.id}">${esc(x.name)}</button>`).join('')}${r.solo_label ? `<button type="button" data-solo="1">${esc(r.solo_label)} (allein)</button>` : ''}</div>` : ''}
       ${state.rules ? `<div class="rules">${esc(state.rules)}</div><label class="chk"><input type="checkbox" id="acc"> Ich halte mich an die Platzordnung.</label>` : ''}
@@ -226,7 +226,7 @@
     const chips = () => { $('pc').innerHTML = partners.map(id => `<span translate="no">${esc((state.people.find(p => p.id === id) || {}).ln || (state.people.find(p => p.id === id) || {}).name)}<button data-rp="${id}">×</button></span>`).join(''); $('pc').querySelectorAll('[data-rp]').forEach(b => { b.onclick = () => { partners.splice(partners.indexOf(+b.dataset.rp), 1); chips(); paintPick(); quote(); }; }); };
     if ($('pq')) $('pq').oninput = () => {
       const q = $('pq').value.trim().toLowerCase();
-      $('ph').innerHTML = q.length < 2 ? '' : state.people.filter(p => !partners.includes(p.id) && (p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q))).slice(0, 8).map(p => `<button data-p="${p.id}" translate="no">${esc(p.ln || p.name)}</button>`).join('');
+      $('ph').innerHTML = q.length < 2 ? '' : state.people.filter(p => !partners.includes(p.id) && (p.name.toLowerCase().includes(q) || (p.ln || '').toLowerCase().includes(q))).slice(0, 8).map(p => `<button data-p="${p.id}" translate="no"><span>${esc(p.ln || p.name)}</span></button>`).join('');
       $('ph').querySelectorAll('[data-p]').forEach(b => { b.onclick = () => { if (partners.length >= state.max_partners) return; partners.push(+b.dataset.p); $('pq').value = ''; $('ph').innerHTML = ''; chips(); paintPick(); quote(); }; });
     };
     paint(); paintPick(); quote();

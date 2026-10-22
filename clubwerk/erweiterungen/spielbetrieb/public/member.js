@@ -8,8 +8,6 @@
     s.textContent = `
       .sb-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; font-size: 13.5px; color: var(--muted); }
       .sb-line button, .sb-link { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 6px 0; }
-      .vh-chip { display: inline-block; font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 9px; background: var(--hover); color: var(--muted); }
-      .vh-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .vh-chip.a { background: var(--amber-soft); color: var(--amber); } .vh-chip.r { background: var(--red-soft); color: var(--red); }
       .sb-play { margin-top: 12px; padding: 12px; border-radius: 14px; background: var(--brand-soft); }
       .sb-play.wd { background: var(--amber-soft); }
       .sb-play b { display: block; font-size: 15px; color: var(--ink); } .sb-play p { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
@@ -17,8 +15,6 @@
       .sb-who { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.5; } .sb-who b { color: var(--ink); font-weight: 700; }
       .sb-tasks { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
       .sb-tasks > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
-      .sb-tasks button { min-height: 36px; border-radius: 11px; font: inherit; font-size: 13.5px; font-weight: 700; border: 1px solid var(--brand); background: var(--brand); color: #fff; padding: 0 12px; }
-      .sb-tasks button.sec { background: transparent; border-color: var(--line); color: var(--ink); }
       .sb-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .sb-p { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
       .sb-p:first-of-type { border-top: 0; }
@@ -26,11 +22,10 @@
       .sb-p strong { display: block; font-size: 14.5px; } .sb-p small { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
       .sb-seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: var(--hover); }
       .sb-seg button { min-height: 34px; min-width: 38px; border-radius: 9px; border: 0; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 0 8px; }
-      .sb-seg button.on { background: var(--brand); color: #fff; } .sb-seg button.on.e { background: var(--amber); }
+      .sb-seg button.on { background: var(--brand); color: var(--on-brand); } .sb-seg button.on.e { background: var(--amber); }
       .sb-p.wd { background: var(--amber-soft); margin: 0 -16px; padding: 9px 16px; }
       .sb-wd { grid-column: 2 / -1; display: flex; gap: 8px; margin-top: 6px; }
-      .sb-wd button { flex: 1; min-height: 38px; border-radius: 11px; font: inherit; font-size: 13.5px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
-      .sb-wd button.ok { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .sb-wd .vh-btn { flex: 1; min-width: 0; }   /* Knöpfe aus dem Kit (.vh-btn.sm / .sec) */
       .sb-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; border-top: 1px solid var(--line); }
       .sb-row:first-child { border-top: 0; } .sb-row.x { opacity: .6; } .sb-row.open { background: color-mix(in srgb, var(--hover) 45%, var(--card)); }
       .sb-rh { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 4px 9px 14px; background: none; border: 0; font: inherit; color: inherit; text-align: left; min-width: 0; }
@@ -147,7 +142,6 @@
           ${open ? `<div class="sb-det">${detail(g)}</div>` : ''}</div>`;
       }
       function detail(g) {        const me = g.me || {}, s = g.stats, cancelled = g.status === 'abgesagt';
-        const lt = cancelled ? '' : s.ok ? 'g' : 'r';
         const meet = [g.meet_time ? `Treffpunkt ${g.meet_time} Uhr` : '', g.meet_place || ''].filter(Boolean).join(' · ');
         const yes = (g.people || []).filter(p => p.state === 'ja'), play = (g.people || []).filter(p => p.role === 'spielt'), res = (g.people || []).filter(p => p.role === 'ersatz');
         const names = l => l.map(p => esc(p.short || p.ln)).join(', ');
@@ -215,7 +209,7 @@
           const rt = v.kind === 'rahmen';
           const gx = p => (p.ext ? `<div class="sb-wd sb-gx"><span>Gast – für ihn/sie eintragen:</span><span class="vh-yn"><button class="y ${p.state === 'ja' ? 'on' : ''}" data-xa="${p.id}" data-st="ja" aria-label="Kann">✓</button><button class="n ${p.state === 'nein' ? 'on' : ''}" data-xa="${p.id}" data-st="nein" aria-label="Kann nicht">✕</button></span><button class="sb-link" data-xl="${p.id}">Link teilen</button></div>` : '');
           const row = p => `<div class="sb-p ${p.withdraw ? 'wd' : ''}"><span class="rk">${p.inRoster ? esc(p.rank ?? '') : '+'}</span><div style="min-width:0"><strong translate="no">${esc(p.ln)}${p.ext ? ' <span class="vh-chip a">Gast</span>' : ''}</strong><small>${av(p)}${p.note ? ' ' + esc(p.note) : ''}${p.inRoster ? '' : ' · Aushilfe'}</small></div>${rt ? '<span></span>' : seg(p)}${gx(p)}
-            ${p.withdraw ? `<div class="sb-wd"><span style="flex:2;font-size:13px;color:var(--amber);font-weight:700;align-self:center">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</span><button class="ok" data-acc="${p.id}">Bestätigen</button><button data-dec="${p.id}">Ablehnen</button></div>` : ''}</div>`;
+            ${p.withdraw ? `<div class="sb-wd"><span style="flex:2;font-size:13px;color:var(--amber);font-weight:700;align-self:center">möchte absagen${p.withdraw_note ? ': ' + esc(p.withdraw_note) : ''}</span><button class="vh-btn sm" data-acc="${p.id}">Bestätigen</button><button class="vh-btn sm sec" data-dec="${p.id}">Ablehnen</button></div>` : ''}</div>`;
           const order = [...v.people].sort((a, b) => (a.state === 'ja' ? 0 : a.state ? 2 : 1) - (b.state === 'ja' ? 0 : b.state ? 2 : 1) || (a.rank || 99) - (b.rank || 99));
           sh.innerHTML = `<div class="vh-box"><h2 translate="no">${esc(title(v))}</h2><p>${esc(wd(v.date, true))}, ${esc(deD(v.date))}${v.start ? `, ${esc(v.start)} Uhr` : ''} · ${v.home ? 'Heimspiel' : 'Auswärtsspiel'}</p>
             <div class="sb-line" style="margin:0 0 6px;flex-wrap:wrap;justify-content:flex-start;gap:6px"><span class="vh-chip ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="vh-chip ${s.lineupOk ? 'g' : 'a'}">${s.playing} spielen · ${s.reserve} Ersatz</span></div>

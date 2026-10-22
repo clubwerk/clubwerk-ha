@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Rechnungen und Lieferscheine einlesen.
- *  - PDF mit Textebene (z. B. Getränke Wörsdörfer): Positionen werden automatisch erkannt.
+ *  - PDF mit Textebene (Spalten „Art-Nr Artikel …“): Positionen werden automatisch erkannt.
  *  - Lidl-Kassenbon (Screenshot aus Lidl Plus, Foto oder PDF): Text per Bilderkennung (tesseract),
  *    Positionen mit Gegenrechnung Preis × Menge, damit Lesefehler auffallen.
  *  - Sonstige Fotos: werden gespeichert, Positionen trägt man von Hand ein.
@@ -69,8 +69,6 @@ function packFromText(t) {
 
 function detectSupplier(text) {
   if (/lidl\.de|\bL[iI1l]DL\b|LDL-\d|Lidl/.test(text)) return 'Lidl';
-  if (/w[öo]rsd[öo]rfer/i.test(text)) return 'Getränke Wörsdörfer';
-  if (/getr[äa]nke\s+hoffmann/i.test(text)) return 'Getränke Hoffmann';
   const lines = text.split('\n').map(l => l.replace(/\s+/g, ' ').trim()).slice(0, 25);
   // Firmenname: „Getränke …“, „… GmbH/KG/e.K.“, sonst die erste Zeile, die nach Wörtern aussieht (OCR-Rauschen überspringen)
   const firm = lines.find(l => /getr[äa]nke\s+\w{3,}|\b(gmbh|kg|e\.\s?k\.|ohg|ag|markt|handel)\b/i.test(l));
@@ -103,8 +101,8 @@ function parseInvoiceText(text) {
     if (/Art-?Nr\.?\s+Artikel/i.test(raw)) { inItems = true; continue; }
     if (/Leergut|Ware:\s|Rechnungsbetrag/i.test(raw)) { if (inItems) break; continue; }
     if (!inItems) continue;
-    // "  2144 Hachenb Helles 20/0,33-€       6   16,90  101,40"
-    // "3060    E NassauerLand naturell 12/0,7   -7    0,25   -1,75"   (E = Einzelflaschen, z. B. Bruch)
+    // "  2144 Musterbr Helles 20/0,33-€       6   16,90  101,40"
+    // "3060    E Quelle naturell 12/0,7   -7    0,25   -1,75"   (E = Einzelflaschen, z. B. Bruch)
     const p = raw.match(/^\s*(\d{3,6})\s+(?:([A-Z])\s+)?(.+?)\s{2,}(-?\d+)\s+(-?[\d.]+,\d{2})\s+(-?[\d.]+,\d{2})\s*$/);
     if (!p) continue;
     const [, artNo, flag, name, qty, ep, gp] = p;
@@ -317,7 +315,7 @@ function parseGenericText(text, supplier) {
 
 /* ---------- Vorschlag: welcher App-Artikel passt? ---------- */
 const ALIASES = [
-  [/\bhbg\b|\bhachenb\b/g, 'hachenburger'], [/nassauerland/g, 'nassauer land'], [/alkfrei|\baf\b/g, 'alkoholfrei'],
+  [/alkfrei|\baf\b/g, 'alkoholfrei'],
   [/coca[- ]?cola/g, 'cola'], [/isosport|iso-sport/g, 'iso sport'], [/apfelschorle/g, 'apfel schorle'], [/wei(ss|ß)bier/g, 'weizen'], [/-€/g, ''],
 ];
 function tokens(s) {

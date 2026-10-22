@@ -1,5 +1,5 @@
 const B='http://127.0.0.1:3240/', P='http://127.0.0.1:5240/', HA='http://127.0.0.1:5241/api/'; let fails=0; const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,240):'')); if(!c) fails++;};
-let ck=''; async function A(url,method='GET',body,base=B,cookie=ck){const h={'X-Getraenke':'1',Cookie:cookie}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(base+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),redirect:'manual'}); const sc=r.headers.get('set-cookie'); if(base===B&&sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({})), r];}
+let ck=''; async function A(url,method='GET',body,base=B,cookie=ck){const h={'X-Clubwerk':'1',Cookie:cookie}; if(body!==undefined)h['Content-Type']='application/json'; const r=await fetch(base+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),redirect:'manual'}); const sc=r.headers.get('set-cookie'); if(base===B&&sc&&sc.startsWith('gadmin=')&&!sc.startsWith('gadmin=;')) ck=sc.split(';')[0]; return [r.status, await r.json().catch(()=>({})), r];}
 const calls=async()=>(await (await fetch(HA+'_calls',{headers:{Authorization:'Bearer tok'}})).json());
 const sleep=ms=>new Promise(r=>setTimeout(r,ms));
 (async()=>{
@@ -53,9 +53,9 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   [s,j]=await A('api/run','POST',{platz:1,pin:'2580'},P,''); ok('Vereins-PIN reicht nicht mehr', s===401);
   [s,j]=await A('api/admin/users','POST',{username:'platzwart',name:'Platzwart',password:'regen12345',perms:['beregnung_bedienen']}); ok('Benutzer angelegt', s===200, JSON.stringify(j));
   [s,j]=await A('api/admin/users','POST',{username:'kassierer',name:'Kasse',password:'regen12345',perms:['buchungen']});
-  r=await fetch(P+'api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Getraenke':'1'},body:JSON.stringify({username:'kassierer',password:'regen12345'})}); const ck2=r.headers.get('set-cookie').split(';')[0];
+  r=await fetch(P+'api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Clubwerk':'1'},body:JSON.stringify({username:'kassierer',password:'regen12345'})}); const ck2=r.headers.get('set-cookie').split(';')[0];
   [s,j]=await A('api/run','POST',{platz:1},P,ck2); ok('Konto ohne Recht abgelehnt', s===403);
-  r=await fetch(P+'api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Getraenke':'1'},body:JSON.stringify({username:'platzwart',password:'regen12345'})}); const ck3=r.headers.get('set-cookie').split(';')[0];
+  r=await fetch(P+'api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Clubwerk':'1'},body:JSON.stringify({username:'platzwart',password:'regen12345'})}); const ck3=r.headers.get('set-cookie').split(';')[0];
   [s,j]=await A('api/info','GET',undefined,P,ck3); ok('Angemeldet', j.user==='Platzwart');
   [s,j]=await A('api/run','POST',{platz:1},P,ck3); ok('Platzwart startet', s===200);
   await sleep(2000);

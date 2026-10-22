@@ -4,7 +4,7 @@ const S = process.argv[2]; const APP = process.env.CW_APP;
 const DATA = S + '/r_tg'; fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(DATA, { recursive: true });
 const B = 'http://127.0.0.1:3262/';
 let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 240) : '')); if (!c) fails++; };
-const jar = {}; async function A(who, url, method = 'GET', body) { const h = { 'X-Getraenke': '1', Cookie: jar[who] || '' }; if (body !== undefined) h['Content-Type'] = 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc) && !/^gadmin=;/.test(sc)) jar[who] = sc.split(';')[0]; return [r.status, await r.json().catch(() => ({})), r]; }
+const jar = {}; async function A(who, url, method = 'GET', body) { const h = { 'X-Clubwerk': '1', Cookie: jar[who] || '' }; if (body !== undefined) h['Content-Type'] = 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc) && !/^gadmin=;/.test(sc)) jar[who] = sc.split(';')[0]; return [r.status, await r.json().catch(() => ({})), r]; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let srv;
 async function start() { const env = { ...process.env, DATA_DIR: DATA, PORT: '3262', BEREGNUNG_PORT: '5263', MEMBER_PORT: '5264', EXT_DIR: S + '/none', CW_TEST_NO_SETUP_CODE: '1' };

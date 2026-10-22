@@ -1,5 +1,30 @@
 # Änderungen
 
+## 3.32.0
+
+**Verkauf am Tablet**
+- **Schneller beim Tippen:** Tippt man mehrmals schnell auf einen Artikel oder auf „+“ unter „Deine Auswahl“, zählt Clubwerk jetzt ohne Verzögerung hoch. Bisher wurde bei jedem Tipp die ganze Artikelseite neu aufgebaut (auf einem langsamen Tablet rund 0,3 Sekunden pro Tipp), jetzt nur noch die eine Kachel (rund 0,02 Sekunden).
+- **Nur noch Namen in der Liste:** Der Hinweis „Familie“ und das Schloss-Symbol sind weg. Familienmitglieder und Personen, für die jemand anderes zahlt, erscheinen nur, wenn in der Mitgliederverwaltung bei ihnen „Verkauf am Tablet: bucht selbst“ eingestellt ist. Voreingestellt ist „über den Hauptzahler (nicht in der Liste)“.
+- **Kein Flackern mehr beim Wechseln:** Beim Wechsel zwischen Verkauf, Plätzen, Helferdiensten usw. bleibt die Kopfzeile mit Vereinsname, Logo und Reitern ruhig stehen. Bisher wurde sie auf jeder Seite leer aufgebaut und danach gefüllt.
+
+**Fehler behoben**
+- Startseite der Verwaltung: Der offene Betrag im Verkauf und bei den Mitgliedern wird wieder richtig angezeigt.
+- Buchungssystem: Die Mail „Für dich gebucht“ zeigt wieder Platz, Tag und Uhrzeit. Bei geänderten Buchungen kommt die Push-Nachricht auch dann, wenn Mails an Mitspieler ausgeschaltet sind.
+- Drucken (QR-Codes, Briefe, Spielbetrieb) läuft überall über denselben, bewährten Weg wie die übrigen Ausdrucke.
+- Hinweistext zur PIN korrigiert: Sie hat 4 bis 6 Ziffern.
+- Spielbetrieb: Gastspieler sind jetzt in der Modul-Sicherung enthalten.
+- Mitgliedsantrag: Am Tablet und in der App ist der Verweis auf die Satzung nur noch Text (kein Link, der aus der App herausführt). Im Online-Antrag bleibt er ein Link.
+- Spielbetrieb: Die Knöpfe stehen wie in allen anderen Modulen oben rechts in der Reiterzeile.
+- Benutzer & Rechte: Der zuletzt gewählte Reiter bleibt erhalten.
+- Mitglieder-App, Zugang: Mitglieder stehen überall als „Nachname, Vorname“ und sind danach sortiert.
+- Schrift auf Vereinsfarbe und auf roten Knöpfen richtet sich nach der Farbe. So bleibt sie auch bei heller Vereinsfarbe und im dunklen Modus gut lesbar.
+
+**Aufgeräumt**
+- Rechnungen von Getränkehändlern erkennt Clubwerk jetzt allgemein am Kopf der Rechnung („Getränke <Name>“) statt an fest eingebauten Händlernamen.
+- Module fragen sich gegenseitig nur noch über die vorgesehenen Schnittstellen ab. Jedes Modul bleibt so allein nutzbar.
+- Doppelte Programmteile zusammengelegt (Home-Assistant-Anbindung, Anmeldebremse, Druck, Dialoge), Überbleibsel entfernt. Dazu gehören die alte Dropbox-Einstellung „aufbewahren“, die nie wirkte, und die Einstellung „Erinnerung nach (Tagen)“ in der Buchhaltung, die nie ausgewertet wurde.
+- Neue automatische Tests für Spielbetrieb, Buchungs-Mails, Namenssortierung, Protokolltexte und Rechnungsleser. Der Design-Prüfstand achtet zusätzlich auf feste weiße Schrift auf Vereins- und Warnfarbe.
+
 ## 3.31.0
 
 **Sicherheitsprüfung:** Clubwerk wurde gründlich auf Sicherheitslücken durchgesehen – Anmeldung, Rechte, Tablet, Mitglieder-App, Tresor, Sicherungen und alle Module. Eine Lücke, über die jemand aus dem Internet hineinkommt, gab es nicht. Behoben ist alles, was gefunden wurde:

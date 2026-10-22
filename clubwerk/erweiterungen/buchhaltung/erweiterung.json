@@ -1,7 +1,7 @@
 {
   "id": "buchhaltung",
   "name": "Buchhaltung",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "kurz": "Rechnungen und Spendenquittungen.",
   "beschreibung": "Rechnungen an Sponsoren, Firmen und Mitglieder (Umsatzsteuer je Position, Jahresrechnungen mit einem Klick, offen/bezahlt, Zahlungserinnerung per E-Mail; an Mitglieder zusätzlich als offener Posten in der Mitgliederverwaltung) und Spendenquittungen nach amtlichem Muster – Geld, Sachspende oder Verzicht auf Aufwandserstattung – für Mitglieder, Firmen oder einmalige Spender.",
   "minApp": "3.5.0",

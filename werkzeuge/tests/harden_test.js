@@ -1,13 +1,13 @@
 const B='http://localhost:3193/api/'; const jar={};
 async function c(who,url,method='GET',body,extra={}){const h={'Content-Type':'application/json',cookie:jar[who]||'',...extra};
- if(method!=='GET' && !('X-Getraenke' in extra)) h['X-Getraenke']='1'; if(extra['X-Getraenke']===null) delete h['X-Getraenke'];
+ if(method!=='GET' && !('X-Clubwerk' in extra)) h['X-Clubwerk']='1'; if(extra['X-Clubwerk']===null) delete h['X-Clubwerk'];
  const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:(Buffer.isBuffer(body)?body:JSON.stringify(body))});
  const sc=r.headers.get('set-cookie'); if(sc) jar[who]=sc.split(';')[0]; const t=await r.text(); let j; try{j=JSON.parse(t)}catch(e){j=t.slice(0,80)}; return [r.status,j,r.headers];}
 const ok=(n,cond,extra='')=>console.log((cond?'✔':'✘')+' '+n+(extra?'  '+extra:''));
 (async()=>{
  let [s]=await c('o','admin/setup','POST',{username:'thorsten',name:'Thorsten',password:'kurz'}); ok('Passwort < 8 abgelehnt', s===400);
  [s]=await c('o','admin/setup','POST',{username:'thorsten',name:'Thorsten',password:'Test-Kennwort-42'}); ok('Setup', s===200);
- [s]=await c('o','admin/users','POST',{username:'x',password:'12345678'},{'X-Getraenke':null}); ok('CSRF: ohne Kopfzeile abgelehnt', s===403);
+ [s]=await c('o','admin/users','POST',{username:'x',password:'12345678'},{'X-Clubwerk':null}); ok('CSRF: ohne Kopfzeile abgelehnt', s===403);
  [s]=await c('o','admin/users','POST',{username:'kassiererin',name:'Kassiererin',password:'kasse12345',perms:['export']}); ok('Kassiererin mit Recht export', s===200);
  await c('k','admin/login','POST',{username:'kassiererin',password:'kasse12345'});
  [s]=await c('k','admin/balances'); ok('Kassiererin sieht Stand', s===200);

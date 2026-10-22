@@ -2,7 +2,7 @@ const B='http://localhost:3198/'; let fails=0;
 const ok=(n,c,x='')=>{console.log((c?'✔ ':'✘ ')+n+(x?'  '+String(x).slice(0,140):'')); if(!c) fails++;};
 const jars={};
 async function c(who,url,method='GET',body){
-  const h={'X-Getraenke':'1'}; if(jars[who]) h.Cookie=jars[who]; if(body!==undefined) h['Content-Type']='application/json';
+  const h={'X-Clubwerk':'1'}; if(jars[who]) h.Cookie=jars[who]; if(body!==undefined) h['Content-Type']='application/json';
   const r=await fetch(B+url,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body)});
   const sc=r.headers.get('set-cookie'); if(sc) jars[who]=sc.split(';')[0];
   const t=await r.text(); let j; try{j=JSON.parse(t)}catch(e){j=t}; return [r.status,j];

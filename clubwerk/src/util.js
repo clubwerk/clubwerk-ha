@@ -13,6 +13,8 @@ const pad = (n, len = 2) => String(n).padStart(len, '0');
 const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 /** Zeitstempel in lokaler Zeit: 'JJJJ-MM-TT HH:MM:SS' (optional für ein bestimmtes Date-Objekt) */
 const nowTs = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+/** Zeitstempel für Dateinamen: 'JJJJ-MM-TT_HHMMSS' (lokale Zeit) */
+const fileStamp = (d = new Date()) => nowTs(d).replace(' ', '_').replace(/:/g, '');
 /** gültiges Datum 'JJJJ-MM-TT' (Form und Kalender, z. B. kein 2024-13-45)? */
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 /** Tage zu einem Datum 'JJJJ-MM-TT' addieren (negativ = zurück) – kalenderrein, ohne Zeitzonen-/Sommerzeiteffekte */
@@ -24,4 +26,7 @@ const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', 
 /** HTML-Sonderzeichen entschärfen (null/undefined → '') */
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 
-module.exports = { pad, today, nowTs, isDate, addDays, deD, euro, esc };
+/** ZIP vor dem Entpacken prüfen (gegen „ZIP-Bomben“ und Pfad-Tricks): angegebene Gesamtgröße und erster unsicherer Pfad */
+const zipSize = files => files.reduce((a, f) => a + ((f._data && f._data.uncompressedSize) || 0), 0);
+const zipUnsafe = zip => Object.values(zip.files).find(f => f.unsafeOriginalName && f.unsafeOriginalName !== f.name);
+module.exports = { pad, today, nowTs, fileStamp, isDate, addDays, deD, euro, esc, zipSize, zipUnsafe };

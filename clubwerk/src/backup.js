@@ -22,10 +22,7 @@ const SQLITE_MAGIC = Buffer.from('SQLite format 3\0');
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
-const stamp = () => {
-  const d = new Date(); const p = n => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
-};
+const stamp = () => require('./util').fileStamp();
 const safeName = f => typeof f === 'string' && /^[\w.-]+\.db$/.test(f) && !f.includes('..');
 
 function isSqlite(file) {

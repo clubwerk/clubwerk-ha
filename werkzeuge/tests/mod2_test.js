@@ -3,7 +3,7 @@ const { spawn } = require('child_process'); const fs = require('fs');
 const S = process.argv[2]; const APP = process.env.CW_APP; const MAILDIR = S + '/smtp';
 const DATA = S + '/r_mod2'; fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(DATA, { recursive: true });
 const B = 'http://127.0.0.1:3245/'; let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 300) : '')); if (!c) fails++; };
-let ck = ''; async function A(url, method = 'GET', body, raw, cookie) { const h = { 'X-Getraenke': '1', Cookie: cookie || ck }; if (body !== undefined) h['Content-Type'] = raw ? 'application/zip' : 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (!cookie && sc && sc.startsWith('gadmin=') && !sc.startsWith('gadmin=;')) ck = sc.split(';')[0]; const buf = Buffer.from(await r.arrayBuffer()); let j = {}; try { j = JSON.parse(buf.toString()); } catch (e) { /* */ } return [r.status, j, r, buf]; }
+let ck = ''; async function A(url, method = 'GET', body, raw, cookie) { const h = { 'X-Clubwerk': '1', Cookie: cookie || ck }; if (body !== undefined) h['Content-Type'] = raw ? 'application/zip' : 'application/json'; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (!cookie && sc && sc.startsWith('gadmin=') && !sc.startsWith('gadmin=;')) ck = sc.split(';')[0]; const buf = Buffer.from(await r.arrayBuffer()); let j = {}; try { j = JSON.parse(buf.toString()); } catch (e) { /* */ } return [r.status, j, r, buf]; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const lastMail = () => { const f = fs.readdirSync(MAILDIR).filter(f => /^mail\d+\.json$/.test(f)).sort((a, b) => +b.match(/\d+/) - +a.match(/\d+/))[0]; return f ? JSON.parse(fs.readFileSync(MAILDIR + '/' + f)) : null; };
 let srv;
@@ -39,7 +39,7 @@ async function stop() { srv.kill(); await new Promise(r => srv.on('exit', r)); a
   // --- Recht „deinstallieren“
   [s, j] = await A('api/admin/status'); ok('Oberadmin hat Recht deinstallieren', j.user.perms.includes('deinstallieren'));
   await A('api/admin/users', 'POST', { username: 'wart', name: 'Platzwart', password: 'wartwart12', role: 'admin', perms: ['beregnung'] });
-  const ck2 = (await (async () => { const r2 = await fetch(B + 'api/admin/login', { method: 'POST', headers: { 'X-Getraenke': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'wart', password: 'wartwart12' }) }); return (r2.headers.get('set-cookie') || '').split(';')[0]; })());
+  const ck2 = (await (async () => { const r2 = await fetch(B + 'api/admin/login', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'application/json' }, body: JSON.stringify({ username: 'wart', password: 'wartwart12' }) }); return (r2.headers.get('set-cookie') || '').split(';')[0]; })());
   [s] = await A('api/admin/extensions/beregnung/usage', 'GET', undefined, false, ck2); ok('Ohne Recht: kein Deinstallieren', s === 403);
   [s] = await A('api/admin/extensions/beregnung/uninstall', 'POST', { confirm: 'Beregnung' }, false, ck2); ok('Ohne Recht: Uninstall 403', s === 403);
   // --- Beregnung mit Daten füllen, deinstallieren

@@ -7,7 +7,6 @@
    (Mitspieler zählen mit), Gäste mit Gastgebühr (offener Posten in der Mitgliederverwaltung), Warteliste.
    Verwaltung: Belegungsplan, Buchen für Mitglieder, Serienbuchungen (Training, Mannschaften) und Sperren (Wartung, Turnier).
    ===================================================================================================== */
-let C;
 const { pad, today, nowTs, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || '')) || s === '24:00';
@@ -17,7 +16,6 @@ const isoDow = s => { const d = new Date(s + 'T12:00:00Z').getUTCDay(); return d
 const WD = ['', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
-const KIND = { platz: 'Platz', artikel: 'Gerät' };
 const TYPE = { buchung: 'Buchung', serie: 'Serie', sperre: 'Sperre' };
 
 function tables(db) {
@@ -55,7 +53,6 @@ CREATE TABLE IF NOT EXISTS bk_wait (
 }
 
 function activate(ctx) {
-  C = ctx;
   const db = ctx.db;
   tables(db);
   const { need, bad, int, rateLimit, rateLimitKey } = ctx;
@@ -63,7 +60,7 @@ function activate(ctx) {
   const SET = (k, v) => ctx.setSetting('ext_buchung_' + k, String(v));
   const ALL = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
   const P = need(...ALL);                                   // Belegung ansehen (jedes Recht des Moduls)
-  const PB = need('buchung_buchen'), PS = need('buchung_serien'), PX = need('buchung_stornieren'), PE = need('buchung_einstellungen');
+  const PS = need('buchung_serien'), PE = need('buchung_einstellungen');
   const may = (req, p) => req.user.perms.includes(p);
   { const rc = db.prepare('PRAGMA table_info(bk_rights)').all().map(c => c.name);
     if (!rc.includes('for_others')) db.exec('ALTER TABLE bk_rights ADD COLUMN for_others INTEGER NOT NULL DEFAULT 0');   // darf in der App für andere Mitglieder buchen
@@ -99,6 +96,7 @@ function activate(ctx) {
   const ar = fn => ctx.asyncRoute(fn);
   const mv = () => ctx.isModuleActive('mitglieder');
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
+  const mvSync = (name, ...a) => { const x = ctx.callHooksSync(name, ...a).find(y => y.id === 'mitglieder'); return x ? x.result : null; };   // null ohne Mitgliederverwaltung
 
   const DEF = { advance_days: '7', max_open_platz: '2', max_open_artikel: '2', count_partners: '1', max_partners: '3', max_guests: '3', guest_fee_cents: '500',
     cancel_before_min: '0', show_names: '1', show_now: '1', rules: '', tablet_booking: '1', notify_partners: '1', waitlist: '1', max_waits: '3',
@@ -121,8 +119,8 @@ function activate(ctx) {
   const labelOf = id => (id ? db.prepare('SELECT id, name, color FROM bk_label WHERE id = ?').get(id) : null);
   const labelRow = id => (id ? db.prepare('SELECT * FROM bk_label WHERE id = ?').get(int(id)) : null);
   /** aktuelle Ämter eines Mitglieds (Mitgliederverwaltung → Ehrungen & Ämter), klein geschrieben */
-  const functionsOf = mid => { try { const d = today(); return db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(mid, d, d).map(x => String(x.name).trim().toLowerCase()); } catch (e) { return []; } };
-  const functionNames = () => { try { return [...new Set(db.prepare('SELECT name FROM mv_function').all().map(x => String(x.name).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'de')); } catch (e) { return []; } };
+  const functionsOf = mid => (mvSync('functionsOf', mid) || []).map(x => x.toLowerCase());
+  const functionNames = () => mvSync('functionNames') || [];
   /** Sonderrechte einzelner Mitglieder in der App (Serien anlegen, bestimmte Buchungsarten) */
   const rightsOf = mid => { const r = mid ? db.prepare('SELECT * FROM bk_rights WHERE member_id = ?').get(mid) : null; return { series: Boolean(r && r.series), forOthers: Boolean(r && r.for_others), allLabels: Boolean(r && r.all_labels), labels: r ? J(r.labels, []).map(Number) : [] }; };
   /** darf dieses Mitglied (App, Tablet) mit der Buchungsart buchen? */
@@ -156,7 +154,7 @@ function activate(ctx) {
   const memberRow = id => db.prepare("SELECT id, name FROM members WHERE id = ? AND kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0").get(int(id));
   const people = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all();
   const photos = ctx.require('./photos');   // Profilbilder (nur wenn das Mitglied sie für die Platzbuchung freigegeben hat)
-  const lastFirst = n => { const x = ctx.require('./db').splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };   // Anzeige „Nachname, Vorname“
+  const { lastFirst } = ctx.require('./db');   // Anzeige „Nachname, Vorname“
   const nameOf = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   /** Geräte, die als Mitspieler gebucht werden können (Ballmaschine …) */
   const partnerDevices = () => db.prepare("SELECT id, name FROM bk_resource WHERE deleted = 0 AND active = 1 AND kind = 'artikel' AND as_partner = 1 ORDER BY sort, name COLLATE NOCASE").all();
@@ -210,7 +208,6 @@ function activate(ctx) {
   }
   /** Gäste: [{ name, partner }] – partner = Mitglied eines Partnervereins (keine Gastgebühr); alte Einträge waren nur Namen */
   const normGuests = list => (Array.isArray(list) ? list : []).map(g => (typeof g === 'string' ? { name: txt(g, 60), partner: false } : { name: txt(g && g.name, 60), partner: Boolean(g && g.partner) })).filter(g => g.name);
-  /** Kurze, übersichtliche Zusammenfassung einer Buchung für E-Mails */
   /** Eckdaten einer Buchung als Zeilen [Bezeichnung, Wert] – für die Infokarte der E-Mail und die Textfassung */
   const summaryRows = b => {
     const r = resource(b.resource_id) || { name: 'Platz' };
@@ -231,7 +228,7 @@ function activate(ctx) {
     const pushEv = kind === 'storno' ? 'storno' : kind === 'aenderung' ? 'aenderung' : 'einladung';
     { // Push (kurz, unabhängig von der E-Mail-Einstellung „Mitspieler informieren“)
       const r0 = resource(b.resource_id) || { name: 'Platz' };
-      if (ctx.push) ctx.push.send(ids, pushEv, { title: kind === 'storno' ? `Storniert: ${r0.name} ${deD(b.date)}` : kind === 'aenderung' ? `Geändert: ${r0.name} ${deD(b.date)}` : `${nameOf(b.member_id)} hat dich eingetragen`, body: `${r0.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr${kind === 'storno' && reason ? ' – ' + reason : ''}`, url: './#buchung', tag: `buchung-${pushEv}-${b.id}` }).catch(() => {});
+      ctx.push.send(ids, pushEv, { title: kind === 'storno' ? `Storniert: ${r0.name} ${deD(b.date)}` : kind === 'aenderung' ? `Geändert: ${r0.name} ${deD(b.date)}` : `${nameOf(b.member_id)} hat dich eingetragen`, body: `${r0.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr${kind === 'storno' && reason ? ' – ' + reason : ''}`, url: './#buchung', tag: `buchung-${pushEv}-${b.id}` }).catch(() => {});
     }
     if (!cfg().notify_partners || (budget != null && !mailBudget.take('m' + budget, ids.length))) return;   // keine Mail (abgeschaltet oder Tageslimit)
     const r = resource(b.resource_id) || { name: 'Platz' };
@@ -245,13 +242,19 @@ function activate(ctx) {
     notify(ids, head, [intro, '', ...summary(b), '', outro], null, { heading: kind === 'storno' ? 'Buchung storniert' : kind === 'aenderung' ? 'Buchung geändert' : 'Du bist als Mitspieler eingetragen', intro, title: when, rows: summaryRows(b), outro,
       calendar: kind === 'storno' ? null : calendarFor(b) }).catch(() => {});
   }
+  /** „Deine Buchung musste leider storniert werden“ (Platzsperre, Mannschaftsspiel …) an die Buchende/den Buchenden */
+  function notifyLockCancel(b, grund) {
+    const rn = (resource(b.resource_id) || { name: 'Platz' }).name, wd = WD[isoDow(b.date)];
+    notify([b.member_id], `Buchung storniert: ${rn} ${deD(b.date)}`, [`Deine Buchung ${rn} am ${deD(b.date)} um ${b.start} Uhr musste leider storniert werden.`, `Grund: ${grund}`], 'storno',
+      { intro: 'Deine Buchung musste leider storniert werden:', title: `${rn} · ${wd} ${deD(b.date)}`, rows: [['Platz', rn], ['Wann', `${wd}, ${deD(b.date)} · ${b.start}–${b.end} Uhr`], ['Grund', grund]], outro: '' }).catch(() => {});
+  }
   /** „Thorsten hat für dich gebucht“ – an das Mitglied, für das gebucht wurde (Push und E-Mail, auch ohne Handy) */
   function mailBookedFor(b, by) {
     const r = resource(b.resource_id) || { name: 'Platz' };
     const when = `${r.name} am ${WD[isoDow(b.date)]} ${deD(b.date)} um ${b.start} Uhr`;
     const intro = `${nameOf(by)} hat für dich gebucht:`;
     notify([b.member_id], `Für dich gebucht: ${when}`, [intro, '', ...summary(b), '', `Ändern oder stornieren kann die Buchung auch ${nameOf(by).split(' ')[0]}.`], 'einladung',
-      { heading: 'Für dich gebucht', intro, title: when, rows: summary(b), outro: 'Viel Spaß beim Spielen!', calendar: calendarFor(b) }).catch(() => {});
+      { heading: 'Für dich gebucht', intro, title: when, rows: summaryRows(b), outro: 'Viel Spaß beim Spielen!', calendar: calendarFor(b) }).catch(() => {});
   }
   const guestLabel = g => `${g.name} (${g.partner ? 'Gast, Partnerverein' : 'Gast'})`;
   const feeOf = r => (r.guest_fee_cents != null ? r.guest_fee_cents : cfg().guest_fee_cents);
@@ -274,9 +277,9 @@ function activate(ctx) {
     if (i.fee && c.blocked_fees.includes(i.fee.id)) return `Mit der Beitragsart „${i.fee.name}“ kann nicht gebucht werden.`;
     return null;
   }
-  const deptName = id => { try { return (db.prepare('SELECT name FROM mv_department WHERE id = ?').get(id) || {}).name || 'Abteilung'; } catch (e) { return 'Abteilung'; } };
-  const departments = () => { try { return db.prepare('SELECT id, name FROM mv_department WHERE active = 1 ORDER BY sort, name').all(); } catch (e) { return []; } };
-  const feeList = () => { try { return db.prepare("SELECT id, name FROM mv_fee WHERE active = 1 AND kind != 'zusatz' ORDER BY sort, name").all(); } catch (e) { try { return db.prepare('SELECT id, name FROM mv_fee WHERE active = 1 ORDER BY name').all(); } catch (x) { return []; } } };
+  const deptName = id => ((mvSync('departments') || []).find(d => d.id === id) || {}).name || 'Abteilung';
+  const departments = () => (mvSync('departments') || []).filter(d => d.active).map(d => ({ id: d.id, name: d.name }));
+  const feeList = () => mvSync('fees') || [];
   async function eligiblePeople(exceptId) {
     const out = [];
     for (const p of people()) if (p.id !== exceptId && !(await notAllowed(p.id))) out.push(p);
@@ -400,8 +403,7 @@ function activate(ctx) {
     return { id, fee_cents: fee, lines };
   }
   /** Änderung: neue Mitspieler bekommen die normale Buchungs-Mail, entfernte eine Storno-Mail, gebliebene (und ggf. der Bucher) eine Änderungs-Mail */
-  function mailChange(old, now, { by = null, toBooker = false, budget = null } = {}) {
-    if (!cfg().notify_partners) return;
+  function mailChange(old, now, { by = null, toBooker = false, budget = null } = {}) {   // Mail-Einstellung prüft mailPlayers (Push kommt immer)
     const a = J(old.partners, []), b = J(now.partners, []);
     const added = b.filter(x => !a.includes(x)), removed = a.filter(x => !b.includes(x)), kept = b.filter(x => a.includes(x));
     if (added.length) mailPlayers({ ...now, partners: JSON.stringify(added) }, 'buchung', { budget });
@@ -505,8 +507,7 @@ function activate(ctx) {
         db.prepare(`UPDATE bk_booking SET series_id = ? WHERE series_id = ? AND date >= ?`).run(nid, sx.id, b.date);
       }
     }
-    for (const c of cancelled) if (c.member_id && c.type === 'buchung') { const r0 = resource(c.resource_id) || { name: 'Platz' };
-      notify([c.member_id], `Buchung storniert: ${r0.name} ${deD(c.date)}`, [`Deine Buchung ${r0.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${b.title || 'Platzsperre'}`], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${r0.name} · ${WD[isoDow(c.date)]} ${deD(c.date)}`, rows: [['Platz', r0.name], ['Wann', `${WD[isoDow(c.date)]}, ${deD(c.date)} · ${c.start}–${c.end} Uhr`], ['Grund', b.title || 'Platzsperre']], outro: '' }).catch(() => {}); }
+    for (const c of cancelled) if (c.member_id && c.type === 'buchung') notifyLockCancel(c, b.title || 'Platzsperre');
     return { changed, skipped: [...new Set(skipped)], cancelled: cancelled.length };
   }
 
@@ -594,16 +595,14 @@ function activate(ctx) {
   /** Kalender für eine Buchung in Mails: die .ics-Datei als Anhang */
   function calendarFor(b) {
     if (!b || !b.id) return null;
-    const pub = ctx.getSetting('ext_tunnel', '0') === '1' ? String(ctx.getSetting('ext_tunnel_url', '') || '').replace(/\/+$/, '') : '';
     // immer als Anhang: iOS Mail & Co. öffnen dann direkt „Zum Kalender hinzufügen“ – ein Link öffnete Safari
-    void pub;
     return { url: null, ics: icsText(b), date: b.date };
   }
   function icsText(b) {
     const r = resource(b.resource_id) || { name: 'Platz' };
     const players = [b.member_id ? nameOf(b.member_id) : null, ...J(b.partners, []).map(nameOf), ...normGuests(J(b.guests, [])).map(g => g.name)].filter(Boolean);
     const club = ctx.getSetting('club_name', 'Verein');
-    const addr = [ctx.getSetting('ext_mitglieder_club_street', ''), ctx.getSetting('ext_mitglieder_club_city', '')].filter(Boolean).join(', ');
+    const ci = mvSync('clubInfo') || {}, addr = [ci.street, ci.city].filter(Boolean).join(', ');
     const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Clubwerk//Buchung//DE', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
       `UID:bk-${b.id}@clubwerk`, `DTSTAMP:${utc(today(), hhmm(nowMin()))}`, `DTSTART:${utc(b.date, b.start)}`, `DTEND:${utc(b.date, b.end)}`,
       `SUMMARY:${icsEsc(`${r.name} – ${club}`)}`, `LOCATION:${icsEsc(addr ? `${club}, ${addr}` : club)}`, `DESCRIPTION:${icsEsc(`Spieler: ${players.join(', ')}`)}`,
@@ -855,7 +854,7 @@ function activate(ctx) {
     } catch (x) { return res.status(x.conflicts ? 409 : 400).json({ error: x.message, conflicts: (x.conflicts || []).map(c => bview(c, { full: true })) }); }
     if (type === 'sperre' && b.force) for (const c of conflicts.filter(x => x.type !== 'sperre')) {
       await cancel(c, uname(req), `Platz gesperrt: ${title}`);
-      if (c.member_id) notify([c.member_id], `Buchung storniert: ${r.name} ${deD(c.date)}`, [`Deine Buchung ${r.name} am ${deD(c.date)} um ${c.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${r.name} · ${WD[isoDow(c.date)]} ${deD(c.date)}`, rows: [['Platz', r.name], ['Wann', `${WD[isoDow(c.date)]}, ${deD(c.date)} · ${c.start}–${c.end} Uhr`], ['Grund', title]], outro: '' }).catch(() => {});
+      if (c.member_id) notifyLockCancel(c, title);
     }
     // Gastgebühr: bei Änderung neu berechnen (alte zurücknehmen, neue anlegen)
     const paying = label && label.free_rules ? 0 : guests.filter(g => !g.partner).length;
@@ -1123,7 +1122,7 @@ function activate(ctx) {
   }
   /* ---------- Spielplan-Import (Verband): einfügen, CSV/Excel oder .ics → Vereinstermine (Sperren) je Mannschaft ----------
      Wiederholter Import erkennt Spiele am Schlüssel (Mannschaft + Heim + Gast) und verschiebt sie bei Verlegung, statt doppelt zu buchen. */
-  const IMP = require('./import.js');
+  const IMP = ctx.require('./spielplan');   // Spielplan-Leser (Kern)
   const impKey = g => `imp:${IMP.norm(g.teamBase || g.team)}:${IMP.norm(g.home)}:${IMP.norm(g.guest)}`;
   const impTeams = () => { try { return JSON.parse(S('import_teams', '{}')) || {}; } catch (e) { return {}; } };
   /** Vorschlag je Mannschaft: 2er → 1 Platz 3 Std., 4er → 2 Plätze 4 Std., 6er → 3 Plätze 5 Std. (sonst 2 Plätze, 3 Std.) */
@@ -1240,8 +1239,7 @@ function activate(ctx) {
     for (const c of toCancel) {
       const b0 = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(c.id); if (!b0 || b0.status !== 'aktiv') continue;
       await cancel(b0, by, 'Platz belegt: Mannschaftsspiel');
-      if (b0.member_id && b0.type === 'buchung') { const r0 = resource(b0.resource_id) || { name: 'Platz' };
-        notify([b0.member_id], `Buchung storniert: ${r0.name} ${deD(b0.date)}`, [`Deine Buchung ${r0.name} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, 'Grund: Mannschaftsspiel'], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${r0.name} · ${WD[isoDow(b0.date)]} ${deD(b0.date)}`, rows: [['Platz', r0.name], ['Wann', `${WD[isoDow(b0.date)]}, ${deD(b0.date)} · ${b0.start}–${b0.end} Uhr`], ['Grund', 'Mannschaftsspiel']], outro: '' }).catch(() => {}); }
+      if (b0.member_id && b0.type === 'buchung') notifyLockCancel(b0, 'Mannschaftsspiel');
     }
     // Vorgaben je Mannschaft und Vereinsname fürs nächste Mal merken
     const saved = impTeams();
@@ -1309,7 +1307,7 @@ function activate(ctx) {
     for (const c of toCancel) {
       const b0 = db.prepare('SELECT * FROM bk_booking WHERE id = ?').get(c.id);
       await cancel(b0, uname(req), `Platz gesperrt: ${title}`);
-      if (b0.member_id && b0.type === 'buchung') notify([b0.member_id], `Buchung storniert: ${c.resource} ${deD(b0.date)}`, [`Deine Buchung ${c.resource} am ${deD(b0.date)} um ${b0.start} Uhr musste leider storniert werden.`, `Grund: ${title}`], 'storno', { intro: 'Deine Buchung musste leider storniert werden:', title: `${c.resource} · ${WD[isoDow(b0.date)]} ${deD(b0.date)}`, rows: [['Platz', c.resource], ['Wann', `${WD[isoDow(b0.date)]}, ${deD(b0.date)} · ${b0.start}–${b0.end} Uhr`], ['Grund', title]], outro: '' }).catch(() => {});
+      if (b0.member_id && b0.type === 'buchung') notifyLockCancel(b0, title);
     }
     ctx.audit(req.user, type === 'sperre' ? 'Sperre angelegt' : 'Serienbuchung angelegt', `${title}: ${made} Termine${skipped ? `, ${skipped} belegt ausgelassen` : ''}${toCancel.length ? `, ${toCancel.length} storniert` : ''}`);
     res.json({ id, made, skipped, cancelled: toCancel.length });
@@ -1386,7 +1384,7 @@ function activate(ctx) {
     if (b.blocked_fees !== undefined) SET('blocked_fees', (Array.isArray(b.blocked_fees) ? b.blocked_fees : []).map(Number).filter(Number.isInteger).slice(0, 50).join(','));
     infoCache.clear();
     if (b.rules !== undefined) SET('rules', String(b.rules).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').slice(0, 2000));
-    const diff = ctx.auditDiff ? ctx.auditDiff(SET_LABELS, before, cfg()) : '';
+    const diff = ctx.auditDiff(SET_LABELS, before, cfg());
     if (diff) ctx.audit(req.user, 'Buchungssystem: Einstellungen geändert', diff);
     res.json({ ok: true, settings: cfg() });
   });

@@ -122,7 +122,7 @@
       .bk-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
       .bk-top li { display: grid; grid-template-columns: 24px minmax(0, 160px) minmax(0, 1fr) 72px; gap: 12px; align-items: center; height: 30px; font-size: 13.5px; }
       .bk-top .n { width: 24px; height: 24px; border-radius: 12px; background: var(--hover); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-      .bk-top li:nth-child(-n+3) .n { background: var(--brand); color: #fff; } .bk-top b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-top .r { text-align: right; font-variant-numeric: tabular-nums; }
+      .bk-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .bk-top b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-top .r { text-align: right; font-variant-numeric: tabular-nums; }
       @media (max-width: 900px) { .bk-hl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-hlt:nth-child(3) { border-left: 0; } .bk-hlt:nth-child(n+3) { border-top: 1px solid var(--line-soft); } }
       @media (max-width: 560px) { .bk-donut { grid-template-columns: 1fr; justify-items: center; } .bk-dleg { width: 100%; } .bk-top li { grid-template-columns: 24px minmax(0, 1fr) 0 64px; } .bk-top .bk-meter { display: none; } }
       .bk-lg td { vertical-align: middle; padding-top: 10px !important; padding-bottom: 10px !important; } .bk-lg td.nw { white-space: nowrap; }
@@ -139,10 +139,10 @@
       .bk-kpi { margin: 0 !important; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
       .bk-kh { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; height: 36px; }
       .bk-ki { width: 36px; height: 36px; flex: none; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-soft); color: var(--brand); }
-      .bk-kpi.b .bk-ki { background: color-mix(in srgb, #2f6fd6 14%, var(--card)); color: #2f6fd6; } .bk-kpi.r .bk-ki { background: var(--red-soft); color: var(--red); }
+      .bk-kpi.b .bk-ki { background: var(--blue-soft); color: var(--blue); } .bk-kpi.r .bk-ki { background: var(--red-soft); color: var(--red); }
       .bk-kv { display: flex; align-items: baseline; gap: 10px; height: 40px; } .bk-kv b { font-size: 30px; line-height: 40px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
       .bk-d { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 800; white-space: nowrap; }
-      .bk-d.u { background: color-mix(in srgb, #24a03f 16%, var(--card)); color: #1c7f33; } .bk-d.w { background: var(--red-soft); color: var(--red); } .bk-d.n { background: var(--hover); color: var(--muted); }
+      .bk-d.u { background: var(--ok-soft); color: var(--ok); } .bk-d.w { background: var(--red-soft); color: var(--red); } .bk-d.n { background: var(--hover); color: var(--muted); }
       .bk-spark { display: block; width: 100%; height: 56px; }
       .bk-kpi .bk-meter { margin-top: 14px; } .bk-mlab { display: flex; justify-content: space-between; font-size: 11.5px; color: var(--muted); height: 16px; margin-top: 6px; }
       .bk-meter { position: relative; height: 12px; border-radius: 6px; background: var(--hover); } .bk-meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--brand); }
@@ -282,7 +282,7 @@
           : `<div class="vh-days bk-days" id="bkDays"><button class="nav" id="bkPrev" aria-label="Woche zurück">‹</button>${Array.from({ length: 7 }, (_, i) => addDays(monday(st.day), i)).map(d => `<button data-d="${d}" class="${d === st.day ? 'on' : ''}"><span>${d === td ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}.</b></button>`).join('')}<button class="nav" id="bkNext" aria-label="Woche vor">›</button></div>
              <input type="date" id="bkDay" class="bk-pick" value="${st.day}" data-nodirty title="Datum wählen" aria-label="Datum wählen">`}
         <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : monday(st.day) !== monday(td)) ? '' : 'display:none'}">Heute</button><b class="ttl">${esc(title)}</b>
-        ${GK.tabTools ? '' : `<span class="bk-act">${bkTools}</span>`}</div>
+        </div>
       ${cols.length ? `<div class="card bk-wrap"><div class="bk-plan" style="--n:${cols.length}">
         <div class="hd" style="border-right:1px solid var(--line)"></div>${cols.map(c => `<div class="hd${c.sub === 'heute' ? ' today' : ''}">${esc(c.head)}${c.sub ? `<small>${esc(c.sub)}</small>` : ''}</div>`).join('')}${isToday && cut > from0 ? `<button type="button" class="bk-pastbar" id="bkPast">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b> vorbei · klicken zum Aufklappen` : 'vergangene Stunden wieder einklappen'}</button>` : ''}
         <div class="times" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${TOP + i * PX}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
@@ -308,7 +308,7 @@
     $('bkDay').onchange = () => { if (val('bkDay')) go(val('bkDay')); };
     if ($('bkToday')) $('bkToday').onclick = () => go(td);
     if ($('bkPast')) $('bkPast').onclick = () => { st.pastOpen = !st.pastOpen; again(); };
-    if (GK.tabTools && !GK.tabTools(bkTools, el.querySelector('.bk-bar'))) el.querySelector('.bk-bar').insertAdjacentHTML('beforeend', `<span class="bk-act">${bkTools}</span>`);
+    if (!GK.tabTools(bkTools, el.querySelector('.bk-bar'))) el.querySelector('.bk-bar').insertAdjacentHTML('beforeend', `<span class="bk-act">${bkTools}</span>`);
     if ($('bkNew')) $('bkNew').onclick = () => bookDialog({ date: st.day, resource_id: week ? st.res : undefined }, again);
     if ($('bkLock')) $('bkLock').onclick = () => bookDialog({ date: st.day, type: 'sperre', resource_id: week ? st.res : undefined }, again);
     if (can('buchung_buchen') || can('buchung_serien')) el.querySelectorAll('.col[data-c]').forEach(c => { c.onclick = e => {

@@ -12,7 +12,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const express = require('express');
-const { db, DATA_DIR, getSetting, setSetting, audit, nameKey, splitPersonName } = require('./db');
+const { db, DATA_DIR, getSetting, setSetting, audit, nameKey, splitPersonName, lastFirst } = require('./db');
 const mail = require('./mail');
 const { nowTs: now, today, esc } = require('./util');
 
@@ -21,8 +21,6 @@ const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; }
 const one = (v, n) => String(v == null ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().slice(0, n);
 const okMail = m => /^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(m);
 const club = () => getSetting('club_name', 'Verein');
-/** Anzeige „Nachname, Vorname“ – gleiche Zerlegung wie die Sortierung (name_key), damit die Liste sortiert wirkt */
-const lastFirst = n => { const x = splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };
 
 const DIR = path.join(DATA_DIR, 'mail-anhaenge');
 const MAX_FILE = 10 * 1024 * 1024, MAX_TOTAL = 20 * 1024 * 1024, MAX_FILES = 10, MAX_RCPT = 1500;

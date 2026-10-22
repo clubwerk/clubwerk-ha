@@ -6,7 +6,7 @@ fs.writeFileSync(S + '/evilext/boese/public/admin.js', "window.BOESE='v1';");
 const B = 'http://127.0.0.1:3254/', P = 'http://127.0.0.1:5287/';
 const JSZip = require(APP + '/node_modules/jszip');
 let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 220) : '')); if (!c) fails++; };
-const jar = {}; async function A(who, url, method = 'GET', body, raw, base = B) { const h = { 'X-Getraenke': '1', Cookie: jar[who] || '' }; if (body !== undefined && !raw) h['Content-Type'] = 'application/json'; if (raw) h['Content-Type'] = raw; const r = await fetch(base + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^g(admin|bereg)=/.test(sc) && !/^g\w+=;/.test(sc)) jar[who] = sc.split(';')[0]; const ct = r.headers.get('content-type') || ''; return [r.status, ct.includes('json') ? await r.json() : Buffer.from(await r.arrayBuffer()), r.headers]; }
+const jar = {}; async function A(who, url, method = 'GET', body, raw, base = B) { const h = { 'X-Clubwerk': '1', Cookie: jar[who] || '' }; if (body !== undefined && !raw) h['Content-Type'] = 'application/json'; if (raw) h['Content-Type'] = raw; const r = await fetch(base + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^g(admin|bereg)=/.test(sc) && !/^g\w+=;/.test(sc)) jar[who] = sc.split(';')[0]; const ct = r.headers.get('content-type') || ''; return [r.status, ct.includes('json') ? await r.json() : Buffer.from(await r.arrayBuffer()), r.headers]; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let srv; const log = S + '/atk_srv.log';
 async function start(extra = {}) { const env = { ...process.env, DATA_DIR: DATA, PORT: '3254', BEREGNUNG_PORT: '5287', MEMBER_PORT: '5288', EXT_DIR: S + '/evilext', HA_URL: 'http://127.0.0.1:5241/api', HA_TOKEN: 'tok', CW_TEST_TABLET_OPEN: '1', ...extra }; delete env.CW_TEST_NO_SETUP_CODE;
@@ -49,7 +49,7 @@ async function stop() { srv.kill(); await new Promise(r => srv.on('exit', r)); a
   [s] = await A('b', `api/admin/app/member/${anna}/device`, 'DELETE'); ok('…und nicht entfernen', s === 403);
   [s] = await A('k', `api/admin/app/member/${anna}/access`, 'PUT', { module: 'zugang', profile: 'immer' }); ok('„Mitglieder“ allein vergibt keinen Türzugang', s === 403);
   [s, j] = await A('a', `api/admin/app/member/${anna}/invite`, 'POST', {}); ok('Admin mit Rechten darf einladen', s === 200);
-  { const r = await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Getraenke': '1' }, body: JSON.stringify({ t: j.token, pin: '2468' }) }); ok('Anna koppelt ihr Handy', r.status === 200); }
+  { const r = await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1' }, body: JSON.stringify({ t: j.token, pin: '2468' }) }); ok('Anna koppelt ihr Handy', r.status === 200); }
   // 4. fehlende Rechte nachgerüstet
   [s] = await A('nd', 'api/admin/logo-icon', 'POST', Buffer.from('x'), 'image/png'); ok('Home-Bildschirm-Symbol nur mit „Einstellungen“', s === 403);
   [s] = await A('nd', 'api/admin/members'); ok('Mitgliederliste mit Beträgen nur mit passendem Recht', s === 403);
@@ -76,9 +76,9 @@ async function stop() { srv.kill(); await new Promise(r => srv.on('exit', r)); a
     for (const n of ['Bert', 'Carl', 'Dora']) { [s, j] = await A('a', 'api/admin/members', 'POST', { name: n + ' Test', kind: 'mitglied' }); ids[n] = j.id;
       await A('a', `api/admin/app/member/${j.id}/access`, 'PUT', { module: 'zugang', grant: true });
       [s, j] = await A('a', `api/admin/app/member/${ids[n]}/invite`, 'POST', {});
-      await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Getraenke': '1' }, body: JSON.stringify({ t: j.token, pin: '2468' }) }); }
+      await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1' }, body: JSON.stringify({ t: j.token, pin: '2468' }) }); }
     const f = (ip, who, pin) => new Promise(res => { const body = JSON.stringify({ member: ids[who], door, pin, action: 'auf' });
-      const rq = http.request({ host: '127.0.0.1', port: 3254, path: '/api/tablet/x/zugang/door', method: 'POST', localAddress: ip, headers: { 'Content-Type': 'application/json', 'X-Getraenke': '1', 'X-Forwarded-For': '1.2.3.' + Math.floor(Math.random() * 200), 'Content-Length': Buffer.byteLength(body) } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => { if (process.env.DBG) console.log(ip, who, r.statusCode, d); res(r.statusCode); }); }); rq.on('error', () => res(0)); rq.end(body); });
+      const rq = http.request({ host: '127.0.0.1', port: 3254, path: '/api/tablet/x/zugang/door', method: 'POST', localAddress: ip, headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1', 'X-Forwarded-For': '1.2.3.' + Math.floor(Math.random() * 200), 'Content-Length': Buffer.byteLength(body) } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => { if (process.env.DBG) console.log(ip, who, r.statusCode, d); res(r.statusCode); }); }); rq.on('error', () => res(0)); rq.end(body); });
     const st = [];
     for (let i = 0; i < 3; i++) st.push(await f('127.0.0.1', 'Anna', '000' + i));
     ok('3 falsche PINs für einen Namen → dieser Name am Tablet pausiert', (await f('127.0.0.1', 'Anna', '2468')) === 429 && st.every(x => x === 401), st);
@@ -111,10 +111,10 @@ async function stop() { srv.kill(); await new Promise(r => srv.on('exit', r)); a
   // 12. Handy vorab koppeln und später Türzugang „erben“ geht nicht
   [s, j] = await A('k', 'api/admin/members', 'POST', { name: 'Xaver Vorab', kind: 'mitglied' }); const xav = j.id;
   [s, j] = await A('k', `api/admin/app/member/${xav}/invite`, 'POST', {}); ok('„Mitglieder“ lädt Mitglied ohne Bereiche ein', s === 200, j.error);
-  let xdev; { const r = await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Getraenke': '1' }, body: JSON.stringify({ t: j.token, pin: '1357' }) }); xdev = (await r.json()).device; ok('…und koppelt (sein) Handy', r.status === 200 && xdev); }
+  let xdev; { const r = await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1' }, body: JSON.stringify({ t: j.token, pin: '1357' }) }); xdev = (await r.json()).device; ok('…und koppelt (sein) Handy', r.status === 200 && xdev); }
   [s, j] = await A('a', `api/admin/app/member/${xav}/access`, 'PUT', { module: 'zugang', grant: true }); ok('Türzugang freigeschaltet → Handy wird entkoppelt (neuer QR nötig)', s === 200 && j.reinvite === true, JSON.stringify(j).slice(0, 120));
-  { const r = await fetch('http://127.0.0.1:5288/api/m/zugang/status', { headers: { 'X-Getraenke': '1', 'X-Geraet': xdev } }); ok('…das vorab gekoppelte Handy sieht keine Türen', r.status === 403, r.status); }
-  [s, j] = await A('a', `api/admin/app/member/${xav}/invite`, 'POST', {}); { const r = await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Getraenke': '1' }, body: JSON.stringify({ t: j.token, pin: '1357' }) }); ok('Neuer QR vom berechtigten Admin funktioniert', r.status === 200); }
+  { const r = await fetch('http://127.0.0.1:5288/api/m/zugang/status', { headers: { 'X-Clubwerk': '1', 'X-Geraet': xdev } }); ok('…das vorab gekoppelte Handy sieht keine Türen', r.status === 403, r.status); }
+  [s, j] = await A('a', `api/admin/app/member/${xav}/invite`, 'POST', {}); { const r = await fetch('http://127.0.0.1:5288/api/pair', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1' }, body: JSON.stringify({ t: j.token, pin: '1357' }) }); ok('Neuer QR vom berechtigten Admin funktioniert', r.status === 200); }
   [s, j] = await A('a', `api/admin/app/member/${xav}/access`, 'PUT', { module: 'beregnung', grant: true }); ok('Weiterer Bereich durch Admin mit allen Rechten → Handy bleibt', s === 200 && !j.reinvite);
   // 13. Sicherungen: Recht des Moduls nötig, keine PIN-Hashes in Tabellen
   [s] = await A('nd', 'api/admin/extensions/zeiterfassung/backup', 'POST', {}); ok('Nur „Deinstallieren“ → keine Sicherung der Zeiterfassung (Löhne, PINs)', s === 403);
@@ -138,7 +138,7 @@ async function stop() { srv.kill(); await new Promise(r => srv.on('exit', r)); a
   // 16. Anmeldung: Sperre je Konto über viele Absender
   { const http = require('http');
     const lg = (ip, pw) => new Promise(res => { const body = JSON.stringify({ username: 'wart', password: pw });
-      const rq = http.request({ host: '127.0.0.1', port: 3254, path: '/api/admin/login', method: 'POST', localAddress: ip, headers: { 'Content-Type': 'application/json', 'X-Getraenke': '1', 'Content-Length': Buffer.byteLength(body) } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => res([r.statusCode, d])); }); rq.on('error', e => res([0, e.message])); rq.end(body); });
+      const rq = http.request({ host: '127.0.0.1', port: 3254, path: '/api/admin/login', method: 'POST', localAddress: ip, headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1', 'Content-Length': Buffer.byteLength(body) } }, r => { let d = ''; r.on('data', c => d += c); r.on('end', () => res([r.statusCode, d])); }); rq.on('error', e => res([0, e.message])); rq.end(body); });
     for (let i = 0; i < 4; i++) for (let k = 0; k < 5; k++) await lg('127.0.1.' + (i + 1), 'falsch' + k);
     const [st, d] = await lg('127.0.1.9', 'wart123456'); ok('20 Fehlversuche von 4 Adressen → Konto pausiert (auch mit richtigem Passwort)', st === 401 && /zu viele Fehlversuche/i.test(d), st + ' ' + d.slice(0, 120)); }
   // 17. Unbekannte Adressen (DNS-Rebinding)
@@ -173,7 +173,7 @@ async function stop() { srv.kill(); await new Promise(r => srv.on('exit', r)); a
   [s, j] = await A('a', 'api/admin/extensions'); ok('…die geänderte Version wartet auf Prüfung', j.all.find(x => x.id === 'boese').pending === true);
   // 19. Getränke ausgeschaltet: keine Umgehung über Großbuchstaben/Schrägstrich
   await A('a', 'api/admin/extensions/getraenke', 'PUT', { active: false });
-  for (const u of ['api/tablet/State', 'api/tablet/state/', 'api/tablet//state']) { const r = await fetch(B + u, { headers: { 'X-Getraenke': '1' } }); ok('Getränke aus: ' + u + ' gesperrt', r.status === 404, r.status); }
+  for (const u of ['api/tablet/State', 'api/tablet/state/', 'api/tablet//state']) { const r = await fetch(B + u, { headers: { 'X-Clubwerk': '1' } }); ok('Getränke aus: ' + u + ' gesperrt', r.status === 404, r.status); }
   [s] = await A('a', 'api/admin/Articles'); ok('Getränke aus: /api/admin/Articles gesperrt', s === 404, s);
   await stop();
   console.log(fails ? `\n${fails} FEHLER` : '\nALLES OK'); process.exit(fails ? 1 : 0);

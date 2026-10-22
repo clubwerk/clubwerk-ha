@@ -18,15 +18,14 @@ function serial(fn) { const p = chain.then(fn, fn); chain = p.catch(() => {}); r
 
 const on = () => getSetting('sms_on', '0') === '1';
 const device = () => getSetting('sms_device', '');
-const DEV_RE = /^\/dev\/(tty(USB|ACM|AMA|S)\d{1,3}|serial\/by-(id|path)\/[\w:.,+@-]{1,160}|pts\/\d{1,4})$/;
-const validDevice = d => DEV_RE.test(String(d || '')) && (!/^\/dev\/pts\//.test(d) || process.env.CW_TEST_SMS === '1');
+const DEV_RE = /^\/dev\/(tty(USB|ACM|AMA|S)\d{1,3}|serial\/by-(id|path)\/[\w:.,+@-]{1,160})$/;
+const validDevice = d => DEV_RE.test(String(d || ''));
 
 /** mögliche Anschlüsse (by-id zuerst – bleibt beim Umstecken gleich) */
 function candidates() {
   const out = [];
   try { for (const f of fs.readdirSync('/dev/serial/by-id')) out.push(path.join('/dev/serial/by-id', f)); } catch (e) { /* keine */ }
   try { for (const f of fs.readdirSync('/dev')) if (/^tty(USB|ACM)\d+$/.test(f)) out.push('/dev/' + f); } catch (e) { /* */ }
-  if (process.env.CW_TEST_SMS === '1' && process.env.CW_TEST_SMS_DEV) out.unshift(process.env.CW_TEST_SMS_DEV);
   return [...new Set(out)];
 }
 

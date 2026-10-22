@@ -4,7 +4,7 @@ const S = process.argv[2]; const APP = process.env.CW_APP;
 const DATA = S + '/r_bk'; fs.rmSync(DATA, { recursive: true, force: true }); fs.mkdirSync(DATA, { recursive: true });
 const B = 'http://127.0.0.1:3261/'; const DBX = 'http://127.0.0.1:3298';
 let fails = 0; const ok = (n, c, x = '') => { console.log((c ? '✔ ' : '✘ ') + n + (x ? '  ' + String(x).slice(0, 220) : '')); if (!c) fails++; };
-const jar = {}; async function A(who, url, method = 'GET', body, raw) { const h = { 'X-Getraenke': '1', Cookie: jar[who] || '' }; if (body !== undefined && !raw) h['Content-Type'] = 'application/json'; if (raw) h['Content-Type'] = raw; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc) && !/^gadmin=;/.test(sc)) jar[who] = sc.split(';')[0]; const ct = r.headers.get('content-type') || ''; return [r.status, ct.includes('json') ? await r.json() : Buffer.from(await r.arrayBuffer())]; }
+const jar = {}; async function A(who, url, method = 'GET', body, raw) { const h = { 'X-Clubwerk': '1', Cookie: jar[who] || '' }; if (body !== undefined && !raw) h['Content-Type'] = 'application/json'; if (raw) h['Content-Type'] = raw; const r = await fetch(B + url, { method, headers: h, body: body === undefined ? undefined : raw ? body : JSON.stringify(body) }); const sc = r.headers.get('set-cookie'); if (sc && /^gadmin=/.test(sc) && !/^gadmin=;/.test(sc)) jar[who] = sc.split(';')[0]; const ct = r.headers.get('content-type') || ''; return [r.status, ct.includes('json') ? await r.json() : Buffer.from(await r.arrayBuffer())]; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 let srv, dbx;
 async function start() { const env = { ...process.env, DATA_DIR: DATA, PORT: '3261', BEREGNUNG_PORT: '5261', MEMBER_PORT: '5262', EXT_DIR: S + '/none', DROPBOX_API: DBX, DROPBOX_CONTENT: DBX, CW_TEST_NO_SETUP_CODE: '1' };
@@ -31,7 +31,7 @@ const login = async () => { await A('a', 'api/admin/login', 'POST', { username: 
   [s] = await A('a', 'api/admin/backups/password/check', 'POST', { password: 'anders123456' }); ok('…falsch', s === 401);
   // Daten anlegen
   [s, j] = await A('a', 'api/admin/members', 'POST', { name: 'Anna Geheimname', kind: 'mitglied' });
-  fs.mkdirSync(DATA + '/belege/2026', { recursive: true }); fs.writeFileSync(DATA + '/belege/2026/rechnung-1.pdf', '%PDF-1.4 Rechnung Getraenke Woersdoerfer');
+  fs.mkdirSync(DATA + '/belege/2026', { recursive: true }); fs.writeFileSync(DATA + '/belege/2026/rechnung-1.pdf', '%PDF-1.4 Rechnung Getraenke Muster');
   fs.mkdirSync(DATA + '/artikelbilder', { recursive: true }); fs.writeFileSync(DATA + '/artikelbilder/a1.webp', 'BILD');
   await A('a', 'api/admin/x/zeiterfassung/staff', 'POST', { name: 'Maria Keller', job: 'Reinigung', pin: '4321', rate: '14,00' });
   // 1. nur lokal

@@ -73,11 +73,7 @@
     toast.t = setTimeout(() => t.classList.add('hidden'), 3500);
   }
 
-  /* ---------- Uhr, Bildschirm wach halten ---------- */
-  function tick() {
-    $('clock').textContent = new Date().toLocaleString('de-DE', { weekday: 'short', hour: '2-digit', minute: '2-digit' });
-  }
-  setInterval(tick, 2000); tick();
+  /* ---------- Bildschirm wach halten (die Uhr stellt nav.js) ---------- */
   async function keepAwake() {
     try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) { /* egal */ }
   }
@@ -85,9 +81,8 @@
 
   /* ---------- Sortierung nach Nachname ---------- */
   // wie in der Verwaltung und auf dem Server (names.js): „von/van/de …“ gehören zum Nachnamen, sortiert wird nach dem Kern (von der Heide → H)
-  const { splitName, coreLast, lastFirst } = window.CWNames;
-  const deKey = v => v.toLocaleLowerCase('de').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss');
-  const sortKey = m => (m.kind === 'mitglied' ? deKey(coreLast(m.name)) + '\u0001' + deKey(splitName(m.name).first) : deKey(m.name));
+  const { splitName, coreLast, lastFirst, nameKey } = window.CWNames;
+  const byName = (a, b) => { const x = nameKey(a.name, a.kind), y = nameKey(b.name, b.kind); return x < y ? -1 : x > y ? 1 : 0; };
   const initial = m => coreLast(m.name).charAt(0).toLocaleUpperCase('de').replace(/[ÄÖÜ]/, c => ({ Ä: 'A', Ö: 'O', Ü: 'U' }[c]));
 
   /* ---------- Startseite ---------- */
@@ -102,7 +97,6 @@
     renderStart();
   }
 
-  const LOCK = '<svg class="lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-label="mit PIN"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>';
   const initials = n => { const w = String(n || '').replace(/[()„“"]/g, '').trim().split(/\s+/).filter(Boolean); return esc(((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : (w[0] || '').slice(1, 2))).toLocaleUpperCase('de')); };
   // ruhige Pastellfarben für Initialen – je Name immer dieselbe
   const AVC = [['#F0ECFA', '#4B3A86'], ['#FCE7E4', '#9B2C1F'], ['#FFF1D6', '#8A4B08'], ['var(--brand-soft)', 'var(--brand-ink)'], ['#E3F0FB', '#1C5D99'], ['#FCEDE3', '#9A4A14']];
@@ -111,13 +105,13 @@
   const splitSize = n => { const m = String(n).match(/^(.+?)\s+(\d+[,.]\d+)\s*(l|ml|cl)?$/i); return m ? { name: m[1], size: m[2].replace('.', ',') + ' ' + (m[3] || 'l') } : { name: String(n), size: '' }; };
   const card = m => {
     const { first: fn, last: ln } = splitName(m.name);
-    return `<button data-id="${m.id}" class="${m.hasPin ? 'has-pin' : ''} ${m.pending ? 'pending' : ''}"><i class="av" style="${avStyle(m.name)}">${m.ph ? `<img src="api/tablet/photo/${m.id}?u=verkauf&v=${esc(m.ph)}" alt="" loading="lazy">` : initials(m.name)}</i><span class="nm"><b>${esc(ln)}${m.pending ? '<span class="tag">neu</span>' : ''}${m.family ? '<span class="tag fam">Familie</span>' : ''}${m.hasPin ? LOCK : ''}</b><span>${esc(fn) || '&nbsp;'}</span></span></button>`;
+    return `<button data-id="${m.id}" class="${m.pending ? 'pending' : ''}"><i class="av" style="${avStyle(m.name)}">${m.ph ? `<img src="api/tablet/photo/${m.id}?u=verkauf&v=${esc(m.ph)}" alt="" loading="lazy">` : initials(m.name)}</i><span class="nm"><b>${esc(ln)}${m.pending ? '<span class="tag">neu</span>' : ''}</b><span>${esc(fn) || '&nbsp;'}</span></span></button>`;
   };
 
   const guestCard = g => {
     const tag = g.paid ? '<span class="tag ok">bezahlt</span>' : '';
     return `<button data-g="${g.id}" class="${g.paid ? 'paid' : ''} ${g.memberId ? '' : 'manual'}"><i class="av" style="${avStyle(g.name)}">${initials(g.name)}</i>
-      <span class="nm"><b>${esc(g.name)}${tag}${g.hasPin ? LOCK : ''}</b><span>${g.memberId ? 'Mitglied' : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
+      <span class="nm"><b>${esc(g.name)}${tag}</b><span>${g.memberId ? 'Mitglied' : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
   };
   /* Artikel: eigenes Bild, Symbol oder Kürzel */
   const tileStyle = a => (!a.image && a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.style(a.icon) : '');
@@ -143,7 +137,7 @@
     $('special').classList.toggle('hidden', Boolean(ev));   // während der Veranstaltung nur deren Liste
     if (ev) { $('eventName').textContent = ev.name; renderEventList(); }
 
-    const people = state.members.filter(m => m.kind === 'mitglied' && !m.hidden).sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0));
+    const people = state.members.filter(m => m.kind === 'mitglied' && !m.hidden).sort(byName);
     const topIds = new Set(state.top || []);
     const top = people.filter(m => topIds.has(m.id));   // nur zusätzliche Schnellauswahl – alle stehen weiterhin unten in der Gesamtliste
 
@@ -176,7 +170,7 @@
 
     // ganz unten: Mannschaften/Gruppen, Verein (kostenfrei), Gast
     const teams = state.members.filter(m => m.kind === 'mannschaft' && (!q || m.name.toLocaleLowerCase('de').includes(q)));
-    $('teams').innerHTML = teams.map(m => `<button data-id="${m.id}"><i class="av" style="${avStyle(m.name)}">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}${LOCK}</b><span>Mannschaft</span></span></button>`).join('');
+    $('teams').innerHTML = teams.map(m => `<button data-id="${m.id}"><i class="av" style="${avStyle(m.name)}">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}</b><span>Mannschaft</span></span></button>`).join('');
     $('teamBox').classList.toggle('hidden', !teams.length);
     const special = state.members.filter(m => m.kind === 'verein' || m.kind === 'gast');
     const nTabs = (state.tabs || []).length;
@@ -208,14 +202,12 @@
   }
   function newTabDialog() {
     const open = state.tabs || [];
-    $('dialog').innerHTML = `<h2>Neuer Gäste-Deckel</h2>
+    openDialog(`<h2>Neuer Gäste-Deckel</h2>
       <div class="muted">Für Gäste und die gegnerische Mannschaft: den Tag über anschreiben, vor der Heimfahrt bar oder mit Karte bezahlen.</div>
       <input class="big" id="tName" placeholder="z. B. Gastmannschaft SV Musterdorf oder Jan Müller" autocomplete="off" autocapitalize="words" maxlength="60">
       <div class="sugg" id="tSugg"></div>
       <div class="err" id="tErr"></div>
-      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px"><button class="btn" id="tCancel">Abbrechen</button><button class="btn primary" id="tOk">Deckel öffnen</button></div>`;
-    $('overlay').classList.remove('hidden');
-    $('dialog').onclick = null;
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px"><button class="btn" id="tCancel">Abbrechen</button><button class="btn primary" id="tOk">Deckel öffnen</button></div>`);
     const draw = () => {
       const q = $('tName').value.trim().toLocaleLowerCase('de');
       const hits = q.length < 2 ? [] : open.filter(t => t.name.toLocaleLowerCase('de').includes(q)).slice(0, 5);
@@ -236,15 +228,14 @@
     if (!session || session.mode !== 'tab') return;
     if (cart.size || customs.length) { toast('Erst die Auswahl anschreiben oder entfernen, dann bezahlen.', true); return; }
     const cents = session.open || 0;
-    $('dialog').innerHTML = `<h2>Deckel „${esc(session.tab.name)}“ bezahlen</h2>
+    openDialog(`<h2>Deckel „${esc(session.tab.name)}“ bezahlen</h2>
       <div class="muted">${cents ? 'Erst kassieren, dann hier antippen, wie bezahlt wurde.' : 'Auf dem Deckel steht nichts – er wird einfach geschlossen.'}</div>
       <div class="total" style="font-size:44px;font-weight:800;text-align:center;margin:18px 0">${euro(cents)}</div>
       <div class="paybtns">
         ${cents ? `<button class="btn primary" data-pay="bar">Bar bezahlt</button><button class="btn" data-pay="karte">Mit Karte bezahlt</button>`
           : '<button class="btn primary" data-pay="bar">Deckel schließen</button>'}
       </div>
-      <div style="display:flex;justify-content:center;margin-top:12px"><button class="btn ghost" id="pCancel">Abbrechen</button></div>`;
-    $('overlay').classList.remove('hidden');
+      <div style="display:flex;justify-content:center;margin-top:12px"><button class="btn ghost" id="pCancel">Abbrechen</button></div>`);
     $('pCancel').onclick = closeDialog;
     $('dialog').onclick = async e => {
       const b = e.target.closest('[data-pay]'); if (!b) return;
@@ -288,20 +279,18 @@
   $('evAdd').addEventListener('click', () => {
     const people = state.members.filter(m => m.kind === 'mitglied' || m.kind === 'mannschaft');
     const onList = new Set((state.event.guests || []).filter(g => g.memberId).map(g => g.memberId));
-    $('dialog').innerHTML = `<h2>Namen hinzufügen</h2>
+    openDialog(`<h2>Namen hinzufügen</h2>
       <div class="muted">Namen tippen und aus der Mitgliederliste wählen – oder als Gast frei eintragen.</div>
       <input class="big" id="gName" placeholder="z. B. Müller oder Opa Heinz" autocomplete="off" autocapitalize="words" maxlength="60">
       <div class="sugg" id="gSugg"></div>
       <div class="err" id="gErr"></div>
-      <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn" id="gCancel">Abbrechen</button></div>`;
-    $('overlay').classList.remove('hidden');
-    $('dialog').onclick = null;
+      <div style="display:flex;justify-content:flex-end;margin-top:6px"><button class="btn" id="gCancel">Abbrechen</button></div>`);
     const draw = () => {
       const t = $('gName').value.trim(), q = t.toLocaleLowerCase('de');
       const hits = q.length < 2 ? [] : people.filter(m => m.name.toLocaleLowerCase('de').includes(q))
-        .sort((a, b) => (sortKey(a) < sortKey(b) ? -1 : sortKey(a) > sortKey(b) ? 1 : 0)).slice(0, 7);
+        .sort(byName).slice(0, 7);
       const exact = hits.some(m => m.name.toLocaleLowerCase('de') === q);
-      $('gSugg').innerHTML = hits.map(m => `<button data-m="${m.id}">${esc(m.name)}<small>${onList.has(m.id) ? 'steht schon auf der Liste' : (m.kind === 'mannschaft' ? 'Mannschaft' : 'Mitglied')}</small></button>`).join('') +
+      $('gSugg').innerHTML = hits.map(m => `<button data-m="${m.id}">${esc(lastFirst(m.name, m.kind))}<small>${onList.has(m.id) ? 'steht schon auf der Liste' : (m.kind === 'mannschaft' ? 'Mannschaft' : 'Mitglied')}</small></button>`).join('') +
         (t.length >= 2 && !exact ? `<button class="free" data-free="1">„${esc(t)}“ als Gast eintragen<small>ohne Mitgliedskonto</small></button>` : '');
     };
     $('gName').oninput = () => { draw(); bumpIdle(); };
@@ -329,14 +318,12 @@
 
   /* ---------- Neu im Verein ---------- */
   $('newBtn').addEventListener('click', () => {
-    $('dialog').innerHTML = `<h2>Neu im Verein?</h2>
+    openDialog(`<h2>Neu im Verein?</h2>
       <div class="muted">Trag dich mit Vor- und Nachnamen ein. Du kannst sofort buchen – der Vorstand bestätigt deinen Eintrag später.</div>
       <input class="big" id="nmName" placeholder="Vorname Nachname" autocomplete="off" autocapitalize="words" maxlength="60">
       <div class="err" id="nmErr"></div>
       <div class="row" style="display:flex;gap:10px;justify-content:flex-end;margin-top:10px">
-        <button class="btn" id="nmCancel">Abbrechen</button><button class="btn primary" id="nmOk">Eintragen & buchen</button></div>`;
-    $('overlay').classList.remove('hidden');
-    $('dialog').onclick = null;
+        <button class="btn" id="nmCancel">Abbrechen</button><button class="btn primary" id="nmOk">Eintragen & buchen</button></div>`);
     setTimeout(() => $('nmName').focus(), 50);
     $('nmCancel').onclick = closeDialog;
     const go = async () => {
@@ -383,6 +370,8 @@
       draw();
     };
   }
+  /** Fenster öffnen – setzt immer auch einen Klick-Handler des vorigen Fensters zurück */
+  function openDialog(html) { $('dialog').onclick = null; $('dialog').innerHTML = html; $('overlay').classList.remove('hidden'); }
   function closeDialog() { $('overlay').classList.add('hidden'); $('dialog').onclick = null; $('dialog').innerHTML = ''; }
 
   async function chooseMember(m) {
@@ -615,10 +604,31 @@
         if (cents < 10) { draw('Bitte einen Betrag eingeben.'); return; }
         if (cents > 50000) { draw('Höchstens 500 €.'); return; }
         customs.push({ cents, note });
-        closeDialog(); renderArticles(); renderCart(); return;
+        closeDialog(); updateCustomTile(); renderCart(); return;
       } else if (digits.length < 5) digits = (digits + key).replace(/^0+/, '').slice(0, 5);
       draw();
     };
+  }
+
+  /* Nach einer Mengenänderung nur die betroffene Kachel anpassen (Haken, Zahl, Vorlesetext) – kein Neuaufbau der Seite
+     und keine neue Anordnung der Kacheln. So bleibt schnelles Tippen flüssig, auch auf älteren Tablets. */
+  function setBadge(ti, n) {
+    let bd = ti.querySelector('.badge');
+    if (n && !bd) { bd = document.createElement('span'); bd.className = 'badge'; ti.appendChild(bd); }
+    if (n) bd.textContent = n; else if (bd) bd.remove();
+  }
+  function updateTile(id) {
+    const b = $('cats').querySelector(`button[data-a="${id}"]`), a = articles().find(x => x.id === id);
+    if (!b || !a) { renderArticles(); return; }
+    const q = cart.get(id) || 0;
+    b.classList.toggle('sel', q > 0);
+    b.setAttribute('aria-label', `${a.name}, ${euro(a.price_cents)}${q ? ', ausgewählt: ' + q : ''}`);
+    setBadge(b.querySelector('.ti'), q);
+  }
+  function updateCustomTile() {
+    const b = $('cats').querySelector('button[data-custom]'); if (!b) return;
+    b.classList.toggle('sel', customs.length > 0);
+    setBadge(b.querySelector('.ti'), customs.length);
   }
 
   function renderCart() {
@@ -648,15 +658,17 @@
     const b = e.target.closest('button[data-a]'); if (!b) return;
     const id = Number(b.dataset.a);
     cart.set(id, Math.min(99, (cart.get(id) || 0) + 1));
-    renderArticles(); renderCart(); bumpIdle();
+    updateTile(id); renderCart(); bumpIdle();
   });
   $('cartList').addEventListener('click', e => {
     const cx = e.target.closest('[data-cx]');
-    if (cx) { customs.splice(Number(cx.dataset.cx), 1); renderArticles(); renderCart(); bumpIdle(); return; }
+    if (cx) { customs.splice(Number(cx.dataset.cx), 1); updateCustomTile(); renderCart(); bumpIdle(); return; }
     const p = e.target.closest('[data-p]'), m = e.target.closest('[data-m]');
-    if (p) { const id = Number(p.dataset.p); cart.set(id, Math.min(99, cart.get(id) + 1)); }
-    if (m) { const id = Number(m.dataset.m); const q = cart.get(id) - 1; if (q > 0) cart.set(id, q); else cart.delete(id); }
-    renderArticles(); renderCart(); bumpIdle();
+    if (!p && !m) return;
+    const id = Number((p || m).dataset[p ? 'p' : 'm']);
+    if (p) cart.set(id, Math.min(99, cart.get(id) + 1));
+    else { const q = cart.get(id) - 1; if (q > 0) cart.set(id, q); else cart.delete(id); }
+    updateTile(id); renderCart(); bumpIdle();
   });
 
   $('cancelBtn').addEventListener('click', () => backToStart());
@@ -689,7 +701,7 @@
     else if (r.kind === 'gast' || r.kind === 'event') hint = `<div class="cashhint">Bitte ${euro(r.total_cents)} bar in die Kasse</div>`;
     else if (r.kind === 'verein') hint = `<div class="freehint">Kostenfrei gebucht (Wert ${euro(listTotal)})</div>`;
     else hint = r.private ? `<div class="muted">Neuer offener Betrag: <b>${euro(r.balance.cents)}</b></div>` : '<div class="muted">Auf dein Konto gebucht.</div>';
-    $('dialog').innerHTML = `<div class="done">
+    openDialog(`<div class="done">
       <div class="big">✓</div><h2>Gebucht!</h2>
       <ul>${r.bookings.map(b => `<li>${b.qty > 1 || !/^Betrag/.test(b.name) ? b.qty + ' × ' : ''}${esc(b.name)}</li>`).join('')}</ul>
       <div class="total">${r.kind === 'verein' ? '0,00 €' : euro(r.total_cents)}</div>
@@ -698,8 +710,7 @@
         ${r.kind === 'event' ? '' : '<button class="btn danger" id="undoBtn">Rückgängig</button>'}
         <button class="btn primary" id="okBtn">Fertig</button>
       </div>
-      <div class="muted" id="countdown" style="margin-top:10px"></div></div>`;
-    $('overlay').classList.remove('hidden');
+      <div class="muted" id="countdown" style="margin-top:10px"></div></div>`);
     let left = DONE_MS / 1000;
     const cd = () => { $('countdown') && ($('countdown').textContent = `Schließt automatisch in ${left} s`); };
     cd();
@@ -728,23 +739,21 @@
       const when = x => new Date(x.created_at.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
       if (session.mode === 'guest') {
         const st = x => x.transferred_at ? 'auf Konto übernommen' : x.payment_id ? (x.method === 'karte' ? 'mit Karte bezahlt' : 'bar bezahlt') : 'offen';
-        $('dialog').innerHTML = `<h2>Meine Liste</h2><div class="muted">${esc(r.guest.name)} · ${esc(r.event)}</div>
+        openDialog(`<h2>Meine Liste</h2><div class="muted">${esc(r.guest.name)} · ${esc(r.event)}</div>
           <div style="font-size:26px;font-weight:700;margin:10px 0">${euro(r.open_cents)} offen</div>
           <table class="acc">${r.rows.map(x => `<tr><td>${when(x)}</td><td>${x.qty} × ${esc(x.name)}<br><span class="muted" style="font-size:13px">${st(x)}</span></td><td class="r">${euro(x.total_cents)}</td></tr>`).join('') || '<tr><td>Noch nichts angeschrieben.</td></tr>'}</table>
-          <div style="margin-top:16px;text-align:right"><button class="btn primary" id="closeAcc">Schließen</button></div>`;
-        $('overlay').classList.remove('hidden');
+          <div style="margin-top:16px;text-align:right"><button class="btn primary" id="closeAcc">Schließen</button></div>`);
         $('closeAcc').onclick = closeDialog;
         bumpIdle();
         return;
       }
-      $('dialog').innerHTML = `<h2>Mein Konto</h2>
+      openDialog(`<h2>Mein Konto</h2>
         <div class="muted">${r.lastSettled ? 'zuletzt abgerechnet am ' + new Date(r.lastSettled.replace(' ', 'T')).toLocaleDateString('de-DE') : 'noch nicht abgerechnet'}</div>
         <div style="font-size:26px;font-weight:700;margin:10px 0">${euro(r.balance.cents)} offen</div>
         ${r.eventOpen_cents ? `<div class="muted" style="margin:-4px 0 10px">+ ${euro(r.eventOpen_cents)} auf einer Veranstaltungsliste noch offen</div>` : ''}
         <table class="acc">${r.rows.map(x => `<tr><td>${new Date(x.created_at.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
           <td>${x.qty} × ${esc(x.name)}${x.event ? `<br><span class="muted" style="font-size:13px">${esc(x.event)}${x.kind === 'event' ? ' · Veranstaltungsliste' : (x.transferred_at ? ' · übernommen' : '')}</span>` : ''}</td><td class="r">${euro(x.total_cents)}</td></tr>`).join('') || '<tr><td>Noch keine Buchungen.</td></tr>'}</table>
-        <div style="margin-top:16px;text-align:right"><button class="btn primary" id="closeAcc">Schließen</button></div>`;
-      $('overlay').classList.remove('hidden');
+        <div style="margin-top:16px;text-align:right"><button class="btn primary" id="closeAcc">Schließen</button></div>`);
       $('closeAcc').onclick = closeDialog;
       bumpIdle();
     } catch (e) { toast(e.message, true); if (e.status === 401) backToStart(); }
@@ -775,9 +784,8 @@
   }
   /** erstes Mal ohne PIN: gleich zum Festlegen auffordern */
   function askFirstPin() {
-    $('dialog').innerHTML = `<h2>Kein PIN vergeben</h2><div class="muted" style="margin:6px 0 4px;line-height:1.5">Lege jetzt deine PIN fest. Sie schützt dein Konto und gilt für alles im Vereinsheim – Verkauf, Platzbuchung (Buchen und Stornieren nur mit PIN), Helferdienste und die Mitglieder-App.</div>
-      <div class="pinchoice"><button class="btn" data-c="later">Später</button><button class="btn primary" data-c="set">PIN festlegen</button></div>`;
-    $('overlay').classList.remove('hidden');
+    openDialog(`<h2>Kein PIN vergeben</h2><div class="muted" style="margin:6px 0 4px;line-height:1.5">Lege jetzt deine PIN fest. Sie schützt dein Konto und gilt für alles im Vereinsheim – Verkauf, Platzbuchung (Buchen und Stornieren nur mit PIN), Helferdienste und die Mitglieder-App.</div>
+      <div class="pinchoice"><button class="btn" data-c="later">Später</button><button class="btn primary" data-c="set">PIN festlegen</button></div>`);
     $('dialog').onclick = e => {
       const c = e.target.closest('[data-c]'); if (!c) return;
       bumpIdle(); closeDialog();

@@ -5,7 +5,6 @@
    Soll je Mitglied (Vorgabe, Beitragsart, Alter, eigene Ausnahme), Ist aus bestätigten Stunden, Familien gemeinsam.
    Nicht geleistete Stunden landen im Beitragslauf der Mitgliederverwaltung (Stundensatz).
    ===================================================================================================== */
-let C;
 const { pad, today, nowTs, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
 const hm = m => `${Math.floor(Math.abs(m) / 60)}:${pad(Math.abs(m) % 60)} h`;
@@ -49,7 +48,6 @@ CREATE TABLE IF NOT EXISTS aw_target (member_id INTEGER NOT NULL REFERENCES memb
 
 function activate(ctx) {
   const NK = n => ctx.require('./db').nameKey(n, 'mitglied');   // Sortierung: Nachname, Vorname
-  C = ctx;
   const db = ctx.db;
   tables(db);
   const { need, bad, int, rateLimit } = ctx;
@@ -78,7 +76,7 @@ function activate(ctx) {
   });
   const mv = () => ctx.isModuleActive('mitglieder');
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
-  const yearStart = () => (cfg().year_mode === 'beitrag' ? ctx.getSetting('ext_mitglieder_year_start', '01-01') : '01-01');
+  const yearStart = () => { if (cfg().year_mode !== 'beitrag') return '01-01'; const x = ctx.callHooksSync('clubInfo').find(y => y.id === 'mitglieder'); return (x && x.result.yearStart) || '01-01'; };
   /** Jahr Y → Zeitraum [from, to] */
   const period = y => { const ys = yearStart(); return { from: `${y}-${ys}`, to: addDays(`${y + 1}-${ys}`, -1) }; };
   const yearOf = day => { const ys = yearStart(); return day.slice(5) >= ys ? +day.slice(0, 4) : +day.slice(0, 4) - 1; };
@@ -91,12 +89,12 @@ function activate(ctx) {
     return db.prepare(`SELECT m.id, m.name, m.active FROM members m WHERE m.kind = 'mitglied' AND m.deleted = 0 AND m.pending = 0 ORDER BY name_key(m.name, m.kind)`).all();
   }
   /** Soll in Minuten für ein Mitglied im Jahr y → { minutes, why } */
-  async function target(id, y, info) {
+  async function target(id, y, info, pre = null) {   // pre: vorab geladene Ausnahmen (Übersicht: eine Abfrage statt je Mitglied)
     const c = cfg(); const per = period(y);
-    const ov = db.prepare('SELECT * FROM aw_target WHERE member_id = ? AND year = ?').get(id, y);
+    const ov = pre ? pre.ov.get(id) : db.prepare('SELECT * FROM aw_target WHERE member_id = ? AND year = ?').get(id, y);
     if (ov && ov.minutes != null) return { minutes: ov.minutes, why: ov.note ? `Ausnahme: ${ov.note}` : 'eigene Vorgabe' };
     // dauerhaft befreit: Stunden zählen weiter, aber kein Soll und nichts wird eingezogen
-    const ex = db.prepare('SELECT * FROM aw_exempt WHERE member_id = ?').get(id);
+    const ex = pre ? pre.ex.get(id) : db.prepare('SELECT * FROM aw_exempt WHERE member_id = ?').get(id);
     if (ex && (!ex.until_date || ex.until_date >= per.from)) return { minutes: 0, why: `befreit${ex.until_date ? ' bis ' + ex.until_date.split('-').reverse().join('.') : ''}${ex.note ? ': ' + ex.note : ''}`, exempt: true, until: ex.until_date, note: ex.note };
     const i = info !== undefined ? info : (mv() ? await hook('memberInfo', id) : null);
     let base = c.default_minutes, why = 'Vorgabe';
@@ -124,15 +122,19 @@ function activate(ctx) {
 
   /** Übersicht für ein Jahr: je Person und je Familie (Zahler) */
   async function overview(y) {
-    const c = cfg();
+    const c = cfg(), p0 = period(y);
     const rows = [];
+    // je Jahr einmal laden statt je Mitglied (Übersicht und Beitragslauf laufen über alle Mitglieder)
+    const sums = st => new Map(db.prepare(`SELECT member_id, SUM(minutes) n FROM aw_entry WHERE status = ? AND date BETWEEN ? AND ? GROUP BY member_id`).all(st, p0.from, p0.to).map(r => [r.member_id, r.n]));
+    const doneBy = sums('bestaetigt'), openBy = sums('offen');
+    const pre = { ov: new Map(db.prepare('SELECT * FROM aw_target WHERE year = ?').all(y).map(r => [r.member_id, r])), ex: new Map(db.prepare('SELECT * FROM aw_exempt').all().map(r => [r.member_id, r])) };
     for (const p of people()) {
       const info = mv() ? await hook('memberInfo', p.id) : null;
       if (info && info.status === 'ausgetreten' && info.exit_date && info.exit_date < period(y).from) continue;
-      const t = await target(p.id, y, info);
-      const done = doneMinutes([p.id], y), open = openMinutes([p.id], y);
+      const t = await target(p.id, y, info, pre);
+      const done = doneBy.get(p.id) || 0, open = openBy.get(p.id) || 0;
       const fam = mv() ? await hook('familyOf', p.id) : null;
-      rows.push({ id: p.id, name: p.name, target: t.minutes, why: t.why, done, open, head: fam ? fam.head : p.id, exempt: Boolean(t.exempt), exempt_until: t.exempt ? t.until || null : null, exempt_note: t.exempt ? t.note || '' : '', override: Boolean(db.prepare('SELECT 1 FROM aw_target WHERE member_id = ? AND year = ? AND minutes IS NOT NULL').get(p.id, y)) });
+      rows.push({ id: p.id, name: p.name, target: t.minutes, why: t.why, done, open, head: fam ? fam.head : p.id, exempt: Boolean(t.exempt), exempt_until: t.exempt ? t.until || null : null, exempt_note: t.exempt ? t.note || '' : '', override: Boolean(pre.ov.get(p.id) && pre.ov.get(p.id).minutes != null) });
     }
     const groups = new Map();
     for (const r of rows) { const k = c.pool_family ? r.head : r.id; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
@@ -142,7 +144,8 @@ function activate(ctx) {
       const hn = (rows.find(r => r.id === head) || list[0]).name;
       return { head, name: hn, members: list.map(r => r.id), target: tg, done: dn, open: list.reduce((s, r) => s + r.open, 0), missing: miss, cents: Math.round(miss / 60 * c.rate_cents) };
     }).filter(f => f.target > 0 || f.done > 0);
-    for (const r of rows) { const f = fams.find(x => x.members.includes(r.id)); r.family = f && f.members.length > 1 ? f.head : null; }
+    const famOf = new Map(fams.flatMap(f => f.members.map(id => [id, f])));
+    for (const r of rows) { const f = famOf.get(r.id); r.family = f && f.members.length > 1 ? f.head : null; }
     const p = period(y);
     return { year: y, label: yearLabel(y), from: p.from, to: p.to, closed: p.to < today(), rate_cents: c.rate_cents, pool: c.pool_family, rows, families: fams.sort((a, b) => b.missing - a.missing || NK(a.name).localeCompare(NK(b.name), 'de')),
       totals: { target: fams.reduce((s, f) => s + f.target, 0), done: fams.reduce((s, f) => s + f.done, 0), missing: fams.reduce((s, f) => s + f.missing, 0), cents: fams.reduce((s, f) => s + f.cents, 0), people: rows.filter(r => r.target > 0).length } };
@@ -267,7 +270,7 @@ function activate(ctx) {
   });
 
   /* ---------------------------------------------------------------- Dienstpläne (Veranstaltungen mit Schichten) */
-  const lf = n => { const x = ctx.require('./db').splitPersonName(n); return x.first ? `${x.last}, ${x.first}` : x.last; };
+  const lf = ctx.require('./db').lastFirst;
   const helpersOf = id => [
     ...db.prepare('SELECT s.member_id, m.name FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? ORDER BY name_key(m.name, m.kind)').all(id).map(r => ({ member_id: r.member_id, name: r.name, ln: lf(r.name), ph: ctx.require('./photos').version(r.member_id, 'helfer') })),
     ...db.prepare('SELECT id AS extern_id, name, note FROM aw_extern WHERE event_id = ? ORDER BY id').all(id).map(r => ({ ...r, ln: r.name, extern: true }))];
@@ -427,7 +430,7 @@ function activate(ctx) {
     if (b.text !== undefined) SET('text', txt(b.text, 600));
     if (b.contact !== undefined) SET('contact', txt(b.contact, 120));
     if (b.notify !== undefined) { const l = String(b.notify || '').split(/[,;\s]+/).filter(Boolean); if (l.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return bad(res, 'Bitte gültige E-Mail-Adressen eintragen (mehrere mit Komma).'); SET('notify', l.slice(0, 5).join(', ')); }
-    { const diff = ctx.auditDiff ? ctx.auditDiff(SET_LABELS, before, cfg()) : ''; if (diff) ctx.audit(req.user, 'Helferdienste: Einstellungen geändert', diff); }
+    { const diff = ctx.auditDiff(SET_LABELS, before, cfg()); if (diff) ctx.audit(req.user, 'Helferdienste: Einstellungen geändert', diff); }
     res.json({ ok: true, cfg: cfg() });
   });
 
@@ -443,7 +446,7 @@ function activate(ctx) {
     const day = today();
     res.json({ text: cfg().text, events: db.prepare("SELECT e.id, e.kind, CASE WHEN p.title IS NOT NULL THEN p.title || ' · ' || e.title ELSE e.title END AS title, e.start, e.end, e.place, e.permanent FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE (e.date = ? OR e.permanent = 1) AND e.cancelled = 0 AND (e.counts = 1 OR e.permanent = 1) ORDER BY e.permanent, e.start, e.title").all(day),
       running: db.prepare("SELECT e.id, e.member_id, m.name, e.in_at, v.title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id WHERE e.status = 'laeuft' ORDER BY e.in_at").all(),
-      people: db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().map(p => ({ ...p, ln: (x => (x.first ? `${x.last}, ${x.first}` : x.last))(ctx.require('./db').splitPersonName(p.name)) })) });
+      people: db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().map(p => ({ ...p, ln: lf(p.name) })) });
   });
   T.post('/start', rateLimit('awtab', 60, 60000), (req, res) => {
     const b = req.body || {}; const mid = ctx.auth.checkTabletToken(b.token);
@@ -559,16 +562,15 @@ function activate(ctx) {
     try {
       if (!ctx.isActive()) return;
       const c = cfg(), club = ctx.getSetting('club_name', '');
-      const hasMv = Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE name = 'mv_person'").get());
-      const mailOk = ctx.mail.ready() && hasMv;
-      const mailOf = id => (hasMv ? db.prepare('SELECT email FROM mv_person WHERE member_id = ?').get(id) : null);
+      const mailOk = ctx.mail.ready() && ctx.isModuleActive('mitglieder');
+      const mailOf = id => hook('memberAddress', id);   // { email, … } aus der Mitgliederverwaltung
       if (c.remind_events) {
         const tm = addDays(today(), 1);
         for (const s of db.prepare('SELECT e.*, s.id AS signup_id, s.member_id FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND e.permanent = 0 AND s.reminded = 0').all(tm)) {
           db.prepare('UPDATE aw_signup SET reminded = 1 WHERE id = ?').run(s.signup_id);   // (bis 3.18 stand hier die Termin-Nummer – die Erinnerung ging stündlich erneut raus)
           // Push (ohne Mitgliederverwaltung und ohne Postfach möglich), E-Mail zusätzlich
-          if (ctx.push) ctx.push.send([s.member_id], 'erinnerung', { title: `Morgen: ${s.title}`, body: `${KIND[s.kind] || 'Dienst'} am ${WDL[isoDow(s.date)]}${s.start ? ' ab ' + s.start + ' Uhr' : ''}${s.place ? ' · ' + s.place : ''}`, url: './#arbeitseinsatz', tag: `aw-${s.id}` }).catch(() => {});
-          const m = mailOk ? mailOf(s.member_id) : null;
+          ctx.push.send([s.member_id], 'erinnerung', { title: `Morgen: ${s.title}`, body: `${KIND[s.kind] || 'Dienst'} am ${WDL[isoDow(s.date)]}${s.start ? ' ab ' + s.start + ' Uhr' : ''}${s.place ? ' · ' + s.place : ''}`, url: './#arbeitseinsatz', tag: `aw-${s.id}` }).catch(() => {});
+          const m = mailOk ? await mailOf(s.member_id) : null;
           if (!m || !m.email) continue;
           await ctx.mail.send({ to: m.email, subject: `Erinnerung: ${s.title} morgen`, text: [`Hallo,`, '', `du hast dich für morgen eingetragen: ${KIND[s.kind]} „${s.title}“${s.plan_id ? ` (${(db.prepare('SELECT title FROM aw_plan WHERE id = ?').get(s.plan_id) || {}).title || ''})` : ''} am ${deD(s.date)}${s.start ? ` um ${s.start} Uhr` : ''}${s.place ? `, ${s.place}` : ''}.`, '', `Falls etwas dazwischenkommt: ${cfg().contact ? `bitte bei ${cfg().contact} melden.` : 'bitte beim Verein melden.'}`, '', 'Danke für deine Hilfe!', club].join('\n') }).catch(() => {});
         }
@@ -577,7 +579,7 @@ function activate(ctx) {
         SET('reminded_year', today().slice(0, 4));
         const o = await overview(yearOf(today()));
         for (const f of o.families.filter(x => x.target > x.done)) {
-          const m = mailOf(f.head); if (!m || !m.email) continue;
+          const m = await mailOf(f.head); if (!m || !m.email) continue;
           await ctx.mail.send({ to: m.email, subject: `Arbeitsstunden ${o.label} – ${club}`, text: [`Hallo ${f.name},`, '', `${f.members.length > 1 ? 'eure Familie hat' : 'du hast'} in ${o.label} bisher ${hm(f.done)} von ${hm(f.target)} Arbeitsstunden geleistet.`,
             `Bis ${deD(o.to)} ist noch Zeit – offene Einsätze und Thekendienste findest du in der Mitglieder-App unter „Dienste“.`, c.rate_cents ? `Nicht geleistete Stunden berechnen wir mit ${euro(c.rate_cents)} je Stunde.` : '', '', 'Viele Grüße', club].filter((x, i, a) => x || a[i - 1]).join('\n') }).catch(() => {});
           await new Promise(r => setTimeout(r, 200));

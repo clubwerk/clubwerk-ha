@@ -18,7 +18,7 @@
         background: var(--hover); color: var(--ink); border-color: var(--line); }
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bkm-blk > b:first-child { height: auto; max-height: 30px; white-space: normal; overflow-wrap: anywhere; hyphens: auto; -webkit-hyphens: auto; }   /* Buchungsart darf umbrechen statt „Meden…“ */
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
-      .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
       .bkm-nowbar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
       .bkm-nowbar b { font-size: 14.5px; font-weight: 800; white-space: nowrap; } .bkm-nowbar span { flex: 1; min-width: 0; font-size: 13px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: right; }
@@ -39,7 +39,7 @@
       .bkm-slot b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; } .bkm-slot span { font-size: 11px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
       .bkm-slot.free { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); } .bkm-slot.free span { color: var(--brand-ink); }
       .bkm-slot.busy { background: var(--hover); color: var(--muted); } .bkm-slot.busy b { color: var(--muted); }
-      .bkm-slot.mine { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .bkm-slot.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .bkm-scope { display: grid; gap: 8px; margin: 6px 0 4px; } .bkm-scope button { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; padding: 0 16px; font-family: inherit; } .bkm-slot.mine span { color: rgba(255,255,255,.9); }
       .bkm-slot.lock { background: repeating-linear-gradient(135deg, var(--red-soft) 0 6px, transparent 6px 12px); color: var(--red); border-color: var(--red-line, var(--line)); }
       .bkm-slot.past, .bkm-slot.closed { opacity: .38; }

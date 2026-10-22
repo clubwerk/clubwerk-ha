@@ -15,7 +15,7 @@
   /* ---------- Rahmen: Seitenleiste + Inhalt ---------- */
   .shell { display: grid; grid-template-columns: 256px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
   nav.side { background: var(--card); border-right: 1px solid var(--line); position: sticky; top: 0; height: 100vh; height: 100dvh; display: flex; flex-direction: column; min-width: 0; }
-  nav.side .brandbox { display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: var(--brand); color: #fff; min-height: 76px; box-sizing: border-box; }
+  nav.side .brandbox { display: flex; align-items: center; gap: 12px; padding: 18px 20px; background: var(--brand); color: var(--on-brand); min-height: 76px; box-sizing: border-box; }
   nav.side .brandbox .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #fff; display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--brand); font-weight: 800; font-size: 14px; }
   nav.side .brandbox .mark img { max-width: 36px; max-height: 36px; object-fit: contain; }
   nav.side .brandbox b { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 14px; line-height: 18px; font-weight: 700; overflow: hidden; }
@@ -38,14 +38,14 @@
   nav.side button.nav.on { background: var(--brand-soft); color: var(--brand-ink); font-weight: 700; }
   nav.side button.nav.on svg { color: var(--brand); }
   nav.side button.nav.on::before { content: ''; position: absolute; left: -12px; top: 8px; bottom: 8px; width: 4px; border-radius: 0 4px 4px 0; background: var(--brand); }
-  nav.side .badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--brand); color: #fff; font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+  nav.side .badge { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; box-sizing: border-box; border-radius: 10px; background: var(--brand); color: var(--on-brand); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
   nav.side .badge.a { background: var(--amber-soft); color: var(--amber); }
-  nav.side .badge.r { background: var(--red); color: #fff; }   /* Datensicherung: fehlt oder zu alt */
+  nav.side .badge.r { background: var(--red); color: var(--on-red); }   /* Datensicherung: fehlt oder zu alt */
   nav.side .userchip { display: flex; flex-direction: column; gap: 10px; margin: 12px; padding: 12px; border-radius: 12px; background: var(--hover); }
   nav.side .userchip .who { display: flex; align-items: center; gap: 10px; min-width: 0; }
   nav.side .userchip .ucbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
   nav.side .userchip .ucbtns .iconbtn { width: auto; flex: none; height: 34px; }
-  nav.side .userchip .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
+  nav.side .userchip .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand); color: var(--on-brand); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
   nav.side .userchip .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
   nav.side .userchip .nm b { font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   nav.side .userchip .nm span { font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -114,7 +114,7 @@
   .impcard .tbl td:first-child { width: 90px; }
   .impcard .tbl td, .impcard .tbl th { height: 32px; }
   .impcard .seg { width: fit-content; }
-  .impcard .seg button.on { background: var(--brand); color: #fff; }
+  .impcard .seg button.on { background: var(--brand); color: var(--on-brand); }
   /* Werkzeugleiste, Filter, Mitglieder mit Detailansicht */
   .toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 16px; }
   /* Einheitlich: Aktionen einer Seite stehen rechts, die Hauptaktion ganz rechts (Suche und Filter links). Reine Knopfleisten werden daher gespiegelt. */
@@ -138,7 +138,7 @@
   .tbl .who { display: flex; align-items: center; gap: 10px; }
   .tbl .who b { font-weight: 600; }
   .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
-  .av.lg { width: 52px; height: 52px; flex-basis: 52px; border-radius: 26px; font-size: 17px; background: var(--brand); color: #fff; }
+  .av.lg { width: 52px; height: 52px; flex-basis: 52px; border-radius: 26px; font-size: 17px; background: var(--brand); color: var(--on-brand); }
   .mdetail { position: sticky; top: 20px; margin: 0; padding: 20px; }
   .mdetail .mhead { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
   .mdetail .mhead h3 { margin: 0 0 6px; font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -321,8 +321,6 @@
   .mcard .open { display: flex; justify-content: space-between; margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-soft); font-size: 13px; font-weight: 700; color: var(--brand-ink); text-decoration: none; }
   .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
   .two .card { margin-bottom: 0; }
-  .modcard .modhead { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .modcard .modhead a { color: var(--brand-ink); font-weight: 700; font-size: 13px; }
   .minikpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
   .minikpis .mk { background: var(--hover); border-radius: 12px; padding: 12px 14px; }
   .minikpis .mk .l { color: var(--muted); font-size: 13px; }
@@ -456,10 +454,10 @@
   .ds-kpi { margin: 0 !important; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
   .ds-kh { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; height: 36px; }
   .ds-ki { width: 36px; height: 36px; flex: none; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-soft); color: var(--brand); }
-  .ds-kpi.b .ds-ki { background: color-mix(in srgb, #2f6fd6 14%, var(--card)); color: #2f6fd6; } .ds-kpi.o .ds-ki { background: color-mix(in srgb, #e07b16 14%, var(--card)); color: #c76a0e; } .ds-kpi.r .ds-ki { background: var(--red-soft); color: var(--red); }
+  .ds-kpi.b .ds-ki { background: var(--blue-soft); color: var(--blue); } .ds-kpi.o .ds-ki { background: var(--amber-soft); color: var(--amber); } .ds-kpi.r .ds-ki { background: var(--red-soft); color: var(--red); }
   .ds-kv { display: flex; align-items: baseline; gap: 10px; height: 40px; min-width: 0; } .ds-kv b { font-size: 30px; line-height: 40px; font-weight: 800; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .ds-d { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 11px; font-size: 12px; font-weight: 800; white-space: nowrap; }
-  .ds-d.u { background: color-mix(in srgb, #24a03f 16%, var(--card)); color: #1c7f33; } .ds-d.w { background: var(--red-soft); color: var(--red); } .ds-d.z { background: var(--hover); color: var(--muted); }
+  .ds-d.u { background: var(--ok-soft); color: var(--ok); } .ds-d.w { background: var(--red-soft); color: var(--red); } .ds-d.z { background: var(--hover); color: var(--muted); }
   .ds-spark { display: block; width: 100%; height: 56px; }
   .ds-hl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 !important; margin-bottom: 16px; }
   .ds-hlt { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; border-left: 1px solid var(--line-soft); min-width: 0; } .ds-hlt:first-child { border-left: 0; }
@@ -470,7 +468,7 @@
   .ds-top li { display: grid; grid-template-columns: 24px minmax(0, 150px) minmax(0, 1fr) 56px 44px 64px; gap: 10px; align-items: center; height: 32px; font-size: 13.5px; }
   .ds-top li .ds-d { justify-self: end; }
   .ds-top .n { width: 24px; height: 24px; border-radius: 12px; background: var(--hover); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-  .ds-top li:nth-child(-n+3) .n { background: var(--brand); color: #fff; } .ds-top b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-top .r { text-align: right; font-variant-numeric: tabular-nums; }
+  .ds-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .ds-top b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-top .r { text-align: right; font-variant-numeric: tabular-nums; }
   .ds-donut { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; align-items: center; }
   .ds-dring { position: relative; width: 180px; height: 180px; } .ds-dc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   .ds-dc b { font-size: 20px; line-height: 26px; font-weight: 800; font-variant-numeric: tabular-nums; max-width: 110px; } .ds-dc span { font-size: 12px; color: var(--muted); }

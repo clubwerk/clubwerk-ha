@@ -8,7 +8,6 @@
    - Versand: Module rufen ctx.push.send(memberIds, "<modul>.<id>", { title, body, url, tag }) – der Kern prüft Freigabe und Abos,
      verschickt verschlüsselt an den Push-Dienst des Handys (Apple/Google/Mozilla) und räumt erloschene Abos weg.
    - Es werden nur kurze Hinweise gesendet (Titel + ein Satz) – nichts, was in der App PIN-pflichtig ist. */
-const crypto = require('crypto');
 const http = require('http');
 const https = require('https');
 const webpush = require('web-push');
@@ -101,10 +100,9 @@ const PUSH_HOSTS = [/^web\.push\.apple\.com$/, /^fcm\.googleapis\.com$/, /^andro
 function pushHostOk(endpoint) {
   try { const u = new URL(String(endpoint)); return u.protocol === 'https:' && !u.port && !u.username && !u.password && PUSH_HOSTS.some(r => r.test(u.hostname.toLowerCase())); } catch (e) { return false; }
 }
-const testHttp = e => process.env.CW_PUSH_ALLOW_HTTP === '1' && /^http:\/\/127\.0\.0\.1:\d+\//.test(String(e || ''));
 const validSub = s => s && typeof s === 'object' && /^https:\/\/[^\s]{10,1500}$/.test(String(s.endpoint || '')) && pushHostOk(s.endpoint) && s.keys && /^[A-Za-z0-9_\-=]{20,200}$/.test(String(s.keys.p256dh || '')) && /^[A-Za-z0-9_\-=]{10,100}$/.test(String(s.keys.auth || ''));
-function subscribe({ memberId, deviceId, label }, sub, allowHttp = false) {
-  if (!validSub(sub) && !(allowHttp && sub && testHttp(sub.endpoint))) throw new Error('Das Push-Abo des Browsers ist unvollständig.');
+function subscribe({ memberId, deviceId, label }, sub) {
+  if (!validSub(sub)) throw new Error('Das Push-Abo des Browsers ist unvollständig.');
   db.prepare(`INSERT INTO push_subs(member_id, device_id, endpoint, p256dh, auth, label) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(endpoint) DO UPDATE SET member_id = excluded.member_id, device_id = excluded.device_id, p256dh = excluded.p256dh, auth = excluded.auth, label = excluded.label, fails = 0`)
     .run(memberId, deviceId || null, String(sub.endpoint), String(sub.keys.p256dh), String(sub.keys.auth), String(label || '').slice(0, 80) || null);
@@ -141,7 +139,7 @@ function deliver(row, payload) {
   const sub = { endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } };
   const d = webpush.generateRequestDetails(sub, payload, { TTL: 3600, urgency: 'normal', vapidDetails: { subject: subject(), publicKey: pub, privateKey: priv } });
   const u = new URL(d.endpoint);
-  if (!pushHostOk(d.endpoint) && !testHttp(d.endpoint)) return Promise.resolve({ status: 410, text: 'kein bekannter Push-Dienst' });
+  if (!pushHostOk(d.endpoint)) return Promise.resolve({ status: 410, text: 'kein bekannter Push-Dienst' });
   const mod = u.protocol === 'http:' ? http : https;
   return new Promise(resolve => {
     const rq = mod.request({ hostname: u.hostname, port: u.port || undefined, path: u.pathname + u.search, method: d.method, headers: d.headers, timeout: 10000 }, res => {
@@ -181,7 +179,7 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
 function adminState() {
   const ev = events();
   const subs = db.prepare('SELECT COUNT(*) n, COUNT(DISTINCT member_id) m FROM push_subs').get();
-  const members = db.prepare('SELECT DISTINCT s.member_id id, m.name FROM push_subs s JOIN members m ON m.id = s.member_id ORDER BY m.name').all();
+  const members = db.prepare('SELECT DISTINCT s.member_id id, m.name, m.kind FROM push_subs s JOIN members m ON m.id = s.member_id ORDER BY name_key(m.name, m.kind)').all();
   const recent = db.prepare('SELECT l.ts, l.event, l.title, l.ok, l.info, m.name member FROM push_log l LEFT JOIN members m ON m.id = l.member_id ORDER BY l.id DESC LIMIT 40').all();
   return { events: ev, subs: subs.n, members: subs.m, subscribed: members, recent, subject: subject() };
 }

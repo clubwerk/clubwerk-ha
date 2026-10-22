@@ -63,15 +63,15 @@ async function start() {
   const st = async () => (await A('api/tablet/state'))[1].members;
   let m = await st(); const g = id => m.find(x => x.id === id) || {};
   ok('Angehörige standardmäßig ausgeblendet', g(kid).hidden && g(teen).hidden && !g(solo).hidden && !g(dad).hidden, JSON.stringify([g(kid), g(teen)]));
-  ok('Hauptzahler als Familie markiert', g(dad).family && !g(solo).family);
+  ok('Tablet zeigt keine Familie an (nur Namen)', !('family' in g(dad)) && !('family' in g(solo)));
   [s, j] = await A(X(`member/${teen}/payer`), 'PUT', { payer_id: dad, sales_mode: 'own_payer' }); ok('Eigener Eintrag speichern', s === 200, j.error);
-  m = await st(); ok('Eigener Eintrag sichtbar', !g(teen).hidden && g(kid).hidden && g(dad).family);
+  m = await st(); ok('Eigener Eintrag sichtbar', !g(teen).hidden && g(kid).hidden);
   [s, j] = await A(X('member/' + teen)); ok('Modus im Mitglied', j.person.sales_mode === 'own_payer' && j.person.drinks_to_payer === 1, JSON.stringify([j.person.sales_mode, j.person.drinks_to_payer]));
   await A(X(`member/${teen}/payer`), 'PUT', { payer_id: dad, sales_mode: 'own' });
   [s, j] = await A(X('member/' + teen)); ok('Zahlt selbst → nicht beim Hauptzahler', j.person.drinks_to_payer === 0);
   if (process.env.KEEP) { await new Promise(r => setTimeout(r, 120000)); }
   await A(X(`member/${kid}/payer`), 'PUT', { payer_id: null });
-  m = await st(); ok('Ohne Zahler wieder sichtbar, keine Familie mehr', !g(kid).hidden && !g(dad).family);
+  m = await st(); ok('Ohne Zahler wieder sichtbar', !g(kid).hidden);
   const log = fs.readFileSync(S + '/fam_srv.log', 'utf8'); ok('Keine Fehler im Log', !/TypeError|ReferenceError|SqliteError|is not a function/.test(log), log.split('\n').filter(l => /Error/.test(l)).slice(0, 5).join(' / '));
   console.log(fails ? `\n${fails} FEHLER` : '\nALLES OK');
   srv.kill(); process.exit(fails ? 1 : 0);

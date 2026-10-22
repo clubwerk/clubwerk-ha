@@ -76,7 +76,7 @@ function usage(p) {
   return { rows, total: Object.values(rows).reduce((a, n) => a + n, 0), access, files, settings: settingKeys(sp).length, what: sp.what };
 }
 
-const stamp = () => { const d = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString(); return d.slice(0, 10).replace(/-/g, '') + '-' + d.slice(11, 19).replace(/:/g, ''); };
+const stamp = () => require('./util').nowTs().replace(/[-:]/g, '').replace(' ', '-');   // JJJJMMTT-HHMMSS
 
 /** Sicherung erstellen und im Datenordner ablegen → Dateiname */
 async function backup(p, user) {
@@ -146,8 +146,7 @@ async function restore(p, src) {
   // gegen „ZIP-Bomben“: angegebene Größen prüfen, bevor etwas entpackt wird
   const entries = Object.values(zip.files);
   if (entries.length > 20000) throw new Error('Die Modul-Sicherung enthält zu viele Dateien.');
-  const total = entries.reduce((a, f) => a + ((f._data && f._data.uncompressedSize) || 0), 0);
-  if (total > MAX_RESTORE_BYTES) throw new Error('Die Modul-Sicherung ist zu groß.');
+  if (require('./util').zipSize(entries) > MAX_RESTORE_BYTES) throw new Error('Die Modul-Sicherung ist zu groß.');
   const mf = zip.file('modul.json'), sf = zip.file('signatur.txt');
   if (!mf) throw new Error('Die Datei ist keine Modul-Sicherung von Clubwerk.');
   const json = await mf.async('string');

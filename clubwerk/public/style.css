@@ -15,6 +15,7 @@
   --green-line: #b7d0c0;
   --green-muted: #84ae93;
   --brand: var(--green); --brand-ink: var(--green-dark); --brand-soft: var(--green-soft);
+  --on-brand: #fff;   /* Schrift auf der Vereinsfarbe – theme.css setzt Dunkel, wenn die Vereinsfarbe hell ist */
   --ink: #131a16;
   --muted: #5e6a63;
   --faint: #66716a;   /* Nebentext: mind. 4,5:1 auf Weiß und Hover-Flächen */
@@ -27,11 +28,13 @@
   --red: #b42318;
   --red-soft: #fdecea;
   --red-line: #f1c4be;
+  --on-red: #fff;   /* Schrift auf --red (dunkel: --red ist hell) */
   --amber: #8a4b08;
   --amber-soft: #fdf3e2;
   --amber-line: #f3ddb6;
   --blue-soft: #e3f0fb;
   --blue: #1c5d99;
+  --ok: #1c7f33; --ok-soft: #e6f4ea;   /* „besser als vorher“ (unabhängig von der Vereinsfarbe) */
   --shadow: 0 1px 2px rgba(19,26,22,.04), 0 1px 3px rgba(19,26,22,.06);
   --shadow-pop: 0 16px 40px rgba(19,26,22,.16), 0 2px 6px rgba(19,26,22,.06);
   --radius: 16px;
@@ -45,9 +48,10 @@
   color-scheme: dark;
   --ink: #e9efeb; --muted: #9ba69f; --faint: #8a958f; --line: #26302a; --line-soft: #1e2722;
   --bg: #0d1310; --card: #151c18; --field: #111814; --hover: #1b241f;
-  --red: #f4a79c; --red-soft: #2a1714; --red-line: #5a2a24;
+  --red: #f4a79c; --red-soft: #2a1714; --red-line: #5a2a24; --on-red: #2a1714;
   --amber: #f2c580; --amber-soft: #2a2112; --amber-line: #5a4520;
   --blue-soft: #132434; --blue: #8ec2f0;
+  --ok: #8fd9a3; --ok-soft: #13261a;
   --shadow: none; --shadow-pop: 0 16px 40px rgba(0,0,0,.5);
 }
 * { box-sizing: border-box; }
@@ -67,7 +71,7 @@ input, select, textarea { font: inherit; color: inherit; }
 a.btn { text-decoration: none; color: var(--ink); }
 a.btn.primary { color: #fff; }
 .btn:active { transform: scale(0.98); }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 700; }
 .btn.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
 :root[data-theme="dark"] .btn.primary:hover { background: var(--green-muted); border-color: var(--green-muted); }
 .btn.primary:disabled, .btn.danger:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); }
@@ -85,8 +89,7 @@ a.btn.primary { color: #fff; }
   background: var(--ink); color: var(--bg); padding: 13px 20px; border-radius: 12px; box-shadow: var(--shadow-pop);
   font-size: 15px; font-weight: 600; z-index: 50; width: max-content; max-width: min(90vw, 560px); text-align: center;
 }
-.toast.error { background: var(--red); color: #fff; }
-:root[data-theme="dark"] .toast.error { color: #2a1714; }
+.toast.error { background: var(--red); color: var(--on-red); }
 .btn:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); box-shadow: none; cursor: not-allowed; }   /* gesperrt: grau und lesbar, nicht blass */
 /* Kopfzeile am Tablet (alle Seiten, auch Erweiterungen) */
 #topnav a { white-space: nowrap; }
@@ -97,10 +100,16 @@ a.btn.primary { color: #fff; }
 /* ---------- Kopfzeile am Tablet: auf allen Seiten identisch ----------
    Links Vereinszeichen + Name, Mitte die Bereiche (gleich breite Reiter, exakt mittig), rechts Uhr + Verwaltung.
    Links und rechts gleich breit, damit die Mitte wirklich mittig steht. Vereinsfarbe: Zeichen, Strich oben, aktive Markierung. */
+/* Wechsel zwischen Tablet-Seiten: die Kopfzeile bleibt stehen, nur der Inhalt blendet kurz über (Browser ohne Unterstützung laden wie bisher) */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  ::view-transition-group(root) { animation-duration: .12s; }
+}
+#gkHeader { view-transition-name: gk-kopf; }
 #gkHeader { display: grid; grid-template-columns: 240px minmax(0, 1fr) 240px; align-items: center; gap: 16px; height: 72px; padding: 0 24px;
   background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); box-shadow: inset 0 3px 0 var(--brand); box-sizing: border-box; flex: none; }
 #gkHeader .brand { grid-column: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
-#gkHeader .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand); color: #fff; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; letter-spacing: .02em; }
+#gkHeader .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand); color: var(--on-brand); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; letter-spacing: .02em; }
 #gkHeader.haslogo .mark { display: none; }
 #gkHeader .logo-badge { display: flex; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #fff; border: 1px solid var(--line); padding: 3px; align-items: center; justify-content: center; box-sizing: border-box; }
 #gkHeader .logo-badge img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
@@ -206,7 +215,7 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-grid > .tk-empty { grid-column: 1 / -1; }
 .tk-grid > .tk-tile.big:only-child { grid-column: 1 / -1; }   /* einzige Aktion eines Abschnitts: ganze Zeile wie Leerzustand – keine halbe Karte mit Loch daneben */
 .tk-empty { padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--line); color: var(--muted); font-size: 15px; line-height: 22px; background: transparent; }
-.tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: #fff; font: inherit; font-size: 18px; font-weight: 700; }
+.tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 18px; font-weight: 700; }
 .tk-big:active { transform: scale(.99); }
 .tk-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
 @media (max-width: 900px) { .tk-cols { grid-template-columns: minmax(0, 1fr); } }
@@ -224,12 +233,12 @@ body.tk .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; 
 body.tk .pad button { height: 68px; border-radius: 14px; background: var(--hover); color: var(--ink); font-size: 26px; font-weight: 700; border: 0; }
 body.tk .pad button:active { background: var(--brand-soft); }
 body.tk .pad button.fn { font-size: 17px; background: transparent; border: 1px solid var(--line); }
-body.tk .pad button[data-k="ok"] { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 700; }   /* OK ist überall die Hauptaktion */
+body.tk .pad button[data-k="ok"] { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 700; }   /* OK ist überall die Hauptaktion */
 body.tk .err { color: var(--red); min-height: 24px; text-align: center; margin-top: 10px; font-weight: 700; }
 body.tk .err:empty { min-height: 0; margin-top: 0; }   /* ohne Meldung kein Leerraum unter dem Ziffernfeld */
 /* Erfolgsmeldung im Fenster: runder Haken (rot: Warnung) */
 body.tk .done { text-align: center; }
-body.tk .done .big { width: 72px; height: 72px; margin: 4px auto 8px; border-radius: 36px; background: var(--brand); color: #fff; font-size: 40px; line-height: 72px; }
+body.tk .done .big { width: 72px; height: 72px; margin: 4px auto 8px; border-radius: 36px; background: var(--brand); color: var(--on-brand); font-size: 40px; line-height: 72px; }
 body.tk .done .big.r { background: var(--red); }
 /* Initialen (rund) – wie im Verkauf */
 body.tk .av { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 22px; background: var(--ab, var(--brand-soft)); color: var(--af, var(--brand-ink)); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-style: normal; overflow: hidden; }

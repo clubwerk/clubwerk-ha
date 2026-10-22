@@ -20,7 +20,6 @@ function ibanOk(v) {
   return m === 1;
 }
 const bicOk = v => !v || /^[A-Z]{6}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(String(v).replace(/\s+/g, '').toUpperCase());
-const fmtIban = v => normIban(v).replace(/(.{4})/g, '$1 ').trim();
 const maskIban = v => { const i = normIban(v); return i ? `${i.slice(0, 4)} •••• •••• ${i.slice(-4)}` : ''; };
 const jarr = v => { try { const x = JSON.parse(v || '[]'); return Array.isArray(x) ? x.map(Number).filter(Number.isInteger) : []; } catch (e) { return []; } };
 const view = r => (r ? { ...r, departments: jarr(r.departments), is_default: Boolean(r.is_default), active: Boolean(r.active) } : null);
@@ -85,4 +84,4 @@ function migrateLegacy() {
 }
 migrateLegacy();
 
-module.exports = { list, get, def, forDepartment, pick, save, remove, clean, ibanOk, bicOk, normIban, fmtIban, maskIban };
+module.exports = { list, get, def, forDepartment, pick, save, remove, clean, ibanOk, bicOk, normIban, maskIban };
