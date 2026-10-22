@@ -95,6 +95,14 @@
   setInterval(load, 5 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   window.GKNav = { reload: load };
+  /* PIN-Eingabe – auf allen Tablet-Seiten derselbe Aufbau: Name, „Bitte deine PIN eingeben – Aktion“, 6 Kreise (Stellen 5 und 6
+     freiwillig, daher blass), Ziffernblock, Fehlerzeile (ohne Meldung ohne Platz). title/sub kommen fertig maskiert. */
+  const dots = n => Array.from({ length: Math.max(6, n) }, (_, i) => `<span class="${i < n ? 'f' : i >= 4 ? 'opt' : ''}"></span>`).join('');
+  window.GKPin = {
+    dots,
+    pad: (title, sub, n = 0) => `<h2>${title}</h2><div class="sub">${sub}</div><div class="pin-dots" id="dots">${dots(n)}</div>
+      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div><div class="err" id="perr"></div>`,
+  };
 
   /* Nach 30 Sekunden ohne Eingabe zurück zum Start-Reiter – auf allen Tablet-Seiten außer dem Start-Reiter selbst
      (die Verwaltung bindet diese Datei nicht ein und bleibt deshalb offen). */

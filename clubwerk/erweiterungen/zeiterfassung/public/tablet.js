@@ -56,13 +56,9 @@
     let pin = '';
     const goingOut = Boolean(s.in_since) && !s.forgotten;
     $('dialog').className = 'dialog';
-    $('dialog').innerHTML = `<h2>${esc(s.name)}</h2><div class="sub">PIN eingeben zum <b>${goingOut ? 'Gehen' : 'Kommen'}</b></div>
-      <div class="pin-dots" id="dots"></div>
-      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}
-        <button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div>
-      <div class="err" id="perr"></div>`;
+    $('dialog').innerHTML = GKPin.pad(esc(s.name), `Bitte deine PIN eingeben – ${goingOut ? 'Gehen' : 'Kommen'}`);
     $('overlay').classList.remove('hidden');
-    const dots = () => { $('dots').innerHTML = Array.from({ length: Math.max(4, pin.length) }, (_, i) => `<span class="${i < pin.length ? 'f' : ''}"></span>`).join(''); };
+    const dots = () => { $('dots').innerHTML = GKPin.dots(pin.length); };
     dots();
     const submit = async () => {
       if (pin.length < 4) { $('perr').textContent = 'Die PIN hat mindestens 4 Ziffern.'; return; }

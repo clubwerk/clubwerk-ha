@@ -143,9 +143,8 @@
   /** Ziffernblock (4–6 Ziffern) → onDone(pin) gibt true zurück oder eine Fehlermeldung */
   function pad(title, sub, onDone) {
     let pinVal = '', busy = false;
-    dlg(`<h2>${esc(title)}</h2><div class="sub">${esc(sub)}</div><div class="pin-dots" id="dots"></div>
-      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div><div class="perr" id="perr"></div>`);
-    const dots = () => { $('dots').innerHTML = Array.from({ length: Math.max(4, pinVal.length) }, (_, i) => `<span class="${i < pinVal.length ? 'f' : ''}"></span>`).join(''); };
+    dlg(GKPin.pad(esc(title), esc(sub)));
+    const dots = () => { $('dots').innerHTML = GKPin.dots(pinVal.length); };
     const submit = async () => {
       if (busy) return; busy = true;
       const r = await onDone(pinVal); busy = false;
@@ -156,7 +155,7 @@
   }
   function unlock(p, title, next) {
     if (!p.pin) return firstPin(p, title, next);
-    pad(p.name, `PIN eingeben – ${title}`, async pin => {
+    pad(p.name, `Bitte deine PIN eingeben – ${title}`, async pin => {
       try { const r = await call('unlock', { memberId: p.id, pin }); next(r.token, p); return true; }
       catch (e) { if (e.gate) { closeDlg(); return true; } return e.message; }
     });
@@ -167,7 +166,7 @@
       <p class="pin-note">Zum Buchen und Stornieren am Tablet brauchst du eine PIN. Sie gilt für alles im Vereinsheim – Verkauf, Platzbuchung und Helferdienste – und schützt dich vor Buchungen auf deinen Namen.</p>
       <div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="go">PIN festlegen</button></div>`);
     $('x').onclick = closeDlg;
-    $('go').onclick = () => pad('Neue PIN', '4 bis 6 Ziffern, die du dir merken kannst', pin1 => {
+    $('go').onclick = () => pad('Neue PIN', '4 bis 6 Ziffern – gilt für Verkauf, Platzbuchung, Helferdienste und die Mitglieder-App', pin1 => {
       if (pin1.length < 4) return 'Bitte 4 bis 6 Ziffern.';
       setTimeout(() => pad('PIN wiederholen', 'Zur Sicherheit noch einmal eingeben', async pin2 => {
         if (pin2 !== pin1) { setTimeout(() => { toast('Die beiden PINs stimmen nicht überein – bitte noch einmal.', true); firstPin(p, title, next); }, 0); return true; }

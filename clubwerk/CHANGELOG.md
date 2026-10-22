@@ -16,6 +16,9 @@
 - **Dieselbe Prüfung gilt für „Löschen“ unter Verkauf → Mitglieder & Konten und für „Inaktive entfernen“.** Bisher wurden dort Beiträge, Mannschaften und Buchungen im Hintergrund einfach mit entfernt.
 - Löschen dürfen Benutzer mit dem Recht „Konten“ oder dem vollen Recht „Mitglieder“. Abteilungsleitungen dürfen es nicht.
 
+**PIN-Eingabe am Tablet überall gleich**
+- Verkauf, Platzbuchung, Helferdienste und Zeiterfassung zeigen dasselbe PIN-Fenster: immer 6 Kreise, die Stellen 5 und 6 blass, weil die PIN 4 bis 6 Ziffern hat. Gleich sind auch der Text „Bitte deine PIN eingeben – …“, die Abstände und die Größe. Bisher zeigten Helferdienste, Platzbuchung und Zeiterfassung nur 4 Kreise, und bei den Helferdiensten war unten ein leerer Streifen.
+
 ## 3.32.0
 
 **Verkauf am Tablet**

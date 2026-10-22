@@ -229,6 +229,7 @@ body.tk .dialog .sub { margin: 0 0 14px; }
 body.tk .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
 body.tk .pin-dots span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--brand); }
 body.tk .pin-dots span.f { background: var(--brand); }
+body.tk .pin-dots span.opt { opacity: .3; }   /* Stellen 5 und 6 sind freiwillig (PIN mit 4 bis 6 Ziffern) */
 body.tk .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 body.tk .pad button { height: 68px; border-radius: 14px; background: var(--hover); color: var(--ink); font-size: 26px; font-weight: 700; border: 0; }
 body.tk .pad button:active { background: var(--brand-soft); }

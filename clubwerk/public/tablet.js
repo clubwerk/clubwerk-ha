@@ -342,15 +342,9 @@
   function pinDialog(title, sub, onDone, { allowEmpty = false, max = 6 } = {}) {   // max 8 beim Entsperren: aus der Mitglieder-App übernommene PINs können länger sein
     let pin = '';
     const draw = (err = '') => {
-      $('dialog').innerHTML = `
-        <h2>${esc(title)}</h2><div class="muted">${esc(sub)}</div>
-        <div class="pin-dots">${Array.from({ length: Math.max(6, pin.length) }, (x, i) => i).map(i => `<span class="${i < pin.length ? 'f' : ''}" style="${i >= 4 && i >= pin.length ? 'opacity:.3' : ''}"></span>`).join('')}</div>
-        <div class="pad">
-          ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}
-          <button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button>
-        </div>
-        ${allowEmpty ? '<div style="text-align:center;margin-top:12px"><button class="btn small ghost" data-k="none">PIN entfernen</button></div>' : ''}
-        ${err ? `<div class="err">${esc(err)}</div>` : ''}`;
+      $('dialog').innerHTML = GKPin.pad(esc(title), esc(sub), pin.length)
+        + (allowEmpty ? '<div style="text-align:center;margin-top:12px"><button class="btn small ghost" data-k="none">PIN entfernen</button></div>' : '');
+      $('perr').textContent = err;
     };
     draw();
     $('overlay').classList.remove('hidden');

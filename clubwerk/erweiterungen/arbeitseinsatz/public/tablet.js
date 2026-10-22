@@ -50,9 +50,8 @@
     };
     if (!p.pin) return go('');
     let pinVal = '';
-    dlg(`<h2>${esc(p.name)}</h2><div class="sub">PIN eingeben – ${esc(title)}</div><div class="pin-dots" id="dots"></div>
-      <div class="pad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `<button data-k="${n}">${n}</button>`).join('')}<button class="fn" data-k="x">Abbrechen</button><button data-k="0">0</button><button class="fn" data-k="ok">OK</button></div><div class="perr" id="perr"></div>`);
-    function dots() { $('dots').innerHTML = Array.from({ length: Math.max(4, pinVal.length) }, (_, i) => `<span class="${i < pinVal.length ? 'f' : ''}"></span>`).join(''); }
+    dlg(GKPin.pad(esc(p.name), `Bitte deine PIN eingeben – ${esc(title)}`));
+    function dots() { $('dots').innerHTML = GKPin.dots(pinVal.length); }
     dots();
     $('dialog').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { const k = b.dataset.k; if (k === 'x') return closeDlg(); if (k === 'ok') return go(pinVal); if (pinVal.length < 6) { pinVal += k; dots(); } if (pinVal.length === 6) go(pinVal); }; });
   }

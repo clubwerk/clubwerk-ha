@@ -282,10 +282,21 @@ function dropMemberExtras(fromId, intoId = null) {
   const linked = intoId && db.prepare('SELECT 1 FROM admin_users WHERE member_id = ?').get(intoId);
   db.prepare('UPDATE admin_users SET member_id = ? WHERE member_id = ?').run(intoId && !linked ? intoId : null, fromId);
   try { db.prepare('UPDATE mail_recipient SET member_id = ? WHERE member_id = ?').run(intoId, fromId); } catch (e) { /* Tabelle gibt es erst nach dem Start des Mailers */ }
+  const keep = intoId == null ? keepHistory() : null;
   for (const { table, column } of memberRefs()) {
-    if (intoId == null && KEEP_HISTORY.has(table)) continue;
+    if (keep && keep.has(table)) continue;
     rewireMemberRef(table, column, fromId, intoId);
   }
+}
+/** Tabellen, deren Zeilen beim Löschen als Verlauf bleiben: Kern + Module (Hook historyTables, z. B. bezahlte Forderungen) */
+const keepHistory = () => new Set([...KEEP_HISTORY, ...plugins.withHook('historyTables').flatMap(p => { try { return p.hooks.historyTables() || []; } catch (e) { return []; } })]);
+/** Nach dem Aufräumen (dropMemberExtras): Bleibt Verlauf übrig, wird das Konto nur als gelöscht markiert (Namen bleiben lesbar), sonst ganz entfernt. → true = markiert */
+function removeMemberRow(id) {
+  const keep = keepHistory();
+  const kept = memberRefs().some(({ table, column }) => keep.has(table) && db.prepare(`SELECT 1 FROM "${table}" WHERE "${column}" = ? LIMIT 1`).get(id));
+  if (kept) db.prepare('UPDATE members SET deleted = 1, active = 0, pending = 0, pin_hash = NULL WHERE id = ?').run(id);
+  else db.prepare('DELETE FROM members WHERE id = ?').run(id);
+  return kept;
 }
 /** Wodurch hängt ein Mitglied noch im Verein? Lesbare Gründe, leer = darf gelöscht werden. Jedes Modul prüft seine Daten (Hook memberLinks);
  *  Vergangenes (alte Buchungen, Abrechnungen, bezahlte Forderungen) zählt nicht – es bleibt mit dem Namen als Verlauf stehen. */
@@ -1425,18 +1436,15 @@ admin.delete('/members/:id', need('konten', 'mitglieder'), (req, res) => {
   if (m.kind === 'verein' || m.kind === 'gast') return bad(res, 'Die Sonderkonten „Verein“ und „Gast“ können nicht gelöscht werden – bei Bedarf ausblenden.');
   const links = memberLinks(m.id);
   if (links.length) return res.status(409).json({ error: `${lastFirst(m.name, m.kind)} kann noch nicht gelöscht werden:\n• ${links.join('\n• ')}`, links });
-  const n = db.prepare('SELECT COUNT(*) n FROM bookings WHERE member_id = ?').get(m.id).n
-    + db.prepare('SELECT COUNT(*) n FROM member_settlements WHERE member_id = ?').get(m.id).n
-    + db.prepare('SELECT COUNT(*) n FROM guest_tabs WHERE member_id = ?').get(m.id).n;
+  let kept = false;
   const err = memberTx(() => {
     db.prepare('UPDATE event_guests SET member_id = NULL WHERE member_id = ?').run(m.id);   // bleibt als freier Name stehen
     dropMemberExtras(m.id);   // Module (Mitgliederverwaltung, Buchungen, Helferstunden …) und gekoppelte Geräte räumen auf
-    if (n) db.prepare('UPDATE members SET deleted = 1, active = 0, pending = 0, pin_hash = NULL WHERE id = ?').run(m.id);
-    else db.prepare('DELETE FROM members WHERE id = ?').run(m.id);
+    kept = removeMemberRow(m.id);
   });
   if (err) return bad(res, 'Löschen nicht möglich: ' + err);
-  audit(req.user, 'Konto gelöscht', m.name + (n ? ' (frühere Buchungen bleiben erhalten)' : ''));
-  res.json({ ok: true, kept: Boolean(n) });
+  audit(req.user, 'Konto gelöscht', m.name + (kept ? ' (frühere Buchungen und Zahlungen bleiben erhalten)' : ''));
+  res.json({ ok: true, kept });
 });
 
 admin.post('/members', need('konten'), (req, res) => {
@@ -1529,7 +1537,7 @@ admin.post('/members/remove-inactive', need('konten'), (req, res) => {
       if (!any) {
         db.prepare('UPDATE event_guests SET member_id = NULL WHERE member_id = ?').run(id);
         dropMemberExtras(id);
-        db.prepare('DELETE FROM members WHERE id = ?').run(id); deleted++;
+        removeMemberRow(id); deleted++;
       } else { db.prepare('UPDATE members SET active = 0 WHERE id = ?').run(id); hidden++; }
     }
   });

@@ -7949,6 +7949,8 @@
   "Zahlt für:": "Pays for:",
   "Zahlt für: {0}": "Pays for: {0}",
   "Zahlt über:": "Pays via:",
-  "Zahlt über: {0}": "Pays via: {0}"
+  "Zahlt über: {0}": "Pays via: {0}",
+  "(frühere Buchungen und Zahlungen bleiben erhalten)": "(earlier bookings and payments are kept)",
+  "Bitte deine PIN eingeben – {0}": "Please enter your PIN – {0}"
  }
 }

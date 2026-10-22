@@ -1066,6 +1066,8 @@ function activate(ctx) {
      VOR dem generischen Umhängen/Löschen aller Spalten mit Fremdschlüssel auf members(id). Hier nur, was der Kern nicht kennt:
      Verlauf und Altersstufen-Hinweise (ohne Fremdschlüssel), Beitrittserklärungen, Dokument-Dateien, Zahler-Verweise von Angehörigen. */
   /* ----- Mitglied löschen: Was hängt noch daran? (Kern fragt vor dem Löschen; Vergangenes zählt nicht, bezahlte Forderungen auch nicht) ----- */
+  /** Beim Löschen eines Mitglieds bleiben Forderungen als Verlauf (offene sperren das Löschen ohnehin, s. memberLinks) */
+  ctx.hooks.historyTables = () => ['mv_charge'];
   ctx.hooks.memberLinks = id => {
     const q = (sql, ...a) => ctx.db.prepare(sql).all(...a), d0 = today(), lf = ctx.require('./db').lastFirst, names = rows => rows.map(r => lf(r.name, r.kind)).join(', ');
     const out = [], p = ctx.db.prepare('SELECT payer_id, family_of FROM mv_person WHERE member_id = ?').get(id) || {};

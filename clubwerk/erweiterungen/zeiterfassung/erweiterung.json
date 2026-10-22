@@ -1,7 +1,7 @@
 {
   "id": "zeiterfassung",
   "name": "Zeiterfassung",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "kurz": "Arbeitszeiten am Tablet stempeln.",
   "beschreibung": "Personal (z. B. Reinigung, Hausmeister) stempelt am Tablet mit PIN ein und aus. Monatssumme auf Viertelstunden gerundet, Stundensatz je Person, Monatsnachweis als PDF/Excel und automatisch am 1. per E-Mail.",
   "minApp": "1.13.0",

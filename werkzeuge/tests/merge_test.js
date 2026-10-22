@@ -38,6 +38,13 @@ function dbCounts(id) {
   db.close();
   return { rows: out, member, fkViolations: fk.length };
 }
+const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+/** Beiträge eines Mitglieds beenden (Ende gestern; Beginn davor, damit das Ende nicht vor dem Beginn liegt) */
+async function endFees(id) {
+  const [, d] = await A(X('member/' + id)); let n = 0;
+  for (const f of (d && d.fees) || []) if (!f.end_date) { const [st] = await A(X('mf/' + f.id), 'PUT', { start_date: addD(-30), end_date: addD(-1) }); if (st === 200) n++; }
+  return n;
+}
 (async () => {
   srv = spawn('node', ['src/server.js'], { cwd: APP, env: { ...process.env, CW_TEST_NO_SETUP_CODE: '1', DATA_DIR: DATA, PORT: '3340', BEREGNUNG_PORT: '5340', MEMBER_PORT: '5341', EXT_DIR: S + '/none' }, stdio: ['ignore', fs.openSync(S + '/merge_srv.log', 'w'), fs.openSync(S + '/merge_srv.log', 'a')] });
   for (let i = 0; i < 60; i++) { try { const r = await fetch(B + 'api/admin/status'); if (r.status) break; } catch (e) { /* */ } await sleep(250); }
@@ -52,7 +59,9 @@ function dbCounts(id) {
   [s, j] = await A(X(`member/${D_ID}/payer`), 'PUT', { payer_id: A_ID }); ok('Dora zahlt über A', s === 200, JSON.stringify(j));
   // Buchungssystem: Platz buchen für A und C, Sonderrecht für A und B (UNIQUE-Konflikt beim Zusammenführen), Warteliste für A
   [s, j] = await A('api/admin/x/buchung/meta'); const platz = j.resources[0].id;
-  const d1 = addD(2), d2 = addD(3);
+  // d1 liegt in der Vergangenheit: seit dem sicheren Löschen sperren nur kommende Buchungen – so bleibt C als Mitspieler einer
+  // früheren Buchung stehen und der Test prüft weiter, dass das Löschen ihn aus der Mitspieler-Liste entfernt
+  const d1 = addD(-2), d2 = addD(3);
   [s, j] = await A('api/admin/x/buchung/bookings', 'POST', { resource_id: platz, date: d1, start: '10:00', end: '11:00', member_id: A_ID, partners: [C_ID] }); ok('Buchung A (+ C als Mitspieler)', s === 200, JSON.stringify(j));
   [s, j] = await A('api/admin/x/buchung/bookings', 'POST', { resource_id: platz, date: d2, start: '10:00', end: '11:00', member_id: C_ID, partners: [A_ID] }); ok('Buchung C (+ A als Mitspieler)', s === 200, JSON.stringify(j));
   const bkC = j.id;
@@ -86,6 +95,12 @@ function dbCounts(id) {
 
   /* ---- Löschen C (ohne Getränkebuchungen → endgültig) ---- */
   const beforeC = dbCounts(C_ID); ok('C hat Modul-Daten', Object.keys(beforeC.rows).length >= 5, JSON.stringify(beforeC.rows));
+  // sicheres Löschen: erst 409 mit den Gründen, nichts verändert; dann Verknüpfungen lösen
+  [s, j] = await A(`api/admin/members/${C_ID}`, 'DELETE');
+  ok('Löschen C mit Verknüpfungen: 409 (kommende Buchung, Beitrag)', s === 409 && (j.links || []).some(t => /^1 kommende Buchung \(Buchungssystem\)$/.test(t)) && (j.links || []).some(t => /^Beitrag zugeordnet/.test(t)), s + ' ' + JSON.stringify(j));
+  ok('… nichts verändert', same(dbCounts(C_ID), beforeC), JSON.stringify(dbCounts(C_ID)));
+  [s, j] = await A(`api/admin/x/buchung/bookings/${bkC}/cancel`, 'POST', {}); ok('Kommende Buchung von C storniert', s === 200, JSON.stringify(j));
+  ok('Beitrag von C beendet (gestern)', await endFees(C_ID) === 1);
   [s, j] = await A(`api/admin/members/${C_ID}`, 'DELETE'); ok('Löschen C: 200', s === 200 && j.ok && !j.kept, s + ' ' + JSON.stringify(j));
   const afterC = dbCounts(C_ID);
   ok('C ist weg', !afterC.member, JSON.stringify(afterC.member));
@@ -95,7 +110,13 @@ function dbCounts(id) {
   [s, j] = await A(`api/admin/x/buchung/bookings?from=${d1}&to=${d2}`); ok('Mitspieler C aus der Buchung von B entfernt', j.every(x => !(x.partners || []).includes(C_ID)), JSON.stringify(j.map(x => x.partners)));
 
   /* ---- Löschen mit Verlauf (B hat Getränkebuchungen → wird nur ausgeblendet, Modul-Daten werden entfernt) ---- */
-  [s, j] = await A(`api/admin/members/${B_ID}`, 'DELETE'); ok('B hat offene Beträge → Löschen abgelehnt', s === 400 && /offen/.test(j.error), s + ' ' + JSON.stringify(j));
+  const beforeB = dbCounts(B_ID);
+  // seit dem sicheren Löschen: 409 mit Gründen statt 400 (offener Betrag ist einer davon)
+  [s, j] = await A(`api/admin/members/${B_ID}`, 'DELETE'); ok('B hat offene Beträge → Löschen abgelehnt', s === 409 && (j.links || []).some(t => /^Offener Betrag im Verkauf: /.test(t)), s + ' ' + JSON.stringify(j));
+  ok('… weitere Gründe: Beitrag, „Zahlt für“', (j.links || []).some(t => /^Beitrag zugeordnet/.test(t)) && (j.links || []).some(t => /^Zahlt für: Kind, Dora/.test(t)), JSON.stringify(j.links));
+  ok('… nichts verändert', same(dbCounts(B_ID), beforeB), JSON.stringify(dbCounts(B_ID)));
+  ok('Beitrag von B beendet (gestern)', await endFees(B_ID) === 1);
+  [s, j] = await A(X(`member/${D_ID}/payer`), 'PUT', { payer_id: null }); ok('Dora zahlt nicht mehr über B', s === 200, JSON.stringify(j));
   [s, j] = await A('api/admin/settle', 'POST', { asOf: new Date(Date.now() + 1000).toISOString().slice(0, 19).replace('T', ' '), upTo: 999999 });
   // asOf darf nicht in der Zukunft liegen – Stand aus der Liste nehmen
   [s, j] = await A('api/admin/balances'); [s, j] = await A('api/admin/settle', 'POST', { asOf: j.asOf, upTo: j.upTo }); ok('B abgerechnet', s === 200, JSON.stringify(j));
@@ -110,6 +131,11 @@ function dbCounts(id) {
   /* ---- „Inaktive entfernen“ mit Modul-Daten ---- */
   [s, j] = await newPerson('Emil', 'Inaktiv'); const E_ID = j.id;
   [s, j] = await A('api/admin/x/arbeitseinsatz/entries', 'POST', { member_ids: [E_ID], date: addD(-1), minutes: 60, text: 'Zaun' });
+  const beforeE = dbCounts(E_ID);
+  [s, j] = await A(`api/admin/members/remove-inactive`, 'POST', { ids: [E_ID] });
+  ok('Inaktive entfernen: E mit Beitrag übersprungen („noch verknüpft“)', s === 200 && j.deleted === 0 && (j.skipped || []).some(t => /Emil Inaktiv \(noch verknüpft\)/.test(t)), s + ' ' + JSON.stringify(j));
+  ok('… nichts verändert', same(dbCounts(E_ID), beforeE), JSON.stringify(dbCounts(E_ID)));
+  ok('Beitrag von E beendet (gestern)', await endFees(E_ID) === 1);
   [s, j] = await A(`api/admin/members/remove-inactive`, 'POST', { ids: [E_ID, D_ID] }); ok('Inaktive entfernen: 200', s === 200 && j.deleted === 2, s + ' ' + JSON.stringify(j));
   const afterE = dbCounts(E_ID);
   ok('E endgültig weg, keine verwaisten Zeilen', !afterE.member && !Object.keys(afterE.rows).length && afterE.fkViolations === 0, JSON.stringify(afterE));

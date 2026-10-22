@@ -56,6 +56,8 @@ eigene Protokolleinträge. Wirft der Hook, bricht der Kern ab und zeigt den Fehl
 Vor dem endgültigen Löschen fragt der Kern `ctx.hooks.memberLinks = id => ['Spielt in: Herren 30', …]` (synchron): Jedes Modul nennt in
 Alltagssprache, was in **seinen** Daten noch am Mitglied hängt (laufende Zuordnungen, Kommendes, Offenes – nicht Vergangenes). Steht
 irgendwo etwas, löscht der Kern nicht und zeigt die Liste (mit dem Modulnamen dahinter). Leere Liste = nichts im Weg.
+Tabellen, deren Zeilen dabei als Verlauf bleiben sollen (z. B. bezahlte Forderungen), nennt `ctx.hooks.historyTables = () => ['mv_charge']`;
+der Kern löscht sie nicht und markiert das Konto dann nur als gelöscht, damit der Name lesbar bleibt.
 
 **Datums-/Zeitformate:** Fachliche Tage und Zeitpunkte stehen in der Datenbank in lokaler Zeit ohne Zonenangabe –
 `JJJJ-MM-TT` bzw. `JJJJ-MM-TT HH:MM:SS` (wie SQLites `datetime('now','localtime')`; genau das liefern `ctx.util.today()` und
