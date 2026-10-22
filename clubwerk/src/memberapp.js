@@ -37,12 +37,12 @@ const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.
 const appColor = () => require('./db').clubColor();
 const STAGED = 'Aus Sicherheitsgründen erst nach dem ersten Öffnen der App im Vereins-WLAN – oder nach Freigabe durch den Vorstand.';
 const sms = require('./sms');
-/** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile } */
-function contactOf(memberId) {
-  try { for (const p of require('./plugins').withHook('memberAddress')) { const a = p.hooks.memberAddress(memberId); if (a) return a; } } catch (e) { /* Modul-Fehler: keine Kontaktdaten */ }
+/** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile }; hooked: Module mit memberAddress, wenn schon ermittelt (bei vielen Mitgliedern) */
+function contactOf(memberId, hooked = null) {
+  try { for (const p of hooked || require('./plugins').withHook('memberAddress')) { const a = p.hooks.memberAddress(memberId); if (a) return a; } } catch (e) { /* Modul-Fehler: keine Kontaktdaten */ }
   return null;
 }
-const mailOf = id => { const a = contactOf(id); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
+const mailOf = (id, hooked = null) => { const a = contactOf(id, hooked); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
 /** Handynummer für den SMS-Code – nur, wenn SMS eingerichtet ist */
 const smsPhone = id => { if (!sms.ready()) return null; const a = contactOf(id); return a ? (sms.normPhone(a.mobile) || sms.normPhone(a.phone)) : null; };
 /** hat das Mitglied einen Bereich, der im Verein etwas schaltet (Türen, Beregnung)? */
@@ -242,18 +242,28 @@ const access = {
   remove: (memberId, module) => db.prepare('DELETE FROM member_access WHERE member_id = ? AND module = ?').run(memberId, module).changes > 0,
 };
 
-/** Zustand eines Mitglieds für die Verwaltung */
-function memberState(memberId) {
-  const dev = db.prepare(`SELECT device, paired_at, last_used, invite_expires, blocked_at, paired_host, remote, verified, invite_kind, invite_hash IS NOT NULL AS invited, token_hash IS NOT NULL AS paired FROM member_devices WHERE scope = ? AND member_id = ?`).get(SCOPE, memberId);
+const DEV_COLS = 'device, paired_at, last_used, invite_expires, blocked_at, paired_host, remote, verified, invite_kind, invite_hash IS NOT NULL AS invited, token_hash IS NOT NULL AS paired';
+const ACC_COLS = 'module, profile, valid_until, blocked, away, flags';
+/** für memberState() bei vielen Mitgliedern: Handys, Freischaltungen, Tunnel und Bereiche einmal laden statt je Mitglied */
+function statesPre() {
+  const dev = new Map();
+  for (const d of db.prepare(`SELECT member_id, ${DEV_COLS} FROM member_devices WHERE scope = ? ORDER BY member_id, id`).all(SCOPE)) if (!dev.has(d.member_id)) dev.set(d.member_id, d);
+  const acc = new Map();
+  for (const a of db.prepare(`SELECT member_id, ${ACC_COLS} FROM member_access ORDER BY member_id, module`).all()) { if (!acc.has(a.member_id)) acc.set(a.member_id, []); acc.get(a.member_id).push(a); }
+  return { dev, acc, th: tunnelOn() ? tunnelHost() : '', mods: activeModules() };
+}
+/** Zustand eines Mitglieds für die Verwaltung (pre: aus statesPre()) */
+function memberState(memberId, pre = null) {
+  const dev = pre ? pre.dev.get(memberId) : db.prepare(`SELECT ${DEV_COLS} FROM member_devices WHERE scope = ? AND member_id = ?`).get(SCOPE, memberId);
   // gekoppelt unter einer anderen Adresse als der öffentlichen? Dann braucht das Handy einen neuen QR-Code, um auch unterwegs zu funktionieren
-  const th = tunnelOn() ? tunnelHost() : '';
+  const th = pre ? pre.th : tunnelOn() ? tunnelHost() : '';
   const oldAddress = Boolean(dev && dev.paired && th && (dev.paired_host || '') !== th);
-  const acc = db.prepare('SELECT module, profile, valid_until, blocked, away, flags FROM member_access WHERE member_id = ?').all(memberId);
+  const acc = pre ? pre.acc.get(memberId) || [] : db.prepare(`SELECT ${ACC_COLS} FROM member_access WHERE member_id = ?`).all(memberId);
   return {
     device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, remote: Boolean(dev.paired && dev.remote), verified: dev.verified || null, kind: dev.invite_kind || 'qr', expires: dev.invited ? dev.invite_expires : null, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
     access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked), away: Boolean(a.away), flags: parseFlags(a.flags) }])),
     // je Bereich angehakt? „für alle“-Bereiche gelten, bis sie für dieses Mitglied abgeschaltet werden
-    granted: Object.fromEntries(activeModules().map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
+    granted: Object.fromEntries((pre ? pre.mods : activeModules()).map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
   };
 }
 /** Beim Freischalten vorausgewählt? Bereiche, die im Verein etwas schalten (Türen, Beregnung), standardmäßig nicht – nur für ausgewählte Mitglieder */
@@ -616,14 +626,15 @@ function adminRoutes(admin, { bad, need, auth }) {
     .filter(r => !mayModule(req, r.module)).map(r => modules.get(r.module).label || modules.get(r.module).name);
   admin.get('/app', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const ids = db.prepare(`SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)`).all(SCOPE).map(r => r.member_id);
-    const rows = ids.map(id => { const m = db.prepare('SELECT id, name, kind, active, deleted FROM members WHERE id = ?').get(id); return m && !m.deleted ? { member_id: id, name: m.name, kind: m.kind, ...memberState(id) } : null; })
+    const ms = new Map(db.prepare(`SELECT id, name, kind, active, deleted FROM members WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids).map(m => [m.id, m])), pre = statesPre();
+    const rows = ids.map(id => { const m = ms.get(id); return m && !m.deleted ? { member_id: id, name: m.name, kind: m.kind, ...memberState(id, pre) } : null; })
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
-    const canMail = Boolean(require('./plugins').withHook('memberAddress').length);
-    const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id)) : [];
+    const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
+    const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
     res.json({ startSection: getSetting('app_start', ''), mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
-      security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: Boolean(require('./plugins').withHook('memberAddress').length), sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
+      security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);

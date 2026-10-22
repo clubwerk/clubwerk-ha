@@ -179,14 +179,37 @@ function activate(ctx) {
   /** Wer spielt am selben Tag schon in einer anderen Mannschaft? → Map member_id → Mannschaftsname (eine Person spielt je Tag nur einmal) */
   const playingElsewhere = g => new Map(db.prepare(`SELECT l.member_id, t.name FROM sp_lineup l JOIN sp_game g2 ON g2.id = l.game_id JOIN sp_team t ON t.id = g2.team_id
     WHERE g2.date = ? AND g2.id != ? AND g2.status = 'geplant' AND l.role = 'spielt'`).all(g.date, g.id).map(r => [r.member_id, r.name]));
-  /** Zahlen und Ampel für einen Spieltag */
-  function stats(g, t, ros) {
+  /* ----- Vorab laden: für viele Spieltage bzw. Mannschaften je Tabelle eine Abfrage statt Abfragen je Eintrag ----- */
+  const qs = a => a.map(() => '?').join(',');
+  const groupBy = (rows, k) => { const m = new Map(); for (const r of rows) { if (!m.has(r[k])) m.set(r[k], []); m.get(r[k]).push(r); } return m; };
+  /** Meldelisten mehrerer Mannschaften → Map team_id → Zeilen wie roster() */
+  const rosters = teamIds => groupBy(db.prepare(`SELECT p.team_id, p.member_id, p.rank, m.name FROM sp_player p JOIN members m ON m.id = p.member_id
+    WHERE p.team_id IN (${qs(teamIds)}) AND m.deleted = 0 AND m.active = 1 ORDER BY p.team_id, p.rank, name_key(m.name, m.kind)`).all(...teamIds), 'team_id');
+  /** Namen mehrerer Mitglieder → Map id → Name */
+  const namesOf = ids => { ids = [...new Set(ids.filter(Boolean))]; return new Map(db.prepare(`SELECT id, name FROM members WHERE id IN (${qs(ids)})`).all(...ids).map(r => [r.id, r.name])); };
+  /** alles, was gameView() und stats() für diese Spieltage brauchen */
+  function prep(games) {
+    const gid = games.map(g => g.id), tid = [...new Set(games.map(g => g.team_id))], days = [...new Set(games.map(g => g.date))];
+    const teams = new Map(db.prepare(`SELECT * FROM sp_team WHERE id IN (${qs(tid)})`).all(...tid).map(t => [t.id, t]));
+    const ros = rosters(tid);
+    const av = groupBy(db.prepare(`SELECT * FROM sp_avail WHERE game_id IN (${qs(gid)})`).all(...gid), 'game_id');
+    const lu = groupBy(db.prepare(`SELECT * FROM sp_lineup WHERE game_id IN (${qs(gid)}) ORDER BY game_id, member_id`).all(...gid), 'game_id');
+    const tasks = groupBy(db.prepare(`SELECT * FROM sp_task WHERE game_id IN (${qs(gid)}) ORDER BY id`).all(...gid), 'game_id');
+    // Einsätze an diesen Tagen (Reihenfolge wie playingElsewhere: bei mehreren gilt der letzte)
+    const plays = groupBy(db.prepare(`SELECT l.member_id, t.name, g2.id AS gid, g2.date FROM sp_lineup l JOIN sp_game g2 ON g2.id = l.game_id JOIN sp_team t ON t.id = g2.team_id
+      WHERE g2.date IN (${qs(days)}) AND g2.status = 'geplant' AND l.role = 'spielt' ORDER BY l.rowid`).all(...days), 'date');
+    const names = namesOf([...[...lu.values()].flat().map(x => x.member_id), ...[...tasks.values()].flat().map(x => x.member_id), ...[...teams.values()].map(t => t.captain_id)]);
+    return { c: cfg(), ext: extIds(), team: id => teams.get(id), ros: id => ros.get(id) || [], av: id => av.get(id) || [], lu: id => lu.get(id) || [], tasks: id => tasks.get(id) || [],
+      busy: g => new Map((plays.get(g.date) || []).filter(r => r.gid !== g.id).map(r => [r.member_id, r.name])), name: id => names.get(id) || '' };
+  }
+  /** Zahlen und Ampel für einen Spieltag (pre: vorab geladene Daten aus prep()) */
+  function stats(g, t, ros, pre = null) {
     ros = ros || roster(g.team_id);
-    const ids = new Set(ros.map(r => r.member_id)), busy = playingElsewhere(g);
-    const av = db.prepare('SELECT member_id, state FROM sp_avail WHERE game_id = ?').all(g.id).filter(a => ids.has(a.member_id));
+    const ids = new Set(ros.map(r => r.member_id)), busy = pre ? pre.busy(g) : playingElsewhere(g);
+    const av = (pre ? pre.av(g.id) : db.prepare('SELECT member_id, state FROM sp_avail WHERE game_id = ?').all(g.id)).filter(a => ids.has(a.member_id));
     // wer am selben Tag schon in einer anderen Mannschaft spielt, zählt hier nicht als Zusage
     const yes = av.filter(a => a.state === 'ja' && !busy.has(a.member_id)).length, no = av.filter(a => a.state === 'nein').length;
-    const lu = db.prepare('SELECT role, withdraw FROM sp_lineup WHERE game_id = ?').all(g.id);
+    const lu = pre ? pre.lu(g.id) : db.prepare('SELECT role, withdraw FROM sp_lineup WHERE game_id = ?').all(g.id);
     const playing = lu.filter(x => x.role === 'spielt').length, reserve = lu.filter(x => x.role === 'ersatz').length, withdraws = lu.filter(x => x.withdraw).length;
     const min = (t || team(g.team_id) || {}).min_players || 4;
     const elsewhere = av.filter(a => a.state === 'ja' && busy.has(a.member_id)).length;
@@ -296,14 +319,14 @@ function activate(ctx) {
     WHERE t.active = 1 AND (p.member_id IS NOT NULL OR t.captain_id = ? OR t.vice_id = ?) LIMIT 1`).get(memberId, memberId, memberId));
 
   /* ---------- Ansicht eines Spieltags (für Mannschaftsführer, Verwaltung und – je nach Einstellung – Spieler) ---------- */
-  function gameView(g, { viewer = null, full = false } = {}) {
-    const t = team(g.team_id); const ros = roster(g.team_id); const c = cfg();
-    const av = new Map(db.prepare('SELECT * FROM sp_avail WHERE game_id = ?').all(g.id).map(a => [a.member_id, a]));
-    const lu = new Map(db.prepare('SELECT * FROM sp_lineup WHERE game_id = ?').all(g.id).map(x => [x.member_id, x]));
-    const st = stats(g, t, ros);
+  function gameView(g, { viewer = null, full = false } = {}, pre = prep([g])) {
+    const t = pre.team(g.team_id); const ros = pre.ros(g.team_id); const c = pre.c;
+    const av = new Map(pre.av(g.id).map(a => [a.member_id, a]));
+    const lu = new Map(pre.lu(g.id).map(x => [x.member_id, x]));
+    const st = stats(g, t, ros, pre);
     const out = { id: g.id, team_id: g.team_id, team: t ? t.name : '', league: g.league, date: g.date, start: g.start, home: Boolean(g.home), opponent: g.opponent, venue: g.venue,
       status: g.status, kind: g.kind, za: Boolean(g.za), released: Boolean(g.released), meet_time: g.meet_time, meet_place: g.meet_place, note: g.note, result: g.result, past: g.date < today(), stats: st, sent: g.lineup_sent_at };
-    const busy = playingElsewhere(g), ext = extIds();
+    const busy = pre.busy(g), ext = pre.ext;
     const person = (id, name, inRoster) => {
       const a = av.get(id), l = lu.get(id);
       return { id, name, ln: lf(name), short: short(name), inRoster, state: a ? a.state : null, from: a ? a.from_t : null, until: a ? a.until_t : null, note: a ? a.note : null,
@@ -311,7 +334,7 @@ function activate(ctx) {
     };
     const people = ros.map(r => person(r.member_id, r.name, true));
     // Aushilfen aus anderen Mannschaften, die aufgestellt sind
-    for (const [id] of lu) if (!people.some(p => p.id === id)) people.push(person(id, memberName(id), false));
+    for (const [id] of lu) if (!people.some(p => p.id === id)) people.push(person(id, pre.name(id), false));
     const showAll = full || (viewer && t && leaders(t).includes(viewer));
     if (showAll) out.people = people;
     else {
@@ -322,8 +345,8 @@ function activate(ctx) {
       const me = people.find(p => p.id === viewer);
       out.me = me ? { state: me.state, from: me.from, until: me.until, note: me.note, role: me.role, withdraw: me.withdraw } : null;
     }
-    if (c.tasks) out.tasks = db.prepare('SELECT * FROM sp_task WHERE game_id = ? ORDER BY id').all(g.id).map(x => ({ id: x.id, kind: x.kind, label: x.label, member_id: x.member_id, who: x.member_id ? short(memberName(x.member_id)) : null, note: x.note, mine: Boolean(viewer && x.member_id === viewer) }));
-    out.captain = t && t.captain_id ? short(memberName(t.captain_id)) : null;
+    if (c.tasks) out.tasks = pre.tasks(g.id).map(x => ({ id: x.id, kind: x.kind, label: x.label, member_id: x.member_id, who: x.member_id ? short(pre.name(x.member_id)) : null, note: x.note, mine: Boolean(viewer && x.member_id === viewer) }));
+    out.captain = t && t.captain_id ? short(pre.name(t.captain_id)) : null;
     return out;
   }
 
@@ -482,7 +505,8 @@ function activate(ctx) {
     const playIn = new Set(db.prepare('SELECT team_id FROM sp_player WHERE member_id = ?').all(me).map(r => r.team_id));
     // eigene Einsätze je Tag: an einem Tag, an dem ich schon in einer Mannschaft spiele, steht bei den anderen „spielt in …“
     const plays = db.prepare(`SELECT g.id, g.date, t.name FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id JOIN sp_team t ON t.id = g.team_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date >= ? AND g.status = 'geplant'`).all(me, addDays(today(), -1));
-    const games = futureGames(teams.map(t => t.id)).map(g => gameView(g, { viewer: me })).map(v => { const o = plays.find(x => x.date === v.date && x.id !== v.id);
+    const gs = futureGames(teams.map(t => t.id)), pre = prep(gs);
+    const games = gs.map(g => gameView(g, { viewer: me }, pre)).map(v => { const o = plays.find(x => x.date === v.date && x.id !== v.id);
       return { ...v, mine: playIn.has(v.team_id), lead: cap.includes(v.team_id), elsewhere: o ? o.name : null }; });
     const past = db.prepare(`SELECT g.*, l.role FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date < ? AND g.date >= ? ORDER BY g.date DESC`).all(me, today(), `${today().slice(0, 4)}-01-01`);
     const contacts = c.capInfo ? await Promise.all(teams.map(t => contactOf(t, me))) : teams.map(() => null);
@@ -600,9 +624,9 @@ function activate(ctx) {
     const v = gameView(g, { full: true });
     const t = team(g.team_id);
     // Aushilfen: Spieler anderer Mannschaften (für Ersatz aus unteren Mannschaften)
-    const inRoster = new Set(v.people.map(p => p.id));
+    const inRoster = new Set(v.people.map(p => p.id)), ext = extIds();
     v.helpers = db.prepare(`SELECT DISTINCT m.id, m.name, t.name AS team FROM sp_player p JOIN members m ON m.id = p.member_id JOIN sp_team t ON t.id = p.team_id
-      WHERE t.active = 1 AND p.team_id != ? AND m.deleted = 0 AND m.active = 1 ORDER BY name_key(m.name, m.kind)`).all(g.team_id).filter(m => !inRoster.has(m.id)).map(m => ({ id: m.id, ln: lf(m.name), team: m.team, ext: Boolean(extRow(m.id)) }));
+      WHERE t.active = 1 AND p.team_id != ? AND m.deleted = 0 AND m.active = 1 ORDER BY name_key(m.name, m.kind)`).all(g.team_id).filter(m => !inRoster.has(m.id)).map(m => ({ id: m.id, ln: lf(m.name), team: m.team, ext: ext.has(m.id) }));
     v.externs = v.people.filter(p => p.ext).map(p => ({ id: p.id, ln: p.ln, ...extView(p.id) }));
     v.linkReady = Boolean(linkBase());
     v.taskKinds = cfg().taskKinds.filter(k => k.when === 'immer' || (k.when === 'heim') === Boolean(g.home));
@@ -695,21 +719,35 @@ function activate(ctx) {
 
   /* ================================================================= Verwaltung (/api/admin/x/spielbetrieb/…) */
   const membersList = () => db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 AND pending = 0 ORDER BY name_key(name, kind)").all().map(m => ({ id: m.id, ln: lf(m.name) }));
-  const teamRow = t => ({ ...t, captain: t.captain_id ? lf(memberName(t.captain_id)) : null, vice: t.vice_id ? lf(memberName(t.vice_id)) : null,
-    players: roster(t.id).map(r => { const e = extView(r.member_id); return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(e), ...(e ? { phone: e.phone, club: e.club, link: e.link, last_seen: e.last_seen } : {}) }; }) });
+  /** Meldelisten, Namen und Gastspieler-Angaben für mehrere Mannschaften auf einmal (für teamRow) */
+  const teamPre = ts => ({ ros: rosters(ts.map(t => t.id)), names: namesOf(ts.flatMap(leaders)), base: linkBase(),
+    ext: new Map(db.prepare('SELECT * FROM sp_extern').all().map(e => [e.member_id, e])),
+    aged: new Set(db.prepare(`SELECT member_id FROM sp_extern WHERE COALESCE(last_seen, token_at, created_at) < datetime('now','localtime','-${LINK_DAYS} days')`).all().map(r => r.member_id)) });
+  /** wie extView(), aus vorab geladenen Daten – ein abgelaufener Link geht wie bisher über extView() (wird dabei erneuert) */
+  const extViewPre = (id, x) => {
+    const e = x.ext.get(id); if (!e) return null;
+    if (x.base && x.aged.has(id)) return extView(id);
+    return { phone: e.phone, club: e.club, link: x.base ? `${x.base}/p/spielbetrieb/#t=${e.token}` : null, last_seen: e.last_seen };
+  };
+  const teamRow = (t, x = teamPre([t])) => ({ ...t, captain: t.captain_id ? lf(x.names.get(t.captain_id) || '') : null, vice: t.vice_id ? lf(x.names.get(t.vice_id) || '') : null,
+    players: (x.ros.get(t.id) || []).map(r => { const e = extViewPre(r.member_id, x); return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(e), ...(e ? { phone: e.phone, club: e.club, link: e.link, last_seen: e.last_seen } : {}) }; }) });
   /* ---------- Sportwart-Übersicht: Rückmeldungen aller Mannschaften auf einen Blick ---------- */
   admin.get('/dashboard', P, (req, res) => {
     const d0 = today(), soon = addDays(d0, 14), c = cfg();
     const alerts = []; let ans = 0, tot = 0, crit = 0, next14 = 0, wds = 0;
-    const teams = db.prepare('SELECT * FROM sp_team WHERE active = 1 ORDER BY sort, name').all().map(t => {
-      const ros = roster(t.id);
-      const gs = db.prepare("SELECT * FROM sp_game WHERE team_id = ? AND date >= ? AND released = 1 AND status = 'geplant' ORDER BY date, start LIMIT 10").all(t.id, d0);
-      const ids = gs.map(g => g.id), qs = ids.map(() => '?').join(',');
-      const av = ids.length ? db.prepare(`SELECT game_id, member_id, state FROM sp_avail WHERE game_id IN (${qs})`).all(...ids) : [];
-      const lu = ids.length ? db.prepare(`SELECT game_id, member_id, role, withdraw FROM sp_lineup WHERE game_id IN (${qs})`).all(...ids) : [];
+    const tl = db.prepare('SELECT * FROM sp_team WHERE active = 1 ORDER BY sort, name').all();
+    // je Mannschaft die nächsten 10 Spieltage – eine Abfrage für alle, dazu Meldelisten, Namen und Rückmeldungen vorab
+    const all = db.prepare(`SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY team_id ORDER BY date, start, id) AS nr FROM sp_game
+      WHERE date >= ? AND released = 1 AND status = 'geplant' AND team_id IN (SELECT id FROM sp_team WHERE active = 1)) WHERE nr <= 10 ORDER BY team_id, nr`).all(d0);
+    const byTeam = groupBy(all, 'team_id'), pre = prep(all), allRos = rosters(tl.map(t => t.id)), names = namesOf(tl.flatMap(leaders));
+    const pending = new Map(db.prepare("SELECT team_id, COUNT(*) n FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ? GROUP BY team_id").all(d0).map(r => [r.team_id, r.n]));
+    const teams = tl.map(t => {
+      const ros = allRos.get(t.id) || [];
+      const gs = byTeam.get(t.id) || [];
+      const av = gs.flatMap(g => pre.av(g.id)), lu = gs.flatMap(g => pre.lu(g.id));
       const key = (g, m) => g + ':' + m, A = new Map(av.map(a => [key(a.game_id, a.member_id), a.state])), L = new Map(lu.map(l => [key(l.game_id, l.member_id), l]));
       const games = gs.map(g => {
-        const s = stats(g, t, ros), near = g.date <= soon, due = g.kind !== 'rahmen' && g.date <= addDays(d0, c.captainDays) && !g.lineup_sent_at;
+        const s = stats(g, t, ros, pre), near = g.date <= soon, due = g.kind !== 'rahmen' && g.date <= addDays(d0, c.captainDays) && !g.lineup_sent_at;
         if (near) next14++;
         if (near && !s.ok) { crit++; alerts.push({ level: 'r', team: t.name, team_id: t.id, game_id: g.id, date: g.date, text: `erst ${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''}` }); }
         if (due && s.ok) alerts.push({ level: 'a', team: t.name, team_id: t.id, game_id: g.id, date: g.date, text: 'Aufstellung noch nicht verschickt' });
@@ -718,11 +756,11 @@ function activate(ctx) {
       });
       let tA = 0;
       const matrix = ros.map(r => { const cells = gs.map(g => { const st0 = A.get(key(g.id, r.member_id)) || null, l = L.get(key(g.id, r.member_id)); if (st0) tA++; return { s: st0, r: l ? l.role : null, w: Boolean(l && l.withdraw) }; });
-        return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(extRow(r.member_id)), cells, open: cells.filter(x => !x.s).length }; });
+        return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: pre.ext.has(r.member_id), cells, open: cells.filter(x => !x.s).length }; });
       ans += tA; tot += ros.length * gs.length;
-      return { id: t.id, name: t.name, league: t.league, min: t.min_players, captain: t.captain_id ? lf(memberName(t.captain_id)) : null, vice: t.vice_id ? lf(memberName(t.vice_id)) : null,
+      return { id: t.id, name: t.name, league: t.league, min: t.min_players, captain: t.captain_id ? lf(names.get(t.captain_id) || '') : null, vice: t.vice_id ? lf(names.get(t.vice_id) || '') : null,
         roster: ros.length, games, matrix, rate: ros.length * gs.length ? Math.round(tA / (ros.length * gs.length) * 100) : null,
-        pending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE team_id = ? AND kind = 'rahmen' AND released = 0 AND date >= ?").get(t.id, d0).n };
+        pending: pending.get(t.id) || 0 };
     });
     alerts.sort((a, b) => a.date.localeCompare(b.date) || (a.level === 'r' ? -1 : 1));
     res.json({ today: d0, kpi: { rate: tot ? Math.round(ans / tot * 100) : null, next14, crit, withdraws: wds, teams: teams.length }, alerts: alerts.slice(0, 30), teams });
@@ -744,7 +782,8 @@ function activate(ctx) {
   admin.get('/meta', P, (req, res) => {
     const c = cfg();
     const externs = db.prepare("SELECT m.id, m.name, e.club FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE m.deleted = 0 ORDER BY name_key(m.name, m.kind)").all().map(m => ({ id: m.id, ln: lf(m.name), club: m.club, ext: true }));
-    res.json({ today: today(), teams: db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all().map(teamRow), members: membersList(), externs, linkReady: Boolean(linkBase()), settings: c,
+    const ts = db.prepare('SELECT * FROM sp_team ORDER BY active DESC, sort, name').all(), x = teamPre(ts);
+    res.json({ today: today(), teams: ts.map(t => teamRow(t, x)), members: membersList(), externs, linkReady: Boolean(linkBase()), settings: c,
       buchung: ctx.isModuleActive('buchung'), mitglieder: ctx.isModuleActive('mitglieder'), club: c.club || ctx.getSetting('club_name', ''),
       rahmenPending: db.prepare("SELECT COUNT(*) n FROM sp_game WHERE kind = 'rahmen' AND released = 0 AND date >= ?").get(today()).n });
   });
@@ -848,7 +887,8 @@ function activate(ctx) {
   admin.get('/games', P, (req, res) => {
     const past = req.query.past === '1', tid = int(req.query.team);
     const rows = db.prepare(`SELECT * FROM sp_game WHERE ${past ? 'date < ?' : 'date >= ?'} ${tid ? 'AND team_id = ?' : ''} ORDER BY date ${past ? 'DESC' : 'ASC'}, start LIMIT 400`).all(...(tid ? [today(), tid] : [today()]));
-    res.json(rows.map(g => { const v = gameView(g, { full: true }); delete v.people; return v; }));
+    const pre = prep(rows);
+    res.json(rows.map(g => { const v = gameView(g, { full: true }, pre); delete v.people; return v; }));
   });
   /** Kalender (wie der Rahmenterminplan): alle Spieltage eines Jahres, kompakt */
   admin.get('/calendar', P, (req, res) => {
@@ -857,8 +897,8 @@ function activate(ctx) {
     const year = int(req.query.year) || (next ? +next.date.slice(0, 4) : years.includes(cur) ? cur : years[years.length - 1] || cur);
     const tid = int(req.query.team);
     const rows = db.prepare(`SELECT * FROM sp_game WHERE date >= ? AND date <= ? ${tid ? 'AND team_id = ?' : ''} ORDER BY date, start`).all(`${year}-01-01`, `${year}-12-31`, ...(tid ? [tid] : []));
-    const d0 = today();
-    res.json({ year, years: [...new Set([...years, year])].sort(), today: d0, games: rows.map(g => { const t = team(g.team_id) || {}; const x = stats(g);
+    const d0 = today(), pre = prep(rows);
+    res.json({ year, years: [...new Set([...years, year])].sort(), today: d0, games: rows.map(g => { const t = pre.team(g.team_id) || {}; const x = stats(g, pre.team(g.team_id), pre.ros(g.team_id), pre);
       return { id: g.id, date: g.date, start: g.start, team: t.name || '', home: Boolean(g.home), opponent: g.opponent, kind: g.kind, za: Boolean(g.za), released: Boolean(g.released), status: g.status, past: g.date < d0, ok: x.ok, yes: x.yes, min: x.min }; }) });
   });
   admin.get('/games/:id', P, (req, res) => { const g = game(req.params.id); if (!g) return bad(res, 'Spieltag nicht gefunden.', 404); res.json(leadView(g)); });
