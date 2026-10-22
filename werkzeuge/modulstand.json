@@ -16,16 +16,16 @@
   "hash": "9705e739468d5399be7bcb5caa16e6a1278693eb"
  },
  "buchung": {
-  "version": "1.7.1",
-  "hash": "114603cc90e780101da504b6b9ddbf4bb100d940"
+  "version": "1.8.0",
+  "hash": "9d528edcfefc921210d667e74319ba7810caaa8e"
  },
  "mitglieder": {
   "version": "1.10.1",
   "hash": "8a8bb995752e2cb3adbed4105924c67cce3d21c8"
  },
  "spielbetrieb": {
-  "version": "1.5.1",
-  "hash": "5d689e8d925343bb55b01c1f121f093fdf554327"
+  "version": "1.5.2",
+  "hash": "d062e96e51847c62a138c335fade2a5736e0fcfd"
  },
  "zeiterfassung": {
   "version": "1.0.9",
