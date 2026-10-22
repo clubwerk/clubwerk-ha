@@ -35,7 +35,7 @@
       ${mailLine}
       <div class="row" style="margin-bottom:14px">
         <label class="f">Monat<select id="zMonth">${r.months.map(x => `<option value="${x}" ${x === r.month ? 'selected' : ''}>${new Date(+x.slice(0, 4), +x.slice(5, 7) - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' })}</option>`).join('')}</select></label>
-        <label class="f">Person<select id="zStaff"><option value="0">Alle</option>${r.staff.map(x => `<option value="${x.id}" ${sel && sel.id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label>
+        <label class="f">Person<select id="zStaff"><option value="0">Alle</option>${r.staff.map(x => `<option value="${x.id}" ${sel && sel.id === x.id ? 'selected' : ''}>${esc(GK.lastFirst(x.name))}</option>`).join('')}</select></label>
         <button class="btn" id="zAdd">Einsatz nachtragen</button>
         <button class="btn" id="zStaffBtn">Personal verwalten</button>
         <a class="btn primary" href="api/admin/x/zeiterfassung/report.pdf?${q}" target="_blank" rel="noopener">Monatsnachweis (PDF)</a>
@@ -47,7 +47,7 @@
         <div class="kpi"><div class="l">Abgerechnet (gerundet)</div><div class="v">${zhm(sel ? sel.rounded : tot.rnd)} Std.</div></div>
         <div class="kpi"><div class="l">${sel ? (sel.rate_cents != null ? `Betrag (${euro(sel.rate_cents)}/Std.)` : 'Betrag') : 'Betrag'}</div><div class="v">${sel ? (sel.amount_cents != null ? euro(sel.amount_cents) : '–') : (tot.anyRate ? euro(tot.amt) : '–')}</div></div>
       </div>
-      ${sel ? `<div class="card"><h3>${esc(sel.name)}${sel.job ? ` <span class="muted s">· ${esc(sel.job)}</span>` : ''}</h3>
+      ${sel ? `<div class="card"><h3>${esc(GK.lastFirst(sel.name))}${sel.job ? ` <span class="muted s">· ${esc(sel.job)}</span>` : ''}</h3>
         ${sel.entries.length ? `<table class="tbl"><tr><th>Datum</th><th>Kommen</th><th>Gehen</th><th class="r">Dauer</th><th>Hinweis</th><th></th></tr>
           ${sel.entries.map(e => `<tr><td>${zday(e.start_at)}</td><td>${zclock(e.start_at)}</td><td>${e.end_at ? zclock(e.end_at) + (e.end_at.slice(0, 10) !== e.start_at.slice(0, 10) ? ' <span class="muted s">(+1)</span>' : '') : '–'}</td>
             <td class="r">${e.end_at ? zhm(e.minutes) : '–'}</td><td>${flagCell(e)}</td><td class="r"><button class="btn small" data-ze="${e.id}">Bearbeiten</button></td></tr>`).join('')}
@@ -55,7 +55,7 @@
           : '<p class="empty">Keine Einsätze in diesem Monat.</p>'}</div>`
         : `<div class="card"><h3>Alle Personen</h3>
         ${r.staff.length ? `<table class="tbl"><tr><th>Name</th><th>Tätigkeit</th><th class="r">Einsätze</th><th class="r">genau</th><th class="r">abgerechnet</th><th class="r">Satz</th><th class="r">Betrag</th><th></th></tr>
-          ${r.staff.map(x => `<tr><td><b>${esc(x.name)}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}${x.forgotten ? ' <span class="pill r">nicht ausgestempelt</span>' : x.open ? ' <span class="pill a">gerade da</span>' : ''}</td><td>${esc(x.job || '')}</td>
+          ${r.staff.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}${x.forgotten ? ' <span class="pill r">nicht ausgestempelt</span>' : x.open ? ' <span class="pill a">gerade da</span>' : ''}</td><td>${esc(x.job || '')}</td>
             <td class="r">${x.count}</td><td class="r">${zhm(x.minutes)}</td><td class="r"><b>${zhm(x.rounded)}</b></td><td class="r">${x.rate_cents != null ? euro(x.rate_cents) : '–'}</td><td class="r">${x.amount_cents != null ? euro(x.amount_cents) : '–'}</td>
             <td class="r"><button class="btn small" data-zs="${x.id}">Einsätze</button></td></tr>`).join('')}
           <tr class="sum"><td>Summe</td><td></td><td class="r">${tot.cnt}</td><td class="r">${zhm(tot.min)}</td><td class="r">${zhm(tot.rnd)}</td><td></td><td class="r">${tot.anyRate ? euro(tot.amt) : '–'}</td><td></td></tr></table>`
@@ -88,7 +88,7 @@
     const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     dialog(`<h2>${e ? 'Einsatz bearbeiten' : 'Einsatz nachtragen'}</h2>
       ${e ? `<p class="muted" style="margin-top:0">${esc(sel.name)} · gestempelt ${zday(e.orig_start || e.start_at)} ${zclock(e.orig_start || e.start_at)}–${zclock(e.orig_start ? e.orig_end : e.end_at) || 'offen'}</p>`
-        : `<label class="f">Person<select id="zeS">${all.filter(x => x.active).map(x => `<option value="${x.id}" ${sel && sel.id === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('')}</select></label><br>`}
+        : `<label class="f">Person<select id="zeS">${all.filter(x => x.active).map(x => `<option value="${x.id}" ${sel && sel.id === x.id ? 'selected' : ''}>${esc(GK.lastFirst(x.name))}</option>`).join('')}</select></label><br>`}
       <div class="row" style="flex-wrap:nowrap">
         <label class="f" style="flex:1">Kommen<input type="datetime-local" id="zeA" value="${e ? toLocalInput(e.start_at) : ''}" max="${now}"></label>
         <label class="f" style="flex:1">Gehen<input type="datetime-local" id="zeB" value="${e ? toLocalInput(e.end_at) : ''}" max="${now}"></label>
@@ -115,7 +115,7 @@
     dialog(`<h2>Personal verwalten</h2>
       <p class="muted" style="margin-top:0">Jede Person stempelt am Tablet mit ihrer eigenen PIN. Der Stundensatz ist nur hier in der Verwaltung sichtbar. Eine Änderung gilt ab dem laufenden Monat – abgeschlossene Monate behalten ihren Satz.</p>
       ${list.length ? `<table class="tbl"><tr><th>Name</th><th>Tätigkeit</th><th class="r">Stundensatz</th><th></th></tr>
-        ${list.map(x => `<tr class="${x.active ? '' : 'off'}"><td><b>${esc(x.name)}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}</td><td>${esc(x.job || '')}</td>
+        ${list.map(x => `<tr class="${x.active ? '' : 'off'}"><td><b>${esc(GK.lastFirst(x.name))}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}</td><td>${esc(x.job || '')}</td>
           <td class="r">${x.rate_cents != null ? euro(x.rate_cents) : '–'}</td><td class="r"><button class="btn small" data-zp="${x.id}">Bearbeiten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch niemand angelegt.</p>'}
       <div class="btns"><button class="btn" id="zpX">Schließen</button><button class="btn primary" id="zpNew">+ Person anlegen</button></div>`, false);
     $('zpX').onclick = () => { closeDialog(); GK.RENDER.zeit(); };

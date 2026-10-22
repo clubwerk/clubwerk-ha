@@ -446,7 +446,7 @@ function activate(ctx) {
   T.get('/state', (req, res) => {
     const day = today();
     res.json({ text: cfg().text, events: db.prepare("SELECT e.id, e.kind, CASE WHEN p.title IS NOT NULL THEN p.title || ' · ' || e.title ELSE e.title END AS title, e.start, e.end, e.place, e.permanent FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE (e.date = ? OR e.permanent = 1) AND e.cancelled = 0 AND (e.counts = 1 OR e.permanent = 1) ORDER BY e.permanent, e.start, e.title").all(day),
-      running: db.prepare("SELECT e.id, e.member_id, m.name, e.in_at, v.title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id WHERE e.status = 'laeuft' ORDER BY e.in_at").all(),
+      running: db.prepare("SELECT e.id, e.member_id, m.name, e.in_at, v.title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id WHERE e.status = 'laeuft' ORDER BY name_key(m.name, m.kind)").all().map(r => ({ ...r, ln: lf(r.name) })),
       people: db.prepare("SELECT id, name, pin_hash IS NOT NULL AS pin FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().map(p => ({ ...p, ln: lf(p.name) })) });
   });
   T.post('/start', rateLimit('awtab', 60, 60000), (req, res) => {

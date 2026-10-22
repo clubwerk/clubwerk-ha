@@ -296,7 +296,7 @@ function activate(ctx) {
   const staffState = () => db.prepare('SELECT id, name, job FROM staff WHERE active = 1 ORDER BY name_key(name, NULL)').all().map(s => {
     const open = db.prepare('SELECT start_at FROM time_entries WHERE staff_id = ? AND end_at IS NULL ORDER BY start_at DESC LIMIT 1').get(s.id);
     const last = db.prepare('SELECT end_at FROM time_entries WHERE staff_id = ? AND end_at IS NOT NULL ORDER BY end_at DESC LIMIT 1').get(s.id);
-    return { ...s, in_since: open ? open.start_at : null, forgotten: Boolean(open && minutesBetween(open.start_at, localTs()) > OPEN_LIMIT_MIN), last_out: last ? last.end_at : null };
+    return { ...s, ln: ctx.require('./db').lastFirst(s.name), in_since: open ? open.start_at : null, forgotten: Boolean(open && minutesBetween(open.start_at, localTs()) > OPEN_LIMIT_MIN), last_out: last ? last.end_at : null };
   });
 
   tablet.get('/state', (req, res) => {

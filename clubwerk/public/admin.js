@@ -1131,7 +1131,7 @@
       ${rangeBar(r.from, r.to)}
       <div class="row" style="margin-bottom:14px"><label class="f">Nur Konto<select id="bMem"><option value="">alle</option>${cache.members.map(m => `<option value="${m.id}" ${Number(memberId) === m.id ? 'selected' : ''}>${pName(m)}</option>`).join('')}</select></label>
         ${memberId ? (() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
-          return `<div class="kpi" style="padding:8px 14px"><div class="l">${esc((cache.members.find(m => m.id === Number(memberId)) || {}).name || '')} im Zeitraum</div>
+          return `<div class="kpi" style="padding:8px 14px"><div class="l">${(m => m ? pName(m) : '')(cache.members.find(m => m.id === Number(memberId)))} im Zeitraum</div>
             <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })() : ''}</div>
       <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:nowrap">
         <label class="f" style="flex:1;min-width:0">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
@@ -1142,7 +1142,7 @@
         <label class="f">Datum<input type="date" id="nbDate" value="${today()}"></label>
         <button class="btn" id="nbSave">Nachtragen</button></div></div>
       <div class="scroll"><table class="tbl" id="buTbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
-      ${moreRows(r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s">${esc(b.event)}</div>` : ''}</td>
+      ${moreRows(r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member_kind ? lastFirst(b.member, b.member_kind) : b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s">${esc(b.event)}</div>` : ''}</td>
         <td><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
           : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
           : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
@@ -1448,7 +1448,7 @@
     const items = t => t.items.map(i => `${i.qty}× ${esc(i.article)}`).join(', ');
     const openSum = r.open.reduce((a, t) => a + t.open_cents, 0);
     const old = r.open.filter(t => age(t) >= 1).length;
-    const ST = { bezahlt: t => `<span class="pill g">${t.method === 'karte' ? 'Karte' : 'bar'} bezahlt</span>`, uebernommen: t => `<span class="pill b">übernommen${t.member ? ': ' + esc(t.member) : ''}</span>`,
+    const ST = { bezahlt: t => `<span class="pill g">${t.method === 'karte' ? 'Karte' : 'bar'} bezahlt</span>`, uebernommen: t => `<span class="pill b">übernommen${t.member ? ': ' + esc(lastFirst(t.member, t.member_kind)) : ''}</span>`,
       abgeschrieben: t => `<span class="pill r">abgeschrieben</span>${t.note ? `<div class="muted s">${esc(t.note)}</div>` : ''}` };
     $('main').innerHTML = `<h2 class="page">Gäste-Deckel</h2>
       <p class="lead">Gäste und gegnerische Mannschaften schreiben am Tablet auf einen Deckel an und zahlen vor der Heimfahrt – das Thekenpersonal tippt dort auf „Bezahlen“ (bar oder Karte). Hier siehst du, was noch offen ist; vergessene Deckel können nachträglich abgehakt${mayClose ? ', auf ein Konto übernommen oder abgeschrieben' : ''} werden.</p>
@@ -1530,8 +1530,8 @@
       if (!g.member_id && g.open_cents && (canEv || canTr)) btns.push(`<button class="btn small ghost" data-link="${g.id}" data-ev="${e.id}">Mitglied zuordnen</button>`);
       if (!g.n && canEv && !e.closed_at) btns.push(`<button class="btn small ghost" data-rmg="${g.id}" data-ev="${e.id}" aria-label="Namen entfernen">✕</button>`);
       return `<tr class="${done ? 'paidrow' : ''}" data-status="${g.open_cents ? 'offen' : (g.total_cents ? 'bezahlt' : 'leer')}">
-        <td><span class="gname">${esc(g.name)}</span> ${g.member_id ? '<span class="pill">Mitglied</span>' : '<span class="pill a">Gast – kein Konto</span>'}
-          ${g.member_id && g.member_name && g.member_name !== g.name ? `<div class="muted s">→ ${esc(g.member_name)}</div>` : ''}</td>
+        <td><span class="gname">${esc(g.member_kind ? lastFirst(g.name, g.member_kind) : g.name)}</span> ${g.member_id ? '<span class="pill">Mitglied</span>' : '<span class="pill a">Gast – kein Konto</span>'}
+          ${g.member_id && g.member_name && g.member_name !== g.name ? `<div class="muted s">→ ${esc(lastFirst(g.member_name, g.member_kind))}</div>` : ''}</td>
         <td class="r">${g.qty}</td><td class="r">${euro(g.total_cents)}</td><td>${STATUS(g)}</td>
         <td class="r" style="white-space:nowrap">${btns.join(' ')}</td></tr>`;
     };
@@ -1577,7 +1577,7 @@
           ${e.guests.map(g => guestRow(e, g)).join('') || '<tr><td colspan="5" class="muted">Noch niemand auf der Liste – Namen hier hinzufügen oder am Tablet eintragen lassen.</td></tr>'}</table></div>
         ${e.payments.length ? `<details style="margin-top:10px"><summary>Zahlungen (${e.payments.length})</summary>
           <table class="tbl" style="margin-top:6px"><tr><th>Zeit</th><th>Name</th><th>Art</th><th class="r">Betrag</th><th>abgehakt von</th><th></th></tr>
-          ${e.payments.map(p => `<tr><td>${deTime(p.at)}</td><td>${esc(p.name)}</td><td>${p.method === 'bar' ? 'bar' : 'Karte'}</td><td class="r">${euro(p.cents)}</td><td>${esc(p.by_user || '')}</td>
+          ${e.payments.map(p => `<tr><td>${deTime(p.at)}</td><td>${esc(p.member_kind ? lastFirst(p.name, p.member_kind) : p.name)}</td><td>${p.method === 'bar' ? 'bar' : 'Karte'}</td><td class="r">${euro(p.cents)}</td><td>${esc(p.by_user || '')}</td>
             <td class="r">${canEv ? `<button class="btn small ghost" data-unpay="${p.id}" data-ev="${e.id}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table></details>` : ''}
         <details style="margin-top:10px"><summary>Verkaufte Artikel (${e.items.reduce((t, i) => t + i.qty, 0)} Stück)</summary>
           <table class="tbl" style="margin-top:6px"><tr><th>Artikel</th><th class="r">Menge</th><th class="r">Umsatz</th><th class="r">Verein frei</th></tr>
@@ -1927,7 +1927,7 @@
       const el = $('mDetail');
       el.classList.toggle('empty', !m);
       if (!m) { el.innerHTML = `<div class="mempty"><span class="mi">${icon('konten', 22)}</span><b>Mitglied auswählen</b><span class="muted s">Klick auf einen Namen zeigt hier Konto, PIN und Aktionen.</span></div>`; return; }
-      const html = `<div class="mhead"><span class="av lg">${ini(m)}</span><div style="min-width:0"><h3>${esc(m.name)}</h3><div class="row" style="gap:6px"><span class="pill">${KIND[m.kind]}</span>${m.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</div></div></div>
+      const html = `<div class="mhead"><span class="av lg">${ini(m)}</span><div style="min-width:0"><h3>${pName(m)}</h3><div class="row" style="gap:6px"><span class="pill">${KIND[m.kind]}</span>${m.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</div></div></div>
         <dl class="facts">
           <div><dt>Offen</dt><dd class="${m.balance_cents > 0 ? 'neg' : ''}">${euro(m.balance_cents || 0)}</dd></div>
           ${m.eventOpen_cents ? `<div><dt>Veranstaltungen offen</dt><dd>${euro(m.eventOpen_cents)}</dd></div>` : ''}
@@ -2256,7 +2256,7 @@
       ${mayEdit ? `<div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:14px">
         <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testnachricht an<select id="pshWho"><option value="">– Mitglied wählen –</option>${r.subscribed.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'} title="${r.subscribed.length ? '' : 'Noch kein Handy für Push angemeldet'}">Senden</button></div>
         <button class="btn primary" id="pshSave">Speichern</button></div>` : ''}
-      ${r.recent.length ? `<details style="margin-top:10px"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member || '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
+      ${r.recent.length ? `<details style="margin-top:10px"><summary class="muted s">Zuletzt gesendet (${r.recent.length})</summary><table class="tbl s"><tr><th>Zeit</th><th>Mitglied</th><th>Anlass</th><th>Titel</th><th>Ergebnis</th></tr>${r.recent.map(x => `<tr><td class="nw">${deTime(x.ts)}</td><td>${esc(x.member ? lastFirst(x.member, x.kind) : '–')}</td><td>${esc(x.event)}</td><td>${esc(x.title || '')}</td><td>${x.ok ? '<span class="pill g">gesendet</span>' : `<span class="pill r">${esc(x.info || 'Fehler')}</span>`}</td></tr>`).join('')}</table></details>` : ''}`;
     if (!mayEdit) return;
     $('pshSave').onclick = () => busy($('pshSave'), async () => {
       const events = {};
@@ -2603,7 +2603,7 @@
       $('uBody').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => roleDialog(opt.roles.find(x => x.id === +b.dataset.r), opt); });
     } else {
       $('uBody').innerHTML = `<table class="tbl"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
-        ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b>${esc(u.name || u.username)}</b><div class="muted s">${esc(u.username)}${u.member_id ? ' · Mitglied' : ''}</div></td>
+        ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b>${esc(u.member_id && u.name ? lastFirst(u.name) : u.name || u.username)}</b><div class="muted s">${esc(u.username)}${u.member_id ? ' · Mitglied' : ''}</div></td>
           <td>${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>'
             : [u.roles.map(id => `<span class="pill b" style="margin:1px">${esc(roleName(id) || '?')}</span>`).join(' '), u.extra.length ? permPills(u.extra) : ''].filter(Boolean).join(' ') || '<span class="muted s">keine Rechte</span>'}
             ${u.departments.length && u.deptOnly.length ? `<div class="muted s" translate="no">${esc(u.departments.map(deptName).filter(Boolean).join(', '))}</div>` : ''}${u.active ? '' : ' <span class="pill">gesperrt</span>'}</td>

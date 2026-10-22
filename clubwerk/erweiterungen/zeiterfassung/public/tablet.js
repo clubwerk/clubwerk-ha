@@ -44,7 +44,7 @@
         : s.in_since ? `seit ${dayLabel(s.in_since) === 'heute' ? '' : dayLabel(s.in_since) + ' '}${clock(s.in_since)} Uhr`
           : s.last_out ? `zuletzt ${dayLabel(s.last_out)} ${clock(s.last_out)}` : '';
       const chip = s.forgotten ? '<span class="tk-chip r">vergessen</span>' : s.in_since ? '<span class="tk-chip g">da</span>' : '<span class="tk-chip">nicht da</span>';
-      return `<button data-id="${s.id}" class="tk-tile ${s.forgotten ? 'warn' : s.in_since ? 'on' : ''}"><i class="av">${esc(initials(s.name))}</i><span class="tk-txt"><b>${esc(s.name)}</b><span>${esc([s.job, line].filter(Boolean).join(' · '))}</span></span>${chip}</button>`;
+      return `<button data-id="${s.id}" class="tk-tile ${s.forgotten ? 'warn' : s.in_since ? 'on' : ''}"><i class="av">${esc(initials(s.name))}</i><span class="tk-txt"><b>${esc(s.ln)}</b><span>${esc([s.job, line].filter(Boolean).join(' · '))}</span></span>${chip}</button>`;
     }).join('');
     if (!state.staff.length) $('staff').innerHTML = '<p class="tk-empty" style="grid-column:1/-1;margin:0">Noch kein Personal angelegt – in der Verwaltung unter „Zeiterfassung“.</p>';
     $('staff').querySelectorAll('button[data-id]').forEach(b => b.onclick = () => askPin(state.staff.find(s => s.id === Number(b.dataset.id))));

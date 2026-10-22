@@ -180,7 +180,7 @@ function adminState() {
   const ev = events();
   const subs = db.prepare('SELECT COUNT(*) n, COUNT(DISTINCT member_id) m FROM push_subs').get();
   const members = db.prepare('SELECT DISTINCT s.member_id id, m.name, m.kind FROM push_subs s JOIN members m ON m.id = s.member_id ORDER BY name_key(m.name, m.kind)').all();
-  const recent = db.prepare('SELECT l.ts, l.event, l.title, l.ok, l.info, m.name member FROM push_log l LEFT JOIN members m ON m.id = l.member_id ORDER BY l.id DESC LIMIT 40').all();
+  const recent = db.prepare('SELECT l.ts, l.event, l.title, l.ok, l.info, m.name member, m.kind FROM push_log l LEFT JOIN members m ON m.id = l.member_id ORDER BY l.id DESC LIMIT 40').all();
   return { events: ev, subs: subs.n, members: subs.m, subscribed: members, recent, subject: subject() };
 }
 

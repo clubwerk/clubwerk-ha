@@ -251,7 +251,7 @@
         <div class="pills">${status ? pill(STATUS[status] || ['', status]) : ''}${p.member_no ? `<span class="pill">Nr. ${esc(p.member_no)}</span>` : ''}${p.age != null ? `<span class="pill">${p.age} Jahre</span>` : ''}
           ${p.exit_date && !p.exited ? `<span class="pill a">Austritt zum ${deDate(p.exit_date)}</span>` : ''}${d.payer ? `<span class="pill b">zahlt über ${esc(d.payer.name)}</span>` : ''}${d.familyHead ? `<span class="pill b">Familie von ${esc(d.familyHead.name)}</span>` : ''}
           ${d.changes.length ? `<span class="pill a">${d.changes.length} ${d.changes.length === 1 ? 'Änderung' : 'Änderungen'} aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
-        <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">Austritt zurücknehmen</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
+        <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">${p.exited ? 'Wiedereintritt …' : 'Austritt zurücknehmen'}</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
           ${p.has_pin && !SC() && !p.anonymized_at ? '<button class="btn ghost" id="mvPin">PIN zurücksetzen</button>' : ''}${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}${SC() || p.anonymized_at ? '' : '<button class="btn danger" id="mvDel">Löschen …</button>'}</div></div>
       ${(d.ageNotices || []).map(n => `<div class="banner a"><span><b>Altersstufe:</b> ${esc(n.label)}${n.dept ? ` (<span translate="no">${esc(n.dept)}</span>)` : ''} – ab ${deDate(n.due_date)}: ${ageFrom(n)} → ${ageTo(n)}. Bis zur Entscheidung läuft der bisherige Beitrag weiter.</span>
         <span class="nw" style="margin-left:auto"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small primary" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></span></div>`).join('')}
@@ -267,7 +267,13 @@
     const again = () => showDetail(el, id).catch(fail);
     ageBind(el, again);
     if ($('mvExit')) $('mvExit').onclick = () => exitDialog(d, again);
-    if ($('mvRe')) $('mvRe').onclick = async () => { if (!await ask(`Austritt von ${p.name} zurücknehmen?\n\nBeiträge und Abteilungen, die zum Austritt beendet wurden, bitte danach prüfen.`, { ok: 'Zurücknehmen' })) return; try { const r = await api(`member/${id}/reenter`, 'POST', {}); toast(r.pending ? `Rückkehr gemeldet. ${PENDING}` : 'Austritt zurückgenommen.'); again(); } catch (e) { fail(e); } };
+    // Austritt noch nicht wirksam: zurücknehmen (Nummer bleibt). Schon ausgetreten: Wiedereintritt mit neuer Mitgliedsnummer und neuem SEPA-Mandat
+    if ($('mvRe')) $('mvRe').onclick = async () => {
+      const q = p.exited ? `Wiedereintritt von ${p.name}?\n\n${p.name} bekommt eine neue Mitgliedsnummer (die bisherige ${p.member_no || '–'} wird nicht wieder vergeben) und als Eintritt das heutige Datum. Bei Lastschrift ist ein neues SEPA-Mandat nötig. Beiträge und Abteilungen, die zum Austritt beendet wurden, laufen wieder – bitte danach prüfen.`
+        : `Austritt von ${p.name} zurücknehmen?\n\nBeiträge und Abteilungen, die zum Austritt beendet wurden, bitte danach prüfen.`;
+      if (!await ask(q, { ok: p.exited ? 'Wieder aufnehmen' : 'Zurücknehmen' })) return;
+      try { const r = await api(`member/${id}/reenter`, 'POST', {}); toast(r.pending ? `Rückkehr gemeldet. ${PENDING}` : r.member_no ? `Wieder aufgenommen – neue Mitgliedsnummer ${r.member_no}.` : 'Austritt zurückgenommen.'); again(); } catch (e) { fail(e); }
+    };
     // Löschen nur, wenn nichts mehr daran hängt (prüft der Kern mit allen Modulen) – sonst nennt er, was noch zu lösen ist
     if ($('mvDel')) $('mvDel').onclick = () => GK.deleteMember({ id, name: p.name, kind: 'mitglied' }, () => { st.detail = null; loadRows().then(() => showList(el)).catch(fail); });
     if ($('mvAnon')) $('mvAnon').onclick = async () => {

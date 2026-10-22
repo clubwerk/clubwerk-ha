@@ -371,13 +371,13 @@ function activeEvent(withGuests = false) {
     WHERE ea.event_id = ? AND a.custom = 0 ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(ev.id);
   if (withGuests) {
     // Für die Namensliste am Tablet: keine Beträge, nur ob jemand schon alles bezahlt hat
-    ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id AS memberId, m.pin_hash IS NOT NULL AS hasPin,
+    ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id AS memberId, m.kind, m.pin_hash IS NOT NULL AS hasPin,
         (SELECT COUNT(*) FROM bookings b WHERE b.event_guest_id = g.id AND b.cancelled_at IS NULL) AS n,
         (SELECT COUNT(*) FROM bookings b WHERE b.event_guest_id = g.id AND b.cancelled_at IS NULL AND b.kind = 'event'
            AND b.payment_id IS NULL AND b.transferred_at IS NULL) AS openN
       FROM event_guests g LEFT JOIN members m ON m.id = g.member_id
       WHERE g.event_id = ? ORDER BY name_key(g.name, 'mitglied')`).all(ev.id)
-      .map(g => ({ id: g.id, name: g.name, memberId: g.memberId, paid: g.n > 0 && g.openN === 0, open_cents: guestOpen(g.id) }));
+      .map(g => ({ id: g.id, name: g.name, memberId: g.memberId, kind: g.kind, paid: g.n > 0 && g.openN === 0, open_cents: guestOpen(g.id) }));
   }
   return ev;
 }
@@ -2062,7 +2062,7 @@ admin.get('/bookings', need('buchungen'), (req, res) => {
   let where = '';
   if (req.query.memberId) { where += ' AND b.member_id = ?'; params.push(int(req.query.memberId)); }
   if (req.query.eventId) { where += ' AND b.event_id = ?'; params.push(int(req.query.eventId)); }
-  const rows = db.prepare(`SELECT b.*, ${ARTICLE_LABEL} AS article, COALESCE(m.name, g.name, 'Deckel: ' || t.name) AS member, g.name AS guest,
+  const rows = db.prepare(`SELECT b.*, ${ARTICLE_LABEL} AS article, COALESCE(m.name, g.name, 'Deckel: ' || t.name) AS member, m.kind AS member_kind, g.name AS guest,
       g.member_id IS NULL AND g.id IS NOT NULL AS manual_guest, e.name AS event, p.method AS pay_method, t.status AS tab_status, t.method AS tab_method
     FROM bookings b JOIN articles a ON a.id = b.article_id
     LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
@@ -2261,11 +2261,11 @@ admin.post('/settle', need('abrechnung'), (req, res) => {
 
 admin.get('/settle-history', need('abrechnung'), (req, res) => {
   const rows = db.prepare(`SELECT s.batch, MIN(s.created_at) created_at, MAX(s.until_at) until_at, MAX(s.by_user) by_user,
-      COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, ', ') names
+      COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, char(31)) names, group_concat(m.kind, char(31)) kinds
     FROM member_settlements s JOIN members m ON m.id = s.member_id
     GROUP BY s.batch ORDER BY MIN(s.id) DESC LIMIT 30`).all();
   const newest = rows.length ? rows[0].batch : null;
-  res.json(rows.map(r => ({ ...r, names: r.members <= 3 ? r.names : null, undo: r.batch === newest && !r.batch.startsWith('stichtag-') })));
+  res.json(rows.map(({ kinds, ...r }) => ({ ...r, names: r.members <= 3 ? r.names.split('\x1f').map((n, i) => lastFirst(n, kinds.split('\x1f')[i])).join('; ') : null, undo: r.batch === newest && !r.batch.startsWith('stichtag-') })));
 });
 
 /* Getränke für andere Module (Mitgliederverwaltung: Einzug per Lastschrift) – gleiche Regeln wie die Abrechnung oben */
@@ -2331,7 +2331,7 @@ const TAB_VIEW = need('veranstaltungen', 'uebernahme', 'abrechnung', 'export');
 function tabRows(where, ...params) {
   const items = db.prepare(`SELECT b.id, b.created_at, b.qty, b.total_cents, b.unit_cents, ${ARTICLE_LABEL} AS article
     FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.tab_id = ? AND b.cancelled_at IS NULL ORDER BY b.created_at`);
-  return db.prepare(`SELECT t.*, m.name AS member FROM guest_tabs t LEFT JOIN members m ON m.id = t.member_id WHERE ${where}`).all(...params)
+  return db.prepare(`SELECT t.*, m.name AS member, m.kind AS member_kind FROM guest_tabs t LEFT JOIN members m ON m.id = t.member_id WHERE ${where}`).all(...params)
     .map(t => {
       const it = items.all(t.id);
       return { ...t, items: it, open_cents: t.status === 'offen' ? it.reduce((s, x) => s + x.total_cents, 0) : 0,
@@ -2391,7 +2391,7 @@ function eventSummary(id) {
       SUM(CASE WHEN b.kind = 'verein' THEN b.qty ELSE 0 END) free_qty
     FROM bookings b JOIN articles a ON a.id = b.article_id
     WHERE b.event_id = ? AND b.cancelled_at IS NULL GROUP BY a.id ORDER BY cat_rank(a.category), de_key(a.category), de_key(a.name)`).all(id);
-  ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id, m.name AS member_name, g.created_by, g.created_at,
+  ev.guests = db.prepare(`SELECT g.id, g.name, g.member_id, m.name AS member_name, m.kind AS member_kind, g.created_by, g.created_at,
       COALESCE(SUM(b.qty),0) qty, COALESCE(SUM(b.total_cents),0) total_cents,
       COALESCE(SUM(CASE WHEN b.kind = 'event' AND b.payment_id IS NULL AND b.transferred_at IS NULL THEN b.total_cents END),0) open_cents,
       COALESCE(SUM(CASE WHEN p.method = 'bar' THEN b.total_cents END),0) bar_cents,
@@ -2402,7 +2402,7 @@ function eventSummary(id) {
     LEFT JOIN bookings b ON b.event_guest_id = g.id AND b.cancelled_at IS NULL
     LEFT JOIN event_payments p ON p.id = b.payment_id
     WHERE g.event_id = ? GROUP BY g.id ORDER BY name_key(g.name, 'mitglied')`).all(id);
-  ev.payments = db.prepare(`SELECT p.*, g.name FROM event_payments p JOIN event_guests g ON g.id = p.guest_id
+  ev.payments = db.prepare(`SELECT p.*, g.name, m.kind AS member_kind FROM event_payments p JOIN event_guests g ON g.id = p.guest_id LEFT JOIN members m ON m.id = g.member_id
     WHERE p.event_id = ? ORDER BY p.at DESC, p.id DESC`).all(id);
   const sale = db.prepare(`SELECT COALESCE(SUM(total_cents),0) c FROM bookings WHERE event_id = ? AND cancelled_at IS NULL
     AND event_guest_id IS NULL AND (kind = 'gast' OR (kind = 'event' AND paid_cash = 1))`).get(id).c;
