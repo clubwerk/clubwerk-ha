@@ -2,10 +2,6 @@ abtipp: ✘ Leer -> Standard
 abtipp: ✘ Standardtext
 age: ✘ Hinweise erkannt
 ber: ✘ In Kopfzeile
-dbx: ✘ Excel + Datenbank in Dropbox, alte gelöscht
-dbx: ✘ Jetzt hochladen
-dbx: ✘ Protokoll
-dbx: ✘ Status zeigt letzten Export
 inact: ✘ 13 nicht da
 inact: ✘ Testdaten für das Entfernen vorhanden
 mod: ✘ Ersteinrichtung bietet Module an
