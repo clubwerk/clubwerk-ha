@@ -21,3 +21,7 @@ CLAUDE.local.md
 .claude/settings.local.json
 werkzeuge/last/ausgabe/
 werkzeuge/last/zaehler.log
+werkzeuge/last/daten/
+werkzeuge/last/server.log
+werkzeuge/last/server.pid
+werkzeuge/last/keine-erweiterungen/

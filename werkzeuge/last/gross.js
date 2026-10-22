@@ -112,7 +112,7 @@ const run = db.transaction(() => {
     const adr = o.adr || address();
     const email = a >= 16 || !o.payer ? `${ascii(first)}.${ascii(last)}${chance(0.3) ? ri(1, 99) : ''}@example.org` : null;
     const created = ts(entry < '2020-01-01' ? dayAdd(TODAY, -ri(400, 900)) : entry, ri(8, 20), ri(0, 59));
-    const id = Number(insM.run(`${first} ${last}`, exit && exit < TODAY ? 0 : 1, created, null, null).lastInsertRowid);
+    const id = Number(insM.run(`${first} ${last}`, exit && exit < TODAY ? 0 : 1, created, first, last).lastInsertRowid);
     const no = String(++memberNo);
     const sal = g === 'm' ? 'Herr' : 'Frau';
     insP.run(id, no, sal, first, last, birth, g, adr.street, adr.zip, adr.city, a >= 14 ? `0170 555${String(ri(0, 9999)).padStart(4, '0')}` : null, email,
@@ -136,8 +136,8 @@ const run = db.transaction(() => {
   }
   // „zahlt für“ (keine Familie): erwachsene Kinder mit eigenem Beitrag, der Elternteil zahlt
   for (const h of sample(heads, 12)) { const p = person({ last: h.last, a0: 19, a1: 26, adr: h.adr, payer: h.id, status: 'aktiv' }); p.feeId = 1; }
-  // Einzelmitglieder bis 500
-  while (P.length < 500) {
+  // Einzelmitglieder
+  while (P.length < 490) {   // + 10 Mitglieder der Demo = 500
     const a = weighted([[[6, 17], 18], [[18, 29], 14], [[30, 49], 26], [[50, 69], 28], [[70, 88], 14]]);
     const p = person({ a0: a[0], a1: a[1], payment: chance(0.08) ? 'rechnung' : 'lastschrift' });
     p.feeId = p.status === 'passiv' ? feePassiv : p.age <= 18 ? 2 : 1;
@@ -222,7 +222,8 @@ const run = db.transaction(() => {
       pos.push({ member_id: payer, for_member_id: p.id, kind: 'beitrag', text: `${f.name} ${ptext}${from > YSTART ? ' (anteilig)' : ''}${suffix}`, from, to: YEND, cents: share(f.cents), due: from, md: d.id });
     }
   }
-  bookRun('beitrag', runDay, pos);
+  const byRun = new Map(); for (const x of pos) { const d = x.from > YSTART ? dayAdd(x.from, 3) : runDay; byRun.set(d, [...(byRun.get(d) || []), x]); }
+  for (const d of [...byRun.keys()].sort()) bookRun('beitrag', d > TODAY ? TODAY : d, byRun.get(d));
 
   /* ======================================================================= Verkauf */
   const arts = db.prepare('SELECT * FROM articles WHERE custom = 0 AND active = 1').all();
@@ -237,7 +238,7 @@ const run = db.transaction(() => {
   const addStock = (a, day, q) => { const k = day.slice(0, 7); const m = stock.get(a) || new Map(); m.set(k, (m.get(k) || 0) + q); stock.set(a, m); };
   for (let day = start; day <= TODAY; day = dayAdd(day, 1)) {
     const wk = dow(day) >= 6 ? 1.6 : 1;
-    const n = Math.round(52 * season(day) * wk * (0.6 + rnd() * 0.8) / 1.25);
+    const n = Math.round(66 * season(day) * wk * (0.6 + rnd() * 0.8) / 1.25);
     for (let i = 0; i < n; i++) {
       const a = weighted(artW), qty = weighted([[1, 6], [2, 3], [3, 1]]);
       const h = day === TODAY ? ri(8, Math.max(8, NOW.getHours() - 1)) : weighted([[11, 1], [14, 2], [16, 3], [17, 4], [18, 6], [19, 7], [20, 6], [21, 4], [22, 2]]);
@@ -320,7 +321,7 @@ const run = db.transaction(() => {
   [['Herren 65', 'm', 65, 'H65'], ['Herren 70', 'm', 70, 'H70'], ['Damen 60', 'w', 60, 'D60']].forEach(([n, g, a0, ac]) => addT(n, g, a0, 99, ac, 'Bezirksliga', 4));
   [['Junioren U18 I', 'm', 13, 18, 'U18'], ['Junioren U18 II', 'm', 13, 18, 'U18'], ['Juniorinnen U18', 'w', 13, 18, 'U18'], ['Junioren U15', 'm', 10, 15, 'U15'], ['Juniorinnen U15', 'w', 10, 15, 'U15'], ['Mixed U12 I', null, 8, 12, 'U12'], ['Mixed U12 II', null, 8, 12, 'U12'], ['Mixed U10', null, 6, 10, 'U10']]
     .forEach(([n, g, a0, a1, ac]) => addT(n, g, a0, a1, ac, 'Kreisliga Jugend', 4));
-  while (T.length < 40) addT(`Mixed ${['I', 'II', 'III'][T.length % 3]} ${T.length}`, null, 18, 99, null, 'Freizeitrunde', 4);
+  for (let i = 1; T.length < 39; i++) addT(`Hobbyrunde ${i}`, null, 18, 99, null, 'Freizeitrunde', 4);   // + 1 Mannschaft der Demo = 40
   const insTeam = db.prepare('INSERT INTO sp_team(name, league, season, min_players, captain_id, vice_id, import_key, active, sort, note, created_at, age_class) VALUES (?,?,?,?,?,?,?,1,?,NULL,?,?)');
   const insPl = db.prepare('INSERT OR IGNORE INTO sp_player(team_id, member_id, rank, created_at) VALUES (?,?,?,?)');
   const insGame = db.prepare(`INSERT INTO sp_game(team_id, date, start, home, opponent, venue, league, status, meet_time, meet_place, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released)
@@ -412,7 +413,7 @@ const run = db.transaction(() => {
     for (const r of res) {
       for (let h = 8; h < 22; h++) {
         const p = 0.42 * season(day) * (h >= 17 && h <= 20 ? 1.6 : h < 10 ? 0.5 : 0.8) * (dow(day) >= 6 ? 1.3 : 1) * fut;
-        if (!chance(p / 1.3)) continue;
+        if (!chance(p / 2)) continue;
         const len = r.slot_min === 30 ? pick([60, 90]) : pick([60, 60, 120]);
         const s = hm(h * 60 + (r.slot_min === 30 && chance(0.3) ? 30 : 0)), e = hm(Math.min(22 * 60, q(s) * 15 + len));
         if (q(e) <= q(s) || !free(r.id, day, s, e)) continue; take(r.id, day, s, e);
