@@ -1128,12 +1128,13 @@ function activate(ctx) {
   /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);
   ctx.hooks.memberInScope = (id, depts) => inScope(Number(id), (depts || []).map(Number).filter(Number.isInteger));
+  /* Beitrag einer Person = ihr Hauptbeitrag (kein Abteilungs-Zusatzbeitrag, keine einmalige Gebühr); bei gleichem Beginn der zuletzt eingetragene */
   ctx.hooks.memberInfo = id => {
     const p = personRow(id); if (!p) return null;
-    const fee = ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(id, today());
+    const fee = ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC, mf.id DESC LIMIT 1`).get(id, today());
     // ohne eigenen Beitrag: der Familienbeitrag des Oberhaupts (family_of), sonst – wie früher – der Beitrag des Zahlers
-    const famFee = !fee && p.family_of ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.family = 1 AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(p.family_of, today()) : null;
-    const payerFee = famFee || (!fee && p.payer_id ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC LIMIT 1`).get(store.payerOf(id), today()) : null);
+    const famFee = !fee && p.family_of ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.family = 1 AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC, mf.id DESC LIMIT 1`).get(p.family_of, today()) : null;
+    const payerFee = famFee || (!fee && p.payer_id ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC, mf.id DESC LIMIT 1`).get(store.payerOf(id), today()) : null);
     const d0 = today();
     const departments = ctx.db.prepare("SELECT department_id FROM mv_member_department WHERE member_id = ? AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?) AND status != 'ausgetreten'").all(id, d0, d0).map(r => r.department_id);
     return { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: store.payerOf(id), family_of: p.family_of || null, departments,

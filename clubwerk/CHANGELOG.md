@@ -13,6 +13,9 @@
   - Helferdienste-Übersicht und Startseite der Verwaltung: 27 000 → 7 500
   Was die Seiten anzeigen, ist unverändert. Für jede geänderte Anfrage wurden die Antworten vorher und nachher Zeichen für Zeichen verglichen.
 - **Anmeldung in der Verwaltung:** 1,6 s → 1,1 s.
+
+**Korrekturen**
+- **Beitrag einer Person:** Helferstunden-Vorgabe und „Diese Beitragsarten dürfen nicht buchen“ richten sich immer nach dem Hauptbeitrag. Bisher konnte eine einmalige Gebühr wie die Aufnahmegebühr bei einem Wiedereintritt oder ein Zusatzbeitrag vom selben Tag den Hauptbeitrag verdrängen. Dann galt zum Beispiel ein Mitglied mit „Unterstützend“ (keine Helferstunden) plötzlich als stundenpflichtig.
 - **Für später abgesichert:** Eine neue automatische Leistungsprüfung schlägt Alarm, wenn eine dieser Seiten wieder deutlich mehr Abfragen braucht.
 
 ## 3.33.0

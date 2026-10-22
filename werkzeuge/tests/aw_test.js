@@ -80,6 +80,11 @@ const iso = d => d.toISOString().slice(0, 10);
   ok('Familien-Soll (Kind unter 12 befreit)', fam && fam.target === 720 && fam.members.length === 4, JSON.stringify(fam));
   ok('Unterstützend befreit', !j.families.find(f => f.head === udo) && j.rows.find(r => r.id === udo).why.includes('befreit'), JSON.stringify(j.rows.find(r => r.id === udo)));
   ok('Kind: Begründung', /unter 12/.test(j.rows.find(r => r.id === kid).why));
+  // Hauptbeitrag zählt – nicht eine einmalige Gebühr (Aufnahme, z. B. bei Wiedereintritt), die später beginnt
+  { const fAuf = await fee({ name: 'Aufnahmegebühr', cents: 5000, interval: 'einmalig' });
+    await A(X(`member/${udo}/fees`), 'POST', { fee_id: fAuf, start_date: '2021-03-01', booked_until: `${y}-12-31` });
+    [s, j] = await A(W('overview?year=' + py)); const u = j.rows.find(r => r.id === udo);
+    ok('Hauptbeitrag zählt, nicht die spätere Aufnahmegebühr', u.target === 0 && u.why.includes('Unterstützend'), JSON.stringify(u)); }
   [s, j] = await A(W('entries'), 'POST', { member_ids: [max], date: `${py}-06-01`, minutes: 300, text: 'Plätze' }); ok('Nachgetragen', s === 200, j.error);
   await A(W('entries'), 'POST', { member_ids: [lena], date: `${py}-06-01`, minutes: 240, text: 'Theke' });
   [s, j] = await A(W('entries'), 'POST', { member_ids: [lena], date: `${y + 1}-01-01`, minutes: 60 }); ok('Zukunft abgelehnt', s === 400);
