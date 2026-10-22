@@ -1,5 +1,5 @@
 // Buchungssystem und Verwaltungs-Übersicht: Nachtests zu behobenen Fehlern.  node bkm_test.js <S>
-// 1. „Für dich gebucht“ und Mitspieler-Mail mit Eckdaten-Zeilen (summaryRows) und Kalenderanhang
+// 1. „Für dich gebucht“ und Mitspieler-Mail mit Eckdaten-Zeilen (summaryRows) und Knopf „Zu deinem Kalender hinzufügen“ (kein Anhang)
 // 2. Änderung einer Buchung: Push auch bei ausgeschalteter Mitspieler-Mail, Änderungs-Mail an den Bucher
 // 3. Übersicht der Verwaltung: offene Beträge (Konten und Veranstaltung) nach Buchungen am Tablet
 // 4. Tablet nur mit Tablet-Anmeldung (CW_TEST_TABLET_OPEN=1 öffnet das Tablet nur, solange kein Passwort gesetzt ist)
@@ -78,6 +78,7 @@ let srv;
   {
     const dF = dayPlus(2);
     [s, j] = await A(K('rights'), 'PUT', { member_id: tom, for_others: true }); ok('Recht „für andere buchen“ für Tom', s === 200, j.error);
+    [s, j] = await A('api/admin/settings/app', 'PUT', { url: 'https://app.dein-verein.test' }); ok('Adresse der Mitglieder-App eingetragen', s === 200, JSON.stringify(j));
     newMails();
     [s, j] = await book(dTom, { resource_id: p1, date: dF, start: '09:00', minutes: 60, partners: [ida], for_member: olga }); const fid = j.id;
     ok('Tom bucht für Olga mit Ida als Mitspielerin', s === 200 && fid, JSON.stringify(j));
@@ -89,14 +90,15 @@ let srv;
     ok('… Infokarte mit Zeilen „Platz“ und „Wann“ (summaryRows statt Textzeilen)', fo && cardRow(fo.html, 'Platz', p1n) && cardRow(fo.html, 'Wann', wann) && cardRow(fo.html, 'Spieler', /Olga Ohnehandy, Ida Dritte/),
       fo && (fo.html.match(/<table role="presentation" width="100%"[\s\S]*?<\/table>/) || [''])[0].replace(/style="[^"]*"/g, '').slice(0, 400));
     ok('… keine zerlegten Zeilen (Bezeichnung = ein Buchstabe)', fo && !/>P<\/td>\s*<td[^>]*>l<\/td>/.test(fo.html));
-    const ics = fo && fo.att.find(a => /\.ics$/.test(a.f));
-    ok('… Kalender als .ics-Anhang', ics && ics.f === `termin-${dF}.ics` && ics.size > 100, JSON.stringify(fo && fo.att));
-    { const body = ics && fs.existsSync(MAILDIR + '/' + ics.f) ? fs.readFileSync(MAILDIR + '/' + ics.f, 'utf8') : '';
-      ok('… Anhang ist ein gültiger Termin', /BEGIN:VCALENDAR/.test(body) && /BEGIN:VEVENT/.test(body) && /DTSTART:\d{8}T\d{6}Z/.test(body) && /Olga Ohnehandy/.test(body), body.slice(0, 200)); }
-    ok('… Hinweis auf den Kalendereintrag', fo && /Kalendereintrag/.test(fo.text));
+    ok('… kein .ics-Anhang', fo && !fo.att.some(a => /\.ics$/.test(a.f)), JSON.stringify(fo && fo.att));
+    const calUrl = fo && (fo.html.match(/href="(https:\/\/app\.dein-verein\.test\/api\/p\/buchung\/ics\/\d+\?k=[0-9a-f]{32})"[^>]*>Zu deinem Kalender hinzufügen</) || [])[1];
+    ok('… Knopf „Zu deinem Kalender hinzufügen“ auf die .ics-Adresse der App', calUrl, fo && (fo.html.match(/<a [^>]*>[^<]*Kalender[^<]*</) || [''])[0]);
+    { const r = calUrl ? await fetch(M + calUrl.replace(/^https:\/\/[^/]+\//, '')) : null, body = r ? await r.text() : '';
+      ok('… Link liefert einen gültigen Termin', /BEGIN:VCALENDAR/.test(body) && /BEGIN:VEVENT/.test(body) && /DTSTART:\d{8}T\d{6}Z/.test(body) && /Olga Ohnehandy/.test(body), body.slice(0, 200)); }
+    ok('… Textfassung mit dem Kalender-Link', fo && calUrl && fo.text.includes(calUrl.replace(/&amp;/g, '&')));
     const fi = ms.find(m => m.to.includes('ida.bkm@test.de') && /Platz/.test(m.subject));
     ok('Mitspielerin Ida bekommt die Mitspieler-Mail', fi && /als Mitspieler/.test(fi.text), JSON.stringify(ms.map(m => [m.to, m.subject])));
-    ok('… mit Eckdaten-Zeilen und .ics-Anhang', fi && cardRow(fi.html, 'Platz', p1n) && cardRow(fi.html, 'Wann', wann) && fi.att.some(a => a.f === `termin-${dF}.ics`), fi && JSON.stringify(fi.att));
+    ok('… mit Eckdaten-Zeilen und Kalender-Knopf', fi && cardRow(fi.html, 'Platz', p1n) && cardRow(fi.html, 'Wann', wann) && /Zu deinem Kalender hinzufügen</.test(fi.html) && !fi.att.some(a => /\.ics$/.test(a.f)), fi && JSON.stringify(fi.att));
     ok('Tom (bucht selbst) bekommt keine Mitspieler-Mail', !ms.some(m => m.to.includes('tom.bkm@test.de')), JSON.stringify(ms.map(m => m.to)));
     await A(AP('cancel'), 'POST', { id: fid }, { base: M, dev: dTom });
     await A(K('rights/' + tom), 'DELETE');

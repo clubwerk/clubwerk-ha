@@ -254,6 +254,8 @@
       for (let y = 0; y < h0; y += 1) for (let x = 0; x < w0; x += 1) if (ink(x, y)) { if (x < a) a = x; if (x > c2) c2 = x; if (y < b) b = y; if (y > e) e = y; }
       if (c2 > a && e > b) { x0 = a; y0 = b; x1 = c2 + 1; y1 = e + 1; }
     } catch (err) { /* Bild nicht lesbar – ganzes Logo nehmen */ }
+    if (!(x1 - x0 < w0 || y1 - y0 < h0) && !(() => { try { const d = tg.getImageData(0, 0, w0, h0).data; for (let i = 3; i < d.length; i += 16) if (d[i] > 24) return true; return false; } catch (err) { return true; } })())
+      throw new Error('Logo ließ sich nicht zeichnen (leer)');   // sonst landet ein unsichtbares Bild in E-Mails und PDFs
     const w = x1 - x0, h = y1 - y0, round = Math.abs(w / h - 1) < 0.12;
     const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
     const g = c.getContext('2d');

@@ -46,6 +46,11 @@ const usage = async () => (await A('api/admin/extensions/spielbetrieb/usage'))[1
   [s, j] = await A(X('teams'), 'POST', { name: 'Herren 40 I', league: 'Bezirksliga', min_players: 2, captain_id: max, vice_id: eva });
   ok('Mannschaft angelegt', s === 200 && j.id, JSON.stringify(j)); const team = j.id;
   [s, j] = await A(X('teams'), 'POST', { name: 'Herren 40', league: 'Bezirksliga', min_players: 2 }); ok('Doppelte Mannschaft abgelehnt', s === 409, s + ' ' + JSON.stringify(j));
+  // Damen 40 spielen an den Terminen der H40 (Altersklasse laut Rahmenterminplan) – trotzdem eine eigene Mannschaft, nicht „doppelt“ zu Herren 40
+  [s, j] = await A(X('teams'), 'POST', { name: 'Damen 40', min_players: 2, age_class: 'H40' }); ok('Damen 40 mit Termin-Altersklasse H40 angelegt', s === 200 && j.id, s + ' ' + JSON.stringify(j)); const d40 = j.id;
+  [s, j] = await A(X('teams/' + team), 'PUT', { name: 'Herren 40', age_class: 'H40' }); ok('Herren 40 speichern trotz Damen 40 mit H40', s === 200, s + ' ' + JSON.stringify(j));
+  [s, j] = await A(X('teams'), 'POST', { name: 'Damen 40 I', min_players: 2 }); ok('… „Damen 40 I“ ist aber doppelt zu „Damen 40“', s === 409, s + ' ' + JSON.stringify(j));
+  [s, j] = await A(X('teams/' + team), 'PUT', { name: 'Herren 40 I' }); await A(X('teams/' + d40), 'DELETE');
   [s, j] = await A(X('teams'), 'POST', { name: 'X', min_players: 2 }); ok('Zu kurzer Name abgelehnt', s === 400);
   [s, j] = await A(X(`teams/${team}/players`), 'PUT', { players: [max, eva, paul, lena] });
   ok('Spieler zugeordnet', s === 200 && j.players.length === 4 && j.players[0].id === max, JSON.stringify(j));

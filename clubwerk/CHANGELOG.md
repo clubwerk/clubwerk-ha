@@ -1,5 +1,22 @@
 # Änderungen
 
+## 3.35.0
+
+**Kalender in E-Mails: Knopf statt Anhang**
+- Buchungs-Mails („Für dich gebucht“, Mitspieler, Änderungen) und Mails zur Aufstellung im Spielbetrieb haben jetzt den Knopf **„Zu deinem Kalender hinzufügen“**. Am iPhone öffnet er kurz den Browser und bietet „Hinzufügen“ an. Der Termin hängt nicht mehr als Datei an.
+- Der Knopf zeigt auf die Adresse der Mitglieder-App (Verwaltung › Mitglieder-App: externe Adresse, sonst die Adresse im Vereins-WLAN). Ist dort keine https-Adresse eingetragen, fehlt der Knopf.
+
+**Vereinslogo in E-Mails**
+- Das Logo behält in der Mail sein Seitenverhältnis und wird nicht mehr in ein Quadrat gedrückt.
+- Lässt sich ein Logo im Browser nicht zeichnen, erzeugt die Verwaltung kein leeres, unsichtbares Bild mehr dafür. Die Mail zeigt dann die Anfangsbuchstaben des Vereins.
+
+**Spielbetrieb: Damen 40 und Herren 40 sind zwei Mannschaften**
+- Spielen die Damen 40 an den Terminen der H40 (Altersklasse laut Rahmenterminplan „H40“), hielt Clubwerk sie für dieselbe Mannschaft wie die Herren 40. Beim Speichern kam dann „gibt es schon“. Jetzt zählt für „doppelt“ der Name („Damen 40“, „Herren 40 II“). Die Altersklasse sagt nur noch, an welchen Terminen gespielt wird.
+- Ebenso beim Übernehmen eines Spielplans: Spiele der „H40“ landen nicht mehr bei den Damen 40.
+
+**Handy: Doppeltippen zoomt nicht mehr**
+- Wer schnell zweimal auf einen Artikel oder Knopf tippt, vergrößert die Seite nicht mehr, etwa in Chrome am iPhone. Das gilt für Tablet, Mitglieder-App und Verwaltung. Mit zwei Fingern lässt sich weiter zoomen.
+
 ## 3.34.0
 
 **Schneller – geprüft mit einem großen Musterverein** (500 Mitglieder, 40 Mannschaften, rund 6 800 Platzbuchungen und 21 000 Getränkebuchungen, gemessen wie auf einem älteren Tablet)

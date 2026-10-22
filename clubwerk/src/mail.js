@@ -62,7 +62,7 @@ function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fr
     subject = i18n.tr(String(subject || '')); text = i18n.tr(String(text || ''));
     if (card) card = { ...card, heading: card.heading ? i18n.tr(String(card.heading)) : card.heading, title: card.title ? i18n.tr(String(card.title)) : card.title, before: card.before != null ? i18n.tr(String(card.before)) : card.before, after: card.after != null ? i18n.tr(String(card.after)) : card.after,
       rows: (card.rows || []).map(([k, v]) => [i18n.tr(String(k)), v]), button: card.button && card.button !== true ? { ...card.button, label: i18n.tr(String(card.button.label || '')) } : card.button,
-      calendar: card.calendar ? { ...card.calendar, label: i18n.tr(String(card.calendar.label || 'Zum Kalender hinzufügen')) } : card.calendar };
+      calendar: card.calendar ? { ...card.calendar, label: i18n.tr(String(card.calendar.label || 'Zu deinem Kalender hinzufügen')) } : card.calendar };
   }
   // Gestaltete HTML-Fassung (Logo, Vereinsfarbe, Infokarte) – die Textfassung bleibt für Mailprogramme ohne HTML
   if (!html && !plainOnly) {

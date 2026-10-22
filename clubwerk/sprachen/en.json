@@ -7962,6 +7962,9 @@
   "Wieder aufnehmen": "Readmit",
   "Wiedereintritt …": "Rejoin …",
   "Wiedereintritt (neue Mitgliedsnummer)": "Rejoining (new membership number)",
-  "Wiedereintritt von {0}?": "Readmit {0}?"
+  "Wiedereintritt von {0}?": "Readmit {0}?",
+  "Logo ließ sich nicht zeichnen (leer)": "The logo could not be drawn (empty)",
+  "Zu deinem Kalender hinzufügen": "Add to your calendar",
+  "Zu deinem Kalender hinzufügen: {0}": "Add to your calendar: {0}"
  }
 }

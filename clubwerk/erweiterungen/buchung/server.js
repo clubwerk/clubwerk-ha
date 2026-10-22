@@ -437,14 +437,12 @@ function activate(ctx) {
       if (!a || !a.email) continue;
       const hi = `Hallo ${String(a.name || '').split(' ')[0]},`, club = ctx.getSetting('club_name', 'Verein');
       // card = { title, rows, intro, outro }: gestaltete Infokarte in der HTML-Mail (Textfassung bleibt wie bisher)
-      // Kalender: „Zum Kalender hinzufügen“ in der Infokarte (Link auf die .ics-Datei, von unterwegs erreichbar) – ohne öffentliche Adresse als Anhang
+      // Kalender: Knopf „Zu deinem Kalender hinzufügen“ in der Infokarte (Link auf die .ics-Datei) – kein Anhang
       const cal = card && card.calendar;
-      const calHint = cal ? 'Der Termin hängt als Kalendereintrag an – antippen und „Hinzufügen“.' : '';
-      const mc = card ? { heading: card.heading, before: [hi, '', card.intro || ''].join('\n'), title: card.title, rows: card.rows, after: [card.outro || '', ...(calHint ? ['', calHint] : []), '', 'Viele Grüße', club].join('\n'),
-        calendar: cal && cal.url ? { url: cal.url } : null } : null;
-      const calLine = calHint ? ['', calHint] : [];
-      const attachments = cal && !cal.url ? [{ filename: `termin-${cal.date}.ics`, content: cal.ics, contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] : undefined;
-      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, ...calLine, '', 'Viele Grüße', club].join('\n'), card: mc, attachments }); n++; } catch (e) { /* weiter */ }
+      const mc = card ? { heading: card.heading, before: [hi, '', card.intro || ''].join('\n'), title: card.title, rows: card.rows, after: [card.outro || '', '', 'Viele Grüße', club].join('\n'),
+        calendar: cal ? { url: cal.url } : null } : null;
+      const calLine = cal ? ['', `Zu deinem Kalender hinzufügen: ${cal.url}`] : [];
+      try { await ctx.mail.send({ to: a.email, subject: `${subject} – ${club}`, text: [hi, '', ...lines, ...calLine, '', 'Viele Grüße', club].join('\n'), card: mc }); n++; } catch (e) { /* weiter */ }
     }
     return n;
   }
@@ -608,11 +606,10 @@ function activate(ctx) {
   const icsUrl = (id, key) => `api/p/buchung/ics/${id}?k=${icsToken(id, key)}`;
   const utc = (d, t) => new Date(`${d}T${t === '24:00' ? '23:59' : t}:00`).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
   const icsEsc = v => String(v || '').replace(/\\/g, '\\\\').replace(/[;,]/g, m => '\\' + m).replace(/\r?\n/g, '\\n');
-  /** Kalender für eine Buchung in Mails: die .ics-Datei als Anhang */
+  /** Kalender für eine Buchung in Mails: Link auf die .ics-Datei über die Adresse der Mitglieder-App (ohne Adresse kein Knopf) */
   function calendarFor(b) {
-    if (!b || !b.id) return null;
-    // immer als Anhang: iOS Mail & Co. öffnen dann direkt „Zum Kalender hinzufügen“ – ein Link öffnete Safari
-    return { url: null, ics: icsText(b), date: b.date };
+    const base = ctx.appUrl();
+    return b && b.id && base ? { url: `${base}/${icsUrl(b.id)}` } : null;
   }
   function icsText(b) {
     const r = resource(b.resource_id) || { name: 'Platz' };

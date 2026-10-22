@@ -217,6 +217,8 @@ function load({ app, admin, helpers }) {
           return out;
         },
         isModuleActive: other => isActive(other),
+        /** Adresse der Mitglieder-App (https) für Links in E-Mails, z. B. Kalender – leer, wenn keine eingetragen ist */
+        appUrl: () => memberapp.appUrl(),
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden
         entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
       };

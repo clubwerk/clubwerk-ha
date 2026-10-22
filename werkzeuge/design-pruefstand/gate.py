@@ -290,6 +290,12 @@ def static_scan():
                 items.append({'rule': 'feste-schrift-auf-token', 'el': f'{rel}:{n}', 'text': line.strip()[:90]})
             if (rel.startswith('public/app/') or re.search(r'/public/(member|app)\.js$', rel)) and re.search(r'target=["\\\']?_blank|window\.open\(', line):
                 items.append({'rule': 'app-neues-fenster', 'el': f'{rel}:{n}', 'text': line.strip()[:90]})
+    # Doppeltippen darf nirgends zoomen (iPhone/Chrome ignorieren user-scalable=no) – alle Seiten laden style.css
+    if not re.search(r'html\s*\{[^}]*touch-action:\s*manipulation', open(APP + '/public/style.css', encoding='utf-8').read()):
+        items.append({'rule': 'doppeltippen-zoomt', 'el': 'public/style.css', 'text': 'html { touch-action: manipulation; } fehlt'})
+    for f in glob.glob(APP + '/public/*.html') + glob.glob(APP + '/public/app/*.html') + glob.glob(APP + '/erweiterungen/*/public/*.html') + glob.glob(APP + '/erweiterungen/*/public/*/*.html'):
+        if 'style.css' not in open(f, encoding='utf-8', errors='replace').read():
+            items.append({'rule': 'doppeltippen-zoomt', 'el': f[len(APP) + 1:], 'text': 'Seite lädt style.css nicht'})
     record('quelltext', items)
 
 

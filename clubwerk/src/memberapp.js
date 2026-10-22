@@ -909,4 +909,6 @@ function adminRoutes(admin, { bad, need, auth }) {
   });
 }
 
-module.exports = { netsFromInfo, register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };
+/** Adresse der Mitglieder-App für Links in E-Mails (von unterwegs, sonst im Vereins-WLAN) – nur https, sonst leer */
+const appUrl = () => { const u = String(qrUrl() || '').replace(/\/+$/, ''); return /^https:\/\//i.test(u) ? u : ''; };
+module.exports = { appUrl, netsFromInfo, register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };

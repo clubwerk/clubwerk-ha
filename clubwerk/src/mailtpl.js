@@ -16,6 +16,13 @@ function logo() {
   } catch (e) { /* ohne Logo */ }
   return null;
 }
+/** Breite für 40 px Höhe – das Logo behält sein Seitenverhältnis (PNG: Maße aus dem Kopf der Datei), höchstens 120 px */
+function logoWidth(lg) {
+  const b = lg.content;
+  if (lg.ext !== 'png' || b.length < 24 || b.readUInt32BE(12) !== 0x49484452) return 40;
+  const w = b.readUInt32BE(16), h = b.readUInt32BE(20);
+  return w && h ? Math.max(20, Math.min(120, Math.round(40 * w / h))) : 40;
+}
 
 /** Klartext → Absätze/Listen; „Hallo …,“ und der Gruß am Ende werden erkannt */
 function body(text) {
@@ -40,7 +47,7 @@ function render({ subject, text, card, preheader }) {
   const att = lg ? [{ filename: `logo.${lg.ext}`, content: lg.content, contentType: lg.contentType, cid: 'vereinslogo@clubwerk', contentDisposition: 'inline' }] : [];
   const initials = club.split(/\s+/).filter(w => /^[A-ZÄÖÜ]/.test(w)).map(w => w[0]).slice(0, 2).join('') || club.slice(0, 2).toUpperCase();
   const head = `<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>
-      <td style="vertical-align:middle;padding-right:12px;">${lg ? `<img src="cid:vereinslogo@clubwerk" width="40" height="40" alt="" style="display:block;width:40px;height:40px;border-radius:10px;border:0;">`
+      <td style="vertical-align:middle;padding-right:12px;">${lg ? `<img src="cid:vereinslogo@clubwerk" width="${logoWidth(lg)}" height="40" alt="" style="display:block;width:${logoWidth(lg)}px;height:40px;border:0;">`
         : `<div style="width:40px;height:40px;border-radius:10px;background:${c};color:#ffffff;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:40px;text-align:center;">${esc(initials)}</div>`}</td>
       <td style="vertical-align:middle;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:16px;font-weight:700;line-height:1.3;color:#1f2723;">${esc(club)}</td></tr></table>`;
   const heading = (card && card.heading) || String(subject || '').replace(new RegExp(`\\s+[–-]\\s+${club.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`), '');
@@ -55,7 +62,7 @@ function render({ subject, text, card, preheader }) {
           <td style="padding:4px 12px 4px 0;width:34%;vertical-align:top;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:400;line-height:1.45;color:#5b6660;">${esc(k)}</td>
           <td style="padding:4px 0;vertical-align:top;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:600;line-height:1.45;color:#1f2723;">${esc(v)}</td></tr>`).join('')}</table>` : ''}
         ${card.calendar && /^https:\/\//i.test(String(card.calendar.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 2px;"><tr>
-          <td style="border-radius:10px;background:${c};"><a href="${esc(card.calendar.url)}" style="display:inline-block;padding:11px 18px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(card.calendar.label || 'Zum Kalender hinzufügen')}</a></td></tr></table>` : ''}
+          <td style="border-radius:10px;background:${c};"><a href="${esc(card.calendar.url)}" style="display:inline-block;padding:11px 18px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(card.calendar.label || 'Zu deinem Kalender hinzufügen')}</a></td></tr></table>` : ''}
       </td></tr></table>`;
   }
   const btn = card && card.button && card.button !== true ? card.button : null;   // eigener Knopf je Mail (kein pauschales „In der App öffnen“ mehr)

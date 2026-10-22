@@ -88,7 +88,9 @@ function activate(ctx) {
   /* ----- Keine doppelten Mannschaften: gleiche Altersklasse + gleiche Nummer = dieselbe Mannschaft
      („Herren 30“ = „Herren 30 I“ = „H30“); die zweite heißt „Herren 30 II“ ----- */
   const ROM = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX'];
-  const classOf = t => t.age_class || RTP.guessClass(t.name, t.league);
+  // Wer die Mannschaft ist, steht im Namen („Damen 40“ = D40) – age_class sagt nur, an welchen Terminen des Rahmenterminplans sie spielt
+  // (z. B. Damen 40 an den Tagen der H40). Nur wenn der Name nichts verrät („1. Mannschaft“), zählt age_class.
+  const classOf = t => RTP.guessClass(t.name, t.league) || t.age_class;
   const sameTeam = (a, b) => { const ca = classOf(a), cb = classOf(b); return ca && cb ? ca === cb && IMP.teamNo(a.name) === IMP.teamNo(b.name) : IMP.norm(a.name) === IMP.norm(b.name); };
   /** Vorschlag für die nächste freie Nummer: „Herren 30“ → „Herren 30 II“ */
   function nextName(v) {
@@ -229,9 +231,8 @@ function activate(ctx) {
       if (!a || !a.email) continue;
       const hi = `Hallo ${String(a.name || '').split(' ')[0]},`;
       try {
-        await ctx.mail.send({ to: a.email, subject: `${title} – ${club}`, text: [hi, '', ...mail.lines, '', 'Viele Grüße', club].join('\n'),
-          card: { heading: mail.heading || title, before: [hi, '', mail.intro || ''].join('\n'), title: mail.cardTitle, rows: mail.rows, after: [mail.outro || '', ...(mail.attachments ? ['', 'Der Termin hängt als Kalendereintrag an – antippen und „Hinzufügen“.'] : []), '', 'Viele Grüße', club].join('\n'), calendar: mail.calendar || null },
-          attachments: mail.attachments });
+        await ctx.mail.send({ to: a.email, subject: `${title} – ${club}`, text: [hi, '', ...mail.lines, ...(mail.calendar ? ['', `Zu deinem Kalender hinzufügen: ${mail.calendar.url}`] : []), '', 'Viele Grüße', club].join('\n'),
+          card: { heading: mail.heading || title, before: [hi, '', mail.intro || ''].join('\n'), title: mail.cardTitle, rows: mail.rows, after: [mail.outro || '', '', 'Viele Grüße', club].join('\n'), calendar: mail.calendar || null } });
       } catch (e) { /* nächste Person */ }
     }
   }
@@ -294,9 +295,9 @@ function activate(ctx) {
     res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `inline; filename="spieltag-${g.date}.ics"`, 'Cache-Control': 'no-store' }).send(icsText(g));
   });
   function calendarFor(g) {
-    const pub = ctx.getSetting('ext_tunnel', '0') === '1' ? String(ctx.getSetting('ext_tunnel_url', '') || '').replace(/\/+$/, '') : '';
-    void pub;   // immer als Anhang: iOS Mail & Co. öffnen dann direkt „Zum Kalender hinzufügen“ (ein Link öffnete Safari)
-    return { attachments: [{ filename: `spieltag-${g.date}.ics`, content: icsText(g), contentType: 'text/calendar; charset=utf-8; method=PUBLISH' }] };
+    // Knopf „Zu deinem Kalender hinzufügen“ (Link auf die .ics-Datei über die Adresse der Mitglieder-App) – kein Anhang
+    const base = ctx.appUrl();
+    return base ? { calendar: { url: `${base}/api/p/spielbetrieb/ics/${g.id}?k=${icsToken(g.id)}` } } : {};
   }
   const gameRows = (g, t) => [['Mannschaft', t.name], ['Gegner', `${g.opponent} (${g.home ? 'Heimspiel' : 'Auswärtsspiel'})`], ['Wann', gameWhen(g)],
     ...(g.meet_time || g.meet_place ? [['Treffpunkt', [g.meet_time ? `${g.meet_time} Uhr` : '', g.meet_place || ''].filter(Boolean).join(', ')]] : []),
@@ -358,7 +359,7 @@ function activate(ctx) {
     let t = db.prepare('SELECT * FROM sp_team WHERE import_key = ?').get(key) || db.prepare('SELECT * FROM sp_team WHERE lower(name) = lower(?)').get(label || '');
     if (!t) {
       const ac = RTP.guessClass(label, league), no = IMP.teamNo(label);   // „H30 2“ → Herren 30 2 (Altersklasse + Mannschaftsnummer)
-      const l = ac ? db.prepare('SELECT * FROM sp_team WHERE active = 1 AND age_class = ?').all(ac).filter(x => IMP.teamNo(x.name) === no) : [];
+      const l = ac ? db.prepare('SELECT * FROM sp_team WHERE active = 1').all().filter(x => classOf(x) === ac && IMP.teamNo(x.name) === no) : [];
       if (l.length === 1 && (!l[0].import_key || l[0].import_key === IMP.norm(l[0].name))) t = l[0];   // noch an keine andere Spielplan-Bezeichnung gebunden
     }
     return t;
