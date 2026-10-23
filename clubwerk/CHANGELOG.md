@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.38.0
+
+**Trainer („Kein Mitglied“) buchen Plätze, öffnen Türen und schalten die Beregnung**
+- Auch Konten „Kein Mitglied“ bekommen die Mitglieder-App, mit QR-Code, PIN und Handy-Kopplung wie Mitglieder. Unter Verwaltung › Mitglieder-App lassen sich für sie nur **Buchen**, **Türen** und **Beregnung** anhaken, jeweils einzeln. Meine Daten, Dienste und Spieltage gibt es für sie nicht. Ohne Haken sehen sie keinen Bereich.
+- **Plätze:** Trainer buchen in der App und am Tablet nach denselben Regeln wie Mitglieder (Öffnungszeiten, Vorlauf, Höchstdauer). Es gibt aber **keine Gebühren** (weder Gast- noch Platzgebühr) und **kein Kontingent**. Trainer lassen sich als Mitspieler eintragen und können Mitglieder mitnehmen.
+- **Abteilungsplätze** (z. B. Padel): Trainer buchen sie nur, wenn die Abteilung bei ihnen eingetragen ist. Das geht unter Buchungssystem › Einstellungen › Mitglieder-App › Sonderrechte, mit dem Haken bei der Abteilung.
+- **Türen:** Der Trainer bekommt wie ein Mitglied ein Zeitprofil.
+
+**Gebühr von Hand buchen (Vorstand)**
+- Unter Buchungssystem › Gebühren gibt es den Knopf „+ Gebühr buchen“: Person, Betrag, Datum, Text. Bei Mitgliedern entsteht eine Forderung in der Mitgliederverwaltung, die wie ein Beitrag eingezogen wird. Bei Trainern kommt der Betrag aufs Verkaufskonto und wird mit den Getränken unter Abrechnung bezahlt.
+- Die Gebühren stehen mit ihrem Stand (offen, bezahlt) in der Gebührenliste. Ein Klick darauf storniert sie. Offene Gebühren aufs Verkaufskonto verhindern das Löschen des Kontos.
+
 ## 3.37.0
 
 **Neue Kontoart „Kein Mitglied“ (z. B. Trainer)**

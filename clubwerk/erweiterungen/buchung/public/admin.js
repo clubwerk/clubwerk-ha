@@ -135,7 +135,7 @@
       @media (max-width: 700px) { .bk-lg tr.bk-lgd { display: block !important; border: 0 !important; background: none !important; padding: 0 !important; } .bk-lg tr.bk-lgd td { display: block !important; } }
       .bk-av { overflow: hidden; } .bk-av img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .bk-fl { flex-direction: row !important; align-items: center; gap: 8px !important; }
-      .bk-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; }
+      .bk-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; } .bk-kpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
       .bk-kpi { margin: 0 !important; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
       .bk-kh { display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 700; height: 36px; }
       .bk-ki { width: 36px; height: 36px; flex: none; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; background: var(--brand-soft); color: var(--brand); }
@@ -166,7 +166,7 @@
       .bk-bub .bc { height: 48px; display: flex; align-items: center; justify-content: center; border-top: 1px solid var(--line-soft); } .bk-bub .dl { height: 48px; line-height: 48px; border-top: 1px solid var(--line-soft); }
       .bk-bub .bc i { display: block; border-radius: 50%; }
       @media (max-width: 1100px) { .bk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-two { grid-template-columns: 1fr; } }
-      @media (max-width: 560px) { .bk-kpis { grid-template-columns: 1fr; } .bk-rr { grid-template-columns: minmax(0, 1fr) 70px 56px 64px; } }
+      @media (max-width: 560px) { .bk-kpis, .bk-kpis.three { grid-template-columns: 1fr; } .bk-rr { grid-template-columns: minmax(0, 1fr) 70px 56px 64px; } }
       .bk-blk { padding: 4px 8px; gap: 0; } .bk-blk > b, .bk-blk > span { display: block; flex: none; height: 15px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
       .bk-blk > b { font-weight: 800; } .bk-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bk-use { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
@@ -798,7 +798,7 @@
         <select id="feY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y, `Jahr ${y}`, g.year)).join('')}</select>
         <span style="flex:1"></span><span class="muted s">${d.rows.length.toLocaleString('de-DE')} ${d.rows.length === 1 ? 'Posten' : 'Posten'}</span>${can('buchung_einstellungen') ? '<button class="btn primary" id="feNew" type="button">+ Gebühr buchen</button>' : ''}</div>
       ${d.note ? `<div class="banner a" style="margin:0 0 16px;font-weight:400">${esc(d.note)}</div>` : ''}
-      <div class="bk-kpis" style="grid-template-columns:repeat(3, minmax(0, 1fr))">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${g.year}`, d.totals.all, 'b')}</div>
+      <div class="bk-kpis three">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${g.year}`, d.totals.all, 'b')}</div>
       <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-tbl bk-fees"><tr><th>Mitglied</th><th class="hm">Datum</th><th class="hm">Platz</th><th class="hm">Text</th><th class="r">Betrag</th><th>Status</th></tr>
         ${d.rows.map(x => `<tr ${x.manual ? `data-fm="${x.fee_id}"` : `data-b="${x.id}"`} data-d="${x.date}"><td><b>${esc(x.member)}</b><span class="muted s mo">${deDate(x.date)}${x.start ? ` · ${x.start}–${x.end}` : ' · von Hand gebucht'}</span></td><td class="hm nw">${deDate(x.date)}<span class="muted s" style="display:block">${x.start ? `${x.start}–${x.end}` : 'von Hand'}</span></td>
           <td class="hm">${esc(x.resource)}</td><td class="hm">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? `<span class="muted s" style="display:block">${deDate(x.paid_at)}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Gebühren in dieser Auswahl.</p>'}</div>

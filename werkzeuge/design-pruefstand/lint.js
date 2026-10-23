@@ -37,6 +37,8 @@
       if (s.overflowX !== 'visible' && e.scrollWidth > e.clientWidth + 2) add('abgeschnitten', e, { sw: e.scrollWidth, cw: e.clientWidth });
       else if (s.overflowY === 'hidden' && e.scrollHeight > e.clientHeight + 3 && s.webkitLineClamp === 'none') add('abgeschnitten', e, { sh: e.scrollHeight, ch: e.clientHeight });
     }
+    /* 4a) Kacheln (Kennzahlen, Kacheln) sind nie innen breiter als außen – sonst scrollt oder verschwindet z. B. „10,00 €“ in der Kachel */
+    if (/(^|\s)(kpi|bk-kpi|vh-tile|tk-tile|mv-kpi)(\s|$)/.test(typeof e.className === 'string' ? e.className : '') && e.scrollWidth > e.clientWidth + 2) add('kachel-zu-schmal', e, { sw: e.scrollWidth, cw: e.clientWidth });
     /* 4b) Text mit … gekürzt, obwohl es Platz gäbe? (nur melden, wenn sehr kurz sichtbar) */
     if (ownText(e) && s.textOverflow === 'ellipsis' && e.scrollWidth > e.clientWidth + 2 && e.clientWidth < 48) add('fast-leer-gekuerzt', e, { cw: e.clientWidth });
     /* 5) ragt aus dem Fenster */

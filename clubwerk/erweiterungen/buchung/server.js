@@ -605,11 +605,8 @@ function activate(ctx) {
     if (memberId) { w.push('b.member_id = ?'); a.push(memberId); }
     const rows = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE ${w.join(' AND ')} ORDER BY b.date DESC, b.start DESC LIMIT 5000`).all(...a);
     const tracked = mv();
-    const mw = ['cancelled_at IS NULL'], ma = [];
-    if (from) { mw.push('date >= ?'); ma.push(from); }
-    if (to) { mw.push('date <= ?'); ma.push(to); }
-    if (memberId) { mw.push('member_id = ?'); ma.push(memberId); }
-    const man = db.prepare(`SELECT * FROM bk_fee WHERE ${mw.join(' AND ')} ORDER BY date DESC, id DESC LIMIT 2000`).all(...ma);
+    const man = db.prepare(`SELECT * FROM bk_fee WHERE cancelled_at IS NULL AND (@from IS NULL OR date >= @from) AND (@to IS NULL OR date <= @to)
+      AND (@mid IS NULL OR member_id = @mid) ORDER BY date DESC, id DESC LIMIT 2000`).all({ from: from || null, to: to || null, mid: memberId || null });
     const st = tracked ? (await hook('chargeStatus', [...rows.map(b => b.charge_id), ...man.map(f => f.charge_id)].filter(Boolean)).catch(() => null)) || {} : {};
     const sales = ctx.drinks && man.some(f => f.sale_id) ? ctx.drinks.chargeStatus(man.map(f => f.sale_id).filter(Boolean)) : {};
     const manRows = man.map(f => {
