@@ -21,7 +21,8 @@
   "mitgliederApp": {
     "label": "Beregnung",
     "order": 20,
-    "unterwegs": false
+    "unterwegs": false,
+    "keinMitglied": true
   },
   "tabellen": [
     "irr_steps",

@@ -518,7 +518,7 @@ function activate(ctx) {
         device: d ? (d.paired ? 'gekoppelt' : d.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen') : 'ohne Handy', device_label: d ? d.device : null, last_used: d ? d.last_used : null };
     });
     const have = new Set(rows.map(r => r.member_id));
-    const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
+    const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     res.json({ rows, members, profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault })) });
   });
   /* Protokoll */

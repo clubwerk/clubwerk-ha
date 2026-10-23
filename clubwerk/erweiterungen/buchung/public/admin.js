@@ -796,16 +796,34 @@
     const kpi = (k, label, t, tone = '') => `<div class="card bk-kpi ${tone}"><div class="bk-kh">${ic(k)}<span>${label}</span></div><div class="bk-kv"><b>${euro(t.cents)}</b><span class="bk-d n">${t.count} Posten</span></div></div>`;
     el.innerHTML = `<div class="filterbar"><div class="seg" id="feF">${[['alle', 'Alle'], ['offen', 'Offen'], ['bezahlt', 'Bezahlt']].map(([k, t]) => `<button type="button" data-f="${k}" class="${g.status === k ? 'on' : ''}">${t}</button>`).join('')}</div>
         <select id="feY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y, `Jahr ${y}`, g.year)).join('')}</select>
-        <span style="flex:1"></span><span class="muted s">${d.rows.length.toLocaleString('de-DE')} ${d.rows.length === 1 ? 'Posten' : 'Posten'}</span></div>
+        <span style="flex:1"></span><span class="muted s">${d.rows.length.toLocaleString('de-DE')} ${d.rows.length === 1 ? 'Posten' : 'Posten'}</span>${can('buchung_einstellungen') ? '<button class="btn primary" id="feNew" type="button">+ Gebühr buchen</button>' : ''}</div>
       ${d.note ? `<div class="banner a" style="margin:0 0 16px;font-weight:400">${esc(d.note)}</div>` : ''}
       <div class="bk-kpis" style="grid-template-columns:repeat(3, minmax(0, 1fr))">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${g.year}`, d.totals.all, 'b')}</div>
       <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-tbl bk-fees"><tr><th>Mitglied</th><th class="hm">Datum</th><th class="hm">Platz</th><th class="hm">Text</th><th class="r">Betrag</th><th>Status</th></tr>
-        ${d.rows.map(x => `<tr data-b="${x.id}" data-d="${x.date}"><td><b>${esc(x.member)}</b><span class="muted s mo">${deDate(x.date)} · ${x.start}–${x.end}</span></td><td class="hm nw">${deDate(x.date)}<span class="muted s" style="display:block">${x.start}–${x.end}</span></td>
+        ${d.rows.map(x => `<tr ${x.manual ? `data-fm="${x.fee_id}"` : `data-b="${x.id}"`} data-d="${x.date}"><td><b>${esc(x.member)}</b><span class="muted s mo">${deDate(x.date)}${x.start ? ` · ${x.start}–${x.end}` : ' · von Hand gebucht'}</span></td><td class="hm nw">${deDate(x.date)}<span class="muted s" style="display:block">${x.start ? `${x.start}–${x.end}` : 'von Hand'}</span></td>
           <td class="hm">${esc(x.resource)}</td><td class="hm">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? `<span class="muted s" style="display:block">${deDate(x.paid_at)}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Gebühren in dieser Auswahl.</p>'}</div>
       <p class="muted s">Gast- und Platzgebühren entstehen beim Buchen und werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung → Finanzen). Dort werden sie als bezahlt gebucht oder mit dem Einzug abgerechnet. Mitglieder sehen ihre offenen Gebühren in der App, wenn unter „Mitglieder-App“ der Haken „Gebühren zeigen“ gesetzt ist.</p>`;
     const again = () => showFees(el).catch(fail);
     el.querySelectorAll('#feF [data-f]').forEach(b => { b.onclick = () => { g.status = b.dataset.f; again(); }; });
     $('feY').onchange = () => { g.year = +val('feY'); again(); };
+    /* Gebühr von Hand buchen: Mitglied → Forderung (Mitgliederverwaltung), Trainer → Verkaufskonto */
+    if ($('feNew')) $('feNew').onclick = () => {
+      dialog(`<h2>Gebühr buchen</h2><p class="muted" style="margin-top:0">Bei Mitgliedern entsteht eine Forderung in der Mitgliederverwaltung (Einzug wie ein Beitrag). Bei Trainern („Kein Mitglied“) kommt der Betrag aufs Verkaufskonto und wird unter Abrechnung bezahlt.</p>
+        <div class="bk-grid" style="--c:2"><label class="f w2">Person<select id="fmM"><option value="">– Person wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied') + (p.kind === 'nichtmitglied' ? ' (Trainer)' : ''))).join('')}</select></label>
+          <label class="f">Betrag<input id="fmC" inputmode="decimal" placeholder="z. B. 10,00"></label><label class="f">Datum<input id="fmD" type="date" value="${GK.today()}"></label>
+          <label class="f w2">Text<input id="fmT" maxlength="80" value="Platzgebühr"></label></div>
+        <div class="btns"><button class="btn ghost" id="fmX" type="button">Abbrechen</button><button class="btn primary" id="fmOk" type="button">Buchen</button></div>`);
+      $('fmX').onclick = closeDialog;
+      $('fmOk').onclick = () => GK.busy($('fmOk'), async () => {
+        try { const r = await api('fees/manual', 'POST', { member_id: +val('fmM') || null, cents: toCents(val('fmC')), date: val('fmD'), text: val('fmT') });
+          closeDialog(); toast(r.to === 'verkauf' ? 'Gebucht – aufs Verkaufskonto.' : 'Gebucht – als Forderung in der Mitgliederverwaltung.'); again(); } catch (e) { fail(e); }
+      });
+    };
+    el.querySelectorAll('tr[data-fm]').forEach(tr => { tr.style.cursor = 'pointer'; tr.onclick = async () => {
+      if (!can('buchung_einstellungen')) return;
+      if (!await ask('Diese von Hand gebuchte Gebühr stornieren?', { ok: 'Stornieren', danger: true })) return;
+      try { await api(`fees/manual/${tr.dataset.fm}/cancel`, 'POST', {}); toast('Storniert.'); again(); } catch (e) { fail(e); }
+    }; });
     el.querySelectorAll('tr[data-b]').forEach(tr => { tr.style.cursor = 'pointer'; tr.onclick = async () => { const day = await api('day?date=' + tr.dataset.d); const b = day.bookings.find(x => x.id === +tr.dataset.b); if (b) detail(b, again); }; });
   }
 
@@ -903,11 +921,12 @@
         <label class="f"><textarea id="bs_rules" rows="5" placeholder="z. B. Bitte nur mit Tennisschuhen spielen. Plätze nach dem Spiel abziehen und Linien kehren.">${esc(s.rules)}</textarea></label>
         ${save('bsOkOrd')}</div>
       <div class="card" id="bkRights" data-set="app" data-nodirty><h3>Sonderrechte in der Mitglieder-App</h3><p class="muted s" style="margin-top:0">Einzelne Mitglieder dürfen in der App Serien anlegen (z. B. Trainer: jeden Dienstag 18–20 Uhr), für andere Mitglieder buchen (z. B. für ein älteres Mitglied ohne Handy – Kontingent, Regeln und Gebühren gelten dann für dieses Mitglied) oder mit bestimmten bzw. allen Buchungsarten buchen – zusätzlich zu den Rechten an der Buchungsart selbst.</p>
-        <div class="bk-grid" style="--c:4"><label class="f w2">Mitglied<select id="rtM"><option value="">– Mitglied wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
+        <div class="bk-grid" style="--c:4"><label class="f w2">Mitglied<select id="rtM"><option value="">– Mitglied wählen –</option>${st.meta.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied') + (p.kind === 'nichtmitglied' ? ' (Trainer)' : ''))).join('')}</select></label>
           <div class="f w2"><span>Rechte</span><div class="bk-rights">
             <label class="chk"><input type="checkbox" id="rtS"> Darf Serien anlegen</label>
             <label class="chk"><input type="checkbox" id="rtF"> Darf für andere buchen</label>
             <label class="chk"><input type="checkbox" id="rtA"> Darf mit allen Buchungsarten buchen <span class="muted s">(auch mit künftig angelegten)</span></label></div></div>
+          ${(st.meta.departments || []).length ? `<div class="f bkf wall hidden" id="rtDeps"><span>Trainer: darf die Plätze dieser Abteilungen buchen <span class="muted s">(Trainer zahlen keine Gebühren und haben kein Kontingent)</span></span><div class="bk-chips">${st.meta.departments.map(d => `<label><input type="checkbox" data-rdp="${d.id}"> ${esc(d.name)}</label>`).join('')}</div></div>` : ''}
           <div class="f bkf wall" id="rtLabs"><span>darf mit diesen Buchungsarten buchen</span><div class="bk-chips">${st.meta.labels.filter(l => l.active).map(l => `<label><input type="checkbox" data-rl="${l.id}"><i class="bk-dot" style="background:${l.color};margin-right:0"></i>${esc(l.name)}</label>`).join('')}</div></div></div>
         <div class="btns"><button class="btn primary" id="rtOk">Sonderrechte speichern</button></div>
         <h4 class="bk-sub">Mitglieder mit Sonderrechten</h4><div id="rtList"></div></div>
@@ -921,18 +940,22 @@
     /* „alle Buchungsarten“ schließt die Einzelauswahl ein – die Chips werden dann gesperrt */
     const rtAll = () => { const on = $('rtA').checked; $('rtLabs').classList.toggle('dim', on); el.querySelectorAll('[data-rl]').forEach(c => { c.disabled = on; }); };
     $('rtA').onchange = rtAll;
+    /* Abteilungen nur für Trainer („Kein Mitglied“) */
+    const isTr = id => ((st.meta.people || []).find(p => p.id === Number(id)) || {}).kind === 'nichtmitglied';
+    const rtDeps = () => { if ($('rtDeps')) $('rtDeps').classList.toggle('hidden', !isTr(val('rtM'))); };
+    $('rtM').onchange = rtDeps;
     const rtLoad = async () => {
       const l = await api('rights');
       const lab = id => st.meta.labels.find(x => x.id === id);
-      $('rtList').innerHTML = l.length ? `<table class="tbl bk-tbl"><tr><th>Mitglied</th><th>Sonderrechte</th><th></th></tr>${l.map(r => `<tr><td><b>${esc(GK.lastFirst(r.name, 'mitglied'))}</b></td>
-        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.for_others ? pill(['b', 'für andere buchen']) : ''}${r.all_labels ? pill(['b', 'alle Buchungsarten']) : ''}${(r.all_labels ? [] : r.labels).map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
+      $('rtList').innerHTML = l.length ? `<table class="tbl bk-tbl"><tr><th>Mitglied</th><th>Sonderrechte</th><th></th></tr>${l.map(r => `<tr><td><b>${esc(GK.lastFirst(r.name, 'mitglied'))}</b>${r.kind === 'nichtmitglied' ? ' <span class="pill">Trainer</span>' : ''}</td>
+        <td><div class="bk-chips" style="gap:6px">${r.series ? pill(['b', 'Serien']) : ''}${r.for_others ? pill(['b', 'für andere buchen']) : ''}${r.all_labels ? pill(['b', 'alle Buchungsarten']) : ''}${(r.depts || []).map(id => ((st.meta.departments || []).find(d => d.id === id) || {}).name).filter(Boolean).map(n => pill(['g', 'Abteilung ' + n])).join('')}${(r.all_labels ? [] : r.labels).map(id => lab(id)).filter(Boolean).map(x => `<span class="pill" style="background:${x.color};color:${ink(x.color)}">${esc(x.name)}</span>`).join('')}</div></td>
         <td class="r"><span class="acts"><button class="btn ico" data-rte="${r.member_id}" title="Bearbeiten" aria-label="Bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button><button class="btn ico danger-h" data-rtd="${r.member_id}" title="Sonderrechte entfernen" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>` : '<p class="empty">Noch niemand mit Sonderrechten.</p>';
-      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; $('rtS').checked = r.series; $('rtF').checked = r.for_others; $('rtA').checked = r.all_labels; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); rtAll(); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
+      $('rtList').querySelectorAll('[data-rte]').forEach(b => { b.onclick = () => { const r = l.find(x => x.member_id === +b.dataset.rte); $('rtM').value = r.member_id; el.querySelectorAll('[data-rdp]').forEach(c => { c.checked = (r.depts || []).includes(+c.dataset.rdp); }); rtDeps(); $('rtS').checked = r.series; $('rtF').checked = r.for_others; $('rtA').checked = r.all_labels; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = r.labels.includes(+c.dataset.rl); }); rtAll(); $('bkRights').scrollIntoView({ block: 'start', behavior: 'smooth' }); }; });
       $('rtList').querySelectorAll('[data-rtd]').forEach(b => { b.onclick = async () => { try { await api('rights/' + b.dataset.rtd, 'DELETE'); toast('Sonderrechte entfernt.'); rtLoad(); } catch (e) { fail(e); } }; });
     };
     $('rtOk').onclick = () => GK.busy($('rtOk'), async () => {
-      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, for_others: $('rtF').checked, all_labels: $('rtA').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl) });
-        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; $('rtS').checked = false; $('rtF').checked = false; $('rtA').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtAll(); rtLoad(); } catch (e) { fail(e); }
+      try { const r = await api('rights', 'PUT', { member_id: +val('rtM'), series: $('rtS').checked, for_others: $('rtF').checked, all_labels: $('rtA').checked, labels: [...el.querySelectorAll('[data-rl]:checked')].map(c => +c.dataset.rl), depts: [...el.querySelectorAll('[data-rdp]:checked')].map(c => +c.dataset.rdp) });
+        toast(r.removed ? 'Keine Sonderrechte mehr.' : 'Gespeichert.'); $('rtM').value = ''; el.querySelectorAll('[data-rdp]').forEach(c => { c.checked = false; }); rtDeps(); $('rtS').checked = false; $('rtF').checked = false; $('rtA').checked = false; el.querySelectorAll('[data-rl]').forEach(c => { c.checked = false; }); rtAll(); rtLoad(); } catch (e) { fail(e); }
     });
     rtLoad().catch(fail);
     // Speichern je Karte: nur die Felder der jeweiligen Karte werden gesendet (der Server übernimmt nur, was dabei ist)

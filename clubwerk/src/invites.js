@@ -73,7 +73,7 @@ const deviceIdsOf = (scope, memberId) => db.prepare('SELECT id FROM member_devic
 function create(scope, memberId, by, issuerPerms, { kind = 'qr' } = {}) {
   scopeOk(scope);
   const hours = kind === 'qr' ? inviteHours() : mailDays() * 24;
-  const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(memberId);
+  const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(memberId);
   if (!m) throw new Error('Mitglied nicht gefunden.');
   const token = crypto.randomBytes(18).toString('base64url');
   dropPush(deviceIdsOf(scope, m.id));
@@ -163,7 +163,7 @@ function otpCheck(scope, inviteToken, code) {
 /* ---------- Eine PIN für Mitglieder-App und Verkauf ---------- */
 /** PIN (Hash) als Verkaufs-PIN übernehmen */
 function setMemberPin(memberId, hash, by) {
-  db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ? AND kind = 'mitglied'`).run(hash, by, memberId);
+  db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ? AND kind IN ('mitglied','nichtmitglied')`).run(hash, by, memberId);
 }
 /** neue Verkaufs-PIN auch in der App (gekoppeltes Handy) setzen – nur auf Geräten, deren PIN die bisherige war.
  *  Wer die alte App-PIN nicht kennt (z. B. erste PIN am Tablet nach „PIN zurücksetzen“), ändert die App-PIN nicht –
@@ -179,7 +179,7 @@ function pinToApp(memberId, hash, oldPin) {
 /** einmalig beim Start: App-PIN vorhanden, im Verkauf keine → übernehmen */
 function syncPinsOnce() {
   const rows = db.prepare(`SELECT d.member_id, d.pin_hash FROM member_devices d JOIN members m ON m.id = d.member_id
-    WHERE d.scope = 'app' AND d.token_hash IS NOT NULL AND d.pin_hash IS NOT NULL AND m.pin_hash IS NULL AND m.kind = 'mitglied' AND m.deleted = 0`).all();
+    WHERE d.scope = 'app' AND d.token_hash IS NOT NULL AND d.pin_hash IS NOT NULL AND m.pin_hash IS NULL AND m.kind IN ('mitglied','nichtmitglied') AND m.deleted = 0`).all();
   for (const r of rows) setMemberPin(r.member_id, r.pin_hash, 'Mitglieder-App');
   if (rows.length) audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', `${rows.length} ${rows.length === 1 ? 'Mitglied' : 'Mitglieder'}`);
 }
@@ -300,7 +300,7 @@ function check(scope, deviceToken, pin, row, opts = {}) {
   else db.prepare('UPDATE member_devices SET failed = 0, failed_total = 0, locked_until = NULL, last_used = ? WHERE id = ?').run(now(), d.id);
   if (scope === 'app' && !d.pin_synced && !opts.shared) {   // vor 3.24 getrennt vergeben: die App-PIN gilt ab jetzt auch im Verkauf
     const m = db.prepare('SELECT pin_hash, kind FROM members WHERE id = ?').get(d.member_id);
-    if (m && m.kind === 'mitglied' && (!m.pin_hash || !auth.verifySecret(String(pin), m.pin_hash))) { setMemberPin(d.member_id, d.pin_hash, 'Mitglieder-App'); audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', w.name); }
+    if (m && (m.kind === 'mitglied' || m.kind === 'nichtmitglied') && (!m.pin_hash || !auth.verifySecret(String(pin), m.pin_hash))) { setMemberPin(d.member_id, d.pin_hash, 'Mitglieder-App'); audit(null, 'PIN aus der Mitglieder-App in den Verkauf übernommen', w.name); }
     db.prepare('UPDATE member_devices SET pin_synced = 1 WHERE id = ?').run(d.id);
   }
   return { ok: true, name: w.name, memberId: w.memberId };

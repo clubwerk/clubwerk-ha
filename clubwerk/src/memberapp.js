@@ -197,10 +197,14 @@ function registerPublic(id, info) { publics.set(id, info); }
 /** Bereiche, die der Verein in der App ausgeschaltet hat (Reiter weg für alle, Freischaltungen bleiben erhalten) */
 const appOff = () => { try { return new Set(JSON.parse(getSetting('app_off', '[]')) || []); } catch (e) { return new Set(); } };
 const appVisible = (m, memberId) => { try { return !(m.hooks && typeof m.hooks.appVisible === 'function') || Boolean(m.hooks.appVisible(memberId)); } catch (e) { return false; } };
+/** Konto „Kein Mitglied“ (z. B. Trainer)? Es bekommt nur Bereiche mit keinMitglied (Buchen, Türen, Beregnung) – und nur mit eigener Freischaltung */
+const isNonMember = id => (db.prepare('SELECT kind FROM members WHERE id = ?').get(id) || {}).kind === 'nichtmitglied';
+const ONLY_MEMBERS = 'Dieser Bereich ist nur für Mitglieder.';
 /** Freischaltung für ein Modul: Module mit „alle“ gelten für jedes gekoppelte Handy (außer ausdrücklich gesperrt) */
 function accessFor(memberId, id) {
   const m = modules.get(id);
   if (appOff().has(id)) return { ok: false, row: null, reason: 'Dieser Bereich ist in der App gerade ausgeschaltet.' };
+  if (isNonMember(memberId)) return m && m.nonMembers ? access.check(memberId, id) : { ok: false, row: null, reason: ONLY_MEMBERS };
   if (m && m.open) {
     const r = access.get(memberId, id);
     if (r && r.blocked) return { ok: false, row: r, reason: 'Dieser Bereich ist für dich gesperrt – bitte beim Vorstand melden.' };
@@ -250,7 +254,7 @@ function statesPre() {
   for (const d of db.prepare(`SELECT member_id, ${DEV_COLS} FROM member_devices WHERE scope = ? ORDER BY member_id, id`).all(SCOPE)) if (!dev.has(d.member_id)) dev.set(d.member_id, d);
   const acc = new Map();
   for (const a of db.prepare(`SELECT member_id, ${ACC_COLS} FROM member_access ORDER BY member_id, module`).all()) { if (!acc.has(a.member_id)) acc.set(a.member_id, []); acc.get(a.member_id).push(a); }
-  return { dev, acc, th: tunnelOn() ? tunnelHost() : '', mods: activeModules() };
+  return { dev, acc, th: tunnelOn() ? tunnelHost() : '', mods: activeModules(), nm: new Set(db.prepare("SELECT id FROM members WHERE kind = 'nichtmitglied'").all().map(r => r.id)) };
 }
 /** Zustand eines Mitglieds für die Verwaltung (pre: aus statesPre()) */
 function memberState(memberId, pre = null) {
@@ -259,11 +263,12 @@ function memberState(memberId, pre = null) {
   const th = pre ? pre.th : tunnelOn() ? tunnelHost() : '';
   const oldAddress = Boolean(dev && dev.paired && th && (dev.paired_host || '') !== th);
   const acc = pre ? pre.acc.get(memberId) || [] : db.prepare(`SELECT ${ACC_COLS} FROM member_access WHERE member_id = ?`).all(memberId);
+  const nm = pre ? pre.nm.has(memberId) : isNonMember(memberId);
   return {
     device: dev ? { status: dev.paired ? 'gekoppelt' : dev.blocked_at && !dev.invited ? 'gesperrt' : dev.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen', label: dev.device, remote: Boolean(dev.paired && dev.remote), verified: dev.verified || null, kind: dev.invite_kind || 'qr', expires: dev.invited ? dev.invite_expires : null, paired_at: dev.paired_at, last_used: dev.last_used, blocked_at: dev.blocked_at, host: dev.paired_host || null, oldAddress } : null,
     access: Object.fromEntries(acc.map(a => [a.module, { profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked), away: Boolean(a.away), flags: parseFlags(a.flags) }])),
     // je Bereich angehakt? „für alle“-Bereiche gelten, bis sie für dieses Mitglied abgeschaltet werden
-    granted: Object.fromEntries((pre ? pre.mods : activeModules()).map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, m.open ? !(a && a.blocked) : Boolean(a)]; })),
+    granted: Object.fromEntries((pre ? pre.mods : activeModules()).map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, nm ? Boolean(m.nonMembers && a) : m.open ? !(a && a.blocked) : Boolean(a)]; })),
   };
 }
 /** Beim Freischalten vorausgewählt? Bereiche, die im Verein etwas schalten (Türen, Beregnung), standardmäßig nicht – nur für ausgewählte Mitglieder */
@@ -272,7 +277,7 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
   try { options = m.hooks.accessOptions ? m.hooks.accessOptions() : null; } catch (e) { options = null; }
   // Profile nur für eigens freizuschaltende Bereiche; zusätzliche Haken (flags) auch für „für alle“-Bereiche
-  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), away: extAllowed(id), on: !appOff().has(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
+  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), nonMembers: Boolean(m.nonMembers), away: extAllowed(id), on: !appOff().has(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
 });
 
 /* ---------- Port der Mitglieder-App ---------- */
@@ -365,7 +370,8 @@ function startPort({ rateLimit, rateLimitKey }) {
     const w = invites.whoIs(SCOPE, dev(req));
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
     const off = appOff();
-    const sections = w ? activeModules().filter(([id, m]) => !off.has(id)).filter(([id, m]) => { const a = access.get(w.memberId, id); return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
+    const nm = w && isNonMember(w.memberId);
+    const sections = w ? activeModules().filter(([id, m]) => !off.has(id)).filter(([id, m]) => { const a = access.get(w.memberId, id); if (nm) return m.nonMembers && a; return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
@@ -630,7 +636,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const rows = ids.map(id => { const m = ms.get(id); return m && !m.deleted ? { member_id: id, name: m.name, kind: m.kind, ...memberState(id, pre) } : null; })
       .filter(Boolean).sort((a, b) => require('./db').nameKey(a.name, a.kind).localeCompare(require('./db').nameKey(b.name, b.kind), 'de'));
     const have = new Set(rows.map(r => r.member_id));
-    const members = db.prepare("SELECT id, name FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
+    const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
     res.json({ startSection: getSetting('app_start', ''), mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
@@ -664,7 +670,7 @@ function adminRoutes(admin, { bad, need, auth }) {
   };
   admin.post('/app/member/:id/invite-mail', (req, res, next) => need(...permsAll())(req, res, next), async (req, res) => {
     const id = parseInt(req.params.id, 10);
-    if (!db.prepare("SELECT 1 FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
+    if (!db.prepare("SELECT 1 FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
     const r = await inviteOne(req, id, 'mail');
     if (r.error) return bad(res, r.error[0].toUpperCase() + r.error.slice(1) + '.');
     res.json({ ok: true, to: mailOf(id), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()), ...memberState(id) });
@@ -677,7 +683,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     if (kind === 'mail' && !require('./mail').ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     const done = [], skipped = [], letters = [];
     for (const id of ids) {
-      const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind = 'mitglied'").get(id);
+      const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id);
       if (!m) continue;
       const st = memberState(id);
       if (st.device && st.device.status === 'gekoppelt' && !b.force) { skipped.push({ name: m.name, reason: 'Handy schon gekoppelt' }); continue; }
@@ -753,30 +759,33 @@ function adminRoutes(admin, { bad, need, auth }) {
     const mod = modules.get(String(b.module || ''));
     if (!mod || !mod.isActive()) return bad(res, 'Unbekannter Bereich.');
     if (!mayModule(req, b.module)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
-    const m = db.prepare("SELECT name FROM members WHERE id = ? AND deleted = 0 AND kind = 'mitglied'").get(id);
+    const m = db.prepare("SELECT name, kind FROM members WHERE id = ? AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
+    const nm = m.kind === 'nichtmitglied';
+    if (nm && !mod.nonMembers) return bad(res, ONLY_MEMBERS);
+    const open = mod.open && !nm;   // „für alle“ gilt nur für Mitglieder – „Kein Mitglied“ braucht immer eine eigene Freischaltung
     if (b.flags !== undefined && b.grant === undefined) {   // zusätzliche Haken des Moduls (z. B. Buchen → „Gebühren zeigen“)
       const cur = access.get(id, b.module);
-      if (!mod.open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
+      if (!open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
       let opts = null; try { opts = mod.hooks.accessOptions ? mod.hooks.accessOptions() : null; } catch (e) { opts = null; }
       const known = ((opts && opts.flags) || []).map(f => f.id);
       const next = { ...(cur ? parseFlags(cur.flags) : {}) };
       const changed = [];
       for (const [k, v] of Object.entries(b.flags && typeof b.flags === 'object' ? b.flags : {})) { if (!known.includes(k)) return bad(res, 'Unbekannte Einstellung.'); if (v) next[k] = true; else delete next[k]; changed.push(`${((opts.flags.find(f => f.id === k) || {}).label) || k}: ${v ? 'an' : 'aus'}`); }
       const keep = Object.keys(next).length ? JSON.stringify(next) : null;
-      if (mod.open && cur && !cur.blocked && !cur.away && !keep) access.remove(id, b.module); else access.set(id, b.module, { flags: keep, blocked: cur ? cur.blocked : 0 });
+      if (open && cur && !cur.blocked && !cur.away && !keep) access.remove(id, b.module); else access.set(id, b.module, { flags: keep, blocked: cur ? cur.blocked : 0 });
       audit(req.user, `${mod.name}: ${changed.join(', ') || 'Einstellung geändert'}`, m.name);
       return res.json({ ok: true, ...memberState(id) });
     }
     if (b.away !== undefined && b.grant === undefined) {   // Ausnahme „auch unterwegs“ (nur sinnvoll für Bereiche, die sonst nur im WLAN gelten)
       const cur = access.get(id, b.module);
-      if (!mod.open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
+      if (!open && !cur) return bad(res, 'Zuerst den Bereich freischalten.');
       if (b.away) access.set(id, b.module, { away: 1, blocked: cur ? cur.blocked : 0 });
-      else if (mod.open && cur && !cur.blocked && !hasFlags(cur)) access.remove(id, b.module); else access.set(id, b.module, { away: 0 });
+      else if (open && cur && !cur.blocked && !hasFlags(cur)) access.remove(id, b.module); else access.set(id, b.module, { away: 0 });
       audit(req.user, `${mod.name}: ${b.away ? 'auch von unterwegs nutzbar' : 'nur noch im Vereins-WLAN'}`, m.name);
       return res.json({ ok: true, ...memberState(id) });
     }
-    if (mod.open && (b.grant === false || b.grant === true)) {
+    if (open && (b.grant === false || b.grant === true)) {
       // Bereich „für alle“: Haken weg = für dieses Mitglied abgeschaltet, Haken dran = wieder wie alle (eine Ausnahme „unterwegs“ bleibt erhalten)
       if (b.grant) { const cur = access.get(id, b.module); if (cur && (cur.away || hasFlags(cur))) access.set(id, b.module, { blocked: 0 }); else access.remove(id, b.module); } else access.set(id, b.module, { blocked: 1 });
       audit(req.user, `${mod.name}: ${b.grant ? 'in der App freigeschaltet' : 'in der App abgeschaltet'}`, m.name);

@@ -2325,6 +2325,28 @@ const drinks = {
     return { batch: open.length ? batch : null, cents, perMember, members: open.length, bookings };
   },
   /** Abrechnung eines Moduls zurücknehmen (z. B. wenn ein Einzug verworfen wird) – nur solange daraus nichts storniert wurde */
+  /** Betrag aufs Verkaufskonto buchen (z. B. Platzgebühr eines Trainers) – bezahlt wird mit dem Verkauf unter Abrechnung → Buchungs-ID */
+  charge(memberId, cents, note, user) {
+    const m = db.prepare("SELECT * FROM members WHERE id = ? AND deleted = 0 AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").get(int(memberId));
+    if (!m) throw new Error('Konto nicht gefunden (oder ausgeblendet).');
+    const c = int(cents); if (!(c >= 10 && c <= 100000)) throw new Error('Betrag bitte zwischen 0,10 € und 1.000 €.');
+    const t = cleanName(note, 60) || null;
+    const id = Number(db.prepare("INSERT INTO bookings(member_id, article_id, kind, qty, unit_cents, total_cents, note) VALUES (?,?,'konto',1,?,?,?)").run(m.id, customArticleId(), c, c, t).lastInsertRowid);
+    audit(user, 'Buchung nachgetragen', `${m.name}: Betrag ${euro(c)}${t ? ' (' + t + ')' : ''}`);
+    return id;
+  },
+  /** Stand solcher Buchungen → { id: 'offen' | 'abgerechnet' | 'storniert' } */
+  chargeStatus: ids => Object.fromEntries((ids || []).length ? db.prepare(`SELECT id, cancelled_at, settled_id FROM bookings WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids.map(int))
+    .map(b => [b.id, b.cancelled_at ? 'storniert' : b.settled_id ? 'abgerechnet' : 'offen']) : []),
+  /** noch nicht abgerechnete Buchung stornieren → true, sonst Fehler */
+  cancelCharge(id, user) {
+    const b = db.prepare('SELECT b.*, m.name FROM bookings b LEFT JOIN members m ON m.id = b.member_id WHERE b.id = ?').get(int(id));
+    if (!b || b.cancelled_at) return true;
+    if (b.settled_id) throw new Error('Schon abgerechnet – bitte unter Verkauf › Buchungen stornieren (das bucht eine Gutschrift).');
+    db.prepare("UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ? WHERE id = ?").run(user || 'Modul', b.id);
+    audit(user, 'Buchung storniert', `${b.name || ''}: Betrag ${euro(b.total_cents)}${b.note ? ' (' + b.note + ')' : ''}`);
+    return true;
+  },
   unsettle(batch) {
     const ids = db.prepare('SELECT id FROM member_settlements WHERE batch = ?').all(String(batch || '')).map(r => r.id);
     if (!ids.length) return { ok: true, n: 0 };

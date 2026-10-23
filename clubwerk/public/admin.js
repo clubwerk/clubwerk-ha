@@ -2079,7 +2079,7 @@
             <div class="${m.kind === 'mannschaft' ? '' : 'hidden'}" id="ePinRow" style="margin-top:12px"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
               <p class="muted s" style="margin:6px 0 0">Mannschaftskonten buchen nur mit dieser PIN. Sie wird hier vom Vorstand vergeben und kann am Tablet nicht geändert werden.</p></div>
             <label class="chk" style="margin-top:12px"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label>
-            ${m.kind === 'mitglied' && !m.pending && (cache.appModules || []).length ? '<div class="card soft" id="eApp" style="margin:14px 0 0"><p class="muted">Lade …</p></div>' : ''}
+            ${isPerson(m.kind) && !m.pending && (cache.appModules || []).length ? '<div class="card soft" id="eApp" style="margin:14px 0 0"><p class="muted">Lade …</p></div>' : ''}
             <div class="btns">${special ? '' : '<button class="btn danger" id="eDel" style="margin-right:auto">Löschen</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok3">Speichern</button></div>`);
           $('c').onclick = closeDialog;
           $('eKind').onchange = () => $('ePinRow').classList.toggle('hidden', $('eKind').value !== 'mannschaft');
@@ -2188,7 +2188,7 @@
   /** Sammelversand: Einladungen per E-Mail oder als Briefe für viele Mitglieder */
   function bulkInvites(r) {
     const mail = new Set(r.mailIds || []);
-    const all = [...r.rows.map(x => ({ id: x.member_id, name: x.name, kind: x.kind, dev: x.device, inApp: true })), ...r.members.map(m => ({ id: m.id, name: m.name, kind: 'mitglied', dev: null, inApp: false }))];
+    const all = [...r.rows.map(x => ({ id: x.member_id, name: x.name, kind: x.kind, dev: x.device, inApp: true })), ...r.members.map(m => ({ id: m.id, name: m.name, kind: m.kind || 'mitglied', dev: null, inApp: false }))];
     let showNew = false, sel = new Set(all.filter(x => x.inApp && !(x.dev && x.dev.status === 'gekoppelt')).map(x => x.id));
     const list = () => all.filter(x => x.inApp || showNew);
     const draw = () => {
@@ -2224,12 +2224,13 @@
   /** Freischaltungen eines Mitglieds (für den Bearbeiten-Dialog) – speichert sofort */
   async function appBox(el, memberId) {
     const info = await api('app/member/' + memberId);
+    if (info.kind === 'nichtmitglied') info.modules = info.modules.filter(m => m.nonMembers);   // Kein Mitglied (z. B. Trainer): nur Buchen, Türen, Beregnung
     if (!info.modules.length) { el.remove(); return; }
     el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angehakten Bereiche. Änderungen hier gelten sofort.</p>
       <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles ? `<select data-ap="${m.id}" ${a && g ? '' : 'disabled'} style="min-height:38px;border:1px solid var(--line);border-radius:10px;padding:0 8px">${m.options.profiles.map(p => `<option value="${esc(p.id)}" ${(a ? a.profile : m.options.defaultProfile) === p.id ? 'selected' : ''}>${esc(p.name)}</option>`).join('')}</select>` : ''}
-        ${a && a.blocked && !m.open ? '<span class="pill r">gesperrt</span>' : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
+        ${a && a.blocked && (!m.open || info.kind === 'nichtmitglied') ? '<span class="pill r">gesperrt</span>' : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
       <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">Einladen …</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
@@ -2372,15 +2373,15 @@
         <div class="btns"><button class="btn primary" id="moSave">Speichern</button></div></div>` : ''}
       <div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>
       <div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
-        <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
+        <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}${m.kind === 'nichtmitglied' ? ' (Kein Mitglied)' : ''}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
       <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
         ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'warten auf WLAN'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
-          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b></td><td>${devPill(x.device)}</td>
-            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; return `<td style="white-space:nowrap"><span class="ap-cell"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${x.member_id}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</span></td>`; }).join('')}
+          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill(x.device)}</td>
+            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; if (x.kind === 'nichtmitglied' && !m.nonMembers) return '<td class="muted" title="nur für Mitglieder">–</td>'; return `<td style="white-space:nowrap"><span class="ap-cell"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${x.member_id}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</span></td>`; }).join('')}
             <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r"><span class="acts"><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>
           <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
@@ -2415,7 +2416,8 @@
       if (!id) return toast('Bitte zuerst ein Mitglied wählen.', true);
       try {
         // angehakte Bereiche freischalten; „für alle“-Bereiche ohne Haken für dieses Mitglied abschalten
-        for (const c of document.querySelectorAll('[data-nm]')) { const m = mods.find(x => x.id === c.dataset.nm); if (c.checked || (m && m.open)) await api(`app/member/${id}/access`, 'PUT', { module: c.dataset.nm, grant: c.checked }); }
+        const nonMember = (r.members.find(x => x.id === id) || {}).kind === 'nichtmitglied';   // Kein Mitglied: nur Buchen, Türen, Beregnung – und nur angehakte
+        for (const c of document.querySelectorAll('[data-nm]')) { const m = mods.find(x => x.id === c.dataset.nm); if (nonMember ? c.checked && m && m.nonMembers : c.checked || (m && m.open)) await api(`app/member/${id}/access`, 'PUT', { module: c.dataset.nm, grant: c.checked }); }
         inviteMenu(id, () => RENDER.app().catch(fail));
       } catch (e) { fail(e); }
     };

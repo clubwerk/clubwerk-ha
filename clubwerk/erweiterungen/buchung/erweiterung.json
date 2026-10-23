@@ -25,7 +25,8 @@
   "mitgliederApp": {
     "label": "Buchen",
     "order": 3,
-    "alle": true
+    "alle": true,
+    "keinMitglied": true
   },
   "tabellen": [
     "bk_resource",
@@ -33,7 +34,8 @@
     "bk_series",
     "bk_wait",
     "bk_label",
-    "bk_rights"
+    "bk_rights",
+    "bk_fee"
   ],
   "einstellungen": [
     "ext_buchung_"

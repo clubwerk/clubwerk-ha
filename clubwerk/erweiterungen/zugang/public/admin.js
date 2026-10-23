@@ -207,7 +207,7 @@
     const def = r.profiles.find(p => p.isDefault);
     el.innerHTML = `<div class="card"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:240px">Mitglied (bekommt das Standardprofil „${esc(def ? def.name : '')}“)<select id="zMemNew" data-nodirty><option value="">– Mitglied wählen –</option>
-          ${r.members.map(m => `<option value="${m.id}">${esc(GK.lastFirst(m.name))}</option>`).join('')}</select></label><button class="btn primary" id="zMemInv">Freischalten & QR-Code</button></div>
+          ${r.members.map(m => `<option value="${m.id}">${esc(GK.lastFirst(m.name))}${m.kind === 'nichtmitglied' ? ' (Trainer)' : ''}</option>`).join('')}</select></label><button class="btn primary" id="zMemInv">Freischalten & QR-Code</button></div>
         <p class="muted s" style="margin:8px 0 0">Der QR-Code gilt für die ganze Mitglieder-App. Wer schon ein freigeschaltetes Handy hat, braucht keinen neuen – einfach ankreuzen genügt (siehe „Mitglieder-App“).</p></div>
       <div class="card"><h3>Freigeschaltet <span class="muted s">(${r.rows.length})</span></h3>
       ${r.rows.length ? `<table class="tbl"><tr><th>Mitglied</th><th>Handy</th><th style="width:200px">Zeitprofil</th><th style="width:170px">gültig bis</th><th class="hide-md">zuletzt</th><th></th></tr>
