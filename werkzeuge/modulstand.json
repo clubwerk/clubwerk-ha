@@ -8,16 +8,16 @@
   "hash": "b46c151c0fd7bee06e0144ef5b38771a9f5bac16"
  },
  "beregnung": {
-  "version": "1.3.5",
-  "hash": "c3213fea5b3340d2b456c1c693dd4ccf2d5d0501"
+  "version": "1.4.0",
+  "hash": "bf3eef00ce81f34c69f859bd94e83f543a716d36"
  },
  "buchhaltung": {
   "version": "1.1.1",
   "hash": "9705e739468d5399be7bcb5caa16e6a1278693eb"
  },
  "buchung": {
-  "version": "1.8.1",
-  "hash": "2284751c5d6738bb7c1020e740ebdfc10e4d34be"
+  "version": "1.9.0",
+  "hash": "cc1320dece6337016e24806c0cf1eb9c254d56ee"
  },
  "mitglieder": {
   "version": "1.11.0",
@@ -32,7 +32,7 @@
   "hash": "ec571495b24ea919af004a46933b640124514fd6"
  },
  "zugang": {
-  "version": "1.2.4",
-  "hash": "9f5f13db5c20593182915811cef4479a58b0aba6"
+  "version": "1.3.0",
+  "hash": "21b74b39041346e5debcf0f8f7ed50c505e08cc7"
  }
 }
