@@ -1,7 +1,7 @@
 {
  "verkauf": {
-  "version": "3.27.0",
-  "hash": "074495f1abcdd6b5bf08cfd108628137b195b3a4"
+  "version": "3.28.0",
+  "hash": "7eb5630dbc7c8a7a7008977e146da8098e8bf1d7"
  },
  "arbeitseinsatz": {
   "version": "2.1.1",
@@ -20,8 +20,8 @@
   "hash": "2284751c5d6738bb7c1020e740ebdfc10e4d34be"
  },
  "mitglieder": {
-  "version": "1.10.2",
-  "hash": "e0de3e4ef4c4350afe4a5f105131d4604646b1ef"
+  "version": "1.11.0",
+  "hash": "029838aa7afcc80867bd57f3219352234496f49a"
  },
  "spielbetrieb": {
   "version": "1.6.0",
