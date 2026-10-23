@@ -49,12 +49,14 @@ async function endFees(id) {
   srv = spawn('node', ['src/server.js'], { cwd: APP, env: { ...process.env, CW_TEST_NO_SETUP_CODE: '1', DATA_DIR: DATA, PORT: '3340', BEREGNUNG_PORT: '5340', MEMBER_PORT: '5341', EXT_DIR: S + '/none' }, stdio: ['ignore', fs.openSync(S + '/merge_srv.log', 'w'), fs.openSync(S + '/merge_srv.log', 'a')] });
   for (let i = 0; i < 60; i++) { try { const r = await fetch(B + 'api/admin/status'); if (r.status) break; } catch (e) { /* */ } await sleep(250); }
   let s, j;
-  [s, j] = await A('api/admin/setup', 'POST', { clubName: 'TC Test', password: 'Test-Kennwort-42', modules: { getraenke: true, mitglieder: true, buchung: true, arbeitseinsatz: true, buchhaltung: true } }); ok('Setup', s === 200, JSON.stringify(j));
+  [s, j] = await A('api/admin/setup', 'POST', { clubName: 'TC Test', password: 'Test-Kennwort-42', modules: { getraenke: true, buchung: true, arbeitseinsatz: true, buchhaltung: true } }); ok('Setup', s === 200, JSON.stringify(j));
+  // B und Dora: Verkaufskonten aus der Zeit vor der Mitgliederverwaltung (seit 3.37 entstehen Mitglieder sonst nur dort)
+  [s, j] = await A('api/admin/members', 'POST', { name: 'Anna Richtig', kind: 'mitglied' }); const B_ID = j.id; ok('B angelegt (Konto)', s === 200 && B_ID);
+  [s, j] = await A('api/admin/members', 'POST', { name: 'Dora Kind', kind: 'mitglied' }); const D_ID = j.id;
+  [s, j] = await A('api/admin/extensions/mitglieder', 'PUT', { active: true }); ok('Mitgliederverwaltung eingeschaltet', s === 200, JSON.stringify(j));
   // A (Duplikat, am Tablet angelegt) mit Daten in der Mitgliederverwaltung, B = richtiges Konto, C = eigenständig mit Modul-Daten
   [s, j] = await newPerson('Anna', 'Doppelt', 'DE02120300000000202051'); const A_ID = j.id; ok('A angelegt (Mitgliederverwaltung, Beitrag + Bank)', s === 200 && A_ID, JSON.stringify(j));
-  [s, j] = await A('api/admin/members', 'POST', { name: 'Anna Richtig', kind: 'mitglied' }); const B_ID = j.id; ok('B angelegt (Konto)', s === 200 && B_ID);
   [s, j] = await newPerson('Carl', 'Allein', 'DE02500105170137075030'); const C_ID = j.id; ok('C angelegt', s === 200 && C_ID);
-  [s, j] = await A('api/admin/members', 'POST', { name: 'Dora Kind', kind: 'mitglied' }); const D_ID = j.id;
   // Familie: Dora zahlt über Anna Doppelt (payer_id → A); C zahlt über niemanden; Carl hat Angehörige? Dora zweites Kind zahlt über C
   [s, j] = await A(X(`member/${D_ID}/payer`), 'PUT', { payer_id: A_ID }); ok('Dora zahlt über A', s === 200, JSON.stringify(j));
   // Buchungssystem: Platz buchen für A und C, Sonderrecht für A und B (UNIQUE-Konflikt beim Zusammenführen), Warteliste für A

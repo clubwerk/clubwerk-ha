@@ -59,6 +59,8 @@ irgendwo etwas, löscht der Kern nicht und zeigt die Liste (mit dem Modulnamen d
 Tabellen, deren Zeilen dabei als Verlauf bleiben sollen (z. B. bezahlte Forderungen), nennt `ctx.hooks.historyTables = () => ['mv_charge']`;
 der Kern löscht sie nicht und markiert das Konto dann nur als gelöscht, damit der Name lesbar bleibt.
 
+**Kontoarten:** `members.kind` ist `mitglied`, `nichtmitglied` („Kein Mitglied“, z. B. Trainer: Verkaufskonto mit PIN, ohne Mitgliedschaft), `mannschaft`, `verein`, `gast` oder `extern` (Gastspieler im Spielbetrieb, kein Konto). Module, die **Mitglieder** meinen (Platzbuchung, Helferdienste, App …), filtern auf `kind = 'mitglied'` – „Kein Mitglied“ bleibt dort draußen. Namen von Personen (`mitglied`, `nichtmitglied`) zeigt `lastFirst(name, kind)` als „Nachname, Vorname“. Ist die Mitgliederverwaltung aktiv, entsteht ein `mitglied` nur dort; der Kern fragt vor dem Wechsel der Kontoart `ctx.hooks.memberKindLock = id => ['Grund', …]` (synchron, leer = darf wechseln) zusätzlich zu `memberLinks`.
+
 **Datums-/Zeitformate:** Fachliche Tage und Zeitpunkte stehen in der Datenbank in lokaler Zeit ohne Zonenangabe –
 `JJJJ-MM-TT` bzw. `JJJJ-MM-TT HH:MM:SS` (wie SQLites `datetime('now','localtime')`; genau das liefern `ctx.util.today()` und
 `ctx.util.nowTs()`). Vergleiche funktionieren dann als Textvergleich. Millisekunden seit 1970 (`Date.now()`) nur für Zeitgeber
