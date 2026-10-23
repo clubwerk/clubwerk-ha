@@ -59,6 +59,22 @@ function mandateState(b) {
   return { ok: true };
 }
 
+/** Lastschrift Pflicht (Einstellung)? Familienmitglieder und wer über einen Zahler zahlt, sind ausgenommen */
+const sepaRequired = () => S('sepa_required', '0') === '1';
+const payNeedsSepa = p => !p.payer_id && !p.family_of;
+/** Was einem (nicht ausgetretenen) Mitglied an Pflichtangaben fehlt – für die deutliche Meldung beim Mitglied */
+function missingOf(p, bank, hasFee) {
+  if (p.anonymized_at || (p.exit_date && p.exit_date < today())) return [];
+  if (!p.member_id) return ['Mitgliedsdaten (Adresse, Geburtsdatum, Kontakt)', 'Beitrag', 'Zahlungsdaten'];
+  const out = [];
+  if (!hasFee && !p.family_of && p.status !== 'ehren') out.push('Beitrag');
+  if (payNeedsSepa(p)) {
+    if ((p.payment || 'lastschrift') === 'lastschrift') { const ms = mandateState(bank); if (!ms.ok) out.push(`Konto & Mandat: ${ms.reason}`); }
+    else if (sepaRequired()) out.push('Zahlart Lastschrift (laut Einstellungen Pflicht)');
+  }
+  return out;
+}
+
 function listRows(q = {}) {
   const day = today();
   const rows = C.db.prepare(`SELECT m.id, m.name, m.active, m.pending, p.member_no, p.first_name, p.last_name, p.birth_date, p.gender, p.status, p.entry_date, p.exit_date,
@@ -85,7 +101,7 @@ function listRows(q = {}) {
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
-      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'unvollständig', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
+      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -117,6 +133,7 @@ function detail(id, user) {
   return {
     person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id), photo: C.require('./photos').version(id) },
     bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
+    missing: missingOf(p, bank, feeRows(id).some(f => !f.end_date || f.end_date >= today())),
     departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
     family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id),
@@ -408,6 +425,7 @@ function activate(ctx) {
       if (!fee) return bad(res, 'Bitte einen Beitrag zuordnen.');
       const ae = feeAgeError(fee, { name: `${f0.first_name} ${f0.last_name}`, birth_date: f0.birth_date }, entry); if (ae) return bad(res, ae);
       const pay = store.PAYMENT[f0.payment] ? f0.payment : 'lastschrift';
+      if (pay !== 'lastschrift' && sepaRequired()) return bad(res, 'Lastschrift ist laut Einstellungen Pflicht – bitte Bankverbindung und SEPA-Mandat eintragen.');
       if (pay === 'lastschrift') {
         if (!req.user.perms.includes('mitglieder_bank')) return bad(res, 'Bankdaten darf nur eintragen, wer das Recht „Bankdaten“ hat – sonst Zahlart „Rechnung“ wählen.', 403);
         const ib = sepa.checkIban(b.iban); if (!ib.ok) return bad(res, ib.error || 'Bitte eine gültige IBAN eintragen.');
@@ -459,6 +477,8 @@ function activate(ctx) {
     if (p.anonymized_at) return bad(res, 'Dieses Mitglied ist anonymisiert.');
     const pi = personInput(req.body || {}, { ...p, member_id: p.member_id || id }); if (pi.error) return bad(res, pi.error);
     const b = req.body || {};
+    if (pi.fields.payment && pi.fields.payment !== 'lastschrift' && pi.fields.payment !== p.payment && sepaRequired() && payNeedsSepa(p))
+      return bad(res, 'Lastschrift ist laut Einstellungen Pflicht. Andere Zahlarten nur für Familienmitglieder oder wer über einen Zahler zahlt.');
     if (req.mvScope) {   // Abteilungsadmin: nur Personen- und Kontaktdaten; Vereinsdaten und Einwilligungen pflegt die Vereinsverwaltung
       const norm = (k, v) => k === 'status' ? (v || 'aktiv') : String(v == null ? '' : v);
       const changed = SCOPE_LOCKED.filter(k => pi.fields[k] !== undefined && norm(k, pi.fields[k]) !== norm(k, p[k]));
@@ -953,7 +973,7 @@ function activate(ctx) {
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_fee_cents: parseInt(S('dunning_fee_cents', '0'), 10) || 0,
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: parseInt(S('retention_years', '0'), 10) || 0,
-      notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
+      notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', sepa_required: sepaRequired(), app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
     return s;
   }
   admin.put('/settings', P, (req, res) => {
@@ -979,6 +999,7 @@ function activate(ctx) {
     for (const k of ['return_fee_cents', 'dunning_fee_cents']) if (b[k] !== undefined) put(k, String(Math.max(0, Math.min(10000, int(b[k])))));
     if (b.notice_months !== undefined) put('notice_months', String(Math.max(0, Math.min(24, int(b.notice_months)))));
     if (b.scope_confirm !== undefined) put('scope_confirm', b.scope_confirm ? '1' : '0');
+    if (b.sepa_required !== undefined) put('sepa_required', b.sepa_required ? '1' : '0');
     if (b.app_perms && typeof b.app_perms === 'object') {
       const clean = (defs, v) => Object.fromEntries(Object.keys(defs).map(k => [k, Boolean(v && v[k])]));
       put('app_perms', JSON.stringify({ view: clean(store.APP_VIEW, b.app_perms.view), edit: clean(store.APP_EDIT, b.app_perms.edit) }));
@@ -996,7 +1017,7 @@ function activate(ctx) {
         app_intro: ['Begrüßung im Formular', 'text'], work_text: ['Hinweis Arbeitseinsatz', 'text'], invoice_text: ['Rechnungstext', 'text'], satzung_url: 'Satzung (Link)', creditor_id: 'Gläubiger-ID', club_iban: ['Vereins-IBAN', 'text'],
         sepa_account: ['Konto für Lastschriften', 'text'], club_bic: 'BIC', mandate_prefix: 'Mandatsreferenz-Vorsilbe', member_no_start: 'Mitgliedsnummern ab', year_start: 'Beginn des Beitragsjahres', prenotify_days: 'Vorabinformation (Tage)',
         drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_fee_cents: ['Mahngebühr', 'euro'],
-        notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
+        notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], sepa_required: ['Lastschrift ist Pflicht', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
       const after = {}; for (const [k, v] of pending) { after[k] = String(v); }
       const diff = ctx.auditDiff(L, Object.fromEntries(Object.keys(after).map(k => [k, prevSet[k]])), after);
       if (diff) ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', diff); }
@@ -1082,6 +1103,8 @@ function activate(ctx) {
   /* ----- Mitglied löschen: Was hängt noch daran? (Kern fragt vor dem Löschen; Vergangenes zählt nicht, bezahlte Forderungen auch nicht) ----- */
   /** Beim Löschen eines Mitglieds bleiben Forderungen als Verlauf (offene sperren das Löschen ohnehin, s. memberLinks) */
   ctx.hooks.historyTables = () => ['mv_charge'];
+  /** Kontoart wechseln (z. B. zu „Kein Mitglied“) nur ohne Mitgliedsdaten – sonst hingen Adresse, Bank & Co. unsichtbar an einem Nicht-Mitglied */
+  ctx.hooks.memberKindLock = id => (ctx.db.prepare('SELECT 1 FROM mv_person WHERE member_id = ? AND anonymized_at IS NULL').get(id) ? ['Mitgliedsdaten vorhanden – erst Austritt eintragen und anonymisieren'] : []);
   ctx.hooks.memberLinks = id => {
     const q = (sql, ...a) => ctx.db.prepare(sql).all(...a), d0 = today(), lf = ctx.require('./db').lastFirst, names = rows => rows.map(r => lf(r.name, r.kind)).join(', ');
     const out = [], p = ctx.db.prepare('SELECT payer_id, family_of FROM mv_person WHERE member_id = ?').get(id) || {};

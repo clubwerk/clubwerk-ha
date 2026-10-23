@@ -14,7 +14,8 @@
   const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
   const toCents = v => Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) * 100);
   const centsToInput = c => ((c || 0) / 100).toFixed(2).replace('.', ',');
-  const KIND = { mitglied: 'Mitglied', mannschaft: 'Mannschaft', verein: 'Verein (kostenfrei)', gast: 'Gast (bar)' };
+  const KIND = { mitglied: 'Mitglied', nichtmitglied: 'Kein Mitglied', mannschaft: 'Mannschaft', verein: 'Verein (kostenfrei)', gast: 'Gast (bar)' };
+  const isPerson = k => k === 'mitglied' || k === 'nichtmitglied';   // Personenkonten (Vorname, PIN, Tablet)
   const BKIND = { konto: ['Konto', 'g'], verein: ['Verein frei', 'b'], gast: ['Gast bar', 'a'], event: ['Veranstaltung', 'a'] };
   const DOCKIND = { rechnung: 'Rechnung', gutschrift: 'Gutschrift', lieferung: 'Lieferschein', kassenbon: 'Kassenbon' };
 
@@ -1223,7 +1224,7 @@
         ${d.rows.map((x, i) => `<tr data-row="${x.id}" class="${isDone(x) ? 'off' : ''}">
           <td><input type="checkbox" data-tick="${x.id}" ${isDone(x) ? 'checked' : ''} style="width:22px;height:22px;margin:0"></td>
           <td class="r">${i + 1}</td><td><b>${esc(x.last)}</b></td>
-          <td>${x.kind === 'mitglied' ? esc(x.first) : '<span class="pill">Mannschaft</span>'}</td>
+          <td>${isPerson(x.kind) ? esc(x.first) : '<span class="pill">Mannschaft</span>'}</td>
           <td class="r"><button class="btn small" data-copy="${plain(x.cents)}" style="min-width:96px;justify-content:flex-end">${euro(x.cents)}</button></td></tr>`).join('')}
         <tr class="sum"><td></td><td></td><td>Summe</td><td>${d.rows.length} Konten</td><td class="r">${euro(d.total_cents)}</td></tr>
       </table></div>
@@ -1258,7 +1259,7 @@
 
   function abtippPrint(d, stand) {
     const rows = d.rows.map((x, i) => `<tr><td class="c"><span class="box"></span></td><td class="c">${i + 1}</td><td><b>${esc(x.last)}</b></td>
-      <td>${x.kind === 'mitglied' ? esc(x.first) : 'Mannschaft'}</td><td class="r">${euro(x.cents)}</td></tr>`).join('');
+      <td>${isPerson(x.kind) ? esc(x.first) : 'Mannschaft'}</td><td class="r">${euro(x.cents)}</td></tr>`).join('');
     return `<div class="pr">
       <div class="prhead"><div><div class="prclub">${esc(d.clubName)}</div><h1>Abrechnung – Abtippliste</h1></div>
         <div class="prmeta">Stand ${esc(stand)} Uhr · ${d.rows.length} Konten · ${euro(d.total_cents)}<br>gedruckt ${esc(deTime(new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 19)))}${me ? ' von ' + esc(me.name) : ''}</div></div>
@@ -1488,7 +1489,7 @@
     });
     $('main').querySelectorAll('[data-tt]').forEach(b => b.onclick = () => {
       const t = find(b.dataset.tt);
-      const people = cache.members.filter(m => m.active && !m.pending && (m.kind === 'mitglied' || m.kind === 'mannschaft'))
+      const people = cache.members.filter(m => m.active && !m.pending && (isPerson(m.kind) || m.kind === 'mannschaft'))
         .sort((a, c) => (a.kind === c.kind ? 0 : a.kind === 'mannschaft' ? -1 : 1));   // innerhalb: Reihenfolge vom Server (nach Nachname)
       dialog(`<h2>Deckel auf ein Konto übernehmen</h2>
         <p class="muted">„${esc(t.name)}“ über ${euro(t.open_cents)} wird auf das gewählte Konto gebucht und mit der nächsten Abrechnung berechnet – z. B. auf die eigene Mannschaft, die den Gegner eingeladen hat.</p>
@@ -1881,7 +1882,8 @@
   RENDER.konten = async () => {
     await loadMembers();
     const pending = cache.members.filter(m => m.pending);
-    const others = cache.members.filter(m => !m.pending && m.kind === 'mitglied');
+    const others = cache.members.filter(m => !m.pending && isPerson(m.kind));
+    const mvOn = (cache.modules || []).includes('mitglieder');   // dann entstehen Mitglieder nur in der Mitgliederverwaltung
     // Diese Saison nicht da: kein Buchen, kein Eintrag auf einer Veranstaltungsliste seit Saisonbeginn
     // (nur Mitglieder, die schon länger als 60 Tage angelegt sind – sonst stünde nach einem Import jeder hier)
     const cutoff = new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10);
@@ -1893,7 +1895,7 @@
       ${pending.length ? `<div class="card warnbox"><h3>Neu am Tablet eingetragen – bitte prüfen (${pending.length})</h3>
         <table class="tbl"><tr><th>Name (anpassbar)</th><th>eingetragen</th><th class="r">Buchungen</th><th></th></tr>
         ${pending.map(m => `<tr><td><input data-pn="${m.id}" value="${esc(m.name)}" style="min-width:220px"></td><td>${deTime(m.created_at)}</td><td class="r">${m.bookings}</td>
-          <td class="r"><button class="btn small primary" data-ok="${m.id}">Bestätigen</button>
+          <td class="r"><button class="btn small primary" data-ok="${m.id}">${mvOn ? 'Als „Kein Mitglied“ bestätigen' : 'Bestätigen'}</button>
             <button class="btn small" data-merge="${m.id}">Ist schon Mitglied …</button>
             ${m.bookings ? '' : `<button class="btn small danger" data-rm="${m.id}">Löschen</button>`}</td></tr>`).join('')}</table></div>` : ''}
       ${absent.length ? `<div class="card warnbox">
@@ -1911,16 +1913,16 @@
         return [['Aktive Mitglieder', vis.filter(m => m.kind === 'mitglied').length], ['Mannschaften & Gruppen', vis.filter(m => m.kind === 'mannschaft').length],
           ['Mit PIN geschützt', vis.filter(m => m.hasPin).length], ['Offen auf Konten', euro(open)]].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join(''); })()}</div>
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mSearch" placeholder="Name suchen" aria-label="Name suchen"></label>
-        <div class="seg" id="mFilter" role="tablist">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
-          .filter(([k]) => k !== 'sonder' || (cache.modules || []).includes('getraenke')).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
+        <div class="seg" id="mFilter" role="tablist">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['nichtmitglied', 'Kein Mitglied'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
+          .filter(([k]) => (k !== 'sonder' || (cache.modules || []).includes('getraenke')) && (k !== 'nichtmitglied' || cache.members.some(m => m.kind === 'nichtmitglied' && !m.pending))).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
       <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel" id="mTbl"></table></div></div><aside class="mdetail card" id="mDetail"></aside></div>`;
     const showAll = (cache.modules || []).includes('getraenke');
     const base = cache.members.filter(m => !m.pending && (showAll || (m.kind !== 'verein' && m.kind !== 'gast')));
     const FILTER = {
-      alle: m => m.active, mitglied: m => m.active && m.kind === 'mitglied', mannschaft: m => m.active && m.kind === 'mannschaft',
+      alle: m => m.active, mitglied: m => m.active && m.kind === 'mitglied', nichtmitglied: m => m.active && m.kind === 'nichtmitglied', mannschaft: m => m.active && m.kind === 'mannschaft',
       sonder: m => m.active && (m.kind === 'verein' || m.kind === 'gast'), offen: m => (m.balance_cents || 0) > 0, aus: m => !m.active,
     };
-    const ini = m => esc(initials(m.kind === 'mitglied' ? m.name : m.name.replace(/[()]/g, '')));
+    const ini = m => esc(initials(isPerson(m.kind) ? m.name : m.name.replace(/[()]/g, '')));
     const pinPill = m => m.hasPin ? `<span class="pill g">${m.kind === 'mannschaft' ? 'vom Vorstand' : 'gesetzt'}</span>${m.pinLocked ? ' <span class="pill r">gesperrt</span>' : ''}` : m.kind === 'mannschaft' ? '<span class="pill r">fehlt</span>' : '<span class="muted s">ohne</span>';
     // Detailkarte rechts neben der Liste; bei schmalen Fenstern (≤ 1100 px) als Dialog, damit die Liste nicht springt
     const narrow = () => window.matchMedia('(max-width: 1100px)').matches;
@@ -1978,9 +1980,10 @@
     $('main').querySelectorAll('[data-abrm]').forEach(b => b.onclick = () => { const m = absent.find(x => x.id === Number(b.dataset.abrm));
       removeAbsent([m.id], m.bookings ? `${m.name} ausblenden? Die bisherigen Buchungen bleiben erhalten.` : `${m.name} löschen?`); });
     $('mNew').onclick = () => {
-      dialog(`<h2>Neues Mitglied oder Konto</h2>
+      dialog(`<h2>${mvOn ? 'Neues Konto' : 'Neues Mitglied oder Konto'}</h2>
+        ${mvOn ? '<p class="muted" style="margin-top:0">Mitglieder legst du in der Mitgliederverwaltung an (mit Beitrag und Zahlungsdaten). Hier entstehen Konten für den Verkauf, zum Beispiel „Kein Mitglied“ für Trainer: Sie buchen am Tablet mit PIN und zahlen unter Abrechnung bar oder mit Karte.</p>' : ''}
         <div class="row"><label class="f" style="flex:1;min-width:220px">Name<input id="mName" placeholder="Vorname Nachname" autocomplete="off"></label>
-        <label class="f">Typ<select id="mKind">${Object.entries(KIND).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label></div>
+        <label class="f">Typ<select id="mKind">${Object.entries(KIND).filter(([k]) => !(mvOn && k === 'mitglied')).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label></div>
         <label class="f hidden" id="mPinL" style="margin-top:12px">PIN der Mannschaft (Pflicht)<input id="mPin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="mAdd">Anlegen</button></div>`);
       $('c').onclick = closeDialog; setTimeout(() => $('mName').focus(), 50);
@@ -2023,12 +2026,13 @@
       });
     };
     $('mImp').onclick = () => {
-      dialog(`<h2>Mitgliederliste einfügen</h2><p class="muted">Ein Name pro Zeile, z. B. aus Excel kopiert („Vorname Nachname“). Vorhandene Namen werden übersprungen.</p>
+      const mv = (cache.modules || []).includes('mitglieder');   // mit Mitgliederverwaltung entstehen Mitglieder nur dort
+      dialog(`<h2>${mv ? 'Liste „Kein Mitglied“ einfügen' : 'Mitgliederliste einfügen'}</h2><p class="muted">Ein Name pro Zeile, z. B. aus Excel kopiert („Vorname Nachname“). Vorhandene Namen werden übersprungen.${mv ? ' Die Namen werden als „Kein Mitglied“ angelegt (z. B. Trainer). Mitglieder legst du in der Mitgliederverwaltung an.' : ''}</p>
         <label class="f"><textarea id="impText" rows="12"></textarea></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Übernehmen</button></div>`);
       $('c').onclick = closeDialog;
       $('ok').onclick = () => busy($('ok'), async () => {
-        try { const r = await api('members/import', 'POST', { text: $('impText').value, kind: 'mitglied' }); closeDialog(); toast(`${r.added} angelegt, ${r.skipped} schon vorhanden.`); RENDER.konten(); } catch (e) { fail(e); }
+        try { const r = await api('members/import', 'POST', { text: $('impText').value, kind: mv ? 'nichtmitglied' : 'mitglied' }); closeDialog(); toast(`${r.added} angelegt, ${r.skipped} schon vorhanden.`); RENDER.konten(); } catch (e) { fail(e); }
       });
     };
     $('main').onclick = async e => {
@@ -2037,7 +2041,7 @@
       if (log) { openLog(Number(log.dataset.log)); return; }
       try {
         if (ok) {
-          await api(`members/${ok.dataset.ok}/confirm`, 'POST', { name: $('main').querySelector(`[data-pn="${ok.dataset.ok}"]`).value });
+          await api(`members/${ok.dataset.ok}/confirm`, 'POST', { name: $('main').querySelector(`[data-pn="${ok.dataset.ok}"]`).value, kind: mvOn ? 'nichtmitglied' : 'mitglied' });
           toast('Bestätigt.'); refreshBadges(); RENDER.konten();
         }
         if (rm) {
@@ -2071,7 +2075,7 @@
           const m = cache.members.find(x => x.id === Number(ed.dataset.ed));
           const special = m.kind === 'verein' || m.kind === 'gast';
           dialog(`<h2>Konto bearbeiten</h2><div class="row"><label class="f" style="flex:1">Name<input id="eName" value="${esc(m.name)}"></label>
-            <label class="f">Typ<select id="eKind">${Object.entries(KIND).map(([k, l]) => `<option value="${k}" ${k === m.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+            <label class="f">Typ<select id="eKind">${Object.entries(KIND).filter(([k]) => !(mvOn && k === 'mitglied' && m.kind !== 'mitglied')).map(([k, l]) => `<option value="${k}" ${k === m.kind ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
             <div class="${m.kind === 'mannschaft' ? '' : 'hidden'}" id="ePinRow" style="margin-top:12px"><label class="f">PIN der Mannschaft ${m.hasPin ? '(leer = unverändert)' : '(Pflicht)'}<input id="ePin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
               <p class="muted s" style="margin:6px 0 0">Mannschaftskonten buchen nur mit dieser PIN. Sie wird hier vom Vorstand vergeben und kann am Tablet nicht geändert werden.</p></div>
             <label class="chk" style="margin-top:12px"><input type="checkbox" id="eAct" ${m.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label>

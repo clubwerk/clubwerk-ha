@@ -17,16 +17,18 @@
   }
   /** Nachname ohne Partikel (für Sortierung und Anfangsbuchstaben): „von der Heide“ → „Heide“ */
   const coreLast = name => { const l = splitName(name).last; return l.split(' ').filter(x => !NAME_PART.has(x.toLowerCase())).join(' ') || l; };
-  /** Anzeige „Nachname, Vorname“ („von der Heide, Anna“); Mannschaften & Sonderkonten (kind ≠ mitglied) unverändert */
+  /** Personenkonten (wie db.js): Mitglieder und „Kein Mitglied“ (z. B. Trainer) */
+  const isPerson = kind => !kind || kind === 'mitglied' || kind === 'nichtmitglied';
+  /** Anzeige „Nachname, Vorname“ („von der Heide, Anna“); Mannschaften & Sonderkonten unverändert */
   function lastFirst(name, kind) {
     const n = String(name || '').trim().replace(/\s+/g, ' ');
-    if ((kind && kind !== 'mitglied') || n.includes(',')) return n;
+    if (!isPerson(kind) || n.includes(',')) return n;
     const { first, last } = splitName(n);
     return first ? `${last}, ${first}` : last;
   }
   /** Sortierschlüssel wie db.nameKey auf dem Server (Umlaute, Akzente, Kern des Nachnamens, dann Vorname) */
   const deKey = v => String(v == null ? '' : v).toLocaleLowerCase('de').replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u').replace(/ß/g, 'ss')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
-  const nameKey = (name, kind) => ((kind && kind !== 'mitglied') ? deKey(name) : deKey(coreLast(name)) + '\u0001' + deKey(splitName(name).first));
+  const nameKey = (name, kind) => (!isPerson(kind) ? deKey(name) : deKey(coreLast(name)) + '\u0001' + deKey(splitName(name).first));
   window.CWNames = { NAME_PART, splitName, coreLast, lastFirst, nameKey };
 })();

@@ -83,6 +83,7 @@
   /* ---------- Sortierung nach Nachname ---------- */
   // wie in der Verwaltung und auf dem Server (names.js): „von/van/de …“ gehören zum Nachnamen, sortiert wird nach dem Kern (von der Heide → H)
   const { splitName, coreLast, lastFirst, nameKey } = window.CWNames;
+  const person = k => k === 'mitglied' || k === 'nichtmitglied';   // Personenkonten: Mitglieder und „Kein Mitglied“ (z. B. Trainer)
   const byName = (a, b) => { const x = nameKey(a.name, a.kind), y = nameKey(b.name, b.kind); return x < y ? -1 : x > y ? 1 : 0; };
   const initial = m => coreLast(m.name).charAt(0).toLocaleUpperCase('de').replace(/[ÄÖÜ]/, c => ({ Ä: 'A', Ö: 'O', Ü: 'U' }[c]));
 
@@ -112,7 +113,7 @@
   const guestCard = g => {
     const tag = g.paid ? '<span class="tag ok">bezahlt</span>' : '';
     return `<button data-g="${g.id}" class="${g.paid ? 'paid' : ''} ${g.memberId ? '' : 'manual'}"><i class="av" style="${avStyle(g.name)}">${initials(g.name)}</i>
-      <span class="nm"><b>${esc(g.memberId ? lastFirst(g.name, g.kind) : g.name)}${tag}</b><span>${g.memberId ? 'Mitglied' : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
+      <span class="nm"><b>${esc(g.memberId ? lastFirst(g.name, g.kind) : g.name)}${tag}</b><span>${g.memberId ? (g.kind === 'nichtmitglied' ? 'Kein Mitglied' : g.kind === 'mannschaft' ? 'Mannschaft' : 'Mitglied') : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
   };
   /* Artikel: eigenes Bild, Symbol oder Kürzel */
   const tileStyle = a => (!a.image && a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.style(a.icon) : '');
@@ -139,7 +140,7 @@
     $('special').classList.toggle('hidden', Boolean(ev));   // während der Veranstaltung nur deren Liste
     if (ev) { $('eventName').textContent = ev.name; renderEventList(); }
 
-    const people = state.members.filter(m => m.kind === 'mitglied' && !m.hidden).sort(byName);
+    const people = state.members.filter(m => person(m.kind) && !m.hidden).sort(byName);
     const topIds = new Set(state.top || []);
     const top = people.filter(m => topIds.has(m.id));   // nur zusätzliche Schnellauswahl – alle stehen weiterhin unten in der Gesamtliste
 
@@ -279,7 +280,7 @@
 
   /* Namen auf die Veranstaltungsliste setzen: Mitglied suchen oder frei eintragen */
   $('evAdd').addEventListener('click', () => {
-    const people = state.members.filter(m => m.kind === 'mitglied' || m.kind === 'mannschaft');
+    const people = state.members.filter(m => person(m.kind) || m.kind === 'mannschaft');
     const onList = new Set((state.event.guests || []).filter(g => g.memberId).map(g => g.memberId));
     openDialog(`<h2>Namen hinzufügen</h2>
       <div class="muted">Namen tippen und aus der Mitgliederliste wählen – oder als Gast frei eintragen.</div>
@@ -292,7 +293,7 @@
       const hits = q.length < 2 ? [] : people.filter(m => m.name.toLocaleLowerCase('de').includes(q))
         .sort(byName).slice(0, 7);
       const exact = hits.some(m => m.name.toLocaleLowerCase('de') === q);
-      $('gSugg').innerHTML = hits.map(m => `<button data-m="${m.id}">${esc(lastFirst(m.name, m.kind))}<small>${onList.has(m.id) ? 'steht schon auf der Liste' : (m.kind === 'mannschaft' ? 'Mannschaft' : 'Mitglied')}</small></button>`).join('') +
+      $('gSugg').innerHTML = hits.map(m => `<button data-m="${m.id}">${esc(lastFirst(m.name, m.kind))}<small>${onList.has(m.id) ? 'steht schon auf der Liste' : (m.kind === 'mannschaft' ? 'Mannschaft' : m.kind === 'nichtmitglied' ? 'Kein Mitglied' : 'Mitglied')}</small></button>`).join('') +
         (t.length >= 2 && !exact ? `<button class="free" data-free="1">„${esc(t)}“ als Gast eintragen<small>ohne Mitgliedskonto</small></button>` : '');
     };
     $('gName').oninput = () => { draw(); bumpIdle(); };
@@ -332,7 +333,7 @@
       try {
         const r = await api('api/tablet/member', { name: $('nmName').value });
         closeDialog();
-        openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: r.member.kind });
+        openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: person(r.member.kind) ? 'mitglied' : r.member.kind });
         toast('Willkommen! Du stehst jetzt in der Liste.');
       } catch (e) { $('nmErr').textContent = e.message; }
     };
@@ -374,8 +375,8 @@
     if (!m.hasPin) {
       try {
         const r = await api('api/tablet/unlock', { memberId: m.id });
-        openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: r.member.kind });
-        if (r.member.kind === 'mitglied') askFirstPin();   // PIN ist eine Zentralfunktion – beim ersten Mal festlegen lassen
+        openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: person(r.member.kind) ? 'mitglied' : r.member.kind });
+        if (person(r.member.kind)) askFirstPin();   // PIN ist eine Zentralfunktion – beim ersten Mal festlegen lassen
       } catch (e) { toast(e.message, true); }
       return;
     }
@@ -383,7 +384,7 @@
       try {
         const r = await api('api/tablet/unlock', { memberId: m.id, pin });
         closeDialog();
-        openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: r.member.kind });
+        openBooking({ token: r.token, member: r.member, balance: r.balance, eventOpen: r.eventOpen_cents, private: r.private, mode: person(r.member.kind) ? 'mitglied' : r.member.kind });
         return true;
       } catch (e) { check.lastError = e.message; return false; }
     };
@@ -400,7 +401,7 @@
     const isEvent = s.mode === 'event', isGuest = s.mode === 'guest', isTab = s.mode === 'tab';
     $('whoName').textContent = isTab ? 'Deckel: ' + s.tab.name : isEvent ? 'Barverkauf · ' + s.event.name
       : isGuest ? (s.guest.memberId ? lastFirst(s.guest.name) : s.guest.name)
-      : s.member.kind === 'mitglied' ? lastFirst(s.member.name) : s.member.name;
+      : person(s.member.kind) ? lastFirst(s.member.name) : s.member.name;
     $('cancelBtn').textContent = isTab || isEvent ? 'Zurück' : 'Anderes Mitglied';
     const whoN = isEvent ? s.event.name : isTab ? s.tab.name : isGuest ? s.guest.name : s.member.name;
     $('whoAv').innerHTML = isEvent ? '€' : initials(whoN);

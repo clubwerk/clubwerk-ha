@@ -17,6 +17,7 @@ function register(sh) {
   const PF = need('mitglieder_finanzen');
   const isDate = fees.isDate;
   const nameKey = (n, k) => C.require('./db').nameKey(n, k);   // Sortierung: Nachname, Vorname
+  const lastFirst = (n, k) => C.require('./db').lastFirst(n, k);
 
   const payerName = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const personOf = id => db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id) || {};
@@ -146,8 +147,9 @@ function register(sh) {
       const notMembers = [];
       for (const r of d.rows) {
         if (!r.total_cents) continue;
-        if (r.kind !== 'mitglied') { notMembers.push(`${r.name} (${euro(r.total_cents)})`); continue; }
-        const p = personOf(r.id);
+        const p = r.kind === 'mitglied' ? personOf(r.id) : {};
+        // nur echte Mitglieder (mit Mitgliedsdaten) – Mannschaften, „Kein Mitglied“ und Konten ohne Daten zahlen unter Verkauf › Abrechnung
+        if (!p.member_id) { notMembers.push(`${lastFirst(r.name, r.kind)} (${euro(r.total_cents)})`); continue; }
         if (p.anonymized_at) continue;
         const payer = p.drinks_to_payer === 0 ? r.id : store.payerOf(r.id);
         const pp = personOf(payer);
@@ -155,7 +157,7 @@ function register(sh) {
         positions.push({ key: 'd' + r.id, kind: 'getraenke', member_id: payer, for_member_id: r.id, drinks_member: r.id, text: `Verkauf bis ${deD(d.asOf.slice(0, 10))}${payer !== r.id ? ` – ${r.name}` : ''}`,
           period_from: r.since ? r.since.slice(0, 10) : null, period_to: d.asOf.slice(0, 10), cents: r.total_cents, due_date: isDate(o.due) ? o.due : until, payer_name: payerName(payer), for_name: r.name, payment: pp.payment || 'lastschrift' });
       }
-      if (notMembers.length) info.push(`Verkaufskonten ohne Mitgliedsdaten (z. B. Mannschaften) bleiben offen: ${notMembers.slice(0, 6).join(', ')}${notMembers.length > 6 ? ' …' : ''}`);
+      if (notMembers.length) info.push(`Verkaufskonten ohne Mitgliedsdaten (Mannschaften, „Kein Mitglied“) bleiben offen – bezahlt wird unter Verkauf › Abrechnung: ${notMembers.slice(0, 6).join(', ')}${notMembers.length > 6 ? ' …' : ''}`);
     }
     positions.sort((a, b) => nameKey(a.payer_name, 'mitglied').localeCompare(nameKey(b.payer_name, 'mitglied'), 'de') || a.kind.localeCompare(b.kind) || String(a.period_from).localeCompare(String(b.period_from)));
     const byPayer = new Set(positions.map(p => p.member_id));

@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS members (
   id            INTEGER PRIMARY KEY,
   name          TEXT NOT NULL,
   kind          TEXT NOT NULL DEFAULT 'mitglied'
-                CHECK (kind IN ('mitglied','mannschaft','verein','gast','extern')),
+                CHECK (kind IN ('mitglied','mannschaft','verein','gast','extern','nichtmitglied')),
   pin_hash      TEXT,
   active        INTEGER NOT NULL DEFAULT 1,
   failed_pins   INTEGER NOT NULL DEFAULT 0,
@@ -383,14 +383,17 @@ function mixColor(hex, to, t) {
   const b = to === 'white' ? [255, 255, 255] : to === 'black' ? [0, 0, 0] : [1, 3, 5].map(i => parseInt(to.slice(i, i + 2), 16));
   return '#' + a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, '0')).join('');
 }
-/** Anzeige „Nachname, Vorname“ (wie window.CWNames.lastFirst) – Mannschaften und Sonderkonten (kind ≠ mitglied) unverändert */
+/** Personenkonten: Mitglieder und „Kein Mitglied“ (z. B. Trainer) – Namen als „Nachname, Vorname“, Tablet-PIN, Konto im Verkauf */
+const PERSON_KINDS = ['mitglied', 'nichtmitglied'];
+const isPerson = kind => !kind || PERSON_KINDS.includes(kind);
+/** Anzeige „Nachname, Vorname“ (wie window.CWNames.lastFirst) – Mannschaften und Sonderkonten unverändert */
 function lastFirst(name, kind) {
-  if (kind && kind !== 'mitglied') return String(name || '').trim();
+  if (!isPerson(kind)) return String(name || '').trim();
   const { first, last } = splitPersonName(name);
   return first ? `${last}, ${first}` : last;
 }
 function nameKey(name, kind) {
-  if (kind && kind !== 'mitglied') return deKey(name);
+  if (!isPerson(kind)) return deKey(name);
   const { first, last } = splitPersonName(name);
   const core = last.split(' ').filter(x => !NAME_PARTICLES.has(x.toLowerCase())).join(' ') || last;
   return deKey(core) + '\u0001' + deKey(first);
@@ -526,6 +529,21 @@ try {
     console.log(`Personenart „extern“ ergänzt (Prüfung: ${ok}).`);
   }
 } catch (e) { console.error('Personenart „extern“ konnte nicht ergänzt werden –', e.message); }
+/* v3.37: Kontoart „nichtmitglied“ (Kein Mitglied, z. B. Trainer: Konto im Verkauf ohne Mitgliedschaft) – gleicher Weg wie oben */
+try {
+  const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'members'").get();
+  if (row && /'extern'\)\)/.test(row.sql) && !/'nichtmitglied'/.test(row.sql)) {
+    const sql = row.sql.replace(/'extern'\)\)/, ['extern', 'nichtmitglied'].map(k => `'${k}'`).join(',') + '))');
+    const ver = db.pragma('schema_version', { simple: true });
+    db.unsafeMode(true);
+    try {
+      db.pragma('writable_schema = ON');
+      db.prepare("UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'members'").run(sql);
+      db.pragma(`schema_version = ${ver + 1}`);
+    } finally { db.pragma('writable_schema = OFF'); db.unsafeMode(false); }
+    console.log(`Kontoart „Kein Mitglied“ ergänzt (Prüfung: ${db.pragma('quick_check', { simple: true })}).`);
+  }
+} catch (e) { console.error('Kontoart „Kein Mitglied“ konnte nicht ergänzt werden –', e.message); }
 
 /* v3.13.3: Indizes für die häufigsten Abfragen – Bestand je Artikel (drei korrelierte Unterabfragen je Artikel bei jedem
    Tablet-Refresh), Deckel, Veranstaltungen, Zahlungen, Gutschriften, Veranstaltungslisten je Mitglied */
@@ -575,5 +593,5 @@ function rewireMemberRef(table, column, fromId, intoId) {
   }
 }
 
-module.exports = { deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
+module.exports = { PERSON_KINDS, isPerson, deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
 loadCategoryOrder();

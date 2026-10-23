@@ -11,7 +11,7 @@ function setColor(hex) {
   GREEN = 'FF' + c;
   HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + soft } };
 }
-const KIND_LABEL = { mitglied: 'Mitglied', mannschaft: 'Mannschaft', verein: 'Verein', gast: 'Gast' };
+const KIND_LABEL = { mitglied: 'Mitglied', nichtmitglied: 'Kein Mitglied', mannschaft: 'Mannschaft', verein: 'Verein', gast: 'Gast' };
 const BOOK_LABEL = { konto: 'Konto', verein: 'Verein (frei)', gast: 'Gast (bar)', event: 'Veranstaltung (bar)' };
 function bookLabel(b) {
   if (b.tab_id && b.transferred_at) return 'Konto (von Gäste-Deckel übernommen)';

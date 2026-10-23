@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const backup = require('./backup');
 const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
-const { db, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, memberRefs, rewireMemberRef } = require('./db');
+const { db, isPerson, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, memberRefs, rewireMemberRef } = require('./db');
 const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
 const { today, nowTs, isDate, addDays, deD } = util;
@@ -307,12 +307,21 @@ function memberLinks(id) {
   if (ev) out.push(`Offen auf einer Veranstaltungsliste: ${euro(ev)}`);
   const u = db.prepare('SELECT username FROM admin_users WHERE member_id = ?').get(id);
   if (u) out.push(`Verbunden mit dem Benutzer „${u.username}“ der Verwaltung`);
+  return [...out, ...moduleLinks(id)];
+}
+/** nur die Verknüpfungen in Modulen (Beiträge, Mannschaften, Buchungen …) – ohne offene Beträge im Verkauf */
+function moduleLinks(id) {
+  const out = [];
   for (const p of plugins.withHook('memberLinks')) {
     try { for (const t of p.hooks.memberLinks(id) || []) out.push(`${t} (${p.meta.name})`); }
     catch (e) { out.push(`${p.meta.name}: Prüfung fehlgeschlagen (${e.message})`); }
   }
   return out;
 }
+/* Mit Mitgliederverwaltung entsteht ein „Mitglied“ nur dort – mit Beitrag und Zahlungsdaten. Verkaufskonten für Personen ohne
+   Mitgliedschaft (Trainer u. ä.) heißen „Kein Mitglied“. */
+const mvActive = () => plugins.isActive('mitglieder');
+const NEED_MV = 'Mitglieder legst du in der Mitgliederverwaltung an (mit Beitrag und Zahlungsdaten). Für Trainer oder andere ohne Mitgliedschaft bitte „Kein Mitglied“ wählen.';
 /** Zusammenführen/Löschen in einer Transaktion; Datenbankfehler (z. B. Fremdschlüssel eines Moduls) werden zur verständlichen Meldung */
 function memberTx(fn) {
   try { db.transaction(fn)(); return null; }
@@ -392,7 +401,7 @@ function addGuest(ev, { memberId, name }, by) {
   if (memberId) {
     const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1").get(int(memberId));
     if (!m) throw new Error('Mitglied nicht gefunden.');
-    if (!['mitglied', 'mannschaft'].includes(m.kind)) throw new Error('Dieses Konto kann nicht auf die Liste.');
+    if (!['mitglied', 'nichtmitglied', 'mannschaft'].includes(m.kind)) throw new Error('Dieses Konto kann nicht auf die Liste.');
     const g = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND member_id = ?').get(ev.id, m.id);
     if (g) return g;
     const id = Number(db.prepare('INSERT INTO event_guests(event_id, name, member_id, created_by) VALUES (?,?,?,?)').run(ev.id, m.name, m.id, by).lastInsertRowid);
@@ -403,7 +412,7 @@ function addGuest(ev, { memberId, name }, by) {
   const g = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND lower(name) = lower(?)').get(ev.id, n);
   if (g) return g;
   // Genau ein aktives Mitglied mit diesem Namen → gleich verknüpfen
-  const m = db.prepare("SELECT * FROM members WHERE lower(name) = lower(?) AND active = 1 AND kind IN ('mitglied','mannschaft')").all(n);
+  const m = db.prepare("SELECT * FROM members WHERE lower(name) = lower(?) AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").all(n);
   if (m.length === 1) return addGuest(ev, { memberId: m[0].id }, by);
   if (db.prepare('SELECT COUNT(*) n FROM event_guests WHERE event_id = ?').get(ev.id).n >= 500) throw new Error('Die Liste ist voll.');
   const id = Number(db.prepare('INSERT INTO event_guests(event_id, name, created_by) VALUES (?,?,?)').run(ev.id, n, by).lastInsertRowid);
@@ -419,7 +428,7 @@ function guestResponse(g, ev) {
 function topMembers() {
   return db.prepare(`SELECT b.member_id AS id, SUM(b.qty) AS n
     FROM bookings b JOIN members m ON m.id = b.member_id
-    WHERE b.cancelled_at IS NULL AND m.kind = 'mitglied' AND m.active = 1
+    WHERE b.cancelled_at IS NULL AND m.kind IN ('mitglied','nichtmitglied') AND m.active = 1
       AND b.kind IN ('konto','event') AND date(b.created_at) >= date('now','localtime', ?)
     GROUP BY b.member_id ORDER BY n DESC LIMIT ?`).all(`-${topDays()} days`, topN()).map(r => r.id);
 }
@@ -717,7 +726,7 @@ app.post('/api/tablet/book', rateLimit('book', 120, 60000), (req, res) => {
   } else {
     member = db.prepare('SELECT * FROM members WHERE id = ? AND active = 1').get(who);
     if (!member) return bad(res, 'Konto nicht gefunden.');
-    kind = { mitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[member.kind];
+    kind = { mitglied: 'konto', nichtmitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[member.kind];
     if (ev && (kind === 'verein' || kind === 'gast')) return bad(res, 'Während der Veranstaltung wird nur auf die Veranstaltungsliste gebucht – für Gäste „Barverkauf ohne Namen“.');
     if (ev && kind === 'konto') {                         // während einer Veranstaltung immer auf deren Liste
       guest = addGuest(ev, { memberId: member.id }, 'tablet');
@@ -849,7 +858,7 @@ app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
   const who = auth.checkTabletToken(token);
   if (!who || typeof who !== 'number') return bad(res, 'Sitzung abgelaufen.', 401);
   const m = db.prepare('SELECT * FROM members WHERE id = ?').get(who);
-  if (m.kind !== 'mitglied') return bad(res, 'Für dieses Konto kann keine PIN gesetzt werden.');
+  if (!isPerson(m.kind)) return bad(res, 'Für dieses Konto kann keine PIN gesetzt werden.');
   if (m.pin_hash) {
     const err = checkPin(m, currentPin);                 // zählt in dieselbe Sperre wie das Entsperren
     if (err) return bad(res, err.msg === 'PIN falsch.' ? 'Aktuelle PIN falsch.' : err.msg, err.code);
@@ -1369,7 +1378,7 @@ admin.post('/mail/test', need('einstellungen'), rateLimit('mailtest', 6, 10 * 60
 });
 
 /* ---------- Mitglieder ---------- */
-const KINDS = ['mitglied', 'mannschaft', 'verein', 'gast'];
+const KINDS = ['mitglied', 'nichtmitglied', 'mannschaft', 'verein', 'gast'];
 
 admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veranstaltungen', 'uebernahme'), (req, res) => {
   const { from, to } = defaultRange(req.query);
@@ -1381,7 +1390,7 @@ admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veran
         AND b.cancelled_at IS NULL AND b.settled_id IS NULL), 0) AS balance_cents,
       (SELECT COUNT(*) FROM bookings b WHERE b.member_id = m.id AND b.cancelled_at IS NULL) AS bookings
     FROM members m WHERE m.deleted = 0 AND m.kind != 'extern' ORDER BY m.pending DESC, m.active DESC,
-      CASE m.kind WHEN 'mitglied' THEN 1 WHEN 'mannschaft' THEN 2 WHEN 'verein' THEN 3 ELSE 4 END, name_key(m.name, m.kind)`).all();
+      CASE m.kind WHEN 'mitglied' THEN 1 WHEN 'nichtmitglied' THEN 2 WHEN 'mannschaft' THEN 3 WHEN 'verein' THEN 4 ELSE 5 END, name_key(m.name, m.kind)`).all();
   res.json({ from, to, seasonStart: seasonStart(), rows: rows.map(r => ({ ...r, last_seen: r.last_seen || null, hasPin: Boolean(r.hasPin), pinLocked: Boolean(r.pinLocked),
     active: Boolean(r.active), pending: Boolean(r.pending), eventOpen_cents: eventOpen(r.id) })) });
 });
@@ -1394,15 +1403,18 @@ admin.post('/members/:id/confirm', need('konten'), (req, res) => {
   if (!name) return bad(res, 'Name fehlt.');
   const clash = db.prepare("SELECT id FROM members WHERE lower(name) = lower(?) AND id != ? AND deleted = 0 AND kind != 'extern'").get(name, m.id);
   if (clash) return bad(res, 'Diesen Namen gibt es schon. Bitte stattdessen „Zusammenführen“ wählen.');
-  db.prepare('UPDATE members SET name = ?, pending = 0 WHERE id = ?').run(name, m.id);
-  audit(req.user, 'Neues Mitglied bestätigt', m.name === name ? name : `${m.name} → ${name}`);
+  // mit Mitgliederverwaltung: als „Kein Mitglied“ bestätigen – oder mit einem Mitglied aus der Mitgliederverwaltung zusammenführen
+  const kind = (req.body || {}).kind === 'nichtmitglied' ? 'nichtmitglied' : 'mitglied';
+  if (kind === 'mitglied' && mvActive()) return bad(res, `${NEED_MV} Wer schon Mitglied ist: „Ist schon Mitglied …“ wählen.`);
+  db.prepare('UPDATE members SET name = ?, kind = ?, pending = 0 WHERE id = ?').run(name, kind, m.id);
+  audit(req.user, kind === 'nichtmitglied' ? 'Neues Konto bestätigt (Kein Mitglied)' : 'Neues Mitglied bestätigt', m.name === name ? name : `${m.name} → ${name}`);
   res.json({ ok: true });
 });
 
 /* Doppelt angelegtes Mitglied: Buchungen (und alles, was Module zu diesem Konto gespeichert haben) auf das richtige Konto
    verschieben, Duplikat löschen. Nur zwischen echten Mitglieds-/Mannschaftskonten, die nicht gelöscht sind. */
 admin.post('/members/:id/merge', need('konten'), (req, res) => {
-  const live = db.prepare("SELECT * FROM members WHERE id = ? AND deleted = 0 AND kind IN ('mitglied','mannschaft')");
+  const live = db.prepare("SELECT * FROM members WHERE id = ? AND deleted = 0 AND kind IN ('mitglied','nichtmitglied','mannschaft')");
   const from = live.get(int(req.params.id));
   const into = live.get(int((req.body || {}).intoId));
   if (!from || !into || from.id === into.id) return bad(res, 'Bitte das richtige Zielkonto wählen (ein Mitglied oder eine Mannschaft, nicht gelöscht).');
@@ -1452,6 +1464,7 @@ admin.post('/members', need('konten'), (req, res) => {
   const kind = (req.body || {}).kind || 'mitglied';
   if (!name) return bad(res, 'Name fehlt.');
   if (!KINDS.includes(kind)) return bad(res, 'Unbekannter Kontotyp.');
+  if (kind === 'mitglied' && mvActive()) return bad(res, NEED_MV);
   if ((kind === 'verein' || kind === 'gast') && !req.user.perms.includes('einstellungen')) return bad(res, 'Konten der Art „Verein“ oder „Gast“ darf nur anlegen, wer das Recht „Einstellungen“ hat.', 403);
   if (db.prepare("SELECT 1 FROM members WHERE lower(name) = lower(?) AND deleted = 0 AND kind != 'extern'").get(name)) return bad(res, 'Diesen Namen gibt es schon.');
   const pin = String((req.body || {}).pin || '');
@@ -1473,6 +1486,11 @@ admin.put('/members/:id', need('konten'), (req, res) => {
     return bad(res, 'Die Art „Verein“ oder „Gast“ darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
   if (!name) return bad(res, 'Name fehlt.');
   if (!KINDS.includes(kind)) return bad(res, 'Unbekannter Kontotyp.');
+  if (kind !== m.kind && kind === 'mitglied' && mvActive()) return bad(res, `${NEED_MV} Ein vorhandenes Konto danach mit „Zusammenführen“ auf das neue Mitglied übertragen.`);
+  if (kind !== m.kind && m.kind === 'mitglied') {   // Mitgliedsdaten, Beiträge, Mannschaften … würden sonst an einem Nicht-Mitglied hängen
+    const links = [...moduleLinks(m.id), ...plugins.withHook('memberKindLock').flatMap(p => { try { return (p.hooks.memberKindLock(m.id) || []).map(t => `${t} (${p.meta.name})`); } catch (e) { return [`${p.meta.name}: Prüfung fehlgeschlagen`]; } })];
+    if (links.length) return bad(res, `${lastFirst(m.name, m.kind)} ist noch als Mitglied verknüpft und kann nicht umgewandelt werden:\n• ${links.join('\n• ')}`);
+  }
   const active = b.active !== undefined ? (b.active ? 1 : 0) : m.active;
   const pin = b.pin ? String(b.pin) : '';
   if (pin && kind !== 'mannschaft') return bad(res, 'Eine PIN legen Mitglieder am Tablet selbst fest.');
@@ -1498,6 +1516,7 @@ admin.post('/members/:id/reset-pin', need('konten', 'mitglieder'), (req, res) =>
 admin.post('/members/import', need('konten'), (req, res) => {
   const text = String((req.body || {}).text || '');
   const kind = KINDS.includes((req.body || {}).kind) ? req.body.kind : 'mitglied';
+  if (kind === 'mitglied' && mvActive()) return bad(res, NEED_MV);
   const existing = new Set(db.prepare("SELECT lower(name) n FROM members WHERE deleted = 0 AND kind != 'extern'").all().map(r => r.n));
   const ins = db.prepare('INSERT INTO members(name, kind) VALUES (?,?)');
   let added = 0, skipped = 0;
@@ -1525,7 +1544,7 @@ admin.post('/members/remove-inactive', need('konten'), (req, res) => {
   let deleted = 0, hidden = 0; const skipped = [];
   const err = memberTx(() => {
     for (const id of ids) {
-      const m = db.prepare("SELECT * FROM members WHERE id = ? AND kind = 'mitglied' AND deleted = 0").get(id);
+      const m = db.prepare("SELECT * FROM members WHERE id = ? AND kind IN ('mitglied','nichtmitglied') AND deleted = 0").get(id);
       if (!m) continue;
       const seen = db.prepare(`SELECT (SELECT COUNT(*) FROM bookings WHERE member_id = ? AND cancelled_at IS NULL AND date(created_at) >= ?)
         + (SELECT COUNT(*) FROM event_guests WHERE member_id = ? AND date(created_at) >= ?) n`).get(id, since, id, since).n;
@@ -1576,7 +1595,7 @@ async function readMemberExcel(buf) {
         if (!v && !n) continue;
         const t = tc ? norm(txt(row.getCell(tc))) : '';
         const pin = pc ? String(row.getCell(pc).text || '').replace(/\D/g, '') : '';
-        out.push({ line: i, first: v, last: n, kind: teamWords.test(t) ? 'mannschaft' : 'mitglied', pin });
+        out.push({ line: i, first: v, last: n, kind: teamWords.test(t) ? 'mannschaft' : /kein|nicht|trainer/.test(t) ? 'nichtmitglied' : 'mitglied', pin });
       }
       return { sheet: ws.name, rows: out };
     }
@@ -1597,6 +1616,7 @@ admin.post('/members/import-excel', need('konten'), express.raw({ type: () => tr
     else if (!team && /[0-9@]/.test(name)) status = 'ungültig';
     else if (existing.has(name.toLowerCase())) status = existing.get(name.toLowerCase()) ? 'vorhanden' : 'ausgeblendet';
     else if (seen.has(name.toLowerCase())) status = 'doppelt';
+    else if (r.kind === 'mitglied' && mvActive()) status = 'Mitglied: bitte in der Mitgliederverwaltung anlegen';
     seen.add(name.toLowerCase());
     const pinOk = !team || validPin(r.pin);
     return { line: r.line, name, status, kind: r.kind, first: cleanName(r.first, 40), last: cleanName(r.last, 40), pin: team ? r.pin : '', pinMissing: !pinOk };
@@ -1620,6 +1640,7 @@ admin.get('/members/import-vorlage.xlsx', need('konten'), asyncRoute(async (req,
   ws.columns = [{ header: 'Vorname', key: 'v', width: 22 }, { header: 'Nachname', key: 'n', width: 26 }, { header: 'Typ', key: 't', width: 16 }, { header: 'PIN', key: 'p', width: 10 }];
   ws.getRow(1).font = { bold: true };
   ws.addRow({ v: 'Max', n: 'Mustermann', t: 'Mitglied' });
+  ws.addRow({ v: 'Erika', n: 'Musterfrau', t: 'Kein Mitglied' });
   ws.addRow({ v: '', n: 'Herren 1', t: 'Mannschaft', p: '4711' });
   res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': 'attachment; filename="Mitglieder_Vorlage.xlsx"' });
   await wb.xlsx.write(res);
@@ -2087,7 +2108,7 @@ admin.post('/bookings', need('buchungen'), (req, res) => {
   if (custom && (unit < 10 || unit > 100000)) return bad(res, 'Betrag bitte zwischen 0,10 € und 1.000 €.');
   if (date && !isDate(date)) return bad(res, 'Datum ungültig.');
   if (isDate(date) && date > today()) return bad(res, 'Das Datum darf nicht in der Zukunft liegen.');
-  const kind = { mitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[m.kind];
+  const kind = { mitglied: 'konto', nichtmitglied: 'konto', mannschaft: 'konto', verein: 'verein', gast: 'gast' }[m.kind];
   const total = kind === 'verein' ? 0 : unit * q;
   const ts = isDate(date) ? `${date} 12:00:00` : nowTs();
   const txt = custom ? (cleanName(note, 60) || null) : null;
@@ -2215,11 +2236,11 @@ function abtippliste(asOf, upTo) {
   const list = balances(asOf, upTo);
   const extra = db.prepare('SELECT first_name, last_name FROM members WHERE id = ?');
   const rows = list.map(r => {
-    const person = r.kind === 'mitglied';
+    const person = isPerson(r.kind);
     const nm = person ? splitName({ ...r, ...extra.get(r.id) }) : { first: '', last: r.name };
     return { id: r.id, name: r.name, kind: r.kind, first: nm.first, last: nm.last, cents: r.total_cents, items: r.items, since: r.since };
   });
-  rows.sort((a, b) => (a.kind === 'mitglied' ? 0 : 1) - (b.kind === 'mitglied' ? 0 : 1) || (nameKey(a.name, a.kind) < nameKey(b.name, b.kind) ? -1 : nameKey(a.name, a.kind) > nameKey(b.name, b.kind) ? 1 : 0));
+  rows.sort((a, b) => (isPerson(a.kind) ? 0 : 1) - (isPerson(b.kind) ? 0 : 1) || (nameKey(a.name, a.kind) < nameKey(b.name, b.kind) ? -1 : nameKey(a.name, a.kind) > nameKey(b.name, b.kind) ? 1 : 0));
   const last = lastSettlement();
   const firstOpen = rows.reduce((m, r) => (!m || r.since < m ? r.since : m), '');
   const von = last && last !== '2000-01-01' ? last : firstOpen;
@@ -2358,7 +2379,7 @@ admin.post('/tabs/:id/pay', need('veranstaltungen', 'uebernahme'), (req, res) =>
 admin.post('/tabs/:id/transfer', need('uebernahme'), (req, res) => {
   const t = getTab(req.params.id);
   if (!t || t.status !== 'offen') return bad(res, 'Der Deckel ist nicht mehr offen.');
-  const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','mannschaft')").get(int((req.body || {}).memberId));
+  const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").get(int((req.body || {}).memberId));
   if (!m) return bad(res, 'Bitte ein Mitglied oder eine Mannschaft wählen.');
   res.json({ ok: true, cents: closeTab(t, { status: 'uebernommen', memberId: m.id, by: req.user.username, note: 'auf ' + m.name }) });
 });
@@ -2453,7 +2474,7 @@ admin.delete('/events/:id', need('veranstaltungen'), (req, res) => {
 
 /* Namensvorschläge für die Abrechnungsliste (auch ohne Recht „Mitglieder“) */
 admin.get('/event-members', need('veranstaltungen', 'uebernahme'), (req, res) => {
-  res.json(db.prepare("SELECT id, name, kind FROM members WHERE active = 1 AND kind IN ('mitglied','mannschaft') ORDER BY name_key(name, kind)").all());
+  res.json(db.prepare("SELECT id, name, kind FROM members WHERE active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft') ORDER BY name_key(name, kind)").all());
 });
 
 function saveEventArticles(eventId, list) {
@@ -2530,7 +2551,7 @@ admin.put('/events/:id/guests/:gid', need('veranstaltungen', 'uebernahme'), (req
   if (b.memberId !== undefined) {
     if (b.memberId === null || b.memberId === '') memberId = null;
     else {
-      const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','mannschaft')").get(int(b.memberId));
+      const m = db.prepare("SELECT * FROM members WHERE id = ? AND active = 1 AND kind IN ('mitglied','nichtmitglied','mannschaft')").get(int(b.memberId));
       if (!m) return bad(res, 'Mitglied nicht gefunden.');
       const dup = db.prepare('SELECT * FROM event_guests WHERE event_id = ? AND member_id = ? AND id <> ?').get(g.event_id, m.id, g.id);
       if (dup) {

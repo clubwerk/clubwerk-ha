@@ -129,7 +129,11 @@
     const y = m.today.slice(0, 4);
     // Knöpfe rechts in der Reiterzeile (Beitrittserklärungen am Tablet: Reiter „Anträge“)
     const tools = `${SC() ? '' : '<button class="btn" id="mvXls">Excel-Liste …</button><button class="btn" id="mvImp">Import …</button>'}<button class="btn primary" id="mvNew">+ Neues Mitglied</button>`;
+    // Pflichtangaben (Mitgliedsdaten, Beitrag, Zahlungsdaten): wer sie nicht hat, fehlt im Beitragslauf – deutlich melden
+    const PFLICHT = /^(ohne Mitgliedsdaten|kein Beitrag|Zahlart nicht Lastschrift|keine Bankverbindung|IBAN ungültig|kein SEPA-Mandat|Mandat widerrufen|Mandat verfallen)/;
+    const lack = cur.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => typeof i === 'string' && PFLICHT.test(i)));
     el.innerHTML = `
+      ${lack.length && !SC() ? `<div class="banner r"><span><b>${lack.length === 1 ? '1 Mitglied ohne Pflichtangaben' : `${lack.length} Mitglieder ohne Pflichtangaben`}</b> (Mitgliedsdaten, Beitrag oder Zahlungsdaten) – bitte ergänzen. Wer kein Vereinsmitglied ist (z. B. Trainer), wird beim Mitglied in „Kein Mitglied“ umgewandelt.</span><button class="btn small" id="mvLack" type="button">Anzeigen</button></div>` : ''}
       <div class="kpis">
         <div class="kpi"><div class="l">Mitglieder</div><div class="v">${cur.length}</div></div>
         <div class="kpi"><div class="l">Eintritte ${y}</div><div class="v">${cur.filter(r => r.entry_date && r.entry_date.startsWith(y)).length}</div></div>
@@ -165,6 +169,7 @@
     };
     draw();
     $('mvQ').oninput = () => { st.f.q = $('mvQ').value.trim(); draw(); };
+    if ($('mvLack')) $('mvLack').onclick = () => { st.f.status = 'hinweis'; $('mvSeg').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x.dataset.f === 'hinweis')); draw(); };
     $('mvSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.f.status = b.dataset.f; $('mvSeg').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b)); draw(); };
     $('mvDept').onchange = () => { st.f.dept = $('mvDept').value; draw(); };
     $('mvFee').onchange = () => { st.f.fee = $('mvFee').value; draw(); };
@@ -188,7 +193,7 @@
         <label class="f w2">E-Mail<input id="nMail" type="email"></label><label class="f">Handy<input id="nMob" type="tel" placeholder="z. B. 0170 1234567"></label><label class="f">Mitgliedsnummer<input id="nNo" placeholder="${esc(m.nextNo)} (automatisch)"></label>
         ${full ? `<label class="f w2">Beitrag<select translate="no" id="nFee"></select></label>` : ''}
         <label class="f ${full ? '' : 'w2'}">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
-        ${full ? `<label class="f">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${opt('rechnung', 'Rechnung')}${opt('bar', 'bar')}</select></label>
+        ${full ? `<label class="f">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${m.settings.sepa_required ? '' : opt('rechnung', 'Rechnung') + opt('bar', 'bar')}</select></label>
         <label class="f nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
         <label class="f wall">Unterschriebene Beitrittserklärung${full ? ' mit SEPA-Mandat' : ''} (PDF oder Foto)<input id="nDocF" type="file" accept="application/pdf,image/*" hidden><div class="mv-up" id="nDoc"><span>Datei wählen oder hierher ziehen</span><b>Datei wählen …</b></div></label>
       </div>
@@ -253,6 +258,7 @@
           ${d.changes.length ? `<span class="pill a">${d.changes.length} ${d.changes.length === 1 ? 'Änderung' : 'Änderungen'} aus der App</span>` : ''}${p.anonymized_at || p.exited ? '' : p.has_pin ? '<span class="pill g" title="Tablet-PIN für Verkauf, Platzbuchung und Helferdienste">PIN vergeben</span>' : '<span class="pill a" title="Ohne PIN kann am Tablet nicht gebucht oder storniert werden – das Mitglied legt sie beim ersten Mal am Tablet fest">kein PIN</span>'}</div></div>
         <div class="acts">${p.anonymized_at ? '' : p.exit_date ? `<button class="btn ghost" id="mvRe">${p.exited ? 'Wiedereintritt …' : 'Austritt zurücknehmen'}</button>${p.exited && !SC() ? '<button class="btn danger" id="mvAnon">Anonymisieren …</button>' : ''}` : '<button class="btn ghost" id="mvExit">Austritt …</button>'}
           ${p.has_pin && !SC() && !p.anonymized_at ? '<button class="btn ghost" id="mvPin">PIN zurücksetzen</button>' : ''}${SC() ? '' : `<a class="btn ghost" href="${BASE}member/${id}/auskunft" download>Datenauskunft</a>`}${SC() || p.anonymized_at ? '' : '<button class="btn danger" id="mvDel">Löschen …</button>'}</div></div>
+      ${(d.missing || []).length ? `<div class="banner r"><span><b>Pflichtangaben fehlen:</b> ${d.missing.map(esc).join(' · ')}. Ohne sie fehlt das Mitglied im Beitragslauf.${!p.member_id ? ' Ist es kein Vereinsmitglied (z. B. Trainer), bitte in „Kein Mitglied“ umwandeln.' : ''}</span>${!p.member_id && !SC() ? '<button class="btn small" id="mvNoMem" type="button">In „Kein Mitglied“ umwandeln …</button>' : ''}</div>` : ''}
       ${(d.ageNotices || []).map(n => `<div class="banner a"><span><b>Altersstufe:</b> ${esc(n.label)}${n.dept ? ` (<span translate="no">${esc(n.dept)}</span>)` : ''} – ab ${deDate(n.due_date)}: ${ageFrom(n)} → ${ageTo(n)}. Bis zur Entscheidung läuft der bisherige Beitrag weiter.</span>
         <span class="nw" style="margin-left:auto"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small primary" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></span></div>`).join('')}
       <div class="seg" id="mvSub" style="width:fit-content;margin-bottom:16px">${SUBS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.sub === k ? 'on' : ''}">${esc(l)}</button>`).join('')}</div>
@@ -275,6 +281,10 @@
       try { const r = await api(`member/${id}/reenter`, 'POST', {}); toast(r.pending ? `Rückkehr gemeldet. ${PENDING}` : r.member_no ? `Wieder aufgenommen – neue Mitgliedsnummer ${r.member_no}.` : 'Austritt zurückgenommen.'); again(); } catch (e) { fail(e); }
     };
     // Löschen nur, wenn nichts mehr daran hängt (prüft der Kern mit allen Modulen) – sonst nennt er, was noch zu lösen ist
+    if ($('mvNoMem')) $('mvNoMem').onclick = async () => {
+      if (!await GK.ask(`${GK.lastFirst(p.name)} in „Kein Mitglied“ umwandeln?\n\nDas Konto bleibt im Verkauf (PIN, offener Betrag, Buchungen) und wird unter Verkauf › Abrechnung bezahlt. In der Mitgliederverwaltung erscheint es nicht mehr.`, { ok: 'Umwandeln' })) return;
+      try { await GK.api('members/' + id, 'PUT', { kind: 'nichtmitglied' }); GK.toast('Umgewandelt in „Kein Mitglied“.'); st.detail = null; loadRows().then(() => showList(el)).catch(fail); } catch (e) { fail(e); }
+    };
     if ($('mvDel')) $('mvDel').onclick = () => GK.deleteMember({ id, name: p.name, kind: 'mitglied' }, () => { st.detail = null; loadRows().then(() => showList(el)).catch(fail); });
     if ($('mvAnon')) $('mvAnon').onclick = async () => {
       const t = await askText('Mitglied anonymisieren?\nName, Anschrift, Kontakt, Bankverbindung, Dokumente und Verlauf werden unwiderruflich gelöscht. Für die Statistik bleiben Geburtsjahr, Geschlecht, Ein-/Austritt und Abteilungen; Buchungen bleiben unter „Anonym …“. Zur Bestätigung ANONYMISIEREN eingeben:', '', { ok: 'Anonymisieren' });
@@ -440,7 +450,7 @@
         <div class="mv-grid" style="--c:1">
           <label class="f">Zahler<select id="pPayer" ${d.familyHead ? 'disabled' : ''}><option value="">${esc(p.name)} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
           <label class="f ${p.payer_id ? '' : 'hidden'}" id="pDrinksL">Verkauf am Tablet<select id="pSales">${opt('payer', 'Über den Hauptzahler (nicht in der Liste)', p.sales_mode || 'payer')}${opt('own_payer', 'Eigener Eintrag – zahlt der Hauptzahler', p.sales_mode)}${opt('own', 'Eigener Eintrag – zahlt selbst', p.sales_mode)}</select></label>
-          <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
+          <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).filter(([k]) => !st.meta.settings.sepa_required || k === 'lastschrift' || k === p.payment).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
         </div>
         ${d.familyHead ? `<div class="banner b mv-lockinfo"><span><b>Familienmitglied von ${esc(d.familyHead.name)}</b> – gezahlt wird immer über das Oberhaupt. Einstellbar ist nur, wie am Tablet gebucht wird.</span></div>` : ''}
         <p class="muted s">Der Zahler ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf aller Angehörigen laufen über sein Konto und Mandat – auch für erwachsene Kinder mit eigenem Beitrag. Am Tablet bucht die Zahlergruppe standardmäßig auf den Namen des Hauptzahlers.</p>
@@ -1217,6 +1227,9 @@
         <label class="f w2">Zusatz auf Rechnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label>
       </div><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="eSave1">Speichern</button></div></div>
 `;
+    const tP = `<div class="card" data-sec="verein"><h3>Zahlart der Mitglieder</h3>
+        <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eSepaReq" ${s.sepa_required ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Lastschrift ist Pflicht</b><br><span class="muted s">Neue Mitglieder brauchen dann immer Bankverbindung und SEPA-Mandat, „Rechnung“ und „bar“ lassen sich nicht mehr wählen. Ausgenommen sind Familienmitglieder und wer über einen Zahler zahlt. Bestehende Mitglieder mit anderer Zahlart erscheinen unter „Mit Hinweis“.</span></span></label>
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveSepa">Speichern</button></div></div>`;
     const tS = `<div class="card" data-sec="verein"><h3>Abteilungsleitungen</h3>
         <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eScope" ${s.scope_confirm ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Ein- und Austritte bestätigt die Vereinsverwaltung</b><br><span class="muted s">Legt eine Abteilungsleitung ein neues Mitglied an, trägt einen Austritt oder eine Rückkehr ein oder nimmt eine Beitrittserklärung an, landet das unter „Anträge → Änderungen & Meldungen“ und gilt erst nach Bestätigung durch einen Admin. Bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf.</span></span></label>
         <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="eSaveScope">Speichern</button></div></div>`;
@@ -1254,7 +1267,7 @@
       <div id="eFunc" data-sec="daten"></div>`;
     const SECS = [['verein', 'Verein & SEPA'], ['antrag', 'Beitrittserklärung'], ['daten', 'Import & Datenschutz']];   // „Meine Daten“ der App: Verein → Mitglieder-App
     if (!SECS.some(x => x[0] === st.set)) st.set = 'verein';
-    el.innerHTML = part === 'catalog' ? tB : `<div class="seg" id="eSeg" style="width:fit-content;margin-bottom:16px">${SECS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.set === k ? 'on' : ''}">${l}</button>`).join('')}</div>${tA}${tS}${tC}`;
+    el.innerHTML = part === 'catalog' ? tB : `<div class="seg" id="eSeg" style="width:fit-content;margin-bottom:16px">${SECS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.set === k ? 'on' : ''}">${l}</button>`).join('')}</div>${tA}${tP}${tS}${tC}`;
     if (part !== 'catalog') {
       const show = () => el.querySelectorAll('[data-sec]').forEach(c => c.classList.toggle('hidden', c.dataset.sec !== st.set));
       show();
@@ -1277,6 +1290,7 @@
     if ($('eConsAdd')) $('eConsAdd').onclick = () => { $('eCons').insertAdjacentHTML('beforeend', consentRow({ key: 'e' + Date.now().toString(36).slice(-5), short: '', text: '', required: false })); bindCons(); };
     if ($('eSave2')) $('eSave2').onclick = () => save({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() });
     if ($('eSaveScope')) $('eSaveScope').onclick = () => save({ scope_confirm: $('eScope').checked });
+    if ($('eSaveSepa')) $('eSaveSepa').onclick = () => save({ sepa_required: $('eSepaReq').checked });
     if ($('eSave3')) $('eSave3').onclick = () => save({ retention_years: +val('eRet2') });
     if ($('fNew')) $('fNew').onclick = () => feeEdit(null, () => showSettings(el, part));
     if ($('zNew')) $('zNew').onclick = () => feeEdit(null, () => showSettings(el, part), { kind: 'zusatz' });

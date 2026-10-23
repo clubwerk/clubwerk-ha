@@ -1,5 +1,25 @@
 # Änderungen
 
+## 3.37.0
+
+**Neue Kontoart „Kein Mitglied“ (z. B. Trainer)**
+- Unter Verkauf › Mitglieder & Konten gibt es den Typ „Kein Mitglied“. So ein Konto bucht am Tablet wie ein Mitglied: Name in der Namensliste, eigene PIN, offener Betrag. Bezahlt wird unter Verkauf › Abrechnung, bar oder mit Karte.
+- „Kein Mitglied“ erscheint nie in der Mitgliederverwaltung, im Beitragslauf, bei Platzbuchung, Spielbetrieb, Helferdiensten oder in der Mitglieder-App. Auf Veranstaltungslisten und beim Übernehmen eines Deckels lässt es sich wählen.
+
+**Mit Mitgliederverwaltung: Mitglieder entstehen nur dort**
+- Ist die Mitgliederverwaltung eingeschaltet, legt man unter Verkauf › Konten kein „Mitglied“ mehr an. Das gilt auch für „Liste einfügen“ und den Excel-Import. Ein Mitglied braucht immer Mitgliedsdaten, Beitrag und Zahlungsdaten, und die gibt es nur in der Mitgliederverwaltung.
+- Wer sich am Tablet neu einträgt, wird entweder als „Kein Mitglied“ bestätigt oder mit „Ist schon Mitglied …“ einem Mitglied zugeordnet.
+- **Deutliche Meldung bei fehlenden Pflichtangaben:** Ganz oben in der Mitgliederliste steht in Rot, wie viele Mitglieder keine Mitgliedsdaten, keinen Beitrag oder keine gültigen Zahlungsdaten haben. Beim Mitglied steht, was genau fehlt. Ältere Konten ohne Mitgliedsdaten lassen sich dort mit einem Knopf in „Kein Mitglied“ umwandeln.
+- Ein Mitglied mit Mitgliedsdaten lässt sich nicht in eine andere Kontoart umwandeln, sonst hingen Adresse, Bank und Beiträge unsichtbar an einem Nicht-Mitglied.
+- **Beitragslauf:** Getränke werden nur noch für Mitglieder mit Mitgliedsdaten abgerechnet. Konten ohne Daten, Mannschaften und „Kein Mitglied“ bleiben offen und stehen als Hinweis da. Bisher hätte Clubwerk für Konten ohne Daten eine Lastschrift ohne Bankverbindung angesetzt.
+
+**Einstellung „Lastschrift ist Pflicht“**
+- Neu unter Mitgliederverwaltung › Einstellungen › Verein. Ist sie eingeschaltet, brauchen neue Mitglieder immer Bankverbindung und SEPA-Mandat. „Rechnung“ und „bar“ lassen sich dann nicht mehr wählen.
+- Ausgenommen sind Familienmitglieder und wer über einen Zahler zahlt. Bestehende Mitglieder mit anderer Zahlart erscheinen mit dem Hinweis „Zahlart nicht Lastschrift“.
+
+**Beitragsfrei**
+- Für beitragsfreie Mitglieder legt man eine Beitragsart mit 0 € an, zum Beispiel „Beitragsfrei“. Damit hat jedes Mitglied einen Beitrag, und Getränke laufen trotzdem über den Einzug.
+
 ## 3.36.0
 
 **Spielbetrieb: Hinweise beim Zuordnen von Spielern**
