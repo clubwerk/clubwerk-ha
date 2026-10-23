@@ -4,6 +4,7 @@ Nach dem Hochladen eines Update-Pakets (Einstellungen → Update) zeigt Clubwerk
 
 | Version | Prüfsumme (Anzeige) | SHA-256 des Inhalts |
 |---|---|---|
+| 3.38.0 | `eff0 8f0b c8fb 0033 6e32 4112 9713 a94a` | `eff08f0bc8fb00336e3241129713a94a66f7f3ac836ea6f1ad104a40d3c3a196` |
 | 3.37.0 | `696d 37cd 223d fe44 ab1f 7381 c0b3 6ac5` | `696d37cd223dfe44ab1f7381c0b36ac5cc4655e46c67474a1ae2c7249780458a` |
 | 3.36.0 | `b1ae 3405 804c 3b21 d64c 0d42 8dbd 9264` | `b1ae3405804c3b21d64c0d428dbd926454c301374cb6f17c8d818c866d0bd5e9` |
 | 3.35.0 | `79f4 e4e2 2cfc 405d a68d 1656 c4bb 7e7b` | `79f4e4e22cfc405da68d1656c4bb7e7bac9749e46c0ab3b8ebb9aa5972daf85d` |
