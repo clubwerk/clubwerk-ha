@@ -3295,8 +3295,9 @@
   async function renderUpdate() {
     const el = $('updBody'); if (!el) return;
     const u = await api('update/status');
+    const nodeOld = u.nodeOld ? '<div class="banner a" style="display:block">Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. Ein späteres Clubwerk-Update bringt die neue Node.js-Version mit.</div>' : '';
     if (!u.addonDir) {
-      el.innerHTML = `<p>Installiert: <b>${esc(u.current)}</b></p>` + (u.origin === 'repository'
+      el.innerHTML = `<p>Installiert: <b>${esc(u.current)}</b> · Node.js <b translate="no">${esc(u.node || '–')}</b></p>${nodeOld}` + (u.origin === 'repository'
         ? '<p class="muted s">Diese Installation kommt aus einem Add-on-Repository (z. B. GitHub). Neue Versionen zeigt Home Assistant unter <b>Einstellungen → Add-ons</b> mit „Aktualisieren“ an.</p>'
         : `<div class="banner a" style="display:block"><b>Das Hochladen ist noch nicht freigeschaltet.</b> Home Assistant hat die neuen Rechte des Add-ons (Zugriff auf den Ordner „addons“) noch nicht übernommen – „Neu bauen“ reicht dafür nicht. So geht es einmalig:
           <ol style="margin:8px 0 0 18px;padding:0;font-weight:500"><li>Einstellungen → Add-ons → <b>Add-on-Store</b> → oben rechts <b>⋮ → Nach Updates suchen</b>.</li>
@@ -3309,7 +3310,9 @@
         <td class="r">${u.viaIngress ? `<button class="btn small" data-rb="${esc(r.name)}" data-rv="${esc(r.version)}">Zurück auf ${esc(r.version)} …</button>` : ''}</td></tr>`).join('')}</table></div>` : '';
     el.innerHTML = `<div class="kpis" style="margin-bottom:12px"><div class="kpi"><div class="l">Installiert</div><div class="v">${esc(u.current)}</div></div>
         <div class="kpi"><div class="l">Neues Paket</div><div class="v">${u.staged ? esc(u.staged.version) : '–'}</div></div>
-        <div class="kpi"><div class="l">Letztes Update</div><div class="v">${u.lastOk ? esc(new Date(u.lastOk).toLocaleDateString('de-DE')) : '–'}</div></div></div>
+        <div class="kpi"><div class="l">Letztes Update</div><div class="v">${u.lastOk ? esc(new Date(u.lastOk).toLocaleDateString('de-DE')) : '–'}</div></div>
+        <div class="kpi"><div class="l">Node.js</div><div class="v" translate="no">${esc(u.node || '–')}</div></div></div>
+      ${nodeOld}
       ${u.lastError ? `<div class="banner r" style="display:block">Home Assistant hat das Update nicht automatisch gestartet (${esc(u.lastError)}). Die neuen Dateien liegen schon bereit: <b>Einstellungen → Add-ons → Clubwerk → Aktualisieren</b> (oder „Neu bauen“).</div>` : ''}
       ${!u.viaIngress ? '<div class="banner a" style="display:block">Updates gehen aus Sicherheitsgründen nur, wenn die Verwaltung über die <b>Home-Assistant-Seitenleiste</b> geöffnet ist.</div>' : `
       <p class="muted s" style="margin-top:0">Das Gesamtpaket (ZIP) hier hochladen – genau die Datei, die sonst per Samba kopiert wird. Clubwerk prüft das Paket, legt vorher automatisch eine Sicherung an, ersetzt den Ordner und lässt Home Assistant die neue Version bauen. Der bisherige Stand bleibt als Reserve erhalten.</p>

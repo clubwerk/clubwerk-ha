@@ -8,6 +8,7 @@ const sleep=ms=>new Promise(r=>setTimeout(r,ms));
   await A('api/admin/setup','POST',{clubName:'TC Test',password:'Test-Kennwort-42',modules:{getraenke:true,zeiterfassung:false,beregnung:true}});
   [s,j]=await A('api/admin/status'); ok('Recht beregnung', j.user.perms.includes('beregnung')&&j.user.perms.includes('beregnung_bedienen'));
   r=await fetch(P); ok('Port-App liefert Webapp', r.status===200 && (await r.text()).includes('Alle Zonen ausschalten'));
+  r=await fetch(P+'api/login',{method:'POST',headers:{'Content-Type':'application/json','X-Clubwerk':'1','Content-Encoding':'br'},body:require('zlib').brotliCompressSync('{}')}); ok('Webapp lehnt komprimierte Anfragen ab', r.status===415, r.status);
   [s,j]=await A('api/info','GET',undefined,P); ok('Info', j.club==='TC Test' && j.mode==='pin' && !j.hasPin, JSON.stringify(j));
   [s,j]=await A('api/admin/x/beregnung/config'); ok('HA-Geräte gelistet', s===200 && j.list.length===7 && j.sensors.length===1 && j.cfg.vendor==='other', j.error||j.list.length);
   ok('Herstellerliste', j.vendors.length>=8 && j.vendors.some(v=>v.id==='rainbird'));

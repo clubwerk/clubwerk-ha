@@ -418,6 +418,7 @@ function startPortApp(ctx) {
   if (!port) return;
   const app = express();
   app.disable('x-powered-by');
+  app.use(ctx.require('./security').noEncodedBody());   // komprimierte Anfragen nie entpacken
   app.set('trust proxy', false);
   app.use(ctx.require('./security').lanOnly({ label: 'Die Beregnungs-Webapp' }));   // nie aus dem Internet (versehentliche Portfreigabe)
   app.use(ctx.require('./security').noTunnel({ label: 'Die Beregnungs-Webapp' }));   // auch nicht, wenn ein Tunnel versehentlich auf diesen Port zeigt

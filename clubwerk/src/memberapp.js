@@ -286,6 +286,7 @@ function startPort({ rateLimit, rateLimitKey }) {
   if (!port) return;
   const app = express();
   app.disable('x-powered-by');
+  app.use(require('./security').noEncodedBody());   // komprimierte Anfragen nie entpacken
   app.use(require('./security').hostGuard());
   app.use(require('./security').hardenHeaders({ frame: 'DENY' }));
   app.use(require('./security').compress());

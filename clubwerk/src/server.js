@@ -57,6 +57,7 @@ seedIfEmpty();
 
 const app = express();
 app.disable('x-powered-by');
+app.use(require('./security').noEncodedBody());   // komprimierte Anfragen nie entpacken
 // Nur dem Home-Assistant-Ingress-Proxy (und einem ausdrücklich eingetragenen Proxy-Add-on, Option „proxy_addon_ip“) glauben,
 // wer der eigentliche Absender ist. Alle anderen Geräte im WLAN könnten die Kopfzeile X-Forwarded-For fälschen und so die
 // Bremse gegen Durchprobieren aushebeln. Das Vertrauen in die Absenderangabe ist NICHT dasselbe wie das Ingress-Vertrauen
@@ -3057,7 +3058,7 @@ const updGuard = (req, res) => {
 };
 admin.get('/update/status', need('einstellungen'), asyncRoute(async (req, res) => {
   const o = await selfupdate.origin();
-  res.json({ current: APP_VERSION, addonDir: Boolean(o.dir), origin: o.kind, mounted: o.mounted, supervisorError: o.supervisorError || '', supervisor: Boolean(process.env.SUPERVISOR_TOKEN),
+  res.json({ current: APP_VERSION, node: process.version, nodeOld: require('./security').nodeOutdated(), addonDir: Boolean(o.dir), origin: o.kind, mounted: o.mounted, supervisorError: o.supervisorError || '', supervisor: Boolean(process.env.SUPERVISOR_TOKEN),
     viaIngress: viaIngress(req) || process.env.CW_TEST_UPDATE_ANYWHERE === '1', owner: req.user.role === 'oberadmin', updating,
     staged: staged ? { version: staged.version, files: staged.files, size: staged.size, depsChanged: staged.depsChanged, changelog: staged.changelog } : null,
     reserves: selfupdate.reserves(RESERVE_DIR), lastError: getSetting('update_last_error', ''), lastOk: getSetting('update_last_ok', '') });

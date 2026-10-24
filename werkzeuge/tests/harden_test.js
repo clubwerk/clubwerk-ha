@@ -22,6 +22,15 @@ const ok=(n,cond,extra='')=>console.log((cond?'✔':'✘')+' '+n+(extra?'  '+ext
  [s]=await c('o','admin/settings','PUT',{clubColor:'#2E7D32'}); const th2=await (await fetch('http://localhost:3193/theme.css')).text(); ok('Farbe übernommen', th2.includes('--green:#2e7d32'), th2.slice(0,90));
  // Upload-Signatur
  [s]=await c('o','admin/upload','POST',Buffer.from('<html><script>alert(1)</script></html>'),{'Content-Type':'application/pdf','X-Filename':'rechnung.pdf'}); ok('gefälschtes PDF abgelehnt', s===400);
+ // Komprimierte Anfragen (Brotli-Lücke in Node.js, Oktober 2026) erreichen den Entpacker nie
+ const zlib=require('zlib');
+ for(const [enc,buf] of [['br',zlib.brotliCompressSync('{"clubColor":"#2E7D32"}')],['gzip',zlib.gzipSync('{"clubColor":"#2E7D32"}')],['deflate, br',zlib.deflateSync('x')]]){
+  [s]=await c('o','admin/settings','PUT',buf,{'Content-Encoding':enc}); ok(`Content-Encoding ${enc} abgelehnt`, s===415, String(s)); }
+ [s]=await c('o','admin/settings','PUT',{clubColor:'#2E7D32'},{'Content-Encoding':'identity'}); ok('Content-Encoding identity geht weiter', s===200, String(s));
+ const ma=await fetch('http://localhost:5194/api/me',{method:'POST',headers:{'Content-Type':'application/json','Content-Encoding':'br'},body:zlib.brotliCompressSync('{}')});
+ ok('Mitglieder-App lehnt Content-Encoding br ab', ma.status===415, String(ma.status));
+ const mg=await fetch('http://localhost:5194/'); ok('Mitglieder-App sonst erreichbar', mg.status===200, String(mg.status));
+ let [,us]=await c('o','admin/update/status'); ok('Update-Seite nennt die Node.js-Version', us.node===process.version && typeof us.nodeOld==='boolean', us.node);
  // Tablet: Name mit = am Anfang
  let [,nm]=await c('t','tablet/member','POST',{name:'=HYPERLINK("x") Test'}); ok('Formel-Zeichen entfernt', nm.member && !nm.member.name.startsWith('='), nm.member&&nm.member.name);
  // Login-Bremse

@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.38.1
+
+**Schutz vor der Node.js-Sicherheitslücke vom Oktober 2026**
+- Clubwerk läuft auf Node.js. Am 21.10.2026 wurde dort eine kritische Lücke im Brotli-Entpacker geschlossen. Clubwerk nimmt deshalb keine komprimierten Anfragen mehr an (Verwaltung, Tablet, Mitglieder-App und Beregnungs-Webapp). Die Oberflächen schicken solche Anfragen ohnehin nie, für die Bedienung ändert sich nichts.
+- Unter Einstellungen › Update steht jetzt die **Node.js-Version**. Ist sie noch ohne die Korrekturen, erscheint ein Hinweis. Die neue Node.js-Version kommt mit einem späteren Update.
+
 ## 3.38.0
 
 **Trainer („Kein Mitglied“) buchen Plätze, öffnen Türen und schalten die Beregnung**

@@ -190,4 +190,19 @@ function lanOnly({ label = 'Clubwerk', extra } = {}) {
 /** Antworten komprimieren (gzip/brotli je nach Browser) – Skripte, Stile, JSON, SVG; Bilder/Archive bleiben unverändert */
 const compression = require('compression');
 const compress = () => compression({ threshold: 1024, level: 6, filter: (req, res) => { const t = String(res.getHeader('Content-Type') || ''); return /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/.test(t) || compression.filter(req, res); } });
-module.exports = { normIp, notPublic, privateSource, lanSource, lanOnly, noTunnel, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
+// Anfragen mit komprimiertem Inhalt (gzip, br, deflate) braucht keine Clubwerk-Oberfläche. Der Brotli-Entpacker von
+// Node.js hatte eine kritische Lücke (Oktober 2026), deshalb erreicht so ein Inhalt den Entpacker gar nicht erst.
+const noEncodedBody = () => (req, res, next) => {
+  const enc = String(req.headers['content-encoding'] || '').trim();
+  if (!enc || /^identity$/i.test(enc)) return next();
+  res.status(415).json({ error: 'Komprimierte Anfragen werden nicht angenommen.' });
+};
+// Node.js-Versionen mit den Sicherheitskorrekturen vom 21.10.2026 (je Hauptversion)
+const NODE_FIXED = { 22: [22, 23, 4], 24: [24, 22, 1], 26: [26, 12, 1] };
+const nodeOutdated = (v = process.version) => {
+  const n = String(v).replace(/^v/, '').split('.').map(Number), f = NODE_FIXED[n[0]];
+  if (!f) return n[0] < 26;
+  for (let i = 1; i < 3; i++) if (n[i] !== f[i]) return n[i] < f[i];
+  return false;
+};
+module.exports = { noEncodedBody, nodeOutdated, normIp, notPublic, privateSource, lanSource, lanOnly, noTunnel, compress, securityAlert, limiter, budget, hardenHeaders, hostGuard, hostAllowed, resetHostCache };
