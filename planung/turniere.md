@@ -76,8 +76,10 @@ Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telef
 
 **Plätze je Turnier:** Beim Import entstehen die Plätze aus den Platznamen in nuLiga („Platz 1“ …). Jeder Platz lässt sich einem Platz des Buchungssystems zuordnen (dann wird er gesperrt) oder bleibt frei. Plätze können auch **von Hand angelegt** werden, z. B. „Halle Platz A“ für ein Winterturnier in einer fremden Halle. Solche Plätze sperren nichts im Buchungssystem.
 
-**Turnier außerhalb der eigenen Anlage (z. B. Halle):** Clubwerk läuft im Clubhaus. Verwaltung und Tablet-Seiten sind bewusst nur im Vereins-WLAN erreichbar. In einer fremden Halle gibt es dieses WLAN nicht. Dafür muss die Turnierleitung über die Mitglieder-App (Tunnel) arbeiten können. Offene Frage an Thorsten, siehe unten.
+**Turnier außerhalb der eigenen Anlage (z. B. Halle):** Clubwerk läuft im Clubhaus. Verwaltung und Tablet-Seiten sind bewusst nur im Vereins-WLAN erreichbar. In einer fremden Halle gibt es dieses WLAN nicht.
+- **Weg 1: VPN** (Hinweis von Thorsten). Laptop oder Tablet der Turnierleitung verbinden sich per VPN ins Vereinsnetz, dann geht alles wie zu Hause. Der Fernseher in der Halle hängt per HDMI am Laptop. Dafür braucht es keinen neuen Code. Voraussetzung: Die VPN-Adressen sind private Adressen. Sind unter „Vereinsnetze“ Netze eingetragen, muss das VPN-Netz dabei sein.
+- **Weg 2: Mitglieder-App:** Turnierleitung in der Mitglieder-App für Nutzer mit dem Recht „Turniere“, dazu eine Fernseher-Ansicht über den Tunnel. Thorsten hat zugestimmt. Vorschlag: zunächst nur Weg 1, Weg 2 erst bauen, wenn VPN in der Praxis nicht reicht. Noch zu bestätigen.
 
 ## Offene Fragen an Thorsten
-1. Spielerseite per QR-Code (nur ansehen) zusätzlich bauen?
-2. Turniere in einer fremden Halle: Turnierleitung (Check-in, Ergebnisse, Zeitplan) auch in der Mitglieder-App für Nutzer mit dem Recht „Turniere“, damit es über den Tunnel ohne Vereins-WLAN geht? Die Fernseher-Ansicht bräuchte dann ebenfalls einen Link über den Tunnel.
+1. ~~Spielerseite~~ – **vorbereiten** (Thorsten): Zufallslink je Spieler, nur ansehen, über den Server der Mitglieder-App.
+2. Hallenturniere: Reicht VPN (Weg 1), oder Turnierleitung zusätzlich in der Mitglieder-App (Weg 2)?
