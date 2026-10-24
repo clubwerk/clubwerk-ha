@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.39.0
+
+**Neues Grundsystem: offizielles Node.js-Paket**
+- Clubwerk baut jetzt auf dem offiziellen Node.js-Paket auf (Node 22 auf Alpine 3.24), nicht mehr auf dem Home-Assistant-Grundsystem mit Alpine 3.21. Dessen Unterstützung endet am 1. November 2026.
+- Damit läuft Clubwerk mit **Node.js v22.23.4**, also mit allen Sicherheitskorrekturen vom 21.10.2026. Der gelbe Hinweis unter Einstellungen › Update verschwindet.
+- Künftige Sicherheitskorrekturen von Node.js kommen schon mit einem einfachen **„Neu bauen“**, ohne neues Clubwerk-Paket.
+- Beim ersten Bauen lädt Home Assistant das neue Grundsystem einmal aus dem Internet. Das dauert etwas länger als sonst. Danach läuft alles wie gewohnt lokal.
+
 ## 3.38.1
 
 **Schutz vor der Node.js-Sicherheitslücke vom Oktober 2026**

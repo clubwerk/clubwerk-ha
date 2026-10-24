@@ -1,4 +1,4 @@
-#!/usr/bin/with-contenv sh
+#!/bin/sh
 set -e
 # Neue Dateien (Datenbank, Sicherungen, Belege) nur für das Programm selbst lesbar
 umask 077
@@ -31,8 +31,8 @@ if [ -f /data/options.json ]; then
   [ -n "$PX" ] && export TRUSTED_PROXY="172.30.32.2,$PX"
 fi
 
-# Zugangsschlüssel zu Home Assistant: Der Supervisor legt ihn in die Umgebung des Containers. Startet das Basis-Image
-# (s6-overlay) dieses Skript ohne diese Umgebung, liegt er unter /run/s6/container_environment – dann von dort holen.
+# Zugangsschlüssel zu Home Assistant: Der Supervisor legt ihn in die Umgebung des Containers. Startet ein Basis-Image
+# mit s6-overlay dieses Skript ohne diese Umgebung, liegt er unter /run/s6/container_environment – dann von dort holen.
 for V in SUPERVISOR_TOKEN HASSIO_TOKEN; do
   eval "CUR=\${$V:-}"
   if [ -z "$CUR" ] && [ -r "/run/s6/container_environment/$V" ]; then export "$V=$(cat "/run/s6/container_environment/$V")"; fi

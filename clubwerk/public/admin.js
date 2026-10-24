@@ -3295,7 +3295,7 @@
   async function renderUpdate() {
     const el = $('updBody'); if (!el) return;
     const u = await api('update/status');
-    const nodeOld = u.nodeOld ? '<div class="banner a" style="display:block">Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. Ein späteres Clubwerk-Update bringt die neue Node.js-Version mit.</div>' : '';
+    const nodeOld = u.nodeOld ? '<div class="banner a" style="display:block">Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. In Home Assistant beim Add-on Clubwerk „Neu bauen“ klicken, das holt die neueste Node.js-Version.</div>' : '';
     if (!u.addonDir) {
       el.innerHTML = `<p>Installiert: <b>${esc(u.current)}</b> · Node.js <b translate="no">${esc(u.node || '–')}</b></p>${nodeOld}` + (u.origin === 'repository'
         ? '<p class="muted s">Diese Installation kommt aus einem Add-on-Repository (z. B. GitHub). Neue Versionen zeigt Home Assistant unter <b>Einstellungen → Add-ons</b> mit „Aktualisieren“ an.</p>'

@@ -1,12 +1,12 @@
 name: Clubwerk
-version: "3.38.1"
+version: "3.39.0"
 slug: clubwerk
 description: Clubwerk – die modulare Vereinsverwaltung für Home Assistant – Getränke (Tablet statt Strichliste), Zeiterfassung, Beregnung, Zugang und mehr; mehrsprachig
 arch:
   - aarch64
   - amd64
   - armv7
-init: false
+init: true
 startup: application
 boot: auto
 ingress: true

@@ -2773,7 +2773,7 @@
   "Die nächtliche Sicherung nach Dropbox wurde von {0} pausiert.",
   "Die Namen werden als „Kein Mitglied“ angelegt (z. B. Trainer). Mitglieder legst du in der Mitgliederverwaltung an.",
   "Die neuen, verschlüsselten Sicherungen bleiben erhalten. Bitte mit deinem Passwort bestätigen.",
-  "Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. Ein späteres Clubwerk-Update bringt die neue Node.js-Version mit.",
+  "Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. In Home Assistant beim Add-on Clubwerk „Neu bauen“ klicken, das holt die neueste Node.js-Version.",
   "Die Nummer bleibt vergeben, die Rechnung zählt nicht mehr als offen. Bitte kurz begründen:",
   "Die Passwörter stimmen nicht überein.",
   "Die PDF konnte nicht gelesen werden.",
