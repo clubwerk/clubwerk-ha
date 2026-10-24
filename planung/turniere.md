@@ -58,11 +58,17 @@ Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telef
 - **CSV** (`Spieleranmeldungen.csv`): Windows-1252, Semikolon. Eine Zeile je Meldung, Doppelpartner in derselben Zeile. LK mit Komma, **Gebührenabrechnung** (`bar`/`keine`) und Status (`bearbeitet`/`abgemeldet`, `Hauptfeld`/`nicht zugelassen`). Nützlich als Ergänzung: genaue LK und wer schon bezahlt hat.
 - **PDF** (Sammel-Download): nur Meldelisten zum Ausdrucken, kein Spielplan. Für den Import nicht nötig.
 
+**Plätze und Uhrzeiten** setzt die Turnierleitung vor dem Turnier von Hand in nuLiga (Antwort Thorsten). Ein Export nach dieser Planung enthält sie also schon. Daraus folgt:
+- Clubwerk übernimmt den Spielplan aus nuLiga als **Ausgangsplanung** und plant am Turniertag live um (Verzug, freie Plätze, Abwesende). „Ursprüngliche Planung wiederherstellen“ führt zurück zur nuLiga-Planung.
+- **Erneut importieren** muss gehen (z. B. nach einer Nachmeldung oder einer Änderung in nuLiga). Abgeglichen wird über die nuLiga-IDs, ohne Check-in, Zahlungen und Ergebnisse zu verlieren. Was sich geändert hat, zeigt Clubwerk vor dem Übernehmen an.
+- Fehlen Platz oder Uhrzeit bei einem Match, ordnet die Turnierleitung es in Clubwerk zu (oder es wartet in der Warteschlange auf den nächsten freien Platz).
+- Nach dem Turnier: Ergebnisliste zum Abtippen in nuLiga (je Konkurrenz und Runde, in der Reihenfolge von nuLiga).
+
 **Datensparsamkeit beim Import:** Übernommen werden nur Name, Verein, LK, Geschlecht, Geburtsjahr (für Altersklassen) und die nuLiga-IDs. Anschrift, E-Mail und Telefon werden nicht gespeichert.
 
 ## Offene Fragen an Thorsten
 1. Ist Stufe 1 (Turniertag mit nuLiga-Import) das Wichtigste, oder eher Stufe 2 (eigene Vereinsturniere)?
-2. ~~nuLiga-XML-Datei~~ – erledigt, Aufbau steht oben. Noch offen: Enthält ein Export **vor** dem Turnier schon Plätze und Uhrzeiten? In den Dateien des vergangenen Turniers stehen sie.
+2. ~~nuLiga-XML-Datei~~ – erledigt, Aufbau steht oben.
 3. Wie erreichen fremde Spieler die Seite: über den Tunnel der Mitglieder-App, über ein Gäste-WLAN, oder nur über TV und Tablet?
 4. Nenngeld: bar in die Verkaufskasse buchen, oder nur im Turnier-Kassenbericht führen?
 5. Gibt es im Clubhaus einen Fernseher für die Live-Anzeige?
