@@ -24,10 +24,10 @@ Mitglieder melden in der Mitglieder-App defekte Dinge oder Probleme auf der Vere
 - Schutz: Größenlimit je Foto, höchstens z. B. 10 Meldungen pro Mitglied und Tag. Bildprüfung auf echte JPEG/PNG-Signatur.
 - Einzeln nutzbar. Wenn **Helferdienste** aktiv ist: Knopf „Als Aufgabe für Arbeitseinsatz übernehmen“ (über `ctx.callHooks`). Das kommt erst in Stufe 2.
 
-## Offene Fragen an Thorsten
-1. Dürfen auch Konten „Kein Mitglied“ (Trainer) melden?
-2. Wer bekommt neue Meldungen: festes Postfach, bestimmte Verwaltungsnutzer, beides?
-3. Sehen Mitglieder die offenen Meldungen anderer (ohne Namen)?
-4. Ortsliste: frei pflegbar, oder aus den Plätzen des Buchungssystems vorbelegen (falls aktiv)?
-5. Auch am Tablet melden (z. B. am Clubhaus), oder nur in der App?
-6. Aufbewahrung der Fotos nach „Erledigt“: 6 Monate in Ordnung?
+## Entscheidungen (von Thorsten beantwortet)
+1. **Wer meldet:** jeder, der die Mitglieder-App nutzen kann, also auch Konten „Kein Mitglied“ (Trainer).
+2. **Wer bekommt Meldungen:** neues Recht „Mängel“ für Verwaltungsnutzer. Wer es hat, sieht das Modul in der Verwaltung und bekommt neue Meldungen (Push/Mail).
+3. **Doppelte Meldungen:** Mitglieder sehen fremde Meldungen nicht. Vor dem Absenden prüft Clubwerk, ob es zum gleichen Ort schon eine offene Meldung gibt. Dann zeigt die App sie an (Beschreibung, Datum, erstes Foto, ohne Namen) und fragt: „Ist es das?“. Das Mitglied kann abbrechen oder trotzdem einreichen. Vorschlag: „Ja, das ist es“ zählt als „auch gemeldet“ (+1), und das Mitglied bekommt die Statusmeldungen dieser Meldung. Noch abzustimmen.
+4. **Orte:** alle Plätze aus dem Buchungssystem (wenn aktiv), dazu Orte, die in der Verwaltung angelegt werden, dazu „Anderer Ort“ als Freitext des Mitglieds.
+5. **Tablet:** ja, Melden auch am Tablet nach Entsperren mit der Mitglieder-PIN (Foto mit der Tablet-Kamera).
+6. **Aufbewahrung:** Fotos erledigter Meldungen werden nach 12 Monaten gelöscht. Die Frist ist in den Einstellungen änderbar.
