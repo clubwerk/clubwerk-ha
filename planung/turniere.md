@@ -78,8 +78,10 @@ Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telef
 
 **Turnier außerhalb der eigenen Anlage (z. B. Halle):** Clubwerk läuft im Clubhaus. Verwaltung und Tablet-Seiten sind bewusst nur im Vereins-WLAN erreichbar. In einer fremden Halle gibt es dieses WLAN nicht.
 - **Weg 1: VPN** (Hinweis von Thorsten). Laptop oder Tablet der Turnierleitung verbinden sich per VPN ins Vereinsnetz, dann geht alles wie zu Hause. Der Fernseher in der Halle hängt per HDMI am Laptop. Dafür braucht es keinen neuen Code. Voraussetzung: Die VPN-Adressen sind private Adressen. Sind unter „Vereinsnetze“ Netze eingetragen, muss das VPN-Netz dabei sein.
-- **Weg 2: Mitglieder-App:** Turnierleitung in der Mitglieder-App für Nutzer mit dem Recht „Turniere“, dazu eine Fernseher-Ansicht über den Tunnel. Thorsten hat zugestimmt. Vorschlag: zunächst nur Weg 1, Weg 2 erst bauen, wenn VPN in der Praxis nicht reicht. Noch zu bestätigen.
+- **Weg 2: Mitglieder-App:** Turnierleitung in der Mitglieder-App für Nutzer mit dem Recht „Turniere“, dazu eine Fernseher-Ansicht über den Tunnel. **Entschieden: Weg 1.** Das VPN läuft direkt über die Fritzbox des Vereins und funktioniert. Weg 2 wird nicht gebaut, höchstens später, falls VPN in der Praxis nicht reicht.
 
 ## Offene Fragen an Thorsten
 1. ~~Spielerseite~~ – **vorbereiten** (Thorsten): Zufallslink je Spieler, nur ansehen, über den Server der Mitglieder-App.
-2. Hallenturniere: Reicht VPN (Weg 1), oder Turnierleitung zusätzlich in der Mitglieder-App (Weg 2)?
+2. ~~Hallenturniere~~ – über VPN der Fritzbox (Weg 1).
+
+Damit ist nichts mehr offen. Bau zuerst Stufe 1, dann Stufe 2.
