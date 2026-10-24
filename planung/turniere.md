@@ -74,5 +74,10 @@ Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telef
 4. **Fernseher-Ansicht:** ja, es gibt einen Fernseher im Clubhaus. Eigene Seite für einen Browser im Vereins-WLAN.
 5. **Match-Start:** ein Knopf „Match starten“ (am Tablet oder durch die Turnierleitung). Er hält die tatsächliche Startzeit fest, das braucht der Zeitplan. Kein geführter Ablauf.
 
+**Plätze je Turnier:** Beim Import entstehen die Plätze aus den Platznamen in nuLiga („Platz 1“ …). Jeder Platz lässt sich einem Platz des Buchungssystems zuordnen (dann wird er gesperrt) oder bleibt frei. Plätze können auch **von Hand angelegt** werden, z. B. „Halle Platz A“ für ein Winterturnier in einer fremden Halle. Solche Plätze sperren nichts im Buchungssystem.
+
+**Turnier außerhalb der eigenen Anlage (z. B. Halle):** Clubwerk läuft im Clubhaus. Verwaltung und Tablet-Seiten sind bewusst nur im Vereins-WLAN erreichbar. In einer fremden Halle gibt es dieses WLAN nicht. Dafür muss die Turnierleitung über die Mitglieder-App (Tunnel) arbeiten können. Offene Frage an Thorsten, siehe unten.
+
 ## Offene Fragen an Thorsten
-Keine. Die Punkte 2–5 oben sind Vorschläge und können sich noch ändern.
+1. Spielerseite per QR-Code (nur ansehen) zusätzlich bauen?
+2. Turniere in einer fremden Halle: Turnierleitung (Check-in, Ergebnisse, Zeitplan) auch in der Mitglieder-App für Nutzer mit dem Recht „Turniere“, damit es über den Tunnel ohne Vereins-WLAN geht? Die Fernseher-Ansicht bräuchte dann ebenfalls einen Link über den Tunnel.
