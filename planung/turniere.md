@@ -43,9 +43,26 @@ Vorbild: turnigo.de (am 24.10.2026 angesehen: Startseite, FAQ, Demo-Turnier). Tu
 - **Datenschutz:** Namen, Vereine und LK fremder Spieler werden nach einer einstellbaren Frist nach dem Turnier gelöscht. Echte nuLiga-Dateien kommen nie ins Repository. Für Tests wird eine Beispieldatei mit erfundenen Namen gebaut.
 - **Sicherheit:** Die Spieler-Links sind lange Zufallsschlüssel, gelten nur für ein Turnier und nur bis zum Turnierende. Ergebnisse darf nur eintragen, wer im Match spielt, ein Helfer oder die Turnierleitung.
 
+## nuLiga-Dateien (Aufbau, angesehen an echten Exporten eines vergangenen Turniers)
+Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telefonnummern fremder Spieler. Sie kommen **nie** ins Repository. Für Tests baut man eine Beispieldatei mit demselben Aufbau und erfundenen Daten.
+
+- **XML** (`TurnierExport_….xml`, DTD `dtb-tournament-1.1`) ist die richtige Quelle. **Eine Datei je Turnier.** Ein Wochenende kann mehrere Turniere haben (z. B. Aktive Samstag, Doppel Sonntag, Senioren), dann gibt es mehrere Dateien. Der Import muss mehrere Dateien zu **einem Turniertag** zusammenführen können.
+  - `tournament`: Name, Start- und Enddatum, Meldeschluss, Auslosungstermin, Nenngeld, Altersgruppe (`general`/`seniors`), Ballmarke.
+  - `organizer`: Vereinsnummer, Kontakt.
+  - `person`: nuLiga-ID, Vor- und Nachname, Geburtsdatum, Geschlecht, Verein mit Nummer, DTB-ID, `lk-single`, Kontaktdaten. **Die LK steht hier nur als ganze Zahl.** Die Meldeliste (PDF/CSV) hat sie mit Komma (z. B. 16,1).
+  - `event` (Konkurrenz): Name (z. B. „Herren 40 Einzel“), Einzel/Doppel, Geschlecht (auch `mixed`), Alter, Nenngeld, LK-Bereich, `consolation="match1"` (Nebenrunde), Hinweise.
+    - `registration-list`: Teilnehmer (bei Doppel zwei Personen), Anmeldezeit, **`registration-note`** mit Zeitwünschen („bitte nur vormittags“, „zeitgleich mit meiner Schwester“). Das muss die Turnierleitung sehen.
+    - `draw`: `mode="one-day-tournament"` (LK-Tagesturnier, jeder spielt in der Regel zwei Runden), `final="third-place"`, Feldgröße, Setzliste.
+    - `match`: Runde, Match-Nr., Gruppe (0 Hauptfeld, 1 Nebenrunde), **Platz** („Platz 3“), **geplante Uhrzeit**, Zählweise (`CT_2S6G_MTB10` = 2 Gewinnsätze + Match-Tiebreak bis 10, `CT_LEGACY`), Status (`walk-over-a/b` = kampflos, `retired-a/b` = Aufgabe), Sätze (`games-a`/`games-b`, der Match-Tiebreak steht als dritter Satz, z. B. 10:6).
+    - Konkurrenzen ohne Meldungen stehen leer in der Datei und werden beim Import übersprungen.
+- **CSV** (`Spieleranmeldungen.csv`): Windows-1252, Semikolon. Eine Zeile je Meldung, Doppelpartner in derselben Zeile. LK mit Komma, **Gebührenabrechnung** (`bar`/`keine`) und Status (`bearbeitet`/`abgemeldet`, `Hauptfeld`/`nicht zugelassen`). Nützlich als Ergänzung: genaue LK und wer schon bezahlt hat.
+- **PDF** (Sammel-Download): nur Meldelisten zum Ausdrucken, kein Spielplan. Für den Import nicht nötig.
+
+**Datensparsamkeit beim Import:** Übernommen werden nur Name, Verein, LK, Geschlecht, Geburtsjahr (für Altersklassen) und die nuLiga-IDs. Anschrift, E-Mail und Telefon werden nicht gespeichert.
+
 ## Offene Fragen an Thorsten
 1. Ist Stufe 1 (Turniertag mit nuLiga-Import) das Wichtigste, oder eher Stufe 2 (eigene Vereinsturniere)?
-2. Kannst du eine **nuLiga-XML-Datei** eines vergangenen Turniers schicken? Sie wird nur zum Verstehen des Aufbaus genutzt und kommt nicht ins Repository.
+2. ~~nuLiga-XML-Datei~~ – erledigt, Aufbau steht oben. Noch offen: Enthält ein Export **vor** dem Turnier schon Plätze und Uhrzeiten? In den Dateien des vergangenen Turniers stehen sie.
 3. Wie erreichen fremde Spieler die Seite: über den Tunnel der Mitglieder-App, über ein Gäste-WLAN, oder nur über TV und Tablet?
 4. Nenngeld: bar in die Verkaufskasse buchen, oder nur im Turnier-Kassenbericht führen?
 5. Gibt es im Clubhaus einen Fernseher für die Live-Anzeige?
