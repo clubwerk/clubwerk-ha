@@ -69,11 +69,10 @@ Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telef
 ## Entscheidungen
 1. **Stufe 1 und Stufe 2 werden gebaut** (Thorsten). Reihenfolge beim Bau: zuerst Stufe 1 (Turniertag mit nuLiga), dann Stufe 2 auf derselben Grundlage (Konkurrenzen, Matches, Ergebnisse, Zeitplan, Anzeigen werden gemeinsam genutzt).
 
-Vorschläge für die übrigen Punkte, gelten bis Thorsten etwas anderes sagt:
-2. **Spielerseite:** läuft über den Server der Mitglieder-App unter einem Zufallslink je Spieler. Sie ist damit überall erreichbar, wo die Mitglieder-App erreichbar ist: im Vereins-WLAN und, falls eingerichtet, über den Tunnel. Fernseher- und Tablet-Anzeige gibt es immer.
-3. **Nenngeld:** nur im Turnier-Kassenbericht (bar/digital/offen), nicht in der Verkaufskasse.
-4. **Fernseher-Ansicht:** wird gebaut. Es ist eine eigene Seite, die jeder Bildschirm mit Browser im Vereins-WLAN öffnen kann.
-5. **Match-Start:** ein Knopf „Match starten“. Kein geführter Ablauf und kein Einspiel-Timer.
+2. **Spieler brauchen kein Handy und keine App.** Der Turniertag funktioniert vollständig über Fernseher, Tablet und Turnierleitung. Ergebnisse tragen die Spieler nach dem Match am Tablet im Clubhaus ein (Match antippen, Sätze eingeben) oder die Turnierleitung. Vorschlag (noch zu bestätigen): zusätzlich eine einfache Spielerseite per QR-Code (nur ansehen: wann, wo, gegen wen), die funktioniert, wo die Mitglieder-App erreichbar ist. Live-Punktestand vom Handy entfällt.
+3. **Nenngeld:** Die Turnierleitung markiert es als bezahlt (bar oder digital). Das läuft nur im Turnier-Kassenbericht, nicht in der Verkaufskasse. Die CSV aus nuLiga kann „bar“ als Zahlungsart vorbelegen.
+4. **Fernseher-Ansicht:** ja, es gibt einen Fernseher im Clubhaus. Eigene Seite für einen Browser im Vereins-WLAN.
+5. **Match-Start:** ein Knopf „Match starten“ (am Tablet oder durch die Turnierleitung). Er hält die tatsächliche Startzeit fest, das braucht der Zeitplan. Kein geführter Ablauf.
 
 ## Offene Fragen an Thorsten
 Keine. Die Punkte 2–5 oben sind Vorschläge und können sich noch ändern.
