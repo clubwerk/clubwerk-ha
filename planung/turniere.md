@@ -66,10 +66,14 @@ Die echten Dateien enthalten Namen, Anschriften, Geburtsdaten, E-Mails und Telef
 
 **Datensparsamkeit beim Import:** Übernommen werden nur Name, Verein, LK, Geschlecht, Geburtsjahr (für Altersklassen) und die nuLiga-IDs. Anschrift, E-Mail und Telefon werden nicht gespeichert.
 
+## Entscheidungen
+1. **Stufe 1 und Stufe 2 werden gebaut** (Thorsten). Reihenfolge beim Bau: zuerst Stufe 1 (Turniertag mit nuLiga), dann Stufe 2 auf derselben Grundlage (Konkurrenzen, Matches, Ergebnisse, Zeitplan, Anzeigen werden gemeinsam genutzt).
+
+Vorschläge für die übrigen Punkte, gelten bis Thorsten etwas anderes sagt:
+2. **Spielerseite:** läuft über den Server der Mitglieder-App unter einem Zufallslink je Spieler. Sie ist damit überall erreichbar, wo die Mitglieder-App erreichbar ist: im Vereins-WLAN und, falls eingerichtet, über den Tunnel. Fernseher- und Tablet-Anzeige gibt es immer.
+3. **Nenngeld:** nur im Turnier-Kassenbericht (bar/digital/offen), nicht in der Verkaufskasse.
+4. **Fernseher-Ansicht:** wird gebaut. Es ist eine eigene Seite, die jeder Bildschirm mit Browser im Vereins-WLAN öffnen kann.
+5. **Match-Start:** ein Knopf „Match starten“. Kein geführter Ablauf und kein Einspiel-Timer.
+
 ## Offene Fragen an Thorsten
-1. Ist Stufe 1 (Turniertag mit nuLiga-Import) das Wichtigste, oder eher Stufe 2 (eigene Vereinsturniere)?
-2. ~~nuLiga-XML-Datei~~ – erledigt, Aufbau steht oben.
-3. Wie erreichen fremde Spieler die Seite: über den Tunnel der Mitglieder-App, über ein Gäste-WLAN, oder nur über TV und Tablet?
-4. Nenngeld: bar in die Verkaufskasse buchen, oder nur im Turnier-Kassenbericht führen?
-5. Gibt es im Clubhaus einen Fernseher für die Live-Anzeige?
-6. Brauchen wir den Schritt-für-Schritt-Match-Start (Bälle abholen, Einspiel-Timer), oder reicht „Match starten“?
+Keine. Die Punkte 2–5 oben sind Vorschläge und können sich noch ändern.
