@@ -210,18 +210,27 @@ function register(sh) {
     return recs;
   }
 
+  /** Telefonnummer ohne Vorwahl-Null (z. B. „[entfernt]“, weil das alte Programm sie als Zahl gespeichert hat) → „0[entfernt]“ */
+  const phoneFix = t => { const x = String(t || '').trim(); return /^[1-9][\d \/-]{7,14}$/.test(x) && x.replace(/\D/g, '').length >= 9 ? '0' + x : x; };
+  // verein.cloud: Spalte je Feld (im Dialog änderbar); Abteilungen und Beiträge liest Clubwerk immer aus den nummerierten Spalten
+  const VC_COLS = { member_no: 'Mitglieds-Nr', salutation: 'Anrede', title: 'Titel', first_name: 'Vorname', last_name: 'Nachname', birth_date: 'Geburtsdatum', gender: 'Geschlecht',
+    street: 'Straße', zip: 'PLZ', city: 'Ort', country: 'Land', address_extra: 'Zusatzadresse', phone: 'Telefon', mobile: 'Mobil', email: 'E-Mail', letter_salutation: 'Briefanrede',
+    entry_date: 'Eintrittsdatum', exit_date: 'Austrittsdatum', exit_reason: 'Vereinsaustrittsgrund', status: 'Status', group: 'Gemeinschaft', payer_no: 'Abweichender Zahler Mitglied',
+    family_no: 'Familie bei', key_no: 'Schlüsselnummer', notes: 'Notizen', payment: 'Zahlungsart', holder: 'Kontoinhaber', iban: 'IBAN', bic: 'BIC', bank: 'Kreditinstitut',
+    mandate_ref: 'Mandatsreferenz', mandate_date: 'Unterschriftsdatum' };
   /** verein.cloud: CSV-Zeilen → Datensätze */
-  function readRecords(rows) {
+  function readRecords(rows, over = {}) {
     const head = rows[0].map(h => h.trim());
     const idx = name => head.findIndex(h => h.toLowerCase() === name.toLowerCase());
     if (idx('Nachname') < 0) throw new Error('Keine Spalte „Nachname“ gefunden – ist das ein Mitglieder-Export (CSV)?');
     const recs = [];
     for (const r of rows.slice(1)) {
       const g = name => { const i = idx(name); return i >= 0 ? String(r[i] || '').trim() : ''; };
+      const v = (key, col) => (Object.prototype.hasOwnProperty.call(over, key) ? (over[key] ? g(over[key]) : '') : g(col));   // im Dialog anders zugeordnet?
       const depts = [], feeList = [];
       for (let n = 1; n <= 20; n++) {
         const dn = g(`Abteilung_${n}`); if (!dn) continue;   // verein.cloud lässt Lücken in den nummerierten Spalten
-        depts.push({ name: dn, entry: deToIso(g(`Abteilungseintritt_${n}`)), exit: deToIso(g(`Abteilungsaustritt_${n}`)), status: /passiv/i.test(g(`Abteilungsstatus_${n}`)) ? 'passiv' : 'aktiv',
+        if (!/^hauptverein$/i.test(dn)) depts.push({ name: dn, entry: deToIso(g(`Abteilungseintritt_${n}`)), exit: deToIso(g(`Abteilungsaustritt_${n}`)), status: /passiv/i.test(g(`Abteilungsstatus_${n}`)) ? 'passiv' : 'aktiv',
           fed: g(`Abteilungsstatus DFB_${n}`) && !/kein status/i.test(g(`Abteilungsstatus DFB_${n}`)) ? g(`Abteilungsstatus DFB_${n}`) : null, reason: g(`Abteilungsaustrittsgrund_${n}`) || null });
         for (let k = 1; k <= 10; k++) {
           const fn = g(`Beitragsbezeichnung_${n}_${k}`); if (!fn) continue;   // auch erst in _n_10 möglich
@@ -230,24 +239,24 @@ function register(sh) {
         }
       }
       // einfache Exporte ohne nummerierte Spalten
-      if (!depts.length && g('Abteilungen')) for (const dn of g('Abteilungen').split(/[,;]/).map(x => x.replace(/\(.*\)/, '').trim()).filter(Boolean)) depts.push({ name: dn, entry: null, exit: null, status: 'aktiv' });
-      const ib = sepa.checkIban(g('IBAN'));
+      if (!depts.length && g('Abteilungen')) for (const dn of g('Abteilungen').split(/[,;]/).map(x => x.replace(/\(.*\)/, '').trim()).filter(x => x && !/^hauptverein$/i.test(x))) depts.push({ name: dn, entry: null, exit: null, status: 'aktiv' });
+      const ib = sepa.checkIban(v('iban', 'IBAN'));
       const pib = sepa.checkIban(g('Abweichender Zahler IBAN'));
       recs.push({
-        line: recs.length + 2, member_no: g('Mitglieds-Nr') || g('Mitgliedsnummer') || g('Mitglieds-Nr.') || null,
-        p: { first_name: one(g('Vorname'), 60) || null, last_name: one(g('Nachname'), 60) || null, salutation: one(g('Anrede'), 20) || null, title: one(g('Titel'), 30) || null,
-          letter_salutation: one(g('Briefanrede'), 80) || null, email: one(g('E-Mail'), 120).toLowerCase() || null, birth_date: deToIso(g('Geburtsdatum')), gender: GENDER[g('Geschlecht').toLowerCase()] || null,
-          entry_date: deToIso(g('Eintrittsdatum')), exit_date: deToIso(g('Austrittsdatum')), exit_reason: one(g('Vereinsaustrittsgrund'), 80) || null,
-          street: one(g('Straße') || g('Strasse'), 80) || null, zip: one(g('PLZ'), 10) || null, city: one(g('Ort'), 60) || null, country: one(g('Land'), 40) || null, address_extra: one(g('Zusatzadresse'), 80) || null,
-          phone: one(g('Telefon'), 40) || null, mobile: one(g('Mobil'), 40) || null, notes: txt(g('Notizen'), 2000) || null, status: STATUS[g('Status').toLowerCase()] || 'aktiv',
-          key_no: one(g('Schlüsselnummer'), 30) || null, payment: PAY[g('Zahlungsart').toLowerCase()] || (ib.ok ? 'lastschrift' : 'rechnung') },
-        bank: ib.ok ? { holder: one(g('Kontoinhaber'), 70) || null, iban: ib.iban, bic: sepa.checkBic(g('BIC')).ok ? sepa.checkBic(g('BIC')).bic || null : null, bank: one(g('Kreditinstitut'), 70) || null,
-          mandate_ref: sepa.checkMandateRef(g('Mandatsreferenz')).ok ? g('Mandatsreferenz') : null, mandate_date: deToIso(g('Unterschriftsdatum')), valid_until: deToIso(g('Gültigkeitsdatum')) } : null,
-        ibanBad: g('IBAN') && !ib.ok ? ib.error : null,
+        line: recs.length + 2, member_no: v('member_no', 'Mitglieds-Nr') || (over.member_no === undefined ? g('Mitgliedsnummer') || g('Mitglieds-Nr.') : '') || null,
+        p: { first_name: one(v('first_name', 'Vorname'), 60) || null, last_name: one(v('last_name', 'Nachname'), 60) || null, salutation: one(v('salutation', 'Anrede'), 20) || null, title: one(v('title', 'Titel'), 30) || null,
+          letter_salutation: one(v('letter_salutation', 'Briefanrede'), 80) || null, email: one(v('email', 'E-Mail'), 120).toLowerCase() || null, birth_date: deToIso(v('birth_date', 'Geburtsdatum')), gender: GENDER[v('gender', 'Geschlecht').toLowerCase()] || null,
+          entry_date: deToIso(v('entry_date', 'Eintrittsdatum')), exit_date: deToIso(v('exit_date', 'Austrittsdatum')), exit_reason: one(v('exit_reason', 'Vereinsaustrittsgrund'), 80) || null,
+          street: one(v('street', 'Straße') || (over.street === undefined ? g('Strasse') : ''), 80) || null, zip: one(v('zip', 'PLZ'), 10) || null, city: one(v('city', 'Ort'), 60) || null, country: one(v('country', 'Land'), 40) || null, address_extra: one(v('address_extra', 'Zusatzadresse'), 80) || null,
+          phone: one(phoneFix(v('phone', 'Telefon')), 40) || null, mobile: one(phoneFix(v('mobile', 'Mobil')), 40) || null, notes: txt(v('notes', 'Notizen'), 2000) || null, status: STATUS[v('status', 'Status').toLowerCase()] || 'aktiv',
+          key_no: one(v('key_no', 'Schlüsselnummer'), 30) || null, payment: PAY[v('payment', 'Zahlungsart').toLowerCase().replace(/\s*\(.*\)\s*$/, '')] || (ib.ok ? 'lastschrift' : 'rechnung') },
+        bank: ib.ok ? { holder: one(v('holder', 'Kontoinhaber'), 70) || null, iban: ib.iban, bic: sepa.checkBic(v('bic', 'BIC')).ok ? sepa.checkBic(v('bic', 'BIC')).bic || null : null, bank: one(v('bank', 'Kreditinstitut'), 70) || null,
+          mandate_ref: sepa.checkMandateRef(v('mandate_ref', 'Mandatsreferenz')).ok ? v('mandate_ref', 'Mandatsreferenz') : null, mandate_date: deToIso(v('mandate_date', 'Unterschriftsdatum')), valid_until: deToIso(g('Gültigkeitsdatum')) } : null,
+        ibanBad: v('iban', 'IBAN') && !ib.ok ? ib.error : null,
         mandateUsed: false,
-        payer: { member: g('Abweichender Zahler Mitglied') || null, iban: pib.ok ? pib.iban : null, holder: one(g('Abweichender Zahler Kontoinhaber'), 70) || null, bic: sepa.checkBic(g('Abweichender Zahler BIC')).bic || null, bank: one(g('Abweichender Zahler Kreditinstitut'), 70) || null },
-        family: one(g('Familie bei'), 80) || null,
-        group: one(g('Gemeinschaft'), 80) || null, honors: g('Ehrungen'), functions: g('Funktionen'), depts, fees: feeList,
+        payer: { member: v('payer_no', 'Abweichender Zahler Mitglied') || null, iban: pib.ok ? pib.iban : null, holder: one(g('Abweichender Zahler Kontoinhaber'), 70) || null, bic: sepa.checkBic(g('Abweichender Zahler BIC')).bic || null, bank: one(g('Abweichender Zahler Kreditinstitut'), 70) || null },
+        family: one(v('family_no', 'Familie bei'), 80) || null,
+        group: one(v('group', 'Gemeinschaft'), 80) || null, honors: g('Ehrungen'), functions: g('Funktionen'), depts, fees: feeList,
       });
     }
     return recs.filter(r => r.p.last_name);
@@ -334,7 +343,9 @@ function register(sh) {
     const exact = pool.find(x => x.name.trim().toLowerCase() === String(f.name).trim().toLowerCase());
     const suggest = exact ? [] : pool.map(x => ({ x, s: feeSimilarity(f, x) })).filter(o => o.s >= 0.5).sort((a, b) => b.s - a.s).slice(0, 4)
       .map(o => ({ id: o.x.id, name: o.x.name, cents: o.x.cents, interval: o.x.interval, active: o.x.active }));
-    return { exact: exact ? exact.id : null, suggest };
+    const others = pool.filter(x => x !== exact && !suggest.some(o => o.id === x.id)).sort((a, b) => a.name.localeCompare(b.name, 'de'))
+      .map(x => ({ id: x.id, name: x.name, cents: x.cents, interval: x.interval, active: x.active }));
+    return { exact: exact ? exact.id : null, suggest, others };
   }
   /** Entscheidungen je Beitragsart (Schlüssel → Beitrags-ID | 'neu' | 'skip'); bei ähnlichen vorhandenen ist eine Entscheidung Pflicht */
   function feeDecisions(recs, raw) {
@@ -342,11 +353,11 @@ function register(sh) {
     for (const r of recs) for (const f of r.fees) {
       const zus = isDept(f), key = feeKey(f, zus); if (seen.has(key)) continue; seen.add(key);
       const m = feeMatch(f, zus), v = raw && raw[key];
-      if (m.exact) continue;
+      if (m.exact && (v == null || v === '' || v === 'neu')) continue;   // gleicher Name: vorhandene verwenden, außer anders gewählt
       if (v === 'skip' || v === 'neu') { out.set(key, v); continue; }
       if (v != null && v !== '') {
         const id = Number(v);
-        if (!m.suggest.some(x => x.id === id)) throw new Error(`Beitragsart „${f.name}“: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.`);
+        if (id !== m.exact && ![...m.suggest, ...m.others].some(x => x.id === id)) throw new Error(`Beitragsart „${f.name}“: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.`);
         out.set(key, id); continue;
       }
       if (m.suggest.length) throw new Error(`Für die Beitragsart „${f.name}“ gibt es ähnliche vorhandene – bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.`);
@@ -360,6 +371,24 @@ function register(sh) {
     loadPool();
     const isDept = deptFeeTest(recs);
     const exactIds = new Set(recs.map(r => matchMember(r).id).filter(Boolean));
+    const nameOf = r => `${r.p.last_name}, ${r.p.first_name || ''}`.replace(/, $/, '');
+    /** „Abweichender Zahler“ / „Familie bei“ (Nummer oder Name) → Text für die Vorschau, wie beim Übernehmen gesucht */
+    const whoIs = key => {
+      const k = String(key).trim(), lk = k.toLowerCase(), rev = k.split(',').reverse().map(x => x.trim()).join(' ').toLowerCase();
+      const inFile = recs.find(x => x.member_no === k || [`${x.p.first_name || ''} ${x.p.last_name}`.trim().toLowerCase(), nameOf(x).toLowerCase()].some(n => n === lk || n === rev));
+      if (inFile) return { name: nameOf(inFile), rec: inFile };
+      const hit = db.prepare("SELECT id FROM members WHERE kind = 'mitglied' AND deleted = 0 AND (lower(name) = ? OR lower(name) = ?)").all(lk, rev);
+      const id = (db.prepare('SELECT member_id FROM mv_person WHERE member_no = ?').get(k) || {}).member_id || (hit.length === 1 ? hit[0].id : null);
+      return id ? { name: k, id } : null;
+    };
+    const familyRec = rec => rec && rec.fees.some(f => !isDept(f) && !f.end && (guessAges(f.name).family || ((feeMatch(f, false).exact && db.prepare('SELECT family FROM mv_fee WHERE id = ?').get(feeMatch(f, false).exact).family))));
+    const payerText = r => {
+      const key = r.payer.member || r.family; if (!key) return null;
+      const w = whoIs(key);
+      if (!w) { out.warnings.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: Zahler „${key}“ nicht gefunden – wird nicht verknüpft`); return { name: key, missing: true }; }
+      const own = r.fees.some(f => !isDept(f) && !f.end && f.interval !== 'einmalig');
+      return { name: w.name, family: Boolean(!own && (w.rec ? familyRec(w.rec) : store.familyFee(w.id))) };
+    };
     for (const r of recs) {
       const m = matchMember(r);
       const sug = m.id ? [] : candidates(r, exactIds);
@@ -375,7 +404,7 @@ function register(sh) {
         out.fees.get(key).count++;
       }
       out.rows.push({ line: r.line, name: `${r.p.first_name || ''} ${r.p.last_name}`.trim(), member_no: r.member_no, birth_date: r.p.birth_date || '', action: m.id ? `ergänzen (${m.by})` : 'neu', suggest: sug, depts: r.depts.map(d => d.name).join(', '),
-        fees: r.fees.map(f => `${f.name}${f.booked ? ' · gebucht bis ' + fees.deD(f.booked) : ''}`).join(', '), mandate: r.bank && r.bank.mandate_ref ? r.bank.mandate_ref : '', exit: r.p.exit_date });
+        fees: r.fees.map(f => `${f.name}${f.booked ? ' · gebucht bis ' + fees.deD(f.booked) : ''}`).join(', '), payer: payerText(r), mandate: r.bank && r.bank.mandate_ref ? r.bank.mandate_ref : '', exit: r.p.exit_date });
     }
     // Beginn des Beitragsjahres aus „Gebucht bis“ ablesen (z. B. 30.04. → Beitragsjahr ab 01.05.)
     const votes = {};
@@ -390,7 +419,7 @@ function register(sh) {
       ['E-Mail', ex.p.email], ['Telefon', ex.p.phone], ['Mobil', ex.p.mobile], ['Eintritt', ex.p.entry_date && fees.deD(ex.p.entry_date)], ['Austritt', ex.p.exit_date && fees.deD(ex.p.exit_date)],
       ['Status', SAMPLE_LABEL[ex.p.status] || ex.p.status], ['Zahlungsart', SAMPLE_LABEL[ex.p.payment] || ex.p.payment], ['Kontoinhaber', ex.bank && ex.bank.holder], ['IBAN', ex.bank && sepa.maskIban(ex.bank.iban)], ['BIC', ex.bank && ex.bank.bic],
       ['Mandatsreferenz', ex.bank && ex.bank.mandate_ref], ['Mandat unterschrieben', ex.bank && ex.bank.mandate_date && fees.deD(ex.bank.mandate_date)],
-      ['Abteilungen', ex.depts.map(d => d.name).join(', ')], ['Beiträge', ex.fees.map(f => f.name).join(', ')]].map(([label, value]) => ({ label, value: value == null ? '' : String(value) })) } : null;
+      ['Abweichender Zahler', ex.payer.member], ['Familie bei', ex.family], ['Abteilungen', ex.depts.map(d => d.name).join(', ')], ['Beiträge', ex.fees.map(f => f.name).join(', ')]].map(([label, value]) => ({ label, value: value == null ? '' : String(value) })) } : null;
     return { ...out, yearHint, sample, depts: [...out.depts], fees: [...out.fees.values()] };
   }
 
@@ -513,7 +542,7 @@ function register(sh) {
     const head = rows[0], format = detect(head);
     const sample = rows.slice(1, 4).map(r => head.map((_, i) => one(r[i], 60)));
     res.json({ format, label: PRESETS[format].label, presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })), headers: head, count: rows.length - 1, sample,
-      fields: FIELDS.map(([key, label, group]) => ({ key, label, group })), mapping: format === 'vereincloud' ? null : suggest(head, format), booked_default: periodEnd() });
+      fields: FIELDS.map(([key, label, group]) => ({ key, label, group })), vcFields: Object.keys(VC_COLS), mapping: format === 'vereincloud' ? Object.fromEntries(Object.entries(VC_COLS).filter(([, c]) => head.includes(c))) : suggest(head, format), booked_default: periodEnd() });
   }));
   /** Vorschau bzw. Übernahme mit Zuordnung (Zuordnung als JSON im Kopf „X-Mapping“) */
   admin.post('/import/run', P, raw, ar(async (req, res) => {
@@ -524,9 +553,15 @@ function register(sh) {
       try { map = JSON.parse(decodeURIComponent(String(req.get('X-Mapping') || '')) || '{}'); } catch (e) { return bad(res, 'Die Spaltenzuordnung ist ungültig.'); }
       map = Object.fromEntries(Object.entries(map || {}).filter(([k, v]) => (FIELD_KEYS.includes(k) && typeof v === 'string' && rows[0].includes(v)) || (k === '__name_split' && v === true)));
     }
+    let over = {};
+    if (format === 'vereincloud' && req.get('X-Mapping')) {   // Zuordnung im Dialog geändert: fehlendes Feld = nicht übernehmen
+      let m; try { m = JSON.parse(decodeURIComponent(String(req.get('X-Mapping')))) || {}; } catch (e) { return bad(res, 'Die Spaltenzuordnung ist ungültig.'); }
+      over = Object.fromEntries(Object.keys(VC_COLS).map(k => [k, typeof m[k] === 'string' && rows[0].includes(m[k]) ? m[k] : '']));
+      if (!over.last_name) return bad(res, 'Bitte die Spalte für den Nachnamen zuordnen.');
+    }
     const bookedDefault = fees.isDate(String(req.query.booked || '')) ? String(req.query.booked) : null;
     let recs;
-    try { recs = format === 'vereincloud' ? readRecords(rows) : readMapped(rows, map, { bookedDefault, mandateUsed: req.query.used === '1' }); } catch (e) { return bad(res, e.message); }
+    try { recs = format === 'vereincloud' ? readRecords(rows, over) : readMapped(rows, map, { bookedDefault, mandateUsed: req.query.used === '1' }); } catch (e) { return bad(res, e.message); }
     return finish(req, res, recs, format, map);
   }));
   function finish(req, res, recs, format, map) {

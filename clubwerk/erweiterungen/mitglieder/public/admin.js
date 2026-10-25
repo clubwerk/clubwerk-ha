@@ -641,11 +641,11 @@
     };
     let dec = {};   // ähnliche Namen: Zeile → Mitglieds-ID oder 'neu'
     let feeDec = {};   // Beitragsarten: Schlüssel → Beitrags-ID, 'neu' oder 'skip' ('' = noch nicht gewählt)
-    const run = commit => send('import/run' + query(commit), { ...(fmt() === 'vereincloud' ? {} : { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())) }), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeDec })) } : {}) });
+    const run = commit => send('import/run' + query(commit), { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeDec })) } : {}) });
     const setStep = s => {
       step = s;
       $('iMap').classList.toggle('hidden', s === 'prev'); $('iPrev').classList.toggle('hidden', s !== 'prev');
-      $('iBack').classList.toggle('hidden', !(s === 'prev' && fmt() !== 'vereincloud'));
+      $('iBack').classList.toggle('hidden', s !== 'prev');
       $('iOk').textContent = s === 'prev' ? 'Übernehmen' : 'Vorschau';
     };
     const syncOpts = () => {
@@ -658,22 +658,23 @@
       const vc = fmt() === 'vereincloud';
       const det = `<div class="imp-det"><label class="f">Erkanntes Format<select id="iFmt">${an.presets.map(p => opt(p.key, p.label, fmt())).join('')}</select></label>
         <span class="pill b">${an.count} ${an.count === 1 ? 'Person' : 'Personen'}</span><span class="pill">${an.headers.length} Spalten</span></div>`;
-      if (vc) { $('iMap').innerHTML = det + '<div class="banner g"><span>verein.cloud: Abteilungen, alle Beiträge mit „gebucht bis“, Bankverbindungen mit Mandat, abweichende Zahler und Gemeinschaften werden automatisch übernommen.</span></div>'; }
-      else {
-        const groups = [...new Set(an.fields.map(f => f.group))];
+      {
+        const fields = vc ? an.fields.filter(f => an.vcFields.includes(f.key)) : an.fields;
+        const groups = [...new Set(fields.map(f => f.group))];
         const sel = f => `<select data-fk="${f.key}" aria-label="${esc(f.label)}"><option value="">— nicht übernehmen —</option>${an.headers.map(h => opt(h, h, (an.mapping || {})[f.key] || '')).join('')}</select>`;
         $('iMap').innerHTML = det + `<p class="muted s" style="margin:0 0 8px">Spalte aus eurer Datei je Feld wählen – rechts steht ein Beispielwert aus der Datei.</p>
-          <div class="imp-map" translate="no">${groups.map(g => `<div class="imp-grp" translate="yes">${esc(g)}</div>${an.fields.filter(f => f.group === g).map(f => `<div class="imp-row"><b translate="yes">${esc(f.label)}${f.key === 'last_name' ? ' *' : ''}</b>${sel(f)}<span class="ex">–</span></div>`).join('')}`).join('')}</div>
-          <div class="imp-opts">
+          ${vc ? '<div class="banner g"><span>verein.cloud: Abteilungen und alle Beiträge mit „gebucht bis“ liest Clubwerk aus den nummerierten Spalten; die übrigen Felder könnt ihr hier anders zuordnen.</span></div>' : ''}
+          <div class="imp-map" translate="no">${groups.map(g => `<div class="imp-grp" translate="yes">${esc(g)}</div>${fields.filter(f => f.group === g).map(f => `<div class="imp-row"><b translate="yes">${esc(f.label)}${f.key === 'last_name' ? ' *' : ''}</b>${sel(f)}<span class="ex">–</span></div>`).join('')}`).join('')}</div>
+          ${vc ? '' : `<div class="imp-opts">
             <label class="f" id="iBookedRow">Beiträge bisher abgerechnet bis<input type="date" id="iBooked" value="${esc(an.booked_default || '')}"></label>
             <label class="chk" id="iUsedRow"><input type="checkbox" id="iUsed" checked> SEPA-Mandate wurden schon benutzt (nächste Lastschrift ist eine Folgelastschrift)</label>
           </div>
-          <p class="muted s" style="margin:8px 0 0">„Abgerechnet bis“ gilt für alle ohne eigene Angabe – so berechnet der nächste Beitragslauf nichts doppelt, was das alte Programm schon eingezogen hat.</p>`;
+          <p class="muted s" style="margin:8px 0 0">„Abgerechnet bis“ gilt für alle ohne eigene Angabe – so berechnet der nächste Beitragslauf nichts doppelt, was das alte Programm schon eingezogen hat.</p>`}`;
         document.querySelectorAll('#iMap [data-fk]').forEach(s => { s.onchange = syncOpts; });
         syncOpts();
       }
       $('iFmt').onchange = async () => {
-        if (fmt() !== 'vereincloud' && an.format === 'vereincloud') an.mapping = {};
+        if (fmt() !== an.format) an.mapping = {};
         drawMap();
       };
       $('iOk').disabled = false; setStep('map');
@@ -681,8 +682,13 @@
     function drawPrev() {
       const sim = prev.rows.filter(r => r.suggest && r.suggest.length);
       const feeRows = prev.fees || [];
-      feeDec = {}; feeRows.forEach(f => { if (!f.exact) feeDec[f.key] = f.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen
+      feeDec = {}; feeRows.forEach(f => { if (!f.exact) feeDec[f.key] = f.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen   // bei ähnlichen vorhandenen: bewusst wählen
       const newFees = () => Object.values(feeDec).filter(v => v === 'neu').length;
+      const feeOpt = x => `<option value="${x.id}">${esc(x.name)} (${euro(x.cents || 0)} ${esc(INTERVAL[x.interval] || x.interval)})${x.active === 0 ? ' · inaktiv' : ''}</option>`;
+      const feeOpts = f => (f.exact ? '<option value="">vorhandene verwenden (gleicher Name)</option>' : `${f.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}<option value="neu" ${feeDec[f.key] === 'neu' ? 'selected' : ''}>neu anlegen</option>`)
+        + '<option value="skip">nicht übernehmen</option>'
+        + (f.suggest.length ? `<optgroup label="ähnliche vorhandene">${f.suggest.map(feeOpt).join('')}</optgroup>` : '')
+        + (f.others.length ? `<optgroup label="${f.suggest.length ? 'alle anderen Beitragsarten' : 'vorhandene Beitragsarten'}">${f.others.map(feeOpt).join('')}</optgroup>` : '');
       dec = {}; sim.forEach(r => { dec[r.line] = r.suggest[0].sameBirth ? r.suggest[0].id : 'neu'; });
       const merged = () => Object.values(dec).filter(v => v !== 'neu').length;
       const sugLabel = c => `zusammenführen mit ${GK.lastFirst(c.name)}${c.member_no ? ` · Nr. ${c.member_no}` : ''}${c.birth_date ? ` · ${deDate(c.birth_date)}` : ''} (${c.why})`;
@@ -698,14 +704,14 @@
           <p class="muted s" style="margin:0 0 10px">So landen die Spalten eurer Datei in Clubwerk. Stimmt etwas nicht, abbrechen und die Zuordnung bzw. die Datei prüfen.</p>
           <div class="imp-fields">${prev.sample.fields.map(f => `<div class="imp-field${f.value ? '' : ' leer'}"><span class="muted s">${esc(f.label)}</span><b translate="no">${f.value ? esc(f.value) : '– leer –'}</b></div>`).join('')}</div></div>` : ''}
         ${feeRows.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Beitragsarten aus der Datei <span class="muted s">(${feeRows.length})</span></h3>
-          <p class="muted s" style="margin:0 0 10px">Je Beitragsart ein Beispielmitglied. Gibt es schon eine ähnliche Beitragsart, bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen. „Nicht übernehmen“: Das Mitglied wird ohne diesen Beitrag importiert.</p>
+          <p class="muted s" style="margin:0 0 10px">Je Beitragsart ein Beispielmitglied. Ihr könnt jede vorhandene Beitragsart zuordnen, eine neue anlegen oder den Beitrag nicht übernehmen – gibt es schon eine ähnliche, ist die Wahl Pflicht. „Nicht übernehmen“: Das Mitglied wird ohne diesen Beitrag importiert.</p>
           ${feeRows.map(f => `<div class="imp-simrow"><div><b translate="no">${esc(f.name)}${f.dept ? ` · ${esc(f.dept)}` : ''}</b><span class="muted s">${euro(f.cents || 0)} ${esc(INTERVAL[f.interval] || f.interval)} · ${f.count} ${f.count === 1 ? 'Mitglied' : 'Mitglieder'} · Beispiel: <span translate="no">${esc(GK.lastFirst(f.example.name))}</span>${f.example.booked ? ` · gebucht bis ${deDate(f.example.booked)}` : ''}</span></div>
-            <select data-fee="${esc(f.key)}" translate="no">${f.exact ? '<option value="">vorhandene verwenden (gleicher Name)</option>' : `${f.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}${f.suggest.map(x => `<option value="${x.id}" ${feeDec[f.key] === x.id ? 'selected' : ''}>vorhandene verwenden: ${esc(x.name)} (${euro(x.cents || 0)} ${esc(INTERVAL[x.interval] || x.interval)})</option>`).join('')}<option value="neu" ${feeDec[f.key] === 'neu' ? 'selected' : ''}>neu anlegen</option><option value="skip" ${feeDec[f.key] === 'skip' ? 'selected' : ''}>nicht übernehmen</option>`}</select></div>`).join('')}</div>` : ''}
-        <div class="scroll" style="max-height:44vh"><table class="tbl"><tr><th>Zeile</th><th>Nr.</th><th>Name</th><th>Aktion</th><th>Abteilungen</th><th>Beiträge</th><th>Mandat</th></tr>
-          ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
+            <select data-fee="${esc(f.key)}" translate="no">${feeOpts(f)}</select></div>`).join('')}</div>` : ''}
+        <div class="scroll" style="max-height:44vh"><table class="tbl"><tr><th>Zeile</th><th>Nr.</th><th>Name</th><th>Aktion</th><th>Abteilungen</th><th>Beiträge</th><th>Zahler</th><th>Mandat</th></tr>
+          ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td class="s">${r.payer ? `<span translate="no">${esc(GK.lastFirst(r.payer.name))}</span>${r.payer.missing ? ' <span class="pill a">nicht gefunden</span>' : r.payer.family ? ' <span class="pill b">Familie</span>' : ''}` : ''}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
       const acts = () => sim.forEach(r => { const td = document.querySelector(`[data-act="${r.line}"]`); if (td) td.innerHTML = dec[r.line] === 'neu' ? '<span class="pill g">neu</span>' : '<span class="pill b">zusammenführen</span>'; });
       document.querySelectorAll('[data-sim]').forEach(sel => { sel.onchange = () => { dec[sel.dataset.sim] = sel.value === 'neu' ? 'neu' : Number(sel.value); $('iKN').textContent = prev.new - merged(); $('iKU').textContent = prev.update + merged(); acts(); }; });
-      document.querySelectorAll('[data-fee]').forEach(sel => { sel.onchange = () => { if (sel.value === '' && !prev.fees.find(f => f.key === sel.dataset.fee).exact) feeDec[sel.dataset.fee] = ''; else if (sel.value !== '') feeDec[sel.dataset.fee] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; $('iKF').textContent = newFees(); }; });
+      document.querySelectorAll('[data-fee]').forEach(sel => { sel.onchange = () => { if (sel.value === '' && prev.fees.find(f => f.key === sel.dataset.fee).exact) delete feeDec[sel.dataset.fee]; else feeDec[sel.dataset.fee] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; $('iKF').textContent = newFees(); }; });
       acts();
       setStep('prev');
     }

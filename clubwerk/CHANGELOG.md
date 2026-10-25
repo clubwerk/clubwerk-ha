@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.40.1
+
+**Mitglieder-Import aus verein.cloud verbessert**
+- Jedes Feld lässt sich jetzt auch bei verein.cloud selbst zuordnen (z. B. eine andere Spalte für Mobil oder ein Feld gar nicht übernehmen). Abteilungen und Beiträge liest Clubwerk weiter automatisch.
+- „Hauptverein“ wird nicht mehr als Abteilung angelegt.
+- Handynummern, bei denen das alte Programm die führende 0 verloren hat (z. B. 1701234567), bekommen sie wieder.
+- Bei den Beitragsarten stehen jetzt alle vorhandenen Beitragsarten zur Auswahl, nicht nur ähnliche. Auch bei gleichem Namen kann man eine andere wählen.
+- Der abweichende Zahler wird in der Vorschau angezeigt („Zahler“, mit Hinweis „Familie“, wenn die Person über einen Familienbeitrag mitläuft). Wird der Zahler nicht gefunden, gibt es einen Hinweis.
+- Zahlungsart „Lastschrift (AZ: …)“ wird als Lastschrift erkannt.
+
 ## 3.40.0
 
 **Mitglieder-Import: erst prüfen, dann übernehmen**

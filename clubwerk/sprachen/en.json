@@ -8075,6 +8075,13 @@
   "(wie bei Rechnungen)": "(as for invoices)",
   "leer =": "empty =",
   "leer = {0} (wie bei Rechnungen)": "empty = {0} (as for invoices)",
-  "leer = wie bei Rechnungen": "empty = as for invoices"
+  "leer = wie bei Rechnungen": "empty = as for invoices",
+  "Abweichender Zahler": "Different payer",
+  "alle anderen Beitragsarten": "all other fee types",
+  "Je Beitragsart ein Beispielmitglied. Ihr könnt jede vorhandene Beitragsart zuordnen, eine neue anlegen oder den Beitrag nicht übernehmen – gibt es schon eine ähnliche, ist die Wahl Pflicht. „Nicht übernehmen“: Das Mitglied wird ohne diesen Beitrag importiert.": "One example member per fee type. You can assign any existing fee type, create a new one or skip the fee – if a similar one already exists, you must choose. ‘Skip’: the member is imported without this fee.",
+  "nicht gefunden": "not found",
+  "verein.cloud: Abteilungen und alle Beiträge mit „gebucht bis“ liest Clubwerk aus den nummerierten Spalten; die übrigen Felder könnt ihr hier anders zuordnen.": "verein.cloud: Clubwerk reads departments and all fees with ‘billed until’ from the numbered columns; you can reassign the other fields here.",
+  "vorhandene Beitragsarten": "existing fee types",
+  "Zeile {0} {1} {2}: Zahler „{3}“ nicht gefunden – wird nicht verknüpft": "Row {0} {1} {2}: payer ‘{3}’ not found – will not be linked"
  }
 }
