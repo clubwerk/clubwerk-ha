@@ -1,5 +1,6 @@
-ARG BUILD_FROM
-FROM ${BUILD_FROM}
+# Offizielles Node.js-Paket fest eingetragen: Neuere Home-Assistant-Versionen geben als BUILD_FROM ihr eigenes
+# Grundsystem vor (ohne Node.js). Docker wählt die passende Geräteart (amd64, aarch64, armv7) selbst.
+FROM node:22-alpine
 
 # Node.js bringt das Grundsystem mit (offizielles Paket, deutsche Zahlen- und Datumsformate eingebaut).
 # poppler (pdftotext) zum Auslesen der Rechnungen, Build-Werkzeuge nur vorübergehend für das SQLite-Modul

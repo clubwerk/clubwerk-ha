@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.39.2
+
+**Bau mit dem neuen Grundsystem repariert**
+- Mit 3.39.0/3.39.1 scheiterte bei neueren Home-Assistant-Versionen das „Neu bauen“ („npm: not found“). Home Assistant hatte statt des offiziellen Node.js-Pakets sein eigenes Grundsystem verwendet. Das Grundsystem steht jetzt fest in der Bauanleitung.
+
 ## 3.39.1
 
 **Neutrale Beispieltexte**
