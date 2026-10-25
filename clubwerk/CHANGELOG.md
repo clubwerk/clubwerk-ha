@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.40.2
+
+**Mitglieder-Import: Familie nur, wenn es passt**
+- Ein abweichender Zahler macht nicht automatisch eine Familie. Wer einen eigenen Beitrag hat (z. B. ein erwachsenes Kind, für das der Vater zahlt), wird nur mit dem Zahler verknüpft.
+- Steht ein Beitrag beim Import auf „nicht übernehmen“, wird die Person dadurch nicht zur Familie.
+- In einer Familie darf neben dem Oberhaupt nur ein weiterer Erwachsener sein (der Partner). Wären es mehr, übernimmt Clubwerk keinen davon als Familie und zeigt in der Vorschau „prüfen“ mit einem Hinweis.
+
 ## 3.40.1
 
 **Mitglieder-Import aus verein.cloud verbessert**

@@ -8082,6 +8082,8 @@
   "nicht gefunden": "not found",
   "verein.cloud: Abteilungen und alle Beiträge mit „gebucht bis“ liest Clubwerk aus den nummerierten Spalten; die übrigen Felder könnt ihr hier anders zuordnen.": "verein.cloud: Clubwerk reads departments and all fees with ‘billed until’ from the numbered columns; you can reassign the other fields here.",
   "vorhandene Beitragsarten": "existing fee types",
-  "Zeile {0} {1} {2}: Zahler „{3}“ nicht gefunden – wird nicht verknüpft": "Row {0} {1} {2}: payer ‘{3}’ not found – will not be linked"
+  "Zeile {0} {1} {2}: Zahler „{3}“ nicht gefunden – wird nicht verknüpft": "Row {0} {1} {2}: payer ‘{3}’ not found – will not be linked",
+  "prüfen": "check",
+  "Zeile {0} {1} {2}: über {3} Jahre und ohne eigenen Beitrag, zahlt über {4} – dort wären mehr als zwei Erwachsene in der Familie. Wird nicht als Familie übernommen, bitte prüfen.": "Row {0} {1} {2}: over {3} and without their own fee, paid by {4} – that family would have more than two adults. Not imported as family – please check."
  }
 }

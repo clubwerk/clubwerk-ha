@@ -145,8 +145,16 @@ function familyFromPayers(memberIds = null, day = today()) {
   const rows = db.prepare(`SELECT p.member_id, p.payer_id FROM mv_person p WHERE p.payer_id IS NOT NULL AND p.payer_id != p.member_id AND p.family_of IS NULL
       AND NOT EXISTS (SELECT 1 FROM mv_person h WHERE h.member_id = p.payer_id AND h.family_of IS NOT NULL)
       AND NOT EXISTS (SELECT 1 FROM mv_member_fee x JOIN mv_fee g ON g.id = x.fee_id WHERE x.member_id = p.member_id AND g.kind != 'zusatz' AND g.interval != 'einmalig' AND (x.end_date IS NULL OR x.end_date >= ?))`).all(day);
+  // höchstens ein weiterer Erwachsener (Partner): sind es mehr, wird keiner davon still zur Familie – das klärt die Verwaltung von Hand
+  const cand = rows.filter(r => (!memberIds || memberIds.includes(r.member_id)) && familyFee(r.payer_id));
+  const birth = id => (db.prepare('SELECT birth_date FROM mv_person WHERE member_id = ?').get(id) || {}).birth_date;
+  const adults = new Map();
+  for (const r of cand) if (isAdult(birth(r.member_id), day)) adults.set(r.payer_id, (adults.get(r.payer_id) || 0) + 1);
   let n = 0;
-  for (const r of rows) if ((!memberIds || memberIds.includes(r.member_id)) && familyFee(r.payer_id)) { db.prepare('UPDATE mv_person SET family_of = ? WHERE member_id = ?').run(r.payer_id, r.member_id); n++; }
+  for (const r of cand) {
+    if (isAdult(birth(r.member_id), day) && adults.get(r.payer_id) + familyMembers(r.payer_id, day).filter(x => x.role === 'partner').length > 1) continue;
+    db.prepare('UPDATE mv_person SET family_of = ? WHERE member_id = ?').run(r.payer_id, r.member_id); n++;
+  }
   return n;
 }
 /** Mitglieder-App „Meine Daten“: was Mitglieder sehen und ändern dürfen (Einstellung der Verwaltung) */

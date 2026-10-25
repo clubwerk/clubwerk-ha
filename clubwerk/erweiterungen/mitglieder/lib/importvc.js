@@ -386,9 +386,22 @@ function register(sh) {
       const key = r.payer.member || r.family; if (!key) return null;
       const w = whoIs(key);
       if (!w) { out.warnings.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: Zahler „${key}“ nicht gefunden – wird nicht verknüpft`); return { name: key, missing: true }; }
-      const own = r.fees.some(f => !isDept(f) && !f.end && f.interval !== 'einmalig');
-      return { name: w.name, family: Boolean(!own && (w.rec ? familyRec(w.rec) : store.familyFee(w.id))) };
+      const fam = famOf(r, w);
+      if (fam && store.isAdult(r.p.birth_date) && adultsAt.get(w.name) > 1) {
+        out.warnings.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: über ${store.childMax()} Jahre und ohne eigenen Beitrag, zahlt über ${w.name} – dort wären mehr als zwei Erwachsene in der Familie. Wird nicht als Familie übernommen, bitte prüfen.`);
+        return { name: w.name, family: false, check: true };
+      }
+      return { name: w.name, family: fam };
     };
+    // Familie nur ohne eigenen Beitrag und mit Familienbeitrag beim Zahler; höchstens ein weiterer Erwachsener (Partner)
+    const famOf = (r, w) => !r.fees.some(f => !isDept(f) && !f.end && f.interval !== 'einmalig') && Boolean(w.rec ? familyRec(w.rec) : store.familyFee(w.id));
+    const adultsAt = new Map();
+    for (const r of recs) {
+      const w = r.payer.member && whoIs(r.payer.member);
+      if (!w || !famOf(r, w) || !store.isAdult(r.p.birth_date)) continue;
+      if (!adultsAt.has(w.name)) adultsAt.set(w.name, w.id ? store.familyMembers(w.id).filter(x => x.role === 'partner').length : 0);
+      adultsAt.set(w.name, adultsAt.get(w.name) + 1);
+    }
     for (const r of recs) {
       const m = matchMember(r);
       const sug = m.id ? [] : candidates(r, exactIds);
@@ -468,7 +481,7 @@ function register(sh) {
         }
         // Beiträge (mit „gebucht bis“)
         for (const f of r.fees) {
-          const fid = feeId(f); if (!fid) continue;
+          const fid = feeId(f); if (!fid) { r.skipped = true; continue; }
           if (isDeptFee(f)) {   // Zusatzbeitrag → „abgerechnet bis“ an der Abteilungszugehörigkeit
             const did = deptId(f.dept);
             let md = db.prepare('SELECT * FROM mv_member_department WHERE member_id = ? AND department_id = ? ORDER BY exit_date IS NOT NULL, id DESC LIMIT 1').get(id, did);
@@ -529,7 +542,7 @@ function register(sh) {
         for (const r of list) if (r !== payers[0] && !db.prepare('SELECT payer_id FROM mv_person WHERE member_id = ?').get(r.id).payer_id) { db.prepare('UPDATE mv_person SET payer_id = ? WHERE member_id = ?').run(payers[0].id, r.id); stats.payers++; }
       }
       store.flattenPayers();
-      stats.families += store.familyFromPayers(recs.map(r => r.id));   // wie bisher: wer über einen Zahler mit Familienbeitrag läuft, gehört zu dessen Familienmitgliedschaft
+      stats.families += store.familyFromPayers(recs.filter(r => !r.skipped).map(r => r.id));   // „nicht übernehmen“ macht niemanden zur Familie   // wie bisher: wer über einen Zahler mit Familienbeitrag läuft, gehört zu dessen Familienmitgliedschaft
     })();
     return stats;
   }
