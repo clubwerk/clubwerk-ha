@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Beispiel</title>
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../theme.css">
+<!-- Gestaltung: nur das Tablet-Kit aus style.css (siehe ERWEITERUNGEN.md → „Styleguide“). Eigene Regeln nur für Dinge, die es dort nicht gibt. -->
+</head>
+<body class="tk">
+<header id="gkHeader"></header>
+<main>
+  <div class="tab-head"><div><h1 class="tab-title">Beispiel</h1><p class="tab-sub">Was hier zu tun ist – ein Satz.</p></div></div>
+  <h2 class="sec">Alle Notizen</h2>
+  <div class="tk-grid" id="list"></div>
+</main>
+<!-- Kopfzeile wie auf allen Tablet-Seiten: data-active = id der Erweiterung -->
+<script src="../../nav.js" data-base="../../" data-active="beispiel"></script>
+<script src="tablet.js"></script>
+</body>
+</html>

@@ -1,0 +1,269 @@
+/* ---------- Grundlagen (Version 2.8: neues Design) ----------
+   Vereinsfarbe kommt aus theme.css (--green …) und taucht als Markenfarbe überall auf:
+   Hauptknöpfe, aktive Menüpunkte, Reiter, Schalter, Links, Kopfbereich. */
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(fonts/jakarta-latin.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'Plus Jakarta Sans'; font-style: normal; font-weight: 200 800; font-display: swap;
+  src: url(fonts/jakarta-latin-ext.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+:root {
+  --green: #1f6b3a;
+  --green-dark: #164b29;
+  --green-soft: #e9f0eb;
+  --green-over: #d2e1d8;
+  --green-line: #b7d0c0;
+  --green-muted: #84ae93;
+  --brand: var(--green); --brand-ink: var(--green-dark); --brand-soft: var(--green-soft);
+  --on-brand: #fff;   /* Schrift auf der Vereinsfarbe – theme.css setzt Dunkel, wenn die Vereinsfarbe hell ist */
+  --ink: #131a16;
+  --muted: #5e6a63;
+  --faint: #66716a;   /* Nebentext: mind. 4,5:1 auf Weiß und Hover-Flächen */
+  --line: #e4e9e5;
+  --line-soft: #eef2ef;
+  --bg: #f5f7f5;
+  --card: #ffffff;
+  --field: #ffffff;
+  --hover: #f2f5f3;
+  --red: #b42318;
+  --red-soft: #fdecea;
+  --red-line: #f1c4be;
+  --on-red: #fff;   /* Schrift auf --red (dunkel: --red ist hell) */
+  --amber: #8a4b08;
+  --amber-soft: #fdf3e2;
+  --amber-line: #f3ddb6;
+  --blue-soft: #e3f0fb;
+  --blue: #1c5d99;
+  --ok: #1a7530; --ok-soft: #e6f4ea;   /* „besser als vorher“ (unabhängig von der Vereinsfarbe) */
+  --shadow: 0 1px 2px rgba(19,26,22,.04), 0 1px 3px rgba(19,26,22,.06);
+  --shadow-pop: 0 16px 40px rgba(19,26,22,.16), 0 2px 6px rgba(19,26,22,.06);
+  --radius: 16px;
+  font-family: 'Plus Jakarta Sans', system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-feature-settings: 'tnum' 0;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-tap-highlight-color: transparent;
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e9efeb; --muted: #9ba69f; --faint: #8a958f; --line: #26302a; --line-soft: #1e2722;
+  --bg: #0d1310; --card: #151c18; --field: #111814; --hover: #1b241f;
+  --red: #f4a79c; --red-soft: #2a1714; --red-line: #5a2a24; --on-red: #2a1714;
+  --amber: #f2c580; --amber-soft: #2a2112; --amber-line: #5a4520;
+  --blue-soft: #132434; --blue: #8ec2f0;
+  --ok: #8fd9a3; --ok-soft: #13261a;
+  --shadow: none; --shadow-pop: 0 16px 40px rgba(0,0,0,.5);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--bg); }
+/* Doppeltippen zoomt nie (schnelles Tippen auf Kacheln und Knöpfe) – Zoomen mit zwei Fingern bleibt möglich */
+html { touch-action: manipulation; }
+button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
+input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.hidden { display: none !important; }
+.muted { color: var(--muted); }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 44px; padding: 0 18px; border-radius: 10px;
+  background: var(--card); border: 1px solid var(--line); font-weight: 600; color: var(--ink);
+  transition: background .15s, border-color .15s, transform .05s;
+}
+.btn:hover { background: var(--hover); }
+a.btn { text-decoration: none; color: var(--ink); }
+a.btn.primary { color: #fff; }
+.btn:active { transform: scale(0.98); }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 700; }
+.btn.primary:hover { background: var(--green-dark); border-color: var(--green-dark); }
+:root[data-theme="dark"] .btn.primary:hover { background: var(--green-muted); border-color: var(--green-muted); }
+.btn.primary:disabled, .btn.danger:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); }
+.btn.danger { color: var(--red); border-color: var(--red-line); background: var(--red-soft); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--hover); }
+.btn.small { min-height: 34px; padding: 0 12px; font-size: 13.5px; border-radius: 9px; }
+/* Symbolknopf in Tabellenzeilen (Aktion als Symbol mit Tooltip): 34 × 34 px, gleich hoch wie .btn.small */
+.btn.ico { width: 34px; min-height: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; vertical-align: middle; }
+.btn.ico svg { width: 17px; height: 17px; flex: none; }
+.btn.ico.danger-h:hover { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+.acts { display: inline-flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
+.toast {
+  position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+  background: var(--ink); color: var(--bg); padding: 13px 20px; border-radius: 12px; box-shadow: var(--shadow-pop);
+  font-size: 15px; font-weight: 600; z-index: 50; width: max-content; max-width: min(90vw, 560px); text-align: center;
+}
+.toast.error { background: var(--red); color: var(--on-red); }
+.btn:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); box-shadow: none; cursor: not-allowed; }   /* gesperrt: grau und lesbar, nicht blass */
+/* Kopfzeile am Tablet (alle Seiten, auch Erweiterungen) */
+#topnav a { white-space: nowrap; }
+@media (max-width: 640px) {
+  #topnav { flex-wrap: wrap; row-gap: 4px; column-gap: 18px !important; }
+}
+
+/* ---------- Kopfzeile am Tablet: auf allen Seiten identisch ----------
+   Links Vereinszeichen + Name, Mitte die Bereiche (gleich breite Reiter, exakt mittig), rechts Uhr + Verwaltung.
+   Links und rechts gleich breit, damit die Mitte wirklich mittig steht. Vereinsfarbe: Zeichen, Strich oben, aktive Markierung. */
+/* Wechsel zwischen Tablet-Seiten: die Kopfzeile bleibt stehen, nur der Inhalt blendet kurz über (Browser ohne Unterstützung laden wie bisher) */
+@media (prefers-reduced-motion: no-preference) {
+  @view-transition { navigation: auto; }
+  ::view-transition-group(root) { animation-duration: .12s; }
+}
+#gkHeader { view-transition-name: gk-kopf; }
+#gkHeader { display: grid; grid-template-columns: 240px minmax(0, 1fr) 240px; align-items: center; gap: 16px; height: 72px; padding: 0 24px;
+  background: var(--card); color: var(--ink); border-bottom: 1px solid var(--line); box-shadow: inset 0 3px 0 var(--brand); box-sizing: border-box; flex: none; }
+#gkHeader .brand { grid-column: 1; display: flex; align-items: center; gap: 12px; min-width: 0; }
+#gkHeader .mark { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand); color: var(--on-brand); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; letter-spacing: .02em; }
+#gkHeader.haslogo .mark { display: none; }
+#gkHeader .logo-badge { display: flex; width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: #fff; border: 1px solid var(--line); padding: 3px; align-items: center; justify-content: center; box-sizing: border-box; }
+#gkHeader .logo-badge img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+#gkHeader .bt { display: flex; flex-direction: column; min-width: 0; }
+#gkHeader h1 { margin: 0; font-size: 16px; line-height: 20px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gkHeader #club2 { font-size: 13px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#gkHeader #club2:empty { display: none; }
+#gkHeader .topnav { grid-column: 2; justify-self: center; display: grid; grid-auto-flow: column; grid-auto-columns: auto; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); max-width: 100%; }
+#gkHeader .topnav a { height: 44px; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 0 20px; min-width: 0; box-sizing: border-box; border-radius: 10px; color: var(--muted); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; min-width: 0; overflow: hidden; }
+#gkHeader .topnav a span { overflow: hidden; text-overflow: ellipsis; }
+#gkHeader .topnav a svg { flex: none; }
+#gkHeader .topnav a.on { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(19,26,22,.12); }
+#gkHeader .topnav a.on svg { color: var(--brand); }
+#gkHeader .topnav .ext { font-size: 12px; opacity: .7; }
+#gkHeader .hright { grid-column: 3; grid-row: 1; justify-self: end; display: flex; align-items: center; gap: 16px; }
+#gkHeader .clock { font-size: 15px; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+#gkHeader .admin { height: 44px; display: flex; align-items: center; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); color: var(--ink); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+#gkHeader .admin.on { border-color: var(--brand); color: var(--brand-ink); }
+#gkHeader .hright, #gkHeader .brand { min-width: 0; overflow: hidden; }
+@media (max-width: 1366px) { #gkHeader .topnav a { padding: 0 14px; } }   /* vier Reiter („Mitglied werden“) passen bei 1280 px ohne Abschneiden */
+@media (max-width: 1366px) { #gkHeader .topnav.many a { padding: 0 12px; font-size: 14px; } #gkHeader .topnav.many a svg { display: none; } }
+@media (max-width: 1100px) {
+  #gkHeader { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; padding: 0 16px; }
+  #gkHeader .clock { display: none; }
+  #gkHeader .topnav a { padding: 0 12px; font-size: 14px; }
+}
+/* zweizeilig, wenn die Reiter nicht in eine Zeile passen (nav.js setzt .stack) */
+#gkHeader.stack { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 10px 16px; row-gap: 10px; }
+#gkHeader.stack .hright { grid-column: 2; }
+#gkHeader.stack .clock { display: inline; }
+#gkHeader.stack .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(max-content, 1fr); overflow-x: auto; scrollbar-width: none; }
+#gkHeader.stack .topnav::-webkit-scrollbar { display: none; }
+#gkHeader.stack .topnav a { padding: 0 12px; }
+@media (max-width: 640px) {
+  #gkHeader { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 10px 12px; row-gap: 10px; }
+  #gkHeader .hright { grid-column: 2; }
+  #gkHeader .clock { display: none; }
+  #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
+  #gkHeader .topnav a { padding: 0 4px; font-size: 13.5px; }
+  #gkHeader .topnav a svg { display: none; }
+  #gkHeader .topnav a, #gkHeader .topnav a span { white-space: normal; text-align: center; line-height: 1.15; text-overflow: clip; hyphens: manual; }   /* Trennstellen setzt nav.js (weiche Trennstriche) */  /* fünf und mehr Reiter am Handy: nichts abschneiden – volle Beschriftung, seitlich wischbar */
+  #gkHeader .topnav.many { grid-auto-columns: max-content; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; justify-content: start; }
+  #gkHeader .topnav.many::-webkit-scrollbar { display: none; }
+  #gkHeader .topnav.many a { padding: 0 12px; }
+  #gkHeader .topnav.many a, #gkHeader .topnav.many a span { white-space: nowrap; }
+}
+
+/* ---------- Seitenkopf am Tablet: auf allen Seiten gleich ----------
+   24 px unter der Kopfzeile, Titel 28/36 px fett, Untertitel 14/20 px gedämpft, rechts optional Bedienelemente (Suche, Bereichswahl).
+   Die Seiten binden ihn als <div class="tab-head"><div><h1 class="tab-title">…</h1><p class="tab-sub">…</p></div>…</div> ein. */
+.tab-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 12px 16px; align-items: center; margin: 0 0 16px; }
+.tab-head > :first-child { min-width: 0; min-height: 60px; display: flex; flex-direction: column; justify-content: flex-start; }   /* Titelblock immer 60 px (Titel + Untertitel) – Titel auf allen Seiten auf gleicher Höhe */
+.tab-title { margin: 0; font-size: 28px; line-height: 36px; font-weight: 700; letter-spacing: -.02em; color: var(--ink); overflow-wrap: anywhere; }
+.tab-sub { margin: 2px 0 0; font-size: 15px; line-height: 22px; color: var(--muted); }
+@media (max-width: 640px) { .tab-head { grid-template-columns: minmax(0, 1fr); } .tab-title { font-size: 22px; line-height: 30px; } }
+
+/* =====================================================================================================
+   TABLET-KIT – verbindlicher Styleguide für alle Tablet-Seiten (Verkauf und Module)
+   Vorbild ist die Verkaufsseite. Jede Tablet-Seite hat <body class="tk"> und baut sich aus diesen Bausteinen:
+     <main>                         Seite: volle Breite, 24 px Rand (am Handy 16/12 px)
+     .tab-head / .tab-title / .tab-sub   Seitenkopf (oben) – Untertitel sagt immer, was man hier tut
+     h2.sec                         Abschnittstitel: 12 px, Großbuchstaben, gedämpft
+     .tk-grid                       Raster: 4 Spalten (ab 1600 px 5, schmal 2, Handy 1); .span2 = doppelt breit
+     .tk-tile                       Kachel 80 px hoch: [Symbol/Initialen] Titel + Zeile darunter [Marke rechts]
+     .tk-tile.big                   Aktionskachel (Symbol oben, Titel, Text) – z. B. „Mitglied werden“
+     .tk-ico / .av                  Symbol 44 px (eckig) bzw. Initialen 44 px (rund)
+     .tk-chip(.g/.a/.r)             Statusmarke rechts in der Kachel
+     .tk-empty                      Leerzustand: gestrichelter Kasten mit kurzem Satz
+     .tk-big                        großer Hauptknopf (64 px) – höchstens einer je Bereich
+     .tk-cols                       zwei Spalten nebeneinander (schmal untereinander)
+     .overlay/.dialog/.pad/.pin-dots/.err   Fenster und PIN-Eingabe
+     .gate/.gatecard                Sperrseite (Tablet-Passwort)
+   Farben nur über die Variablen (--brand, --muted …) – so stimmen hell, dunkel und die Vereinsfarbe von selbst.
+   ===================================================================================================== */
+body.tk { user-select: none; -webkit-user-select: none; overscroll-behavior: none; background: var(--bg); }
+body.tk main { padding: 24px 24px 40px; }
+body.tk h2.sec { margin: 20px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: baseline; gap: 10px; }   /* Token statt fester Farbe – lesbar in Hell und Dunkel */
+body.tk h2.sec small { font-weight: 500; font-size: 12px; color: var(--faint); letter-spacing: 0; text-transform: none; }
+body.tk .tab-head + h2.sec, body.tk .tk-cols h2.sec { margin-top: 0; }
+:root { --tk-cols: 4; }
+@media (min-width: 1600px) { :root { --tk-cols: 5; } }
+@media (max-width: 900px) { :root { --tk-cols: 2; } }
+@media (max-width: 520px) { :root { --tk-cols: 1; } }
+.tk-grid { display: grid; grid-template-columns: repeat(var(--tk-cols), minmax(0, 1fr)); gap: 16px; }
+.tk-grid > .span2 { grid-column: span 2; }
+@media (max-width: 520px) { .tk-grid > .span2 { grid-column: auto; } }
+.tk-tile { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 12px 16px; border-radius: 16px; text-align: left; background: var(--card); border: 1px solid var(--line); color: var(--ink); font: inherit; box-sizing: border-box; min-width: 0; transition: transform .05s, border-color .12s; }
+button.tk-tile:active { transform: scale(.98); }
+.tk-tile > .tk-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.tk-tile > .tk-txt > b { font-size: 17px; line-height: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-tile > .tk-txt > span { color: var(--muted); font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tk-tile.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.tk-tile.warn { border-color: var(--red); box-shadow: inset 0 0 0 1px var(--red); }
+.tk-tile.big { flex-direction: column; align-items: flex-start; gap: 10px; padding: 20px; min-height: 160px; }
+.tk-tile.big > .tk-txt > b { font-size: 20px; line-height: 26px; white-space: normal; }
+.tk-tile.big > .tk-txt > span { font-size: 15px; line-height: 22px; white-space: normal; }
+.tk-ico { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; }
+.tk-ico svg { width: 22px; height: 22px; }
+.tk-date { width: 56px; height: 56px; flex: 0 0 56px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; font-variant-numeric: tabular-nums; }   /* Datumsblock wie in Verwaltung und App */
+.tk-date b { font-size: 17px; font-weight: 800; } .tk-date span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.tk-chip { flex: none; font-size: 13px; line-height: 18px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--hover); color: var(--muted); white-space: nowrap; }
+.tk-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .tk-chip.a { background: var(--amber-soft); color: var(--amber); } .tk-chip.r { background: var(--red-soft); color: var(--red); }
+.tk-grid > .tk-empty { grid-column: 1 / -1; }
+.tk-grid > .tk-tile.big:only-child { grid-column: 1 / -1; }   /* einzige Aktion eines Abschnitts: ganze Zeile wie Leerzustand – keine halbe Karte mit Loch daneben */
+.tk-empty { padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--line); color: var(--muted); font-size: 15px; line-height: 22px; background: transparent; }
+.tk-big { display: flex; align-items: center; justify-content: center; gap: 10px; width: 100%; min-height: 64px; border-radius: 16px; border: 0; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 18px; font-weight: 700; }
+.tk-big:active { transform: scale(.99); }
+.tk-cols { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 900px) { .tk-cols { grid-template-columns: minmax(0, 1fr); } }
+/* Fenster und PIN-Eingabe */
+body.tk .overlay { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 20; display: flex; align-items: center; justify-content: center; padding: 20px; }
+body.tk .overlay.hidden { display: none; }
+body.tk .dialog { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 24px; width: min(560px, 100%); max-height: 92vh; overflow: auto; box-shadow: var(--shadow-pop); text-align: center; }
+body.tk .dialog h2 { margin: 0 0 6px; font-size: 22px; }
+body.tk .dialog .sub, body.tk .dialog > .muted { color: var(--muted); font-size: 16px; }
+body.tk .dialog .sub { margin: 0 0 14px; }
+body.tk .pin-dots { display: flex; justify-content: center; gap: 14px; margin: 18px 0; }
+body.tk .pin-dots span { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--brand); }
+body.tk .pin-dots span.f { background: var(--brand); }
+body.tk .pin-dots span.opt { opacity: .3; }   /* Stellen 5 und 6 sind freiwillig (PIN mit 4 bis 6 Ziffern) */
+body.tk .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+body.tk .pad button { height: 68px; border-radius: 14px; background: var(--hover); color: var(--ink); font-size: 26px; font-weight: 700; border: 0; }
+body.tk .pad button:active { background: var(--brand-soft); }
+body.tk .pad button.fn { font-size: 17px; background: transparent; border: 1px solid var(--line); }
+body.tk .pad button[data-k="ok"] { background: var(--brand); border-color: var(--brand); color: var(--on-brand); font-weight: 700; }   /* OK ist überall die Hauptaktion */
+body.tk .err { color: var(--red); min-height: 24px; text-align: center; margin-top: 10px; font-weight: 700; }
+body.tk .err:empty { min-height: 0; margin-top: 0; }   /* ohne Meldung kein Leerraum unter dem Ziffernfeld */
+/* Erfolgsmeldung im Fenster: runder Haken (rot: Warnung) */
+body.tk .done { text-align: center; }
+body.tk .done .big { width: 72px; height: 72px; margin: 4px auto 8px; border-radius: 36px; background: var(--brand); color: var(--on-brand); font-size: 40px; line-height: 72px; }
+body.tk .done .big.r { background: var(--red); }
+/* Initialen (rund) – wie im Verkauf */
+body.tk .av { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 22px; background: var(--ab, var(--brand-soft)); color: var(--af, var(--brand-ink)); display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; font-style: normal; overflow: hidden; }
+body.tk .av img { width: 100%; height: 100%; object-fit: cover; display: block; border-radius: inherit; }
+/* Sperrseite (Tablet-Passwort) */
+body.tk .gate { position: fixed; inset: 0; z-index: 60; background: var(--bg); display: flex; align-items: center; justify-content: center; padding: 16px; }
+body.tk .gatecard { width: min(440px, 100%); background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 30px 28px; box-shadow: var(--shadow-pop);
+  display: flex; flex-direction: column; align-items: stretch; text-align: center; gap: 14px; user-select: text; -webkit-user-select: text; border-top: 4px solid var(--brand); }
+body.tk .gatecard h2 { margin: 0; font-size: 23px; }
+body.tk .gatecard p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.45; }
+body.tk .gatecard input { height: 56px; border: 1px solid var(--line); border-radius: 12px; padding: 0 16px; font-size: 21px; text-align: center; background: var(--field); color: var(--ink); }
+body.tk .gatecard input:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+body.tk .gatecard .gerr { color: var(--red); font-weight: 700; font-size: 15px; } body.tk .gatecard .gerr:empty { display: none; }
+body.tk .gatecard .btn { height: 56px; font-size: 18px; justify-content: center; }
+@media (max-width: 640px) { body.tk main { padding: 16px 12px 28px; } .tk-grid { gap: 10px; } body.tk .gatecard { padding: 26px 20px; } }
+
+/* ---------- Für alle Oberflächen (Verwaltung, Tablet, Mitglieder-App) ---------- */
+/* Offenes Fenster: Seite dahinter steht still, Scrollen bleibt im Fenster */
+.overlay { overscroll-behavior: contain; }
+html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body, html:has(dialog[open]), html:has(dialog[open]) body, html:has(.vh-sheet.show), html:has(.vh-sheet.show) body { overflow: hidden; }
+.vh-sheet { overscroll-behavior: contain; }
+/* iPhone zoomt in Eingabefelder unter 16 px hinein – am Handy deshalb immer 16 px */
+@media (max-width: 640px) {
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), select, textarea { font-size: 16px !important; }
+}

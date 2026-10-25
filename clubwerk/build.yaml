@@ -1,0 +1,5 @@
+# Offizielles Node.js-Paket (Node 22 auf aktuellem Alpine). Sicherheitskorrekturen von Node kommen damit schon beim nächsten „Neu bauen“.
+build_from:
+  aarch64: node:22-alpine
+  amd64: node:22-alpine
+  armv7: node:22-alpine

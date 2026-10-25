@@ -1,0 +1,5 @@
+# Add-on-Repository für Home Assistant
+# Bei „url“ die Adresse des eigenen GitHub-Repositorys eintragen, z. B. https://github.com/clubwerk/clubwerk-ha
+name: Clubwerk
+url: https://github.com/clubwerk/clubwerk-ha
+maintainer: Clubwerk

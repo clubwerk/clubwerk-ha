@@ -1,0 +1,113 @@
+{
+ "members": [
+  {
+   "name": "Verein (kostenfrei)",
+   "kind": "verein"
+  },
+  {
+   "name": "Gast (bar)",
+   "kind": "gast"
+  }
+ ],
+ "articles": [
+  {
+   "name": "Bier 0,33",
+   "category": "Bier",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 10
+  },
+  {
+   "name": "Pils 0,33",
+   "category": "Bier",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 11
+  },
+  {
+   "name": "Radler 0,33",
+   "category": "Bier",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 12
+  },
+  {
+   "name": "Bier alkoholfrei 0,33",
+   "category": "Bier",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 13
+  },
+  {
+   "name": "Weizen 0,5",
+   "category": "Weizen",
+   "price_cents": 200,
+   "crate_size": 20,
+   "sort": 20
+  },
+  {
+   "name": "Weizen alkoholfrei 0,5",
+   "category": "Weizen",
+   "price_cents": 200,
+   "crate_size": 20,
+   "sort": 21
+  },
+  {
+   "name": "Cola 0,33",
+   "category": "Softdrinks",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 30
+  },
+  {
+   "name": "Cola Zero 0,33",
+   "category": "Softdrinks",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 31
+  },
+  {
+   "name": "Limonade 0,33",
+   "category": "Softdrinks",
+   "price_cents": 150,
+   "crate_size": 24,
+   "sort": 32
+  },
+  {
+   "name": "Apfelschorle 0,5",
+   "category": "Softdrinks",
+   "price_cents": 150,
+   "crate_size": 20,
+   "sort": 33
+  },
+  {
+   "name": "Wasser 0,7",
+   "category": "Wasser",
+   "price_cents": 100,
+   "crate_size": 12,
+   "sort": 40
+  },
+  {
+   "name": "Kaffee",
+   "category": "Kaffee",
+   "price_cents": 100,
+   "crate_size": 1,
+   "sort": 50,
+   "track_stock": 0
+  },
+  {
+   "name": "Süßes",
+   "category": "Snacks",
+   "price_cents": 100,
+   "crate_size": 1,
+   "sort": 60
+  },
+  {
+   "name": "Chips",
+   "category": "Snacks",
+   "price_cents": 150,
+   "crate_size": 1,
+   "sort": 61
+  }
+ ]
+}

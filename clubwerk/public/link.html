@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6b3a">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<script src="theme-init.js"></script>
+<title>Clubwerk</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="theme.css">
+<style>
+  html, body { height: 100%; }
+  body { height: 100dvh; }   /* iPhone: sichtbare Höhe ohne die Safari-Leisten */
+  body { display: flex; flex-direction: column; overflow: hidden; }
+  iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #fff; }
+  .msg { margin: 40px auto; color: var(--muted); font-size: 18px; text-align: center; }
+</style>
+</head>
+<body>
+<header id="gkHeader"></header>
+<iframe id="frame" title="Externe Seite" referrerpolicy="no-referrer" allow="fullscreen; clipboard-write" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox allow-downloads"></iframe>
+<script src="nav.js" data-base="" data-active="link"></script>
+<script src="link.js"></script>
+</body>
+</html>

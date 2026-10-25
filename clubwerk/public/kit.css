@@ -1,0 +1,274 @@
+/* ---------- Bausteine für Mitglieder-Seiten (Mitglieder-App, Beregnung, Zugang am Tablet) – Design 2026 ----------
+   Nutzt die Farben aus style.css/theme.css: Vereinsfarbe im Kopf, an der Kante jeder Kachel, auf Knöpfen und in der Tab-Leiste.
+   Hell und dunkel (theme-init.js setzt data-theme nach Gerät oder Wahl). */
+.vh, .vh * { box-sizing: border-box; }
+body.vh-page { margin: 0; background: var(--bg); color: var(--ink); min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.hidden { display: none !important; }
+
+/* Kopf (nur auf dem Handy / eigener Port – am Tablet steht die gemeinsame Kopfzeile) */
+.vh-top { background: var(--green); color: var(--on-brand); display: grid; grid-template-columns: auto minmax(0, 1fr); grid-template-rows: auto auto; column-gap: 12px; align-items: center;
+  text-align: left; padding: calc(14px + env(safe-area-inset-top)) 16px 16px; }
+.vh-top .vh-logo { grid-row: 1 / 3; width: 48px; height: 48px; border-radius: 14px; background: #fff; display: flex; align-items: center; justify-content: center; padding: 5px; }
+.vh-top .vh-logo img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
+.vh-top .vh-logo.hidden + h1, .vh-top .vh-logo.hidden ~ p { grid-column: 1 / 3; }
+.vh-top { grid-template-columns: auto minmax(0, 1fr) auto; }
+.vh-top h1, .vh-top p { grid-column: 2; }
+.vh-ava { grid-column: 3; grid-row: 1 / 3; width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255,255,255,.85); background: rgba(255,255,255,.18); color: #fff; font: inherit; font-size: 15px; font-weight: 800; padding: 0; overflow: hidden; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.vh-ava.hidden { display: none; } .vh-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vh-photo { width: 128px; height: 128px; border-radius: 50%; margin: 4px auto 14px; background: var(--hover); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 40px; font-weight: 800; color: var(--muted); }
+.vh-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vh-uses { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; text-align: left; } .vh-uses label { display: flex; gap: 10px; align-items: center; font-size: 15px; } .vh-uses input { width: 20px; height: 20px; flex: none; }
+.vh-pick { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 14px; border: 1px dashed var(--line); font-weight: 700; color: var(--brand-ink); margin-bottom: 12px; cursor: pointer; }
+.vh-pick input { display: none; }
+
+.vh-top h1 { margin: 0; font-size: 18px; line-height: 22px; font-weight: 800; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; align-self: end; }
+.vh-top p { margin: 2px 0 0; font-size: 12px; line-height: 16px; letter-spacing: .06em; text-transform: uppercase; opacity: .85; font-weight: 600; align-self: start; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+body.embedded .vh-top { display: none; }
+.vh-page:not(.embedded) .vh-embed-only { display: none; }   /* Seitenkopf nur am Tablet (eingebettet unter der Kopfzeile) */
+.vh-main .tab-head { margin-bottom: 4px; }
+
+.vh-main { width: 100%; max-width: 520px; margin: 0 auto; padding: 16px 16px calc(110px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; flex: 1 0 auto; }
+body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
+
+/* Statuszeile */
+.vh-status { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--muted); min-height: 44px; }
+.vh-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
+.vh-dot.ok { background: #2f9e5b; box-shadow: 0 0 0 4px rgba(47,158,91,.15); }
+.vh-dot.err { background: var(--red); }
+.vh-dot.busy { background: #d9962b; animation: vhblink .8s ease-in-out infinite alternate; }
+@keyframes vhblink { to { opacity: .3; } }
+
+/* Bereiche der App: Tab-Leiste unten (Daumenreichweite), Symbol über dem Namen */
+.vh-tabs { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; justify-content: center; gap: 6px;
+  background: var(--card); border-top: 1px solid var(--line); padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); }
+.vh-tabs button { flex: 1; max-width: 200px; min-height: 52px; border-radius: 14px; font-size: 12.5px; font-weight: 700; color: var(--muted);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.vh-tabs button svg { width: 22px; height: 22px; }
+.vh-tabs button { min-width: 0; padding: 0 4px; } .vh-tabs button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* Beschriftung immer einzeilig */
+@media (max-width: 420px) { .vh-tabs { gap: 2px; padding-left: 6px; padding-right: 6px; } .vh-tabs button { font-size: 11px; padding: 0 1px; letter-spacing: -.01em; } }   /* sechs Bereiche passen ausgeschrieben nebeneinander */
+.vh-tabs button.on { background: var(--brand-soft); color: var(--brand-ink); }
+.vh-tabs button.wlan { opacity: .45; }
+.vh-tabs button.wlan.on { opacity: .7; }
+.vh-wlan { display: grid; justify-items: center; gap: 8px; text-align: center; color: var(--muted); padding: 40px 18px; max-width: 360px; margin: 0 auto; line-height: 1.5; }
+.vh-wlan svg { width: 44px; height: 44px; color: var(--muted); }
+.vh-wlan b { color: var(--ink); font-size: 17px; }
+.vh-wlan-diag { margin-top: 6px; font-size: 12px; color: var(--muted); opacity: .8; word-break: break-word; }
+.vh-wlan .vh-btn { margin-top: 14px; padding: 0 18px; }
+
+.vh-h { margin: 8px 0 0; font-size: 16px; font-weight: 800; color: var(--ink); }
+.vh-note { font-size: 14px; color: var(--muted); text-align: center; line-height: 1.45; margin: 4px 0 0; }
+.vh-empty { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); margin: 0 0 12px; color: var(--muted); font-size: 14px; }   /* leerer Zustand: wie eine Karte (einheitlich mit .vh-card + .vh-none) */
+
+/* ---------- Gerätekachel (Beregnung, Türen) – EINE Gestaltung für Mitglieder-App, Tablet, Beregnungs-Webapp und Verwaltung ----------
+   Symbol oben (44 px), Name, Zeile darunter, Bedienknöpfe unten über die ganze Breite. Raster .vh-tiles: Handy 2, ab 700 px 3, ab 1000 px 4 Spalten. */
+.vh-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 640px) { .vh-tiles > .vh-tile:only-child { grid-column: 1 / -1; } }   /* Handy: ein einzelnes Gerät nimmt die ganze Breite ein */
+@media (min-width: 700px) { .vh-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; } }
+@media (min-width: 1000px) { .vh-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.vh-tiles > .vh-empty { grid-column: 1 / -1; margin: 0; }
+.vh-tile { position: relative; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; align-items: stretch; justify-content: space-between; gap: 12px; min-height: 150px; box-sizing: border-box; min-width: 0; transition: background .15s; }
+button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; }
+.vh-tile::before { content: ''; width: 44px; height: 44px; flex: none; border-radius: 12px; background: var(--brand-soft); }
+.vh-tile::after { content: ''; position: absolute; left: 27px; top: 27px; width: 22px; height: 22px; background: var(--brand-ink); -webkit-mask: var(--vh-ico) center / contain no-repeat; mask: var(--vh-ico) center / contain no-repeat; }
+.vh-tiles.doors { --vh-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='10' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E"); }
+.vh-tiles.zones { --vh-ico: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2.7s6 6.4 6 11.3a6 6 0 0 1-12 0c0-4.9 6-11.3 6-11.3z'/%3E%3C/svg%3E"); }
+.vh-tile .vh-tx { min-width: 0; flex: 1; display: flex; flex-direction: column; }
+.vh-tile .vh-name { display: block; font-size: 17px; font-weight: 800; line-height: 1.25; overflow-wrap: anywhere; }
+.vh-tile .vh-sub { display: block; font-size: 13.5px; color: var(--muted); margin-top: 3px; line-height: 1.35; }
+.vh-tile .vh-acts { display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+.vh-tile.run { background: var(--brand-soft); border-color: var(--green-line, var(--brand)); }
+.vh-tile.run::before { background: var(--card); }
+.vh-tile.run .vh-sub { color: var(--brand-ink); font-weight: 600; }
+.vh-tile.wait { background: var(--hover); border-color: var(--amber-line, var(--amber)); }
+.vh-tile.off { opacity: .75; } .vh-tile.off::before { background: var(--hover); } .vh-tile.off::after { background: var(--muted); }
+.vh-tile.off .vh-name { color: var(--muted); }
+.vh-tile.warn { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber); }
+.vh-btn { min-height: 44px; border-radius: 12px; background: var(--brand); color: var(--on-brand); font-size: 15px; font-weight: 700; padding: 0 10px; white-space: nowrap; border: 1px solid var(--brand); }
+.vh-btn.sec { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 600; }
+.vh-btn:disabled { opacity: .4; cursor: default; }
+.vh-pill { min-height: 44px; border-radius: 12px; background: var(--card); color: var(--brand-ink); border: 1px solid var(--green-line); font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.vh-pill.ghost { background: var(--brand); color: var(--on-brand); border-color: var(--brand); font-weight: 700; }
+.vh-pill .vh-rd { width: 8px; height: 8px; border-radius: 50%; background: var(--brand); animation: vhblink .9s ease-in-out infinite alternate; }
+.vh-stop1 { min-height: 44px; border-radius: 12px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); font: inherit; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
+.vh-tile.off .vh-pill.ghost { background: var(--hover); color: var(--muted); border-color: var(--line); }
+
+.vh-stop { width: 100%; min-height: 56px; border-radius: 16px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); font-size: 16px; font-weight: 800; margin-top: 6px; }
+
+/* Dialog (PIN, Einladung, Hinweise) */
+.vh-sheet { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+.vh-sheet.show { display: flex; }
+.vh-box { background: var(--card); border: 1px solid var(--line); border-radius: 22px; padding: 24px 22px 20px; width: 100%; max-width: 360px; text-align: center; box-shadow: var(--shadow-pop); }   /* ohne farbigen Randstreifen – wie alle Fenster */
+.vh-box h2 { margin: 0 0 6px; font-size: 20px; }
+.vh-box p { margin: 0 0 16px; font-size: 14.5px; color: var(--muted); line-height: 1.45; text-wrap: pretty; }
+.vh-input, .vh-select { width: 100%; min-height: 54px; border: 1px solid var(--line); border-radius: 14px; padding: 0 14px; font-size: 18px; background: var(--field); color: var(--ink); margin-bottom: 10px; }
+.vh-input, .vh-select { box-sizing: border-box; max-width: 100%; }
+/* Datum/Uhrzeit auf dem iPhone: sonst breiter als das Fenster und mittig */
+.vh-input[type=date], .vh-input[type=time] { -webkit-appearance: none; appearance: none; display: block; min-width: 0; text-align: left; line-height: 52px; }
+.vh-input[type=date]::-webkit-date-and-time-value, .vh-input[type=time]::-webkit-date-and-time-value { text-align: left; }
+.vh-sheet .vh-box { max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }
+.vh-input.pin { text-align: center; font-size: 24px; letter-spacing: .4em; font-weight: 700; }
+.vh-input.pin::placeholder { letter-spacing: normal; font-size: 16px; font-weight: 500; }
+.vh-input:focus, .vh-select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+.vh-err { min-height: 20px; font-size: 14px; font-weight: 600; color: var(--red); margin-bottom: 8px; } .vh-err:empty { min-height: 0; margin-bottom: 4px; }   /* ohne Meldung kein Loch über dem Knopf */
+.vh-row { display: flex; gap: 10px; }
+.vh-row button { flex: 1; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; }
+.vh-row .ok { background: var(--brand); color: var(--on-brand); flex: 1.4; }
+.vh-row .no { background: var(--hover); color: var(--muted); border: 1px solid var(--line); }
+
+.vh-toast { position: fixed; bottom: calc(84px + env(safe-area-inset-bottom)); left: 50%; width: max-content; transform: translateX(-50%) translateY(12px);   /* unten über der Reiterleiste – verdeckt nie Kopfzeile oder Vereinsnamen */
+  background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-size: 15px; font-weight: 600; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 110; max-width: min(92vw, 440px); text-align: center; box-shadow: var(--shadow-pop); }
+.vh-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.vh-toast.err { background: var(--red); color: var(--on-red); }
+
+/* Hinweis „Auf den Home-Bildschirm“ (iPhone) und Übernahme-Code */
+.vh-box.vh-hint { max-width: none; text-align: left; box-shadow: var(--shadow); border-top: 4px solid var(--brand); }
+.vh-box.vh-hint h2 { font-size: 17px; }
+.vh-box.vh-hint p { margin: 0 0 10px; }
+.vh-small { font-size: 13px !important; }
+.vh-codewrap { position: relative; margin-bottom: 12px; }
+.vh-codewrap .vh-code { margin-bottom: 0; padding-left: 56px; padding-right: 56px; }
+.vh-copy { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+.vh-copy:active { background: var(--brand-soft); }
+.vh-code { font: 700 22px/1.2 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-align: center; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; background: var(--field); color: var(--ink); margin-bottom: 12px; user-select: all; }
+.vh-input.vh-codein { text-align: center; font: 700 20px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .12em; text-transform: uppercase; }
+#lockSheet .vh-row { margin-top: 14px; }
+/* Freischalten mit SMS-Code */
+.vh-step { padding-bottom: 14px; margin-bottom: 16px; border-bottom: 1px solid var(--line); }
+.vh-step .vh-input { margin: 10px 0 0; }
+.vh-skip { display: block; width: 100%; margin-top: 10px; min-height: 40px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 14px; text-decoration: underline; }
+.vh-skip.hidden { display: none; }
+.vh-foot { display: flex; justify-content: center; padding: 18px 0 6px; margin-top: auto; }   /* Sprachwahl immer unten – bei kurzem Inhalt am unteren Rand über der Tab-Leiste, sonst nach dem Inhalt */
+.vh-langbtn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line, #dfe3dc); background: transparent; color: var(--muted, #5d6b62); font: inherit; font-size: 14px; }
+.vh-langs { display: grid; gap: 8px; margin: 12px 0; }
+.vh-lang { height: 46px; border-radius: 12px; border: 1px solid var(--line, #dfe3dc); background: var(--card, #fff); color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 0 14px; }
+.vh-lang.on { border-color: var(--green); background: var(--green-soft); }
+/* Konto-Menü und Benachrichtigungen (Mitglieder-App) */
+.vh-menu { display: grid; gap: 8px; margin: 6px 0 2px; }
+.vh-menu button { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; padding: 0 16px; }
+.vh-switch { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 6px 0 10px; font-size: 16px; font-weight: 700; text-align: left; }
+.vh-switch input { width: 24px; height: 24px; accent-color: var(--brand); flex: none; }
+.vh-uses span small { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); }
+.vh-uses input { accent-color: var(--brand); width: 22px; height: 22px; flex: none; }
+/* Inlay der lokalen Adresse (öffentliche App im Vereinsheim) */
+.vh-embedwrap { position: relative; display: flex; flex-direction: column; }
+.vh-embedframe { width: 100%; height: 420px; border: 0; background: transparent; display: block; }
+.vh-embedwait { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; color: var(--muted); background: var(--bg); padding: 20px; }
+.vh-embedwait .vh-btn { min-width: 220px; }
+html.vh-embed body.vh-page { min-height: 0; background: transparent; }
+html.vh-embed .vh-top, html.vh-embed #installHint, html.vh-embed #langFoot, html.vh-embed #tabs { display: none !important; }
+html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
+
+/* ========== APP-KIT: Bausteine für die Bereiche der Mitglieder-App (public/member.js der Module) ==========
+   Regeln (siehe ERWEITERUNGEN.md → Styleguide): Inhalte stehen in Karten; jede Karte hat einen Kopf (h3, 16 px) mit höchstens
+   einer Textaktion rechts; Listen sind Zeilen mit Trennlinie (eine Zeile je Eintrag, Details zum Aufklappen); Termine beginnen
+   mit dem Datumsblock; Status als Marke; ein Hauptknopf je Karte. Nur Variablen-Farben, keine festen Werte. */
+.vh-card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); margin: 0 0 12px; }
+.vh-card.flush { padding: 0; overflow: hidden; }
+.vh-card > h3, .vh-card .vh-ch { margin: 0 0 10px; font-size: 16px; line-height: 22px; font-weight: 800; color: var(--ink); display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.vh-card > h3 small, .vh-card .vh-ch small { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+.vh-card > h3:last-child { margin-bottom: 0; }
+.vh-card.flush > h3 { padding: 14px 16px 0; }
+.vh-link, .vh-card > h3 button, .vh-card .vh-ch button { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 9px 0; margin: -5px 0; white-space: nowrap; cursor: pointer; }   /* Textknöpfe: größere Tippfläche, gleiche Optik */
+.vh-cap { margin: 18px 2px 8px; font-size: 12px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.vh-cap:first-child { margin-top: 2px; }
+.vh-lead { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; color: var(--muted); }
+.vh-none { margin: 0; font-size: 14px; color: var(--muted); }
+/* Zeilen */
+.vh-rows > * { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 14.5px; min-width: 0; }
+.vh-rows > *:first-child { border-top: 0; padding-top: 2px; }
+.vh-rows > *:last-child { padding-bottom: 0; }
+.vh-card.flush .vh-rows > * { padding: 10px 16px; } .vh-card.flush .vh-rows > *:first-child { padding-top: 10px; }
+.vh-rows strong { display: block; font-size: 15px; line-height: 1.3; }
+.vh-rows small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; line-height: 1.35; }
+.vh-rows b { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.vh-tx { min-width: 0; flex: 1; }
+.vh-tx strong, .vh-tx small { overflow: hidden; text-overflow: ellipsis; }
+/* Datumsblock: <span class="vh-date"><b>31.05.</b><span>Mo</span></span> */
+.vh-date { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; position: relative; }
+.vh-date b { font-size: 14px; font-weight: 800; letter-spacing: -.02em; } .vh-date span { font-size: 11px; font-weight: 700; text-transform: uppercase; opacity: .8; }
+.vh-date.today { background: var(--brand); color: var(--on-brand); }
+.vh-date i { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--card); background: var(--faint, var(--line)); }
+.vh-date i.g { background: var(--brand); } .vh-date i.r { background: var(--red); } .vh-date i.a { background: var(--amber); }
+/* Schlüssel/Wert */
+.vh-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
+.vh-kv dt { color: var(--muted); } .vh-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
+/* Marken */
+.vh-chip { display: inline-block; font-size: 11.5px; font-weight: 800; line-height: 16px; padding: 2px 8px; border-radius: 9px; background: var(--hover); color: var(--muted); white-space: nowrap; vertical-align: 1px; }
+.vh-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .vh-chip.a { background: var(--amber-soft); color: var(--amber); } .vh-chip.r { background: var(--red-soft); color: var(--red); }
+/* Umschalter (Ansicht, Tage, Mannschaften) */
+.vh-seg { display: flex; gap: 4px; padding: 4px; border-radius: 14px; background: var(--hover); margin: 0 0 12px; overflow-x: auto; scrollbar-width: none; }
+.vh-seg::-webkit-scrollbar { display: none; }
+.vh-seg button { flex: 1 0 auto; min-height: 40px; border-radius: 11px; border: 0; background: transparent; font: inherit; font-size: 14px; font-weight: 700; color: var(--muted); padding: 0 14px; white-space: nowrap; }
+.vh-seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+/* Knöpfe in Karten: klein (40 px) – Hauptknopf .vh-btn, Nebenknopf .vh-btn.sec */
+.vh-btn.sm { min-height: 40px; min-width: 104px; padding: 0 12px; font-size: 14px; border-radius: 12px; }
+.vh-btn.sec:disabled, .vh-btn:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); opacity: 1; }
+.vh-btn.wide { width: 100%; }
+.vh-yn { display: flex; gap: 4px; flex: none; }
+.vh-yn button { width: 40px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 16px; font-weight: 800; color: var(--muted); }
+.vh-yn .y.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); } .vh-yn .n.on { background: var(--red); border-color: var(--red); color: var(--on-red); }
+/* Hinweisleiste (oben im Bereich): neutral in Vereinsfarbe, .a = bitte erledigen */
+.vh-bar { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 6px 8px 6px 14px; margin: 0 0 12px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 600; }
+.vh-bar.a { background: var(--amber-soft); color: var(--amber); }
+.vh-bar > span { flex: 1; min-width: 0; }
+.vh-bar button { height: 34px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font: inherit; font-size: 13px; font-weight: 800; color: var(--ink); white-space: nowrap; }
+/* Zahl groß + Fortschritt */
+.vh-big { display: flex; align-items: baseline; gap: 8px; } .vh-big b { font-size: 30px; line-height: 1.1; font-weight: 800; font-variant-numeric: tabular-nums; } .vh-big span { color: var(--muted); font-size: 15px; }
+.vh-prog { height: 10px; border-radius: 5px; background: var(--line); overflow: hidden; margin: 10px 0 8px; } .vh-prog i { display: block; height: 100%; background: var(--brand); border-radius: 5px; }
+/* Gefährliche Aktion (Kündigen …) – immer ganz unten */
+.vh-danger { width: 100%; min-height: 48px; border-radius: 14px; background: transparent; color: var(--red); border: 1px solid var(--red-line, var(--line)); font: inherit; font-weight: 700; font-size: 15px; margin: 4px 0 12px; }
+/* Fenster mit Formular */
+.vh-sheet.vh-form .vh-box { max-width: 460px; text-align: left; max-height: 88vh; overflow: auto; }
+.vh-sheet.vh-form label:not(.vh-check) { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
+.vh-sheet.vh-form .vh-input, .vh-sheet.vh-form .vh-select { font-size: 16px; min-height: 48px; margin-bottom: 10px; }
+.vh-check { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; color: var(--ink); font-weight: 500; line-height: 1.4; margin: 0 0 10px; }
+.vh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--brand); margin: 0; }
+/* Bereichsfläche: Abstand 12 px zwischen den Blöcken – Bausteine direkt darin ohne eigenen Außenabstand */
+.vh-sec { display: flex; flex-direction: column; gap: 12px; }
+.vh-sec > :is(.vh-card, .vh-bar, .vh-seg, .vh-danger) { margin: 0; }
+.vh-sec > .vh-cap { margin: 6px 2px -4px; }
+.vh-sec > .vh-cap:first-child { margin-top: 0; }
+.vh-lead:last-child { margin-bottom: 0; }
+a.vh-btn { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+
+/* ---------- Am Tablet (eingebettet unter der Kopfzeile): genau wie die übrigen Tablet-Seiten ----------
+   volle Breite mit 24 px Rand, Abschnittstitel, Raster mit 4 Spalten, große Aktionskacheln (wie „Mitglied werden“),
+   Fenster in der Mitte wie die Tablet-Dialoge (560 px, 20 px Rundung, ohne grünen Rand oben) */
+body.embedded .vh-main { max-width: none; margin: 0; padding: 24px 24px 40px; gap: 0; }
+body.embedded .vh-main .tab-head { margin: 0 0 16px; }
+body.embedded .vh-status { width: fit-content; max-width: 100%; margin: 0 0 4px; }
+body.embedded .vh-main h2.sec { margin: 20px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+body.embedded .vh-empty { padding: 18px 20px; border-radius: 16px; border: 1px dashed var(--line); background: transparent; box-shadow: none; color: var(--muted); font-size: 15px; }
+body.embedded .vh-stop { min-height: 64px; margin-top: 16px; font-size: 18px; width: calc(50% - 8px); }   /* Aktion halb breit wie die großen Tablet-Kacheln (span 2 von 4) */
+@media (max-width: 900px) { body.embedded .vh-stop { width: 100%; } }
+body.embedded .vh-note { text-align: left; margin-top: 14px; font-size: 15px; }
+body.embedded .vh-sheet .vh-box { max-width: 560px; padding: 24px; border-radius: 20px; border-top: 1px solid var(--line); }
+body.embedded .vh-box h2 { font-size: 22px; } body.embedded .vh-box p { font-size: 16px; }
+body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius: 14px; }
+@media (max-width: 520px) { body.embedded .vh-main { padding: 16px 12px 28px; } }
+
+/* ---------- Tagesauswahl – EINE Gestaltung in Mitglieder-App, Tablet und Verwaltung ----------
+   Wochentag klein oben („heute“), Tag groß darunter; gewählter Tag in Vereinsfarbe; Pfeile gleich groß wie die Tage */
+.vh-days { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 8px; margin: 0 -2px -8px; scrollbar-width: none; align-items: center; }
+.vh-days::-webkit-scrollbar { display: none; }
+.vh-days button { flex: none; width: 58px; height: 62px; border-radius: 14px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; cursor: pointer; padding: 0; }
+.vh-days button span { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; } .vh-days button b { font-size: 18px; font-weight: 800; }
+.vh-days button.on { background: var(--brand); border-color: var(--brand); color: var(--on-brand); } .vh-days button.on span { color: var(--on-brand); }
+.vh-days button.nav { width: 44px; font-size: 22px; font-weight: 700; color: var(--muted); }
+.vh-days button:disabled { opacity: .35; cursor: default; }
+
+/* ---------- Namensauswahl „Wer bist du?“ (Tablet: Plätze, Helferdienste, Zugang) – eine Komponente für alle ----------
+   Hinweis über die volle Breite, Treffer in zwei gleich breiten Spalten, Namen einzeilig */
+.vh-names { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin: 10px 0 0; max-height: 50vh; overflow: auto; text-align: left; }
+.vh-names button { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 56px; padding: 0 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font: inherit; font-size: 16px; font-weight: 600; text-align: left; cursor: pointer; }
+.vh-names button > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vh-names button img { width: 36px; height: 36px; flex: none; border-radius: 50%; object-fit: cover; }
+.vh-names button.on { border-color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); background: var(--brand-soft); }
+.vh-names-hint { grid-column: 1 / -1; color: var(--muted); font-size: 15px; line-height: 1.4; padding: 14px 4px; text-align: center; }
+
+/* Anlage nicht erreichbar (Beregnung): Kacheln wie eine nicht erreichbare Tür – ausgegraut, nichts startbar */
+.vh-tiles.offline .vh-tile { opacity: .75; pointer-events: none; }
+.vh-tiles.offline .vh-tile::before { background: var(--hover); } .vh-tiles.offline .vh-tile::after { background: var(--muted); }
+.vh-tiles.offline .vh-tile .vh-name { color: var(--muted); }
+.vh-tiles.offline .vh-tile button, .vh-tiles.offline .vh-tile .vh-pill { background: var(--hover) !important; color: var(--muted) !important; border-color: var(--line) !important; }
+.vh-stop:disabled { opacity: .5; cursor: default; }

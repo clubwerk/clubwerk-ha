@@ -1,0 +1,24 @@
+{
+  "id": "buchhaltung",
+  "name": "Buchhaltung",
+  "version": "1.1.1",
+  "kurz": "Rechnungen und Spendenquittungen.",
+  "beschreibung": "Rechnungen an Sponsoren, Firmen und Mitglieder (Umsatzsteuer je Position, Jahresrechnungen mit einem Klick, offen/bezahlt, Zahlungserinnerung per E-Mail; an Mitglieder zusätzlich als offener Posten in der Mitgliederverwaltung) und Spendenquittungen nach amtlichem Muster – Geld, Sachspende oder Verzicht auf Aufwandserstattung – für Mitglieder, Firmen oder einmalige Spender.",
+  "minApp": "3.5.0",
+  "perms": {
+    "buchhaltung": "Buchhaltung: Rechnungen, Firmen & Sponsoren, Spendenquittungen"
+  },
+  "verwaltung": {
+    "label": "Buchhaltung",
+    "recht": "buchhaltung",
+    "seite": "bh-rechnungen"
+  },
+  "tabellen": [
+    "bh_partner",
+    "bh_invoice",
+    "bh_donation"
+  ],
+  "einstellungen": [
+    "ext_buchhaltung_"
+  ]
+}

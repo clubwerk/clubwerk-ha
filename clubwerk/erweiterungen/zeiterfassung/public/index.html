@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#1f6b3a">
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<script src="../../theme-init.js"></script>
+<title>Zeiterfassung</title>
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../theme.css">
+<style>
+  /* Gestaltung: Tablet-Kit in style.css (Seite, Kacheln, Fenster, PIN-Feld, Sperrseite) – hier nur, was es nur bei der Zeiterfassung gibt */
+  .done .when { font-size: 26px; font-weight: 800; margin: 6px 0 4px; }
+  .done .kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 16px; text-align: left; background: var(--hover); border-radius: 12px; padding: 14px 16px; margin: 14px 0 18px; font-size: 16px; }
+  .done .kv span { color: var(--muted); }
+  .done .kv b { text-align: right; font-variant-numeric: tabular-nums; }
+  .done .note { background: var(--amber-soft); color: var(--amber); padding: 10px 12px; border-radius: 12px; font-weight: 700; margin: 12px 0 0; }
+  .done .btn { width: 100%; min-height: 56px; font-size: 18px; justify-content: center; }
+</style>
+</head>
+<body class="tk">
+<header id="gkHeader"></header>
+<main>
+  <div class="tab-head"><div><h1 class="tab-title">Zeiterfassung</h1><p class="tab-sub">Namen antippen und PIN eingeben – die App erkennt selbst, ob du kommst oder gehst.</p></div></div>
+  <h2 class="sec">Personal</h2>
+  <div class="tk-grid" id="staff"></div>
+</main>
+<div id="gate" class="gate hidden"><form class="gatecard" id="gateForm" autocomplete="on" action="#">
+  <h2>Seite gesperrt</h2>
+  <p>Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="text" name="username" autocomplete="username" value="Vereinsheim" tabindex="-1" aria-hidden="true" readonly style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+  <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password">
+  <div class="gerr" id="gateErr"></div>
+  <button type="button" class="btn primary" id="gateGo">Freischalten</button>
+</form></div>
+<div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
+<div id="toast" class="toast hidden"></div>
+<script src="../../nav.js" data-base="../../" data-active="zeiterfassung"></script>
+<script src="tablet.js"></script>
+</body>
+</html>

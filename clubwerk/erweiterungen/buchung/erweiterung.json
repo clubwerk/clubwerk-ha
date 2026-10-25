@@ -1,0 +1,43 @@
+{
+  "id": "buchung",
+  "name": "Buchungssystem",
+  "version": "1.9.1",
+  "kurz": "Plätze und Geräte buchen – per App und am Tablet.",
+  "beschreibung": "Mitglieder buchen Plätze (z. B. Tennis, Padel) und Geräte (z. B. Ballmaschine) in der Mitglieder-App oder am Tablet im Vereinsheim: feste Zeitraster, Höchstdauer, Kontingent je Mitglied, Mitspieler und Gäste (Gastgebühr als offener Posten in der Mitgliederverwaltung), Warteliste. In der Verwaltung: Belegungsplan, Serienbuchungen für Training und Mannschaften, Platzsperren.",
+  "minApp": "3.6.4",
+  "perms": {
+    "buchung": "Buchungssystem: Belegung ansehen",
+    "buchung_buchen": "Buchungssystem: für Mitglieder buchen, Einzelbuchungen mit Buchungsart",
+    "buchung_stornieren": "Buchungssystem: Buchungen anderer stornieren",
+    "buchung_serien": "Buchungssystem: Serien & Sperren anlegen und beenden",
+    "buchung_einstellungen": "Buchungssystem: Plätze, Buchungsarten & Einstellungen"
+  },
+  "tablet": {
+    "label": "Plätze",
+    "seite": "",
+    "pfad": "plaetze"
+  },
+  "verwaltung": {
+    "label": "Buchungssystem",
+    "recht": "buchung",
+    "seite": "bk-belegung"
+  },
+  "mitgliederApp": {
+    "label": "Buchen",
+    "order": 3,
+    "alle": true,
+    "keinMitglied": true
+  },
+  "tabellen": [
+    "bk_resource",
+    "bk_booking",
+    "bk_series",
+    "bk_wait",
+    "bk_label",
+    "bk_rights",
+    "bk_fee"
+  ],
+  "einstellungen": [
+    "ext_buchung_"
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "id": "spielbetrieb",
+  "name": "Spielbetrieb",
+  "version": "1.6.0",
+  "kurz": "Mannschaften, Spieltage, Verfügbarkeit und Aufstellung – per App.",
+  "beschreibung": "Spieltage der Mannschaften planen: Mannschaften mit Mannschaftsführer und Spielern (eine Person kann in mehreren Mannschaften spielen), Spielplan-Import vom Verband mit Heim- und Auswärtsspielen. Spieler melden in der Mitglieder-App je Spieltag „kann“ oder „kann nicht“ (optional mit Uhrzeit), der Mannschaftsführer stellt in der App auf. Ampel, ob genug Spieler da sind; Absagen nach der Aufstellung muss der Mannschaftsführer bestätigen. Optional Aufgaben (Fahrer, Bewirtung …) und automatische Erinnerungen.",
+  "minApp": "3.23.0",
+  "perms": {
+    "spielbetrieb": "Spielbetrieb: Mannschaften, Spieler, Spielplan und Aufstellungen (Sportwart)"
+  },
+  "verwaltung": {
+    "label": "Spielbetrieb",
+    "recht": "spielbetrieb",
+    "seite": "sp-spieltage"
+  },
+  "mitgliederApp": {
+    "label": "Spieltage",
+    "order": 4,
+    "alle": true
+  },
+  "tabellen": [
+    "sp_team",
+    "sp_player",
+    "sp_extern",
+    "sp_game",
+    "sp_avail",
+    "sp_lineup",
+    "sp_task"
+  ],
+  "einstellungen": [
+    "ext_spielbetrieb_"
+  ]
+}

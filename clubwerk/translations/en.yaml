@@ -1,0 +1,16 @@
+configuration:
+  notfall_passwort:
+    name: Emergency password
+    description: Only for resetting the admin account if the password was lost. Clear it afterwards.
+  ssl:
+    name: HTTPS for all devices
+    description: Serve tablet/admin (3100), irrigation (5000) and member app (5001) over HTTPS; http:// is redirected. Needs a certificate in the Home Assistant "ssl" folder.
+  certfile:
+    name: Certificate file
+    description: File name in the "ssl" folder, e.g. fullchain.pem
+  keyfile:
+    name: Key file
+    description: File name in the "ssl" folder, e.g. privkey.pem
+  proxy_addon_ip:
+    name: Proxy add-on IP (remote access only)
+    description: Only set this if an add-on such as Cloudflared or NGINX forwards requests from the internet – its address in the Home Assistant network (e.g. 172.30.33.5) or in the club's LAN. If the admin area shows a rejected tunnel request under "Member app", enter the address named there.

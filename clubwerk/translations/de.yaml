@@ -1,0 +1,16 @@
+configuration:
+  notfall_passwort:
+    name: Notfall-Passwort
+    description: Nur zum Zurücksetzen des Adminkontos, falls das Passwort vergessen wurde. Danach wieder leeren.
+  ssl:
+    name: HTTPS für alle Geräte
+    description: Tablet und Verwaltung (Port 3100), Beregnung (5000) und Mitglieder-App (5001) verschlüsselt ausliefern; http:// wird automatisch umgeleitet. Braucht ein Zertifikat im Home-Assistant-Ordner „ssl“.
+  certfile:
+    name: Zertifikatsdatei
+    description: Dateiname im Ordner „ssl“, z. B. fullchain.pem
+  keyfile:
+    name: Schlüsseldatei
+    description: Dateiname im Ordner „ssl“, z. B. privkey.pem
+  proxy_addon_ip:
+    name: IP eines Proxy-Add-ons (nur bei Fernzugriff)
+    description: Nur ausfüllen, wenn ein Add-on wie Cloudflared oder NGINX Anfragen aus dem Internet weiterleitet – dessen Adresse im Home-Assistant-Netz (z. B. 172.30.33.5) oder im Vereins-WLAN. Dann zählt die Sperre nach Fehlversuchen je echtem Absender statt für alle gemeinsam. Zeigt die Verwaltung unter „Mitglieder-App“ eine abgelehnte Tunnel-Anfrage, hier die dort genannte Adresse eintragen.

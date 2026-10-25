@@ -1,0 +1,50 @@
+{
+  "id": "mitglieder",
+  "name": "Mitgliederverwaltung",
+  "version": "1.11.0",
+  "kurz": "Mitglieder, Beiträge und SEPA-Lastschrift.",
+  "beschreibung": "Die vollständige Mitgliederverwaltung: Stammdaten, Abteilungen, Beitragsarten mit Altersgrenzen und Familienbeitrag, Ein- und Austritt, Dokumente, Beitragslauf mit SEPA-Lastschrift (pain.008, auf Wunsch mit Getränken), offene Posten, Rechnungen und Mahnungen, digitale Beitrittserklärung mit Unterschrift am Tablet oder online, „Meine Daten“ in der Mitglieder-App, Auswertungen für Landessportbund und Verband, Import aus verein.cloud und Datenschutz (Auskunft, Anonymisieren).",
+  "minApp": "3.1.0",
+  "perms": {
+    "mitglieder": "Mitglieder: Stammdaten, Abteilungen, Beiträge, Anträge & Auswertungen",
+    "mitglieder_bank": "Mitglieder: Bankverbindungen & SEPA-Mandate sehen und ändern",
+    "mitglieder_finanzen": "Mitglieder: Beitragslauf, Lastschriften, offene Posten & Mahnungen",
+    "mitglieder_dokumente": "Mitglieder: Dokumente (Anträge, Mandate, Nachweise) ansehen und hochladen"
+  },
+  "tablet": {
+    "label": "Mitglied werden",
+    "seite": "",
+    "pfad": "mitglied-werden"
+  },
+  "verwaltung": {
+    "label": "Mitgliederverwaltung",
+    "recht": "mitglieder",
+    "seite": "mitglieder"
+  },
+  "mitgliederApp": {
+    "label": "Meine Daten",
+    "order": 5,
+    "alle": true
+  },
+  "tabellen": [
+    "mv_person",
+    "mv_bank",
+    "mv_department",
+    "mv_member_department",
+    "mv_fee",
+    "mv_member_fee",
+    "mv_run",
+    "mv_collection",
+    "mv_charge",
+    "mv_document",
+    "mv_honor",
+    "mv_function",
+    "mv_history",
+    "mv_application",
+    "mv_change",
+    "mv_age_notice"
+  ],
+  "einstellungen": [
+    "ext_mitglieder_"
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "id": "beispiel",
+  "name": "Beispiel-Erweiterung",
+  "version": "1.2.0",
+  "beschreibung": "Vorlage: eine Tablet-Seite, eine Verwaltungsseite, ein Bereich in der Mitglieder-App, eine eigene Tabelle und ein eigenes Recht.",
+  "minApp": "3.25.2",
+  "perms": {
+    "beispiel": "Beispiel-Erweiterung bearbeiten"
+  },
+  "tablet": {
+    "label": "Beispiel",
+    "seite": ""
+  },
+  "verwaltung": {
+    "label": "Beispiel",
+    "recht": "beispiel"
+  },
+  "mitgliederApp": {
+    "label": "Beispiel",
+    "order": 50
+  }
+}
