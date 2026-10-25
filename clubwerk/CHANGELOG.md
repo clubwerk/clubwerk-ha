@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.39.3
+
+**Import aus verein.cloud: Beiträge in allen Spalten**
+- verein.cloud lässt in seinen Exporten manchmal Lücken: Ein Beitrag kann z. B. erst in der zehnten Beitragsspalte stehen. Der Import hat bisher nach wenigen leeren Spalten aufgehört zu suchen und solche Beiträge übersehen. Jetzt werden alle Spalten durchgesehen, auch bei Abteilungen.
+
 ## 3.39.2
 
 **Bau mit dem neuen Grundsystem repariert**

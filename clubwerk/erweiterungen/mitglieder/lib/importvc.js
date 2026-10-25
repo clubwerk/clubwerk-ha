@@ -220,11 +220,11 @@ function register(sh) {
       const g = name => { const i = idx(name); return i >= 0 ? String(r[i] || '').trim() : ''; };
       const depts = [], feeList = [];
       for (let n = 1; n <= 20; n++) {
-        const dn = g(`Abteilung_${n}`); if (!dn) { if (n > 3) break; continue; }
+        const dn = g(`Abteilung_${n}`); if (!dn) continue;   // verein.cloud lässt Lücken in den nummerierten Spalten
         depts.push({ name: dn, entry: deToIso(g(`Abteilungseintritt_${n}`)), exit: deToIso(g(`Abteilungsaustritt_${n}`)), status: /passiv/i.test(g(`Abteilungsstatus_${n}`)) ? 'passiv' : 'aktiv',
           fed: g(`Abteilungsstatus DFB_${n}`) && !/kein status/i.test(g(`Abteilungsstatus DFB_${n}`)) ? g(`Abteilungsstatus DFB_${n}`) : null, reason: g(`Abteilungsaustrittsgrund_${n}`) || null });
         for (let k = 1; k <= 10; k++) {
-          const fn = g(`Beitragsbezeichnung_${n}_${k}`); if (!fn) { if (k > 2) break; continue; }
+          const fn = g(`Beitragsbezeichnung_${n}_${k}`); if (!fn) continue;   // auch erst in _n_10 möglich
           feeList.push({ dept: dn, name: fn, start: deToIso(g(`Beitragsstart_${n}_${k}`)), end: deToIso(g(`Beitragsende_${n}_${k}`)), booked: deToIso(g(`Gebucht bis_${n}_${k}`)),
             cents: money(g(`Betrag_${n}_${k}`)), interval: INTERVAL[g(`Intervall_${n}_${k}`).toLowerCase()] || 'jahr' });
         }
