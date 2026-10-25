@@ -35,6 +35,8 @@
       .mv-grid .w2 { grid-column: span 2; } .mv-grid .wall { grid-column: 1 / -1; }
       .imp-sim { margin: 12px 0; } .imp-simrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); }
       .imp-simrow > div { display: flex; flex-direction: column; min-width: 0; } .imp-simrow select { height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); padding: 0 10px; font: inherit; font-size: 14px; color: var(--ink); min-width: 0; width: 100%; }
+      .imp-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px 16px; }
+      .imp-field { display: flex; flex-direction: column; min-width: 0; } .imp-field b { font-weight: 600; overflow-wrap: anywhere; } .imp-field.leer b { color: var(--muted); font-weight: 500; }
       @media (max-width: 700px) { .imp-simrow { grid-template-columns: 1fr; gap: 6px; } }
       .mv-up { display: flex; align-items: center; gap: 10px; height: 40px; box-sizing: border-box; padding: 0 4px 0 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--field); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--faint); }
       .mv-up span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -638,7 +640,8 @@
       return '?' + q.toString();
     };
     let dec = {};   // ähnliche Namen: Zeile → Mitglieds-ID oder 'neu'
-    const run = commit => send('import/run' + query(commit), { ...(fmt() === 'vereincloud' ? {} : { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())) }), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify(dec)) } : {}) });
+    let feeDec = {};   // Beitragsarten: Schlüssel → Beitrags-ID, 'neu' oder 'skip' ('' = noch nicht gewählt)
+    const run = commit => send('import/run' + query(commit), { ...(fmt() === 'vereincloud' ? {} : { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())) }), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeDec })) } : {}) });
     const setStep = s => {
       step = s;
       $('iMap').classList.toggle('hidden', s === 'prev'); $('iPrev').classList.toggle('hidden', s !== 'prev');
@@ -677,22 +680,32 @@
     }
     function drawPrev() {
       const sim = prev.rows.filter(r => r.suggest && r.suggest.length);
+      const feeRows = prev.fees || [];
+      feeDec = {}; feeRows.forEach(f => { if (!f.exact) feeDec[f.key] = f.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen
+      const newFees = () => Object.values(feeDec).filter(v => v === 'neu').length;
       dec = {}; sim.forEach(r => { dec[r.line] = r.suggest[0].sameBirth ? r.suggest[0].id : 'neu'; });
       const merged = () => Object.values(dec).filter(v => v !== 'neu').length;
       const sugLabel = c => `zusammenführen mit ${GK.lastFirst(c.name)}${c.member_no ? ` · Nr. ${c.member_no}` : ''}${c.birth_date ? ` · ${deDate(c.birth_date)}` : ''} (${c.why})`;
       $('iPrev').innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Personen</div><div class="v">${prev.count}</div></div><div class="kpi"><div class="l">neu</div><div class="v" id="iKN">${prev.new - merged()}</div></div>
-          <div class="kpi"><div class="l">ergänzt</div><div class="v" id="iKU">${prev.update + merged()}</div></div><div class="kpi"><div class="l">neue Beitragsarten</div><div class="v">${prev.fees.length}</div></div></div>
+          <div class="kpi"><div class="l">ergänzt</div><div class="v" id="iKU">${prev.update + merged()}</div></div><div class="kpi"><div class="l">neue Beitragsarten</div><div class="v" id="iKF">${newFees()}</div></div></div>
         ${prev.warnings.concat(prev.conflicts).map(w => `<div class="banner a"><span>${esc(w)}</span></div>`).join('')}
         ${sim.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Ähnliche Namen im Bestand <span class="muted s">(${sim.length})</span></h3>
           <p class="muted s" style="margin:0 0 10px">Spitznamen, Kurzformen oder andere Schreibweise (z. B. Benni – Benedikt, Susi – Susanne). Beim Zusammenführen überschreiben die Daten aus der Datei die vorhandenen; Getränkekonto, PIN und App bleiben erhalten. Bei gleichem Geburtsdatum ist „zusammenführen“ vorgewählt.</p>
           ${sim.map(r => `<div class="imp-simrow"><div><b translate="no">${esc(GK.lastFirst(r.name))}</b><span class="muted s">Zeile ${r.line}${r.member_no ? ` · Nr. ${esc(r.member_no)}` : ''}${r.birth_date ? ` · ${deDate(r.birth_date)}` : ''}</span></div>
             <select data-sim="${r.line}" translate="no">${r.suggest.map(c => `<option value="${c.id}" ${dec[r.line] === c.id ? 'selected' : ''}>${esc(sugLabel(c))}</option>`).join('')}<option value="neu" ${dec[r.line] === 'neu' ? 'selected' : ''}>als neues Mitglied anlegen</option></select></div>`).join('')}</div>` : ''}
         ${prev.depts.length ? `<p><b>Neue Abteilungen:</b> <span translate="no">${esc(prev.depts.join(', '))}</span></p>` : ''}
-        ${prev.fees.length ? `<p><b>Neue Beitragsarten:</b> <span translate="no">${prev.fees.map(f => esc(`${f.name} (${euro(f.cents)} ${INTERVAL[f.interval]})`)).join(', ')}</span> <span class="muted s">– Altersgrenzen und Familientarif danach unter Beiträge prüfen.</span></p>` : ''}
+        ${prev.sample ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Feldabgleich am Beispiel <span class="muted s">(Zeile ${prev.sample.line})</span></h3>
+          <p class="muted s" style="margin:0 0 10px">So landen die Spalten eurer Datei in Clubwerk. Stimmt etwas nicht, abbrechen und die Zuordnung bzw. die Datei prüfen.</p>
+          <div class="imp-fields">${prev.sample.fields.map(f => `<div class="imp-field${f.value ? '' : ' leer'}"><span class="muted s">${esc(f.label)}</span><b translate="no">${f.value ? esc(f.value) : '– leer –'}</b></div>`).join('')}</div></div>` : ''}
+        ${feeRows.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Beitragsarten aus der Datei <span class="muted s">(${feeRows.length})</span></h3>
+          <p class="muted s" style="margin:0 0 10px">Je Beitragsart ein Beispielmitglied. Gibt es schon eine ähnliche Beitragsart, bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen. „Nicht übernehmen“: Das Mitglied wird ohne diesen Beitrag importiert.</p>
+          ${feeRows.map(f => `<div class="imp-simrow"><div><b translate="no">${esc(f.name)}${f.dept ? ` · ${esc(f.dept)}` : ''}</b><span class="muted s">${euro(f.cents || 0)} ${esc(INTERVAL[f.interval] || f.interval)} · ${f.count} ${f.count === 1 ? 'Mitglied' : 'Mitglieder'} · Beispiel: <span translate="no">${esc(GK.lastFirst(f.example.name))}</span>${f.example.booked ? ` · gebucht bis ${deDate(f.example.booked)}` : ''}</span></div>
+            <select data-fee="${esc(f.key)}" translate="no">${f.exact ? '<option value="">vorhandene verwenden (gleicher Name)</option>' : `${f.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}${f.suggest.map(x => `<option value="${x.id}" ${feeDec[f.key] === x.id ? 'selected' : ''}>vorhandene verwenden: ${esc(x.name)} (${euro(x.cents || 0)} ${esc(INTERVAL[x.interval] || x.interval)})</option>`).join('')}<option value="neu" ${feeDec[f.key] === 'neu' ? 'selected' : ''}>neu anlegen</option><option value="skip" ${feeDec[f.key] === 'skip' ? 'selected' : ''}>nicht übernehmen</option>`}</select></div>`).join('')}</div>` : ''}
         <div class="scroll" style="max-height:44vh"><table class="tbl"><tr><th>Zeile</th><th>Nr.</th><th>Name</th><th>Aktion</th><th>Abteilungen</th><th>Beiträge</th><th>Mandat</th></tr>
           ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
       const acts = () => sim.forEach(r => { const td = document.querySelector(`[data-act="${r.line}"]`); if (td) td.innerHTML = dec[r.line] === 'neu' ? '<span class="pill g">neu</span>' : '<span class="pill b">zusammenführen</span>'; });
       document.querySelectorAll('[data-sim]').forEach(sel => { sel.onchange = () => { dec[sel.dataset.sim] = sel.value === 'neu' ? 'neu' : Number(sel.value); $('iKN').textContent = prev.new - merged(); $('iKU').textContent = prev.update + merged(); acts(); }; });
+      document.querySelectorAll('[data-fee]').forEach(sel => { sel.onchange = () => { if (sel.value === '' && !prev.fees.find(f => f.key === sel.dataset.fee).exact) feeDec[sel.dataset.fee] = ''; else if (sel.value !== '') feeDec[sel.dataset.fee] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; $('iKF').textContent = newFees(); }; });
       acts();
       setStep('prev');
     }
@@ -707,6 +720,7 @@
       $('iOk').disabled = true;
       try {
         if (step !== 'prev') { prev = await run(false); drawPrev(); }
+        else if (Object.values(feeDec).some(v => v === '')) { throw new Error('Bitte bei allen Beitragsarten mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.'); }
         else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
       $('iOk').disabled = false;

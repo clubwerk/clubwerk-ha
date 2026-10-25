@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.40.0
+
+**Mitglieder-Import: erst prüfen, dann übernehmen**
+- **Feldabgleich am Beispiel:** Die Vorschau zeigt ein Mitglied aus der Datei mit allen erkannten Feldern (Name, Adresse, Bankverbindung gekürzt, Mandat, Abteilungen, Beiträge). So sieht man vor dem Übernehmen, ob die Spalten richtig ankommen.
+- **Beitragsarten werden nicht mehr ungefragt angelegt:** Für jede Beitragsart der Datei zeigt die Vorschau ein Beispielmitglied. Gibt es schon eine ähnliche Beitragsart, muss man wählen: **vorhandene verwenden**, **neu anlegen** oder **nicht übernehmen**. Bei „nicht übernehmen“ wird das Mitglied ohne diesen Beitrag importiert und erscheint mit dem Hinweis „ohne Beitrag“.
+
+**Spendenquittungen: Steuernummer nur einmal eintragen**
+- Die Steuernummer bei den Spendenquittungen darf leer bleiben. Dann gilt die Steuernummer unter „Rechnungen“.
+
+**Storno nach storniertem Verkaufs-Posten**
+- Wurde der Verkaufs-Posten in der Mitgliederverwaltung schon storniert (auch mit einer älteren Version), lässt sich die zugehörige Buchung im Verkauf jetzt normal stornieren, ohne eine neue Gutschrift. Gibt es noch eine Gutschrift dafür, sagt Clubwerk, dass zuerst die Gutschrift storniert werden muss.
+
 ## 3.39.4
 
 **Verkauf und Einzug passen beim Stornieren wieder zusammen**

@@ -2131,6 +2131,15 @@ admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
   }
   const what = `${b.member || 'Barverkauf'}: ${b.custom ? 'Betrag ' + euro(b.total_cents) : b.qty + ' × ' + b.article} vom ${b.created_at.slice(0, 10)}`;
   if (b.settled_id) {
+    // Abgerechnet über ein Modul (z. B. Verkaufs-Einzug der Mitgliederverwaltung), dessen Posten dort schon storniert ist?
+    // Dann wurde nichts berechnet: Abrechnung wieder öffnen und normal stornieren statt eine Gutschrift zu buchen.
+    const st = db.prepare('SELECT batch, member_id FROM member_settlements WHERE id = ?').get(b.settled_id);
+    const notBilled = st && st.batch && plugins.withHook('drinksSettlementBilled').some(p => { try { return p.hooks.drinksSettlementBilled({ batch: st.batch, memberId: st.member_id }) === false; } catch (e) { return false; } });
+    const hasCredit = db.prepare('SELECT 1 FROM bookings WHERE credit_for = ? AND cancelled_at IS NULL').get(b.id);
+    if (notBilled && hasCredit) return bad(res, 'Der Verkaufs-Posten dazu ist in der Mitgliederverwaltung schon storniert. Bitte zuerst die Gutschrift stornieren – danach lässt sich die Buchung normal stornieren.');
+    if (notBilled) { const r = drinks.reopen(st.batch, st.member_id); if (!r.ok) return bad(res, r.error); b.settled_id = null; }
+  }
+  if (b.settled_id) {
     if (db.prepare('SELECT 1 FROM bookings WHERE credit_for = ? AND cancelled_at IS NULL').get(b.id)) return bad(res, 'Dafür wurde schon eine Gutschrift gebucht.');
     // Schon abgerechnet (in der Vereinsverwaltung abgebucht): nicht mehr ändern, sondern Gutschrift auf die nächste Abrechnung
     if (b.total_cents <= 0) return bad(res, 'Diese Buchung ist schon abgerechnet und kann nicht mehr storniert werden.');

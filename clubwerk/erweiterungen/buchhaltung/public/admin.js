@@ -415,7 +415,7 @@
           <label class="f wall">Einleitungstext<textarea id="bs_intro" rows="2" placeholder="z. B. Vielen Dank für Ihre Unterstützung! Wir berechnen Ihnen folgende Leistungen:">${esc(s.intro)}</textarea></label></div>
         <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 … Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig (wirtschaftlicher Geschäftsbetrieb) – im Zweifel die Steuerberatung fragen.</p>${save('rechnungen')}</div>
       <div class="card" data-set="spenden"><h3>Spendenquittungen</h3><p class="muted s" style="margin-top:0">Angaben aus dem Freistellungsbescheid bzw. der Anlage zum Körperschaftsteuerbescheid – stehen so auf jeder Zuwendungsbestätigung.</p>
-        <div class="bh-grid">${inp('finanzamt', 'Finanzamt', { ph: 'z. B. Finanzamt Musterstadt' })}${inp('fa_tax_no', 'Steuernummer (beim Finanzamt)')}
+        <div class="bh-grid">${inp('finanzamt', 'Finanzamt', { ph: 'z. B. Finanzamt Musterstadt' })}${inp('fa_tax_no', 'Steuernummer (beim Finanzamt)', { ph: s.tax_no ? 'leer = ' + s.tax_no + ' (wie bei Rechnungen)' : 'leer = wie bei Rechnungen' })}
           <label class="f">Art des Bescheids<select id="bs_bescheid_type">${opt('freistellung', 'Freistellungsbescheid', s.bescheid_type)}${opt('feststellung', 'Feststellungsbescheid (§ 60a AO)', s.bescheid_type)}</select></label>
           <label class="f">Datum des Bescheids<input id="bs_bescheid_date" type="date" value="${esc(s.bescheid_date)}"></label>
           ${inp('veranlagungszeitraum', 'Veranlagungszeitraum', { ph: 'z. B. 2022 bis 2024' })}${inp('don_prefix', 'Nummernkreis', { ph: 'SQ-' })}

@@ -311,9 +311,54 @@ function register(sh) {
     return { age_min: min ? Number(min[1]) : null, age_max: max ? Number(max[1]) : null, family: /familie|alleinerz/.test(s) ? 1 : 0, work_minutes: /ohne\s+arbeit/.test(s) ? 0 : null };
   }
 
+  // lesbare Namen für den Feldabgleich (keine internen Schlüssel anzeigen)
+  const SAMPLE_LABEL = { aktiv: 'Aktiv', passiv: 'Passiv', ehren: 'Ehrenmitglied', ruhend: 'Ruhend', lastschrift: 'Lastschrift', rechnung: 'Rechnung', bar: 'Bar', ueberweisung: 'Überweisung' };
+  /* ---------- Beitragsarten der Datei mit dem Bestand abgleichen ---------- */
+  // Beiträge einer Abteilung (nicht „Hauptverein“) sind Zusatzbeiträge: sie hängen an der Abteilungszugehörigkeit, nicht am Mitglied
+  //  (nur wenn die Datei überhaupt Beiträge im „Hauptverein“ führt – sonst sind die Abteilungsbeiträge die eigentlichen Mitgliedsbeiträge)
+  const deptFeeTest = recs => {
+    const hasHV = recs.some(r => r.fees.some(f => /^hauptverein$/i.test(String(f.dept || '').trim())));
+    return f => Boolean(hasHV && f.dept && !/^hauptverein$/i.test(String(f.dept).trim()) && f.interval !== 'einmalig');
+  };
+  const feeKey = (f, zus) => `${zus ? String(f.dept).trim().toLowerCase() : ''}|${String(f.name).trim().toLowerCase()}`;
+  const words = t => new Set(String(t).toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').split(/[^a-z0-9]+/).filter(w => w.length > 1));
+  function feeSimilarity(a, b) {
+    const x = words(a.name), y = words(b.name); if (!x.size || !y.size) return 0;
+    const common = [...x].filter(w => y.has(w)).length;
+    return common / new Set([...x, ...y]).size + (a.cents === b.cents && a.interval === b.interval ? 0.25 : 0);
+  }
+  /** vorhandene Beitragsart mit genau diesem Namen (gleiche Art) bzw. ähnliche Vorschläge */
+  function feeMatch(f, zus) {
+    const did = zus ? (db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(f.dept) || {}).id : null;
+    const pool = zus ? (did ? db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz' AND department_id = ?").all(did) : []) : db.prepare("SELECT * FROM mv_fee WHERE kind != 'zusatz'").all();
+    const exact = pool.find(x => x.name.trim().toLowerCase() === String(f.name).trim().toLowerCase());
+    const suggest = exact ? [] : pool.map(x => ({ x, s: feeSimilarity(f, x) })).filter(o => o.s >= 0.5).sort((a, b) => b.s - a.s).slice(0, 4)
+      .map(o => ({ id: o.x.id, name: o.x.name, cents: o.x.cents, interval: o.x.interval, active: o.x.active }));
+    return { exact: exact ? exact.id : null, suggest };
+  }
+  /** Entscheidungen je Beitragsart (Schlüssel → Beitrags-ID | 'neu' | 'skip'); bei ähnlichen vorhandenen ist eine Entscheidung Pflicht */
+  function feeDecisions(recs, raw) {
+    const isDept = deptFeeTest(recs), out = new Map(), seen = new Set();
+    for (const r of recs) for (const f of r.fees) {
+      const zus = isDept(f), key = feeKey(f, zus); if (seen.has(key)) continue; seen.add(key);
+      const m = feeMatch(f, zus), v = raw && raw[key];
+      if (m.exact) continue;
+      if (v === 'skip' || v === 'neu') { out.set(key, v); continue; }
+      if (v != null && v !== '') {
+        const id = Number(v);
+        if (!m.suggest.some(x => x.id === id)) throw new Error(`Beitragsart „${f.name}“: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.`);
+        out.set(key, id); continue;
+      }
+      if (m.suggest.length) throw new Error(`Für die Beitragsart „${f.name}“ gibt es ähnliche vorhandene – bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.`);
+      out.set(key, 'neu');
+    }
+    return out;
+  }
+
   function plan(recs) {
     const out = { new: 0, update: 0, conflicts: [], warnings: [], depts: new Set(), fees: new Map(), rows: [], similar: 0 };
     loadPool();
+    const isDept = deptFeeTest(recs);
     const exactIds = new Set(recs.map(r => matchMember(r).id).filter(Boolean));
     for (const r of recs) {
       const m = matchMember(r);
@@ -323,7 +368,12 @@ function register(sh) {
       if (m.id) out.update++; else out.new++;
       if (r.ibanBad) out.warnings.push(`Zeile ${r.line} ${r.p.first_name} ${r.p.last_name}: IBAN ungültig (${r.ibanBad}) – nicht übernommen`);
       for (const d of r.depts) if (!db.prepare('SELECT 1 FROM mv_department WHERE lower(name) = lower(?)').get(d.name)) out.depts.add(d.name);
-      for (const f of r.fees) { const key = `${f.name}|${f.cents}|${f.interval}`; if (!db.prepare('SELECT 1 FROM mv_fee WHERE lower(name) = lower(?)').get(f.name) && !out.fees.has(key)) out.fees.set(key, f); }
+      for (const f of r.fees) {
+        const zus = isDept(f), key = feeKey(f, zus);
+        if (!out.fees.has(key)) out.fees.set(key, { key, name: f.name, cents: f.cents, interval: f.interval, dept: zus ? f.dept : null, ...feeMatch(f, zus), count: 0,
+          example: { name: `${r.p.first_name || ''} ${r.p.last_name || ''}`.trim(), line: r.line, start: f.start, end: f.end, booked: f.booked, cents: f.cents, interval: f.interval } });
+        out.fees.get(key).count++;
+      }
       out.rows.push({ line: r.line, name: `${r.p.first_name || ''} ${r.p.last_name}`.trim(), member_no: r.member_no, birth_date: r.p.birth_date || '', action: m.id ? `ergänzen (${m.by})` : 'neu', suggest: sug, depts: r.depts.map(d => d.name).join(', '),
         fees: r.fees.map(f => `${f.name}${f.booked ? ' · gebucht bis ' + fees.deD(f.booked) : ''}`).join(', '), mandate: r.bank && r.bank.mandate_ref ? r.bank.mandate_ref : '', exit: r.p.exit_date });
     }
@@ -333,10 +383,18 @@ function register(sh) {
     const best = Object.entries(votes).sort((a, b) => b[1] - a[1])[0];
     const yearHint = best && best[0] !== S('year_start', '01-01') ? best[0] : null;
     if (yearHint) out.warnings.unshift(`Laut „Gebucht bis“ beginnt euer Beitragsjahr am ${yearHint.slice(3)}.${yearHint.slice(0, 2)}. – eingestellt ist der ${S('year_start', '01-01').slice(3)}.${S('year_start', '01-01').slice(0, 2)}. Beim Übernehmen wird das angepasst.`);
-    return { ...out, yearHint, depts: [...out.depts], fees: [...out.fees.values()].map(f => ({ name: f.name, cents: f.cents, interval: f.interval, dept: f.dept })) };
+    // Beispiel für den Feldabgleich: so landen die Spalten der Datei in Clubwerk (erste Person mit Nachnamen)
+    const ex = recs.find(r => r.p.last_name) || recs[0];
+    const sample = ex ? { line: ex.line, fields: [['Mitgliedsnummer', ex.member_no], ['Anrede', ex.p.salutation], ['Titel', ex.p.title], ['Vorname', ex.p.first_name], ['Nachname', ex.p.last_name],
+      ['Geburtsdatum', ex.p.birth_date && fees.deD(ex.p.birth_date)], ['Geschlecht', { w: 'weiblich', m: 'männlich', d: 'divers' }[ex.p.gender] || ex.p.gender], ['Straße', ex.p.street], ['PLZ', ex.p.zip], ['Ort', ex.p.city], ['Land', ex.p.country],
+      ['E-Mail', ex.p.email], ['Telefon', ex.p.phone], ['Mobil', ex.p.mobile], ['Eintritt', ex.p.entry_date && fees.deD(ex.p.entry_date)], ['Austritt', ex.p.exit_date && fees.deD(ex.p.exit_date)],
+      ['Status', SAMPLE_LABEL[ex.p.status] || ex.p.status], ['Zahlungsart', SAMPLE_LABEL[ex.p.payment] || ex.p.payment], ['Kontoinhaber', ex.bank && ex.bank.holder], ['IBAN', ex.bank && sepa.maskIban(ex.bank.iban)], ['BIC', ex.bank && ex.bank.bic],
+      ['Mandatsreferenz', ex.bank && ex.bank.mandate_ref], ['Mandat unterschrieben', ex.bank && ex.bank.mandate_date && fees.deD(ex.bank.mandate_date)],
+      ['Abteilungen', ex.depts.map(d => d.name).join(', ')], ['Beiträge', ex.fees.map(f => f.name).join(', ')]].map(([label, value]) => ({ label, value: value == null ? '' : String(value) })) } : null;
+    return { ...out, yearHint, sample, depts: [...out.depts], fees: [...out.fees.values()] };
   }
 
-  function commit(recs, user, dec = new Map()) {
+  function commit(recs, user, dec = new Map(), feeDec = new Map()) {
     const ids = new Map();   // member_no / Zeile → id
     const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0, families: 0 };
     db.transaction(() => {
@@ -345,12 +403,12 @@ function register(sh) {
         if (!d) { d = { id: Number(db.prepare('INSERT INTO mv_department(name) VALUES (?)').run(name).lastInsertRowid) }; stats.depts++; }
         return d.id;
       };
-      // Beiträge einer Abteilung (nicht „Hauptverein“) sind Zusatzbeiträge: sie hängen an der Abteilungszugehörigkeit, nicht am Mitglied
-      //  (nur wenn die Datei überhaupt Beiträge im „Hauptverein“ führt – sonst sind die Abteilungsbeiträge die eigentlichen Mitgliedsbeiträge)
-      const hasHV = recs.some(r => r.fees.some(f => /^hauptverein$/i.test(String(f.dept || '').trim())));
-      const isDeptFee = f => Boolean(hasHV && f.dept && !/^hauptverein$/i.test(String(f.dept).trim()) && f.interval !== 'einmalig');
+      const isDeptFee = deptFeeTest(recs);
       const feeId = f => {
-        const zus = isDeptFee(f), did = zus ? deptId(f.dept) : null;
+        const zus = isDeptFee(f), choice = feeDec.get(feeKey(f, zus));
+        if (choice === 'skip') return null;                 // „nicht übernehmen“: Mitglied ohne diesen Beitrag (Hinweis „ohne Beitrag“)
+        if (Number.isInteger(choice)) return choice;        // „vorhandene verwenden“
+        const did = zus ? deptId(f.dept) : null;
         let x = zus ? db.prepare("SELECT id FROM mv_fee WHERE lower(name) = lower(?) AND kind = 'zusatz' AND department_id = ?").get(f.name, did)
           : db.prepare("SELECT id FROM mv_fee WHERE lower(name) = lower(?) AND kind != 'zusatz'").get(f.name);
         if (!x) {
@@ -381,7 +439,7 @@ function register(sh) {
         }
         // Beiträge (mit „gebucht bis“)
         for (const f of r.fees) {
-          const fid = feeId(f);
+          const fid = feeId(f); if (!fid) continue;
           if (isDeptFee(f)) {   // Zusatzbeitrag → „abgerechnet bis“ an der Abteilungszugehörigkeit
             const did = deptId(f.dept);
             let md = db.prepare('SELECT * FROM mv_member_department WHERE member_id = ? AND department_id = ? ORDER BY exit_date IS NOT NULL, id DESC LIMIT 1').get(id, did);
@@ -478,8 +536,13 @@ function register(sh) {
     if (recs.some(r => r.bank) && !req.user.perms.includes('mitglieder_bank')) return bad(res, 'Die Datei enthält Bankverbindungen – Importieren darf nur, wer das Recht „Bankdaten“ hat.', 403);
     const yh = /^(0[1-9]|1[0-2])-01$/.test(String(req.query.year_start || '')) ? req.query.year_start : null;
     if (yh) SET('year_start', yh);
-    let dec; try { dec = decisions(recs, JSON.parse(decodeURIComponent(String(req.get('X-Decisions') || '')) || '{}')); } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
-    const stats = commit(recs, uname(req), dec);
+    let dec, feeDec;
+    try {
+      const raw = JSON.parse(decodeURIComponent(String(req.get('X-Decisions') || '')) || '{}') || {};
+      const both = raw.m || raw.f ? raw : { m: raw, f: {} };
+      dec = decisions(recs, both.m || {}); feeDec = feeDecisions(recs, both.f || {});
+    } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
+    const stats = commit(recs, uname(req), dec, feeDec);
     if (map) SET('import_map_' + format, JSON.stringify(map));   // nur Spaltennamen, keine Daten
     C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft, ${stats.families} Familienmitgliedschaften`);
     res.json({ ok: true, ...stats });

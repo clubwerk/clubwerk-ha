@@ -1088,6 +1088,13 @@ function activate(ctx) {
     return Number(ctx.db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, cents, due_date, ext_key, created_by) VALUES (?,?,?,?,?,?,?,?)')
       .run(member_id, member_id, kind, one(text, 140), Math.round(cents), isDate(due_date) ? due_date : today(), ext_key ? String(ext_key).slice(0, 80) : null, by || null).lastInsertRowid);
   };
+  /** Verkaufs-Abrechnung aus einem Lauf: wird sie hier noch berechnet? false = Posten storniert (nichts berechnet), null = unbekannt */
+  ctx.hooks.drinksSettlementBilled = ({ batch, memberId }) => {
+    const run = ctx.db.prepare('SELECT id FROM mv_run WHERE drinks_batch = ?').get(String(batch || ''));
+    if (!run) return null;
+    const c = ctx.db.prepare("SELECT status FROM mv_charge WHERE run_id = ? AND kind = 'getraenke' AND COALESCE(for_member_id, member_id) = ? ORDER BY id DESC LIMIT 1").get(run.id, ctx.int(memberId));
+    return c ? c.status !== 'storniert' : null;
+  };
   ctx.hooks.chargeStatus = ids => Object.fromEntries((ids || []).length ? ctx.db.prepare(`SELECT id, status, paid_at FROM mv_charge WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids).map(r => [r.id, { status: r.status, paid_at: r.paid_at }]) : []);
   ctx.hooks.cancelCharge = (id, reason, by) => {
     const c = ctx.db.prepare('SELECT * FROM mv_charge WHERE id = ?').get(id);

@@ -163,7 +163,7 @@ function activate(ctx) {
       partners: db.prepare('SELECT id, name, active, department_id FROM bh_partner ORDER BY active DESC, name COLLATE NOCASE').all(),
       accounts: C.bank.list().map(a => ({ id: a.id, name: a.name, iban: a.iban, is_default: a.is_default, departments: a.departments })), departments: departments(),
       members: members.map(m => ({ id: m.id, name: m.name, active: m.active, member_no: nos[m.id] || null })),
-      donationReady: Boolean(S('finanzamt') && S('fa_tax_no') && S('bescheid_date') && S('zwecke')) });
+      donationReady: Boolean(S('finanzamt') && (S('fa_tax_no') || S('tax_no')) && S('bescheid_date') && S('zwecke')) });
   }));
 
   /* ---------- Einstellungen ---------- */
@@ -381,7 +381,7 @@ function activate(ctx) {
   });
   admin.post('/donations', P, ar(async (req, res) => {
     const b = req.body || {};
-    if (!(S('finanzamt') && S('fa_tax_no') && S('bescheid_date') && S('zwecke'))) return bad(res, 'Bitte zuerst unter Buchhaltung → Einstellungen die Angaben zum Freistellungsbescheid eintragen (Finanzamt, Steuernummer, Datum, Zwecke).');
+    if (!(S('finanzamt') && (S('fa_tax_no') || S('tax_no')) && S('bescheid_date') && S('zwecke'))) return bad(res, 'Bitte zuerst unter Buchhaltung → Einstellungen die Angaben zum Freistellungsbescheid eintragen (Finanzamt, Steuernummer, Datum, Zwecke).');
     const type = ['member', 'partner', 'einmalig'].includes(b.donor_type) ? b.donor_type : 'einmalig';
     let donor, memberId = null, partnerId = null;
     if (type === 'member') { const m = await memberAddr(int(b.member_id)); if (!m) return bad(res, 'Bitte ein Mitglied wählen.'); memberId = m.id; donor = { name: m.name, street: m.street || '', zip: m.zip || '', city: m.city || '', email: m.email || '' }; }
