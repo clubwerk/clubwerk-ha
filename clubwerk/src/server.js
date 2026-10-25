@@ -2291,13 +2291,15 @@ admin.post('/settle', need('abrechnung'), (req, res) => {
   res.json({ ok: true, members: r.members, bookings: r.bookings, cents: r.cents, batch: r.batch });
 });
 
+/** Abrechnung aus Verkauf › Abrechnung selbst (alle/einzeln) – nicht aus einem Modul oder der alten Stichtags-Abrechnung */
+const ownSettle = batch => /^(alle|einzeln)-/.test(batch);
 admin.get('/settle-history', need('abrechnung'), (req, res) => {
   const rows = db.prepare(`SELECT s.batch, MIN(s.created_at) created_at, MAX(s.until_at) until_at, MAX(s.by_user) by_user,
       COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, char(31)) names, group_concat(m.kind, char(31)) kinds
     FROM member_settlements s JOIN members m ON m.id = s.member_id
     GROUP BY s.batch ORDER BY MIN(s.id) DESC LIMIT 30`).all();
   const newest = rows.length ? rows[0].batch : null;
-  res.json(rows.map(({ kinds, ...r }) => ({ ...r, names: r.members <= 3 ? r.names.split('\x1f').map((n, i) => lastFirst(n, kinds.split('\x1f')[i])).join('; ') : null, undo: r.batch === newest && !r.batch.startsWith('stichtag-') })));
+  res.json(rows.map(({ kinds, ...r }) => ({ ...r, names: r.members <= 3 ? r.names.split('\x1f').map((n, i) => lastFirst(n, kinds.split('\x1f')[i])).join('; ') : null, undo: r.batch === newest && ownSettle(r.batch) })));
 });
 
 /* Getränke für andere Module (Mitgliederverwaltung: Einzug per Lastschrift) – gleiche Regeln wie die Abrechnung oben */
@@ -2393,6 +2395,9 @@ const drinks = {
 /* Fehlklick: nur die jüngste Abrechnung lässt sich zurücknehmen */
 admin.delete('/settle/:batch', need('abrechnung'), (req, res) => {
   const batch = String(req.params.batch);
+  // Abrechnungen eines Moduls (z. B. Verkaufs-Einzug der Mitgliederverwaltung) nur dort zurücknehmen – sonst blieben dessen Posten
+  // bestehen und dieselben Verkäufe würden beim nächsten Lauf noch einmal abgebucht
+  if (!ownSettle(batch) && !batch.startsWith('stichtag-')) return bad(res, 'Diese Abrechnung gehört zu einem Verkaufs-Einzug der Mitgliederverwaltung. Bitte dort zurücknehmen (Lauf zurücknehmen) – hier würden die Verkäufe sonst doppelt abgebucht.');
   const newest = db.prepare('SELECT batch FROM member_settlements ORDER BY id DESC LIMIT 1').get();
   if (!newest || newest.batch !== batch || batch.startsWith('stichtag-')) return bad(res, 'Nur die letzte Abrechnung kann zurückgenommen werden.');
   const sum = db.prepare('SELECT SUM(cents) c, COUNT(*) n FROM member_settlements WHERE batch = ?').get(batch);

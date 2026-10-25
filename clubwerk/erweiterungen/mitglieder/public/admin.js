@@ -1130,7 +1130,8 @@
         const skip = new Set();
         $('kOut').innerHTML = `${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Einstellungen).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag.</span></div>' : ''}
           ${p.tooEarly ? `<div class="banner a"><span>Zu früh: frühester Termin ist der ${deDate(p.earliest)}.</span></div>` : ''}
-          ${p.problems.length ? `<div class="banner a"><span>${p.problems.length} Zahler ohne gültiges Mandat bleiben offen: ${esc(p.problems.map(x => `${x.name} (${x.reason})`).join(', '))}</span></div>` : ''}
+          ${p.problems.length ? `<div class="banner a"><span>${p.problems.length} Zahler bleiben offen: ${esc(p.problems.map(x => `${x.name} (${x.reason})`).join(', '))}</span></div>` : ''}
+          ${p.zero && p.zero.length ? `<div class="banner g"><span>${p.zero.length} Zahler: Forderungen und Gutschriften gleichen sich aus (${esc(p.zero.map(x => x.name).join(', '))}) – werden mit dem Einzug als verrechnet gebucht.</span></div>` : ''}
           ${p.other.length ? `<div class="banner g"><span>${p.other.length} Zahler mit Rechnung/bar (${euro(p.other.reduce((s, x) => s + x.cents, 0))}) – unter „Rechnungen & Mahnungen“ verschicken.</span></div>` : ''}
           ${p.ok.length ? `<div class="scroll" style="max-height:48vh;margin-top:12px"><table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>Konto</th><th>Mandat</th><th>Art</th><th>Posten</th><th class="r">Betrag</th></tr>
             ${p.ok.map(x => `<tr><td><input type="checkbox" data-kx="${x.member_id}" checked></td><td><b>${esc(GK.lastFirst(x.name))}</b></td><td class="nw">${esc(x.masked)}</td><td>${esc(x.mandate_ref)}</td><td>${x.seq === 'FRST' ? '<span class="pill b">Erst</span>' : '<span class="pill">Folge</span>'}</td><td class="s" translate="no">${esc(x.texts.join(', '))}</td><td class="r">${euro(x.cents)}</td></tr>`).join('')}</table></div>

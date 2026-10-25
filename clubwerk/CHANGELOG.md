@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.40.3
+
+**Prüfung aller Abrechnungswege bis zur SEPA-Datei**
+
+Alle Wege von der Buchung bis zur SEPA-Datei wurden mit zwei neuen Testreihen durchgespielt: Verkauf am Tablet, in der Verwaltung, bei Veranstaltungen und über den Gäste-Deckel, dazu Beitragsläufe mit allen Rhythmen, Familie, Zahler, Abteilungsbeiträgen und Austritt. Geprüft wurde jeweils mit allen Stornos, Gutschriften, Rücklastschriften und verworfenen Einzügen, und jede SEPA-Datei wurde gegen das offizielle Bankformat geprüft. Dabei sind diese Fehler aufgefallen und behoben:
+- **Doppelte Abbuchung verhindert:** Unter Verkauf › Abrechnung ließ sich ein Verkaufs-Einzug der Mitgliederverwaltung zurücknehmen. Die Posten blieben in der Mitgliederverwaltung trotzdem stehen, beim nächsten Lauf wären dieselben Getränke noch einmal abgebucht worden. Das geht jetzt nur noch in der Mitgliederverwaltung (Lauf zurücknehmen).
+- **Forderung und Gutschrift gleichen sich aus:** Ergeben die offenen Posten eines Mitglieds genau 0 € (z. B. Verkauf 3 € und Storno −3 €), werden sie mit dem nächsten Einzug als „verrechnet“ gebucht, statt bei jedem Einzug als Problem „Summe 0 €“ aufzutauchen.
+- **Beitrag 0 € (befreit)** erzeugt keinen Posten über 0 € mehr. Der Zeitraum gilt trotzdem als abgerechnet.
+- **Zahlung höher als offen** wird abgelehnt, statt den Mehrbetrag stillschweigend zu verschlucken. Ein Mehrbetrag kommt als Gutschrift (Minus-Betrag) dazu.
+- Klarere Hinweise: Ein Lauf mit storniertem Posten lässt sich nicht zurücknehmen, die Meldung sagt das jetzt auch. Beim Einzug heißt es jetzt „Zahler bleiben offen“ statt „ohne gültiges Mandat“, weil dort auch Guthaben stehen.
+
 ## 3.40.2
 
 **Mitglieder-Import: Familie nur, wenn es passt**

@@ -43,7 +43,7 @@ function register(sh) {
         if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
         const per = fees.periods({ start_date: r.start_date, end_date: r.end_date, booked_until: r.booked_until, cents: r.cents != null ? r.cents : r.fee_cents, interval: r.interval, prorate: r.prorate }, until, { limit: r.exit_date, yearStart });
         for (const pr of per) {
-          if (pr.free) { marks.push({ mf: r.id, to: pr.to, name: r.person_name, fee: r.fee_name }); continue; }
+          if (pr.free || !pr.cents) { marks.push({ mf: r.id, to: pr.to, name: r.person_name, fee: r.fee_name }); continue; }   // beitragsfrei bzw. 0 € (befreit): kein Posten, nur „abgerechnet bis“ vorrücken
           const age = fees.ageAt(r.birth_date, pr.from);
           if (age != null && ((r.age_max != null && age > r.age_max) || (r.age_min != null && age < r.age_min)) && !(sh.ageNoticeFor && sh.ageNoticeFor(r.id)))
             warnings.push({ member_id: r.member_id, text: `${r.person_name} ist am ${deD(pr.from)} ${age} Jahre – „${r.fee_name}“ gilt für ${r.age_min != null ? r.age_min : 0}–${r.age_max != null ? r.age_max : '…'} Jahre.` });
@@ -218,7 +218,7 @@ function register(sh) {
   admin.delete('/runs/:id', PF, (req, res) => {
     const r = db.prepare('SELECT * FROM mv_run WHERE id = ?').get(int(req.params.id));
     if (!r) return bad(res, 'Nicht gefunden.', 404);
-    if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) return bad(res, 'Aus diesem Lauf wurde schon etwas eingezogen oder bezahlt – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
+    if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) return bad(res, 'Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
     const f = JSON.parse(r.filters || '{}');
     // Getränkeabrechnung und Posten in einer Transaktion zurücknehmen – schlägt eines fehl, bleibt alles wie es war
     // (sonst wären die Getränke wieder offen, die Posten aber noch da → beim nächsten Lauf doppelt)
@@ -283,6 +283,7 @@ function register(sh) {
     const date = isDate(b.date) ? b.date : today();
     const paid = b.cents !== undefined ? Math.round(Number(b.cents)) : c.cents;
     if (!Number.isFinite(paid) || paid <= 0 && c.cents > 0) return bad(res, 'Ungültiger Betrag.');
+    if (c.cents > 0 && paid > c.cents) return bad(res, `Der Betrag ist höher als offen (${euro(c.cents)}) – den Mehrbetrag bitte als Gutschrift (Minus-Betrag) erfassen.`);
     db.transaction(() => {
       if (c.cents > 0 && paid < c.cents) {   // Teilzahlung: Rest bleibt als neuer Posten offen
         db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, run_id, created_by, note, member_fee_id, member_dept_id, invoice_no, dunning_level, dunned_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
@@ -323,22 +324,24 @@ function register(sh) {
     const open = db.prepare(`SELECT c.* FROM mv_charge c WHERE c.status = 'offen' AND c.collection_id IS NULL AND c.due_date <= ? ORDER BY c.member_id, c.due_date, c.id`).all(day);
     const groups = new Map();
     for (const c of open) { if (!groups.has(c.member_id)) groups.set(c.member_id, []); groups.get(c.member_id).push(c); }
-    const ok = [], problems = [], other = [];
+    const ok = [], problems = [], other = [], zero = [];
     for (const [payer, list] of groups) {
       const p = personOf(payer);
       const sum = list.reduce((s, c) => s + c.cents, 0);
       const name = payerName(payer);
+      // Forderung und Gutschrift gleichen sich genau aus (z. B. Verkauf 3 € und Storno −3 €): nichts einzuziehen – wird beim Einzug verrechnet
+      if (sum === 0) { zero.push({ member_id: payer, name, count: list.length, charges: list.map(c => c.id) }); continue; }
       if ((p.payment || 'lastschrift') !== 'lastschrift') { other.push({ member_id: payer, name, payment: p.payment, cents: sum, count: list.length }); continue; }
       const b = bankRow(payer); const ms = mandateState(b);
       if (!ms.ok) { problems.push({ member_id: payer, name, reason: ms.reason, cents: sum, count: list.length }); continue; }
       // Sicherheitsnetz für Altdaten: Unterschrift nach dem Fälligkeitstag würde die Bank ablehnen (DtOfSgntr > ReqdColltnDt)
       if (b.mandate_date > day) { problems.push({ member_id: payer, name, reason: `Mandat erst am ${deD(b.mandate_date)} unterschrieben – nach dem Einzugstag`, cents: sum, count: list.length }); continue; }
-      if (sum <= 0) { problems.push({ member_id: payer, name, reason: sum === 0 ? 'Summe 0 €' : `Guthaben ${euro(-sum)} – nichts einzuziehen`, cents: sum, count: list.length }); continue; }
+      if (sum < 0) { problems.push({ member_id: payer, name, reason: `Guthaben ${euro(-sum)} – nichts einzuziehen`, cents: sum, count: list.length }); continue; }
       ok.push({ member_id: payer, name, member_no: p.member_no, cents: sum, count: list.length, charges: list.map(c => c.id), texts: list.map(c => c.text), seq: b.mandate_first_used ? 'RCUR' : 'FRST',
         holder: b.holder || name, iban: b.iban, bic: b.bic, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, masked: sepa.maskIban(b.iban) });
     }
     const earliest = sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14);
-    return { date: day, ok, problems, other, earliest, tooEarly: day < earliest, bankDay: sepa.isBankDay(day), total: ok.reduce((s, x) => s + x.cents, 0),
+    return { date: day, ok, problems, other, zero: zero.map(({ charges, ...z }) => z), zeroCharges: zero.flatMap(z => z.charges), earliest, tooEarly: day < earliest, bankDay: sepa.isBankDay(day), total: ok.reduce((s, x) => s + x.cents, 0),
       ready: Boolean(S('creditor_id') && store.account().iban), creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(store.account().iban), account: store.account().name } };
   }
   /** Verwendungszweck: Positionen zusammengefasst, max. 140 Zeichen */
@@ -374,6 +377,7 @@ function register(sh) {
         db.prepare('UPDATE mv_bank SET mandate_first_used = COALESCE(mandate_first_used, ?), mandate_last_used = ? WHERE member_id = ?').run(plan.date, plan.date, x.member_id);
         db.prepare(`UPDATE mv_charge SET status = 'eingezogen', collection_id = ? WHERE id IN (${x.charges.map(() => '?').join(',')})`).run(id, ...x.charges);
       }
+      for (const cid of plan.zeroCharges) db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = 'verrechnet', collection_id = ?, note = ? WHERE id = ? AND status = 'offen'").run(plan.date, id, `verrechnet (Summe 0 €) mit Einzug ${id}`, cid);   // Verwerfen des Einzugs öffnet sie wieder
       db.prepare('UPDATE mv_collection SET msg_id = ?, count = ?, cents = ?, xml = ?, note = ? WHERE id = ?').run(msgId, txs.length, txs.reduce((s, x) => s + x.cents, 0), xmlStr, JSON.stringify({ prevMandates }), id);
     })();
     C.audit(req.user, 'SEPA-Einzug erstellt', `${txs.length} Lastschriften, ${euro(txs.reduce((s, x) => s + x.cents, 0))} zum ${deD(plan.date)}`);

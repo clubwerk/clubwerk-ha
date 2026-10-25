@@ -8084,6 +8084,15 @@
   "vorhandene Beitragsarten": "existing fee types",
   "Zeile {0} {1} {2}: Zahler „{3}“ nicht gefunden – wird nicht verknüpft": "Row {0} {1} {2}: payer ‘{3}’ not found – will not be linked",
   "prüfen": "check",
-  "Zeile {0} {1} {2}: über {3} Jahre und ohne eigenen Beitrag, zahlt über {4} – dort wären mehr als zwei Erwachsene in der Familie. Wird nicht als Familie übernommen, bitte prüfen.": "Row {0} {1} {2}: over {3} and without their own fee, paid by {4} – that family would have more than two adults. Not imported as family – please check."
+  "Zeile {0} {1} {2}: über {3} Jahre und ohne eigenen Beitrag, zahlt über {4} – dort wären mehr als zwei Erwachsene in der Familie. Wird nicht als Familie übernommen, bitte prüfen.": "Row {0} {1} {2}: over {3} and without their own fee, paid by {4} – that family would have more than two adults. Not imported as family – please check.",
+  ") – werden mit dem Einzug als verrechnet gebucht.": ") – will be booked as offset with the collection.",
+  "{0} Zahler bleiben offen:": "{0} payers remain open:",
+  "{0} Zahler bleiben offen: {1}": "{0} payers remain open: {1}",
+  "{0} Zahler: Forderungen und Gutschriften gleichen sich aus (": "{0} payers: charges and credits cancel each other out (",
+  "{0} Zahler: Forderungen und Gutschriften gleichen sich aus ({1}) – werden mit dem Einzug als verrechnet gebucht.": "{0} payers: charges and credits cancel each other out ({1}) – will be booked as offset with the collection.",
+  "Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.": "Something from this run has already been collected, paid or cancelled – it can no longer be undone. Individual items can be cancelled.",
+  "Der Betrag ist höher als offen ({0}) – den Mehrbetrag bitte als Gutschrift (Minus-Betrag) erfassen.": "The amount is higher than what is open ({0}) – please record the excess as a credit (negative amount).",
+  "Diese Abrechnung gehört zu einem Verkaufs-Einzug der Mitgliederverwaltung. Bitte dort zurücknehmen (Lauf zurücknehmen) – hier würden die Verkäufe sonst doppelt abgebucht.": "This settlement belongs to a sales collection in Member management. Please undo it there (undo run) – otherwise the sales would be debited twice.",
+  "verrechnet (Summe 0 €) mit Einzug {0}": "offset (total €0) with collection {0}"
  }
 }
