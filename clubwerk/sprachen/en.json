@@ -8049,6 +8049,10 @@
   "Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. Ein späteres Clubwerk-Update bringt die neue Node.js-Version mit.": "This Node.js version does not yet include the security fixes from October 2026. Clubwerk therefore rejects compressed requests. A later Clubwerk update will bring the new Node.js version.",
   "Komprimierte Anfragen werden nicht angenommen.": "Compressed requests are not accepted.",
   "· Node.js": "· Node.js",
-  "Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. In Home Assistant beim Add-on Clubwerk „Neu bauen“ klicken, das holt die neueste Node.js-Version.": "This Node.js version does not yet include the security fixes from October 2026. Clubwerk therefore rejects compressed requests. In Home Assistant, click “Rebuild” on the Clubwerk add-on to fetch the latest Node.js version."
+  "Die Node.js-Version enthält noch nicht die Sicherheitskorrekturen vom Oktober 2026. Clubwerk lehnt komprimierte Anfragen deshalb ab. In Home Assistant beim Add-on Clubwerk „Neu bauen“ klicken, das holt die neueste Node.js-Version.": "This Node.js version does not yet include the security fixes from October 2026. Clubwerk therefore rejects compressed requests. In Home Assistant, click “Rebuild” on the Clubwerk add-on to fetch the latest Node.js version.",
+  "– Verkaufsbuchungen wieder offen": "– sales bookings reopened",
+  "Für diese Verkaufsbuchungen gibt es schon eine Gutschrift unter Verkauf › Buchungen. Bitte die Gutschrift dort zuerst stornieren.": "A credit already exists for these sales bookings under Sales › Bookings. Please cancel the credit there first.",
+  "Gutschrift #{0} storniert": "Credit #{0} cancelled",
+  "storniert von {0}: {1}{2}": "cancelled by {0}: {1}{2}"
  }
 }

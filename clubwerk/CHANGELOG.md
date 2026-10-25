@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.39.4
+
+**Verkauf und Einzug passen beim Stornieren wieder zusammen**
+- Wird in der Mitgliederverwaltung ein Verkaufs-Posten aus einem Verkaufs-Einzug storniert, sind die zugehörigen Verkaufsbuchungen danach wieder **offen**. Bisher blieben sie „abgerechnet“, und ein Storno im Verkauf buchte zusätzlich eine Gutschrift, die Rückbuchung zählte also doppelt.
+- Gibt es für diese Buchungen schon eine Gutschrift, sperrt Clubwerk das Stornieren des Postens und sagt, was zuerst zu tun ist.
+- Wird eine Gutschrift storniert, nimmt Clubwerk auch die Bestandskorrektur zurück. Bei früher stornierten Gutschriften holt Clubwerk das beim Start einmal nach.
+
 ## 3.39.3
 
 **Import aus verein.cloud: Beiträge in allen Spalten**

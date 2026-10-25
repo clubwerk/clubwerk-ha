@@ -2147,6 +2147,7 @@ admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
   const r = db.prepare(`UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ?
     WHERE id = ? AND cancelled_at IS NULL`).run(req.user.username, b.id);
   if (!r.changes) return bad(res, 'Diese Buchung ist bereits storniert.', 409);   // zwischenzeitlich von jemand anderem
+  if (b.credit_for) reverseCreditStock(b.id);
   audit(req.user, 'Buchung storniert', what);
   res.json({ ok: true });
 });
@@ -2291,6 +2292,16 @@ admin.get('/settle-history', need('abrechnung'), (req, res) => {
 });
 
 /* Getränke für andere Module (Mitgliederverwaltung: Einzug per Lastschrift) – gleiche Regeln wie die Abrechnung oben */
+/** Eine Gutschrift auf eine abgerechnete Buchung hat den Bestand zurückgebucht – wird die Gutschrift storniert, gilt die Ware wieder als verkauft */
+const CREDIT_STOCK_NOTE = id => `Gutschrift #${id} storniert`;
+function reverseCreditStock(creditId) {
+  const o = db.prepare('SELECT o.article_id, o.qty, a.custom FROM bookings c JOIN bookings o ON o.id = c.credit_for JOIN articles a ON a.id = o.article_id WHERE c.id = ?').get(creditId);
+  if (!o || o.custom || db.prepare("SELECT 1 FROM stock_moves WHERE note = ?").get(CREDIT_STOCK_NOTE(creditId))) return;
+  db.prepare("INSERT INTO stock_moves(article_id, qty, reason, date, note) VALUES (?,?,'korrektur',?,?)").run(o.article_id, -o.qty, today(), CREDIT_STOCK_NOTE(creditId));
+}
+// Nachholen für Gutschriften, die vor 3.39.4 storniert wurden (damals blieb die Bestandskorrektur stehen)
+for (const c of db.prepare('SELECT id FROM bookings WHERE credit_for IS NOT NULL AND cancelled_at IS NOT NULL').all()) reverseCreditStock(c.id);
+
 const drinks = {
   active: () => plugins.isActive('getraenke'),
   /** Veranstaltung im Verkauf anlegen (z. B. aus einem Dienstplan) – Artikelliste mit allen aktiven Artikeln zum Normalpreis → id */
@@ -2347,6 +2358,17 @@ const drinks = {
     db.prepare("UPDATE bookings SET cancelled_at = datetime('now','localtime'), cancelled_by = ? WHERE id = ?").run(user || 'Modul', b.id);
     audit(user, 'Buchung storniert', `${b.name || ''}: Betrag ${euro(b.total_cents)}${b.note ? ' (' + b.note + ')' : ''}`);
     return true;
+  },
+  /** Abrechnung eines einzelnen Kontos aus einem Modul-Lauf zurücknehmen (z. B. Verkaufs-Posten in der Mitgliederverwaltung storniert)
+   *  → { ok, n } – die Buchungen sind danach wieder offen und lassen sich normal stornieren */
+  reopen(batch, memberId) {
+    const st = db.prepare('SELECT id FROM member_settlements WHERE batch = ? AND member_id = ?').get(String(batch || ''), int(memberId));
+    if (!st) return { ok: true, n: 0 };
+    if (db.prepare('SELECT 1 FROM bookings c JOIN bookings o ON o.id = c.credit_for WHERE c.cancelled_at IS NULL AND o.settled_id = ?').get(st.id))
+      return { ok: false, error: 'Für diese Verkaufsbuchungen gibt es schon eine Gutschrift unter Verkauf › Buchungen. Bitte die Gutschrift dort zuerst stornieren.' };
+    let n = 0;
+    db.transaction(() => { n = db.prepare('UPDATE bookings SET settled_id = NULL WHERE settled_id = ?').run(st.id).changes; db.prepare('DELETE FROM member_settlements WHERE id = ?').run(st.id); })();
+    return { ok: true, n };
   },
   unsettle(batch) {
     const ids = db.prepare('SELECT id FROM member_settlements WHERE batch = ?').all(String(batch || '')).map(r => r.id);

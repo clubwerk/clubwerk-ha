@@ -298,7 +298,13 @@ function register(sh) {
     if (!['offen', 'bezahlt'].includes(c.status)) return bad(res, 'Posten in einem laufenden Einzug zuerst über den Einzug klären (Rücklastschrift oder verwerfen).');
     const reason = one((req.body || {}).reason, 120);
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
-    db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${uname(req)}: ${reason}`, c.id);
+    // Verkaufs-Posten aus einem Lauf: die Verkaufsbuchungen wieder öffnen, sonst blieben sie „abgerechnet“, ohne dass etwas eingezogen wird
+    let reopened = 0;
+    if (c.kind === 'getraenke' && c.run_id && c.status === 'offen' && C.drinks.active()) {
+      const run = db.prepare('SELECT drinks_batch FROM mv_run WHERE id = ?').get(c.run_id);
+      if (run && run.drinks_batch) { const r = C.drinks.reopen(run.drinks_batch, c.for_member_id || c.member_id); if (!r.ok) return bad(res, r.error); reopened = r.n; }
+    }
+    db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${uname(req)}: ${reason}${reopened ? ' – Verkaufsbuchungen wieder offen' : ''}`, c.id);
     if (c.member_fee_id && c.period_from) {   // Beitrag storniert → Zeitraum kann neu abgerechnet werden, falls es der letzte war
       const mf = db.prepare('SELECT booked_until FROM mv_member_fee WHERE id = ?').get(c.member_fee_id);
       if (mf && mf.booked_until === c.period_to && (req.body || {}).rebill) db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run(fees.addDays(c.period_from, -1), c.member_fee_id);
