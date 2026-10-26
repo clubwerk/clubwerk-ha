@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.48.0
+
+**Mängel neu geordnet (Etappe 3 des Menü-Umbaus)**
+- **Einstellungen als Karten:** Orte, Benachrichtigungen und Aufbewahrung haben jetzt je ein eigenes „Speichern“. Bisher gab es unten nur einen Knopf für alles.
+- **Neu: „Einstellungen übertragen“** als letzte Karte. Orte, E-Mail-Empfänger und Aufbewahrungsfrist lassen sich als Datei sichern und in einem anderen Verein oder nach einer Neuinstallation wieder einspielen.
+- **Am Handy** zeigt die Liste je Meldung zwei Zeilen; die Einleitung ist kürzer.
+- **Sprache:** Es heißt überall „Mängel“ und „Plätze“ statt „Mängelmelder“ und „Buchungssystem“ (auch in Mails, Meldungen und Hilfetexten).
+- Die Suche findet Erledigt, jede Karte, das Feld für E-Mail-Empfänger, „Ort hinzufügen“ und die Übertragung.
+- Bereits gespeicherte Einstellungen bleiben unverändert.
+
 ## 3.47.0
 
 **Einstellungen neu geordnet (Etappe 2 des Menü-Umbaus)**

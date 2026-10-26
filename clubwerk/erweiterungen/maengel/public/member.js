@@ -1,5 +1,5 @@
 'use strict';
-/* Mängelmelder – Bereich „Mängel“ in der Mitglieder-App und das Meldeformular, das auch das Tablet benutzt (tablet.js lädt diese Datei).
+/* Mängel – Bereich „Mängel“ in der Mitglieder-App und das Meldeformular, das auch das Tablet benutzt (tablet.js lädt diese Datei).
    Ein Formular für beide Oberflächen: Ort, Beschreibung, bis zu 3 Fotos, „dringend“ – vorher der Blick auf offene Meldungen zum selben Ort.
    Fotos werden im Gerät verkleinert (längste Seite 1600 px, JPEG) – dabei fallen Ortsdaten (EXIF/GPS) weg. */
 (() => {
@@ -26,7 +26,8 @@
       .vh-box p.mg-meta { font-size: 13px; margin: 0 0 12px; }
       .vh-bar.mg-ans { align-items: flex-start; padding: 10px 14px; font-weight: 500; line-height: 1.4; }
       .mg-txt { white-space: pre-line; overflow-wrap: anywhere; }
-      .vh-rows .mg-row { cursor: pointer; }`;
+      .vh-rows .mg-row { cursor: pointer; }
+      .vh-rows .mg-row .vh-tx { min-width: 0; } .vh-rows .mg-row small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }`;
     document.head.appendChild(s);
   }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -172,7 +173,7 @@
             <button class="vh-btn wide" id="mgNew" type="button">Mangel melden</button></div>
           <div class="vh-card"><h3>Meine Meldungen${d.list.length ? ` <small>${d.list.length}</small>` : ''}</h3>
             ${d.list.length ? `<div class="vh-rows">${d.list.map(r => `<div class="mg-row" data-r="${r.id}" role="button" tabindex="0"><span class="vh-date"><b>${r.created_at.slice(8, 10)}.${r.created_at.slice(5, 7)}.</b><span>${WD[new Date(r.created_at.slice(0, 10) + 'T12:00:00').getDay()]}</span></span>
-              <span class="vh-tx"><strong translate="no">${esc(r.place)}</strong><small translate="no">${esc(r.text)}</small>${r.answer ? `<small><b>Antwort:</b> <span translate="no">${esc(r.answer)}</span></small>` : ''}</span>${chip(r.status)}</div>`).join('')}</div>`
+              <span class="vh-tx"><strong translate="no">${esc(r.place)}</strong><small translate="no">${esc(r.text)}</small></span>${chip(r.status)}</div>`).join('')}</div>`
               : `<p class="vh-none">Du hast noch nichts gemeldet.</p>`}</div>`;
         el.querySelector('#mgNew').onclick = () => { closeForm = openForm(io, { sheetId: 'mgSheet', toast: ctx.toast, done: load }); };
         el.querySelectorAll('[data-r]').forEach(row => { const open = () => detail(d.list.find(x => x.id === +row.dataset.r)); row.onclick = open; row.onkeydown = e => { if (e.key === 'Enter') open(); }; });

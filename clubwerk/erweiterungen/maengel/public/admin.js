@@ -1,5 +1,5 @@
 'use strict';
-/* Verwaltungsseite „Mängelmelder“: Reiter Offen · Erledigt · Einstellungen */
+/* Verwaltungsseite „Mängel“: Reiter Offen · Erledigt · Einstellungen */
 (() => {
   const GK = window.GK;
   const { $, esc, toast, fail } = GK;
@@ -26,7 +26,7 @@
       .mg-big img { width: 100%; max-height: 70vh; object-fit: contain; border-radius: 12px; display: block; background: var(--hover); }
       .mg-pl { flex-wrap: nowrap; align-items: center; } .mg-pl > label.f { flex: 1 1 auto; } .mg-pl .acts { display: flex; gap: 6px; flex: none; }
       @media (max-width: 640px) { .mg-pl { flex-wrap: wrap; } .mg-pl .acts { margin-left: auto; } .mg-pl + .mg-pl { margin-top: 18px !important; } }
-      @media (max-width: 700px) { .tbl td.mg-tdw { display: block; text-align: left; } .tbl td.mg-tdw::before { content: none; } }`;
+      @media (max-width: 700px) { .tbl td.mg-tdw { display: block; text-align: left; } .tbl td.mg-tdw::before { content: none; } .mg-th, .mg-done { display: none; } .mg-what .muted { -webkit-line-clamp: 1; } }`;
     document.head.appendChild(s);
   }
 
@@ -36,14 +36,14 @@
     const sorted = [...list];
     if (!done && st.sort === 'dringend') sorted.sort((a, b) => (b.urgent - a.urgent) || b.created_at.localeCompare(a.created_at));
     if (!done && st.sort === 'auch') sorted.sort((a, b) => (b.also - a.also) || b.created_at.localeCompare(a.created_at));
-    return `<table class="tbl sel"><tr><th>Meldung</th><th>Gemeldet</th><th class="r">Auch gemeldet</th><th>Status</th><th class="hide-md">Zuständig</th><th></th></tr>
+    return `<table class="tbl sel kompakt"><tr><th>Meldung</th><th class="k-weg">Gemeldet</th><th class="r">Auch gemeldet</th><th>Status</th><th class="hide-md k-weg">Zuständig</th><th></th></tr>
       ${sorted.map(r => `<tr data-sel="${r.id}">
         <td class="mg-tdw"><div class="mg-what"><span class="mg-th">${r.photo ? `<img src="api/admin/x/maengel/foto/${r.photo}?t=1" alt="" loading="lazy">` : CAM}</span>
           <div><b translate="no">${esc(r.place)}</b>${r.urgent ? ' <span class="pill r">dringend</span>' : ''}<div class="muted s" translate="no">${esc(r.text)}</div></div></div></td>
-        <td data-label="Gemeldet"><span class="tcell"><span class="nw">${esc(dt(r.created_at))}</span><div class="muted s" translate="no">${esc(r.reporter || 'gelöschtes Konto')}${r.source === 'tablet' ? ' · Tablet' : ''}</div></span></td>
-        <td class="r" data-label="Auch gemeldet">${r.also ? `<span class="pill a">+${r.also}</span>` : '–'}</td>
-        <td data-label="Status"><span class="pill ${PILL[r.status]}">${esc(st.meta.status[r.status])}</span>${done && r.done_at ? `<div class="muted s">${esc(GK.deDate(r.done_at.slice(0, 10)))}</div>` : ''}</td>
-        <td class="hide-md" data-label="Zuständig" translate="no">${esc(r.assignee || '–')}</td>
+        <td class="k-weg" data-label="Gemeldet"><span class="tcell"><span class="nw">${esc(dt(r.created_at))}</span><div class="muted s" translate="no">${esc(r.reporter || 'gelöschtes Konto')}${r.source === 'tablet' ? ' · Tablet' : ''}</div></span></td>
+        <td class="r" data-label="Auch gemeldet">${r.also ? `<span class="pill a">+${r.also}</span>` : ''}</td>
+        <td data-label="Status"><span class="pill ${PILL[r.status]}">${esc(st.meta.status[r.status])}</span>${done && r.done_at ? `<div class="muted s mg-done">${esc(GK.deDate(r.done_at.slice(0, 10)))}</div>` : ''}</td>
+        <td class="hide-md k-weg" data-label="Zuständig" translate="no">${esc(r.assignee || '–')}</td>
         <td class="r"><span class="acts"><button class="btn ico" data-ed="${r.id}" title="Bearbeiten" aria-label="Bearbeiten">${EDIT}</button></span></td></tr>`).join('')}</table>`;
   }
 
@@ -69,7 +69,8 @@
       </div>
       <label class="f" style="margin-top:12px">Antwort an den Melder (erscheint in der Mitglieder-App)<textarea id="mgAn" maxlength="500" placeholder="z. B. Danke! Das Netz wird am Samstag getauscht.">${esc(r.answer || '')}</textarea></label>
       <label class="f" style="margin-top:12px">Interne Notiz (sehen nur Benutzer mit diesem Recht)<textarea id="mgNo" maxlength="1000">${esc(r.note || '')}</textarea></label>
-      <div class="btns"><button class="btn danger" id="mgDel" style="margin-right:auto">Löschen</button><button class="btn ghost" id="mgX">Abbrechen</button><button class="btn primary" id="mgOk">Speichern</button></div>`, true);
+      <div class="btns"><button class="btn ghost" id="mgX">Abbrechen</button><button class="btn primary" id="mgOk">Speichern</button></div>
+      <div class="btns" style="margin-top:8px;border-top:1px solid var(--line);padding-top:12px"><button class="btn danger" id="mgDel">Meldung löschen</button></div>`, true);
     $('dialog').querySelectorAll('[data-big]').forEach(a => { a.onclick = e => { e.preventDefault(); big(+a.dataset.big, id); }; });
     $('mgX').onclick = GK.closeDialog;
     $('mgDel').onclick = async () => {
@@ -91,17 +92,19 @@
 
   function showSettings(el) {
     const c = st.meta.cfg, places = [...st.meta.places];
-    el.innerHTML = `<div class="card"><h3>Orte</h3>
-        <p class="muted s" style="margin-top:0">Aus dieser Liste wählen Mitglieder beim Melden.${st.meta.bookingPlaces ? ' Die Plätze und Geräte aus dem Buchungssystem stehen automatisch davor.' : ''} „Anderer Ort“ mit eigenem Text ist immer dabei.</p>
+    el.innerHTML = `<div class="card" data-card="orte"><h3>Orte</h3>
+        <p class="muted s" style="margin-top:0">Aus dieser Liste wählen Mitglieder beim Melden.${st.meta.bookingPlaces ? ' Die Plätze und Geräte aus „Plätze“ stehen automatisch davor.' : ''} „Anderer Ort“ mit eigenem Text ist immer dabei.</p>
         <div id="mgPl"></div>
-        <div class="btns"><button class="btn ghost" id="mgPlAdd">+ Ort hinzufügen</button></div></div>
-      <div class="card"><h3>Benachrichtigung</h3>
-        <p class="muted s" style="margin-top:0">Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängel“ eine Push-Nachricht, wenn ihr Benutzer mit einem Mitglied verknüpft ist (Benutzer &amp; Rechte) und das Mitglied Benachrichtigungen in der App eingeschaltet hat.</p>
+        <div class="btns"><button class="btn ghost" id="mgPlAdd">+ Ort hinzufügen</button><button class="btn primary" id="mgSavePl">Speichern</button></div></div>
+      <div class="card" data-card="benachrichtigungen"><h3>Benachrichtigungen</h3>
+        <p class="muted s" style="margin-top:0">Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängel“ eine Push-Nachricht, wenn ihr Benutzer mit einem Mitglied verknüpft ist und das Mitglied Benachrichtigungen in der App eingeschaltet hat.</p>
         <label class="chk"><input type="checkbox" id="mgMail" ${c.mail_on ? 'checked' : ''}> Zusätzlich per E-Mail (an die Adresse des verknüpften Mitglieds)</label>
-        <label class="f" style="margin-top:12px">Weitere E-Mail-Empfänger (mehrere mit Komma)<input id="mgNotify" value="${esc(c.notify)}" placeholder="z. B. platzwart@dein-verein.de"></label></div>
-      <div class="card"><h3>Aufbewahrung</h3>
-        <div class="row" style="align-items:flex-end"><label class="f" style="flex:0 1 220px">Erledigte Meldungen löschen nach<input id="mgKeep" inputmode="numeric" value="${c.keep_months}"></label><span class="muted s" style="padding-bottom:12px">Monaten – mit allen Fotos. Gilt auch für abgelehnte Meldungen.</span></div></div>
-      <div class="btns"><button class="btn primary" id="mgSave">Speichern</button></div>`;
+        <label class="f" style="margin-top:12px">Weitere E-Mail-Empfänger (mehrere mit Komma)<input id="mgNotify" value="${esc(c.notify)}" placeholder="z. B. platzwart@dein-verein.de"></label>
+        <div class="btns"><button class="btn primary" id="mgSaveNo">Speichern</button></div></div>
+      <div class="card" data-card="aufbewahrung"><h3>Aufbewahrung</h3>
+        <div class="row" style="align-items:flex-end"><label class="f" style="flex:0 1 220px">Erledigte Meldungen löschen nach<input id="mgKeep" inputmode="numeric" value="${c.keep_months}"></label><span class="muted s" style="padding-bottom:12px">Monaten – mit allen Fotos. Gilt auch für abgelehnte Meldungen.</span></div>
+        <div class="btns"><button class="btn primary" id="mgSaveKe">Speichern</button></div></div>
+      <div id="mgFunc"></div>`;
     const drawPlaces = () => {
       $('mgPl').innerHTML = places.length ? places.map((p, i) => `<div class="row mg-pl" style="margin-top:${i ? 10 : 0}px"><label class="f"><input data-pn="${i}" maxlength="60" value="${esc(p)}" placeholder="z. B. Clubhaus Damen-WC" aria-label="Ort"></label>
         <span class="acts"><button class="btn ico" data-pu="${i}" ${i ? '' : 'disabled'} title="nach oben" aria-label="nach oben">↑</button><button class="btn ico" data-pd="${i}" ${i < places.length - 1 ? '' : 'disabled'} title="nach unten" aria-label="nach unten">↓</button><button class="btn ghost" data-px="${i}">Entfernen</button></span></div>`).join('')
@@ -114,28 +117,35 @@
     };
     drawPlaces(); GK.watch(el);
     $('mgPlAdd').onclick = () => { places.push(''); drawPlaces(); const ins = $('mgPl').querySelectorAll('[data-pn]'); ins[ins.length - 1].focus(); };
-    $('mgSave').onclick = () => GK.busy($('mgSave'), async () => {
-      try { const r = await api('einstellungen', 'PUT', { places: places.filter(p => p.trim()), mail_on: $('mgMail').checked, notify: $('mgNotify').value, keep_months: $('mgKeep').value });
-        st.meta.cfg = r.cfg; st.meta.places = r.places; GK.clean(); toast('Gespeichert.'); showSettings(el); }
+    const save = (btn, body) => btn.onclick = () => GK.busy(btn, async () => {
+      try { const r = await api('einstellungen', 'PUT', body()); st.meta.cfg = r.cfg; GK.clean(); toast('Gespeichert.'); await meta(); showSettings(el); }
       catch (e) { fail(e); }
     });
+    save($('mgSavePl'), () => ({ places: places.filter(p => p.trim()) }));
+    save($('mgSaveNo'), () => ({ mail_on: $('mgMail').checked, notify: $('mgNotify').value }));
+    save($('mgSaveKe'), () => ({ keep_months: $('mgKeep').value }));
+    if (GK.funcBox) GK.funcBox($('mgFunc'), 'maengel', 'Mängel', () => showSettings(el));
   }
 
   async function render() {
     await meta();
     $('main').innerHTML = `<h2 class="page">Mängel</h2>
-      <p class="lead">Mitglieder melden Defekte in der Mitglieder-App oder am Tablet. Hier Status setzen, dem Melder antworten und Zuständige eintragen – der Melder bekommt dann Bescheid.</p><div id="mgTabs"></div>`;
+      <p class="lead">Mitglieder melden Defekte in der App oder am Tablet – hier setzt du Status, Antwort und Zuständige.</p><div id="mgTabs"></div>`;
     st.tabs = GK.tabs($('mgTabs'), 'maengel', [['offen', `Offen${st.meta.counts.offen ? ` (${st.meta.counts.offen})` : ''}`], ['erledigt', 'Erledigt'], ['einstellungen', 'Einstellungen']], async (k, el) => {
       if (k === 'einstellungen') return showSettings(el);
       return showList(el, k === 'erledigt');
     });
   }
   GK.registerPage({ key: 'maengel', title: 'Mängel', perm: 'maengel', render, icon: 'maengel', order: 6.5 });
-  // Suche (Strg/⌘ K): Einstellungen des Mängelmelders
+  // Suche (Strg/⌘ K): Karten, Felder und Aktionen der Mängel
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Offene Mängel', page: 'maengel', tab: ['maengel', 'offen'], kind: 'reiter', in: 'Offen', words: 'Meldungen defekt kaputt Schaden' },
-    { label: 'Orte für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Orte', in: 'Einstellungen', words: 'Ort Platz Clubhaus' },
-    { label: 'Benachrichtigung bei neuen Mängeln', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Benachrichtigung', in: 'Einstellungen', words: 'E-Mail Push Meldung' },
-    { label: 'Aufbewahrung erledigter Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Aufbewahrung', in: 'Einstellungen', words: 'löschen aufbewahren' },
+    { label: 'Erledigte Mängel', page: 'maengel', tab: ['maengel', 'erledigt'], kind: 'reiter', in: 'Erledigt', words: 'Meldungen abgeschlossen abgelehnt' },
+    { label: 'Orte für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Orte', in: 'Einstellungen', words: 'Ort Platz Clubhaus Parkplatz' },
+    { label: 'Ort hinzufügen', page: 'maengel', tab: ['maengel', 'einstellungen'], btn: '+ Ort', kind: 'aktion', in: 'Einstellungen › Orte', words: 'Ort neu Liste' },
+    { label: 'Benachrichtigungen bei neuen Mängeln', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Benachrichtigungen', in: 'Einstellungen', words: 'E-Mail Push Meldung' },
+    { label: 'E-Mail-Empfänger für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], field: 'mgNotify', in: 'Einstellungen › Benachrichtigungen', words: 'E-Mail Platzwart Hausmeister' },
+    { label: 'Aufbewahrung erledigter Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Aufbewahrung', in: 'Einstellungen', words: 'löschen aufbewahren Frist' },
+    { label: 'Einstellungen der Mängel übertragen', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Einstellungen übertragen', in: 'Einstellungen', words: 'Export Import sichern Datei' },
   ]);
 })();

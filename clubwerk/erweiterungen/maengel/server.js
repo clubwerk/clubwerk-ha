@@ -1,6 +1,6 @@
 'use strict';
 /* =====================================================================================================
-   Modul „Mängelmelder“
+   Modul „Mängel“
    Mitglieder melden in der Mitglieder-App oder am Tablet (mit PIN) Defekte auf der Anlage: Ort, Beschreibung, bis zu 3 Fotos, „dringend“.
    Vor dem Absenden sieht das Mitglied offene Meldungen zum selben Ort (ohne Namen). „Ja, das ist es“ legt keine neue Meldung an,
    sondern zählt bei der vorhandenen „auch gemeldet“ hoch (je Mitglied einmal) – das Mitglied bekommt dann auch deren Statusmeldungen.
@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   const CFG_LABELS = { keep_months: 'Erledigte Meldungen löschen nach (Monaten)', mail_on: ['E-Mail bei neuen Meldungen', 'bool'], notify: 'Weitere E-Mail-Empfänger' };
   const clubName = () => ctx.getSetting('club_name', 'Verein');
 
-  /* ---------- Orte: Plätze aus dem Buchungssystem (wenn aktiv) + eigene Orte ---------- */
+  /* ---------- Orte: Plätze aus dem Modul „Plätze“ (wenn aktiv) + eigene Orte ---------- */
   const ownPlaces = () => db.prepare('SELECT name FROM mg_place ORDER BY sort, id').all().map(r => r.name);
   function places() {
     const out = [], seen = new Set();
@@ -105,8 +105,8 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     if (ctx.isModuleActive('mitglieder')) for (const id of ids) { const a = (await ctx.callHooks('memberAddress', id)).map(x => x.result).find(Boolean); if (a && a.email && !/@clubwerk\.invalid$/i.test(a.email)) to.add(a.email); }
     if (!to.size) return;
     ctx.mail.send({ to: [...to].join(', '), subject: `${title} – ${clubName()}`,
-      text: [`${r.urgent ? 'DRINGEND – ' : ''}Neue Meldung im Mängelmelder`, '', `Ort: ${r.place}`, `Beschreibung: ${r.text}`, '', 'Fotos und Bearbeitung in der Verwaltung unter „Mängelmelder“.'].join('\n'),
-      card: { heading: 'Neue Mängelmeldung', title: r.place, rows: [['Beschreibung', r.text], ...(r.urgent ? [['Dringend', 'ja']] : [])], after: 'Fotos und Bearbeitung in der Verwaltung unter „Mängelmelder“.' } }).catch(e => console.error('Mängelmelder – Mail:', e.message));
+      text: [`${r.urgent ? 'DRINGEND – ' : ''}Neue Meldung bei den Mängeln`, '', `Ort: ${r.place}`, `Beschreibung: ${r.text}`, '', 'Fotos und Bearbeitung in der Verwaltung unter „Mängel“.'].join('\n'),
+      card: { heading: 'Neue Mängelmeldung', title: r.place, rows: [['Beschreibung', r.text], ...(r.urgent ? [['Dringend', 'ja']] : [])], after: 'Fotos und Bearbeitung in der Verwaltung unter „Mängel“.' } }).catch(e => console.error('Mängel – Mail:', e.message));
   }
   function tellReporters(r, changed) {
     const ids = [r.member_id, ...db.prepare('SELECT member_id FROM mg_also WHERE report_id = ?').all(r.id).map(x => x.member_id)].filter(Boolean);
@@ -234,7 +234,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const next = { status: b.status === undefined ? r.status : String(b.status), answer: b.answer === undefined ? (r.answer || '') : txt(b.answer, 500), note: b.note === undefined ? (r.note || '') : txt(b.note, 1000),
       assignee: b.assignee === undefined ? r.assignee : (int(b.assignee) || null) };
     if (!STATUS[next.status]) return bad(res, 'Unbekannter Status.');
-    if (next.assignee && !handlers().some(u => u.id === next.assignee)) return bad(res, 'Diese Person hat kein Recht für den Mängelmelder.');
+    if (next.assignee && !handlers().some(u => u.id === next.assignee)) return bad(res, 'Diese Person hat kein Recht für Mängel.');
     const done = !OPEN.includes(next.status);
     db.prepare(`UPDATE mg_report SET status = ?, answer = ?, note = ?, assignee = ?, updated_at = datetime('now','localtime'),
       done_at = CASE WHEN ? THEN COALESCE(done_at, datetime('now','localtime')) ELSE NULL END WHERE id = ?`)
@@ -289,9 +289,9 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     let list = []; try { list = fs.readdirSync(DIR); } catch (e) { return; }
     for (const f of list) if (!known.has(f)) try { fs.unlinkSync(path.join(DIR, f)); } catch (e) { /* weiter */ }
   }
-  try { dropOrphans(); } catch (e) { console.error('Mängelmelder – verwaiste Fotos:', e.message); }
-  setInterval(() => { try { cleanup(); } catch (e) { console.error('Mängelmelder – Aufräumen:', e.message); } }, process.env.CW_TEST_FAST ? 1500 : 3600000).unref();
-  setTimeout(() => { try { cleanup(); } catch (e) { console.error('Mängelmelder – Aufräumen:', e.message); } }, 8000).unref();
+  try { dropOrphans(); } catch (e) { console.error('Mängel – verwaiste Fotos:', e.message); }
+  setInterval(() => { try { cleanup(); } catch (e) { console.error('Mängel – Aufräumen:', e.message); } }, process.env.CW_TEST_FAST ? 1500 : 3600000).unref();
+  setTimeout(() => { try { cleanup(); } catch (e) { console.error('Mängel – Aufräumen:', e.message); } }, 8000).unref();
 
   /* ---------- für den Kern ---------- */
   // Konto zusammengeführt: Meldungen und Bestätigungen wandern mit; Konto gelöscht: Meldungen bleiben ohne Namen
@@ -304,6 +304,23 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
       db.prepare('UPDATE mg_report SET member_id = NULL WHERE member_id = ?').run(fromId);
       db.prepare('DELETE FROM mg_also WHERE member_id = ?').run(fromId);
     }
+  };
+  /* Einstellungen übertragen: Orte und Einstellungen als Datei (Export/Import in „Module & Erweiterungen“) */
+  ctx.hooks.exportConfig = () => ({ places: ownPlaces(), settings: cfg() });
+  ctx.hooks.importConfig = data => {
+    if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
+    const c = data.settings || {};
+    const n = int(c.keep_months);
+    if (n >= 1 && n <= 120) SET('keep_months', n);
+    if (c.mail_on !== undefined) SET('mail_on', c.mail_on ? '1' : '0');
+    if (typeof c.notify === 'string') { const l = c.notify.split(/[,;\s]+/).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)); SET('notify', l.slice(0, 5).join(', ')); }
+    let count = 0;
+    if (Array.isArray(data.places)) {
+      const seen = new Set(), list = data.places.map(x => txt(x, 60).replace(/\n/g, ' ')).filter(x => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase())).slice(0, 100);
+      db.transaction(() => { db.prepare('DELETE FROM mg_place').run(); list.forEach((x, i) => db.prepare('INSERT INTO mg_place(name, sort) VALUES (?,?)').run(x, i)); })();
+      count = list.length;
+    }
+    return `${count} ${count === 1 ? 'Ort' : 'Orte'} und die Einstellungen übernommen`;
   };
   ctx.hooks.overview = () => {
     const open = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status IN ('neu','arbeit')").get().n;

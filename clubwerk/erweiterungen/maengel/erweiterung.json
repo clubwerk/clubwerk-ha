@@ -1,7 +1,7 @@
 {
   "id": "maengel",
   "name": "Mängel",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "kurz": "Mitglieder melden Defekte mit Foto – die Verwaltung arbeitet sie ab.",
   "beschreibung": "Mitglieder melden in der Mitglieder-App oder am Tablet (mit PIN) defekte Dinge auf der Anlage – mit bis zu drei Fotos, Ort und kurzer Beschreibung. Vor dem Absenden zeigt Clubwerk offene Meldungen zum selben Ort; „Ja, das ist es“ zählt dort „auch gemeldet“ hoch statt doppelt zu melden. In der Verwaltung: Status, Antwort an den Melder, interne Notiz, Zuständige. Fotos liegen im Tresor, erledigte Meldungen werden nach einer einstellbaren Frist gelöscht.",
   "minApp": "3.41.0",
