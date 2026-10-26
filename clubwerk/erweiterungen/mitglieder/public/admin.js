@@ -508,12 +508,12 @@
       </div></div>
       <div class="card"><h3>SEPA-Lastschriftmandat</h3>
       <div class="mv-grid" style="--c:4">
-        <label class="f w2">Mandatsreferenz<input id="bRef" value="${esc(b.mandate_ref || '')}" placeholder="wird bei „Neues Mandat“ vergeben"></label>
+        <label class="f w2">Mandatsreferenz<input id="bRef" value="${esc(b.mandate_ref || '')}" placeholder="wird bei „Neues Mandat“ vergeben" ${b.mandate_first_used && b.mandate_ref ? 'disabled title="Schon für Lastschriften genutzt – neue Referenz nur über „Neues Mandat …“"' : ''}></label>
         <label class="f">Unterschrieben am<input id="bDate" type="date" value="${esc(b.mandate_date || '')}"></label>
         <label class="f">Zuletzt benutzt<input id="bUsed" type="date" value="${esc(b.mandate_last_used || '')}" title="leer = noch nie benutzt → nächste Lastschrift ist eine Erstlastschrift"></label>
       </div>
       <p class="muted s">${b.mandate_first_used ? `Erstmals benutzt am ${deDate(b.mandate_first_used)} – weitere Lastschriften sind Folgelastschriften.` : 'Noch nie benutzt – die nächste Lastschrift ist eine Erstlastschrift. Bei einem Mandat aus der bisherigen Vereinsverwaltung bitte „zuletzt benutzt“ eintragen.'}
-        Ein Mandat verfällt, wenn es 36 Monate nicht benutzt wurde.${b.mandate_revoked ? ` <b>Widerrufen am ${deDate(b.mandate_revoked)}.</b>` : ''}</p>
+        ${b.mandate_first_used && b.mandate_ref ? 'Die Mandatsreferenz kennt die Bank schon und lässt sich deshalb nicht mehr ändern – eine neue gibt es über „Neues Mandat …“. ' : ''}Ein Mandat verfällt, wenn es 36 Monate nicht benutzt wurde.${b.mandate_revoked ? ` <b>Widerrufen am ${deDate(b.mandate_revoked)}.</b>` : ''}</p>
       <div class="row" style="justify-content:space-between"><div class="row">${b.mandate_ref ? `<button class="btn ghost" id="bRevoke">${b.mandate_revoked ? 'Widerruf aufheben' : 'Mandat widerrufen'}</button>` : ''}<button class="btn ghost" id="bNew">Neues Mandat …</button></div>
         <button class="btn primary" id="bSave">Speichern</button></div></div>`;
     GK.watch(el);
@@ -1001,25 +1001,24 @@
           ${m.arbeit ? '<label class="chk"><input type="checkbox" id="rExtra" checked> Nicht geleistete Arbeitsstunden mit abrechnen</label>' : ''}</div>
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rPrev">Vorschau</button></div></div>
       <div class="card"><h3>Verkauf einziehen</h3>
-        <p class="muted s" style="margin-top:0">Jederzeit, unabhängig vom Beitrag: alle offenen Verkaufskonten der Mitglieder werden abgerechnet (wie „Abrechnung“ beim Verkauf) und als offene Posten zum Einzug vorgemerkt.${f.drinksDue ? ` Üblicher Termin: ${esc(f.drinksDue.split('-').reverse().join('.'))}.` : ''}</p>
+        <p class="muted s" style="margin-top:0">Jederzeit, getrennt von den Beiträgen: alle offenen Verkaufskonten der Mitglieder in einem Ablauf bis zur SEPA-Datei. Denselben Weg gibt es unter Verkauf › Abrechnung.${f.drinksDue ? ` Üblicher Termin: ${esc(f.drinksDue.split('-').reverse().join('.'))}.` : ''}</p>
         ${m.drinks ? `<div class="kpi" style="box-shadow:none;margin-bottom:12px"><div class="l">Offen auf Verkaufskonten (Mitglieder)</div><div class="v">${euro(f.drinksOpen || 0)}</div></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rDrinkOnly" ${f.drinksOpen ? '' : 'disabled'}>Verkaufs-Einzug vorbereiten</button></div>` : '<p class="muted">Das Modul Verkauf ist nicht aktiv.</p>'}</div></div>
+          <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rDrinkOnly">Per Lastschrift einziehen …</button></div>` : '<p class="muted">Das Modul Verkauf ist nicht aktiv.</p>'}</div></div>
       <div id="rOut"></div>
       <div class="card"><h3>Bisherige Läufe</h3>${runs.length ? `<table class="tbl"><tr><th>Lauf</th><th>Art</th><th>bis</th><th class="r">Positionen</th><th class="r">Summe</th><th>von</th><th></th></tr>
         ${runs.map(r => `<tr><td class="nw">${deTime(r.created_at)}</td><td>${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'}</td><td class="nw">${deDate(r.until_date)}</td><td class="r">${r.count}</td><td class="r">${euro(r.cents)}</td><td class="muted s">${esc(r.by_user || '')}</td>
           <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button> ${r.undo ? `<button class="btn small danger" data-rundo="${r.id}">Zurücknehmen</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>`;
-    const opts = only => ({ until: val('rUntil'), payment: val('rPay') || undefined, drinks: only || ($('rDrinks') ? $('rDrinks').checked : false), onlyDrinks: Boolean(only), extra: $('rExtra') ? $('rExtra').checked : true });
-    const preview = async only => {
-      const o = opts(only);
+    const preview = async () => {
+      const o = { until: val('rUntil'), payment: val('rPay') || undefined, drinks: $('rDrinks') ? $('rDrinks').checked : false, extra: $('rExtra') ? $('rExtra').checked : true };
       const pv = await api('runs/preview', 'POST', o);
       const skip = new Set();
-      $('rOut').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">${only ? 'Verkaufs-Einzug' : 'Vorschau Beitragslauf'} bis ${deDate(pv.until)}</h3>
+      $('rOut').innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Vorschau Beitragslauf bis ${deDate(pv.until)}</h3>
           <span class="muted s">${pv.totals.payers} Zahler · ${pv.totals.count} Positionen</span></div>
         ${pv.warnings.map(w => `<div class="banner a"><span>${esc(w.text)}</span></div>`).join('')}${pv.info.map(w => `<div class="banner g"><span>${esc(w)}</span></div>`).join('')}
         ${pv.positions.length ? `<div class="scroll" style="max-height:52vh"><table class="tbl"><tr><th style="width:36px"><input type="checkbox" id="rAll" checked aria-label="alle"></th><th>Zahler</th><th>Position</th><th>Art</th><th>Fälligkeit</th><th>Zahlung</th><th class="r">Betrag</th></tr>
           ${pv.positions.map(p => `<tr><td><input type="checkbox" data-key="${esc(p.key)}" checked></td><td><b>${esc(GK.lastFirst(p.payer_name))}</b></td><td translate="no">${esc(p.text)}</td><td>${esc(KIND[p.kind] || p.kind)}</td><td class="nw">${deDate(p.due_date)}</td><td>${esc(PAY[p.payment] || p.payment)}</td><td class="r">${euro(p.cents)}</td></tr>`).join('')}</table></div>
           <div class="mv-sum"><span>${Object.entries(pv.totals.byKind).map(([k, c]) => `${esc(GK.T(KIND[k] || k))}: <b style="font-size:14px">${euro(c)}</b>`).join(' · ')}</span><span>Summe <b id="rSum">${euro(pv.totals.cents)}</b></span></div>
-          <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="rCancel">Verwerfen</button><button class="btn primary" id="rGo">${only ? 'Verkauf abrechnen' : 'Beiträge abrechnen'}</button></div>`
+          <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="rCancel">Verwerfen</button><button class="btn primary" id="rGo">Beiträge abrechnen</button></div>`
           : '<p class="empty">Nichts abzurechnen – alles ist schon bis zu diesem Tag abgerechnet.</p>'}</div>`;
       if (!pv.positions.length) return;
       const sum = () => { $('rSum').textContent = euro(pv.positions.filter(p => !skip.has(p.key)).reduce((s, p) => s + p.cents, 0)); };
@@ -1027,13 +1026,13 @@
       $('rAll').onchange = () => { $('rOut').querySelectorAll('[data-key]').forEach(c => { c.checked = $('rAll').checked; if (c.checked) skip.delete(c.dataset.key); else skip.add(c.dataset.key); }); sum(); };
       $('rCancel').onclick = () => { $('rOut').innerHTML = ''; };
       $('rGo').onclick = async () => {
-        if (!await ask(`${only ? 'Verkauf' : 'Beiträge'} jetzt abrechnen?\n\n${pv.positions.length - skip.size} Positionen werden offene Posten${o.drinks ? ' – die Verkaufskonten werden dabei abgerechnet und stehen danach auf 0' : ''}. Solange nichts eingezogen ist, lässt sich der Lauf zurücknehmen.`, { ok: 'Abrechnen', danger: false })) return;
+        if (!await ask(`Beiträge jetzt abrechnen?\n\n${pv.positions.length - skip.size} Positionen werden offene Posten${o.drinks ? ' – die Verkaufskonten werden dabei abgerechnet und stehen danach auf 0' : ''}. Solange nichts eingezogen ist, lässt sich der Lauf zurücknehmen.`, { ok: 'Abrechnen', danger: false })) return;
         try { const r = await api('runs', 'POST', { ...o, skip: [...skip] }); toast(`${r.count} Positionen über ${euro(r.cents)} angelegt – jetzt unter „Einzug & Zahlungen“ einziehen.`); st.fin = 'einzug'; again(); } catch (e) { fail(e); }
       };
       $('rOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
-    $('rPrev').onclick = () => preview(false).catch(fail);
-    if ($('rDrinkOnly')) $('rDrinkOnly').onclick = () => preview(true).catch(fail);
+    $('rPrev').onclick = () => preview().catch(fail);
+    if ($('rDrinkOnly')) $('rDrinkOnly').onclick = () => drinksCollect(again).catch(fail);
     el.querySelectorAll('[data-rundo]').forEach(b => { b.onclick = async () => { if (!await ask('Lauf zurücknehmen?\n\nAlle Posten dieses Laufs werden gelöscht, „abgerechnet bis“ und die Verkaufskonten wieder auf den Stand davor gesetzt.', { ok: 'Zurücknehmen' })) return; try { await api('runs/' + b.dataset.rundo, 'DELETE'); toast('Zurückgenommen.'); again(); } catch (e) { fail(e); } }; });
     el.querySelectorAll('[data-rshow]').forEach(b => { b.onclick = async () => { const r = await api('charges?status=alle&run=' + b.dataset.rshow); dialog(`<h2>Posten des Laufs</h2>${chargeTable(r.rows, {})}<div class="btns"><button class="btn primary" id="c">Schließen</button></div>`, true); $('c').onclick = closeDialog; }; });
   }
@@ -1075,9 +1074,11 @@
       <label class="f wall">Buchungstext<input id="chT" value="${esc(c ? c.text : '')}" placeholder="z. B. Hallenmiete Wintersaison"></label>
       <label class="f">Betrag (Gutschrift mit Minus)<input id="chC" inputmode="decimal" value="${c ? centsToInput(c.cents) : ''}"></label><label class="f">Fällig am<input id="chD" type="date" value="${esc(c ? c.due_date : st.meta.today)}"></label>
       ${c ? '' : `<label class="f">Art<select id="chK">${['sonstiges', 'aufnahme', 'beitrag', 'getraenke'].map(k => opt(k, KIND[k])).join('')}</select></label>`}</div>
-      ${c ? '' : '<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>'}
+      ${c ? '' : `<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>
+        <div class="banner a hidden" id="chKHint"><span>Beträge für den Verkauf besser unter <b>Verkauf › Abrechnung › „+ Betrag auf Konto“</b> buchen – dann stehen sie auf dem Verkaufskonto und werden mit dem nächsten Verkaufs-Einzug abgerechnet.</span></div>`}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="chOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
+    if ($('chK')) $('chK').onchange = () => $('chKHint').classList.toggle('hidden', val('chK') !== 'getraenke');
     $('chOk').onclick = () => GK.busy($('chOk'), async () => {
       try {
         if (c) await api('charges/' + c.id, 'PUT', { text: val('chT'), cents: toCents(val('chC')), due_date: val('chD') });
@@ -1115,11 +1116,11 @@
   async function finCollections(el, f, again) {
     const list = await api('collections');
     el.innerHTML = `<div class="card"><h3>Neuer Einzug</h3>
-        <p class="muted s" style="margin-top:0">Je Zahler eine Lastschrift über alle fälligen offenen Posten. Erst- und Folgelastschriften werden automatisch getrennt. Frühester Termin wegen Vorabinformation: <b>${deDate(f.earliest)}</b>.</p>
-        <div class="row"><label class="f">Einzug am<input id="kDate" type="date" value="${f.earliest}"></label><button class="btn primary" id="kPrev">Prüfen</button></div>
+        <p class="muted s" style="margin-top:0">Je Zahler eine Lastschrift über alle bis zum Einzugstag fälligen offenen Posten. Erst- und Folgelastschriften werden automatisch getrennt. Vorgeschlagen ist der früheste Termin wegen der Vorabinformation (<b>${deDate(f.earliest)}</b>) – ein späterer Tag geht immer.</p>
+        <div class="row"><label class="f">Einzugstag wählen<input id="kDate" type="date" value="${f.earliest}"></label><button class="btn primary" id="kPrev">Prüfen</button></div>
         <div id="kOut"></div></div>
       <div class="card"><h3>Einzüge</h3>${list.length ? `<table class="tbl"><tr><th>Termin</th><th>Status</th><th class="r">Lastschriften</th><th class="r">Summe</th><th>Vorabinfo</th><th></th></tr>
-        ${list.map(k => `<tr class="${k.status === 'verworfen' ? 'off' : ''}"><td class="nw"><b>${deDate(k.collection_date)}</b><div class="muted s">${esc(k.msg_id)}</div></td>
+        ${list.map(k => `<tr class="${k.status === 'verworfen' ? 'off' : ''}"><td class="nw"><b>${deDate(k.collection_date)}</b>${k.kind === 'getraenke' ? ' <span class="pill b">Verkauf</span>' : ''}<div class="muted s">${esc(k.msg_id)}</div></td>
           <td>${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}${k.returned ? ` <span class="pill r">${k.returned} zurück</span>` : ''}</td>
           <td class="r">${k.count}</td><td class="r">${euro(k.cents)}</td><td class="nw">${k.prenotified_at ? deTime(k.prenotified_at) : '<span class="muted s">noch nicht</span>'}</td>
           <td class="r nw">${k.status !== 'verworfen' ? `<button class="btn small" data-kopen="${k.id}">Details</button> <a class="btn small primary" href="${BASE}collections/${k.id}/xml" download>SEPA-Datei</a>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Einzug.</p>'}
@@ -1132,6 +1133,7 @@
           ${p.tooEarly ? `<div class="banner a"><span>Zu früh: frühester Termin ist der ${deDate(p.earliest)}.</span></div>` : ''}
           ${p.problems.length ? `<div class="banner a"><span>${p.problems.length} Zahler bleiben offen: ${esc(p.problems.map(x => `${x.name} (${x.reason})`).join(', '))}</span></div>` : ''}
           ${p.zero && p.zero.length ? `<div class="banner g"><span>${p.zero.length} Zahler: Forderungen und Gutschriften gleichen sich aus (${esc(p.zero.map(x => x.name).join(', '))}) – werden mit dem Einzug als verrechnet gebucht.</span></div>` : ''}
+          ${p.later ? `<div class="banner a"><span>${laterText(p.later)}</span></div>` : ''}${p.bicMissing ? `<div class="banner g"><span>${BIC_HINT}</span></div>` : ''}
           ${p.other.length ? `<div class="banner g"><span>${p.other.length} Zahler mit Rechnung/bar (${euro(p.other.reduce((s, x) => s + x.cents, 0))}) – unter „Rechnungen & Mahnungen“ verschicken.</span></div>` : ''}
           ${p.ok.length ? `<div class="scroll" style="max-height:48vh;margin-top:12px"><table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>Konto</th><th>Mandat</th><th>Art</th><th>Posten</th><th class="r">Betrag</th></tr>
             ${p.ok.map(x => `<tr><td><input type="checkbox" data-kx="${x.member_id}" checked></td><td><b>${esc(GK.lastFirst(x.name))}</b></td><td class="nw">${esc(x.masked)}</td><td>${esc(x.mandate_ref)}</td><td>${x.seq === 'FRST' ? '<span class="pill b">Erst</span>' : '<span class="pill">Folge</span>'}</td><td class="s" translate="no">${esc(x.texts.join(', '))}</td><td class="r">${euro(x.cents)}</td></tr>`).join('')}</table></div>
@@ -1139,17 +1141,76 @@
             <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="kGo" ${p.ready && p.bankDay ? '' : 'disabled'}>Einzug erstellen</button></div>` : '<p class="empty">Keine fälligen Lastschriften.</p>'}`;
         $('kOut').querySelectorAll('[data-kx]').forEach(c => { c.onchange = () => { if (c.checked) skip.delete(+c.dataset.kx); else skip.add(+c.dataset.kx); $('kSum').textContent = euro(p.ok.filter(x => !skip.has(x.member_id)).reduce((s, x) => s + x.cents, 0)); }; });
         if ($('kGo')) $('kGo').onclick = async () => {
-          try { const r = await api('collections', 'POST', { date: val('kDate'), skip: [...skip] }); toast('Einzug erstellt – jetzt die Vorabinformation verschicken.'); again(); setTimeout(() => collectionDetail(r.id, again), 300); }
-          catch (e) { if (e.status === 409 && await ask(`${e.message}\n\nTrotzdem zu diesem Termin erstellen? Nur, wenn mit den Mitgliedern eine kürzere Frist vereinbart ist.`, { ok: 'Trotzdem' })) { try { const r = await api('collections', 'POST', { date: val('kDate'), skip: [...skip], force: true }); again(); setTimeout(() => collectionDetail(r.id, again), 300); } catch (e2) { fail(e2); } } else fail(e); }
+          try { const r = await api('collections', 'POST', { date: val('kDate'), skip: [...skip] }); again(); setTimeout(() => collectionDetail(r.id, again, true), 300); }
+          catch (e) { if (e.status === 409 && await ask(`${e.message}\n\nTrotzdem zu diesem Termin erstellen? Nur, wenn mit den Mitgliedern eine kürzere Frist vereinbart ist.`, { ok: 'Trotzdem' })) { try { const r = await api('collections', 'POST', { date: val('kDate'), skip: [...skip], force: true }); again(); setTimeout(() => collectionDetail(r.id, again, true), 300); } catch (e2) { fail(e2); } } else fail(e); }
         };
       } catch (e) { fail(e); }
     };
     el.querySelectorAll('[data-kopen]').forEach(b => { b.onclick = () => collectionDetail(+b.dataset.kopen, again); });
   }
-  async function collectionDetail(id, again) {
+  const laterText = l => `${l.n === 1 ? '1 offener Posten' : `${l.n} offene Posten`} über ${euro(l.cents)} ${l.n === 1 ? 'wird' : 'werden'} erst nach dem Einzugstag fällig (ab ${deDate(l.first)}) und ${l.n === 1 ? 'bleibt' : 'bleiben'} für einen späteren Einzug. Für jetzt einen späteren Einzugstag wählen.`;
+  const BIC_HINT = 'Beim Vereinskonto fehlt der BIC. Das ist erlaubt (in der SEPA-Datei steht dann „NOTPROVIDED“), manche Banken verlangen ihn aber – am besten unter Einstellungen › Bankkonten eintragen.';
+
+  /* ---------- Verkauf per Lastschrift: ein Ablauf von der Vorschau bis zur SEPA-Datei ----------
+     Offene Verkaufskonten der Mitglieder + schon offene Verkaufs-Posten, getrennt von den Beiträgen.
+     Aufruf hier (Kasten „Verkauf einziehen“) und aus Verkauf › Abrechnung (GK.drinksCollect). */
+  async function drinksCollect(after) {
+    await loadMeta();
+    const skip = new Set();
+    let date = '';
+    const show = async () => {
+      const p = await api('drinks-collection/preview', 'POST', date ? { date } : {});
+      date = p.date;
+      const sel = () => p.ok.filter(x => !skip.has(x.member_id));
+      const why = r => (/Guthaben/.test(r) ? 'Nichts einzuziehen – wird beim nächsten Einzug verrechnet.' : 'Mandat beim Mitglied eintragen (Bankverbindung). Bis dahin bleibt der Betrag offen.');
+      const KINDS = { mannschaft: 'Mannschaft', nichtmitglied: 'Kein Mitglied' };
+      const no = [...p.problems.map(x => [GK.lastFirst(x.name), x.reason, x.cents, why(x.reason)]),
+        ...p.other.map(x => [GK.lastFirst(x.name), `zahlt per ${PAY[x.payment] || x.payment}`, x.cents, 'Bar kassieren oder überweisen lassen, dann unter Verkauf › Abrechnung als abgerechnet markieren.']),
+        ...p.notMembers.map(x => [x.name, KINDS[x.kind] || 'ohne Mitgliedsdaten', x.cents, 'Bar kassieren, dann unter Verkauf › Abrechnung als abgerechnet markieren.'])];
+      dialog(`<h2>Verkauf per Lastschrift einziehen</h2>
+        <p class="muted" style="margin-top:0">Alle offenen Verkaufskonten der Mitglieder und schon offene Verkaufs-Posten – getrennt von den Beiträgen. Angehörige zahlen beim Zahler. Die Konten werden dabei als abgerechnet markiert.</p>
+        <div class="row" style="align-items:flex-end"><label class="f">Einzugstag wählen<input id="dcDate" type="date" value="${esc(p.date)}"></label>
+          <p class="muted s" style="flex:1 1 220px;margin:0 0 8px">Vorgeschlagen ist der früheste Termin (${deDate(p.earliest)}) – Vorabinformation ${esc(st.meta.settings.prenotify_days)} Tage vorher plus Vorlauf der Bank. Ein späterer Tag geht immer.</p></div>
+        ${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Mitgliederverwaltung › Einstellungen).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag – bitte einen anderen wählen.</span></div>' : ''}
+        ${p.tooEarly ? `<div class="banner a"><span>Zu früh: frühester Termin ist der ${deDate(p.earliest)}.</span></div>` : ''}${p.bicMissing ? `<div class="banner g"><span>${BIC_HINT}</span></div>` : ''}
+        ${p.existing ? `<div class="banner g"><span>Dabei: ${p.existing.n === 1 ? '1 schon offener Verkaufs-Posten' : `${p.existing.n} schon offene Verkaufs-Posten`} aus der Mitgliederverwaltung (${euro(p.existing.cents)}).</span></div>` : ''}
+        ${p.later ? `<div class="banner a"><span>${laterText(p.later)}</span></div>` : ''}
+        ${p.zero.length ? `<div class="banner g"><span>${p.zero.length} Zahler: Forderungen und Gutschriften gleichen sich aus (${esc(p.zero.map(x => GK.lastFirst(x.name)).join(', '))}) – werden als verrechnet gebucht.</span></div>` : ''}
+        <h3 style="margin:16px 0 8px">Per Lastschrift <span class="muted s">${p.ok.length} Zahler</span></h3>
+        ${p.ok.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th style="width:36px"></th><th>Zahler</th><th>Art</th><th>Posten</th><th class="r">Betrag</th></tr>
+          ${p.ok.map(x => `<tr><td><input type="checkbox" data-dcx="${x.member_id}" ${skip.has(x.member_id) ? '' : 'checked'} aria-label="einziehen"></td><td><b>${esc(GK.lastFirst(x.name))}</b><div class="muted s">${esc(x.masked)}</div></td>
+            <td>${x.seq === 'FRST' ? '<span class="pill b">Erst</span>' : '<span class="pill">Folge</span>'}</td><td class="s" translate="no">${esc(x.texts.join(', '))}</td><td class="r">${euro(x.cents)}</td></tr>`).join('')}</table></div>
+          <div class="mv-sum"><span class="muted s">An ${esc(p.creditor.name)} · ${esc(p.creditor.iban)}</span><span>Summe <b id="dcSum">${euro(sel().reduce((a, x) => a + x.cents, 0))}</b></span></div>`
+          : '<p class="empty">Gerade ist nichts per Lastschrift einzuziehen.</p>'}
+        ${no.length ? `<h3 style="margin:16px 0 8px">Geht nicht per Lastschrift <span class="muted s">bleibt offen</span></h3>
+          <div class="scroll" style="max-height:30vh"><table class="tbl"><tr><th>Konto</th><th>Grund</th><th class="r">Betrag</th><th>Was tun?</th></tr>
+          ${no.map(([n, r, c, t]) => `<tr><td><b>${esc(n)}</b></td><td>${esc(r)}</td><td class="r">${euro(c)}</td><td class="s">${esc(t)}</td></tr>`).join('')}</table></div>` : ''}
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="dcGo" ${p.ready && p.bankDay && sel().length ? '' : 'disabled'}>Einzug erstellen</button></div>`, true);
+      $('c').onclick = closeDialog;
+      $('dcDate').onchange = () => { date = $('dcDate').value; show().catch(fail); };
+      $('dialog').querySelectorAll('[data-dcx]').forEach(c => { c.onchange = () => { if (c.checked) skip.delete(+c.dataset.dcx); else skip.add(+c.dataset.dcx); $('dcSum').textContent = euro(sel().reduce((a, x) => a + x.cents, 0)); $('dcGo').disabled = !(p.ready && p.bankDay && sel().length); }; });
+      $('dcGo').onclick = () => GK.busy($('dcGo'), async () => {
+        const go = force => api('drinks-collection', 'POST', { date, skip: [...skip], force });
+        let r;
+        try { r = await go(false); }
+        catch (e) {
+          if (e.status !== 409 || !await ask(`${e.message}\n\nTrotzdem zu diesem Termin erstellen? Nur, wenn mit den Mitgliedern eine kürzere Frist vereinbart ist.`, { ok: 'Trotzdem' })) { if (e.status !== 409) fail(e); return; }
+          try { r = await go(true); } catch (e2) { fail(e2); return; }
+        }
+        if (after) after();
+        collectionDetail(r.id, after || (() => {}), true).catch(fail);
+      });
+    };
+    await show();
+  }
+  GK.drinksCollect = drinksCollect;
+
+  async function collectionDetail(id, again, fresh) {
+    await loadMeta();
     const k = await api('collections/' + id);
     const open = k.status === 'erstellt';
-    dialog(`<h2>Einzug zum ${deDate(k.collection_date)}</h2>
+    dialog(`<h2>${k.kind === 'getraenke' ? 'Verkaufs-Einzug' : 'Einzug'} zum ${deDate(k.collection_date)}</h2>
+      ${fresh ? `<div class="banner g"><span>Einzug erstellt${k.kind === 'getraenke' ? ', die Verkaufskonten sind abgerechnet' : ''}. Jetzt <b>1.</b> die Vorabinformation verschicken, <b>2.</b> die SEPA-Datei herunterladen und im Online-Banking hochladen. Kam nach 1–2 Wochen nichts zurück: „Zahlung erfolgt“.</span></div>` : ''}
       <div class="row" style="gap:6px;margin:-4px 0 12px">${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}<span class="pill">${k.count} Lastschriften · ${euro(k.cents)}</span>${k.prenotified_at ? `<span class="pill g">Vorabinfo ${deTime(k.prenotified_at)}</span>` : '<span class="pill a">Vorabinfo fehlt</span>'}</div>
       <div class="toolbar"><a class="btn primary" href="${BASE}collections/${id}/xml" download>SEPA-Datei herunterladen</a><button class="btn" id="kMail">Vorabinformation per E-Mail</button><a class="btn" href="${BASE}collections/${id}/letters.pdf" target="_blank">Briefe für Mitglieder ohne E-Mail</a>
         ${open ? '<button class="btn" id="kBooked">Zahlung erfolgt (alle ohne Rücklastschrift)</button><button class="btn danger" id="kDel">Verwerfen</button>' : ''}</div>
@@ -1164,7 +1225,17 @@
       try { const r = await api(`collections/${id}/prenotify`, 'POST', {}); toast(`${r.sent} E-Mails verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail` : ''}${r.failed.length ? `, ${r.failed.length} fehlgeschlagen` : ''}.`, r.failed.length > 0); collectionDetail(id, again); } catch (e) { fail(e); } };
     if ($('kBooked')) $('kBooked').onclick = async () => { const d = await askText('Zahlung erfolgt – alle Lastschriften dieses Einzugs ohne Rücklastschrift als bezahlt buchen?\nDatum der Gutschrift auf dem Vereinskonto (TT.MM.JJJJ):', deDate(st.meta.today), { ok: 'Buchen' }); if (d == null) return;
       const m2 = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(d.trim()); try { await api(`collections/${id}/booked`, 'POST', { date: m2 ? `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}` : undefined }); toast('Verbucht.'); collectionDetail(id, again); } catch (e) { fail(e); } };
-    if ($('kDel')) $('kDel').onclick = async () => { if (!await ask('Einzug verwerfen?\n\nNur, wenn die SEPA-Datei NICHT bei der Bank eingereicht wurde. Alle Posten werden wieder offen.', { ok: 'Verwerfen' })) return; try { await api('collections/' + id, 'DELETE'); closeDialog(); toast('Verworfen.'); again(); } catch (e) { fail(e); } };
+    if ($('kDel')) $('kDel').onclick = () => {
+      const runs = k.runs.filter(r => r.undo), drinks = runs.some(r => r.kind === 'getraenke');
+      dialog(`<h2>Einzug verwerfen?</h2><p class="muted" style="margin-top:0">Nur, wenn die SEPA-Datei <b>nicht</b> bei der Bank eingereicht wurde. Alle Posten werden wieder offen.</p>
+        ${runs.length ? `<label class="chk" style="margin-top:4px"><input type="checkbox" id="kdRun" checked> Auch ${runs.length === 1 ? 'den Lauf' : `die ${runs.length} Läufe`} zurücknehmen (${runs.map(r => `${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'} vom ${deDate(r.created_at.slice(0, 10))}`).join(', ')})</label>
+          <p class="muted s">${drinks ? 'Dann sind die Verkaufskonten wieder offen und die Buchungen lassen sich im Verkauf normal stornieren. ' : ''}Ohne Haken bleiben die Posten offen und kommen in den nächsten Einzug.</p>` : ''}
+        <div class="btns"><button class="btn ghost" id="c2">Abbrechen</button><button class="btn danger" id="kdOk">Verwerfen</button></div>`);
+      $('c2').onclick = () => collectionDetail(id, again);
+      $('kdOk').onclick = () => GK.busy($('kdOk'), async () => {
+        try { const r = await api(`collections/${id}${$('kdRun') && $('kdRun').checked ? '?runs=1' : ''}`, 'DELETE'); closeDialog(); toast(r.runs ? 'Einzug verworfen und Lauf zurückgenommen.' : 'Verworfen.'); again(); } catch (e) { fail(e); }
+      });
+    };
     document.querySelectorAll('[data-ret]').forEach(b => { b.onclick = () => {
       const r = k.rows.find(x => x.member_id === +b.dataset.ret);
       dialog(`<h2>Rücklastschrift ${esc(GK.lastFirst(r.name))}</h2><p class="muted" style="margin-top:0">${euro(r.cents)} – die Posten werden wieder offen.</p>
@@ -1246,7 +1317,7 @@
         <label class="f">Gebühr Rücklastschrift<input id="eRet" value="${centsToInput(s.return_fee_cents)}" inputmode="decimal"></label><label class="f">Mahngebühr (ab 2. Mahnung)<input id="eDun" value="${centsToInput(s.dunning_fee_cents)}" inputmode="decimal"></label>
         <label class="f w2">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de, kasse@verein.de"></label>
         <label class="f w2">Zusatz auf Rechnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label>
-      </div><div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="eSave1">Speichern</button></div></div>
+      </div>${s.club_iban && !s.club_bic ? `<div class="banner g" style="margin-top:12px"><span>${BIC_HINT}</span></div>` : ''}<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="eSave1">Speichern</button></div></div>
 `;
     const tP = `<div class="card" data-sec="verein"><h3>Zahlart der Mitglieder</h3>
         <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eSepaReq" ${s.sepa_required ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Lastschrift ist Pflicht</b><br><span class="muted s">Neue Mitglieder brauchen dann immer Bankverbindung und SEPA-Mandat, „Rechnung“ und „bar“ lassen sich nicht mehr wählen. Ausgenommen sind Familienmitglieder und wer über einen Zahler zahlt. Bestehende Mitglieder mit anderer Zahlart erscheinen unter „Mit Hinweis“.</span></span></label>

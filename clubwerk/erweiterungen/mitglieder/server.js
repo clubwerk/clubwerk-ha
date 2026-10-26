@@ -579,6 +579,9 @@ function activate(ctx) {
     // Gleiche Regel wie bei der Neuanlage: Die Unterschrift kann nicht in der Zukunft liegen (Tippfehler 2062 statt 2026 →
     // Bank lehnt die Lastschrift ab, Mandatsverfall würde falsch berechnet)
     if (b.mandate_date !== undefined && isDate(b.mandate_date) && b.mandate_date > today()) return bad(res, 'Das Datum der Unterschrift darf nicht in der Zukunft liegen.');
+    // Schon für Lastschriften genutzt: Die Bank kennt diese Referenz – eine Änderung müsste im nächsten Einzug als Mandatsänderung
+    // (AmdmntInd) gemeldet werden, sonst droht die Rücklastschrift. Deshalb gesperrt; eine neue Referenz gibt es nur über „Neues Mandat“.
+    if (!b.newMandate && cur.mandate_first_used && cur.mandate_ref && ref !== cur.mandate_ref) return bad(res, 'Dieses Mandat wurde schon für Lastschriften genutzt – die Mandatsreferenz lässt sich nicht mehr ändern. Für eine neue Referenz bitte „Neues Mandat …“ wählen.');
     if (b.newMandate) {   // neues Mandat (z. B. neue Bankverbindung): neue Referenz, Datum der Unterschrift
       if (!isDate(b.mandate_date)) return bad(res, 'Bitte das Datum der Unterschrift angeben.');
       const no = p.member_no || ctx.db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(id).member_no || String(id);

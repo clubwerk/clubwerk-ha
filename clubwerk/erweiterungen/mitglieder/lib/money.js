@@ -149,7 +149,7 @@ function register(sh) {
         if (!r.total_cents) continue;
         const p = r.kind === 'mitglied' ? personOf(r.id) : {};
         // nur echte Mitglieder (mit Mitgliedsdaten) – Mannschaften, „Kein Mitglied“ und Konten ohne Daten zahlen unter Verkauf › Abrechnung
-        if (!p.member_id) { notMembers.push(`${lastFirst(r.name, r.kind)} (${euro(r.total_cents)})`); continue; }
+        if (!p.member_id) { notMembers.push({ id: r.id, name: lastFirst(r.name, r.kind), kind: r.kind, cents: r.total_cents }); continue; }
         if (p.anonymized_at) continue;
         const payer = p.drinks_to_payer === 0 ? r.id : store.payerOf(r.id);
         const pp = personOf(payer);
@@ -157,7 +157,8 @@ function register(sh) {
         positions.push({ key: 'd' + r.id, kind: 'getraenke', member_id: payer, for_member_id: r.id, drinks_member: r.id, text: `Verkauf bis ${deD(d.asOf.slice(0, 10))}${payer !== r.id ? ` – ${r.name}` : ''}`,
           period_from: r.since ? r.since.slice(0, 10) : null, period_to: d.asOf.slice(0, 10), cents: r.total_cents, due_date: isDate(o.due) ? o.due : until, payer_name: payerName(payer), for_name: r.name, payment: pp.payment || 'lastschrift' });
       }
-      if (notMembers.length) info.push(`Verkaufskonten ohne Mitgliedsdaten (Mannschaften, „Kein Mitglied“) bleiben offen – bezahlt wird unter Verkauf › Abrechnung: ${notMembers.slice(0, 6).join(', ')}${notMembers.length > 6 ? ' …' : ''}`);
+      if (notMembers.length) info.push(`Verkaufskonten ohne Mitgliedsdaten (Mannschaften, „Kein Mitglied“) bleiben offen – bezahlt wird unter Verkauf › Abrechnung: ${notMembers.slice(0, 6).map(x => `${x.name} (${euro(x.cents)})`).join(', ')}${notMembers.length > 6 ? ' …' : ''}`);
+      drinks.notMembers = notMembers;
     }
     positions.sort((a, b) => nameKey(a.payer_name, 'mitglied').localeCompare(nameKey(b.payer_name, 'mitglied'), 'de') || a.kind.localeCompare(b.kind) || String(a.period_from).localeCompare(String(b.period_from)));
     const byPayer = new Set(positions.map(p => p.member_id));
@@ -166,13 +167,8 @@ function register(sh) {
   }
 
   admin.post('/runs/preview', PF, ar(async (req, res) => res.json(await preview(req.body || {}))));
-  admin.post('/runs', PF, ar(async (req, res) => {
-    const b = req.body || {};
-    const pv = await preview(b);
-    const skip = new Set(Array.isArray(b.skip) ? b.skip.map(String) : []);
-    const pos = pv.positions.filter(p => !skip.has(p.key));
-    if (!pos.length && !(pv.marks || []).length) return bad(res, pv.positions.length ? 'Alle Positionen abgewählt – es gibt nichts zu buchen.' : 'Keine Positionen – es ist alles schon abgerechnet.');
-    const user = uname(req);
+  /** Lauf aus einer Vorschau anlegen (Posten, „abgerechnet bis“, Verkaufskonten) → { run, count, cents, skipped } – auch innerhalb einer äußeren Transaktion */
+  function makeRun(b, pv, pos, user) {
     let runId, drinkBatch = null, created = 0, cents = 0, skippedTotal = 0;
     db.transaction(() => {
       runId = Number(db.prepare('INSERT INTO mv_run(kind, until_date, filters, by_user) VALUES (?,?,?,?)').run(b.onlyDrinks ? 'getraenke' : 'beitrag', pv.until, '{}', user).lastInsertRowid);
@@ -210,30 +206,42 @@ function register(sh) {
       skippedTotal = skipped;
       db.prepare('UPDATE mv_run SET count = ?, cents = ?, drinks_batch = ?, filters = ? WHERE id = ?').run(created, cents, drinkBatch, JSON.stringify({ prev, prevMd, until: pv.until, drinks: Boolean(b.drinks || b.onlyDrinks), onlyDrinks: Boolean(b.onlyDrinks) }), runId);
     })();
-    C.audit(req.user, b.onlyDrinks ? 'Verkaufs-Einzug vorbereitet' : 'Beitragslauf', `${created} Positionen, ${euro(cents)} (bis ${deD(pv.until)})${skippedTotal ? `, ${skippedTotal} schon gebucht übersprungen` : ''}`);
-    res.json({ ok: true, run: runId, count: created, cents, skipped: skippedTotal });
+    return { run: runId, count: created, cents, skipped: skippedTotal };
+  }
+  admin.post('/runs', PF, ar(async (req, res) => {
+    const b = req.body || {};
+    const pv = await preview(b);
+    const skip = new Set(Array.isArray(b.skip) ? b.skip.map(String) : []);
+    const pos = pv.positions.filter(p => !skip.has(p.key));
+    if (!pos.length && !(pv.marks || []).length) return bad(res, pv.positions.length ? 'Alle Positionen abgewählt – es gibt nichts zu buchen.' : 'Keine Positionen – es ist alles schon abgerechnet.');
+    const r = makeRun(b, pv, pos, uname(req));
+    C.audit(req.user, b.onlyDrinks ? 'Verkaufs-Einzug vorbereitet' : 'Beitragslauf', `${r.count} Positionen, ${euro(r.cents)} (bis ${deD(pv.until)})${r.skipped ? `, ${r.skipped} schon gebucht übersprungen` : ''}`);
+    res.json({ ok: true, ...r });
   }));
   admin.get('/runs', PF, (req, res) => res.json(db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM mv_charge c WHERE c.run_id = r.id AND c.status != 'offen') AS done FROM mv_run r ORDER BY r.id DESC LIMIT 50`).all()
     .map(r => ({ ...r, filters: undefined, undo: r.done === 0 }))));
-  admin.delete('/runs/:id', PF, (req, res) => {
-    const r = db.prepare('SELECT * FROM mv_run WHERE id = ?').get(int(req.params.id));
-    if (!r) return bad(res, 'Nicht gefunden.', 404);
-    if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) return bad(res, 'Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
+  const fachlich = msg => Object.assign(new Error(msg), { fachlich: true });
+  /** Lauf zurücknehmen: Posten löschen, „abgerechnet bis“ und Verkaufskonten auf den Stand davor – wirft bei fachlichem Hindernis (e.fachlich) */
+  function undoRun(r) {
+    if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) throw fachlich('Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
     const f = JSON.parse(r.filters || '{}');
     // Getränkeabrechnung und Posten in einer Transaktion zurücknehmen – schlägt eines fehl, bleibt alles wie es war
     // (sonst wären die Getränke wieder offen, die Posten aber noch da → beim nächsten Lauf doppelt)
-    try {
-      db.transaction(() => {
-        if (r.drinks_batch) { const u = C.drinks.unsettle(r.drinks_batch); if (!u.ok) throw Object.assign(new Error(u.error), { fachlich: true }); }
-        db.prepare('DELETE FROM mv_charge WHERE run_id = ?').run(r.id);
-        // Stand vor diesem Lauf – aber nie hinter das zurück, was spätere Läufe schon abgerechnet haben (sonst doppelt)
-        const later = (col, id) => (db.prepare(`SELECT MAX(period_to) t FROM mv_charge WHERE ${col} = ? AND status != 'storniert'`).get(id) || {}).t || null;
-        const keep = (val, t) => (t && (!val || t > val) ? t : val);
-        for (const [mfId, val] of Object.entries(f.prev || {})) db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run(keep(val, later('member_fee_id', int(mfId))), int(mfId));
-        for (const [mdId, val] of Object.entries(f.prevMd || {})) db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(keep(val, later('member_dept_id', int(mdId))), int(mdId));
-        db.prepare('DELETE FROM mv_run WHERE id = ?').run(r.id);
-      })();
-    } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
+    db.transaction(() => {
+      if (r.drinks_batch) { const u = C.drinks.unsettle(r.drinks_batch); if (!u.ok) throw fachlich(u.error); }
+      db.prepare('DELETE FROM mv_charge WHERE run_id = ?').run(r.id);
+      // Stand vor diesem Lauf – aber nie hinter das zurück, was spätere Läufe schon abgerechnet haben (sonst doppelt)
+      const later = (col, id) => (db.prepare(`SELECT MAX(period_to) t FROM mv_charge WHERE ${col} = ? AND status != 'storniert'`).get(id) || {}).t || null;
+      const keep = (val, t) => (t && (!val || t > val) ? t : val);
+      for (const [mfId, val] of Object.entries(f.prev || {})) db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run(keep(val, later('member_fee_id', int(mfId))), int(mfId));
+      for (const [mdId, val] of Object.entries(f.prevMd || {})) db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(keep(val, later('member_dept_id', int(mdId))), int(mdId));
+      db.prepare('DELETE FROM mv_run WHERE id = ?').run(r.id);
+    })();
+  }
+  admin.delete('/runs/:id', PF, (req, res) => {
+    const r = db.prepare('SELECT * FROM mv_run WHERE id = ?').get(int(req.params.id));
+    if (!r) return bad(res, 'Nicht gefunden.', 404);
+    try { undoRun(r); } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
     C.audit(req.user, 'Beitragslauf zurückgenommen', `Lauf ${r.id}: ${r.count} Positionen, ${euro(r.cents)}`);
     res.json({ ok: true });
   });
@@ -319,9 +327,13 @@ function register(sh) {
   });
 
   /* ======================================================= SEPA-Einzug */
-  function collectionPlan(date) {
+  /** kind: nur Posten dieser Art (Verkaufs-Einzug: 'getraenke'); extra: noch nicht angelegte Posten (Vorschau aus den Verkaufskonten) */
+  function collectionPlan(date, { kind = null, extra = [] } = {}) {
     const day = isDate(date) ? date : today();
-    const open = db.prepare(`SELECT c.* FROM mv_charge c WHERE c.status = 'offen' AND c.collection_id IS NULL AND c.due_date <= ? ORDER BY c.member_id, c.due_date, c.id`).all(day);
+    const k = kind ? ' AND c.kind = ?' : '', ka = kind ? [kind] : [];
+    const open = [...db.prepare(`SELECT c.* FROM mv_charge c WHERE c.status = 'offen' AND c.collection_id IS NULL AND c.due_date <= ?${k} ORDER BY c.member_id, c.due_date, c.id`).all(day, ...ka), ...extra];
+    // offene Posten, die erst nach dem Einzugstag fällig sind, nicht still weglassen, sondern melden
+    const later = db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(c.cents),0) cents, MIN(c.due_date) first FROM mv_charge c WHERE c.status = 'offen' AND c.collection_id IS NULL AND c.due_date > ?${k}`).get(day, ...ka);
     const groups = new Map();
     for (const c of open) { if (!groups.has(c.member_id)) groups.set(c.member_id, []); groups.get(c.member_id).push(c); }
     const ok = [], problems = [], other = [], zero = [];
@@ -341,8 +353,9 @@ function register(sh) {
         holder: b.holder || name, iban: b.iban, bic: b.bic, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, masked: sepa.maskIban(b.iban) });
     }
     const earliest = sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14);
-    return { date: day, ok, problems, other, zero: zero.map(({ charges, ...z }) => z), zeroCharges: zero.flatMap(z => z.charges), earliest, tooEarly: day < earliest, bankDay: sepa.isBankDay(day), total: ok.reduce((s, x) => s + x.cents, 0),
-      ready: Boolean(S('creditor_id') && store.account().iban), creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(store.account().iban), account: store.account().name } };
+    return { date: day, ok, problems, other, zero, later: later.n ? later : null, earliest, tooEarly: day < earliest, bankDay: sepa.isBankDay(day), total: ok.reduce((s, x) => s + x.cents, 0),
+      ready: Boolean(S('creditor_id') && store.account().iban), bicMissing: Boolean(store.account().iban && !store.account().bic),
+      creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(store.account().iban), account: store.account().name } };
   }
   /** Verwendungszweck: Positionen zusammengefasst, max. 140 Zeichen */
   function remittance(x) {
@@ -352,19 +365,30 @@ function register(sh) {
     return `${t}${x.member_no ? ' Mitgl.-Nr. ' + x.member_no : ''}`.slice(0, 140);
   }
   admin.post('/collections/preview', PF, (req, res) => res.json(collectionPlan((req.body || {}).date)));
+  /** Einzug prüfen wie beim Erstellen – Text des Hindernisses (mit Status) oder null */
+  function collectionBlocked(plan, force) {
+    if (!plan.ready) return [400, 'Bitte zuerst Gläubiger-ID und Vereinskonto eintragen (Mitglieder → Einstellungen → SEPA).'];
+    if (!plan.bankDay) return [400, `Der ${deD(plan.date)} ist kein Bankarbeitstag – bitte einen anderen Tag wählen.`];
+    if (plan.tooEarly && !force) return [409, `Frühester Termin ist der ${deD(plan.earliest)} (Vorabinformation ${S('prenotify_days', '14')} Tage + Vorlauf der Bank).`];
+    return null;
+  }
   admin.post('/collections', PF, (req, res) => {
     const b = req.body || {};
     const plan = collectionPlan(b.date);
-    if (!plan.ready) return bad(res, 'Bitte zuerst Gläubiger-ID und Vereinskonto eintragen (Mitglieder → Einstellungen → SEPA).');
-    if (!plan.bankDay) return bad(res, `Der ${deD(plan.date)} ist kein Bankarbeitstag – bitte einen anderen Tag wählen.`);
-    if (plan.tooEarly && !b.force) return res.status(409).json({ error: `Frühester Termin ist der ${deD(plan.earliest)} (Vorabinformation ${S('prenotify_days', '14')} Tage + Vorlauf der Bank).`, earliest: plan.earliest });
+    const blocked = collectionBlocked(plan, b.force);
+    if (blocked) return res.status(blocked[0]).json({ error: blocked[1], earliest: plan.earliest });
     const skip = new Set(Array.isArray(b.skip) ? b.skip.map(Number) : []);
     const txs = plan.ok.filter(x => !skip.has(x.member_id));
     if (!txs.length) return bad(res, 'Keine Lastschriften fällig.');
-    const user = uname(req);
+    const id = makeCollection(plan, txs, plan.zero.flatMap(z => z.charges), uname(req));
+    C.audit(req.user, 'SEPA-Einzug erstellt', `${txs.length} Lastschriften, ${euro(txs.reduce((s, x) => s + x.cents, 0))} zum ${deD(plan.date)}`);
+    res.json({ ok: true, id });
+  });
+  /** Einzug mit SEPA-Datei anlegen → id (kind 'getraenke' = Verkaufs-Einzug) */
+  function makeCollection(plan, txs, zeroCharges, user, kind = null) {
     let id;
     db.transaction(() => {
-      id = Number(db.prepare("INSERT INTO mv_collection(collection_date, msg_id, by_user) VALUES (?, '', ?)").run(plan.date, user).lastInsertRowid);
+      id = Number(db.prepare("INSERT INTO mv_collection(collection_date, msg_id, by_user, kind) VALUES (?, '', ?, ?)").run(plan.date, user, kind).lastInsertRowid);
       const stamp = nowTs().replace(/\D/g, '').slice(0, 12);
       const msgId = `CW${stamp}-${id}`;
       const prevMandates = {};
@@ -377,21 +401,58 @@ function register(sh) {
         db.prepare('UPDATE mv_bank SET mandate_first_used = COALESCE(mandate_first_used, ?), mandate_last_used = ? WHERE member_id = ?').run(plan.date, plan.date, x.member_id);
         db.prepare(`UPDATE mv_charge SET status = 'eingezogen', collection_id = ? WHERE id IN (${x.charges.map(() => '?').join(',')})`).run(id, ...x.charges);
       }
-      for (const cid of plan.zeroCharges) db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = 'verrechnet', collection_id = ?, note = ? WHERE id = ? AND status = 'offen'").run(plan.date, id, `verrechnet (Summe 0 €) mit Einzug ${id}`, cid);   // Verwerfen des Einzugs öffnet sie wieder
+      for (const cid of zeroCharges) db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = 'verrechnet', collection_id = ?, note = ? WHERE id = ? AND status = 'offen'").run(plan.date, id, `verrechnet (Summe 0 €) mit Einzug ${id}`, cid);   // Verwerfen des Einzugs öffnet sie wieder
       db.prepare('UPDATE mv_collection SET msg_id = ?, count = ?, cents = ?, xml = ?, note = ? WHERE id = ?').run(msgId, txs.length, txs.reduce((s, x) => s + x.cents, 0), xmlStr, JSON.stringify({ prevMandates }), id);
     })();
-    C.audit(req.user, 'SEPA-Einzug erstellt', `${txs.length} Lastschriften, ${euro(txs.reduce((s, x) => s + x.cents, 0))} zum ${deD(plan.date)}`);
-    res.json({ ok: true, id });
-  });
+    return id;
+  }
+
+  /* ======================================================= Verkaufs-Einzug in einem Ablauf
+     Aus Verkauf › Abrechnung und aus „Beiträge“: offene Verkaufskonten + schon offene Verkaufs-Posten → Lauf → Einzug mit SEPA-Datei.
+     Nur Verkauf (getrennt von Beiträgen). Wer nicht per Lastschrift zahlen kann, bleibt auf dem Verkaufskonto offen. */
+  async function drinksPlan(date) {
+    const day = isDate(date) ? date : sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14);   // Vorschlag: frühester Termin
+    const pv = await preview({ onlyDrinks: true, due: day });
+    const plan = collectionPlan(day, { kind: 'getraenke', extra: pv.positions.map(p => ({ member_id: p.member_id, cents: p.cents, text: p.text, due_date: p.due_date, kind: 'getraenke' })) });
+    const old = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(cents),0) cents FROM mv_charge WHERE kind = 'getraenke' AND status = 'offen' AND collection_id IS NULL AND due_date <= ?").get(day);
+    return { ...plan, pv, existing: old.n ? old : null, notMembers: (pv.drinks && pv.drinks.notMembers) || [] };
+  }
+  admin.post('/drinks-collection/preview', PF, ar(async (req, res) => { const { pv, ...plan } = await drinksPlan((req.body || {}).date); res.json(plan); }));
+  admin.post('/drinks-collection', PF, ar(async (req, res) => {
+    const b = req.body || {};
+    const plan = await drinksPlan(b.date);
+    const blocked = collectionBlocked(plan, b.force);
+    if (blocked) return res.status(blocked[0]).json({ error: blocked[1], earliest: plan.earliest });
+    const skip = new Set(Array.isArray(b.skip) ? b.skip.map(Number) : []);
+    // abgewählte Zahler und alle, die nicht per Lastschrift gehen, bleiben auf dem Verkaufskonto offen; Summe 0 € wird verrechnet
+    const payers = new Set([...plan.ok.map(x => x.member_id).filter(id => !skip.has(id)), ...plan.zero.map(z => z.member_id)]);
+    if (!plan.ok.some(x => payers.has(x.member_id))) return bad(res, 'Keine Lastschriften fällig.');
+    const user = uname(req);
+    let run = null, id, txs;
+    try {
+      db.transaction(() => {
+        const pos = plan.pv.positions.filter(p => payers.has(p.member_id));
+        if (pos.length) run = makeRun({ onlyDrinks: true }, plan.pv, pos, user);
+        const now = collectionPlan(plan.date, { kind: 'getraenke' });   // mit den eben angelegten Posten
+        txs = now.ok.filter(x => payers.has(x.member_id));
+        if (!txs.length) throw fachlich('Keine Lastschriften fällig.');
+        id = makeCollection(now, txs, now.zero.filter(z => payers.has(z.member_id)).flatMap(z => z.charges), user, 'getraenke');
+      })();
+    } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
+    const cents = txs.reduce((s, x) => s + x.cents, 0);
+    C.audit(req.user, 'Verkaufs-Einzug erstellt', `${txs.length} Lastschriften, ${euro(cents)} zum ${deD(plan.date)}${run ? ` (Lauf ${run.run}: ${run.count} Posten aus den Verkaufskonten)` : ''}`);
+    res.json({ ok: true, id, run: run && run.run, count: txs.length, cents });
+  }));
   const collOr404 = (req, res) => { const c = db.prepare('SELECT * FROM mv_collection WHERE id = ?').get(int(req.params.id)); if (!c) bad(res, 'Nicht gefunden.', 404); return c; };
-  admin.get('/collections', PF, (req, res) => res.json(db.prepare(`SELECT id, collection_date, msg_id, count, cents, status, prenotified_at, booked_at, by_user, created_at,
+  admin.get('/collections', PF, (req, res) => res.json(db.prepare(`SELECT id, collection_date, msg_id, count, cents, status, prenotified_at, booked_at, by_user, created_at, kind,
     (SELECT COUNT(DISTINCT member_id) FROM mv_charge c WHERE c.collection_id = k.id AND c.returns > 0) AS returned FROM mv_collection k ORDER BY id DESC LIMIT 60`).all()));
   admin.get('/collections/:id', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
     const rows = db.prepare(`SELECT c.member_id, m.name, p.email, p.member_no, SUM(c.cents) cents, COUNT(*) n, group_concat(c.text, ' · ') texts, MIN(c.status) status
       FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id WHERE c.collection_id = ? GROUP BY c.member_id ORDER BY name_key(m.name, m.kind)`).all(k.id);
     const returned = db.prepare(`SELECT DISTINCT c.member_id FROM mv_charge c WHERE c.note LIKE ? `).all(`%Rücklastschrift Einzug ${k.id}%`).map(r => r.member_id);
-    res.json({ ...k, xml: undefined, note: undefined, rows: rows.map(r => ({ ...r, returned: returned.includes(r.member_id) })), returnedOnly: returned.filter(id => !rows.some(r => r.member_id === id)).map(id => ({ member_id: id, name: payerName(id) })) });
+    res.json({ ...k, xml: undefined, note: undefined, rows: rows.map(r => ({ ...r, returned: returned.includes(r.member_id) })), returnedOnly: returned.filter(id => !rows.some(r => r.member_id === id)).map(id => ({ member_id: id, name: payerName(id) })),
+      runs: k.status === 'erstellt' ? collectionRuns(k.id) : [] });
   });
   admin.get('/collections/:id/xml', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
@@ -448,17 +509,27 @@ function register(sh) {
     C.audit(req.user, 'Rücklastschrift erfasst', `${payerName(payer)}: ${euro(list.reduce((s, c) => s + c.cents, 0))} – ${reason}${fee ? ', Gebühr ' + euro(fee) : ''}`);
     res.json({ ok: true });
   });
+  /** Läufe, aus denen die Posten eines Einzugs stammen – undo: nach dem Verwerfen wäre der ganze Lauf wieder offen und zurücknehmbar */
+  const collectionRuns = id => db.prepare('SELECT id, kind, created_at, count, cents FROM mv_run WHERE id IN (SELECT run_id FROM mv_charge WHERE collection_id = ?) ORDER BY id').all(id)
+    .map(r => ({ ...r, undo: !db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen' AND COALESCE(collection_id, 0) != ?").get(r.id, id) }));
   admin.delete('/collections/:id', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
     if (k.status !== 'erstellt') return bad(res, 'Ein verbuchter Einzug kann nicht verworfen werden – einzelne Lastschriften über „Rücklastschrift“ zurückbuchen.');
     const note = JSON.parse(k.note || '{}');
-    db.transaction(() => {
-      db.prepare("UPDATE mv_charge SET status = 'offen', collection_id = NULL WHERE collection_id = ?").run(k.id);
-      for (const [mid, v] of Object.entries(note.prevMandates || {})) db.prepare('UPDATE mv_bank SET mandate_first_used = ?, mandate_last_used = ? WHERE member_id = ?').run(v.first, v.last, int(mid));
-      db.prepare("UPDATE mv_collection SET status = 'verworfen', xml = NULL WHERE id = ?").run(k.id);
-    })();
-    C.audit(req.user, 'SEPA-Einzug verworfen', `Einzug ${k.id} (${k.count} Lastschriften, ${euro(k.cents)})`);
-    res.json({ ok: true });
+    // ?runs=1: auch die Läufe zurücknehmen (Verkaufskonten wieder offen) – alles oder nichts
+    const runs = req.query.runs === '1' ? collectionRuns(k.id).filter(r => r.undo) : [];
+    try {
+      db.transaction(() => {
+        db.prepare("UPDATE mv_charge SET status = 'offen', collection_id = NULL WHERE collection_id = ?").run(k.id);
+        for (const [mid, v] of Object.entries(note.prevMandates || {})) db.prepare('UPDATE mv_bank SET mandate_first_used = ?, mandate_last_used = ? WHERE member_id = ?').run(v.first, v.last, int(mid));
+        db.prepare("UPDATE mv_collection SET status = 'verworfen', xml = NULL WHERE id = ?").run(k.id);
+        for (const r of runs) {
+          try { undoRun(db.prepare('SELECT * FROM mv_run WHERE id = ?').get(r.id)); } catch (e) { if (e.fachlich) e.message = `Lauf vom ${deD(r.created_at.slice(0, 10))} lässt sich nicht zurücknehmen: ${e.message} Der Einzug wurde nicht verworfen.`; throw e; }
+        }
+      })();
+    } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
+    C.audit(req.user, 'SEPA-Einzug verworfen', `Einzug ${k.id} (${k.count} Lastschriften, ${euro(k.cents)})${runs.length ? `, ${runs.length === 1 ? 'Lauf' : runs.length + ' Läufe'} zurückgenommen` : ''}`);
+    res.json({ ok: true, runs: runs.length });
   });
 
   /* Vorabinformation (Pre-Notification) */
@@ -557,6 +628,30 @@ function register(sh) {
       ready: { creditor: Boolean(S('creditor_id')), iban: Boolean(store.account().iban), mail: C.mail.ready() }, earliest: sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14),
       drinksDue: S('drinks_due', ''), drinksOpen: C.drinks.active() ? C.drinks.open().rows.filter(r => r.kind === 'mitglied').reduce((s, r) => s + r.total_cents, 0) : null });
   });
+
+  /* ======================================================= für den Verkauf (Kern) */
+  /** Verkauf › Abrechnung: offene Verkaufs-Posten, damit nichts übersehen wird */
+  C.hooks.drinksOpenCharges = () => db.prepare(`SELECT c.id, c.text, c.cents, c.due_date, m.name AS payer, m.kind AS payer_kind FROM mv_charge c JOIN members m ON m.id = c.member_id
+    WHERE c.kind = 'getraenke' AND c.status = 'offen' ORDER BY name_key(m.name, m.kind), c.due_date, c.id`).all();
+  /** Storno einer abgerechneten Buchung: Wo ist sie abgerechnet? → { text, billed, undo: { run, count, cents } | null } oder null (nicht aus einem Lauf) */
+  C.hooks.drinksSettlementInfo = ({ batch, memberId }) => {
+    const run = db.prepare('SELECT * FROM mv_run WHERE drinks_batch = ?').get(String(batch || ''));
+    if (!run) return null;
+    const c = db.prepare("SELECT * FROM mv_charge WHERE run_id = ? AND kind = 'getraenke' AND COALESCE(for_member_id, member_id) = ? ORDER BY id DESC LIMIT 1").get(run.id, int(memberId));
+    const coll = c && c.collection_id ? db.prepare('SELECT collection_date FROM mv_collection WHERE id = ?').get(c.collection_id) : null;
+    const state = !c ? '' : c.status === 'offen' ? 'Posten noch offen, nichts eingezogen' : c.status === 'eingezogen' ? `in der Lastschrift zum ${deD(coll.collection_date)}` : c.status === 'bezahlt' ? `bezahlt am ${deD(c.paid_at)}` : 'Posten storniert';
+    const free = !db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(run.id);
+    return { text: `${run.kind === 'getraenke' ? 'Verkaufs-Einzug' : 'Beitragslauf'} der Mitgliederverwaltung vom ${deD(run.created_at.slice(0, 10))}${state ? ' – ' + state : ''}`, billed: !c || c.status !== 'storniert',
+      undo: free && run.kind === 'getraenke' ? { run: run.id, count: run.count, cents: run.cents } : null };
+  };
+  /** Verkaufs-Lauf zurücknehmen (aus dem Storno-Dialog im Verkauf) – nur solange daraus nichts eingezogen ist */
+  C.hooks.drinksSettlementUndo = ({ batch, user }) => {
+    const run = db.prepare("SELECT * FROM mv_run WHERE drinks_batch = ? AND kind = 'getraenke'").get(String(batch || ''));
+    if (!run) throw new Error('Dieser Verkaufs-Einzug ist nicht mehr da.');
+    undoRun(run);
+    C.audit(user, 'Beitragslauf zurückgenommen', `Lauf ${run.id} (Verkauf): ${run.count} Positionen, ${euro(run.cents)} – aus dem Storno im Verkauf`);
+    return true;
+  };
 }
 
 module.exports = { register };

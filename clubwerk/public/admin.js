@@ -1160,14 +1160,28 @@
         : { memberId: $('nbMem').value, articleId: $('nbArt').value, qty: $('nbQty').value, date: $('nbDate').value };
       try { await api('bookings', 'POST', body); toast('Nachgetragen.'); RENDER.buchungen(r.from, r.to, memberId); } catch (e) { fail(e); }
     };
+    const again = () => RENDER.buchungen(r.from, r.to, memberId);
+    const cancel = async id => {
+      try { const x = await api(`bookings/${id}/cancel`, 'POST', {}); toast(x && x.message ? x.message : 'Storniert.'); } catch (e) { fail(e); }
+      again();
+    };
     $('buTbl').onclick = async e => {
       const b = e.target.closest('[data-cx]'); if (!b) return;
-      if (!await ask('Diese Buchung stornieren?')) return;
-      try {
-        const x = await api(`bookings/${b.dataset.cx}/cancel`, 'POST', {});
-        toast(x && x.message ? x.message : 'Storniert.');
-      } catch (e) { fail(e); }
-      RENDER.buchungen(r.from, r.to, memberId);
+      const row = r.rows.find(x => x.id === Number(b.dataset.cx));
+      if (!row || !row.settled_id) { if (await ask('Diese Buchung stornieren?')) cancel(b.dataset.cx); return; }
+      // schon abgerechnet: sagen, wo – solange aus einem Verkaufs-Einzug nichts eingezogen ist, lieber den Lauf zurücknehmen
+      let st; try { st = await api(`bookings/${row.id}/settlement`); } catch (e2) { fail(e2); return; }
+      dialog(`<h2>Buchung ist schon abgerechnet</h2>
+        <p style="margin-top:0">Abgerechnet über: <b>${esc(st.where)}</b>.</p>
+        ${st.credit ? `<p class="muted">Stornieren bucht deshalb eine <b>Gutschrift</b> über ${euro(row.total_cents)}, die bei der nächsten Abrechnung abgezogen wird.</p>` : '<p class="muted">Der Posten dazu ist storniert – die Buchung wird normal storniert.</p>'}
+        ${st.undo ? `<p class="muted">Aus diesem Verkaufs-Einzug wurde noch nichts eingezogen. Besser: <b>Lauf zurücknehmen</b> – die Buchung wird normal storniert, alle übrigen Verkaufskonten des Laufs (${st.undo.count} Posten, ${euro(st.undo.cents)}) sind wieder offen.</p>` : ''}
+        <div class="btns"><button class="btn ghost" id="sxX">Abbrechen</button><button class="btn ${st.undo ? '' : 'danger'}" id="sxOk">${st.credit ? 'Gutschrift buchen' : 'Stornieren'}</button>${st.undo ? '<button class="btn primary" id="sxRun">Lauf zurücknehmen und stornieren</button>' : ''}</div>`);
+      $('sxX').onclick = closeDialog;
+      $('sxOk').onclick = () => { closeDialog(); cancel(row.id); };
+      if ($('sxRun')) $('sxRun').onclick = () => busy($('sxRun'), async () => {
+        try { await api(`bookings/${row.id}/undo-run`, 'POST', {}); await api(`bookings/${row.id}/cancel`, 'POST', {}); closeDialog(); toast('Lauf zurückgenommen und Buchung storniert – die übrigen Verkaufskonten sind wieder offen.'); } catch (e2) { fail(e2); }
+        again();
+      });
     };
   };
 
@@ -1370,6 +1384,23 @@
     $('svC').onchange = () => { g.cat = $('svC').value; RENDER.auswertung().catch(fail); };
   };
 
+  /** „+ Betrag auf Konto“: freier Betrag mit Text aufs Verkaufskonto – wird abgerechnet wie jede Tablet-Buchung */
+  async function amountDialog(done) {
+    await loadMembers();
+    dialog(`<h2>Betrag auf ein Konto buchen</h2>
+      <p class="muted" style="margin-top:0">Zum Beispiel Essen, Startgeld oder eine Kiste fürs Fest. Der Betrag steht danach auf dem Verkaufskonto und wird mit der nächsten Abrechnung bezahlt.</p>
+      <label class="f">Konto<select id="amMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
+      <div class="row"><label class="f" style="flex:1 1 140px">Betrag €<input id="amC" class="n" inputmode="decimal" placeholder="0,00"></label>
+        <label class="f" style="flex:1 1 140px">Datum<input type="date" id="amD" value="${today()}"></label></div>
+      <label class="f">Wofür?<input id="amT" maxlength="60" placeholder="z. B. Essen Sommerfest"></label>
+      <div class="btns"><button class="btn ghost" id="amX">Abbrechen</button><button class="btn primary" id="amOk">Buchen</button></div>`);
+    $('amX').onclick = closeDialog;
+    $('amOk').onclick = () => busy($('amOk'), async () => {
+      if ($('amT').value.trim().length < 3) { toast('Bitte kurz eintragen, wofür der Betrag ist.', true); return; }
+      try { await api('bookings', 'POST', { memberId: $('amMem').value, amount_cents: toCents($('amC').value || '0'), note: $('amT').value, date: $('amD').value }); closeDialog(); toast('Gebucht.'); done(); } catch (e) { fail(e); }
+    });
+  }
+
   RENDER.abrechnung = async (from, to) => {
     const q = new URLSearchParams(); if (from) q.set('from', from); if (to) q.set('to', to);
     const mayClose = can('abrechnung');
@@ -1379,6 +1410,8 @@
     const s = Object.fromEntries(r.sums.map(x => [x.kind, x]));
     const xls = `api/admin/export.xlsx?from=${r.from}&to=${r.to}&asOf=${encodeURIComponent(r.asOf)}&upTo=${r.upTo}`;
     const stand = deTime(r.asOf);
+    // Einzug per Lastschrift gibt es nur mit der Mitgliederverwaltung (deren Verwaltungsseite stellt GK.drinksCollect bereit)
+    const sepa = GK.drinksCollect && (cache.modules || []).includes('mitglieder') && can('mitglieder_finanzen');
     $('main').innerHTML = `<h2 class="page">Abrechnung & Export</h2>
       <p class="lead">Ablauf für den Kassierer: <b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
         <b>3.</b> hier einzelne oder alle Konten als <b>abgerechnet</b> markieren – ihr offener Betrag steht danach auf 0. Erfasst wird genau der Stand der Liste (${stand} Uhr); was danach am Tablet gebucht wird, bleibt für die nächste Abrechnung offen.</p>
@@ -1390,12 +1423,16 @@
         <div class="kpi"><div class="l">Stand der Liste</div><div class="v">${stand.slice(-5)}</div></div>
         <div class="kpi"><div class="l">Zuletzt abgerechnet</div><div class="v">${hist.length ? deDate(hist[0].created_at.slice(0, 10)) : '–'}</div></div>
       </div>
+      ${sepa ? `<div class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between;align-items:center">
+        <div style="flex:1 1 260px;min-width:0"><h3 style="margin:0 0 4px">Per Lastschrift einziehen</h3><p class="muted s" style="margin:0">Alle Mitglieder mit Mandat in einem Schritt bis zur SEPA-Datei, getrennt von den Beiträgen. Die Konten werden dabei als abgerechnet markiert; Mannschaften und Konten ohne Mandat bleiben offen.</p></div>
+        <button class="btn primary" id="sepaGo">Per Lastschrift einziehen …</button></div></div>` : ''}
       <div class="toolbar">
-        <a class="btn primary" href="${xls}">Excel herunterladen</a>
-        ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste für die Vereinsverwaltung</button>' : ''}
-        ${mayClose ? (r.rows.length ? `<button class="btn" id="settleAll">Alle ${r.rows.length} Konten als abgerechnet markieren</button>` : '')
-          : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
         <button class="btn ghost" id="reload">Liste aktualisieren</button>
+        ${can('buchungen') ? '<button class="btn" id="addAmt">+ Betrag auf Konto</button>' : ''}
+        ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste</button>' : ''}
+        ${mayClose ? (r.rows.length ? '<button class="btn" id="settleAll">Alle als abgerechnet markieren</button>' : '')
+          : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
+        <a class="btn primary" href="${xls}">Excel herunterladen</a>
       </div>
       <div class="scroll"><table class="tbl" id="abTbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
         ${moreRows(r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
@@ -1403,6 +1440,10 @@
           ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`), cats.length + 3 + (mayClose ? 1 : 0))
           || `<tr><td class="muted" colspan="${cats.length + 3 + (mayClose ? 1 : 0)}">Keine offenen Beträge – alles abgerechnet.</td></tr>`}
         ${r.rows.length ? `<tr class="sum"><td>Summe</td><td></td>${cats.map(c => `<td class="r">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>
+      ${(r.mvOpen || []).length ? `<div class="card" style="margin-top:16px"><h3>Offene Verkaufs-Posten in der Mitgliederverwaltung <span class="muted s">${r.mvOpen.length} · ${euro(r.mvOpen.reduce((a, c) => a + c.cents, 0))}</span></h3>
+        <p class="muted s" style="margin-top:0">Schon abgerechnet oder von Hand angelegt, aber noch nicht bezahlt – sie kommen mit dem nächsten Einzug per Lastschrift mit.</p>
+        <div class="scroll"><table class="tbl"><tr><th>Zahler</th><th>Posten</th><th>fällig</th><th class="r">Betrag</th></tr>
+          ${r.mvOpen.map(c => `<tr><td>${esc(lastFirst(c.payer, c.payer_kind))}</td><td translate="no">${esc(c.text)}</td><td class="nw">${deDate(c.due_date)}</td><td class="r">${euro(c.cents)}</td></tr>`).join('')}</table></div></div>` : ''}
       ${mayClose ? `<div class="card" style="margin-top:16px"><h3>Bisherige Abrechnungen</h3>
         ${hist.length ? `<table class="tbl"><tr><th>markiert am</th><th>Konten</th><th class="r">Betrag</th><th>von</th><th></th></tr>
           ${hist.map(h => `<tr><td>${deTime(h.created_at)}</td><td>${h.names ? esc(h.names) : (h.batch.startsWith('alle-') ? 'alle' : '') + ' ' + h.members + ' Konten'}</td>
@@ -1421,6 +1462,8 @@
     bindRange('rng', (f, t) => RENDER.abrechnung(f, t).catch(fail));
     $('reload').onclick = () => RENDER.abrechnung(from, to).catch(fail);
     if ($('abtipp')) $('abtipp').onclick = () => abtippDialog(r.asOf, r.upTo).catch(fail);
+    if ($('sepaGo')) $('sepaGo').onclick = () => GK.drinksCollect(() => RENDER.abrechnung(from, to).catch(fail)).catch(fail);
+    if ($('addAmt')) $('addAmt').onclick = () => amountDialog(() => RENDER.abrechnung(from, to).catch(fail)).catch(fail);
     const settle = async (ids, text) => {
       if (!await ask(text)) return;
       try {

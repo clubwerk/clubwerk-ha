@@ -2119,6 +2119,32 @@ admin.post('/bookings', need('buchungen'), (req, res) => {
   res.json({ id: Number(r.lastInsertRowid) });
 });
 
+/* Storno einer abgerechneten Buchung: vorher sagen, wo sie abgerechnet ist – und ob sich ein Verkaufs-Einzug der
+   Mitgliederverwaltung noch zurücknehmen lässt (dann normales Storno statt Gutschrift) */
+const settlementOf = id => {
+  const b = db.prepare('SELECT b.id, b.member_id, b.settled_id, s.batch, s.created_at, s.by_user FROM bookings b LEFT JOIN member_settlements s ON s.id = b.settled_id WHERE b.id = ?').get(int(id));
+  if (!b || !b.settled_id) return { b, mod: null };
+  let mod = null;
+  for (const p of plugins.withHook('drinksSettlementInfo')) { try { mod = p.hooks.drinksSettlementInfo({ batch: b.batch, memberId: b.member_id }) || mod; } catch (e) { /* Modul-Fehler: wie ohne Modul */ } }
+  return { b, mod };
+};
+admin.get('/bookings/:id/settlement', need('buchungen'), (req, res) => {
+  const { b, mod } = settlementOf(req.params.id);
+  if (!b) return bad(res, 'Nicht gefunden.', 404);
+  if (!b.settled_id) return res.json({ settled: false });
+  res.json({ settled: true, where: mod ? mod.text : `Verkauf › Abrechnung vom ${deD(b.created_at.slice(0, 10))}${b.by_user ? ` (${b.by_user})` : ''}`,
+    credit: !mod || mod.billed !== false, undo: mod && mod.undo && req.user.perms.includes('mitglieder_finanzen') ? mod.undo : null });
+});
+admin.post('/bookings/:id/undo-run', need('buchungen'), (req, res) => {
+  if (!req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Dafür fehlt dir das Recht „Finanzen“ der Mitgliederverwaltung.', 403);
+  const { b, mod } = settlementOf(req.params.id);
+  if (!b || !mod || !mod.undo) return bad(res, 'Diese Abrechnung lässt sich hier nicht zurücknehmen.');
+  for (const p of plugins.withHook('drinksSettlementUndo')) {
+    try { p.hooks.drinksSettlementUndo({ batch: b.batch, user: req.user }); } catch (e) { return bad(res, e.message); }
+  }
+  res.json({ ok: true });
+});
+
 admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
   const b = db.prepare(`SELECT b.*, COALESCE(b.article_name, a.name) AS article, a.custom, m.name AS member FROM bookings b JOIN articles a ON a.id = b.article_id
     LEFT JOIN members m ON m.id = b.member_id WHERE b.id = ?`).get(int(req.params.id));
@@ -2231,7 +2257,9 @@ admin.get('/balances', need('abrechnung', 'export'), (req, res) => {
     JOIN event_guests g ON g.id = b.event_guest_id WHERE g.member_id IS NOT NULL AND b.${OPEN_GUEST.replace(/ AND /g, ' AND b.')}
     GROUP BY e.id ORDER BY e.date`).all();
   const categories = db.prepare('SELECT category FROM articles WHERE deleted = 0 OR id IN (SELECT article_id FROM bookings) GROUP BY category ORDER BY cat_rank(category), de_key(category)').all().map(r => r.category);
-  res.json({ asOf, upTo, from, to, categories, rows: list, sums, total_cents: list.reduce((s, r) => s + r.total_cents, 0), eventOpen: evOpen });
+  // Offene Verkaufs-Posten der Mitgliederverwaltung (z. B. von Hand angelegt oder nach verworfenem Einzug) – damit nichts übersehen wird
+  const mvOpen = plugins.withHook('drinksOpenCharges').flatMap(p => { try { return p.hooks.drinksOpenCharges() || []; } catch (e) { return []; } });
+  res.json({ asOf, upTo, from, to, categories, rows: list, sums, total_cents: list.reduce((s, r) => s + r.total_cents, 0), eventOpen: evOpen, mvOpen });
 });
 
 /* ---------- Abtippliste für die Vereinsverwaltung (ohne Importfunktion) ----------

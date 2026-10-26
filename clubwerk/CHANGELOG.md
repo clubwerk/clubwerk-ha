@@ -1,5 +1,20 @@
 # Änderungen
 
+## 3.42.0
+
+**Verkauf per Lastschrift einziehen – direkt im Verkauf**
+- Unter **Verkauf › Abrechnung** gibt es jetzt „Per Lastschrift einziehen …“ (nur mit Mitgliederverwaltung). Ein Fenster zeigt in einem Rutsch, wer wie viel zahlt (Angehörige beim Zahler), schlägt den frühesten Einzugstag vor und listet klar, was **nicht** per Lastschrift geht (kein oder widerrufenes Mandat, Rechnung/bar, Mannschaften, „Kein Mitglied“) und was dann zu tun ist. Ein Klick erstellt den Einzug, danach direkt Vorabinformation und SEPA-Datei. Beiträge bleiben dabei außen vor. Der Kasten „Verkauf einziehen“ in der Mitgliederverwaltung führt auf denselben Ablauf.
+- Schon offene Verkaufs-Posten (z. B. von Hand angelegt) werden in der Vorschau angezeigt und mit eingezogen. Verkauf › Abrechnung zeigt sie zusätzlich in einer eigenen Liste.
+- Offene Posten, die erst nach dem Einzugstag fällig sind, werden gemeldet statt still weggelassen. Das Datumsfeld heißt jetzt „Einzugstag wählen“, mit Hinweis, dass ein späterer Tag immer geht.
+- **Einzug verwerfen** fragt jetzt, ob der Lauf gleich mit zurückgenommen werden soll. Dann sind die Verkaufskonten wieder offen und Buchungen lassen sich normal stornieren – ohne Gutschrift.
+- **Storno einer abgerechneten Buchung** sagt, wo sie abgerechnet ist. Solange aus dem Verkaufs-Einzug nichts eingezogen ist, gibt es „Lauf zurücknehmen und stornieren“ statt einer Gutschrift.
+- Neu: **„+ Betrag auf Konto“** unter Verkauf › Abrechnung, um einen freien Betrag mit Text (z. B. Essen) aufs Verkaufskonto zu buchen. Bei „+ Forderung“ in der Mitgliederverwaltung weist die Art „Verkauf“ auf diesen Weg hin.
+
+**SEPA-Nacharbeiten**
+- Die Mandatsreferenz eines Mandats, das schon für Lastschriften genutzt wurde, lässt sich nicht mehr ändern (die Bank würde sonst eine Änderungsmeldung erwarten). Eine neue Referenz gibt es über „Neues Mandat …“.
+- Fehlt beim Vereinskonto der BIC, erscheint ein Hinweis in den Einstellungen und vor dem Einzug. Er bleibt freiwillig.
+- Die Testreihen prüfen jede erzeugte SEPA-Datei gegen das offizielle Schema pain.008 und brechen mit klarer Meldung ab, wenn das Prüfprogramm fehlt.
+
 ## 3.41.0
 
 **Neues Modul „Mängelmelder“**
