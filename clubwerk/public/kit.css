@@ -219,7 +219,7 @@ html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
 .vh-danger { width: 100%; min-height: 48px; border-radius: 14px; background: transparent; color: var(--red); border: 1px solid var(--red-line, var(--line)); font: inherit; font-weight: 700; font-size: 15px; margin: 4px 0 12px; }
 /* Fenster mit Formular */
 .vh-sheet.vh-form .vh-box { max-width: 460px; text-align: left; max-height: 88vh; overflow: auto; }
-.vh-sheet.vh-form label:not(.vh-check) { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
+.vh-sheet.vh-form label:not(.vh-check):not(.vh-pick) { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
 .vh-sheet.vh-form .vh-input, .vh-sheet.vh-form .vh-select { font-size: 16px; min-height: 48px; margin-bottom: 10px; }
 .vh-check { display: flex; gap: 12px; align-items: flex-start; font-size: 14.5px; color: var(--ink); font-weight: 500; line-height: 1.4; margin: 0 0 10px; }
 .vh-check input { width: 22px; height: 22px; flex: none; accent-color: var(--brand); margin: 0; }

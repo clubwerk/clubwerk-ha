@@ -1,5 +1,18 @@
 # Änderungen
 
+## 3.41.0
+
+**Neues Modul „Mängelmelder“**
+
+Mitglieder melden kaputte Dinge auf der Anlage direkt in der Mitglieder-App (Bereich „Mängel“) oder am Tablet mit Namen und PIN – mit Ort, kurzer Beschreibung, bis zu 3 Fotos und auf Wunsch „dringend“.
+- **Nichts doppelt:** Vor dem Absenden zeigt Clubwerk offene Meldungen zum selben Ort (ohne Namen). Mit „Ja, das ist es“ zählt die vorhandene Meldung „auch gemeldet“ hoch, statt eine neue anzulegen. So sieht der Platzwart, was vielen wichtig ist.
+- **Verwaltung:** Neuer Menüpunkt „Mängelmelder“ mit den Reitern Offen, Erledigt und Einstellungen. Status setzen, dem Melder antworten, interne Notiz, Zuständige eintragen. Sortieren nach neu, dringend oder am häufigsten gemeldet.
+- **Eigenes Recht „Mängelmelder“:** Ein Platzwart kann nur dieses Modul sehen. Wer das Recht hat, bekommt neue Meldungen per Push (und auf Wunsch per E-Mail).
+- **Orte:** Plätze und Geräte aus dem Buchungssystem kommen automatisch, weitere Orte (z. B. Clubhaus, Parkplatz) lassen sich in den Einstellungen pflegen, dazu „Anderer Ort“ mit eigenem Text.
+- **Fotos und Datenschutz:** Fotos werden schon im Handy verkleinert, Ortsdaten fallen weg. Sie liegen verschlüsselt im Tresor. Erledigte Meldungen werden nach 12 Monaten mit allen Fotos gelöscht (Frist einstellbar).
+- Melder bekommen eine Push-Nachricht, sobald sich der Status ändert oder der Verein antwortet.
+- Das Modul ist einzeln nutzbar und unter Einstellungen › Module & Erweiterungen einzuschalten.
+
 ## 3.40.3
 
 **Prüfung aller Abrechnungswege bis zur SEPA-Datei**

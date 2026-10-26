@@ -1495,6 +1495,9 @@ function activate(ctx) {
     }
   };
 
+  /* Namen der Plätze und Geräte für andere Module (z. B. Orte im Mängelmelder) */
+  ctx.hooks.placeNames = () => resources().map(r => r.name);
+
   /* ---------- Übersicht, Funktionsdatei ---------- */
   ctx.hooks.overview = async () => {
     const d = today(), n = hhmm(nowMin());

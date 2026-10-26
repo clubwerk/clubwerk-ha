@@ -329,8 +329,8 @@ function startPort({ rateLimit, rateLimitKey }) {
     }
     next();
   });
-  // Unterschriften (Online-Antrag, neue Bankverbindung) brauchen mehr Platz als die übrigen Anfragen
-  app.use(['/api/p', '/api/m/mitglieder', '/api/photo'], express.json({ limit: '600kb' }));
+  // Unterschriften (Online-Antrag, neue Bankverbindung) und Fotos (Profilbild, Mängelmelder) brauchen mehr Platz als die übrigen Anfragen
+  app.use(['/api/p', '/api/m/mitglieder', '/api/photo', '/api/m/maengel'], express.json({ limit: '600kb' }));
   app.use(express.json({ limit: '10kb' }));
   const relay = (p, t) => async (req, res) => {
     try {

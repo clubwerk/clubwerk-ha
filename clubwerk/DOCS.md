@@ -277,6 +277,15 @@ Mannschaften, Spieltage, Verfügbarkeit und Aufstellung – für Sportwart, Mann
 - **Ampel:** grün, wenn mindestens so viele Spieler können wie die Mannschaft braucht, sonst rot – in der Liste, in der App des Mannschaftsführers und in der Übersicht.
 - **Einstellungen:** ob Spieler sehen, wer sonst kann und wer aufgestellt ist; Uhrzeit-Angabe an/aus; **Aufgaben** je Spieltag (z. B. Fahrer nur auswärts, Bewirtung nur daheim) an/aus; **automatische Erinnerungen** (Spieler ohne Antwort X Tage vorher, Warnung an den Mannschaftsführer Y Tage vorher) an/aus; wichtige Nachrichten zusätzlich per E-Mail.
 
+## Modul Mängelmelder
+Mitglieder melden Defekte auf der Anlage – mit Foto, Ort und kurzer Beschreibung. Wer das Recht „Mängelmelder“ hat (z. B. Platzwart oder Hausmeister), sieht die Meldungen in der Verwaltung und arbeitet sie ab.
+- **Melden:** in der Mitglieder-App unter „Mängel“ (für alle Mitglieder; Konten „Kein Mitglied“ wie Trainer nach eigener Freischaltung) oder am Tablet unter „Mängel“ mit Namen und PIN. Ort wählen (Plätze und Geräte aus dem Buchungssystem, eigene Orte aus den Einstellungen oder „Anderer Ort“ mit eigenem Text), kurz beschreiben, bis zu 3 Fotos, auf Wunsch „dringend“. Die Fotos werden schon im Handy verkleinert, Ortsdaten (GPS) fallen dabei weg. Höchstens 10 Meldungen je Person und Tag.
+- **Schon gemeldet?** Vor dem Absenden zeigt Clubwerk offene Meldungen zum selben Ort (Beschreibung, Datum, erstes Foto – ohne Namen). „Ja, das ist es“ legt keine neue Meldung an, sondern zählt bei der vorhandenen „auch gemeldet“ hoch (je Person einmal). Wer bestätigt, bekommt danach auch die Antworten zu dieser Meldung.
+- **Meine Meldungen:** In der App stehen die eigenen und bestätigten Meldungen mit Status (neu, in Arbeit, erledigt, abgelehnt) und der Antwort des Vereins. Bei jeder Änderung kommt eine Push-Nachricht (Anlass „Mängelmeldung beantwortet“).
+- **Verwaltung:** Reiter „Offen“ (sortierbar nach neu, dringend oder „am häufigsten gemeldet“), „Erledigt“ und „Einstellungen“. Antippen öffnet die Meldung mit Fotos: Status setzen, Zuständige/n wählen, Antwort an den Melder (erscheint in der App) und interne Notiz (nur für die Verwaltung).
+- **Benachrichtigung:** Neue Meldungen gehen als Push an alle mit dem Recht „Mängelmelder“, deren Benutzer mit einem Mitglied verknüpft ist (Benutzer & Rechte), auf Wunsch zusätzlich per E-Mail – an deren Adresse und an weitere Empfänger aus den Einstellungen.
+- **Datenschutz:** Fotos liegen verschlüsselt im Tresor (wenn eingeschaltet) und sind in der Komplettsicherung enthalten. Erledigte und abgelehnte Meldungen werden nach einer einstellbaren Frist (Standard 12 Monate) mit allen Fotos gelöscht.
+
 ## Installation in Home Assistant
 
 ### Variante A: lokales Add-on (empfohlen für den Anfang)
