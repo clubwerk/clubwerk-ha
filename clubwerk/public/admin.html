@@ -297,6 +297,7 @@
   .tabs.drinktabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; box-sizing: border-box; } .tabs.drinktabs::-webkit-scrollbar { display: none; }
   .tabs.drinktabs > button { flex: none; white-space: nowrap; }
   .tabrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 4px 0 20px; } .tabrow > .tabs { margin: 0; }
+  @media (min-width: 701px) { .tabrow.beside { flex-wrap: nowrap; } .tabrow.beside > .tabs { flex: 0 1 auto; min-width: 0; } }   /* Knöpfe neben den Reitern, solange beide Platz haben (admin.js: fitTools); sonst darunter – nie ein abgeschnittener Reiter */
   .tabtools { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; } .tabtools:empty { display: none; }
   .tabs button { height: 36px; padding: 0 12px; border-radius: 9px; font-size: 14px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
   .tabs button:hover { color: var(--ink); }

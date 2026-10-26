@@ -155,12 +155,21 @@
     bar.classList.toggle('more-r', more && bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 1);
     if (!bar.dataset.fade) { bar.dataset.fade = '1'; bar.addEventListener('scroll', () => tabFade(bar), { passive: true }); }
   }
+  /** Knöpfe der Reiterzeile neben die Reiter setzen, wenn beide Platz haben; sonst darunter (Klasse .beside, siehe admin.html) */
+  function fitTools() {
+    requestAnimationFrame(() => document.querySelectorAll('#main .tabrow:not(.detailrow)').forEach(row => {
+      const t = [...row.children].find(c => c.classList.contains('tabs')), box = [...row.children].find(c => c.classList.contains('tabtools')); if (!t) return;
+      row.classList.remove('beside'); if (t.scrollWidth > t.clientWidth + 1) { tabFade(t); return; }   // Reiter allein zu breit: wischbar wie am Handy
+      if (box && box.childElementCount) { row.classList.add('beside'); if (t.scrollWidth > t.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1 || box.offsetTop > t.offsetTop + 8) row.classList.remove('beside'); }
+      tabFade(t);
+    }));
+  }
   function revealTab(b) {
     const bar = b.parentNode; if (!bar) return;
     if (bar.scrollWidth > bar.clientWidth) bar.scrollLeft = Math.max(0, b.offsetLeft - (bar.clientWidth - b.offsetWidth) / 2);
     tabFade(bar);
   }
-  window.addEventListener('resize', () => document.querySelectorAll('#main .tabs').forEach(tabFade));
+  window.addEventListener('resize', () => { document.querySelectorAll('#main .tabs').forEach(tabFade); fitTools(); });
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay') && !$('dialog').dataset.sticky) closeDialog(); });
 
   /* Lange Tabellen: erst 150 Zeilen, der Rest auf Knopfdruck – sonst baut der Browser tausende Zeilen auf einmal auf.
@@ -352,6 +361,7 @@
     if (!tb || tb.querySelector('input, select, textarea') || !tb.querySelector('.btn, button')) return;
     const owner = tb.nextElementSibling || tb.parentElement;
     box.replaceChildren(...tb.childNodes); tb.remove(); tabToolsOwner = owner;
+    fitTools();
   }).observe(document.documentElement, { childList: true, subtree: true });
   const APP_EXTRA = [];   // Reiter der Seite „Mitglieder-App“, die Module beisteuern
   const PAGES = [
@@ -778,6 +788,7 @@
       placeDrinkTabs();
       const box = $('tabTools'); if (!box) return null;
       box.innerHTML = html || ''; tabToolsOwner = owner || null;
+      fitTools();
       return box;
     },
     /** Eigener Reiter auf der Seite „Mitglieder-App“ (Verein): registerAppSection({ key, label, perm, render(el) }) –

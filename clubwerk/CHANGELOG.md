@@ -1,5 +1,19 @@
 # Änderungen
 
+## 3.55.0
+
+**Plätze neu geordnet (Etappe 9 des Menü-Umbaus)**
+- **Sieben Reiter:** Belegung · Serien & Sperren · Buchungen · Gebühren · Auswertung · Plätze & Geräte · Einstellungen. „Buchungsarten“ ist kein eigener Reiter mehr, das „Buchungsprotokoll“ heißt jetzt **Buchungen**.
+- **Belegung:** „Tag / Woche“ sind jetzt kleine Filterchips. „+ Buchung“ und „+ Sperre“ stehen rechts oben.
+- **Buchungen:** Die Filter (Alle, Mitglieder, Mit Gast …) sind Filterchips, die Liste heißt „Excel“ und steht rechts oben, am Handy zeigt jede Buchung nur zwei Zeilen. „Weitere laden“ statt „Weitere anzeigen“.
+- **Gebühren:** „Alle / Offen / Bezahlt“ mit Zahl. Von Hand gebuchte Gebühren haben einen sichtbaren Knopf **Stornieren** (mit Rückfrage, die den Betrag nennt). Gebühren buchen und stornieren darf, wer Plätze buchen darf (Recht „für Mitglieder buchen“), nicht mehr nur, wer Einstellungen ändern darf.
+- **Einstellungen als Karten**, jede mit eigenem „Speichern“: Buchen · Mitspieler & Gäste · Warteliste · **Wer darf buchen?** (Mitgliedschaft, Beitragsarten und Sonderrechte jetzt zusammen) · **Buchungsarten** · Tablet & Mitglieder-App · Platzordnung · **Einstellungen übertragen**. Bei ausgeschalteter Warteliste ist nur der Schalter sichtbar. Sonderrechte und Buchungsarten werden im Fenster bearbeitet und gelten sofort.
+- **Serie stornieren:** Auswahl („nur dieser Termin / alle folgenden / ganze Serie“) und Rückfrage stehen jetzt im selben Fenster, nicht mehr zwei übereinander.
+- **Spielplan-Import:** gleiche Überschriften und gleiche Spalten wie beim Spielbetrieb („Mannschaften“, „Spiele“ mit Heim/Auswärts).
+- **Reiterzeile:** Die Knöpfe rechts oben bleiben neben den Reitern, solange beide Platz haben (gilt für alle Seiten mit Reitern); nur bei sehr schmalen Fenstern stehen sie darunter.
+- Es heißt überall „Plätze“ und „Mitglieder“ statt „Buchungssystem“ und „Mitgliederverwaltung“. Die Suche findet jede Karte und die wichtigen Knöpfe.
+- Bereits gespeicherte Einstellungen, Buchungsarten und Sonderrechte bleiben unverändert.
+
 ## 3.54.0
 
 **Buchhaltung neu geordnet (Etappe 11 des Menü-Umbaus)**

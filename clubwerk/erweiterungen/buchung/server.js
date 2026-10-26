@@ -1,6 +1,6 @@
 'use strict';
 /* =====================================================================================================
-   Modul „Buchungssystem“
+   Modul „Plätze“
    Plätze (Tennis, Padel …) und Geräte (Ballmaschine, Leihschläger …) buchen – in der Mitglieder-App (auch von unterwegs,
    siehe Anleitung „Externer Zugang“) und am Tablet im Vereinsheim.
    Regeln: Öffnungszeiten und Zeitraster je Platz, Höchstdauer, Vorlauf in Tagen, Kontingent offener Buchungen je Mitglied
@@ -65,7 +65,7 @@ function activate(ctx) {
   const SET = (k, v) => ctx.setSetting('ext_buchung_' + k, String(v));
   const ALL = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
   const P = need(...ALL);                                   // Belegung ansehen (jedes Recht des Moduls)
-  const PS = need('buchung_serien'), PE = need('buchung_einstellungen');
+  const PS = need('buchung_serien'), PE = need('buchung_einstellungen'), PB = need('buchung_buchen');
   const may = (req, p) => req.user.perms.includes(p);
   { const rc = db.prepare('PRAGMA table_info(bk_rights)').all().map(c => c.name);
     if (!rc.includes('for_others')) db.exec('ALTER TABLE bk_rights ADD COLUMN for_others INTEGER NOT NULL DEFAULT 0');   // darf in der App für andere Mitglieder buchen
@@ -624,7 +624,7 @@ function activate(ctx) {
   }
   const isOpenFee = x => x.status === 'offen' || x.status === 'unbekannt';
   const sumOf = rows => rows.reduce((x, r) => x + r.fee_cents, 0);
-  const NO_TRACK = 'Ohne Mitgliederverwaltung keine Zahlungsverfolgung – die Gebühren werden nur aufgelistet.';
+  const NO_TRACK = 'Ohne das Modul Mitglieder gibt es keine Zahlungsverfolgung – die Gebühren werden nur aufgelistet.';
 
   /* ---------- Kalender (.ics) – Link mit Prüfsumme, damit das Handy ihn ohne Anmeldung öffnen kann ---------- */
   const crypto = require('crypto');
@@ -704,7 +704,7 @@ function activate(ctx) {
     mailPlayers(b, 'storno', { by: me, budget: me, toBooker: forOther });
     res.json({ ok: true });
   }));
-  /* Serien in der App – nur mit Sonderrecht (Verwaltung → Buchungssystem → Einstellungen → Sonderrechte) */
+  /* Serien in der App – nur mit Sonderrecht (Verwaltung → Plätze → Einstellungen → Wer darf buchen?) */
   M.post('/series', rateLimit('bkser', 20, 60000), ar(async (req, res) => {
     const mid = req.member.id, b = req.body || {};
     if (!rightsOf(mid).series) return bad(res, 'Serien anlegen darfst du nicht – bitte bei der Verwaltung melden.', 403);
@@ -858,7 +858,7 @@ function activate(ctx) {
   }));
   /* Gebühr von Hand buchen (Vorstand): Mitglied → Forderung in der Mitgliederverwaltung; Trainer („Kein Mitglied“) oder ohne
      Mitgliederverwaltung → aufs Verkaufskonto (bezahlt mit dem Verkauf unter Abrechnung) */
-  admin.post('/fees/manual', PE, ar(async (req, res) => {
+  admin.post('/fees/manual', PB, ar(async (req, res) => {
     const b = req.body || {}, m = memberRow(b.member_id);
     if (!m) return bad(res, 'Bitte eine Person wählen.');
     const cents = int(b.cents), text = txt(b.text, 80) || 'Platzgebühr', date = isDate(b.date) ? b.date : today();
@@ -866,15 +866,15 @@ function activate(ctx) {
     let charge = null, sale = null;
     if (m.kind === 'mitglied' && mv()) {
       charge = await hook('createCharge', { member_id: m.id, text: `${text} (${deD(date)})`, cents, due_date: date, kind: 'sonstiges', ext_key: `bkf-${Date.now()}`, by: uname(req) });
-      if (!charge) return bad(res, 'Die Forderung konnte nicht angelegt werden (Mitgliederverwaltung).');
+      if (!charge) return bad(res, 'Die Forderung konnte nicht angelegt werden (Mitglieder).');
     } else if (ctx.drinks && ctx.drinks.active()) {
       try { sale = ctx.drinks.charge(m.id, cents, `${text} ${deD(date)}`, req.user); } catch (e) { return bad(res, e.message); }
-    } else return bad(res, 'Ohne Mitgliederverwaltung und ohne Verkauf lässt sich keine Gebühr buchen.');
+    } else return bad(res, 'Ohne die Module Mitglieder und Verkauf lässt sich keine Gebühr buchen.');
     const id = Number(db.prepare('INSERT INTO bk_fee(member_id, name, date, text, cents, charge_id, sale_id, created_by) VALUES (?,?,?,?,?,?,?,?)').run(m.id, m.name, date, text, cents, charge || null, sale || null, uname(req)).lastInsertRowid);
     ctx.audit(req.user, 'Plätze: Gebühr gebucht', `${m.name}: ${text} ${euro(cents)}${sale ? ' (aufs Verkaufskonto)' : ''}`);
     res.json({ ok: true, id, to: sale ? 'verkauf' : 'forderung' });
   }));
-  admin.post('/fees/manual/:id/cancel', PE, ar(async (req, res) => {
+  admin.post('/fees/manual/:id/cancel', PB, ar(async (req, res) => {
     const f = db.prepare('SELECT * FROM bk_fee WHERE id = ? AND cancelled_at IS NULL').get(int(req.params.id));
     if (!f) return bad(res, 'Diese Gebühr gibt es nicht (mehr).', 404);
     if (f.sale_id) { try { ctx.drinks.cancelCharge(f.sale_id, uname(req)); } catch (e) { return bad(res, e.message); } }
