@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.51.0
+
+**Zugang neu geordnet (Etappe 6 des Menü-Umbaus)**
+- **Neue Reiter:** Bedienen · Freischaltungen · Türen · Zeitprofile · Sperrtage · Verlauf · Einstellungen. „Verlauf“ hieß vorher „Protokoll“, die Sperrtage haben jetzt einen eigenen Reiter.
+- **Freischaltungen** sind der einzige Ort für Zeitprofil, „gültig bis“, „auch von unterwegs“ und Sperre. „+ Mitglied freischalten“ steht oben rechts, alles Weitere öffnet sich hinter „Bearbeiten“ in einem einzigen Fenster. „Zugang entziehen“ steht abgesetzt und fragt im selben Fenster nach. In der Mitglieder-App zeigt die Spalte „Türen“ nur noch an und führt mit „ändern“ hierher.
+- **Türen, Zeitprofile und Sperrtage:** „+ Tür“, „+ Zeitprofil“ und „+ Sperrzeitraum“ stehen rechts in der Reiterzeile. Türen und Sperrzeiträume bearbeitest du im Fenster und sie werden sofort gespeichert; jedes Zeitprofil hat sein eigenes „Speichern“. „Profil löschen“, „Tür entfernen“ und „Sperrzeitraum aufheben“ fragen vorher nach und sagen, was dann passiert.
+- **Einstellungen als Karten**, je mit eigenem „Speichern“: Anbindung (Hersteller) · Sicherheit („nur aus dem Vereinsnetz“, mit Link zu Einstellungen › Erreichbarkeit) · Benachrichtigungen · Einstellungen übertragen. Der Schalter „am Tablet zeigen“ steht zentral unter Einstellungen › Tablet.
+- Fehlt die Verbindung zu Home Assistant, führt ein Link direkt zur Anbindung. Am Handy stehen die Listen in zwei Zeilen je Eintrag.
+- Die Suche findet jeden Reiter, jede Karte und die Aktionen am neuen Ort.
+- Nichts geht verloren: Türen, Zeitprofile, Freischaltungen und Sperrtage bleiben unverändert. Wer nur „Zugang bedienen“ darf, sieht weiterhin nur den Reiter „Bedienen“ mit der Notfall-Sperre.
+
 ## 3.50.0
 
 **Beregnung neu geordnet (Etappe 5 des Menü-Umbaus)**

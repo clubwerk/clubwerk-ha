@@ -285,7 +285,7 @@ function memberRoutes(r, ctx) {
 }
 
 /* Vereinstablet (optional): Name wählen + App-PIN */
-/* Schutz am Tablet: Die Tablet-Seite ist nur erreichbar, wenn sie unter Zugang → Einstellungen eingeschaltet ist.
+/* Schutz am Tablet: Die Tablet-Seite ist nur erreichbar, wenn sie unter Einstellungen › Tablet eingeschaltet ist.
    Falsche PINs werden je Mitglied (3 in 15 Min.), je Gerät/Adresse (5 in 15 Min. → je 30 Min. Pause) und insgesamt gezählt – nie auf das Handy des Mitglieds. Nach 10 Fehlversuchen
    innerhalb von 24 Stunden – egal bei welchem Mitglied – schaltet sich das Öffnen am Tablet ab (Warnung an den Vorstand),
    bis ein Admin es wieder einschaltet. Erraten über viele Mitglieder hinweg ist so ausgeschlossen. */
@@ -527,7 +527,7 @@ function activate(ctx) {
     const c = cfg();
     const rows = access.list(MOD).map(a => {
       const d = db.prepare("SELECT device, last_used, token_hash IS NOT NULL AS paired, invite_expires FROM member_devices WHERE scope = ? AND member_id = ?").get(APP, a.member_id);
-      return { member_id: a.member_id, name: a.name, profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked),
+      return { member_id: a.member_id, name: a.name, profile: a.profile, valid_until: a.valid_until, blocked: Boolean(a.blocked), away: Boolean(a.away),
         device: d ? (d.paired ? 'gekoppelt' : d.invite_expires >= Date.now() ? 'eingeladen' : 'abgelaufen') : 'ohne Handy', device_label: d ? d.device : null, last_used: d ? d.last_used : null };
     });
     const have = new Set(rows.map(r => r.member_id));
