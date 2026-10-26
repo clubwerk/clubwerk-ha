@@ -8754,6 +8754,22 @@
   "Mitglieder melden Defekte in der App oder am Tablet – hier setzt du Status, Antwort und Zuständige.": "Members report defects in the app or on the tablet – here you set the status, reply and person responsible.",
   "Ort hinzufügen": "Add location",
   "Ort neu Liste": "location new list",
-  "Ort Platz Clubhaus Parkplatz": "location court clubhouse car park"
+  "Ort Platz Clubhaus Parkplatz": "location court clubhouse car park",
+  "+ Einsatz nachtragen": "+ Add shift",
+  "+ Person": "+ Person",
+  "Am": "On",
+  "Einstellungen →": "Settings →",
+  "Empfänger Kassierer E-Mail Testmail": "Recipient treasurer email test email",
+  "je Person auf die Viertelstunde (bis 3 Minuten ab-, ab 4 Minuten aufgerundet).": "per person to the quarter hour (up to 3 minutes rounded down, from 4 minutes rounded up).",
+  "Jede Person stempelt am Tablet mit ihrer eigenen PIN. Der Stundensatz ist nur hier in der Verwaltung sichtbar. Eine Änderung gilt ab dem laufenden Monat – abgeschlossene Monate behalten ihren Satz. Die PIN wird nie angezeigt, nur neu gesetzt.": "Everyone clocks in on the tablet with their own PIN. The hourly rate is only visible here in the admin area. A change applies from the current month – completed months keep their rate. The PIN is never shown, only reset.",
+  "Letzter Versand des Monatsnachweises fehlgeschlagen: {0}": "The last monthly statement could not be sent: {0}",
+  "Mitarbeiter Personal PIN Stundensatz Reinigung Hausmeister Person anlegen": "staff personnel PIN hourly rate cleaning caretaker add person",
+  "Noch kein Personal angelegt – im Reiter „Personal“ mit „+ Person“ anlegen.": "No staff added yet – add someone on the “Personal” tab with “+ Person”.",
+  "Noch niemand angelegt – oben auf „+ Person“.": "Nobody added yet – use “+ Person” above.",
+  "Stunden als Excel": "Hours as Excel",
+  "Stunden Export Tabelle": "hours export spreadsheet",
+  "Der Stundensatz ist nur hier sichtbar. Eine Änderung gilt ab dem laufenden Monat, abgeschlossene Monate behalten ihren Satz.": "The hourly rate is only visible here. A change applies from the current month; completed months keep their rate.",
+  "je Person auf die Viertelstunde.": "per person is rounded to the quarter hour.",
+  "Personal stempelt am Tablet mit eigener PIN. Gespeichert werden die echten Zeiten, gerundet wird nur die": "Staff clock in on the tablet with their own PIN. The actual times are saved; only the"
  }
 }

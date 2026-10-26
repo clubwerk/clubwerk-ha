@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.49.0
+
+**Zeiterfassung neu geordnet (Etappe 4 des Menü-Umbaus)**
+- Die Zeiterfassung hat jetzt Reiter oben: **Stunden · Personal · Einstellungen**.
+- **Stunden:** Monat und Person wählen, Einsätze ansehen und korrigieren. „+ Einsatz nachtragen“, „Monatsnachweis (PDF)“ und „Excel“ stehen rechts in der Reiterzeile.
+- **Personal:** eine Liste mit Name, Tätigkeit, PIN (gesetzt), Stundensatz und Status. „+ Person“ rechts, Bearbeiten in einem einzigen Fenster. Die PIN wird nie angezeigt, nur neu gesetzt.
+- **Einstellungen:** Monatsnachweis per E-Mail (Empfänger, Testmail, Vormonat jetzt senden) und „Einstellungen übertragen“.
+- Nichts geht verloren: Personal, Stundensätze, Einsätze und der Empfänger bleiben unverändert. Die Suche findet die Reiter und Aktionen an ihrem neuen Ort. Am Handy stehen die Listen in zwei Zeilen je Eintrag.
+
 ## 3.48.0
 
 **Mängel neu geordnet (Etappe 3 des Menü-Umbaus)**
