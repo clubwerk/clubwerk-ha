@@ -32,6 +32,7 @@ const PERMS = {
   uebernahme: 'Offene Veranstaltungsbeträge auf die Getränkeliste übernehmen (Kassierer)',
   artikel: 'Artikel & Preise',
   konten: 'Mitglieder anlegen & neue bestätigen',
+  app: 'Mitglieder-App einrichten: Bereiche, Reiter, Benachrichtigungen & Name (Adresse und Sicherheit nur mit „Einstellungen“)',
   email: 'E-Mail an Mitglieder schreiben (Verein → E-Mail)',
   deinstallieren: 'Module deinstallieren und wieder installieren (vorher Pflicht-Sicherung)',
 };

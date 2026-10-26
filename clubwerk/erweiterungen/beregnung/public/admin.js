@@ -73,12 +73,13 @@
   const MODES = [['pin', 'Offen mit Vereins-PIN (eigene Webapp)'], ['app', 'Nur freigeschaltete Mitglieder (Mitglieder-App)'], ['login', 'Gesperrt – nur Benutzer mit Passwort']];
 
   GK.RENDER.beregnung = async () => {
-    await loadCfg();
+    const full = GK.can('beregnung');   // ohne dieses Recht nur „Bedienen“ (Recht „Beregnung bedienen“)
+    if (full) await loadCfg();
     $('main').innerHTML = `<h2 class="page">Beregnung</h2>
       <p class="lead">Mitglieder starten hier nur die <b>manuelle</b> Beregnung eines Platzes. Zeitpläne, Wetteranpassung und Pausen bleiben in der Steuerung des Herstellers.
         Es läuft nie mehr als eine Zone gleichzeitig (Wasserdruck) – weitere Plätze stellen sich hinten an.</p><div id="bTabs"></div>`;
-    GK.tabs($('bTabs'), 'beregnung', [['bedienen', 'Bedienen'], ['plaetze', 'Plätze & Anbindung'], ['webapp', 'Webapp & PIN'], ['protokoll', 'Protokoll']], async (k, el) => {
-      const d = await loadCfg(); const c = st.cfg;
+    GK.tabs($('bTabs'), 'beregnung', [['bedienen', 'Bedienen'], ...(full ? [['plaetze', 'Plätze & Anbindung'], ['webapp', 'Webapp & PIN'], ['protokoll', 'Protokoll']] : [])], async (k, el) => {
+      const d = full ? await loadCfg() : {}; const c = st.cfg || {};
       const ha = c.backend !== 'hydrawise';
       if (k === 'bedienen') {
         // dieselben Kacheln wie in der Mitglieder-App, am Tablet und in der Beregnungs-Webapp (plaetze.js + kit.css)
@@ -88,8 +89,8 @@
         el.innerHTML = `<div id="bOff"></div><div class="card"><h3>Plätze</h3><div class="vh-tiles zones" id="bTiles"></div>
             <p class="muted s" id="bNext" style="margin:12px 0 0"></p>
             <div class="row" style="margin-top:12px"><button class="btn danger" id="bStop">■ Alle Zonen ausschalten</button></div></div>
-          <div class="card"><h3>Wer darf bedienen?</h3><p style="margin:0"><span>${esc(MODES.find(m => m[0] === c.mode)[1])}</span>${c.mode === 'pin' ? ` · Webapp: <b>${GK.scheme ? GK.scheme() : 'http'}://&lt;Adresse von Home Assistant&gt;:${d.port || 5000}</b>` : ''}.
-            Zusätzlich sehen Mitglieder mit Freischaltung die Beregnung in der <a href="#app" data-goapp>Mitglieder-App</a>.</p></div>`;
+          ${full ? `<div class="card"><h3>Wer darf bedienen?</h3><p style="margin:0"><span>${esc(MODES.find(m => m[0] === c.mode)[1])}</span>${c.mode === 'pin' ? ` · Webapp: <b>${GK.scheme ? GK.scheme() : 'http'}://&lt;Adresse von Home Assistant&gt;:${d.port || 5000}</b>` : ''}.
+            Zusätzlich sehen Mitglieder mit Freischaltung die Beregnung in der <a href="#app" data-goapp>Mitglieder-App</a>.</p></div>` : ''}`;
         const alive = () => document.body.contains(el) && $('bTiles');
         const draw = () => {
           if (!alive()) { clearInterval(tick); clearTimeout(timer); return; }   // Seite schon verlassen (Antwort kam nach dem Wechsel) – nichts mehr zeichnen
@@ -113,7 +114,7 @@
         T.prime(s.plaetze); draw(); timer = setTimeout(refresh, 5000);
         tick = setInterval(() => { if (!alive()) { clearInterval(tick); clearTimeout(timer); return; } if (T.tick(s.plaetze)) draw(); }, 1000);
         $('bStop').onclick = async () => { if (!await GK.ask('Alle Zonen jetzt ausschalten?\n\nLaufende und geplante Beregnungen werden sofort beendet.', { ok: 'Alles stoppen', danger: true })) return; try { const r = await api('stop', 'POST', {}); toast(r.ok ? 'Alle Zonen gestoppt.' : 'Nicht alles ließ sich stoppen: ' + r.errors.join('; '), !r.ok); refresh(); } catch (e) { fail(e); } };
-        el.querySelector('[data-goapp]').onclick = e => { e.preventDefault(); GK.go('app'); };
+        if (full) el.querySelector('[data-goapp]').onclick = e => { e.preventDefault(); GK.go('app'); };
         return;
       }
       if (k === 'plaetze') {
@@ -186,15 +187,15 @@
     $('bMonth').onchange = () => { st.month = $('bMonth').value; loadLog().catch(fail); };
   }
 
-  GK.registerPage({ key: 'beregnung', title: 'Beregnung', perm: 'beregnung', render: GK.RENDER.beregnung, order: 5 });
+  GK.registerPage({ key: 'beregnung', title: 'Beregnung', perm: ['beregnung', 'beregnung_bedienen'], render: GK.RENDER.beregnung, order: 5 });
   // Suche (Strg/⌘ K): Einstellungen und Aktionen der Beregnung
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Beregnung starten', page: 'beregnung', tab: ['beregnung', 'bedienen'], card: 'Plätze', kind: 'aktion', in: 'Bedienen', words: 'starten Wasser Platz beregnen' },
-    { label: 'Anbindung der Bewässerung (Hersteller)', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Anbindung', in: 'Plätze & Anbindung', words: 'Hydrawise Rain Bird Hunter Home Assistant Schlüssel Steuerung' },
-    { label: 'Plätze und Zonen der Beregnung', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Plätze & Zonen', in: 'Plätze & Anbindung', words: 'Zone Ventil Platz' },
-    { label: 'Wer darf die Beregnung bedienen?', page: 'beregnung', tab: ['beregnung', 'webapp'], card: 'Wer darf bedienen', in: 'Webapp & PIN', words: 'PIN Vereins-PIN Sperre Bedienung' },
-    { label: 'Beregnungs-Webapp (Name, Störungsmeldung)', page: 'beregnung', tab: ['beregnung', 'webapp'], card: 'Eigene Webapp', in: 'Webapp & PIN', words: 'Webapp Homescreen Name Störung' },
-    { label: 'Beregnungsprotokoll', page: 'beregnung', tab: ['beregnung', 'protokoll'], kind: 'reiter', in: 'Protokoll', words: 'Verlauf Excel Protokoll' },
-    { label: 'Einstellungen der Beregnung übertragen', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Plätze & Anbindung', words: 'Export Import Datei' },
+    { label: 'Anbindung der Bewässerung (Hersteller)', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Anbindung', in: 'Plätze & Anbindung', words: 'Hydrawise Rain Bird Hunter Home Assistant Schlüssel Steuerung' },
+    { label: 'Plätze und Zonen der Beregnung', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Plätze & Zonen', in: 'Plätze & Anbindung', words: 'Zone Ventil Platz' },
+    { label: 'Wer darf die Beregnung bedienen?', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'webapp'], card: 'Wer darf bedienen', in: 'Webapp & PIN', words: 'PIN Vereins-PIN Sperre Bedienung' },
+    { label: 'Beregnungs-Webapp (Name, Störungsmeldung)', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'webapp'], card: 'Eigene Webapp', in: 'Webapp & PIN', words: 'Webapp Homescreen Name Störung' },
+    { label: 'Beregnungsprotokoll', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'protokoll'], kind: 'reiter', in: 'Protokoll', words: 'Verlauf Excel Protokoll' },
+    { label: 'Einstellungen der Beregnung übertragen', page: 'beregnung', perm: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Plätze & Anbindung', words: 'Export Import Datei' },
   ]);
 })();

@@ -600,9 +600,9 @@ function startPort({ rateLimit, rateLimitKey }) {
 function adminRoutes(admin, { bad, need, auth }) {
   // Profilbild in der Verwaltung ansehen und bei Bedarf entfernen
   /* Push-Benachrichtigungen: welche Anlässe es im Verein gibt (Recht „Einstellungen“), Überblick und Test */
-  admin.get('/push', need('konten', 'einstellungen', 'mitglieder'), (req, res) => res.json(push.adminState()));
-  admin.put('/push', need('konten', 'einstellungen'), (req, res) => { push.saveAdmin((req.body || {}).events, req.user); res.json(push.adminState()); });
-  admin.post('/push/test', need('konten', 'einstellungen'), async (req, res) => {
+  admin.get('/push', need('app', 'konten', 'einstellungen', 'mitglieder'), (req, res) => res.json(push.adminState()));
+  admin.put('/push', need('app', 'einstellungen'), (req, res) => { push.saveAdmin((req.body || {}).events, req.user); res.json(push.adminState()); });
+  admin.post('/push/test', need('app', 'einstellungen'), async (req, res) => {
     const id = parseInt((req.body || {}).memberId, 10);
     const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
@@ -631,7 +631,8 @@ function adminRoutes(admin, { bad, need, auth }) {
   const missingFor = (req, memberId) => db.prepare('SELECT module, blocked FROM member_access WHERE member_id = ?').all(memberId)
     .filter(r => { const m = modules.get(r.module); return m && m.isActive() && !m.open && !r.blocked; })
     .filter(r => !mayModule(req, r.module)).map(r => modules.get(r.module).label || modules.get(r.module).name);
-  admin.get('/app', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
+  admin.get('/app', (req, res, next) => need(...permsAll(), 'app')(req, res, next), (req, res) => {
+    const mayMembers = permsAll().some(p => req.user.perms.includes(p));   // nur „Mitglieder-App einrichten“: keine Mitgliederliste
     const ids = db.prepare(`SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)`).all(SCOPE).map(r => r.member_id);
     const ms = new Map(db.prepare(`SELECT id, name, kind, active, deleted FROM members WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids).map(m => [m.id, m])), pre = statesPre();
     const rows = ids.map(id => { const m = ms.get(id); return m && !m.deleted ? { member_id: id, name: m.name, kind: m.kind, ...memberState(id, pre) } : null; })
@@ -640,7 +641,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
-    res.json({ startSection: getSetting('app_start', ''), mailIds, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows, members,
+    res.json({ startSection: getSetting('app_start', ''), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [],
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -817,7 +818,8 @@ function adminRoutes(admin, { bad, need, auth }) {
     audit(req.user, `${mod.name}: ${isNew ? 'freigeschaltet' : 'Freischaltung geändert'}`, m.name);
     res.json({ ok: true, reinvite, ...memberState(id) });
   });
-  admin.put('/settings/app', need('konten', 'einstellungen'), (req, res) => {
+  admin.put('/settings/app', need('app', 'einstellungen'), (req, res) => {
+    const mayCfg = req.user.perms.includes('app') || req.user.perms.includes('einstellungen');
     const b = req.body || {};
     // Adresse im QR-Code und Sicherheitseinstellungen nur mit „Einstellungen“ – sonst könnte jemand mit „Mitglieder“
     // alle späteren QR-Codes auf eine fremde Seite umleiten und Einladungen abgreifen
@@ -833,14 +835,14 @@ function adminRoutes(admin, { bad, need, auth }) {
       audit(req.user, 'Mitglieder-App: Tunnel-Quelle', t || 'jede Adresse im Add-on-Netz');
     }
     if (b.sectionsOn !== undefined) {   // { modul: true|false } – Bereich in der App zeigen (aus: Reiter für alle weg, Freischaltungen bleiben)
-      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Nur mit dem Recht „Einstellungen“.', 403);
+      if (!mayCfg) return bad(res, 'Nur mit dem Recht „Mitglieder-App einrichten“.', 403);
       const off = appOff();
       for (const [k, v] of Object.entries(b.sectionsOn || {})) if (modules.has(k)) { if (v) off.delete(k); else off.add(k); }
       setSetting('app_off', JSON.stringify([...off]));
       audit(req.user, 'Mitglieder-App: Bereiche ein-/ausgeschaltet', Object.entries(b.sectionsOn || {}).filter(([k]) => modules.has(k)).map(([k, v]) => `${(modules.get(k) || {}).label || k}: ${v ? 'an' : 'aus'}`).join(', '));
     }
     if (b.preselect !== undefined) {   // { modul: true|false } – beim Freischalten vorausgewählt
-      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Nur mit dem Recht „Einstellungen“.', 403);
+      if (!mayCfg) return bad(res, 'Nur mit dem Recht „Mitglieder-App einrichten“.', 403);
       const o = {}; for (const [k, v] of Object.entries(b.preselect || {})) if (modules.has(k)) o[k] = Boolean(v);
       setSetting('app_preselect', JSON.stringify(o));
       audit(req.user, 'Mitglieder-App: Vorauswahl beim Freischalten', Object.entries(o).map(([k, v]) => `${(modules.get(k) || {}).label || k}: ${v ? 'ja' : 'nein'}`).join(', '));
@@ -887,7 +889,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       audit(req.user, 'Mitglieder-App: Startseite', s ? modules.get(s).label || modules.get(s).name || s : 'zuletzt genutzter Bereich');
     }
     if (b.moduleOrder !== undefined) {   // Reihenfolge der Bereiche in der App
-      if (!req.user.perms.includes('einstellungen')) return bad(res, 'Die Reihenfolge der Bereiche darf nur ändern, wer das Recht „Einstellungen“ hat.', 403);
+      if (!mayCfg) return bad(res, 'Nur mit dem Recht „Mitglieder-App einrichten“.', 403);
       const order = [...new Set((Array.isArray(b.moduleOrder) ? b.moduleOrder : []).map(String).filter(k => modules.has(k)))].slice(0, 40);
       setSetting('app_module_order', JSON.stringify(order));
       audit(req.user, 'Mitglieder-App: Reihenfolge der Bereiche geändert', activeModules().map(([, m]) => m.label || m.name).join(', '));

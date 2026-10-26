@@ -261,7 +261,11 @@ function setActive(id, on, user) {
   }
 }
 
-/** Einträge für die Kopfzeile am Tablet: aktive Erweiterungen (falls sie sich zeigen wollen) */
+/* Zentrale Reihenfolge der Module – dieselbe wie im Menü der Verwaltung (registerPage order); unbekannte Module dahinter */
+const MODULE_ORDER = ['getraenke', 'buchung', 'spielbetrieb', 'arbeitseinsatz', 'zeiterfassung', 'beregnung', 'zugang', 'maengel', 'mitglieder', 'buchhaltung'];
+const orderPos = id => { const i = MODULE_ORDER.indexOf(id); return i < 0 ? MODULE_ORDER.length : i; };
+
+/** Einträge für die Kopfzeile am Tablet: aktive Erweiterungen (falls sie sich zeigen wollen), in der zentralen Reihenfolge */
 function tabletNav() {
   const out = [];
   for (const p of plugins.values()) {
@@ -269,7 +273,7 @@ function tabletNav() {
     try { if (p.hooks.tabletVisible && !p.hooks.tabletVisible()) continue; } catch (e) { continue; }
     out.push({ id: p.meta.id, label: String(p.meta.tablet.label || p.meta.name), href: tabletHref(p) });
   }
-  return out;
+  return out.map((x, i) => ({ x, i })).sort((a, b) => orderPos(a.x.id) - orderPos(b.x.id) || a.i - b.i).map(o => o.x);
 }
 
 /** Rechte nur von aktiven Erweiterungen anzeigen */

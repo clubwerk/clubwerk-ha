@@ -609,10 +609,10 @@ function activate(ctx) {
     res.json({ ok: true });
   });
   /* Bedienen in der Verwaltung – dieselben Kacheln wie in Mitglieder-App und am Tablet: Platz starten, einzeln oder alles stoppen */
-  admin.post('/run', need('beregnung'), (req, res) => {
+  admin.post('/run', need('beregnung', 'beregnung_bedienen'), (req, res) => {
     try { res.json({ ok: true, ...enqueue(parseInt((req.body || {}).platz, 10), req.user.name || req.user.username) }); } catch (e) { res.status(400).json({ error: e.message }); }
   });
-  admin.post('/stop', need('beregnung'), async (req, res) => {
+  admin.post('/stop', need('beregnung', 'beregnung_bedienen'), async (req, res) => {
     const b = req.body || {}, who = req.user.name || req.user.username;
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
       try { const errs = await stopPlatz(parseInt(b.platz, 10), who); return res.json({ ok: !errs.length, errors: errs }); } catch (e) { return res.status(400).json({ error: e.message }); }
@@ -620,7 +620,7 @@ function activate(ctx) {
     const errs = await stopAll(who);
     res.json({ ok: !errs.length, errors: errs });
   });
-  admin.get('/status', need('beregnung'), async (req, res) => res.json(await status()));
+  admin.get('/status', need('beregnung', 'beregnung_bedienen'), async (req, res) => res.json(await status()));
   const monthRows = m => db.prepare('SELECT * FROM irr_log WHERE at >= ? AND at < ? ORDER BY at DESC').all(m + '-01', nextMonth(m) + '-01');
   admin.get('/log', need('beregnung'), (req, res) => {
     const months = db.prepare("SELECT DISTINCT substr(at,1,7) m FROM irr_log ORDER BY m DESC").all().map(r => r.m);

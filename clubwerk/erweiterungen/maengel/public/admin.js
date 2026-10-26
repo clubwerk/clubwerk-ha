@@ -96,7 +96,7 @@
         <div id="mgPl"></div>
         <div class="btns"><button class="btn ghost" id="mgPlAdd">+ Ort hinzufügen</button></div></div>
       <div class="card"><h3>Benachrichtigung</h3>
-        <p class="muted s" style="margin-top:0">Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängelmelder“ eine Push-Nachricht, wenn ihr Benutzer mit einem Mitglied verknüpft ist (Benutzer &amp; Rechte) und das Mitglied Benachrichtigungen in der App eingeschaltet hat.</p>
+        <p class="muted s" style="margin-top:0">Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängel“ eine Push-Nachricht, wenn ihr Benutzer mit einem Mitglied verknüpft ist (Benutzer &amp; Rechte) und das Mitglied Benachrichtigungen in der App eingeschaltet hat.</p>
         <label class="chk"><input type="checkbox" id="mgMail" ${c.mail_on ? 'checked' : ''}> Zusätzlich per E-Mail (an die Adresse des verknüpften Mitglieds)</label>
         <label class="f" style="margin-top:12px">Weitere E-Mail-Empfänger (mehrere mit Komma)<input id="mgNotify" value="${esc(c.notify)}" placeholder="z. B. platzwart@dein-verein.de"></label></div>
       <div class="card"><h3>Aufbewahrung</h3>
@@ -123,14 +123,14 @@
 
   async function render() {
     await meta();
-    $('main').innerHTML = `<h2 class="page">Mängelmelder</h2>
+    $('main').innerHTML = `<h2 class="page">Mängel</h2>
       <p class="lead">Mitglieder melden Defekte in der Mitglieder-App oder am Tablet. Hier Status setzen, dem Melder antworten und Zuständige eintragen – der Melder bekommt dann Bescheid.</p><div id="mgTabs"></div>`;
     st.tabs = GK.tabs($('mgTabs'), 'maengel', [['offen', `Offen${st.meta.counts.offen ? ` (${st.meta.counts.offen})` : ''}`], ['erledigt', 'Erledigt'], ['einstellungen', 'Einstellungen']], async (k, el) => {
       if (k === 'einstellungen') return showSettings(el);
       return showList(el, k === 'erledigt');
     });
   }
-  GK.registerPage({ key: 'maengel', title: 'Mängelmelder', perm: 'maengel', render, icon: 'maengel', order: 9 });
+  GK.registerPage({ key: 'maengel', title: 'Mängel', perm: 'maengel', render, icon: 'maengel', order: 6.5 });
   // Suche (Strg/⌘ K): Einstellungen des Mängelmelders
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Offene Mängel', page: 'maengel', tab: ['maengel', 'offen'], kind: 'reiter', in: 'Offen', words: 'Meldungen defekt kaputt Schaden' },

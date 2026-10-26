@@ -874,7 +874,7 @@ function activate(ctx) {
     if (name.length < 2) return bad(res, 'Bitte einen Namen eintragen.');
     if (ctx.db.prepare('SELECT 1 FROM mv_department WHERE lower(name) = lower(?)').get(name)) return bad(res, 'Diese Abteilung gibt es schon.');
     const id = Number(ctx.db.prepare('INSERT INTO mv_department(name, federation, sort) VALUES (?,?,?)').run(name, one(b.federation, 60) || null, int(b.sort)).lastInsertRowid);
-    ctx.audit(req.user, 'Mitgliederverwaltung: Abteilung angelegt', name);
+    ctx.audit(req.user, 'Mitglieder: Abteilung angelegt', name);
     res.json({ id });
   });
   admin.put('/departments/:id', P, (req, res) => {
@@ -926,7 +926,7 @@ function activate(ctx) {
     const ids = (Array.isArray((req.body || {}).ids) ? req.body.ids : []).map(Number).filter(Number.isInteger).slice(0, 200);
     const up = ctx.db.prepare("UPDATE mv_fee SET sort = ? WHERE id = ? AND kind != 'zusatz'");
     ctx.db.transaction(() => ids.forEach((id, i) => up.run((i + 1) * 10, id)))();
-    ctx.audit(req.user, 'Mitgliederverwaltung: Reihenfolge der Beitragsarten', ids.map(id => (ctx.db.prepare('SELECT name FROM mv_fee WHERE id = ?').get(id) || {}).name).filter(Boolean).join(', '));
+    ctx.audit(req.user, 'Mitglieder: Reihenfolge der Beitragsarten', ids.map(id => (ctx.db.prepare('SELECT name FROM mv_fee WHERE id = ?').get(id) || {}).name).filter(Boolean).join(', '));
     res.json({ ok: true });
   });
   admin.post('/fees', P, (req, res) => {
@@ -935,7 +935,7 @@ function activate(ctx) {
     const first = zusatzFirst(f.v);
     const id = Number(ctx.db.prepare(`INSERT INTO mv_fee(${k.join(', ')}) VALUES (${k.map(() => '?').join(', ')})`).run(...k.map(x => f.v[x])).lastInsertRowid);
     if (first) zusatzBegin(f.v.department_id);
-    ctx.audit(req.user, 'Mitgliederverwaltung: Beitragsart angelegt', `${f.v.name} ${euro(f.v.cents)}`);
+    ctx.audit(req.user, 'Mitglieder: Beitragsart angelegt', `${f.v.name} ${euro(f.v.cents)}`);
     res.json({ id });
   });
   admin.put('/fees/:id', P, (req, res) => {
@@ -950,7 +950,7 @@ function activate(ctx) {
     const k = Object.keys(f.v);
     ctx.db.prepare(`UPDATE mv_fee SET ${k.map(x => `${x} = ?`).join(', ')} WHERE id = ?`).run(...k.map(x => f.v[x]), cur.id);
     if (first) zusatzBegin(f.v.department_id);
-    if (cur.cents !== f.v.cents) ctx.audit(req.user, 'Mitgliederverwaltung: Beitrag geändert', `${f.v.name}: ${euro(cur.cents)} → ${euro(f.v.cents)}`);
+    if (cur.cents !== f.v.cents) ctx.audit(req.user, 'Mitglieder: Beitrag geändert', `${f.v.name}: ${euro(cur.cents)} → ${euro(f.v.cents)}`);
     res.json({ ok: true });
   });
   admin.delete('/fees/:id', P, (req, res) => {
@@ -1023,7 +1023,7 @@ function activate(ctx) {
         notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], sepa_required: ['Lastschrift ist Pflicht', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
       const after = {}; for (const [k, v] of pending) { after[k] = String(v); }
       const diff = ctx.auditDiff(L, Object.fromEntries(Object.keys(after).map(k => [k, prevSet[k]])), after);
-      if (diff) ctx.audit(req.user, 'Mitgliederverwaltung: Einstellungen geändert', diff); }
+      if (diff) ctx.audit(req.user, 'Mitglieder: Einstellungen geändert', diff); }
     res.json({ ok: true, settings: settingsView(req.user) });
   });
 

@@ -496,18 +496,29 @@ function activate(ctx) {
     if (refs(before) !== refs(out)) H.require('./security').securityAlert(`Im Modul Zugang wurden die Türen geändert (von ${req.user.name || req.user.username}).\n\nVorher: ${refs(before) || '–'}\nJetzt: ${refs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'zugang-tueren-' + Date.now());
     res.json({ ok: true, cfg: out, profileTexts: Object.fromEntries(out.profiles.map(p => [p.id, profileText(p)])) });
   });
-  admin.get('/doors', need('zugang'), async (req, res) => {
+  admin.get('/doors', need('zugang', 'zugang_bedienen'), async (req, res) => {
     const c = cfg();
     let st = null, error = null; try { st = await states(true); } catch (e) { error = e.message; }
     res.json({ error, blockAll: c.blockAll, doors: c.doors.map(d => ({ id: d.id, name: d.name, type: d.type, ...doorState(d, st) })) });
   });
-  admin.post('/doors/:id/:action', need('zugang'), async (req, res) => {
+  admin.post('/doors/:id/:action', need('zugang', 'zugang_bedienen'), async (req, res) => {
     const door = cfg().doors.find(d => d.id === req.params.id);
     const action = ['auf', 'zu', 'oeffnen'].includes(req.params.action) ? req.params.action : null;
     if (!door || !action) return bad(res, 'Unbekannte Tür oder Aktion.', 404);
     const who = req.user.name || req.user.username;
     try { await act(door, action === 'oeffnen' ? 'auf' : action); log(action, who, door.name, 'Fernbedienung aus der Verwaltung'); audit(req.user, 'Zugang: Fernbedienung', `${door.name}: ${action}`); res.json({ ok: true }); }
     catch (e) { log('fehler', who, door.name, e.message); bad(res, `${door.name} reagiert nicht: ${e.message}`, 502); }
+  });
+  /* Notfall: Zugang über die App für alle sperren bzw. freigeben – auch mit „Zugang bedienen“ (ändert sonst nichts an der Einrichtung) */
+  admin.put('/block-all', need('zugang', 'zugang_bedienen'), (req, res) => {
+    const on = Boolean((req.body || {}).on);
+    let raw = {}; try { raw = JSON.parse(getSetting('ext_zugang_cfg', '{}')) || {}; } catch (e) { raw = {}; }
+    if (Boolean(raw.blockAll) !== on) {
+      save({ ...raw, blockAll: on }); cache.at = 0;
+      log('sperre', req.user.name || req.user.username, null, on ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben');
+      audit(req.user, on ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', '');
+    }
+    res.json({ ok: true, blockAll: on });
   });
   /* Freischaltungen: zentral in der Mitglieder-App (src/memberapp.js) – hier nur die Übersicht fürs Modul */
   admin.get('/members', need('zugang'), (req, res) => {

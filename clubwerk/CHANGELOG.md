@@ -1,5 +1,22 @@
 # Änderungen
 
+## 3.45.0
+
+**Neue Rechte: bedienen und einrichten getrennt**
+- **Beregnung bedienen:** Wer nur dieses Recht hat, sieht in der Verwaltung unter „Beregnung“ nur den Reiter „Bedienen“. Dort kann er Plätze starten und stoppen, aber nichts einrichten. Wie bisher darf er damit auch die gesperrte Beregnungs-Webapp bedienen.
+- **Zugang bedienen (neu):** Türen aus der Ferne öffnen und schließen und die Notfall-Sperre setzen. Freischaltungen, Zeitprofile, Türen und Protokoll bleiben beim Recht „Zugang“.
+- **Mitglieder-App einrichten (neu):** Damit stellt man Bereiche, Reiter, Startseite, Name und Benachrichtigungen der App ein. Mitglieder freischalten bleibt beim Recht „Mitglieder anlegen“. Adresse, Vereinsnetz, „von unterwegs“ und Sicherheit bleiben beim Recht „Einstellungen“.
+- Auf der Seite „Mitglieder-App“ sieht jeder nur noch die Reiter, die er auch ändern darf, statt ausgegrauter Felder.
+- **Niemand verliert etwas:** Wer bisher „Mitglieder anlegen“ hatte (z. B. die Rolle Thekenteam), bekommt „Mitglieder-App einrichten“ beim Update einmal dazu. Bitte unter Benutzer & Rechte prüfen, ob das so gewollt ist.
+
+**Ein Name je Modul**
+- In der Verwaltung heißen die Module jetzt **Plätze** (bisher Buchungssystem), **Mitglieder** (bisher Mitgliederverwaltung) und **Mängel** (bisher Mängelmelder). Das gilt auch im Protokoll und bei den Rechten.
+- Kurze Namen in der Tablet-Kopfzeile: **Dienste**, **Stempeln** und **Türen**. In der Mitglieder-App heißt „Buchen“ jetzt **Plätze**. Die Kopfzeile passt damit auch mit allen Modulen in eine Zeile.
+- **Eine Reihenfolge überall:** Verkauf, Plätze, Spielbetrieb, Helferdienste, Zeiterfassung, Beregnung, Zugang, Mängel, Mitglieder, Buchhaltung. Das Tablet sortiert nicht mehr alphabetisch. Eine eigene Reihenfolge unter Einstellungen › Tablet gilt weiter.
+
+**Verkauf und Lager getrennt**
+- Bestellung, Lieferungen, Bestand, Abgleich und Artikel stehen jetzt unter dem neuen Menüpunkt **Lager**. Unter **Verkauf** bleiben Buchungen, Abrechnung, Veranstaltungen, Deckel, Auswertung und Konten. Es ist weiterhin ein Modul. Die Rechte bleiben gleich.
+
 ## 3.44.1
 
 - Suche: In der Trefferliste am Rechner liefen lange, mehrzeilige Treffer übereinander. Jetzt steht jeder Treffer sauber untereinander. Der Design-Prüfstand prüft die Trefferliste künftig mit (Rechner und Handy).

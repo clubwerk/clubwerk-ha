@@ -1365,7 +1365,7 @@
       if ($('eImp')) $('eImp').onclick = () => importDialog();
     }
     GK.watch(el);
-    if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitgliederverwaltung', () => showSettings(el, part));
+    if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el, part));
     const save = async body => { try { await api('settings', 'PUT', body); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); } };
     if ($('eAccGo')) $('eAccGo').onclick = e => { e.preventDefault(); if (GK.openSettings) GK.openSettings('bank'); else GK.go('einstellungen'); };
     if ($('eSave1')) $('eSave1').onclick = () => {
@@ -1443,7 +1443,7 @@
     if ($('feDel')) $('feDel').onclick = async () => { try { await api('fees/' + f.id, 'DELETE'); closeDialog(); after(); } catch (e) { fail(e); } };
   }
 
-  const G = { key: 'mitglieder', label: 'Mitgliederverwaltung', icon: 'ausweis', order: 7 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
+  const G = { key: 'mitglieder', label: 'Mitglieder', icon: 'ausweis', order: 7 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
 
   /* „Meine Daten“: was Mitglieder in der App sehen und ändern dürfen – als Reiter auf der Seite Verein → Mitglieder-App */
   async function appDataCard(el) {
@@ -1488,7 +1488,7 @@
     { label: 'Abteilungsleitungen', page: 'mv-einstellungen', card: 'Abteilungsleitungen', words: 'Abteilungsleitung bestätigen' },
     { label: 'Beitrittserklärung (Formular, Einwilligungen)', page: 'mv-einstellungen', card: 'Beitrittserklärung', words: 'Formular Satzung Einwilligung Online-Antrag Tablet' },
     { label: 'Datenschutz nach dem Austritt', page: 'mv-einstellungen', card: 'Datenschutz', words: 'DSGVO Anonymisieren löschen Aufbewahrung' },
-    { label: 'Einstellungen der Mitgliederverwaltung übertragen', page: 'mv-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+    { label: 'Einstellungen der Mitglieder übertragen', page: 'mv-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
     { label: '„Meine Daten“ in der Mitglieder-App', page: 'app', sec: ['cw_appsec', 'meinedaten'], card: '„Meine Daten“', perm: '!mitglieder', in: 'Meine Daten', words: 'App Anschrift Bankverbindung Kündigen Einwilligungen' },
   ]);
   // Konten & PINs gehören zum Verkauf, sobald die Mitglieder hier verwaltet werden

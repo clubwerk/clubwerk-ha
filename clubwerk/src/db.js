@@ -346,7 +346,7 @@ addColumn('admin_users', 'member_id', 'INTEGER');
   if (db.prepare("SELECT value FROM settings WHERE key = 'roles_seeded'").get()) return;
   const ins = db.prepare('INSERT OR IGNORE INTO admin_roles(name, description, perms, dept_scope, sort) VALUES (?,?,?,?,?)');
   const R = [
-    ['Vorstand', 'Mitglieder, Anträge, Auswertungen, Dokumente, E-Mail, Veranstaltungen und Helferdienste – ohne Bankdaten und Einzug.', ['mitglieder', 'mitglieder_dokumente', 'export', 'veranstaltungen', 'arbeitseinsatz', 'konten', 'email']],
+    ['Vorstand', 'Mitglieder, Anträge, Auswertungen, Dokumente, E-Mail, Veranstaltungen und Helferdienste – ohne Bankdaten und Einzug.', ['mitglieder', 'mitglieder_dokumente', 'export', 'veranstaltungen', 'arbeitseinsatz', 'konten', 'app', 'email']],
     ['Kassenwart', 'Beitragslauf, Lastschriften, offene Posten, Bankdaten, Verkaufs-Abrechnung und Export.', ['mitglieder', 'mitglieder_bank', 'mitglieder_finanzen', 'mitglieder_dokumente', 'abrechnung', 'uebernahme', 'export', 'konten']],
     ['Abteilungsleitung', 'Nur Mitglieder der eigenen Abteilung(en): Stammdaten ändern, Austritte eintragen, neue Mitglieder anlegen und Anträge mit dieser Abteilung annehmen.', ['mitglieder'], 1],
     ['Thekenteam', 'Verkauf: Lieferungen, Bestand, Bestellung, Buchungen, Artikel und neue Konten bestätigen.', ['lieferungen', 'bestand', 'bestellung', 'buchungen', 'artikel', 'konten', 'veranstaltungen']],
@@ -354,6 +354,17 @@ addColumn('admin_users', 'member_id', 'INTEGER');
   ];
   R.forEach(([n, d, p, s], i) => ins.run(n, d, JSON.stringify(p), s ? 1 : 0, i + 1));
   db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('roles_seeded', '1')").run();
+})();
+// Einmalig (3.45): Die Seite „Mitglieder-App“ einzurichten hing bisher am Recht „Mitglieder anlegen“ (konten).
+// Wer es hat, bekommt das neue Recht „Mitglieder-App einrichten“ (app) dazu – so verliert niemand etwas.
+(function migrateAppPerm() {
+  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_app_perm'").get()) return;
+  const fresh = !db.prepare('SELECT 1 FROM admin_users LIMIT 1').get();   // frische Installation: Rollenvorlagen bleiben wie ausgeliefert
+  const add = v => { let a; try { a = JSON.parse(v || '[]'); } catch (e) { return null; } return Array.isArray(a) && a.includes('konten') && !a.includes('app') ? JSON.stringify([...a, 'app']) : null; };
+  db.transaction(() => {
+    if (!fresh) for (const t of ['admin_roles', 'admin_users']) for (const r of db.prepare(`SELECT id, perms FROM ${t}`).all()) { const n = add(r.perms); if (n) db.prepare(`UPDATE ${t} SET perms = ? WHERE id = ?`).run(n, r.id); }
+    db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_app_perm', '1')").run();
+  })();
 })();
 
 /* ---------- Sortierung (überall gleich: Personen nach Nachname, Artikel nach Kategorie und Name) ----------

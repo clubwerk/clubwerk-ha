@@ -933,7 +933,7 @@
       <div class="card" data-set="app"><h3>Von unterwegs buchen</h3>
         <p class="muted s" style="margin:0">Damit Mitglieder auch außerhalb des Vereins-WLANs buchen können, wird nur die Mitglieder-App über einen <b>Cloudflare Tunnel</b> erreichbar gemacht – ohne offenen Port am Router; Verwaltung und Tablet bleiben intern. Einrichtung: <a href="#app" data-goapp>Verein → Mitglieder-App → „Von unterwegs erreichbar“</a> und die Anleitung in der Dokumentation.</p></div>
       <div id="bkFunc" data-set="transfer"></div>`;
-    if (GK.funcBox) GK.funcBox($('bkFunc'), 'buchung', 'Buchungssystem', () => showSettings(el).catch(fail));
+    if (GK.funcBox) GK.funcBox($('bkFunc'), 'buchung', 'Plätze', () => showSettings(el).catch(fail));
     if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bk' });
     GK.watch(el);
     const goApp = el.querySelector('[data-goapp]'); if (goApp) goApp.onclick = e => { e.preventDefault(); GK.go('app'); };
@@ -970,7 +970,7 @@
     $('bsOkOrd').onclick = () => saveCard($('bsOkOrd'), () => ({ rules: $('bs_rules').value }));
   }
 
-  const G = { key: 'buchung', label: 'Buchungssystem', icon: 'kalender', order: 2 };   // Menü: Verkauf 1 · Buchungssystem 2 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mitgliederverwaltung 7 · Buchhaltung 8
+  const G = { key: 'buchung', label: 'Plätze', icon: 'kalender', order: 2 };   // Menü: Verkauf 1 · Plätze 2 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mitgliederverwaltung 7 · Buchhaltung 8
   const ANY = ['buchung', 'buchung_buchen', 'buchung_stornieren', 'buchung_serien', 'buchung_einstellungen'];
   GK.registerPage({ key: 'bk-belegung', title: 'Belegung', perm: ANY, render: pageRender('bk-belegung', showPlan), group: G });
   GK.registerPage({ key: 'bk-serien', title: 'Serien & Sperren', perm: ANY, render: pageRender('bk-serien', showSeries), group: G });
@@ -997,6 +997,6 @@
     { label: 'Platzordnung', page: 'bk-einstellungen', card: 'Platzordnung', words: 'Regeln Hinweis Tennisschuhe' },
     { label: 'Sonderrechte in der Mitglieder-App (z. B. Trainer)', page: 'bk-einstellungen', card: 'Sonderrechte', words: 'Trainer Serien für andere buchen App' },
     { label: 'Von unterwegs buchen', page: 'bk-einstellungen', card: 'Von unterwegs buchen', words: 'Tunnel Internet App unterwegs' },
-    { label: 'Einstellungen des Buchungssystems übertragen', page: 'bk-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+    { label: 'Einstellungen der Plätze übertragen', page: 'bk-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
   ]);
 })();

@@ -871,7 +871,7 @@ function activate(ctx) {
       try { sale = ctx.drinks.charge(m.id, cents, `${text} ${deD(date)}`, req.user); } catch (e) { return bad(res, e.message); }
     } else return bad(res, 'Ohne Mitgliederverwaltung und ohne Verkauf lässt sich keine Gebühr buchen.');
     const id = Number(db.prepare('INSERT INTO bk_fee(member_id, name, date, text, cents, charge_id, sale_id, created_by) VALUES (?,?,?,?,?,?,?,?)').run(m.id, m.name, date, text, cents, charge || null, sale || null, uname(req)).lastInsertRowid);
-    ctx.audit(req.user, 'Buchungssystem: Gebühr gebucht', `${m.name}: ${text} ${euro(cents)}${sale ? ' (aufs Verkaufskonto)' : ''}`);
+    ctx.audit(req.user, 'Plätze: Gebühr gebucht', `${m.name}: ${text} ${euro(cents)}${sale ? ' (aufs Verkaufskonto)' : ''}`);
     res.json({ ok: true, id, to: sale ? 'verkauf' : 'forderung' });
   }));
   admin.post('/fees/manual/:id/cancel', PE, ar(async (req, res) => {
@@ -880,7 +880,7 @@ function activate(ctx) {
     if (f.sale_id) { try { ctx.drinks.cancelCharge(f.sale_id, uname(req)); } catch (e) { return bad(res, e.message); } }
     if (f.charge_id) await ctx.callHooks('cancelCharge', f.charge_id, 'Gebühr storniert', uname(req));
     db.prepare("UPDATE bk_fee SET cancelled_at = datetime('now','localtime') WHERE id = ?").run(f.id);
-    ctx.audit(req.user, 'Buchungssystem: Gebühr storniert', `${f.name}: ${f.text} ${euro(f.cents)}`);
+    ctx.audit(req.user, 'Plätze: Gebühr storniert', `${f.name}: ${f.text} ${euro(f.cents)}`);
     res.json({ ok: true });
   }));
   /* Buchen in der Verwaltung: für ein Mitglied (ohne Kontingent/Vorlauf) oder als Sperre / Vereinsbuchung */
@@ -1108,7 +1108,7 @@ function activate(ctx) {
     const order = [...new Set(ids), ...all.filter(id => !ids.includes(id))];
     const up = db.prepare('UPDATE bk_resource SET sort = ? WHERE id = ?');
     db.transaction(() => order.forEach((id, i) => up.run((i + 1) * 10, id)))();
-    ctx.audit(req.user, 'Buchungssystem: Reihenfolge der Plätze geändert', order.map(id => (resource(id) || {}).name).join(', '));
+    ctx.audit(req.user, 'Plätze: Reihenfolge der Plätze geändert', order.map(id => (resource(id) || {}).name).join(', '));
     res.json({ ok: true });
   });
   admin.post('/resources', PE, (req, res) => {
@@ -1116,7 +1116,7 @@ function activate(ctx) {
     if ((req.body || {}).sort === undefined) r.v.sort = (db.prepare('SELECT MAX(sort) AS m FROM bk_resource WHERE deleted = 0').get().m || 0) + 10;   // neue ans Ende
     const k = Object.keys(r.v);
     const id = Number(db.prepare(`INSERT INTO bk_resource(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(x => r.v[x])).lastInsertRowid);
-    ctx.audit(req.user, 'Buchungssystem: angelegt', r.v.name); res.json({ id });
+    ctx.audit(req.user, 'Plätze: angelegt', r.v.name); res.json({ id });
   });
   admin.put('/resources/:id', PE, (req, res) => {
     const cur = resource(req.params.id); if (!cur || cur.deleted) return bad(res, 'Nicht gefunden.', 404);
@@ -1135,7 +1135,7 @@ function activate(ctx) {
     if (db.prepare('SELECT 1 FROM bk_booking WHERE resource_id = ?').get(cur.id)) {
       db.prepare('UPDATE bk_resource SET deleted = 1, active = 0 WHERE id = ?').run(cur.id);   // vergangene Buchungen bleiben in Protokoll und Auswertung
     } else db.prepare('DELETE FROM bk_resource WHERE id = ?').run(cur.id);
-    ctx.audit(req.user, 'Buchungssystem: Platz/Gerät gelöscht', cur.name);
+    ctx.audit(req.user, 'Plätze: Platz/Gerät gelöscht', cur.name);
     res.json({ ok: true });
   });
 
@@ -1405,14 +1405,14 @@ function activate(ctx) {
     const r = labelInput(req.body || {}); if (r.error) return bad(res, r.error);
     if (db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(r.v.name)) return bad(res, 'Diese Buchungsart gibt es schon.');
     const id = Number(db.prepare('INSERT INTO bk_label(name, color, sort, active, use_mode, use_functions, use_members, free_rules) VALUES (?,?,?,?,?,?,?,?)').run(r.v.name, r.v.color, r.v.sort, r.v.active, r.v.use_mode, r.v.use_functions, r.v.use_members, r.v.free_rules).lastInsertRowid);
-    ctx.audit(req.user, 'Buchungssystem: Buchungsart angelegt', r.v.name);
+    ctx.audit(req.user, 'Plätze: Buchungsart angelegt', r.v.name);
     res.json({ id });
   });
   admin.put('/labels/:id', PE, (req, res) => {
     const cur = db.prepare('SELECT * FROM bk_label WHERE id = ?').get(int(req.params.id)); if (!cur) return bad(res, 'Nicht gefunden.', 404);
     const r = labelInput({ ...cur, ...(req.body || {}) }); if (r.error) return bad(res, r.error);
     db.prepare('UPDATE bk_label SET name = ?, color = ?, sort = ?, active = ?, use_mode = ?, use_functions = ?, use_members = ?, free_rules = ? WHERE id = ?').run(r.v.name, r.v.color, r.v.sort, r.v.active, r.v.use_mode, r.v.use_functions, r.v.use_members, r.v.free_rules, cur.id);
-    ctx.audit(req.user, 'Buchungssystem: Buchungsart geändert', r.v.name);
+    ctx.audit(req.user, 'Plätze: Buchungsart geändert', r.v.name);
     res.json({ ok: true });
   });
   admin.delete('/labels/:id', PE, (req, res) => {
@@ -1431,7 +1431,7 @@ function activate(ctx) {
     if (!b.series && !b.for_others && !b.all_labels && !ls.length && !ds.length) { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(m.id); return res.json({ ok: true, removed: true }); }
     db.prepare('INSERT INTO bk_rights(member_id, series, for_others, all_labels, labels, depts, note, updated_by, updated_at) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(member_id) DO UPDATE SET series = excluded.series, for_others = excluded.for_others, all_labels = excluded.all_labels, labels = excluded.labels, depts = excluded.depts, note = excluded.note, updated_by = excluded.updated_by, updated_at = excluded.updated_at')
       .run(m.id, b.series ? 1 : 0, b.for_others ? 1 : 0, b.all_labels ? 1 : 0, JSON.stringify(b.all_labels ? [] : ls), JSON.stringify(ds), txt(b.note, 120) || null, uname(req), nowTs());
-    ctx.audit(req.user, 'Buchungssystem: Sonderrechte', `${m.name}: ${[b.series ? 'Serien' : '', b.for_others ? 'für andere buchen' : '', b.all_labels ? 'alle Buchungsarten' : '', ...(b.all_labels ? [] : ls).map(id => labelRow(id).name), ...ds.map(id => `Abteilung ${deptName(id)}`)].filter(Boolean).join(', ')}`);
+    ctx.audit(req.user, 'Plätze: Sonderrechte', `${m.name}: ${[b.series ? 'Serien' : '', b.for_others ? 'für andere buchen' : '', b.all_labels ? 'alle Buchungsarten' : '', ...(b.all_labels ? [] : ls).map(id => labelRow(id).name), ...ds.map(id => `Abteilung ${deptName(id)}`)].filter(Boolean).join(', ')}`);
     res.json({ ok: true });
   });
   admin.delete('/rights/:id', PE, (req, res) => { db.prepare('DELETE FROM bk_rights WHERE member_id = ?').run(int(req.params.id)); res.json({ ok: true }); });
@@ -1455,7 +1455,7 @@ function activate(ctx) {
     infoCache.clear();
     if (b.rules !== undefined) SET('rules', String(b.rules).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').slice(0, 2000));
     const diff = ctx.auditDiff(SET_LABELS, before, cfg());
-    if (diff) ctx.audit(req.user, 'Buchungssystem: Einstellungen geändert', diff);
+    if (diff) ctx.audit(req.user, 'Plätze: Einstellungen geändert', diff);
     res.json({ ok: true, settings: cfg() });
   });
 

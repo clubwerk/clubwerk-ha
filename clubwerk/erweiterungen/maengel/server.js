@@ -116,7 +116,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   }
   ctx.hooks.pushEvents = () => [
     { id: 'status', label: 'Mängelmeldung beantwortet', desc: 'Der Verein hat den Status deiner Meldung geändert oder dir geantwortet – auch bei Meldungen, die du mit „Ja, das ist es“ bestätigt hast.', default: true },
-    { id: 'neu', label: 'Neue Mängelmeldung', desc: 'Nur für Verwaltungsnutzer mit dem Recht „Mängelmelder“, deren Konto mit einem Mitglied verknüpft ist.', default: true },
+    { id: 'neu', label: 'Neue Mängelmeldung', desc: 'Nur für Verwaltungsnutzer mit dem Recht „Mängel“, deren Konto mit einem Mitglied verknüpft ist.', default: true },
   ];
 
   /* ---------- gemeinsam für Mitglieder-App und Tablet ---------- */
@@ -128,7 +128,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     if (n >= DAY_MAX) throw new Error(`Heute sind schon ${DAY_MAX} Meldungen von dir eingegangen – bitte morgen weiter melden.`);
     const id = Number(db.prepare('INSERT INTO mg_report(member_id, place, text, urgent, source) VALUES (?,?,?,?,?)').run(memberId, place, text, b.urgent ? 1 : 0, source).lastInsertRowid);
     const r = db.prepare('SELECT * FROM mg_report WHERE id = ?').get(id);
-    audit(source, 'Mängelmelder: neue Meldung', `${place}${r.urgent ? ' (dringend)' : ''}`);
+    audit(source, 'Mängel: neue Meldung', `${place}${r.urgent ? ' (dringend)' : ''}`);
     tellHandlers(r).catch(() => {});
     return { id };
   }
@@ -159,7 +159,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     if (!r) throw Object.assign(new Error('Diese Meldung ist schon erledigt.'), { code: 404 });
     if (r.member_id === memberId) return { ok: true, also: alsoCount(r.id), own: true };
     const added = db.prepare('INSERT OR IGNORE INTO mg_also(report_id, member_id) VALUES (?,?)').run(r.id, memberId).changes;
-    if (added) audit(source, 'Mängelmelder: auch gemeldet', r.place);
+    if (added) audit(source, 'Mängel: auch gemeldet', r.place);
     return { ok: true, also: alsoCount(r.id) };
   }
   /** Foto für Mitglieder: eigene/bestätigte Meldungen ganz, sonst nur das erste Foto offener Meldungen (für „Ist es das?“) */
@@ -242,7 +242,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const LABELS = { status: 'Status', answer: ['Antwort', 'text'], note: ['Interne Notiz', 'text'], assignee: 'Zuständig' };
     const show = x => ({ status: STATUS[x.status], answer: x.answer || '', note: x.note || '', assignee: userName(x.assignee) });
     const diff = ctx.auditDiff(LABELS, show(r), show(next));
-    if (diff) audit(req.user, 'Mängelmelder: Meldung bearbeitet', `${r.place}: ${diff}`);
+    if (diff) audit(req.user, 'Mängel: Meldung bearbeitet', `${r.place}: ${diff}`);
     const changed = { status: next.status !== r.status, answer: (next.answer || '') !== (r.answer || '') && Boolean(next.answer) };
     if (changed.status || changed.answer) tellReporters({ ...r, ...next }, changed);
     res.json({ ok: true });
@@ -251,7 +251,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const r = db.prepare('SELECT * FROM mg_report WHERE id = ?').get(int(req.params.id));
     if (!r) return bad(res, 'Meldung nicht gefunden.', 404);
     db.transaction(() => { dropFiles([r.id]); db.prepare('DELETE FROM mg_also WHERE report_id = ?').run(r.id); db.prepare('DELETE FROM mg_report WHERE id = ?').run(r.id); })();
-    audit(req.user, 'Mängelmelder: Meldung gelöscht', r.place);
+    audit(req.user, 'Mängel: Meldung gelöscht', r.place);
     res.json({ ok: true });
   });
   A.get('/foto/:id', P, (req, res) => sendPhoto(res, photoRow(req.params.id), req.query.t === '1'));
@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
       placesDiff = ctx.auditDiff({ places: ['Orte', 'list'] }, { places: old }, { places: list });
     }
     const diff = [ctx.auditDiff(CFG_LABELS, before, cfg()), placesDiff].filter(Boolean).join(' · ');
-    if (diff) audit(req.user, 'Mängelmelder: Einstellungen geändert', diff);
+    if (diff) audit(req.user, 'Mängel: Einstellungen geändert', diff);
     res.json({ ok: true, cfg: cfg(), places: ownPlaces() });
   });
 
@@ -280,7 +280,7 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     if (!ids.length) return 0;
     const q = ids.map(() => '?').join(',');
     db.transaction(() => { dropFiles(ids); db.prepare(`DELETE FROM mg_also WHERE report_id IN (${q})`).run(...ids); db.prepare(`DELETE FROM mg_report WHERE id IN (${q})`).run(...ids); })();
-    audit(null, 'Mängelmelder: Aufbewahrungsfrist', `${ids.length} erledigte ${ids.length === 1 ? 'Meldung' : 'Meldungen'} mit Fotos gelöscht (älter als ${cfg().keep_months} Monate)`);
+    audit(null, 'Mängel: Aufbewahrungsfrist', `${ids.length} erledigte ${ids.length === 1 ? 'Meldung' : 'Meldungen'} mit Fotos gelöscht (älter als ${cfg().keep_months} Monate)`);
     return ids.length;
   }
   /** Fotodateien ohne Meldung (Modul deinstalliert, Hochladen abgebrochen) beim Start entfernen – auch bei ausgeschaltetem Modul */

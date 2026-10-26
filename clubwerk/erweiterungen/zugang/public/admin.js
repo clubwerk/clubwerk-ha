@@ -123,24 +123,26 @@
     catch (e) { fail(e); return false; }
   }
   GK.RENDER.zugang = async () => {
-    await loadCfg();
+    const full = GK.can('zugang');   // ohne dieses Recht nur „Bedienen“ (Recht „Zugang bedienen“)
+    if (full) await loadCfg();
     $('main').innerHTML = `<h2 class="page">Zugang</h2>
       <p class="lead">Mitglieder öffnen Türen und Tore in der <b>Mitglieder-App</b> mit ihrer PIN – nur innerhalb ihres <b>Zeitprofils</b>. Es wird nie automatisch abgeschlossen.</p>
       <div id="zTabs"></div>`;
-    GK.tabs($('zTabs'), 'zugang', [['bedienen', 'Bedienen'], ['mitglieder', 'Freischaltungen'], ['profile', 'Zeitprofile'], ['tueren', 'Türen'], ['einstellungen', 'Einstellungen'], ['protokoll', 'Protokoll']], async (k, el) => {
-      await loadCfg();
+    GK.tabs($('zTabs'), 'zugang', [['bedienen', 'Bedienen'], ...(full ? [['mitglieder', 'Freischaltungen'], ['profile', 'Zeitprofile'], ['tueren', 'Türen'], ['einstellungen', 'Einstellungen'], ['protokoll', 'Protokoll']] : [])], async (k, el) => {
+      if (k !== 'bedienen') await loadCfg();
       const c = st.c, d = st.d;
       if (k === 'bedienen') {
-        el.innerHTML = `${d.error ? `<div class="banner r">Keine Verbindung zu Home Assistant: ${esc(d.error)}</div>` : ''}
-          ${c.blockAll ? '<div class="banner r">Zugang ist für alle gesperrt. Niemand kann über die App öffnen – nur die Fernbedienung hier.</div>' : ''}
+        const r = await api('doors'), blockAll = r.blockAll;
+        el.innerHTML = `${r.error ? `<div class="banner r">Keine Verbindung zu Home Assistant: ${esc(r.error)}</div>` : ''}
+          ${blockAll ? '<div class="banner r">Zugang ist für alle gesperrt. Niemand kann über die App öffnen – nur die Fernbedienung hier.</div>' : ''}
           <div class="card"><h3>Türen</h3><div id="zRemote"><p class="muted">Lade …</p></div></div>
-          <div class="card"><h3>Notfall</h3><div class="row" style="align-items:center"><button class="btn ${c.blockAll ? 'primary' : 'danger'}" id="zBlockAll">${c.blockAll ? 'Sperre für alle aufheben' : 'Sofort alle sperren'}</button>
+          <div class="card"><h3>Notfall</h3><div class="row" style="align-items:center"><button class="btn ${blockAll ? 'primary' : 'danger'}" id="zBlockAll">${blockAll ? 'Sperre für alle aufheben' : 'Sofort alle sperren'}</button>
             <span class="muted s" style="flex:1;min-width:220px">Sperrt die App für alle Mitglieder (z. B. bei Verlust oder Missbrauch). Die Fernbedienung oben funktioniert weiter.</span></div></div>`;
         $('zBlockAll').onclick = async () => {
-          if (!c.blockAll && !await GK.ask('Zugang für alle sperren?\n\nNiemand kann dann über die App öffnen, bis du die Sperre aufhebst.', { ok: 'Alle sperren', danger: true })) return;
-          try { await api('config', 'PUT', { blockAll: !c.blockAll }); toast(c.blockAll ? 'Sperre aufgehoben.' : 'Zugang für alle gesperrt.'); GK.RENDER.zugang().catch(fail); } catch (e) { fail(e); }
+          if (!blockAll && !await GK.ask('Zugang für alle sperren?\n\nNiemand kann dann über die App öffnen, bis du die Sperre aufhebst.', { ok: 'Alle sperren', danger: true })) return;
+          try { await api('block-all', 'PUT', { on: !blockAll }); toast(blockAll ? 'Sperre aufgehoben.' : 'Zugang für alle gesperrt.'); GK.RENDER.zugang().catch(fail); } catch (e) { fail(e); }
         };
-        return loadRemote();
+        return loadRemote(r);
       }
       if (k === 'mitglieder') return loadMembers(el);
       if (k === 'profile') {
@@ -187,9 +189,9 @@
 
   /* ---------- Fernbedienung ---------- */
   /** Türen aus der Ferne bedienen – dieselben Kacheln wie in der Mitglieder-App und am Tablet (doors.js + kit.css) */
-  async function loadRemote() {
+  async function loadRemote(r0) {
     if (!window.ZugangDoors) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'x/zugang/doors.js'; sc.onload = ok; sc.onerror = () => no(new Error('Kacheln konnten nicht geladen werden.')); document.head.appendChild(sc); });
-    const r = await api('doors');
+    const r = r0 || await api('doors');
     if (!r.doors.length) { $('zRemote').innerHTML = '<div class="vh-empty">Noch keine Türen eingerichtet – unter „Türen“ anlegen.</div>'; return; }
     $('zRemote').innerHTML = `<div class="vh-tiles doors">${window.ZugangDoors.html(r.doors, esc, false)}</div>`;
     $('zRemote').querySelectorAll('[data-d]').forEach(b => { b.onclick = async () => {
@@ -251,17 +253,17 @@
     $('zMonth').onchange = () => { st.month = $('zMonth').value; loadLog().catch(fail); };
   }
 
-  GK.registerPage({ key: 'zugang', title: 'Zugang', perm: 'zugang', render: GK.RENDER.zugang, order: 6 });
+  GK.registerPage({ key: 'zugang', title: 'Zugang', perm: ['zugang', 'zugang_bedienen'], render: GK.RENDER.zugang, order: 6 });
   // Suche (Strg/⌘ K): Einstellungen und Aktionen des Zugangs
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Tür öffnen', page: 'zugang', tab: ['zugang', 'bedienen'], card: 'Türen', kind: 'aktion', in: 'Bedienen', words: 'öffnen Fernöffnung Schloss' },
     { label: 'Sofort alle Türen sperren', page: 'zugang', tab: ['zugang', 'bedienen'], btn: 'Sofort alle sperren', kind: 'aktion', in: 'Bedienen', words: 'Notfall sperren' },
-    { label: 'Mitglied für Türen freischalten', page: 'zugang', tab: ['zugang', 'mitglieder'], card: 'Mitglied freischalten', kind: 'aktion', in: 'Freischaltungen', words: 'Schlüssel QR-Code Freischaltung' },
-    { label: 'Zeitprofile (Öffnungszeiten)', page: 'zugang', tab: ['zugang', 'profile'], kind: 'reiter', in: 'Zeitprofile', words: 'Öffnungszeiten Zeiten Profil' },
-    { label: 'Türen, Tore und Schlösser einrichten', page: 'zugang', tab: ['zugang', 'tueren'], card: 'Türen, Tore', in: 'Türen', words: 'Schloss Tor Hersteller Nuki' },
-    { label: 'Sperrtage (Zugang)', page: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Sperrtage', in: 'Einstellungen', words: 'Ferien geschlossen gesperrt' },
-    { label: 'Sicherheit & Hinweise (Zugang)', page: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Sicherheit & Hinweise', in: 'Einstellungen', words: 'WLAN Störung Tür offen Kopfzeile' },
-    { label: 'Zugangsprotokoll', page: 'zugang', tab: ['zugang', 'protokoll'], kind: 'reiter', in: 'Protokoll', words: 'Verlauf Excel Protokoll' },
-    { label: 'Einstellungen des Zugangs übertragen', page: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
+    { label: 'Mitglied für Türen freischalten', page: 'zugang', perm: 'zugang', tab: ['zugang', 'mitglieder'], card: 'Mitglied freischalten', kind: 'aktion', in: 'Freischaltungen', words: 'Schlüssel QR-Code Freischaltung' },
+    { label: 'Zeitprofile (Öffnungszeiten)', page: 'zugang', perm: 'zugang', tab: ['zugang', 'profile'], kind: 'reiter', in: 'Zeitprofile', words: 'Öffnungszeiten Zeiten Profil' },
+    { label: 'Türen, Tore und Schlösser einrichten', page: 'zugang', perm: 'zugang', tab: ['zugang', 'tueren'], card: 'Türen, Tore', in: 'Türen', words: 'Schloss Tor Hersteller Nuki' },
+    { label: 'Sperrtage (Zugang)', page: 'zugang', perm: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Sperrtage', in: 'Einstellungen', words: 'Ferien geschlossen gesperrt' },
+    { label: 'Sicherheit & Hinweise (Zugang)', page: 'zugang', perm: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Sicherheit & Hinweise', in: 'Einstellungen', words: 'WLAN Störung Tür offen Kopfzeile' },
+    { label: 'Zugangsprotokoll', page: 'zugang', perm: 'zugang', tab: ['zugang', 'protokoll'], kind: 'reiter', in: 'Protokoll', words: 'Verlauf Excel Protokoll' },
+    { label: 'Einstellungen des Zugangs übertragen', page: 'zugang', perm: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
   ]);
 })();
