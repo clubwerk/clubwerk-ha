@@ -585,8 +585,11 @@
     const bar = $('pagebar'); if (!bar) return;
     if (!pg || p === 'uebersicht') { bar.innerHTML = ''; return; }
     bar.innerHTML = `<div class="crumb">${g ? 'Module · ' + esc(MODG[g].label) : pg[3] === 'module' ? 'Module · ' + esc(pg[1]) : esc(GROUP_LABEL[pg[3]] || '')}</div>`;
-    const old = $('main') && $('main').querySelector('.tabrow:has(> .drinktabs)'); if (old) old.remove();
+    const old = $('main') && $('main').querySelector('.tabrow:has(> .drinktabs)');
+    const keep = old ? [...old.querySelectorAll('#tabTools > *')] : [];   // Knöpfe der Seite überstehen das Auffrischen der Zähler (refreshBadges)
+    if (old) old.remove();
     placeDrinkTabs();
+    if (keep.length && $('tabTools')) $('tabTools').append(...keep);
   }
   /* Getränke-Unterseiten als Reiter unter Überschrift und Einleitung – an derselben Stelle wie die Reiter der anderen Module */
   function placeDrinkTabs() {

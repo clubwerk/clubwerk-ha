@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.54.0
+
+**Buchhaltung neu geordnet (Etappe 11 des Menü-Umbaus)**
+- **Vier Reiter in fester Folge:** Rechnungen · Spendenquittungen · Firmen & Sponsoren · Einstellungen. „+ Neue Rechnung“, „Jahresrechnungen …“, „+ Firma anlegen“ und „+ Neue Spendenquittung“ stehen jeweils rechts oben in der Reiterzeile.
+- **Rechnungen:** Die Filter „Offen · Überfällig · Bezahlt · Storniert · Alle“ sind kleine Filterchips mit Zahlen. In jeder Zeile stehen sichtbare Knöpfe: „PDF“, „Bezahlt“ (bei offenen Rechnungen) und „Details“ – statt des unbeschrifteten „…“. Im Fenster einer Rechnung steht „Rechnung stornieren“ abgesetzt unten. „Abbrechen“ bei „Zahlung buchen“ führt zurück zur Rechnung statt alles zu schließen.
+- **Einstellungen als Karten**, jede mit eigenem „Speichern“: Rechnungen (Nummernkreis, Zahlungsziel, Einleitung, Fußzeile) · Steuer & Finanzamt (Steuernummer, Umsatzsteuer, Bescheid – gilt für Rechnungen und Spendenquittungen) · Spendenquittungen (Zwecke, Unterschrift, Ort, Nummernkreis) · Briefkopf & Bankkonten · Einstellungen übertragen. Die frühere Unterseiten-Auswahl entfällt.
+- **Anschrift, E-Mail und Telefon** pflegst du nur noch einmal zentral unter Einstellungen › Verein. Die Buchhaltung zeigt sie im Briefkopf nur an, mit Link zum Ändern; Rechnungen und Spendenquittungen nutzen sie wie bisher. Bankkonten werden ebenfalls zentral gepflegt, die Buchhaltung zeigt sie nur an.
+- Listen sind am Handy kompakt. Die Suche findet jeden Reiter, jede Karte und die wichtigsten Aktionen. Es heißt überall „Mitglieder“ statt „Mitgliederverwaltung“.
+- Bereits gespeicherte Einstellungen, Rechnungen, Firmen und Quittungen bleiben unverändert; an Beträgen und Steuer ändert sich nichts.
+
 ## 3.53.0
 
 **Helferdienste neu geordnet (Etappe 8 des Menü-Umbaus)**

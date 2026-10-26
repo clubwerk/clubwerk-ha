@@ -58,18 +58,19 @@ function settings() {
   const o = Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)]));
   o.small_business = o.small_business === '1'; o.vat_default = Number(o.vat_default) || 0; o.due_days = Number(o.due_days) || 14;
   const ci = mvSync('clubInfo') || {};
-  o.fallback = { street: ci.street || '', city: ci.city || '' };   // Vorgabe aus der Mitgliederverwaltung
+  o.fallback = { street: ci.street || '', city: ci.city || '' };   // Vorgabe aus den Mitgliedern
+  o.address = C.clubAddress();   // Anschrift und Kontakt zentral (Einstellungen › Verein), in der Buchhaltung nur angezeigt
   return o;
 }
 /** Bankverbindung als Momentaufnahme für eine Rechnung */
 const snap = a => (a ? { id: a.id, name: a.name, holder: a.holder || '', iban: a.iban, bic: a.bic || '', bank: a.bank || '' } : null);
 function club(acc) {
-  const s = settings(), f = s.fallback;
+  const s = settings(), f = s.fallback, ad = s.address;
   const a = acc || snap(C.bank.def()) || {};
-  return { name: C.getSetting('club_name', 'Verein'), street: s.street || f.street, city: s.city || f.city, iban: a.iban || '', bic: a.bic || '', bank: a.bank || '', holder: a.holder || '',
-    tax_no: s.tax_no, vat_id: s.vat_id, phone: s.phone, email: s.email, footer: s.footer,
+  return { name: C.getSetting('club_name', 'Verein'), street: ad.street || s.street || f.street, city: ad.city || s.city || f.city, iban: a.iban || '', bic: a.bic || '', bank: a.bank || '', holder: a.holder || '',
+    tax_no: s.tax_no, vat_id: s.vat_id, phone: ad.phone || s.phone, email: ad.email || s.email, footer: s.footer,
     finanzamt: s.finanzamt, fa_tax_no: s.fa_tax_no, bescheid_type: s.bescheid_type, bescheid_date: s.bescheid_date, veranlagungszeitraum: s.veranlagungszeitraum, zwecke: s.zwecke,
-    signer: s.signer, signer_role: s.signer_role, place: s.place || String(s.city || f.city || '').replace(/^\d{4,5}\s*/, '') };
+    signer: s.signer, signer_role: s.signer_role, place: s.place || String(ad.city || s.city || f.city || '').replace(/^\d{4,5}\s*/, '') };
 }
 
 /* ---------------------------------------------------------------- Helfer */
@@ -324,7 +325,7 @@ function activate(ctx) {
   }));
   admin.post('/invoices/:id/unpaid', P, (req, res) => {
     const r = invOr404(req, res); if (!r) return;
-    if (r.status !== 'bezahlt' || r.kind === 'member') return bad(res, r.kind === 'member' ? 'Zahlungen von Mitgliedern werden in der Mitgliederverwaltung gebucht.' : 'Die Rechnung ist nicht als bezahlt markiert.');
+    if (r.status !== 'bezahlt' || r.kind === 'member') return bad(res, r.kind === 'member' ? 'Zahlungen von Mitgliedern werden in den Mitgliedern gebucht.' : 'Die Rechnung ist nicht als bezahlt markiert.');
     db.prepare("UPDATE bh_invoice SET status = 'offen', paid_at = NULL, paid_via = NULL WHERE id = ?").run(r.id);
     ctx.audit(req.user, 'Rechnung wieder offen', r.no);
     res.json({ ok: true });
@@ -336,7 +337,7 @@ function activate(ctx) {
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
     if (r.charge_id) {
       const out = (await ctx.callHooks('cancelCharge', r.charge_id, reason, uname(req))).find(x => x.id === 'mitglieder');
-      if (ctx.isModuleActive('mitglieder') && !out) return bad(res, 'Der zugehörige Posten in der Mitgliederverwaltung steckt in einer laufenden Lastschrift – bitte dort erst klären.');
+      if (ctx.isModuleActive('mitglieder') && !out) return bad(res, 'Der zugehörige Posten bei den Mitgliedern steckt in einer laufenden Lastschrift – bitte dort erst klären.');
     }
     db.prepare("UPDATE bh_invoice SET status = 'storniert', cancel_reason = ? WHERE id = ?").run(reason, r.id);
     ctx.audit(req.user, 'Rechnung storniert', `${r.no}: ${reason}`);

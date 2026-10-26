@@ -8,7 +8,7 @@
   const st = { meta: null, inv: { status: 'offen', year: '' }, don: { year: '' } };
   const ISTAT = { offen: ['a', 'offen'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'] };
   const DKIND = { geld: 'Geldspende', sach: 'Sachspende', verzicht: 'Verzicht auf Aufwandserstattung' };
-  const VIA = { ueberweisung: 'Überweisung', bar: 'bar', lastschrift: 'Lastschrift', verrechnet: 'verrechnet', Mitgliederverwaltung: 'über die Mitgliederverwaltung' };
+  const VIA = { ueberweisung: 'Überweisung', bar: 'bar', lastschrift: 'Lastschrift', verrechnet: 'verrechnet', Mitgliederverwaltung: 'über die Mitglieder' };
   const opt = (v, l, sel) => `<option value="${esc(v)}" ${String(v) === String(sel ?? '') ? 'selected' : ''}>${esc(l)}</option>`;
   const val = id => ($(id) ? $(id).value.trim() : undefined);
   const pill = ([c, t]) => `<span class="pill ${c}">${esc(t)}</span>`;
@@ -34,9 +34,12 @@
       .bh-sum { display: grid; grid-template-columns: auto auto; justify-content: end; gap: 4px 24px; font-variant-numeric: tabular-nums; margin: 8px 0 4px; }
       .bh-sum span:nth-child(even) { text-align: right; } .bh-sum .tot { font-weight: 800; font-size: 16px; }
       .bh-acts { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+      #dialog .bh-danger { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); display: flex; justify-content: flex-start; }
+      .bh-addr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; margin: 0 0 10px; }
+      .bh-addr dt { color: var(--muted); } .bh-addr dd { margin: 0; overflow-wrap: anywhere; }
       .bh-sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
-      .bh-tbl td { height: 52px; }
-      @media (max-width: 760px) { .bh-tbl .hm { display: none; } }`;
+      @media (min-width: 761px) { .bh-tbl td { height: 52px; } }
+      @media (max-width: 760px) { .bh-tbl .hm, .bh-tbl .bh-sub { display: none; } }`;
     document.head.appendChild(s);
   }
 
@@ -44,7 +47,7 @@
     'bh-rechnungen': ['Rechnungen', 'Rechnungen an Firmen, Sponsoren und Mitglieder – mit fortlaufender Nummer, Umsatzsteuer je Position und Zahlungserinnerung.'],
     'bh-firmen': ['Firmen & Sponsoren', 'Einmal anlegen, jedes Jahr wiederverwenden: Anschrift, Ansprechperson und die jährlichen Positionen (z. B. Bandenwerbung).'],
     'bh-spenden': ['Spendenquittungen', 'Zuwendungsbestätigungen nach amtlichem Muster – Geldspende, Sachspende oder Verzicht auf Aufwandserstattung.'],
-    'bh-einstellungen': ['Einstellungen', 'Absender, Steuerangaben, Bankkonten und die Angaben zum Freistellungsbescheid.'],
+    'bh-einstellungen': ['Einstellungen', 'Rechnungen, Steuerangaben und Spendenquittungen. Anschrift und Bankkonten pflegst du zentral unter Einstellungen.'],
   };
   const loadMeta = async () => { st.meta = await api('meta'); return st.meta; };
   function pageRender(key, fn) {
@@ -54,11 +57,12 @@
       const noBank = key === 'bh-rechnungen' && !m.accounts.length;
       const noFa = key === 'bh-spenden' && !m.donationReady;
       $('main').innerHTML = `<h2 class="page">${esc(title)}</h2><p class="lead">${esc(lead)}</p>
-        ${noBank ? '<div class="banner a"><span>Für Rechnungen fehlt noch ein Bankkonto des Vereins.</span><a href="#einstellungen" data-bank>Anlegen →</a></div>' : ''}
-        ${noFa ? '<div class="banner a"><span>Für Spendenquittungen fehlen noch die Angaben zum Freistellungsbescheid.</span><a href="#bh-einstellungen">Eintragen →</a></div>' : ''}
         <div id="bhBody"></div>`;
-      $('main').querySelectorAll('[data-bank]').forEach(a => { a.onclick = e => { e.preventDefault(); GK.openSettings ? GK.openSettings('bank') : GK.go('einstellungen'); }; });
+      st.note = (noBank ? '<div class="banner a"><span>Für Rechnungen fehlt noch ein Bankkonto des Vereins.</span><a href="#einstellungen" data-bank>Anlegen →</a></div>' : '')
+        + (noFa ? '<div class="banner a"><span>Für Spendenquittungen fehlen noch die Angaben zum Freistellungsbescheid.</span><a href="#bh-einstellungen" data-steuer>Eintragen →</a></div>' : '');
       await fn($('bhBody'));
+      $('main').querySelectorAll('[data-bank]').forEach(a => { a.onclick = e => { e.preventDefault(); GK.openSettings ? GK.openSettings('bank') : GK.go('einstellungen'); }; });
+      $('main').querySelectorAll('[data-steuer]').forEach(a => { a.onclick = () => { try { sessionStorage.setItem('bh_goto', 'Steuer & Finanzamt'); } catch (e) { /* ohne Speicher: Seite öffnet sich oben */ } }; });
     };
   }
   const nameOf = (list, id) => (list.find(x => x.id === id) || {}).name || '';
@@ -104,22 +108,25 @@
     el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Offen</div><div class="v">${euro(k.open.c)}</div><div class="s muted">${k.open.n} ${k.open.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div>
         <div class="kpi"><div class="l">Überfällig</div><div class="v ${k.overdue.n ? 'neg' : ''}">${euro(k.overdue.c)}</div><div class="s muted">${k.overdue.n} ${k.overdue.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div>
         <div class="kpi"><div class="l">Bezahlt ${m.year}</div><div class="v">${euro(k.paidYear.c)}</div><div class="s muted">${k.paidYear.n} ${k.paidYear.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div></div>
-      <div class="filterbar"><div class="seg" id="biS">${[['offen', 'Offen'], ['ueber', 'Überfällig'], ['bezahlt', 'Bezahlt'], ['storniert', 'Storniert'], ['alle', 'Alle']].map(([k, l]) => `<button type="button" data-f="${k}" class="${f.status === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        <label class="f bh-yr">Jahr<select id="biY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label>
-        <span style="flex:1"></span><button class="btn" id="biYear">Jahresrechnungen …</button><button class="btn primary" id="biNew">+ Neue Rechnung</button></div>
-      <div class="card" style="padding:0;overflow:auto">${rows.length ? `<table class="tbl bh-tbl"><tr><th>Nr.</th><th>Empfänger</th><th class="hm">Datum</th><th class="hm">Fällig</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
-        ${rows.map(r => `<tr class="${r.status === 'storniert' ? 'off' : ''}"><td class="nw"><b>${esc(r.no)}</b></td>
-          <td><b>${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}</b><span class="bh-sub">${r.kind === 'member' ? 'Mitglied' : 'Firma'}${r.period ? ' · ' + esc(r.period) : ''}${r.sent_at ? ' · verschickt' : ''}${r.reminders ? ` · ${r.reminders}× erinnert` : ''}</span></td>
-          <td class="hm nw">${deDate(r.date)}</td><td class="hm nw ${r.overdue ? 'neg' : ''}">${deDate(r.due_date)}</td><td class="r"><b>${euro(r.gross)}</b></td>
+      <div class="filterbar"><div class="chips" id="biS" role="group" aria-label="Status">${[['offen', 'Offen', k.open.n], ['ueber', 'Überfällig', k.overdue.n], ['bezahlt', 'Bezahlt'], ['storniert', 'Storniert'], ['alle', 'Alle']].map(([k, l, n]) => `<button type="button" data-f="${k}" class="${f.status === k ? 'on' : ''}" aria-pressed="${f.status === k}">${l}${n ? `<span class="cnt">${n}</span>` : ''}</button>`).join('')}</div>
+        <label class="f bh-yr">Jahr<select id="biY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label></div>
+      <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt"><tr><th>Empfänger</th><th>Nr.</th><th class="hm">Datum</th><th class="hm">Fällig</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
+        ${rows.map(r => `<tr class="${r.status === 'storniert' ? 'off' : ''}"><td class="k-1z" title="${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}"><b>${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}</b><span class="bh-sub">${r.kind === 'member' ? 'Mitglied' : 'Firma'}${r.period ? ' · ' + esc(r.period) : ''}${r.sent_at ? ' · verschickt' : ''}${r.reminders ? ` · ${r.reminders}× erinnert` : ''}</span></td>
+          <td class="nw k-lbl">${esc(r.no)}</td>
+          <td class="hm nw k-weg">${deDate(r.date)}</td><td class="hm nw k-weg ${r.overdue ? 'neg' : ''}">${deDate(r.due_date)}</td><td class="r"><b>${euro(r.gross)}</b></td>
           <td>${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' && r.paid_at ? `<span class="bh-sub">${deDate(r.paid_at)}</span>` : ''}</td>
-          <td><div class="bh-acts"><a class="btn small" href="${BASE}invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a><button class="btn small" data-inv="${r.id}">…</button></div></td></tr>`).join('')}</table>`
-        : `<p class="empty">Keine Rechnungen${f.status !== 'alle' ? ' mit diesem Status' : ''}.</p>`}</div>`;
+          <td><div class="bh-acts"><a class="btn small hm" href="${BASE}invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>${r.status === 'offen' && !(r.kind === 'member' && r.charge_id) ? `<button class="btn small" data-paid="${r.id}">Bezahlt</button>` : ''}<button class="btn small" data-inv="${r.id}">Details</button></div></td></tr>`).join('')}</table>`
+        : `<p class="empty">Keine Rechnungen${f.status !== 'alle' ? ' mit diesem Status' : ''} – mit „+ Neue Rechnung“ oben rechts legst du die erste an.</p>`}</div>`;
+    // Knopfleiste ganz oben: Clubwerk setzt sie rechts in die Reiterzeile
+    const acts = '<button class="btn" id="biYear" type="button">Jahresrechnungen …</button><button class="btn primary" id="biNew" type="button">+ Neue Rechnung</button>';
+    el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${acts}</div>${st.note}`);
     $('biS').querySelectorAll('button').forEach(b => { b.onclick = () => { f.status = b.dataset.f; showInvoices(el).catch(fail); }; });
     $('biY').onchange = () => { f.year = val('biY'); showInvoices(el).catch(fail); };
     const reload = async () => { await loadMeta(); await showInvoices(el); if (GK.refreshBadges) GK.refreshBadges(); };
     $('biNew').onclick = () => invoiceDialog({}, reload);
     $('biYear').onclick = () => yearlyDialog(reload).catch(fail);
     el.querySelectorAll('[data-inv]').forEach(b => { b.onclick = () => invoiceActions(rows.find(r => r.id === +b.dataset.inv), reload); });
+    el.querySelectorAll('[data-paid]').forEach(b => { b.onclick = () => paidDialog(rows.find(r => r.id === +b.dataset.paid), reload, null); });
   }
 
   function invoiceDialog(pre, after) {
@@ -196,35 +203,39 @@
       <table class="tbl" style="margin-bottom:12px">${r.items.map(i => `<tr><td>${esc(i.text)}</td><td class="r">${String(i.qty).replace('.', ',')} × ${euro(i.unit_cents)}</td><td class="r">${r.small_business ? '' : i.vat + ' %'}</td></tr>`).join('')}</table>
       <p class="s" style="margin:0 0 4px">Status: ${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' ? ` am ${deDate(r.paid_at)}${r.paid_via ? ' (' + esc(VIA[r.paid_via] || r.paid_via) + ')' : ''}` : ''}${r.status === 'storniert' && r.cancel_reason ? ` – ${esc(r.cancel_reason)}` : ''}</p>
       <p class="muted s" style="margin:0">${r.sent_at ? `Verschickt am ${deDate(r.sent_at.slice(0, 10))}` : 'Noch nicht verschickt'}${r.recipient.email ? ` · ${esc(r.recipient.email)}` : ' · keine E-Mail-Adresse'}${r.reminders ? ` · ${r.reminders}. Erinnerung am ${deDate(String(r.reminded_at).slice(0, 10))}` : ''}</p>
-      ${r.kind === 'member' && r.charge_id ? '<p class="muted s">Steht als offener Posten in der Mitgliederverwaltung und kann dort per Lastschrift eingezogen werden.</p>' : ''}
+      ${r.kind === 'member' && r.charge_id ? '<p class="muted s">Steht als offener Posten bei den Mitgliedern und kann dort per Lastschrift eingezogen werden.</p>' : ''}
       <div class="btns" style="flex-wrap:wrap">
-        ${r.status !== 'storniert' ? '<button class="btn ghost danger" id="iaX">Stornieren</button>' : ''}
-        <span style="flex:1"></span>
         <a class="btn" href="${BASE}invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>
         ${r.status !== 'storniert' ? `<button class="btn" id="iaSend">${r.sent_at ? 'Erneut senden' : 'Per E-Mail senden'}</button>` : ''}
         ${open && r.due_date && r.due_date < st.meta.today ? `<button class="btn" id="iaRem">${remindN > 1 ? remindN + '. ' : ''}Erinnerung senden</button>` : ''}
         ${open && r.kind !== 'member' ? '<button class="btn primary" id="iaPaid">Als bezahlt buchen</button>' : ''}
         ${open && r.kind === 'member' && !r.charge_id ? '<button class="btn primary" id="iaPaid">Als bezahlt buchen</button>' : ''}
         ${r.status === 'bezahlt' && r.kind !== 'member' ? '<button class="btn" id="iaUn">Wieder offen</button>' : ''}
-        <button class="btn ghost" id="c">Schließen</button></div>`, true);
+        <button class="btn ghost" id="c">Schließen</button></div>
+      ${r.status !== 'storniert' ? '<div class="bh-danger"><button class="btn ghost danger" id="iaX">Rechnung stornieren</button></div>' : ''}`, true);
     $('c').onclick = closeDialog;
     const run = async (p, msg) => { try { const x = await p; closeDialog(); toast(typeof msg === 'function' ? msg(x) : msg); after(); } catch (e) { fail(e); } };
     if ($('iaSend')) $('iaSend').onclick = () => run(api(`invoices/${r.id}/send`, 'POST'), x => `An ${x.to} verschickt.`);
     if ($('iaRem')) $('iaRem').onclick = async () => { if (await ask(`Zahlungserinnerung an ${r.recipient.name} senden?\n\nRechnung ${r.no} über ${euro(r.gross)}, fällig seit ${deDate(r.due_date)}.`, { ok: 'Senden', danger: false })) run(api(`invoices/${r.id}/remind`, 'POST'), x => `Erinnerung an ${x.to} verschickt.`); };
     if ($('iaUn')) $('iaUn').onclick = () => run(api(`invoices/${r.id}/unpaid`, 'POST'), 'Wieder offen.');
-    if ($('iaPaid')) $('iaPaid').onclick = () => {
-      dialog(`<h2>Zahlung buchen</h2><p class="muted" style="margin-top:0">${esc(r.no)} · ${esc(r.recipient.name)} · ${euro(r.gross)}</p>
-        <div class="bh-grid" style="--c:2"><label class="f">Eingegangen am<input id="ipD" type="date" value="${st.meta.today}"></label>
-        <label class="f">Zahlungsweg<select id="ipV">${['ueberweisung', 'bar', 'lastschrift', 'verrechnet'].map(v => opt(v, VIA[v], 'ueberweisung')).join('')}</select></label></div>
-        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ipOk">Bezahlt</button></div>`);
-      $('c').onclick = closeDialog;
-      $('ipOk').onclick = () => run(api(`invoices/${r.id}/paid`, 'POST', { date: val('ipD'), via: val('ipV') }), 'Als bezahlt gebucht.');
-    };
+    if ($('iaPaid')) $('iaPaid').onclick = () => paidDialog(r, after, () => invoiceActions(r, after));
     if ($('iaX')) $('iaX').onclick = async () => {
       const why = await askText(`Rechnung ${r.no} stornieren?\nDie Nummer bleibt vergeben, die Rechnung zählt nicht mehr als offen. Bitte kurz begründen:`, '', { ok: 'Stornieren' });
       if (why == null) return;
       run(api(`invoices/${r.id}/cancel`, 'POST', { reason: why }), 'Storniert.');
     };
+  }
+
+  /** Zahlung buchen; zurück = Fenster der Rechnung (Abbrechen führt dorthin), null = Abbrechen schließt */
+  function paidDialog(r, after, back) {
+    dialog(`<h2>Zahlung buchen</h2><p class="muted" style="margin-top:0">${esc(r.no)} · ${esc(r.recipient.name)} · ${euro(r.gross)}</p>
+      <div class="bh-grid" style="--c:2"><label class="f">Eingegangen am<input id="ipD" type="date" value="${st.meta.today}"></label>
+      <label class="f">Zahlungsweg<select id="ipV">${['ueberweisung', 'bar', 'lastschrift', 'verrechnet'].map(v => opt(v, VIA[v], 'ueberweisung')).join('')}</select></label></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ipOk">Bezahlt</button></div>`);
+    $('c').onclick = back || closeDialog;
+    $('ipOk').onclick = () => GK.busy($('ipOk'), async () => {
+      try { await api(`invoices/${r.id}/paid`, 'POST', { date: val('ipD'), via: val('ipV') }); closeDialog(); toast('Als bezahlt gebucht.'); after(); } catch (e) { fail(e); }
+    });
   }
 
   async function yearlyDialog(after) {
@@ -271,14 +282,16 @@
     const sb = st.meta.settings.small_business;
     const yearSum = p => p.items.reduce((s, i) => { const l = Math.round(i.qty * i.unit_cents); return s + l + (sb ? 0 : Math.round(l * i.vat / 100)); }, 0);
     el.innerHTML = `<div class="filterbar"><label class="search"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg><input id="bpQ" placeholder="Firma suchen" data-nodirty></label>
-        <span style="flex:1"></span><button class="btn primary" id="bpNew">+ Firma anlegen</button></div>
-      <div class="card" style="padding:0;overflow:auto">${rows.length ? `<table class="tbl bh-tbl" id="bpT"><tr><th>Firma</th><th class="hm">Ansprechperson</th><th class="r">Jahresbetrag</th><th class="r hm">Offen</th><th class="hm">Zuletzt</th><th></th></tr>
-        ${rows.map(p => `<tr class="${p.active ? '' : 'off'}" data-q="${esc((p.name + ' ' + (p.city || '') + ' ' + (p.contact || '')).toLowerCase())}"><td><b>${esc(p.name)}</b><span class="bh-sub">${esc([p.zip, p.city].filter(Boolean).join(' ') || '–')}${p.active ? '' : ' · inaktiv'}</span></td>
-          <td class="hm">${esc(p.contact || '–')}${p.email ? `<span class="bh-sub">${esc(p.email)}</span>` : ''}</td>
+        </div>
+      <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt" id="bpT"><tr><th>Firma</th><th class="hm">Ansprechperson</th><th class="r">Jahresbetrag</th><th class="r hm">Offen</th><th class="hm">Zuletzt</th><th></th></tr>
+        ${rows.map(p => `<tr class="${p.active ? '' : 'off'}" data-q="${esc((p.name + ' ' + (p.city || '') + ' ' + (p.contact || '')).toLowerCase())}"><td class="k-1z" title="${esc(p.name)}"><b>${esc(p.name)}</b><span class="bh-sub">${esc([p.zip, p.city].filter(Boolean).join(' ') || '–')}${p.active ? '' : ' · inaktiv'}</span></td>
+          <td class="hm k-weg">${esc(p.contact || '–')}${p.email ? `<span class="bh-sub">${esc(p.email)}</span>` : ''}</td>
           <td class="r">${p.items.length ? euro(yearSum(p)) : '<span class="muted s">–</span>'}</td><td class="r hm">${p.open ? euro(p.open) : '<span class="muted s">–</span>'}</td>
-          <td class="hm">${p.lastYearly ? `Jahresrechnung ${p.lastYearly}` : p.invoices ? `${p.invoices} ${p.invoices === 1 ? 'Rechnung' : 'Rechnungen'}` : '<span class="muted s">–</span>'}</td>
-          <td><div class="bh-acts"><button class="btn small" data-bill="${p.id}" ${p.active ? '' : 'disabled'}>Rechnung</button><button class="btn small" data-ed="${p.id}">Bearbeiten</button></div></td></tr>`).join('')}</table>`
-        : '<p class="muted" style="padding:24px;margin:0;text-align:center">Noch keine Firmen angelegt. Lege deine Sponsoren einmal an – mit den jährlichen Positionen, dann sind die Rechnungen jedes Jahr mit zwei Klicks erstellt.</p>'}</div>`;
+          <td class="hm k-weg">${p.lastYearly ? `Jahresrechnung ${p.lastYearly}` : p.invoices ? `${p.invoices} ${p.invoices === 1 ? 'Rechnung' : 'Rechnungen'}` : '<span class="muted s">–</span>'}</td>
+          <td><div class="bh-acts"><button class="btn small hm" data-bill="${p.id}" ${p.active ? '' : 'disabled'}>Rechnung</button><button class="btn small" data-ed="${p.id}">Bearbeiten</button></div></td></tr>`).join('')}</table>`
+        : '<p class="empty">Noch keine Firmen angelegt – mit „+ Firma anlegen“ oben rechts legst du Sponsoren einmal an, mit ihren jährlichen Positionen.</p>'}</div>`;
+    const acts = '<button class="btn primary" id="bpNew" type="button">+ Firma anlegen</button>';
+    el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${acts}</div>`);
     const reload = async () => { await loadMeta(); await showPartners(el); };
     $('bpNew').onclick = () => partnerDialog(null, reload);
     $('bpQ').oninput = () => { const q = val('bpQ').toLowerCase(); el.querySelectorAll('#bpT tr[data-q]').forEach(tr => { tr.style.display = tr.dataset.q.includes(q) ? '' : 'none'; }); };
@@ -330,13 +343,15 @@
         <div class="kpi"><div class="l">Geldspenden${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind === 'geld').reduce((s, r) => s + r.cents, 0))}</div></div>
         <div class="kpi"><div class="l">Sachspenden &amp; Verzicht${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind !== 'geld').reduce((s, r) => s + r.cents, 0))}</div></div></div>
       <div class="filterbar"><label class="f bh-yr">Jahr<select id="bdY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label>
-        <span style="flex:1"></span><button class="btn primary" id="bdNew" ${m.donationReady ? '' : 'disabled title="Erst die Angaben zum Freistellungsbescheid eintragen"'}>+ Neue Spendenquittung</button></div>
-      <div class="card" style="padding:0;overflow:auto">${rows.length ? `<table class="tbl bh-tbl"><tr><th>Nr.</th><th>Spender</th><th class="hm">Art</th><th class="hm">Tag der Zuwendung</th><th class="r">Betrag</th><th></th></tr>
+        </div>
+      <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt"><tr><th>Nr.</th><th>Spender</th><th class="hm">Art</th><th class="hm">Tag der Zuwendung</th><th class="r">Betrag</th><th></th></tr>
         ${rows.map(r => `<tr class="${r.status !== 'aktiv' ? 'off' : ''}"><td class="nw"><b>${esc(r.no)}</b></td>
-          <td><b>${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' · storniert' : ''}</span></td>
-          <td class="hm">${esc(DKIND[r.kind])}</td><td class="hm nw">${deDate(r.date)}</td><td class="r"><b>${euro(r.cents)}</b></td>
+          <td class="k-1z" title="${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}"><b>${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' · storniert' : ''}</span></td>
+          <td class="hm k-weg">${esc(DKIND[r.kind])}</td><td class="hm nw k-weg">${deDate(r.date)}</td><td class="r"><b>${euro(r.cents)}</b></td>
           <td><div class="bh-acts"><a class="btn small" href="${BASE}donations/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>${r.status === 'aktiv' ? `<button class="btn small" data-dsend="${r.id}" ${r.donor.email && m.mail ? '' : 'disabled'}>Senden</button><button class="btn small ghost" data-dx="${r.id}">Storno</button>` : ''}</div></td></tr>`).join('')}</table>`
-        : '<p class="empty">Noch keine Spendenquittungen.</p>'}</div>`;
+        : `<p class="empty">Noch keine Spendenquittungen${m.donationReady ? ' – mit „+ Neue Spendenquittung“ oben rechts stellst du die erste aus.' : ' – trage zuerst unter Einstellungen die Angaben zum Freistellungsbescheid ein.'}</p>`}</div>`;
+    const acts = `<button class="btn primary" id="bdNew" type="button" ${m.donationReady ? '' : 'disabled title="Erst die Angaben zum Freistellungsbescheid eintragen"'}>+ Neue Spendenquittung</button>`;
+    el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${acts}</div>${st.note}`);
     const reload = async () => { await loadMeta(); await showDonations(el); };
     $('bdY').onchange = () => { f.year = val('bdY'); showDonations(el).catch(fail); };
     $('bdNew').onclick = () => donationDialog(reload);
@@ -394,61 +409,73 @@
   }
 
   /* ---------------- Einstellungen ---------------- */
-  /* Einstellungen: Unterbereiche (wie die Kern-Einstellungen), Speichern je Karte – jede Karte sendet nur ihre Felder */
-  const SET_SECS = [['absender', 'Absender'], ['bank', 'Bankkonten'], ['rechnungen', 'Rechnungen'], ['spenden', 'Spendenquittungen'], ['transfer', 'Übertragen']];
+  /* Karten untereinander (Reihenfolge nach den Regeln der Verwaltung), je Karte ein Thema und ein Speichern – jede Karte sendet nur ihre Felder */
+  const SET_SECS = [['rechnungen', 'Rechnungen'], ['steuer', 'Steuer & Finanzamt'], ['spenden', 'Spendenquittungen'], ['absender', 'Briefkopf & Bankkonten'], ['transfer', 'Einstellungen übertragen']];
   async function showSettings(el) {
-    const s = await api('settings'), fb = s.fallback;
+    const s = await api('settings'), ad = s.address || {}, fb = s.fallback;
     const inp = (k, l, o = {}) => `<label class="f ${o.cls || ''}">${esc(l)}<input id="bs_${k}" value="${esc(s[k] ?? '')}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.type ? `type="${o.type}"` : ''}></label>`;
-    const save = id => `<div class="btns"><button class="btn primary" data-save="${id}">Speichern</button></div>`;
+    const save = id => `<div class="btns"><button class="btn primary" data-save="${id}" type="button">Speichern</button></div>`;
+    const addr = [['Straße', ad.street || s.street || fb.street], ['PLZ und Ort', ad.city || s.city || fb.city], ['E-Mail', ad.email || s.email], ['Telefon', ad.phone || s.phone]];
+    const m = st.meta;
     el.innerHTML = `
-      <div class="card" data-set="absender"><h3>Absender</h3><p class="muted s" style="margin-top:0">Steht im Briefkopf. Leer gelassene Felder übernehmen die Angaben aus der Mitgliederverwaltung.</p>
-        <div class="bh-grid">${inp('street', 'Straße und Hausnummer', { ph: fb.street })}${inp('city', 'PLZ und Ort', { ph: fb.city })}${inp('email', 'E-Mail', { type: 'email' })}${inp('phone', 'Telefon')}
-          <label class="f w2">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div>${save('absender')}</div>
-      <div class="card" data-set="bank"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 200px;min-width:0">Bankkonten</h3><button class="btn" id="bsBank">Bankkonten verwalten …</button></div>
-        <p class="muted s" style="margin-top:0">Die Konten werden zentral unter Einstellungen → Bankkonten gepflegt. Auf der Rechnung steht das Konto der Abteilung, sonst das Standardkonto – im Rechnungsdialog änderbar.</p>
-        ${st.meta.accounts.length ? `<table class="tbl">${st.meta.accounts.map(a => `<tr><td><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (st.meta.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Bankkonto angelegt.</p>'}</div>
       <div class="card" data-set="rechnungen"><h3>Rechnungen</h3>
+        <div class="bh-grid">${inp('inv_prefix', 'Nummernkreis', { ph: 'R-' })}<label class="f">Zahlungsziel (Tage)<input id="bs_due_days" type="number" min="0" max="120" value="${s.due_days}"></label>
+          <label class="f wall">Einleitungstext<textarea id="bs_intro" rows="2" placeholder="z. B. Vielen Dank für Ihre Unterstützung! Wir berechnen Ihnen folgende Leistungen:">${esc(s.intro)}</textarea></label>
+          <label class="f wall">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div>
+        <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 …</p>${save('rechnungen')}</div>
+      <div class="card" data-set="steuer"><h3>Steuer & Finanzamt</h3><p class="muted s" style="margin-top:0">Gilt für Rechnungen und Spendenquittungen. Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig – im Zweifel die Steuerberatung fragen.</p>
         <div class="bh-grid">${inp('tax_no', 'Steuernummer')}${inp('vat_id', 'USt-IdNr.', { ph: 'optional' })}
           <label class="f">Umsatzsteuer (Vorgabe)<select id="bs_vat_default">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', s.vat_default)).join('')}</select></label>
-          ${inp('inv_prefix', 'Nummernkreis', { ph: 'R-' })}<label class="f">Zahlungsziel (Tage)<input id="bs_due_days" type="number" min="0" max="120" value="${s.due_days}"></label>
-          <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="bs_small_business" ${s.small_business ? 'checked' : ''}> Kleinunternehmer (§ 19 UStG, keine USt)</label>
-          <label class="f wall">Einleitungstext<textarea id="bs_intro" rows="2" placeholder="z. B. Vielen Dank für Ihre Unterstützung! Wir berechnen Ihnen folgende Leistungen:">${esc(s.intro)}</textarea></label></div>
-        <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 … Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig (wirtschaftlicher Geschäftsbetrieb) – im Zweifel die Steuerberatung fragen.</p>${save('rechnungen')}</div>
-      <div class="card" data-set="spenden"><h3>Spendenquittungen</h3><p class="muted s" style="margin-top:0">Angaben aus dem Freistellungsbescheid bzw. der Anlage zum Körperschaftsteuerbescheid – stehen so auf jeder Zuwendungsbestätigung.</p>
-        <div class="bh-grid">${inp('finanzamt', 'Finanzamt', { ph: 'z. B. Finanzamt Musterstadt' })}${inp('fa_tax_no', 'Steuernummer (beim Finanzamt)', { ph: s.tax_no ? 'leer = ' + s.tax_no + ' (wie bei Rechnungen)' : 'leer = wie bei Rechnungen' })}
+          <label class="chk wall" style="min-height:40px"><input type="checkbox" id="bs_small_business" ${s.small_business ? 'checked' : ''}> Kleinunternehmer (§ 19 UStG, keine USt)</label>
+          ${inp('finanzamt', 'Finanzamt', { ph: 'z. B. Finanzamt Musterstadt' })}${inp('fa_tax_no', 'Steuernummer (beim Finanzamt)', { ph: s.tax_no ? 'leer = ' + s.tax_no + ' (wie bei Rechnungen)' : 'leer = wie bei Rechnungen' })}
           <label class="f">Art des Bescheids<select id="bs_bescheid_type">${opt('freistellung', 'Freistellungsbescheid', s.bescheid_type)}${opt('feststellung', 'Feststellungsbescheid (§ 60a AO)', s.bescheid_type)}</select></label>
           <label class="f">Datum des Bescheids<input id="bs_bescheid_date" type="date" value="${esc(s.bescheid_date)}"></label>
-          ${inp('veranlagungszeitraum', 'Veranlagungszeitraum', { ph: 'z. B. 2022 bis 2024' })}${inp('don_prefix', 'Nummernkreis', { ph: 'SQ-' })}
+          ${inp('veranlagungszeitraum', 'Veranlagungszeitraum', { ph: 'z. B. 2022 bis 2024' })}</div>
+        <p class="muted s">Die Spendenbestätigung ist nur gültig, solange der Bescheid nicht älter als 5 Jahre ist (Feststellungsbescheid: 3 Jahre).</p>${save('steuer')}</div>
+      <div class="card" data-set="spenden"><h3>Spendenquittungen</h3>
+        <div class="bh-grid">${inp('don_prefix', 'Nummernkreis', { ph: 'SQ-' })}${inp('place', 'Ort der Ausstellung', { ph: 'leer = Ort des Vereins' })}
           <label class="f wall">Begünstigte Zwecke<input id="bs_zwecke" value="${esc(s.zwecke)}"></label>
-          ${inp('signer', 'Unterschrift (Name)')}${inp('signer_role', 'Funktion')}${inp('place', 'Ort der Ausstellung', { ph: 'leer = Ort des Vereins' })}</div>
-        <p class="muted s">Die Bestätigung ist nur gültig, solange der Bescheid nicht älter als 5 Jahre ist (Feststellungsbescheid: 3 Jahre).</p>${save('spenden')}</div>
+          ${inp('signer', 'Unterschrift (Name)')}${inp('signer_role', 'Funktion')}</div>${save('spenden')}</div>
+      <div class="card" data-set="absender"><h3>Briefkopf & Bankkonten</h3>
+        <p class="muted s" style="margin-top:0">Anschrift, E-Mail und Telefon stehen im Briefkopf jeder Rechnung und Spendenquittung. Sie gelten für den ganzen Verein – <a href="#einstellungen" id="bsToClub">ändern unter Einstellungen › Verein</a>.</p>
+        <dl class="bh-addr">${addr.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${v ? esc(v) : '<span class="muted">–</span>'}</dd>`).join('')}</dl>
+        <p class="muted s">Auf der Rechnung steht das Bankkonto der Abteilung, sonst das Standardkonto – im Rechnungsfenster änderbar. <a href="#einstellungen" id="bsToBank">Bankkonten ändern unter Einstellungen › Bankkonten</a>.</p>
+        ${m.accounts.length ? `<table class="tbl kompakt">${m.accounts.map(a => `<tr><td class="k-1z"><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (m.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Bankkonto angelegt – unter Einstellungen › Bankkonten eintragen.</p>'}</div>
       <div id="bhFunc" data-set="transfer"></div>`;
     if (GK.funcBox) GK.funcBox($('bhFunc'), 'buchhaltung', 'Buchhaltung', () => showSettings(el).catch(fail));
     if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bh' });
     GK.watch(el);
-    $('bsBank').onclick = () => (GK.openSettings ? GK.openSettings('bank') : GK.go('einstellungen'));
+    const toCore = (e, bank) => { e.preventDefault(); if (bank && GK.openSettings) GK.openSettings('bank'); else GK.go('einstellungen'); };
+    $('bsToClub').onclick = e => toCore(e, false);
+    $('bsToBank').onclick = e => toCore(e, true);
     el.querySelectorAll('[data-save]').forEach(btn => { btn.onclick = () => GK.busy(btn, async () => {
       const b = {};
       for (const x of btn.closest('.card').querySelectorAll('[id^="bs_"]')) { const k = x.id.slice(3); b[k] = x.type === 'checkbox' ? x.checked : x.value.trim(); }
       try { await api('settings', 'PUT', b); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); }
     }); });
+    // Sprung aus dem Hinweis „Angaben zum Freistellungsbescheid“: zur Karte scrollen
+    let go = null; try { go = sessionStorage.getItem('bh_goto'); sessionStorage.removeItem('bh_goto'); } catch (e) { /* ohne Speicher */ }
+    if (go) { const c = [...el.querySelectorAll('.card h3')].find(h => h.textContent.trim() === go); if (c) c.scrollIntoView({ block: 'start' }); }
   }
 
   const G = { key: 'buchhaltung', label: 'Buchhaltung', icon: 'buchhaltung', order: 8 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
+  // Reiter in fester Folge: Rechnungen · Spendenquittungen · Firmen & Sponsoren · Einstellungen (die Schlüssel der Seiten bleiben gleich)
   GK.registerPage({ key: 'bh-rechnungen', title: 'Rechnungen', perm: 'buchhaltung', render: pageRender('bh-rechnungen', showInvoices), group: G });
-  GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G, tab: 'Firmen' });
-  GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G, tab: 'Spenden' });
+  GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G });
+  GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G });
   GK.registerPage({ key: 'bh-einstellungen', title: 'Einstellungen', perm: 'buchhaltung', render: pageRender('bh-einstellungen', showSettings), group: G });
-  // Suche (Strg/⌘ K): Einstellungen und Aktionen der Buchhaltung
+  // Suche (Strg/⌘ K): Reiter, Einstellungskarten und Aktionen der Buchhaltung
   if (GK.registerSearch) GK.registerSearch([
-    { label: 'Rechnung schreiben', page: 'bh-rechnungen', btn: '+ Neue Rechnung', kind: 'aktion', words: 'Rechnung Sponsor Firma' },
-    { label: 'Jahresrechnungen', page: 'bh-rechnungen', btn: 'Jahresrechnungen', kind: 'aktion', words: 'Sponsoren jährlich Bandenwerbung' },
-    { label: 'Firma oder Sponsor anlegen', page: 'bh-firmen', btn: '+ Firma', kind: 'aktion', words: 'Sponsor Partner Firma' },
-    { label: 'Spendenquittung ausstellen', page: 'bh-spenden', btn: '+ Neue Spendenquittung', kind: 'aktion', words: 'Spende Zuwendungsbestätigung Quittung' },
-    { label: 'Absender auf Rechnungen', page: 'bh-einstellungen', card: 'Absender', words: 'Anschrift Fußzeile Telefon' },
-    { label: 'Rechnungen (Nummernkreis, Steuernummer, Zahlungsziel)', page: 'bh-einstellungen', card: 'Rechnungen', words: 'Nummernkreis Steuernummer USt Zahlungsziel' },
-    { label: 'Spendenquittungen (Finanzamt, Bescheid)', page: 'bh-einstellungen', card: 'Spendenquittungen', words: 'Finanzamt Freistellungsbescheid Steuernummer Unterschrift' },
-    { label: 'Einstellungen der Buchhaltung übertragen', page: 'bh-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+    { label: 'Rechnung schreiben', page: 'bh-rechnungen', btn: '+ Neue Rechnung', kind: 'aktion', in: 'Rechnungen', words: 'Rechnung Sponsor Firma', boost: 1 },
+    { label: 'Jahresrechnungen', page: 'bh-rechnungen', btn: 'Jahresrechnungen', kind: 'aktion', in: 'Rechnungen', words: 'Sponsoren jährlich Bandenwerbung' },
+    { label: 'Offene und überfällige Rechnungen', page: 'bh-rechnungen', seg: 'Überfällig', kind: 'aktion', in: 'Rechnungen', words: 'Mahnung Erinnerung Zahlung offen bezahlt' },
+    { label: 'Firma oder Sponsor anlegen', page: 'bh-firmen', btn: '+ Firma', kind: 'aktion', in: 'Firmen & Sponsoren', words: 'Sponsor Partner Firma', boost: 1 },
+    { label: 'Spendenquittung ausstellen', page: 'bh-spenden', btn: '+ Neue Spendenquittung', kind: 'aktion', in: 'Spendenquittungen', words: 'Spende Zuwendungsbestätigung Quittung', boost: 1 },
+    { label: 'Rechnungen (Nummernkreis, Zahlungsziel, Einleitung, Fußzeile)', page: 'bh-einstellungen', card: 'Rechnungen', in: 'Einstellungen', words: 'Nummernkreis Zahlungsziel Einleitung Fußzeile Rechnungsnummer' },
+    { label: 'Steuer & Finanzamt (Steuernummer, Umsatzsteuer, Freistellungsbescheid)', page: 'bh-einstellungen', card: 'Steuer & Finanzamt', in: 'Einstellungen', words: 'Steuernummer USt Umsatzsteuer Kleinunternehmer Finanzamt Freistellungsbescheid Feststellungsbescheid Veranlagungszeitraum' },
+    { label: 'Spendenquittungen (Zwecke, Unterschrift, Ort, Nummernkreis)', page: 'bh-einstellungen', card: 'Spendenquittungen', in: 'Einstellungen', words: 'Zwecke Unterschrift Funktion Ort Nummernkreis Zuwendungsbestätigung' },
+    { label: 'Briefkopf und Bankkonten auf Rechnungen', page: 'bh-einstellungen', card: 'Briefkopf', in: 'Einstellungen', words: 'Anschrift Absender Telefon Konto IBAN' },
+    { label: 'Einstellungen der Buchhaltung übertragen', page: 'bh-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
   ]);
   if (GK.badges) GK.badges(async () => { if (!GK.can('buchhaltung')) return {}; const m = await api('meta'); return { 'bh-rechnungen': m.kpis.overdue.n }; });
 })();
