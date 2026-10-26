@@ -378,7 +378,7 @@
     ['konto', 'Mein Konto', null, 'konto'],   // erreichbar über den Benutzerchip, nicht im Menü
   ];
   /* Module mit mehreren Seiten: ein Menüeintrag, die Seiten als Reiter unter der Überschrift (wie bei „Verkauf“) */
-  /* Feste Reihenfolge der Module im Menü (order): Verkauf 1 · Lager 1.5 · Plätze 2 · Spielbetrieb 2.5 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mängel 6.5 · Mitglieder 7 · Buchhaltung 8 (wie MODULE_ORDER in src/plugins.js);
+  /* Feste Reihenfolge der Module im Menü (order): Verkauf 1 · Lager 1.5 · Plätze 2 · Spielbetrieb 2.5 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mängel 6.5 · Mitglieder 7 · Beiträge & Zahlungen 7.5 · Buchhaltung 8 (wie MODULE_ORDER in src/plugins.js);
      Einzelseiten geben ihre Position über registerPage({ order }) an, sonst 50 (Reihenfolge der Registrierung) */
   const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 1 }, lager: { label: 'Lager', icon: 'lager', order: 1.5 } };
   const PAGE_ORDER = {};
@@ -414,6 +414,7 @@
     lager: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
     maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
     arbeit: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>',
+    zahlung: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
     ausweis: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>',
     sprache: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
     sonne: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',

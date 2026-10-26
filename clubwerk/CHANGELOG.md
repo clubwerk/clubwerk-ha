@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.58.0
+
+**Neuer Menüpunkt „Beiträge & Zahlungen“ (Etappe 13 des Menü-Umbaus)**
+- **Alles rund ums Geld der Mitglieder hat einen eigenen Menüpunkt** direkt unter „Mitglieder“: Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen · Einstellungen. Sehen kann ihn nur, wer das Recht „Einzug“ hat (z. B. der Kassenwart). Der Vorstand ohne dieses Recht sieht ihn nicht, und der Server lehnt solche Aufrufe ab.
+- **Menü „Mitglieder“** hat jetzt nur noch Mitglieder · Anträge · Beiträge & Abteilungen · Auswertung · Einstellungen.
+- **Beitragslauf in einem Zug:** Nach dem Abrechnen erscheint eine Karte „Beiträge abgerechnet“ mit dem Knopf **„Weiter zum Einzug“**.
+- **Lastschriften, Offene Posten und Rechnungen & Mahnungen** sind eigene Reiter statt Umschalter innerhalb einer Seite. „Verkauf einziehen“ steht jetzt als Karte bei den Lastschriften.
+- **Einstellungen:** Die Karten „Lastschrift (SEPA)“ und „Rechnungen & Mahnungen“ liegen jetzt unter Beiträge & Zahlungen › Einstellungen. Alle gespeicherten Werte bleiben, wie sie sind.
+- Im Einzug-Fenster erscheinen die Rückfragen („Vorabinformation verschicken?“, „Zahlung erfolgt?“ mit Datumsfeld) und beim Verkaufs-Einzug „zu früh“ im selben Fenster statt in einem zweiten.
+- Hinweise auf der Übersicht zu Lastschriften sehen nur noch Benutzer, die sie auch erledigen dürfen, und führen direkt an die richtige Stelle. Die Suche findet alle neuen Orte.
+- Beiträge, Lastschriften, SEPA-Dateien, Rücklastschriften und Stornos rechnen genau wie vorher.
+
 ## 3.57.0
 
 **Mitglieder neu geordnet (Etappe 12 des Menü-Umbaus)**

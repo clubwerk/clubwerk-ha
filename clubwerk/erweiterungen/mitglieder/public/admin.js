@@ -1,11 +1,12 @@
 'use strict';
-/* Verwaltung „Mitglieder“: Mitglieder (Liste und Detailansicht) · Anträge · Beitragslauf · Einzug & Zahlungen · Beiträge & Abteilungen · Auswertung · Einstellungen */
+/* Verwaltung „Mitglieder“: Mitglieder (Liste und Detailansicht) · Anträge · Beiträge & Abteilungen · Auswertung · Einstellungen
+   und zweiter Menüpunkt „Beiträge & Zahlungen“: Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen · Einstellungen */
 (() => {
   const GK = window.GK;
   const { $, esc, euro, toast, fail, dialog, closeDialog, ask, askText, deDate, deTime, toCents, centsToInput, icon } = GK;
   const api = (url, method, body) => GK.api('x/mitglieder/' + url, method, body);
   const BASE = 'api/admin/x/mitglieder/';
-  const st = { meta: null, rows: [], f: { status: 'aktuell', q: '', dept: '', fee: '' }, fin: 'einzug', app: 'offen' };
+  const st = { meta: null, rows: [], f: { status: 'aktuell', q: '', dept: '', fee: '' }, app: 'offen' };
   const STATUS = { aktiv: ['g', 'aktiv'], passiv: ['b', 'passiv'], ehren: ['b', 'Ehrenmitglied'], ruhend: ['', 'ruhend'], ausgetreten: ['', 'ausgetreten'], anonym: ['', 'anonymisiert'] };
   const PAY = { lastschrift: 'Lastschrift', rechnung: 'Rechnung', bar: 'bar' };
   const GENDER = { m: 'männlich', w: 'weiblich' };
@@ -81,10 +82,11 @@
     return d;
   }
   const pickFile = accept => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0] || null); i.click(); });
-  /** Rückfrage im selben Fenster (kein zweites Fenster): Titel, Text und Knopf; „Abbrechen“ führt zurück */
-  function confirmIn(title, text, okLabel, onOk, back) {
-    $('dialog').innerHTML = `<h2>${esc(title)}</h2><p class="muted" style="white-space:pre-line">${esc(text)}</p>
-      <div class="btns"><button class="btn ghost" id="cfX">Abbrechen</button><button class="btn danger" id="cfOk">${esc(okLabel)}</button></div>`;
+  /** Rückfrage im selben Fenster (kein zweites Fenster): Titel, Text und Knopf; „Abbrechen“ führt zurück.
+   *  o.safe: harmloser Schritt (grüner Knopf statt rot), o.html: Felder unter dem Text (z. B. ein Datum) */
+  function confirmIn(title, text, okLabel, onOk, back, o = {}) {
+    $('dialog').innerHTML = `<h2>${esc(title)}</h2><p class="muted" style="white-space:pre-line">${esc(text)}</p>${o.html || ''}
+      <div class="btns"><button class="btn ghost" id="cfX">Abbrechen</button><button class="btn ${o.safe ? 'primary' : 'danger'}" id="cfOk">${esc(okLabel)}</button></div>`;
     $('cfX').onclick = back;
     $('cfOk').onclick = () => GK.busy($('cfOk'), onOk);
   }
@@ -95,15 +97,18 @@
   async function loadRows() { st.rows = await api('list?status=alle'); return st.rows; }
 
   /* ================================================================= Seite */
-  /* ---------------------------------------------------------------- Seiten des Moduls (im Menü ein Eintrag „Mitglieder“, die Seiten als Reiter) */
+  /* ---------------------------------------------------------------- Seiten des Moduls (Menü „Mitglieder“ und „Beiträge & Zahlungen“, die Seiten als Reiter) */
   const PAGE = {
     mitglieder: ['Mitglieder', 'Stammdaten, Abteilungen und Familien – Verkauf, Zugang und Mitglieder-App nutzen dieselbe Person.'],
     'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen, Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
     'mv-stamm': ['Beiträge & Abteilungen', 'Beitragsarten, Zusatzbeiträge, Abteilungen und Altersstufen.'],
-    'mv-beitraege': ['Beitragslauf', 'Erzeugt die Beiträge aller Mitglieder als offene Posten, danach unter „Einzug & Zahlungen“ einziehen.'],
-    'mv-einzug': ['Einzug & Zahlungen', 'SEPA-Lastschriften, offene Posten, Rechnungen und Mahnungen.'],
     'mv-auswertung': ['Auswertung', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund und Listen.'],
-    'mv-einstellungen': ['Einstellungen', 'Mitgliedschaft, Beitrittserklärung, „Meine Daten“ in der App, Lastschrift und Datenschutz.'],
+    'mv-einstellungen': ['Einstellungen', 'Mitgliedschaft, Beitrittserklärung, „Meine Daten“ in der App, Benachrichtigungen und Datenschutz.'],
+    'mv-beitraege': ['Beitragslauf', 'Erzeugt die Beiträge aller Mitglieder als offene Posten, danach geht es weiter zum Einzug.'],
+    'mv-einzug': ['Lastschriften', 'SEPA-Lastschriften für Beiträge und Verkauf: Einzug erstellen, SEPA-Datei, Vorabinformation und Rücklastschriften.'],
+    'mv-posten': ['Offene Posten', 'Alle Forderungen und Gutschriften der Mitglieder mit ihrem Stand.'],
+    'mv-mahnung': ['Rechnungen & Mahnungen', 'Rechnungen für Zahler ohne Lastschrift und Mahnungen für überfällige Posten.'],
+    'mv-zeinst': ['Einstellungen', 'Lastschrift (SEPA), Rechnungen und Mahnungen.'],
   };
   let current = 'mitglieder';
   const pageEl = () => $('mvBody');
@@ -114,7 +119,7 @@
       const m = st.meta, [title, lead] = PAGE[key];
       const needSepa = ['mv-beitraege', 'mv-einzug'].includes(key) && (!m.settings.creditor_id || !m.settings.club_iban);
       $('main').innerHTML = `<h2 class="page">${esc(title)}</h2><p class="lead">${esc(lead)}</p>
-        ${needSepa ? '<div class="banner a"><span>Für Lastschriften fehlen noch Gläubiger-ID oder Vereinskonto.</span><a href="#mv-einstellungen" data-mvgo="mv-einstellungen">Eintragen →</a></div>' : ''}
+        ${needSepa ? '<div class="banner a"><span>Für Lastschriften fehlen noch Gläubiger-ID oder Vereinskonto.</span><a href="#mv-zeinst" data-mvgo="mv-zeinst">Eintragen →</a></div>' : ''}
         <div id="mvBody"><p class="muted">Lade …</p></div>`;
       $('main').querySelectorAll('[data-mvgo]').forEach(a => { a.onclick = e => { e.preventDefault(); GK.go(a.dataset.mvgo); }; });
       await fn(pageEl());
@@ -979,11 +984,16 @@
         <div class="kpi ${f.overdue.c > 0 ? 'warn' : ''}"><div class="l">davon überfällig</div><div class="v">${euro(f.overdue.c)}</div></div>
         <div class="kpi"><div class="l">im Einzug</div><div class="v">${euro(f.inCollection.c)}</div></div>
         <div class="kpi"><div class="l">eingegangen ${esc(f.year)}</div><div class="v">${euro(f.paidYear.c)}</div></div></div>`;
-  /** Reiter „Beitragslauf“ (Recht „Finanzen“): Vorschau, Lauf, bisherige Läufe – der Weg zum Einzug folgt unter „Einzug & Zahlungen“ */
-  async function showRun(el) {
+  /** Menü „Beiträge & Zahlungen“ (Recht „Einzug“): Reiter Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen, je mit den Kennzahlen oben */
+  const finPage = fn => async function show(el) {
     const f = await api('finance');
-    return finRun(el, f, () => showRun(el).catch(fail));
-  }
+    el.innerHTML = `${finKpis(f)}<div id="fBody"></div>`;
+    await fn($('fBody'), f, () => show(el).catch(fail));
+  };
+  const showRun = finPage(finRun);
+  const showCollections = finPage(finCollections);
+  const showCharges = finPage((el, f, again) => finCharges(el, again));
+  const showDunning = finPage((el, f, again) => finDunning(el, again));
   /** Reiter „Beiträge & Abteilungen“ (Stammdaten): Beitragsarten, Zusatzbeiträge, Abteilungen und Altersstufen */
   async function showCatalog(el) {
     const again = () => loadMeta().then(() => { GK.refreshBadges(); return showCatalog(el); }).catch(fail);
@@ -1015,42 +1025,21 @@
     ageBind(el, after);
   }
 
-  /** Seite „Einzug & Zahlungen“ */
-  async function showFinance(el) {
-    const f = await api('finance');
-    const SUB = [['einzug', 'Lastschriften'], ['posten', 'Offene Posten'], ['mahnung', 'Rechnungen & Mahnungen']];
-    if (!SUB.some(x => x[0] === st.fin)) st.fin = 'einzug';
-    el.innerHTML = `${finKpis(f)}
-      <div class="seg" id="fSeg" style="width:fit-content;margin-bottom:16px">${SUB.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.fin === k ? 'on' : ''}">${l}</button>`).join('')}</div><div id="fBody"></div>`;
-    $('fSeg').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; st.fin = b.dataset.s; $('fSeg').querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); sub().catch(fail); };
-    const body = $('fBody');
-    const again = () => showFinance(el).catch(fail);
-    const sub = async () => {
-      body.innerHTML = '<p class="muted">Lade …</p>';
-      if (st.fin === 'posten') return finCharges(body, again);
-      if (st.fin === 'einzug') return finCollections(body, f, again);
-      if (st.fin === 'mahnung') return finDunning(body, again);
-    };
-    await sub();
-  }
-
   async function finRun(el, f, again) {
     const runs = await api('runs');
     const m = st.meta;
     const today = m.today;
-    el.innerHTML = `${finKpis(f)}<div class="mv-two">
-      <div class="card"><h3>Beitragslauf</h3>
-        <p class="muted s" style="margin-top:0">Erzeugt die Beiträge aller Mitglieder bis zum Stichtag als offene Posten – anteilig nach Eintritt, jeder Zeitraum nur einmal. Danach unter „Lastschriften“ einziehen oder Rechnungen schicken.</p>
+    const done = st.runDone; st.runDone = null;
+    el.innerHTML = `<div class="card"><h3>Beitragslauf</h3>
+        <p class="muted s" style="margin-top:0">Erzeugt die Beiträge aller Mitglieder bis zum Stichtag als offene Posten – anteilig nach Eintritt, jeder Zeitraum nur einmal. Danach geht es weiter zum Einzug.</p>
         <div class="mv-grid" style="--c:2"><label class="f">Abrechnen bis<input id="rUntil" type="date" value="${today}"></label>
           <label class="f">Nur Zahlungsart<select id="rPay"><option value="">alle</option>${Object.entries(PAY).map(([k, l]) => opt(k, l)).join('')}</select></label></div>
         <div class="mv-cons" style="margin-top:12px">${m.drinks ? `<label class="chk"><input type="checkbox" id="rDrinks"> Verkauf mit abbuchen <span class="muted s">(offene Verkaufskonten der Mitglieder${f.drinksOpen != null ? ': ' + euro(f.drinksOpen) : ''})</span></label>` : ''}
           ${m.arbeit ? '<label class="chk"><input type="checkbox" id="rExtra" checked> Nicht geleistete Arbeitsstunden mit abrechnen</label>' : ''}</div>
-        <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rPrev">Vorschau</button></div></div>
-      <div class="card"><h3>Verkauf einziehen</h3>
-        <p class="muted s" style="margin-top:0">Jederzeit, getrennt von den Beiträgen: alle offenen Verkaufskonten der Mitglieder in einem Ablauf bis zur SEPA-Datei. Denselben Weg gibt es unter Verkauf › Abrechnung.${f.drinksDue ? ` Üblicher Termin: ${esc(f.drinksDue.split('-').reverse().join('.'))}.` : ''}</p>
-        ${m.drinks ? `<div class="kpi" style="box-shadow:none;margin-bottom:12px"><div class="l">Offen auf Verkaufskonten (Mitglieder)</div><div class="v">${euro(f.drinksOpen || 0)}</div></div>
-          <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rDrinkOnly">Per Lastschrift einziehen …</button></div>` : '<p class="muted">Das Modul Verkauf ist nicht aktiv.</p>'}</div></div>
-      <div id="rOut"></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn ${done ? '' : 'primary'}" id="rPrev">Vorschau</button></div></div>
+      <div id="rOut">${done ? `<div class="card"><h3>Beiträge abgerechnet</h3>
+        <p class="muted s" style="margin-top:0">${done.count} Positionen über ${euro(done.cents)} stehen jetzt als offene Posten bereit. Als Nächstes die Lastschriften erstellen; wer per Rechnung oder bar zahlt, bekommt seine Rechnung unter „Rechnungen & Mahnungen“.</p>
+        <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rNext">Weiter zum Einzug</button></div></div>` : ''}</div>
       <div class="card"><h3>Bisherige Läufe</h3>${runs.length ? `<table class="tbl kompakt"><tr><th>Lauf</th><th>Art</th><th>bis</th><th class="r">Positionen</th><th class="r">Summe</th><th>von</th><th></th></tr>
         ${runs.map(r => `<tr><td class="nw">${deTime(r.created_at)}</td><td>${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'}</td><td class="nw">${deDate(r.until_date)}</td><td class="r k-lbl" data-label="Positionen">${r.count}</td><td class="r">${euro(r.cents)}</td><td class="muted s k-weg">${esc(r.by_user || '')}</td>
           <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>`;
@@ -1073,12 +1062,12 @@
       $('rCancel').onclick = () => { $('rOut').innerHTML = ''; };
       $('rGo').onclick = async () => {
         if (!await ask(`Beiträge jetzt abrechnen?\n\n${pv.positions.length - skip.size} Positionen werden offene Posten${o.drinks ? ' – die Verkaufskonten werden dabei abgerechnet und stehen danach auf 0' : ''}. Solange nichts eingezogen ist, lässt sich der Lauf zurücknehmen.`, { ok: 'Abrechnen', danger: false })) return;
-        try { const r = await api('runs', 'POST', { ...o, skip: [...skip] }); toast(`${r.count} Positionen über ${euro(r.cents)} angelegt – jetzt unter „Einzug & Zahlungen“ einziehen.`); st.fin = 'einzug'; again(); } catch (e) { fail(e); }
+        try { st.runDone = await api('runs', 'POST', { ...o, skip: [...skip] }); again(); } catch (e) { fail(e); }
       };
       $('rOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     $('rPrev').onclick = () => preview().catch(fail);
-    if ($('rDrinkOnly')) $('rDrinkOnly').onclick = () => drinksCollect(again).catch(fail);
+    if ($('rNext')) { $('rNext').onclick = () => GK.go('mv-einzug'); $('rOut').scrollIntoView({ behavior: 'smooth', block: 'start' }); }
     el.querySelectorAll('[data-rshow]').forEach(b => { b.onclick = async () => {
       const run = runs.find(x => x.id === +b.dataset.rshow);
       const posten = async () => {
@@ -1182,6 +1171,9 @@
         <p class="muted s" style="margin-top:0">Je Zahler eine Lastschrift über alle bis zum Einzugstag fälligen offenen Posten. Erst- und Folgelastschriften werden automatisch getrennt. Vorgeschlagen ist der früheste Termin wegen der Vorabinformation (<b>${deDate(f.earliest)}</b>) – ein späterer Tag geht immer.</p>
         <div class="row"><label class="f">Einzugstag wählen<input id="kDate" type="date" value="${f.earliest}"></label><button class="btn" id="kPrev">Prüfen</button></div>
         <div id="kOut"></div></div>
+      ${st.meta.drinks ? `<div class="card"><h3>Verkauf einziehen</h3>
+        <p class="muted s" style="margin-top:0">Jederzeit, getrennt von den Beiträgen: alle offenen Verkaufskonten der Mitglieder in einem Ablauf bis zur SEPA-Datei. Denselben Weg gibt es unter Verkauf › Abrechnung.${f.drinksDue ? ` Üblicher Termin: ${esc(f.drinksDue.split('-').reverse().join('.'))}.` : ''}</p>
+        <div class="row" style="justify-content:space-between;align-items:center"><span>Offen auf Verkaufskonten (Mitglieder): <b>${euro(f.drinksOpen || 0)}</b></span><button class="btn" id="rDrinkOnly">Verkauf einziehen …</button></div></div>` : ''}
       <div class="card"><h3>Einzüge</h3>${list.length ? `<table class="tbl kompakt"><tr><th>Termin</th><th>Status</th><th class="r">Lastschriften</th><th class="r">Summe</th><th>Vorabinfo</th><th></th></tr>
         ${list.map(k => `<tr class="${k.status === 'verworfen' ? 'off' : ''}"><td class="nw"><b>${deDate(k.collection_date)}</b>${k.kind === 'getraenke' ? ' <span class="pill b">Verkauf</span>' : ''}<div class="muted s">${esc(k.msg_id)}</div></td>
           <td>${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}${k.returned ? ` <span class="pill r">${k.returned} zurück</span>` : ''}</td>
@@ -1192,7 +1184,7 @@
       try {
         const p = await api('collections/preview', 'POST', { date: val('kDate') });
         const skip = new Set();
-        $('kOut').innerHTML = `${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Mitglieder › Einstellungen › Lastschrift).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag.</span></div>' : ''}
+        $('kOut').innerHTML = `${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Beiträge & Zahlungen › Einstellungen › Lastschrift).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag.</span></div>' : ''}
           ${p.tooEarly ? `<div class="banner a"><span>Zu früh: frühester Termin ist der ${deDate(p.earliest)}.</span></div>` : ''}
           ${p.problems.length ? `<div class="banner a"><span>${p.problems.length} Zahler bleiben offen: ${esc(p.problems.map(x => `${x.name} (${x.reason})`).join(', '))}</span></div>` : ''}
           ${p.zero && p.zero.length ? `<div class="banner g"><span>${p.zero.length} Zahler: Forderungen und Gutschriften gleichen sich aus (${esc(p.zero.map(x => x.name).join(', '))}) – werden mit dem Einzug als verrechnet gebucht.</span></div>` : ''}
@@ -1210,6 +1202,7 @@
       } catch (e) { fail(e); }
     };
     el.querySelectorAll('[data-kopen]').forEach(b => { b.onclick = () => collectionDetail(+b.dataset.kopen, again); });
+    if ($('rDrinkOnly')) $('rDrinkOnly').onclick = () => drinksCollect(again).catch(fail);
   }
   const laterText = l => `${l.n === 1 ? '1 offener Posten' : `${l.n} offene Posten`} über ${euro(l.cents)} ${l.n === 1 ? 'wird' : 'werden'} erst nach dem Einzugstag fällig (ab ${deDate(l.first)}) und ${l.n === 1 ? 'bleibt' : 'bleiben'} für einen späteren Einzug. Für jetzt einen späteren Einzugstag wählen.`;
   const BIC_HINT = 'Beim Vereinskonto fehlt der BIC. Das ist erlaubt (in der SEPA-Datei steht dann „NOTPROVIDED“), manche Banken verlangen ihn aber – am besten unter Verein › Einstellungen › Bankkonten eintragen.';
@@ -1234,7 +1227,7 @@
         <p class="muted" style="margin-top:0">Alle offenen Verkaufskonten der Mitglieder und schon offene Verkaufs-Posten – getrennt von den Beiträgen. Angehörige zahlen beim Zahler. Die Konten werden dabei als abgerechnet markiert.</p>
         <div class="row" style="align-items:flex-end"><label class="f">Einzugstag wählen<input id="dcDate" type="date" value="${esc(p.date)}"></label>
           <p class="muted s" style="flex:1 1 220px;margin:0 0 8px">Vorgeschlagen ist der früheste Termin (${deDate(p.earliest)}) – Vorabinformation ${esc(st.meta.settings.prenotify_days)} Tage vorher plus Vorlauf der Bank. Ein späterer Tag geht immer.</p></div>
-        ${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Mitglieder › Einstellungen › Lastschrift).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag – bitte einen anderen wählen.</span></div>' : ''}
+        ${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Beiträge & Zahlungen › Einstellungen › Lastschrift).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag – bitte einen anderen wählen.</span></div>' : ''}
         ${p.tooEarly ? `<div class="banner a"><span>Zu früh: frühester Termin ist der ${deDate(p.earliest)}.</span></div>` : ''}${p.bicMissing ? `<div class="banner g"><span>${BIC_HINT}</span></div>` : ''}
         ${p.existing ? `<div class="banner g"><span>Dabei: ${p.existing.n === 1 ? '1 schon offener Verkaufs-Posten' : `${p.existing.n} schon offene Verkaufs-Posten`} aus den Mitgliedern (${euro(p.existing.cents)}).</span></div>` : ''}
         ${p.later ? `<div class="banner a"><span>${laterText(p.later)}</span></div>` : ''}
@@ -1252,16 +1245,16 @@
       $('c').onclick = closeDialog;
       $('dcDate').onchange = () => { date = $('dcDate').value; show().catch(fail); };
       $('dialog').querySelectorAll('[data-dcx]').forEach(c => { c.onchange = () => { if (c.checked) skip.delete(+c.dataset.dcx); else skip.add(+c.dataset.dcx); $('dcSum').textContent = euro(sel().reduce((a, x) => a + x.cents, 0)); $('dcGo').disabled = !(p.ready && p.bankDay && sel().length); }; });
+      const go = force => api('drinks-collection', 'POST', { date, skip: [...skip], force });
+      const done = r => { if (after) after(); collectionDetail(r.id, after || (() => {}), true).catch(fail); };
       $('dcGo').onclick = () => GK.busy($('dcGo'), async () => {
-        const go = force => api('drinks-collection', 'POST', { date, skip: [...skip], force });
-        let r;
-        try { r = await go(false); }
+        try { done(await go(false)); }
         catch (e) {
-          if (e.status !== 409 || !await ask(`${e.message}\n\nTrotzdem zu diesem Termin erstellen? Nur, wenn mit den Mitgliedern eine kürzere Frist vereinbart ist.`, { ok: 'Trotzdem' })) { if (e.status !== 409) fail(e); return; }
-          try { r = await go(true); } catch (e2) { fail(e2); return; }
+          if (e.status !== 409) { fail(e); return; }
+          confirmIn(e.message, 'Trotzdem zu diesem Termin erstellen? Nur, wenn mit den Mitgliedern eine kürzere Frist vereinbart ist.', 'Trotzdem', async () => {
+            try { done(await go(true)); } catch (e2) { fail(e2); }
+          }, () => show().catch(fail), { safe: true });
         }
-        if (after) after();
-        collectionDetail(r.id, after || (() => {}), true).catch(fail);
       });
     };
     await show();
@@ -1284,17 +1277,20 @@
         ${k.returnedOnly.map(r => `<tr class="off"><td><b>${esc(GK.lastFirst(r.name))}</b></td><td></td><td class="s">zurückgebucht</td><td></td><td></td></tr>`).join('')}</table></div>
       <div class="btns"><button class="btn primary" id="c">Schließen</button></div>`, true);
     $('c').onclick = () => { closeDialog(); again(); };
-    $('kMail').onclick = async () => { if (!await ask(`Vorabinformation an ${k.rows.filter(r => r.email).length} Zahler schicken?\n\nJede/r bekommt Betrag, Termin, Mandatsreferenz und Gläubiger-ID. ${k.rows.filter(r => !r.email).length} ohne E-Mail – für sie gibt es die Briefe als PDF.`, { ok: 'Senden', danger: false })) return;
-      try { const r = await api(`collections/${id}/prenotify`, 'POST', {}); toast(`${r.sent} E-Mails verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail` : ''}${r.failed.length ? `, ${r.failed.length} fehlgeschlagen` : ''}.`, r.failed.length > 0); collectionDetail(id, again); } catch (e) { fail(e); } };
-    if ($('kBooked')) $('kBooked').onclick = async () => { const d = await askText('Zahlung erfolgt – alle Lastschriften dieses Einzugs ohne Rücklastschrift als bezahlt buchen?\nDatum der Gutschrift auf dem Vereinskonto (TT.MM.JJJJ):', deDate(st.meta.today), { ok: 'Buchen' }); if (d == null) return;
-      const m2 = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(d.trim()); try { await api(`collections/${id}/booked`, 'POST', { date: m2 ? `${m2[3]}-${m2[2].padStart(2, '0')}-${m2[1].padStart(2, '0')}` : undefined }); toast('Verbucht.'); collectionDetail(id, again); } catch (e) { fail(e); } };
+    const back = () => collectionDetail(id, again).catch(fail);
+    $('kMail').onclick = () => confirmIn(`Vorabinformation an ${k.rows.filter(r => r.email).length} Zahler schicken?`, `Jede/r bekommt Betrag, Termin, Mandatsreferenz und Gläubiger-ID.${k.rows.some(r => !r.email) ? ` ${k.rows.filter(r => !r.email).length} ohne E-Mail – für sie gibt es die Briefe als PDF.` : ''}`, 'Senden', async () => {
+      try { const r = await api(`collections/${id}/prenotify`, 'POST', {}); toast(`${r.sent} E-Mails verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail` : ''}${r.failed.length ? `, ${r.failed.length} fehlgeschlagen` : ''}.`, r.failed.length > 0); back(); } catch (e) { fail(e); }
+    }, back, { safe: true });
+    if ($('kBooked')) $('kBooked').onclick = () => confirmIn('Zahlung erfolgt?', 'Alle Lastschriften dieses Einzugs ohne Rücklastschrift werden als bezahlt gebucht.', 'Buchen', async () => {
+      try { await api(`collections/${id}/booked`, 'POST', { date: val('kbD') || undefined }); toast('Verbucht.'); back(); } catch (e) { fail(e); }
+    }, back, { safe: true, html: `<label class="f">Datum der Gutschrift auf dem Vereinskonto<input id="kbD" type="date" value="${esc(st.meta.today)}"></label>` });
     if ($('kDel')) $('kDel').onclick = () => {
       const runs = k.runs.filter(r => r.undo), drinks = runs.some(r => r.kind === 'getraenke');
       dialog(`<h2>Einzug verwerfen?</h2><p class="muted" style="margin-top:0">Nur, wenn die SEPA-Datei <b>nicht</b> bei der Bank eingereicht wurde. Alle Posten werden wieder offen.</p>
         ${runs.length ? `<label class="chk" style="margin-top:4px"><input type="checkbox" id="kdRun" checked> Auch ${runs.length === 1 ? 'den Lauf' : `die ${runs.length} Läufe`} zurücknehmen (${runs.map(r => `${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'} vom ${deDate(r.created_at.slice(0, 10))}`).join(', ')})</label>
           <p class="muted s">${drinks ? 'Dann sind die Verkaufskonten wieder offen und die Buchungen lassen sich im Verkauf normal stornieren. ' : ''}Ohne Haken bleiben die Posten offen und kommen in den nächsten Einzug.</p>` : ''}
         <div class="btns"><button class="btn ghost" id="c2">Abbrechen</button><button class="btn danger" id="kdOk">Verwerfen</button></div>`);
-      $('c2').onclick = () => collectionDetail(id, again);
+      $('c2').onclick = back;
       $('kdOk').onclick = () => GK.busy($('kdOk'), async () => {
         try { const r = await api(`collections/${id}${$('kdRun') && $('kdRun').checked ? '?runs=1' : ''}`, 'DELETE'); closeDialog(); toast(r.runs ? 'Einzug verworfen und Lauf zurückgenommen.' : 'Verworfen.'); again(); } catch (e) { fail(e); }
       });
@@ -1306,8 +1302,8 @@
           <label class="f">Gebühr weiterberechnen<input id="rtF" inputmode="decimal" value="${centsToInput(st.meta.settings.return_fee_cents)}"></label></div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="rtM"> Mandat sperren (keine weiteren Lastschriften)</label>
         <div class="btns"><button class="btn ghost" id="c2">Abbrechen</button><button class="btn danger" id="rtOk">Rücklastschrift erfassen</button></div>`);
-      $('c2').onclick = () => collectionDetail(id, again);
-      $('rtOk').onclick = () => GK.busy($('rtOk'), async () => { try { await api(`collections/${id}/return`, 'POST', { member_id: r.member_id, reason: val('rtR'), fee_cents: toCents(val('rtF') || '0'), revokeMandate: $('rtM').checked }); toast('Erfasst.'); collectionDetail(id, again); } catch (e) { fail(e); } });
+      $('c2').onclick = back;
+      $('rtOk').onclick = () => GK.busy($('rtOk'), async () => { try { await api(`collections/${id}/return`, 'POST', { member_id: r.member_id, reason: val('rtR'), fee_cents: toCents(val('rtF') || '0'), revokeMandate: $('rtM').checked }); toast('Erfasst.'); back(); } catch (e) { fail(e); } });
     }; });
   }
 
@@ -1404,16 +1400,17 @@
   }
 
   /* ================================================================= Einstellungen */
-  /** Karten untereinander, je Thema ein „Speichern“ (Reihenfolge nach planung/menues.md 3.1): Mitgliedschaft · Beitrittserklärung & Online-Antrag · „Meine Daten“ in der App ·
-   *  Lastschrift (SEPA) · Rechnungen & Mahnungen · Benachrichtigungen · Datenschutz & Aufbewahrung · Einstellungen übertragen */
+  const foot = id => `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="${id}">Speichern</button></div>`;
+  /** „Speichern“ einer Karte: schreibt nur ihre eigenen Felder, danach die Seite neu zeichnen */
+  const saveCard = redraw => (btn, body) => { $(btn).onclick = () => GK.busy($(btn), async () => {
+    try { await api('settings', 'PUT', body()); GK.clean(); toast('Gespeichert.'); redraw().catch(fail); } catch (e) { fail(e); }
+  }); };
+  /** Mitglieder › Einstellungen: Karten untereinander, je Thema ein „Speichern“ (Reihenfolge nach planung/menues.md 3.1): Mitgliedschaft · Beitrittserklärung & Online-Antrag ·
+   *  „Meine Daten“ in der App · Benachrichtigungen · Datenschutz & Aufbewahrung · Einstellungen übertragen */
   async function showSettings(el) {
     await loadMeta();
-    const s = st.meta.settings, m = st.meta;
-    const acc = await GK.api('bank-accounts').catch(() => ({ rows: [], manage: false }));
+    const s = st.meta.settings;
     const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-    const foot = id => `<div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" id="${id}">Speichern</button></div>`;
-    const ad = m.club || {};
-    const addr = [[ad.street, ad.city].filter(Boolean).join(', '), ad.email, ad.phone].filter(Boolean).map(esc).join(' · ');
     el.innerHTML = `<div class="card" data-set="mitgliedschaft"><h3>Mitgliedschaft</h3><div class="mv-grid" style="--c:3">
         <label class="f">Mitgliedsnummern ab<input id="eNo" value="${esc(s.member_no_start)}" inputmode="numeric"></label>
         <label class="f">Beitragsjahr beginnt am 1.<select id="eYear">${months.map((n, i) => opt(`${String(i + 1).padStart(2, '0')}-01`, n, s.year_start)).join('')}</select></label>
@@ -1434,7 +1431,33 @@
         <div id="eCons">${s.consents.map((c, i) => consentRow(c, i)).join('')}</div>
         <div class="row" style="justify-content:space-between;margin-top:10px"><button class="btn" id="eConsAdd">+ Einwilligung</button><button class="btn primary" id="eSave2">Speichern</button></div></div>
       <div class="card" id="eApp" data-set="meinedaten"></div>
-      <div class="card" data-set="sepa"><h3>Lastschrift (SEPA)</h3><div class="mv-grid" style="--c:4">
+      <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
+        <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de, kasse@verein.de"></label></div>
+        <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
+      <div class="card" data-set="daten"><h3>Datenschutz & Aufbewahrung</h3><p class="muted s" style="margin-top:0">Nach dem Austritt werden Mitgliedsdaten noch für Beiträge, Spendenquittungen und gesetzliche Fristen gebraucht (Kassenbelege meist 10 Jahre). Danach im Mitglied „Anonymisieren“. Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied).</p>
+        <div class="mv-grid" style="--c:4"><label class="f w2">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric"></label></div>${foot('eSaveDat')}</div>
+      <div id="eFunc" data-set="uebertragen"></div>`;
+    GK.watch(el);
+    appDataCard($('eApp')).catch(fail);
+    if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el));
+    const save = saveCard(() => showSettings(el));
+    save('eSaveMs', () => ({ member_no_start: val('eNo'), year_start: val('eYear'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
+    const consents = () => [...document.querySelectorAll('#eCons [data-c]')].map(r => ({ key: r.dataset.c, short: r.querySelector('[data-k=short]').value, text: r.querySelector('[data-k=text]').value, required: r.querySelector('[data-k=req]').checked }));
+    const bindCons = () => document.querySelectorAll('#eCons [data-cx]').forEach(b => { b.onclick = () => b.closest('[data-c]').remove(); });
+    bindCons();
+    $('eConsAdd').onclick = () => { $('eCons').insertAdjacentHTML('beforeend', consentRow({ key: 'e' + Date.now().toString(36).slice(-5), short: '', text: '', required: false })); bindCons(); };
+    save('eSave2', () => ({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() }));
+    save('eSaveNot', () => ({ notify_to: val('eNotify') }));
+    save('eSaveDat', () => ({ retention_years: +val('eRet2') }));
+  }
+  /** Beiträge & Zahlungen › Einstellungen: Lastschrift (SEPA) · Rechnungen & Mahnungen · Einstellungen übertragen (dieselben Schlüssel wie bisher unter Mitglieder) */
+  async function showPaySettings(el) {
+    await loadMeta();
+    const s = st.meta.settings, m = st.meta;
+    const acc = await GK.api('bank-accounts').catch(() => ({ rows: [], manage: false }));
+    const ad = m.club || {};
+    const addr = [[ad.street, ad.city].filter(Boolean).join(', '), ad.email, ad.phone].filter(Boolean).map(esc).join(' · ');
+    el.innerHTML = `<div class="card" data-set="sepa"><h3>Lastschrift (SEPA)</h3><div class="mv-grid" style="--c:4">
         <label class="f w2">Name als Zahlungsempfänger<input id="eName" value="${esc(s.creditor_name)}" maxlength="70"></label>
         <div class="f w2"><span>Vereinsanschrift</span><div class="mv-addr">${addr || '<span class="muted">noch nicht eingetragen</span>'}</div><span class="muted s">ändern unter <a href="#einstellungen" id="eAddrGo">Einstellungen › Verein</a></span></div>
         <label class="f">Gläubiger-ID<input id="eCi" value="${esc(s.creditor_id)}" placeholder="DE98ZZZ09999999999" spellcheck="false"></label>
@@ -1449,35 +1472,18 @@
       <div class="card" data-set="rechnung"><h3>Rechnungen & Mahnungen</h3><div class="mv-grid" style="--c:4">
         <label class="f">Mahngebühr (ab 2. Mahnung)<input id="eDun" value="${centsToInput(s.dunning_fee_cents)}" inputmode="decimal"></label>
         <label class="f w2">Zusatz auf Rechnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label></div>${foot('eSaveInv')}</div>
-      <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
-        <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de, kasse@verein.de"></label></div>
-        <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
-      <div class="card" data-set="daten"><h3>Datenschutz & Aufbewahrung</h3><p class="muted s" style="margin-top:0">Nach dem Austritt werden Mitgliedsdaten noch für Beiträge, Spendenquittungen und gesetzliche Fristen gebraucht (Kassenbelege meist 10 Jahre). Danach im Mitglied „Anonymisieren“. Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied).</p>
-        <div class="mv-grid" style="--c:4"><label class="f w2">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric"></label></div>${foot('eSaveDat')}</div>
       <div id="eFunc" data-set="uebertragen"></div>`;
     GK.watch(el);
-    appDataCard($('eApp')).catch(fail);
-    if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el));
-    // jede Karte schreibt nur ihre eigenen Felder; danach neu zeichnen
-    const save = (btn, body) => { $(btn).onclick = () => GK.busy($(btn), async () => {
-      try { await api('settings', 'PUT', body()); GK.clean(); toast('Gespeichert.'); showSettings(el).catch(fail); } catch (e) { fail(e); }
-    }); };
+    if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showPaySettings(el));
+    const save = saveCard(() => showPaySettings(el));
     if ($('eAccGo')) $('eAccGo').onclick = e => { e.preventDefault(); if (GK.openSettings) GK.openSettings('bank'); else GK.go('einstellungen'); };
     if ($('eAddrGo')) $('eAddrGo').onclick = e => { e.preventDefault(); if (GK.openSettings) GK.openSettings('verein'); else GK.go('einstellungen'); };
-    save('eSaveMs', () => ({ member_no_start: val('eNo'), year_start: val('eYear'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
-    const consents = () => [...document.querySelectorAll('#eCons [data-c]')].map(r => ({ key: r.dataset.c, short: r.querySelector('[data-k=short]').value, text: r.querySelector('[data-k=text]').value, required: r.querySelector('[data-k=req]').checked }));
-    const bindCons = () => document.querySelectorAll('#eCons [data-cx]').forEach(b => { b.onclick = () => b.closest('[data-c]').remove(); });
-    bindCons();
-    $('eConsAdd').onclick = () => { $('eCons').insertAdjacentHTML('beforeend', consentRow({ key: 'e' + Date.now().toString(36).slice(-5), short: '', text: '', required: false })); bindCons(); };
-    save('eSave2', () => ({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() }));
     save('eSaveSepa', () => {
       const dd = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('eDrinks'));
       return { creditor_name: val('eName'), creditor_id: val('eCi'), ...(m.perms.finance && $('eAcc') && !$('eAcc').disabled ? { sepa_account: val('eAcc') ? +val('eAcc') : null } : {}),
         mandate_prefix: val('ePre'), prenotify_days: +val('ePre2'), drinks_due: dd ? `${dd[2].padStart(2, '0')}-${dd[1].padStart(2, '0')}` : '', return_fee_cents: toCents(val('eRet') || '0') };
     });
     save('eSaveInv', () => ({ dunning_fee_cents: toCents(val('eDun') || '0'), invoice_text: val('eInv') }));
-    save('eSaveNot', () => ({ notify_to: val('eNotify') }));
-    save('eSaveDat', () => ({ retention_years: +val('eRet2') }));
   }
   const consentRow = (c, i) => `<div class="mv-cons-ed" data-c="${esc(c.key)}"><label class="f">Kurzname<input data-k="short" value="${esc(c.short)}" placeholder="z. B. Homepage"></label><label class="f">Text auf dem Formular<textarea data-k="text" rows="2">${esc(c.text)}</textarea></label>
     <label class="chk"><input type="checkbox" data-k="req" ${c.required ? 'checked' : ''}> Pflicht</label><button class="btn small danger" data-cx="${i}">Entfernen</button></div>`;
@@ -1524,6 +1530,7 @@
   }
 
   const G = { key: 'mitglieder', label: 'Mitglieder', icon: 'ausweis', order: 7 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
+  const GZ = { key: 'mv-zahlungen', label: 'Beiträge & Zahlungen', icon: 'zahlung', order: 7.5 };   // zweiter Menüpunkt des Moduls, direkt nach „Mitglieder“
 
   /* „Meine Daten“: was Mitglieder in der App sehen und ändern dürfen – Karte in Einstellungen */
   async function appDataCard(el) {
@@ -1539,15 +1546,19 @@
       try { await api('settings', 'PUT', { app_perms: { view: Object.fromEntries([...el.querySelectorAll('[data-apv]')].map(c => [c.dataset.apv, c.checked])), edit: Object.fromEntries([...el.querySelectorAll('[data-ape]')].map(c => [c.dataset.ape, c.checked])) } }); GK.clean(); toast('Gespeichert.'); await loadMeta(); } catch (e) { fail(e); }
     });
   }
-  /* Reiter: Mitglieder · Anträge (n) · Beitragslauf · Einzug & Zahlungen · Beiträge & Abteilungen · Auswertung · Einstellungen
-     (Beitragslauf und Einzug ziehen im nächsten Schritt in das Menü „Beiträge & Zahlungen“ um) */
+  /* Menü „Mitglieder“: Mitglieder · Anträge (n) · Beiträge & Abteilungen · Auswertung · Einstellungen */
   GK.registerPage({ key: 'mitglieder', title: 'Mitglieder', perm: 'mitglieder', render, group: G });
   GK.registerPage({ key: 'mv-antraege', title: 'Anträge & Änderungen', perm: 'mitglieder', render: pageRender('mv-antraege', showApplications), group: G, tab: 'Anträge' });
-  GK.registerPage({ key: 'mv-beitraege', title: 'Beitragslauf', perm: 'mitglieder_finanzen', render: pageRender('mv-beitraege', showRun), group: G });
-  GK.registerPage({ key: 'mv-einzug', title: 'Einzug & Zahlungen', perm: 'mitglieder_finanzen', render: pageRender('mv-einzug', showFinance), group: G });
   GK.registerPage({ key: 'mv-stamm', title: 'Beiträge & Abteilungen', perm: '!mitglieder', render: pageRender('mv-stamm', showCatalog), group: G });
   GK.registerPage({ key: 'mv-auswertung', title: 'Auswertung', perm: '!mitglieder', render: pageRender('mv-auswertung', showReports), group: G });
   GK.registerPage({ key: 'mv-einstellungen', title: 'Einstellungen', perm: '!mitglieder', render: pageRender('mv-einstellungen', showSettings), group: G });
+  /* Menü „Beiträge & Zahlungen“ (Recht „Einzug“): Beitragslauf · Lastschriften · Offene Posten · Rechnungen & Mahnungen · Einstellungen
+     (Adressen mv-beitraege und mv-einzug wie bisher, damit Lesezeichen und Links aus der Übersicht weiter stimmen) */
+  GK.registerPage({ key: 'mv-beitraege', title: 'Beitragslauf', perm: 'mitglieder_finanzen', render: pageRender('mv-beitraege', showRun), group: GZ });
+  GK.registerPage({ key: 'mv-einzug', title: 'Lastschriften', perm: 'mitglieder_finanzen', render: pageRender('mv-einzug', showCollections), group: GZ });
+  GK.registerPage({ key: 'mv-posten', title: 'Offene Posten', perm: 'mitglieder_finanzen', render: pageRender('mv-posten', showCharges), group: GZ });
+  GK.registerPage({ key: 'mv-mahnung', title: 'Rechnungen & Mahnungen', perm: 'mitglieder_finanzen', render: pageRender('mv-mahnung', showDunning), group: GZ });
+  GK.registerPage({ key: 'mv-zeinst', title: 'Einstellungen', perm: 'mitglieder_finanzen', render: pageRender('mv-zeinst', showPaySettings), group: GZ });
   // Suche (Strg/⌘ K): Aktionen, Karten und Einstellungen der Mitglieder
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Neues Mitglied anlegen', page: 'mitglieder', btn: '+ Neues Mitglied', kind: 'aktion', words: 'Mitglied aufnehmen Neuaufnahme' },
@@ -1566,9 +1577,11 @@
     { label: 'Neue Abteilung', page: 'mv-stamm', btn: '+ Abteilung', kind: 'aktion', in: 'Beiträge & Abteilungen', words: 'Sparte anlegen' },
     { label: 'Altersstufen prüfen', page: 'mv-stamm', card: 'Altersstufen', in: 'Beiträge & Abteilungen', words: 'Alter Jugend Erwachsene Beitragsart wechseln umstellen' },
     { label: 'Beitragslauf', page: 'mv-beitraege', perm: 'mitglieder_finanzen', kind: 'aktion', boost: 1, words: 'Beiträge abrechnen Jahresbeitrag Lastschrift' },
-    { label: 'Lastschriften und SEPA-Datei', page: 'mv-einzug', seg: 'Lastschriften', kind: 'aktion', boost: 1, in: 'Einzug & Zahlungen', words: 'SEPA Einzug pain.008 Vorabinformation Rücklastschrift' },
-    { label: 'Offene Posten', page: 'mv-einzug', seg: 'Offene Posten', in: 'Einzug & Zahlungen', words: 'Forderung bezahlt überfällig offen' },
-    { label: 'Rechnungen & Mahnungen (Beiträge)', page: 'mv-einzug', seg: 'Rechnungen & Mahnungen', in: 'Einzug & Zahlungen', words: 'Mahnung Erinnerung Rechnung bar' },
+    { label: 'Lastschriften und SEPA-Datei', page: 'mv-einzug', card: 'Neuer Einzug', perm: 'mitglieder_finanzen', kind: 'aktion', boost: 1, words: 'SEPA Einzug pain.008 Vorabinformation Rücklastschrift' },
+    { label: 'Verkauf per Lastschrift einziehen', page: 'mv-einzug', card: 'Verkauf einziehen', perm: 'mitglieder_finanzen', kind: 'aktion', words: 'Getränke Verkaufskonten Einzug SEPA abbuchen' },
+    { label: 'Überfällige Posten', page: 'mv-posten', seg: 'Überfällig', perm: 'mitglieder_finanzen', words: 'Forderung offen überfällig nicht bezahlt' },
+    { label: 'Forderung anlegen', page: 'mv-posten', btn: '+ Forderung', perm: 'mitglieder_finanzen', kind: 'aktion', words: 'Posten Gutschrift Betrag Mitglied berechnen' },
+    { label: 'Rechnungen & Mahnungen (Beiträge)', page: 'mv-mahnung', perm: 'mitglieder_finanzen', words: 'Mahnung Erinnerung Rechnung bar' },
     { label: 'Mitgliederzahlen und Abteilungen', page: 'mv-auswertung', card: 'Abteilungen', words: 'Statistik Zahlen Stichtag' },
     { label: 'Bestandserhebung (Landessportbund)', page: 'mv-auswertung', card: 'Bestandserhebung', words: 'LSB Statistik Meldung Verband' },
     { label: 'Runde Geburtstage & Jubiläen', page: 'mv-auswertung', card: 'Runde Geburtstage', words: 'Geburtstag Jubiläum Ehrung' },
@@ -1577,11 +1590,11 @@
     { label: 'Abteilungsleitungen: Ein- und Austritte bestätigen', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eScope', in: 'Einstellungen', words: 'Abteilungsleitung bestätigen' },
     { label: 'Beitrittserklärung und Online-Antrag (Formular, Einwilligungen)', page: 'mv-einstellungen', card: 'Beitrittserklärung', in: 'Einstellungen', words: 'Formular Satzung Einwilligung Online-Antrag Tablet' },
     { label: '„Meine Daten“ in der Mitglieder-App', page: 'mv-einstellungen', card: '„Meine Daten“', in: 'Einstellungen', words: 'App Anschrift Bankverbindung Kündigen Einwilligungen' },
-    { label: 'Lastschrift (Gläubiger-ID, Mandatsreferenz)', page: 'mv-einstellungen', card: 'Lastschrift', field: 'eCi', in: 'Einstellungen', words: 'SEPA Gläubiger-ID Mandatsreferenz Vorabinformation Rücklastschrift Verkaufs-Einzug Zahlungsempfänger' },
-    { label: 'Rechnungen und Mahnungen (Mahngebühr, Zusatz)', page: 'mv-einstellungen', card: 'Rechnungen & Mahnungen', field: 'eDun', in: 'Einstellungen', words: 'Mahngebühr Rechnungstext Zusatz Steuernummer' },
     { label: 'Neue Anträge melden an (E-Mail)', page: 'mv-einstellungen', card: 'Benachrichtigungen', field: 'eNotify', in: 'Einstellungen', words: 'Benachrichtigung Antrag E-Mail Vorstand' },
     { label: 'Datenschutz nach dem Austritt', page: 'mv-einstellungen', card: 'Datenschutz', field: 'eRet2', in: 'Einstellungen', words: 'DSGVO Anonymisieren löschen Aufbewahrung Erinnerung' },
     { label: 'Einstellungen der Mitglieder übertragen', page: 'mv-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
+    { label: 'Lastschrift (Gläubiger-ID, Mandatsreferenz)', page: 'mv-zeinst', card: 'Lastschrift', field: 'eCi', perm: 'mitglieder_finanzen', words: 'SEPA Gläubiger-ID Gläubiger Mandatsreferenz Vorabinformation Rücklastschrift Verkaufs-Einzug Zahlungsempfänger Konto' },
+    { label: 'Rechnungen und Mahnungen (Mahngebühr, Zusatz)', page: 'mv-zeinst', card: 'Rechnungen & Mahnungen', field: 'eDun', perm: 'mitglieder_finanzen', words: 'Mahngebühr Rechnungstext Zusatz Steuernummer' },
   ]);
   // Konten & PINs gehören zum Verkauf, sobald die Mitglieder hier verwaltet werden
   if (GK.regroup && (!GK.modules || GK.modules().includes('getraenke'))) GK.regroup('konten', 'getraenke', { title: 'Konten & PINs', tab: 'Konten' });

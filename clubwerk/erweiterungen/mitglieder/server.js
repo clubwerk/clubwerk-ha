@@ -979,9 +979,12 @@ function activate(ctx) {
       notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', sepa_required: sepaRequired(), app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
     return s;
   }
+  /** Schlüssel der Karten unter Beiträge & Zahlungen › Einstellungen */
+  const FIN_KEYS = ['creditor_name', 'creditor_id', 'club_iban', 'club_bic', 'club_bank', 'sepa_account', 'mandate_prefix', 'prenotify_days', 'drinks_due', 'return_fee_cents', 'dunning_fee_cents', 'invoice_text'];
   admin.put('/settings', P, (req, res) => {
     // Erst alles prüfen und in `pending` sammeln, dann in einer Transaktion schreiben – bei einem Fehler bleibt alles unverändert
     const b = req.body || {}; const errors = []; const pending = [];
+    if (FIN_KEYS.some(k => b[k] !== undefined) && !req.user.perms.includes('mitglieder_finanzen')) return bad(res, 'Lastschrift, Rechnungen und Mahnungen (Beiträge & Zahlungen › Einstellungen) darf nur ändern, wer das Recht „Einzug“ hat.', 403);
     const put = (k, v) => pending.push([k, v]);
     const str = (k, max) => { if (b[k] !== undefined) put(k, one(b[k], max)); };
     const long = (k, max) => { if (b[k] !== undefined) put(k, txt(b[k], max)); };
@@ -1059,7 +1062,8 @@ function activate(ctx) {
     if (ch) alerts.push({ level: 'a', text: `${ch} Änderungswunsch/-wünsche aus der Mitglieder-App.` });
     const noMandate = rows.filter(r => r.issues.some(i => /Mandat|Bankverbindung|IBAN/.test(i))).length;
     if (noMandate) alerts.push({ level: 'a', text: `${noMandate} Lastschriftzahler ohne gültiges SEPA-Mandat.` });
-    if (!S('creditor_id') || !store.account().iban) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID (Mitglieder › Einstellungen › Lastschrift) oder ein Bankkonto (Verein › Einstellungen › Bankkonten).' });
+    const fin = !user || (user.perms || []).includes('mitglieder_finanzen');   // Hinweise zu Beiträge & Zahlungen nur für wen, der sie erledigen darf
+    if (fin && (!S('creditor_id') || !store.account().iban)) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID (Beiträge & Zahlungen › Einstellungen) oder ein Bankkonto (Verein › Einstellungen › Bankkonten).', go: 'mv-zeinst', link: 'Eintragen' });
     const ret = parseInt(S('retention_years', '0'), 10) || 0;
     if (ret) {
       const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
@@ -1067,8 +1071,8 @@ function activate(ctx) {
     }
     // Lastschrift eingereicht, aber noch nicht als bezahlt gebucht → Kassierer erinnern, sobald Rückläufer unwahrscheinlich sind
     const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
-    for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))
-      alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Einzug & Zahlungen → Offene Posten → Im Einzug“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
+    if (fin) for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))
+      alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Beiträge & Zahlungen › Lastschriften“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
     const ageN = ageScanFn ? ageScanFn() : 0;
     if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied' : 'Mitglieder'} rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-stamm', link: 'Entscheiden' });
     const leaving = rows.filter(r => r.leaving).length;
