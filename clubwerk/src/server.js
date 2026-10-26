@@ -1851,6 +1851,18 @@ admin.put('/categories/order', need('artikel'), (req, res) => {
   audit(req.user, 'Reihenfolge der Kategorien geändert', order.join(' · '));
   res.json({ ok: true, categories: categoryList() });
 });
+/* „Einstellungen übertragen“ des Verkaufs (Verkauf › Einstellungen): nur die Einstellungen, keine Artikel, Konten oder Buchungen */
+plugins.get('getraenke').hooks.exportConfig = () => ({ settings: { top_n: String(topN()), top_days: String(topDays()), category_order: getSetting('category_order', '[]') } });
+plugins.get('getraenke').hooks.importConfig = d => {
+  const x = (d && d.settings) || {};
+  const n = int(x.top_n, -1), days = int(x.top_days, 0);
+  if (n < 0 || n > 60 || days < 1 || days > 365) throw new Error('Die Datei enthält ungültige Werte für „Gerade oft hier“.');
+  let order; try { order = JSON.parse(x.category_order || '[]'); } catch (e) { order = null; }
+  if (!Array.isArray(order)) throw new Error('Die Datei enthält keine gültige Reihenfolge der Kategorien.');
+  setSetting('top_n', String(n)); setSetting('top_days', String(days));
+  setSetting('category_order', JSON.stringify([...new Set(order.map(c => String(c).trim().slice(0, 40)).filter(Boolean))].slice(0, 100)));
+  return 'Einstellungen übernommen';
+};
 
 /* ---------- Lieferungen ---------- */
 admin.get('/deliveries', need('lieferungen'), (req, res) => {

@@ -367,11 +367,12 @@
   const PAGES = [
     ['uebersicht', 'Übersicht', null, 'start'],
     ['buchungen', 'Buchungen', 'buchungen', 'getraenke'], ['abrechnung', 'Abrechnung & Export', ['abrechnung', 'export'], 'getraenke'],
-    ['veranstaltungen', 'Veranstaltungen', ['veranstaltungen', 'uebernahme'], 'getraenke'], ['deckel', 'Gäste-Deckel', ['veranstaltungen', 'uebernahme', 'abrechnung', 'export'], 'getraenke'],
+    ['veranstaltungen', 'Veranstaltungen & Deckel', ['veranstaltungen', 'uebernahme', 'abrechnung', 'export'], 'getraenke'],
     ['auswertung', 'Auswertung', ['abrechnung', 'export'], 'getraenke'],
+    ['vkeinst', 'Einstellungen', ['einstellungen', 'lieferungen', 'artikel'], 'getraenke'],
     // „Lager“ ist ein eigener Menüpunkt des Moduls Verkauf (kein eigenes Modul)
     ['bestellung', 'Bestellung', 'bestellung', 'lager'], ['lieferungen', 'Lieferungen & Belege', 'lieferungen', 'lager'],
-    ['bestand', 'Bestand & Inventur', 'bestand', 'lager'], ['abgleich', 'Abgleich', 'bestand', 'lager'], ['artikel', 'Artikel', 'artikel', 'lager'],
+    ['bestand', 'Bestand & Inventur', 'bestand', 'lager'], ['artikel', 'Artikel', 'artikel', 'lager'],
     ['konten', 'Mitglieder & Konten', 'konten', 'verein'], ['app', 'Mitglieder-App', ['konten', 'app'], 'verein'], ['benutzer', 'Benutzer & Rechte', 'benutzer', 'verein'],
     ['sicherung', 'Datensicherung', 'einstellungen', 'verein'], ['protokoll', 'Protokoll', 'einstellungen', 'verein'], ['einstellungen', 'Einstellungen', null, 'verein'],
     ['konto', 'Mein Konto', null, 'konto'],   // erreichbar über den Benutzerchip, nicht im Menü
@@ -424,7 +425,9 @@
   };
   const icon = (k, sz = 18) => `<svg aria-hidden="true" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k] || ICO.modul}</svg>`;
   const PAGE_ICON = { uebersicht: 'uebersicht', beregnung: 'beregnung', zugang: 'zugang', zeit: 'zeit', konten: 'konten', app: 'app', benutzer: 'benutzer', sicherung: 'sicherung', protokoll: 'protokoll', einstellungen: 'einstellungen' };
-  const TAB_LABEL = { lieferungen: 'Lieferungen', bestand: 'Bestand', abrechnung: 'Abrechnung', deckel: 'Deckel', konten: 'Mitglieder' };
+  const TAB_LABEL = { lieferungen: 'Lieferungen', bestand: 'Bestand', abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen & Deckel', konten: 'Mitglieder' };
+  /* alte Adressen (Lesezeichen, Suche, Hinweise) führen an den neuen Ort */
+  const OLD_PAGE = { deckel: 'veranstaltungen', abgleich: 'bestand' };
   const GPAGES = g => PAGES.filter(x => x[3] === g && canAny(x[2]));
   const DRINKS = () => [...GPAGES('getraenke'), ...GPAGES('lager')];   // alle Seiten des Moduls Verkauf (auch „Lager“)
   const groupOf = p => { const x = PAGES.find(y => y[0] === p); return x && MODG[x[3]] ? x[3] : null; };
@@ -642,6 +645,7 @@
     const dd = dk && DETAIL[dk];
     let det = dd && dd.page === pk && did && canAny(dd.perm) ? { key: dk, id: did } : null;
     p = pk;
+    p = OLD_PAGE[p] || p;
     if (!RENDER[p] || !allowed(p)) { p = 'uebersicht'; det = null; }
     page = p; detailCur = det;
     history.replaceState(null, '', '#' + hashOf());
@@ -702,7 +706,7 @@
     const setB = (k, n, cls) => { const b = document.querySelector(`[data-badge="${k}"]`); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); if (cls) b.classList.add(cls); } };
     if (canAny(['veranstaltungen', 'uebernahme', 'abrechnung', 'export']) && (cache.modules || []).includes('getraenke')) {
       const t = await api('tabs?days=1').catch(() => ({ open: [] }));
-      badges.deckel = t.open.length;
+      badges.veranstaltungen = t.open.length;
     }
     if (can('konten')) badges.konten = (await api('members').catch(() => ({ rows: [] }))).rows.filter(m => m.pending).length;
     // Datensicherung: rot, wenn kein Sicherungspasswort gesetzt ist oder die letzte erfolgreiche Sicherung älter als 7 Tage ist (Status ist eine billige Abfrage)
@@ -817,7 +821,8 @@
       const i = PAGES.findIndex(x => x[0] === key); if (i < 0) return;
       const [p] = PAGES.splice(i, 1); p[3] = MODG[group] ? group : MODG['g-' + group] ? 'g-' + group : group;
       if (title) { p[1] = title; TAB_LABEL[key] = tab || title; }
-      const at = before ? PAGES.findIndex(x => x[0] === before) : -1;
+      const to = before || (p[3] === 'getraenke' ? 'auswertung' : null);   // Verkauf: Konten steht vor Auswertung und Einstellungen
+      const at = to ? PAGES.findIndex(x => x[0] === to) : -1;
       if (at >= 0) PAGES.splice(at, 0, p); else { const last = PAGES.map(x => x[3]).lastIndexOf(p[3]); PAGES.splice(last >= 0 ? last + 1 : PAGES.length, 0, p); }
     },
     /** Einträge für die Suche (Strg/⌘ K): registerSearch([{ label, page, tab, sec, seg, card, field, btn, words, perm, kind, in }]) – siehe Kommentar an SEARCH */
@@ -861,14 +866,12 @@
     { label: 'Leiste am Tablet (Reihenfolge, Start-Reiter)', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Reihenfolge Reiter Kopfzeile Start', perm: E, in: 'Tablet' },
     { label: 'Modul am Tablet zeigen oder ausblenden', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Beregnung Zugang Türen Tablet zeigen ausblenden Schalter Kopfzeile', perm: E, in: 'Tablet' },
     { label: 'Links in der Kopfzeile', page: E, sec: SET('tablet'), card: 'Links in der Kopfzeile', words: 'Link Kopfzeile Tablet', perm: E, in: 'Tablet' },
-    { label: 'Startseite am Tablet („Gerade oft hier“)', page: E, sec: SET('tablet'), card: 'Startseite am Tablet', words: 'Verkauf Startseite Namen', perm: E, in: 'Tablet' },
-    { label: 'Tablet & Home Assistant', page: E, sec: SET('tablet'), card: 'Tablet & Home Assistant', words: 'Home Assistant Tablet', perm: E, in: 'Tablet' },
+        { label: 'Tablet & Home Assistant', page: E, sec: SET('tablet'), card: 'Tablet & Home Assistant', words: 'Home Assistant Tablet', perm: E, in: 'Tablet' },
     { label: 'Module ein- und ausschalten', page: E, sec: SET('module'), card: 'Module & Erweiterungen', words: 'Modul Erweiterung einschalten ausschalten deinstallieren', perm: E, in: 'Module' },
     { label: 'Einstellungen eines Moduls exportieren oder importieren', page: E, sec: SET('module'), btn: 'Einstellungen exportieren', words: 'Export Import Einstellungen übertragen Modul', perm: E, kind: 'aktion', in: 'Module' },
     { label: 'Erweiterung einspielen (ZIP)', page: E, sec: SET('module'), btn: 'Erweiterung einspielen', words: 'Modul Erweiterung', perm: E, kind: 'aktion', in: 'Module' },
     { label: 'Übersetzung verbessern oder Sprache hinzufügen', page: E, sec: SET('sprache'), card: 'Sprachen', words: 'Übersetzung Sprache', perm: E, kind: 'aktion', in: 'Sprachen' },
-    { label: 'Gemerkte Zuordnungen von Lieferanten-Artikeln', page: E, sec: SET('getraenke'), card: 'Gemerkte Zuordnungen', words: 'Lieferant Artikel Lieferung Verkauf', perm: E, in: 'Verkauf' },
-    { label: 'Update von Clubwerk', page: E, sec: SET('update'), card: 'Update von Clubwerk', words: 'Update Version aktualisieren ZIP', perm: E, in: 'Update' },
+        { label: 'Update von Clubwerk', page: E, sec: SET('update'), card: 'Update von Clubwerk', words: 'Update Version aktualisieren ZIP', perm: E, in: 'Update' },
     { label: 'Mein Passwort ändern', page: 'konto', card: 'Mein Passwort', field: 'pwCur', words: 'Passwort Kennwort Konto', in: 'Mein Konto' },
     { label: 'Meine Sprache in diesem Browser', page: 'konto', card: 'Anzeige in diesem Browser', field: 'lgMine', words: 'Sprache Englisch', in: 'Mein Konto' },
     { label: 'Hell oder dunkel (Darstellung)', page: 'konto', card: 'Anzeige in diesem Browser', field: 'themeSel', words: 'Dunkel Hell Design Modus Darstellung Nachtmodus', in: 'Mein Konto' },
@@ -896,8 +899,14 @@
     { label: 'Rollen und Rechte', page: 'benutzer', tab: ['benutzer', 'rollen'], words: 'Rolle Rechte Berechtigung', kind: 'reiter', in: 'Rollen' },
     { label: 'Änderungsprotokoll', page: 'protokoll', words: 'Protokoll Verlauf geändert wer', kind: 'reiter' },
     { label: 'Artikel anlegen', page: 'artikel', btn: '+ Neuer Artikel', words: 'Getränk Artikel Preis', kind: 'aktion' },
-    { label: 'Artikel aus Excel importieren', page: 'artikel', btn: 'Excel importieren', words: 'Import Artikel Preise', kind: 'aktion' },
-    { label: 'Reihenfolge der Kategorien', page: 'artikel', btn: 'Reihenfolge der Kategorien', words: 'Kategorie Sortierung Artikel' },
+    { label: 'Artikel aus Excel importieren', page: 'artikel', btn: 'Import', words: 'Import Artikel Preise Excel', kind: 'aktion' },
+    { label: 'Artikel als Excel herunterladen', page: 'artikel', btn: 'Excel', words: 'Export Artikel Preise', kind: 'aktion' },
+    { label: 'Reihenfolge der Kategorien', page: 'vkeinst', card: 'Reihenfolge der Kategorien', words: 'Kategorie Sortierung Artikel Tablet', perm: 'artikel', in: 'Grundregeln' },
+    { label: 'Gemerkte Zuordnungen von Lieferanten-Artikeln', page: 'vkeinst', card: 'Gemerkte Zuordnungen', words: 'Lieferant Artikel Lieferung Beleg vergessen', perm: 'lieferungen', in: 'Grundregeln' },
+    { label: 'Startseite am Tablet („Gerade oft hier“)', page: 'vkeinst', card: 'Gerade oft hier', field: 'topN', words: 'Verkauf Startseite Namen Tablet häufig', perm: 'einstellungen', in: 'Tablet' },
+    { label: 'Einstellungen des Verkaufs exportieren oder importieren', page: 'vkeinst', card: 'Einstellungen übertragen', words: 'Export Import Einstellungen übertragen Verkauf', perm: 'einstellungen', kind: 'aktion', in: 'Einstellungen übertragen' },
+    { label: 'Abgleich Lieferungen und Buchungen', page: 'bestand', card: 'Abgleich', words: 'Schwund geliefert gebucht offen Inventur Differenz', in: 'Lager' },
+    { label: 'Gäste-Deckel bezahlen, übernehmen oder abschreiben', page: 'veranstaltungen', card: 'Offen', words: 'Deckel Gast bezahlen übernehmen abschreiben bar Karte', kind: 'aktion' },
     { label: 'Inventur', page: 'bestand', card: 'Aktueller Bestand', words: 'Inventur Zählung Bestand', kind: 'aktion' },
     { label: 'Bruch oder Korrektur buchen', page: 'bestand', card: 'Bruch oder Korrektur', words: 'Bruch Schwund Korrektur Bestand', kind: 'aktion' },
     { label: 'Lieferung erfassen (Beleg hochladen)', page: 'lieferungen', btn: 'Dateien wählen', words: 'Lieferung Rechnung Lieferschein Beleg', kind: 'aktion' },
@@ -905,9 +914,9 @@
     { label: 'Buchung nachtragen', page: 'buchungen', card: 'Nachtragen', words: 'Nachtragen Strich vergessen Buchung', kind: 'aktion' },
     { label: 'Verkauf per Lastschrift einziehen', page: 'abrechnung', btn: 'Per Lastschrift einziehen', words: 'Lastschrift SEPA Einzug Verkauf', kind: 'aktion' },
     { label: 'Betrag auf Konto buchen', page: 'abrechnung', btn: '+ Betrag auf Konto', words: 'Betrag Konto Essen buchen', kind: 'aktion' },
-    { label: 'Abrechnung als Excel', page: 'abrechnung', btn: 'Excel herunterladen', words: 'Export Excel Abrechnung Kassenprüfer', kind: 'aktion' },
+    { label: 'Abrechnung als Excel', page: 'abrechnung', btn: 'Excel', words: 'Export Excel Abrechnung Kassenprüfer', kind: 'aktion' },
     { label: 'Konto anlegen (Verkauf)', page: 'konten', btn: '+ Neues Konto', words: 'Konto PIN Mitglied anlegen', kind: 'aktion' },
-    { label: 'Konten aus Excel importieren', page: 'konten', btn: 'Excel importieren', words: 'Import Konten Liste', kind: 'aktion' },
+    { label: 'Konten aus Excel importieren', page: 'konten', btn: 'Import', words: 'Import Konten Liste', kind: 'aktion' },
     { label: 'Veranstaltung anlegen', page: 'veranstaltungen', card: 'Neue Veranstaltung', words: 'Veranstaltung Fest Feier Deckel', kind: 'aktion' },
   ]);
 
@@ -1217,9 +1226,9 @@
         <label class="f">Telefon für Rückfragen<input id="oPhone" value="${esc(st.order_phone)}"></label>
         <button class="btn" id="oSave">Merken</button></div></div>
       <div class="card"><h3>Was bestellen?</h3>
-        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Art.-Nr.</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th class="r">Gebinde</th></tr>
+        <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th>Art.-Nr.</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th class="r">Gebinde</th></tr>
         ${rows.map(r => `<tr class="${r.low ? '' : 'off'}"><td>${esc(r.name)} ${r.low ? '<span class="pill a">knapp</span>' : ''}<div class="muted s">${esc(r.supplier_text || '')}</div></td>
-          <td>${esc(r.art_no) || '<span class="muted s">–</span>'}</td><td class="r ${r.stock < 0 ? 'neg' : ''}">${num(r.stock)}</td><td class="r">${num(r.min_stock)}</td><td class="r">${num(r.target_stock)}</td>
+          <td>${esc(r.art_no)}</td><td class="r k-lbl ${r.stock < 0 ? 'neg' : ''}">${num(r.stock)}</td><td class="r k-weg">${num(r.min_stock)}</td><td class="r k-weg">${num(r.target_stock)}</td>
           <td class="r"><input class="n" data-o="${r.id}" value="${r.suggest || ''}" inputmode="numeric" placeholder="0"></td></tr>`).join('')}</table></div>
         <p class="muted s">Mindestbestand und „bestellen bis“ stellt man unter „Artikel“ ein. Die Artikelnummern kommen automatisch aus den hochgeladenen Rechnungen.</p></div>
       <div class="card"><h3>E-Mail</h3>
@@ -1277,7 +1286,7 @@
       <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
       <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
         <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
-        <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Soll (Stück)</th><th class="r hide-md">Soll in Gebinden</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">Gezählt: Stück</th></tr>
+        <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Soll (Stück)</th><th class="r hide-md">Soll in Gebinden</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">Gezählt: Stück</th></tr>
         ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted hide-md">${esc(s.category)}</td>
           <td class="r ${s.stock < 0 ? 'neg' : ''}">${num(s.stock)}</td>
           <td class="r muted hide-md">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : '–'}</td>
@@ -1293,7 +1302,9 @@
           <label class="f" style="flex:1;min-width:160px">Notiz<input id="mvNote"></label>
           <button class="btn" id="mvSave">Buchen</button></div></div>
       <div class="card"><h3>Letzte Bestandsänderungen</h3>${moves.length ? `<table class="tbl"><tr><th>Datum</th><th>Artikel</th><th>Grund</th><th class="r">Einzelartikel</th><th>Notiz</th></tr>
-        ${moves.map(m => `<tr><td>${deDate(m.date)}</td><td>${esc(m.name)}</td><td>${esc(m.reason)}</td><td class="r ${m.qty < 0 ? 'neg' : ''}">${num(m.qty)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Bestandsänderungen.</p>'}</div>`;
+        ${moves.map(m => `<tr><td>${deDate(m.date)}</td><td>${esc(m.name)}</td><td>${esc(m.reason)}</td><td class="r ${m.qty < 0 ? 'neg' : ''}">${num(m.qty)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Bestandsänderungen.</p>'}</div>
+      <div class="card" id="abglCard"></div>`;
+    abgleichCard($('abglCard')).catch(e => { if ($('abglCard')) $('abglCard').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; });
 
     $('saveInv').onclick = async () => {
       const counts = [];
@@ -1324,18 +1335,19 @@
     };
   };
 
-  /* =================== Abgleich =================== */
-  RENDER.abgleich = async (from, to) => {
+  /* =================== Abgleich (Karte unter „Bestand“) =================== */
+  async function abgleichCard(el, from, to) {
     const r = await api(`shrinkage?from=${from || new Date().getFullYear() + '-01-01'}&to=${to || today()}`);
     const sum = k => r.rows.reduce((s, x) => s + (x[k] || 0), 0);
-    $('main').innerHTML = `<h2 class="page">Abgleich Lieferungen ↔ Buchungen</h2>
-      <p class="lead">Was ist geliefert worden, was wurde gebucht? „Offen“ ist entweder noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
+    el.innerHTML = `<h3>Abgleich Lieferungen ↔ Buchungen</h3>
+      <p class="muted s" style="margin-top:0">Was ist geliefert, was gebucht worden? „Offen“ ist noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
       ${rangeBar(r.from, r.to)}
-      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r">Verein frei</th><th class="r">Gast bar</th><th class="r">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
-      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted hide-md">${esc(x.category)}</td><td class="r">${num(x.delivered)}</td><td class="r">${num(x.konto)}</td><td class="r">${num(x.verein)}</td><td class="r">${num(x.gast)}</td><td class="r">${num(x.event)}</td><td class="r">${num(x.bruch + x.korrektur)}</td><td class="r">${num(x.open)}</td><td class="r ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
-      <tr class="sum"><td colspan="2">Summe</td><td class="r">${num(sum('delivered'))}</td><td class="r">${num(sum('konto'))}</td><td class="r">${num(sum('verein'))}</td><td class="r">${num(sum('gast'))}</td><td class="r">${num(sum('event'))}</td><td class="r">${num(sum('bruch') + sum('korrektur'))}</td><td class="r">${num(sum('open'))}</td><td class="r">${num(sum('inventur'))}</td><td class="r">${euro(sum('shrink_cents'))}</td></tr></table></div>`;
-    bindRange('rng', (f, t) => RENDER.abgleich(f, t).catch(fail));
-  };
+      ${r.rows.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r">Verein frei</th><th class="r">Gast bar</th><th class="r">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted hide-md">${esc(x.category)}</td><td class="r k-lbl">${num(x.delivered)}</td><td class="r k-weg">${num(x.konto)}</td><td class="r k-weg">${num(x.verein)}</td><td class="r k-weg">${num(x.gast)}</td><td class="r k-weg">${num(x.event)}</td><td class="r k-weg">${num(x.bruch + x.korrektur)}</td><td class="r k-lbl">${num(x.open)}</td><td class="r k-weg ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r k-lbl ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
+      <tr class="sum"><td colspan="2">Summe</td><td class="r">${num(sum('delivered'))}</td><td class="r">${num(sum('konto'))}</td><td class="r">${num(sum('verein'))}</td><td class="r">${num(sum('gast'))}</td><td class="r">${num(sum('event'))}</td><td class="r">${num(sum('bruch') + sum('korrektur'))}</td><td class="r">${num(sum('open'))}</td><td class="r">${num(sum('inventur'))}</td><td class="r">${euro(sum('shrink_cents'))}</td></tr></table></div>`
+        : '<p class="empty">Noch keine Lieferungen oder Buchungen im Zeitraum.</p>'}`;
+    bindRange('rng', (f, t) => abgleichCard(el, f, t).catch(fail));
+  }
 
   /* =================== Buchungen =================== */
   function openLog(memberId) {
@@ -1364,12 +1376,12 @@
         <label class="f hidden" id="nbNoteL">Wofür?<input id="nbNote" placeholder="z. B. Startgeld" maxlength="60"></label>
         <label class="f">Datum<input type="date" id="nbDate" value="${today()}"></label>
         <button class="btn" id="nbSave">Nachtragen</button></div></div>
-      <div class="scroll"><table class="tbl" id="buTbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
+      <div class="scroll"><table class="tbl kompakt" id="buTbl"><tr><th>Zeit</th><th>Konto</th><th>Art</th><th>Artikel</th><th class="r">Menge</th><th class="r">Betrag</th><th></th></tr>
       ${moreRows(r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member_kind ? lastFirst(b.member, b.member_kind) : b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s">${esc(b.event)}</div>` : ''}</td>
         <td><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
           : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
-          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
-        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`), 7) || '<tr><td colspan="7" class="muted">Keine Buchungen im Zeitraum.</td></tr>'}</table></div>`;
+          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r k-lbl">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
+        <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`), 7) }</table></div>${r.rows.length ? '' : '<p class="empty">Keine Buchungen im Zeitraum.</p>'}`;
     bindRange('rng', (f, t) => RENDER.buchungen(f, t, $('bMem').value).catch(fail));
     $('bMem').onchange = () => RENDER.buchungen(r.from, r.to, $('bMem').value).catch(fail);
     $('nbArt').onchange = () => { const amt = $('nbArt').value === '__betrag'; $('nbQtyL').classList.toggle('hidden', amt); $('nbAmtL').classList.toggle('hidden', !amt); $('nbNoteL').classList.toggle('hidden', !amt); };
@@ -1632,8 +1644,17 @@
     // Einzug per Lastschrift gibt es nur mit der Mitgliederverwaltung (deren Verwaltungsseite stellt GK.drinksCollect bereit)
     const sepa = GK.drinksCollect && (cache.modules || []).includes('mitglieder') && can('mitglieder_finanzen');
     $('main').innerHTML = `<h2 class="page">Abrechnung & Export</h2>
-      <p class="lead">Ablauf für den Kassierer: <b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
-        <b>3.</b> hier einzelne oder alle Konten als <b>abgerechnet</b> markieren – ihr offener Betrag steht danach auf 0. Erfasst wird genau der Stand der Liste (${stand} Uhr); was danach am Tablet gebucht wird, bleibt für die nächste Abrechnung offen.</p>
+      <p class="lead">Liste holen, in der Vereinsverwaltung abbuchen, hier als abgerechnet markieren.</p>
+      <div class="toolbar">
+        <button class="btn ghost" id="reload">Liste aktualisieren</button>
+        ${can('buchungen') ? '<button class="btn" id="addAmt">+ Betrag auf Konto</button>' : ''}
+        ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste</button>' : ''}
+        ${mayClose ? (r.rows.length ? '<button class="btn" id="settleAll">Alle als abgerechnet markieren</button>' : '')
+          : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
+        <a class="btn ${sepa ? '' : 'primary'}" href="${xls}">Excel</a>
+      </div>
+      <details class="howto" style="margin-bottom:14px"><summary>So geht's</summary><p class="muted s" style="margin:8px 0 0"><b>1.</b> Excel herunterladen oder die <b>Abtippliste</b> öffnen (nach Nachnamen sortiert, mit fertigem Buchungstext, zum Abhaken oder Ausdrucken) · <b>2.</b> in der Vereinsverwaltung bei den Mitgliedern abbuchen ·
+        <b>3.</b> hier einzelne oder alle Konten als <b>abgerechnet</b> markieren – ihr offener Betrag steht danach auf 0. Erfasst wird genau der Stand der Liste (${stand} Uhr); was danach am Tablet gebucht wird, bleibt für die nächste Abrechnung offen.</p></details>
       ${r.eventOpen.length ? `<div class="banner r" style="margin-bottom:14px">Auf ${r.eventOpen.length === 1 ? 'der Liste' : 'den Listen'} ${r.eventOpen.map(e => `„${esc(e.name)}“ (${euro(e.c)})`).join(', ')} haben Mitglieder noch offene Beträge.
         Diese erscheinen hier erst, wenn der Kassierer sie unter „Veranstaltungen“ auf die Konten übernimmt – am besten vor dem Export.</div>` : ''}
       <div class="kpis">
@@ -1645,20 +1666,12 @@
       ${sepa ? `<div class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between;align-items:center">
         <div style="flex:1 1 260px;min-width:0"><h3 style="margin:0 0 4px">Per Lastschrift einziehen</h3><p class="muted s" style="margin:0">Alle Mitglieder mit Mandat in einem Schritt bis zur SEPA-Datei, getrennt von den Beiträgen. Die Konten werden dabei als abgerechnet markiert; Mannschaften und Konten ohne Mandat bleiben offen.</p></div>
         <button class="btn primary" id="sepaGo">Per Lastschrift einziehen …</button></div></div>` : ''}
-      <div class="toolbar">
-        <button class="btn ghost" id="reload">Liste aktualisieren</button>
-        ${can('buchungen') ? '<button class="btn" id="addAmt">+ Betrag auf Konto</button>' : ''}
-        ${r.rows.length ? '<button class="btn" id="abtipp">Abtippliste</button>' : ''}
-        ${mayClose ? (r.rows.length ? '<button class="btn" id="settleAll">Alle als abgerechnet markieren</button>' : '')
-          : '<span class="muted s" style="align-self:center">Als abgerechnet markieren darf nur, wer das Recht „Abrechnung“ hat.</span>'}
-        <a class="btn primary" href="${xls}">Excel herunterladen</a>
-      </div>
-      <div class="scroll"><table class="tbl" id="abTbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
+      <div class="scroll"><table class="tbl kompakt" id="abTbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
         ${moreRows(r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
-          <td>${deDate(x.since.slice(0, 10))}</td>${cats.map(c => `<td class="r">${x.byCategory[c] || ''}</td>`).join('')}<td class="r">${euro(x.total_cents)}</td>
+          <td>${deDate(x.since.slice(0, 10))}</td>${cats.map(c => `<td class="r k-lbl">${x.byCategory[c] || ''}</td>`).join('')}<td class="r">${euro(x.total_cents)}</td>
           ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`), cats.length + 3 + (mayClose ? 1 : 0))
-          || `<tr><td class="muted" colspan="${cats.length + 3 + (mayClose ? 1 : 0)}">Keine offenen Beträge – alles abgerechnet.</td></tr>`}
-        ${r.rows.length ? `<tr class="sum"><td>Summe</td><td></td>${cats.map(c => `<td class="r">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>
+          || ''}
+        ${r.rows.length ? `<tr class="sum"><td>Summe</td><td></td>${cats.map(c => `<td class="r k-weg">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>${r.rows.length ? '' : '<p class="empty">Keine offenen Beträge – alles abgerechnet.</p>'}
       ${(r.mvOpen || []).length ? `<div class="card" style="margin-top:16px"><h3>Offene Verkaufs-Posten in der Mitgliederverwaltung <span class="muted s">${r.mvOpen.length} · ${euro(r.mvOpen.reduce((a, c) => a + c.cents, 0))}</span></h3>
         <p class="muted s" style="margin-top:0">Schon abgerechnet oder von Hand angelegt, aber noch nicht bezahlt – sie kommen mit dem nächsten Einzug per Lastschrift mit.</p>
         <div class="scroll"><table class="tbl"><tr><th>Zahler</th><th>Posten</th><th>fällig</th><th class="r">Betrag</th></tr>
@@ -1704,9 +1717,8 @@
     });
   };
 
-  /* =================== Veranstaltungen =================== */
-  /* =================== Gäste-Deckel =================== */
-  RENDER.deckel = async () => {
+  /* =================== Gäste-Deckel (Abschnitt unter „Veranstaltungen & Deckel“) =================== */
+  async function deckelSection(box) {
     const [r] = await Promise.all([api('tabs?days=30'), cache.members ? null : loadMembers()]);
     const mayPay = can('veranstaltungen') || can('uebernahme'), mayClose = can('uebernahme');
     const day = 86400000, now = Date.now();
@@ -1716,8 +1728,8 @@
     const old = r.open.filter(t => age(t) >= 1).length;
     const ST = { bezahlt: t => `<span class="pill g">${t.method === 'karte' ? 'Karte' : 'bar'} bezahlt</span>`, uebernommen: t => `<span class="pill b">übernommen${t.member ? ': ' + esc(lastFirst(t.member, t.member_kind)) : ''}</span>`,
       abgeschrieben: t => `<span class="pill r">abgeschrieben</span>${t.note ? `<div class="muted s">${esc(t.note)}</div>` : ''}` };
-    $('main').innerHTML = `<h2 class="page">Gäste-Deckel</h2>
-      <p class="lead">Gäste und gegnerische Mannschaften schreiben am Tablet auf einen Deckel an und zahlen vor der Heimfahrt – das Thekenpersonal tippt dort auf „Bezahlen“ (bar oder Karte). Hier siehst du, was noch offen ist; vergessene Deckel können nachträglich abgehakt${mayClose ? ', auf ein Konto übernommen oder abgeschrieben' : ''} werden.</p>
+    box.innerHTML = `<h2 class="sec">Gäste-Deckel</h2>
+      <p class="lead">Gäste schreiben am Tablet an und zahlen vor der Heimfahrt. Hier siehst du, was offen ist${mayClose ? ' und was nachträglich abgehakt, übernommen oder abgeschrieben werden kann' : ''}.</p>
       <div class="kpis">
         <div class="kpi"><div class="l">Offene Deckel</div><div class="v">${r.open.length}</div></div>
         <div class="kpi"><div class="l">Noch offen</div><div class="v">${euro(openSum)}</div></div>
@@ -1739,18 +1751,18 @@
           <td class="r">${t.status === 'bezahlt' && mayPay ? `<button class="btn small" data-tr="${t.id}">Wieder öffnen</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="muted">In diesem Zeitraum nichts geschlossen.</p>'}</div>`;
     const find = id => r.open.find(t => t.id === Number(id)) || r.closed.find(t => t.id === Number(id));
-    const done = msg => { toast(msg); refreshBadges(); RENDER.deckel(); };
-    $('main').querySelectorAll('[data-tp]').forEach(b => b.onclick = async () => {
+    const done = msg => { toast(msg); refreshBadges(); deckelSection(box); };
+    box.querySelectorAll('[data-tp]').forEach(b => b.onclick = async () => {
       const t = find(b.dataset.tp);
       if (!await ask(`„${t.name}“: ${euro(t.open_cents)} ${b.dataset.m === 'karte' ? 'mit Karte' : 'bar'} bezahlt?`)) return;
       try { await api(`tabs/${t.id}/pay`, 'POST', { method: b.dataset.m }); done('Als bezahlt abgehakt.'); } catch (e) { fail(e); }
     });
-    $('main').querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => {
+    box.querySelectorAll('[data-tr]').forEach(b => b.onclick = async () => {
       const t = find(b.dataset.tr);
       if (!await ask(`Zahlung von „${t.name}“ (${euro(t.cents)}) zurücknehmen? Der Deckel ist danach wieder offen.`)) return;
       try { await api(`tabs/${t.id}/reopen`, 'POST', {}); done('Deckel wieder geöffnet.'); } catch (e) { fail(e); }
     });
-    $('main').querySelectorAll('[data-tt]').forEach(b => b.onclick = () => {
+    box.querySelectorAll('[data-tt]').forEach(b => b.onclick = () => {
       const t = find(b.dataset.tt);
       const people = cache.members.filter(m => m.active && !m.pending && (isPerson(m.kind) || m.kind === 'mannschaft'))
         .sort((a, c) => (a.kind === c.kind ? 0 : a.kind === 'mannschaft' ? -1 : 1));   // innerhalb: Reihenfolge vom Server (nach Nachname)
@@ -1763,7 +1775,7 @@
         try { await api(`tabs/${t.id}/transfer`, 'POST', { memberId: Number($('ttM').value) }); closeDialog(); done('Auf das Konto übernommen.'); } catch (e) { fail(e); }
       });
     });
-    $('main').querySelectorAll('[data-tw]').forEach(b => b.onclick = () => {
+    box.querySelectorAll('[data-tw]').forEach(b => b.onclick = () => {
       const t = find(b.dataset.tw);
       dialog(`<h2>Deckel abschreiben</h2>
         <p class="muted">„${esc(t.name)}“ über ${euro(t.open_cents)} wird nicht mehr kassiert. Die Artikel zählen als kostenfrei (Bestand stimmt weiter), die Begründung steht im Protokoll.</p>
@@ -1774,10 +1786,11 @@
         try { await api(`tabs/${t.id}/writeoff`, 'POST', { note: $('twN').value }); closeDialog(); done('Abgeschrieben.'); } catch (e) { fail(e); }
       });
     });
-  };
+  }
 
   RENDER.veranstaltungen = async (keep = {}) => {
-    const [list, people] = await Promise.all([api('events'), api('event-members'), loadArticles()]);
+    const showEv = canAny(['veranstaltungen', 'uebernahme']);   // wer nur abrechnen darf, sieht hier nur die Deckel
+    const [list, people] = showEv ? await Promise.all([api('events'), api('event-members'), loadArticles()]) : [[], []];
     const canEv = can('veranstaltungen'), canTr = can('uebernahme');
     const filt = keep.filter || {};
     const STATUS = g => {
@@ -1802,14 +1815,14 @@
         <td class="r" style="white-space:nowrap">${btns.join(' ')}</td></tr>`;
     };
     $('main').innerHTML = `<h2 class="page">Veranstaltungen</h2>
-      <p class="lead">Jede Veranstaltung hat eine eigene Artikelliste mit eigenen Preisen und eine eigene <b>Abrechnungsliste</b>. Am Tablet tragen sich die Leute ein (aus der Mitgliederliste oder frei) und schreiben den Tag über an. Wer am Ende bar oder mit Karte zahlt, wird hier als „bezahlt“ abgehakt. Was offen bleibt, übernimmt der Kassierer per Knopf auf die Getränkeliste.</p>
-      ${canEv ? `<div class="card"><h3>Neue Veranstaltung</h3><div class="row">
+      <p class="lead">Jede Veranstaltung hat eigene Preise und eine Abrechnungsliste: Am Tablet tragen sich die Leute ein, bezahlt wird hier abgehakt.</p>
+      ${showEv ? `${canEv ? `<div class="card"><h3>Neue Veranstaltung</h3><div class="row">
         <label class="f" style="flex:1;min-width:220px">Name<input id="evName" placeholder="z. B. Löffelcup 2027"></label>
         <label class="f">Datum<input type="date" id="evDate" value="${today()}"></label>
         <label class="f">Artikel & Preise übernehmen von<select id="evCopy"><option value="">alle Artikel zum Normalpreis</option>${list.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></label>
         <button class="btn primary" id="evAdd">Anlegen</button></div></div>` : ''}
       <datalist id="peopleList">${people.map(m => `<option value="${esc(m.name)}">`).join('')}</datalist>
-      ${list.length ? '' : '<div class="card muted">Noch keine Veranstaltung angelegt.</div>'}
+      ${list.length ? '' : '<p class="empty">Noch keine Veranstaltung – oben Namen und Datum eintragen und „Anlegen“ tippen.</p>'}
       ${list.map(e => {
         const st = e.closed_at ? '<span class="pill">Kasse abgeschlossen</span>' : e.active ? '<span class="pill a">aktiv – Tablet bucht auf diese Liste</span>' : '<span class="pill b">nicht aktiv</span>';
         const f = filt[e.id] || 'alle';
@@ -1849,7 +1862,9 @@
           <table class="tbl" style="margin-top:6px"><tr><th>Artikel</th><th class="r">Menge</th><th class="r">Umsatz</th><th class="r">Verein frei</th></tr>
           ${e.items.map(i => `<tr><td>${esc(i.name)}</td><td class="r">${i.qty}</td><td class="r">${euro(i.total_cents)}</td><td class="r">${i.free_qty || ''}</td></tr>`).join('') || '<tr><td class="muted" colspan="4">Noch nichts gebucht.</td></tr>'}</table></details>
         </div>`;
-      }).join('')}`;
+      }).join('')}` : ''}
+      <div id="deckelBox"></div>`;
+    if (canAny(['veranstaltungen', 'uebernahme', 'abrechnung', 'export'])) deckelSection($('deckelBox')).catch(e => { if ($('deckelBox')) $('deckelBox').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; });
     const again = () => RENDER.veranstaltungen({ filter: filt });
     if ($('evAdd')) $('evAdd').onclick = () => busy($('evAdd'), async () => { try { await api('events', 'POST', { name: $('evName').value, date: $('evDate').value, copyFrom: $('evCopy').value || null }); toast('Angelegt – jetzt Getränke & Preise prüfen und aktivieren.'); again(); } catch (e) { fail(e); } });
     const act = (sel, fn) => $('main').querySelectorAll(sel).forEach(b => b.onclick = () => Promise.resolve(fn(b)).then(r => { if (r !== false) again(); }).catch(fail));
@@ -2050,34 +2065,14 @@
   RENDER.artikel = async () => {
     await loadArticles();
     $('main').innerHTML = `<h2 class="page">Artikel</h2>
-      <p class="lead">Die <b>Kategorie</b> bestimmt, wie Artikel in der Abrechnung zusammengefasst werden (wie die Spalten der bisherigen Strichliste). Die Reihenfolge der Kategorien legst du unter „Reihenfolge der Kategorien“ fest – so erscheinen sie am Tablet und in allen Listen; innerhalb einer Kategorie wird alphabetisch sortiert.</p>
+      <p class="lead">Die <b>Kategorie</b> fasst Artikel in der Abrechnung zusammen. Ihre Reihenfolge stellst du unter Verkauf › Einstellungen ein.</p>
       <div class="toolbar"><button class="btn primary" id="new">+ Neuer Artikel</button>
-        <button class="btn ghost" id="catOrd">Reihenfolge der Kategorien …</button>
-        <button class="btn ghost" id="aImp">Excel importieren …</button><a class="btn ghost" href="api/admin/articles/export.xlsx">Als Excel herunterladen</a></div>
-      <div class="scroll"><table class="tbl"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r hide-md">Gebinde</th><th class="r">Bestand</th><th class="r hide-md">Mindest</th><th class="r hide-md">bestellen bis</th><th>Status</th><th></th></tr>
+        <button class="btn ghost" id="aImp">Import …</button><a class="btn ghost" href="api/admin/articles/export.xlsx">Excel</a></div>
+      <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th>Kategorie</th><th class="r">Preis</th><th class="r hide-md">Gebinde</th><th class="r">Bestand</th><th class="r hide-md">Mindest</th><th class="r hide-md">bestellen bis</th><th>Status</th><th></th></tr>
       ${cache.articles.map(a => `<tr class="${a.active ? '' : 'off'}"><td><span class="art">${artTile(a)}<span>${esc(a.name)}</span></span></td><td>${esc(a.category)}</td><td class="r">${euro(a.price_cents)}</td><td class="r hide-md">${a.crate_size}</td>
-        <td class="r">${a.track_stock ? num(a.stock) : '–'}</td><td class="r hide-md">${a.track_stock ? num(a.min_stock) : ''}</td><td class="r hide-md">${a.track_stock && a.target_stock ? num(a.target_stock) : ''}</td><td>${a.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</td>
-        <td class="r"><button class="btn small" data-e="${a.id}">Bearbeiten</button></td></tr>`).join('')}</table></div>`;
+        <td class="r k-lbl">${a.track_stock ? num(a.stock) : ''}</td><td class="r hide-md">${a.track_stock ? num(a.min_stock) : ''}</td><td class="r hide-md">${a.track_stock && a.target_stock ? num(a.target_stock) : ''}</td><td>${a.active ? '<span class="pill g">aktiv</span>' : '<span class="pill">ausgeblendet</span>'}</td>
+        <td class="r"><button class="btn small" data-e="${a.id}">Bearbeiten</button></td></tr>`).join('')}</table></div>${cache.articles.length ? '' : '<p class="empty">Noch keine Artikel – oben „+ Neuer Artikel“ anlegen oder mit „Import …“ aus Excel einlesen.</p>'}`;
     $('new').onclick = async () => { if (await articleDialog(null)) RENDER.artikel(); };
-    $('catOrd').onclick = async () => {
-      let cats = (await api('categories')).map(c => ({ name: c.category, n: c.n, act: c.act }));
-      const draw = () => {
-        dialog(`<h2>Reihenfolge der Kategorien</h2>
-          <p class="muted" style="margin-top:0">So erscheinen die Kategorien am Tablet (von oben links nach unten rechts) und in Bestand, Abrechnung und Exporten. Die Artikel innerhalb einer Kategorie stehen alphabetisch.</p>
-          <table class="tbl" id="coTbl">${cats.map((c, i) => `<tr><td class="r" style="width:44px">${i + 1}.</td><td><b>${esc(c.name)}</b> <span class="muted s">${c.n} Artikel${c.act < c.n ? `, ${c.n - c.act} ausgeblendet` : ''}</span></td>
-            <td class="r" style="white-space:nowrap;width:120px"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben" style="width:46px;justify-content:center">▲</button>
-              <button class="btn small" data-dn="${i}" ${i < cats.length - 1 ? '' : 'disabled'} aria-label="nach unten" style="width:46px;justify-content:center">▼</button></td></tr>`).join('')}</table>
-          <div class="btns"><button class="btn ghost" id="coAlpha" style="margin-right:auto">Alphabetisch</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`);
-        $('coTbl').querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [cats[i - 1], cats[i]] = [cats[i], cats[i - 1]]; draw(); });
-        $('coTbl').querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const i = +b.dataset.dn; [cats[i + 1], cats[i]] = [cats[i], cats[i + 1]]; draw(); });
-        $('coAlpha').onclick = () => { cats.sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })); draw(); };
-        $('c').onclick = closeDialog;
-        $('ok').onclick = () => busy($('ok'), async () => {
-          try { await api('categories/order', 'PUT', { order: cats.map(c => c.name) }); closeDialog(); toast('Reihenfolge gespeichert – Tablets übernehmen sie beim nächsten Laden.'); RENDER.artikel(); } catch (e) { fail(e); }
-        });
-      };
-      draw();
-    };
     $('aImp').onclick = () => {
       dialog(`<h2>Artikel aus Excel importieren</h2>
         <p class="muted">Spalten <b>Artikel</b>, <b>Kategorie</b>, <b>Preis</b>, optional <b>ID</b>, <b>Gebinde</b>, <b>Bestand führen</b>, <b>Mindestbestand</b>, <b>Bestellen bis</b>, <b>Aktiv</b>.
@@ -2141,6 +2136,57 @@
     });
   };
 
+  /* =================== Verkauf › Einstellungen =================== */
+  /* Karten nach 3.1: Grundregeln (Kategorien, Zuordnungen) · Tablet („Gerade oft hier“) · Einstellungen übertragen – jede Karte nur mit dem Recht, das der Server dafür verlangt */
+  RENDER.vkeinst = async () => {
+    const mayTop = can('einstellungen'), mayMap = can('lieferungen'), mayCat = can('artikel');
+    const [st, map, cats] = await Promise.all([api('settings'), mayMap ? api('supplier-map') : null, mayCat ? api('categories') : null]);
+    $('main').innerHTML = `<h2 class="page">Einstellungen</h2><p class="lead">Regeln für Artikel, Lieferungen und die Startseite am Tablet.</p>
+      ${mayCat ? '<div class="card" id="vkCat"></div>' : ''}
+      ${mayMap ? '<div class="card" id="vkMap"></div>' : ''}
+      ${mayTop ? `<div class="card" id="vkTop"><h3>Gerade oft hier am Tablet</h3>
+        <div class="row"><label class="f" style="flex:1;min-width:200px">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${st.topN}" inputmode="numeric"></label>
+          <label class="f" style="flex:1;min-width:200px">Zeitraum (Tage)<input id="topDays" class="n" value="${st.topDays}" inputmode="numeric"></label></div>
+        <p class="muted s">Oben auf der Startseite stehen die Mitglieder mit den meisten Buchungen im Zeitraum – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p>
+        <div class="btns"><button class="btn primary" id="saveTop">Speichern</button></div></div>` : ''}
+      ${mayTop ? '<div id="vkFunc"></div>' : ''}`;
+    if (mayCat) {
+      const el = $('vkCat'); let list = cats.map(c => ({ name: c.category, n: c.n, act: c.act }));
+      const draw = () => {
+        el.innerHTML = `<h3>Reihenfolge der Kategorien</h3>
+          <p class="muted s" style="margin-top:0">So erscheinen die Kategorien am Tablet (von oben links nach unten rechts) und in Bestand, Abrechnung und Exporten. Die Artikel innerhalb einer Kategorie stehen alphabetisch.</p>
+          ${list.length ? `<table class="tbl kompakt" id="coTbl">${list.map((c, i) => `<tr><td>${i + 1}. <b>${esc(c.name)}</b> <span class="muted s">${c.n} Artikel${c.act < c.n ? `, ${c.n - c.act} ausgeblendet` : ''}</span></td>
+            <td class="r" style="white-space:nowrap"><button class="btn small" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben" style="width:46px;justify-content:center">▲</button>
+              <button class="btn small" data-dn="${i}" ${i < list.length - 1 ? '' : 'disabled'} aria-label="nach unten" style="width:46px;justify-content:center">▼</button></td></tr>`).join('')}</table>`
+            : '<p class="empty">Noch keine Artikel – die Kategorien entstehen mit dem ersten Artikel.</p>'}
+          <div class="btns"><button class="btn ghost" id="coAlpha" style="margin-right:auto">Alphabetisch</button><button class="btn primary" id="coSave" ${list.length ? '' : 'disabled'}>Speichern</button></div>`;
+        el.querySelectorAll('[data-up]').forEach(b => b.onclick = () => { const i = +b.dataset.up; [list[i - 1], list[i]] = [list[i], list[i - 1]]; draw(); });
+        el.querySelectorAll('[data-dn]').forEach(b => b.onclick = () => { const i = +b.dataset.dn; [list[i + 1], list[i]] = [list[i], list[i + 1]]; draw(); });
+        $('coAlpha').onclick = () => { list.sort((a, b) => a.name.localeCompare(b.name, 'de', { sensitivity: 'base' })); draw(); };
+        $('coSave').onclick = () => busy($('coSave'), async () => {
+          try { await api('categories/order', 'PUT', { order: list.map(c => c.name) }); toast('Reihenfolge gespeichert – Tablets übernehmen sie beim nächsten Laden.'); } catch (e) { fail(e); }
+        });
+      };
+      draw();
+    }
+    if (mayMap) {
+      $('vkMap').innerHTML = `<h3>Gemerkte Zuordnungen von Lieferanten-Artikeln</h3>
+        <p class="muted s" style="margin-top:0">Clubwerk merkt sich, welcher Artikel auf dem Beleg zu welchem Artikel in der App gehört. „Vergessen“ löscht nur die Zuordnung.</p>
+        ${map.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
+          ${map.map(m => `<tr><td>${esc(m.supplier)}</td><td>${/^lidl:/.test(m.art_no) ? '' : esc(m.art_no)}</td><td class="k-weg">${esc(m.text || '')}</td><td>${m.article_id ? esc(m.article) : '<span class="muted">ignoriert</span>'}</td><td class="r k-lbl">${m.pack_size}</td>
+            <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="empty">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload unter Lager › Lieferungen.</p>'}`;
+      $('vkMap').querySelectorAll('[data-sup]').forEach(b => b.onclick = async () => {
+        await api('supplier-map', 'DELETE', { supplier: b.dataset.sup, artNo: b.dataset.no }).catch(fail); RENDER.vkeinst();
+      });
+    }
+    if (mayTop) {
+      $('saveTop').onclick = async () => {
+        try { await api('settings', 'PUT', { topN: $('topN').value, topDays: $('topDays').value }); toast('Gespeichert.'); } catch (e) { fail(e); }
+      };
+      funcBox($('vkFunc'), 'getraenke', 'Verkauf', () => RENDER.vkeinst().catch(fail));
+    }
+  };
+
   /* =================== Konten =================== */
   RENDER.konten = async () => {
     await loadMembers();
@@ -2154,7 +2200,7 @@
     const absentOpen = m => m.balance_cents || m.eventOpen_cents;
     const asKonten = Boolean(groupOf('konten'));
     $('main').innerHTML = `<h2 class="page">${asKonten ? 'Konten & PINs' : 'Mitglieder & Konten'}</h2>
-      <p class="lead">${asKonten ? 'Konten für den Verkauf am Tablet: offene Beträge, PINs, Mannschaften und Sonderkonten. Wer sich am Tablet neu einträgt, wird hier bestätigt oder mit einem vorhandenen Mitglied zusammengeführt. Die Vereinsdaten der Mitglieder stehen unter „Mitglieder“.' : 'Neue Mitglieder können sich am Tablet selbst eintragen und sofort buchen. Hier bestätigt ein Admin den Eintrag – oder führt ihn mit einem vorhandenen Konto zusammen, falls jemand doppelt angelegt wurde.'}</p>
+      <p class="lead">${asKonten ? 'Konten für den Verkauf am Tablet: offene Beträge, PINs, Mannschaften, Sonderkonten. Neue Einträge vom Tablet bestätigst du hier.' : 'Neue Mitglieder tragen sich am Tablet selbst ein. Hier bestätigst du den Eintrag oder führst ihn mit einem vorhandenen Konto zusammen.'}</p>
       ${pending.length ? `<div class="card warnbox"><h3>Neu am Tablet eingetragen – bitte prüfen (${pending.length})</h3>
         <table class="tbl"><tr><th>Name (anpassbar)</th><th>eingetragen</th><th class="r">Buchungen</th><th></th></tr>
         ${pending.map(m => `<tr><td><input data-pn="${m.id}" value="${esc(m.name)}" style="min-width:220px"></td><td>${deTime(m.created_at)}</td><td class="r">${m.bookings}</td>
@@ -2170,7 +2216,7 @@
           ${absent.map(m => `<tr><td>${pName(m)}</td><td>${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : '<span class="muted">nie</span>'}</td><td>${deDate(m.created_at.slice(0, 10))}</td>
             <td class="r">${absentOpen(m) ? euro((m.balance_cents || 0) + (m.eventOpen_cents || 0)) : ''}</td>
             <td class="r">${absentOpen(m) ? '<span class="muted s">erst abrechnen</span>' : `<button class="btn small danger" data-abrm="${m.id}">${m.bookings ? 'Ausblenden' : 'Entfernen'}</button>`}</td></tr>`).join('')}</table>` : ''}</div>` : ''}
-      <div class="toolbar"><button class="btn primary" id="mNew">${asKonten ? '+ Neues Konto' : '+ Neues Mitglied'}</button><button class="btn ghost" id="mXls">Excel importieren …</button><button class="btn ghost" id="mImp">Liste einfügen …</button></div>
+      <div class="toolbar"><button class="btn primary" id="mNew">${asKonten ? '+ Neues Konto' : '+ Neues Mitglied'}</button><button class="btn ghost" id="mXls">Import …</button><button class="btn ghost" id="mImp">Liste einfügen …</button></div>
       <div class="kpis">${(() => { const vis = cache.members.filter(m => !m.pending && m.active);
         const open = vis.reduce((a, m) => a + (m.balance_cents || 0), 0);
         return [['Aktive Mitglieder', vis.filter(m => m.kind === 'mitglied').length], ['Mannschaften & Gruppen', vis.filter(m => m.kind === 'mannschaft').length],
@@ -2178,7 +2224,7 @@
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mSearch" placeholder="Name suchen" aria-label="Name suchen"></label>
         <div class="chips" id="mFilter" role="group" aria-label="Filter">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['nichtmitglied', 'Kein Mitglied'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
           .filter(([k]) => (k !== 'sonder' || (cache.modules || []).includes('getraenke')) && (k !== 'nichtmitglied' || cache.members.some(m => m.kind === 'nichtmitglied' && !m.pending))).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}" aria-pressed="${(cache.mFilter || 'alle') === k}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
-      <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel" id="mTbl"></table></div></div><aside class="mdetail card" id="mDetail"></aside></div>`;
+      <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel kompakt" id="mTbl"></table></div><p class="empty hidden" id="mEmpty"></p></div><aside class="mdetail card" id="mDetail"></aside></div>`;
     const showAll = (cache.modules || []).includes('getraenke');
     const base = cache.members.filter(m => !m.pending && (showAll || (m.kind !== 'verein' && m.kind !== 'gast')));
     const FILTER = {
@@ -2219,8 +2265,10 @@
       const rows = base.filter(m => f(m) && match(m));
       $('mTbl').innerHTML = `<tr><th>Name</th><th>Typ</th><th>PIN</th><th>Zuletzt da</th><th class="r">Offen</th></tr>` +
         (rows.length ? rows.map(m => `<tr data-sel="${m.id}" class="${m.active ? '' : 'off'} ${cache.mSel === m.id ? 'on' : ''}" tabindex="0"><td><span class="who"><span class="av">${ini(m)}</span><b>${pName(m)}</b></span></td><td>${KIND[m.kind]}</td>
-          <td>${pinPill(m)}</td><td>${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : '<span class="muted s">–</span>'}</td><td class="r">${m.balance_cents ? euro(m.balance_cents) : '<span class="muted s">–</span>'}</td></tr>`).join('')
-          : '<tr><td colspan="5" class="muted" style="text-align:center;height:72px">Keine Treffer.</td></tr>');
+          <td>${pinPill(m)}</td><td class="k-weg">${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : ''}</td><td class="r k-lbl">${m.balance_cents ? euro(m.balance_cents) : ''}</td></tr>`).join('') : '');
+      $('mTbl').classList.toggle('hidden', !rows.length);
+      $('mEmpty').classList.toggle('hidden', !!rows.length);
+      $('mEmpty').textContent = base.length ? 'Keine Treffer – Suche oder Filter ändern.' : (asKonten ? 'Noch keine Konten – oben „+ Neues Konto“ anlegen.' : 'Noch keine Mitglieder – oben „+ Neues Mitglied“ anlegen.');
       detail();
     };
     draw();
@@ -3635,9 +3683,9 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['getraenke', 'Verkauf'], ['update', 'Update']];
+  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
   const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
-    : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : /^Gemerkte Zuordnungen/.test(h) ? 'getraenke' : 'tablet');
+    : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : 'tablet');
   /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
    *  alle Karten untereinander mit Abschnittsüberschriften, keine zweite Ebene. o.root: Element mit den Karten (Standard #main) · o.secs: [[key, label]] ·
    *  o.keyOf(überschrift) → key (Karten mit data-set="key" werden direkt zugeordnet) · o.store: Schlüssel für den gemerkten Bereich */
@@ -3709,7 +3757,7 @@
   }
   async function renderSettings() {
     const mayCfg = can('einstellungen'), mayUn = can('deinstallieren');
-    const [s, map, ext, ml, net] = await Promise.all([api('settings'), can('lieferungen') ? api('supplier-map') : null, mayCfg || mayUn ? api('extensions') : null, mayCfg ? api('mail') : null, mayCfg ? api('app/network') : null]);
+    const [s, ext, ml, net] = await Promise.all([api('settings'), mayCfg || mayUn ? api('extensions') : null, mayCfg ? api('mail') : null, mayCfg ? api('app/network') : null]);
     let links = ext ? ext.links.slice() : [];
     const SRC = { eingebaut: 'im Paket', mitgeliefert: 'im Paket', hochgeladen: 'hochgeladen', nachinstalliert: 'per Samba' };
     const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
@@ -3778,10 +3826,6 @@
             <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'} title="${ml.ready ? '' : 'Erst das Postfach speichern'}">Testmail senden</button></div>
           <button class="btn primary" id="mlSave">Postfach speichern</button></div>
         <p class="muted s">Am besten ein eigenes Vereinspostfach. Die Daten stehen beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“, Port meist 587 (manchmal 465). Beispiele: GMX mail.gmx.net, WEB.DE smtp.web.de, IONOS smtp.ionos.de, Strato smtp.strato.de; bei Gmail ein App-Passwort verwenden. Das Passwort wird nie wieder angezeigt und ist in keinem Export enthalten.</p></div>` : ''}
-      ${map ? `<div class="card"><h3>Gemerkte Zuordnungen von Lieferanten-Artikeln</h3>
-        ${map.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
-          ${map.map(m => `<tr><td>${esc(m.supplier)}</td><td>${/^lidl:/.test(m.art_no) ? '<span class="muted">–</span>' : esc(m.art_no)}</td><td>${esc(m.text || '')}</td><td>${m.article_id ? esc(m.article) : '<span class="muted">ignoriert</span>'}</td><td class="r">${m.pack_size}</td>
-            <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="empty">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload.</p>'}</div>` : ''}
       ${me.role === 'oberadmin' ? '<div class="card" id="updCard"><h3>Update von Clubwerk</h3><div id="updBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       ${ext ? `<div class="card"><h3>Module & Erweiterungen</h3>
         ${ext.all.length ? `<div class="mods" id="modList">
@@ -3817,11 +3861,6 @@
         <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
         <div id="lnRows"></div>
         <div class="btns"><button class="btn ghost" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
-      <div class="card"><h3>Startseite am Tablet – „Gerade oft hier“</h3><div class="row">
-        <label class="f" style="flex:1;min-width:200px">Wie viele Namen (0 = ausblenden)<input id="topN" class="n" value="${s.topN}" inputmode="numeric"></label>
-        <label class="f" style="flex:1;min-width:200px">Zeitraum (Tage)<input id="topDays" class="n" value="${s.topDays}" inputmode="numeric"></label></div>
-        <p class="muted s">Oben auf der Startseite stehen die Mitglieder, die im Zeitraum am meisten gebucht haben – alphabetisch, damit niemand eine Rangliste sieht. Tablets übernehmen die Änderung innerhalb einer Minute.</p>
-        <div class="btns"><button class="btn primary" id="saveTop">Speichern</button></div></div>
       <div class="card"><h3>Tablet & Home Assistant</h3>
         <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. Beim ersten Aufruf das Passwort für das Tablet eingeben.</p>
         <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
@@ -3947,9 +3986,6 @@
       if (!await ask('Alle freigeschalteten Geräte abmelden? Danach muss auch das Tablet im Vereinsheim das Passwort neu eingeben.')) return;
       try { await api('settings/tablet-password/logout-all', 'POST', {}); toast('Alle Geräte abgemeldet.'); } catch (e) { fail(e); }
     };
-    if ($('saveTop')) $('saveTop').onclick = async () => {
-      try { await api('settings', 'PUT', { topN: $('topN').value, topDays: $('topDays').value }); toast('Gespeichert.'); } catch (e) { fail(e); }
-    };
     if ($('saveClub')) $('saveClub').onclick = async () => {
       try {
         await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value, clubStreet: $('clubStreet').value, clubCity: $('clubCity').value, clubEmail: $('clubEmail').value, clubPhone: $('clubPhone').value });
@@ -3994,9 +4030,6 @@
     if ($('logoDel')) $('logoDel').onclick = async () => {
       try { const d = await api('logo', 'DELETE'); brand.logo = d.logo; toast('Logo entfernt.'); showShell(); } catch (e) { fail(e); }
     };
-    $('main').querySelectorAll('[data-sup]').forEach(b => b.onclick = async () => {
-      await api('supplier-map', 'DELETE', { supplier: b.dataset.sup, artNo: b.dataset.no }).catch(fail); RENDER.einstellungen();
-    });
   };
 
   start().catch(fail);

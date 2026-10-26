@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.56.0
+
+**Verkauf und Lager neu geordnet (Etappe 10 des Menü-Umbaus)**
+- **Verkauf hat sechs Reiter:** Buchungen · Abrechnung · Veranstaltungen & Deckel · Konten · Auswertung · Einstellungen. Der Gäste-Deckel steht jetzt unter den Veranstaltungen im selben Reiter (alte Links und Lesezeichen führen dorthin).
+- **Neu: Verkauf › Einstellungen** mit Karten, jede mit eigenem „Speichern“: Reihenfolge der Kategorien (bisher ein Knopf bei den Artikeln, jetzt gleich mit ▲▼ auf der Karte) · Gemerkte Zuordnungen von Lieferanten-Artikeln (bisher unter Einstellungen › Verkauf) · Gerade oft hier am Tablet (bisher unter Einstellungen › Tablet) · Einstellungen übertragen. Jede Karte sieht nur, wer das passende Recht hat. Die gespeicherten Werte bleiben unverändert.
+- **Lager:** Bestellung · Lieferungen · Bestand · Artikel. Der Abgleich Lieferungen ↔ Buchungen ist keine eigene Seite mehr, sondern eine Karte unter „Bestand“. Bei den Artikeln heißen die Knöpfe rechts oben „+ Neuer Artikel“, „Import …“ und „Excel“.
+- **Am Handy** zeigen Konten, Buchungen, Abrechnung, Artikel, Bestand und Abgleich zwei Zeilen je Eintrag. Leere Listen sagen, was als Nächstes zu tun ist. Die lange Anleitung der Abrechnung steht einklappbar unter „So geht's“, ihre Knöpfe stehen wie überall rechts neben den Reitern.
+- „Einstellungen übertragen“ gibt es jetzt auch für den Verkauf (Datei mit „Gerade oft hier“ und Kategorienreihenfolge, ohne Artikel, Konten und Buchungen).
+- An Abrechnung, Storno und Einzug ändert sich nichts. Die Suche findet die neuen Orte.
+
 ## 3.55.0
 
 **Plätze neu geordnet (Etappe 9 des Menü-Umbaus)**
