@@ -440,6 +440,8 @@ function activate(ctx) {
   createTables();
   const { need, bad, cleanName } = ctx;
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.doors.length); };
+  // Schalter „am Tablet zeigen“ liegt zentral unter Einstellungen › Tablet (Schlüssel header bleibt)
+  ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); cache.at = 0; } };
   ctx.hooks.usedEntities = () => cfg().doors.map(d => d.ref);
   // Beim Beenden (Update, Neustart): laufende Türimpulse sofort abschalten – sonst bliebe ein Türöffner-Relais an
   ctx.hooks.shutdown = async () => { const p = [...pulseTimers.values()]; for (const t of p) clearTimeout(t.timer); await Promise.all(p.map(t => t.off())); };

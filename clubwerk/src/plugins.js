@@ -189,6 +189,7 @@ function load({ app, admin, helpers }) {
         id, meta: p.meta, appVersion: APP_VERSION, tablet, admin: adminR, db, getSetting, setSetting, audit, auditDiff, auth,
         isActive: () => isActive(id), require: name => require(name), ...helpers,
         setting: (k, d) => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v),
+        clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
         hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → Postfach)
         // Push-Benachrichtigungen (Mitglieder-App): Anlässe meldet das Modul über hooks.pushEvents an; send(ids, 'anlass', { title, body, url, tag })
         push: { send: (ids, ev, msg) => require('./push').send(ids, `${id}.${ev}`, msg), enabled: ev => require('./push').enabled(`${id}.${ev}`), lead: ev => require('./push').lead(`${id}.${ev}`) },
@@ -264,6 +265,22 @@ function setActive(id, on, user) {
 /* Zentrale Reihenfolge der Module – dieselbe wie im Menü der Verwaltung (registerPage order); unbekannte Module dahinter */
 const MODULE_ORDER = ['getraenke', 'buchung', 'spielbetrieb', 'arbeitseinsatz', 'zeiterfassung', 'beregnung', 'zugang', 'maengel', 'mitglieder', 'buchhaltung'];
 const orderPos = id => { const i = MODULE_ORDER.indexOf(id); return i < 0 ? MODULE_ORDER.length : i; };
+
+/** Module, deren Tablet-Seite sich ein- und ausschalten lässt (Hook tabletSwitch = { get, set }): für Einstellungen › Tablet › „am Tablet zeigen“ */
+function tabletSwitches() {
+  const out = [];
+  for (const p of plugins.values()) {
+    if (!isActive(p.meta.id) || !p.meta.tablet || !p.hooks.tabletSwitch) continue;
+    try { out.push({ id: p.meta.id, label: String(p.meta.tablet.label || p.meta.name), on: Boolean(p.hooks.tabletSwitch.get()) }); } catch (e) { /* Modul-Fehler blendet den Schalter aus */ }
+  }
+  return out.map((x, i) => ({ x, i })).sort((a, b) => orderPos(a.x.id) - orderPos(b.x.id) || a.i - b.i).map(o => o.x);
+}
+function setTabletSwitch(id, on) {
+  const p = plugins.get(id);
+  if (!p || !isActive(id) || !p.hooks.tabletSwitch) return false;
+  p.hooks.tabletSwitch.set(Boolean(on));
+  return true;
+}
 
 /** Einträge für die Kopfzeile am Tablet: aktive Erweiterungen (falls sie sich zeigen wollen), in der zentralen Reihenfolge */
 function tabletNav() {
@@ -353,4 +370,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { tabletSlug, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlug, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };

@@ -367,6 +367,19 @@ addColumn('admin_users', 'member_id', 'INTEGER');
   })();
 })();
 
+// Einmalig (3.47): Anschrift, E-Mail und Telefon des Vereins stehen jetzt zentral unter Einstellungen › Verein.
+// Wer sie bisher in Mitglieder oder Buchhaltung eingetragen hat, behält sie: die erste vorhandene Angabe wird übernommen.
+(function migrateClubAddress() {
+  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_club_address'").get()) return;
+  const get = k => { const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(k); return r && String(r.value || '').trim() ? String(r.value).trim() : ''; };
+  const from = { club_street: ['ext_mitglieder_club_street', 'ext_buchhaltung_street'], club_city: ['ext_mitglieder_club_city', 'ext_buchhaltung_city'],
+    club_phone: ['ext_buchhaltung_phone'], club_email: ['ext_buchhaltung_email'] };
+  db.transaction(() => {
+    for (const [k, olds] of Object.entries(from)) { if (get(k)) continue; const v = olds.map(get).find(Boolean); if (v) db.prepare('INSERT OR REPLACE INTO settings(key, value) VALUES (?, ?)').run(k, v); }
+    db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_club_address', '1')").run();
+  })();
+})();
+
 /* ---------- Sortierung (überall gleich: Personen nach Nachname, Artikel nach Kategorie und Name) ----------
    de_key: deutsche Sortierung nach DIN 5007 (ä=a, ö=o, ü=u, ß=ss, ohne Groß/Klein)
    name_key: Personen nach Nachname, dann Vorname; „von/van/de …“ zählen nicht (von der Heide → H);

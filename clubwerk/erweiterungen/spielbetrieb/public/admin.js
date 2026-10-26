@@ -428,7 +428,7 @@
     let q = '', edit = 0, newOpen = false;
     const pool = () => [...m.members.map(x => ({ ...x, ext: false })), ...(m.externs || []).map(x => ({ ...x, ext: true }))];
     const copy = async (link, name) => {
-      if (!link) return fail(new Error('Für den Link muss die Mitglieder-App eine Adresse haben (Mitglieder-App → Verbindung).'));
+      if (!link) return fail(new Error('Für den Link muss die Mitglieder-App eine Adresse haben (Mitglieder-App › Einstellungen).'));
       try { await navigator.clipboard.writeText(link); toast(`Link für ${name} kopiert – z. B. per WhatsApp schicken.`); } catch (e) { await GK.askText('Link zum Kopieren:', link, { ok: 'Schließen' }); }
     };
     const draw = () => {

@@ -798,7 +798,7 @@
     const app = await GK.api('app').catch(() => ({}));
     const url = app.url ? `${String(app.url).replace(/\/$/, '')}/p/mitglieder/` : '';
     dialog(`<h2>Online-Antrag</h2>${url ? `<p class="muted" style="margin-top:0">Diesen Link auf der Homepage oder in Nachrichten teilen:</p><div class="mv-code" style="font-size:16px;letter-spacing:0;user-select:all" translate="no">${esc(url)}</div>`
-      : '<div class="banner a"><span>Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App → Verbindung). Der Online-Antrag liegt dort unter <code>/p/mitglieder/</code>.</span></div>'}
+      : '<div class="banner a"><span>Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App › Einstellungen). Der Online-Antrag liegt dort unter <code>/p/mitglieder/</code>.</span></div>'}
       <p class="muted s">Schutz gegen Missbrauch: eingebaute Falle für automatische Formulare, Mindest-Ausfüllzeit, Begrenzung je Gerät und Tag. Ausschalten unter Einstellungen.</p>
       <div class="btns">${url ? '<button class="btn ghost" id="oCopy">Link kopieren</button>' : ''}<button class="btn primary" id="c">Fertig</button></div>`);
     $('c').onclick = () => { closeDialog(); reloadTab(); };

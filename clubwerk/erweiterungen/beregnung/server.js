@@ -516,6 +516,8 @@ function activate(ctx) {
   const { need, bad, cleanName } = ctx;
   ctx.hooks.usedEntities = () => { const c = cfg(); return c.backend === 'hydrawise' ? [] : c.plaetze.flatMap(p => p.zones.map(z => z.ref)); };
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.plaetze.length && c.mode !== 'app'); };   // „nur Mitglieder-App“ gilt fürs eigene Handy, nicht fürs Vereinstablet
+  // Schalter „am Tablet zeigen“ liegt zentral unter Einstellungen › Tablet (Schlüssel header bleibt)
+  ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { let c = {}; try { c = JSON.parse(getSetting('ext_beregnung_cfg', '{}')) || {}; } catch (e) { c = {}; } c.header = on; setSetting('ext_beregnung_cfg', JSON.stringify(c)); } };
   /* Mitglieder-App: /api/m/beregnung/… (Gerät und Freischaltung prüft der Kern) */
   ctx.member.get('/status', async (req, res) => res.json({ ...(await status()), stopFree: Boolean(cfg().stopFree) }));
   // Im Vereins-WLAN ohne extra PIN: das Handy ist gekoppelt und für die Beregnung freigeschaltet – dafür gebremst (10 je Minute),

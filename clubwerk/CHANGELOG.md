@@ -1,5 +1,25 @@
 # Änderungen
 
+## 3.47.0
+
+**Einstellungen neu geordnet (Etappe 2 des Menü-Umbaus)**
+- **Einstellungen › Verein:** Hier stehen jetzt Vereinsname, **Anschrift, E-Mail und Telefon**, Farbe, Logo und die Vereinssprache. Wer die Anschrift bisher bei Mitglieder oder Buchhaltung eingetragen hatte, findet sie nach dem Update schon hier. Die Module lesen sie von dort.
+- **Einstellungen › Erreichbarkeit (neu):** Vereinsnetz (bisher bei der Mitglieder-App unter „Verbindung“) und „Weitere Adressen“ der Verwaltung stehen zusammen, dazu ein Hinweis zu HTTPS und Tunnel.
+- **Einstellungen › Tablet:** Passwort, Leiste am Tablet, Links und Startseite. In der Leiste gibt es jetzt je Modul den Schalter „am Tablet zeigen“ (bisher in den Einstellungen von Beregnung und Zugang; die Einstellung selbst bleibt dieselbe). „Alle Geräte abmelden“ steht abgesetzt in einer eigenen Zeile.
+- **Module:** „Einstellungen exportieren“ und „importieren“ sind sichtbare Knöpfe statt im Menü ⋯ versteckt.
+- **Mein Konto:** Ein Klick auf den eigenen Namen unten links öffnet eine Seite mit Passwort, Sprache und Hell/Dunkel (nur für dich) und dem E-Mail-Absender (bisher unter E-Mail › Absender). Die kleinen Knöpfe für Sprache und Hell/Dunkel im Namenskasten entfallen.
+
+**Mitglieder-App (Verwaltung)**
+- Reiter jetzt: **Mitglieder · Bereiche · Benachrichtigungen · Einstellungen**.
+- **Bereiche:** eine einzige Tabelle statt drei Karten: Bereich an/aus, für wen, von unterwegs, beim Freischalten vorgewählt, Start und Reihenfolge – mit einem „Speichern“.
+- **Einstellungen:** „Adresse & Aussehen“ (WLAN-Adresse, öffentliche Adresse mit „von unterwegs erreichbar“, Name auf dem Homescreen) und „Sicherheit“. Die lange Anleitung für den Tunnel ist einklappbar.
+- **Mitglieder** am Handy: je Mitglied zwei Zeilen; Antippen öffnet die Bereiche dieses Mitglieds.
+
+**Sonst**
+- Die Suche findet alle verschobenen Karten an ihrem neuen Ort.
+- Hinweistexte nennen die neuen Orte („Einstellungen › Tablet“, „Mitglieder-App › Einstellungen“, „Mein Konto“).
+- Beispiel-Adresse im Hinweis zur App ist jetzt ein neutrales „dein-verein.duckdns.org“.
+
 ## 3.46.0
 
 **Neue Bausteine für den Umbau der Menüs**

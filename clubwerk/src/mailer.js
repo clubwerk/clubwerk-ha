@@ -417,7 +417,7 @@ function routes(admin, { need, bad }) {
     const { r, errs } = check(req, m);
     if (errs.length) return bad(res, errs[0]);
     const me = identity(req.user);
-    if (m.copy_me && !me.reply_to) return bad(res, 'Für „Kopie an mich“ bitte unter „Absender“ deine E-Mail-Adresse eintragen – oder den Haken entfernen.');
+    if (m.copy_me && !me.reply_to) return bad(res, 'Für „Kopie an mich“ bitte unter „Mein Konto“ deine E-Mail-Adresse eintragen – oder den Haken entfernen.');
     const sig = me.signature ? clean(me.signature) : '';
     const tx = db.transaction(() => {
       const ins = db.prepare('INSERT INTO mail_recipient(message_id, member_id, name, email, via) VALUES (?,?,?,?,?)');

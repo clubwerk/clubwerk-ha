@@ -644,6 +644,8 @@ function adminRoutes(admin, { bad, need, auth }) {
     res.json({ startSection: getSetting('app_start', ''), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [],
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
+  // Vereinsnetz (Einstellungen › Erreichbarkeit): nur, was die Karte braucht – ohne Mitgliederliste
+  admin.get('/app/network', need('einstellungen'), (req, res) => res.json({ wlanNets: getSetting('app_wlan_nets', ''), directPublic: directOk(), hostNets: hostNetsCached(), myIp: normIp(req.ip || req.socket.remoteAddress), tunnelOn: tunnelOn() }));
   admin.get('/app/member/:id', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
     const m = db.prepare('SELECT id, name, kind FROM members WHERE id = ? AND deleted = 0').get(id);

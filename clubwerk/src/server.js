@@ -468,7 +468,7 @@ function gateCookieOk(req) {
 /* Das Tablet-Passwort ist Pflicht (Schutz der Mitgliederdaten): Solange keins vergeben ist, bleibt die Buchungsseite für normale
    Geräte gesperrt – nur angemeldete Admins und die Home-Assistant-Seitenleiste kommen herein. (Tests: CW_TEST_TABLET_OPEN=1) */
 const gateOpenForTests = () => process.env.CW_TEST_TABLET_OPEN === '1' && !gateOn();
-const GATE_UNSET = 'Für das Tablet ist noch kein Passwort vergeben. Bitte in der Verwaltung unter Einstellungen → Tablet & Kopfzeile → „Passwort für das Tablet“ eins festlegen.';
+const GATE_UNSET = 'Für das Tablet ist noch kein Passwort vergeben. Bitte in der Verwaltung unter Einstellungen › Tablet › „Passwort für das Tablet“ eins festlegen.';
 function tabletPwError(pw) {
   if (pw.length < 8 || pw.length > 200) return 'Das Passwort für das Tablet braucht mindestens 8 Zeichen.';
   if (/^(.)\1+$|^(12345678|123456789|1234567890|87654321|passwort\d*|password\d*|tennis\d*|verein\d*|qwertz\w*|abcdefgh)$/i.test(pw)) return 'Dieses Passwort ist zu leicht zu erraten – bitte ein anderes wählen.';
@@ -1174,6 +1174,7 @@ admin.get('/settings', (req, res) => {
   const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
+    clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''),
     topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined,
     allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
 });
@@ -1318,6 +1319,7 @@ admin.delete('/logo', need('einstellungen'), (req, res) => {
   audit(req.user, 'Vereinslogo entfernt');
   res.json({ ok: true, logo: logoUrl() });
 });
+const ADDRESS_MIRROR = { club_street: ['ext_mitglieder_club_street', 'ext_buchhaltung_street'], club_city: ['ext_mitglieder_club_city', 'ext_buchhaltung_city'], club_phone: ['ext_buchhaltung_phone'], club_email: ['ext_buchhaltung_email'] };
 admin.put('/settings', need('einstellungen'), (req, res) => {
   const name = cleanName((req.body || {}).clubName);
   if (name) setSetting('club_name', name);
@@ -1327,10 +1329,19 @@ admin.put('/settings', need('einstellungen'), (req, res) => {
     setSetting('club_color', color.toLowerCase());
   }
   const b = req.body || {};
+  const addr = [];
+  for (const [k, key, max] of [['clubStreet', 'club_street', 80], ['clubCity', 'club_city', 80], ['clubPhone', 'club_phone', 40], ['clubEmail', 'club_email', 120]]) {
+    if (b[k] === undefined) continue;
+    const v = String(b[k] || '').replace(/\s+/g, ' ').trim().slice(0, max);
+    if (k === 'clubEmail' && v && !require('./mail').mailOk(v)) return bad(res, 'Bitte eine gültige E-Mail-Adresse für den Verein eintragen.');
+    setSetting(key, v); addr.push(key);
+    // Module, die ihre Angaben noch selbst führen (Mitglieder, Buchhaltung), lesen weiter ihre eigenen Schlüssel – sie bleiben gleich
+    for (const old of ADDRESS_MIRROR[key]) setSetting(old, v);
+  }
   if (b.topN !== undefined) { const n = int(b.topN, -1); if (n < 0 || n > 60) return bad(res, '„Ich bin öfter hier“: Anzahl 0–60 (0 = ausblenden).'); setSetting('top_n', String(n)); }
   if (b.topDays !== undefined) { const d = int(b.topDays, 0); if (d < 1 || d > 365) return bad(res, '„Ich bin öfter hier“: Zeitraum 1–365 Tage.'); setSetting('top_days', String(d)); }
   audit(req.user, 'Einstellungen geändert', [name && 'Vereinsname', color && 'Farbe ' + color,
-    b.topN !== undefined && `Öfter hier: ${b.topN} aus ${b.topDays} Tagen`].filter(Boolean).join(', '));
+    addr.length && 'Anschrift und Kontakt', b.topN !== undefined && `Öfter hier: ${b.topN} aus ${b.topDays} Tagen`].filter(Boolean).join(', '));
   res.json({ ok: true });
 });
 /* Empfänger der Bestell-Mail (Lieferant/Kopie) nur mit „Einstellungen“ ändern – sonst ließe sich über das Vereinspostfach
@@ -3400,7 +3411,16 @@ app.get('/api/tablet/nav', (req, res) => {
   const startHere = st && (st.id === 'getraenke' || (!st.url && plugins.tabletPage(st.id, '')));
   res.json({ items: items.map(x => (startHere && x === st ? { ...x, href: '' } : x)), start: st ? st.id : null });
 });
-admin.get('/settings/tablet-order', need('einstellungen'), (req, res) => { const items = tabletItems(); const st = tabletStart(items); res.json({ items, start: st ? st.key : null }); });
+admin.get('/settings/tablet-order', need('einstellungen'), (req, res) => { const items = tabletItems(); const st = tabletStart(items); res.json({ items, start: st ? st.key : null, switches: plugins.tabletSwitches() }); });
+/* Schalter „am Tablet zeigen“ eines Moduls (derselbe Schlüssel wie bisher in den Einstellungen des Moduls) */
+admin.put('/settings/tablet-show', need('einstellungen'), (req, res) => {
+  const id = String((req.body || {}).id || ''), on = Boolean((req.body || {}).on);
+  const sw = plugins.tabletSwitches().find(x => x.id === id);
+  if (!sw) return bad(res, 'Dieses Modul lässt sich am Tablet nicht ein- oder ausschalten.');
+  if (sw.on !== on) { plugins.setTabletSwitch(id, on); audit(req.user, on ? 'Am Tablet gezeigt' : 'Am Tablet ausgeblendet', sw.label); }
+  const items = tabletItems(); const st = tabletStart(items);
+  res.json({ ok: true, items, start: st ? st.key : null, switches: plugins.tabletSwitches() });
+});
 admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
   const keys = new Set(tabletItems().map(x => x.key));
   const order = (Array.isArray((req.body || {}).order) ? req.body.order : []).map(String).filter(k => keys.has(k)).slice(0, 40);
@@ -3412,7 +3432,7 @@ admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
     audit(req.user, 'Start-Reiter am Tablet geändert', (tabletItems().find(x => x.key === String(start)) || {}).label || String(start));
   }
   const items = tabletItems(); const st = tabletStart(items);
-  res.json({ ok: true, items, start: st ? st.key : null });
+  res.json({ ok: true, items, start: st ? st.key : null, switches: plugins.tabletSwitches() });
 });
 admin.get('/extensions', (req, res) => {
   const all = plugins.list();

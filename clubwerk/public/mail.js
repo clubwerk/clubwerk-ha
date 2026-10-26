@@ -224,19 +224,19 @@
   GK.RENDER.email = async () => {
     O = await api('mail/options');
     $('main').innerHTML = `<h2 class="page">E-Mail</h2>
-      <p class="lead">Mails an Mitglieder, Gruppen, Verteiler und freie Adressen, gesendet über das Vereinspostfach. Antworten gehen an die Adresse unter „Absender“.</p>
+      <p class="lead">Mails an Mitglieder, Gruppen, Verteiler und freie Adressen, gesendet über das Vereinspostfach. Antworten gehen an die Adresse unter „Mein Konto“.</p>
       ${O.ready ? '' : `<div class="banner a">${esc(T('Noch kein Postfach eingerichtet – Mails können erst nach Einstellungen → Postfach gesendet werden. Entwürfe gehen schon.'))}</div>`}
       <div id="mlTabs"></div>`;
-    tabsCtl = GK.tabs($('mlTabs'), 'email', [['neu', 'Neue E-Mail'], ['entwuerfe', 'Entwürfe'], ['gesendet', 'Gesendet'], ['verteiler', 'Verteiler'], ['vorlagen', 'Vorlagen'], ['absender', 'Absender']], async (k, body) => {
+    tabsCtl = GK.tabs($('mlTabs'), 'email', [['neu', 'Neue E-Mail'], ['entwuerfe', 'Entwürfe'], ['gesendet', 'Gesendet'], ['verteiler', 'Verteiler'], ['vorlagen', 'Vorlagen']], async (k, body) => {
       O = await api('mail/options');
       if (k === 'neu') return compose(body);
       if (k === 'entwuerfe' || k === 'gesendet') return folder(body, k);
       if (k === 'verteiler') return showLists(body);
-      if (k === 'vorlagen') return showTemplates(body);
-      return showMe(body);
+      return showTemplates(body);
     });
   };
-  const goTab = k => { const b = document.querySelector(`#mlTabs [data-tab="${k}"]`); if (b) b.click(); };
+  /* „Mein E-Mail-Absender“ steht unter Mein Konto (Benutzerchip) */
+  GK.mailMe = async el => { O = await api('mail/options'); showMe(el); };
 
   /* Verfassen */
   async function compose(body) {
@@ -253,12 +253,12 @@
           <label class="chk"><input type="checkbox" id="mlCopy" ${st.copy_me ? 'checked' : ''}> ${esc(T('Kopie an mich'))}</label><span class="ml-cnt" id="mlCnt"></span></div>
         <div class="ml-line"><b>${esc(T('Betreff'))}</b><input class="ml-sub" id="mlSub" maxlength="200" value="${esc(st.subject)}" placeholder="${esc(T('Worum geht es?'))}"></div>
         <div id="mlEd"></div>
-        ${me.signature ? `<div class="ml-sig" title="${esc(T('Unterschrift – unter „Absender“ änderbar'))}">${me.signature}</div>` : ''}
+        ${me.signature ? `<div class="ml-sig" title="${esc(T('Unterschrift – unter „Mein Konto“ änderbar'))}">${me.signature}</div>` : ''}
         <div class="ml-files" id="mlFiles"></div>
         <div class="ml-foot"><span class="st" id="mlSt">${d ? esc(T('Entwurf vom')) + ' ' + deT(d.updated_at || d.created_at) : ''}</span>
           <button class="btn ghost" id="mlTpl">${esc(T('Als Vorlage speichern'))}</button><button class="btn ghost" id="mlDel">${esc(T('Verwerfen'))}</button>
           <button class="btn" id="mlPrev">${esc(T('Vorschau'))}</button><button class="btn primary" id="mlSend">${esc(T('Senden …'))}</button></div></div>`;
-    $('mlMe').onclick = e => { e.preventDefault(); goTab('absender'); };
+    $('mlMe').onclick = e => { e.preventDefault(); GK.go('konto'); };
     // Speichern: Entwurf beim ersten Tippen anlegen, danach kurz nach jeder Änderung
     let timer = 0, saving = null, dirtyN = 0;
     const payload = () => ({ subject: $('mlSub').value, html: ed.html(), spec: st.spec, copy_me: $('mlCopy').checked });
@@ -461,7 +461,7 @@
   /* Absender */
   function showMe(body) {
     const me = O.me;
-    body.innerHTML = `<div class="card"><h3>${esc(T('Dein Absender'))}</h3>
+    body.innerHTML = `<div class="card"><h3>${esc(T('Mein E-Mail-Absender'))}</h3>
       <p class="muted s" style="margin-top:0">${esc(T('Gesendet wird immer über das Vereinspostfach – so landen Mails nicht im Spam. Empfänger sehen deinen Namen, und wenn sie auf „Antworten“ tippen, geht die Antwort an deine Adresse.'))}</p>
       <div class="row"><label class="f" style="flex:1;min-width:200px">${esc(T('Name'))}<input id="meN" maxlength="60" value="${esc(me.name)}" placeholder="${esc(T('z. B. Anna Schmidt (Vorstand)'))}"></label>
         <label class="f" style="flex:1;min-width:240px">${esc(T('Antworten an'))}<input id="meR" type="email" maxlength="120" value="${esc(me.reply_to)}" placeholder="anna@beispiel.de"></label></div>

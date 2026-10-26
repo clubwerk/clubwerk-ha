@@ -34,7 +34,7 @@
     $('gate').classList.toggle('unset', Boolean(unset));
     if (unset) {   // noch kein Passwort vergeben: Hinweis statt Eingabefeld, alle 30 s neu prüfen
       $('gateTitle').textContent = 'Tablet noch nicht eingerichtet';
-      $('gateText').textContent = 'Zum Schutz der Mitgliederdaten braucht das Tablet ein Passwort. Bitte in der Verwaltung unter Einstellungen → Tablet & Kopfzeile → „Passwort für das Tablet“ eins festlegen – danach hier eingeben.';
+      $('gateText').textContent = 'Zum Schutz der Mitgliederdaten braucht das Tablet ein Passwort. Bitte in der Verwaltung unter Einstellungen › Tablet › „Passwort für das Tablet“ eins festlegen – danach hier eingeben.';
       clearTimeout(showGate.t); showGate.t = setTimeout(() => { gateShown = false; load(); }, 30000);
     } else {
       $('gateTitle').textContent = 'Buchungsseite gesperrt';
