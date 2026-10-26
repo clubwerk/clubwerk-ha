@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.46.0
+
+**Neue Bausteine für den Umbau der Menüs**
+- **Filterchips:** Filter einer Liste (z. B. „Mit offenem Betrag 10“) sehen jetzt wie kleine runde Chips aus, mit der Anzahl daneben. So verwechselt man sie nicht mehr mit den Reitern. Zuerst unter Verkauf › Konten und auf der Seite Mitglieder-App, die anderen Module folgen mit ihrem Umbau.
+- **Detailansicht** (vorbereitet, noch nirgends eingesetzt): Öffnet man später z. B. ein Mitglied, ersetzt eine einzige Reiterzeile mit „← Zurück“ die Reiter des Moduls. Die Adresse merkt sich den Datensatz, Neuladen und Suche führen wieder hin.
+- **Kompakte Listen am Handy:** Benutzer, Rollen, Protokoll, Sprachen und die Listen der Datensicherung zeigen am Handy je Eintrag nur noch zwei Zeilen: den Namen fett, darunter das Wichtigste, rechts die Knöpfe.
+
+**Aufgeräumt**
+- Kürzere Einleitungen auf den Seiten Datensicherung, Benutzer & Rechte, E-Mail und Mitglieder-App. Der Hinweis zur PIN steht jetzt direkt bei „Mitglied freischalten“.
+- Datensicherung: nur noch ein grüner Hauptknopf („Jetzt sichern“). „Wiederherstellen …“ und „Entfernen“ in den Listen sind nicht mehr rot neben „Herunterladen“; rot wird es erst in der Rückfrage.
+- Einstellungen: „Logo hochladen …“ ist ein normaler Knopf, grün bleibt nur „Speichern“.
+- Protokoll: Findet der Filter nichts, steht dort ein Hinweis statt einer leeren Tabelle.
+
+**Design-Prüfstand**
+- Neue Regeln aus den Bedienregeln: höchstens ein Hauptknopf je Ansicht, kurze Einleitung, roter Knopf nicht neben einem harmlosen, Listeneinträge am Handy höchstens 96 px hoch, leere Tabellen mit Hinweis. Sie gelten sofort für die allgemeinen Seiten und für jedes Modul, sobald es umgebaut ist.
+
 ## 3.45.0
 
 **Neue Rechte: bedienen und einrichten getrennt**

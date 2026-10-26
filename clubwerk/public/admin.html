@@ -134,6 +134,15 @@
   .seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
   .seg .cnt { min-width: 20px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--line-soft); color: var(--muted); font-size: 11px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; box-sizing: border-box; }
   .seg button.on .cnt { background: var(--brand-soft); color: var(--brand-ink); }
+  /* Filterchips: Filter derselben Liste und Ansichten derselben Daten (Offen 3 · Bezahlt · Alle) – kleiner und runder als Reiter, damit man sie nicht verwechselt */
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chips > button { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .chips > button:hover { color: var(--ink); border-color: var(--faint); }
+  .chips > button.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
+  .chips .cnt { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; } .chips .cnt:empty { display: none; }
+  .chips > button.on .cnt { color: var(--brand-ink); }
+  /* Detailansicht (GK.registerDetail): „← Zurück“ vorn in der einen Reiterzeile, gleich hoch wie die Reiter */
+  .detailrow > .detback { padding: 0 14px; flex: none; }
   .mlayout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
   .mlist .scroll { margin: 0; }
   .tbl.sel tr[data-sel] { cursor: pointer; }
@@ -459,6 +468,20 @@
     .tbl td.r::before { margin-right: auto; }
     .tbl td input:not([type=checkbox]):not([type=radio]), .tbl td select { max-width: 60%; }
     .tbl tr.sum { background: var(--brand-soft); }
+    /* Kompakte Handy-Liste (B-7): <table class="tbl kompakt"> – erste Spalte fett, rechts die Knöpfe der letzten Spalte, darunter die übrigen Werte klein
+       in einer Zeile nebeneinander (zu lange mit …, voller Text im title). Leere Zellen fallen weg. Höchstens rund zwei Zeilen je Eintrag */
+    .tbl.kompakt tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 8px 12px; }
+    .tbl.kompakt tr::after { content: ''; order: 2; flex-basis: 100%; }
+    .tbl.kompakt td { display: block; order: 3; flex: 1 1 0; max-width: max-content; width: auto !important; min-width: 0; min-height: 0; padding: 0 !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-size: 13px; line-height: 18px; color: var(--muted); }
+    .tbl.kompakt td::before { content: none; }
+    .tbl.kompakt td > .tcell { text-align: left; }
+    .tbl.kompakt td:first-child { order: 0; flex: 1 1 120px; max-width: none; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
+    .tbl.kompakt td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; }
+    .tbl.kompakt td:empty, .tbl.kompakt td.k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) */
+    .tbl.kompakt td.k-lbl::before { content: attr(data-label) ': '; display: inline; color: inherit; font-size: inherit; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
+    .tbl.kompakt td.k-1z { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* k-1z: lange Namen (Dateien) einzeilig, voller Name im title */
+    .tbl.kompakt td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .tbl.kompakt td[colspan] { flex: 1 1 100%; max-width: none; white-space: normal; }
     h2.page { font-size: 22px; line-height: 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dialog { padding: 18px 16px; } .dialog > .btns:last-child { margin: 20px -16px -18px; padding: 12px 16px 16px; }
   }

@@ -84,7 +84,7 @@ a.btn.primary { color: #fff; }
 /* Symbolknopf in Tabellenzeilen (Aktion als Symbol mit Tooltip): 34 × 34 px, gleich hoch wie .btn.small */
 .btn.ico { width: 34px; min-height: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; vertical-align: middle; }
 .btn.ico svg { width: 17px; height: 17px; flex: none; }
-.btn.ico.danger-h:hover { color: var(--red); border-color: var(--red); background: var(--red-soft); }
+.btn.danger-h:hover { color: var(--red); border-color: var(--red); background: var(--red-soft); }
 .acts { display: inline-flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
 .toast {
   position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);

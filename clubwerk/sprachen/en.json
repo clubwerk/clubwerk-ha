@@ -8640,6 +8640,15 @@
   "Plätze: Sonderrechte": "Courts: special permissions",
   "Stempeln": "Clock in",
   "Zugang bedienen": "Operate access",
-  "Zugang bedienen: Türen aus der Ferne öffnen und schließen, Notfall-Sperre": "Operate access: open and close doors remotely, emergency lock"
+  "Zugang bedienen: Türen aus der Ferne öffnen und schließen, Notfall-Sperre": "Operate access: open and close doors remotely, emergency lock",
+  "bündeln Rechte, z. B. für den Kassenwart.": "bundle permissions, e.g. for the treasurer.",
+  "Filter": "Filter",
+  "Jeder meldet sich mit eigenem Benutzernamen an, so ist nachvollziehbar, wer was geändert hat.": "Everyone signs in with their own username, so you can see who changed what.",
+  "Kein Eintrag passt zum Filter.": "No entry matches the filter.",
+  "Mails an Mitglieder, Gruppen, Verteiler und freie Adressen, gesendet über das Vereinspostfach. Antworten gehen an die Adresse unter „Absender“.": "Emails to members, groups, mailing lists and any address, sent via the club mailbox. Replies go to the address under “Sender”.",
+  "mit allem, was Clubwerk enthält, und geht an die Sicherungsziele. Öffnen lässt sie sich nur mit dem Sicherungspasswort.": "with everything Clubwerk contains and sends it to the backup targets. It can only be opened with the backup password.",
+  "Nicht mehr vorhanden.": "No longer available.",
+  "Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.": "Only the authorised phone works. It is the same PIN as for sales on the tablet: anyone who already has one enters it when authorising; anyone who doesn’t sets it in the app, and it then also works on the tablet.",
+  "und sehen in der App, was für sie freigeschaltet ist.": "and see in the app whatever has been authorised for them."
  }
 }

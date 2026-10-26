@@ -219,6 +219,7 @@
 
   /* ---------- Erweiterungen: Verwaltungsseiten der aktiven Erweiterungen nachladen ---------- */
   let extLoaded = new Set();
+  let loadingExt = null;   // Modul, dessen admin.js gerade lädt – registerPage merkt sich so, welche Seite zu welchem Modul gehört
   async function loadExtensions() {
     const r = await api('extensions');
     cache.extLinks = r.links || [];
@@ -227,12 +228,14 @@
     for (const x of r.ui) {
       if (extLoaded.has(x.id)) continue;
       extLoaded.add(x.id);
+      loadingExt = x.id;
       await new Promise(res => {
         const sc = document.createElement('script');
         sc.src = `x/${x.id}/admin.js?v=${encodeURIComponent(x.version)}`;
         sc.onload = res; sc.onerror = () => { console.error('Erweiterung', x.id, 'konnte nicht geladen werden'); res(); };
         document.head.appendChild(sc);
       });
+      loadingExt = null;
     }
   }
 
@@ -367,6 +370,7 @@
      Einzelseiten geben ihre Position über registerPage({ order }) an, sonst 50 (Reihenfolge der Registrierung) */
   const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 1 }, lager: { label: 'Lager', icon: 'lager', order: 1.5 } };
   const PAGE_ORDER = {};
+  const PAGE_MOD = {};   // Seite → Modul (Erweiterungs-id), siehe GK.pageModule
   /** Recht ohne Abteilungs-Einschränkung („!recht“ in registerPage) */
   const canFull = p => can(p) && !((me && me.deptOnly) || []).includes(p);
   const can1 = p => (String(p).startsWith('!') ? canFull(String(p).slice(1)) : can(p));
@@ -469,7 +473,8 @@
   /* ---------- Suche (Strg/⌘ K) ----------
      Findet Seiten und Reiter (automatisch aus PAGES), dazu Einstellungen, Felder und Aktionen, die Kern und Module mit GK.registerSearch anmelden.
      Ein Eintrag: { label, page, tab: [tabsKey, reiter] (GK.tabs), sec: [speicher, bereich] (Kern-Einstellungen), seg: 'Unterseite', card: 'Kartenüberschrift',
-     field: 'id', btn: 'Knopftext', words: 'Synonyme …', perm, kind: 'einstellung' | 'aktion' | 'reiter', in: 'Reitername für den Pfad', boost: Vorrang (z. B. 1) } */
+     field: 'id', btn: 'Knopftext', words: 'Synonyme …', perm, kind: 'einstellung' | 'aktion' | 'reiter', in: 'Reitername für den Pfad', boost: Vorrang (z. B. 1),
+     detail: [art, id] (Datensatz in der Detailansicht öffnen, Reiter mit tab: ['detail_<art>', reiter]) } */
   const SEARCH = [];
   /** Gleichbedeutende Wörter: wer das eine sucht, findet auch das andere (normalisiert, siehe snorm) */
   // als ein Text ohne Leerzeichen geschrieben, damit die Übersetzung ihn nicht für Oberflächentext hält (Wort=Synonym,Synonym;…)
@@ -513,7 +518,7 @@
   async function searchJump(e) {
     if (e.tab) sset('tab_' + e.tab[0], e.tab[1]);
     if (e.sec) sset(e.sec[0], e.sec[1]);
-    await go(e.page);
+    await go(e.detail ? `${e.page}/${e.detail[0]}/${encodeURIComponent(e.detail[1])}` : e.page);
     if (!e.seg && !e.card && !e.field && !e.btn) return true;
     const orig = t => (window.CWI18N ? CWI18N.orig(t) : t).replace(/\s+/g, ' ').trim();
     const find = () => {
@@ -526,7 +531,7 @@
     const t0 = Date.now(); let segDone = !e.seg, el = null;
     while (Date.now() - t0 < 5000) {
       await new Promise(r => setTimeout(r, 120));
-      if (!segDone) { const b = [...document.querySelectorAll('#main .seg > button')].find(x => orig(x.textContent).startsWith(e.seg)); if (b) { if (!b.classList.contains('on')) b.click(); segDone = true; } continue; }
+      if (!segDone) { const b = [...document.querySelectorAll('#main .seg > button, #main .chips > button')].find(x => orig(x.textContent).startsWith(e.seg)); if (b) { if (!b.classList.contains('on')) b.click(); segDone = true; } continue; }
       if (!e.card && !e.field && !e.btn) return true;
       el = find(); if (el) break;
     }
@@ -589,7 +594,7 @@
   /* Getränke-Unterseiten als Reiter unter Überschrift und Einleitung – an derselben Stelle wie die Reiter der anderen Module */
   function placeDrinkTabs() {
     const g = groupOf(page);
-    const m = $('main'); if (!m || !g || m.querySelector('.tabrow:has(> .drinktabs)')) return;
+    const m = $('main'); if (!m || !g || detailCur || m.querySelector('.tabrow:has(> .drinktabs)')) return;
     const h = m.querySelector(':scope > h2.page'); if (!h) return;
     h.textContent = T(MODG[g].label);   // überall gleich: Überschrift = Seite im Menü, der Reiter zeigt den Bereich
     const after = fixLead(h);
@@ -622,9 +627,14 @@
   async function go(p) {
     if (!(await leaveOk())) { setChrome(page); return; }
     { const t = $('toast'); if (t) { clearTimeout(toast.t); t.classList.add('hidden'); } }   // Meldungen der vorigen Seite verschwinden beim Wechsel
-    if (!RENDER[p] || !allowed(p)) p = 'uebersicht';
-    page = p;
-    history.replaceState(null, '', '#' + p);
+    // Detailansicht: Adresse #seite/art/id (Neuladen und Suche führen wieder hin)
+    const [pk, dk, ...rest] = String(p).split('/'), did = decodeURIComponent(rest.join('/'));
+    const dd = dk && DETAIL[dk];
+    let det = dd && dd.page === pk && did && canAny(dd.perm) ? { key: dk, id: did } : null;
+    p = pk;
+    if (!RENDER[p] || !allowed(p)) { p = 'uebersicht'; det = null; }
+    page = p; detailCur = det;
+    history.replaceState(null, '', '#' + hashOf());
     // Reiter der Module: neu einsetzen, sobald eine Seite ihren Inhalt schreibt. Nach erneuter Anmeldung (z. B. nach einem Update des Add-ons)
     // baut die Verwaltung ihr Grundgerüst neu – dann muss auch der Beobachter an das neue <main>, sonst fehlen die Reiter bis zum Neuladen.
     if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => placeDrinkTabs()); go.obs.observe(go.obsEl, { childList: true }); }
@@ -634,17 +644,49 @@
     $('main').innerHTML = '<p class="muted">Lade …</p>';
     // Seitenwechsel während eine langsame Seite noch lädt: endet die alte Seite nach der neuen, hätte sie den Inhalt überschrieben → neue Seite neu zeichnen
     const gen = go.gen = (go.gen || 0) + 1;
-    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; RENDER[page]().catch(pageFail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); } }); };
+    const redraw = () => { const g2 = go.gen; go.fin = 0; go.stale = 0; renderCur().catch(pageFail).finally(() => { if (g2 === go.gen) { go.fin = g2; placeDrinkTabs(); } }); };
     const settle = () => {
       if (gen === go.gen) { if (go.stale === gen) redraw(); else { go.fin = gen; placeDrinkTabs(); } return; }
       // alte Seite fertig: aktuelle schon fertig → neu zeichnen, sonst merken (die aktuelle zeichnet sich am Ende neu)
       if (go.fin === go.gen) redraw(); else go.stale = go.gen;
     };
-    RENDER[p]().catch(pageFail).finally(settle);
+    renderCur().catch(pageFail).finally(settle);
     window.scrollTo(0, 0);
   }
+  const hashOf = () => page + (detailCur ? `/${detailCur.key}/${encodeURIComponent(detailCur.id)}` : '');
+  const renderCur = () => (detailCur ? renderDetail(detailCur) : RENDER[page]());
 
-  window.addEventListener('hashchange', () => { const p = location.hash.slice(1); if (me && p && p !== page) go(p); });
+  window.addEventListener('hashchange', () => { const p = location.hash.slice(1); if (me && p && p !== hashOf()) go(p); });
+
+  /* ---------- Detailansicht eines Datensatzes (Regel 9) ----------
+     Ersetzt die Seite: Überschrift = Name des Datensatzes, darunter genau eine Reiterzeile mit „← Zurück“ und den Reitern des Datensatzes –
+     die Modulreiter verschwinden so lange. Adresse #seite/art/id, der Reiter wird je Art gemerkt (wie GK.tabs). */
+  const DETAIL = {};
+  let detailCur = null;   // { key, id } der offenen Detailansicht
+  async function renderDetail(det) {
+    const d = DETAIL[det.key];
+    const rec = await d.load(det.id);
+    if (!rec) { toast('Nicht mehr vorhanden.'); detailCur = null; history.replaceState(null, '', '#' + page); return RENDER[page](); }
+    const list = rec.tabs && rec.tabs.length ? rec.tabs : [['', '']];
+    const store = 'tab_detail_' + det.key;
+    let cur = sget(store); if (!list.some(t => t[0] === cur)) cur = list[0][0];
+    $('main').innerHTML = `<h2 class="page" translate="no">${esc(rec.title)}</h2>${rec.lead ? `<p class="lead">${esc(rec.lead)}</p>` : ''}
+      <div class="tabrow detailrow"><button type="button" class="btn ghost detback" id="detBack">← ${esc(d.back)}</button>
+        ${list[0][1] ? `<div class="tabs" role="tablist">${list.map(([k, l]) => `<button role="tab" data-tab="${esc(k)}">${esc(l)}</button>`).join('')}</div>` : ''}<div class="tabtools" id="tabTools"></div></div>
+      <div class="tabbody detbody"></div>`;
+    const body = $('main').querySelector('.detbody'), bar = $('main').querySelector('.detailrow .tabs');
+    $('detBack').onclick = () => go(page);
+    const show = async k => {
+      if (k !== cur && !(await leaveOk())) return;
+      cur = k; sset(store, k);
+      if (bar) bar.querySelectorAll('[data-tab]').forEach(b => { b.classList.toggle('on', b.dataset.tab === k); if (b.dataset.tab === k) revealTab(b); });
+      const tt = $('tabTools'); if (tt) tt.innerHTML = '';
+      body.innerHTML = '<p class="muted">Lade …</p>';
+      try { await d.render(k, body, rec, det.id); } catch (e) { fail(e); }
+    };
+    if (bar) bar.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => show(b.dataset.tab); });
+    const first = cur; cur = null; await show(first);
+  }
 
   async function refreshBadges() {
     const setB = (k, n, cls) => { const b = document.querySelector(`[data-badge="${k}"]`); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); if (cls) b.classList.add(cls); } };
@@ -728,6 +770,8 @@
     /** Einstellungen öffnen, gleich im richtigen Bereich (z. B. 'bank') */
     openSettings: sec => { sset('cw_setsec', sec); if (page === 'einstellungen') RENDER.einstellungen(); else go('einstellungen'); },
     modules: () => cache.modules || [],
+    /** Modul der offenen Seite ('getraenke' für Verkauf und Lager, Erweiterungs-id, sonst 'kern') – für den Design-Prüfstand */
+    pageModule: () => { const pg = PAGES.find(x => x[0] === page); return !pg ? 'kern' : ['getraenke', 'lager'].includes(pg[3]) ? 'getraenke' : PAGE_MOD[page] || 'kern'; },
     /** Knöpfe einer Seite rechts in die Reiterzeile setzen (statt in eine eigene Zeile darüber): GK.tabTools(html, owner).
      *  owner = Element des Seiteninhalts; verschwindet es (andere Ansicht), werden die Knöpfe entfernt. Rückgabe: Container oder null (Seite ohne Reiter) */
     tabTools(html, owner) {
@@ -747,6 +791,7 @@
       RENDER[key] = render;
       if (icon && ICO[icon]) PAGE_ICON[key] = icon;
       if (order) PAGE_ORDER[key] = order;
+      if (loadingExt) PAGE_MOD[key] = loadingExt;
       let gk = group === 'verein' ? 'verein' : 'module';
       if (group && typeof group === 'object' && /^[a-z0-9-]+$/.test(group.key || '')) { gk = 'g-' + group.key; if (!MODG[gk]) MODG[gk] = { label: group.label || title, icon: ICO[group.icon] ? group.icon : 'modul', order: group.order || 50 }; }
       if (tab) TAB_LABEL[key] = tab;
@@ -773,6 +818,14 @@
     refreshBadges: () => refreshBadges(),
     /** Einstellungskarten eines Moduls nach Bereichen ordnen (untereinander, mit Abschnittsüberschriften): sectionize({ root, secs: [[key, label]], keyOf }) */
     sectionize: o => sectionize(o),
+    /** Detailansicht anmelden: registerDetail({ key, page, back, perm, load, render })
+     *  key: Art ('mitglied'), page: Seite, zu der sie gehört, back: Text des Zurück-Knopfs (Standard „Zurück“), perm wie bei registerPage,
+     *  load: async id → { title, lead, tabs: [[key, label]] } oder null (gibt es nicht mehr), render: async (reiter, body, datensatz, id) */
+    registerDetail({ key, page: pg, back, perm, load, render }) { if (/^[a-z0-9-]+$/.test(key) && pg && load && render) DETAIL[key] = { page: pg, back: back || 'Zurück', perm, load, render }; },
+    /** Datensatz öffnen (Adresse #seite/art/id), optional gleich in einem Reiter */
+    openDetail(key, id, tab) { const d = DETAIL[key]; if (!d) return Promise.resolve(); if (tab) sset('tab_detail_' + key, tab); return go(`${d.page}/${key}/${encodeURIComponent(id)}`); },
+    /** Detailansicht schließen, zurück zur Seite */
+    closeDetail: () => go(page),
   };
   // Kernseiten aus eigenen Dateien (z. B. mail.js), die vor admin.js geladen wurden
   (window.CW_PAGES || []).forEach(fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } });
@@ -2106,8 +2159,8 @@
         return [['Aktive Mitglieder', vis.filter(m => m.kind === 'mitglied').length], ['Mannschaften & Gruppen', vis.filter(m => m.kind === 'mannschaft').length],
           ['Mit PIN geschützt', vis.filter(m => m.hasPin).length], ['Offen auf Konten', euro(open)]].map(([l, v]) => `<div class="kpi"><div class="l">${l}</div><div class="v">${v}</div></div>`).join(''); })()}</div>
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mSearch" placeholder="Name suchen" aria-label="Name suchen"></label>
-        <div class="seg" id="mFilter" role="tablist">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['nichtmitglied', 'Kein Mitglied'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
-          .filter(([k]) => (k !== 'sonder' || (cache.modules || []).includes('getraenke')) && (k !== 'nichtmitglied' || cache.members.some(m => m.kind === 'nichtmitglied' && !m.pending))).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
+        <div class="chips" id="mFilter" role="group" aria-label="Filter">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['nichtmitglied', 'Kein Mitglied'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
+          .filter(([k]) => (k !== 'sonder' || (cache.modules || []).includes('getraenke')) && (k !== 'nichtmitglied' || cache.members.some(m => m.kind === 'nichtmitglied' && !m.pending))).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}" aria-pressed="${(cache.mFilter || 'alle') === k}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
       <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel" id="mTbl"></table></div></div><aside class="mdetail card" id="mDetail"></aside></div>`;
     const showAll = (cache.modules || []).includes('getraenke');
     const base = cache.members.filter(m => !m.pending && (showAll || (m.kind !== 'verein' && m.kind !== 'gast')));
@@ -2155,7 +2208,7 @@
     };
     draw();
     $('mSearch').oninput = draw;
-    $('mFilter').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; cache.mFilter = b.dataset.f; $('mFilter').querySelectorAll('[data-f]').forEach(x => x.classList.toggle('on', x === b)); draw(); };
+    $('mFilter').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; cache.mFilter = b.dataset.f; $('mFilter').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); draw(); };
     const pick = tr => { cache.mSel = Number(tr.dataset.sel); $('mTbl').querySelectorAll('tr[data-sel]').forEach(x => x.classList.toggle('on', x === tr)); detail(narrow()); };
     $('mTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) pick(tr); };
     $('mTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(tr); } };
@@ -2506,7 +2559,7 @@
     const myNet = /^\d+\.\d+\.\d+\.\d+$/.test(r.tunnel.myIp || '') && !/^(127\.|172\.30\.3[23]\.)/.test(r.tunnel.myIp) ? r.tunnel.myIp.replace(/\.\d+$/, '.0') + '/24' : '';
     const hostNetBtns = (r.tunnel.hostNets || []).filter(n => n !== myNet).map(n => `<button class="btn" type="button" data-hnet="${esc(n)}">Netz von Home Assistant übernehmen (${esc(n)})</button>`).join('');
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
-      <p class="lead">Mitglieder bekommen <b>eine Einladung</b> (QR-Code, E-Mail oder Brief), nutzen <b>eine PIN</b> und sehen in der App alles, was für sie freigeschaltet ist (${mods.map(m => esc(m.label || m.name)).join(', ') || 'noch kein Bereich aktiv'}). Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p>
+      <p class="lead">Mitglieder bekommen <b>eine Einladung</b> (QR-Code, E-Mail oder Brief), nutzen <b>eine PIN</b> und sehen in der App, was für sie freigeschaltet ist.</p>
       ${mayCfg ? `<div class="card" id="apSet" data-set="verbindung"><h3>Adresse der App</h3>
         <div class="row"><label class="f" style="flex:2;min-width:260px">Adresse im Vereins-WLAN<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.lanUrl || '')}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
           <label class="f" style="flex:1;min-width:160px">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
@@ -2570,16 +2623,17 @@
       ${mayMem ? `<div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
         <div class="row"><label class="f" style="flex:1;min-width:220px">Mitglied<select id="apNew"><option value="">– Mitglied wählen –</option>${r.members.map(m => `<option value="${m.id}">${pName(m)}${m.kind === 'nichtmitglied' ? ' (Kein Mitglied)' : ''}</option>`).join('')}</select></label>
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
-        <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div></div>
+        <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div>
+        <p class="muted s" style="margin:10px 0 0">Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p></div>
       <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
-        ${r.rows.length ? `<div class="seg" id="apFil" role="tablist" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'warten auf WLAN'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
+        ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'warten auf WLAN'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           <table class="tbl" id="apTbl"><tr><th>Mitglied</th><th>Handy</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td style="white-space:nowrap"><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill(x.device)}</td>
             ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; if (x.kind === 'nichtmitglied' && !m.nonMembers) return '<td class="muted" title="nur für Mitglieder">–</td>'; return `<td style="white-space:nowrap"><span class="ap-cell"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${x.member_id}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</span></td>`; }).join('')}
             <td class="muted s hide-md">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r"><span class="acts"><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>
-          <p class="muted" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
+          <p class="empty" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>` : ''}`;
     // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
     const APP_SECS = [['mitglieder', 'Mitglieder'], ['bereiche', 'Bereiche'], ['push', 'Benachrichtigungen'], ['verbindung', 'Verbindung'], ['sicherheit', 'Sicherheit']];
@@ -2799,17 +2853,17 @@
     const roleName = id => (opt.roles.find(r => r.id === id) || {}).name;
     const deptName = id => (opt.departments.find(d => d.id === id) || {}).name;
     $('main').innerHTML = `<h2 class="page">Benutzer & Rechte</h2>
-      <p class="lead">Jeder meldet sich mit eigenem Benutzernamen an – so ist nachvollziehbar, wer was geändert hat. <b>Rollen</b> bündeln Rechte (z. B. Kassenwart, Abteilungsleitung); ein Benutzer kann mehrere Rollen haben.</p>
+      <p class="lead">Jeder meldet sich mit eigenem Benutzernamen an, so ist nachvollziehbar, wer was geändert hat. <b>Rollen</b> bündeln Rechte, z. B. für den Kassenwart.</p>
       <div class="tabrow"><div class="tabs" id="uTab" role="tablist"><button type="button" data-t="benutzer" class="${userTab === 'benutzer' ? 'on' : ''}">Benutzer <span class="badge">${users.length}</span></button><button type="button" data-t="rollen" class="${userTab === 'rollen' ? 'on' : ''}">Rollen <span class="badge">${opt.roles.length}</span></button></div>
       <div class="tabtools"><button class="btn primary" id="uNew">${userTab === 'rollen' ? '+ Neue Rolle' : '+ Neuer Benutzer'}</button></div></div>
       <div class="scroll" id="uBody"></div>`;
     if (userTab === 'rollen') {
-      $('uBody').innerHTML = `<table class="tbl"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
-        ${opt.roles.map(r => `<tr><td><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<div class="muted s">${esc(r.description || '')}</div></td>
-          <td>${permPills(r.perms, opt.permLabels) || '<span class="muted s">keine</span>'}</td><td class="r">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
+      $('uBody').innerHTML = `<table class="tbl kompakt"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
+        ${opt.roles.map(r => `<tr><td><b>${esc(r.name)}</b><div class="muted s">${r.dept_scope ? '<span class="pill b">eigene Abteilung</span> ' : ''}${esc(r.description || '')}</div></td>
+          <td class="k-weg">${permPills(r.perms, opt.permLabels) || '<span class="muted s">keine</span>'}</td><td class="r k-lbl">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => roleDialog(opt.roles.find(x => x.id === +b.dataset.r), opt); });
     } else {
-      $('uBody').innerHTML = `<table class="tbl"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
+      $('uBody').innerHTML = `<table class="tbl kompakt"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
         ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b>${esc(u.member_id && u.name ? lastFirst(u.name) : u.name || u.username)}</b><div class="muted s">${esc(u.username)}${u.member_id ? ' · Mitglied' : ''}</div></td>
           <td>${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>'
             : [u.roles.map(id => `<span class="pill b" style="margin:1px">${esc(roleName(id) || '?')}</span>`).join(' '), u.extra.length ? permPills(u.extra, opt.permLabels) : ''].filter(Boolean).join(' ') || '<span class="muted s">keine Rechte</span>'}
@@ -2892,7 +2946,7 @@
     let body;
     if (!v.on) body = `<div class="banner a">Ausgeschaltet – die persönlichen Daten liegen unverschlüsselt auf dem Home Assistant. Wer den Rechner mitnimmt, kann sie lesen.</div>
       <p class="muted s" style="margin:8px 0">Eingeschaltet werden ${VAULT_WHAT} verschlüsselt gespeichert. Namen, Getränkekonten, Buchungen, Türen und Beregnung bleiben lesbar – der Vereinsbetrieb läuft nach einem Neustart sofort weiter. Die Daten öffnen sich automatisch, sobald sich ein Admin anmeldet.</p>
-      ${v.may ? '<div class="row"><button class="btn primary" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}${VAULT_SCOPE}`;
+      ${v.may ? '<div class="row"><button class="btn" id="vaOn" type="button">Verschlüsselung einschalten</button></div>' : '<p class="muted s">Einschalten kann, wer das Recht „Einstellungen“ hat.</p>'}${VAULT_SCOPE}`;
     else if (v.locked) body = `<div class="banner r">Verschlossen – seit dem letzten Neustart hat sich noch kein Admin mit Schlüssel angemeldet.${v.waitingMails ? ` ${v.waitingMails} ${v.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}</div>
       <p class="muted s" style="margin:8px 0 0">Dein Konto hat ${v.mine ? 'einen Schlüssel – bitte einmal ab- und wieder anmelden.' : 'noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen; danach öffnet auch deine Anmeldung die Daten.'}</p>
       ${v.mine ? '' : vaultUnlockHtml('va')}`;
@@ -2949,10 +3003,10 @@
     const when = iso => (iso ? new Date(iso).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
     const fileDate = f => { const m = String(f).match(/^(\d{4})-(\d{2})-(\d{2})(?:_(\d{2})(\d{2}))?/); return m ? `${m[3]}.${m[2]}.${m[1].slice(2)}${m[4] ? `, ${m[4]}:${m[5]}` : ''}` : f; };
     // beide Listen (hier / Dropbox) gleich aufgebaut: Stand | Größe | Aktionen – gleiche Spaltenbreiten, gleicher Rahmen
-    const kTable = (title, rows) => `<div class="scroll" style="max-height:40vh"><table class="tbl" style="table-layout:fixed"><tr><th>${title}</th><th class="r" style="width:110px">Größe</th><th class="r" style="width:320px"></th></tr>${rows}</table></div>`;
+    const kTable = (title, rows) => `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt" style="table-layout:fixed"><tr><th>${title}</th><th class="r" style="width:110px">Größe</th><th class="r" style="width:320px"></th></tr>${rows}</table></div>`;
     const okPill = (ok, t) => `<span class="pill ${ok ? 'g' : 'a'}">${t}</span>`;
     $('main').innerHTML = `<h2 class="page">Datensicherung</h2>
-      <p class="lead">Jede Nacht entsteht eine <b>verschlüsselte Komplettsicherung</b> mit allem, was Clubwerk enthält – alle Module, Benutzer, Einstellungen, Belege, Bilder und Erweiterungen – und geht an die eingerichteten Sicherungsziele (Dropbox, NAS, Cloud, FRITZ!Box). Lesen lässt sie sich nur mit dem Sicherungspasswort. Zusätzlich steckt alles in jedem Home-Assistant-Backup.</p>
+      <p class="lead">Jede Nacht entsteht eine <b>verschlüsselte Komplettsicherung</b> mit allem, was Clubwerk enthält, und geht an die Sicherungsziele. Öffnen lässt sie sich nur mit dem Sicherungspasswort.</p>
       ${b.restored ? `<div class="banner g">${esc(b.restored)}</div>` : ''}
       ${b.pending ? `<div class="banner a" style="display:block">Beim nächsten Neustart wird <b>${esc(b.pending)}</b> wiederhergestellt${/_komplett\.db$/.test(b.pending) ? ' (mit Belegen, Bildern und Erweiterungen)' : ''}. Der aktuelle Stand wird vorher automatisch beiseitegelegt.
         <div class="row" style="margin-top:8px"><button class="btn small primary" id="bRestart">Jetzt neu starten</button><button class="btn small" id="bCancel">Abbrechen</button></div></div>` : ''}
@@ -2965,7 +3019,7 @@
       ${st.last_error && !st.targets.some(t => t.last_error && st.last_error.includes(t.name + ':')) ? `<div class="banner r">Letzter Fehler: ${esc(st.last_error.slice(25))}</div>` : ''}
  <div id="vaultCard"></div>
       <div class="card"><h3>Jetzt</h3><div class="row">
-        <button class="btn primary" id="bkRun" ${st.hasKey ? '' : 'disabled'}>Jetzt sichern</button>
+        <button class="btn ${st.hasKey ? 'primary' : ''}" id="bkRun" ${st.hasKey ? '' : 'disabled'}>Jetzt sichern</button>
         <button class="btn" id="bkProbe" ${st.local.length ? '' : 'disabled'}>Letzte Sicherung prüfen</button>
         ${st.local[0] ? `<a class="btn" href="api/admin/backups/komplett/file/${encodeURIComponent(st.local[0].file)}">Letzte Komplettsicherung herunterladen (${size(st.local[0].size)})</a>` : ''}</div>
         <p class="muted s">Die heruntergeladene Datei (<code>.cwbackup</code>) eignet sich als zweites Exemplar außer Haus, z. B. auf einem USB-Stick. Sie ist verschlüsselt.</p>
@@ -2991,15 +3045,15 @@
 
       <div class="card"><h3>Sicherungsziele ${st.targetsOn ? okPill(st.targetsOk === st.targetsOn, `${st.targetsOk} von ${st.targetsOn} in Ordnung`) : '<span class="pill a">keins eingerichtet</span>'}</h3>
         <p class="muted s" style="margin-top:0">Wohin die verschlüsselte Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten – z. B. Dropbox außer Haus und das NAS oder die FRITZ!Box im Vereinsheim.</p>
-        ${st.targets.length ? `<div class="scroll"><table class="tbl"><tr><th>Ziel</th><th>Art</th><th>Ort</th><th style="width:150px">Zuletzt erfolgreich</th><th style="width:130px">Status</th><th class="r" style="width:300px"></th></tr>
+        ${st.targets.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Ziel</th><th>Art</th><th>Ort</th><th style="width:150px">Zuletzt erfolgreich</th><th style="width:130px">Status</th><th class="r" style="width:300px"></th></tr>
           ${st.targets.map(t => { const bad = t.enabled && t.last_error && (!t.last_ok || t.last_error.slice(0, 24) > t.last_ok); return `<tr class="${t.enabled ? '' : 'off'}"><td><b>${esc(t.name)}</b>${t.insecure ? ' <span class="pill a">unverschlüsselt</span>' : ''}</td><td>${esc(t.typeLabel)}</td>
             <td class="muted s" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.where)}">${esc(t.where)}</td>
             <td>${t.last_ok ? when(t.last_ok) : '–'}</td>
             <td>${!t.enabled ? '<span class="pill">aus</span>' : bad ? `<span class="pill r" title="${esc(t.last_error.slice(25))}">Fehler</span>` : t.last_ok ? '<span class="pill g">in Ordnung</span>' : '<span class="pill">noch nicht</span>'}</td>
-            <td class="r"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}${owner && t.id !== 'dropbox' ? ` <button class="btn small danger" data-tgdel="${esc(t.id)}">Entfernen</button>` : ''}</td></tr>
+            <td class="r"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}${owner && t.id !== 'dropbox' ? ` <button class="btn small danger-h" data-tgdel="${esc(t.id)}">Entfernen</button>` : ''}</td></tr>
             ${bad ? `<tr><td colspan="6"><div class="banner r" style="margin:0">${esc(t.name)}: ${esc(t.last_error.slice(25))}</div></td></tr>` : ''}`; }).join('')}</table></div>` : ''}
         <div class="row" style="margin-top:12px">
-          ${owner ? '<button class="btn primary" id="tgAdd">Ziel hinzufügen …</button>' : ''}
+          ${owner ? '<button class="btn" id="tgAdd">Ziel hinzufügen …</button>' : ''}
           ${owner || !dx.connected ? `<button class="btn" id="dxSetup">${dx.connected ? 'Dropbox neu verbinden …' : 'Dropbox verbinden …'}</button>` : ''}
         </div>
         ${owner ? '' : '<p class="muted s">Ziele anlegen, ändern und entfernen darf nur ein Benutzer mit allen Rechten.</p>'}
@@ -3009,7 +3063,7 @@
       <div class="card"><h3>Wiederherstellen</h3>
         <p class="muted s" style="margin-top:0">Eine Komplettsicherung ersetzt beim nächsten Neustart <b>alles</b>: Datenbank, Belege, Bilder und Erweiterungen. Der aktuelle Stand wird vorher beiseitegelegt. ${owner ? '' : 'Wiederherstellen darf nur ein Benutzer mit allen Rechten.'}</p>
         ${st.local.length ? kTable('Hier in der App', st.local.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td>
-            <td class="r"><a class="btn small" href="api/admin/backups/komplett/file/${encodeURIComponent(x.file)}">Herunterladen</a>${owner ? ` <button class="btn small danger" data-krestore="local" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join('')) : '<p class="empty">Noch keine Komplettsicherung hier in der App.</p>'}
+            <td class="r"><a class="btn small" href="api/admin/backups/komplett/file/${encodeURIComponent(x.file)}">Herunterladen</a>${owner ? ` <button class="btn small danger-h" data-krestore="local" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join('')) : '<p class="empty">Noch keine Komplettsicherung hier in der App.</p>'}
         ${st.targets.map(t => `<div id="tgf_${esc(t.id)}" style="margin-top:12px"></div>`).join('')}
         ${owner ? `<div class="row" style="margin-top:12px"><label class="btn">Komplettsicherung hochladen …<input type="file" id="bkUp" accept=".cwbackup,.vhsicherung,application/octet-stream" hidden></label>
           <span class="muted s" style="align-self:center">z. B. nach einer Neuinstallation: zuerst einrichten, dann hier die Datei vom USB-Stick wählen.</span></div>` : ''}
@@ -3018,15 +3072,15 @@
       <div class="card"><h3>Datenbank-Schnappschüsse</h3>
         <p class="muted s" style="margin-top:0">Zusätzlich sichert die App jede Nacht nur die Datenbank (die letzten 14 Nächte) – praktisch, um schnell einen Fehler der letzten Tage rückgängig zu machen.</p>
         <div class="row" style="margin-bottom:12px"><button class="btn" id="bNow">Schnappschuss jetzt</button><label class="btn">.db-Datei einspielen …<input type="file" id="bUp" accept=".db,application/octet-stream" hidden></label></div>
-        ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl"><tr><th>Datei</th><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
-        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr><td>${esc(x.file)}</td>
+        ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Datei</th><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
+        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr><td class="k-1z" title="${esc(x.file)}">${esc(x.file)}</td>
           <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || '')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
-          <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
+          <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger-h" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
 
     // Sicherungen auf den Zielen nachladen (braucht etwas länger) – je Ziel eine Tabelle im gleichen Aufbau
     for (const t of st.targets) api(`backups/targets/${encodeURIComponent(t.id)}/files`).then(r => {
       const el = $('tgf_' + t.id); if (!el || !r.files.length) return;
-      el.innerHTML = kTable('In ' + esc(t.name), r.files.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td><td class="r">${owner ? `<button class="btn small danger" data-krestore="target" data-target="${esc(t.id)}" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join(''));
+      el.innerHTML = kTable('In ' + esc(t.name), r.files.map(x => `<tr><td>${esc(fileDate(x.file))}</td><td class="r">${size(x.size)}</td><td class="r">${owner ? `<button class="btn small danger-h" data-krestore="target" data-target="${esc(t.id)}" data-file="${esc(x.file)}">Wiederherstellen …</button>` : ''}</td></tr>`).join(''));
       bindRestore();
     }).catch(() => { const el = $('tgf_' + t.id); if (el) el.innerHTML = `<p class="muted s" style="margin:0">${esc(t.name)}: gerade nicht erreichbar – Sicherungen dort lassen sich im Moment nicht auflisten.</p>`; });
     // alte, unverschlüsselte Dateien früherer Versionen in Dropbox
@@ -3309,12 +3363,13 @@
     $('main').innerHTML = `<h2 class="page">Protokoll</h2>
       <p class="lead">Wer hat wann was geändert? Die letzten 500 Einträge – Anmeldungen, Stornos, Übertragungen, Abschlüsse, Preisänderungen, Lieferungen, Sicherungen.</p>
       <div class="row" style="margin-bottom:12px"><label class="f" style="min-width:260px">Filtern<input id="aq" placeholder="Name oder Aktion"></label></div>
-      <div class="scroll"><table class="tbl" id="at"></table></div>`;
+      <div class="scroll"><table class="tbl kompakt" id="at"></table></div>`;
     const draw = () => {
       const q = $('aq').value.trim().toLowerCase();
       $('at').innerHTML = '<tr><th>Zeit</th><th>Wer</th><th>Aktion</th><th>Details</th></tr>' + rows
         .filter(r => !q || `${r.username} ${r.action} ${r.detail}`.toLowerCase().includes(q))
-        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td class="nw">${deTime(r.at)}</td><td>${esc(r.username || '–')}</td><td>${esc(r.action)}</td><td class="muted"${/Mozilla\//.test(r.detail || '') ? ` title="${esc(r.detail)}"` : ''}>${esc(shortUA(r.detail || ''))}</td></tr>`).join('');
+        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td class="nw">${deTime(r.at)}</td><td>${esc(r.username || '–')}</td><td>${esc(r.action)}</td><td class="muted"${r.detail ? ` title="${esc(r.detail)}"` : ''}>${esc(shortUA(r.detail || ''))}</td></tr>`).join('')
+        || '<tr><td colspan="4"><p class="empty">Kein Eintrag passt zum Filter.</p></td></tr>';
     };
     draw(); $('aq').oninput = draw;
   };
@@ -3444,7 +3499,7 @@
         <label class="f">Vereinssprache<select id="lgClub" ${d.canEdit ? '' : 'disabled'}>${opt(d.club)}</select><span class="muted s">Für Tablet, Mitglieder-App, E-Mails, Excel- und PDF-Dateien – und als Vorgabe für alle.</span></label>
         <label class="f">Meine Sprache in diesem Browser<select id="lgMine">${opt(mine, 'Wie der Verein')}</select><span class="muted s">Ändert nur die Anzeige hier. Die Mitglieder-App folgt der Sprache des Handys, falls vorhanden.</span></label>
       </div>
-      <table class="tbl ltbl" style="margin-top:16px"><tr><th>Sprache</th><th>Code</th><th class="hide-md">Herkunft</th><th>Vollständig</th>${d.canEdit ? '<th class="r"></th>' : ''}</tr>
+      <table class="tbl ltbl kompakt" style="margin-top:16px"><tr><th>Sprache</th><th>Code</th><th class="hide-md">Herkunft</th><th>Vollständig</th>${d.canEdit ? '<th class="r"></th>' : ''}</tr>
         ${d.languages.map(l => `<tr><td class="lname"><b translate="no">${esc(l.name)}</b>${l.code === d.club ? ' <span class="pill g">Verein</span>' : ''}</td><td translate="no" class="lcode"><code>${esc(l.code)}</code></td><td class="hide-md">${esc(src(l))}</td><td class="lcov">${bar(l.coverage)}</td>
           ${d.canEdit ? `<td class="r"><div class="lact"><a class="btn small" href="api/admin/sprachen/${encodeURIComponent(l.code)}/download">JSON</a><a class="btn small" href="api/admin/sprachen/${encodeURIComponent(l.code)}/download?format=xlsx">Excel</a>${l.custom ? `<button class="btn small danger" data-lrm="${esc(l.code)}" data-lb="${l.builtin || l.plugin ? 1 : 0}">${l.builtin || l.plugin ? 'Zurücksetzen' : 'Löschen'}</button>` : '<span></span>'}</div></td>` : ''}</tr>`).join('')}
       </table>
@@ -3679,7 +3734,7 @@
       <div class="card"><h3>Vereinslogo</h3><div class="row" style="align-items:center">
         <div class="logoprev" id="logoPrev">${s.logo ? `<img src="${esc(s.logo)}" alt="Vereinslogo">` : '<span class="muted s">kein Logo</span>'}</div>
         <div style="display:flex;flex-direction:column;gap:8px">
-          <label class="btn primary" style="cursor:pointer">Logo hochladen …<input type="file" id="logoFile" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp" class="hidden"></label>
+          <label class="btn" style="cursor:pointer">Logo hochladen …<input type="file" id="logoFile" accept=".svg,image/svg+xml,image/png,image/jpeg,image/webp" class="hidden"></label>
           ${s.logoCustom ? '<button class="btn ghost" id="logoDel">Logo entfernen</button>' : ''}
         </div></div>
         <div id="logoColors" class="hidden" style="margin-top:12px"><div class="muted s" style="margin-bottom:6px">Farben im Logo – antippen, um sie als Vereinsfarbe zu übernehmen:</div><div class="row" id="swatches" style="gap:8px"></div></div>
