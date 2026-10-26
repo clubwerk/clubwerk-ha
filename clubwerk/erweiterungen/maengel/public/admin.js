@@ -131,4 +131,11 @@
     });
   }
   GK.registerPage({ key: 'maengel', title: 'Mängelmelder', perm: 'maengel', render, icon: 'maengel', order: 9 });
+  // Suche (Strg/⌘ K): Einstellungen des Mängelmelders
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Offene Mängel', page: 'maengel', tab: ['maengel', 'offen'], kind: 'reiter', in: 'Offen', words: 'Meldungen defekt kaputt Schaden' },
+    { label: 'Orte für Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Orte', in: 'Einstellungen', words: 'Ort Platz Clubhaus' },
+    { label: 'Benachrichtigung bei neuen Mängeln', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Benachrichtigung', in: 'Einstellungen', words: 'E-Mail Push Meldung' },
+    { label: 'Aufbewahrung erledigter Mängel', page: 'maengel', tab: ['maengel', 'einstellungen'], card: 'Aufbewahrung', in: 'Einstellungen', words: 'löschen aufbewahren' },
+  ]);
 })();

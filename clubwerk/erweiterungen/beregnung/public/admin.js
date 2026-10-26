@@ -187,4 +187,14 @@
   }
 
   GK.registerPage({ key: 'beregnung', title: 'Beregnung', perm: 'beregnung', render: GK.RENDER.beregnung, order: 5 });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen der Beregnung
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Beregnung starten', page: 'beregnung', tab: ['beregnung', 'bedienen'], card: 'Plätze', kind: 'aktion', in: 'Bedienen', words: 'starten Wasser Platz beregnen' },
+    { label: 'Anbindung der Bewässerung (Hersteller)', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Anbindung', in: 'Plätze & Anbindung', words: 'Hydrawise Rain Bird Hunter Home Assistant Schlüssel Steuerung' },
+    { label: 'Plätze und Zonen der Beregnung', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Plätze & Zonen', in: 'Plätze & Anbindung', words: 'Zone Ventil Platz' },
+    { label: 'Wer darf die Beregnung bedienen?', page: 'beregnung', tab: ['beregnung', 'webapp'], card: 'Wer darf bedienen', in: 'Webapp & PIN', words: 'PIN Vereins-PIN Sperre Bedienung' },
+    { label: 'Beregnungs-Webapp (Name, Störungsmeldung)', page: 'beregnung', tab: ['beregnung', 'webapp'], card: 'Eigene Webapp', in: 'Webapp & PIN', words: 'Webapp Homescreen Name Störung' },
+    { label: 'Beregnungsprotokoll', page: 'beregnung', tab: ['beregnung', 'protokoll'], kind: 'reiter', in: 'Protokoll', words: 'Verlauf Excel Protokoll' },
+    { label: 'Einstellungen der Beregnung übertragen', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Plätze & Anbindung', words: 'Export Import Datei' },
+  ]);
 })();

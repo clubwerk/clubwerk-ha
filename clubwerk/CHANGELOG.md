@@ -1,5 +1,19 @@
 # Änderungen
 
+## 3.44.0
+
+**Neue Suche in der Verwaltung (Strg/⌘ K)**
+- Die Suche findet jetzt nicht nur Seitennamen, sondern auch **Reiter, Einstellungen, einzelne Felder und Aktionen** – z. B. „Tablet-Passwort“, „Gläubiger-ID“, „Import“, „Spielplan“, „Platzordnung“, „Pflichtstunden“.
+- Sie versteht **gleichbedeutende Wörter** („Lastschrift“ findet SEPA und Einzug, „Passwort“ auch Kennwort und PIN, „Push“ die Benachrichtigungen) und verzeiht kleine Tippfehler.
+- Ein Treffer **springt direkt an die Stelle**: Seite und Reiter öffnen sich, die passende Karte wird ins Bild gerollt und kurz grün umrandet, ein Feld bekommt gleich den Cursor.
+- Unter jedem Treffer steht, wo er liegt (z. B. „Mitgliederverwaltung › Einstellungen“). Die Treffer sind nach Seiten, Einstellungen und Aktionen gruppiert.
+- Jeder sieht nur, was er auch darf, und nur aus eingeschalteten Modulen. Gesucht wird auch in der eingestellten Sprache.
+
+**Einstellungen ohne Unterseiten**
+- Bei Buchungssystem, Buchhaltung und Mitgliederverwaltung stehen die Einstellungen jetzt alle untereinander auf einer Seite statt hinter einem zweiten Umschalter. Wo mehrere Karten zusammengehören, steht eine kleine Abschnittsüberschrift darüber. Der Mitglieder-Import ist damit wieder ohne Suchen zu sehen.
+
+Der Design-Prüfstand springt künftig jeden Sucheintrag an und meldet, wenn ein Ziel (Karte, Knopf, Feld) nicht mehr existiert.
+
 ## 3.43.0
 
 **Kleine Fehler aus der Prüfung aller Seiten behoben**

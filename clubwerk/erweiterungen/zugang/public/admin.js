@@ -252,4 +252,16 @@
   }
 
   GK.registerPage({ key: 'zugang', title: 'Zugang', perm: 'zugang', render: GK.RENDER.zugang, order: 6 });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen des Zugangs
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Tür öffnen', page: 'zugang', tab: ['zugang', 'bedienen'], card: 'Türen', kind: 'aktion', in: 'Bedienen', words: 'öffnen Fernöffnung Schloss' },
+    { label: 'Sofort alle Türen sperren', page: 'zugang', tab: ['zugang', 'bedienen'], btn: 'Sofort alle sperren', kind: 'aktion', in: 'Bedienen', words: 'Notfall sperren' },
+    { label: 'Mitglied für Türen freischalten', page: 'zugang', tab: ['zugang', 'mitglieder'], card: 'Mitglied freischalten', kind: 'aktion', in: 'Freischaltungen', words: 'Schlüssel QR-Code Freischaltung' },
+    { label: 'Zeitprofile (Öffnungszeiten)', page: 'zugang', tab: ['zugang', 'profile'], kind: 'reiter', in: 'Zeitprofile', words: 'Öffnungszeiten Zeiten Profil' },
+    { label: 'Türen, Tore und Schlösser einrichten', page: 'zugang', tab: ['zugang', 'tueren'], card: 'Türen, Tore', in: 'Türen', words: 'Schloss Tor Hersteller Nuki' },
+    { label: 'Sperrtage (Zugang)', page: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Sperrtage', in: 'Einstellungen', words: 'Ferien geschlossen gesperrt' },
+    { label: 'Sicherheit & Hinweise (Zugang)', page: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Sicherheit & Hinweise', in: 'Einstellungen', words: 'WLAN Störung Tür offen Kopfzeile' },
+    { label: 'Zugangsprotokoll', page: 'zugang', tab: ['zugang', 'protokoll'], kind: 'reiter', in: 'Protokoll', words: 'Verlauf Excel Protokoll' },
+    { label: 'Einstellungen des Zugangs übertragen', page: 'zugang', tab: ['zugang', 'einstellungen'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
+  ]);
 })();

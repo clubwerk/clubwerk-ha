@@ -546,4 +546,16 @@
   GK.registerPage({ key: 'sp-spieltage', title: 'Spieltage', perm: 'spielbetrieb', render: pageRender('sp-spieltage', showGames), group: G });
   GK.registerPage({ key: 'sp-mannschaften', title: 'Mannschaften', perm: 'spielbetrieb', render: pageRender('sp-mannschaften', showTeams), group: G });
   GK.registerPage({ key: 'sp-einstellungen', title: 'Einstellungen', perm: 'spielbetrieb', render: pageRender('sp-einstellungen', showSettings), group: G });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen des Spielbetriebs
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Spielplan importieren (Spieltage)', page: 'sp-spieltage', btn: 'Spielplan importieren', kind: 'aktion', words: 'nuLiga Medenspiel Termine' },
+    { label: 'Rahmenterminplan', page: 'sp-spieltage', btn: 'Rahmenterminplan', kind: 'aktion', words: 'Termine Saison vorläufig' },
+    { label: 'Spieltag anlegen', page: 'sp-spieltage', btn: '+ Spieltag', kind: 'aktion', words: 'Spiel Termin' },
+    { label: 'Spieltage als Kalender drucken', page: 'sp-spieltage', seg: 'Kalender', kind: 'aktion', words: 'Drucken Kalender Übersicht' },
+    { label: 'Mannschaft anlegen', page: 'sp-mannschaften', btn: '+ Mannschaft', kind: 'aktion', words: 'Mannschaft Team' },
+    { label: 'Spieler einer Mannschaft (Meldeliste)', page: 'sp-mannschaften', btn: 'Spieler/innen', kind: 'aktion', words: 'Meldeliste Spieler Gastspieler Aufstellung' },
+    { label: 'Was Spieler in der App sehen', page: 'sp-einstellungen', card: 'Was Spieler in der App sehen', words: 'App Aufstellung Handynummer Mannschaftsführer' },
+    { label: 'Aufgaben je Spieltag', page: 'sp-einstellungen', card: 'Aufgaben', words: 'Fahrer Kuchen Aufgabe' },
+    { label: 'Erinnerungen & Nachrichten (Spielbetrieb)', page: 'sp-einstellungen', card: 'Erinnerungen & Nachrichten', words: 'Push E-Mail erinnern Absage' },
+  ]);
 })();

@@ -28,8 +28,12 @@
   nav.side .search kbd { font-family: inherit; font-size: 11px; font-weight: 600; line-height: 16px; padding: 0 6px; border-radius: 6px; background: var(--card); color: var(--muted); }
   @media (max-width: 900px), (hover: none) { nav.side .search kbd { display: none; } }   /* Handy/Tablet: keine Tastatur, kein Tastenhinweis */
   nav.side .search .results { position: absolute; left: 0; right: 0; top: 44px; z-index: 30; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
-  nav.side .search .results button { display: flex; justify-content: space-between; align-items: center; height: 36px; padding: 0 10px; border-radius: 8px; color: var(--ink); text-align: left; }
-  nav.side .search .results button span { color: var(--muted); font-size: 12px; }
+  nav.side .search .results { max-height: min(70vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
+  nav.side .search .results button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 36px; padding: 6px 10px; border-radius: 8px; color: var(--ink); text-align: left; }
+  nav.side .search .results button b { font-weight: 600; font-size: 14px; line-height: 18px; }
+  nav.side .search .results button span { color: var(--muted); font-size: 12px; line-height: 16px; }
+  nav.side .search .results .sh { padding: 8px 10px 2px; font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .cw-hit { outline: 3px solid var(--brand); outline-offset: 4px; border-radius: 12px; transition: outline-color .4s; }   /* Ziel eines Suchtreffers */
   nav.side .search .results button.sel, nav.side .search .results button:hover { background: var(--hover); }
   nav.side .grp { height: 24px; line-height: 24px; margin-top: 16px; padding: 0 12px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--faint); }
   nav.side button.nav { display: flex; align-items: center; gap: 12px; width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; color: var(--ink); font-size: 14px; font-weight: 600; text-align: left; position: relative; }
@@ -330,7 +334,9 @@
   .minikpis .mk.warn { background: var(--amber-soft); }
   /* Einstellungen: Unterbereiche */
   .settings { display: block; }
-  .secseg { width: fit-content; max-width: 100%; margin: 0 0 16px; } .seg .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
+  #main h2.sec { margin: 28px 0 10px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 8px; }   /* Abschnitt einer Einstellungsseite (statt Unterseiten) */
+  #main .settings > h2.sec:first-child { margin-top: 0; }
+  .secseg { width: fit-content; max-width: 100%; margin: 0 0 16px; } .seg .sdot, #main h2.sec .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
   .tabs .sdot { width: 7px; height: 7px; border-radius: 50%; background: var(--red); flex: none; }
   .tabs button.on .sdot { visibility: hidden; }   /* Platz bleibt – kein Springen */
   /* Modulliste */

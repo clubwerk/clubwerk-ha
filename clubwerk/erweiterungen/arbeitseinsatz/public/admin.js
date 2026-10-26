@@ -451,6 +451,18 @@
 
   void deTime;
   GK.registerPage({ key: 'arbeitseinsatz', title: 'Helferdienste', perm: 'arbeitseinsatz', render, icon: 'arbeit', order: 3 });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen der Helferdienste
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Dienstplan anlegen', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'plaene'], btn: '+ Dienstplan', kind: 'aktion', in: 'Dienstpläne', words: 'Veranstaltung Schichten Kirmes Turnier' },
+    { label: 'Einsatz oder Thekendienst anlegen', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'einsaetze'], btn: '+ Einsatz', kind: 'aktion', in: 'Einzeltermine', words: 'Arbeitseinsatz Thekendienst Einzeltermin' },
+    { label: 'Stunden bestätigen', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'stunden'], kind: 'reiter', in: 'Stunden', words: 'Arbeitsstunden bestätigen freigeben gemeldet' },
+    { label: 'Stunden nachtragen', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'stunden'], btn: 'Stunden nachtragen', kind: 'aktion', in: 'Stunden', words: 'Arbeitsstunden nachtragen' },
+    { label: 'Pflichtstunden einzelner Mitglieder', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'uebersicht'], btn: 'Pflichtstunden', kind: 'aktion', in: 'Übersicht', words: 'Soll befreien Arbeitsstunden' },
+    { label: 'Arbeitsstunden als Excel', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'uebersicht'], btn: 'Excel', kind: 'aktion', in: 'Übersicht', words: 'Export Liste' },
+    { label: 'Soll und Abrechnung der Arbeitsstunden', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'einstellungen'], card: 'Soll & Abrechnung', in: 'Einstellungen', words: 'Stunden je Mitglied Stundensatz Abrechnung Erinnerung Absagen Familien' },
+    { label: 'Befreite Mitglieder (Helferdienste)', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'einstellungen'], card: 'Befreite Mitglieder', in: 'Einstellungen', words: 'befreien Ausnahme' },
+    { label: 'Einstellungen der Helferdienste übertragen', page: 'arbeitseinsatz', tab: ['arbeitseinsatz', 'einstellungen'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
+  ]);
   // Zähler im Menü: gemeldete Stunden, die noch zu bestätigen sind
   if (GK.badges) GK.badges(async () => { if (!GK.can('arbeitseinsatz')) return {}; const m = await api('meta'); return { arbeitseinsatz: m.pending || 0 }; });
 })();

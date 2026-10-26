@@ -980,4 +980,23 @@
   GK.registerPage({ key: 'bk-labels', title: 'Buchungsarten', perm: ANY, render: pageRender('bk-labels', showLabels), group: G });
   GK.registerPage({ key: 'bk-plaetze', title: 'Plätze & Geräte', perm: ANY, render: pageRender('bk-plaetze', showResources), group: G });
   GK.registerPage({ key: 'bk-einstellungen', title: 'Einstellungen', perm: 'buchung_einstellungen', render: pageRender('bk-einstellungen', showSettings), group: G });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen des Buchungssystems
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Buchung für ein Mitglied eintragen', page: 'bk-belegung', btn: '+ Buchung', perm: 'buchung_buchen', kind: 'aktion', words: 'Platz buchen reservieren' },
+    { label: 'Sperre eintragen', page: 'bk-belegung', btn: '+ Sperre', perm: 'buchung_serien', kind: 'aktion', words: 'Platzsperre gesperrt' },
+    { label: 'Serie anlegen (z. B. Training)', page: 'bk-serien', btn: '+ Serie', perm: 'buchung_serien', kind: 'aktion', words: 'Training wöchentlich Mannschaft Serienbuchung' },
+    { label: 'Sperre über einen Zeitraum', page: 'bk-serien', btn: '+ Sperre über Zeitraum', perm: 'buchung_serien', kind: 'aktion', words: 'Platzsperre Winter gesperrt' },
+    { label: 'Spielplan importieren (Plätze buchen)', page: 'bk-serien', btn: 'Spielplan importieren', perm: 'buchung_serien', kind: 'aktion', words: 'nuLiga Medenspiel Heimspiel' },
+    { label: 'Buchungsliste als CSV', page: 'bk-protokoll', btn: 'CSV', kind: 'aktion', words: 'Export Liste Buchungen' },
+    { label: 'Gebühr buchen', page: 'bk-gebuehren', btn: '+ Gebühr buchen', kind: 'aktion', words: 'Gastgebühr Platzgebühr' },
+    { label: 'Platz anlegen', page: 'bk-plaetze', btn: '+ Platz', perm: 'buchung_einstellungen', kind: 'aktion', words: 'Platz Court Halle' },
+    { label: 'Gerät anlegen (z. B. Ballmaschine)', page: 'bk-plaetze', btn: '+ Gerät', perm: 'buchung_einstellungen', kind: 'aktion', words: 'Gerät Ballmaschine' },
+    { label: 'Buchungsart anlegen', page: 'bk-labels', btn: '+ Neue Buchungsart', perm: 'buchung_einstellungen', kind: 'aktion', words: 'Training Medenspiel Kurs Turnier' },
+    { label: 'Buchungsregeln (Vorlauf, Kontingent, Stornieren)', page: 'bk-einstellungen', card: 'Buchungsregeln', words: 'Vorlauf Kontingent Storno Mitspieler Gäste Gastgebühr Warteliste Tablet' },
+    { label: 'Wer darf Plätze buchen?', page: 'bk-einstellungen', card: 'Wer darf buchen', words: 'Status Beitragsart passiv buchen' },
+    { label: 'Platzordnung', page: 'bk-einstellungen', card: 'Platzordnung', words: 'Regeln Hinweis Tennisschuhe' },
+    { label: 'Sonderrechte in der Mitglieder-App (z. B. Trainer)', page: 'bk-einstellungen', card: 'Sonderrechte', words: 'Trainer Serien für andere buchen App' },
+    { label: 'Von unterwegs buchen', page: 'bk-einstellungen', card: 'Von unterwegs buchen', words: 'Tunnel Internet App unterwegs' },
+    { label: 'Einstellungen des Buchungssystems übertragen', page: 'bk-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+  ]);
 })();

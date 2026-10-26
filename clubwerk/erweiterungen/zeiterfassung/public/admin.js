@@ -146,4 +146,11 @@
 
 
   GK.registerPage({ key: 'zeit', title: 'Zeiterfassung', perm: 'zeiterfassung', render: GK.RENDER.zeit, order: 4 });
+  // Suche (Strg/⌘ K): Aktionen und Einstellungen der Zeiterfassung
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Personal verwalten (PIN, Stundensatz)', page: 'zeit', btn: 'Personal verwalten', kind: 'aktion', words: 'Mitarbeiter Personal PIN Stundensatz Reinigung Hausmeister' },
+    { label: 'Einsatz nachtragen (Zeiterfassung)', page: 'zeit', btn: 'Einsatz nachtragen', kind: 'aktion', words: 'Stunden nachtragen vergessen' },
+    { label: 'Monatsnachweis (PDF)', page: 'zeit', btn: 'Monatsnachweis', kind: 'aktion', words: 'Stunden Nachweis Abrechnung' },
+    { label: 'Monatsnachweis per E-Mail', page: 'zeit', card: 'Monatsnachweis per E-Mail', words: 'Empfänger Kassierer E-Mail' },
+  ]);
 })();

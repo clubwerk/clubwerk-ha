@@ -1358,12 +1358,10 @@
         <div class="row"><label class="f">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric" style="width:220px"></label><button class="btn primary" id="eSave3">Speichern</button></div></div>
       <div id="eFunc" data-sec="daten"></div>`;
     const SECS = [['verein', 'Verein & SEPA'], ['antrag', 'Beitrittserklärung'], ['daten', 'Import & Datenschutz']];   // „Meine Daten“ der App: Verein → Mitglieder-App
-    if (!SECS.some(x => x[0] === st.set)) st.set = 'verein';
-    el.innerHTML = part === 'catalog' ? tB : `<div class="seg" id="eSeg" style="width:fit-content;margin-bottom:16px">${SECS.map(([k, l]) => `<button type="button" data-s="${k}" class="${st.set === k ? 'on' : ''}">${l}</button>`).join('')}</div>${tA}${tP}${tS}${tC}`;
+    // keine zweite Ebene: alle Karten untereinander
+    el.innerHTML = part === 'catalog' ? tB : `<div class="settings">${tA}${tP}${tS}${tC}</div>`;
     if (part !== 'catalog') {
-      const show = () => el.querySelectorAll('[data-sec]').forEach(c => c.classList.toggle('hidden', c.dataset.sec !== st.set));
-      show();
-      $('eSeg').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; st.set = b.dataset.s; $('eSeg').querySelectorAll('[data-s]').forEach(x => x.classList.toggle('on', x === b)); show(); };
+      SECS.forEach(([k, l]) => { const cs = el.querySelectorAll(`[data-sec="${k}"].card`); if (cs.length > 1) cs[0].insertAdjacentHTML('beforebegin', `<h2 class="sec">${l}</h2>`); });   // Überschrift nur, wo ein Bereich mehrere Karten bündelt
       if ($('eImp')) $('eImp').onclick = () => importDialog();
     }
     GK.watch(el);
@@ -1468,6 +1466,31 @@
   GK.registerPage({ key: 'mv-antraege', title: 'Anträge & Änderungen', perm: 'mitglieder', render: pageRender('mv-antraege', showApplications), group: G, tab: 'Anträge' });
   GK.registerPage({ key: 'mv-auswertung', title: 'Auswertung', perm: '!mitglieder', render: pageRender('mv-auswertung', showReports), group: G });
   GK.registerPage({ key: 'mv-einstellungen', title: 'Einstellungen', perm: '!mitglieder', render: pageRender('mv-einstellungen', el => showSettings(el, 'settings')), group: G });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen der Mitgliederverwaltung
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Neues Mitglied anlegen', page: 'mitglieder', btn: '+ Neues Mitglied', kind: 'aktion', words: 'Mitglied aufnehmen Neuaufnahme' },
+    { label: 'Mitglieder importieren', page: 'mitglieder', btn: 'Import', perm: '!mitglieder', kind: 'aktion', words: 'Import S-Verein WISO verein.cloud CSV Excel übernehmen' },
+    { label: 'Mitgliederliste als Excel', page: 'mitglieder', btn: 'Excel-Liste', perm: '!mitglieder', kind: 'aktion', words: 'Export Liste Excel' },
+    { label: 'Beitragslauf', page: 'mv-beitraege', seg: 'Beitragslauf', perm: 'mitglieder_finanzen', kind: 'aktion', boost: 1, in: 'Beitragslauf', words: 'Beiträge abrechnen Jahresbeitrag Lastschrift' },
+    { label: 'Altersstufen prüfen', page: 'mv-beitraege', seg: 'Altersstufen', in: 'Altersstufen', words: 'Alter Jugend Erwachsene Beitragsart wechseln' },
+    { label: 'Beitragsarten', page: 'mv-beitraege', seg: 'Beitragsarten & Abteilungen', card: 'Beiträge Hauptverein', in: 'Beitragsarten & Abteilungen', words: 'Beitrag Familienbeitrag Grundbeitrag' },
+    { label: 'Zusatzbeiträge der Abteilungen', page: 'mv-beitraege', seg: 'Beitragsarten & Abteilungen', card: 'Zusatzbeiträge', in: 'Beitragsarten & Abteilungen', words: 'Abteilungsbeitrag Zusatzbeitrag' },
+    { label: 'Abteilungen', page: 'mv-beitraege', seg: 'Beitragsarten & Abteilungen', card: 'Abteilungen', in: 'Beitragsarten & Abteilungen', words: 'Abteilung Sparte anlegen' },
+    { label: 'Lastschriften und SEPA-Datei', page: 'mv-einzug', seg: 'Lastschriften', kind: 'aktion', boost: 1, in: 'Lastschriften', words: 'SEPA Einzug pain.008 Vorabinformation Rücklastschrift' },
+    { label: 'Offene Posten', page: 'mv-einzug', seg: 'Offene Posten', in: 'Offene Posten', words: 'Forderung bezahlt überfällig offen' },
+    { label: 'Rechnungen & Mahnungen (Beiträge)', page: 'mv-einzug', seg: 'Rechnungen & Mahnungen', in: 'Rechnungen & Mahnungen', words: 'Mahnung Erinnerung Rechnung bar' },
+    { label: 'Beitrittserklärung erfassen', page: 'mv-antraege', btn: '+ Beitrittserklärung', kind: 'aktion', words: 'Antrag Aufnahme Beitritt' },
+    { label: 'Online-Antrag', page: 'mv-antraege', btn: 'Online-Antrag', kind: 'aktion', words: 'online Antrag Beitritt' },
+    { label: 'Bestandserhebung (Landessportbund)', page: 'mv-auswertung', card: 'Bestandserhebung', words: 'LSB Statistik Meldung Verband' },
+    { label: 'Runde Geburtstage & Jubiläen', page: 'mv-auswertung', card: 'Runde Geburtstage', words: 'Geburtstag Jubiläum Ehrung' },
+    { label: 'Verein & SEPA-Lastschrift (Gläubiger-ID, Mandatsreferenz)', page: 'mv-einstellungen', card: 'Verein & SEPA', words: 'Gläubiger-ID Mandatsreferenz Vorabinformation Kündigungsfrist Mitgliedsnummer Mahngebühr Rücklastschrift Beitragsjahr' },
+    { label: 'Lastschrift als Pflicht', page: 'mv-einstellungen', card: 'Zahlart der Mitglieder', words: 'Zahlart Lastschrift Rechnung bar' },
+    { label: 'Abteilungsleitungen', page: 'mv-einstellungen', card: 'Abteilungsleitungen', words: 'Abteilungsleitung bestätigen' },
+    { label: 'Beitrittserklärung (Formular, Einwilligungen)', page: 'mv-einstellungen', card: 'Beitrittserklärung', words: 'Formular Satzung Einwilligung Online-Antrag Tablet' },
+    { label: 'Datenschutz nach dem Austritt', page: 'mv-einstellungen', card: 'Datenschutz', words: 'DSGVO Anonymisieren löschen Aufbewahrung' },
+    { label: 'Einstellungen der Mitgliederverwaltung übertragen', page: 'mv-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+    { label: '„Meine Daten“ in der Mitglieder-App', page: 'app', sec: ['cw_appsec', 'meinedaten'], card: '„Meine Daten“', perm: '!mitglieder', in: 'Meine Daten', words: 'App Anschrift Bankverbindung Kündigen Einwilligungen' },
+  ]);
   // Konten & PINs gehören zum Verkauf, sobald die Mitglieder hier verwaltet werden
   if (GK.regroup && (!GK.modules || GK.modules().includes('getraenke'))) GK.regroup('konten', 'getraenke', { title: 'Konten & PINs', tab: 'Konten' });
   else if (GK.relabel) GK.relabel('konten', 'Konten & PINs');

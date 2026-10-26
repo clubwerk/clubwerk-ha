@@ -463,20 +463,99 @@
     go(page);
   }
 
-  /* Suche im Menü: alle erlaubten Seiten (auch die Reiter von Getränke), Strg/⌘ + K springt hinein */
+  /* ---------- Suche (Strg/⌘ K) ----------
+     Findet Seiten und Reiter (automatisch aus PAGES), dazu Einstellungen, Felder und Aktionen, die Kern und Module mit GK.registerSearch anmelden.
+     Ein Eintrag: { label, page, tab: [tabsKey, reiter] (GK.tabs), sec: [speicher, bereich] (Kern-Einstellungen), seg: 'Unterseite', card: 'Kartenüberschrift',
+     field: 'id', btn: 'Knopftext', words: 'Synonyme …', perm, kind: 'einstellung' | 'aktion' | 'reiter', in: 'Reitername für den Pfad', boost: Vorrang (z. B. 1) } */
+  const SEARCH = [];
+  /** Gleichbedeutende Wörter: wer das eine sucht, findet auch das andere (normalisiert, siehe snorm) */
+  // als ein Text ohne Leerzeichen geschrieben, damit die Übersetzung ihn nicht für Oberflächentext hält (Wort=Synonym,Synonym;…)
+  const SYN = ('lastschrift=sepa,einzug,mandat;sepa=lastschrift,einzug;einzug=lastschrift,sepa;passwort=kennwort,pin;kennwort=passwort;pin=passwort,kennwort;'
+    + 'push=benachrichtigung;benachrichtigung=push,nachricht;import=importieren,uebernehmen,einlesen;importieren=import;export=exportieren,excel,herunterladen;'
+    + 'gebuehr=gebuehren,preis,kosten;preis=preise,gebuehr;mitglied=mitglieder,person;person=mitglied;logo=wappen,bild;platz=plaetze;konto=konten,iban,bankkonto;'
+    + 'bankkonto=iban,konto,bank;iban=bankkonto,konto;mail=email,postfach;email=mail,postfach;sperre=sperren,gesperrt;spielplan=nuliga;nuliga=spielplan;'
+    + 'sicherung=backup,datensicherung;backup=sicherung,datensicherung;getraenke=verkauf,artikel;tuer=tueren,zugang,schloss;schloss=zugang,tuer')
+    .split(';').reduce((o, x) => { const [k, v] = x.split('='); o[k] = v.split(','); return o; }, {});
+  const snorm = v => String(v || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ').trim();
+  const lev1 = (a, b) => { if (Math.abs(a.length - b.length) > 1) return false; let i = 0; while (i < a.length && a[i] === b[i]) i++; return a.slice(i + 1) === b.slice(i + 1) || a.slice(i) === b.slice(i + 1) || a.slice(i + 1) === b.slice(i); };
+  /** Alle Einträge, die dieser Benutzer gerade sehen darf (Seite erlaubt, Recht vorhanden, Modul aktiv) */
+  function searchIndex() {
+    const pathOf = (k, extra) => { const pg = PAGES.find(x => x[0] === k); if (!pg) return []; const g = groupOf(k);
+      return [g ? MODG[g].label : pg[3] === 'module' ? pg[1] : GROUP_LABEL[pg[3]] || '', g ? TAB_LABEL[k] || pg[1] : pg[3] === 'module' ? '' : pg[1], extra || ''].filter(Boolean); };
+    const pages = PAGES.filter(x => canAny(x[2]) && RENDER[x[0]] && (x[0] !== 'app' || (cache.appModules || []).length))
+      .map(([k, l, , g]) => ({ label: groupOf(k) ? TAB_LABEL[k] || l : l, page: k, kind: groupOf(k) ? 'reiter' : 'seite', words: groupOf(k) ? `${l} ${MODG[g].label}` : '', path: pathOf(k).slice(0, -1) }));
+    const reg = SEARCH.filter(e => allowed(e.page) && canAny(e.perm)).map(e => ({ ...e, path: pathOf(e.page, e.in) }));
+    return [...pages, ...reg].map(e => {
+      const lab = snorm(e.label + ' ' + T(e.label)), words = snorm([e.words, e.words ? T(e.words) : ''].join(' ')), path = snorm(e.path.map(x => x + ' ' + T(x)).join(' '));
+      return { ...e, _l: lab, _lw: lab.split(' '), _lc: lab.replace(/ /g, ''), _w: words, _p: path };
+    });
+  }
+  /** Wie gut passt ein Eintrag zur Eingabe? 0 = gar nicht. Jedes Wort der Eingabe muss irgendwo passen (auch über Synonyme oder mit einem Tippfehler). */
+  function searchScore(e, toks) {
+    let sum = 0;
+    for (const t of toks) {
+      const alts = [t, ...(SYN[t] || [])]; let best = 0;
+      alts.forEach((a, i) => { const f = i ? 0.45 : 1;   // Synonym zählt weniger als das gesuchte Wort selbst
+        if (e._lw.some(w => w.startsWith(a))) best = Math.max(best, 3 * f);
+        else if (e._lc.includes(a)) best = Math.max(best, 2 * f);
+        else if (e._w.includes(a)) best = Math.max(best, 1.5 * f);
+        else if (e._p.includes(a)) best = Math.max(best, 0.5 * f);
+        else if (a.length >= 5 && e._lw.some(w => lev1(a, w.slice(0, a.length)) || lev1(a, w))) best = Math.max(best, 1 * f); });
+      if (!best) return 0;
+      sum += best;
+    }
+    return sum + (e._l.startsWith(toks.join(' ')) ? 2 : 0) + (e.kind === 'seite' ? 0.3 : 0) + (e.boost || 0);   // boost: Hauptort einer Aufgabe vor ähnlichen Einträgen
+  }
+  /** Zum Treffer springen: Seite öffnen, Reiter/Bereich vorwählen, dann Karte bzw. Feld hineinscrollen und kurz hervorheben. Ergebnis: Ziel gefunden? */
+  async function searchJump(e) {
+    if (e.tab) sset('tab_' + e.tab[0], e.tab[1]);
+    if (e.sec) sset(e.sec[0], e.sec[1]);
+    await go(e.page);
+    if (!e.seg && !e.card && !e.field && !e.btn) return true;
+    const orig = t => (window.CWI18N ? CWI18N.orig(t) : t).replace(/\s+/g, ' ').trim();
+    const find = () => {
+      const m = $('main'); if (!m) return null;
+      if (e.field) return $(e.field);
+      if (e.btn) return [...m.querySelectorAll('.btn, button'), ...document.querySelectorAll('#tabTools button, #tabTools a, #tabTools label')].find(b => b.offsetParent && orig(b.textContent).startsWith(e.btn));
+      if (e.card) { const h = [...m.querySelectorAll('.card h3, .card h2')].find(x => x.offsetParent && orig(x.textContent).startsWith(e.card)); return h && h.closest('.card'); }
+      return null;
+    };
+    const t0 = Date.now(); let segDone = !e.seg, el = null;
+    while (Date.now() - t0 < 5000) {
+      await new Promise(r => setTimeout(r, 120));
+      if (!segDone) { const b = [...document.querySelectorAll('#main .seg > button')].find(x => orig(x.textContent).startsWith(e.seg)); if (b) { if (!b.classList.contains('on')) b.click(); segDone = true; } continue; }
+      if (!e.card && !e.field && !e.btn) return true;
+      el = find(); if (el) break;
+    }
+    if (!el) return false;
+    const box = e.field ? el.closest('.f, label') || el : el;
+    const tall = box.getBoundingClientRect().height > innerHeight * 0.55;   // hohe Karten ab ihrem Anfang zeigen (unter der Kopfleiste), kleine mittig
+    box.style.scrollMarginTop = '96px';
+    box.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'smooth' });
+    box.classList.remove('cw-hit'); void box.offsetWidth; box.classList.add('cw-hit'); setTimeout(() => box.classList.remove('cw-hit'), 2400);
+    if (e.field || e.btn) el.focus({ preventScroll: true });
+    return true;
+  }
   function bindSearch() {
     const inp = $('navSearch'), box = $('navRes');
-    let hits = [], sel = 0;
-    const all = () => PAGES.filter(x => canAny(x[2]) && RENDER[x[0]] && (x[0] !== 'app' || (cache.appModules || []).length));
+    let hits = [], sel = 0, idx = null;
+    const KIND = [['seite', 'Seiten & Reiter'], ['reiter', 'Seiten & Reiter'], ['einstellung', 'Einstellungen'], ['aktion', 'Aktionen']];
     const draw = () => {
-      const q = inp.value.trim().toLowerCase();
-      if (!q) { box.classList.add('hidden'); return; }
-      hits = all().filter(x => x[1].toLowerCase().includes(q) || (GROUP_LABEL[x[3]] || '').toLowerCase().includes(q)).slice(0, 8);
-      sel = 0;
-      box.innerHTML = hits.length ? hits.map((x, i) => `<button type="button" data-i="${i}" class="${i === sel ? 'sel' : ''}">${esc(x[1])}<span>${esc(GROUP_LABEL[x[3]] || '')}</span></button>`).join('') : '<span class="muted s" style="padding:8px 10px">Nichts gefunden</span>';
+      const toks = snorm(inp.value).split(' ').filter(Boolean);
+      if (!toks.length) { box.classList.add('hidden'); return; }
+      idx = idx || searchIndex();
+      const grp = k => (k === 'einstellung' ? 1 : k === 'aktion' ? 2 : 0);   // Gruppen: Seiten & Reiter · Einstellungen · Aktionen
+      const top = idx.map(e => ({ e, s: searchScore(e, toks) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 12);
+      const gmax = g => Math.max(...top.filter(x => grp(x.e.kind) === g).map(x => x.s));   // Gruppe mit dem besten Treffer zuerst
+      hits = top.sort((a, b) => gmax(grp(b.e.kind)) - gmax(grp(a.e.kind)) || grp(a.e.kind) - grp(b.e.kind) || b.s - a.s).map(x => x.e);
+      sel = 0; let last = '';
+      box.innerHTML = hits.length ? hits.map((x, i) => { const g = KIND.find(k => k[0] === x.kind)[1]; const head = g !== last ? `<div class="sh">${esc(T(g))}</div>` : ''; last = g;
+        return `${head}<button type="button" data-i="${i}" class="${i === sel ? 'sel' : ''}"><b>${esc(T(x.label))}</b>${x.path.length ? `<span>${esc(x.path.map(p => T(p)).join(' › '))}</span>` : ''}</button>`; }).join('')
+        : `<span class="muted s" style="padding:8px 10px">${esc(T('Nichts gefunden'))}</span>`;
       box.classList.remove('hidden');
     };
-    const pick = i => { const x = hits[i]; if (!x) return; inp.value = ''; box.classList.add('hidden'); inp.blur(); go(x[0]); };
+    const pick = i => { const x = hits[i]; if (!x) return; inp.value = ''; box.classList.add('hidden'); inp.blur(); searchJump(x).catch(() => {}); };
+    inp.addEventListener('focus', () => { idx = null; });   // Rechte und Module können sich geändert haben
     inp.addEventListener('input', draw);
     inp.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, Math.min(hits.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1))); box.querySelectorAll('button').forEach((b, i) => b.classList.toggle('sel', i === sel)); }
@@ -682,15 +761,82 @@
       const at = before ? PAGES.findIndex(x => x[0] === before) : -1;
       if (at >= 0) PAGES.splice(at, 0, p); else { const last = PAGES.map(x => x[3]).lastIndexOf(p[3]); PAGES.splice(last >= 0 ? last + 1 : PAGES.length, 0, p); }
     },
+    /** Einträge für die Suche (Strg/⌘ K): registerSearch([{ label, page, tab, sec, seg, card, field, btn, words, perm, kind, in }]) – siehe Kommentar an SEARCH */
+    registerSearch(list) { for (const e of list || []) if (e && e.label && e.page) SEARCH.push({ kind: 'einstellung', words: '', ...e }); },
+    /** Für den Design-Prüfstand: alle sichtbaren Sucheinträge und der Sprung dorthin (true = Ziel gefunden) */
+    searchIndex: () => searchIndex(), searchJump: e => searchJump(e),
     /** Zahlen für Reiter-Abzeichen: fn() → { seitenschlüssel: Anzahl } */
     badges(fn) { BADGE_HOOKS.push(fn); },
     refreshBadges: () => refreshBadges(),
-    /** Einstellungsseite eines Moduls in Unterbereiche aufteilen: sectionize({ root, secs: [[key, label]], keyOf, store }) – siehe Kern-Einstellungen */
+    /** Einstellungskarten eines Moduls nach Bereichen ordnen (untereinander, mit Abschnittsüberschriften): sectionize({ root, secs: [[key, label]], keyOf }) */
     sectionize: o => sectionize(o),
   };
   // Kernseiten aus eigenen Dateien (z. B. mail.js), die vor admin.js geladen wurden
   (window.CW_PAGES || []).forEach(fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } });
   window.CW_PAGES = { push: fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } } };
+
+  /* Suche: Einstellungen und Aktionen des Kerns (Seiten und Reiter findet sie von selbst) */
+  const SET = sec => ['cw_setsec', sec], APS = sec => ['cw_appsec', sec], E = 'einstellungen';
+  window.GK.registerSearch([
+    { label: 'Vereinsname und Vereinsfarbe', page: E, sec: SET('verein'), card: 'Verein', words: 'Name Farbe Verein', perm: E, in: 'Verein & Logo' },
+    { label: 'Vereinslogo', page: E, sec: SET('verein'), card: 'Vereinslogo', words: 'Logo Wappen Bild hochladen', perm: E, in: 'Verein & Logo' },
+    { label: 'Bankkonten des Vereins', page: E, sec: SET('bank'), card: 'Bankkonten', words: 'IBAN BIC Konto Bank Vereinskonto', in: 'Bankkonten' },
+    { label: 'Vereinssprache', page: E, sec: SET('sprache'), field: 'lgClub', words: 'Sprache Englisch', perm: E, in: 'Sprachen' },
+    { label: 'Meine Sprache in diesem Browser', page: E, sec: SET('sprache'), field: 'lgMine', words: 'Sprache Englisch', in: 'Sprachen' },
+    { label: 'Übersetzung verbessern oder Sprache hinzufügen', page: E, sec: SET('sprache'), card: 'Sprachen', words: 'Übersetzung Sprache', perm: E, kind: 'aktion', in: 'Sprachen' },
+    { label: 'Postfach (Versand von E-Mails)', page: E, sec: SET('mail'), card: 'Postfach', words: 'SMTP Mailserver Absender E-Mail', perm: E, in: 'Postfach' },
+    { label: 'Testmail senden', page: E, sec: SET('mail'), btn: 'Testmail senden', words: 'E-Mail Postfach', perm: E, kind: 'aktion', in: 'Postfach' },
+    { label: 'Module ein- und ausschalten', page: E, sec: SET('module'), card: 'Module & Erweiterungen', words: 'Modul Erweiterung einschalten ausschalten deinstallieren', perm: E, in: 'Module' },
+    { label: 'Erweiterung einspielen (ZIP)', page: E, sec: SET('module'), btn: 'Erweiterung einspielen', words: 'Modul Erweiterung', perm: E, kind: 'aktion', in: 'Module' },
+    { label: 'Tablet-Passwort', page: E, sec: SET('tablet'), card: 'Passwort für das Tablet', words: 'Passwort Kennwort Sperre Tablet sperren', perm: E, in: 'Tablet & Kopfzeile' },
+    { label: 'Alle Tablets abmelden', page: E, sec: SET('tablet'), btn: 'Alle Geräte abmelden', words: 'Geräte abmelden Tablet', perm: E, kind: 'aktion', in: 'Tablet & Kopfzeile' },
+    { label: 'Startseite am Tablet („Gerade oft hier“)', page: E, sec: SET('tablet'), card: 'Startseite am Tablet', words: 'Verkauf Startseite Namen', perm: E, in: 'Tablet & Kopfzeile' },
+    { label: 'Weitere Adressen der Verwaltung', page: E, sec: SET('tablet'), card: 'Weitere Adressen', words: 'Adresse Hostname Domain', perm: E, in: 'Tablet & Kopfzeile' },
+    { label: 'Links in der Kopfzeile', page: E, sec: SET('tablet'), card: 'Links in der Kopfzeile', words: 'Link Kopfzeile Tablet', perm: E, in: 'Tablet & Kopfzeile' },
+    { label: 'Leiste am Tablet (Reihenfolge, Start-Reiter)', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Reihenfolge Reiter Kopfzeile Start', perm: E, in: 'Tablet & Kopfzeile' },
+    { label: 'Tablet & Home Assistant', page: E, sec: SET('tablet'), card: 'Tablet & Home Assistant', words: 'Home Assistant Tablet', perm: E, in: 'Tablet & Kopfzeile' },
+    { label: 'Gemerkte Zuordnungen von Lieferanten-Artikeln', page: E, sec: SET('getraenke'), card: 'Gemerkte Zuordnungen', words: 'Lieferant Artikel Lieferung Verkauf', perm: E, in: 'Verkauf' },
+    { label: 'Update von Clubwerk', page: E, sec: SET('update'), card: 'Update von Clubwerk', words: 'Update Version aktualisieren ZIP', perm: E, in: 'Update' },
+    { label: 'Mein Passwort ändern', page: E, sec: SET('konto'), card: 'Mein Passwort', words: 'Passwort Kennwort', in: 'Mein Konto' },
+    { label: 'Verschlüsselung der persönlichen Daten', page: 'sicherung', card: 'Verschlüsselung der persönlichen Daten', words: 'Tresor Verschlüsselung Datenschutz' },
+    { label: 'Jetzt sichern', page: 'sicherung', btn: 'Jetzt sichern', words: 'Sicherung Backup', kind: 'aktion' },
+    { label: 'Sicherungspasswort', page: 'sicherung', card: 'Sicherungspasswort', words: 'Passwort Sicherung Backup' },
+    { label: 'Zeitplan und Aufbewahrung der Sicherungen', page: 'sicherung', card: 'Zeitplan & Aufbewahrung', words: 'Sicherung Uhrzeit aufbewahren' },
+    { label: 'Sicherungsziele (Dropbox, NAS, Cloud)', page: 'sicherung', card: 'Sicherungsziele', words: 'Dropbox NAS Cloud FRITZ!Box Ziel Sicherung' },
+    { label: 'Wiederherstellen', page: 'sicherung', card: 'Wiederherstellen', words: 'Sicherung einspielen Backup', kind: 'aktion' },
+    { label: 'Datenbank-Schnappschüsse', page: 'sicherung', card: 'Datenbank-Schnappschüsse', words: 'Schnappschuss Datenbank Sicherung' },
+    { label: 'Mitglied für die App freischalten', page: 'app', sec: APS('mitglieder'), card: 'Mitglied freischalten', words: 'App Einladung QR-Code Handy koppeln', kind: 'aktion', in: 'Mitglieder' },
+    { label: 'Wer sieht welchen Bereich der App?', page: 'app', sec: APS('bereiche'), card: 'Wer sieht welchen Bereich', words: 'App Bereiche Rechte', in: 'Bereiche' },
+    { label: 'Von unterwegs nutzbare Bereiche', page: 'app', sec: APS('bereiche'), card: 'Von unterwegs nutzbar', words: 'App unterwegs Internet', in: 'Bereiche' },
+    { label: 'Reiter in der App (Reihenfolge)', page: 'app', sec: APS('bereiche'), card: 'Reiter in der App', words: 'App Reihenfolge Leiste', in: 'Bereiche' },
+    { label: 'Push-Benachrichtigungen freigeben', page: 'app', sec: APS('push'), card: 'Benachrichtigungen', words: 'Push Benachrichtigung Nachricht', in: 'Benachrichtigungen' },
+    { label: 'Adresse der Mitglieder-App', page: 'app', sec: APS('verbindung'), card: 'Adresse der App', words: 'Adresse WLAN Homescreen Name', in: 'Verbindung' },
+    { label: 'Von unterwegs erreichbar (öffentliche Adresse)', page: 'app', sec: APS('verbindung'), card: 'Von unterwegs erreichbar', words: 'Tunnel Cloudflare Internet unterwegs', in: 'Verbindung' },
+    { label: 'Vereinsnetz', page: 'app', sec: APS('verbindung'), card: 'Vereinsnetz', words: 'Netz WLAN Netzwerk', in: 'Verbindung' },
+    { label: 'Sicherheit der App (QR-Code, Warnungen)', page: 'app', sec: APS('sicherheit'), card: 'Sicherheit', words: 'QR-Code Sicherheit gesperrt', in: 'Sicherheit' },
+    { label: 'Bestätigung per SMS', page: 'app', sec: APS('sicherheit'), card: 'Bestätigung per SMS', words: 'SMS Stick Handy', in: 'Sicherheit' },
+    { label: 'Neue E-Mail schreiben', page: 'email', tab: ['email', 'neu'], words: 'Rundmail Mail schreiben', kind: 'aktion', in: 'Neue E-Mail' },
+    { label: 'Verteiler', page: 'email', tab: ['email', 'verteiler'], words: 'Verteiler Gruppe Mail', kind: 'reiter', in: 'Verteiler' },
+    { label: 'E-Mail-Vorlagen', page: 'email', tab: ['email', 'vorlagen'], words: 'Vorlage Mail', kind: 'reiter', in: 'Vorlagen' },
+    { label: 'Mein E-Mail-Absender', page: 'email', tab: ['email', 'absender'], card: 'Dein Absender', words: 'Absender Antworten Signatur Mail', in: 'Absender' },
+    { label: 'Benutzer anlegen', page: 'benutzer', tab: ['benutzer', 'benutzer'], btn: '+ Neuer Benutzer', words: 'Benutzer Zugang Konto', kind: 'aktion' },
+    { label: 'Rollen und Rechte', page: 'benutzer', tab: ['benutzer', 'rollen'], words: 'Rolle Rechte Berechtigung', kind: 'reiter', in: 'Rollen' },
+    { label: 'Änderungsprotokoll', page: 'protokoll', words: 'Protokoll Verlauf geändert wer', kind: 'reiter' },
+    { label: 'Artikel anlegen', page: 'artikel', btn: '+ Neuer Artikel', words: 'Getränk Artikel Preis', kind: 'aktion' },
+    { label: 'Artikel aus Excel importieren', page: 'artikel', btn: 'Excel importieren', words: 'Import Artikel Preise', kind: 'aktion' },
+    { label: 'Reihenfolge der Kategorien', page: 'artikel', btn: 'Reihenfolge der Kategorien', words: 'Kategorie Sortierung Artikel' },
+    { label: 'Inventur', page: 'bestand', card: 'Aktueller Bestand', words: 'Inventur Zählung Bestand', kind: 'aktion' },
+    { label: 'Bruch oder Korrektur buchen', page: 'bestand', card: 'Bruch oder Korrektur', words: 'Bruch Schwund Korrektur Bestand', kind: 'aktion' },
+    { label: 'Lieferung erfassen (Beleg hochladen)', page: 'lieferungen', btn: 'Dateien wählen', words: 'Lieferung Rechnung Lieferschein Beleg', kind: 'aktion' },
+    { label: 'Bestellung senden', page: 'bestellung', btn: 'Bestellung jetzt senden', words: 'Bestellung Lieferant bestellen', kind: 'aktion' },
+    { label: 'Buchung nachtragen', page: 'buchungen', card: 'Nachtragen', words: 'Nachtragen Strich vergessen Buchung', kind: 'aktion' },
+    { label: 'Verkauf per Lastschrift einziehen', page: 'abrechnung', btn: 'Per Lastschrift einziehen', words: 'Lastschrift SEPA Einzug Verkauf', kind: 'aktion' },
+    { label: 'Betrag auf Konto buchen', page: 'abrechnung', btn: '+ Betrag auf Konto', words: 'Betrag Konto Essen buchen', kind: 'aktion' },
+    { label: 'Abrechnung als Excel', page: 'abrechnung', btn: 'Excel herunterladen', words: 'Export Excel Abrechnung Kassenprüfer', kind: 'aktion' },
+    { label: 'Konto anlegen (Verkauf)', page: 'konten', btn: '+ Neues Konto', words: 'Konto PIN Mitglied anlegen', kind: 'aktion' },
+    { label: 'Konten aus Excel importieren', page: 'konten', btn: 'Excel importieren', words: 'Import Konten Liste', kind: 'aktion' },
+    { label: 'Veranstaltung anlegen', page: 'veranstaltungen', card: 'Neue Veranstaltung', words: 'Veranstaltung Fest Feier Deckel', kind: 'aktion' },
+  ]);
 
   /* =================== Übersicht =================== */
   /** Modul-Daten (Warnungen + Kennzahlen) aller aktiven Erweiterungen */
@@ -2492,7 +2638,7 @@
       draw();
       $('moSave').onclick = () => busy($('moSave'), async () => { try { await api('settings/app', 'PUT', { moduleOrder: items.map(x => x.id), startSection: startId }); toast('Gespeichert – die App übernimmt es beim nächsten Öffnen.'); RENDER.app().catch(fail); } catch (e) { fail(e); } });
     }
-    if ($('smsCard')) smsCard($('smsCard')).catch(e => { $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
+    if ($('smsCard')) smsCard($('smsCard')).catch(e => { if ($('smsCard')) $('smsCard').innerHTML = `<h3>Bestätigung per SMS</h3><p class="muted s">${esc(e.message)}</p>`; });
     $('main').querySelectorAll('[data-pre]').forEach(c => { c.onchange = async () => {
       const o = {}; $('main').querySelectorAll('[data-pre]').forEach(x => { o[x.dataset.pre] = x.checked; });
       try { await api('settings/app', 'PUT', { preselect: o }); toast('Gespeichert.'); } catch (e) { c.checked = !c.checked; fail(e); } }; });
@@ -2510,7 +2656,7 @@
     if ($('apSrcNew')) $('apSrcNew').onclick = setSrc($('apSrcNew').dataset.ip);
     if ($('apSrcOff')) $('apSrcOff').onclick = setSrc('');
     if ($('apNetSave')) $('apNetSave').onclick = () => busy($('apNetSave'), async () => { try { await api('settings/app', 'PUT', { wlanNets: $('apNets').value }); clubNetsMissing = !$('apNets').value.trim(); toast($('apNets').value.trim() ? 'Gespeichert – nur diese Netze gelten als Vereinsnetz.' : 'Gespeichert – jede private Adresse gilt als Vereinsnetz.'); } catch (e) { fail(e); } });
-    pushCard($('pushCard')).catch(e => { $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
+    pushCard($('pushCard')).catch(e => { if ($('pushCard')) $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => inviteMenu(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
     if ($('apBulk')) $('apBulk').onclick = () => bulkInvites(r);
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
@@ -2643,6 +2789,7 @@
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
   const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');
   RENDER.benutzer = async () => {
+    try { userTab = sessionStorage.getItem('tab_benutzer') === 'rollen' ? 'rollen' : 'benutzer'; } catch (e) { /* egal */ }   // auch die Suche wählt den Reiter vor
     const [users, opt] = await Promise.all([api('users'), api('users/options')]);
     const roleName = id => (opt.roles.find(r => r.id === id) || {}).name;
     const deptName = id => (opt.departments.find(d => d.id === id) || {}).name;
@@ -3336,7 +3483,7 @@
       };
     }
   }
-  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
 
   /* ---------- Update per ZIP-Upload ---------- */
   async function renderUpdate() {
@@ -3417,8 +3564,8 @@
   const SETTING_SECS = [['verein', 'Verein & Logo'], ['bank', 'Bankkonten'], ['sprache', 'Sprachen'], ['mail', 'Postfach'], ['module', 'Module'], ['tablet', 'Tablet & Kopfzeile'], ['getraenke', 'Verkauf'], ['update', 'Update'], ['konto', 'Mein Konto']];
   const SETTING_OF = h => (/^Sprache/.test(h) ? 'sprache' : /^Mein Passwort/.test(h) ? 'konto' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^Gemerkte Zuordnungen/.test(h) ? 'getraenke' : 'tablet');
-  /** Karten eines Bereichs in Unterbereiche aufteilen (Unternavigation links, bei schmalen Fenstern oben) – für die Kern-Einstellungen und
-   *  die Einstellungsseiten der Module (GK.sectionize). o.root: Element mit den Karten (Standard #main) · o.secs: [[key, label]] ·
+  /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
+   *  alle Karten untereinander mit Abschnittsüberschriften, keine zweite Ebene. o.root: Element mit den Karten (Standard #main) · o.secs: [[key, label]] ·
    *  o.keyOf(überschrift) → key (Karten mit data-set="key" werden direkt zugeordnet) · o.store: Schlüssel für den gemerkten Bereich */
   function sectionize(o = {}) {
     const root = o.root || $('main'), SECS = o.secs || SETTING_SECS, keyOf = o.keyOf || SETTING_OF, store = o.store || 'cw_setsec';
@@ -3431,15 +3578,20 @@
     let cur = sget(store); if (!secs.some(([k]) => k === cur)) cur = secs[0][0];
     const wrap = document.createElement('div'); wrap.className = 'settings';
     const badge = o.badges || {};
+    const dot = k => (badge[k] ? `<span class="sdot" title="${esc(badge[k] === true ? 'Hier ist etwas zu tun' : badge[k])}"></span>` : '');
+    // Innerhalb eines Reiters keine zweite Ebene: alle Karten untereinander; eine Abschnittsüberschrift nur, wo ein Bereich mehrere Karten bündelt (die Suche springt direkt zur Karte)
+    if (root !== $('main')) {
+      secs.forEach(([k, l]) => { if (secs.length > 1 && (by[k].length > 1 || badge[k])) wrap.insertAdjacentHTML('beforeend', `<h2 class="sec">${esc(l)}${dot(k)}</h2>`); by[k].forEach(c => wrap.appendChild(c)); });
+      root.prepend(wrap);
+      return;
+    }
     // gleiche Reiter wie in den Arbeitsbereichen (Verkauf, Beregnung …) – ein Navigationsmuster für die ganze Verwaltung
-    const nested = root !== $('main');   // innerhalb eines Reiters: zweite Ebene als Segment-Umschalter (wie überall)
-    const navCls = nested ? ['seg', 'secseg'].join(' ') : 'tabs';
-    wrap.innerHTML = `<div class="${navCls}" role="tablist" aria-label="${esc(o.label || 'Bereiche der Einstellungen')}">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}${badge[k] ? `<span class="sdot" title="${esc(badge[k] === true ? 'Hier ist etwas zu tun' : badge[k])}"></span>` : ''}</button>`).join('')}</div><div class="secbody"></div>`;
+    wrap.innerHTML = `<div class="tabs" role="tablist" aria-label="${esc(o.label || 'Bereiche der Einstellungen')}">${secs.map(([k, l]) => `<button type="button" data-sec="${k}">${esc(l)}${dot(k)}</button>`).join('')}</div><div class="secbody"></div>`;
     const body = wrap.querySelector('.secbody');
     secs.forEach(([k]) => by[k].forEach(c => { c.dataset.secof = k; body.appendChild(c); }));
     const head = root.querySelector(':scope > h2.page');
     if (head) fixLead(head).after(wrap); else root.prepend(wrap);
-    const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k && !nested) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
+    const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
   }
@@ -3673,7 +3825,7 @@
         $('toRows').querySelectorAll('[data-dn]').forEach(b => { b.onclick = () => { const i = +b.dataset.dn; [items[i + 1], items[i]] = [items[i], items[i + 1]]; draw(); }; });
         $('toRows').querySelectorAll('[data-st]').forEach(r => { r.onchange = () => { start = r.dataset.st; }; });
       };
-      api('settings/tablet-order').then(d => { items = d.items || []; start = d.start; draw(); }).catch(() => { $('toRows').innerHTML = '<p class="muted">Nicht abrufbar.</p>'; });
+      api('settings/tablet-order').then(d => { if (!$('toRows')) return; items = d.items || []; start = d.start; draw(); }).catch(() => { if ($('toRows')) $('toRows').innerHTML = '<p class="muted">Nicht abrufbar.</p>'; });   // Seite inzwischen verlassen → nichts mehr schreiben
       $('toSave').onclick = async () => { try { const r = await api('settings/tablet-order', 'PUT', { order: items.map(x => x.key), start }); items = r.items; start = r.start; draw(); toast('Gespeichert – die Tablets übernehmen es beim nächsten Laden.'); } catch (e) { fail(e); } };
     }
     if ($('hostSave')) $('hostSave').onclick = async () => { try { const r = await api('settings/hosts', 'PUT', { hosts: $('hostList').value }); $('hostList').value = r.hosts; toast('Gespeichert.'); } catch (e) { fail(e); } };

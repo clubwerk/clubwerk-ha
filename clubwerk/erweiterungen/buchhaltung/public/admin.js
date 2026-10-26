@@ -439,5 +439,16 @@
   GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G, tab: 'Firmen' });
   GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G, tab: 'Spenden' });
   GK.registerPage({ key: 'bh-einstellungen', title: 'Einstellungen', perm: 'buchhaltung', render: pageRender('bh-einstellungen', showSettings), group: G });
+  // Suche (Strg/⌘ K): Einstellungen und Aktionen der Buchhaltung
+  if (GK.registerSearch) GK.registerSearch([
+    { label: 'Rechnung schreiben', page: 'bh-rechnungen', btn: '+ Neue Rechnung', kind: 'aktion', words: 'Rechnung Sponsor Firma' },
+    { label: 'Jahresrechnungen', page: 'bh-rechnungen', btn: 'Jahresrechnungen', kind: 'aktion', words: 'Sponsoren jährlich Bandenwerbung' },
+    { label: 'Firma oder Sponsor anlegen', page: 'bh-firmen', btn: '+ Firma', kind: 'aktion', words: 'Sponsor Partner Firma' },
+    { label: 'Spendenquittung ausstellen', page: 'bh-spenden', btn: '+ Neue Spendenquittung', kind: 'aktion', words: 'Spende Zuwendungsbestätigung Quittung' },
+    { label: 'Absender auf Rechnungen', page: 'bh-einstellungen', card: 'Absender', words: 'Anschrift Fußzeile Telefon' },
+    { label: 'Rechnungen (Nummernkreis, Steuernummer, Zahlungsziel)', page: 'bh-einstellungen', card: 'Rechnungen', words: 'Nummernkreis Steuernummer USt Zahlungsziel' },
+    { label: 'Spendenquittungen (Finanzamt, Bescheid)', page: 'bh-einstellungen', card: 'Spendenquittungen', words: 'Finanzamt Freistellungsbescheid Steuernummer Unterschrift' },
+    { label: 'Einstellungen der Buchhaltung übertragen', page: 'bh-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+  ]);
   if (GK.badges) GK.badges(async () => { if (!GK.can('buchhaltung')) return {}; const m = await api('meta'); return { 'bh-rechnungen': m.kpis.overdue.n }; });
 })();
