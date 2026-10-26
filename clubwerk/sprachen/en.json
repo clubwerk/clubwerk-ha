@@ -9253,6 +9253,26 @@
   "Zahlung erfolgt?": "Payment received?",
   "Mehr": "More",
   "Sprache:": "Language:",
-  "Weitere Bereiche": "More sections"
+  "Weitere Bereiche": "More sections",
+  "{0}: PIN geändert": "{0}: PIN changed",
+  "Bisherige PIN": "Current PIN",
+  "Bitte deine bisherige PIN eingeben": "Please enter your current PIN",
+  "Deine PIN wurde am Tablet geändert. Warst du das nicht, melde dich bitte beim Vorstand.": "Your PIN was changed on the tablet. If this wasn't you, please contact the board.",
+  "Deine PIN wurde geändert. Warst du das nicht, melde dich bitte beim Vorstand.": "Your PIN has been changed. If this wasn't you, please contact the board.",
+  "Die bisherige PIN stimmt nicht.": "Your current PIN is not correct.",
+  "Die neue PIN gilt auch am Tablet.": "The new PIN also applies on the tablet.",
+  "Die neue PIN gilt für die App.": "The new PIN applies to the app.",
+  "Die neue PIN ist dieselbe wie die bisherige.": "The new PIN is the same as the current one.",
+  "Die neue PIN muss 4 bis 6 Ziffern haben.": "The new PIN must have 4 to 6 digits.",
+  "Diese PIN ist zu leicht zu erraten (z. B. 1111 oder 1234) – bitte eine andere wählen.": "This PIN is too easy to guess (e.g. 1111 or 1234) – please choose another one.",
+  "Dieses Handy ist abgemeldet. Für die App brauchst du eine neue Einladung vom Vorstand.": "This phone has been logged out. To use the app you need a new invitation from the board.",
+  "Dieses Handy wird von der App abgemeldet. Für die App brauchst du danach eine neue Einladung vom Vorstand.": "This phone will be logged out of the app. Afterwards you will need a new invitation from the board to use the app.",
+  "Mitglieder-App: Handy abgemeldet (vom Mitglied)": "Member app: phone logged out (by the member)",
+  "Mitglieder-App: PIN geändert": "Member app: PIN changed",
+  "Neue PIN (4–6 Ziffern)": "New PIN (4–6 digits)",
+  "Neue PIN wiederholen": "Repeat new PIN",
+  "PIN geändert – sie gilt ab sofort auch am Tablet.": "PIN changed – it now also applies on the tablet.",
+  "PIN geändert.": "PIN changed.",
+  "Sicherheitshinweis, wenn die PIN in der App oder am Tablet geändert wurde.": "Security notice when the PIN has been changed in the app or on the tablet."
  }
 }

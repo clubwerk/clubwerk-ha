@@ -866,13 +866,14 @@ app.post('/api/tablet/pin', rateLimit('pin', 20, 60000), (req, res) => {
   }
   // Die PIN ist eine Zentralfunktion (Verkauf, Platzbuchung, Helferdienste) – entfernen kann sie nur der Vorstand (zurücksetzen)
   if (newPin === '' || newPin === null) return bad(res, 'Die PIN kann nicht entfernt werden – sie gilt für Verkauf, Platzbuchung und Helferdienste. Vergessen? Der Vorstand setzt sie zurück.');
-  if (!validPin(newPin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
+  { const e = auth.pinProblem(newPin); if (e) return bad(res, e); }
   db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL,
       pin_changed_at = datetime('now','localtime'), pin_changed_by = 'Mitglied' WHERE id = ?`).run(auth.hashSecret(newPin), m.id);
   // eine PIN für alles: gilt ab sofort auch in der Mitglieder-App
   // nur mit der bisherigen PIN als Nachweis (die erste PIN am Tablet ändert eine vorhandene App-PIN nicht)
   require('./invites').pinToApp(m.id, db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(m.id).pin_hash, m.pin_hash ? String(currentPin) : null);
   audit('tablet', m.pin_hash ? 'PIN geändert' : 'PIN festgelegt', m.name);
+  require('./push').send(m.id, 'app.pin', { title: `${getSetting('club_name', 'Verein')}: PIN geändert`, body: 'Deine PIN wurde am Tablet geändert. Warst du das nicht, melde dich bitte beim Vorstand.' }).catch(() => {});
   res.json({ ok: true, hasPin: true });
 });
 

@@ -59,7 +59,8 @@ function subject() {
 
 /* ---------- Anlässe ---------- */
 let modulesRef = () => [];   // vom Kern gesetzt: () => [[id, { name, label, hooks, isActive }]]
-const CORE_EVENTS = [{ id: 'test', label: 'Testnachricht', desc: 'Zum Ausprobieren – vom Mitglied selbst oder vom Vorstand ausgelöst.', default: true }];
+const CORE_EVENTS = [{ id: 'test', label: 'Testnachricht', desc: 'Zum Ausprobieren – vom Mitglied selbst oder vom Vorstand ausgelöst.', default: true },
+  { id: 'pin', label: 'PIN geändert', desc: 'Sicherheitshinweis, wenn die PIN in der App oder am Tablet geändert wurde.', default: true }];
 function catalog() {
   const out = CORE_EVENTS.map(e => ({ ...e, key: 'app.' + e.id, module: 'app', moduleName: 'Mitglieder-App' }));
   for (const [id, m] of modulesRef()) {
@@ -161,7 +162,8 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
   for (const mid of ids) {
     const m = db.prepare('SELECT active, deleted FROM members WHERE id = ?').get(mid);
     if (!m || !m.active || m.deleted) { db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(mid); continue; }
-    const rows = db.prepare('SELECT * FROM push_subs WHERE member_id = ?' + (opts.endpoint ? ' AND endpoint = ?' : '')).all(...(opts.endpoint ? [mid, opts.endpoint] : [mid]));
+    const rows = db.prepare('SELECT * FROM push_subs WHERE member_id = ?' + (opts.endpoint ? ' AND endpoint = ?' : '')).all(...(opts.endpoint ? [mid, opts.endpoint] : [mid]))
+      .filter(r => r.endpoint !== opts.except);   // except: das Handy, auf dem es gerade passiert ist
     for (const r of rows) {
       // Welche Anlässe kommen, legt der Vorstand zentral fest (push_events) – das Mitglied schaltet je Handy nur an oder aus
       const res = await deliver(r, payload);

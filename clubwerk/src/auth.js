@@ -17,6 +17,16 @@ function verifySecret(secret, stored) {
   return ref.length === test.length && crypto.timingSafeEqual(ref, test);
 }
 
+/** Selbst gewählte PIN prüfen (Tablet, Mitglieder-App) → Fehlertext oder '' – 4 bis 6 Ziffern, keine leicht zu erratende
+ *  (alle gleich wie 1111, lückenlos auf- oder absteigend wie 1234 oder 9876) */
+function pinProblem(pin) {
+  const p = typeof pin === 'string' ? pin : '';
+  if (!/^\d{4,6}$/.test(p)) return 'Die PIN muss 4 bis 6 Ziffern haben.';
+  const steps = new Set([...p].slice(1).map((c, i) => c - p[i]));
+  if (steps.size === 1 && [0, 1, -1].includes([...steps][0])) return 'Diese PIN ist zu leicht zu erraten (z. B. 1111 oder 1234) – bitte eine andere wählen.';
+  return '';
+}
+
 /* ---------- Rechte ---------- */
 /** Rechte, die Module auf die eigenen Abteilungen einschränken (nur diese wirken in Rollen „nur eigene Abteilung(en)“) */
 const DEPT_PERMS = ['mitglieder', 'email'];
@@ -226,7 +236,7 @@ setInterval(() => {
 }, 60 * 1000).unref();
 
 module.exports = {
-  PERMS, DEPT_PERMS, hashSecret, verifySecret, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
+  PERMS, DEPT_PERMS, hashSecret, verifySecret, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
   adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, currentUser, requireAdmin, need,
   issueTabletToken, checkTabletToken, dropTabletToken,
 };

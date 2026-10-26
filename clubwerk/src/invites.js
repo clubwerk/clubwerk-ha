@@ -120,7 +120,8 @@ function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, veri
     }
     pinHash = m.pin_hash;
   } else {
-    if (!/^\d{4,6}$/.test(String(pin || ''))) throw new Error('Die PIN muss aus 4 bis 6 Ziffern bestehen.');
+    const bad = auth.pinProblem(String(pin || ''));
+    if (bad) throw new Error(bad);
     pinHash = auth.hashSecret(String(pin));
   }
   const device = crypto.randomBytes(24).toString('base64url');
@@ -306,6 +307,28 @@ function check(scope, deviceToken, pin, row, opts = {}) {
   return { ok: true, name: w.name, memberId: w.memberId };
 }
 
+/** PIN in der App ändern: alte PIN zählt in dieselbe Sperre wie jede PIN-Eingabe auf dem Handy (check).
+ *  Die neue PIN gilt für dieses Handy und – eine PIN für alles – auch am Tablet. → wie check(), bei Erfolg mit deviceId */
+function changePin(scope, deviceToken, oldPin, newPin) {
+  const bad = auth.pinProblem(newPin);   // zuerst: eine ungültige neue PIN kostet keinen Fehlversuch
+  if (bad) return { error: bad, status: 400 };
+  if (String(oldPin || '') === newPin) return { error: 'Die neue PIN ist dieselbe wie die bisherige.', status: 400 };
+  const r = check(scope, deviceToken, oldPin);
+  if (!r.ok) return r;
+  const w = whoIs(scope, deviceToken), hash = auth.hashSecret(newPin);
+  db.prepare('UPDATE member_devices SET pin_hash = ?, pin_synced = 1 WHERE id = ?').run(hash, w.deviceId);
+  if (scope === 'app') setMemberPin(w.memberId, hash, 'Mitglieder-App');
+  return { ...r, deviceId: w.deviceId };
+}
+/** Abmelden in der App: nur dieses Handy entkoppeln (wie „Handy entfernen“ in der Verwaltung) → { memberId, name } oder null */
+function unpair(scope, deviceToken) {
+  const w = whoIs(scope, deviceToken);
+  if (!w) return null;
+  dropPush([w.deviceId]);
+  db.prepare('DELETE FROM member_devices WHERE id = ?').run(w.deviceId);
+  return w;
+}
+
 /** Am gemeinsamen Tablet: Mitglied wählt sich aus der Liste und gibt seine PIN dieses Bereichs ein (ohne Geräteschlüssel) */
 function checkMember(scope, memberId, pin) {
   scopeOk(scope);
@@ -337,4 +360,4 @@ async function qrSvg(text) {
 /* einmalig mit 3.24: bisher getrennte PINs zusammenführen (nicht bei jedem Start – sonst käme nach „PIN zurücksetzen“ die alte zurück) */
 try { if (getSetting('pin_sync_324', '0') !== '1') { syncPinsOnce(); setSetting('pin_sync_324', '1'); } } catch (e) { console.error('PIN-Abgleich:', e.message); }
 
-module.exports = { setMemberPin, pinToApp, syncPinsOnce, inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, OTP_PER_DAY, BLOCK_AFTER, create, peek, redeem, whoIs, check, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };
+module.exports = { setMemberPin, pinToApp, syncPinsOnce, inviteHours, INVITE_HOURS, mailDays, MAIL_DAYS, otpCreate, otpCheck, trust, markAlerted, OTP_PER_DAY, BLOCK_AFTER, create, peek, redeem, whoIs, check, changePin, unpair, checkMember, revoke, issuerCovers, createTransfer, redeemTransfer, createHandover, redeemHandover, qrSvg };

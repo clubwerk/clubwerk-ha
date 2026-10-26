@@ -378,7 +378,8 @@ function startPort({ rateLimit, rateLimitKey }) {
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
     }) : [];
-    res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null, sections });
+    res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
+      pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
@@ -504,6 +505,24 @@ function startPort({ rateLimit, rateLimitKey }) {
   api.post('/verify-pin', rateLimit('apppin', 20, 60000), (req, res) => {
     const c = invites.check(SCOPE, dev(req), (req.body || {}).pin);
     if (!c.ok) return res.status(c.status).json({ error: c.error, pin: c.pin, device: c.device });
+    res.json({ ok: true });
+  });
+  /* Mein Konto: PIN ändern (gilt auch am Tablet) und Abmelden. Die alte PIN zählt in dieselbe Sperre wie jede PIN-Eingabe
+     am Handy (5 falsch → Pause, 15 → Handy gesperrt) – von unterwegs genauso wie im Vereins-WLAN. */
+  const pinLimit = rateLimitKey('apppinc', 20, 60000, req => require('crypto').createHash('sha256').update(dev(req)).digest('hex').slice(0, 32));   // je Gerät, wie writeLimit
+  api.post('/pin', rateLimit('apppinip', 60, 60000), pinLimit, (req, res) => {
+    const b = req.body || {};
+    const r = invites.changePin(SCOPE, dev(req), b.pin, typeof b.newPin === 'string' ? b.newPin : '');
+    if (!r.ok) return res.status(r.status).json({ error: r.error, pin: r.pin, device: r.device });
+    audit(null, 'Mitglieder-App: PIN geändert', r.name);
+    // andere Abos des Mitglieds (z. B. die App im Vereins-WLAN) bekommen einen Hinweis – nicht das Handy, auf dem es gerade passiert ist
+    push.send(r.memberId, 'app.pin', { title: `${getSetting('club_name', 'Verein')}: PIN geändert`, body: 'Deine PIN wurde geändert. Warst du das nicht, melde dich bitte beim Vorstand.' }, { except: String(b.endpoint || '') }).catch(() => {});
+    res.json({ ok: true });
+  });
+  api.post('/unpair', rateLimit('appunp', 10, 60000), (req, res) => {
+    const w = invites.unpair(SCOPE, dev(req));
+    if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true });
+    audit(null, 'Mitglieder-App: Handy abgemeldet (vom Mitglied)', w.name);
     res.json({ ok: true });
   });
   /* Profilbild: das Mitglied lädt es selbst hoch und bestimmt, wo es erscheint */

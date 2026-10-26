@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.59.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.60.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -273,7 +273,9 @@
         ${openPhoto ? '<button type="button" id="accPhoto">Profilbild</button>' : ''}
         <button type="button" id="accPush">Benachrichtigungen</button>
         ${openLang ? `<button type="button" id="accLang">Sprache: <span translate="no">${esc(langName)}</span></button>` : ''}
+        <button type="button" id="accPin">PIN ändern</button>
       </div>
+      <button type="button" class="vh-danger" id="accOut" style="margin:14px 0 0">Abmelden</button>
       <p class="vh-small" style="margin:10px 0 0">Clubwerk ${esc(APP_VER)}${me.version && me.version !== APP_VER ? ' · Server ' + esc(me.version) : ''}</p>
       <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">Schließen</button></div></div>`;
     sh.querySelector('#accNo').onclick = close;
@@ -282,7 +284,65 @@
     on('#accPhoto', () => openPhoto && openPhoto());
     on('#accPush', () => notifSheet().catch(e => toast(e.message, true)));
     on('#accLang', () => openLang && openLang());
+    on('#accPin', pinChangeSheet);
+    // Abmelden: Rückfrage im selben Blatt, mit der Folge
+    sh.querySelector('#accOut').onclick = () => {
+      sh.innerHTML = `<div class="vh-box"><h2>Abmelden?</h2>
+        <p>Dieses Handy wird von der App abgemeldet. Für die App brauchst du danach eine neue Einladung vom Vorstand.</p>
+        <div class="vh-err" id="outE"></div>
+        <div class="vh-row"><button class="no" id="outNo">Abbrechen</button><button class="danger" id="outOk">Abmelden</button></div></div>`;
+      sh.querySelector('#outNo').onclick = close;
+      sh.querySelector('#outOk').onclick = async () => {
+        sh.querySelector('#outOk').disabled = true;
+        try { await call('unpair', 'POST', {}); } catch (e) { if (!e.device) { sh.querySelector('#outE').textContent = e.message; sh.querySelector('#outOk').disabled = false; return; } }
+        close(); loggedOut();
+      };
+    };
     sh.classList.add('show');
+  }
+  /** nach dem Abmelden: Schlüssel und PIN vergessen, Push im Browser abbestellen, Sperrhinweis zeigen */
+  async function loggedOut() {
+    try { localStorage.removeItem('va_geraet'); } catch (e) { /* privat */ }
+    sess.del();
+    $('tabs').classList.add('hidden'); $('sec').innerHTML = ''; $('ava').classList.add('hidden'); $('who').textContent = 'Mitglieder-App';
+    lock('Dieses Handy ist abgemeldet. Für die App brauchst du eine neue Einladung vom Vorstand.');
+    try { const reg = pushSupported() && await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) { /* egal */ }
+  }
+  /* ---------- PIN ändern: gilt auch am Tablet; die bisherige PIN zählt in die Sperre nach Fehlversuchen ---------- */
+  function pinChangeSheet() {
+    let sh = $('pinChSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'pinChSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const inp = (id, ph) => `<input class="vh-input pin" id="${id}" type="password" inputmode="numeric" maxlength="${id === 'pcOld' ? 8 : 6}" autocomplete="off" placeholder="${ph}">`;
+    sh.innerHTML = `<div class="vh-box"><h2>PIN ändern</h2>
+      <p>${me.pinTablet ? 'Die neue PIN gilt auch am Tablet.' : 'Die neue PIN gilt für die App.'}</p>
+      ${inp('pcOld', 'Bisherige PIN')}${inp('pcNew', 'Neue PIN (4–6 Ziffern)')}${inp('pcNew2', 'Neue PIN wiederholen')}
+      <div class="vh-err" id="pcE"></div>
+      <div class="vh-row"><button class="no" id="pcNo">Abbrechen</button><button class="ok" id="pcOk">Speichern</button></div></div>`;
+    const q = id => sh.querySelector('#' + id), err = t => { q('pcE').textContent = t; };
+    q('pcNo').onclick = () => sh.classList.remove('show');
+    q('pcOk').onclick = async () => {
+      const a = q('pcOld').value.trim(), b = q('pcNew').value.trim(), c = q('pcNew2').value.trim();
+      if (!/^\d{4,8}$/.test(a)) { err('Bitte deine bisherige PIN eingeben'); q('pcOld').focus(); return; }
+      if (!/^\d{4,6}$/.test(b)) { err('Die neue PIN muss 4 bis 6 Ziffern haben.'); q('pcNew').focus(); return; }
+      if (b !== c) { err('Die beiden Eingaben stimmen nicht überein'); q('pcNew2').value = ''; q('pcNew2').focus(); return; }
+      q('pcOk').disabled = true; err('');
+      let endpoint = '';   // dieses Handy bekommt keinen Hinweis – es hat die Änderung ja selbst gemacht
+      try { const reg = pushSupported() && await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); endpoint = sub ? sub.endpoint : ''; } catch (e) { endpoint = ''; }
+      try {
+        await call('pin', 'POST', { pin: a, newPin: b, endpoint });
+        sess.set(b);
+        sh.classList.remove('show');
+        toast(me.pinTablet ? 'PIN geändert – sie gilt ab sofort auch am Tablet.' : 'PIN geändert.');
+      } catch (e) {
+        if (e.device) { sh.classList.remove('show'); return; }
+        err(e.pin ? 'Die bisherige PIN stimmt nicht.' : e.message);
+        if (e.pin || e.status === 429) { q('pcOld').value = ''; q('pcOld').focus(); }
+      }
+      q('pcOk').disabled = false;
+    };
+    sh.querySelectorAll('input').forEach((x, i, all) => x.addEventListener('keydown', e => { if (e.key === 'Enter') { if (all[i + 1]) all[i + 1].focus(); else q('pcOk').click(); } }));
+    document.body.appendChild(sh);
+    sh.classList.add('show');
+    setTimeout(() => q('pcOld').focus(), 80);
   }
 
   /* ---------- Push-Benachrichtigungen: Abo je Handy, Anlässe je Mitglied (nur die vom Vorstand freigegebenen) ---------- */

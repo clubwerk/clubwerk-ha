@@ -114,6 +114,7 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-row button { flex: 1; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; }
 .vh-row .ok { background: var(--brand); color: var(--on-brand); flex: 1.4; }
 .vh-row .no { background: var(--hover); color: var(--muted); border: 1px solid var(--line); }
+.vh-row .danger { background: var(--red); color: var(--on-red); }
 
 .vh-toast { position: fixed; bottom: calc(84px + env(safe-area-inset-bottom)); left: 50%; width: max-content; transform: translateX(-50%) translateY(12px);   /* unten über der Reiterleiste – verdeckt nie Kopfzeile oder Vereinsnamen */
   background: var(--ink); color: var(--bg); padding: 12px 18px; border-radius: 14px; font-size: 15px; font-weight: 600; opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; z-index: 110; max-width: min(92vw, 440px); text-align: center; box-shadow: var(--shadow-pop); }

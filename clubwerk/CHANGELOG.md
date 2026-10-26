@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.60.0
+
+**Mitglieder-App: PIN ändern und Abmelden (Etappe 15 des Menü-Umbaus)**
+- **PIN ändern in der App:** Unter „Mehr“ › Mein Konto › **PIN ändern** gibt man die bisherige PIN und zweimal die neue ein. Es ist dieselbe PIN wie am Tablet – die neue gilt sofort an beiden Stellen. Ist der Verkauf nicht eingeschaltet, ist es einfach die PIN der App.
+- **Schutz wie beim Anmelden:** Wer die bisherige PIN fünfmal falsch eingibt, muss erst einige Minuten warten, nach 15 Fehlversuchen ist das Handy gesperrt – genau wie bei jeder anderen PIN-Eingabe in der App, auch von unterwegs. Im Protokoll steht „PIN geändert“ mit dem Namen, nie die PIN.
+- **Hinweis aufs Handy:** Wird die PIN geändert, bekommen die anderen Geräte des Mitglieds mit eingeschalteten Benachrichtigungen die Nachricht „PIN geändert“ – auch, wenn die PIN am Tablet geändert wurde. Wer es nicht selbst war, merkt es so sofort. Der Anlass steht in der Verwaltung bei den Push-Benachrichtigungen und ist von Haus aus eingeschaltet.
+- **Leicht zu erratende PINs gehen nicht mehr:** Wer seine PIN selbst festlegt (in der App, beim Einlösen der Einladung oder am Tablet), kann keine PIN wie 1111, 1234 oder 9876 mehr wählen. Vorhandene PINs gelten weiter.
+- **Abmelden:** Unter Mein Konto steht abgesetzt in Rot **Abmelden**. Nach einer Rückfrage („Für die App brauchst du danach eine neue Einladung“) ist genau dieses Handy sofort entkoppelt – wie „Handy entfernen“ in der Verwaltung. Die Freischaltungen des Mitglieds bleiben, mit einer neuen Einladung ist es wieder dabei.
+
 ## 3.59.0
 
 **Tablet-Kopfzeile und App-Leiste neu geordnet (Etappe 14 des Menü-Umbaus)**
