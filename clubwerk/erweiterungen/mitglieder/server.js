@@ -381,7 +381,7 @@ function activate(ctx) {
         : { applications: ctx.db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status IN ('eingegangen','unterschrift')").get().n, changes: ctx.db.prepare("SELECT COUNT(*) n FROM mv_change WHERE status = 'offen'").get().n },
       ages: ctx.db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen'").get().n,
       scope: req.mvScope ? ctx.db.prepare(`SELECT id, name FROM mv_department WHERE id IN (${req.mvScope.map(() => '?').join(',')})`).all(...req.mvScope) : null,
-      drinks: ctx.drinks.active(), arbeit: ctx.isModuleActive('arbeitseinsatz'), today: today(), nextNo: store.nextMemberNo() });
+      drinks: ctx.drinks.active(), arbeit: ctx.isModuleActive('arbeitseinsatz'), today: today(), nextNo: store.nextMemberNo(), club: ctx.clubAddress() });
   });
   admin.get('/list', P, (req, res) => res.json(listRows(req.query)));
   admin.get('/member/:id', P, (req, res) => {
@@ -1059,7 +1059,7 @@ function activate(ctx) {
     if (ch) alerts.push({ level: 'a', text: `${ch} Änderungswunsch/-wünsche aus der Mitglieder-App.` });
     const noMandate = rows.filter(r => r.issues.some(i => /Mandat|Bankverbindung|IBAN/.test(i))).length;
     if (noMandate) alerts.push({ level: 'a', text: `${noMandate} Lastschriftzahler ohne gültiges SEPA-Mandat.` });
-    if (!S('creditor_id') || !store.account().iban) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID (Mitgliederverwaltung → Einstellungen) oder ein Bankkonto (Einstellungen → Bankkonten).' });
+    if (!S('creditor_id') || !store.account().iban) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID (Mitglieder › Einstellungen › Lastschrift) oder ein Bankkonto (Verein › Einstellungen › Bankkonten).' });
     const ret = parseInt(S('retention_years', '0'), 10) || 0;
     if (ret) {
       const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
@@ -1070,7 +1070,7 @@ function activate(ctx) {
     for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))
       alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Einzug & Zahlungen → Offene Posten → Im Einzug“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
     const ageN = ageScanFn ? ageScanFn() : 0;
-    if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied' : 'Mitglieder'} rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-beitraege', link: 'Entscheiden' });
+    if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied' : 'Mitglieder'} rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-stamm', link: 'Entscheiden' });
     const leaving = rows.filter(r => r.leaving).length;
     return { kpis: [{ l: 'Mitglieder', v: rows.length }, { l: 'Austritte angekündigt', v: leaving }, { l: 'Eintritte ' + today().slice(0, 4), v: rows.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts };
   };
@@ -1163,7 +1163,7 @@ function activate(ctx) {
     ctx.db.prepare('UPDATE mv_application SET member_id = NULL WHERE member_id = ?').run(fromId);
   };
   /* für den Kern: Abteilungen (Benutzer & Rollen) */
-  ctx.hooks.bankAccountUsed = id => (Number(S('sepa_account')) === Number(id) ? 'Mitgliederverwaltung (Lastschriften)' : null);
+  ctx.hooks.bankAccountUsed = id => (Number(S('sepa_account')) === Number(id) ? 'Mitglieder (Lastschriften)' : null);
   ctx.hooks.departments = () => ctx.db.prepare('SELECT id, name, active FROM mv_department ORDER BY sort, name').all();
   /* für andere Module (Buchungssystem, Buchhaltung, Helferdienste) – antworten sofort, also auch über callHooksSync */
   ctx.hooks.functionsOf = id => { const d = today(); return ctx.db.prepare('SELECT name FROM mv_function WHERE member_id = ? AND (from_date IS NULL OR from_date <= ?) AND (to_date IS NULL OR to_date >= ?)').all(id, d, d).map(x => String(x.name).trim()); };

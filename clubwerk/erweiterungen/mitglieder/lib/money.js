@@ -641,7 +641,7 @@ function register(sh) {
     const coll = c && c.collection_id ? db.prepare('SELECT collection_date FROM mv_collection WHERE id = ?').get(c.collection_id) : null;
     const state = !c ? '' : c.status === 'offen' ? 'Posten noch offen, nichts eingezogen' : c.status === 'eingezogen' ? `in der Lastschrift zum ${deD(coll.collection_date)}` : c.status === 'bezahlt' ? `bezahlt am ${deD(c.paid_at)}` : 'Posten storniert';
     const free = !db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(run.id);
-    return { text: `${run.kind === 'getraenke' ? 'Verkaufs-Einzug' : 'Beitragslauf'} der Mitgliederverwaltung vom ${deD(run.created_at.slice(0, 10))}${state ? ' – ' + state : ''}`, billed: !c || c.status !== 'storniert',
+    return { text: `${run.kind === 'getraenke' ? 'Verkaufs-Einzug' : 'Beitragslauf'} der Mitglieder vom ${deD(run.created_at.slice(0, 10))}${state ? ' – ' + state : ''}`, billed: !c || c.status !== 'storniert',
       undo: free && run.kind === 'getraenke' ? { run: run.id, count: run.count, cents: run.cents } : null };
   };
   /** Verkaufs-Lauf zurücknehmen (aus dem Storno-Dialog im Verkauf) – nur solange daraus nichts eingezogen ist */

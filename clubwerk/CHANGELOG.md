@@ -1,5 +1,18 @@
 # Änderungen
 
+## 3.57.0
+
+**Mitglieder neu geordnet (Etappe 12 des Menü-Umbaus)**
+- **Sieben Reiter in fester Folge:** Mitglieder · Anträge · Beitragslauf · Einzug & Zahlungen · Beiträge & Abteilungen · Auswertung · Einstellungen. „Beitragslauf“ und „Einzug & Zahlungen“ bleiben vorerst, wo sie waren, und ziehen im nächsten Schritt in ein eigenes Menü „Beiträge & Zahlungen“ um.
+- **Mitglied öffnen** zeigt jetzt eine eigene Seite mit dem Namen oben und den Reitern Stammdaten · Mitgliedschaft · Zahlung & Familie · Konto & Mandat · Dokumente · Verlauf. „← Alle Mitglieder“ führt zur Liste zurück (Suche und Filter bleiben). Der Austritt steht beim Reiter „Mitgliedschaft“ rechts oben, „PIN zurücksetzen“ und „Profilbild entfernen“ sind eigene Karten, **Löschen und Anonymisieren** stehen abgesetzt in der Karte „Vorsicht“ ganz unten. Entfernen von Beiträgen, Abteilungen und Dokumenten sitzt im jeweiligen Fenster mit Rückfrage.
+- **Mitglieder-Liste:** „Aktuell / Mit Hinweis / Ausgetreten / Alle“ sind kleine Filterchips mit Zahl. Rechts oben stehen „Import …“, „Excel“ und „+ Neues Mitglied“. Am Handy zeigt jedes Mitglied nur zwei Zeilen.
+- **Neuer Reiter „Beiträge & Abteilungen“:** Beitragsarten, Zusatzbeiträge, Abteilungen und Altersstufen (vorher unter „Beiträge“). Die Zahl offener Altersstufen steht am Reiter.
+- **Einstellungen als Karten**, jede mit eigenem „Speichern“: Mitgliedschaft (Nummern, Beitragsjahr, Kündigungsfrist, Lastschrift Pflicht, Abteilungsleitungen) · Beitrittserklärung & Online-Antrag · „Meine Daten“ in der App (bisher ein Reiter bei Verein › Mitglieder-App) · Lastschrift (SEPA) · Rechnungen & Mahnungen · Benachrichtigungen · Datenschutz & Aufbewahrung · Einstellungen übertragen. Der Import liegt bei der Liste, nicht mehr in den Einstellungen.
+- **Anschrift** kommt zentral aus Einstellungen › Verein und wird hier nur angezeigt (mit Link zum Ändern). Beitrittserklärung, Rechnungen und Mahnungen nutzen sie wie bisher.
+- **Zugang:** Im Mitglied (Konten & PINs) steht das Zeitprofil nur noch zur Ansicht mit Link „ändern unter Zugang › Freischaltungen“.
+- Auswertung ohne die reine Verweis-Karte „E-Mail“ (die gibt es unter Verein › E-Mail). Rückfragen beim Austritt und beim Ablehnen eines Antrags erscheinen im selben Fenster.
+- Alle gespeicherten Einstellungen, Beiträge und Mitglieder bleiben unverändert. Die Suche findet jeden neuen Ort.
+
 ## 3.56.0
 
 **Verkauf und Lager neu geordnet (Etappe 10 des Menü-Umbaus)**

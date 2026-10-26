@@ -448,7 +448,7 @@ function activate(ctx) {
   access = ctx.access;
   const tr = express.Router(); tabletRoutes(tr, ctx); ctx.tablet.use(tr);
   memberRoutes(ctx.member, ctx);
-  ctx.hooks.accessOptions = () => { const c = cfg(); return { profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault, text: profileText(p) })), defaultProfile: (c.profiles.find(p => p.isDefault) || c.profiles[0]).id }; };
+  ctx.hooks.accessOptions = () => { const c = cfg(); return { profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault, text: profileText(p) })), defaultProfile: (c.profiles.find(p => p.isDefault) || c.profiles[0]).id, profilesPage: 'zugang-freischaltungen', profilesPerm: 'zugang', profilesLabel: 'Zugang › Freischaltungen' }; };
   /* Funktionsexport/-import: Türen, Zeitprofile, Sperrtage, Einstellungen – ohne Freischaltungen und Protokoll */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { blockAll, ...rest } = c; void blockAll; return rest; };
   ctx.hooks.importConfig = data => {
