@@ -787,7 +787,7 @@
         ${d.rows.map(x => `<tr ${x.manual ? '' : `data-b="${x.id}" data-d="${x.date}" style="cursor:pointer"`}><td><b>${esc(x.member)}</b></td><td class="nw">${deDate(x.date)}${x.start ? ` · ${x.start}–${x.end}` : ' · von Hand'}</td>
           <td class="k-weg">${esc(x.resource)}</td><td class="k-weg">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? ` <span class="muted s">${deDate(x.paid_at)}</span>` : ''}</td>
           <td class="r">${x.manual && canB && x.status !== 'storniert' ? `<button class="btn small danger-h" type="button" data-fc="${x.fee_id}">Stornieren</button>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Gebühren in dieser Auswahl.</p>'}</div>
-      <p class="muted s">Gebühren entstehen beim Buchen und stehen dann als offener Posten bei den Mitgliedern (Einzug &amp; Zahlungen).</p>`;
+      <p class="muted s">Gebühren entstehen beim Buchen und stehen dann unter Beiträge &amp; Zahlungen › Offene Posten.</p>`;
     const again = () => showFees(el).catch(fail);
     el.querySelectorAll('#feF [data-f]').forEach(b => { b.onclick = () => { g.status = b.dataset.f; again(); }; });
     $('feY').onchange = () => { g.year = +val('feY'); again(); };

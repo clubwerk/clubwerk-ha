@@ -1182,6 +1182,19 @@ function activate(ctx) {
   ctx.hooks.birthGender = () => Object.fromEntries(ctx.db.prepare('SELECT member_id, birth_date, gender FROM mv_person WHERE anonymized_at IS NULL').all()
     .map(r => [r.member_id, { y: /^\d{4}-/.test(r.birth_date || '') ? Number(r.birth_date.slice(0, 4)) : null, g: r.gender || null }]));
   ctx.hooks.memberInScope = (id, depts) => inScope(Number(id), (depts || []).map(Number).filter(Number.isInteger));
+  /* Suche (Strg/⌘ K): Mitglieder nach Name oder Mitgliedsnummer, Abteilungsleitung nur die eigenen Abteilungen. Nur Name, Nummer, Abteilungen – keine Bank- oder Kontaktdaten. */
+  ctx.hooks.search = s => {
+    const scope = (s.user.deptOnly || []).includes('mitglieder') ? (s.user.depts || []) : null;
+    if (s.locked || (scope && !scope.length)) return [];
+    const w = s.where('m.name', 'p.member_no'), day = today(), lf = ctx.require('./db').lastFirst;
+    const rows = ctx.db.prepare(`SELECT m.id, m.name, p.member_no, p.exit_date,
+        (SELECT group_concat(d.name, ', ') FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = m.id AND (md.exit_date IS NULL OR md.exit_date >= ?)) AS depts
+      FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.kind = 'mitglied' AND m.deleted = 0 AND p.anonymized_at IS NULL AND ${w.sql}`).all(day, ...w.args)
+      .filter(r => !scope || inScope(r.id, scope));
+    return [{ group: 'Mitglieder', art: 'mitglied', page: 'mitglieder', detail: true, hits: s.pick(rows, r => [lf(r.name), r.member_no]).map(r => ({
+      id: r.id, label: lf(r.name), person: true, score: r._score,
+      sub: [r.member_no ? `${ctx.T('Nr.')} ${r.member_no}` : '', r.depts, r.exit_date && r.exit_date < day ? 'ausgetreten' : ''] })) }];
+  };
   /* Beitrag einer Person = ihr Hauptbeitrag (kein Abteilungs-Zusatzbeitrag, keine einmalige Gebühr); bei gleichem Beginn der zuletzt eingetragene */
   ctx.hooks.memberInfo = id => {
     const p = personRow(id); if (!p) return null;

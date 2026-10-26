@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.61.0
+
+**Die Suche findet jetzt auch Datensätze (Etappe 17 des Menü-Umbaus)**
+- **Strg/⌘ K findet Mitglieder, Konten, Artikel, Rechnungen, Firmen & Sponsoren, Dienstpläne und Spieltage**, nicht mehr nur Seiten und Einstellungen. Ab zwei Buchstaben fragt die Verwaltung kurz nach dem Tippen beim Server nach und zeigt höchstens fünf Treffer je Art. Groß- und Kleinschreibung und Umlaute spielen keine Rolle, Vor- und Nachname gehen in jeder Reihenfolge, Mitglieder auch über die Mitgliedsnummer, Rechnungen über die Rechnungsnummer.
+- **Personen erscheinen als „Nachname, Vorname“** mit einer kurzen Zuordnung (z. B. Nr. und Abteilung, Kategorie eines Artikels, Datum eines Spieltags). Bankdaten, PINs, Kontaktdaten und Beträge zeigt die Suche nie.
+- **Ein Klick öffnet den Datensatz:** Mitglieder und Dienstpläne in ihrer eigenen Seite, alles andere in der passenden Liste. Dort ist der Eintrag kurz farbig markiert (Konten zeigen gleich Konto und PIN rechts daneben).
+- **Jeder sieht nur, was er darf:** Gefragt werden nur Module, für die der Benutzer das Recht hat. Eine Abteilungsleitung findet nur Mitglieder ihrer eigenen Abteilungen.
+- **Tresor gesperrt** (nach einem Neustart, bis sich ein Admin anmeldet): Die Suche zeigt keine Personen und sagt das in einem Hinweis. Mannschaften, Artikel, Firmen und Spieltage findet sie weiter.
+- Suchbegriffe landen nicht im Protokoll. Auch mit mehreren Tausend Mitgliedern antwortet die Suche in wenigen Hundertstelsekunden.
+- Plätze: Der Hinweis zu Gebühren nennt den neuen Ort „Beiträge & Zahlungen › Offene Posten“.
+
 ## 3.60.0
 
 **Mitglieder-App: PIN ändern und Abmelden (Etappe 15 des Menü-Umbaus)**

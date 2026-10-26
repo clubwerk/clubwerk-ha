@@ -1171,6 +1171,9 @@ admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 
 const ORDER_KEYS = { order_supplier: '', order_email: '', order_cc: '', customer_no: '', delivery_address: '', order_sender: '', order_phone: '' };
 const orderSettings = () => Object.fromEntries(Object.entries(ORDER_KEYS).map(([k, d]) => [k, getSetting(k, d)]));
 
+/* Suche nach Datensätzen (Strg/⌘ K, siehe src/suche.js) – als POST, damit Suchbegriffe in keiner Adresse stehen; nie im Protokoll */
+admin.post('/suche', (req, res) => res.json(require('./suche').run(req.user, req.body && req.body.q)));
+
 admin.get('/settings', (req, res) => {
   const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), lastSettlement: lastSettlement(),

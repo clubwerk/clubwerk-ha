@@ -1098,6 +1098,16 @@ function activate(ctx) {
     res.json({ ok: true, settings: cfg() });
   });
 
+  /* ----- Suche (Strg/⌘ K): Spieltage nach Mannschaft, Gegner oder Liga – kommende zuerst, dann die zuletzt gespielten ----- */
+  ctx.hooks.search = s => {
+    const w = s.where('t.name', 'g.opponent', 'g.league'), d0 = today();
+    const rows = db.prepare(`SELECT g.*, t.name AS tname FROM sp_game g JOIN sp_team t ON t.id = g.team_id WHERE ${w.sql}`).all(...w.args);
+    const rank = g => (g.date >= d0 ? '0' + g.date : '1' + (99999999 - Number(g.date.replace(/-/g, ''))));
+    return [{ group: 'Spieltage', art: 'spieltag', page: 'spielbetrieb', hits: s.pick(rows, g => [gameTitle(g, { name: g.tname }), g.league], (a, b) => rank(a).localeCompare(rank(b))).map(g => ({
+      id: g.id, label: gameTitle(g, { name: g.tname }), person: false, score: g._score, ref: g.date < d0 ? 'past' : '',
+      sub: [deD(g.date) + (g.start ? ` ${g.start}` : ''), g.kind === 'rahmen' ? 'vorläufig' : g.home ? 'Heimspiel' : 'Auswärtsspiel', g.status === 'abgesagt' ? 'abgesagt' : ''] })) }];
+  };
+
   /* ----- Übersicht der Verwaltung ----- */
   ctx.hooks.overview = async () => {
     const soon = db.prepare("SELECT * FROM sp_game WHERE date >= ? AND date <= ? AND status = 'geplant' AND released = 1 ORDER BY date").all(today(), addDays(today(), 14));

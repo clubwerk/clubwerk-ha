@@ -527,6 +527,7 @@
   }
   /** Zum Treffer springen: Seite öffnen, Reiter/Bereich vorwählen, dann Karte bzw. Feld hineinscrollen und kurz hervorheben. Ergebnis: Ziel gefunden? */
   async function searchJump(e) {
+    if (e.rec) return recordJump(e.rec);
     if (e.tab) sset('tab_' + e.tab[0], e.tab[1]);
     if (e.sec) sset(e.sec[0], e.sec[1]);
     await go(e.detail ? `${e.page}/${e.detail[0]}/${encodeURIComponent(e.detail[1])}` : e.page);
@@ -547,35 +548,74 @@
       el = find(); if (el) break;
     }
     if (!el) return false;
-    const box = e.field ? el.closest('.f, label') || el : el;
+    markHit(e.field ? el.closest('.f, label') || el : el);
+    if (e.field || e.btn) el.focus({ preventScroll: true });
+    return true;
+  }
+  /** Ziel hineinscrollen und kurz hervorheben */
+  function markHit(box) {
     const tall = box.getBoundingClientRect().height > innerHeight * 0.55;   // hohe Karten ab ihrem Anfang zeigen (unter der Kopfleiste), kleine mittig
     box.style.scrollMarginTop = '96px';
     box.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'smooth' });
     box.classList.remove('cw-hit'); void box.offsetWidth; box.classList.add('cw-hit'); setTimeout(() => box.classList.remove('cw-hit'), 2400);
-    if (e.field || e.btn) el.focus({ preventScroll: true });
-    return true;
+  }
+  /* Datensätze (ab 3.61): Der Server sucht (POST suche, src/suche.js), höchstens 5 Treffer je Art. Ein Treffer öffnet die Detailansicht
+     (GK.registerDetail) oder die passende Liste und hebt den Eintrag hervor – wie, meldet das Modul mit GK.registerHit(art, { tab, before, find }). */
+  const HIT = {};
+  async function recordJump(r) {
+    const h = HIT[r.art] || {};
+    if (r.detail && DETAIL[r.art]) await go(`${r.page}/${r.art}/${encodeURIComponent(r.id)}`);
+    else { if (h.tab) sset('tab_' + h.tab[0], h.tab[1]); if (h.before) h.before(r.id, r.ref); await go(r.page); }
+    const t0 = Date.now();
+    while (Date.now() - t0 < 5000) {
+      await new Promise(res => setTimeout(res, 120));
+      if (go.fin !== go.gen) continue;   // Seite zeichnet noch
+      if (r.detail && DETAIL[r.art]) return Boolean(detailCur);
+      if (!h.find) return true;
+      const el = h.find(r.id, r.ref);
+      if (el && el.offsetParent) { markHit(el); return true; }
+    }
+    return false;
   }
   function bindSearch() {
     const inp = $('navSearch'), box = $('navRes');
     let hits = [], sel = 0, idx = null;
+    // Datensätze vom Server: erst ab 2 Zeichen und 250 ms nach dem letzten Tastendruck, Antworten je Eingabe gemerkt (bis zum nächsten Öffnen der Suche)
+    const recs = new Map(); let recTimer = 0;
     const KIND = [['seite', 'Seiten & Reiter'], ['reiter', 'Seiten & Reiter'], ['einstellung', 'Einstellungen'], ['aktion', 'Aktionen']];
-    const draw = () => {
-      const toks = snorm(inp.value).split(' ').filter(Boolean);
+    const draw = keep => {
+      const q = inp.value.replace(/\s+/g, ' ').trim(), toks = snorm(q).split(' ').filter(Boolean);
       if (!toks.length) { box.classList.add('hidden'); return; }
       idx = idx || searchIndex();
       const grp = k => (k === 'einstellung' ? 1 : k === 'aktion' ? 2 : 0);   // Gruppen: Seiten & Reiter · Einstellungen · Aktionen
       const top = idx.map(e => ({ e, s: searchScore(e, toks) })).filter(x => x.s > 0).sort((a, b) => b.s - a.s).slice(0, 12);
       const gmax = g => Math.max(...top.filter(x => grp(x.e.kind) === g).map(x => x.s));   // Gruppe mit dem besten Treffer zuerst
-      hits = top.sort((a, b) => gmax(grp(b.e.kind)) - gmax(grp(a.e.kind)) || grp(a.e.kind) - grp(b.e.kind) || b.s - a.s).map(x => x.e);
-      sel = 0; let last = '';
-      box.innerHTML = hits.length ? hits.map((x, i) => { const g = KIND.find(k => k[0] === x.kind)[1]; const head = g !== last ? `<div class="sh">${esc(T(g))}</div>` : ''; last = g;
-        return `${head}<button type="button" data-i="${i}" class="${i === sel ? 'sel' : ''}"><b>${esc(T(x.label))}</b>${x.path.length ? `<span>${esc(x.path.map(p => T(p)).join(' › '))}</span>` : ''}</button>`; }).join('')
-        : `<span class="muted s" style="padding:8px 10px">${esc(T('Nichts gefunden'))}</span>`;
+      const local = top.sort((a, b) => gmax(grp(b.e.kind)) - gmax(grp(a.e.kind)) || grp(a.e.kind) - grp(b.e.kind) || b.s - a.s).map(x => ({ ...x.e, head: KIND.find(k => k[0] === x.e.kind)[1] }));
+      const rd = q.length >= 2 ? recs.get(q) : null;
+      const found = rd ? rd.groups.flatMap(g => g.hits.map(h => ({ rec: { art: g.art, page: g.page, detail: g.detail, id: h.id, ref: h.ref }, label: h.label, sub: h.sub, head: g.group }))) : [];
+      // Datensätze stehen oben (wer einen Namen tippt, sucht meist eine Person), außer eine Seite oder Einstellung beginnt selbst mit der Eingabe;
+      // dann folgen höchstens 6 Seiten und Einstellungen, damit die Liste kurz bleibt
+      const lead = top.some(x => x.e._l.startsWith(toks.join(' ')));
+      hits = !found.length ? local : lead ? [...local.slice(0, 6), ...found] : [...found, ...local.slice(0, 6)];
+      sel = keep ? Math.min(sel, Math.max(0, hits.length - 1)) : 0; let last = '';
+      const waiting = q.length >= 2 && !rd;
+      box.innerHTML = (hits.length ? hits.map((x, i) => { const head = x.head !== last ? `<div class="sh"${x.rec ? ' translate="no"' : ''}>${esc(x.rec ? x.head : T(x.head))}</div>` : ''; last = x.head;
+        return x.rec ? `${head}<button type="button" data-i="${i}" class="${i === sel ? 'sel' : ''}" translate="no"><b>${esc(x.label)}</b>${x.sub ? `<span>${esc(x.sub)}</span>` : ''}</button>`
+          : `${head}<button type="button" data-i="${i}" class="${i === sel ? 'sel' : ''}"><b>${esc(T(x.label))}</b>${x.path.length ? `<span>${esc(x.path.map(p => T(p)).join(' › '))}</span>` : ''}</button>`; }).join('')
+        : `<span class="muted s" style="padding:8px 10px">${esc(T(waiting ? 'Suche …' : 'Nichts gefunden'))}</span>`)
+        + (rd && rd.locked ? `<span class="muted s" style="padding:8px 10px">${esc(T('Personen findet die Suche erst, wenn die persönlichen Daten entsperrt sind (als Admin anmelden).'))}</span>` : '');
       box.classList.remove('hidden');
     };
+    const ask = () => {
+      clearTimeout(recTimer);
+      const q = inp.value.replace(/\s+/g, ' ').trim();
+      if (q.length < 2 || recs.has(q)) return;
+      recTimer = setTimeout(() => api('suche', 'POST', { q }).then(d => { recs.set(q, d); if (inp.value.replace(/\s+/g, ' ').trim() === q) draw(true); })
+        .catch(() => { recs.set(q, { groups: [], locked: false }); if (inp.value.replace(/\s+/g, ' ').trim() === q) draw(true); }), 250);
+    };
     const pick = i => { const x = hits[i]; if (!x) return; inp.value = ''; box.classList.add('hidden'); inp.blur(); searchJump(x).catch(() => {}); };
-    inp.addEventListener('focus', () => { idx = null; });   // Rechte und Module können sich geändert haben
-    inp.addEventListener('input', draw);
+    inp.addEventListener('focus', () => { idx = null; recs.clear(); });   // Rechte, Module und Daten können sich geändert haben
+    inp.addEventListener('input', () => { draw(); ask(); });
     inp.addEventListener('keydown', e => {
       if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); sel = Math.max(0, Math.min(hits.length - 1, sel + (e.key === 'ArrowDown' ? 1 : -1))); box.querySelectorAll('button').forEach((b, i) => b.classList.toggle('sel', i === sel)); }
       if (e.key === 'Enter') { e.preventDefault(); pick(sel); }
@@ -830,6 +870,9 @@
     registerSearch(list) { for (const e of list || []) if (e && e.label && e.page) SEARCH.push({ kind: 'einstellung', words: '', ...e }); },
     /** Für den Design-Prüfstand: alle sichtbaren Sucheinträge und der Sprung dorthin (true = Ziel gefunden) */
     searchIndex: () => searchIndex(), searchJump: e => searchJump(e),
+    /** Sprung zu einem Datensatz-Treffer der Suche (Server-Hook „search“) ohne Detailansicht: registerHit(art, { tab: [tabsKey, reiter], before(id, ref), find(id, ref) → Element })
+     *  before setzt Filter der Liste (z. B. „Alle“), find liefert die Zeile, die hervorgehoben wird. Mit Detailansicht (registerDetail, gleiche Art) ist nichts anzumelden. */
+    registerHit(art, h) { if (/^[a-z0-9-]+$/.test(art) && h) HIT[art] = h; },
     /** Zahlen für Reiter-Abzeichen: fn() → { seitenschlüssel: Anzahl } */
     badges(fn) { BADGE_HOOKS.push(fn); },
     refreshBadges: () => refreshBadges(),
@@ -848,6 +891,10 @@
   (window.CW_PAGES || []).forEach(fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } });
   window.CW_PAGES = { push: fn => { try { fn(window.GK); } catch (e) { console.error('Seite', e); } } };
 
+  /* Suche: Datensätze des Kerns – Konto (Zeile auswählen, Detailkarte zeigt Konto und PIN) und Artikel (Zeile hervorheben) */
+  window.GK.registerHit('konto', { before: (id, ref) => { cache.mSel = Number(id); cache.mFilter = ref === 'aus' ? 'aus' : 'alle'; },
+    find: id => $('main').querySelector(`#mTbl tr[data-sel="${Number(id)}"]`) || $('main').querySelector(`[data-pn="${Number(id)}"]`)?.closest('tr') });
+  window.GK.registerHit('artikel', { find: id => $('main').querySelector(`[data-e="${Number(id)}"]`)?.closest('tr') });
   /* Suche: Einstellungen und Aktionen des Kerns (Seiten und Reiter findet sie von selbst) */
   const SET = sec => ['cw_setsec', sec], APS = sec => ['cw_appsec', sec], E = 'einstellungen';
   window.GK.registerSearch([

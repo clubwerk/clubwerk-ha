@@ -455,6 +455,20 @@ function activate(ctx) {
     const pend = db.prepare("SELECT COUNT(*) n FROM bh_partner p WHERE p.active = 1 AND p.items != '[]' AND NOT EXISTS (SELECT 1 FROM bh_invoice i WHERE i.partner_id = p.id AND i.yearly = ? AND i.status != 'storniert')").get(y).n;
     return { kpis: [{ l: 'Offene Rechnungen', v: `${open.n} · ${euro(open.c)}` }, { l: `Jahresrechnungen ${y} offen`, v: pend }], alerts };
   };
+  /* Suche (Strg/⌘ K): Rechnungen nach Nummer oder Empfänger, Firmen nach Name oder Kundennummer – ohne Beträge und Bankdaten.
+     Der Empfänger steht verschlüsselt (Tresor); gesperrt zählt der Name der Firma bzw. des Mitglieds, Rechnungen an Mitglieder fallen dann weg (Personen). */
+  ctx.hooks.search = s => {
+    const lf = ctx.require('./db').lastFirst;
+    const inv = db.prepare('SELECT i.id, i.no, i.kind, i.date, i.status, i.recipient, p.name AS pname, m.name AS mname FROM bh_invoice i LEFT JOIN bh_partner p ON p.id = i.partner_id LEFT JOIN members m ON m.id = i.member_id').all()
+      .filter(r => !(s.locked && r.kind === 'member')).map(r => { const n = J(r.recipient, {}).name || (r.kind === 'member' ? r.mname : r.pname) || ''; return { ...r, who: r.kind === 'member' ? lf(n) : n }; });
+    const w = s.where('name', 'customer_no');
+    const firms = db.prepare(`SELECT id, name, city, active FROM bh_partner WHERE ${w.sql}`).all(...w.args);
+    return [
+      { group: 'Rechnungen', art: 'rechnung', page: 'bh-rechnungen', hits: s.pick(inv, r => [r.who, r.no]).map(r => ({ id: r.id, label: r.who || r.no, person: r.kind === 'member', score: r._score,
+        sub: [`${ctx.T('Nr.')} ${r.no}`, deD(r.date), r.status] })) },
+      { group: 'Firmen & Sponsoren', art: 'firma', page: 'bh-firmen', hits: s.pick(firms, r => [r.name]).map(r => ({ id: r.id, label: r.name, person: false, score: r._score, sub: [r.city, r.active ? '' : 'inaktiv'] })) },
+    ];
+  };
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)])),
     partners: db.prepare('SELECT name, contact, street, zip, city, country, email, phone, vat_id, customer_no, items, note, active FROM bh_partner').all() });
   ctx.hooks.importConfig = data => {

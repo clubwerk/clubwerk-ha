@@ -562,6 +562,13 @@ function activate(ctx) {
     return { kpis: [{ l: `Stunden geleistet ${o.label}`, v: `${Math.round(o.totals.done / 60)} von ${Math.round(o.totals.target / 60)} h` }, { l: 'zu bestätigen', v: pend }],
       alerts: pend ? [{ level: 'a', text: `${pend} gemeldete Arbeitsstunden warten auf Bestätigung.` }] : [] };
   };
+  /* Suche (Strg/⌘ K): Dienstpläne nach Titel oder Ort, Sprung in die Detailansicht */
+  ctx.hooks.search = s => {
+    const w = s.where('title', 'place');
+    const rows = db.prepare(`SELECT id, title, from_date, to_date, place, published FROM aw_plan WHERE ${w.sql}`).all(...w.args);
+    return [{ group: 'Dienstpläne', art: 'dienstplan', page: 'aw-plaene', detail: true, hits: s.pick(rows, r => [r.title, r.place]).map(r => ({ id: r.id, label: r.title, person: false, score: r._score,
+      sub: [r.from_date === r.to_date ? deD(r.from_date) : `${deD(r.from_date)} – ${deD(r.to_date)}`, r.place, r.published ? '' : 'Entwurf'] })) }];
+  };
   const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year'];
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
   // nur bekannte Schlüssel übernehmen – eine fremde Datei darf keine beliebigen Einstellungen anlegen

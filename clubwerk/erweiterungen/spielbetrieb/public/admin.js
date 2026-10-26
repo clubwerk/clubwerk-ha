@@ -545,6 +545,9 @@
   }
 
   GK.registerPage({ key: 'spielbetrieb', title: 'Spielbetrieb', perm: 'spielbetrieb', render, icon: 'pokal', order: 2.5 });   // Menü: nach den Plätzen
+  // Suche (Strg/⌘ K), Datensätze: Spieltag in der Liste (kommende bzw. vergangene, alle Mannschaften) hervorheben
+  if (GK.registerHit) GK.registerHit('spieltag', { tab: ['spielbetrieb', 'spieltage'], before: (id, ref) => { st.past = ref === 'past'; st.cal = false; st.team = 0; },
+    find: id => $('main').querySelector(`.sp-g[data-g="${Number(id)}"]`) });
   // Suche (Strg/⌘ K): Reiter, Einstellungen und Aktionen des Spielbetriebs
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Spielbetrieb: Übersicht (Braucht Aufmerksamkeit)', page: 'spielbetrieb', tab: ['spielbetrieb', 'uebersicht'], kind: 'reiter', in: 'Übersicht', words: 'Rückmeldungen Zusagen Absage Mannschaften Sportwart' },

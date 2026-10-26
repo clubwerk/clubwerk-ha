@@ -464,6 +464,11 @@
   GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G });
   GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G });
   GK.registerPage({ key: 'bh-einstellungen', title: 'Einstellungen', perm: 'buchhaltung', render: pageRender('bh-einstellungen', showSettings), group: G });
+  // Suche (Strg/⌘ K), Datensätze: Rechnung in der Liste „Alle“ hervorheben, Firma in ihrer Liste
+  if (GK.registerHit) {
+    GK.registerHit('rechnung', { before: () => { st.inv.status = 'alle'; st.inv.year = ''; }, find: id => $('main').querySelector(`[data-inv="${Number(id)}"]`)?.closest('tr') });
+    GK.registerHit('firma', { find: id => $('main').querySelector(`#bpT [data-ed="${Number(id)}"]`)?.closest('tr') });
+  }
   // Suche (Strg/⌘ K): Reiter, Einstellungskarten und Aktionen der Buchhaltung
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Rechnung schreiben', page: 'bh-rechnungen', btn: '+ Neue Rechnung', kind: 'aktion', in: 'Rechnungen', words: 'Rechnung Sponsor Firma', boost: 1 },
