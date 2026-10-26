@@ -315,6 +315,24 @@ function activate(ctx) {
     { id: 'rahmen', label: 'Spielbetrieb: Vorläufige Termine', desc: 'Der Sportwart fragt die Termine aus dem Rahmenterminplan ab – oder deine Mannschaft hat an einem davon spielfrei.', default: true },
     { id: 'aufgabe', label: 'Spielbetrieb: Aufgabe übernommen/zugeteilt', desc: 'Eine Aufgabe für einen Spieltag (z. B. Fahrer) wurde dir zugeteilt.', default: true },
   ];
+  /* Mitglieder-App „Für mich“: Spieltage bis „until“ – Zusage fehlt (wie im Bereich beantwortbar), ich bin aufgestellt,
+     als Mannschaftsführer: Aufstellung noch nicht verschickt (gleiche Frist wie die Warnung der Sportwart-Übersicht) */
+  ctx.hooks.forMe = (mid, { until }) => {
+    const d = today(), cap = new Set(captainOf(mid));
+    const play = new Set(db.prepare('SELECT p.team_id FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').all(mid).map(r => r.team_id));
+    const ids = [...new Set([...play, ...cap])];
+    if (!ids.length) return { next: [] };
+    const gs = db.prepare(`SELECT g.*, t.name AS tname, (SELECT state FROM sp_avail a WHERE a.game_id = g.id AND a.member_id = ?) AS st, (SELECT role FROM sp_lineup l WHERE l.game_id = g.id AND l.member_id = ?) AS role
+      FROM sp_game g JOIN sp_team t ON t.id = g.team_id WHERE g.team_id IN (${ids.map(() => '?').join(',')}) AND g.released = 1 AND g.status = 'geplant' AND g.date >= ? AND g.date <= ? ORDER BY g.date, g.start`).all(mid, mid, ...ids, d, until);
+    const playDays = new Set(gs.filter(g => g.role === 'spielt').map(g => g.date)), due = addDays(d, cfg().captainDays);
+    return { next: gs.map(g => {
+      const plays = g.role === 'spielt';
+      const ask = play.has(g.team_id) && !g.st && !plays && !playDays.has(g.date);   // an einem Tag, an dem ich schon woanders spiele, fragt der Bereich nicht
+      const lead = cap.has(g.team_id) && g.kind !== 'rahmen' && g.date <= due && !g.lineup_sent_at;
+      if (!ask && !lead && !plays) return null;
+      return { at: g.date, start: g.start || '', title: gameTitle(g, { name: g.tname }), sub: plays ? 'Du bist aufgestellt' : '', chip: ask ? 'Zusage fehlt' : lead ? 'Aufstellung noch nicht verschickt' : '', focus: g.id };
+    }).filter(Boolean) };
+  };
   /** Mitglieder-App: nur für Spieler und Mannschaftsführer */
   ctx.hooks.appVisible = memberId => Boolean(db.prepare(`SELECT 1 FROM sp_team t LEFT JOIN sp_player p ON p.team_id = t.id AND p.member_id = ?
     WHERE t.active = 1 AND (p.member_id IS NOT NULL OR t.captain_id = ? OR t.vice_id = ?) LIMIT 1`).get(memberId, memberId, memberId));

@@ -281,7 +281,12 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
 });
 
 /* ---------- Port der Mitglieder-App ---------- */
-function startPort({ rateLimit, rateLimitKey }) {
+/* „Für mich“: Zeitgrenze je Modul (die Übersicht der Verwaltung hat 6 s – am Handy kürzer), Vorschau in Tagen, höchstens so viele Zeilen */
+const FORME_TIMEOUT_MS = 1500, FORME_DAYS = 14, FORME_NEXT = 5, FORME_OPEN = 4;
+/** offenes Thekenkonto eines Mitglieds (memberBalance aus server.js, über startPort) */
+let kontoOf = null;
+function startPort({ rateLimit, rateLimitKey, memberBalance }) {
+  kontoOf = memberBalance || null;
   const port = parseInt(process.env.MEMBER_PORT || '5001', 10);
   if (!port) return;
   const app = express();
@@ -367,19 +372,45 @@ function startPort({ rateLimit, rateLimitKey }) {
   const dev = req => req.get('X-Geraet') || '';
   // Diagnose: ip = so sieht Clubwerk den Absender; wlan = Anfrage kam direkt aus dem Vereinsnetz (nicht über den Tunnel)
   api.get('/ping', (req, res) => res.json({ ok: true, app: 'clubwerk', color: appColor(), club: getSetting('club_name', ''), tunnel: Boolean(req.viaTunnel), wlan: !awayReq(req), ip: normIp(req.ip) }));
-  api.get('/me', (req, res) => {
-    const w = invites.whoIs(SCOPE, dev(req));
-    if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
-    const off = appOff();
-    const nm = w && isNonMember(w.memberId);
-    const sections = w ? activeModules().filter(([id, m]) => !off.has(id)).filter(([id, m]) => { const a = access.get(w.memberId, id); if (nm) return m.nonMembers && a; return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
+  /** Bereiche dieses Handys bei dieser Anfrage: freigeschaltet, „Nur im Vereins-WLAN“ (unterwegs) oder „wartet aufs WLAN“ (vertraulich nach Kopplung von unterwegs) */
+  const sectionsFor = (req, w) => {
+    const off = appOff(), nm = isNonMember(w.memberId);
+    return activeModules().filter(([id, m]) => !off.has(id)).filter(([id, m]) => { const a = access.get(w.memberId, id); if (nm) return m.nonMembers && a; return m.open ? !(a && a.blocked) && appVisible(m, w.memberId) : a; }).map(([id, m]) => {
       const c = accessFor(w.memberId, id);
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
       return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
-    }) : [];
+    });
+  };
+  api.get('/me', (req, res) => {
+    const w = invites.whoIs(SCOPE, dev(req));
+    if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
+    const sections = w ? sectionsFor(req, w) : [];
     res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
       pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
+  });
+  /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds */
+  api.get('/forme', async (req, res) => {
+    const w = invites.whoIs(SCOPE, dev(req));
+    if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
+    res.set('Cache-Control', 'no-store');
+    const away = awayReq(req), until = require('./util').addDays(require('./util').today(), FORME_DAYS);
+    const ok = sectionsFor(req, w).filter(s => s.ok && typeof (modules.get(s.id).hooks || {}).forMe === 'function');
+    const got = await Promise.all(ok.map(async s => {
+      let timer = null;
+      try {
+        const r = await Promise.race([Promise.resolve().then(() => modules.get(s.id).hooks.forMe(w.memberId, { away, until })), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('Zeitüberschreitung')), FORME_TIMEOUT_MS); })]);
+        return { id: s.id, next: (r && Array.isArray(r.next) ? r.next : []).filter(x => x && x.at && x.at <= until), open: r && Array.isArray(r.open) ? r.open.slice(0, 1) : [] };   // je Bereich höchstens eine Zeile „Offen“
+      } catch (e) { console.error(`Für mich: ${s.id}:`, e.message); return null; }   // Fehler oder zu langsam: nur diese Zeilen fehlen
+      finally { clearTimeout(timer); }
+    }));
+    const pick = (x, id) => ({ section: id, title: String(x.title || ''), sub: x.sub ? String(x.sub) : '', chip: x.chip ? String(x.chip) : '', focus: x.focus != null ? String(x.focus) : '', ...(x.at ? { at: x.at, start: x.start || '', end: x.end || '' } : {}) });
+    const next = got.filter(Boolean).flatMap(g => g.next.map(x => pick(x, g.id))).sort((a, b) => (a.at + a.start).localeCompare(b.at + b.start)).slice(0, FORME_NEXT);
+    // Thekenkonto (Verkauf im Kern): nur, wenn der Verein es eingeschaltet hat – noch nicht abgerechnete Buchungen; hat immer Platz
+    const k = getSetting('app_forme_konto', '0') === '1' && kontoOf && require('./plugins').isActive('getraenke') ? kontoOf(w.memberId) : null;
+    const konto = k && k.cents > 0 ? [{ section: '', title: 'Thekenkonto', sub: `${require('./util').euro(k.cents)} offen`, chip: '', focus: '' }] : [];
+    const open = got.filter(Boolean).flatMap(g => g.open.map(x => pick(x, g.id))).slice(0, FORME_OPEN - konto.length).concat(konto);
+    res.json({ next, open });
   });
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
@@ -660,7 +691,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
-    res.json({ startSection: getSetting('app_start', ''), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [],
+    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [],
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   // Vereinsnetz (Einstellungen › Erreichbarkeit): nur, was die Karte braucht – ohne Mitgliederliste
@@ -903,11 +934,17 @@ function adminRoutes(admin, { bad, need, auth }) {
       setSetting('app_ext_modules', JSON.stringify(next));
       audit(req.user, 'Mitglieder-App: von unterwegs nutzbar', activeModules().map(([k, m]) => `${m.label || m.name}: ${extAllowed(k) ? 'ja' : 'nein'}`).join(', '));
     }
-    if (b.startSection !== undefined) {   // Startseite der App: fester Bereich oder '' = zuletzt genutzter
+    if (b.startSection !== undefined) {   // Startseite der App: fester Bereich oder '' = „Für mich“
       const s = String(b.startSection || '');
       if (s && !modules.has(s)) return bad(res, 'Diesen Bereich gibt es nicht.');
       setSetting('app_start', s);
-      audit(req.user, 'Mitglieder-App: Startseite', s ? modules.get(s).label || modules.get(s).name || s : 'zuletzt genutzter Bereich');
+      audit(req.user, 'Mitglieder-App: Startseite', s ? modules.get(s).label || modules.get(s).name || s : 'Für mich');
+    }
+    if (b.formeKonto !== undefined) {   // „Für mich“ zeigt das offene Thekenkonto
+      if (!mayCfg) return bad(res, 'Nur mit dem Recht „Mitglieder-App einrichten“.', 403);
+      const v = b.formeKonto ? '1' : '0';
+      if (v !== getSetting('app_forme_konto', '0')) audit(req.user, 'Mitglieder-App: Thekenkonto in „Für mich“', v === '1' ? 'an' : 'aus');
+      setSetting('app_forme_konto', v);
     }
     if (b.moduleOrder !== undefined) {   // Reihenfolge der Bereiche in der App
       if (!mayCfg) return bad(res, 'Nur mit dem Recht „Mitglieder-App einrichten“.', 403);

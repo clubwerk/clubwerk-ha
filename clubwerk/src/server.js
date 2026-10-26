@@ -3399,7 +3399,7 @@ require('./mailer').routes(admin, { bad, need });
 const vault = require('./vault');
 try { vault.start(); } catch (e) { console.error('Tresor beim Start:', e); }
 vault.onUnlock(() => vault.flushMail(o => require('./mail').send(o)).then(n => { if (n) audit(null, 'Tresor: wartende E-Mails verschickt', String(n)); }));
-memberapp.startPort({ rateLimit, rateLimitKey });
+memberapp.startPort({ rateLimit, rateLimitKey, memberBalance });
 
 function navLinks() {
   try { const l = JSON.parse(getSetting('nav_links', '[]')); return Array.isArray(l) ? l.map(x => ({ label: x.label, url: x.url })) : []; } catch (e) { return []; }

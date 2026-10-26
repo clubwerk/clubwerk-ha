@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.62.0
+
+**Mitglieder-App startet mit „Für mich“ (Etappe 16 des Menü-Umbaus)**
+- **Neue Startseite „Für mich“:** Wer die App öffnet, sieht sofort, was für ihn ansteht. Unter **Als Nächstes** stehen die eigenen Termine der nächsten 14 Tage (höchstens fünf): Platzbuchungen (auch als Mitspieler), frei gewordene Plätze von der Warteliste, Spieltage mit fehlender Zusage oder mit eigener Aufstellung und eingetragene Helferdienste. Unter **Offen** stehen fehlende Arbeitsstunden, offene Beiträge und Gebühren und die eigenen Mängelmeldungen. Was erledigt ist, fällt weg. Steht nichts an, sagt die Seite das und bietet den nächsten Schritt an (z. B. „Platz buchen“).
+- **Jede Zeile führt in den passenden Bereich**, ein Spieltag öffnet sich dort gleich aufgeklappt.
+- **Thekenkonto:** Auf Wunsch zeigt „Für mich“ auch, was auf dem Thekenkonto noch offen ist (noch nicht abgerechnete Buchungen). Das ist von Haus aus aus und lässt sich unter Mitglieder-App › Bereiche einschalten.
+- **Nur eigene Daten:** Jedes Mitglied sieht nur, was zu ihm gehört, und nur aus Bereichen, die für es freigeschaltet sind. Offene Beiträge sieht nur, wer selbst zahlt. Bereiche, die nur im Vereins-WLAN gehen, erscheinen von unterwegs nicht. Ist ein Modul aus, fehlt nur seine Zeile.
+- **Schnell:** Eine einzige Abfrage fragt alle Bereiche gleichzeitig. Braucht einer länger als 1,5 Sekunden, fehlt nur seine Zeile.
+- **Untere Leiste:** „Für mich“ steht immer ganz links. Dazu kommen bis zu vier Bereiche, bei mehr Bereichen die ersten drei und „Mehr“. So bleibt es bei höchstens fünf Knöpfen, und keine Beschriftung wird abgeschnitten.
+- **Start der App:** Die App öffnet jetzt immer „Für mich“. Ein bisher fest eingestellter Start-Bereich wurde beim Update einmal zurückgesetzt. Wer lieber mit einem bestimmten Bereich starten möchte, wählt ihn unter Mitglieder-App › Bereiche in der Spalte „Start“. Die Möglichkeit „zuletzt genutzter Bereich“ gibt es nicht mehr.
+
 ## 3.61.0
 
 **Die Suche findet jetzt auch Datensätze (Etappe 17 des Menü-Umbaus)**

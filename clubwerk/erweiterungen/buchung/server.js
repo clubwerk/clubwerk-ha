@@ -1509,6 +1509,19 @@ function activate(ctx) {
     // Kachel wie beim Verkauf: groß die offenen Gebühren, darunter die Belegung – kein Hinweis-Banner
     return { kpis: [{ l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Jahr', v: euro(sum) }, { l: 'Buchungen heute', v: `${t} · belegt ${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
   };
+  /* Mitglieder-App „Für mich“: eigene Buchungen (auch als Mitspieler) bis zum Tag „until“ und freigewordene Plätze der Warteliste */
+  ctx.hooks.forMe = (mid, { until }) => {
+    const d = today(), n = hhmm(nowMin()), me = nameOf(mid);
+    const own = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND b.date <= ?
+      AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start LIMIT 20`).all(d, d, n, until, mid, String(mid))
+      .filter(b => b.member_id === mid || J(b.partners, []).includes(mid)).slice(0, 5).map(b => {
+        const others = (bview(b, { me: mid }).who || []).filter(x => x !== me);
+        return { at: b.date, start: b.start, end: b.end, title: b.rname, sub: others.length ? `mit ${others.join(', ')}` : '' };
+      });
+    const free = db.prepare(`SELECT w.date, w.start, w.end, r.name AS rname FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.notified_at IS NOT NULL AND w.date >= ? AND w.date <= ? ORDER BY w.date, w.start LIMIT 3`).all(mid, d, until)
+      .filter(w => w.date > d || w.end > n).map(w => ({ at: w.date, start: w.start, end: w.end, title: w.rname, chip: 'Platz frei geworden' }));
+    return { next: [...own, ...free] };
+  };
   /* Push-Anlässe (der Vorstand gibt frei, das Mitglied wählt je Handy) */
   ctx.hooks.pushEvents = () => [
     { id: 'einladung', label: 'Als Mitspieler eingetragen', desc: 'Jemand hat dich bei einer Buchung als Mitspieler eingetragen.', default: true },

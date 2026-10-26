@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.61.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.62.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -102,6 +102,7 @@
 
   /* ---------- Bereiche ---------- */
   const SECTIONS = {};
+  const FM = 'fuermich', FM_T = 'Für mich';   // Startseite „Für mich“: kein Modul, immer vorn in der Leiste
   window.VA = { registerSection(s) { SECTIONS[s.id] = s; } };
   let me = null, current = null, cleanup = null;
   const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
@@ -126,12 +127,13 @@
     if (!embedFrame || ev.origin !== embedOrigin || !ev.data || ev.data.clubwerk !== 'embed') return;
     if (ev.data.type === 'size' && Number(ev.data.height) > 0) { embedWorked = true; embedFrame.style.height = Math.min(4000, Math.max(300, Number(ev.data.height))) + 'px'; const w = $('embWait'); if (w) { w.classList.add('ok'); w.remove(); } clearTimeout(Number(embedFrame.dataset.timer)); }
   });
-  function show(id) {
+  function show(id, focus = '') {
     if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
-    current = id; if (!EMBED) store.set('va_tab', id);
+    current = id;
     markTab();
-    const s = me.sections.find(x => x.id === id);
     const el = $('sec');
+    if (id === FM) { forMe(el); return; }
+    const s = me.sections.find(x => x.id === id);
     if (!s) { el.innerHTML = ''; return; }
     if (!s.ok && s.wlanOnly && embedWorked && me.lanUrl && !me.wlan) { el.innerHTML = ''; call('handover', 'POST', {}).then(r => { if (current === id) embedLocal(el, id, r); }).catch(() => { embedWorked = false; show(id); }); return; }
     if (!s.ok && s.wlanOnly) { el.innerHTML = `<div class="vh-wlan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1"/></svg><b>${esc(WLAN_T)}</b><span>${esc(s.title)} funktioniert nur, wenn dein Handy im WLAN des Vereinsheims ist. Dort einfach die App öffnen – alles andere geht auch unterwegs.</span>${me.lanUrl && !me.wlan ? `<button class="vh-btn" id="lanGo">Im Vereinsheim lokal öffnen</button><small class="vh-wlan-diag">Bist du gerade im Vereinsheim? Dann öffnet dieser Knopf die App über die lokale Adresse – mit deiner PIN. Lokale Adresse ${esc(me.lanUrl)}: ${lanProbe ? (lanProbe.ok ? 'erreichbar' : esc(lanProbe.why)) : 'wird geprüft …'}</small>` : ''}</div>`;
@@ -143,10 +145,36 @@
     if (!sec) { el.innerHTML = '<div class="vh-empty">Dieser Bereich konnte nicht geladen werden.</div>'; return; }
     el.innerHTML = '';
     const ctx = {
-      api: (p, method, body) => call(`m/${id}/${p}`, method, body), withPin, toast, esc, member: me.member,
+      api: (p, method, body) => call(`m/${id}/${p}`, method, body), withPin, toast, esc, member: me.member, focus,   // focus: Eintrag, zu dem „Für mich“ springt (z. B. ein Spieltag)
       onLeave: fn => { cleanup = fn; },
     };
     try { sec.render(el, ctx); } catch (e) { el.innerHTML = `<div class="vh-empty">Fehler: ${esc(e.message)}</div>`; }
+  }
+
+  /* ---------- „Für mich“: nächste eigene Termine und Offenes aus allen freigeschalteten Bereichen (eine Abfrage, Server fragt die Module gleichzeitig) ---------- */
+  const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
+  const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const CHEV = '<svg class="vh-fm-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+  async function forMe(el) {
+    let d;
+    try { d = await call('forme'); } catch (e) { if (current === FM) el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
+    if (current !== FM) return;   // inzwischen anderer Bereich gewählt
+    const today = ymd(new Date()), ok = id => me.sections.some(s => s.id === id && s.ok);
+    // Zeile: Bereich vorhanden → Knopf, der dorthin springt; sonst (Thekenkonto) nur Anzeige
+    const line = (x, lead) => {
+      const time = x.start ? (x.end ? `${x.start}–${x.end}` : `${x.start} Uhr`) : '';
+      const sub = [time, x.sub].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join(' · ') + (x.chip ? ` <span class="vh-chip a">${esc(x.chip)}</span>` : '');
+      const inner = `${lead}<span class="vh-tx"><strong translate="no">${esc(x.title)}</strong>${sub ? `<small>${sub}</small>` : ''}</span>`;
+      return ok(x.section) ? `<button type="button" class="vh-fm" data-go="${esc(x.section)}" data-focus="${esc(x.focus)}">${inner}${CHEV}</button>` : `<div class="vh-fm">${inner}</div>`;
+    };
+    const dateBox = x => `<span class="vh-date${x.at === today ? ' today' : ''}"><b>${esc(x.at.slice(8, 10))}.${esc(x.at.slice(5, 7))}.</b><span>${esc(WD[new Date(x.at + 'T12:00:00').getDay()])}</span></span>`;
+    const icoBox = x => `<span class="vh-fm-ico">${ti(x.section || 'konto')}</span>`;
+    const first = me.sections.find(s => s.ok);
+    el.innerHTML = !d.next.length && !d.open.length
+      ? `<div class="vh-empty">Gerade steht nichts an.${first ? ` <button type="button" class="vh-link" data-go="${esc(first.id)}">${first.id === 'buchung' ? 'Platz buchen' : `${esc(first.title)} öffnen`}</button>` : ''}</div>`
+      : (d.next.length ? `<div class="vh-card"><h3>Als Nächstes</h3><div class="vh-rows">${d.next.map(x => line(x, dateBox(x))).join('')}</div></div>` : '')
+        + (d.open.length ? `<div class="vh-card"><h3>Offen</h3><div class="vh-rows">${d.open.map(x => line(x, icoBox(x))).join('')}</div></div>` : '');
+    el.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => { wlanTries = 0; show(b.dataset.go, b.dataset.focus || ''); }; });
   }
 
   /* Lokale Route im Hintergrund prüfen – die Inhalte erscheinen sofort über die aktuelle Adresse; klappt die Prüfung,
@@ -186,7 +214,7 @@
     const m = document.querySelector('meta[name="theme-color"]'); if (m) m.content = c;
   }
   const colorCheck = () => { if (document.visibilityState === 'visible') call('ping').then(x => applyColor(x.color)).catch(() => {}); };
-  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); lanProbe = null; wlanTries = 0; probeInBackground(true); if (current && !embedFrame && me && me.sections.some(x => x.id === current && x.wlanOnly)) show(current); };
+  const recheck = () => { if (document.visibilityState !== 'visible') return; colorCheck(); lanProbe = null; wlanTries = 0; probeInBackground(true); if (current && !embedFrame && me && (current === FM || me.sections.some(x => x.id === current && x.wlanOnly))) show(current); };   // „Für mich“ beim Zurückkommen neu laden
   document.addEventListener('visibilitychange', recheck);
   window.addEventListener('online', recheck);
   window.addEventListener('pageshow', e => { if (e.persisted) recheck(); });
@@ -210,25 +238,24 @@
       show(EMBED); embedPost('ready');
       return;
     }
-    // Startseite: fester Bereich (Verwaltung → Mitglieder-App → Bereiche) oder der zuletzt genutzte; sonst der erste verfügbare
-    const last = store.get('va_tab'), okId = id => id && me.sections.some(s => s.id === id && s.ok);
-    const first = (me.sections.find(s => s.ok) || me.sections[0]).id;
-    show(okId(me.start) ? me.start : okId(last) ? last : first);
+    // Startseite: fester Bereich (Verwaltung → Mitglieder-App → Bereiche), sonst „Für mich“
+    show(me.sections.some(s => s.id === me.start && s.ok) ? me.start : FM);
     probeInBackground();
   }
+  /* Symbole der Bereiche (Leiste und „Für mich“) */
+  const TI = { konto: '<path d="M6 3h12l-1.5 17a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.5 8h11"/>', fuermich: '<path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>', maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>', buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
+      beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
+  const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
   async function renderTabs() {
     for (const s of me.sections) if (s.ok && !SECTIONS[s.id]) { try { await loadScript(`m/${s.id}/member.js?v=${encodeURIComponent(me.version || APP_VER)}`); } catch (e) { /* Bereich bleibt leer */ } }
     const tabs = $('tabs');
-    const TI = { maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>', buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
-      beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
-    const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
-    /* Unten höchstens 5 Knöpfe: bis 5 Bereiche alle, sonst die ersten 4 der Reihenfolge und „Mehr“ (Blatt mit den übrigen Bereichen und Mein Konto) */
-    const secs = me.sections, over = secs.length > 5;
-    const shown = over ? secs.slice(0, 4) : secs;
+    /* Unten höchstens 5 Knöpfe: „Für mich“ vorn, dazu bis 4 Bereiche alle, sonst die ersten 3 der Reihenfolge und „Mehr“ (Blatt mit den übrigen Bereichen und Mein Konto) */
+    const secs = me.sections, over = secs.length > 4;
+    const shown = [{ id: FM, title: FM_T }, ...(over ? secs.slice(0, 3) : secs)];
     const MORE = '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>';
     tabs.innerHTML = shown.map(s => `<button data-t="${s.id}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ` title="${esc(s.title)}"`} aria-label="${esc(s.title)}">${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('')
       + (over ? `<button data-t="mehr" aria-label="Mehr" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">${MORE}</svg><span>Mehr</span></button>` : '');
-    tabs.classList.toggle('hidden', secs.length < 2);
+    tabs.classList.toggle('hidden', !secs.length);
     tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.t === 'mehr') { moreSheet(); return; } wlanTries = 0; show(b.dataset.t); });
     markTab();
   }
@@ -264,7 +291,7 @@
   let openPhoto = null, openLang = null, langName = '';
   function moreSheet() {
     let sh = $('accSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'accSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
-    const rest = me.sections.length > 5 ? me.sections.slice(4) : [];
+    const rest = me.sections.length > 4 ? me.sections.slice(3) : [];
     const close = () => sh.classList.remove('show');
     sh.innerHTML = `<div class="vh-box">
       ${rest.length ? `<h2>Weitere Bereiche</h2><div class="vh-menu">${rest.map(s => `<button type="button" data-s="${esc(s.id)}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${esc(s.title)}</button>`).join('')}</div>` : ''}

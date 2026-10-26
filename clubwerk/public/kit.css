@@ -189,6 +189,12 @@ html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
 .vh-date.today { background: var(--brand); color: var(--on-brand); }
 .vh-date i { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--card); background: var(--faint, var(--line)); }
 .vh-date i.g { background: var(--brand); } .vh-date i.r { background: var(--red); } .vh-date i.a { background: var(--amber); }
+/* „Für mich“: Zeilen mit Datumsblock bzw. Symbol des Bereichs, ganze Zeile tippbar (führt in den Bereich) */
+button.vh-fm { width: 100%; font: inherit; color: inherit; text-align: left; background: none; border: 0; border-top: 1px solid var(--line); cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.vh-rows > .vh-fm { justify-content: flex-start; }
+.vh-fm-ico { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--hover); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; }
+.vh-fm-ico svg { width: 22px; height: 22px; }
+.vh-fm-go { width: 18px; height: 18px; flex: none; color: var(--faint); }
 /* Schlüssel/Wert */
 .vh-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
 .vh-kv dt { color: var(--muted); } .vh-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }

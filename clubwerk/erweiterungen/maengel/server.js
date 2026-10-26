@@ -10,7 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
-const { today } = require('../../src/util');
+const { today, deD } = require('../../src/util');
 
 const txt = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f<>]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
 const STATUS = { neu: 'Neu', arbeit: 'In Arbeit', erledigt: 'Erledigt', abgelehnt: 'Abgelehnt/Doppelt' };
@@ -321,6 +321,17 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
       count = list.length;
     }
     return `${count} ${count === 1 ? 'Ort' : 'Orte'} und die Einstellungen übernommen`;
+  };
+  /* Mitglieder-App „Für mich“: eigene (oder bestätigte) Meldungen, die offen sind oder in den letzten 14 Tagen erledigt wurden – eine Zeile */
+  ctx.hooks.forMe = id => {
+    const rows = db.prepare(`SELECT place, status, created_at, done_at FROM mg_report WHERE (member_id = ? OR id IN (SELECT report_id FROM mg_also WHERE member_id = ?))
+      AND (status IN ('neu','arbeit') OR done_at >= datetime('now','localtime','-14 days')) ORDER BY created_at DESC LIMIT 20`).all(id, id);
+    if (!rows.length) return {};
+    const open = rows.filter(r => OPEN.includes(r.status)).length, done = rows.length - open;
+    if (rows.length > 1) return { open: [{ title: 'Meine Meldungen', sub: [open ? `${open} offen` : '', done ? `${done} beantwortet` : ''].filter(Boolean).join(' · ') }] };
+    const r = rows[0];
+    return { open: [{ title: `Meine Meldung: ${r.place}`, sub: r.status === 'arbeit' ? `in Arbeit, gemeldet am ${deD(r.created_at.slice(0, 10))}` : r.status === 'neu' ? `gemeldet am ${deD(r.created_at.slice(0, 10))}`
+      : r.status === 'erledigt' ? `erledigt am ${deD(r.done_at.slice(0, 10))}` : `abgelehnt am ${deD(r.done_at.slice(0, 10))}` }] };
   };
   ctx.hooks.overview = () => {
     const open = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status IN ('neu','arbeit')").get().n;

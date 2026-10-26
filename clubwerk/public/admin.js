@@ -935,6 +935,7 @@
     { label: 'Wer sieht welchen Bereich der App?', page: 'app', perm: ['app', 'einstellungen'], sec: APS('bereiche'), card: 'Bereiche der App', words: 'App Bereiche Rechte für wen vorwählen', in: 'Bereiche' },
     { label: 'Von unterwegs nutzbare Bereiche', page: 'app', perm: 'einstellungen', sec: APS('bereiche'), card: 'Bereiche der App', words: 'App unterwegs Internet', in: 'Bereiche' },
     { label: 'Reihenfolge und Start der App-Bereiche', page: 'app', perm: ['app', 'einstellungen'], sec: APS('bereiche'), card: 'Bereiche der App', words: 'App Reihenfolge Leiste Start Reiter', in: 'Bereiche' },
+    { label: 'Thekenkonto in „Für mich“ zeigen', page: 'app', perm: ['app', 'einstellungen'], sec: APS('bereiche'), card: 'Bereiche der App', field: 'bgKonto', words: 'App Für mich Startseite Thekenkonto Verkaufskonto Kontostand offen', in: 'Bereiche' },
     { label: 'Push-Benachrichtigungen freigeben', page: 'app', perm: ['app', 'einstellungen'], sec: APS('push'), card: 'Benachrichtigungen', words: 'Push Benachrichtigung Nachricht', in: 'Benachrichtigungen' },
     { label: 'Adresse und Name der Mitglieder-App', page: 'app', perm: ['app', 'einstellungen'], sec: APS('einstellungen'), card: 'Adresse & Aussehen', field: 'apUrl', words: 'Adresse WLAN Homescreen Name Aussehen', in: 'Einstellungen' },
     { label: 'Von unterwegs erreichbar (öffentliche Adresse)', page: 'app', perm: 'einstellungen', sec: APS('einstellungen'), card: 'Adresse & Aussehen', field: 'apExtUrl', words: 'Tunnel Cloudflare Internet unterwegs öffentlich', in: 'Einstellungen' },
@@ -2717,6 +2718,7 @@
         <p class="muted s" style="margin-top:0">Welche Bereiche die App zeigt, wer sie sieht, womit sie startet und in welcher Reihenfolge sie stehen.</p>
         <table class="tbl kompakt" id="apAreaTbl"><tr><th>Bereich</th><th>Für wen</th>${mayNet ? '<th>Von unterwegs</th>' : ''}<th>Beim Freischalten</th><th>Start</th><th>Reihenfolge</th></tr><tbody id="bgRows"></tbody></table>
         <p class="muted s" style="margin:10px 0 0">Aus = der Bereich ist für alle weg, Freischaltungen bleiben erhalten. „Von unterwegs“: ohne Haken nur im Vereins-WLAN.${mayNet ? ` ${!r.tunnel.on ? '<span class="pill">Tunnel aus</span> Alle Bereiche gelten als im Vereinsheim genutzt.' : r.tunnel.lanHttps ? '<span class="pill g">Lokale Route eingerichtet</span>' : '<span class="pill a">Lokale Route fehlt</span> Über die öffentliche Adresse gelten diese Bereiche im Vereinsheim als „unterwegs“.'}` : ''}</p>
+        ${r.kontoOn ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="bgKonto" ${r.formeKonto ? 'checked' : ''}> „Für mich“ zeigt auch das offene Thekenkonto (noch nicht abgerechnete Buchungen)</label>` : ''}
         <div class="btns"><button class="btn primary" id="bgSave">Speichern</button></div></div>` : ''}
       ${mayCfg ? `<div class="card" id="pushCard" data-nodirty data-set="push"><h3>Benachrichtigungen</h3><p class="muted s" style="margin-top:0">Lade …</p></div>` : ''}
       ${mayMem ? `<div class="card" data-set="mitglieder"><h3>Mitglied freischalten</h3>
@@ -2784,14 +2786,14 @@
       const AR = mods.map(m => ({ id: m.id, label: m.label || m.name, on: m.on !== false, open: Boolean(m.open), count: m.count, pre: Boolean(m.preselect), away: Boolean(m.away) }));
       let startId = r.startSection || '';
       const draw = () => {
-        $('bgRows').innerHTML = AR.map((m, i) => `<tr class="${m.on ? '' : 'off'}"><td><span class="swname"><button type="button" class="switch ${m.on ? 'on' : ''}" role="switch" aria-checked="${m.on}" aria-label="${esc(m.label)} in der App zeigen" data-bgon="${i}"></button><b translate="no">${esc(m.label)}</b>${m.on ? '' : '<span class="pill">aus</span>'}</span></td>
+        // „Für mich“ steht in der App immer vorn und ist ohne festen Start die Startseite
+        $('bgRows').innerHTML = `<tr><td><b>Für mich</b> <span class="muted s">eigene Termine und Offenes</span></td><td class="k-weg"><span class="pill g">alle Mitglieder</span></td>${mayNet ? '<td></td>' : ''}<td></td><td><label class="chk"><input type="radio" name="bgStart" data-bgst="" ${startId ? '' : 'checked'}> Start</label></td><td></td></tr>`
+          + AR.map((m, i) => `<tr class="${m.on ? '' : 'off'}"><td><span class="swname"><button type="button" class="switch ${m.on ? 'on' : ''}" role="switch" aria-checked="${m.on}" aria-label="${esc(m.label)} in der App zeigen" data-bgon="${i}"></button><b translate="no">${esc(m.label)}</b>${m.on ? '' : '<span class="pill">aus</span>'}</span></td>
           <td class="k-weg">${m.open ? '<span class="pill g">alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s" style="white-space:nowrap">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
           ${mayNet ? `<td><label class="chk"><input type="checkbox" data-bgaway="${i}" ${m.away ? 'checked' : ''}> unterwegs</label></td>` : ''}
           <td><label class="chk"><input type="checkbox" data-bgpre="${i}" ${m.pre ? 'checked' : ''}> vorwählen</label></td>
           <td><label class="chk"><input type="radio" name="bgStart" data-bgst="${esc(m.id)}" ${startId === m.id ? 'checked' : ''}> Start</label></td>
-          <td class="r"><span class="toact"><button class="btn small" data-bgup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-bgdn="${i}" ${i < AR.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></td></tr>`).join('')
-          // ohne festen Start öffnet die App den zuletzt genutzten Bereich
-          + `<tr><td><b>Kein fester Start</b> <span class="muted s">öffnet den zuletzt genutzten Bereich</span></td><td></td>${mayNet ? '<td></td>' : ''}<td></td><td><label class="chk"><input type="radio" name="bgStart" data-bgst="" ${startId ? '' : 'checked'}> Start</label></td><td></td></tr>`;
+          <td class="r"><span class="toact"><button class="btn small" data-bgup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-bgdn="${i}" ${i < AR.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></td></tr>`).join('');
         const tb = $('bgRows');
         tb.querySelectorAll('[data-bgon]').forEach(b => { b.onclick = () => { AR[+b.dataset.bgon].on = !AR[+b.dataset.bgon].on; draw(); }; });
         tb.querySelectorAll('[data-bgaway]').forEach(c => { c.onchange = () => { AR[+c.dataset.bgaway].away = c.checked; }; });
@@ -2803,7 +2805,7 @@
       };
       draw();
       $('bgSave').onclick = () => busy($('bgSave'), async () => {
-        const body = { sectionsOn: Object.fromEntries(AR.map(m => [m.id, m.on])), preselect: Object.fromEntries(AR.map(m => [m.id, m.pre])), moduleOrder: AR.map(m => m.id), startSection: startId };
+        const body = { sectionsOn: Object.fromEntries(AR.map(m => [m.id, m.on])), preselect: Object.fromEntries(AR.map(m => [m.id, m.pre])), moduleOrder: AR.map(m => m.id), startSection: startId, ...($('bgKonto') ? { formeKonto: $('bgKonto').checked } : {}) };
         if (mayNet) body.extModules = Object.fromEntries(AR.map(m => [m.id, m.away]));
         try { await api('settings/app', 'PUT', body); toast('Gespeichert – die App übernimmt es beim nächsten Öffnen.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
       });

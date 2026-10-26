@@ -379,6 +379,15 @@ addColumn('admin_users', 'member_id', 'INTEGER');
     db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_club_address', '1')").run();
   })();
 })();
+// Einmalig (3.62): Die Mitglieder-App startet mit „Für mich“. Ein früher fest gewählter Start-Bereich wird einmal zurückgesetzt;
+// wer danach wieder einen festen Bereich will, wählt ihn unter Mitglieder-App › Bereiche.
+(function migrateAppStart() {
+  if (db.prepare("SELECT 1 FROM settings WHERE key = 'mig_app_start'").get()) return;
+  db.transaction(() => {
+    db.prepare("DELETE FROM settings WHERE key = 'app_start'").run();
+    db.prepare("INSERT OR REPLACE INTO settings(key, value) VALUES ('mig_app_start', '1')").run();
+  })();
+})();
 
 /* ---------- Sortierung (überall gleich: Personen nach Nachname, Artikel nach Kategorie und Name) ----------
    de_key: deutsche Sortierung nach DIN 5007 (ä=a, ö=o, ü=u, ß=ss, ohne Groß/Klein)

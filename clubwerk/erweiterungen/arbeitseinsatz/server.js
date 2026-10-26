@@ -553,6 +553,19 @@ function activate(ctx) {
     if (o) out.push(`${o} noch nicht bestätigte ${o === 1 ? 'Stundenmeldung' : 'Stundenmeldungen'}`);
     return out;
   };
+  /* Mitglieder-App „Für mich“: eigene Dienste bis „until“ und fehlende Arbeitsstunden (gleiche Rechnung wie der Bereich, mit Familien-Topf) */
+  const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), hh = m => `${HF.format((m || 0) / 60)} h`;
+  ctx.hooks.forMe = async (id, { until }) => {
+    const d = today(), now = nowTs().slice(11, 16);
+    const next = db.prepare(`SELECT e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND e.cancelled = 0 AND e.permanent = 0 AND e.date >= ? AND e.date <= ? ORDER BY e.date, e.start IS NULL, e.start LIMIT 6`).all(id, d, until)
+      .filter(e => e.date > d || !e.end || e.end > now).slice(0, 5).map(e => ({ at: e.date, start: e.start || '', end: e.end || '', title: e.title, sub: e.place || '' }));
+    const y = yearOf(d);
+    const fam = mv() && cfg().pool_family ? await hook('familyOf', id) : null;
+    const ids = fam ? fam.members : [id];
+    let tg = 0; for (const x of ids) tg += (await target(x, y)).minutes;
+    const miss = tg - doneMinutes(ids, y);
+    return { next, open: miss > 0 ? [{ title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: `noch ${hh(miss)} von ${hh(tg)} bis ${deD(period(y).to)}` }] : [] };
+  };
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
   ];

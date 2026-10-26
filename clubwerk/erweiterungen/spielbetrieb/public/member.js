@@ -58,9 +58,14 @@
       const close = () => { const s = document.getElementById('sbSheet'); if (s) s.classList.remove('show'); };
       ctx.onLeave(close);
 
+      let focus = ctx.focus || '';   // aus „Für mich“: diesen Spieltag aufklappen und hinscrollen (nur beim ersten Laden)
       async function load() {
         try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
+        const fg = focus && d.games.find(g => String(g.id) === focus);
+        if (fg) { openRows.add(fg.id); openRows.add('d' + fg.date); }
         draw();
+        if (fg) { const r = el.querySelector(`[data-x="${fg.id}"]`) || el.querySelector(`[data-x="d${fg.date}"]`); if (r) r.scrollIntoView({ block: 'center' }); }
+        focus = '';
       }
       function draw() {
         const teams = d.teams;

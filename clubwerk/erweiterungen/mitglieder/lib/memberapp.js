@@ -86,6 +86,12 @@ function register(sh) {
       creditor: { ci: S('creditor_id') || null, name: club().name },
     };
   }
+  /* Mitglieder-App „Für mich“: offener Betrag – wie „Meine Daten“ nur für den, der selbst zahlt, nur wenn Posten sichtbar sind und der Tresor offen ist */
+  C.hooks.forMe = id => {
+    if (C.require('./vault').locked() || !store.appPerms().view.posten || store.payerGroup(id).head !== id) return {};
+    const cents = db.prepare("SELECT COALESCE(SUM(cents),0) n FROM mv_charge WHERE member_id = ? AND status = 'offen'").get(id).n;
+    return { open: cents > 0 ? [{ title: 'Beiträge und Gebühren', sub: `${euro(cents)} offen` }] : [] };
+  };
   const openOf = (id, kind) => db.prepare("SELECT id FROM mv_change WHERE member_id = ? AND kind = ? AND status = 'offen'").get(id, kind);
 
   M.get('/me', (req, res) => {
