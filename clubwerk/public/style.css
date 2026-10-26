@@ -256,6 +256,11 @@ body.tk .gatecard input { height: 56px; border: 1px solid var(--line); border-ra
 body.tk .gatecard input:focus { outline: 0; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
 body.tk .gatecard .gerr { color: var(--red); font-weight: 700; font-size: 15px; } body.tk .gatecard .gerr:empty { display: none; }
 body.tk .gatecard .btn { height: 56px; font-size: 18px; justify-content: center; }
+body.tk .gatecard .logo-badge { align-self: center; display: flex; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 6px; }
+body.tk .gatecard .logo-badge.hidden { display: none; }
+body.tk .gatecard .logo-badge img { height: 72px; max-width: 200px; object-fit: contain; }
+body.tk .gatecard .gateclub { font-size: 16px; font-weight: 700; color: var(--brand-ink); }
+body.tk .gatecard .gateclub:empty { display: none; }
 @media (max-width: 640px) { body.tk main { padding: 16px 12px 28px; } .tk-grid { gap: 10px; } body.tk .gatecard { padding: 26px 20px; } }
 
 /* ---------- Für alle Oberflächen (Verwaltung, Tablet, Mitglieder-App) ---------- */
@@ -267,3 +272,9 @@ html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body, html:has(
 @media (max-width: 640px) {
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), select, textarea { font-size: 16px !important; }
 }
+
+/* „Mehr“ in der Tablet-Kopfzeile: Fenster unter dem Knopf, rechts bündig */
+.topmore { position: fixed; z-index: 70; min-width: 200px; max-width: calc(100vw - 16px); display: grid; gap: 2px; padding: 6px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-pop); }
+.topmore a { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: 10px; color: var(--ink); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; }
+.topmore a svg { flex: none; color: var(--muted); }
+.topmore a.on { background: var(--hover); font-weight: 700; } .topmore a.on svg { color: var(--brand); }

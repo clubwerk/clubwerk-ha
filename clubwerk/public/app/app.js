@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.58.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.59.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -129,7 +129,7 @@
   function show(id) {
     if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
     current = id; if (!EMBED) store.set('va_tab', id);
-    document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === id));
+    markTab();
     const s = me.sections.find(x => x.id === id);
     const el = $('sec');
     if (!s) { el.innerHTML = ''; return; }
@@ -222,11 +222,20 @@
     const TI = { maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>', buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
       beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
     const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
-    // viele Bereiche: zweiteilige Namen in der Leiste kurz („Meine Daten“ → „Daten“), damit alle Beschriftungen einzeilig bleiben
-    const shortT = t => (me.sections.length >= 6 && t.length > 9 && t.includes(' ') ? t.split(' ').pop() : t);
-    tabs.innerHTML = me.sections.map(s => `<button data-t="${s.id}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ` title="${esc(s.title)}"`} aria-label="${esc(s.title)}">${ti(s.id)}<span>${esc(shortT(s.title))}</span></button>`).join('');
-    tabs.classList.toggle('hidden', me.sections.length < 2);
-    tabs.querySelectorAll('button').forEach(b => b.onclick = () => { wlanTries = 0; show(b.dataset.t); });
+    /* Unten höchstens 5 Knöpfe: bis 5 Bereiche alle, sonst die ersten 4 der Reihenfolge und „Mehr“ (Blatt mit den übrigen Bereichen und Mein Konto) */
+    const secs = me.sections, over = secs.length > 5;
+    const shown = over ? secs.slice(0, 4) : secs;
+    const MORE = '<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>';
+    tabs.innerHTML = shown.map(s => `<button data-t="${s.id}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ` title="${esc(s.title)}"`} aria-label="${esc(s.title)}">${ti(s.id)}<span>${esc(s.title)}</span></button>`).join('')
+      + (over ? `<button data-t="mehr" aria-label="Mehr" aria-haspopup="dialog"><svg viewBox="0 0 24 24" fill="currentColor" stroke="none" aria-hidden="true">${MORE}</svg><span>Mehr</span></button>` : '');
+    tabs.classList.toggle('hidden', secs.length < 2);
+    tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.t === 'mehr') { moreSheet(); return; } wlanTries = 0; show(b.dataset.t); });
+    markTab();
+  }
+  /* Aktiven Knopf in der Leiste markieren; liegt der offene Bereich unter „Mehr“, leuchtet „Mehr“ */
+  function markTab() {
+    const inBar = current && $('tabs').querySelector(`button[data-t="${current}"]`);
+    $('tabs').querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.t === current || (b.dataset.t === 'mehr' && Boolean(current) && !inBar)));
   }
 
   /* ---------- Bilder mit Anmeldung (Profilbilder): <img data-auth-src="api/…"> – geladen mit dem Geräteschlüssel, angezeigt als data:-Adresse ---------- */
@@ -248,19 +257,31 @@
     let p; try { p = await call('photo'); } catch (e) { return; }
     const paint = () => { b.innerHTML = p.has ? `<img data-auth-src="api/photo/img?v=${esc(p.v || '')}" alt="">` : esc(initials(me.member)); b.classList.remove('hidden'); };
     paint();
-    b.onclick = () => accountSheet(() => photoSheet(p, x => { p = x; paint(); }));
+    openPhoto = () => photoSheet(p, x => { p = x; paint(); });
+    b.onclick = moreSheet;
   }
-  /* ---------- Konto-Menü hinter dem Profilbild: Profilbild, Benachrichtigungen ---------- */
-  function accountSheet(openPhoto) {
+  /* ---------- „Mehr“-Blatt: übrige Bereiche (ab 6 Bereichen) und Mein Konto – auch hinter dem Profilbild oben ---------- */
+  let openPhoto = null, openLang = null, langName = '';
+  function moreSheet() {
     let sh = $('accSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'accSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
-    sh.innerHTML = `<div class="vh-box"><h2>${esc(me.member)}</h2><div class="vh-menu">
-        <button type="button" id="accPhoto">Profilbild</button>
-        <button type="button" id="accPush">Benachrichtigungen</button></div>
+    const rest = me.sections.length > 5 ? me.sections.slice(4) : [];
+    const close = () => sh.classList.remove('show');
+    sh.innerHTML = `<div class="vh-box">
+      ${rest.length ? `<h2>Weitere Bereiche</h2><div class="vh-menu">${rest.map(s => `<button type="button" data-s="${esc(s.id)}"${s.wlanOnly ? ` class="wlan" title="${esc(WLAN_T)}"` : ''}>${esc(s.title)}</button>`).join('')}</div>` : ''}
+      <h2${rest.length ? ' style="margin-top:18px"' : ''}>Mein Konto</h2><p class="vh-small" style="margin:0 0 4px">${esc(me.member)}</p>
+      <div class="vh-menu" id="accMenu">
+        ${openPhoto ? '<button type="button" id="accPhoto">Profilbild</button>' : ''}
+        <button type="button" id="accPush">Benachrichtigungen</button>
+        ${openLang ? `<button type="button" id="accLang">Sprache: <span translate="no">${esc(langName)}</span></button>` : ''}
+      </div>
       <p class="vh-small" style="margin:10px 0 0">Clubwerk ${esc(APP_VER)}${me.version && me.version !== APP_VER ? ' · Server ' + esc(me.version) : ''}</p>
       <div class="vh-row" style="margin-top:10px"><button class="no" id="accNo" style="flex:1">Schließen</button></div></div>`;
-    sh.querySelector('#accNo').onclick = () => sh.classList.remove('show');
-    sh.querySelector('#accPhoto').onclick = () => { sh.classList.remove('show'); openPhoto(); };
-    sh.querySelector('#accPush').onclick = () => { sh.classList.remove('show'); notifSheet().catch(e => toast(e.message, true)); };
+    sh.querySelector('#accNo').onclick = close;
+    sh.querySelectorAll('[data-s]').forEach(b => b.onclick = () => { close(); wlanTries = 0; show(b.dataset.s); });
+    const on = (id, fn) => { const e = sh.querySelector(id); if (e) e.onclick = () => { close(); fn(); }; };
+    on('#accPhoto', () => openPhoto && openPhoto());
+    on('#accPush', () => notifSheet().catch(e => toast(e.message, true)));
+    on('#accLang', () => openLang && openLang());
     sh.classList.add('show');
   }
 
@@ -384,10 +405,9 @@
   (function langUi() {
     const L = window.CWI18N; if (!L || !L.langs || L.langs.length < 2) return;
     const cur = L.chosen();
-    $('langCur').textContent = (L.langs.find(x => x.code === L.lang) || { name: L.lang }).name;
-    $('langFoot').classList.remove('hidden');
     $('langList').innerHTML = [['', L.T('Automatisch')], ...L.langs.map(x => [x.code, x.name])].map(([c, n]) => `<button type="button" class="vh-lang${c === cur ? ' on' : ''}" data-lang="${esc(c)}"${c ? ' translate="no"' : ''}>${esc(n)}</button>`).join('');
-    $('langBtn').onclick = () => $('langSheet').classList.add('show');
+    langName = (L.langs.find(x => x.code === L.lang) || { name: L.lang }).name;
+    openLang = () => $('langSheet').classList.add('show');
     $('langNo').onclick = () => $('langSheet').classList.remove('show');
     $('langList').onclick = e => { const b = e.target.closest('[data-lang]'); if (!b) return; if (b.dataset.lang === cur) { $('langSheet').classList.remove('show'); return; } L.setLang(b.dataset.lang); };
   })();

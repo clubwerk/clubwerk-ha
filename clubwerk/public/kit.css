@@ -137,14 +137,13 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-step .vh-input { margin: 10px 0 0; }
 .vh-skip { display: block; width: 100%; margin-top: 10px; min-height: 40px; background: none; border: 0; color: var(--muted); font: inherit; font-size: 14px; text-decoration: underline; }
 .vh-skip.hidden { display: none; }
-.vh-foot { display: flex; justify-content: center; padding: 18px 0 6px; margin-top: auto; }   /* Sprachwahl immer unten – bei kurzem Inhalt am unteren Rand über der Tab-Leiste, sonst nach dem Inhalt */
-.vh-langbtn { display: inline-flex; align-items: center; gap: 8px; height: 36px; padding: 0 14px; border-radius: 18px; border: 1px solid var(--line, #dfe3dc); background: transparent; color: var(--muted, #5d6b62); font: inherit; font-size: 14px; }
 .vh-langs { display: grid; gap: 8px; margin: 12px 0; }
 .vh-lang { height: 46px; border-radius: 12px; border: 1px solid var(--line, #dfe3dc); background: var(--card, #fff); color: inherit; font: inherit; font-weight: 600; text-align: left; padding: 0 14px; }
 .vh-lang.on { border-color: var(--green); background: var(--green-soft); }
 /* Konto-Menü und Benachrichtigungen (Mitglieder-App) */
 .vh-menu { display: grid; gap: 8px; margin: 6px 0 2px; }
 .vh-menu button { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; padding: 0 16px; }
+.vh-menu button.wlan { opacity: .6; }
 .vh-switch { display: flex; align-items: center; gap: 12px; min-height: 48px; margin: 6px 0 10px; font-size: 16px; font-weight: 700; text-align: left; }
 .vh-switch input { width: 24px; height: 24px; accent-color: var(--brand); flex: none; }
 .vh-uses span small { display: block; font-weight: 400; font-size: 12.5px; color: var(--muted); }
@@ -155,7 +154,7 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-embedwait { position: absolute; inset: 0; display: grid; place-content: center; gap: 10px; text-align: center; color: var(--muted); background: var(--bg); padding: 20px; }
 .vh-embedwait .vh-btn { min-width: 220px; }
 html.vh-embed body.vh-page { min-height: 0; background: transparent; }
-html.vh-embed .vh-top, html.vh-embed #installHint, html.vh-embed #langFoot, html.vh-embed #tabs { display: none !important; }
+html.vh-embed .vh-top, html.vh-embed #installHint, html.vh-embed #tabs { display: none !important; }
 html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
 
 /* ========== APP-KIT: Bausteine für die Bereiche der Mitglieder-App (public/member.js der Module) ==========

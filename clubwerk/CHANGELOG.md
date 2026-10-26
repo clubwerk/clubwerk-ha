@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.59.0
+
+**Tablet-Kopfzeile und App-Leiste neu geordnet (Etappe 14 des Menü-Umbaus)**
+- **Mitglieder-App:** Unten stehen höchstens fünf Knöpfe. Hat ein Mitglied bis zu fünf Bereiche, sind es alle. Bei mehr Bereichen stehen die **ersten vier** unten, danach kommt **„Mehr“**. Die Reihenfolge ist dieselbe wie im Tablet (Plätze, Spieltage, Dienste, Beregnung, Türen, Mängel, Meine Daten); was der Verein unter Mitglieder-App › Bereiche festgelegt hat, gilt weiter.
+- **„Mehr“** öffnet ein Blatt in der App (kein neues Fenster): oben die übrigen Bereiche, darunter **Mein Konto** mit Profilbild, Benachrichtigungen, **Sprache** (stand bisher ganz unten auf jeder Seite) und der Version. Das Profilbild oben rechts öffnet dasselbe Blatt. Ist ein Bereich aus „Mehr“ offen, leuchtet „Mehr“ in der Leiste.
+- **Tablet:** Passen nicht alle Reiter in die Kopfzeile, wandern die letzten hinter **„Mehr“** ganz rechts. Der Reiter, auf dem man gerade ist, bleibt immer sichtbar. Nichts wird mehr abgeschnitten.
+- **Ein Sperrbildschirm für alle Tablet-Seiten:** Vereinslogo, Vereinsname, „Seite gesperrt“ und das Passwortfeld sehen auf Verkauf, Plätze, Dienste, Stempeln, Mängel und Mitglied werden gleich aus. Nach dem Freischalten erscheint die Reiterleiste sofort (vorher erst nach dem Neuladen).
+- Die gespeicherte Reihenfolge der Bereiche, die Startseite und die Tablet-Leiste bleiben unverändert.
+
 ## 3.58.0
 
 **Neuer Menüpunkt „Beiträge & Zahlungen“ (Etappe 13 des Menü-Umbaus)**

@@ -215,12 +215,12 @@ function accessFor(memberId, id) {
   return access.check(memberId, id);
 }
 /* Reihenfolge der Bereiche in der App (Reiter) und in der Freischaltungstabelle: Einstellung app_module_order (JSON-Liste von IDs),
-   nicht gelistete Bereiche dahinter in der Reihenfolge der Module (order aus erweiterung.json) */
+   nicht gelistete Bereiche dahinter in der zentralen Reihenfolge der Module (MODULE_ORDER in plugins.js, Tablet und App gleich) */
 const moduleOrder = () => { try { const x = JSON.parse(getSetting('app_module_order', '[]')); return Array.isArray(x) ? x.map(String) : []; } catch (e) { return []; } };
 const push = require('./push');
 const activeModules = () => {
   const ord = moduleOrder(), pos = id => { const i = ord.indexOf(id); return i < 0 ? 1e6 : i; };
-  return [...modules.entries()].filter(([, m]) => m.isActive()).sort((a, b) => pos(a[0]) - pos(b[0]) || (a[1].order || 50) - (b[1].order || 50));
+  return [...modules.entries()].filter(([, m]) => m.isActive()).sort((a, b) => pos(a[0]) - pos(b[0]) || require('./plugins').orderPos(a[0]) - require('./plugins').orderPos(b[0]) || (a[1].order || 50) - (b[1].order || 50));
 };
 push.setModules(activeModules);
 

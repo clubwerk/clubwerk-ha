@@ -37,8 +37,8 @@
       $('gateText').textContent = 'Zum Schutz der Mitgliederdaten braucht das Tablet ein Passwort. Bitte in der Verwaltung unter Einstellungen › Tablet › „Passwort für das Tablet“ eins festlegen – danach hier eingeben.';
       clearTimeout(showGate.t); showGate.t = setTimeout(() => { gateShown = false; load(); }, 30000);
     } else {
-      $('gateTitle').textContent = 'Buchungsseite gesperrt';
-      $('gateText').innerHTML = 'Bitte das Passwort des Vereins eingeben. <br>Dieses Gerät bleibt danach freigeschaltet.';
+      $('gateTitle').textContent = 'Seite gesperrt';
+      $('gateText').innerHTML = 'Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.';
     }
     if (gateShown) return;
     gateShown = true;

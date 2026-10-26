@@ -370,4 +370,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { tabletSlug, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlug, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
