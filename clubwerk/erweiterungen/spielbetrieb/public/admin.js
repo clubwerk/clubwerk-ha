@@ -15,6 +15,7 @@
   if (!document.getElementById('spStyle')) {
     const s = document.createElement('style'); s.id = 'spStyle';
     s.textContent = `
+      .sp-nw { white-space: nowrap; }
       .sp-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .sp-grid .wall { grid-column: 1 / -1; }
       @media (max-width: 760px) { .sp-grid { grid-template-columns: 1fr; } }
@@ -46,7 +47,7 @@
       .sp-bar { height: 40px; margin-bottom: 8px; display: flex; align-items: center; }   /* Suchfeld links, Hinweis rechts – beide Listen beginnen auf gleicher Höhe */
       label.f.sp-bar > input { height: 40px; }
       .sp-tasks > div { display: grid; grid-template-columns: minmax(0, 1fr) 240px auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
-      .sp-tasks > div:first-child { border-top: 0; } .sp-dim { opacity: .5; }   /* abhängige Felder, solange der Haken fehlt */
+      .sp-tasks > div:first-child { border-top: 0; }
       .sp-g.rt h4 { color: var(--muted); } .sp-g.rt .sp-d { background: var(--hover); color: var(--ink); }
       .sp-rt td { vertical-align: middle; } .sp-rt select { min-height: 36px; height: 36px; min-width: 150px; }
       .sp-dl { display: flex; flex-wrap: wrap; gap: 4px; } .sp-dl span { background: var(--hover); border-radius: 6px; padding: 2px 6px; font-size: 12.5px; white-space: nowrap; } .sp-dl span.z { background: transparent; border: 1px dashed var(--line); color: var(--muted); }
@@ -103,21 +104,8 @@
     document.head.appendChild(s);
   }
 
-  const PAGE = {
-    'sp-uebersicht': ['Übersicht', 'Rückmeldungen aller Mannschaften auf einen Blick – wo zu wenige können, wer noch nicht geantwortet hat und was als Nächstes ansteht.'],
-    'sp-spieltage': ['Spieltage', 'Alle Spieltage der Mannschaften – grün: genug Spieler haben zugesagt, rot: zu wenige. Antippen öffnet Verfügbarkeit und Aufstellung.'],
-    'sp-mannschaften': ['Mannschaften', 'Mannschaften mit Mannschaftsführer, Stellvertretung und Spieler/innen in der Reihenfolge der Meldeliste. Eine Person kann in mehreren Mannschaften spielen.'],
-    'sp-einstellungen': ['Einstellungen', 'Was Spieler sehen, Uhrzeiten, Aufgaben und Erinnerungen.'],
-  };
   async function loadMeta() { st.meta = await api('meta'); return st.meta; }
-  function pageRender(key, fn) {
-    return async () => {
-      await loadMeta();
-      const [title, lead] = PAGE[key];
-      $('main').innerHTML = `<h2 class="page">${esc(title)}</h2><p class="lead">${esc(lead)}</p><div id="spBody"></div>`;
-      await fn($('spBody'));
-    };
-  }
+  const reload = () => st.tabs.reload();
   const light = s => (s.ok ? 'g' : 'r');
   const rtTitle = g => (g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin');
   const nums = (g, past) => {
@@ -156,14 +144,15 @@
     const m = st.meta;
     const cal = st.cal ? await api(`calendar?${st.year ? `year=${st.year}&` : ''}${st.team ? `team=${st.team}` : ''}`) : null;
     const games = cal ? [] : await api(`games?past=${st.past ? 1 : 0}${st.team ? `&team=${st.team}` : ''}`);
-    const acts = `${cal ? '<button class="btn" id="spPrint" type="button">Drucken</button>' : ''}<button class="btn" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button>`;
-    el.innerHTML = `<div class="row" style="justify-content:space-between;align-items:flex-end;gap:10px;margin-bottom:14px">
-        <div class="row" style="gap:10px;align-items:flex-end"><label class="f" style="min-width:220px">Mannschaft<select id="spT">${opt(0, 'Alle Mannschaften', st.team)}${m.teams.filter(t => t.active).map(t => opt(t.id, t.name, st.team)).join('')}</select></label>
-          ${cal ? `<label class="f" style="min-width:110px">Jahr<select id="spY">${cal.years.map(y => opt(y, String(y), cal.year)).join('')}</select></label>` : ''}
-          <div class="seg"><button type="button" data-past="0" class="${!st.cal && !st.past ? 'on' : ''}">Kommende</button><button type="button" data-past="1" class="${!st.cal && st.past ? 'on' : ''}">Vergangene</button><button type="button" data-cal="1" class="${st.cal ? 'on' : ''}">Kalender</button></div></div>
-        <span id="spActs"></span></div>
+    const acts = `<button class="btn sp-nw" id="spPrint" type="button">Drucken</button><button class="btn sp-nw" id="spRtp" type="button" ${m.teams.length ? '' : 'disabled'}>Rahmenterminplan …</button><button class="btn sp-nw" id="spImp" type="button">Spielplan importieren …</button><button class="btn primary sp-nw" id="spNew" type="button" ${m.teams.length ? '' : 'disabled'}>+ Spieltag</button>`;
+    const chip = (attr, v, l, on) => `<button type="button" data-${attr}="${v}" class="${on ? 'on' : ''}" aria-pressed="${on}">${l}</button>`;
+    el.innerHTML = `<div class="filterbar">
+        <select id="spT" aria-label="Mannschaft">${opt(0, 'Alle Mannschaften', st.team)}${m.teams.filter(t => t.active).map(t => opt(t.id, t.name, st.team)).join('')}</select>
+        ${cal ? `<select id="spY" aria-label="Jahr">${cal.years.map(y => opt(y, String(y), cal.year)).join('')}</select>` : ''}
+        <div class="chips" role="group" aria-label="Ansicht">${chip('cal', 0, 'Liste', !st.cal)}${chip('cal', 1, 'Kalender', st.cal)}</div>
+        ${cal ? '' : `<div class="chips" role="group" aria-label="Filter">${chip('past', 0, 'Kommende', !st.past)}${chip('past', 1, 'Vergangene', st.past)}</div>`}</div>
       ${!m.teams.length ? '<div class="banner a"><span>Noch keine Mannschaften – zuerst unter „Mannschaften“ anlegen oder einfach den Spielplan importieren (Mannschaften entstehen dabei automatisch).</span></div>' : ''}
-      ${m.rahmenPending ? `<div class="banner a" style="margin-bottom:14px"><span>${m.rahmenPending} vorläufige Termine aus dem Rahmenterminplan sind angelegt, aber noch nicht abgefragt – die Spieler sehen sie erst nach „Abfrage starten“.</span><button class="btn primary small" id="spRel" type="button">Abfrage starten</button></div>` : ''}
+      ${m.rahmenPending ? `<div class="banner a" style="margin-bottom:14px"><span>${m.rahmenPending} vorläufige Termine aus dem Rahmenterminplan sind angelegt, aber noch nicht abgefragt – die Spieler sehen sie erst nach „Abfrage starten“.</span><button class="btn small" id="spRel" type="button">Abfrage starten</button></div>` : ''}
       ${cal ? calView(cal) : ''}
       <div class="sp-games${cal ? ' hidden' : ''}">${cal ? '' : games.length ? games.map(g => g.kind === 'rahmen' ? `<div class="sp-g rt" data-g="${g.id}"><span class="lt ${!g.released || st.past ? 'x' : light(g.stats)}"></span>
           <div class="sp-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></div>
@@ -173,30 +162,31 @@
           <div class="sp-d"><b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}${g.start ? ' ' + esc(g.start) : ''}</span></div>
           <div style="min-width:0"><h4><span translate="no">${esc(g.team)}</span> ${g.home ? 'gegen' : 'bei'} <span translate="no">${esc(g.opponent)}</span></h4>
             <div class="muted">${g.home ? 'Heimspiel' : 'Auswärtsspiel'}${g.league ? ' · ' + esc(g.league) : ''}${g.captain ? ' · MF ' + esc(g.captain) : ''}${g.sent ? ' · Aufstellung verschickt' : ''}</div></div>
-          <div class="sp-nums">${nums(g, st.past)}</div></div>`).join('') : `<p class="muted">${st.past ? 'Keine vergangenen Spieltage.' : 'Keine kommenden Spieltage.'}</p>`}</div>`;
+          <div class="sp-nums">${nums(g, st.past)}</div></div>`).join('') : `<div class="empty">${st.past ? 'Keine vergangenen Spieltage.' : m.teams.length ? 'Keine kommenden Spieltage – mit „+ Spieltag“ anlegen oder den Spielplan importieren.' : 'Keine kommenden Spieltage.'}</div>`}</div>`;
     $('spT').onchange = () => { st.team = +$('spT').value; showGames(el).catch(fail); };
     // Knöpfe rechts in die Reiterzeile (Baustein GK.tabTools); ohne Reiterzeile in der Filterleiste
-    if (!GK.tabTools(acts, el.firstElementChild)) $('spActs').outerHTML = `<div class="row sp-acts" style="gap:8px">${acts}</div>`;
-    el.querySelectorAll('[data-past]').forEach(b => { b.onclick = () => { st.past = b.dataset.past === '1'; st.cal = false; showGames(el).catch(fail); }; });
-    el.querySelectorAll('[data-cal]').forEach(b => { b.onclick = () => { st.cal = true; showGames(el).catch(fail); }; });
+    if (!GK.tabTools(acts, el.firstElementChild)) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${acts}</div>`);
+    el.querySelectorAll('[data-past]').forEach(b => { b.onclick = () => { st.past = b.dataset.past === '1'; showGames(el).catch(fail); }; });
+    el.querySelectorAll('[data-cal]').forEach(b => { b.onclick = () => { st.cal = b.dataset.cal === '1'; showGames(el).catch(fail); }; });
     if ($('spY')) $('spY').onchange = () => { st.year = +$('spY').value; showGames(el).catch(fail); };
-    if ($('spPrint')) $('spPrint').onclick = () => {
+    $('spPrint').onclick = () => {
       const tn = st.team ? (m.teams.find(t => t.id === st.team) || {}).name : 'Alle Mannschaften';
-      GK.printHtml(`<style>@page { size: A4 landscape; margin: 8mm; }</style><div class="pr"><h2 style="margin:0 0 4mm;font-size:13pt">Spieltage ${cal.year} – ${esc(tn)}</h2>${calView(cal, true)}</div>`);
+      if (cal) return GK.printHtml(`<style>@page { size: A4 landscape; margin: 8mm; }</style><div class="pr"><h2 style="margin:0 0 4mm;font-size:13pt">Spieltage ${cal.year} – ${esc(tn)}</h2>${calView(cal, true)}</div>`);
+      GK.printHtml(`<div class="pr"><h2 style="margin:0 0 4mm;font-size:13pt">${st.past ? 'Vergangene' : 'Kommende'} Spieltage – ${esc(tn)}</h2><table class="tbl"><tr><th>Datum</th><th>Mannschaft</th><th>Begegnung</th><th>Ort</th></tr>${games.filter(g => g.kind !== 'rahmen').map(g => `<tr><td>${esc(when(g))}</td><td>${esc(g.team)}</td><td>${esc(g.home ? 'gegen' : 'bei')} ${esc(g.opponent)}</td><td>${g.home ? 'Heimspiel' : 'Auswärtsspiel'}</td></tr>`).join('') || '<tr><td colspan="4">Keine Spieltage.</td></tr>'}</table></div>`);
     };
-    el.querySelectorAll('[data-g]').forEach(c => { c.onclick = () => gameDialog(+c.dataset.g, () => showGames(el).catch(fail)); });
-    $('spNew').onclick = () => editGame(null, () => showGames(el).catch(fail));
-    $('spImp').onclick = () => importDialog(() => pageRender('sp-spieltage', showGames)().catch(fail));
-    $('spRtp').onclick = () => rahmenDialog(() => pageRender('sp-spieltage', showGames)().catch(fail));
+    el.querySelectorAll('[data-g]').forEach(c => { c.onclick = () => gameDialog(+c.dataset.g, reload); });
+    $('spNew').onclick = () => editGame(null, reload);
+    $('spImp').onclick = () => importDialog(reload);
+    $('spRtp').onclick = () => rahmenDialog(reload);
     if ($('spRel')) $('spRel').onclick = () => GK.busy($('spRel'), async () => {
       if (!await ask(`${m.rahmenPending} vorläufige Termine in der App zeigen und die Spieler per Push bitten, „kann“ oder „kann nicht“ zu melden?`, { ok: 'Abfrage starten' })) return;
-      try { const r = await api('rahmen/release', 'POST', {}); toast(`Abfrage gestartet: ${r.games} Termine, ${r.players} Spieler benachrichtigt.`); pageRender('sp-spieltage', showGames)().catch(fail); } catch (e) { fail(e); }
+      try { const r = await api('rahmen/release', 'POST', {}); toast(`Abfrage gestartet: ${r.games} Termine, ${r.players} Spieler benachrichtigt.`); reload(); } catch (e) { fail(e); }
     });
   }
 
   function editGame(g, after) {
     const m = st.meta; g = g || { team_id: st.team || (m.teams.find(t => t.active) || {}).id, date: m.today, start: '10:00', home: true, opponent: '' };
-    dialog(`<h3>${g.id ? 'Spieltag ändern' : 'Neuer Spieltag'}</h3>
+    dialog(`<h2>${g.id ? 'Spieltag ändern' : 'Neuer Spieltag'}</h2>
       <div class="sp-grid" style="--c:2">
         <label class="f">Mannschaft<select id="egT">${m.teams.filter(t => t.active || t.id === g.team_id).map(t => opt(t.id, t.name, g.team_id)).join('')}</select></label>
         <label class="f">Gegner<input id="egO" value="${esc(g.opponent || '')}" placeholder="z. B. TC Hadamar II"></label>
@@ -227,7 +217,7 @@
         <td>${p.inRoster ? `<select data-av="${p.id}" aria-label="Verfügbarkeit">${opt('', 'offen', p.state || '')}${opt('ja', 'kann', p.state)}${opt('nein', 'kann nicht', p.state)}</select>${p.state === 'ja' && (p.from || p.until) ? `<div class="muted" style="font-size:12px;margin-top:3px">${p.from ? 'ab ' + esc(p.from) : ''}${p.from && p.until ? ' ' : ''}${p.until ? 'bis ' + esc(p.until) : ''}</div>` : ''}` : AV(p)}</td>
         <td><select data-lu="${p.id}" aria-label="Aufstellung" title="${p.elsewhere && !p.role ? esc(BUSY_T) : ''}" ${p.elsewhere && !p.role ? 'disabled' : ''}>${opt('', '–', p.role || '')}${opt('spielt', 'spielt', p.role)}${opt('ersatz', 'Ersatz', p.role)}</select></td>
         <td class="r nw">${p.withdraw ? `<button class="btn small" data-wd="${p.id}" data-acc="1" type="button">Absage bestätigen</button> <button class="btn small ghost" data-wd="${p.id}" data-acc="0" type="button">ablehnen</button>` : ''}</td></tr>`;
-      dialog(`<h3><span translate="no">${esc(v.team)}</span> ${v.home ? 'gegen' : 'bei'} <span translate="no">${esc(v.opponent)}</span></h3>
+      dialog(`<h2><span translate="no">${esc(v.team)}</span> ${v.home ? 'gegen' : 'bei'} <span translate="no">${esc(v.opponent)}</span></h2>
         <p class="muted" style="margin:-4px 0 12px">${esc(when(v))} · ${v.home ? 'Heimspiel' : 'Auswärtsspiel'}${v.venue ? ' · ' + esc(v.venue) : ''}${v.status === 'abgesagt' ? ' · <b>abgesagt</b>' : ''}</p>
         <div class="row" style="gap:8px;margin-bottom:10px"><span class="pill ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="pill">${s.no} ${s.no === 1 ? 'kann' : 'können'} nicht</span><span class="pill">${s.open} offen</span>${s.elsewhere ? `<span class="pill">${s.elsewhere} in anderer Mannschaft</span>` : ''}<span class="pill ${s.lineupOk ? 'g' : 'a'}">${s.playing} ${s.playing === 1 ? 'spielt' : 'spielen'} · ${s.reserve} Ersatz</span></div>
         <div class="scroll" style="max-height:44vh"><table class="tbl sp-ros"><tr><th class="r" style="width:36px">Nr.</th><th>Spieler</th><th>Verfügbarkeit</th><th>Aufstellung</th><th></th></tr>${v.people.map(row).join('') || '<tr><td colspan="5" class="muted">Noch keine Spieler in dieser Mannschaft.</td></tr>'}</table></div>
@@ -262,7 +252,7 @@
       const s = v.stats;
       const row = p => `<tr><td class="r muted">${esc(p.rank ?? '')}</td><td><b translate="no">${esc(p.ln)}</b>${p.note ? `<div class="muted s">${esc(p.note)}</div>` : ''}</td>
         <td><select data-av="${p.id}" aria-label="Verfügbarkeit">${opt('', 'offen', p.state || '')}${opt('ja', 'kann', p.state)}${opt('nein', 'kann nicht', p.state)}</select>${p.state === 'ja' && (p.from || p.until) ? `<div class="muted" style="font-size:12px;margin-top:3px">${p.from ? 'ab ' + esc(p.from) : ''}${p.from && p.until ? ' ' : ''}${p.until ? 'bis ' + esc(p.until) : ''}</div>` : ''}</td></tr>`;
-      dialog(`<h3><span translate="no">${esc(v.team)}</span> · ${esc(rtTitle(v))}</h3>
+      dialog(`<h2><span translate="no">${esc(v.team)}</span> · ${esc(rtTitle(v))}</h2>
         <p class="muted" style="margin:-4px 0 12px">${esc(wd(v.date))} ${esc(deDate(v.date))} · vorläufig aus dem Rahmenterminplan – Gegner, Uhrzeit und Heim/Auswärts kommen mit dem Spielplan-Import, die Rückmeldungen bleiben dabei erhalten.${v.released ? '' : ' <b>Noch nicht abgefragt.</b>'}</p>
         <div class="row" style="gap:8px;margin-bottom:10px"><span class="pill ${s.ok ? 'g' : 'r'}">${s.yes} von mindestens ${s.min} können</span><span class="pill">${s.no} ${s.no === 1 ? 'kann' : 'können'} nicht</span><span class="pill">${s.open} offen</span>${s.elsewhere ? `<span class="pill">${s.elsewhere} in anderer Mannschaft</span>` : ''}</div>
         <div class="scroll" style="max-height:50vh"><table class="tbl sp-ros"><tr><th class="r" style="width:36px">Nr.</th><th>Spieler</th><th>Verfügbarkeit</th></tr>${v.people.filter(p => p.inRoster).map(row).join('') || '<tr><td colspan="3" class="muted">Noch keine Spieler in dieser Mannschaft.</td></tr>'}</table></div>
@@ -277,7 +267,7 @@
 
   /* ---------------- Rahmenterminplan (vorläufige Termine je Altersklasse) ---------------- */
   function rahmenDialog(after) {
-    dialog(`<h3>Rahmenterminplan importieren</h3>
+    dialog(`<h2>Rahmenterminplan importieren</h2>
       <p class="muted" style="margin:0 0 12px">Der Verband veröffentlicht lange vor dem Spielplan den Rahmenterminplan mit den Spieltagen je Altersklasse. Daraus entstehen vorläufige Termine, für die sich die Spieler schon melden können. Kommt später der Spielplan, wird aus jedem vorläufigen Termin der echte Spieltag – die Rückmeldungen bleiben erhalten; Termine ohne Spiel entfallen.</p>
       <div class="row" style="gap:10px;align-items:center"><label class="btn" style="cursor:pointer">PDF wählen …<input id="rtF" type="file" accept=".pdf,application/pdf" style="display:none"></label><span class="muted s" id="rtFn">Rahmenterminplan als PDF (z. B. von der Verbandsseite)</span></div>
       <div class="btns"><button class="btn ghost" id="rtC" type="button">Abbrechen</button><button class="btn primary" id="rtGo" type="button" disabled>Weiter</button></div>`);
@@ -302,7 +292,7 @@
 </td></tr>`;
       };
       const n = r.teams.filter(t => sel[t.id]).length;
-      dialog(`<h3>Rahmenterminplan ${esc(r.year)} prüfen</h3>
+      dialog(`<h2>Rahmenterminplan ${esc(r.year)} prüfen</h2>
         <p class="muted" style="margin:0 0 10px">Je Mannschaft die Altersklasse aus dem Plan wählen (vorgeschlagen aus Name und Liga). Angezeigt sind die erkannten Termine ab heute – bitte einmal mit der PDF vergleichen.</p>
         <div class="scroll" style="max-height:52vh"><table class="tbl sp-rt"><tr><th>Mannschaft</th><th>Altersklasse</th><th>Termine</th></tr>${r.teams.map(row).join('') || '<tr><td colspan="3" class="muted">Noch keine aktiven Mannschaften.</td></tr>'}</table></div>
         <label class="chk" style="margin-top:10px"><input type="checkbox" id="rtZa" ${za ? 'checked' : ''}> Zusatz- und Ausweichtage (Z/A) auch abfragen <span class="muted s">– gestrichelt; werden nur bei Bedarf genutzt</span></label>
@@ -325,11 +315,11 @@
 
   /* ---------------- Spielplan-Import ---------------- */
   function importDialog(after) {
-    dialog(`<h3>Spielplan importieren</h3>
-      <p class="muted" style="margin:0 0 10px">Die Tabelle „Begegnungen“ von der Verbandsseite (nuLiga) markieren, kopieren und hier einfügen – oder eine CSV-, Excel- oder Kalenderdatei wählen. Übernommen werden <b>alle</b> Spiele des Vereins, auch die Auswärtsspiele. Bei einem erneuten Import werden Verlegungen erkannt und die Mannschaft benachrichtigt.</p>
-      <label class="f">Tabelle einfügen<textarea id="imT" rows="8" placeholder="Datum · Uhrzeit · Liga · Heimmannschaft · Gastmannschaft …"></textarea></label>
-      <div class="row" style="gap:10px;margin-top:8px;align-items:center"><label class="btn" style="cursor:pointer">Datei wählen …<input id="imF" type="file" accept=".csv,.txt,.xlsx,.ics" style="display:none"></label><span class="muted s" id="imFn"></span></div>
-      <div class="btns"><button class="btn ghost" id="imC" type="button">Abbrechen</button><button class="btn primary" id="imGo" type="button">Weiter</button></div>`, true);
+    dialog(`<h2>Spielplan importieren</h2>
+      <p class="muted" style="margin-top:0">Auf der Seite des Verbands die Tabelle mit den Begegnungen markieren (von „Datum“ bis zum letzten Spiel), kopieren und hier einfügen – z. B. nuLiga „Begegnungen“. Oder eine Datei wählen: CSV, Excel oder Kalender (.ics, z. B. fussball.de „Spielplan exportieren“). Übernommen werden alle Spiele des Vereins, auch die Auswärtsspiele.</p>
+      <label class="f">Tabelle einfügen<textarea id="imT" rows="9" placeholder="Datum · Spielort · Liga · Heimmannschaft · Gastmannschaft …" style="font-family:ui-monospace,Menlo,monospace;font-size:12.5px;white-space:pre"></textarea></label>
+      <div class="row" style="margin-top:10px;align-items:center;gap:10px"><label class="btn" style="cursor:pointer">Datei wählen …<input type="file" id="imF" accept=".csv,.txt,.xlsx,.ics,text/calendar" hidden></label><span class="muted s" id="imFn">keine Datei</span></div>
+      <div class="btns"><button class="btn ghost" id="imC" type="button">Abbrechen</button><button class="btn primary" id="imGo" type="button">Einlesen</button></div>`, true);
     let file = null;
     $('imC').onclick = closeDialog;
     $('imF').onchange = () => { const f = $('imF').files[0]; if (!f) return; const r = new FileReader(); r.onload = () => { file = { name: f.name, file: String(r.result).split(',')[1] }; $('imFn').textContent = f.name; }; r.readAsDataURL(f); };
@@ -344,16 +334,16 @@
     const teamSel = {};
     r.teams.forEach(t => { teamSel[t.team] = t.team_id || 0; });
     const draw = () => {
-      dialog(`<h3>Spielplan prüfen</h3>
-        <div class="row" style="gap:10px;align-items:flex-end;margin-bottom:10px"><label class="f" style="min-width:260px">Unser Verein heißt in der Tabelle<input id="imCl" value="${esc(r.club)}"></label>
-          <div class="muted s" style="padding-bottom:10px">${own.length} kommende Spiele des Vereins · ${own.filter(g => g.isHome).length} Heim, ${own.filter(g => !g.isHome).length} auswärts</div></div>
-        <h4 style="margin:6px 0">Mannschaften</h4>
+      dialog(`<h2>Spielplan prüfen</h2>
+        <div class="sp-grid" style="--c:3"><label class="f">Euer Verein (für „Heimspiel“)<input id="imCl" value="${esc(r.club)}"></label>
+          <div class="f muted s" style="align-self:end;padding-bottom:11px">${r.games.length} Spiele erkannt · ${r.games.filter(g => g.isHome).length} Heimspiele${r.skipped && r.skipped.length ? ` · ${r.skipped.length} Zeilen nicht erkannt` : ''}</div></div>
+        <h3 style="margin:16px 0 6px">Mannschaften</h3>
         <div class="sp-grid" style="--c:3">${r.teams.map(t => `<label class="f">${esc(t.team === '–' ? 'ohne Angabe' : t.team)} (${t.count} Spiele)<select data-tm="${esc(t.team)}">${opt(0, `neu anlegen${t.size ? ` (${t.size}er)` : ''}`, teamSel[t.team])}${m.teams.map(x => opt(x.id, x.name, teamSel[t.team])).join('')}</select>${t.rahmenKeep || t.rahmenDrop ? `<span class="muted s" style="font-weight:500">Vorläufige Termine: ${t.rahmenKeep} ${t.rahmenKeep === 1 ? 'wird' : 'werden'} zum Spieltag${t.rahmenDrop ? `, ${t.rahmenDrop} entfallen (spielfrei)` : ''}</span>` : ''}</label>`).join('')}</div>
-        <div class="scroll" style="max-height:36vh;margin-top:12px"><table class="tbl"><tr><th></th><th>Datum</th><th>Mannschaft</th><th>Begegnung</th><th></th></tr>${own.map((g, i) => `<tr><td><input type="checkbox" data-g="${i}" ${pick.has(g.key) ? 'checked' : ''}></td><td class="nw">${esc(when(g))}</td><td>${esc(g.team || '–')}</td>
-          <td>${esc(g.home)} – ${esc(g.guest)} <span class="pill ${g.isHome ? 'g' : ''}">${g.isHome ? 'Heim' : 'Auswärts'}</span></td><td>${g.status === 'neu' ? '<span class="pill g">neu</span>' : g.status === 'verlegt' ? '<span class="pill a">verlegt</span>' : '<span class="pill">schon da</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Keine kommenden Spiele des Vereins gefunden – stimmt der Vereinsname oben?</td></tr>'}</table></div>
-        ${r.buchung ? '<label class="chk" style="margin-top:10px"><input type="checkbox" id="imB"> Heimspiele auch im Buchungssystem als Platzbelegung eintragen (Plätze wie beim letzten Import je Mannschaft)</label>' : ''}
-        <div class="btns"><button class="btn ghost" id="imC" type="button">Abbrechen</button><button class="btn primary" id="imOk" type="button">${pick.size} Spieltage übernehmen</button></div>`, true);
-      $('imC').onclick = closeDialog;
+        <h3 style="margin:16px 0 6px">Spiele</h3><div class="scroll" style="max-height:36vh"><table class="tbl"><tr><th></th><th>Datum</th><th>Mannschaft</th><th>Begegnung</th><th></th></tr>${own.map((g, i) => `<tr><td><input type="checkbox" data-g="${i}" ${pick.has(g.key) ? 'checked' : ''}></td><td class="nw">${esc(when(g))}</td><td>${esc(g.team || '–')}</td>
+          <td>${esc(g.home)} – ${esc(g.guest)} <span class="pill ${g.isHome ? 'g' : ''}">${g.isHome ? 'Heim' : 'Auswärts'}</span></td><td>${g.status === 'neu' ? '<span class="pill g">neu</span>' : g.status === 'verlegt' ? '<span class="pill a">verlegt</span>' : '<span class="pill">schon eingetragen</span>'}</td></tr>`).join('') || '<tr><td colspan="5" class="muted">Keine kommenden Spiele des Vereins gefunden – stimmt der Vereinsname oben?</td></tr>'}</table></div>
+        ${r.buchung ? '<label class="chk" style="margin-top:10px"><input type="checkbox" id="imB"> Heimspiele auch bei den Plätzen als Platzbelegung eintragen (Plätze wie beim letzten Import je Mannschaft)</label>' : ''}
+        <div class="btns"><button class="btn ghost" id="imBack" type="button">Zurück</button><button class="btn primary" id="imOk" type="button">${pick.size} Spieltage übernehmen</button></div>`, true);
+      $('imBack').onclick = () => importDialog(after);
       $('dialog').querySelectorAll('[data-g]').forEach(c => { c.onchange = () => { const g = own[+c.dataset.g]; if (c.checked) pick.add(g.key); else pick.delete(g.key); $('imOk').textContent = `${pick.size} Spieltage übernehmen`; }; });
       $('dialog').querySelectorAll('[data-tm]').forEach(c => { c.onchange = () => { teamSel[c.dataset.tm] = +c.value; }; });
       $('imCl').onchange = async () => { try { const r2 = await api('import/parse', 'POST', { ...r.__src, club: $('imCl').value }); r2.__src = r.__src; review(r2, after); } catch (e) { fail(e); } };
@@ -362,7 +352,7 @@
           const teams = Object.fromEntries(Object.entries(teamSel).filter(([, v]) => v));
           const x = await api('import/apply', 'POST', { club: $('imCl').value, teams, games: own.filter(g => pick.has(g.key)), book: $('imB') ? $('imB').checked : false, force: true });
           closeDialog();
-          const bk = x.booking ? ` Buchungssystem: ${x.booking.made || 0} Platzbelegungen${x.booking.noCourts && x.booking.noCourts.length ? ` – für ${x.booking.noCourts.join(', ')} sind noch keine Plätze hinterlegt (einmal im Buchungssystem importieren)` : ''}.` : '';
+          const bk = x.booking ? ` Plätze: ${x.booking.made || 0} Platzbelegungen${x.booking.noCourts && x.booking.noCourts.length ? ` – für ${x.booking.noCourts.join(', ')} sind noch keine Plätze hinterlegt (einmal unter Plätze › Serien & Sperren importieren)` : ''}.` : '';
           toast(`${x.made} Spieltage neu${x.converted ? ` (davon ${x.converted} aus vorläufigen Terminen)` : ''}${x.free ? `, ${x.free} vorläufige Termine entfallen` : ''}${x.moved ? `, ${x.moved} verlegt` : ''}${x.teamsMade ? `, Mannschaften angelegt: ${x.teams.join(', ')}` : ''}.${bk}`); after();
         } catch (e) { fail(e); }
       });
@@ -380,13 +370,14 @@
   }
   async function showTeams(el) {
     const m = st.meta;
-    el.innerHTML = `<div class="row" style="justify-content:flex-end;margin-bottom:14px"><button class="btn primary" id="tmNew" type="button">+ Mannschaft</button></div>
-      ${m.teams.length ? m.teams.map(t => `<div class="card sp-team ${t.active ? '' : 'off'}"><div style="min-width:0"><h4 translate="no">${esc(t.name)}${t.active ? '' : ' <span class="pill">nicht aktiv</span>'}</h4>
+    const tools = '<button class="btn primary" id="tmNew" type="button">+ Mannschaft</button>';
+    el.innerHTML = `<div class="sp-teams">${m.teams.length ? m.teams.map(t => `<div class="card sp-team ${t.active ? '' : 'off'}"><div style="min-width:0"><h4 translate="no">${esc(t.name)}${t.active ? '' : ' <span class="pill">nicht aktiv</span>'}</h4>
           <div class="muted s">${[t.age_class ? `Altersklasse ${t.age_class}` : '', t.league, t.season, `mindestens ${t.min_players} Spieler/innen`, t.captain ? `Mannschaftsführer: ${t.captain}` : 'noch kein Mannschaftsführer', t.vice ? `Stellvertreter: ${t.vice}` : ''].filter(Boolean).map(esc).join(' · ')}</div>
           <div class="sp-pl" translate="no">${t.players.length ? t.players.map(p => `<span><b>${esc(p.rank)}</b>${esc(p.ln)}${p.ext ? ' <i class="sp-gast">Gast</i>' : ''}${fitHint(t, p) ? ` <i class="sp-gast sp-warn">${esc(fitHint(t, p))}</i>` : ''}</span>`).join('') : '<span class="muted">noch keine Spieler/innen</span>'}</div></div>
-        <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler/innen …</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
-        : '<div class="card"><p class="empty">Noch keine Mannschaften. Tipp: Beim Spielplan-Import werden die Mannschaften automatisch angelegt.</p></div>'}`;
-    const again = () => pageRender('sp-mannschaften', showTeams)().catch(fail);
+        <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn small" data-pl="${t.id}" type="button">Spieler verwalten</button><button class="btn small" data-ed="${t.id}" type="button">Bearbeiten</button></div></div>`).join('')
+        : '<div class="empty">Noch keine Mannschaften – mit „+ Mannschaft“ anlegen. Tipp: Beim Spielplan-Import entstehen sie automatisch.</div>'}</div>`;
+    if (!GK.tabTools(tools, el.firstElementChild)) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
+    const again = reload;
     $('tmNew').onclick = () => editTeam(null, again);
     el.querySelectorAll('[data-ed]').forEach(b => { b.onclick = () => editTeam(m.teams.find(t => t.id === +b.dataset.ed), again); });
     el.querySelectorAll('[data-pl]').forEach(b => { b.onclick = () => playersDialog(m.teams.find(t => t.id === +b.dataset.pl), again); });
@@ -394,7 +385,7 @@
   function editTeam(t, after) {
     const m = st.meta; t = t || { name: '', min_players: 4, active: 1 };
     const pick = (id, sel) => `<select id="${id}">${opt('', '– niemand –', sel || '')}${m.members.map(x => opt(x.id, x.ln, sel)).join('')}</select>`;
-    dialog(`<h3>${t.id ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'}</h3>
+    dialog(`<h2>${t.id ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'}</h2>
       <div class="sp-grid" style="--c:2">
         <label class="f wall">Name<input id="etN" value="${esc(t.name)}" placeholder="z. B. Herren 40 I"></label>
         <label class="f">Liga<input id="etL" value="${esc(t.league || '')}" placeholder="z. B. H40 (4er) Bezirksliga"></label>
@@ -435,7 +426,7 @@
       const inList = new Set(list.map(p => p.id));
       const hits = pool().filter(x => !inList.has(x.id) && (!q || x.ln.toLowerCase().includes(q.toLowerCase()))).sort((a, b) => a.ln.localeCompare(b.ln, 'de')).slice(0, 60);
       const ed = edit ? list.find(p => p.id === edit) : null, ei = ed ? info.get(ed.id) || {} : {};
-      dialog(`<h3>Spieler/innen · <span translate="no">${esc(t.name)}</span></h3>
+      dialog(`<h2>Spieler/innen · <span translate="no">${esc(t.name)}</span></h2>
         <p class="muted" style="margin:0 0 10px">Links suchen und mit + in die Mannschaft holen – Mitglieder und <b>Gastspieler/innen</b> (kein Vereinsmitglied, z. B. Spielgemeinschaft). Rechts die Meldeliste (Nr. 1 oben), mit ▲ ▼ verschieben. Gäste antworten über einen persönlichen Link oder der Mannschaftsführer trägt für sie ein.</p>
         <div class="sp-grid" style="--c:2"><div><h4 style="margin:0 0 6px">Mitglieder &amp; Gäste</h4><label class="f sp-bar"><input id="plQ" placeholder="Name suchen" value="${esc(q)}" aria-label="Name suchen"></label>
             <div class="sp-sel" translate="no">${hits.map(x => `<div><span></span><span>${esc(x.ln)}${x.ext ? ` <span class="pill">Gast${x.club ? ' · ' + esc(x.club) : ''}</span>` : ''}${fitHint(t, x) ? ` <span class="pill a">${esc(fitHint(t, x))}</span>` : ''}</span><button class="btn small" data-ad="${x.id}" data-ext="${x.ext ? 1 : 0}" type="button" aria-label="in die Mannschaft">+</button></div>`).join('') || '<div><span></span><span class="muted">keine Treffer</span><span></span></div>'}</div>
@@ -503,59 +494,72 @@
   }
 
   async function showSettings(el) {
-    const s = st.meta.settings;
+    const s = st.meta.settings, mv = st.meta.mitglieder;
     const chk = (k, l, on, hint) => `<label class="chk" style="align-items:flex-start;margin:8px 0"><input type="checkbox" id="ss_${k}" ${on ? 'checked' : ''} style="margin-top:3px"> <span><b>${esc(l)}</b>${hint ? `<br><span class="muted s">${esc(hint)}</span>` : ''}</span></label>`;
-    el.innerHTML = `<div class="card"><h3>Was Spieler in der App sehen</h3>
+    el.innerHTML = `<div class="card" data-card="sehen"><h3>Was Spieler in der App sehen</h3>
         ${chk('see_avail', 'Wer sonst kann', s.seeAvail, 'Spieler sehen die Namen der anderen, die für einen Spieltag „kann“ gemeldet haben.')}
         ${chk('see_lineup', 'Aufstellung', s.seeLineup, 'Spieler sehen, wer aufgestellt ist. Der Mannschaftsführer sieht immer alles.')}
-        ${chk('cap_info', 'Mannschaftsführer mit Handynummer', s.capInfo, 'Oben in „Spieltage“ stehen Mannschaftsführer (sonst Stellvertretung) und Handynummer aus der Mitgliederverwaltung – für Rückfragen, mit „Anrufen“.')}
-        ${chk('times', '„kann ab …“ / „kann bis …“ Uhr anbieten', s.times, 'Optional zur Zusage – z. B. wenn jemand erst später kommt oder früher weg muss.')}</div>
-      <div class="card"><h3>Aufgaben</h3>
+        ${chk('cap_info', 'Mannschaftsführer mit Handynummer', s.capInfo, `Oben in „Spieltage“ stehen Mannschaftsführer (sonst Stellvertretung) und Handynummer${mv ? ' aus den Mitgliedern' : ''} – für Rückfragen, mit „Anrufen“.`)}
+        ${chk('times', '„kann ab …“ / „kann bis …“ Uhr anbieten', s.times, 'Optional zur Zusage – z. B. wenn jemand erst später kommt oder früher weg muss.')}
+        <div class="btns"><button class="btn primary" id="ssSee" type="button">Speichern</button></div></div>
+      <div class="card" data-card="aufgaben"><h3>Aufgaben</h3>
         ${chk('tasks', 'Aufgaben je Spieltag', s.tasks, 'Der Mannschaftsführer verteilt Aufgaben, Spieler können offene Aufgaben in der App übernehmen.')}
-        <div class="sp-tasks" id="tkList">${s.taskKinds.map((k, i) => `<div><label class="f"><input data-tl="${i}" value="${esc(k.l)}" aria-label="Aufgabe" placeholder="Aufgabe"></label><label class="f"><select data-tw="${i}" aria-label="Wann">${opt('immer', 'bei jedem Spiel', k.when)}${opt('heim', 'nur bei Heimspielen', k.when)}${opt('auswaerts', 'nur bei Auswärtsspielen', k.when)}</select></label><button class="btn small danger" data-tr="${i}" type="button">Entfernen</button></div>`).join('')}</div>
-        <div class="row" style="margin-top:8px"><button class="btn small" id="tkAdd" type="button">+ Aufgabe</button></div></div>
-      <div class="card"><h3>Erinnerungen & Nachrichten</h3>
+        <div id="tkBox" class="${s.tasks ? '' : 'hidden'}"><div class="sp-tasks" id="tkList"></div>
+          <div class="row" style="margin-top:8px"><button class="btn small" id="tkAdd" type="button">+ Aufgabe</button></div></div>
+        <div class="btns"><button class="btn primary" id="ssTasks" type="button">Speichern</button></div></div>
+      <div class="card" data-card="erinnerungen"><h3>Erinnerungen & Nachrichten</h3>
         ${chk('remind', 'Automatische Erinnerungen', s.remind, 'Spieler, die noch nicht geantwortet haben, bekommen vor dem Spieltag eine Push-Nachricht; der Mannschaftsführer eine Warnung, wenn zu wenige können.')}
-        <div class="sp-grid" style="--c:3"><label class="f">Spieler erinnern … Tage vorher<input id="ss_remind_days" type="number" min="1" max="30" value="${s.remindDays}"></label><label class="f">Mannschaftsführer warnen … Tage vorher<input id="ss_captain_days" type="number" min="1" max="30" value="${s.captainDays}"></label></div>
-        ${chk('mail', 'Wichtige Nachrichten auch per E-Mail', s.mail, st.meta.mitglieder ? 'Aufstellung und Absage-Anfragen zusätzlich per E-Mail (Adresse aus der Mitgliederverwaltung). Push kommt immer.' : 'Braucht die Mitgliederverwaltung (E-Mail-Adressen). Ohne sie gibt es nur Push.')}
-        <p class="muted s">Welche Push-Nachrichten es gibt, legt der Vorstand unter Mitglieder-App → Benachrichtigungen fest.</p></div>
-      <div class="btns"><button class="btn primary" id="ssOk" type="button">Speichern</button></div>`;
-    // Abhängige Felder nur bedienbar, wenn ihr Haken gesetzt ist
-    const dep = () => {
-      const t = $('ss_tasks').checked, r = $('ss_remind').checked;
-      $('tkList').closest('.card').querySelectorAll('#tkList input, #tkList select, #tkList button, #tkAdd').forEach(x => { x.disabled = !t; });
-      $('tkList').classList.toggle('sp-dim', !t);
-      ['ss_remind_days', 'ss_captain_days'].forEach(id => { $(id).disabled = !r; $(id).closest('.f').classList.toggle('sp-dim', !r); });
-    };
-    $('ss_tasks').addEventListener('change', dep); $('ss_remind').addEventListener('change', dep); dep();
-    let kinds = s.taskKinds.map(k => ({ ...k }));
+        <div class="sp-grid ${s.remind ? '' : 'hidden'}" id="rmBox" style="--c:2"><label class="f">Spieler erinnern … Tage vorher<input id="ss_remind_days" type="number" min="1" max="30" value="${s.remindDays}"></label><label class="f">Mannschaftsführer warnen … Tage vorher<input id="ss_captain_days" type="number" min="1" max="30" value="${s.captainDays}"></label></div>
+        ${chk('mail', 'Wichtige Nachrichten auch per E-Mail', s.mail, mv ? 'Aufstellung und Absage-Anfragen zusätzlich per E-Mail (Adresse aus den Mitgliedern). Push kommt immer.' : 'Braucht das Modul Mitglieder (E-Mail-Adressen). Ohne es gibt es nur Push.')}
+        <p class="muted s">Welche Push-Nachrichten es gibt, legt der Vorstand unter Mitglieder-App → Benachrichtigungen fest.</p>
+        <div class="btns"><button class="btn primary" id="ssRemind" type="button">Speichern</button></div></div>
+      <div id="spFunc"></div>`;
+    GK.watch(el);
+    // Abgeschaltetes einklappen: Felder erscheinen erst nach dem Einschalten
+    $('ss_tasks').addEventListener('change', () => $('tkBox').classList.toggle('hidden', !$('ss_tasks').checked));
+    $('ss_remind').addEventListener('change', () => $('rmBox').classList.toggle('hidden', !$('ss_remind').checked));
+    const kinds = s.taskKinds.map(k => ({ ...k }));
     const read = () => { el.querySelectorAll('[data-tl]').forEach(x => { kinds[+x.dataset.tl].l = x.value; }); el.querySelectorAll('[data-tw]').forEach(x => { kinds[+x.dataset.tw].when = x.value; }); };
-    const redrawKinds = () => { st.meta.settings.taskKinds = kinds; showSettings(el).then(() => {}).catch(fail); };
-    $('tkAdd').onclick = () => { read(); kinds.push({ k: 'a' + Date.now().toString(36).slice(-4), l: '', when: 'immer' }); redrawKinds(); };
-    el.querySelectorAll('[data-tr]').forEach(b => { b.onclick = () => { read(); kinds.splice(+b.dataset.tr, 1); redrawKinds(); }; });
-    $('ssOk').onclick = () => GK.busy($('ssOk'), async () => {
-      read();
-      const b = { task_kinds: kinds.filter(k => k.l.trim()), remind_days: +val('ss_remind_days'), captain_days: +val('ss_captain_days') };
-      for (const k of ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'mail']) b[k] = $('ss_' + k).checked;
-      try { const r = await api('settings', 'PUT', b); st.meta.settings = r.settings; toast('Gespeichert.'); } catch (e) { fail(e); }
+    const drawKinds = () => {
+      $('tkList').innerHTML = kinds.length ? kinds.map((k, i) => `<div><label class="f"><input data-tl="${i}" value="${esc(k.l)}" aria-label="Aufgabe" placeholder="z. B. Kuchen mitbringen"></label><label class="f"><select data-tw="${i}" aria-label="Wann">${opt('immer', 'bei jedem Spiel', k.when)}${opt('heim', 'nur bei Heimspielen', k.when)}${opt('auswaerts', 'nur bei Auswärtsspielen', k.when)}</select></label><button class="btn small ghost" data-tr="${i}" type="button">Entfernen</button></div>`).join('') : '<div class="empty">Noch keine Aufgaben – mit „+ Aufgabe“ anlegen.</div>';
+      $('tkList').querySelectorAll('[data-tr]').forEach(b => { b.onclick = () => { read(); kinds.splice(+b.dataset.tr, 1); drawKinds(); }; });
+    };
+    drawKinds();
+    $('tkAdd').onclick = () => { read(); kinds.push({ k: 'a' + Date.now().toString(36).slice(-4), l: '', when: 'immer' }); drawKinds(); const ins = $('tkList').querySelectorAll('[data-tl]'); ins[ins.length - 1].focus(); };
+    const save = (btn, body) => { btn.onclick = () => GK.busy(btn, async () => {
+      try { const r = await api('settings', 'PUT', body()); st.meta.settings = r.settings; GK.clean(); toast('Gespeichert.'); } catch (e) { fail(e); }
+    }); };
+    const flags = ks => Object.fromEntries(ks.map(k => [k, $('ss_' + k).checked]));
+    save($('ssSee'), () => flags(['see_avail', 'see_lineup', 'cap_info', 'times']));
+    save($('ssTasks'), () => { read(); return { ...flags(['tasks']), task_kinds: kinds.filter(k => k.l.trim()) }; });
+    save($('ssRemind'), () => ({ ...flags(['remind', 'mail']), remind_days: +val('ss_remind_days'), captain_days: +val('ss_captain_days') }));
+    if (GK.funcBox) GK.funcBox($('spFunc'), 'spielbetrieb', 'Spielbetrieb', () => reload());
+  }
+
+  async function render() {
+    $('main').innerHTML = `<h2 class="page">Spielbetrieb</h2><p class="lead">Rückmeldungen der Mannschaften auf einen Blick, dazu Spieltage, Aufstellungen und Einstellungen.</p><div id="spTabs"></div>`;
+    st.tabs = GK.tabs($('spTabs'), 'spielbetrieb', [['uebersicht', 'Übersicht'], ['spieltage', 'Spieltage'], ['mannschaften', 'Mannschaften'], ['einstellungen', 'Einstellungen']], async (k, el) => {
+      await loadMeta();
+      return ({ uebersicht: showDash, spieltage: showGames, mannschaften: showTeams, einstellungen: showSettings })[k](el);
     });
   }
 
-  const G = { key: 'spielbetrieb', label: 'Spielbetrieb', icon: 'pokal', order: 2.5 };   // Menü: nach dem Buchungssystem
-  GK.registerPage({ key: 'sp-uebersicht', title: 'Übersicht', perm: 'spielbetrieb', render: pageRender('sp-uebersicht', showDash), group: G });
-  GK.registerPage({ key: 'sp-spieltage', title: 'Spieltage', perm: 'spielbetrieb', render: pageRender('sp-spieltage', showGames), group: G });
-  GK.registerPage({ key: 'sp-mannschaften', title: 'Mannschaften', perm: 'spielbetrieb', render: pageRender('sp-mannschaften', showTeams), group: G });
-  GK.registerPage({ key: 'sp-einstellungen', title: 'Einstellungen', perm: 'spielbetrieb', render: pageRender('sp-einstellungen', showSettings), group: G });
-  // Suche (Strg/⌘ K): Einstellungen und Aktionen des Spielbetriebs
+  GK.registerPage({ key: 'spielbetrieb', title: 'Spielbetrieb', perm: 'spielbetrieb', render, icon: 'pokal', order: 2.5 });   // Menü: nach den Plätzen
+  // Suche (Strg/⌘ K): Reiter, Einstellungen und Aktionen des Spielbetriebs
   if (GK.registerSearch) GK.registerSearch([
-    { label: 'Spielplan importieren (Spieltage)', page: 'sp-spieltage', btn: 'Spielplan importieren', kind: 'aktion', words: 'nuLiga Medenspiel Termine' },
-    { label: 'Rahmenterminplan', page: 'sp-spieltage', btn: 'Rahmenterminplan', kind: 'aktion', words: 'Termine Saison vorläufig' },
-    { label: 'Spieltag anlegen', page: 'sp-spieltage', btn: '+ Spieltag', kind: 'aktion', words: 'Spiel Termin' },
-    { label: 'Spieltage als Kalender drucken', page: 'sp-spieltage', seg: 'Kalender', kind: 'aktion', words: 'Drucken Kalender Übersicht' },
-    { label: 'Mannschaft anlegen', page: 'sp-mannschaften', btn: '+ Mannschaft', kind: 'aktion', words: 'Mannschaft Team' },
-    { label: 'Spieler einer Mannschaft (Meldeliste)', page: 'sp-mannschaften', btn: 'Spieler/innen', kind: 'aktion', words: 'Meldeliste Spieler Gastspieler Aufstellung' },
-    { label: 'Was Spieler in der App sehen', page: 'sp-einstellungen', card: 'Was Spieler in der App sehen', words: 'App Aufstellung Handynummer Mannschaftsführer' },
-    { label: 'Aufgaben je Spieltag', page: 'sp-einstellungen', card: 'Aufgaben', words: 'Fahrer Kuchen Aufgabe' },
-    { label: 'Erinnerungen & Nachrichten (Spielbetrieb)', page: 'sp-einstellungen', card: 'Erinnerungen & Nachrichten', words: 'Push E-Mail erinnern Absage' },
+    { label: 'Spielbetrieb: Übersicht (Braucht Aufmerksamkeit)', page: 'spielbetrieb', tab: ['spielbetrieb', 'uebersicht'], kind: 'reiter', in: 'Übersicht', words: 'Rückmeldungen Zusagen Absage Mannschaften Sportwart' },
+    { label: 'Spieltage', page: 'spielbetrieb', tab: ['spielbetrieb', 'spieltage'], kind: 'reiter', in: 'Spieltage', words: 'Spiele Termine Ampel Aufstellung Verfügbarkeit Medenspiele' },
+    { label: 'Spielplan importieren (Spieltage)', page: 'spielbetrieb', tab: ['spielbetrieb', 'spieltage'], btn: 'Spielplan importieren', kind: 'aktion', in: 'Spieltage', words: 'Import nuLiga Medenspiel Termine' },
+    { label: 'Rahmenterminplan', page: 'spielbetrieb', tab: ['spielbetrieb', 'spieltage'], btn: 'Rahmenterminplan', kind: 'aktion', in: 'Spieltage', words: 'Import Termine Saison vorläufig' },
+    { label: 'Spieltag anlegen', page: 'spielbetrieb', tab: ['spielbetrieb', 'spieltage'], btn: '+ Spieltag', kind: 'aktion', in: 'Spieltage', words: 'Spiel Termin neu' },
+    { label: 'Spieltage als Kalender', page: 'spielbetrieb', tab: ['spielbetrieb', 'spieltage'], seg: 'Kalender', kind: 'aktion', in: 'Spieltage', words: 'Ansicht Jahr Monate Übersicht' },
+    { label: 'Spieltage drucken', page: 'spielbetrieb', tab: ['spielbetrieb', 'spieltage'], btn: 'Drucken', kind: 'aktion', in: 'Spieltage', words: 'Drucken Kalender Liste' },
+    { label: 'Mannschaften', page: 'spielbetrieb', tab: ['spielbetrieb', 'mannschaften'], kind: 'reiter', in: 'Mannschaften', words: 'Mannschaftsführer Stellvertreter Meldeliste Team' },
+    { label: 'Mannschaft anlegen', page: 'spielbetrieb', tab: ['spielbetrieb', 'mannschaften'], btn: '+ Mannschaft', kind: 'aktion', in: 'Mannschaften', words: 'Mannschaft Team neu' },
+    { label: 'Spieler einer Mannschaft (Meldeliste)', page: 'spielbetrieb', tab: ['spielbetrieb', 'mannschaften'], btn: 'Spieler verwalten', kind: 'aktion', in: 'Mannschaften', words: 'Meldeliste Spieler Gastspieler Aufstellung' },
+    { label: 'Was Spieler in der App sehen', page: 'spielbetrieb', tab: ['spielbetrieb', 'einstellungen'], card: 'Was Spieler in der App sehen', in: 'Einstellungen', words: 'App Aufstellung Handynummer Mannschaftsführer' },
+    { label: 'Aufgaben je Spieltag', page: 'spielbetrieb', tab: ['spielbetrieb', 'einstellungen'], card: 'Aufgaben', in: 'Einstellungen', words: 'Fahrer Kuchen Aufgabe' },
+    { label: 'Erinnerungen & Nachrichten (Spielbetrieb)', page: 'spielbetrieb', tab: ['spielbetrieb', 'einstellungen'], card: 'Erinnerungen & Nachrichten', in: 'Einstellungen', words: 'Push E-Mail erinnern Absage' },
+    { label: 'Einstellungen des Spielbetriebs übertragen', page: 'spielbetrieb', tab: ['spielbetrieb', 'einstellungen'], card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei sichern' },
   ]);
 })();

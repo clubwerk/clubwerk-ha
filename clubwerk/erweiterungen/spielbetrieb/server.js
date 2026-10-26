@@ -1014,7 +1014,7 @@ function activate(ctx) {
     if (b.book && ctx.isModuleActive('buchung')) {
       const hg = games.filter(g => g.isHome && !g.past && g.start);
       const x = (await ctx.callHooks('bookImportedGames', { games: hg, club: txt(b.club, 80), user: req.user, force: Boolean(b.force) })).find(y => y.id === 'buchung');
-      r.booking = x ? x.result : { problems: ['Buchungssystem nicht erreichbar.'] };
+      r.booking = x ? x.result : { problems: ['Plätze nicht erreichbar.'] };
     }
     res.json({ ok: true, ...r });
   }));

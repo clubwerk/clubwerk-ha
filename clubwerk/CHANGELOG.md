@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.52.0
+
+**Spielbetrieb neu geordnet (Etappe 7 des Menü-Umbaus)**
+- **Ein Menüpunkt, vier Reiter:** Übersicht · Spieltage · Mannschaften · Einstellungen. Die Kachel auf der Startseite führt zur Übersicht.
+- **Spieltage:** „Kommende / Vergangene“ und „Liste / Kalender“ sind jetzt kleine Filterchips. „Drucken“, „Rahmenterminplan …“, „Spielplan importieren …“ und „+ Spieltag“ stehen rechts oben; „Drucken“ gibt es in der Liste und im Kalender.
+- **Mannschaften:** „+ Mannschaft“ steht rechts oben, der Knopf „Spieler/innen …“ heißt jetzt „Spieler verwalten“.
+- **Einstellungen als Karten**, jede mit eigenem „Speichern“: Was Spieler in der App sehen · Aufgaben · Erinnerungen & Nachrichten · **Einstellungen übertragen** (neu, wie in den anderen Modulen). Bei ausgeschalteten Aufgaben und Erinnerungen sind die Felder eingeklappt.
+- **Spielplan-Import:** Das Fenster sieht jetzt aus und läuft ab wie bei den Plätzen (Einlesen → Prüfen, Zurück-Knopf, gleiche Texte).
+- Es heißt überall „Plätze“ und „Mitglieder“ statt „Buchungssystem“ und „Mitgliederverwaltung“. Die Suche findet jeden Reiter, jede Karte und „Drucken“.
+- Bereits gespeicherte Einstellungen, Mannschaften und Spieltage bleiben unverändert.
+
 ## 3.51.0
 
 **Zugang neu geordnet (Etappe 6 des Menü-Umbaus)**
