@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.50.0
+
+**Beregnung neu geordnet (Etappe 5 des Menü-Umbaus)**
+- **Neue Reiter:** Bedienen · Plätze & Zonen · Verlauf · Einstellungen. „Verlauf“ hieß vorher „Protokoll“, „Excel“ steht rechts oben.
+- **Einstellungen als Karten**, jede mit eigenem „Speichern“: Anbindung · Wer darf bedienen? · Webapp · Benachrichtigungen · Einstellungen übertragen. Die Vereins-PIN ist jetzt immer zu sehen, mit dem Hinweis, dass sie nur bei „Offen mit Vereins-PIN“ gilt.
+- **Bedienen** zeigt nur noch die Plätze und den Not-Stopp. Der Schalter „in der Kopfzeile am Tablet zeigen“ steht zentral unter Einstellungen › Tablet.
+- **Plätze & Zonen:** „+ Platz“ oben rechts, „Platz löschen“ abgesetzt und mit Rückfrage; die Zonen sind am Handy übersichtlicher.
+- Kürzere Einleitung, die Suche findet jede Karte, die Vereins-PIN, „Platz hinzufügen“ und den Not-Stopp.
+- Bereits gespeicherte Einstellungen bleiben unverändert.
+
 ## 3.49.0
 
 **Zeiterfassung neu geordnet (Etappe 4 des Menü-Umbaus)**
