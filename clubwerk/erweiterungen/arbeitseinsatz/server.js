@@ -3,7 +3,7 @@
    Modul „Helferdienste“ (früher „Arbeitseinsatz & Thekendienst“)
    Dienstpläne für Veranstaltungen (Tage mit Schichten), Arbeitseinsätze und Thekendienste planen, Mitglieder tragen sich in der App ein, stempeln am Tablet oder melden ihre Stunden.
    Soll je Mitglied (Vorgabe, Beitragsart, Alter, eigene Ausnahme), Ist aus bestätigten Stunden, Familien gemeinsam.
-   Nicht geleistete Stunden landen im Beitragslauf der Mitgliederverwaltung (Stundensatz).
+   Nicht geleistete Stunden landen im Beitragslauf der Mitglieder (Stundensatz).
    ===================================================================================================== */
 const { pad, today, nowTs, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));

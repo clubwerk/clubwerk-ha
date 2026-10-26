@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.53.0
+
+**Helferdienste neu geordnet (Etappe 8 des Menü-Umbaus)**
+- **Ein Menüpunkt, fünf Reiter:** Übersicht · Dienstpläne · Einsätze · Stunden · Einstellungen. Die Zahl der zu bestätigenden Stunden steht am Reiter „Stunden“ und im Menü.
+- **Dienstpläne:** „+ Neuer Dienstplan“ steht rechts oben, „Kommende / Vergangene“ sind kleine Filterchips. Ein Dienstplan öffnet sich als eigene Ansicht mit „← Alle Dienstpläne“ und den Reitern „Schichten“ und „Weitergeben“ (als Vorlage kopieren, in den Verkauf übernehmen).
+- **Einsätze** heißen jetzt überall so (vorher „Einzeltermine“).
+- **Stunden:** „Stunden nachtragen“ gibt es nur noch hier. Löschen steht im Fenster „Eintrag ändern“, abgesetzt und mit Rückfrage. Ein laufender Eintrag lässt sich erst nach dem Ausstempeln löschen.
+- **Einstellungen als Karten**, jede mit eigenem „Speichern“: Soll · Abrechnung · Tablet & App · Befreite Mitglieder · Benachrichtigungen & Kontakt · Einstellungen übertragen. Die frühere lange Karte ist aufgeteilt.
+- Löschen von Einsätzen, Schichten und Dienstplänen fragt im selben Fenster nach und sagt, was mit verschwindet.
+- Listen sind am Handy kompakt (zwei Zeilen je Eintrag). Die Suche findet jeden Reiter, jede Karte und die wichtigsten Aktionen. Es heißt überall „Mitglieder“ statt „Mitgliederverwaltung“.
+- Bereits gespeicherte Einstellungen, Dienstpläne und Stunden bleiben unverändert.
+
 ## 3.52.0
 
 **Spielbetrieb neu geordnet (Etappe 7 des Menü-Umbaus)**
