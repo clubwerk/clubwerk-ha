@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.44.1
+
+- Suche: In der Trefferliste am Rechner liefen lange, mehrzeilige Treffer übereinander. Jetzt steht jeder Treffer sauber untereinander. Der Design-Prüfstand prüft die Trefferliste künftig mit (Rechner und Handy).
+
 ## 3.44.0
 
 **Neue Suche in der Verwaltung (Strg/⌘ K)**

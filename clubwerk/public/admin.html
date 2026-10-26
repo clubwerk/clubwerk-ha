@@ -29,6 +29,7 @@
   @media (max-width: 900px), (hover: none) { nav.side .search kbd { display: none; } }   /* Handy/Tablet: keine Tastatur, kein Tastenhinweis */
   nav.side .search .results { position: absolute; left: 0; right: 0; top: 44px; z-index: 30; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow-pop); padding: 6px; display: flex; flex-direction: column; gap: 2px; }
   nav.side .search .results { max-height: min(70vh, 560px); overflow-y: auto; overscroll-behavior: contain; }
+  nav.side .search .results > * { flex-shrink: 0; }   /* Treffer nie zusammendrücken – sonst läuft ein mehrzeiliger Treffer über den nächsten */
   nav.side .search .results button { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; min-height: 36px; padding: 6px 10px; border-radius: 8px; color: var(--ink); text-align: left; }
   nav.side .search .results button b { font-weight: 600; font-size: 14px; line-height: 18px; }
   nav.side .search .results button span { color: var(--muted); font-size: 12px; line-height: 16px; }
