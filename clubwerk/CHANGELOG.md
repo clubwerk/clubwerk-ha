@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.43.0
+
+**Kleine Fehler aus der Prüfung aller Seiten behoben**
+- **Benutzer & Rechte:** Bei Rollen und Benutzern stehen jetzt überall lesbare Namen („E-Mail“, „Buchhaltung“, „Serien & Sperren“ …) statt interner Kürzel wie „email“.
+- **Jahreskalender** (Verkauf › Auswertung, Buchungssystem › Auswertung): Eine Woche steht jetzt unter dem Monat, in dem die meisten ihrer Tage liegen. Vorher rutschte z. B. die letzte Oktoberwoche unter „Nov.“.
+- **Übersicht:** Die Kachel „Verkauf“ zeigt bei negativem Bestand „negativ“ in Rot statt „Alles gut“.
+- **Mitgliederverwaltung › Auswertung:** Mitglieder ohne erfasste Mitgliedsdaten zählen jetzt mit – vorher zeigte die Auswertung z. B. 0 Mitglieder, die Liste 10.
+- **Am Handy:** Einstellungen › Module ist wieder lesbar (die Beschreibung steht unter Name und Schalter statt als schmale Wortsäule). In Tabellen ragen Knöpfe nicht mehr aus der Karte (z. B. Sprachen) und Werte überlappen nicht mehr die Beschriftung (Bestandserhebung). Bei Helferdienste › Einzeltermine und Spielbetrieb › Mannschaften stehen die Knöpfe unter dem Text.
+- **Hinweistexte** nennen wieder die richtigen Orte (z. B. „Beiträge → Beitragsarten & Abteilungen“ statt „Einstellungen“, „Pflichtstunden …“ statt „Soll …“). Die E-Mail-Seite sagt jetzt richtig, wohin Antworten gehen.
+- Der Design-Prüfstand erkennt solche Fehler künftig selbst: Text, der am Handy zur Wortsäule wird, Inhalte, die aus Karte oder Tabellenzelle ragen, und Rechte ohne lesbaren Namen.
+
 ## 3.42.0
 
 **Verkauf per Lastschrift einziehen – direkt im Verkauf**

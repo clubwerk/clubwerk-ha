@@ -98,7 +98,7 @@
     'mv-einzug': ['Einzug & Zahlungen', 'SEPA-Lastschriften, offene Posten, Rechnungen und Mahnungen.'],
     'mv-antraege': ['Anträge & Änderungen', 'Beitrittserklärungen (Tablet, online, Verwaltung), Änderungswünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen.'],
     'mv-auswertung': ['Auswertung', 'Mitgliederzahlen, Bestandserhebung für den Landessportbund und Listen.'],
-    'mv-einstellungen': ['Einstellungen', 'Verein und SEPA-Lastschrift, Beitrittserklärung, Mitglieder-App, Import und Datenschutz.'],
+    'mv-einstellungen': ['Einstellungen', 'Verein und SEPA-Lastschrift, Beitrittserklärung, Import und Datenschutz.'],
   };
   let current = 'mitglieder';
   const pageEl = () => $('mvBody');
@@ -418,7 +418,7 @@
         try { if (x) await api('md/' + x.id, 'PUT', body); else await api(`member/${id}/departments`, 'POST', { ...body, department_id: +val('dDep') }); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { fail(e); }
       });
     };
-    if ($('dAdd')) $('dAdd').onclick = () => (m.depts.length ? deptDialog(null) : toast('Bitte zuerst unter Einstellungen eine Abteilung anlegen.', true));
+    if ($('dAdd')) $('dAdd').onclick = () => (m.depts.length ? deptDialog(null) : toast('Bitte zuerst unter Beiträge → Beitragsarten & Abteilungen eine Abteilung anlegen.', true));
     el.querySelectorAll('[data-md]').forEach(b => { b.onclick = () => deptDialog(d.departments.find(x => x.id === +b.dataset.md)); });
     el.querySelectorAll('[data-mdx]').forEach(b => { b.onclick = async () => { if (!await ask('Abteilung entfernen?\n\nFür einen Austritt aus der Abteilung besser ein Austrittsdatum eintragen – dann stimmt die Statistik.', { ok: 'Entfernen' })) return; try { await api('md/' + b.dataset.mdx, 'DELETE'); again(); } catch (e) { fail(e); } }; });
     const simple = (kind, title, extra) => {
@@ -463,7 +463,7 @@
           <label class="f">Familienmitgliedschaft bei<select id="pFamOf" ${isHead ? 'disabled' : ''}>${famOpts}</select></label>
         </div>
         <p class="muted s">${isHead ? `${esc(p.name)} ist Oberhaupt: der eigene Familienbeitrag deckt Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre ab. Ein Oberhaupt kann nicht selbst einer anderen Familie zugeordnet sein.`
-          : `Wählbar sind Mitglieder mit aktivem Familienbeitrag. Wer zugeordnet ist, braucht keine eigene Beitragsart – Zusatzbeiträge der Abteilungen bleiben je Person. Erlaubt: Oberhaupt, ein/e Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre.${!d.familyFee && famFeeIds.size === 0 ? ' Noch keine Beitragsart mit Familienbeitrag angelegt (Beiträge → Beitragsarten).' : ''}`}</p>
+          : `Wählbar sind Mitglieder mit aktivem Familienbeitrag. Wer zugeordnet ist, braucht keine eigene Beitragsart – Zusatzbeiträge der Abteilungen bleiben je Person. Erlaubt: Oberhaupt, ein/e Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre.${!d.familyFee && famFeeIds.size === 0 ? ' Noch keine Beitragsart mit Familienbeitrag angelegt (Beiträge → Beitragsarten & Abteilungen).' : ''}`}</p>
         ${d.family.length ? `<h4 class="mv-sub">Familie</h4>${famTable(d.family)}` : d.familyFee ? '<p class="empty">Noch keine Angehörigen zugeordnet – unten hinzufügen.</p>' : ''}
         ${isHead || d.familyFee ? `<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>${addable.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, '')).join('')}</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>` : ''}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
@@ -798,7 +798,7 @@
     const app = await GK.api('app').catch(() => ({}));
     const url = app.url ? `${String(app.url).replace(/\/$/, '')}/p/mitglieder/` : '';
     dialog(`<h2>Online-Antrag</h2>${url ? `<p class="muted" style="margin-top:0">Diesen Link auf der Homepage oder in Nachrichten teilen:</p><div class="mv-code" style="font-size:16px;letter-spacing:0;user-select:all" translate="no">${esc(url)}</div>`
-      : '<div class="banner a"><span>Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App → Einstellungen). Der Online-Antrag liegt dort unter <code>/p/mitglieder/</code>.</span></div>'}
+      : '<div class="banner a"><span>Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App → Verbindung). Der Online-Antrag liegt dort unter <code>/p/mitglieder/</code>.</span></div>'}
       <p class="muted s">Schutz gegen Missbrauch: eingebaute Falle für automatische Formulare, Mindest-Ausfüllzeit, Begrenzung je Gerät und Tag. Ausschalten unter Einstellungen.</p>
       <div class="btns">${url ? '<button class="btn ghost" id="oCopy">Link kopieren</button>' : ''}<button class="btn primary" id="c">Fertig</button></div>`);
     $('c').onclick = () => { closeDialog(); reloadTab(); };
@@ -808,7 +808,7 @@
   /** Beitrittserklärung erfassen (Verwaltung) → Code fürs Tablet */
   async function applicationForm() {
     const cfg = await api('applications/config');
-    if (!cfg.fees.length) return toast('Bitte zuerst unter Einstellungen Beitragsarten anlegen (mit „auf dem Formular“).', true);
+    if (!cfg.fees.length) return toast('Bitte zuerst unter Beiträge → Beitragsarten & Abteilungen Beitragsarten anlegen (mit „auf dem Formular“).', true);
     const deps = cfg.departments || [];
     const person = (i, p = {}) => `<tr data-p="${i}"><td><input data-k="first_name" value="${esc(p.first_name || '')}" placeholder="Vorname"></td><td><input data-k="last_name" value="${esc(p.last_name || '')}" placeholder="Nachname"></td>
       <td><input data-k="birth_date" type="date" value="${esc(p.birth_date || '')}"></td><td><select data-k="gender">${opt('', '–')}${Object.entries(GENDER).map(([k, l]) => opt(k, l, p.gender)).join('')}</select></td>
@@ -1129,7 +1129,7 @@
       try {
         const p = await api('collections/preview', 'POST', { date: val('kDate') });
         const skip = new Set();
-        $('kOut').innerHTML = `${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Einstellungen).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag.</span></div>' : ''}
+        $('kOut').innerHTML = `${!p.ready ? '<div class="banner r"><span>Gläubiger-ID oder Vereinskonto fehlen (Einstellungen → Verein & SEPA).</span></div>' : ''}${!p.bankDay ? '<div class="banner r"><span>Dieser Tag ist kein Bankarbeitstag.</span></div>' : ''}
           ${p.tooEarly ? `<div class="banner a"><span>Zu früh: frühester Termin ist der ${deDate(p.earliest)}.</span></div>` : ''}
           ${p.problems.length ? `<div class="banner a"><span>${p.problems.length} Zahler bleiben offen: ${esc(p.problems.map(x => `${x.name} (${x.reason})`).join(', '))}</span></div>` : ''}
           ${p.zero && p.zero.length ? `<div class="banner g"><span>${p.zero.length} Zahler: Forderungen und Gutschriften gleichen sich aus (${esc(p.zero.map(x => x.name).join(', '))}) – werden mit dem Einzug als verrechnet gebucht.</span></div>` : ''}

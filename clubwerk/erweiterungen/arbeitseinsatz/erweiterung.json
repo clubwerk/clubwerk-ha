@@ -1,7 +1,7 @@
 {
   "id": "arbeitseinsatz",
   "name": "Helferdienste",
-  "version": "2.1.2",
+  "version": "2.1.3",
   "kurz": "Dienstpläne für Veranstaltungen, Arbeitseinsätze und Arbeitsstunden.",
   "beschreibung": "Dienstpläne für Veranstaltungen (z. B. Kirmes, Turnier): Tage mit Schichten wie Theke, Kasse, Aufbau – Mitglieder tragen sich in der Mitglieder-App ein, Austragen bis 24 Stunden vorher. Dazu Arbeitseinsätze und dauerhafte Dienste wie der Thekendienst, Ein- und Ausstempeln am Tablet, Stunden melden. Soll je Mitglied (Vorgabe, Beitragsart, Alter, Befreiung), Familien gemeinsam, Erinnerungen per E-Mail. Nicht geleistete Stunden rechnet die Mitgliederverwaltung im Beitragslauf ab.",
   "minApp": "3.1.0",

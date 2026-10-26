@@ -735,8 +735,8 @@
     for (let w = 0; w < 54; w++) { const wd = addDays(start, w * 7); if (wd > `${d.year}-12-31`) break; weeks.push(wd); }
     const MON = ['Jan.', 'Feb.', 'März', 'Apr.', 'Mai', 'Juni', 'Juli', 'Aug.', 'Sep.', 'Okt.', 'Nov.', 'Dez.'];
     const [h0, h1] = d.hours, hours = Array.from({ length: Math.max(0, h1 - h0) }, (_, i) => h0 + i);
-    // Monatszeile der Heatmap: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat ihres Sonntags) – nichts läuft über
-    const months = []; weeks.forEach(w => { const dd = addDays(w, 6), key = dd.slice(0, 4) === String(d.year) ? dd.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
+    // Monatszeile der Heatmap: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat, in dem die meisten ihrer Tage liegen – ihr Donnerstag) – nichts läuft über
+    const months = []; weeks.forEach(w => { const dd = addDays(w, 3), key = dd.slice(0, 4) === String(d.year) ? dd.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
     const gmax = Math.max(0, ...d.grid.flat());
     // Höhepunkte
     let best = [0, 0, 0]; d.grid.forEach((row, r) => row.forEach((v, h) => { if (v > best[0]) best = [v, r, h]; }));
@@ -802,7 +802,7 @@
       <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl bk-tbl bk-fees"><tr><th>Mitglied</th><th class="hm">Datum</th><th class="hm">Platz</th><th class="hm">Text</th><th class="r">Betrag</th><th>Status</th></tr>
         ${d.rows.map(x => `<tr ${x.manual ? `data-fm="${x.fee_id}"` : `data-b="${x.id}"`} data-d="${x.date}"><td><b>${esc(x.member)}</b><span class="muted s mo">${deDate(x.date)}${x.start ? ` · ${x.start}–${x.end}` : ' · von Hand gebucht'}</span></td><td class="hm nw">${deDate(x.date)}<span class="muted s" style="display:block">${x.start ? `${x.start}–${x.end}` : 'von Hand'}</span></td>
           <td class="hm">${esc(x.resource)}</td><td class="hm">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? `<span class="muted s" style="display:block">${deDate(x.paid_at)}</span>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Gebühren in dieser Auswahl.</p>'}</div>
-      <p class="muted s">Gast- und Platzgebühren entstehen beim Buchen und werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung → Finanzen). Dort werden sie als bezahlt gebucht oder mit dem Einzug abgerechnet. Mitglieder sehen ihre offenen Gebühren in der App, wenn unter „Mitglieder-App“ der Haken „Gebühren zeigen“ gesetzt ist.</p>`;
+      <p class="muted s">Gast- und Platzgebühren entstehen beim Buchen und werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung → Einzug & Zahlungen). Dort werden sie als bezahlt gebucht oder mit dem Einzug abgerechnet. Mitglieder sehen ihre offenen Gebühren in der App, wenn unter Mitglieder-App → Meine Daten „Forderungen & Zahlungen“ angehakt ist.</p>`;
     const again = () => showFees(el).catch(fail);
     el.querySelectorAll('#feF [data-f]').forEach(b => { b.onclick = () => { g.status = b.dataset.f; again(); }; });
     $('feY').onchange = () => { g.year = +val('feY'); again(); };

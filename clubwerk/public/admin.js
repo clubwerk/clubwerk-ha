@@ -737,7 +737,7 @@
       if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.open_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
       (ev || []).filter(e => e.open_member_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_member_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
       const first = DRINKS()[0][0];
-      drinksCard = modCard({ ic: 'verkauf', name: 'Verkauf', pill: low.length ? ['a', `${low.length} knapp`] : ['g', 'Alles gut'],
+      drinksCard = modCard({ ic: 'verkauf', name: 'Verkauf', pill: neg.length ? ['r', `${neg.length} negativ`] : low.length ? ['a', `${low.length} knapp`] : ['g', 'Alles gut'],   // nie „Alles gut“ neben der Warnung „negativer Bestand“
         big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
         det: ['Nachbestellen', `${low.length} Artikel`], go: low.length && can('bestellung') ? 'bestellung' : first });
     }
@@ -1324,8 +1324,8 @@
       const max = Math.max(0, ...Object.values(days));
       const jan1 = `${year}-01-01`, start = addD(jan1, -dowI(jan1)), weeks = [];
       for (let w = 0; w < 54; w++) { const wd = addD(start, w * 7); if (wd > `${year}-12-31`) break; weeks.push(wd); }
-      // Monatszeile: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat ihres Sonntags) – nichts läuft über
-      const months = []; weeks.forEach(w => { const d = addD(w, 6), key = d.slice(0, 4) === String(year) ? d.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
+      // Monatszeile: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat, in dem die meisten ihrer Tage liegen – ihr Donnerstag) – nichts läuft über
+      const months = []; weeks.forEach(w => { const d = addD(w, 3), key = d.slice(0, 4) === String(year) ? d.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
       return `<div class="ds-scroll"><div class="ds-heat" style="--w:${weeks.length}"><span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key - 1] : ''}</span>`).join('')}
         ${WD.map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addD(w, r), v = days[day] || 0, inY = day.slice(0, 4) === String(year);
           return `<i class="${inY ? '' : 'out'}" ${inY ? `title="${deDate(day)}: ${fmt(v)}"` : ''} style="${inY && v ? `background:${heat(v, max)}` : ''}"></i>`; }).join('')}`).join('')}</div></div>`;
@@ -2637,8 +2637,11 @@
   const PERM_SHORT = { lieferungen: 'Lieferungen', bestand: 'Bestand', bestellung: 'Bestellung', buchungen: 'Buchungen', export: 'Export',
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', arbeitseinsatz: 'Helferdienste',
-    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', maengel: 'Mängel' };
-  const permPills = list => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || p)}</span>`).join(' ');
+    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', maengel: 'Mängel',
+    email: 'E-Mail', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen',
+    buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
+  // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
+  const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');
   RENDER.benutzer = async () => {
     const [users, opt] = await Promise.all([api('users'), api('users/options')]);
     const roleName = id => (opt.roles.find(r => r.id === id) || {}).name;
@@ -2651,13 +2654,13 @@
     if (userTab === 'rollen') {
       $('uBody').innerHTML = `<table class="tbl"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
         ${opt.roles.map(r => `<tr><td><b>${esc(r.name)}</b>${r.dept_scope ? ' <span class="pill b">eigene Abteilung</span>' : ''}<div class="muted s">${esc(r.description || '')}</div></td>
-          <td>${permPills(r.perms) || '<span class="muted s">keine</span>'}</td><td class="r">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
+          <td>${permPills(r.perms, opt.permLabels) || '<span class="muted s">keine</span>'}</td><td class="r">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => roleDialog(opt.roles.find(x => x.id === +b.dataset.r), opt); });
     } else {
       $('uBody').innerHTML = `<table class="tbl"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
         ${users.map(u => `<tr class="${u.active ? '' : 'off'}"><td><b>${esc(u.member_id && u.name ? lastFirst(u.name) : u.name || u.username)}</b><div class="muted s">${esc(u.username)}${u.member_id ? ' · Mitglied' : ''}</div></td>
           <td>${u.builtin ? '<span class="pill g">Adminkonto</span>' : u.role === 'oberadmin' ? '<span class="pill g">alle Rechte</span>'
-            : [u.roles.map(id => `<span class="pill b" style="margin:1px">${esc(roleName(id) || '?')}</span>`).join(' '), u.extra.length ? permPills(u.extra) : ''].filter(Boolean).join(' ') || '<span class="muted s">keine Rechte</span>'}
+            : [u.roles.map(id => `<span class="pill b" style="margin:1px">${esc(roleName(id) || '?')}</span>`).join(' '), u.extra.length ? permPills(u.extra, opt.permLabels) : ''].filter(Boolean).join(' ') || '<span class="muted s">keine Rechte</span>'}
             ${u.departments.length && u.deptOnly.length ? `<div class="muted s" translate="no">${esc(u.departments.map(deptName).filter(Boolean).join(', '))}</div>` : ''}${u.active ? '' : ' <span class="pill">gesperrt</span>'}</td>
           <td>${u.last_login ? deTime(u.last_login) : '<span class="muted s">noch nie</span>'}</td>
           <td class="r"><button class="btn small" data-u="${u.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
@@ -3556,7 +3559,7 @@
               (x.unapproved || x.pending) && me.role === 'oberadmin' && x.hash ? `<button type="button" data-approve="${esc(x.id)}" data-fname="${esc(x.name)}" data-hash="${esc(x.hash)}">${x.pending ? 'Neue Version prüfen & freigeben …' : 'Prüfen & freigeben …'}</button>` : '',
             ].join('');
             return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon(({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', zeiterfassung: 'zeit' })[x.id] || (MODG['g-' + x.id] && MODG['g-' + x.id].icon) || PAGE_ICON[x.id] || 'modul', 20)}</span>
-              <div style="min-width:0"><b>${esc(x.name)}</b> <span class="pill srcb">${esc(SRC[x.source] || x.source)}</span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}</div>
+              <div style="min-width:0"><span class="nm"><b>${esc(x.name)}</b> <span class="pill srcb">${esc(SRC[x.source] || x.source)}</span></span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}</div>
               <span class="ver">${esc(x.version)}<span class="pill srca">${esc(SRC[x.source] || x.source)}</span></span>
               <span class="st">${off ? '<span class="pill">Nicht installiert</span>' : x.error ? '<span class="pill r">Fehler</span>' : x.active ? '<span class="pill g">Aktiv</span>' : '<span class="pill">Aus</span>'}</span>
               <span class="act">${off ? (mayUn && !x.error ? `<button class="btn small primary" data-inst="${esc(x.id)}" data-fname="${esc(x.name)}" style="width:84px;padding:0">Installieren</button>` : '<span></span>')

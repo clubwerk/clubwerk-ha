@@ -28,6 +28,7 @@
       .sp-nums { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .sp-team { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: start; }
       .sp-team h4 { margin: 0 0 4px; font-size: 16px; }
+      @media (max-width: 640px) { .sp-team { grid-template-columns: minmax(0, 1fr); } .sp-team > .row { justify-content: flex-start !important; } }   /* Knöpfe unter den Text, sonst wird er zur Wortsäule */
       .sp-pl { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
       .sp-pl span { background: var(--hover); border-radius: 8px; padding: 3px 9px; font-size: 13px; }
       .sp-pl span b { color: var(--muted); font-weight: 700; margin-right: 4px; }

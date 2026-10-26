@@ -224,7 +224,7 @@
   GK.RENDER.email = async () => {
     O = await api('mail/options');
     $('main').innerHTML = `<h2 class="page">E-Mail</h2>
-      <p class="lead">Mails an Mitglieder, Gruppen, Verteiler und freie Adressen – mit Formatierung, Anhängen und Platzhaltern. Gesendet wird über das Vereinspostfach mit deinem Namen; Antworten gehen an deine Adresse.</p>
+      <p class="lead">Mails an Mitglieder, Gruppen, Verteiler und freie Adressen – mit Formatierung, Anhängen und Platzhaltern. Gesendet wird über das Vereinspostfach mit deinem Namen; Antworten gehen an die Adresse unter „Absender“, ohne Eintrag ans Vereinspostfach.</p>
       ${O.ready ? '' : `<div class="banner a">${esc(T('Noch kein Postfach eingerichtet – Mails können erst nach Einstellungen → Postfach gesendet werden. Entwürfe gehen schon.'))}</div>`}
       <div id="mlTabs"></div>`;
     tabsCtl = GK.tabs($('mlTabs'), 'email', [['neu', 'Neue E-Mail'], ['entwuerfe', 'Entwürfe'], ['gesendet', 'Gesendet'], ['verteiler', 'Verteiler'], ['vorlagen', 'Vorlagen'], ['absender', 'Absender']], async (k, body) => {

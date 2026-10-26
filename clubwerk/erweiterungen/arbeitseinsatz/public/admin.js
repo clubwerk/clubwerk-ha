@@ -52,7 +52,8 @@
       .aw-xadd { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; margin-top: 8px; } .aw-xadd .btn { height: 40px; min-height: 40px; }
       .pill.aw-ph { padding-left: 2px; display: inline-flex; align-items: center; gap: 6px; } .pill.aw-ph img { width: 20px; height: 20px; border-radius: 50%; object-fit: cover; }
       .aw-lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
-      @media (max-width: 760px) { .aw-sh { grid-template-columns: 1fr; gap: 6px; } .aw-sh .acts { justify-content: flex-start; } .aw-phead .acts { justify-content: flex-start; } }
+      @media (max-width: 760px) { .aw-sh { grid-template-columns: 1fr; gap: 6px; } .aw-sh .acts { justify-content: flex-start; } .aw-phead .acts { justify-content: flex-start; }
+        .aw-ev { grid-template-columns: 64px minmax(0, 1fr); } .aw-ev .acts { grid-column: 1 / -1; justify-content: flex-start; } }   /* Knöpfe unter den Text, sonst wird er zur Wortsäule */
       .aw-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; max-height: 46vh; overflow: auto; padding: 4px 0; }`;
     document.head.appendChild(s);
   }
@@ -421,7 +422,7 @@
         <label class="chk"><input type="checkbox" id="sTab" ${c.tablet_auto ? 'checked' : ''}> Am Tablet gestempelte Stunden (mit PIN) gelten sofort als bestätigt</label>
         <label class="chk"><input type="checkbox" id="sApp" ${c.app_report ? 'checked' : ''}> Mitglieder dürfen Stunden in der App melden (Vorstand bestätigt)</label>
         <label class="chk"><input type="checkbox" id="sEvR" ${c.remind_events ? 'checked' : ''}> Helfer am Vortag per E-Mail erinnern</label></div>
-      <p class="muted s">Je Beitragsart lässt sich in der Mitgliederverwaltung ein eigenes Soll festlegen (z. B. „Kinder: keine“, „Familie: je Person“). Einzelne Ausnahmen in der Übersicht über „Soll …“.</p>
+      <p class="muted s">Je Beitragsart lässt sich in der Mitgliederverwaltung ein eigenes Soll festlegen (z. B. „Kinder: keine“, „Familie: je Person“). Einzelne Ausnahmen in der Übersicht über „Pflichtstunden …“.</p>
       <div class="row" style="justify-content:flex-end"><button class="btn primary" id="sSave">Speichern</button></div></div>
       <div class="card" data-nodirty><h3>Befreite Mitglieder</h3><p class="muted s" style="margin-top:0">Befreite Mitglieder können wie alle Stunden leisten (sie werden erfasst), haben aber kein Soll – es wird nichts eingezogen. Optional befristet.</p>
         <div class="aw-grid" style="--c:4"><label class="f">Mitglied<select id="exM"><option value="">– Mitglied wählen –</option>${(st.meta.members || []).map(m => opt(m.id, GK.lastFirst(m.name))).join('')}</select></label>

@@ -1,7 +1,7 @@
 {
   "id": "buchung",
   "name": "Buchungssystem",
-  "version": "1.9.2",
+  "version": "1.9.3",
   "kurz": "Plätze und Geräte buchen – per App und am Tablet.",
   "beschreibung": "Mitglieder buchen Plätze (z. B. Tennis, Padel) und Geräte (z. B. Ballmaschine) in der Mitglieder-App oder am Tablet im Vereinsheim: feste Zeitraster, Höchstdauer, Kontingent je Mitglied, Mitspieler und Gäste (Gastgebühr als offener Posten in der Mitgliederverwaltung), Warteliste. In der Verwaltung: Belegungsplan, Serienbuchungen für Training und Mannschaften, Platzsperren.",
   "minApp": "3.6.4",

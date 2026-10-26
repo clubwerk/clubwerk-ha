@@ -11,9 +11,9 @@ function register(sh) {
   /* Altersgruppen der Bestandserhebung (LSB Hessen; andere Landessportbünde ähnlich) */
   const LSB_GROUPS = [[0, 6, 'bis 6'], [7, 14, '7–14'], [15, 18, '15–18'], [19, 26, '19–26'], [27, 40, '27–40'], [41, 60, '41–60'], [61, 200, '61 und älter']];
 
-  /** Mitglieder an einem Stichtag (eingetreten, noch nicht ausgetreten) */
+  /** Mitglieder an einem Stichtag (eingetreten, noch nicht ausgetreten) – auch ohne erfasste Mitgliedsdaten, wie in der Liste */
   function membersAt(day) {
-    return db.prepare(`SELECT m.id, m.name, p.birth_date, p.gender, p.entry_date, p.exit_date, p.status FROM members m JOIN mv_person p ON p.member_id = m.id
+    return db.prepare(`SELECT m.id, m.name, p.birth_date, p.gender, p.entry_date, p.exit_date, p.status FROM members m LEFT JOIN mv_person p ON p.member_id = m.id
       WHERE m.kind = 'mitglied' AND m.deleted = 0 AND (p.entry_date IS NULL OR p.entry_date <= ?) AND (p.exit_date IS NULL OR p.exit_date >= ?)`).all(day, day);
   }
   function lsb(day) {

@@ -8330,6 +8330,20 @@
   "Was tun?": "What to do?",
   "z. B. Essen Sommerfest": "e.g. summer party food",
   "zahlt per {0}": "pays by {0}",
-  "Zum Beispiel Essen, Startgeld oder eine Kiste fürs Fest. Der Betrag steht danach auf dem Verkaufskonto und wird mit der nächsten Abrechnung bezahlt.": "For example food, an entry fee or a crate for a party. The amount then appears on the sales account and is paid with the next billing."
+  "Zum Beispiel Essen, Startgeld oder eine Kiste fürs Fest. Der Betrag steht danach auf dem Verkaufskonto und wird mit der nächsten Abrechnung bezahlt.": "For example food, an entry fee or a crate for a party. The amount then appears on the sales account and is paid with the next billing.",
+  "{0} negativ": "{0} negative",
+  "Belegung ansehen": "View occupancy",
+  "Bitte zuerst unter Beiträge → Beitragsarten & Abteilungen Beitragsarten anlegen (mit „auf dem Formular“).": "Please first create fee types under Fees → Fee types & departments (with “on the form”).",
+  "Bitte zuerst unter Beiträge → Beitragsarten & Abteilungen eine Abteilung anlegen.": "Please first create a department under Fees → Fee types & departments.",
+  "Buchung einrichten": "Set up bookings",
+  "Buchungen stornieren": "Cancel bookings",
+  "Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App → Verbindung). Der Online-Antrag liegt dort unter": "The member app address has not been entered yet (Member app → Connection). The online application is located there under",
+  "Für andere buchen": "Book for others",
+  "Gast- und Platzgebühren entstehen beim Buchen und werden als offener Posten beim buchenden Mitglied angelegt (Mitgliederverwaltung → Einzug & Zahlungen). Dort werden sie als bezahlt gebucht oder mit dem Einzug abgerechnet. Mitglieder sehen ihre offenen Gebühren in der App, wenn unter Mitglieder-App → Meine Daten „Forderungen & Zahlungen“ angehakt ist.": "Guest and court fees arise when booking and are created as an open item for the member who booked (Member management → Collection & payments). There they are marked as paid or settled with the direct debit. Members see their open fees in the app if “Claims & payments” is ticked under Member app → My data.",
+  "Gläubiger-ID oder Vereinskonto fehlen (Einstellungen → Verein & SEPA).": "Creditor ID or club account missing (Settings → Club & SEPA).",
+  "Je Beitragsart lässt sich in der Mitgliederverwaltung ein eigenes Soll festlegen (z. B. „Kinder: keine“, „Familie: je Person“). Einzelne Ausnahmen in der Übersicht über „Pflichtstunden …“.": "A separate target can be set per fee type in member management (e.g. “Children: none”, “Family: per person”). Individual exceptions via “Mandatory hours …” in the overview.",
+  "Mails an Mitglieder, Gruppen, Verteiler und freie Adressen – mit Formatierung, Anhängen und Platzhaltern. Gesendet wird über das Vereinspostfach mit deinem Namen; Antworten gehen an die Adresse unter „Absender“, ohne Eintrag ans Vereinspostfach.": "Emails to members, groups, distribution lists and any addresses – with formatting, attachments and placeholders. Sent via the club mailbox under your name; replies go to the address under “Sender”, or to the club mailbox if none is entered.",
+  "Noch keine Beitragsart mit Familienbeitrag angelegt (Beiträge → Beitragsarten & Abteilungen).": "No fee type with a family fee created yet (Fees → Fee types & departments).",
+  "Verein und SEPA-Lastschrift, Beitrittserklärung, Import und Datenschutz.": "Club and SEPA direct debit, membership application, import and data protection."
  }
 }
