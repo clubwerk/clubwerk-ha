@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.62.1
+
+**Sicherheitsupdates für verwendete Bausteine**
+- **Komprimierung (compression 1.8.2):** Brach ein Browser eine Antwort mittendrin ab, konnte Speicher liegen bleiben. Viele solche Abbrüche hätten den Server ausbremsen können.
+- **Annahme von Daten (body-parser 2.4.0, Teil von Express):** Eine gezielt präparierte, gepackte Anfrage konnte den Server beschäftigen. Das betraf auch die Mitglieder-App, wenn sie von außen erreichbar ist.
+- **Mailversand (nodemailer 10.2.1):** Ungewöhnlich geschriebene E-Mail-Adressen (mit Anführungszeichen, Klammern oder Semikolon) konnten falsch zerlegt werden, sodass eine Mail an eine andere Adresse gehen konnte als angezeigt.
+- An der Bedienung ändert sich nichts.
+
 ## 3.62.0
 
 **Mitglieder-App startet mit „Für mich“ (Etappe 16 des Menü-Umbaus)**
