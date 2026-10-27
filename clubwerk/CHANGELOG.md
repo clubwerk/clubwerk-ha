@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.68.0
+
+**Verkauf am Tablet im neuen Aussehen „Anzeigetafel“ – Buchen, Warenkorb, Fenster, Veranstaltung und Deckel (Etappe D2-2 des Design-Umbaus)**
+- **Buchen:** Die Artikelkacheln haben einen weichen Schatten statt eines harten Rahmens; Preise und Mengen stehen in der schmalen Zahlenschrift. „Mein Konto“, „PIN ändern“ und „Anderes Mitglied“ sind ruhige, runde Knöpfe. Am Handy teilen sich die drei Knöpfe die Zeile, nichts ragt mehr über den Rand.
+- **Warenkorb:** Die Auswahl rechts ist jetzt eine eigene Karte. Die Summe steht groß in der Zahlenschrift, „Buchen“ ist der einzige Hauptknopf.
+- **Fenster (PIN, Mein Konto, Deckel, Betrag, Bezahlen):** Beträge stehen in der Zahlenschrift; in „Mein Konto“ stehen Datum und Beträge sauber in Spalten, die Beträge rechtsbündig.
+- **Veranstaltung und Gäste-Deckel:** Statt eines orangen Kastens gibt es eine ruhige weiße Karte mit einem Farbstrich am Rand (wie die Hinweise in der Verwaltung). Die Deckel-Kacheln sehen aus wie die Mitgliederkacheln; am Handy stehen sie untereinander, damit Namen und Beträge ganz lesbar sind.
+- „Gerade oft hier“ zeigt weiterhin nur die Namen, keine Besuchszahl (Datenschutz am Tablet).
+- Nur das Aussehen ändert sich – keine Abläufe, keine Beträge.
+
 ## 3.67.0
 
 **Neues Aussehen „Anzeigetafel“: Spielbetrieb (Verwaltung, Mitglieder-App, Gast-Seite)**

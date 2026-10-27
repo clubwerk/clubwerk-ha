@@ -230,7 +230,7 @@
     const cents = session.open || 0;
     openDialog(`<h2>Deckel „${esc(session.tab.name)}“ bezahlen</h2>
       <div class="muted">${cents ? 'Erst kassieren, dann hier antippen, wie bezahlt wurde.' : 'Auf dem Deckel steht nichts – er wird einfach geschlossen.'}</div>
-      <div class="total" style="font-size:44px;font-weight:800;text-align:center;margin:18px 0">${euro(cents)}</div>
+      <div class="amount">${euro(cents)}</div>
       <div class="paybtns">
         ${cents ? `<button class="btn primary" data-pay="bar">Bar bezahlt</button><button class="btn" data-pay="karte">Mit Karte bezahlt</button>`
           : '<button class="btn primary" data-pay="bar">Deckel schließen</button>'}
@@ -458,7 +458,7 @@
           const nm = splitSize(a.name);
           return `<button data-a="${a.id}" class="${q ? 'sel' : ''} ${a.soldOut ? 'out' : ''}" aria-label="${esc(a.name)}, ${euro(a.price_cents)}${q ? ', ausgewählt: ' + q : ''}">
             <span class="ti ${a.image ? 'img' : ''}" style="${tileStyle(a)}">${artInner(a, 28)}${q ? `<span class="badge">${q}</span>` : ''}</span>
-            <span class="tx"><b>${esc(nm.name)}</b><span class="sub">${nm.size ? esc(nm.size) + ' · ' : ''}${euro(a.price_cents)}</span></span></button>`;
+            <span class="tx"><b>${esc(nm.name)}</b><span class="sub">${nm.size ? esc(nm.size) + ' · ' : ''}<span class="num">${euro(a.price_cents)}</span></span></span></button>`;
         }).join('')}
       </div></div>`).join('') +
       (free ? `<div class="cat" data-n="1"><h3>Sonstiges</h3><div class="arts">
@@ -733,7 +733,7 @@
       if (session.mode === 'guest') {
         const st = x => x.transferred_at ? 'auf Konto übernommen' : x.payment_id ? (x.method === 'karte' ? 'mit Karte bezahlt' : 'bar bezahlt') : 'offen';
         openDialog(`<h2>Meine Liste</h2><div class="muted">${esc(r.guest.name)} · ${esc(r.event)}</div>
-          <div style="font-size:26px;font-weight:700;margin:10px 0">${euro(r.open_cents)} offen</div>
+          <div class="amount sm">${euro(r.open_cents)}<small>offen</small></div>
           <table class="acc">${r.rows.map(x => `<tr><td>${when(x)}</td><td>${x.qty} × ${esc(x.name)}<br><span class="muted" style="font-size:13px">${st(x)}</span></td><td class="r">${euro(x.total_cents)}</td></tr>`).join('') || '<tr><td>Noch nichts angeschrieben.</td></tr>'}</table>
           <div style="margin-top:16px;text-align:right"><button class="btn primary" id="closeAcc">Schließen</button></div>`);
         $('closeAcc').onclick = closeDialog;
@@ -742,7 +742,7 @@
       }
       openDialog(`<h2>Mein Konto</h2>
         <div class="muted">${r.lastSettled ? 'zuletzt abgerechnet am ' + new Date(r.lastSettled.replace(' ', 'T')).toLocaleDateString('de-DE') : 'noch nicht abgerechnet'}</div>
-        <div style="font-size:26px;font-weight:700;margin:10px 0">${euro(r.balance.cents)} offen</div>
+        <div class="amount sm">${euro(r.balance.cents)}<small>offen</small></div>
         ${r.eventOpen_cents ? `<div class="muted" style="margin:-4px 0 10px">+ ${euro(r.eventOpen_cents)} auf einer Veranstaltungsliste noch offen</div>` : ''}
         <table class="acc">${r.rows.map(x => `<tr><td>${new Date(x.created_at.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</td>
           <td>${x.qty} × ${esc(x.name)}${x.event ? `<br><span class="muted" style="font-size:13px">${esc(x.event)}${x.kind === 'event' ? ' · Veranstaltungsliste' : (x.transferred_at ? ' · übernommen' : '')}</span>` : ''}</td><td class="r">${euro(x.total_cents)}</td></tr>`).join('') || '<tr><td>Noch keine Buchungen.</td></tr>'}</table>
