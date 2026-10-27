@@ -11,10 +11,24 @@
 <link rel="stylesheet" href="../../style.css">
 <link rel="stylesheet" href="../../theme.css">
 <link rel="stylesheet" href="../../kit.css">
+<style>
+  /* Turniertag: Fenster wie bei den Mängeln (Namen suchen, große Knöpfe), Sätze in Anzeigetafel-Ziffern */
+  .dialog input.q { width: 100%; height: 54px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; font-size: 18px; background: var(--field); color: var(--ink); box-sizing: border-box; user-select: text; -webkit-user-select: text; }
+  .dlg-btns { display: grid; grid-template-columns: 1fr; gap: 10px; margin-top: 14px; }
+  .dlg-btns button { height: 56px; border-radius: 14px; font: inherit; font-size: 18px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .dlg-btns button.pri { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
+  .dlg-btns button:disabled { opacity: .6; }
+  .tl-p { color: var(--ink); font-size: 16px; line-height: 1.5; margin: 10px 0 0; }
+  .tl-p .muted { color: var(--muted); }
+  .tl-sets { display: grid; grid-template-columns: minmax(0, 1fr) 76px 12px 76px; gap: 10px; align-items: center; margin: 14px 0 0; text-align: left; }
+  .tl-sets .h { font-size: 13px; font-weight: 700; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tl-sets .c { text-align: center; color: var(--muted); font-weight: 700; }
+  .tl-sets input { width: 100%; box-sizing: border-box; height: 56px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); color: var(--ink); text-align: center; font-family: var(--num); font-size: 22px; font-weight: 600; }
+</style>
 </head>
 <body class="tk embedded">
 <header id="gkHeader"></header>
-<main><div class="tab-head"><div><h1 class="tab-title">Turniere</h1><p class="tab-sub" id="sub">Tabellen und Endrunde der Clubmeisterschaft – Termine und Ergebnisse trägst du in der Mitglieder-App ein.</p></div></div>
+<main><div class="tab-head"><div><h1 class="tab-title">Turniere</h1><p class="tab-sub" id="sub">Turniertag und Clubmeisterschaft – einchecken, Ergebnisse und Tabellen.</p></div></div>
 <div id="view"><div class="tk-empty">Lade …</div></div>
 </main>
 <div id="gate" class="gate hidden"><form class="gatecard" id="gateForm" autocomplete="on" action="#">
@@ -25,9 +39,11 @@
   <div class="gerr" id="gateErr"></div>
   <button type="button" class="btn primary" id="gateGo">Freischalten</button>
 </form></div>
+<div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
 <div id="toast" class="toast hidden"></div>
 <script src="../../nav.js" data-base="../../" data-active="turniere"></script>
 <script src="ansicht.js"></script>
+<script src="lk-tablet.js"></script>
 <script src="tablet.js"></script>
 </body>
 </html>

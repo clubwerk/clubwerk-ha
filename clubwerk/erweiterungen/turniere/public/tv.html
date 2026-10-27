@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6b3a">
+<meta name="robots" content="noindex">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<script src="../../theme-init.js"></script>
+<title>Turnier – Fernseher</title>
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../theme.css">
+<link rel="stylesheet" href="../../kit.css">
+<style>
+  /* Fernseher im Clubhaus: Plätze wie auf einer Anzeigetafel – groß, ruhig, aus der Entfernung lesbar. Nur Farb-Tokens. */
+  body.tv { margin: 0; background: var(--bg); color: var(--ink); min-height: 100dvh; }
+  .tv-top { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding: 24px 32px 12px; }
+  .tv-top h1 { margin: 0; font-size: clamp(24px, 3vw, 40px); line-height: 1.15; overflow-wrap: anywhere; }
+  .tv-top p { margin: 4px 0 0; color: var(--muted); font-size: clamp(15px, 1.5vw, 20px); }
+  .tv-clock { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: clamp(36px, 5vw, 72px); line-height: 1; color: var(--brand-ink); }
+  .tv-main { padding: 8px 32px 32px; display: grid; gap: 20px; }
+  .tv-courts { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 16px; }
+  .tv-court { background: var(--card); border: 1px solid var(--edge); border-radius: var(--r-tile); box-shadow: var(--shadow); padding: 16px 20px; min-width: 0; display: grid; gap: 10px; }
+  .tv-court h2 { margin: 0; font-size: clamp(18px, 1.6vw, 24px); display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .tv-court h2 span { font-family: var(--num); font-weight: 600; font-size: .9em; color: var(--muted); white-space: nowrap; }
+  .tv-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: center; }
+  .tv-row b { font-size: clamp(17px, 1.6vw, 24px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tv-row b.w { color: var(--brand-ink); }
+  .tv-row .s { display: flex; gap: 8px; font-family: var(--num); font-weight: 600; font-size: clamp(20px, 2vw, 30px); font-variant-numeric: tabular-nums; color: var(--muted); }
+  .tv-row .s .w { color: var(--ink); }
+  .tv-next { border-top: 1px solid var(--line); padding-top: 10px; color: var(--muted); font-size: clamp(14px, 1.3vw, 18px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tv-next .num { color: var(--ink); font-size: 1.15em; }
+  .tv-late { color: var(--red); font-weight: 700; }
+  .tv-free { color: var(--muted); font-size: clamp(16px, 1.5vw, 20px); }
+  .tv-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 16px; }
+  .tv-box { background: var(--card); border: 1px solid var(--edge); border-radius: var(--r-tile); box-shadow: var(--shadow); padding: 16px 20px; min-width: 0; }
+  .tv-box h2 { margin: 0 0 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .tv-box .tv-row { padding: 8px 0; border-top: 1px solid var(--line); }
+  .tv-box .tv-row:first-of-type { border-top: 0; }
+  .tv-box small { grid-column: 1 / -1; color: var(--muted); font-size: 14px; }
+  .tv-empty { color: var(--muted); font-size: 20px; padding: 40px 32px; }
+  @media (max-width: 640px) { .tv-top, .tv-main { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body class="tk tv">
+<header class="tv-top"><div><h1 id="tvName">Turnier</h1><p id="tvSub">&nbsp;</p></div><div class="tv-clock" id="tvClock"></div></header>
+<main class="tv-main" id="tv"><div class="tv-empty">Lade …</div></main>
+<div id="gate" class="gate hidden"><form class="gatecard" id="gateForm" autocomplete="on" action="#">
+  <h2>Seite gesperrt</h2>
+  <p>Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="text" name="username" autocomplete="username" value="Vereinsheim" tabindex="-1" aria-hidden="true" readonly style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+  <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password">
+  <div class="gerr" id="gateErr"></div>
+  <button type="button" class="btn primary" id="gateGo">Freischalten</button>
+</form></div>
+<script src="tv.js"></script>
+</body>
+</html>

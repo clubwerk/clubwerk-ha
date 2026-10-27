@@ -10,6 +10,7 @@
    Spieler melden sich in der Mitglieder-App an, vereinbaren Termine selbst (mit Platzbuchung, wenn das Modul „Plätze“ aktiv ist)
    und tragen Ergebnisse ein; der Sportwart (Recht „turniere“) lost aus, korrigiert und setzt Fristen.
    Wertung (Sätze prüfen, Tabelle, direkter Vergleich): lib/wertung.js
+   Zweiter Teil – LK-Turniertag mit nuLiga-Import, Check-in, Turnierzentrale, Zeitplan, Fernseher und Spielerseite: lk.js
    ===================================================================================================== */
 const { today, addDays, deD, isDate, nowTs } = require('../../src/util');
 const W = require('./lib/wertung');
@@ -861,9 +862,12 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     res.json({ ok: true, cfg: cfg() });
   });
 
+  /* ================================================================= LK-Turniertag mit nuLiga-Import (lk.js) */
+  const LK = require('./lk').activate(ctx, { P, ar, hook, bookingOn });
+
   /* ================================================================= für den Kern und andere Module */
   ctx.hooks.appVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get());
-  ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get());
+  ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get()) || LK.tabletVisible();
   /* „Für mich“: eigene Spiele mit Termin, sonst eine Zeile mit Offenem (Anmeldung, Spiele ohne Termin) */
   ctx.hooks.forMe = (mid, { until }) => {
     const s = current(); if (!s || s.closed_at) return {};
@@ -884,13 +888,14 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     return out;
   };
   ctx.hooks.overview = () => {
-    const s = current(); if (!s || s.closed_at) return { kpis: [], alerts: [] };
+    const lk = LK.overview(), s = current();
+    if (!s || s.closed_at) return lk;
     const ms = matchesOf(s.id), d0 = today();
     const late = ms.filter(m => !decided(m) && dueOf(s, m) && dueOf(s, m) < d0).length;
     const alerts = [];
     if (!s.drawn_at && !s.paired_at && s.reg_until && s.reg_until < d0) alerts.push({ level: 'a', text: `${s.name}: Die Anmeldung ist vorbei – jetzt die Gruppen auslosen.`, sec: ['tab_turniere', 'teilnehmer'] });
     if (late) alerts.push({ level: 'a', text: `${s.name}: ${late} ${late === 1 ? 'Spiel ist' : 'Spiele sind'} überfällig.`, sec: ['tab_turniere', 'spiele'] });
-    return { kpis: [{ l: 'Offene Turnierspiele', v: ms.filter(m => !decided(m)).length }], alerts };
+    return { kpis: [{ l: 'Offene Turnierspiele', v: ms.filter(m => !decided(m)).length }, ...lk.kpis], alerts: [...alerts, ...lk.alerts] };
   };
   ctx.hooks.memberLinks = id => {
     const out = [];
@@ -908,11 +913,12 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     else { db.prepare('UPDATE tu_team SET p1 = NULL WHERE p1 = ?').run(fromId); db.prepare('UPDATE tu_team SET p2 = NULL WHERE p2 = ?').run(fromId); }
     db.prepare('DELETE FROM tu_player WHERE member_id = ?').run(fromId);
   };
-  ctx.hooks.exportConfig = () => ({ settings: cfg() });
+  ctx.hooks.exportConfig = () => ({ settings: cfg(), lk: LK.exportCfg() });
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const n = int((data.settings || {}).minutes);
     if ([60, 90, 120, 150, 180].includes(n)) SET('minutes', n);
+    if (data.lk) LK.importCfg(data.lk);
     return 'Einstellungen übernommen';
   };
 }

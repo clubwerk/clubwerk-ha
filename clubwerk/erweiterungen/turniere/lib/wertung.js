@@ -33,8 +33,10 @@ function parseSets(list) {
 /**
  * Ergebnis prüfen → { result, sets, winner } (normiert) oder Fehler (status 400) mit verständlichem Text.
  * input: { result, sets, winner (bei wo), retired ('a'|'b' bei Aufgabe) }
+ * opts.full: dritter Satz als normaler Satz statt Match-Tiebreak (nuLiga-Zählweise CT_LEGACY)
  */
-function checkResult(input) {
+function checkResult(input, opts = {}) {
+  const full = Boolean(opts.full);
   const result = ['normal', 'wo', 'aufgabe', 'ausgefallen'].includes(input && input.result) ? input.result : 'normal';
   if (result === 'ausgefallen') return { result, sets: [], winner: null };
   if (result === 'wo') {
@@ -43,23 +45,23 @@ function checkResult(input) {
   }
   const sets = parseSets(input.sets);
   const won = { a: 0, b: 0 };
-  const label = i => (i === 2 ? 'Match-Tiebreak' : `Satz ${i + 1}`);
+  const label = i => (i === 2 && !full ? 'Match-Tiebreak' : `Satz ${i + 1}`);
   if (result === 'normal') {
     if (sets.length < 2) fail('Bitte mindestens zwei Sätze eintragen.');
     sets.forEach(([x, y], i) => {
       if (won.a === 2 || won.b === 2) fail('Nach zwei gewonnenen Sätzen ist das Spiel entschieden – bitte keinen dritten Satz eintragen.');
-      if (i < 2 && !regular(x, y)) fail(`${label(i)}: ${x}:${y} ist kein gültiges Satzergebnis (z. B. 6:4, 7:5 oder 7:6).`);
-      if (i === 2 && !tiebreak(x, y)) fail(`Match-Tiebreak: ${x}:${y} ist kein gültiges Ergebnis (bis 10, mit 2 Punkten Abstand, z. B. 10:7 oder 12:10).`);
+      if ((i < 2 || full) && !regular(x, y)) fail(`${label(i)}: ${x}:${y} ist kein gültiges Satzergebnis (z. B. 6:4, 7:5 oder 7:6).`);
+      if (i === 2 && !full && !tiebreak(x, y)) fail(`Match-Tiebreak: ${x}:${y} ist kein gültiges Ergebnis (bis 10, mit 2 Punkten Abstand, z. B. 10:7 oder 12:10).`);
       won[side(x, y)]++;
     });
-    if (won.a < 2 && won.b < 2) fail('Bei 1:1 Sätzen bitte den Match-Tiebreak eintragen.');
+    if (won.a < 2 && won.b < 2) fail(full ? 'Bei 1:1 Sätzen bitte den dritten Satz eintragen.' : 'Bei 1:1 Sätzen bitte den Match-Tiebreak eintragen.');
     return { result, sets, winner: won.a === 2 ? 'a' : 'b' };
   }
   // Aufgabe: gespielte Sätze, der letzte darf noch laufen
   if (!['a', 'b'].includes(input.retired)) fail('Bitte wählen, wer aufgegeben hat.');
   sets.forEach(([x, y], i) => {
     if (won.a === 2 || won.b === 2) fail('Nach zwei gewonnenen Sätzen ist das Spiel entschieden – bitte keinen weiteren Satz eintragen.');
-    const last = i === sets.length - 1, tb = i === 2;
+    const last = i === sets.length - 1, tb = i === 2 && !full;
     const done = tb ? tiebreak(x, y) : regular(x, y);
     if (!done && !(last && (tb ? tiebreakOpen(x, y) : regularOpen(x, y)))) fail(`${label(i)}: ${x}:${y} ist kein gültiger Spielstand.`);
     if (done) won[side(x, y)]++;

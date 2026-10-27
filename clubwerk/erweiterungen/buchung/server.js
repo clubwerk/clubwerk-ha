@@ -1405,6 +1405,38 @@ function activate(ctx) {
     return Object.fromEntries(db.prepare(`SELECT b.id, b.status, b.date, b.start, b.end, r.name AS resource FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.id IN (${list.map(() => '?').join(',')})`).all(...list)
       .map(b => [b.id, { status: b.status, resource: b.resource, date: b.date, start: b.start, end: b.end }]));
   };
+  /** Plätze für die Zuordnung im Turniermodul → [{ id, name }] */
+  ctx.hooks.courtList = () => resources().filter(r => r.kind === 'platz').map(r => ({ id: r.id, name: r.name }));
+  /**
+   * Turniertag: Plätze sperren (Sperren mit Schlüssel „tu:…“). locks = gewünschter Stand [{ resource_id, date, start, end }] –
+   * fehlende Sperren entstehen, nicht mehr gewünschte fallen weg; Buchungen in der Zeit werden storniert (mit Nachricht).
+   * preview: nur zählen → { made, removed, conflicts: [{ resource, date, start, end, title }] }
+   */
+  ctx.hooks.courtLock = async ({ key, locks = [], title = 'Turnier', by = 'Turniere', preview = false }) => {
+    if (!/^tu:[\w:-]{1,60}$/.test(String(key || ''))) return { error: 'Ungültiger Schlüssel.' };
+    const want = (locks || []).slice(0, 200).map(l => ({ r: resource(l.resource_id), date: String(l.date || ''), s: tm(l.start), e: tm(l.end) === 0 ? 1440 : tm(l.end) }))
+      .filter(l => l.r && l.r.kind === 'platz' && !l.r.deleted && isDate(l.date) && l.s != null && l.e > l.s);
+    const have = db.prepare("SELECT * FROM bk_booking WHERE ext_key = ? AND type = 'sperre' AND status = 'aktiv'").all(key);
+    const same = (b, l) => b.resource_id === l.r.id && b.date === l.date && b.start === hhmm(l.s) && b.end === hhmm(l.e);
+    const drop = have.filter(b => !want.some(l => same(b, l))), add = want.filter(l => !have.some(b => same(b, l)));
+    const conflicts = add.flatMap(l => db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND type != 'sperre' AND start < ? AND end > ?").all(l.r.id, l.date, hhmm(l.e), hhmm(l.s)));
+    const view = c => ({ resource: (resource(c.resource_id) || {}).name, date: c.date, start: c.start, end: c.end, title: c.title || (c.member_id ? lastFirst(nameOf(c.member_id)) : '') });
+    if (preview) return { made: add.length, removed: drop.length, conflicts: conflicts.map(view) };
+    const t = txt(title, 160) || 'Turnier', who = txt(typeof by === 'string' ? by : by && (by.name || by.username), 60) || 'Turniere';
+    db.transaction(() => {
+      for (const b of drop) db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = 'Turnier-Sperre aufgehoben' WHERE id = ?").run(nowTs(), who, b.id);
+      const ins = db.prepare("INSERT INTO bk_booking(resource_id, date, start, end, type, title, source, created_by, ext_key) VALUES (?,?,?,?,'sperre',?,'verwaltung',?,?)");
+      for (const l of add) ins.run(l.r.id, l.date, hhmm(l.s), hhmm(l.e), t, who, key);
+    })();
+    for (const b of drop) await wakeWaitlist(b);
+    for (const c of conflicts) {
+      const b0 = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(c.id); if (!b0) continue;
+      await cancel(b0, who, `Platz gesperrt: ${t}`);
+      if (b0.member_id && b0.type === 'buchung') notifyLockCancel(b0, t);
+    }
+    if (add.length || drop.length) ctx.audit(by, add.length ? 'Platz gesperrt' : 'Sperre aufgehoben', `${t}: ${add.length} gesperrt, ${drop.length} aufgehoben${conflicts.length ? `, ${conflicts.length} Buchungen storniert` : ''}`);
+    return { made: add.length, removed: drop.length, cancelled: conflicts.length };
+  };
 
   admin.post('/series', PS, ar(async (req, res) => {
     const b = req.body || {};

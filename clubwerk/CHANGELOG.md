@@ -1,5 +1,20 @@
 # Änderungen
 
+## 3.74.0
+
+**Turniere: LK-Turniertag mit nuLiga-Import (neue Seite „Turniertag“)**
+- **Neue Seite „Turniertag“** in der Verwaltung (Recht „Turniere“). Die bisherige Seite heißt jetzt **„Clubmeisterschaft“**.
+- **Import aus nuLiga:** die XML-Datei je Turnier (Turnier-Export). Mehrere Turniere am selben Wochenende werden ein Turniertag. Dazu optional die Meldeliste als CSV – sie bringt die genaue LK (z. B. 16,1) und „bar“ als Zahlungsart. Konkurrenzen ohne Meldungen werden übersprungen. Übernommen werden nur Name, Verein, LK, Geschlecht, Geburtsjahr und die nuLiga-Nummern – keine Anschriften, E-Mails oder Telefonnummern.
+- **Neu einlesen** (z. B. nach einer Nachmeldung): Clubwerk zeigt vorher, was sich ändert (neue Spieler, geänderte LK, neue Planung, entfallene Matches). Check-in, Zahlungen, Ergebnisse und deine Umplanungen bleiben.
+- **Check-in** in der Verwaltung und am Tablet: einchecken, Nenngeld bar oder digital, „abwesend“ und „wieder da“, Sortierung nach Nachname, Startzeit oder LK. Zeitwünsche aus nuLiga („bitte nur vormittags“) sind sichtbar. Das Nenngeld läuft in einem eigenen **Kassenbericht** (gesamt, bar, digital, offen) – nicht in der Verkaufskasse.
+- **Turnierzentrale:** je Platz das laufende Match mit Spielzeit und das nächste mit voraussichtlicher Uhrzeit, ob es bereit ist (beide eingecheckt, nicht abwesend, nicht noch auf einem anderen Platz) und wie viel es über Plan liegt. Dazu die **Warteschlange**, „**Freie Plätze belegen**“ (bereite Matches auf freie Plätze, die für die automatische Verteilung frei gegeben sind) und „**Ursprüngliche Planung**“ zurück zu nuLiga. „Match starten“ hält die Startzeit fest.
+- **Zeitplan:** je Platz eine Spalte mit roter Linie für jetzt. Läuft ein Match länger, rutschen die folgenden Matches desselben Platzes und derselben Spieler (mit Pause) nach hinten und sind markiert. Am Handy Platz für Platz. Dauer je Match und Pause unter „Einstellungen“.
+- **Ergebnisse** tragen die Spieler nach dem Match am Tablet ein (einmal) oder die Turnierleitung (auch kampflos, Aufgabe, korrigieren). Unmögliche Ergebnisse werden abgelehnt. Folgerunden ohne Paarung lassen sich von Hand besetzen, bis nuLiga neu exportiert ist. Reiter „Ergebnisse“: Liste je Konkurrenz und Runde in der Reihenfolge von nuLiga zum Abtippen, auch zum Drucken.
+- **Plätze:** entstehen aus den Platznamen in nuLiga; weitere (z. B. „Halle Platz A“) von Hand. Jeder Platz lässt sich einem Platz des Buchungssystems zuordnen – „Plätze sperren …“ sperrt ihn an den Turniertagen (vorher siehst du, welche Buchungen storniert würden; die Mitglieder bekommen Bescheid). Ohne das Modul „Plätze“ läuft alles ohne Sperren.
+- **Fernseher im Clubhaus:** eigene Seite (Adresse unter Turniertag › Einstellungen) mit allen Plätzen, Verzug, Warteschlange und letzten Ergebnissen – aktualisiert sich selbst.
+- **Spielerseite per QR-Code** (beim Check-in zeigen oder alle auf einmal drucken): ohne Konto und ohne App, nur ansehen – nächstes Match, Ablauf des Platzes, eigene Ergebnisse. Sie läuft über die Adresse der Mitglieder-App, gilt nur für dieses Turnier und nur bis zu seinem Ende.
+- **Datenschutz:** Spieler fremder Vereine werden nach einer einstellbaren Frist nach dem Turnier gelöscht (Standard 30 Tage), eigene Mitglieder bleiben.
+- **Plätze (Buchungssystem):** kann jetzt Plätze für einen Turniertag sperren und wieder freigeben (für das Modul „Turniere“).
 ## 3.73.0
 
 **Buchhaltung und Mängel im neuen Aussehen „Anzeigetafel“ (Etappe D2-9 des Design-Umbaus)**

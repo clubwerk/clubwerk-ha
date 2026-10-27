@@ -1,6 +1,8 @@
 'use strict';
-/* Verwaltungsseite „Turniere“ (Clubmeisterschaft): Reiter Übersicht · Teilnehmer · Spiele · Tabellen · Einstellungen.
-   Tabellen und K.-o.-Baum aus ansicht.js – dieselben Bausteine wie in der Mitglieder-App und am Tablet. */
+/* Verwaltungsseiten des Moduls „Turniere“:
+   „Clubmeisterschaft“ – Reiter Übersicht · Teilnehmer · Spiele · Tabellen · Ehrentafel · Einstellungen (hier).
+   „Turniertag“ – LK-Turniere mit nuLiga-Import (lk-admin.js, wird beim ersten Öffnen nachgeladen).
+   Tabellen, K.-o.-Baum und Ergebnis-Anzeige aus ansicht.js – dieselben Bausteine wie in der Mitglieder-App und am Tablet. */
 (() => {
   const GK = window.GK;
   const { $, esc, toast, fail } = GK;
@@ -396,7 +398,7 @@
   async function render() {
     await meta(); await loadView();
     await season();
-    $('main').innerHTML = `<h2 class="page">Turniere</h2><p class="lead" id="tuLead"></p><div id="tuTabs"></div>`;
+    $('main').innerHTML = `<h2 class="page">Clubmeisterschaft</h2><p class="lead" id="tuLead"></p><div id="tuTabs"></div>`;
     lead();
     if (!st.d) {
       $('tuTabs').innerHTML = `<div class="card"><p class="empty">Noch keine Clubmeisterschaft angelegt – mit „+ Neue Saison“ geht es los: Ligen, Anmeldeschluss und Fristen festlegen, dann melden sich die Mitglieder in der App an.</p>
@@ -414,7 +416,9 @@
       return showSettings(el);
     });
   }
-  GK.registerPage({ key: 'turniere', title: 'Turniere', perm: 'turniere', render, icon: 'turnier', order: 2.7 });
+  GK.registerPage({ key: 'turniere', title: 'Clubmeisterschaft', perm: 'turniere', render, icon: 'turnier', order: 2.7 });
+  const loadLK = () => new Promise(res => { if (window.TurnierLK) return res(); const sc = document.createElement('script'); sc.src = 'x/turniere/lk-admin.js'; sc.onload = res; sc.onerror = res; document.body.appendChild(sc); });
+  GK.registerPage({ key: 'turniertag', title: 'Turniertag', perm: 'turniere', icon: 'turnier', order: 2.71, render: async () => { await loadView(); await loadLK(); if (!window.TurnierLK) throw new Error('Die Seite „Turniertag“ konnte nicht geladen werden.'); return window.TurnierLK.render(); } });
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Clubmeisterschaft', page: 'turniere', tab: ['turniere', 'uebersicht'], kind: 'reiter', in: 'Übersicht', words: 'Turnier Saison Vereinsmeisterschaft Liga', boost: 1 },
     { label: 'Neue Saison anlegen', page: 'turniere', tab: ['turniere', 'uebersicht'], btn: '+ Neue Saison', kind: 'aktion', in: 'Übersicht', words: 'Clubmeisterschaft Ligen Fristen Anmeldeschluss' },
@@ -427,6 +431,14 @@
     { label: 'Einteilung importieren', page: 'turniere', tab: ['turniere', 'teilnehmer'], kind: 'aktion', in: 'Teilnehmer › Import (vor der Auslosung)', words: 'Excel CSV Vorsaison Liste' },
     { label: 'Ehrentafel der Clubmeister', page: 'turniere', tab: ['turniere', 'ehrentafel'], kind: 'reiter', in: 'Ehrentafel', words: 'Clubmeister Sieger Jahre Saisonabschluss' },
     { label: 'Platzbuchung für Turnierspiele', page: 'turniere', tab: ['turniere', 'einstellungen'], card: 'Platzbuchung', in: 'Einstellungen', words: 'Dauer Spiel Stunden Platz buchen' },
+    { label: 'Turniertag (LK-Turnier)', page: 'turniertag', tab: ['turniertag', 'zentrale'], kind: 'reiter', in: 'Zentrale', words: 'LK Turnier nuLiga Turnierzentrale Plätze Warteschlange verteilen', boost: 1 },
+    { label: 'Turnier aus nuLiga importieren', page: 'turniertag', tab: ['turniertag', 'zentrale'], btn: 'Neu einlesen', kind: 'aktion', in: 'Zentrale', words: 'nuLiga XML CSV Import Meldeliste Nachmeldung' },
+    { label: 'Zeitplan des Turniertags', page: 'turniertag', tab: ['turniertag', 'zeitplan'], kind: 'reiter', in: 'Zeitplan', words: 'Verzug Uhrzeit Platz Matches nachrutschen' },
+    { label: 'Check-in und Nenngeld', page: 'turniertag', tab: ['turniertag', 'checkin'], kind: 'reiter', in: 'Check-in', words: 'einchecken abwesend bar digital Kassenbericht QR-Code Spielerseite' },
+    { label: 'Ergebnisliste für nuLiga', page: 'turniertag', tab: ['turniertag', 'ergebnisse'], kind: 'reiter', in: 'Ergebnisse', words: 'abtippen drucken Runde Konkurrenz' },
+    { label: 'Turnierplätze und Sperre im Buchungssystem', page: 'turniertag', tab: ['turniertag', 'plaetze'], card: 'Sperre im Buchungssystem', in: 'Plätze', words: 'sperren Halle Platz zuordnen' },
+    { label: 'Löschfrist fremder Spieler', page: 'turniertag', tab: ['turniertag', 'einstellungen'], card: 'Datenschutz', in: 'Einstellungen', words: 'Datenschutz löschen Turnier Spieler' },
+    { label: 'Dauer je Match und Pause', page: 'turniertag', tab: ['turniertag', 'einstellungen'], card: 'Zeitplan', in: 'Einstellungen', words: 'Matchdauer Pause Zeitplan' },
     { label: 'Einstellungen der Turniere übertragen', page: 'turniere', tab: ['turniere', 'einstellungen'], card: 'Einstellungen übertragen', in: 'Einstellungen', words: 'Export Import sichern Datei' },
   ]);
 })();
