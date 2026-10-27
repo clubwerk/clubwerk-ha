@@ -60,7 +60,7 @@
     const dayTxt = state.date === state.today ? `Heute, ${dLong}` : dLong;
     // Tagesauswahl wie in der Mitglieder-App und in der Verwaltung: heute bis zum Vorlauf
     const dl = []; for (let d = state.today; d <= state.max && dl.length < 31; d = addDay(d)) dl.push(d);
-    $('days').innerHTML = dl.map(d => `<button data-d="${d}" class="${d === state.date ? 'on' : ''}"><span>${d === state.today ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}.</b></button>`).join('');
+    $('days').innerHTML = dl.map(d => `<button data-d="${d}" class="${d === state.date ? 'on' : ''}"><span>${d === state.today ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}</b></button>`).join('');
     $('days').querySelectorAll('[data-d]').forEach(b => { b.onclick = () => { day = b.dataset.d === state.today ? null : b.dataset.d; pastOpen = false; load(); }; });
     const on = $('days').querySelector('.on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
     $('dayTitle').textContent = 'Plätze';

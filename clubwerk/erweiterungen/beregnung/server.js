@@ -444,10 +444,12 @@ function startPortApp(ctx) {
   };
   app.get('/logo', relay('/vereinslogo', 'image/png'));
   app.get('/icon.png', relay('/vereinsicon.png', 'image/png'));
-  for (const f of ['/style.css', '/theme.css', '/kit.css']) app.get(f, relay(f, 'text/css'));
+  for (const f of ['/style.css', '/kit.css']) app.get(f, relay(f, 'text/css'));
+  // Vorschau einer anderen Vereinsfarbe (Design-Prüfstand) weiterreichen – nur Hex-Werte
+  app.get('/theme.css', (req, res) => { const q = new URLSearchParams(); for (const k of ['vorschau', 'vorschau2']) if (typeof req.query[k] === 'string' && /^[0-9a-f]{6}$/i.test(req.query[k])) q.set(k, req.query[k]); relay('/theme.css' + (q.toString() ? '?' + q : ''), 'text/css')(req, res); });
   app.get('/icon-192.png', relay('/icon-192.png', 'image/png'));
   app.get('/icon-512.png', relay('/icon-512.png', 'image/png'));
-  for (const f of ['/fonts/jakarta-latin.woff2', '/fonts/jakarta-latin-ext.woff2']) app.get(f, relay(f, 'font/woff2'));
+  for (const f of ['/fonts/jakarta-latin.woff2', '/fonts/jakarta-latin-ext.woff2', '/fonts/barlow-condensed-600.woff2']) app.get(f, relay(f, 'font/woff2'));
   app.get('/theme-init.js', relay('/theme-init.js', 'application/javascript'));
   app.get('/i18n.js', (req, res) => relay('/i18n.js?' + new URLSearchParams({ l: String(req.query.l || 'auto').slice(0, 20), b: String(req.query.b || '').slice(0, 200) }), 'application/javascript')(req, res));
   app.get('/manifest.json', (req, res) => res.json(manifest('./')));

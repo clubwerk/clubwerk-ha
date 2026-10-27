@@ -337,6 +337,8 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   // Unterschriften (Online-Antrag, neue Bankverbindung) und Fotos (Profilbild, Mängelmelder) brauchen mehr Platz als die übrigen Anfragen
   app.use(['/api/p', '/api/m/mitglieder', '/api/photo', '/api/m/maengel'], express.json({ limit: '600kb' }));
   app.use(express.json({ limit: '10kb' }));
+  /** Vorschau einer anderen Vereinsfarbe (Design-Prüfstand) an den Hauptserver weiterreichen – nur Hex-Werte */
+  const themePreview = req => { const q = new URLSearchParams(); for (const k of ['vorschau', 'vorschau2']) if (typeof req.query[k] === 'string' && /^[0-9a-f]{6}$/i.test(req.query[k])) q.set(k, req.query[k]); return q.toString() ? '?' + q : ''; };
   const relay = (p, t) => async (req, res) => {
     try {
       const r = await fetch(`${INTERNAL()}${p}`, { signal: AbortSignal.timeout(5000) });
@@ -346,7 +348,8 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       res.set({ 'Content-Type': ct, 'Cache-Control': /\.(woff2|png)$/.test(p) ? 'public, max-age=604800' : 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));   // Schriften/Icons eine Woche, Rest per ETag
     } catch (e) { res.status(404).end(); }
   };
-  for (const [p, t] of [['/style.css', 'text/css'], ['/kit.css', 'text/css'], ['/theme.css', 'text/css'], ['/icon-192.png', 'image/png'], ['/icon-512.png', 'image/png'], ['/fonts/jakarta-latin.woff2', 'font/woff2'], ['/fonts/jakarta-latin-ext.woff2', 'font/woff2'], ['/theme-init.js', 'application/javascript']]) app.get(p, relay(p, t));
+  for (const [p, t] of [['/style.css', 'text/css'], ['/kit.css', 'text/css'], ['/icon-192.png', 'image/png'], ['/icon-512.png', 'image/png'], ['/fonts/jakarta-latin.woff2', 'font/woff2'], ['/fonts/jakarta-latin-ext.woff2', 'font/woff2'], ['/fonts/barlow-condensed-600.woff2', 'font/woff2'], ['/theme-init.js', 'application/javascript']]) app.get(p, relay(p, t));
+  app.get('/theme.css', (req, res) => relay('/theme.css' + themePreview(req), 'text/css')(req, res));
   // Sprache: Anfrage samt Wahl (l) und Handy-Sprache (b) an den Hauptserver weiterreichen
   app.get('/i18n.js', (req, res) => relay('/i18n.js?' + new URLSearchParams({ l: String(req.query.l || 'auto').slice(0, 20), b: String(req.query.b || '').slice(0, 200) }), 'application/javascript')(req, res));
   app.get('/logo', relay('/vereinslogo', 'image/png'));

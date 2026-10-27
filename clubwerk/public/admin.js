@@ -410,19 +410,18 @@
     einstellungen: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
     modul: '<path d="M10 3H5a2 2 0 0 0-2 2v5h3a2 2 0 1 1 0 4H3v5a2 2 0 0 0 2 2h5v-3a2 2 0 1 1 4 0v3h5a2 2 0 0 0 2-2v-5h-3a2 2 0 1 1 0-4h3V5a2 2 0 0 0-2-2h-5v3a2 2 0 1 1-4 0z"/>',
     suche: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
-    mond: '<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>',
     lager: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
     maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
     arbeit: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>',
     zahlung: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
     ausweis: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>',
     sprache: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
-    sonne: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
     tablet: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/>',
     abmelden: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
     menue: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
     punkte: '<circle cx="5" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.8" fill="currentColor" stroke="none"/><circle cx="19" cy="12" r="1.8" fill="currentColor" stroke="none"/>',
+    glocke: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   };
   const icon = (k, sz = 18) => `<svg aria-hidden="true" width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k] || ICO.modul}</svg>`;
   const PAGE_ICON = { uebersicht: 'uebersicht', beregnung: 'beregnung', zugang: 'zugang', zeit: 'zeit', konten: 'konten', app: 'app', benutzer: 'benutzer', sicherung: 'sicherung', protokoll: 'protokoll', einstellungen: 'einstellungen' };
@@ -436,8 +435,7 @@
   const initials = n => String(n || '?').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const sget = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
   const sset = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) { /* egal */ } };
-  const theme = () => document.documentElement.getAttribute('data-theme') || 'light';
-  function setTheme(t) { document.documentElement.setAttribute('data-theme', t); try { localStorage.setItem('cw_theme', t); } catch (e) { /* egal */ } const b = $('themeBtn'); if (b) { b.innerHTML = icon(t === 'dark' ? 'sonne' : 'mond', 16); b.title = t === 'dark' ? 'Helles Design' : 'Dunkles Design'; } }
+  const theme = () => (window.CWTheme ? CWTheme.choice() : 'auto');   // 'auto' | 'light' | 'dark' | 'hc' (theme-init.js)
   let badges = {};
 
   function showShell() {
@@ -448,7 +446,7 @@
     const modNav = [...groups, ...mods].sort((a, b) => a.order - b.order).map(x => x.html).join('');
     const verein = PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length));
     $('app').innerHTML = `<div class="shell">
-      <nav class="side" id="side">
+      <nav class="side glass" id="side">
         <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : '<span id="clubIni"></span>'}</div>
           <div><b id="clubName" translate="no">Verein</b><small>Verwaltung</small></div>
           <button class="menutoggle" id="menuT" aria-label="Menü">${icon('menue', 16)}<span id="menuCur">Menü</span></button></div>
@@ -467,7 +465,6 @@
       </nav>
       <div class="content"><div class="pagebar" id="pagebar"></div><main id="main"></main></div></div>`;
     wireLogos();
-    setTheme(theme());
     $('side').addEventListener('click', e => {
       const b = e.target.closest('button.nav[data-p]'); if (!b) return;
       if (b.dataset.p.startsWith('__')) { const g = b.dataset.p.slice(2); const last = sget('cw_grp_' + g); go(last && GPAGES(g).some(x => x[0] === last) ? last : GPAGES(g)[0][0]); }
@@ -899,6 +896,7 @@
   const SET = sec => ['cw_setsec', sec], APS = sec => ['cw_appsec', sec], E = 'einstellungen';
   window.GK.registerSearch([
     { label: 'Vereinsname und Vereinsfarbe', page: E, sec: SET('verein'), card: 'Verein', field: 'club', words: 'Name Farbe Verein', perm: E, in: 'Verein' },
+    { label: 'Zweitfarbe des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubColor2', words: 'Farbe Zweitfarbe Akzent Logo', perm: E, in: 'Verein' },
     { label: 'Anschrift des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubStreet', words: 'Adresse Straße PLZ Ort Anschrift Sitz Rechnung', perm: E, in: 'Verein' },
     { label: 'E-Mail und Telefon des Vereins', page: E, sec: SET('verein'), card: 'Verein', field: 'clubEmail', words: 'Kontakt Telefon Mail Rufnummer', perm: E, in: 'Verein' },
     { label: 'Vereinslogo', page: E, sec: SET('verein'), card: 'Vereinslogo', words: 'Logo Wappen Bild hochladen', perm: E, in: 'Verein' },
@@ -914,6 +912,7 @@
     { label: 'Leiste am Tablet (Reihenfolge, Start-Reiter)', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Reihenfolge Reiter Kopfzeile Start', perm: E, in: 'Tablet' },
     { label: 'Modul am Tablet zeigen oder ausblenden', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Beregnung Zugang Türen Tablet zeigen ausblenden Schalter Kopfzeile', perm: E, in: 'Tablet' },
     { label: 'Links in der Kopfzeile', page: E, sec: SET('tablet'), card: 'Links in der Kopfzeile', words: 'Link Kopfzeile Tablet', perm: E, in: 'Tablet' },
+    { label: 'Darstellung am Tablet (hell, dunkel, Hoher Kontrast)', page: E, sec: SET('tablet'), card: 'Darstellung am Tablet', field: 'tkTheme', words: 'Hoher Kontrast Sonne Theke dunkel hell Design Darstellung', perm: E, in: 'Tablet' },
         { label: 'Tablet & Home Assistant', page: E, sec: SET('tablet'), card: 'Tablet & Home Assistant', words: 'Home Assistant Tablet', perm: E, in: 'Tablet' },
     { label: 'Module ein- und ausschalten', page: E, sec: SET('module'), card: 'Module & Erweiterungen', words: 'Modul Erweiterung einschalten ausschalten deinstallieren', perm: E, in: 'Module' },
     { label: 'Einstellungen eines Moduls exportieren oder importieren', page: E, sec: SET('module'), btn: 'Einstellungen exportieren', words: 'Export Import Einstellungen übertragen Modul', perm: E, kind: 'aktion', in: 'Module' },
@@ -922,7 +921,7 @@
         { label: 'Update von Clubwerk', page: E, sec: SET('update'), card: 'Update von Clubwerk', words: 'Update Version aktualisieren ZIP', perm: E, in: 'Update' },
     { label: 'Mein Passwort ändern', page: 'konto', card: 'Mein Passwort', field: 'pwCur', words: 'Passwort Kennwort Konto', in: 'Mein Konto' },
     { label: 'Meine Sprache in diesem Browser', page: 'konto', card: 'Anzeige in diesem Browser', field: 'lgMine', words: 'Sprache Englisch', in: 'Mein Konto' },
-    { label: 'Hell oder dunkel (Darstellung)', page: 'konto', card: 'Anzeige in diesem Browser', field: 'themeSel', words: 'Dunkel Hell Design Modus Darstellung Nachtmodus', in: 'Mein Konto' },
+    { label: 'Hell, dunkel oder Hoher Kontrast (Darstellung)', page: 'konto', card: 'Anzeige in diesem Browser', field: 'themeSel', words: 'Dunkel Hell Design Modus Darstellung Nachtmodus Kontrast', in: 'Mein Konto' },
     { label: 'Mein E-Mail-Absender', page: 'konto', card: 'Mein E-Mail-Absender', words: 'Absender Antworten Signatur Unterschrift Mail', perm: 'email', in: 'Mein Konto' },
     { label: 'Verschlüsselung der persönlichen Daten', page: 'sicherung', card: 'Verschlüsselung der persönlichen Daten', words: 'Tresor Verschlüsselung Datenschutz' },
     { label: 'Jetzt sichern', page: 'sicherung', btn: 'Jetzt sichern', words: 'Sicherung Backup', kind: 'aktion' },
@@ -977,20 +976,20 @@
     return list.map(m => ({ ...m, pageKey: pageOf(m) }));
   }
   const greeting = () => { const h = new Date().getHours(); return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'; };
-  const alertHtml = (a, i) => `<div class="banner ${a.level === 'r' ? 'r' : 'a'}${i >= 3 ? ' extra' : ''}"><span>${a.who ? `<b>${esc(a.who)}:</b> ` : ''}${esc(a.text)}</span>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}><span>${esc(a.link || 'Ansehen')}</span> →</a>` : ''}</div>`;
-  /** Warnungen gebündelt: rote zuerst, höchstens 3 sichtbar, der Rest hinter „alle anzeigen“ */
-  const alertsHtml = alerts => {
-    const list = alerts.slice().sort((a, b) => (a.level === 'r' ? 0 : 1) - (b.level === 'r' ? 0 : 1));
-    return list.length ? `<div class="alerts">${list.map(alertHtml).join('')}${list.length > 3 ? `<button type="button" class="showall" data-showall>${list.length - 3} weitere Hinweise anzeigen</button>` : ''}</div>` : '';
+  /* Hauptkarte „Zu erledigen“: Hinweise als ruhige Liste mit farbigem Strich, rote zuerst, höchstens 3 sichtbar, der Rest hinter „Alle zeigen“ */
+  const hintHtml = (a, i) => `<div class="hint ${a.level === 'r' ? 'r' : 'a'}${i >= 3 ? ' extra' : ''}"><i class="bar" aria-hidden="true"></i><div class="ht">${a.who ? `<b>${esc(a.who)}</b>` : ''}<span title="${esc(a.text)}">${esc(a.text)}</span></div>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}>${esc(a.link || 'Ansehen')}</a>` : ''}</div>`;
+  const todoHtml = alerts => {
+    const list = alerts.slice().sort((a, b) => (a.level === 'r' ? 0 : 1) - (b.level === 'r' ? 0 : 1)), n = list.length;
+    return `<section class="todo hero"><div class="th">${icon('glocke')}<h3>Zu erledigen</h3>${n > 3 ? `<span class="lab num">${T('{0} von {1}', [3, n])}</span>` : ''}</div>
+      ${n ? list.map(hintHtml).join('') : '<p class="none">Gerade ist nichts zu tun.</p>'}
+      ${n > 3 ? `<button type="button" class="hint more" data-showall><i class="bar" aria-hidden="true"></i><span class="ht">${T('{0} weitere Hinweise', [n - 3])}</span><b>Alle zeigen</b></button>` : ''}</section>`;
   };
-  /** Eine Modulkarte – für alle Module gleich aufgebaut */
-  function modCard({ ic, name, pill, big, det, go: g }) {
-    return `<section class="mcard"><div class="mh"><span class="mi">${icon(ic)}</span><h3 title="${esc(name)}">${esc(name)}</h3>${pill ? `<span class="pill ${pill[0]}">${esc(pill[1])}</span>` : ''}</div>
-      <div class="big"><span>${esc(big ? big[0] : '')}</span><b>${esc(big ? big[1] : '–')}</b></div>
-      <div class="det">${det ? `<span>${esc(det[0])}</span><b>${esc(det[1])}</b>` : ''}</div>
-      ${g ? `<a class="open" href="#${g}" data-go="${g}">Öffnen<span aria-hidden="true">→</span></a>` : '<span class="open" style="visibility:hidden">–</span>'}</section>`;
+  /** Ein Modul im Raster der Übersicht – Symbol, Name, Zustand, die wichtigste Zahl */
+  const STATE = { r: 'Störung', a: 'Hinweis', g: 'Läuft' };
+  function modCell({ ic, name, state, note, val, go: g }) {
+    const inner = `<span class="mi">${icon(ic)}</span><span class="mt"><b title="${esc(name)}">${esc(name)}</b><small><i class="stdot ${state}" aria-hidden="true"></i>${esc(note || STATE[state])}</small></span><span class="v num">${esc(val == null ? '' : val)}</span>`;
+    return g ? `<a class="mo" href="#${g}" data-go="${g}">${inner}</a>` : `<div class="mo">${inner}</div>`;
   }
-
   RENDER.uebersicht = async () => {
     const drinksOn = (cache.modules || []).includes('getraenke') && DRINKS().length;
     const [stock, bal, ev, del, mem, mods] = await Promise.all([
@@ -1005,6 +1004,7 @@
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     let drinksCard = '';
+    const score = [];   // Spielstandstafel: die wichtigste Zahl je Bereich, höchstens vier
     if (drinksOn) {
       const low = stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock);
       const neg = stock.filter(x => x.track_stock && x.stock < 0);
@@ -1014,9 +1014,9 @@
       if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.open_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
       (ev || []).filter(e => e.open_member_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_member_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
       const first = DRINKS()[0][0];
-      drinksCard = modCard({ ic: 'verkauf', name: 'Verkauf', pill: neg.length ? ['r', `${neg.length} negativ`] : low.length ? ['a', `${low.length} knapp`] : ['g', 'Alles gut'],   // nie „Alles gut“ neben der Warnung „negativer Bestand“
-        big: bal ? ['Offen auf Konten', euro(bal.total_cents)] : ['Artikel im Bestand', String(stock.filter(x => x.active && x.track_stock).length)],
-        det: ['Nachbestellen', `${low.length} Artikel`], go: low.length && can('bestellung') ? 'bestellung' : first });
+      drinksCard = modCell({ ic: 'verkauf', name: 'Verkauf', state: neg.length ? 'r' : low.length ? 'a' : 'g', note: neg.length ? `${neg.length} negativ` : low.length ? `${low.length} knapp` : 'Alles gut',   // nie „Alles gut“ neben der Warnung „negativer Bestand“
+        val: bal ? euro(bal.total_cents) : String(stock.filter(x => x.active && x.track_stock).length), go: low.length && can('bestellung') ? 'bestellung' : first });
+      score.push(bal ? ['Verkauf', euro(bal.total_cents), 'Offen auf Konten'] : ['Verkauf', String(low.length), 'Artikel nachbestellen']);
     }
     if (clubNetsMissing) alerts.push({ level: 'a', who: 'Sicherheit', text: 'Kein Vereinsnetz eingetragen – jedes private Netz (auch Gast-WLAN oder VPN) kommt an Verwaltung und Tablet. Empfohlen: unter Mitglieder-App → Verbindung → „Vereinsnetz“ euer Netz eintragen.', go: 'app', sec: ['cw_appsec', 'verbindung'], link: 'Eintragen' });
     if (tabletPwMissing && can('einstellungen')) sset('cw_setsec', 'tablet');   // „Festlegen“ öffnet gleich den richtigen Bereich
@@ -1030,19 +1030,23 @@
     const modCards = mods.map(m => {
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
       const gk = (PAGES.find(x => x[0] === m.pageKey) || [])[3];
-      return modCard({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, pill: bad ? ['r', 'Störung'] : warn ? ['a', 'Hinweis'] : ['g', 'Läuft'],
-        big: m.kpis[0] ? [m.kpis[0].l, m.kpis[0].v] : null, det: m.kpis[1] ? [m.kpis[1].l, m.kpis[1].v] : null, go: m.pageKey });
-    }).join('');
-    const memberCard = mem ? modCard({ ic: 'konten', name: 'Mitglieder', pill: pending.length ? ['a', `${pending.length} neu`] : null,
-      big: ['Aktive Mitglieder', String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length)], det: ['Mannschaften', String(mem.rows.filter(m => m.kind === 'mannschaft' && m.active).length)], go: 'konten' }) : '';
+      return modCell({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, state: bad ? 'r' : warn ? 'a' : 'g',
+        note: bad || warn || !m.kpis[1] ? null : `${m.kpis[1].l}: ${m.kpis[1].v}`, val: m.kpis[0] ? m.kpis[0].v : '', go: m.pageKey });   // Zustand in Worten, wenn etwas ist – sonst die zweite Zahl
+    });
+    const memberCard = mem && !mods.some(m => m.id === 'mitglieder') ? modCell({ ic: 'konten', name: 'Mitglieder', state: pending.length ? 'a' : 'g', note: pending.length ? `${pending.length} neu` : 'Aktive Mitglieder',
+      val: String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length), go: 'konten' }) : '';
+    if (mem) score.push(['Mitglieder', String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length), pending.length ? `${pending.length} neu vom Tablet` : 'aktiv']);
+    mods.forEach(m => { if (m.kpis[0]) score.push([m.name, m.kpis[0].v, m.kpis[0].l]); });
     const low = drinksOn ? stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock) : [];
-    const modCount = (drinksCard ? 1 : 0) + mods.length + (memberCard ? 1 : 0);   // Raster ohne Lücke: 1–4 Karten eine Zeile, sonst 3 (oder 4 bei Vielfachen von 4) Spalten
+    const cells = [drinksCard, ...modCards, memberCard].filter(Boolean);
+    if (cells.length % 2) cells.push('<div class="mo fill" aria-hidden="true"></div>');   // gleich großes Raster ohne Loch
     const d = new Date();
     $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <h2 class="page"><span>${greeting()}</span>, <span>${esc((me.name || me.username).split(" ")[0])}</span></h2></div>
         <div class="row">${window.top === window ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}${drinksOn && can('bestellung') ? `<a class="btn primary" href="#bestellung" data-go="bestellung">${icon('getraenke', 16)}Bestellung</a>` : ''}</div></div>
-      ${alertsHtml(alerts)}
-      <div class="modgrid cols${modCount <= 4 ? Math.max(1, modCount) : [4, 3].sort((a, b) => (a - modCount % a) % a - (b - modCount % b) % b)[0]}">${drinksCard}${modCards}${memberCard}</div>
+      <div class="court greetline"></div>
+      ${score.length ? `<div class="score">${score.slice(0, 4).map(([l, v, sub]) => `<div><span class="lab">${esc(l)}</span><b class="num">${esc(v)}</b><small>${esc(sub)}</small></div>`).join('')}</div>` : ''}
+      <div class="ovtwo">${todoHtml(alerts)}${cells.length ? `<div class="mods2">${cells.join('')}</div>` : ''}</div>
       ${drinksOn ? `<div class="two">
         <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
           ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Alles im grünen Bereich.</p>'}</div>
@@ -1050,7 +1054,7 @@
           ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Verkauf → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
       </div>` : ''}`;
     $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); if (a.dataset.secstore) sset(a.dataset.secstore, a.dataset.sec); go(a.dataset.go); }; });   // Hinweis führt direkt in den passenden Unterbereich
-    const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.alerts').classList.add('all'); sa.remove(); };
+    const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.todo').classList.add('all'); sa.remove(); };
   };
 
   /* =================== Lieferungen =================== */
@@ -3648,12 +3652,12 @@
         <div class="btns"><button class="btn primary" id="savePw">Passwort ändern</button></div></div>
       <div class="card"><h3>Anzeige in diesem Browser</h3><div class="row">
         ${L ? `<label class="f" style="min-width:240px">Meine Sprache<select id="lgMine">${[['', T('Wie der Verein ({0})', [club])], ...L.langs.map(x => [x.code, x.name])].map(([c, n]) => `<option value="${esc(c)}" ${c === cur ? 'selected' : ''}${c ? ' translate="no"' : ''}>${esc(n)}</option>`).join('')}</select></label>` : ''}
-        <label class="f" style="min-width:200px">Darstellung<select id="themeSel"><option value="light" ${theme() === 'light' ? 'selected' : ''}>Hell</option><option value="dark" ${theme() === 'dark' ? 'selected' : ''}>Dunkel</option></select></label></div>
+        <label class="f" style="min-width:200px">Darstellung<select id="themeSel">${[['auto', 'Wie das Gerät'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']].map(([k, l]) => `<option value="${k}" ${theme() === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
       <p class="muted s" style="margin:8px 0 0">Wirkt sofort und nur in diesem Browser. Tablet, E-Mails und die Vorgabe für alle legt die Vereinssprache fest (Einstellungen › Verein).</p></div>
       ${can('email') ? '<div id="mailMeBox"></div>' : ''}`;
     $('savePw').onclick = async () => { try { await api('password', 'POST', { current: $('pwCur').value, next: $('pwNew').value }); toast('Passwort geändert.'); $('pwCur').value = $('pwNew').value = ''; } catch (e) { fail(e); } };
     if ($('lgMine')) $('lgMine').onchange = e => L.setLang(e.target.value);
-    $('themeSel').onchange = e => setTheme(e.target.value);
+    $('themeSel').onchange = e => { if (window.CWTheme) CWTheme.set(e.target.value); };
     if ($('mailMeBox') && window.GK.mailMe) await window.GK.mailMe($('mailMeBox')).catch(e => { $('mailMeBox').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; });
   };
 
@@ -3818,12 +3822,14 @@
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
         <div class="row"><label class="f" style="flex:1;min-width:260px">Vereinsname<input id="club" value="${esc(s.clubName)}"></label>
         <label class="f">Vereinsfarbe<span class="row" style="gap:6px"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;padding:2px">
-          <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label></div>
+          <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label>
+        <label class="f">Zweitfarbe (freiwillig)<span class="row" style="gap:6px"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;padding:2px">
+          <input id="clubColor2" value="${esc(s.clubColor2 || '')}" style="width:110px" maxlength="7" placeholder="keine"></span></label></div>
         <div class="row" style="margin-top:10px"><label class="f" style="flex:2;min-width:260px">Straße und Hausnummer<input id="clubStreet" maxlength="80" value="${esc(s.clubStreet)}" placeholder="z. B. Vereinsweg 1" autocomplete="off"></label>
           <label class="f" style="flex:1;min-width:200px">PLZ und Ort<input id="clubCity" maxlength="80" value="${esc(s.clubCity)}" placeholder="z. B. 12345 Musterstadt" autocomplete="off"></label></div>
         <div class="row" style="margin-top:10px"><label class="f" style="flex:1;min-width:240px">E-Mail des Vereins<input id="clubEmail" type="email" maxlength="120" value="${esc(s.clubEmail)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
           <label class="f" style="flex:1;min-width:200px">Telefon<input id="clubPhone" type="tel" maxlength="40" value="${esc(s.clubPhone)}" autocomplete="off"></label></div>
-        <p class="muted s">Anschrift und Kontakt stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen – alle Module lesen sie von hier. Die Farbe gilt für Tablet, Verwaltung und Excel-Export.</p>
+        <p class="muted s">Anschrift und Kontakt stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen – alle Module lesen sie von hier. Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel-Export; ist sie für Schrift zu hell, dunkelt Clubwerk sie dort automatisch ab (im dunklen Modus hellt es sie auf). Die Zweitfarbe (z. B. aus dem Logo) gibt dem Hintergrund einen zweiten, leichten Schimmer – leer lassen für keine.</p>
         <div class="btns"><button class="btn primary" id="saveClub">Speichern</button></div></div>
       <div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
         ${s.tabletPw.on ? `<div class="banner g">Vergeben${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
@@ -3907,6 +3913,9 @@
         <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der Schalter „am Tablet zeigen“ wirkt sofort, Reihenfolge und <b>Start-Reiter</b> (erscheint beim Aufruf der Adresse, z. B. <code>…:3100</code>, und nach 30 Sekunden ohne Eingabe) gelten nach „Speichern“.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
         <div class="btns"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
+      ${mayCfg ? `<div class="card"><h3>Darstellung am Tablet</h3><div class="row">
+        <label class="f" style="min-width:240px">Darstellung<select id="tkTheme">${[['auto', 'Wie das Gerät'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']].map(([k, l]) => `<option value="${k}" ${s.tabletTheme === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
+        <p class="muted s">Gilt für alle Tablets des Vereins. „Hoher Kontrast“ hilft an der Theke bei Sonnenlicht: kräftige Ränder, keine Schatten, stärkere Schrift. „Wie das Gerät“ folgt der Einstellung des Tablets (hell, dunkel, mehr Kontrast).</p></div>` : ''}
       ${ext && mayCfg ? `      <div class="card"><h3>Links in der Kopfzeile</h3>
         <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
         <div id="lnRows"></div>
@@ -3917,7 +3926,12 @@
     if ($('clubColorPick')) {
       $('clubColorPick').oninput = () => { $('clubColor').value = $('clubColorPick').value; };
       $('clubColor').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor').value)) $('clubColorPick').value = $('clubColor').value; };
+      const c2look = () => { $('clubColor2Pick').style.opacity = $('clubColor2').value.trim() ? '' : '.35'; };   // ohne Zweitfarbe: Farbfeld blass
+      $('clubColor2Pick').oninput = () => { $('clubColor2').value = $('clubColor2Pick').value; c2look(); };
+      $('clubColor2').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor2').value)) $('clubColor2Pick').value = $('clubColor2').value; c2look(); };
+      c2look();
     }
+    if ($('tkTheme')) $('tkTheme').onchange = async () => { try { await api('settings', 'PUT', { tabletTheme: $('tkTheme').value }); toast('Gespeichert – die Tablets übernehmen es beim nächsten Laden.'); } catch (e) { fail(e); } };
     if ($('mlSave')) {
       $('mlSave').onclick = async () => {
         try { await api('mail', 'PUT', { host: $('mlH').value, port: $('mlP').value, user: $('mlU').value, pass: $('mlW').value, from: $('mlF').value }); toast('Postfach gespeichert – jetzt eine Testmail senden.'); location.hash = '#einstellungen'; RENDER.einstellungen().then(() => $('mailCard') && $('mailCard').scrollIntoView()); } catch (e) { fail(e); }
@@ -4038,7 +4052,7 @@
     };
     if ($('saveClub')) $('saveClub').onclick = async () => {
       try {
-        await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value, clubStreet: $('clubStreet').value, clubCity: $('clubCity').value, clubEmail: $('clubEmail').value, clubPhone: $('clubPhone').value });
+        await api('settings', 'PUT', { clubName: $('club').value, clubColor: $('clubColor').value, clubColor2: $('clubColor2').value.trim(), clubStreet: $('clubStreet').value, clubCity: $('clubCity').value, clubEmail: $('clubEmail').value, clubPhone: $('clubPhone').value });
         toast('Gespeichert.'); refreshIcon();
         document.querySelector('link[href^="theme.css"]').href = 'theme.css?' + Date.now();
       } catch (e) { fail(e); }

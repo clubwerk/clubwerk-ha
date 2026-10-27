@@ -100,19 +100,16 @@
   }
 
   const initials = n => { const w = String(n || '').replace(/[()„“"]/g, '').trim().split(/\s+/).filter(Boolean); return esc(((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : (w[0] || '').slice(1, 2))).toLocaleUpperCase('de')); };
-  // ruhige Pastellfarben für Initialen – je Name immer dieselbe
-  const AVC = [['#F0ECFA', '#4B3A86'], ['#FCE7E4', '#9B2C1F'], ['#FFF1D6', '#8A4B08'], ['var(--brand-soft)', 'var(--brand-ink)'], ['#E3F0FB', '#1C5D99'], ['#FCEDE3', '#9A4A14']];
-  const avStyle = n => { let h = 0; for (const ch of String(n || '')) h = (h * 31 + ch.charCodeAt(0)) >>> 0; const [b, f] = AVC[h % AVC.length]; return `--ab:${b};--af:${f}`; };
   /* „Bier alkoholfrei 0,33“ → Name „Bier alkoholfrei“ + Größe „0,33 l“ (für die zweite Zeile der Kachel) */
   const splitSize = n => { const m = String(n).match(/^(.+?)\s+(\d+[,.]\d+)\s*(l|ml|cl)?$/i); return m ? { name: m[1], size: m[2].replace('.', ',') + ' ' + (m[3] || 'l') } : { name: String(n), size: '' }; };
-  const card = m => {
+  const card = (m, cls = '') => {
     const { first: fn, last: ln } = splitName(m.name);
-    return `<button data-id="${m.id}" class="${m.pending ? 'pending' : ''}"><i class="av" style="${avStyle(m.name)}">${m.ph ? `<img src="api/tablet/photo/${m.id}?u=verkauf&v=${esc(m.ph)}" alt="" loading="lazy">` : initials(m.name)}</i><span class="nm"><b>${esc(ln)}${m.pending ? '<span class="tag">neu</span>' : ''}</b><span>${esc(fn) || '&nbsp;'}</span></span></button>`;
+    return `<button data-id="${m.id}" class="${cls}${m.pending ? ' pending' : ''}"><i class="av">${m.ph ? `<img src="api/tablet/photo/${m.id}?u=verkauf&v=${esc(m.ph)}" alt="" loading="lazy">` : initials(m.name)}</i><span class="nm"><b>${esc(ln)}${m.pending ? '<span class="tag">neu</span>' : ''}</b><span>${esc(fn) || '&nbsp;'}</span></span></button>`;
   };
 
   const guestCard = g => {
     const tag = g.paid ? '<span class="tag ok">bezahlt</span>' : '';
-    return `<button data-g="${g.id}" class="${g.paid ? 'paid' : ''} ${g.memberId ? '' : 'manual'}"><i class="av" style="${avStyle(g.name)}">${initials(g.name)}</i>
+    return `<button data-g="${g.id}" class="${g.paid ? 'paid' : ''} ${g.memberId ? '' : 'manual'}"><i class="av">${initials(g.name)}</i>
       <span class="nm"><b>${esc(g.memberId ? lastFirst(g.name, g.kind) : g.name)}${tag}</b><span>${g.memberId ? (g.kind === 'nichtmitglied' ? 'Kein Mitglied' : g.kind === 'mannschaft' ? 'Mannschaft' : 'Mitglied') : 'Gast'}${g.open_cents ? ` · <span class="amt">${euro(g.open_cents)} offen</span>` : ''}</span></span></button>`;
   };
   /* Artikel: eigenes Bild, Symbol oder Kürzel */
@@ -155,7 +152,7 @@
     // Gerade oft hier: nur ohne Buchstabenfilter und ohne Suche, alphabetisch
     const showTop = !letter && !q && top.length > 0;
     $('topBox').classList.toggle('hidden', !showTop);
-    $('top').innerHTML = showTop ? top.map(card).join('') : '';
+    $('top').innerHTML = showTop ? top.map(m => card(m, 'hero')).join('') : '';   // Hauptkarten in der Vereinsfarbe
     $('topNote').textContent = `in den letzten ${state.topDays || 30} Tagen · A–Z`;
     $('allHead').textContent = q ? `Treffer für „${$('nameSearch').value.trim()}“` : letter ? `Mitglieder mit „${letter}“` : 'Alle Mitglieder (A–Z)';
     if (q) $('tabsBox').classList.add('hidden');
@@ -169,11 +166,11 @@
     // Gesamtliste immer vollständig (die häufigen stehen oben zusätzlich)
     const match = m => m.name.toLocaleLowerCase('de').includes(q) || lastFirst(m.name).toLocaleLowerCase('de').includes(q);
     const list = q ? people.filter(match) : letter ? people.filter(m => initial(m) === letter) : people;
-    $('names').innerHTML = list.map(card).join('') || `<div class="tk-empty" style="grid-column:1/-1">Kein Name passt – oder „Ich bin neu“ antippen.</div>`;
+    $('names').innerHTML = list.map(m => card(m)).join('') || `<div class="tk-empty" style="grid-column:1/-1">Kein Name passt – oder „Ich bin neu“ antippen.</div>`;
 
     // ganz unten: Mannschaften/Gruppen, Verein (kostenfrei), Gast
     const teams = state.members.filter(m => m.kind === 'mannschaft' && (!q || m.name.toLocaleLowerCase('de').includes(q)));
-    $('teams').innerHTML = teams.map(m => `<button data-id="${m.id}"><i class="av" style="${avStyle(m.name)}">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}</b><span>Mannschaft</span></span></button>`).join('');
+    $('teams').innerHTML = teams.map(m => `<button data-id="${m.id}"><i class="av">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}</b><span>Mannschaft</span></span></button>`).join('');
     $('teamBox').classList.toggle('hidden', !teams.length);
     const special = state.members.filter(m => m.kind === 'verein' || m.kind === 'gast');
     const nTabs = (state.tabs || []).length;
@@ -405,7 +402,6 @@
     $('cancelBtn').textContent = isTab || isEvent ? 'Zurück' : 'Anderes Mitglied';
     const whoN = isEvent ? s.event.name : isTab ? s.tab.name : isGuest ? s.guest.name : s.member.name;
     $('whoAv').innerHTML = isEvent ? '€' : initials(whoN);
-    $('whoAv').setAttribute('style', avStyle(whoN));
     const note = $('whoNote');
     note.className = 'note';
     if (isTab) { note.textContent = 'Wird auf den Deckel angeschrieben' + (s.open ? ` · bisher offen: ${euro(s.open)}` : '') + ' · bezahlt wird vor der Heimfahrt'; note.classList.add('cash'); }

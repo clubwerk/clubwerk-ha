@@ -5,6 +5,9 @@
   'use strict';
   const { $, esc, api, toast, fail, dialog, closeDialog, ask, askText } = GK;
   const T = s => (GK.T ? GK.T(s) : s);
+  /* Liniensymbole statt Emojis (Link, Anhang) */
+  const SV_LINK = '<svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
+  const SV_CLIP = '<svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:3px"><path d="m21.4 11.1-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"/></svg>';
   let O = null;            // Optionen (Gruppen, Mitglieder, Verteiler, Vorlagen, Absender)
   let openDraft = null;    // beim Wechsel in „Neue E-Mail“ diesen Entwurf öffnen
   let tabsCtl = null;
@@ -177,7 +180,7 @@
         ${minimal ? '' : `<button type="button" data-b="H2" title="${esc(T('Überschrift'))}">H</button><button type="button" data-b="H3" title="${esc(T('Zwischenüberschrift'))}" style="font-size:12px">H</button><button type="button" data-b="P" title="${esc(T('Normaler Text'))}">¶</button><span class="sep"></span>`}
         <button type="button" data-c="insertUnorderedList" title="${esc(T('Aufzählung'))}">•≡</button><button type="button" data-c="insertOrderedList" title="${esc(T('Nummerierung'))}">1.</button>
         ${minimal ? '' : `<button type="button" data-b="BLOCKQUOTE" title="${esc(T('Zitat'))}">❝</button><button type="button" data-c="insertHorizontalRule" title="${esc(T('Trennlinie'))}">―</button>`}
-        <button type="button" data-link="1" title="${esc(T('Link'))}">🔗</button><button type="button" data-c="removeFormat" title="${esc(T('Formatierung entfernen'))}">T̸</button>
+        <button type="button" data-link="1" title="${esc(T('Link'))}" aria-label="${esc(T('Link'))}">${SV_LINK}</button><button type="button" data-c="removeFormat" title="${esc(T('Formatierung entfernen'))}">T̸</button>
         <span class="grow"></span>
         ${placeholders ? `<select data-ph="1" aria-label="${esc(T('Platzhalter einfügen'))}"><option value="">${esc(T('Platzhalter …'))}</option>${[['briefanrede', 'Briefanrede (z. B. „Hallo Anna“)'], ['vorname', 'Vorname'], ['nachname', 'Nachname'], ['name', 'Vor- und Nachname'], ['anrede', 'Anrede'], ['mitgliedsnr', 'Mitgliedsnummer'], ['verein', 'Vereinsname']].map(([k, l]) => `<option value="${k}">${esc(T(l))}</option>`).join('')}</select>` : ''}
         ${templates ? `<select data-tpl="1" aria-label="${esc(T('Vorlage einsetzen'))}"><option value="">${esc(T('Vorlage …'))}</option>${O.templates.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}</select>` : ''}
@@ -302,7 +305,7 @@
 
     // Anhänge
     const drawFiles = () => {
-      $('mlFiles').innerHTML = `${st.files.map(f => `<span class="ml-file" translate="no"><b title="${esc(f.name)}">📎 ${esc(f.name)}</b><small>${kb(f.size)}</small><button type="button" data-fx="${f.id}" aria-label="${esc(T('Anhang entfernen'))}">×</button></span>`).join('')}
+      $('mlFiles').innerHTML = `${st.files.map(f => `<span class="ml-file" translate="no"><b title="${esc(f.name)}">${SV_CLIP}${esc(f.name)}</b><small>${kb(f.size)}</small><button type="button" data-fx="${f.id}" aria-label="${esc(T('Anhang entfernen'))}">×</button></span>`).join('')}
         <label class="btn small ghost" style="cursor:pointer">＋ ${esc(T('Datei anhängen'))}<input type="file" id="mlFile" multiple hidden></label>
         <span class="muted s">${st.files.length ? `${kb(st.files.reduce((s, f) => s + f.size, 0))} ${esc(T('von 20 MB'))}` : esc(T('oder Dateien hierher ziehen · bis 10 MB je Datei'))}</span>`;
       $('mlFile').onchange = () => upload([...$('mlFile').files]);
@@ -374,7 +377,7 @@
     if (!r.rows.length) { body.innerHTML = `<div class="card"><p class="muted" style="margin:0">${esc(box === 'entwuerfe' ? T('Keine Entwürfe. Was du in „Neue E-Mail“ schreibst, wird automatisch hier gespeichert.') : T('Noch keine E-Mail gesendet.'))}</p></div>`; return; }
     const stPill = m => (m.status === 'sendet' ? `<span class="pill a">${esc(T('wird gesendet'))} ${m.sent || ''}</span>` : m.status === 'teilweise' ? `<span class="pill r">${m.failed} ${esc(T('fehlgeschlagen'))}</span>` : m.status === 'gesendet' ? `<span class="pill g">${m.total} ${esc(T('zugestellt'))}</span>` : '');
     body.innerHTML = `<div class="card"><div class="ml-list">${r.rows.map(m => `<button type="button" class="ml-row" data-id="${m.id}">
-        <span class="t"><b translate="no">${m.files ? '📎 ' : ''}${esc(m.subject || T('(ohne Betreff)'))}</b><span translate="no">${esc(m.preview || '')}</span></span>
+        <span class="t"><b translate="no">${m.files ? SV_CLIP : ''}${esc(m.subject || T('(ohne Betreff)'))}</b><span translate="no">${esc(m.preview || '')}</span></span>
         <span class="c who" translate="no">${esc(box === 'entwuerfe' ? '' : m.from_name || m.user_name || '')}</span>
         <span class="c">${deT(m.at)}</span><span class="c r">${box === 'entwuerfe' ? esc(T('Entwurf')) : stPill(m)}</span></button>`).join('')}</div></div>`;
     body.querySelectorAll('[data-id]').forEach(b => { b.onclick = () => { if (box === 'entwuerfe') { openDraft = +b.dataset.id; goTabForce('neu'); } else showMessage(body, +b.dataset.id, box); }; });
@@ -396,7 +399,7 @@
         <dl class="ml-kv"><dt>${esc(T('Von'))}</dt><dd translate="no">${esc(m.from_name || m.user_name || '')} · ${esc(O.club)}</dd>
           <dt>${esc(T('Antworten an'))}</dt><dd translate="no">${esc(m.reply_to || T('Vereinspostfach'))}</dd><dt>${esc(T('Gesendet'))}</dt><dd>${deT(m.sent_at)}</dd>
           <dt>${esc(T('Empfänger'))}</dt><dd>${m.total}${m.status === 'sendet' ? ` · ${esc(T('wird gesendet'))} (${done}/${m.rcpt.length})<div class="ml-prog"><i style="width:${m.rcpt.length ? Math.round(done / m.rcpt.length * 100) : 0}%"></i></div>` : ` · ${m.sent} ${esc(T('zugestellt'))}${m.failed ? `, <b style="color:var(--red)">${m.failed} ${esc(T('fehlgeschlagen'))}</b>` : ''}`}</dd>
-          ${m.files.length ? `<dt>${esc(T('Anhänge'))}</dt><dd style="display:flex;flex-wrap:wrap;gap:6px">${m.files.map(f => `<a class="ml-file" href="api/admin/mail/messages/${m.id}/files/${encodeURIComponent(f.id)}" download translate="no"><b>📎 ${esc(f.name)}</b><small>${kb(f.size)}</small></a>`).join('')}</dd>` : ''}</dl>
+          ${m.files.length ? `<dt>${esc(T('Anhänge'))}</dt><dd style="display:flex;flex-wrap:wrap;gap:6px">${m.files.map(f => `<a class="ml-file" href="api/admin/mail/messages/${m.id}/files/${encodeURIComponent(f.id)}" download translate="no"><b>${SV_CLIP}${esc(f.name)}</b><small>${kb(f.size)}</small></a>`).join('')}</dd>` : ''}</dl>
         <div class="ml-view" translate="no">${m.html}${m.signature_html ? `<div style="margin-top:20px">${m.signature_html}</div>` : ''}</div>
         <h3 style="margin:18px 0 8px">${esc(T('Zustellung'))}</h3>
         <div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('E-Mail'))}</th><th>${esc(T('Status'))}</th></tr>${m.rcpt.map(r => `<tr><td translate="no">${esc(r.name || '')}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td>

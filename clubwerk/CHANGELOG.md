@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.63.0
+
+**Neues Aussehen „Anzeigetafel“ – Grundlagen, Vereinsfarbe und Hoher Kontrast (Etappe D1 des Design-Umbaus)**
+- **Zahlen wie auf einer Anzeigetafel:** Uhrzeit, Beträge, Kennzahlen und Datumsziffern stehen in einer schmalen, gut lesbaren Zahlenschrift (Barlow Condensed). Sie liegt wie die bisherige Schrift im Paket – Clubwerk lädt nichts aus dem Internet.
+- **Ruhigeres Bild überall:** Karten und Kacheln mit weichem Schatten statt Rahmen, rundere Ecken, Umschalter und Reiter als Pillen, ein ganz leichter Schimmer in der Vereinsfarbe im Hintergrund. Unter den Seitentiteln steht eine doppelte Linie wie eine Platzmarkierung. Hinweise in der Verwaltung sind eine ruhige Fläche mit farbigem Strich statt eines roten Kastens. Initialen haben überall die Vereinsfarbe statt bunter Farben je Name.
+- **Tablet-Verkauf:** schwebende Kopfleiste aus Glas mit großer Uhr, „Gerade oft hier“ als dunkle Karten in der Vereinsfarbe, die Suche als große Pille, Buchstaben als runde Knöpfe neben „Alle Mitglieder“.
+- **Verwaltung › Übersicht:** oben die wichtigsten Zahlen in einer Reihe wie eine Spielstandstafel, darunter „Zu erledigen“ als Karte in der Vereinsfarbe (die drei wichtigsten Hinweise, der Rest unter „Alle zeigen“) und daneben alle Module in einem gleichmäßigen Raster mit Zustand und Zahl. Das Seitenmenü schwebt als Glasleiste; ein Punkt zeigt, wo etwas zu tun ist.
+- **Mitglieder-App:** großer Seitentitel mit Linie, Vereinsname klein darüber. Unter „Plätze“ steht die eigene nächste Buchung groß oben („Ändern“ öffnet dasselbe Fenster wie bisher), die Tage als Kacheln mit großen Ziffern, die Leiste unten schwebt als Glas.
+- **Vereinsfarbe mit Kontrast-Automatik** (Einstellungen › Verein): Ist die Farbe für Schrift zu hell (z. B. Gelb), dunkelt Clubwerk sie für Schrift und Knöpfe automatisch ab, im dunklen Modus hellt es sie auf – Text bleibt immer gut lesbar. Das gilt auch für E-Mails und den Excel-Export. Neu ist eine **Zweitfarbe** (freiwillig, z. B. aus dem Logo) für einen zweiten, leichten Schimmer. Ohne Änderung bleibt alles beim bisherigen Grün.
+- **Hoher Kontrast:** kräftige Ränder, keine Schatten und kein Glas, stärkere Schrift – für die Theke bei Sonnenlicht und für alle, die es deutlicher mögen. Einstellbar in der Verwaltung unter Mein Konto › Darstellung, in der App unter Mein Konto › Darstellung und für alle Tablets unter Einstellungen › Tablet › Darstellung am Tablet. Steht ein Gerät auf „mehr Kontrast“, schaltet Clubwerk von selbst um. Auch „Transparenz reduzieren“ wird beachtet (dann ohne Glas).
+- **Design-Prüfstand:** prüft jetzt zusätzlich Hohen Kontrast und zwei Vereinsfarben (Blau und ein helles Gelb), misst den Kontrast auch auf Farbverläufen und meldet Emojis als Symbole und Glas an anderen Stellen als den drei vorgesehenen.
+
 ## 3.62.1
 
 **Sicherheitsupdates für verwendete Bausteine**

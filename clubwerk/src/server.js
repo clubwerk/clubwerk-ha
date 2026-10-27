@@ -6,7 +6,7 @@ const crypto = require('crypto');
 const express = require('express');
 const backup = require('./backup');
 const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
-const { db, isPerson, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, memberRefs, rewireMemberRef } = require('./db');
+const { db, isPerson, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, memberRefs, rewireMemberRef } = require('./db');
 const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
 const { today, nowTs, isDate, addDays, deD } = util;
@@ -134,28 +134,19 @@ app.use('/api/admin', (req, res, next) => {
   next();
 });
 
-/* ---------- Vereinsfarbe ---------- */
-const { clubColor, mixColor: mix } = require('./db');
+/* ---------- Vereinsfarbe (Berechnung der Abstufungen und des Kontrasts: src/theme.js) ---------- */
+const { clubColor } = require('./db');
 const { normIp } = require('./security');
-/** Schrift auf einer Fläche dieser Farbe: Weiß oder Dunkel – je nachdem, was mehr Kontrast hat (z. B. Gelb als Vereinsfarbe) */
-function onColor(hex) {
-  const L = h => { const v = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(x => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
-  const l = L(hex);
-  return 1.05 / (l + 0.05) >= (l + 0.05) / (L('#131a16') + 0.05) ? '#fff' : '#131a16';
-}
-function themeVars(c = clubColor()) {
-  return { 'on-brand': onColor(c), green: c, 'green-dark': mix(c, 'black', 0.3), 'green-soft': mix(c, 'white', 0.9), 'green-over': mix(c, 'white', 0.8),
-    'green-line': mix(c, 'white', 0.68), 'green-muted': mix(c, 'white', 0.45) };
-}
-/* Dunkles Design: Vereinsfarbe bleibt erkennbar, Flächen dunkel, Schrift auf Vereinsfarbe-Tönen hell */
-function themeVarsDark(c = clubColor()) {
-  return { 'on-brand': onColor(mix(c, 'white', 0.08)), green: mix(c, 'white', 0.08), 'green-dark': mix(c, 'white', 0.55), 'green-soft': mix(c, '#0d1310', 0.78), 'green-over': mix(c, '#0d1310', 0.66),
-    'green-line': mix(c, '#0d1310', 0.55), 'green-muted': mix(c, '#0d1310', 0.35) };
-}
+const theme = require('./theme');
+/* Darstellung am Tablet (Einstellungen › Tablet): wie das Gerät oder vom Verein festgelegt – hell, dunkel, Hoher Kontrast */
+const TABLET_THEMES = ['auto', 'light', 'dark', 'hc'];
+const tabletTheme = () => { const t = getSetting('tablet_theme', 'auto'); return TABLET_THEMES.includes(t) ? t : 'auto'; };
+const clubColor2 = () => { const c = getSetting('club_color2', ''); return /^#[0-9a-f]{6}$/i.test(c) ? c.toLowerCase() : ''; };
+/* ?vorschau=rrggbb[&vorschau2=rrggbb]: dieselbe Berechnung für eine andere Farbe (Design-Prüfstand) – öffentlich wie theme.css selbst */
 app.get('/theme.css', (req, res) => {
-  res.type('text/css').set('Cache-Control', 'no-cache');
-  const css = o => Object.entries(o).map(([k, v]) => `--${k}:${v}`).join(';');
-  res.send(`:root{${css(themeVars())}}:root[data-theme="dark"]{${css(themeVarsDark())}}`);
+  const q = k => (typeof req.query[k] === 'string' && /^[0-9a-f]{6}$/i.test(req.query[k]) ? '#' + req.query[k] : null);
+  const pv = q('vorschau');
+  res.type('text/css').set('Cache-Control', 'no-cache').send(pv ? theme.themeCss(pv, q('vorschau2') || '') : theme.themeCss(clubColor(), clubColor2()));
 });
 app.get('/icon.svg', (req, res) => {
   // Vereinslogo als Symbol, sofern es ein SVG ist – sonst das Clubwerk-Symbol in Vereinsfarbe
@@ -163,7 +154,7 @@ app.get('/icon.svg', (req, res) => {
   let svg;
   if (l && l.type === 'svg') svg = l.custom ? Buffer.from(getSetting('club_logo', ''), 'base64').toString('utf8') : fs.readFileSync(DEFAULT_LOGO, 'utf8');
   else svg = fs.readFileSync(path.join(__dirname, '..', 'public', 'icon.svg'), 'utf8').replace(/#1f6b3a/gi, clubColor())
-    .replace(/#e8f2ea/gi, themeVars()['green-soft']);
+    .replace(/#e8f2ea/gi, theme.vars(clubColor(), '', 'light')['brand-soft']);
   res.type('image/svg+xml').set({ 'Cache-Control': 'no-cache', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'" }).send(svg);
 });
 
@@ -228,7 +219,7 @@ app.get('/manifest.webmanifest', (req, res) => {
 });
 app.get('/api/branding', (req, res) => {
   const l = logoInfo();
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
 });
 
 /* Startseite: der eingestellte Start-Reiter (Einstellungen → Leiste am Tablet) erscheint direkt unter „/“ – ohne Umweg über eine andere Adresse */
@@ -1177,7 +1168,7 @@ admin.post('/suche', (req, res) => res.json(require('./suche').run(req.user, req
 admin.get('/settings', (req, res) => {
   const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), lastSettlement: lastSettlement(),
-    order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
+    order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
     clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''),
     topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined,
     allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
@@ -1324,15 +1315,22 @@ admin.delete('/logo', need('einstellungen'), (req, res) => {
   res.json({ ok: true, logo: logoUrl() });
 });
 const ADDRESS_MIRROR = { club_street: ['ext_mitglieder_club_street', 'ext_buchhaltung_street'], club_city: ['ext_mitglieder_club_city', 'ext_buchhaltung_city'], club_phone: ['ext_buchhaltung_phone'], club_email: ['ext_buchhaltung_email'] };
+const SETTINGS_LABELS = { club_name: 'Vereinsname', club_color: 'Vereinsfarbe', club_color2: 'Zweitfarbe', tablet_theme: 'Darstellung am Tablet' };
+const TABLET_THEME_TXT = { auto: 'wie das Gerät', light: 'hell', dark: 'dunkel', hc: 'Hoher Kontrast' };
 admin.put('/settings', need('einstellungen'), (req, res) => {
-  const name = cleanName((req.body || {}).clubName);
-  if (name) setSetting('club_name', name);
-  const color = String((req.body || {}).clubColor || '').trim();
-  if (color) {
-    if (!/^#[0-9a-f]{6}$/i.test(color)) return bad(res, 'Farbe bitte als Hex-Wert, z. B. #1f6b3a.');
-    setSetting('club_color', color.toLowerCase());
-  }
   const b = req.body || {};
+  const look = () => ({ club_name: getSetting('club_name', ''), club_color: clubColor(), club_color2: clubColor2() || '', tablet_theme: TABLET_THEME_TXT[tabletTheme()] });
+  const before = look();
+  const name = cleanName(b.clubName);
+  const color = String(b.clubColor || '').trim();
+  if (color && !/^#[0-9a-f]{6}$/i.test(color)) return bad(res, 'Farbe bitte als Hex-Wert, z. B. #1f6b3a.');
+  const color2 = b.clubColor2 === undefined ? undefined : String(b.clubColor2 || '').trim();
+  if (color2 && !/^#[0-9a-f]{6}$/i.test(color2)) return bad(res, 'Zweitfarbe bitte als Hex-Wert, z. B. #c0262d – oder leer lassen.');
+  if (b.tabletTheme !== undefined && !TABLET_THEMES.includes(b.tabletTheme)) return bad(res, 'Unbekannte Darstellung.');
+  if (name) setSetting('club_name', name);
+  if (color) setSetting('club_color', color.toLowerCase());
+  if (color2 !== undefined) setSetting('club_color2', color2.toLowerCase());
+  if (b.tabletTheme !== undefined) setSetting('tablet_theme', b.tabletTheme);
   const addr = [];
   for (const [k, key, max] of [['clubStreet', 'club_street', 80], ['clubCity', 'club_city', 80], ['clubPhone', 'club_phone', 40], ['clubEmail', 'club_email', 120]]) {
     if (b[k] === undefined) continue;
@@ -1344,8 +1342,8 @@ admin.put('/settings', need('einstellungen'), (req, res) => {
   }
   if (b.topN !== undefined) { const n = int(b.topN, -1); if (n < 0 || n > 60) return bad(res, '„Ich bin öfter hier“: Anzahl 0–60 (0 = ausblenden).'); setSetting('top_n', String(n)); }
   if (b.topDays !== undefined) { const d = int(b.topDays, 0); if (d < 1 || d > 365) return bad(res, '„Ich bin öfter hier“: Zeitraum 1–365 Tage.'); setSetting('top_days', String(d)); }
-  audit(req.user, 'Einstellungen geändert', [name && 'Vereinsname', color && 'Farbe ' + color,
-    addr.length && 'Anschrift und Kontakt', b.topN !== undefined && `Öfter hier: ${b.topN} aus ${b.topDays} Tagen`].filter(Boolean).join(', '));
+  const detail = [auditDiff(SETTINGS_LABELS, before, look()), addr.length && 'Anschrift und Kontakt', b.topN !== undefined && `Öfter hier: ${b.topN} aus ${b.topDays} Tagen`].filter(Boolean).join(' · ');
+  if (detail) audit(req.user, 'Einstellungen geändert', detail);
   res.json({ ok: true });
 });
 /* Empfänger der Bestell-Mail (Lieferant/Kopie) nur mit „Einstellungen“ ändern – sonst ließe sich über das Vereinspostfach

@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.62.1';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.63.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -131,6 +131,7 @@
     if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
     current = id;
     markTab();
+    $('who').textContent = id === FM ? FM_T : ((me.sections.find(x => x.id === id) || {}).title || '');   // große Überschrift im Kopf: der offene Bereich
     const el = $('sec');
     if (id === FM) { forMe(el); return; }
     const s = me.sections.find(x => x.id === id);
@@ -226,7 +227,6 @@
     $('club').textContent = me.club;
     document.title = `${me.appName} – ${me.club}`;
     if (!me.member) { lock(); return; }
-    $('who').textContent = me.member;
     initPhoto();
     if (!me.sections.length) { $('sec').innerHTML = '<div class="vh-empty">Für dich ist noch nichts freigeschaltet. Bitte beim Vorstand melden.</div>'; return; }
     for (const s of me.sections) if (s.ok) await loadScript(`m/${s.id}/member.js?v=${encodeURIComponent(me.version || APP_VER)}`);
@@ -300,6 +300,7 @@
         ${openPhoto ? '<button type="button" id="accPhoto">Profilbild</button>' : ''}
         <button type="button" id="accPush">Benachrichtigungen</button>
         ${openLang ? `<button type="button" id="accLang">Sprache: <span translate="no">${esc(langName)}</span></button>` : ''}
+        ${window.CWTheme ? `<button type="button" id="accLook">Darstellung: <span>${esc(LOOKS.find(x => x[0] === CWTheme.choice())[1])}</span></button>` : ''}
         <button type="button" id="accPin">PIN ändern</button>
       </div>
       <button type="button" class="vh-danger" id="accOut" style="margin:14px 0 0">Abmelden</button>
@@ -311,6 +312,7 @@
     on('#accPhoto', () => openPhoto && openPhoto());
     on('#accPush', () => notifSheet().catch(e => toast(e.message, true)));
     on('#accLang', () => openLang && openLang());
+    on('#accLook', lookSheet);
     on('#accPin', pinChangeSheet);
     // Abmelden: Rückfrage im selben Blatt, mit der Folge
     sh.querySelector('#accOut').onclick = () => {
@@ -325,6 +327,18 @@
         close(); loggedOut();
       };
     };
+    sh.classList.add('show');
+  }
+  /* ---------- Darstellung auf diesem Handy: wie das Handy, hell, dunkel oder Hoher Kontrast (theme-init.js) ---------- */
+  const LOOKS = [['auto', 'Wie das Handy'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']];
+  function lookSheet() {
+    let sh = $('lookSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'lookSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
+    const cur = CWTheme.choice();
+    sh.innerHTML = `<div class="vh-box"><h2>Darstellung</h2><p>Gilt nur auf diesem Handy. „Hoher Kontrast“ zeigt kräftige Ränder und stärkere Schrift – gut bei Sonne.</p>
+      <div class="vh-langs">${LOOKS.map(([k, l]) => `<button type="button" class="vh-lang${k === cur ? ' on' : ''}" data-look="${k}">${esc(l)}</button>`).join('')}</div>
+      <div class="vh-row"><button class="no" id="lookNo">Schließen</button></div></div>`;
+    sh.querySelector('#lookNo').onclick = () => sh.classList.remove('show');
+    sh.querySelectorAll('[data-look]').forEach(b => { b.onclick = () => { CWTheme.set(b.dataset.look); sh.classList.remove('show'); }; });
     sh.classList.add('show');
   }
   /** nach dem Abmelden: Schlüssel und PIN vergessen, Push im Browser abbestellen, Sperrhinweis zeigen */

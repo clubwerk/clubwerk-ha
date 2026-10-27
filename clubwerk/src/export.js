@@ -7,7 +7,7 @@ let HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8F2EA'
 /** Vereinsfarbe übernehmen (Überschriften und Kopfzeilen). */
 function setColor(hex) {
   if (!/^#[0-9a-f]{6}$/i.test(hex || '')) return;
-  const c = hex.slice(1).toUpperCase(), soft = require('./db').mixColor(hex, 'white', 0.9).slice(1).toUpperCase();
+  const c = require('./theme').vars(hex.toLowerCase(), '', 'light').brand.slice(1).toUpperCase(), soft = require('./db').mixColor(hex, 'white', 0.9).slice(1).toUpperCase();   // Schrift in Vereinsfarbe: kontrastgesichert
   GREEN = 'FF' + c;
   HEAD_FILL = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + soft } };
 }

@@ -42,7 +42,7 @@ function body(text) {
  * card: { title, rows: [[k, v]], button: { label, url } | true (= Mitglieder-App) }
  */
 function render({ subject, text, card, preheader }) {
-  const c = color(), soft = tint(c, 0.9), line = tint(c, 0.8), club = getSetting('club_name', 'Verein');
+  const c = require('./theme').vars(color(), '', 'light').brand, soft = tint(color(), 0.9), line = tint(color(), 0.8), club = getSetting('club_name', 'Verein');   // Knöpfe und Kopf mit weißer Schrift: kontrastgesicherte Vereinsfarbe (auch bei hellem Gelb lesbar)
   const lg = logo();
   const att = lg ? [{ filename: `logo.${lg.ext}`, content: lg.content, contentType: lg.contentType, cid: 'vereinslogo@clubwerk', contentDisposition: 'inline' }] : [];
   const initials = club.split(/\s+/).filter(w => /^[A-ZÄÖÜ]/.test(w)).map(w => w[0]).slice(0, 2).join('') || club.slice(0, 2).toUpperCase();

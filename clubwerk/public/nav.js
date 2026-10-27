@@ -14,16 +14,19 @@
   const hdr = document.getElementById('gkHeader');
   if (hdr && !hdr.dataset.built) {
     hdr.dataset.built = '1';
-    hdr.classList.add('top');
+    hdr.classList.add('top', 'glass');
     hdr.innerHTML = `<div class="brand"><span class="logo-badge" id="logoBox"><img id="logo" alt="Vereinslogo"></span><span class="mark" id="clubMark"></span>
         <div class="bt"><h1 id="club">&nbsp;</h1><span id="club2"></span></div></div>
       <nav class="topnav" id="topnav" aria-label="Bereiche"></nav>
       <div class="hright"><span class="clock" id="clock"></span><a class="admin" id="adminLink" href="${base}verwaltung.html">Verwaltung</a></div>`;
-    const tick = () => { const c = document.getElementById('clock'); if (c) c.textContent = new Date().toLocaleString('de-DE', { weekday: 'short', hour: '2-digit', minute: '2-digit' }); };
+    // Uhr wie auf einer Anzeigetafel: Wochentag klein, Uhrzeit in der Zahlen-Schrift
+    const tick = () => { const c = document.getElementById('clock'); if (!c) return; const d = new Date(); const t = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      if (c.dataset.t !== t) { c.dataset.t = t; c.innerHTML = `<small>${esc(d.toLocaleDateString('de-DE', { weekday: 'short' }))}</small><b class="num">${esc(t)}</b>`; } };
     tick(); setInterval(tick, 2000);
     const logo = document.getElementById('logo'), box = document.getElementById('logoBox');
     box.classList.add('hidden');
     const apply = (b, fresh) => {
+      if (window.CWTheme && b.tabletTheme) window.CWTheme.tablet(b.tabletTheme);   // Darstellung am Tablet, vom Verein festgelegt (Einstellungen › Tablet)
       if (b.clubName) {
         // „TC Grün-Weiß Musterstadt“ → zwei Zeilen: „TC Grün-Weiß“ / „Musterstadt“
         const w = b.clubName.trim().split(/\s+/);
@@ -55,7 +58,7 @@
       } else { box.classList.add('hidden'); hdr.classList.remove('haslogo'); }
     };
     const nav = {};
-    const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => { keep.set('cw_brand', { clubName: b.clubName, color: b.color, logo: b.logo }); apply(b, true); }).catch(() => {});
+    const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => { keep.set('cw_brand', { clubName: b.clubName, color: b.color, logo: b.logo, tabletTheme: b.tabletTheme }); apply(b, true); }).catch(() => {});
     const last = keep.get('cw_brand'); if (last) apply(last, false);
     brand();
     setInterval(brand, 5 * 60 * 1000);
