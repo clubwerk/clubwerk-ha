@@ -46,7 +46,7 @@
       </div>
       ${sel ? `<div class="card"><h3>${esc(GK.lastFirst(sel.name))}${sel.job ? ` <span class="muted s">· ${esc(sel.job)}</span>` : ''}</h3>
         ${sel.entries.length ? `<table class="tbl kompakt"><tr><th>Datum</th><th>Kommen</th><th>Gehen</th><th class="r">Dauer</th><th>Hinweis</th><th></th></tr>
-          ${sel.entries.map(e => `<tr><td>${zday(e.start_at)}</td><td>${zclock(e.start_at)}</td><td>${e.end_at ? zclock(e.end_at) + (e.end_at.slice(0, 10) !== e.start_at.slice(0, 10) ? ' <span class="muted s">(+1)</span>' : '') : '–'}</td>
+          ${sel.entries.map(e => `<tr><td class="num">${zday(e.start_at)}</td><td class="num">${zclock(e.start_at)}</td><td><span class="num">${e.end_at ? zclock(e.end_at) : '–'}</span>${e.end_at && e.end_at.slice(0, 10) !== e.start_at.slice(0, 10) ? ' <span class="muted s">(+1)</span>' : ''}</td>
             <td class="r">${e.end_at ? zhm(e.minutes) : '–'}</td><td>${flagCell(e)}</td><td class="r"><button class="btn small" data-ze="${e.id}">Bearbeiten</button></td></tr>`).join('')}
           <tr class="sum"><td>Summe</td><td></td><td></td><td class="r">${zhm(sel.minutes)}</td><td>→ abgerechnet <b>${zhm(sel.rounded)} Std.</b>${sel.open ? ' <span class="muted s">(offene Einsätze nicht enthalten)</span>' : ''}</td><td></td></tr></table>`
           : '<p class="empty">Keine Einsätze in diesem Monat.</p>'}</div>`

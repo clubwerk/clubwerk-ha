@@ -21,7 +21,7 @@
     try { state = await call('x/arbeitseinsatz/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="tk-tile on" data-r="${r.member_id}"><i class="av">${esc(String(r.name || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</i><span class="tk-txt"><b>${esc(r.ln)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></span><span class="t">${since(r.in_at)}</span></button>`).join('')
       : '<div class="tk-empty">Niemand eingestempelt.</div>';
-    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="tk-tile">${dateBlk(e.date)}<span class="tk-txt"><b translate="no">${esc(e.title)}</b><span>${[e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place].filter(Boolean).map(esc).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></span></div>`).join('')
+    $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="tk-tile">${dateBlk(e.date)}<span class="tk-txt"><b translate="no">${esc(e.title)}</b><span>${[e.start ? `<span class="num">${esc(e.start)}${e.end ? '–' + esc(e.end) : ''}</span> Uhr` : '', e.place ? esc(e.place) : ''].filter(Boolean).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></span></div>`).join('')
       : '<div class="tk-empty">Heute ist nichts geplant – du kannst trotzdem einen Einsatz beginnen.</div>';
     $('note').textContent = state.text || '';
     $('running').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => { const p = state.people.find(x => x.id === +b.dataset.r) || { id: +b.dataset.r, name: b.querySelector('b').textContent, pin: true }; confirmStop(p, state.running.find(x => x.member_id === p.id)); }; });
@@ -79,7 +79,7 @@
   function confirmStop(p, r) {
     const m = r ? Math.max(0, Math.round((Date.now() - new Date(r.in_at.replace(' ', 'T')).getTime()) / 60000)) : 0;
     const short = m < 5;
-    dlg(`<h2>Ausstempeln?</h2><div class="sub"><b translate="no">${esc(p.name)}</b>${r ? ` · ${esc(r.title || 'Einsatz')}<br>seit ${r.in_at.slice(11, 16)} Uhr · ${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')} Stunden` : ''}</div>
+    dlg(`<h2>Ausstempeln?</h2><div class="sub"><b translate="no">${esc(p.name)}</b>${r ? ` · ${esc(r.title || 'Einsatz')}<br>seit <span class="num">${r.in_at.slice(11, 16)}</span> Uhr · <span class="num">${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}</span> Stunden` : ''}</div>
       ${short ? '<div class="perr" style="margin-top:0">Weniger als 5 Minuten – das wird nicht gewertet und verworfen.</div>' : ''}
       <div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Ausstempeln</button></div>`);
     $('x').onclick = closeDlg;

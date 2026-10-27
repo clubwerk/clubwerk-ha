@@ -15,7 +15,7 @@
   const pill = ([c, t]) => `<span class="pill ${c}">${esc(t)}</span>`;
   const opt = (v, l, s) => `<option value="${esc(v)}" ${String(v) === String(s ?? '') ? 'selected' : ''}>${esc(l)}</option>`;
   const val = id => ($(id) ? $(id).value.trim() : '');
-  const bar = (done, target) => { const p = target ? Math.min(100, Math.round(done / target * 100)) : 100; return `<span class="aw-bar"><i style="width:${p}%;background:${p >= 100 ? 'var(--brand)' : p >= 50 ? 'var(--amber)' : 'var(--red)'}"></i></span>`; };
+  const bar = (done, target) => { const p = target ? Math.min(100, Math.round(done / target * 100)) : 100; return `<span class="aw-bar"><i style="width:${p}%;background:var(--brand)"></i></span>`; };
 
   if (!document.getElementById('awStyle')) {
     const s = document.createElement('style'); s.id = 'awStyle';
@@ -31,8 +31,8 @@
       .aw-ev .aw-tog { min-width: 112px; justify-content: center; }
       .aw-date.perm b { font-size: 26px; line-height: 1; } .aw-date.perm span { font-size: 10.5px; letter-spacing: .02em; }
       .aw-ev.off .aw-date, .aw-ev.off h4 > span[translate], .aw-ev.off .muted { opacity: .55; }
-      .aw-date { width: 76px; height: 64px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; line-height: 1.1; }
-      .aw-date b { font-size: 22px; } .aw-date span { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+      .aw-date { width: 76px; height: 64px; border-radius: 14px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; line-height: 1.1; }
+      .aw-date b { font-family: var(--num); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; } .aw-date span { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
       .aw-ev h4 { margin: 0 0 4px; font-size: 15.5px; } .aw-ev .muted { font-size: 13px; }
       .aw-ev .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .aw-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
@@ -41,7 +41,7 @@
       .aw-dh { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; } .aw-dh h3 { margin: 0; }
       .aw-sh { display: grid; grid-template-columns: 120px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line-soft); }
       .aw-dh + .aw-sh { border-top: 0; } .aw-sh.off { opacity: .5; }
-      .aw-when b { font-size: 14.5px; font-variant-numeric: tabular-nums; line-height: 24px; }
+      .aw-when b { font-family: var(--num); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 24px; }
       .aw-what { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 24px; } .aw-what b { font-size: 15px; }
       .aw-sh .acts { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .pill.aw-free { background: transparent; border: 1px dashed var(--line); color: var(--faint); }
@@ -261,7 +261,7 @@
         <div class="aw-date"><span>${new Date(p.from_date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' })}</span><b>${p.from_date.slice(8, 10)}.${p.from_date.slice(5, 7)}.</b></div>
         <div style="min-width:0"><h4><span translate="no">${esc(p.title)}</span>${p.published ? '' : ' ' + pill(['a', 'Entwurf'])}${p.counts ? '' : ' ' + pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? ' ' + pill(['b', 'im Verkauf']) : ''}</h4>
           <div class="muted">${[rangeTxt(p), p.place, `${p.shifts} ${p.shifts === 1 ? 'Schicht' : 'Schichten'}`, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).map(esc).join(' · ')}</div>
-          ${p.need ? `<div class="aw-prog"><span class="aw-bar"><i style="width:${Math.round(p.filled / p.need * 100)}%;background:${p.filled >= p.need ? 'var(--brand)' : p.filled / p.need >= .5 ? 'var(--amber)' : 'var(--red)'}"></i></span><span class="muted s">${p.open ? `${p.open} ${p.open === 1 ? 'Schicht' : 'Schichten'} noch nicht voll` : 'alle Schichten voll'}</span></div>` : ''}</div>
+          ${p.need ? `<div class="aw-prog"><span class="aw-bar"><i style="width:${Math.round(p.filled / p.need * 100)}%;background:var(--brand)"></i></span><span class="muted s">${p.open ? `${p.open} ${p.open === 1 ? 'Schicht' : 'Schichten'} noch nicht voll` : 'alle Schichten voll'}</span></div>` : ''}</div>
         <div class="acts"><button class="btn small" data-po="${p.id}">Öffnen</button></div></div>`;
     head('Dienstpläne', 'Veranstaltungen mit Tagen und Schichten, z. B. Kirmes oder Turnier. Mitglieder tragen sich in der App ein.');
     $('main').insertAdjacentHTML('beforeend', `<div class="toolbar"><button class="btn primary" id="plNew">+ Neuer Dienstplan</button></div>

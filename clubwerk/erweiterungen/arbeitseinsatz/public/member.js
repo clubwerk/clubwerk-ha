@@ -6,7 +6,7 @@
     s.textContent = `
       .ds-sh { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
       h3 + .ds-sh, .vh-lead + .ds-sh, .vh-seg + .ds-sh { border-top: 0; padding-top: 2px; } .ds-sh:last-child { padding-bottom: 0; } .ds-sh.me { box-shadow: inset 3px 0 0 var(--brand); padding-left: 10px; margin-left: -10px; }
-      .ds-t { width: 48px; font-size: 13.5px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.25; text-align: center; }
+      .ds-t { width: 48px; font-family: var(--num); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; text-align: center; }
       .ds-sh strong { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 15px; line-height: 1.3; }
       .ds-sh small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.35; }
       .ds-faces { display: flex; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); margin-left: -4px; }`;
@@ -48,7 +48,7 @@
         const duties = `${mineHtml(d)}${d.plans.map(planHtml).join('')}
           ${d.events.length || !d.plans.length ? `<div class="vh-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="vh-none">Gerade keine Termine geplant.</p>'}</div>` : ''}`;
         el.innerHTML = `${met ? duties + hours : hours + duties}
-          <div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b>${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`;
+          <div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b class="num">${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`;
         const all = [...d.events, ...d.plans.flatMap(p => p.shifts)];
         el.querySelectorAll('[data-ev]').forEach(b => { b.onclick = async () => {
           const e = all.find(x => x.id === +b.dataset.ev);
@@ -78,7 +78,7 @@
       function mineHtml(d) {
         const list = [...d.events.map(e => ({ ...e, plan: null })), ...d.plans.flatMap(p => p.shifts.map(e => ({ ...e, plan: p.title })))].filter(e => e.mine && e.open !== false).sort((a, b) => (a.date + (a.start || '')).localeCompare(b.date + (b.start || '')));
         if (!list.length) return '';
-        return `<div class="vh-card"><h3>Meine Dienste</h3><div class="vh-rows">${list.map(e => `<div><span><span translate="no">${esc(e.title)}</span><small>${esc([e.plan, `${wd(e.date, true)}, ${deD(e.date)}`].filter(Boolean).join(' · '))}</small></span><b>${esc(when(e))}</b></div>`).join('')}</div></div>`;
+        return `<div class="vh-card"><h3>Meine Dienste</h3><div class="vh-rows">${list.map(e => `<div><span><span translate="no">${esc(e.title)}</span><small>${esc([e.plan, `${wd(e.date, true)}, ${deD(e.date)}`].filter(Boolean).join(' · '))}</small></span><b class="num">${esc(when(e))}</b></div>`).join('')}</div></div>`;
       }
       function leave(e, d) {
         const sh = sheet();

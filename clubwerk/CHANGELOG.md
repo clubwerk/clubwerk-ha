@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.69.0
+
+**Helferdienste und Zeiterfassung im neuen Aussehen „Anzeigetafel“ (Etappe D2-6 des Design-Umbaus)**
+- **Helferdienste:** Uhrzeiten, Stunden und Datumsziffern stehen überall in der schmalen Zahlenschrift – in der Mitglieder-App (Schichtzeiten, „Meine Stunden“, „Meine Dienste“), am Tablet (Einsatzzeiten, „seit …“, Dauer beim Ausstempeln) und in der Verwaltung (Datumsblöcke, Zeitspalte der Schichten). Die Fortschrittsbalken sind jetzt immer in der Vereinsfarbe; ob etwas fehlt, zeigt weiterhin die rote Zahl daneben.
+- **Zeiterfassung am Tablet:** Die Erfolgsmeldung zeigt statt des „✓“-Zeichens ein sauberes Linien-Symbol im runden Feld (auch beim Zurücknehmen). Uhrzeiten und Summen in der Meldung und in den Kacheln stehen in der Zahlenschrift.
+- **Zeiterfassung in der Verwaltung:** Datum, Kommen und Gehen in der Einsatzliste stehen in der Zahlenschrift, passend zu den Summen.
+- Nur das Aussehen ändert sich – keine Abläufe, keine Stunden, keine Beträge. Die Druckansichten bleiben unverändert.
+
 ## 3.68.0
 
 **Verkauf am Tablet im neuen Aussehen „Anzeigetafel“ – Buchen, Warenkorb, Fenster, Veranstaltung und Deckel (Etappe D2-2 des Design-Umbaus)**

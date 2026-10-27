@@ -40,11 +40,12 @@
   function render() {
     // Kachel wie im Verkauf: Initialen · Name + Tätigkeit/Zeit · Marke rechts (da / nicht da / vergessen)
     $('staff').innerHTML = state.staff.map(s => {
-      const line = s.forgotten ? `nicht ausgestempelt seit ${dayLabel(s.in_since)} ${clock(s.in_since)}`
-        : s.in_since ? `seit ${dayLabel(s.in_since) === 'heute' ? '' : dayLabel(s.in_since) + ' '}${clock(s.in_since)} Uhr`
-          : s.last_out ? `zuletzt ${dayLabel(s.last_out)} ${clock(s.last_out)}` : '';
+      const n = t => `<span class="num">${t}</span>`;
+      const line = s.forgotten ? `nicht ausgestempelt seit ${dayLabel(s.in_since)} ${n(clock(s.in_since))}`
+        : s.in_since ? `seit ${dayLabel(s.in_since) === 'heute' ? '' : dayLabel(s.in_since) + ' '}${n(clock(s.in_since))} Uhr`
+          : s.last_out ? `zuletzt ${dayLabel(s.last_out)} ${n(clock(s.last_out))}` : '';
       const chip = s.forgotten ? '<span class="tk-chip r">vergessen</span>' : s.in_since ? '<span class="tk-chip g">da</span>' : '<span class="tk-chip">nicht da</span>';
-      return `<button data-id="${s.id}" class="tk-tile ${s.forgotten ? 'warn' : s.in_since ? 'on' : ''}"><i class="av">${esc(initials(s.name))}</i><span class="tk-txt"><b>${esc(s.ln)}</b><span>${esc([s.job, line].filter(Boolean).join(' · '))}</span></span>${chip}</button>`;
+      return `<button data-id="${s.id}" class="tk-tile ${s.forgotten ? 'warn' : s.in_since ? 'on' : ''}"><i class="av">${esc(initials(s.name))}</i><span class="tk-txt"><b>${esc(s.ln)}</b><span>${[esc(s.job || ''), line].filter(Boolean).join(' · ')}</span></span>${chip}</button>`;
     }).join('');
     if (!state.staff.length) $('staff').innerHTML = '<p class="tk-empty" style="grid-column:1/-1;margin:0">Noch kein Personal angelegt – in der Verwaltung unter „Zeiterfassung“.</p>';
     $('staff').querySelectorAll('button[data-id]').forEach(b => b.onclick = () => askPin(state.staff.find(s => s.id === Number(b.dataset.id))));
@@ -76,16 +77,17 @@
 
   function done(r) {
     const first = r.name.split(' ')[0];
+    const CHECK = '<svg aria-hidden="true" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:top;margin-top:16px"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>', UNDO = '<svg aria-hidden="true" viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block;vertical-align:top;margin-top:16px"><path d="M9 14L4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>';
     const T = {
-      in: [`Hallo, ${first}!`, `Kommen ${clock(r.at)} Uhr`, '✓', ''],
-      'in-after-forgotten': [`Hallo, ${first}!`, `Kommen ${clock(r.at)} Uhr`, '✓', '<p class="note">Beim letzten Mal wurde nicht ausgestempelt. Bitte dem Vorstand sagen, wann Schluss war.</p>'],
-      out: [`Tschüss, ${first}!`, `Gehen ${clock(r.at)} Uhr`, '✓', ''],
-      undo: ['Zurückgenommen', 'Einstempeln gelöscht', '↺', '<p class="note">Du warst gerade erst eingestempelt – das wurde als Versehen gelöscht.</p>'],
+      in: [`Hallo, ${first}!`, `Kommen ${clock(r.at)} Uhr`, CHECK, ''],
+      'in-after-forgotten': [`Hallo, ${first}!`, `Kommen ${clock(r.at)} Uhr`, CHECK, '<p class="note">Beim letzten Mal wurde nicht ausgestempelt. Bitte dem Vorstand sagen, wann Schluss war.</p>'],
+      out: [`Tschüss, ${first}!`, `Gehen ${clock(r.at)} Uhr`, CHECK, ''],
+      undo: ['Zurückgenommen', 'Einstempeln gelöscht', UNDO, '<p class="note">Du warst gerade erst eingestempelt – das wurde als Versehen gelöscht.</p>'],
     }[r.action];
     $('dialog').className = 'dialog done';
     $('dialog').innerHTML = `<div class="big">${T[2]}</div><h2>${esc(T[0])}</h2><div class="when">${T[1]}</div>
-      <div class="kv">${r.action === 'out' ? `<span>Heute</span><b>${clock(r.since)} – ${clock(r.at)} · ${hm(r.today_minutes)} Std.</b>` : ''}
-        <span>${new Date().toLocaleString('de-DE', { month: 'long' })} bisher</span><b>${hm(r.month_minutes)} Std.</b></div>
+      <div class="kv">${r.action === 'out' ? `<span>Heute</span><b class="num">${clock(r.since)} – ${clock(r.at)} · ${hm(r.today_minutes)} Std.</b>` : ''}
+        <span>${new Date().toLocaleString('de-DE', { month: 'long' })} bisher</span><b class="num">${hm(r.month_minutes)} Std.</b></div>
       ${T[3]}<button class="btn primary" id="okBtn">OK</button>`;
     $('okBtn').onclick = closeDialog;
     clearTimeout(closeTimer); closeTimer = setTimeout(closeDialog, 12000);
