@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.65.0
+
+**Verwaltung im neuen Aussehen „Anzeigetafel“ – Auswertung, Tabellen, Anmeldung, Einstellungen, E-Mail (Etappe D2-3 des Design-Umbaus)**
+- **Auswertung:** Die großen Zahlen (Umsatz, Artikel, Buchungen …) stehen jetzt in der schmalen Zahlenschrift wie auf einer Anzeigetafel. Die Leiste mit Bestseller, stärkstem Tag, Stoßzeit und Ø je Buchung sieht aus wie die Spielstandstafel der Übersicht: kleine Beschriftung darüber, große Zahl darunter.
+- **Tabellen:** Beträge und Mengen (z. B. in Abrechnung und Konten) stehen in der Zahlenschrift. Die Spaltenüberschriften sind etwas kleiner und ruhiger. Rote Beträge bleiben rot, Zeilenhöhen und Knöpfe bleiben gleich.
+- **Anmeldung:** Das Vereinslogo steht auf einer weißen, runden Kachel wie im Seitenmenü, unter „Verwaltung“ steht die doppelte Platzlinie, und der leichte Farbschimmer im Hintergrund reicht jetzt bis ganz nach oben (vorher begann er mit einer Kante). Am Handy hat die Karte rechts und links Abstand zum Rand.
+- **Einstellungen › Verein:** Die Farbfelder sind runde Pillen. Neu darunter: eine kleine **Vorschau**, wie Clubwerk die Vereinsfarbe in hell und dunkel berechnet (Knopf und Hauptkarte) – sie wechselt mit, sobald du die Farbe änderst, ohne zu speichern.
+- **E-Mail:** Empfänger-Chips und Anhänge als Pillen, Datum in der Zahlenschrift, ruhigere Zwischenüberschriften in der Vorschlagsliste, Mailvorschau als Karte mit weichem Schatten.
+- Es ändert sich nur das Aussehen, keine Abläufe.
+
 ## 3.64.0
 
 **Mitglieder-App › Buchen: „Freie Zeiten“ als Liste (Etappe D2-1 des Design-Umbaus)**

@@ -3825,6 +3825,7 @@
           <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label>
         <label class="f">Zweitfarbe (freiwillig)<span class="row" style="gap:6px"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;padding:2px">
           <input id="clubColor2" value="${esc(s.clubColor2 || '')}" style="width:110px" maxlength="7" placeholder="keine"></span></label></div>
+        <div class="clubprev" id="clubPrev"></div>
         <div class="row" style="margin-top:10px"><label class="f" style="flex:2;min-width:260px">Straße und Hausnummer<input id="clubStreet" maxlength="80" value="${esc(s.clubStreet)}" placeholder="z. B. Vereinsweg 1" autocomplete="off"></label>
           <label class="f" style="flex:1;min-width:200px">PLZ und Ort<input id="clubCity" maxlength="80" value="${esc(s.clubCity)}" placeholder="z. B. 12345 Musterstadt" autocomplete="off"></label></div>
         <div class="row" style="margin-top:10px"><label class="f" style="flex:1;min-width:240px">E-Mail des Vereins<input id="clubEmail" type="email" maxlength="120" value="${esc(s.clubEmail)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
@@ -3924,11 +3925,28 @@
         <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. Beim ersten Aufruf das Passwort für das Tablet eingeben.</p>
         <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
     if ($('clubColorPick')) {
-      $('clubColorPick').oninput = () => { $('clubColor').value = $('clubColorPick').value; };
-      $('clubColor').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor').value)) $('clubColorPick').value = $('clubColor').value; };
+      // Vorschau: die berechneten Farben (hell und dunkel) kommen aus theme.css?vorschau=…, ohne zu speichern
+      let prevT = 0;
+      const prevDraw = () => {
+        clearTimeout(prevT);
+        prevT = setTimeout(async () => {
+          if (!$('clubPrev') || !$('clubColor')) return;   // Seite wurde inzwischen gewechselt
+          const c1 = $('clubColor').value, c2 = $('clubColor2').value.trim();
+          if (!/^#[0-9a-f]{6}$/i.test(c1)) return;
+          try {
+            const css = await (await fetch('theme.css?vorschau=' + c1.slice(1) + (/^#[0-9a-f]{6}$/i.test(c2) ? '&vorschau2=' + c2.slice(1) : ''))).text();
+            const blk = k => Object.fromEntries([...(css.split(k)[1] || '').split('}')[0].matchAll(/--([\w-]+):([^;}]+)/g)].map(m => [m[1], m[2]]));
+            const sample = (lbl, v) => `<div class="cp" style="background:${v['brand-soft']};color:${v['brand-ink']}"><b>${esc(lbl)}</b><span class="cpb" style="background:${v.brand};color:${v['on-brand']}">${esc(T('Speichern'))}</span><span class="cph num" style="background:linear-gradient(135deg,${v['hero-a']},${v['hero-c']});color:${v['on-hero']}">70,00 €</span></div>`;
+            $('clubPrev').innerHTML = sample(T('Hell'), blk(':root{')) + sample(T('Dunkel'), blk(':root[data-theme="dark"]{'));
+          } catch { /* Vorschau ist nur Beiwerk */ }
+        }, 250);
+      };
+      $('clubColorPick').oninput = () => { $('clubColor').value = $('clubColorPick').value; prevDraw(); };
+      $('clubColor').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor').value)) $('clubColorPick').value = $('clubColor').value; prevDraw(); };
       const c2look = () => { $('clubColor2Pick').style.opacity = $('clubColor2').value.trim() ? '' : '.35'; };   // ohne Zweitfarbe: Farbfeld blass
-      $('clubColor2Pick').oninput = () => { $('clubColor2').value = $('clubColor2Pick').value; c2look(); };
-      $('clubColor2').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor2').value)) $('clubColor2Pick').value = $('clubColor2').value; c2look(); };
+      $('clubColor2Pick').oninput = () => { $('clubColor2').value = $('clubColor2Pick').value; c2look(); prevDraw(); };
+      $('clubColor2').oninput = () => { if (/^#[0-9a-f]{6}$/i.test($('clubColor2').value)) $('clubColor2Pick').value = $('clubColor2').value; c2look(); prevDraw(); };
+      prevDraw();
       c2look();
     }
     if ($('tkTheme')) $('tkTheme').onchange = async () => { try { await api('settings', 'PUT', { tabletTheme: $('tkTheme').value }); toast('Gespeichert – die Tablets übernehmen es beim nächsten Laden.'); } catch (e) { fail(e); } };
