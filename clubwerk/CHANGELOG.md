@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.78.0
+
+**Demo-Modus: Clubwerk mit erfundenen Daten ausprobieren**
+- **Beim allerersten Start** gibt es neben „Einrichtung starten“ den zweiten Weg **„Demo ausprobieren“**: Clubwerk startet einmal neu und zeigt einen erfundenen Verein mit Mitgliedern, Buchungen, Plätzen, Diensten, Turnieren und mehr. Wie die Einrichtung geht das nur über die Home-Assistant-Seitenleiste oder mit dem Einrichtungscode aus dem Protokoll des Add-ons.
+- **Eigene Zugangsdaten:** Passwort der Verwaltung und Tablet-Passwort der Demo werden zufällig erzeugt und nur dem angezeigt, der die Demo startet (und angemeldeten Admins im Demo-Hinweis) – es gibt keine bekannten Standard-Passwörter.
+- **Deutlich gekennzeichnet:** Hinweisleiste „Demo – alle Daten sind erfunden“ in der Verwaltung, „Demo“ in der Kopfzeile und auf der Sperrseite des Tablets, Hinweis in der Mitglieder-App.
+- **Sicher:** In der Demo schaltet Clubwerk nie Geräte über Home Assistant (Türen, Beregnung – „Öffnen“ wird nur simuliert) und verschickt keine Push-Nachrichten und keine SMS.
+- **„Demo beenden und einrichten“** (in der Hinweisleiste, mit allen Rechten und dem eigenen Passwort): Clubwerk startet neu und löscht dabei alles restlos – Datenbank, Belege, Bilder, Fotos, Dokumente, Mail-Anhänge, Sicherungen, Erweiterungen und die Zugänge der Demo. Danach begrüßt Clubwerk wie bei einer neuen Installation; wer die Demo beendet hat, richtet ohne Einrichtungscode ein (eine Stunde lang).
+- Für Entwickler: Die Beispieldaten liegen jetzt im Paket (`clubwerk/demo/demo.sql`); `werkzeuge/demo/laden.js` nutzt dieselbe Ladefunktion. Neue Testreihe `demo`.
+
 ## 3.77.0
 
 **Einrichtungs-Assistent und Betrieb ohne Tablet**

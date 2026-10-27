@@ -157,6 +157,7 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
   const ids = [...new Set((Array.isArray(memberIds) ? memberIds : [memberIds]).map(Number).filter(Boolean))];
   if (!ids.length || !title) return { sent: 0, skipped: 'leer' };
   if (!enabled(key)) return { sent: 0, skipped: 'Anlass nicht freigegeben' };
+  if (require('./db').getSetting('demo_mode', '') === '1') return { sent: 0, skipped: 'Demo' };   // erfundene Mitglieder: keine Nachrichten
   const payload = JSON.stringify({ title: String(title).slice(0, 80), body: String(body || '').slice(0, 200), url: url ? String(url).slice(0, 200) : '', tag: tag ? String(tag).slice(0, 60) : key });
   let sent = 0;
   for (const mid of ids) {

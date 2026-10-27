@@ -141,6 +141,7 @@ function send(number, text) {
   const to = normPhone(number);
   if (!to) return Promise.reject(new Error('Keine gültige Handynummer.'));
   const body = gsmSafe(text);
+  if (require('./db').getSetting('demo_mode', '') === '1') return Promise.reject(new Error('In der Demo werden keine SMS verschickt.'));
   return serial(async () => {
     const dev = device(); if (!dev) throw new Error('Kein SMS-Modem eingerichtet.');
     let p;

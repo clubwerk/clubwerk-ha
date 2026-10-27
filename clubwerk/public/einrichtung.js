@@ -63,6 +63,9 @@
   .firststart .wpath .btn{width:100%;justify-content:center;height:48px;font-size:15px}
   .firststart .f{text-align:left}
   .firststart .hint{text-align:left;margin:4px 0 16px}
+  .demobar{display:flex;align-items:center;flex-wrap:wrap;gap:8px 12px;margin:20px 36px 0}
+  .demobar>span{flex:1;min-width:200px}
+  @media (max-width:900px){.demobar{margin:12px 16px 0}}
   `;
   document.head.appendChild(style);
 
@@ -83,7 +86,7 @@
         ${st.demo ? '<p class="muted s" style="margin:12px 0 0">Die Demo zeigt Clubwerk mit erfundenen Beispieldaten. Danach lässt sie sich mit einem Klick restlos löschen.</p>' : ''}</div>`;
       if ($('fsLang')) $('fsLang').onchange = e => { try { localStorage.setItem('cw_lang', e.target.value); } catch (err) { /* privat */ } location.reload(); };
       $('fsStart').onclick = account;
-      if ($('fsDemo') && GK.demoStart) $('fsDemo').onclick = () => GK.demoStart(st, welcome);
+      if ($('fsDemo')) $('fsDemo').onclick = () => GK.demoStart(st, welcome, logo);
     };
     const account = () => {
       $('app').innerHTML = `<div class="login card firststart">${logo}<h2 class="page">Admin-Konto</h2>
@@ -112,6 +115,58 @@
     };
     welcome();
   };
+
+  /* =================== Demo (erfundene Beispieldaten) =================== */
+  /** auf den Neustart warten: ok(status) entscheidet, wann Clubwerk wieder da ist */
+  const waitRestart = ok => new Promise(res => {
+    const t0 = Date.now();
+    const poll = async () => {
+      try { const r = await fetch('api/admin/status', { cache: 'no-store' }); if (r.ok) { const st = await r.json(); if (ok(st)) return res(st); } } catch (e) { /* noch nicht da */ }
+      if (Date.now() - t0 < 240000) setTimeout(poll, 2000); else res(null);
+    };
+    setTimeout(poll, 2500);
+  });
+  const waitCard = (logo, title, text) => `<div class="login card firststart">${logo}<h2 class="page">${esc(T(title))}</h2><p class="lead">${esc(T(text))}</p><div class="wizbar"><i style="width:100%"></i></div></div>`;
+  /** „Demo ausprobieren“ auf der Willkommensseite (erster Start) */
+  GK.demoStart = (st, back, logo = '') => {
+    $('app').innerHTML = `<div class="login card firststart">${logo}<h2 class="page">Demo ausprobieren</h2>
+      <p class="lead">Clubwerk mit einem erfundenen Verein: Mitglieder, Buchungen, Plätze, Dienste und mehr. Nichts davon ist echt.</p>
+      <p class="muted s hint">Clubwerk startet dafür einmal neu (etwa eine Minute). Geräte über Home Assistant werden in der Demo nie geschaltet. Später löscht „Demo beenden und einrichten“ alle Beispieldaten restlos.</p>
+      <form id="dmForm">${st.setupCode ? '<label class="f">Einrichtungscode <span class="muted">(steht in Home Assistant unter Einstellungen → Add-ons → Clubwerk → Protokoll)</span><input id="dmCode" placeholder="XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><br>' : ''}
+      <div class="btns"><button class="btn ghost" id="dmBack" type="button">Zurück</button><button class="btn primary" id="dmGo">Demo starten</button></div>
+      <p class="err" id="dmErr" role="alert"></p></form></div>`;
+    $('dmBack').onclick = back;
+    $('dmForm').onsubmit = e => {
+      e.preventDefault();
+      GK.busy($('dmGo'), async () => {
+        let r; try { r = await api('demo/start', 'POST', { code: $('dmCode') ? $('dmCode').value : undefined }); } catch (err) { $('dmErr').textContent = err.message; return; }
+        $('app').innerHTML = `<div class="login card firststart">${logo}<h2 class="page">Demo wird eingerichtet</h2>
+          <p class="lead">Clubwerk startet neu – die Seite meldet dich danach selbst an.</p>
+          <div class="banner a" style="text-align:left;display:block"><b>Zugang zur Demo</b> (bitte notieren):<br>Benutzer <code translate="no">${esc(r.username)}</code> · Passwort <code translate="no">${esc(r.password)}</code><br>Tablet-Passwort <code translate="no">${esc(r.tablet)}</code></div>
+          <div class="wizbar" style="margin-top:16px"><i style="width:100%"></i></div></div>`;
+        const ok = await waitRestart(x => x.configured);
+        if (!ok) { $('app').insertAdjacentHTML('beforeend', `<p class="err" style="text-align:center">${esc(T('Clubwerk antwortet nicht. Bitte das Add-on in Home Assistant neu starten (dort sollte „Watchdog“ eingeschaltet sein).'))}</p>`); return; }
+        await api('login', 'POST', { username: r.username, password: r.password }).catch(() => {});
+        GK.restart();
+      });
+    };
+  };
+  /* Hinweisleiste in der Demo: Zugangsdaten (nur mit „Einstellungen“) und „Demo beenden und einrichten“ */
+  GK.afterShell(async () => {
+    const st = await fetch('api/admin/status', { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
+    if (!st.demoMode || $('demoBar')) return;
+    const i = st.demoInfo || {};
+    document.querySelector('.content').insertAdjacentHTML('afterbegin', `<div class="banner a demobar" id="demoBar"><span><b>Demo</b> – alle Daten sind erfunden.${i.password ? ` <span>Anmeldung <code translate="no">${esc(i.admin || 'admin')}</code> / <code translate="no">${esc(i.password)}</code> · Tablet-Passwort <code translate="no">${esc(i.tablet)}</code></span>` : ''}</span>
+      ${GK.can('einstellungen') && GK.me().role === 'oberadmin' ? '<button class="btn small" type="button" id="demoEnd">Demo beenden und einrichten …</button>' : ''}</div>`);
+    if ($('demoEnd')) $('demoEnd').onclick = async () => {
+      const pw = await GK.askText(T('Demo beenden und einrichten?\nAlle Beispieldaten werden restlos gelöscht – Mitglieder, Buchungen, Bilder, Belege, Sicherungen und die Zugänge der Demo. Danach startet Clubwerk wie neu installiert mit der Einrichtung. Bitte mit deinem Passwort bestätigen.'), '', { password: true, ok: T('Demo löschen') });
+      if (!pw) return;
+      try { await api('demo/ende', 'POST', { password: pw }); } catch (e) { fail(e); return; }
+      $('app').innerHTML = waitCard('', 'Demo wird gelöscht', 'Clubwerk startet neu und begrüßt dich danach wie bei einer neuen Installation.');
+      const ok = await waitRestart(x => x.configured === false);
+      if (ok) location.replace(location.pathname); else $('app').insertAdjacentHTML('beforeend', `<p class="err" style="text-align:center">${esc(T('Clubwerk antwortet nicht. Bitte das Add-on in Home Assistant neu starten (dort sollte „Watchdog“ eingeschaltet sein).'))}</p>`);
+    };
+  });
 
   /* =================== Schritte öffnen =================== */
   /** Schritt anzeigen: Seite öffnen, Reiter bzw. Bereich vorwählen (wie die Suche) – den Rahmen setzt frame() */

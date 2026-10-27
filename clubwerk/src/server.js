@@ -6,6 +6,8 @@ const crypto = require('crypto');
 const express = require('express');
 const backup = require('./backup');
 const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der Datenbank laufen
+const demo = require('./demo');
+const demoMsg = demo.applyPending(backup.DATA_DIR, backup.DB_FILE);   // Demo einrichten bzw. restlos löschen – ebenfalls vor dem Öffnen
 const { db, isPerson, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, memberRefs, rewireMemberRef } = require('./db');
 const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
@@ -219,7 +221,7 @@ app.get('/manifest.webmanifest', (req, res) => {
 });
 app.get('/api/branding', (req, res) => {
   const l = logoInfo();
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), demo: isDemo() || undefined, iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
 });
 
 /* ---------- Betrieb ohne Tablet (Einstellungen › Tablet › „Tablet im Vereinsheim“) ----------
@@ -227,6 +229,7 @@ app.get('/api/branding', (req, res) => {
    Fehlt die Einstellung (ältere Installation), läuft das Tablet wie bisher. Ein angemeldeter Benutzer der Verwaltung darf die
    Tablet-Schnittstellen weiter abrufen (Artikel- und Profilbilder in der Verwaltung) – er hat ohnehin mehr Rechte. */
 const tabletOn = () => getSetting('tablet_enabled', '1') !== '0';
+const isDemo = () => getSetting('demo_mode', '') === '1';
 const TABLET_OFF = 'Das Tablet ist ausgeschaltet. Einschalten unter Verwaltung › Einstellungen › Tablet.';
 const TABLET_PAGES = /^(|\/(index|verkauf|start|verwaltung|link)(\.html)?|\/x\/[a-z0-9-]+(\/[\w.-]+\.html)?)$/;
 const isTabletPage = n => TABLET_PAGES.test(n) || (/^\/[a-z0-9-]+(\/index\.html)?$/.test(n) && plugins.tabletSlugs().has(n.split('/')[1]));
@@ -922,7 +925,9 @@ app.get('/api/admin/status', (req, res) => {
     permLabels: u ? plugins.visiblePerms() : undefined,   // die Rechte verraten die installierten Module – erst nach der Anmeldung
     setupCode: !auth.adminConfigured() && setupNeedsCode(req) ? true : undefined,
     modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })),
-    languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang() });
+    languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang(),
+    demo: auth.adminConfigured() ? undefined : demo.freshDb(db), demoMode: isDemo() || undefined,
+    demoInfo: isDemo() && u && u.perms.includes('einstellungen') ? JSON.parse(getSetting('demo_info', '{}')) : undefined });
 });
 
 const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };
@@ -939,19 +944,23 @@ function newSetupCode() {
   console.log(`\n================================================================\n  Erste Einrichtung – Einrichtungscode: ${SETUP_CODE}\n  (nur nötig, wenn die Verwaltung nicht über die Home-Assistant-Seitenleiste geöffnet wird)\n================================================================\n`);
 }
 if (!auth.adminConfigured() && process.env.CW_TEST_NO_SETUP_CODE !== '1') newSetupCode();
-const setupNeedsCode = req => Boolean(SETUP_CODE) && !viaIngress(req);
+// Wer gerade die Demo beendet hat, braucht keinen Code (Ticket im Browser, eine Stunde gültig – src/demo.js)
+const setupNeedsCode = req => Boolean(SETUP_CODE) && !viaIngress(req) && !demo.ticketOk(DATA_DIR, auth.parseCookies(req).csetup);
+/** Einrichtungscode prüfen (erste Einrichtung und Demo-Start); false = Antwort schon gesendet */
+function setupCodeOk(req, res) {
+  if (!setupNeedsCode(req)) return true;
+  const given = String((req.body || {}).code || '').trim().toUpperCase().replace(/\s/g, '');
+  const want = SETUP_CODE.replace('-', '');
+  const g = Buffer.from(given.replace('-', '').padEnd(want.length, ' ').slice(0, 64)), w = Buffer.from(want.padEnd(g.length, ' '));
+  if (g.length === w.length && crypto.timingSafeEqual(g, w)) return true;
+  if (++setupFails >= 10) { setupFails = 0; newSetupCode(); }   // nach 10 Fehlversuchen gibt es einen neuen Code
+  audit(null, 'Erste Einrichtung: falscher Einrichtungscode', req.ip);
+  bad(res, 'Der Einrichtungscode stimmt nicht. Er steht im Protokoll des Add-ons (Home Assistant → Einstellungen → Add-ons → Clubwerk → Protokoll).', 403);
+  return false;
+}
 app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (auth.adminConfigured()) return bad(res, 'Das Adminkonto ist bereits eingerichtet.', 403);
-  if (setupNeedsCode(req)) {
-    const given = String((req.body || {}).code || '').trim().toUpperCase().replace(/\s/g, '');
-    const want = SETUP_CODE.replace('-', '');
-    const g = Buffer.from(given.replace('-', '').padEnd(want.length, ' ').slice(0, 64)), w = Buffer.from(want.padEnd(g.length, ' '));
-    if (g.length !== w.length || !crypto.timingSafeEqual(g, w)) {
-      if (++setupFails >= 10) { setupFails = 0; newSetupCode(); }   // nach 10 Fehlversuchen gibt es einen neuen Code
-      audit(null, 'Erste Einrichtung: falscher Einrichtungscode', req.ip);
-      return bad(res, 'Der Einrichtungscode stimmt nicht. Er steht im Protokoll des Add-ons (Home Assistant → Einstellungen → Add-ons → Clubwerk → Protokoll).', 403);
-    }
-  }
+  if (!setupCodeOk(req, res)) return;
   const { password, clubName, tabletPassword, wizard } = req.body || {};
   const club = cleanName(clubName, 60);
   if (clubName !== undefined && club.length < 3) return bad(res, 'Bitte den Namen des Vereins eingeben.');
@@ -974,9 +983,21 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (tabletPassword !== undefined) { setSetting('tablet_pw_hash', auth.hashSecret(String(tabletPassword))); setSetting('tablet_pw_at', nowTs()); setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex')); }
   if (wizard) require('./einrichtung').begin();
   audit(uname, 'Adminkonto eingerichtet', wizard ? 'mit dem Einrichtungs-Assistenten' : undefined);
+  demo.dropTicket(DATA_DIR);
   const r = auth.login(uname, String(password), req.ip);
-  res.setHeader('Set-Cookie', cookieOpts(r.token, req));
+  res.setHeader('Set-Cookie', [cookieOpts(r.token, req), 'csetup=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0']);
   res.json({ ok: true });
+});
+/* Demo ausprobieren (nur frische Installation, mit Einrichtungscode bzw. über die Seitenleiste – wie die Ersteinrichtung):
+   Markierung anlegen, neu starten; beim Start ersetzt src/demo.js die leere Datenbank durch die Demo. Die zufälligen Passwörter
+   bekommt nur, wer die Demo startet (und später angemeldete Admins im Demo-Hinweis). */
+app.post('/api/admin/demo/start', rateLimit('setup', 10, 60000), (req, res) => {
+  if (auth.adminConfigured() || !demo.freshDb(db)) return bad(res, 'Die Demo gibt es nur auf einer frisch installierten Clubwerk-Instanz.', 403);
+  if (!setupCodeOk(req, res)) return;
+  const r = demo.markStart(DATA_DIR, auth.hashSecret);
+  console.log('Demo wird eingerichtet – Clubwerk startet neu.');
+  res.json({ ok: true, restart: true, ...r });
+  setTimeout(() => shutdown('Demo starten', 1), 300);
 });
 
 app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
@@ -3396,6 +3417,16 @@ admin.delete('/backups/restore', need('einstellungen'), (req, res) => {
 });
 
 /* Neustart: beendet den Prozess, der Watchdog von Home Assistant startet das Add-on neu */
+/* Demo beenden und einrichten: alle Beispieldaten restlos löschen (beim Neustart, src/demo.js) – mit eigenem Passwort bestätigt */
+admin.post('/demo/ende', need('einstellungen'), owner, rateLimit('demoende', 10, 10 * 60000), (req, res) => {
+  if (!isDemo()) return bad(res, 'Das ist keine Demo – hier wird nichts gelöscht.');
+  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  const ticket = demo.markEnd(DATA_DIR);
+  audit(req.user, 'Demo beendet', 'Alle Beispieldaten werden beim Neustart gelöscht');
+  res.setHeader('Set-Cookie', `csetup=${ticket}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600${req.secure ? '; Secure' : ''}`);
+  res.json({ ok: true, restart: true });
+  setTimeout(() => shutdown('Demo beenden', 1), 300);
+});
 admin.post('/restart', need('einstellungen'), (req, res) => {
   audit(req.user, 'Neustart ausgelöst');
   res.json({ ok: true });
@@ -3660,6 +3691,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 /* ---------- Start, nächtliche Sicherung, sauberes Beenden ---------- */
 try { cleanupUploads(); } catch (e) { console.error('Aufräumen:', e.message); }
 if (restoredMsg) { console.log(restoredMsg); audit('system', 'Wiederherstellung', restoredMsg); }
+if (demoMsg) { console.log(demoMsg); audit('system', 'Demo', demoMsg); }
 
 let lastAuto = null, dbxLastTry = 0;
 const TRASH_DAYS = 90;   // gelöschte Belege bleiben so lange im Papierkorb

@@ -27,6 +27,10 @@
     box.classList.add('hidden');
     const apply = (b, fresh) => {
       if (window.CWTheme && b.tabletTheme) window.CWTheme.tablet(b.tabletTheme);   // Darstellung am Tablet, vom Verein festgelegt (Einstellungen › Tablet)
+      // Demo (erfundene Daten): deutlich gekennzeichnet, rechts neben der Uhr
+      const rt = hdr.querySelector('.hright'), dc = document.getElementById('demoChip');
+      if (b.demo && !dc && rt) rt.insertAdjacentHTML('afterbegin', `<span class="tk-chip a" id="demoChip" title="Demo – alle Daten sind erfunden">Demo</span>`);
+      if (!b.demo && dc) dc.remove();
       if (b.clubName) {
         // „TC Grün-Weiß Musterstadt“ → zwei Zeilen: „TC Grün-Weiß“ / „Musterstadt“
         const w = b.clubName.trim().split(/\s+/);
@@ -47,7 +51,7 @@
         card.insertAdjacentHTML('afterbegin', '<span class="logo-badge hidden" data-gl><img alt="Vereinslogo"></span><div class="gateclub"></div>');
       }
       if (card && card.querySelector('[data-gl]')) {
-        card.querySelector('.gateclub').textContent = b.clubName || '';
+        card.querySelector('.gateclub').textContent = (b.clubName || '') + (b.demo ? ' · Demo' : '');
         const gb = card.querySelector('[data-gl]'), gi = gb.querySelector('img');
         if (b.logo) { gi.onload = () => gb.classList.remove('hidden'); gi.onerror = () => gb.classList.add('hidden'); if (gi.getAttribute('src') !== base + b.logo) gi.src = base + b.logo; } else gb.classList.add('hidden');
       }
@@ -58,7 +62,7 @@
       } else { box.classList.add('hidden'); hdr.classList.remove('haslogo'); }
     };
     const nav = {};
-    const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => { keep.set('cw_brand', { clubName: b.clubName, color: b.color, logo: b.logo, tabletTheme: b.tabletTheme }); apply(b, true); }).catch(() => {});
+    const brand = () => fetch(base + 'api/branding').then(r => r.json()).then(b => { keep.set('cw_brand', { clubName: b.clubName, color: b.color, logo: b.logo, tabletTheme: b.tabletTheme, demo: b.demo }); apply(b, true); }).catch(() => {});
     const last = keep.get('cw_brand'); if (last) apply(last, false);
     brand();
     setInterval(brand, 5 * 60 * 1000);

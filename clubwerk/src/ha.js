@@ -3,9 +3,12 @@
    für Tests über HA_URL/HA_TOKEN. Fehlermeldungen in Alltagssprache. */
 const BASE = () => (process.env.HA_URL || 'http://supervisor/core/api').replace(/\/$/, '');
 const TOKEN = () => process.env.SUPERVISOR_TOKEN || process.env.HA_TOKEN || '';
-const available = () => Boolean(TOKEN());
+const available = () => demo() || Boolean(TOKEN());   // Demo: Geräte erscheinen bedienbar (Schalten wird nur simuliert)
 
+/* Demo (erfundene Daten): nie echte Geräte schalten – Dienste tun nichts, Zustände sind leer */
+const demo = () => { try { return require('./db').getSetting('demo_mode', '') === '1'; } catch (e) { return false; } };
 async function call(method, p, body) {
+  if (demo()) { console.log(`Demo: Home Assistant nicht angesprochen (${method} ${p})`); return []; }
   if (!TOKEN()) throw new Error('Clubwerk hat keinen Zugangsschlüssel für Home Assistant bekommen. Bitte das Add-on einmal neu starten; hilft das nicht, im Protokoll des Add-ons die Zeile „Verbindung zu Home Assistant“ prüfen.');
   const r = await fetch(BASE() + p, {
     method, headers: { Authorization: 'Bearer ' + TOKEN(), 'Content-Type': 'application/json' },

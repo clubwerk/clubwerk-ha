@@ -389,7 +389,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const w = invites.whoIs(SCOPE, dev(req));
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
     const sections = w ? sectionsFor(req, w) : [];
-    res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
+    res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), demo: getSetting('demo_mode', '') === '1' || undefined, appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
       pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
   /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds */
