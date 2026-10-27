@@ -69,6 +69,8 @@
       .mv-sub { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
       .mv-cons-ed { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto auto; gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cons-ed .f { margin: 0; } .mv-cons-ed textarea { width: 100%; min-height: 58px; resize: vertical; } .mv-cons-ed .chk { min-height: 40px; }
       @media (max-width: 700px) { .mv-cons-ed { grid-template-columns: minmax(0, 1fr); } }
+      .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; }
+      @media (max-width: 700px) { .mv-cg-ed { grid-template-columns: minmax(0, 1fr); } .mv-cg-ed .btn { justify-self: end; } }
       .mv-addr { min-height: 40px; display: flex; align-items: center; font-size: 14px; }
       .mv-pic { overflow: hidden; } .mv-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }`;
@@ -126,11 +128,15 @@
     };
   }
   /* Klick auf den Reiter „Mitglieder“ zeigt immer die ganze Liste (Suche und Filter leer). Nur der Weg zurück aus einem Mitglied behält sie. */
-  const render = pageRender('mitglieder', el => {
+  const list = pageRender('mitglieder', el => {
     if (!st.fromDetail) st.f = { status: 'aktuell', q: '', dept: '', fee: '' };
     st.fromDetail = false;
     return showList(el);
   });
+  const render = () => {
+    let to = null; try { to = sessionStorage.getItem('tab_mitglieder'); sessionStorage.removeItem('tab_mitglieder'); } catch (e) { /* ohne Speicher */ }
+    return to === 'gratulationen' && GK.can('gratulationen') ? GK.go('mv-gratulationen') : list();
+  };
   const reloadTab = () => GK.go(current);
   const openMember = id => GK.openDetail('mitglied', id);
   /** Filterchips (Baustein `.chips`): [[schlüssel, Beschriftung]], Zahlen setzt die Seite in `.cnt` */
@@ -384,7 +390,8 @@
           <p class="muted s" style="margin-bottom:0">${d.familyHead ? `Der Zusatzbeitrag wird ${esc(d.familyHead.name)} (Oberhaupt) zusätzlich zum Familienbeitrag belastet.` : 'Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.'}</p>` : '<p class="empty">Keiner Abteilung zugeordnet.</p>'}</div>
       <div class="mv-two">
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ehrungen</h3><button class="btn small" id="hAdd">+ Ehrung</button></div>
-          ${d.honors.length ? `<table class="tbl kompakt">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ehrungen eingetragen.</p>'}</div>
+          ${d.honors.length ? `<table class="tbl kompakt">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ehrungen eingetragen.</p>'}
+          ${can('gratulationen') ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="mvNoCg" ${d.no_congrats ? 'checked' : ''}> Keine Gratulation gewünscht</label>` : ''}</div>
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ämter & Funktionen</h3><button class="btn small" id="aAdd">+ Amt</button></div>
           ${d.functions.length ? `<table class="tbl kompakt">${d.functions.map(h => `<tr class="${h.to_date && h.to_date < m.today ? 'off' : ''}"><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.from_date) || ''}${h.to_date ? ' – ' + deDate(h.to_date) : ''}</td><td class="r"><button class="btn small danger" data-ax="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ämter oder Funktionen.</p>'}</div>
       </div>`;
@@ -459,6 +466,7 @@
         try { await api(`member/${id}/${kind}`, 'POST', body); closeDialog(); again(); } catch (e) { fail(e); }
       });
     };
+    if ($('mvNoCg')) $('mvNoCg').onchange = async () => { try { await api('congrats/off/' + p.id, 'PUT', { off: $('mvNoCg').checked }); toast('Gespeichert.'); } catch (e) { fail(e); $('mvNoCg').checked = !$('mvNoCg').checked; } };
     $('hAdd').onclick = () => simple('honors', 'Ehrung', '<label class="f">Datum<input type="date" data-k="date"></label><label class="f">Notiz<input data-k="note"></label>');
     $('aAdd').onclick = () => simple('functions', 'Amt / Funktion', '<label class="f">Von<input type="date" data-k="from_date"></label><label class="f">Bis<input type="date" data-k="to_date"></label>');
     el.querySelectorAll('[data-hx]').forEach(b => { b.onclick = async () => { const h = d.honors.find(x => x.id === +b.dataset.hx); if (!await ask(`Ehrung „${h.name}“ entfernen?`, { ok: 'Entfernen' })) return; try { await api('honors/' + b.dataset.hx, 'DELETE'); again(); } catch (e) { fail(e); } }; });
@@ -1350,7 +1358,7 @@
         <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Divers</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
           ${s.lsb.groups.map((g, i) => { const t = s.lsb.total[i], c = (n, l, hide) => `<td class="k-lbl${hide && !n ? ' k-weg' : ''}" data-label="${l}">${n}</td>`; return `<tr><td>${esc(g)}</td>${c(t.m, 'Männlich')}${c(t.w, 'Weiblich')}${c(t.d, 'Divers', 1)}${c(t.x, 'Ohne Angabe', 1)}<td class="k-lbl" data-label="Gesamt"><b>${sum(t)}</b></td></tr>`; }).join('')}</table>
         ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten.</p>` : ''}</div>
-      <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b>${esc(e.name)}</b></td><td class="nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
+      <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
   }
 
@@ -1434,11 +1442,13 @@
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
         <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de, kasse@verein.de"></label></div>
         <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
+      <div class="card" id="eCg" data-set="gratulationen"></div>
       <div class="card" data-set="daten"><h3>Datenschutz & Aufbewahrung</h3><p class="muted s" style="margin-top:0">Nach dem Austritt werden Mitgliedsdaten noch für Beiträge, Spendenquittungen und gesetzliche Fristen gebraucht (Kassenbelege meist 10 Jahre). Danach im Mitglied „Anonymisieren“. Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied).</p>
         <div class="mv-grid" style="--c:4"><label class="f w2">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric"></label></div>${foot('eSaveDat')}</div>
       <div id="eFunc" data-set="uebertragen"></div>`;
     GK.watch(el);
     appDataCard($('eApp')).catch(fail);
+    congratsCard($('eCg')).catch(fail);
     if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el));
     const save = saveCard(() => showSettings(el));
     save('eSaveMs', () => ({ member_no_start: val('eNo'), year_start: val('eYear'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
@@ -1529,6 +1539,105 @@
     }, () => feeEdit(f, after, preset));
   }
 
+  /* ================================================================= Gratulationen (Recht „Gratulationen“, planung/gratulationen.md) */
+  const cgDay = d => `${new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}, ${d.slice(8, 10)}.${d.slice(5, 7)}.`;
+  const cgLabel = r => (r.kind === 'manuell' ? `<span translate="no">${esc(r.title)}</span>` : esc(r.kind === 'geburtstag' ? GK.T('{0}. Geburtstag', [r.n]) : r.kind === 'verein' ? GK.T('{0} Jahre im Verein', [r.n]) : GK.T('{0} Jahre Abteilung {1}', [r.n, r.dept || ''])));
+  const cgText = r => (r.kind === 'manuell' ? r.title : r.kind === 'geburtstag' ? GK.T('{0}. Geburtstag', [r.n]) : r.kind === 'verein' ? GK.T('{0} Jahre im Verein', [r.n]) : GK.T('{0} Jahre Abteilung {1}', [r.n, r.dept || '']));
+  async function showCongrats(el) {
+    const d = await api('congrats');
+    const f = st.cg === 'alle' ? 'alle' : 'offen', open = d.rows.filter(r => !r.done_at), list = f === 'offen' ? open : d.rows;
+    const mark = r => (r.done_at ? pill(['g', 'erledigt']) : r.date < d.today ? pill(['a', 'vorbei']) : r.date === d.today ? pill(['b', 'heute']) : '');
+    el.innerHTML = `${chipBar('cgF', [['offen', 'Offen'], ['alle', 'Alle']], f)}
+      <div class="card"><h3>Anstehende Gratulationen <span class="muted s">(${esc(GK.T('{0} Tage', [d.ahead]))})</span></h3>
+        ${list.length ? `<table class="tbl kompakt" id="cgTbl"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th>Gratulation</th><th>Wer kümmert sich?</th><th>Stand</th><th></th></tr>
+          ${list.map(r => `<tr class="${r.done_at ? 'off' : ''}"><td class="k-1z"><b translate="no">${esc(GK.lastFirst(r.name))}</b></td><td class="nw">${cgDay(r.date)}</td><td>${cgLabel(r)}</td>
+            <td translate="no">${esc(r.plan) || '<span class="muted s">–</span>'}</td><td class="k-lbl" data-label="${esc(GK.T('Wer'))}" translate="no">${esc(r.who)}</td><td>${mark(r)}</td>
+            <td class="r nw"><button class="btn small" data-cg="${esc(r.key)}">Bearbeiten</button></td></tr>`).join('')}</table>`
+          : `<p class="empty">${f === 'offen' && d.rows.length ? 'Alles erledigt – in den nächsten Tagen steht keine Gratulation mehr an.' : 'In den nächsten 30 Tagen steht keine Gratulation an. Die Regeln stehen unter Mitglieder › Einstellungen.'}</p>`}</div>
+      <div class="card" id="cgMe"><h3>Deine Erinnerung</h3><p class="muted s" style="margin-top:0">${esc(GK.T('{0} Tage vor jedem Anlass, je Anlass einmal.', [d.days]))}</p>
+        <div class="mv-cons"><label class="chk"><input type="checkbox" id="cgMail" ${d.me.mail ? 'checked' : ''}> <span>Per E-Mail <span class="muted s">${d.me.address ? `(<span translate="no">${esc(d.me.address)}</span>)` : d.me.linked ? '(beim Mitglied ist keine E-Mail-Adresse eingetragen)' : ''}</span>${d.mailReady ? '' : ' <span class="muted s">– noch kein Postfach eingerichtet</span>'}</span></label>
+          <label class="chk"><input type="checkbox" id="cgPush" ${d.me.push ? 'checked' : ''}> <span>Per Push in der Mitglieder-App <span class="muted s">${d.me.paired ? '(App ist gekoppelt)' : d.me.linked ? '(nur mit gekoppelter Mitglieder-App)' : ''}</span>${d.pushOn ? '' : ' <span class="muted s">– unter Mitglieder-App › Benachrichtigungen ausgeschaltet</span>'}</span></label></div>
+        ${!d.me.linked ? '<p class="muted s" style="margin:10px 0 0">Für E-Mail und Push dein Benutzerkonto unter Verein › Benutzer & Rechte mit deinem Mitglied verknüpfen.</p>' : ''}${foot('cgSaveMe')}</div>`;
+    const cnt = { offen: open.length, alle: d.rows.length };
+    $('cgF').querySelectorAll('[data-cnt]').forEach(c => { c.textContent = cnt[c.dataset.cnt] || ''; });
+    $('cgF').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.cg = b.dataset.f; showCongrats(el).catch(fail); };
+    GK.tabTools('<button class="btn primary" id="cgNew">+ Anlass</button>', el);
+    $('cgNew').onclick = () => congratsNew(() => showCongrats(el));
+    el.querySelectorAll('[data-cg]').forEach(b => { b.onclick = () => congratsEdit(d.rows.find(r => r.key === b.dataset.cg), () => showCongrats(el)); });
+    $('cgSaveMe').onclick = () => GK.busy($('cgSaveMe'), async () => {
+      try { await api('congrats/me', 'PUT', { mail: $('cgMail').checked, push: $('cgPush').checked }); toast('Gespeichert.'); } catch (e) { fail(e); }
+    });
+  }
+  /** Je Anlass: wer kümmert sich, Notiz, erledigt – ein Jubiläum auf Wunsch als Ehrung beim Mitglied */
+  function congratsEdit(r, after) {
+    const jub = r.kind === 'verein' || r.kind === 'abteilung', honorName = [r.plan, cgText(r)].filter(Boolean).join(' – ');
+    dialog(`<h2>Gratulation</h2><p class="muted" style="margin-top:0"><b translate="no">${esc(GK.lastFirst(r.name))}</b> · ${cgLabel(r)} · ${cgDay(r.date)}${r.plan ? ` · <span translate="no">${esc(r.plan)}</span>` : ''}</p>
+      <div class="mv-grid" style="--c:2"><label class="f">Wer kümmert sich?<input id="cgWho" value="${esc(r.who)}" maxlength="60" placeholder="z. B. Vorsitzende/r"></label>
+        <label class="f">Notiz<input id="cgNote" value="${esc(r.note)}" maxlength="300"></label></div>
+      <div class="mv-cons" style="margin-top:14px"><label class="chk"><input type="checkbox" id="cgDone" ${r.done_at ? 'checked' : ''}> Erledigt${r.done_at ? ` <span class="muted s">(${esc(deDate(r.done_at.slice(0, 10)))}${r.done_by ? ', ' + esc(r.done_by) : ''})</span>` : ''}</label>
+        ${jub && !r.honor_id ? `<label class="chk"><input type="checkbox" id="cgHon"> Als Ehrung beim Mitglied eintragen</label>
+          <label class="f hidden" id="cgHonL">Ehrung<input id="cgHonN" value="${esc(honorName)}" maxlength="120"></label>` : ''}
+        ${r.honor_id ? '<p class="muted s" style="margin:0">Als Ehrung beim Mitglied eingetragen.</p>' : ''}</div>
+      <div class="row" style="margin-top:16px">${r.kind === 'manuell' ? '<button class="btn danger" id="cgDel">Anlass löschen …</button>' : '<button class="btn" id="cgOff">Keine Gratulation gewünscht …</button>'}</div>
+      <div class="btns"><button class="btn ghost" id="cgX">Abbrechen</button><button class="btn primary" id="cgOk">Speichern</button></div>`);
+    $('cgX').onclick = closeDialog;
+    const sync = () => { if ($('cgHon')) { $('cgHon').disabled = !$('cgDone').checked; if (!$('cgDone').checked) $('cgHon').checked = false; $('cgHonL').classList.toggle('hidden', !$('cgHon').checked); } };
+    $('cgDone').onchange = sync; if ($('cgHon')) $('cgHon').onchange = sync; sync();
+    $('cgOk').onclick = () => GK.busy($('cgOk'), async () => {
+      try {
+        const x = await api('congrats', 'PUT', { key: r.key, who: val('cgWho'), note: val('cgNote'), done: $('cgDone').checked, honor: Boolean($('cgHon') && $('cgHon').checked), honor_name: val('cgHonN') });
+        closeDialog(); toast(x.honor ? 'Gespeichert und als Ehrung eingetragen.' : 'Gespeichert.'); after().catch(fail);
+      } catch (e) { fail(e); }
+    });
+    if ($('cgDel')) $('cgDel').onclick = () => confirmIn('Anlass löschen?', `${GK.lastFirst(r.name)}: ${r.title} am ${deDate(r.date)}`, 'Löschen', async () => {
+      try { await api('congrats', 'DELETE', { key: r.key }); closeDialog(); after().catch(fail); } catch (e) { fail(e); }
+    }, () => congratsEdit(r, after));
+    if ($('cgOff')) $('cgOff').onclick = () => confirmIn('Keine Gratulation gewünscht?', `${GK.lastFirst(r.name)} erscheint dann bei keinem Anlass mehr. Rückgängig im Mitglied unter „Mitgliedschaft“ (Karte Ehrungen).`, 'Keine Gratulation', async () => {
+      try { await api('congrats/off/' + r.member_id, 'PUT', { off: true }); closeDialog(); toast('Gespeichert.'); after().catch(fail); } catch (e) { fail(e); }
+    }, () => congratsEdit(r, after), { safe: true });
+  }
+  /** Anlass von Hand ergänzen (z. B. Goldene Hochzeit) */
+  async function congratsNew(after) {
+    const people = await api('congrats/members');
+    dialog(`<h2>Anlass ergänzen</h2><p class="muted" style="margin-top:0">Für Anlässe, die keine Regel kennt – z. B. eine Goldene Hochzeit.</p>
+      <div class="mv-grid" style="--c:2"><label class="f w2">Mitglied<select id="cgM" translate="no"><option value="">${esc(GK.T('Bitte wählen'))}</option>${people.map(p => opt(p.id, p.name)).join('')}</select></label>
+        <label class="f">Datum<input type="date" id="cgD"></label><label class="f">Anlass<input id="cgT" maxlength="60" placeholder="z. B. Goldene Hochzeit"></label>
+        <label class="f w2">Gratulation<input id="cgP" maxlength="60" placeholder="z. B. Karte"></label></div>
+      <div class="btns"><button class="btn ghost" id="cgX">Abbrechen</button><button class="btn primary" id="cgOk">Speichern</button></div>`);
+    $('cgX').onclick = closeDialog;
+    $('cgOk').onclick = () => GK.busy($('cgOk'), async () => {
+      try { await api('congrats', 'POST', { member_id: +val('cgM') || null, date: val('cgD'), title: val('cgT'), plan: val('cgP') }); closeDialog(); toast('Gespeichert.'); after().catch(fail); } catch (e) { fail(e); }
+    });
+  }
+  /** Einstellungen › Karte „Gratulationen“: Regeln (Anlass · Wann · Was) und Vorlauf der Erinnerung */
+  const cgWhen = r => [...r.years, ...(r.from != null ? [GK.T('ab {0}', [r.from])] : [])].join(', ');
+  const cgParse = s => { const t = String(s || ''), m = /ab\s*(\d+)/i.exec(t); return { from: m ? +m[1] : null, years: t.replace(/ab\s*\d+[^,;]*/ig, ' ').split(/[^\d]+/).filter(Boolean).map(Number) }; };
+  async function congratsCard(el) {
+    const c = await api('congrats/settings');
+    const kinds = [['geburtstag', 'Geburtstag'], ['verein', 'Vereinsjubiläum'], ['abteilung:0', 'Abteilungsjubiläum (alle Abteilungen)'], ...c.depts.map(x => [`abteilung:${x.id}`, `${GK.T('Abteilungsjubiläum')} ${x.name}`])];
+    const row = r => `<div class="mv-cg-ed" data-r><label class="f">Anlass<select data-k="kind">${kinds.map(([k, l]) => opt(k, l, r.kind === 'abteilung' ? `abteilung:${r.dept || 0}` : r.kind)).join('')}</select></label>
+      <label class="f">Wann (Jahre)<input data-k="when" value="${esc(cgWhen(r))}" placeholder="z. B. 70, 75, ab 80"></label><label class="f">Was<input data-k="what" value="${esc(r.what)}" maxlength="60" placeholder="z. B. Blumen"></label>
+      <button class="btn small danger" data-rx>Entfernen</button></div>`;
+    const rec = c.recipients.map(x => `${x.name} (${[x.mail ? GK.T('E-Mail') : '', x.push ? GK.T('Push') : ''].filter(Boolean).join(', ') || GK.T('weder E-Mail noch Push')})`).join(', ');
+    el.innerHTML = `<h3>Gratulationen</h3><p class="muted s" style="margin-top:0">Wem wann gratuliert wird. „ab 80“ heißt: mit 80 und danach jedes Jahr. Die Liste steht unter Mitglieder › Gratulationen.</p>
+      <div id="cgRules">${c.rules.map(row).join('')}</div>
+      <div class="row" style="margin-top:10px"><button class="btn" id="cgAdd">+ Regel</button></div>
+      <div class="mv-grid" style="--c:4;margin-top:14px"><label class="f w2">Erinnerung … Tage vorher<input id="cgDays" value="${c.days}" inputmode="numeric"></label></div>
+      <p class="muted s" style="margin:8px 0 0">Erinnert werden alle mit dem Recht „Gratulationen“: <span translate="no">${esc(rec) || esc(GK.T('noch niemand'))}</span>.</p>${foot('cgSaveSet')}`;
+    const bind = () => el.querySelectorAll('[data-rx]').forEach(b => { b.onclick = () => b.closest('[data-r]').remove(); });
+    bind();
+    $('cgAdd').onclick = () => { $('cgRules').insertAdjacentHTML('beforeend', row({ kind: 'geburtstag', years: [], from: null, what: '' })); bind(); };
+    $('cgSaveSet').onclick = () => GK.busy($('cgSaveSet'), async () => {
+      const rules = [...el.querySelectorAll('[data-r]')].map(x => { const [kind, dept] = x.querySelector('[data-k=kind]').value.split(':'); return { kind, dept: +dept || 0, ...cgParse(x.querySelector('[data-k=when]').value), what: x.querySelector('[data-k=what]').value }; });
+      try { await api('congrats/settings', 'PUT', { rules, days: +val('cgDays') }); GK.clean(); toast('Gespeichert.'); await congratsCard(el); } catch (e) { fail(e); }
+    });
+  }
+  async function congratsPage() {
+    current = 'mv-gratulationen';
+    $('main').innerHTML = `<h2 class="page">Gratulationen</h2><p class="lead">Geburtstage und Jubiläen der nächsten 30 Tage: wer sich kümmert und was erledigt ist.</p><div id="mvBody"><p class="muted">Lade …</p></div>`;
+    await showCongrats(pageEl());
+  }
+
   const G = { key: 'mitglieder', label: 'Mitglieder', icon: 'ausweis', order: 7 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
   const GZ = { key: 'mv-zahlungen', label: 'Beiträge & Zahlungen', icon: 'zahlung', order: 7.5 };   // zweiter Menüpunkt des Moduls, direkt nach „Mitglieder“
 
@@ -1549,6 +1658,7 @@
   /* Menü „Mitglieder“: Mitglieder · Anträge (n) · Beiträge & Abteilungen · Auswertung · Einstellungen */
   GK.registerPage({ key: 'mitglieder', title: 'Mitglieder', perm: 'mitglieder', render, group: G });
   GK.registerPage({ key: 'mv-antraege', title: 'Anträge & Änderungen', perm: 'mitglieder', render: pageRender('mv-antraege', showApplications), group: G, tab: 'Anträge' });
+  GK.registerPage({ key: 'mv-gratulationen', title: 'Gratulationen', perm: 'gratulationen', render: congratsPage, group: G });
   GK.registerPage({ key: 'mv-stamm', title: 'Beiträge & Abteilungen', perm: '!mitglieder', render: pageRender('mv-stamm', showCatalog), group: G });
   GK.registerPage({ key: 'mv-auswertung', title: 'Auswertung', perm: '!mitglieder', render: pageRender('mv-auswertung', showReports), group: G });
   GK.registerPage({ key: 'mv-einstellungen', title: 'Einstellungen', perm: '!mitglieder', render: pageRender('mv-einstellungen', showSettings), group: G });
@@ -1585,6 +1695,10 @@
     { label: 'Mitgliederzahlen und Abteilungen', page: 'mv-auswertung', card: 'Abteilungen', words: 'Statistik Zahlen Stichtag' },
     { label: 'Bestandserhebung (Landessportbund)', page: 'mv-auswertung', card: 'Bestandserhebung', words: 'LSB Statistik Meldung Verband' },
     { label: 'Runde Geburtstage & Jubiläen', page: 'mv-auswertung', card: 'Runde Geburtstage', words: 'Geburtstag Jubiläum Ehrung' },
+    { label: 'Anstehende Gratulationen', page: 'mv-gratulationen', perm: 'gratulationen', boost: 1, words: 'Geburtstag Jubiläum Ehrung Blumen gratulieren Ehrennadel' },
+    { label: 'Anlass für eine Gratulation ergänzen', page: 'mv-gratulationen', btn: '+ Anlass', perm: 'gratulationen', kind: 'aktion', words: 'Hochzeit Gratulation von Hand' },
+    { label: 'Erinnerung an Gratulationen (E-Mail, Push)', page: 'mv-gratulationen', card: 'Deine Erinnerung', perm: 'gratulationen', words: 'Benachrichtigung Geburtstag Push E-Mail' },
+    { label: 'Regeln für Gratulationen', page: 'mv-einstellungen', card: 'Gratulationen', field: 'cgDays', in: 'Einstellungen', words: 'Geburtstag Jubiläum Ehrennadel Urkunde Blumen Erinnerung Tage vorher' },
     { label: 'Mitgliedsnummern, Beitragsjahr und Kündigungsfrist', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eNo', in: 'Einstellungen', words: 'Mitgliedsnummer Beitragsjahr Kündigungsfrist Kündigung' },
     { label: 'Lastschrift als Pflicht', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eSepaReq', in: 'Einstellungen', words: 'Zahlart Lastschrift Rechnung bar' },
     { label: 'Abteilungsleitungen: Ein- und Austritte bestätigen', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eScope', in: 'Einstellungen', words: 'Abteilungsleitung bestätigen' },

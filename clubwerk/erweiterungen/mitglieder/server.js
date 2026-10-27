@@ -136,7 +136,7 @@ function detail(id, user) {
     missing: missingOf(p, bank, feeRows(id).some(f => !f.end_date || f.end_date >= today())),
     departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
     family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
-    honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id),
+    honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id), no_congrats: shared.congratsOff(id),
     functions: C.db.prepare('SELECT * FROM mv_function WHERE member_id = ? ORDER BY to_date IS NOT NULL, from_date DESC').all(id),
     documents: perms.includes('mitglieder_dokumente') ? C.db.prepare('SELECT id, kind, title, mime, size, created_at, by_user FROM mv_document WHERE member_id = ? ORDER BY created_at DESC').all(id) : null,
     charges: perms.includes('mitglieder_finanzen') ? C.db.prepare(`SELECT c.*, (SELECT name FROM members WHERE id = c.for_member_id) AS for_name FROM mv_charge c WHERE c.member_id = ? OR c.for_member_id = ? ORDER BY c.due_date DESC, c.id DESC LIMIT 200`).all(id, id) : null,
@@ -261,6 +261,7 @@ function anonymize(id, user) {
     C.db.prepare('DELETE FROM mv_document WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM mv_change WHERE member_id = ?').run(id);
+    shared.congratsForget(id);   // Gratulationen samt Notizen
     C.db.prepare("UPDATE members SET name = ?, first_name = NULL, last_name = ?, pin_hash = NULL, active = 0 WHERE id = ?").run(label, label, id);
     C.db.prepare('DELETE FROM member_devices WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id);
@@ -326,7 +327,7 @@ function activate(ctx) {
   ];
   admin.use((req, res, next) => {
     const depts = req.user ? scopeOf(req) : null;
-    if (!depts) return next();
+    if (!depts || /^\/congrats(\/(members|me|off\/\d+))?\/?$/.test(req.path)) return next();   // Gratulationen hängen am eigenen Recht, nicht an der Abteilung
     req.mvScope = depts;
     const no = msg => res.status(403).json({ error: msg || 'Als Abteilungsadmin kannst du nur Mitglieder deiner Abteilung(en) bearbeiten – das hier macht die Vereinsverwaltung.' });
     if (!depts.length) return no('Dir ist noch keine Abteilung zugeordnet – bitte an einen Admin wenden.');
@@ -852,7 +853,7 @@ function activate(ctx) {
     const drinks = ctx.drinks.byMonth(id);
     const out = { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
-      ehrungen: d.honors, aemter: d.functions, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
+      ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
       aenderungsverlauf: d.history, mitglieder_app: d.app, getraenke_je_monat: drinks };
     ctx.audit(req.user, 'Mitglied: Datenauskunft erstellt', d.person.name);
     res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="Datenauskunft_${(d.person.member_no || id)}.json"` }).send(JSON.stringify(out, null, 2));
@@ -1037,6 +1038,7 @@ function activate(ctx) {
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
   require('./lib/applications').register(shared);
   require('./lib/reports').register(shared);
+  require('./lib/congrats').register(shared);
   require('./lib/importvc').register(shared);
   require('./lib/memberapp').register(shared);
 
@@ -1052,6 +1054,7 @@ function activate(ctx) {
       if (ch) al.push({ level: 'a', text: `${ch} Änderungswunsch/-wünsche aus der Mitglieder-App.` });
       const inc = mine.filter(r => scopedIssues(r.issues).length).length;
       if (inc) al.push({ level: 'a', text: `${inc} ${inc === 1 ? 'Mitglied' : 'Mitglieder'} deiner Abteilung mit fehlenden Angaben (z. B. E-Mail).` });
+      al.push(...shared.congratsAlerts(user));
       return { kpis: [{ l: 'Mitglieder deiner Abteilung', v: mine.length }, { l: 'Austritte angekündigt', v: mine.filter(r => r.leaving).length }, { l: 'Eintritte ' + today().slice(0, 4), v: mine.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts: al };
     }
     const rows = listRows({ status: 'aktuell' });
@@ -1075,6 +1078,7 @@ function activate(ctx) {
       alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Beiträge & Zahlungen › Lastschriften“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
     const ageN = ageScanFn ? ageScanFn() : 0;
     if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied' : 'Mitglieder'} rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-stamm', link: 'Entscheiden' });
+    alerts.push(...shared.congratsAlerts(user));   // anstehende Gratulationen (nur mit Recht „Gratulationen“)
     const leaving = rows.filter(r => r.leaving).length;
     return { kpis: [{ l: 'Mitglieder', v: rows.length }, { l: 'Austritte angekündigt', v: leaving }, { l: 'Eintritte ' + today().slice(0, 4), v: rows.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts };
   };

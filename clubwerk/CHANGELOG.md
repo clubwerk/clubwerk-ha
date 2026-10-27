@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.66.0
+
+**Gratulationen: Geburtstage und Jubiläen nicht mehr verpassen (Mitglieder)**
+- **Neuer Reiter Mitglieder › Gratulationen:** Hier stehen alle Geburtstage und Jubiläen der nächsten 30 Tage, für die der Verein gratuliert – mit Datum, „Nachname, Vorname“, Anlass (z. B. „70. Geburtstag“, „25 Jahre im Verein“) und was geplant ist (z. B. „Blumen“). Was in den letzten 14 Tagen vergessen wurde, bleibt als „vorbei“ stehen, bis es abgehakt ist.
+- **Je Anlass abhaken:** „Wer kümmert sich?“, Notiz und „Erledigt“. Ein erledigtes Vereins- oder Abteilungsjubiläum lässt sich gleich als **Ehrung beim Mitglied** eintragen (z. B. „Ehrennadel – 25 Jahre im Verein“).
+- **Regeln** unter Mitglieder › Einstellungen › Gratulationen, als einfache Liste: Anlass (Geburtstag, Vereinsjubiläum, Abteilungsjubiläum – für alle oder eine bestimmte Abteilung), wann (z. B. „70, 75, ab 80“ – „ab 80“ heißt mit 80 und danach jedes Jahr) und was. Voreingestellt: Geburtstag 70, 75 und ab 80 jedes Jahr → Blumen; 25 Jahre im Verein → Ehrennadel, 40 → Urkunde, 50 → Ehrenmitglied vorschlagen.
+- **Ausnahmen:** Ausgetretene bekommen nie eine Gratulation (auch nicht, wenn sie vor dem Anlass austreten). Möchte jemand keine Gratulation, reicht ein Häkchen beim Mitglied (Reiter „Mitgliedschaft“, Karte Ehrungen) oder „Keine Gratulation gewünscht …“ in der Liste. Anlässe, die keine Regel kennt (z. B. eine Goldene Hochzeit), lassen sich mit „+ Anlass“ von Hand ergänzen. Wer am 29. Februar Geburtstag hat, steht in anderen Jahren am 28. Februar in der Liste.
+- **Neues Recht „Gratulationen“** (Verein › Benutzer & Rechte): Nur wer es hat, sieht die Liste und wird erinnert – auch ohne Zugriff auf die übrigen Mitgliederdaten. Auf der Startseite der Verwaltung erscheinen anstehende Gratulationen unter „Zu erledigen“ (bei allen, die zusätzlich das Recht „Mitglieder“ haben); „Ansehen“ führt direkt in den Reiter.
+- **Erinnerung einige Tage vorher** (Standard 7 Tage, einstellbar) per E-Mail und/oder Push in der Mitglieder-App – jede Person wählt das selbst unter „Deine Erinnerung“. Dafür muss das eigene Benutzerkonto mit dem eigenen Mitglied verknüpft sein; Push kommt nur mit gekoppelter App. Jede Erinnerung kommt je Anlass genau einmal, auch nach einem Neustart. Der Push-Anlass „Gratulation steht an“ lässt sich unter Mitglieder-App › Benachrichtigungen abschalten.
+- **Datenschutz:** Die Erinnerung nennt Name, Anlass und Datum, aber weder Alter noch Geburtsjahr. Im Protokoll stehen nur Bezeichnungen, keine internen Schlüssel. Sind die persönlichen Daten nach einem Neustart noch verschlossen, wartet die Erinnerung, bis sie geöffnet sind. Anonymisieren löscht auch die Gratulationen samt Notizen; die Datenauskunft enthält sie.
+- Unter Auswertung bleibt die Karte „Runde Geburtstage & Jubiläen“ als Liste für 12 Monate; die Namen stehen dort jetzt ebenfalls als „Nachname, Vorname“.
+
 ## 3.65.0
 
 **Verwaltung im neuen Aussehen „Anzeigetafel“ – Auswertung, Tabellen, Anmeldung, Einstellungen, E-Mail (Etappe D2-3 des Design-Umbaus)**

@@ -1,15 +1,16 @@
 {
   "id": "mitglieder",
   "name": "Mitglieder",
-  "version": "1.18.0",
+  "version": "1.19.0",
   "kurz": "Mitglieder, Beiträge und SEPA-Lastschrift.",
-  "beschreibung": "Alles rund um die Mitglieder: Stammdaten, Abteilungen, Beitragsarten mit Altersgrenzen und Familienbeitrag, Ein- und Austritt, Dokumente, Beitragslauf mit SEPA-Lastschrift (pain.008, auf Wunsch mit Getränken), offene Posten, Rechnungen und Mahnungen, digitale Beitrittserklärung mit Unterschrift am Tablet oder online, „Meine Daten“ in der Mitglieder-App, Auswertungen für Landessportbund und Verband, Import aus verein.cloud und Datenschutz (Auskunft, Anonymisieren).",
+  "beschreibung": "Alles rund um die Mitglieder: Stammdaten, Abteilungen, Beitragsarten mit Altersgrenzen und Familienbeitrag, Ein- und Austritt, Dokumente, Beitragslauf mit SEPA-Lastschrift (pain.008, auf Wunsch mit Getränken), offene Posten, Rechnungen und Mahnungen, digitale Beitrittserklärung mit Unterschrift am Tablet oder online, „Meine Daten“ in der Mitglieder-App, Auswertungen für Landessportbund und Verband, Gratulationen zu Geburtstagen und Jubiläen, Import aus verein.cloud und Datenschutz (Auskunft, Anonymisieren).",
   "minApp": "3.1.0",
   "perms": {
     "mitglieder": "Mitglieder: Stammdaten, Abteilungen, Beiträge, Anträge & Auswertungen",
     "mitglieder_bank": "Mitglieder: Bankverbindungen & SEPA-Mandate sehen und ändern",
     "mitglieder_finanzen": "Mitglieder: Beitragslauf, Lastschriften, offene Posten & Mahnungen",
-    "mitglieder_dokumente": "Mitglieder: Dokumente (Anträge, Mandate, Nachweise) ansehen und hochladen"
+    "mitglieder_dokumente": "Mitglieder: Dokumente (Anträge, Mandate, Nachweise) ansehen und hochladen",
+    "gratulationen": "Mitglieder: Gratulationen (Geburtstage und Jubiläen) sehen, abhaken und daran erinnert werden"
   },
   "tablet": {
     "label": "Mitglied werden",
@@ -42,7 +43,10 @@
     "mv_history",
     "mv_application",
     "mv_change",
-    "mv_age_notice"
+    "mv_age_notice",
+    "mv_congrats",
+    "mv_congrats_off",
+    "mv_congrats_pref"
   ],
   "einstellungen": [
     "ext_mitglieder_"
