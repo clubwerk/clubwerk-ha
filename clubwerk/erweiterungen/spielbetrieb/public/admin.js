@@ -20,11 +20,11 @@
       .sp-grid .wall { grid-column: 1 / -1; }
       @media (max-width: 760px) { .sp-grid { grid-template-columns: 1fr; } }
       .sp-games { display: grid; gap: 10px; }
-      .sp-g { display: grid; grid-template-columns: 8px 76px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 14px 12px 0; border: 1px solid var(--line); border-radius: 14px; background: var(--card); cursor: pointer; overflow: hidden; }
+      .sp-g { display: grid; grid-template-columns: 8px 76px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 12px 14px 12px 0; border: 1px solid var(--edge); border-radius: var(--r-tile); background: var(--card); box-shadow: var(--shadow); cursor: pointer; overflow: hidden; }
       .sp-g:hover { border-color: var(--brand); }
       .sp-g .lt { align-self: stretch; } .sp-g .lt.g { background: var(--brand); } .sp-g .lt.r { background: var(--red); } .sp-g .lt.x { background: var(--line); }
       .sp-d { width: 76px; height: 58px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 800; line-height: 1.1; }
-      .sp-d b { font-size: 20px; } .sp-d span { font-size: 11.5px; text-transform: uppercase; letter-spacing: .03em; }
+      .sp-d b { font-family: var(--num); font-size: 22px; font-weight: 600; font-variant-numeric: tabular-nums; } .sp-d span { font-family: var(--num); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; text-transform: uppercase; letter-spacing: .04em; }
       .sp-g h4 { margin: 0 0 3px; font-size: 15.5px; } .sp-g .muted { font-size: 13px; }
       .sp-nums { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
       .sp-team { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px 16px; align-items: start; }
@@ -62,13 +62,13 @@
       .sp-cal .cd.nx { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line-soft) 6px 7px); }
       .sp-cal .cn { font-weight: 700; color: var(--ink); } .sp-cal .cw { color: var(--muted); }
       .sp-cal .cg { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
-      .sp-cal .cc { font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+      .sp-cal .cc { font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
       @media (max-width: 640px) { .sp-cal .cc { line-height: 30px; } }   /* Handy: Spiele im Kalender gut antippbar */
-      .sp-cal .cc.g { background: var(--brand-soft); border-color: var(--brand); color: var(--brand); }
-      .sp-cal .cc.r { background: var(--red-soft, #fbe9e7); border-color: var(--red); color: var(--red); }
+      .sp-cal .cc.g { background: var(--brand-soft); border-color: var(--brand-ink); color: var(--brand-ink); }
+      .sp-cal .cc.r { background: var(--red-soft); border-color: var(--red); color: var(--red); }
       .sp-cal .cc.p { border-style: dashed; color: var(--muted); }
       .sp-cal .cc.x { color: var(--muted); } .sp-cal .cc.s { text-decoration: line-through; }
-      .sp-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: center; margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+      .sp-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
       .sp-legend .sp-cal { display: contents; } .sp-legend .li { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
       @media print { .sp-calw { border: 0; overflow: visible; } .sp-cal { grid-auto-columns: minmax(0, 1fr); grid-template-rows: auto repeat(31, minmax(0, auto)); } .sp-cal .cd { font-size: 8.5px; padding: 0 3px; grid-template-columns: 13px 14px minmax(0, 1fr); gap: 2px; }
         .sp-cal .cc { font-size: 7.5px; line-height: 11px; padding: 0 3px; } .sp-cal * { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
@@ -80,27 +80,27 @@
       .sp-al > div { display: grid; grid-template-columns: 10px 84px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line-soft, var(--line)); }
       .sp-al > div:first-child { border-top: 0; padding-top: 2px; }
       .sp-al .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); } .sp-al .dot.r { background: var(--red); }
-      .sp-al .dd { white-space: nowrap; font-weight: 800; font-variant-numeric: tabular-nums; font-size: 13.5px; }
+      .sp-al .dd { white-space: nowrap; font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 16px; }
       .sp-dt { display: grid; gap: 16px; }
       .sp-th { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 4px; }
       .sp-th h3 { margin: 0; } .sp-th .muted { font-size: 13px; margin-top: 3px; }
-      .sp-rate { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .sp-rate b { font-size: 22px; font-variant-numeric: tabular-nums; white-space: nowrap; } .sp-rate .btn { white-space: nowrap; } .sp-rate .sp-kbar { width: 120px; margin: 0; }
+      .sp-rate { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; } .sp-rate b { font-family: var(--num); font-size: 26px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; } .sp-rate .btn { white-space: nowrap; } .sp-rate .sp-kbar { width: 120px; margin: 0; }
       .sp-mx { overflow-x: auto; margin-top: 12px; border: 1px solid var(--line); border-radius: 12px; }
       .sp-mx table { border-collapse: separate; border-spacing: 0; min-width: 100%; font-size: 13px; }
       .sp-mx th, .sp-mx td { padding: 6px; text-align: center; border-bottom: 1px solid var(--line-soft, var(--line)); white-space: nowrap; }
       .sp-mx tr:last-child td { border-bottom: 0; }
       .sp-mx th:first-child, .sp-mx td:first-child { position: sticky; left: 0; z-index: 1; background: var(--card); text-align: left; padding-left: 12px; min-width: 170px; border-right: 1px solid var(--line); }
       .sp-mx thead th { background: var(--hover); font-weight: 700; color: var(--muted); font-size: 12px; } .sp-mx thead th:first-child { background: var(--hover); }
-      .sp-mx thead button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; justify-items: center; gap: 1px; min-width: 52px; } .sp-mx thead button b { position: relative; color: var(--ink); font-size: 12.5px; }
+      .sp-mx thead button { all: unset; box-sizing: border-box; width: 100%; cursor: pointer; display: grid; justify-items: center; gap: 1px; min-width: 52px; } .sp-mx thead button b { position: relative; color: var(--ink); font-family: var(--num); font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; }
       .sp-mx thead button b .lt { position: absolute; right: 100%; top: 50%; margin: -4px 5px 0 0; }   /* Ampelpunkt vor dem Datum, ohne die Mitte zu verschieben */
       .sp-mx thead button:hover b { color: var(--brand-ink); text-decoration: underline; }
       .sp-mx .lt { width: 8px; height: 8px; border-radius: 50%; display: inline-block; background: var(--line); } .sp-mx .lt.g { background: var(--brand); } .sp-mx .lt.r { background: var(--red); }
-      .sp-c { display: inline-grid; place-items: center; width: 28px; height: 26px; border-radius: 7px; font-weight: 800; font-size: 13px; background: var(--hover); color: var(--faint, var(--muted)); }
+      .sp-c { display: inline-grid; place-items: center; width: 28px; height: 26px; border-radius: 999px; font-weight: 800; font-size: 13px; background: var(--hover); color: var(--faint, var(--muted)); }
       .sp-c.y { background: var(--brand-soft); color: var(--brand-ink); } .sp-c.n { background: var(--red-soft); color: var(--red); }
       .sp-c.p { box-shadow: inset 0 0 0 2px var(--brand); } .sp-c.e { box-shadow: inset 0 0 0 2px var(--amber); } .sp-c.w { box-shadow: inset 0 0 0 2px var(--red); }
       .sp-mx td.op { color: var(--amber); font-weight: 800; } .sp-mx tfoot td { font-weight: 800; background: var(--hover); }
       .sp-mx tfoot td.ok { color: var(--brand-ink); } .sp-mx tfoot td.no { color: var(--red); }
-      .sp-leg { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 10px; font-size: 12.5px; color: var(--muted); align-items: center; } .sp-leg span { display: inline-flex; align-items: center; gap: 6px; } .sp-leg .sp-c { width: 22px; height: 20px; font-size: 11px; }`;
+      .sp-leg { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); align-items: center; } .sp-leg span { display: inline-flex; align-items: center; gap: 6px; } .sp-leg .sp-c { width: 22px; height: 20px; font-size: 11px; }`;
     document.head.appendChild(s);
   }
 

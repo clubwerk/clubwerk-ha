@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.67.0
+
+**Neues Aussehen „Anzeigetafel“: Spielbetrieb (Verwaltung, Mitglieder-App, Gast-Seite)**
+- **Uhrzeiten und Zähler** (z. B. „10:00 Uhr“, „2/4 können“) stehen jetzt in den schmalen Anzeigetafel-Ziffern, genauso wie die Datumsblöcke, die Quote und die Daten in der Übersicht.
+- **Zusagen-Marken (✓/✕)** und die Schalter beim Aufstellen sind jetzt Pillen, die Spielkarten in der Verwaltung haben weiche Schatten statt Rahmen, die Kalender-Marken sind Pillen.
+- **Legenden** unter Kalender und Übersicht sind ruhiger: kleiner, mit feiner Trennlinie darüber.
+- **Gast-Seite:** Oben steht jetzt „Spieltage“ als Seitentitel. Der Name des Gastes steht klein in der Begrüßung („Hallo …“) statt als riesige Überschrift.
+- Nur das Aussehen ändert sich – alle Abläufe sind gleich geblieben.
+
 ## 3.66.0
 
 **Gratulationen: Geburtstage und Jubiläen nicht mehr verpassen (Mitglieder)**

@@ -2,6 +2,9 @@
 /* Spieltage für Gastspieler/innen (kein Vereinsmitglied): persönlicher Link /p/spielbetrieb/#t=<token> – ohne App, ohne PIN.
    Je Tag eine Zeile mit ✓/✕; die Antwort sieht der Mannschaftsführer sofort. Bausteine aus kit.css (Styleguide). */
 (() => {
+  const st = document.createElement('style');   // Zusagen-Marken als Pillen, Uhrzeiten in Anzeigetafel-Ziffern
+  st.textContent = '.vh-yn button { border-radius: 999px; } .vh-tx .num { font-size: 1.15em; }';
+  document.head.appendChild(st);
   const el = document.getElementById('sec');
   const tok = (location.hash.match(/[#&]t=([A-Za-z0-9_-]{20,40})/) || [])[1] || '';
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -19,12 +22,12 @@
     return d;
   };
   let d = null;
+  const nums = t => esc(t).replace(/\d{1,2}:\d{2}/g, '<span class="num">$&</span>');
   const title = g => (g.kind === 'rahmen' ? `${g.team} · ${g.za ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : `${g.team} ${g.home ? 'gegen' : 'bei'} ${g.opponent}`);
   const answerable = g => g.status === 'geplant' && g.role !== 'spielt' && !g.elsewhere;
   function draw() {
     document.getElementById('club').textContent = d.club;
-    document.getElementById('who').textContent = d.name;
-    document.title = `Spieltage – ${d.club}`;
+        document.title = `Spieltage – ${d.club}`;
     const byDay = new Map(); d.games.forEach(g => { if (!byDay.has(g.date)) byDay.set(g.date, []); byDay.get(g.date).push(g); });
     const open = d.games.filter(g => answerable(g) && !g.state);
     const row = (day, gs) => {
@@ -37,7 +40,7 @@
         : plays ? '<span class="vh-chip g">spielt</span>' : gs.every(g => g.elsewhere) ? `<span class="vh-chip">spielt in ${esc(gs[0].elsewhere)}</span>`
         : `<span class="vh-yn"><button class="y ${all === 'ja' ? 'on' : ''}" data-day="${day}" data-st="ja" aria-label="Kann">✓</button><button class="n ${all === 'nein' ? 'on' : ''}" data-day="${day}" data-st="nein" aria-label="Kann nicht">✕</button></span>`;
       return `<div><span class="vh-date"><b>${day.slice(8, 10)}.${day.slice(5, 7)}.</b><span>${wd(day)}</span></span>
-        <span class="vh-tx"><strong>${esc(gs.map(title).join(' + '))}</strong><small>${esc(sub)}${res && !plays ? ' · als Ersatz eingeplant' : ''}${!all && ans.length ? ' · <b style="color:var(--amber)">offen</b>' : ''}</small></span>${right}</div>`;
+        <span class="vh-tx"><strong>${esc(gs.map(title).join(' + '))}</strong><small>${nums(sub)}${res && !plays ? ' · als Ersatz eingeplant' : ''}${!all && ans.length ? ' · <b style="color:var(--amber)">offen</b>' : ''}</small></span>${right}</div>`;
     };
     const caps = d.teams.filter(t => t.captain).map(t => `${t.team}: ${t.captain}`).join(' · ');
     el.innerHTML = `<div class="vh-card"><h3>Hallo ${esc(d.name.split(' ')[0])}!</h3>

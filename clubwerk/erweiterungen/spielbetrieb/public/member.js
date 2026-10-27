@@ -8,20 +8,20 @@
     s.textContent = `
       .sb-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; font-size: 13.5px; color: var(--muted); }
       .sb-line button, .sb-link { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 6px 0; }
-      .sb-play { margin-top: 12px; padding: 12px; border-radius: 14px; background: var(--brand-soft); }
+      .sb-play { margin-top: 12px; padding: 12px; border-radius: var(--r-tile); background: var(--brand-soft); }
       .sb-play.wd { background: var(--amber-soft); }
       .sb-play b { display: block; font-size: 15px; color: var(--ink); } .sb-play p { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }
-      .sb-play button { min-height: 40px; border-radius: 12px; font: inherit; font-size: 14px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 0 14px; }
+      .sb-play button { min-height: 40px; border-radius: var(--r-ctl); font: inherit; font-size: 14px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); padding: 0 14px; }
       .sb-who { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.5; } .sb-who b { color: var(--ink); font-weight: 700; }
       .sb-tasks { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
       .sb-tasks > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
       .sb-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .sb-p { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
       .sb-p:first-of-type { border-top: 0; }
-      .sb-p .rk { font-size: 12.5px; font-weight: 800; color: var(--muted); text-align: right; }
+      .sb-p .rk { font-family: var(--num); font-size: 15px; font-weight: 600; color: var(--muted); text-align: right; }
       .sb-p strong { display: block; font-size: 14.5px; } .sb-p small { display: block; font-size: 12px; color: var(--muted); margin-top: 1px; }
-      .sb-seg { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: var(--hover); }
-      .sb-seg button { min-height: 34px; min-width: 38px; border-radius: 9px; border: 0; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 0 8px; }
+      .sb-seg { display: flex; gap: 3px; padding: 3px; border-radius: 999px; background: var(--hover); }
+      .sb-seg button { min-height: 34px; min-width: 38px; border-radius: 999px; border: 0; background: transparent; font: inherit; font-size: 12.5px; font-weight: 800; color: var(--muted); padding: 0 8px; }
       .sb-seg button.on { background: var(--brand); color: var(--on-brand); } .sb-seg button.on.e { background: var(--amber); }
       .sb-p.wd { background: var(--amber-soft); margin: 0 -16px; padding: 9px 16px; }
       .sb-wd { grid-column: 2 / -1; display: flex; gap: 8px; margin-top: 6px; }
@@ -30,6 +30,8 @@
       .sb-row:first-child { border-top: 0; } .sb-row.x { opacity: .6; } .sb-row.open { background: color-mix(in srgb, var(--hover) 45%, var(--card)); }
       .sb-rh { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 10px; align-items: center; padding: 9px 4px 9px 14px; background: none; border: 0; font: inherit; color: inherit; text-align: left; min-width: 0; }
       .sb-tt { min-width: 0; } .sb-tt strong { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 14.5px; line-height: 1.25; overflow: hidden; overflow-wrap: anywhere; }   /* Titel bis zwei Zeilen statt abgeschnitten */
+      .sb-rr .vh-yn button, .sb-gx .vh-yn button { border-radius: 999px; }   /* Zusagen-Marken als Pillen */
+      .sb-tt .num { font-size: 1.15em; }
       .sb-tt small { display: block; font-size: 12.5px; line-height: 1.3; color: var(--muted); margin-top: 2px; } .sb-tt em { font-style: normal; color: var(--amber); font-weight: 700; }
       .sb-rr { display: flex; align-items: center; gap: 6px; padding-right: 10px; }
       .sb-det { grid-column: 1 / -1; padding: 0 14px 12px 72px; }
@@ -52,6 +54,7 @@
     id: 'spielbetrieb',
     render(el, ctx) {
       const { esc } = ctx;
+      const nums = t => esc(t).replace(/\d{1,2}:\d{2}|\d+\/\d+/g, '<span class="num">$&</span>');   // Uhrzeiten und Zähler in Anzeigetafel-Ziffern
       let d = null, tab = 'alle';
       const openRows = new Set();   // aufgeklappte Spieltage (bleiben nach dem Neuladen offen)
       const sheet = () => { let sh = document.getElementById('sbSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'sbSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
@@ -122,7 +125,7 @@
           : roles.length ? '<span class="vh-chip g">spielt</span>' : '';
         return `<div class="sb-row sb-day${open ? ' open' : ''}">
           <button class="sb-rh" data-x="${key}" aria-expanded="${open}"><span class="vh-date">${lead ? `<i class="${lt}"></i>` : ''}<b>${esc(day.slice(8, 10))}.${esc(day.slice(5, 7))}.</b><span>${esc(wd(day))}</span></span>
-            <span class="sb-tt"><strong translate="no">${esc(title)}${rt ? ` · ${gs.some(g => g.za) ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : ''}</strong><small>${esc(sub)}${all === null && ans.length ? ' · <em>offen</em>' : ''}</small></span></button>
+            <span class="sb-tt"><strong translate="no">${esc(title)}${rt ? ` · ${gs.some(g => g.za) ? 'Zusatz-/Ausweichtermin' : 'Rahmentermin'}` : ''}</strong><small>${nums(sub)}${all === null && ans.length ? ' · <em>offen</em>' : ''}</small></span></button>
           <span class="sb-rr">${right}</span>
           ${open ? `<div class="sb-sub">${gs.map(row).join('')}</div>` : ''}</div>`;
       }
@@ -142,7 +145,7 @@
         const right = answerable ? `<span class="vh-yn"><button class="y ${me.state === 'ja' ? 'on' : ''}" data-ans="ja" data-g="${g.id}" aria-label="Kann">✓</button><button class="n ${me.state === 'nein' ? 'on' : ''}" data-ans="nein" data-g="${g.id}" aria-label="Kann nicht">✕</button></span>${me.role === 'ersatz' ? '<span class="vh-chip a">Ersatz</span>' : ''}` : tag;
         return `<div class="sb-row${cancelled ? ' x' : ''}${open ? ' open' : ''}">
           <button class="sb-rh" data-x="${g.id}" aria-expanded="${open}"><span class="vh-date">${g.lead ? `<i class="${lt}"></i>` : ''}<b>${esc(g.date.slice(8, 10))}.${esc(g.date.slice(5, 7))}.</b><span>${esc(wd(g.date))}</span></span>
-            <span class="sb-tt"><strong translate="no">${esc(title(g))}</strong><small>${esc(sub)}${!me.state && answerable ? ' · <em>offen</em>' : ''}</small></span></button>
+            <span class="sb-tt"><strong translate="no">${esc(title(g))}</strong><small>${nums(sub)}${!me.state && answerable ? ' · <em>offen</em>' : ''}</small></span></button>
           <span class="sb-rr">${right}</span>
           ${open ? `<div class="sb-det">${detail(g)}</div>` : ''}</div>`;
       }
