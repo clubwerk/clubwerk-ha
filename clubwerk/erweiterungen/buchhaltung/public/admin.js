@@ -11,6 +11,9 @@
   const VIA = { ueberweisung: 'Überweisung', bar: 'bar', lastschrift: 'Lastschrift', verrechnet: 'verrechnet', Mitgliederverwaltung: 'über die Mitglieder' };
   const opt = (v, l, sel) => `<option value="${esc(v)}" ${String(v) === String(sel ?? '') ? 'selected' : ''}>${esc(l)}</option>`;
   const val = id => ($(id) ? $(id).value.trim() : undefined);
+  const eur = c => `<span class="num">${euro(c)}</span>`;
+  const nm = t => `<span class="num">${esc(t)}</span>`;
+  const X = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
   const pill = ([c, t]) => `<span class="pill ${c}">${esc(t)}</span>`;
 
   if (!document.getElementById('bhStyle')) {
@@ -38,6 +41,7 @@
       .bh-addr { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; margin: 0 0 10px; }
       .bh-addr dt { color: var(--muted); } .bh-addr dd { margin: 0; overflow-wrap: anywhere; }
       .bh-sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+      .bh-tbl span.num:not(.bh-sub), .bh-tbl b.num, #dialog span.num, .bh-sub.num { font-size: 1.15em; }   /* Anzeigetafel-Ziffern sind schmaler: etwas größer, damit sie neben der Textschrift gleich hoch wirken */
       @media (min-width: 761px) { .bh-tbl td { height: 52px; } }
       @media (max-width: 760px) { .bh-tbl .hm, .bh-tbl .bh-sub { display: none; } }`;
     document.head.appendChild(s);
@@ -87,9 +91,9 @@
           <input class="q n" value="${esc(String(r.qty).replace('.', ','))}" inputmode="decimal" aria-label="Menge">
           <input class="u n" value="${r.unit_cents ? centsToInput(r.unit_cents) : ''}" inputmode="decimal" placeholder="0,00" aria-label="Einzelpreis">
           ${sb ? '<span class="v"></span>' : `<select class="v" aria-label="Umsatzsteuer">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', r.vat)).join('')}</select>`}
-          <button class="btn small ghost" data-rm="${i}" aria-label="Position entfernen" ${rows.length < 2 ? 'disabled' : ''}>✕</button></div>`).join('')}</div>
+          <button class="btn small ghost" data-rm="${i}" aria-label="Position entfernen" ${rows.length < 2 ? 'disabled' : ''}>${X}</button></div>`).join('')}</div>
         <div class="row" style="justify-content:space-between;align-items:flex-start"><button class="btn small" data-add>+ Position</button>
-          <div class="bh-sum"><span>Netto</span><span>${euro(t.net)}</span>${t.vats.map(([v, c]) => `<span>USt ${v} %</span><span>${euro(c)}</span>`).join('')}<span class="tot">Gesamt</span><span class="tot">${euro(t.gross)}</span></div></div>
+          <div class="bh-sum"><span>Netto</span><span>${eur(t.net)}</span>${t.vats.map(([v, c]) => `<span>USt ${v} %</span><span>${eur(c)}</span>`).join('')}<span class="tot">Gesamt</span><span class="tot">${eur(t.gross)}</span></div></div>
         ${sb ? '<p class="muted s" style="margin:0">Kleinunternehmer: keine Umsatzsteuer (§ 19 UStG) – der Hinweis steht auf der Rechnung.</p>' : ''}`;
       box.querySelector('[data-add]').onclick = () => { read(); rows.push({ text: '', qty: 1, unit_cents: 0, vat: vatDef }); paint(); box.querySelector(`.bh-item[data-i="${rows.length - 1}"] .t`).focus(); };
       box.querySelectorAll('[data-rm]').forEach(b => { b.onclick = () => { read(); rows.splice(+b.dataset.rm, 1); paint(); }; });
@@ -112,9 +116,9 @@
         <label class="f bh-yr">Jahr<select id="biY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label></div>
       <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt"><tr><th>Empfänger</th><th>Nr.</th><th class="hm">Datum</th><th class="hm">Fällig</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
         ${rows.map(r => `<tr class="${r.status === 'storniert' ? 'off' : ''}"><td class="k-1z" title="${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}"><b>${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}</b><span class="bh-sub">${r.kind === 'member' ? 'Mitglied' : 'Firma'}${r.period ? ' · ' + esc(r.period) : ''}${r.sent_at ? ' · verschickt' : ''}${r.reminders ? ` · ${r.reminders}× erinnert` : ''}</span></td>
-          <td class="nw k-lbl">${esc(r.no)}</td>
-          <td class="hm nw k-weg">${deDate(r.date)}</td><td class="hm nw k-weg ${r.overdue ? 'neg' : ''}">${deDate(r.due_date)}</td><td class="r"><b>${euro(r.gross)}</b></td>
-          <td>${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' && r.paid_at ? `<span class="bh-sub">${deDate(r.paid_at)}</span>` : ''}</td>
+          <td class="nw k-lbl">${nm(r.no)}</td>
+          <td class="hm nw k-weg">${nm(deDate(r.date))}</td><td class="hm nw k-weg ${r.overdue ? 'neg' : ''}">${nm(deDate(r.due_date))}</td><td class="r">${euro(r.gross)}</td>
+          <td>${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' && r.paid_at ? `<span class="bh-sub num">${deDate(r.paid_at)}</span>` : ''}</td>
           <td><div class="bh-acts"><a class="btn small hm" href="${BASE}invoices/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>${r.status === 'offen' && !(r.kind === 'member' && r.charge_id) ? `<button class="btn small" data-paid="${r.id}">Bezahlt</button>` : ''}<button class="btn small" data-inv="${r.id}">Details</button></div></td></tr>`).join('')}</table>`
         : `<p class="empty">Keine Rechnungen${f.status !== 'alle' ? ' mit diesem Status' : ''} – mit „+ Neue Rechnung“ oben rechts legst du die erste an.</p>`}</div>`;
     // Knopfleiste ganz oben: Clubwerk setzt sie rechts in die Reiterzeile
@@ -199,8 +203,8 @@
     const open = r.status === 'offen';
     const remindN = r.reminders + 1;
     dialog(`<h2>Rechnung ${esc(r.no)}</h2>
-      <p class="muted" style="margin-top:0">${esc(r.recipient.name)} · ${euro(r.gross)} · vom ${deDate(r.date)}${r.due_date ? `, fällig ${deDate(r.due_date)}` : ''}</p>
-      <table class="tbl" style="margin-bottom:12px">${r.items.map(i => `<tr><td>${esc(i.text)}</td><td class="r">${String(i.qty).replace('.', ',')} × ${euro(i.unit_cents)}</td><td class="r">${r.small_business ? '' : i.vat + ' %'}</td></tr>`).join('')}</table>
+      <p class="muted" style="margin-top:0">${esc(r.recipient.name)} · ${eur(r.gross)} · vom ${nm(deDate(r.date))}${r.due_date ? `, fällig ${nm(deDate(r.due_date))}` : ''}</p>
+      <table class="tbl" style="margin-bottom:12px">${r.items.map(i => `<tr><td>${esc(i.text)}</td><td class="r">${nm(String(i.qty).replace('.', ',') + ' × ')}${eur(i.unit_cents)}</td><td class="r">${r.small_business ? '' : i.vat + ' %'}</td></tr>`).join('')}</table>
       <p class="s" style="margin:0 0 4px">Status: ${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' ? ` am ${deDate(r.paid_at)}${r.paid_via ? ' (' + esc(VIA[r.paid_via] || r.paid_via) + ')' : ''}` : ''}${r.status === 'storniert' && r.cancel_reason ? ` – ${esc(r.cancel_reason)}` : ''}</p>
       <p class="muted s" style="margin:0">${r.sent_at ? `Verschickt am ${deDate(r.sent_at.slice(0, 10))}` : 'Noch nicht verschickt'}${r.recipient.email ? ` · ${esc(r.recipient.email)}` : ' · keine E-Mail-Adresse'}${r.reminders ? ` · ${r.reminders}. Erinnerung am ${deDate(String(r.reminded_at).slice(0, 10))}` : ''}</p>
       ${r.kind === 'member' && r.charge_id ? '<p class="muted s">Steht als offener Posten bei den Mitgliedern und kann dort per Lastschrift eingezogen werden.</p>' : ''}
@@ -228,7 +232,7 @@
 
   /** Zahlung buchen; zurück = Fenster der Rechnung (Abbrechen führt dorthin), null = Abbrechen schließt */
   function paidDialog(r, after, back) {
-    dialog(`<h2>Zahlung buchen</h2><p class="muted" style="margin-top:0">${esc(r.no)} · ${esc(r.recipient.name)} · ${euro(r.gross)}</p>
+    dialog(`<h2>Zahlung buchen</h2><p class="muted" style="margin-top:0">${nm(r.no)} · ${esc(r.recipient.name)} · ${eur(r.gross)}</p>
       <div class="bh-grid" style="--c:2"><label class="f">Eingegangen am<input id="ipD" type="date" value="${st.meta.today}"></label>
       <label class="f">Zahlungsweg<select id="ipV">${['ueberweisung', 'bar', 'lastschrift', 'verrechnet'].map(v => opt(v, VIA[v], 'ueberweisung')).join('')}</select></label></div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ipOk">Bezahlt</button></div>`);
@@ -339,15 +343,16 @@
     const rows = await api('donations?' + new URLSearchParams(f.year ? { year: f.year } : {}));
     const years = []; for (let y = m.year; y >= m.year - 5; y--) years.push(y);
     const act = rows.filter(r => r.status === 'aktiv');
+    const cnt = n => `${n} ${n === 1 ? 'Quittung' : 'Quittungen'}`;
     el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Bestätigt ${m.year}</div><div class="v">${euro(m.kpis.donations.c)}</div><div class="s muted">${m.kpis.donations.n} ${m.kpis.donations.n === 1 ? 'Quittung' : 'Quittungen'}</div></div>
-        <div class="kpi"><div class="l">Geldspenden${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind === 'geld').reduce((s, r) => s + r.cents, 0))}</div></div>
-        <div class="kpi"><div class="l">Sachspenden &amp; Verzicht${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind !== 'geld').reduce((s, r) => s + r.cents, 0))}</div></div></div>
+        <div class="kpi"><div class="l">Geldspenden${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind === 'geld').reduce((s, r) => s + r.cents, 0))}</div><div class="s muted">${cnt(act.filter(r => r.kind === 'geld').length)}</div></div>
+        <div class="kpi"><div class="l">Sachspenden &amp; Verzicht${f.year ? ' ' + f.year : ''}</div><div class="v">${euro(act.filter(r => r.kind !== 'geld').reduce((s, r) => s + r.cents, 0))}</div><div class="s muted">${cnt(act.filter(r => r.kind !== 'geld').length)}</div></div></div>
       <div class="filterbar"><label class="f bh-yr">Jahr<select id="bdY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label>
         </div>
       <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt"><tr><th>Nr.</th><th>Spender</th><th class="hm">Art</th><th class="hm">Tag der Zuwendung</th><th class="r">Betrag</th><th></th></tr>
-        ${rows.map(r => `<tr class="${r.status !== 'aktiv' ? 'off' : ''}"><td class="nw"><b>${esc(r.no)}</b></td>
-          <td class="k-1z" title="${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}"><b>${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' · storniert' : ''}</span></td>
-          <td class="hm k-weg">${esc(DKIND[r.kind])}</td><td class="hm nw k-weg">${deDate(r.date)}</td><td class="r"><b>${euro(r.cents)}</b></td>
+        ${rows.map(r => `<tr class="${r.status !== 'aktiv' ? 'off' : ''}"><td class="nw"><b class="num">${esc(r.no)}</b></td>
+          <td class="k-1z" title="${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}"><b>${esc(r.donor_type === 'member' ? GK.lastFirst(r.donor.name) : r.donor.name)}</b><span class="bh-sub">${{ member: 'Mitglied', partner: 'Firma', einmalig: 'einmaliger Spender' }[r.donor_type]}${r.sent_at ? ' · verschickt' : ''}${r.status !== 'aktiv' ? ' ' + pill(['', 'storniert']) : ''}</span></td>
+          <td class="hm k-weg">${esc(DKIND[r.kind])}</td><td class="hm nw k-weg">${nm(deDate(r.date))}</td><td class="r">${euro(r.cents)}</td>
           <td><div class="bh-acts"><a class="btn small" href="${BASE}donations/${r.id}/pdf" target="_blank" rel="noopener">PDF</a>${r.status === 'aktiv' ? `<button class="btn small" data-dsend="${r.id}" ${r.donor.email && m.mail ? '' : 'disabled'}>Senden</button><button class="btn small ghost" data-dx="${r.id}">Storno</button>` : ''}</div></td></tr>`).join('')}</table>`
         : `<p class="empty">Noch keine Spendenquittungen${m.donationReady ? ' – mit „+ Neue Spendenquittung“ oben rechts stellst du die erste aus.' : ' – trage zuerst unter Einstellungen die Angaben zum Freistellungsbescheid ein.'}</p>`}</div>`;
     const acts = `<button class="btn primary" id="bdNew" type="button" ${m.donationReady ? '' : 'disabled title="Erst die Angaben zum Freistellungsbescheid eintragen"'}>+ Neue Spendenquittung</button>`;
@@ -440,7 +445,7 @@
         <p class="muted s" style="margin-top:0">Anschrift, E-Mail und Telefon stehen im Briefkopf jeder Rechnung und Spendenquittung. Sie gelten für den ganzen Verein – <a href="#einstellungen" id="bsToClub">ändern unter Einstellungen › Verein</a>.</p>
         <dl class="bh-addr">${addr.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${v ? esc(v) : '<span class="muted">–</span>'}</dd>`).join('')}</dl>
         <p class="muted s">Auf der Rechnung steht das Bankkonto der Abteilung, sonst das Standardkonto – im Rechnungsfenster änderbar. <a href="#einstellungen" id="bsToBank">Bankkonten ändern unter Einstellungen › Bankkonten</a>.</p>
-        ${m.accounts.length ? `<table class="tbl kompakt">${m.accounts.map(a => `<tr><td class="k-1z"><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${esc(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (m.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Bankkonto angelegt – unter Einstellungen › Bankkonten eintragen.</p>'}</div>
+        ${m.accounts.length ? `<table class="tbl kompakt">${m.accounts.map(a => `<tr><td class="k-1z"><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${nm(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (m.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Bankkonto angelegt – unter Einstellungen › Bankkonten eintragen.</p>'}</div>
       <div id="bhFunc" data-set="transfer"></div>`;
     if (GK.funcBox) GK.funcBox($('bhFunc'), 'buchhaltung', 'Buchhaltung', () => showSettings(el).catch(fail));
     if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bh' });

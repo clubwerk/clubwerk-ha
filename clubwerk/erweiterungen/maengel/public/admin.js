@@ -10,10 +10,14 @@
   const SORTS = [['neu', 'Neueste zuerst'], ['dringend', 'Dringende zuerst'], ['auch', 'Am häufigsten gemeldet']];
   const st = { meta: null, sort: sessionStorage.getItem('mg_sort') || 'neu', tabs: null };
   const dt = s => (s ? `${GK.deDate(s.slice(0, 10))}, ${s.slice(11, 16)} Uhr` : '');
+  const num = t => `<span class="num">${esc(t)}</span>`;
+  const UP = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>';
+  const DOWN = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12l7 7 7-7"/></svg>';
 
   if (!document.getElementById('mgAdminStyle')) {
     const s = document.createElement('style'); s.id = 'mgAdminStyle';
     s.textContent = `
+      .tbl span.num:not(.pill), #dialog p span.num, .mg-done.num { font-size: 1.15em; }
       .mg-th { width: 48px; height: 48px; border-radius: 10px; overflow: hidden; background: var(--hover); color: var(--muted); display: inline-flex; align-items: center; justify-content: center; flex: none; vertical-align: middle; }
       .mg-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .mg-what { display: flex; align-items: center; gap: 12px; min-width: 0; }
@@ -40,9 +44,9 @@
       ${sorted.map(r => `<tr data-sel="${r.id}">
         <td class="mg-tdw"><div class="mg-what"><span class="mg-th">${r.photo ? `<img src="api/admin/x/maengel/foto/${r.photo}?t=1" alt="" loading="lazy">` : CAM}</span>
           <div><b translate="no">${esc(r.place)}</b>${r.urgent ? ' <span class="pill r">dringend</span>' : ''}<div class="muted s" translate="no">${esc(r.text)}</div></div></div></td>
-        <td class="k-weg" data-label="Gemeldet"><span class="tcell"><span class="nw">${esc(dt(r.created_at))}</span><div class="muted s" translate="no">${esc(r.reporter || 'gelöschtes Konto')}${r.source === 'tablet' ? ' · Tablet' : ''}</div></span></td>
-        <td class="r" data-label="Auch gemeldet">${r.also ? `<span class="pill a">+${r.also}</span>` : ''}</td>
-        <td data-label="Status"><span class="pill ${PILL[r.status]}">${esc(st.meta.status[r.status])}</span>${done && r.done_at ? `<div class="muted s mg-done">${esc(GK.deDate(r.done_at.slice(0, 10)))}</div>` : ''}</td>
+        <td class="k-weg" data-label="Gemeldet"><span class="tcell"><span class="nw">${num(dt(r.created_at))}</span><div class="muted s" translate="no">${esc(r.reporter || 'gelöschtes Konto')}${r.source === 'tablet' ? ' · Tablet' : ''}</div></span></td>
+        <td class="r" data-label="Auch gemeldet">${r.also ? `<span class="pill a num">+${r.also}</span>` : ''}</td>
+        <td data-label="Status"><span class="pill ${PILL[r.status]}">${esc(st.meta.status[r.status])}</span>${done && r.done_at ? `<div class="muted s mg-done num">${esc(GK.deDate(r.done_at.slice(0, 10)))}</div>` : ''}</td>
         <td class="hide-md k-weg" data-label="Zuständig" translate="no">${esc(r.assignee || '–')}</td>
         <td class="r"><span class="acts"><button class="btn ico" data-ed="${r.id}" title="Bearbeiten" aria-label="Bearbeiten">${EDIT}</button></span></td></tr>`).join('')}</table>`;
   }
@@ -60,7 +64,7 @@
     let r; try { r = await api('meldung/' + id); } catch (e) { return fail(e); }
     const m = st.meta;
     GK.dialog(`<h2 translate="no">${esc(r.place)}${r.urgent ? ' <span class="pill r">dringend</span>' : ''}</h2>
-      <p class="muted" style="margin-top:-4px">Gemeldet ${esc(dt(r.created_at))} von <span translate="no">${esc(r.reporter || 'gelöschtem Konto')}</span>${r.source === 'tablet' ? ' am Tablet' : ''}${r.alsoNames.length ? ` · auch gemeldet von <span translate="no">${esc(r.alsoNames.join('; '))}</span>` : ''}</p>
+      <p class="muted" style="margin-top:-4px">Gemeldet ${num(dt(r.created_at))} von <span translate="no">${esc(r.reporter || 'gelöschtem Konto')}</span>${r.source === 'tablet' ? ' am Tablet' : ''}${r.alsoNames.length ? ` · auch gemeldet von <span translate="no">${esc(r.alsoNames.join('; '))}</span>` : ''}</p>
       ${r.photos.length ? `<div class="mg-photos">${r.photos.map(p => `<a href="#" data-big="${p}" aria-label="Foto groß anzeigen"><img src="api/admin/x/maengel/foto/${p}" alt=""></a>`).join('')}</div>` : ''}
       <p class="mg-text" translate="no">${esc(r.text)}</p>
       <div class="row">
@@ -107,7 +111,7 @@
       <div id="mgFunc"></div>`;
     const drawPlaces = () => {
       $('mgPl').innerHTML = places.length ? places.map((p, i) => `<div class="row mg-pl" style="margin-top:${i ? 10 : 0}px"><label class="f"><input data-pn="${i}" maxlength="60" value="${esc(p)}" placeholder="z. B. Clubhaus Damen-WC" aria-label="Ort"></label>
-        <span class="acts"><button class="btn ico" data-pu="${i}" ${i ? '' : 'disabled'} title="nach oben" aria-label="nach oben">↑</button><button class="btn ico" data-pd="${i}" ${i < places.length - 1 ? '' : 'disabled'} title="nach unten" aria-label="nach unten">↓</button><button class="btn ghost" data-px="${i}">Entfernen</button></span></div>`).join('')
+        <span class="acts"><button class="btn ico" data-pu="${i}" ${i ? '' : 'disabled'} title="nach oben" aria-label="nach oben">${UP}</button><button class="btn ico" data-pd="${i}" ${i < places.length - 1 ? '' : 'disabled'} title="nach unten" aria-label="nach unten">${DOWN}</button><button class="btn ghost" data-px="${i}">Entfernen</button></span></div>`).join('')
         : '<p class="empty">Noch keine eigenen Orte – z. B. „Clubhaus“, „Parkplatz“, „Damen-WC“.</p>';
       $('mgPl').querySelectorAll('[data-pn]').forEach(x => { x.oninput = () => { places[+x.dataset.pn] = x.value; }; });
       const mv = (attr, fn) => $('mgPl').querySelectorAll(`[data-${attr}]`).forEach(b => { b.onclick = () => { fn(+b.dataset[attr]); drawPlaces(); }; });

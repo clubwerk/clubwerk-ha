@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.73.0
+
+**Buchhaltung und Mängel im neuen Aussehen „Anzeigetafel“ (Etappe D2-9 des Design-Umbaus)**
+- **Buchhaltung:** Rechnungsnummern, Daten, Beträge und Summen stehen in der schmalen Zahlenschrift – in der Rechnungsliste, im Rechnungsfenster, bei „Zahlung buchen“, in den Positionen mit Netto, Umsatzsteuer und Gesamt, bei den Spendenquittungen und bei den Bankkonten.
+- **Spendenquittungen:** Die drei Kennzahlen oben haben jetzt alle eine Zeile mit der Anzahl und stehen dadurch auf einer Linie. Stornierte Quittungen tragen eine Marke „storniert“.
+- Das Kreuz zum Entfernen einer Rechnungsposition ist ein Liniensymbol statt eines Schriftzeichens.
+- **Mängel (Verwaltung):** Meldedatum und Uhrzeit, „+2“ bei „Auch gemeldet“ und das Abschlussdatum stehen in der Zahlenschrift; die Pfeile zum Sortieren der Orte sind Liniensymbole.
+- Nur das Aussehen ändert sich – keine Rechnungs-, Spenden- oder Zahlungslogik.
 ## 3.72.0
 
 **Turniere: Doppel, Saisonabschluss mit Ehrentafel und Import einer Einteilung (Clubmeisterschaft, zweiter Teil)**
@@ -11,7 +19,6 @@
 - **Ehrentafel:** neuer Reiter in der Verwaltung, zusätzlich in der App unter „Endrunde“ und am Tablet. Frühere Jahre (vor Clubwerk) lassen sich mit „+ Eintrag“ ergänzen.
 - **Einteilung importieren** (Teilnehmer › „Import …“, nur vor der Auslosung): einmalig aus Excel oder CSV, damit die Vorsaison nicht neu getippt werden muss. Gebraucht werden die Spalten „Name“ (oder „Vorname“ und „Nachname“) und „Liga“ – oder je Liga ein Blatt namens „A“, „B1“ … Gleiche Namen ordnet Clubwerk sicher zu. Bei ähnlichen Namen (Tippfehler, „Nachname, Vorname“) fragt es nach und schlägt passende Mitglieder vor.
 - **Teilnehmer:** Filter „Angemeldet“; je Person sieht man, ob sie Einzel und/oder Doppel spielt und ob sie aus der Vorsaison, aus dem Import, aus der App oder von Hand kommt.
-
 ## 3.71.0
 
 **Neues Modul „Turniere“ – erster Teil: die Clubmeisterschaft im Einzel**
@@ -28,6 +35,7 @@
 - **Mitglieder-App:** „Dein nächstes Spiel“ als Hauptkarte, meine Spiele, Tabellen und Endrunde. Termine und offene Spiele erscheinen unter „Für mich“. Benachrichtigungen: neues Spiel ausgelost, Frist in 7 Tagen, Ergebnis eingetragen, Termin vereinbart, Erinnerung vom Sportwart.
 - **Tablet:** neuer Reiter „Turniere“ mit allen Tabellen, Endrunde und Relegation – nur zum Anschauen, ohne PIN.
 - Doppel, Saisonabschluss mit Ehrentafel und der Import einer Einteilung aus Excel folgen in der nächsten Version.
+
 ## 3.70.0
 
 **Beregnung und Zugang im neuen Aussehen „Anzeigetafel“ (Etappe D2-7 des Design-Umbaus)**
