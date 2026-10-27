@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.70.0
+
+**Beregnung und Zugang im neuen Aussehen „Anzeigetafel“ (Etappe D2-7 des Design-Umbaus)**
+- **Statuszeile** („Verbunden mit der Bewässerungsanlage“, „Verbunden“) ist jetzt eine runde Pille, die sich der Textlänge anpasst – in der Beregnungs-Webapp, am Tablet und in der Mitglieder-App.
+- **Laufende Zonen:** Restzeit, „Start in …“ und „ab 14:30 Uhr“ stehen in der schmalen Zahlenschrift, etwas größer.
+- **„Alle Zonen ausschalten“** steht ganz unten und deutlich abgesetzt, nur als roter Umriss – in der Webapp, am Tablet, in der App und in der Verwaltung (dort unter einer Trennlinie).
+- **Beregnungs-Webapp:** Der Titel „Bewässerungssteuerung“ passt jetzt am Handy ungekürzt in die Kopfzeile.
+- **Zugang (Verwaltung):** Uhrzeiten der Zeitprofile, Sperrzeiträume, Verlauf und „zuletzt“ stehen in der Zahlenschrift; ebenso Zeit und Minuten im Beregnungs-Verlauf.
+- Nur das Aussehen ändert sich – keine Abläufe, keine Sicherheits- oder Zugangsregeln.
+
 ## 3.69.0
 
 **Helferdienste und Zeiterfassung im neuen Aussehen „Anzeigetafel“ (Etappe D2-6 des Design-Umbaus)**

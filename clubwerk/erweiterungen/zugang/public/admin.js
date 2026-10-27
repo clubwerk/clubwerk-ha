@@ -84,7 +84,7 @@
         ${rows.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Handy</th><th>Zeitprofil</th><th class="hide-md">zuletzt</th><th></th></tr>
         ${rows.map(x => `<tr${x.blocked ? ' class="off"' : ''}><td class="k-1z"><b>${esc(GK.lastFirst(x.name))}</b>${x.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</td><td><span class="pill ${STAT[x.device][0]}">${STAT[x.device][1]}</span></td>
           <td>${esc(profName(x.profile))}${x.valid_until ? ` · bis ${deD(x.valid_until)}` : ''}${x.away ? ' · auch unterwegs' : ''}</td>
-          <td class="muted s hide-md">${x.last_used ? GK.deTime(x.last_used) : ''}</td>
+          <td class="muted s hide-md num">${x.last_used ? GK.deTime(x.last_used) : ''}</td>
           <td class="r"><span class="acts">${x.device !== 'gekoppelt' ? `<button class="btn small" data-mq="${x.member_id}">QR-Code</button>` : ''}<button class="btn small" data-me="${x.member_id}">Bearbeiten</button></span></td></tr>`).join('')}</table>`
           : '<p class="empty">Niemand in dieser Auswahl.</p>'}`
         : '<p class="empty">Noch niemand freigeschaltet – oben auf „+ Mitglied freischalten“.</p>'}</div>`;
@@ -199,7 +199,7 @@
         ${c.doors.map(d => `<label class="chk"><input type="checkbox" data-pd="${i}" value="${d.id}" ${p.doors === 'all' || (p.doors || []).includes(d.id) ? 'checked' : ''} ${p.doors === 'all' ? 'disabled' : ''}> ${esc(d.name)}</label>`).join('')}
       </div></div>
       <table class="tbl kompakt" style="margin-top:12px"><tr><th style="width:130px">Tag</th><th>Zeiten</th></tr>
-        ${DAYS.map(([k, n]) => `<tr><td>${n}</td><td><input data-pw="${i}.${k}" value="${esc(winText((p.windows || {})[k]))}" placeholder="geschlossen" style="width:100%"></td></tr>`).join('')}
+        ${DAYS.map(([k, n]) => `<tr><td>${n}</td><td><input class="num" data-pw="${i}.${k}" value="${esc(winText((p.windows || {})[k]))}" placeholder="geschlossen" style="width:100%"></td></tr>`).join('')}
       </table>
       <p class="muted s" style="margin:8px 0 0">Zeiten wie 07:00–23:00, mehrere mit Komma; leer = geschlossen; „ganztägig“ = rund um die Uhr.</p>
       <div class="row" style="margin-top:8px"><button class="btn small" data-pcopy="${i}">Montag auf alle Tage übertragen</button><button class="btn small" data-pwork="${i}">Montag auf Mo–Fr übertragen</button></div>
@@ -258,7 +258,7 @@
       <p class="lead">An diesen Tagen öffnet die App für niemanden, z. B. bei Platzsanierung oder Betriebsferien.</p>
       <div class="card" id="zBlockBox"><h3>Sperrzeiträume</h3>
       ${days.length ? `<table class="tbl kompakt"><tr><th>Zeitraum</th><th>Grund</th><th></th></tr>
-        ${days.map((b, i) => `<tr><td class="k-1z"><b>${span(b)}</b></td><td>${esc(b.note || '')}</td><td class="r"><button class="btn small" data-be="${i}">Bearbeiten</button></td></tr>`).join('')}</table>`
+        ${days.map((b, i) => `<tr><td class="k-1z"><b class="num">${span(b)}</b></td><td>${esc(b.note || '')}</td><td class="r"><button class="btn small" data-be="${i}">Bearbeiten</button></td></tr>`).join('')}</table>`
         : '<p class="empty">Keine Sperrtage – oben auf „+ Sperrzeitraum“.</p>'}</div>`;
     GK.tabTools('<button class="btn primary" id="zBAdd">+ Sperrzeitraum</button>', $('zBlockBox'));
     const again = () => renderSperrtage().catch(fail);
@@ -348,7 +348,7 @@
     const mName = m => new Date(+m.slice(0, 4), +m.slice(5, 7) - 1, 1).toLocaleString('de-DE', { month: 'long', year: 'numeric' });
     $('zLog').innerHTML = `<div class="row" style="margin-bottom:10px"><label class="f">Monat<select id="zMonth" data-nodirty>${r.months.map(m => `<option value="${m}" ${m === r.month ? 'selected' : ''}>${mName(m)}</option>`).join('')}</select></label></div>
       ${r.rows.length ? `<table class="tbl kompakt"><tr><th>Zeitpunkt</th><th>Aktion</th><th>Tür</th><th>Wer</th><th>Hinweis</th></tr>
-        ${r.rows.map(x => { const a = A[x.action] || ['', x.action]; return `<tr><td class="k-1z">${dt(x.at)}</td><td><span class="pill ${a[0]}">${a[1]}</span></td><td>${esc(x.door || '')}</td><td>${esc(x.who || '')}</td><td class="muted s" title="${esc(x.detail || '')}">${esc(x.detail || '')}</td></tr>`; }).join('')}</table>`
+        ${r.rows.map(x => { const a = A[x.action] || ['', x.action]; return `<tr><td class="k-1z num">${dt(x.at)}</td><td><span class="pill ${a[0]}">${a[1]}</span></td><td>${esc(x.door || '')}</td><td>${esc(x.who || '')}</td><td class="muted s" title="${esc(x.detail || '')}">${esc(x.detail || '')}</td></tr>`; }).join('')}</table>`
         : '<p class="empty">Keine Einträge in diesem Monat.</p>'}`;
     GK.tabTools(`<a class="btn" href="api/admin/x/zugang/log.xlsx?month=${r.month}">Excel</a>`, $('zLog'));
     $('zMonth').onchange = () => { st.month = $('zMonth').value; loadLog().catch(fail); };

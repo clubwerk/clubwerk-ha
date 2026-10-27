@@ -31,7 +31,7 @@ body.embedded .vh-top { display: none; }
 body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 
 /* Statuszeile */
-.vh-status { background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); border-radius: 16px; padding: 10px 14px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--muted); min-height: 44px; }
+.vh-status { background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); border-radius: 999px; width: fit-content; max-width: 100%; padding: 10px 18px; display: flex; align-items: center; gap: 10px; font-size: 14px; font-weight: 600; color: var(--muted); min-height: 44px; }
 .vh-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
 .vh-dot.ok { background: #2f9e5b; box-shadow: 0 0 0 4px rgba(47,158,91,.15); }
 .vh-dot.err { background: var(--red); }
@@ -93,7 +93,8 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-stop1 { min-height: 44px; border-radius: 12px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); font: inherit; font-size: 15px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer; }
 .vh-tile.off .vh-pill.ghost { background: var(--hover); color: var(--muted); border-color: var(--line); }
 
-.vh-stop { width: 100%; min-height: 56px; border-radius: 16px; background: var(--red-soft); color: var(--red); border: 1px solid var(--red-line); font-size: 16px; font-weight: 800; margin-top: 6px; }
+.vh-stop { width: 100%; min-height: 56px; border-radius: 16px; background: transparent; color: var(--red); border: 1px solid var(--red-line); font-size: 16px; font-weight: 800; margin-top: 24px; }   /* gefährliche Aktion: abgesetzt, nur Umriss (wie .vh-danger) */
+.vh-pill { font-family: var(--num); font-size: 17px; }   /* Restzeit, „Start in …“, „ab 14:30 Uhr“ in der Zahlenschrift */
 
 /* Dialog (PIN, Einladung, Hinweise) */
 .vh-sheet { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
@@ -258,7 +259,7 @@ body.embedded .vh-status { width: fit-content; max-width: 100%; margin: 0 0 4px;
 body.embedded .vh-main h2.sec { margin: 22px 0 12px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 12px; }
 body.embedded .vh-main h2.sec::after { content: ''; flex: 1 1 24px; height: 1px; background: var(--line2); }   /* wie die Abschnitte der Tablet-Seiten */
 body.embedded .vh-empty { padding: 18px 20px; border-radius: var(--r-tile); border: 1px dashed var(--line2); background: transparent; box-shadow: none; color: var(--muted); font-size: 15px; }
-body.embedded .vh-stop { min-height: 64px; margin-top: 16px; font-size: 18px; width: calc(50% - 8px); }   /* Aktion halb breit wie die großen Tablet-Kacheln (span 2 von 4) */
+body.embedded .vh-stop { min-height: 64px; margin-top: 32px; font-size: 18px; width: calc(50% - 8px); }   /* Aktion halb breit wie die großen Tablet-Kacheln (span 2 von 4) */
 @media (max-width: 900px) { body.embedded .vh-stop { width: 100%; } }
 body.embedded .vh-note { text-align: left; margin-top: 14px; font-size: 15px; }
 body.embedded .vh-sheet .vh-box { max-width: 560px; padding: 24px; border-radius: 20px; border-top: 1px solid var(--line); }

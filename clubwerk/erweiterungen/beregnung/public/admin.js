@@ -30,7 +30,7 @@
           ? `<input data-zr="${i}.${j}" value="${esc(z.ref)}" inputmode="numeric" placeholder="Zonennummer">`
           : `<select data-zr="${i}.${j}">${zoneOptions(z.ref)}</select>`}</label>
         <label class="f" style="flex:1 1 140px">Bezeichnung<input data-zl="${i}.${j}" maxlength="20" value="${esc(z.label || '')}" placeholder="z. B. Vorne"></label>
-        <label class="f" style="flex:0 1 90px">Minuten<input data-zs="${i}.${j}" inputmode="decimal" value="${minTxt(z.sec)}" style="text-align:right"></label>
+        <label class="f" style="flex:0 1 90px">Minuten<input class="num" data-zs="${i}.${j}" inputmode="decimal" value="${minTxt(z.sec)}" style="text-align:right"></label>
         <button class="btn small" data-zx="${i}.${j}">Entfernen</button></div>`).join('')}
       <div class="row" style="margin-top:8px"><button class="btn small" data-za="${i}">+ Zone</button>
         <span class="muted s">Mehrere Zonen laufen nacheinander in dieser Reihenfolge.</span></div>
@@ -85,14 +85,14 @@
         let s = await api('status'), timer = null, tick = null;
         el.innerHTML = `<div id="bOff"></div><div class="card"><h3>Plätze</h3><div class="vh-tiles zones" id="bTiles"></div>
             <p class="muted s" id="bNext" style="margin:12px 0 0"></p>
-            <div class="row" style="margin-top:12px"><button class="btn danger" id="bStop">■ Alle Zonen ausschalten</button></div></div>`;
+            <div class="row" style="margin-top:16px;border-top:1px solid var(--line);padding-top:16px"><button class="btn danger" id="bStop">■ Alle Zonen ausschalten</button></div></div>`;
         const alive = () => document.body.contains(el) && $('bTiles');
         const draw = () => {
           if (!alive()) { clearInterval(tick); clearTimeout(timer); return; }   // Seite schon verlassen (Antwort kam nach dem Wechsel) – nichts mehr zeichnen
           $('bOff').innerHTML = s.online ? '' : `<div class="banner r">Keine Verbindung zur Bewässerungsanlage${s.error ? ': ' + esc(s.error) : ''}</div>`;
           $('bTiles').innerHTML = s.plaetze.length ? T.html(s.plaetze, esc) : '<div class="vh-empty">Noch keine Plätze – unter „Plätze &amp; Zonen“ anlegen.</div>';
           $('bNext').textContent = s.next ? `Nächste automatische Beregnung: ${s.next}` : '';
-          $('bStop').classList.toggle('hidden', !s.plaetze.length);
+          $('bStop').parentNode.classList.toggle('hidden', !s.plaetze.length);
           $('bTiles').classList.toggle('offline', !s.online); $('bStop').disabled = !s.online;
           $('bTiles').querySelectorAll('[data-p]').forEach(x => { x.onclick = async () => {
             const p = s.plaetze.find(y => y.id === +x.dataset.p); if (!p || p.state !== 'idle') return;
@@ -202,8 +202,8 @@
     if (!GK.tabTools(tools, $('bLog'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('bLog').innerHTML = `<div class="row" style="margin-bottom:10px"><label class="f">Monat<select id="bMonth">${r.months.map(m => `<option value="${m}" ${m === r.month ? 'selected' : ''}>${mName(m)}</option>`).join('')}</select></label></div>
       ${r.rows.length ? `<table class="tbl kompakt"><tr><th>Zeitpunkt</th><th>Aktion</th><th>Platz</th><th class="r">Minuten</th><th>Wer</th><th>Hinweis</th></tr>
-        ${r.rows.map(x => `<tr><td class="nw">${x.at.slice(8, 10)}.${x.at.slice(5, 7)}.${x.at.slice(0, 4)}, ${x.at.slice(11, 16)}</td><td>${act[x.action] || esc(x.action)}</td><td class="nw">${esc(x.platz || '')}</td>
-          <td class="r nw">${x.sec ? minTxt(x.sec) : ''}</td><td>${esc(x.who || '')}</td><td class="muted s" title="${esc(x.detail || '')}">${esc(x.detail || '')}</td></tr>`).join('')}</table>`
+        ${r.rows.map(x => `<tr><td class="nw num">${x.at.slice(8, 10)}.${x.at.slice(5, 7)}.${x.at.slice(0, 4)}, ${x.at.slice(11, 16)}</td><td>${act[x.action] || esc(x.action)}</td><td class="nw">${esc(x.platz || '')}</td>
+          <td class="r nw num">${x.sec ? minTxt(x.sec) : ''}</td><td>${esc(x.who || '')}</td><td class="muted s" title="${esc(x.detail || '')}">${esc(x.detail || '')}</td></tr>`).join('')}</table>`
         : '<p class="empty">In diesem Monat wurde nichts manuell beregnet.</p>'}`;
     $('bMonth').onchange = () => { st.month = $('bMonth').value; loadLog(el).catch(fail); };
   }
