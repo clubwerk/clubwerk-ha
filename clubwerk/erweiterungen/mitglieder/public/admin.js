@@ -710,7 +710,7 @@
       const m = mapping();
       if ($('iBookedRow')) $('iBookedRow').classList.toggle('hidden', !m.fee_name || Boolean(m.fee_booked));
       if ($('iUsedRow')) $('iUsedRow').classList.toggle('hidden', !m.mandate_ref);
-      document.querySelectorAll('#iMap .imp-row').forEach(r => { const s = r.querySelector('select'); const i = an.headers.indexOf(s.value); r.classList.toggle('on', i >= 0); r.querySelector('.ex').textContent = i >= 0 ? (an.sample.map(x => x[i]).find(Boolean) || '–') : '–'; });
+      document.querySelectorAll('#iMap .imp-row').forEach(r => { const s = r.querySelector('select'); const i = an.headers.indexOf(s.value); r.classList.toggle('on', i >= 0); r.querySelector('.ex').textContent = i >= 0 ? ((/^(phone|mobile)$/.test(s.dataset.fk) ? an.samplePhone : an.sample[0] || [])[i] || '–') : '–'; });   // so, wie es übernommen wird (z. B. mit führender 0)
     };
     function drawMap() {
       const vc = fmt() === 'vereincloud';

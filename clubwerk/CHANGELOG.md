@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.79.1
+
+**Mitglieder-Import: führende 0 bei Telefonnummern**
+- In der Spaltenzuordnung stand bei „Mobil“ und „Telefon“ noch die Nummer wie in der Datei (ohne 0 am Anfang, weil das alte Programm sie als Zahl gespeichert hat). Übernommen wurde bei verein.cloud schon richtig mit 0 – jetzt zeigt auch die Zuordnung die Nummer so, wie sie übernommen wird.
+- Dieselbe Korrektur gilt jetzt für **alle Dateiformate** (auch eigene Tabellen, S-Verein, WISO …), bisher nur für verein.cloud.
+
 ## 3.79.0
 
 **Mitglieder-Import: Beispielwerte nicht mehr gemischt**

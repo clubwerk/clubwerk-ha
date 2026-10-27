@@ -170,6 +170,9 @@ function register(sh) {
   const GENDER2 = v => { const s = norm(v); if (!s) return null; if (/^(m|maennlich|herr|male)$/.test(s)) return 'm'; if (/^(w|f|weiblich|frau|female)$/.test(s)) return 'w'; return null; };
   const STATUS2 = v => { const s = norm(v); if (!s) return 'aktiv'; if (/ehren/.test(s)) return 'ehren'; if (/ruh/.test(s)) return 'ruhend'; if (/passiv|foerder|unterstuetz|inaktiv/.test(s)) return 'passiv'; return 'aktiv'; };
 
+  // Telefonnummern, bei denen Excel/das alte Programm die führende 0 verschluckt hat (1701234567 → 01701234567) – für alle Formate
+  const phoneFix = t => { const x = String(t || '').trim(); return /^[1-9][\d \/-]{7,14}$/.test(x) && x.replace(/\D/g, '').length >= 9 ? '0' + x : x; };
+
   /** Zeilen + Zuordnung → Datensätze (gleiche Form wie beim verein.cloud-Leser) */
   function readMapped(rows, map, o = {}) {
     const head = rows[0];
@@ -197,7 +200,7 @@ function register(sh) {
           letter_salutation: one(g('letter_salutation'), 80) || null, email: one(g('email'), 120).toLowerCase() || null, birth_date: deToIso(g('birth_date')), gender: GENDER2(g('gender')) || GENDER2(sal),
           entry_date: entry, exit_date: deToIso(g('exit_date')), exit_reason: one(g('exit_reason'), 80) || null,
           street: one(g('street'), 80) || null, zip: one(g('zip'), 10) || null, city: one(g('city'), 60) || null, country: one(g('country'), 40) || null, address_extra: one(g('address_extra'), 80) || null,
-          phone: one(g('phone'), 40) || null, mobile: one(g('mobile'), 40) || null, notes: txt(g('notes'), 2000) || null, status: STATUS2(g('status')),
+          phone: one(phoneFix(g('phone')), 40) || null, mobile: one(phoneFix(g('mobile')), 40) || null, notes: txt(g('notes'), 2000) || null, status: STATUS2(g('status')),
           key_no: one(g('key_no'), 30) || null, payment: PAY2(g('payment')) || (ib.ok ? 'lastschrift' : 'rechnung') },
         bank: ib.ok ? { holder: one(g('holder'), 70) || null, iban: ib.iban, bic: bc.ok ? bc.bic || null : null, bank: one(g('bank'), 70) || null,
           mandate_ref: mref && sepa.checkMandateRef(mref).ok ? mref : null, mandate_date: deToIso(g('mandate_date')), valid_until: null } : null,
@@ -210,8 +213,6 @@ function register(sh) {
     return recs;
   }
 
-  /** Telefonnummer ohne Vorwahl-Null (z. B. „[entfernt]“, weil das alte Programm sie als Zahl gespeichert hat) → „0[entfernt]“ */
-  const phoneFix = t => { const x = String(t || '').trim(); return /^[1-9][\d \/-]{7,14}$/.test(x) && x.replace(/\D/g, '').length >= 9 ? '0' + x : x; };
   // verein.cloud: Spalte je Feld (im Dialog änderbar); Abteilungen und Beiträge liest Clubwerk immer aus den nummerierten Spalten
   const VC_COLS = { member_no: 'Mitglieds-Nr', salutation: 'Anrede', title: 'Titel', first_name: 'Vorname', last_name: 'Nachname', birth_date: 'Geburtsdatum', gender: 'Geschlecht',
     street: 'Straße', zip: 'PLZ', city: 'Ort', country: 'Land', address_extra: 'Zusatzadresse', phone: 'Telefon', mobile: 'Mobil', email: 'E-Mail', letter_salutation: 'Briefanrede',
@@ -557,7 +558,7 @@ function register(sh) {
     const filled = r => head.reduce((n, _, i) => n + (String(r[i] == null ? '' : r[i]).trim() ? 1 : 0), 0);
     let best = 1; for (let k = 2; k < Math.min(rows.length, 51); k++) if (filled(rows[k]) > filled(rows[best])) best = k;
     const sample = rows.length > 1 ? [head.map((_, i) => one(rows[best][i], 60))] : [], sampleLine = rows.length > 1 ? best + 1 : null;
-    res.json({ format, label: PRESETS[format].label, presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })), headers: head, count: rows.length - 1, sample, sampleLine,
+    res.json({ format, label: PRESETS[format].label, presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })), headers: head, count: rows.length - 1, sample, sampleLine, samplePhone: sample.length ? sample[0].map(phoneFix) : [],
       fields: FIELDS.map(([key, label, group]) => ({ key, label, group })), vcFields: Object.keys(VC_COLS), mapping: format === 'vereincloud' ? Object.fromEntries(Object.entries(VC_COLS).filter(([, c]) => head.includes(c))) : suggest(head, format), booked_default: periodEnd() });
   }));
   /** Vorschau bzw. Übernahme mit Zuordnung (Zuordnung als JSON im Kopf „X-Mapping“) */
