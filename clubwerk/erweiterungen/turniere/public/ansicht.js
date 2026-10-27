@@ -41,6 +41,12 @@
       .tu-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; align-items: start; }
       .tu-groups > .vh-card, .tu-groups > .card { margin: 0; min-width: 0; }
       .tu-rel + .tu-rel { margin-top: 10px; }
+      .tu-hon { display: grid; gap: 0; }
+      .tu-hon > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
+      .tu-hon > div:first-child { border-top: 0; padding-top: 2px; }
+      .tu-hon b.y { grid-row: span 2; font-family: var(--num); font-weight: 600; font-size: 22px; line-height: 1.1; color: var(--brand-ink); font-variant-numeric: tabular-nums; }
+      .tu-hon small { font-size: 12.5px; color: var(--muted); }
+      .tu-hon span { font-size: 14.5px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
       @media (max-width: 560px) { .tu-tree { grid-template-columns: minmax(0, 1fr); } .tu-tree .col:first-child .tu-box::after { content: none; } }
       @media print { .tu-box { box-shadow: none; border: 1px solid #999; break-inside: avoid; } .tu-groups > * { break-inside: avoid; } .tu-tab tr.me td { background: none; } }`;
     document.head.appendChild(s);
@@ -69,17 +75,21 @@
   const results = list => `<div class="tu-res">${list.map(score).join('')}</div>`;
   const box = (title, m, sub = '') => `<div class="tu-box"><h4>${esc(title)}${sub ? `<span>${esc(sub)}</span>` : ''}</h4>${score(m)}</div>`;
   /** K.-o.-Baum der Endrunde: Halbfinale links, Finale rechts (Handy: untereinander) */
-  function tree(finals, champion) {
+  function tree(finals, champion, title = 'Clubmeister') {
     const hf = finals.filter(m => m.phase === 'halbfinale').sort((a, b) => a.slot - b.slot), fin = finals.find(m => m.phase === 'finale');
     const pending = t => `<div class="tu-box"><h4>${esc(t)}</h4><p style="margin:0;color:var(--muted);font-size:13.5px">${esc(T('steht fest, sobald die Halbfinals gespielt sind'))}</p></div>`;
     const right = fin ? box(T('Finale'), fin) : pending(T('Finale'));
     const body = hf.length ? `<div class="tu-tree"><div class="col">${hf.map((m, i) => box(T('Halbfinale {0}', [i + 1]), m)).join('')}</div><div class="col">${right}</div></div>` : fin ? box(T('Finale'), fin) : '';
-    return body + (champion ? `<p class="tu-champ">${CUP}<span>${esc(T('Clubmeister'))}: <span translate="no">${esc(champion)}</span></span></p>` : '');
+    return body + (champion ? `<p class="tu-champ">${CUP}<span>${esc(T(title))}: <span translate="no">${esc(champion)}</span></span></p>` : '');
   }
   /** Relegation: je Ligenpaar die Spiele (oben = Spieler der oberen Liga) */
   function relegation(list) {
     const keys = [...new Set(list.map(m => m.league))];
     return keys.map(k => `<div class="tu-rel">${list.filter(m => m.league === k).sort((a, b) => a.slot - b.slot).map(m => box(T('Relegation {0}', [k]), m)).join('')}</div>`).join('');
   }
-  window.TurnierAnsicht = { table, score, results, tree, relegation, dm, esc };
+  /** Ehrentafel: je Eintrag Jahr, Titel und Namen (neueste zuerst; ein Jahr steht nur einmal) */
+  function honors(list) {
+    return `<div class="tu-hon">${list.map((h, i) => `<div><b class="y">${i && list[i - 1].year === h.year ? '' : esc(h.year)}</b><small>${esc(T(h.title))}</small><span translate="no">${esc(h.names)}</span></div>`).join('')}</div>`;
+  }
+  window.TurnierAnsicht = { table, score, results, tree, relegation, honors, dm, esc };
 })();

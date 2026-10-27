@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.72.0
+
+**Turniere: Doppel, Saisonabschluss mit Ehrentafel und Import einer Einteilung (Clubmeisterschaft, zweiter Teil)**
+- **Doppel:** Beim Anlegen der Saison legst du die Doppel-Ligen fest. Vorgegeben ist „A+B, C+D“ – je zwei benachbarte Einzel-Ligen; bei einer ungeraden Zahl spielt die letzte Liga allein, dann werden die Partner innerhalb der Liga gelost. In der App melden sich Mitglieder für Einzel und/oder Doppel an.
+- **Partner auslosen:** Jede Person aus der oberen Liga bekommt einen Partner aus der unteren. Wer übrig bleibt, steht unter „ohne Partner“. Daraus kannst du von Hand ein Paar bilden – ein Dreier-Team gibt es nicht. Danach werden die Paare in Gruppen gelost (gleich groß, ab 6 Paaren zwei Gruppen), und jede Doppel-Liga spielt ihre eigene Endrunde: Halbfinale über Kreuz, Finale, Clubmeister „Doppel A+B“.
+- **Doppel spielen:** Termin und Ergebnis kann jeder der vier Spieler eintragen, die Platzbuchung gilt für alle vier. Der Titel lautet z. B. „Clubmeisterschaft: Felix Adler/Daniel Graf gegen … – Doppel A+B – Gruppenphase“. In Tabellen stehen Paare kurz als „Adler / Graf“.
+- **Saison abschließen** (Übersicht › „Saison abschließen …“): Clubwerk zeigt vorher die Clubmeister, wer durch die Relegation die Liga wechselt und ob noch Spiele offen sind. Danach stehen die Clubmeister in der **Ehrentafel**, und Ergebnisse lassen sich nicht mehr ändern.
+- **Nächste Saison:** Bei „+ Neue Saison“ lässt sich die Einteilung der abgeschlossenen Saison übernehmen – mit der Relegation: Der Sieger aus der unteren Liga steigt auf, der Verlierer aus der oberen ab. Angemeldet ist damit noch niemand. Wer sich in der App anmeldet, behält seine Liga.
+- **Ehrentafel:** neuer Reiter in der Verwaltung, zusätzlich in der App unter „Endrunde“ und am Tablet. Frühere Jahre (vor Clubwerk) lassen sich mit „+ Eintrag“ ergänzen.
+- **Einteilung importieren** (Teilnehmer › „Import …“, nur vor der Auslosung): einmalig aus Excel oder CSV, damit die Vorsaison nicht neu getippt werden muss. Gebraucht werden die Spalten „Name“ (oder „Vorname“ und „Nachname“) und „Liga“ – oder je Liga ein Blatt namens „A“, „B1“ … Gleiche Namen ordnet Clubwerk sicher zu. Bei ähnlichen Namen (Tippfehler, „Nachname, Vorname“) fragt es nach und schlägt passende Mitglieder vor.
+- **Teilnehmer:** Filter „Angemeldet“; je Person sieht man, ob sie Einzel und/oder Doppel spielt und ob sie aus der Vorsaison, aus dem Import, aus der App oder von Hand kommt.
+
 ## 3.71.0
 
 **Neues Modul „Turniere“ – erster Teil: die Clubmeisterschaft im Einzel**

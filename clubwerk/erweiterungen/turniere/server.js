@@ -4,6 +4,9 @@
    Saison mit Ligen (A, B, C …), jede Liga in 1–2 Gruppen „jeder gegen jeden“ (2 Gewinnsätze, Match-Tiebreak).
    Endrunde nur in der obersten Liga (Halbfinale über Kreuz, Finale → Clubmeister), Relegation zwischen benachbarten Ligen
    (Letzter jeder Gruppe gegen die Gruppensieger der Liga darunter) – kein direkter Auf- oder Abstieg.
+   Doppel: Doppel-Ligen fassen zwei benachbarte Einzel-Ligen zusammen (A+B …); Partner je eine Person der oberen und der unteren
+   Liga werden ausgelost, dann die Paare in Gruppen, danach Endrunde je Doppel-Liga. Saisonabschluss: Ehrentafel und Einteilung der
+   Folgesaison aus der Relegation; einmaliger Import einer Einteilung aus Excel/CSV.
    Spieler melden sich in der Mitglieder-App an, vereinbaren Termine selbst (mit Platzbuchung, wenn das Modul „Plätze“ aktiv ist)
    und tragen Ergebnisse ein; der Sportwart (Recht „turniere“) lost aus, korrigiert und setzt Fristen.
    Wertung (Sätze prüfen, Tabelle, direkter Vergleich): lib/wertung.js
@@ -48,7 +51,18 @@ CREATE TABLE IF NOT EXISTS tu_match (
   due_sent INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phase);
+CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafel: Clubmeister je Saison (auch von Hand für frühere Jahre)
+  id INTEGER PRIMARY KEY AUTOINCREMENT, season_id INTEGER, year TEXT NOT NULL, title TEXT NOT NULL, names TEXT NOT NULL,
+  created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 `);
+  // 3.72: Doppel (Doppel-Ligen, Anmeldung, Partner), Saisonabschluss
+  { const has = (t, c) => db.prepare(`PRAGMA table_info(${t})`).all().some(x => x.name === c);
+    if (!has('tu_season', 'doubles')) db.exec("ALTER TABLE tu_season ADD COLUMN doubles TEXT NOT NULL DEFAULT '[]'");   // Doppel-Ligen: ["A+B", "C+D", "E"]
+    if (!has('tu_season', 'paired_at')) db.exec('ALTER TABLE tu_season ADD COLUMN paired_at TEXT');                  // Doppelpartner ausgelost
+    if (!has('tu_season', 'ddrawn_at')) db.exec('ALTER TABLE tu_season ADD COLUMN ddrawn_at TEXT');                  // Doppel-Gruppen ausgelost
+    if (!has('tu_player', 'doubles')) db.exec('ALTER TABLE tu_player ADD COLUMN doubles INTEGER NOT NULL DEFAULT 0');
+    if (!has('tu_team', 'p2')) db.exec('ALTER TABLE tu_team ADD COLUMN p2 INTEGER'); }
   const { lastFirst } = ctx.require('./db');
   const P = need('turniere');
   const S = (k, d) => ctx.getSetting('ext_turniere_' + k, d);
@@ -62,25 +76,34 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
   const seasonRow = id => db.prepare('SELECT * FROM tu_season WHERE id = ?').get(int(id));
   const current = () => db.prepare('SELECT * FROM tu_season ORDER BY closed_at IS NOT NULL, id DESC LIMIT 1').get();
   const leaguesOf = s => J(s.leagues, ['A']);
-  const regOpen = s => !s.closed_at && !s.drawn_at && (!s.reg_until || today() <= s.reg_until);
+  const regOpen = s => !s.closed_at && !s.drawn_at && !s.paired_at && (!s.reg_until || today() <= s.reg_until);
+  const doublesOf = s => J(s.doubles, []);
+  /** Standard der Doppel-Ligen: von oben paarweise, eine übrige Liga allein (Partner innerhalb der Liga) */
+  const defaultDoubles = L => { const out = []; for (let i = 0; i < L.length; i += 2) out.push(L.slice(i, i + 2).join('+')); return out; };
   const mrow = m => (m ? { ...m, sets: J(m.sets, []) } : m);
   const matchRow = id => mrow(db.prepare('SELECT * FROM tu_match WHERE id = ?').get(int(id)));
   const matchesOf = sid => db.prepare('SELECT * FROM tu_match WHERE season_id = ? ORDER BY comp, league, phase, group_no, slot, id').all(sid).map(mrow);
   const teamsOf = sid => db.prepare('SELECT * FROM tu_team WHERE season_id = ? ORDER BY comp, league, group_no, id').all(sid);
   const decided = m => Boolean(m.winner) || m.result === 'ausgefallen';
   const dueOf = (s, m) => (m.phase === 'gruppe' ? s.due_groups : s.due_final) || null;
-  const groupLabel = (league, no, count) => (count > 1 ? `${league}${no}` : league);
+  const groupLabel = (league, no, count) => (count > 1 ? (league.includes('+') ? `${league} ${no}` : `${league}${no}`) : league);
   /** Namen der Mitglieder (live, „Nachname, Vorname“ und natürlich); gelöschte Konten → Stand der Auslosung */
   function names() {
     const m = new Map(db.prepare("SELECT id, name, kind, deleted FROM members WHERE kind IN ('mitglied','nichtmitglied')").all().map(r => [r.id, r]));
-    return { ln: (id, fb = '?') => { const r = m.get(id); return r && !r.deleted ? lastFirst(r.name, r.kind) : fb; }, full: (id, fb = '?') => { const r = m.get(id); return r && !r.deleted ? r.name : fb; } };
+    const ln = (id, fb = '?') => { const r = m.get(id); return r && !r.deleted ? lastFirst(r.name, r.kind) : fb; };
+    const full = (id, fb = '?') => { const r = m.get(id); return r && !r.deleted ? r.name : fb; };
+    const last = id => { const x = ln(id, ''); return x ? x.split(', ')[0] : '?'; };   // „Adler“ für Doppelpaare
+    return { ln, full, last };
   }
-  const teamName = (t, nm) => (t ? nm.ln(t.p1, t.name) : '–');
-  const players = t => (t && t.p1 ? [t.p1] : []);
+  /** Name eines Teams: Einzel „Nachname, Vorname“, Doppel „Adler / Becker“ (gelöschte Konten: Stand der Auslosung) */
+  const teamName = (t, nm) => (!t ? '–' : t.p2 ? (t.p1 || t.p2 ? `${t.p1 ? nm.last(t.p1) : '?'} / ${t.p2 ? nm.last(t.p2) : '?'}` : t.name) : nm.ln(t.p1, t.name));
+  /** natürliche Schreibweise für Titel und Nachrichten: „Felix Adler“ bzw. „Felix Adler/Anna Becker“ */
+  const teamFull = (t, nm) => (!t ? '–' : t.p2 ? `${nm.full(t.p1, '?')}/${nm.full(t.p2, '?')}` : nm.full(t.p1, t.name));
+  const players = t => (t ? [t.p1, t.p2].filter(Boolean) : []);
 
   /** Gruppen einer Liga mit Tabelle → [{ no, label, teams, matches, table, done }] */
   function groupsOf(teams, matches, comp, league, nm) {
-    const ts = teams.filter(t => t.comp === comp && t.league === league);
+    const ts = teams.filter(t => t.comp === comp && t.league === league && t.group_no > 0);   // Doppel vor der Gruppen-Auslosung: Gruppe 0
     const nos = [...new Set(ts.map(t => t.group_no))].sort();
     return nos.map(no => {
       const gt = ts.filter(t => t.group_no === no), gm = matches.filter(m => m.comp === comp && m.league === league && m.phase === 'gruppe' && m.group_no === no);
@@ -95,18 +118,22 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     for (const l of L) G[l] = groupsOf(teams, matches, 'E', l, nm);
     const done = l => G[l].length > 0 && G[l].every(g => g.done);
     const at = (g, i) => (g && g.table.length > Math.abs(i) ? g.table[i < 0 ? g.table.length + i : i].id : null);
-    // Endrunde der obersten Liga
-    const top = L[0], tg = G[top];
-    if (done(top)) {
-      if (tg.length === 2 && tg.every(g => g.table.length >= 2)) {
-        out.push({ comp: 'E', league: top, phase: 'halbfinale', slot: 1, a: at(tg[0], 0), b: at(tg[1], 1) });
-        out.push({ comp: 'E', league: top, phase: 'halbfinale', slot: 2, a: at(tg[1], 0), b: at(tg[0], 1) });
-      } else if (tg.length === 1 && tg[0].table.length >= 2) out.push({ comp: 'E', league: top, phase: 'finale', slot: 1, a: at(tg[0], 0), b: at(tg[0], 1) });
-    }
-    const semis = matches.filter(m => m.comp === 'E' && m.league === top && m.phase === 'halbfinale');
-    const fit = w => semis.find(m => m.slot === w.slot && m.a === w.a && m.b === w.b);
-    const hf = out.filter(w => w.phase === 'halbfinale').map(fit);
-    if (hf.length === 2 && hf.every(m => m && m.winner)) out.push({ comp: 'E', league: top, phase: 'finale', slot: 1, a: hf[0][hf[0].winner], b: hf[1][hf[1].winner] });
+    /** Endrunde einer Liga: Halbfinale über Kreuz (Erster gegen Zweiter der anderen Gruppe), Finale der Sieger; bei einer Gruppe gleich das Finale */
+    const endrunde = (comp, league, gs) => {
+      const own = [];
+      if (gs.length > 0 && gs.every(g => g.done)) {
+        if (gs.length === 2 && gs.every(g => g.table.length >= 2)) {
+          own.push({ comp, league, phase: 'halbfinale', slot: 1, a: at(gs[0], 0), b: at(gs[1], 1) });
+          own.push({ comp, league, phase: 'halbfinale', slot: 2, a: at(gs[1], 0), b: at(gs[0], 1) });
+        } else if (gs.length === 1 && gs[0].table.length >= 2) own.push({ comp, league, phase: 'finale', slot: 1, a: at(gs[0], 0), b: at(gs[0], 1) });
+      }
+      const semis = matches.filter(m => m.comp === comp && m.league === league && m.phase === 'halbfinale');
+      const hf = own.filter(w => w.phase === 'halbfinale').map(w => semis.find(m => m.slot === w.slot && m.a === w.a && m.b === w.b));
+      if (hf.length === 2 && hf.every(m => m && m.winner)) own.push({ comp, league, phase: 'finale', slot: 1, a: hf[0][hf[0].winner], b: hf[1][hf[1].winner] });
+      out.push(...own);
+    };
+    endrunde('E', L[0], G[L[0]]);                                                           // Einzel: nur die oberste Liga
+    for (const k of doublesOf(s)) endrunde('D', k, groupsOf(teams, matches, 'D', k, nm));     // Doppel: jede Doppel-Liga
     // Relegation: Letzter jeder Gruppe der oberen Liga gegen die Gruppensieger der Liga darunter (bei 2 + 2 Gruppen über Kreuz)
     for (let i = 0; i + 1 < L.length; i++) {
       const up = G[L[i]], lo = G[L[i + 1]];
@@ -131,7 +158,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     for (const m of matches.filter(x => KO.includes(x.phase))) {
       const w = want.find(x => same(m, x));
       if (w && w.a === m.a && w.b === m.b) continue;
-      if (decided(m)) warnings.push(`${PHASE[m.phase]} ${m.phase === 'relegation' ? m.league + ' ' : ''}ist schon gespielt – die Tabelle hat sich danach geändert. Bitte prüfen.`);
+      if (decided(m)) warnings.push(`${m.comp === 'D' ? `Doppel ${m.league}: ` : ''}${PHASE[m.phase]} ${m.phase === 'relegation' ? m.league + ' ' : ''}ist schon gespielt – die Tabelle hat sich danach geändert. Bitte prüfen.`);
       else drop.push(m);
     }
     for (const m of drop) await dropMatch(m, 'Spiel neu gesetzt');
@@ -143,8 +170,8 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
       created.push(matchRow(id));
     }
     if (created.length) {
-      audit(null, 'Turniere: Spiele gesetzt', created.map(m => `${PHASE[m.phase]}${m.phase === 'relegation' ? ' ' + m.league : ''}: ${teamName(teams.find(t => t.id === m.a), nm)} – ${teamName(teams.find(t => t.id === m.b), nm)}`).join('; '));
-      for (const m of created) tellPlayers(m, 'ausgelost', mm => ({ title: `Neues Spiel: ${PHASE[mm.phase]}`, body: `Clubmeisterschaft – du spielst gegen ${mm.opp}${mm.due ? `, Frist ${deD(mm.due)}` : ''}.` }));
+      audit(null, 'Turniere: Spiele gesetzt', created.map(m => `${m.comp === 'D' ? `Doppel ${m.league} ` : ''}${PHASE[m.phase]}${m.phase === 'relegation' ? ' ' + m.league : ''}: ${teamName(teams.find(t => t.id === m.a), nm)} – ${teamName(teams.find(t => t.id === m.b), nm)}`).join('; '));
+      for (const m of created) tellPlayers(m, 'ausgelost', mm => ({ title: `Neues Spiel: ${PHASE[mm.phase]}`, body: `Clubmeisterschaft${mm.comp === 'D' ? ` (Doppel ${mm.league})` : ''} – ihr spielt gegen ${mm.opp}${mm.due ? `, Frist ${deD(mm.due)}` : ''}.` }));
     }
     return { created, warnings };
   }
@@ -169,7 +196,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     for (const [mine, other] of [[ta, tb], [tb, ta]]) {
       const ids = players(mine).filter(id => id !== except);
       if (!ids.length) continue;
-      const x = msg({ ...m, opp: other ? nm.full(other.p1, other.name) : '–', due: s ? dueOf(s, m) : null });
+      const x = msg({ ...m, opp: teamFull(other, nm), due: s ? dueOf(s, m) : null });
       ctx.push.send(ids, ev, { title: x.title, body: x.body, url: './#turniere', tag: `turniere-${ev}-${m.id}` }).catch(() => {});
     }
   }
@@ -183,15 +210,19 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     for (const [mine, other] of [[ta, tb], [tb, ta]]) for (const id of players(mine)) {
       const a = (await ctx.callHooks('memberAddress', id)).map(x => x.result).find(Boolean);
       if (!a || !a.email || /@clubwerk\.invalid$/i.test(a.email)) continue;
-      const opp = other ? nm.full(other.p1, other.name) : '–';
+      const opp = teamFull(other, nm);
       ctx.mail.send({ to: a.email, subject: `Clubmeisterschaft: Spiel gegen ${opp} – ${club}`,
         text: [`Hallo ${String(a.name || '').split(' ')[0]},`, '', `dein Spiel gegen ${opp} (${where(m, s)}) ist noch offen.${due ? ` Die Frist endet am ${deD(due)}.` : ''}`, 'Termin und Ergebnis trägst du in der Mitglieder-App unter „Turniere“ ein.', '', 'Viele Grüße', by || club].join('\n'),
         card: { heading: 'Spiel noch offen', title: `Gegen ${opp}`, rows: [['Runde', where(m, s)], ...(due ? [['Frist', deD(due)]] : [])], after: 'Termin und Ergebnis trägst du in der Mitglieder-App unter „Turniere“ ein.' } }).catch(() => {});
     }
   }
-  /** „Gruppe A1 – Gruppenphase“, „Relegation A/B“, „Halbfinale“ */
+  /** „Gruppe A1 – Gruppenphase“, „Relegation A/B“, „Halbfinale“; Doppel: „Doppel A+B, Gruppe 1 – Gruppenphase“, „Doppel A+B – Finale“ */
   function where(m, s) {
-    if (m.phase === 'gruppe') { const n = db.prepare('SELECT COUNT(DISTINCT group_no) n FROM tu_team WHERE season_id = ? AND comp = ? AND league = ?').get(m.season_id, m.comp, m.league).n; return `Gruppe ${groupLabel(m.league, m.group_no, n)} – Gruppenphase`; }
+    if (m.phase === 'gruppe') {
+      const n = db.prepare('SELECT COUNT(DISTINCT group_no) n FROM tu_team WHERE season_id = ? AND comp = ? AND league = ? AND group_no > 0').get(m.season_id, m.comp, m.league).n;
+      return m.comp === 'D' ? `Doppel ${m.league}${n > 1 ? `, Gruppe ${m.group_no}` : ''} – Gruppenphase` : `Gruppe ${groupLabel(m.league, m.group_no, n)} – Gruppenphase`;
+    }
+    if (m.comp === 'D') return `Doppel ${m.league} – ${PHASE[m.phase]}`;
     return m.phase === 'relegation' ? `Relegation ${m.league}` : PHASE[m.phase];
   }
   // Frist in 7 Tagen: einmal je Spiel
@@ -228,7 +259,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
   }
   const bookingTitle = (m, s, nm) => {
     const ta = db.prepare('SELECT * FROM tu_team WHERE id = ?').get(m.a), tb = db.prepare('SELECT * FROM tu_team WHERE id = ?').get(m.b);
-    return `Clubmeisterschaft: ${nm.full(ta.p1, ta.name)} gegen ${nm.full(tb.p1, tb.name)} – ${where(m, s)}`;
+    return `Clubmeisterschaft: ${teamFull(ta, nm)} gegen ${teamFull(tb, nm)} – ${where(m, s)}`;
   };
   /** Termin setzen: mit Platzbuchung (resource_id) oder nur Datum/Uhrzeit */
   async function setDate(m, b, by) {
@@ -268,14 +299,17 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
         score: W.scoreText(m), sets: m.sets, retired: m.retired || null, date: m.plan_date || null, time: m.plan_time || null, court: m.court || null, due: dueOf(s, m), mine };
     };
     const L = leaguesOf(s);
-    const leagues = L.map(l => ({ key: l, label: `Liga ${l}`, groups: groupsOf(teams, ms, 'E', l, nm).map(g => ({ label: g.label, done: g.done,
-      table: g.table.map(r => ({ rank: r.rank, name: r.name, played: r.played, won: r.won, lost: r.lost, sets: `${r.setsW}:${r.setsL}`, games: `${r.gamesW}:${r.gamesL}`, mine: me != null && (tById.get(r.id) || {}).p1 === me })),
-      matches: g.matches.map(mv) })) }));
+    const gv = g => ({ label: g.label, done: g.done,
+      table: g.table.map(r => ({ rank: r.rank, name: r.name, played: r.played, won: r.won, lost: r.lost, sets: `${r.setsW}:${r.setsL}`, games: `${r.gamesW}:${r.gamesL}`, mine: me != null && players(tById.get(r.id)).includes(me) })),
+      matches: g.matches.map(mv) });
+    const leagues = L.map(l => ({ key: l, label: `Liga ${l}`, groups: groupsOf(teams, ms, 'E', l, nm).map(gv) }));
+    const champ = (comp, league) => { const f = ms.find(m => m.comp === comp && m.league === league && m.phase === 'finale' && m.winner); return f ? teamName(tById.get(f[f.winner]), nm) : null; };
     const finals = ms.filter(m => m.comp === 'E' && (m.phase === 'halbfinale' || m.phase === 'finale')).map(mv);
     const relegation = ms.filter(m => m.comp === 'E' && m.phase === 'relegation').map(mv);
-    const champion = (() => { const f = ms.find(m => m.comp === 'E' && m.phase === 'finale' && m.winner); return f ? teamName(tById.get(f[f.winner]), nm) : null; })();
-    return { season: { id: s.id, name: s.name, reg_until: s.reg_until, due_groups: s.due_groups, due_final: s.due_final, drawn_at: s.drawn_at, closed_at: s.closed_at, regOpen: regOpen(s), leagues: L },
-      leagues, finals, relegation, champion, top: L[0] };
+    const doubles = doublesOf(s).map(k => ({ key: k, label: `Doppel ${k}`, groups: groupsOf(teams, ms, 'D', k, nm).map(gv),
+      finals: ms.filter(m => m.comp === 'D' && m.league === k && (m.phase === 'halbfinale' || m.phase === 'finale')).map(mv), champion: champ('D', k) }));
+    return { season: { id: s.id, name: s.name, reg_until: s.reg_until, due_groups: s.due_groups, due_final: s.due_final, drawn_at: s.drawn_at, paired_at: s.paired_at, ddrawn_at: s.ddrawn_at, closed_at: s.closed_at, regOpen: regOpen(s), leagues: L, doubles: doublesOf(s) },
+      leagues, finals, relegation, champion: champ('E', L[0]), top: L[0], doubles, honors: honors() };
   }
 
   /* ---------- Auslosung der Einzel-Gruppen ---------- */
@@ -313,6 +347,131 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
       if (t.p1) ctx.push.send([t.p1], 'ausgelost', { title: `${s.name}: Gruppen ausgelost`, body: `Du spielst in Gruppe ${groupLabel(l, t.group_no, cnt)} – ${n} ${n === 1 ? 'Spiel' : 'Spiele'}${s.due_groups ? ` bis ${deD(s.due_groups)}` : ''}.`, url: './#turniere', tag: `turniere-los-${s.id}` }).catch(() => {});
     }
     return { drawn, skipped };
+  }
+
+  /* ---------- Doppel: Partner auslosen (je eine Person der oberen und der unteren Liga), dann die Paare in Gruppen ---------- */
+  const dPlayers = (sid, league) => db.prepare('SELECT p.member_id FROM tu_player p JOIN members m ON m.id = p.member_id WHERE p.season_id = ? AND p.league = ? AND p.doubles = 1 AND m.deleted = 0 AND m.active = 1').all(sid, league).map(r => r.member_id);
+  const dTeams = (sid, key) => db.prepare("SELECT * FROM tu_team WHERE season_id = ? AND comp = 'D' AND league = ? ORDER BY id").all(sid, key);
+  const pairName = (a, b, nm) => `${nm.last(a)} / ${nm.last(b)}`;
+  /** Doppel-Anmeldungen ohne Partner je Doppel-Liga → { 'A+B': [memberId, …] } */
+  function unpaired(s) {
+    const out = {};
+    for (const k of doublesOf(s)) {
+      const inTeam = new Set(dTeams(s.id, k).flatMap(players));
+      out[k] = k.split('+').flatMap(l => dPlayers(s.id, l)).filter(id => !inTeam.has(id));
+    }
+    return out;
+  }
+  async function drawPartners(s, onlyKey, user) {
+    const nm = names(), drawn = [], skipped = [];
+    for (const k of doublesOf(s).filter(x => !onlyKey || x === onlyKey)) {
+      if (playedIn(s.id, 'D', k)) { skipped.push(`Doppel ${k}: schon Spiele gewertet`); continue; }
+      await dropGroups(s.id, 'D', k);
+      db.prepare("DELETE FROM tu_team WHERE season_id = ? AND comp = 'D' AND league = ?").run(s.id, k);
+      const [up, lo] = k.split('+');
+      let pairs;
+      if (lo) { const a = W.shuffle(dPlayers(s.id, up)), b = W.shuffle(dPlayers(s.id, lo)); pairs = a.slice(0, b.length).map((x, i) => [x, b[i]]); }
+      else { const a = W.shuffle(dPlayers(s.id, up)); pairs = []; for (let i = 0; i + 1 < a.length; i += 2) pairs.push([a[i], a[i + 1]]); }   // Liga allein: Partner innerhalb der Liga
+      const ins = db.prepare("INSERT INTO tu_team(season_id, comp, league, group_no, p1, p2, name) VALUES (?, 'D', ?, 0, ?, ?, ?)");
+      db.transaction(() => { for (const [x, y] of pairs) ins.run(s.id, k, x, y, pairName(x, y, nm)); })();
+      drawn.push(k);
+      const rest = unpaired(s)[k];
+      audit(user, 'Turniere: Doppelpartner ausgelost', `${s.name}, Doppel ${k}: ${pairs.map(([x, y]) => `${nm.ln(x)} + ${nm.ln(y)}`).join('; ') || '–'}${rest.length ? ` · ohne Partner: ${rest.map(id => nm.ln(id)).join(', ')}` : ''}`);
+    }
+    if (drawn.length) db.prepare('UPDATE tu_season SET paired_at = ? WHERE id = ?').run(nowTs(), s.id);
+    const u = unpaired(seasonRow(s.id));
+    return { drawn, skipped, unpaired: Object.fromEntries(Object.entries(u).filter(([, v]) => v.length).map(([k, v]) => [k, v.map(id => nm.ln(id))])) };
+  }
+  async function drawDoubles(s, onlyKey, user) {
+    const nm = names(), drawn = [], skipped = [];
+    for (const k of doublesOf(s).filter(x => !onlyKey || x === onlyKey)) {
+      if (playedIn(s.id, 'D', k)) { skipped.push(`Doppel ${k}: schon Spiele gewertet`); continue; }
+      const ts = dTeams(s.id, k);
+      await dropGroups(s.id, 'D', k);
+      if (ts.length < 2) { skipped.push(`Doppel ${k}: zu wenige Paare (${ts.length})`); db.prepare("UPDATE tu_team SET group_no = 0 WHERE season_id = ? AND comp = 'D' AND league = ?").run(s.id, k); continue; }
+      const groups = W.deal(ts.map(t => t.id), W.groupCount(ts.length));
+      db.transaction(() => { groups.forEach((g, i) => { for (const id of g) db.prepare('UPDATE tu_team SET group_no = ? WHERE id = ?').run(i + 1, id); makeGroupMatches(s.id, 'D', k, i + 1); }); })();
+      drawn.push(k);
+      const byId = new Map(ts.map(t => [t.id, t]));
+      audit(user, 'Turniere: Doppel-Gruppen ausgelost', `${s.name}, Doppel ${k}: ${groups.map((g, i) => `Gruppe ${i + 1}: ${g.map(id => teamName(byId.get(id), nm)).join(', ')}`).join(' · ')}`);
+    }
+    if (drawn.length) db.prepare('UPDATE tu_season SET ddrawn_at = ? WHERE id = ?').run(nowTs(), s.id);
+    await reconcile(s.id);
+    for (const k of drawn) for (const t of dTeams(s.id, k)) {
+      const n = db.prepare("SELECT COUNT(*) n FROM tu_match WHERE season_id = ? AND phase = 'gruppe' AND (a = ? OR b = ?)").get(s.id, t.id, t.id).n;
+      ctx.push.send(players(t), 'ausgelost', { title: `${s.name}: Doppel ausgelost`, body: `Doppel ${k} mit ${teamName(t, nm)} – ${n} ${n === 1 ? 'Spiel' : 'Spiele'}${s.due_groups ? ` bis ${deD(s.due_groups)}` : ''}.`, url: './#turniere', tag: `turniere-dlos-${s.id}` }).catch(() => {});
+    }
+    return { drawn, skipped };
+  }
+
+  /* ---------- Ehrentafel und Saisonübergang ---------- */
+  const honors = () => db.prepare('SELECT id, season_id, year, title, names FROM tu_honor ORDER BY year DESC, (season_id IS NULL), id').all();
+  /** Clubmeister einer Saison: Einzel (Finale der obersten Liga) und je Doppel-Liga */
+  function champions(s) {
+    const nm = names(), tById = new Map(teamsOf(s.id).map(t => [t.id, t])), ms = matchesOf(s.id), out = [];
+    const fin = (comp, league) => ms.find(m => m.comp === comp && m.league === league && m.phase === 'finale' && m.winner);
+    const L = leaguesOf(s), f = fin('E', L[0]);
+    if (f) out.push({ title: 'Clubmeister Einzel', names: teamFull(tById.get(f[f.winner]), nm) });
+    for (const k of doublesOf(s)) { const d = fin('D', k); if (d) out.push({ title: `Clubmeister Doppel ${k}`, names: teamFull(tById.get(d[d.winner]), nm) }); }
+    return out;
+  }
+  /** Liga je Person für die Folgesaison: wie in dieser Saison, Relegation entscheidet (Sieger der unteren Liga steigt auf, der Verlierer der oberen ab) */
+  function nextLeagues(s) {
+    const at = new Map(db.prepare('SELECT member_id, league FROM tu_player WHERE season_id = ?').all(s.id).map(r => [r.member_id, r.league]));
+    const tById = new Map(teamsOf(s.id).map(t => [t.id, t])), moves = [];
+    for (const m of matchesOf(s.id).filter(x => x.comp === 'E' && x.phase === 'relegation' && x.winner === 'b')) {
+      const [up, lo] = m.league.split('/'), ta = tById.get(m.a), tb = tById.get(m.b);
+      if (ta && ta.p1) { at.set(ta.p1, lo); moves.push({ member_id: ta.p1, from: up, to: lo }); }
+      if (tb && tb.p1) { at.set(tb.p1, up); moves.push({ member_id: tb.p1, from: lo, to: up }); }
+    }
+    return { at, moves };
+  }
+
+  /* ---------- Import einer Einteilung (Excel/CSV): Name + Liga, Namen den Mitgliedern zuordnen ---------- */
+  const normName = v => String(v || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z ,]/g, ' ').replace(/\s+/g, ' ').trim();
+  const keyOf = v => { const n = normName(v); if (n.includes(',')) { const [l, f] = n.split(',').map(x => x.trim()); return `${f} ${l}`.trim(); } return n; };   // „Adler, Felix“ = „Felix Adler“
+  function lev(a, b) { const d = Array.from({ length: b.length + 1 }, (_, i) => i); for (let i = 1; i <= a.length; i++) { let p = d[0]; d[0] = i; for (let j = 1; j <= b.length; j++) { const t = d[j]; d[j] = Math.min(d[j] + 1, d[j - 1] + 1, p + (a[i - 1] === b[j - 1] ? 0 : 1)); p = t; } } return d[b.length]; }
+  /** Tabelle aus der Datei → [{ name, league }]: Spalten „Name“ (oder „Vorname“ + „Nachname“) und „Liga“; ohne Liga-Spalte zählt der Blattname (z. B. „A1“ → A) */
+  function rowsFrom(sheets, L) {
+    const out = [];
+    for (const { name: sheet, rows } of sheets) {
+      const hi = rows.findIndex(r => r.some(c => /^(name|spieler|vorname|nachname)$/i.test(String(c || '').trim())));
+      if (hi < 0) continue;
+      const h = rows[hi].map(c => String(c || '').trim().toLowerCase());
+      const col = re => h.findIndex(c => re.test(c));
+      const cN = col(/^(name|spieler)$/), cV = col(/^vorname$/), cL = col(/^nachname$/), cLi = col(/^liga$/);
+      const sheetLeague = (/^([a-h])\d?$/i.exec(String(sheet || '').trim()) || [])[1];
+      for (const r of rows.slice(hi + 1)) {
+        const name = cN >= 0 ? String(r[cN] || '').trim() : [cV >= 0 ? r[cV] : '', cL >= 0 ? r[cL] : ''].map(x => String(x || '').trim()).filter(Boolean).join(' ');
+        const lg = String(cLi >= 0 ? r[cLi] || '' : sheetLeague || '').trim().toUpperCase().slice(0, 1);
+        if (name.length >= 3 && L.includes(lg)) out.push({ name: txt(name, 80), league: lg });
+      }
+    }
+    return out;
+  }
+  async function readSheets(b) {
+    const buf = Buffer.from(String(b.file || ''), 'base64');
+    if (!buf.length) throw new Error('Bitte eine Datei wählen.');
+    if (buf.length > 3 * 1024 * 1024) throw new Error('Die Datei ist zu groß (höchstens 3 MB).');
+    if (/\.xlsx$/i.test(String(b.name || ''))) {
+      const wb = new (ctx.require('exceljs').Workbook)();
+      await wb.xlsx.load(buf);
+      return wb.worksheets.map(ws => { const rows = []; ws.eachRow({ includeEmpty: false }, r => { rows.push(r.values.slice(1).map(v => (v && typeof v === 'object' ? (v.text || v.result || (v.richText ? v.richText.map(x => x.text).join('') : '')) : v))); }); return { name: ws.name, rows }; });
+    }
+    const t = buf.toString('utf8').replace(/^\uFEFF/, '');
+    const sep = (t.split('\n')[0].match(/;/g) || []).length >= (t.split('\n')[0].match(/,/g) || []).length ? ';' : ',';
+    return [{ name: '', rows: t.split(/\r?\n/).filter(x => x.trim()).map(l => l.split(sep).map(x => x.replace(/^"|"$/g, '').trim())) }];
+  }
+  /** Zuordnung: genau gleicher Name → sicher; sonst ähnliche Namen (gleicher Nachname oder kleiner Tippfehler) zur Rückfrage */
+  function matchNames(rows) {
+    const people = db.prepare("SELECT id, name, kind FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0").all().map(m => ({ id: m.id, ln: lastFirst(m.name, m.kind), key: keyOf(m.name), last: keyOf(m.name).split(' ').pop() }));
+    return rows.map(r => {
+      const k = keyOf(r.name), last = k.split(' ').pop();
+      const exact = people.filter(p => p.key === k);
+      if (exact.length === 1) return { ...r, member_id: exact[0].id, sure: true, candidates: [] };
+      const cand = people.map(p => ({ p, d: p.key === k ? 0 : p.last === last ? 1 : lev(p.key, k) <= 2 ? 2 : 9 })).filter(x => x.d < 9).sort((a, b) => a.d - b.d).slice(0, 4).map(x => ({ id: x.p.id, ln: x.p.ln }));
+      return { ...r, member_id: null, sure: false, candidates: cand };
+    });
   }
 
   /* ---------- Ergebnis ---------- */
@@ -361,11 +520,12 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
       const side = myTeams.has(m.a) ? 'a' : 'b', opp = tById.get(side === 'a' ? m.b : m.a);
       let contact = null;
       if (!decided(m) && opp && opp.p1 && ctx.isModuleActive('mitglieder')) { const a = (await ctx.callHooks('memberAddress', opp.p1)).map(x => x.result).find(Boolean); if (a && (a.mobile || a.phone)) contact = a.mobile || a.phone; }
-      mine.push({ id: m.id, side, opponent: teamName(opp, nm), where: where(m, s), phase: m.phase, due: dueOf(s, m), done: decided(m), winner: m.winner, result: m.result, score: W.scoreText(m), sets: m.sets,
+      const own = tById.get(side === 'a' ? m.a : m.b), partner = own && own.p2 ? players(own).filter(x => x !== me).map(x => nm.ln(x))[0] : null;
+      mine.push({ id: m.id, side, comp: m.comp, partner, opponent: teamName(opp, nm), where: where(m, s), phase: m.phase, due: dueOf(s, m), done: decided(m), winner: m.winner, result: m.result, score: W.scoreText(m), sets: m.sets,
         retired: m.retired, won: m.winner ? m.winner === side : null, date: m.plan_date, time: m.plan_time, end: m.plan_end, court: m.court, booked: Boolean(m.booking_id), lost: Boolean(m.booking_lost), contact, entered_by: m.entered_by, entered_at: m.entered_at });
     }
     mine.sort((x, y) => Number(x.done) - Number(y.done) || String(x.date || '9999').localeCompare(String(y.date || '9999')) || String(x.due || '').localeCompare(String(y.due || '')));
-    return { ...v, me: { registered: Boolean(reg && reg.singles), league: reg ? reg.league : null, member: true }, mine, booking: bookingOn(), minutes: cfg().minutes, today: today() };
+    return { ...v, me: { registered: Boolean(reg && (reg.singles || reg.doubles)), singles: Boolean(reg && reg.singles), doubles: Boolean(reg && reg.doubles), league: reg ? reg.league : null, member: true }, mine, booking: bookingOn(), minutes: cfg().minutes, today: today() };
   }));
   M.post('/anmeldung', burst, send(async req => {
     const me = req.member.id, s = current(), b = req.body || {};
@@ -373,13 +533,17 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     const kind = (db.prepare('SELECT kind FROM members WHERE id = ?').get(me) || {}).kind;
     if (kind !== 'mitglied') throw Object.assign(new Error('Mitspielen können nur Mitglieder.'), { code: 403 });
     const cur = db.prepare('SELECT * FROM tu_player WHERE season_id = ? AND member_id = ?').get(s.id, me);
-    if (b.singles) {
+    const sg = b.singles ? 1 : 0, dbl = b.doubles && doublesOf(s).length ? 1 : 0;
+    const what = [sg ? 'Einzel' : '', dbl ? 'Doppel' : ''].filter(Boolean).join(' und ');
+    if (sg || dbl) {
       const L = leaguesOf(s);
-      if (cur) db.prepare('UPDATE tu_player SET singles = 1 WHERE season_id = ? AND member_id = ?').run(s.id, me);
-      else db.prepare("INSERT INTO tu_player(season_id, member_id, league, singles, source) VALUES (?,?,?,1,'app')").run(s.id, me, L[L.length - 1]);   // neu: unterste Liga (Sportwart kann umsetzen)
-      audit({ username: 'app', name: req.member.name }, 'Turniere: Anmeldung', `${s.name}: ${names().ln(me)}`);
+      if (cur) db.prepare('UPDATE tu_player SET singles = ?, doubles = ? WHERE season_id = ? AND member_id = ?').run(sg, dbl, s.id, me);   // Liga aus der Vorsaison bleibt
+      else db.prepare("INSERT INTO tu_player(season_id, member_id, league, singles, doubles, source) VALUES (?,?,?,?,?,'app')").run(s.id, me, L[L.length - 1], sg, dbl);   // neu: unterste Liga (Sportwart kann umsetzen)
+      audit({ username: 'app', name: req.member.name }, 'Turniere: Anmeldung', `${s.name}: ${names().ln(me)} (${what})`);
     } else if (cur) {
-      db.prepare('DELETE FROM tu_player WHERE season_id = ? AND member_id = ?').run(s.id, me);
+      // abmelden: die Einteilung aus der Vorsaison (bzw. dem Import) bleibt stehen, nur die Anmeldung fällt weg
+      if (['vorsaison', 'import'].includes(cur.source)) db.prepare('UPDATE tu_player SET singles = 0, doubles = 0 WHERE season_id = ? AND member_id = ?').run(s.id, me);
+      else db.prepare('DELETE FROM tu_player WHERE season_id = ? AND member_id = ?').run(s.id, me);
       audit({ username: 'app', name: req.member.name }, 'Turniere: Abmeldung', `${s.name}: ${names().ln(me)}`);
     }
     return { ok: true };
@@ -419,24 +583,39 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
   const A = ctx.admin;
   const uname = req => req.user.name || req.user.username;
   const seasonOr404 = (req, res) => { const s = seasonRow(req.params.id); if (!s) { bad(res, 'Saison nicht gefunden.', 404); return null; } return s; };
-  const SEASON_LABELS = { name: 'Name', leagues: ['Ligen', 'list'], reg_until: 'Anmeldeschluss', due_groups: 'Frist Gruppenphase', due_final: 'Frist Endspiele + Relegation' };
-  const showSeason = s => ({ name: s.name, leagues: leaguesOf(s), reg_until: s.reg_until ? deD(s.reg_until) : '', due_groups: s.due_groups ? deD(s.due_groups) : '', due_final: s.due_final ? deD(s.due_final) : '' });
+  const SEASON_LABELS = { name: 'Name', leagues: ['Ligen', 'list'], doubles: ['Doppel-Ligen', 'list'], reg_until: 'Anmeldeschluss', due_groups: 'Frist Gruppenphase', due_final: 'Frist Endspiele + Relegation' };
+  const showSeason = s => ({ name: s.name, leagues: leaguesOf(s), doubles: doublesOf(s), reg_until: s.reg_until ? deD(s.reg_until) : '', due_groups: s.due_groups ? deD(s.due_groups) : '', due_final: s.due_final ? deD(s.due_final) : '' });
+  /** Doppel-Ligen aus der Eingabe „A+B, C+D, E“ – jede Einzel-Liga höchstens einmal, je Doppel-Liga eine oder zwei benachbarte */
+  function doublesInput(v, L) {
+    if (v === undefined || v === null) return JSON.stringify(defaultDoubles(L));
+    const list = (Array.isArray(v) ? v : String(v).split(/[,;]/)).map(x => String(x).toUpperCase().replace(/\s+/g, '').replace(/[/&]/g, '+')).filter(Boolean);
+    const used = new Set();
+    for (const k of list) {
+      const parts = k.split('+');
+      if (parts.length > 2 || parts.some(x => !L.includes(x))) throw new Error(`Doppel-Liga „${k}“: bitte Ligen wie „A+B“ oder „E“ angeben.`);
+      if (parts.length === 2 && L.indexOf(parts[1]) !== L.indexOf(parts[0]) + 1) throw new Error(`Doppel-Liga „${k}“: bitte zwei benachbarte Ligen (z. B. „A+B“).`);
+      for (const x of parts) { if (used.has(x)) throw new Error(`Liga ${x} steht in zwei Doppel-Ligen.`); used.add(x); }
+    }
+    return JSON.stringify(list);
+  }
   function seasonInput(b, cur = null) {
     const name = txt(b.name, 60);
     if (name.length < 3) throw new Error('Bitte einen Namen eintragen (z. B. „Clubmeisterschaft 2027“).');
     const n = int(b.leagues);
     if (!(n >= 1 && n <= LETTERS.length)) throw new Error(`Bitte 1 bis ${LETTERS.length} Ligen wählen.`);
     const d = k => { const v = String(b[k] || ''); if (v && !isDate(v)) throw new Error('Bitte die Daten prüfen.'); return v || null; };
-    const v = { name, leagues: JSON.stringify(LETTERS.slice(0, n).split('')), reg_until: d('reg_until'), due_groups: d('due_groups'), due_final: d('due_final') };
+    const L = LETTERS.slice(0, n).split('');
+    const v = { name, leagues: JSON.stringify(L), doubles: doublesInput(b.doubles, L), reg_until: d('reg_until'), due_groups: d('due_groups'), due_final: d('due_final') };
     if (v.due_groups && v.reg_until && v.due_groups < v.reg_until) throw new Error('Die Frist der Gruppenphase liegt vor dem Anmeldeschluss.');
     if (v.due_final && v.due_groups && v.due_final < v.due_groups) throw new Error('Die Frist für Endspiele und Relegation liegt vor der Frist der Gruppenphase.');
     if (cur && cur.drawn_at && v.leagues !== cur.leagues) throw new Error('Die Zahl der Ligen lässt sich nach der Auslosung nicht mehr ändern.');
+    if (cur && cur.paired_at && v.doubles !== cur.doubles) throw new Error('Die Doppel-Ligen lassen sich nach der Partner-Auslosung nicht mehr ändern.');
     return v;
   }
   A.get('/meta', P, (req, res) => {
     const seasons = db.prepare('SELECT id, name, closed_at FROM tu_season ORDER BY id DESC').all();
     const c = current();
-    res.json({ seasons, current: c ? c.id : null, cfg: cfg(), booking: bookingOn(), letters: LETTERS.split('') });
+    res.json({ seasons, current: c ? c.id : null, cfg: cfg(), booking: bookingOn(), letters: LETTERS.split(''), defaults: Object.fromEntries(LETTERS.split('').map((x, i) => [i + 1, defaultDoubles(LETTERS.slice(0, i + 1).split('')).join(', ')])) });
   });
   A.get('/leute', P, (req, res) => res.json(db.prepare("SELECT id, name, kind FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().map(m => ({ id: m.id, ln: lastFirst(m.name, m.kind) }))));
   A.get('/saison/:id', P, ar(async (req, res) => {
@@ -448,21 +627,35 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     const all = ms.map(m => ({ id: m.id, phase: m.phase, phaseLabel: PHASE[m.phase], where: where(m, s), league: m.league, group: m.group_no, a: teamName(tById.get(m.a), nm), b: teamName(tById.get(m.b), nm),
       result: m.result, winner: m.winner, retired: m.retired, sets: m.sets, score: W.scoreText(m), done: decided(m), due: dueOf(s, m), overdue: !decided(m) && Boolean(dueOf(s, m)) && dueOf(s, m) < d0,
       date: m.plan_date, time: m.plan_time, court: m.court, booked: Boolean(m.booking_id), entered_by: m.entered_by, entered_at: m.entered_at }));
-    res.json({ ...v, players: regs.map(p => ({ member_id: p.member_id, name: p.mname && !p.deleted ? lastFirst(p.mname, p.kind) : 'gelöschtes Konto', league: p.league, singles: Boolean(p.singles), source: p.source })),
+    const nmU = unpaired(s);
+    const pairs = doublesOf(s).map(k => ({ key: k, teams: dTeams(s.id, k).map(t => ({ id: t.id, name: teamName(t, nm), group: t.group_no, members: players(t) })), unpaired: nmU[k].map(id => ({ member_id: id, name: nm.ln(id) })) }));
+    res.json({ ...v, players: regs.map(p => ({ member_id: p.member_id, name: p.mname && !p.deleted ? lastFirst(p.mname, p.kind) : 'gelöschtes Konto', league: p.league, singles: Boolean(p.singles), doubles: Boolean(p.doubles), source: p.source })), pairs,
       matches: all, counts: { open: all.filter(m => !m.done).length, overdue: all.filter(m => m.overdue).length, done: all.filter(m => m.done).length, all: all.length },
       season: { ...v.season, created_at: s.created_at } });
   }));
   A.post('/saison', P, (req, res) => {
     let v; try { v = seasonInput(req.body || {}); } catch (e) { return bad(res, e.message); }
-    const id = Number(db.prepare('INSERT INTO tu_season(name, leagues, reg_until, due_groups, due_final, created_by) VALUES (?,?,?,?,?,?)').run(v.name, v.leagues, v.reg_until, v.due_groups, v.due_final, uname(req)).lastInsertRowid);
-    audit(req.user, 'Turniere: Saison angelegt', ctx.auditDiff(SEASON_LABELS, {}, showSeason(seasonRow(id))) || v.name);
-    res.json({ id });
+    const from = int((req.body || {}).carry) ? seasonRow((req.body || {}).carry) : null;
+    if ((req.body || {}).carry && (!from || !from.closed_at)) return bad(res, 'Übernehmen geht nur aus einer abgeschlossenen Saison.');
+    let id, carried = 0;
+    db.transaction(() => {
+      id = Number(db.prepare('INSERT INTO tu_season(name, leagues, doubles, reg_until, due_groups, due_final, created_by) VALUES (?,?,?,?,?,?,?)').run(v.name, v.leagues, v.doubles, v.reg_until, v.due_groups, v.due_final, uname(req)).lastInsertRowid);
+      if (from) {   // Einteilung der Vorsaison inkl. Relegation – angemeldet ist damit noch niemand
+        const L = J(v.leagues, []), { at } = nextLeagues(from);
+        const ok = new Set(db.prepare("SELECT id FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0").all().map(r => r.id));
+        const ins = db.prepare("INSERT INTO tu_player(season_id, member_id, league, singles, doubles, source) VALUES (?,?,?,0,0,'vorsaison')");
+        for (const [mid, lg] of at) if (ok.has(mid)) { ins.run(id, mid, L.includes(lg) ? lg : L[L.length - 1]); carried++; }
+      }
+    })();
+    audit(req.user, 'Turniere: Saison angelegt', `${ctx.auditDiff(SEASON_LABELS, {}, showSeason(seasonRow(id))) || v.name}${from ? ` · Einteilung aus „${from.name}“ übernommen (${carried})` : ''}`);
+    res.json({ id, carried });
   });
   A.put('/saison/:id', P, (req, res) => {
     const s = seasonOr404(req, res); if (!s) return;
     let v; try { v = seasonInput({ leagues: leaguesOf(s).length, ...(req.body || {}) }, s); } catch (e) { return bad(res, e.message); }
     const before = showSeason(s);
-    db.prepare('UPDATE tu_season SET name = ?, leagues = ?, reg_until = ?, due_groups = ?, due_final = ? WHERE id = ?').run(v.name, v.leagues, v.reg_until, v.due_groups, v.due_final, s.id);
+    if ((req.body || {}).doubles === undefined) v.doubles = s.doubles;
+    db.prepare('UPDATE tu_season SET name = ?, leagues = ?, doubles = ?, reg_until = ?, due_groups = ?, due_final = ? WHERE id = ?').run(v.name, v.leagues, v.doubles, v.reg_until, v.due_groups, v.due_final, s.id);
     // weniger Ligen: Spieler der weggefallenen Ligen kommen in die neue unterste Liga
     const L = J(v.leagues, []);
     db.prepare(`UPDATE tu_player SET league = ? WHERE season_id = ? AND league NOT IN (${L.map(() => '?').join(',')})`).run(L[L.length - 1], s.id, ...L);
@@ -473,7 +666,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
   A.delete('/saison/:id', P, ar(async (req, res) => {
     const s = seasonOr404(req, res); if (!s) return;
     for (const m of db.prepare('SELECT * FROM tu_match WHERE season_id = ?').all(s.id)) await dropMatch(m, 'Saison gelöscht');
-    db.transaction(() => { for (const t of ['tu_team', 'tu_player']) db.prepare(`DELETE FROM ${t} WHERE season_id = ?`).run(s.id); db.prepare('DELETE FROM tu_season WHERE id = ?').run(s.id); })();
+    db.transaction(() => { for (const t of ['tu_team', 'tu_player', 'tu_honor']) db.prepare(`DELETE FROM ${t} WHERE season_id = ?`).run(s.id); db.prepare('DELETE FROM tu_season WHERE id = ?').run(s.id); })();
     audit(req.user, 'Turniere: Saison gelöscht', s.name);
     res.json({ ok: true });
   }));
@@ -485,7 +678,8 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     if (!m) return bad(res, 'Bitte ein Mitglied wählen.');
     const league = L.includes(b.league) ? b.league : L[L.length - 1];
     if (db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ?').get(s.id, m.id)) return bad(res, 'Diese Person ist schon eingetragen.');
-    db.prepare("INSERT INTO tu_player(season_id, member_id, league, singles, source) VALUES (?,?,?,1,'verwaltung')").run(s.id, m.id, league);
+    const dbl = b.doubles && doublesOf(s).length ? 1 : 0, sg = b.singles === undefined ? 1 : (b.singles ? 1 : 0);
+    db.prepare("INSERT INTO tu_player(season_id, member_id, league, singles, doubles, source) VALUES (?,?,?,?,?,'verwaltung')").run(s.id, m.id, league, sg, dbl);
     audit(req.user, 'Turniere: Spieler eingetragen', `${s.name}: ${lastFirst(m.name, m.kind)}, Liga ${league}`);
     res.json({ ok: true });
   });
@@ -495,18 +689,20 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     if (!p) return bad(res, 'Nicht gefunden.', 404);
     const b = req.body || {}, L = leaguesOf(s);
     if (b.league !== undefined && !L.includes(b.league)) return bad(res, 'Unbekannte Liga.');
-    const next = { league: b.league === undefined ? p.league : b.league, singles: b.singles === undefined ? p.singles : (b.singles ? 1 : 0) };
+    const next = { league: b.league === undefined ? p.league : b.league, singles: b.singles === undefined ? p.singles : (b.singles ? 1 : 0), doubles: b.doubles === undefined ? p.doubles : (b.doubles && doublesOf(s).length ? 1 : 0) };
     const inDraw = db.prepare("SELECT 1 FROM tu_team WHERE season_id = ? AND comp = 'E' AND p1 = ?").get(s.id, p.member_id);
     if (inDraw && (next.league !== p.league || !next.singles)) return bad(res, 'Diese Person ist schon ausgelost – erst die Liga neu auslosen (Gruppen), dann umsetzen.');
-    db.prepare('UPDATE tu_player SET league = ?, singles = ? WHERE season_id = ? AND member_id = ?').run(next.league, next.singles, s.id, p.member_id);
-    const diff = ctx.auditDiff({ league: 'Liga', singles: ['Einzel', 'bool'] }, { league: p.league, singles: Boolean(p.singles) }, { league: next.league, singles: Boolean(next.singles) });
+    const inPair = db.prepare("SELECT 1 FROM tu_team WHERE season_id = ? AND comp = 'D' AND (p1 = ? OR p2 = ?)").get(s.id, p.member_id, p.member_id);
+    if (inPair && (next.league !== p.league || !next.doubles)) return bad(res, 'Diese Person hat schon einen Doppelpartner – erst das Paar auflösen, dann umsetzen.');
+    db.prepare('UPDATE tu_player SET league = ?, singles = ?, doubles = ? WHERE season_id = ? AND member_id = ?').run(next.league, next.singles, next.doubles, s.id, p.member_id);
+    const diff = ctx.auditDiff({ league: 'Liga', singles: ['Einzel', 'bool'], doubles: ['Doppel', 'bool'] }, { league: p.league, singles: Boolean(p.singles), doubles: Boolean(p.doubles) }, { league: next.league, singles: Boolean(next.singles), doubles: Boolean(next.doubles) });
     if (diff) audit(req.user, 'Turniere: Spieler umgesetzt', `${s.name}, ${names().ln(p.member_id)}: ${diff}`);
     res.json({ ok: true });
   });
   A.delete('/saison/:id/spieler/:mid', P, (req, res) => {
     const s = seasonOr404(req, res); if (!s) return;
     const mid = int(req.params.mid);
-    if (db.prepare("SELECT 1 FROM tu_team WHERE season_id = ? AND p1 = ?").get(s.id, mid)) return bad(res, 'Diese Person ist schon ausgelost – erst die Liga neu auslosen oder die Spiele als kampflos werten.');
+    if (db.prepare("SELECT 1 FROM tu_team WHERE season_id = ? AND (p1 = ? OR p2 = ?)").get(s.id, mid, mid)) return bad(res, 'Diese Person ist schon ausgelost – erst die Liga neu auslosen (bzw. das Paar auflösen) oder die Spiele als kampflos werten.');
     db.prepare('DELETE FROM tu_player WHERE season_id = ? AND member_id = ?').run(s.id, mid);
     audit(req.user, 'Turniere: Spieler entfernt', `${s.name}: ${names().ln(mid)}`);
     res.json({ ok: true });
@@ -516,9 +712,35 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     const s = seasonOr404(req, res); if (!s) return;
     if (s.closed_at) return bad(res, 'Die Saison ist abgeschlossen.');
     const b = req.body || {};
+    if (b.step === 'partner' || b.step === 'doppel') {
+      if (b.league && !doublesOf(s).includes(b.league)) return bad(res, 'Unbekannte Doppel-Liga.');
+      return res.json(b.step === 'partner' ? await drawPartners(s, b.league || null, req.user) : await drawDoubles(s, b.league || null, req.user));
+    }
     if (b.league && !leaguesOf(s).includes(b.league)) return bad(res, 'Unbekannte Liga.');
     res.json(await drawSingles(s, b.league || null, req.user));
   }));
+  /** Paar von Hand bilden (z. B. aus den Übrigen ohne Partner) bzw. auflösen – solange die Doppel-Gruppen der Liga nicht ausgelost sind */
+  A.post('/saison/:id/paar', P, (req, res) => {
+    const s = seasonOr404(req, res); if (!s) return;
+    const b = req.body || {}, k = String(b.league || '');
+    if (!doublesOf(s).includes(k)) return bad(res, 'Unbekannte Doppel-Liga.');
+    if (dTeams(s.id, k).some(t => t.group_no > 0)) return bad(res, `Die Gruppen im Doppel ${k} sind schon ausgelost – erst neu auslosen, dann Paare ändern.`);
+    const free = unpaired(s)[k], a = int(b.p1), c = int(b.p2);
+    if (!a || !c || a === c || !free.includes(a) || !free.includes(c)) return bad(res, 'Bitte zwei Personen ohne Partner aus dieser Doppel-Liga wählen.');
+    const nm = names();
+    db.prepare("INSERT INTO tu_team(season_id, comp, league, group_no, p1, p2, name) VALUES (?, 'D', ?, 0, ?, ?, ?)").run(s.id, k, a, c, pairName(a, c, nm));
+    audit(req.user, 'Turniere: Doppelpaar gebildet', `${s.name}, Doppel ${k}: ${nm.ln(a)} + ${nm.ln(c)}`);
+    res.json({ ok: true });
+  });
+  A.delete('/saison/:id/paar/:tid', P, (req, res) => {
+    const s = seasonOr404(req, res); if (!s) return;
+    const t = db.prepare("SELECT * FROM tu_team WHERE id = ? AND season_id = ? AND comp = 'D'").get(int(req.params.tid), s.id);
+    if (!t) return bad(res, 'Paar nicht gefunden.', 404);
+    if (dTeams(s.id, t.league).some(x => x.group_no > 0)) return bad(res, `Die Gruppen im Doppel ${t.league} sind schon ausgelost – erst neu auslosen, dann Paare ändern.`);
+    db.prepare('DELETE FROM tu_team WHERE id = ?').run(t.id);
+    audit(req.user, 'Turniere: Doppelpaar aufgelöst', `${s.name}, Doppel ${t.league}: ${teamName(t, names())}`);
+    res.json({ ok: true });
+  });
   /** zwei Spieler derselben Liga zwischen den Gruppen tauschen (solange in beiden Gruppen nichts gewertet ist) */
   A.post('/saison/:id/tausch', P, ar(async (req, res) => {
     const s = seasonOr404(req, res); if (!s) return;
@@ -533,7 +755,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
       makeGroupMatches(s.id, x.comp, x.league, x.group_no); makeGroupMatches(s.id, x.comp, x.league, y.group_no);
     })();
     const nm = names();
-    audit(req.user, 'Turniere: Spieler getauscht', `${s.name}, Liga ${x.league}: ${teamName(x, nm)} ↔ ${teamName(y, nm)}`);
+    audit(req.user, 'Turniere: Spieler getauscht', `${s.name}, ${x.comp === 'D' ? 'Doppel' : 'Liga'} ${x.league}: ${teamName(x, nm)} ↔ ${teamName(y, nm)}`);
     await reconcile(s.id);
     res.json({ ok: true });
   }));
@@ -541,7 +763,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
   A.get('/saison/:id/gruppen', P, (req, res) => {
     const s = seasonOr404(req, res); if (!s) return;
     const nm = names();
-    res.json(teamsOf(s.id).filter(t => t.comp === 'E').map(t => ({ id: t.id, league: t.league, group: t.group_no, name: teamName(t, nm) })));
+    res.json(teamsOf(s.id).filter(t => t.group_no > 0).map(t => ({ id: t.id, comp: t.comp, league: t.league, group: t.group_no, name: teamName(t, nm) })));
   });
   /** Endrunde und Relegation nach Fristende: offene Gruppenspiele zeigen (preview) bzw. als ausgefallen werten und setzen */
   A.post('/saison/:id/endrunde', P, ar(async (req, res) => {
@@ -553,6 +775,64 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     if (open.length) audit(req.user, 'Turniere: Gruppenphase beendet', `${s.name}: ${open.length} offene ${open.length === 1 ? 'Spiel' : 'Spiele'} als ausgefallen gewertet`);
     const r = await reconcile(s.id);
     res.json({ ok: true, created: r.created.length, warnings: r.warnings });
+  }));
+  /** Saisonabschluss: Vorschau (Clubmeister, offene Spiele, Wechsel durch die Relegation) bzw. abschließen und Ehrentafel schreiben */
+  A.post('/saison/:id/abschluss', P, (req, res) => {
+    const s = seasonOr404(req, res); if (!s) return;
+    if (s.closed_at) return bad(res, 'Die Saison ist schon abgeschlossen.');
+    const nm = names(), champs = champions(s), { moves } = nextLeagues(s);
+    const open = matchesOf(s.id).filter(m => !decided(m)).length;
+    if ((req.body || {}).preview) return res.json({ champions: champs, open, moves: moves.map(x => ({ name: nm.ln(x.member_id), from: x.from, to: x.to })) });
+    const year = String((s.due_final || s.due_groups || today()).slice(0, 4));
+    db.transaction(() => {
+      db.prepare('UPDATE tu_season SET closed_at = ? WHERE id = ?').run(nowTs(), s.id);
+      db.prepare('DELETE FROM tu_honor WHERE season_id = ?').run(s.id);
+      for (const c of champs) db.prepare('INSERT INTO tu_honor(season_id, year, title, names, created_by) VALUES (?,?,?,?,?)').run(s.id, year, c.title, c.names, uname(req));
+    })();
+    audit(req.user, 'Turniere: Saison abgeschlossen', `${s.name}${champs.length ? ': ' + champs.map(c => `${c.title}: ${c.names}`).join('; ') : ''}${open ? ` · ${open} Spiele offen geblieben` : ''}`);
+    res.json({ ok: true });
+  });
+  /** Ehrentafel: frühere Jahre von Hand ergänzen bzw. solche Einträge löschen */
+  A.post('/ehrentafel', P, (req, res) => {
+    const b = req.body || {}, year = String(b.year || '').trim(), title = txt(b.title, 60), who = txt(b.names, 120);
+    if (!/^(19|20)\d\d$/.test(year)) return bad(res, 'Bitte ein Jahr eintragen (z. B. 2019).');
+    if (title.length < 3 || who.length < 3) return bad(res, 'Bitte Titel und Namen eintragen.');
+    db.prepare('INSERT INTO tu_honor(year, title, names, created_by) VALUES (?,?,?,?)').run(year, title, who, uname(req));
+    audit(req.user, 'Turniere: Ehrentafel ergänzt', `${year}: ${title} – ${who}`);
+    res.json({ ok: true });
+  });
+  A.delete('/ehrentafel/:id', P, (req, res) => {
+    const h = db.prepare('SELECT * FROM tu_honor WHERE id = ? AND season_id IS NULL').get(int(req.params.id));
+    if (!h) return bad(res, 'Nur von Hand ergänzte Einträge lassen sich löschen.', 404);
+    db.prepare('DELETE FROM tu_honor WHERE id = ?').run(h.id);
+    audit(req.user, 'Turniere: Ehrentafel-Eintrag gelöscht', `${h.year}: ${h.title} – ${h.names}`);
+    res.json({ ok: true });
+  });
+  A.get('/ehrentafel', P, (req, res) => res.json(honors()));
+  /** Einteilung aus Excel/CSV: lesen und Namen zuordnen (preview), dann übernehmen */
+  A.post('/saison/:id/import', P, ar(async (req, res) => {
+    const s = seasonOr404(req, res); if (!s) return;
+    if (s.drawn_at || s.paired_at || s.closed_at) return bad(res, 'Importieren geht nur vor der Auslosung.');
+    const b = req.body || {}, L = leaguesOf(s);
+    if (!Array.isArray(b.rows)) {
+      let rows; try { rows = rowsFrom(await readSheets(b), L); } catch (e) { return bad(res, e.message || 'Die Datei konnte nicht gelesen werden.'); }
+      if (!rows.length) return bad(res, 'In der Datei steht keine Einteilung – gebraucht werden die Spalten „Name“ (oder „Vorname“ und „Nachname“) und „Liga“ (oder je Liga ein Blatt „A“, „B“ …).');
+      return res.json({ rows: matchNames(rows.slice(0, 500)) });
+    }
+    const ok = new Set(db.prepare("SELECT id FROM members WHERE kind = 'mitglied' AND active = 1 AND deleted = 0").all().map(r => r.id));
+    let n = 0, skip = 0;
+    db.transaction(() => {
+      for (const r of b.rows.slice(0, 500)) {
+        const mid = int(r.member_id), lg = String(r.league || '');
+        if (!ok.has(mid) || !L.includes(lg)) { skip++; continue; }
+        const cur = db.prepare('SELECT * FROM tu_player WHERE season_id = ? AND member_id = ?').get(s.id, mid);
+        if (cur) db.prepare('UPDATE tu_player SET league = ? WHERE season_id = ? AND member_id = ?').run(lg, s.id, mid);
+        else db.prepare("INSERT INTO tu_player(season_id, member_id, league, singles, doubles, source) VALUES (?,?,?,0,0,'import')").run(s.id, mid, lg);
+        n++;
+      }
+    })();
+    audit(req.user, 'Turniere: Einteilung importiert', `${s.name}: ${n} Personen${skip ? `, ${skip} nicht übernommen` : ''}`);
+    res.json({ ok: true, n, skip });
   }));
   /* Spiele */
   A.put('/spiel/:id', P, ar(async (req, res) => {
@@ -595,7 +875,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     const next = open.filter(m => m.plan_date && m.plan_date >= d0 && m.plan_date <= until).map(m => ({ at: m.plan_date, start: m.plan_time || undefined, end: m.plan_end || undefined,
       title: `Clubmeisterschaft gegen ${opp(m)}`, sub: [m.court, PHASE[m.phase]].filter(Boolean).join(' · '), focus: String(m.id) }));
     const free = open.filter(m => !m.plan_date || m.plan_date < d0);
-    const reg = db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ?').get(s.id, mid);
+    const reg = db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ? AND (singles = 1 OR doubles = 1)').get(s.id, mid);
     const out = { next, open: [] };
     if (free.length) {
       const due = free.map(m => dueOf(s, m)).filter(Boolean).sort()[0];
@@ -608,24 +888,24 @@ CREATE INDEX IF NOT EXISTS ix_tu_match ON tu_match(season_id, comp, league, phas
     const ms = matchesOf(s.id), d0 = today();
     const late = ms.filter(m => !decided(m) && dueOf(s, m) && dueOf(s, m) < d0).length;
     const alerts = [];
-    if (!s.drawn_at && s.reg_until && s.reg_until < d0) alerts.push({ level: 'a', text: `${s.name}: Die Anmeldung ist vorbei – jetzt die Gruppen auslosen.`, sec: ['tab_turniere', 'teilnehmer'] });
+    if (!s.drawn_at && !s.paired_at && s.reg_until && s.reg_until < d0) alerts.push({ level: 'a', text: `${s.name}: Die Anmeldung ist vorbei – jetzt die Gruppen auslosen.`, sec: ['tab_turniere', 'teilnehmer'] });
     if (late) alerts.push({ level: 'a', text: `${s.name}: ${late} ${late === 1 ? 'Spiel ist' : 'Spiele sind'} überfällig.`, sec: ['tab_turniere', 'spiele'] });
     return { kpis: [{ l: 'Offene Turnierspiele', v: ms.filter(m => !decided(m)).length }], alerts };
   };
   ctx.hooks.memberLinks = id => {
     const out = [];
     for (const s of db.prepare('SELECT * FROM tu_season WHERE closed_at IS NULL').all()) {
-      const tids = db.prepare('SELECT id FROM tu_team WHERE season_id = ? AND p1 = ?').all(s.id, id).map(r => r.id);
+      const tids = db.prepare('SELECT id FROM tu_team WHERE season_id = ? AND (p1 = ? OR p2 = ?)').all(s.id, id, id).map(r => r.id);
       const n = tids.length ? db.prepare(`SELECT COUNT(*) n FROM tu_match WHERE season_id = ? AND winner IS NULL AND (result IS NULL OR result != 'ausgefallen') AND (a IN (${tids.join(',')}) OR b IN (${tids.join(',')}))`).get(s.id).n : 0;
       if (n) out.push(`${s.name}: ${n} offene ${n === 1 ? 'Spiel' : 'Spiele'}`);
-      else if (!tids.length && db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ?').get(s.id, id)) out.push(`${s.name}: angemeldet`);
+      else if (!tids.length && db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ? AND (singles = 1 OR doubles = 1)').get(s.id, id)) out.push(`${s.name}: angemeldet`);
     }
     return out;
   };
   // Konto zusammengeführt: Anmeldungen und Spiele wandern mit; gelöscht: Anmeldung weg, Spiele bleiben mit dem Namen der Auslosung
   ctx.hooks.memberRemoved = (fromId, intoId) => {
-    if (intoId) { db.prepare('UPDATE OR IGNORE tu_player SET member_id = ? WHERE member_id = ?').run(intoId, fromId); db.prepare('UPDATE tu_team SET p1 = ? WHERE p1 = ?').run(intoId, fromId); }
-    else db.prepare('UPDATE tu_team SET p1 = NULL WHERE p1 = ?').run(fromId);
+    if (intoId) { db.prepare('UPDATE OR IGNORE tu_player SET member_id = ? WHERE member_id = ?').run(intoId, fromId); db.prepare('UPDATE tu_team SET p1 = ? WHERE p1 = ?').run(intoId, fromId); db.prepare('UPDATE tu_team SET p2 = ? WHERE p2 = ?').run(intoId, fromId); }
+    else { db.prepare('UPDATE tu_team SET p1 = NULL WHERE p1 = ?').run(fromId); db.prepare('UPDATE tu_team SET p2 = NULL WHERE p2 = ?').run(fromId); }
     db.prepare('DELETE FROM tu_player WHERE member_id = ?').run(fromId);
   };
   ctx.hooks.exportConfig = () => ({ settings: cfg() });

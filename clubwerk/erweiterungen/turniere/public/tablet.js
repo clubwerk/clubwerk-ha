@@ -16,7 +16,9 @@
     const ko = d.finals.length ? `<h2 class="sec">Endrunde Liga ${esc(d.top)}</h2><div class="vh-card">${V.tree(d.finals, d.champion)}</div>` : '';
     const rel = d.relegation.length ? `<h2 class="sec">Relegation</h2><div class="tu-groups">${[...new Set(d.relegation.map(m => m.league))].map(k => `<div class="vh-card">${V.relegation(d.relegation.filter(m => m.league === k))}</div>`).join('')}</div>` : '';
     const leagues = d.leagues.filter(l => l.groups.length).map(l => `<h2 class="sec">${esc(l.label)}</h2><div class="tu-groups">${l.groups.map(g => `<div class="vh-card"><h3><span>Gruppe <span translate="no">${esc(g.label)}</span></span></h3>${V.table(g, { up: l.key === d.top ? 2 : 1 })}</div>`).join('')}</div>`).join('');
-    $('view').innerHTML = ko + rel + (leagues || '<div class="tk-empty">Die Gruppen sind noch nicht ausgelost – Anmeldung in der Mitglieder-App unter „Turniere“.</div>');
+    const dbl = (d.doubles || []).filter(x => x.groups.length).map(x => `<h2 class="sec">${esc(x.label)}</h2>${x.finals.length ? `<div class="vh-card">${V.tree(x.finals, x.champion, `Clubmeister ${x.label}`)}</div>` : ''}<div class="tu-groups">${x.groups.map(g => `<div class="vh-card"><h3><span>Gruppe <span translate="no">${esc(g.label)}</span></span></h3>${V.table(g, { up: 2 })}</div>`).join('')}</div>`).join('');
+    const hon = d.honors && d.honors.length ? `<h2 class="sec">Ehrentafel</h2><div class="vh-card">${V.honors(d.honors)}</div>` : '';
+    $('view').innerHTML = ko + rel + (leagues || '<div class="tk-empty">Die Gruppen sind noch nicht ausgelost – Anmeldung in der Mitglieder-App unter „Turniere“.</div>') + dbl + hon;
   }
   let gateShown = false;
   function showGate() { if (gateShown) return; gateShown = true; $('gate').classList.remove('hidden'); $('gatePw').value = ''; $('gateErr').textContent = ''; setTimeout(() => $('gatePw').focus(), 50); }
