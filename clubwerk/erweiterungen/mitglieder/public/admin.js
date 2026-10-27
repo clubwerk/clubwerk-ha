@@ -73,6 +73,9 @@
       @media (max-width: 700px) { .mv-cg-ed { grid-template-columns: minmax(0, 1fr); } .mv-cg-ed .btn { justify-self: end; } }
       .mv-addr { min-height: 40px; display: flex; align-items: center; font-size: 14px; }
       .mv-pic { overflow: hidden; } .mv-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      td.num, .mv-sum b { font-size: 1.15em; }   /* Anzeigetafel-Ziffern sind schmaler: etwas größer, damit sie neben der Textschrift gleich hoch wirken */
+      .mv-sum b { font-family: var(--num); font-weight: 600; }
+      .mv-code { font-family: var(--num); font-weight: 600; }
       .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }`;
     document.head.appendChild(s);
   }
@@ -181,7 +184,7 @@
       $('mvTbl').innerHTML = rows.length ? `<tr><th>Name</th><th style="width:90px">Nr.</th><th class="r" style="width:70px">Alter</th><th>Abteilungen</th><th>Beitrag</th><th style="width:130px">Zahlung</th><th>Hinweise</th></tr>`
         + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}">
           <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}</span></span></td>
-          <td class="muted nw k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
+          <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
           <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
           <td>${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
           <td class="nw">${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
@@ -375,12 +378,12 @@
   function subMembership(el, d, again) {
     const p = d.person, m = st.meta, id = p.id;
     const feeRows = d.fees.map(f => `<tr class="${f.end_date && f.end_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(f.name)}</b>${(!f.end_date || f.end_date >= m.today) && p.age != null && ((f.age_min != null && p.age < f.age_min) || (f.age_max != null && p.age > f.age_max)) ? ` <span class="pill r">passt nicht zum Alter (${f.age_max != null ? `bis ${f.age_max}` : `ab ${f.age_min}`} J.)</span>` : ''}${f.note ? `<div class="muted s">${esc(f.note)}</div>` : ''}</td>
-      <td class="r">${euro(f.eff_cents)}${f.cents != null ? ' <span class="pill">abweichend</span>' : ''}</td><td>${esc(INTERVAL[f.interval] || f.interval)}</td><td class="nw k-weg">${deDate(f.start_date)}</td><td class="nw k-weg">${f.end_date ? deDate(f.end_date) : '–'}</td>
+      <td class="r">${euro(f.eff_cents)}${f.cents != null ? ' <span class="pill">abweichend</span>' : ''}</td><td>${esc(INTERVAL[f.interval] || f.interval)}</td><td class="num nw k-weg">${deDate(f.start_date)}</td><td class="nw k-weg">${f.end_date ? deDate(f.end_date) : '–'}</td>
       <td class="nw k-weg">${f.booked_until ? deDate(f.booked_until) : '<span class="muted s">noch nichts</span>'}</td><td class="r nw">${SC() ? '' : `<button class="btn small" data-mf="${f.id}">Bearbeiten</button>`}</td></tr>`).join('');
     const myDept = depId => !SC() || m.scope.some(x => x.id === depId);
     const zText = x => '<div>' + (x.zusatz_free ? '<span class="pill">befreit</span>' : x.zusatz ? `<span translate="no">${esc(x.zusatz.name)}</span> · ${euro(x.zusatz.cents)}${x.zusatz.auto ? '' : ' <span class="pill b">fest</span>'}${x.zusatz.assumed ? '<div class="muted s">Geburtsdatum fehlt – Erwachsenenbeitrag angenommen</div>' : ''}${x.booked_until ? `<div class="muted s">abgerechnet bis ${deDate(x.booked_until)}</div>` : ''}`
       : x.zusatz_nomatch ? (x.zusatz_age != null ? `<span class="pill">beitragsfrei</span><div class="muted s">keine Altersstufe für ${x.zusatz_age} Jahre</div>` : '<span class="pill a">Geburtsdatum fehlt</span>') : '<span class="muted s">–</span>') + '</div>';
-    const depRows = d.departments.map(x => `<tr class="${x.exit_date && x.exit_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(x.name)}</b></td><td>${esc(x.status)}</td><td class="nw k-weg">${deDate(x.entry_date) || '–'}</td><td class="nw k-weg">${x.exit_date ? deDate(x.exit_date) : '–'}</td><td>${zText(x)}</td>
+    const depRows = d.departments.map(x => `<tr class="${x.exit_date && x.exit_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(x.name)}</b></td><td>${esc(x.status)}</td><td class="num nw k-weg">${deDate(x.entry_date) || '–'}</td><td class="nw k-weg">${x.exit_date ? deDate(x.exit_date) : '–'}</td><td>${zText(x)}</td>
       <td class="r nw">${myDept(x.department_id) ? `<button class="btn small" data-md="${x.id}">Bearbeiten</button>` : ''}</td></tr>`).join('');
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() || d.familyHead ? '' : '<button class="btn small" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl kompakt"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
@@ -390,10 +393,10 @@
           <p class="muted s" style="margin-bottom:0">${d.familyHead ? `Der Zusatzbeitrag wird ${esc(d.familyHead.name)} (Oberhaupt) zusätzlich zum Familienbeitrag belastet.` : 'Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.'}</p>` : '<p class="empty">Keiner Abteilung zugeordnet.</p>'}</div>
       <div class="mv-two">
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ehrungen</h3><button class="btn small" id="hAdd">+ Ehrung</button></div>
-          ${d.honors.length ? `<table class="tbl kompakt">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ehrungen eingetragen.</p>'}
+          ${d.honors.length ? `<table class="tbl kompakt">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="num nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ehrungen eingetragen.</p>'}
           ${can('gratulationen') ? `<label class="chk" style="margin-top:12px"><input type="checkbox" id="mvNoCg" ${d.no_congrats ? 'checked' : ''}> Keine Gratulation gewünscht</label>` : ''}</div>
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ämter & Funktionen</h3><button class="btn small" id="aAdd">+ Amt</button></div>
-          ${d.functions.length ? `<table class="tbl kompakt">${d.functions.map(h => `<tr class="${h.to_date && h.to_date < m.today ? 'off' : ''}"><td><b>${esc(h.name)}</b></td><td class="nw">${deDate(h.from_date) || ''}${h.to_date ? ' – ' + deDate(h.to_date) : ''}</td><td class="r"><button class="btn small danger" data-ax="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ämter oder Funktionen.</p>'}</div>
+          ${d.functions.length ? `<table class="tbl kompakt">${d.functions.map(h => `<tr class="${h.to_date && h.to_date < m.today ? 'off' : ''}"><td><b>${esc(h.name)}</b></td><td class="num nw">${deDate(h.from_date) || ''}${h.to_date ? ' – ' + deDate(h.to_date) : ''}</td><td class="r"><button class="btn small danger" data-ax="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ämter oder Funktionen.</p>'}</div>
       </div>`;
     el.insertAdjacentHTML('afterbegin', (d.ageNotices || []).map(n => `<div class="banner a"><span><b>Altersstufe:</b> ${esc(n.label)}${n.dept ? ` (<span translate="no">${esc(n.dept)}</span>)` : ''} – ab ${deDate(n.due_date)}: ${ageFrom(n)} → ${ageTo(n)}. Bis zur Entscheidung läuft der bisherige Beitrag weiter.</span>
       <span class="nw" style="margin-left:auto"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></span></div>`).join(''));
@@ -591,7 +594,7 @@
         <button class="btn primary" id="dUp">Datei wählen & hochladen</button></div>
         <p class="muted s" style="margin-bottom:0">PDF, Foto (JPG, PNG, HEIC), Word oder Text, bis 15 MB. Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten.</p></div>
       <div class="card"><h3>Ablage</h3>${d.documents.length ? `<table class="tbl kompakt"><tr><th>Dokument</th><th>Art</th><th>Datum</th><th>von</th><th class="r">Größe</th><th></th></tr>
-        ${d.documents.map(x => `<tr><td class="k-1z" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(DOCK[x.kind] || x.kind)}</td><td class="nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${Math.max(1, Math.round(x.size / 1024))} KB</td>
+        ${d.documents.map(x => `<tr><td class="k-1z" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(DOCK[x.kind] || x.kind)}</td><td class="num nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${Math.max(1, Math.round(x.size / 1024))} KB</td>
           <td class="r nw"><button class="btn small" data-dx="${x.id}">Öffnen …</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
     { const a = el.querySelector('[data-fhopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.fhopen); }; }
     $('dUp').onclick = async () => {
@@ -616,7 +619,7 @@
     el.innerHTML = `<div class="card"><h3>Mitglieder-App</h3><p style="margin:0">${app.device ? `Handy <b>${esc(app.device.status)}</b>${app.device.last_used ? ` · zuletzt ${deTime(app.device.last_used)}` : ''}` : 'Kein Handy freigeschaltet.'}
         <span class="muted s"> · Freischalten unter „Mitglieder-App“; „Meine Daten“ sieht jedes freigeschaltete Handy.</span></p></div>
       <div class="card"><h3>Änderungsverlauf</h3>${d.history.length ? `<table class="tbl kompakt"><tr><th>Feld</th><th style="width:150px">Zeitpunkt</th><th>vorher</th><th>nachher</th><th>von</th></tr>
-        ${d.history.map(h => `<tr><td><b>${esc(h.field)}</b></td><td class="nw">${deTime(h.at)}</td><td class="muted" title="${esc(h.old || '')}">${esc(h.old || '–')}</td><td title="${esc(h.new || '')}">${esc(h.new || '–')}</td><td class="muted s k-weg">${esc(h.by_user || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Änderungen.</p>'}</div>`;
+        ${d.history.map(h => `<tr><td><b>${esc(h.field)}</b></td><td class="num nw">${deTime(h.at)}</td><td class="muted" title="${esc(h.old || '')}">${esc(h.old || '–')}</td><td title="${esc(h.new || '')}">${esc(h.new || '–')}</td><td class="muted s k-weg">${esc(h.by_user || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Änderungen.</p>'}</div>`;
   }
 
   function exitDialog(d, again) {
@@ -815,7 +818,7 @@
       <div class="card" id="aWait"><h3>Warten auf Bestätigung <span class="muted s">(${waiting.length})</span></h3>${waiting.length ? appTable(waiting) : '<p class="empty">Keine neuen Beitrittserklärungen.</p>'}</div>
       <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="empty">Nichts offen.</p>'}</div>
       <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
-        ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="nw">${deTime(c.created_at)}</td>
+        ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="num nw">${deTime(c.created_at)}</td>
           <td class="s k-weg">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
           <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Änderungswünsche.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
@@ -833,7 +836,7 @@
   const ASTAT = { unterschrift: ['a', 'wartet auf Unterschrift'], eingegangen: ['b', 'unterschrieben'], angenommen: ['g', 'angenommen'], abgelehnt: ['', 'abgelehnt'] };
   function appTable(list) {
     return `<table class="tbl kompakt"><tr><th>Personen</th><th>Weg</th><th>Status</th><th>vom</th><th></th></tr>${list.map(a => `<tr><td><b>${esc(a.names)}</b>${a.data.persons.length > 1 ? ` <span class="pill">Familie · ${a.data.persons.length}</span>` : ''}${a.pre_by ? ` <span class="pill g">befürwortet von ${esc(a.pre_by)}</span>` : ''}</td>
-      <td>${esc(SRC[a.source] || a.source)}</td><td>${pill(ASTAT[a.status] || ['', a.status])}${a.status === 'unterschrift' && !a.waiting ? ' <span class="pill r">Code abgelaufen</span>' : ''}</td><td class="nw">${deTime(a.signed_at || a.created_at)}</td>
+      <td>${esc(SRC[a.source] || a.source)}</td><td>${pill(ASTAT[a.status] || ['', a.status])}${a.status === 'unterschrift' && !a.waiting ? ' <span class="pill r">Code abgelaufen</span>' : ''}</td><td class="num nw">${deTime(a.signed_at || a.created_at)}</td>
       <td class="r nw">${a.status === 'unterschrift' ? `<button class="btn small" data-acode="${a.id}">Neuer Code</button> <button class="btn small" data-ap="${a.id}">Ansehen</button>` : `<button class="btn small" data-ap="${a.id}">${a.status === 'eingegangen' ? 'Prüfen & annehmen' : 'Ansehen'}</button>`}</td></tr>`).join('')}</table>`;
   }
   function showCode(code) {
@@ -915,7 +918,7 @@
       <div class="row" style="gap:6px;margin:-4px 0 12px">${pill(ASTAT[a.status] || ['', a.status])}<span class="pill">${esc(SRC[a.source] || a.source)}</span>${a.signed_at ? `<span class="pill">unterschrieben ${deTime(a.signed_at)}</span>` : ''}${a.pre_by ? `<span class="pill g">befürwortet von ${esc(a.pre_by)}</span>` : ''}</div>
       <div class="split"><div>
         <table class="tbl"><tr><th>Person</th><th>geboren</th>${ro ? '' : '<th>Im Bestand?</th><th>Beitrag</th>'}</tr>
-        ${d.persons.map((p, i) => `<tr><td><b>${esc(p.first_name)} ${esc(p.last_name)}</b><div class="muted s">${i === 0 ? 'Antragsteller/in' : p.role === 'partner' ? 'Partner/in' : 'Kind'}${(p.departments || []).length ? ` · <span translate="no">${esc(p.departments.map(id => (st.meta.depts.find(x => x.id === id) || {}).name).filter(Boolean).join(', '))}</span>` : ''}</div></td><td class="nw">${deDate(p.birth_date)}</td>
+        ${d.persons.map((p, i) => `<tr><td><b>${esc(p.first_name)} ${esc(p.last_name)}</b><div class="muted s">${i === 0 ? 'Antragsteller/in' : p.role === 'partner' ? 'Partner/in' : 'Kind'}${(p.departments || []).length ? ` · <span translate="no">${esc(p.departments.map(id => (st.meta.depts.find(x => x.id === id) || {}).name).filter(Boolean).join(', '))}</span>` : ''}</div></td><td class="num nw">${deDate(p.birth_date)}</td>
           ${ro ? '' : `<td><select data-merge="${i}" style="width:100%"><option value="">neu anlegen</option>${(a.matches[i] || []).map(m => opt(m.id, `zusammenführen mit ${m.name}${m.member_no ? ' (' + m.member_no + ')' : ''}`, (a.matches[i] || [])[0] && (a.matches[i] || [])[0].id === m.id ? m.id : '')).join('')}</select></td>`}
           ${ro ? '' : `<td>${i === 0 || !(fees.find(f => f.id === d.fee_id) || {}).family ? `<select data-fee="${i}" style="width:100%">${fees.map(f => opt(f.id, f.name, i === 0 ? d.fee_id : (p.fee_id || a.suggest[i]))).join('')}</select>` : '<span class="muted s">im Familienbeitrag</span>'}</td>`}</tr>`).join('')}</table>
         ${ro && a.member_id ? `<p style="margin:10px 0 0"><button class="btn small" id="rvOpen">Mitglied öffnen</button></p>` : ''}
@@ -1027,7 +1030,7 @@
       ${rows.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Anlass</th><th>bisher</th><th>neu</th><th class="nw">ab</th><th></th></tr>${rows.map(n => `<tr>
           <td><a href="#" data-agem="${n.member_id}"><b>${esc(GK.lastFirst(n.name || ''))}</b></a>${n.payer_name ? `<div class="muted s">zahlt über ${esc(GK.lastFirst(n.payer_name))}</div>` : ''}</td>
           <td>${esc(n.label)}${n.dept ? ` <span class="muted s" translate="no">(${esc(n.dept)})</span>` : ''}<div class="muted s">${n.age} Jahre</div></td>
-          <td>${ageFrom(n)}</td><td>${ageTo(n)}</td><td class="nw">${deDate(n.due_date)}</td>
+          <td>${ageFrom(n)}</td><td>${ageTo(n)}</td><td class="num nw">${deDate(n.due_date)}</td>
           <td class="r nw"><button class="btn small" data-age="${n.id}:belassen">So belassen</button> <button class="btn small" data-age="${n.id}:umstellen" ${n.kind !== 'zusatz' && !n.to ? 'disabled' : ''}>Umstellen</button></td></tr>`).join('')}</table>`
         : '<p class="empty">Gerade nichts zu entscheiden – wer in eine andere Altersstufe rutscht, erscheint hier.</p>'}</div>`;
     ageBind(el, after);
@@ -1049,7 +1052,7 @@
         <p class="muted s" style="margin-top:0">${done.count} Positionen über ${euro(done.cents)} stehen jetzt als offene Posten bereit. Als Nächstes die Lastschriften erstellen; wer per Rechnung oder bar zahlt, bekommt seine Rechnung unter „Rechnungen & Mahnungen“.</p>
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rNext">Weiter zum Einzug</button></div></div>` : ''}</div>
       <div class="card"><h3>Bisherige Läufe</h3>${runs.length ? `<table class="tbl kompakt"><tr><th>Lauf</th><th>Art</th><th>bis</th><th class="r">Positionen</th><th class="r">Summe</th><th>von</th><th></th></tr>
-        ${runs.map(r => `<tr><td class="nw">${deTime(r.created_at)}</td><td>${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'}</td><td class="nw">${deDate(r.until_date)}</td><td class="r k-lbl" data-label="Positionen">${r.count}</td><td class="r">${euro(r.cents)}</td><td class="muted s k-weg">${esc(r.by_user || '')}</td>
+        ${runs.map(r => `<tr><td class="num nw">${deTime(r.created_at)}</td><td>${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'}</td><td class="num nw">${deDate(r.until_date)}</td><td class="r k-lbl" data-label="Positionen">${r.count}</td><td class="r">${euro(r.cents)}</td><td class="muted s k-weg">${esc(r.by_user || '')}</td>
           <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>`;
     const preview = async () => {
       const o = { until: val('rUntil'), payment: val('rPay') || undefined, drinks: $('rDrinks') ? $('rDrinks').checked : false, extra: $('rExtra') ? $('rExtra').checked : true };
@@ -1059,7 +1062,7 @@
           <span class="muted s">${pv.totals.payers} Zahler · ${pv.totals.count} Positionen</span></div>
         ${pv.warnings.map(w => `<div class="banner a"><span>${esc(w.text)}</span></div>`).join('')}${pv.info.map(w => `<div class="banner g"><span>${esc(w)}</span></div>`).join('')}
         ${pv.positions.length ? `<label class="chk" style="margin-bottom:8px"><input type="checkbox" id="rAll" checked> Alle Positionen abrechnen</label><div class="scroll" style="max-height:52vh"><table class="tbl kompakt"><tr><th>Zahler</th><th>Position</th><th>Art</th><th>Fälligkeit</th><th>Zahlung</th><th class="r">Betrag</th></tr>
-          ${pv.positions.map(p => `<tr><td><label class="chk"><input type="checkbox" data-key="${esc(p.key)}" checked aria-label="abrechnen"> <b>${esc(GK.lastFirst(p.payer_name))}</b></label></td><td translate="no">${esc(p.text)}</td><td class="k-weg">${esc(KIND[p.kind] || p.kind)}</td><td class="nw">${deDate(p.due_date)}</td><td class="k-weg">${esc(PAY[p.payment] || p.payment)}</td><td class="r">${euro(p.cents)}</td></tr>`).join('')}</table></div>
+          ${pv.positions.map(p => `<tr><td><label class="chk"><input type="checkbox" data-key="${esc(p.key)}" checked aria-label="abrechnen"> <b>${esc(GK.lastFirst(p.payer_name))}</b></label></td><td translate="no">${esc(p.text)}</td><td class="k-weg">${esc(KIND[p.kind] || p.kind)}</td><td class="num nw">${deDate(p.due_date)}</td><td class="k-weg">${esc(PAY[p.payment] || p.payment)}</td><td class="r">${euro(p.cents)}</td></tr>`).join('')}</table></div>
           <div class="mv-sum"><span>${Object.entries(pv.totals.byKind).map(([k, c]) => `${esc(GK.T(KIND[k] || k))}: <b style="font-size:14px">${euro(c)}</b>`).join(' · ')}</span><span>Summe <b id="rSum">${euro(pv.totals.cents)}</b></span></div>
           <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn ghost" id="rCancel">Verwerfen</button><button class="btn primary" id="rGo">Beiträge abrechnen</button></div>`
           : '<p class="empty">Nichts abzurechnen – alles ist schon bis zu diesem Tag abgerechnet.</p>'}</div>`;
@@ -1096,7 +1099,7 @@
     return `<div class="scroll" style="max-height:60vh"><table class="tbl kompakt"><tr>${member ? '<th>Position</th>' : '<th>Zahler</th><th>Position</th>'}<th>Fällig</th><th>Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
       ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td>${select && c.status === 'eingezogen' ? `<label class="chk"><input type="checkbox" data-csel="${c.id}" aria-label="auswählen"> ${first(c)}</label>` : first(c)}</td>
         ${member ? '' : `<td><span translate="no">${esc(c.text)}</span>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}</td>`}
-        <td class="nw">${deDate(c.due_date)}</td><td class="k-weg">${esc(KIND[c.kind] || c.kind)}</td>
+        <td class="num nw">${deDate(c.due_date)}</td><td class="k-weg">${esc(KIND[c.kind] || c.kind)}</td>
         <td>${pill(CSTAT[c.status] || ['', c.status])}${c.dunning_level ? ` <span class="pill r">${c.dunning_level}. Mahnstufe</span>` : ''}${c.paid_at ? `<div class="muted s">${deDate(c.paid_at)} · ${esc(c.paid_via || '')}</div>` : ''}</td>
         <td class="r ${c.cents < 0 ? 'neg' : ''}">${euro(c.cents)}</td>
         <td class="r nw">${c.status === 'offen' ? `<button class="btn small" data-cpay="${c.id}">Bezahlt</button> <button class="btn small" data-ced="${c.id}">Ändern</button>` : c.status === 'bezahlt' ? `<button class="btn small danger" data-ccx="${c.id}">Stornieren</button>` : ''}</td></tr>`).join('')}</table></div>`;
@@ -1358,7 +1361,7 @@
         <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Divers</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
           ${s.lsb.groups.map((g, i) => { const t = s.lsb.total[i], c = (n, l, hide) => `<td class="k-lbl${hide && !n ? ' k-weg' : ''}" data-label="${l}">${n}</td>`; return `<tr><td>${esc(g)}</td>${c(t.m, 'Männlich')}${c(t.w, 'Weiblich')}${c(t.d, 'Divers', 1)}${c(t.x, 'Ohne Angabe', 1)}<td class="k-lbl" data-label="Gesamt"><b>${sum(t)}</b></td></tr>`; }).join('')}</table>
         ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten.</p>` : ''}</div>
-      <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
+      <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="num nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
   }
 
@@ -1550,7 +1553,7 @@
     el.innerHTML = `${chipBar('cgF', [['offen', 'Offen'], ['alle', 'Alle']], f)}
       <div class="card"><h3>Anstehende Gratulationen <span class="muted s">(${esc(GK.T('{0} Tage', [d.ahead]))})</span></h3>
         ${list.length ? `<table class="tbl kompakt" id="cgTbl"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th>Gratulation</th><th>Wer kümmert sich?</th><th>Stand</th><th></th></tr>
-          ${list.map(r => `<tr class="${r.done_at ? 'off' : ''}"><td class="k-1z"><b translate="no">${esc(GK.lastFirst(r.name))}</b></td><td class="nw">${cgDay(r.date)}</td><td>${cgLabel(r)}</td>
+          ${list.map(r => `<tr class="${r.done_at ? 'off' : ''}"><td class="k-1z"><b translate="no">${esc(GK.lastFirst(r.name))}</b></td><td class="num nw">${cgDay(r.date)}</td><td>${cgLabel(r)}</td>
             <td translate="no">${esc(r.plan) || '<span class="muted s">–</span>'}</td><td class="k-lbl" data-label="${esc(GK.T('Wer'))}" translate="no">${esc(r.who)}</td><td>${mark(r)}</td>
             <td class="r nw"><button class="btn small" data-cg="${esc(r.key)}">Bearbeiten</button></td></tr>`).join('')}</table>`
           : `<p class="empty">${f === 'offen' && d.rows.length ? 'Alles erledigt – in den nächsten Tagen steht keine Gratulation mehr an.' : 'In den nächsten 30 Tagen steht keine Gratulation an. Die Regeln stehen unter Mitglieder › Einstellungen.'}</p>`}</div>

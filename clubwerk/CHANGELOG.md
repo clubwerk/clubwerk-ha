@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.75.0
+
+**Design „Anzeigetafel“: Mitglieder, Beiträge & Zahlungen, Gratulationen und Online-Antrag**
+- Nur das Aussehen, nichts an den Abläufen oder am Geld: Beitragslauf, Lastschriften, Mahnungen und offene Posten rechnen wie bisher.
+- **Mitglieder und Zahlungen:** Mitgliedsnummern, Datums- und Zeitangaben (Eintritt, Fälligkeit, Läufe, Verlauf, Dokumente) und die Summen unter Lauf und Einzug stehen jetzt in der Ziffernschrift wie die Kennzahlen und Beträge.
+- **Gratulationen:** das Datum der Anlässe in der Ziffernschrift.
+- **Online-Antrag (Beitrittserklärung):** Karten, Personen, Beitragsarten und Einwilligungen mit denselben Rändern und Rundungen wie die Mitglieder-App, Beiträge in Ziffernschrift. Die letzten festen Farben sind weg; nur die Tinte im weißen Unterschriftsfeld bleibt bewusst fest, damit sie auch im dunklen Modus lesbar ist.
+
 ## 3.74.0
 
 **Turniere: LK-Turniertag mit nuLiga-Import (neue Seite „Turniertag“)**

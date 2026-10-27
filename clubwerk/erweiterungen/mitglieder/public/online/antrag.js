@@ -16,7 +16,7 @@
       .af-steps { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 6px; }
       .af-steps span { height: 6px; border-radius: 3px; background: var(--line); }
       .af-steps span.on { background: var(--brand); }
-      .af-card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px; box-shadow: var(--shadow); }
+      .af-card { background: var(--card); border: 1px solid var(--edge); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow); }
       .af-card h2 { margin: 0 0 4px; font-size: 22px; line-height: 28px; }
       .af-card .af-sub { margin: 0 0 18px; color: var(--muted); font-size: 15px; line-height: 1.45; }
       .af-grid { display: grid; grid-template-columns: repeat(var(--c, 2), minmax(0, 1fr)); gap: 14px 16px; }
@@ -24,31 +24,31 @@
       .af label.af-f { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--muted); }
       .af input:not([type=checkbox]):not([type=radio]), .af select { height: 52px; border: 1px solid var(--line); border-radius: 12px; padding: 0 14px; font-size: 17px; background: var(--field); color: var(--ink); width: 100%; box-sizing: border-box; font-family: inherit; }
       .af input:focus, .af select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-      .af-person { border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+      .af-person { border: 1px solid var(--edge); border-radius: var(--r-tile); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
       .af-person + .af-person { margin-top: 12px; }
       .af-person .af-ph { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 800; min-height: 40px; }
-      .af-btn { height: 52px; padding: 0 22px; border-radius: 14px; font-size: 17px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; font-family: inherit; }
+      .af-btn { height: 52px; padding: 0 22px; border-radius: 12px; font-size: 17px; font-weight: 700; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; font-family: inherit; }
       .af-btn.primary { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .af-btn.small { height: 40px; font-size: 15px; padding: 0 14px; border-radius: 10px; }
       .af-btn:disabled { opacity: .45; cursor: default; }
       .af-nav { display: flex; justify-content: space-between; gap: 12px; }
       .af-nav .af-btn { min-width: 160px; }
       .af-fees { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-      .af-fees label { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 64px; border: 1px solid var(--line); border-radius: 14px; font-size: 16px; cursor: pointer; box-sizing: border-box; }
+      .af-fees label { display: flex; align-items: center; gap: 12px; padding: 0 16px; min-height: 64px; border: 1px solid var(--edge); border-radius: var(--r-tile); font-size: 16px; cursor: pointer; box-sizing: border-box; }
       .af-fees label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); box-shadow: inset 0 0 0 1px var(--brand); }
-      .af-fees label b { margin-left: auto; font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .af-fees label b { margin-left: auto; font-family: var(--num); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
       .af-fees label .af-hint { display: block; font-size: 12.5px; color: var(--muted); font-weight: 600; }
       .af input[type=radio], .af input[type=checkbox] { width: 22px; height: 22px; accent-color: var(--brand); flex: none; }
       .af-h3 { margin: 22px 0 4px; font-size: 17px; }
       .af-deps { display: flex; flex-direction: column; gap: 10px; }
-      .af-dep { border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px; }
+      .af-dep { border: 1px solid var(--edge); border-radius: var(--r-tile); padding: 12px 16px; }
       .af-dh { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; } .af-dh b { font-size: 16px; } .af-dh span { color: var(--muted); font-size: 13.5px; }
       .af-dp { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
       .af-dp label { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 12px; border: 1px solid var(--line); border-radius: 12px; font-size: 15px; cursor: pointer; box-sizing: border-box; }
       .af-dp label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
-      .af-dp label b { margin-left: auto; font-variant-numeric: tabular-nums; } .af-dp label:has(input:disabled) { opacity: .5; }
+      .af-dp label b { margin-left: auto; font-family: var(--num); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; } .af-dp label:has(input:disabled) { opacity: .5; }
       .af-cons { display: flex; flex-direction: column; gap: 12px; }
-      .af-cons label { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--line); border-radius: 14px; font-size: 15px; line-height: 1.45; cursor: pointer; }
+      .af-cons label { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; border: 1px solid var(--edge); border-radius: var(--r-tile); font-size: 15px; line-height: 1.45; cursor: pointer; }
       .af-cons label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
       .af-cons b { display: block; margin-bottom: 2px; }
       .af-info { font-size: 14px; color: var(--muted); line-height: 1.5; margin: 12px 0 0; }
@@ -58,11 +58,11 @@
       .af-sig { display: flex; flex-direction: column; gap: 8px; }
       .af-sig + .af-sig { margin-top: 18px; }
       .af-sig .af-sh { display: flex; justify-content: space-between; align-items: center; gap: 12px; font-weight: 800; }
-      .af-pad { position: relative; height: 190px; border: 2px dashed var(--green-line, var(--line)); border-radius: 16px; background: #fff; touch-action: none; overflow: hidden; }
+      .af-pad { --pad-ink: #5b6660; position: relative; height: 190px; border: 2px dashed var(--green-line, var(--line)); border-radius: 16px; background: #fff; touch-action: none; overflow: hidden; }
       .af-pad canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-      .af-pad .af-line { position: absolute; left: 24px; right: 24px; bottom: 44px; border-bottom: 1px solid #c9cfc9; pointer-events: none; }
-      .af-pad .af-x { position: absolute; left: 24px; bottom: 50px; color: #66716a; font-size: 22px; pointer-events: none; }
-      .af-pad .af-ph2 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #66716a; font-size: 16px; pointer-events: none; }   /* Unterschriftsfeld bleibt auch dunkel weiß – daher feste, lesbare Farbe */
+      .af-pad .af-line { position: absolute; left: 24px; right: 24px; bottom: 44px; border-bottom: 1px solid var(--pad-ink); pointer-events: none; }
+      .af-pad .af-x { position: absolute; left: 24px; bottom: 50px; color: var(--pad-ink); font-size: 22px; pointer-events: none; }
+      .af-pad .af-ph2 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--pad-ink); font-size: 16px; pointer-events: none; }   /* Unterschriftsfeld bleibt auch dunkel weiß – daher eine feste, lesbare Tinte (--pad-ink) nur für dieses Feld */
       .af-pad.signed .af-ph2 { display: none; }
       .af-mandate { font-size: 13.5px; color: var(--muted); line-height: 1.5; background: var(--hover); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
       .af-done { text-align: center; padding: 34px 22px; }
