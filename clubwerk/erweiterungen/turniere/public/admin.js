@@ -12,7 +12,6 @@
   const DEL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>';
   const st = { meta: null, sid: null, d: null, tabs: null, mf: sessionStorage.getItem('tu_mf') || 'offen', lf: 'alle' };
   const dm = s => (s ? GK.deDate(s) : '–');
-  const loadView = () => new Promise(res => { if (window.TurnierAnsicht) return res(); const sc = document.createElement('script'); sc.src = 'x/turniere/ansicht.js'; sc.onload = res; sc.onerror = res; document.body.appendChild(sc); });
   if (!document.getElementById('tuAdminStyle')) {
     const s = document.createElement('style'); s.id = 'tuAdminStyle';
     s.textContent = `
@@ -358,7 +357,6 @@
     return ko + rel + lg + dbl;
   }
   async function showTables(el) {
-    await loadView();
     const d = st.d;
     el.innerHTML = d.leagues.some(l => l.groups.length) ? tablesHtml(false) : '<div class="card"><p class="empty">Noch keine Gruppen – erst die Gruppen auslosen (Reiter „Teilnehmer“).</p></div>';
     tools(el, d.leagues.some(l => l.groups.length) ? '<button class="btn" id="tuPrint">Drucken</button>' : '');
@@ -396,7 +394,7 @@
   }
 
   async function render() {
-    await meta(); await loadView();
+    await meta();
     await season();
     $('main').innerHTML = `<h2 class="page">Clubmeisterschaft</h2><p class="lead" id="tuLead"></p><div id="tuTabs"></div>`;
     lead();
@@ -418,7 +416,7 @@
   }
   GK.registerPage({ key: 'turniere', title: 'Clubmeisterschaft', perm: 'turniere', render, icon: 'turnier', order: 2.7 });
   const loadLK = () => new Promise(res => { if (window.TurnierLK) return res(); const sc = document.createElement('script'); sc.src = 'x/turniere/lk-admin.js'; sc.onload = res; sc.onerror = res; document.body.appendChild(sc); });
-  GK.registerPage({ key: 'turniertag', title: 'Turniertag', perm: 'turniere', icon: 'turnier', order: 2.71, render: async () => { await loadView(); await loadLK(); if (!window.TurnierLK) throw new Error('Die Seite „Turniertag“ konnte nicht geladen werden.'); return window.TurnierLK.render(); } });
+  GK.registerPage({ key: 'turniertag', title: 'Turniertag', perm: 'turniere', icon: 'turnier', order: 2.71, render: async () => { await loadLK(); if (!window.TurnierLK) throw new Error('Die Seite „Turniertag“ konnte nicht geladen werden.'); return window.TurnierLK.render(); } });
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Clubmeisterschaft', page: 'turniere', tab: ['turniere', 'uebersicht'], kind: 'reiter', in: 'Übersicht', words: 'Turnier Saison Vereinsmeisterschaft Liga', boost: 1 },
     { label: 'Neue Saison anlegen', page: 'turniere', tab: ['turniere', 'uebersicht'], btn: '+ Neue Saison', kind: 'aktion', in: 'Übersicht', words: 'Clubmeisterschaft Ligen Fristen Anmeldeschluss' },

@@ -1,7 +1,7 @@
 {
   "id": "turniere",
   "name": "Turniere",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "kurz": "Clubmeisterschaft mit Ligen und Ehrentafel – und LK-Turniertage aus nuLiga mit Check-in, Turnierzentrale, Zeitplan und Spielerseite.",
   "beschreibung": "Clubmeisterschaft: Ligen (A, B, C …) mit je ein oder zwei ausgelosten Gruppen „jeder gegen jeden“ (2 Gewinnsätze, Match-Tiebreak), Tabelle wie in der DTB-Vorlage, Endrunde der obersten Liga mit Halbfinale und Finale, Relegation zwischen benachbarten Ligen. Doppel: zwei benachbarte Ligen bilden eine Doppel-Liga, die Partner (je eine Person aus der oberen und der unteren Liga) und die Gruppen werden ausgelost, Endrunde je Doppel-Liga. Mitglieder melden sich in der Mitglieder-App an, vereinbaren den Termin selbst – mit Platzbuchung, wenn „Plätze“ aktiv ist – und tragen das Ergebnis ein. Der Sportwart lost aus, setzt die Fristen, erinnert und korrigiert; beim Saisonabschluss kommen die Clubmeister in die Ehrentafel und die Relegation bestimmt die Einteilung der nächsten Saison. Einteilung einmalig aus Excel/CSV importierbar. Tabellen und Bäume auch am Tablet. LK-Turniere: Den Turniertag aus nuLiga importieren (XML, mehrere Turniere zusammen, optional die Meldeliste als CSV), Spieler am Tablet oder in der Verwaltung einchecken und das Nenngeld bar oder digital erfassen (eigener Kassenbericht), Plätze aus nuLiga übernehmen und optional im Buchungssystem sperren, in der Turnierzentrale Plätze verteilen, Zeitplan mit nachrutschenden Matches, Ergebnisse am Tablet, Fernseher-Ansicht fürs Clubhaus, Spielerseite per QR-Code und Ergebnisliste zum Abtippen in nuLiga.",
   "minApp": "3.74.0",
@@ -22,6 +22,9 @@
     "order": 4.5,
     "alle": true
   },
+  "skripte": [
+    "ansicht.js"
+  ],
   "tabellen": [
     "tu_season",
     "tu_player",

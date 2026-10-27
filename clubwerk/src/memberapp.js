@@ -382,7 +382,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       const c = accessFor(w.memberId, id);
       if (c.ok && !awayOk(req, id, c.row)) return { id, title: m.label || m.name, ok: false, reason: WLAN_ONLY, wlanOnly: true };
       if (c.ok && w.remote && m.sensitive) return { id, title: m.label || m.name, ok: false, reason: STAGED, staged: true };
-      return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason };
+      return { id, title: m.label || m.name, ok: c.ok, reason: c.ok ? null : c.reason, scripts: c.ok && m.scripts.length ? m.scripts : undefined };
     });
   };
   api.get('/me', (req, res) => {

@@ -3526,7 +3526,7 @@ admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
 admin.get('/extensions', (req, res) => {
   const all = plugins.list();
   // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
-  res.json({ modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung })),
+  res.json({ modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
     all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all : undefined, links: navLinks() });
 });
 /* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) – je Modul höchstens OVERVIEW_TIMEOUT_MS */

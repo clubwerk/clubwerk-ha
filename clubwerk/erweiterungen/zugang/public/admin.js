@@ -320,9 +320,8 @@
   }
 
   /* ---------- Fernbedienung ---------- */
-  /** Türen aus der Ferne bedienen – dieselben Kacheln wie in der Mitglieder-App und am Tablet (doors.js + kit.css) */
+  /** Türen aus der Ferne bedienen – dieselben Kacheln wie in der Mitglieder-App und am Tablet (doors.js + kit.css; die Verwaltung lädt doors.js vor admin.js) */
   async function loadRemote(r0) {
-    if (!window.ZugangDoors) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'x/zugang/doors.js'; sc.onload = ok; sc.onerror = () => no(new Error('Kacheln konnten nicht geladen werden.')); document.head.appendChild(sc); });
     const r = r0 || await api('doors');
     if (!r.doors.length) { $('zRemote').innerHTML = `<p class="empty">Noch keine Türen eingerichtet.${GK.can('zugang') ? ' <a class="btn small" href="#zugang-tueren" data-zgo="zugang-tueren">Türen einrichten</a>' : ''}</p>`; bindGo($('zRemote')); return; }
     $('zRemote').innerHTML = `<div class="vh-tiles doors">${window.ZugangDoors.html(r.doors, esc, false)}</div>`;

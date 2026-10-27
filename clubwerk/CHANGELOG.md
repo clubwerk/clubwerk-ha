@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.80.0
+
+**Kein Flackern mehr beim Tippen – Tablet, Verwaltung und Mitglieder-App reagieren wieder so flott wie vor dem Design-Umbau**
+- **Ursache:** Jedes Fenster (PIN-Eingabe, Rückfragen, „Mehr“ in der App, das Menü der Verwaltung am Handy) hat die Seite dahinter festgehalten, indem es die ganze Seite umgestellt hat. Dabei hat der Browser bei jedem Öffnen und Schließen die komplette Seite neu gezeichnet. Seit dem Design-Umbau (weiche Schatten, Schimmer) kostet das ein Vielfaches – auf älteren Tablets und am iPhone sah das aus wie Flackern oder Neuladen. Jetzt hält das Fenster das Scrollen selbst fest; die Seite dahinter bleibt unberührt und steht trotzdem still.
+- **Verkauf am Tablet:** Nach „Anderes Mitglied“, „Zurück“ und alle 60 Sekunden hat die Startseite alle Namenskacheln (samt Fotos) ein zweites Mal aufgebaut, auch wenn sich nichts geändert hatte. Jetzt wird nur neu gezeichnet, wenn sich etwas geändert hat.
+- **Messwerte** (Chrome, 4-fach gebremst wie ein älteres Tablet; bisher → jetzt, in Klammern der Stand vor dem Design-Umbau): Namen antippen und „Abbrechen“ – Neuzeichnen 79 → 6 ms (vorher 10 ms), die Seite verschiebt sich dabei nicht mehr. „Anderes Mitglied“ 188 → 134 ms je Klick (vorher 142 ms), Name antippen bis zur Artikelseite 330 → 253 ms (vorher 233 ms). Rückfrage in der Verwaltung öffnen und schließen: Neuzeichnen 63 → 8 ms (vorher 18 ms). „Mehr“ in der App: 15 → 3 ms. Das Aussehen bleibt gleich.
+- **Verwaltung:** Die Ziffernschrift lädt gleich beim Öffnen, Zahlen springen beim ersten Fenster nicht mehr kurz aus einer Ersatzschrift um.
+- **Verwaltung › Beregnung › Bedienen:** Am iPhone blieb die Karte „Plätze“ leer mit der Meldung „undefined is not an object (evaluating 'T.prime')“. Die Platzkacheln wurden erst mitten in der Ansicht nachgeladen. Jetzt lädt die Verwaltung sie gleich zusammen mit dem Modul, auf demselben Weg wie das Modul selbst und mit dessen Versionsnummer. Dasselbe gilt für die Mitglieder-App und für die Türkacheln (Zugang) und die Turnier-Tabellen (Turniere).
+- Für Entwickler: neues Feld `"skripte"` in der erweiterung.json (gemeinsame Bausteine, die Verwaltung und App vor admin.js/member.js laden, siehe ERWEITERUNGEN.md). Der Design-Prüfstand prüft jetzt Bedienschritte auf Flackern (keine Navigation, kein Neuladen von CSS/Schriften, nichts verschiebt sich, Neuzeichnen beim Fenster begrenzt, kein Neuaufbau unveränderter Listen) und meldet Seitensperren an html/body sowie nachgeladene Bausteine im Quelltext. Testreihe `berapp` erweitert.
+
 ## 3.79.1
 
 **Mitglieder-Import: führende 0 bei Telefonnummern**

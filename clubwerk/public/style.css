@@ -334,10 +334,14 @@ body.tk .gatecard .gateclub:empty { display: none; }
 @media (max-width: 640px) { body.tk main { padding: 16px 12px 28px; } .tk-grid { gap: 10px; } body.tk .gatecard { padding: 26px 20px; } }
 
 /* ---------- Für alle Oberflächen (Verwaltung, Tablet, Mitglieder-App) ---------- */
-/* Offenes Fenster: Seite dahinter steht still, Scrollen bleibt im Fenster */
-.overlay { overscroll-behavior: contain; }
-html:has(.overlay:not(.hidden)), html:has(.overlay:not(.hidden)) body, html:has(dialog[open]), html:has(dialog[open]) body, html:has(.vh-sheet.show), html:has(.vh-sheet.show) body { overflow: hidden; }
-.vh-sheet { overscroll-behavior: contain; }
+/* Offenes Fenster: Seite dahinter steht still, Scrollen bleibt im Fenster. Das Fenster fängt das Scrollen selbst ab, statt html/body
+   mit overflow: hidden zu sperren – das ließ den Browser bei jedem Öffnen und Schließen die ganze Seite neu zeichnen (Flackern, träge
+   Tablets). Dafür ist der Hintergrund des Fensters immer um 1 px scrollbar (sonst reichen Safari und Chrome das Scrollen an die Seite
+   weiter) und gibt das Scrollen nie weiter (overscroll-behavior: none – auch kein Federn am iPhone). */
+.overlay, .vh-sheet { overflow-y: auto; overscroll-behavior: none; }
+.overlay::before, .vh-sheet::before { content: ''; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none; }
+body.tk .overlay, .vh-sheet { scrollbar-width: none; }   /* hier scrollt nur der Inhalt des Fensters, nie der Hintergrund */
+body.tk .overlay::-webkit-scrollbar, .vh-sheet::-webkit-scrollbar { display: none; }
 /* iPhone zoomt in Eingabefelder unter 16 px hinein – am Handy deshalb immer 16 px */
 @media (max-width: 640px) {
   input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]), select, textarea { font-size: 16px !important; }

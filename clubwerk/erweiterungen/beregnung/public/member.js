@@ -9,9 +9,9 @@
         <div id="bgTiles" class="vh-tiles zones"></div>
         <button class="vh-stop hidden" id="bgStop">■ Alle Zonen ausschalten</button>`;
       let pl = [], timer = null, alive = true;
-      const T = () => window.BeregnungTiles;
+      const T = window.BeregnungTiles;   // plaetze.js lädt die App vor member.js (erweiterung.json „skripte“)
       const draw = () => {
-        document.getElementById('bgTiles').innerHTML = T().html(pl, esc);
+        document.getElementById('bgTiles').innerHTML = T.html(pl, esc);
         el.querySelectorAll('[data-p]').forEach(b => { b.onclick = () => run(+b.dataset.p); });
         el.querySelectorAll('[data-stop]').forEach(b => { b.onclick = e => { e.stopPropagation(); stopOne(+b.dataset.stop); }; });
       };
@@ -19,7 +19,7 @@
         clearTimeout(timer);
         try {
           const v = await ctx.api('status');
-          pl = v.plaetze; T().prime(pl); draw();
+          pl = v.plaetze; T.prime(pl); draw();
           document.getElementById('bgStop').classList.toggle('hidden', !pl.length);   // ohne Plätze kein Not-Aus
           document.getElementById('bgTiles').classList.toggle('offline', !v.online); document.getElementById('bgStop').disabled = !v.online;
           document.getElementById('bgDot').className = 'vh-dot ' + (v.online ? 'ok' : 'err');
@@ -35,7 +35,7 @@
           let r;
           try { r = await ctx.api('run', 'POST', { platz: id }); }
           catch (e) { if (e.status !== 428 || !ctx.withPin) throw e; r = await ctx.withPin(`${p.name} starten`, pin => ctx.api('run', 'POST', { platz: id, pin })); }   // unterwegs: mit PIN
-          if (r) ctx.toast(`${p.name} ${r.waitSec > 0 ? 'eingeplant – startet in ' + T().fmt(r.waitSec) : 'gestartet'} · ${Math.round(r.totalSec / 60)} Min.`);
+          if (r) ctx.toast(`${p.name} ${r.waitSec > 0 ? 'eingeplant – startet in ' + T.fmt(r.waitSec) : 'gestartet'} · ${Math.round(r.totalSec / 60)} Min.`);
         } catch (e) { ctx.toast(e.message, true, 5000); }
         refresh();
       }
@@ -51,9 +51,9 @@
         } catch (e) { ctx.toast(e.message, true, 5000); }
         refresh();
       };
-      const iv = setInterval(() => { if (T() && T().tick(pl)) draw(); }, 1000);
+      const iv = setInterval(() => { if (T.tick(pl)) draw(); }, 1000);
       ctx.onLeave(() => { alive = false; clearTimeout(timer); clearInterval(iv); });
-      if (window.BeregnungTiles) refresh(); else { const s = document.createElement('script'); s.src = 'm/beregnung/plaetze.js'; s.onload = refresh; document.body.appendChild(s); }
+      refresh();
     },
   });
 })();

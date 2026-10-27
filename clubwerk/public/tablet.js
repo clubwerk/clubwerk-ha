@@ -88,13 +88,21 @@
   const initial = m => coreLast(m.name).charAt(0).toLocaleUpperCase('de').replace(/[ÄÖÜ]/, c => ({ Ä: 'A', Ö: 'O', Ü: 'U' }[c]));
 
   /* ---------- Startseite ---------- */
+  let stateJson = '';
   async function load() {
+    let next;
     try {
-      state = await api('api/tablet/state');
+      next = await api('api/tablet/state');
     } catch (e) {
       if (!e.gate) toast('Keine Verbindung zum Server.', true);
       return;
     }
+    // Unveränderte Daten nicht neu zeichnen: Der Neuaufbau aller Kacheln (samt Fotos) ließ die Startseite nach „Abbrechen“,
+    // „Anderes Mitglied“ und alle 60 s sichtbar flackern
+    const json = JSON.stringify(next);
+    state = next;
+    if (json === stateJson) return;
+    stateJson = json;
     // Vereinsname, Logo und Farbe setzt die gemeinsame Kopfzeile (nav.js)
     renderStart();
   }
@@ -797,6 +805,7 @@
   }
   function backToStart() {
     if (session) api('api/tablet/logout', { token: session.token }).catch(() => {});
+    const filtered = Boolean(letter || evFilter || ($('nameSearch') && $('nameSearch').value));
     session = null; cart = new Map(); customs = []; bookReqId = null; letter = null; evFilter = ''; $('evSearch').value = '';
     clearTimeout(idleTimer);
     $('booking').classList.add('hidden');
@@ -804,6 +813,7 @@
     document.body.classList.remove('bookmode');
     if ($('nameSearch')) $('nameSearch').value = '';
     window.scrollTo(0, 0);
+    if (filtered) renderStart();   // Filter zurücksetzen sofort zeigen; load() zeichnet nur bei geänderten Daten neu
     load();
   }
   document.addEventListener('pointerdown', () => { if (session) bumpIdle(); keepAwake(); }, { passive: true });

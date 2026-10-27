@@ -240,10 +240,11 @@
       if (extLoaded.has(x.id)) continue;
       extLoaded.add(x.id);
       loadingExt = x.id;
-      await new Promise(res => {
+      // erst die gemeinsamen Skripte des Moduls (z. B. Kacheln, die auch Tablet und App nutzen), dann admin.js – alle mit Modulversion
+      for (const f of [...(x.scripts || []), 'admin.js']) await new Promise(res => {
         const sc = document.createElement('script');
-        sc.src = `x/${x.id}/admin.js?v=${encodeURIComponent(x.version)}`;
-        sc.onload = res; sc.onerror = () => { console.error('Erweiterung', x.id, 'konnte nicht geladen werden'); res(); };
+        sc.src = `x/${x.id}/${f}?v=${encodeURIComponent(x.version)}`;
+        sc.onload = res; sc.onerror = () => { console.error('Erweiterung', x.id, f, 'konnte nicht geladen werden'); res(); };
         document.head.appendChild(sc);
       });
       loadingExt = null;
@@ -459,7 +460,7 @@
       if (b.dataset.p.startsWith('__')) { const g = b.dataset.p.slice(2); const last = sget('cw_grp_' + g); go(last && GPAGES(g).some(x => x[0] === last) ? last : GPAGES(g)[0][0]); }
       else go(b.dataset.p);
     });
-    $('menuT').onclick = () => document.documentElement.classList.toggle('menu-lock', $('side').classList.toggle('open'));
+    $('menuT').onclick = () => $('side').classList.toggle('open');
     $('logout').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
     bindSearch();
     api('settings').then(s => { cache.settings = s; $('clubName').textContent = s.clubName; document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
@@ -611,7 +612,7 @@
     inp.addEventListener('blur', () => setTimeout(() => box.classList.add('hidden'), 120));
     if (!window.__vhKey) {
       window.__vhKey = true;
-      document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && $('navSearch')) { e.preventDefault(); $('side').classList.add('open'); document.documentElement.classList.add('menu-lock'); $('navSearch').focus(); } });
+      document.addEventListener('keydown', e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k' && $('navSearch')) { e.preventDefault(); $('side').classList.add('open'); $('navSearch').focus(); } });
     }
   }
 
@@ -680,7 +681,7 @@
     // baut die Verwaltung ihr Grundgerüst neu – dann muss auch der Beobachter an das neue <main>, sonst fehlen die Reiter bis zum Neuladen.
     if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => placeDrinkTabs()); go.obs.observe(go.obsEl, { childList: true }); }
     setChrome(p);
-    $('side').classList.remove('open'); document.documentElement.classList.remove('menu-lock');
+    $('side').classList.remove('open');
     $('main').onclick = null; $('main').oninput = null;
     $('main').innerHTML = '<p class="muted">Lade …</p>';
     // Seitenwechsel während eine langsame Seite noch lädt: endet die alte Seite nach der neuen, hätte sie den Inhalt überschrieben → neue Seite neu zeichnen

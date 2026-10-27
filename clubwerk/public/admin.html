@@ -8,6 +8,7 @@
 <script src="theme-init.js"></script>
 <title>Clubwerk</title>
 <link rel="stylesheet" href="style.css">
+<link rel="preload" href="fonts/barlow-condensed-600.woff2" as="font" type="font/woff2" crossorigin>   <!-- Ziffernschrift gleich mitladen: sonst springen Ziffern beim ersten Fenster aus der Ersatzschrift um -->
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="kit.css">   <!-- gemeinsame Bausteine (Gerätekacheln) wie in App und am Tablet -->
 <style>
@@ -487,7 +488,10 @@
     /* Offenes Menü am Handy: deckt die Seite ganz ab, nur das Menü scrollt – die Seite dahinter steht still */
     nav.side.open { position: fixed; inset: 0; height: 100dvh; margin: 0; border-radius: 0; background: var(--glass-solid); display: flex; flex-direction: column; z-index: 40; padding-bottom: env(safe-area-inset-bottom, 0px); box-sizing: border-box; }
     nav.side.open .navbody { flex: 1 1 auto; max-height: none; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
-    html.menu-lock, html.menu-lock body { overflow: hidden; }
+    /* die Seite dahinter sperrt das Menü selbst (wie die Fenster, style.css): um 1 px scrollbar, gibt das Scrollen nie weiter – html/body bleiben unberührt */
+    nav.side.open { overflow-y: auto; overscroll-behavior: none; scrollbar-width: none; }
+    nav.side.open::-webkit-scrollbar { display: none; }
+    nav.side.open::before { content: ''; position: absolute; top: 0; left: 0; width: 1px; height: calc(100% + 1px); visibility: hidden; pointer-events: none; }
     .pagebar { padding: 18px 16px 0; }
     main#main { padding: 16px 16px 40px; }
     .pagebar:empty + main#main { padding-top: 20px; }

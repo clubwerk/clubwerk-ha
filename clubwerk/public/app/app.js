@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.79.1';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.80.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -106,6 +106,8 @@
   window.VA = { registerSection(s) { SECTIONS[s.id] = s; } };
   let me = null, current = null, cleanup = null;
   const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
+  /** Bereich laden: erst die gemeinsamen Skripte des Moduls (erweiterung.json „skripte“), dann member.js */
+  const loadSection = async s => { for (const f of [...(s.scripts || []), 'member.js']) await loadScript(`m/${s.id}/${f}?v=${encodeURIComponent(me.version || APP_VER)}`); };
 
   const WLAN_T = 'Nur im Vereins-WLAN';
   /* Lokale Adresse als Inlay: ein Rahmen mit nur diesem Bereich (?embed=…), Kopplung per Übergabecode im Fragment.
@@ -230,7 +232,7 @@
     if (!me.member) { lock(); return; }
     initPhoto();
     if (!me.sections.length) { $('sec').innerHTML = '<div class="vh-empty">Für dich ist noch nichts freigeschaltet. Bitte beim Vorstand melden.</div>'; return; }
-    for (const s of me.sections) if (s.ok) await loadScript(`m/${s.id}/member.js?v=${encodeURIComponent(me.version || APP_VER)}`);
+    for (const s of me.sections) if (s.ok) await loadSection(s);
     renderTabs();
     if (EMBED) {   // Inlay: nur der gewünschte Bereich, keine Reiter/Fußzeile; Tab-Wahl nicht merken
       $('tabs').classList.add('hidden');
@@ -248,7 +250,7 @@
       beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
   const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
   async function renderTabs() {
-    for (const s of me.sections) if (s.ok && !SECTIONS[s.id]) { try { await loadScript(`m/${s.id}/member.js?v=${encodeURIComponent(me.version || APP_VER)}`); } catch (e) { /* Bereich bleibt leer */ } }
+    for (const s of me.sections) if (s.ok && !SECTIONS[s.id]) { try { await loadSection(s); } catch (e) { /* Bereich bleibt leer */ } }
     const tabs = $('tabs');
     /* Unten höchstens 5 Knöpfe: „Für mich“ vorn, dazu bis 4 Bereiche alle, sonst die ersten 3 der Reihenfolge und „Mehr“ (Blatt mit den übrigen Bereichen und Mein Konto) */
     const secs = me.sections, over = secs.length > 4;

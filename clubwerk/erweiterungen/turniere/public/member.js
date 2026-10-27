@@ -33,7 +33,6 @@
       .tu-more .tu-res { padding: 4px 0 2px; }`;
     document.head.appendChild(s);
   }
-  const loadView = () => new Promise(res => { if (window.TurnierAnsicht) return res(); const sc = document.createElement('script'); sc.src = 'm/turniere/ansicht.js?v=1'; sc.onload = res; sc.onerror = res; document.body.appendChild(sc); });
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const dd = d => `${d.slice(8, 10)}.${d.slice(5, 7)}.`;
@@ -51,7 +50,7 @@
       ctx.onLeave(close);
 
       async function load(focus) {
-        try { [d] = await Promise.all([ctx.api('state'), loadView()]); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
+        try { d = await ctx.api('state'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
         if (!d.season) { el.innerHTML = '<div class="vh-empty">Gerade läuft keine Clubmeisterschaft.</div>'; return; }
         if (!league || !d.leagues.some(l => l.key === league)) league = d.me.league || (d.leagues[0] || {}).key;
         if (!dkey || !d.doubles.some(x => x.key === dkey)) dkey = (d.doubles.find(x => x.key.split('+').includes(d.me.league)) || d.doubles[0] || {}).key || null;

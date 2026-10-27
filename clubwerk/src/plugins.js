@@ -226,7 +226,7 @@ function load({ app, admin, helpers }) {
         entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
       };
       if (p.meta.mitgliederApp) memberapp.register(id, { name: p.meta.name, label: p.meta.mitgliederApp.label || p.meta.name, order: p.meta.mitgliederApp.order,
-        dir: p.dir, router: member, hooks: p.hooks, isActive: () => isActive(id), perm: p.meta.verwaltung ? p.meta.verwaltung.recht : null,
+        dir: p.dir, router: member, hooks: p.hooks, isActive: () => isActive(id), perm: p.meta.verwaltung ? p.meta.verwaltung.recht : null, scripts: sharedScripts(p.meta),
         open: p.meta.mitgliederApp.alle === true, away: p.meta.mitgliederApp.unterwegs !== false,
         nonMembers: p.meta.mitgliederApp.keinMitglied === true,   // auch für Konten „Kein Mitglied“ (z. B. Trainer) – nur mit eigener Freischaltung
           // schaltet etwas im Verein (Türen, Beregnung): nach einer Kopplung von unterwegs ohne zweiten Faktor erst nach dem ersten Besuch im Vereins-WLAN
@@ -242,12 +242,15 @@ function load({ app, admin, helpers }) {
   if (n.length) console.log('Erweiterungen:', n.map(p => `${p.meta.id} ${p.meta.version}${p.error ? ' (Fehler)' : isActive(p.meta.id) ? ' (aktiv)' : ''}`).join(', '));
 }
 
+/** Gemeinsame Skripte eines Moduls (erweiterung.json „skripte“), die Verwaltung und Mitglieder-App vor admin.js bzw. member.js laden */
+const sharedScripts = meta => (Array.isArray(meta.skripte) ? meta.skripte : []).filter(f => typeof f === 'string' && /^[a-z0-9_-]+\.js$/.test(f) && !['admin.js', 'member.js'].includes(f));
+
 function list() {
   return [...plugins.values()].sort((a, b) => String(a.meta.name).localeCompare(String(b.meta.name), 'de')).map(p => ({ id: p.meta.id, name: p.meta.name, version: p.meta.version, description: p.meta.beschreibung || '', short: p.meta.kurz ? String(p.meta.kurz).slice(0, 140) : String(p.meta.beschreibung || '').split(/(?<=[.:–])\s/)[0].slice(0, 140),
     source: p.source, error: p.error, unapproved: Boolean(p.unapproved), pending: Boolean(p.pending), hash: (p.unapproved || p.pending) && p.hash ? p.hash : undefined, active: isActive(p.meta.id), installed: !isUninstalled(p.meta.id), perms: Object.keys(p.meta.perms || {}),
     tablet: p.meta.tablet || null, verwaltung: p.meta.verwaltung || null, builtin: Boolean(p.builtin), app: Boolean(p.meta.mitgliederApp),
     configIO: !p.error && typeof p.hooks.exportConfig === 'function' && typeof p.hooks.importConfig === 'function',
-    adminScript: !p.builtin && !p.error && fs.existsSync(path.join(p.dir, 'public', 'admin.js')) }));
+    adminScript: !p.builtin && !p.error && fs.existsSync(path.join(p.dir, 'public', 'admin.js')), scripts: sharedScripts(p.meta) }));
 }
 
 function setActive(id, on, user) {

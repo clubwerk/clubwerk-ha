@@ -1,7 +1,6 @@
 'use strict';
 /* Bereich „Türen“ in der Mitglieder-App */
 (() => {
-  const s = document.createElement('script'); s.src = 'm/zugang/doors.js';
   window.VA.registerSection({
     id: 'zugang',
     render(el, ctx) {
@@ -31,7 +30,7 @@
         setTimeout(refresh, 1200);
       }
       ctx.onLeave(() => { alive = false; clearTimeout(timer); });
-      if (window.ZugangDoors) refresh(); else { s.onload = refresh; document.body.appendChild(s); }
+      refresh();   // doors.js lädt die App vor member.js (erweiterung.json „skripte“)
     },
   });
 })();

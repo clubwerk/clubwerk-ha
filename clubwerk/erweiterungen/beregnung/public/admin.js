@@ -79,8 +79,8 @@
       const d = full ? await loadCfg() : {}; const c = st.cfg || {};
       const ha = c.backend !== 'hydrawise';
       if (k === 'bedienen') {
-        // dieselben Kacheln wie in der Mitglieder-App, am Tablet und in der Beregnungs-Webapp (plaetze.js + kit.css)
-        if (!window.BeregnungTiles) await new Promise((ok, no) => { const sc = document.createElement('script'); sc.src = 'x/beregnung/plaetze.js?v=' + encodeURIComponent(GK.version || ''); sc.onload = ok; sc.onerror = () => no(new Error('Kacheln konnten nicht geladen werden.')); document.head.appendChild(sc); });
+        // dieselben Kacheln wie in der Mitglieder-App, am Tablet und in der Beregnungs-Webapp (plaetze.js + kit.css);
+        // plaetze.js lädt die Verwaltung vor admin.js (erweiterung.json „skripte“) – kein Nachladen mitten in der Ansicht
         const T = window.BeregnungTiles;
         let s = await api('status'), timer = null, tick = null;
         el.innerHTML = `<div id="bOff"></div><div class="card"><h3>Plätze</h3><div class="vh-tiles zones" id="bTiles"></div>
