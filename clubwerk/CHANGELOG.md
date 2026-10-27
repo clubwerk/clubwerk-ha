@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.80.1
+
+**Tablet: Die Kopfzeile bleibt beim Wechsel zwischen den Modulen stehen**
+- Jeder Reiter am Tablet (Verkauf, Plätze, Dienste …) ist eine eigene Seite. Die Kopfzeile wurde bisher erst ganz am Ende jeder Seite aufgebaut. Kam die Seite etwas langsamer an (WLAN, Home Assistant), zeichnete das Tablet die neue Seite zuerst **ohne Kopfzeile** und baute sie danach sichtbar neu auf – erst ein leeres Feld fürs Logo, die Uhr kurz in einer anderen Schrift. Jetzt steht die Kopfzeile schon im ersten Bild jeder Seite fertig da.
+- Am stärksten betroffen war die **Beregnung**: Dort wurde die Kopfzeile sogar erst nachträglich eingefügt (mehrere Bilder ohne Kopfzeile). Jetzt liefert der Server sie gleich mit.
+- Gilt auch für „Verwaltung“ und eigene Links in der Kopfzeile. Verwaltung und Mitglieder-App waren nicht betroffen – dort wechselt nur der Inhalt, die Seite bleibt dieselbe.
+- Messung (Chrome, 4-fach gebremst): erster Inhalt nach dem Modulwechsel 380 ms in 3.78, jetzt 328 ms (vor dem Design-Umbau 320 ms). Mit verzögert ankommenden Skripten: bisher bis zu 5 Bilder ohne Kopfzeile, jetzt keins.
+- Für Entwickler: Der Design-Prüfstand meldet Tablet-Seiten, bei denen `nav.js` nicht direkt nach `<header id="gkHeader">` steht oder die Kopfzeile per Skript eingefügt wird.
+
 ## 3.80.0
 
 **Kein Flackern mehr beim Tippen – Tablet, Verwaltung und Mitglieder-App reagieren wieder so flott wie vor dem Design-Umbau**

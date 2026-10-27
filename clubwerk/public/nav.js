@@ -1,6 +1,8 @@
 'use strict';
 /* Kopfzeile: Getränke · [Erweiterungen] · [eigene Links] · Verwaltung – gleich auf allen Tablet-Seiten.
-   <script src="…/nav.js" data-base="../../" data-active="zeiterfassung"> */
+   <script src="…/nav.js" data-base="../../" data-active="zeiterfassung"> direkt nach <header id="gkHeader"></header> einbinden:
+   dann steht die Kopfzeile schon im ersten Bild der Seite – am Seitenende eingebunden zeichnete der Browser beim Modulwechsel
+   erst die Seite ohne Kopfzeile und baute sie danach sichtbar neu auf. */
 (() => {
   const me = document.currentScript;
   const base = (me && me.dataset.base) || '';
@@ -8,6 +10,7 @@
   const activeLabel = (me && me.dataset.label) || document.title;   // Beschriftung, falls die aktuelle Seite nicht in der Leiste steht
   let homeId = 'getraenke';   // erste Seite in der Kopfzeile = Startseite (dorthin geht es nach 30 s zurück)
   /* Letzter Stand von Vereinsname, Logo und Reitern: beim Seitenwechsel sofort zeichnen statt leer anfangen (sonst flackert die Kopfzeile) */
+  const ready = f => { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f, { once: true }); else f(); };   // Sperrseite steht im HTML erst nach der Kopfzeile
   const keep = { get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* egal */ } } };
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   /* Kopfzeile aufbauen: Logo · Vereinsname | Getränke · [Erweiterungen] · [Links] · Verwaltung · Uhr – überall identisch */
@@ -25,6 +28,17 @@
     tick(); setInterval(tick, 2000);
     const logo = document.getElementById('logo'), box = document.getElementById('logoBox');
     box.classList.add('hidden');
+    const gateCard = b => {
+      const card = document.querySelector('#gate .gatecard');
+      if (card && !card.querySelector('.gateclub')) {
+        card.insertAdjacentHTML('afterbegin', '<span class="logo-badge hidden" data-gl><img alt="Vereinslogo"></span><div class="gateclub"></div>');
+      }
+      if (card && card.querySelector('[data-gl]')) {
+        card.querySelector('.gateclub').textContent = (b.clubName || '') + (b.demo ? ' · Demo' : '');
+        const gb = card.querySelector('[data-gl]'), gi = gb.querySelector('img');
+        if (b.logo) { gi.onload = () => gb.classList.remove('hidden'); gi.onerror = () => gb.classList.add('hidden'); if (gi.getAttribute('src') !== base + b.logo) gi.src = base + b.logo; } else gb.classList.add('hidden');
+      }
+    };
     const apply = (b, fresh) => {
       if (window.CWTheme && b.tabletTheme) window.CWTheme.tablet(b.tabletTheme);   // Darstellung am Tablet, vom Verein festgelegt (Einstellungen › Tablet)
       // Demo (erfundene Daten): deutlich gekennzeichnet, rechts neben der Uhr
@@ -46,15 +60,7 @@
         if (fresh) nav.color = b.color;
       }
       // Sperrbildschirm (Tablet-Passwort): auf allen Tablet-Seiten gleich – Logo und Vereinsname über der Überschrift
-      const card = document.querySelector('#gate .gatecard');
-      if (card && !card.querySelector('.gateclub')) {
-        card.insertAdjacentHTML('afterbegin', '<span class="logo-badge hidden" data-gl><img alt="Vereinslogo"></span><div class="gateclub"></div>');
-      }
-      if (card && card.querySelector('[data-gl]')) {
-        card.querySelector('.gateclub').textContent = (b.clubName || '') + (b.demo ? ' · Demo' : '');
-        const gb = card.querySelector('[data-gl]'), gi = gb.querySelector('img');
-        if (b.logo) { gi.onload = () => gb.classList.remove('hidden'); gi.onerror = () => gb.classList.add('hidden'); if (gi.getAttribute('src') !== base + b.logo) gi.src = base + b.logo; } else gb.classList.add('hidden');
-      }
+      ready(() => gateCard(b));
       if (b.logo) {
         const src = base + b.logo;
         if (!fresh) { box.classList.remove('hidden'); hdr.classList.add('haslogo'); }   // Logo liegt im Browser-Zwischenspeicher – Platz gleich freihalten
@@ -150,7 +156,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   window.GKNav = { reload: load };
   // Sperrbildschirm weg (Tablet-Passwort eingegeben): die Leiste war vorher nicht abrufbar – jetzt sofort nachladen
-  { const g = document.getElementById('gate'); if (g) new MutationObserver(() => { if (g.classList.contains('hidden')) load(); }).observe(g, { attributes: true, attributeFilter: ['class'] }); }
+  ready(() => { const g = document.getElementById('gate'); if (g) new MutationObserver(() => { if (g.classList.contains('hidden')) load(); }).observe(g, { attributes: true, attributeFilter: ['class'] }); });
   /* PIN-Eingabe – auf allen Tablet-Seiten derselbe Aufbau: Name, „Bitte deine PIN eingeben – Aktion“, 6 Kreise (Stellen 5 und 6
      freiwillig, daher blass), Ziffernblock, Fehlerzeile (ohne Meldung ohne Platz). title/sub kommen fertig maskiert. */
   const dots = n => Array.from({ length: Math.max(6, n) }, (_, i) => `<span class="${i < n ? 'f' : i >= 4 ? 'opt' : ''}"></span>`).join('');

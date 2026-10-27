@@ -94,7 +94,12 @@ function tabletSlug(p) {
 function tabletPage(id, baseHref) {
   const p = plugins.get(id);
   if (!p || p.builtin || p.error || !tabletSlug(p) || p.meta.tablet.seite) return null;
-  try { return fs.readFileSync(path.join(p.dir, 'public', 'index.html'), 'utf8').replace(/<head([^>]*)>/i, `<head$1>\n<base href="${baseHref}">`); } catch (e) { return null; }
+  let html;
+  try { html = fs.readFileSync(path.join(p.dir, 'public', 'index.html'), 'utf8').replace(/<head([^>]*)>/i, `<head$1>\n<base href="${baseHref}">`); } catch (e) { return null; }
+  // Seite ohne eigene Kopfzeile (Beregnung teilt sie mit ihrer Webapp): Kopfzeile gleich ins HTML – per Skript nachträglich eingefügt,
+  // baute sie sich nach jedem Modulwechsel sichtbar neu auf
+  if (!/id="gkHeader"/.test(html)) html = html.replace(/<body([^>]*)>/i, `<body$1>\n<header id="gkHeader"></header>\n<script src="../../nav.js" data-base="../../" data-active="${id}"></script>`);
+  return html;
 }
 /** Pfade aller Tablet-Seiten der Module (/<pfad>/) – ohne Tablet leiten sie zur Verwaltung um */
 const tabletSlugs = () => new Set([...plugins.values()].map(tabletSlug).filter(Boolean));

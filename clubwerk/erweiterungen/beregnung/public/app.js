@@ -11,8 +11,7 @@
   if (embedded) {
     document.body.classList.add('embedded');
     document.querySelectorAll('link[rel=manifest], link[rel=icon], link[rel=apple-touch-icon]').forEach(l => l.remove());
-    const h = document.createElement('header'); h.id = 'gkHeader'; document.body.prepend(h);
-    const s = document.createElement('script'); s.src = '../../nav.js'; s.dataset.base = '../../'; s.dataset.active = 'beregnung'; document.body.appendChild(s);
+    // Kopfzeile und nav.js setzt der Server schon ins HTML der Tablet-Seite (src/plugins.js tabletPage)
   } else { const lg = $('logo'); lg.onload = () => $('logoBox').classList.remove('hidden'); lg.src = 'logo'; }
 
   // Die Vereins-PIN bleibt nur im Speicher dieser Seite (bis sie neu geladen wird) – nicht im sessionStorage, der bei Gerätezugriff auslesbar wäre;

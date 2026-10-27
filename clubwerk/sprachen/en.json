@@ -10423,6 +10423,7 @@
   "Zugang zur Demo": "Demo login",
   "Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.": "Choose a column from your file for each field – the values of one person from the file are shown on the right.",
   "Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.{0}": "Choose a column from your file for each field – the values of one person from the file are shown on the right.{0}",
-  "Noch keine Lieferung erfasst – unter „Lager › Lieferungen & Belege“ einfach die Rechnung hochladen.": "No delivery recorded yet – simply upload the invoice under “Stock › Deliveries & receipts”."
+  "Noch keine Lieferung erfasst – unter „Lager › Lieferungen & Belege“ einfach die Rechnung hochladen.": "No delivery recorded yet – simply upload the invoice under “Stock › Deliveries & receipts”.",
+  "DOMContentLoaded": "DOMContentLoaded"
  }
 }
