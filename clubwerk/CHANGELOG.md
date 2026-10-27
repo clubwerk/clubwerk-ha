@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.76.0
+
+**Design „Anzeigetafel“: Plätze (Belegungsplan am Tablet, in der Verwaltung und in der Mitglieder-App) – damit ist der Design-Umbau komplett**
+- Nur das Aussehen, nichts an Buchungsregeln, Gebühren, Kontingenten oder Abläufen. Turnier-Buchungen („Clubmeisterschaft: …“) und Sperren bleiben gut lesbar.
+- **Belegungsplan überall gleich:** Uhrzeiten an der Zeitachse und in den Blöcken in der Ziffernschrift, Blöcke mit weichem Schatten und runderen Ecken, ruhigere Spaltenköpfe, die „Jetzt“-Linie bleibt rot.
+- **Verwaltung › Plätze:** Die Legende unter dem Plan besteht jetzt aus Pillen. Im Reiter „Buchungen“ haben alle Personen dieselben ruhigen Initialen statt bunter Farben, Uhrzeiten stehen in Ziffernschrift. Gebühren und Auswertung: Beträge und Kennzahlen in Ziffernschrift.
+- **Mitglieder-App › Plätze › „Meine Buchungen“:** Hat man zwei eigene Buchungen, war die Zeile am Handy zu hoch. Jetzt steht das Datum kurz („Di, 27.10.“) und „Stornieren“ ist wie „Kalender“ und „Ändern“ ein Symbolknopf. Die Zeilen sind halb so hoch.
+- Die letzten festen Farben (weiße Schrift, halbtransparentes Schwarz) sind durch die Farbwerte der Vereinsfarbe ersetzt; der Plan stimmt damit in hell, dunkel und „Hoher Kontrast“.
+
 ## 3.75.0
 
 **Design „Anzeigetafel“: Mitglieder, Beiträge & Zahlungen, Gratulationen und Online-Antrag**
