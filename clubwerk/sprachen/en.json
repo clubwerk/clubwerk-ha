@@ -10420,6 +10420,9 @@
   "Demo wird gelöscht": "Deleting the demo",
   "Die Demo gibt es nur auf einer frisch installierten Clubwerk-Instanz.": "The demo is only available on a freshly installed Clubwerk.",
   "In der Demo werden keine SMS verschickt.": "No text messages are sent in the demo.",
-  "Zugang zur Demo": "Demo login"
+  "Zugang zur Demo": "Demo login",
+  "Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.": "Choose a column from your file for each field – the values of one person from the file are shown on the right.",
+  "Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.{0}": "Choose a column from your file for each field – the values of one person from the file are shown on the right.{0}",
+  "Noch keine Lieferung erfasst – unter „Lager › Lieferungen & Belege“ einfach die Rechnung hochladen.": "No delivery recorded yet – simply upload the invoice under “Stock › Deliveries & receipts”."
  }
 }

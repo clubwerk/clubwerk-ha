@@ -553,8 +553,11 @@ function register(sh) {
   admin.post('/import/analyze', P, raw, ar(async (req, res) => {
     let rows; try { rows = await readTable(req.body); } catch (e) { return bad(res, e.message); }
     const head = rows[0], format = detect(head);
-    const sample = rows.slice(1, 4).map(r => head.map((_, i) => one(r[i], 60)));
-    res.json({ format, label: PRESETS[format].label, presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })), headers: head, count: rows.length - 1, sample,
+    // Beispielwerte immer aus einer einzigen Zeile (die vollständigste der ersten 50) – nie Werte verschiedener Personen mischen
+    const filled = r => head.reduce((n, _, i) => n + (String(r[i] == null ? '' : r[i]).trim() ? 1 : 0), 0);
+    let best = 1; for (let k = 2; k < Math.min(rows.length, 51); k++) if (filled(rows[k]) > filled(rows[best])) best = k;
+    const sample = rows.length > 1 ? [head.map((_, i) => one(rows[best][i], 60))] : [], sampleLine = rows.length > 1 ? best + 1 : null;
+    res.json({ format, label: PRESETS[format].label, presets: Object.entries(PRESETS).map(([k, p]) => ({ key: k, label: p.label })), headers: head, count: rows.length - 1, sample, sampleLine,
       fields: FIELDS.map(([key, label, group]) => ({ key, label, group })), vcFields: Object.keys(VC_COLS), mapping: format === 'vereincloud' ? Object.fromEntries(Object.entries(VC_COLS).filter(([, c]) => head.includes(c))) : suggest(head, format), booked_default: periodEnd() });
   }));
   /** Vorschau bzw. Übernahme mit Zuordnung (Zuordnung als JSON im Kopf „X-Mapping“) */

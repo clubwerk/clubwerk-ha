@@ -1,5 +1,16 @@
 # Änderungen
 
+## 3.79.0
+
+**Mitglieder-Import: Beispielwerte nicht mehr gemischt**
+- Bei der Zuordnung der Spalten stand rechts je Feld der erste gefüllte Wert aus den ersten drei Zeilen der Datei. Fehlte bei der ersten Person z. B. die E-Mail, erschien die E-Mail der nächsten Person neben dem Namen der ersten – es sah aus, als würden Daten vertauscht. Übernommen wurde dabei immer richtig, nur die Anzeige war irreführend.
+- Jetzt stehen rechts alle Werte **einer einzigen Person** (die vollständigste der ersten 50 Zeilen), mit Angabe der Zeile in der Datei.
+
+**Übersicht der Verwaltung**
+- Der Knopf „Bestellung“ oben rechts ist weg. Die Bestellung erreicht man wie gewohnt über das Menü (Lager › Bestellung).
+- **Alles fluchtet:** Die Trennlinien der Kennzahlenzeile, „Zu erledigen“, das Modulraster und die beiden Karten unten liegen jetzt auf denselben Linien; Karten nebeneinander sind gleich hoch. Kurztexte im Modulraster und unter den Kennzahlen brechen um statt abgeschnitten zu werden. Nebeneinander stehen die Bereiche erst ab 1440 px Breite, darunter untereinander.
+- Hinweis bei „Letzte Lieferungen“ nennt den richtigen Ort (Lager › Lieferungen & Belege).
+
 ## 3.78.0
 
 **Demo-Modus: Clubwerk mit erfundenen Daten ausprobieren**

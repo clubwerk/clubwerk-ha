@@ -331,11 +331,11 @@
   .score > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 14px 18px; border-left: 1px solid var(--line); }
   .score > div:first-child { border-left: 0; }
   .lab { font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); }
-  .score .lab, .score small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .score .lab { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* Unterzeile darf umbrechen – nie abgeschnitten */
   .score b { font-size: 38px; line-height: 44px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .score > div:first-child b { color: var(--brand); }
   .score small { font-size: 13px; color: var(--muted); }
-  .ovtwo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 16px; align-items: start; margin-bottom: 16px; }
+  .ovtwo { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; margin-bottom: 16px; }
   .todo { border-radius: var(--radius); overflow: hidden; border: 1px solid transparent; }
   .todo .th { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 18px; border-bottom: 1px solid color-mix(in srgb, var(--on-hero) 16%, transparent); }
   .todo .th h3 { margin: 0; font-size: 15px; line-height: 20px; font-weight: 700; }
@@ -361,11 +361,18 @@
   .mods2 .mi { width: 36px; height: 36px; flex: none; border-radius: 10px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; }
   .mods2 .mt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .mods2 .mt b { font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mods2 .mt small { font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mods2 .mt small { font-size: 12px; line-height: 16px; color: var(--muted); }   /* darf umbrechen – nie abgeschnitten */
   .stdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--ok); }
   .stdot.a { background: var(--amber); } .stdot.r { background: var(--red); }
   .mods2 .v { margin-left: auto; flex: none; max-width: 45%; font-size: 24px; line-height: 28px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  @media (max-width: 1279px) { .ovtwo { grid-template-columns: minmax(0, 1fr); } }   /* daneben nur, wenn das Modulraster Platz für ganze Namen hat */
+  /* Eine Spaltenteilung für die ganze Übersicht (daneben nur, wenn das Modulraster Platz für ganze Namen hat): links L = 4/9 der Breite ohne Abstand,
+     rechts der Rest. Die Trennlinien der Kennzahlenzeile liegen genau in der Mitte des Abstands bzw. auf der Mittellinie des Modulrasters, unten dieselben zwei Spalten. */
+  @media (min-width: 1440px) {
+    .ovtwo, .two.ovbot { --ov-l: calc((100% - 16px) * 4 / 9); grid-template-columns: var(--ov-l) minmax(0, 1fr); }
+    .score.s4 { grid-auto-flow: row; grid-template-columns: repeat(2, calc(((100% - 16px) * 4 / 9 + 8px) / 2)) repeat(2, minmax(0, 1fr)); }
+    .ovtwo .mods2 { grid-template-columns: calc(50% - 4px) minmax(0, 1fr); }
+  }
+  .two.ovbot { align-items: stretch; }
   @media (max-width: 700px) { .score { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); } .score > div:nth-child(3) { border-left: 0; } .score > div:nth-child(n+3) { border-top: 1px solid var(--line); } .score b { font-size: 30px; line-height: 36px; } }
   @media (max-width: 560px) { .mods2 { grid-template-columns: minmax(0, 1fr); } .mods2 .mo:nth-child(odd) { border-right: 0; } .mods2 .mo:nth-child(2) { border-top: 1px solid var(--line); } .mods2 .mo.fill { display: none; } }
   .pill.tg { height: 22px; padding: 0 9px; margin-left: 6px; font-size: 11.5px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; font-family: inherit; }

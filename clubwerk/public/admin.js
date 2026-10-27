@@ -1040,16 +1040,16 @@
     const d = new Date();
     $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <h2 class="page"><span>${greeting()}</span>, <span>${esc((me.name || me.username).split(" ")[0])}</span></h2></div>
-        <div class="row">${window.top === window && tabletOnUI ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}${drinksOn && can('bestellung') ? `<a class="btn primary" href="#bestellung" data-go="bestellung">${icon('getraenke', 16)}Bestellung</a>` : ''}</div></div>
+        <div class="row">${window.top === window && tabletOnUI ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}</div></div>
       <div class="court greetline"></div>
-      ${score.length ? `<div class="score">${score.slice(0, 4).map(([l, v, sub]) => `<div><span class="lab">${esc(l)}</span><b class="num">${esc(v)}</b><small>${esc(sub)}</small></div>`).join('')}</div>` : ''}
+      ${score.length ? `<div class="score${Math.min(score.length, 4) === 4 ? ' s4' : ''}">${score.slice(0, 4).map(([l, v, sub]) => `<div><span class="lab">${esc(l)}</span><b class="num">${esc(v)}</b><small>${esc(sub)}</small></div>`).join('')}</div>` : ''}
       ${setupCard}
       <div class="ovtwo">${todoHtml(alerts)}${cells.length ? `<div class="mods2">${cells.join('')}</div>` : ''}</div>
-      ${drinksOn ? `<div class="two">
+      ${drinksOn ? `<div class="two ovbot">
         <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
           ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Alles im grünen Bereich.</p>'}</div>
         <div class="card"><h3>Letzte Lieferungen</h3>${del && del.length ? `<table class="tbl"><tr><th>Datum</th><th>Lieferant</th><th class="r">Einzelartikel</th></tr>
-          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Verkauf → Lieferungen“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
+          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Lager › Lieferungen & Belege“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
       </div>` : ''}`;
     $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); if (a.dataset.secstore) sset(a.dataset.secstore, a.dataset.sec); go(a.dataset.go); }; });   // Hinweis führt direkt in den passenden Unterbereich
     const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.todo').classList.add('all'); sa.remove(); };

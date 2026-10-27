@@ -720,7 +720,7 @@
         const fields = vc ? an.fields.filter(f => an.vcFields.includes(f.key)) : an.fields;
         const groups = [...new Set(fields.map(f => f.group))];
         const sel = f => `<select data-fk="${f.key}" aria-label="${esc(f.label)}"><option value="">— nicht übernehmen —</option>${an.headers.map(h => opt(h, h, (an.mapping || {})[f.key] || '')).join('')}</select>`;
-        $('iMap').innerHTML = det + `<p class="muted s" style="margin:0 0 8px">Spalte aus eurer Datei je Feld wählen – rechts steht ein Beispielwert aus der Datei.</p>
+        $('iMap').innerHTML = det + `<p class="muted s" style="margin:0 0 8px">Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.${an.sampleLine ? ` <span>(Zeile ${an.sampleLine})</span>` : ''}</p>
           ${vc ? '<div class="banner g"><span>verein.cloud: Abteilungen und alle Beiträge mit „gebucht bis“ liest Clubwerk aus den nummerierten Spalten; die übrigen Felder könnt ihr hier anders zuordnen.</span></div>' : ''}
           <div class="imp-map" translate="no">${groups.map(g => `<div class="imp-grp" translate="yes">${esc(g)}</div>${fields.filter(f => f.group === g).map(f => `<div class="imp-row"><b translate="yes">${esc(f.label)}${f.key === 'last_name' ? ' *' : ''}</b>${sel(f)}<span class="ex">–</span></div>`).join('')}`).join('')}</div>
           ${vc ? '' : `<div class="imp-opts">
