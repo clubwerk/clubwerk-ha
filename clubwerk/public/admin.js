@@ -213,16 +213,18 @@
   const can = p => Boolean(me && me.perms.includes(p));
 
   let SCHEME = 'http';   // Schema der direkten Adressen (Tablet, Mitglieder-App, Beregnung)
-  let tabletPwMissing = false, clubNetsMissing = false;
+  const AFTER_SHELL = [];   // nach dem Aufbau der Verwaltung (GK.afterShell), z. B. der Einrichtungs-Assistent beim ersten Start
+  let tabletPwMissing = false, clubNetsMissing = false, tabletOnUI = true;   // tabletOnUI: Tablet im Vereinsheim eingeschaltet (Einstellungen › Tablet)
   async function start() {
     const [s] = await Promise.all([fetch('api/admin/status').then(r => r.json()), loadBrand()]);
     permLabels = s.permLabels || {};
-    SCHEME = s.https ? 'https' : 'http';
+    SCHEME = s.https ? 'https' : 'http'; tabletOnUI = s.tablet !== false;
     if (!s.configured) return showSetup(s.modules || [], s);
     if (!s.loggedIn) return showLogin();
     me = s.user; tabletPwMissing = Boolean(s.tabletPwMissing); clubNetsMissing = Boolean(s.clubNetsMissing);
     await loadExtensions().catch(() => {});
     showShell();
+    AFTER_SHELL.forEach(fn => Promise.resolve().then(fn).catch(e => console.warn(e)));
     if (brand.iconNeeded) makeAppIcon().catch(e => console.warn('App-Symbol:', e));
   }
 
@@ -297,27 +299,10 @@
   const logoImg = cls => (brand.logo ? `<div class="${cls}"><img src="${esc(brand.logo)}" alt="Vereinslogo" data-logo></div>` : '');
   const wireLogos = () => document.querySelectorAll('img[data-logo]').forEach(i => { i.onerror = () => i.parentNode.remove(); });
 
+  /* Erster Start (noch kein Adminkonto): Willkommen, Sprache, Admin-Konto – danach führt der Einrichtungs-Assistent weiter (einrichtung.js) */
   function showSetup(mods = [], st = {}) {
-    $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Erste Einrichtung</h2>
-      <p class="lead">Willkommen! Vereinsname, Module und Passwort für das <b>Adminkonto</b> festlegen – alles Weitere später unter „Einstellungen“.</p>
-      <label class="f">Name des Vereins<input id="club" placeholder="z. B. SV Musterdorf 1920 e.V." autocomplete="organization"></label><br>
-      ${mods.length ? `<div class="f" style="margin-bottom:14px"><span>Module <span class="muted">(später änderbar)</span></span>
-        ${[...mods].sort((a, b) => (b.id === 'getraenke') - (a.id === 'getraenke')).map(m => `<label class="chk" style="margin-top:8px;align-items:flex-start"><input type="checkbox" data-mod="${esc(m.id)}" ${m.active ? 'checked' : ''} style="margin-top:2px;flex:none;width:18px;height:18px">
-          <span><b>${esc(m.name)}</b><br><span class="muted s">${esc(m.description)}</span></span></label>`).join('')}</div>` : ''}
-      ${st.setupCode ? `<label class="f">Einrichtungscode <span class="muted">(steht in Home Assistant unter Einstellungen → Add-ons → Clubwerk → Protokoll)</span><input id="scode" placeholder="XXXX-XXXX" autocomplete="off" autocapitalize="characters" spellcheck="false"></label><br>` : ''}
-      <label class="f">Benutzername<input id="un" value="admin" disabled></label><br>
-      <label class="f">Passwort (mind. 8 Zeichen)<input type="password" id="pw1" autocomplete="new-password"></label><br>
-      <label class="f">Passwort wiederholen<input type="password" id="pw2" autocomplete="new-password"></label><br>
-      <label class="f">Passwort für das Tablet (mind. 8 Zeichen, anders als das Adminpasswort)<input type="password" id="tpw" autocomplete="new-password"></label>
-      <p class="muted s" style="margin:4px 0 14px">Das Tablet im Vereinsheim wird einmal damit freigeschaltet und bleibt es dann. Schützt die Namen und Konten der Mitglieder vor anderen Geräten im WLAN.</p>
-      <button class="btn primary" id="go">Adminkonto einrichten</button> <span class="err" id="err"></span></div>`;
+    window.GK.firstStart(st, logoImg('loginlogo'));
     wireLogos();
-    $('go').onclick = async () => {
-      if ($('pw1').value !== $('pw2').value) { $('err').textContent = 'Die Passwörter stimmen nicht überein.'; return; }
-      const modules = Object.fromEntries([...document.querySelectorAll('[data-mod]')].map(c => [c.dataset.mod, c.checked]));
-      try { await api('setup', 'POST', { clubName: $('club').value, password: $('pw1').value, tabletPassword: $('tpw').value, modules, code: $('scode') ? $('scode').value : undefined }); start(); }
-      catch (e) { $('err').textContent = e.message; }
-    };
   }
 
   /* Verwaltung am Tablet (eingebettet unter der Tablet-Kopfzeile, verwaltung.html): nach 60 s ohne Eingabe abmelden – das Tablet
@@ -340,7 +325,7 @@
       <form id="lf" class="loginform"><label class="f">Benutzername<input id="un" autocomplete="username" autocapitalize="none" autofocus></label>
       <label class="f">Passwort<input type="password" id="pw" autocomplete="current-password"></label>
       <button class="btn primary">Anmelden</button><span class="err" id="err"></span></form>
-      ${window.top === window ? '<p class="muted s" style="margin-top:18px"><a href="./">Zurück zur Buchungsseite</a></p>' : ''}</div>`;
+      ${window.top === window && tabletOnUI ? '<p class="muted s" style="margin-top:18px"><a href="./">Zurück zur Buchungsseite</a></p>' : ''}</div>`;
     wireLogos();
     $('lf').onsubmit = async e => {
       e.preventDefault();
@@ -418,6 +403,9 @@
     ausweis: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>',
     sprache: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/>',
     tablet: '<rect x="3" y="4" width="18" height="14" rx="2"/><path d="M8 21h8"/>',
+    einrichtung: '<path d="M10 6h11M10 12h11M10 18h11"/><path d="m3 6 1.5 1.5L7 5M3 12l1.5 1.5L7 11M3 18l1.5 1.5L7 17"/>',
+    haken: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
+    ausblenden: '<path d="m3 3 18 18"/><path d="M10.6 6.1A9.8 9.8 0 0 1 12 6c5 0 9 4.5 10 6-.4.7-1.4 2-2.8 3.3M6.6 6.6C4.4 8 2.8 10.1 2 12c1 1.5 5 6 10 6 1.6 0 3-.4 4.3-1"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
     abmelden: '<path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3"/>',
     menue: '<path d="M4 6h16M4 12h16M4 18h16"/>',
     mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>',
@@ -461,7 +449,7 @@
         </div>
         <div class="userchip"><a class="who" href="#konto" id="myAcc" title="Mein Konto" aria-label="Mein Konto"><div class="av">${esc(initials(me.name || me.username))}</div>
           <div class="nm"><b>${esc(me.name || me.username)}</b><span>${me.role === 'oberadmin' ? 'Alle Rechte' : 'Admin'} · Mein Konto</span></div></a><div class="ucbtns">
-          ${window.top === window ? `<a class="iconbtn" href="./" target="_blank" title="Tablet-Seite öffnen" aria-label="Tablet-Seite öffnen">${icon('tablet', 16)}</a>` : ''}
+          ${window.top === window && tabletOnUI ? `<a class="iconbtn" href="./" target="_blank" title="Tablet-Seite öffnen" aria-label="Tablet-Seite öffnen">${icon('tablet', 16)}</a>` : ''}
           <button class="iconbtn" id="logout" title="Abmelden" aria-label="Abmelden">${icon('abmelden', 16)}</button></div></div>
       </nav>
       <div class="content"><div class="pagebar" id="pagebar"></div><main id="main"></main></div></div>`;
@@ -820,6 +808,14 @@
     $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
     scheme: () => SCHEME, ask, askText, deleteMember, watch, clean, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
+    /** ungespeicherte Änderungen? Rückfrage „Verwerfen?“ → true = weiter */
+    leaveOk: () => leaveOk(),
+    /** Verwaltung neu aufbauen (nach der Ersteinrichtung) */
+    restart: () => start(),
+    /** fn nach dem Aufbau der Verwaltung ausführen (nach jeder Anmeldung) */
+    afterShell: fn => { if (typeof fn === 'function') AFTER_SHELL.push(fn); },
+    /** Tablet im Vereinsheim eingeschaltet? (Einstellungen › Tablet) */
+    tabletOn: () => tabletOnUI,
     /** Einstellungen öffnen, gleich im richtigen Bereich (z. B. 'bank') */
     openSettings: sec => { sset('cw_setsec', sec); if (page === 'einstellungen') RENDER.einstellungen(); else go('einstellungen'); },
     modules: () => cache.modules || [],
@@ -996,7 +992,7 @@
     const [stock, bal, ev, del, mem, mods] = await Promise.all([
       drinksOn ? api('stock') : null, drinksOn && (can('abrechnung') || can('export')) ? api('balances') : null, drinksOn && can('veranstaltungen') ? api('events') : null,
       drinksOn && can('lieferungen') ? api('deliveries') : null, can('konten') ? api('members') : null, moduleOverview()]);
-    const bkSt = can('einstellungen') ? await api('backups/status').catch(() => null) : null;
+    const [bkSt, setupCard] = can('einstellungen') ? await Promise.all([api('backups/status').catch(() => null), window.GK.setupCard().catch(() => '')]) : [null, ''];
     if (page !== 'uebersicht') return;   // inzwischen woandershin gewechselt – nichts überschreiben
     const alerts = [];
     const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
@@ -1044,9 +1040,10 @@
     const d = new Date();
     $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <h2 class="page"><span>${greeting()}</span>, <span>${esc((me.name || me.username).split(" ")[0])}</span></h2></div>
-        <div class="row">${window.top === window ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}${drinksOn && can('bestellung') ? `<a class="btn primary" href="#bestellung" data-go="bestellung">${icon('getraenke', 16)}Bestellung</a>` : ''}</div></div>
+        <div class="row">${window.top === window && tabletOnUI ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}${drinksOn && can('bestellung') ? `<a class="btn primary" href="#bestellung" data-go="bestellung">${icon('getraenke', 16)}Bestellung</a>` : ''}</div></div>
       <div class="court greetline"></div>
       ${score.length ? `<div class="score">${score.slice(0, 4).map(([l, v, sub]) => `<div><span class="lab">${esc(l)}</span><b class="num">${esc(v)}</b><small>${esc(sub)}</small></div>`).join('')}</div>` : ''}
+      ${setupCard}
       <div class="ovtwo">${todoHtml(alerts)}${cells.length ? `<div class="mods2">${cells.join('')}</div>` : ''}</div>
       ${drinksOn ? `<div class="two">
         <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
@@ -1056,6 +1053,7 @@
       </div>` : ''}`;
     $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); if (a.dataset.secstore) sset(a.dataset.secstore, a.dataset.sec); go(a.dataset.go); }; });   // Hinweis führt direkt in den passenden Unterbereich
     const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.todo').classList.add('all'); sa.remove(); };
+    if (setupCard) window.GK.bindSetupCard($('main'));
   };
 
   /* =================== Lieferungen =================== */
@@ -3833,7 +3831,15 @@
           <label class="f" style="flex:1;min-width:200px">Telefon<input id="clubPhone" type="tel" maxlength="40" value="${esc(s.clubPhone)}" autocomplete="off"></label></div>
         <p class="muted s">Anschrift und Kontakt stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen – alle Module lesen sie von hier. Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel-Export; ist sie für Schrift zu hell, dunkelt Clubwerk sie dort automatisch ab (im dunklen Modus hellt es sie auf). Die Zweitfarbe (z. B. aus dem Logo) gibt dem Hintergrund einen zweiten, leichten Schimmer – leer lassen für keine.</p>
         <div class="btns"><button class="btn primary" id="saveClub">Speichern</button></div></div>
-      <div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
+      <div class="card" id="tmCard"><h3>Tablet im Vereinsheim</h3>
+        <div class="ugrid"><label class="chk ucard"><input type="radio" name="tmOn" value="1" ${s.tablet ? 'checked' : ''}> <span><b>Mit Tablet im Vereinsheim</b><br><span class="muted s">Verkauf, Plätze, Dienste und mehr am Tablet – geschützt mit dem Passwort für das Tablet</span></span></label>
+          <label class="chk ucard"><input type="radio" name="tmOn" value="0" ${s.tablet ? '' : 'checked'}> <span><b>Ohne Tablet</b><br><span class="muted s">Nur Verwaltung und Mitglieder-App – keine Tablet-Seiten, kein Tablet-Passwort</span></span></label></div>
+        <div class="row ${!s.tablet || s.tabletPw.on ? 'hidden' : ''}" id="tmPwRow" style="margin-top:12px">
+          <label class="f" style="flex:1;min-width:200px">Passwort für das Tablet (mind. 8 Zeichen)<input type="password" id="tmPw1" autocomplete="new-password"></label>
+          <label class="f" style="flex:1;min-width:200px">Passwort wiederholen<input type="password" id="tmPw2" autocomplete="new-password"></label></div>
+        <p class="muted s">Ohne Tablet führt die Tablet-Adresse direkt zur Anmeldung der Verwaltung. Später einschalten geht jederzeit – dann wird zuerst das Passwort für das Tablet festgelegt, bevor eine Tablet-Seite erreichbar ist. Ausschalten meldet alle Tablets ab.</p>
+        <div class="btns"><button class="btn primary" id="tmSave">Speichern</button></div></div>
+      ${s.tablet && s.tabletPw.on ? `<div class="card" id="tpCard"><h3>Passwort für das Tablet</h3>
         ${s.tabletPw.on ? `<div class="banner g">Vergeben${s.tabletPw.since ? ' seit ' + deTime(s.tabletPw.since) + ' Uhr' : ''} – jedes Gerät braucht einmal das Passwort und bleibt dann freigeschaltet.</div>`
           : '<div class="banner r">Noch kein Passwort vergeben – das Tablet ist gesperrt, bis hier eins festgelegt ist.</div>'}
         <div class="row">
@@ -3842,7 +3848,7 @@
         </div>
         <p class="muted s">Pflicht zum Schutz der Mitgliederdaten: Ohne Passwort könnte jedes Gerät im WLAN die Namen und Konten am Tablet sehen. Das Tablet im Vereinsheim wird einmal mit dem Passwort freigeschaltet (bis zu 400 Tage, danach einmal neu eingeben). Ein neues Passwort oder „Alle Geräte abmelden“ sperrt alle bisher freigeschalteten Geräte – praktisch, wenn das Passwort die Runde gemacht hat. Angemeldete Admins und die Home-Assistant-Seitenleiste kommen immer auf die Buchungsseite. Die PINs der Mitglieder gelten unabhängig davon.</p>
         <div class="btns"><button class="btn primary" id="tpSave">${s.tabletPw.on ? 'Passwort ändern' : 'Passwort festlegen'}</button></div>
-        ${s.tabletPw.on ? '<div class="btns" style="margin-top:6px"><button class="btn danger" id="tpOut">Alle Geräte abmelden …</button></div>' : ''}</div>
+        ${s.tabletPw.on ? '<div class="btns" style="margin-top:6px"><button class="btn danger" id="tpOut">Alle Geräte abmelden …</button></div>' : ''}</div>` : ''}
       ${net ? `<div class="card" id="apNet"><h3>Vereinsnetz</h3>
         <p class="muted s" style="margin:0 0 8px">Welche Adressen als Vereinsnetz gelten – für Mitglieder-App (Beregnung, Türen), Verwaltung, Tablet und Beregnungs-Webapp. Leer = jede private Adresse (192.168.…, 10.…). Empfohlen: euer Netz eintragen, dann kommen Gast-WLAN oder VPN nicht mehr an Verwaltung und Tablet. Die Home-Assistant-Seitenleiste funktioniert immer.</p>
         ${net.wlanNets ? '' : '<div class="banner a" style="margin:0 0 8px;font-weight:400">Noch kein Vereinsnetz eingetragen – jedes private Netz gilt als Vereinsheim.</div>'}
@@ -3911,20 +3917,20 @@
         ${me.role === 'oberadmin' ? `<div class="row" style="margin-top:10px;align-items:center"><label class="btn primary" style="cursor:pointer">Erweiterung einspielen (ZIP) …<input type="file" id="extZip" accept=".zip,application/zip" class="hidden"></label>
           <button class="btn hidden" id="extRestart">Jetzt neu starten</button></div>
         <p class="muted s">Eine Erweiterung ist eine ZIP-Datei mit <code>erweiterung.json</code>. Eine neuere Version einer hochgeladenen Erweiterung ersetzt die alte. Wirksam nach einem Neustart. Alternativ per Samba in <code>share/clubwerk/erweiterungen</code> kopieren.</p>` : ''}</div>` : ''}
-      ${mayCfg ? `<div class="card"><h3>Leiste am Tablet</h3>
+      ${mayCfg && s.tablet ? `<div class="card"><h3>Leiste am Tablet</h3>
         <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der Schalter „am Tablet zeigen“ wirkt sofort, Reihenfolge und <b>Start-Reiter</b> (erscheint beim Aufruf der Adresse, z. B. <code>…:3100</code>, und nach 30 Sekunden ohne Eingabe) gelten nach „Speichern“.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
         <div class="btns"><button class="btn primary" id="toSave">Speichern</button></div></div>` : ''}
-      ${mayCfg ? `<div class="card"><h3>Darstellung am Tablet</h3><div class="row">
+      ${mayCfg && s.tablet ? `<div class="card"><h3>Darstellung am Tablet</h3><div class="row">
         <label class="f" style="min-width:240px">Darstellung<select id="tkTheme">${[['auto', 'Wie das Gerät'], ['light', 'Hell'], ['dark', 'Dunkel'], ['hc', 'Hoher Kontrast']].map(([k, l]) => `<option value="${k}" ${s.tabletTheme === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label></div>
         <p class="muted s">Gilt für alle Tablets des Vereins. „Hoher Kontrast“ hilft an der Theke bei Sonnenlicht: kräftige Ränder, keine Schatten, stärkere Schrift. „Wie das Gerät“ folgt der Einstellung des Tablets (hell, dunkel, mehr Kontrast).</p></div>` : ''}
-      ${ext && mayCfg ? `      <div class="card"><h3>Links in der Kopfzeile</h3>
+      ${ext && mayCfg && s.tablet ? `      <div class="card"><h3>Links in der Kopfzeile</h3>
         <p class="muted s" style="margin-top:0">Erscheinen am Tablet oben neben „Verwaltung“ – z. B. Platzbuchung, Vereinsverwaltung, Beregnung. Die Seite läuft eingebettet unter der Kopfzeile, die Kopfzeile bleibt sichtbar. Manche Seiten verbieten das Einbetten – dann bleibt der Bereich leer. Höchstens 8.</p>
         <div id="lnRows"></div>
         <div class="btns"><button class="btn ghost" id="lnAdd">+ Link hinzufügen</button><button class="btn primary" id="lnSave">Links speichern</button></div></div>` : ''}
-      <div class="card"><h3>Tablet & Home Assistant</h3>
+      ${s.tablet ? `<div class="card"><h3>Tablet & Home Assistant</h3>
         <p>Tablet im Vereins-WLAN: Browser öffnen, <code>${SCHEME}://&lt;${SCHEME === 'https' ? 'Name aus dem Zertifikat' : 'IP-von-Home-Assistant'}&gt;:3100</code> aufrufen und „Zum Startbildschirm hinzufügen“. Beim ersten Aufruf das Passwort für das Tablet eingeben.</p>
-        <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>`;
+        <p>Kennzahlen für Home Assistant (z. B. Bestand knapp) liefert <code>${esc(base)}api/ha/summary</code> – Beispiel für einen REST-Sensor steht in der Anleitung.</p></div>` : ''}`;
     if ($('clubColorPick')) {
       // Vorschau: die berechneten Farben (hell und dunkel) kommen aus theme.css?vorschau=…, ohne zu speichern
       let prevT = 0;
@@ -4057,6 +4063,23 @@
     }
     if ($('goApSet')) $('goApSet').onclick = e => { e.preventDefault(); sset('cw_appsec', 'einstellungen'); go('app'); };
     if ($('hostSave')) $('hostSave').onclick = async () => { try { const r = await api('settings/hosts', 'PUT', { hosts: $('hostList').value }); $('hostList').value = r.hosts; toast('Gespeichert.'); } catch (e) { fail(e); } };
+    if ($('tmSave')) {
+      const tmPick = () => (document.querySelector('[name="tmOn"]:checked') || {}).value === '1';
+      // Passwortfelder, solange für das Tablet noch keins vergeben ist und „Mit Tablet“ gewählt ist
+      document.querySelectorAll('[name="tmOn"]').forEach(r => { r.onchange = () => $('tmPwRow').classList.toggle('hidden', !tmPick() || s.tabletPw.on); });
+      $('tmSave').onclick = () => busy($('tmSave'), async () => {
+        const on = tmPick();
+        if (on === s.tablet && (!on || s.tabletPw.on) && s.tabletChosen) { toast('Gespeichert.'); return; }
+        if (!on && !await ask('Tablet ausschalten?\n\nAlle Tablet-Seiten verschwinden, die Tablet-Adresse führt zur Anmeldung der Verwaltung, und alle freigeschalteten Tablets werden abgemeldet. Daten bleiben erhalten.', { ok: 'Ausschalten', danger: true })) return;
+        if (on && !s.tabletPw.on && $('tmPw1').value !== $('tmPw2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
+        try {
+          await api('settings/tablet', 'PUT', { on, password: on && !s.tabletPw.on ? $('tmPw1').value : undefined });
+          tabletOnUI = on; tabletPwMissing = false; clean();
+          toast(on ? 'Tablet eingeschaltet – am Tablet einmal das Passwort eingeben.' : 'Tablet ausgeschaltet.');
+          RENDER.einstellungen();
+        } catch (e) { fail(e); }
+      });
+    }
     if ($('tpSave')) $('tpSave').onclick = async () => {
       if ($('tpPw1').value !== $('tpPw2').value) return fail(new Error('Die beiden Passwörter stimmen nicht überein.'));
       try {

@@ -1,7 +1,7 @@
 {
   "id": "beregnung",
   "name": "Beregnung",
-  "version": "1.7.1",
+  "version": "1.8.0",
   "kurz": "Plätze per Handy oder Tablet beregnen.",
   "beschreibung": "Manuelle Platzberegnung für Mitglieder: eigene Webapp mit Vereins-PIN (eigener Port, aufs Handy installierbar) und/oder in der Mitglieder-App für freigeschaltete Mitglieder. Plätze mit Zonen nacheinander wegen des Wasserdrucks, Countdown, Not-Stopp, Verlauf. Herstellerneutral über Home Assistant (z. B. Hunter Hydrawise, Rain Bird, OpenSprinkler, Shelly) oder direkt über die Hydrawise-Schnittstelle.",
   "minApp": "2.3.0",

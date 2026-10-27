@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.77.0
+
+**Einrichtungs-Assistent und Betrieb ohne Tablet**
+- **Erster Start:** Statt der bisherigen Seite „Erste Einrichtung“ begrüßt Clubwerk mit „Willkommen“, Sprache und „Einrichtung starten“. Danach entsteht das Admin-Konto – jetzt mit eigenem Namen und frei wählbarem Benutzernamen (vorgeschlagen bleibt „admin“), dazu der Hinweis auf das Notfallpasswort.
+- **Einrichtungs-Assistent:** Führt danach Schritt für Schritt durch Sprache, Verein, „Wie nutzt ihr Clubwerk?“, Module, Sicherheit, Postfach, die Schritte der eingeschalteten Module (z. B. Artikel und Preise, Plätze, Beiträge, Vereinskonto, Lastschrift, Türen, Beregnung, Mannschaften, Personal), Mitglieder-App, Vereinsnetz und Sicherungen. Jeder Schritt zeigt dieselben Karten wie unter Einstellungen, oben steht der Fortschritt, unten „Später“ und „Weiter“. Zum Schluss „Fertig“ mit den offenen Punkten und dem QR-Code fürs Tablet.
+- **Checkliste:** Auf der Übersicht steht „Einrichtung zu x % fertig“ mit den nächsten offenen Punkten. Der neue Menüpunkt **Verein › Einrichtung** zeigt alle Punkte – offen, erledigt, ausgeblendet – und führt mit „Einrichtung fortsetzen“ nur durch das, was noch fehlt. Übersprungene Punkte bleiben sichtbar, bis sie erledigt oder ausgeblendet sind. Nur mit dem Recht „Einstellungen“.
+- **Ohne Tablet:** Unter Einstellungen › Tablet gibt es die neue Karte „Tablet im Vereinsheim“. „Ohne Tablet“ schaltet alle Tablet-Seiten ab (auch die der Module): Die Tablet-Adresse führt direkt zur Anmeldung der Verwaltung, ein Tablet-Passwort ist nicht nötig. Mitglieder-App und Beregnungs-Webapp laufen weiter. Beim Einschalten wird – falls noch keins vergeben ist – sofort das Tablet-Passwort festgelegt, bevor eine Tablet-Seite erreichbar ist. Ausschalten meldet alle Tablets ab.
+- **Bestehende Installationen bleiben unverändert:** Das Tablet bleibt eingeschaltet, es erscheint keine Checkliste; der Menüpunkt „Einrichtung“ steht bereit, wenn man nachsehen will, was noch fehlt.
+- Für Entwickler: Module melden ihre Schritte über den neuen Hook `setupSteps` (siehe ERWEITERUNGEN.md). Neue Testreihen `einr` und `ohnetab`.
+
 ## 3.76.0
 
 **Design „Anzeigetafel“: Plätze (Belegungsplan am Tablet, in der Verwaltung und in der Mitglieder-App) – damit ist der Design-Umbau komplett**

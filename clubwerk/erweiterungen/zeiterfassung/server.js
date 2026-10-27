@@ -283,6 +283,11 @@ function activate(ctx) {
     if (added) notes.push(`PINs für ${added} neue Person(en) unter „Personal verwalten“ vergeben`);
     return `${added} ${added === 1 ? 'Person' : 'Personen'} angelegt, Empfänger des Monatsnachweises übernommen${notes.length ? ' – ' + notes.join(', ') : ''}`;
   };
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'personal', title: 'Personal', text: 'Wer seine Stunden am Tablet erfasst – mit PIN und Stundensatz.', page: 'zeit-personal', card: [], done: Boolean(ctx.db.prepare('SELECT 1 FROM staff').get()) },
+    { id: 'nachweis', title: 'Monatsnachweis', text: 'An wen der Stundennachweis jeden Monat per E-Mail geht.', page: 'zeit-einstellungen', card: ['Monatsnachweis per E-Mail'] },
+  ];
   ctx.hooks.overview = async () => {
     const st = staffState();
     const alerts = st.filter(x => x.forgotten).map(x => ({ level: 'a', text: `${x.name} ist seit über 12 Stunden eingestempelt – Ende nachtragen.` }));

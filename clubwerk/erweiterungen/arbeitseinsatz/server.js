@@ -569,6 +569,10 @@ function activate(ctx) {
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
   ];
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'regeln', title: 'Helferdienste: Soll und Abrechnung', text: 'Wie viele Stunden jedes Mitglied im Jahr leisten soll und was fehlende Stunden kosten. Vorschlagswerte sind eingestellt.', page: 'aw-einstellungen', card: ['Soll', 'Abrechnung'] },
+  ];
   ctx.hooks.overview = async () => {
     const pend = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n;
     const y = yearOf(today()); const o = await overview(y);

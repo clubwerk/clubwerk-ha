@@ -1602,6 +1602,11 @@ function activate(ctx) {
   ctx.hooks.placeNames = () => resources().map(r => r.name);
 
   /* ---------- Übersicht, Funktionsdatei ---------- */
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'plaetze', title: 'Plätze anlegen', text: 'Welche Plätze und Geräte gebucht werden können, mit Namen, Bereich und Öffnungszeiten. Zwei Beispielplätze sind schon da.', page: 'bk-plaetze', card: [] },
+    { id: 'regeln', title: 'Regeln fürs Buchen', text: 'Wie weit im Voraus, wie lange und wer buchen darf. Vorschlagswerte sind eingestellt.', page: 'bk-einstellungen', card: ['Buchen', 'Wer darf buchen'] },
+  ];
   ctx.hooks.overview = async () => {
     const d = today(), n = hhmm(nowMin());
     const t = db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND type = 'buchung'").get(d).n;

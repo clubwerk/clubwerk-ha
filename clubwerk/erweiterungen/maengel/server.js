@@ -333,6 +333,10 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     return { open: [{ title: `Meine Meldung: ${r.place}`, sub: r.status === 'arbeit' ? `in Arbeit, gemeldet am ${deD(r.created_at.slice(0, 10))}` : r.status === 'neu' ? `gemeldet am ${deD(r.created_at.slice(0, 10))}`
       : r.status === 'erledigt' ? `erledigt am ${deD(r.done_at.slice(0, 10))}` : `abgelehnt am ${deD(r.done_at.slice(0, 10))}` }] };
   };
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'orte', title: 'Mängel: Orte und Meldungen', text: 'Wo Mängel auftreten können (Plätze, Clubhaus …) und wer neue Meldungen bekommt.', page: 'maengel', tab: ['maengel', 'einstellungen'], card: ['Orte', 'Benachrichtigungen'] },
+  ];
   ctx.hooks.overview = () => {
     const open = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status IN ('neu','arbeit')").get().n;
     const fresh = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status = 'neu'").get().n;

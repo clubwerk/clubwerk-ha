@@ -1127,6 +1127,11 @@ function activate(ctx) {
   };
 
   /* ----- Übersicht der Verwaltung ----- */
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'mannschaften', title: 'Mannschaften', text: 'Eure Mannschaften mit Mannschaftsführung – die Spieltage kommen später aus dem Spielplan des Verbands.', page: 'spielbetrieb', tab: ['spielbetrieb', 'mannschaften'], card: [],
+      done: Boolean(ctx.db.prepare('SELECT 1 FROM sp_team').get()) },
+  ];
   ctx.hooks.overview = async () => {
     const soon = db.prepare("SELECT * FROM sp_game WHERE date >= ? AND date <= ? AND status = 'geplant' AND released = 1 ORDER BY date").all(today(), addDays(today(), 14));
     const red = soon.filter(g => !stats(g).ok);

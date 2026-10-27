@@ -446,6 +446,10 @@ function activate(ctx) {
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     for (const t of ['bh_invoice', 'bh_donation']) db.prepare(`UPDATE ${t} SET member_id = ? WHERE member_id = ?`).run(intoId, fromId);
   };
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'rechnungen', title: 'Rechnungen und Steuer', text: 'Nummernkreis, Zahlungsziel und Angaben zum Finanzamt für Rechnungen und Spendenquittungen.', page: 'bh-einstellungen', card: ['Rechnungen', 'Steuer & Finanzamt'] },
+  ];
   ctx.hooks.overview = async () => {
     await syncMemberInvoices();
     const open = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen'").get();

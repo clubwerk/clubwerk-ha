@@ -1043,6 +1043,18 @@ function activate(ctx) {
   require('./lib/memberapp').register(shared);
 
   /* Kennzahlen & Warnungen für die Übersicht */
+  /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  ctx.hooks.setupSteps = () => [
+    { id: 'beitraege', title: 'Beiträge und Abteilungen', text: 'Beitragsarten des Hauptvereins und – falls ihr Abteilungen habt – deren Zusatzbeiträge. Vorlagen gibt es bewusst nicht: Jeder Verein rechnet anders.',
+      page: 'mv-stamm', card: ['Beiträge Hauptverein', 'Abteilungen', 'Zusatzbeiträge'], done: Boolean(ctx.db.prepare('SELECT 1 FROM mv_fee WHERE active = 1').get()) },
+    { id: 'konto', title: 'Vereinskonto', text: 'Auf welches Konto die Beiträge gehen (IBAN, BIC). Es gilt für alle Module – Lastschriften, Rechnungen der Buchhaltung.',
+      page: 'einstellungen', sec: ['cw_setsec', 'bank'], card: ['Bankkonten'], done: ctx.bank.list().some(a => a.active) },
+    { id: 'lastschrift', title: 'Lastschrift', text: 'Gläubiger-ID und Mandatsreferenz für den Beitragseinzug per SEPA-Lastschrift. Ohne Lastschrift einfach „Später“ und ausblenden.',
+      page: 'mv-zeinst', card: ['Lastschrift'], done: Boolean(ctx.setting('creditor_id', '')) },
+    { id: 'mitgliedschaft', title: 'Mitgliedschaft', text: 'Mitgliedsnummern, Beitragsjahr und Kündigungsfrist.', page: 'mv-einstellungen', card: ['Mitgliedschaft'] },
+    { id: 'import', title: 'Mitglieder übernehmen', text: 'Mitglieder aus einer CSV-Datei (z. B. Export aus verein.cloud) importieren – oder später einzeln von Hand anlegen.',
+      page: 'mitglieder', card: [], done: Boolean(ctx.db.prepare("SELECT 1 FROM members WHERE kind = 'mitglied' AND deleted = 0").get()) },
+  ];
   ctx.hooks.overview = async user => {
     const scope = user && (user.deptOnly || []).includes('mitglieder') ? (user.depts || []) : null;
     if (scope) {   // Abteilungsadmin: nur die eigenen Mitglieder und nur, was er selbst erledigen kann

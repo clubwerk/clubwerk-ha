@@ -96,6 +96,8 @@ function tabletPage(id, baseHref) {
   if (!p || p.builtin || p.error || !tabletSlug(p) || p.meta.tablet.seite) return null;
   try { return fs.readFileSync(path.join(p.dir, 'public', 'index.html'), 'utf8').replace(/<head([^>]*)>/i, `<head$1>\n<base href="${baseHref}">`); } catch (e) { return null; }
 }
+/** Pfade aller Tablet-Seiten der Module (/<pfad>/) – ohne Tablet leiten sie zur Verwaltung um */
+const tabletSlugs = () => new Set([...plugins.values()].map(tabletSlug).filter(Boolean));
 /** Adresse der Tablet-Seite (relativ zur Startseite) */
 function tabletHref(p) {
   const slug = tabletSlug(p), seite = String(p.meta.tablet.seite || '');
@@ -243,7 +245,7 @@ function load({ app, admin, helpers }) {
 function list() {
   return [...plugins.values()].sort((a, b) => String(a.meta.name).localeCompare(String(b.meta.name), 'de')).map(p => ({ id: p.meta.id, name: p.meta.name, version: p.meta.version, description: p.meta.beschreibung || '', short: p.meta.kurz ? String(p.meta.kurz).slice(0, 140) : String(p.meta.beschreibung || '').split(/(?<=[.:–])\s/)[0].slice(0, 140),
     source: p.source, error: p.error, unapproved: Boolean(p.unapproved), pending: Boolean(p.pending), hash: (p.unapproved || p.pending) && p.hash ? p.hash : undefined, active: isActive(p.meta.id), installed: !isUninstalled(p.meta.id), perms: Object.keys(p.meta.perms || {}),
-    tablet: p.meta.tablet || null, verwaltung: p.meta.verwaltung || null, builtin: Boolean(p.builtin),
+    tablet: p.meta.tablet || null, verwaltung: p.meta.verwaltung || null, builtin: Boolean(p.builtin), app: Boolean(p.meta.mitgliederApp),
     configIO: !p.error && typeof p.hooks.exportConfig === 'function' && typeof p.hooks.importConfig === 'function',
     adminScript: !p.builtin && !p.error && fs.existsSync(path.join(p.dir, 'public', 'admin.js')) }));
 }
@@ -370,4 +372,4 @@ const get = id => plugins.get(id);
 /** Ordner der geladenen, freigegebenen Erweiterungen (für deren Sprachdateien) */
 const dirs = () => [...plugins.values()].filter(p => p.dir && !p.error && !p.unapproved && !p.pending).map(p => p.dir);
 
-module.exports = { tabletSlug, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };
+module.exports = { tabletSlug, tabletSlugs, tabletPage, dirs, APPROVED_DIR, load, list, setActive, isActive, tabletNav, tabletSwitches, setTabletSwitch, orderPos, visiblePerms, activeIds, withHook, installZip, removeUploaded, approve, get };

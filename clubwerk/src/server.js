@@ -222,6 +222,23 @@ app.get('/api/branding', (req, res) => {
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
 });
 
+/* ---------- Betrieb ohne Tablet (Einstellungen › Tablet › „Tablet im Vereinsheim“) ----------
+   Ohne Tablet gibt es keine Tablet-Seiten: Sie führen zur Anmeldung der Verwaltung, die Tablet-Schnittstellen antworten 404.
+   Fehlt die Einstellung (ältere Installation), läuft das Tablet wie bisher. Ein angemeldeter Benutzer der Verwaltung darf die
+   Tablet-Schnittstellen weiter abrufen (Artikel- und Profilbilder in der Verwaltung) – er hat ohnehin mehr Rechte. */
+const tabletOn = () => getSetting('tablet_enabled', '1') !== '0';
+const TABLET_OFF = 'Das Tablet ist ausgeschaltet. Einschalten unter Verwaltung › Einstellungen › Tablet.';
+const TABLET_PAGES = /^(|\/(index|verkauf|start|verwaltung|link)(\.html)?|\/x\/[a-z0-9-]+(\/[\w.-]+\.html)?)$/;
+const isTabletPage = n => TABLET_PAGES.test(n) || (/^\/[a-z0-9-]+(\/index\.html)?$/.test(n) && plugins.tabletSlugs().has(n.split('/')[1]));
+app.use((req, res, next) => {
+  if (tabletOn()) return next();
+  const n = normPath(req.path);
+  if (/^\/api\/(tablet|gate)(\/|$)/.test(n)) return auth.currentUser(req) && n.startsWith('/api/tablet/') ? next() : res.status(404).json({ error: TABLET_OFF, tabletOff: true });
+  if ((req.method !== 'GET' && req.method !== 'HEAD') || !isTabletPage(n)) return next();
+  res.setHeader('Cache-Control', 'no-cache');
+  res.redirect(302, '../'.repeat(Math.max(0, req.path.replace(/\/{2,}/g, '/').split('/').length - 2)) + 'admin.html');   // relativ – funktioniert auch in der Seitenleiste von Home Assistant
+});
+
 /* Startseite: der eingestellte Start-Reiter (Einstellungen → Leiste am Tablet) erscheint direkt unter „/“ – ohne Umweg über eine andere Adresse */
 app.get(['/', '/index.html'], (req, res, next) => {
   const st = tabletStart();
@@ -899,12 +916,13 @@ function suggestUsername(first, last, exceptId = 0) {
 app.get('/api/admin/status', (req, res) => {
   const u = auth.currentUser(req);
   res.json({ configured: auth.adminConfigured(), loggedIn: Boolean(u), https: tls.enabled(),
-    tabletPwMissing: u && auth.adminConfigured() ? !gateOn() : undefined,
+    tabletPwMissing: u && auth.adminConfigured() ? tabletOn() && !gateOn() : undefined, tablet: tabletOn(),
     clubNetsMissing: u && auth.adminConfigured() && u.perms.includes('einstellungen') ? !require('./memberapp').hasClubNets() : undefined,
     user: u ? { id: u.id, username: u.username, name: u.name, role: u.role, perms: u.perms, deptOnly: u.deptOnly, depts: u.depts, builtin: Boolean(u.builtin) } : null,
     permLabels: u ? plugins.visiblePerms() : undefined,   // die Rechte verraten die installierten Module – erst nach der Anmeldung
     setupCode: !auth.adminConfigured() && setupNeedsCode(req) ? true : undefined,
-    modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })) });
+    modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })),
+    languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang() });
 });
 
 const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };
@@ -934,9 +952,14 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
       return bad(res, 'Der Einrichtungscode stimmt nicht. Er steht im Protokoll des Add-ons (Home Assistant → Einstellungen → Add-ons → Clubwerk → Protokoll).', 403);
     }
   }
-  const { password, clubName, tabletPassword } = req.body || {};
+  const { password, clubName, tabletPassword, wizard } = req.body || {};
   const club = cleanName(clubName, 60);
   if (clubName !== undefined && club.length < 3) return bad(res, 'Bitte den Namen des Vereins eingeben.');
+  // Assistent: Name und Benutzername frei wählbar, Vereinssprache gleich mit – sonst wie bisher fest „Adminkonto“ / „admin“
+  const uname = wizard ? String((req.body || {}).username || 'admin').trim().toLowerCase() : 'admin', fullName = (wizard && cleanName((req.body || {}).name, 60)) || 'Adminkonto';
+  if (!validUsername(uname)) return bad(res, 'Benutzername: 3 bis 30 Zeichen, nur Buchstaben, Ziffern, Punkt, Strich und Unterstrich.');
+  const lang = (req.body || {}).language;
+  if (lang !== undefined && !i18n.exists(i18n.normCode(lang))) return bad(res, 'Diese Sprache gibt es nicht.');
   if (!pwOk(password)) return bad(res, PW_MSG);
   if (tabletPassword !== undefined) {
     const tp = String(tabletPassword || ''); const pe = tabletPwError(tp); if (pe) return bad(res, pe);
@@ -945,11 +968,13 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (club) setSetting('club_name', club);
   const mods = (req.body || {}).modules;
   if (mods && typeof mods === 'object') for (const p of plugins.list()) if (mods[p.id] !== undefined && !p.error) setSetting(`ext_${p.id}_active`, mods[p.id] ? '1' : '0');
-  const adminId = auth.createUser({ username: 'admin', name: 'Adminkonto', password: String(password), role: 'oberadmin', builtin: true });
+  if (lang !== undefined) setSetting('language', i18n.normCode(lang));
+  const adminId = auth.createUser({ username: uname, name: fullName, password: String(password), role: 'oberadmin', builtin: true });
   if (process.env.CW_TEST_VAULT === '1') { const v = require('./vault'); v.prepare(adminId); v.enable(adminId, String(password)); }   // nur Tests: alles mit eingeschaltetem Tresor prüfen
   if (tabletPassword !== undefined) { setSetting('tablet_pw_hash', auth.hashSecret(String(tabletPassword))); setSetting('tablet_pw_at', nowTs()); setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex')); }
-  audit('admin', 'Adminkonto eingerichtet');
-  const r = auth.login('admin', String(password), req.ip);
+  if (wizard) require('./einrichtung').begin();
+  audit(uname, 'Adminkonto eingerichtet', wizard ? 'mit dem Einrichtungs-Assistenten' : undefined);
+  const r = auth.login(uname, String(password), req.ip);
   res.setHeader('Set-Cookie', cookieOpts(r.token, req));
   res.json({ ok: true });
 });
@@ -1170,7 +1195,7 @@ admin.get('/settings', (req, res) => {
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
     clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''),
-    topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined,
+    topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,
     allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
 });
 /* Weitere Adressen (Namen), unter denen die Verwaltung erreichbar sein soll – z. B. verein.duckdns.org */
@@ -1193,13 +1218,28 @@ admin.put('/settings/tablet-password', need('einstellungen'), (req, res) => {
   res.setHeader('Set-Cookie', gateCookie(req));                         // dieses Gerät bleibt freigeschaltet
   res.json({ ok: true });
 });
+/* Tablet im Vereinsheim ein- oder ausschalten. Einschalten ohne vergebenes Passwort geht nur zusammen mit einem neuen Passwort –
+   so ist keine Tablet-Seite auch nur kurz ohne Passwort erreichbar. Ausschalten meldet alle freigeschalteten Geräte ab. */
+admin.put('/settings/tablet', need('einstellungen'), (req, res) => {
+  const b = req.body || {}, on = Boolean(b.on), pw = String(b.password || ''), was = tabletOn();
+  if (on && (pw || !gateOn())) {
+    const pe = tabletPwError(pw); if (pe) return bad(res, gateOn() ? pe : 'Zum Einschalten bitte ein Passwort für das Tablet festlegen (mindestens 8 Zeichen).');
+    setSetting('tablet_pw_hash', auth.hashSecret(pw)); setSetting('tablet_pw_at', nowTs());
+  }
+  if (!on || pw) setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));   // bisherige Freigaben erlöschen
+  setSetting('tablet_enabled', on ? '1' : '0');
+  const d = auditDiff({ on: ['Tablet im Vereinsheim', 'bool'] }, { on: was }, { on });
+  audit(req.user, on ? 'Tablet eingeschaltet' : 'Tablet ausgeschaltet', [d, pw ? 'Passwort für das Tablet neu festgelegt' : ''].filter(Boolean).join(' · '));
+  if (on) res.setHeader('Set-Cookie', gateCookie(req));   // dieses Gerät bleibt freigeschaltet
+  res.json({ ok: true, tablet: on, pw: gateOn() });
+});
 admin.post('/settings/tablet-password/logout-all', need('einstellungen'), (req, res) => {
   if (!gateOn()) return bad(res, 'Der Passwortschutz ist nicht eingeschaltet.');
   setSetting('tablet_pw_ver', crypto.randomBytes(6).toString('hex'));
   audit(req.user, 'Buchungsseite: alle Geräte abgemeldet');
   res.json({ ok: true });
 });
-admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => bad(res, 'Das Passwort für das Tablet ist Pflicht und lässt sich nur ändern, nicht ausschalten.'));
+admin.delete('/settings/tablet-password', need('einstellungen'), (req, res) => bad(res, 'Das Passwort für das Tablet ist Pflicht, solange das Tablet eingeschaltet ist. Es lässt sich nur ändern – ohne Tablet stattdessen das Tablet ausschalten (Einstellungen › Tablet).'));
 /* ---------- Tresor: Verschlüsselung der persönlichen Daten ---------- */
 const vaultPwLimit = rateLimit('vaultpw', 10, 10 * 60000);
 admin.get('/vault', (req, res) => {
@@ -3392,6 +3432,10 @@ try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth });
 require('./mailer').routes(admin, { bad, need });
+/* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */
+require('./einrichtung').routes(admin, { need, bad, checks: {
+  tabletOn, tabletPw: gateOn, vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
+  appModules: () => memberapp.activeModules().length > 0, clubNets: () => memberapp.hasClubNets(), backupDone: () => Boolean(getSetting('backup_last_ok', '')) } });
 /* Tresor: Kopie der persönlichen Daten im Arbeitsspeicher anlegen (gesperrt bis zur ersten Admin-Anmeldung) – erst jetzt,
    da alle Module ihre Tabellen angelegt haben */
 const vault = require('./vault');
