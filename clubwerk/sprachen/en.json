@@ -9328,6 +9328,10 @@
   "Zu erledigen": "To do",
   "Zweitfarbe": "Second colour",
   "Zweitfarbe (freiwillig)": "Second colour (optional)",
-  "Zweitfarbe des Vereins": "Club's second colour"
+  "Zweitfarbe des Vereins": "Club's second colour",
+  "· heute nicht buchbar": "· not bookable today",
+  "alle frei": "all free",
+  "Freies Kästchen antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.": "Tap a free slot to book · tap your own booking to change or cancel it.",
+  "Raster {0}": "Slots of {0}"
  }
 }

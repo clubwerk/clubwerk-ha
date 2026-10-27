@@ -34,16 +34,7 @@
       .bkm-now p { margin: 0; color: var(--muted); font-size: 14px; }
       .bkm-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
       .bkm-hint { font-size: 12.5px; color: var(--muted); margin: -4px 2px 0; }
-      .bkm-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px; margin-top: 10px; }
-      .bkm-slot { min-height: 56px; border-radius: 12px; border: 1px solid var(--line); background: var(--card); font: inherit; color: var(--ink); padding: 6px 4px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 0; }
-      .bkm-slot b { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; } .bkm-slot span { font-size: 11px; font-weight: 600; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 0 2px; }
-      .bkm-slot.free { border-color: color-mix(in srgb, var(--brand) 45%, var(--line)); } .bkm-slot.free span { color: var(--brand-ink); }
-      .bkm-slot.busy { background: var(--hover); color: var(--muted); } .bkm-slot.busy b { color: var(--muted); }
-      .bkm-slot.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
-      .bkm-scope { display: grid; gap: 8px; margin: 6px 0 4px; } .bkm-scope button { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; padding: 0 16px; font-family: inherit; } .bkm-slot.mine span { color: rgba(255,255,255,.9); }
-      .bkm-slot.lock { background: repeating-linear-gradient(135deg, var(--red-soft) 0 6px, transparent 6px 12px); color: var(--red); border-color: var(--red-line, var(--line)); }
-      .bkm-slot.past, .bkm-slot.closed { opacity: .38; }
-      .bkm-slot.wait { box-shadow: inset 0 0 0 2px var(--amber); }
+      .bkm-scope { display: grid; gap: 8px; margin: 6px 0 4px; } .bkm-scope button { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--card, #fff); color: var(--ink); font-size: 16px; font-weight: 700; text-align: left; padding: 0 16px; font-family: inherit; }
       .bkm-sheet .vh-box { max-width: 460px; text-align: left; max-height: 88vh; overflow: auto; }
       .bkm-sheet label.l { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 4px; }
       .bkm-sheet .vh-select { font-size: 16px; }
@@ -91,6 +82,21 @@
       .bkm-form .bkm-chips:empty { display: none; }
       .bkm-form .bkm-sum { margin: 4px 0 6px; }
       .bkm-form .vh-link { color: var(--brand-ink); }
+      /* „Freie Zeiten“: Zeile je Uhrzeit, je Platz ein Kästchen */
+      .bkm-gh { margin: 14px 4px 8px; font-size: 13px; font-weight: 800; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; } .bkm-gh small { font-weight: 600; font-size: 12.5px; color: var(--faint); }
+      .bkm-list .bkm-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 56px; padding: 6px 16px; border-top: 1px solid var(--line); box-sizing: border-box; }
+      .bkm-list .bkm-row:first-child { border-top: 0; }
+      .bkm-row > b.num { font-size: 26px; line-height: 1; font-weight: 600; color: var(--ink); }
+      .bkm-pills { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+      .bkm-pill { box-sizing: border-box; min-width: 44px; max-width: 84px; height: 44px; padding: 0 10px; border-radius: 999px; border: 0; background: var(--brand-soft); color: var(--brand-ink); font: inherit; font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
+      .bkm-pill.busy, .bkm-pill.lock, .bkm-pill.past, .bkm-pill.closed { background: var(--hover); color: var(--muted); text-decoration: line-through; font-weight: 600; }
+      .bkm-pill.past, .bkm-pill.closed { opacity: .6; }
+      .bkm-pill.mine { background: var(--brand); color: var(--on-brand); }
+      .bkm-pill.wait { box-shadow: inset 0 0 0 2px var(--amber); }
+      .bkm-pill.none { background: transparent; color: var(--faint); font-weight: 600; cursor: default; }
+      .bkm-sum { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bkm-list .bkm-hidden { width: calc(100% - 32px); margin: 6px 16px 12px; }
+      .bkm-notes { margin: 10px 4px 0; } .bkm-notes .vh-lead { margin: 0 0 4px; font-size: 12.5px; }
       /* Ansicht „Ausführlich“: breite Platzspalten (wischen), Uhrzeiten und Platznamen bleiben stehen, ganze Namen in den Blöcken */
       .bkm-scroll.on { overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
       .bkm-plan.wide { grid-template-columns: 52px repeat(var(--n), minmax(150px, 1fr)); min-width: 100%; width: max-content; }
@@ -169,11 +175,8 @@
         const nextHtml = nx ? `<div class="vh-next hero"><div class="t"><b>${esc(nx.start)}</b><small>${esc(nxDay)}</small></div><div class="i"><b>${esc(nx.resource)}</b>${nxWho ? `<span>${esc(nxWho)}</span>` : `<span>bis ${esc(nx.end)} Uhr</span>`}</div>${nx.canEdit ? `<button class="o" data-e="${nx.id}">Ändern</button>` : ''}</div>` : '';
         el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}${nextHtml}<div class="vh-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}</b></button>`).join('')}</div>
           ${areas.length > 1 ? `<div class="vh-seg bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
-          <div class="vh-seg bkm-view">${[['plan', 'Kompakt'], ['wide', 'Ausführlich'], ['zeiten', 'Freie Zeiten']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
-          ${rs.length && (view === 'plan' || view === 'wide') ? planHtml(rs, p, nowM) : rs.length ? rs.map(r => `<div class="vh-card"><h3>${esc(r.name)}<small>${r.open_today ? `${r.open_from}–${r.open_to} Uhr` : 'heute nicht buchbar'}</small></h3>${r.department || r.note ? `<p class="vh-lead">${r.department ? `Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.department && r.note ? ' · ' : ''}${r.note ? esc(r.note) : ''}</p>` : ''}
-            ${(() => { const all = slots(r, p, day, nowM, d.today); const gone = day === d.today && !pastOpen ? all.filter(x => x.e <= nowM && !/^mine/.test(x.state)).length : 0; const shown = gone ? all.filter(x => !(x.e <= nowM && !/^mine/.test(x.state))) : all;
-              return `<div class="bkm-slots">${shown.map(x => `<button class="bkm-slot ${x.state}" data-r="${r.id}" data-s="${x.s}" ${x.booking && x.booking.label && !x.booking.mine ? `style="box-shadow:inset 0 -4px 0 ${x.booking.label.color}"` : ''} ${/past|closed/.test(x.state) ? 'disabled' : ''}><b>${hhmm(x.s)}</b><span>${esc(x.label)}</span></button>`).join('')}</div>
-              ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}`; })()}</div>`).join('')
+          <div class="vh-seg bkm-view">${[['zeiten', 'Freie Zeiten'], ['plan', 'Kompakt'], ['wide', 'Ausführlich']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
+          ${rs.length && (view === 'plan' || view === 'wide') ? planHtml(rs, p, nowM) : rs.length ? listHtml(rs, p, nowM, d.today)
             : '<div class="vh-card"><p class="vh-none">Hier ist noch nichts buchbar.</p></div>'}
           <div class="vh-card"><h3>Meine Buchungen</h3><div class="vh-rows">${d.mine.length ? d.mine.map(b => `<div><span><strong>${esc(b.resource)} · ${b.start}–${b.end}</strong><small>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? ' · mit ' + esc(b.who.filter(w => w !== ctx.member).map(first).join(', ')) : ''}${b.partner_device_name ? ` + ${esc(b.partner_device_name)}` : ''}${b.solo_label ? ` · ${esc(b.solo_label)}` : ''}${b.fee_cents ? ` · Gebühr ${euro(b.fee_cents)}` : ''}${b.for_name ? ` · für ${esc(b.for_name)}` : b.own ? (b.booked_by ? ` · gebucht von ${esc(b.booked_by)}` : '') : ' · eingetragen als Mitspieler'}</small></span>
               <span class="bkm-acts"><a class="bkm-ical" href="${esc(b.ics)}" aria-label="In den Kalender" title="In den Kalender"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4M12 13v5M9.5 15.5h5"/></svg></a>${b.canEdit ? `<button class="bkm-ical" data-e="${b.id}" aria-label="Ändern" title="Ändern"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="m13.5 6.5 4 4"/></svg></button>` : ''}${b.canCancel ? `<button class="vh-btn sm sec" data-c="${b.id}">Stornieren</button>` : ''}</span></div>`).join('') : '<p class="vh-none">Keine offenen Buchungen.</p>'}</div>
@@ -194,12 +197,36 @@
           if (s0 < o || s0 + r.slot_min > tm(r.open_to)) return;
           slotTap(r, s0);
         }; });
-        el.querySelectorAll('.bkm-slot[data-r]').forEach(b => { b.onclick = () => slotTap(p.resources.find(r => r.id === +b.dataset.r), +b.dataset.s); });
+        el.querySelectorAll('.bkm-pill[data-r]').forEach(b => { b.onclick = () => slotTap(p.resources.find(r => r.id === +b.dataset.r), +b.dataset.s); });
         el.querySelectorAll('[data-c]').forEach(b => { b.onclick = () => cancelSheet(d.mine.find(x => x.id === +b.dataset.c)); });
         el.querySelectorAll('[data-se]').forEach(b => { b.onclick = async () => { const x = d.series.find(y => y.id === +b.dataset.se); if (!confirm(`Serie „${x.title}“ beenden? Die ${x.count} kommenden Termine werden freigegeben.`)) return; try { const r0 = await ctx.api(`series/${x.id}/end`, 'POST', {}); ctx.toast(`Beendet – ${r0.removed} Termine freigegeben.`); load(); } catch (e) { ctx.toast(e.message, true); } }; });
         el.querySelectorAll('[data-e]').forEach(b => { b.onclick = () => editBooking(d.mine.find(x => x.id === +b.dataset.e)); });
         el.querySelectorAll('[data-w]').forEach(b => { b.onclick = async () => { try { await ctx.api('wait', 'POST', { remove: true, id: +b.dataset.w }); ctx.toast('Von der Warteliste entfernt.'); load(); } catch (e) { ctx.toast(e.message, true); } }; });
         const on = el.querySelector('.vh-days .on'); if (on) on.scrollIntoView({ inline: 'center', block: 'nearest' });
+      }
+      /** „Freie Zeiten“: eine Zeile je Uhrzeit, je Platz ein Kästchen (frei / belegt durchgestrichen / meins), rechts die Kurzfassung.
+       *  Plätze mit anderem Raster stehen in einer eigenen Liste – so liegen die Zeiten der Zeile immer genau auf den Kästchen. */
+      function listHtml(rs, p, nowM, today) {
+        const short = n => String(n).replace(/^platz\s+/i, '');
+        const rasters = [...new Set(rs.map(r => r.slot_min))].sort((a, b) => a - b);
+        const all = rs.map(r => ({ r, sl: slots(r, p, day, nowM, today) }));
+        const notes = rs.filter(r => r.department || r.note || !r.open_today).map(r => `<p class="vh-lead"><b>${esc(r.name)}</b>${!r.open_today ? ' · heute nicht buchbar' : ''}${r.department ? ` · Abteilung ${esc(r.department)}${r.outsiders === 'gesperrt' ? ' – nur für Abteilungsmitglieder' : r.outsider_fee_cents ? ` – andere Mitglieder ${euro(r.outsider_fee_cents)} Platzgebühr` : ''}` : ''}${r.note ? ` · ${esc(r.note)}` : ''}</p>`).join('');
+        const lists = rasters.map(m => {
+          const g = all.filter(x => x.r.slot_min === m);
+          const starts = [...new Set(g.flatMap(x => x.sl.map(y => y.s)))].sort((a, b) => a - b);
+          const rows = starts.map(s => { const cells = g.map(x => ({ r: x.r, x: x.sl.find(y => y.s === s) })); return { s, cells, gone: today === day && cells.every(c => !c.x || (c.x.e <= nowM && !/^mine/.test(c.x.state))) }; });
+          const gone = !pastOpen ? rows.filter(w => w.gone).length : 0;
+          const shown = gone ? rows.filter(w => !w.gone) : rows;
+          const sum = cells => { const ok = cells.filter(c => c.x && /^free/.test(c.x.state)); if (ok.length) return ok.length === cells.length && cells.length > 1 ? 'alle frei' : cells.length === 1 ? 'frei' : `${ok.length} frei`;
+            const bs = cells.filter(c => c.x && /^(busy|lock|mine)/.test(c.x.state)); if (!bs.length) return '';
+            if (bs.some(c => /^mine/.test(c.x.state))) return 'meins'; const l = [...new Set(bs.map(c => c.x.label))]; return l.length === 1 ? l[0] : 'belegt'; };
+          const pill = (r, x) => { if (!x) return `<span class="bkm-pill none" aria-hidden="true">–</span>`; const st = x.state.split(' ')[0], off = /past|closed|busy|lock/.test(st);
+            const bad = x.booking && x.booking.label && !x.booking.mine ? ` style="box-shadow:inset 0 -3px 0 ${x.booking.label.color}"` : '';
+            return `<button class="bkm-pill ${x.state}" data-r="${r.id}" data-s="${x.s}" aria-label="${esc(r.name)} ${hhmm(x.s)}: ${esc(x.label)}" title="${esc(r.name)}"${bad} ${/past|closed/.test(st) ? 'disabled' : ''}>${esc(short(r.name))}</button>`; };
+          return `${rasters.length > 1 ? `<h3 class="bkm-gh">Raster ${dur(m)}<small>${esc(g.map(x => x.r.name).join(' · '))}</small></h3>` : ''}
+            <div class="vh-card flush bkm-list">${shown.map(w => `<div class="bkm-row"><b class="num">${hhmm(w.s)}</b><div class="bkm-pills">${w.cells.map(c => pill(c.r, c.x)).join('')}</div><span class="bkm-sum">${esc(sum(w.cells))}</span></div>`).join('')}
+            ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}</div>`; }).join('');
+        return `${lists}${notes ? `<div class="bkm-notes">${notes}</div>` : ''}<p class="bkm-hint">Freies Kästchen antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</p>`;
       }
       /** Übersicht: alle Plätze nebeneinander, Buchungen als Blöcke (wie im Vereinsheim-Plan) */
       function planHtml(rs, p, nowM) {

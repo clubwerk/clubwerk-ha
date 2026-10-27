@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.64.0
+
+**Mitglieder-App › Buchen: „Freie Zeiten“ als Liste (Etappe D2-1 des Design-Umbaus)**
+- **Eine Zeile je Uhrzeit:** Links steht die Uhrzeit groß, daneben je Platz ein rundes Kästchen und rechts kurz „3 frei“, „alle frei“ oder was dort los ist („Training“, „Medenspiel“). Freie Kästchen sind in der Vereinsfarbe, belegte grau und durchgestrichen, die eigene Buchung ist gefüllt. Antippen eines freien Kästchens öffnet dasselbe Buchungsfenster wie bisher.
+- **Plätze mit anderem Zeitraster** (z. B. Stundenplätze und Halbstundenplätze) stehen in je einer eigenen Liste, damit die Kästchen immer genau zu ihrer Uhrzeit gehören. Hinweise zu einem Platz (Abteilung, Platzgebühr, Notiz) stehen unter der Liste.
+- **Umschalter:** Die Reihenfolge ist jetzt „Freie Zeiten · Kompakt · Ausführlich“. Wer schon etwas gewählt hat, behält seine Wahl.
+
 ## 3.63.0
 
 **Neues Aussehen „Anzeigetafel“ – Grundlagen, Vereinsfarbe und Hoher Kontrast (Etappe D1 des Design-Umbaus)**
