@@ -213,8 +213,9 @@ function activate(ctx) {
   function openCount(mid, kind, exceptId = 0) {
     const d = today(), n = hhmm(nowMin()), cp = cfg().count_partners;
     // Gerätebuchungen, die als Mitspieler an einer Platzbuchung hängen (Ballmaschine), zählen nicht fürs Kontingent
+    // Spiele der Turniere (ext_key „tu:…“) zählen auch nicht – sie sind Vereinstermine
     return db.prepare(`SELECT b.id, b.member_id, b.partners FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND r.kind = ? AND b.id != ?
-      AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`).all(kind, exceptId, d, d, n)
+      AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND (b.ext_key IS NULL OR b.ext_key NOT LIKE 'tu:%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`).all(kind, exceptId, d, d, n)
       .filter(b => b.member_id === mid || (cp && J(b.partners, []).includes(mid))).length;
   }
   /** gleiche Person zur gleichen Zeit schon gebucht (gleiche Art)? */
@@ -583,9 +584,10 @@ function activate(ctx) {
       AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start`).all(d, d, n)
       .filter(b => b.member_id === mid || J(b.partners, []).includes(mid) || (b.booked_by_id === mid && fo)).map(b => { const dev = lk.dev(b), own = b.member_id === mid, forOther = !own && b.booked_by_id === mid && fo;
         return { ...bview(b, { me: mid, full: false, lk }), who: bview(b, { me: b.member_id, full: false, lk }).who, resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? lk.name(b.member_id) : null, booked_by: own && b.booked_by_id ? lk.name(b.booked_by_id) : null,
-        canCancel: (own || forOther) && canCancelNow(b, lim), canEdit: (own || forOther) && canCancelNow(b, lim), ics: icsUrl(b.id, key),
-        ...(own || forOther ? { edit: { for_member: forOther ? b.member_id : null, resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '', partner_device: dev ? dev.booking.resource_id : null, solo: Boolean(b.solo) } } : {}) }; });
+        canCancel: (own || forOther) && !isTu(b) && canCancelNow(b, lim), canEdit: (own || forOther) && !isTu(b) && canCancelNow(b, lim), ics: icsUrl(b.id, key),
+        ...((own || forOther) && !isTu(b) ? { edit: { for_member: forOther ? b.member_id : null, resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '', partner_device: dev ? dev.booking.resource_id : null, solo: Boolean(b.solo) } } : {}) }; });
   };
+  const isTu = b => /^tu:/.test(b.ext_key || '');   // Spiel aus dem Modul „Turniere“ – verlegen und absagen nur dort
   const canCancelNow = (b, lim = cfg().cancel_before_min) => { const st = Date.parse(`${b.date}T${b.start}:00`); return Date.now() <= st - lim * 60000; };
 
   /* ---------- Platzgebühren (Gast- und Platzgebühr): offen, bezahlt, storniert ----------
@@ -698,6 +700,7 @@ function activate(ctx) {
   M.post('/cancel', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int((req.body || {}).id));
     const me = req.member.id, forOther = b && b.member_id !== me && b.booked_by_id === me && rightsOf(me).forOthers;
+    if (b && isTu(b) && (b.member_id === me || J(b.partners, []).includes(me))) return bad(res, 'Dieser Termin gehört zu einem Turnierspiel – bitte unter „Turniere“ verlegen oder absagen.');
     if (!b || (b.member_id !== me && !forOther) || b.type !== 'buchung') return bad(res, 'Diese Buchung kannst du nicht stornieren.');
     if (!canCancelNow(b)) return bad(res, cfg().cancel_before_min ? `Stornieren geht nur bis ${cfg().cancel_before_min} Minuten vor Beginn.` : 'Die Buchung hat schon begonnen.');
     await cancel(b, req.member.name);
@@ -1335,6 +1338,74 @@ function activate(ctx) {
     return { status: r.status, ...r.body, noCourts: [...new Set((games || []).map(g => g.team || '–').filter(k => !teams[k]))] };
   };
 
+  /* ---------- Turniere (Clubmeisterschaft): freie Zeiten und Spieltermine für die Spieler eines Spiels ----------
+     Ein Spiel ist eine Buchung mit Buchungsart (z. B. „Clubmeisterschaft“, legt sich beim ersten Spiel selbst an), Titel und Schlüssel „tu:…“.
+     Es gelten: Öffnungszeiten, Raster, Sperren, belegte Plätze und Doppelbelegung der Spieler.
+     Es gelten nicht: Vorlauf, Höchstdauer, Kontingent, Gebühren, Platzordnung, Mitgliedsstatus – ein Spiel ist ein Vereinstermin. */
+  const matchMinutes = (r, min) => Math.ceil(Math.max(30, int(min) || 120) / r.slot_min) * r.slot_min;
+  const matchLabel = name => {
+    const n = txt(name, 40) || 'Turnier';
+    const l = db.prepare('SELECT * FROM bk_label WHERE lower(name) = lower(?)').get(n);
+    if (l) return l;
+    const id = Number(db.prepare("INSERT INTO bk_label(name, color, sort, use_mode, free_rules) VALUES (?, '#8a4fd6', 90, 'verwaltung', 1)").run(n).lastInsertRowid);
+    return labelRow(id);
+  };
+  /** freie Zeiten eines Tages → { courts: [{ id, name }], slots: [{ resource_id, start, end }] } (nur Plätze; except = eigene Buchung beim Verlegen) */
+  ctx.hooks.matchSlots = ({ date, minutes, members = [], except = 0 }) => {
+    if (!isDate(date) || date < today()) return { courts: [], slots: [] };
+    const courts = resources().filter(r => r.kind === 'platz' && String(r.days || '').includes(String(isoDow(date))));
+    const slots = [], nowM = date === today() ? nowMin() : -1;
+    for (const r of courts) {
+      const dur = matchMinutes(r, minutes);
+      for (let s = tm(r.open_from); s + dur <= tm(r.open_to); s += r.slot_min) {
+        if (s <= nowM) continue;
+        if (!free(r, date, s, s + dur, int(except))) continue;
+        if (members.some(m => personBusy(int(m), 'platz', date, s, s + dur, int(except)))) continue;
+        slots.push({ resource_id: r.id, start: hhmm(s), end: hhmm(s + dur) });
+      }
+    }
+    return { courts: courts.map(r => ({ id: r.id, name: r.name })), slots };
+  };
+  /** Spiel buchen oder verlegen (id = bisherige Buchung) → { id, resource, date, start, end } oder { error } mit verständlichem Text */
+  ctx.hooks.matchBook = a => matchBook(a).catch(e => ({ error: e.message }));
+  async function matchBook({ key, id = 0, resource_id, date, start, minutes, members = [], title, label = 'Turnier', by = 'Turniere' }) {
+    const r = resource(resource_id);
+    if (!r || !r.active || r.deleted || r.kind !== 'platz') throw new Error('Diesen Platz gibt es nicht (mehr).');
+    const ids = [...new Set(members.map(Number).filter(x => Number.isInteger(x) && x > 0))];
+    if (!ids.length || !/^tu:[\w:-]{1,60}$/.test(String(key || ''))) throw new Error('Ungültiges Spiel.');
+    const s = tm(start), e = s == null ? null : s + matchMinutes(r, minutes);
+    const ge = gridError(r, String(date || ''), s, e, { noMax: true }); if (ge) throw new Error(ge);
+    if (date < today() || (date === today() && s <= nowMin())) throw new Error('Diese Zeit ist schon vorbei.');
+    const old = int(id) ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv' AND ext_key = ?").get(int(id), key) : null;
+    const except = old ? old.id : 0;
+    const lab = matchLabel(label);
+    let bid = except;
+    db.transaction(() => {
+      if (!free(r, date, s, e, except)) throw new Error(`${r.name} ist um ${hhmm(s)} Uhr schon belegt – bitte eine andere Zeit wählen.`);
+      for (const m of ids) if (personBusy(m, 'platz', date, s, e, except)) throw new Error(`${lastFirst(nameOf(m))} hat zu dieser Zeit schon einen Platz gebucht.`);
+      if (old) db.prepare('UPDATE bk_booking SET resource_id = ?, date = ?, start = ?, end = ?, member_id = ?, partners = ?, title = ?, label_id = ?, reminded = 0 WHERE id = ?')
+        .run(r.id, date, hhmm(s), hhmm(e), ids[0], JSON.stringify(ids.slice(1)), txt(title, 160) || lab.name, lab.id, old.id);
+      else bid = Number(db.prepare("INSERT INTO bk_booking(resource_id, date, start, end, type, member_id, partners, fee_cents, title, label_id, source, created_by, ext_key) VALUES (?,?,?,?,'buchung',?,?,0,?,?,'verwaltung',?,?)")
+        .run(r.id, date, hhmm(s), hhmm(e), ids[0], JSON.stringify(ids.slice(1)), txt(title, 160) || lab.name, lab.id, txt(by, 60), key).lastInsertRowid);
+    })();
+    if (old && (old.date !== date || old.start !== hhmm(s) || old.resource_id !== r.id)) await wakeWaitlist(old);
+    return { id: bid, resource: r.name, date, start: hhmm(s), end: hhmm(e) };
+  }
+  /** Spieltermin absagen (Buchung stornieren, Warteliste benachrichtigen) */
+  ctx.hooks.matchCancel = async ({ id, by = 'Turniere', reason = '' }) => {
+    const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int(id));
+    if (!b || !isTu(b)) return false;
+    await cancel(b, txt(by, 60), reason || 'Spieltermin abgesagt');
+    return true;
+  };
+  /** Stand der Spieltermine (auch in der Verwaltung oder über die Platzsperre storniert) → { id: { status, resource, date, start, end } } */
+  ctx.hooks.matchBookings = ids => {
+    const list = (ids || []).map(Number).filter(Number.isInteger).slice(0, 2000);
+    if (!list.length) return {};
+    return Object.fromEntries(db.prepare(`SELECT b.id, b.status, b.date, b.start, b.end, r.name AS resource FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.id IN (${list.map(() => '?').join(',')})`).all(...list)
+      .map(b => [b.id, { status: b.status, resource: b.resource, date: b.date, start: b.start, end: b.end }]));
+  };
+
   admin.post('/series', PS, ar(async (req, res) => {
     const b = req.body || {};
     const type = b.type === 'sperre' ? 'sperre' : 'serie';
@@ -1513,7 +1584,7 @@ function activate(ctx) {
   ctx.hooks.forMe = (mid, { until }) => {
     const d = today(), n = hhmm(nowMin()), me = nameOf(mid);
     const own = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND b.date <= ?
-      AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start LIMIT 20`).all(d, d, n, until, mid, String(mid))
+      AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') AND (b.ext_key IS NULL OR b.ext_key NOT LIKE 'tu:%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start LIMIT 20`).all(d, d, n, until, mid, String(mid))
       .filter(b => b.member_id === mid || J(b.partners, []).includes(mid)).slice(0, 5).map(b => {
         const others = (bview(b, { me: mid }).who || []).filter(x => x !== me);
         return { at: b.date, start: b.start, end: b.end, title: b.rname, sub: others.length ? `mit ${others.join(', ')}` : '' };

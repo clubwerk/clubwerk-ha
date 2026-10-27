@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f6b3a">
+<link rel="manifest" href="../../manifest.webmanifest">
+<link rel="icon" href="../../icon.svg" type="image/svg+xml">
+<script src="../../theme-init.js"></script>
+<title>Turniere</title>
+<link rel="stylesheet" href="../../style.css">
+<link rel="stylesheet" href="../../theme.css">
+<link rel="stylesheet" href="../../kit.css">
+</head>
+<body class="tk embedded">
+<header id="gkHeader"></header>
+<main><div class="tab-head"><div><h1 class="tab-title">Turniere</h1><p class="tab-sub" id="sub">Tabellen und Endrunde der Clubmeisterschaft – Termine und Ergebnisse trägst du in der Mitglieder-App ein.</p></div></div>
+<div id="view"><div class="tk-empty">Lade …</div></div>
+</main>
+<div id="gate" class="gate hidden"><form class="gatecard" id="gateForm" autocomplete="on" action="#">
+  <h2>Seite gesperrt</h2>
+  <p>Bitte das Passwort des Vereins eingeben. Dieses Gerät bleibt danach freigeschaltet.</p>
+  <input type="text" name="username" autocomplete="username" value="Vereinsheim" tabindex="-1" aria-hidden="true" readonly style="position:absolute;left:-9999px;width:1px;height:1px;opacity:0">
+  <input type="password" id="gatePw" placeholder="Passwort" autocomplete="current-password">
+  <div class="gerr" id="gateErr"></div>
+  <button type="button" class="btn primary" id="gateGo">Freischalten</button>
+</form></div>
+<div id="toast" class="toast hidden"></div>
+<script src="../../nav.js" data-base="../../" data-active="turniere"></script>
+<script src="ansicht.js"></script>
+<script src="tablet.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "id": "turniere",
+  "name": "Turniere",
+  "version": "1.0.0",
+  "kurz": "Clubmeisterschaft mit Ligen, Gruppen, Endrunde und Relegation – Termine und Ergebnisse per App.",
+  "beschreibung": "Clubmeisterschaft im Einzel: Ligen (A, B, C …) mit je ein oder zwei ausgelosten Gruppen „jeder gegen jeden“ (2 Gewinnsätze, Match-Tiebreak), Tabelle wie in der DTB-Vorlage, Endrunde der obersten Liga mit Halbfinale und Finale, Relegation zwischen benachbarten Ligen. Mitglieder melden sich in der Mitglieder-App an, vereinbaren den Termin selbst – mit Platzbuchung, wenn „Plätze“ aktiv ist – und tragen das Ergebnis ein. Der Sportwart lost aus, setzt die Fristen, erinnert und korrigiert. Tabellen und Bäume auch am Tablet.",
+  "minApp": "3.71.0",
+  "perms": {
+    "turniere": "Turniere: Clubmeisterschaft anlegen, auslosen, Ergebnisse korrigieren (Sportwart)"
+  },
+  "tablet": {
+    "label": "Turniere",
+    "seite": "",
+    "pfad": "turniere"
+  },
+  "verwaltung": {
+    "label": "Turniere",
+    "recht": "turniere"
+  },
+  "mitgliederApp": {
+    "label": "Turniere",
+    "order": 4.5,
+    "alle": true
+  },
+  "tabellen": [
+    "tu_season",
+    "tu_player",
+    "tu_team",
+    "tu_match"
+  ]
+}

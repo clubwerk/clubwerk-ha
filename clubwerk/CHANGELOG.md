@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.71.0
+
+**Neues Modul „Turniere“ – erster Teil: die Clubmeisterschaft im Einzel**
+- **Einschalten** unter Einstellungen › Module & Erweiterungen („Turniere“, zunächst aus). Neues Recht **„Turniere“** für den Sportwart (Verein › Benutzer & Rechte).
+- **Saison anlegen** (Turniere › „+ Neue Saison“): Name, Zahl der Ligen (A, B, C …), Anmeldeschluss und zwei Fristen – „Gruppenphase“ und „Endspiele + Relegation“.
+- **Anmeldung in der Mitglieder-App** unter „Turniere“ mit „Ich spiele mit“. Wer neu dabei ist, startet in der untersten Liga; der Sportwart kann umsetzen und auch selbst Spieler eintragen. Nur Mitglieder spielen mit.
+- **Auslosung auf Knopfdruck:** Jede Liga wird zufällig in zwei gleich große Gruppen gelost (ab 6 Spielern, sonst eine Gruppe). Neu losen oder zwei Spieler zwischen den Gruppen tauschen geht, solange in der Gruppe noch kein Spiel gewertet ist. Alles steht im Protokoll, alle Spieler bekommen eine Nachricht.
+- **Spielen:** jeder gegen jeden, zwei Gewinnsätze, bei 1:1 ein Match-Tiebreak bis 10. In der App tippt der Spieler auf sein Spiel, wählt den Tag und eine freie Zeit – der Platz wird für **beide** gebucht, mit dem Titel „Clubmeisterschaft: Spieler A gegen Spieler B – Gruppe A1 – Gruppenphase“ (bzw. „Halbfinale“, „Finale“, „Relegation A/B“). Verlegen ändert dieselbe Buchung, Absagen storniert sie. Ohne das Modul „Plätze“ tragen die Spieler nur Tag und Uhrzeit ein. Den Gegner kann man direkt aus der App anrufen oder ihm schreiben (wenn die Mitgliederverwaltung eine Nummer kennt).
+- **Regeln für die Platzbuchung:** Ein Turnierspiel ist ein Vereinstermin – ohne Gebühr, es zählt nicht zum Kontingent der offenen Buchungen und darf über den normalen Vorlauf hinaus bis zur Frist gebucht werden. Öffnungszeiten, Zeitraster, Sperren und belegte Plätze gelten, und niemand kann zur selben Zeit zwei Plätze haben. Unter „Buchen“ sieht man das Spiel, verlegt und abgesagt wird es aber unter „Turniere“. Die Buchungsart „Clubmeisterschaft“ legt sich beim ersten Spiel selbst an.
+- **Ergebnis eintragen** kann einer der beiden Spieler, Satz für Satz (z. B. 6:4 3:6 10:7), dazu „Kampflos“ und „Aufgabe“. Unmögliche Ergebnisse werden abgelehnt (6:5, 8:5, Match-Tiebreak 9:7 …). Korrigieren kann danach nur der Sportwart.
+- **Tabelle wie in der DTB-Vorlage:** Siege, dann Satzdifferenz, dann Spieldifferenz; bei Gleichstand entscheidet der direkte Vergleich. Kampflos zählt 6:0 6:0, bei Aufgabe bekommt der Sieger die fehlenden Spiele und Sätze.
+- **Endrunde und Relegation setzt Clubwerk von selbst:** Sobald die oberste Liga fertig ist, spielen Erster und Zweiter beider Gruppen über Kreuz das Halbfinale, die Sieger das Finale → **Clubmeister**. Sobald zwei benachbarte Ligen fertig sind, spielt der Letzte jeder Gruppe gegen die Gruppensieger der Liga darunter (Relegation). Nach Fristende beendet der Sportwart die Gruppenphase auf Knopfdruck; offene Spiele zeigt Clubwerk vorher an.
+- **Für den Sportwart** (Verwaltung › Turniere): Übersicht mit dem nächsten Schritt und den überfälligen Spielen („Erinnerung schicken“ per Push und E-Mail), Teilnehmer mit Ligen, alle Spiele mit Filter, Tabellen und Bäume zum **Drucken** für den Aushang.
+- **Mitglieder-App:** „Dein nächstes Spiel“ als Hauptkarte, meine Spiele, Tabellen und Endrunde. Termine und offene Spiele erscheinen unter „Für mich“. Benachrichtigungen: neues Spiel ausgelost, Frist in 7 Tagen, Ergebnis eingetragen, Termin vereinbart, Erinnerung vom Sportwart.
+- **Tablet:** neuer Reiter „Turniere“ mit allen Tabellen, Endrunde und Relegation – nur zum Anschauen, ohne PIN.
+- Doppel, Saisonabschluss mit Ehrentafel und der Import einer Einteilung aus Excel folgen in der nächsten Version.
 ## 3.70.0
 
 **Beregnung und Zugang im neuen Aussehen „Anzeigetafel“ (Etappe D2-7 des Design-Umbaus)**
