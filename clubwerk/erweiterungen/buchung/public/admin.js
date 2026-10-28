@@ -57,8 +57,9 @@
       .bd-time { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; } .bd-time > span { color: var(--muted); }
       .bd-sec { margin: 6px 0 -6px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
       .bd-links { display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap; } .bk-grid .bd-pc { grid-column: 3 / span 2; margin-top: -6px; } .bd-pc:has(.bk-chips:empty) { display: none; } .bd-btns { display: flex; gap: 8px; }   /* Zusatzangaben links bündig mit den Feldern – nicht schwebend rechts */
-      .bd-links .btn.on { background: var(--hover); } .bd-pc .bk-chips label { height: 34px; padding: 0 6px 0 12px; }   /* Mitspieler-Chips unter dem Feld „Mitspieler“, so hoch wie die kleinen Knöpfe */
-      .bd-fold { padding: 12px 14px; border-radius: 12px; background: var(--hover); margin-top: -6px; }
+      .bd-more { display: inline-flex; align-items: center; gap: 6px; height: 40px; padding: 0; color: var(--brand-ink); font-size: 14px; } .bd-more span { color: var(--muted); } .bd-more[aria-expanded=true] i { transform: rotate(180deg); }   /* „Weitere Angaben“: Gäste, Wiederholen, Notiz aufklappbar */
+      .bd-pc .bk-chips label { height: 34px; padding: 0 6px 0 12px; }   /* Mitspieler-Chips unter dem Feld „Mitspieler“, so hoch wie die kleinen Knöpfe */
+      .bd-fold { padding-top: 14px; border-top: 1px solid var(--line); }   /* aufgeklappte Angaben ohne Einzug – die Felder bleiben auf den Linien des Formulars */
       .bd-gn { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding-bottom: 4px; }
       .bk-scope { display: grid; gap: 8px; margin: 4px 0 14px; } .bk-scope .btn { justify-content: flex-start; height: 46px; font-size: 15px; }
       @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr 1fr; } .bk-grid .w2, .bk-grid .w3, .bk-grid .bd-pc { grid-column: 1 / -1; } }
@@ -344,12 +345,13 @@
         <label class="f bd-b w2">Mitglied (bucht)<select id="bdM">${personOpts(ed ? ed.member_id : '', '– Verein (Buchungsart oder Titel) –')}</select></label>
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
         <div class="w2 bd-pc bd-b"><span class="bk-chips" id="bdPc"></span></div>
-        <div class="wall bd-links"><span class="bd-btns"><button type="button" class="btn small bd-b" id="bdGt">+ Gäste</button>${!ed && can('buchung_serien') ? '<button type="button" class="btn small" id="bdRt">Wiederholen …</button>' : ''}</span></div>
-        <div class="bd-b wall bd-fold" id="bdGw" hidden><div class="bk-grid" style="--c:4">
-          <label class="f w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"></label>
-          <div class="f w2 bd-gn"><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label><span class="muted s">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span></div></div></div>
-        ${!ed && can('buchung_serien') ? `<div class="wall bd-fold" id="bdRw" hidden><div class="bk-grid" style="--c:4"><label class="f" id="bdRL">Wiederholen<select id="bdRf">${opt('', 'nicht wiederholen')}${repeatOpts('')}</select></label><label class="f" id="bdRU">Bis<input id="bdRep" type="date" disabled></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">Belegte Tage werden ausgelassen.</div></div></div>` : ''}
-        <label class="f wall" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}" placeholder="nur für die Verwaltung sichtbar"></label>
+        <div class="wall bd-links"><button type="button" class="bd-more" id="bdMore" aria-expanded="false"><b>Weitere Angaben</b> <span id="bdMoreW"></span> <i aria-hidden="true">▾</i></button></div>
+        <div class="wall bd-fold" id="bdMw" hidden><div class="bk-grid" style="--c:4">
+          <label class="f w2 bd-b">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"></label>
+          <div class="f w2 bd-gn bd-b"><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label><span class="muted s">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span></div>
+          ${!ed && can('buchung_serien') ? `<label class="f" id="bdRL">Wiederholen<select id="bdRf">${opt('', 'nicht wiederholen')}${repeatOpts('')}</select></label><label class="f" id="bdRU">Bis<input id="bdRep" type="date" disabled></label><div class="f muted s w2" style="align-self:end;padding-bottom:11px" id="bdRH">Belegte Tage werden ausgelassen.</div>` : ''}
+          <label class="f wall" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}" placeholder="nur für die Verwaltung sichtbar"></label>
+        </div></div>
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
     const paint = () => {
@@ -357,16 +359,16 @@
       $('dialog').querySelector('h2').textContent = head();
       $('dialog').querySelectorAll('.bd-b').forEach(x => { x.style.display = type === 'sperre' ? 'none' : ''; });
       $('bdTi').placeholder = type === 'sperre' ? 'z. B. Platzpflege' : 'optional, z. B. Lukas vs. Wendelin';
+      $('bdMoreW').textContent = [type === 'sperre' ? '' : GK.T('Gäste'), !ed && can('buchung_serien') ? GK.T('Wiederholen') : '', GK.T('Notiz')].filter(Boolean).join(', ');
 
     };
     $('dialog').querySelectorAll('#bdT [data-t]').forEach(b => { b.onclick = () => { type = b.dataset.t; paint(); }; });
-    const fold = (btn, box) => { if ($(btn)) $(btn).onclick = () => { $(box).hidden = !$(box).hidden; $(btn).classList.toggle('on', !$(box).hidden); }; };
-    fold('bdGt', 'bdGw'); fold('bdRt', 'bdRw');
+    $('bdMore').onclick = () => { const open = $('bdMw').hidden; $('bdMw').hidden = !open; $('bdMore').setAttribute('aria-expanded', String(open)); };
     // Start verschoben: Ende rückt mit, die Dauer bleibt (Standard 1 Stunde)
     let dur = Math.max(15, tm(val('bdE')) - tm(val('bdS'))) || 60;
     $('bdS').onchange = () => { const s = tm(val('bdS')); if (s == null || isNaN(s)) return; $('bdE').value = hhmm(Math.min(24 * 60 - 15, s + dur)); };
     $('bdE').onchange = () => { const d0 = tm(val('bdE')) - tm(val('bdS')); if (d0 > 0) dur = d0; };
-    if (ed && (ed.guests || []).length) { $('bdGw').hidden = false; $('bdGt').classList.add('on'); }
+    if (ed && ((ed.guests || []).length || ed.note)) { $('bdMw').hidden = false; $('bdMore').setAttribute('aria-expanded', 'true'); }   // beim Bearbeiten aufgeklappt, wenn schon etwas eingetragen ist
         if ($('bdRf')) $('bdRf').onchange = () => { $('bdRep').disabled = !val('bdRf'); if (val('bdRf') && !val('bdRep')) $('bdRep').value = addDays(val('bdD') || st.meta.today, 56); };
     const partners = ed ? (ed.partners || []).slice() : [];
     const chips = () => { $('bdPc').innerHTML = partners.map(id => `<label>${esc((m.people.find(p => p.id === id) || {}).name || '')} <button type="button" class="btn small ghost" data-rp="${id}" style="height:24px;padding:0 6px" aria-label="entfernen">×</button></label>`).join('');

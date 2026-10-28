@@ -292,8 +292,8 @@ function activate(ctx) {
     const st = staffState();
     const alerts = st.filter(x => x.forgotten).map(x => ({ level: 'a', text: `${x.name} ist seit über 12 Stunden eingestempelt – Ende nachtragen.` }));
     const err = getSetting('zeit_mail_error', '');
-    if (err) alerts.push({ level: 'r', text: 'Monatsnachweis nicht verschickt: ' + err });
-    if (!mailReady()) alerts.push({ level: 'a', text: 'Noch kein Postfach eingerichtet (Einstellungen → Postfach) – der Monatsnachweis kann nicht verschickt werden.' });
+    if (err) alerts.push({ level: 'r', text: 'Monatsnachweis nicht verschickt.', detail: err });
+    if (!mailReady()) alerts.push({ level: 'a', text: 'Kein Postfach – der Monatsnachweis kann nicht verschickt werden.', detail: 'Einrichten unter Einstellungen → Postfach.' });
     if (!st.length) return { kpis: [], alerts };
     return { kpis: [{ l: 'Personal', v: st.length }, { l: 'Gerade da', v: st.filter(x => x.in_since && !x.forgotten).map(x => x.name.split(' ')[0]).join(', ') || '–' }], alerts };
   };

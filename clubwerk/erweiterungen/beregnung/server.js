@@ -568,7 +568,7 @@ function activate(ctx) {
     if (!c.plaetze.length) return { kpis: [{ l: 'Plätze', v: 0 }, { l: 'Heute manuell gestartet', v: 0 }], alerts: [{ level: 'a', text: 'Noch keine Plätze eingerichtet.' }] };
     const st = await status();
     const alerts = [];
-    if (!st.online) alerts.push({ level: 'r', text: 'Keine Verbindung zur Bewässerungsanlage' + (st.error ? ` (${st.error})` : '') });
+    if (!st.online) alerts.push({ level: 'r', text: 'Keine Verbindung zur Bewässerungsanlage.', detail: st.error || undefined });   // Übersicht: kurzer Satz, Einzelheiten im Tooltip
     if (c.mode === 'pin' && !getSetting('ext_beregnung_pin_hash', '')) alerts.push({ level: 'a', text: 'Noch keine Vereins-PIN festgelegt.' });
     const day = localTs().slice(0, 10);
     // Fehler zählen nur, bis jemand den Verlauf angesehen hat – danach verschwindet der Hinweis (neue Fehler zeigen ihn wieder)

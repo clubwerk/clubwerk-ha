@@ -975,16 +975,20 @@
     return list.map(m => ({ ...m, pageKey: pageOf(m) }));
   }
   const greeting = () => { const h = new Date().getHours(); return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'; };
-  /* Hauptkarte „Zu erledigen“: Hinweise als ruhige Liste mit farbigem Strich, rote zuerst, höchstens 3 sichtbar, der Rest hinter „Alle zeigen“ */
-  const hintHtml = (a, i) => `<div class="hint ${a.level === 'r' ? 'r' : 'a'}${i >= 3 ? ' extra' : ''}"><i class="bar" aria-hidden="true"></i><div class="ht">${a.who ? `<b>${esc(a.who)}</b>` : ''}<span title="${esc(a.text)}">${esc(a.text)}</span></div>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}>${esc(a.link || 'Ansehen')}</a>` : ''}</div>`;
+  /* Hauptkarte „Zu erledigen“: Hinweise als ruhige Liste mit farbigem Strich, rote zuerst, höchstens 6 sichtbar, der Rest hinter „Alle zeigen“.
+     Je Hinweis ein kurzer Satz; Einzelheiten (detail) stehen im Tooltip und auf der Seite, zu der der Link führt */
+  const TODO_N = 6;
+  const hintHtml = (a, i) => `<div class="hint ${a.level === 'r' ? 'r' : 'a'}${i >= TODO_N ? ' extra' : ''}"><i class="bar" aria-hidden="true"></i><div class="ht">${a.who ? `<b>${esc(a.who)}</b>` : ''}<span title="${esc(a.detail ? `${T(a.text)} ${T(a.detail)}` : T(a.text))}">${esc(a.text)}</span></div>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}>${esc(a.link || 'Ansehen')}</a>` : ''}</div>`;
   const todoHtml = alerts => {
     const list = alerts.slice().sort((a, b) => (a.level === 'r' ? 0 : 1) - (b.level === 'r' ? 0 : 1)), n = list.length;
-    return `<section class="todo hero"><div class="th">${icon('glocke')}<h3>Zu erledigen</h3>${n > 3 ? `<span class="lab num">${T('{0} von {1}', [3, n])}</span>` : ''}</div>
+    return `<section class="todo hero"><div class="th">${icon('glocke')}<h3>Zu erledigen</h3>${n > TODO_N ? `<span class="lab num">${T('{0} von {1}', [TODO_N, n])}</span>` : ''}</div>
       ${n ? list.map(hintHtml).join('') : '<p class="none">Gerade ist nichts zu tun.</p>'}
-      ${n > 3 ? `<button type="button" class="hint more" data-showall><i class="bar" aria-hidden="true"></i><span class="ht">${T('{0} weitere Hinweise', [n - 3])}</span><b>Alle zeigen</b></button>` : ''}</section>`;
+      ${n > TODO_N ? `<button type="button" class="hint more" data-showall><i class="bar" aria-hidden="true"></i><span class="ht">${T('{0} weitere Hinweise', [n - TODO_N])}</span><b>Alle zeigen</b></button>` : ''}</section>`;
   };
   /** Ein Modul im Raster der Übersicht – Symbol, Name, Zustand, die wichtigste Zahl */
   const STATE = { r: 'Störung', a: 'Hinweis', g: 'Läuft' };
+  /** „Wort: Zahl“ bricht nie so um, dass die Zahl allein steht: Zahlen hängen immer am Wort davor */
+  const kpiNote = k => `${k.l}:\u00a0${String(k.v).replace(/ (?=\d)/g, '\u00a0')}`;
   function modCell({ ic, name, state, note, val, go: g }) {
     const inner = `<span class="mi">${icon(ic)}</span><span class="mt"><b title="${esc(name)}">${esc(name)}</b><small><i class="stdot ${state}" aria-hidden="true"></i>${esc(note || STATE[state])}</small></span><span class="v num">${esc(val == null ? '' : val)}</span>`;
     return g ? `<a class="mo" href="#${g}" data-go="${g}">${inner}</a>` : `<div class="mo">${inner}</div>`;
@@ -1000,59 +1004,54 @@
     const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
     if (page !== 'uebersicht') return;
     if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} ${vs.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
-    else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
+    else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Mitgliederdaten liegen unverschlüsselt.', detail: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     let drinksCard = '';
-    const score = [];   // Spielstandstafel: die wichtigste Zahl je Bereich, höchstens vier
     if (drinksOn) {
       const low = stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock);
       const neg = stock.filter(x => x.track_stock && x.stock < 0);
       const active = ev && ev.find(e => e.active);
       if (low.length) alerts.push({ level: 'a', who: 'Lager', text: `${low.length} Artikel fast leer: ${low.slice(0, 3).map(l => l.name).join(', ')}${low.length > 3 ? ' …' : ''}`, go: can('bestellung') ? 'bestellung' : null, link: 'Bestellen' });
-      if (neg.length && can('lieferungen')) alerts.push({ level: 'r', who: 'Lager', text: `Negativer Bestand bei ${neg.map(n => n.name).join(', ')} – vermutlich fehlt eine Lieferung.`, go: 'lieferungen', link: 'Beleg hochladen' });
+      if (neg.length && can('lieferungen')) alerts.push({ level: 'r', who: 'Lager', text: `${neg.length} Artikel unter null – fehlt eine Lieferung?`, detail: neg.map(n => n.name).join(', '), go: 'lieferungen', link: 'Beleg hochladen' });
       if (active) alerts.push({ level: 'a', who: 'Veranstaltung läuft', text: `${active.name} – bar ${euro(active.expected_cents)}, angeschrieben ${euro(active.open_cents)}`, go: 'veranstaltungen', link: 'Verwalten' });
       (ev || []).filter(e => e.open_member_cents > 0 && !e.active).forEach(e => alerts.push({ level: 'a', who: e.name, text: `${euro(e.open_member_cents)} angeschrieben, noch nicht auf die Getränkeliste übertragen.`, go: 'veranstaltungen', link: 'Übertragen' }));
       const first = DRINKS()[0][0];
       drinksCard = modCell({ ic: 'verkauf', name: 'Verkauf', state: neg.length ? 'r' : low.length ? 'a' : 'g', note: neg.length ? `${neg.length} negativ` : low.length ? `${low.length} knapp` : 'Alles gut',   // nie „Alles gut“ neben der Warnung „negativer Bestand“
         val: bal ? euro(bal.total_cents) : String(stock.filter(x => x.active && x.track_stock).length), go: low.length && can('bestellung') ? 'bestellung' : first });
-      score.push(bal ? ['Verkauf', euro(bal.total_cents), 'Offen auf Konten'] : ['Verkauf', String(low.length), 'Artikel nachbestellen']);
     }
-    if (clubNetsMissing) alerts.push({ level: 'a', who: 'Sicherheit', text: 'Kein Vereinsnetz eingetragen – jedes private Netz (auch Gast-WLAN oder VPN) kommt an Verwaltung und Tablet. Empfohlen: unter Mitglieder-App → Verbindung → „Vereinsnetz“ euer Netz eintragen.', go: 'app', sec: ['cw_appsec', 'verbindung'], link: 'Eintragen' });
+    if (clubNetsMissing) alerts.push({ level: 'a', who: 'Sicherheit', text: 'Kein Vereinsnetz eingetragen.', detail: 'Jedes private Netz (auch Gast-WLAN oder VPN) kommt an Verwaltung und Tablet. Empfohlen: unter Mitglieder-App → Verbindung → „Vereinsnetz“ euer Netz eintragen.', go: 'app', sec: ['cw_appsec', 'verbindung'], link: 'Eintragen' });
     if (tabletPwMissing && can('einstellungen')) sset('cw_setsec', 'tablet');   // „Festlegen“ öffnet gleich den richtigen Bereich
     if (tabletPwMissing) alerts.push({ level: 'r', who: 'Sicherheit', text: can('einstellungen') ? 'Für das Tablet ist noch kein Passwort vergeben – das Tablet bleibt gesperrt, bis eins festgelegt ist.' : 'Für das Tablet ist noch kein Passwort vergeben – bitte einen Admin mit Recht „Einstellungen“ bitten, eins festzulegen.', ...(can('einstellungen') ? { go: 'einstellungen', link: 'Festlegen' } : {}) });
     const pending = mem ? mem.rows.filter(m => m.pending) : [];
     if (pending.length) alerts.push({ level: 'a', who: 'Mitglieder', text: `${pending.length} neue Einträge vom Tablet zu bestätigen.`, go: 'konten', link: 'Prüfen' });
     // Ohne HTTPS gehen PIN und Geräteschlüssel der Mitglieder-App unverschlüsselt durchs WLAN – bei Türen ein echtes Risiko
     if (SCHEME !== 'https' && (cache.modules || []).some(m => m === 'zugang' || m === 'beregnung') && can('einstellungen'))
-      alerts.push({ level: 'r', who: 'Sicherheit', text: 'HTTPS ist aus: Mitglieder-App, Türen und Beregnung laufen im WLAN unverschlüsselt. Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
-    mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, go: m.pageKey, link: a.link, sec: Array.isArray(a.sec) && a.sec.length === 2 ? a.sec.map(String) : undefined })));   // sec: Unterbereich, in dem der Hinweis erledigt wird
+      alerts.push({ level: 'r', who: 'Sicherheit', text: 'HTTPS ist aus – App, Türen und Beregnung laufen im WLAN unverschlüsselt.', detail: 'Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
+    mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, detail: a.detail, go: m.pageKey, link: a.link, sec: Array.isArray(a.sec) && a.sec.length === 2 ? a.sec.map(String) : undefined })));   // sec: Unterbereich, in dem der Hinweis erledigt wird
     const modCards = mods.map(m => {
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
       const gk = (PAGES.find(x => x[0] === m.pageKey) || [])[3];
       return modCell({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, state: bad ? 'r' : warn ? 'a' : 'g',
-        note: bad || warn || !m.kpis[1] ? null : `${m.kpis[1].l}: ${m.kpis[1].v}`, val: m.kpis[0] ? m.kpis[0].v : '', go: m.pageKey });   // Zustand in Worten, wenn etwas ist – sonst die zweite Zahl
+        note: bad || warn || !m.kpis[1] ? null : kpiNote(m.kpis[1]), val: m.kpis[0] ? m.kpis[0].v : '', go: m.pageKey });   // Zustand in Worten, wenn etwas ist – sonst die zweite Zahl
     });
     const memberCard = mem && !mods.some(m => m.id === 'mitglieder') ? modCell({ ic: 'konten', name: 'Mitglieder', state: pending.length ? 'a' : 'g', note: pending.length ? `${pending.length} neu` : 'Aktive Mitglieder',
       val: String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length), go: 'konten' }) : '';
-    if (mem) score.push(['Mitglieder', String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length), pending.length ? `${pending.length} neu vom Tablet` : 'aktiv']);
-    mods.forEach(m => { if (m.kpis[0]) score.push([m.name, m.kpis[0].v, m.kpis[0].l]); });
     const low = drinksOn ? stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock) : [];
     const cells = [drinksCard, ...modCards, memberCard].filter(Boolean);
+    const bot = [];
+    if (low.length) bot.push(`<div class="card"><h3>Bestand knapp</h3><table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
+          ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table></div>`);
+    if (del && del.length) bot.push(`<div class="card"><h3>Letzte Lieferungen</h3><table class="tbl"><tr><th>Datum</th><th>Lieferant</th><th class="r">Einzelartikel</th></tr>
+          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table></div>`);
     if (cells.length % 2) cells.push('<div class="mo fill" aria-hidden="true"></div>');   // gleich großes Raster ohne Loch
     const d = new Date();
     $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
         <h2 class="page"><span>${greeting()}</span>, <span>${esc((me.name || me.username).split(" ")[0])}</span></h2></div>
         <div class="row">${window.top === window && tabletOnUI ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}</div></div>
       <div class="court greetline"></div>
-      ${score.length ? `<div class="score${Math.min(score.length, 4) === 4 ? ' s4' : ''}">${score.slice(0, 4).map(([l, v, sub]) => `<div><span class="lab">${esc(l)}</span><b class="num">${esc(v)}</b><small>${esc(sub)}</small></div>`).join('')}</div>` : ''}
       ${setupCard}
       <div class="ovtwo">${todoHtml(alerts)}${cells.length ? `<div class="mods2">${cells.join('')}</div>` : ''}</div>
-      ${drinksOn ? `<div class="two ovbot">
-        <div class="card"><h3>Bestand knapp</h3>${low.length ? `<table class="tbl"><tr><th>Artikel</th><th class="r">Bestand</th><th class="r">Mindest</th></tr>
-          ${low.map(l => `<tr><td>${esc(l.name)}</td><td class="r">${num(l.stock)}</td><td class="r">${num(l.min_stock)}</td></tr>`).join('')}</table>` : '<p class="muted" style="margin:0">Alles im grünen Bereich.</p>'}</div>
-        <div class="card"><h3>Letzte Lieferungen</h3>${del && del.length ? `<table class="tbl"><tr><th>Datum</th><th>Lieferant</th><th class="r">Einzelartikel</th></tr>
-          ${del.slice(0, 6).map(x => `<tr><td>${deDate(x.date)}</td><td>${esc(x.supplier)}</td><td class="r">${num(x.total)}</td></tr>`).join('')}</table>` : `<p class="muted" style="margin:0">${del ? 'Noch keine Lieferung erfasst – unter „Lager › Lieferungen & Belege“ einfach die Rechnung hochladen.' : 'Keine Berechtigung für Lieferungen.'}</p>`}</div>
-      </div>` : ''}`;
+      ${bot.length ? `<div class="${bot.length === 2 ? 'two ' : ''}ovbot">${bot.join('')}</div>` : ''}`;   // „Bestand knapp“ und „Letzte Lieferungen“ nur, wenn es etwas zu zeigen gibt
     $('main').querySelectorAll('[data-go]').forEach(a => { a.onclick = e => { e.preventDefault(); if (a.dataset.secstore) sset(a.dataset.secstore, a.dataset.sec); go(a.dataset.go); }; });   // Hinweis führt direkt in den passenden Unterbereich
     const sa = $('main').querySelector('[data-showall]'); if (sa) sa.onclick = () => { sa.closest('.todo').classList.add('all'); sa.remove(); };
     if (setupCard) window.GK.bindSetupCard($('main'));

@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.83.0
+
+**Weniger auf einen Blick – nur das, was gerade zählt (Entschlacken, Entscheidung Thorsten)**
+- **Übersicht:** Die Kennzahlenzeile oben ist weg – dieselben Zahlen stehen im Modulraster. „Einrichtung zu … % fertig“ ist nur noch eine Zeile mit Balken (die offenen Punkte stehen unter „Einrichtung“). „Zu erledigen“ zeigt jetzt 6 statt 3 Hinweise, jeden als kurzen Satz (z. B. „13 Artikel unter null – fehlt eine Lieferung?“ statt der ganzen Artikelliste); Einzelheiten zeigt der Hinweis beim Darüberfahren und die Seite, zu der der Link führt. „Bestand knapp“ und „Letzte Lieferungen“ erscheinen nur, wenn es etwas zu zeigen gibt. Im Modulraster rutscht eine Zahl nie mehr allein in die nächste Zeile („zu bestätigen: 0“).
+- **Plätze › Buchung eintragen:** Gäste, Wiederholen und Notiz stehen hinter „Weitere Angaben“ zum Aufklappen. Beim Bearbeiten einer Buchung mit Gästen oder Notiz ist der Bereich gleich offen.
+- **Mitglieder:** Die vier Zahlenkacheln über der Liste sind weg – „Aktuell“ und „Mit Hinweis“ stehen mit Zahl an den Filtern, „Austritt angekündigt“ jetzt unter „Auswertung › Ein- und Austritte“. Der Hinweis auf fehlende Pflichtangaben ist eine Zeile mit „Anzeigen“.
+- Kürzere Hinweistexte auch aus Beregnung, Zugang, Zeiterfassung und Mitgliedern; die Fehlermeldung steht im Tooltip.
+- Module: Mitglieder 1.21.6, Plätze 1.18.3, Beregnung 1.8.4, Zugang 1.6.3, Zeiterfassung 1.3.2.
+
 ## 3.82.0
 
 **Mitglieder-Import: ähnliche Abteilungen werden zugeordnet statt neu angelegt**

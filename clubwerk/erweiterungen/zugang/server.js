@@ -467,7 +467,7 @@ function activate(ctx) {
     const c = cfg();
     const alerts = [];
     if (c.blockAll) alerts.push({ level: 'r', text: 'Zugang ist für alle gesperrt.' });
-    let st = null; try { st = await states(); } catch (e) { if (c.doors.length) alerts.push({ level: 'r', text: 'Keine Verbindung zu den Schlössern: ' + e.message }); }
+    let st = null; try { st = await states(); } catch (e) { if (c.doors.length) alerts.push({ level: 'r', text: 'Keine Verbindung zu den Schlössern.', detail: e.message }); }
     let open = 0;
     for (const d of c.doors) {
       const x = doorState(d, st);

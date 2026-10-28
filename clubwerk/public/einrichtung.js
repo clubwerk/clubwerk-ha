@@ -51,6 +51,8 @@
   .wqr ol{margin:0;padding-left:20px;line-height:1.6;flex:1;min-width:220px}
   .setupcard .row{justify-content:space-between;align-items:center}
   .setupcard .wizbar,.wiz-card>.wizbar{margin:4px 0 12px}
+  .setupcard .row{flex-wrap:nowrap;gap:16px}.setupcard h3{margin:0;white-space:nowrap}.setupcard .scbar{flex:1;min-width:0}.setupcard .scbar .wizbar{margin:0}
+  @media (max-width:640px){.setupcard .row{flex-wrap:wrap}.setupcard .scbar{order:3;flex-basis:100%}}
   .wlist{display:flex;flex-direction:column}
   .wlist .wr{display:flex;align-items:center;gap:12px;min-height:52px;padding:8px 0;border-top:1px solid var(--line)}
   .wlist .wr:first-child{border-top:0}
@@ -365,9 +367,7 @@
     if (!GK.can('einstellungen')) return '';
     const d = await load().catch(() => null);
     if (!d || !d.used || !d.open) return '';
-    const open = visible().filter(x => !x.done);
-    return `<div class="card setupcard"><div class="row"><h3>${esc(T('Einrichtung zu {0} % fertig', [d.percent]))}</h3><a class="btn small" href="#einrichtung" data-go="einrichtung">Alle Punkte</a></div>${bar(d.percent)}
-      <div class="wlist">${open.slice(0, 3).map(rowHtml).join('')}</div></div>`;
+    return `<div class="card setupcard"><div class="row"><h3>${esc(T('Einrichtung zu {0} % fertig', [d.percent]))}</h3><div class="scbar">${bar(d.percent)}</div><a class="btn small" href="#einrichtung" data-go="einrichtung">Alle Punkte</a></div></div>`;   // eine Zeile – die offenen Punkte stehen auf der Seite „Einrichtung“
   };
   GK.bindSetupCard = root => bindRows(root);
   /** nach der Anmeldung: beim ersten Start gleich in den Assistenten */

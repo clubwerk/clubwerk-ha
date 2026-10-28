@@ -1078,7 +1078,7 @@ function activate(ctx) {
     const noMandate = rows.filter(r => r.issues.some(i => /Mandat|Bankverbindung|IBAN/.test(i))).length;
     if (noMandate) alerts.push({ level: 'a', text: `${noMandate} Lastschriftzahler ohne gültiges SEPA-Mandat.` });
     const fin = !user || (user.perms || []).includes('mitglieder_finanzen');   // Hinweise zu Beiträge & Zahlungen nur für wen, der sie erledigen darf
-    if (fin && (!S('creditor_id') || !store.account().iban)) alerts.push({ level: 'a', text: 'Für Lastschriften fehlen noch Gläubiger-ID (Beiträge & Zahlungen › Einstellungen) oder ein Bankkonto (Verein › Einstellungen › Bankkonten).', go: 'mv-zeinst', link: 'Eintragen' });
+    if (fin && (!S('creditor_id') || !store.account().iban)) alerts.push({ level: 'a', text: 'Für Lastschriften fehlt noch die Gläubiger-ID oder ein Bankkonto.', detail: 'Gläubiger-ID unter Beiträge & Zahlungen › Einstellungen, Bankkonto unter Verein › Einstellungen › Bankkonten.', go: 'mv-zeinst', link: 'Eintragen' });
     const ret = parseInt(S('retention_years', '0'), 10) || 0;
     if (ret) {
       const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
@@ -1087,9 +1087,9 @@ function activate(ctx) {
     // Lastschrift eingereicht, aber noch nicht als bezahlt gebucht → Kassierer erinnern, sobald Rückläufer unwahrscheinlich sind
     const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
     if (fin) for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))
-      alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)}: Wenn nichts zurückgekommen ist, unter „Beiträge & Zahlungen › Lastschriften“ die Zahlung als erfolgt buchen.`, go: 'mv-einzug', link: 'Buchen' });
+      alerts.push({ level: 'a', text: `Lastschrift vom ${deD(k.collection_date)} als bezahlt buchen?`, detail: 'Wenn nichts zurückgekommen ist, unter „Beiträge & Zahlungen › Lastschriften“ die Zahlung als erfolgt buchen.', go: 'mv-einzug', link: 'Buchen' });
     const ageN = ageScanFn ? ageScanFn() : 0;
-    if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied' : 'Mitglieder'} rutschen in eine andere Altersstufe – bitte entscheiden: umstellen oder so belassen.`, go: 'mv-stamm', link: 'Entscheiden' });
+    if (ageN) alerts.push({ level: 'a', text: `${ageN} ${ageN === 1 ? 'Mitglied wechselt' : 'Mitglieder wechseln'} die Altersstufe.`, detail: 'Bitte entscheiden: umstellen oder so belassen.', go: 'mv-stamm', link: 'Entscheiden' });
     alerts.push(...shared.congratsAlerts(user));   // anstehende Gratulationen (nur mit Recht „Gratulationen“)
     const leaving = rows.filter(r => r.leaving).length;
     return { kpis: [{ l: 'Mitglieder', v: rows.length }, { l: 'Austritte angekündigt', v: leaving }, { l: 'Eintritte ' + today().slice(0, 4), v: rows.filter(r => r.entry_date && r.entry_date.startsWith(today().slice(0, 4))).length }], alerts };

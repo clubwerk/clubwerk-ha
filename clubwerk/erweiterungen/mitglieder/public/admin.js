@@ -40,6 +40,7 @@
       .imp-field { display: flex; flex-direction: column; min-width: 0; } .imp-field b { font-weight: 600; overflow-wrap: anywhere; } .imp-field.leer b { color: var(--muted); font-weight: 500; }
       @media (max-width: 700px) { .imp-simrow { grid-template-columns: 1fr; gap: 6px; } }
       .mv-up { display: flex; align-items: center; gap: 10px; height: 40px; box-sizing: border-box; padding: 0 4px 0 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--field); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--faint); }
+      .mv-lack > .btn { margin-left: auto; }   /* Warnkasten über der Liste: eine Zeile, „Anzeigen“ rechts */
       .mv-up span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       @media (max-width: 560px) { .mv-up span { visibility: hidden; } }   /* Handy: Hinweis „hierher ziehen“ passt nicht und hilft nicht – es bleibt „Datei wählen …“ */
       .mv-up b { flex: none; height: 30px; padding: 0 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink); }
@@ -151,20 +152,13 @@
     await loadRows();
     const m = st.meta;
     const cur = st.rows.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym');
-    const y = m.today.slice(0, 4);
     // Knöpfe rechts in der Reiterzeile (Beitrittserklärungen am Tablet: Reiter „Anträge“)
     const tools = `${SC() ? '' : '<button class="btn" id="mvImp">Import …</button><button class="btn" id="mvXls">Excel</button>'}<button class="btn primary" id="mvNew">+ Neues Mitglied</button>`;
     // Pflichtangaben (Mitgliedsdaten, Beitrag, Zahlungsdaten): wer sie nicht hat, fehlt im Beitragslauf – deutlich melden
     const PFLICHT = /^(ohne Mitgliedsdaten|kein Beitrag|Zahlart nicht Lastschrift|keine Bankverbindung|IBAN ungültig|kein SEPA-Mandat|Mandat widerrufen|Mandat verfallen)/;
     const lack = cur.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => typeof i === 'string' && PFLICHT.test(i)));
     el.innerHTML = `
-      ${lack.length && !SC() ? `<div class="banner r"><span><b>${lack.length === 1 ? '1 Mitglied ohne Pflichtangaben' : `${lack.length} Mitglieder ohne Pflichtangaben`}</b> (Mitgliedsdaten, Beitrag oder Zahlungsdaten) – bitte ergänzen. Wer kein Vereinsmitglied ist (z. B. Trainer), wird beim Mitglied in „Kein Mitglied“ umgewandelt.</span><button class="btn small" id="mvLack" type="button">Anzeigen</button></div>` : ''}
-      <div class="kpis">
-        <div class="kpi"><div class="l">Mitglieder</div><div class="v">${cur.length}</div></div>
-        <div class="kpi"><div class="l">Eintritte ${y}</div><div class="v">${cur.filter(r => r.entry_date && r.entry_date.startsWith(y)).length}</div></div>
-        <div class="kpi"><div class="l">Austritt angekündigt</div><div class="v">${cur.filter(r => r.leaving).length}</div></div>
-        <div class="kpi ${cur.some(r => r.issues.length) ? 'warn' : ''}"><div class="l">Mit Hinweis</div><div class="v">${cur.filter(r => r.issues.length).length}</div></div>
-      </div>
+      ${lack.length && !SC() ? `<div class="banner r mv-lack"><span title="${esc(GK.T('Fehlen Mitgliedsdaten, Beitrag oder Zahlungsdaten. Wer kein Vereinsmitglied ist (z. B. Trainer), wird beim Mitglied in „Kein Mitglied“ umgewandelt.'))}"><b>${lack.length === 1 ? '1 Mitglied ohne Pflichtangaben' : `${lack.length} Mitglieder ohne Pflichtangaben`}</b> – bitte ergänzen.</span><button class="btn small" id="mvLack" type="button">Anzeigen</button></div>` : ''}
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mvQ" placeholder="Name, Nr., Ort suchen" aria-label="Suchen" value="${esc(st.f.q)}"></label>
         ${chipBar('mvSeg', [['aktuell', 'Aktuell'], ['hinweis', 'Mit Hinweis'], ['ausgetreten', 'Ausgetreten'], ['alle', 'Alle']], st.f.status)}
         <label class="f mv-fsel"><select translate="no" id="mvDept" data-nodirty aria-label="Abteilung"><option value="">${esc(GK.T(SC() ? 'Meine Abteilungen' : 'Alle Abteilungen'))}</option>${(SC() ? m.scope : m.depts).map(d => opt(d.id, d.name, st.f.dept)).join('')}</select></label>
@@ -1359,6 +1353,7 @@
   /* ================================================================= Auswertungen */
   async function showReports(el) {
     st.day = st.day || st.meta.today;
+    if (!st.rows) await loadRows();   // „Austritt angekündigt“ (früher als Kachel über der Liste)
     const s = await api('stats?day=' + st.day);
     const G = { m: 'männlich', w: 'weiblich', d: 'divers', x: 'ohne Angabe' };
     const sum = r => r.m + r.w + r.d + r.x;
@@ -1368,7 +1363,7 @@
         ${s.byGender.filter(g => g.g !== 'x' || g.n).slice(0, 2).map(g => `<div class="kpi"><div class="l">${G[g.g]}</div><div class="v">${g.n}</div></div>`).join('')}</div>
       <div class="mv-two">
         <div class="card"><h3>Abteilungen</h3>${s.depts.length ? `<table class="tbl kompakt">${s.depts.map(d => `<tr><td><b translate="no">${esc(d.name)}</b></td><td class="r k-lbl" data-label="Mitglieder">${d.n}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Abteilungen angelegt.</p>'}</div>
-        <div class="card"><h3>Ein- und Austritte</h3><table class="tbl kompakt"><tr><th>Jahr</th><th class="r">Eintritte</th><th class="r">Austritte</th><th class="r">Saldo</th></tr>
+        <div class="card"><h3>Ein- und Austritte</h3>${(n => (n ? `<p class="muted s" style="margin-top:0">Austritt angekündigt: <b>${n}</b></p>` : ''))((st.rows || []).filter(r => r.leaving).length)}<table class="tbl kompakt"><tr><th>Jahr</th><th class="r">Eintritte</th><th class="r">Austritte</th><th class="r">Saldo</th></tr>
           ${s.years.slice().reverse().filter(y => y.in || y.out || y.year >= +s.day.slice(0, 4) - 2).map(y => `<tr><td>${y.year}</td><td class="r k-lbl" data-label="Eintritte">${y.in}</td><td class="r k-lbl" data-label="Austritte">${y.out}</td><td class="r k-lbl ${y.in - y.out < 0 ? 'neg' : ''}" data-label="Saldo">${y.in - y.out > 0 ? '+' : ''}${y.in - y.out}</td></tr>`).join('')}</table></div></div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
         <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Divers</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
