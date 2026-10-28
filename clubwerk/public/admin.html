@@ -144,7 +144,7 @@
   .seg button.on .cnt { background: var(--brand-soft); color: var(--brand-ink); }
   /* Filterchips: Filter derselben Liste und Ansichten derselben Daten (Offen 3 · Bezahlt · Alle) – kleiner und runder als Reiter, damit man sie nicht verwechselt */
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chips > button { height: 32px; padding: 0 12px; border-radius: 16px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .chips > button { height: 40px; padding: 0 14px; border-radius: 20px; border: 1px solid var(--line); background: var(--card); color: var(--muted); font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
   .chips > button:hover { color: var(--ink); border-color: var(--faint); }
   .chips > button.on { background: var(--brand-soft); border-color: var(--brand); color: var(--brand-ink); }
   .chips .cnt { font-size: 12px; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; } .chips .cnt:empty { display: none; }
@@ -181,7 +181,8 @@
     .kpi .v { font-size: 20px; line-height: 28px; }
     .toolbar .btn { flex: 1 1 calc(50% - 4px); }
     .toolbar .btn.primary { flex-basis: 100%; }
-    .filterbar .search { width: 100%; }
+    .filterbar .search { width: 100%; max-width: none; flex-basis: 100%; }   /* Handy: Suche über die ganze Breite, Filter darunter */
+    .filterbar .chips { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; max-width: 100%; } .filterbar .chips::-webkit-scrollbar { display: none; }   /* Filterchips in einer Zeile zum Wischen wie die Reiter – kein einzelner Chip in einer zweiten Zeile */
   }
   /* Formulare */
   .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
@@ -280,9 +281,10 @@
   main#main .btn:not(.small) { min-height: 40px; line-height: 19px; }   /* auch zweizeilig beschriftete Knöpfe bleiben 40 px (2 × 19 px + Rahmen) */
   label.f input:not([type=checkbox]):not([type=radio]), label.f select, .row > .btn:not(.small), .row > label.btn:not(.small), .row > a.btn:not(.small) { height: 40px; min-height: 40px; box-sizing: border-box; }
   .row > .btn:not(.small), .row > label.btn:not(.small), .row > a.btn:not(.small) { display: inline-flex; align-items: center; }
+  .row:has(> label.f, > select, > input:not([type=checkbox]):not([type=radio])) > .btn.small { height: 40px; min-height: 40px; display: inline-flex; align-items: center; }   /* Leistenhöhe: alles in einer Zeile mit Feldern ist 40 px hoch – Felder, Knöpfe, Reiter (4 + 32 + 4), Umschalter, Filterchips */
   label.f input[type=color] { padding: 3px; border-radius: 999px; }   /* Farbfeld als Pille wie die Logo-Farben */
   input[type=color]::-webkit-color-swatch-wrapper { padding: 0; } input[type=color]::-webkit-color-swatch { border: 0; border-radius: 999px; } input[type=color]::-moz-color-swatch { border: 0; border-radius: 999px; }
-  .clubprev { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+  .clubprev { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; } .frm > .clubprev { margin-top: 0; }   /* gleicher Abstand wie das Formularraster: Hell/Dunkel fluchten mit den Feldern */
   .cp { flex: 1 1 240px; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-tile); border: 1px solid var(--edge); min-width: 0; font-size: 13px; }   /* kleine Vorschau der berechneten Farben (hell/dunkel); die Farben kommen aus theme.css */
   .cp b { margin-right: auto; font-weight: 700; } .cpb, .cph { display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: 999px; font-weight: 700; white-space: nowrap; } .cph { font-size: 17px; }
   .tbl td { height: 52px; box-sizing: border-box; }
@@ -317,7 +319,7 @@
   .tabrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 4px 0 20px; } .tabrow > .tabs { margin: 0; }
   @media (min-width: 701px) { .tabrow.beside { flex-wrap: nowrap; } .tabrow.beside > .tabs { flex: 0 1 auto; min-width: 0; } }   /* Knöpfe neben den Reitern, solange beide Platz haben (admin.js: fitTools); sonst darunter – nie ein abgeschnittener Reiter */
   .tabtools { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; } .tabtools:empty { display: none; }
-  .tabs button { height: 36px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
+  .tabs button { height: 32px; padding: 0 14px; border-radius: 999px; font-size: 14px; font-weight: 600; color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
   .tabs button:hover { color: var(--ink); }
   .tabs button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(19,26,22,.12); }   /* gleiche Schriftstärke wie inaktiv: Reiter springen beim Wechsel nicht */
   :root[data-contrast="hoch"] .tabs, :root[data-contrast="hoch"] .seg { background: var(--hover); } :root[data-contrast="hoch"] .tabs button.on, :root[data-contrast="hoch"] .seg button.on { box-shadow: inset 0 0 0 2px var(--ink); }
@@ -365,7 +367,7 @@
   .mods2 .mt small { font-size: 12px; line-height: 16px; color: var(--muted); }   /* darf umbrechen – nie abgeschnitten */
   .stdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--ok); }
   .stdot.a { background: var(--amber); } .stdot.r { background: var(--red); }
-  .mods2 .v { margin-left: auto; flex: none; max-width: 45%; font-size: 24px; line-height: 28px; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mods2 .v { margin-left: auto; flex: none; max-width: 45%; font-size: 24px; line-height: 28px; text-align: right; }   /* langer Wert („0 von 156 h“) bricht in schmalen Kacheln um statt abgeschnitten zu werden */
   /* Eine Spaltenteilung für die ganze Übersicht (daneben nur, wenn das Modulraster Platz für ganze Namen hat): links L = 4/9 der Breite ohne Abstand,
      rechts der Rest. Die Trennlinien der Kennzahlenzeile liegen genau in der Mitte des Abstands bzw. auf der Mittellinie des Modulrasters, unten dieselben zwei Spalten. */
   @media (min-width: 1440px) {
@@ -374,7 +376,7 @@
     .ovtwo .mods2 { grid-template-columns: calc(50% - 4px) minmax(0, 1fr); }
   }
   .two.ovbot { align-items: stretch; }
-  @media (max-width: 700px) { .score { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); } .score > div:nth-child(3) { border-left: 0; } .score > div:nth-child(n+3) { border-top: 1px solid var(--line); } .score b { font-size: 30px; line-height: 36px; } }
+  @media (max-width: 1100px) { .score { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); } .score > div:nth-child(3) { border-left: 0; } .score > div:nth-child(n+3) { border-top: 1px solid var(--line); } .score b { font-size: 30px; line-height: 36px; } }
   @media (max-width: 560px) { .mods2 { grid-template-columns: minmax(0, 1fr); } .mods2 .mo:nth-child(odd) { border-right: 0; } .mods2 .mo:nth-child(2) { border-top: 1px solid var(--line); } .mods2 .mo.fill { display: none; } }
   .pill.tg { height: 22px; padding: 0 9px; margin-left: 6px; font-size: 11.5px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; font-family: inherit; }
   /* Haken eines Bereichs samt Zusatzschaltern als eine Gruppe – in der Handy-Ansicht (Karten) bündig rechts wie die übrigen Zeilen */
@@ -458,7 +460,7 @@
   .swname { display: inline-flex; align-items: center; gap: 10px; }
   .mods .mact { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .torow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  @media (max-width: 560px) { .torow { grid-template-columns: 32px minmax(0, 1fr) 76px 96px; gap: 8px; } .torow > .muted.s { display: none; } }
+  @media (max-width: 560px) { .torow { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 6px 8px; } .torow > .muted.s { display: none; } .torow .tnm { grid-column: 2 / -1; } .torow > .tostart { grid-column: 2; grid-row: 2; } .torow > .toact { grid-column: 3; grid-row: 2; } }   /* Handy: Name über die ganze Breite, „Start“ und ↑ ↓ darunter – der Name wird nie gekürzt */
   .ton { width: 28px; height: 28px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-ink); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
   .toact { display: inline-flex; gap: 6px; } .toact .btn { width: 40px; justify-content: center; }
   /* Benutzer & Rollen */
@@ -524,11 +526,13 @@
     .tbl td input:not([type=checkbox]):not([type=radio]), .tbl td select { max-width: 60%; }
     .tbl tr.sum { background: var(--brand-soft); }
     /* Kompakte Handy-Liste (B-7): <table class="tbl kompakt"> – erste Spalte fett, rechts die Knöpfe der letzten Spalte, darunter die übrigen Werte klein
-       in einer Zeile nebeneinander (zu lange mit …, voller Text im title). Leere Zellen fallen weg. Höchstens rund zwei Zeilen je Eintrag */
-    .tbl.kompakt tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 8px 12px; }
+       nebeneinander in ihrer ganzen Breite – was nicht mehr passt, rutscht in die nächste Zeile; nur ein Wert, der länger ist als die ganze Zeile, endet mit … (voller Text im title). Leere Zellen fallen weg */
+    .tbl.kompakt tr { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 12px; padding: 6px 12px; }
     .tbl.kompakt tr::after { content: ''; order: 2; flex-basis: 100%; }
-    .tbl.kompakt td { display: block; order: 3; flex: 1 1 0; max-width: max-content; width: auto !important; min-width: 0; min-height: 0; padding: 0 !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-size: 13px; line-height: 18px; color: var(--muted); }
+    .tbl.kompakt td { display: block; order: 3; flex: 0 1 auto; max-width: 100%; width: auto !important; min-width: 0; min-height: 0; padding: 0 !important; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; text-align: left; font-size: 13px; line-height: 16px; color: var(--muted); }
     .tbl.kompakt td::before { content: none; }
+    .tbl.kompakt td.r:not(:first-child) { font-size: 14px; line-height: 16px; }   /* Zahlen in der kleinen Zeile so groß wie die übrigen Werte – nicht größer */
+    .tbl.kompakt td.k-lang:not(:first-child) { flex: 1 1 0; min-width: 96px; } .tbl.kompakt td:has(input, select, textarea) { flex: 1 1 0; }   /* lange Werte und Eingabefelder füllen den Rest der Zeile statt eine neue zu beginnen */
     .tbl.kompakt td > .tcell { text-align: left; }
     .tbl.kompakt td:first-child { order: 0; flex: 1 1 120px; max-width: none; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
     .tbl.kompakt td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; }
@@ -538,7 +542,7 @@
     .tbl.kompakt tr[data-row] { cursor: pointer; }
     .tbl.kompakt td:empty, .tbl.kompakt td.k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) */
     .tbl.kompakt td.k-lbl::before { content: attr(data-label) ': '; display: inline; color: inherit; font-size: inherit; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
-    .tbl.kompakt td.k-1z { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* k-1z: lange Namen (Dateien) einzeilig, voller Name im title */
+    .tbl.kompakt td.k-1z { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }   /* k-1z: lange Namen (Dateien) einzeilig, voller Name im title – etwas kleiner, damit übliche Dateinamen ganz passen */
     .tbl.kompakt td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
     .tbl.kompakt td[colspan] { flex: 1 1 100%; max-width: none; white-space: normal; }
     h2.page { font-size: 22px; line-height: 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -560,7 +564,7 @@
   .ds-spark { display: block; width: 100%; height: 56px; }
   .ds-hl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 !important; margin-bottom: 16px; overflow: hidden; box-shadow: var(--shadow-lg); }   /* wie die Spielstandstafel der Übersicht */
   .ds-hlt { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; border-left: 1px solid var(--line); min-width: 0; } .ds-hlt:first-child { border-left: 0; }
-  .ds-hlt span { font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); } .ds-hlt b { font-family: var(--num); font-weight: 600; font-size: 28px; line-height: 36px; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-hlt small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ds-hlt span { font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); } .ds-hlt b { font-family: var(--num); font-weight: 600; font-size: 28px; line-height: 36px; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-hlt small { font-size: 12.5px; color: var(--muted); }   /* Unterzeile darf umbrechen – nie abgeschnitten */
   .ds-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; } .ds-two > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; }
   .ds-meter { position: relative; height: 12px; border-radius: 6px; background: var(--hover); } .ds-meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--brand); }
   .ds-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -592,7 +596,8 @@
   .ds-bpair { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px; border-bottom: 1px solid var(--line); }
   .ds-bpair i { width: 40%; max-width: 14px; border-radius: 4px 4px 0 0; background: var(--brand); } .ds-bpair i.p { background: var(--line); }
   @media (max-width: 1100px) { .ds-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ds-two { grid-template-columns: 1fr; } }
-  @media (max-width: 900px) { .ds-hl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ds-hlt:nth-child(3) { border-left: 0; } .ds-hlt:nth-child(n+3) { border-top: 1px solid var(--line); } }
+  @media (max-width: 640px) { .ds-hlt b { font-size: 24px; line-height: 32px; } }   /* Handy: „Di 12–13 Uhr“ passt ganz in die halbe Breite */
+  @media (max-width: 1100px) { .ds-hl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ds-hlt:nth-child(3) { border-left: 0; } .ds-hlt:nth-child(n+3) { border-top: 1px solid var(--line); } }
   @media (max-width: 560px) { .ds-kpis { grid-template-columns: 1fr; } .ds-donut { grid-template-columns: 1fr; justify-items: center; } .ds-dleg { width: 100%; } .ds-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ds-top li { grid-template-columns: 24px minmax(0, 1fr) 56px 44px; } .ds-top .ds-meter, .ds-top .ds-d { display: none; } }
   @media print {

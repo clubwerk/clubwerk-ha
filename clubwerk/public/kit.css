@@ -292,3 +292,15 @@ body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius:
 .vh-tiles.offline .vh-tile .vh-name { color: var(--muted); }
 .vh-tiles.offline .vh-tile button, .vh-tiles.offline .vh-tile .vh-pill { background: var(--hover) !important; color: var(--muted) !important; border-color: var(--line) !important; }
 .vh-stop:disabled { opacity: .5; cursor: default; }
+
+/* Formularraster .frm (alle Oberflächen): vier feste Spalten, damit die Kanten der Felder von Zeile zu Zeile übereinanderliegen.
+   Ein Feld belegt zwei Spalten; .w1 eine, .w3 drei, .wall die ganze Breite. Bis 900 px zwei Spalten, am Handy eine. Zeilen nur so teilen,
+   dass die Nachbarzeile dieselben Linien hat (2 : 1 : 1 über 2 : 2 – nie 2 : 1 : 1 über 1 : 3). Der Prüfstand meldet Abweichungen (d1-fluchtlinie). */
+.frm { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 16px; align-items: end; }
+.frm > * { grid-column: span 2; min-width: 0; }
+.frm > .w1 { grid-column: span 1; } .frm > .w3 { grid-column: span 3; } .frm > .wall { grid-column: 1 / -1; }
+.frm + .frm, .frm + .row, .row + .frm { margin-top: 12px; }
+@media (max-width: 900px) { .frm { grid-template-columns: repeat(2, minmax(0, 1fr)); } .frm > *, .frm > .w3 { grid-column: 1 / -1; } .frm > .w1 { grid-column: span 1; } }
+@media (max-width: 640px) { .frm { grid-template-columns: minmax(0, 1fr); } .frm > *, .frm > .w1 { grid-column: 1 / -1; } }
+.frm-acts { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }   /* Knöpfe in einer Formularzeile, z. B. ↑ ↓ oder „Entfernen“ */
+.frm .btn { height: 40px; min-height: 40px; }   /* Knöpfe im Formularraster so hoch wie die Felder */

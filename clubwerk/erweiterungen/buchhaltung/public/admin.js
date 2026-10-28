@@ -29,7 +29,7 @@
       .bh-item.h { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
       .bh-item input, .bh-item select { width: 100%; min-width: 0; box-sizing: border-box; height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); }
       .bh-item input:focus, .bh-item select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
-      .bh-item > span { padding: 0 2px; }
+      .bh-item > span { padding: 0 2px; } .bh-item > .btn { height: 40px; min-height: 40px; width: 40px; padding: 0; }   /* Entfernen-Knopf so hoch wie die Felder der Zeile */
       label.f.bh-yr { flex-direction: row; align-items: center; gap: 8px; } label.f.bh-yr select { width: auto; min-width: 96px; }
       #biHint:empty { display: none; }
       .bh-item .n { text-align: right; }

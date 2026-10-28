@@ -11,7 +11,7 @@
       .tu-tab th { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; text-align: right; padding: 0 4px 6px; white-space: nowrap; }
       .tu-tab th.n, .tu-tab td.n { text-align: left; }
       .tu-tab td { padding: 8px 4px; border-top: 1px solid var(--line); text-align: right; color: var(--ink); }
-      .tu-tab td.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+      .tu-tab td.n { overflow-wrap: anywhere; font-weight: 600; }   /* Namen stehen ganz da, notfalls zweizeilig */
       .tu-tab td.r, .tu-tab td.z { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 16px; }
       .tu-tab td.r { text-align: center; color: var(--muted); }
       .tu-tab col.r { width: 30px; } .tu-tab col.z { width: 34px; } .tu-tab col.w { width: 52px; }
@@ -38,7 +38,7 @@
       .tu-res .tu-score:first-child { border-top: 0; padding-top: 0; }
       .tu-score .when { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
       .tu-rel { display: grid; gap: 10px; }
-      .tu-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; align-items: start; }
+      .tu-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; align-items: stretch; }   /* Gruppen nebeneinander gleich hoch */
       .tu-groups > .vh-card, .tu-groups > .card { margin: 0; min-width: 0; }
       .tu-rel + .tu-rel { margin-top: 10px; }
       .tu-hon { display: grid; gap: 0; }

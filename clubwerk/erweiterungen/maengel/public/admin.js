@@ -22,7 +22,7 @@
       .mg-th img { width: 100%; height: 100%; object-fit: cover; display: block; }
       .mg-what { display: flex; align-items: center; gap: 12px; min-width: 0; }
       .mg-what > div { min-width: 0; }
-      .mg-what .muted { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+      .mg-what .muted { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; } .tbl.kompakt td .mg-what .muted { white-space: normal; line-height: 15px; }   /* Handy-Liste: Beschreibung bis zu zwei Zeilen, kurze stehen ganz da */
       .mg-photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin: 0 0 16px; }
       .mg-photos a { display: block; border-radius: 12px; overflow: hidden; background: var(--hover); aspect-ratio: 4 / 3; }
       .mg-photos img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -30,7 +30,7 @@
       .mg-big img { width: 100%; max-height: 70vh; object-fit: contain; border-radius: 12px; display: block; background: var(--hover); }
       .mg-pl { flex-wrap: nowrap; align-items: center; } .mg-pl > label.f { flex: 1 1 auto; } .mg-pl .acts { display: flex; gap: 6px; flex: none; }
       @media (max-width: 640px) { .mg-pl { flex-wrap: wrap; } .mg-pl .acts { margin-left: auto; } .mg-pl + .mg-pl { margin-top: 18px !important; } }
-      @media (max-width: 700px) { .tbl td.mg-tdw { display: block; text-align: left; } .tbl td.mg-tdw::before { content: none; } .mg-th, .mg-done { display: none; } .mg-what .muted { -webkit-line-clamp: 1; } }`;
+      @media (max-width: 700px) { .tbl td.mg-tdw { display: block; text-align: left; } .tbl td.mg-tdw::before { content: none; } .mg-th, .mg-done { display: none; } }`;
     document.head.appendChild(s);
   }
 

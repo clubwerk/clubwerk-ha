@@ -197,6 +197,7 @@
       const names = [...head.children].map(th => th.textContent.trim());
       t.querySelectorAll('tr').forEach(tr => { if (tr === head) return; let i = 0; [...tr.children].forEach(td => {
         if (!td.hasAttribute('data-label')) td.setAttribute('data-label', td.colSpan > 1 ? '' : names[i] || '');
+        if (t.classList.contains('kompakt') && td.tagName === 'TD') td.classList.toggle('k-lang', td.textContent.trim().length > 40);   // Handy-Liste: nur lange Werte teilen sich den Rest der Zeile (dürfen mit … enden), kurze stehen ganz da
         // Wert + Zusatzzeile (z. B. „jährlich“ / „anteilig“) zusammenhalten, damit die Kartenansicht sie rechtsbündig untereinander zeigt
         if (td.tagName === 'TD' && !td.classList.contains('r') && !td.querySelector(':scope > .tcell, input, select, textarea, button')
           && [...td.childNodes].filter(n => n.nodeType === 1 || (n.nodeType === 3 && n.textContent.trim())).length > 1) {
@@ -1270,14 +1271,13 @@
     const rows = o.rows;
     $('main').innerHTML = `<h2 class="page">Bestellung</h2>
       <p class="lead">Vorschlag aus Bestand, Mindestbestand und „bestellen bis“. Gebinde anpassen und die Bestellung direkt an den Lieferanten senden – oder den Text kopieren.</p>
-      <div class="card"><h3>Bestelldaten</h3><div class="row">
-        <label class="f" style="flex:1;min-width:220px">Lieferant<input id="oSup" value="${esc(st.order_supplier)}"></label>
-        <label class="f">Kunden-Nr.<input id="oCust" value="${esc(st.customer_no)}" style="width:110px"></label></div>
-        <div class="row" style="margin-top:10px">
-        <label class="f" style="flex:1;min-width:280px">Lieferadresse<input id="oAddr" value="${esc(st.delivery_address)}"></label>
-        <label class="f">Absender (Name)<input id="oSender" value="${esc(st.order_sender || me.name || '')}"></label>
-        <label class="f">Telefon für Rückfragen<input id="oPhone" value="${esc(st.order_phone)}"></label>
-        <button class="btn" id="oSave">Merken</button></div></div>
+      <div class="card"><h3>Bestelldaten</h3><div class="frm">
+        <label class="f w3">Lieferant<input id="oSup" value="${esc(st.order_supplier)}"></label>
+        <label class="f w1">Kunden-Nr.<input id="oCust" value="${esc(st.customer_no)}"></label>
+        <label class="f">Lieferadresse<input id="oAddr" value="${esc(st.delivery_address)}"></label>
+        <label class="f w1">Absender (Name)<input id="oSender" value="${esc(st.order_sender || me.name || '')}"></label>
+        <label class="f w1">Telefon für Rückfragen<input id="oPhone" value="${esc(st.order_phone)}"></label></div>
+        <div class="btns"><button class="btn" id="oSave">Merken</button></div></div>
       <div class="card"><h3>Was bestellen?</h3>
         <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th>Art.-Nr.</th><th class="r">Bestand</th><th class="r">Mindest</th><th class="r">bestellen bis</th><th class="r">Gebinde</th></tr>
         ${rows.map(r => `<tr class="${r.low ? '' : 'off'}"><td>${esc(r.name)} ${r.low ? '<span class="pill a">knapp</span>' : ''}<div class="muted s">${esc(r.supplier_text || '')}</div></td>
@@ -1348,12 +1348,12 @@
           <td class="r"><input class="n" data-b="${s.id}" inputmode="numeric"></td></tr>`).join('')}</table></div>
         <p class="muted s">Nur ausgefüllte Zeilen werden übernommen. Leere Zeilen bleiben unverändert.</p></div>
       <div class="card"><h3>Bruch oder Korrektur buchen</h3>
-        <div class="row"><label class="f">Artikel<select id="mvArt">${articleOptions(null)}</select></label>
-          <label class="f">Grund<select id="mvReason"><option value="bruch">Bruch / verdorben</option><option value="korrektur">Korrektur (+/−)</option></select></label>
-          <label class="f">Einzelartikel<input id="mvQty" class="n" inputmode="numeric" style="width:100px"></label>
+        <div class="frm"><label class="f">Artikel<select id="mvArt">${articleOptions(null)}</select></label>
+          <label class="f w1">Grund<select id="mvReason"><option value="bruch">Bruch / verdorben</option><option value="korrektur">Korrektur (+/−)</option></select></label>
+          <label class="f w1">Einzelartikel<input id="mvQty" class="n" inputmode="numeric"></label>
           <label class="f">Datum<input type="date" id="mvDate" value="${today()}"></label>
-          <label class="f" style="flex:1;min-width:160px">Notiz<input id="mvNote"></label>
-          <button class="btn" id="mvSave">Buchen</button></div></div>
+          <label class="f">Notiz<input id="mvNote"></label></div>
+          <div class="btns"><button class="btn" id="mvSave">Buchen</button></div></div>
       <div class="card"><h3>Letzte Bestandsänderungen</h3>${moves.length ? `<table class="tbl"><tr><th>Datum</th><th>Artikel</th><th>Grund</th><th class="r">Einzelartikel</th><th>Notiz</th></tr>
         ${moves.map(m => `<tr><td>${deDate(m.date)}</td><td>${esc(m.name)}</td><td>${esc(m.reason)}</td><td class="r ${m.qty < 0 ? 'neg' : ''}">${num(m.qty)}</td><td class="muted">${esc(m.note || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Bestandsänderungen.</p>'}</div>
       <div class="card" id="abglCard"></div>`;
@@ -2042,14 +2042,13 @@
       if (nested) { holder.className = 'overlay'; holder.style.zIndex = 30; holder.innerHTML = '<div class="dialog" id="artDlg"></div>'; document.body.appendChild(holder); }
       const box = nested ? holder.querySelector('#artDlg') : $('dialog');
       const html = `<h2>${a ? 'Artikel bearbeiten' : 'Neuer Artikel'}</h2>
-        <div class="row"><label class="f" style="flex:2;min-width:240px">Name (so steht er auf dem Tablet)<input name="name" value="${esc(x.name)}"></label>
-          <label class="f">Kategorie<input name="category" list="catList" value="${esc(x.category)}" placeholder="z. B. Bier"></label></div>
         <datalist id="catList">${cats.map(c => `<option>${esc(c)}</option>`).join('')}</datalist>
-        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;align-items:end">
-          <label class="f">Preis €<input name="price" value="${centsToInput(x.price_cents)}" inputmode="decimal"></label>
-          <label class="f">Einzelartikel je Gebinde<input name="crate_size" value="${x.crate_size}" inputmode="numeric"></label>
-          <label class="f">Mindestbestand<input name="min_stock" value="${x.min_stock}" inputmode="numeric"></label>
-          <label class="f">Bestellen bis<input name="target_stock" value="${x.target_stock || ''}" placeholder="2× Mindest" inputmode="numeric"></label></div>
+        <div class="frm"><label class="f w3">Name (so steht er auf dem Tablet)<input name="name" value="${esc(x.name)}"></label>
+          <label class="f w1">Kategorie<input name="category" list="catList" value="${esc(x.category)}" placeholder="z. B. Bier"></label>
+          <label class="f w1">Preis €<input name="price" value="${centsToInput(x.price_cents)}" inputmode="decimal"></label>
+          <label class="f w1">Einzelartikel je Gebinde<input name="crate_size" value="${x.crate_size}" inputmode="numeric"></label>
+          <label class="f w1">Mindestbestand<input name="min_stock" value="${x.min_stock}" inputmode="numeric"></label>
+          <label class="f w1">Bestellen bis<input name="target_stock" value="${x.target_stock || ''}" placeholder="2× Mindest" inputmode="numeric"></label></div>
         <p class="muted s" style="margin:6px 0 0">Mindestbestand und „Bestellen bis“ in Einzelartikeln (Flaschen, Tüten, Dosen …).</p>
         <div class="row" style="margin-top:12px"><label class="chk"><input type="checkbox" name="track_stock" ${x.track_stock ? 'checked' : ''}> Bestand führen</label>
           <label class="chk"><input type="checkbox" name="active" ${x.active ? 'checked' : ''}> Auf dem Tablet anzeigen</label></div>
@@ -2677,12 +2676,11 @@
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
       <p class="lead">Mitglieder bekommen <b>eine Einladung</b> (QR-Code, E-Mail oder Brief), nutzen <b>eine PIN</b> und sehen in der App, was für sie freigeschaltet ist.</p>
       ${mayCfg ? `<div class="card" id="apSet" data-set="einstellungen"><h3>Adresse & Aussehen</h3>
-        <div class="row"><label class="f" style="flex:2;min-width:260px">Adresse im Vereins-WLAN<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.lanUrl || '')}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
-          <label class="f" style="flex:1;min-width:160px">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
+        <div class="frm"><label class="f w3">Adresse im Vereins-WLAN<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.lanUrl || '')}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
+          <label class="f w1">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
+        ${mayNet ? `<label class="f w3">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
+          <label class="chk w1" style="height:40px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> Von unterwegs erreichbar</label>` : ''}
         </div>
-        ${mayNet ? `<div class="row" style="align-items:flex-end;margin-top:10px"><label class="f" style="flex:2;min-width:260px">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
-          <label class="chk" style="height:42px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> Von unterwegs erreichbar</label>
-        </div>` : ''}
         <div class="btns"><a class="btn" id="apTest" target="_blank" rel="noopener">Testen ↗</a>${mayNet ? `<button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button>` : ''}<button class="btn primary" id="apSave">Speichern</button></div>
         ${!r.lanUrl && !(r.tunnel && r.tunnel.on) ? `<div class="banner a" style="margin:10px 0 0;font-weight:400">Noch keine Adresse eingetragen – im QR-Code landet <b>${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}</b>. ${/\.local$/i.test(location.hostname) ? 'Adressen mit „.local“ öffnen manche Handys nicht – besser ohne „.local“ (z. B. <b>' + (r.https ? 'https' : 'http') + '://' + esc(location.hostname.replace(/\.local$/i, '')) + ':' + (r.port || 5001) + '</b>) oder mit der IP-Adresse von Home Assistant.' : ''}</div>` : ''}
         <p class="muted s" style="margin:8px 0 0">${r.tunnel && r.tunnel.on ? `<span>Im QR-Code landet die öffentliche Adresse ${esc(r.url)} – die Adresse hier nutzt die App im Vereinsheim als lokale Route (nur mit https).</span>` : '<span>Diese Adresse landet im QR-Code.</span>'} Leer lassen = Adresse, unter der die Verwaltung gerade geöffnet ist, mit Port ${r.port || 5001}. ${r.https ? 'Mit HTTPS hier den Namen eintragen, für den das Zertifikat gilt (z. B. <code>https://dein-verein.duckdns.org:' + (r.port || 5001) + '</code>) – mit einer IP-Adresse meldet das Handy einen Zertifikatsfehler.' : `Bei Fernzugriff (z. B. Nabu Casa) oder wenn Handys „.local“-Adressen nicht öffnen, hier die Adresse im Vereins-WLAN eintragen – den Gerätenamen ohne „.local“ (z. B. <code>http://homeassistant:${r.port || 5001}</code>) oder die IP-Adresse (z. B. <code>http://192.168.178.20:${r.port || 5001}</code>).`} Mit „Testen“ prüfen.</p>
@@ -3820,16 +3818,16 @@
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
-        <div class="row"><label class="f" style="flex:1;min-width:260px">Vereinsname<input id="club" value="${esc(s.clubName)}"></label>
-        <label class="f">Vereinsfarbe<span class="row" style="gap:6px"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;padding:2px">
-          <input id="clubColor" value="${esc(s.clubColor)}" style="width:110px" maxlength="7"></span></label>
-        <label class="f">Zweitfarbe (freiwillig)<span class="row" style="gap:6px"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;padding:2px">
-          <input id="clubColor2" value="${esc(s.clubColor2 || '')}" style="width:110px" maxlength="7" placeholder="keine"></span></label></div>
-        <div class="clubprev" id="clubPrev"></div>
-        <div class="row" style="margin-top:10px"><label class="f" style="flex:2;min-width:260px">Straße und Hausnummer<input id="clubStreet" maxlength="80" value="${esc(s.clubStreet)}" placeholder="z. B. Vereinsweg 1" autocomplete="off"></label>
-          <label class="f" style="flex:1;min-width:200px">PLZ und Ort<input id="clubCity" maxlength="80" value="${esc(s.clubCity)}" placeholder="z. B. 12345 Musterstadt" autocomplete="off"></label></div>
-        <div class="row" style="margin-top:10px"><label class="f" style="flex:1;min-width:240px">E-Mail des Vereins<input id="clubEmail" type="email" maxlength="120" value="${esc(s.clubEmail)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
-          <label class="f" style="flex:1;min-width:200px">Telefon<input id="clubPhone" type="tel" maxlength="40" value="${esc(s.clubPhone)}" autocomplete="off"></label></div>
+        <div class="frm"><label class="f">Vereinsname<input id="club" value="${esc(s.clubName)}"></label>
+        <label class="f w1">Vereinsfarbe<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;flex:none;padding:2px">
+          <input id="clubColor" value="${esc(s.clubColor)}" style="flex:1;min-width:0" maxlength="7"></span></label>
+        <label class="f w1">Zweitfarbe (freiwillig)<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;flex:none;padding:2px">
+          <input id="clubColor2" value="${esc(s.clubColor2 || '')}" style="flex:1;min-width:0" maxlength="7" placeholder="keine"></span></label>
+        <div class="clubprev wall" id="clubPrev"></div>
+        <label class="f">Straße und Hausnummer<input id="clubStreet" maxlength="80" value="${esc(s.clubStreet)}" placeholder="z. B. Vereinsweg 1" autocomplete="off"></label>
+        <label class="f">PLZ und Ort<input id="clubCity" maxlength="80" value="${esc(s.clubCity)}" placeholder="z. B. 12345 Musterstadt" autocomplete="off"></label>
+        <label class="f">E-Mail des Vereins<input id="clubEmail" type="email" maxlength="120" value="${esc(s.clubEmail)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
+        <label class="f">Telefon<input id="clubPhone" type="tel" maxlength="40" value="${esc(s.clubPhone)}" autocomplete="off"></label></div>
         <p class="muted s">Anschrift und Kontakt stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen – alle Module lesen sie von hier. Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel-Export; ist sie für Schrift zu hell, dunkelt Clubwerk sie dort automatisch ab (im dunklen Modus hellt es sie auf). Die Zweitfarbe (z. B. aus dem Logo) gibt dem Hintergrund einen zweiten, leichten Schimmer – leer lassen für keine.</p>
         <div class="btns"><button class="btn primary" id="saveClub">Speichern</button></div></div>
       <div class="card" id="tmCard"><h3>Tablet im Vereinsheim</h3>

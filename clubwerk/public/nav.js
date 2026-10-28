@@ -138,7 +138,7 @@
     head.classList.remove('stack');
     if (cur.links) draw(cur.links.length);
     if (nav.classList.contains('hidden') || window.innerWidth <= 640) return;
-    const over = () => nav.scrollWidth > nav.clientWidth + 1;
+    const over = () => nav.scrollWidth > nav.clientWidth + 1 || [...nav.getElementsByTagName('span')].some(s => s.scrollWidth > s.clientWidth + 1);   // auch ein mit „…“ gekürzter Reiter zählt als zu eng
     const n = nav.getBoundingClientRect(), r = head.querySelector('.hright'), b = head.querySelector('.brand');
     const hit = el => { if (!el) return false; const x = el.getBoundingClientRect(); return x.width > 0 && x.left < n.right - 1 && x.right > n.left + 1; };
     if (over() || hit(r) || hit(b)) head.classList.add('stack');

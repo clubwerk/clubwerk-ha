@@ -41,6 +41,7 @@
       @media (max-width: 700px) { .imp-simrow { grid-template-columns: 1fr; gap: 6px; } }
       .mv-up { display: flex; align-items: center; gap: 10px; height: 40px; box-sizing: border-box; padding: 0 4px 0 12px; border: 1px dashed var(--line); border-radius: 10px; background: var(--field); cursor: pointer; font-size: 14px; font-weight: 500; color: var(--faint); }
       .mv-up span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      @media (max-width: 560px) { .mv-up span { visibility: hidden; } }   /* Handy: Hinweis „hierher ziehen“ passt nicht und hilft nicht – es bleibt „Datei wählen …“ */
       .mv-up b { flex: none; height: 30px; padding: 0 12px; border-radius: 8px; background: var(--card); border: 1px solid var(--line); display: inline-flex; align-items: center; font-size: 13px; font-weight: 600; color: var(--ink); }
       .mv-up.ok { border-style: solid; border-color: var(--green-line, var(--line)); background: var(--brand-soft); color: var(--brand-ink); }
       .mv-up.drag { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
@@ -69,7 +70,7 @@
       .mv-sub { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
       .mv-cons-ed { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto auto; gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cons-ed .f { margin: 0; } .mv-cons-ed textarea { width: 100%; min-height: 58px; resize: vertical; } .mv-cons-ed .chk { min-height: 40px; }
       @media (max-width: 700px) { .mv-cons-ed { grid-template-columns: minmax(0, 1fr); } }
-      .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; }
+      .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 112px; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; } .mv-cg-days { border-top: 0; margin-top: 4px; }   /* Erinnerung im selben Raster wie die Regeln darüber */
       @media (max-width: 700px) { .mv-cg-ed { grid-template-columns: minmax(0, 1fr); } .mv-cg-ed .btn { justify-self: end; } }
       .mv-addr { min-height: 40px; display: flex; align-items: center; font-size: 14px; }
       .mv-pic { overflow: hidden; } .mv-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -219,7 +220,7 @@
         ${full ? `<label class="f w2">Beitrag<select translate="no" id="nFee"></select></label>` : ''}
         <label class="f ${full ? '' : 'w2'}">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
         ${full ? `<label class="f">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${m.settings.sepa_required ? '' : opt('rechnung', 'Rechnung') + opt('bar', 'bar')}</select></label>
-        <label class="f nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
+        <label class="f w2 nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f w2 nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
         <label class="f wall">Unterschriebene Beitrittserklärung${full ? ' mit SEPA-Mandat' : ''} (PDF oder Foto)<input id="nDocF" type="file" accept="application/pdf,image/*" hidden><div class="mv-up" id="nDoc"><span>Datei wählen oder hierher ziehen</span><b>Datei wählen …</b></div></label>
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="nOk">Anlegen</button></div>`, true);
@@ -1473,12 +1474,12 @@
     el.innerHTML = `<div class="card" data-set="sepa"><h3>Lastschrift (SEPA)</h3><div class="mv-grid" style="--c:4">
         <label class="f w2">Name als Zahlungsempfänger<input id="eName" value="${esc(s.creditor_name)}" maxlength="70"></label>
         <div class="f w2"><span>Vereinsanschrift</span><div class="mv-addr">${addr || '<span class="muted">noch nicht eingetragen</span>'}</div><span class="muted s">ändern unter <a href="#einstellungen" id="eAddrGo">Einstellungen › Verein</a></span></div>
-        <label class="f">Gläubiger-ID<input id="eCi" value="${esc(s.creditor_id)}" placeholder="DE98ZZZ09999999999" spellcheck="false"></label>
-        <label class="f w2">Konto für Lastschriften<select id="eAcc" ${m.perms.finance && acc.rows.length ? '' : 'disabled'}>${acc.rows.length ? `${opt('', 'Standardkonto' + (acc.rows.find(a => a.is_default) ? ` (${acc.rows.find(a => a.is_default).name})` : ''), s.sepa_account || '')}${acc.rows.filter(a => a.active !== false).map(a => opt(a.id, `${a.name} · ${fmtIban(a.iban).slice(0, 4)} … ${String(a.iban).replace(/\s/g, '').slice(-4)}`, s.sepa_account)).join('')}` : `<option>${s.club_iban && !s.account_central ? esc(fmtIban(s.club_iban)) + ' (bisher hier eingetragen)' : 'noch kein Bankkonto angelegt'}</option>`}</select></label>
-        <label class="f"><span>&nbsp;</span><a class="btn" href="#einstellungen" id="eAccGo" style="justify-content:center">Bankkonten verwalten …</a></label>
+        <label class="f w2">Gläubiger-ID<input id="eCi" value="${esc(s.creditor_id)}" placeholder="DE98ZZZ09999999999" spellcheck="false"></label>
         <label class="f">Mandatsreferenz = Kürzel + Nr.<input id="ePre" value="${esc(s.mandate_prefix)}" maxlength="10" placeholder="z. B. TCM"></label>
         <label class="f">Vorabinformation (Tage vorher)<input id="ePre2" value="${s.prenotify_days}" inputmode="numeric"></label>
-        <label class="f">Verkaufs-Einzug üblich am (TT.MM.)<input id="eDrinks" value="${esc(s.drinks_due ? s.drinks_due.split('-').reverse().join('.') : '')}" placeholder="z. B. 01.12."></label>
+        <label class="f w2">Konto für Lastschriften<select id="eAcc" ${m.perms.finance && acc.rows.length ? '' : 'disabled'}>${acc.rows.length ? `${opt('', 'Standardkonto' + (acc.rows.find(a => a.is_default) ? ` (${acc.rows.find(a => a.is_default).name})` : ''), s.sepa_account || '')}${acc.rows.filter(a => a.active !== false).map(a => opt(a.id, `${a.name} · ${fmtIban(a.iban).slice(0, 4)} … ${String(a.iban).replace(/\s/g, '').slice(-4)}`, s.sepa_account)).join('')}` : `<option>${s.club_iban && !s.account_central ? esc(fmtIban(s.club_iban)) + ' (bisher hier eingetragen)' : 'noch kein Bankkonto angelegt'}</option>`}</select></label>
+        <label class="f"><span>&nbsp;</span><a class="btn" href="#einstellungen" id="eAccGo" style="justify-content:center">Bankkonten verwalten …</a></label>
+        <label class="f w2">Verkaufs-Einzug üblich am (TT.MM.)<input id="eDrinks" value="${esc(s.drinks_due ? s.drinks_due.split('-').reverse().join('.') : '')}" placeholder="z. B. 01.12."></label>
         <label class="f">Gebühr Rücklastschrift<input id="eRet" value="${centsToInput(s.return_fee_cents)}" inputmode="decimal"></label></div>
         <p class="muted s" style="margin:12px 0 0">Die Gläubiger-ID bekommt der Verein von der Bundesbank. Die Mandatsreferenz jedes Mitglieds besteht aus dem Kürzel und seiner Mitgliedsnummer.</p>
         ${s.club_iban && !s.club_bic ? `<div class="banner g" style="margin-top:12px"><span>${BIC_HINT}</span></div>` : ''}${foot('eSaveSepa')}</div>
@@ -1625,7 +1626,7 @@
     el.innerHTML = `<h3>Gratulationen</h3><p class="muted s" style="margin-top:0">Wem wann gratuliert wird. „ab 80“ heißt: mit 80 und danach jedes Jahr. Die Liste steht unter Mitglieder › Gratulationen.</p>
       <div id="cgRules">${c.rules.map(row).join('')}</div>
       <div class="row" style="margin-top:10px"><button class="btn" id="cgAdd">+ Regel</button></div>
-      <div class="mv-grid" style="--c:4;margin-top:14px"><label class="f w2">Erinnerung … Tage vorher<input id="cgDays" value="${c.days}" inputmode="numeric"></label></div>
+      <div class="mv-cg-ed mv-cg-days"><label class="f">Erinnerung … Tage vorher<input id="cgDays" value="${c.days}" inputmode="numeric"></label></div>
       <p class="muted s" style="margin:8px 0 0">Erinnert werden alle mit dem Recht „Gratulationen“: <span translate="no">${esc(rec) || esc(GK.T('noch niemand'))}</span>.</p>${foot('cgSaveSet')}`;
     const bind = () => el.querySelectorAll('[data-rx]').forEach(b => { b.onclick = () => b.closest('[data-r]').remove(); });
     bind();

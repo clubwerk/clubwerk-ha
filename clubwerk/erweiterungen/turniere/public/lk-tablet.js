@@ -98,17 +98,17 @@
     onChange = refresh || onChange;
     d = await call('heute');
     if (!d.day) return null;
-    const tile = c => {
+    const tile = c => {   // Platz-Kacheln doppelt breit: Paarung und Uhrzeit stehen ganz da, nie mit „…“
       const r = c.running, n = c.next;
       const txt = r ? `${line(r)} · ${r.minutes} min` : n ? `als Nächstes ${n.est || ''} ${line(n)}` : 'frei';
       const chip = r ? '<span class="tk-chip g">läuft</span>' : n && !n.wait ? '<span class="tk-chip">bereit</span>' : n && n.delay >= 15 ? `<span class="tk-chip r">+${n.delay} min</span>` : '';
-      return `<button class="tk-tile" data-c="${c.id}"><span class="tk-ico">${COURT}</span><span class="tk-txt"><b>${esc(c.name)}</b><span translate="no">${esc(txt)}</span></span>${chip}</button>`;
+      return `<button class="tk-tile span2" data-c="${c.id}"><span class="tk-ico">${COURT}</span><span class="tk-txt"><b>${esc(c.name)}</b><span translate="no">${esc(txt)}</span></span>${chip}</button>`;
     };
     const html = `<h2 class="sec">Was möchtest du tun?</h2><div class="tk-grid">
         <button class="tk-tile big span2" id="tlIn"><span class="tk-ico">${IN}</span><span class="tk-txt"><b>Einchecken</b><span>Namen suchen, einchecken und das Nenngeld bezahlen.</span></span></button>
         <button class="tk-tile big span2" id="tlRes"><span class="tk-ico">${RES}</span><span class="tk-txt"><b>Ergebnis eintragen</b><span>Nach dem Match: Match antippen und die Sätze eingeben.</span></span></button></div>
       <h2 class="sec">Plätze</h2><div class="tk-grid">${d.courts.map(tile).join('')}</div>
-      ${d.queue.length ? `<h2 class="sec">Warteschlange</h2><div class="tk-grid">${d.queue.slice(0, 8).map(m => `<div class="tk-tile"><span class="tk-txt"><b translate="no">${esc(line(m))}</b><span>${esc(m.event)} · ${esc(m.wait || 'bereit – wartet auf einen Platz')}</span></span></div>`).join('')}</div>` : ''}`;
+      ${d.queue.length ? `<h2 class="sec">Warteschlange</h2><div class="tk-grid">${d.queue.slice(0, 8).map(m => `<div class="tk-tile span2"><span class="tk-txt"><b translate="no">${esc(line(m))}</b><span>${esc(m.event)} · ${esc(m.wait || 'bereit – wartet auf einen Platz')}</span></span></div>`).join('')}</div>` : ''}`;
     const bind = () => {
       $('tlIn').onclick = pickName; $('tlRes').onclick = pickMatch;
       document.querySelectorAll('[data-c]').forEach(b => { b.onclick = () => court(d.courts.find(c => c.id === +b.dataset.c)); });

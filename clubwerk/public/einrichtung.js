@@ -56,8 +56,9 @@
   .wlist .wr:first-child{border-top:0}
   .wlist .wr .wt{flex:1;min-width:0;display:flex;flex-direction:column}
   .wlist .wr .wt b{font-size:14px;line-height:20px}
-  .wlist .wr .wt small{font-size:12px;line-height:16px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .wlist .wr .wt small{font-size:12px;line-height:16px;color:var(--muted)}
   .wlist .wr .acts{display:flex;gap:8px;flex:none}
+  @media (max-width:560px){.wlist .wr{flex-wrap:wrap}.wlist .wr .wt{flex:1 1 100%}.wlist .wr .acts{margin-left:auto}}
   .wlist .wr .ok{color:var(--brand);flex:none;display:inline-flex}
   .firststart .wpath{display:grid;gap:10px;margin:18px 0 0}
   .firststart .wpath .btn{width:100%;justify-content:center;height:48px;font-size:15px}

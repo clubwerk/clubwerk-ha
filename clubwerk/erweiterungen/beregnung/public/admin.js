@@ -19,19 +19,19 @@
     const c = st.cfg;
     if (!c.plaetze.length) return '<p class="empty">Noch keine Plätze – oben rechts „+ Platz“ wählen und die Zonen zuordnen.</p>';
     return c.plaetze.map((p, i) => `<div class="card soft" style="margin:0 0 12px">
-      <div class="row" style="align-items:flex-end">
-        <label class="f" style="flex:1 1 180px">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}" placeholder="z. B. Platz 1"></label>
-        <label class="f" style="flex:2 1 240px">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Erst Vorne, dann Hinten · je 2 min"></label>
-        <button class="btn small" data-pu="${i}" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button>
-        <button class="btn small" data-pd="${i}" ${i === c.plaetze.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button>
-      </div>
-      ${p.zones.map((z, j) => `<div class="row" style="align-items:flex-end;margin-top:10px">
-        <label class="f" style="flex:2 1 220px">${j + 1}. Zone (Gerät)${st.cfg.backend === 'hydrawise' && !(st.data.list || []).length
+      <div class="frm">
+        <label class="f w1">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}" placeholder="z. B. Platz 1"></label>
+        <label class="f">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Erst Vorne, dann Hinten · je 2 min"></label>
+        <span class="w1 frm-acts"><button class="btn small" data-pu="${i}" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button>
+        <button class="btn small" data-pd="${i}" ${i === c.plaetze.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span>
+      ${p.zones.map((z, j) => `
+        <label class="f w1">${j + 1}. Zone (Gerät)${st.cfg.backend === 'hydrawise' && !(st.data.list || []).length
           ? `<input data-zr="${i}.${j}" value="${esc(z.ref)}" inputmode="numeric" placeholder="Zonennummer">`
           : `<select data-zr="${i}.${j}">${zoneOptions(z.ref)}</select>`}</label>
-        <label class="f" style="flex:1 1 140px">Bezeichnung<input data-zl="${i}.${j}" maxlength="20" value="${esc(z.label || '')}" placeholder="z. B. Vorne"></label>
-        <label class="f" style="flex:0 1 90px">Minuten<input class="num" data-zs="${i}.${j}" inputmode="decimal" value="${minTxt(z.sec)}" style="text-align:right"></label>
-        <button class="btn small" data-zx="${i}.${j}">Entfernen</button></div>`).join('')}
+        <label class="f w1">Bezeichnung<input data-zl="${i}.${j}" maxlength="20" value="${esc(z.label || '')}" placeholder="z. B. Vorne"></label>
+        <label class="f w1">Minuten<input class="num" data-zs="${i}.${j}" inputmode="decimal" value="${minTxt(z.sec)}" style="text-align:right"></label>
+        <span class="w1 frm-acts"><button class="btn small" data-zx="${i}.${j}">Entfernen</button></span>`).join('')}
+      </div>
       <div class="row" style="margin-top:8px"><button class="btn small" data-za="${i}">+ Zone</button>
         <span class="muted s">Mehrere Zonen laufen nacheinander in dieser Reihenfolge.</span></div>
       <div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px"><button class="btn small danger" data-px="${i}">Platz löschen</button></div>

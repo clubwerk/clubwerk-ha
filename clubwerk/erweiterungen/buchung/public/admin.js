@@ -54,22 +54,21 @@
       .bk-rights { display: grid; gap: 6px; padding-top: 4px; } .bk-sub { margin: 20px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
       .bk-grid .w2 { grid-column: span 2; } .bk-grid .w3 { grid-column: span 3; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
       /* Buchungsfenster der Verwaltung */
-      .bd-form .bd-w3 { grid-column: span 3; }
       .bd-time { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 6px; align-items: center; } .bd-time > span { color: var(--muted); }
       .bd-sec { margin: 6px 0 -6px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
-      .bd-links { display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap; } .bd-links .bk-chips:empty { display: none; } .bd-btns { display: flex; gap: 8px; }   /* Zusatzangaben links bündig mit den Feldern – nicht schwebend rechts */
-      .bd-links .btn.on { background: var(--hover); }
+      .bd-links { display: flex; align-items: center; justify-content: flex-start; gap: 10px; flex-wrap: wrap; } .bk-grid .bd-pc { grid-column: 3 / span 2; margin-top: -6px; } .bd-pc:has(.bk-chips:empty) { display: none; } .bd-btns { display: flex; gap: 8px; }   /* Zusatzangaben links bündig mit den Feldern – nicht schwebend rechts */
+      .bd-links .btn.on { background: var(--hover); } .bd-pc .bk-chips label { height: 34px; padding: 0 6px 0 12px; }   /* Mitspieler-Chips unter dem Feld „Mitspieler“, so hoch wie die kleinen Knöpfe */
       .bd-fold { padding: 12px 14px; border-radius: 12px; background: var(--hover); margin-top: -6px; }
       .bd-gn { display: flex; flex-direction: column; justify-content: flex-end; gap: 4px; padding-bottom: 4px; }
-      @media (max-width: 900px) { .bd-form .bd-w3 { grid-column: 1 / -1; } }
       .bk-scope { display: grid; gap: 8px; margin: 4px 0 14px; } .bk-scope .btn { justify-content: flex-start; height: 46px; font-size: 15px; }
-      @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr 1fr; } .bk-grid .w2, .bk-grid .w3 { grid-column: 1 / -1; } }
+      @media (max-width: 900px) { .bk-grid { grid-template-columns: 1fr 1fr; } .bk-grid .w2, .bk-grid .w3, .bk-grid .bd-pc { grid-column: 1 / -1; } }
       @media (max-width: 560px) { .bk-grid { grid-template-columns: 1fr; } }
       .bk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 0 0 16px; }
       .bk-bar .day { display: inline-flex; align-items: center; gap: 6px; }
       .bk-bar .day input { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-bar .day b { min-width: 34px; text-align: center; font-size: 14px; }
       .bk-bar .bk-days { margin: 0; padding: 2px; max-width: 100%; min-width: 0; overflow-x: auto; }   /* schmale Fenster: Tage wischen, nie breiter als die Seite */
+      .bk-bar:has(.bk-days) #bkV > button { height: 62px; border-radius: 14px; }   /* Tagesansicht: Tag/Woche so hoch wie die Tage daneben */
       .bk-bar .bk-pick { height: 62px; border: 1px solid var(--line); border-radius: 14px; padding: 0 12px; background: var(--card); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-wrap { overflow-x: auto; padding: 0 !important; }
       .bk-plan { display: grid; grid-template-columns: 58px repeat(var(--n), minmax(150px, 1fr)); min-width: calc(58px + var(--n) * 150px); }
@@ -339,12 +338,13 @@
         <label class="f w2">Platz / Gerät<select id="bdR">${rs.map(r => opt(r.id, r.name, r0.id)).join('')}</select></label>
         <label class="f">Datum<input id="bdD" type="date" value="${ed ? ed.date : pre.date || m.today}"></label>
         <label class="f">Zeit<span class="bd-time"><input id="bdS" type="time" value="${ed ? ed.start : pre.start || r0.open_from}" step="900" aria-label="von"><span>–</span><input id="bdE" type="time" value="${ed ? ed.end : pre.end || hhmm(Math.min(tm(r0.open_to), tm(r0.open_from) + 60))}" step="900" aria-label="bis"></span></label>
-        <label class="f">Buchungsart<select id="bdL">${opt('', '– ohne –')}${m.labels.filter(l => l.active && (l.usable || l.id === curL)).map(l => opt(l.id, l.name, curL)).join('')}</select></label>
-        <label class="f bd-t bd-w3">Titel / Grund<input id="bdTi" placeholder="optional, z. B. Training Jugend" value="${esc(ed && ed.title && (!ed.label || ed.title !== ed.label.name) ? ed.title : '')}"></label>
+        <label class="f w2">Buchungsart<select id="bdL">${opt('', '– ohne –')}${m.labels.filter(l => l.active && (l.usable || l.id === curL)).map(l => opt(l.id, l.name, curL)).join('')}</select></label>
+        <label class="f bd-t w2">Titel / Grund<input id="bdTi" placeholder="optional, z. B. Training Jugend" value="${esc(ed && ed.title && (!ed.label || ed.title !== ed.label.name) ? ed.title : '')}"></label>
         <div class="bd-sec wall bd-b">Wer spielt</div>
         <label class="f bd-b w2">Mitglied (bucht)<select id="bdM">${personOpts(ed ? ed.member_id : '', '– Verein (Buchungsart oder Titel) –')}</select></label>
         <label class="f bd-b w2">Mitspieler<select id="bdP"><option value="">+ Mitspieler hinzufügen …</option>${m.people.map(p => opt(p.id, GK.lastFirst(p.name, 'mitglied'))).join('')}</select></label>
-        <div class="wall bd-links"><span class="bk-chips bd-b" id="bdPc"></span><span class="bd-btns"><button type="button" class="btn small bd-b" id="bdGt">+ Gäste</button>${!ed && can('buchung_serien') ? '<button type="button" class="btn small" id="bdRt">Wiederholen …</button>' : ''}</span></div>
+        <div class="w2 bd-pc bd-b"><span class="bk-chips" id="bdPc"></span></div>
+        <div class="wall bd-links"><span class="bd-btns"><button type="button" class="btn small bd-b" id="bdGt">+ Gäste</button>${!ed && can('buchung_serien') ? '<button type="button" class="btn small" id="bdRt">Wiederholen …</button>' : ''}</span></div>
         <div class="bd-b wall bd-fold" id="bdGw" hidden><div class="bk-grid" style="--c:4">
           <label class="f w2">Gäste (Namen, mit Komma getrennt)<input id="bdG" placeholder="z. B. Max Gast, Erika Besuch" value="${esc(ed ? (ed.guests || []).map(g => g.name).join(', ') : '')}"></label>
           <div class="f w2 bd-gn"><label class="chk" style="font-weight:500"><input type="checkbox" id="bdGp" ${ed && (ed.guests || []).length && ed.guests.every(g => g.partner) ? 'checked' : ''}> Gäste aus Partnerverein (keine Gebühr)</label><span class="muted s">Gastgebühr ${euro(r0.guest_fee_cents != null ? r0.guest_fee_cents : m.settings.guest_fee_cents)} je Gast – als offener Posten beim Mitglied.</span></div></div></div>

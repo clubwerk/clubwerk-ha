@@ -1,5 +1,15 @@
 # Änderungen
 
+## 3.81.0
+
+**Gleiche Linien, gleiche Höhen, nichts abgeschnitten – überall**
+- **Formulare fluchten:** Felder untereinander liegen jetzt auf denselben Linien, statt dass jede Zeile anders geteilt ist. Dafür gibt es ein gemeinsames Formularraster mit vier Spalten (am Handy eine). Umgestellt sind unter anderem: Fenster „Buchung eintragen“, Einstellungen › Verein (Name, Farben, Anschrift, Kontakt), Mitglieder-App › Adresse, Lager › Bestelldaten, Artikel bearbeiten, Bruch/Korrektur, Beregnung › Plätze & Zonen, Lastschrift (SEPA), Neues Mitglied (Bankdaten) und Gratulationen.
+- **Buchung eintragen:** Die Mitspieler stehen jetzt direkt unter dem Feld „Mitspieler“, „+ Gäste“ und „Wiederholen …“ in einer eigenen Zeile darunter – nicht mehr dazwischen. Die Mitspieler-Chips sind so hoch wie die Knöpfe.
+- **Eine Höhe je Zeile:** Felder, Knöpfe, Reiter, Umschalter und Filterchips, die nebeneinanderstehen, sind gleich hoch (40 px). Bisher waren Reiter 44 px, Filterchips 32 px und kleine Knöpfe neben Feldern 34 px hoch.
+- **Nichts mehr mit „…“ gekürzt:** Tablet-Kopfzeile bei 1280 px (z. B. „Stemp…“, „Bereg…“ – jetzt zweizeilig mit allen Reitern ganz), Namen in Handy-Listen (Verkauf, Protokoll, Plätze, Mitglieder-App), Reihenfolge der Tablet-Reiter am Handy, Einrichtung, Turnier-Tabellen und -Kacheln am Tablet, Kennzahlen bei Tablet-Breite, Verkauf › Auswertung, Mängel-Liste am Handy. Nur lange Texte (Protokolldetails, Dateinamen) dürfen in Handy-Listen am Ende mit „…“ enden – der volle Text steht beim Antippen.
+- **Gleich hohe Karten:** Gruppen der Clubmeisterschaft nebeneinander sind gleich hoch.
+- **Handy:** Die Suche in Filterleisten geht über die ganze Breite, die Filterchips stehen darunter in einer Zeile zum Wischen.
+- Für Entwickler: neuer Baustein `.frm` (Formularraster, kit.css) und neue Regeln im Design-Prüfstand: Fluchtlinien (`d1-fluchtlinie`), gleiche Höhe in einer Zeile (`d2-zeilenhoehe`), Karten gleich hoch (`d3-kartenhoehe`), kein gekürzter Kurztext (`d4-gekuerzt`). Der Prüfstand wartet vor „nicht erreichbar“, bis die Seite fertig aufgebaut ist, und meldet Tablet-Gruppen, die keine Reiter fanden, statt sie still zu überspringen.
 ## 3.80.1
 
 **Tablet: Die Kopfzeile bleibt beim Wechsel zwischen den Modulen stehen**

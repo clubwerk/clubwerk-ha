@@ -44,7 +44,7 @@
   .ml-bar button:hover,.ml-bar button.on{background:var(--hover)}
   .ml-bar .sep{width:1px;height:20px;background:var(--line);margin:0 6px}
   .ml-bar .grow{flex:1}
-  .ml-bar select{width:auto;max-width:180px;height:32px;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:0 8px;font:inherit;font-size:13px;color:var(--ink)}
+  .ml-bar select{width:auto;max-width:180px;height:32px;min-height:32px;padding-top:0;padding-bottom:0;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:0 8px;font:inherit;font-size:13px;color:var(--ink)}
   .ml-ed{min-height:300px;padding:16px 18px;outline:none;font-size:15px;line-height:1.55;color:var(--ink);overflow-wrap:anywhere}
   .ml-ed:empty::before{content:attr(data-ph);color:var(--faint)}
   .ml-ed p,.ml-view p{margin:0 0 .7em}.ml-ed h2,.ml-view h2{font-size:20px;margin:.6em 0 .4em}.ml-ed h3,.ml-view h3{font-size:16px;margin:.6em 0 .3em}
