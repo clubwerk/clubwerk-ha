@@ -16,7 +16,7 @@ body.mon { margin: 0; background: var(--bg); color: var(--ink); min-height: 100d
 .mon-card h3 { margin: 0 0 calc(var(--s) * 8px); font-size: calc(var(--s) * clamp(16px, 1.5vw, 30px)); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
 .mon-card h3 small { font-weight: 600; color: var(--muted); font-size: .8em; }
 /* Jetzt: je Platz das laufende Spiel mit Restzeit */
-.mon-courts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--s) * 420px)), 1fr)); gap: calc(var(--s) * 16px); }
+.mon-courts { display: grid; grid-template-columns: repeat(var(--n, 2), minmax(0, 1fr)); gap: calc(var(--s) * 16px); }   /* Fernseher: bis zu 4 nebeneinander, gleichmäßig verteilt */
 .mon-court { display: grid; gap: calc(var(--s) * 8px); }
 .mon-vs { display: grid; gap: 2px; }
 .mon-vs b { font-size: calc(var(--s) * clamp(18px, 2.1vw, 42px)); line-height: 1.2; overflow-wrap: anywhere; }
@@ -75,7 +75,7 @@ body.mon { margin: 0; background: var(--bg); color: var(--ink); min-height: 100d
   .mon-top { grid-template-columns: minmax(0, 1fr) auto; padding: 16px 16px 10px; }
   .mon-pg { display: none; }
   .mon-main { padding: 12px 16px 32px; display: grid; gap: 20px; }
-  .mon-groups { grid-template-columns: minmax(0, 1fr); }
+  .mon-groups, .mon-courts { grid-template-columns: minmax(0, 1fr); }
   .mon-tree { grid-template-columns: minmax(0, 1fr); }
   .mon-row { grid-template-columns: 3.6em minmax(0, 1fr) auto; }
   .mon-row .ct { grid-column: 2 / -1; grid-row: 2; font-size: .85em; }
@@ -83,3 +83,7 @@ body.mon { margin: 0; background: var(--bg); color: var(--ink); min-height: 100d
   .mon-row.res .ct { grid-column: 1 / -1; }
 }
 .mon-card.me { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft), var(--shadow); }
+/* Platzkarten: Rundenangabe unter dem Namen, Restzeit und „danach“ in allen Karten auf derselben Höhe */
+.mon-court { grid-template-rows: auto 1fr auto auto; }
+.mon-court h3 { display: grid; gap: 2px; }
+.mon-court .mon-vs { align-content: start; }

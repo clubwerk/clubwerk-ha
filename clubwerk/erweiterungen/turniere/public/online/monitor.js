@@ -24,8 +24,10 @@
   const leftTxt = l => (l > 0 ? `${Math.floor(l / 60)}:${pad(l % 60)}` : `+${Math.floor(-l / 60)}:${pad(-l % 60)}`);
 
   /* ---------- Bausteine ---------- */
+  /** Spalten für die Plätze: bis 4 in einer Reihe, sonst Reihen möglichst gleich voll (6 → 3 + 3, 8 → 4 + 4) */
+  const cols = n => (n <= 4 ? Math.max(1, n) : n % 4 === 0 ? 4 : n % 3 === 0 ? 3 : 4);
   function courtsHtml() {
-    return `<div class="mon-courts">${d.courts.map(c => `<div class="mon-card mon-court${c.running && mine(c.running) ? ' me' : ''}"><h3>${esc(c.name)}${c.running ? `<small>${esc(c.running.label)}</small>` : ''}</h3>
+    return `<div class="mon-courts" style="--n:${cols(d.courts.length)}">${d.courts.map(c => `<div class="mon-card mon-court${c.running && mine(c.running) ? ' me' : ''}"><h3>${esc(c.name)}${c.running ? `<small>${esc(c.running.label)}</small>` : ''}</h3>
       ${c.running ? `<div class="mon-vs"><b translate="no">${esc(side(c.running, 'a'))}</b><span>${esc(T('gegen'))}</span><b translate="no">${esc(side(c.running, 'b'))}</b></div>
         <div class="mon-left" data-left="${c.running.left == null ? '' : c.running.left}"></div>` : `<div class="mon-free">${esc(T('frei'))}</div>`}
       ${c.next ? `<div class="mon-next">${esc(T('danach'))} <span class="n">${esc(c.next.est || '')}</span> · <span translate="no">${esc(`${side(c.next, 'a')} – ${side(c.next, 'b')}`)}</span></div>` : ''}</div>`).join('')}</div>`;
@@ -79,7 +81,7 @@
   /** Schrift so groß wie möglich: von groß nach klein, bis die Seite ohne Scrollen auf den Bildschirm passt (und Breite nicht überläuft) */
   function fit() {
     const box_ = $('mon'), over = () => box_.scrollHeight > box_.clientHeight + 2 || box_.scrollWidth > box_.clientWidth + 2;
-    let s = 1.8;
+    let s = 1.4;
     document.body.style.setProperty('--s', s);
     while (s > 0.5 && over()) { s -= 0.05; document.body.style.setProperty('--s', s.toFixed(2)); }
   }

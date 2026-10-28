@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.91.1
+
+**Turnierplaner: Monitor nachgeschärft**
+- Der Monitor spricht jetzt immer die Sprache des Vereins (wie das Tablet), auch wenn der Browser des Fernsehers auf Englisch steht – vorher erschien er dann halb übersetzt.
+- „Jetzt“: Bis zu vier Spielfelder stehen nebeneinander in einer Reihe (bei mehr gleichmäßig verteilt, z. B. 3 + 3), Rundenangabe unter dem Namen. Restzeit und „danach“ stehen in allen Karten auf derselben Höhe.
+- Module: Turniere 1.5.1.
+
 ## 3.91.0
 
 **Turnierplaner: eigene Turniere wie das Dorfturnier – Tennis und Fußball**
