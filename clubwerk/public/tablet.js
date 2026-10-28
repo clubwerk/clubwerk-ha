@@ -153,7 +153,7 @@
     const tabs = ev ? [] : (state.tabs || []);
     $('tabsBox').classList.toggle('hidden', !tabs.length || Boolean(letter));
     $('tabs').innerHTML = tabs.map(t => `<button class="tabt" data-tab="${t.id}"><i class="av">${initials(t.name)}</i><span class="nm"><b>${esc(t.name)}</b><span>${euro(t.open_cents)} offen</span></span></button>`).join('') +
-      '<button class="addtab" data-tabnew="1"><i class="av">+</i><span class="nm"><b>Neuer Deckel</b><span>für Gäste und Gegner</span></span></button>';
+      '<button class="addtab" data-tabnew="1"><i class="av">+</i><span class="nm"><b>Neuer Deckel</b><span>für Gäste</span></span></button>';
 
     const q = ($('nameSearch').value || '').trim().toLocaleLowerCase('de');
     $('nameClear').classList.toggle('hidden', !q);

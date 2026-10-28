@@ -521,7 +521,7 @@
     const kinds = s.taskKinds.map(k => ({ ...k }));
     const read = () => { el.querySelectorAll('[data-tl]').forEach(x => { kinds[+x.dataset.tl].l = x.value; }); el.querySelectorAll('[data-tw]').forEach(x => { kinds[+x.dataset.tw].when = x.value; }); };
     const drawKinds = () => {
-      $('tkList').innerHTML = kinds.length ? kinds.map((k, i) => `<div><label class="f"><input data-tl="${i}" value="${esc(k.l)}" aria-label="Aufgabe" placeholder="z. B. Kuchen mitbringen"></label><label class="f"><select data-tw="${i}" aria-label="Wann">${opt('immer', 'bei jedem Spiel', k.when)}${opt('heim', 'nur bei Heimspielen', k.when)}${opt('auswaerts', 'nur bei Auswärtsspielen', k.when)}</select></label><button class="btn small ghost" data-tr="${i}" type="button">Entfernen</button></div>`).join('') : '<div class="empty">Noch keine Aufgaben – mit „+ Aufgabe“ anlegen.</div>';
+      $('tkList').innerHTML = kinds.length ? kinds.map((k, i) => `<div><label class="f"><input data-tl="${i}" value="${esc(k.l)}" aria-label="Aufgabe" placeholder="z. B. Kuchen mitbringen"></label><label class="f"><select data-tw="${i}" aria-label="Wann">${opt('immer', 'bei jedem Spiel', k.when)}${opt('heim', 'nur bei Heimspielen', k.when)}${opt('auswaerts', 'nur bei Auswärtsspielen', k.when)}</select></label><button class="btn ghost" data-tr="${i}" type="button">Entfernen</button></div>`).join('') : '<div class="empty">Noch keine Aufgaben – mit „+ Aufgabe“ anlegen.</div>';
       $('tkList').querySelectorAll('[data-tr]').forEach(b => { b.onclick = () => { read(); kinds.splice(+b.dataset.tr, 1); drawKinds(); }; });
     };
     drawKinds();

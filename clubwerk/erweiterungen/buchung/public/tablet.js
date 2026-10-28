@@ -79,7 +79,7 @@
     if ($('bkPast')) $('bkPast').onclick = () => { pastOpen = !pastOpen; clearTimeout(pastTimer); if (pastOpen) pastTimer = setTimeout(() => { pastOpen = false; draw(); }, 60000); draw(); };
   }
   const PH = 72, TOP = 14;   // Pixel je Stunde · Rand oben/unten, damit die erste und letzte Uhrzeit nicht angeschnitten wird
-  const ink = hex => { if (!/^#[0-9a-f]{6}$/i.test(String(hex))) return '#ffffff'; const n = parseInt(String(hex).slice(1), 16); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return 1.05 / (L + 0.05) >= (L + 0.05) / 0.0631 ? '#ffffff' : '#1b1f1c'; };   // Schriftfarbe mit dem besseren Kontrast (WCAG) zur Buchungsart-Farbe
+  const ink = hex => { if (!/^#[0-9a-f]{6}$/i.test(String(hex))) return '#ffffff'; const n = parseInt(String(hex).slice(1), 16); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : (L + 0.05) / 0.0631 >= 4.5 ? '#1b1f1c' : '#000000'; };   // Schriftfarbe mit dem besseren Kontrast (WCAG) zur Buchungsart-Farbe – bei mittleren Tönen (z. B. Grau) reines Schwarz, sonst reicht es nicht für 4,5 : 1
   /** Belegungsplan wie in Verwaltung und Mitglieder-App: vergangene Stunden eingeklappt, Jetzt-Linie, Buchungsarten in ihrer Farbe */
   function planHtml(rs) {
     const p = state.plan, isToday = state.date === state.today, nowM = isToday ? tm(state.now) : -1;

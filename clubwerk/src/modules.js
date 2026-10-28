@@ -220,4 +220,4 @@ const uninstalledKey = id => `ext_${id}_uninstalled`;
 const isUninstalled = id => getSetting(uninstalledKey(id), '0') === '1';
 const setUninstalled = (id, on) => setSetting(uninstalledKey(id), on ? '1' : '0');
 
-module.exports = { usage, backup, listBackups, backupPath, wipe, restore, isUninstalled, setUninstalled, BACKUP_DIR };
+module.exports = { usage, backup, listBackups, backupPath, wipe, restore, isUninstalled, setUninstalled, BACKUP_DIR, DRINKS };

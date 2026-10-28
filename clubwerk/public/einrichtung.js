@@ -23,7 +23,7 @@
   .wizhead h2.page{margin:0 0 4px}
   .wizhead h2.page::after{content:'';display:block;width:56px;height:6px;margin:6px 0 6px;border-top:2px solid var(--brand);border-bottom:1px solid var(--line2);box-sizing:border-box}
   .wizhead .tabrow{margin:12px 0 18px}
-  .wizsteps button .wi{display:inline-flex;width:18px;height:18px;border-radius:9px;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--muted)}
+  .wizsteps button .wi{display:inline-flex;width:18px;height:18px;border-radius:9px;align-items:center;justify-content:center;font-size:11px;font-weight:700;background:color-mix(in srgb,var(--ink) 8%,transparent);color:var(--ink)}   /* Nummer auf dem Kreis auf der Reiterleiste: volle Schriftfarbe, gedämpft reichte der Kontrast nicht */
   .wizsteps button.done .wi{background:var(--brand-soft);color:var(--brand-ink)}
   .wizsteps button.skip .wi{background:var(--amber-soft);color:var(--amber)}
   .wizstep{margin:0 0 16px}
@@ -159,6 +159,13 @@
     const st = await fetch('api/admin/status', { cache: 'no-store' }).then(r => r.json()).catch(() => ({}));
     if (!st.demoMode || $('demoBar')) return;
     const i = st.demoInfo || {};
+    if (st.demoCopy) {   // Demo-Kopie aus Einstellungen › Module (src/demokopie.js): endet beim Schließen des Tabs, ohne Nutzung nach 30 Minuten
+      document.querySelector('.content').insertAdjacentHTML('afterbegin', `<div class="banner a demobar" id="demoBar"><span><b>${esc(T('Demo'))}${st.demoCopy.module ? ` · ${esc(T(st.demoCopy.module))}` : ''}</b> – ${esc(T('erfundene Daten, nichts davon wird gespeichert. Die Demo endet beim Schließen dieses Tabs oder nach {0} Minuten ohne Nutzung.', [st.demoCopy.minutes]))}</span>
+        <button class="btn small" type="button" id="demoEnd">${esc(T('Demo beenden'))}</button></div>`);
+      $('demoEnd').onclick = async () => { await fetch('api/demo-kopie/ende', { method: 'POST', headers: { 'X-Clubwerk': '1' } }).catch(() => {}); window.close(); location.replace('../admin.html'); };
+      addEventListener('pagehide', () => navigator.sendBeacon('api/demo-kopie/zu'));
+      return;
+    }
     document.querySelector('.content').insertAdjacentHTML('afterbegin', `<div class="banner a demobar" id="demoBar"><span><b>Demo</b> – alle Daten sind erfunden.${i.password ? ` <span>Anmeldung <code translate="no">${esc(i.admin || 'admin')}</code> / <code translate="no">${esc(i.password)}</code> · Tablet-Passwort <code translate="no">${esc(i.tablet)}</code></span>` : ''}</span>
       ${GK.can('einstellungen') && GK.me().role === 'oberadmin' ? '<button class="btn small" type="button" id="demoEnd">Demo beenden und einrichten …</button>' : ''}</div>`);
     if ($('demoEnd')) $('demoEnd').onclick = async () => {

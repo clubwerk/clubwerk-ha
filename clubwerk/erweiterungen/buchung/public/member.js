@@ -123,7 +123,7 @@
 
   const PH = 56;   // Pixel je Stunde in der Übersicht (kompakt)
   const PHW = 80;  // ausführlich: höher, damit die ganzen Namen in die Blöcke passen
-  const ink = hex => { if (!/^#[0-9a-f]{6}$/i.test(String(hex))) return '#ffffff'; const n = parseInt(String(hex).slice(1), 16); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return 1.05 / (L + 0.05) >= (L + 0.05) / 0.0631 ? '#ffffff' : '#1b1f1c'; };   // Schriftfarbe mit dem besseren Kontrast (WCAG) zur Buchungsart-Farbe
+  const ink = hex => { if (!/^#[0-9a-f]{6}$/i.test(String(hex))) return '#ffffff'; const n = parseInt(String(hex).slice(1), 16); const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; const L = 0.2126 * f(n >> 16 & 255) + 0.7152 * f(n >> 8 & 255) + 0.0722 * f(n & 255); return 1.05 / (L + 0.05) >= (L + 0.05) / 0.05 ? '#ffffff' : (L + 0.05) / 0.0631 >= 4.5 ? '#1b1f1c' : '#000000'; };   // Schriftfarbe mit dem besseren Kontrast (WCAG) zur Buchungsart-Farbe – bei mittleren Tönen (z. B. Grau) reines Schwarz, sonst reicht es nicht für 4,5 : 1
   let view = 'plan'; try { view = localStorage.getItem('bkm_view') || 'plan'; } catch (e) { /* */ }
   /** Spieler samt Gerät als Mitspieler („+ Ballmaschine“) bzw. Allein-Training („· Ballwand“) */
   const whoTxt = (b, f = x => x) => `${b.who ? b.who.map(f).join(', ') : ''}${b.partner_device_name ? ` + ${b.partner_device_name}` : ''}${b.solo_label ? ` · ${b.solo_label}` : ''}`;

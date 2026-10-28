@@ -21,7 +21,7 @@
   --accent: var(--brand); --accent-soft: var(--brand-soft);   /* Zweitfarbe (optional) */
   --hero-a: #144626; --hero-b: #1f6b3a; --hero-c: #2b7444; --on-hero: #fff; --on-hero-muted: #c5d8cb;   /* Hauptkarte */
   --hero-bg: linear-gradient(155deg, var(--hero-a), var(--hero-b) 70%, var(--hero-c));
-  --glow-1: #d6e3d9; --glow-2: #e3eae2;  /* Schimmer im Hintergrund */
+  --glow-1: #e2e9e2; --glow-2: #e2e9e2;  /* Schimmer im Hintergrund */
   --green: var(--brand); --green-dark: var(--brand-ink); --green-soft: var(--brand-soft);   /* ältere Namen */
   --green-over: #d2e1d8; --green-line: #b7d0c0; --green-muted: #84ae93;
   /* Schrift */
@@ -214,7 +214,9 @@ a.btn.primary { color: var(--on-brand); }
 #gkHeader.stack .topnav a { padding: 0 12px; }
 @media (max-width: 640px) {
   #gkHeader { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 10px; row-gap: 10px; margin: 8px 8px 0; border-radius: 18px; }
-  #gkHeader .hright { grid-column: 2; }
+  #gkHeader .hright { grid-column: 2; gap: 8px; }
+  #gkHeader #demoChip { padding: 2px 7px; font-size: 11px; }   /* „Demo“ neben „Verwaltung“: der Vereinsname bleibt ganz lesbar */
+  #gkHeader .admin { padding: 0 12px; }
   #gkHeader .clock { display: none; }
   #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
   #gkHeader .topnav a { padding: 0 4px; font-size: 13.5px; }

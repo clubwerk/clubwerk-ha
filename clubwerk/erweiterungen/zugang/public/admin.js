@@ -83,8 +83,8 @@
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${st.fil === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
         ${rows.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Handy</th><th>Zeitprofil</th><th class="hide-md">zuletzt</th><th></th></tr>
         ${rows.map(x => `<tr${x.blocked ? ' class="off"' : ''}><td class="k-1z"><b>${esc(GK.lastFirst(x.name))}</b>${x.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</td><td><span class="pill ${STAT[x.device][0]}">${STAT[x.device][1]}</span></td>
-          <td>${esc(profName(x.profile))}${x.valid_until ? ` · bis ${deD(x.valid_until)}` : ''}${x.away ? ' · auch unterwegs' : ''}</td>
-          <td class="muted s hide-md num">${x.last_used ? GK.deTime(x.last_used) : ''}</td>
+          <td>${esc(profName(x.profile))}<span class="k-weg">${x.valid_until ? ` · bis ${deD(x.valid_until)}` : ''}${x.away ? ' · auch unterwegs' : ''}</span></td>
+          <td class="muted s hide-md num k-weg">${x.last_used ? GK.deTime(x.last_used) : ''}</td>
           <td class="r"><span class="acts">${x.device !== 'gekoppelt' ? `<button class="btn small" data-mq="${x.member_id}">QR-Code</button>` : ''}<button class="btn small" data-me="${x.member_id}">Bearbeiten</button></span></td></tr>`).join('')}</table>`
           : '<p class="empty">Niemand in dieser Auswahl.</p>'}`
         : '<p class="empty">Noch niemand freigeschaltet – oben auf „+ Mitglied freischalten“.</p>'}</div>`;
@@ -147,7 +147,7 @@
       ${haBanner(d.error)}
       <div class="card" id="zDoorsBox"><h3>Türen, Tore &amp; Schlösser</h3>
       ${c.doors.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Art</th><th>Gerät in Home Assistant</th><th>Türkontakt</th><th></th></tr>
-        ${c.doors.map((x, i) => `<tr><td class="k-1z"><b>${esc(x.name)}</b></td><td>${esc(TYPE[x.type] || '')}</td><td>${esc(devName(TDOM[x.type] || [], x.ref))}</td><td>${esc(devName(['binary_sensor'], x.sensor))}</td>
+        ${c.doors.map((x, i) => `<tr><td class="k-1z"><b>${esc(x.name)}</b></td><td>${esc(TYPE[x.type] || '')}</td><td>${esc(devName(TDOM[x.type] || [], x.ref))}</td><td class="k-weg">${esc(devName(['binary_sensor'], x.sensor))}</td>
           <td class="r"><span class="acts"><button class="btn small" data-du="${i}" ${i === 0 ? 'disabled' : ''} aria-label="nach oben">↑</button><button class="btn small" data-dd="${i}" ${i === c.doors.length - 1 ? 'disabled' : ''} aria-label="nach unten">↓</button><button class="btn small" data-de="${i}">Bearbeiten</button></span></td></tr>`).join('')}</table>`
         : '<p class="empty">Noch keine Türen – oben auf „+ Tür“.</p>'}</div>`;
     GK.tabTools('<button class="btn primary" id="zDAdd">+ Tür</button>', $('zDoorsBox'));

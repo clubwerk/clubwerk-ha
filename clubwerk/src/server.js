@@ -1,4 +1,6 @@
 'use strict';
+const DEMO_KOPIE = process.env.CW_DEMO_KOPIE === '1';
+if (DEMO_KOPIE) require('./abschottung');   // Demo-Kopie: nichts nach außen – vor allem anderen laden (src/demokopie.js)
 require('./logtime');   // Zeitstempel im Protokoll
 const path = require('path');
 const fs = require('fs');
@@ -127,6 +129,10 @@ function rateLimitKey(key, max, windowMs, keyFn) {
 /** Bremse je Absenderadresse (req.ip – hinter dem Ingress-Proxy bzw. Proxy-Add-on die echte Adresse, siehe trust proxy) */
 const rateLimit = (key, max, windowMs) => rateLimitKey(key, max, windowMs, req => req.ip || '?');
 
+/* „Demo“-Knopf je Modul: abgeschottete Demo-Kopie unter …/demo/ (src/demokopie.js) – vor express.json, der Inhalt geht roh weiter */
+const demokopie = require('./demokopie');
+if (!DEMO_KOPIE) { demokopie.cleanup(); app.use('/demo', demokopie.proxy(req => auth.currentUser(req))); }
+
 app.use(express.json({ limit: '1mb' }));
 
 /* Admin-Änderungen nur mit eigenem Kopfzeilen-Feld → fremde Webseiten können nichts im Namen eines Admins auslösen */
@@ -135,6 +141,8 @@ app.use('/api/admin', (req, res, next) => {
   if (req.get('X-Clubwerk') !== '1') return res.status(403).json({ error: 'Anfrage abgelehnt.' });
   next();
 });
+/* In der Demo-Kopie gibt es keine Updates, Sicherungen, Erweiterungen zum Einspielen und keinen Neustart */
+if (DEMO_KOPIE) app.use((req, res, next) => (require('./abschottung').blocked(req.method, req.path) ? res.status(403).json({ error: 'In der Demo nicht möglich.' }) : next()));
 
 /* ---------- Vereinsfarbe (Berechnung der Abstufungen und des Kontrasts: src/theme.js) ---------- */
 const { clubColor } = require('./db');
@@ -927,7 +935,8 @@ app.get('/api/admin/status', (req, res) => {
     modules: auth.adminConfigured() ? undefined : plugins.list().filter(p => !p.error).map(p => ({ id: p.id, name: p.name, description: p.short || p.description, active: p.active })),
     languages: auth.adminConfigured() ? undefined : i18n.list().map(l => ({ code: l.code, name: l.name })), language: auth.adminConfigured() ? undefined : i18n.clubLang(),
     demo: auth.adminConfigured() ? undefined : demo.freshDb(db), demoMode: isDemo() || undefined,
-    demoInfo: isDemo() && u && u.perms.includes('einstellungen') ? JSON.parse(getSetting('demo_info', '{}')) : undefined });
+    demoInfo: isDemo() && u && u.perms.includes('einstellungen') ? JSON.parse(getSetting('demo_info', '{}')) : undefined,
+    demoCopy: DEMO_KOPIE ? { module: process.env.CW_DEMO_MODUL || '', minutes: Number(process.env.CW_DEMO_MINUTEN || 30) } : undefined });
 });
 
 const pwOk = p => { const n = String(p || '').length; return n >= 8 && n <= 200; };
@@ -3439,6 +3448,25 @@ admin.post('/demo/ende', need('einstellungen'), owner, rateLimit('demoende', 10,
   res.json({ ok: true, restart: true });
   setTimeout(() => shutdown('Demo beenden', 1), 300);
 });
+/* „Demo“-Knopf je Modul (src/demokopie.js): nur eine zugleich, nur für den, der sie gestartet hat, Ende nach 30 Minuten ohne Nutzung */
+admin.get('/demo-kopie', need('einstellungen'), (req, res) => res.json({ ...demokopie.status(req.user), modules: DEMO_KOPIE ? [] : demo.withData() }));
+admin.post('/demo-kopie', need('einstellungen'), rateLimit('demokopie', 30, 10 * 60000), asyncRoute(async (req, res) => {
+  const id = String((req.body || {}).module || ''), p = plugins.get(id);
+  if (!p || !demo.withData().includes(id)) return bad(res, 'Für dieses Modul gibt es keine Demo.');
+  const st = demokopie.status(req.user);
+  if (st.running && !st.mine && !(req.body || {}).replace) return res.status(409).json({ error: `Es läuft schon eine Demo (${st.name}, gestartet von ${st.user}). Es gibt nur eine zugleich – sie endet ${st.leftMin} Minuten nach der letzten Nutzung.`, demo: st });
+  let c;
+  try { c = await demokopie.start({ module: id, name: p.meta.name, user: req.user }); } catch (e) { return bad(res, e.message, 500); }
+  audit(req.user, 'Demo gestartet', `${p.meta.name}${st.running ? ` (vorherige Demo ${st.name} beendet)` : ''}`);
+  console.log(`Demo-Kopie (${p.meta.name}) gestartet – ${demokopie.rssMb() || '?'} MB Arbeitsspeicher.`);
+  res.setHeader('Set-Cookie', demokopie.browserCookies(c));
+  res.json({ ok: true, url: 'demo/admin.html', ...demokopie.status(req.user) });
+}));
+admin.delete('/demo-kopie', need('einstellungen'), (req, res) => {
+  const st = demokopie.status(req.user);
+  if (st.running) { demokopie.stop(`beendet von ${req.user.username}`); audit(req.user, 'Demo beendet', st.name); }
+  res.json({ ok: true });
+});
 admin.post('/restart', need('einstellungen'), (req, res) => {
   audit(req.user, 'Neustart ausgelöst');
   res.json({ ok: true });
@@ -3543,7 +3571,7 @@ admin.get('/extensions', (req, res) => {
   const all = plugins.list();
   // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
   res.json({ modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
-    all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all : undefined, links: navLinks() });
+    all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined })) : undefined, links: navLinks() });
 });
 /* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) – je Modul höchstens OVERVIEW_TIMEOUT_MS */
 const OVERVIEW_TIMEOUT_MS = 6000;
@@ -3714,6 +3742,7 @@ let lastAuto = null, dbxLastTry = 0;
 const TRASH_DAYS = 90;   // gelöschte Belege bleiben so lange im Papierkorb
 /* Jeder Teil fängt seine Fehler selbst; ein unerwarteter Fehler darf nie als unbehandelte Promise-Ablehnung den Prozess beenden */
 async function nightly() {
+  if (DEMO_KOPIE) return;   // keine Sicherungen in der Demo-Kopie
   try {
     const now = new Date();
     const day = backup.stamp().slice(0, 10);   // lokales Datum
@@ -3766,6 +3795,7 @@ async function shutdown(why, code = 0) {
   console.log(`Clubwerk wird beendet (${why}) …`);
   server.close();
   if (inner) inner.close();
+  demokopie.stop('mit Clubwerk beendet');
   // Module aufräumen lassen (z. B. Türimpulse abschalten) – höchstens 3 Sekunden
   try {
     await Promise.race([Promise.allSettled(plugins.withHook('shutdown').map(p => p.hooks.shutdown())), new Promise(r => setTimeout(r, 3000))]);
@@ -3778,5 +3808,6 @@ async function shutdown(why, code = 0) {
    laufenden Anfragen ab („Load failed“ in der App). Protokollieren und weiterlaufen. */
 process.on('unhandledRejection', e => { console.error('Fehler im Hintergrund (abgefangen):', e && e.stack ? e.stack : e); });
 process.on('uncaughtException', e => { console.error('Unerwarteter Fehler (abgefangen):', e && e.stack ? e.stack : e); });
+process.on('exit', () => demokopie.stop('mit Clubwerk beendet'));
 process.on('SIGTERM', () => shutdown('SIGTERM'));
 process.on('SIGINT', () => shutdown('SIGINT'));

@@ -46,11 +46,12 @@
   /* ein gemeinsames Raster für Namen, Mannschaften und die untere Reihe: 4 Spalten (breit 5, schmal 2) */
   :root { --cols: 4; }
   @media (min-width: 1600px) { :root { --cols: 5; } }
+  @media (min-width: 641px) and (max-width: 1000px) { :root { --cols: 3; } }   /* Tablet hochkant: drei Spalten, sonst passen übliche Namen nicht ganz in die Kachel */
   .names { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 14px; }
   .names button { display: flex; align-items: center; gap: 12px; height: 76px; padding: 0 14px; border-radius: var(--r-tile); text-align: left; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); transition: transform .05s, border-color .12s; }
   .names button:active { transform: scale(.98); }
   .names button .nm { display: flex; flex-direction: column; min-width: 0; flex: 1; }
-  .names button b { display: flex; align-items: center; gap: 6px; font-size: 17px; line-height: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .names button b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; font-size: 17px; line-height: 22px; font-weight: 700; overflow: hidden; overflow-wrap: anywhere; }   /* lange Namen („Gastmannschaft SV Musterdorf“) zweizeilig statt mit „…“ */
   .names button .nm > span { color: var(--muted); font-size: 14px; line-height: 20px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   /* Gerade oft hier: Hauptkarten in der Vereinsfarbe – Nachname oben, Vorname unten */
   .names.quick button { height: 96px; padding: 14px 16px; border-radius: 20px; align-items: stretch; background: var(--hero-bg); color: var(--on-hero); border-color: transparent; box-shadow: var(--shadow-hero); }
@@ -59,7 +60,7 @@
   .names.quick button b { font-size: 18px; }
   .names.quick button .nm > span { color: var(--on-hero-muted); font-size: 13px; }
   .names button.pending { border-style: dashed; }
-  .names button .tag { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 800; }
+  .names button .tag { display: inline-block; margin-left: 6px; vertical-align: 2px; padding: 1px 7px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 11px; font-weight: 800; }
   .names button .tag.ok { background: var(--brand-soft); color: var(--brand-ink); }
   .names button.tabt .nm > span { color: var(--amber); font-weight: 700; }
   .names button.addtab { border-style: dashed; background: transparent; }

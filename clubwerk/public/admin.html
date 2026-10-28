@@ -273,6 +273,7 @@
   a { color: var(--brand-ink); }
   code { background: var(--hover); padding: 0 4px; border-radius: 5px; font-size: .92em; line-height: 1; }   /* schmal: kein scheinbares Leerzeichen vor Satzzeichen, Zeilenhöhe bleibt */
   tr.paidrow .gname { text-decoration: line-through; color: var(--muted); }
+  @media (max-width: 640px) { .evscroll { max-height: none; } }   /* Abrechnungsliste am Handy ohne eigene Scrollbox – das Seitenende bleibt erreichbar */
   .evlist[data-f="offen"] tr[data-status]:not([data-status="offen"]) { display: none; }
   .evlist[data-f="bezahlt"] tr[data-status]:not([data-status="bezahlt"]) { display: none; }
   .seg { display: flex; gap: 4px; }
@@ -401,6 +402,10 @@
   /* Herkunft („im Paket“, „hochgeladen“) unter der Version – nicht neben dem Namen, damit keine Zeile höher wird als die andere; schmal (Version ausgeblendet) neben dem Namen */
   .mods .mrow .srcb { display: none; margin-left: 6px; }
   @media (max-width: 900px) { .mods .mrow .srcb { display: inline-flex; } }
+  /* Gefährliche Aktion abgesetzt (B-4): im Fenster in eigener Zeile unter einer Linie, in einer Knopfzeile mit Abstand */
+  #overlay .dz { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line-soft); display: flex; }
+  .btn.abgesetzt { margin-left: 24px; }
+  .mods .mrow .mact { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }   /* Demo, Einstellungen exportieren/importieren … (später „Anleitung (PDF)“) */
   .mods .mrow .st { display: flex; justify-content: center; }
   .mods .mrow .act { display: flex; align-items: center; justify-content: space-between; }
   .menu { position: absolute; right: 20px; top: calc(100% - 12px); z-index: 25; width: 260px; padding: 6px; border-radius: 16px; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-pop); display: flex; flex-direction: column; gap: 2px; }
@@ -501,7 +506,7 @@
     .mods .mrow { grid-template-columns: 40px minmax(0, 1fr) auto; row-gap: 8px; padding: 12px 16px; }
     .mods .mrow > div:not(.menu) { display: contents; }
     .mods .mrow .ic { grid-row: 1; } .mods .mrow .nm { grid-column: 2; grid-row: 1; align-self: center; min-width: 0; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }   /* lange Namen („Mitgliederverwaltung“) trennen statt in den Schalter laufen */ .mods .mrow .act { grid-column: 3; grid-row: 1; gap: 8px; }
-    .mods .mrow .d, .mods .mrow > div > .s { grid-column: 1 / -1; }
+    .mods .mrow .d, .mods .mrow > div > .s, .mods .mrow .mact { grid-column: 1 / -1; }   /* Knopfzeile (Demo, Einstellungen …) über die ganze Breite, nicht in der Symbolspalte */
   }
   @media (max-width: 700px) {
     table.tbl, .tbl tbody, .tbl tr, .tbl td { display: block; width: 100%; }
@@ -531,10 +536,12 @@
     .tbl.kompakt td:has(> .chk) { flex: 0 0 auto; max-width: none; overflow: visible; }
     .tbl.kompakt td > .chk { gap: 6px; font-size: 13px; }
     .tbl.kompakt tr[data-row] { cursor: pointer; }
-    .tbl.kompakt td:empty, .tbl.kompakt td.k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) */
+    .tbl.kompakt td:empty, .tbl.kompakt .k-weg { display: none; }   /* k-weg: am Handy weglassen (steht beim Antippen bzw. Bearbeiten) – ganze Zelle oder ein Teil davon */
     .tbl.kompakt td.k-lbl::before { content: attr(data-label) ': '; display: inline; color: inherit; font-size: inherit; }   /* k-lbl: Spaltenname davor (z. B. „Benutzer: 3“) */
     .tbl.kompakt td.k-1z { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }   /* k-1z: lange Namen (Dateien) einzeilig, voller Name im title – etwas kleiner, damit übliche Dateinamen ganz passen */
     .tbl.kompakt td:first-child .muted { font-weight: 400; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+    .tbl.kompakt td:first-child .k-sum { display: block; width: 0; min-width: 100%; }   /* k-sum in der ersten Spalte: Zusatzzeile nur am Handy (z. B. die Tätigkeit unter dem Namen) */
+    .tbl.kompakt tr:has(> td:last-child .acts > :nth-child(2)) > td:first-child { flex-basis: 64px; }   /* zwei Knöpfe rechts: Platz für beide in der ersten Zeile */
     .tbl.kompakt td[colspan] { flex: 1 1 100%; max-width: none; white-space: normal; }
     h2.page { font-size: 22px; line-height: 30px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .dialog { padding: 18px 16px; } .dialog > .btns:last-child { margin: 20px -16px -18px; padding: 12px 16px 16px; }
@@ -569,7 +576,7 @@
   .ds-dleg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
   .ds-dleg li { display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; gap: 10px; align-items: center; height: 26px; font-size: 13.5px; }
   .ds-dleg i { width: 12px; height: 12px; border-radius: 3px; } .ds-dleg b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-dleg .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
-  .ds-mini { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line-soft); }
+  .ds-mini { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));   /* Spaltenzahl per --n – ein fester Stil würde die Handy-Regel unten überstimmen */ gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line-soft); }
   .ds-two .card > .ds-donut + .ds-mini { margin-top: 20px; }
   .ds-mini > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; } .ds-mini span { font-size: 12.5px; color: var(--muted); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-mini b { font-family: var(--num); font-weight: 600; font-size: 26px; line-height: 32px; letter-spacing: .01em; } .ds-mini small { font-size: 12.5px; color: var(--muted); }
   .ds-ch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; } .ds-ch h3 { margin: 0; }

@@ -77,7 +77,7 @@ const PUBLIC_DIR = path.join(__dirname, '..', 'public');
 let reservedCache = null;
 function reservedPaths() {
   if (!reservedCache) {
-    reservedCache = new Set(['api', 'x', 'app', 'm', 'p', 'verkauf', 'logo', 'gate', 'admin', 'index', 'manifest', 'vereinsicon']);
+    reservedCache = new Set(['api', 'x', 'app', 'm', 'p', 'verkauf', 'logo', 'gate', 'admin', 'index', 'manifest', 'vereinsicon', 'demo']);
     try { for (const f of fs.readdirSync(PUBLIC_DIR)) reservedCache.add(f.replace(/\.[^.]*$/, '').toLowerCase()); } catch (e) { /* egal */ }
   }
   return reservedCache;

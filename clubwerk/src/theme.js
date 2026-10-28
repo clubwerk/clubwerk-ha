@@ -25,8 +25,10 @@ function ensure(c, bgs, min, toward) {
 function vars(c, c2, mode) {
   const dark = mode === 'dark' || mode === 'hcDark', hc = mode === 'hcLight' || mode === 'hcDark';
   const f = FL[mode], min = hc ? 7 : 4.5, away = dark ? '#ffffff' : '#000000';
-  // Schimmer: kaum sichtbar – so zurückgenommen, dass gedämpfter Text darauf mindestens 4,5 : 1 behält
-  const calm = g => { for (let t = 0; t <= 1.0001; t += 0.02) { const x = mix(g, f.bg, Math.min(1, t)); if (contrast(x, f.muted) >= 4.6) return x; } return f.bg; };
+  // Schimmer: kaum sichtbar – so zurückgenommen, dass gedämpfter Text darauf mindestens 4,5 : 1 behält, auch auf der Reiterleiste
+  // darüber (6 % Schriftfarbe, .tabs/.seg) – dort stehen die nicht gewählten Reiter in gedämpfter Schrift
+  const ink = dark ? '#e8eee9' : '#141a16';
+  const calm = g => { for (let t = 0; t <= 1.0001; t += 0.02) { const x = mix(g, f.bg, Math.min(1, t)); if (contrast(x, f.muted) >= 4.6 && contrast(mix(x, ink, 0.06), f.muted) >= 4.6) return x; } return f.bg; };
   const glow1 = calm(mix(c, f.bg, dark ? 0.86 : 0.84)), glow2 = calm(c2 ? mix(c2, f.bg, dark ? 0.88 : 0.86) : mix(c, f.bg, dark ? 0.93 : 0.92));
   const soft = dark ? mix(c, f.bg, hc ? 0.84 : 0.78) : mix(c, '#ffffff', 0.88);
   const surfaces = [f.bg, f.card, f.hover, ...(hc ? [] : [glow1, glow2])];

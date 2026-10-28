@@ -1,5 +1,41 @@
 # Änderungen
 
+## 3.92.0
+
+**„Demo“ je Modul: jedes Modul gefahrlos ausprobieren**
+- **Neuer Knopf „Demo“** in Einstellungen › Module (Recht „Einstellungen“). Er öffnet in einem **neuen Tab** eine eigene Demo-Kopie von Clubwerk mit genau diesem Modul und erfundenen Beispieldaten – oben steht deutlich „Demo · <Modul> – erfundene Daten, nichts davon wird gespeichert“. Funktioniert auch über die Seitenleiste von Home Assistant.
+- **Getrennt von euren Daten:** Die Kopie läuft als eigener Prozess mit eigenem, vorübergehendem Ordner außerhalb der Vereinsdaten (kommt nie in Sicherungen). Sie kann nichts nach außen schalten oder senden: keine Türen, Ventile oder andere Home-Assistant-Geräte, keine E-Mails, kein Push, keine Sicherungen oder Updates. Nur wer sie gestartet hat, kommt hinein – mit seiner normalen Anmeldung; die Anmeldung der Demo gilt umgekehrt nicht in der echten Verwaltung.
+- **Nur eine Demo zugleich.** Sie endet beim Schließen des Tabs, mit „Demo beenden“, nach 30 Minuten ohne Nutzung oder wenn Clubwerk neu startet – und wird dabei jedes Mal restlos gelöscht.
+- **Speicherbedarf:** Eine laufende Demo braucht gemessen etwa 120–140 MB Arbeitsspeicher (Ziel höchstens 150 MB), danach nichts mehr.
+- In der Modulliste ist Platz für weitere Knöpfe je Modul (als Nächstes „Anleitung (PDF)“). Am Handy steht die Knopfzeile jetzt über die ganze Breite statt eingequetscht unter dem Symbol.
+
+**Beispieldaten: jedes Modul bringt seine eigenen mit – und alle sind gut gefüllt**
+- Die Beispieldaten sind nach Modulen aufgeteilt. Jedes Modul ist so auch in der Demo allein nutzbar (ohne Mitgliederverwaltung nur mit Vor- und Nachnamen). „Demo ausprobieren“ beim ersten Start lädt weiter alle Module.
+- **Mitglieder und Geld, alles passend zueinander:** 43 Mitglieder mit Anschrift, Geburtstag und Bankverbindung, Abteilungen Tennis und Fußball mit Zusatzbeiträgen, zwei Familienmitgliedschaften (mit Kindern), „zahlt für“, eine Kündigung zum Jahresende. Beitragslauf im Frühjahr, SEPA-Einzug mit Erst- und Folgelastschriften, Kontoauszug mit Sammelgutschrift, Überweisungen, Teilzahlung und einer **Rücklastschrift** („Konto erloschen“, Gebühr der Bank), danach **Mahnungen in drei Stufen** (Zahlungserinnerung, 1. und 2. Mahnung mit Gebühr). Ein zweiter Kontoauszug von dieser Woche hat noch zwei Buchungen zu prüfen.
+- **Buchhaltung:** zwei Firmen, Rechnungen (eine per Kontoauszug bezahlt, eine offen) und drei Spenden mit Quittung.
+- **Dienste & Termine:** vergangene und kommende Arbeitseinsätze, Dienstpläne (Sommerfest, Glühweinabend), Thekendienste am Tablet, Stunden zum Prüfen, Soll/Ist, Termine mit Zu- und Absagen. **Zeiterfassung:** acht Wochen Stunden mit Monatsnachweis.
+- **Spielbetrieb:** sechs Mannschaften mit vergangenen Spieltagen (Ergebnisse) und kommenden (Zu-/Absagen, Aufstellung, Aufgaben). **Plätze:** Training als Serien, Buchungen über die ganze Woche, Gastgebühren. **Zugang:** drei Türen, Zeitprofile, Türprotokoll. **Beregnung:** vier Plätze mit Verlauf. **Mängel:** offene und erledigte Meldungen.
+- **Verkauf:** Lieferungen, Inventur, Monatsabrechnung, Veranstaltung „Saisonabschluss“, Gäste-Deckel, Verkäufe über die letzten Wochen. **Nachrichten:** drei verschickte Nachrichten und eine Vorlage. **Datenschutz:** Hinweis in der Mitglieder-App.
+- Das laufende Dorfturnier, der LK-Turniertag und die Clubmeisterschaft bleiben wie bisher.
+
+**Behoben**
+- „Demo ausprobieren“ beim ersten Start in Home Assistant: Die Beispieldaten fehlten im gebauten Add-on (der Ordner wurde nicht mitkopiert).
+
+**Darstellung – aufgefallen durch die vollen Beispieldaten**
+- **Gäste-Deckel und Abrechnungsliste einer Veranstaltung:** statt bis zu vier Knöpfen je Zeile ein Knopf **„Abrechnen …“**. Im Fenster stehen „Bar bezahlt“, „Karte bezahlt“, „Auf ein Konto übernehmen …“ bzw. „Mitglied zuordnen …“ und – abgesetzt in eigener Zeile – rot „Abschreiben …“. Der rote „Löschen“-Knopf einer Veranstaltung und einer Lieferung steht nicht mehr direkt neben einem normalen Knopf.
+- Die Filter „Alle / Offen / Bezahlt“ der Abrechnungsliste waren im dunklen Modus kaum lesbar (dunkle Schrift auf Grün) – jetzt wie alle Umschalter.
+- **Am Handy zwei Zeilen je Eintrag** auch in Lieferungen, Bestandsänderungen, Abrechnungen, Bankkonten, Nachrichten-Vorlagen und -Listen, Gäste-Deckeln, Veranstaltungen, Verkaufsbuchungen, Kontoauszug, offenen Posten, Einzügen, Altersstufen, Beitragsarten, Stunden und Zugang. Details wie „wer, wann“ stehen beim Öffnen. Die Abrechnungsliste einer Veranstaltung hat am Handy keine eigene Scrollbox mehr.
+- Verkauf › Auswertung: Die kleinen Kennzahlen stehen am Handy in zwei statt vier Spalten (vorher abgeschnitten, z. B. „Gast (bar/Karte)“).
+- Tablet: Lange Namen auf den Kacheln (z. B. „Gastmannschaft SV Musterdorf“) stehen zweizeilig statt mit „…“; hochkant drei Kacheln je Reihe. In der Kopfzeile am Handy bleibt der Vereinsname neben „Demo“ ganz lesbar.
+- Betreffzeilen gesendeter Nachrichten werden umbrochen statt gekürzt.
+- Plätze: Graue Buchungsarten (z. B. „Platzpflege“) bekommen schwarze statt dunkelgraue Schrift – vorher zu wenig Kontrast.
+- Spielbetrieb › Einstellungen: „Entfernen“ bei den Aufgaben ist so hoch wie die Felder daneben.
+- Der zarte Farbschimmer oben im Hintergrund ist eine Spur heller: Nicht gewählte Reiter (graue Schrift auf der Reiterleiste) haben jetzt auch dort mindestens 4,5 : 1 Kontrast. Die Schrittnummern im Einrichtungs-Assistenten sind kräftiger.
+
+**Für Entwickler**
+- Neue feste Regel: **Jede neue Funktion bringt ihre Beispieldaten mit** (`erweiterungen/<modul>/demo/demo.sql`, bearbeitet mit `werkzeuge/demo/aufteilen.js`). Neue Testreihen `demod` (Inhalt in jeder Hauptansicht je Modul, jedes Modul allein, Geld-Daten stimmig) und `demok` (Demo-Kopie: Rechte, Abschottung, Ende, nur eine zugleich, Speicher).
+- Module: Dienste & Termine 2.10.0, Beregnung 1.10.0, Buchhaltung 1.7.0, Plätze 1.21.0, Mängel 1.7.0, Mitglieder 1.27.0, Spielbetrieb 1.16.0, Turniere 1.6.0, Zeiterfassung 1.5.0, Zugang 1.8.0, Verkauf 3.81.0.
+
 ## 3.91.1
 
 **Turnierplaner: Monitor nachgeschärft**

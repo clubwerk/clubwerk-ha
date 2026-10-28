@@ -18,6 +18,7 @@ RUN npm_config_nodedir=/usr/local npm ci --omit=dev --no-audit --no-fund \
 COPY src ./src
 COPY public ./public
 COPY seed ./seed
+COPY demo ./demo
 COPY erweiterungen ./erweiterungen
 COPY sprachen ./sprachen
 COPY run.sh /run.sh

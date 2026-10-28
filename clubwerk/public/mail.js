@@ -65,7 +65,7 @@
   .ml-list{display:flex;flex-direction:column}
   .ml-row{display:grid;grid-template-columns:minmax(0,1fr) 170px 150px 120px;gap:16px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;text-align:left;width:100%}
   .ml-row:hover{background:var(--hover)}
-  .ml-row .t{min-width:0}.ml-row .t b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .ml-row .t{min-width:0}.ml-row .t b{display:block;overflow-wrap:anywhere}
   .ml-row .t span{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .ml-row .c{font-size:13px;color:var(--muted)}.ml-row .c:not(.who):not(.r){font-family:var(--num);font-weight:600;font-size:15px}.ml-row .r{text-align:right}
   .ml-view{border:1px solid var(--edge);border-radius:var(--r-tile);box-shadow:var(--shadow);padding:16px 18px;font-size:15px;line-height:1.55;background:var(--card);overflow-wrap:anywhere}
@@ -465,7 +465,7 @@
   async function showLists(body) {
     body.innerHTML = `<div class="card"><div class="row" style="align-items:center;margin-bottom:6px"><h3 style="margin:0;flex:1">${esc(T('Verteiler'))} <span class="muted s">(${O.lists.length})</span></h3><button class="btn primary" id="mlLNew">＋ ${esc(T('Neuer Verteiler'))}</button></div>
       <p class="muted s" style="margin:0 0 10px">${esc(T('Gespeicherte Empfängerlisten wie „Vorstand“, „Trainer“ oder „Sponsoren“ – für alle mit dem Recht „Nachrichten schreiben“. Gruppen bleiben aktuell: Wer neu in die Abteilung kommt, ist automatisch dabei.'))}</p>
-      ${O.lists.length ? `<table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Inhalt'))}</th><th></th></tr>${O.lists.map(l => `<tr><td><b>${esc(l.name)}</b></td><td class="muted s">${esc(specText(l.spec))}</td>
+      ${O.lists.length ? `<table class="tbl kompakt"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Inhalt'))}</th><th></th></tr>${O.lists.map(l => `<tr><td><b>${esc(l.name)}</b></td><td class="muted s">${esc(specText(l.spec))}</td>
         <td class="r" style="white-space:nowrap"><button class="btn small" data-lw="${l.id}">${esc(T('Nachricht schreiben'))}</button> <button class="btn small" data-le="${l.id}">${esc(T('Bearbeiten'))}</button></td></tr>`).join('')}</table>` : `<p class="muted">${esc(T('Noch keine Verteiler.'))}</p>`}</div>`;
     $('mlLNew').onclick = () => listDialog(null, body);
     body.querySelectorAll('[data-le]').forEach(b => { b.onclick = () => listDialog(O.lists.find(l => l.id === +b.dataset.le), body); });
@@ -490,7 +490,7 @@
   async function showTemplates(body) {
     body.innerHTML = `<div class="card"><div class="row" style="align-items:center;margin-bottom:6px"><h3 style="margin:0;flex:1">${esc(T('Vorlagen'))} <span class="muted s">(${O.templates.length})</span></h3><button class="btn primary" id="mlTNew">＋ ${esc(T('Neue Vorlage'))}</button></div>
       <p class="muted s" style="margin:0 0 10px">${esc(T('Wiederkehrende Mails wie Einladung zur Mitgliederversammlung oder Saisonstart – beim Schreiben über „Vorlage …“ einsetzen. Platzhalter wie {briefanrede} werden je Empfänger ersetzt.'))}</p>
-      ${O.templates.length ? `<table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Betreff'))}</th><th></th></tr>${O.templates.map(t => `<tr><td><b>${esc(t.name)}</b></td><td class="muted s" translate="no">${esc(t.subject || '–')}</td>
+      ${O.templates.length ? `<table class="tbl kompakt"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Betreff'))}</th><th></th></tr>${O.templates.map(t => `<tr><td><b>${esc(t.name)}</b></td><td class="muted s" translate="no">${esc(t.subject || '–')}</td>
         <td class="r" style="white-space:nowrap"><button class="btn small" data-tu="${t.id}">${esc(T('Verwenden'))}</button> <button class="btn small" data-te="${t.id}">${esc(T('Bearbeiten'))}</button></td></tr>`).join('')}</table>` : `<p class="muted">${esc(T('Noch keine Vorlagen.'))}</p>`}</div>`;
     $('mlTNew').onclick = () => tplDialog(null, body);
     body.querySelectorAll('[data-te]').forEach(b => { b.onclick = () => tplDialog(O.templates.find(t => t.id === +b.dataset.te), body); });

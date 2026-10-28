@@ -129,21 +129,21 @@
   function table(rows) {
     if (!rows.length) return `<p class="empty">${filter === 'pruefen' ? 'Nichts zu prüfen. Neue Kontoauszüge oben ablegen.' : filter === 'nicht' ? 'Alle Buchungen sind zugeordnet.' : 'Noch nichts zugeordnet.'}</p>`;
     const who = e => `<b translate="no">${esc(e.name || (e.kind === 'ruecklastschrift' ? 'Rücklastschrift' : 'Gutschrift'))}</b>${e.kind === 'ruecklastschrift' ? ' <span class="pill r">Rücklastschrift</span>' : ''}`;
-    const head = `<tr><th>${filter === 'zugeordnet' ? 'Von · zugeordnet zu' : filter === 'pruefen' ? 'Von · Vorschlag' : 'Von'}</th><th>Datum</th><th>Verwendungszweck</th><th class="r">Betrag</th><th></th></tr>`;
+    const head = `<tr><th>Von</th><th>${filter === 'zugeordnet' ? 'Zugeordnet zu' : filter === 'pruefen' ? 'Vorschlag' : ''}</th><th>Datum</th><th>Verwendungszweck</th><th class="r">Betrag</th><th></th></tr>`;
     return `<div class="scroll"><table class="tbl kompakt">${head}${rows.map(e => {
       let mid = '', act = '';
       if (filter === 'zugeordnet') {
-        mid = e.matches.map(m => `<span translate="no">${esc(m.label)}</span>`).join('<br>') + `<div class="muted s">${esc(e.done_by || '')}${e.done_at ? ` · ${deTime(e.done_at)}` : ''}</div>`;
+        mid = e.matches.map(m => `<span translate="no">${esc(m.label)}</span>`).join('<br>') + `<div class="muted s k-weg">${esc(e.done_by || '')}${e.done_at ? ` · ${deTime(e.done_at)}` : ''}</div>`;
         act = `<button class="btn small" data-kun="${e.id}">Aufheben</button>`;
       } else if (e.status === 'fremd') {
-        mid = `<span class="pill">gehört nicht zu Clubwerk</span><div class="muted s">wird nach der Löschfrist gelöscht (Einstellungen › Datenschutz)</div>`;
+        mid = `<span class="pill">gehört nicht zu Clubwerk</span><div class="muted s k-weg">wird nach der Löschfrist gelöscht (Einstellungen › Datenschutz)</div>`;
         act = `<button class="btn small" data-kre="${e.id}">Wieder prüfen</button>`;
       } else if (e.cands.length) {
         const c = e.cands[0];
-        mid = `<span translate="no">${esc(c.label)}</span> ${pill(LEVEL[c.level])}${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}${e.cands.length > 1 ? `<div class="muted s">${e.cands.length === 2 ? '1 weiterer Vorschlag' : `${e.cands.length - 1} weitere Vorschläge`}</div>` : ''}`;
+        mid = `<span translate="no">${esc(c.label)}</span> ${pill(LEVEL[c.level])}${c.note ? `<div class="muted s k-weg">${esc(c.note)}</div>` : ''}${e.cands.length > 1 ? `<div class="muted s k-weg">${e.cands.length === 2 ? '1 weiterer Vorschlag' : `${e.cands.length - 1} weitere Vorschläge`}</div>` : ''}`;
         act = `${e.cands.length === 1 ? `<button class="btn small" data-kok="${e.id}">Übernehmen</button> ` : ''}<button class="btn small" data-kchk="${e.id}">Prüfen …</button>`;
       } else act = `<button class="btn small" data-kchk="${e.id}">Zuordnen …</button>`;
-      return `<tr class="${e.status === 'fremd' ? 'off' : ''}"><td>${who(e)}${mid ? `<div class="s ka-v">${mid}</div>` : ''}</td><td class="num nw">${deDate(e.date)}</td><td class="s k-weg" translate="no">${esc(e.purpose)}</td>${sign(e.cents)}<td class="r nw">${act}</td></tr>`;
+      return `<tr class="${e.status === 'fremd' ? 'off' : ''}"><td>${who(e)}</td><td class="s">${mid}</td><td class="num nw">${deDate(e.date)}</td><td class="s k-weg" translate="no">${esc(e.purpose)}</td>${sign(e.cents)}<td class="r nw">${act}</td></tr>`;
     }).join('')}</table></div>`;
   }
 
