@@ -224,6 +224,7 @@ function register(sh) {
   /** Lauf zurücknehmen: Posten löschen, „abgerechnet bis“ und Verkaufskonten auf den Stand davor – wirft bei fachlichem Hindernis (e.fachlich) */
   function undoRun(r) {
     if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) throw fachlich('Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
+    if (db.prepare('SELECT 1 FROM mv_charge WHERE run_id = ? AND dunning_level > 0').get(r.id)) throw fachlich('Aus diesem Lauf wurde schon gemahnt – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden (die Mahngebühr gleich mit).');
     const f = JSON.parse(r.filters || '{}');
     // Getränkeabrechnung und Posten in einer Transaktion zurücknehmen – schlägt eines fehl, bleibt alles wie es war
     // (sonst wären die Getränke wieder offen, die Posten aber noch da → beim nächsten Lauf doppelt)
@@ -255,7 +256,7 @@ function register(sh) {
     if (q.collection) { where.push('c.collection_id = ?'); args.push(int(q.collection)); }
     if (q.run) { where.push('c.run_id = ?'); args.push(int(q.run)); }
     if (q.overdue === '1') { where.push("c.status = 'offen' AND c.due_date < ?"); args.push(today()); }
-    const rows = db.prepare(`SELECT c.*, m.name AS payer_name, f.name AS for_name, p.payment, p.member_no FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN members f ON f.id = c.for_member_id
+    const rows = db.prepare(`SELECT c.*, m.name AS payer_name, f.name AS for_name, p.payment, p.member_no, p.debit_blocked FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN members f ON f.id = c.for_member_id
       LEFT JOIN mv_person p ON p.member_id = c.member_id ${where.length ? 'WHERE ' + where.join(' AND ') : ''} ORDER BY c.due_date DESC, name_key(m.name, m.kind), c.id LIMIT 2000`).all(...args);
     res.json({ rows, sum: rows.reduce((s, r) => s + r.cents, 0) });
   });
@@ -292,8 +293,8 @@ function register(sh) {
     let rest = null;
     db.transaction(() => {
       if (c.cents > 0 && paid < c.cents) {   // Teilzahlung: Rest bleibt als neuer Posten offen
-        rest = Number(db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, run_id, created_by, note, member_fee_id, member_dept_id, invoice_no, dunning_level, dunned_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-          .run(c.member_id, c.for_member_id, c.kind, `Rest: ${c.text}`.slice(0, 140), c.period_from, c.period_to, c.cents - paid, c.due_date, c.run_id, user, `Teilzahlung ${euro(paid)} am ${deD(date)}`, c.member_fee_id, c.member_dept_id, c.invoice_no, c.dunning_level, c.dunned_at).lastInsertRowid);
+        rest = Number(db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, run_id, created_by, note, member_fee_id, member_dept_id, invoice_no, dunning_level, dunned_at, dunning_block, dunning_block_until) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(c.member_id, c.for_member_id, c.kind, `Rest: ${c.text}`.slice(0, 140), c.period_from, c.period_to, c.cents - paid, c.due_date, c.run_id, user, `Teilzahlung ${euro(paid)} am ${deD(date)}`, c.member_fee_id, c.member_dept_id, c.invoice_no, c.dunning_level, c.dunned_at, c.dunning_block, c.dunning_block_until).lastInsertRowid);
         db.prepare("UPDATE mv_charge SET cents = ?, status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(paid, date, via, c.id);
       } else db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(date, via, c.id);
     })();
@@ -326,8 +327,12 @@ function register(sh) {
       if (run && run.drinks_batch) { const r = C.drinks.reopen(run.drinks_batch, c.for_member_id || c.member_id); if (!r.ok) return bad(res, r.error); reopened = r.n; }
     }
     const keep = sh.paidByStatement && sh.paidByStatement(c) ? refund : null;
+    // Mahngebühren, die dieser Posten ausgelöst hat (angeboten im Storno-Dialog) – nur offene, nur aus Schreiben mit diesem Posten
+    const feeIds = new Set(sh.dunningFeesOf ? sh.dunningFeesOf(c.id).map(f => f.id) : []);
+    const fees2 = (Array.isArray((req.body || {}).fees) ? req.body.fees.map(Number) : []).filter(x => feeIds.has(x));
     db.transaction(() => {
       db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${uname(req)}: ${reason}${reopened ? ' – Verkaufsbuchungen wieder offen' : ''}${keep === 'zurueck' ? ' – Geld zurücküberwiesen' : keep === 'guthaben' ? ' – Betrag als Guthaben' : ''}`, c.id);
+      for (const f of fees2) db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ? AND status = 'offen' AND collection_id IS NULL").run(`storniert von ${uname(req)} mit „${c.text}“: ${reason}`.slice(0, 300), f);
       if (keep === 'guthaben') db.prepare("INSERT INTO mv_charge(member_id, for_member_id, kind, text, cents, due_date, created_by, note) VALUES (?,?, 'sonstiges', ?, ?, ?, ?, ?)")
         .run(c.member_id, c.for_member_id, `Guthaben: ${c.text}`.slice(0, 140), -c.cents, today(), uname(req), `aus storniertem Posten (bezahlt am ${deD(c.paid_at)})`);
     })();
@@ -339,7 +344,7 @@ function register(sh) {
       const md = db.prepare('SELECT booked_until FROM mv_member_department WHERE id = ?').get(c.member_dept_id);
       if (md && md.booked_until === c.period_to) db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(fees.addDays(c.period_from, -1), c.member_dept_id);
     }
-    C.audit(req.user, 'Forderung storniert', `${payerName(c.member_id)}: ${c.text} ${euro(c.cents)} – ${reason}${keep === 'zurueck' ? ' (Geld zurücküberwiesen)' : keep === 'guthaben' ? ' (Betrag als Guthaben)' : ''}`);
+    C.audit(req.user, 'Forderung storniert', `${payerName(c.member_id)}: ${c.text} ${euro(c.cents)} – ${reason}${keep === 'zurueck' ? ' (Geld zurücküberwiesen)' : keep === 'guthaben' ? ' (Betrag als Guthaben)' : ''}${fees2.length ? `, dazu ${fees2.length === 1 ? 'die Mahngebühr' : fees2.length + ' Mahngebühren'}` : ''}`);
     res.json({ ok: true });
   });
 
@@ -363,6 +368,7 @@ function register(sh) {
       if ((p.payment || 'lastschrift') !== 'lastschrift') { other.push({ member_id: payer, name, payment: p.payment, cents: sum, count: list.length }); continue; }
       const b = bankRow(payer); const ms = mandateState(b);
       if (!ms.ok) { problems.push({ member_id: payer, name, reason: ms.reason, cents: sum, count: list.length }); continue; }
+      if (p.debit_blocked) { problems.push({ member_id: payer, name, reason: `wegen ${p.debit_returns || 2} Rücklastschriften ausgenommen – zahlt per Überweisung (aufheben beim Mitglied)`, cents: sum, count: list.length, debitBlocked: true }); continue; }
       // Sicherheitsnetz für Altdaten: Unterschrift nach dem Fälligkeitstag würde die Bank ablehnen (DtOfSgntr > ReqdColltnDt)
       if (b.mandate_date > day) { problems.push({ member_id: payer, name, reason: `Mandat erst am ${deD(b.mandate_date)} unterschrieben – nach dem Einzugstag`, cents: sum, count: list.length }); continue; }
       if (sum < 0) { problems.push({ member_id: payer, name, reason: `Guthaben ${euro(-sum)} – nichts einzuziehen`, cents: sum, count: list.length }); continue; }
@@ -520,24 +526,31 @@ function register(sh) {
     const reason = one(b.reason, 80) || 'Rücklastschrift';
     let r;
     try { r = debitReturn(k, payer, { fee, reason, revoke: Boolean(b.revokeMandate), user: uname(req) }); } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
-    C.audit(req.user, 'Rücklastschrift erfasst', `${payerName(payer)}: ${euro(r.cents)} – ${reason}${fee ? ', Gebühr ' + euro(fee) : ''}`);
-    res.json({ ok: true });
+    C.audit(req.user, 'Rücklastschrift erfasst', `${payerName(payer)}: ${euro(r.cents)} – ${reason}${fee ? ', Gebühr ' + euro(fee) : ''}${r.blocked ? ' – zweite Rücklastschrift: ab jetzt vom Einzug ausgenommen' : ''}`);
+    res.json({ ok: true, blocked: r.blocked });
   });
-  /** Rücklastschrift eines Zahlers aus einem Einzug (von Hand und aus dem Kontoauszug): Posten wieder offen, Gebühr als Posten, Mandat ggf. sperren
-   *  → { cents, charges: [{ id, status, collection_id, paid_at, paid_via, note }] (Stand davor), feeId, revoked: vorheriges mandate_revoked | undefined } */
+  /** Rücklastschrift eines Zahlers aus einem Einzug (von Hand und aus dem Kontoauszug): Posten wieder offen, Gebühr als Posten, Mandat ggf. sperren;
+   *  ab der zweiten Rücklastschrift ist der Zahler vom Einzug ausgenommen (mv_person.debit_blocked)
+   *  → { cents, charges: [{ id, status, collection_id, paid_at, paid_via, note }] (Stand davor), feeId, revoked: vorheriges mandate_revoked | undefined,
+   *      blocked: jetzt ausgenommen, debit: { returns, blocked } (Stand davor – für das Zurücknehmen) } */
   function debitReturn(k, payer, { fee, reason, revoke, user }) {
     const list = db.prepare("SELECT * FROM mv_charge WHERE collection_id = ? AND member_id = ? AND status IN ('eingezogen','bezahlt')").all(k.id, payer);
     if (!list.length) throw fachlich('Für dieses Mitglied gibt es in diesem Einzug nichts zurückzubuchen.');
-    let feeId = null, revoked;
+    let feeId = null, revoked, blocked = false;
+    const prev = db.prepare('SELECT debit_returns, debit_blocked FROM mv_person WHERE member_id = ?').get(payer) || { debit_returns: 0, debit_blocked: null };
     db.transaction(() => {
       for (const c of list) db.prepare("UPDATE mv_charge SET status = 'offen', collection_id = NULL, paid_at = NULL, paid_via = NULL, returns = returns + 1, note = ? WHERE id = ?").run(`Rücklastschrift Einzug ${k.id}: ${reason}`, c.id);
+      // Regel (Entscheidung des Vereins): nach der zweiten Rücklastschrift desselben Zahlers nur noch Überweisung und Mahnung – Mandat bleibt eingetragen, aufheben von Hand
+      blocked = !prev.debit_blocked && (prev.debit_returns || 0) + 1 >= 2;
+      db.prepare('UPDATE mv_person SET debit_returns = debit_returns + 1, debit_blocked = COALESCE(debit_blocked, ?) WHERE member_id = ?').run(blocked ? today() : null, payer);
       if (fee) feeId = Number(db.prepare("INSERT INTO mv_charge(member_id, kind, text, cents, due_date, created_by, note) VALUES (?, 'ruecklastschrift', ?, ?, ?, ?, ?)").run(payer, `Gebühr Rücklastschrift vom ${deD(k.collection_date)}`, fee, today(), user, `Rücklastschrift Einzug ${k.id}: ${reason}`).lastInsertRowid);
       if (revoke) { revoked = (bankRow(payer) || {}).mandate_revoked || null; db.prepare('UPDATE mv_bank SET mandate_revoked = ? WHERE member_id = ?').run(today(), payer); }
       collectionRecount(k.id);
     })();
     const cents = list.reduce((s, c) => s + c.cents, 0);
-    store.hist(payer, user, 'Rücklastschrift', null, `${euro(cents)} (${reason})${revoke ? ', Mandat gesperrt' : ''}`);
-    return { cents, charges: list.map(c => ({ id: c.id, status: c.status, collection_id: c.collection_id, paid_at: c.paid_at, paid_via: c.paid_via, note: c.note })), feeId, revoked };
+    store.hist(payer, user, 'Rücklastschrift', null, `${euro(cents)} (${reason})${revoke ? ', Mandat gesperrt' : ''}${blocked ? ', ab jetzt vom Einzug ausgenommen (2 Rücklastschriften)' : ''}`);
+    return { cents, charges: list.map(c => ({ id: c.id, status: c.status, collection_id: c.collection_id, paid_at: c.paid_at, paid_via: c.paid_via, note: c.note, dunning_level: c.dunning_level })), feeId, revoked, blocked,
+      debit: { returns: prev.debit_returns || 0, blocked: prev.debit_blocked || null } };
   }
   const collectionRecount = id => {
     const left = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM mv_charge WHERE collection_id = ?').get(id);
@@ -605,52 +618,47 @@ function register(sh) {
     const n = last ? parseInt(last.invoice_no.split('-')[2], 10) + 1 : 1;
     return `RE-${y}-${String(n).padStart(4, '0')}`;
   }
-  async function invoiceFor(payer, { dunning = 0, user } = {}) {
+  /** Rechnungsnummer für Posten ohne Nummer (eine neue für alle, wenn keiner eine hat) → Nummer für Kopf und Verwendungszweck */
+  function invoiceNo(list) {
+    let no = (list.find(c => c.invoice_no) || {}).invoice_no || null;
+    if (!no) { no = nextInvoiceNo(); db.prepare(`UPDATE mv_charge SET invoice_no = ? WHERE id IN (${list.map(() => '?').join(',')})`).run(no, ...list.map(c => c.id)); for (const c of list) c.invoice_no = no; }
+    return no;
+  }
+  sh.invoiceNo = invoiceNo; sh.club = club;
+  /** Wer zahlt per Überweisung? Zahlungsart Rechnung/bar – oder Lastschrift, aber nach 2 Rücklastschriften vom Einzug ausgenommen */
+  const payWay = p => (p.debit_blocked && (p.payment || 'lastschrift') === 'lastschrift' ? 'ueberweisung' : p.payment);
+  sh.payWay = payWay;
+  async function invoiceFor(payer) {
     const list = db.prepare("SELECT * FROM mv_charge WHERE member_id = ? AND status = 'offen' ORDER BY due_date, id").all(payer);
     if (!list.length) return null;
-    let no = list.find(c => c.invoice_no) ? list.find(c => c.invoice_no).invoice_no : null;
-    if (!no) { no = nextInvoiceNo(); db.prepare(`UPDATE mv_charge SET invoice_no = ? WHERE id IN (${list.map(() => '?').join(',')})`).run(no, ...list.map(c => c.id)); }
-    const buf = await pdf.invoice(club(), { person: personOf(payer), name: payerName(payer), no, date: today(), charges: list, dunning, payment: personOf(payer).payment, mandate: bankRow(payer) });
+    const no = invoiceNo(list);
+    const buf = await pdf.invoice(club(), { person: personOf(payer), name: payerName(payer), no, date: today(), charges: list, payment: payWay(personOf(payer)), mandate: bankRow(payer) });
     return { buf, no, list, total: list.reduce((s, c) => s + c.cents, 0) };
   }
   admin.get('/invoice.pdf', PF, ar(async (req, res) => {
-    const r = await invoiceFor(int(req.query.member), { dunning: int(req.query.dunning) });
+    const r = await invoiceFor(int(req.query.member));
     if (!r) return bad(res, 'Keine offenen Posten.', 404);
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${r.no}.pdf"` }).send(r.buf);
   }));
-  admin.get('/dunning', PF, (req, res) => {
-    const days = Math.max(0, int(req.query.days, 14));
-    const rows = db.prepare(`SELECT c.member_id, m.name, p.email, p.payment, SUM(c.cents) cents, COUNT(*) n, MIN(c.due_date) oldest, MAX(c.dunning_level) level, MAX(c.dunned_at) dunned_at
-      FROM mv_charge c JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id WHERE c.status = 'offen' AND c.due_date < ?
-      GROUP BY c.member_id HAVING SUM(c.cents) > 0 ORDER BY oldest`).all(fees.addDays(today(), -days));
-    res.json(rows);
-  });
+  /* Rechnungen per E-Mail (Mahnungen: lib/mahnung.js) */
   admin.post('/invoices/send', PF, rateLimit('mvinv', 10, 10 * 60000), ar(async (req, res) => {
     const b = req.body || {};
     if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     const ids = Array.isArray(b.member_ids) ? b.member_ids.map(Number).filter(Boolean).slice(0, 500) : [];
-    const dunning = b.dunning ? 1 : 0;
     let sent = 0; const missing = [], failed = [];
     for (const id of ids) {
       const p = personOf(id);
       if (!p.email) { missing.push(payerName(id)); continue; }
-      if (dunning) {
-        const lvl = (db.prepare("SELECT MAX(dunning_level) l FROM mv_charge WHERE member_id = ? AND status = 'offen'").get(id).l || 0) + 1;
-        const fee = parseInt(S('dunning_fee_cents', '0'), 10) || 0;
-        if (fee && lvl >= 2) db.prepare("INSERT INTO mv_charge(member_id, kind, text, cents, due_date, created_by) VALUES (?, 'mahngebuehr', ?, ?, ?, ?)").run(id, `Mahngebühr (${lvl}. Mahnung)`, fee, today(), uname(req));
-        db.prepare("UPDATE mv_charge SET dunning_level = ?, dunned_at = ? WHERE member_id = ? AND status = 'offen' AND due_date < ?").run(lvl, today(), id, today());
-      }
-      const inv = await invoiceFor(id, { dunning: dunning ? db.prepare("SELECT MAX(dunning_level) l FROM mv_charge WHERE member_id = ? AND status = 'offen'").get(id).l : 0 });
+      const inv = await invoiceFor(id);
       if (!inv) continue;
-      const word = dunning ? (inv.list[0].dunning_level >= 2 ? `${inv.list[0].dunning_level}. Mahnung` : 'Zahlungserinnerung') : 'Rechnung';
       try {
-        await C.mail.send({ to: p.email, subject: `${word} ${inv.no} – ${club().name}`, text: [`Guten Tag ${payerName(id)},`, '', dunning ? `wir haben bis heute keinen Zahlungseingang über ${euro(inv.total)} feststellen können. Bitte überweisen Sie den Betrag in den nächsten 14 Tagen.` : `anbei die Rechnung ${inv.no} über ${euro(inv.total)}.`, '', 'Die Einzelheiten stehen im angehängten PDF.', '', 'Viele Grüße', club().name].join('\n'),
+        await C.mail.send({ to: p.email, subject: `Rechnung ${inv.no} – ${club().name}`, text: [`Guten Tag ${payerName(id)},`, '', `anbei die Rechnung ${inv.no} über ${euro(inv.total)}.`, '', 'Die Einzelheiten stehen im angehängten PDF.', '', 'Viele Grüße', club().name].join('\n'),
           attachments: [{ filename: `${inv.no}.pdf`, content: inv.buf }] });
         sent++;
       } catch (e) { failed.push(`${payerName(id)}: ${e.message}`); }
       await new Promise(ok => setTimeout(ok, 150));
     }
-    C.audit(req.user, dunning ? 'Mahnungen versendet' : 'Rechnungen versendet', `${sent} E-Mails${missing.length ? `, ${missing.length} ohne E-Mail` : ''}`);
+    C.audit(req.user, 'Rechnungen versendet', `${sent} E-Mails${missing.length ? `, ${missing.length} ohne E-Mail` : ''}`);
     res.json({ ok: true, sent, missing, failed });
   }));
   /* Übersicht Finanzen */

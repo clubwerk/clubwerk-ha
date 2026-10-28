@@ -94,7 +94,11 @@ function register(sh) {
     const d = me(id), p = personRow(id); if (!d || !p) return {};
     const V = d.perms.view, E = d.perms.edit, wait = new Set(d.pending.map(x => x.kind)), money = [], todo = [];
     if (d.isHead && V.posten) {
-      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: 'offen', value: euro(d.open_cents) });
+      // gemahnt: „Zahlungserinnerung vom …“ und wohin überweisen (keine Push-Nachricht dazu – Push-Texte zeigen nichts Vertrauliches)
+      const dun = d.open_cents > 0 && sh.lastDunning ? sh.lastDunning(id) : null;
+      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: dun ? `${dun.title} vom ${deD(dun.date)}` : 'offen', value: euro(d.open_cents) });
+      const acc = dun ? store.account() : null;
+      if (acc && acc.iban) money.push({ title: 'Bitte überweisen an', sub: `${club().name} · IBAN ${String(acc.iban).replace(/(.{4})/g, '$1 ').trim()}${dun.ref ? ` · Verwendungszweck ${dun.ref}` : ''}` });
       const due = d.charges.filter(c => c.status === 'eingezogen' && c.collection_date && c.collection_date >= today()), first = due.map(c => c.collection_date).sort()[0];
       if (first) money.push({ title: 'Lastschrift', sub: `wird am ${deD(first)} abgebucht`, value: euro(due.filter(c => c.collection_date === first).reduce((n, c) => n + c.cents, 0)) });
     }

@@ -1181,6 +1181,23 @@ INSERT INTO "mv_member_fee"(member_id, fee_id, start_date) VALUES(7,1,'2020-01-0
 INSERT INTO "mv_member_fee"(member_id, fee_id, start_date) VALUES(8,1,'2020-01-01');
 INSERT INTO "mv_member_fee"(member_id, fee_id, start_date) VALUES(9,1,'2020-01-01');
 INSERT INTO "mv_member_fee"(member_id, fee_id, start_date) VALUES(10,1,'2020-01-01');
+-- Mahnwesen: offene Posten in verschiedenen Stufen (Stichtag 21.10.2026) – Hofmann ist zur 1. Mahnung dran, Klein zur Zahlungserinnerung, Weber hat die letzte Mahnung ohne Zahlung
+INSERT INTO "mv_charge"(id, member_id, kind, text, cents, due_date, invoice_no, dunning_level, dunned_at, created_by) VALUES(1,7,'beitrag','Beitrag Erwachsene 2026',1000,'2026-09-01','RE-2026-0001',1,'2026-10-05','admin');
+INSERT INTO "mv_charge"(id, member_id, kind, text, cents, due_date, created_by) VALUES(2,8,'sonstiges','Hallenmiete Wintersaison',4500,'2026-10-01','admin');
+INSERT INTO "mv_charge"(id, member_id, kind, text, cents, due_date, invoice_no, dunning_level, dunned_at, created_by) VALUES(3,9,'beitrag','Beitrag Erwachsene 2026',1000,'2026-07-01','RE-2026-0002',3,'2026-09-20','admin');
+INSERT INTO "mv_charge"(id, member_id, kind, text, cents, due_date, invoice_no, dunning_level, dunned_at, created_by) VALUES(4,9,'mahngebuehr','Mahngebühr (1. Mahnung)',250,'2026-09-06','RE-2026-0002',3,'2026-09-20','admin');
+INSERT INTO "mv_charge"(id, member_id, kind, text, cents, due_date, invoice_no, dunning_level, dunned_at, created_by) VALUES(5,9,'mahngebuehr','Mahngebühr (2. Mahnung)',250,'2026-09-20','RE-2026-0002',3,'2026-09-20','admin');
+INSERT INTO "mv_charge"(id, member_id, kind, text, cents, due_date, status, paid_at, paid_via, created_by) VALUES(6,10,'beitrag','Beitrag Erwachsene 2026',1000,'2026-09-01','bezahlt','2026-09-10','ueberweisung','admin');
+UPDATE sqlite_sequence SET seq = 6 WHERE name = 'mv_charge';
+CREATE TABLE IF NOT EXISTS mv_dunning (
+  id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), date TEXT NOT NULL, level INTEGER NOT NULL, title TEXT NOT NULL,
+  cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, fee_id INTEGER, ref TEXT, charges TEXT NOT NULL,
+  via TEXT NOT NULL, by_user TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+INSERT INTO mv_dunning(member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user) VALUES(7,'2026-10-05',1,'Zahlungserinnerung',1000,0,NULL,'RE-2026-0001','[{"id":1,"text":"Beitrag Erwachsene 2026","cents":1000,"level":1,"adv":true}]','email','admin');
+INSERT INTO mv_dunning(member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user) VALUES(9,'2026-07-20',1,'Zahlungserinnerung',1000,0,NULL,'RE-2026-0002','[{"id":3,"text":"Beitrag Erwachsene 2026","cents":1000,"level":1,"adv":true}]','email','admin');
+INSERT INTO mv_dunning(member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user) VALUES(9,'2026-09-06',2,'1. Mahnung',1250,250,4,'RE-2026-0002','[{"id":3,"text":"Beitrag Erwachsene 2026","cents":1000,"level":2,"adv":true}]','email','admin');
+INSERT INTO mv_dunning(member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user) VALUES(9,'2026-09-20',3,'2. Mahnung',1500,250,5,'RE-2026-0002','[{"id":3,"text":"Beitrag Erwachsene 2026","cents":1000,"level":3,"adv":true},{"id":4,"text":"Mahngebühr (1. Mahnung)","cents":250,"level":3,"adv":true}]','email','admin');
 DELETE FROM sqlite_sequence WHERE name='mv_member_fee'; INSERT INTO sqlite_sequence VALUES('mv_member_fee',4);
 -- Turniere (Clubmeisterschaft): erfundene Saison mit 4 Ligen × 2 Gruppen, Endrunde und Relegation (erzeugt über den Server, Daten relativ zum Stichtag)
 INSERT INTO "members"(id, name, kind, created_at) VALUES(14,'Jan Albrecht','mitglied','2026-10-21 17:26:50');

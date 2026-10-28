@@ -186,7 +186,7 @@ function register(sh) {
       if (avail <= 0) break;
       const pay = Math.min(avail, c.cents);
       const r = sh.payCharge(c, { paid: pay, date, via: VIA, user });
-      acts.push({ t: 'pay', id: c.id, cents: c.cents, rest: r.rest, restDun: r.rest ? c.dunning_level : null });
+      acts.push({ t: 'pay', id: c.id, cents: c.cents, rest: r.rest, restDun: r.rest ? c.dunning_level : null, restDunAt: r.rest ? c.dunned_at || null : null });
       paid.push({ c, pay }); avail -= pay;
     }
     let credit = 0;
@@ -212,7 +212,7 @@ function register(sh) {
       const reason = reasonOf(e.ret_code);
       const r = sh.debitReturn(k, payer, { fee, reason, revoke: Boolean(opts.revoke), user });
       return { cents: Math.abs(e.cents), label: `${who(payer)}: Rücklastschrift ${euro(r.cents)} aus dem Einzug vom ${deD(k.collection_date)} – ${reason}${fee ? `, Gebühr ${euro(fee)}` : ''}${opts.revoke ? ', Mandat gesperrt' : ''}`,
-        ref: { k: k.id, payer, charges: r.charges, feeId: r.feeId, revoked: r.revoked, note: `Rücklastschrift Einzug ${k.id}: ${reason}` } };
+        ref: { k: k.id, payer, charges: r.charges, feeId: r.feeId, revoked: r.revoked, debit: r.debit, note: `Rücklastschrift Einzug ${k.id}: ${reason}` } };
     }
     if (e.kind !== 'eingang' || e.cents <= 0) throw fachlich('Das ist kein Zahlungseingang.');
     if (t === 'kl') return { cents: e.cents, label: `Lastschrift-Einzug vom ${deD((collOf(Number(a)) || {}).collection_date)} (schon gebucht, verknüpft)`, ref: { link: true } };
@@ -261,7 +261,9 @@ function register(sh) {
           if (!c || c.status !== 'bezahlt' || c.paid_via !== VIA || c.paid_at !== ref.date) throw changed(c, stateWord(c));
           if (x.rest) {
             const r = one(x.rest);
-            if (!r || r.status !== 'offen' || r.collection_id || r.cents !== x.cents - c.cents || r.dunning_level !== x.restDun) throw changed(r, r && r.dunning_level !== x.restDun ? 'gemahnt' : stateWord(r));
+            // gemahnt = Stufe oder Mahndatum geändert oder der Rest steht in einem Mahnschreiben (Mahnwesen: Stufe je Posten, Historie in mv_dunning)
+            const dunned = r && (r.dunning_level !== x.restDun || (x.restDunAt !== undefined && (r.dunned_at || null) !== x.restDunAt) || (sh.inDunning && sh.inDunning(r.id, r.member_id)));
+            if (!r || r.status !== 'offen' || r.collection_id || r.cents !== x.cents - c.cents || dunned) throw changed(r, r && r.status === 'offen' && !r.collection_id && dunned ? 'gemahnt' : stateWord(r));
             db.prepare('DELETE FROM mv_charge WHERE id = ?').run(r.id);
           }
           db.prepare("UPDATE mv_charge SET status = 'offen', cents = ?, paid_at = NULL, paid_via = NULL WHERE id = ?").run(x.cents, c.id);
@@ -279,10 +281,15 @@ function register(sh) {
       return true;
     }
     if (ref.charges) {   // Rücklastschrift: Posten zurück in den Einzug, Gebühr weg, Mandat wie vorher
-      for (const x of ref.charges) { const c = one(x.id); if (!c || c.status !== 'offen' || c.collection_id || c.note !== ref.note) throw changed(c, c && c.status === 'offen' ? 'geändert' : stateWord(c)); }
-      if (ref.feeId) { const f = one(ref.feeId); if (f && (f.status !== 'offen' || f.collection_id)) throw changed(f, stateWord(f)); if (f) db.prepare('DELETE FROM mv_charge WHERE id = ?').run(f.id); }
+      for (const x of ref.charges) {
+        const c = one(x.id);
+        if (c && c.status === 'offen' && x.dunning_level !== undefined && c.dunning_level !== x.dunning_level) throw changed(c, 'gemahnt');   // nach der Rücklastschrift gemahnt (z. B. nach der zweiten)
+        if (!c || c.status !== 'offen' || c.collection_id || c.note !== ref.note) throw changed(c, c && c.status === 'offen' ? 'geändert' : stateWord(c));
+      }
+      if (ref.feeId) { const f = one(ref.feeId); if (f && (f.status !== 'offen' || f.collection_id)) throw changed(f, stateWord(f)); if (f && f.dunning_level) throw changed(f, 'gemahnt'); if (f) db.prepare('DELETE FROM mv_charge WHERE id = ?').run(f.id); }
       for (const x of ref.charges) db.prepare('UPDATE mv_charge SET status = ?, collection_id = ?, paid_at = ?, paid_via = ?, note = ?, returns = MAX(returns - 1, 0) WHERE id = ?').run(x.status, x.collection_id, x.paid_at, x.paid_via, x.note, x.id);
       if (ref.revoked !== undefined) db.prepare('UPDATE mv_bank SET mandate_revoked = ? WHERE member_id = ?').run(ref.revoked, ref.payer);
+      if (ref.debit) db.prepare('UPDATE mv_person SET debit_returns = ?, debit_blocked = ? WHERE member_id = ?').run(ref.debit.returns, ref.debit.blocked, ref.payer);   // Zähler und Ausnahme vom Einzug wie vorher
       sh.collectionRecount(ref.k);
       store.hist(ref.payer, user, 'Rücklastschrift', null, 'zurückgenommen (Kontoauszug)');
       return true;

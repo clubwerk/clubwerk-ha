@@ -49,6 +49,8 @@
       .mv-up.drag { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       @media (max-width: 900px) { .mv-grid { grid-template-columns: 1fr 1fr; } .mv-grid .w2 { grid-column: 1 / -1; } }
       @media (max-width: 560px) { .mv-grid { grid-template-columns: 1fr; } }
+      @media (max-width: 700px) { .tbl.kompakt .mv-nr { display: none; }
+        .tbl.kompakt.mv-ctbl td:first-child { flex-basis: 100%; } .tbl.kompakt.mv-ctbl td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 4; margin-left: auto; } }   /* Postenlisten: Text über die ganze Breite, Knöpfe ans Ende der Wertezeile – lange Texte brechen nicht dreizeilig um */   /* Handy-Liste: Mitgliedsnummer weglassen, damit ein Eintrag höchstens 96 px hoch bleibt */
       .mv-cons { display: flex; flex-direction: column; gap: 10px; }
       .mv-cons label.chk { align-items: flex-start; line-height: 1.4; } .mv-cons input { margin-top: 2px; flex: none; }
       .mv-code { font: 800 44px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .18em; text-align: center; padding: 18px; border: 2px dashed var(--green-line); border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); margin: 6px 0 12px; }
@@ -505,7 +507,8 @@
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
       ${d.charges ? `<div class="card"><h3>Forderungen & Zahlungen</h3>
         ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="empty">Noch keine Forderungen.</p>'}
-        ${d.drinksOpen ? `<p class="muted s">Dazu noch nicht abgerechneter Verkauf: <b>${euro(d.drinksOpen)}</b></p>` : ''}</div>` : ''}`;
+        ${d.drinksOpen ? `<p class="muted s">Dazu noch nicht abgerechneter Verkauf: <b>${euro(d.drinksOpen)}</b></p>` : ''}</div>` : ''}
+      ${d.dunning && head ? dunningCard(d.dunning) : ''}`;
     GK.watch(el);
     if (d.charges) GK.tabTools(`${head && d.charges.some(c => c.status === 'offen') ? `<a class="btn" href="${BASE}invoice.pdf?member=${id}" target="_blank">Rechnung (PDF)</a>` : ''}<button class="btn primary" id="pCharge">+ Forderung</button>`, el);
     $('pPayer').onchange = () => { $('pDrinksL').classList.toggle('hidden', !val('pPayer')); $('pPay').disabled = Boolean(val('pPayer')); };
@@ -526,6 +529,22 @@
     el.querySelectorAll('[data-open]').forEach(b => { b.onclick = () => openMember(+b.dataset.open); });
     if ($('pCharge')) $('pCharge').onclick = () => chargeDialog(null, { member_id: id }, again);
     bindCharges(el, again);
+    if ($('pDunBlk')) $('pDunBlk').onclick = () => blockDialog('Mahnsperre', 'Solange die Sperre gilt, bekommt dieser Zahler keine Mahnung (alle Posten) – z. B. bei vereinbarter Ratenzahlung.', d.dunning.block, v => api(`member/${id}/dunning-block`, 'PUT', v), again);
+    if ($('pDunOff')) $('pDunOff').onclick = async () => { try { await api(`member/${id}/dunning-block`, 'DELETE'); toast('Mahnsperre aufgehoben.'); again(); } catch (e) { fail(e); } };
+    if ($('pDebOn')) $('pDebOn').onclick = async () => {
+      if (!await ask(`${p.name} wieder per Lastschrift einziehen?\n\nDie offenen Posten kommen dann wieder in den nächsten Einzug. Der Zähler für Rücklastschriften beginnt neu.`, { ok: 'Wieder einziehen', danger: false })) return;
+      try { await api(`member/${id}/debit-block`, 'DELETE'); toast('Wieder im Einzug.'); again(); } catch (e) { fail(e); }
+    };
+  }
+  /** Karte „Mahnungen“ am Zahler: Ausnahme vom Einzug (2 Rücklastschriften), Mahnsperre, Mahnhistorie */
+  function dunningCard(x) {
+    const VIA2 = { email: 'E-Mail', brief: 'Brief' };
+    return `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
+        <div class="row">${x.block ? '<button class="btn" id="pDunOff">Mahnsperre aufheben</button>' : '<button class="btn" id="pDunBlk">Mahnsperre …</button>'}</div></div>
+      ${x.debitBlocked ? `<div class="banner a"><span>Seit ${deDate(x.debitBlocked)} vom Lastschrift-Einzug ausgenommen (${x.debitReturns} Rücklastschriften) – die offenen Posten werden per Überweisung und Mahnung bezahlt. Das Mandat bleibt eingetragen.</span><button class="btn small" id="pDebOn">Wieder einziehen …</button></div>` : ''}
+      ${x.block ? `<div class="banner b"><span>Mahnsperre: ${esc(x.block.reason)}${x.block.until ? ` (bis ${deDate(x.block.until)})` : ''}</span></div>` : ''}
+      ${x.history.length ? `<table class="tbl kompakt"><tr><th>Datum</th><th>Schreiben</th><th class="r">Betrag</th><th class="r">Gebühr</th></tr>${x.history.map(h => `<tr><td class="num nw">${deDate(h.date)}</td><td><b>${esc(h.title)}</b><div class="muted s">${[`per ${VIA2[h.via] || h.via}`, h.by_user].filter(Boolean).map(esc).join(' · ')}</div></td>
+        <td class="r k-lbl" data-label="Betrag">${euro(h.cents)}</td><td class="r k-lbl" data-label="Gebühr">${money(h.fee_cents)}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Mahnungen.</p>'}</div>`;
   }
 
   function subBank(el, d, again) {
@@ -1102,27 +1121,31 @@
     }; });
   }
 
+  /** Mahnstufe eines Postens als Bezeichnung aus den Einstellungen (über der letzten Stufe: die letzte) */
+  const stageName = n => { const L = (st.meta && st.meta.settings.dunning_levels) || []; return L.length ? L[Math.min(n, L.length) - 1].title : `${n}. Mahnstufe`; };
   function chargeTable(rows, { member, select } = {}) {
-    const first = c => (member ? `<b translate="no">${esc(c.text)}</b>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}` : `<b>${esc(GK.lastFirst(c.payer_name))}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}`);
-    return `<div class="scroll" style="max-height:60vh"><table class="tbl kompakt"><tr>${member ? '<th>Position</th>' : '<th>Zahler</th><th>Position</th>'}<th>Fällig</th><th>Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
+    const first = c => (member ? `<b translate="no">${esc(c.text)}</b>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}` : `<b>${esc(GK.lastFirst(c.payer_name))}</b>${c.member_no ? `<div class="muted s mv-nr">Nr. ${esc(c.member_no)}</div>` : ''}`);
+    return `<div class="scroll" style="max-height:60vh"><table class="tbl kompakt${member ? ' mv-ctbl' : ''}"><tr>${member ? '<th>Position</th>' : '<th>Zahler</th><th>Position</th>'}<th>Fällig</th><th>Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
       ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td>${select && c.status === 'eingezogen' ? `<label class="chk"><input type="checkbox" data-csel="${c.id}" aria-label="auswählen"> ${first(c)}</label>` : first(c)}</td>
         ${member ? '' : `<td><span translate="no">${esc(c.text)}</span>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}</td>`}
         <td class="num nw">${deDate(c.due_date)}</td><td class="k-weg">${esc(KIND[c.kind] || c.kind)}</td>
-        <td>${pill(CSTAT[c.status] || ['', c.status])}${c.dunning_level ? ` <span class="pill r">${c.dunning_level}. Mahnstufe</span>` : ''}${c.paid_at ? `<div class="muted s">${deDate(c.paid_at)} · ${esc(VIA[c.paid_via] || c.paid_via || '')}</div>` : ''}</td>
+        <td>${c.dunning_level && c.status === 'offen' ? `<span class="pill r">${esc(stageName(c.dunning_level))}</span>` : pill(CSTAT[c.status] || ['', c.status])}${c.dunning_block && c.status === 'offen' && (!c.dunning_block_until || c.dunning_block_until >= st.meta.today) ? ' <span class="pill b">Mahnsperre</span>' : ''}${c.paid_at ? ` <span class="muted s nw">${deDate(c.paid_at)} · ${esc(VIA[c.paid_via] || c.paid_via || '')}</span>` : ''}</td>
         <td class="r ${c.cents < 0 ? 'neg' : ''}">${euro(c.cents)}</td>
         <td class="r nw">${c.status === 'offen' ? `<button class="btn small" data-cpay="${c.id}">Bezahlt</button> <button class="btn small" data-ced="${c.id}">Ändern</button>` : c.status === 'bezahlt' ? `<button class="btn small danger" data-ccx="${c.id}">Stornieren</button>` : ''}</td></tr>`).join('')}</table></div>`;
   }
   /** Posten stornieren (im selben Fenster, auch aus „Posten ändern“ heraus) */
-  function cancelDialog(c, again, back) {
+  async function cancelDialog(c, again, back) {
+    const fees = c.status === 'offen' ? await api(`charges/${c.id}/fees`).catch(() => []) : [];   // Mahngebühren, die dieser Posten ausgelöst hat
     dialog(`<h2>Posten stornieren</h2><p class="muted" style="margin-top:0">${esc(GK.lastFirst(c.payer_name))}: ${esc(c.text)} – ${euro(c.cents)}</p>
       <label class="f">Grund<input id="cxR" placeholder="z. B. doppelt, Ermäßigung"></label>
+      ${fees.map(f => `<label class="chk" style="margin-top:12px"><input type="checkbox" data-cxf="${f.id}" ${f.alone ? 'checked' : ''}> Auch „${esc(f.text)}“ (${euro(f.cents)}) stornieren</label>`).join('')}
       ${c.kind === 'beitrag' ? '<label class="chk" style="margin-top:12px"><input type="checkbox" id="cxRe"> Zeitraum beim nächsten Beitragslauf neu abrechnen</label>' : ''}
       ${c.status === 'bezahlt' && c.paid_via === 'kontoauszug' ? `<p class="s" style="margin:14px 0 6px">Der Betrag ist laut Kontoauszug eingegangen. Was passiert mit dem Geld?</p>
         <label class="chk"><input type="radio" name="cxRf" value="guthaben" checked> Als Guthaben behalten (Gutschrift über ${euro(c.cents)})</label>
         <label class="chk"><input type="radio" name="cxRf" value="zurueck"> Geld wurde zurücküberwiesen</label>` : ''}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="cxOk">Stornieren</button></div>`);
     $('c').onclick = back || closeDialog;
-    $('cxOk').onclick = () => GK.busy($('cxOk'), async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false, refund: (document.querySelector('[name="cxRf"]:checked') || {}).value }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } });
+    $('cxOk').onclick = () => GK.busy($('cxOk'), async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false, refund: (document.querySelector('[name="cxRf"]:checked') || {}).value, fees: [...document.querySelectorAll('[data-cxf]:checked')].map(x => +x.dataset.cxf) }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } });
   }
   function bindCharges(el, again) {
     const get = async id => (await api('charges?status=alle')).rows.find(c => c.id === id);
@@ -1137,7 +1160,7 @@
       $('pyOk').onclick = () => GK.busy($('pyOk'), async () => { try { await api(`charges/${c.id}/pay`, 'POST', { cents: toCents(val('pyC')), date: val('pyD'), via: val('pyV') }); closeDialog(); toast('Zahlung erfasst.'); again(); } catch (e) { fail(e); } });
     }; });
     el.querySelectorAll('[data-ced]').forEach(b => { b.onclick = async () => chargeDialog(await get(+b.dataset.ced), {}, again); });
-    el.querySelectorAll('[data-ccx]').forEach(b => { b.onclick = async () => cancelDialog(await get(+b.dataset.ccx), again); });
+    el.querySelectorAll('[data-ccx]').forEach(b => { b.onclick = async () => cancelDialog(await get(+b.dataset.ccx), again).catch(fail); });
   }
   function chargeDialog(c, { member_id } = {}, again) {
     dialog(`<h2>${c ? 'Posten ändern' : 'Forderung anlegen'}</h2><div class="mv-grid" style="--c:2">
@@ -1147,10 +1170,13 @@
       ${c ? '' : `<label class="f">Art<select id="chK">${['sonstiges', 'aufnahme', 'beitrag', 'getraenke'].map(k => opt(k, KIND[k])).join('')}</select></label>`}</div>
       ${c ? '' : `<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>
         <div class="banner a hidden" id="chKHint"><span>Beträge für den Verkauf besser unter <b>Verkauf › Abrechnung › „+ Betrag auf Konto“</b> buchen – dann stehen sie auf dem Verkaufskonto und werden mit dem nächsten Verkaufs-Einzug abgerechnet.</span></div>`}
-      ${c ? '<div class="row" style="margin-top:12px"><button class="btn danger" id="chCx">Posten stornieren …</button></div>' : ''}
+      ${c ? `<div class="row" style="margin-top:12px"><button class="btn danger" id="chCx">Posten stornieren …</button>${c.dunning_block ? '<button class="btn" id="chBlkOff">Mahnsperre aufheben</button>' : '<button class="btn" id="chBlk">Mahnsperre …</button>'}</div>
+        ${c.dunning_block ? `<p class="muted s">Mahnsperre: ${esc(c.dunning_block)}${c.dunning_block_until ? ` (bis ${deDate(c.dunning_block_until)})` : ''}</p>` : ''}` : ''}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="chOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
-    if ($('chCx')) $('chCx').onclick = () => cancelDialog(c, again, () => chargeDialog(c, { member_id }, again));
+    if ($('chCx')) $('chCx').onclick = () => cancelDialog(c, again, () => chargeDialog(c, { member_id }, again)).catch(fail);
+    if ($('chBlk')) $('chBlk').onclick = () => blockDialog('Mahnsperre für diesen Posten', `${c.text} – ${euro(c.cents)}. Solange die Sperre gilt, wird dieser Posten nicht gemahnt.`, null, v => api(`charges/${c.id}/dunning-block`, 'PUT', v), again, () => chargeDialog(c, { member_id }, again));
+    if ($('chBlkOff')) $('chBlkOff').onclick = () => GK.busy($('chBlkOff'), async () => { try { await api(`charges/${c.id}/dunning-block`, 'DELETE'); closeDialog(); toast('Mahnsperre aufgehoben.'); again(); } catch (e) { fail(e); } });
     if ($('chK')) $('chK').onchange = () => $('chKHint').classList.toggle('hidden', val('chK') !== 'getraenke');
     $('chOk').onclick = () => GK.busy($('chOk'), async () => {
       try {
@@ -1330,30 +1356,77 @@
     }; });
   }
 
+  /** Rechnungen (Zahler ohne Lastschrift) und Mahnlauf: wer jetzt dran ist (Stufe je Posten), E-Mails senden, Briefe als Sammel-PDF; letzte Stufe ohne Zahlung; Mahnsperren */
   async function finDunning(el, again) {
-    st.dd = st.dd ?? 14;
-    const rows = await api('dunning?days=' + st.dd);
-    const all = await api('charges?status=offen');
-    const hint = GK.kontoauszugHint ? await GK.kontoauszugHint() : '';   // niemanden mahnen, der schon gezahlt hat
-    const payers = [...new Set(all.rows.map(c => c.member_id))].map(id => { const list = all.rows.filter(c => c.member_id === id); return { id, name: list[0].payer_name, payment: list[0].payment, cents: list.reduce((s, c) => s + c.cents, 0), n: list.length }; }).filter(p => p.cents > 0 && p.payment !== 'lastschrift');
-    el.innerHTML = `${hint ? `<div class="banner g"><span>${esc(hint)}</span></div>` : ''}<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Rechnungen (Zahlungsart Rechnung/bar)</h3><button class="btn" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button></div>
-        ${payers.length ? `<table class="tbl kompakt"><tr><th>Zahler</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>${payers.map(p => `<tr><td><label class="chk"><input type="checkbox" data-inv="${p.id}" checked aria-label="auswählen"> <b>${esc(GK.lastFirst(p.name))}</b></label></td><td class="r k-lbl" data-label="Posten">${p.n}</td><td class="r">${euro(p.cents)}</td>
+    const [d, all, hint, ka] = await Promise.all([api('dunning'), api('charges?status=offen'), GK.kontoauszugHint ? GK.kontoauszugHint() : '', GK.api('kontoauszug/status').catch(() => null)]);
+    // niemanden mahnen, der schon gezahlt hat: Kontoauszug älter als 7 Tage oder nicht zugeordnete Buchungen → Warnung
+    const week = (t => { t.setDate(t.getDate() - 7); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; })(new Date(d.day + 'T12:00:00'));
+    const old = ka && ka.last && ka.last.to < week, unassigned = ka && ka.counts && ka.counts.offen;
+    const warn = old || unassigned ? `${old ? `Der letzte Kontoauszug reicht nur bis ${deDate(ka.last.to)}. ` : ''}${unassigned ? `${unassigned} Buchungen sind noch keinem Posten zugeordnet. ` : ''}Vor dem Mahnen bitte den Kontoauszug einlesen und zuordnen – sonst bekommt jemand eine Mahnung, der schon gezahlt hat.` : '';
+    const payers = [...new Set(all.rows.map(c => c.member_id))].map(id => { const list = all.rows.filter(c => c.member_id === id); return { id, name: list[0].payer_name, payment: list[0].payment, blocked: list[0].debit_blocked, cents: list.reduce((s, c) => s + c.cents, 0), n: list.length }; })
+      .filter(p => p.cents > 0 && (p.payment !== 'lastschrift' || p.blocked));
+    const mails = d.due.filter(x => x.email), letters = d.due.filter(x => !x.email);
+    const lv = d.levels.map((l, i) => `${esc(l.title)} ${i ? `${l.days} Tage danach` : `${l.days} Tage nach Fälligkeit`}${l.fee_cents ? ` (${euro(l.fee_cents)})` : ''}`).join(' · ');
+    const head = (h, btns) => `<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">${h}</h3>${btns ? `<div class="row">${btns}</div>` : ''}</div>`;
+    el.innerHTML = `${warn ? `<div class="banner a"><span>${esc(warn)}</span></div>` : hint ? `<div class="banner g"><span>${esc(hint)}</span></div>` : ''}
+      <div class="card">${head('Rechnungen (Zahlungsart Rechnung/bar)', `<button class="btn" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button>`)}
+        ${payers.length ? `<table class="tbl kompakt"><tr><th>Zahler</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>${payers.map(p => `<tr><td><label class="chk"><input type="checkbox" data-inv="${p.id}" checked aria-label="auswählen"> <b>${esc(GK.lastFirst(p.name))}</b></label>${p.blocked ? ' <span class="pill a">nach 2 Rücklastschriften</span>' : ''}</td><td class="r k-lbl" data-label="Posten">${p.n}</td><td class="r">${euro(p.cents)}</td>
           <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${p.id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Rechnungen.</p>'}</div>
-      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
-          <div class="row"><select id="dDays" data-nodirty aria-label="Überfällig seit" style="width:auto">${[0, 7, 14, 30, 60].map(n => opt(n, n ? `Überfällig seit mehr als ${n} Tagen` : 'Alle überfälligen', st.dd)).join('')}</select><button class="btn" id="dSend" ${rows.length ? '' : 'disabled'}>Ausgewählte mahnen</button></div></div>
-        ${rows.length ? `<table class="tbl kompakt"><tr><th>Zahler</th><th>älteste Fälligkeit</th><th>Mahnstufe</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>
-          ${rows.map(r => `<tr><td><label class="chk"><input type="checkbox" data-dun="${r.member_id}" checked aria-label="auswählen"> <b>${esc(GK.lastFirst(r.name))}</b></label>${r.email ? '' : ' <span class="pill a">keine E-Mail</span>'}</td><td class="nw k-lbl" data-label="seit">${deDate(r.oldest)}</td><td class="k-lbl" data-label="Mahnstufe">${r.level ? `${r.level}. ${r.dunned_at ? '· ' + deDate(r.dunned_at) : ''}` : '–'}</td><td class="r k-lbl" data-label="Posten">${r.n}</td><td class="r">${euro(r.cents)}</td>
-            <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${r.member_id}&dunning=${(r.level || 0) + 1}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Nichts zu mahnen.</p>'}
-        <p class="muted s" style="margin-bottom:0">Erste Stufe = freundliche Zahlungserinnerung, ab der zweiten Mahnung kommt die Mahngebühr aus den Einstellungen dazu (${euro(st.meta.settings.dunning_fee_cents)}).</p></div>`;
-    $('dDays').onchange = () => { st.dd = +val('dDays'); finDunning(el, again).catch(fail); };
-    const send = async (attr, dunning) => {
-      const ids = [...el.querySelectorAll(`[data-${attr}]`)].filter(c => c.checked).map(c => +c.dataset[attr]);
-      if (!ids.length) return;
-      if (!await ask(`${dunning ? 'Mahnungen' : 'Rechnungen'} an ${ids.length} Zahler senden?\n\nJede/r bekommt eine E-Mail mit PDF.`, { ok: 'Senden', danger: false })) return;
-      try { const r = await api('invoices/send', 'POST', { member_ids: ids, dunning }); toast(`${r.sent} verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail (${r.missing.join(', ')})` : ''}.`, r.missing.length > 0 || r.failed.length > 0); finDunning(el, again).catch(fail); } catch (e) { fail(e); }
+      <div class="card">${head('Mahnungen – jetzt fällig', `<button class="btn" id="dPdf" ${letters.length ? '' : 'disabled'}>Briefe als PDF</button><button class="btn primary" id="dSend" ${mails.length ? '' : 'disabled'}>E-Mails senden</button>`)}
+        ${d.due.length ? `<table class="tbl kompakt"><tr><th>Zahler und Schreiben</th><th>fällig seit</th><th class="r">Posten</th><th class="r">offen</th><th class="r">Gebühr</th><th></th></tr>
+          ${d.due.map(x => `<tr><td><label class="chk" style="align-items:flex-start"><input type="checkbox" data-dun="${x.member_id}" checked aria-label="auswählen" style="margin-top:2px"> <span><b>${esc(GK.lastFirst(x.name))}</b>${x.email ? '' : ' <span class="pill a">Brief</span>'}<span class="muted s" style="display:block;font-weight:400">${esc(x.title)}</span></span></label></td>
+            <td class="nw k-lbl" data-label="seit">${deDate(x.oldest)}</td><td class="r k-lbl" data-label="Posten">${x.items.filter(i => i.cents > 0).length}</td><td class="r k-lbl" data-label="offen">${euro(x.net)}</td><td class="r k-lbl" data-label="Gebühr">${money(x.fee)}</td>
+            <td class="r nw"><a class="btn small" href="${BASE}dunning/letter.pdf?member=${x.member_id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Gerade ist niemand zu mahnen.</p>'}
+        <p class="muted s" style="margin-bottom:0">${lv}. Stufe und Gebühr werden erst gebucht, wenn die E-Mail raus ist bzw. die Briefe gedruckt sind. Eine Mahnsperre (z. B. bei Ratenzahlung) setzt man beim Mitglied unter „Zahlung & Familie“ oder am Posten.${d.debit.n ? ` ${d.debit.n} ${d.debit.n === 1 ? 'Zahler' : 'Zahler'} mit Lastschrift-Mandat (${euro(d.debit.cents)}) ${d.debit.n === 1 ? 'ist' : 'sind'} nicht dabei – ihre Posten kommen in den nächsten Einzug.` : ''}</p></div>
+      ${d.last.length ? `<div class="card">${head('Letzte Mahnung ohne Zahlung')}<p class="muted s" style="margin-top:0">Die letzte Stufe ist erreicht und die Frist von ${d.deadlineDays} Tagen ist um. Was jetzt geschieht, entscheidet der Vorstand.</p>
+        <table class="tbl kompakt"><tr><th>Zahler</th><th>zuletzt</th><th class="r">offen</th><th></th></tr>${d.last.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b></td><td class="k-lbl" data-label="zuletzt">${esc(x.title)} vom ${deDate(x.date)}</td><td class="r">${euro(x.net)}</td>
+          <td class="r"><button class="btn small" data-mopen="${x.member_id}">Öffnen</button></td></tr>`).join('')}</table></div>` : ''}
+      ${d.blocks.length ? `<div class="card">${head('Mahnsperren')}<table class="tbl kompakt"><tr><th>Zahler</th><th>gilt für</th><th>Grund</th><th></th></tr>${d.blocks.map(b => {
+          const h = b.kind === 'zahler' && d.held.find(x => x.member_id === b.member_id);
+          return `<tr><td><b>${esc(GK.lastFirst(b.name))}</b>${h ? `<div class="muted s">wäre jetzt dran: ${esc(h.title)} (${euro(h.net)})</div>` : ''}</td><td class="k-lbl" data-label="gilt für">${b.kind === 'zahler' ? 'alle Posten' : `<span translate="no">${esc(b.text)}</span> · ${euro(b.cents)}`}</td>
+            <td class="k-lbl" data-label="Grund">${esc(b.reason)}${b.until ? `<div class="muted s">bis ${deDate(b.until)}</div>` : ''}</td><td class="r"><button class="btn small" data-${b.kind === 'zahler' ? 'dunb' : 'dunc'}="${b.kind === 'zahler' ? b.member_id : b.charge_id}">Aufheben</button></td></tr>`; }).join('')}</table></div>` : ''}`;
+    const sel = () => [...el.querySelectorAll('[data-dun]')].filter(c => c.checked).map(c => d.due.find(x => x.member_id === +c.dataset.dun));
+    const upd = () => {
+      const s2 = sel(), m = s2.filter(x => x.email).length, l = s2.filter(x => !x.email);
+      $('dSend').disabled = !m; $('dSend').textContent = m ? `E-Mails senden (${m})` : 'E-Mails senden';
+      $('dPdf').disabled = !l.length; $('dPdf').textContent = l.length ? `Briefe als PDF (${l.length})` : 'Briefe als PDF';
     };
-    $('iSend').onclick = () => send('inv', false);
-    $('dSend').onclick = () => send('dun', true);
+    el.querySelectorAll('[data-dun]').forEach(c => { c.onchange = upd; }); upd();
+    const items = list => list.map(x => ({ member_id: x.member_id, sig: x.sig }));
+    const after = (r, what) => toast(`${what}${r.changed.length ? ` – ${r.changed.length} nicht, weil sich inzwischen etwas geändert hat (${r.changed.map(n => GK.lastFirst(n)).join(', ')}). Bitte neu prüfen.` : ''}`, r.changed.length > 0);
+    $('dSend').onclick = async () => {
+      const list = sel().filter(x => x.email); if (!list.length) return;
+      if (!await ask(`Mahnungen an ${list.length} Zahler per E-Mail senden?\n\nJede/r bekommt das Schreiben als PDF. Stufe und Gebühr werden erst nach dem Versand gebucht.`, { ok: 'Senden', danger: false })) return;
+      try { const r = await api('dunning/send', 'POST', { items: items(list) }); after(r, `${r.sent} verschickt${r.failed.length ? `, ${r.failed.length} fehlgeschlagen (${r.failed.join('; ')})` : ''}`); again(); } catch (e) { fail(e); }
+    };
+    $('dPdf').onclick = () => {
+      const list = sel().filter(x => !x.email);
+      if (!list.length) return;
+      window.open(`${BASE}dunning/letters.pdf?ids=${list.map(x => x.member_id).join(',')}`, '_blank', 'noopener');
+      setTimeout(() => {   // PDF öffnet sich im neuen Fenster; hier nachfragen, ob gedruckt – erst dann wird gebucht
+        dialog(`<h2>Briefe gedruckt?</h2><p class="muted" style="margin-top:0">${list.length === 1 ? 'Ein Brief' : `${list.length} Briefe`} für Zahler ohne E-Mail. Erst wenn sie gedruckt sind, werden Stufe und Gebühr gebucht${list.some(x => x.fee) ? ` (Gebühren zusammen ${euro(list.reduce((t, x) => t + x.fee, 0))})` : ''}.</p>
+          <div class="btns"><button class="btn ghost" id="c">Noch nicht</button><button class="btn primary" id="dPrinted">Briefe gedruckt</button></div>`);
+        $('c').onclick = closeDialog;
+        $('dPrinted').onclick = () => GK.busy($('dPrinted'), async () => { try { const r = await api('dunning/printed', 'POST', { items: items(list) }); closeDialog(); after(r, `${r.done} ${r.done === 1 ? 'Brief' : 'Briefe'} gebucht`); again(); } catch (x) { fail(x); } });
+      }, 400);
+    };
+    $('iSend').onclick = async () => {
+      const ids = [...el.querySelectorAll('[data-inv]')].filter(c => c.checked).map(c => +c.dataset.inv);
+      if (!ids.length) return;
+      if (!await ask(`Rechnungen an ${ids.length} Zahler senden?\n\nJede/r bekommt eine E-Mail mit PDF.`, { ok: 'Senden', danger: false })) return;
+      try { const r = await api('invoices/send', 'POST', { member_ids: ids }); toast(`${r.sent} verschickt${r.missing.length ? `, ${r.missing.length} ohne E-Mail (${r.missing.join(', ')})` : ''}.`, r.missing.length > 0 || r.failed.length > 0); again(); } catch (e) { fail(e); }
+    };
+    el.querySelectorAll('[data-dunb]').forEach(b => { b.onclick = async () => { try { await api(`member/${b.dataset.dunb}/dunning-block`, 'DELETE'); toast('Mahnsperre aufgehoben.'); again(); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-dunc]').forEach(b => { b.onclick = async () => { try { await api(`charges/${b.dataset.dunc}/dunning-block`, 'DELETE'); toast('Mahnsperre aufgehoben.'); again(); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-mopen]').forEach(b => { b.onclick = () => openMember(+b.dataset.mopen); });
+  }
+  /** Mahnsperre setzen (Zahler oder Posten): Grund und optional „bis“ – save(v) speichert, done() zeichnet neu, back() zurück (sonst schließen) */
+  function blockDialog(title, text, cur, save, done, back) {
+    dialog(`<h2>${esc(title)}</h2><p class="muted" style="margin-top:0">${esc(text)}</p>
+      <div class="mv-grid" style="--c:3"><label class="f w2">Grund<input id="dbR" value="${esc(cur ? cur.reason : '')}" placeholder="z. B. Ratenzahlung vereinbart" maxlength="120"></label><label class="f">bis (optional)<input id="dbU" type="date" value="${esc(cur && cur.until ? cur.until : '')}"></label></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="dbOk">Sperren</button></div>`);
+    $('c').onclick = back || closeDialog;
+    $('dbOk').onclick = () => GK.busy($('dbOk'), async () => { try { await save({ reason: val('dbR'), until: val('dbU') || null }); closeDialog(); toast('Mahnsperre gesetzt.'); done(); } catch (e) { fail(e); } });
   }
 
   /* ================================================================= Auswertungen */
@@ -1541,9 +1614,12 @@
         <label class="f">Gebühr Rücklastschrift<input id="eRet" value="${centsToInput(s.return_fee_cents)}" inputmode="decimal"></label></div>
         <p class="muted s" style="margin:12px 0 0">Die Gläubiger-ID bekommt der Verein von der Bundesbank. Die Mandatsreferenz jedes Mitglieds besteht aus dem Kürzel und seiner Mitgliedsnummer.</p>
         ${s.club_iban && !s.club_bic ? `<div class="banner g" style="margin-top:12px"><span>${BIC_HINT}</span></div>` : ''}${foot('eSaveSepa')}</div>
-      <div class="card" data-set="rechnung"><h3>Rechnungen & Mahnungen</h3><div class="mv-grid" style="--c:4">
-        <label class="f">Mahngebühr (ab 2. Mahnung)<input id="eDun" value="${centsToInput(s.dunning_fee_cents)}" inputmode="decimal"></label>
-        <label class="f w2">Zusatz auf Rechnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label></div>${foot('eSaveInv')}</div>
+      <div class="card" data-set="rechnung"><h3>Rechnungen</h3><div class="mv-grid" style="--c:2">
+        <label class="f wall">Zusatz auf Rechnungen und Mahnungen (optional)<input id="eInv" value="${esc(s.invoice_text)}" placeholder="z. B. Steuernummer, Vereinsregister"></label></div>${foot('eSaveInv')}</div>
+      <div class="card" data-set="mahnung"><h3>Mahnungen</h3><p class="muted s" style="margin-top:0">Die erste Stufe kommt so viele Tage nach der Fälligkeit, jede weitere so viele Tage nach der vorigen. Die Gebühr fällt einmal je Schreiben an. Im Text ersetzt Clubwerk {name}, {betrag} (offen gesamt) und {frist}.</p>
+        <div class="mv-grid" style="--c:4;margin-bottom:18px"><label class="f w2">Zahlungsfrist in den Schreiben (Tage)<input id="eDunDl" value="${esc(String(s.dunning_deadline_days))}" inputmode="numeric"></label></div>
+        <div id="eLv"></div>
+        <div class="row" style="justify-content:space-between;margin-top:14px"><button class="btn" id="eLvAdd">+ Stufe</button><button class="btn primary" id="eSaveDun">Speichern</button></div></div>
       <div id="eFunc" data-set="uebertragen"></div>`;
     GK.watch(el);
     if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showPaySettings(el));
@@ -1555,7 +1631,23 @@
       return { creditor_name: val('eName'), creditor_id: val('eCi'), ...(m.perms.finance && $('eAcc') && !$('eAcc').disabled ? { sepa_account: val('eAcc') ? +val('eAcc') : null } : {}),
         mandate_prefix: val('ePre'), prenotify_days: +val('ePre2'), drinks_due: dd ? `${dd[2].padStart(2, '0')}-${dd[1].padStart(2, '0')}` : '', return_fee_cents: toCents(val('eRet') || '0') };
     });
-    save('eSaveInv', () => ({ dunning_fee_cents: toCents(val('eDun') || '0'), invoice_text: val('eInv') }));
+    save('eSaveInv', () => ({ invoice_text: val('eInv') }));
+    // Mahnstufen: je Stufe Bezeichnung, Abstand, Gebühr und Text; 1 bis 5 Stufen
+    const lv = s.dunning_levels.map(l => ({ ...l }));
+    const readLv = () => { $('eLv').querySelectorAll('[data-lv]').forEach(r => { const l = lv[+r.dataset.lv]; l.title = r.querySelector('[data-k="title"]').value.trim(); l.days = +r.querySelector('[data-k="days"]').value || 0; l.fee_cents = toCents(r.querySelector('[data-k="fee"]').value || '0'); l.text = r.querySelector('[data-k="text"]').value.trim(); }); };
+    const drawLv = () => {
+      $('eLv').innerHTML = lv.map((l, i) => `<div class="mv-pers" data-lv="${i}"><h4 class="mv-sub" style="margin-top:0">${i + 1}. Stufe</h4><div class="mv-grid" style="--c:4">
+        <label class="f w2">Bezeichnung<input data-k="title" value="${esc(l.title)}" maxlength="40"></label>
+        <label class="f">${i ? 'Tage nach der vorigen Stufe' : 'Tage nach Fälligkeit'}<input data-k="days" value="${esc(String(l.days))}" inputmode="numeric"></label>
+        <label class="f">Gebühr<input data-k="fee" value="${centsToInput(l.fee_cents)}" inputmode="decimal"></label>
+        <label class="f wall">Text im Schreiben<textarea data-k="text" rows="4" maxlength="800">${esc(l.text)}</textarea></label></div>
+        ${lv.length > 1 && i === lv.length - 1 ? `<div class="row" style="margin-top:10px"><button class="btn small danger" data-lvx="${i}">Letzte Stufe entfernen</button></div>` : ''}</div>`).join('');
+      $('eLvAdd').disabled = lv.length >= 5;
+      $('eLv').querySelectorAll('[data-lvx]').forEach(b => { b.onclick = () => { readLv(); lv.splice(+b.dataset.lvx, 1); drawLv(); }; });
+    };
+    drawLv();
+    $('eLvAdd').onclick = () => { readLv(); const p = lv[lv.length - 1]; lv.push({ title: `${lv.length}. Mahnung`, days: p ? p.days : 14, fee_cents: p ? p.fee_cents : 0, text: p ? p.text : '' }); drawLv(); };
+    save('eSaveDun', () => { readLv(); return { dunning_levels: lv, dunning_deadline_days: +val('eDunDl') }; });
   }
   const consentRow = (c, i) => `<div class="mv-cons-ed" data-c="${esc(c.key)}"><label class="f">Kurzname<input data-k="short" value="${esc(c.short)}" placeholder="z. B. Homepage"></label><label class="f">Text auf dem Formular<textarea data-k="text" rows="2">${esc(c.text)}</textarea></label>
     <label class="chk"><input type="checkbox" data-k="req" ${c.required ? 'checked' : ''}> Pflicht</label><button class="btn small danger" data-cx="${i}">Entfernen</button></div>`;
@@ -1755,6 +1847,7 @@
     { label: 'Überfällige Posten', page: 'mv-posten', seg: 'Überfällig', perm: 'mitglieder_finanzen', words: 'Forderung offen überfällig nicht bezahlt' },
     { label: 'Forderung anlegen', page: 'mv-posten', btn: '+ Forderung', perm: 'mitglieder_finanzen', kind: 'aktion', words: 'Posten Gutschrift Betrag Mitglied berechnen' },
     { label: 'Rechnungen & Mahnungen (Beiträge)', page: 'mv-mahnung', perm: 'mitglieder_finanzen', words: 'Mahnung Erinnerung Rechnung bar' },
+    { label: 'Mahnlauf: wer ist jetzt zu mahnen', page: 'mv-mahnung', card: 'Mahnungen – jetzt fällig', perm: 'mitglieder_finanzen', kind: 'aktion', words: 'Mahnung Mahnlauf Zahlungserinnerung Brief PDF E-Mail Mahnsperre' },
     { label: 'Mitgliederzahlen und Abteilungen', page: 'mv-auswertung', card: 'Abteilungen', words: 'Statistik Zahlen Stichtag' },
     { label: 'Bestandserhebung (Landessportbund)', page: 'mv-auswertung', card: 'Bestandserhebung', words: 'LSB Statistik Meldung Verband' },
     { label: 'Einwilligungen: wer hat zugestimmt', page: 'mv-auswertung', card: 'Einwilligungen', words: 'Fotos Presse Homepage DSGVO Excel Liste' },
@@ -1772,7 +1865,8 @@
     { label: 'Datenschutz nach dem Austritt', page: 'mv-einstellungen', card: 'Datenschutz', field: 'eRet2', in: 'Einstellungen', words: 'DSGVO Anonymisieren löschen Aufbewahrung Erinnerung' },
     { label: 'Einstellungen der Mitglieder übertragen', page: 'mv-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
     { label: 'Lastschrift (Gläubiger-ID, Mandatsreferenz)', page: 'mv-zeinst', card: 'Lastschrift', field: 'eCi', perm: 'mitglieder_finanzen', words: 'SEPA Gläubiger-ID Gläubiger Mandatsreferenz Vorabinformation Rücklastschrift Verkaufs-Einzug Zahlungsempfänger Konto' },
-    { label: 'Rechnungen und Mahnungen (Mahngebühr, Zusatz)', page: 'mv-zeinst', card: 'Rechnungen & Mahnungen', field: 'eDun', perm: 'mitglieder_finanzen', words: 'Mahngebühr Rechnungstext Zusatz Steuernummer' },
+    { label: 'Rechnungen (Zusatz, Steuernummer)', page: 'mv-zeinst', card: 'Rechnungen', field: 'eInv', perm: 'mitglieder_finanzen', words: 'Rechnungstext Zusatz Steuernummer' },
+    { label: 'Mahnstufen und Mahngebühr', page: 'mv-zeinst', card: 'Mahnungen', field: 'eDunDl', perm: 'mitglieder_finanzen', words: 'Mahngebühr Mahnstufe Zahlungserinnerung Mahnung Frist Abstand Text' },
   ]);
   // Konten & PINs gehören zum Verkauf, sobald die Mitglieder hier verwaltet werden
   if (GK.regroup && (!GK.modules || GK.modules().includes('getraenke'))) GK.regroup('konten', 'getraenke', { title: 'Konten & PINs', tab: 'Konten' });

@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.90.0
+
+**Mahnwesen: Zahlungserinnerung, 1. und 2. Mahnung – Stufe für jeden Posten, Briefe als Sammel-PDF**
+- **Mahnstufen einstellbar** (Beiträge & Zahlungen › Einstellungen › Mahnungen). Vorgabe: **Zahlungserinnerung** 14 Tage nach Fälligkeit (kostenlos), **1. Mahnung** 14 Tage danach und **2. Mahnung** weitere 14 Tage danach (je 2,50 € Gebühr). Je Stufe lassen sich Bezeichnung, Abstand, Gebühr und Text ändern (1 bis 5 Stufen), dazu die Zahlungsfrist in den Schreiben. Im Text setzt Clubwerk {name}, {betrag} und {frist} ein. Die bisherige Einstellung „Mahngebühr ab 2. Mahnung“ geht darin auf: Wer dort einen Betrag eingetragen hatte, findet ihn jetzt bei der 1. und 2. Mahnung.
+- **Stufe je Posten statt je Zahler:** Ein Posten erreicht die nächste Stufe erst, wenn sein Abstand um ist. Ein Beitrag, der gestern fällig wurde, springt also nicht mehr mit den alten Posten auf die letzte Stufe, und am Tag nach einer Mahnung kann man nicht gleich die nächste schicken. Ein Schreiben fasst alle fälligen offenen Posten zusammen, nennt bei jedem die Stufe und verrechnet ein Guthaben.
+- **Mahnlauf** (Beiträge & Zahlungen › Rechnungen & Mahnungen › „Mahnungen – jetzt fällig“): zeigt nur, wer jetzt dran ist, mit Schreiben, Betrag und Gebühr. Dann **„E-Mails senden“** (mit PDF) und für alle ohne E-Mail **„Briefe als PDF“** – ein Sammel-PDF zum Drucken. **Stufe und Gebühr werden erst gebucht, wenn die E-Mail raus ist bzw. nach „Briefe gedruckt“.** Die Gebühr fällt einmal je Schreiben an, nicht je Posten, und offene Mahngebühren lösen selbst keine neue Gebühr aus.
+- **Niemanden mahnen, der schon gezahlt hat:** Über der Liste steht, bis wann der Kontoauszug eingelesen ist; ist er älter als 7 Tage oder sind Buchungen noch nicht zugeordnet, erscheint eine Warnung. Posten im Einzug werden nie gemahnt, Zahler mit gültigem Lastschrift-Mandat auch nicht – ihre Posten kommen in den nächsten Einzug.
+- **Mahnsperre** für einen Zahler (z. B. „Ratenzahlung vereinbart“, auf Wunsch mit Enddatum) oder einen einzelnen Posten („Posten ändern“ › „Mahnsperre …“). Alle Sperren stehen auf der Seite unten, mit „wäre jetzt dran“.
+- **„Letzte Mahnung ohne Zahlung“:** eine Liste für den Vorstand, sobald die letzte Stufe erreicht und die Frist um ist. Was dann passiert, entscheidet der Vorstand – Clubwerk sperrt nichts von selbst.
+- **Mahnhistorie** am Mitglied (Reiter „Zahlung & Familie“ › Mahnungen: wann, welches Schreiben, Betrag, Gebühr, per E-Mail oder Brief), im Verlauf und im Protokoll. Wird ein Posten storniert, bietet Clubwerk die Mahngebühr, die er ausgelöst hat, gleich mit an.
+- **Nach der zweiten Rücklastschrift nur noch Überweisung:** Nach einer Rücklastschrift wird beim nächsten Einzug erneut abgebucht. Kommt vom selben Zahler eine zweite zurück, sind seine Posten automatisch vom Einzug ausgenommen und laufen über Rechnung und Mahnung (Hinweis beim Mitglied und im Einzug „wegen 2 Rücklastschriften ausgenommen“). Das Mandat bleibt eingetragen; „Wieder einziehen …“ beim Mitglied hebt das auf. Das gilt für Rücklastschriften von Hand und aus dem Kontoauszug; frühere Rücklastschriften zählen mit.
+- **Mitglieder-App „Für mich“ › Mein Konto:** Nach einer Mahnung steht beim offenen Betrag „Zahlungserinnerung vom …“ bzw. „1. Mahnung vom …“ und darunter, wohin überwiesen wird (Konto und Verwendungszweck). Push-Nachrichten zu Mahnungen gibt es bewusst nicht.
+- **Bestehende Mahnstufen bleiben erhalten:** Was schon gemahnt war, behält Stufe und Datum; der Abstand zählt ab dem alten Mahndatum. Ein Beitragslauf, aus dem schon gemahnt wurde, lässt sich nicht mehr zurücknehmen, und „Zuordnung aufheben“ im Kontoauszug erkennt, wenn ein Rest inzwischen gemahnt wurde.
+- Die Demo zeigt Posten in verschiedenen Mahnstufen.
+- Module: Mitglieder 1.26.0.
+
 ## 3.89.0
 
 **Termine mit Zu- und Absage – für Weihnachtsfeier, Versammlung & Co.**

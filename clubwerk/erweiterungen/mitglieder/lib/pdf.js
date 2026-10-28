@@ -86,16 +86,16 @@ function headSmall(doc, club, b, title) {
   doc.moveTo(L, TOP + 16).lineTo(R, TOP + 16).lineWidth(0.8).strokeColor(b.color).stroke();
   return TOP + 34;
 }
-/** Fußzeile auf allen Seiten (Verein · Anschrift, Seitenzahl bei mehreren Seiten) */
-function footer(doc, club, { numbers = true } = {}) {
+/** Fußzeile auf allen Seiten (Verein · Anschrift, Seitenzahl bei mehreren Seiten) – groups: [[erste Seite, Anzahl], …] je Brief (Sammel-PDF zählt je Brief) */
+function footer(doc, club, { numbers = true, groups = null } = {}) {
   const range = doc.bufferedPageRange();
   const text = [club.name, club.street, club.city].filter(Boolean).join(' · ') + (club.ci ? `  ·  Gläubiger-ID ${club.ci}` : '');
-  for (let i = range.start; i < range.start + range.count; i++) {
+  for (const [start, count] of groups || [[range.start, range.count]]) for (let i = start; i < start + count; i++) {
     doc.switchToPage(i);
     const mb = doc.page.margins.bottom; doc.page.margins.bottom = 0;
     doc.moveTo(L, FOOT - 8).lineTo(R, FOOT - 8).lineWidth(0.5).strokeColor(LINE).stroke();
     doc.font('Helvetica').fontSize(7.2).fillColor(SOFT).text(text, L, FOOT, { width: W - 74, height: 9, ellipsis: true });
-    if (numbers && range.count > 1) doc.text(`Seite ${i - range.start + 1} von ${range.count}`, R - 70, FOOT, { width: 70, align: 'right', lineBreak: false });
+    if (numbers && count > 1) doc.text(`Seite ${i - start + 1} von ${count}`, R - 70, FOOT, { width: 70, align: 'right', lineBreak: false });
     doc.page.margins.bottom = mb;
   }
 }
@@ -134,18 +134,37 @@ function letterHead(doc, club, b, person, name, title, info) {
   return doc.y + 16;
 }
 
-/* ===================================================================== Rechnung / Zahlungserinnerung / Mahnung */
+/* ===================================================================== Rechnung / Zahlungserinnerung / Mahnung
+   o.dunning = { title, text, deadline } macht aus der Rechnung ein Mahnschreiben: Text der Stufe, je Posten die Stufe (c.stage), Frist zum Überweisen */
 function invoice(club, o) {
-  const b = brand(club);
-  const doc = newDoc(club, o.no);
+  const doc = newDoc(club, o.no, { autoFirstPage: false });
   const done = collect(doc);
-  const word = o.dunning ? (o.dunning >= 2 ? `${o.dunning}. Mahnung` : 'Zahlungserinnerung') : 'Rechnung';
+  invoicePages(doc, club, brand(club), o);
+  footer(doc, club);
+  doc.end();
+  return done;
+}
+/** Sammel-PDF: alle Mahnbriefe hintereinander (für Zahler ohne E-Mail), Seitenzahlen je Brief */
+function dunningLetters(club, list) {
+  const doc = newDoc(club, 'Mahnungen', { autoFirstPage: false });
+  const done = collect(doc);
+  const b = brand(club), groups = [];
+  for (const o of list) { const start = doc.bufferedPageRange().count; invoicePages(doc, club, b, o); groups.push([start, doc.bufferedPageRange().count - start]); }
+  if (!list.length) { doc.addPage(); const y = head(doc, club, b); doc.font('Helvetica').fontSize(11).fillColor(INK).text('Keine Briefe ausgewählt.', L, y + 30, { width: W }); }
+  footer(doc, club, { groups: list.length ? groups : null });
+  doc.end();
+  return done;
+}
+function invoicePages(doc, club, b, o) {
+  doc.addPage();
+  const dn = o.dunning || null;
+  const word = dn ? dn.title : 'Rechnung';
   const person = o.person || {};
-  let y = letterHead(doc, club, b, person, o.name, `${word} ${o.no}`, [['Datum', deD(o.date)], [o.dunning ? 'Zu Rechnung' : 'Rechnungsnummer', o.no], ['Mitgliedsnummer', person.member_no]]);
+  let y = letterHead(doc, club, b, person, o.name, `${word} ${o.no}`, [['Datum', deD(o.date)], [dn ? 'Zu Rechnung' : 'Rechnungsnummer', o.no], ['Mitgliedsnummer', person.member_no]]);
   doc.font('Helvetica').fontSize(10.5).fillColor(INK);
-  const intro = o.dunning ? 'bei der Durchsicht unserer Konten haben wir festgestellt, dass folgende Beträge noch offen sind:' : 'wir berechnen Ihnen:';
+  const intro = dn ? dn.text : 'wir berechnen Ihnen:';
   doc.text(`Guten Tag ${o.name},`, L, y, { width: W }); y = doc.y + 6;
-  doc.text(intro, L, y, { width: W }); y = doc.y + 14;
+  doc.text(intro, L, y, { width: W, lineGap: 1.5 }); y = doc.y + 14;
   // Tabelle
   const cDue = L + 10, cPos = L + 92, cAmt = R - 10, wPos = cAmt - 96 - cPos;
   const th = () => {
@@ -157,25 +176,28 @@ function invoice(club, o) {
   th();
   doc.font('Helvetica').fontSize(10).fillColor(INK);
   for (const c of o.charges) {
-    const h = Math.max(12, doc.heightOfString(c.text, { width: wPos }));
+    const sh = c.stage ? doc.font('Helvetica').fontSize(8.5).heightOfString(c.stage, { width: wPos }) + 2 : 0;
+    doc.font('Helvetica').fontSize(10);
+    const h = Math.max(12, doc.heightOfString(c.text, { width: wPos }) + sh);
     if (y + h + 16 > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); th(); doc.font('Helvetica').fontSize(10).fillColor(INK); }
     doc.text(deD(c.due_date), cDue, y + 7, { width: 76 }); doc.text(c.text, cPos, y + 7, { width: wPos }); doc.text(euro(c.cents), cAmt - 90, y + 7, { width: 90, align: 'right' });
+    if (c.stage) { const ty = y + 7 + h - sh + 2; doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(c.stage, cPos, ty, { width: wPos }); doc.font('Helvetica').fontSize(10).fillColor(INK); }
     y += h + 14;
     doc.moveTo(L, y).lineTo(R, y).lineWidth(0.5).strokeColor(LINE).stroke();
   }
   const total = o.charges.reduce((s, c) => s + c.cents, 0);
   if (y + 70 > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); }
   doc.moveTo(L, y).lineTo(R, y).lineWidth(1.2).strokeColor(b.color).stroke();
-  doc.font('Helvetica-Bold').fontSize(11).fillColor(INK).text(o.dunning ? 'Offen gesamt' : 'Gesamtbetrag', cPos, y + 9, { width: wPos }); doc.text(euro(total), cAmt - 110, y + 9, { width: 110, align: 'right' });
+  doc.font('Helvetica-Bold').fontSize(11).fillColor(INK).text(dn ? 'Offen gesamt' : 'Gesamtbetrag', cPos, y + 9, { width: wPos }); doc.text(euro(total), cAmt - 110, y + 9, { width: 110, align: 'right' });
   y += 40;
   // Zahlungsweg
   doc.font('Helvetica').fontSize(10.5).fillColor(INK);
   if (y + 40 > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); }
-  if (o.payment === 'lastschrift' && o.mandate && o.mandate.mandate_ref && !o.dunning) {
+  if (o.payment === 'lastschrift' && o.mandate && o.mandate.mandate_ref && !dn) {
     doc.text(`Der Betrag wird per SEPA-Lastschrift von Ihrem Konto ${fmtIban(o.mandate.iban).replace(/^(.{4}).*(.{4})$/, '$1 •••• •••• $2')} eingezogen (Mandatsreferenz ${o.mandate.mandate_ref}, Gläubiger-ID ${club.ci}).`, L, y, { width: W, lineGap: 1.5 });
     y = doc.y;
   } else {
-    doc.text(`Bitte überweisen Sie den Betrag${o.dunning ? ' innerhalb von 14 Tagen' : ''} auf das Konto des Vereins:`, L, y, { width: W }); y = doc.y + 10;
+    doc.text(`Bitte überweisen Sie den Betrag${dn && dn.deadline ? ` bis zum ${deD(dn.deadline)}` : ''} auf das Konto des Vereins:`, L, y, { width: W }); y = doc.y + 10;
     const rows = [['Empfänger', club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', o.no]].filter(r => r[1]);
     const bh = rows.length * 17 + 18;
     if (y + bh > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); }
@@ -189,9 +211,6 @@ function invoice(club, o) {
     y += bh;
   }
   if (club.invoiceText) { y += 16; if (y + 30 > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); } doc.font('Helvetica').fontSize(8.8).fillColor(MUTED).text(club.invoiceText, L, y, { width: W }); }
-  footer(doc, club);
-  doc.end();
-  return done;
 }
 
 /* ===================================================================== Briefe (je Person eine Seite) */
@@ -502,4 +521,4 @@ function auskunft(club, out) {
   return done;
 }
 
-module.exports = { invoice, letters, application, mandate, auskunft };
+module.exports = { invoice, dunningLetters, letters, application, mandate, auskunft };

@@ -141,6 +141,7 @@ function detail(id, user) {
     documents: perms.includes('mitglieder_dokumente') ? C.db.prepare('SELECT id, kind, title, mime, size, created_at, by_user FROM mv_document WHERE member_id = ? ORDER BY created_at DESC').all(id) : null,
     charges: perms.includes('mitglieder_finanzen') ? C.db.prepare(`SELECT c.*, (SELECT name FROM members WHERE id = c.for_member_id) AS for_name FROM mv_charge c WHERE c.member_id = ? OR c.for_member_id = ? ORDER BY c.due_date DESC, c.id DESC LIMIT 200`).all(id, id) : null,
     history: C.db.prepare('SELECT * FROM mv_history WHERE member_id = ? ORDER BY id DESC LIMIT 150').all(id),
+    dunning: perms.includes('mitglieder_finanzen') ? shared.dunningInfo(id) : null,
     app: { device: appState.device, access: appState.access }, drinksOpen,
     changes: C.db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen'").all(id),
     ageNotices: ageForFn ? ageForFn(id) : [],
@@ -1021,13 +1022,13 @@ function activate(ctx) {
       sepa_account: Number(S('sepa_account')) || null, account_name: store.account().name, account_central: store.account().central,
       mandate_prefix: S('mandate_prefix'), member_no_start: S('member_no_start', '1'), year_start: S('year_start', '01-01'), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
-      work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_fee_cents: parseInt(S('dunning_fee_cents', '0'), 10) || 0,
+      work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_levels: shared.dunningLevels(), dunning_deadline_days: shared.dunningDeadline(),
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: retYears(),
       notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', sepa_required: sepaRequired(), app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
     return s;
   }
   /** Schlüssel der Karten unter Beiträge & Zahlungen › Einstellungen */
-  const FIN_KEYS = ['creditor_name', 'creditor_id', 'club_iban', 'club_bic', 'club_bank', 'sepa_account', 'mandate_prefix', 'prenotify_days', 'drinks_due', 'return_fee_cents', 'dunning_fee_cents', 'invoice_text'];
+  const FIN_KEYS = ['creditor_name', 'creditor_id', 'club_iban', 'club_bic', 'club_bank', 'sepa_account', 'mandate_prefix', 'prenotify_days', 'drinks_due', 'return_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'invoice_text'];
   admin.put('/settings', P, (req, res) => {
     // Erst alles prüfen und in `pending` sammeln, dann in einer Transaktion schreiben – bei einem Fehler bleibt alles unverändert
     const b = req.body || {}; const errors = []; const pending = [];
@@ -1049,7 +1050,9 @@ function activate(ctx) {
     if (b.drinks_due !== undefined) { if (b.drinks_due && !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(b.drinks_due)) errors.push('Ungültiger Termin für den Verkaufs-Einzug.'); else put('drinks_due', b.drinks_due); }
     if (b.app_tablet !== undefined) put('app_tablet', b.app_tablet ? '1' : '0');
     if (b.app_online !== undefined) put('app_online', b.app_online ? '1' : '0');
-    for (const k of ['return_fee_cents', 'dunning_fee_cents']) if (b[k] !== undefined) put(k, String(Math.max(0, Math.min(10000, int(b[k])))));
+    if (b.return_fee_cents !== undefined) put('return_fee_cents', String(Math.max(0, Math.min(10000, int(b.return_fee_cents)))));
+    if (b.dunning_levels !== undefined) { const r = shared.cleanDunningLevels(b.dunning_levels); if (r.error) errors.push(r.error); else put('dunning_levels', JSON.stringify(r.levels)); }
+    if (b.dunning_deadline_days !== undefined) { const n = int(b.dunning_deadline_days); if (n < 1 || n > 60) errors.push('Die Zahlungsfrist in Mahnungen muss zwischen 1 und 60 Tagen liegen.'); else put('dunning_deadline_days', String(n)); }
     if (b.notice_months !== undefined) put('notice_months', String(Math.max(0, Math.min(24, int(b.notice_months)))));
     if (b.scope_confirm !== undefined) put('scope_confirm', b.scope_confirm ? '1' : '0');
     if (b.sepa_required !== undefined) put('sepa_required', b.sepa_required ? '1' : '0');
@@ -1069,7 +1072,7 @@ function activate(ctx) {
     { const L = { club_street: 'Straße', club_city: 'PLZ und Ort', creditor_name: 'Zahlungsempfänger', club_bank: 'Kreditinstitut', notify_to: 'Benachrichtigung an', due_text: ['Hinweis zu Beitrag & Fälligkeit', 'text'],
         app_intro: ['Begrüßung im Formular', 'text'], work_text: ['Hinweis Arbeitseinsatz', 'text'], invoice_text: ['Rechnungstext', 'text'], satzung_url: 'Satzung (Link)', creditor_id: 'Gläubiger-ID', club_iban: ['Vereins-IBAN', 'text'],
         sepa_account: ['Konto für Lastschriften', 'text'], club_bic: 'BIC', mandate_prefix: 'Mandatsreferenz-Vorsilbe', member_no_start: 'Mitgliedsnummern ab', year_start: 'Beginn des Beitragsjahres', prenotify_days: 'Vorabinformation (Tage)',
-        drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_fee_cents: ['Mahngebühr', 'euro'],
+        drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_levels: ['Mahnstufen', 'text'], dunning_deadline_days: 'Zahlungsfrist in Mahnungen (Tage)',
         notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], sepa_required: ['Lastschrift ist Pflicht', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
       const after = {}; for (const [k, v] of pending) { after[k] = String(v); }
       const diff = ctx.auditDiff(L, Object.fromEntries(Object.keys(after).map(k => [k, prevSet[k]])), after);
@@ -1080,6 +1083,7 @@ function activate(ctx) {
   /* ---------- weitere Teile ---------- */
   shared = { auskunft, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
   require('./lib/money').register(shared);
+  require('./lib/mahnung').register(shared);
   require('./lib/kontoauszug').register(shared);
   require('./lib/agecheck').register(shared);
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
@@ -1270,7 +1274,7 @@ function activate(ctx) {
       fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
@@ -1285,7 +1289,7 @@ function activate(ctx) {
       const k = Object.keys(fi.v); ctx.db.prepare(`INSERT INTO mv_fee(${k.join(', ')}) VALUES (${k.map(() => '?').join(', ')})`).run(...k.map(y => fi.v[y])); f++;
       if (first) zusatzBegin(fi.v.department_id);
     }
-    if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) SET(k, v.slice(0, 2000));
+    if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) SET(k, v.slice(0, k === 'dunning_levels' ? 6000 : 2000));
     return `${d} ${d === 1 ? 'Abteilung' : 'Abteilungen'}, ${f} ${f === 1 ? 'Beitragsart' : 'Beitragsarten'} und die Einstellungen übernommen – Gläubiger-ID und Vereinskonto bitte selbst eintragen`;
   };
 

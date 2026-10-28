@@ -130,6 +130,21 @@ function migrate() {
     familyFromPayers();
     SET('family_of_migrated', '1');
   }
+  // Mahnwesen (3.90): Mahnsperre je Zahler und je Posten, Schreiben als Mahnhistorie; Stufe je Posten bleibt in mv_charge.dunning_level/dunned_at
+  add('mv_person', 'dunning_block', 'TEXT'); add('mv_person', 'dunning_block_until', 'TEXT');     // Grund · gilt bis (leer = unbefristet)
+  add('mv_charge', 'dunning_block', 'TEXT'); add('mv_charge', 'dunning_block_until', 'TEXT');
+  // nach der zweiten Rücklastschrift nur noch Überweisung und Mahnung: Zähler je Zahler, debit_blocked = seit wann vom Einzug ausgenommen
+  add('mv_person', 'debit_returns', 'INTEGER NOT NULL DEFAULT 0'); add('mv_person', 'debit_blocked', 'TEXT');
+  db.exec(`CREATE TABLE IF NOT EXISTS mv_dunning (
+  id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), date TEXT NOT NULL, level INTEGER NOT NULL, title TEXT NOT NULL,
+  cents INTEGER NOT NULL, fee_cents INTEGER NOT NULL DEFAULT 0, fee_id INTEGER, ref TEXT, charges TEXT NOT NULL,   -- charges: [{ id, text, cents, level, adv }] (Stand im Schreiben)
+  via TEXT NOT NULL, by_user TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_mvd_member ON mv_dunning(member_id);`);
+  if (S('debit_returns_migrated') !== '1') {   // Bestand: bisherige Rücklastschriften zählen mit (höchste Zahl je Posten; zurückgenommene sind dort schon abgezogen) – ausgenommen wird erst bei der nächsten
+    db.prepare('UPDATE mv_person SET debit_returns = (SELECT COALESCE(MAX(c.returns), 0) FROM mv_charge c WHERE c.member_id = mv_person.member_id)').run();
+    SET('debit_returns_migrated', '1');
+  }
 }
 /** Zahler-Ketten (Kind → Mutter → Vater) auf den Hauptzahler ziehen – die Familie hat genau einen Hauptzahler */
 function flattenPayers() {
