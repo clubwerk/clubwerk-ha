@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.87.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.88.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -68,6 +68,13 @@
     if (r.status === 401 && d.pin) { sess.del(); throw Object.assign(new Error(d.error || 'Falsche PIN'), { pin: true }); }
     if (!r.ok) throw Object.assign(new Error(d.error || `Fehler ${r.status}`), { status: r.status, data: d });
     return d;
+  }
+
+  /** Datei mit Geräteschlüssel holen (Anhänge): als Blob, angezeigt im Bereich selbst – nie in einem neuen Fenster */
+  async function callBlob(url) {
+    let r; try { r = await fetch(api('api/' + url), { headers: hdrs() }); } catch (e) { throw new Error('Keine Verbindung zum Verein – bitte gleich noch einmal versuchen.'); }
+    if (!r.ok) throw new Error(r.status === 423 ? 'Die Datei ist gerade verschlossen – bitte später noch einmal.' : 'Die Datei konnte nicht geladen werden.');
+    return r.blob();
   }
 
   /* ---------- PIN: einmal je Sitzung, bei Fehler neu ---------- */
@@ -148,7 +155,7 @@
     if (!sec) { el.innerHTML = '<div class="vh-empty">Dieser Bereich konnte nicht geladen werden.</div>'; return; }
     el.innerHTML = '';
     const ctx = {
-      api: (p, method, body) => call(`m/${id}/${p}`, method, body), withPin, toast, esc, member: me.member, focus,   // focus: Eintrag, zu dem „Für mich“ springt (z. B. ein Spieltag)
+      api: (p, method, body) => call(`m/${id}/${p}`, method, body), blob: p => callBlob(`m/${id}/${p}`), withPin, toast, esc, member: me.member, focus,   // focus: Eintrag, zu dem „Für mich“ springt (z. B. ein Spieltag)
       onLeave: fn => { cleanup = fn; },
     };
     try { sec.render(el, ctx); } catch (e) { el.innerHTML = `<div class="vh-empty">Fehler: ${esc(e.message)}</div>`; }
@@ -257,11 +264,22 @@
       return;
     }
     // Startseite: fester Bereich (Verwaltung → Mitglieder-App → Bereiche), sonst „Für mich“
-    show(me.sections.some(s => s.id === me.start && s.ok) ? me.start : FM);
+    if (!openNachricht()) show(me.sections.some(s => s.id === me.start && s.ok) ? me.start : FM);
     probeInBackground();
   }
+  /* Push „Neue Nachricht“ öffnet die App mit #n=<Nr.>: die Nachricht direkt zeigen (Bereich kann neu sein – dann erst /me neu laden) */
+  function openNachricht() {
+    const m = location.hash.match(/[#&]n=(\d{1,9})/);
+    if (!m || !me || !me.member) return false;
+    history.replaceState(null, '', location.pathname + location.search);
+    const go = () => { if (!me.sections.some(s => s.id === 'nachrichten' && s.ok)) return false; wlanTries = 0; show('nachrichten', m[1]); return true; };
+    if (go()) return true;
+    call('me').then(x => { me = x; return renderTabs(); }).then(go).catch(() => {});
+    return false;
+  }
+  window.addEventListener('hashchange', () => { if (me && me.member) openNachricht(); });
   /* Symbole der Bereiche (Leiste und „Für mich“) */
-  const TI = { turniere: '<path d="M3 5h6v5h5M3 19h6v-5h5"/><path d="M14 10v4"/><circle cx="18" cy="12" r="3"/>', konto: '<path d="M6 3h12l-1.5 17a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.5 8h11"/>', fuermich: '<path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>', maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>', buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
+  const TI = { nachrichten: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3.5 7 8.5 6 8.5-6"/>', turniere: '<path d="M3 5h6v5h5M3 19h6v-5h5"/><path d="M14 10v4"/><circle cx="18" cy="12" r="3"/>', konto: '<path d="M6 3h12l-1.5 17a1 1 0 0 1-1 .9h-7a1 1 0 0 1-1-.9z"/><path d="M6.5 8h11"/>', fuermich: '<path d="M3 11 12 3l9 8v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>', maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>', buchung: '<rect x="3" y="4.5" width="18" height="16.5" rx="2.5"/><path d="M3 9.5h18M8 2.5v4M16 2.5v4"/><path d="M7.5 13.5h3v3h-3z"/>', zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
       beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>', mitglieder: '<rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="11" r="2.5"/><path d="M5.5 16.5a3.5 3.5 0 0 1 7 0M15 10h4M15 14h3"/>', arbeitseinsatz: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>' };
   const ti = id => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${TI[id] || '<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>'}</svg>`;
   async function renderTabs() {
@@ -430,7 +448,8 @@
         ${hint ? `<p class="vh-small" style="text-align:left;color:var(--ink)">${esc(hint)}</p>` : ''}
         ${!st.events.length ? '<p class="vh-small" style="text-align:left">Der Verein hat noch keine Benachrichtigungen freigegeben.</p>' : ''}
         ${sup && !hint && st.events.length ? `<label class="vh-switch"><input type="checkbox" id="pshOn" ${on() ? 'checked' : ''}><span>Benachrichtigungen auf diesem Handy</span></label>` : ''}
-        ${sup && !hint && st.events.length ? '<p class="vh-small" style="text-align:left;margin-top:-4px">Welche Hinweise kommen, legt der Verein fest.</p>' : ''}
+        ${sup && !hint && st.events.length ? `<p class="vh-small" style="text-align:left;margin-top:-4px">${on() ? 'Das möchtest du auf diesem Handy bekommen – der Verein bestimmt, was es überhaupt gibt:' : 'Welche Hinweise kommen, legt der Verein fest.'}</p>` : ''}
+        ${on() ? st.events.map(e => `<label class="vh-switch" style="font-weight:600"><input type="checkbox" data-ev="${esc(e.key)}" ${e.on ? 'checked' : ''}><span>${esc(e.label)}</span></label>`).join('') : ''}
         ${on() ? `<button type="button" class="vh-btn sec" id="pshTest" style="width:100%">Testnachricht schicken</button>` : ''}
         <div class="vh-err" id="pshE"></div>
         <div class="vh-row" style="margin-top:10px"><button class="no" id="pshNo" style="flex:1">Schließen</button></div></div>`;
@@ -455,6 +474,11 @@
         } catch (e) { err(e.message || 'Das hat nicht geklappt.'); }
         draw();
       };
+      sh.querySelectorAll('[data-ev]').forEach(c => { c.onchange = async () => {
+        c.disabled = true;
+        try { st = await call('push/events', 'PUT', { endpoint: sub.endpoint, events: { [c.dataset.ev]: c.checked } }); } catch (e) { err(e.message || 'Das hat nicht geklappt.'); }
+        draw();
+      }; });
       const t = sh.querySelector('#pshTest');
       if (t) t.onclick = async () => { t.disabled = true; try { const r = await call('push/test', 'POST', { endpoint: sub.endpoint }); toast(r.ok ? 'Testnachricht gesendet – sie sollte gleich erscheinen.' : 'Nicht gesendet' + (r.skipped ? ': ' + r.skipped : '.'), !r.ok); } catch (e) { err(e.message); } t.disabled = false; };
     };

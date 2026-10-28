@@ -342,6 +342,11 @@ function activate(ctx) {
   /** Mitglieder-App: nur für Spieler und Mannschaftsführer */
   ctx.hooks.appVisible = memberId => Boolean(db.prepare(`SELECT 1 FROM sp_team t LEFT JOIN sp_player p ON p.team_id = t.id AND p.member_id = ?
     WHERE t.active = 1 AND (p.member_id IS NOT NULL OR t.captain_id = ? OR t.vice_id = ?) LIMIT 1`).get(memberId, memberId, memberId));
+  /** Empfängergruppen für Verein › Nachrichten: jede aktive Mannschaft (Spieler, Mannschaftsführer und Stellvertreter) */
+  ctx.hooks.recipientGroups = () => db.prepare('SELECT id, name, captain_id, vice_id FROM sp_team WHERE active = 1 ORDER BY name').all().map(t => ({
+    key: 'sp:' + t.id, label: 'Mannschaft ' + t.name,
+    members: () => [...db.prepare('SELECT member_id FROM sp_player WHERE team_id = ?').all(t.id).map(r => r.member_id), t.captain_id, t.vice_id].filter(Boolean),
+  }));
 
   /* ---------- Ansicht eines Spieltags (für Mannschaftsführer, Verwaltung und – je nach Einstellung – Spieler) ---------- */
   function gameView(g, { viewer = null, full = false } = {}, pre = prep([g])) {

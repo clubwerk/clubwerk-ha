@@ -1,5 +1,19 @@
 # Änderungen
 
+## 3.88.0
+
+**Nachrichten: aus „E-Mail“ wird „Nachrichten“ – per E-Mail, in der Mitglieder-App und als Push-Hinweis**
+- **Verein › Nachrichten** (bisher „E-Mail“): Alles Bisherige bleibt – Empfänger, Vorlagen, Verteiler, Entwürfe, Gesendet mit Zustellstatus, „nur eigene Abteilung“. Neu steht beim Schreiben eine Zeile **„Weg“**: E-Mail, In der Mitglieder-App und Push-Hinweis aufs Handy. Man kann mehrere wählen; der Push-Hinweis öffnet die Nachricht in der App und bringt sie deshalb immer mit.
+- **Mitglieder-App › Nachrichten:** Ein neuer Bereich mit der Liste (neueste oben, Ungelesene mit Punkt und fett, Angeheftetes zuerst), der einzelnen Nachricht und den Anhängen. Bilder und PDFs öffnen sich in der App selbst, alles andere lässt sich über das Teilen-Menü des Handys sichern. Links in Nachrichten sind in der App nur Text mit der Adresse zum Abschreiben – die App öffnet nie ein neues Fenster oder Safari. Der Reiter erscheint, sobald der Verein die erste Nachricht in die App geschickt hat. Er lässt sich unter Mitglieder-App wie die anderen Bereiche ein- und ausschalten und umsortieren.
+- **„Für mich“:** Die neueste ungelesene Nachricht steht oben unter „Neu für dich“ und verschwindet, sobald sie geöffnet wurde.
+- **Push:** Neuer Anlass „Nachrichten vom Verein“ (der Vorstand gibt ihn unter Mitglieder-App › Benachrichtigungen frei). Es kommt nur der Betreff und „Neue Nachricht von …“, nie der Text. Mitglieder können ihn in der App unter Benachrichtigungen für jedes Handy abschalten – diese Auswahl gilt jetzt auch für alle anderen Hinweise (bisher wurde sie zwar gespeichert, beim Senden aber nicht beachtet).
+- **Wer bekommt sie:** Gruppen, Abteilungen, Ämter, Beiträge, einzelne Mitglieder und Verteiler wie bisher, dazu **„Alle Mitglieder der App“** und **Mannschaften** (aus dem Spielbetrieb, mit Mannschaftsführer). Wer keine E-Mail-Adresse hat, bekommt die Nachricht trotzdem in der App. Das Abteilungs-Recht gilt für alle Wege: „Alle Mitglieder der App“ und fremde Gruppen gibt es dort nicht. Ohne Mitgliederverwaltung gehen „Alle Mitglieder der App“ und einzelne Mitglieder.
+- **Sichtbar in der App:** Nachrichten verschwinden nach einem Zeitraum (Vorgabe 6 Monate, je Nachricht 1/3/6/12/24 Monate; die Vorgabe steht unter „Gesendet“) oder von Hand („Aus der App nehmen“). **„Anheften“** hält Dauerhaftes wie die Platzordnung oben und lässt es nie ablaufen.
+- **Zustellung:** Unter „Gesendet“ steht je Person, wie die Nachricht angekommen ist: E-Mail, App, Push – oder „nicht erreichbar“ (keine Adresse und kein Handy in der App).
+- **Datenschutz:** Ob ein Mitglied eine Nachricht geöffnet hat, sieht nur es selbst. Der Vorstand sieht nur eine Zahl („51 von 84 haben sie geöffnet“), keine Namen. Das Protokoll nennt nur „Nachricht gesendet“ mit Nummer, Weg und Anzahl – nie Betreff oder Text. Anhänge laufen über den geschützten Weg; nur echte Bilder und PDFs werden in der App angezeigt. Nach dem Ablauf wird die Zeile des Mitglieds gelöscht, nur die Zahl bleibt. Die Datenauskunft nennt die Nachrichten samt Gelesen-Stand, beim Anonymisieren fallen sie weg.
+- Rechte: Das Recht „E-Mail“ heißt jetzt „Nachrichten schreiben“ (gleiche Wirkung).
+- Module: Mitglieder 1.25.0 (Auskunft und Anonymisieren kennen die Nachrichten), Spielbetrieb 1.15.0 (Mannschaften als Empfängergruppen).
+
 ## 3.87.0
 
 **Kontoauszug einlesen und abgleichen (Beiträge & Zahlungen › Kontoauszug)**

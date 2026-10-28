@@ -942,9 +942,9 @@
     { label: 'Von unterwegs erreichbar (öffentliche Adresse)', page: 'app', perm: 'einstellungen', sec: APS('einstellungen'), card: 'Adresse & Aussehen', field: 'apExtUrl', words: 'Tunnel Cloudflare Internet unterwegs öffentlich', in: 'Einstellungen' },
     { label: 'Sicherheit der App (QR-Code, Warnungen)', page: 'app', perm: 'einstellungen', sec: APS('einstellungen'), card: 'Sicherheit', words: 'QR-Code Sicherheit gesperrt', in: 'Einstellungen' },
     { label: 'Bestätigung per SMS', page: 'app', perm: 'einstellungen', sec: APS('einstellungen'), card: 'Bestätigung per SMS', words: 'SMS Stick Handy', in: 'Einstellungen' },
-    { label: 'Neue E-Mail schreiben', page: 'email', tab: ['email', 'neu'], words: 'Rundmail Mail schreiben', kind: 'aktion', in: 'Neue E-Mail' },
+    { label: 'Neue Nachricht schreiben', page: 'email', tab: ['email', 'neu'], words: 'Rundmail Mail E-Mail Push App Nachricht schreiben Rundschreiben', kind: 'aktion', in: 'Neue Nachricht' },
     { label: 'Verteiler', page: 'email', tab: ['email', 'verteiler'], words: 'Verteiler Gruppe Mail', kind: 'reiter', in: 'Verteiler' },
-    { label: 'E-Mail-Vorlagen', page: 'email', tab: ['email', 'vorlagen'], words: 'Vorlage Mail', kind: 'reiter', in: 'Vorlagen' },
+    { label: 'Vorlagen für Nachrichten', page: 'email', tab: ['email', 'vorlagen'], words: 'Vorlage Mail E-Mail Nachricht', kind: 'reiter', in: 'Vorlagen' },
     { label: 'Benutzer anlegen', page: 'benutzer', tab: ['benutzer', 'benutzer'], btn: '+ Neuer Benutzer', words: 'Benutzer Zugang Konto', kind: 'aktion' },
     { label: 'Rollen und Rechte', page: 'benutzer', tab: ['benutzer', 'rollen'], words: 'Rolle Rechte Berechtigung', kind: 'reiter', in: 'Rollen' },
     { label: 'Änderungsprotokoll', page: 'protokoll', words: 'Protokoll Verlauf geändert wer', kind: 'reiter' },
@@ -2952,7 +2952,7 @@
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
     zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', app: 'App einrichten', maengel: 'Mängel', turniere: 'Turniere',
-    email: 'E-Mail', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen',
+    email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen',
     buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
   const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');

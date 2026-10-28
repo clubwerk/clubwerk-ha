@@ -3482,7 +3482,7 @@ require('./datenschutz').routes(admin, { need, bad });
 /* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */
 require('./einrichtung').routes(admin, { need, bad, checks: {
   tabletOn, tabletPw: gateOn, vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
-  appModules: () => memberapp.activeModules().length > 0, clubNets: () => memberapp.hasClubNets(), backupDone: () => Boolean(getSetting('backup_last_ok', '')) } });
+  appModules: () => memberapp.activeModules().filter(([id]) => id !== 'nachrichten').length > 0, clubNets: () => memberapp.hasClubNets(), backupDone: () => Boolean(getSetting('backup_last_ok', '')) } });
 /* Tresor: Kopie der persönlichen Daten im Arbeitsspeicher anlegen (gesperrt bis zur ersten Admin-Anmeldung) – erst jetzt,
    da alle Module ihre Tabellen angelegt haben */
 const vault = require('./vault');

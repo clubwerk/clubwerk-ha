@@ -190,13 +190,17 @@ Plätze und Geräte buchen – in der Mitglieder-App (Bereich „Buchen“), am 
 
 **Heute in der App:** Für den heutigen Tag zeigt die Übersicht nur noch ab der aktuellen Stunde; vergangene volle Stunden stehen als schmale Leiste „08:00–17:00 vorbei“ (antippen klappt sie auf). Unter „Freie Zeiten“ sind vergangene Zeiten ausgeblendet, je Platz mit Hinweis „n vergangene Zeiten ausgeblendet“ (antippen blendet ein). Andere Tage bleiben unverändert.
 
-## E-Mail (Verein → E-Mail)
-Mails an Mitglieder schreiben wie in einem E-Mail-Programm (Recht „E-Mail“). Voraussetzung: Einstellungen → Postfach ist eingerichtet.
+## Nachrichten (Verein → Nachrichten, früher „E-Mail“)
+Nachrichten an Mitglieder schreiben wie in einem E-Mail-Programm (Recht „Nachrichten schreiben“). Für den Weg E-Mail muss Einstellungen → Postfach eingerichtet sein; Nachrichten in die App gehen auch ohne Postfach.
+- **Weg:** E-Mail, In der Mitglieder-App (Postfach „Nachrichten“) und Push-Hinweis aufs Handy – einzeln oder zusammen. Push öffnet die Nachricht in der App und bringt sie deshalb immer mit; der Hinweis enthält nur den Betreff, nie den Text. Wer keine E-Mail-Adresse hat, bekommt die Nachricht in der App. In der App gibt es keine Antworten (Antworten auf E-Mails gehen wie bisher an den Absender).
+- **Empfänger zusätzlich:** „Alle Mitglieder der App“ (alle mit gekoppeltem Handy) und Mannschaften aus dem Spielbetrieb (mit Mannschaftsführer). Mit einer Abteilungs-Rolle gibt es beides nicht – dort gelten nur die eigenen Abteilungen, auch für App und Push.
+- **In der App:** Unter „Sichtbar in der App“ wählt man den Zeitraum (Vorgabe 6 Monate, unter „Gesendet“ änderbar) oder „Oben anheften“ für Dauerhaftes wie die Platzordnung. Unter „Gesendet“ lässt sich eine Nachricht anheften, lösen oder aus der App nehmen. Der Vorstand sieht nur, wie viele sie geöffnet haben – nie wer.
+- **Push einschalten:** Der Anlass „Nachrichten vom Verein“ ist ab Werk freigegeben (Mitglieder-App → Benachrichtigungen); jedes Mitglied kann ihn in der App je Handy abschalten.
 - **Absender:** Unter **Mein Konto** (unten links auf den eigenen Namen tippen) trägt jeder seinen Namen, seine Antwortadresse und eine Unterschrift ein. Die Mail kommt vom Vereinspostfach („Anna Schmidt · TC Musterstadt <info@…>“), Antworten gehen an die eigene Adresse.
 - **Empfänger:** Ins Feld „An“ tippen – Vorschläge für Gruppen (Status, Abteilungen, Ämter, Beitragsarten), Verteiler und Mitglieder; Adressen mit Enter oder Komma übernehmen. Doppelte Adressen (Familien) bekommen die Mail nur einmal. „Ohne eigene Adresse an den Zahler“ schickt die Mail für Kinder an die Eltern.
 - **Schreiben:** Formatierung über die Leiste, Platzhalter über „Platzhalter …“, Vorlagen über „Vorlage …“. Anhänge per Knopf oder Ziehen. Alles wird automatisch als Entwurf gespeichert.
-- **Senden:** „Senden …“ zeigt Absender, Antwortadresse, Empfängerzahl (auflistbar), wer keine Adresse hat und die Mail, wie sie beim ersten Empfänger aussieht. Der Versand läuft im Hintergrund; unter „Gesendet“ steht je Empfänger „zugestellt“ oder der Fehler, mit „Fehlgeschlagene erneut senden“.
-- **Verteiler & Vorlagen** gelten für alle mit dem Recht „E-Mail“. Verteiler aus Gruppen bleiben automatisch aktuell.
+- **Senden:** „Senden …“ zeigt je Weg die Empfängerzahl (E-Mail auflistbar, dazu wer keine Adresse hat; App mit „noch ohne Handy“; Push), Absender und Antwortadresse und die Nachricht, wie sie beim ersten Empfänger aussieht. Der Mailversand läuft im Hintergrund; unter „Gesendet“ steht je Empfänger „zugestellt“ oder der Fehler (mit „Fehlgeschlagene erneut senden“) und – für die App – „Erreicht über“: E-Mail, App, Push oder „nicht erreichbar“.
+- **Verteiler & Vorlagen** gelten für alle mit dem Recht „Nachrichten schreiben“. Verteiler aus Gruppen bleiben automatisch aktuell.
 - **Abteilungen:** Mit einer Rolle „nur eigene Abteilung“ sind nur die eigenen Abteilungen und deren Mitglieder wählbar.
 
 ## Mitglieder-App: Bereiche und Profilbild

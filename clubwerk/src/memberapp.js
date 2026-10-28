@@ -197,6 +197,7 @@ const hasFlags = row => Boolean(row && Object.values(parseFlags(row.flags)).some
 /* Module, die in der App erscheinen: id -> { name, label, order, dir, router, hooks, isActive } */
 const modules = new Map();
 function register(id, info) { modules.set(id, info); }
+register('nachrichten', require('./nachrichten').info());   // Kern-Bereich „Nachrichten“ (Postfach des Mitglieds), kein Modul
 /* Öffentliche Teile von Modulen (ohne Anmeldung, z. B. Online-Mitgliedsantrag) */
 const publics = new Map();
 function registerPublic(id, info) { publics.set(id, info); }
@@ -372,7 +373,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   app.get('/m/:id/:file', (req, res) => {
     const m = modules.get(req.params.id);
     if (!m || !m.isActive() || !m.dir || !/^[a-z0-9_-]+\.js$/.test(req.params.file) || ['admin.js'].includes(req.params.file)) return res.status(404).end();
-    const f = path.join(m.dir, 'public', req.params.file);
+    const f = path.join(m.publicDir || path.join(m.dir, 'public'), req.params.file);
     if (!fs.existsSync(f)) return res.status(404).end();
     res.type('application/javascript').set('Cache-Control', 'no-cache').sendFile(f);
   });

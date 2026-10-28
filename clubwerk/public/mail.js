@@ -1,5 +1,5 @@
-/* Verein → E-Mail: schreiben wie in einem E-Mail-Programm (Empfänger-Chips, formatierter Text, Anhänge,
-   Entwürfe mit automatischem Speichern, Vorlagen, Verteiler, Gesendet mit Zustellstatus).
+/* Verein → Nachrichten (früher „E-Mail“): schreiben wie in einem E-Mail-Programm (Empfänger-Chips, formatierter Text, Anhänge,
+   Entwürfe mit automatischem Speichern, Vorlagen, Verteiler, Gesendet mit Zustellstatus) – Weg wählbar: E-Mail, Mitglieder-App, Push-Hinweis.
    Wird vor admin.js geladen und meldet sich über CW_PAGES an, sobald GK bereitsteht. */
 (window.CW_PAGES = window.CW_PAGES || []).push(GK => {
   'use strict';
@@ -90,6 +90,7 @@
   const deT = s => (s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
   const okMail = m => /^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(m);
   const emptySpec = () => ({ groups: [], members: [], addresses: [], lists: [], payer: true });
+  const hasTo = sp => sp.groups.length + sp.members.length + sp.addresses.length + sp.lists.length + (sp.allApp ? 1 : 0);
 
   /* ---------- Einfügen nur mit erlaubter Formatierung ---------- */
   const OKTAG = new Set(['P', 'BR', 'DIV', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'UL', 'OL', 'LI', 'A', 'H2', 'H3', 'BLOCKQUOTE', 'HR']);
@@ -112,20 +113,20 @@
   }
 
   /* ---------- Empfänger-Feld mit Chips ---------- */
-  function picker(host, spec, { lists = true, onChange } = {}) {
+  function picker(host, spec, { lists = true, app = false, mailBad = () => true, onChange } = {}) {
     let sugIdx = 0, sug = [];
     const groupLabel = g => (O.groups.find(x => x.t === g.t && String(x.v) === String(g.v)) || {}).label || g.v;
     const groupN = g => (O.groups.find(x => x.t === g.t && String(x.v) === String(g.v)) || {}).n;
     const mem = id => O.members.find(m => m.id === id);
     const render = () => {
-      host.innerHTML = `${spec.groups.map((g, i) => `<span class="ml-chip g" title="${esc(T('Gruppe'))}"><span>${esc(groupLabel(g))}</span>${groupN(g) != null ? `<small>${groupN(g)}</small>` : ''}<button type="button" data-rm="g:${i}" aria-label="${esc(T('Entfernen'))}">×</button></span>`).join('')}
+      host.innerHTML = `${spec.allApp ? `<span class="ml-chip g" title="${esc(T('Gruppe'))}"><span>${esc(T('Alle Mitglieder der App'))}</span><small>${O.app.all}</small><button type="button" data-rm="p:0" aria-label="${esc(T('Entfernen'))}">×</button></span>` : ''}${spec.groups.map((g, i) => `<span class="ml-chip g" title="${esc(T('Gruppe'))}"><span>${esc(groupLabel(g))}</span>${groupN(g) != null ? `<small>${groupN(g)}</small>` : ''}<button type="button" data-rm="g:${i}" aria-label="${esc(T('Entfernen'))}">×</button></span>`).join('')}
         ${(spec.lists || []).map((id, i) => { const l = O.lists.find(x => x.id === id); return `<span class="ml-chip l"><span>${esc(l ? l.name : '?')}</span><small>${esc(T('Verteiler'))}</small><button type="button" data-rm="l:${i}">×</button></span>`; }).join('')}
-        ${spec.members.map((id, i) => { const m = mem(id); return `<span class="ml-chip ${m && !m.email && !m.viaPayer ? 'bad' : ''}" title="${esc(m ? m.email || (m.viaPayer ? T('über den Zahler') : T('keine E-Mail-Adresse')) : '')}"><span translate="no">${esc(m ? m.name : '?')}</span><button type="button" data-rm="m:${i}">×</button></span>`; }).join('')}
+        ${spec.members.map((id, i) => { const m = mem(id); return `<span class="ml-chip ${m && !m.email && !m.viaPayer && mailBad() ? 'bad' : ''}" title="${esc(m ? m.email || (m.viaPayer ? T('über den Zahler') : T('keine E-Mail-Adresse')) : '')}"><span translate="no">${esc(m ? m.name : '?')}</span><button type="button" data-rm="m:${i}">×</button></span>`; }).join('')}
         ${spec.addresses.map((a, i) => `<span class="ml-chip ${okMail(a.replace(/^.*<|>$/g, '').trim()) ? '' : 'bad'}"><span translate="no">${esc(a)}</span><button type="button" data-rm="a:${i}">×</button></span>`).join('')}
-        <input class="ml-in" placeholder="${esc(spec.groups.length + spec.members.length + spec.addresses.length + (spec.lists || []).length ? '' : T('Gruppe, Name oder E-Mail-Adresse …'))}" autocomplete="off" spellcheck="false" aria-label="${esc(T('Empfänger hinzufügen'))}">
+        <input class="ml-in" placeholder="${esc(spec.groups.length + spec.members.length + spec.addresses.length + (spec.lists || []).length + (spec.allApp ? 1 : 0) ? '' : T('Gruppe, Name oder E-Mail-Adresse …'))}" autocomplete="off" spellcheck="false" aria-label="${esc(T('Empfänger hinzufügen'))}">
         <div class="ml-sug hidden"></div>`;
       const inp = host.querySelector('.ml-in'), box = host.querySelector('.ml-sug');
-      host.querySelectorAll('[data-rm]').forEach(b => { b.onclick = e => { e.stopPropagation(); const [k, i] = b.dataset.rm.split(':'); ({ g: spec.groups, l: spec.lists, m: spec.members, a: spec.addresses })[k].splice(+i, 1); changed(); render(); host.querySelector('.ml-in').focus(); }; });
+      host.querySelectorAll('[data-rm]').forEach(b => { b.onclick = e => { e.stopPropagation(); const [k, i] = b.dataset.rm.split(':'); if (k === 'p') delete spec.allApp; else ({ g: spec.groups, l: spec.lists, m: spec.members, a: spec.addresses })[k].splice(+i, 1); changed(); render(); host.querySelector('.ml-in').focus(); }; });
       const show = () => {
         const q = inp.value.trim().toLowerCase();
         const has = (t, v) => spec.groups.some(g => g.t === t && String(g.v) === String(v));
@@ -133,15 +134,17 @@
         const ls = lists ? O.lists.filter(l => !(spec.lists || []).includes(l.id) && (!q || l.name.toLowerCase().includes(q))).slice(0, 6).map(l => ({ k: 'l', id: l.id, label: l.name, info: T('Verteiler') })) : [];
         const ms = q.length >= 2 ? O.members.filter(m => !spec.members.includes(m.id) && (m.name.toLowerCase().includes(q) || (m.email || '').toLowerCase().includes(q))).slice(0, 12).map(m => ({ k: 'm', id: m.id, label: m.name, info: m.email || (m.viaPayer ? T('über den Zahler') : T('keine E-Mail')) })) : [];
         const typed = q && okMail(q.replace(/^.*<|>$/g, '').trim()) ? [{ k: 'a', a: inp.value.trim(), label: inp.value.trim(), info: T('Adresse hinzufügen') }] : [];
-        sug = [...typed, ...gs, ...ls, ...ms]; sugIdx = 0;
+        const ap = app && O.app.all != null && !spec.allApp && (!q || T('Alle Mitglieder der App').toLowerCase().includes(q) || 'app'.startsWith(q)) ? [{ k: 'p', label: T('Alle Mitglieder der App'), info: `${O.app.all} ${T(O.app.all === 1 ? 'Person' : 'Personen')}` }] : [];
+        sug = [...typed, ...ap, ...gs, ...ls, ...ms]; sugIdx = 0;
         if (!sug.length) { box.classList.add('hidden'); return; }
         const sec = (k, title) => (sug.some(x => x.k === k) ? `<div class="h">${esc(title)}</div>` + sug.map((x, i) => (x.k === k ? `<button type="button" data-i="${i}" class="${i === sugIdx ? 'on' : ''}"><span translate="${k === 'm' || k === 'a' ? 'no' : 'yes'}">${esc(x.label)}</span><small>${esc(x.info)}</small></button>` : '')).join('') : '');
-        box.innerHTML = sec('a', T('Adresse')) + sec('g', T('Gruppen')) + sec('l', T('Verteiler')) + sec('m', T('Mitglieder'));
+        box.innerHTML = sec('a', T('Adresse')) + sec('p', T('Mitglieder-App')) + sec('g', T('Gruppen')) + sec('l', T('Verteiler')) + sec('m', T('Mitglieder'));
         box.classList.remove('hidden');
         box.querySelectorAll('[data-i]').forEach(b => { b.onmousedown = e => { e.preventDefault(); pick(sug[+b.dataset.i]); }; });
       };
       const pick = x => {
         if (!x) return;
+        if (x.k === 'p') spec.allApp = true;
         if (x.k === 'g') spec.groups.push({ t: x.g.t, v: x.g.v });
         if (x.k === 'l') spec.lists.push(x.id);
         if (x.k === 'm') spec.members.push(x.id);
@@ -160,7 +163,7 @@
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); if (!sug.length) return; sugIdx = (sugIdx + (e.key === 'ArrowDown' ? 1 : -1) + sug.length) % sug.length; box.querySelectorAll('[data-i]').forEach(b => b.classList.toggle('on', +b.dataset.i === sugIdx)); }
         else if (e.key === 'Enter') { e.preventDefault(); if (!box.classList.contains('hidden') && sug[sugIdx]) pick(sug[sugIdx]); else addTyped(); }
         else if ((e.key === ',' || e.key === ';') && inp.value.includes('@')) { e.preventDefault(); addTyped(); }
-        else if (e.key === 'Backspace' && !inp.value) { const order = [['a', spec.addresses], ['m', spec.members], ['l', spec.lists || []], ['g', spec.groups]]; for (const [, arr] of order) if (arr.length) { arr.pop(); changed(); render(); host.querySelector('.ml-in').focus(); break; } }
+        else if (e.key === 'Backspace' && !inp.value) { const order = [['a', spec.addresses], ['m', spec.members], ['l', spec.lists || []], ['g', spec.groups]]; if (!order.some(([, arr]) => arr.length) && spec.allApp) { delete spec.allApp; changed(); render(); host.querySelector('.ml-in').focus(); } else for (const [, arr] of order) if (arr.length) { arr.pop(); changed(); render(); host.querySelector('.ml-in').focus(); break; } }
         else if (e.key === 'Escape') box.classList.add('hidden');
       };
       inp.onpaste = e => { const t = (e.clipboardData || window.clipboardData).getData('text'); if (/[,;\n]/.test(t) && t.includes('@')) { e.preventDefault(); inp.value = t; addTyped(); } };
@@ -223,14 +226,14 @@
   }
 
   /* ---------- Seite ---------- */
-  GK.registerPage({ key: 'email', title: 'E-Mail', perm: 'email', group: 'verein', before: 'benutzer', icon: 'mail' });
+  GK.registerPage({ key: 'email', title: 'Nachrichten', perm: 'email', group: 'verein', before: 'benutzer', icon: 'mail' });
   GK.RENDER.email = async () => {
     O = await api('mail/options');
-    $('main').innerHTML = `<h2 class="page">E-Mail</h2>
-      <p class="lead">Mails an Mitglieder, Gruppen, Verteiler und freie Adressen, gesendet über das Vereinspostfach. Antworten gehen an die Adresse unter „Mein Konto“.</p>
-      ${O.ready ? '' : `<div class="banner a">${esc(T('Noch kein Postfach eingerichtet – Mails können erst nach Einstellungen → Postfach gesendet werden. Entwürfe gehen schon.'))}</div>`}
+    $('main').innerHTML = `<h2 class="page">Nachrichten</h2>
+      <p class="lead">Nachrichten an Mitglieder, Gruppen und Adressen – per E-Mail, in der Mitglieder-App und als Push-Hinweis. Antworten auf E-Mails gehen an die Adresse unter „Mein Konto“.</p>
+      ${O.ready ? '' : `<div class="banner a">${esc(T('Noch kein Postfach eingerichtet – E-Mails können erst nach Einstellungen → Postfach gesendet werden. Nachrichten in die App und Entwürfe gehen schon.'))}</div>`}
       <div id="mlTabs"></div>`;
-    tabsCtl = GK.tabs($('mlTabs'), 'email', [['neu', 'Neue E-Mail'], ['entwuerfe', 'Entwürfe'], ['gesendet', 'Gesendet'], ['verteiler', 'Verteiler'], ['vorlagen', 'Vorlagen']], async (k, body) => {
+    tabsCtl = GK.tabs($('mlTabs'), 'email', [['neu', 'Neue Nachricht'], ['entwuerfe', 'Entwürfe'], ['gesendet', 'Gesendet'], ['verteiler', 'Verteiler'], ['vorlagen', 'Vorlagen']], async (k, body) => {
       O = await api('mail/options');
       if (k === 'neu') return compose(body);
       if (k === 'entwuerfe' || k === 'gesendet') return folder(body, k);
@@ -245,15 +248,23 @@
   async function compose(body) {
     let id = openDraft, d = null; openDraft = null;
     if (id) { try { d = await api('mail/messages/' + id); } catch (e) { id = null; } }
-    const st = { subject: d ? d.subject : '', html: d ? d.html : '', spec: d ? d.spec : emptySpec(), copy_me: d ? d.copy_me : Boolean(O.me.reply_to), files: d ? d.files : [] };
+    const st = { subject: d ? d.subject : '', html: d ? d.html : '', spec: d ? d.spec : emptySpec(), copy_me: d ? d.copy_me : Boolean(O.me.reply_to), files: d ? d.files : [],
+      channels: d ? d.channels : ['mail'], keep_months: d ? d.keep_months : null, pinned: d ? d.pinned : false };
     if (!st.spec.lists) st.spec.lists = [];
     const me = O.me;
     body.innerHTML = `<div class="card ml-card" id="mlBox">
         <div class="ml-line"><b>${esc(T('Von'))}</b><div class="ml-from"><span translate="no"><b>${esc(me.name || '–')}</b> · ${esc(O.club)} ${O.from ? `&lt;${esc(O.from)}&gt;` : `<span class="muted">(${esc(T('noch kein Postfach'))})</span>`}</span>
           <span class="muted">${me.reply_to ? `${esc(T('Antworten an'))} <span translate="no">${esc(me.reply_to)}</span>` : esc(T('Antworten gehen ans Vereinspostfach'))} · <a href="#" id="mlMe">${esc(T('ändern'))}</a></span></div></div>
         <div class="ml-line"><b>${esc(T('An'))}</b><div class="ml-chips" id="mlTo"></div></div>
-        <div class="ml-meta"><label class="chk"><input type="checkbox" id="mlPayer" ${st.spec.payer !== false ? 'checked' : ''}> ${esc(T('Ohne eigene Adresse an den Zahler (z. B. Eltern)'))}</label>
-          <label class="chk"><input type="checkbox" id="mlCopy" ${st.copy_me ? 'checked' : ''}> ${esc(T('Kopie an mich'))}</label><span class="ml-cnt" id="mlCnt"></span></div>
+        <div class="ml-line"><b>${esc(T('Weg'))}</b><div class="ml-from" id="mlWays">
+          <label class="chk"><input type="checkbox" id="mlWMail"> ${esc(T('E-Mail'))}</label>
+          <label class="chk"><input type="checkbox" id="mlWApp"> ${esc(T('In der Mitglieder-App'))}</label>
+          <label class="chk"><input type="checkbox" id="mlWPush"> ${esc(T('Push-Hinweis aufs Handy'))}</label>
+          <span class="muted s" id="mlWHint"></span></div></div>
+        <div class="ml-meta"><label class="chk" id="mlPayerL"><input type="checkbox" id="mlPayer" ${st.spec.payer !== false ? 'checked' : ''}> ${esc(T('Ohne eigene Adresse an den Zahler (z. B. Eltern)'))}</label>
+          <label class="chk" id="mlCopyL"><input type="checkbox" id="mlCopy" ${st.copy_me ? 'checked' : ''}> ${esc(T('Kopie an mich'))}</label>
+          <label class="chk" id="mlKeepL">${esc(T('In der App sichtbar'))} <select id="mlKeep" aria-label="${esc(T('In der App sichtbar'))}"><option value="">${esc(T('Vorgabe'))} (${O.app.keepMonths} ${esc(T(O.app.keepMonths === 1 ? 'Monat' : 'Monate'))})</option>${O.app.keepChoices.map(n => `<option value="${n}">${n} ${esc(T(n === 1 ? 'Monat' : 'Monate'))}</option>`).join('')}</select></label>
+          <label class="chk" id="mlPinL"><input type="checkbox" id="mlPin" ${st.pinned ? 'checked' : ''}> ${esc(T('Oben anheften (bleibt, bis du sie löst)'))}</label><span class="ml-cnt" id="mlCnt"></span></div>
         <div class="ml-line"><b>${esc(T('Betreff'))}</b><input class="ml-sub" id="mlSub" maxlength="200" value="${esc(st.subject)}" placeholder="${esc(T('Worum geht es?'))}"></div>
         <div id="mlEd"></div>
         ${me.signature ? `<div class="ml-sig" title="${esc(T('Unterschrift – unter „Mein Konto“ änderbar'))}">${me.signature}</div>` : ''}
@@ -264,8 +275,8 @@
     $('mlMe').onclick = e => { e.preventDefault(); GK.go('konto'); };
     // Speichern: Entwurf beim ersten Tippen anlegen, danach kurz nach jeder Änderung
     let timer = 0, saving = null, dirtyN = 0;
-    const payload = () => ({ subject: $('mlSub').value, html: ed.html(), spec: st.spec, copy_me: $('mlCopy').checked });
-    const empty = () => !$('mlSub').value.trim() && !ed.el.textContent.trim() && !st.spec.groups.length && !st.spec.members.length && !st.spec.addresses.length && !st.spec.lists.length && !st.files.length;
+    const payload = () => ({ subject: $('mlSub').value, html: ed.html(), spec: st.spec, copy_me: $('mlCopy').checked, channels: st.channels, keep_months: $('mlKeep').value ? +$('mlKeep').value : null, pinned: $('mlPin').checked });
+    const empty = () => !$('mlSub').value.trim() && !ed.el.textContent.trim() && !hasTo(st.spec) && !st.files.length;
     const save = async () => {
       clearTimeout(timer);
       if (saving) await saving;
@@ -284,14 +295,37 @@
     const count = () => {
       clearTimeout(cTimer);
       cTimer = setTimeout(async () => {
-        const has = st.spec.groups.length + st.spec.members.length + st.spec.addresses.length + st.spec.lists.length;
-        if (!has) { $('mlCnt').textContent = ''; return; }
+        if (!hasTo(st.spec)) { $('mlCnt').textContent = ''; return; }
         try { await save(); if (!id) return; const p = await api(`mail/drafts/${id}/preview`, 'POST', {}); const el = $('mlCnt'); if (!el) return;
-          el.textContent = `${p.count} ${p.count === 1 ? T('Empfänger') : T('Empfänger')}${p.withoutCount ? ` · ${p.withoutCount} ${T('ohne E-Mail')}` : ''}${p.bad.length ? ` · ${p.bad.length} ${T('ungültig')}` : ''}`;
-          el.classList.toggle('warn', Boolean(p.withoutCount || p.bad.length)); } catch (e) { /* still */ }
+          const ways = [];
+          if (p.channels.includes('mail')) ways.push(`${p.count} ${T('per E-Mail')}${p.withoutCount ? ` (${p.withoutCount} ${T('ohne E-Mail')})` : ''}${p.bad.length ? ` · ${p.bad.length} ${T('ungültig')}` : ''}`);
+          if (p.app) ways.push(`${p.app.count} ${T('in der App')}${p.app.noDevice ? ` (${p.app.noDevice} ${T('ohne Handy')})` : ''}`);
+          el.textContent = ways.join(' · ');
+          el.classList.toggle('warn', Boolean((p.channels.includes('mail') && (p.withoutCount || p.bad.length)) || (p.app && p.app.noDevice))); } catch (e) { /* still */ }
       }, 400);
     };
-    picker($('mlTo'), st.spec, { onChange: () => { touch(); count(); } });
+    const picked = picker($('mlTo'), st.spec, { app: true, mailBad: () => st.channels.includes('mail') && !st.channels.includes('app'), onChange: () => { touch(); count(); } });
+    // Wege: E-Mail, App, Push (Push öffnet die Nachricht in der App und braucht sie deshalb); mindestens ein Weg bleibt gewählt
+    const drawWays = () => {
+      const c = st.channels;
+      $('mlWMail').checked = c.includes('mail'); $('mlWApp').checked = c.includes('app'); $('mlWPush').checked = c.includes('push');
+      $('mlPayerL').classList.toggle('hidden', !c.includes('mail')); $('mlCopyL').classList.toggle('hidden', !c.includes('mail'));
+      $('mlKeepL').classList.toggle('hidden', !c.includes('app') || $('mlPin').checked); $('mlPinL').classList.toggle('hidden', !c.includes('app'));
+      $('mlWHint').textContent = c.includes('push') && !O.app.pushOn ? T('Der Push-Anlass „Nachrichten vom Verein“ ist noch nicht freigegeben (Mitglieder-App › Benachrichtigungen) – dann kommt nur die Nachricht in der App.') : c.includes('app') && !c.includes('push') ? T('Ohne Push sehen Mitglieder die Nachricht, sobald sie die App öffnen.') : !c.includes('app') ? T('Mitglieder ohne E-Mail-Adresse bekommen nichts – dafür „In der Mitglieder-App“ wählen.') : '';
+      picked.render();
+    };
+    const setWay = (w, on) => {
+      const set = new Set(st.channels); if (on) set.add(w); else set.delete(w);
+      if (w === 'push' && on) set.add('app');
+      if (w === 'app' && !on) set.delete('push');
+      if (!set.size) set.add(w);   // mindestens ein Weg
+      st.channels = ['mail', 'app', 'push'].filter(x => set.has(x));
+      drawWays(); touch(); count();
+    };
+    $('mlWMail').onchange = () => setWay('mail', $('mlWMail').checked); $('mlWApp').onchange = () => setWay('app', $('mlWApp').checked); $('mlWPush').onchange = () => setWay('push', $('mlWPush').checked);
+    $('mlKeep').value = st.keep_months ? String(st.keep_months) : '';
+    $('mlKeep').onchange = touch; $('mlPin').onchange = () => { drawWays(); touch(); count(); };
+    drawWays();
     const ed = editor($('mlEd'), st.html, { onInput: touch, templates: true });
     if (ed.tpl) ed.tpl.onchange = async () => {
       const t = O.templates.find(x => x.id === +ed.tpl.value); ed.tpl.value = ''; if (!t) return;
@@ -346,16 +380,20 @@
       await save();
       if (!id) return toast(T('Bitte Empfänger, Betreff und Text eintragen.'), true);
       const p = await api(`mail/drafts/${id}/preview`, 'POST', {});
-      dialog(`<h2>${esc(sendMode ? T('E-Mail senden') : T('Vorschau'))}</h2>
+      const mailOn = p.channels.includes('mail'), ap = p.app;
+      dialog(`<h2>${esc(sendMode ? T('Nachricht senden') : T('Vorschau'))}</h2>
         ${p.errors.length ? `<div class="banner r" style="font-weight:400">${p.errors.map(esc).join('<br>')}</div>` : ''}
-        <dl class="ml-kv"><dt>${esc(T('Von'))}</dt><dd translate="no">${esc(p.from)}</dd><dt>${esc(T('Antworten an'))}</dt><dd translate="no">${esc(p.reply_to || T('Vereinspostfach'))}</dd>
-          <dt>${esc(T('An'))}</dt><dd><b>${p.count}</b> ${esc(T('Empfänger'))}${p.count ? ` · <a href="#" id="mlRcShow">${esc(T('anzeigen'))}</a>` : ''}${$('mlCopy').checked ? ` · ${esc(T('plus Kopie an dich'))}` : ''}</dd>
-          ${p.withoutCount ? `<dt>${esc(T('Ohne E-Mail'))}</dt><dd>${p.withoutCount}: <span translate="no">${esc(p.without.slice(0, 15).join(', '))}${p.withoutCount > 15 ? ' …' : ''}</span></dd>` : ''}
+        <dl class="ml-kv">${mailOn ? `<dt>${esc(T('Von'))}</dt><dd translate="no">${esc(p.from)}</dd><dt>${esc(T('Antworten an'))}</dt><dd translate="no">${esc(p.reply_to || T('Vereinspostfach'))}</dd>
+          <dt>${esc(T('Per E-Mail'))}</dt><dd><b>${p.count}</b> ${esc(T('Empfänger'))}${p.count ? ` · <a href="#" id="mlRcShow">${esc(T('anzeigen'))}</a>` : ''}${$('mlCopy').checked ? ` · ${esc(T('plus Kopie an dich'))}` : ''}</dd>
+          ${p.withoutCount ? `<dt>${esc(T('Ohne E-Mail'))}</dt><dd>${p.withoutCount}: <span translate="no">${esc(p.without.slice(0, 15).join(', '))}${p.withoutCount > 15 ? ' …' : ''}</span>${ap ? '' : ` · <span class="muted s">${esc(T('Sie bekommen nichts – dafür „In der Mitglieder-App“ wählen.'))}</span>`}</dd>` : ''}` : ''}
+          ${ap ? `<dt>${esc(T('In der App'))}</dt><dd><b>${ap.count}</b> ${esc(T(ap.count === 1 ? 'Mitglied' : 'Mitglieder'))}${ap.noDevice ? ` · ${ap.noDevice} ${esc(T('noch ohne Handy – sie sehen die Nachricht, sobald sie die App einrichten'))}` : ''}</dd>
+          <dt>${esc(T('Sichtbar'))}</dt><dd>${ap.pinned ? esc(T('angeheftet – bis du sie löst')) : `${ap.keepMonths} ${esc(T(ap.keepMonths === 1 ? 'Monat' : 'Monate'))}`}</dd>` : ''}
+          ${ap && ap.push != null ? `<dt>${esc(T('Push-Hinweis'))}</dt><dd>${ap.pushOn ? `${ap.push} ${esc(T(ap.push === 1 ? 'Mitglied mit Push' : 'Mitglieder mit Push'))} <span class="muted s">· ${esc(T('nur Betreff und „Neue Nachricht“, nie der Text'))}</span>` : `<span style="color:var(--amber)">${esc(T('Anlass nicht freigegeben – es geht kein Push raus'))}</span>`}</dd>` : ''}
           ${st.files.length ? `<dt>${esc(T('Anhänge'))}</dt><dd translate="no">${st.files.map(f => esc(f.name)).join(', ')} (${kb(st.files.reduce((s, f) => s + f.size, 0))})</dd>` : ''}</dl>
         <div class="ml-rc hidden" id="mlRc"><table class="tbl">${p.rcpt.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td></tr>`).join('')}</table></div>
-        ${p.sample.to ? `<p class="muted s" style="margin:14px 0 6px">${esc(T('So sieht es bei'))} <span translate="no">${esc(p.sample.to)}</span> ${esc(T('aus'))}:</p>` : ''}
+        ${p.sample.who ? `<p class="muted s" style="margin:14px 0 6px">${esc(T('So sieht es bei'))} <span translate="no">${esc(p.sample.who)}</span> ${esc(T('aus'))}:</p>` : ''}
         <div class="ml-view"><h3 style="margin-top:0" translate="no">${esc(p.sample.subject)}</h3><div translate="no">${p.sample.html}</div></div>
-        <div class="btns"><button class="btn ghost" id="c">${esc(sendMode ? T('Abbrechen') : T('Schließen'))}</button>${sendMode && !p.errors.length && p.ready ? `<button class="btn primary" id="go">${esc(T('Jetzt an'))} ${p.count} ${esc(T('senden'))}</button>` : ''}</div>`, true);
+        <div class="btns"><button class="btn ghost" id="c">${esc(sendMode ? T('Abbrechen') : T('Schließen'))}</button>${sendMode && !p.errors.length && p.ready ? `<button class="btn primary" id="go">${esc(T('Jetzt senden'))}</button>` : ''}</div>`, true);
       $('c').onclick = closeDialog;
       if ($('mlRcShow')) $('mlRcShow').onclick = e => { e.preventDefault(); $('mlRc').classList.toggle('hidden'); };
       if (!p.ready && sendMode) toast(T('Erst unter Einstellungen → Postfach das Vereinspostfach eintragen.'), true);
@@ -374,12 +412,16 @@
   async function folder(body, box) {
     const r = await api('mail/messages?box=' + box);
     const draftBtn = document.querySelector('#mlTabs [data-tab="entwuerfe"]'); if (draftBtn) draftBtn.innerHTML = `${esc(T('Entwürfe'))}${r.drafts ? ` <span class="cnt">${r.drafts}</span>` : ''}`;
-    if (!r.rows.length) { body.innerHTML = `<div class="card"><p class="muted" style="margin:0">${esc(box === 'entwuerfe' ? T('Keine Entwürfe. Was du in „Neue E-Mail“ schreibst, wird automatisch hier gespeichert.') : T('Noch keine E-Mail gesendet.'))}</p></div>`; return; }
-    const stPill = m => (m.status === 'sendet' ? `<span class="pill a">${esc(T('wird gesendet'))} ${m.sent || ''}</span>` : m.status === 'teilweise' ? `<span class="pill r">${m.failed} ${esc(T('fehlgeschlagen'))}</span>` : m.status === 'gesendet' ? `<span class="pill g">${m.total} ${esc(T('zugestellt'))}</span>` : '');
+    if (!r.rows.length) { body.innerHTML = `<div class="card"><p class="muted" style="margin:0">${esc(box === 'entwuerfe' ? T('Keine Entwürfe. Was du in „Neue Nachricht“ schreibst, wird automatisch hier gespeichert.') : T('Noch keine Nachricht gesendet.'))}</p></div>`; return; }
+    const wayPill = m => (m.channels && m.channels.includes('app') ? ` <span class="pill b">${esc(T(m.channels.includes('push') ? 'App + Push' : 'App'))}</span>${m.pinned ? ` <span class="pill">${esc(T('angeheftet'))}</span>` : ''}` : '');
+    const stPill = m => (m.channels && !m.channels.includes('mail') ? `<span class="pill g">${m.total} ${esc(T('in der App'))}</span>` : m.status === 'sendet' ? `<span class="pill a">${esc(T('wird gesendet'))} ${m.sent || ''}</span>` : m.status === 'teilweise' ? `<span class="pill r">${m.failed} ${esc(T('fehlgeschlagen'))}</span>` : m.status === 'gesendet' ? `<span class="pill g">${m.total} ${esc(T('zugestellt'))}</span>` : '');
     body.innerHTML = `<div class="card"><div class="ml-list">${r.rows.map(m => `<button type="button" class="ml-row" data-id="${m.id}">
         <span class="t"><b translate="no">${m.files ? SV_CLIP : ''}${esc(m.subject || T('(ohne Betreff)'))}</b><span translate="no">${esc(m.preview || '')}</span></span>
         <span class="c who" translate="no">${esc(box === 'entwuerfe' ? '' : m.from_name || m.user_name || '')}</span>
-        <span class="c">${deT(m.at)}</span><span class="c r">${box === 'entwuerfe' ? esc(T('Entwurf')) : stPill(m)}</span></button>`).join('')}</div></div>`;
+        <span class="c">${deT(m.at)}</span><span class="c r">${box === 'entwuerfe' ? esc(T('Entwurf')) : stPill(m) + wayPill(m)}</span></button>`).join('')}</div></div>
+      ${box === 'gesendet' ? `<div class="card"><label class="chk" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">${esc(T('Nachrichten bleiben in der App standardmäßig'))} <select id="mlKeepDef" aria-label="${esc(T('Nachrichten bleiben in der App standardmäßig'))}">${O.app.keepChoices.map(n => `<option value="${n}" ${n === O.app.keepMonths ? 'selected' : ''}>${n} ${esc(T(n === 1 ? 'Monat' : 'Monate'))}</option>`).join('')}</select></label>
+        <p class="muted s" style="margin:6px 0 0">${esc(T('Danach verschwinden sie bei den Mitgliedern (angeheftete bleiben). Beim Schreiben lässt sich der Zeitraum je Nachricht ändern.'))}</p></div>` : ''}`;
+    if ($('mlKeepDef')) $('mlKeepDef').onchange = async () => { try { await api('mail/settings', 'PUT', { keepMonths: +$('mlKeepDef').value }); O.app.keepMonths = +$('mlKeepDef').value; toast(T('Gespeichert.')); } catch (e) { fail(e); } };
     body.querySelectorAll('[data-id]').forEach(b => { b.onclick = () => { if (box === 'entwuerfe') { openDraft = +b.dataset.id; goTabForce('neu'); } else showMessage(body, +b.dataset.id, box); }; });
   }
   const goTabForce = k => { markTab(k); if (tabsCtl) tabsCtl.reload(); };
@@ -389,25 +431,31 @@
     const draw = async () => {
       if (!document.body.contains(body)) return;
       const m = await api('mail/messages/' + id);
-      const done = m.rcpt.filter(r => r.status !== 'wartet').length;
+      const done = m.rcpt.filter(r => r.status !== 'wartet').length, mailOn = m.channels.includes('mail');
       const me = GK.me();
       body.innerHTML = `<div class="card">
         <div class="row" style="align-items:center;margin-bottom:12px"><button class="btn small ghost" id="mlBack">← ${esc(T('Gesendet'))}</button><span style="flex:1"></span>
-          <button class="btn small" id="mlCopyM">${esc(T('Weiterverwenden'))}</button>${m.status === 'teilweise' ? `<button class="btn small" id="mlRetry">${esc(T('Fehlgeschlagene erneut senden'))}</button>` : ''}
+          <button class="btn small" id="mlCopyM">${esc(T('Weiterverwenden'))}</button>${m.app && !m.app.expired ? `<button class="btn small" id="mlPinM">${esc(T(m.app.pinned ? 'Lösen' : 'Anheften'))}</button><button class="btn small" id="mlOffM">${esc(T('Aus der App nehmen'))}</button>` : ''}${m.status === 'teilweise' ? `<button class="btn small" id="mlRetry">${esc(T('Fehlgeschlagene erneut senden'))}</button>` : ''}
           ${m.status !== 'sendet' && me && (m.user_name === (me.name || me.username) || me.role === 'oberadmin') ? `<button class="btn small danger" id="mlRm">${esc(T('Löschen'))}</button>` : ''}</div>
         <h3 style="margin:0 0 10px;font-size:19px" translate="no">${esc(m.subject)}</h3>
         <dl class="ml-kv"><dt>${esc(T('Von'))}</dt><dd translate="no">${esc(m.from_name || m.user_name || '')} · ${esc(O.club)}</dd>
-          <dt>${esc(T('Antworten an'))}</dt><dd translate="no">${esc(m.reply_to || T('Vereinspostfach'))}</dd><dt>${esc(T('Gesendet'))}</dt><dd>${deT(m.sent_at)}</dd>
-          <dt>${esc(T('Empfänger'))}</dt><dd>${m.total}${m.status === 'sendet' ? ` · ${esc(T('wird gesendet'))} (${done}/${m.rcpt.length})<div class="ml-prog"><i style="width:${m.rcpt.length ? Math.round(done / m.rcpt.length * 100) : 0}%"></i></div>` : ` · ${m.sent} ${esc(T('zugestellt'))}${m.failed ? `, <b style="color:var(--red)">${m.failed} ${esc(T('fehlgeschlagen'))}</b>` : ''}`}</dd>
+          ${mailOn ? `<dt>${esc(T('Antworten an'))}</dt><dd translate="no">${esc(m.reply_to || T('Vereinspostfach'))}</dd>` : ''}<dt>${esc(T('Gesendet'))}</dt><dd>${deT(m.sent_at)}</dd>
+          <dt>${esc(T('Weg'))}</dt><dd>${m.channels.map(c => esc(T({ mail: 'E-Mail', app: 'Mitglieder-App', push: 'Push-Hinweis' }[c]))).join(' · ')}</dd>
+          ${m.app ? `<dt>${esc(T('In der App'))}</dt><dd>${m.app.expired ? `${esc(T('abgelaufen oder entfernt'))} · ` : ''}<b>${m.app.opened}</b> ${esc(T('von'))} ${m.app.total} ${esc(T(m.app.opened === 1 ? 'hat sie geöffnet' : 'haben sie geöffnet'))}${m.app.total ? `<div class="ml-prog"><i style="width:${Math.round(m.app.opened / m.app.total * 100)}%"></i></div>` : ''}<span class="muted s">${m.app.expired ? '' : m.app.pinned ? esc(T('Angeheftet – bleibt, bis du sie löst.')) : m.app.expires_at ? `${esc(T('Sichtbar bis'))} ${m.app.expires_at.slice(8, 10)}.${m.app.expires_at.slice(5, 7)}.${m.app.expires_at.slice(0, 4)}` : ''}</span></dd>` : ''}
+          ${mailOn ? `<dt>${esc(T('Empfänger'))}</dt><dd>${m.total}${m.status === 'sendet' ? ` · ${esc(T('wird gesendet'))} (${done}/${m.rcpt.length})<div class="ml-prog"><i style="width:${m.rcpt.length ? Math.round(done / m.rcpt.length * 100) : 0}%"></i></div>` : ` · ${m.sent} ${esc(T('zugestellt'))}${m.failed ? `, <b style="color:var(--red)">${m.failed} ${esc(T('fehlgeschlagen'))}</b>` : ''}`}</dd>` : ''}
           ${m.files.length ? `<dt>${esc(T('Anhänge'))}</dt><dd style="display:flex;flex-wrap:wrap;gap:6px">${m.files.map(f => `<a class="ml-file" href="api/admin/mail/messages/${m.id}/files/${encodeURIComponent(f.id)}" download translate="no"><b>${SV_CLIP}${esc(f.name)}</b><small>${kb(f.size)}</small></a>`).join('')}</dd>` : ''}</dl>
         <div class="ml-view" translate="no">${m.html}${m.signature_html ? `<div style="margin-top:20px">${m.signature_html}</div>` : ''}</div>
-        <h3 style="margin:18px 0 8px">${esc(T('Zustellung'))}</h3>
+        ${m.app && m.reach ? `<h3 style="margin:18px 0 8px">${esc(T('Wer wurde erreicht'))}</h3>
+        <div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Erreicht über'))}</th></tr>${m.reach.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}</td><td>${r.reached ? esc(r.ways.map(w => T(w)).join(' · ')) : `<span class="pill r">${esc(T('nicht erreichbar'))}</span>`} <span class="muted s">${esc(r.note ? T(r.note) : '')}</span></td></tr>`).join('')}</table></div>` : ''}
+        ${mailOn ? `<h3 style="margin:18px 0 8px">${esc(T('Zustellung'))}</h3>
         <div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('E-Mail'))}</th><th>${esc(T('Status'))}</th></tr>${m.rcpt.map(r => `<tr><td translate="no">${esc(r.name || '')}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td>
-          <td>${r.status === 'ok' ? `<span class="pill g">${esc(T('zugestellt'))}</span>` : r.status === 'fehler' ? `<span class="pill r" title="${esc(r.error || '')}">${esc(T('Fehler'))}</span> <span class="muted s">${esc((r.error || '').slice(0, 80))}</span>` : `<span class="pill">${esc(T('wartet'))}</span>`}</td></tr>`).join('')}</table></div></div>`;
+          <td>${r.status === 'ok' ? `<span class="pill g">${esc(T('zugestellt'))}</span>` : r.status === 'fehler' ? `<span class="pill r" title="${esc(r.error || '')}">${esc(T('Fehler'))}</span> <span class="muted s">${esc((r.error || '').slice(0, 80))}</span>` : `<span class="pill">${esc(T('wartet'))}</span>`}</td></tr>`).join('')}</table></div>` : ''}</div>`;
+      if ($('mlPinM')) $('mlPinM').onclick = async () => { try { await api(`mail/messages/${id}/app`, 'POST', { pinned: !m.app.pinned }); toast(T('Gespeichert.')); draw(); } catch (e) { fail(e); } };
+      if ($('mlOffM')) $('mlOffM').onclick = async () => { if (!await ask(`${T('Nachricht aus der App nehmen?')}\n\n${T('Bei den Mitgliedern verschwindet sie sofort. E-Mails und der Eintrag unter „Gesendet“ bleiben.')}`, { ok: T('Aus der App nehmen'), danger: true })) return; try { await api(`mail/messages/${id}/app`, 'POST', { remove: true }); toast(T('Aus der App genommen.')); draw(); } catch (e) { fail(e); } };
       $('mlBack').onclick = () => { clearTimeout(poll); markTab(back); folder(body, back).catch(fail); };
       $('mlCopyM').onclick = async () => { try { const r = await api(`mail/messages/${id}/copy`, 'POST', {}); clearTimeout(poll); openDraft = r.id; goTabForce('neu'); toast(T('Als neuer Entwurf geöffnet.')); } catch (e) { fail(e); } };
       if ($('mlRetry')) $('mlRetry').onclick = async () => { try { const r = await api(`mail/messages/${id}/retry`, 'POST', {}); toast(`${T('Wird erneut gesendet an')} ${r.n}.`); draw(); } catch (e) { fail(e); } };
-      if ($('mlRm')) $('mlRm').onclick = async () => { if (!await ask(`${T('E-Mail aus „Gesendet“ löschen?')}\n\n${T('Die Mail und die Zustellliste werden gelöscht. Bei den Empfängern bleibt sie natürlich.')}`)) return; try { await api('mail/messages/' + id, 'DELETE'); toast(T('Gelöscht.')); markTab(back); folder(body, back); } catch (e) { fail(e); } };
+      if ($('mlRm')) $('mlRm').onclick = async () => { if (!await ask(`${T('Nachricht aus „Gesendet“ löschen?')}\n\n${T('Die Nachricht und die Zustellliste werden gelöscht, bei Mitgliedern verschwindet sie auch aus der App. E-Mails bleiben bei den Empfängern natürlich.')}`)) return; try { await api('mail/messages/' + id, 'DELETE'); toast(T('Gelöscht.')); markTab(back); folder(body, back); } catch (e) { fail(e); } };
       if (m.status === 'sendet') poll = setTimeout(() => draw().catch(() => {}), 1500);
     };
     await draw();
@@ -416,9 +464,9 @@
   /* Verteiler */
   async function showLists(body) {
     body.innerHTML = `<div class="card"><div class="row" style="align-items:center;margin-bottom:6px"><h3 style="margin:0;flex:1">${esc(T('Verteiler'))} <span class="muted s">(${O.lists.length})</span></h3><button class="btn primary" id="mlLNew">＋ ${esc(T('Neuer Verteiler'))}</button></div>
-      <p class="muted s" style="margin:0 0 10px">${esc(T('Gespeicherte Empfängerlisten wie „Vorstand“, „Trainer“ oder „Sponsoren“ – für alle mit dem Recht „E-Mail“. Gruppen bleiben aktuell: Wer neu in die Abteilung kommt, ist automatisch dabei.'))}</p>
+      <p class="muted s" style="margin:0 0 10px">${esc(T('Gespeicherte Empfängerlisten wie „Vorstand“, „Trainer“ oder „Sponsoren“ – für alle mit dem Recht „Nachrichten schreiben“. Gruppen bleiben aktuell: Wer neu in die Abteilung kommt, ist automatisch dabei.'))}</p>
       ${O.lists.length ? `<table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Inhalt'))}</th><th></th></tr>${O.lists.map(l => `<tr><td><b>${esc(l.name)}</b></td><td class="muted s">${esc(specText(l.spec))}</td>
-        <td class="r" style="white-space:nowrap"><button class="btn small" data-lw="${l.id}">${esc(T('Mail schreiben'))}</button> <button class="btn small" data-le="${l.id}">${esc(T('Bearbeiten'))}</button></td></tr>`).join('')}</table>` : `<p class="muted">${esc(T('Noch keine Verteiler.'))}</p>`}</div>`;
+        <td class="r" style="white-space:nowrap"><button class="btn small" data-lw="${l.id}">${esc(T('Nachricht schreiben'))}</button> <button class="btn small" data-le="${l.id}">${esc(T('Bearbeiten'))}</button></td></tr>`).join('')}</table>` : `<p class="muted">${esc(T('Noch keine Verteiler.'))}</p>`}</div>`;
     $('mlLNew').onclick = () => listDialog(null, body);
     body.querySelectorAll('[data-le]').forEach(b => { b.onclick = () => listDialog(O.lists.find(l => l.id === +b.dataset.le), body); });
     body.querySelectorAll('[data-lw]').forEach(b => { b.onclick = async () => { try { const r = await api('mail/drafts', 'POST', { spec: { ...emptySpec(), lists: [+b.dataset.lw] } }); openDraft = r.id; goTabForce('neu'); } catch (e) { fail(e); } }; });

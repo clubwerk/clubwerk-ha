@@ -227,6 +227,8 @@ function load({ app, admin, helpers }) {
         isModuleActive: other => isActive(other),
         /** Adresse der Mitglieder-App (https) für Links in E-Mails, z. B. Kalender – leer, wenn keine eingetragen ist */
         appUrl: () => memberapp.appUrl(),
+        /** Nachrichten, die ein Mitglied in der App hat (für die Datenauskunft) */
+        messagesOf: id => require('./nachrichten').dataOf(id),
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden
         entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
       };
@@ -273,7 +275,7 @@ function setActive(id, on, user) {
 }
 
 /* Zentrale Reihenfolge der Module – dieselbe wie im Menü der Verwaltung (registerPage order); unbekannte Module dahinter */
-const MODULE_ORDER = ['getraenke', 'buchung', 'spielbetrieb', 'turniere', 'arbeitseinsatz', 'zeiterfassung', 'beregnung', 'zugang', 'maengel', 'mitglieder', 'buchhaltung'];
+const MODULE_ORDER = ['getraenke', 'buchung', 'spielbetrieb', 'nachrichten', 'turniere', 'arbeitseinsatz', 'zeiterfassung', 'beregnung', 'zugang', 'maengel', 'mitglieder', 'buchhaltung'];
 const orderPos = id => { const i = MODULE_ORDER.indexOf(id); return i < 0 ? MODULE_ORDER.length : i; };
 
 /** Module, deren Tablet-Seite sich ein- und ausschalten lässt (Hook tabletSwitch = { get, set }): für Einstellungen › Tablet › „am Tablet zeigen“ */

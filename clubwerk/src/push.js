@@ -164,9 +164,10 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
     const m = db.prepare('SELECT active, deleted FROM members WHERE id = ?').get(mid);
     if (!m || !m.active || m.deleted) { db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(mid); continue; }
     const rows = db.prepare('SELECT * FROM push_subs WHERE member_id = ?' + (opts.endpoint ? ' AND endpoint = ?' : '')).all(...(opts.endpoint ? [mid, opts.endpoint] : [mid]))
-      .filter(r => r.endpoint !== opts.except);   // except: das Handy, auf dem es gerade passiert ist
+      .filter(r => r.endpoint !== opts.except)   // except: das Handy, auf dem es gerade passiert ist
+      .filter(r => parseEv(r.events)[key] !== false);   // Anlass vom Mitglied auf diesem Handy abgeschaltet
     for (const r of rows) {
-      // Welche Anlässe kommen, legt der Vorstand zentral fest (push_events) – das Mitglied schaltet je Handy nur an oder aus
+      // Welche Anlässe es gibt, legt der Vorstand zentral fest (push_events) – das Mitglied schaltet sie je Handy ab (oben gefiltert)
       const res = await deliver(r, payload);
       if (res.status >= 200 && res.status < 300) { sent++; db.prepare("UPDATE push_subs SET last_ok = datetime('now','localtime'), fails = 0 WHERE id = ?").run(r.id); log(mid, key, title, true, null); }
       else if (res.status === 404 || res.status === 410) { db.prepare('DELETE FROM push_subs WHERE id = ?').run(r.id); log(mid, key, title, false, `Abo erloschen (${res.status})`); }

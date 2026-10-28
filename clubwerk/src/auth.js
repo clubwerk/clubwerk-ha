@@ -43,7 +43,7 @@ const PERMS = {
   artikel: 'Artikel & Preise',
   konten: 'Mitglieder anlegen & neue bestätigen',
   app: 'Mitglieder-App einrichten: Bereiche, Reiter, Benachrichtigungen & Name (Adresse und Sicherheit nur mit „Einstellungen“)',
-  email: 'E-Mail an Mitglieder schreiben (Verein → E-Mail)',
+  email: 'Nachrichten an Mitglieder schreiben – per E-Mail, in der App und als Push (Verein → Nachrichten)',
   kontoauszug: 'Kontoauszüge einlesen und zuordnen (zusätzlich „Einzug“ bzw. „Buchhaltung“)',
   deinstallieren: 'Module deinstallieren und wieder installieren (vorher Pflicht-Sicherung)',
 };
