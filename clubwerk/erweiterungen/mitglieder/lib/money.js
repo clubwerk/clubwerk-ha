@@ -16,6 +16,7 @@ function register(sh) {
   const admin = C.admin, db = C.db;
   const PF = need('mitglieder_finanzen');
   const isDate = fees.isDate;
+  const fachlich = msg => Object.assign(new Error(msg), { fachlich: true });
   const nameKey = (n, k) => C.require('./db').nameKey(n, k);   // Sortierung: Nachname, Vorname
   const lastFirst = (n, k) => C.require('./db').lastFirst(n, k);
 
@@ -220,7 +221,6 @@ function register(sh) {
   }));
   admin.get('/runs', PF, (req, res) => res.json(db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM mv_charge c WHERE c.run_id = r.id AND c.status != 'offen') AS done FROM mv_run r ORDER BY r.id DESC LIMIT 50`).all()
     .map(r => ({ ...r, filters: undefined, undo: r.done === 0 }))));
-  const fachlich = msg => Object.assign(new Error(msg), { fachlich: true });
   /** Lauf zurücknehmen: Posten löschen, „abgerechnet bis“ und Verkaufskonten auf den Stand davor – wirft bei fachlichem Hindernis (e.fachlich) */
   function undoRun(r) {
     if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) throw fachlich('Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
@@ -283,22 +283,30 @@ function register(sh) {
     C.audit(req.user, 'Forderung geändert', `${payerName(c.member_id)}: ${c.text} ${euro(c.cents)} → ${text} ${euro(cents)}`);
     res.json({ ok: true });
   });
+  /** Zahlung auf einen offenen Posten buchen (von Hand und aus dem Kontoauszug) – Teilzahlung: Rest bleibt als neuer Posten offen.
+   *  → { rest: id des Rest-Postens | null } · wirft bei fachlichem Hindernis (e.fachlich) */
+  function payCharge(c, { paid, date, via, user }) {
+    if (c.status !== 'offen') throw fachlich('Dieser Posten ist nicht offen.');
+    if (!Number.isFinite(paid) || paid <= 0 && c.cents > 0) throw fachlich('Ungültiger Betrag.');
+    if (c.cents > 0 && paid > c.cents) throw fachlich(`Der Betrag ist höher als offen (${euro(c.cents)}) – den Mehrbetrag bitte als Gutschrift (Minus-Betrag) erfassen.`);
+    let rest = null;
+    db.transaction(() => {
+      if (c.cents > 0 && paid < c.cents) {   // Teilzahlung: Rest bleibt als neuer Posten offen
+        rest = Number(db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, run_id, created_by, note, member_fee_id, member_dept_id, invoice_no, dunning_level, dunned_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(c.member_id, c.for_member_id, c.kind, `Rest: ${c.text}`.slice(0, 140), c.period_from, c.period_to, c.cents - paid, c.due_date, c.run_id, user, `Teilzahlung ${euro(paid)} am ${deD(date)}`, c.member_fee_id, c.member_dept_id, c.invoice_no, c.dunning_level, c.dunned_at).lastInsertRowid);
+        db.prepare("UPDATE mv_charge SET cents = ?, status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(paid, date, via, c.id);
+      } else db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(date, via, c.id);
+    })();
+    return { rest };
+  }
+  sh.payCharge = payCharge;
   admin.post('/charges/:id/pay', PF, (req, res) => {
     const c = chargeOr404(req, res); if (!c) return;
-    if (c.status !== 'offen') return bad(res, 'Dieser Posten ist nicht offen.');
     const b = req.body || {};
     const via = ['bar', 'ueberweisung', 'lastschrift', 'verrechnet'].includes(b.via) ? b.via : 'ueberweisung';
     const date = isDate(b.date) ? b.date : today();
     const paid = b.cents !== undefined ? Math.round(Number(b.cents)) : c.cents;
-    if (!Number.isFinite(paid) || paid <= 0 && c.cents > 0) return bad(res, 'Ungültiger Betrag.');
-    if (c.cents > 0 && paid > c.cents) return bad(res, `Der Betrag ist höher als offen (${euro(c.cents)}) – den Mehrbetrag bitte als Gutschrift (Minus-Betrag) erfassen.`);
-    db.transaction(() => {
-      if (c.cents > 0 && paid < c.cents) {   // Teilzahlung: Rest bleibt als neuer Posten offen
-        db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, period_from, period_to, cents, due_date, run_id, created_by, note, member_fee_id, member_dept_id, invoice_no, dunning_level, dunned_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
-          .run(c.member_id, c.for_member_id, c.kind, `Rest: ${c.text}`.slice(0, 140), c.period_from, c.period_to, c.cents - paid, c.due_date, c.run_id, uname(req), `Teilzahlung ${euro(paid)} am ${deD(date)}`, c.member_fee_id, c.member_dept_id, c.invoice_no, c.dunning_level, c.dunned_at);
-        db.prepare("UPDATE mv_charge SET cents = ?, status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(paid, date, via, c.id);
-      } else db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(date, via, c.id);
-    })();
+    try { payCharge(c, { paid, date, via, user: uname(req) }); } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
     C.audit(req.user, 'Zahlung erfasst', `${payerName(c.member_id)}: ${c.text} ${euro(paid)} (${via})`);
     res.json({ ok: true });
   });
@@ -307,13 +315,22 @@ function register(sh) {
     if (!['offen', 'bezahlt'].includes(c.status)) return bad(res, 'Posten in einem laufenden Einzug zuerst über den Einzug klären (Rücklastschrift oder verwerfen).');
     const reason = one((req.body || {}).reason, 120);
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
+    // per Kontoauszug bezahlt: Das Geld ist auf dem Vereinskonto – es darf nicht still verschwinden
+    const refund = (req.body || {}).refund;
+    if (sh.paidByStatement && sh.paidByStatement(c) && !['guthaben', 'zurueck'].includes(refund))
+      return res.status(409).json({ error: `Dieser Posten wurde laut Kontoauszug bezahlt (${euro(c.cents)}). Bitte wählen: Betrag als Guthaben behalten oder Geld wurde zurücküberwiesen.`, refund: true });
     // Verkaufs-Posten aus einem Lauf: die Verkaufsbuchungen wieder öffnen, sonst blieben sie „abgerechnet“, ohne dass etwas eingezogen wird
     let reopened = 0;
     if (c.kind === 'getraenke' && c.run_id && c.status === 'offen' && C.drinks.active()) {
       const run = db.prepare('SELECT drinks_batch FROM mv_run WHERE id = ?').get(c.run_id);
       if (run && run.drinks_batch) { const r = C.drinks.reopen(run.drinks_batch, c.for_member_id || c.member_id); if (!r.ok) return bad(res, r.error); reopened = r.n; }
     }
-    db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${uname(req)}: ${reason}${reopened ? ' – Verkaufsbuchungen wieder offen' : ''}`, c.id);
+    const keep = sh.paidByStatement && sh.paidByStatement(c) ? refund : null;
+    db.transaction(() => {
+      db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${uname(req)}: ${reason}${reopened ? ' – Verkaufsbuchungen wieder offen' : ''}${keep === 'zurueck' ? ' – Geld zurücküberwiesen' : keep === 'guthaben' ? ' – Betrag als Guthaben' : ''}`, c.id);
+      if (keep === 'guthaben') db.prepare("INSERT INTO mv_charge(member_id, for_member_id, kind, text, cents, due_date, created_by, note) VALUES (?,?, 'sonstiges', ?, ?, ?, ?, ?)")
+        .run(c.member_id, c.for_member_id, `Guthaben: ${c.text}`.slice(0, 140), -c.cents, today(), uname(req), `aus storniertem Posten (bezahlt am ${deD(c.paid_at)})`);
+    })();
     if (c.member_fee_id && c.period_from) {   // Beitrag storniert → Zeitraum kann neu abgerechnet werden, falls es der letzte war
       const mf = db.prepare('SELECT booked_until FROM mv_member_fee WHERE id = ?').get(c.member_fee_id);
       if (mf && mf.booked_until === c.period_to && (req.body || {}).rebill) db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run(fees.addDays(c.period_from, -1), c.member_fee_id);
@@ -322,7 +339,7 @@ function register(sh) {
       const md = db.prepare('SELECT booked_until FROM mv_member_department WHERE id = ?').get(c.member_dept_id);
       if (md && md.booked_until === c.period_to) db.prepare('UPDATE mv_member_department SET booked_until = ? WHERE id = ?').run(fees.addDays(c.period_from, -1), c.member_dept_id);
     }
-    C.audit(req.user, 'Forderung storniert', `${payerName(c.member_id)}: ${c.text} ${euro(c.cents)} – ${reason}`);
+    C.audit(req.user, 'Forderung storniert', `${payerName(c.member_id)}: ${c.text} ${euro(c.cents)} – ${reason}${keep === 'zurueck' ? ' (Geld zurücküberwiesen)' : keep === 'guthaben' ? ' (Betrag als Guthaben)' : ''}`);
     res.json({ ok: true });
   });
 
@@ -471,22 +488,27 @@ function register(sh) {
     C.audit(req.user, 'SEPA-Einzug als bezahlt verbucht', `Einzug ${k.id}: ${euro(k.cents)}`);
     res.json({ ok: true });
   });
+  /** Lastschrift gutgeschrieben: Posten „im Einzug“ als bezahlt buchen; Einzüge, in denen nichts mehr „im Einzug“ steht, gelten als verbucht → { n, cents, ids } */
+  function debitPaid(ids, date) {
+    let n = 0, cents = 0; const done = [];
+    db.transaction(() => {
+      for (const c of ids.length ? db.prepare(`SELECT * FROM mv_charge WHERE id IN (${ids.map(() => '?').join(',')}) AND status = 'eingezogen'`).all(...ids) : []) {
+        db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = 'lastschrift' WHERE id = ?").run(date, c.id); n++; cents += c.cents; done.push(c.id);
+      }
+      for (const k of db.prepare("SELECT id FROM mv_collection WHERE status = 'erstellt'").all())
+        if (!db.prepare("SELECT 1 FROM mv_charge WHERE collection_id = ? AND status = 'eingezogen'").get(k.id) && db.prepare("SELECT 1 FROM mv_charge WHERE collection_id = ? AND status = 'bezahlt'").get(k.id))
+          db.prepare("UPDATE mv_collection SET status = 'gebucht', booked_at = ? WHERE id = ?").run(nowTs(), k.id);
+    })();
+    return { n, cents, ids: done };
+  }
+  sh.debitPaid = debitPaid;
   /* Zahlung erfolgt: Posten „im Einzug“ (Lastschrift ohne Rückläufer) gesammelt als bezahlt buchen – vom Kassierer, wenn nichts zurückkam */
   admin.post('/charges/paid', PF, (req, res) => {
     const b = req.body || {};
     const ids = (Array.isArray(b.ids) ? b.ids : []).map(Number).filter(Number.isInteger).slice(0, 5000);
     if (!ids.length) return bad(res, 'Bitte Posten auswählen.');
     const date = isDate(b.date) ? b.date : today();
-    let n = 0, cents = 0;
-    db.transaction(() => {
-      for (const c of db.prepare(`SELECT * FROM mv_charge WHERE id IN (${ids.map(() => '?').join(',')}) AND status = 'eingezogen'`).all(...ids)) {
-        db.prepare("UPDATE mv_charge SET status = 'bezahlt', paid_at = ?, paid_via = 'lastschrift' WHERE id = ?").run(date, c.id); n++; cents += c.cents;
-      }
-      // Einzüge, in denen nichts mehr „im Einzug“ steht, gelten als verbucht
-      for (const k of db.prepare("SELECT id FROM mv_collection WHERE status = 'erstellt'").all())
-        if (!db.prepare("SELECT 1 FROM mv_charge WHERE collection_id = ? AND status = 'eingezogen'").get(k.id) && db.prepare("SELECT 1 FROM mv_charge WHERE collection_id = ? AND status = 'bezahlt'").get(k.id))
-          db.prepare("UPDATE mv_collection SET status = 'gebucht', booked_at = ? WHERE id = ?").run(nowTs(), k.id);
-    })();
+    const { n, cents } = debitPaid(ids, date);
     if (!n) return bad(res, 'Keiner der Posten ist (noch) im Einzug.');
     C.audit(req.user, 'Lastschrift: Zahlung erfolgt', `${n} Posten, ${euro(cents)} (Gutschrift ${deD(date)})`);
     res.json({ ok: true, count: n, cents });
@@ -494,21 +516,34 @@ function register(sh) {
   admin.post('/collections/:id/return', PF, (req, res) => {
     const k = collOr404(req, res); if (!k) return;
     const b = req.body || {}; const payer = int(b.member_id);
-    const list = db.prepare("SELECT * FROM mv_charge WHERE collection_id = ? AND member_id = ? AND status IN ('eingezogen','bezahlt')").all(k.id, payer);
-    if (!list.length) return bad(res, 'Für dieses Mitglied gibt es in diesem Einzug nichts zurückzubuchen.');
     const fee = b.fee_cents !== undefined ? Math.max(0, int(b.fee_cents)) : parseInt(S('return_fee_cents', '0'), 10) || 0;
     const reason = one(b.reason, 80) || 'Rücklastschrift';
-    db.transaction(() => {
-      for (const c of list) db.prepare("UPDATE mv_charge SET status = 'offen', collection_id = NULL, paid_at = NULL, paid_via = NULL, returns = returns + 1, note = ? WHERE id = ?").run(`Rücklastschrift Einzug ${k.id}: ${reason}`, c.id);
-      if (fee) db.prepare("INSERT INTO mv_charge(member_id, kind, text, cents, due_date, created_by, note) VALUES (?, 'ruecklastschrift', ?, ?, ?, ?, ?)").run(payer, `Gebühr Rücklastschrift vom ${deD(k.collection_date)}`, fee, today(), uname(req), `Rücklastschrift Einzug ${k.id}: ${reason}`);
-      if (b.revokeMandate) db.prepare('UPDATE mv_bank SET mandate_revoked = ? WHERE member_id = ?').run(today(), payer);
-      const left = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM mv_charge WHERE collection_id = ?').get(k.id);
-      db.prepare('UPDATE mv_collection SET count = (SELECT COUNT(DISTINCT member_id) FROM mv_charge WHERE collection_id = ?), cents = ? WHERE id = ?').run(k.id, left.c, k.id);
-    })();
-    store.hist(payer, uname(req), 'Rücklastschrift', null, `${euro(list.reduce((s, c) => s + c.cents, 0))} (${reason})${b.revokeMandate ? ', Mandat gesperrt' : ''}`);
-    C.audit(req.user, 'Rücklastschrift erfasst', `${payerName(payer)}: ${euro(list.reduce((s, c) => s + c.cents, 0))} – ${reason}${fee ? ', Gebühr ' + euro(fee) : ''}`);
+    let r;
+    try { r = debitReturn(k, payer, { fee, reason, revoke: Boolean(b.revokeMandate), user: uname(req) }); } catch (e) { if (e.fachlich) return bad(res, e.message); throw e; }
+    C.audit(req.user, 'Rücklastschrift erfasst', `${payerName(payer)}: ${euro(r.cents)} – ${reason}${fee ? ', Gebühr ' + euro(fee) : ''}`);
     res.json({ ok: true });
   });
+  /** Rücklastschrift eines Zahlers aus einem Einzug (von Hand und aus dem Kontoauszug): Posten wieder offen, Gebühr als Posten, Mandat ggf. sperren
+   *  → { cents, charges: [{ id, status, collection_id, paid_at, paid_via, note }] (Stand davor), feeId, revoked: vorheriges mandate_revoked | undefined } */
+  function debitReturn(k, payer, { fee, reason, revoke, user }) {
+    const list = db.prepare("SELECT * FROM mv_charge WHERE collection_id = ? AND member_id = ? AND status IN ('eingezogen','bezahlt')").all(k.id, payer);
+    if (!list.length) throw fachlich('Für dieses Mitglied gibt es in diesem Einzug nichts zurückzubuchen.');
+    let feeId = null, revoked;
+    db.transaction(() => {
+      for (const c of list) db.prepare("UPDATE mv_charge SET status = 'offen', collection_id = NULL, paid_at = NULL, paid_via = NULL, returns = returns + 1, note = ? WHERE id = ?").run(`Rücklastschrift Einzug ${k.id}: ${reason}`, c.id);
+      if (fee) feeId = Number(db.prepare("INSERT INTO mv_charge(member_id, kind, text, cents, due_date, created_by, note) VALUES (?, 'ruecklastschrift', ?, ?, ?, ?, ?)").run(payer, `Gebühr Rücklastschrift vom ${deD(k.collection_date)}`, fee, today(), user, `Rücklastschrift Einzug ${k.id}: ${reason}`).lastInsertRowid);
+      if (revoke) { revoked = (bankRow(payer) || {}).mandate_revoked || null; db.prepare('UPDATE mv_bank SET mandate_revoked = ? WHERE member_id = ?').run(today(), payer); }
+      collectionRecount(k.id);
+    })();
+    const cents = list.reduce((s, c) => s + c.cents, 0);
+    store.hist(payer, user, 'Rücklastschrift', null, `${euro(cents)} (${reason})${revoke ? ', Mandat gesperrt' : ''}`);
+    return { cents, charges: list.map(c => ({ id: c.id, status: c.status, collection_id: c.collection_id, paid_at: c.paid_at, paid_via: c.paid_via, note: c.note })), feeId, revoked };
+  }
+  const collectionRecount = id => {
+    const left = db.prepare('SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM mv_charge WHERE collection_id = ?').get(id);
+    db.prepare('UPDATE mv_collection SET count = (SELECT COUNT(DISTINCT member_id) FROM mv_charge WHERE collection_id = ?), cents = ? WHERE id = ?').run(id, left.c, id);
+  };
+  sh.debitReturn = debitReturn; sh.collectionRecount = collectionRecount;
   /** Läufe, aus denen die Posten eines Einzugs stammen – undo: nach dem Verwerfen wäre der ganze Lauf wieder offen und zurücknehmbar */
   const collectionRuns = id => db.prepare('SELECT id, kind, created_at, count, cents FROM mv_run WHERE id IN (SELECT run_id FROM mv_charge WHERE collection_id = ?) ORDER BY id').all(id)
     .map(r => ({ ...r, undo: !db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen' AND COALESCE(collection_id, 0) != ?").get(r.id, id) }));

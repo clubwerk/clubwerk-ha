@@ -9,6 +9,7 @@
   const st = { meta: null, rows: [], f: { status: 'aktuell', q: '', dept: '', fee: '' }, app: 'offen' };
   const STATUS = { aktiv: ['g', 'aktiv'], passiv: ['b', 'passiv'], ehren: ['b', 'Ehrenmitglied'], ruhend: ['', 'ruhend'], ausgetreten: ['', 'ausgetreten'], anonym: ['', 'anonymisiert'] };
   const PAY = { lastschrift: 'Lastschrift', rechnung: 'Rechnung', bar: 'bar' };
+  const VIA = { ueberweisung: 'Überweisung', lastschrift: 'Lastschrift', verrechnet: 'verrechnet', kontoauszug: 'Kontoauszug' };   // bezahlt per …
   const GENDER = { m: 'männlich', w: 'weiblich' };
   const INTERVAL = { jahr: 'jährlich', halbjahr: 'halbjährlich', quartal: 'vierteljährlich', monat: 'monatlich', einmalig: 'einmalig' };
   const PRS = { anteilig: 'anteilig', voll: 'voller Betrag', frei: 'Eintrittsjahr frei' };
@@ -1107,7 +1108,7 @@
       ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td>${select && c.status === 'eingezogen' ? `<label class="chk"><input type="checkbox" data-csel="${c.id}" aria-label="auswählen"> ${first(c)}</label>` : first(c)}</td>
         ${member ? '' : `<td><span translate="no">${esc(c.text)}</span>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}</td>`}
         <td class="num nw">${deDate(c.due_date)}</td><td class="k-weg">${esc(KIND[c.kind] || c.kind)}</td>
-        <td>${pill(CSTAT[c.status] || ['', c.status])}${c.dunning_level ? ` <span class="pill r">${c.dunning_level}. Mahnstufe</span>` : ''}${c.paid_at ? `<div class="muted s">${deDate(c.paid_at)} · ${esc(c.paid_via || '')}</div>` : ''}</td>
+        <td>${pill(CSTAT[c.status] || ['', c.status])}${c.dunning_level ? ` <span class="pill r">${c.dunning_level}. Mahnstufe</span>` : ''}${c.paid_at ? `<div class="muted s">${deDate(c.paid_at)} · ${esc(VIA[c.paid_via] || c.paid_via || '')}</div>` : ''}</td>
         <td class="r ${c.cents < 0 ? 'neg' : ''}">${euro(c.cents)}</td>
         <td class="r nw">${c.status === 'offen' ? `<button class="btn small" data-cpay="${c.id}">Bezahlt</button> <button class="btn small" data-ced="${c.id}">Ändern</button>` : c.status === 'bezahlt' ? `<button class="btn small danger" data-ccx="${c.id}">Stornieren</button>` : ''}</td></tr>`).join('')}</table></div>`;
   }
@@ -1116,9 +1117,12 @@
     dialog(`<h2>Posten stornieren</h2><p class="muted" style="margin-top:0">${esc(GK.lastFirst(c.payer_name))}: ${esc(c.text)} – ${euro(c.cents)}</p>
       <label class="f">Grund<input id="cxR" placeholder="z. B. doppelt, Ermäßigung"></label>
       ${c.kind === 'beitrag' ? '<label class="chk" style="margin-top:12px"><input type="checkbox" id="cxRe"> Zeitraum beim nächsten Beitragslauf neu abrechnen</label>' : ''}
+      ${c.status === 'bezahlt' && c.paid_via === 'kontoauszug' ? `<p class="s" style="margin:14px 0 6px">Der Betrag ist laut Kontoauszug eingegangen. Was passiert mit dem Geld?</p>
+        <label class="chk"><input type="radio" name="cxRf" value="guthaben" checked> Als Guthaben behalten (Gutschrift über ${euro(c.cents)})</label>
+        <label class="chk"><input type="radio" name="cxRf" value="zurueck"> Geld wurde zurücküberwiesen</label>` : ''}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="cxOk">Stornieren</button></div>`);
     $('c').onclick = back || closeDialog;
-    $('cxOk').onclick = () => GK.busy($('cxOk'), async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } });
+    $('cxOk').onclick = () => GK.busy($('cxOk'), async () => { try { await api(`charges/${c.id}/cancel`, 'POST', { reason: val('cxR'), rebill: $('cxRe') ? $('cxRe').checked : false, refund: (document.querySelector('[name="cxRf"]:checked') || {}).value }); closeDialog(); toast('Storniert.'); again(); } catch (e) { fail(e); } });
   }
   function bindCharges(el, again) {
     const get = async id => (await api('charges?status=alle')).rows.find(c => c.id === id);
@@ -1160,9 +1164,10 @@
   async function finCharges(el, again) {
     st.cf = st.cf || 'offen';
     const q = st.cf === 'ueber' ? 'status=offen&overdue=1' : `status=${st.cf}`;
-    const r = await api('charges?' + q);
+    const [r, hint] = await Promise.all([api('charges?' + q), GK.kontoauszugHint ? GK.kontoauszugHint() : '']);
     el.innerHTML = `<div class="filterbar">${chipBar('cSeg', [['offen', 'Offen'], ['ueber', 'Überfällig'], ['eingezogen', 'Im Einzug'], ['bezahlt', 'Bezahlt'], ['alle', 'Alle']], st.cf)}
         <span class="muted s" style="margin-left:auto">${r.rows.length} Posten · ${euro(r.sum)}</span></div>
+      ${hint ? `<p class="muted s" style="margin:-6px 0 12px">${esc(hint)}</p>` : ''}
       ${st.cf === 'eingezogen' && r.rows.length ? `<div class="banner g"><span>Diese Posten stecken in einer eingereichten Lastschrift. Erst wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen), hier markieren und „Zahlung erfolgt“ buchen. Rücklastschriften vorher im Einzug beim Zahler erfassen.</span></div>
         <div class="toolbar"><label class="chk"><input type="checkbox" id="cAll"> Alle markieren</label><span class="muted s" id="cSel"></span><button class="btn" id="cPaid" style="margin-left:auto" disabled>Zahlung erfolgt</button></div>` : ''}
       <div class="card">${r.rows.length ? chargeTable(r.rows, { select: st.cf === 'eingezogen' }) : '<p class="empty">Keine Posten.</p>'}</div>`;
@@ -1329,8 +1334,9 @@
     st.dd = st.dd ?? 14;
     const rows = await api('dunning?days=' + st.dd);
     const all = await api('charges?status=offen');
+    const hint = GK.kontoauszugHint ? await GK.kontoauszugHint() : '';   // niemanden mahnen, der schon gezahlt hat
     const payers = [...new Set(all.rows.map(c => c.member_id))].map(id => { const list = all.rows.filter(c => c.member_id === id); return { id, name: list[0].payer_name, payment: list[0].payment, cents: list.reduce((s, c) => s + c.cents, 0), n: list.length }; }).filter(p => p.cents > 0 && p.payment !== 'lastschrift');
-    el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Rechnungen (Zahlungsart Rechnung/bar)</h3><button class="btn" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button></div>
+    el.innerHTML = `${hint ? `<div class="banner g"><span>${esc(hint)}</span></div>` : ''}<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Rechnungen (Zahlungsart Rechnung/bar)</h3><button class="btn" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button></div>
         ${payers.length ? `<table class="tbl kompakt"><tr><th>Zahler</th><th class="r">Posten</th><th class="r">offen</th><th></th></tr>${payers.map(p => `<tr><td><label class="chk"><input type="checkbox" data-inv="${p.id}" checked aria-label="auswählen"> <b>${esc(GK.lastFirst(p.name))}</b></label></td><td class="r k-lbl" data-label="Posten">${p.n}</td><td class="r">${euro(p.cents)}</td>
           <td class="r"><a class="btn small" href="${BASE}invoice.pdf?member=${p.id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Rechnungen.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
@@ -1724,6 +1730,7 @@
   GK.registerPage({ key: 'mv-einzug', title: 'Lastschriften', perm: 'mitglieder_finanzen', render: pageRender('mv-einzug', showCollections), group: GZ });
   GK.registerPage({ key: 'mv-posten', title: 'Offene Posten', perm: 'mitglieder_finanzen', render: pageRender('mv-posten', showCharges), group: GZ });
   GK.registerPage({ key: 'mv-mahnung', title: 'Rechnungen & Mahnungen', perm: 'mitglieder_finanzen', render: pageRender('mv-mahnung', showDunning), group: GZ });
+  if (GK.kontoauszugRegister) GK.kontoauszugRegister(GZ);   // Kontoauszug einlesen und abgleichen (Kern)
   GK.registerPage({ key: 'mv-zeinst', title: 'Einstellungen', perm: 'mitglieder_finanzen', render: pageRender('mv-zeinst', showPaySettings), group: GZ });
   // Suche (Strg/⌘ K): Aktionen, Karten und Einstellungen der Mitglieder
   if (GK.registerSearch) GK.registerSearch([

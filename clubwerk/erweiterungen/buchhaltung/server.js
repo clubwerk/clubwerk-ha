@@ -118,12 +118,14 @@ function invView(r) {
 }
 /** Rechnungen an Mitglieder: Status aus der Mitgliederverwaltung übernehmen (dort wird per Lastschrift/Zahlung gebucht) */
 async function syncMemberInvoices() {
-  const rows = db.prepare("SELECT id, charge_id FROM bh_invoice WHERE kind = 'member' AND charge_id IS NOT NULL AND status = 'offen'").all();
+  // auch „bezahlt“ aus der Mitgliederverwaltung: wird der Posten dort wieder offen (Rücklastschrift, Zuordnung aufgehoben), ist es die Rechnung auch
+  const rows = db.prepare("SELECT id, charge_id, status FROM bh_invoice WHERE kind = 'member' AND charge_id IS NOT NULL AND (status = 'offen' OR (status = 'bezahlt' AND paid_via = 'Mitgliederverwaltung'))").all();
   if (!rows.length) return;
   const r = (await C.callHooks('chargeStatus', rows.map(x => x.charge_id))).find(x => x.id === 'mitglieder');
   if (!r || !r.result) return;
   for (const x of rows) {
     const st = r.result[x.charge_id];
+    if (x.status === 'bezahlt') { if (st && (st.status === 'offen' || st.status === 'eingezogen')) db.prepare("UPDATE bh_invoice SET status = 'offen', paid_at = NULL, paid_via = NULL WHERE id = ?").run(x.id); continue; }
     if (st && st.status === 'bezahlt') db.prepare("UPDATE bh_invoice SET status = 'bezahlt', paid_at = ?, paid_via = 'Mitgliederverwaltung' WHERE id = ?").run(st.paid_at || today(), x.id);
     else if (st && st.status === 'storniert') db.prepare("UPDATE bh_invoice SET status = 'storniert', cancel_reason = 'in der Mitgliederverwaltung storniert' WHERE id = ?").run(x.id);
   }
@@ -150,6 +152,7 @@ function activate(ctx) {
   const admin = ctx.admin;
   const ar = fn => ctx.asyncRoute(fn);
   const uname = req => req.user.name || req.user.username;
+  const VIA_KA = 'kontoauszug';   // per Kontoauszug bezahlt (Zuordnung im Kontoauszug)
 
   /* ---------- Übersicht ---------- */
   admin.get('/meta', P, ar(async (req, res) => {
@@ -326,6 +329,7 @@ function activate(ctx) {
   admin.post('/invoices/:id/unpaid', P, (req, res) => {
     const r = invOr404(req, res); if (!r) return;
     if (r.status !== 'bezahlt' || r.kind === 'member') return bad(res, r.kind === 'member' ? 'Zahlungen von Mitgliedern werden in den Mitgliedern gebucht.' : 'Die Rechnung ist nicht als bezahlt markiert.');
+    if (r.paid_via === VIA_KA) return bad(res, 'Diese Rechnung ist per Kontoauszug bezahlt – bitte dort die Zuordnung aufheben.');
     db.prepare("UPDATE bh_invoice SET status = 'offen', paid_at = NULL, paid_via = NULL WHERE id = ?").run(r.id);
     ctx.audit(req.user, 'Rechnung wieder offen', r.no);
     res.json({ ok: true });
@@ -333,11 +337,12 @@ function activate(ctx) {
   admin.post('/invoices/:id/cancel', P, ar(async (req, res) => {
     const r = invOr404(req, res); if (!r) return;
     if (r.status === 'storniert') return bad(res, 'Schon storniert.');
+    if (r.status === 'bezahlt' && r.paid_via === VIA_KA) return bad(res, 'Diese Rechnung ist per Kontoauszug bezahlt – bitte zuerst dort die Zuordnung aufheben (das Geld ist auf dem Vereinskonto).');
     const reason = one((req.body || {}).reason, 200);
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
     if (r.charge_id) {
       const out = (await ctx.callHooks('cancelCharge', r.charge_id, reason, uname(req))).find(x => x.id === 'mitglieder');
-      if (ctx.isModuleActive('mitglieder') && !out) return bad(res, 'Der zugehörige Posten bei den Mitgliedern steckt in einer laufenden Lastschrift – bitte dort erst klären.');
+      if (ctx.isModuleActive('mitglieder') && !out) return bad(res, 'Der zugehörige Posten bei den Mitgliedern lässt sich hier nicht stornieren (laufende Lastschrift oder per Kontoauszug bezahlt) – bitte dort erst klären.');
     }
     db.prepare("UPDATE bh_invoice SET status = 'storniert', cancel_reason = ? WHERE id = ?").run(reason, r.id);
     ctx.audit(req.user, 'Rechnung storniert', `${r.no}: ${reason}`);
@@ -451,6 +456,41 @@ function activate(ctx) {
   };
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     for (const t of ['bh_invoice', 'bh_donation']) db.prepare(`UPDATE ${t} SET member_id = ? WHERE member_id = ?`).run(intoId, fromId);
+  };
+  /* Kontoauszug (Kern: src/kontoauszug.js): Zahlungseingänge den offenen Rechnungen zuordnen. Rechnungen an Mitglieder mit Posten
+     in der Mitgliederverwaltung bucht nur diese (die Rechnung zieht über chargeStatus nach) – nie beides. */
+  const hasNo = (purpose, no) => { const n = String(no).toUpperCase().replace(/[^A-Z0-9]/g, ''); return n.length >= 4 && new RegExp(`(?<![A-Z0-9])${[...n].join('[\\s./_-]*')}(?![0-9])`).test(String(purpose || '').toUpperCase()); };
+  const openInvoices = () => db.prepare("SELECT * FROM bh_invoice WHERE status = 'offen' ORDER BY date, id").all().filter(r => !(r.charge_id && ctx.isModuleActive('mitglieder')));
+  const invWho = r => { const n = J(r.recipient, {}).name || ''; return r.kind === 'member' ? ctx.require('./db').lastFirst(n) : n; };
+  ctx.hooks.paymentPerm = () => 'buchhaltung';
+  ctx.hooks.paymentCandidates = entries => {
+    const inv = openInvoices(), out = [];
+    for (const e of entries) {
+      if (e.kind !== 'eingang' || e.cents <= 0) continue;
+      for (const r of inv) {
+        if (!hasNo(e.purpose, r.no)) continue;
+        if (e.cents === r.gross) out.push({ entry: e.id, key: `i:${r.id}`, label: `Rechnung ${r.no} – ${invWho(r)}`, cents: r.gross, level: 'sicher' });
+        else if (e.cents > r.gross) out.push({ entry: e.id, key: `i:${r.id}`, label: `Rechnung ${r.no} – ${invWho(r)}`, cents: r.gross, level: 'wahrscheinlich', note: `Überzahlung – Rechnung ${euro(r.gross)}, ${euro(e.cents - r.gross)} bleiben ohne Zuordnung` });
+      }
+    }
+    return out;
+  };
+  ctx.hooks.paymentTargets = () => openInvoices().map(r => ({ key: `i:${r.id}`, label: `Rechnung ${r.no} – ${invWho(r)}`, sub: `vom ${deD(r.date)}`, cents: r.gross, kind: 'zahlung' }));
+  ctx.hooks.applyPayment = (key, { entry: e }) => {
+    const r = db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(Number(String(key).replace(/^i:/, '')));
+    const no = msg => Object.assign(new Error(msg), { fachlich: true });
+    if (!r || !/^i:\d+$/.test(key)) throw no('Diese Rechnung gibt es nicht.');
+    if (r.status !== 'offen') throw no(`Rechnung ${r.no} ist nicht mehr offen.`);
+    if (r.charge_id && ctx.isModuleActive('mitglieder')) throw no(`Rechnung ${r.no} wird über die offenen Posten der Mitglieder bezahlt.`);
+    if (e.kind !== 'eingang' || e.cents < r.gross) throw no(`Der Betrag reicht nicht für Rechnung ${r.no} (${euro(r.gross)}) – Teilzahlungen bitte in der Buchhaltung klären.`);
+    db.prepare("UPDATE bh_invoice SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ? AND status = 'offen'").run(e.booking_date, VIA_KA, r.id);
+    return { cents: r.gross, label: `Rechnung ${r.no} – ${invWho(r)}`, ref: { id: r.id, date: e.booking_date } };
+  };
+  ctx.hooks.undoPayment = (key, ref) => {
+    const r = ref && db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(ref.id);
+    if (!r || r.status !== 'bezahlt' || r.paid_via !== VIA_KA || r.paid_at !== ref.date) throw Object.assign(new Error(`Rechnung ${r ? r.no : ''} wurde inzwischen geändert – bitte das zuerst zurücknehmen.`), { fachlich: true });
+    db.prepare("UPDATE bh_invoice SET status = 'offen', paid_at = NULL, paid_via = NULL WHERE id = ?").run(r.id);
+    return true;
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
   ctx.hooks.setupSteps = () => [

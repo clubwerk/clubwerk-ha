@@ -1079,6 +1079,7 @@ function activate(ctx) {
   /* ---------- weitere Teile ---------- */
   shared = { auskunft, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
   require('./lib/money').register(shared);
+  require('./lib/kontoauszug').register(shared);
   require('./lib/agecheck').register(shared);
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
   require('./lib/applications').register(shared);
@@ -1166,6 +1167,7 @@ function activate(ctx) {
     const c = ctx.db.prepare('SELECT * FROM mv_charge WHERE id = ?').get(id);
     if (!c) return false;
     if (c.status === 'eingezogen') throw new Error('Der Posten steckt in einer laufenden Lastschrift – erst im Einzug klären.');
+    if (shared.paidByStatement(c)) throw new Error('Der Posten ist laut Kontoauszug bezahlt – bitte in den Mitgliedern stornieren (Guthaben oder zurücküberwiesen).');
     if (c.status === 'offen' || c.status === 'bezahlt') ctx.db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${by || '–'}: ${one(reason, 100)}`, id);
     return true;
   };

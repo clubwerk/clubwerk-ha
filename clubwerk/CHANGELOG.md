@@ -1,5 +1,19 @@
 # Änderungen
 
+## 3.87.0
+
+**Kontoauszug einlesen und abgleichen (Beiträge & Zahlungen › Kontoauszug)**
+- Den Kontoauszug aus dem Online-Banking hineinziehen – Clubwerk ordnet Überweisungen, Lastschrift-Gutschriften und Rücklastschriften den offenen Posten, Einzügen und Rechnungen zu. Niemand muss mehr jede Zahlung einzeln im Online-Banking nachsehen und anklicken.
+- Liest CAMT (camt.052/053/054, auch Version 08, wie sie Sparkassen seit November 2025 liefern; einzeln oder als ZIP), das Sparkassen-Format „CSV-CAMT“ und den CSV-Export anderer Banken. Beim CSV einer fremden Bank einmal die Spalten zuordnen – danach geht es von selbst.
+- Jede Buchung bekommt einen Vorschlag: **sicher** (Rechnungsnummer und Betrag passen, unsere Lastschrift-Gutschrift, Rücklastschrift mit unserer Kennung), **wahrscheinlich** (IBAN und Betrag passen) oder **vielleicht** (Name ähnlich, Betrag passt). „Alle sicheren übernehmen“ bucht die sicheren auf einmal, die übrigen prüft man einzeln – oder ordnet von Hand zu bzw. markiert „gehört nicht zu Clubwerk“.
+- Gebucht wird genau wie von Hand: Teilzahlung lässt den Rest offen, eine Überzahlung wird Guthaben, eine Überweisung für mehrere Posten bezahlt die ältesten zuerst. Die Lastschrift-Gutschrift bucht „Zahlung erfolgt“, die Rücklastschrift öffnet die Posten wieder – mit der Gebühr aus dem Auszug und dem Grund aus dem Rückgabecode (bei „Konto erloschen“ wird das Mandat gesperrt, änderbar).
+- Kein Geld doppelt: Derselbe Auszug zweimal eingelesen ändert nichts – auch nicht, wenn dieselben Tage einmal als CAMT und einmal als CSV kommen. Jede Zuordnung lässt sich aufheben, solange danach nichts anderes passiert ist.
+- Wer einen per Kontoauszug bezahlten Posten storniert, wählt „als Guthaben behalten“ oder „Geld wurde zurücküberwiesen“ – das Geld verschwindet nicht still.
+- Rechnungen der Buchhaltung: an Firmen direkt, an Mitglieder über deren offenen Posten (die Rechnung zieht nach). Wird ein Posten wieder offen (Rücklastschrift, Zuordnung aufgehoben), ist es die Rechnung auch wieder.
+- „Offene Posten“, „Rechnungen & Mahnungen“ und die Rechnungen der Buchhaltung zeigen, bis wann der Kontoauszug eingelesen ist – damit niemand gemahnt wird, der schon gezahlt hat.
+- Datenschutz: Abbuchungen (Strom, Lieferanten …) werden nicht gespeichert, die Datei selbst auch nicht. Name, IBAN und Verwendungszweck liegen verschlüsselt im Tresor; „gehört nicht zu Clubwerk“ wird nach 90 Tagen gelöscht (Frist unter Einstellungen › Datenschutz). Neues Recht „Kontoauszüge einlesen und zuordnen“ (zum Zuordnen zusätzlich „Einzug“ bzw. „Buchhaltung“). Ohne Mitgliederverwaltung steht die Seite unter Buchhaltung.
+- Module: Mitglieder 1.24.0, Buchhaltung 1.6.0.
+
 ## 3.86.0
 
 **Datenschutz: feste Löschfristen, vollständige Auskunft, Hinweis in der App**

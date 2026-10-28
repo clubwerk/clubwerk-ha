@@ -1026,7 +1026,7 @@ admin.use((req, res, next) => (DRINK_ADMIN.test(normPath(req.path)) && !plugins.
   ? res.status(404).json({ error: 'Das Modul „Verkauf“ ist ausgeschaltet.' }) : next()));
 /* Tresor gesperrt: Bereiche mit persönlichen Daten (Mitgliederverwaltung, Buchhaltung, E-Mail an Mitglieder) zeigen einen
    Sperrhinweis statt Platzhaltern – und niemand speichert versehentlich leere Felder über echte Daten */
-const VAULT_AREAS = /^\/(x\/(mitglieder|buchhaltung)|mail|extensions\/(mitglieder|buchhaltung)\/(export|import))(\/|$)/;
+const VAULT_AREAS = /^\/(x\/(mitglieder|buchhaltung)|mail|kontoauszug\/(entries|targets|assign-safe|upload)|extensions\/(mitglieder|buchhaltung)\/(export|import))(\/|$)/;
 admin.use((req, res, next) => (VAULT_AREAS.test(normPath(req.path)) && require('./vault').locked()
   ? res.status(423).json({ error: 'Die persönlichen Daten sind nach einem Neustart noch verschlossen. Sie öffnen sich, sobald sich ein Admin mit Schlüssel anmeldet – oder mit dem Wiederherstellungscode.', vaultLocked: true }) : next()));
 app.use('/api/admin', admin);
@@ -3475,6 +3475,8 @@ try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth });
 require('./mailer').routes(admin, { bad, need });
+/* Kontoauszug einlesen und abgleichen (src/kontoauszug.js) – Tabellen vor dem Tresor anlegen */
+require('./kontoauszug').routes(admin, { need, bad, int, asyncRoute, rateLimit, express });
 /* Datenschutz: Löschfristen aller Module, Löschlauf, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) */
 require('./datenschutz').routes(admin, { need, bad });
 /* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */

@@ -59,6 +59,8 @@ const SPEC = [
   { t: 'aw_extern', k: 'id', c: ['note'] },                // externe Helfer (Arbeitsdienst)
   { t: 'bh_invoice', k: 'id', c: ['recipient'] },
   { t: 'bh_donation', k: 'id', c: ['donor'] },
+  { t: 'bank_entry', k: 'id', c: ['name', 'iban', 'purpose'] },   // Kontoauszug: Gegenpartei und Verwendungszweck
+  { t: 'bank_match', k: 'id', c: ['label'] },
 ];
 const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge'];
 const PLACEHOLDER_RE = /^gesperrt-(\d+)@clubwerk\.invalid$/i;

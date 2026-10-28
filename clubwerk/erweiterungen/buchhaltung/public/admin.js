@@ -8,7 +8,7 @@
   const st = { meta: null, inv: { status: 'offen', year: '' }, don: { year: '' } };
   const ISTAT = { offen: ['a', 'offen'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'] };
   const DKIND = { geld: 'Geldspende', sach: 'Sachspende', verzicht: 'Verzicht auf Aufwandserstattung' };
-  const VIA = { ueberweisung: 'Überweisung', bar: 'bar', lastschrift: 'Lastschrift', verrechnet: 'verrechnet', Mitgliederverwaltung: 'über die Mitglieder' };
+  const VIA = { ueberweisung: 'Überweisung', bar: 'bar', lastschrift: 'Lastschrift', verrechnet: 'verrechnet', Mitgliederverwaltung: 'über die Mitglieder', kontoauszug: 'Kontoauszug' };
   const opt = (v, l, sel) => `<option value="${esc(v)}" ${String(v) === String(sel ?? '') ? 'selected' : ''}>${esc(l)}</option>`;
   const val = id => ($(id) ? $(id).value.trim() : undefined);
   const eur = c => `<span class="num">${euro(c)}</span>`;
@@ -107,13 +107,14 @@
   async function showInvoices(el) {
     const m = st.meta, f = st.inv, k = m.kpis;
     const q = new URLSearchParams({ status: f.status, ...(f.year ? { year: f.year } : {}) });
-    const rows = await api('invoices?' + q);
+    const [rows, hint] = await Promise.all([api('invoices?' + q), GK.kontoauszugHint ? GK.kontoauszugHint() : '']);
     const years = []; for (let y = m.year; y >= m.year - 5; y--) years.push(y);
     el.innerHTML = `<div class="kpis"><div class="kpi"><div class="l">Offen</div><div class="v">${euro(k.open.c)}</div><div class="s muted">${k.open.n} ${k.open.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div>
         <div class="kpi"><div class="l">Überfällig</div><div class="v ${k.overdue.n ? 'neg' : ''}">${euro(k.overdue.c)}</div><div class="s muted">${k.overdue.n} ${k.overdue.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div>
         <div class="kpi"><div class="l">Bezahlt ${m.year}</div><div class="v">${euro(k.paidYear.c)}</div><div class="s muted">${k.paidYear.n} ${k.paidYear.n === 1 ? 'Rechnung' : 'Rechnungen'}</div></div></div>
       <div class="filterbar"><div class="chips" id="biS" role="group" aria-label="Status">${[['offen', 'Offen', k.open.n], ['ueber', 'Überfällig', k.overdue.n], ['bezahlt', 'Bezahlt'], ['storniert', 'Storniert'], ['alle', 'Alle']].map(([k, l, n]) => `<button type="button" data-f="${k}" class="${f.status === k ? 'on' : ''}" aria-pressed="${f.status === k}">${l}${n ? `<span class="cnt">${n}</span>` : ''}</button>`).join('')}</div>
         <label class="f bh-yr">Jahr<select id="biY" data-nodirty>${opt('', 'alle', f.year)}${years.map(y => opt(y, y, f.year)).join('')}</select></label></div>
+      ${hint ? `<p class="muted s" style="margin:-6px 0 12px">${esc(hint)}</p>` : ''}
       <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt"><tr><th>Empfänger</th><th>Nr.</th><th class="hm">Datum</th><th class="hm">Fällig</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
         ${rows.map(r => `<tr class="${r.status === 'storniert' ? 'off' : ''}"><td class="k-1z" title="${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}"><b>${esc(r.kind === 'member' ? GK.lastFirst(r.recipient.name) : r.recipient.name)}</b><span class="bh-sub">${r.kind === 'member' ? 'Mitglied' : 'Firma'}${r.period ? ' · ' + esc(r.period) : ''}${r.sent_at ? ' · verschickt' : ''}${r.reminders ? ` · ${r.reminders}× erinnert` : ''}</span></td>
           <td class="nw k-lbl">${nm(r.no)}</td>
@@ -468,6 +469,8 @@
   GK.registerPage({ key: 'bh-rechnungen', title: 'Rechnungen', perm: 'buchhaltung', render: pageRender('bh-rechnungen', showInvoices), group: G });
   GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G });
   GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G });
+  // Kontoauszug (Kern): hier nur ohne Mitgliederverwaltung – sonst unter „Beiträge & Zahlungen“
+  if (GK.kontoauszugRegister && !(GK.modules && GK.modules().includes('mitglieder'))) GK.kontoauszugRegister(G);
   GK.registerPage({ key: 'bh-einstellungen', title: 'Einstellungen', perm: 'buchhaltung', render: pageRender('bh-einstellungen', showSettings), group: G });
   // Suche (Strg/⌘ K), Datensätze: Rechnung in der Liste „Alle“ hervorheben, Firma in ihrer Liste
   if (GK.registerHit) {

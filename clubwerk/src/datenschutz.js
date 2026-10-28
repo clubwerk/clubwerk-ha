@@ -25,6 +25,8 @@ const core = () => {
       cut => db.prepare(`SELECT COUNT(*) n FROM audit_log WHERE NOT ${LOGIN_SQL} AND at < ?`).get(cut).n,
       cut => db.prepare(`DELETE FROM audit_log WHERE NOT ${LOGIN_SQL} AND at < ?`).run(cut).changes),
     e('rundmails', 'Gesendete Rundmails', 'Samt Empfängerliste und Anhängen.', 'monate', 12, 6, 120, cut => mailer.oldSent(cut).length, cut => mailer.purgeSent(cut)),
+    e('kontoauszug', 'Kontoauszug: „gehört nicht zu Clubwerk“', 'Bankbuchungen, die nicht zum Verein gehören (Name, IBAN, Verwendungszweck). Zugeordnete Zahlungen bleiben als Nachweis.', 'tage', 90, 30, 365,
+      cut => require('./kontoauszug').foreignOlder(cut), cut => require('./kontoauszug').purge(cut)),
   ].map(x => ({ ...x, key: `kern.${x.id}`, module: 'Clubwerk' }));
 };
 const fromModules = () => plugins.withHook('retention').flatMap(p => {
