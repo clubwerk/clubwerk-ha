@@ -20,6 +20,7 @@ COPY public ./public
 COPY seed ./seed
 COPY demo ./demo
 COPY erweiterungen ./erweiterungen
+COPY anleitungen ./anleitungen
 COPY sprachen ./sprachen
 COPY run.sh /run.sh
 RUN chmod a+x /run.sh

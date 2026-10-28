@@ -1,5 +1,18 @@
 # Änderungen
 
+## 3.94.0
+
+**Anleitungen je Modul als PDF – bebildert, vollständig, auch auf Englisch**
+- **Zu jedem Modul gibt es jetzt eine eigene Anleitung** (dazu eine für den Kern mit Einstellungen, Mitglieder-App, Nachrichten, Benutzer & Rechte, Sicherung und eine für den Verkauf): kurz erklärt, mit Bildern aus der Demo, die Verwaltung **Reiter für Reiter** in der Reihenfolge, wie sie auf dem Bildschirm steht. Jede Anleitung hat Deckblatt mit Versionsnummer, Inhaltsverzeichnis mit Seitenzahlen und Lesezeichen. Es gibt sie auf **Deutsch und Englisch** (britisch); geöffnet wird die Sprache, die in Clubwerk eingestellt ist.
+- **Knopf „Anleitung (PDF)“** in Einstellungen › Module bei jedem Modul – auch bei Modulen, die noch ausgeschaltet sind.
+- **„?“-Knopf oben rechts auf jeder Verwaltungsseite:** öffnet die Anleitung des Moduls gleich an der Stelle des gerade offenen Reiters (in einem neuen Tab; die Mitglieder-App ist nicht betroffen).
+- **Die PDFs entstehen beim Bauen des Pakets** und liegen im Modulordner (`ANLEITUNG.de.pdf`, `ANLEITUNG.en.pdf`). Sie brauchen kein Internet und belasten den Home-Assistant-Rechner nicht. Die Bilder entstehen frisch aus einer eigenen Demo, mit einer Home-Assistant-Attrappe für Türen und Ventile.
+- **Dauerhaft geprüft:** `paket.sh` bricht ab, wenn ein Modul keine Anleitung hat, eine Seite oder ein Reiter der Verwaltung darin fehlt oder das PDF nicht zum Text passt (Testreihe `anl`). Neue feste Regel: Jede neue Funktion ändert die Anleitung in derselben Version mit (`werkzeuge/anleitungen/SCHREIBEN.md`).
+- **`DOCS.md`** (Reiter „Dokumentation“ in Home Assistant) ist jetzt eine kurze Übersicht mit Verweisen; veraltete Abschnitte (alte Menüs, „Einzug & Zahlungen“, Mahnungen vor 3.90) sind entfernt. Bestehen bleibt die Anleitung für den Cloudflare-Tunnel.
+- **Beispieldaten ergänzt**, damit die Bilder nichts Leeres zeigen: Mitglieder (Beitrittserklärung, Änderungswünsche, Ehrung, Amt), Buchhaltung (Jahrespositionen der Firmen), Spielbetrieb (vorläufige Rahmentermine).
+- **Laufzeit von `paket.sh`:** Die Anleitungen werden als eigene Stufe 5c gleichzeitig zu den Tests gebaut. Ein vollständiger Neubau aller 24 PDFs mit allen Bildern dauerte unter Last rund 5 bis 9 Minuten, mit dem Bilder-Zwischenspeicher (nichts am Aussehen oder an den Beispieldaten geändert) rund 25 Sekunden; der Gesamtlauf blieb bei etwa 3 Minuten ohne Neubau der Bilder.
+- Module: Dienste & Termine 2.11.0, Beregnung 1.11.0, Buchhaltung 1.8.0, Plätze 1.22.0, Mängel 1.8.0, Mitglieder 1.28.0, Spielbetrieb 1.18.0, Turniere 1.7.0, Zeiterfassung 1.6.0, Zugang 1.9.0.
+
 ## 3.93.0
 
 **Mitglieder-App „Für mich“: offene Spieltage werden nicht mehr übersehen**

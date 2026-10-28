@@ -1087,4 +1087,11 @@ INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_member_no_start','1001
 INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_prenotify_days','14');
 INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_return_fee_cents','500');
 INSERT INTO "settings"(key, value) VALUES('ext_mitglieder_member_no_max','1003');
+-- Beispiel: eine online eingegangene Beitrittserklärung (Familie), eine Adressänderung aus der App und eine Kündigung
+INSERT INTO mv_application(id, source, status, data, signed_at, signed_via, created_at) VALUES (1, 'online', 'eingegangen', '{"persons":[{"first_name":"Jan","last_name":"Ott","birth_date":"1988-04-12","gender":"m","role":"haupt","mobile":"","email":"jan.ott@example.org","fee_id":null,"departments":[1]},{"first_name":"Mia","last_name":"Ott","birth_date":"2016-09-03","gender":"w","role":"kind","mobile":"","email":"","fee_id":null,"departments":[1]}],"street":"Lindenweg 4","zip":"12345","city":"Musterstadt","mobile":"0170 5550123","email":"jan.ott@example.org","fee_id":6,"holder":"Jan Ott","iban":"","bic":"","bank":"","consents":{},"signer":"","note":"","entry_date":"2026-11-01"}', datetime('now','localtime'), 'online', datetime('now','localtime'));
+INSERT INTO mv_change(id, member_id, kind, data, status, created_at) VALUES (1, 25, 'daten', '{"street":"Birkenallee 12","city":"Musterstadt-Nord"}', 'offen', datetime('now','localtime'));
+INSERT INTO mv_change(id, member_id, kind, data, status, created_at) VALUES (2, 26, 'kuendigung', '{"members":[26],"names":["Michael Lang"],"exit_date":"2026-12-31","reason":"Umzug in eine andere Stadt","received":"2026-10-20"}', 'offen', datetime('now','localtime'));
+-- Beispiel: Ehrung und Amt beim Mitglied
+INSERT INTO mv_honor(id, member_id, name, date, note) VALUES (1, 7, 'Ehrennadel in Silber', '2025-06-14', 'für 15 Jahre Mitgliedschaft');
+INSERT INTO mv_function(id, member_id, name, from_date, to_date) VALUES (1, 24, 'Kassenwart', '2024-03-01', NULL);
 COMMIT;

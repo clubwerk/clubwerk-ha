@@ -277,4 +277,6 @@ INSERT INTO "sp_team"(id, name, league, season, min_players, captain_id, vice_id
 INSERT INTO "sp_team"(id, name, league, season, min_players, captain_id, vice_id, import_key, active, sort, note, created_at, age_class) VALUES(4,'Herren 40','Bezirksliga','Winter 2026/27',4,9,22,'herren40',1,0,NULL,'2026-09-30 14:53:03','H40');
 INSERT INTO "sp_team"(id, name, league, season, min_players, captain_id, vice_id, import_key, active, sort, note, created_at, age_class) VALUES(5,'Junioren U15','Kreisliga','Winter 2026/27',4,10,NULL,'juniorenu15',1,0,NULL,'2026-09-30 14:53:03',NULL);
 INSERT INTO "sp_team"(id, name, league, season, min_players, captain_id, vice_id, import_key, active, sort, note, created_at, age_class) VALUES(6,'Fußball AH','Freundschaftsspiele','2026/27',7,20,11,'fußballah',1,0,NULL,'2026-09-30 14:53:03',NULL);
+INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, kind, za, released, created_by, created_at) VALUES(28,4,'2027-04-24',NULL,1,'','rahmen',0,0,'Adminkonto','2026-10-20 09:00:00');
+INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, kind, za, released, created_by, created_at) VALUES(29,4,'2027-05-08',NULL,1,'','rahmen',0,0,'Adminkonto','2026-10-20 09:00:00');
 COMMIT;

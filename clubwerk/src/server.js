@@ -3567,11 +3567,29 @@ admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
   const items = tabletItems(); const st = tabletStart(items);
   res.json({ ok: true, items, start: st ? st.key : null, switches: plugins.tabletSwitches() });
 });
+/* Anleitungen als PDF (werkzeuge/anleitungen/bauen.js erzeugt sie beim Bauen des Pakets; je Modul im Modulordner, Kern und Verkauf unter anleitungen/) */
+const anleitungDatei = (id, l, ext) => {
+  if (!/^[a-z0-9-]+$/.test(String(id))) return null;
+  if (id === 'getraenke') id = 'verkauf';   // der Verkauf heißt intern „getraenke“
+  const dir = ['kern', 'verkauf'].includes(id) ? path.join(__dirname, '..', 'anleitungen', id) : path.join(__dirname, '..', 'erweiterungen', id);
+  const f = path.join(dir, `ANLEITUNG.${String(l).startsWith('en') ? 'en' : 'de'}.${ext}`);
+  return fs.existsSync(f) ? f : null;
+};
+admin.get('/anleitung/:id', (req, res) => {
+  const f = anleitungDatei(req.params.id, req.query.l, 'pdf');
+  if (!f) return res.status(404).json({ error: 'Für dieses Modul gibt es keine Anleitung.' });
+  res.type('application/pdf').set('Content-Disposition', `inline; filename="clubwerk-anleitung-${req.params.id}.pdf"`).sendFile(f);
+});
+/** Seitenzahl je Abschnitt (Anker) – damit „?“ an die Stelle des aktuellen Reiters springt */
+admin.get('/anleitung/:id/seiten', (req, res) => {
+  const f = anleitungDatei(req.params.id, req.query.l, 'json');
+  res.json(f ? JSON.parse(fs.readFileSync(f, 'utf8')) : {});
+});
 admin.get('/extensions', (req, res) => {
   const all = plugins.list();
   // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
   res.json({ modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
-    all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined })) : undefined, links: navLinks() });
+    all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined, anleitung: Boolean(anleitungDatei(p.id, 'de', 'pdf')) || undefined })) : undefined, links: navLinks() });
 });
 /* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) – je Modul höchstens OVERVIEW_TIMEOUT_MS */
 const OVERVIEW_TIMEOUT_MS = 6000;

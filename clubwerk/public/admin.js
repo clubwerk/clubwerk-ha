@@ -617,6 +617,22 @@
     }
   }
 
+  /* „?“ oben rechts: öffnet die Anleitung (PDF) des Moduls an der Stelle des aktuellen Reiters. Die Seitenzahlen je Abschnitt kommen
+     einmal je Modul und Sprache vom Server (api/admin/anleitung/<modul>/seiten); der Klick selbst ist synchron, damit der neue Tab nicht blockiert wird. */
+  const docLang = () => (String(document.documentElement.lang).startsWith('en') ? 'en' : 'de');
+  const DOCS = {};
+  function docModule() { const m = GK.pageModule(); return m === 'getraenke' ? 'verkauf' : m; }
+  function docLoad() {
+    const id = docModule(), k = id + docLang();
+    if (!(k in DOCS)) { DOCS[k] = null; api(`anleitung/${id}/seiten?l=${docLang()}`).then(r => { DOCS[k] = r || {}; }).catch(() => { DOCS[k] = {}; }); }
+  }
+  function docOpen() {
+    const id = docModule(), map = DOCS[id + docLang()] || {};
+    let tab = ''; try { tab = sessionStorage.getItem('tab_' + page) || ''; } catch (e) { /* egal */ }
+    const hit = [`${page}-${tab}`, page, 'verwaltung'].find(a => map[a]);
+    window.open(`api/admin/anleitung/${id}?l=${docLang()}${hit ? '#page=' + map[hit] : ''}`, '_blank', 'noopener');
+  }
+
   /* Menü markieren, Kopf über der Seite (Bereich + Reiter von Getränke) */
   function setChrome(p) {
     const g = groupOf(p);
@@ -625,8 +641,11 @@
     const pg = PAGES.find(x => x[0] === p);
     if ($('menuCur')) $('menuCur').textContent = pg ? (g ? MODG[g].label : p === 'konten' ? 'Mitglieder' : pg[1]) : 'Menü';
     const bar = $('pagebar'); if (!bar) return;
-    if (!pg || p === 'uebersicht') { bar.innerHTML = ''; return; }
-    bar.innerHTML = `<div class="crumb">${g ? 'Module · ' + esc(MODG[g].label) : pg[3] === 'module' ? 'Module · ' + esc(pg[1]) : esc(GROUP_LABEL[pg[3]] || '')}</div>`;
+    const help = `<button type="button" class="helpbtn" id="docHelp" title="${esc(T('Anleitung zu dieser Seite (PDF)'))}" aria-label="${esc(T('Anleitung zu dieser Seite (PDF)'))}">?</button>`;
+    if (!pg || p === 'uebersicht') { bar.innerHTML = pg ? `<div class="pagebarrow"><span></span>${help}</div>` : ''; }
+    else bar.innerHTML = `<div class="pagebarrow"><div class="crumb">${g ? 'Module · ' + esc(MODG[g].label) : pg[3] === 'module' ? 'Module · ' + esc(pg[1]) : esc(GROUP_LABEL[pg[3]] || '')}</div>${help}</div>`;
+    if ($('docHelp')) { $('docHelp').onclick = docOpen; docLoad(); }
+    if (!pg || p === 'uebersicht') return;
     const old = $('main') && $('main').querySelector('.tabrow:has(> .drinktabs)');
     const keep = old ? [...old.querySelectorAll('#tabTools > *')] : [];   // Knöpfe der Seite überstehen das Auffrischen der Zähler (refreshBadges)
     if (old) old.remove();
@@ -3999,6 +4018,7 @@
               off && x.source === 'hochgeladen' && me.role === 'oberadmin' ? `<button type="button" class="danger" data-extdel="${esc(x.id)}" data-fname="${esc(x.name)}">Dateien entfernen</button>` : '',
             ].join('');
             const vis = [
+              x.anleitung ? `<a class="btn small" href="api/admin/anleitung/${esc(x.id)}?l=${esc(docLang())}" target="_blank" rel="noopener" title="${esc(T('Öffnet die Anleitung dieses Moduls als PDF in einem neuen Tab'))}">${esc(T('Anleitung (PDF)'))}</a>` : '',
               !off && !x.error && x.demo && mayCfg ? `<button type="button" class="btn small" data-demo="${esc(x.id)}" title="${esc(T('Probiert das Modul mit erfundenen Beispieldaten in einem neuen Tab aus – getrennt von euren Daten'))}">${esc(T('Demo'))}</button>` : '',
               !off && x.active && x.configIO ? `<a class="btn small" href="api/admin/extensions/${esc(x.id)}/export" download>Einstellungen exportieren</a><button type="button" class="btn small" data-fimp="${esc(x.id)}" data-fname="${esc(x.name)}">Einstellungen importieren …</button>` : '',
               (x.unapproved || x.pending) && me.role === 'oberadmin' && x.hash ? `<button type="button" class="btn small" data-approve="${esc(x.id)}" data-fname="${esc(x.name)}" data-hash="${esc(x.hash)}">${x.pending ? 'Neue Version prüfen & freigeben …' : 'Prüfen & freigeben …'}</button>` : '',
