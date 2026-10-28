@@ -11586,6 +11586,10 @@
   "Mit Karte bezahlt – abgehakt.": "Paid by card – ticked off.",
   "Mitglied zuordnen …": "Assign to a member …",
   "Vorschlag": "Suggestion",
-  "Zugeordnet zu": "Assigned to"
+  "Zugeordnet zu": "Assigned to",
+  "· nächster am {0}": "· next on {0}",
+  "{0} · nächster am {1}": "{0} · next on {1}",
+  "Spieltage: {0} Rückmeldungen offen": "Match days: {0} replies outstanding",
+  "Spieltage: 1 Rückmeldung offen": "Match days: 1 reply outstanding"
  }
 }

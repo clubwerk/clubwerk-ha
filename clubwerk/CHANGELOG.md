@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.93.0
+
+**Mitglieder-App „Für mich“: offene Spieltage werden nicht mehr übersehen**
+- **Fehler behoben:** Wer bei vielen Spieltagen noch nicht geantwortet hatte (z. B. 20 Rahmentermine ab Mai des nächsten Jahres), sah unter „Zu erledigen“ nichts davon, weil nur die nächsten 60 Tage geprüft wurden.
+- **Jetzt ein Hinweis ohne Zeitgrenze:** Unter „Zu erledigen“ steht eine Zeile „Spieltage: 20 Rückmeldungen offen“ (bei einem einzigen: „Spieltage: 1 Rückmeldung offen“), darunter die Mannschaften und „nächster am 16.05.“. Sie zählt alle künftigen, freigegebenen Spieltage deiner Mannschaften, bei denen deine Rückmeldung fehlt.
+- **Antippen** springt in den Bereich Spieltage, direkt zum nächsten offenen Termin. Dort antwortest du wie gewohnt mit ✓ oder ✕. Die kleinen ✓/✕ direkt auf „Für mich“ gibt es nicht mehr.
+- Unverändert: „Als Nächstes“ zeigt weiter die nächsten 60 Tage, und der Hinweis „Aufstellung noch nicht verschickt“ für Mannschaftsführer hat seine eigene Frist.
+- Beispieldaten: In der Demo hat die Herren-30-Mannschaft jetzt offene Rahmentermine im Mai und Juni 2027.
+
 ## 3.92.0
 
 **„Demo“ je Modul: jedes Modul gefahrlos ausprobieren**
