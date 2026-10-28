@@ -10424,6 +10424,14 @@
   "Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.": "Choose a column from your file for each field – the values of one person from the file are shown on the right.",
   "Spalte aus eurer Datei je Feld wählen – rechts stehen die Werte einer Person aus der Datei.{0}": "Choose a column from your file for each field – the values of one person from the file are shown on the right.{0}",
   "Noch keine Lieferung erfasst – unter „Lager › Lieferungen & Belege“ einfach die Rechnung hochladen.": "No delivery recorded yet – simply upload the invoice under “Stock › Deliveries & receipts”.",
-  "DOMContentLoaded": "DOMContentLoaded"
+  "DOMContentLoaded": "DOMContentLoaded",
+  "{0} {1}{2} · Beispiel:": "{0} {1}{2} · Example:",
+  "Abteilung „{0}“: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.": "Department “{0}”: this assignment does not fit – please reload the preview.",
+  "Abteilungen aus der Datei": "Departments from the file",
+  "alle anderen Abteilungen": "all other departments",
+  "Bitte bei allen Abteilungen mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.": "For every department with similar existing ones, please choose: use existing, create new or do not import.",
+  "Diese Abteilungen gibt es in Clubwerk noch nicht unter genau diesem Namen. Ihr könnt eine vorhandene Abteilung zuordnen, eine neue anlegen oder die Abteilung nicht übernehmen – gibt es schon eine ähnliche, ist die Wahl Pflicht. „Nicht übernehmen“: Das Mitglied wird ohne diese Abteilung importiert, ihre Beiträge entfallen.": "Clubwerk does not have these departments under exactly this name yet. You can assign an existing department, create a new one or not import the department – if a similar one already exists, you must choose. “Do not import”: the member is imported without this department and its fees are dropped.",
+  "Für die Abteilung „{0}“ gibt es ähnliche vorhandene – bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.": "Similar departments already exist for “{0}” – please choose: use existing, create new or do not import.",
+  "vorhandene Abteilungen": "existing departments"
  }
 }

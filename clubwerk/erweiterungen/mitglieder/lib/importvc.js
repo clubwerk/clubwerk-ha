@@ -337,9 +337,60 @@ function register(sh) {
     const common = [...x].filter(w => y.has(w)).length;
     return common / new Set([...x, ...y]).size + (a.cents === b.cents && a.interval === b.interval ? 0.25 : 0);
   }
+  /* ---------- Abteilungen der Datei mit dem Bestand abgleichen (wie die Beitragsarten; „Hauptverein“ ist nie eine Abteilung) ---------- */
+  const isHV = n => /^hauptverein$/i.test(String(n || '').trim());
+  const deptKey = n => String(n).trim().toLowerCase();
+  const deptWords = t => new Set([...words(t)].filter(w => !['abteilung', 'sparte', 'gruppe'].includes(w)));
+  function deptSimilarity(a, b) {
+    const x = deptWords(a), y = deptWords(b); if (!x.size || !y.size) return 0;
+    const na = [...x].join(''), nb = [...y].join('');
+    if (na.length >= 3 && nb.length >= 3 && (na.includes(nb) || nb.includes(na))) return 0.8;
+    return [...x].filter(w => y.has(w)).length / new Set([...x, ...y]).size;
+  }
+  /** alle Abteilungen der Datei (ohne Hauptverein) mit den betroffenen Mitgliedern und Beiträgen */
+  function fileDepts(recs) {
+    const isDept = deptFeeTest(recs), out = new Map();
+    const get = (name, r) => {
+      const k = deptKey(name); if (!out.has(k)) out.set(k, { key: k, name: String(name).trim(), recs: new Set(), feeKeys: new Set(), example: `${r.p.first_name || ''} ${r.p.last_name || ''}`.trim() });
+      return out.get(k);
+    };
+    for (const r of recs) {
+      for (const d of r.depts) if (!isHV(d.name)) get(d.name, r).recs.add(r);
+      for (const f of r.fees) if (f.dept && !isHV(f.dept)) { const e = get(f.dept, r); e.recs.add(r); e.feeKeys.add(feeKey(f, isDept(f))); }
+    }
+    return out;
+  }
+  const deptRow = x => ({ id: x.id, name: x.name, active: x.active });
+  function deptMatch(name) {
+    const pool = db.prepare('SELECT id, name, active FROM mv_department').all();
+    const exact = pool.find(x => deptKey(x.name) === deptKey(name));
+    const suggest = exact ? [] : pool.map(x => ({ x, s: deptSimilarity(name, x.name) })).filter(o => o.s >= 0.5).sort((a, b) => b.s - a.s).slice(0, 4).map(o => deptRow(o.x));
+    const others = pool.filter(x => x !== exact && !suggest.some(o => o.id === x.id)).sort((a, b) => a.name.localeCompare(b.name, 'de')).map(deptRow);
+    return { exact: exact ? exact.id : null, suggest, others };
+  }
+  /** Entscheidungen je Abteilung (Schlüssel → Abteilungs-ID | 'neu' | 'skip'); bei ähnlichen vorhandenen ist eine Entscheidung Pflicht */
+  function deptDecisions(recs, raw) {
+    const out = new Map();
+    for (const e of fileDepts(recs).values()) {
+      const m = deptMatch(e.name), v = raw && raw[e.key];
+      if (m.exact && (v == null || v === '' || v === 'neu')) continue;   // gleicher Name: vorhandene verwenden
+      if (v === 'skip' || v === 'neu') { out.set(e.key, v); continue; }
+      if (v != null && v !== '') {
+        const id = Number(v);
+        if (id !== m.exact && ![...m.suggest, ...m.others].some(x => x.id === id)) throw new Error(`Abteilung „${e.name}“: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.`);
+        out.set(e.key, id); continue;
+      }
+      if (m.suggest.length) throw new Error(`Für die Abteilung „${e.name}“ gibt es ähnliche vorhandene – bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.`);
+      out.set(e.key, 'neu');
+    }
+    return out;
+  }
+  /** Abteilung einer Datei-Zeile nach Entscheidung: ID, null (nicht übernehmen) oder undefined (nach Namen suchen bzw. neu anlegen) */
+  const deptChoice = (deptDec, name) => { const c = deptDec && !isHV(name) ? deptDec.get(deptKey(name)) : undefined; return c === 'skip' ? null : Number.isInteger(c) ? c : undefined; };
   /** vorhandene Beitragsart mit genau diesem Namen (gleiche Art) bzw. ähnliche Vorschläge */
-  function feeMatch(f, zus) {
-    const did = zus ? (db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(f.dept) || {}).id : null;
+  function feeMatch(f, zus, deptDec) {
+    const dc = zus ? deptChoice(deptDec, f.dept) : undefined;
+    const did = zus ? (dc !== undefined ? dc : (db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(f.dept) || {}).id) : null;
     const pool = zus ? (did ? db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz' AND department_id = ?").all(did) : []) : db.prepare("SELECT * FROM mv_fee WHERE kind != 'zusatz'").all();
     const exact = pool.find(x => x.name.trim().toLowerCase() === String(f.name).trim().toLowerCase());
     const suggest = exact ? [] : pool.map(x => ({ x, s: feeSimilarity(f, x) })).filter(o => o.s >= 0.5).sort((a, b) => b.s - a.s).slice(0, 4)
@@ -349,11 +400,12 @@ function register(sh) {
     return { exact: exact ? exact.id : null, suggest, others };
   }
   /** Entscheidungen je Beitragsart (Schlüssel → Beitrags-ID | 'neu' | 'skip'); bei ähnlichen vorhandenen ist eine Entscheidung Pflicht */
-  function feeDecisions(recs, raw) {
+  function feeDecisions(recs, raw, deptDec) {
     const isDept = deptFeeTest(recs), out = new Map(), seen = new Set();
     for (const r of recs) for (const f of r.fees) {
       const zus = isDept(f), key = feeKey(f, zus); if (seen.has(key)) continue; seen.add(key);
-      const m = feeMatch(f, zus), v = raw && raw[key];
+      if (f.dept && deptChoice(deptDec, f.dept) === null) { out.set(key, 'skip'); continue; }   // Abteilung „nicht übernehmen“: ihre Beiträge entfallen
+      const m = feeMatch(f, zus, deptDec), v = raw && raw[key];
       if (m.exact && (v == null || v === '' || v === 'neu')) continue;   // gleicher Name: vorhandene verwenden, außer anders gewählt
       if (v === 'skip' || v === 'neu') { out.set(key, v); continue; }
       if (v != null && v !== '') {
@@ -434,14 +486,16 @@ function register(sh) {
       ['Status', SAMPLE_LABEL[ex.p.status] || ex.p.status], ['Zahlungsart', SAMPLE_LABEL[ex.p.payment] || ex.p.payment], ['Kontoinhaber', ex.bank && ex.bank.holder], ['IBAN', ex.bank && sepa.maskIban(ex.bank.iban)], ['BIC', ex.bank && ex.bank.bic],
       ['Mandatsreferenz', ex.bank && ex.bank.mandate_ref], ['Mandat unterschrieben', ex.bank && ex.bank.mandate_date && fees.deD(ex.bank.mandate_date)],
       ['Abweichender Zahler', ex.payer.member], ['Familie bei', ex.family], ['Abteilungen', ex.depts.map(d => d.name).join(', ')], ['Beiträge', ex.fees.map(f => f.name).join(', ')]].map(([label, value]) => ({ label, value: value == null ? '' : String(value) })) } : null;
-    return { ...out, yearHint, sample, depts: [...out.depts], fees: [...out.fees.values()] };
+    const deptMatches = [...fileDepts(recs).values()].map(e => ({ key: e.key, name: e.name, count: e.recs.size, fees: e.feeKeys.size, example: e.example, ...deptMatch(e.name) })).filter(d => !d.exact).sort((a, b) => a.name.localeCompare(b.name, 'de'));
+    return { ...out, yearHint, sample, depts: [...out.depts], deptMatches, fees: [...out.fees.values()] };
   }
 
-  function commit(recs, user, dec = new Map(), feeDec = new Map()) {
+  function commit(recs, user, dec = new Map(), feeDec = new Map(), deptDec = new Map()) {
     const ids = new Map();   // member_no / Zeile → id
     const stats = { created: 0, updated: 0, fees: 0, depts: 0, payers: 0, families: 0 };
     db.transaction(() => {
       const deptId = name => {
+        const c = deptChoice(deptDec, name); if (c !== undefined) return c;   // zugeordnete vorhandene Abteilung bzw. null = nicht übernehmen
         let d = db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(name);
         if (!d) { d = { id: Number(db.prepare('INSERT INTO mv_department(name) VALUES (?)').run(name).lastInsertRowid) }; stats.depts++; }
         return d.id;
@@ -449,6 +503,7 @@ function register(sh) {
       const isDeptFee = deptFeeTest(recs);
       const feeId = f => {
         const zus = isDeptFee(f), choice = feeDec.get(feeKey(f, zus));
+        if (f.dept && deptChoice(deptDec, f.dept) === null) return null;   // Abteilung „nicht übernehmen“: auch ihre Beiträge
         if (choice === 'skip') return null;                 // „nicht übernehmen“: Mitglied ohne diesen Beitrag (Hinweis „ohne Beitrag“)
         if (Number.isInteger(choice)) return choice;        // „vorhandene verwenden“
         const did = zus ? deptId(f.dept) : null;
@@ -476,7 +531,7 @@ function register(sh) {
         ids.set(r.member_no || `#${r.line}`, id); r.id = id;
         // Abteilungen
         for (const d of r.depts) {
-          const did = deptId(d.name);
+          const did = deptId(d.name); if (!did) continue;   // Abteilung „nicht übernehmen“
           if (!db.prepare('SELECT 1 FROM mv_member_department WHERE member_id = ? AND department_id = ? AND COALESCE(entry_date,\'\') = COALESCE(?,\'\')').get(id, did, d.entry))
             db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, exit_date, status, federation_status, exit_reason, booked_until) VALUES (?,?,?,?,?,?,?,?)').run(id, did, d.entry, d.exit, d.status, d.fed || null, d.reason || null, store.zusatzStart(did, d.entry || r.p.entry_date));
         }
@@ -588,13 +643,13 @@ function register(sh) {
     if (recs.some(r => r.bank) && !req.user.perms.includes('mitglieder_bank')) return bad(res, 'Die Datei enthält Bankverbindungen – Importieren darf nur, wer das Recht „Bankdaten“ hat.', 403);
     const yh = /^(0[1-9]|1[0-2])-01$/.test(String(req.query.year_start || '')) ? req.query.year_start : null;
     if (yh) SET('year_start', yh);
-    let dec, feeDec;
+    let dec, feeDec, deptDec;
     try {
       const raw = JSON.parse(decodeURIComponent(String(req.get('X-Decisions') || '')) || '{}') || {};
-      const both = raw.m || raw.f ? raw : { m: raw, f: {} };
-      dec = decisions(recs, both.m || {}); feeDec = feeDecisions(recs, both.f || {});
+      const both = raw.m || raw.f || raw.d ? raw : { m: raw, f: {} };
+      dec = decisions(recs, both.m || {}); deptDec = deptDecisions(recs, both.d || {}); feeDec = feeDecisions(recs, both.f || {}, deptDec);
     } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
-    const stats = commit(recs, uname(req), dec, feeDec);
+    const stats = commit(recs, uname(req), dec, feeDec, deptDec);
     if (map) SET('import_map_' + format, JSON.stringify(map));   // nur Spaltennamen, keine Daten
     C.audit(req.user, `Mitglieder importiert (${PRESETS[format].label})`, `${stats.created} neu, ${stats.updated} ergänzt, ${stats.depts} Abteilungen, ${stats.fees} Beitragsarten, ${stats.payers} Zahler verknüpft, ${stats.families} Familienmitgliedschaften`);
     res.json({ ok: true, ...stats });

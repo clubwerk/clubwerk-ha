@@ -1,5 +1,13 @@
 # Änderungen
 
+## 3.82.0
+
+**Mitglieder-Import: ähnliche Abteilungen werden zugeordnet statt neu angelegt**
+- Steht in der Datei zum Beispiel „Padel-Abteilung“ und in Clubwerk gibt es schon „Padel“, legt der Import nicht mehr still eine zweite Abteilung an. Die Vorschau zeigt eine neue Karte „Abteilungen aus der Datei“ und fragt je Abteilung: **vorhandene verwenden**, **neu anlegen** oder **nicht übernehmen**. Es funktioniert wie bei den Beitragsarten und gilt für verein.cloud und alle anderen Dateiformate.
+- Gibt es eine ähnliche Abteilung, ist die Wahl Pflicht – ohne Entscheidung wird nichts angelegt, und „Übernehmen“ weist mit einem Hinweis darauf hin. Jede vorhandene Abteilung lässt sich auch ohne Vorschlag zuordnen.
+- „Nicht übernehmen“: Das Mitglied wird ohne diese Abteilung importiert, die Beiträge dieser Abteilung entfallen (die Karte nennt, wie viele Beitragsarten das betrifft). Der Hauptverein ist nie eine Abteilung.
+- Mitglieder-Modul 1.21.5.
+
 ## 3.81.0
 
 **Gleiche Linien, gleiche Höhen, nichts abgeschnitten – überall**

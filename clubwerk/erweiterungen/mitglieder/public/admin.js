@@ -700,7 +700,8 @@
     };
     let dec = {};   // ähnliche Namen: Zeile → Mitglieds-ID oder 'neu'
     let feeDec = {};   // Beitragsarten: Schlüssel → Beitrags-ID, 'neu' oder 'skip' ('' = noch nicht gewählt)
-    const run = commit => send('import/run' + query(commit), { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeDec })) } : {}) });
+    let deptDec = {};   // Abteilungen: Schlüssel → Abteilungs-ID, 'neu' oder 'skip' ('' = noch nicht gewählt)
+    const run = commit => send('import/run' + query(commit), { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeDec, d: deptDec })) } : {}) });
     const setStep = s => {
       step = s;
       $('iMap').classList.toggle('hidden', s === 'prev'); $('iPrev').classList.toggle('hidden', s !== 'prev');
@@ -742,6 +743,12 @@
       const sim = prev.rows.filter(r => r.suggest && r.suggest.length);
       const feeRows = prev.fees || [];
       feeDec = {}; feeRows.forEach(f => { if (!f.exact) feeDec[f.key] = f.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen   // bei ähnlichen vorhandenen: bewusst wählen
+      const deptRows = prev.deptMatches || [];
+      deptDec = {}; deptRows.forEach(d => { deptDec[d.key] = d.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen
+      const deptOpt = x => `<option value="${x.id}">${esc(x.name)}${x.active === 0 ? ' · inaktiv' : ''}</option>`;
+      const deptOpts = d => `${d.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}<option value="neu" ${deptDec[d.key] === 'neu' ? 'selected' : ''}>neu anlegen</option><option value="skip">nicht übernehmen</option>`
+        + (d.suggest.length ? `<optgroup label="ähnliche vorhandene">${d.suggest.map(deptOpt).join('')}</optgroup>` : '')
+        + (d.others.length ? `<optgroup label="${d.suggest.length ? 'alle anderen Abteilungen' : 'vorhandene Abteilungen'}">${d.others.map(deptOpt).join('')}</optgroup>` : '');
       const newFees = () => Object.values(feeDec).filter(v => v === 'neu').length;
       const feeOpt = x => `<option value="${x.id}">${esc(x.name)} (${euro(x.cents || 0)} ${esc(INTERVAL[x.interval] || x.interval)})${x.active === 0 ? ' · inaktiv' : ''}</option>`;
       const feeOpts = f => (f.exact ? '<option value="">vorhandene verwenden (gleicher Name)</option>' : `${f.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}<option value="neu" ${feeDec[f.key] === 'neu' ? 'selected' : ''}>neu anlegen</option>`)
@@ -758,7 +765,10 @@
           <p class="muted s" style="margin:0 0 10px">Spitznamen, Kurzformen oder andere Schreibweise (z. B. Benni – Benedikt, Susi – Susanne). Beim Zusammenführen überschreiben die Daten aus der Datei die vorhandenen; Getränkekonto, PIN und App bleiben erhalten. Bei gleichem Geburtsdatum ist „zusammenführen“ vorgewählt.</p>
           ${sim.map(r => `<div class="imp-simrow"><div><b translate="no">${esc(GK.lastFirst(r.name))}</b><span class="muted s">Zeile ${r.line}${r.member_no ? ` · Nr. ${esc(r.member_no)}` : ''}${r.birth_date ? ` · ${deDate(r.birth_date)}` : ''}</span></div>
             <select data-sim="${r.line}" translate="no">${r.suggest.map(c => `<option value="${c.id}" ${dec[r.line] === c.id ? 'selected' : ''}>${esc(sugLabel(c))}</option>`).join('')}<option value="neu" ${dec[r.line] === 'neu' ? 'selected' : ''}>als neues Mitglied anlegen</option></select></div>`).join('')}</div>` : ''}
-        ${prev.depts.length ? `<p><b>Neue Abteilungen:</b> <span translate="no">${esc(prev.depts.join(', '))}</span></p>` : ''}
+        ${deptRows.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Abteilungen aus der Datei <span class="muted s">(${deptRows.length})</span></h3>
+          <p class="muted s" style="margin:0 0 10px">Diese Abteilungen gibt es in Clubwerk noch nicht unter genau diesem Namen. Ihr könnt eine vorhandene Abteilung zuordnen, eine neue anlegen oder die Abteilung nicht übernehmen – gibt es schon eine ähnliche, ist die Wahl Pflicht. „Nicht übernehmen“: Das Mitglied wird ohne diese Abteilung importiert, ihre Beiträge entfallen.</p>
+          ${deptRows.map(d => `<div class="imp-simrow"><div><b translate="no">${esc(d.name)}</b><span class="muted s">${d.count} ${d.count === 1 ? 'Mitglied' : 'Mitglieder'}${d.fees ? ` · ${d.fees} ${d.fees === 1 ? 'Beitragsart' : 'Beitragsarten'}` : ''} · Beispiel: <span translate="no">${esc(GK.lastFirst(d.example))}</span></span></div>
+            <select data-dept="${esc(d.key)}" translate="no">${deptOpts(d)}</select></div>`).join('')}</div>` : ''}
         ${prev.sample ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Feldabgleich am Beispiel <span class="muted s">(Zeile ${prev.sample.line})</span></h3>
           <p class="muted s" style="margin:0 0 10px">So landen die Spalten eurer Datei in Clubwerk. Stimmt etwas nicht, abbrechen und die Zuordnung bzw. die Datei prüfen.</p>
           <div class="imp-fields">${prev.sample.fields.map(f => `<div class="imp-field${f.value ? '' : ' leer'}"><span class="muted s">${esc(f.label)}</span><b translate="no">${f.value ? esc(f.value) : '– leer –'}</b></div>`).join('')}</div></div>` : ''}
@@ -770,6 +780,7 @@
           ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td class="s">${r.payer ? `<span translate="no">${esc(GK.lastFirst(r.payer.name))}</span>${r.payer.missing ? ' <span class="pill a">nicht gefunden</span>' : r.payer.family ? ' <span class="pill b">Familie</span>' : r.payer.check ? ' <span class="pill a">prüfen</span>' : ''}` : ''}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
       const acts = () => sim.forEach(r => { const td = document.querySelector(`[data-act="${r.line}"]`); if (td) td.innerHTML = dec[r.line] === 'neu' ? '<span class="pill g">neu</span>' : '<span class="pill b">zusammenführen</span>'; });
       document.querySelectorAll('[data-sim]').forEach(sel => { sel.onchange = () => { dec[sel.dataset.sim] = sel.value === 'neu' ? 'neu' : Number(sel.value); $('iKN').textContent = prev.new - merged(); $('iKU').textContent = prev.update + merged(); acts(); }; });
+      document.querySelectorAll('[data-dept]').forEach(sel => { sel.onchange = () => { deptDec[sel.dataset.dept] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; }; });
       document.querySelectorAll('[data-fee]').forEach(sel => { sel.onchange = () => { if (sel.value === '' && prev.fees.find(f => f.key === sel.dataset.fee).exact) delete feeDec[sel.dataset.fee]; else feeDec[sel.dataset.fee] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; $('iKF').textContent = newFees(); }; });
       acts();
       setStep('prev');
@@ -785,6 +796,7 @@
       $('iOk').disabled = true;
       try {
         if (step !== 'prev') { prev = await run(false); drawPrev(); }
+        else if (Object.values(deptDec).some(v => v === '')) { throw new Error('Bitte bei allen Abteilungen mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.'); }
         else if (Object.values(feeDec).some(v => v === '')) { throw new Error('Bitte bei allen Beitragsarten mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.'); }
         else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
