@@ -178,6 +178,12 @@ CREATE TABLE IF NOT EXISTS member_access (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   PRIMARY KEY (member_id, module)
 );
+CREATE TABLE IF NOT EXISTS app_forme_seen (   -- „Für mich“: quittierte Neuigkeiten (Bereich:Kennung) je Mitglied
+  member_id INTEGER NOT NULL REFERENCES members(id),
+  key       TEXT NOT NULL,
+  at        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (member_id, key)
+);
 `);
 
 const { today, deD } = require('./util');
@@ -282,7 +288,7 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
 
 /* ---------- Port der Mitglieder-App ---------- */
 /* „Für mich“: Zeitgrenze je Modul (die Übersicht der Verwaltung hat 6 s – am Handy kürzer), Vorschau in Tagen, höchstens so viele Zeilen */
-const FORME_TIMEOUT_MS = 1500, FORME_DAYS = 14, FORME_NEXT = 5, FORME_OPEN = 4;
+const FORME_TIMEOUT_MS = 1500, FORME_DAYS = 60, FORME_NEXT = 4, FORME_TODO = 4, FORME_NEWS = 3;
 /** offenes Thekenkonto eines Mitglieds (memberBalance aus server.js, über startPort) */
 let kontoOf = null;
 function startPort({ rateLimit, rateLimitKey, memberBalance }) {
@@ -392,28 +398,52 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), demo: getSetting('demo_mode', '') === '1' || undefined, appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
       pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
-  /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds */
+  /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds.
+     Vier Karten: news (einmalige Hinweise, bis zum Quittieren), next (meine Termine), todo (was ich selbst tun muss, optional mit Knöpfen), money (Mein Konto) */
   api.get('/forme', async (req, res) => {
     const w = invites.whoIs(SCOPE, dev(req));
     if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
     res.set('Cache-Control', 'no-store');
-    const away = awayReq(req), until = require('./util').addDays(require('./util').today(), FORME_DAYS);
+    const { addDays, euro } = require('./util');
+    const away = awayReq(req), until = addDays(today(), FORME_DAYS);
     const ok = sectionsFor(req, w).filter(s => s.ok && typeof (modules.get(s.id).hooks || {}).forMe === 'function');
-    const got = await Promise.all(ok.map(async s => {
+    const got = (await Promise.all(ok.map(async s => {
       let timer = null;
       try {
         const r = await Promise.race([Promise.resolve().then(() => modules.get(s.id).hooks.forMe(w.memberId, { away, until })), new Promise((_, rej) => { timer = setTimeout(() => rej(new Error('Zeitüberschreitung')), FORME_TIMEOUT_MS); })]);
-        return { id: s.id, next: (r && Array.isArray(r.next) ? r.next : []).filter(x => x && x.at && x.at <= until), open: r && Array.isArray(r.open) ? r.open.slice(0, 1) : [] };   // je Bereich höchstens eine Zeile „Offen“
+        return { id: s.id, r: r || {} };
       } catch (e) { console.error(`Für mich: ${s.id}:`, e.message); return null; }   // Fehler oder zu langsam: nur diese Zeilen fehlen
       finally { clearTimeout(timer); }
-    }));
-    const pick = (x, id) => ({ section: id, title: String(x.title || ''), sub: x.sub ? String(x.sub) : '', chip: x.chip ? String(x.chip) : '', focus: x.focus != null ? String(x.focus) : '', ...(x.at ? { at: x.at, start: x.start || '', end: x.end || '' } : {}) });
-    const next = got.filter(Boolean).flatMap(g => g.next.map(x => pick(x, g.id))).sort((a, b) => (a.at + a.start).localeCompare(b.at + b.start)).slice(0, FORME_NEXT);
-    // Thekenkonto (Verkauf im Kern): nur, wenn der Verein es eingeschaltet hat – noch nicht abgerechnete Buchungen; hat immer Platz
+    }))).filter(Boolean);
+    const list = (r, k) => (Array.isArray(r[k]) ? r[k] : []).filter(x => x && x.title);
+    // Knöpfe in der Zeile (z. B. Zusage): nur Wege im eigenen Bereich (/api/m/<bereich>/…) – dort gelten Rechte, Fristen und Protokoll wie im Bereich
+    const act = a => ({ label: String(a.label || ''), aria: String(a.aria || ''), post: a.post, body: a.body && typeof a.body === 'object' ? a.body : {}, on: Boolean(a.on), kind: a.kind === 'n' ? 'n' : 'y' });
+    const pick = (x, id) => ({ section: id, title: String(x.title), sub: x.sub ? String(x.sub) : '', chip: x.chip ? String(x.chip) : '', focus: x.focus != null ? String(x.focus) : '',
+      ...(x.at ? { at: x.at, start: x.start || '', end: x.end || '' } : {}), ...(x.value ? { value: String(x.value) } : {}),
+      ...(Array.isArray(x.actions) ? { actions: x.actions.filter(a => a && /^[a-z0-9/_-]{1,60}$/.test(a.post || '')).slice(0, 3).map(act) } : {}) });
+    const time = x => x.at + (x.start || '');
+    /* je Bereich zuerst seine erste Zeile, danach auffüllen – vier Buchungen verdrängen nie den nächsten Dienst („immer die nächste zeigen“) */
+    const fair = (lists, max, sort) => { const s = a => (sort ? a.sort(sort) : a); return [...s(lists.map(l => l[0]).filter(Boolean)), ...s(lists.flatMap(l => l.slice(1)))].slice(0, max); };
+    const byTime = (a, b) => time(a).localeCompare(time(b));
+    const next = fair(got.map(g => list(g.r, 'next').filter(x => x.at && x.at <= until).map(x => pick(x, g.id)).sort(byTime)), FORME_NEXT, byTime).sort(byTime);
+    const todo = fair(got.map(g => list(g.r, g.r.todo ? 'todo' : 'open').map(x => pick(x, g.id))), FORME_TODO);   // „open“: Module von vor 3.84
+    const seen = new Set(db.prepare('SELECT key FROM app_forme_seen WHERE member_id = ?').all(w.memberId).map(r => r.key));
+    const news = fair(got.map(g => list(g.r, 'news').filter(x => /^[A-Za-z0-9:_.-]{1,120}$/.test(String(x.key || ''))).map(x => ({ ...pick(x, g.id), key: `${g.id}:${x.key}` })).filter(x => !seen.has(x.key))), FORME_NEWS);
+    const money = got.flatMap(g => list(g.r, 'money').slice(0, 2).map(x => pick(x, g.id)));
+    // Thekenkonto (Verkauf im Kern): nur, wenn der Verein es eingeschaltet hat – noch nicht abgerechnete Buchungen (wie memberBalance am Tablet)
     const k = getSetting('app_forme_konto', '0') === '1' && kontoOf && require('./plugins').isActive('getraenke') ? kontoOf(w.memberId) : null;
-    const konto = k && k.cents > 0 ? [{ section: '', title: 'Thekenkonto', sub: `${require('./util').euro(k.cents)} offen`, chip: '', focus: '' }] : [];
-    const open = got.filter(Boolean).flatMap(g => g.open.map(x => pick(x, g.id))).slice(0, FORME_OPEN - konto.length).concat(konto);
-    res.json({ next, open });
+    if (k && k.cents > 0) money.unshift({ section: '', title: 'Thekenkonto', sub: 'noch nicht abgerechnet', chip: '', focus: '', value: euro(k.cents) });
+    res.json({ news, next, todo, money });
+  });
+  /** Neuigkeit quittiert (angetippt): erscheint nicht wieder – nur für das eigene Mitglied, ohne Protokoll; alte Einträge räumen sich nach 180 Tagen auf */
+  api.post('/forme/seen', rateLimit('appfms', 60, 60000), (req, res) => {
+    const w = invites.whoIs(SCOPE, dev(req));
+    if (!w) return res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet. Bitte beim Vorstand einen neuen QR-Code holen.', device: true });
+    const key = String((req.body || {}).key || '');
+    if (!/^[a-z0-9_-]{1,40}:[A-Za-z0-9:_.-]{1,120}$/.test(key)) return res.status(400).json({ error: 'Ungültige Kennung.' });
+    db.prepare("DELETE FROM app_forme_seen WHERE member_id = ? AND at < datetime('now','localtime','-180 days')").run(w.memberId);
+    db.prepare('INSERT OR IGNORE INTO app_forme_seen(member_id, key) VALUES (?,?)').run(w.memberId, key);
+    res.json({ ok: true });
   });
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {

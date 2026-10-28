@@ -86,11 +86,22 @@ function register(sh) {
       creditor: { ci: S('creditor_id') || null, name: club().name },
     };
   }
-  /* Mitglieder-App „Für mich“: offener Betrag – wie „Meine Daten“ nur für den, der selbst zahlt, nur wenn Posten sichtbar sind und der Tresor offen ist */
+  /* Mitglieder-App „Für mich“: Zahlen aus me() – genau das, was „Meine Daten“ zeigt (nur wer selbst zahlt, nur wenn Posten sichtbar sind; Tresor gesperrt → nichts).
+     money = offene Posten (wie „offen …“ bei Zahlungen) und die nächste Lastschrift; todo = was das Mitglied in „Meine Daten“ selbst nachtragen kann */
   C.hooks.forMe = id => {
-    if (C.require('./vault').locked() || !store.appPerms().view.posten || store.payerGroup(id).head !== id) return {};
-    const cents = db.prepare("SELECT COALESCE(SUM(cents),0) n FROM mv_charge WHERE member_id = ? AND status = 'offen'").get(id).n;
-    return { open: cents > 0 ? [{ title: 'Beiträge und Gebühren', sub: `${euro(cents)} offen` }] : [] };
+    if (C.require('./vault').locked()) return {};
+    const d = me(id), p = personRow(id); if (!d || !p) return {};
+    const V = d.perms.view, E = d.perms.edit, wait = new Set(d.pending.map(x => x.kind)), money = [], todo = [];
+    if (d.isHead && V.posten) {
+      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: 'offen', value: euro(d.open_cents) });
+      const due = d.charges.filter(c => c.status === 'eingezogen' && c.collection_date && c.collection_date >= today()), first = due.map(c => c.collection_date).sort()[0];
+      if (first) money.push({ title: 'Lastschrift', sub: `wird am ${deD(first)} abgebucht`, value: euro(due.filter(c => c.collection_date === first).reduce((n, c) => n + c.cents, 0)) });
+    }
+    const miss = [E.kontakt && !p.email && 'E-Mail', E.kontakt && !p.mobile && !p.phone && 'Handynummer', E.anschrift && !p.street && 'Anschrift'].filter(Boolean);
+    if (miss.length && !wait.has('daten')) todo.push({ title: 'Kontaktdaten ergänzen', sub: `Es fehlt: ${miss.join(', ')}`, focus: 'kontakt' });
+    const ms = d.isHead && E.bank && p.payment === 'lastschrift' && !wait.has('bank') ? mandateState(bankRow(id)) : { ok: true };
+    if (!ms.ok) todo.push({ title: 'Lastschrift-Mandat fehlt', sub: ms.reason[0].toUpperCase() + ms.reason.slice(1), focus: 'bank' });
+    return { money, todo };
   };
   const openOf = (id, kind) => db.prepare("SELECT id FROM mv_change WHERE member_id = ? AND kind = ? AND status = 'offen'").get(id, kind);
 

@@ -30,6 +30,7 @@
       const close = () => { const s = document.getElementById('dsSheet'); if (s) s.classList.remove('show'); };
       ctx.onLeave(close);
       const sel = {};   // gewählter Tag je Dienstplan
+      let focus = ctx.focus || '';   // aus „Für mich“ („frei“): zum ersten freien Dienst scrollen (nur beim ersten Laden)
       const sheet = () => { let sh = document.getElementById('dsSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'dsSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       async function load() {
         let d; try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
@@ -57,6 +58,8 @@
         }; });
         el.querySelectorAll('[data-pd]').forEach(b => { b.onclick = () => { sel[b.dataset.pl] = b.dataset.pd; load(); }; });
         const rep = document.getElementById('dsRep'); if (rep) rep.onclick = () => report(d);
+        if (focus === 'frei') { const f = el.querySelector('[data-ev][data-on="0"]:not([disabled])'); if (f) f.closest('.ds-sh').scrollIntoView({ block: 'center' }); }
+        focus = '';
       }
       function shiftHtml(e, withDate) {
         const over = e.open === false, full = e.slots && e.taken >= e.slots && !e.mine;

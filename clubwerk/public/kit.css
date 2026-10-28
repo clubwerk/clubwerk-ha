@@ -46,6 +46,8 @@ body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 .vh-tabs button svg { width: 22px; height: 22px; }
 .vh-tabs button { min-width: 0; padding: 0 4px; } .vh-tabs button span { max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }   /* Beschriftung immer einzeilig */
 @media (max-width: 420px) { .vh-tabs { gap: 0; left: 8px; right: 8px; padding: 5px; } .vh-tabs button { font-size: 11px; padding: 0 1px; letter-spacing: -.01em; } }   /* fünf Knöpfe passen ausgeschrieben nebeneinander */
+/* passt eine Beschriftung trotzdem nicht (schmales Handy, Anzeigezoom, breitere Schrift in Safari), schaltet app.js auf zwei Zeilen – nie „…“; Symbole bleiben auf einer Linie */
+.vh-tabs.zwei button { justify-content: flex-start; padding-top: 4px; } .vh-tabs.zwei button span { white-space: normal; text-align: center; line-height: 1.1; overflow-wrap: anywhere; }
 .vh-tabs button.on { color: var(--brand); }
 :root[data-contrast="hoch"] .vh-tabs button.on { background: var(--brand-soft); color: var(--brand-ink); box-shadow: inset 0 0 0 2px var(--brand-ink); }
 .vh-tabs button.wlan { opacity: .45; }
@@ -197,6 +199,9 @@ button.vh-fm { width: 100%; font: inherit; color: inherit; text-align: left; bac
 .vh-fm-ico { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--hover); color: var(--brand-ink); display: flex; align-items: center; justify-content: center; }
 .vh-fm-ico svg { width: 22px; height: 22px; }
 .vh-fm-go { width: 18px; height: 18px; flex: none; color: var(--faint); }
+.vh-fm-in { display: flex; align-items: center; gap: 12px; flex: 1; min-width: 0; font: inherit; color: inherit; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }   /* tippbarer Teil einer Zeile mit Knöpfen (Zusage) */
+.vh-fm-val { flex: none; font-family: var(--num); font-size: 18px; font-weight: 600; }   /* Betrag in „Mein Konto“ */
+.vh-fm-news .vh-fm-ico { background: var(--brand-soft); }   /* Neuigkeiten heben sich leicht ab */
 /* Schlüssel/Wert */
 .vh-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
 .vh-kv dt { color: var(--muted); } .vh-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }

@@ -315,23 +315,29 @@ function activate(ctx) {
     { id: 'rahmen', label: 'Spielbetrieb: Vorläufige Termine', desc: 'Der Sportwart fragt die Termine aus dem Rahmenterminplan ab – oder deine Mannschaft hat an einem davon spielfrei.', default: true },
     { id: 'aufgabe', label: 'Spielbetrieb: Aufgabe übernommen/zugeteilt', desc: 'Eine Aufgabe für einen Spieltag (z. B. Fahrer) wurde dir zugeteilt.', default: true },
   ];
-  /* Mitglieder-App „Für mich“: Spieltage bis „until“ – Zusage fehlt (wie im Bereich beantwortbar), ich bin aufgestellt,
-     als Mannschaftsführer: Aufstellung noch nicht verschickt (gleiche Frist wie die Warnung der Sportwart-Übersicht) */
+  /* Mitglieder-App „Für mich“: Spieltage bis „until“. next = Spieltage, bei denen ich dabei bin (aufgestellt, Ersatz, zugesagt) – als Mannschaftsführer alle übrigen auch;
+     unbeantwortete stehen nur unter todo (kein doppelter Eintrag);
+     todo = Zusage fehlt (✓/✕ direkt in der Zeile – derselbe Weg /avail wie im Bereich) und als Mannschaftsführer „Aufstellung noch nicht verschickt“
+     (gleiche Frist wie die Warnung der Sportwart-Übersicht) */
   ctx.hooks.forMe = (mid, { until }) => {
     const d = today(), cap = new Set(captainOf(mid));
     const play = new Set(db.prepare('SELECT p.team_id FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').all(mid).map(r => r.team_id));
     const ids = [...new Set([...play, ...cap])];
-    if (!ids.length) return { next: [] };
+    if (!ids.length) return {};
     const gs = db.prepare(`SELECT g.*, t.name AS tname, (SELECT state FROM sp_avail a WHERE a.game_id = g.id AND a.member_id = ?) AS st, (SELECT role FROM sp_lineup l WHERE l.game_id = g.id AND l.member_id = ?) AS role
       FROM sp_game g JOIN sp_team t ON t.id = g.team_id WHERE g.team_id IN (${ids.map(() => '?').join(',')}) AND g.released = 1 AND g.status = 'geplant' AND g.date >= ? AND g.date <= ? ORDER BY g.date, g.start`).all(mid, mid, ...ids, d, until);
     const playDays = new Set(gs.filter(g => g.role === 'spielt').map(g => g.date)), due = addDays(d, cfg().captainDays);
-    return { next: gs.map(g => {
-      const plays = g.role === 'spielt';
+    const next = [], todo = [];
+    for (const g of gs) {
+      const plays = g.role === 'spielt', lead = cap.has(g.team_id), title = gameTitle(g, { name: g.tname });
       const ask = play.has(g.team_id) && !g.st && !plays && !playDays.has(g.date);   // an einem Tag, an dem ich schon woanders spiele, fragt der Bereich nicht
-      const lead = cap.has(g.team_id) && g.kind !== 'rahmen' && g.date <= due && !g.lineup_sent_at;
-      if (!ask && !lead && !plays) return null;
-      return { at: g.date, start: g.start || '', title: gameTitle(g, { name: g.tname }), sub: plays ? 'Du bist aufgestellt' : '', chip: ask ? 'Zusage fehlt' : lead ? 'Aufstellung noch nicht verschickt' : '', focus: g.id };
-    }).filter(Boolean) };
+      const send = lead && g.kind !== 'rahmen' && g.date <= due && !g.lineup_sent_at;
+      if (plays || g.role === 'ersatz' || g.st === 'ja' || (lead && !ask)) next.push({ at: g.date, start: g.start || '', title, focus: g.id,
+        sub: plays ? 'Du bist aufgestellt' : g.role === 'ersatz' ? 'Ersatz' : g.st === 'ja' ? 'Zugesagt' : g.st === 'nein' ? 'Abgesagt' : '' });
+      if (ask) todo.push({ title, sub: gameWhen(g), chip: 'Zusage fehlt', focus: g.id, actions: [{ label: '✓', aria: 'Kann', post: 'avail', body: { game_id: g.id, state: 'ja' } }, { label: '✕', aria: 'Kann nicht', post: 'avail', body: { game_id: g.id, state: 'nein' }, kind: 'n' }] });
+      if (send) todo.push({ title, sub: gameWhen(g), chip: 'Aufstellung noch nicht verschickt', focus: g.id });
+    }
+    return { next, todo };
   };
   /** Mitglieder-App: nur für Spieler und Mannschaftsführer */
   ctx.hooks.appVisible = memberId => Boolean(db.prepare(`SELECT 1 FROM sp_team t LEFT JOIN sp_player p ON p.team_id = t.id AND p.member_id = ?

@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.84.0
+
+**Mitglieder-App „Für mich“: zeigt, was wirklich ansteht – aus allen Bereichen**
+- **Vier feste Karten** statt „Als Nächstes“ und „Offen“: **Neu für dich**, **Als Nächstes**, **Zu erledigen**, **Mein Konto**. Leere Karten fallen weg, jede Zeile springt direkt an die passende Stelle.
+- **Als Nächstes:** die nächste eigene Buchung, der nächste Helferdienst, Spieltage, für die ich zugesagt habe oder aufgestellt bin, und das nächste Spiel der Clubmeisterschaft – jetzt **bis 60 Tage voraus** (bisher 14). Jeder Bereich zeigt mindestens seinen nächsten Termin, vier Buchungen verdrängen also nie den Dienst.
+- **Zu erledigen:** nur, was ich selbst tun muss – nie Erledigtes. **Zusagen oder absagen für Spieltage direkt in der Zeile** (✓/✕, derselbe Weg wie unter „Spieltage“, gleiche Regeln). Dazu „Aufstellung noch nicht verschickt“ (Mannschaftsführer), Clubmeisterschaft „Termin vereinbaren · Frist …“, „Ergebnis eintragen“ und „Anmeldung offen“, Arbeitsstunden „noch 4 h bis 31.12. · 2 freie Dienste“ (springt zu den freien Diensten), „Kontaktdaten ergänzen“ und „Lastschrift-Mandat fehlt“ (öffnet gleich das passende Blatt unter „Meine Daten“).
+- **Mein Konto:** Thekenkonto (weiter unter Mitglieder-App › Bereiche ein- und ausschaltbar), offene Beiträge und Rechnungen und die nächste Lastschrift mit Datum – auf den Cent dieselben Zahlen wie unter „Meine Daten“. Familienmitglieder sehen wie bisher keine Beträge, die zahlt das Oberhaupt. Platzgebühren laufen über Beiträge & Zahlungen und stecken dort schon drin.
+- **Neu für dich:** einmalige Hinweise – Antwort des Vereins auf meine Mängelmeldung, meine Buchung wegen einer Platzsperre storniert, Platz von der Warteliste frei. Nach dem Antippen verschwinden sie (eine neue Antwort erscheint wieder). Erledigte Mängelmeldungen stehen nicht mehr unter „Offen“.
+- **Untere Leiste:** Beschriftungen werden nie mehr mit „…“ gekürzt („Meine Dat…“ am iPhone). Passt eine nicht ganz – schmales Handy, Anzeigezoom, die etwas breitere Schrift in Safari –, stehen alle Beschriftungen zweizeilig; die Symbole bleiben auf einer Linie. Der Design-Prüfstand prüft die Leiste dafür jetzt auch bei 320, 360 und 375 px Breite – bei 390 px passte „Meine Daten“ im Prüfstand gerade noch, deshalb ist es nicht aufgefallen.
+- Datenschutz wie bisher: nur eigene Daten, nur freigeschaltete Bereiche, von unterwegs nur, was unterwegs erlaubt ist, nichts protokolliert. Welche Hinweise schon angetippt wurden, merkt sich Clubwerk je Mitglied (ohne Inhalt, nach 180 Tagen gelöscht).
+- Module: Plätze 1.19.0, Spieltage 1.13.0, Dienste 2.7.0, Meine Daten/Mitglieder 1.22.0, Mängel 1.5.0, Turniere 1.3.0.
+- Für Entwickler: Hook `forMe` liefert jetzt `news`, `next`, `todo` (mit optionalen Knöpfen `actions`) und `money` (siehe ERWEITERUNGEN.md); `open` von älteren Modulen landet unter `todo`.
 ## 3.83.0
 
 **Weniger auf einen Blick – nur das, was gerade zählt (Entschlacken, Entscheidung Thorsten)**

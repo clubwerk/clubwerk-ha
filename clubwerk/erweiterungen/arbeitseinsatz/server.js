@@ -553,7 +553,8 @@ function activate(ctx) {
     if (o) out.push(`${o} noch nicht bestätigte ${o === 1 ? 'Stundenmeldung' : 'Stundenmeldungen'}`);
     return out;
   };
-  /* Mitglieder-App „Für mich“: eigene Dienste bis „until“ und fehlende Arbeitsstunden (gleiche Rechnung wie der Bereich, mit Familien-Topf) */
+  /* Mitglieder-App „Für mich“: eigene Dienste bis „until“ (next) und fehlende Arbeitsstunden (todo, gleiche Rechnung wie der Bereich, mit Familien-Topf)
+     samt Zahl der freien Dienste bis „until“, die zählen – Antippen springt zu den freien Diensten */
   const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), hh = m => `${HF.format((m || 0) / 60)} h`;
   ctx.hooks.forMe = async (id, { until }) => {
     const d = today(), now = nowTs().slice(11, 16);
@@ -564,7 +565,11 @@ function activate(ctx) {
     const ids = fam ? fam.members : [id];
     let tg = 0; for (const x of ids) tg += (await target(x, y)).minutes;
     const miss = tg - doneMinutes(ids, y);
-    return { next, open: miss > 0 ? [{ title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: `noch ${hh(miss)} von ${hh(tg)} bis ${deD(period(y).to)}` }] : [] };
+    if (miss <= 0) return { next };
+    // freie Dienste wie im Bereich: einzelne Termine und Schichten veröffentlichter Dienstpläne, noch nicht vorbei, nicht voll, ich noch nicht dabei
+    const free = db.prepare(`SELECT e.* FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE e.date >= ? AND e.date <= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.counts = 1
+      AND (e.plan_id IS NULL OR p.published = 1) AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)`).all(d, until, id).filter(e => isOpen(e) && (!e.slots || helpersOf(e.id).length < e.slots)).length;
+    return { next, todo: [{ title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '' }] };
   };
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },

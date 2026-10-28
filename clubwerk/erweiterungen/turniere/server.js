@@ -868,7 +868,7 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
   /* ================================================================= für den Kern und andere Module */
   ctx.hooks.appVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get());
   ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get()) || LK.tabletVisible();
-  /* „Für mich“: eigene Spiele mit Termin, sonst eine Zeile mit Offenem (Anmeldung, Spiele ohne Termin) */
+  /* „Für mich“: next = eigene Spiele mit Termin bis „until“; todo = Ergebnis eintragen (Termin vorbei), Termin vereinbaren (mit Frist), Anmeldung offen */
   ctx.hooks.forMe = (mid, { until }) => {
     const s = current(); if (!s || s.closed_at) return {};
     const nm = names(), d0 = today();
@@ -878,14 +878,14 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     const opp = m => teamName(tById.get(mine.has(m.a) ? m.b : m.a), nm);
     const next = open.filter(m => m.plan_date && m.plan_date >= d0 && m.plan_date <= until).map(m => ({ at: m.plan_date, start: m.plan_time || undefined, end: m.plan_end || undefined,
       title: `Clubmeisterschaft gegen ${opp(m)}`, sub: [m.court, PHASE[m.phase]].filter(Boolean).join(' · '), focus: String(m.id) }));
-    const free = open.filter(m => !m.plan_date || m.plan_date < d0);
-    const reg = db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ? AND (singles = 1 OR doubles = 1)').get(s.id, mid);
-    const out = { next, open: [] };
+    const todo = [], played = open.filter(m => m.plan_date && m.plan_date < d0), free = open.filter(m => !m.plan_date);
+    if (played.length) todo.push({ title: played.length === 1 ? `Ergebnis eintragen: gegen ${opp(played[0])}` : `${played.length} Ergebnisse eintragen`, sub: played.length === 1 ? `Clubmeisterschaft · gespielt am ${deD(played[0].plan_date)}` : 'Clubmeisterschaft', focus: played.length === 1 ? String(played[0].id) : '' });
     if (free.length) {
       const due = free.map(m => dueOf(s, m)).filter(Boolean).sort()[0];
-      out.open.push({ title: free.length === 1 ? `Clubmeisterschaft: Spiel gegen ${opp(free[0])}` : `Clubmeisterschaft: ${free.length} Spiele ohne Termin`, sub: due ? `Frist ${deD(due)}` : 'Termin vereinbaren', focus: free.length === 1 ? String(free[0].id) : '' });
-    } else if (regOpen(s) && !reg) out.open.push({ title: `${s.name}: Anmeldung offen`, sub: s.reg_until ? `bis ${deD(s.reg_until)}` : 'Ich spiele mit' });
-    return out;
+      todo.push({ title: free.length === 1 ? `Termin vereinbaren: gegen ${opp(free[0])}` : `${free.length} Termine vereinbaren`, sub: ['Clubmeisterschaft', due ? `Frist ${deD(due)}` : ''].filter(Boolean).join(' · '), focus: free.length === 1 ? String(free[0].id) : '' });
+    }
+    if (regOpen(s) && !db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ? AND (singles = 1 OR doubles = 1)').get(s.id, mid)) todo.push({ title: `${s.name}: Anmeldung offen`, sub: s.reg_until ? `bis ${deD(s.reg_until)}` : 'Ich spiele mit' });
+    return { next, todo };
   };
   ctx.hooks.overview = () => {
     const lk = LK.overview(), s = current();

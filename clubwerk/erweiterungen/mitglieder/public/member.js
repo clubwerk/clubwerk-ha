@@ -20,6 +20,7 @@
     render(el, ctx) {
       const { esc } = ctx;
       let d = null;
+      let focus = ctx.focus || '';   // aus „Für mich“: „kontakt“ bzw. „bank“ öffnet gleich das passende Blatt (nur beim ersten Laden)
       const sheet = (html) => {
         let sh = document.getElementById('mdSheet');
         if (!sh) { sh = document.createElement('div'); sh.id = 'mdSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); }
@@ -63,6 +64,8 @@
           ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
         on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit);
+        if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank();
+        focus = '';
         void open;
       }
 
