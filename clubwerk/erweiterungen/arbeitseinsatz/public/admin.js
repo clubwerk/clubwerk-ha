@@ -5,7 +5,7 @@
   const { $, esc, euro, toast, fail, dialog, closeDialog, ask, deDate, deTime, toCents, centsToInput } = GK;
   const api = (url, method, body) => GK.api('x/arbeitseinsatz/' + url, method, body);
   const BASE = 'api/admin/x/arbeitseinsatz/';
-  const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Sonstiges' };
+  const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Sonstiges', termin: 'Termin' };
   const EST = { laeuft: ['b', 'läuft'], offen: ['a', 'zu bestätigen'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'] };
   const SRC = { verwaltung: 'Verwaltung', app: 'App', tablet: 'Tablet' };
   const st = { meta: null, year: null, past: false, ppast: false, es: 'offen' };
@@ -50,6 +50,8 @@
       .aw-lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
       @media (max-width: 760px) { .aw-sh { grid-template-columns: 1fr; gap: 6px; } .aw-sh .acts { justify-content: flex-start; }
         .aw-ev { grid-template-columns: 64px minmax(0, 1fr); } .aw-ev .acts { grid-column: 1 / -1; justify-content: flex-start; } }   /* Knöpfe unter den Text, sonst wird er zur Wortsäule */
+      .aw-al { max-height: 34vh; overflow: auto; } .aw-ar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-top: 1px solid var(--line-soft); } .aw-al .aw-ar:first-child { border-top: 0; }
+      .aw-as { display: flex; gap: 6px; flex: none; } .aw-as select { width: 150px; } .aw-as input { width: 56px; height: 40px; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); text-align: center; }
       .aw-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; max-height: 46vh; overflow: auto; padding: 4px 0; }`;
     document.head.appendChild(s);
   }
@@ -152,7 +154,7 @@
     });
   }
   async function addEntries(after, preset = {}) {
-    const ev = await api('events?past=1&perm=1');
+    const ev = (await api('events?past=1&perm=1')).filter(e => e.kind !== 'termin');
     const people = st.meta.members;
     dialog(`<h2>Stunden nachtragen</h2>
       <div class="aw-grid" style="--c:3"><label class="f">Datum<input id="aeD" type="date" value="${preset.date || st.meta.today}" max="${st.meta.today}"></label><label class="f">Dauer in Stunden<input id="aeM" inputmode="decimal" placeholder="z. B. 2,5"></label>
@@ -181,10 +183,12 @@
         ${e.permanent ? '<div class="aw-date perm"><b>∞</b><span>ganzjährig</span></div>' : `<div class="aw-date"><b>${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.</b><span>${wd(e.date)}</span></div>`}
         <div style="min-width:0"><h4><span translate="no">${esc(e.title)}</span> ${pill(e.kind === 'theke' ? ['b', KIND[e.kind]] : ['', KIND[e.kind]])}${e.cancelled ? ' ' + pill(['a', 'deaktiviert']) : ''}</h4>
           <div class="muted">${(e.permanent ? [e.cancelled ? 'am Tablet nicht wählbar' : 'am Tablet jederzeit wählbar', e.place, e.hours.n ? `${h(e.hours.min)} erfasst` : '']
+            : e.kind === 'termin' ? [e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place, e.deadline ? `Antwort bis ${deDate(e.deadline)}` : '', e.slots ? `höchstens ${e.slots} Personen` : '']
             : [e.start ? `${e.start}${e.end ? '–' + e.end : ''} Uhr` : '', e.place, e.slots ? `${e.signups.length} von ${e.slots} Plätzen` : `${e.signups.length} eingetragen`, e.hours.n ? `${h(e.hours.min)} erfasst` : '']).filter(Boolean).map(esc).join(' · ')}</div>
-          ${!e.permanent && e.signups.length ? `<div class="aw-people">${e.signups.map(s => `<span class="pill g">${esc(GK.lastFirst(s.name))}</span>`).join('')}</div>` : ''}</div>
-        <div class="acts">${!e.permanent && e.date <= st.meta.today ? `<button class="btn small" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}${e.permanent ? '' : `<button class="btn small" data-evp="${e.id}">Helfer</button>`}<button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`;
-    head('Einsätze', 'Arbeitseinsätze und Thekendienste mit festem Termin oder ganzjährig. Mitglieder tragen sich in der App unter „Dienste“ ein.');
+          ${e.kind === 'termin' ? `<div class="aw-people">${pill(['g', `${e.yes_n} ${e.yes_n === 1 ? 'Zusage' : 'Zusagen'} · ${e.persons} ${e.persons === 1 ? 'Person' : 'Personen'}`])}${pill(['', `${e.no_n} ${e.no_n === 1 ? 'Absage' : 'Absagen'}`])}${e.open_n ? pill(['a', `${e.open_n} ohne Antwort`]) : ''}</div>`
+          : !e.permanent && e.signups.length ? `<div class="aw-people">${e.signups.map(s => `<span class="pill g">${esc(GK.lastFirst(s.name))}</span>`).join('')}</div>` : ''}</div>
+        <div class="acts">${!e.permanent && e.kind !== 'termin' && e.date <= st.meta.today ? `<button class="btn small" data-evc="${e.id}">Stunden gutschreiben</button>` : ''}${e.permanent ? '' : e.kind === 'termin' ? `<button class="btn small" data-eva2="${e.id}">Antworten</button>` : `<button class="btn small" data-evp="${e.id}">Helfer</button>`}<button class="btn small aw-tog" data-eva="${e.id}" data-on="${e.cancelled ? 1 : 0}">${e.cancelled ? 'Aktivieren' : 'Deaktivieren'}</button><button class="btn small" data-eve="${e.id}">Bearbeiten</button></div></div>`;
+    head('Einsätze', 'Arbeitseinsätze, Thekendienste und Vereinstermine mit Zu- und Absage. Mitglieder tragen sich in der App unter „Dienste“ ein.');
     $('main').insertAdjacentHTML('beforeend', `<div class="toolbar"><button class="btn primary" id="evNew">+ Neuer Einsatz</button></div>
       ${chips('evSeg', [['kommend', 'Kommende', coming.filter(e => !e.permanent).length], ['vergangen', 'Vergangene', gone.length]], st.past ? 'vergangen' : 'kommend', true)}
       ${st.past ? '' : `<div class="card"><h3>Dauerhaft (ganzjährig)</h3><p class="muted s" style="margin-top:0">Ohne festen Termin, z. B. Thekendienst. Solange aktiv, wählt man ihn am Tablet beim Einstempeln.</p>${perm.length ? perm.map(row).join('') : '<p class="empty">Keiner – beim Anlegen „Dauerhaft“ ankreuzen.</p>'}</div>`}
@@ -195,6 +199,7 @@
     $('evNew').onclick = () => eventDialog(null, again);
     const el = $('main');
     el.querySelectorAll('[data-eve]').forEach(b => { b.onclick = () => eventDialog(list.find(e => e.id === +b.dataset.eve), again); });
+    el.querySelectorAll('[data-eva2]').forEach(b => { b.onclick = () => answersDialog(list.find(e => e.id === +b.dataset.eva2), again); });
     el.querySelectorAll('[data-evp]').forEach(b => { b.onclick = () => helpers(list.find(e => e.id === +b.dataset.evp), again); });
     el.querySelectorAll('[data-eva]').forEach(b => { b.onclick = async () => {
       const on = b.dataset.on === '1', e = list.find(x => x.id === +b.dataset.eva);
@@ -206,26 +211,51 @@
     const dur = e && e.start && e.end ? '' : '';
     dialog(`<h2>${e ? 'Einsatz bearbeiten' : 'Neuer Einsatz'}</h2><div class="aw-grid" style="--c:3">
       <label class="f">Art<select id="evK">${Object.entries(KIND).map(([k, l]) => opt(k, l, e ? e.kind : 'arbeit')).join('')}</select></label><label class="f w2">Titel<input id="evT" value="${esc(e ? e.title : '')}" placeholder="z. B. Frühjahrsputz Plätze"></label>
-      <label class="chk wall" style="min-height:32px"><input type="checkbox" id="evPm" ${e && e.permanent ? 'checked' : ''}> Dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar</label>
+      <label class="chk wall aw-notermin" style="min-height:32px"><input type="checkbox" id="evPm" ${e && e.permanent ? 'checked' : ''}> Dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar</label>
       <label class="f aw-dated">Datum<input id="evD" type="date" value="${esc(e ? e.date : st.meta.today)}"></label><label class="f aw-dated">Von<input id="evS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f aw-dated">Bis<input id="evE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
-      <label class="f w2" id="evPL">Ort / Treffpunkt<input id="evP" value="${esc(e ? e.place || '' : '')}"></label><label class="f aw-dated">Helfer gesucht (leer = beliebig)<input id="evN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}"></label>
-      <label class="f wall">Hinweis für die Helfer<input id="evX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Arbeitshandschuhe mitbringen"></label>
+      <label class="f w2" id="evPL">Ort / Treffpunkt<input id="evP" value="${esc(e ? e.place || '' : '')}"></label><label class="f aw-dated"><span id="evNL">Helfer gesucht (leer = beliebig)</span><input id="evN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}"></label>
+      <label class="f aw-dated aw-termin">Antwort bis (leer = bis zum Termin)<input id="evF" type="date" value="${esc(e ? e.deadline || '' : '')}"></label>
+      <label class="f wall">Hinweis<input id="evX" value="${esc(e ? e.note || '' : '')}" placeholder="z. B. Arbeitshandschuhe mitbringen"></label>
       ${e ? '' : '<label class="f aw-dated">Wöchentlich wiederholen (Wochen)<input id="evR" inputmode="numeric" placeholder="0"></label>'}
-      <label class="chk ${e ? 'wall' : 'w2'}" id="evAL" style="min-height:40px;align-self:end"><input type="checkbox" id="evA" ${!e || !e.cancelled ? 'checked' : ''}> Aktiv – steht am Tablet und in der Mitglieder-App</label></div>
+      <label class="chk ${e ? 'wall' : 'w2'}" id="evAL" style="min-height:40px;align-self:end"><input type="checkbox" id="evA" ${!e || !e.cancelled ? 'checked' : ''}> Aktiv – steht am Tablet und in der Mitglieder-App</label>
+      ${e ? '' : '<label class="chk wall aw-termin" style="min-height:32px"><input type="checkbox" id="evInv" checked> Mitglieder gleich per Benachrichtigung einladen und um Antwort bitten</label>'}</div>
       ${e ? '<div class="row" style="margin-top:18px"><button class="btn danger" id="evDel">Einsatz löschen …</button></div>' : ''}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="evOk">Speichern</button></div>`);
     void dur;
-    const pmPaint = () => { const pm = $('evPm').checked; $('dialog').querySelectorAll('.aw-dated').forEach(x => { x.style.display = pm ? 'none' : ''; }); $('evPL').classList.toggle('wall', pm); $('evPL').classList.toggle('w2', !pm); if (!e) { $('evAL').classList.toggle('wall', pm); $('evAL').classList.toggle('w2', !pm); } };
+    const pmPaint = () => { const tm = val('evK') === 'termin', pm = $('evPm').checked && !tm; $('dialog').querySelectorAll('.aw-dated').forEach(x => { x.style.display = pm ? 'none' : ''; });
+      $('dialog').querySelectorAll('.aw-termin').forEach(x => { x.style.display = tm ? '' : 'none'; }); $('dialog').querySelectorAll('.aw-notermin').forEach(x => { x.style.display = tm ? 'none' : ''; });
+      $('evNL').textContent = tm ? 'Höchstzahl Personen (leer = beliebig)' : 'Helfer gesucht (leer = beliebig)'; $('evPL').classList.toggle('wall', pm); $('evPL').classList.toggle('w2', !pm); if (!e) { $('evAL').classList.toggle('wall', pm); $('evAL').classList.toggle('w2', !pm); } };
     $('evPm').onchange = () => { if ($('evPm').checked && val('evK') === 'arbeit' && !val('evT')) { $('evK').value = 'theke'; $('evT').value = 'Thekendienst'; } pmPaint(); };
+    $('evK').onchange = pmPaint;
     pmPaint();
     $('c').onclick = closeDialog;
     $('evOk').onclick = () => GK.busy($('evOk'), async () => {
-      const body = { permanent: $('evPm').checked, kind: val('evK'), title: val('evT'), date: val('evD') || st.meta.today, start: val('evS'), end: val('evE'), place: val('evP'), slots: val('evN') || null, note: val('evX') };
-      try { if (e) await api('events/' + e.id, 'PUT', { ...body, active: $('evA').checked }); else await api('events', 'POST', { ...body, active: $('evA').checked, repeat_weeks: val('evR') || 0 }); closeDialog(); toast('Gespeichert.'); after(); } catch (x) { fail(x); }
+      const body = { permanent: $('evPm').checked, kind: val('evK'), title: val('evT'), date: val('evD') || st.meta.today, start: val('evS'), end: val('evE'), place: val('evP'), slots: val('evN') || null, note: val('evX'), deadline: val('evF') || null };
+      try { if (e) await api('events/' + e.id, 'PUT', { ...body, active: $('evA').checked }); else await api('events', 'POST', { ...body, active: $('evA').checked, repeat_weeks: val('evR') || 0, invite: Boolean($('evInv') && $('evInv').checked) }); closeDialog(); toast('Gespeichert.'); after(); } catch (x) { fail(x); }
     });
     if ($('evDel')) $('evDel').onclick = () => confirmIn(`Einsatz „${e.title}“ löschen?`, e.signups && e.signups.length ? `${e.signups.length} eingetragene Helfer werden mit entfernt.` : 'Der Einsatz verschwindet aus Tablet und Mitglieder-App.', 'Einsatz löschen', async () => {
       try { await api('events/' + e.id, 'DELETE'); closeDialog(); toast('Einsatz gelöscht.'); after(); } catch (x) { fail(x); }
     }, () => eventDialog(e, after));
+  }
+  /** Termin: wer kommt (mit Personen), wer nicht, wer hat noch nicht geantwortet – die Verwaltung kann auch für ein Mitglied antworten (z. B. telefonisch) */
+  async function answersDialog(e, after) {
+    const d = await api(`events/${e.id}/answers`).catch(fail); if (!d) return;
+    const sum = d.yes.reduce((x, r) => x + r.persons, 0);
+    const person = (r, extra) => `<div class="aw-ar" data-m="${r.member_id}"><span translate="no">${esc(GK.lastFirst(r.name))}${r.note ? ` <span class="muted">· ${esc(r.note)}</span>` : ''}</span>${extra}</div>`;
+    const sel = r => `<span class="aw-as"><select data-a="${r.member_id}" aria-label="Antwort">${opt('', 'keine Antwort', r.answer || '')}${opt('ja', 'kommt', r.answer || '')}${opt('nein', 'kommt nicht', r.answer || '')}</select><input data-p="${r.member_id}" inputmode="numeric" value="${r.persons || 1}" aria-label="Personen" ${r.answer === 'ja' ? '' : 'style="visibility:hidden"'}></span>`;
+    const block = (title, list) => `<h3 class="aw-lbl" style="margin:14px 0 6px">${esc(title)} (${list.length})</h3>${list.length ? `<div class="aw-al">${list.map(r => person(r, sel(r))).join('')}</div>` : '<p class="empty">Niemand.</p>'}`;
+    dialog(`<h2>Antworten: ${esc(e.title)}</h2><p class="muted" style="margin-top:0">${esc([deDate(e.date), e.start ? `${e.start} Uhr` : '', e.deadline ? `Antwort bis ${deDate(e.deadline)}` : ''].filter(Boolean).join(' · '))}</p>
+      <div class="aw-people" style="margin:0 0 4px">${pill(['g', `${d.yes.length} ${d.yes.length === 1 ? 'Zusage' : 'Zusagen'} · ${sum} ${sum === 1 ? 'Person' : 'Personen'}${e.slots ? ` von ${e.slots}` : ''}`])}${pill(['', `${d.no.length} ${d.no.length === 1 ? 'Absage' : 'Absagen'}`])}${d.none.length ? pill(['a', `${d.none.length} ohne Antwort`]) : ''}</div>
+      ${block('Kommen', d.yes)}${block('Kommen nicht', d.no)}${block('Noch keine Antwort', d.none)}
+      <div class="btns"><a class="btn" href="${BASE}events/${e.id}/answers.xlsx" id="anX">Excel</a><button class="btn" id="anAsk" ${d.none.length && !e.cancelled ? '' : 'disabled'}>Ohne Antwort erinnern</button><button class="btn primary" id="c">Fertig</button></div>`);
+    const dlg = $('dialog');
+    dlg.querySelectorAll('select[data-a]').forEach(sl => { sl.onchange = async () => {
+      const id = +sl.dataset.a, p = dlg.querySelector(`input[data-p="${id}"]`);
+      try { await api(`events/${e.id}/signup`, 'POST', sl.value ? { member_id: id, answer: sl.value, persons: +p.value || 1 } : { member_id: id, remove: true }); p.style.visibility = sl.value === 'ja' ? '' : 'hidden'; toast('Gespeichert.'); } catch (x) { fail(x); }
+    }; });
+    dlg.querySelectorAll('input[data-p]').forEach(p => { p.onchange = () => { const sl = dlg.querySelector(`select[data-a="${p.dataset.p}"]`); if (sl.value === 'ja') api(`events/${e.id}/signup`, 'POST', { member_id: +p.dataset.p, answer: 'ja', persons: +p.value || 1 }).then(() => toast('Gespeichert.')).catch(fail); }; });
+    $('anAsk').onclick = () => GK.busy($('anAsk'), async () => { try { const r = await api(`events/${e.id}/ask`, 'POST', {}); toast(`${r.count} ${r.count === 1 ? 'Mitglied' : 'Mitglieder'} um Antwort gebeten.`); } catch (x) { fail(x); } });
+    $('c').onclick = () => { closeDialog(); after(); };
   }
   function helpers(e, after) {
     const people = st.meta.members;
@@ -441,7 +471,7 @@
     const c = (await metaNow()).cfg;
     const dateTxt = c.remind_date ? c.remind_date.split('-').reverse().join('.') : '';
     const foot = id => `<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="${id}">Speichern</button></div>`;
-    head('Einstellungen', 'Soll, Abrechnung, Tablet und Erinnerungen der Helferdienste.');
+    head('Einstellungen', 'Soll, Abrechnung, Tablet und Erinnerungen der Dienste & Termine.');
     $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="soll"><h3>Soll</h3><div class="aw-grid" style="--c:3">
         <label class="f">Stunden je Mitglied und Jahr<input id="sDef" inputmode="decimal" value="${String(c.default_minutes / 60).replace('.', ',')}"></label>
         <label class="f">Ab Alter (0 = alle)<input id="sMin" inputmode="numeric" value="${c.min_age}"></label><label class="f">Bis Alter (0 = ohne Grenze)<input id="sMax" inputmode="numeric" value="${c.max_age}"></label></div>
@@ -488,12 +518,12 @@
     };
     $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
     exLoad().catch(fail);
-    if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Helferdienste', () => renderEinstellungen().catch(fail));
+    if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Dienste & Termine', () => renderEinstellungen().catch(fail));
   }
 
   void deTime;
   /* Reiter: Übersicht · Dienstpläne · Einsätze · Stunden · Einstellungen (Abzeichen am Reiter „Stunden“) */
-  const G = { key: 'arbeitseinsatz', label: 'Helferdienste', icon: 'arbeit', order: 3 };
+  const G = { key: 'arbeitseinsatz', label: 'Dienste & Termine', icon: 'arbeit', order: 3 };
   GK.registerPage({ key: 'arbeitseinsatz', title: 'Übersicht', perm: 'arbeitseinsatz', render: renderUebersicht, group: G });
   GK.registerPage({ key: 'aw-plaene', title: 'Dienstpläne', perm: 'arbeitseinsatz', render: renderPlaene, group: G });
   GK.registerPage({ key: 'aw-einsaetze', title: 'Einsätze', perm: 'arbeitseinsatz', render: renderEinsaetze, group: G });
@@ -503,6 +533,7 @@
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Dienstplan anlegen', page: 'aw-plaene', btn: '+ Neuer Dienstplan', kind: 'aktion', words: 'Veranstaltung Schichten Kirmes Turnier' },
     { label: 'Einsatz oder Thekendienst anlegen', page: 'aw-einsaetze', btn: '+ Neuer Einsatz', kind: 'aktion', words: 'Arbeitseinsatz Thekendienst Einzeltermin Termin' },
+    { label: 'Termin mit Zu- und Absage anlegen', page: 'aw-einsaetze', btn: '+ Neuer Einsatz', kind: 'aktion', words: 'Termin Weihnachtsfeier Versammlung Feier Einladung Zusage Absage Antwort Teilnehmerliste' },
     { label: 'Stunden bestätigen', page: 'aw-stunden', kind: 'aktion', words: 'Arbeitsstunden bestätigen ablehnen freigeben gemeldet' },
     { label: 'Stunden nachtragen', page: 'aw-stunden', btn: 'Stunden nachtragen', kind: 'aktion', words: 'Arbeitsstunden nachtragen eintragen' },
     { label: 'Dienstplan als Vorlage kopieren', page: 'aw-plaene', kind: 'aktion', words: 'Vorlage kopieren nächstes Jahr Kirmes' },
@@ -512,9 +543,9 @@
     { label: 'Soll der Arbeitsstunden', page: 'aw-einstellungen', card: 'Soll', words: 'Stunden je Mitglied Alter Familien gemeinsam Passive Ehrenmitglieder anteilig Eintritt Austritt' },
     { label: 'Abrechnung der Arbeitsstunden', page: 'aw-einstellungen', card: 'Abrechnung', words: 'Stundensatz fehlende Stunden Abrechnungsjahr Beitragsjahr Beitragslauf' },
     { label: 'Stunden am Tablet und in der App', page: 'aw-einstellungen', card: 'Tablet & App', words: 'runden Minuten sofort bestätigt melden Stempeln' },
-    { label: 'Befreite Mitglieder (Helferdienste)', page: 'aw-einstellungen', card: 'Befreite Mitglieder', words: 'befreien Ausnahme Vorstand' },
-    { label: 'Erinnerungen und Absagen der Helferdienste', page: 'aw-einstellungen', card: 'Benachrichtigungen & Kontakt', words: 'Erinnerung E-Mail Vortag Absagen Kontakt Hinweis fehlende Stunden' },
-    { label: 'Einstellungen der Helferdienste übertragen', page: 'aw-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
+    { label: 'Befreite Mitglieder (Dienste & Termine)', page: 'aw-einstellungen', card: 'Befreite Mitglieder', words: 'befreien Ausnahme Vorstand' },
+    { label: 'Erinnerungen und Absagen der Dienste & Termine', page: 'aw-einstellungen', card: 'Benachrichtigungen & Kontakt', words: 'Erinnerung E-Mail Vortag Absagen Kontakt Hinweis fehlende Stunden' },
+    { label: 'Einstellungen der Dienste & Termine übertragen', page: 'aw-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
   ]);
   // Zähler: gemeldete Stunden, die noch zu bestätigen sind (am Reiter „Stunden“, im Menü die Summe)
   if (GK.badges) GK.badges(async () => { if (!GK.can('arbeitseinsatz')) return {}; const m = await api('meta'); return { 'aw-stunden': m.pending || 0 }; });

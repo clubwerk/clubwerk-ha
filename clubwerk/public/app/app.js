@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '3.88.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '3.89.0';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -140,7 +140,7 @@
     if (cleanup) { try { cleanup(); } catch (e) { /* egal */ } cleanup = null; }
     current = id;
     markTab();
-    $('who').textContent = id === FM ? FM_T : ((me.sections.find(x => x.id === id) || {}).title || '');   // große Überschrift im Kopf: der offene Bereich
+    $('who').textContent = id === FM ? FM_T : (((x => x && (x.heading || x.title))(me.sections.find(x => x.id === id))) || '');   // große Überschrift im Kopf: der offene Bereich (ein Bereich kann eine längere Überschrift haben als sein Name in der Leiste)
     const el = $('sec');
     if (id === FM) { forMe(el); return; }
     const s = me.sections.find(x => x.id === id);

@@ -13,7 +13,8 @@ const isoDow = s => { const d = new Date(s + 'T12:00:00Z').getUTCDay(); return d
 const WDL = ['', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
 const ageAt = (b, day) => { if (!isDate(b)) return null; let a = +day.slice(0, 4) - +b.slice(0, 4); if (day.slice(5) < b.slice(5)) a--; return a; };
 const MIN_COUNT = 5;   // Einsätze unter 5 Minuten werden nicht gewertet
-const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Sonstiges' };
+const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Sonstiges', termin: 'Termin' };
+const MAX_PERSONS = 10;   // Termin: Zusage mit höchstens so vielen Personen (einschließlich sich selbst)
 const CANCEL_H = 24;   // austragen in der App bis 24 Stunden vor Beginn – danach nur über die Verwaltung
 
 function tables(db) {
@@ -60,7 +61,15 @@ function activate(ctx) {
   // Dienstpläne: Schichten gehören zu einer Veranstaltung (plan_id); counts = zählt zu den Arbeitsstunden
   { const cols = db.prepare('PRAGMA table_info(aw_event)').all().map(c => c.name);
     if (!cols.includes('plan_id')) db.exec('ALTER TABLE aw_event ADD COLUMN plan_id INTEGER');
-    if (!cols.includes('counts')) db.exec('ALTER TABLE aw_event ADD COLUMN counts INTEGER NOT NULL DEFAULT 1'); }
+    if (!cols.includes('counts')) db.exec('ALTER TABLE aw_event ADD COLUMN counts INTEGER NOT NULL DEFAULT 1');
+    // Termine: Antwortfrist und „Bitte um Antwort“ schon verschickt
+    if (!cols.includes('deadline')) db.exec('ALTER TABLE aw_event ADD COLUMN deadline TEXT');
+    if (!cols.includes('asked')) db.exec('ALTER TABLE aw_event ADD COLUMN asked INTEGER NOT NULL DEFAULT 0'); }
+  // Antworten auf Termine: bisherige Eintragungen gelten als Zusage mit einer Person
+  { const cols = db.prepare('PRAGMA table_info(aw_signup)').all().map(c => c.name);
+    if (!cols.includes('answer')) db.exec("ALTER TABLE aw_signup ADD COLUMN answer TEXT NOT NULL DEFAULT 'ja'");
+    if (!cols.includes('persons')) db.exec('ALTER TABLE aw_signup ADD COLUMN persons INTEGER NOT NULL DEFAULT 1');
+    if (!cols.includes('note')) db.exec('ALTER TABLE aw_signup ADD COLUMN note TEXT'); }
   if (S('seed_theke') !== '1') {
     if (!db.prepare("SELECT 1 FROM aw_event WHERE permanent = 1 AND kind = 'theke'").get()) db.prepare("INSERT INTO aw_event(kind, title, date, permanent, created_by) VALUES ('theke', 'Thekendienst', date('now','localtime'), 1, 'Clubwerk')").run();
     SET('seed_theke', '1');
@@ -199,15 +208,23 @@ function activate(ctx) {
   /* Einsätze */
   const evInput = b => {
     const o = { kind: KIND[b.kind] ? b.kind : 'arbeit', title: txt(b.title, 80), date: b.date, start: isTime(b.start) ? b.start : null, end: isTime(b.end) ? b.end : null, place: txt(b.place, 80) || null, slots: b.slots ? Math.max(1, Math.min(500, int(b.slots))) : null, note: txt(b.note, 500) || null,
-      plan_id: b.plan_id ? int(b.plan_id) : null, counts: b.counts === undefined ? 1 : (b.counts ? 1 : 0) };
+      plan_id: b.plan_id ? int(b.plan_id) : null, counts: b.counts === undefined ? 1 : (b.counts ? 1 : 0), deadline: isDate(b.deadline) ? b.deadline : null };
+    if (o.kind === 'termin') { o.counts = 0; o.plan_id = null; } else o.deadline = null;   // ein Termin zählt nie zu den Arbeitsstunden und gehört zu keinem Dienstplan
     if (o.plan_id) { const pl = db.prepare('SELECT * FROM aw_plan WHERE id = ?').get(o.plan_id); if (!pl) return { error: 'Dienstplan nicht gefunden.' }; if (o.date < pl.from_date || o.date > pl.to_date) return { error: `Der Tag muss zwischen ${deD(pl.from_date)} und ${deD(pl.to_date)} liegen.` }; if (!KIND[b.kind]) o.kind = 'dienst'; }
     if (o.title.length < 2) return { error: 'Bitte eintragen, was zu tun ist (z. B. „Theke“).' };
     if (!isDate(o.date)) return { error: 'Bitte ein Datum angeben.' };
+    if (o.deadline && o.deadline > o.date) return { error: 'Die Antwortfrist liegt nach dem Termin.' };
     if (o.start && o.end && o.end === o.start) return { error: 'Beginn und Ende sind gleich.' };   // Ende vor Beginn = über Mitternacht (z. B. 23:30–02:00)
     return { v: o };
   };
-  const eventRow = e => ({ ...e, signups: db.prepare('SELECT s.member_id, m.name FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? ORDER BY name_key(m.name, m.kind)').all(e.id),
-    hours: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(minutes),0) min FROM aw_entry WHERE event_id = ? AND status IN ('offen','bestaetigt')").get(e.id) });
+  /** Antworten auf einen Termin: Zusagen (mit Personen), Absagen und wer noch nicht geantwortet hat */
+  const ACTIVE = "m.kind = 'mitglied' AND m.active = 1 AND m.deleted = 0 AND m.pending = 0";
+  const answerStats = id => {
+    const r = db.prepare("SELECT COALESCE(SUM(s.answer = 'ja'), 0) yes, COALESCE(SUM(CASE WHEN s.answer = 'ja' THEN s.persons END), 0) persons, COALESCE(SUM(s.answer = 'nein'), 0) no, COUNT(*) answered FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? AND " + ACTIVE).get(id);
+    return { yes_n: r.yes, persons: r.persons, no_n: r.no, open_n: db.prepare('SELECT COUNT(*) n FROM members m WHERE ' + ACTIVE).get().n - r.answered };
+  };
+  const eventRow = e => ({ ...e, signups: db.prepare("SELECT s.member_id, m.name, s.persons FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? AND s.answer = 'ja' ORDER BY name_key(m.name, m.kind)").all(e.id),
+    hours: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(minutes),0) min FROM aw_entry WHERE event_id = ? AND status IN ('offen','bestaetigt')").get(e.id), ...(e.kind === 'termin' ? answerStats(e.id) : {}) });
   admin.get('/events', P, (req, res) => {
     const past = req.query.past === '1';
     const perm = past && req.query.perm !== '1' ? [] : db.prepare('SELECT * FROM aw_event WHERE permanent = 1 ORDER BY cancelled, title COLLATE NOCASE').all();
@@ -217,18 +234,21 @@ function activate(ctx) {
     const r = evInput({ ...(req.body || {}), ...((req.body || {}).permanent && !isDate((req.body || {}).date) ? { date: today() } : {}) }); if (r.error) return bad(res, r.error);
     const repeat = Math.max(0, Math.min(52, int((req.body || {}).repeat_weeks)));
     const ids = [];
-    const perm = (req.body || {}).permanent ? 1 : 0;
+    const perm = (req.body || {}).permanent && r.v.kind !== 'termin' ? 1 : 0;
     for (let i = 0; i <= (perm ? 0 : repeat); i++) { const v = { ...r.v, date: addDays(r.v.date, 7 * i), cancelled: (req.body || {}).active === false ? 1 : 0, permanent: perm }; const k = Object.keys(v); ids.push(Number(db.prepare(`INSERT INTO aw_event(${k.join(',')}, created_by) VALUES (${k.map(() => '?').join(',')}, ?)`).run(...k.map(x => v[x]), uname(req)).lastInsertRowid)); }
     ctx.audit(req.user, `${KIND[r.v.kind]} angelegt`, `${r.v.title} ${deD(r.v.date)}${repeat ? ` (+${repeat} Wochen)` : ''}`);
+    if (r.v.kind === 'termin' && (req.body || {}).invite && (req.body || {}).active !== false) for (const id of ids) askOpen(db.prepare('SELECT * FROM aw_event WHERE id = ?').get(id), true);
     res.json({ ids });
   });
   admin.put('/events/:id', P, (req, res) => {
     const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
     const r = evInput({ ...e, ...(req.body || {}) }); if (r.error) return bad(res, r.error);
+    if (r.v.kind === 'termin' && e.kind !== 'termin' && db.prepare('SELECT 1 FROM aw_entry WHERE event_id = ?').get(e.id)) return bad(res, 'Zu diesem Einsatz gibt es schon Stunden – er kann kein Termin werden.');
     const k = Object.keys(r.v);
     const b = req.body || {};
     const off = b.active !== undefined ? !b.active : b.cancelled !== undefined ? Boolean(b.cancelled) : Boolean(e.cancelled);
-    const perm = b.permanent !== undefined ? (b.permanent ? 1 : 0) : e.permanent;
+    const perm = r.v.kind === 'termin' ? 0 : b.permanent !== undefined ? (b.permanent ? 1 : 0) : e.permanent;
+    if (e.kind === 'termin' && r.v.kind !== 'termin') db.prepare("DELETE FROM aw_signup WHERE event_id = ? AND answer = 'nein'").run(e.id);   // Absagen gibt es nur bei Terminen
     db.prepare(`UPDATE aw_event SET ${k.map(x => `${x} = ?`).join(', ')}, cancelled = ?, permanent = ? WHERE id = ?`).run(...k.map(x => r.v[x]), off ? 1 : 0, perm, e.id);
     res.json({ ok: true });
   });
@@ -249,9 +269,49 @@ function activate(ctx) {
   admin.post('/events/:id/signup', P, (req, res) => {
     const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); const mid = int((req.body || {}).member_id);
     if (!e || !db.prepare('SELECT 1 FROM members WHERE id = ?').get(mid)) return bad(res, 'Nicht gefunden.', 404);
-    if ((req.body || {}).remove) db.prepare('DELETE FROM aw_signup WHERE event_id = ? AND member_id = ?').run(e.id, mid);
-    else db.prepare('INSERT OR IGNORE INTO aw_signup(event_id, member_id) VALUES (?,?)').run(e.id, mid);
+    const b = req.body || {};
+    if (b.remove) db.prepare('DELETE FROM aw_signup WHERE event_id = ? AND member_id = ?').run(e.id, mid);
+    else if (e.kind === 'termin') {   // Verwaltung trägt die Antwort eines Mitglieds ein (z. B. telefonisch): Zusage mit Personen oder Absage
+      const ans = b.answer === 'nein' ? 'nein' : 'ja', persons = ans === 'ja' ? Math.max(1, Math.min(MAX_PERSONS, int(b.persons) || 1)) : 0;
+      db.prepare("INSERT INTO aw_signup(event_id, member_id, answer, persons) VALUES (?,?,?,?) ON CONFLICT(event_id, member_id) DO UPDATE SET answer = excluded.answer, persons = excluded.persons").run(e.id, mid, ans, persons);
+      ctx.audit(req.user, 'Termin: Antwort eingetragen', `${db.prepare('SELECT name FROM members WHERE id = ?').get(mid).name}: ${e.title} ${deD(e.date)} – ${ans === 'ja' ? `kommt${persons > 1 ? ` mit ${persons} Personen` : ''}` : 'kommt nicht'}`);
+    } else db.prepare('INSERT OR IGNORE INTO aw_signup(event_id, member_id) VALUES (?,?)').run(e.id, mid);
     res.json({ ok: true });
+  });
+  /* Termin: wer kommt (mit Personen), wer nicht, wer hat noch nicht geantwortet – nur für die Verwaltung */
+  const answersOf = id => {
+    const rows = db.prepare('SELECT s.member_id, m.name, s.answer, s.persons, s.note FROM aw_signup s JOIN members m ON m.id = s.member_id WHERE s.event_id = ? ORDER BY name_key(m.name, m.kind)').all(id);
+    const answered = new Set(rows.map(r => r.member_id));
+    return { yes: rows.filter(r => r.answer === 'ja'), no: rows.filter(r => r.answer === 'nein'),
+      none: db.prepare('SELECT m.id AS member_id, m.name FROM members m WHERE ' + ACTIVE + ' ORDER BY name_key(m.name, m.kind)').all().filter(r => !answered.has(r.member_id)) };
+  };
+  admin.get('/events/:id/answers', P, (req, res) => {
+    const e = db.prepare("SELECT * FROM aw_event WHERE id = ? AND kind = 'termin'").get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
+    res.json({ event: e, ...answersOf(e.id) });
+  });
+  admin.get('/events/:id/answers.xlsx', P, ar(async (req, res) => {
+    const e = db.prepare("SELECT * FROM aw_event WHERE id = ? AND kind = 'termin'").get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
+    const a = answersOf(e.id);
+    const ExcelJS = ctx.require('exceljs'); const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Antworten');
+    ws.columns = [{ header: 'Name', width: 30 }, { header: 'Antwort', width: 18 }, { header: 'Personen', width: 11 }, { header: 'Anmerkung', width: 40 }];
+    for (const r of a.yes) ws.addRow([lf(r.name), 'kommt', r.persons, r.note || '']);
+    for (const r of a.no) ws.addRow([lf(r.name), 'kommt nicht', '', r.note || '']);
+    for (const r of a.none) ws.addRow([lf(r.name), 'keine Antwort', '', '']);
+    ws.getRow(1).font = { bold: true };
+    ws.addRow([]); ws.addRow(['Zusagen insgesamt', '', a.yes.reduce((x, r) => x + r.persons, 0)]).font = { bold: true };
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Termin_${e.title.replace(/[^\w\-äöüÄÖÜß ]/g, '').replace(/ /g, '_')}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+  }));
+  /** Termin: Mitglieder, die noch nicht geantwortet haben, per Push um Antwort bitten (beim Anlegen: Einladung) */
+  function askOpen(e, first) {
+    const ids = db.prepare('SELECT m.id FROM members m WHERE ' + ACTIVE + ' AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = ? AND s.member_id = m.id)').all(e.id).map(r => r.id);
+    if (ids.length) ctx.push.send(ids, 'termin', { title: `${first ? 'Neuer Termin' : 'Bitte antworten'}: ${e.title}`, body: `${WDL[isoDow(e.date)]}, ${deD(e.date)}${e.start ? ' ab ' + e.start + ' Uhr' : ''}${e.deadline ? ` · Antwort bis ${deD(e.deadline)}` : ''}`, url: './#arbeitseinsatz', tag: `aw-termin-${e.id}` }).catch(() => {});
+    return ids.length;
+  }
+  admin.post('/events/:id/ask', P, (req, res) => {
+    const e = db.prepare("SELECT * FROM aw_event WHERE id = ? AND kind = 'termin' AND cancelled = 0").get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
+    const n = askOpen(e, false);
+    ctx.audit(req.user, 'Termin: um Antwort gebeten', `${e.title} ${deD(e.date)}: ${n} ${n === 1 ? 'Mitglied' : 'Mitglieder'}`);
+    res.json({ ok: true, count: n });
   });
   /** Einsatz abschließen: allen Eingetragenen die Stunden gutschreiben */
   admin.post('/events/:id/close', P, (req, res) => {
@@ -384,7 +444,7 @@ function activate(ctx) {
     if (!isDate(o.date) || o.date > today()) return { error: 'Bitte ein Datum (nicht in der Zukunft) angeben.' };
     if (!Number.isFinite(o.minutes) || o.minutes <= 0 || o.minutes > 1440) return { error: 'Bitte die Dauer angeben (höchstens 24 Stunden).' };
     if (o.minutes < MIN_COUNT) return { error: 'Einsätze unter 5 Minuten werden nicht gewertet.' };
-    if (o.event_id && !db.prepare('SELECT 1 FROM aw_event WHERE id = ?').get(o.event_id)) return { error: 'Einsatz nicht gefunden.' };
+    if (o.event_id && !db.prepare("SELECT 1 FROM aw_event WHERE id = ? AND kind <> 'termin'").get(o.event_id)) return { error: 'Einsatz nicht gefunden.' };   // zu einem Termin gibt es keine Stunden
     return { v: o };
   };
   admin.post('/entries', P, (req, res) => {
@@ -431,7 +491,7 @@ function activate(ctx) {
     if (b.text !== undefined) SET('text', txt(b.text, 600));
     if (b.contact !== undefined) SET('contact', txt(b.contact, 120));
     if (b.notify !== undefined) { const l = String(b.notify || '').split(/[,;\s]+/).filter(Boolean); if (l.some(x => !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x))) return bad(res, 'Bitte gültige E-Mail-Adressen eintragen (mehrere mit Komma).'); SET('notify', l.slice(0, 5).join(', ')); }
-    { const diff = ctx.auditDiff(SET_LABELS, before, cfg()); if (diff) ctx.audit(req.user, 'Helferdienste: Einstellungen geändert', diff); }
+    { const diff = ctx.auditDiff(SET_LABELS, before, cfg()); if (diff) ctx.audit(req.user, 'Dienste & Termine: Einstellungen geändert', diff); }
     res.json({ ok: true, cfg: cfg() });
   });
 
@@ -453,7 +513,7 @@ function activate(ctx) {
     const b = req.body || {}; const mid = ctx.auth.checkTabletToken(b.token);
     if (!mid || typeof mid !== 'number') return bad(res, 'Sitzung abgelaufen – bitte Namen neu wählen.', 401);
     if (db.prepare("SELECT 1 FROM aw_entry WHERE member_id = ? AND status = 'laeuft'").get(mid)) return bad(res, 'Du bist schon eingestempelt.');
-    const ev = b.event_id ? db.prepare('SELECT * FROM aw_event WHERE id = ? AND (date = ? OR permanent = 1) AND cancelled = 0').get(int(b.event_id), today()) : null;
+    const ev = b.event_id ? db.prepare("SELECT * FROM aw_event WHERE id = ? AND (date = ? OR permanent = 1) AND cancelled = 0 AND kind <> 'termin'").get(int(b.event_id), today()) : null;
     const own = txt(b.text, 140);
     const text = ev ? (own ? `${ev.title}: ${own}`.slice(0, 160) : ev.title) : own;   // beim Einsatz ist die Beschreibung freiwillig
     if (!ev && text.length < 3) return bad(res, db.prepare('SELECT 1 FROM aw_event WHERE (date = ? OR permanent = 1) AND cancelled = 0').get(today()) ? 'Bitte einen Einsatz wählen oder kurz eintragen, was du machst.' : 'Bitte kurz eintragen, was du machst.');
@@ -485,8 +545,18 @@ function activate(ctx) {
   /** Info an die Verwaltung (Einstellungen → „Absagen an“) */
   function tellAdmins(subject, lines) {
     const to = cfg().notify; if (!to || !ctx.mail.ready()) return;
-    ctx.mail.send({ to, subject: `${subject} – ${ctx.getSetting('club_name', 'Verein')}`, text: [...lines, '', 'Die Dienstpläne siehst du in der Verwaltung unter „Helferdienste“.'].join('\n') }).catch(() => {});
+    ctx.mail.send({ to, subject: `${subject} – ${ctx.getSetting('club_name', 'Verein')}`, text: [...lines, '', 'Die Dienstpläne siehst du in der Verwaltung unter „Dienste & Termine“.'].join('\n') }).catch(() => {});
   }
+  /** Termin: Antwortfrist (bis einschließlich dieses Tages) – ohne Frist bis zum Ende des Termins */
+  const deadlineOk = e => !e.deadline || today() <= e.deadline;
+  /** Mitglieder sehen nur die Summe der Personen – Namen und Absagen sieht die Verwaltung */
+  const personsYes = id => db.prepare("SELECT COALESCE(SUM(persons), 0) n FROM aw_signup WHERE event_id = ? AND answer = 'ja'").get(id).n;
+  const termApp = (e, id) => {
+    const mine = db.prepare('SELECT answer, persons, note FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, id), total = personsYes(e.id);
+    const free = e.slots ? Math.max(0, e.slots - total + (mine && mine.answer === 'ja' ? mine.persons : 0)) : null;
+    return { id: e.id, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, deadline: e.deadline, persons_total: total, free, answer: mine ? mine.answer : null,
+      persons: mine && mine.answer === 'ja' ? mine.persons : 0, my_note: mine ? mine.note || '' : '', can: deadlineOk(e) };
+  };
   M.get('/me', ar(async (req, res) => {
     const id = req.member.id, y = yearOf(today());
     const fam = mv() && cfg().pool_family ? await hook('familyOf', id) : null;
@@ -494,19 +564,21 @@ function activate(ctx) {
     let tg = 0; for (const x of ids) tg += (await target(x, y)).minutes;
     const done = doneMinutes(ids, y), open = openMinutes(ids, y);
     const mine = await target(id, y);
+    const termine = db.prepare("SELECT * FROM aw_event WHERE kind = 'termin' AND cancelled = 0 AND date >= ? ORDER BY date, start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(e => termApp(e, id));
     const shiftApp = e => { const hp = helpersOf(e.id); return { id: e.id, kind: e.kind, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, counts: Boolean(e.counts),
       taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.map(x => x.name), faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e), open: isOpen(e) }; };
     const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
       shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
-      plans,
-      events: db.prepare('SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL ORDER BY e.date, e.start LIMIT 60').all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
+      plans, termine,
+      events: db.prepare("SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL AND e.kind <> 'termin' ORDER BY e.date, e.start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));
   M.post('/signup', rateLimit('awsig', 60, 60000), ar(async (req, res) => {
     const b = req.body || {}, mid = req.member.id; const e = db.prepare('SELECT * FROM aw_event WHERE id = ? AND cancelled = 0 AND permanent = 0').get(int(b.event_id));
     const plan = e && e.plan_id ? db.prepare('SELECT * FROM aw_plan WHERE id = ?').get(e.plan_id) : null;
     if (!e || (plan && !plan.published)) return bad(res, 'Dieser Dienst ist nicht (mehr) offen.');
+    if (e.kind === 'termin') return bad(res, 'Bei einem Termin bitte „Ich komme“ oder „Ich komme nicht“ wählen.');
     if (!b.remove && !isOpen(e)) return bad(res, 'Dieser Dienst ist schon vorbei – eintragen geht nicht mehr.');
     if (b.remove) {
       if (!db.prepare('SELECT 1 FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, mid)) return res.json({ ok: true });
@@ -518,12 +590,30 @@ function activate(ctx) {
       return res.json({ ok: true });
     }
     if (e.slots && helpersOf(e.id).length >= e.slots) return bad(res, 'Leider schon voll.');
-    const clash = e.start ? db.prepare('SELECT v.* FROM aw_signup s JOIN aw_event v ON v.id = s.event_id WHERE s.member_id = ? AND v.date = ? AND v.id != ? AND v.cancelled = 0').all(mid, e.date, e.id)
+    const clash = e.start ? db.prepare('SELECT v.* FROM aw_signup s JOIN aw_event v ON v.id = s.event_id WHERE s.member_id = ? AND v.date = ? AND v.id != ? AND v.cancelled = 0 AND v.kind <> \'termin\'').all(mid, e.date, e.id)
       .find(v => { const ve = !v.end || v.end <= v.start ? '24:00' : v.end, ee = !e.end || e.end <= e.start ? '24:00' : e.end; return v.start && v.start < ee && ve > e.start; }) : null;
     if (clash) return bad(res, `Zu dieser Zeit bist du schon eingetragen: ${clash.title} ${clash.start}${clash.end ? '–' + clash.end : ''} Uhr.`);
     db.prepare('INSERT OR IGNORE INTO aw_signup(event_id, member_id) VALUES (?,?)').run(e.id, mid);
     res.json({ ok: true });
   }));
+  /* Termin: „Ich komme“ (mit Personen) oder „Ich komme nicht“ – änderbar bis zur Antwortfrist */
+  M.post('/answer', rateLimit('awans', 60, 60000), (req, res) => {
+    const b = req.body || {}, mid = req.member.id;
+    const e = db.prepare("SELECT * FROM aw_event WHERE id = ? AND kind = 'termin' AND cancelled = 0").get(int(b.event_id));
+    if (!e || !isOpen(e)) return bad(res, 'Dieser Termin ist nicht (mehr) offen.');
+    if (b.answer !== 'ja' && b.answer !== 'nein') return bad(res, 'Bitte „Ich komme“ oder „Ich komme nicht“ wählen.');
+    if (!deadlineOk(e)) return bad(res, `Die Antwortfrist ist am ${deD(e.deadline)} abgelaufen. Bitte melde dich bei ${cfg().contact || 'der Vereinsleitung'}.`);
+    const persons = b.answer === 'ja' ? Math.max(1, Math.min(MAX_PERSONS, int(b.persons) || 1)) : 0;
+    const old = db.prepare('SELECT answer, persons FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, mid);
+    if (b.answer === 'ja' && e.slots) {
+      const free = e.slots - personsYes(e.id) + (old && old.answer === 'ja' ? old.persons : 0);
+      if (persons > free) return bad(res, free > 0 ? `Leider sind nur noch ${free} ${free === 1 ? 'Platz' : 'Plätze'} frei.` : 'Leider schon voll.');
+    }
+    db.prepare("INSERT INTO aw_signup(event_id, member_id, answer, persons, note) VALUES (?,?,?,?,?) ON CONFLICT(event_id, member_id) DO UPDATE SET answer = excluded.answer, persons = excluded.persons, note = excluded.note")
+      .run(e.id, mid, b.answer, persons, txt(b.note, 100) || null);
+    if (!old || old.answer !== b.answer || old.persons !== persons) ctx.audit({ username: 'app', name: req.member.name }, 'Termin: Antwort', `${req.member.name}: ${e.title} ${deD(e.date)} – ${b.answer === 'ja' ? `kommt${persons > 1 ? ` mit ${persons} Personen` : ''}` : 'kommt nicht'}`);
+    res.json({ ok: true });
+  });
   M.post('/report', rateLimit('awrep', 20, 3600000), (req, res) => {
     if (!cfg().app_report) return bad(res, 'Stunden meldet bei uns der Vorstand.', 403);
     const b = req.body || {}; const r = entryInput(b); if (r.error) return bad(res, r.error);
@@ -555,7 +645,7 @@ function activate(ctx) {
   });
   ctx.hooks.memberLinks = id => {
     const out = [];
-    const n = db.prepare('SELECT COUNT(*) n FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND e.date >= ? AND e.cancelled = 0').get(id, today()).n;
+    const n = db.prepare('SELECT COUNT(*) n FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND s.answer = \'ja\' AND e.date >= ? AND e.cancelled = 0').get(id, today()).n;
     if (n) out.push(`Für ${n} ${n === 1 ? 'kommenden Einsatz' : 'kommende Einsätze'} eingetragen`);
     const o = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE member_id = ? AND status IN ('offen', 'laeuft')").get(id).n;
     if (o) out.push(`${o} noch nicht bestätigte ${o === 1 ? 'Stundenmeldung' : 'Stundenmeldungen'}`);
@@ -566,25 +656,34 @@ function activate(ctx) {
   const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), hh = m => `${HF.format((m || 0) / 60)} h`;
   ctx.hooks.forMe = async (id, { until }) => {
     const d = today(), now = nowTs().slice(11, 16);
-    const next = db.prepare(`SELECT e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND e.cancelled = 0 AND e.permanent = 0 AND e.date >= ? AND e.date <= ? ORDER BY e.date, e.start IS NULL, e.start LIMIT 6`).all(id, d, until)
-      .filter(e => e.date > d || !e.end || e.end > now).slice(0, 5).map(e => ({ at: e.date, start: e.start || '', end: e.end || '', title: e.title, sub: e.place || '' }));
+    const next = db.prepare(`SELECT e.*, s.persons FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND s.answer = 'ja' AND e.cancelled = 0 AND e.permanent = 0 AND e.date >= ? AND e.date <= ? ORDER BY e.date, e.start IS NULL, e.start LIMIT 6`).all(id, d, until)
+      .filter(e => e.date > d || !e.end || e.end > now).slice(0, 5).map(e => ({ at: e.date, start: e.start || '', end: e.end || '', title: e.title, sub: [e.place, e.kind === 'termin' && e.persons > 1 ? `${e.persons} Personen` : ''].filter(Boolean).join(' · '),
+        ...(e.kind === 'termin' ? { focus: 'termin' } : {}) }));
+    // Termine ohne Antwort, Frist noch nicht abgelaufen: Zusage oder Absage gleich in der Zeile (dieselbe Route wie der Bereich: Frist, Plätze, Protokoll)
+    const ask = db.prepare(`SELECT e.* FROM aw_event e WHERE e.kind = 'termin' AND e.cancelled = 0 AND e.date >= ? AND e.date <= ? AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)
+      ORDER BY COALESCE(e.deadline, e.date), e.date, e.start IS NULL, e.start`).all(d, until, id).filter(e => isOpen(e) && deadlineOk(e)).slice(0, 3).map(e => {
+      const full = e.slots && personsYes(e.id) >= e.slots;
+      return { title: e.title, sub: [`${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(e.date + 'T12:00:00').getDay()]}, ${deD(e.date).slice(0, 6)}`, e.deadline ? `Antwort bis ${deD(e.deadline).slice(0, 6)}` : ''].filter(Boolean).join(' · '), chip: 'Antwort fehlt', focus: 'termin',
+        actions: [...(full ? [] : [{ label: '✓', aria: 'Ich komme', post: 'answer', body: { event_id: e.id, answer: 'ja', persons: 1 } }]), { label: '✕', aria: 'Ich komme nicht', post: 'answer', body: { event_id: e.id, answer: 'nein' }, kind: 'n' }] };
+    });
     const y = yearOf(d);
     const fam = mv() && cfg().pool_family ? await hook('familyOf', id) : null;
     const ids = fam ? fam.members : [id];
     let tg = 0; for (const x of ids) tg += (await target(x, y)).minutes;
     const miss = tg - doneMinutes(ids, y);
-    if (miss <= 0) return { next };
+    if (miss <= 0) return { next, todo: ask };
     // freie Dienste wie im Bereich: einzelne Termine und Schichten veröffentlichter Dienstpläne, noch nicht vorbei, nicht voll, ich noch nicht dabei
     const free = db.prepare(`SELECT e.* FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE e.date >= ? AND e.date <= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.counts = 1
       AND (e.plan_id IS NULL OR p.published = 1) AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)`).all(d, until, id).filter(e => isOpen(e) && (!e.slots || helpersOf(e.id).length < e.slots)).length;
-    return { next, todo: [{ title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '' }] };
+    return { next, todo: [...ask, { title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '' }] };
   };
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
+    { id: 'termin', label: 'Erinnerung an einen Termin', desc: 'Neue Termine mit Bitte um Antwort, kurz vor Ablauf der Antwortfrist und am Vortag eines Termins, zu dem du zugesagt hast.', default: true },
   ];
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
   ctx.hooks.setupSteps = () => [
-    { id: 'regeln', title: 'Helferdienste: Soll und Abrechnung', text: 'Wie viele Stunden jedes Mitglied im Jahr leisten soll und was fehlende Stunden kosten. Vorschlagswerte sind eingestellt.', page: 'aw-einstellungen', card: ['Soll', 'Abrechnung'] },
+    { id: 'regeln', title: 'Dienste & Termine: Soll und Abrechnung', text: 'Wie viele Stunden jedes Mitglied im Jahr leisten soll und was fehlende Stunden kosten. Vorschlagswerte sind eingestellt.', page: 'aw-einstellungen', card: ['Soll', 'Abrechnung'] },
   ];
   ctx.hooks.overview = async () => {
     const pend = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n;
@@ -613,13 +712,25 @@ function activate(ctx) {
       const mailOf = id => hook('memberAddress', id);   // { email, … } aus der Mitgliederverwaltung
       if (c.remind_events) {
         const tm = addDays(today(), 1);
-        for (const s of db.prepare('SELECT e.*, s.id AS signup_id, s.member_id FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND e.permanent = 0 AND s.reminded = 0').all(tm)) {
+        for (const s of db.prepare('SELECT e.*, s.id AS signup_id, s.member_id FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.date = ? AND e.cancelled = 0 AND e.permanent = 0 AND e.kind <> \'termin\' AND s.answer = \'ja\' AND s.reminded = 0').all(tm)) {
           db.prepare('UPDATE aw_signup SET reminded = 1 WHERE id = ?').run(s.signup_id);   // (bis 3.18 stand hier die Termin-Nummer – die Erinnerung ging stündlich erneut raus)
           // Push (ohne Mitgliederverwaltung und ohne Postfach möglich), E-Mail zusätzlich
           ctx.push.send([s.member_id], 'erinnerung', { title: `Morgen: ${s.title}`, body: `${KIND[s.kind] || 'Dienst'} am ${WDL[isoDow(s.date)]}${s.start ? ' ab ' + s.start + ' Uhr' : ''}${s.place ? ' · ' + s.place : ''}`, url: './#arbeitseinsatz', tag: `aw-${s.id}` }).catch(() => {});
           const m = mailOk ? await mailOf(s.member_id) : null;
           if (!m || !m.email) continue;
           await ctx.mail.send({ to: m.email, subject: `Erinnerung: ${s.title} morgen`, text: [`Hallo,`, '', `du hast dich für morgen eingetragen: ${KIND[s.kind]} „${s.title}“${s.plan_id ? ` (${(db.prepare('SELECT title FROM aw_plan WHERE id = ?').get(s.plan_id) || {}).title || ''})` : ''} am ${deD(s.date)}${s.start ? ` um ${s.start} Uhr` : ''}${s.place ? `, ${s.place}` : ''}.`, '', `Falls etwas dazwischenkommt: ${cfg().contact ? `bitte bei ${cfg().contact} melden.` : 'bitte beim Verein melden.'}`, '', 'Danke für deine Hilfe!', club].join('\n') }).catch(() => {});
+        }
+      }
+      // Termine: Erinnerung am Vortag an alle, die zugesagt haben, und eine Bitte um Antwort an alle ohne Antwort, wenn die Frist (sonst der Termin) morgen oder heute ist
+      {
+        const tm = addDays(today(), 1);
+        for (const s of db.prepare("SELECT e.*, s.id AS signup_id, s.member_id, s.persons FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE e.kind = 'termin' AND e.date = ? AND e.cancelled = 0 AND s.answer = 'ja' AND s.reminded = 0").all(tm)) {
+          db.prepare('UPDATE aw_signup SET reminded = 1 WHERE id = ?').run(s.signup_id);
+          ctx.push.send([s.member_id], 'termin', { title: `Morgen: ${s.title}`, body: `${WDL[isoDow(s.date)]}${s.start ? ' ab ' + s.start + ' Uhr' : ''}${s.place ? ' · ' + s.place : ''}${s.persons > 1 ? ` · ${s.persons} Personen` : ''}`, url: './#arbeitseinsatz', tag: `aw-t-${s.id}` }).catch(() => {});
+        }
+        for (const e of db.prepare("SELECT * FROM aw_event WHERE kind = 'termin' AND cancelled = 0 AND asked = 0 AND COALESCE(deadline, date) BETWEEN ? AND ?").all(today(), tm)) {
+          db.prepare('UPDATE aw_event SET asked = 1 WHERE id = ?').run(e.id);
+          if (isOpen(e)) askOpen(e, false);
         }
       }
       if (mailOk && c.remind_date && today().slice(5) === c.remind_date && S('reminded_year') !== today().slice(0, 4)) {

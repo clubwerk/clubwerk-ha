@@ -49,7 +49,7 @@ CREATE TABLE "aw_entry" (
 CREATE TABLE "aw_event" (
   id INTEGER PRIMARY KEY AUTOINCREMENT, kind TEXT NOT NULL DEFAULT 'arbeit', title TEXT NOT NULL, date TEXT NOT NULL, start TEXT, end TEXT, place TEXT,
   slots INTEGER, note TEXT, cancelled INTEGER NOT NULL DEFAULT 0, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
-, permanent INTEGER NOT NULL DEFAULT 0, plan_id INTEGER, counts INTEGER NOT NULL DEFAULT 1);
+, permanent INTEGER NOT NULL DEFAULT 0, plan_id INTEGER, counts INTEGER NOT NULL DEFAULT 1, deadline TEXT, asked INTEGER NOT NULL DEFAULT 0);
 CREATE TABLE aw_exempt (member_id INTEGER NOT NULL PRIMARY KEY REFERENCES members(id), note TEXT, until_date TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
 CREATE TABLE "aw_extern" (
   id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL REFERENCES aw_event(id), name TEXT NOT NULL, note TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -60,7 +60,7 @@ CREATE TABLE "aw_plan" (
 );
 CREATE TABLE "aw_signup" (
   id INTEGER PRIMARY KEY AUTOINCREMENT, event_id INTEGER NOT NULL REFERENCES aw_event(id), member_id INTEGER NOT NULL REFERENCES members(id), reminded INTEGER NOT NULL DEFAULT 0,
-  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), UNIQUE(event_id, member_id)
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), answer TEXT NOT NULL DEFAULT 'ja', persons INTEGER NOT NULL DEFAULT 1, note TEXT, UNIQUE(event_id, member_id)
 );
 CREATE TABLE aw_target (member_id INTEGER NOT NULL REFERENCES members(id), year INTEGER NOT NULL, minutes INTEGER, note TEXT, PRIMARY KEY(member_id, year));
 CREATE TABLE "bank_accounts" (
@@ -1064,8 +1064,15 @@ INSERT INTO "sp_game" VALUES(3,1,'2026-11-11','10:00',1,'TC Nachbarort 3',NULL,N
 INSERT INTO "sp_extern" VALUES(13,'0171 2223333','TC Nachbarort','PpWOkYt3sXCLaACOKotw2keT','Adminkonto','2026-10-21 17:26:50',NULL,'2026-10-21 17:26:50');
 INSERT INTO "member_devices" VALUES(5,'app',4,NULL,NULL,'00a3fbaf737dc37c63a03ccc2a49c5ab:d556e50757f98156c6656068d3e8bf93a4d4402c15380a666bac5edeab71e593','354ec6877294c7dadd7a530decf2905d:f469fb6e9868617941151f1dde26c542ce1514f5485148dbef673a7b8c8fe5cc','Gerät · Chrome','Adminkonto','2026-10-21 19:17:47','2026-10-21 19:17:49',NULL,0,NULL,0,NULL,'*','c958e44d4b996b2b88c67b4c3a93936d:f0bab5338cd6985fa2e321631e37055163c3db0d654891c772cf0c9da234f84b',1793207869494,'127.0.0.1:5803',NULL,NULL,NULL,'qr','d93e0177f1ff7c6737449519965209c0:a98a271f84e55fb8ca5e584f68f8a161e6518feda2d979739bb7fa37a58fd957','2026-10-21 19:17:49',0,0,NULL,NULL,NULL,0,NULL,0,NULL,1);
 INSERT INTO "member_devices" VALUES(22,'app',3,NULL,NULL,'ae3cbd26a164a12394721d8e7ee57ecd:19ddb08eb04ced1e6d32aec7712bf732ca282a29424c41253e51484e7e13e868','2e00ff092ca5d4258998b328a3a1da21:a8d5c56a24e87aac58e751486a84fb3c5a3b7253482f60307224abbeb11a419f','Gerät · Chrome','Adminkonto','2026-10-21 23:25:05','2026-10-21 23:25:08',NULL,0,NULL,0,NULL,'*','7b846fc97ca423f6be6922e421af85de:6406c0e218127a932ac2b690a7500523b02e8eec535b067e7a0b592447a52efa',1793222708114,'127.0.0.1:5803',NULL,NULL,NULL,'qr','36e5525bb68ddfdc7a7769c8c16b5292:6b9e4e5c79a63b026ba10a95d01b0136b7d24b838d9769602f1e9ea549152881','2026-10-21 23:25:08',0,0,NULL,NULL,NULL,0,NULL,0,NULL,1);
-INSERT INTO "aw_event" VALUES(1,'theke','Thekendienst','2026-10-21',NULL,NULL,NULL,NULL,NULL,0,'Clubwerk','2026-10-21 17:26:45',1,NULL,1);
-INSERT INTO "aw_event" VALUES(2,'arbeit','Plätze herrichten','2026-10-21','17:00','20:00','Anlage',8,NULL,0,'Adminkonto','2026-10-21 18:12:49',0,NULL,1);
+INSERT INTO "aw_event" VALUES(1,'theke','Thekendienst','2026-10-21',NULL,NULL,NULL,NULL,NULL,0,'Clubwerk','2026-10-21 17:26:45',1,NULL,1,NULL,0);
+INSERT INTO "aw_event" VALUES(2,'arbeit','Plätze herrichten','2026-10-21','17:00','20:00','Anlage',8,NULL,0,'Adminkonto','2026-10-21 18:12:49',0,NULL,1,NULL,0);
+INSERT INTO "aw_event"(id,kind,title,date,start,end,place,slots,note,created_by,counts,deadline) VALUES(3,'termin','Weihnachtsfeier','2026-12-12','18:00','23:00','Vereinsheim',60,'Mit Essen vom Buffet – bitte Begleitung angeben.','Adminkonto',0,'2026-12-05');
+INSERT INTO "aw_event"(id,kind,title,date,start,end,place,slots,note,created_by,counts,deadline) VALUES(4,'termin','Mitgliederversammlung','2026-11-20','19:00',NULL,'Vereinsheim',NULL,NULL,'Adminkonto',0,NULL);
+INSERT INTO "aw_signup"(event_id,member_id,answer,persons) VALUES(3,4,'ja',2);
+INSERT INTO "aw_signup"(event_id,member_id,answer,persons) VALUES(3,5,'ja',3);
+INSERT INTO "aw_signup"(event_id,member_id,answer,persons) VALUES(3,6,'nein',0);
+INSERT INTO "aw_signup"(event_id,member_id,answer,persons) VALUES(3,7,'ja',1);
+INSERT INTO "aw_signup"(event_id,member_id,answer,persons) VALUES(4,4,'ja',1);
 INSERT INTO "irr_steps" VALUES(1,1792603053771,0,NULL,'switch.platz1',600,1792603053771,1792603653771,'fail','Clubwerk hat keinen Zugangsschlüssel für Home Assistant bekommen. Bitte das Add-on einmal neu starten; hilft das nicht, im Protokoll des Add-ons die Zeile „Verbindung zu Home Assistant“ prüfen.');
 INSERT INTO "irr_log" VALUES(1,'2026-10-21 19:17:33','Adminkonto','start','Platz 1',600,NULL);
 INSERT INTO "irr_log" VALUES(2,'2026-10-21 19:17:33',NULL,'fehler','Platz 1',NULL,'switch.platz1: Clubwerk hat keinen Zugangsschlüssel für Home Assistant bekommen. Bitte das Add-on einmal neu starten; hilft das nicht, im Protokoll des Add-ons die Zeile „Verbindung zu Home Assistant“ prüfen.');
@@ -1106,8 +1113,8 @@ DELETE FROM sqlite_sequence WHERE name='member_devices'; INSERT INTO sqlite_sequ
 DELETE FROM sqlite_sequence WHERE name='push_subs'; INSERT INTO sqlite_sequence VALUES('push_subs',0);
 DELETE FROM sqlite_sequence WHERE name='push_log'; INSERT INTO sqlite_sequence VALUES('push_log',0);
 DELETE FROM sqlite_sequence WHERE name='bank_accounts'; INSERT INTO sqlite_sequence VALUES('bank_accounts',0);
-DELETE FROM sqlite_sequence WHERE name='aw_event'; INSERT INTO sqlite_sequence VALUES('aw_event',2);
-DELETE FROM sqlite_sequence WHERE name='aw_signup'; INSERT INTO sqlite_sequence VALUES('aw_signup',0);
+DELETE FROM sqlite_sequence WHERE name='aw_event'; INSERT INTO sqlite_sequence VALUES('aw_event',4);
+DELETE FROM sqlite_sequence WHERE name='aw_signup'; INSERT INTO sqlite_sequence VALUES('aw_signup',5);
 DELETE FROM sqlite_sequence WHERE name='aw_entry'; INSERT INTO sqlite_sequence VALUES('aw_entry',0);
 DELETE FROM sqlite_sequence WHERE name='aw_plan'; INSERT INTO sqlite_sequence VALUES('aw_plan',0);
 DELETE FROM sqlite_sequence WHERE name='aw_extern'; INSERT INTO sqlite_sequence VALUES('aw_extern',0);

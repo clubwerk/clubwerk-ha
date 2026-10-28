@@ -1,5 +1,5 @@
 'use strict';
-/* Bereich „Dienste“ in der Mitglieder-App (Modul Helferdienste): Dienstpläne mit Schichten, Termine, eigene Arbeitsstunden, Stunden melden */
+/* Bereich „Dienste“ in der Mitglieder-App (Modul Helferdienste): Dienstpläne mit Schichten, Termine, eigene Arbeitsstunden, Stunden melden; Reiter „Termine“ mit Zu- und Absage */
 (() => {
   if (!document.getElementById('dsStyle')) {
     const s = document.createElement('style'); s.id = 'dsStyle';
@@ -9,6 +9,7 @@
       .ds-t { width: 48px; font-family: var(--num); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.25; text-align: center; }
       .ds-sh strong { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 15px; line-height: 1.3; }
       .ds-sh small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.35; }
+      .ds-ans { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; } .ds-tm .vh-lead { margin: 8px 0 0; } .ds-tm h3 { align-items: center; }
       .ds-faces { display: flex; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); margin-left: -4px; }`;
     document.head.appendChild(s);
   }
@@ -29,12 +30,15 @@
       const { esc } = ctx;
       const close = () => { const s = document.getElementById('dsSheet'); if (s) s.classList.remove('show'); };
       ctx.onLeave(close);
+      let d_contact = '';
       const sel = {};   // gewählter Tag je Dienstplan
+      let tab = ctx.focus === 'termin' ? 'termine' : 'dienste';   // Reiter „Dienste“ | „Termine“ (aus „Für mich“: gleich die Termine)
       let focus = ctx.focus || '';   // aus „Für mich“ („frei“): zum ersten freien Dienst scrollen (nur beim ersten Laden)
       const sheet = () => { let sh = document.getElementById('dsSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'dsSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       async function load() {
         let d; try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
-        window.__dsToday = d.today;
+        window.__dsToday = d.today; d_contact = d.contact;
+        if (!d.termine.length) tab = 'dienste';
         const pct = d.target ? Math.min(100, Math.round(d.done / d.target * 100)) : 100;
         const miss = Math.max(0, d.target - d.done);
         // Solange Stunden fehlen, steht das Offene im Vordergrund; danach kein Zielstrich („Geschafft“), nur Dank – die Dienste rücken nach oben
@@ -48,8 +52,12 @@
             ${d.text ? `<p class="vh-lead" style="margin-top:8px">${esc(d.text)}</p>` : ''}</div>`;
         const duties = `${mineHtml(d)}${d.plans.map(planHtml).join('')}
           ${d.events.length || !d.plans.length ? `<div class="vh-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="vh-none">Gerade keine Termine geplant.</p>'}</div>` : ''}`;
-        el.innerHTML = `${met ? duties + hours : hours + duties}
+        const openT = d.termine.filter(t => !t.answer && t.can).length;
+        const seg = d.termine.length ? `<div class="vh-seg"><button data-tab="dienste" class="${tab === 'dienste' ? 'on' : ''}">Dienste</button><button data-tab="termine" class="${tab === 'termine' ? 'on' : ''}">Termine${openT ? ` (${openT})` : ''}</button></div>` : '';
+        el.innerHTML = tab === 'termine' ? seg + d.termine.map(termHtml).join('') : `${seg}${met ? duties + hours : hours + duties}
           <div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b class="num">${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`;
+        el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; load(); }; });
+        el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(d.termine.find(x => x.id === +b.dataset.t), b.dataset.ans); });
         const all = [...d.events, ...d.plans.flatMap(p => p.shifts)];
         el.querySelectorAll('[data-ev]').forEach(b => { b.onclick = async () => {
           const e = all.find(x => x.id === +b.dataset.ev);
@@ -60,6 +68,30 @@
         const rep = document.getElementById('dsRep'); if (rep) rep.onclick = () => report(d);
         if (focus === 'frei') { const f = el.querySelector('[data-ev][data-on="0"]:not([disabled])'); if (f) f.closest('.ds-sh').scrollIntoView({ block: 'center' }); }
         focus = '';
+      }
+      function termHtml(t) {
+        const chip = t.answer === 'ja' ? `<span class="vh-chip g">du kommst${t.persons > 1 ? ` (${t.persons} Personen)` : ''}</span>` : t.answer === 'nein' ? '<span class="vh-chip">du kommst nicht</span>' : t.can ? '<span class="vh-chip a">Antwort fehlt</span>' : '';
+        const count = t.persons_total ? `bisher ${t.persons_total} ${t.persons_total === 1 ? 'Person' : 'Personen'} zugesagt${t.free != null ? ` · noch ${t.free} ${t.free === 1 ? 'Platz' : 'Plätze'} frei` : ''}` : (t.free != null ? `${t.free} ${t.free === 1 ? 'Platz' : 'Plätze'} frei` : '');
+        return `<div class="vh-card ds-tm"><h3><span translate="no">${esc(t.title)}</span>${chip}</h3>
+          <div class="ds-sh" style="border-top:0;padding:2px 0 0"><span class="vh-date"><b>${t.date.slice(8, 10)}.${t.date.slice(5, 7)}.</b><span>${wd(t.date)}</span></span>
+            <div style="min-width:0"><strong>${esc(`${wd(t.date, true)}, ${deD(t.date)}`)}</strong><small>${esc([when(t), t.place].filter(Boolean).join(' · '))}</small>${t.note ? `<small>${esc(t.note)}</small>` : ''}</div><span></span></div>
+          ${count ? `<p class="vh-lead">${esc(count)}</p>` : ''}
+          ${t.can ? `${t.deadline ? `<p class="vh-lead">Antwort bis ${deD(t.deadline)}</p>` : ''}<div class="ds-ans"><button class="vh-btn sm${t.answer === 'ja' ? '' : ' sec'}" data-t="${t.id}" data-ans="ja">${t.answer === 'ja' ? 'Ich komme ✓' : 'Ich komme'}</button><button class="vh-btn sm${t.answer === 'nein' ? '' : ' sec'}" data-t="${t.id}" data-ans="nein">${t.answer === 'nein' ? 'Ich komme nicht ✓' : 'Ich komme nicht'}</button></div>`
+            : `<p class="vh-lead">Die Antwortfrist ist abgelaufen${t.answer ? '' : ' – du hast nicht geantwortet'}. Änderungen bitte über ${d_contact ? esc(d_contact) : 'den Verein'}.</p>`}</div>`;
+      }
+      function answer(t, a) {
+        if (a === 'nein') return post(t, { event_id: t.id, answer: 'nein', note: t.my_note }, 'Abgesagt – danke für die Antwort.');
+        const sh = sheet();
+        sh.innerHTML = `<div class="vh-box"><h2>Ich komme</h2><p><span translate="no">${esc(t.title)}</span> · ${wd(t.date, true)}, ${deD(t.date)}</p>
+          <label>Wie viele Personen kommen? (mit dir)</label><input class="vh-input" id="dsP" type="number" inputmode="numeric" min="1" max="10" value="${t.persons || 1}">
+          <label>Anmerkung (freiwillig)</label><input class="vh-input" id="dsN" maxlength="100" value="${esc(t.my_note)}" placeholder="z. B. Vegetarier dabei"><div class="vh-err" id="dsE"></div>
+          <div class="vh-row"><button class="no" id="dsNo">Abbrechen</button><button class="ok" id="dsOk">Zusagen</button></div></div>`;
+        sh.classList.add('show');
+        sh.querySelector('#dsNo').onclick = close;
+        sh.querySelector('#dsOk').onclick = () => post(t, { event_id: t.id, answer: 'ja', persons: sh.querySelector('#dsP').value, note: sh.querySelector('#dsN').value }, 'Zugesagt – danke!', sh.querySelector('#dsE'));
+      }
+      async function post(t, body, msg, errEl) {
+        try { await ctx.api('answer', 'POST', body); close(); ctx.toast(msg); load(); } catch (x) { if (errEl) errEl.textContent = x.message; else ctx.toast(x.message, true); }
       }
       function shiftHtml(e, withDate) {
         const over = e.open === false, full = e.slots && e.taken >= e.slots && !e.mine;

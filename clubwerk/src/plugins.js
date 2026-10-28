@@ -232,7 +232,7 @@ function load({ app, admin, helpers }) {
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden
         entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
       };
-      if (p.meta.mitgliederApp) memberapp.register(id, { name: p.meta.name, label: p.meta.mitgliederApp.label || p.meta.name, order: p.meta.mitgliederApp.order,
+      if (p.meta.mitgliederApp) memberapp.register(id, { name: p.meta.name, label: p.meta.mitgliederApp.label || p.meta.name, kopf: p.meta.mitgliederApp.kopf, order: p.meta.mitgliederApp.order,
         dir: p.dir, router: member, hooks: p.hooks, isActive: () => isActive(id), perm: p.meta.verwaltung ? p.meta.verwaltung.recht : null, scripts: sharedScripts(p.meta),
         open: p.meta.mitgliederApp.alle === true, away: p.meta.mitgliederApp.unterwegs !== false,
         nonMembers: p.meta.mitgliederApp.keinMitglied === true,   // auch für Konten „Kein Mitglied“ (z. B. Trainer) – nur mit eigener Freischaltung

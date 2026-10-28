@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.89.0
+
+**Termine mit Zu- und Absage – für Weihnachtsfeier, Versammlung & Co.**
+- **Neue Art „Termin“ bei den Helferdiensten** (Verwaltung › Helferdienste › Einsätze › „Art“). Ein Termin ist kein Dienst: Er zählt nie zu den Arbeitsstunden, steht nicht am Tablet zum Stempeln und taucht in keiner Stundenrechnung auf. Dazu eine **Antwortfrist** (leer = bis zum Termin) und eine **Höchstzahl Personen**. Bestehende Einträge bleiben, wie sie sind; ein Einsatz ohne erfasste Stunden lässt sich auf „Termin“ umstellen.
+- **In der Mitglieder-App** gibt es unter „Dienste“ den Reiter **„Termine“** mit **„Ich komme“** (mit Begleitpersonen: „Wie viele Personen kommen?“) und **„Ich komme nicht“**. Ändern geht bis zur Antwortfrist. Mitglieder sehen nur die **Anzahl** („bisher 42 Personen zugesagt, noch 8 Plätze frei“), keine Namen.
+- **„Für mich“:** Fehlt die Antwort, steht der Termin unter „Zu erledigen“ mit ✓/✕ gleich in der Zeile; bei Zusage unter „Als Nächstes“.
+- **Teilnehmerliste in der Verwaltung** („Antworten“ am Termin): wer kommt (mit Personenzahl und Anmerkung), wer nicht, wer noch nicht geantwortet hat – alphabetisch nach Nachname. Die Verwaltung kann für ein Mitglied antworten (z. B. nach einem Anruf), die Liste als **Excel** laden und mit „Ohne Antwort erinnern“ nachfassen. Absagen sieht nur die Verwaltung.
+- **Benachrichtigungen:** ein eigener Anlass **„Erinnerung an einen Termin“** (Mitglieder-App › Benachrichtigungen, getrennt von „Erinnerung an den Dienst“): Einladung beim Anlegen (abwählbar), Bitte um Antwort am Tag vor Fristende nur an Mitglieder ohne Antwort, Erinnerung am Vortag nur bei Zusage.
+- **Neuer Name: „Dienste & Termine“.** Das Modul heißt in der Verwaltung jetzt so (vorher „Helferdienste“); in der Mitglieder-App steht in der Leiste weiter kurz „Dienste“, die Überschrift im Bereich lautet „Dienste & Termine“. Nichts an den Daten oder Rechten ändert sich.
+- **Mitglieder-App „Für mich“:** Lange Titel wie „Mitgliederversammlung“ werden bei Zeilen mit Zusage-Knöpfen nicht mehr abgeschnitten, und die Knöpfe sind so hoch wie das Symbol der Zeile.
+- Module: Dienste & Termine 2.9.0.
+
 ## 3.88.0
 
 **Nachrichten: aus „E-Mail“ wird „Nachrichten“ – per E-Mail, in der Mitglieder-App und als Push-Hinweis**
