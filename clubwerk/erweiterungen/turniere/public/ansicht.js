@@ -1,6 +1,7 @@
 'use strict';
 /* Turniere – gemeinsame Bausteine für Verwaltung, Mitglieder-App und Tablet (gleiche Sache = gleiches Aussehen):
-   Gruppentabelle, Ergebnis wie auf der Anzeigetafel (Sätze je Spieler), K.-o.-Baum (Halbfinale → Finale) und Relegation.
+   Gruppentabelle, Ergebnis wie auf der Anzeigetafel (Sätze je Spieler), K.-o.-Baum (Halbfinale → Finale) und Relegation;
+   für den Turnierplaner Tabelle mit Punkten, Ergebnis auf Zeit (Tore/Spiele, Neunmeter, Tiebreak), Turnierbaum und Rangliste.
    Daten kommen aus der Ansicht des Servers (view): Namen, Sätze, Sieger – keine Konten oder Kontaktdaten. */
 (() => {
   if (window.TurnierAnsicht) return;
@@ -47,6 +48,27 @@
       .tu-hon b.y { grid-row: span 2; font-family: var(--num); font-weight: 600; font-size: 22px; line-height: 1.1; color: var(--brand-ink); font-variant-numeric: tabular-nums; }
       .tu-hon small { font-size: 12.5px; color: var(--muted); }
       .tu-hon span { font-size: 14.5px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+      .tu-tab.ft col.z { width: 30px; } .tu-tab.ft col.w { width: 50px; } .tu-tab.ft col.p { width: 40px; }
+      .tu-tab.ft td.pt { font-family: var(--num); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 17px; color: var(--ink); }
+      .tu-tab.ft tr.tie td.r::after { content: '='; color: var(--amber); margin-left: 1px; }
+      .tu-score .p.ph { color: var(--muted); font-style: italic; font-weight: 400; }
+      .tu-score.ft .p { white-space: normal; overflow-wrap: anywhere; overflow: visible; }   /* Turnierplaner: Namen stehen ganz da, notfalls zweizeilig */
+      .ft-tree { display: grid; grid-template-columns: repeat(var(--r), minmax(0, 1fr)); gap: 12px 16px; align-items: stretch; }
+      .ft-tree > .col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+      .ft-tree > .col > .ms { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
+      .ft-tree h4.ft-rh { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+      .ft-tree .tu-box.bye { padding: 6px 14px; }
+      .ft-tree .tu-box.bye .tu-score .s { color: var(--muted); }
+      .ft-third { margin-top: 12px; display: grid; grid-template-columns: repeat(var(--r), minmax(0, 1fr)); gap: 12px 16px; }
+      .ft-pod { display: grid; gap: 6px; margin: 12px 0 0; }
+      .ft-pod > div { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; align-items: baseline; }
+      .ft-pod b.n { font-family: var(--num); font-weight: 600; font-size: 20px; color: var(--brand-ink); }
+      .ft-pod span { font-weight: 700; overflow-wrap: anywhere; }
+      @media (max-width: 900px) { .ft-tree, .ft-third { grid-template-columns: minmax(0, 1fr); } }
+      .ft-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 12px; align-items: stretch; }
+      .ft-groups > * { margin: 0; min-width: 0; container-type: inline-size; }
+      @container (max-width: 460px) { .tu-tab.ft .wdl { display: none; } }
+      @media (max-width: 560px) { .tu-tab.ft .wdl { display: none; } }
       @media (max-width: 560px) { .tu-tree { grid-template-columns: minmax(0, 1fr); } .tu-tree .col:first-child .tu-box::after { content: none; } }
       @media print { .tu-box { box-shadow: none; border: 1px solid #999; break-inside: avoid; } .tu-groups > * { break-inside: avoid; } .tu-tab tr.me td { background: none; } }`;
     document.head.appendChild(s);
@@ -91,5 +113,44 @@
   function honors(list) {
     return `<div class="tu-hon">${list.map((h, i) => `<div><b class="y">${i && list[i - 1].year === h.year ? '' : esc(h.year)}</b><small>${esc(T(h.title))}</small><span translate="no">${esc(h.names)}</span></div>`).join('')}</div>`;
   }
-  window.TurnierAnsicht = { table, score, results, tree, relegation, honors, dm, esc };
+
+  /* ---------- Turnierplaner (freie Turniere): Tabelle mit Punkten, Ergebnis auf Zeit, Turnierbaum, Rangliste, Ehrentafel ---------- */
+  const side = (m, k) => (m[k] ? { t: m[k], ph: false } : { t: m[k + '_ph'] || T('offen'), ph: true });
+  /** Gruppentabelle: Platz, Name, Spiele, Siege, Unentschieden, Niederlagen, Tore/Spiele, Differenz, Punkte (auf Sätze: Sätze und Spiele) */
+  function ftTable(g, { unit = 'Tore', up = 0 } = {}) {
+    const sets = g.table.some(r => r.sets);
+    const head = sets ? `<th title="${esc(T('Siege'))}" class="wdl">${esc(T('S'))}</th><th title="${esc(T('Niederlagen'))}" class="wdl">${esc(T('N'))}</th><th>${esc(T('Sätze'))}</th><th>${esc(T('Spiele'))}</th>`
+      : `<th title="${esc(T('Siege'))}" class="wdl">${esc(T('S'))}</th><th title="${esc(T('Unentschieden'))}" class="wdl">${esc(T('U'))}</th><th title="${esc(T('Niederlagen'))}" class="wdl">${esc(T('N'))}</th><th>${esc(T(unit))}</th><th title="${esc(T('Differenz'))}">${esc(T('Diff.'))}</th>`;
+    const cols = sets ? '<col class="z wdl"><col class="z wdl"><col class="w"><col class="w">' : '<col class="z wdl"><col class="z wdl"><col class="z wdl"><col class="w"><col class="p">';
+    return `<table class="tu-tab ft"><colgroup><col class="r"><col><col class="z">${cols}<col class="p"></colgroup>
+      <thead><tr><th class="r" title="${esc(T('Platz'))}">#</th><th class="n">${esc(T('Name'))}</th><th title="${esc(T('Spiele'))}">${esc(T('Sp.'))}</th>${head}<th title="${esc(T('Punkte'))}">${esc(T('Pkt.'))}</th></tr></thead>
+      <tbody>${g.table.map(r => `<tr class="${r.rank <= up && g.done ? 'up' : ''}${r.tie ? ' tie' : ''}"${r.tie ? ` title="${esc(T('Gleichstand – das Los entscheidet'))}"` : ''}><td class="r">${r.rank}</td><td class="n" translate="no">${esc(r.name)}</td><td class="z">${r.played}</td>
+        ${sets ? `<td class="z wdl">${r.won}</td><td class="z wdl">${r.lost}</td><td class="z">${esc(r.sets)}</td><td class="z">${esc(r.games)}</td>` : `<td class="z wdl">${r.won}</td><td class="z wdl">${r.drawn}</td><td class="z wdl">${r.lost}</td><td class="z">${esc(r.games)}</td><td class="z">${r.diff > 0 ? '+' : ''}${r.diff}</td>`}
+        <td class="z pt">${r.pts}</td></tr>`).join('')}</tbody></table>`;
+  }
+  /** Ergebnis eines Spiels wie auf der Anzeigetafel: zwei Zeilen (Name · Tore/Spiele), Sieger fett; darunter Entscheidung oder Zeit und Platz */
+  function ftScore(m) {
+    const a = side(m, 'a'), b = side(m, 'b');
+    if (m.sets && m.sets.length) return score({ ...m, a: a.t, b: b.t });
+    const d = m.decider, w = m.winner;
+    const num = s => (m.done && !m.bye ? `<b class="${w === s ? 'w' : ''}">${s === 'a' ? m.score_a : m.score_b}</b>` : '');
+    const when = m.bye ? T('Freilos') : m.done ? (d ? `${d.kind === 'nm' ? T('n. N.') : T('Tiebreak')} ${d.a}:${d.b}` : '') : m.running ? T('läuft') : [m.est || m.time ? T('{0} Uhr', [m.est || m.time]) : '', m.court || ''].filter(Boolean).join(' · ');
+    return `<div class="tu-score ft"><span class="p${w === 'a' ? ' w' : ''}${a.ph ? ' ph' : ''}" ${a.ph ? '' : 'translate="no"'}>${esc(a.t)}</span><span class="s">${num('a')}</span>
+      <span class="p${w === 'b' ? ' w' : ''}${b.ph ? ' ph' : ''}" ${b.ph ? '' : 'translate="no"'}>${esc(b.t)}</span><span class="s">${num('b')}</span>${when ? `<span class="when">${esc(when)}</span>` : ''}</div>`;
+  }
+  /** Turnierbaum: je Runde eine Spalte (Handy: untereinander), Spiel um Platz 3 darunter; attr(m) = zusätzliche Attribute je Spiel (z. B. zum Antippen) */
+  function ftTree(ko, third, { attr = () => '' } = {}) {
+    const box = (m, title) => `<div class="tu-box${m.bye ? ' bye' : ''}" ${attr(m)}>${title ? `<h4>${esc(title)}</h4>` : ''}${ftScore(m)}</div>`;
+    return `<div class="ft-tree" style="--r:${ko.length}">${ko.map(r => `<div class="col"><h4 class="ft-rh">${esc(T(r.label))}</h4><div class="ms">${r.matches.map(m => box(m)).join('')}</div></div>`).join('')}</div>
+      ${third ? `<div class="ft-third" style="--r:${ko.length}">${box(third, T('Spiel um Platz 3'))}</div>` : ''}`;
+  }
+  /** Rangliste im Schleifchen: gewonnene Spiele je Person */
+  function ftRanking(rows, unit = 'Spiele') {
+    return `<table class="tu-tab ft"><colgroup><col class="r"><col><col class="z"><col class="z"><col class="w"></colgroup>
+      <thead><tr><th class="r" title="${esc(T('Platz'))}">#</th><th class="n">${esc(T('Name'))}</th><th title="${esc(T('Spiele'))}">${esc(T('Sp.'))}</th><th title="${esc(T('Siege'))}">${esc(T('S'))}</th><th>${esc(T(unit))}</th></tr></thead>
+      <tbody>${rows.map(r => `<tr class="${r.tie ? 'tie' : ''}"><td class="r">${r.rank}</td><td class="n" translate="no">${esc(r.name)}</td><td class="z">${r.played}</td><td class="z">${r.won}</td><td class="z pt">${r.for}:${r.against}</td></tr>`).join('')}</tbody></table>`;
+  }
+  /** Siegerliste 1., 2., 3. */
+  const ftPodium = list => `<div class="ft-pod">${list.map(p => `<div><b class="n">${p.place}.</b><span translate="no">${esc(p.name)}</span></div>`).join('')}</div>`;
+  window.TurnierAnsicht = { table, score, results, tree, relegation, honors, dm, esc, ftTable, ftScore, ftTree, ftRanking, ftPodium };
 })();

@@ -35,7 +35,14 @@ function build(file) {
   { const n = new Date(), ref = new Date(n.getFullYear(), n.getMonth(), n.getDate(), 11, 0), dm = Math.round((n - ref) / 60000), p = x => String(x).padStart(2, '0');
     const mv = v => { if (!v) return v; const d = new Date(v.slice(0, 16).replace(' ', 'T')); d.setMinutes(d.getMinutes() + dm); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}${v.length > 16 ? v.slice(16) : ''}`; };
     for (const [t, cols] of [['tu_lkmatch', ['plan_time', 'time', 'started_at', 'ended_at', 'entered_at']], ['tu_person', ['checked_in_at', 'paid_at']]])
-      for (const r of db.prepare(`select rowid r, ${cols.join(', ')} from ${t}`).all()) db.prepare(`update ${t} set ${cols.map(c => `${c} = ?`).join(', ')} where rowid = ?`).run(...cols.map(c => mv(r[c])), r.r); }
+      for (const r of db.prepare(`select rowid r, ${cols.join(', ')} from ${t}`).all()) db.prepare(`update ${t} set ${cols.map(c => `${c} = ?`).join(', ')} where rowid = ?`).run(...cols.map(c => mv(r[c])), r.r);
+    // Turnierplaner: das heutige Turnier ebenso (Beginn und Spiele); Turniere an anderen Tagen behalten ihre Uhrzeiten
+    const heute = `${n.getFullYear()}-${p(n.getMonth() + 1)}-${p(n.getDate())}`, ftc = ['plan_time', 'time', 'started_at', 'ended_at', 'entered_at'];
+    const hasFt = db.prepare("select 1 from sqlite_master where type = 'table' and name = 'tu_ft'").get();
+    for (const f of hasFt ? db.prepare('select id, date, start from tu_ft where date = ?').all(heute) : []) {
+      db.prepare('update tu_ft set start = ? where id = ?').run(mv(`${f.date} ${f.start}`).slice(11, 16), f.id);
+      for (const r of db.prepare(`select rowid r, ${ftc.join(', ')} from tu_ftmatch where ft_id = ?`).all(f.id)) db.prepare(`update tu_ftmatch set ${ftc.map(c => `${c} = ?`).join(', ')} where rowid = ?`).run(...ftc.map(c => mv(r[c])), r.r);
+    } }
   // Verkäufe nie in der Zukunft (die Demo-Buchungen stehen auf 12:00 Uhr): sonst zählt die Abrechnung sie vormittags noch nicht, die Kontenliste schon
   db.prepare("update bookings set created_at = datetime('now','localtime','-10 minutes') where created_at > datetime('now','localtime')").run();
   return { db, off };

@@ -2,6 +2,7 @@
 /* Verwaltungsseiten des Moduls „Turniere“:
    „Clubmeisterschaft“ – Reiter Übersicht · Teilnehmer · Spiele · Tabellen · Ehrentafel · Einstellungen (hier).
    „Turniertag“ – LK-Turniere mit nuLiga-Import (lk-admin.js, wird beim ersten Öffnen nachgeladen).
+   „Turnierplaner“ – freie Turniere wie das Dorfturnier (ft-admin.js, wird beim ersten Öffnen nachgeladen; Detailansicht je Turnier).
    Tabellen, K.-o.-Baum und Ergebnis-Anzeige aus ansicht.js – dieselben Bausteine wie in der Mitglieder-App und am Tablet. */
 (() => {
   const GK = window.GK;
@@ -417,6 +418,10 @@
   GK.registerPage({ key: 'turniere', title: 'Clubmeisterschaft', perm: 'turniere', render, icon: 'turnier', order: 2.7 });
   const loadLK = () => new Promise(res => { if (window.TurnierLK) return res(); const sc = document.createElement('script'); sc.src = 'x/turniere/lk-admin.js'; sc.onload = res; sc.onerror = res; document.body.appendChild(sc); });
   GK.registerPage({ key: 'turniertag', title: 'Turniertag', perm: 'turniere', icon: 'turnier', order: 2.71, render: async () => { await loadLK(); if (!window.TurnierLK) throw new Error('Die Seite „Turniertag“ konnte nicht geladen werden.'); return window.TurnierLK.render(); } });
+  const loadFT = () => new Promise(res => { if (window.TurnierFT) return res(); const sc = document.createElement('script'); sc.src = 'x/turniere/ft-admin.js'; sc.onload = res; sc.onerror = res; document.body.appendChild(sc); });
+  const needFT = async () => { await loadFT(); if (!window.TurnierFT) throw new Error('Die Seite „Turnierplaner“ konnte nicht geladen werden.'); return window.TurnierFT; };
+  GK.registerPage({ key: 'turnierplaner', title: 'Turnierplaner', perm: 'turniere', icon: 'turnier', order: 2.72, render: async () => (await needFT()).render() });
+  GK.registerDetail({ key: 'turnier', page: 'turnierplaner', back: 'Alle Turniere', perm: 'turniere', load: async id => (await needFT()).load(id), render: async (...a) => (await needFT()).detail(...a) });
   if (GK.registerSearch) GK.registerSearch([
     { label: 'Clubmeisterschaft', page: 'turniere', tab: ['turniere', 'uebersicht'], kind: 'reiter', in: 'Übersicht', words: 'Turnier Saison Vereinsmeisterschaft Liga', boost: 1 },
     { label: 'Neue Saison anlegen', page: 'turniere', tab: ['turniere', 'uebersicht'], btn: '+ Neue Saison', kind: 'aktion', in: 'Übersicht', words: 'Clubmeisterschaft Ligen Fristen Anmeldeschluss' },
@@ -437,6 +442,9 @@
     { label: 'Turnierplätze und Sperre im Buchungssystem', page: 'turniertag', tab: ['turniertag', 'plaetze'], card: 'Sperre im Buchungssystem', in: 'Plätze', words: 'sperren Halle Platz zuordnen' },
     { label: 'Löschfrist fremder Spieler', page: 'turniertag', tab: ['turniertag', 'einstellungen'], card: 'Datenschutz', in: 'Einstellungen', words: 'Datenschutz löschen Turnier Spieler' },
     { label: 'Dauer je Match und Pause', page: 'turniertag', tab: ['turniertag', 'einstellungen'], card: 'Zeitplan', in: 'Einstellungen', words: 'Matchdauer Pause Zeitplan' },
+    { label: 'Turnierplaner (Dorfturnier)', page: 'turnierplaner', tab: ['turnierplaner', 'turniere'], kind: 'reiter', in: 'Turniere', words: 'Dorfturnier Fußball Tennis Gruppen Endrunde K.-o. Schleifchen jeder gegen jeden Spielplan Monitor', boost: 1 },
+    { label: 'Neues Turnier anlegen', page: 'turnierplaner', tab: ['turnierplaner', 'turniere'], btn: '+ Neues Turnier', kind: 'aktion', in: 'Turniere', words: 'Dorfturnier Turnierplaner anlegen' },
+    { label: 'Ehrentafel der Turniere', page: 'turnierplaner', tab: ['turnierplaner', 'ehrentafel'], kind: 'reiter', in: 'Ehrentafel', words: 'Sieger Dorfturnier Jahre' },
     { label: 'Einstellungen der Turniere übertragen', page: 'turniere', tab: ['turniere', 'einstellungen'], card: 'Einstellungen übertragen', in: 'Einstellungen', words: 'Export Import sichern Datei' },
   ]);
 })();

@@ -1,0 +1,85 @@
+/* Monitor des Turnierplaners: am Fernseher Vollbild ohne Scrollen, groß lesbar aus einigen Metern, Ziffern wie auf der Anzeigetafel.
+   Am Handy (schmal) steht alles untereinander und scrollt. Nur Farb-Tokens – hell, dunkel und Hoher Kontrast kommen von selbst. */
+body.mon { margin: 0; background: var(--bg); color: var(--ink); min-height: 100dvh; --s: 1; }
+.mon-top { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: end; gap: 12px 24px; padding: 20px 32px 12px; border-bottom: 3px double var(--line2); }
+.mon-t p { margin: 0; color: var(--muted); font-size: clamp(14px, 1.3vw, 26px); font-weight: 600; }
+.mon-t h1 { margin: 2px 0 0; font-size: clamp(22px, 2.6vw, 52px); line-height: 1.1; overflow-wrap: anywhere; }
+.mon-clock { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: clamp(32px, 4.2vw, 84px); line-height: 1; color: var(--brand-ink); }
+.mon-pg { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: clamp(14px, 1.3vw, 26px); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+.mon-pg i { width: clamp(8px, .7vw, 14px); height: clamp(8px, .7vw, 14px); border-radius: 50%; background: var(--line2); display: inline-block; }
+.mon-pg i.on { background: var(--brand); }
+.mon-main { padding: 16px 32px 24px; min-width: 0; }
+.mon-empty { color: var(--muted); font-size: clamp(18px, 2vw, 36px); padding: 40px 0; }
+.mon-sec { display: grid; gap: calc(var(--s) * 14px); align-content: start; min-width: 0; }
+.mon-sec > h2 { margin: 0; font-size: calc(var(--s) * clamp(16px, 1.4vw, 28px)); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.mon-card { background: var(--card); border: 1px solid var(--edge); border-radius: var(--r-tile); box-shadow: var(--shadow); padding: calc(var(--s) * 14px) calc(var(--s) * 20px); min-width: 0; }
+.mon-card h3 { margin: 0 0 calc(var(--s) * 8px); font-size: calc(var(--s) * clamp(16px, 1.5vw, 30px)); display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.mon-card h3 small { font-weight: 600; color: var(--muted); font-size: .8em; }
+/* Jetzt: je Platz das laufende Spiel mit Restzeit */
+.mon-courts { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, calc(var(--s) * 420px)), 1fr)); gap: calc(var(--s) * 16px); }
+.mon-court { display: grid; gap: calc(var(--s) * 8px); }
+.mon-vs { display: grid; gap: 2px; }
+.mon-vs b { font-size: calc(var(--s) * clamp(18px, 2.1vw, 42px)); line-height: 1.2; overflow-wrap: anywhere; }
+.mon-vs span { color: var(--muted); font-size: calc(var(--s) * clamp(13px, 1.1vw, 22px)); }
+.mon-left { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: calc(var(--s) * clamp(34px, 4.4vw, 88px)); line-height: 1; color: var(--brand-ink); }
+.mon-left.late { color: var(--red); }
+.mon-free { color: var(--muted); font-size: calc(var(--s) * clamp(16px, 1.6vw, 32px)); }
+.mon-next { border-top: 1px solid var(--line); padding-top: calc(var(--s) * 8px); color: var(--muted); font-size: calc(var(--s) * clamp(13px, 1.2vw, 24px)); overflow-wrap: anywhere; }
+.mon-next .n { font-family: var(--num); font-weight: 600; color: var(--ink); font-size: 1.15em; }
+/* Listen: nächste Spiele, Ergebnisse */
+.mon-rows { display: grid; }
+.mon-row { display: grid; grid-template-columns: calc(var(--s) * 7.5em) calc(var(--s) * 9em) minmax(0, 1fr) auto; gap: 4px calc(var(--s) * 20px); align-items: center; padding: calc(var(--s) * 10px) 0; border-top: 1px solid var(--line); font-size: calc(var(--s) * clamp(15px, 1.55vw, 31px)); }
+.mon-row:first-child { border-top: 0; }
+.mon-row .tm { font-family: var(--num); font-weight: 600; font-size: 1.2em; font-variant-numeric: tabular-nums; }
+.mon-row .ct { color: var(--muted); overflow-wrap: anywhere; }
+.mon-row .vs { min-width: 0; overflow-wrap: anywhere; font-weight: 700; }
+.mon-row .vs small { display: block; font-weight: 500; color: var(--muted); font-size: .72em; }
+.mon-row .sc { font-family: var(--num); font-weight: 600; font-size: 1.25em; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.mon-row .sc small { display: block; font-family: inherit; font-size: .6em; color: var(--muted); }
+.mon-row.res { grid-template-columns: minmax(0, 1fr) auto; }
+/* Tabellen */
+.mon-groups { display: grid; grid-template-columns: repeat(var(--c, 2), minmax(0, 1fr)); gap: calc(var(--s) * 16px); }
+.mon-tab { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: calc(var(--s) * clamp(14px, 1.35vw, 27px)); }
+.mon-tab th { font-size: .62em; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; text-align: right; padding: 0 4px 6px; font-weight: 700; }
+.mon-tab th.n, .mon-tab td.n { text-align: left; }
+.mon-tab td { padding: calc(var(--s) * 7px) 4px; border-top: 1px solid var(--line); text-align: right; font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; }
+.mon-tab td.n { font-family: inherit; font-weight: 700; overflow-wrap: anywhere; }
+.mon-tab td.r { text-align: center; color: var(--muted); }
+.mon-tab td.p { color: var(--ink); font-size: 1.15em; }
+.mon-tab col.r { width: 2em; } .mon-tab col.z { width: 2.2em; } .mon-tab col.w { width: 3.6em; } .mon-tab col.p { width: 2.6em; }
+.mon-tab tr.up td.r { color: var(--brand-ink); }
+.mon-tab tr.me td { background: var(--brand-soft); } .mon-tab tr.me td.n { color: var(--brand-ink); }
+/* Turnierbaum */
+.mon-tree { display: grid; grid-template-columns: repeat(var(--r), minmax(0, 1fr)); gap: calc(var(--s) * 18px); align-items: stretch; }
+.mon-tree > div { display: flex; flex-direction: column; gap: calc(var(--s) * 8px); min-width: 0; }
+.mon-tree .ms { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: calc(var(--s) * 10px); }
+.mon-tree h4 { margin: 0; color: var(--muted); font-size: calc(var(--s) * clamp(12px, 1.05vw, 21px)); text-transform: uppercase; letter-spacing: .05em; }
+.mon-m { background: var(--card); border: 1px solid var(--edge); border-radius: 14px; box-shadow: var(--shadow); padding: calc(var(--s) * 6px) calc(var(--s) * 12px); display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 10px; font-size: calc(var(--s) * clamp(13px, 1.2vw, 24px)); }
+.mon-m b { overflow-wrap: anywhere; font-weight: 600; }
+.mon-m b.w { font-weight: 800; color: var(--brand-ink); }
+.mon-m b.ph { color: var(--muted); font-style: italic; font-weight: 400; }
+.mon-m span { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; text-align: right; }
+.mon-m small { grid-column: 1 / -1; color: var(--muted); font-size: .72em; }
+.mon-m.me { border-color: var(--brand); }
+.mon-pod { display: grid; gap: calc(var(--s) * 10px); }
+.mon-pod div { display: grid; grid-template-columns: 2em minmax(0, 1fr); gap: 16px; align-items: baseline; font-size: calc(var(--s) * clamp(20px, 2.6vw, 52px)); }
+.mon-pod b { font-family: var(--num); color: var(--brand-ink); }
+.mon-pod span { font-weight: 800; overflow-wrap: anywhere; }
+/* Fernseher: eine Seite füllt den Bildschirm, nichts scrollt */
+@media (min-width: 761px) {
+  body.mon { height: 100dvh; overflow: hidden; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+  .mon-main { overflow: hidden; }
+}
+/* Handy: alles untereinander, ohne Wechseln */
+@media (max-width: 760px) {
+  .mon-top { grid-template-columns: minmax(0, 1fr) auto; padding: 16px 16px 10px; }
+  .mon-pg { display: none; }
+  .mon-main { padding: 12px 16px 32px; display: grid; gap: 20px; }
+  .mon-groups { grid-template-columns: minmax(0, 1fr); }
+  .mon-tree { grid-template-columns: minmax(0, 1fr); }
+  .mon-row { grid-template-columns: 3.6em minmax(0, 1fr) auto; }
+  .mon-row .ct { grid-column: 2 / -1; grid-row: 2; font-size: .85em; }
+  .mon-row.res { grid-template-columns: minmax(0, 1fr) auto; }
+  .mon-row.res .ct { grid-column: 1 / -1; }
+}
+.mon-card.me { border-color: var(--brand); box-shadow: 0 0 0 2px var(--brand-soft), var(--shadow); }

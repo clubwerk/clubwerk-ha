@@ -1,5 +1,24 @@
 # Änderungen
 
+## 3.91.0
+
+**Turnierplaner: eigene Turniere wie das Dorfturnier – Tennis und Fußball**
+- **Neue Seite „Turnierplaner“** im Modul Turniere (Verwaltung, Recht „Turniere“). Ein Turnier anlegen mit Name, Tag, Beginn, Anzahl der Plätze bzw. Spielfelder und Sportart – schon beim Anlegen zeigt Clubwerk, wie viele Gruppen und Spiele es werden und **wann das Turnier voraussichtlich endet**.
+- **Vier Spielformen:** Gruppen + Endrunde („Dorfturnier“), Jeder gegen jeden, K.-o. mit Setzliste (Gesetzte treffen spät aufeinander, fehlende Gegner = Freilos) und Schleifchenturnier (je Runde neue Doppelpartner, gezählt werden die gewonnenen Spiele je Person; Partner wiederholen sich nicht, solange es geht).
+- **Sportart-Vorlagen:** Tennis 2-1-0 Punkte, gewonnene Spiele, 20 Minuten Spielzeit und 5 Minuten Pause, Tiebreak bis 7 im K.-o.; Fußball 3-1-0, Tore, 12/3 Minuten, Neunmeterschießen ohne Verlängerung, „Spielfeld“ statt „Platz“. Alles lässt sich einzeln ändern, auch Wertung auf Sätze wie bei der Clubmeisterschaft.
+- **Gruppen automatisch,** auch bei ungleichen Zahlen – zum Beispiel 28 Mannschaften → 4 Vierer- und 4 Dreiergruppen, nie „Platz frei“. Auslosung zufällig, auf Wunsch mit Setzliste (je Gruppe ein Gesetzter); danach lassen sich zwei Mannschaften von Hand tauschen.
+- **Tabelle:** Punkte → Differenz → mehr Tore bzw. Spiele → direkter Vergleich → Los. Die Reihenfolge ist einstellbar. Das Los zieht die Turnierleitung per Knopf, es steht im Protokoll.
+- **Endrunde:** die ersten zwei jeder Gruppe über Kreuz (1. A gegen 2. B, 1. B gegen 2. A …). Geht es nicht auf, füllen die besten Dritten auf (verglichen je Spiel, weil Gruppen verschieden groß sein können). Spiel um Platz 3 abwählbar. Die Endrunde füllt sich von selbst, sobald eine Gruppe fertig ist; Sieger rücken automatisch vor. Neunmeter bzw. Tiebreak gibt es nur im K.-o. und zählen nicht für Tabellen.
+- **Spielplan mit Uhrzeit und Platz:** Niemand spielt zweimal hintereinander, die Gruppen verteilen sich über die Plätze, Pausen nach der Vorrunde und zwischen den K.-o.-Runden sind einstellbar. Ein Warnhinweis erscheint, wenn das Ende nach der eingestellten spätesten Uhrzeit liegt.
+- **Am Turniertag:** Zentrale mit jedem Platz (läuft gerade, Restzeit, als Nächstes), „Nächste Spiele starten“ für alle freien Plätze auf einmal und „Nachrücken“ – ist ein Platz früher frei, kommt das nächste Spiel nach vorne. Läuft ein Spiel länger, rutschen die folgenden nach hinten.
+- **Ergebnisse trägt nur die Turnierleitung ein** – in der Verwaltung oder am Tablet. Am Tablet fragt Clubwerk dafür einen eigenen Code der Turnierleitung ab (4–6 Ziffern, in den Einstellungen des Turniers). Die Mannschaften selbst können nichts eintragen.
+- **Monitor zum Aufhängen:** ein Link ohne Anmeldung (über die Adresse der Mitglieder-App, nur ansehen). Am Fernseher wechselt die Anzeige von selbst zwischen laufenden Spielen mit Restzeit, nächsten Spielen, Tabellen, Turnierbaum und letzten Ergebnissen, groß lesbar und hell oder dunkel. Am Handy steht alles untereinander; über den QR-Code einer Mannschaft sieht sie zuerst ihr nächstes Spiel und ihre Gruppe. „Link erneuern“ macht alte Links ungültig.
+- **Mannschaften:** freie Namen, Spieler freiwillig (auch Gäste), einzeln oder per Excel/CSV mit einer Namensspalte. Ohne Mitgliederverwaltung und ohne das Modul „Plätze“ geht alles genauso. Optional: Startgeld je Mannschaft (bar/digital mit Kassenbericht) und Sperre der Plätze im Buchungssystem.
+- **Ehrentafel:** Beim Beenden kommen Sieger, Zweiter und Dritter je Turnier und Jahr in die Ehrentafel des Turnierplaners.
+- **Datenschutz:** Spielernamen der Mannschaften werden nach einer Frist gelöscht (Vorgabe 1 Jahr, Einstellungen › Datenschutz); Mannschaftsnamen, Ergebnisse und Ehrentafel bleiben.
+- Die Demo enthält ein laufendes Dorfturnier (Code der Turnierleitung 2468).
+- Module: Turniere 1.5.0.
+
 ## 3.90.0
 
 **Mahnwesen: Zahlungserinnerung, 1. und 2. Mahnung – Stufe für jeden Posten, Briefe als Sammel-PDF**

@@ -11,6 +11,7 @@
    und tragen Ergebnisse ein; der Sportwart (Recht „turniere“) lost aus, korrigiert und setzt Fristen.
    Wertung (Sätze prüfen, Tabelle, direkter Vergleich): lib/wertung.js
    Zweiter Teil – LK-Turniertag mit nuLiga-Import, Check-in, Turnierzentrale, Zeitplan, Fernseher und Spielerseite: lk.js
+   Dritter Teil – Turnierplaner für freie Turniere (Dorfturnier: Gruppen + Endrunde, Jeder gegen jeden, K.-o., Schleifchen): ft.js
    ===================================================================================================== */
 const { today, addDays, deD, isDate, nowTs } = require('../../src/util');
 const W = require('./lib/wertung');
@@ -864,10 +865,12 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
 
   /* ================================================================= LK-Turniertag mit nuLiga-Import (lk.js) */
   const LK = require('./lk').activate(ctx, { P, ar, hook, bookingOn });
+  /* ================================================================= Turnierplaner: freie Turniere (ft.js) */
+  const FT = require('./ft').activate(ctx, { P, ar, hook, bookingOn });
 
   /* ================================================================= für den Kern und andere Module */
   ctx.hooks.appVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get());
-  ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get()) || LK.tabletVisible();
+  ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM tu_season LIMIT 1').get()) || LK.tabletVisible() || FT.tabletVisible();
   /* „Für mich“: next = eigene Spiele mit Termin bis „until“; todo = Ergebnis eintragen (Termin vorbei), Termin vereinbaren (mit Frist), Anmeldung offen */
   ctx.hooks.forMe = (mid, { until }) => {
     const s = current(); if (!s || s.closed_at) return {};
@@ -888,7 +891,8 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     return { next, todo };
   };
   ctx.hooks.overview = () => {
-    const lk = LK.overview(), s = current();
+    const lk = LK.overview(), ft = FT.overview(), s = current();
+    lk.alerts.push(...ft.alerts);
     if (!s || s.closed_at) return lk;
     const ms = matchesOf(s.id), d0 = today();
     const late = ms.filter(m => !decided(m) && dueOf(s, m) && dueOf(s, m) < d0).length;
@@ -913,10 +917,10 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     else { db.prepare('UPDATE tu_team SET p1 = NULL WHERE p1 = ?').run(fromId); db.prepare('UPDATE tu_team SET p2 = NULL WHERE p2 = ?').run(fromId); }
     db.prepare('DELETE FROM tu_player WHERE member_id = ?').run(fromId);
   };
-  ctx.hooks.retention = () => [LK.retention()];
+  ctx.hooks.retention = () => [LK.retention(), FT.retention()];
   ctx.hooks.privacyRecord = () => [
     { title: 'Turniere: Clubmeisterschaft', purpose: 'Anmeldung, Auslosung, Spieltermine und Ergebnisse, Ehrentafel', data: 'Name, Liga, Spiele mit Ergebnis und Termin', persons: 'Teilnehmende Mitglieder' },
-    { title: 'Turniere: Turniertag', purpose: 'Durchführung von LK-Turnieren', data: 'Name, Verein, LK, Geschlecht, Geburtsjahr, Nenngeld (keine Kontaktdaten)', persons: 'Teilnehmende, auch aus fremden Vereinen' }];
+    { title: 'Turniere: Turniertag', purpose: 'Durchführung von LK-Turnieren', data: 'Name, Verein, LK, Geschlecht, Geburtsjahr, Nenngeld (keine Kontaktdaten)', persons: 'Teilnehmende, auch aus fremden Vereinen' }, FT.privacy];
   /* Datenauskunft: Anmeldungen und Spiele der Clubmeisterschaft */
   ctx.hooks.memberData = id => {
     const tids = db.prepare('SELECT id FROM tu_team WHERE p1 = ? OR p2 = ?').all(id, id).map(r => r.id);
@@ -926,12 +930,13 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
         WHERE m.a IN (${tids.join(',')}) OR m.b IN (${tids.join(',')}) ORDER BY m.id`).all() : [],
     };
   };
-  ctx.hooks.exportConfig = () => ({ settings: cfg(), lk: LK.exportCfg() });
+  ctx.hooks.exportConfig = () => ({ settings: cfg(), lk: LK.exportCfg(), ft: FT.exportCfg() });
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const n = int((data.settings || {}).minutes);
     if ([60, 90, 120, 150, 180].includes(n)) SET('minutes', n);
     if (data.lk) LK.importCfg(data.lk);
+    if (data.ft) FT.importCfg(data.ft);
     return 'Einstellungen übernommen';
   };
 }
