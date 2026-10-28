@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.85.0
+
+**Gelöschte Mitglieder: kein Geld auf Konten, die niemand mehr sieht**
+- **Abrechnung zurücknehmen:** Ist ein Mitglied aus der letzten Abrechnung inzwischen gelöscht, lässt sich diese Abrechnung nicht mehr zurücknehmen – sonst stünde der Betrag wieder offen auf einem gelöschten Konto. Der Knopf „Zurücknehmen“ erscheint dann nicht. Dasselbe gilt in der Mitgliederverwaltung für „Lauf zurücknehmen“ und das Stornieren eines Verkaufs-Postens.
+- **Stornieren einer schon abgerechneten Buchung eines gelöschten Mitglieds:** Bisher entstand eine Gutschrift auf dem gelöschten Konto, die nie verrechnet wurde. Jetzt lehnt Clubwerk das mit dem Hinweis ab, den Betrag bar zu erstatten und den Bestand bei Bedarf unter Lager zu korrigieren.
+- Für Entwickler: Alle 16 bekannten Fehlschläge der erweiterten Testreihen sind geklärt (`erwartet.txt` ist leer). Fast alle prüften noch einen alten Stand (z. B. Adressen am Tablet, „Verkauf“ statt „Getränke“, Familienmitgliedschaft getrennt vom Zahler, PIN lässt sich am Tablet nicht mehr entfernen) und sind angepasst.
+
 ## 3.84.0
 
 **Mitglieder-App „Für mich“: zeigt, was wirklich ansteht – aus allen Bereichen**
@@ -12,6 +19,7 @@
 - Datenschutz wie bisher: nur eigene Daten, nur freigeschaltete Bereiche, von unterwegs nur, was unterwegs erlaubt ist, nichts protokolliert. Welche Hinweise schon angetippt wurden, merkt sich Clubwerk je Mitglied (ohne Inhalt, nach 180 Tagen gelöscht).
 - Module: Plätze 1.19.0, Spieltage 1.13.0, Dienste 2.7.0, Meine Daten/Mitglieder 1.22.0, Mängel 1.5.0, Turniere 1.3.0.
 - Für Entwickler: Hook `forMe` liefert jetzt `news`, `next`, `todo` (mit optionalen Knöpfen `actions`) und `money` (siehe ERWEITERUNGEN.md); `open` von älteren Modulen landet unter `todo`.
+
 ## 3.83.0
 
 **Weniger auf einen Blick – nur das, was gerade zählt (Entschlacken, Entscheidung Thorsten)**

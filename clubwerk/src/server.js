@@ -2232,7 +2232,7 @@ admin.post('/bookings/:id/undo-run', need('buchungen'), (req, res) => {
 });
 
 admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
-  const b = db.prepare(`SELECT b.*, COALESCE(b.article_name, a.name) AS article, a.custom, m.name AS member FROM bookings b JOIN articles a ON a.id = b.article_id
+  const b = db.prepare(`SELECT b.*, COALESCE(b.article_name, a.name) AS article, a.custom, m.name AS member, m.kind AS member_kind, m.deleted AS member_deleted FROM bookings b JOIN articles a ON a.id = b.article_id
     LEFT JOIN members m ON m.id = b.member_id WHERE b.id = ?`).get(int(req.params.id));
   if (!b) return bad(res, 'Nicht gefunden.', 404);
   if (b.cancelled_at) return bad(res, 'Diese Buchung ist bereits storniert.', 409);
@@ -2241,6 +2241,8 @@ admin.post('/bookings/:id/cancel', need('buchungen'), (req, res) => {
     const t = db.prepare('SELECT status FROM guest_tabs WHERE id = ?').get(b.tab_id);
     if (t && t.status !== 'offen') return bad(res, 'Dieser Gäste-Deckel ist schon geschlossen. Bitte zuerst unter „Gäste-Deckel“ wieder öffnen, sonst stimmt die Kasse nicht mehr.');
   }
+  // Gutschrift auf ein gelöschtes Konto würde nie verrechnet – lieber bar erstatten
+  if (b.settled_id && b.member_deleted) return bad(res, `${lastFirst(b.member, b.member_kind)} wurde gelöscht – eine Gutschrift ist nicht mehr möglich. Den Betrag bitte bar erstatten; den Bestand bei Bedarf unter Lager korrigieren.`);
   const what = `${b.member || 'Barverkauf'}: ${b.custom ? 'Betrag ' + euro(b.total_cents) : b.qty + ' × ' + b.article} vom ${b.created_at.slice(0, 10)}`;
   if (b.settled_id) {
     // Abgerechnet über ein Modul (z. B. Verkaufs-Einzug der Mitgliederverwaltung), dessen Posten dort schon storniert ist?
@@ -2409,11 +2411,11 @@ admin.post('/settle', need('abrechnung'), (req, res) => {
 const ownSettle = batch => /^(alle|einzeln)-/.test(batch);
 admin.get('/settle-history', need('abrechnung'), (req, res) => {
   const rows = db.prepare(`SELECT s.batch, MIN(s.created_at) created_at, MAX(s.until_at) until_at, MAX(s.by_user) by_user,
-      COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, char(31)) names, group_concat(m.kind, char(31)) kinds
+      COUNT(*) members, SUM(s.cents) cents, group_concat(m.name, char(31)) names, group_concat(m.kind, char(31)) kinds, MAX(m.deleted) gone
     FROM member_settlements s JOIN members m ON m.id = s.member_id
     GROUP BY s.batch ORDER BY MIN(s.id) DESC LIMIT 30`).all();
   const newest = rows.length ? rows[0].batch : null;
-  res.json(rows.map(({ kinds, ...r }) => ({ ...r, names: r.members <= 3 ? r.names.split('\x1f').map((n, i) => lastFirst(n, kinds.split('\x1f')[i])).join('; ') : null, undo: r.batch === newest && ownSettle(r.batch) })));
+  res.json(rows.map(({ kinds, gone, ...r }) => ({ ...r, names: r.members <= 3 ? r.names.split('\x1f').map((n, i) => lastFirst(n, kinds.split('\x1f')[i])).join('; ') : null, undo: r.batch === newest && ownSettle(r.batch) && !gone })));
 });
 
 /* Getränke für andere Module (Mitgliederverwaltung: Einzug per Lastschrift) – gleiche Regeln wie die Abrechnung oben */
@@ -2427,6 +2429,13 @@ function reverseCreditStock(creditId) {
 // Nachholen für Gutschriften, die vor 3.39.4 storniert wurden (damals blieb die Bestandskorrektur stehen)
 for (const c of db.prepare('SELECT id FROM bookings WHERE credit_for IS NOT NULL AND cancelled_at IS NOT NULL').all()) reverseCreditStock(c.id);
 
+/** Abrechnung wieder öffnen geht nicht, wenn ein Konto darin inzwischen gelöscht ist – der Betrag stünde sonst offen auf einem Konto,
+ *  das niemand mehr sieht (gelöscht wird ja nur ohne offenen Betrag). → Fehlertext oder null */
+function goneIn(settlementIds) {
+  const names = db.prepare(`SELECT m.name, m.kind FROM member_settlements s JOIN members m ON m.id = s.member_id WHERE m.deleted = 1 AND s.id IN (${settlementIds.map(() => '?').join(',')})`)
+    .all(...settlementIds).map(m => lastFirst(m.name, m.kind));
+  return names.length ? `${names.join('; ')} wurde inzwischen gelöscht – die Abrechnung lässt sich nicht mehr zurücknehmen, sonst stünde der Betrag offen auf einem gelöschten Konto.` : null;
+}
 const drinks = {
   active: () => plugins.isActive('getraenke'),
   /** Veranstaltung im Verkauf anlegen (z. B. aus einem Dienstplan) – Artikelliste mit allen aktiven Artikeln zum Normalpreis → id */
@@ -2489,6 +2498,7 @@ const drinks = {
   reopen(batch, memberId) {
     const st = db.prepare('SELECT id FROM member_settlements WHERE batch = ? AND member_id = ?').get(String(batch || ''), int(memberId));
     if (!st) return { ok: true, n: 0 };
+    const gone = goneIn([st.id]); if (gone) return { ok: false, error: gone };
     if (db.prepare('SELECT 1 FROM bookings c JOIN bookings o ON o.id = c.credit_for WHERE c.cancelled_at IS NULL AND o.settled_id = ?').get(st.id))
       return { ok: false, error: 'Für diese Verkaufsbuchungen gibt es schon eine Gutschrift unter Verkauf › Buchungen. Bitte die Gutschrift dort zuerst stornieren.' };
     let n = 0;
@@ -2498,6 +2508,7 @@ const drinks = {
   unsettle(batch) {
     const ids = db.prepare('SELECT id FROM member_settlements WHERE batch = ?').all(String(batch || '')).map(r => r.id);
     if (!ids.length) return { ok: true, n: 0 };
+    const gone = goneIn(ids); if (gone) return { ok: false, error: gone, gone: true };
     const q = ids.map(() => '?').join(',');
     const credited = db.prepare(`SELECT COUNT(*) n FROM bookings c JOIN bookings o ON o.id = c.credit_for WHERE c.cancelled_at IS NULL AND o.settled_id IN (${q})`).get(...ids).n;
     if (credited) return { ok: false, error: 'Aus diesem Einzug wurde schon etwas storniert (Gutschrift) – die Buchungen können nicht wieder geöffnet werden.' };
@@ -2515,7 +2526,8 @@ admin.delete('/settle/:batch', need('abrechnung'), (req, res) => {
   const newest = db.prepare('SELECT batch FROM member_settlements ORDER BY id DESC LIMIT 1').get();
   if (!newest || newest.batch !== batch || batch.startsWith('stichtag-')) return bad(res, 'Nur die letzte Abrechnung kann zurückgenommen werden.');
   const sum = db.prepare('SELECT SUM(cents) c, COUNT(*) n FROM member_settlements WHERE batch = ?').get(batch);
-  if (!drinks.unsettle(batch).ok) return bad(res, 'Seit dieser Abrechnung wurde daraus schon etwas storniert (Gutschrift) – Zurücknehmen ist nicht mehr möglich.');
+  const u = drinks.unsettle(batch);
+  if (!u.ok) return bad(res, u.gone ? u.error : 'Seit dieser Abrechnung wurde daraus schon etwas storniert (Gutschrift) – Zurücknehmen ist nicht mehr möglich.');
   audit(req.user, 'Abrechnung zurückgenommen', `${sum.n} Konten, ${euro(sum.c || 0)}`);
   res.json({ ok: true });
 });
