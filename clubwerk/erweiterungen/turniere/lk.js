@@ -693,6 +693,10 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
       if (late) alerts.push({ level: 'a', text: `${d.name}: ${late} ${late === 1 ? 'Match liegt' : 'Matches liegen'} mehr als 15 Minuten hinter dem Plan.`, sec: ['tab_turniertag', 'zentrale'] });
       return { kpis: [{ l: 'Nenngeld offen', v: euro(report.open) }], alerts };
     },
+    // Datenschutz: Löschfrist fremder Spieler auch unter Einstellungen › Datenschutz (gelöscht wird hier, stündlich)
+    retention: () => ({ id: 'fremde', label: 'Turniertag: Spieler fremder Vereine', text: 'Nach dem Turnier; eigene Mitglieder bleiben.', unit: 'tage', value: cfg().keep_days, def: 30, min: KEEP[0], max: KEEP[KEEP.length - 1], choices: KEEP,
+      due: cut => db.prepare('SELECT COUNT(*) n FROM tu_person p JOIN tu_day d ON d.id = p.day_id WHERE d.purged_at IS NULL AND d.date_to < ? AND p.own = 0').get(cut).n,
+      set: v => { if (!KEEP.includes(v)) throw new Error('Bitte eine der angebotenen Löschfristen wählen.'); SET('keep_days', v); } }),
     exportCfg: () => cfg(),
     importCfg: s => { for (const [k, list] of [['minutes', MINUTES], ['pause', PAUSES], ['keep_days', KEEP]]) if (list.includes(int((s || {})[k]))) SET(k, int(s[k])); },
   };

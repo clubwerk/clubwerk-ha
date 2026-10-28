@@ -396,7 +396,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     if (w && w.remote && !awayReq(req) && invites.trust(w.deviceId)) { w.remote = false; audit(null, 'Mitglieder-App: Handy im Vereins-WLAN bestätigt', w.name); }
     const sections = w ? sectionsFor(req, w) : [];
     res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), demo: getSetting('demo_mode', '') === '1' || undefined, appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
-      pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
+      pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections, privacyAt: getSetting('app_privacy_at', '') || undefined });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
   /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds.
      Vier Karten: news (einmalige Hinweise, bis zum Quittieren), next (meine Termine), todo (was ich selbst tun muss, optional mit Knöpfen), money (Mein Konto) */
@@ -593,6 +593,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   const photos = require('./photos');
   const meOr403 = (req, res) => { const w = invites.whoIs(SCOPE, dev(req)); if (!w) res.status(403).json({ error: 'Dieses Handy ist nicht (mehr) freigeschaltet.', device: true }); return w; };
   const modOn = id => { try { return require('./plugins').isActive(id); } catch (e) { return false; } };
+  api.get('/privacy', (req, res) => { if (meOr403(req, res)) res.json(require('./datenschutz').notice()); });   // Datenschutzhinweis des Vereins
   api.get('/photo', (req, res) => { const w = meOr403(req, res); if (w) res.json(photos.info(w.memberId, modOn)); });
   api.put('/photo', rateLimit('appphoto', 20, 3600000), (req, res) => {
     const w = meOr403(req, res); if (!w) return;

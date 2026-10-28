@@ -262,6 +262,7 @@ function activate(ctx) {
   const zlim = ctx.require('./security').limiter({ maxMs: 3600000 });
   const zdev = ctx.require('./security').limiter({ per: 10, baseMs: 15 * 60000 });
   /* Funktionsexport/-import: Personal (Name, Tätigkeit, aktueller Stundensatz) und Versand – ohne PINs, Zeiten und Passwort */
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Arbeitszeit von Mitarbeitern (z. B. Platzwart, Reinigung), Stundenabrechnung', data: 'Name, Tätigkeit, Arbeitszeiten, Stundensatz, PIN nur als Hash', persons: 'Mitarbeiter und Minijobber', frist: 'Arbeitszeitnachweise mindestens 2 Jahre, Lohnunterlagen 6 Jahre (gesetzlich), nicht automatisch gelöscht' }];
   ctx.hooks.exportConfig = () => {
     return { mailTo: mailTo(),
       staff: db.prepare('SELECT id, name, job FROM staff WHERE active = 1 ORDER BY name_key(name, NULL)').all().map(x => ({ name: x.name, job: x.job || '', rate_cents: rateFor(x.id, curMonth()) })) };

@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.86.0
+
+**Datenschutz: feste Löschfristen, vollständige Auskunft, Hinweis in der App**
+- **Neu: Einstellungen › Datenschutz.** Dort stehen alle Löschfristen aller eingeschalteten Module auf einen Blick, jede mit „Fällig“ (so viel fällt beim nächsten Lauf weg). Clubwerk löscht einmal am Tag von selbst, was älter ist. Ins Protokoll kommt nur, wie viel gelöscht wurde, nie was. „Jetzt löschen“ startet den Lauf sofort.
+- **Vorgaben (alle einstellbar):** Türöffnungen 30 Tage, Anmeldungen und Sicherheitsmeldungen mit IP-Adresse 30 Tage, übriges Protokoll 12 Monate, gesendete Rundmails samt Anhängen 12 Monate, Beregnung 12 Monate. Die Fristen für erledigte Mängel und fremde Turnierspieler stehen dort mit. Geld (Verkauf, Beiträge, Buchhaltung) und Arbeitszeiten löscht Clubwerk nie von selbst, weil dafür gesetzliche Aufbewahrungsfristen gelten.
+- **Sicherungen:** Die Seite sagt, wann Gelöschtes auch aus den Sicherungen verschwindet. Wird eine Sicherung zurückgespielt, löscht Clubwerk Abgelaufenes sofort wieder und anonymisiert bereits anonymisierte Mitglieder erneut. Dafür merkt es sich nur Konto, Mitgliedsnummer und Eintritt, keine Namen.
+- **Nach dem Austritt:** Die Erinnerung „seit über … Jahren ausgetreten“ ist jetzt ab Werk an (2 Jahre). Unter Mitglieder › Einstellungen › Datenschutz & Aufbewahrung gibt es die Liste dazu mit „anonymisieren“ für alle auf einmal (Bestätigung mit ANONYMISIEREN). Mitglieder mit offener Forderung bleiben, bis sie ausgeglichen ist. Der Hinweistext nennt jetzt die richtigen Fristen (Belege 8 Jahre, Bücher 10 Jahre).
+- **Datenauskunft aus allen Modulen:** Die Auskunft im Mitglied enthält jetzt auch Platzbuchungen, Türöffnungen, Beregnung, Helferstunden, Spielbetrieb, Clubmeisterschaft, Mängelmeldungen, Rechnungen und Spenden.
+- **Mitglieder-App › Meine Daten › „Datenauskunft anfordern“:** Mit der PIN bestätigt kommt die Auskunft per E-Mail an die hinterlegte Adresse, als PDF zum Lesen und als Datei zum Weiterverwenden. Die IBAN steht darin nur gekürzt. Das geht höchstens zweimal am Tag und steht im Protokoll.
+- **Datenschutzhinweis in der Mitglieder-App:** Der Text steht unter Einstellungen › Datenschutz, eine Vorlage zum Ergänzen ist dabei. Mitglieder sehen ihn einmal beim nächsten Öffnen der App, nach jeder Änderung erneut, und jederzeit unter „Mein Konto › Datenschutz“.
+- **Verzeichnis von Verarbeitungstätigkeiten:** „Verzeichnis drucken“ erzeugt eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, Betroffene, wer Zugriff hat (aus den Rollen) und die Löschfristen. Der Verein ergänzt Vorstand, Datenschutzbeauftragte und genutzte Dienste.
+- **Einwilligungen:** Bei der Beitrittserklärung gibt es „+ Vorlage …“ für Fotos, Presse & Aushang und Geburtstag im Vereinsheft. Unter Mitglieder › Auswertung zeigt die neue Karte „Einwilligungen“, wie viele zugestimmt haben, und es gibt die Liste mit Namen als Excel, zum Beispiel für den Pressewart.
+- Die Fristen sind Vorschläge und keine Rechtsberatung. Im Zweifel stimmt der Verein sie mit seinem Datenschutzbeauftragten oder dem Landesverband ab.
+- Datensicherung › Datenbank-Schnappschüsse: Die Spalte mit dem technischen Dateinamen ist weg (Art und Stand zeigen dasselbe lesbar, der Name steht beim Darüberfahren). Am Handy wurde er sonst abgeschnitten.
+- Module: Mitglieder 1.23.0, Plätze 1.20.0, Helferdienste 2.8.0, Spielbetrieb 1.14.0, Turniere 1.4.0, Mängel 1.6.0, Zugang 1.7.0, Beregnung 1.9.0, Buchhaltung 1.5.0, Zeiterfassung 1.4.0.
+
 ## 3.85.0
 
 **Gelöschte Mitglieder: kein Geld auf Konten, die niemand mehr sieht**

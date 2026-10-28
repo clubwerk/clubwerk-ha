@@ -443,6 +443,17 @@ function activate(ctx) {
   // Schalter „am Tablet zeigen“ liegt zentral unter Einstellungen › Tablet (Schlüssel header bleibt)
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); cache.at = 0; } };
   ctx.hooks.usedEntities = () => cfg().doors.map(d => d.ref);
+  /* Datenschutz: Türöffnungen zeigen, wer wann da war – nach der Frist löschen (Einstellungen › Datenschutz, src/datenschutz.js) */
+  const keepDays = () => Math.min(365, Math.max(7, parseInt(ctx.setting('keep_days', '30'), 10) || 30));
+  ctx.hooks.retention = () => [{ id: 'protokoll', label: 'Türöffnungen', text: 'Wer wann welche Tür geöffnet hat.', unit: 'tage', value: keepDays(), def: 30, min: 7, max: 365,
+    due: cut => db.prepare('SELECT COUNT(*) n FROM zugang_log WHERE at < ?').get(cut).n,
+    purge: cut => db.prepare('DELETE FROM zugang_log WHERE at < ?').run(cut).changes, set: v => ctx.setSetting2('keep_days', String(v)) }];
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Zutritt zu Vereinsheim und Anlage, Aufklärung von Missbrauch und Schäden', data: 'Name, Tür, Zeitpunkt und Ergebnis jeder Öffnung; Freischaltung und Zeitprofil je Mitglied', persons: 'Mitglieder mit Zugang' }];
+  /* Datenauskunft (Mitgliederverwaltung): Einträge im Türprotokoll unter dem Namen des Mitglieds */
+  ctx.hooks.memberData = id => {
+    const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
+    return m ? { tueroeffnungen: db.prepare('SELECT at AS zeit, door AS tuer, action AS aktion, detail FROM zugang_log WHERE who = ? ORDER BY at').all(m.name) } : null;
+  };
   // Beim Beenden (Update, Neustart): laufende Türimpulse sofort abschalten – sonst bliebe ein Türöffner-Relais an
   ctx.hooks.shutdown = async () => { const p = [...pulseTimers.values()]; for (const t of p) clearTimeout(t.timer); await Promise.all(p.map(t => t.off())); };
   access = ctx.access;

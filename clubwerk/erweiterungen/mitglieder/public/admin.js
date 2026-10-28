@@ -1371,6 +1371,10 @@
         ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten.</p>` : ''}</div>
       <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="num nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
+    // Einwilligungen (Stand heute): wie viele haben zugestimmt – Liste mit Namen als Excel (z. B. für den Pressewart)
+    const c = await api('consents');
+    el.insertAdjacentHTML('beforeend', `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Einwilligungen <span class="muted s">(heute)</span></h3><a class="btn" href="${BASE}consents.xlsx" download>Liste (Excel)</a></div>
+      ${c.list.length ? `<table class="tbl kompakt"><tr><th>Einwilligung</th><th class="r">Zugestimmt</th><th class="r">Nicht zugestimmt</th></tr>${c.list.map(x => `<tr><td>${esc(x.short)}${x.required ? ' <span class="muted s">(Pflicht)</span>' : ''}</td><td class="r k-lbl" data-label="Zugestimmt">${x.yes}</td><td class="r k-lbl" data-label="Nicht zugestimmt">${c.count - x.yes}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Einwilligungen eingerichtet (Einstellungen › Beitrittserklärung).</p>'}</div>`);
   }
 
   /* ================================================================= Beiträge & Abteilungen (Stammdaten) */
@@ -1448,14 +1452,15 @@
           <label class="f wall">Satzung (Link, optional)<input id="eSatz" value="${esc(s.satzung_url)}" placeholder="https://…"></label></div>
         <div class="mv-sub" style="margin-top:18px">Einwilligungen</div>
         <div id="eCons">${s.consents.map((c, i) => consentRow(c, i)).join('')}</div>
-        <div class="row" style="justify-content:space-between;margin-top:10px"><button class="btn" id="eConsAdd">+ Einwilligung</button><button class="btn primary" id="eSave2">Speichern</button></div></div>
+        <div class="row" style="justify-content:space-between;margin-top:10px"><span class="row" style="gap:8px"><button class="btn" id="eConsAdd">+ Einwilligung</button><button class="btn" id="eConsTpl">+ Vorlage …</button></span><button class="btn primary" id="eSave2">Speichern</button></div></div>
       <div class="card" id="eApp" data-set="meinedaten"></div>
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
         <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de, kasse@verein.de"></label></div>
         <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
       <div class="card" id="eCg" data-set="gratulationen"></div>
-      <div class="card" data-set="daten"><h3>Datenschutz & Aufbewahrung</h3><p class="muted s" style="margin-top:0">Nach dem Austritt werden Mitgliedsdaten noch für Beiträge, Spendenquittungen und gesetzliche Fristen gebraucht (Kassenbelege meist 10 Jahre). Danach im Mitglied „Anonymisieren“. Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied).</p>
-        <div class="mv-grid" style="--c:4"><label class="f w2">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric"></label></div>${foot('eSaveDat')}</div>
+      <div class="card" data-set="daten"><h3>Datenschutz & Aufbewahrung</h3><p class="muted s" style="margin-top:0">Nach dem Austritt braucht der Verein Name und Anschrift meist nur noch kurz (offene Beiträge, Rückfragen). Danach „Anonymisieren“: Beträge und Buchungen bleiben für die gesetzliche Aufbewahrung (Belege 8 Jahre, Bücher 10 Jahre). Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied, in der App unter „Meine Daten“).</p>
+        <div class="mv-grid" style="--c:4"><label class="f w2">Erinnern nach … Jahren (0 = aus)<input id="eRet2" value="${s.retention_years}" inputmode="numeric"></label></div>
+        <div id="eAnonDue"></div>${foot('eSaveDat')}</div>
       <div id="eFunc" data-set="uebertragen"></div>`;
     GK.watch(el);
     appDataCard($('eApp')).catch(fail);
@@ -1470,6 +1475,46 @@
     save('eSave2', () => ({ app_tablet: $('eTab').checked, app_online: $('eOnl').checked, app_intro: $('eIntro').value, due_text: $('eDue').value, work_text: $('eWork').value, satzung_url: val('eSatz'), consents: consents() }));
     save('eSaveNot', () => ({ notify_to: val('eNotify') }));
     save('eSaveDat', () => ({ retention_years: +val('eRet2') }));
+    anonDue($('eAnonDue'), () => showSettings(el)).catch(fail);
+    $('eConsTpl').onclick = () => {
+      const have = new Set(consents().map(c => c.short.trim().toLowerCase()));
+      const free = CONSENT_TPL.filter(t => !have.has(t.short.toLowerCase()));
+      if (!free.length) return toast('Alle Vorlagen sind schon eingetragen.');
+      dialog(`<h2>Vorlage für eine Einwilligung</h2><p class="muted">Der Text ist ein Vorschlag – du kannst ihn danach anpassen. Gespeichert wird erst mit „Speichern“.</p>
+        <div class="mv-cons">${free.map((t, i) => `<label class="chk" style="align-items:flex-start"><input type="checkbox" data-tpl="${i}" style="margin-top:3px;flex:none"> <span><b>${esc(t.short)}</b><br><span class="muted s">${esc(t.text)}</span></span></label>`).join('')}</div>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="tplOk">Übernehmen</button></div>`);
+      $('c').onclick = closeDialog;
+      $('tplOk').onclick = () => {
+        document.querySelectorAll('[data-tpl]:checked').forEach(b => { const t = free[+b.dataset.tpl]; $('eCons').insertAdjacentHTML('beforeend', consentRow({ key: t.key + Date.now().toString(36).slice(-3), short: t.short, text: t.text, required: false })); });
+        closeDialog(); bindCons(); GK.watch(el);
+      };
+    };
+  }
+  /* übliche Einwilligungen als Vorlage (Fotos, Presse, Geburtstag) – der Verein passt den Text an */
+  const CONSENT_TPL = [
+    { key: 'fotos', short: 'Fotos', text: 'Ich bin damit einverstanden, dass Fotos und Videos, auf denen ich zu sehen bin (z. B. von Spielen, Turnieren und Vereinsfesten), auf der Homepage und in den sozialen Medien des Vereins veröffentlicht werden.' },
+    { key: 'presse', short: 'Presse & Aushang', text: 'Ich bin damit einverstanden, dass mein Name und meine Ergebnisse (z. B. Aufstellungen, Turnierergebnisse) in der Presse, im Schaukasten und im Vereinsheim veröffentlicht werden.' },
+    { key: 'geburtstag', short: 'Geburtstag im Vereinsheft', text: 'Ich bin damit einverstanden, dass mein Geburtstag (Tag und Monat, bei runden Geburtstagen auch das Alter) im Vereinsheft und im Aushang genannt wird.' },
+  ];
+  /** Datenschutz-Karte: Mitglieder, die schon länger ausgetreten sind – Liste und Sammel-Anonymisieren */
+  async function anonDue(box, again) {
+    const r = await api('anonymize-due');
+    if (!r.years) { box.innerHTML = ''; return; }
+    if (!r.rows.length) { box.innerHTML = `<p class="muted s" style="margin:10px 0 0">Niemand ist seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'} ausgetreten und noch nicht anonymisiert.</p>`; return; }
+    box.innerHTML = `<div class="banner a" style="margin-top:12px">${r.rows.length} ${r.rows.length === 1 ? 'Mitglied ist' : 'Mitglieder sind'} seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'} ausgetreten. <button class="btn small" id="anDue">Liste ansehen …</button></div>`;
+    $('anDue').onclick = () => {
+      const can = r.rows.filter(x => !x.open);
+      dialog(`<h2>Ausgetreten seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'}</h2>
+        <table class="tbl kompakt"><tr><th>Name</th><th>Austritt</th><th></th></tr>${r.rows.map(x => `<tr><td>${esc(GK.lastFirst(x.name))}${x.member_no ? ` <span class="muted s">(${esc(x.member_no)})</span>` : ''}</td><td class="nw">${deDate(x.exit_date)}</td>
+          <td>${x.open ? '<span class="pill a">offene Forderung</span>' : ''}</td></tr>`).join('')}</table>
+        <p class="muted s">Name, Anschrift, Kontakt, Bankverbindung, Dokumente und Verlauf werden unwiderruflich gelöscht. Für die Statistik bleiben Geburtsjahr, Geschlecht, Ein-/Austritt und Abteilungen; Beträge und Buchungen bleiben unter „Anonym …“.${can.length < r.rows.length ? ' Mitglieder mit offener Forderung bleiben, bis sie ausgeglichen oder storniert ist.' : ''}</p>
+        ${can.length ? `<label class="f">Zur Bestätigung ANONYMISIEREN eingeben<input id="anConf" autocomplete="off"></label>` : ''}
+        <div class="btns"><button class="btn ghost" id="c">Schließen</button>${can.length ? `<button class="btn danger" id="anGo">${can.length === 1 ? '1 Mitglied' : can.length + ' Mitglieder'} anonymisieren</button>` : ''}</div>`);
+      $('c').onclick = closeDialog;
+      if ($('anGo')) $('anGo').onclick = () => GK.busy($('anGo'), async () => {
+        try { const x = await api('anonymize-due', 'POST', { confirm: val('anConf') }); closeDialog(); toast(`${x.n} anonymisiert.`); again().catch(fail); } catch (e) { fail(e); }
+      });
+    };
   }
   /** Beiträge & Zahlungen › Einstellungen: Lastschrift (SEPA) · Rechnungen & Mahnungen · Einstellungen übertragen (dieselben Schlüssel wie bisher unter Mitglieder) */
   async function showPaySettings(el) {
@@ -1705,6 +1750,7 @@
     { label: 'Rechnungen & Mahnungen (Beiträge)', page: 'mv-mahnung', perm: 'mitglieder_finanzen', words: 'Mahnung Erinnerung Rechnung bar' },
     { label: 'Mitgliederzahlen und Abteilungen', page: 'mv-auswertung', card: 'Abteilungen', words: 'Statistik Zahlen Stichtag' },
     { label: 'Bestandserhebung (Landessportbund)', page: 'mv-auswertung', card: 'Bestandserhebung', words: 'LSB Statistik Meldung Verband' },
+    { label: 'Einwilligungen: wer hat zugestimmt', page: 'mv-auswertung', card: 'Einwilligungen', words: 'Fotos Presse Homepage DSGVO Excel Liste' },
     { label: 'Runde Geburtstage & Jubiläen', page: 'mv-auswertung', card: 'Runde Geburtstage', words: 'Geburtstag Jubiläum Ehrung' },
     { label: 'Anstehende Gratulationen', page: 'mv-gratulationen', perm: 'gratulationen', boost: 1, words: 'Geburtstag Jubiläum Ehrung Blumen gratulieren Ehrennadel' },
     { label: 'Anlass für eine Gratulation ergänzen', page: 'mv-gratulationen', btn: '+ Anlass', perm: 'gratulationen', kind: 'aktion', words: 'Hochzeit Gratulation von Hand' },

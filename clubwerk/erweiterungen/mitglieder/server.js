@@ -267,6 +267,26 @@ function anonymize(id, user) {
     C.db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id);
   })();
   store.hist(id, user, 'anonymisiert', null, label);
+  anonRemember(id, p);
+}
+/* Anonymisierungen überleben das Zurückspielen einer Sicherung: Clubwerk merkt sich außerhalb der Datenbank nur Konto, Mitgliedsnummer und
+   Eintritt (keine Namen) und anonymisiert diese Mitglieder nach dem Start erneut. Fehlt das Konto oder passt es nicht mehr, fällt der Eintrag
+   sofort weg – so trifft es nie ein später neu angelegtes Mitglied mit derselben Nummer. */
+const anonFile = () => require('path').join(C.require('./db').DATA_DIR, 'anonymisiert.json');
+function anonList() { try { const a = JSON.parse(require('fs').readFileSync(anonFile(), 'utf8')); return Array.isArray(a) ? a : []; } catch (e) { return []; } }
+function anonSave(list) { try { const f = anonFile(); require('fs').writeFileSync(f + '.neu', JSON.stringify(list)); require('fs').renameSync(f + '.neu', f); } catch (e) { console.error('Mitgliederverwaltung – Anonymisierungen merken:', e.message); } }
+function anonRemember(id, p) { anonSave([...anonList().filter(e => e.id !== id), { id, no: p.member_no || null, entry: p.entry_date || null }]); }
+function anonReapply() {
+  const list = anonList(); if (!list.length) return;
+  const keep = []; let n = 0;
+  for (const e of list) {
+    const p = C.db.prepare('SELECT member_no, entry_date, anonymized_at FROM mv_person WHERE member_id = ?').get(e.id);
+    if (!p || (p.member_no || null) !== e.no || (p.entry_date || null) !== e.entry) continue;
+    keep.push(e);
+    if (!p.anonymized_at) { try { anonymize(e.id, 'Clubwerk'); n++; } catch (err) { console.error('Mitgliederverwaltung – erneut anonymisieren:', err.message); } }
+  }
+  anonSave(keep);
+  if (n) C.audit(null, 'Mitglieder erneut anonymisiert', `${n} ${n === 1 ? 'Mitglied war' : 'Mitglieder waren'} schon anonymisiert (Sicherung zurückgespielt)`);
 }
 
 /* ---------------------------------------------------------------- tägliche Aufgaben */
@@ -846,17 +866,33 @@ function activate(ctx) {
   /* ---------- Datenschutz ---------- */
   /* Datenauskunft (Art. 15 DSGVO) – mit den echten Rechten des Benutzers: ohne „Bankdaten“ bleibt die IBAN maskiert, ohne „Finanzen“
      fehlen die Forderungen, ohne „Dokumente“ die Dokumentliste. Die vollständige Auskunft erzeugt ein Admin mit allen Rechten. */
-  admin.get('/member/:id/auskunft', P, (req, res) => {
-    const id = int(req.params.id); const d = detail(id, req.user);
-    if (!d) return bad(res, 'Mitglied nicht gefunden.', 404);
+  async function auskunft(id, user) {
+    const d = detail(id, user);
+    if (!d) return null;
     const core = ctx.db.prepare('SELECT name, kind, active, created_at, pin_hash IS NOT NULL AS hat_pin FROM members WHERE id = ?').get(id);
     const drinks = ctx.drinks.byMonth(id);
-    const out = { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
+    // Daten der übrigen Module (Hook memberData) – jedes Modul liefert nur, was es selbst zur Person speichert
+    const module = {};
+    for (const r of await ctx.callHooks('memberData', id)) if (r.result && Object.values(r.result).some(v => v && (!Array.isArray(v) || v.length))) module[r.name] = r.result;
+    return { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
       ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
-      aenderungsverlauf: d.history, mitglieder_app: d.app, getraenke_je_monat: drinks };
-    ctx.audit(req.user, 'Mitglied: Datenauskunft erstellt', d.person.name);
-    res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="Datenauskunft_${(d.person.member_no || id)}.json"` }).send(JSON.stringify(out, null, 2));
+      aenderungsverlauf: d.history, mitglieder_app: d.app, getraenke_je_monat: drinks, weitere_bereiche: module };
+  }
+  admin.get('/member/:id/auskunft', P, ar(async (req, res) => {
+    const id = int(req.params.id); const out = await auskunft(id, req.user);
+    if (!out) return bad(res, 'Mitglied nicht gefunden.', 404);
+    ctx.audit(req.user, 'Mitglied: Datenauskunft erstellt', out.vereinsdaten.name);
+    res.set({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Disposition': `attachment; filename="Datenauskunft_${(out.vereinsdaten.member_no || id)}.json"` }).send(JSON.stringify(out, null, 2));
+  }));
+  /* Austritt vor über X Jahren (Einstellung „Erinnern nach … Jahren“, Standard 2): Liste und Sammel-Anonymisieren; mit offenen Forderungen nicht */
+  admin.get('/anonymize-due', P, (req, res) => res.json({ years: retYears(), rows: dueAnon().map(r => ({ id: r.id, name: r.name, member_no: r.member_no, exit_date: r.exit_date, open: r.open })) }));
+  admin.post('/anonymize-due', P, (req, res) => {
+    if (!['ANONYMISIEREN', 'ANONYMIZE'].includes(String((req.body || {}).confirm || '').trim().toUpperCase())) return bad(res, 'Bitte zur Bestätigung ANONYMISIEREN eingeben.');
+    const rows = dueAnon(), go = rows.filter(r => !r.open);
+    for (const r of go) anonymize(r.id, uname(req));
+    if (go.length) ctx.audit(req.user, 'Mitglieder anonymisiert', `${go.length} ${go.length === 1 ? 'Mitglied' : 'Mitglieder'}, Austritt vor über ${retYears()} Jahren`);
+    res.json({ ok: true, n: go.length, skipped: rows.length - go.length });
   });
   admin.post('/member/:id/anonymize', P, (req, res) => {
     const id = int(req.params.id); const p = personRow(id);
@@ -969,6 +1005,15 @@ function activate(ctx) {
     if (!Array.isArray(list) || !list.length) list = DEFAULT_CONSENTS;
     return list.filter(c => c && c.key && c.text).slice(0, 8);
   }
+  /** „Erinnern nach … Jahren“ nach dem Austritt (0 = aus, Standard 2) und wer darunter fällt (mit offenen Forderungen: open) */
+  const retYears = () => { const n = parseInt(S('retention_years', '2'), 10); return Number.isFinite(n) ? Math.max(0, Math.min(30, n)) : 2; };
+  function dueAnon() {
+    const y = retYears(); if (!y) return [];
+    const { nameKey } = ctx.require('./db');
+    return ctx.db.prepare('SELECT p.member_id AS id, m.name, p.member_no, p.exit_date FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.anonymized_at IS NULL AND p.exit_date IS NOT NULL AND p.exit_date < ?')
+      .all(fees.addMonths(today(), -12 * y)).map(r => ({ ...r, open: Boolean(ctx.db.prepare("SELECT 1 FROM mv_charge WHERE member_id = ? AND status IN ('offen','eingezogen')").get(r.id)) }))
+      .sort((a, b) => nameKey(a.name, 'mitglied').localeCompare(nameKey(b.name, 'mitglied'), 'de'));
+  }
   function settingsView(user) {
     const s = { club_name: ctx.getSetting('club_name', ''), club_street: S('club_street'), club_city: S('club_city'), creditor_id: S('creditor_id'), creditor_name: S('creditor_name') || ctx.getSetting('club_name', ''),
       club_iban: user && user.perms.includes('mitglieder_finanzen') ? store.account().iban : sepa.maskIban(store.account().iban), club_bic: store.account().bic, club_bank: store.account().bank,
@@ -976,7 +1021,7 @@ function activate(ctx) {
       mandate_prefix: S('mandate_prefix'), member_no_start: S('member_no_start', '1'), year_start: S('year_start', '01-01'), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_fee_cents: parseInt(S('dunning_fee_cents', '0'), 10) || 0,
-      invoice_text: S('invoice_text'), consents: consentList(), retention_years: parseInt(S('retention_years', '0'), 10) || 0,
+      invoice_text: S('invoice_text'), consents: consentList(), retention_years: retYears(),
       notice_months: parseInt(S('notice_months', '3'), 10) || 0, family_child_max: store.childMax(), scope_confirm: S('scope_confirm', '1') === '1', sepa_required: sepaRequired(), app_perms: store.appPerms(), app_labels: { view: store.APP_VIEW, edit: store.APP_EDIT } };
     return s;
   }
@@ -1032,7 +1077,7 @@ function activate(ctx) {
   });
 
   /* ---------- weitere Teile ---------- */
-  shared = { C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
+  shared = { auskunft, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
   require('./lib/money').register(shared);
   require('./lib/agecheck').register(shared);
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
@@ -1041,6 +1086,7 @@ function activate(ctx) {
   require('./lib/congrats').register(shared);
   require('./lib/importvc').register(shared);
   require('./lib/memberapp').register(shared);
+  try { anonReapply(); } catch (e) { console.error('Mitgliederverwaltung – Anonymisierungen:', e.message); }   // nach dem Zurückspielen einer Sicherung
 
   /* Kennzahlen & Warnungen für die Übersicht */
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
@@ -1079,11 +1125,8 @@ function activate(ctx) {
     if (noMandate) alerts.push({ level: 'a', text: `${noMandate} Lastschriftzahler ohne gültiges SEPA-Mandat.` });
     const fin = !user || (user.perms || []).includes('mitglieder_finanzen');   // Hinweise zu Beiträge & Zahlungen nur für wen, der sie erledigen darf
     if (fin && (!S('creditor_id') || !store.account().iban)) alerts.push({ level: 'a', text: 'Für Lastschriften fehlt noch die Gläubiger-ID oder ein Bankkonto.', detail: 'Gläubiger-ID unter Beiträge & Zahlungen › Einstellungen, Bankkonto unter Verein › Einstellungen › Bankkonten.', go: 'mv-zeinst', link: 'Eintragen' });
-    const ret = parseInt(S('retention_years', '0'), 10) || 0;
-    if (ret) {
-      const old = ctx.db.prepare("SELECT COUNT(*) n FROM mv_person WHERE anonymized_at IS NULL AND exit_date IS NOT NULL AND exit_date < ?").get(fees.addMonths(today(), -12 * ret)).n;
-      if (old) alerts.push({ level: 'a', text: `${old} ${old === 1 ? 'ausgetretenes Mitglied' : 'ausgetretene Mitglieder'} seit über ${ret} Jahren – bitte prüfen und anonymisieren.` });
-    }
+    const ret = retYears(), old = dueAnon().length;
+    if (old) alerts.push({ level: 'a', text: `${old} ${old === 1 ? 'ausgetretenes Mitglied' : 'ausgetretene Mitglieder'} seit über ${ret} Jahren – bitte prüfen und anonymisieren.`, go: 'mv-einstellungen', link: 'Liste ansehen' });
     // Lastschrift eingereicht, aber noch nicht als bezahlt gebucht → Kassierer erinnern, sobald Rückläufer unwahrscheinlich sind
     const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
     if (fin) for (const k of ctx.db.prepare("SELECT id, collection_date FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").all(fees.addDays(today(), -wait)))

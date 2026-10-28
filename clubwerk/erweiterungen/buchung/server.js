@@ -1565,6 +1565,16 @@ function activate(ctx) {
   /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – synchron in der Transaktion des Kerns, vor dem generischen
      Umhängen der Spalten mit Fremdschlüssel (bk_booking.member_id, bk_rights). Hier: Warteliste, Serien und Mitspieler-Listen (JSON). */
   /* Mitglied löschen: kommende Buchungen (auch als Mitspieler), laufende Serien, Warteliste – Vergangenes bleibt als Verlauf */
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Buchung von Plätzen und Geräten, Gebühren für Gäste', data: 'Name, gebuchte Zeiten, Mitspieler und Gäste, Gebühren, Warteliste', persons: 'Mitglieder und ihre Gäste' }];
+  /* Datenauskunft: eigene Buchungen und solche als Mitspieler, Gebühren, Warteliste, Sonderrechte */
+  ctx.hooks.memberData = id => ({
+    buchungen: db.prepare(`SELECT b.date AS datum, b.start AS von, b.end AS bis, r.name AS platz, b.status, b.partners AS mitspieler, b.guests AS gaeste, b.fee_cents AS gebuehr_cent, b.source AS quelle,
+      CASE WHEN b.member_id = ? THEN 'gebucht' ELSE 'Mitspieler' END AS rolle FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id
+      WHERE b.member_id = ? OR EXISTS (SELECT 1 FROM json_each(b.partners) j WHERE j.value = ?) ORDER BY b.date, b.start`).all(id, id, id),
+    gebuehren: db.prepare('SELECT date AS datum, text, cents AS cent, cancelled_at AS storniert FROM bk_fee WHERE member_id = ? ORDER BY date').all(id),
+    warteliste: db.prepare('SELECT w.date AS datum, w.start AS von, r.name AS platz FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ?').all(id),
+    sonderrechte: db.prepare('SELECT series AS serien, labels AS kennzeichen, note AS notiz FROM bk_rights WHERE member_id = ?').get(id) || null,
+  });
   ctx.hooks.memberLinks = id => {
     const d0 = today(), out = [];
     const n = db.prepare(`SELECT COUNT(*) n FROM bk_booking b WHERE b.status = 'aktiv' AND b.date >= ? AND (b.member_id = ? OR EXISTS (SELECT 1 FROM json_each(b.partners) j WHERE j.value = ?))`).get(d0, id, id).n;

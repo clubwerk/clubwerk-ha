@@ -1166,6 +1166,15 @@ function activate(ctx) {
   setInterval(tick, process.env.CW_TEST_FAST ? 1500 : 30 * 60000).unref();
 
   /* ----- Mitglied löschen: Mannschaften, in denen es spielt oder die es führt ----- */
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Mannschaften, Spieltage, Aufstellungen und Aufgaben', data: 'Name, Mannschaft, Zu- und Absagen, Aufstellung; bei Gastspielern Telefon und Verein', persons: 'Spielerinnen und Spieler, Gastspieler' }];
+  /* Datenauskunft: Mannschaften, Zu-/Absagen, Aufstellungen, Aufgaben, Angaben als Gastspieler */
+  ctx.hooks.memberData = id => ({
+    mannschaften: db.prepare('SELECT t.name AS mannschaft, t.season AS saison, p.rank AS position FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? ORDER BY t.id').all(id),
+    zusagen: db.prepare('SELECT g.date AS datum, g.opponent AS gegner, a.state AS antwort, a.note AS notiz FROM sp_avail a JOIN sp_game g ON g.id = a.game_id WHERE a.member_id = ? ORDER BY g.date').all(id),
+    aufstellungen: db.prepare('SELECT g.date AS datum, g.opponent AS gegner, l.role AS rolle, l.withdraw AS abgemeldet FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? ORDER BY g.date').all(id),
+    aufgaben: db.prepare('SELECT g.date AS datum, k.label AS aufgabe FROM sp_task k JOIN sp_game g ON g.id = k.game_id WHERE k.member_id = ? ORDER BY g.date').all(id),
+    gastspieler: db.prepare('SELECT phone AS telefon, club AS verein, created_at AS angelegt, last_seen AS zuletzt FROM sp_extern WHERE member_id = ?').get(id) || null,
+  });
   ctx.hooks.memberLinks = id => {
     const out = [], ts = rows => rows.map(r => r.name).join(', ');
     const play = db.prepare('SELECT t.name FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? ORDER BY t.sort, t.name').all(id);

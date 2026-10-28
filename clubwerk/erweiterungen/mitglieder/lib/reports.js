@@ -79,6 +79,27 @@ function register(sh) {
     res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Bestandserhebung_${day}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
   }));
 
+  /* Einwilligungen: wer heute Mitglied ist und zugestimmt hat (z. B. für den Pressewart) – Zahlen und Liste als Excel */
+  const { lastFirst, nameKey } = C.require('./db');
+  function consentRows() {
+    const day = today();
+    return membersAt(day).map(m => { const p = db.prepare('SELECT member_no, consents, anonymized_at FROM mv_person WHERE member_id = ?').get(m.id) || {}; return { ...m, no: p.member_no, c: JSON.parse(p.consents || '{}'), anon: p.anonymized_at }; })
+      .filter(m => !m.anon).sort((a, b) => nameKey(a.name, 'mitglied').localeCompare(nameKey(b.name, 'mitglied'), 'de'));
+  }
+  admin.get('/consents', P, (req, res) => {
+    const rows = consentRows();
+    res.json({ count: rows.length, list: sh.consentList().map(c => ({ key: c.key, short: c.short, required: Boolean(c.required), yes: rows.filter(r => r.c[c.key]).length })) });
+  });
+  admin.get('/consents.xlsx', P, ar(async (req, res) => {
+    const rows = consentRows(), cons = sh.consentList();
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Einwilligungen');
+    ws.columns = [{ header: 'Name', width: 28 }, { header: 'Mitgliedsnummer', width: 16 }, ...cons.map(c => ({ header: c.short, width: Math.max(14, c.short.length + 2) }))];
+    for (const r of rows) ws.addRow([safeCell(lastFirst(r.name, 'mitglied')), safeCell(r.no || ''), ...cons.map(c => (!r.c[c.key] ? 'nein' : isDate(String(r.c[c.key]).slice(0, 10)) ? `ja (seit ${deD(String(r.c[c.key]).slice(0, 10))})` : 'ja'))]);
+    style(ws);
+    C.audit(req.user, 'Mitglieder: Einwilligungen exportiert', `${rows.length} Mitglieder`);
+    res.set({ 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'Content-Disposition': `attachment; filename="Einwilligungen_${today()}.xlsx"` }).send(Buffer.from(await wb.xlsx.writeBuffer()));
+  }));
+
   /* Mitgliederliste als Excel (Spalten wählbar; Bankdaten nur mit Recht) */
   const COLS = [['member_no', 'Mitgliedsnummer'], ['last_name', 'Nachname'], ['first_name', 'Vorname'], ['salutation', 'Anrede'], ['title', 'Titel'], ['birth_date', 'Geburtsdatum'], ['age', 'Alter'], ['gender', 'Geschlecht'],
     ['street', 'Straße'], ['zip', 'PLZ'], ['city', 'Ort'], ['email', 'E-Mail'], ['phone', 'Telefon'], ['mobile', 'Mobil'], ['status', 'Status'], ['entry_date', 'Eintritt'], ['exit_date', 'Austritt'],

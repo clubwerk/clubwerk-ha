@@ -545,6 +545,14 @@ function activate(ctx) {
     return out;
   };
   /* Mitglied löschen: kommende Einsätze und noch nicht bestätigte Stunden sperren (bestätigte Stunden sind Verlauf) */
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Arbeitseinsätze und Dienste planen, Arbeitsstunden nachweisen und abrechnen', data: 'Name, Anmeldungen, geleistete Stunden, Befreiungen, Vorgaben', persons: 'Mitglieder; externe Helfer nur mit Namen' }];
+  /* Datenauskunft: Anmeldungen, Stunden, Befreiung und eigene Vorgaben */
+  ctx.hooks.memberData = id => ({
+    anmeldungen: db.prepare('SELECT e.date AS datum, e.title AS einsatz, s.created_at AS angemeldet FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? ORDER BY e.date').all(id),
+    stunden: db.prepare('SELECT date AS datum, minutes AS minuten, text, status, source AS quelle, reason AS grund FROM aw_entry WHERE member_id = ? ORDER BY date').all(id),
+    befreiung: db.prepare('SELECT note AS grund, until_date AS bis FROM aw_exempt WHERE member_id = ?').get(id) || null,
+    vorgaben: db.prepare('SELECT year AS jahr, minutes AS minuten, note AS grund FROM aw_target WHERE member_id = ? ORDER BY year').all(id),
+  });
   ctx.hooks.memberLinks = id => {
     const out = [];
     const n = db.prepare('SELECT COUNT(*) n FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND e.date >= ? AND e.cancelled = 0').get(id, today()).n;

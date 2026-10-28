@@ -61,14 +61,24 @@
           ${d.isHead && V.bank !== false ? `<div class="vh-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="vh-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
             <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="vh-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
           ${V.einwilligungen !== false && d.consents.length ? `<div class="vh-card"><h3>Einwilligungen ${E.einwilligungen !== false ? '<button id="mdCons">Ändern</button>' : ''}</h3><div class="vh-rows">${d.consents.map(c => `<div><span>${esc(c.short)}</span><b>${c.given ? 'ja' : 'nein'}</b></div>`).join('')}</div></div>` : ''}
+          ${d.auskunft ? `<div class="vh-card"><h3>Datenauskunft <button id="mdAusk">Anfordern</button></h3><div class="vh-rows"><div><span>Alles, was der Verein zu dir gespeichert hat – als PDF per E-Mail<small>${d.auskunft.to ? `an ${esc(d.auskunft.to)}` : 'Dafür braucht der Verein deine E-Mail-Adresse.'}</small></span></div></div></div>` : ''}
           ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
-        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit);
+        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData);
         if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank();
         focus = '';
         void open;
       }
 
+      /* Auskunft nach Art. 15 DSGVO: mit PIN anfordern, kommt als PDF (und Datei) an die hinterlegte E-Mail-Adresse */
+      async function requestData() {
+        if (!d.auskunft.to) return ctx.toast('Beim Verein ist keine E-Mail-Adresse von dir hinterlegt. Bitte trag sie unter „Kontakt“ ein oder frag beim Vorstand nach.', true, 6000);
+        if (!d.auskunft.ready) return ctx.toast('Der Verein hat noch kein Postfach eingerichtet. Bitte frag beim Vorstand nach.', true, 6000);
+        try {
+          const r = await ctx.withPin('Datenauskunft anfordern', pin => ctx.api('auskunft', 'POST', { pin }));
+          if (r) ctx.toast(`Ist unterwegs an ${r.to} – schau gleich in dein Postfach.`, false, 6000);
+        } catch (e) { ctx.toast(e.message, true, 6000); }
+      }
       function editContact() {
         const p = d.person;
         const f = (k, l, t = 'text') => `<label>${l}</label><input class="vh-input" data-k="${k}" type="${t}" value="${esc(p[k] || '')}">`;

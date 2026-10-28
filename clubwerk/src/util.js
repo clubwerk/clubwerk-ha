@@ -19,6 +19,8 @@ const fileStamp = (d = new Date()) => nowTs(d).replace(' ', '_').replace(/:/g, '
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
 /** Tage zu einem Datum 'JJJJ-MM-TT' addieren (negativ = zurück) – kalenderrein, ohne Zeitzonen-/Sommerzeiteffekte */
 const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+/** Monate zu einem Datum 'JJJJ-MM-TT' addieren (negativ = zurück); fehlt der Tag im Zielmonat, gilt dessen letzter Tag */
+const addMonths = (s, n) => { const [y, m, d] = s.split('-').map(Number); const t = new Date(Date.UTC(y, m - 1 + n, 1)); const last = new Date(Date.UTC(t.getUTCFullYear(), t.getUTCMonth() + 1, 0)).getUTCDate(); t.setUTCDate(Math.min(d, last)); return t.toISOString().slice(0, 10); };
 /** 'JJJJ-MM-TT…' → 'TT.MM.JJJJ'; leer → ''; alles andere unverändert als Text */
 const deD = s => (s == null || s === '' ? '' : /^\d{4}-\d{2}-\d{2}/.test(String(s)) ? `${String(s).slice(8, 10)}.${String(s).slice(5, 7)}.${String(s).slice(0, 4)}` : String(s));
 /** Cent → '1.234,56 €' (deutsches Währungsformat) */
@@ -29,4 +31,4 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&
 /** ZIP vor dem Entpacken prüfen (gegen „ZIP-Bomben“ und Pfad-Tricks): angegebene Gesamtgröße und erster unsicherer Pfad */
 const zipSize = files => files.reduce((a, f) => a + ((f._data && f._data.uncompressedSize) || 0), 0);
 const zipUnsafe = zip => Object.values(zip.files).find(f => f.unsafeOriginalName && f.unsafeOriginalName !== f.name);
-module.exports = { pad, today, nowTs, fileStamp, isDate, addDays, deD, euro, esc, zipSize, zipUnsafe };
+module.exports = { pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe };

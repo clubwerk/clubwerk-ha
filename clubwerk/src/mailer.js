@@ -210,6 +210,13 @@ const fileDir = id => path.join(DIR, String(id));
 const filePath = (id, f) => path.join(fileDir(id), `${f.id}.bin`);
 const BLOCK_EXT = /\.(exe|bat|cmd|com|scr|pif|vbs|vbe|js|jse|wsf|wsh|msi|msp|ps1|jar|lnk|reg|hta|cpl|dll)$/i;
 function removeFiles(id) { try { fs.rmSync(fileDir(id), { recursive: true, force: true }); } catch (e) { /* weg */ } }
+/** Gesendete Rundmails samt Empfängern und Anhängen, verschickt vor dem Tag `before` (Löschfrist, src/datenschutz.js) */
+const oldSent = before => db.prepare("SELECT id FROM mail_message WHERE status IN ('gesendet', 'teilweise') AND COALESCE(sent_at, created_at) < ?").all(before).map(r => r.id);
+function purgeSent(before) {
+  const ids = oldSent(before);
+  for (const id of ids) { db.prepare('DELETE FROM mail_recipient WHERE message_id = ?').run(id); db.prepare('DELETE FROM mail_message WHERE id = ?').run(id); removeFiles(id); }
+  return ids.length;
+}
 function copyFiles(from, to) {
   const files = J(db.prepare('SELECT files FROM mail_message WHERE id = ?').get(from).files, []);
   if (!files.length) return [];
@@ -491,4 +498,4 @@ function routes(admin, { need, bad }) {
   }, 'Vorlage');
 }
 
-module.exports = { routes, clean, toText, resolve, DIR };
+module.exports = { routes, clean, toText, resolve, DIR, oldSent, purgeSent };

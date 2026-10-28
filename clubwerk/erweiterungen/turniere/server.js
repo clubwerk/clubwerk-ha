@@ -913,6 +913,19 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     else { db.prepare('UPDATE tu_team SET p1 = NULL WHERE p1 = ?').run(fromId); db.prepare('UPDATE tu_team SET p2 = NULL WHERE p2 = ?').run(fromId); }
     db.prepare('DELETE FROM tu_player WHERE member_id = ?').run(fromId);
   };
+  ctx.hooks.retention = () => [LK.retention()];
+  ctx.hooks.privacyRecord = () => [
+    { title: 'Turniere: Clubmeisterschaft', purpose: 'Anmeldung, Auslosung, Spieltermine und Ergebnisse, Ehrentafel', data: 'Name, Liga, Spiele mit Ergebnis und Termin', persons: 'Teilnehmende Mitglieder' },
+    { title: 'Turniere: Turniertag', purpose: 'Durchführung von LK-Turnieren', data: 'Name, Verein, LK, Geschlecht, Geburtsjahr, Nenngeld (keine Kontaktdaten)', persons: 'Teilnehmende, auch aus fremden Vereinen' }];
+  /* Datenauskunft: Anmeldungen und Spiele der Clubmeisterschaft */
+  ctx.hooks.memberData = id => {
+    const tids = db.prepare('SELECT id FROM tu_team WHERE p1 = ? OR p2 = ?').all(id, id).map(r => r.id);
+    return {
+      anmeldungen: db.prepare('SELECT s.name AS saison, p.league AS liga, p.singles AS einzel, p.doubles AS doppel, p.created_at AS angemeldet FROM tu_player p JOIN tu_season s ON s.id = p.season_id WHERE p.member_id = ? ORDER BY s.id').all(id),
+      spiele: tids.length ? db.prepare(`SELECT s.name AS saison, m.phase, m.plan_date AS datum, m.plan_time AS uhrzeit, m.court AS platz, m.result AS ergebnis, m.sets AS saetze FROM tu_match m JOIN tu_season s ON s.id = m.season_id
+        WHERE m.a IN (${tids.join(',')}) OR m.b IN (${tids.join(',')}) ORDER BY m.id`).all() : [],
+    };
+  };
   ctx.hooks.exportConfig = () => ({ settings: cfg(), lk: LK.exportCfg() });
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');

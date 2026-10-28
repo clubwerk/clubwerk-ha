@@ -84,6 +84,7 @@ function register(sh) {
       pending: db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen' ORDER BY id").all(id).map(c => ({ ...c, label: KIND[c.kind] })),
       notice: { date: noticeDate(), months: parseInt(S('notice_months', '3'), 10) || 0, satzung: S('satzung_url') || null },
       creditor: { ci: S('creditor_id') || null, name: club().name },
+      auskunft: { to: p.email ? maskMail(p.email) : null, ready: C.mail.ready() },   // „Meine Daten anfordern“ (Art. 15 DSGVO)
     };
   }
   /* Mitglieder-App „Für mich“: Zahlen aus me() – genau das, was „Meine Daten“ zeigt (nur wer selbst zahlt, nur wenn Posten sichtbar sind; Tresor gesperrt → nichts).
@@ -103,6 +104,7 @@ function register(sh) {
     if (!ms.ok) todo.push({ title: 'Lastschrift-Mandat fehlt', sub: ms.reason[0].toUpperCase() + ms.reason.slice(1), focus: 'bank' });
     return { money, todo };
   };
+  const maskMail = m => String(m).replace(/^(.)[^@]*(@.*)$/, '$1…$2');
   const openOf = (id, kind) => db.prepare("SELECT id FROM mv_change WHERE member_id = ? AND kind = ? AND status = 'offen'").get(id, kind);
 
   M.get('/me', (req, res) => {
@@ -148,6 +150,29 @@ function register(sh) {
     }
     C.audit(null, 'Mitglieder-App: Daten geändert', `${p.name}${consents ? ' (Einwilligungen)' : ''}${Object.keys(want).length ? ' – wartet auf Bestätigung' : ''}`);
     res.json({ ok: true, pending: Object.keys(want).length > 0 });
+  }));
+  /* Datenauskunft (Art. 15 DSGVO) aus der App: mit PIN, an die beim Verein hinterlegte E-Mail-Adresse – als PDF zum Lesen und als Datei zum
+     Weiterverwenden. Die IBAN steht in der Mail nur gekürzt (vollständig unter „Meine Daten“ bzw. beim Verein). Höchstens zweimal am Tag. */
+  const sentAusk = new Map();   // Mitglied → Zeitpunkte der letzten Auskünfte (nur nach richtiger PIN gezählt; Fehlversuche zählen in die PIN-Sperre)
+  M.post('/auskunft', ar(async (req, res) => {
+    if (!req.pinOk()) return;
+    const id = req.member.id; const p = personRow(id);
+    const recent = (sentAusk.get(id) || []).filter(t => Date.now() - t < 86400000);
+    if (recent.length >= 2) return res.status(429).json({ error: 'Du hast deine Daten heute schon angefordert – schau in dein Postfach (auch im Spam-Ordner).' });
+    if (!p || p.anonymized_at) return bad(res, 'Für dich sind keine Vereinsdaten hinterlegt.');
+    if (!p.email) return bad(res, 'Beim Verein ist keine E-Mail-Adresse von dir hinterlegt. Bitte trag sie unter „Kontakt“ ein oder frag beim Vorstand nach.');
+    if (!C.mail.ready()) return bad(res, 'Der Verein hat noch kein Postfach eingerichtet. Bitte frag beim Vorstand nach.');
+    const out = await sh.auskunft(id, { perms: ['mitglieder_bank', 'mitglieder_finanzen', 'mitglieder_dokumente'] });
+    if (out.bankverbindung && out.bankverbindung.iban) out.bankverbindung = { ...out.bankverbindung, iban: sepa.maskIban(out.bankverbindung.iban) };
+    const name = `Datenauskunft_${p.member_no || id}`;
+    const sent = await mailMember(id, `Deine Datenauskunft – ${club().name}`, ['anbei findest du alle Daten, die der Verein zu dir gespeichert hat (Auskunft nach Art. 15 DSGVO):', '',
+      '• als PDF zum Lesen', '• als Datei (JSON) zum Weiterverwenden', '', 'Die IBAN steht hier aus Sicherheitsgründen nur gekürzt. Fragen zur Auskunft beantwortet dir der Vorstand.'],
+      [{ filename: `${name}.pdf`, content: await pdf.auskunft(club(), out), contentType: 'application/pdf' }, { filename: `${name}.json`, content: JSON.stringify(out, null, 2), contentType: 'application/json' }]);
+    if (!sent) return bad(res, 'Die E-Mail konnte gerade nicht verschickt werden. Bitte später noch einmal versuchen.');
+    sentAusk.set(id, [...recent, Date.now()]);
+    store.hist(id, 'Mitglieder-App', 'Datenauskunft', null, 'per E-Mail angefordert');
+    C.audit(null, 'Mitglieder-App: Datenauskunft angefordert', p.name);
+    res.json({ ok: true, to: maskMail(p.email) });
   }));
   M.post('/bank', C.rateLimit('mvbank', 5, 3600000), ar(async (req, res) => {
     if (!store.appPerms().edit.bank) return bad(res, 'Eine neue Bankverbindung bitte direkt beim Verein abgeben – in der App ist das nicht freigeschaltet.', 403);

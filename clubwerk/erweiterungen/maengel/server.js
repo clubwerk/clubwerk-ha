@@ -294,6 +294,12 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
   setTimeout(() => { try { cleanup(); } catch (e) { console.error('Mängel – Aufräumen:', e.message); } }, 8000).unref();
 
   /* ---------- für den Kern ---------- */
+  // Datenschutz: Frist auch unter Einstellungen › Datenschutz (gelöscht wird hier, stündlich)
+  ctx.hooks.retention = () => [{ id: 'erledigt', label: 'Erledigte Mängelmeldungen', text: 'Samt Fotos; offene Meldungen bleiben.', unit: 'monate', value: cfg().keep_months, def: 12, min: 1, max: 120,
+    due: cut => db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status IN ('erledigt','abgelehnt') AND done_at IS NOT NULL AND done_at < ?").get(cut).n, set: v => SET('keep_months', v) }];
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Meldung und Beseitigung von Schäden auf der Anlage', data: 'Name des Melders, Ort, Beschreibung, Fotos (ohne Ortsdaten), Bearbeitungsstand', persons: 'Mitglieder, die etwas melden' }];
+  ctx.hooks.memberData = id => ({ meldungen: db.prepare('SELECT created_at AS gemeldet, place AS ort, text AS beschreibung, status, answer AS antwort, done_at AS erledigt FROM mg_report WHERE member_id = ? ORDER BY id').all(id),
+    bestaetigt: db.prepare('SELECT r.created_at AS gemeldet, r.place AS ort, r.text AS beschreibung FROM mg_also a JOIN mg_report r ON r.id = a.report_id WHERE a.member_id = ? ORDER BY r.id').all(id) });
   // Konto zusammengeführt: Meldungen und Bestätigungen wandern mit; Konto gelöscht: Meldungen bleiben ohne Namen
   ctx.hooks.memberRemoved = (fromId, intoId) => {
     if (intoId) {

@@ -917,6 +917,9 @@
     { label: 'Einstellungen eines Moduls exportieren oder importieren', page: E, sec: SET('module'), btn: 'Einstellungen exportieren', words: 'Export Import Einstellungen übertragen Modul', perm: E, kind: 'aktion', in: 'Module' },
     { label: 'Erweiterung einspielen (ZIP)', page: E, sec: SET('module'), btn: 'Erweiterung einspielen', words: 'Modul Erweiterung', perm: E, kind: 'aktion', in: 'Module' },
     { label: 'Übersetzung verbessern oder Sprache hinzufügen', page: E, sec: SET('sprache'), card: 'Sprachen', words: 'Übersetzung Sprache', perm: E, kind: 'aktion', in: 'Sprachen' },
+        { label: 'Löschfristen (Protokoll, Türen, E-Mails …)', page: E, sec: SET('datenschutz'), card: 'Löschfristen', words: 'DSGVO Datenschutz Aufbewahrung löschen Frist Protokoll', perm: E, in: 'Datenschutz', boost: 1 },
+        { label: 'Datenschutzhinweis in der Mitglieder-App', page: E, sec: SET('datenschutz'), card: 'Datenschutzhinweis', field: 'dsText', words: 'DSGVO Datenschutzerklärung App Hinweis', perm: E, in: 'Datenschutz' },
+        { label: 'Verzeichnis von Verarbeitungstätigkeiten', page: E, sec: SET('datenschutz'), card: 'Verzeichnis', words: 'DSGVO Verarbeitungsverzeichnis Art. 30 drucken', perm: E, in: 'Datenschutz' },
         { label: 'Update von Clubwerk', page: E, sec: SET('update'), card: 'Update von Clubwerk', words: 'Update Version aktualisieren ZIP', perm: E, in: 'Update' },
     { label: 'Mein Passwort ändern', page: 'konto', card: 'Mein Passwort', field: 'pwCur', words: 'Passwort Kennwort Konto', in: 'Mein Konto' },
     { label: 'Meine Sprache in diesem Browser', page: 'konto', card: 'Anzeige in diesem Browser', field: 'lgMine', words: 'Sprache Englisch', in: 'Mein Konto' },
@@ -3178,9 +3181,9 @@
       <div class="card"><h3>Datenbank-Schnappschüsse</h3>
         <p class="muted s" style="margin-top:0">Zusätzlich sichert die App jede Nacht nur die Datenbank (die letzten 14 Nächte) – praktisch, um schnell einen Fehler der letzten Tage rückgängig zu machen.</p>
         <div class="row" style="margin-bottom:12px"><button class="btn" id="bNow">Schnappschuss jetzt</button><label class="btn">.db-Datei einspielen …<input type="file" id="bUp" accept=".db,application/octet-stream" hidden></label></div>
-        ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Datei</th><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
-        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr><td class="k-1z" title="${esc(x.file)}">${esc(x.file)}</td>
-          <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || '')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
+        ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
+        ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr title="${esc(x.file)}">
+          <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || 'Schnappschuss')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
           <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger-h" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
 
     // Sicherungen auf den Zielen nachladen (braucht etwas länger) – je Ziel eine Tabelle im gleichen Aufbau
@@ -3636,7 +3639,7 @@
       };
     }
   }
-  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
 
   /* =================== Mein Konto (Benutzerchip): Passwort, Sprache und Aussehen in diesem Browser, E-Mail-Absender =================== */
   RENDER.konto = async () => {
@@ -3734,7 +3737,7 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
+  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['datenschutz', 'Datenschutz'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
   const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : 'tablet');
   /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
@@ -3767,6 +3770,66 @@
     const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
+  }
+
+  /* ---------- Datenschutz: Löschfristen aller Module, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) ---------- */
+  async function renderPrivacy() {
+    const r = await api('datenschutz');
+    const box = $('dsBody'); if (!box) return;
+    const unit = (x, n) => (x.unit === 'monate' ? (n === 1 ? 'Monat' : 'Monate') : (n === 1 ? 'Tag' : 'Tage'));
+    const field = x => `<span style="display:inline-flex;gap:8px;align-items:center"><label class="f" style="width:96px;flex:none">${x.choices ? `<select data-ds="${esc(x.key)}" aria-label="${esc(x.label)}">${x.choices.map(n => `<option value="${n}" ${n === x.value ? 'selected' : ''}>${n}</option>`).join('')}</select>`
+      : `<input data-ds="${esc(x.key)}" value="${x.value}" inputmode="numeric" aria-label="${esc(x.label)}">`}</label><span class="muted" style="min-width:58px">${unit(x, 2)}</span></span>`;
+    const b = r.backups, keepM = Math.max(b.monthly, Math.ceil(b.weekly / 4), 1);
+    box.innerHTML = `<p class="muted s" style="margin-top:0">Was älter ist, löscht Clubwerk einmal am Tag von selbst. Ins Protokoll kommt nur, wie viel gelöscht wurde – nie, was. Die Fristen sind Vorschläge; im Zweifel stimmt der Verein sie mit seinem Datenschutzbeauftragten oder dem Landesverband ab. Geld (Verkauf, Beiträge, Buchhaltung) und Arbeitszeiten löscht Clubwerk nie von selbst – dafür gelten gesetzliche Aufbewahrungsfristen.</p>
+      <div>${r.rows.map(x => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-top:1px solid var(--line-soft)">
+          <div style="flex:1 1 240px;min-width:0"><b>${esc(x.label)}</b><div class="muted s">${esc(x.text)}</div></div>
+          ${field(x)}<span class="muted s" style="min-width:76px;text-align:right">Fällig: <b>${x.due == null ? '–' : x.due}</b></span></div>`).join('')}</div>
+      <p class="muted s">„Fällig“: so viele Einträge fallen beim nächsten Lauf weg${r.rows.some(x => x.self) ? '; Mängel und Turniere löschen stündlich selbst' : ''}. ${r.lastRun ? `Letzter Lauf: ${esc(deTime(r.lastRun))}${r.lastResult ? ` – ${esc(r.lastResult)}` : ' – nichts zu löschen'}.` : ''}</p>
+      <p class="muted s">Sicherungen: Gelöschtes verschwindet dort, sobald die älteren Sicherungen wegfallen – bei euren Einstellungen nach spätestens ${keepM} ${keepM === 1 ? 'Monat' : 'Monaten'}. Wird eine Sicherung zurückgespielt, löscht Clubwerk Abgelaufenes sofort wieder und anonymisiert bereits anonymisierte Mitglieder erneut.</p>
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="dsRun">Jetzt löschen</button><button class="btn primary" id="dsSave">Speichern</button></div>`;
+    $('dsSave').onclick = () => busy($('dsSave'), async () => {
+      const keep = {}; box.querySelectorAll('[data-ds]').forEach(i => { keep[i.dataset.ds] = i.value; });
+      try { await api('datenschutz', 'PUT', { keep }); toast('Gespeichert.'); GK.clean && GK.clean(); renderPrivacy().catch(fail); } catch (e) { fail(e); }
+    });
+    $('dsRun').onclick = async () => {
+      if (!await ask('Jetzt alles löschen, was älter als die Fristen ist?\n\nDas geschieht sonst beim nächsten täglichen Lauf von selbst. Gelöschtes lässt sich nicht wiederherstellen.', { ok: 'Jetzt löschen', danger: true })) return;
+      try { const x = await api('datenschutz/run', 'POST', {}); toast(x.parts.length ? 'Gelöscht: ' + x.parts.join(' · ') : 'Nichts zu löschen.'); renderPrivacy().catch(fail); } catch (e) { fail(e); }
+    };
+    // Datenschutzhinweis der Mitglieder-App
+    const nb = $('dsNotice');
+    if (nb) {
+      nb.innerHTML = `<p class="muted s" style="margin-top:0">Mitglieder sehen den Text einmal beim nächsten Öffnen der App (und nach jeder Änderung) und jederzeit unter „Mein Konto › Datenschutz“. Leer = kein Hinweis.</p>
+        <label class="f">Text<textarea id="dsText" rows="12" maxlength="8000" placeholder="Wer ist verantwortlich, welche Daten, wofür, wie lange, welche Rechte …">${esc(r.notice.text)}</textarea></label>
+        <div class="row" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="muted s">${r.notice.at ? `Zuletzt geändert: ${esc(deTime(r.notice.at))}` : 'Noch kein Hinweis.'}</span>
+          <span class="row" style="gap:8px"><button class="btn" id="dsTpl">Vorlage einsetzen</button><button class="btn primary" id="dsNSave">Speichern</button></span></div>`;
+      $('dsTpl').onclick = async () => {
+        if ($('dsText').value.trim() && !await ask('Den bisherigen Text durch die Vorlage ersetzen? Gespeichert wird erst mit „Speichern“.', { ok: 'Ersetzen' })) return;
+        $('dsText').value = r.template; $('dsText').focus();
+      };
+      $('dsNSave').onclick = () => busy($('dsNSave'), async () => {
+        try { await api('datenschutz/hinweis', 'PUT', { text: $('dsText').value }); toast('Gespeichert.'); GK.clean && GK.clean(); renderPrivacy().catch(fail); } catch (e) { fail(e); }
+      });
+    }
+    if ($('dsReg')) $('dsReg').onclick = async () => { try { printHtml(registryPrint(await api('datenschutz/verzeichnis'))); } catch (e) { fail(e); } };
+  }
+  /** Verzeichnis von Verarbeitungstätigkeiten (Art. 30 DSGVO) als Druckvorlage */
+  function registryPrint(v) {
+    const cell = 'border:1px solid #999;padding:6px 8px;vertical-align:top;text-align:left';
+    const blank = '<span style="display:inline-block;min-width:260px;border-bottom:1px solid #111">&nbsp;</span>';
+    return `<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111;padding:20px 28px;font-size:12px">
+      <h1 style="font-size:20px;margin:0 0 4px">Verzeichnis von Verarbeitungstätigkeiten</h1>
+      <div style="color:#444;margin-bottom:14px">nach Art. 30 DSGVO · Vorlage aus Clubwerk vom ${esc(deDate(v.created))} – bitte prüfen und ergänzen</div>
+      <table style="border-collapse:collapse;width:100%;margin-bottom:16px">
+        <tr><th style="${cell};width:30%">Verantwortlich</th><td style="${cell}">${esc([v.club, v.street, v.city].filter(Boolean).join(', ')) || blank}${v.email ? `<br>${esc(v.email)}` : ''}</td></tr>
+        <tr><th style="${cell}">Vertreten durch (Vorstand)</th><td style="${cell}">${blank}</td></tr>
+        <tr><th style="${cell}">Datenschutzbeauftragte/r (falls benannt)</th><td style="${cell}">${blank}</td></tr>
+        <tr><th style="${cell}">Genutzte Dienste (z. B. Mail-Anbieter, Tunnel)</th><td style="${cell}">${blank}</td></tr>
+        <tr><th style="${cell}">Technische und organisatorische Maßnahmen</th><td style="${cell}">Daten liegen auf dem Vereinsserver (kein Cloud-Dienst). Persönliche Daten, Fotos und Dokumente verschlüsselt; Sicherungen nur verschlüsselt. Zugriff nur mit persönlichem Benutzerkonto und Rechten je Aufgabe; Passwörter und PINs nur als Hash; Änderungen werden protokolliert. Feste Löschfristen.</td></tr>
+      </table>
+      <table style="border-collapse:collapse;width:100%">
+        <tr><th style="${cell}">Verarbeitung</th><th style="${cell}">Zweck</th><th style="${cell}">Daten</th><th style="${cell}">Betroffene</th><th style="${cell}">Zugriff</th><th style="${cell}">Löschfrist</th></tr>
+        ${v.rows.map(x => `<tr style="page-break-inside:avoid"><td style="${cell}"><b>${esc(x.title)}</b></td><td style="${cell}">${esc(x.purpose)}</td><td style="${cell}">${esc(x.data)}</td><td style="${cell}">${esc(x.persons)}</td><td style="${cell}">${esc(x.access)}</td><td style="${cell}">${esc(x.frist)}</td></tr>`).join('')}
+      </table></div>`;
   }
 
   /* ---------- Bankkonten (zentral für Buchhaltung, Mitgliederverwaltung …) ---------- */
@@ -3813,7 +3876,7 @@
     const SRC = { eingebaut: 'im Paket', mitgeliefert: 'im Paket', hochgeladen: 'hochgeladen', nachinstalliert: 'per Samba' };
     const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
     const mayBank = ['einstellungen', 'buchhaltung', 'mitglieder_finanzen'].some(canFull) || (me && me.role === 'oberadmin');
-    $('main').innerHTML = `<h2 class="page">Einstellungen</h2><p class="lead">Alles, was für den ganzen Verein gilt: Verein, Bankkonten, Postfach, Erreichbarkeit, Tablet und Module.</p>
+    $('main').innerHTML = `<h2 class="page">Einstellungen</h2><p class="lead">Alles, was für den ganzen Verein gilt: Verein, Bankkonten, Postfach, Erreichbarkeit, Datenschutz, Tablet und Module.</p>
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
@@ -3888,6 +3951,10 @@
             <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'} title="${ml.ready ? '' : 'Erst das Postfach speichern'}">Testmail senden</button></div>
           <button class="btn primary" id="mlSave">Postfach speichern</button></div>
         <p class="muted s">Am besten ein eigenes Vereinspostfach. Die Daten stehen beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“, Port meist 587 (manchmal 465). Beispiele: GMX mail.gmx.net, WEB.DE smtp.web.de, IONOS smtp.ionos.de, Strato smtp.strato.de; bei Gmail ein App-Passwort verwenden. Das Passwort wird nie wieder angezeigt und ist in keinem Export enthalten.</p></div>` : ''}
+      ${can('einstellungen') ? `<div class="card" data-set="datenschutz"><h3>Löschfristen</h3><div id="dsBody"><p class="muted">Wird geladen …</p></div></div>
+        <div class="card" data-set="datenschutz"><h3>Datenschutzhinweis in der Mitglieder-App</h3><div id="dsNotice"></div></div>
+        <div class="card" data-set="datenschutz"><h3>Verzeichnis von Verarbeitungstätigkeiten</h3><p class="muted s" style="margin-top:0">Eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, betroffene Personen, wer Zugriff hat und die Löschfristen. Der Verein ergänzt Verantwortliche, Datenschutzbeauftragte und genutzte Dienste (z. B. Mail-Anbieter) und bewahrt das Verzeichnis auf.</p>
+          <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dsReg">Verzeichnis drucken</button></div></div>` : ''}
       ${me.role === 'oberadmin' ? '<div class="card" id="updCard"><h3>Update von Clubwerk</h3><div id="updBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       ${ext ? `<div class="card"><h3>Module & Erweiterungen</h3>
         ${ext.all.length ? `<div class="mods" id="modList">

@@ -3475,6 +3475,8 @@ try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth });
 require('./mailer').routes(admin, { bad, need });
+/* Datenschutz: Löschfristen aller Module, Löschlauf, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) */
+require('./datenschutz').routes(admin, { need, bad });
 /* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */
 require('./einrichtung').routes(admin, { need, bad, checks: {
   tabletOn, tabletPw: gateOn, vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
@@ -3702,6 +3704,7 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 
 /* ---------- Start, nächtliche Sicherung, sauberes Beenden ---------- */
 try { cleanupUploads(); } catch (e) { console.error('Aufräumen:', e.message); }
+require('./datenschutz').start();   // Löschfristen: gleich nach dem Start (auch nach dem Zurückspielen einer Sicherung), dann täglich
 if (restoredMsg) { console.log(restoredMsg); audit('system', 'Wiederherstellung', restoredMsg); }
 if (demoMsg) { console.log(demoMsg); audit('system', 'Demo', demoMsg); }
 
