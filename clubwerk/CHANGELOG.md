@@ -1,5 +1,11 @@
 # Änderungen
 
+## 3.96.0
+
+**Anleitungs-PDFs mit sauber eingebetteter Schrift**
+- **PDFs schlanker und schärfer:** Die Anleitungen wurden bisher mit der Schrift als Zeichnungen (statt als echte Schrift) abgelegt. Jetzt stecken feste Schriftschnitte darin (normal und fett, lokal im Werkzeug, nichts aus dem Netz). Alle 24 PDFs zusammen: **von 27,1 auf 24,3 MB** (der Rest sind vor allem die Bilder). Text lässt sich in den PDFs jetzt auch besser markieren und durchsuchen.
+- Das Schriftbild bleibt gleich (Seiten vorher/nachher verglichen); die Wortabstände sind etwas gleichmäßiger.
+
 ## 3.95.0
 
 **Aufräumen nach den Anleitungen: „Für mich“, Englisch, Karten und schlankere PDFs**
