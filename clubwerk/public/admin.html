@@ -216,6 +216,9 @@
   .tbl th { text-align: left; font-size: 11px; line-height: 16px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 12px 10px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; }
   .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
   .tbl tr:last-child td { border-bottom: 0; }
+  @media (min-width: 641px) and (max-width: 1279px) { .tbl th, .tbl td { padding-left: 6px; padding-right: 6px; } }   /* mit Seitenmenü bleibt in breiten Tabellen sonst ein Knopf hinter dem Kartenrand */
+  @media (min-width: 641px) { #apTbl td:last-child, #apTbl th:last-child, #apAreaTbl td:last-child, #apAreaTbl th:last-child { position: sticky; right: 0; background: var(--card); } }   /* Matrix der Mitglieder-App: Knöpfe bleiben beim seitlichen Wischen sichtbar */
+  @media (min-width: 641px) and (max-width: 1279px) { .tbl .k-eng { display: none; } }   /* k-eng: im schmaleren Rechnerfenster weglassen (steht beim Bearbeiten) – sonst scrollt die Karte seitlich */
   .tbl tr:hover td { background: color-mix(in srgb, var(--hover) 60%, transparent); }
   .tbl td.r, .tbl th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
   .tbl td.r:not(:has(button, .btn, input, select, a)) { font-family: var(--num); font-weight: 600; font-size: 16px; letter-spacing: .01em; }   /* Beträge und Zahlen wie auf der Anzeigetafel (Zellen mit Bedienelementen bleiben in der Textschrift) */
@@ -565,7 +568,7 @@
   .ds-spark { display: block; width: 100%; height: 56px; }
   .ds-hl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); padding: 0 !important; margin-bottom: 16px; overflow: hidden; box-shadow: var(--shadow-lg); }   /* wie die Spielstandstafel der Übersicht */
   .ds-hlt { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; border-left: 1px solid var(--line); min-width: 0; } .ds-hlt:first-child { border-left: 0; }
-  .ds-hlt span { font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); } .ds-hlt b { font-family: var(--num); font-weight: 600; font-size: 28px; line-height: 36px; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-hlt small { font-size: 12.5px; color: var(--muted); }   /* Unterzeile darf umbrechen – nie abgeschnitten */
+  .ds-hlt span { font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); } .ds-hlt b { font-family: var(--num); font-weight: 600; font-size: 26px; line-height: 36px; letter-spacing: .01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ds-hlt small { font-size: 12.5px; color: var(--muted); }   /* Unterzeile darf umbrechen – nie abgeschnitten */
   .ds-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; } .ds-two > .card { margin: 0; display: flex; flex-direction: column; min-width: 0; }
   .ds-meter { position: relative; height: 12px; border-radius: 6px; background: var(--hover); } .ds-meter i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 6px; background: var(--brand); }
   .ds-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -597,7 +600,7 @@
   .ds-bpair { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px; border-bottom: 1px solid var(--line); }
   .ds-bpair i { width: 40%; max-width: 14px; border-radius: 4px 4px 0 0; background: var(--brand); } .ds-bpair i.p { background: var(--line); }
   @media (max-width: 1100px) { .ds-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ds-two { grid-template-columns: 1fr; } }
-  @media (max-width: 640px) { .ds-hlt b { font-size: 24px; line-height: 32px; } }   /* Handy: „Di 12–13 Uhr“ passt ganz in die halbe Breite */
+  @media (max-width: 640px) { .ds-hlt b { font-size: 22px; line-height: 32px; } }   /* Handy: „Di 12–13 Uhr“ passt ganz in die halbe Breite */
   @media (max-width: 1100px) { .ds-hl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .ds-hlt:nth-child(3) { border-left: 0; } .ds-hlt:nth-child(n+3) { border-top: 1px solid var(--line); } }
   @media (max-width: 560px) { .ds-kpis { grid-template-columns: 1fr; } .ds-donut { grid-template-columns: 1fr; justify-items: center; } .ds-dleg { width: 100%; } .ds-mini { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .ds-top li { grid-template-columns: 24px minmax(0, 1fr) 56px 44px; } .ds-top .ds-meter, .ds-top .ds-d { display: none; } }

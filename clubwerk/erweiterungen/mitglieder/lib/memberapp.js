@@ -96,16 +96,16 @@ function register(sh) {
     if (d.isHead && V.posten) {
       // gemahnt: „Zahlungserinnerung vom …“ und wohin überweisen (keine Push-Nachricht dazu – Push-Texte zeigen nichts Vertrauliches)
       const dun = d.open_cents > 0 && sh.lastDunning ? sh.lastDunning(id) : null;
-      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: dun ? `${dun.title} vom ${deD(dun.date)}` : 'offen', value: euro(d.open_cents) });
+      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: dun ? `${dun.title} vom ${deD(dun.date)}` : 'offen', value: euro(d.open_cents), tr: true });
       const acc = dun ? store.account() : null;
-      if (acc && acc.iban) money.push({ title: 'Bitte überweisen an', sub: `${club().name} · IBAN ${String(acc.iban).replace(/(.{4})/g, '$1 ').trim()}${dun.ref ? ` · Verwendungszweck ${dun.ref}` : ''}` });
+      if (acc && acc.iban) money.push({ title: 'Bitte überweisen an', sub: `${club().name} · IBAN ${String(acc.iban).replace(/(.{4})/g, '$1 ').trim()}${dun.ref ? ` · Verwendungszweck ${dun.ref}` : ''}`, tr: true });
       const due = d.charges.filter(c => c.status === 'eingezogen' && c.collection_date && c.collection_date >= today()), first = due.map(c => c.collection_date).sort()[0];
-      if (first) money.push({ title: 'Lastschrift', sub: `wird am ${deD(first)} abgebucht`, value: euro(due.filter(c => c.collection_date === first).reduce((n, c) => n + c.cents, 0)) });
+      if (first) money.push({ title: 'Lastschrift', sub: `wird am ${deD(first)} abgebucht`, value: euro(due.filter(c => c.collection_date === first).reduce((n, c) => n + c.cents, 0)), tr: true });
     }
     const miss = [E.kontakt && !p.email && 'E-Mail', E.kontakt && !p.mobile && !p.phone && 'Handynummer', E.anschrift && !p.street && 'Anschrift'].filter(Boolean);
-    if (miss.length && !wait.has('daten')) todo.push({ title: 'Kontaktdaten ergänzen', sub: `Es fehlt: ${miss.join(', ')}`, focus: 'kontakt' });
+    if (miss.length && !wait.has('daten')) todo.push({ title: 'Kontaktdaten ergänzen', sub: `Es fehlt: ${miss.join(', ')}`, focus: 'kontakt', tr: true });
     const ms = d.isHead && E.bank && p.payment === 'lastschrift' && !wait.has('bank') ? mandateState(bankRow(id)) : { ok: true };
-    if (!ms.ok) todo.push({ title: 'Lastschrift-Mandat fehlt', sub: ms.reason[0].toUpperCase() + ms.reason.slice(1), focus: 'bank' });
+    if (!ms.ok) todo.push({ title: 'Lastschrift-Mandat fehlt', sub: ms.reason[0].toUpperCase() + ms.reason.slice(1), focus: 'bank', tr: true });
     return { money, todo };
   };
   const maskMail = m => String(m).replace(/^(.)[^@]*(@.*)$/, '$1…$2');

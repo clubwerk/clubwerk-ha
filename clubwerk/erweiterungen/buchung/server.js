@@ -1640,10 +1640,10 @@ function activate(ctx) {
         return { at: b.date, start: b.start, end: b.end, title: b.rname, sub: others.length ? `mit ${others.join(', ')}` : '' };
       });
     const free = db.prepare(`SELECT w.id, w.date, w.start, w.end, r.name AS rname FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.notified_at IS NOT NULL AND w.date >= ? AND w.date <= ? ORDER BY w.date, w.start LIMIT 3`).all(mid, d, until)
-      .filter(w => w.date > d || w.end > n).map(w => ({ key: `wait-${w.id}`, title: `Platz frei geworden: ${w.rname}`, sub: `${when(w)} – jetzt buchen` }));
+      .filter(w => w.date > d || w.end > n).map(w => ({ key: `wait-${w.id}`, title: `Platz frei geworden: ${w.rname}`, sub: `${when(w)} – jetzt buchen`, tr: true }));
     const lock = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'storniert' AND b.type = 'buchung' AND b.cancel_reason LIKE 'Platz gesperrt%'
       AND b.date >= ? AND b.cancelled_at >= datetime('now','localtime','-14 days') AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') ORDER BY b.date, b.start LIMIT 10`).all(d, mid, String(mid))
-      .filter(mine).slice(0, 3).map(b => ({ key: `sperre-${b.id}`, title: `Buchung storniert: ${b.rname}`, sub: `${when(b)} · ${b.cancel_reason}` }));
+      .filter(mine).slice(0, 3).map(b => ({ key: `sperre-${b.id}`, title: `Buchung storniert: ${b.rname}`, sub: `${when(b)} · ${b.cancel_reason}`, tr: true }));
     return { next, news: [...lock, ...free] };
   };
   /* Push-Anlässe (der Vorstand gibt frei, das Mitglied wählt je Handy) */

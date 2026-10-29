@@ -5556,7 +5556,7 @@
   "Stärkster Tag": "Busiest day",
   "Storniert: {0}": "Cancelled: {0}",
   "Stoßzeit": "Peak time",
-  "Stunden": "hours",
+  "Stunden": "Hours",
   "Termin einer Serie – Zeiten ändern unter „Serien & Sperren“.": "Date of a series – change times under “Series & blocks”.",
   "Termine einer Serie werden über „Serien & Sperren“ geändert.": "Dates of a series are changed under “Series & blocks”.",
   "text/csv; charset=utf-8": "text/csv; charset=utf-8",
@@ -6791,7 +6791,7 @@
   "Anfrage gesendet – der Mannschaftsführer meldet sich.": "Request sent – the team captain will get back to you.",
   "Anfrage senden": "Send request",
   "Anlage, Straße, Ort": "Venue, street, town",
-  "Aufgabe": "Task",
+  "Aufgabe": "Retired",
   "Aufgabe nicht gefunden.": "Task not found.",
   "Aufgabe: {0}": "Task: {0}",
   "Aufgaben": "Tasks",
@@ -7837,8 +7837,8 @@
   "Soll in Gebinden": "Target in crates",
   "Spieltag": "match day",
   "Startseite am Tablet – „Gerade oft hier“": "Tablet start page – “Often here now”",
-  "Tabelle": "table",
-  "Tabellen": "tables",
+  "Tabelle": "Table",
+  "Tabellen": "Tables",
   "Testnachricht an": "Test message to",
   "Titel (leer = Buchungsart oder Mitglied)": "Title (empty = booking type or member)",
   "Überfällig seit": "Overdue for",
@@ -11594,6 +11594,9 @@
   "· nächster am {0}": "· next on {0}",
   "{0} · nächster am {1}": "{0} · next on {1}",
   "Spieltage: {0} Rückmeldungen offen": "Match days: {0} replies outstanding",
-  "Spieltage: 1 Rückmeldung offen": "Match days: 1 reply outstanding"
+  "Spieltage: 1 Rückmeldung offen": "Match days: 1 reply outstanding",
+  "Termine: {0} Antworten offen": "Dates: {0} replies outstanding",
+  "Termine: 1 Antwort offen": "Dates: 1 reply outstanding",
+  "Name der Aufgabe": "Task name"
  }
 }

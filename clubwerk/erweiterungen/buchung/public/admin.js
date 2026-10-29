@@ -132,7 +132,8 @@
       .bk-top .n { width: 24px; height: 24px; border-radius: 12px; background: var(--hover); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
       .bk-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .bk-top b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-top .r { text-align: right; font-family: var(--num); font-size: 15px; font-variant-numeric: tabular-nums; }
       @media (max-width: 900px) { .bk-hl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-hlt:nth-child(3) { border-left: 0; } .bk-hlt:nth-child(n+3) { border-top: 1px solid var(--line-soft); } }
-      @media (max-width: 560px) { .bk-donut { grid-template-columns: 1fr; justify-items: center; } .bk-dleg { width: 100%; } .bk-top li { grid-template-columns: 24px minmax(0, 1fr) 0 64px; } .bk-top .bk-meter { display: none; } }
+      @media (max-width: 1320px) { .bk-donut { grid-template-columns: 1fr; justify-items: center; } .bk-dleg { width: 100%; } }   /* Legende neben dem Ring braucht Platz für die Namen (Medenspiel …) */
+      @media (max-width: 560px) { .bk-top li { grid-template-columns: 24px minmax(0, 1fr) 0 64px; } .bk-top .bk-meter { display: none; } }
       .bk-lg td { vertical-align: middle; padding-top: 10px !important; padding-bottom: 10px !important; } .bk-lg td.nw { white-space: nowrap; }
       .bk-lg tr.bk-lgr { cursor: pointer; } .bk-lg tr.bk-lgr:hover td { background: var(--hover); } .bk-lg tr.off td { opacity: .6; }
       .bk-lg tr.bk-lgd td { height: auto; padding: 18px 0 8px !important; font-size: 15px; font-weight: 700; color: var(--ink); background: none !important; border-bottom: 1px solid var(--line); box-shadow: none !important; }

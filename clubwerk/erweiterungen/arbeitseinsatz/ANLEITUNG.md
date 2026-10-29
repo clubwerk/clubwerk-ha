@@ -277,7 +277,7 @@ Gibt es Termine, erscheint der Umschalter **Termine** (mit der Zahl unbeantworte
 
 #### Startseite und Benachrichtigungen
 
-Auf der Startseite „Für mich“ stehen eigene Dienste und zugesagte Termine unter „Als Nächstes“. Offene Termine erscheinen unter „Zu erledigen“, mit ✓ und ✕ gleich in der Zeile; ebenso die fehlenden Arbeitsstunden mit Sprung zu den freien Diensten. Dazu gibt es Benachrichtigungen: **Erinnerung an den Dienst** (am Vortag) und **Erinnerung an einen Termin** (Einladung, Bitte um Antwort kurz vor Fristende, Erinnerung am Vortag bei Zusage). Mitglieder schalten sie in der App unter Benachrichtigungen je Handy ein.
+Auf der Startseite „Für mich“ stehen eigene Dienste und zugesagte Termine unter „Als Nächstes“. Offene Termine erscheinen unter „Zu erledigen“ nur als ein Hinweis „Termine: n Antworten offen“ (ohne Knöpfe, ohne Zeitgrenze, solange die Antwortfrist läuft); er nennt den Termin mit der nächsten Frist und führt in den Reiter „Termine“. Ebenso die fehlenden Arbeitsstunden mit Sprung zu den freien Diensten. Dazu gibt es Benachrichtigungen: **Erinnerung an den Dienst** (am Vortag) und **Erinnerung an einen Termin** (Einladung, Bitte um Antwort kurz vor Fristende, Erinnerung am Vortag bei Zusage). Mitglieder schalten sie in der App unter Benachrichtigungen je Handy ein.
 
 ### Tablet
 

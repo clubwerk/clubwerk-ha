@@ -32,7 +32,7 @@
       ctx.onLeave(close);
       let d_contact = '';
       const sel = {};   // gewählter Tag je Dienstplan
-      let tab = ctx.focus === 'termin' ? 'termine' : 'dienste';   // Reiter „Dienste“ | „Termine“ (aus „Für mich“: gleich die Termine)
+      let tab = /^termin/.test(ctx.focus || '') ? 'termine' : 'dienste';   // Reiter „Dienste“ | „Termine“ (aus „Für mich“: gleich die Termine)
       let focus = ctx.focus || '';   // aus „Für mich“ („frei“): zum ersten freien Dienst scrollen (nur beim ersten Laden)
       const sheet = () => { let sh = document.getElementById('dsSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'dsSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       async function load() {
@@ -67,6 +67,7 @@
         el.querySelectorAll('[data-pd]').forEach(b => { b.onclick = () => { sel[b.dataset.pl] = b.dataset.pd; load(); }; });
         const rep = document.getElementById('dsRep'); if (rep) rep.onclick = () => report(d);
         if (focus === 'frei') { const f = el.querySelector('[data-ev][data-on="0"]:not([disabled])'); if (f) f.closest('.ds-sh').scrollIntoView({ block: 'center' }); }
+        if (/^termin:\d+$/.test(focus) && tab === 'termine') { const f = el.querySelector(`[data-t="${focus.slice(7)}"]`); if (f) f.closest('.ds-tm').scrollIntoView({ block: 'center' }); }
         focus = '';
       }
       function termHtml(t) {

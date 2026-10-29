@@ -137,7 +137,7 @@ Eine Tabelle für alle Bereiche der App, ein „Speichern“ für alles:
 - **Beim Freischalten:** „vorwählen“ kreuzt den Bereich bei neuen Mitgliedern von selbst an.
 - **Start** und **↑ ↓:** Startbereich und Reihenfolge. Von Haus aus öffnet die App „Für mich“.
 
-„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Termine mit Zu- und Absage erscheinen mit ✓/✕-Knöpfen. Offene Rückmeldungen zu Spieltagen erscheinen nur als Hinweis „Spieltage: n Rückmeldungen offen“, ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen.
+„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen.
 
 ### Reiter „Benachrichtigungen“ {#app-push}
 

@@ -277,7 +277,7 @@ If there are club dates, a **Dates** switch appears (with the number still unans
 
 #### Start page and notifications
 
-On the “For me” start page your own duties and accepted dates appear under “Coming up”. Open dates appear under “To do”, with ✓ and ✕ right in the row; so do missing work hours, linking to the free duties. There are also notifications: **Duty reminder** (the day before) and **Reminder for a date** (invitation, request for a reply shortly before the deadline, reminder the day before for those who accepted). Members switch them on in the app under Notifications, per phone.
+On the “For me” start page your own duties and accepted dates appear under “Coming up”. Open dates appear under “To do” only as one note “Dates: n replies open” (no buttons, no time limit while the reply deadline is running); it names the date with the nearest deadline and leads to the “Dates” tab. So do missing work hours, linking to the free duties. There are also notifications: **Duty reminder** (the day before) and **Reminder for a date** (invitation, request for a reply shortly before the deadline, reminder the day before for those who accepted). Members switch them on in the app under Notifications, per phone.
 
 ### Tablet
 

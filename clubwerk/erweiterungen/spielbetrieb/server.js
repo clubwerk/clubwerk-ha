@@ -338,7 +338,7 @@ function activate(ctx) {
       if (send) todo.push({ title, sub: gameWhen(g), chip: 'Aufstellung noch nicht verschickt', focus: g.id });
     }
     if (asked.length) todo.unshift({ title: asked.length === 1 ? 'Spieltage: 1 Rückmeldung offen' : `Spieltage: ${asked.length} Rückmeldungen offen`,
-      sub: `${[...new Set(asked.map(g => g.tname))].join(', ')} · nächster am ${deD(asked[0].date).slice(0, 6)}`, focus: asked[0].id });
+      sub: `${[...new Set(asked.map(g => g.tname))].join(', ')} · nächster am ${deD(asked[0].date).slice(0, 6)}`, focus: asked[0].id, tr: true });
     return { next, todo };
   };
   /** Mitglieder-App: nur für Spieler und Mannschaftsführer */

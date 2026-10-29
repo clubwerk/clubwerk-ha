@@ -659,13 +659,11 @@ function activate(ctx) {
     const next = db.prepare(`SELECT e.*, s.persons FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND s.answer = 'ja' AND e.cancelled = 0 AND e.permanent = 0 AND e.date >= ? AND e.date <= ? ORDER BY e.date, e.start IS NULL, e.start LIMIT 6`).all(id, d, until)
       .filter(e => e.date > d || !e.end || e.end > now).slice(0, 5).map(e => ({ at: e.date, start: e.start || '', end: e.end || '', title: e.title, sub: [e.place, e.kind === 'termin' && e.persons > 1 ? `${e.persons} Personen` : ''].filter(Boolean).join(' · '),
         ...(e.kind === 'termin' ? { focus: 'termin' } : {}) }));
-    // Termine ohne Antwort, Frist noch nicht abgelaufen: Zusage oder Absage gleich in der Zeile (dieselbe Route wie der Bereich: Frist, Plätze, Protokoll)
-    const ask = db.prepare(`SELECT e.* FROM aw_event e WHERE e.kind = 'termin' AND e.cancelled = 0 AND e.date >= ? AND e.date <= ? AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)
-      ORDER BY COALESCE(e.deadline, e.date), e.date, e.start IS NULL, e.start`).all(d, until, id).filter(e => isOpen(e) && deadlineOk(e)).slice(0, 3).map(e => {
-      const full = e.slots && personsYes(e.id) >= e.slots;
-      return { title: e.title, sub: [`${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][new Date(e.date + 'T12:00:00').getDay()]}, ${deD(e.date).slice(0, 6)}`, e.deadline ? `Antwort bis ${deD(e.deadline).slice(0, 6)}` : ''].filter(Boolean).join(' · '), chip: 'Antwort fehlt', focus: 'termin',
-        actions: [...(full ? [] : [{ label: '✓', aria: 'Ich komme', post: 'answer', body: { event_id: e.id, answer: 'ja', persons: 1 } }]), { label: '✕', aria: 'Ich komme nicht', post: 'answer', body: { event_id: e.id, answer: 'nein' }, kind: 'n' }] };
-    });
+    // Termine ohne Antwort, Frist noch nicht abgelaufen: ein Hinweis über alle künftigen Termine (ohne Zeitgrenze, ohne Knöpfe) – Antippen springt in den Reiter „Termine“
+    const open = db.prepare(`SELECT e.* FROM aw_event e WHERE e.kind = 'termin' AND e.cancelled = 0 AND e.date >= ? AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)
+      ORDER BY COALESCE(e.deadline, e.date), e.date, e.start IS NULL, e.start`).all(d, id).filter(e => isOpen(e) && deadlineOk(e));
+    const ask = open.length ? [{ title: open.length === 1 ? 'Termine: 1 Antwort offen' : `Termine: ${open.length} Antworten offen`,
+      sub: [open[0].title, open[0].deadline ? `Antwort bis ${deD(open[0].deadline).slice(0, 6)}` : `am ${deD(open[0].date).slice(0, 6)}`].join(' · '), focus: 'termin:' + open[0].id, tr: true }] : [];
     const y = yearOf(d);
     const fam = mv() && cfg().pool_family ? await hook('familyOf', id) : null;
     const ids = fam ? fam.members : [id];
@@ -675,7 +673,7 @@ function activate(ctx) {
     // freie Dienste wie im Bereich: einzelne Termine und Schichten veröffentlichter Dienstpläne, noch nicht vorbei, nicht voll, ich noch nicht dabei
     const free = db.prepare(`SELECT e.* FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE e.date >= ? AND e.date <= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.counts = 1
       AND (e.plan_id IS NULL OR p.published = 1) AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)`).all(d, until, id).filter(e => isOpen(e) && (!e.slots || helpersOf(e.id).length < e.slots)).length;
-    return { next, todo: [...ask, { title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '' }] };
+    return { next, todo: [...ask, { title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '', tr: true }] };
   };
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },

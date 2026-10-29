@@ -880,14 +880,14 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     const open = matchesOf(s.id).filter(m => (mine.has(m.a) || mine.has(m.b)) && !decided(m));
     const opp = m => teamName(tById.get(mine.has(m.a) ? m.b : m.a), nm);
     const next = open.filter(m => m.plan_date && m.plan_date >= d0 && m.plan_date <= until).map(m => ({ at: m.plan_date, start: m.plan_time || undefined, end: m.plan_end || undefined,
-      title: `Clubmeisterschaft gegen ${opp(m)}`, sub: [m.court, PHASE[m.phase]].filter(Boolean).join(' · '), focus: String(m.id) }));
+      title: `Clubmeisterschaft gegen ${opp(m)}`, sub: [m.court, PHASE[m.phase]].filter(Boolean).join(' · '), focus: String(m.id), tr: true }));
     const todo = [], played = open.filter(m => m.plan_date && m.plan_date < d0), free = open.filter(m => !m.plan_date);
-    if (played.length) todo.push({ title: played.length === 1 ? `Ergebnis eintragen: gegen ${opp(played[0])}` : `${played.length} Ergebnisse eintragen`, sub: played.length === 1 ? `Clubmeisterschaft · gespielt am ${deD(played[0].plan_date)}` : 'Clubmeisterschaft', focus: played.length === 1 ? String(played[0].id) : '' });
+    if (played.length) todo.push({ title: played.length === 1 ? `Ergebnis eintragen: gegen ${opp(played[0])}` : `${played.length} Ergebnisse eintragen`, sub: played.length === 1 ? `Clubmeisterschaft · gespielt am ${deD(played[0].plan_date)}` : 'Clubmeisterschaft', focus: played.length === 1 ? String(played[0].id) : '', tr: true });
     if (free.length) {
       const due = free.map(m => dueOf(s, m)).filter(Boolean).sort()[0];
-      todo.push({ title: free.length === 1 ? `Termin vereinbaren: gegen ${opp(free[0])}` : `${free.length} Termine vereinbaren`, sub: ['Clubmeisterschaft', due ? `Frist ${deD(due)}` : ''].filter(Boolean).join(' · '), focus: free.length === 1 ? String(free[0].id) : '' });
+      todo.push({ title: free.length === 1 ? `Termin vereinbaren: gegen ${opp(free[0])}` : `${free.length} Termine vereinbaren`, sub: ['Clubmeisterschaft', due ? `Frist ${deD(due)}` : ''].filter(Boolean).join(' · '), focus: free.length === 1 ? String(free[0].id) : '', tr: true });
     }
-    if (regOpen(s) && !db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ? AND (singles = 1 OR doubles = 1)').get(s.id, mid)) todo.push({ title: `${s.name}: Anmeldung offen`, sub: s.reg_until ? `bis ${deD(s.reg_until)}` : 'Ich spiele mit' });
+    if (regOpen(s) && !db.prepare('SELECT 1 FROM tu_player WHERE season_id = ? AND member_id = ? AND (singles = 1 OR doubles = 1)').get(s.id, mid)) todo.push({ title: `${s.name}: Anmeldung offen`, sub: s.reg_until ? `bis ${deD(s.reg_until)}` : 'Ich spiele mit', tr: true });
     return { next, todo };
   };
   ctx.hooks.overview = () => {

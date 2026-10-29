@@ -43,7 +43,7 @@
       .bh-sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
       .bh-tbl span.num:not(.bh-sub), .bh-tbl b.num, #dialog span.num, .bh-sub.num { font-size: 1.15em; }   /* Anzeigetafel-Ziffern sind schmaler: etwas größer, damit sie neben der Textschrift gleich hoch wirken */
       @media (min-width: 761px) { .bh-tbl td { height: 52px; } }
-      @media (max-width: 760px) { .bh-tbl .hm, .bh-tbl .bh-sub { display: none; } }`;
+      @media (max-width: 1100px) { .bh-tbl .hm, .bh-tbl .bh-sub { display: none; } }`;
     document.head.appendChild(s);
   }
 

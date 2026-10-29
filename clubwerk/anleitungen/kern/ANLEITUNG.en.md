@@ -137,7 +137,7 @@ One table for all sections of the app, one “Save” for everything:
 - **When unlocking:** “preselect” ticks the section for new members automatically.
 - **Start** and **↑ ↓:** start section and order. By default the app opens “For me”.
 
-“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Dates with accept/decline show ✓/✕ buttons. Open replies for match days appear only as a note “Match days: n replies open”, with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”.
+“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”.
 
 ### Tab “Notifications” {#app-push}
 

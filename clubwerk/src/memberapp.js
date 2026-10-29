@@ -419,7 +419,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const list = (r, k) => (Array.isArray(r[k]) ? r[k] : []).filter(x => x && x.title);
     // Knöpfe in der Zeile (z. B. Zusage): nur Wege im eigenen Bereich (/api/m/<bereich>/…) – dort gelten Rechte, Fristen und Protokoll wie im Bereich
     const act = a => ({ label: String(a.label || ''), aria: String(a.aria || ''), post: a.post, body: a.body && typeof a.body === 'object' ? a.body : {}, on: Boolean(a.on), kind: a.kind === 'n' ? 'n' : 'y' });
-    const pick = (x, id) => ({ section: id, title: String(x.title), sub: x.sub ? String(x.sub) : '', chip: x.chip ? String(x.chip) : '', focus: x.focus != null ? String(x.focus) : '',
+    const pick = (x, id) => ({ section: id, title: String(x.title), ...(x.tr ? { tr: true } : {}), sub: x.sub ? String(x.sub) : '', chip: x.chip ? String(x.chip) : '', focus: x.focus != null ? String(x.focus) : '',
       ...(x.at ? { at: x.at, start: x.start || '', end: x.end || '' } : {}), ...(x.value ? { value: String(x.value) } : {}),
       ...(Array.isArray(x.actions) ? { actions: x.actions.filter(a => a && /^[a-z0-9/_-]{1,60}$/.test(a.post || '')).slice(0, 3).map(act) } : {}) });
     const time = x => x.at + (x.start || '');
@@ -433,7 +433,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const money = got.flatMap(g => list(g.r, 'money').slice(0, 2).map(x => pick(x, g.id)));
     // Thekenkonto (Verkauf im Kern): nur, wenn der Verein es eingeschaltet hat – noch nicht abgerechnete Buchungen (wie memberBalance am Tablet)
     const k = getSetting('app_forme_konto', '0') === '1' && kontoOf && require('./plugins').isActive('getraenke') ? kontoOf(w.memberId) : null;
-    if (k && k.cents > 0) money.unshift({ section: '', title: 'Thekenkonto', sub: 'noch nicht abgerechnet', chip: '', focus: '', value: euro(k.cents) });
+    if (k && k.cents > 0) money.unshift({ section: '', title: 'Thekenkonto', sub: 'noch nicht abgerechnet', chip: '', focus: '', value: euro(k.cents), tr: true });
     res.json({ news, next, todo, money });
   });
   /** Neuigkeit quittiert (angetippt): erscheint nicht wieder – nur für das eigene Mitglied, ohne Protokoll; alte Einträge räumen sich nach 180 Tagen auf */

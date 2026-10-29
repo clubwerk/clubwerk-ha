@@ -79,7 +79,7 @@
   function confirmStop(p, r) {
     const m = r ? Math.max(0, Math.round((Date.now() - new Date(r.in_at.replace(' ', 'T')).getTime()) / 60000)) : 0;
     const short = m < 5;
-    dlg(`<h2>Ausstempeln?</h2><div class="sub"><b translate="no">${esc(p.name)}</b>${r ? ` · ${esc(r.title || 'Einsatz')}<br>seit <span class="num">${r.in_at.slice(11, 16)}</span> Uhr · <span class="num">${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}</span> Stunden` : ''}</div>
+    dlg(`<h2>Ausstempeln?</h2><div class="sub"><b translate="no">${esc(p.name)}</b>${r ? ` · ${esc(r.title || 'Einsatz')}<br>seit <span class="num">${r.in_at.slice(11, 16)}</span> Uhr · <span class="num">${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}</span> Std.` : ''}</div>
       ${short ? '<div class="perr" style="margin-top:0">Weniger als 5 Minuten – das wird nicht gewertet und verworfen.</div>' : ''}
       <div class="dlg-btns"><button id="x">Abbrechen</button><button class="ok" id="ok">Ausstempeln</button></div>`);
     $('x').onclick = closeDlg;

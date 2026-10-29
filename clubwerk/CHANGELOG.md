@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.95.0
+
+**Aufräumen nach den Anleitungen: „Für mich“, Englisch, Karten und schlankere PDFs**
+- **Termine unter „Für mich › Zu erledigen“ nur noch als Hinweis:** „Termine: 2 Antworten offen“ (bei einem einzigen „Termine: 1 Antwort offen“), darunter der Termin mit der nächsten Antwortfrist („Weihnachtsfeier · Antwort bis 12.12.“). Keine ✓/✕-Knöpfe mehr, wie bei den Spieltagen. Antippen öffnet die Termine in „Dienste“ und scrollt zum Termin mit der nächsten Frist.
+- **Fehler behoben:** Ein Termin, der mehr als 60 Tage entfernt war, aber bald abläuft (Antwortfrist), fehlte unter „Zu erledigen“. Jetzt zählen alle künftigen Termine ohne Antwort, solange die Frist läuft – ohne Zeitgrenze.
+- **„Für mich“ auch auf Englisch:** Die Überschriften der Zeilen (z. B. „Spieltage: 7 Rückmeldungen offen“, „Kontaktdaten ergänzen“, „Lastschrift“) blieben in der englischen App deutsch. Sie werden jetzt übersetzt; Namen (Mannschaften, Termine, Nachrichten) bleiben unverändert.
+- **Englische Texte korrigiert:** Die Seite „Stunden“ heißt „Hours“, der Reiter „Tabellen“ „Tables“ (statt klein „hours“/„tables“), die Wertung „Aufgabe“ im Tennis „Retired“ (statt „Task“); die Feldbezeichnung bei Aufgaben des Spielbetriebs heißt „Task name“. Am Tablet steht beim Ausstempeln „Std.“ statt „Stunden“.
+- **Abgeschnittene Knöpfe in der Mitglieder-Verwaltung behoben:** Bei etwa 1180 Pixel Fensterbreite ragte in „Beiträge Hauptverein“ der Knopf „Bearbeiten“ aus der Karte, und bei „Wer zahlt?“ / „Familienmitgliedschaft“ fehlte „Lösen“. Die beiden Karten stehen jetzt bis 1320 Pixel untereinander, und in „Beiträge Hauptverein“ entfallen in schmalen Fenstern die Spalten „Arbeitsstunden“ und „Formular“ (sie stehen beim Bearbeiten).
+- **Design-Prüfstand schärfer:** Er prüft die Verwaltung jetzt auch bei 1180 Pixel und meldet neu jede Karte, die seitlich scrollt (Regel `karte-scrollt-seitlich`) – bisher blieb so etwas unbemerkt, weil scrollende Karten ausgenommen waren.
+- **PDF-Anleitungen schlanker:** Das Paket war mit 3.94.0 von 7,7 auf 49 MB gewachsen. Die Bilder in den PDFs sind jetzt höchstens 920 Pixel breit und stärker komprimiert, die Versionsnummer steht nicht mehr im PDF. Ein PDF wird nur noch neu gebaut, wenn sich Text, Bildaufbau oder Vorlage ändern – nicht mehr mit jeder Version (sonst wüchse das öffentliche Repository jedes Mal um die Größe aller PDFs). Größe aller 24 PDFs: vorher 41 MB, nachher 27 MB (die Bilder machen den Großteil aus; weiter ohne sichtbaren Qualitätsverlust nicht möglich).
+- Module: Buchhaltung 1.9.0, Dienste & Termine 2.12.0, Plätze 1.23.0, Mängel 1.9.0, Spielbetrieb 1.19.0, Turniere 1.8.0, Mitglieder 1.29.0.
+
 ## 3.94.0
 
 **Anleitungen je Modul als PDF – bebildert, vollständig, auch auf Englisch**
