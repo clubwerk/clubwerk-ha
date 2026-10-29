@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.97.0
+
+**Spieltage aus „Für mich“: Liste bleibt zugeklappt**
+- Wer in der App von „Für mich“ (Hinweis „Spieltage: n Rückmeldungen offen“) zu den Spieltagen springt, sieht jetzt dieselbe zugeklappte Liste wie über den Reiter. Sie scrollt zum Termin und hebt ihn etwa zwei Sekunden farbig hervor, statt ihn aufzuklappen.
+
 ## 3.96.0
 
 **Anleitungs-PDFs mit sauber eingebetteter Schrift**
