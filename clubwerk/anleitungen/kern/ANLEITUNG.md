@@ -18,7 +18,7 @@ Die Module (Verkauf, Plätze, Mängel …) schaltet ihr unter Einstellungen › 
 
 ## Verwaltung {#verwaltung}
 
-Links steht das Menü. Oben im Menü sucht ihr mit **Suchen** (Tastenkürzel Strg K bzw. ⌘K) nach Seiten, Einstellungen, Aktionen und Personen. Unten steht euer Name: Ein Klick öffnet „Mein Konto“, daneben öffnet das Tablet-Symbol die Tablet-Seite in einem neuen Tab und der Pfeil meldet euch ab. Oben rechts öffnet das **„?“** die Anleitung des Bereichs, in dem ihr gerade seid, als PDF.
+Links steht das Menü. Oben im Menü sucht ihr mit **Suchen** (Tastenkürzel Strg K bzw. ⌘K) nach Seiten, Einstellungen, Aktionen und Personen. Unten steht euer Name: Ein Klick öffnet „Mein Konto“, daneben öffnet das Tablet-Symbol die Tablet-Seite in einem neuen Tab und der Pfeil meldet euch ab. Über **Verwaltung** in der Kopfzeile des Tablets meldet Clubwerk nach einer Minute ohne Eingabe ab; eine Anmeldung direkt in der Verwaltung (zum Beispiel in der Seitenleiste von Home Assistant) bleibt davon unberührt, auch im selben Browser. Oben rechts öffnet das **„?“** die Anleitung des Bereichs, in dem ihr gerade seid, als PDF.
 
 ### Seite „Übersicht“ {#uebersicht}
 

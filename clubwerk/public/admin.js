@@ -307,9 +307,10 @@
     wireLogos();
   }
 
-  /* Verwaltung am Tablet (eingebettet unter der Tablet-Kopfzeile, verwaltung.html): nach 60 s ohne Eingabe abmelden – das Tablet
-     steht für alle zugänglich. Direkt aufgerufen (admin.html, Seitenleiste von Home Assistant) bleibt man angemeldet. */
-  const onTablet = (() => { try { return window.parent !== window && /\/verwaltung\.html$/.test(window.parent.location.pathname); } catch (e) { return false; } })();
+  /* Verwaltung am Tablet (verwaltung.html bettet …/tadmin/admin.html ein, eigene Sitzung): nach 60 s ohne Eingabe abmelden – das Tablet
+     steht für alle zugänglich. Direkt aufgerufen (admin.html, Seitenleiste von Home Assistant) bleibt man angemeldet; die Abmeldung
+     am Tablet beendet nur die Tablet-Sitzung. */
+  const onTablet = /\/tadmin\//.test(location.pathname);
   if (onTablet) {
     let last = Date.now();
     ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'scroll'].forEach(ev => window.addEventListener(ev, () => { last = Date.now(); }, { capture: true, passive: true }));
@@ -3926,7 +3927,7 @@
     const [s, ext, ml, net] = await Promise.all([api('settings'), mayCfg || mayUn ? api('extensions') : null, mayCfg ? api('mail') : null, mayCfg ? api('app/network') : null]);
     let links = ext ? ext.links.slice() : [];
     const SRC = { eingebaut: 'im Paket', mitgeliefert: 'im Paket', hochgeladen: 'hochgeladen', nachinstalliert: 'per Samba' };
-    const base = location.origin + location.pathname.replace(/admin(\.html)?$/, '');
+    const base = location.origin + location.pathname.replace(/(tadmin\/)?admin(\.html)?$/, '');
     const mayBank = ['einstellungen', 'buchhaltung', 'mitglieder_finanzen'].some(canFull) || (me && me.role === 'oberadmin');
     $('main').innerHTML = `<h2 class="page">Einstellungen</h2><p class="lead">Alles, was für den ganzen Verein gilt: Verein, Bankkonten, Postfach, Erreichbarkeit, Datenschutz, Tablet und Module.</p>
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}

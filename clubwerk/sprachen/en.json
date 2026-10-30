@@ -11597,6 +11597,8 @@
   "Spieltage: 1 Rückmeldung offen": "Match days: 1 reply outstanding",
   "Termine: {0} Antworten offen": "Dates: {0} replies outstanding",
   "Termine: 1 Antwort offen": "Dates: 1 reply outstanding",
-  "Name der Aufgabe": "Task name"
+  "Name der Aufgabe": "Task name",
+  "{0}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0": "{0}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0",
+  "{0}={1}; HttpOnly; SameSite=Strict; Path=/; Max-Age={2}{3}": "{0}={1}; HttpOnly; SameSite=Strict; Path=/; Max-Age={2}{3}"
  }
 }

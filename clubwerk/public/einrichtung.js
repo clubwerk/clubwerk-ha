@@ -322,7 +322,7 @@
   async function tabletQr() {
     if (!GK.tabletOn()) return '';
     const ingress = /\/hassio_ingress\//.test(location.pathname);
-    const url = ingress ? '' : location.origin + location.pathname.replace(/admin(\.html)?$/, '');
+    const url = ingress ? '' : location.origin + location.pathname.replace(/(tadmin\/)?admin(\.html)?$/, '');
     const svg = url ? await api('qr', 'POST', { url }).then(r => r.svg).catch(() => '') : '';
     return `<div class="card wiz-card"><h3>Tablet einrichten</h3><div class="wqr">${svg ? `<div class="qr" aria-hidden="true">${svg}</div>` : ''}
       <ol><li>${url ? `${esc(T('Am Tablet diese Adresse öffnen (oder den QR-Code scannen):'))} <code translate="no" style="overflow-wrap:anywhere">${esc(url)}</code>` : esc(T('Am Tablet die Adresse von Home Assistant mit Port 3100 öffnen, z. B. http://homeassistant.local:3100'))}</li>

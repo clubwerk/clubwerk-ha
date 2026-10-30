@@ -1,5 +1,12 @@
 # Änderungen
 
+## 3.97.2
+
+**Verwaltung am Tablet meldet niemanden mehr woanders ab**
+- Wer die Verwaltung direkt geöffnet hat (zum Beispiel in der Seitenleiste von Home Assistant) und im selben Browser auch die Tablet-Seite mit der Verwaltung offen hatte, wurde nach einer Minute abgemeldet. Grund: Die Verwaltung am Tablet meldet nach einer Minute ohne Eingabe ab – und beide teilten sich dieselbe Anmeldung.
+- Jetzt hat die Verwaltung am Tablet ihre eigene, getrennte Anmeldung. Die Abmeldung nach einer Minute gilt nur dort; die direkte Anmeldung bleibt davon unberührt, und umgekehrt.
+- Zusätzlich beendet Clubwerk eine Anmeldung am Tablet selbst nach 3 Minuten ohne Anfrage (etwa wenn das Tablet aus ist) und spätestens nach 4 Stunden.
+
 ## 3.97.1
 
 **Home Assistant: Link „Clubwerk“ auf der Add-on-Seite funktioniert**

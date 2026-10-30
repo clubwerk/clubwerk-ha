@@ -61,6 +61,12 @@ seedIfEmpty();
 
 const app = express();
 app.disable('x-powered-by');
+/* Verwaltung am Tablet (verwaltung.html bettet …/tadmin/admin.html ein): derselbe Inhalt unter eigenem Pfad, damit alle relativen
+   Anfragen dort (auch Downloads) die eigene Tablet-Sitzung tragen (Cookie gtadm, src/auth.js) – nie die von admin.html */
+app.use((req, res, next) => {
+  if (req.url.startsWith('/tadmin/')) { req.url = req.originalUrl = req.url.slice(7); req.cwTablet = true; }
+  next();
+});
 app.use(require('./security').noEncodedBody());   // komprimierte Anfragen nie entpacken
 // Nur dem Home-Assistant-Ingress-Proxy (und einem ausdrücklich eingetragenen Proxy-Add-on, Option „proxy_addon_ip“) glauben,
 // wer der eigentliche Absender ist. Alle anderen Geräte im WLAN könnten die Kopfzeile X-Forwarded-For fälschen und so die
@@ -904,7 +910,7 @@ app.post('/api/tablet/logout', (req, res) => {
 /* =====================================================================
    Admin – Anmeldung, Benutzer, Rechte
    ===================================================================== */
-const cookieOpts = (token, req) => `gadmin=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${8 * 3600}${req && req.secure ? '; Secure' : ''}`;
+const cookieOpts = (token, req) => `${auth.sessionCookie(req)}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${req.cwTablet ? 4 * 3600 : 8 * 3600}${req.secure ? '; Secure' : ''}`;
 const need = auth.need;
 /** Recht ohne Einschränkung auf Abteilungen (z. B. für Modul-Einstellungen) */
 const fullPerm = (req, perm) => req.user.perms.includes(perm) && !(req.user.deptOnly || []).includes(perm);
@@ -993,7 +999,7 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (wizard) require('./einrichtung').begin();
   audit(uname, 'Adminkonto eingerichtet', wizard ? 'mit dem Einrichtungs-Assistenten' : undefined);
   demo.dropTicket(DATA_DIR);
-  const r = auth.login(uname, String(password), req.ip);
+  const r = auth.login(uname, String(password), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
   res.setHeader('Set-Cookie', [cookieOpts(r.token, req), 'csetup=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0']);
   res.json({ ok: true });
 });
@@ -1011,7 +1017,7 @@ app.post('/api/admin/demo/start', rateLimit('setup', 10, 60000), (req, res) => {
 
 app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
   const { username, password } = req.body || {};
-  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known: auth.knownDevice(req, username) });
+  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known: auth.knownDevice(req, username), tablet: Boolean(req.cwTablet) });
   if (!r.ok) {
     audit(String(username || '').slice(0, 30), r.locked ? 'Anmeldung gesperrt (5 Fehlversuche)' : 'Anmeldung fehlgeschlagen', req.ip);
     if (r.manyFails) securityAlert(`Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`);
@@ -1023,8 +1029,8 @@ app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
 });
 
 app.post('/api/admin/logout', (req, res) => {
-  auth.logout(auth.parseCookies(req).gadmin);
-  res.setHeader('Set-Cookie', 'gadmin=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+  auth.logout(auth.parseCookies(req)[auth.sessionCookie(req)]);   // am Tablet nur die Tablet-Sitzung, admin.html bleibt angemeldet
+  res.setHeader('Set-Cookie', `${auth.sessionCookie(req)}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0`);
   res.json({ ok: true });
 });
 
@@ -1051,7 +1057,7 @@ admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
   if (!ownPwOk(req, current)) return bad(res, 'Aktuelles Passwort falsch.', 401);
   if (!pwOk(next)) return bad(res, PW_MSG);
   auth.setPassword(u.id, String(next));
-  const r = auth.login(u.username, String(next), req.ip);
+  const r = auth.login(u.username, String(next), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
   res.setHeader('Set-Cookie', cookieOpts(r.token, req));
   res.json({ ok: true });
 });

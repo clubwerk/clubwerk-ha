@@ -18,7 +18,7 @@ You switch modules (Sales, Courts, Defects …) on under Settings › Modules. T
 
 ## Admin area {#verwaltung}
 
-The menu is on the left. At the top of the menu, **Search** (shortcut Ctrl K or ⌘K) finds pages, settings, actions and people. Your name is at the bottom: a click opens “My account”; next to it the tablet icon opens the tablet page in a new tab and the arrow logs you out. The **“?”** at the top right opens the guide for the area you are in, as a PDF.
+The menu is on the left. At the top of the menu, **Search** (shortcut Ctrl K or ⌘K) finds pages, settings, actions and people. Your name is at the bottom: a click opens “My account”; next to it the tablet icon opens the tablet page in a new tab and the arrow logs you out. Via **Admin** in the tablet header, Clubwerk logs you out after one minute without input; a login directly in the admin area (for example in the Home Assistant sidebar) is not affected, even in the same browser. The **“?”** at the top right opens the guide for the area you are in, as a PDF.
 
 ### Page “Overview” {#uebersicht}
 

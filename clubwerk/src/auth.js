@@ -88,7 +88,11 @@ const DUMMY_HASH = hashSecret(crypto.randomBytes(8).toString('hex'));
 /* ---------- Admin-Sitzungen (im Speicher, 8 Stunden) ---------- */
 const ADMIN_TTL_MS = 8 * 60 * 60 * 1000;
 const ADMIN_MAX_MS = 24 * 60 * 60 * 1000;   // spätestens nach 24 h neu anmelden, auch bei Dauerbetrieb
-const sessions = new Map(); // token -> { userId, expiresAt, maxAt }
+/* Verwaltung am Tablet (Pfad …/tadmin/, Cookie gtadm): eigene Sitzung, getrennt von admin.html im selben Browser. Das Tablet meldet
+   nach 60 s ohne Eingabe ab; der Server beendet die Sitzung spätestens nach 3 Minuten ohne Anfrage und nach 4 Stunden. */
+const TABLET_ADMIN_TTL_MS = 3 * 60 * 1000;
+const TABLET_ADMIN_MAX_MS = 4 * 60 * 60 * 1000;
+const sessions = new Map(); // token -> { userId, scope, tablet, expiresAt, maxAt }
 const FAILS_MAX = 5000;     // Obergrenze, damit erfundene Benutzernamen den Speicher nicht füllen
 
 function adminConfigured() {
@@ -139,7 +143,7 @@ function knownDevice(req, username) {
   return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(deviceSig(name, rnd), 'hex'));
 }
 
-function login(username, pw, ip = '', scope = 'admin', { trusted = false, known = false } = {}) {
+function login(username, pw, ip = '', scope = 'admin', { trusted = false, known = false, tablet = false } = {}) {
   const name = String(username || '').trim().toLowerCase();
   const key = name + '|' + String(ip || '');
   const now = Date.now();
@@ -160,7 +164,8 @@ function login(username, pw, ip = '', scope = 'admin', { trusted = false, known 
   if (scope === 'admin') vaultHook('onLogin', u.id, pw);
   db.prepare("UPDATE admin_users SET last_login = datetime('now','localtime') WHERE id = ?").run(u.id);
   const token = crypto.randomBytes(24).toString('hex');
-  sessions.set(token, { userId: u.id, scope, expiresAt: now + ADMIN_TTL_MS, maxAt: now + ADMIN_MAX_MS });
+  sessions.set(token, tablet ? { userId: u.id, scope, tablet: true, expiresAt: now + TABLET_ADMIN_TTL_MS, maxAt: now + TABLET_ADMIN_MAX_MS }
+    : { userId: u.id, scope, expiresAt: now + ADMIN_TTL_MS, maxAt: now + ADMIN_MAX_MS });
   return { ok: true, token };
 }
 
@@ -179,16 +184,18 @@ function parseCookies(req) {
 }
 
 /* Sitzungen haben einen Bereich: „admin“ (Verwaltung, Cookie gadmin) oder „beregnung“ (Anmeldung in der Beregnungs-Webapp,
-   Cookie gbereg). Eine Anmeldung in der Beregnung öffnet so nie die Verwaltung. */
+   Cookie gbereg). Eine Anmeldung in der Beregnung öffnet so nie die Verwaltung.
+   Die Verwaltung am Tablet (req.cwTablet, Pfad …/tadmin/) liest nur ihr eigenes Cookie gtadm und nur Tablet-Sitzungen. */
 const COOKIE_OF = { admin: 'gadmin', beregnung: 'gbereg' };
+const sessionCookie = (req, scope = 'admin') => (scope === 'admin' && req.cwTablet ? 'gtadm' : COOKIE_OF[scope] || 'gadmin');
 function currentUser(req, scope = 'admin') {
-  const token = parseCookies(req)[COOKIE_OF[scope] || 'gadmin'];
+  const token = parseCookies(req)[sessionCookie(req, scope)];
   const s = token && sessions.get(token);
   if (!s || s.expiresAt < Date.now() || s.maxAt < Date.now()) { if (s) sessions.delete(token); return null; }
-  if ((s.scope || 'admin') !== scope) return null;
+  if ((s.scope || 'admin') !== scope || Boolean(s.tablet) !== Boolean(scope === 'admin' && req.cwTablet)) return null;
   const u = db.prepare('SELECT id, username, name, role, perms, roles, departments, member_id, active, builtin FROM admin_users WHERE id = ?').get(s.userId);
   if (!u || !u.active) { sessions.delete(token); return null; }
-  s.expiresAt = Date.now() + ADMIN_TTL_MS;
+  s.expiresAt = Date.now() + (s.tablet ? TABLET_ADMIN_TTL_MS : ADMIN_TTL_MS);
   const pi = permInfo(u);
   return { ...u, perms: pi.perms, deptOnly: pi.deptOnly, depts: parse(u.departments).map(Number).filter(Number.isInteger), token };
 }
@@ -238,6 +245,6 @@ setInterval(() => {
 
 module.exports = {
   PERMS, DEPT_PERMS, hashSecret, verifySecret, pinProblem, permInfo, setPermFilter, memberAllowed, deviceCookie, knownDevice,
-  adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, currentUser, requireAdmin, need,
+  adminConfigured, createUser, setPassword, login, logout, dropUserSessions, parseCookies, sessionCookie, currentUser, requireAdmin, need,
   issueTabletToken, checkTabletToken, dropTabletToken,
 };
