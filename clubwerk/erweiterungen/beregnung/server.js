@@ -553,7 +553,7 @@ function activate(ctx) {
     res.json({ ok: true });
   });
   /* Funktionsexport/-import: Anbindung, Plätze mit Zonen, Schutz-Modus, Webapp – ohne Vereins-PIN und API-Key */
-  ctx.hooks.exportConfig = () => { const c = cfg(); const { backend, ...rest } = c; void backend; return rest; };
+  ctx.hooks.exportConfig = () => { const c = cfg(); const { backend, ...rest } = c; void backend; return { ...rest, keepMonths: keepMonths() }; };
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     if (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) throw new Error('Gerade läuft eine Beregnung – bitte erst stoppen oder abwarten.');
@@ -561,6 +561,7 @@ function activate(ctx) {
     const b = Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]]));
     const out = cleanCfg(b, ctx.cleanName);
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
+    if (Number.isInteger(data.keepMonths) && data.keepMonths >= 1 && data.keepMonths <= 60) ctx.setSetting2('keep_months', String(data.keepMonths));
     cache.at = 0;
     const zones = out.plaetze.reduce((a, p) => a + p.zones.length, 0);
     const hints = [];

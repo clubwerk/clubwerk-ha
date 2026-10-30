@@ -144,7 +144,7 @@ Jahr, Titel (z. B. „Clubmeister Einzel“ oder „Clubmeister Doppel A+B“) u
 
 #### Einstellungen übertragen
 
-Alle Einstellungen des Moduls (auch die von Turniertag und Turnierplaner) als Datei exportieren und in einer anderen Clubwerk-Installation importieren, ohne Saisons, Spieler und Ergebnisse.
+Alle Einstellungen des Moduls (auch die von Turniertag und Turnierplaner) als Datei exportieren und in einer anderen Clubwerk-Installation importieren, ohne Saisons, Spieler und Ergebnisse. Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ![Karte „Einstellungen übertragen“.](bild: seite=turniere; tab=einstellungen; ziel=#tuFunc)
 

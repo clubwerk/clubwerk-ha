@@ -412,7 +412,7 @@ One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), s
 All modules with description, version, status and the **“Active” switch**. Off means hidden; the data stays. Each module has:
 - **User guide (PDF):** opens the guide for the module in a new tab. The **“?”** at the top right jumps straight to the matching place.
 - **Demo:** tries the module with made-up sample data in a new tab, separate from your data and without switching or sending anything. Only one demo runs at a time. It ends when you close the tab, with “End demo”, after 30 minutes without use or at restart, and is deleted completely.
-- **Export settings / Import settings …:** takes a module's settings to another Clubwerk installation (without PINs, keys and data).
+- **Export settings / Import settings …:** takes a module's settings to another Clubwerk installation (without PINs, keys and data). Before the import a dialogue shows what would happen (“This would happen: …”); nothing is saved until you press “OK”. On import, entries with the same name are updated, new ones are created and nothing is deleted; the message says how many were new and how many were updated.
 - **⋯ Uninstall …:** deletes module and data, but only after a **mandatory backup** that you must download and after typing the module name. With **Install** a module comes back later, if you wish with the saved data.
 - **Install extension (ZIP) …:** uploads an additional module (only with all permissions). It only runs after “Check & approve …” with your password and a restart, because an extension is program code.
 

@@ -267,7 +267,7 @@ At the top of the tablet’s start page are the members with the most bookings i
 
 ![Card “Transfer settings”.](bild: seite=vkeinst; ziel=#vkFunc)
 
-Save the settings of Sales (category order, “Frequently here”) as a file or apply them from a file, for example for a second club. Items, accounts, bookings, PINs and passwords are not included.
+Save Sales as a file or apply it from a file, for example for a second club: all items (with category, price, crate size, minimum and target stock, order, symbol and own picture), the category order, “Frequently here” and the supplier assignments. Stock, bookings, deliveries, accounts, PINs and passwords are not included. On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated. So an item with the same name is not created twice but overwritten with the values from the file. Invalid entries are skipped and reported; pictures may be 2 MB at most.
 
 ### “Order” page {#bestellung}
 

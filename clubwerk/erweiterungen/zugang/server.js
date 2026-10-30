@@ -461,12 +461,13 @@ function activate(ctx) {
   memberRoutes(ctx.member, ctx);
   ctx.hooks.accessOptions = () => { const c = cfg(); return { profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault, text: profileText(p) })), defaultProfile: (c.profiles.find(p => p.isDefault) || c.profiles[0]).id, profilesPage: 'zugang-freischaltungen', profilesPerm: 'zugang', profilesLabel: 'Zugang › Freischaltungen' }; };
   /* Funktionsexport/-import: Türen, Zeitprofile, Sperrtage, Einstellungen – ohne Freischaltungen und Protokoll */
-  ctx.hooks.exportConfig = () => { const c = cfg(); const { blockAll, ...rest } = c; void blockAll; return rest; };
+  ctx.hooks.exportConfig = () => { const c = cfg(); const { blockAll, ...rest } = c; void blockAll; return { ...rest, keepDays: keepDays() }; };
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const keys = ['vendor', 'doors', 'profiles', 'wlanOnly', 'header', 'appName', 'subtitle', 'notify', 'openAlertMin', 'blockDays'];
     const { out, commit } = cleanCfg(Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]])), ctx.cleanName);
     db.transaction(() => { save(out); commit(); })(); cache.at = 0;
+    if (Number.isInteger(data.keepDays) && data.keepDays >= 7 && data.keepDays <= 365) ctx.setSetting2('keep_days', String(data.keepDays));
     return `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile${out.blockDays.length ? `, ${out.blockDays.length} Sperrzeiträume` : ''}`;
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */

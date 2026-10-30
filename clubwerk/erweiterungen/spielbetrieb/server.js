@@ -7,6 +7,7 @@
    (Fahrer, Bewirtung …) und Erinnerungen. Läuft ohne Mitgliederverwaltung (dann ohne E-Mail, nur Push).
    ===================================================================================================== */
 const crypto = require('crypto');
+const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const { today, isDate, addDays, deD } = require('../../src/util');
 
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
@@ -1200,12 +1201,22 @@ function activate(ctx) {
 
   /* ----- Funktionsexport: Mannschaften und Einstellungen ----- */
   ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note, age_class FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].map(k => [k, S(k)])) });
+  /* Import: gleiche Mannschaft (Name, Liga, Altersklasse) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
-    let n = 0;
-    for (const t of Array.isArray(data.teams) ? data.teams.slice(0, 60) : []) { const name = txt(t.name, 60); if (name.length < 2 || dupOf({ name, league: t.league, age_class: t.age_class })) continue; db.prepare('INSERT INTO sp_team(name, league, season, min_players, active, note, import_key, age_class) VALUES (?,?,?,?,?,?,?,?)').run(name, txt(t.league, 80) || null, txt(t.season, 30) || null, Math.max(1, Math.min(20, int(t.min_players) || 4)), t.active === 0 ? 0 : 1, txt(t.note, 300) || null, IMP.norm(name), txt(t.age_class, 30) || null); n++; }
-    for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
-    return `${n} ${n === 1 ? 'Mannschaft' : 'Mannschaften'} und die Einstellungen übernommen – Spieler und Spieltage bitte neu zuordnen bzw. importieren`;
+    const z = konfigio.zaehler(); let ungueltig = 0;
+    db.transaction(() => {
+      for (const t of konfigio.liste(data.teams, 60)) {
+        const name = txt(t.name, 60); if (name.length < 2) { ungueltig++; continue; }
+        const found = dupOf({ name, league: t.league, age_class: t.age_class });
+        const v = { name, league: txt(t.league, 80) || null, season: txt(t.season, 30) || null, min_players: Math.max(1, Math.min(20, int(t.min_players) || 4)), active: t.active === 0 ? 0 : 1, note: txt(t.note, 300) || null, import_key: IMP.norm(name), age_class: txt(t.age_class, 30) || null };
+        z('Mannschaften', konfigio.schreibe(db, 'sp_team', v, found));
+      }
+      for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
+    })();
+    if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
+    z.hinweis('Spieler und Spieltage bitte neu zuordnen bzw. importieren');
+    return z.text();
   };
 }
 

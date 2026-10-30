@@ -144,7 +144,7 @@ Year, title (e.g. “Club champion singles” or “Club champion doubles A+B”
 
 #### Transfer settings
 
-Export all settings of the module (including those of Tournament day and Tournament planner) as a file and import them into another Clubwerk installation, without seasons, players and results.
+Export all settings of the module (including those of Tournament day and Tournament planner) as a file and import them into another Clubwerk installation, without seasons, players and results. On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ![The “Transfer settings” card.](bild: seite=turniere; tab=einstellungen; ziel=#tuFunc)
 

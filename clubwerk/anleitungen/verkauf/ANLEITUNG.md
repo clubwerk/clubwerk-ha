@@ -267,7 +267,7 @@ Oben auf der Startseite des Tablets stehen die Mitglieder mit den meisten Buchun
 
 ![Karte „Einstellungen übertragen“.](bild: seite=vkeinst; ziel=#vkFunc)
 
-Die Einstellungen des Verkaufs (Kategorienreihenfolge, „Gerade oft hier“) als Datei sichern oder aus einer Datei übernehmen, z. B. für einen zweiten Verein. Artikel, Konten, Buchungen, PINs und Passwörter sind nicht dabei.
+Den Verkauf als Datei sichern oder aus einer Datei übernehmen, z. B. für einen zweiten Verein: alle Artikel (mit Kategorie, Preis, Gebindegröße, Mindest- und Zielbestand, Reihenfolge, Symbol und eigenem Bild), die Kategorienreihenfolge, „Gerade oft hier“ und die Lieferanten-Zuordnungen. Bestand, Buchungen, Lieferungen, Konten, PINs und Passwörter sind nicht dabei. Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden. Ein Artikel mit gleichem Namen wird also nicht doppelt angelegt, sondern mit den Werten aus der Datei überschrieben. Ungültige Einträge werden übersprungen und gemeldet; Bilder dürfen höchstens 2 MB groß sein.
 
 ### Seite „Bestellung“ {#bestellung}
 

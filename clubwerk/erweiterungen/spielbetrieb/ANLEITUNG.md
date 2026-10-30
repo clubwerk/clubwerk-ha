@@ -182,7 +182,7 @@ Welche Push-Nachrichten es gibt, legt der Vorstand unter Mitglieder-App › Bena
 
 ![Karte „Einstellungen übertragen“: exportieren und importieren.](bild: seite=spielbetrieb; tab=einstellungen; ziel=#spFunc)
 
-Mannschaften (ohne Spieler und Spieltage) und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren, z. B. für einen zweiten Verein oder nach einer Neuinstallation. Es sind keine PINs oder Passwörter enthalten; Spieler und Spieltage ordnet ihr danach neu zu bzw. importiert sie neu.
+Mannschaften (ohne Spieler und Spieltage) und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren, z. B. für einen zweiten Verein oder nach einer Neuinstallation. Es sind keine PINs oder Passwörter enthalten; Spieler und Spieltage ordnet ihr danach neu zu bzw. importiert sie neu. Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ## Tablet und App {#tablet-app}
 

@@ -22,6 +22,7 @@ const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u0008
 const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
 const mailOk = v => !v || /^[^\s@<>,;]+@[^\s@<>,;]+\.[a-z]{2,}$/i.test(String(v));
 const { euro, deD } = require('../../src/util');
+const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const SALES = { payer: 'über den Hauptzahler', own_payer: 'eigener Eintrag, zahlt der Hauptzahler', own: 'eigener Eintrag, zahlt selbst' };
 
 /* ---------------------------------------------------------------- Lesen */
@@ -1274,23 +1275,36 @@ function activate(ctx) {
       fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
+  /* Import: gleicher Name (ohne Groß-/Kleinschreibung) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
-    let d = 0, f = 0;
-    for (const x of Array.isArray(data.depts) ? data.depts.slice(0, 100) : []) { const n = one(x.name, 60); if (n.length < 2 || ctx.db.prepare('SELECT 1 FROM mv_department WHERE lower(name) = lower(?)').get(n)) continue; ctx.db.prepare('INSERT INTO mv_department(name, federation, sort, active) VALUES (?,?,?,?)').run(n, one(x.federation, 60) || null, int(x.sort), x.active === 0 ? 0 : 1); d++; }
-    for (const x of Array.isArray(data.fees) ? data.fees.slice(0, 200) : []) {
-      const dep = x.department ? ctx.db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(String(x.department)) : null;
-      const fi = feeInput({ ...x, department_id: dep ? dep.id : null }); if (fi.error || ctx.db.prepare('SELECT 1 FROM mv_fee WHERE lower(name) = lower(?) AND kind = ? AND COALESCE(department_id, 0) = ?').get(fi.v.name, fi.v.kind, fi.v.department_id || 0)) continue;
-      const first = zusatzFirst(fi.v);
-      const k = Object.keys(fi.v); ctx.db.prepare(`INSERT INTO mv_fee(${k.join(', ')}) VALUES (${k.map(() => '?').join(', ')})`).run(...k.map(y => fi.v[y])); f++;
-      if (first) zusatzBegin(fi.v.department_id);
-    }
-    if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) SET(k, v.slice(0, k === 'dunning_levels' ? 6000 : 2000));
-    return `${d} ${d === 1 ? 'Abteilung' : 'Abteilungen'}, ${f} ${f === 1 ? 'Beitragsart' : 'Beitragsarten'} und die Einstellungen übernommen – Gläubiger-ID und Vereinskonto bitte selbst eintragen`;
+    const z = konfigio.zaehler(); let ungueltig = 0;
+    ctx.db.transaction(() => {
+      const deps = new Map(ctx.db.prepare('SELECT * FROM mv_department').all().map(x => [x.name.toLowerCase(), x]));
+      for (const x of konfigio.liste(data.depts, 100)) {
+        const n = one(x.name, 60); if (n.length < 2) { ungueltig++; continue; }
+        const found = deps.get(n.toLowerCase());
+        z('Abteilungen', konfigio.schreibe(ctx.db, 'mv_department', { name: n, federation: one(x.federation, 60) || null, sort: int(x.sort), active: x.active === 0 ? 0 : 1 }, found));
+        if (!found) deps.set(n.toLowerCase(), { id: Number(ctx.db.prepare('SELECT id FROM mv_department WHERE name = ?').pluck().get(n)), name: n });
+      }
+      for (const x of konfigio.liste(data.fees, 200)) {
+        const dep = x.department ? ctx.db.prepare('SELECT id FROM mv_department WHERE lower(name) = lower(?)').get(String(x.department)) || [...deps.values()].find(y => y.name.toLowerCase() === String(x.department).trim().toLowerCase()) : null;
+        let fi = feeInput({ ...x, department_id: dep ? dep.id : null }); if (fi.error) { ungueltig++; continue; }
+        const found = ctx.db.prepare('SELECT * FROM mv_fee WHERE lower(name) = lower(?) AND kind = ? AND COALESCE(department_id, 0) = ?').get(fi.v.name, fi.v.kind, fi.v.department_id || 0);
+        if (found) { fi = feeInput({ ...x, department_id: dep ? dep.id : null }, found); if (fi.error) { ungueltig++; continue; } }
+        const first = !found && zusatzFirst(fi.v);
+        z('Beitragsarten', konfigio.schreibe(ctx.db, 'mv_fee', fi.v, found));
+        if (first) zusatzBegin(fi.v.department_id);
+      }
+      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules'].includes(k) ? 6000 : 2000));
+    })();
+    if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
+    z.hinweis('Gläubiger-ID und Vereinskonto bitte selbst eintragen');
+    return z.text();
   };
 
   setTimeout(daily, 15000).unref();

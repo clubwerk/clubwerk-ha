@@ -73,7 +73,7 @@ For new reports, all users with the “Faults” permission receive a push notif
 
 #### Transfer settings
 
-Export locations and settings as a file and import them into another Clubwerk installation (without reports and photos).
+Export locations and settings as a file and import them into another Clubwerk installation (without reports and photos). On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ## Tablet and app {#tablet-app}
 

@@ -404,7 +404,7 @@ Nach dem Austritt braucht der Verein Name und Anschrift meist nur noch kurz. Mit
 
 #### Einstellungen übertragen
 
-Exportiert Einstellungen, Beitragsarten und Abteilungen als Datei und liest sie in einer anderen Clubwerk-Installation ein (ohne Mitglieder).
+Exportiert Einstellungen, Beitragsarten und Abteilungen als Datei und liest sie in einer anderen Clubwerk-Installation ein (ohne Mitglieder). Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ### Menü „Beiträge & Zahlungen“ {#zahlungen}
 

@@ -412,7 +412,7 @@ Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Ab
 Alle Module mit Beschreibung, Version, Status und dem **Schalter „Aktiv“**. Aus heißt ausgeblendet; die Daten bleiben. Je Modul gibt es:
 - **Anleitung (PDF):** öffnet die Anleitung des Moduls in einem neuen Tab. Das **„?“** oben rechts springt direkt an die passende Stelle.
 - **Demo:** probiert das Modul mit erfundenen Beispieldaten in einem neuen Tab aus, getrennt von euren Daten und ohne etwas zu schalten oder zu senden. Es läuft nur eine Demo zugleich. Sie endet beim Schließen des Tabs, mit „Demo beenden“, nach 30 Minuten ohne Nutzung oder beim Neustart, und wird restlos gelöscht.
-- **Einstellungen exportieren / importieren …:** nimmt die Einstellungen eines Moduls mit in eine andere Clubwerk-Installation (ohne PINs, Schlüssel und Daten).
+- **Einstellungen exportieren / importieren …:** nimmt die Einstellungen eines Moduls mit in eine andere Clubwerk-Installation (ohne PINs, Schlüssel und Daten). Vor dem Import zeigt ein Dialog, was passieren würde („Das würde passieren: …“); gespeichert wird erst nach „OK“. Beim Import werden gleichnamige Einträge aktualisiert, neue angelegt, nichts gelöscht; die Meldung nennt, wie viele neu und wie viele aktualisiert wurden.
 - **⋯ Deinstallieren …:** löscht Modul und Daten, aber erst nach einer **Pflicht-Sicherung**, die ihr herunterladen müsst, und der Eingabe des Modulnamens. Mit **Installieren** kommt ein Modul später zurück, auf Wunsch mit den gesicherten Daten.
 - **Erweiterung einspielen (ZIP) …:** lädt ein zusätzliches Modul hoch (nur mit allen Rechten). Es läuft erst nach „Prüfen & freigeben …“ mit eurem Passwort und einem Neustart, denn eine Erweiterung ist Programmcode.
 

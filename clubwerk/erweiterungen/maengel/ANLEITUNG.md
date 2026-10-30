@@ -73,7 +73,7 @@ Bei neuen Meldungen bekommen alle Benutzer mit dem Recht „Mängel“ eine Push
 
 #### Einstellungen übertragen
 
-Orte und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren (ohne Meldungen und Fotos).
+Orte und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren (ohne Meldungen und Fotos). Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ## Tablet und App {#tablet-app}
 

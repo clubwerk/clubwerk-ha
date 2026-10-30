@@ -246,7 +246,7 @@ Mitglieder können sich in der App bis 24 Stunden vor Beginn selbst austragen. D
 
 ![Karte „Einstellungen übertragen“.](bild: seite=aw-einstellungen; ziel=#sFunc)
 
-Exportiert die Einstellungen dieses Moduls als Datei und übernimmt sie in einer anderen Clubwerk-Installation (ohne Dienstpläne, Einsätze und Stunden).
+Exportiert die Einstellungen dieses Moduls als Datei und übernimmt sie in einer anderen Clubwerk-Installation (ohne Dienstpläne, Einsätze und Stunden). Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ## Tablet und App {#tablet-app}
 

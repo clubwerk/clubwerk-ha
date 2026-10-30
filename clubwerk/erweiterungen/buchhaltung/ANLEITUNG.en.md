@@ -195,7 +195,7 @@ This card is display only. Address, email and phone in the letterhead come from 
 
 #### Transfer settings
 
-Exports settings and companies (with annual items) as a file and imports them into another Clubwerk installation. Invoices, donation receipts and bank accounts are not transferred. On import, existing companies with the same name stay unchanged.
+Exports settings and companies (with annual items) as a file and imports them into another Clubwerk installation. Invoices, donation receipts and bank accounts are not transferred. On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ### Bank statement {#kontoauszug}
 

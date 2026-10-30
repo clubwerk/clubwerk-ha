@@ -246,7 +246,7 @@ Members can remove themselves in the app up to 24 hours before the start. After 
 
 ![The “Transfer settings” card.](bild: seite=aw-einstellungen; ziel=#sFunc)
 
-Exports this module’s settings as a file and imports them into another Clubwerk installation (without rosters, assignments and hours).
+Exports this module’s settings as a file and imports them into another Clubwerk installation (without rosters, assignments and hours). On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ## Tablet and app {#tablet-app}
 

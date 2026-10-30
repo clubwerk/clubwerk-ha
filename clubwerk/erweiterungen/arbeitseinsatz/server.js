@@ -696,10 +696,10 @@ function activate(ctx) {
     return [{ group: 'Dienstpläne', art: 'dienstplan', page: 'aw-plaene', detail: true, hits: s.pick(rows, r => [r.title, r.place]).map(r => ({ id: r.id, label: r.title, person: false, score: r._score,
       sub: [r.from_date === r.to_date ? deD(r.from_date) : `${deD(r.from_date)} – ${deD(r.to_date)}`, r.place, r.published ? '' : 'Entwurf'] })) }];
   };
-  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year'];
+  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact'];
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
   // nur bekannte Schlüssel übernehmen – eine fremde Datei darf keine beliebigen Einstellungen anlegen
-  ctx.hooks.importConfig = d => { for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) SET(k, v.slice(0, 600)); return 'Einstellungen übernommen'; };
+  ctx.hooks.importConfig = d => { let n = 0; for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) { SET(k, v.slice(0, 600)); n++; } return `${n} Einstellungen übernommen – Dienste, Termine und Stunden gehören nicht dazu`; };
 
   /* ---------------------------------------------------------------- Erinnerungen */
   async function daily() {

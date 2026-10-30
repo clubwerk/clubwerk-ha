@@ -807,7 +807,9 @@
       try { body = JSON.parse(await f.text()); } catch (e) { return fail(new Error('Die Datei ist keine gültige Exportdatei.')); }
       if (!body || !['clubwerk-funktion', 'vereinsheim-funktion'].includes(body.format)) return fail(new Error('Die Datei ist keine Funktions-Exportdatei von Clubwerk.'));
       if (body.module !== id) return fail(new Error(`Die Datei gehört zum Modul „${body.name || body.module}“, nicht zu „${name}“.`));
-      if (!await ask(`Einstellungen für „${name}“ importieren?\n\nQuelle: ${body.club || 'unbekannt'}${body.exported ? ', ' + body.exported : ''}\n\nDie bisherigen Einstellungen dieses Moduls werden ersetzt. Buchungen, Protokolle und Freischaltungen bleiben erhalten.`)) return;
+      let vorschau = '';
+      try { const v = await api('extensions/' + id + '/import', 'POST', { ...body, dry: true }); vorschau = `Das würde passieren: ${v.summary}\n\n`; } catch (e) { return fail(e); }
+      if (!await ask(`Einstellungen für „${name}“ importieren?\n\nQuelle: ${body.club || 'unbekannt'}${body.exported ? ', ' + body.exported : ''}\n\n${vorschau}Gleichnamige Einträge werden aktualisiert, neue angelegt, nichts wird gelöscht. Buchungen, Protokolle und Freischaltungen bleiben erhalten.`)) return;
       try {
         const r = await api('extensions/' + id + '/import', 'POST', body);
         await ask(`Import abgeschlossen.\n\n${r.summary || ''}`, { okOnly: true, danger: false }).catch(() => {});
@@ -820,7 +822,7 @@
   function funcBox(el, id, name, after) {
     if (!el) return;
     el.innerHTML = `<div class="card"><h3>Einstellungen übertragen</h3>
-      <p class="muted s" style="margin-top:0">Alle Einstellungen von „${esc(name)}“ als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. PINs, Passwörter und Schlüssel sind nicht enthalten.</p>
+      <p class="muted s" style="margin-top:0">Alle Einstellungen und Listen von „${esc(name)}“ (z. B. Artikel, Plätze, Beitragsarten) als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. Beim Import werden gleichnamige Einträge aktualisiert, neue angelegt, nichts gelöscht. PINs, Passwörter und Schlüssel sind nicht enthalten.</p>
       <div class="row"><a class="btn" href="api/admin/extensions/${esc(id)}/export" download>Einstellungen exportieren</a><button class="btn" data-fbimp="1">Einstellungen importieren …</button></div></div>`;
     el.querySelector('[data-fbimp]').onclick = () => funcImport(id, name, after);
   }

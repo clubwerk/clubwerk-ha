@@ -12,6 +12,7 @@ const pdf = require('./lib/pdf');
 
 let C, db;
 const VATS = [0, 7, 19];
+const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const { pad, today, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const txt = (v, max = 200) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f<>]/g, '').replace(/[ \t]+/g, ' ').trim().slice(0, max);
 const one = (v, max) => txt(v, max).replace(/[\r\n]+/g, ' ');
@@ -521,16 +522,23 @@ function activate(ctx) {
   };
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)])),
     partners: db.prepare('SELECT name, contact, street, zip, city, country, email, phone, vat_id, customer_no, items, note, active FROM bh_partner').all() });
+  /* Import: gleicher Firmenname (ohne Groß-/Kleinschreibung) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
-    let n = 0;
-    if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (k in DEF && typeof v === 'string') C.setSetting2(k, v.slice(0, 600));
-    for (const p of Array.isArray(data.partners) ? data.partners.slice(0, 500) : []) {
-      if (!p || !p.name || db.prepare('SELECT 1 FROM bh_partner WHERE lower(name) = lower(?)').get(String(p.name))) continue;
-      const r = partnerInput({ ...p, items: J(p.items, []) }); if (r.error) continue;
-      const k = Object.keys(r.v); db.prepare(`INSERT INTO bh_partner(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(x => r.v[x])); n++;
-    }
-    return `Einstellungen und ${n} Firma/Firmen übernommen – Bankkonten stehen unter Einstellungen → Bankkonten`;
+    const z = konfigio.zaehler(); let ungueltig = 0;
+    db.transaction(() => {
+      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (k in DEF && typeof v === 'string') C.setSetting2(k, v.slice(0, 600));
+      const have = new Map(db.prepare('SELECT * FROM bh_partner').all().map(p => [p.name.toLowerCase(), p]));
+      for (const p of konfigio.liste(data.partners, 500)) {
+        const found = have.get(String(p.name || '').trim().toLowerCase());
+        const r = partnerInput(p.items !== undefined ? { ...p, items: J(p.items, []) } : p, found || {}); if (r.error) { ungueltig++; continue; }
+        z('Firmen', konfigio.schreibe(db, 'bh_partner', r.v, found));
+        if (!found) have.set(r.v.name.toLowerCase(), { ...r.v, id: Number(db.prepare('SELECT id FROM bh_partner WHERE name = ?').pluck().get(r.v.name)) });
+      }
+    })();
+    if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
+    z.hinweis('Bankkonten stehen unter Einstellungen → Bankkonten');
+    return z.text();
   };
 }
 

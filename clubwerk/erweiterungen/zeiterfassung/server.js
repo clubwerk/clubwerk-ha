@@ -40,6 +40,7 @@ CREATE INDEX IF NOT EXISTS ix_time_staff ON time_entries(staff_id, start_at);
 }
 
 const OPEN_LIMIT_MIN = 12 * 60;           // länger eingestempelt = vermutlich vergessen
+const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const toDate = ts => new Date(ts.replace(' ', 'T'));
 const minutesBetween = (a, b) => Math.max(0, Math.floor((toDate(b) - toDate(a)) / 60000));
@@ -272,17 +273,25 @@ function activate(ctx) {
     const notes = [];
     if (typeof data.mailTo === 'string') { const t = data.mailTo.trim().slice(0, 300); if (!t || mailOk(t)) setSetting('zeit_mail_to', t); }
     if (!mailReady()) notes.push('Postfach unter Einstellungen → Postfach einrichten');
-    let added = 0;
-    for (const x of Array.isArray(data.staff) ? data.staff.slice(0, 50) : []) {
-      const name = ctx.cleanName(x.name, 60); if (name.length < 2) continue;
-      if (db.prepare('SELECT 1 FROM staff WHERE lower(name) = lower(?)').get(name)) continue;
-      // PIN unbekannt → zufällige PIN; der Vorstand vergibt danach unter „Personal verwalten“ die richtige
-      const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, ctx.cleanName(x.job, 40) || null, auth.hashSecret(String(ctx.require('crypto').randomInt(100000, 1000000)))).lastInsertRowid);
-      if (Number.isInteger(x.rate_cents) && x.rate_cents >= 0) setRate(id, x.rate_cents);
-      added++;
-    }
-    if (added) notes.push(`PINs für ${added} neue Person(en) unter „Personal verwalten“ vergeben`);
-    return `${added} ${added === 1 ? 'Person' : 'Personen'} angelegt, Empfänger des Monatsnachweises übernommen${notes.length ? ' – ' + notes.join(', ') : ''}`;
+    const z = konfigio.zaehler(); let neuePin = 0;
+    db.transaction(() => {
+      const have = new Map(db.prepare('SELECT * FROM staff').all().map(p => [p.name.toLowerCase(), p]));
+      for (const x of konfigio.liste(data.staff, 50)) {
+        const name = ctx.cleanName(x.name, 60); if (name.length < 2) continue;
+        const found = have.get(name.toLowerCase());
+        const job = ctx.cleanName(x.job, 40) || null;
+        if (found) { db.prepare('UPDATE staff SET job = ? WHERE id = ?').run(job, found.id); z('Personal', 'aktualisiert'); }
+        else {
+          // PIN unbekannt → zufällige PIN; der Vorstand vergibt danach unter „Personal verwalten“ die richtige
+          const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, job, auth.hashSecret(String(ctx.require('crypto').randomInt(100000, 1000000)))).lastInsertRowid);
+          have.set(name.toLowerCase(), { id, name }); neuePin++; z('Personal', 'neu');
+        }
+        const id = (have.get(name.toLowerCase()) || found).id;
+        if (Number.isInteger(x.rate_cents) && x.rate_cents >= 0 && x.rate_cents !== rateFor(id, curMonth())) setRate(id, x.rate_cents);
+      }
+    })();
+    if (neuePin) notes.push(`PINs für ${neuePin} neue Person(en) unter „Personal verwalten“ vergeben`);
+    return z.text('Empfänger des Monatsnachweises übernommen') + (notes.length ? ' – ' + notes.join(', ') : '');
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
   ctx.hooks.setupSteps = () => [

@@ -15,6 +15,7 @@ const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
 const { today, nowTs, isDate, addDays, deD } = util;
 const artIcons = require('./articleicons');
+const konfigio = require('./konfigio');
 const { securityAlert } = require('./security');
 /* v2.9: vorhandenen Artikeln einmalig ein passendes Symbol geben (danach frei änderbar) */
 if (!getSetting('art_icons_v1')) {
@@ -139,7 +140,7 @@ const rateLimit = (key, max, windowMs) => rateLimitKey(key, max, windowMs, req =
 const demokopie = require('./demokopie');
 if (!DEMO_KOPIE) { demokopie.cleanup(); app.use('/demo', demokopie.proxy(req => auth.currentUser(req))); }
 
-app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => /^\/api\/admin\/extensions\/[^/]+\/import$/.test(req.path) ? next() : express.json({ limit: '1mb' })(req, res, next));   // Funktionsimport hat sein eigenes, größeres Limit (Artikelbilder)
 
 /* Admin-Änderungen nur mit eigenem Kopfzeilen-Feld → fremde Webseiten können nichts im Namen eines Admins auslösen */
 app.use('/api/admin', (req, res, next) => {
@@ -1929,17 +1930,81 @@ admin.put('/categories/order', need('artikel'), (req, res) => {
   audit(req.user, 'Reihenfolge der Kategorien geändert', order.join(' · '));
   res.json({ ok: true, categories: categoryList() });
 });
-/* „Einstellungen übertragen“ des Verkaufs (Verkauf › Einstellungen): nur die Einstellungen, keine Artikel, Konten oder Buchungen */
-plugins.get('getraenke').hooks.exportConfig = () => ({ settings: { top_n: String(topN()), top_days: String(topDays()), category_order: getSetting('category_order', '[]') } });
-plugins.get('getraenke').hooks.importConfig = d => {
-  const x = (d && d.settings) || {};
-  const n = int(x.top_n, -1), days = int(x.top_days, 0);
-  if (n < 0 || n > 60 || days < 1 || days > 365) throw new Error('Die Datei enthält ungültige Werte für „Gerade oft hier“.');
-  let order; try { order = JSON.parse(x.category_order || '[]'); } catch (e) { order = null; }
-  if (!Array.isArray(order)) throw new Error('Die Datei enthält keine gültige Reihenfolge der Kategorien.');
-  setSetting('top_n', String(n)); setSetting('top_days', String(days));
-  setSetting('category_order', JSON.stringify([...new Set(order.map(c => String(c).trim().slice(0, 40)).filter(Boolean))].slice(0, 100)));
-  return 'Einstellungen übernommen';
+/* „Einstellungen übertragen“ des Verkaufs (Verkauf › Einstellungen): Artikel (mit Bild), Kategorie-Reihenfolge, „Gerade oft hier“ und Lieferanten-Zuordnungen.
+   Nie dabei: Bestand, Buchungen, Lieferungen, Konten, Veranstaltungen. Import: gleicher Artikelname → aktualisieren, sonst neu, nichts wird gelöscht. */
+const EXPORT_BILD_MAX = 400 * 1024, EXPORT_BILDER_GESAMT = 12 * 1024 * 1024, IMPORT_ARTIKEL_MAX = 1000;
+plugins.get('getraenke').hooks.exportConfig = () => {
+  let bilder = 0;
+  const arts = db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0 ORDER BY sort, id').all().map(a => {
+    const o = { name: a.name, category: a.category, price_cents: a.price_cents, crate_size: a.crate_size, min_stock: a.min_stock, target_stock: a.target_stock, track_stock: a.track_stock, active: a.active, sort: a.sort, icon: a.icon || null };
+    const f = a.image && artIcons.imagePath(DATA_DIR, a.image);
+    if (f) { const buf = fs.readFileSync(f); if (buf.length <= EXPORT_BILD_MAX && bilder + buf.length <= EXPORT_BILDER_GESAMT) { bilder += buf.length; o.image = { type: artIcons.mimeOf(a.image), data: buf.toString('base64') }; } }
+    return o;
+  });
+  const name = db.prepare('SELECT name FROM articles WHERE id = ?');
+  const suppliers = db.prepare('SELECT supplier, art_no, article_id, pack_size, text FROM supplier_map ORDER BY supplier, art_no').all()
+    .map(m => ({ supplier: m.supplier, art_no: m.art_no, article: m.article_id ? (name.get(m.article_id) || {}).name || null : null, pack_size: m.pack_size, text: m.text || null }));
+  return { settings: { top_n: String(topN()), top_days: String(topDays()), category_order: getSetting('category_order', '[]') }, articles: arts, suppliers };
+};
+plugins.get('getraenke').hooks.importConfig = (d, opts = {}) => {
+  const x = (d && d.settings) || null;
+  let n = 0, days = 0, order = null;
+  if (x) {
+    n = int(x.top_n, -1); days = int(x.top_days, 0);
+    if (n < 0 || n > 60 || days < 1 || days > 365) throw new Error('Die Datei enthält ungültige Werte für „Gerade oft hier“.');
+    try { order = JSON.parse(x.category_order || '[]'); } catch (e) { order = null; }
+    if (!Array.isArray(order)) throw new Error('Die Datei enthält keine gültige Reihenfolge der Kategorien.');
+  }
+  const z = konfigio.zaehler();
+  let ungueltig = 0;
+  db.transaction(() => {
+    const live = new Map(db.prepare('SELECT * FROM articles WHERE custom = 0 AND deleted = 0').all().map(a => [a.name.toLowerCase(), a]));
+    for (const e of konfigio.liste(d && d.articles, IMPORT_ARTIKEL_MAX)) {
+      const key = String(e.name || '').trim().toLowerCase(), old = live.get(key);
+      let a;
+      try { a = articleFromBody({ ...e, icon: e.icon || undefined }, old || { category: 'Sonstiges', price_cents: 0, crate_size: 1, min_stock: 0, track_stock: 1, active: 1, sort: 100 }); }
+      catch (err) { ungueltig++; continue; }
+      if (!old && e.icon === undefined) a.icon = artIcons.guess(a.name, a.category);
+      let id;
+      if (old) { db.prepare('UPDATE articles SET name=@name, category=@category, price_cents=@price_cents, crate_size=@crate_size, min_stock=@min_stock, target_stock=@target_stock, track_stock=@track_stock, active=@active, sort=@sort, icon=@icon WHERE id=@id').run({ ...a, id: old.id }); id = old.id; z('Artikel', 'aktualisiert'); }
+      else { id = Number(db.prepare('INSERT INTO articles(name, category, price_cents, crate_size, min_stock, target_stock, track_stock, active, sort, icon) VALUES (@name,@category,@price_cents,@crate_size,@min_stock,@target_stock,@track_stock,@active,@sort,@icon)').run(a).lastInsertRowid); z('Artikel', 'neu'); }
+      live.set(key, { ...(old || {}), ...a, id });
+      const img = e.image && typeof e.image.data === 'string' ? Buffer.from(e.image.data, 'base64') : null;
+      if (img) {
+        try {
+          const prev = old && old.image;
+          if (opts.dry) { artIcons.checkImage(img); z('Bilder', prev ? 'aktualisiert' : 'neu'); }   // Vorschau: keine Dateien schreiben
+          else {
+            const file = artIcons.saveImage(DATA_DIR, id, img);
+            if (prev && prev !== file) artIcons.removeImage(DATA_DIR, prev);
+            db.prepare('UPDATE articles SET image = ? WHERE id = ?').run(file, id); z('Bilder', prev ? 'aktualisiert' : 'neu');
+          }
+        } catch (err) { ungueltig++; }
+      }
+    }
+    const cats = new Set(db.prepare('SELECT DISTINCT category FROM articles WHERE custom = 0 AND deleted = 0').all().map(r => r.category));
+    if (x) {
+      const before = new Set(JSON.parse(getSetting('category_order', '[]') || '[]'));
+      const list = [...new Set(order.map(c => String(c).trim().slice(0, 40)).filter(Boolean))].slice(0, 100);
+      setSetting('top_n', String(n)); setSetting('top_days', String(days));
+      setSetting('category_order', JSON.stringify(list));
+      for (const c of list) if (cats.has(c) && !before.has(c)) z('Kategorien', 'neu');
+    }
+    const upd = db.prepare(`INSERT INTO supplier_map(supplier, art_no, article_id, pack_size, text) VALUES (?,?,?,?,?)
+      ON CONFLICT(supplier, art_no) DO UPDATE SET article_id = excluded.article_id, pack_size = excluded.pack_size, text = excluded.text`);
+    const had = db.prepare('SELECT 1 FROM supplier_map WHERE supplier = ? AND art_no = ?');
+    for (const m of konfigio.liste(d && d.suppliers, 5000)) {
+      const sup = String(m.supplier || '').trim().slice(0, 80), no = String(m.art_no || '').trim().slice(0, 20);
+      if (!sup || !no) { ungueltig++; continue; }
+      const art = m.article ? live.get(String(m.article).trim().toLowerCase()) : null;
+      if (m.article && !art) { ungueltig++; continue; }
+      const existed = Boolean(had.get(sup, no));
+      upd.run(sup, no, art ? art.id : null, Math.max(1, Math.min(10000, int(m.pack_size, 1))), m.text ? String(m.text).slice(0, 80) : null);
+      z('Lieferanten-Zuordnungen', existed ? 'aktualisiert' : 'neu');
+    }
+  })();
+  if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
+  return z.text();
 };
 
 /* ---------- Lieferungen ---------- */
@@ -3711,18 +3776,22 @@ admin.get('/extensions/:id/export', async (req, res) => {
   res.setHeader('Content-Disposition', `attachment; filename="${p.meta.id}-funktion.json"`);
   res.type('application/json').send(JSON.stringify(body, null, 2));
 });
-admin.post('/extensions/:id/import', express.json({ limit: '2mb' }), async (req, res) => {
+admin.post('/extensions/:id/import', express.json({ limit: '24mb' }), async (req, res) => {
   const p = plugins.get(String(req.params.id));
   if (!p || !plugins.isActive(p.meta.id) || typeof p.hooks.importConfig !== 'function') return bad(res, 'Für dieses Modul gibt es keinen Import.', 404);
   if (!mayConfig(req, p)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
   const b = req.body || {};
   if (!['clubwerk-funktion', 'vereinsheim-funktion'].includes(b.format) || !b.data) return bad(res, 'Das ist keine Funktionsdatei von Clubwerk.');
   if (b.module !== p.meta.id) return bad(res, `Diese Datei gehört zum Modul „${b.name || b.module}“, nicht zu „${p.meta.name}“.`);
+  /* dry: Vorschau „x neu, y aktualisiert“ – der Import läuft in einem Sicherungspunkt, der danach verworfen wird (auch für die Teil-Wiederherstellung nutzbar) */
+  const dry = b.dry === true;
+  if (dry) db.exec('SAVEPOINT cw_dry');
   try {
-    const summary = await p.hooks.importConfig(b.data, { user: req.user });
-    audit(req.user, `${p.meta.name}: Funktionsimport`, summary || '');
-    res.json({ ok: true, summary });
+    const summary = await p.hooks.importConfig(b.data, { user: req.user, dry });
+    if (!dry) audit(req.user, `${p.meta.name}: Funktionsimport`, summary || '');
+    res.json({ ok: true, summary, dry });
   } catch (e) { bad(res, e.message); }
+  finally { if (dry) db.exec('ROLLBACK TO cw_dry; RELEASE cw_dry'); }
 });
 admin.put('/extensions/:id', need('einstellungen'), (req, res) => {
   try { plugins.setActive(String(req.params.id), Boolean((req.body || {}).active), req.user); res.json({ ok: true }); }

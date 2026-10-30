@@ -182,7 +182,7 @@ The board decides which push messages exist under Member app › Notifications. 
 
 ![The “Transfer settings” card: export and import.](bild: seite=spielbetrieb; tab=einstellungen; ziel=#spFunc)
 
-Export teams (without players and match days) and settings as a file and import them in another Clubwerk installation, e.g. for a second club or after a reinstall. No PINs or passwords are included; assign players and import match days again afterwards.
+Export teams (without players and match days) and settings as a file and import them in another Clubwerk installation, e.g. for a second club or after a reinstall. No PINs or passwords are included; assign players and import match days again afterwards. On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ## Tablet and app {#tablet-app}
 

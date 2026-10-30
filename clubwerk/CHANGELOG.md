@@ -1,5 +1,17 @@
 # Änderungen
 
+## 3.99.0
+
+**Einstellungen exportieren und importieren: jetzt vollständig und ohne Verlust**
+- **Verkauf:** Der Export enthält jetzt **alle Artikel** (Name, Kategorie, Preis, Gebindegröße, Mindest- und Zielbestand, Reihenfolge, Symbol, sichtbar/ausgeblendet und das **eigene Bild**), dazu die Reihenfolge der Kategorien, „Gerade oft hier“ und die Lieferanten-Zuordnungen. Nicht dabei sind Bestand, Buchungen, Lieferungen, Konten, PINs und Passwörter.
+- **Gleichnamige Einträge werden aktualisiert** statt übersprungen: Plätze und Buchungsarten, Abteilungen und Beitragsarten, Firmen (Buchhaltung), Personal (Zeiterfassung) und Mannschaften. Neue Einträge werden angelegt, **gelöscht wird nie etwas** (auch die Orte der Mängelmeldung werden nicht mehr ersetzt, sondern abgeglichen).
+- **Genaue Meldung nach dem Import**, z. B. „Artikel: 3 neu, 42 aktualisiert · Bilder: 5 neu“. Ungültige Einträge werden übersprungen und gezählt.
+- Der Hinweistext vor dem Import stimmt jetzt („Gleichnamige Einträge werden aktualisiert, neue angelegt, nichts wird gelöscht“).
+- Mitglieder: Erinnerung an Zahlungen, Aufbewahrungsdauer und SEPA-Pflicht sind im Export, Dienste & Termine: Absage-Kontakt und -Empfänger.
+- **Vorschau vor dem Import:** Der Dialog zeigt vorher, was passieren würde („Das würde passieren: Artikel: 3 neu, 42 aktualisiert“) – gespeichert wird erst nach „OK“.
+- Weitere Einstellungen im Export: Mitglieder (Gratulationsregeln, Kindergrenze der Familie), Beregnung und Zugang (Aufbewahrung des Protokolls).
+- Grenzen zur Sicherheit: höchstens 1 000 Artikel je Import, Bilder höchstens 2 MB, Datei höchstens 24 MB; es werden nur bekannte Felder übernommen.
+
 ## 3.98.1
 
 - **Mitglieder-App › Adresse: fehlender Port wird erkannt.** Trägt jemand die Adresse im Vereins-WLAN als `https://lan.dein-verein.de` ohne `:5001` ein, ist die App im WLAN nicht erreichbar. Jetzt erscheint ein Hinweis „Port fehlt – meinst du …:5001?“ mit dem Knopf **So übernehmen**. Der Wert wird nie still geändert. Die öffentliche Adresse (Cloudflare, ohne Port) wird nicht beanstandet.

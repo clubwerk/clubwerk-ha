@@ -73,7 +73,7 @@ Ein Klick auf einen Block zeigt die Einzelheiten: Spieler, Titel, Gebühr, Notiz
 
 Gehört der Termin zu einer Serie oder Sperre, fragt Clubwerk zuerst, was gemeint ist:
 
-![Die Auswahl bei Serienterminen: nur dieser Termin, dieser und alle folgenden, gesamte Serie.](bild: seite=bk-belegung; klick=#bkDays button:nth-child(3); klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
+![Die Auswahl bei Serienterminen: nur dieser Termin, dieser und alle folgenden, gesamte Serie.](bild: seite=bk-belegung; klick=#bkDays button:nth-child(2); klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
 
 Beim Stornieren folgt eine Rückfrage, bevor etwas verschwindet. Beim Bearbeiten (Platz, Uhrzeit, Titel, Buchungsart, Notiz) zeigt „Prüfen“ vorher, wie viele Termine betroffen sind und an welchen Tagen der Platz belegt ist.
 
@@ -302,7 +302,7 @@ Ein Text (z. B. „Bitte nur mit Tennisschuhen spielen“), der vor jeder Buchun
 
 #### Einstellungen übertragen
 
-Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren, z. B. für einen zweiten Verein oder nach einer Neuinstallation (ohne Buchungen, PINs und Passwörter). Beim Import werden die bisherigen Einstellungen ersetzt; Plätze und Buchungsarten mit gleichem Namen bleiben, wie sie sind.
+Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren, z. B. für einen zweiten Verein oder nach einer Neuinstallation (ohne Buchungen, PINs und Passwörter). Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ![Karte „Einstellungen übertragen“.](bild: seite=bk-einstellungen; klick=#bkFunc h3; ziel=#bkFunc .card)
 

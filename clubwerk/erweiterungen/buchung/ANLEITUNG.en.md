@@ -73,7 +73,7 @@ Clicking a block shows the details: players, title, fee, note and who entered th
 
 If the date belongs to a recurring booking or block, Clubwerk first asks what you mean:
 
-![The choice for recurring dates: only this date, this and all following, entire series.](bild: seite=bk-belegung; klick=#bkDays button:nth-child(3); klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
+![The choice for recurring dates: only this date, this and all following, entire series.](bild: seite=bk-belegung; klick=#bkDays button:nth-child(2); klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
 
 When cancelling, a confirmation follows before anything disappears. When editing (court, time, title, booking type, note), “Check” first shows how many dates are affected and on which days the court is taken.
 
@@ -302,7 +302,7 @@ A text (e.g. “Please play in tennis shoes only”) that is shown before every 
 
 #### Transfer settings
 
-Export courts, booking types and settings as a file and import them into another Clubwerk installation, e.g. for a second club or after a reinstall (without bookings, PINs and passwords). On import the existing settings are replaced; courts and booking types with the same name stay as they are.
+Export courts, booking types and settings as a file and import them into another Clubwerk installation, e.g. for a second club or after a reinstall (without bookings, PINs and passwords). On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ![Card “Transfer settings”.](bild: seite=bk-einstellungen; klick=#bkFunc h3; ziel=#bkFunc .card)
 

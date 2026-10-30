@@ -11646,6 +11646,21 @@
   "zusammenführen mit „{0}“": "merge with “{0}”",
   "? Die App läuft auf Port {0}, ohne Port landet das Handy auf Port 443 und kommt nicht durch.": "? The app runs on port {0}; without a port the phone ends up on port 443 and cannot connect.",
   "Port fehlt – meinst du": "Port missing – do you mean",
-  "So übernehmen": "Use this"
+  "So übernehmen": "Use this",
+  "{0} aktualisiert": "{0} updated",
+  "{0} Einstellungen übernommen – Dienste, Termine und Stunden gehören nicht dazu": "{0} settings applied – duties, appointments and hours are not part of it",
+  "{0} ungültige Einträge übersprungen": "{0} invalid entries skipped",
+  "Alle Einstellungen und Listen von „{0}“ (z. B. Artikel, Plätze, Beitragsarten) als Datei sichern oder aus einer Datei übernehmen – z. B. für einen zweiten Verein oder nach einer Neuinstallation. Beim Import werden gleichnamige Einträge aktualisiert, neue angelegt, nichts gelöscht. PINs, Passwörter und Schlüssel sind nicht enthalten.": "Save all settings and lists of “{0}” (e.g. items, courts, fee types) as a file or apply them from a file – e.g. for a second club or after a reinstall. On import, entries with the same name are updated, new ones are created and nothing is deleted. PINs, passwords and keys are not included.",
+  "Bankkonten stehen unter Einstellungen → Bankkonten": "Bank accounts are under Settings → Bank accounts",
+  "Bilder": "Pictures",
+  "Empfänger des Monatsnachweises übernommen": "Recipient of the monthly statement applied",
+  "Gläubiger-ID und Vereinskonto bitte selbst eintragen": "please enter the creditor ID and the club account yourself",
+  "Gleichnamige Einträge werden aktualisiert, neue angelegt, nichts wird gelöscht. Buchungen, Protokolle und Freischaltungen bleiben erhalten.": "Entries with the same name are updated, new ones are created and nothing is deleted. Bookings, logs and activations are kept.",
+  "Kategorien": "Categories",
+  "Lieferanten-Zuordnungen": "Supplier assignments",
+  "Plätze/Geräte": "Courts/equipment",
+  "Spieler und Spieltage bitte neu zuordnen bzw. importieren": "please reassign or import players and match days",
+  "{0}Gleichnamige Einträge werden aktualisiert, neue angelegt, nichts wird gelöscht. Buchungen, Protokolle und Freischaltungen bleiben erhalten.": "{0}Entries with the same name are updated, new ones are created and nothing is deleted. Bookings, logs and activations are kept.",
+  "Das würde passieren: {0}": "This would happen: {0}"
  }
 }

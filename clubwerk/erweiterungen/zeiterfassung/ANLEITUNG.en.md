@@ -129,7 +129,7 @@ A bar above the card shows the state: green with date and recipient when the las
 
 ![Card “Transfer settings”: export and import.](bild: seite=zeit-einstellungen; ziel=[data-set="transfer"])
 
-Exports the recipient and the active people with activity and current hourly rate to a file that you can import into another Clubwerk installation. Times and PINs are never included. New people get a random PIN on import; assign the real one afterwards under “Staff”.
+Exports the recipient and the active people with activity and current hourly rate to a file that you can import into another Clubwerk installation. Times and PINs are never included. New people get a random PIN on import; assign the real one afterwards under “Staff”. On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ## Tablet and app {#tablet-app}
 

@@ -8,6 +8,7 @@
    Verwaltung: Belegungsplan, Buchen für Mitglieder, Serienbuchungen (Training, Mannschaften) und Sperren (Wartung, Turnier).
    ===================================================================================================== */
 const { pad, today, nowTs, isDate, addDays, deD, euro } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
+const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || '')) || s === '24:00';
 const tm = s => (isTime(s) ? +s.slice(0, 2) * 60 + +s.slice(3, 5) : null);
@@ -1671,18 +1672,32 @@ function activate(ctx) {
   setInterval(() => remind().catch(() => {}), process.env.CW_TEST_FAST ? 1500 : 60000).unref();
   setTimeout(() => remind().catch(() => {}), 5000).unref();
   ctx.hooks.exportConfig = () => ({ labels: db.prepare('SELECT name, color, sort, active, use_mode, use_functions, free_rules FROM bk_label').all().map(l => ({ ...l, use_functions: J(l.use_functions, []) })), settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'blocked_fees').map(k => [k, S(k, DEF[k])])),
-    resources: db.prepare('SELECT kind, name, area, note, days, open_from, open_to, slot_min, max_min, quantity, guest_fee_cents, outsiders, outsider_fee_cents, active, sort, partner_required, solo_label, as_partner FROM bk_resource WHERE deleted = 0').all() });
+    resources: db.prepare('SELECT r.kind, r.name, r.area, r.note, r.days, r.open_from, r.open_to, r.slot_min, r.max_min, r.quantity, r.guest_fee_cents, r.outsiders, r.outsider_fee_cents, r.active, r.sort, r.partner_required, r.solo_label, r.as_partner, r.department_id FROM bk_resource r WHERE r.deleted = 0').all().map(({ department_id, ...r }) => ({ ...r, department: (departments().find(x => x.id === department_id) || {}).name || null })) });
+  /* Import: gleicher Name (ohne Groß-/Kleinschreibung) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = d => {
     if (!d || typeof d !== 'object') throw new Error('Leere Funktionsdatei.');
-    for (const [k, v] of Object.entries(d.settings || {})) if (k in DEF && k !== 'blocked_fees' && typeof v === 'string') SET(k, v.slice(0, 2000));
-    let n = 0;
-    for (const r of Array.isArray(d.resources) ? d.resources.slice(0, 100) : []) {
-      if (!r || db.prepare('SELECT 1 FROM bk_resource WHERE deleted = 0 AND lower(name) = lower(?)').get(String(r.name || ''))) continue;
-      const x = resInput(r); if (x.error) continue;
-      const k = Object.keys(x.v); db.prepare(`INSERT INTO bk_resource(${k.join(',')}) VALUES (${k.map(() => '?').join(',')})`).run(...k.map(y => x.v[y])); n++;
-    }
-    for (const l of Array.isArray(d.labels) ? d.labels.slice(0, 50) : []) { const x = labelInput(l || {}); if (!x.error && !db.prepare('SELECT 1 FROM bk_label WHERE lower(name) = lower(?)').get(x.v.name)) db.prepare('INSERT INTO bk_label(name, color, sort, active, use_mode, use_functions, use_members, free_rules) VALUES (?,?,?,?,?,?,?,?)').run(x.v.name, x.v.color, x.v.sort, x.v.active, x.v.use_mode, x.v.use_functions, '[]', x.v.free_rules); }
-    return `Einstellungen und ${n} Plätze/Geräte übernommen`;
+    const z = konfigio.zaehler(); let ungueltig = 0;
+    db.transaction(() => {
+      for (const [k, v] of Object.entries(d.settings || {})) if (k in DEF && k !== 'blocked_fees' && typeof v === 'string') SET(k, v.slice(0, 2000));
+      const res = new Map(db.prepare('SELECT * FROM bk_resource WHERE deleted = 0').all().map(r => [r.name.toLowerCase(), r]));
+      const deps = departments();
+      for (const r of konfigio.liste(d.resources, 100)) {
+        const dep = r.department ? deps.find(x => String(x.name).toLowerCase() === String(r.department).trim().toLowerCase()) : null;
+        const found = res.get(String(r.name || '').trim().toLowerCase());
+        const x = resInput({ ...r, department_id: dep ? dep.id : (found ? found.department_id : null) }, found || {}); if (x.error) { ungueltig++; continue; }
+        z('Plätze/Geräte', konfigio.schreibe(db, 'bk_resource', x.v, found));
+        if (!found) res.set(x.v.name.toLowerCase(), { ...x.v, id: Number(db.prepare('SELECT id FROM bk_resource WHERE deleted = 0 AND name = ?').pluck().get(x.v.name)) });
+      }
+      const lab = new Map(db.prepare('SELECT * FROM bk_label').all().map(l => [l.name.toLowerCase(), l]));
+      for (const l of konfigio.liste(d.labels, 50)) {
+        const found = lab.get(String(l.name || '').trim().toLowerCase());
+        const x = labelInput({ ...(found ? { use_members: found.use_members } : {}), ...l }); if (x.error) { ungueltig++; continue; }
+        z('Buchungsarten', konfigio.schreibe(db, 'bk_label', x.v, found));
+        if (!found) lab.set(x.v.name.toLowerCase(), { ...x.v, id: Number(db.prepare('SELECT id FROM bk_label WHERE name = ?').pluck().get(x.v.name)) });
+      }
+    })();
+    if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
+    return z.text();
   };
   // Warteliste aufräumen (vergangene Tage)
   setInterval(() => { try { db.prepare('DELETE FROM bk_wait WHERE date < ?').run(today()); } catch (e) { /* */ } }, 6 * 3600 * 1000).unref();

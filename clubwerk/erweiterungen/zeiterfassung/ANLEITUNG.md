@@ -129,7 +129,7 @@ Am **1. jedes Monats ab 6 Uhr** schickt Clubwerk den Nachweis des Vormonats an d
 
 ![Karte „Einstellungen übertragen“: Export und Import.](bild: seite=zeit-einstellungen; ziel=[data-set="transfer"])
 
-Exportiert den Empfänger und die aktiven Personen mit Tätigkeit und aktuellem Stundensatz in eine Datei, die ihr in einer anderen Clubwerk-Installation importieren könnt. Zeiten und PINs sind nie dabei. Neue Personen bekommen beim Import eine zufällige PIN; vergebt danach unter „Personal“ die richtige.
+Exportiert den Empfänger und die aktiven Personen mit Tätigkeit und aktuellem Stundensatz in eine Datei, die ihr in einer anderen Clubwerk-Installation importieren könnt. Zeiten und PINs sind nie dabei. Neue Personen bekommen beim Import eine zufällige PIN; vergebt danach unter „Personal“ die richtige. Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ## Tablet und App {#tablet-app}
 

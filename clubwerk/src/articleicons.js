@@ -76,11 +76,15 @@ const MIME = { png: 'image/png', jpg: 'image/jpeg', webp: 'image/webp' };
 const FILE_RE = /^a\d+-[0-9a-f]{12}\.(png|jpg|webp)$/;
 function dir(dataDir) { const d = path.join(dataDir, 'artikelbilder'); fs.mkdirSync(d, { recursive: true }); return d; }
 /** Bild prüfen und speichern → Dateiname. Wirft Fehler mit verständlichem Text. */
-function saveImage(dataDir, articleId, buf) {
+function checkImage(buf) {
   if (!buf || !buf.length) throw new Error('Keine Bilddatei empfangen.');
   if (buf.length > MAX_BYTES) throw new Error('Das Bild ist größer als 2 MB.');
   const k = kindOf(buf);
   if (!k) throw new Error('Bitte ein Bild als PNG, JPG, WebP oder SVG wählen.');
+  return k;
+}
+function saveImage(dataDir, articleId, buf) {
+  const k = checkImage(buf);
   const name = `a${Number(articleId)}-${crypto.createHash('sha256').update(buf).digest('hex').slice(0, 12)}.${k}`;
   fs.writeFileSync(path.join(dir(dataDir), name), buf);
   return name;
@@ -95,4 +99,4 @@ function imagePath(dataDir, file) {
 }
 const mimeOf = file => MIME[String(file).split('.').pop()] || 'application/octet-stream';
 
-module.exports = { has, guess, saveImage, removeImage, imagePath, mimeOf, MAX_BYTES, FILE_RE };
+module.exports = { has, guess, checkImage, saveImage, removeImage, imagePath, mimeOf, MAX_BYTES, FILE_RE };

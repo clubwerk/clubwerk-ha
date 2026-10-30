@@ -404,7 +404,7 @@ After leaving, the club usually needs name and address only for a short time. Wi
 
 #### Transfer settings
 
-Exports settings, fee types and departments as a file and reads them into another Clubwerk installation (without members).
+Exports settings, fee types and departments as a file and reads them into another Clubwerk installation (without members). On import, entries with the same name (ignoring upper/lower case) are updated, new ones are created and nothing is deleted. The message says for each kind how many were new and how many were updated.
 
 ### “Fees & payments” menu {#zahlungen}
 

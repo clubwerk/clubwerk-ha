@@ -195,7 +195,7 @@ Die Karte ist nur eine Anzeige. Anschrift, E-Mail und Telefon im Briefkopf komme
 
 #### Einstellungen übertragen
 
-Exportiert Einstellungen und Firmen (mit Jahrespositionen) als Datei und importiert sie in einer anderen Clubwerk-Installation. Rechnungen, Spendenquittungen und Bankkonten werden nicht übertragen. Beim Import bleiben vorhandene Firmen mit gleichem Namen unverändert.
+Exportiert Einstellungen und Firmen (mit Jahrespositionen) als Datei und importiert sie in einer anderen Clubwerk-Installation. Rechnungen, Spendenquittungen und Bankkonten werden nicht übertragen. Beim Import werden gleichnamige Einträge (ohne Groß-/Kleinschreibung) aktualisiert, neue angelegt, nichts wird gelöscht. Die Meldung nennt je Art, wie viele neu und wie viele aktualisiert wurden.
 
 ### Kontoauszug {#kontoauszug}
 

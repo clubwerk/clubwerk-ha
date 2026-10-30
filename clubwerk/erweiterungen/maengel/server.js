@@ -10,6 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const { today } = require('../../src/util');
 
 const txt = (v, max) => String(v == null ? '' : v).replace(/[\u0000-\u0008\u000b-\u001f<>]/g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim().slice(0, max);
@@ -320,13 +321,22 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     if (n >= 1 && n <= 120) SET('keep_months', n);
     if (c.mail_on !== undefined) SET('mail_on', c.mail_on ? '1' : '0');
     if (typeof c.notify === 'string') { const l = c.notify.split(/[,;\s]+/).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x)); SET('notify', l.slice(0, 5).join(', ')); }
-    let count = 0;
+    const z = konfigio.zaehler();
     if (Array.isArray(data.places)) {
-      const seen = new Set(), list = data.places.map(x => txt(x, 60).replace(/\n/g, ' ')).filter(x => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase())).slice(0, 100);
-      db.transaction(() => { db.prepare('DELETE FROM mg_place').run(); list.forEach((x, i) => db.prepare('INSERT INTO mg_place(name, sort) VALUES (?,?)').run(x, i)); })();
-      count = list.length;
+      db.transaction(() => {
+        const have = new Map(db.prepare('SELECT * FROM mg_place').all().map(p => [p.name.toLowerCase(), p]));
+        const list = data.places.map(x => txt(x, 60).replace(/\n/g, ' ')).filter(Boolean).slice(0, 100);
+        list.forEach((x, i) => {
+          const found = have.get(x.toLowerCase());
+          if (found) { db.prepare('UPDATE mg_place SET sort = ? WHERE id = ?').run(i, found.id); z('Orte', 'aktualisiert'); }
+          else { db.prepare('INSERT INTO mg_place(name, sort) VALUES (?,?)').run(x, i); have.set(x.toLowerCase(), { name: x }); z('Orte', 'neu'); }
+        });
+        // eigene Orte, die nicht in der Datei stehen, bleiben und rücken ans Ende
+        const inFile = new Set(list.map(x => x.toLowerCase()));
+        db.prepare('SELECT id, name FROM mg_place ORDER BY sort, id').all().filter(p => !inFile.has(p.name.toLowerCase())).forEach((p, i) => db.prepare('UPDATE mg_place SET sort = ? WHERE id = ?').run(list.length + i, p.id));
+      })();
     }
-    return `${count} ${count === 1 ? 'Ort' : 'Orte'} und die Einstellungen übernommen`;
+    return z.text();
   };
   /* Mitglieder-App „Für mich“: nur Neuigkeiten – der Verein hat auf eine eigene (oder bestätigte) Meldung geantwortet oder ihren Status geändert (letzte 14 Tage).
      Die Kennung enthält Status und Antwort: Nach dem Quittieren erscheint die Meldung erst bei einer neuen Antwort wieder (nicht bei internen Notizen). Offenes ist hier nichts zu tun. */
