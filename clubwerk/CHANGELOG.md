@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.100.0
+
+**Aus Sicherung übernehmen: nur gewählte Teile aus einer Komplettsicherung holen**
+- Neu unter **Datensicherung › Aus Sicherung übernehmen …**: Nach einer Neuinstallation (oder jederzeit) lassen sich aus einer alten Komplettsicherung **einzelne Teile** holen, ohne den jetzigen Stand zu ersetzen – zum Beispiel nur die **Verkaufsartikel mit Bildern**.
+- Ablauf: Sicherung wählen (hier, auf einem Sicherungsziel oder als Datei vom Gerät) und Passwort eingeben → **Was übernehmen?** mit Häkchen je Modul und Teil → **Vorschau** „x neu, y aktualisiert, z unverändert“ → **Übernehmen** mit eigenem Passwort → Ergebnismeldung.
+- Wählbar: beim Verkauf Artikel (mit Bildern), Lieferanten-Zuordnungen, Reihenfolge der Kategorien und **Konten am Tablet** (Name, Art, PIN); bei allen anderen Modulen die ganze Einrichtung (Plätze, Abteilungen und Beitragsarten, Firmen, Türen …); dazu Vereinsname, Anschrift, Logo und Farbe. Braucht ein Teil einen anderen, wird dessen Häkchen automatisch gesetzt und erklärt.
+- Es gilt dieselbe Regel wie beim Funktionsimport: **gleicher Name → aktualisiert, sonst neu, gelöscht wird nie etwas.** Zweimal übernehmen erzeugt keine Dubletten; Konten merken sich ihre Herkunft. Eine hier schon vergebene PIN bleibt. Offene Beträge, Buchungen und Verkäufe kommen (noch) nicht mit.
+- Sicherheit: nur Benutzer mit allen Rechten; vorher automatisch ein Schnappschuss; Eintrag ins Protokoll. Die Sicherung wird nur im eigenen Clubwerk in einem abgeschotteten, temporären Ordner geöffnet, der danach restlos gelöscht wird. Passwörter werden nie gespeichert. Vertrauliche Daten (z. B. Kontakte von Firmen) brauchen den Wiederherstellungscode oder das Passwort eines damaligen Admins und werden mit dem Tresor dieser Installation neu verschlüsselt. Sicherungen einer neueren Clubwerk-Version werden abgelehnt.
+
 ## 3.99.0
 
 **Einstellungen exportieren und importieren: jetzt vollständig und ohne Verlust**

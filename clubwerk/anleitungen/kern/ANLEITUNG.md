@@ -324,6 +324,19 @@ Wohin die Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei
 
 Eine Komplettsicherung ersetzt beim nächsten Neustart **alles**. Der aktuelle Stand wird vorher beiseitegelegt. Wählt die Sicherung in der Liste (hier oder auf einem Ziel) und tippt **Wiederherstellen …**, oder ladet eine Datei mit **Komplettsicherung hochladen …**, zum Beispiel nach einer Neuinstallation. Danach „Jetzt neu starten“. Nur ein Benutzer mit allen Rechten darf das.
 
+#### Aus Sicherung übernehmen
+
+![Fenster „Aus Sicherung übernehmen“: Sicherung wählen und Passwort eingeben.](bild: seite=sicherung; klick=#tlOpen; ziel=dialog)
+
+Holt **nur einzelne Teile** aus einer Komplettsicherung, ohne den jetzigen Stand zu ersetzen, zum Beispiel nach einer Neuinstallation die Artikel mit Bildern aus der alten Sicherung. So geht es:
+
+1. **Aus Sicherung übernehmen …** tippen, die Sicherung wählen (hier, auf einem Ziel oder **Datei von diesem Gerät …**) und das Sicherungspasswort eingeben (leer = das hier festgelegte). Enthält die Sicherung einen Tresor und wollt ihr vertrauliche Daten übernehmen (z. B. Kontakte der Firmen in der Buchhaltung), tragt unter **Tresor der Sicherung** den Wiederherstellungscode oder das Passwort eines damaligen Admins ein.
+2. **Was übernehmen?** Je Modul stehen die Teile mit Häkchen da, mit Anzahl. Beim Verkauf lassen sich Artikel (mit Bildern), Lieferanten-Zuordnungen, die Reihenfolge der Kategorien und die Konten am Tablet einzeln wählen, bei den anderen Modulen die ganze Einrichtung (Plätze, Abteilungen und Beitragsarten, Türen …), dazu Vereinsname, Anschrift, Logo und Farbe. Braucht ein Teil einen anderen, setzt Clubwerk dessen Häkchen selbst und sagt, warum. Module, die hier nicht eingeschaltet sind, sind gesperrt.
+3. **Vorschau** zeigt je Modul „x neu, y aktualisiert, z unverändert“. Noch ist nichts verändert.
+4. **Übernehmen** mit eurem Passwort. Vorher legt Clubwerk einen Schnappschuss an (siehe unten), danach steht der Vorgang im Protokoll.
+
+Gleicher Name → aktualisiert, sonst neu. **Gelöscht wird nichts.** Wer zweimal übernimmt, bekommt keine doppelten Einträge. Konten behalten eine hier schon vergebene PIN; offene Beträge, Buchungen und Verkäufe kommen nicht mit. Ist die Mitgliederverwaltung eingeschaltet, entstehen Mitglieder nur dort: vorhandene Mitglieder-Konten werden ergänzt, neue nicht angelegt. Die Sicherung wird nur in eurem Clubwerk geöffnet, Passwörter werden nicht gespeichert. Nur ein Benutzer mit allen Rechten darf das.
+
 #### Datenbank-Schnappschüsse
 
 Zusätzlich sichert Clubwerk jede Nacht nur die Datenbank (die letzten 14 Nächte), praktisch, um einen Fehler der letzten Tage schnell rückgängig zu machen. **Schnappschuss jetzt** legt einen an, **.db-Datei einspielen …** lädt einen hoch, jeder Eintrag lässt sich herunterladen oder wiederherstellen.

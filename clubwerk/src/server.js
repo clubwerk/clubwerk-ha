@@ -1,6 +1,6 @@
 'use strict';
 const DEMO_KOPIE = process.env.CW_DEMO_KOPIE === '1';
-if (DEMO_KOPIE) require('./abschottung');   // Demo-Kopie: nichts nach außen – vor allem anderen laden (src/demokopie.js)
+if (DEMO_KOPIE || process.env.CW_LESEKOPIE === '1') require('./abschottung');   // Demo-Kopie und Lesekopie der Teil-Wiederherstellung: nichts nach außen – vor allem anderen laden (src/demokopie.js, src/teilsicherung.js)
 require('./logtime');   // Zeitstempel im Protokoll
 const path = require('path');
 const fs = require('fs');
@@ -3370,24 +3370,30 @@ admin.post('/backups/komplett/upload', need('einstellungen'), owner, asyncRoute(
   let h; try { h = fullbackup.readHeader(dest).head; } catch (e) { fs.unlinkSync(dest); return bad(res, e.message); }
   res.json({ ok: true, id, created: h.created, app: h.app, size: n, sameKey: h.kid === (bkHasKey() ? fullbackup.keyId(Buffer.from(bkKey().key, 'hex')) : '') });
 }));
+/** Quelle einer Komplettsicherung (lokal, hochgeladen oder von einem Sicherungsziel geholt) → { src, temp } bzw. null. temp: Datei danach löschen */
+async function komplettQuelle(b) {
+  if (b.source === 'local') return fullbackup.validName(b.file) && fs.existsSync(path.join(KOMPLETT_DIR, b.file)) ? { src: path.join(KOMPLETT_DIR, b.file), temp: false } : null;
+  if (b.source === 'upload') { const src = /^[a-f0-9]{24}$/.test(String(b.file || '')) && path.join(INCOMING_DIR, `up_${b.file}${fullbackup.EXT}`); return src && fs.existsSync(src) ? { src, temp: true } : null; }
+  if (b.source === 'dropbox' || b.source === 'target') {
+    const tg = targetById(b.source === 'dropbox' ? 'dropbox' : String(b.target || ''));
+    if (!tg) throw Object.assign(new Error('Sicherungsziel nicht gefunden.'), { status: 404 });
+    if (!fullbackup.validName(b.file)) return null;
+    fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
+    const src = path.join(INCOMING_DIR, `dl_${crypto.randomBytes(8).toString('hex')}${fullbackup.EXT}`);
+    const a = tg.adapter();
+    try { await a.get('Komplett', b.file, src); } catch (e) { try { fs.unlinkSync(src); } catch (x) { /* */ } throw e; } finally { await a.close(); }
+    return { src, temp: true };
+  }
+  return null;
+}
 /* Wiederherstellen aus einer Komplettsicherung (lokal, aus Dropbox oder hochgeladen) – wirksam beim nächsten Neustart */
 admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrestore', 6, 10 * 60000), asyncRoute(async (req, res) => {
   if (!ownerConfirm(req, res)) return;
   const b = req.body || {};
   let src = null, temp = false;
   try {
-    if (b.source === 'local') { if (fullbackup.validName(b.file) && fs.existsSync(path.join(KOMPLETT_DIR, b.file))) src = path.join(KOMPLETT_DIR, b.file); }
-    else if (b.source === 'upload') { if (/^[a-f0-9]{24}$/.test(String(b.file || ''))) { src = path.join(INCOMING_DIR, `up_${b.file}${fullbackup.EXT}`); temp = true; if (!fs.existsSync(src)) src = null; } }
-    else if (b.source === 'dropbox' || b.source === 'target') {
-      const tg = targetById(b.source === 'dropbox' ? 'dropbox' : String(b.target || ''));
-      if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-      if (fullbackup.validName(b.file)) {
-        fs.mkdirSync(INCOMING_DIR, { recursive: true, mode: 0o700 });
-        src = path.join(INCOMING_DIR, `dl_${crypto.randomBytes(8).toString('hex')}${fullbackup.EXT}`); temp = true;
-        const a = tg.adapter();
-        try { await a.get('Komplett', b.file, src); } finally { await a.close(); }
-      }
-    }
+    const q = await komplettQuelle(b);
+    if (q) ({ src, temp } = q);
     if (!src) return bad(res, 'Sicherung nicht gefunden.', 404);
     const tmp = fs.mkdtempSync(path.join(DATA_DIR, '.wiederherstellung-'));
     try {
@@ -3405,9 +3411,12 @@ admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrest
       if (e.needPassword) { if (b.source === 'upload') temp = false; return res.status(400).json({ error: e.message, needPassword: true }); }
       throw e;
     } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
-  } catch (e) { bad(res, e.message); }
+  } catch (e) { bad(res, e.message, e.status || 400); }
   finally { if (temp && src) { try { fs.unlinkSync(src); } catch (e) { /* egal */ } } }
 }));
+/* Teil-Wiederherstellung: einzelne Module und Teile aus einer Komplettsicherung übernehmen (src/teilsicherung.js) */
+require('./teilsicherung').routes(admin, { db, plugins, need, owner, bad, asyncRoute, rateLimit, ownerConfirm, audit, quelle: komplettQuelle, fullbackup, backup,
+  bkKey: () => (bkHasKey() ? bkKey() : null), appVersion: APP_VERSION, getSetting, setSetting });
 
 admin.get('/dropbox', need('einstellungen'), (req, res) => {
   const c = dbxCfg();
@@ -3586,6 +3595,8 @@ require('./einrichtung').routes(admin, { need, bad, checks: {
    da alle Module ihre Tabellen angelegt haben */
 const vault = require('./vault');
 try { vault.start(); } catch (e) { console.error('Tresor beim Start:', e); }
+/* Lesekopie der Teil-Wiederherstellung (src/teilsicherung.js): Datenbank ist auf dem heutigen Stand, alle Module geladen – Export abliefern und enden, ohne Ports zu öffnen */
+if (process.env.CW_LESEKOPIE === '1') return require('./teilsicherung').lesekopie({ plugins, db, vault, getSetting });
 vault.onUnlock(() => vault.flushMail(o => require('./mail').send(o)).then(n => { if (n) audit(null, 'Tresor: wartende E-Mails verschickt', String(n)); }));
 memberapp.startPort({ rateLimit, rateLimitKey, memberBalance });
 

@@ -475,6 +475,19 @@
   .usec { margin: 18px 0 10px; }
   .udet { margin-top: 12px; } .udet summary { cursor: pointer; font-weight: 700; padding: 6px 0; } .udet .permgrid { margin-top: 8px; }
   @media (max-width: 640px) { .ugrid, .rolegrid, .permgrid { grid-template-columns: 1fr; } }
+  /* Aus Sicherung übernehmen (Teil-Wiederherstellung): Teile je Modul, Vorschau-Zeilen */
+  .tl-liste { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 12px; }
+  .tl-gruppe { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; align-content: start; }
+  .tl-gruppe h3 { margin: 0; font-size: 15px; line-height: 22px; }
+  .tl-gruppe p { margin: 0; }
+  .tl-gruppe.breit { grid-column: 1 / -1; }
+  .tl-teile { display: grid; gap: 8px; }
+  .tl-gruppe.breit .tl-teile { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 24px; }
+  .tl-gruppe label.chk { align-items: flex-start; line-height: 1.4; } .tl-gruppe label.chk input { margin-top: 3px; flex: none; }
+  .tl-zeilen { display: grid; gap: 8px; margin: 12px 0; }
+  .tl-zeile { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 12px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; line-height: 1.4; overflow-wrap: anywhere; }
+  @media (max-width: 640px) { .tl-liste, .tl-zeile, .tl-gruppe.breit .tl-teile { grid-template-columns: 1fr; } .tl-zeile { gap: 2px; } }
+
   .warnbox { border-color: var(--amber-line) !important; background: var(--amber-soft) !important; }
   /* Handy & schmale Fenster */
   @media (max-width: 1100px) { .two { grid-template-columns: 1fr; } }

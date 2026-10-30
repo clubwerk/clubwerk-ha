@@ -324,6 +324,19 @@ Where the full backup also goes every night. Two targets in different places are
 
 A full backup replaces **everything** at the next restart. The current state is set aside first. Choose the backup in the list (here or on a target) and tap **Restore …**, or load a file with **Upload full backup …**, for example after a new installation. Then “Restart now”. Only a user with all permissions may do this.
 
+#### Take over from backup
+
+![Window “Take over from backup”: choose a backup and enter the password.](bild: seite=sicherung; klick=#tlOpen; ziel=dialog)
+
+Fetches **only individual parts** from a full backup without replacing the current state, for example the items with images from the old backup after a fresh installation. This is how it works:
+
+1. Tap **Take over from backup …**, choose the backup (here, on a target or **File from this device …**) and enter the backup password (empty = the one set here). If the backup contains a vault and you want to take over confidential data (e.g. company contacts in accounting), enter the recovery code or the password of an admin at that time under **Backup vault**.
+2. **What to take over?** Each module lists its parts with tick boxes and counts. For sales you can choose items (with images), supplier assignments, the category order and the tablet accounts separately; for the other modules the whole setup (courts, departments and fee types, doors …), plus club name, address, logo and colour. If a part needs another one, Clubwerk ticks it automatically and says why. Modules that are not switched on here are locked.
+3. **Preview** shows “x new, y updated, z unchanged” per module. Nothing has been changed yet.
+4. **Take over** with your password. Clubwerk creates a snapshot first (see below); afterwards the action is recorded in the log.
+
+Same name → updated, otherwise new. **Nothing is deleted.** Taking over twice does not create duplicates. Accounts keep a PIN that has already been set here; open amounts, bookings and sales are not included. If member management is switched on, members are only created there: existing member accounts are completed, new ones are not created. The backup is only opened in your Clubwerk, passwords are not stored. Only a user with all permissions may do this.
+
 #### Database snapshots
 
 Clubwerk also backs up just the database every night (the last 14 nights), handy for quickly undoing a mistake from the last few days. **Snapshot now** creates one, **Import .db file …** uploads one, and each entry can be downloaded or restored.

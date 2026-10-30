@@ -3218,6 +3218,10 @@
           <span class="muted s" style="align-self:center">z. B. nach einer Neuinstallation: zuerst einrichten, dann hier die Datei vom USB-Stick wählen.</span></div>` : ''}
       </div>
 
+      <div class="card"><h3>Aus Sicherung übernehmen</h3>
+        <p class="muted s" style="margin-top:0">Nur einzelne Module oder Teile aus einer Komplettsicherung holen – z. B. nach einer Neuinstallation die Artikel mit Bildern. Gleicher Name → aktualisiert, sonst neu. Gelöscht und ersetzt wird nichts.</p>
+        ${owner ? '<div class="row"><button class="btn" id="tlOpen">Aus Sicherung übernehmen …</button></div>' : '<p class="muted s">Übernehmen darf nur ein Benutzer mit allen Rechten.</p>'}</div>
+
       <div class="card"><h3>Datenbank-Schnappschüsse</h3>
         <p class="muted s" style="margin-top:0">Zusätzlich sichert die App jede Nacht nur die Datenbank (die letzten 14 Nächte) – praktisch, um schnell einen Fehler der letzten Tage rückgängig zu machen.</p>
         <div class="row" style="margin-bottom:12px"><button class="btn" id="bNow">Schnappschuss jetzt</button><label class="btn">.db-Datei einspielen …<input type="file" id="bUp" accept=".db,application/octet-stream" hidden></label></div>
@@ -3332,6 +3336,101 @@
         restoreDialog('upload', j.id, new Date(j.created).toLocaleString('de-DE'), j.sameKey);
       } catch (err) { fail(err); }
       e.target.value = '';
+    };
+
+    /* ---------- Aus Sicherung übernehmen (Teil-Wiederherstellung): öffnen → Teile wählen → Vorschau → übernehmen ---------- */
+    if ($('tlOpen')) $('tlOpen').onclick = () => {
+      let sel = null, upId = null, inh = null;   // gewählte Quelle, hochgeladene Datei, geöffneter Inhalt
+      const quellen = st.local.map(x => ({ v: 'local|' + x.file, t: 'Hier in der App: ' + fileDate(x.file), source: 'local', file: x.file }));
+      const zu = () => { if (inh) api('backups/teil/schliessen', 'POST', {}).catch(() => {}); closeDialog(); };
+      const schritt1 = () => {
+        dialog(`<h2>Aus Sicherung übernehmen</h2>
+          <p class="muted s" style="margin-top:0">Die Sicherung wird nur hier in Clubwerk geöffnet. Passwörter werden nicht gespeichert.</p>
+          <label class="f">Sicherung<select id="tlSrc">${quellen.map(q => `<option value="${esc(q.v)}">${esc(q.t)}</option>`).join('')}<option value="upload">Datei von diesem Gerät …</option></select></label>
+          <label class="f ${quellen.length ? 'hidden' : ''}" id="tlFileL">Datei (.cwbackup)<input type="file" id="tlFile" accept=".cwbackup,.vhsicherung,application/octet-stream"></label>
+          <label class="f">Sicherungspasswort <span class="muted s">(leer = das hier festgelegte)</span><input type="password" id="tlPw" autocomplete="off"></label>
+          <label class="f">Tresor der Sicherung <span class="muted s">(nur für vertrauliche Daten wie Kontakte von Firmen: Wiederherstellungscode oder Passwort eines damaligen Admins)</span><input type="password" id="tlVault" autocomplete="off"></label>
+          <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Öffnen</button></div>`);
+        if (!quellen.length) $('tlSrc').value = 'upload';
+        if (sel) $('tlSrc').value = sel;
+        $('tlFileL').classList.toggle('hidden', $('tlSrc').value !== 'upload');
+        $('tlSrc').onchange = () => { $('tlFileL').classList.toggle('hidden', $('tlSrc').value !== 'upload'); upId = null; };
+        $('tlFile').onchange = () => { upId = null; };
+        for (const t of st.targets) api(`backups/targets/${encodeURIComponent(t.id)}/files`).then(r => {
+          if (!$('tlSrc')) return;
+          for (const x of r.files) { const q = { v: `target|${t.id}|${x.file}`, t: `${t.name}: ${fileDate(x.file)}`, source: 'target', target: t.id, file: x.file }; quellen.push(q);
+            $('tlSrc').insertBefore(new Option(q.t, q.v), $('tlSrc').querySelector('option[value="upload"]')); }
+        }).catch(() => {});
+        $('c').onclick = zu;
+        $('ok').onclick = () => busy($('ok'), async () => {
+          sel = $('tlSrc').value;
+          let body;
+          try {
+            if (sel === 'upload') {
+              if (!upId) {
+                const f = $('tlFile').files[0]; if (!f) { toast('Bitte eine Datei wählen.', true); return; }
+                $('ok').textContent = 'Lädt hoch …';
+                const r = await fetch('api/admin/backups/komplett/upload', { method: 'POST', body: f, headers: { 'Content-Type': 'application/octet-stream', 'X-Clubwerk': '1' } });
+                const j = await r.json(); if (!r.ok) throw new Error(j.error || 'Fehler');
+                upId = j.id;
+              }
+              body = { source: 'upload', file: upId };
+            } else { const q = quellen.find(x => x.v === sel); body = { source: q.source, target: q.target, file: q.file }; }
+            $('ok').textContent = 'Öffnet …';
+            inh = await api('backups/teil/oeffnen', 'POST', { ...body, password: $('tlPw').value, tresor: $('tlVault').value });
+            schritt2();
+          } catch (e) { $('ok').textContent = 'Öffnen'; fail(e); if (/Sicherungspasswort/.test(e.message || '')) $('tlPw').focus(); }
+        });
+      };
+      const teile = () => { const m = new Map(); for (const g of inh.gruppen) for (const t of g.teile) m.set(t.id, t); return m; };
+      const schritt2 = (gewaehlt = []) => {
+        dialog(`<h2>Was übernehmen?</h2>
+          <p class="muted s" style="margin-top:0">Sicherung vom ${esc(new Date(inh.created).toLocaleString('de-DE'))}${inh.app ? ' (Clubwerk ' + esc(inh.app) + ')' : ''}. Gleicher Name → aktualisiert, sonst neu. Gelöscht wird nichts.</p>
+          ${inh.tresorFalsch ? '<div class="banner a">Der Tresor der Sicherung ließ sich mit dem eingegebenen Code bzw. Passwort nicht öffnen – vertrauliche Teile bleiben gesperrt.</div>' : ''}
+          <div class="tl-liste">${inh.gruppen.map(g => `<div class="tl-gruppe ${g.teile.length > 2 || g.id === 'kern' ? 'breit' : ''}"><h3>${esc(g.name)}</h3>${g.sperre ? `<p class="muted s">${esc(g.sperre)}</p>` : ''}
+            <div class="tl-teile">${g.teile.map(t => `<label class="chk"><input type="checkbox" data-teil="${esc(t.id)}" ${g.sperre ? 'disabled' : ''} ${gewaehlt.includes(t.id) ? 'checked' : ''}> <span><b>${esc(t.label)}</b>${t.detail ? `<br><span class="muted s">${esc(t.detail)}</span>` : ''}<span class="muted s" data-auto-text></span></span></label>`).join('')}</div></div>`).join('')}</div>
+          <div class="btns"><button class="btn ghost" id="back">Zurück</button><button class="btn primary" id="ok">Vorschau</button></div>`);
+        const map = teile();
+        const box = id => $('dialog').querySelector(`[data-teil="${CSS.escape(id)}"]`);
+        const pruefen = () => {   // Abhängigkeiten: automatisch mit wählen und direkt darunter erklären
+          $('dialog').querySelectorAll('[data-teil]').forEach(b => { if (b.dataset.auto) { b.disabled = false; delete b.dataset.auto; b.parentNode.querySelector('[data-auto-text]').textContent = ''; } });
+          for (const t of map.values()) if (box(t.id) && box(t.id).checked) for (const n of t.braucht || []) {
+            const b = box(n); if (!b || b.dataset.auto) continue;
+            b.checked = true; b.disabled = true; b.dataset.auto = '1';
+            const el = b.parentNode.querySelector('[data-auto-text]'); el.textContent = `Automatisch dabei – ${t.warum}.`; el.insertAdjacentHTML('afterbegin', '<br>');
+          }
+        };
+        $('dialog').querySelectorAll('[data-teil]').forEach(b => { b.onchange = pruefen; });
+        pruefen();
+        $('back').onclick = schritt1;
+        $('ok').onclick = () => busy($('ok'), async () => {
+          const auswahl = [...$('dialog').querySelectorAll('[data-teil]:checked')].map(b => b.dataset.teil);
+          if (!auswahl.length) { toast('Bitte mindestens einen Teil wählen.', true); return; }
+          try { const r = await api('backups/teil/vorschau', 'POST', { id: inh.id, auswahl }); schritt3(r); }
+          catch (e) { fail(e); if (e.status === 410) schritt1(); }
+        });
+      };
+      const zeilen = z => `<div class="tl-zeilen">${z.map(x => `<div class="tl-zeile"><b>${esc(x.name)}</b><span>${esc(x.text)}</span></div>`).join('')}</div>`;
+      const schritt3 = v => {
+        dialog(`<h2>Vorschau</h2>
+          <p class="muted s" style="margin-top:0">So sähe die Übernahme aus – noch ist nichts verändert. Vorher legt Clubwerk automatisch einen Schnappschuss des jetzigen Stands an.</p>
+          ${v.dazu.length ? v.dazu.map(d => `<p class="muted s">„${esc(d.label)}“ ist automatisch dabei – ${esc(d.warum)}.</p>`).join('') : ''}
+          ${zeilen(v.zeilen)}
+          <label class="f">Dein Passwort zur Bestätigung<input type="password" id="tlMy" autocomplete="current-password"></label>
+          <div class="btns"><button class="btn ghost" id="back">Zurück</button><button class="btn primary" id="ok">Übernehmen</button></div>`);
+        $('back').onclick = () => schritt2(v.auswahl);
+        $('ok').onclick = () => busy($('ok'), async () => {
+          try {
+            const r = await api('backups/teil/uebernehmen', 'POST', { id: inh.id, auswahl: v.auswahl, myPassword: $('tlMy').value });
+            inh = null;
+            dialog(`<h2>Übernommen</h2>${zeilen(r.zeilen)}
+              <p class="muted s">Der vorherige Stand liegt als Schnappschuss unter „Datenbank-Schnappschüsse“ (vor Wiederherstellung). Der Vorgang steht im Protokoll.</p>
+              <div class="btns"><button class="btn primary" id="ok">Fertig</button></div>`);
+            $('ok').onclick = () => { closeDialog(); RENDER.sicherung(); };
+          } catch (e) { fail(e); if (e.status === 410) schritt1(); }
+        });
+      };
+      schritt1();
     };
 
     /* ---------- Sicherungsziele ---------- */
