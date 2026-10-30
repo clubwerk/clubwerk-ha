@@ -337,6 +337,13 @@ function register(sh) {
     const common = [...x].filter(w => y.has(w)).length;
     return common / new Set([...x, ...y]).size + (a.cents === b.cents && a.interval === b.interval ? 0.25 : 0);
   }
+  // ähnlicher Name für den Vorschlag „zusammenführen“: Wörter gleich oder mit gleichem Stamm (Jugend – Jugendliche)
+  const stemSame = (a, b) => a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a)));
+  function nameAlike(a, b) {
+    const x = [...words(a)], y = [...words(b)]; if (!x.length || !y.length) return false;
+    const common = x.filter(w => y.some(v => stemSame(w, v))).length;
+    return common / (x.length + y.length - common) >= 0.5;
+  }
   /* ---------- Abteilungen der Datei mit dem Bestand abgleichen (wie die Beitragsarten; „Hauptverein“ ist nie eine Abteilung) ---------- */
   const isHV = n => /^hauptverein$/i.test(String(n || '').trim());
   const deptKey = n => String(n).trim().toLowerCase();
@@ -387,6 +394,8 @@ function register(sh) {
   }
   /** Abteilung einer Datei-Zeile nach Entscheidung: ID, null (nicht übernehmen) oder undefined (nach Namen suchen bzw. neu anlegen) */
   const deptChoice = (deptDec, name) => { const c = deptDec && !isHV(name) ? deptDec.get(deptKey(name)) : undefined; return c === 'skip' ? null : Number.isInteger(c) ? c : undefined; };
+  const feeInfo = x => ({ id: x.id, name: x.name, cents: x.cents, interval: x.interval, active: x.active, age_min: x.age_min, age_max: x.age_max, family: x.family,
+    dept: x.department_id ? (db.prepare('SELECT name FROM mv_department WHERE id = ?').get(x.department_id) || {}).name || null : null });
   /** vorhandene Beitragsart mit genau diesem Namen (gleiche Art) bzw. ähnliche Vorschläge */
   function feeMatch(f, zus, deptDec) {
     const dc = zus ? deptChoice(deptDec, f.dept) : undefined;
@@ -394,18 +403,24 @@ function register(sh) {
     const pool = zus ? (did ? db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz' AND department_id = ?").all(did) : []) : db.prepare("SELECT * FROM mv_fee WHERE kind != 'zusatz'").all();
     const exact = pool.find(x => x.name.trim().toLowerCase() === String(f.name).trim().toLowerCase());
     const suggest = exact ? [] : pool.map(x => ({ x, s: feeSimilarity(f, x) })).filter(o => o.s >= 0.5).sort((a, b) => b.s - a.s).slice(0, 4)
-      .map(o => ({ id: o.x.id, name: o.x.name, cents: o.x.cents, interval: o.x.interval, active: o.x.active }));
-    const others = pool.filter(x => x !== exact && !suggest.some(o => o.id === x.id)).sort((a, b) => a.name.localeCompare(b.name, 'de'))
-      .map(x => ({ id: x.id, name: x.name, cents: x.cents, interval: x.interval, active: x.active }));
-    return { exact: exact ? exact.id : null, suggest, others };
+      .map(o => feeInfo(o.x));
+    const others = pool.filter(x => x !== exact && !suggest.some(o => o.id === x.id)).sort((a, b) => a.name.localeCompare(b.name, 'de')).map(feeInfo);
+    return { exact: exact ? exact.id : null, exactFee: exact ? feeInfo(exact) : null, suggest, others };
   }
-  /** Entscheidungen je Beitragsart (Schlüssel → Beitrags-ID | 'neu' | 'skip'); bei ähnlichen vorhandenen ist eine Entscheidung Pflicht */
-  function feeDecisions(recs, raw, deptDec) {
-    const isDept = deptFeeTest(recs), out = new Map(), seen = new Set();
+  /** Entscheidungen je Beitragsart (Schlüssel → Beitrags-ID | 'neu' | { name } (neu unter anderem Namen) | 'skip' | { into } (zusammengeführt));
+   *  bei ähnlichen vorhandenen ist eine Entscheidung Pflicht; weichen zusammengeführte Arten vom Ziel ab, muss das bestätigt sein (ok) */
+  function feeDecisions(recs, raw, deptDec, ok) {
+    const isDept = deptFeeTest(recs), out = new Map(), info = new Map(), merges = new Map();
     for (const r of recs) for (const f of r.fees) {
-      const zus = isDept(f), key = feeKey(f, zus); if (seen.has(key)) continue; seen.add(key);
+      const zus = isDept(f), key = feeKey(f, zus); if (info.has(key)) continue;
+      const m = feeMatch(f, zus, deptDec), v = raw && raw[key]; info.set(key, { f, zus, m });
       if (f.dept && deptChoice(deptDec, f.dept) === null) { out.set(key, 'skip'); continue; }   // Abteilung „nicht übernehmen“: ihre Beiträge entfallen
-      const m = feeMatch(f, zus, deptDec), v = raw && raw[key];
+      if (v && typeof v === 'object' && typeof v.mit === 'string') { merges.set(key, v.mit); continue; }   // „zusammenführen mit …“ (Ziel aus derselben Datei)
+      if (v && typeof v === 'object' && typeof v.neu === 'string') {   // „neu anlegen als …“
+        const name = one(v.neu, 80); if (!name) throw new Error(`Beitragsart „${f.name}“: Bitte einen Namen für die neue Beitragsart angeben.`);
+        if (name.toLowerCase() !== String(f.name).trim().toLowerCase() && [...m.suggest, ...m.others].some(x => x.name.trim().toLowerCase() === name.toLowerCase())) throw new Error(`Die Beitragsart „${name}“ gibt es schon – bitte „vorhandene verwenden“ wählen.`);
+        out.set(key, { name }); continue;
+      }
       if (m.exact && (v == null || v === '' || v === 'neu')) continue;   // gleicher Name: vorhandene verwenden, außer anders gewählt
       if (v === 'skip' || v === 'neu') { out.set(key, v); continue; }
       if (v != null && v !== '') {
@@ -416,7 +431,33 @@ function register(sh) {
       if (m.suggest.length) throw new Error(`Für die Beitragsart „${f.name}“ gibt es ähnliche vorhandene – bitte wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.`);
       out.set(key, 'neu');
     }
+    // Zusammenführen: Ketten auflösen (A → B, B → vorhandene C ⇒ A → C), Kreise ablehnen
+    const diffs = [];
+    for (const [key, to] of merges) {
+      const src = info.get(key), path = [key]; let k = to;
+      while (merges.has(k) && !path.includes(k)) { path.push(k); k = merges.get(k); }
+      if (path.includes(k)) throw new Error(`Beitragsart „${src.f.name}“: Das Zusammenführen ergibt einen Kreis (${path.concat(k).map(x => `„${info.get(x).f.name}“`).join(' → ')}) – bitte bei einer davon „neu anlegen“ oder eine vorhandene wählen.`);
+      const tgt = info.get(k);
+      if (!tgt || tgt.zus !== src.zus || (src.zus && deptKey(tgt.f.dept) !== deptKey(src.f.dept))) throw new Error(`Beitragsart „${src.f.name}“: Diese Zuordnung passt nicht – bitte die Vorschau neu laden.`);
+      if (out.get(k) === 'skip') throw new Error(`Beitragsart „${src.f.name}“: Das Ziel „${tgt.f.name}“ wird nicht übernommen – bitte ein anderes Ziel wählen.`);
+      out.set(key, { into: tgt.f });
+      const d = mergeDiff(src.f, targetOf(tgt, out.get(k))); if (d) diffs.push(`„${src.f.name}“: ${d}`);
+    }
+    if (diffs.length && !ok) throw new Error(`Die zusammengeführten Beitragsarten weichen vom Ziel ab (${diffs.join('; ')}). Bitte die Abweichungen bestätigen – es gilt die Zielart.`);
     return out;
+  }
+  /** Eigenschaften der Zielart: vorhandene Beitragsart bzw. die Art aus der Datei (Altersgrenzen und Familie wie beim Anlegen aus dem Namen) */
+  function targetOf(t, choice) {
+    const id = Number.isInteger(choice) ? choice : choice === undefined ? t.m.exact : null;
+    if (id) { const x = db.prepare('SELECT f.*, d.name AS dept FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id WHERE f.id = ?').get(id); return { ...x, family: x.family ? 1 : 0 }; }
+    const g = guessAges(t.f.name);
+    return { cents: t.f.cents || 0, interval: t.f.interval, age_min: g.age_min, age_max: g.age_max, family: t.zus ? 0 : g.family, dept: t.f.dept };
+  }
+  /** Abweichungen einer zusammengeführten Art vom Ziel (Betrag, Rhythmus, Altersgrenzen, Familie, Abteilung) – leer, wenn gleich */
+  function mergeDiff(f, t) {
+    const g = guessAges(f.name), dn = x => (x && !isHV(x) ? String(x).trim().toLowerCase() : '');
+    return [(f.cents || 0) !== (t.cents || 0) && 'Betrag', f.interval !== t.interval && 'Rhythmus', (g.age_min !== t.age_min || g.age_max !== t.age_max) && 'Altersgrenzen',
+      Boolean(g.family) !== Boolean(t.family) && 'Familie', dn(f.dept) !== dn(t.dept) && 'Abteilung'].filter(Boolean).join(', ');
   }
 
   function plan(recs) {
@@ -465,7 +506,7 @@ function register(sh) {
       for (const d of r.depts) if (!db.prepare('SELECT 1 FROM mv_department WHERE lower(name) = lower(?)').get(d.name)) out.depts.add(d.name);
       for (const f of r.fees) {
         const zus = isDept(f), key = feeKey(f, zus);
-        if (!out.fees.has(key)) out.fees.set(key, { key, name: f.name, cents: f.cents, interval: f.interval, dept: zus ? f.dept : null, ...feeMatch(f, zus), count: 0,
+        if (!out.fees.has(key)) out.fees.set(key, { key, name: f.name, cents: f.cents, interval: f.interval, dept: zus ? f.dept : null, kind: zus ? 'zusatz' : 'grund', fdept: f.dept && !isHV(f.dept) ? f.dept : null, ...guessAges(f.name), ...feeMatch(f, zus), count: 0,
           example: { name: `${r.p.first_name || ''} ${r.p.last_name || ''}`.trim(), line: r.line, start: f.start, end: f.end, booked: f.booked, cents: f.cents, interval: f.interval } });
         out.fees.get(key).count++;
       }
@@ -486,6 +527,17 @@ function register(sh) {
       ['Status', SAMPLE_LABEL[ex.p.status] || ex.p.status], ['Zahlungsart', SAMPLE_LABEL[ex.p.payment] || ex.p.payment], ['Kontoinhaber', ex.bank && ex.bank.holder], ['IBAN', ex.bank && sepa.maskIban(ex.bank.iban)], ['BIC', ex.bank && ex.bank.bic],
       ['Mandatsreferenz', ex.bank && ex.bank.mandate_ref], ['Mandat unterschrieben', ex.bank && ex.bank.mandate_date && fees.deD(ex.bank.mandate_date)],
       ['Abweichender Zahler', ex.payer.member], ['Familie bei', ex.family], ['Abteilungen', ex.depts.map(d => d.name).join(', ')], ['Beiträge', ex.fees.map(f => f.name).join(', ')]].map(([label, value]) => ({ label, value: value == null ? '' : String(value) })) } : null;
+    // gleich aussehende Beitragsarten der Datei (gleicher Betrag, Rhythmus und Abteilung, ähnlicher Name) → Vorschlag „zusammenführen“ mit der größten
+    const fl = [...out.fees.values()], grp = new Map(fl.map(f => [f.key, f.key])), root = k => (grp.get(k) === k ? k : root(grp.get(k)));
+    const deptOf = f => (f.kind === 'zusatz' ? deptKey(f.dept) : '');
+    for (const a of fl) for (const b of fl) if (a.key < b.key && (a.cents || 0) === (b.cents || 0) && a.interval === b.interval && a.kind === b.kind && deptOf(a) === deptOf(b) && nameAlike(a.name, b.name)) grp.set(root(a.key), root(b.key));
+    const groups = new Map(); for (const f of fl) { const k = root(f.key); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(f); }
+    let gn = 0;
+    for (const g of groups.values()) {
+      if (g.length < 2) continue; gn++;
+      const t = g.slice().sort((a, b) => b.count - a.count || a.name.localeCompare(b.name, 'de'))[0];
+      for (const f of g) { f.group = gn; if (f !== t) f.mergeTo = t.key; }
+    }
     const deptMatches = [...fileDepts(recs).values()].map(e => ({ key: e.key, name: e.name, count: e.recs.size, fees: e.feeKeys.size, example: e.example, ...deptMatch(e.name) })).filter(d => !d.exact).sort((a, b) => a.name.localeCompare(b.name, 'de'));
     return { ...out, yearHint, sample, depts: [...out.depts], deptMatches, fees: [...out.fees.values()] };
   }
@@ -506,13 +558,15 @@ function register(sh) {
         if (f.dept && deptChoice(deptDec, f.dept) === null) return null;   // Abteilung „nicht übernehmen“: auch ihre Beiträge
         if (choice === 'skip') return null;                 // „nicht übernehmen“: Mitglied ohne diesen Beitrag (Hinweis „ohne Beitrag“)
         if (Number.isInteger(choice)) return choice;        // „vorhandene verwenden“
+        if (choice && choice.into) return feeId(choice.into);   // „zusammenführen“: Beitragsart des Ziels
+        const name = choice && choice.name ? choice.name : f.name;   // „neu anlegen als …“
         const did = zus ? deptId(f.dept) : null;
-        let x = zus ? db.prepare("SELECT id FROM mv_fee WHERE lower(name) = lower(?) AND kind = 'zusatz' AND department_id = ?").get(f.name, did)
-          : db.prepare("SELECT id FROM mv_fee WHERE lower(name) = lower(?) AND kind != 'zusatz'").get(f.name);
+        let x = zus ? db.prepare("SELECT id FROM mv_fee WHERE lower(name) = lower(?) AND kind = 'zusatz' AND department_id = ?").get(name, did)
+          : db.prepare("SELECT id FROM mv_fee WHERE lower(name) = lower(?) AND kind != 'zusatz'").get(name);
         if (!x) {
           const g = guessAges(f.name);
           x = { id: Number(db.prepare('INSERT INTO mv_fee(name, kind, department_id, cents, interval, age_min, age_max, family, work_minutes, on_form) VALUES (?,?,?,?,?,?,?,?,?,?)')
-            .run(f.name, zus ? 'zusatz' : 'grund', zus ? did : (f.dept && !/^hauptverein$/i.test(f.dept) ? deptId(f.dept) : null), f.cents || 0, f.interval, g.age_min, g.age_max, zus ? 0 : g.family, zus ? null : g.work_minutes, zus ? 0 : 1).lastInsertRowid) };
+            .run(name, zus ? 'zusatz' : 'grund', zus ? did : (f.dept && !/^hauptverein$/i.test(f.dept) ? deptId(f.dept) : null), f.cents || 0, f.interval, g.age_min, g.age_max, zus ? 0 : g.family, zus ? null : g.work_minutes, zus ? 0 : 1).lastInsertRowid) };
           stats.fees++;
         }
         return x.id;
@@ -535,9 +589,11 @@ function register(sh) {
           if (!db.prepare('SELECT 1 FROM mv_member_department WHERE member_id = ? AND department_id = ? AND COALESCE(entry_date,\'\') = COALESCE(?,\'\')').get(id, did, d.entry))
             db.prepare('INSERT INTO mv_member_department(member_id, department_id, entry_date, exit_date, status, federation_status, exit_reason, booked_until) VALUES (?,?,?,?,?,?,?,?)').run(id, did, d.entry, d.exit, d.status, d.fed || null, d.reason || null, store.zusatzStart(did, d.entry || r.p.entry_date));
         }
-        // Beiträge (mit „gebucht bis“)
+        // Beiträge (mit „gebucht bis“); zusammengeführte Arten: der Betrag des Ziels gilt, je Mitglied nur einmal
+        const given = new Map();
         for (const f of r.fees) {
           const fid = feeId(f); if (!fid) { r.skipped = true; continue; }
+          const merged = Boolean((feeDec.get(feeKey(f, isDeptFee(f))) || {}).into);
           if (isDeptFee(f)) {   // Zusatzbeitrag → „abgerechnet bis“ an der Abteilungszugehörigkeit
             const did = deptId(f.dept);
             let md = db.prepare('SELECT * FROM mv_member_department WHERE member_id = ? AND department_id = ? ORDER BY exit_date IS NOT NULL, id DESC LIMIT 1').get(id, did);
@@ -551,10 +607,15 @@ function register(sh) {
           }
           const fee = db.prepare('SELECT cents FROM mv_fee WHERE id = ?').get(fid);
           const start = f.start || r.p.entry_date || today();
+          if (given.has(fid) && (merged || given.get(fid).merged) && !f.end && !given.get(fid).end) {   // zusammengeführt auf dieselbe Zielart: ein Posten, „gebucht bis“ das spätere
+            const g = given.get(fid); db.prepare('UPDATE mv_member_fee SET booked_until = ? WHERE id = ?').run([g.booked, f.booked].filter(Boolean).sort().pop() || null, g.id); g.booked = [g.booked, f.booked].filter(Boolean).sort().pop() || null; continue;
+          }
           const ex = db.prepare('SELECT id FROM mv_member_fee WHERE member_id = ? AND fee_id = ? AND start_date = ?').get(id, fid, start);
-          const cents = f.cents != null && f.cents !== fee.cents ? f.cents : null;
+          const cents = !merged && f.cents != null && f.cents !== fee.cents ? f.cents : null;
+          let mfId = ex && ex.id;
           if (ex) db.prepare('UPDATE mv_member_fee SET end_date = ?, booked_until = ?, cents = ? WHERE id = ?').run(f.end, f.booked, cents, ex.id);
-          else db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents) VALUES (?,?,?,?,?,?)').run(id, fid, start, f.end, f.booked, cents);
+          else mfId = Number(db.prepare('INSERT INTO mv_member_fee(member_id, fee_id, start_date, end_date, booked_until, cents) VALUES (?,?,?,?,?,?)').run(id, fid, start, f.end, f.booked, cents).lastInsertRowid);
+          given.set(fid, { id: mfId, booked: f.booked, end: f.end, merged });
         }
         // Bankverbindung & Mandat (schon in Gebrauch: Folgelastschrift)
         const b = r.bank || (r.payer.iban && !r.payer.member ? { holder: r.payer.holder, iban: r.payer.iban, bic: r.payer.bic, bank: r.payer.bank } : null);
@@ -647,7 +708,7 @@ function register(sh) {
     try {
       const raw = JSON.parse(decodeURIComponent(String(req.get('X-Decisions') || '')) || '{}') || {};
       const both = raw.m || raw.f || raw.d ? raw : { m: raw, f: {} };
-      dec = decisions(recs, both.m || {}); deptDec = deptDecisions(recs, both.d || {}); feeDec = feeDecisions(recs, both.f || {}, deptDec);
+      dec = decisions(recs, both.m || {}); deptDec = deptDecisions(recs, both.d || {}); feeDec = feeDecisions(recs, both.f || {}, deptDec, both.fok === true);
     } catch (e) { return bad(res, e.message || 'Die Entscheidungen sind ungültig.'); }
     const stats = commit(recs, uname(req), dec, feeDec, deptDec);
     if (map) SET('import_map_' + format, JSON.stringify(map));   // nur Spaltennamen, keine Daten

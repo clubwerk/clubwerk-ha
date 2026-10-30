@@ -67,8 +67,15 @@ The preview has four check cards:
 
 - **Similar names already on file** (e.g. “Benni” and “Benedikt”): merge them or create a new member.
 - **Departments from the file:** assign an existing one, create a new one or do not take it over.
-- **Fee types from the file:** the same. “Do not take over” means the member comes without this fee.
+- **Fee types from the file:** the same. “Do not take over” means the member comes without this fee. There is also “merge with …” (see below).
 - **Field check with an example:** this is how the columns of one person end up in Clubwerk.
+
+**Merging fee types.** If the old program keeps the same fee type under several names (e.g. “Youth up to 18” and “Juniors up to 18”), choose “merge with “…”” for one of them. The chosen one is the target: it is created, under a new name if you like (“create as”), or you assign it to an existing fee type. All members of the merged types end up in the target type, each exactly once.
+
+- If fee types look the same (same amount, frequency and department, similar name), Clubwerk suggests merging them: a blue note appears at the top, the group is framed in colour and marked “similar”.
+- The amount, frequency, age limits, family setting and department of the target apply. If anything differs, a yellow warning box states who will pay how much in future. Nothing is imported without ticking “Understood – import like this”.
+- Chains are allowed (A with B, B with C), loops are not.
+- The “Result” line shows before importing which fee types will be created and with how many members.
 
 #### Excel
 

@@ -67,8 +67,15 @@ Die Vorschau hat vier Prüfkarten:
 
 - **Ähnliche Namen im Bestand** (z. B. „Benni“ und „Benedikt“): zusammenführen oder als neues Mitglied anlegen.
 - **Abteilungen aus der Datei:** eine vorhandene zuordnen, neu anlegen oder nicht übernehmen.
-- **Beitragsarten aus der Datei:** ebenso. „Nicht übernehmen“ heißt, das Mitglied kommt ohne diesen Beitrag.
+- **Beitragsarten aus der Datei:** ebenso. „Nicht übernehmen“ heißt, das Mitglied kommt ohne diesen Beitrag. Dazu kommt „zusammenführen mit …“ (siehe unten).
 - **Feldabgleich am Beispiel:** so landen die Spalten einer Person in Clubwerk.
+
+**Beitragsarten zusammenführen.** Führt das alte Programm dieselbe Beitragsart unter mehreren Namen (z. B. „Jugend bis 18“ und „Jugendliche bis 18“), wählt ihr bei einer davon „zusammenführen mit „…““. Die gewählte ist das Ziel: Sie wird neu angelegt, auf Wunsch unter neuem Namen („neu anlegen als“), oder ihr legt sie auf eine vorhandene Beitragsart. Alle Mitglieder der zusammengeführten Arten landen in der Zielart, jedes genau einmal.
+
+- Sehen Beitragsarten gleich aus (gleicher Betrag, Rhythmus und Abteilung, ähnlicher Name), schlägt Clubwerk das Zusammenführen vor: Ein blauer Hinweis steht oben, die Gruppe ist farbig gefasst und mit „ähnlich“ gekennzeichnet.
+- Es gelten Betrag, Rhythmus, Altersgrenzen, Familie und Abteilung der Zielart. Weicht etwas ab, nennt ein gelber Warnkasten, wer künftig wie viel zahlt. Ohne den Haken „Verstanden – so übernehmen“ wird nichts übernommen.
+- Ketten sind erlaubt (A mit B, B mit C), Kreise nicht.
+- Die Zeile „Ergebnis“ zeigt vor dem Übernehmen, welche Beitragsarten neu entstehen und mit wie vielen Mitgliedern.
 
 #### Excel
 

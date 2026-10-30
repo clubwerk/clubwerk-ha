@@ -37,6 +37,9 @@
       .mv-grid .w2 { grid-column: span 2; } .mv-grid .wall { grid-column: 1 / -1; }
       .imp-sim { margin: 12px 0; } .imp-simrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); }
       .imp-simrow > div { display: flex; flex-direction: column; min-width: 0; } .imp-simrow select { height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); padding: 0 10px; font: inherit; font-size: 14px; color: var(--ink); min-width: 0; width: 100%; }
+      .imp-pick { display: flex; flex-direction: column; gap: 6px; min-width: 0; } .imp-pick input { height: 40px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); padding: 0 10px; font: inherit; font-size: 14px; color: var(--ink); min-width: 0; width: 100%; box-sizing: border-box; }
+      .imp-merge { border-left: 3px solid var(--brand); background: var(--brand-soft); border-radius: 0 10px 10px 0; padding: 0 12px 0 9px; margin: 8px -12px; } .imp-merge > .imp-simrow:first-child { border-top: 0; }
+      .imp-warn > span { display: flex; flex-direction: column; gap: 6px; } .imp-wl { display: block; } .imp-sum { margin: 10px 0 0; } .imp-nm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
       .imp-fields { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px 16px; }
       .imp-field { display: flex; flex-direction: column; min-width: 0; } .imp-field b { font-weight: 600; overflow-wrap: anywhere; } .imp-field.leer b { color: var(--muted); font-weight: 500; }
       @media (max-width: 700px) { .imp-simrow { grid-template-columns: 1fr; gap: 6px; } }
@@ -713,9 +716,10 @@
       return '?' + q.toString();
     };
     let dec = {};   // ähnliche Namen: Zeile → Mitglieds-ID oder 'neu'
-    let feeDec = {};   // Beitragsarten: Schlüssel → Beitrags-ID, 'neu' oder 'skip' ('' = noch nicht gewählt)
+    let feeDec = {};   // Beitragsarten: Schlüssel → Beitrags-ID, 'neu', 'skip' oder 'mit:<Schlüssel>' (zusammenführen; '' = noch nicht gewählt)
+    let feeName = {}, feeOk = false, feeOut = () => ({}), feeCheckNow = () => ({ errs: [], diffs: [] });   // „neu anlegen als …“, Abweichungen bestätigt, Entscheidungen für den Server
     let deptDec = {};   // Abteilungen: Schlüssel → Abteilungs-ID, 'neu' oder 'skip' ('' = noch nicht gewählt)
-    const run = commit => send('import/run' + query(commit), { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeDec, d: deptDec })) } : {}) });
+    const run = commit => send('import/run' + query(commit), { 'X-Mapping': encodeURIComponent(JSON.stringify(mapping())), ...(commit ? { 'X-Decisions': encodeURIComponent(JSON.stringify({ m: dec, f: feeOut(), d: deptDec, fok: feeOk })) } : {}) });
     const setStep = s => {
       step = s;
       $('iMap').classList.toggle('hidden', s === 'prev'); $('iPrev').classList.toggle('hidden', s !== 'prev');
@@ -756,7 +760,8 @@
     function drawPrev() {
       const sim = prev.rows.filter(r => r.suggest && r.suggest.length);
       const feeRows = prev.fees || [];
-      feeDec = {}; feeRows.forEach(f => { if (!f.exact) feeDec[f.key] = f.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen   // bei ähnlichen vorhandenen: bewusst wählen
+      feeDec = {}; feeName = {}; feeOk = false;
+      feeRows.forEach(f => { if (f.mergeTo) feeDec[f.key] = 'mit:' + f.mergeTo; else if (!f.exact) feeDec[f.key] = f.suggest.length ? '' : 'neu'; });   // gleich aussehende: „zusammenführen“ vorgeschlagen; bei ähnlichen vorhandenen: bewusst wählen
       const deptRows = prev.deptMatches || [];
       deptDec = {}; deptRows.forEach(d => { deptDec[d.key] = d.suggest.length ? '' : 'neu'; });   // bei ähnlichen vorhandenen: bewusst wählen
       const deptOpt = x => `<option value="${x.id}">${esc(x.name)}${x.active === 0 ? ' · inaktiv' : ''}</option>`;
@@ -764,11 +769,77 @@
         + (d.suggest.length ? `<optgroup label="ähnliche vorhandene">${d.suggest.map(deptOpt).join('')}</optgroup>` : '')
         + (d.others.length ? `<optgroup label="${d.suggest.length ? 'alle anderen Abteilungen' : 'vorhandene Abteilungen'}">${d.others.map(deptOpt).join('')}</optgroup>` : '');
       const newFees = () => Object.values(feeDec).filter(v => v === 'neu').length;
+      const fk = k => feeRows.find(f => f.key === k);
+      const same = (a, b) => a.kind === b.kind && (a.kind !== 'zusatz' || String(a.dept).toLowerCase() === String(b.dept).toLowerCase());
+      const isMit = v => typeof v === 'string' && v.startsWith('mit:');
+      /** Ziel einer Beitragsart nach Auflösen der Kette (A → B → C); bei einem Kreis { loop } */
+      const finalOf = key => { const path = [key]; let v = feeDec[key]; while (isMit(v)) { const k = v.slice(4); if (path.includes(k)) return { loop: path.concat(k) }; path.push(k); v = feeDec[k]; } return { key: path[path.length - 1], v }; };
+      const targeted = key => feeRows.some(f => f.key !== key && isMit(feeDec[f.key]) && finalOf(f.key).key === key);
+      /** Eigenschaften der Zielart: gewählte vorhandene bzw. die Art aus der Datei */
+      const tgtAttr = (t, v) => { const x = Number.isInteger(v) ? [...t.suggest, ...t.others].find(o => o.id === v) : (v === undefined || v === '') ? t.exactFee : null;
+        return x ? { ...x, isNew: false } : { name: (targeted(t.key) && (feeName[t.key] || '').trim()) || t.name, cents: t.cents || 0, interval: t.interval, age_min: t.age_min, age_max: t.age_max, family: t.family, dept: t.kind === 'zusatz' ? t.dept : t.fdept, isNew: true }; };
+      const ageTxt = (x, kurz) => (x.age_min != null && x.age_max != null ? (kurz ? `${x.age_min}–${x.age_max} J.` : `${x.age_min}–${x.age_max} Jahre`)
+        : x.age_max != null ? (kurz ? `bis ${x.age_max} J.` : `bis ${x.age_max} Jahre`) : x.age_min != null ? (kurz ? `ab ${x.age_min} J.` : `ab ${x.age_min} Jahre`) : 'keine');
+      const ivTxt = i => INTERVAL[i] || i;
+      feeOut = () => Object.fromEntries(Object.entries(feeDec).map(([k, v]) => [k, isMit(v) ? { mit: v.slice(4) } : v === 'neu' && targeted(k) && (feeName[k] || '').trim() && feeName[k].trim() !== fk(k).name ? { neu: feeName[k].trim() } : v]));
+      /** Hinweise zum Zusammenführen: Kreise, Ziel „nicht übernehmen“, Abweichungen vom Ziel (es gilt die Zielart) und die Ergebniszeile */
+      const feeCheck = () => {
+        const errs = [], diffs = [], members = {};
+        feeRows.forEach(f => { const r = finalOf(f.key); if (!r.loop) members[r.key] = (members[r.key] || 0) + f.count; });
+        feeRows.filter(f => isMit(feeDec[f.key])).forEach(f => {
+          const r = finalOf(f.key);
+          if (r.loop) return errs.push(`Kreis beim Zusammenführen: ${r.loop.map(k => `„${fk(k).name}“`).join(' → ')}. Bitte bei einer davon „neu anlegen“ oder eine vorhandene wählen.`);
+          if (r.v === 'skip') return errs.push(`„${f.name}“ soll mit „${fk(r.key).name}“ zusammengeführt werden – diese wird aber nicht übernommen.`);
+          const t = tgtAttr(fk(r.key), r.v), n = members[r.key], fd = f.kind === 'zusatz' ? f.dept : f.fdept;
+          if ((f.cents || 0) !== (t.cents || 0)) diffs.push(`„${f.name}“ kostet ${euro(f.cents || 0)}, „${t.name}“ ${euro(t.cents || 0)}. Nach dem Zusammenführen zahlen alle ${n} Mitglieder ${euro(t.cents || 0)}.`);
+          if (f.interval !== t.interval) diffs.push(`„${f.name}“ wird ${ivTxt(f.interval)} abgerechnet, „${t.name}“ ${ivTxt(t.interval)} – künftig alle ${ivTxt(t.interval)}.`);
+          if (f.age_min !== t.age_min || f.age_max !== t.age_max) diffs.push(`Altersgrenze „${f.name}“: ${ageTxt(f)}, „${t.name}“: ${ageTxt(t)} – künftig ${ageTxt(t)}.`);
+          if (Boolean(f.family) !== Boolean(t.family)) diffs.push(t.family ? `„${t.name}“ ist ein Familienbeitrag – das gilt künftig auch für „${f.name}“.` : `„${t.name}“ ist kein Familienbeitrag – das gilt künftig auch für „${f.name}“.`);
+          if (String(fd || '').toLowerCase() !== String(t.dept || '').toLowerCase()) diffs.push(`Abteilung „${f.name}“: ${fd || 'keine'}, „${t.name}“: ${t.dept || 'keine'} – künftig ${t.dept || 'keine'}.`);
+        });
+        feeRows.filter(f => feeDec[f.key] === 'neu' && targeted(f.key)).forEach(f => { const n = (feeName[f.key] ?? f.name).trim().toLowerCase();
+          if (!n) errs.push(`Bitte einen Namen für die neue Beitragsart angeben (statt „${f.name}“).`);
+          else if (n !== f.name.toLowerCase() && [...f.suggest, ...f.others].some(x => x.name.trim().toLowerCase() === n)) errs.push(`Die Beitragsart „${(feeName[f.key] ?? f.name).trim()}“ gibt es schon – bitte bei „${f.name}“ im Auswahlfeld diese vorhandene wählen.`); });
+        const neu = [], used = new Set(); let skip = 0, merged = 0;
+        feeRows.forEach(f => { const v = feeDec[f.key];
+          if (isMit(v)) { merged++; return; } if (v === 'skip') { skip++; return; }
+          const t = tgtAttr(f, v); if (t.isNew) neu.push({ t, n: members[f.key] || f.count }); else used.add(t.id); });
+        const famTxt = t => (t.family ? ', Familie' : ''), mTxt = n => `${n} ${n === 1 ? 'Mitglied' : 'Mitgliedern'}`;
+        const neuTxt = x => `„${x.t.name}“ (${euro(x.t.cents)}, ${ivTxt(x.t.interval)}${x.t.age_min != null || x.t.age_max != null ? ', ' + ageTxt(x.t, true) : ''}${famTxt(x.t)}) mit ${mTxt(x.n)}`;
+        const sum = [neu.length === 1 ? `1 neue Beitragsart ${neuTxt(neu[0])}` : neu.length && neu.length <= 3 ? `${neu.length} neue Beitragsarten: ${neu.map(neuTxt).join(', ')}` : neu.length ? `${neu.length} neue Beitragsarten` : '',
+          used.size ? `${used.size} vorhandene verwendet` : '', merged ? `${merged} zusammengeführt` : '', skip ? `${skip} nicht übernommen` : ''].filter(Boolean).join(' · ');
+        return { errs, diffs, sum };
+      };
+      feeCheckNow = feeCheck;
       const feeOpt = x => `<option value="${x.id}">${esc(x.name)} (${euro(x.cents || 0)} ${esc(INTERVAL[x.interval] || x.interval)})${x.active === 0 ? ' · inaktiv' : ''}</option>`;
-      const feeOpts = f => (f.exact ? '<option value="">vorhandene verwenden (gleicher Name)</option>' : `${f.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}<option value="neu" ${feeDec[f.key] === 'neu' ? 'selected' : ''}>neu anlegen</option>`)
+      const feeOpts = f => (f.exact ? '<option value="">vorhandene verwenden (gleicher Name)</option>' : `${f.suggest.length ? '<option value="">— bitte wählen —</option>' : ''}<option value="neu">neu anlegen</option>`)
         + '<option value="skip">nicht übernehmen</option>'
+        + (feeRows.some(o => o !== f && same(o, f)) ? `<optgroup label="mit Beitragsart aus der Datei">${feeRows.filter(o => o !== f && same(o, f)).map(o => `<option value="mit:${esc(o.key)}">zusammenführen mit „${esc(o.name)}“</option>`).join('')}</optgroup>` : '')
         + (f.suggest.length ? `<optgroup label="ähnliche vorhandene">${f.suggest.map(feeOpt).join('')}</optgroup>` : '')
         + (f.others.length ? `<optgroup label="${f.suggest.length ? 'alle anderen Beitragsarten' : 'vorhandene Beitragsarten'}">${f.others.map(feeOpt).join('')}</optgroup>` : '');
+      const feeRow = f => `<div class="imp-simrow"><div><span class="imp-nm"><b translate="no">${esc(f.name)}${f.dept ? ` · ${esc(f.dept)}` : ''}</b>${f.group ? '<span class="pill b">ähnlich</span>' : ''}</span><span class="muted s">${euro(f.cents || 0)} ${esc(INTERVAL[f.interval] || f.interval)} · ${f.count} ${f.count === 1 ? 'Mitglied' : 'Mitglieder'} · Beispiel: <span translate="no">${esc(GK.lastFirst(f.example.name))}</span>${f.example.booked ? ` · gebucht bis ${deDate(f.example.booked)}` : ''}</span></div>
+            <div class="imp-pick"><select data-fee="${esc(f.key)}" translate="no" aria-label="${esc(f.name)}">${feeOpts(f)}</select>${feeDec[f.key] === 'neu' && targeted(f.key) ? `<label class="f">neu anlegen als<input data-feename="${esc(f.key)}" value="${esc(feeName[f.key] ?? f.name)}" maxlength="80" translate="no"></label>` : ''}</div></div>`;
+      const drawFeeInfo = () => {
+        const c = feeCheck(), el = $('iFeeInfo'); if (!el) return;
+        el.innerHTML = `${c.errs.map(e => `<div class="banner r"><span>${esc(e)}</span></div>`).join('')}
+          ${c.diffs.length ? `<div class="banner a imp-warn"><span><b>Die zusammengeführten Beitragsarten unterscheiden sich – es gilt die Zielart.</b>${c.diffs.map(d => `<span class="imp-wl">${esc(d)}</span>`).join('')}
+            <label class="chk"><input type="checkbox" id="iFeeOk" ${feeOk ? 'checked' : ''}> Verstanden – so übernehmen</label></span></div>` : ''}
+          ${c.sum ? `<p class="imp-sum"><b>Ergebnis:</b> <span translate="no">${esc(c.sum)}</span></p>` : ''}`;
+        if ($('iFeeOk')) $('iFeeOk').onchange = () => { feeOk = $('iFeeOk').checked; };
+        $('iKF').textContent = newFees();
+      };
+      const drawFees = () => {
+        const el = $('iFeeRows'); if (!el) return;
+        const feeBlocks = [], seenG = new Set();   // gleich aussehende Arten stehen zusammen (farbig gefasst), in der Reihenfolge der Datei
+        feeRows.forEach(f => { if (!f.group) feeBlocks.push(feeRow(f)); else if (!seenG.has(f.group)) { seenG.add(f.group); feeBlocks.push(`<div class="imp-merge">${feeRows.filter(o => o.group === f.group).map(feeRow).join('')}</div>`); } });
+        el.innerHTML = feeBlocks.join('');
+        el.querySelectorAll('[data-fee]').forEach(sel => {
+          const v = feeDec[sel.dataset.fee]; sel.value = v === undefined ? '' : String(v);
+          sel.onchange = () => { if (sel.value === '' && fk(sel.dataset.fee).exact) delete feeDec[sel.dataset.fee]; else feeDec[sel.dataset.fee] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; feeOk = false; drawFees(); };
+        });
+        el.querySelectorAll('[data-feename]').forEach(inp => { inp.oninput = () => { feeName[inp.dataset.feename] = inp.value; drawFeeInfo(); }; });
+        drawFeeInfo();
+      };
       dec = {}; sim.forEach(r => { dec[r.line] = r.suggest[0].sameBirth ? r.suggest[0].id : 'neu'; });
       const merged = () => Object.values(dec).filter(v => v !== 'neu').length;
       const sugLabel = c => `zusammenführen mit ${GK.lastFirst(c.name)}${c.member_no ? ` · Nr. ${c.member_no}` : ''}${c.birth_date ? ` · ${deDate(c.birth_date)}` : ''} (${c.why})`;
@@ -787,15 +858,15 @@
           <p class="muted s" style="margin:0 0 10px">So landen die Spalten eurer Datei in Clubwerk. Stimmt etwas nicht, abbrechen und die Zuordnung bzw. die Datei prüfen.</p>
           <div class="imp-fields">${prev.sample.fields.map(f => `<div class="imp-field${f.value ? '' : ' leer'}"><span class="muted s">${esc(f.label)}</span><b translate="no">${f.value ? esc(f.value) : '– leer –'}</b></div>`).join('')}</div></div>` : ''}
         ${feeRows.length ? `<div class="card soft imp-sim"><h3 style="margin:0 0 4px">Beitragsarten aus der Datei <span class="muted s">(${feeRows.length})</span></h3>
-          <p class="muted s" style="margin:0 0 10px">Je Beitragsart ein Beispielmitglied. Ihr könnt jede vorhandene Beitragsart zuordnen, eine neue anlegen oder den Beitrag nicht übernehmen – gibt es schon eine ähnliche, ist die Wahl Pflicht. „Nicht übernehmen“: Das Mitglied wird ohne diesen Beitrag importiert.</p>
-          ${feeRows.map(f => `<div class="imp-simrow"><div><b translate="no">${esc(f.name)}${f.dept ? ` · ${esc(f.dept)}` : ''}</b><span class="muted s">${euro(f.cents || 0)} ${esc(INTERVAL[f.interval] || f.interval)} · ${f.count} ${f.count === 1 ? 'Mitglied' : 'Mitglieder'} · Beispiel: <span translate="no">${esc(GK.lastFirst(f.example.name))}</span>${f.example.booked ? ` · gebucht bis ${deDate(f.example.booked)}` : ''}</span></div>
-            <select data-fee="${esc(f.key)}" translate="no">${feeOpts(f)}</select></div>`).join('')}</div>` : ''}
+          <p class="muted s" style="margin:0 0 10px">Je Beitragsart ein Beispielmitglied. Ihr könnt jede vorhandene Beitragsart zuordnen, eine neue anlegen, sie mit einer anderen Beitragsart aus der Datei zusammenführen oder den Beitrag nicht übernehmen – gibt es schon eine ähnliche, ist die Wahl Pflicht. „Nicht übernehmen“: Das Mitglied wird ohne diesen Beitrag importiert.</p>
+          ${feeRows.some(f => f.group) ? '<div class="banner b"><span>Einige Beitragsarten sehen gleich aus (gleicher Betrag, Rhythmus und Abteilung, ähnlicher Name). Vorgeschlagen ist „zusammenführen“: Alle ihre Mitglieder landen dann in einer Beitragsart.</span></div>' : ''}
+          <div id="iFeeRows"></div><div id="iFeeInfo"></div></div>` : ''}
         <div class="scroll" style="max-height:44vh"><table class="tbl"><tr><th>Zeile</th><th>Nr.</th><th>Name</th><th>Aktion</th><th>Abteilungen</th><th>Beiträge</th><th>Zahler</th><th>Mandat</th></tr>
           ${prev.rows.slice(0, 500).map(r => `<tr class="${r.exit ? 'off' : ''}"><td class="muted">${r.line}</td><td>${esc(r.member_no || '')}</td><td><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.exit ? `<div class="muted s">ausgetreten ${deDate(r.exit)}</div>` : ''}</td><td data-act="${r.line}">${r.suggest && r.suggest.length ? '' : r.action === 'neu' ? '<span class="pill g">neu</span>' : `<span class="pill b">${esc(r.action)}</span>`}</td><td translate="no">${esc(r.depts)}</td><td class="s" translate="no">${esc(r.fees)}</td><td class="s">${r.payer ? `<span translate="no">${esc(GK.lastFirst(r.payer.name))}</span>${r.payer.missing ? ' <span class="pill a">nicht gefunden</span>' : r.payer.family ? ' <span class="pill b">Familie</span>' : r.payer.check ? ' <span class="pill a">prüfen</span>' : ''}` : ''}</td><td translate="no">${esc(r.mandate)}</td></tr>`).join('')}</table></div>`;
       const acts = () => sim.forEach(r => { const td = document.querySelector(`[data-act="${r.line}"]`); if (td) td.innerHTML = dec[r.line] === 'neu' ? '<span class="pill g">neu</span>' : '<span class="pill b">zusammenführen</span>'; });
       document.querySelectorAll('[data-sim]').forEach(sel => { sel.onchange = () => { dec[sel.dataset.sim] = sel.value === 'neu' ? 'neu' : Number(sel.value); $('iKN').textContent = prev.new - merged(); $('iKU').textContent = prev.update + merged(); acts(); }; });
       document.querySelectorAll('[data-dept]').forEach(sel => { sel.onchange = () => { deptDec[sel.dataset.dept] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; }; });
-      document.querySelectorAll('[data-fee]').forEach(sel => { sel.onchange = () => { if (sel.value === '' && prev.fees.find(f => f.key === sel.dataset.fee).exact) delete feeDec[sel.dataset.fee]; else feeDec[sel.dataset.fee] = /^\d+$/.test(sel.value) ? Number(sel.value) : sel.value; $('iKF').textContent = newFees(); }; });
+      drawFees();
       acts();
       setStep('prev');
     }
@@ -811,7 +882,9 @@
       try {
         if (step !== 'prev') { prev = await run(false); drawPrev(); }
         else if (Object.values(deptDec).some(v => v === '')) { throw new Error('Bitte bei allen Abteilungen mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.'); }
-        else if (Object.values(feeDec).some(v => v === '')) { throw new Error('Bitte bei allen Beitragsarten mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen oder nicht übernehmen.'); }
+        else if (Object.values(feeDec).some(v => v === '')) { throw new Error('Bitte bei allen Beitragsarten mit ähnlichen vorhandenen wählen: vorhandene verwenden, neu anlegen, zusammenführen oder nicht übernehmen.'); }
+        else if (feeCheckNow().errs.length) { throw new Error(feeCheckNow().errs[0]); }
+        else if (feeCheckNow().diffs.length && !feeOk) { throw new Error('Bitte im Warnkasten bestätigen: Die zusammengeführten Beitragsarten unterscheiden sich, es gilt die Zielart.'); }
         else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
       $('iOk').disabled = false;

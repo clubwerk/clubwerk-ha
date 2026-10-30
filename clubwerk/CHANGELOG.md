@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.98.0
+
+**Mitglieder-Import: Beitragsarten aus der Datei zusammenführen**
+- Führt das alte Programm dieselbe Beitragsart unter mehreren Namen (zum Beispiel „Jugend bis 18“ und „Jugendliche bis 18“), gibt es im Import-Schritt „Beitragsarten aus der Datei“ jetzt die Wahl „zusammenführen mit „…““. Alle Mitglieder landen dann in einer Beitragsart, jedes genau einmal.
+- Das Ziel wird neu angelegt – auf Wunsch unter neuem Namen („neu anlegen als“) – oder auf eine vorhandene Beitragsart gelegt. Ketten gehen (A mit B, B mit C), Kreise werden abgelehnt.
+- Sehen Beitragsarten gleich aus (gleicher Betrag, Rhythmus und Abteilung, ähnlicher Name), schlägt Clubwerk das Zusammenführen vor: Hinweis oben, die Gruppe ist farbig zusammengefasst und mit „ähnlich“ gekennzeichnet.
+- Es gilt immer die Zielart (Betrag, Rhythmus, Altersgrenzen, Familie, Abteilung). Weicht etwas ab, nennt ein Warnkasten, wer künftig wie viel zahlt – übernommen wird erst nach „Verstanden – so übernehmen“.
+- Eine Ergebniszeile zeigt vor dem Übernehmen, welche Beitragsarten neu entstehen und mit wie vielen Mitgliedern.
+
 ## 3.97.2
 
 **Verwaltung am Tablet meldet niemanden mehr woanders ab**
