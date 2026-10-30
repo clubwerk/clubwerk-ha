@@ -1,5 +1,10 @@
 # Änderungen
 
+## 3.97.1
+
+**Home Assistant: Link „Clubwerk“ auf der Add-on-Seite funktioniert**
+- Der Satz „Weitere Informationen findest du auf der Seite Clubwerk“ führt jetzt zur öffentlichen Clubwerk-Seite auf GitHub (vorher sah „Clubwerk“ nur wie ein Link aus).
+
 ## 3.97.0
 
 **Spieltage aus „Für mich“: Liste bleibt zugeklappt**
