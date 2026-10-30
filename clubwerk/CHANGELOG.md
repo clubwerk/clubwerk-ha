@@ -1,5 +1,9 @@
 # Änderungen
 
+## 3.98.1
+
+- **Mitglieder-App › Adresse: fehlender Port wird erkannt.** Trägt jemand die Adresse im Vereins-WLAN als `https://lan.dein-verein.de` ohne `:5001` ein, ist die App im WLAN nicht erreichbar. Jetzt erscheint ein Hinweis „Port fehlt – meinst du …:5001?“ mit dem Knopf **So übernehmen**. Der Wert wird nie still geändert. Die öffentliche Adresse (Cloudflare, ohne Port) wird nicht beanstandet.
+
 ## 3.98.0
 
 **Mitglieder-Import: Beitragsarten aus der Datei zusammenführen**

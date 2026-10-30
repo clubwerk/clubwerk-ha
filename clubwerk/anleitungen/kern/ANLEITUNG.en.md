@@ -155,7 +155,7 @@ This is where the cards for the address and security of the app are.
 
 ![Card “Address & appearance”: address in the club Wi-Fi, name on the home screen and access from outside.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#apSet)
 
-- **Address in the club Wi-Fi:** phones reach the app at this address. It ends up in the QR code. Empty = the address at which you currently have the admin area open. Addresses with “.local” do not open on some phones; better without “.local” or with an IP address.
+- **Address in the club Wi-Fi:** phones reach the app at this address. It ends up in the QR code. Empty = the address at which you currently have the admin area open. If an https address has no port (for example `:5001`), the notice “Port missing” appears with a **Use this** button. Addresses with “.local” do not open on some phones; better without “.local” or with an IP address.
 - **Name on the home screen:** at most 20 characters.
 - **Public address** and **Reachable on the go:** for access from outside via a Cloudflare Tunnel. Only the member app becomes reachable; admin area, tablet and irrigation stay in the club Wi-Fi. The steps are on the card in a collapsible section. **Check connection** tests the route, **Test ↗** opens the app.
 

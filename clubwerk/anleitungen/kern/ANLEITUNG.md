@@ -155,7 +155,7 @@ Hier liegen die Karten zur Adresse und Sicherheit der App.
 
 ![Karte „Adresse & Aussehen“: Adresse im Vereins-WLAN, Name auf dem Homescreen und Zugang von unterwegs.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#apSet)
 
-- **Adresse im Vereins-WLAN:** unter dieser Adresse erreichen Handys die App. Sie landet im QR-Code. Leer = die Adresse, unter der ihr die Verwaltung gerade offen habt. Adressen mit „.local“ öffnen manche Handys nicht, besser ohne „.local“ oder mit IP-Adresse.
+- **Adresse im Vereins-WLAN:** unter dieser Adresse erreichen Handys die App. Sie landet im QR-Code. Leer = die Adresse, unter der ihr die Verwaltung gerade offen habt. Fehlt bei einer https-Adresse der Port (zum Beispiel `:5001`), erscheint der Hinweis „Port fehlt“ mit dem Knopf **So übernehmen**. Adressen mit „.local“ öffnen manche Handys nicht, besser ohne „.local“ oder mit IP-Adresse.
 - **Name auf dem Homescreen:** höchstens 20 Zeichen.
 - **Öffentliche Adresse** und **Von unterwegs erreichbar:** für den Zugang von außen über einen Cloudflare Tunnel. Nur die Mitglieder-App wird erreichbar, Verwaltung, Tablet und Beregnung bleiben im Vereins-WLAN. Die Schritte zur Einrichtung stehen aufklappbar auf der Karte. **Verbindung prüfen** testet den Weg, **Testen ↗** öffnet die App.
 

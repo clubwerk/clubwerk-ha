@@ -11643,6 +11643,9 @@
   "Kreis beim Zusammenführen: {0}. Bitte bei einer davon „neu anlegen“ oder eine vorhandene wählen.": "Loop when merging: {0}. Please choose “create new” or an existing fee type for one of them.",
   "neu anlegen als": "create as",
   "Verstanden – so übernehmen": "Understood – import like this",
-  "zusammenführen mit „{0}“": "merge with “{0}”"
+  "zusammenführen mit „{0}“": "merge with “{0}”",
+  "? Die App läuft auf Port {0}, ohne Port landet das Handy auf Port 443 und kommt nicht durch.": "? The app runs on port {0}; without a port the phone ends up on port 443 and cannot connect.",
+  "Port fehlt – meinst du": "Port missing – do you mean",
+  "So übernehmen": "Use this"
  }
 }
