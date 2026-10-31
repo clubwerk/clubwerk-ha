@@ -1,5 +1,21 @@
 # Änderungen
 
+## 3.101.0
+
+**Design-Durchgang: keine abgeschnittenen Namen und keine Überlappungen mehr**
+- **Mitglieder-App › Plätze › Geräte › Freie Zeiten:** Das Kästchen mit dem Gerätenamen war zu schmal – „Ballmaschine“ war nur als „allmaschin“ zu sehen. Die Kästchen wachsen jetzt mit dem Namen und brechen bei Bedarf um. Auch die Kurzfassung rechts („Medenspiel …“) wird nicht mehr gekürzt.
+- **Mitglieder-App › Dienste:** Ein langer Dienstname („Frühjahrsinstandsetzung“) lief in den Knopf „voll“/„Ich helfe“. Lange Wörter werden jetzt getrennt.
+- **Verwaltung am Handy:** Der Knopf oben rechts mit dem Seitennamen schnitt lange Namen ab („Beiträge & Zahlung“) – jetzt bricht er um. Ein langer Vereinsname steht links ganz da (vorher nach zwei Zeilen mit „…“), „e. V.“ bleibt zusammen. Lange Seitentitel (z. B. Turniernamen) stehen ganz da statt mit „…“.
+- **Listen in der Verwaltung am Handy:** Namen stehen immer ganz da (sie brechen um). Werte unter dem Namen enden nur noch dann mit „…“, wenn sie länger sind als die ganze Zeile – vorher waren manche hart abgeschnitten. In Listen mit Häkchen (z. B. Dienste › Stunden bestätigen) war die Namensspalte auf ein Drittel gequetscht; das ist behoben. Bei zwei Knöpfen rechts wird ein langer Name nicht mehr zur schmalen Wortsäule zusammengedrückt. In Dienste › Stunden steht der Status am Handy als farbiger Text, im Filter „Zu bestätigen“ entfällt er (steht schon im Filter).
+- **Tablet:** Lange Vereinsnamen in der Kopfzeile werden sinnvoll geteilt („TC Grün-Weiß“ / „Musterstadt 1923 e. V.“) statt gekürzt. Namenskacheln beim Verkauf und in der Zeiterfassung wachsen mit langen Namen (Doppelnamen, „von …“) statt sie abzuschneiden. Platznamen im Belegungsplan brechen um.
+- **Plätze und Verkauf › Auswertung:** Lange Platz-, Artikel- und Kategorienamen brechen um statt „…“.
+- **Turnierplaner:** Im Spielplan am Handy stehen lange Mannschaftsnamen ganz da; im Fenster „Ergebnis“ werden sie nicht mehr mitten im Wort getrennt.
+- **Spielbetrieb:** „Braucht Aufmerksamkeit“ am Handy zeigt den Text in eigener Zeile statt als schmale Wortsäule; Mannschaftsnamen im Kalender enden sauber mit „…“ (voller Name beim Antippen).
+- **Verkauf › Buchungen:** „Nur Konto“ steht jetzt in derselben Zeile wie „Von“ und „Bis“ – bei langen Namen rutschte das Feld vorher schief darunter.
+- **Zugang › Freischaltungen:** „gesperrt“ steht neben dem Handy-Status statt unter dem Namen.
+- **Einstellungen › Verein:** „kein Logo“ war im dunklen Modus kaum lesbar.
+- **Design-Prüfstand geschärft:** neue Regel gegen Text, der links, rechts, oben oder unten aus seinem Rahmen läuft (die alte Messung sah nur den rechten Rand). Zusätzlich prüft er jetzt zwei weitere Fälle: mit langen, realistischen Namen (Stresstext) und eine frische Installation ohne Daten („Unser Verein“).
+
 ## 3.100.0
 
 **Aus Sicherung übernehmen: nur gewählte Teile aus einer Komplettsicherung holen**

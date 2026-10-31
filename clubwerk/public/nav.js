@@ -46,10 +46,12 @@
       if (b.demo && !dc && rt) rt.insertAdjacentHTML('afterbegin', `<span class="tk-chip a" id="demoChip" title="Demo – alle Daten sind erfunden">Demo</span>`);
       if (!b.demo && dc) dc.remove();
       if (b.clubName) {
-        // „TC Grün-Weiß Musterstadt“ → zwei Zeilen: „TC Grün-Weiß“ / „Musterstadt“
+        // „TC Grün-Weiß Musterstadt“ → zwei Zeilen: „TC Grün-Weiß“ / „Musterstadt“; Gründungsjahr und Rechtsform bleiben beim Ort
+        // („TC Grün-Weiß“ / „Musterstadt 1923 e. V.“) – früher stand dann nur „V.“ unten und der Rest wurde gekürzt
         const w = b.clubName.trim().split(/\s+/);
-        document.getElementById('club').textContent = w.length > 2 ? w.slice(0, -1).join(' ') : b.clubName;
-        document.getElementById('club2').textContent = w.length > 2 ? w[w.length - 1] : '';
+        let k = w.length - 1; while (k > 0 && /^(\d{2,4}|e\.?|v\.|e\.\s?v\.?|ev)$/i.test(w[k])) k--;
+        document.getElementById('club').textContent = k >= 2 ? w.slice(0, k).join(' ') : b.clubName;
+        document.getElementById('club2').textContent = k >= 2 ? w.slice(k).join(' ').replace(/\be\.\s+V\./g, 'e.\u00a0V.') : '';   // „e. V.“ nie auf zwei Zeilen
         const ini = w.filter(x => /^[A-Za-zÄÖÜäöü]/.test(x)).map(x => x[0]).join('').slice(0, 2).toUpperCase();
         document.getElementById('clubMark').textContent = ini || 'V';
       }

@@ -6,7 +6,8 @@
     s.textContent = `
       .bkm-plan { display: grid; grid-template-columns: 52px repeat(var(--n), minmax(0, 1fr)); }   /* Zeitspalte 52 px: Uhrzeiten liegen ganz in der Karte */   /* ganzer Tag, alle Plätze in der Breite – kein Scrollen im Fenster */
       .bkm-plan .hd { position: relative; z-index: 3; background: var(--card); border-bottom: 1px solid var(--line); min-height: 48px; padding: 6px 4px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-      .bkm-plan .hd b { font-size: 14px; font-weight: 700; line-height: 18px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-plan .hd small { font-family: var(--num); font-size: 13px; font-weight: 500; color: var(--muted); line-height: 14px; letter-spacing: .01em; }
+      .bkm-plan .hd b { font-size: 14px; font-weight: 700; line-height: 18px; max-width: 100%; text-align: center; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }   /* lange Platznamen brechen um statt „…“ (3.101) */
+      .bkm-plan:not(.wide) .hd b { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }   /* „Kompakt“: schmale Spalten, höchstens zwei Zeilen – ganze Namen zeigt „Ausführlich“ */ .bkm-plan .hd small { font-family: var(--num); font-size: 13px; font-weight: 500; color: var(--muted); line-height: 14px; letter-spacing: .01em; }
       .bkm-plan .tc { position: relative; border-right: 1px solid var(--line); }
       .bkm-plan .tc span { position: absolute; right: 8px; transform: translateY(-50%); font-family: var(--num); font-size: 14px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
       .bkm-plan .cl { position: relative; border-right: 1px solid var(--line); background-image: linear-gradient(to bottom, var(--line) 1px, transparent 1px); background-size: 100% var(--ph); }
@@ -89,13 +90,14 @@
       .bkm-list .bkm-row:first-child { border-top: 0; }
       .bkm-row > b.num { font-size: 26px; line-height: 1; font-weight: 600; color: var(--ink); }
       .bkm-pills { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
-      .bkm-pill { box-sizing: border-box; min-width: 44px; max-width: 84px; height: 44px; padding: 0 10px; border-radius: 999px; border: 0; background: var(--brand-soft); color: var(--brand-ink); font: inherit; font-size: 15px; font-weight: 800; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: inline-flex; align-items: center; justify-content: center; }
+      /* Kästchen wachsen mit dem Namen und brechen zwischen Wörtern um – nie abgeschnitten (früher 84 px breit: „Ballmaschine“ lief links und rechts heraus) */
+      .bkm-pill { box-sizing: border-box; min-width: 44px; max-width: 100%; min-height: 44px; padding: 5px 12px; border-radius: 22px; border: 0; background: var(--brand-soft); color: var(--brand-ink); font: inherit; font-size: 15px; line-height: 1.2; font-weight: 800; text-align: center; overflow-wrap: break-word; display: inline-flex; align-items: center; justify-content: center; }
       .bkm-pill.busy, .bkm-pill.lock, .bkm-pill.past, .bkm-pill.closed { background: var(--hover); color: var(--muted); text-decoration: line-through; font-weight: 600; }
       .bkm-pill.past, .bkm-pill.closed { opacity: .6; }
       .bkm-pill.mine { background: var(--brand); color: var(--on-brand); }
       .bkm-pill.wait { box-shadow: inset 0 0 0 2px var(--amber); }
       .bkm-pill.none { background: transparent; color: var(--faint); font-weight: 600; cursor: default; }
-      .bkm-sum { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; max-width: 7.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bkm-sum { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; max-width: 7.5em; overflow-wrap: break-word; }
       .bkm-list .bkm-hidden { width: calc(100% - 32px); margin: 6px 16px 12px; }
       .bkm-notes { margin: 10px 4px 0; } .bkm-notes .vh-lead { margin: 0 0 4px; font-size: 12.5px; }
       /* Ansicht „Ausführlich“: breite Platzspalten (wischen), Uhrzeiten und Platznamen bleiben stehen, ganze Namen in den Blöcken */

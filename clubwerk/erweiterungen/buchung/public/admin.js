@@ -116,21 +116,21 @@
       .bk-ord { display: inline-flex; gap: 4px; margin-right: 8px; vertical-align: middle; } .bk-ord .btn { width: 34px; min-width: 34px; padding: 0; justify-content: center; font-size: 15px; } .bk-ord .btn:disabled { opacity: .35; }
       .bk-hl { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 0 !important; margin-bottom: 16px; }
       .bk-hlt { display: flex; flex-direction: column; gap: 2px; padding: 16px 20px; border-left: 1px solid var(--line-soft); min-width: 0; } .bk-hlt:first-child { border-left: 0; }
-      .bk-hlt span { font-size: 12.5px; font-weight: 600; color: var(--muted); } .bk-hlt b { font-family: var(--num); font-size: 22px; font-weight: 600; line-height: 26px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-hlt small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bk-hlt span { font-size: 12.5px; font-weight: 600; color: var(--muted); } .bk-hlt b { font-family: var(--num); font-size: 22px; font-weight: 600; line-height: 26px; overflow-wrap: break-word; } .bk-hlt small { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       .bk-donut { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; align-items: center; }
       .bk-dring { position: relative; width: 180px; height: 180px; } .bk-dc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
       .bk-dc b { font-family: var(--num); font-size: 30px; line-height: 30px; font-weight: 600; font-variant-numeric: tabular-nums; } .bk-dc span { font-size: 12px; color: var(--muted); }
       .bk-dleg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-      .bk-dleg li { display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; gap: 10px; align-items: center; height: 26px; font-size: 13.5px; }
-      .bk-dleg i { width: 12px; height: 12px; border-radius: 3px; } .bk-dleg b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-dleg .r { text-align: right; font-family: var(--num); font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
+      .bk-dleg li { display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; gap: 10px; align-items: center; min-height: 26px; line-height: 18px; font-size: 13.5px; }
+      .bk-dleg i { width: 12px; height: 12px; border-radius: 3px; } .bk-dleg b { font-weight: 600; overflow-wrap: break-word; } .bk-dleg .r { text-align: right; font-family: var(--num); font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
       .bk-bars { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 6px; height: 200px; align-items: stretch; }
       .bk-bar1 { display: flex; flex-direction: column; gap: 6px; min-width: 0; } .bk-bar1 span { font-size: 11.5px; color: var(--muted); text-align: center; height: 16px; }
       .bk-bpair { flex: 1; display: flex; align-items: flex-end; justify-content: center; gap: 2px; border-bottom: 1px solid var(--line); }
       .bk-bpair i { width: 40%; max-width: 14px; border-radius: 4px 4px 0 0; background: var(--brand); min-height: 0; } .bk-bpair i.p { background: var(--line); }
       .bk-top { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
-      .bk-top li { display: grid; grid-template-columns: 24px minmax(0, 160px) minmax(0, 1fr) 72px; gap: 12px; align-items: center; height: 30px; font-size: 13.5px; }
+      .bk-top li { display: grid; grid-template-columns: 24px minmax(0, 240px) minmax(0, 1fr) 72px; gap: 12px; align-items: center; min-height: 30px; line-height: 18px; font-size: 13.5px; }
       .bk-top .n { width: 24px; height: 24px; border-radius: 12px; background: var(--hover); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
-      .bk-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .bk-top b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bk-top .r { text-align: right; font-family: var(--num); font-size: 15px; font-variant-numeric: tabular-nums; }
+      .bk-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .bk-top b { font-weight: 600; overflow-wrap: break-word; }   /* lange Namen brechen um statt „…“ (3.101) */ .bk-top .r { text-align: right; font-family: var(--num); font-size: 15px; font-variant-numeric: tabular-nums; }
       @media (max-width: 900px) { .bk-hl { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-hlt:nth-child(3) { border-left: 0; } .bk-hlt:nth-child(n+3) { border-top: 1px solid var(--line-soft); } }
       @media (max-width: 1320px) { .bk-donut { grid-template-columns: 1fr; justify-items: center; } .bk-dleg { width: 100%; } }   /* Legende neben dem Ring braucht Platz für die Namen (Medenspiel …) */
       @media (max-width: 560px) { .bk-top li { grid-template-columns: 24px minmax(0, 1fr) 0 64px; } .bk-top .bk-meter { display: none; } }
@@ -160,8 +160,8 @@
       .bk-meter em { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--ink); opacity: .55; border-radius: 1px; }
       .bk-two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-bottom: 16px; } .bk-two > .card { margin: 0; display: flex; flex-direction: column; }
       .bk-res { display: flex; flex-direction: column; gap: 4px; }
-      .bk-rr { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 56px 76px; gap: 12px; align-items: center; height: 36px; font-size: 14px; }
-      .bk-rr b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; } .bk-rr .r { text-align: right; font-variant-numeric: tabular-nums; } .bk-rr .bk-dot { margin-right: 8px; }
+      .bk-rr { display: grid; grid-template-columns: minmax(0, 150px) minmax(0, 1fr) 56px 76px; gap: 12px; align-items: center; min-height: 36px; font-size: 14px; }
+      .bk-rr b { overflow-wrap: break-word; font-weight: 700; line-height: 18px; }   /* lange Platznamen brechen um statt „…“ (3.101) */ .bk-rr .r { text-align: right; font-variant-numeric: tabular-nums; } .bk-rr .bk-dot { margin-right: 8px; }
       .bk-mini { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line-soft); }
       .bk-mini > div { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; } .bk-mini span { font-size: 12.5px; color: var(--muted); font-weight: 600; } .bk-mini b { font-size: 20px; line-height: 28px; }
       .bk-two .bk-res + .bk-mini, .bk-two p + .bk-mini { margin-top: auto; }

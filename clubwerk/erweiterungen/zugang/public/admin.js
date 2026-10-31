@@ -82,7 +82,7 @@
       ${r.rows.length ? `<div class="chips" id="zFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['gesperrt', 'gesperrt']].filter(([k]) => k !== 'gesperrt' || r.rows.some(FIL.gesperrt))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${st.fil === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
         ${rows.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Handy</th><th>Zeitprofil</th><th class="hide-md">zuletzt</th><th></th></tr>
-        ${rows.map(x => `<tr${x.blocked ? ' class="off"' : ''}><td class="k-1z"><b>${esc(GK.lastFirst(x.name))}</b>${x.blocked ? ' <span class="pill r">gesperrt</span>' : ''}</td><td><span class="pill ${STAT[x.device][0]}">${STAT[x.device][1]}</span></td>
+        ${rows.map(x => `<tr${x.blocked ? ' class="off"' : ''}><td class="k-1z"><b>${esc(GK.lastFirst(x.name))}</b></td><td>${x.blocked ? '<span class="pill r">gesperrt</span> ' : ''}<span class="pill ${STAT[x.device][0]}">${STAT[x.device][1]}</span></td>
           <td>${esc(profName(x.profile))}<span class="k-weg">${x.valid_until ? ` · bis ${deD(x.valid_until)}` : ''}${x.away ? ' · auch unterwegs' : ''}</span></td>
           <td class="muted s hide-md num k-weg">${x.last_used ? GK.deTime(x.last_used) : ''}</td>
           <td class="r"><span class="acts">${x.device !== 'gekoppelt' ? `<button class="btn small" data-mq="${x.member_id}">QR-Code</button>` : ''}<button class="btn small" data-me="${x.member_id}">Bearbeiten</button></span></td></tr>`).join('')}</table>`

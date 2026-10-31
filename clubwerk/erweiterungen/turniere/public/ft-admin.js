@@ -31,8 +31,8 @@
       .ft-num { font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 16px; white-space: nowrap; }
       .ft-late { color: var(--red); font-weight: 700; } .ft-bit { color: var(--amber); font-weight: 700; }
       .ft-ph { color: var(--muted); font-style: italic; }
-      .ft-score { display: grid; grid-template-columns: minmax(0, 1fr) 76px 12px 76px; gap: 8px; align-items: center; margin: 12px 0 0; }
-      .ft-score .h { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; overflow-wrap: anywhere; }
+      .ft-score { display: grid; grid-template-columns: minmax(0, 1fr) minmax(76px, 140px) 12px minmax(76px, 140px); gap: 8px; align-items: center; margin: 12px 0 0; }
+      .ft-score .h { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }   /* Namensspalten bis 140 px: lange Mannschaftsnamen brechen zwischen Wörtern um, nicht mitten im Wort (3.101) */
       .ft-score .c { text-align: center; color: var(--muted); font-weight: 700; }
       .ft-score input { width: 100%; box-sizing: border-box; height: 46px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); color: var(--ink); text-align: center; font-family: var(--num); font-size: 18px; font-weight: 600; }
       .ft-qr { display: grid; place-items: center; gap: 8px; }

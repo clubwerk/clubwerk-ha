@@ -37,7 +37,7 @@
   .bk-grid { display: grid; grid-template-columns: 64px repeat(var(--n), minmax(0, 1fr)); }
   .bk-grid .hd { position: sticky; top: 0; z-index: 4; background: var(--card); border-bottom: 1px solid var(--line); border-left: 1px solid var(--line); min-height: 64px; padding: 8px 6px; box-sizing: border-box; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   .bk-grid .hd:first-child { border-left: 0; }
-  .bk-grid .hd b { font-size: 17px; font-weight: 700; line-height: 22px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bk-grid .hd b { font-size: 17px; font-weight: 700; line-height: 22px; max-width: 100%; text-align: center; overflow-wrap: anywhere; }   /* lange Platznamen zweizeilig statt „…“ (3.101) */
   .bk-grid .hd small { font-size: 13px; color: var(--muted); font-weight: 600; margin-top: 2px; font-family: var(--num); font-variant-numeric: tabular-nums; letter-spacing: .01em; }
   .bk-grid .tc { position: relative; }
   .bk-grid .tc span { position: absolute; right: 10px; transform: translateY(-50%); font-family: var(--num); font-size: 17px; font-weight: 500; color: var(--muted); font-variant-numeric: tabular-nums; letter-spacing: .01em; }

@@ -465,7 +465,7 @@
     $('menuT').onclick = () => $('side').classList.toggle('open');
     $('logout').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
     bindSearch();
-    api('settings').then(s => { cache.settings = s; $('clubName').textContent = s.clubName; document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
+    api('settings').then(s => { cache.settings = s; $('clubName').textContent = String(s.clubName).replace(/\be\.\s+V\./g, 'e.\u00a0V.');   /* „e. V.“ nie auf zwei Zeilen */ document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
     refreshBadges();
     go(page);
   }
@@ -780,10 +780,10 @@
      ${cache.articles.filter(a => a.active || a.id === sel).map(a => `<option value="${a.id}" ${a.id === sel ? 'selected' : ''}>${esc(a.name)}</option>`).join('')}
      ${create && can('artikel') ? '<option value="new">+ neuen Artikel anlegen …</option>' : ''}`;
 
-  function rangeBar(from, to, id = 'rng') {
+  function rangeBar(from, to, id = 'rng', extra = '') {   // extra: weiteres Filterfeld in derselben Zeile (z. B. „Nur Konto“)
     return `<div class="row" id="${id}" style="margin-bottom:14px">
       <label class="f">Von<input type="date" name="from" value="${from}"></label>
-      <label class="f">Bis<input type="date" name="to" value="${to}"></label>
+      <label class="f">Bis<input type="date" name="to" value="${to}"></label>${extra}
       <button class="btn" data-r="apply">Anzeigen</button>
       <button class="btn ghost" data-r="season">Ganze Saison</button></div>`;
   }
@@ -1440,11 +1440,10 @@
     if (from) q.set('from', from); if (to) q.set('to', to); if (memberId) q.set('memberId', memberId);
     const r = await api('bookings?' + q);
     $('main').innerHTML = `<h2 class="page">Buchungen</h2><p class="lead">Alle Buchungen im Zeitraum. Falschbuchungen hier stornieren oder vergessene Buchungen nachtragen.</p>
-      ${rangeBar(r.from, r.to)}
-      <div class="row" style="margin-bottom:14px"><label class="f">Nur Konto<select id="bMem"><option value="">alle</option>${cache.members.map(m => `<option value="${m.id}" ${Number(memberId) === m.id ? 'selected' : ''}>${pName(m)}</option>`).join('')}</select></label>
-        ${memberId ? (() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
+      ${rangeBar(r.from, r.to, 'rng', `<label class="f">Nur Konto<select id="bMem"><option value="">alle</option>${cache.members.map(m => `<option value="${m.id}" ${Number(memberId) === m.id ? 'selected' : ''}>${pName(m)}</option>`).join('')}</select></label>`)}
+      ${memberId ? `<div class="row" style="margin-bottom:14px">${(() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
           return `<div class="kpi" style="padding:8px 14px"><div class="l">${esc((m => m ? lastFirst(m.name, m.kind) : '')(cache.members.find(m => m.id === Number(memberId))))} im Zeitraum</div>
-            <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })() : ''}</div>
+            <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })()}</div>` : ''}
       <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:nowrap">
         <label class="f" style="flex:1;min-width:0">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
         <label class="f" style="flex:1;min-width:0">Artikel<select id="nbArt">${articleOptions(null)}<option value="__betrag">— freier Betrag … —</option></select></label>

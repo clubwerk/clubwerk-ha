@@ -62,7 +62,7 @@
       .sp-cal .cd.nx { background: repeating-linear-gradient(135deg, transparent 0 6px, var(--line-soft) 6px 7px); }
       .sp-cal .cn { font-weight: 700; color: var(--ink); } .sp-cal .cw { color: var(--muted); }
       .sp-cal .cg { display: flex; flex-wrap: wrap; gap: 3px; min-width: 0; }
-      .sp-cal .cc { font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+      .sp-cal .cc { font-family: inherit; font-size: 11.5px; font-weight: 600; line-height: 20px; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; text-align: left; }   /* links bündig: zentriert lief ein langer Name links aus dem Chip (3.101) */
       @media (max-width: 640px) { .sp-cal .cc { line-height: 30px; } }   /* Handy: Spiele im Kalender gut antippbar */
       .sp-cal .cc.g { background: var(--brand-soft); border-color: var(--brand-ink); color: var(--brand-ink); }
       .sp-cal .cc.r { background: var(--red-soft); border-color: var(--red); color: var(--red); }
@@ -79,6 +79,7 @@
       .sp-ksub { min-height: 18px; display: flex; align-items: center; font-size: 12.5px; color: var(--muted); }
       .sp-al > div { display: grid; grid-template-columns: 10px 84px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line-soft, var(--line)); }
       .sp-al > div:first-child { border-top: 0; padding-top: 2px; }
+      @media (max-width: 640px) { .sp-al > div { grid-template-columns: 10px minmax(0, 1fr) auto; row-gap: 4px; } .sp-al > div > span:nth-child(3) { grid-column: 2 / -1; grid-row: 2; } }   /* Handy: Text in eigener Zeile unter Datum und Knopf statt als Wortsäule (3.101) */
       .sp-al .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--amber); } .sp-al .dot.r { background: var(--red); }
       .sp-al .dd { white-space: nowrap; font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 16px; }
       .sp-dt { display: grid; gap: 16px; }

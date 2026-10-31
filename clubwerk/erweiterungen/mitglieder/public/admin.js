@@ -612,7 +612,7 @@
         <button class="btn primary" id="dUp">Datei wählen & hochladen</button></div>
         <p class="muted s" style="margin-bottom:0">PDF, Foto (JPG, PNG, HEIC), Word oder Text, bis 15 MB. Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten.</p></div>
       <div class="card"><h3>Ablage</h3>${d.documents.length ? `<table class="tbl kompakt"><tr><th>Dokument</th><th>Art</th><th>Datum</th><th>von</th><th class="r">Größe</th><th></th></tr>
-        ${d.documents.map(x => `<tr><td class="k-1z" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(DOCK[x.kind] || x.kind)}</td><td class="num nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${Math.max(1, Math.round(x.size / 1024))} KB</td>
+        ${d.documents.map(x => `<tr><td class="k-datei" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(DOCK[x.kind] || x.kind)}</td><td class="num nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${Math.max(1, Math.round(x.size / 1024))} KB</td>
           <td class="r nw"><button class="btn small" data-dx="${x.id}">Öffnen …</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
     { const a = el.querySelector('[data-fhopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.fhopen); }; }
     $('dUp').onclick = async () => {

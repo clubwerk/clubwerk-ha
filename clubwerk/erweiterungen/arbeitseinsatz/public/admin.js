@@ -26,6 +26,8 @@
       .aw-grid .w2 { grid-column: span 2; } .aw-grid .wall { grid-column: 1 / -1; }
       @media (max-width: 760px) { .aw-grid { grid-template-columns: 1fr; } .aw-grid .w2 { grid-column: auto; } }
       .aw-sub td { background: var(--hover); } .aw-sub td:first-child { padding-left: 28px !important; }
+      @media (max-width: 700px) { #awTbl td:first-child { flex: 1 1 auto; min-width: 120px; } #awTbl td:first-child .muted { display: block; width: 0; min-width: 100%; } }
+      @media (max-width: 700px) { .aw-std td:not(:first-child) .pill { height: auto; padding: 0; border: 0; background: none; font-size: 13px; line-height: 16px; } }   /* Handy: Status als farbiger Text in der Werte-Zeile – so bleibt der Eintrag kompakt, auch wenn der Titel umbricht (3.101) */   /* Handy: ein langer Name steht neben „Pflichtstunden …“ nicht als Wortsäule – passt er nicht, rutscht der Knopf darunter (3.101) */
       .aw-ev { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line-soft); }
       .aw-ev:first-of-type { border-top: 0; }
       .aw-ev .aw-tog { min-width: 112px; justify-content: center; }
@@ -436,10 +438,10 @@
     head('Stunden', 'Gemeldete und gestempelte Stunden bestätigen oder ablehnen.');
     $('main').insertAdjacentHTML('beforeend', `<div class="toolbar">${st.es === 'offen' && rows.length ? '<button class="btn" id="esNo">Ausgewählte ablehnen</button>' : ''}<button class="btn ${st.es === 'offen' && rows.length ? '' : 'primary'}" id="esAdd">Stunden nachtragen …</button>${st.es === 'offen' && rows.length ? '<button class="btn primary" id="esOk">Ausgewählte bestätigen</button>' : ''}</div>
       ${chips('esSeg', [['offen', 'Zu bestätigen', nOpen], ['laeuft', 'Eingestempelt', nRun], ['alle', 'Alle']], st.es, true)}
-      <div class="card">${rows.length ? `<table class="tbl kompakt"><tr><th>${st.es === 'offen' ? '<label class="chk"><input type="checkbox" id="esAll" checked aria-label="alle"> Mitglied</label>' : 'Mitglied'}</th><th>Datum</th><th>Tätigkeit</th><th class="k-weg k-eng">Quelle</th><th>Status</th><th class="r">Dauer</th><th></th></tr>
+      <div class="card">${rows.length ? `<table class="tbl kompakt aw-std"><tr><th>${st.es === 'offen' ? '<label class="chk"><input type="checkbox" id="esAll" checked aria-label="alle"> Mitglied</label>' : 'Mitglied'}</th><th>Datum</th><th>Tätigkeit</th><th class="k-weg k-eng">Quelle</th><th>Status</th><th class="r">Dauer</th><th></th></tr>
         ${rows.map(r => `<tr class="${r.status === 'abgelehnt' ? 'off' : ''}">
           <td class="k-1z">${st.es === 'offen' ? `<label class="chk"><input type="checkbox" data-id="${r.id}" checked> <b>${esc(GK.lastFirst(r.name))}</b></label>` : `<b>${esc(GK.lastFirst(r.name))}</b>`}<div class="muted s k-sum" translate="no">${esc(r.event_title || r.text || '')}</div></td><td class="nw">${deDate(r.date)}${r.in_at ? `<span class="muted s k-weg"> ${r.in_at.slice(11, 16)}${r.out_at ? '–' + r.out_at.slice(11, 16) : ''}</span>` : ''}</td>
-          <td class="k-1z k-weg" title="${esc(r.reason || '')}"><span translate="no">${esc(r.event_title || r.text || '')}</span>${r.reason ? ` <span class="muted s k-weg">${esc(r.reason)}</span>` : ''}</td><td class="k-weg k-eng">${esc(SRC[r.source] || r.source)}</td><td>${pill(EST[r.status] || ['', r.status])}</td>
+          <td class="k-1z k-weg" title="${esc(r.reason || '')}"><span translate="no">${esc(r.event_title || r.text || '')}</span>${r.reason ? ` <span class="muted s k-weg">${esc(r.reason)}</span>` : ''}</td><td class="k-weg k-eng">${esc(SRC[r.source] || r.source)}</td><td${st.es === 'alle' ? '' : ' class="k-weg"'}>${pill(EST[r.status] || ['', r.status])}</td>
           <td class="r">${r.minutes ? h(r.minutes) : ''}</td><td class="r nw">${r.status === 'laeuft' ? `<button class="btn small" data-stop="${r.id}">Ausstempeln</button>` : `<button class="btn small" data-ed="${r.id}">Ändern</button>`}</td></tr>`).join('')}</table>`
         : `<p class="empty">${st.es === 'offen' ? 'Nichts zu bestätigen.' : st.es === 'laeuft' ? 'Niemand eingestempelt.' : 'Keine Einträge.'}</p>`}</div>`);
     const el = $('main');
