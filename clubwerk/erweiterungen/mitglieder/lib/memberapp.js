@@ -18,7 +18,15 @@ function register(sh) {
   M.use((req, res, next) => (C.require('./vault').locked() ? res.status(423).json({ error: 'Deine Daten sind gerade verschlossen (nach einem Neustart im Vereinsheim). Bitte später noch einmal versuchen.' }) : next()));
   const P = need('mitglieder');
   const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), ci: S('creditor_id') });
-  const sigOk = s => typeof s === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s) && s.length < 280000;
+  /* Unterschrift: PNG (App und Formular liefern 600 px Breite). Die Maße im Bildkopf begrenzen – ein winzig gepacktes PNG mit
+     riesigen Maßen ließe sonst beim PDF-Bau Gigabytes an Speicher reservieren und den Server blockieren. */
+  const sigOk = s => {
+    if (typeof s !== 'string' || s.length >= 280000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s)) return false;
+    const h = Buffer.from(s.slice(22, 22 + 44), 'base64');
+    if (h.length < 24 || h.readUInt32BE(0) !== 0x89504e47 || h.toString('latin1', 12, 16) !== 'IHDR') return false;
+    const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
+    return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
+  };
   const CHANGE_FIELDS = ['street', 'zip', 'city', 'address_extra', 'phone', 'mobile', 'email'];
   const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)' };
   const SCOPE_KINDS = ['eintritt', 'austritt', 'rueckkehr'];

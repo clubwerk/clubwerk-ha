@@ -854,10 +854,10 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
       if (f.locked) { audit(null, 'Turniere: Code der Turnierleitung gesperrt', `${ft.name}: 10 falsche Codes`); ctx.require('./security').securityAlert(`Turnierplaner „${ft.name}“: 10-mal ein falscher Code der Turnierleitung – die Eingabe ist für ${f.minutes} Minuten gesperrt.`, `ftcode:${ft.id}`); }
       throw err(f.locked ? `Der Code stimmt nicht – die Eingabe ist jetzt für ${f.minutes} Min. gesperrt.` : 'Der Code stimmt nicht.', f.locked ? 429 : 403);
     }
-    codeFails.ok(ft.id);
+    codeFails.soft(ft.id);   // Erfolg: Zähler von vorn, die Sperrstufe bleibt (Review)
     return { username: 'Turnierleitung (Tablet)', name: 'Turnierleitung (Tablet)' };
   };
-  const codeLimit = ctx.rateLimit('tuftcode', 20, 10 * 60000);
+  const codeLimit = ctx.rateLimit('tuftcode', 120, 10 * 60000);   // nur gegen Dauerfeuer – bei vielen Plätzen trägt die Turnierleitung schnell viele Ergebnisse ein (falsche Codes sperrt codeFails)
   /** Ansicht für Tablet und Monitor (nur Namen und Ergebnisse) */
   const strip = m => m && { id: m.id, phase: m.phase, label: m.label, ko: m.ko, a: m.a, b: m.b, a_ph: m.a_ph, b_ph: m.b_ph, court_id: m.court_id, court: m.court, time: m.time, est: m.est, delay: m.delay, running: m.running, done: m.done, left: m.left, minutes: m.minutes,
     result: m.result, score_a: m.score_a, score_b: m.score_b, sets: m.sets, decider: m.decider, winner: m.winner, retired: m.retired, score: m.score, wait: m.wait, a_ids: m.a_ids, b_ids: m.b_ids, group: m.group };

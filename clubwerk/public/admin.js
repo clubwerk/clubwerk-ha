@@ -3227,7 +3227,7 @@
         ${b.list.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Art</th><th>Stand</th><th class="r">Größe</th><th></th></tr>
         ${b.list.map(x => { const k = (x.file.match(/_(auto|manuell|vor-wiederherstellung|hochgeladen|komplett)\.db$/) || [])[1]; return `<tr title="${esc(x.file)}">
           <td>${x.file === 'ha-snapshot.db' ? 'vor letztem HA-Backup' : esc(KIND_B[k] || 'Schnappschuss')}</td><td>${deTime(x.mtime.replace('T', ' ').slice(0, 19))}</td><td class="r">${size(x.size)}</td>
-          <td class="r"><a class="btn small" href="api/admin/backups/file/${encodeURIComponent(x.file)}">Herunterladen</a> <button class="btn small danger-h" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
+          <td class="r"><button class="btn small" data-bkdl="${esc(x.file)}">Herunterladen …</button> <button class="btn small danger-h" data-restore="${esc(x.file)}">Wiederherstellen …</button></td></tr>`; }).join('')}</table></div>` : '<p class="empty">Noch kein Schnappschuss vorhanden.</p>'}</div>`;
 
     // Sicherungen auf den Zielen nachladen (braucht etwas länger) – je Ziel eine Tabelle im gleichen Aufbau
     for (const t of st.targets) api(`backups/targets/${encodeURIComponent(t.id)}/files`).then(r => {
@@ -3304,7 +3304,11 @@
     $('bkSave').onclick = async () => {
       try { await api('backups/settings', 'PUT', { hour: $('bkHour').value, daily: $('bkDaily').value, weekly: $('bkWeekly').value, monthly: $('bkMonthly').value }); toast('Gespeichert.'); RENDER.sicherung(); } catch (e) { fail(e); }
     };
-    $('bkReadable').onchange = async () => { try { await api('backups/settings', 'PUT', { readable: $('bkReadable').checked }); toast($('bkReadable').checked ? 'Lesbare Auszüge werden mit hochgeladen.' : 'Nur noch die verschlüsselte Komplettsicherung.'); } catch (e) { fail(e); } };
+    $('bkReadable').onchange = async () => {
+      const on = $('bkReadable').checked; let myPassword;
+      if (on) { myPassword = await askText('Lesbare Auszüge (Namen, Beträge, Protokolle) gehen dann unverschlüsselt zu den Sicherungszielen. Bitte mit deinem Passwort bestätigen.', '', { password: true, ok: 'Einschalten' }); if (myPassword === null) { $('bkReadable').checked = false; return; } }
+      try { await api('backups/settings', 'PUT', { readable: on, myPassword }); toast(on ? 'Lesbare Auszüge werden mit hochgeladen.' : 'Nur noch die verschlüsselte Komplettsicherung.'); } catch (e) { $('bkReadable').checked = !on; fail(e); }
+    };
 
     // Wiederherstellen aus einer Komplettsicherung
     const restoreDialog = (source, file, label, sameKey = true, target = '') => {
@@ -3559,6 +3563,7 @@
         </ol>
         <div class="row"><label class="f" style="flex:1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
           <label class="f" style="flex:1">App secret<input id="dxSecret" type="password" placeholder="${d.hasSecret ? '•••••• (gespeichert)' : ''}" autocomplete="new-password"></label></div>
+        <div class="row"><label class="f" style="flex:1">Dein Passwort (zur Bestätigung)<input id="dxMy" type="password" autocomplete="current-password"></label></div>
         <div class="btns" style="justify-content:flex-start;margin-top:0"><button class="btn primary" id="dxSaveKeys">Speichern</button></div>
         ${d.authUrl && d.hasSecret ? `<ol class="steps" start="4" style="margin-top:14px">
           <li><a class="btn small primary" href="${esc(d.authUrl)}" target="_blank" rel="noopener">Bei Dropbox freigeben ↗</a> – im neuen Fenster <b>Zulassen</b> klicken.</li>
@@ -3566,8 +3571,8 @@
           <div class="row"><label class="f" style="flex:1">Code von Dropbox<input id="dxCode" autocomplete="off"></label></div>` : ''}
         <div class="btns"><button class="btn ghost" id="c">Schließen</button>${d.authUrl && d.hasSecret ? '<button class="btn primary" id="dxConnect">Verbinden</button>' : ''}</div>`, true);
       $('c').onclick = closeDialog;
-      $('dxSaveKeys').onclick = async () => { try { await api('dropbox', 'PUT', { appKey: $('dxKey').value, appSecret: $('dxSecret').value || undefined }); toast('Gespeichert – jetzt bei Dropbox freigeben.'); dropboxSetup(); } catch (e) { fail(e); } };
-      if ($('dxConnect')) $('dxConnect').onclick = async () => { try { const r = await api('dropbox/connect', 'POST', { code: $('dxCode').value }); closeDialog(); toast('Dropbox verbunden' + (r.account ? ': ' + r.account : '') + '.'); RENDER.sicherung(); } catch (e) { fail(e); } };
+      $('dxSaveKeys').onclick = async () => { try { await api('dropbox', 'PUT', { appKey: $('dxKey').value, appSecret: $('dxSecret').value || undefined, myPassword: $('dxMy').value }); toast('Gespeichert – jetzt bei Dropbox freigeben.'); dropboxSetup(); } catch (e) { fail(e); } };
+      if ($('dxConnect')) $('dxConnect').onclick = async () => { try { const r = await api('dropbox/connect', 'POST', { code: $('dxCode').value, myPassword: $('dxMy').value }); closeDialog(); toast('Dropbox verbunden' + (r.account ? ': ' + r.account : '') + '.'); RENDER.sicherung(); } catch (e) { fail(e); } };
     };
     $('bNow').onclick = async () => { try { const r = await api('backups', 'POST', {}); toast('Gesichert: ' + r.file); RENDER.sicherung(); } catch (e) { fail(e); } };
     if ($('bCancel')) $('bCancel').onclick = async () => { await api('backups/restore', 'DELETE').catch(fail); RENDER.sicherung(); };
@@ -3580,6 +3585,17 @@
         toast('Sicherung geprüft und abgelegt.'); RENDER.sicherung();
       } catch (err) { fail(err); }
     };
+    // Schnappschuss herunterladen: enthält auch Schlüssel der Datensicherung – nur mit dem eigenen Passwort
+    $('main').querySelectorAll('[data-bkdl]').forEach(btn => btn.onclick = async () => {
+      const pw = await askText('Der Schnappschuss enthält alle Daten und die Schlüssel der Datensicherung. Bitte mit deinem Passwort bestätigen.', '', { password: true, ok: 'Herunterladen' });
+      if (pw === null) return;
+      try {
+        const r = await fetch('api/admin/backups/file/' + encodeURIComponent(btn.dataset.bkdl), { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Clubwerk': '1' }, body: JSON.stringify({ myPassword: pw }) });
+        if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Fehler'); }
+        const url = URL.createObjectURL(await r.blob()), el = document.createElement('a');
+        el.href = url; el.download = btn.dataset.bkdl; document.body.appendChild(el); el.click(); el.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+      } catch (e) { fail(e); }
+    });
     $('main').querySelectorAll('[data-restore]').forEach(btn => btn.onclick = async () => {
       const pw = await askText(`„${btn.dataset.restore}“ wiederherstellen?\n\nNur die Datenbank wird ersetzt (Belege und Bilder bleiben). Alle Buchungen seit dieser Sicherung gehen dabei verloren. Der aktuelle Stand wird vorher automatisch gesichert. Die Wiederherstellung passiert beim Neustart.\n\nBitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Wiederherstellen' });
       if (pw === null || pw === '') return;

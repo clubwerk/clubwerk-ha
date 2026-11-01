@@ -61,8 +61,11 @@ function register(sh) {
     if (v.street.length < 3 || v.zip.length < 4 || v.city.length < 2) return { error: 'Bitte die vollständige Anschrift eintragen.' };
     if (!v.email && !v.mobile) return { error: 'Bitte eine E-Mail-Adresse oder Mobilnummer angeben.' };
     if (v.email && !mailOk(v.email)) return { error: 'Die E-Mail-Adresse sieht nicht gültig aus.' };
-    const fee = v.fee_id ? db.prepare('SELECT * FROM mv_fee WHERE id = ? AND active = 1').get(v.fee_id) : null;
+    // nur Beiträge, die das Formular anbietet (kein Zusatzbeitrag, nichts Verstecktes); weitere Personen nur mit einem echten Grundbeitrag
+    const fee = v.fee_id && formFees().some(f => f.id === v.fee_id) ? db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(v.fee_id) : null;
     if (!fee) return { error: 'Bitte die Mitgliedschaft (Beitrag) auswählen.' };
+    for (const p of persons) if (p.fee_id && !db.prepare("SELECT 1 FROM mv_fee WHERE id = ? AND active = 1 AND kind != 'zusatz'").get(p.fee_id)) p.fee_id = null;
+    if (persons.filter(p => p.role === 'partner').length > 1) return { error: 'Zur Familie gehört höchstens ein weiterer Erwachsener (Partner/in) – weitere Erwachsene bitte mit einer eigenen Beitrittserklärung.' };
     // mehrere Personen → nur Familienbeitrag (sofern es einen gibt); eine Person → kein Familienbeitrag
     const famFees = formFees().filter(f => f.family);
     if (persons.length > 1 && famFees.length && !fee.family) return { error: 'Bei mehreren Personen bitte die Familienmitgliedschaft wählen.' };
@@ -90,7 +93,15 @@ function register(sh) {
     const a = fees.ageAt(birth, today());
     return formFees().find(f => !f.family && (f.age_min == null || a >= f.age_min) && (f.age_max == null || a <= f.age_max)) || null;
   }
-  const sigOk = s => typeof s === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s) && s.length < 280000;
+  /* Unterschrift: PNG (App und Formular liefern 600 px Breite). Die Maße im Bildkopf begrenzen – ein winzig gepacktes PNG mit
+     riesigen Maßen ließe sonst beim PDF-Bau Gigabytes an Speicher reservieren und den Server blockieren. */
+  const sigOk = s => {
+    if (typeof s !== 'string' || s.length >= 280000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s)) return false;
+    const h = Buffer.from(s.slice(22, 22 + 44), 'base64');
+    if (h.length < 24 || h.readUInt32BE(0) !== 0x89504e47 || h.toString('latin1', 12, 16) !== 'IHDR') return false;
+    const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
+    return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
+  };
   const hashOf = (data, a, b, at) => crypto.createHash('sha256').update(JSON.stringify({ data, sig_member: a, sig_mandate: b, signed_at: at })).digest('hex');
 
   /** Unterschrift abschließen: Prüfwert, PDF, Benachrichtigung */
@@ -120,10 +131,15 @@ function register(sh) {
   }
 
   /** Antrag annehmen → Mitglieder anlegen (oder mit vorhandenen zusammenführen) */
-  function accept(id, { by, persons: choice = [], entry_date } = {}) {
+  /* user: angemeldeter Benutzer – beim Zusammenführen mit einem vorhandenen Mitglied gelten dieselben Rechte wie beim Bearbeiten:
+     Bankverbindung überschreiben nur mit „Bankdaten“, Abteilungsleitung nur Mitglieder der eigenen Abteilung(en) (scope) */
+  function accept(id, { by, persons: choice = [], entry_date, user = null, scope = null } = {}) {
     const a = db.prepare('SELECT * FROM mv_application WHERE id = ?').get(id);
     if (!a || a.status !== 'eingegangen') throw new Error('Dieser Antrag kann nicht (mehr) angenommen werden.');
     const d = JSON.parse(a.data);
+    const merges = d.persons.map((p, i) => int((choice[i] || {}).merge_id) || 0).filter(Boolean);
+    if (user && scope && merges.some(mid => !sh.inScope(mid, scope))) throw new Error('Zusammenführen geht nur mit Mitgliedern deiner Abteilung(en).');
+    if (user && d.iban && merges.length && !user.perms.includes('mitglieder_bank')) throw new Error('Zusammenführen mit einem vorhandenen Mitglied ändert dessen Bankverbindung – dafür fehlt dir das Recht „Bankdaten“. Bitte ohne Zusammenführen annehmen oder an die Vereinsverwaltung geben.');
     const fee = db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(d.fee_id);
     const start = isDate(entry_date) ? entry_date : (d.entry_date || today());
     const ids = [];
@@ -205,7 +221,8 @@ function register(sh) {
     const v = view(a); if (!req.user.perms.includes('mitglieder_bank')) v.data.iban = '';
     // mögliche Treffer im Bestand (gleicher Name / Geburtsdatum) – z. B. schon als Getränkekonto angelegt
     v.matches = v.data.persons.map(p => db.prepare(`SELECT m.id, m.name, x.birth_date, x.member_no FROM members m LEFT JOIN mv_person x ON x.member_id = m.id
-      WHERE m.kind = 'mitglied' AND m.deleted = 0 AND (lower(m.name) = lower(?) OR lower(m.name) = lower(?) OR (x.birth_date = ? AND lower(COALESCE(x.last_name, m.name)) LIKE lower(?)))`).all(`${p.first_name} ${p.last_name}`, `${p.last_name}, ${p.first_name}`, p.birth_date, `%${p.last_name}%`));
+      WHERE m.kind = 'mitglied' AND m.deleted = 0 AND (lower(m.name) = lower(?) OR lower(m.name) = lower(?) OR (x.birth_date = ? AND lower(COALESCE(x.last_name, m.name)) LIKE lower(?)))`).all(`${p.first_name} ${p.last_name}`, `${p.last_name}, ${p.first_name}`, p.birth_date, `%${p.last_name}%`)
+      .filter(m => !req.mvScope || sh.inScope(m.id, req.mvScope)));   // Abteilungsleitung: nur Treffer aus der eigenen Abteilung (kein Geburtsdatum Fremder)
     v.suggest = v.data.persons.map(p => { const f = suggestFee(p.birth_date); return f ? f.id : null; });
     res.json(v);
   });
@@ -247,7 +264,7 @@ function register(sh) {
       if (sh.notifyBoard) sh.notifyBoard(`Zur Bestätigung: Beitrittserklärung ${view(a).names}`, [`${uname(req)} (Abteilungsleitung) befürwortet die Beitrittserklärung von ${view(a).names}.`, '', 'Bitte in der Verwaltung unter Mitgliederverwaltung → Anträge annehmen.']).catch(() => {});
       return res.json({ ok: true, pending: true });
     }
-    try { const ids = accept(int(req.params.id), { by: uname(req), persons: Array.isArray(b.persons) ? b.persons : [], entry_date: b.entry_date }); res.json({ ok: true, member_id: ids[0], ids }); }
+    try { const ids = accept(int(req.params.id), { by: uname(req), persons: Array.isArray(b.persons) ? b.persons : [], entry_date: b.entry_date, user: req.user, scope: req.mvScope || null }); res.json({ ok: true, member_id: ids[0], ids }); }
     catch (e) { bad(res, e.message); }
   });
   admin.post('/applications/:id/reject', P, (req, res) => {

@@ -510,6 +510,11 @@ function cleanCfg(body, cleanName) {
   return out;
 }
 
+/** Geänderte Ventile/Schalter dem Vorstand melden (Einstellungen und Funktionsimport) – auch beim ersten Eintragen */
+function zoneAlert(before, out, who) {
+  const zrefs = c2 => (c2.backend === 'hydrawise' ? [] : c2.plaetze.flatMap(p => p.zones.map(z => z.ref))).sort().join(', ');
+  if (zrefs(before) !== zrefs(out)) H.require('./security').securityAlert(`Im Modul Beregnung wurden die geschalteten Geräte geändert (von ${who}).\n\nVorher: ${zrefs(before) || '–'}\nJetzt: ${zrefs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'beregnung-geraete-' + Date.now());
+}
 function activate(ctx) {
   ({ db, getSetting, setSetting, audit, auth } = ctx);
   express = ctx.require('express');
@@ -554,13 +559,14 @@ function activate(ctx) {
   });
   /* Funktionsexport/-import: Anbindung, Plätze mit Zonen, Schutz-Modus, Webapp – ohne Vereins-PIN und API-Key */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { backend, ...rest } = c; void backend; return { ...rest, keepMonths: keepMonths() }; };
-  ctx.hooks.importConfig = data => {
+  ctx.hooks.importConfig = (data, info = {}) => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     if (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) throw new Error('Gerade läuft eine Beregnung – bitte erst stoppen oder abwarten.');
     const keys = ['vendor', 'plaetze', 'mode', 'stopFree', 'cooldownMin', 'header', 'appName', 'subtitle', 'nextEntity', 'notify'];
     const b = Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]]));
-    const out = cleanCfg(b, ctx.cleanName);
+    const out = cleanCfg(b, ctx.cleanName), before = cfg();
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
+    if (!info.dry) zoneAlert(before, out, info.user ? `${info.user.name || info.user.username} per Funktionsimport` : 'Funktionsimport');   // gleiche Warnung wie in den Einstellungen
     if (Number.isInteger(data.keepMonths) && data.keepMonths >= 1 && data.keepMonths <= 60) ctx.setSetting2('keep_months', String(data.keepMonths));
     cache.at = 0;
     const zones = out.plaetze.reduce((a, p) => a + p.zones.length, 0);
@@ -591,7 +597,8 @@ function activate(ctx) {
     return { kpis: [{ l: 'Plätze', v: c.plaetze.length }, { l: 'Heute manuell gestartet', v: runs }, { l: 'Läuft gerade', v: running.length ? running.join(', ') : '–' }], alerts };
   };
 
-  ctx.tablet.use(appRouter(ctx));
+  // Tablet-Weg nur, solange die Beregnung am Tablet gezeigt wird (wie beim Zugang) – sonst bliebe die Schnittstelle offen, obwohl der Vorstand sie ausgeschaltet hat
+  ctx.tablet.use((req, res, next) => (cfg().header ? next() : res.status(404).json({ error: 'Die Beregnung ist am Tablet nicht eingeschaltet.' })), appRouter(ctx));
   ctx.tablet.get('/manifest.json', (req, res) => res.json(manifest('./')));
 
   const admin = ctx.admin;
@@ -605,10 +612,9 @@ function activate(ctx) {
     let out;
     try { out = cleanCfg(req.body, cleanName); } catch (e) { return bad(res, e.message); }
     if (out.backend !== cfg().backend && db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) return bad(res, 'Während einer laufenden Beregnung kann die Anbindung nicht gewechselt werden.');
-    const zrefs = c2 => (c2.backend === 'hydrawise' ? [] : c2.plaetze.flatMap(p => p.zones.map(z => z.ref))).sort().join(', ');
-    const zBefore = zrefs(cfg());
+    const before = cfg();
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
-    if (zBefore && zBefore !== zrefs(out)) H.require('./security').securityAlert(`Im Modul Beregnung wurden die geschalteten Geräte geändert (von ${req.user.name || req.user.username}).\n\nVorher: ${zBefore}\nJetzt: ${zrefs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'beregnung-geraete-' + Date.now());
+    zoneAlert(before, out, req.user.name || req.user.username);
     cache.at = 0;
     audit(req.user, 'Beregnung eingerichtet', `${out.plaetze.length} Plätze, ${vendorOf(out).name}, Schutz: ${{ login: 'Anmeldung', app: 'nur Mitglieder-App' }[out.mode] || 'Vereins-PIN'}`);
     res.json({ ok: true, cfg: out });
@@ -616,6 +622,7 @@ function activate(ctx) {
   admin.put('/pin', need('beregnung'), (req, res) => {
     const pin = String((req.body || {}).pin || '');
     if (!/^\d{4,8}$/.test(pin)) return bad(res, 'Die PIN muss aus 4 bis 8 Ziffern bestehen.');
+    { const steps = new Set([...pin].slice(1).map((c, i) => c - pin[i])); if (steps.size === 1 && [0, 1, -1].includes([...steps][0])) return bad(res, 'Diese PIN ist zu leicht zu erraten (z. B. 1111 oder 1234) – bitte eine andere wählen.'); }
     setSetting('ext_beregnung_pin_hash', auth.hashSecret(pin));
     audit(req.user, 'Beregnung: Vereins-PIN geändert', '');
     res.json({ ok: true });

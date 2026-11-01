@@ -44,6 +44,10 @@ function validate(file) {
     if (!ok || Object.values(ok)[0] !== 'ok') return 'Die Datenbank ist beschädigt.';
     const tables = new Set(d.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name));
     for (const t of ['members', 'articles', 'bookings', 'deliveries']) if (!tables.has(t)) return `Tabelle „${t}“ fehlt – das ist keine Sicherung von Clubwerk.`;
+    // Trigger und Views liefen später bei jedem Schreiben mit – Clubwerk legt nur bookings_snapshot an; Namen nur aus einfachen Zeichen
+    const foreign = d.prepare("SELECT type, name FROM sqlite_master WHERE (type = 'view' OR (type = 'trigger' AND name != 'bookings_snapshot')) OR name GLOB '*[^A-Za-z0-9_]*'").all()
+      .filter(o => !/^sqlite_autoindex_/.test(o.name));
+    if (foreign.length) return 'Die Datenbank enthält Bestandteile, die Clubwerk nie anlegt (Trigger, Views oder ungewöhnliche Namen) – aus Sicherheitsgründen wird sie nicht übernommen.';
     return null;
   } catch (e) { return 'Datei lässt sich nicht öffnen: ' + e.message; }
   finally {

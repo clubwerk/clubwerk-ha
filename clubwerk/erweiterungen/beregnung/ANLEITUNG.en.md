@@ -111,7 +111,7 @@ Here you decide how irrigation is operated.
 - **Locked – only users with a password:** users with the permission “Operate irrigation” can sign in (under Users & permissions, including accounts that may do nothing else).
 - **Lock-out after irrigation (minutes, 0 = off):** after a run the same court cannot be started for this long. The tile shows “from 14:30”. This stops a court being watered several times in a row.
 - **Red stop button works without a PIN:** stopping then needs no PIN, so nobody has to search in an emergency.
-- **Club PIN (4–8 digits):** it says “set” or “not set yet”. To change it, enter the new PIN and save; the old PIN is never shown. It only applies for “Open with club PIN”.
+- **Club PIN (4–8 digits, no easy-to-guess one such as 1111 or 1234):** it says “set” or “not set yet”. To change it, enter the new PIN and save; the old PIN is never shown. It only applies for “Open with club PIN”.
 
 Members with authorisation in the member app operate irrigation there in every mode. After 20 wrong PIN entries, PIN entry is blocked briefly for everyone and you receive a security message.
 

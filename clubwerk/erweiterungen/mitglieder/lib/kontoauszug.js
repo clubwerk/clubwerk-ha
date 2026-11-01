@@ -58,7 +58,8 @@ function register(sh) {
   function collRef(e) {
     for (const s of [e.batch_ref, e.purpose]) {
       const m = /CW\d{12}-(\d+)(?:-(FRST|RCUR))?/.exec(String(s || ''));
-      if (m) return { id: Number(m[1]), seq: m[2] || 'ALL' };
+      // byPurpose: Den Verwendungszweck schreibt der Absender selbst – so ein Treffer ist nie „sicher“ (jede Überweisung könnte ihn tragen)
+      if (m) return { id: Number(m[1]), seq: m[2] || 'ALL', byPurpose: s === e.purpose && s !== e.batch_ref };
     }
     const m = /^CW(\d+)-\d+$/.exec(String(e.e2e || ''));
     return m ? { id: Number(m[1]), seq: 'ALL' } : null;
@@ -107,8 +108,8 @@ function register(sh) {
           const inColl = b.payers.length ? db.prepare(`SELECT * FROM mv_charge WHERE collection_id = ? AND status = 'eingezogen' AND member_id IN (${b.payers.map(() => '?').join(',')})`).all(k.id, ...b.payers) : [];
           const cur = inColl.reduce((s, c) => s + c.cents, 0);
           if (inColl.length) add(`k:${k.id}:${cr.seq}`, `Lastschrift-Einzug vom ${deD(k.collection_date)} (${seqText(cr.seq)}): Zahlung erfolgt`, Math.min(e.cents, cur),
-            e.sure && (e.cents === cur || e.cents === b.cents) ? 'sicher' : 'wahrscheinlich', e.cents === cur || e.cents === b.cents ? `${inColl.length} Posten von ${new Set(inColl.map(c => c.member_id)).size} Zahlern` : `Betrag weicht ab: im Einzug ${euro(cur)}`);
-          else add(`kl:${k.id}`, `Lastschrift-Einzug vom ${deD(k.collection_date)} ist schon als bezahlt gebucht`, e.cents, 'sicher', 'nur verknüpfen, nichts buchen');
+            e.sure && !cr.byPurpose && (e.cents === cur || e.cents === b.cents) ? 'sicher' : 'wahrscheinlich', e.cents === cur || e.cents === b.cents ? `${inColl.length} Posten von ${new Set(inColl.map(c => c.member_id)).size} Zahlern` : `Betrag weicht ab: im Einzug ${euro(cur)}`);
+          else add(`kl:${k.id}`, `Lastschrift-Einzug vom ${deD(k.collection_date)} ist schon als bezahlt gebucht`, e.cents, cr.byPurpose ? 'wahrscheinlich' : 'sicher', 'nur verknüpfen, nichts buchen');
           continue;
         }
       }
@@ -222,6 +223,9 @@ function register(sh) {
       const bt = batches(k)[b] || batches(k).ALL;
       const list = bt.payers.length ? db.prepare(`SELECT id FROM mv_charge WHERE collection_id = ? AND status = 'eingezogen' AND member_id IN (${bt.payers.map(() => '?').join(',')})`).all(k.id, ...bt.payers).map(r => r.id) : [];
       if (!list.length) throw fachlich('In diesem Einzug ist nichts mehr „im Einzug“.');
+      // Weniger eingegangen als noch im Einzug steht: nicht alle Posten auf bezahlt setzen (fremde Überweisung mit passendem Verwendungszweck)
+      const open = db.prepare(`SELECT COALESCE(SUM(cents),0) c FROM mv_charge WHERE id IN (${list.map(() => '?').join(',')})`).get(...list).c;
+      if (e.cents < open) throw fachlich(`Eingegangen sind ${euro(e.cents)}, im Einzug stehen noch ${euro(open)} – so wird nichts als bezahlt gebucht. Bitte die Posten einzeln prüfen.`);
       const prevStatus = k.status;
       const r = sh.debitPaid(list, date);
       return { cents: Math.min(e.cents, r.cents), label: `Lastschrift-Einzug vom ${deD(k.collection_date)} (${seqText(b)}): ${r.n} Posten bezahlt`, ref: { k: k.id, ids: r.ids, date, prevStatus } };

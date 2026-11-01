@@ -310,13 +310,13 @@ The password encrypts all backups, at least 10 characters. **Without the passwor
 
 ![Card “Schedule & retention”.](bild: seite=sicherung; ziel=.card:has(#bkHour))
 
-Time of the nightly backup and how many daily, weekly and monthly backups are kept. “Also upload readable extracts” adds unencrypted Excel files of the modules. That is convenient but not encrypted.
+Time of the nightly backup and how many daily, weekly and monthly backups are kept. “Also upload readable extracts” adds unencrypted Excel files of the modules. That is convenient but not encrypted, so Clubwerk asks for your password when you switch it on.
 
 #### Backup targets
 
 ![Card “Backup targets”: where the nightly backup also goes.](bild: seite=sicherung; ziel=.card:has(#tgAdd))
 
-Where the full backup also goes every night. Two targets in different places are safest. **Add target …** knows WebDAV (Nextcloud, NAS, Storage Box), SFTP and FTP/FTPS (for example FRITZ!Box); **Connect Dropbox …** sets up Dropbox. Each target has **Test**, **Edit** (including its own retention) and **Remove**. Old unencrypted files from earlier versions in Dropbox can be deleted.
+Where the full backup also goes every night. Two targets in different places are safest. **Add target …** knows WebDAV (Nextcloud, NAS, Storage Box), SFTP and FTP/FTPS (for example FRITZ!Box); **Connect Dropbox …** sets up Dropbox (you confirm saving the keys and connecting with your password). Each target has **Test**, **Edit** (including its own retention) and **Remove**. Old unencrypted files from earlier versions in Dropbox can be deleted.
 
 #### Restore
 
@@ -339,7 +339,7 @@ Same name → updated, otherwise new. **Nothing is deleted.** Taking over twice 
 
 #### Database snapshots
 
-Clubwerk also backs up just the database every night (the last 14 nights), handy for quickly undoing a mistake from the last few days. **Snapshot now** creates one, **Import .db file …** uploads one, and each entry can be downloaded or restored.
+Clubwerk also backs up just the database every night (the last 14 nights), handy for quickly undoing a mistake from the last few days. **Snapshot now** creates one, **Import .db file …** uploads one, and each entry can be downloaded or restored. To download, Clubwerk asks for your password, because the snapshot also contains the backup keys.
 
 ### Page “Log” {#protokoll}
 

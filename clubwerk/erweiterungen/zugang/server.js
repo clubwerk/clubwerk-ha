@@ -432,6 +432,11 @@ function cleanCfg(b, cleanName) {
   return { out, commit };
 }
 
+/** Geänderte Türgeräte dem Vorstand melden (Einstellungen und Funktionsimport) – auch beim ersten Eintragen */
+function doorAlert(before, out, who) {
+  const refs = c2 => (c2.doors || []).map(d => `${d.name}=${d.ref}`).sort().join(', ');
+  if (refs(before) !== refs(out)) H.require('./security').securityAlert(`Im Modul Zugang wurden die Türen geändert (von ${who}).\n\nVorher: ${refs(before) || '–'}\nJetzt: ${refs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'zugang-tueren-' + Date.now());
+}
 function activate(ctx) {
   try { clubNet = ctx.require('./memberapp').isClubNet; } catch (e) { clubNet = null; }
   ({ db, getSetting, setSetting, audit } = ctx); ({ lastFirst } = ctx.require('./db'));
@@ -462,11 +467,13 @@ function activate(ctx) {
   ctx.hooks.accessOptions = () => { const c = cfg(); return { profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault, text: profileText(p) })), defaultProfile: (c.profiles.find(p => p.isDefault) || c.profiles[0]).id, profilesPage: 'zugang-freischaltungen', profilesPerm: 'zugang', profilesLabel: 'Zugang › Freischaltungen' }; };
   /* Funktionsexport/-import: Türen, Zeitprofile, Sperrtage, Einstellungen – ohne Freischaltungen und Protokoll */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { blockAll, ...rest } = c; void blockAll; return { ...rest, keepDays: keepDays() }; };
-  ctx.hooks.importConfig = data => {
+  ctx.hooks.importConfig = (data, info = {}) => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
+    const before = cfg();
     const keys = ['vendor', 'doors', 'profiles', 'wlanOnly', 'header', 'appName', 'subtitle', 'notify', 'openAlertMin', 'blockDays'];
     const { out, commit } = cleanCfg(Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]])), ctx.cleanName);
     db.transaction(() => { save(out); commit(); })(); cache.at = 0;
+    if (!info.dry) doorAlert(before, out, info.user ? `${info.user.name || info.user.username} per Funktionsimport` : 'Funktionsimport');   // Geräte über den Import geändert: gleiche Warnung wie in den Einstellungen
     if (Number.isInteger(data.keepDays) && data.keepDays >= 7 && data.keepDays <= 365) ctx.setSetting2('keep_days', String(data.keepDays));
     return `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile${out.blockDays.length ? `, ${out.blockDays.length} Sperrzeiträume` : ''}`;
   };
@@ -511,8 +518,7 @@ function activate(ctx) {
     if (before.blockAll !== out.blockAll) { log('sperre', req.user.name || req.user.username, null, out.blockAll ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben'); audit(req.user, out.blockAll ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', ''); }
     else audit(req.user, 'Zugang eingerichtet', `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile`);
     // Geänderte Türgeräte (oder ein neues „Wer darf immer“-Profil) dem Vorstand melden
-    const refs = c2 => (c2.doors || []).map(d => `${d.name}=${d.ref}`).sort().join(', ');
-    if (refs(before) !== refs(out)) H.require('./security').securityAlert(`Im Modul Zugang wurden die Türen geändert (von ${req.user.name || req.user.username}).\n\nVorher: ${refs(before) || '–'}\nJetzt: ${refs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'zugang-tueren-' + Date.now());
+    doorAlert(before, out, req.user.name || req.user.username);
     res.json({ ok: true, cfg: out, profileTexts: Object.fromEntries(out.profiles.map(p => [p.id, profileText(p)])) });
   });
   admin.get('/doors', need('zugang', 'zugang_bedienen'), async (req, res) => {

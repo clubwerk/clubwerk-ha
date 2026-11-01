@@ -8,6 +8,11 @@ const fs = require('fs');
 const path = require('path');
 
 const PK_RE = /(\bid\s+INTEGER\s+PRIMARY\s+KEY)(?!\s+AUTOINCREMENT)/i;
+/* Namen und SQL stammen aus dem Schema der Datenbank – nach einer Wiederherstellung kann das eine fremde Datei sein. Deshalb jeder
+   Name in Anführungszeichen (innere verdoppelt) und jede Anweisung einzeln mit prepare() (nie exec(): das führte auch angehängte
+   Anweisungen wie ATTACH aus). */
+const qid = n => `"${String(n).replace(/"/g, '""')}"`;
+const run1 = (db, sql) => db.prepare(sql).run();
 
 function tablesToConvert(db) {
   return db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND sql IS NOT NULL").all()
@@ -34,25 +39,25 @@ function ensureAutoincrement(db, dataDir) {
     db.transaction(() => {
       // Trigger vorübergehend entfernen (sie verweisen evtl. auf Tabellen, die gerade umgebaut werden) und am Ende neu anlegen
       const triggers = db.prepare("SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND sql IS NOT NULL").all();
-      for (const tr of triggers) db.exec(`DROP TRIGGER "${tr.name}"`);
+      for (const tr of triggers) run1(db, `DROP TRIGGER ${qid(tr.name)}`);
       for (const t of todo) {
         const extras = db.prepare("SELECT sql FROM sqlite_master WHERE tbl_name = ? AND type = 'index' AND sql IS NOT NULL").all(t.name).map(r => r.sql);
         const tmp = `${t.name}__neu`;
         // CREATE TABLE "name" (...) → CREATE TABLE "name__neu" (... AUTOINCREMENT ...)
         const createSql = t.sql.replace(PK_RE, '$1 AUTOINCREMENT')
-          .replace(/^CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?("?)([\w]+)\2/i, `CREATE TABLE "${tmp}"`);
-        const cols = db.prepare(`PRAGMA table_info("${t.name}")`).all().map(c => `"${c.name}"`).join(', ');
-        db.exec(createSql);
-        db.exec(`INSERT INTO "${tmp}" (${cols}) SELECT ${cols} FROM "${t.name}"`);
-        db.exec(`DROP TABLE "${t.name}"`);
-        db.exec(`ALTER TABLE "${tmp}" RENAME TO "${t.name}"`);
-        for (const sql of extras) db.exec(sql);
+          .replace(/^CREATE\s+TABLE\s+(IF\s+NOT\s+EXISTS\s+)?("?)([\w]+)\2/i, `CREATE TABLE ${qid(tmp)}`);
+        const cols = db.prepare(`PRAGMA table_info(${qid(t.name)})`).all().map(c => qid(c.name)).join(', ');
+        run1(db, createSql);
+        run1(db, `INSERT INTO ${qid(tmp)} (${cols}) SELECT ${cols} FROM ${qid(t.name)}`);
+        run1(db, `DROP TABLE ${qid(t.name)}`);
+        run1(db, `ALTER TABLE ${qid(tmp)} RENAME TO ${qid(t.name)}`);
+        for (const sql of extras) run1(db, sql);
         // höchste bisher vorhandene ID als Untergrenze festschreiben
-        const max = db.prepare(`SELECT COALESCE(MAX(id), 0) m FROM "${t.name}"`).get().m;
+        const max = db.prepare(`SELECT COALESCE(MAX(id), 0) m FROM ${qid(t.name)}`).get().m;
         db.prepare('DELETE FROM sqlite_sequence WHERE name = ?').run(t.name);
         db.prepare('INSERT INTO sqlite_sequence(name, seq) VALUES (?, ?)').run(t.name, max);
       }
-      for (const tr of triggers) db.exec(tr.sql);
+      for (const tr of triggers) run1(db, tr.sql);
       const bad = db.pragma('foreign_key_check');
       if (bad.length > fkBefore) throw new Error(`Fremdschlüssel nach der Umstellung fehlerhaft (${bad.length})`);
     })();

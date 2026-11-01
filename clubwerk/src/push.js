@@ -104,6 +104,10 @@ function pushHostOk(endpoint) {
 const validSub = s => s && typeof s === 'object' && /^https:\/\/[^\s]{10,1500}$/.test(String(s.endpoint || '')) && pushHostOk(s.endpoint) && s.keys && /^[A-Za-z0-9_\-=]{20,200}$/.test(String(s.keys.p256dh || '')) && /^[A-Za-z0-9_\-=]{10,100}$/.test(String(s.keys.auth || ''));
 function subscribe({ memberId, deviceId, label }, sub) {
   if (!validSub(sub)) throw new Error('Das Push-Abo des Browsers ist unvollständig.');
+  // Ein Abo, das zu einem anderen Mitglied mit noch gekoppeltem Handy gehört, wird nicht umgehängt (sonst bekäme jemand mit der
+  // Push-Adresse eines fremden Handys dessen Benachrichtigungen bzw. nähme sie ihm weg)
+  const cur = db.prepare('SELECT member_id, device_id FROM push_subs WHERE endpoint = ?').get(String(sub.endpoint));
+  if (cur && cur.member_id !== memberId && cur.device_id && db.prepare('SELECT 1 FROM member_devices WHERE id = ? AND token_hash IS NOT NULL').get(cur.device_id)) throw new Error('Diese Push-Adresse gehört zu einem anderen Mitglied.');
   db.prepare(`INSERT INTO push_subs(member_id, device_id, endpoint, p256dh, auth, label) VALUES (?, ?, ?, ?, ?, ?)
     ON CONFLICT(endpoint) DO UPDATE SET member_id = excluded.member_id, device_id = excluded.device_id, p256dh = excluded.p256dh, auth = excluded.auth, label = excluded.label, fails = 0`)
     .run(memberId, deviceId || null, String(sub.endpoint), String(sub.keys.p256dh), String(sub.keys.auth), String(label || '').slice(0, 80) || null);

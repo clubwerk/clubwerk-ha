@@ -11,7 +11,7 @@ The module works on its own. It needs neither Members nor Duties & events: staff
 
 1. **Settings › Modules:** switch on “Time tracking”. With “Demo” you can try the module with made-up data first.
 2. **Give the permission:** under Settings › Users & permissions, give the permission “Time tracking” to everyone who may see hours and hourly rates.
-3. **Add staff:** tab “Staff” › “+ Person” (name, activity, PIN, hourly rate).
+3. **Add staff:** tab “Staff” › “+ Person” (name, activity, PIN, hourly rate). The PIN has 4 to 6 digits; Clubwerk does not accept easy-to-guess ones such as 1111 or 1234.
 4. **Set up the mailbox:** Settings › Mailbox, so the monthly report can be sent.
 5. **Enter the recipient:** tab “Settings” › card “Monthly report by email” (the treasurer’s address).
 

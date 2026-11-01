@@ -27,6 +27,20 @@ db.pragma('temp_store = MEMORY');
     return st;
   };
 }
+const SNAPSHOT_TRIGGER = `CREATE TRIGGER bookings_snapshot AFTER INSERT ON bookings WHEN NEW.article_name IS NULL BEGIN
+  UPDATE bookings SET article_name = (SELECT name FROM articles WHERE id = NEW.article_id),
+    article_category = (SELECT category FROM articles WHERE id = NEW.article_id) WHERE id = NEW.id;
+END`;
+/* Sicherheit: Trigger und Views laufen bei jedem Schreiben mit. Clubwerk legt nur den Trigger oben an – alles andere (z. B. aus einer
+   untergeschobenen Sicherung) wird beim Start entfernt, und bookings_snapshot gilt nur genau in dieser Fassung. */
+{
+  const qn = n => `"${String(n).replace(/"/g, '""')}"`;
+  for (const o of db.prepare("SELECT type, name, sql FROM sqlite_master WHERE type IN ('trigger','view')").all()) {
+    if (o.type === 'trigger' && o.name === 'bookings_snapshot' && o.sql === SNAPSHOT_TRIGGER) continue;
+    db.prepare(`DROP ${o.type === 'view' ? 'VIEW' : 'TRIGGER'} IF EXISTS ${qn(o.name)}`).run();
+    if (o.name !== 'bookings_snapshot') console.log(`Sicherheit: fremder Datenbank-${o.type === 'view' ? 'View' : 'Trigger'} entfernt (${String(o.name).slice(0, 60)}).`);
+  }
+}
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS settings (
@@ -534,10 +548,8 @@ function lastSettlement() {
    auch wenn der Artikel später umbenannt wird. Verknüpft bleibt die Buchung über article_id (Abrechnung, Bestand). */
 addColumn('bookings', 'article_name', 'TEXT');
 addColumn('bookings', 'article_category', 'TEXT');
-db.exec(`CREATE TRIGGER IF NOT EXISTS bookings_snapshot AFTER INSERT ON bookings WHEN NEW.article_name IS NULL BEGIN
-  UPDATE bookings SET article_name = (SELECT name FROM articles WHERE id = NEW.article_id),
-    article_category = (SELECT category FROM articles WHERE id = NEW.article_id) WHERE id = NEW.id;
-END`);
+// bookings_snapshot (Fassung siehe SNAPSHOT_TRIGGER oben) – fremde Trigger/Views hat der Start schon entfernt
+if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'trigger' AND name = 'bookings_snapshot'").get()) db.prepare(SNAPSHOT_TRIGGER).run();
 // einmalig: bisherige Buchungen bekommen den heutigen Namen (der damalige ist nicht mehr bekannt)
 db.prepare(`UPDATE bookings SET article_name = (SELECT name FROM articles a WHERE a.id = bookings.article_id),
   article_category = (SELECT category FROM articles a WHERE a.id = bookings.article_id) WHERE article_name IS NULL`).run();

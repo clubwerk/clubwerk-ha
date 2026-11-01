@@ -169,6 +169,10 @@ function activate(ctx) {
   const game = id => db.prepare('SELECT * FROM sp_game WHERE id = ?').get(int(id));
   const memberName = id => { const r = id ? db.prepare('SELECT name FROM members WHERE id = ?').get(id) : null; return r ? r.name : ''; };
   const isMember = id => Boolean(id && db.prepare("SELECT 1 FROM members WHERE id = ? AND deleted = 0").get(id));
+  /** aufstellbar bzw. für Aufgaben wählbar: aktives Konto auf der Meldeliste einer aktiven Mannschaft (auch Gastspieler/innen) –
+   *  nie beliebige Konten (sonst ließen sich über die Antwort Namen aller Konten auslesen und Push an jeden schicken) */
+  const canPlay = id => Boolean(id && db.prepare(`SELECT 1 FROM sp_player p JOIN sp_team t ON t.id = p.team_id JOIN members m ON m.id = p.member_id
+    WHERE p.member_id = ? AND t.active = 1 AND m.deleted = 0 AND m.active = 1 LIMIT 1`).get(id));
   const roster = teamId => db.prepare(`SELECT p.member_id, p.rank, m.name FROM sp_player p JOIN members m ON m.id = p.member_id
     WHERE p.team_id = ? AND m.deleted = 0 AND m.active = 1 ORDER BY p.rank, name_key(m.name, m.kind)`).all(teamId);
   const captainOf = memberId => db.prepare('SELECT id FROM sp_team WHERE active = 1 AND (captain_id = ? OR vice_id = ?)').all(memberId, memberId).map(r => r.id);
@@ -290,7 +294,7 @@ function activate(ctx) {
   });
   ctx.public.get('/ics/:id', (req, res) => {
     const id = int(req.params.id), k = String(req.query.k || '');
-    const ok = k.length === 32 && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));
+    const ok = /^[0-9a-f]{32}$/.test(k) && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));   // nur Hex: Umlaute ergäben ungleich lange Puffer (Fehler 500)
     const g = ok ? game(id) : null;
     if (!g || g.status !== 'geplant') return res.status(404).type('text/plain; charset=utf-8').send('Diesen Spieltag gibt es nicht (mehr).');
     res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': `inline; filename="spieltag-${g.date}.ics"`, 'Cache-Control': 'no-store' }).send(icsText(g));
@@ -484,7 +488,7 @@ function activate(ctx) {
     }
     if (!['spielt', 'ersatz'].includes(role)) throw new Error('Unbekannte Rolle.');
     if (g.kind === 'rahmen') throw new Error('Vorläufiger Termin – aufstellen geht erst, wenn der Spielplan da ist.');
-    if (!isMember(memberId)) throw new Error('Mitglied nicht gefunden.');
+    if (!canPlay(memberId)) throw new Error('Mitglied nicht gefunden.');
     const a = db.prepare('SELECT state FROM sp_avail WHERE game_id = ? AND member_id = ?').get(g.id, memberId);
     if (a && a.state === 'nein') throw new Error(`${short(memberName(memberId))} hat für diesen Spieltag abgesagt.`);
     const other = playingElsewhere(g).get(memberId);
@@ -724,15 +728,17 @@ function activate(ctx) {
     const g = leadGame(req, res); if (!g) return;
     if (!cfg().tasks) return bad(res, 'Aufgaben sind ausgeschaltet.');
     const b = req.body || {};
-    try { taskEdit(g, b, req.member.name); } catch (e) { return bad(res, e.message); }
+    try { taskEdit(g, b, req.member.name, { app: true }); } catch (e) { return bad(res, e.message); }
     res.json(leadView(game(g.id)));
   });
-  function taskEdit(g, b, by) {
+  /** app: aus der App (Mannschaftsführer) – dann nur Personen der Meldelisten; die Verwaltung darf Aufgaben (z. B. Bewirtung) an jedes Konto geben */
+  function taskEdit(g, b, by, { app = false } = {}) {
+    const okId = id => (app ? canPlay(id) : isMember(id));
     const t = team(g.team_id);
     if (b.remove) { db.prepare('DELETE FROM sp_task WHERE id = ? AND game_id = ?').run(int(b.task_id), g.id); return; }
     if (b.task_id) {
       const x = db.prepare('SELECT * FROM sp_task WHERE id = ? AND game_id = ?').get(int(b.task_id), g.id); if (!x) throw new Error('Aufgabe nicht gefunden.');
-      const mid = b.member_id ? int(b.member_id) : null; if (mid && !isMember(mid)) throw new Error('Mitglied nicht gefunden.');
+      const mid = b.member_id ? int(b.member_id) : null; if (mid && !okId(mid)) throw new Error('Mitglied nicht gefunden.');
       db.prepare('UPDATE sp_task SET member_id = ? WHERE id = ?').run(mid, x.id);
       if (mid && mid !== x.member_id) tell([mid], 'aufgabe', { title: `Aufgabe: ${x.label}`, body: `${gameTitle(g, t)}, ${gameWhen(g)}` });
       return;
@@ -740,7 +746,8 @@ function activate(ctx) {
     if (g.kind === 'rahmen') throw new Error('Vorläufiger Termin – Aufgaben gibt es erst mit dem Spielplan.');
     const kinds = cfg().taskKinds; const k = kinds.find(x => x.k === b.kind);
     const label = txt(b.label, 60) || (k ? k.l : ''); if (!label) throw new Error('Bitte die Aufgabe benennen.');
-    db.prepare('INSERT INTO sp_task(game_id, kind, label, member_id) VALUES (?,?,?,?)').run(g.id, k ? k.k : 'eigene', label, b.member_id ? int(b.member_id) : null);
+    const mid = b.member_id ? int(b.member_id) : null; if (mid && !okId(mid)) throw new Error('Mitglied nicht gefunden.');
+    db.prepare('INSERT INTO sp_task(game_id, kind, label, member_id) VALUES (?,?,?,?)').run(g.id, k ? k.k : 'eigene', label, mid);
     void by;
   }
   function remindOpen(g) {

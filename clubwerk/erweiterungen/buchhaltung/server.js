@@ -98,7 +98,7 @@ function totals(items, smallBusiness) {
 }
 function nextNo(table, prefix, year) {
   const pre = `${prefix}${year}-`;
-  const last = db.prepare(`SELECT no FROM ${table} WHERE no LIKE ? ORDER BY length(no) DESC, no DESC LIMIT 1`).get(pre.replace(/[%_]/g, '\\$&') + '%');
+  const last = db.prepare(`SELECT no FROM ${table} WHERE no LIKE ? ESCAPE '\\' ORDER BY length(no) DESC, no DESC LIMIT 1`).get(pre.replace(/[%_]/g, '\\$&') + '%');
   const n = last ? (parseInt(last.no.slice(pre.length), 10) || 0) + 1 : 1;
   return pre + pad(n, 4);
 }
@@ -173,9 +173,8 @@ function activate(ctx) {
 
   /* ---------- Einstellungen ---------- */
   admin.get('/settings', P, (req, res) => res.json(settings()));
-  admin.put('/settings', P, (req, res) => {
-    const b = req.body || {}; const err = [];
-    const before = settings();
+  /** Einstellungen prüfen und speichern (Verwaltung und Funktionsimport gleich) – Fehler landen in err */
+  function applySettings(b, err) {
     for (const k of ['street', 'city', 'tax_no', 'vat_id', 'phone', 'finanzamt', 'fa_tax_no', 'veranlagungszeitraum', 'signer', 'signer_role', 'place']) if (b[k] !== undefined) C.setSetting2(k, one(b[k], 120));
     for (const k of ['footer', 'intro', 'zwecke']) if (b[k] !== undefined) C.setSetting2(k, txt(b[k], 600));
     if (b.email !== undefined) { if (!mailOk(one(b.email, 120))) err.push('Die E-Mail-Adresse ist ungültig.'); else C.setSetting2('email', one(b.email, 120)); }
@@ -185,6 +184,11 @@ function activate(ctx) {
     for (const k of ['inv_prefix', 'don_prefix']) if (b[k] !== undefined) C.setSetting2(k, String(b[k]).replace(/[^A-Za-z0-9-]/g, '').slice(0, 8));
     if (b.bescheid_type !== undefined) C.setSetting2('bescheid_type', b.bescheid_type === 'feststellung' ? 'feststellung' : 'freistellung');
     if (b.bescheid_date !== undefined) { if (b.bescheid_date && !isDate(b.bescheid_date)) err.push('Das Datum des Bescheids ist ungültig.'); else C.setSetting2('bescheid_date', b.bescheid_date || ''); }
+  }
+  admin.put('/settings', P, (req, res) => {
+    const b = req.body || {}; const err = [];
+    const before = settings();
+    applySettings(b, err);
     { const L = { street: 'Straße', city: 'PLZ und Ort', tax_no: 'Steuernummer', vat_id: 'USt-IdNr.', phone: 'Telefon', email: 'E-Mail', finanzamt: 'Finanzamt', fa_tax_no: 'Steuernummer (Finanzamt)', veranlagungszeitraum: 'Veranlagungszeitraum',
         signer: 'Unterschrift', signer_role: 'Funktion', place: 'Ort', footer: ['Fußzeile', 'text'], intro: ['Einleitung', 'text'], zwecke: ['Satzungszwecke', 'text'], vat_default: 'Umsatzsteuer (Standard, %)', small_business: ['Kleinunternehmer', 'bool'],
         due_days: 'Zahlungsziel (Tage)', inv_prefix: 'Rechnungsnummer-Vorsilbe', don_prefix: 'Quittungsnummer-Vorsilbe', bescheid_type: 'Art des Bescheids', bescheid_date: 'Datum des Bescheids' };
@@ -317,9 +321,20 @@ function activate(ctx) {
     if (r.status !== 'offen') return bad(res, 'Nur offene Rechnungen lassen sich anmahnen.');
     try { res.json(await sendInvoice(r.id, req, { reminder: true })); } catch (e) { bad(res, e.message); }
   }));
+  /* Rechnung an ein Mitglied mit Posten in der Mitgliederverwaltung: bezahlt wird dort mitgebucht. Steckt der Posten schon in einer
+     Lastschrift (oder ist die Mitgliederverwaltung aus), würde „bezahlt“ hier nur die Rechnung ändern – das Mitglied zahlte doppelt. */
+  const NO_MV = 'Zu dieser Rechnung gehört ein Posten in der Mitgliederverwaltung – bitte erst die Mitgliederverwaltung einschalten.';
+  async function chargeBlock(r) {
+    if (!r.charge_id) return '';
+    if (!ctx.isModuleActive('mitglieder')) return NO_MV;
+    const st = ((await ctx.callHooks('chargeStatus', [r.charge_id])).find(x => x.id === 'mitglieder') || {}).result || {};
+    const c = st[r.charge_id];
+    return c && c.status === 'eingezogen' ? 'Der zugehörige Posten steckt gerade in einer Lastschrift – das Geld kommt über den Einzug. Kommt die Lastschrift zurück, die Zahlung bitte in der Mitgliederverwaltung buchen.' : '';
+  }
   admin.post('/invoices/:id/paid', P, ar(async (req, res) => {
     const r = invOr404(req, res); if (!r) return;
     if (r.status !== 'offen') return bad(res, 'Diese Rechnung ist nicht offen.');
+    { const e = await chargeBlock(r); if (e) return bad(res, e); }
     const b = req.body || {};
     const date = isDate(b.date) ? b.date : today(), via = ['ueberweisung', 'bar', 'lastschrift', 'verrechnet'].includes(b.via) ? b.via : 'ueberweisung';
     db.prepare("UPDATE bh_invoice SET status = 'bezahlt', paid_at = ?, paid_via = ? WHERE id = ?").run(date, via, r.id);
@@ -341,6 +356,7 @@ function activate(ctx) {
     if (r.status === 'bezahlt' && r.paid_via === VIA_KA) return bad(res, 'Diese Rechnung ist per Kontoauszug bezahlt – bitte zuerst dort die Zuordnung aufheben (das Geld ist auf dem Vereinskonto).');
     const reason = one((req.body || {}).reason, 200);
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
+    if (r.charge_id && !ctx.isModuleActive('mitglieder')) return bad(res, NO_MV);
     if (r.charge_id) {
       const out = (await ctx.callHooks('cancelCharge', r.charge_id, reason, uname(req))).find(x => x.id === 'mitglieder');
       if (ctx.isModuleActive('mitglieder') && !out) return bad(res, 'Der zugehörige Posten bei den Mitgliedern lässt sich hier nicht stornieren (laufende Lastschrift oder per Kontoauszug bezahlt) – bitte dort erst klären.');
@@ -527,7 +543,11 @@ function activate(ctx) {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const z = konfigio.zaehler(); let ungueltig = 0;
     db.transaction(() => {
-      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (k in DEF && typeof v === 'string') C.setSetting2(k, v.slice(0, 600));
+      if (data.settings && typeof data.settings === 'object') {   // gleiche Prüfung wie in der Verwaltung (Vorsilben, E-Mail, Datum …)
+        const st = Object.fromEntries(Object.entries(data.settings).filter(([k, v]) => k in DEF && typeof v === 'string' && !(k === 'email' && !v))), e = [];
+        if (st.small_business !== undefined) st.small_business = st.small_business === '1';   // im Export steht „0“/„1“ als Text
+        applySettings(st, e); if (e.length) ungueltig += e.length;
+      }
       const have = new Map(db.prepare('SELECT * FROM bh_partner').all().map(p => [p.name.toLowerCase(), p]));
       for (const p of konfigio.liste(data.partners, 500)) {
         const found = have.get(String(p.name || '').trim().toLowerCase());

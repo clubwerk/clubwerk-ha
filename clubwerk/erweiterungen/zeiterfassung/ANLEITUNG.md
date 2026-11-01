@@ -11,7 +11,7 @@ Das Modul läuft allein. Es braucht weder die Mitgliederverwaltung noch die Helf
 
 1. **Einstellungen › Module:** Schalter bei „Zeiterfassung“ einschalten. Mit „Demo“ könnt ihr das Modul vorher mit erfundenen Daten ausprobieren.
 2. **Recht vergeben:** Unter Einstellungen › Benutzer & Rechte bekommt, wer Stunden und Stundensätze sehen darf, das Recht „Zeiterfassung“.
-3. **Personal anlegen:** Reiter „Personal“ › „+ Person“ (Name, Tätigkeit, PIN, Stundensatz).
+3. **Personal anlegen:** Reiter „Personal“ › „+ Person“ (Name, Tätigkeit, PIN, Stundensatz). Die PIN hat 4 bis 6 Ziffern; leicht zu erratende wie 1111 oder 1234 nimmt Clubwerk nicht an.
 4. **Postfach einrichten:** Einstellungen › Postfach, damit der Monatsnachweis verschickt werden kann.
 5. **Empfänger eintragen:** Reiter „Einstellungen“ › Karte „Monatsnachweis per E-Mail“ (die Adresse der Kassiererin).
 

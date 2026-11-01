@@ -41,6 +41,9 @@ function limiter({ per = 5, baseMs = 5 * 60000, maxMs = 24 * 3600000, size = 200
       return { locked, strikes: f.strikes, minutes: locked ? Math.ceil((f.until - now) / 60000) : 0 };
     },
     ok(key) { m.delete(key); },
+    /** Erfolg, aber die Sperrstufe bleibt: Fehlversuche fangen von vorn an, die nächste Sperre dauert trotzdem länger
+     *  (sonst setzte jede richtige Eingabe des echten Nutzers die Bremse für jemanden zurück, der seine PIN durchprobiert) */
+    soft(key) { const f = m.get(key); if (f) f.n = 0; },
   };
 }
 /** Kontingent je Schlüssel und Zeitfenster (z. B. 20 E-Mails je Mitglied und Stunde): take(key, n) → true, wenn n noch ins Fenster passt.

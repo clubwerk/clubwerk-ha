@@ -310,13 +310,13 @@ Das Passwort verschlüsselt alle Sicherungen, mindestens 10 Zeichen. **Ohne das 
 
 ![Karte „Zeitplan & Aufbewahrung“.](bild: seite=sicherung; ziel=.card:has(#bkHour))
 
-Uhrzeit der nächtlichen Sicherung und wie viele tägliche, wöchentliche und monatliche Sicherungen bleiben. „Zusätzlich lesbare Auszüge hochladen“ legt unverschlüsselte Excel-Dateien der Module mit ab. Das ist bequem, aber nicht verschlüsselt.
+Uhrzeit der nächtlichen Sicherung und wie viele tägliche, wöchentliche und monatliche Sicherungen bleiben. „Zusätzlich lesbare Auszüge hochladen“ legt unverschlüsselte Excel-Dateien der Module mit ab. Das ist bequem, aber nicht verschlüsselt; deshalb fragt Clubwerk beim Einschalten nach eurem Passwort.
 
 #### Sicherungsziele
 
 ![Karte „Sicherungsziele“: wohin die Nachtsicherung zusätzlich geht.](bild: seite=sicherung; ziel=.card:has(#tgAdd))
 
-Wohin die Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten. **Ziel hinzufügen …** kennt WebDAV (Nextcloud, NAS, Storage Box), SFTP und FTP/FTPS (zum Beispiel FRITZ!Box); **Dropbox verbinden …** richtet Dropbox ein. Je Ziel gibt es **Testen**, **Bearbeiten** (auch eigene Aufbewahrung) und **Entfernen**. Alte unverschlüsselte Dateien früherer Versionen in Dropbox lassen sich löschen.
+Wohin die Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten. **Ziel hinzufügen …** kennt WebDAV (Nextcloud, NAS, Storage Box), SFTP und FTP/FTPS (zum Beispiel FRITZ!Box); **Dropbox verbinden …** richtet Dropbox ein (Schlüssel speichern und Verbinden bestätigt ihr mit eurem Passwort). Je Ziel gibt es **Testen**, **Bearbeiten** (auch eigene Aufbewahrung) und **Entfernen**. Alte unverschlüsselte Dateien früherer Versionen in Dropbox lassen sich löschen.
 
 #### Wiederherstellen
 
@@ -339,7 +339,7 @@ Gleicher Name → aktualisiert, sonst neu. **Gelöscht wird nichts.** Wer zweima
 
 #### Datenbank-Schnappschüsse
 
-Zusätzlich sichert Clubwerk jede Nacht nur die Datenbank (die letzten 14 Nächte), praktisch, um einen Fehler der letzten Tage schnell rückgängig zu machen. **Schnappschuss jetzt** legt einen an, **.db-Datei einspielen …** lädt einen hoch, jeder Eintrag lässt sich herunterladen oder wiederherstellen.
+Zusätzlich sichert Clubwerk jede Nacht nur die Datenbank (die letzten 14 Nächte), praktisch, um einen Fehler der letzten Tage schnell rückgängig zu machen. **Schnappschuss jetzt** legt einen an, **.db-Datei einspielen …** lädt einen hoch, jeder Eintrag lässt sich herunterladen oder wiederherstellen. Zum Herunterladen fragt Clubwerk nach eurem Passwort, denn der Schnappschuss enthält auch die Schlüssel der Datensicherung.
 
 ### Seite „Protokoll“ {#protokoll}
 

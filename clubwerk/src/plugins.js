@@ -120,6 +120,9 @@ function isActive(id) {
 
 function discover() {
   for (const { dir, source } of SOURCES) {
+    // Lesekopie der Teil-Wiederherstellung: Die Sicherung kann von einer fremden Installation stammen – ihre Erweiterungen und deren
+    // Freigaben (plugin_approved_* in ihrer Datenbank) sind nicht geprüft. Nur der mitgelieferte Code dieses Pakets läuft.
+    if (process.env.CW_LESEKOPIE === '1' && source !== 'mitgeliefert') continue;
     let names = [];
     try { names = fs.readdirSync(dir, { withFileTypes: true }).filter(d => d.isDirectory()).map(d => d.name); } catch (e) { continue; }
     for (const name of names) {
@@ -330,7 +333,8 @@ async function installZip(buf) {
   if (!metaFile) throw new Error('Im ZIP fehlt die Datei „erweiterung.json“.');
   const root = metaFile.name.slice(0, -'erweiterung.json'.length);
   let meta;
-  try { meta = JSON.parse(await metaFile.async('string')); } catch (e) { throw new Error('„erweiterung.json“ ist kein gültiges JSON.'); }
+  const budget = require('./util').zipBudget(20 * 1024 * 1024, 'Die Erweiterung ist zu groß (höchstens 20 MB).');
+  try { meta = JSON.parse(await budget.read(metaFile, 'string')); } catch (e) { throw e.tooBig ? e : new Error('„erweiterung.json“ ist kein gültiges JSON.'); }
   const id = String(meta.id || '');
   if (!ID_RE.test(id)) throw new Error('Ungültige id in „erweiterung.json“ (nur Kleinbuchstaben, Ziffern, Bindestrich).');
   const existing = plugins.get(id);
@@ -344,7 +348,7 @@ async function installZip(buf) {
     if (!f.name.startsWith(root)) continue;
     const rel = f.name.slice(root.length);
     if (!rel || rel.includes('..') || rel.startsWith('/') || /[\\:]/.test(rel)) throw new Error(`Ungültiger Dateipfad im ZIP: ${f.name}`);
-    const data = await f.async('nodebuffer');
+    const data = await budget.read(f);
     total += data.length;
     if (total > 20 * 1024 * 1024) throw new Error('Die Erweiterung ist zu groß (höchstens 20 MB).');
     out.push([rel, data]);

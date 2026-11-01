@@ -43,7 +43,8 @@ const PARENT = process.ppid;
 setInterval(() => { if (process.ppid !== PARENT) process.exit(0); }, 3000).unref();
 
 /* Diese Änderungen gibt es in der Demo-Kopie nicht (Ansehen geht) */
-const BLOCKED = /^\/api\/admin\/(update|backups|demo|restart|dropbox|extensions\/upload|extensions\/[^/]+\/(install|uninstall|approve|backup)(\/|$))/;
-const blocked = (method, p) => method !== 'GET' && method !== 'HEAD' && (BLOCKED.test(p) || (method === 'DELETE' && /^\/api\/admin\/extensions\//.test(p)));
+// ohne Unterschied von Groß-/Kleinschreibung – Express nimmt /API/Admin/Restart genauso an wie /api/admin/restart
+const BLOCKED = /^\/api\/admin\/(update|backups|demo|restart|dropbox|extensions\/upload|extensions\/[^/]+\/(install|uninstall|approve|backup)(\/|$))/i;
+const blocked = (method, p) => method !== 'GET' && method !== 'HEAD' && (BLOCKED.test(p) || (method === 'DELETE' && /^\/api\/admin\/extensions\//i.test(p)));
 
 module.exports = { blocked, MSG };

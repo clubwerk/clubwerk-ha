@@ -336,7 +336,7 @@ function activate(ctx) {
       }
       return bad(res, r.locked ? `PIN mehrfach falsch – ${r.minutes} Minuten gesperrt.` : 'Falsche PIN.', 401);
     }
-    zlim.ok(s.id);
+    zlim.soft(s.id);
     const now = localTs();
     const open = db.prepare('SELECT * FROM time_entries WHERE staff_id = ? AND end_at IS NULL ORDER BY start_at DESC LIMIT 1').get(s.id);
     let action;
@@ -365,7 +365,7 @@ function activate(ctx) {
   const Z = need('zeiterfassung');
   const staffRow = s => ({ id: s.id, name: s.name, job: s.job, active: Boolean(s.active), rate_cents: rateFor(s.id, curMonth()),
     rates: db.prepare('SELECT from_month, cents FROM staff_rates WHERE staff_id = ? ORDER BY from_month DESC').all(s.id) });
-  const pinOk = p => /^\d{4,6}$/.test(String(p || ''));
+  const pinErr = p => auth.pinProblem(String(p || ''));   // 4 bis 6 Ziffern, keine leicht zu erratende (1111, 1234 …) – wie bei Mitglieder-PINs
   const rateIn = v => {
     if (v === null || v === undefined || String(v).trim() === '') return { cents: null };
     const n = Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) * 100);
@@ -382,7 +382,7 @@ function activate(ctx) {
     const b = req.body || {};
     const name = cleanName(b.name, 60), job = cleanName(b.job, 40);
     if (name.length < 2) return bad(res, 'Bitte einen Namen eintragen.');
-    if (!pinOk(b.pin)) return bad(res, 'Die PIN braucht 4 bis 6 Ziffern.');
+    { const e = pinErr(b.pin); if (e) return bad(res, e); }
     const r = rateIn(b.rate); if (r.error) return bad(res, r.error);
     const id = Number(db.prepare('INSERT INTO staff(name, job, pin_hash) VALUES (?,?,?)').run(name, job || null, auth.hashSecret(String(b.pin))).lastInsertRowid);
     if (r.cents != null) setRate(id, r.cents);
@@ -396,7 +396,7 @@ function activate(ctx) {
     const name = b.name !== undefined ? cleanName(b.name, 60) : s.name;
     if (name.length < 2) return bad(res, 'Bitte einen Namen eintragen.');
     const job = b.job !== undefined ? (cleanName(b.job, 40) || null) : s.job;
-    if (b.pin && !pinOk(b.pin)) return bad(res, 'Die PIN braucht 4 bis 6 Ziffern.');
+    if (b.pin) { const e = pinErr(b.pin); if (e) return bad(res, e); }
     const r = b.rate !== undefined ? rateIn(b.rate) : null; if (r && r.error) return bad(res, r.error);
     db.prepare('UPDATE staff SET name = ?, job = ?, active = ?, pin_hash = ? WHERE id = ?')
       .run(name, job, b.active === undefined ? s.active : (b.active ? 1 : 0), b.pin ? auth.hashSecret(String(b.pin)) : s.pin_hash, s.id);

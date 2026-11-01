@@ -111,7 +111,7 @@ Hier bestimmt ihr, wie die Beregnung bedient wird.
 - **Gesperrt – nur Benutzer mit Passwort:** Anmelden können sich Benutzer mit dem Recht „Beregnung bedienen“ (unter Benutzer & Rechte, auch Konten, die sonst nichts dürfen).
 - **Sperre nach einer Beregnung (Minuten, 0 = aus):** Nach einem Lauf kann derselbe Platz so lange nicht gestartet werden. Die Kachel zeigt „ab 14:30 Uhr“. Das verhindert, dass der Platz mehrfach hintereinander gewässert wird.
 - **Roter Stopp-Knopf funktioniert ohne PIN:** Stoppen geht dann ohne PIN-Eingabe, damit im Notfall niemand suchen muss.
-- **Vereins-PIN (4 bis 8 Ziffern):** Hier steht „festgelegt“ oder „noch nicht festgelegt“. Zum Ändern die neue PIN eintragen und speichern; die alte PIN wird nie angezeigt. Sie gilt nur bei „Offen mit Vereins-PIN“.
+- **Vereins-PIN (4 bis 8 Ziffern, keine leicht zu erratende wie 1111 oder 1234):** Hier steht „festgelegt“ oder „noch nicht festgelegt“. Zum Ändern die neue PIN eintragen und speichern; die alte PIN wird nie angezeigt. Sie gilt nur bei „Offen mit Vereins-PIN“.
 
 Mitglieder mit Freischaltung in der Mitglieder-App bedienen die Beregnung dort in jedem Modus. Nach 20 falschen PIN-Eingaben ist die PIN-Eingabe für alle kurz gesperrt, und ihr bekommt eine Sicherheitsmeldung.
 

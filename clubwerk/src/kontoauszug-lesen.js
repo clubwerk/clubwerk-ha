@@ -5,7 +5,7 @@
               ret: { code, origCents, feeCents } | null, sure (Referenzfelder vorhanden – CAMT bzw. CSV-CAMT) }
    XML wird mit einem eigenen kleinen Leser gelesen: DOCTYPE und Entitäten werden abgelehnt (keine externen Entitäten, keine „XML-Bomben“). */
 const JSZip = require('jszip');
-const { zipSize, zipUnsafe } = require('./util');
+const { zipSize, zipUnsafe, zipBudget } = require('./util');
 
 const fail = msg => Object.assign(new Error(msg), { fachlich: true });
 
@@ -278,7 +278,8 @@ async function read(buf, { name = '', csv } = {}) {
     if (!files.length) throw fail('Im ZIP-Archiv ist keine CAMT-Datei (XML).');
     if (files.length > MAX_FILES || zipSize(files) > MAX_UNZIPPED) throw fail('Das ZIP-Archiv ist zu groß.');
     const results = [];
-    for (const f of files) results.push({ name: f.name.replace(/^.*\//, ''), ...readCamt(decode(await f.async('nodebuffer'))) });
+    const budget = zipBudget(MAX_UNZIPPED, 'Das ZIP-Archiv ist zu groß.');   // beim Entpacken mitzählen – die Größenangabe im ZIP kann gefälscht sein
+    for (const f of files) { let b; try { b = await budget.read(f); } catch (e) { throw fail(e.tooBig ? e.message : 'Das ZIP-Archiv lässt sich nicht öffnen.'); } results.push({ name: f.name.replace(/^.*\//, ''), ...readCamt(decode(b)) }); }
     return { kind: 'camt', results };
   }
   const text = decode(buf);

@@ -107,6 +107,16 @@ function herkunftVon(dbFile) {
   } finally { d.close(); }
 }
 
+const NOBODY = 65534;
+/** Kann ein fremder Benutzer den Ordner erreichen (alle übergeordneten Ordner für „andere“ durchsuchbar)? Im Add-on liegt er unter /tmp. */
+function reachable(p) {
+  for (let d = path.dirname(p); ; d = path.dirname(d)) { try { if (!(fs.statSync(d).mode & 0o001)) return false; } catch (e) { return false; } if (d === path.dirname(d)) return true; }
+}
+/** Ordner samt Inhalt einem anderen Benutzer übergeben (ohne Verknüpfungen zu folgen) */
+function chownAll(p, uid, gid) {
+  fs.lchownSync(p, uid, gid);
+  if (fs.lstatSync(p).isDirectory()) for (const n of fs.readdirSync(p)) chownAll(path.join(p, n), uid, gid);
+}
 /** Lesekopie starten, Ergebnis abholen, Ordner danach löschen */
 function lesen(dir, tresor) {
   return new Promise((resolve, reject) => {
@@ -114,7 +124,16 @@ function lesen(dir, tresor) {
       DATA_DIR: dir, PORT: '0', HOST: '127.0.0.1', MEMBER_PORT: '0', BEREGNUNG_PORT: '0', EXT_DIR: path.join(dir, 'keine-erweiterungen'),
       CW_LESEKOPIE: '1', CW_TEST_NO_SETUP_CODE: '1', NODE_OPTIONS: '--max-old-space-size=512' };
     fs.mkdirSync(env.EXT_DIR, { recursive: true });
-    const proc = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, cwd: path.join(__dirname, '..'), stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
+    /* Abschottung durch das Betriebssystem bzw. Node selbst (nicht nur durch abschottung.js, das sich mit Tricks umgehen ließe):
+       - Node-Berechtigungsmodell: lesen nur den Programmordner und den eigenen Temp-Ordner, schreiben nur dort; keine Kindprozesse,
+         keine Worker (beides ist ohne --allow-* gesperrt). Das Addon better-sqlite3 muss laden dürfen (--allow-addons).
+       - Läuft Clubwerk als root (Add-on): die Kopie als Benutzer „nobody“ – so erreicht auch SQLite selbst (ATTACH) weder /data
+         noch die Umgebung des Hauptprozesses (/proc/<pid>/environ mit dem Home-Assistant-Schlüssel). */
+    const APP = path.join(__dirname, '..'), base = path.dirname(dir);
+    const flags = ['--permission', '--allow-addons', `--allow-fs-read=${APP}`, `--allow-fs-read=${base}`, `--allow-fs-write=${base}`];
+    const root = typeof process.getuid === 'function' && process.getuid() === 0 && reachable(base);
+    if (root) chownAll(base, NOBODY, NOBODY);
+    const proc = spawn(process.execPath, [...flags, path.join(__dirname, 'server.js')], { env, cwd: APP, stdio: ['ignore', 'ignore', 'pipe', 'ipc'], ...(root ? { uid: NOBODY, gid: NOBODY } : {}) });
     let fertig = false, log = '';
     proc.stderr.on('data', d => { log = (log + d).slice(-2000); });
     const ende = (err, out) => {

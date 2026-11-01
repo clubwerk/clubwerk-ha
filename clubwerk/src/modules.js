@@ -149,8 +149,10 @@ async function restore(p, src) {
   if (require('./util').zipSize(entries) > MAX_RESTORE_BYTES) throw new Error('Die Modul-Sicherung ist zu groß.');
   const mf = zip.file('modul.json'), sf = zip.file('signatur.txt');
   if (!mf) throw new Error('Die Datei ist keine Modul-Sicherung von Clubwerk.');
-  const json = await mf.async('string');
-  const sig = sf ? String(await sf.async('string')).trim() : '';
+  const budget = require('./util').zipBudget(MAX_RESTORE_BYTES, 'Die Modul-Sicherung ist zu groß.');   // beim Entpacken mitzählen (Angaben im ZIP können falsch sein)
+  const sig = sf ? String(await require('./util').zipBudget(200).read(sf, 'string').catch(() => '')).trim() : '';   // die Unterschrift zuerst – sie ist winzig
+  if (!/^[0-9a-f]{64}$/.test(sig)) throw new Error('Diese Sicherung stammt nicht aus dieser Clubwerk-Installation oder wurde verändert – sie wird aus Sicherheitsgründen nicht eingespielt.');
+  const json = await budget.read(mf, 'string');
   const good = sign(json);
   if (!/^[0-9a-f]{64}$/.test(sig) || !crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(good, 'hex')))
     throw new Error('Diese Sicherung stammt nicht aus dieser Clubwerk-Installation oder wurde verändert – sie wird aus Sicherheitsgründen nicht eingespielt.');
@@ -206,7 +208,7 @@ async function restore(p, src) {
       if (!rel || rel.includes('..') || rel.startsWith('/') || /[\\:]/.test(rel) || (f.unsafeOriginalName && f.unsafeOriginalName !== f.name)) continue;
       const target = path.join(sp.files, rel);
       if (!target.startsWith(sp.files + path.sep)) continue;
-      const content = await f.async('nodebuffer');
+      const content = await budget.read(f);
       if (!data.files || data.files[rel] !== sha256(content)) continue;   // nur Dateien, die so in der Sicherung standen
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, content);

@@ -1,5 +1,31 @@
 # Änderungen
 
+## 2026.11.0
+
+Ab jetzt zeigt die Versionsnummer Jahr und Monat (wie bei Home Assistant). 2026.11.0 folgt direkt auf 3.102.0.
+
+**Sicherheits-Review: Lücken geschlossen, die automatische Tests nicht finden**
+Der ganze Programmcode wurde mit dem Blick eines Angreifers gelesen. Gefunden und behoben:
+- **Fremde Sicherungen öffnen ist jetzt wirklich abgeschottet.** Bei „Aus Sicherung übernehmen …“ konnte eine präparierte Sicherung einer fremden Installation eigenen Programmcode mitbringen, der beim Öffnen lief. Jetzt laufen dabei nur die mitgelieferten Module, und die Lesekopie ist vom Betriebssystem eingesperrt: Sie darf nur ihren eigenen Ordner lesen und schreiben, keine anderen Programme starten und läuft (im Add-on) als eigener Benutzer ohne Zugriff auf eure Daten.
+- **Präparierte Datenbanken:** Eine untergeschobene Datenbank mit versteckten Datenbank-Befehlen (Trigger, Views, Namen mit Sonderzeichen) wird beim Wiederherstellen abgelehnt; beim Start entfernt Clubwerk solche Bestandteile. Eine Lücke beim Umstellen der Kennnummern ließ sonst andere Datenbanken auf der Platte verändern.
+- **Riesige gepackte Dateien (ZIP-Bomben):** Beim Entpacken von Kontoauszügen, Modul-Sicherungen, Erweiterungen und Updates zählt Clubwerk jetzt mit und bricht ab, statt der Größenangabe in der Datei zu glauben – sonst konnte eine kleine Datei den Speicher füllen.
+- **Unterschriften mit riesigen Bildmaßen** (Online-Antrag, neue Bankverbindung in der App) werden abgelehnt – sie hätten den Server beim Erzeugen des PDFs minutenlang blockieren können.
+- **Mitgliederverwaltung:**
+  - Wer nur das Recht „Mitglieder“ hat, konnte beim Annehmen eines Antrags („mit vorhandenem Mitglied zusammenführen“) dessen Bankverbindung ändern. Das geht jetzt nur noch mit dem Recht „Bankdaten“.
+  - Abteilungsleitungen sahen beim Kind ihrer Abteilung den kompletten Datensatz des Zahlers (Anschrift, E-Mail …), auch wenn dieser in einer anderen Abteilung ist – jetzt nur noch den Namen. Bei Anträgen sehen sie Treffer im Bestand nur aus der eigenen Abteilung und führen nur mit diesen zusammen.
+  - Anträge nehmen nur Beiträge an, die im Formular stehen, und höchstens einen weiteren Erwachsenen (Partner/in) – wie die Familienregel es vorsieht.
+- **Datensicherung:** Dropbox-Schlüssel ändern, Dropbox verbinden und „lesbare Auszüge“ einschalten gehen jetzt nur mit dem eigenen Passwort (wie bei den anderen Sicherungszielen), dazu kommt eine Sicherheitswarnung. Auch das Herunterladen eines Datenbank-Schnappschusses fragt nach dem Passwort, denn er enthält die Schlüssel der Datensicherung.
+- **Buchhaltung:** Eine Rechnung an ein Mitglied lässt sich nicht mehr als „bezahlt“ markieren, solange der Posten gerade per Lastschrift eingezogen wird (sonst zahlte das Mitglied doppelt). Der Funktionsimport prüft die Einstellungen (z. B. Rechnungsnummer-Vorsilbe) genauso wie die Verwaltung.
+- **Kontoauszug:** Steht die Kennung eines Lastschrift-Einzugs nur im Verwendungszweck einer Überweisung (den schreibt der Absender selbst), gilt der Vorschlag nie als „sicher“. Und ein Einzug wird nur dann als bezahlt gebucht, wenn mindestens der offene Betrag eingegangen ist.
+- **PINs:** Am Tablet warnt Clubwerk den Vorstand, wenn reihum bei vielen Mitgliedern falsche PINs eingegeben werden (ab 25 in 24 Stunden). Die Zeiterfassung und die Vereins-PIN der Beregnung nehmen keine leicht zu erratenden PINs (1111, 1234 …) mehr an; bei der Zeiterfassung setzt ein richtiges Stempeln die wachsende Sperre nicht mehr zurück. Beim Turnierplaner darf die Turnierleitung jetzt deutlich mehr Ergebnisse am Stück eintragen (falsche Codes sperrt seit 3.102.0 die Sperre je Turnier).
+- **Clubmeisterschaft:** Aus der App ließ sich die Frist für den Spieltermin mit einem Trick umgehen – behoben.
+- **Spielbetrieb:** Mannschaftsführer können in der App nur noch Spieler der Meldelisten aufstellen bzw. für Aufgaben wählen (vorher ließen sich über die Antwort Namen beliebiger Konten auslesen).
+- **Plätze:** Einen Serientermin in der App nur noch auf einen freigegebenen Platz derselben Art verlegen (nicht auf ein Gerät oder einen gesperrten Platz). Zwei gleichzeitige Änderungen derselben Buchung legen keine doppelte Gebühr mehr an.
+- **Zugang und Beregnung:** Die Sicherheitswarnung bei geänderten Türen bzw. Ventilen kommt jetzt auch beim Funktionsimport und beim ersten Eintragen. Die Beregnung am Tablet ist nur noch erreichbar, wenn sie dort eingeschaltet ist.
+- **Push in der App:** Ein Push-Abo, das zu einem anderen Mitglied gehört, lässt sich nicht mehr übernehmen.
+- **Demo je Modul:** Die Sperren in der Demo-Kopie (Neustart, Erweiterungen …) ließen sich mit Großbuchstaben in der Adresse umgehen – behoben.
+- Neue Testreihe `rev`, die jeden dieser Angriffe nachstellt.
+
 ## 3.102.0
 
 **Sicherheits-Durchgang: mehr Schutz gegen Durchprobieren, Angriffe werden jetzt bei jeder Version automatisch geprüft**

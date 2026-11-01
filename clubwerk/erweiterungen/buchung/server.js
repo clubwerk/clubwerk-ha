@@ -391,7 +391,17 @@ function activate(ctx) {
    * Buchung durch ein Mitglied (App oder Tablet) – alle Regeln.
    * b = { resource_id, date, start, minutes, partners: [ids], guests: [names], accept }
    */
-  async function memberBook(mid, b, source, { by = null } = {}) {   // by = Mitglied, das für mid bucht (Sonderrecht „für andere buchen“)
+  /* Änderungen derselben Buchung nacheinander: Zwischen Prüfen und Gebühr liegen await-Schritte – zwei gleichzeitige Änderungen
+     (Doppeltipp, zwei Handys) nähmen sonst dieselbe alte Gebühr zweimal zurück und legten zwei neue an */
+  const editing = new Set();
+  async function memberBook(mid, b, source, opts = {}) {
+    const editId = int(b.id) || 0;
+    if (!editId) return memberBookOnce(mid, b, source, opts);
+    if (editing.has(editId)) throw new Error('Diese Buchung wird gerade geändert – bitte kurz warten und neu laden.');
+    editing.add(editId);
+    try { return await memberBookOnce(mid, b, source, opts); } finally { editing.delete(editId); }
+  }
+  async function memberBookOnce(mid, b, source, { by = null } = {}) {   // by = Mitglied, das für mid bucht (Sonderrecht „für andere buchen“)
     const editId = int(b.id) || 0;
     const old = editId ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(editId) : null;
     if (editId) {
@@ -401,6 +411,7 @@ function activate(ctx) {
     const { r, date, s, e, partners, guests, fee, lines, label, title, club, device, solo } = await check(mid, b, { exceptId: editId });
     let id = editId;
     db.transaction(() => {   // Prüfen und Eintragen in einem Schritt: zwei gleichzeitige Buchungen können sich nicht überholen
+      if (old && !db.prepare("SELECT 1 FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(old.id)) throw new Error('Diese Buchung wurde inzwischen storniert.');   // gleichzeitig storniert
       if (!free(r, date, s, e, editId)) throw new Error('Gerade eben hat jemand anderes gebucht – bitte eine andere Zeit wählen.');
       // Kontingent und Doppelbelegung der Personen noch einmal hier (check() lief vor dem await, inzwischen kann eine zweite
       // Anfrage desselben Mitglieds – Doppeltipp in der App – auf einem anderen Platz eingetragen worden sein)
@@ -494,6 +505,11 @@ function activate(ctx) {
     const changeRes = f.resource_id != null && int(f.resource_id) !== b.resource_id && !(multi && scope !== 'one');
     const nr = changeRes ? resource(f.resource_id) : null;
     if (changeRes && (!nr || nr.deleted)) throw new Error('Bitte einen Platz wählen.');
+    if (changeRes && !admin) {   // aus der App: nur auf einen freigegebenen Platz derselben Art, nie auf einen, der einer anderen Abteilung vorbehalten ist
+      const or = resource(b.resource_id);
+      if (!nr.active || !or || nr.kind !== or.kind) throw new Error('Diesen Platz gibt es nicht (mehr).');
+      if (nr.department_id && nr.outsiders === 'gesperrt' && nr.department_id !== or.department_id) throw new Error(`${nr.name} ist der Abteilung ${deptName(nr.department_id)} vorbehalten – bitte über die Verwaltung verlegen.`);
+    }
     const s = tm(f.start != null ? f.start : b.start), e = tm(f.end != null ? f.end : b.end);
     if (s == null || e == null || e <= s) throw new Error('Bitte die Uhrzeit prüfen.');
     const ids = new Set(list.map(x => x.id));
@@ -654,7 +670,7 @@ function activate(ctx) {
   }
   ctx.public.get('/ics/:id', (req, res) => {
     const id = int(req.params.id), k = String(req.query.k || '');
-    const ok = k.length === 32 && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));
+    const ok = /^[0-9a-f]{32}$/.test(k) && crypto.timingSafeEqual(Buffer.from(k), Buffer.from(icsToken(id)));   // nur Hex: Umlaute ergäben ungleich lange Puffer (Fehler 500)
     const b = ok ? db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(id) : null;
     if (!b) return res.status(404).type('text/plain; charset=utf-8').send('Diese Buchung gibt es nicht (mehr).');
     const ics = icsText(b);

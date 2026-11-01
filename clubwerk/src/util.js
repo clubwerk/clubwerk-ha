@@ -31,4 +31,20 @@ const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, ch => ({ '&': '&
 /** ZIP vor dem Entpacken prüfen (gegen „ZIP-Bomben“ und Pfad-Tricks): angegebene Gesamtgröße und erster unsicherer Pfad */
 const zipSize = files => files.reduce((a, f) => a + ((f._data && f._data.uncompressedSize) || 0), 0);
 const zipUnsafe = zip => Object.values(zip.files).find(f => f.unsafeOriginalName && f.unsafeOriginalName !== f.name);
-module.exports = { pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe };
+/** Entpacken mit Obergrenze: Die Größenangaben im ZIP (zipSize) kann der Ersteller fälschen – deshalb beim Entpacken mitzählen und
+ *  abbrechen, sobald das gemeinsame Kontingent aller Dateien (max Bytes) überschritten ist. read(f, 'string'|'nodebuffer') */
+function zipBudget(max, msg = 'Das ZIP-Archiv ist zu groß.') {
+  let left = max;
+  return {
+    read: (f, as = 'nodebuffer') => new Promise((resolve, reject) => {
+      const parts = []; let done = false;
+      const h = f.internalStream('uint8array');
+      const stop = e => { if (!done) { done = true; try { h.pause(); } catch (x) { /* */ } reject(e); } };
+      h.on('data', d => { if (done) return; left -= d.length; if (left < 0) return stop(Object.assign(new Error(msg), { tooBig: true })); parts.push(Buffer.from(d.buffer, d.byteOffset, d.length)); })
+        .on('error', stop)
+        .on('end', () => { if (done) return; done = true; const b = Buffer.concat(parts); resolve(as === 'string' ? b.toString('utf8') : b); })
+        .resume();
+    }),
+  };
+}
+module.exports = { pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };

@@ -135,7 +135,7 @@ function detail(id, user) {
     person: { ...p, ...(!p.first_name && !p.last_name ? (x => ({ first_name: x.first || null, last_name: x.last || null }))(store.splitName({ name: p.name })) : {}), consents: JSON.parse(p.consents || '{}'), extra: JSON.parse(p.extra || '{}'), age: fees.ageAt(p.birth_date, today()), exited: store.isExited(p), complete: Boolean(p.member_id), photo: C.require('./photos').version(id) },
     bank: bank ? (perms.includes('mitglieder_bank') ? { ...bank, state: mandateState(bank) } : { masked: sepa.maskIban(bank.iban), mandate_ref: bank.mandate_ref, mandate_date: bank.mandate_date, state: mandateState(bank), hidden: true }) : null,
     missing: missingOf(p, bank, feeRows(id).some(f => !f.end_date || f.end_date >= today())),
-    departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? personRow(store.payerOf(id)) : null,
+    departments: deptRows(id), fees: feeRows(id), payerGroup: payerRows, payer: p.payer_id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(store.payerOf(id))) : null,   // nur Name – der Zahler kann außerhalb der eigenen Abteilung liegen
     family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id), no_congrats: shared.congratsOff(id),
     functions: C.db.prepare('SELECT * FROM mv_function WHERE member_id = ? ORDER BY to_date IS NOT NULL, from_date DESC').all(id),

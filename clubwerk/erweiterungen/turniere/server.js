@@ -269,7 +269,7 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     if (!isDate(b.date)) throw new Error('Bitte einen Tag wählen.');
     if (b.date < today()) throw new Error('Dieser Tag ist schon vorbei.');
     const due = dueOf(s, m);
-    if (due && b.date > due && !b.admin) throw new Error(`Die Frist für dieses Spiel endet am ${deD(due)} – bitte einen Tag bis dahin wählen.`);
+    if (due && b.date > due) throw new Error(`Die Frist für dieses Spiel endet am ${deD(due)} – bitte einen Tag bis dahin wählen.`);
     if (bookingOn() && b.resource_id) {
       const ta = db.prepare('SELECT * FROM tu_team WHERE id = ?').get(m.a), tb = db.prepare('SELECT * FROM tu_team WHERE id = ?').get(m.b);
       const r = await hook('matchBook', { key: `tu:${m.id}`, id: m.booking_id || 0, resource_id: int(b.resource_id), date: b.date, start: b.start, minutes: cfg().minutes,

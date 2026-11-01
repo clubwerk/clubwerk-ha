@@ -321,7 +321,7 @@ const keepHistory = () => new Set([...KEEP_HISTORY, ...plugins.withHook('history
 /** Nach dem Aufräumen (dropMemberExtras): Bleibt Verlauf übrig, wird das Konto nur als gelöscht markiert (Namen bleiben lesbar), sonst ganz entfernt. → true = markiert */
 function removeMemberRow(id) {
   const keep = keepHistory();
-  const kept = memberRefs().some(({ table, column }) => keep.has(table) && db.prepare(`SELECT 1 FROM "${table}" WHERE "${column}" = ? LIMIT 1`).get(id));
+  const kept = memberRefs().some(({ table, column }) => keep.has(table) && db.prepare(`SELECT 1 FROM "${String(table).replace(/"/g, '""')}" WHERE "${String(column).replace(/"/g, '""')}" = ? LIMIT 1`).get(id));   // Namen aus dem Schema: maskiert
   if (kept) db.prepare('UPDATE members SET deleted = 1, active = 0, pending = 0, pin_hash = NULL WHERE id = ?').run(id);
   else db.prepare('DELETE FROM members WHERE id = ?').run(id);
   return kept;
@@ -612,6 +612,14 @@ app.post('/api/tablet/unlock', rateLimit('unlock', 40, 60000), (req, res) => {
   res.json(unlockResponse(m));
 });
 
+/* Falsche PINs über alle Mitglieder: Die Sperre je Mitglied bremst nicht, wer reihum bei vielen Mitgliedern rät (dieselbe PIN öffnet
+   auch Türen am Tablet). Gesperrt wird deshalb nichts (die Theke muss weiterlaufen), aber ab 25 Fehlversuchen in 24 Stunden geht eine
+   Sicherheitswarnung an den Vorstand (bei 25, dann je weitere 50). */
+let pinFails = [];
+function pinFailAll() {
+  const now = Date.now(); pinFails = pinFails.filter(t => now - t < 86400000).slice(-5000); pinFails.push(now);   // begrenzt (Speicher)
+  if (pinFails.length === 25 || (pinFails.length > 25 && pinFails.length % 50 === 0)) securityAlert(`Am Tablet wurde in 24 Stunden ${pinFails.length}-mal eine falsche Mitglieder-PIN eingegeben (über mehrere Mitglieder). Rät jemand PINs durch? Bitte im Protokoll unter „PIN gesperrt“ nachsehen.`, 'tablet-pins');
+}
 /** PIN prüfen inkl. Sperre nach 5 Fehlversuchen. Die Sperre verdoppelt sich bei jeder weiteren Fehlserie
  *  (5 min, 10, 20, 40 … höchstens 24 h) und steht im Protokoll. Gibt null oder { msg, code } zurück. */
 function checkPin(m, pin) {
@@ -620,6 +628,7 @@ function checkPin(m, pin) {
     return { msg: `Zu viele falsche PINs – gesperrt bis ${until} Uhr. Der Vorstand kann die PIN zurücksetzen.`, code: 429 };
   }
   if (!auth.verifySecret(String(pin || ''), m.pin_hash)) {
+    pinFailAll();
     const fails = m.failed_pins + 1;
     if (fails >= 5) {
       const strikes = (m.pin_strikes || 0) + 1;
@@ -3149,7 +3158,11 @@ admin.put('/backups/settings', need('einstellungen'), (req, res) => {
     if (b.weekly !== undefined) setSetting('backup_weekly', num(b.weekly, 0, 52));
     if (b.monthly !== undefined) setSetting('backup_monthly', num(b.monthly, 0, 120));
   } catch (e) { return bad(res, 'Bitte gültige Zahlen eintragen (Uhrzeit 0–23, Tage 1–60, Wochen 0–52, Monate 0–120).'); }
-  if (b.readable !== undefined) setSetting('backup_readable', b.readable ? '1' : '0');
+  if (b.readable !== undefined) {
+    // lesbare (unverschlüsselte) Auszüge einschalten: Namen, Beträge und Protokolle gingen dann im Klartext zu den Sicherungszielen – nur mit Passwort
+    if (b.readable && getSetting('backup_readable', '0') !== '1') { if (!ownerConfirm(req, res)) return; securityAlert(`Lesbare (unverschlüsselte) Auszüge der Datensicherung wurden von ${req.user.name || req.user.username} eingeschaltet.`, 'bk-readable'); }
+    setSetting('backup_readable', b.readable ? '1' : '0');
+  }
   audit(req.user, 'Datensicherung eingestellt', JSON.stringify(bkCfg()));
   res.json({ ok: true, ...backupStatus() });
 });
@@ -3426,6 +3439,9 @@ admin.get('/dropbox', need('einstellungen'), (req, res) => {
 });
 admin.put('/dropbox', need('einstellungen'), (req, res) => {
   const b = req.body || {};
+  // andere Dropbox-App = Sicherungen gehen woandershin: wie bei allen Sicherungszielen nur mit dem eigenen Passwort
+  const keyChange = (b.appKey !== undefined && String(b.appKey).trim() !== getSetting('dropbox_app_key', '')) || Boolean(b.appSecret);
+  if (keyChange && !ownerConfirm(req, res)) return;
   if (b.appKey !== undefined) {
     const k = String(b.appKey).trim();
     if (k && !/^[a-z0-9]{8,40}$/i.test(k)) return bad(res, 'Der App key sieht nicht richtig aus.');
@@ -3443,9 +3459,11 @@ admin.put('/dropbox', need('einstellungen'), (req, res) => {
     setSetting('dropbox_enabled', b.enabled ? '1' : '0');
   }
   audit(req.user, 'Dropbox-Einstellungen geändert');
+  if (keyChange) securityAlert(`Die Dropbox-App für die Datensicherung wurde von ${req.user.name || req.user.username} geändert.`, 'dbx-keys');
   res.json({ ok: true });
 });
-admin.post('/dropbox/connect', need('einstellungen'), asyncRoute(async (req, res) => {
+admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), asyncRoute(async (req, res) => {
+  if (!ownerConfirm(req, res)) return;   // neues Dropbox-Konto = Sicherungen gehen woandershin
   const c = dbxCfg();
   if (!c.appKey || !c.appSecret) return bad(res, 'Bitte zuerst App key und App secret speichern.');
   const code = String((req.body || {}).code || '').trim();
@@ -3457,6 +3475,7 @@ admin.post('/dropbox/connect', need('einstellungen'), asyncRoute(async (req, res
     try { who = await dropbox.account({ ...c, refresh }); } catch (e) { /* App ohne Kontoberechtigung – egal */ }
     setSetting('dropbox_account', who);
     audit(req.user, 'Dropbox verbunden', who);
+    securityAlert(`Die Datensicherung wurde von ${req.user.name || req.user.username} mit Dropbox verbunden${who ? ` (${who})` : ''}.`, 'dbx-connect');
     res.json({ ok: true, account: who });
   } catch (e) { bad(res, e.message); }
 }));
@@ -3480,7 +3499,9 @@ admin.post('/backups', need('einstellungen'), asyncRoute(async (req, res) => {
   res.json({ file });
 }));
 
-admin.get('/backups/file/:file', need('einstellungen'), (req, res) => {
+/* Schnappschuss herunterladen: Er enthält auch Schlüssel (z. B. den der Komplettsicherungen) – nur mit dem eigenen Passwort (POST) */
+admin.post('/backups/file/:file', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), (req, res) => {
+  if (!ownerConfirm(req, res)) return;
   const f = req.params.file;
   if (!backup.safeName(f) || !fs.existsSync(path.join(backup.BACKUP_DIR, f))) return bad(res, 'Nicht gefunden.', 404);
   audit(req.user, 'Sicherung heruntergeladen', f);

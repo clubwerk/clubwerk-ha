@@ -44,7 +44,7 @@ async function inspect(src, outDir, { currentVersion, currentDir }) {
   try { zip = await JSZip.loadAsync(Buffer.isBuffer(src) ? src : fs.readFileSync(src)); } catch (e) { throw new Error('Die Datei ist kein gültiges ZIP-Archiv.'); }
   const entries = Object.values(zip.files);
   if (entries.length > MAX_FILES) throw new Error('Das ZIP enthält zu viele Dateien.');
-  const { zipSize, zipUnsafe } = require('./util'), unsafe = zipUnsafe(zip);
+  const { zipSize, zipUnsafe, zipBudget } = require('./util'), unsafe = zipUnsafe(zip);
   if (unsafe) throw new Error(`Ungültiger Pfad im ZIP: ${unsafe.unsafeOriginalName}`);
   if (zipSize(entries) > MAX_TOTAL) throw new Error('Das Paket ist zu groß.');
   // Add-on-Ordner im ZIP finden: der flachste Ordner mit config.yaml + Dockerfile
@@ -52,7 +52,8 @@ async function inspect(src, outDir, { currentVersion, currentDir }) {
     .filter(root => zip.file(root + 'Dockerfile')).sort((a, b) => a.length - b.length);
   if (!cfgs.length) throw new Error('Im ZIP fehlt Clubwerk (config.yaml und Dockerfile nicht gefunden).');
   const root = cfgs[0];
-  const cfg = await zip.file(root + 'config.yaml').async('string');
+  const budget = zipBudget(MAX_TOTAL, 'Das Paket ist zu groß.');   // beim Entpacken mitzählen – die Angaben im ZIP können gefälscht sein
+  const cfg = await budget.read(zip.file(root + 'config.yaml'), 'string');
   if (yamlField(cfg, 'slug') !== SLUG) throw new Error('Das ist kein Paket von Clubwerk (anderer Add-on-Name).');
   const version = yamlField(cfg, 'version');
   if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Im Paket fehlt eine gültige Versionsnummer.');
@@ -66,7 +67,7 @@ async function inspect(src, outDir, { currentVersion, currentDir }) {
     const rel = f.name.slice(root.length);
     if (!rel || rel.includes('..') || rel.startsWith('/') || /[\\:\u0000-\u001f]/.test(rel) || /(^|\/)(__MACOSX|\.DS_Store)/.test(rel)) continue;
     if (f.unixPermissions && (f.unixPermissions & 0o170000) === 0o120000) throw new Error(`Das Paket enthält eine Verknüpfung (${rel}) – abgelehnt.`);
-    const data = await f.async('nodebuffer');
+    const data = await budget.read(f);
     total += data.length; files++;
     if (total > MAX_TOTAL) throw new Error('Das Paket ist zu groß.');
     const t = path.join(outDir, rel);
