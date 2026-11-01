@@ -1,5 +1,22 @@
 # Änderungen
 
+## 2026.11.1
+
+**Neues Modul „Flutlicht“: Licht der Plätze automatisch zur Buchung oder per Handy**
+- Clubwerk schaltet das Flutlicht über Home Assistant, egal von welchem Hersteller: je Platz ein Schalter (`switch.*` oder `light.*`). Das Modul ist einzeln nutzbar und standardmäßig aus (Einstellungen › Module).
+- **Automatisch:** Ist ein Platz nach Einbruch der Dunkelheit gebucht, geht das Licht kurz vorher an (Vorlauf) und nach dem Spiel aus (Nachlauf). Aufeinanderfolgende Buchungen bleiben ohne Pause hell. Wird storniert, geht es nach dem Nachlauf aus. Den Sonnenuntergang rechnet Clubwerk selbst aus dem Standort (oder übernimmt ihn aus Home Assistant), mit einstellbarem Versatz.
+- **Von Hand:** in der Verwaltung (Seite „Flutlicht“ › Bedienen, auch mit dem neuen Recht „Flutlicht bedienen“), am Tablet (Seite „Licht“, mit Namen und App-PIN) und in der Mitglieder-App (Bereich „Licht“) – Mitglieder nur mit Freischaltung und nur im WLAN des Vereinsheims, nie von unterwegs. „+30 Min.“ verlängert, „Alles aus“ schaltet sofort alles ab.
+- **Geht immer von selbst aus:** Jedes Einschalten hat ein festes Ende, das auch einen Neustart oder ein Update übersteht. Zur Nachtruhe (je Wochentag einstellbar) geht alles aus, auch Licht, das jemand in Home Assistant eingeschaltet hat. Nur die Verwaltung darf danach noch einschalten, ebenfalls mit festem Ende. Licht, das außerhalb von Clubwerk angeht, wird übernommen und geht nach der Höchstdauer aus.
+- **Zeiten:** Dunkelheit, Nachtruhe, Saison (optional) und Sperrzeiträume.
+- **Lichtgeld (optional, standardmäßig aus):** Betrag je angefangene Viertelstunde ab einer Uhrzeit, gebucht wie die Platzgebühr (offener Posten bei den Mitgliedern bzw. aufs Verkaufskonto), mit Storno im Verlauf. Bei Buchungen zahlt der Buchende nur die gebuchte Zeit; Verwaltung, Serien und Vereinsbuchungen sind frei.
+- **Verlauf:** wer wann wie lange Licht hatte, Lichtgeld, Betriebsstunden je Lichtanlage im Jahr, Störungen; Excel. Namen werden nach der Frist unter Einstellungen › Datenschutz entfernt (Standard 24 Monate).
+- Mit Beispieldaten für die Demo (Schalter nur simuliert), Anleitung auf Deutsch und Englisch (mit Abschnitt „Was brauche ich?“) und Testreihe `fl`.
+- **Plätze:** neue Schnittstelle für das Flutlicht (Buchungen eines Tages); sonst unverändert.
+
+**Zeiterfassung: Rückmeldung am Tablet nach einer Schicht über Mitternacht**
+- Wer nach Mitternacht ausstempelte, sah am Tablet „Heute 22:24 – 00:29 · 0:00 Std.“, und am Monatsersten stand der neue Monat mit 0 Stunden da. Jetzt zählt die Schicht wie in der Abrechnung zu dem Tag und Monat, an dem sie begann, und der Monatsname passt dazu. Abrechnung, Nachweis und Excel waren nicht betroffen.
+- Die Testreihe der Zeiterfassung läuft jetzt zu jeder Uhrzeit grün, auch am Monatsersten kurz nach Mitternacht.
+
 ## 2026.11.0
 
 Ab jetzt zeigt die Versionsnummer Jahr und Monat (wie bei Home Assistant). 2026.11.0 folgt direkt auf 3.102.0.

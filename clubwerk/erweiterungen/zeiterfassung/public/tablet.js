@@ -87,7 +87,7 @@
     $('dialog').className = 'dialog done';
     $('dialog').innerHTML = `<div class="big">${T[2]}</div><h2>${esc(T[0])}</h2><div class="when">${T[1]}</div>
       <div class="kv">${r.action === 'out' ? `<span>Heute</span><b class="num">${clock(r.since)} – ${clock(r.at)} · ${hm(r.today_minutes)} Std.</b>` : ''}
-        <span>${new Date().toLocaleString('de-DE', { month: 'long' })} bisher</span><b class="num">${hm(r.month_minutes)} Std.</b></div>
+        <span>${(r.month ? new Date(+r.month.slice(0, 4), +r.month.slice(5, 7) - 1, 15) : new Date()).toLocaleString('de-DE', { month: 'long' })} bisher</span><b class="num">${hm(r.month_minutes)} Std.</b></div>
       ${T[3]}<button class="btn primary" id="okBtn">OK</button>`;
     $('okBtn').onclick = closeDialog;
     clearTimeout(closeTimer); closeTimer = setTimeout(closeDialog, 12000);

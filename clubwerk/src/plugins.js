@@ -278,7 +278,7 @@ function setActive(id, on, user) {
 }
 
 /* Zentrale Reihenfolge der Module – dieselbe wie im Menü der Verwaltung (registerPage order); unbekannte Module dahinter */
-const MODULE_ORDER = ['getraenke', 'buchung', 'spielbetrieb', 'nachrichten', 'turniere', 'arbeitseinsatz', 'zeiterfassung', 'beregnung', 'zugang', 'maengel', 'mitglieder', 'buchhaltung'];
+const MODULE_ORDER = ['getraenke', 'buchung', 'spielbetrieb', 'nachrichten', 'turniere', 'arbeitseinsatz', 'zeiterfassung', 'beregnung', 'flutlicht', 'zugang', 'maengel', 'mitglieder', 'buchhaltung'];
 const orderPos = id => { const i = MODULE_ORDER.indexOf(id); return i < 0 ? MODULE_ORDER.length : i; };
 
 /** Module, deren Tablet-Seite sich ein- und ausschalten lässt (Hook tabletSwitch = { get, set }): für Einstellungen › Tablet › „am Tablet zeigen“ */

@@ -354,10 +354,13 @@ function activate(ctx) {
       db.prepare('INSERT INTO time_entries(staff_id, start_at) VALUES (?, ?)').run(s.id, now);
       action = 'in';
     }
-    const m = curMonth();
+    // Summen wie in der Abrechnung: Ein Einsatz zählt zu dem Tag und Monat, an dem er begann – beim Gehen also die der beendeten
+    // Schicht, auch über Mitternacht und über den Monatswechsel (vorher stand dann „Heute … 0:00 Std.“ und der neue Monat mit 0)
+    const ref = action === 'out' ? open.start_at : now;
+    const m = monthOf(ref);
     const list = entriesOf(s.id, m).map(e => decorate(e, now));
-    const today = list.filter(e => e.start_at.slice(0, 10) === now.slice(0, 10) && e.end_at).reduce((a, e) => a + e.minutes, 0);
-    res.json({ action, at: now, name: s.name, since: open ? open.start_at : null, today_minutes: today,
+    const day = list.filter(e => e.start_at.slice(0, 10) === ref.slice(0, 10) && e.end_at).reduce((a, e) => a + e.minutes, 0);
+    res.json({ action, at: now, name: s.name, since: open ? open.start_at : null, today_minutes: day, month: m,
       month_minutes: list.reduce((a, e) => a + (e.minutes || 0), 0) });
   });
 

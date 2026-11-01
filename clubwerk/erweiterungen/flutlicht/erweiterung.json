@@ -1,0 +1,34 @@
+{
+  "id": "flutlicht",
+  "name": "Flutlicht",
+  "version": "1.0.0",
+  "kurz": "Licht der Plätze automatisch zur Buchung oder per Handy schalten.",
+  "beschreibung": "Flutlicht der Plätze über Home Assistant schalten (herstellerneutral, ein Schalter je Platz): automatisch zu Buchungen nach Einbruch der Dunkelheit, von Hand in der Verwaltung, am Tablet und in der Mitglieder-App (nur im Vereins-WLAN, nur freigeschaltete Mitglieder). Geht immer von selbst aus, spätestens zur Nachtruhe. Sonnenuntergang lokal berechnet, Sperrtage, Saison, Verlauf mit Betriebsstunden, optional Lichtgeld aufs Konto.",
+  "minApp": "2026.11.1",
+  "perms": {
+    "flutlicht": "Flutlicht: Lichtanlagen, Zeiten, Verlauf, Lichtgeld & Einstellungen",
+    "flutlicht_bedienen": "Flutlicht bedienen: Licht ein- und ausschalten, Alles aus"
+  },
+  "tablet": {
+    "label": "Licht",
+    "seite": "",
+    "pfad": "licht"
+  },
+  "verwaltung": {
+    "label": "Flutlicht",
+    "recht": "flutlicht"
+  },
+  "mitgliederApp": {
+    "label": "Licht",
+    "order": 21,
+    "unterwegs": false,
+    "keinMitglied": true
+  },
+  "skripte": [
+    "licht.js"
+  ],
+  "tabellen": [
+    "fl_claim",
+    "fl_log"
+  ]
+}

@@ -1425,6 +1425,20 @@ function activate(ctx) {
   /** Plätze für die Zuordnung im Turniermodul → [{ id, name }] */
   ctx.hooks.courtList = () => resources().filter(r => r.kind === 'platz').map(r => ({ id: r.id, name: r.name }));
   /**
+   * Flutlicht (Automatik): aktive Buchungen auf Plätzen in einem Zeitraum, ohne Sperren →
+   * [{ id, resource_id, date, start, end, kind: 'buchung'|'serie'|'verein'|'turnier', member_id }]
+   * 'buchung' = Einzelbuchung einer Person ohne Buchungsart (nur dafür kann Lichtgeld anfallen); Serien, Buchungen mit Buchungsart
+   * (Training, Punktspiel …), Buchungen ohne Person bzw. für Mannschaft/Verein und Turnierspiele sind Vereinsbuchungen.
+   */
+  ctx.hooks.courtSchedule = ({ from, to } = {}) => {
+    if (!isDate(from) || !isDate(to)) return [];
+    return db.prepare(`SELECT b.id, b.resource_id, b.date, b.start, b.end, b.type, b.series_id, b.label_id, b.member_id, b.ext_key, m.kind AS member_kind
+      FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id LEFT JOIN members m ON m.id = b.member_id
+      WHERE b.status = 'aktiv' AND b.type <> 'sperre' AND r.kind = 'platz' AND b.date >= ? AND b.date <= ? ORDER BY b.date, b.start`).all(from, to)
+      .map(b => ({ id: b.id, resource_id: b.resource_id, date: b.date, start: b.start, end: b.end, member_id: b.member_id || null,
+        kind: isTu(b) ? 'turnier' : b.type === 'serie' || b.series_id ? 'serie' : b.label_id || !b.member_id || !['mitglied', 'nichtmitglied'].includes(b.member_kind) ? 'verein' : 'buchung' }));
+  };
+  /**
    * Turniertag: Plätze sperren (Sperren mit Schlüssel „tu:…“). locks = gewünschter Stand [{ resource_id, date, start, end }] –
    * fehlende Sperren entstehen, nicht mehr gewünschte fallen weg; Buchungen in der Zeit werden storniert (mit Nachricht).
    * preview: nur zählen → { made, removed, conflicts: [{ resource, date, start, end, title }] }

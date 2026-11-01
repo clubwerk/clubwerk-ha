@@ -390,6 +390,7 @@
     verkauf: '<path d="M5 8h14l-1.2 11.2A2 2 0 0 1 15.8 21H8.2a2 2 0 0 1-2-1.8z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/>',
     beregnung: '<path d="M12 2.5S5.5 9.6 5.5 14a6.5 6.5 0 0 0 13 0C18.5 9.6 12 2.5 12 2.5z"/>',
     zugang: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M17 6l3 3M15 8l2 2"/>',
+    flutlicht: '<path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.7V17h8v-2.3A7 7 0 0 0 12 2z"/>',
     zeit: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     konten: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-4-6"/>',
     app: '<rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/>',
@@ -2990,7 +2991,7 @@
   const PERM_SHORT = { lieferungen: 'Lieferungen', bestand: 'Bestand', bestellung: 'Bestellung', buchungen: 'Buchungen', export: 'Export',
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
-    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', app: 'App einrichten', maengel: 'Mängel', turniere: 'Turniere',
+    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', turniere: 'Turniere',
     email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen',
     buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
@@ -4142,7 +4143,7 @@
               !off && x.active && x.configIO ? `<a class="btn small" href="api/admin/extensions/${esc(x.id)}/export" download>Einstellungen exportieren</a><button type="button" class="btn small" data-fimp="${esc(x.id)}" data-fname="${esc(x.name)}">Einstellungen importieren …</button>` : '',
               (x.unapproved || x.pending) && me.role === 'oberadmin' && x.hash ? `<button type="button" class="btn small" data-approve="${esc(x.id)}" data-fname="${esc(x.name)}" data-hash="${esc(x.hash)}">${x.pending ? 'Neue Version prüfen & freigeben …' : 'Prüfen & freigeben …'}</button>` : '',
             ].join('');
-            return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon(({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', zeiterfassung: 'zeit' })[x.id] || (MODG['g-' + x.id] && MODG['g-' + x.id].icon) || PAGE_ICON[x.id] || 'modul', 20)}</span>
+            return `<div class="mrow ${off ? 'off' : ''}"><span class="ic">${icon(({ getraenke: 'getraenke', beregnung: 'beregnung', zugang: 'zugang', flutlicht: 'flutlicht', zeiterfassung: 'zeit' })[x.id] || (MODG['g-' + x.id] && MODG['g-' + x.id].icon) || PAGE_ICON[x.id] || 'modul', 20)}</span>
               <div style="min-width:0"><span class="nm"><b>${esc(x.name)}</b> <span class="pill srcb">${esc(SRC[x.source] || x.source)}</span></span><div class="d">${esc(x.description)}</div>${x.error ? `<div class="s" style="color:var(--red);font-weight:700">${esc(x.error)}</div>` : ''}${x.pending ? '<div class="s" style="color:var(--amber);font-weight:700">Im Netzwerkordner liegt eine geänderte Version. Es läuft weiter die freigegebene – die neue erst nach Prüfen & Freigeben.</div>' : ''}${vis ? `<div class="mact">${vis}</div>` : ''}</div>
               <span class="ver">${esc(x.version)}<span class="pill srca">${esc(SRC[x.source] || x.source)}</span></span>
               <span class="st">${off ? '<span class="pill">Nicht installiert</span>' : x.error ? '<span class="pill r">Fehler</span>' : x.active ? '<span class="pill g">Aktiv</span>' : '<span class="pill">Aus</span>'}</span>
