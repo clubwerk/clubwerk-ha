@@ -1,5 +1,10 @@
 # Änderungen
 
+## 2026.11.8
+
+**Mitglieder-App: kein kurzes „Mitglieder-App“ mehr beim Start**
+- Die Überschrift oben blieb beim Start kurz auf dem Platzhalter „Mitglieder-App“ stehen und sprang dann auf „Für mich“. Jetzt bleibt sie leer, bis der richtige Titel feststeht.
+
 ## 2026.11.7
 
 **Mitglieder-App: deutlich schnellerer Start, vor allem bei schlechtem Netz**
