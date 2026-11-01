@@ -1,5 +1,13 @@
 # Änderungen
 
+## 2026.11.9
+
+**Neu: Einstellungen › Datenqualität**
+- Clubwerk prüft jede Nacht, ob die Daten zueinander passen, und zeigt die Funde in einem neuen Reiter unter Einstellungen. Geprüft wird zum Beispiel: Lastschriftzahler ohne gültiges Mandat, Lastschriften, die nicht als bezahlt gebucht sind, Familienmitglieder ohne Oberhaupt (etwa weil das Oberhaupt ausgetreten ist), offene Posten gelöschter Mitglieder, gelöschte Konten am Tablet mit offenem Betrag und abgelaufene Einladungen.
+- Jeder Fund sagt, warum er schadet, und hat einen Knopf, der direkt zur Stelle führt, an der man ihn behebt. Geld korrigiert Clubwerk nie von selbst.
+- Echte Fehler (rot) erscheinen zusätzlich in der Übersicht. „Jetzt prüfen“ startet die Prüfung sofort.
+- Module können eigene Prüfungen beitragen (Mitglieder 1.31.7 macht den Anfang).
+
 ## 2026.11.8
 
 **Mitglieder-App: kein kurzes „Mitglieder-App“ mehr beim Start**

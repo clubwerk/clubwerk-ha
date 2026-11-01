@@ -398,6 +398,12 @@ Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Ab
 
 **Verzeichnis von Verarbeitungstätigkeiten:** **Verzeichnis drucken** erzeugt eine Vorlage nach Art. 30 DSGVO aus allen eingeschalteten Modulen. Verantwortliche und genutzte Dienste ergänzt ihr selbst.
 
+### Bereich „Datenqualität“ {#einstellungen-daten}
+
+![Karte „Datenqualität“: Funde mit Grund und Knopf.](bild: seite=einstellungen; klick=[data-sec="daten"]; ziel=.card:has(#dqBody))
+
+Clubwerk prüft jede Nacht, ob die Daten zueinander passen, zum Beispiel: Lastschriftzahler ohne gültiges Mandat, Lastschriften, die nicht als bezahlt gebucht sind, Familienmitglieder ohne Oberhaupt, offene Posten gelöschter Mitglieder, gelöschte Konten mit offenem Betrag und abgelaufene Einladungen. Jeder Fund nennt, warum er schadet, und hat einen Knopf, der zur Stelle führt, an der ihr ihn behebt. Geld korrigiert Clubwerk nie von selbst. **Fehler** (rot) stehen zusätzlich in der Übersicht. **Jetzt prüfen** startet die Prüfung sofort. Module können eigene Prüfungen beitragen.
+
 ### Bereich „Tablet“ {#einstellungen-tablet}
 
 ![Karte „Tablet im Vereinsheim“: mit oder ohne Tablet.](bild: seite=einstellungen; klick=[data-sec="tablet"]; ziel=#tmCard)

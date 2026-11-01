@@ -3612,6 +3612,8 @@ require('./mailer').routes(admin, { bad, need });
 require('./kontoauszug').routes(admin, { need, bad, int, asyncRoute, rateLimit, express });
 /* Datenschutz: Löschfristen aller Module, Löschlauf, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) */
 require('./datenschutz').routes(admin, { need, bad });
+/* Datenqualität: Prüfungen von Kern und Modulen (src/datenqualitaet.js, Hook healthChecks) */
+require('./datenqualitaet').routes(admin, { need, rateLimit, asyncRoute });
 /* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */
 require('./einrichtung').routes(admin, { need, bad, checks: {
   tabletOn, tabletPw: gateOn, vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
@@ -3901,6 +3903,10 @@ async function nightly() {
         if (!pAt || Date.now() - Date.parse(pAt) > 30 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
       }
     } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
+    // Datenqualität: einmal am Tag ab der Uhrzeit der Sicherung (Ergebnis unter Einstellungen › Datenqualität und in der Übersicht)
+    try {
+      if (now.getHours() >= bkCfg().hour && getSetting('dq_day', '') !== day) { setSetting('dq_day', day); await require('./datenqualitaet').pruefen(); }
+    } catch (e) { console.error('Datenqualität:', e.message); }
   } catch (e) { console.error('Nächtliche Aufgaben:', e); }
 }
 setInterval(nightly, 10 * 60 * 1000).unref();

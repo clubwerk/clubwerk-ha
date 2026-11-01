@@ -1097,6 +1097,29 @@ function activate(ctx) {
 
   /* Kennzahlen & Warnungen für die Übersicht */
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Datenqualität (Einstellungen › Datenqualität, src/datenqualitaet.js): nur Anzahlen und höchstens 5 Namen, keine Tresor-Inhalte */
+  ctx.hooks.healthChecks = () => {
+    const out = [], names = ids => ids.slice(0, 5).map(id => (ctx.db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name).filter(Boolean);
+    const rows = listRows();
+    const noMandate = rows.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => /Mandat|Bankverbindung|IBAN/.test(i)));
+    out.push({ id: 'mandat', title: 'Lastschrift ohne gültiges Mandat', level: 'a', count: noMandate.length, names: noMandate.slice(0, 5).map(r => r.name),
+      why: 'Der nächste Beitragslauf lässt sie aus, oder die Bank gibt die Lastschrift zurück (Gebühren).', fix: { label: 'Mitglieder ansehen', page: 'mitglieder', sec: ['mv_liste_filter', 'hinweis'] } });
+    const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
+    const hang = ctx.db.prepare("SELECT COUNT(*) n FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").get(fees.addDays(today(), -wait)).n;
+    out.push({ id: 'lastschrift', title: 'Lastschrift nicht als bezahlt gebucht', level: 'a', count: hang,
+      why: `Seit über ${wait} Tagen eingezogen, die Posten stehen aber noch offen – sonst bekommen Mitglieder Mahnungen für Bezahltes.`, fix: { label: 'Lastschriften öffnen', page: 'mv-einzug' } });
+    const fam = ctx.db.prepare(`SELECT x.member_id FROM mv_person x LEFT JOIN members h ON h.id = x.family_of LEFT JOIN mv_person hp ON hp.member_id = x.family_of
+      JOIN members m ON m.id = x.member_id AND m.deleted = 0
+      WHERE x.family_of IS NOT NULL AND x.family_of != x.member_id AND x.anonymized_at IS NULL AND (x.exit_date IS NULL OR x.exit_date >= ?)
+        AND (h.id IS NULL OR h.deleted = 1 OR hp.member_id IS NULL OR hp.anonymized_at IS NOT NULL OR (hp.exit_date IS NOT NULL AND hp.exit_date < ?) OR (hp.family_of IS NOT NULL AND hp.family_of != hp.member_id))`).all(today(), today()).map(r => r.member_id);
+    out.push({ id: 'familie', title: 'Familienmitglied ohne Oberhaupt', level: 'r', count: fam.length, names: names(fam),
+      why: 'Das Oberhaupt ist ausgetreten, gelöscht oder selbst Familienmitglied – der Beitrag wird niemandem berechnet, Dokumente gehen ins Leere.', fix: { label: 'Mitglieder ansehen', page: 'mitglieder', sec: ['mv_liste_filter', 'hinweis'] } });
+    const lost = ctx.db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(c.cents), 0) s FROM mv_charge c LEFT JOIN members m ON m.id = c.member_id LEFT JOIN mv_person p ON p.member_id = c.member_id
+      WHERE c.status = 'offen' AND (m.id IS NULL OR m.deleted = 1 OR p.anonymized_at IS NOT NULL)`).get();
+    out.push({ id: 'posten', title: 'Offene Posten ohne Mitglied', level: 'r', count: lost.n, detail: lost.n ? euro(lost.s) : '',
+      why: 'Das Mitglied ist gelöscht oder anonymisiert – der Betrag kommt nie herein und verfälscht die Summen.', fix: { label: 'Offene Posten öffnen', page: 'mv-posten' } });
+    return out;
+  };
   ctx.hooks.setupSteps = () => [
     { id: 'beitraege', title: 'Beiträge und Abteilungen', text: 'Beitragsarten des Hauptvereins und – falls ihr Abteilungen habt – deren Zusatzbeiträge. Vorlagen gibt es bewusst nicht: Jeder Verein rechnet anders.',
       page: 'mv-stamm', card: ['Beiträge Hauptverein', 'Abteilungen', 'Zusatzbeiträge'], done: Boolean(ctx.db.prepare('SELECT 1 FROM mv_fee WHERE active = 1').get()) },

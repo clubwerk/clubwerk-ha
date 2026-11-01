@@ -141,6 +141,7 @@
   /* Klick auf den Reiter „Mitglieder“ zeigt immer die ganze Liste (Suche und Filter leer). Nur der Weg zurück aus einem Mitglied behält sie. */
   const list = pageRender('mitglieder', el => {
     if (!st.fromDetail) st.f = { status: 'aktuell', q: '', dept: '', fee: '' };
+    try { const v = sessionStorage.getItem('mv_liste_filter'); if (v === 'hinweis') st.f.status = v; sessionStorage.removeItem('mv_liste_filter'); } catch (e) { /* privat */ }   // Sprung aus Einstellungen › Datenqualität
     st.fromDetail = false;
     return showList(el);
   });

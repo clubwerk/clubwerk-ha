@@ -1047,7 +1047,7 @@
     const [stock, bal, ev, del, mem, mods] = await Promise.all([
       drinksOn ? api('stock') : null, drinksOn && (can('abrechnung') || can('export')) ? api('balances') : null, drinksOn && can('veranstaltungen') ? api('events') : null,
       drinksOn && can('lieferungen') ? api('deliveries') : null, can('konten') ? api('members') : null, moduleOverview()]);
-    const [bkSt, setupCard] = can('einstellungen') ? await Promise.all([api('backups/status').catch(() => null), window.GK.setupCard().catch(() => '')]) : [null, ''];
+    const [bkSt, setupCard, dq] = can('einstellungen') ? await Promise.all([api('backups/status').catch(() => null), window.GK.setupCard().catch(() => ''), api('datenqualitaet').catch(() => null)]) : [null, '', null];
     if (page !== 'uebersicht') return;   // inzwischen woandershin gewechselt – nichts überschreiben
     const alerts = [];
     const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
@@ -1055,6 +1055,9 @@
     if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} ${vs.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Mitgliederdaten liegen unverschlüsselt.', detail: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
+    // Datenqualität: nur Fehler (Hinweise wie fehlende Mandate melden die Module hier schon selbst)
+    const dqR = dq ? dq.list.filter(c => c.count > 0 && c.level === 'r') : [];
+    if (dqR.length) alerts.push({ level: 'r', who: 'Datenqualität', text: `${dqR.reduce((n, c) => n + c.count, 0)} Fehler in den Daten – bitte ansehen.`, detail: dqR.map(c => T(c.title)).join(' · '), go: 'einstellungen', sec: ['cw_setsec', 'daten'], link: 'Ansehen' });
     let drinksCard = '';
     if (drinksOn) {
       const low = stock.filter(x => x.active && x.track_stock && x.min_stock > 0 && x.stock <= x.min_stock);
@@ -3834,7 +3837,7 @@
       };
     }
   }
-  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dqBody')) renderQuality().catch(e => { if ($('dqBody')) $('dqBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
 
   /* =================== Mein Konto (Benutzerchip): Passwort, Sprache und Aussehen in diesem Browser, E-Mail-Absender =================== */
   RENDER.konto = async () => {
@@ -3932,7 +3935,7 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['datenschutz', 'Datenschutz'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
+  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['datenschutz', 'Datenschutz'], ['daten', 'Datenqualität'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
   const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : 'tablet');
   /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
@@ -3965,6 +3968,23 @@
     const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
+  }
+
+  /* ---------- Datenqualität: Prüfungen von Kern und Modulen (src/datenqualitaet.js); jeder Knopf führt zur Stelle, an der man es behebt ---------- */
+  const dqGo = f => { if (f.sec) sset(f.sec[0], f.sec[1]); if (f.tab) sset('tab_' + f.tab[0], f.tab[1]); go(f.page); };
+  async function renderQuality(r) {
+    r = r || await api('datenqualitaet');
+    const box = $('dqBody'); if (!box) return;
+    const hits = r.list.filter(c => c.count > 0).sort((a, b) => (a.level === b.level ? 0 : a.level === 'r' ? -1 : 1)), okN = r.list.length - hits.length;
+    box.innerHTML = `<p class="muted s" style="margin-top:0">Clubwerk prüft jede Nacht, ob die Daten zueinander passen. Die Knöpfe führen zur Stelle, an der du es behebst – Geld wird nie von selbst korrigiert.</p>
+      ${!r.at ? '<p class="empty">Noch nicht geprüft.</p>' : `${hits.map((c, i) => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-top:1px solid var(--line-soft)">
+          <div style="flex:1 1 240px;min-width:0"><b><span translate="no">${c.count} ×</span> <span>${esc(c.title)}</span></b> <span class="pill ${c.level}">${c.level === 'r' ? 'Fehler' : 'Hinweis'}</span>${c.module ? ` <span class="muted s">${esc(c.module)}</span>` : ''}
+            <div class="muted s">${esc(c.why)}${c.detail ? ` (${esc(c.detail)})` : ''}</div>${c.names.length ? `<div class="muted s">${c.names.map(n => esc(window.CWNames ? CWNames.lastFirst(n) : n)).join(' · ')}${c.count > c.names.length ? ' …' : ''}</div>` : ''}</div>
+          ${c.fix ? `<button type="button" class="btn small" data-dq="${i}">${esc(c.fix.label)}</button>` : ''}</div>`).join('')}
+        <p class="muted s">${hits.length ? '' : '<b>Alles in Ordnung.</b> '}<span>${okN === 1 ? '1 weitere Prüfung ohne Befund' : `${okN} weitere Prüfungen ohne Befund`}</span> · <span>${`Zuletzt geprüft: ${esc(deTime(r.at))}`}</span></p>`}
+      <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dqRun">Jetzt prüfen</button></div>`;
+    box.querySelectorAll('[data-dq]').forEach(b => { b.onclick = () => dqGo(hits[+b.dataset.dq].fix); });
+    $('dqRun').onclick = () => busy($('dqRun'), async () => { try { await renderQuality(await api('datenqualitaet', 'POST', {})); toast('Geprüft.'); } catch (e) { fail(e); } });
   }
 
   /* ---------- Datenschutz: Löschfristen aller Module, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) ---------- */
@@ -4149,7 +4169,8 @@
       ${can('einstellungen') ? `<div class="card" data-set="datenschutz"><h3>Löschfristen</h3><div id="dsBody"><p class="muted">Wird geladen …</p></div></div>
         <div class="card" data-set="datenschutz"><h3>Datenschutzhinweis in der Mitglieder-App</h3><div id="dsNotice"></div></div>
         <div class="card" data-set="datenschutz"><h3>Verzeichnis von Verarbeitungstätigkeiten</h3><p class="muted s" style="margin-top:0">Eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, betroffene Personen, wer Zugriff hat und die Löschfristen. Der Verein ergänzt Verantwortliche, Datenschutzbeauftragte und genutzte Dienste (z. B. Mail-Anbieter) und bewahrt das Verzeichnis auf.</p>
-          <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dsReg">Verzeichnis drucken</button></div></div>` : ''}
+          <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dsReg">Verzeichnis drucken</button></div></div>
+        <div class="card" data-set="daten"><h3>Datenqualität</h3><div id="dqBody"><p class="muted">Wird geladen …</p></div></div>` : ''}
       ${me.role === 'oberadmin' ? '<div class="card" id="updCard"><h3>Update von Clubwerk</h3><div id="updBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       ${ext ? `<div class="card"><h3>Module & Erweiterungen</h3>
         ${ext.all.length ? `<div class="mods" id="modList">

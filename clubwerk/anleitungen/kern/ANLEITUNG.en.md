@@ -398,6 +398,12 @@ One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), s
 
 **Record of processing activities:** **Print record** produces a template under Art. 30 GDPR from all modules that are switched on. You add the controller and the services used.
 
+### Area “Data quality” {#einstellungen-daten}
+
+![Card “Data quality”: findings with reason and button.](bild: seite=einstellungen; klick=[data-sec="daten"]; ziel=.card:has(#dqBody))
+
+Every night Clubwerk checks whether the data fit together, for example: direct debit payers without a valid mandate, direct debits not yet booked as paid, family members without a head of family, open items of deleted members, deleted accounts with an open balance and expired invitations. Each finding says why it causes harm and has a button that takes you to the place where you fix it. Clubwerk never corrects money by itself. **Errors** (red) also appear in the overview. **Check now** runs the check straight away. Modules can add their own checks.
+
 ### Area “Tablet” {#einstellungen-tablet}
 
 ![Card “Tablet in the clubhouse”: with or without a tablet.](bild: seite=einstellungen; klick=[data-sec="tablet"]; ziel=#tmCard)
