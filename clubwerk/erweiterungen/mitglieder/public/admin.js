@@ -1147,7 +1147,7 @@
           <label class="f">Nur Zahlungsart<select id="rPay"><option value="">alle</option>${Object.entries(PAY).map(([k, l]) => opt(k, l)).join('')}</select></label></div>
         <div class="mv-cons" style="margin-top:12px">${m.drinks ? `<label class="chk"><input type="checkbox" id="rDrinks"> Verkauf mit abbuchen <span class="muted s">(offene Verkaufskonten der Mitglieder${f.drinksOpen != null ? ': ' + euro(f.drinksOpen) : ''})</span></label>` : ''}
           ${m.arbeit ? '<label class="chk"><input type="checkbox" id="rExtra" checked> Nicht geleistete Arbeitsstunden mit abrechnen</label>' : ''}</div>
-        <div class="row" style="justify-content:flex-end"><button class="btn ${done ? '' : 'primary'}" id="rPrev">Vorschau</button></div></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn ${done ? '' : 'primary'}" id="rPrev" data-pruefbar>Vorschau</button></div></div>
       <div id="rOut">${done ? `<div class="card"><h3>Beiträge abgerechnet</h3>
         <p class="muted s" style="margin-top:0">${done.count} Positionen über ${euro(done.cents)} stehen jetzt als offene Posten bereit. Als Nächstes die Lastschriften erstellen; wer per Rechnung oder bar zahlt, bekommt seine Rechnung unter „Rechnungen & Mahnungen“.</p>
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rNext">Weiter zum Einzug</button></div></div>` : ''}</div>
@@ -1291,7 +1291,7 @@
     const list = await api('collections');
     el.innerHTML = `<div class="card"><h3>Neuer Einzug</h3>
         <p class="muted s" style="margin-top:0">Je Zahler eine Lastschrift über alle bis zum Einzugstag fälligen offenen Posten. Erst- und Folgelastschriften werden automatisch getrennt. Vorgeschlagen ist der früheste Termin wegen der Vorabinformation (<b>${deDate(f.earliest)}</b>) – ein späterer Tag geht immer.</p>
-        <div class="row"><label class="f">Einzugstag wählen<input id="kDate" type="date" value="${f.earliest}"></label><button class="btn" id="kPrev">Prüfen</button></div>
+        <div class="row"><label class="f">Einzugstag wählen<input id="kDate" type="date" value="${f.earliest}"></label><button class="btn" id="kPrev" data-pruefbar>Prüfen</button></div>
         <div id="kOut"></div></div>
       ${st.meta.drinks ? `<div class="card"><h3>Verkauf einziehen</h3>
         <p class="muted s" style="margin-top:0">Jederzeit, getrennt von den Beiträgen: alle offenen Verkaufskonten der Mitglieder in einem Ablauf bis zur SEPA-Datei. Denselben Weg gibt es unter Verkauf › Abrechnung.${f.drinksDue ? ` Üblicher Termin: ${esc(f.drinksDue.split('-').reverse().join('.'))}.` : ''}</p>

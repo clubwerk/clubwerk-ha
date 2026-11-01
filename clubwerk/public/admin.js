@@ -785,7 +785,7 @@
     return `<div class="row" id="${id}" style="margin-bottom:14px">
       <label class="f">Von<input type="date" name="from" value="${from}"></label>
       <label class="f">Bis<input type="date" name="to" value="${to}"></label>${extra}
-      <button class="btn" data-r="apply">Anzeigen</button>
+      <button class="btn" data-r="apply" data-pruefbar>Anzeigen</button>
       <button class="btn ghost" data-r="season">Ganze Saison</button></div>`;
   }
   function bindRange(id, cb) {

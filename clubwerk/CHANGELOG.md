@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2026.11.3
+
+**Abstände: Knöpfe kleben nicht mehr an Ergebnis-Kästen, Kopfleiste deckt den Inhalt**
+- **Beiträge & Zahlungen › Lastschriften › „Neuer Einzug“:** Nach „Prüfen“ klebte der Kasten („Keine fälligen Lastschriften.“ oder ein Hinweis) am Knopf. Ergebnisbereiche unter einer Knopf- oder Feldzeile haben jetzt überall in der Verwaltung 12 px Abstand (auch Beitragslauf › Vorschau, Auswertungen).
+- **Handy: klebende Kopfleiste** („Unser Verein / Verwaltung“ mit Menüknopf): Beim Scrollen schaute über der Leiste Inhalt heraus (Überschriften, Knöpfe, Kästen). Der Streifen darüber ist jetzt gedeckt.
+- **Nachrichten:** Die Auswahlfelder „Vorlage“ und „Platzhalter“ über dem Text standen nur 2 px auseinander, jetzt mehr Luft.
+- Die Reiterleiste, die am rechten Rand ausläuft („Rec…“), ist gewollt: Der Verlauf zeigt, dass man seitlich wischen kann.
+- **Design-Prüfstand geschärft:** neue Regel „Berührung“ (zwei sichtbare Kästen/Knöpfe/Felder mit weniger als 6 px Abstand), neue Regel „Kopfleiste überdeckt“, und der Prüfstand klickt jetzt lesende Knöpfe (Prüfen, Vorschau, Anzeigen) und prüft auch das Ergebnis – mit Daten und leer.
+
 ## 2026.11.1
 
 **Neues Modul „Flutlicht“: Licht der Plätze automatisch zur Buchung oder per Handy**

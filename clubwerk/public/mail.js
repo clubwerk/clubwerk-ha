@@ -39,12 +39,12 @@
   .ml-meta .chk{font-size:13px}
   .ml-meta .ml-cnt{margin-left:auto;font-family:var(--num);font-size:16px;font-weight:600;color:var(--ink)}
   .ml-meta .ml-cnt.warn{color:var(--amber)}
-  .ml-bar{display:flex;flex-wrap:wrap;gap:2px;padding:6px 12px;border-bottom:1px solid var(--line-soft);background:var(--field);align-items:center}
+  .ml-bar{display:flex;flex-wrap:wrap;gap:6px 2px;padding:6px 12px;border-bottom:1px solid var(--line-soft);background:var(--field);align-items:center}
   .ml-bar button{height:32px;min-width:32px;padding:0 8px;border-radius:8px;font-size:14px;color:var(--ink);display:inline-flex;align-items:center;justify-content:center;gap:4px}
   .ml-bar button:hover,.ml-bar button.on{background:var(--hover)}
   .ml-bar .sep{width:1px;height:20px;background:var(--line);margin:0 6px}
   .ml-bar .grow{flex:1}
-  .ml-bar select{width:auto;max-width:180px;height:32px;min-height:32px;padding-top:0;padding-bottom:0;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:0 8px;font:inherit;font-size:13px;color:var(--ink)}
+  .ml-bar select{margin:0 4px;width:auto;max-width:180px;height:32px;min-height:32px;padding-top:0;padding-bottom:0;border:1px solid var(--line);border-radius:8px;background:var(--card);padding:0 8px;font:inherit;font-size:13px;color:var(--ink)}
   .ml-ed{min-height:300px;padding:16px 18px;outline:none;font-size:15px;line-height:1.55;color:var(--ink);overflow-wrap:anywhere}
   .ml-ed:empty::before{content:attr(data-ph);color:var(--faint)}
   .ml-ed p,.ml-view p{margin:0 0 .7em}.ml-ed h2,.ml-view h2{font-size:20px;margin:.6em 0 .4em}.ml-ed h3,.ml-view h3{font-size:16px;margin:.6em 0 .3em}
