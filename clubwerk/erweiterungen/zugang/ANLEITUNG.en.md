@@ -111,6 +111,10 @@ If the connection to Home Assistant is missing, a red notice appears at the top.
 
 When editing, **Remove door …** is set apart at the bottom. Clubwerk asks for confirmation in the same window; the door disappears from the app and from the time profiles.
 
+**New device only with your password:** when a door gets a device from Home Assistant – a new door or a different device on an existing door – Clubwerk asks for **your own password** when saving. Renaming, changing the order, the pulse and removing work without a password.
+
+**Who may choose which devices:** users with **all permissions** can enter any suitable device from Home Assistant. Everyone else (e.g. only with the “Access” permission) only sees and chooses devices of the manufacturer selected on the “Settings” tab. If “Mixed / other manufacturer” is selected there, only users with all permissions assign devices. This way nobody without all permissions can enter the alarm system or a different lock as a door, for example.
+
 > When the doors are changed, the board gets a safety message showing “before” and “now”. That way you notice if someone enters a different device without permission.
 
 ### Tab “Time profiles” {#zugang-profile}
@@ -152,7 +156,7 @@ On blocked days the app opens nothing for anyone, for example during court renov
 
 ### Tab “History” {#zugang-verlauf}
 
-![The “History” tab: month selector and entries (here the first “Rejected” entry with its reason).](bild: seite=zugang-verlauf; ziel=#zLog tr:has(.pill.a))
+![The “History” tab: month selector and entries (here the first “Rejected” entry with its reason).](bild: seite=zugang-verlauf; zeitraum=#zMonth; ziel=#zLog tr:has(.pill.a))
 
 The history shows who opened, closed or blocked which door and when, including rejected attempts. At the top you choose the **Month**. Columns:
 
@@ -172,7 +176,7 @@ The tab consists of four cards.
 
 ![“Connection” card: choose the manufacturer.](bild: seite=zugang-einstellungen; ziel=.card:has(#zVendor))
 
-Here you choose the **manufacturer** (Nuki, Matter, Yale, tedee, SwitchBot, HomeKit, Shelly, ESPHome or “Mixed / other manufacturer”). This only filters the device list on the “Doors” tab to make it shorter. Below it you can see which integration you need to add in Home Assistant. Locks appear there as `lock.*`, door openers as `switch.*` or `button.*`, gates as `cover.*`. “Mixed” shows all devices.
+Here you choose the **manufacturer** (Nuki, Matter, Yale, tedee, SwitchBot, HomeKit, Shelly, ESPHome or “Mixed / other manufacturer”). This only filters the device list on the “Doors” tab to make it shorter. Below it you can see which integration you need to add in Home Assistant. Locks appear there as `lock.*`, door openers as `switch.*` or `button.*`, gates as `cover.*`. “Mixed” shows all devices; only users with all permissions may choose it. Everyone else only sees devices of the selected manufacturer.
 
 #### Security
 
@@ -193,7 +197,7 @@ Clubwerk can notify your phone when a door could not be opened or locked or is o
 
 #### Transfer settings
 
-At the bottom of the page: export doors, time profiles, blocked days and settings as a file and import them into another Clubwerk installation. Authorisations, history, PINs and keys are not included.
+At the bottom of the page: export doors, time profiles, blocked days and settings as a file and import them into another Clubwerk installation. Authorisations, history, PINs and keys are not included. If the import brings doors with new devices, the same rules as above apply: confirm with your password, and without all permissions only devices of the selected manufacturer.
 
 ## Tablet and app {#tablet-app}
 

@@ -23,7 +23,7 @@ The “Time tracking” page has three tabs at the top: **Hours**, **Staff** and
 
 ### Tab “Hours” {#zeit}
 
-![The “Hours” tab: choose month and person, with four figures and the overview of all people below.](bild: seite=zeit)
+![The “Hours” tab: choose month and person, with four figures and the overview of all people below.](bild: seite=zeit; zeitraum=#zMonth; voll=[data-zs]:not([data-n="0"]))
 
 Here you see who worked when. At the top are two selection fields, below them four tiles, below them the list.
 
@@ -47,7 +47,7 @@ One row per person with **Name**, **Activity**, **Shifts**, **exact**, **billed*
 
 #### Detail view of one person
 
-![The shifts of one person in the month: date, clock in, clock out, duration and notes, with the total below.](bild: seite=zeit; klick=[data-zs])
+![The shifts of one person in the month: date, clock in, clock out, duration and notes, with the total below.](bild: seite=zeit; zeitraum=#zMonth; klick=[data-zs]:not([data-n="0"]); voll=[data-ze])
 
 The list has the columns **Date**, **Clock in**, **Clock out**, **Duration** and **Note**. If a shift runs past midnight, “(+1)” appears after “Clock out”. Below the list are the total and, next to it, how many hours will be billed. Open shifts (not yet clocked out) are not included in the total.
 
@@ -61,7 +61,7 @@ The notes are coloured markers:
 
 #### “Edit”
 
-![The “Edit shift” window: clock in, clock out, reason and Delete.](bild: seite=zeit; klick=[data-zs]; klick2=[data-ze]; ziel=dialog)
+![The “Edit shift” window: clock in, clock out, reason and Delete.](bild: seite=zeit; zeitraum=#zMonth; klick=[data-zs]:not([data-n="0"]); klick2=[data-ze]; ziel=dialog)
 
 “Edit” in the row opens the window. At the top it shows what was originally clocked. You change **Clock in** and **Clock out** and enter a **Reason**, which also appears in the report (at least three letters, for example “forgot to clock out”). “Save” applies the change. “Delete” at the bottom left removes the shift after a confirmation; a shift that is still running can only be deleted after it has been clocked out.
 

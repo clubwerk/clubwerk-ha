@@ -111,6 +111,10 @@ Fehlt die Verbindung zu Home Assistant, steht oben ein roter Hinweis.
 
 Beim Bearbeiten steht unten abgesetzt **Tür entfernen …**. Clubwerk fragt im selben Fenster nach; die Tür verschwindet aus der App und aus den Zeitprofilen.
 
+**Neues Gerät nur mit Passwort:** Bekommt eine Tür ein Gerät aus Home Assistant – eine neue Tür oder ein anderes Gerät an einer vorhandenen Tür –, fragt Clubwerk beim Speichern nach eurem **eigenen Passwort**. Umbenennen, Reihenfolge, Impuls und Entfernen gehen ohne Passwort.
+
+**Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes passende Gerät aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Zugang“) sehen und wählen nur Geräte des Herstellers, der im Reiter „Einstellungen“ gewählt ist. Steht dort „Gemischt / anderer Hersteller“, ordnen nur Benutzer mit allen Rechten Geräte zu. So kann niemand ohne alle Rechte z. B. die Alarmanlage oder ein fremdes Schloss als Tür eintragen.
+
 > Wenn ihr die Türen ändert, bekommt der Vorstand zur Sicherheit eine Mitteilung mit „vorher“ und „jetzt“. So fällt auf, wenn jemand unbefugt ein anderes Gerät einträgt.
 
 ### Reiter „Zeitprofile“ {#zugang-profile}
@@ -152,7 +156,7 @@ An Sperrtagen öffnet die App für niemanden, z. B. bei Platzsanierung, Grundrei
 
 ### Reiter „Verlauf“ {#zugang-verlauf}
 
-![Der Reiter „Verlauf“: Monatsauswahl und die Einträge (hier der erste Eintrag mit „Abgelehnt“ und seinem Grund).](bild: seite=zugang-verlauf; ziel=#zLog tr:has(.pill.a))
+![Der Reiter „Verlauf“: Monatsauswahl und die Einträge (hier der erste Eintrag mit „Abgelehnt“ und seinem Grund).](bild: seite=zugang-verlauf; zeitraum=#zMonth; ziel=#zLog tr:has(.pill.a))
 
 Der Verlauf zeigt, wer wann welche Tür geöffnet, geschlossen oder gesperrt hat, auch abgelehnte Versuche. Oben wählt ihr den **Monat**. Spalten:
 
@@ -172,7 +176,7 @@ Der Reiter besteht aus vier Karten.
 
 ![Karte „Anbindung“: Hersteller wählen.](bild: seite=zugang-einstellungen; ziel=.card:has(#zVendor))
 
-Hier wählt ihr den **Hersteller** (Nuki, Matter, Yale, tedee, SwitchBot, HomeKit, Shelly, ESPHome oder „Gemischt / anderer Hersteller“). Das filtert nur die Geräteliste im Reiter „Türen“, damit sie kürzer wird. Darunter steht, welche Integration ihr in Home Assistant hinzufügen müsst. Schlösser erscheinen dort als `lock.*`, Türöffner als `switch.*` oder `button.*`, Tore als `cover.*`. „Gemischt“ zeigt alle Geräte.
+Hier wählt ihr den **Hersteller** (Nuki, Matter, Yale, tedee, SwitchBot, HomeKit, Shelly, ESPHome oder „Gemischt / anderer Hersteller“). Das filtert nur die Geräteliste im Reiter „Türen“, damit sie kürzer wird. Darunter steht, welche Integration ihr in Home Assistant hinzufügen müsst. Schlösser erscheinen dort als `lock.*`, Türöffner als `switch.*` oder `button.*`, Tore als `cover.*`. „Gemischt“ zeigt alle Geräte; wählen dürfen das nur Benutzer mit allen Rechten. Alle anderen sehen nur Geräte des gewählten Herstellers.
 
 #### Sicherheit
 
@@ -193,7 +197,7 @@ Clubwerk kann euch aufs Handy melden, wenn eine Tür sich nicht öffnen oder abs
 
 #### Einstellungen übertragen
 
-Unten auf der Seite: Türen, Zeitprofile, Sperrtage und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren. Freischaltungen, Verlauf, PINs und Schlüssel sind nicht dabei.
+Unten auf der Seite: Türen, Zeitprofile, Sperrtage und Einstellungen als Datei exportieren und in einer anderen Clubwerk-Installation importieren. Freischaltungen, Verlauf, PINs und Schlüssel sind nicht dabei. Bringt der Import Türen mit neuen Geräten, gelten dieselben Regeln wie oben: Bestätigung mit eurem Passwort, ohne alle Rechte nur Geräte des gewählten Herstellers.
 
 ## Tablet und App {#tablet-app}
 

@@ -62,7 +62,9 @@
   async function loadCfg() { const d = await api('config'); st.data = d; st.cfg = JSON.parse(JSON.stringify(d.cfg)); return d; }
   async function save(fields) {
     readForm();
-    try { const r = await api('config', 'PUT', Object.fromEntries(fields.map(k => [k, st.cfg[k]]))); st.data.cfg = r.cfg; GK.clean(); toast('Gespeichert.'); return true; } catch (e) { fail(e); return false; }
+    const body = Object.fromEntries(fields.map(k => [k, st.cfg[k]]));
+    // neues Ventil/neuer Schalter: der Server fragt nach dem eigenen Passwort (428)
+    try { const r = await GK.withPassword(pw => api('config', 'PUT', pw ? { ...body, myPassword: pw } : body), 'Gerät zuordnen\n\nEine Zone bekommt ein Gerät aus Home Assistant. Bitte mit deinem Passwort bestätigen – der Vorstand wird zusätzlich benachrichtigt.'); st.data.cfg = r.cfg; GK.clean(); toast('Gespeichert.'); return true; } catch (e) { fail(e); return false; }
   }
   /** Speichern einer Einstellungskarte: body() liefert die Felder, danach wird der Reiter neu gezeichnet */
   const cardSave = (btn, body, after) => { btn.onclick = () => GK.busy(btn, async () => {
@@ -113,7 +115,10 @@
       }
       if (k === 'plaetze') {
         el.innerHTML = `${d.error ? `<div class="banner r">Keine Verbindung zur Steuerung: ${esc(d.error)}<br>Bitte unter Einstellungen › Anbindung prüfen.</div>` : `<div class="banner g">Verbunden – ${d.list.length} schaltbare Zonen gefunden.</div>`}
-          <div class="card" data-card="plaetze"><h3>Plätze &amp; Zonen</h3><div id="bPl">${plaetzeHtml()}</div>
+          <div class="card" data-card="plaetze"><h3>Plätze &amp; Zonen</h3>
+            ${d.restricted ? `<p class="muted s" style="margin:0 0 10px">${c.vendor === 'other' ? 'Bei „Anderer Hersteller“ ordnet nur ein Benutzer mit allen Rechten Geräte zu – oder unter Einstellungen den Hersteller der Steuerung wählen.' : 'Home Assistant nennt keine Geräte dieses Herstellers – Geräte zuordnen kann gerade nur ein Benutzer mit allen Rechten.'}</p>` : ''}
+            <div id="bPl">${plaetzeHtml()}</div>
+            ${ha ? '<p class="muted s" style="margin:10px 0 0">Ein neues Gerät bestätigst du mit deinem Passwort; der Vorstand bekommt eine Sicherheitswarnung.</p>' : ''}
             <div class="btns"><button class="btn primary" id="bSaveP">Speichern</button></div></div>`;
         const tools = '<button class="btn" id="bAddPl">+ Platz</button>';
         if (!GK.tabTools(tools, $('bPl'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
@@ -127,7 +132,8 @@
         const addr = `${GK.scheme ? GK.scheme() : 'http'}://&lt;Adresse von Home Assistant&gt;:${d.port || 5000}`;
         el.innerHTML = `<div class="card" data-card="anbindung"><h3>Anbindung</h3>
             ${d.error ? `<div class="banner r">Keine Verbindung zur Steuerung: ${esc(d.error)}</div>` : `<div class="banner g">Verbunden – ${d.list.length} schaltbare Zonen gefunden.</div>`}
-            <div class="row"><label class="f" style="flex:1;min-width:260px">Hersteller der Steuerung<select id="bVendor" data-nodirty>${d.vendors.map(v => `<option value="${v.id}" ${v.id === c.vendor ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label></div>
+            <div class="row"><label class="f" style="flex:1;min-width:260px">Hersteller der Steuerung<select id="bVendor" data-nodirty>${d.vendors.map(v => `<option value="${v.id}" ${v.id === c.vendor ? 'selected' : ''} ${v.free && !d.full && v.id !== c.vendor ? 'disabled' : ''}>${esc(v.name)}</option>`).join('')}</select></label></div>
+            ${d.full ? '' : '<p class="muted s" style="margin:8px 0 0">„Anderer Hersteller“ (freie Wahl aller Ventile und Schalter aus Home Assistant) richtet nur ein Benutzer mit allen Rechten ein. Du siehst nur Geräte des gewählten Herstellers.</p>'}
             ${ha ? `<p class="muted s" style="margin:8px 0 0">Einrichtung: in Home Assistant unter Einstellungen → Geräte &amp; Dienste die <b>${esc(vend.setup)}</b> hinzufügen. Jede Zone erscheint dann als Ventil oder Schalter${d.filtered ? ' – angeboten werden nur Geräte dieses Herstellers' : ''}.
               Tipp: Die Standard-Laufzeit der Zone in der Hersteller-App mindestens so lang einstellen wie in „Plätze &amp; Zonen“.</p>${d.haAvailable ? '' : '<div class="banner a" style="margin-top:8px">Das Add-on hat keinen Zugriff auf Home Assistant. Bitte das Add-on neu bauen und starten.</div>'}`
             : `<div class="row" style="margin-top:10px"><label class="f" style="flex:1;min-width:260px">Hydrawise-API-Key<input id="bKey" type="password" data-nodirty autocomplete="off" placeholder="${d.hasKey ? 'gespeichert – zum Ändern neu eintragen' : 'z. B. aus hydrawise.com → Konto → Einstellungen'}"></label></div>

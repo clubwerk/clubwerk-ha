@@ -680,7 +680,7 @@
     const again = () => showLog(el).catch(fail);
     el.querySelectorAll('#lgF [data-f]').forEach(b => { b.onclick = () => { g.f = b.dataset.f; g.n = 200; again(); }; });
     $('lgY').onchange = () => { g.year = +val('lgY'); again(); }; $('lgR').onchange = () => { g.resource = val('lgR'); again(); }; $('lgS').onchange = () => { g.sort = val('lgS'); again(); };
-    let tq; $('lgQ').oninput = () => { clearTimeout(tq); tq = setTimeout(() => { g.q = val('lgQ'); again().then?.(() => { const i = $('lgQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 350); };
+    let tq; $('lgQ').oninput = () => { clearTimeout(tq); tq = GK.later(() => { g.q = val('lgQ'); again().then?.(() => { const i = $('lgQ'); if (i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }); }, 350, $('lgQ')); };
     el.querySelectorAll('tr[data-b]').forEach(tr => { tr.onclick = async () => { const r = d.rows.find(x => x.id === +tr.dataset.b); if (!r || r.status === 'storniert') return; const day = await api('day?date=' + r.date); const b = day.bookings.find(x => x.id === r.id); if (b) detail(b, again); }; });
   }
 

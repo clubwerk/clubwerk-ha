@@ -35,7 +35,7 @@
           const r = await ctx.api('act', 'POST', { light: id, action, minutes });
           ctx.toast(action === 'off' ? (r.still ? `${l.name}: bleibt an bis ${r.still.slice(11, 16)} Uhr – noch gebucht.` : `${l.name}: ausgeschaltet`) : `${l.name}: an bis ${r.until.slice(11, 16)} Uhr`);
         } catch (e) { ctx.toast(e.message, true, 5000); }
-        refresh();
+        if (alive) refresh();   // Bereich inzwischen verlassen: nichts mehr abfragen
       }
       function act(id, action) {
         if (action !== 'on') return send(id, action);

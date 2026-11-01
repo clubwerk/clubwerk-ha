@@ -12011,6 +12011,26 @@
   "Diese Buchung wird gerade geändert – bitte kurz warten und neu laden.": "This booking is being changed right now – please wait a moment and reload.",
   "Zusammenführen mit einem vorhandenen Mitglied ändert dessen Bankverbindung – dafür fehlt dir das Recht „Bankdaten“. Bitte ohne Zusammenführen annehmen oder an die Vereinsverwaltung geben.": "Merging with an existing member changes their bank details – you lack the “Bank details” permission for that. Please accept without merging or pass it on to the club administration.",
   "Die Datenbank enthält Bestandteile, die Clubwerk nie anlegt (Trigger, Views oder ungewöhnliche Namen) – aus Sicherheitsgründen wird sie nicht übernommen.": "The database contains parts that Clubwerk never creates (triggers, views or unusual names) – for security reasons it will not be used.",
-  "Zu dieser Rechnung gehört ein Posten in der Mitgliederverwaltung – bitte erst die Mitgliederverwaltung einschalten.": "This invoice has an item in member management – please switch on member management first."
+  "Zu dieser Rechnung gehört ein Posten in der Mitgliederverwaltung – bitte erst die Mitgliederverwaltung einschalten.": "This invoice has an item in member management – please switch on member management first.",
+  "„{0}“ gehört nicht zur Integration „{1}“. Andere Geräte darf nur ein Benutzer mit allen Rechten zuordnen.": "“{0}” does not belong to the integration “{1}”. Only a user with all permissions may assign other devices.",
+  "„{0}“ mit freier Gerätewahl dürfen nur Benutzer mit allen Rechten einrichten. Bitte den Hersteller der Geräte wählen – oder einen Benutzer mit allen Rechten bitten.": "Only users with all permissions may set up “{0}” with a free choice of devices. Please choose the manufacturer of the devices – or ask a user with all permissions.",
+  "„Anderer Hersteller“ (freie Wahl aller Ventile und Schalter aus Home Assistant) richtet nur ein Benutzer mit allen Rechten ein. Du siehst nur Geräte des gewählten Herstellers.": "“Other manufacturer” (free choice of all valves and switches from Home Assistant) can only be set up by a user with all permissions. You only see devices of the selected manufacturer.",
+  "„Gemischt / anderer Hersteller“ (freie Wahl aller Geräte aus Home Assistant) richtet nur ein Benutzer mit allen Rechten ein. Du siehst nur Geräte des gewählten Herstellers.": "“Mixed / other manufacturer” (free choice of all devices from Home Assistant) can only be set up by a user with all permissions. You only see devices of the selected manufacturer.",
+  "Abgebrochen – nichts gespeichert.": "Cancelled – nothing saved.",
+  "Bei „Anderer Hersteller“ ordnet nur ein Benutzer mit allen Rechten Geräte zu – oder unter Einstellungen den Hersteller der Steuerung wählen.": "With “Other manufacturer” only a user with all permissions assigns devices – or choose the controller manufacturer under Settings.",
+  "Bei „Gemischt / anderer Hersteller“ ordnet nur ein Benutzer mit allen Rechten Geräte zu – oder unter Einstellungen den Hersteller der Schlösser wählen.": "With “Mixed / other manufacturer” only a user with all permissions assigns devices – or choose the lock manufacturer under Settings.",
+  "Der Import ordnet Türen oder Ventilen Geräte aus Home Assistant neu zu. Bitte mit deinem Passwort bestätigen – der Vorstand wird zusätzlich benachrichtigt.": "The import assigns new devices from Home Assistant to doors or valves. Please confirm with your password – the board is also notified.",
+  "Die Plätze wurden gerade gleichzeitig geändert – bitte die Seite neu laden und noch einmal speichern.": "The courts were just changed at the same time – please reload the page and save again.",
+  "Die Türen wurden gerade gleichzeitig geändert – bitte die Seite neu laden und noch einmal speichern.": "The doors were just changed at the same time – please reload the page and save again.",
+  "Ein neues Gerät bestätigst du mit deinem Passwort; der Vorstand bekommt eine Sicherheitswarnung.": "You confirm a new device with your password; the board receives a security warning.",
+  "Eine Tür bekommt ein Gerät aus Home Assistant. Bitte mit deinem Passwort bestätigen – der Vorstand wird zusätzlich benachrichtigt.": "A door is getting a device from Home Assistant. Please confirm with your password – the board is also notified.",
+  "Eine Zone bekommt ein Gerät aus Home Assistant. Bitte mit deinem Passwort bestätigen – der Vorstand wird zusätzlich benachrichtigt.": "A zone is getting a device from Home Assistant. Please confirm with your password – the board is also notified.",
+  "Gerät zuordnen": "Assign device",
+  "Geräte zuordnen": "Assign devices",
+  "Geräte zuordnen bitte mit deinem Passwort bestätigen.": "Please confirm assigning devices with your password.",
+  "Home Assistant nennt keine Geräte der Integration „{0}“ – Geräte zuordnen kann gerade nur ein Benutzer mit allen Rechten.": "Home Assistant does not list any devices for the integration “{0}” – only a user with all permissions can assign devices at the moment.",
+  "Home Assistant nennt keine Geräte dieses Herstellers – Geräte zuordnen kann gerade nur ein Benutzer mit allen Rechten.": "Home Assistant does not list any devices from this manufacturer – only a user with all permissions can assign devices at the moment.",
+  "Importieren": "Import",
+  "Zu viele falsche Passwörter. Bitte kurz warten.": "Too many wrong passwords. Please wait a moment."
  }
 }

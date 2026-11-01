@@ -69,11 +69,15 @@ With the direct Hydrawise connection you enter the **zone number** instead of th
 
 “Save” at the bottom applies everything. A zone runs for at least 10 seconds and at most 60 minutes.
 
+**New device only with your password:** when a zone gets a valve or switch from Home Assistant that no zone had before, Clubwerk asks for **your own password** when saving. Names, minutes, order and deleting work without a password; as before, the board gets a safety warning when devices change.
+
+**Who may choose which devices:** users with **all permissions** can enter any valve and switch from Home Assistant. Everyone else (e.g. only with the “Irrigation” permission) only sees and chooses devices of the manufacturer selected under “Settings”. With “Other manufacturer”, only users with all permissions assign devices.
+
 > Set the zone’s default run time in the manufacturer’s app to at least as long as here. Clubwerk switches off by itself after the set time; the controller is only the safety net behind it.
 
 ### Tab “History” {#beregnung-verlauf}
 
-![The tab “History” with the month selection and the button “Excel”.](bild: seite=beregnung; tab=verlauf; rahmen=a.btn)
+![The tab “History” with the month selection and the button “Excel”.](bild: seite=beregnung; tab=verlauf; zeitraum=#bMonth; voll=#bLog tr:nth-child(4); rahmen=a.btn)
 
 The history shows, for each month, what was irrigated manually. You choose the **month** at the top left above the table; **Excel** (top right) downloads the month as a spreadsheet. The columns:
 
@@ -99,6 +103,7 @@ Here you choose the **controller manufacturer**: Hunter Hydrawise (via Home Assi
 - **Via Home Assistant:** under the field it says which integration you need to add in Home Assistant. The zones then appear as a choice in “Courts & zones”. If the list is empty, the add-on has no access to Home Assistant; rebuild and restart the add-on.
 - **Directly with Hydrawise:** enter the **API key** (from hydrawise.com › Account › Settings). It stays on the server and is never visible in the browser. “Delete key” removes it after a confirmation; afterwards Clubwerk cannot switch anything.
 - **Changing manufacturer:** if this changes the type of connection (Home Assistant or direct), Clubwerk asks first, because the courts have to be created again afterwards.
+- **“Other manufacturer”** (free choice of all valves and switches) can only be chosen by users with all permissions.
 
 ![Card “Connection”: choose the manufacturer and check the connection.](bild: seite=beregnung; tab=einstellungen; ziel=[data-card="anbindung"])
 
@@ -134,7 +139,7 @@ Only with Home Assistant as the connection. Under **“Notify on fault”** ente
 
 #### Transfer settings
 
-Export the connection, courts with zones, operation and web app as a file and import them into another Clubwerk installation, e.g. after a reinstall. The club PIN and API key are not included.
+Export the connection, courts with zones, operation and web app as a file and import them into another Clubwerk installation, e.g. after a reinstall. The club PIN and API key are not included. If the import brings new devices, the same rules as under “Courts & zones” apply: confirm with your password, and without all permissions only devices of the selected manufacturer.
 
 ![Card “Transfer settings”.](bild: seite=beregnung; tab=einstellungen; ziel=#bFunc)
 

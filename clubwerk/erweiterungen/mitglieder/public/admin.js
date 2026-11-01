@@ -256,7 +256,7 @@
     const pay = () => { if ($('nPay')) $('dialog').querySelectorAll('.nb').forEach(x => { x.style.display = val('nPay') === 'lastschrift' ? '' : 'none'; }); };
     fees(); pay();
     $('nBirth').onchange = fees; $('nEntry').onchange = fees; if ($('nPay')) $('nPay').onchange = pay;
-    $('c').onclick = closeDialog; setTimeout(() => $('nFirst').focus(), 50);
+    $('c').onclick = closeDialog; setTimeout(() => $('nFirst')?.focus(), 50);
     $('nOk').onclick = () => GK.busy($('nOk'), async () => {
       try {
         const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'),
@@ -464,7 +464,7 @@
     const simple = (kind, title, extra) => {
       dialog(`<h2>${title}</h2><div class="mv-grid" style="--c:2"><label class="f wall">Bezeichnung<input id="xName"></label>${extra}</div>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="xOk">Hinzufügen</button></div>`);
-      $('c').onclick = closeDialog; setTimeout(() => $('xName').focus(), 50);
+      $('c').onclick = closeDialog; setTimeout(() => $('xName')?.focus(), 50);
       $('xOk').onclick = () => GK.busy($('xOk'), async () => {
         const body = { name: val('xName') }; el.ownerDocument.querySelectorAll('#dialog [data-k]').forEach(i => { body[i.dataset.k] = i.value || null; });
         try { await api(`member/${id}/${kind}`, 'POST', body); closeDialog(); again(); } catch (e) { fail(e); }
@@ -582,7 +582,7 @@
     GK.watch(el);
     lockUp();
     let t = null;
-    $('bIban').oninput = () => { clearTimeout(t); t = setTimeout(async () => { const v = val('bIban'); if (v.replace(/\s/g, '').length < 15) { $('bIbanInfo').textContent = ''; return; } const r = await api('iban-check?iban=' + encodeURIComponent(v)).catch(() => null); if (r) { $('bIbanInfo').textContent = r.ok ? '✓ gültig' : '· ' + r.error; $('bIbanInfo').style.color = r.ok ? 'var(--brand-ink)' : 'var(--red)'; } }, 350); };
+    $('bIban').oninput = () => { clearTimeout(t); t = GK.later(async () => { const v = val('bIban'); if (v.replace(/\s/g, '').length < 15) { $('bIbanInfo').textContent = ''; return; } const r = await api('iban-check?iban=' + encodeURIComponent(v)).catch(() => null); if (r && $('bIbanInfo')) { $('bIbanInfo').textContent = r.ok ? '✓ gültig' : '· ' + r.error; $('bIbanInfo').style.color = r.ok ? 'var(--brand-ink)' : 'var(--red)'; } }, 350, $('bIban')); };
     const save = async extra => {
       const used = val('bUsed');
       const body = { holder: val('bHolder'), iban: val('bIban'), bic: val('bBic'), bank: val('bBank'), mandate_ref: val('bRef'), mandate_date: val('bDate') || null, ...extra };
@@ -1476,12 +1476,12 @@
       const list = sel().filter(x => !x.email);
       if (!list.length) return;
       window.open(`${BASE}dunning/letters.pdf?ids=${list.map(x => x.member_id).join(',')}`, '_blank', 'noopener');
-      setTimeout(() => {   // PDF öffnet sich im neuen Fenster; hier nachfragen, ob gedruckt – erst dann wird gebucht
+      GK.later(() => {   // PDF öffnet sich im neuen Fenster; hier nachfragen, ob gedruckt – erst dann wird gebucht (nur, solange die Seite offen ist)
         dialog(`<h2>Briefe gedruckt?</h2><p class="muted" style="margin-top:0">${list.length === 1 ? 'Ein Brief' : `${list.length} Briefe`} für Zahler ohne E-Mail. Erst wenn sie gedruckt sind, werden Stufe und Gebühr gebucht${list.some(x => x.fee) ? ` (Gebühren zusammen ${euro(list.reduce((t, x) => t + x.fee, 0))})` : ''}.</p>
           <div class="btns"><button class="btn ghost" id="c">Noch nicht</button><button class="btn primary" id="dPrinted">Briefe gedruckt</button></div>`);
         $('c').onclick = closeDialog;
         $('dPrinted').onclick = () => GK.busy($('dPrinted'), async () => { try { const r = await api('dunning/printed', 'POST', { items: items(list) }); closeDialog(); after(r, `${r.done} ${r.done === 1 ? 'Brief' : 'Briefe'} gebucht`); again(); } catch (x) { fail(x); } });
-      }, 400);
+      }, 400, $('dPdf'));
     };
     $('iSend').onclick = async () => {
       const ids = [...el.querySelectorAll('[data-inv]')].filter(c => c.checked).map(c => +c.dataset.inv);

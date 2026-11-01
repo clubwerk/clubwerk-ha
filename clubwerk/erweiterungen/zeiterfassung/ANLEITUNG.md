@@ -23,7 +23,7 @@ Die Seite „Zeiterfassung“ hat oben drei Reiter: **Stunden**, **Personal** un
 
 ### Reiter „Stunden“ {#zeit}
 
-![Der Reiter „Stunden“: Monat und Person wählen, darunter vier Kennzahlen und die Übersicht aller Personen.](bild: seite=zeit)
+![Der Reiter „Stunden“: Monat und Person wählen, darunter vier Kennzahlen und die Übersicht aller Personen.](bild: seite=zeit; zeitraum=#zMonth; voll=[data-zs]:not([data-n="0"]))
 
 Hier seht ihr, wer wann gearbeitet hat. Oben stehen zwei Auswahlfelder, darunter vier Kacheln, darunter die Liste.
 
@@ -47,7 +47,7 @@ Eine Zeile je Person mit **Name**, **Tätigkeit**, **Einsätze**, **genau**, **a
 
 #### Einzelansicht einer Person
 
-![Die Einsätze einer Person im Monat: Datum, Kommen, Gehen, Dauer und Hinweise, unten die Summe.](bild: seite=zeit; klick=[data-zs])
+![Die Einsätze einer Person im Monat: Datum, Kommen, Gehen, Dauer und Hinweise, unten die Summe.](bild: seite=zeit; zeitraum=#zMonth; klick=[data-zs]:not([data-n="0"]); voll=[data-ze])
 
 Die Liste hat die Spalten **Datum**, **Kommen**, **Gehen**, **Dauer** und **Hinweis**. Geht ein Einsatz über Mitternacht, steht hinter „Gehen“ ein „(+1)“. Unter der Liste steht die Summe und daneben, wie viele Stunden abgerechnet werden. Offene Einsätze (noch nicht ausgestempelt) zählen in der Summe nicht mit.
 
@@ -61,7 +61,7 @@ Die Hinweise sind farbige Markierungen:
 
 #### „Bearbeiten“
 
-![Das Fenster „Einsatz bearbeiten“: Kommen, Gehen, Begründung und Löschen.](bild: seite=zeit; klick=[data-zs]; klick2=[data-ze]; ziel=dialog)
+![Das Fenster „Einsatz bearbeiten“: Kommen, Gehen, Begründung und Löschen.](bild: seite=zeit; zeitraum=#zMonth; klick=[data-zs]:not([data-n="0"]); klick2=[data-ze]; ziel=dialog)
 
 In der Zeile öffnet „Bearbeiten“ das Fenster. Oben steht, was ursprünglich gestempelt wurde. Ihr ändert **Kommen** und **Gehen** und tragt eine **Begründung** ein, die auch im Nachweis steht (mindestens drei Buchstaben, z. B. „vergessen auszustempeln“). „Speichern“ übernimmt. „Löschen“ links unten entfernt den Einsatz nach einer Rückfrage; ein Einsatz, der noch läuft, lässt sich erst nach dem Ausstempeln löschen.
 

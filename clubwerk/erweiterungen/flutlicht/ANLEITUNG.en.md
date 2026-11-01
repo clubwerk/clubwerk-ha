@@ -101,7 +101,7 @@ On blocked days neither members nor automatic switching can switch, for example 
 
 ### “History” tab {#flutlicht-verlauf}
 
-![The “History” tab: switching times of the month, operating hours and events.](bild: seite=flutlicht-verlauf; hoehe=520)
+![The “History” tab: switching times of the month, operating hours and events.](bild: seite=flutlicht-verlauf; zeitraum=#flMonth; voll=#flLog table tr:nth-child(5); hoehe=520)
 
 #### Switching times
 
@@ -165,7 +165,7 @@ Export lights, times and settings as a file and import them into another install
 
 Switching only works on the clubhouse Wi-Fi, never over the internet, not even with the “also when away” exception.
 
-![The “Lights” page on the tablet.](bild: tablet=Licht; hoehe=560)
+![The “Lights” page on the tablet.](bild: tablet=Lights; hoehe=560)
 
 **On the tablet** there is a “Lights” tab once you switch it on under Settings › Tablet. After tapping, choose the duration, type the first letters of your name and enter the app PIN. Only authorised members with a paired phone appear. The protection against wrong PINs is the same as for the doors: after 10 wrong PINs within 24 hours, switching lights on the tablet turns itself off and the board receives a warning.
 

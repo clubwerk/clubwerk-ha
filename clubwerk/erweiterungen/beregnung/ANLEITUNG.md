@@ -69,11 +69,15 @@ Bei der direkten Hydrawise-Anbindung tragt ihr statt des Geräts die **Zonennumm
 
 „Speichern“ unten übernimmt alles. Eine Zone läuft mindestens 10 Sekunden und höchstens 60 Minuten.
 
+**Neues Gerät nur mit Passwort:** Bekommt eine Zone ein Ventil oder einen Schalter aus Home Assistant, das bisher keine Zone hatte, fragt Clubwerk beim Speichern nach eurem **eigenen Passwort**. Namen, Minuten, Reihenfolge und Löschen gehen ohne Passwort; der Vorstand bekommt bei geänderten Geräten wie bisher eine Sicherheitswarnung.
+
+**Wer welche Geräte wählen darf:** Benutzer mit **allen Rechten** können jedes Ventil und jeden Schalter aus Home Assistant eintragen. Alle anderen (z. B. nur mit dem Recht „Beregnung“) sehen und wählen nur Geräte des Herstellers, der unter „Einstellungen“ gewählt ist. Bei „Anderer Hersteller“ ordnen nur Benutzer mit allen Rechten Geräte zu.
+
 > Stellt die Standard-Laufzeit der Zone in der Hersteller-App mindestens so lang ein wie hier. Clubwerk schaltet nach der eingestellten Zeit selbst wieder aus, die Steuerung ist nur die Sicherung dahinter.
 
 ### Reiter „Verlauf“ {#beregnung-verlauf}
 
-![Der Reiter „Verlauf“ mit der Monatsauswahl und dem Knopf „Excel“.](bild: seite=beregnung; tab=verlauf; rahmen=a.btn)
+![Der Reiter „Verlauf“ mit der Monatsauswahl und dem Knopf „Excel“.](bild: seite=beregnung; tab=verlauf; zeitraum=#bMonth; voll=#bLog tr:nth-child(4); rahmen=a.btn)
 
 Der Verlauf zeigt je Monat, was manuell beregnet wurde. Den **Monat** wählt ihr links über der Tabelle, **Excel** (oben rechts) lädt den Monat als Tabelle herunter. Die Spalten:
 
@@ -99,6 +103,7 @@ Hier wählt ihr den **Hersteller der Steuerung**: Hunter Hydrawise (über Home A
 - **Über Home Assistant:** Unter dem Feld steht, welche Integration ihr in Home Assistant hinzufügen müsst. Danach erscheinen die Zonen als Auswahl in „Plätze & Zonen“. Ist die Liste leer, hat das Add-on keinen Zugriff auf Home Assistant; dann das Add-on neu bauen und starten.
 - **Direkt mit Hydrawise:** Den **API-Key** tragt ihr ein (aus hydrawise.com › Konto › Einstellungen). Er bleibt auf dem Server und ist im Browser nie sichtbar. „Key löschen“ entfernt ihn nach einer Rückfrage; danach schaltet Clubwerk nichts mehr.
 - **Hersteller wechseln:** Ändert sich dabei die Art der Anbindung (Home Assistant oder direkt), fragt Clubwerk nach, denn die Plätze müssen danach neu angelegt werden.
+- **„Anderer Hersteller“** (freie Wahl aller Ventile und Schalter) wählen nur Benutzer mit allen Rechten.
 
 ![Karte „Anbindung“: Hersteller wählen und Verbindung prüfen.](bild: seite=beregnung; tab=einstellungen; ziel=[data-card="anbindung"])
 
@@ -134,7 +139,7 @@ Nur mit Home Assistant als Anbindung. Bei **„Bei Störung benachrichtigen“**
 
 #### Einstellungen übertragen
 
-Anbindung, Plätze mit Zonen, Bedienung und Webapp als Datei exportieren und in einer anderen Clubwerk-Installation importieren, z. B. nach einer Neuinstallation. Vereins-PIN und API-Key sind nicht enthalten.
+Anbindung, Plätze mit Zonen, Bedienung und Webapp als Datei exportieren und in einer anderen Clubwerk-Installation importieren, z. B. nach einer Neuinstallation. Vereins-PIN und API-Key sind nicht enthalten. Bringt der Import neue Geräte mit, gelten dieselben Regeln wie unter „Plätze & Zonen“: Bestätigung mit eurem Passwort, ohne alle Rechte nur Geräte des gewählten Herstellers.
 
 ![Karte „Einstellungen übertragen“.](bild: seite=beregnung; tab=einstellungen; ziel=#bFunc)
 

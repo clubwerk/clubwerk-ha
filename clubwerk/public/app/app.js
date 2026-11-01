@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.3';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.4';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -87,7 +87,7 @@
       document.body.appendChild($('pinSheet'));
       $('pinSheet').classList.add('show');
       pinCb = { resolve, reject };
-      setTimeout(() => $('pinIn').focus(), 80);
+      setTimeout(() => $('pinIn')?.focus(), 80);
     });
   }
   $('pinOk').onclick = () => { const v = $('pinIn').value.trim(); if (!v) { $('pinErr').textContent = 'Bitte PIN eingeben'; return; } $('pinSheet').classList.remove('show'); const c = pinCb; pinCb = null; if (c) c.resolve(v); };
@@ -426,7 +426,7 @@
     sh.querySelectorAll('input').forEach((x, i, all) => x.addEventListener('keydown', e => { if (e.key === 'Enter') { if (all[i + 1]) all[i + 1].focus(); else q('pcOk').click(); } }));
     document.body.appendChild(sh);
     sh.classList.add('show');
-    setTimeout(() => q('pcOld').focus(), 80);
+    setTimeout(() => q('pcOld')?.focus(), 80);
   }
 
   /* ---------- Push-Benachrichtigungen: Abo je Handy, Anlässe je Mitglied (nur die vom Vorstand freigegebenen) ---------- */
@@ -549,7 +549,7 @@
     $('trText').textContent = mode === 'handover' ? 'Du öffnest die App über die lokale Adresse im Vereinsheim. Gib einmal deine PIN ein – danach merkt sich der Browser die Freischaltung auch hier.' : code ? 'Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.' : 'Den Übernahme-Code findest du auf der Seite in Safari, auf der du freigeschaltet hast. Dazu deine PIN.';
     $('trErr').textContent = ''; $('trPin').value = '';
     $('trSheet').classList.add('show');
-    setTimeout(() => (code ? $('trPin') : $('trCode')).focus(), 80);
+    setTimeout(() => (code ? $('trPin') : $('trCode'))?.focus(), 80);
   }
   /* Sprache: folgt dem Handy (falls vorhanden), sonst dem Verein – hier frei wählbar */
   (function langUi() {
@@ -603,7 +603,7 @@
       $('pair1').maxLength = p.hasPin ? 8 : 6; $('pair1').placeholder = p.hasPin ? 'Deine PIN' : 'PIN'; $('pair1').value = ''; $('pair2').value = '';
       $('pairErr').textContent = '';
       $('pairSheet').classList.add('show');
-      setTimeout(() => (p.sms ? $('pairSmsGo') : $('pair1')).focus(), 80);
+      setTimeout(() => (p.sms ? $('pairSmsGo') : $('pair1'))?.focus(), 80);
     } catch (e) {
       if (dev()) { toast(e.message, true, 6000); start().catch(err => toast(err.message, true)); } else lock(e.message);
     }
@@ -616,7 +616,7 @@
       $('pairOtp').classList.remove('hidden'); $('pairOtp').focus();
       $('pairSmsGo').textContent = 'Neuen Code senden';
       toast(`Code an ${r.phone} geschickt – gilt ${r.minutes} Minuten.`, false, 4000);
-      setTimeout(() => { $('pairSmsGo').disabled = false; }, 60000);
+      setTimeout(() => { if ($('pairSmsGo')) $('pairSmsGo').disabled = false; }, 60000);
     } catch (e) {
       $('pairErr').textContent = e.message; $('pairSmsGo').disabled = false;
       if (e.data && e.data.smsFailed) $('pairSkip').classList.remove('hidden');

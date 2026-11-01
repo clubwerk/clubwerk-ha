@@ -26,7 +26,7 @@ function ensureAutoincrement(db, dataDir) {
   // Sicherung vor dem Umbau (vollständige Datei, ohne -wal/-shm)
   const dir = path.join(dataDir, 'backups'); fs.mkdirSync(dir, { recursive: true });
   const d = new Date(); const p = n => String(n).padStart(2, '0');
-  const file = path.join(dir, `getraenke_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_vor-ID-Umstellung.db`);
+  const file = path.join(dir, `clubwerk_${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}_vor-ID-Umstellung.db`);
   // frische Installation (noch nicht eingerichtet, keine Mitglieder, keine Buchungen): nichts zu sichern
   const has = (sql) => { try { return Boolean(db.prepare(sql).get()); } catch (e) { return false; } };
   const hasData = has("SELECT 1 FROM members WHERE kind IN ('mitglied', 'mannschaft') LIMIT 1") || has('SELECT 1 FROM bookings LIMIT 1') || has('SELECT 1 FROM admin_users LIMIT 1');

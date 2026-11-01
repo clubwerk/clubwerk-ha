@@ -54,7 +54,7 @@
         ${r.staff.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Tätigkeit</th><th class="r">Einsätze</th><th class="r">genau</th><th class="r">abgerechnet</th><th class="r">Satz</th><th class="r">Betrag</th><th></th></tr>
           ${r.staff.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b>${x.active ? '' : ' <span class="pill">inaktiv</span>'}${x.forgotten ? ' <span class="pill r">nicht ausgestempelt</span>' : x.open ? ' <span class="pill a">gerade da</span>' : ''}</td><td>${esc(x.job || '')}</td>
             <td class="r">${x.count}</td><td class="r">${zhm(x.minutes)}</td><td class="r"><b>${zhm(x.rounded)}</b></td><td class="r">${x.rate_cents != null ? euro(x.rate_cents) : '–'}</td><td class="r">${x.amount_cents != null ? euro(x.amount_cents) : '–'}</td>
-            <td class="r"><button class="btn small" data-zs="${x.id}">Einsätze</button></td></tr>`).join('')}
+            <td class="r"><button class="btn small" data-zs="${x.id}" data-n="${x.count}">Einsätze</button></td></tr>`).join('')}
           <tr class="sum"><td>Summe</td><td></td><td class="r">${tot.cnt}</td><td class="r">${zhm(tot.min)}</td><td class="r">${zhm(tot.rnd)}</td><td></td><td class="r">${tot.anyRate ? euro(tot.amt) : '–'}</td><td></td></tr></table>`
           : '<p class="empty">Noch kein Personal angelegt – im Reiter „Personal“ mit „+ Person“ anlegen.</p>'}</div>`}`;
     GK.tabTools(`<button class="btn" id="zAdd">+ Einsatz nachtragen</button><a class="btn primary" href="api/admin/x/zeiterfassung/report.pdf?${q}" target="_blank" rel="noopener">Monatsnachweis (PDF)</a><a class="btn" href="api/admin/x/zeiterfassung/report.xlsx?month=${r.month}">Excel</a>`, $('zMonth'));

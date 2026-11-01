@@ -273,6 +273,7 @@
           <button class="btn ghost" id="mlTpl">${esc(T('Als Vorlage speichern'))}</button><button class="btn ghost" id="mlDel">${esc(T('Verwerfen'))}</button>
           <button class="btn" id="mlPrev">${esc(T('Vorschau'))}</button><button class="btn primary" id="mlSend">${esc(T('Senden …'))}</button></div></div>`;
     $('mlMe').onclick = e => { e.preventDefault(); GK.go('konto'); };
+    const draftBox = $('mlBox');   // Zeitgeber dieses Entwurfs enden, sobald er nicht mehr angezeigt wird (anderer Reiter, andere Seite)
     // Speichern: Entwurf beim ersten Tippen anlegen, danach kurz nach jeder Änderung
     let timer = 0, saving = null, dirtyN = 0;
     const payload = () => ({ subject: $('mlSub').value, html: ed.html(), spec: st.spec, copy_me: $('mlCopy').checked, channels: st.channels, keep_months: $('mlKeep').value ? +$('mlKeep').value : null, pinned: $('mlPin').checked });
@@ -289,12 +290,12 @@
       })();
       try { await saving; if (n === dirtyN) GK.clean && GK.clean(); } catch (e) { if ($('mlSt')) $('mlSt').textContent = e.message; } finally { saving = null; }
     };
-    const touch = () => { dirtyN++; clearTimeout(timer); timer = setTimeout(() => { save(); count(); }, 1200); if ($('mlSt')) $('mlSt').textContent = T('Ungespeichert …'); };
+    const touch = () => { dirtyN++; clearTimeout(timer); timer = GK.later(() => { save(); count(); }, 1200, draftBox); if ($('mlSt')) $('mlSt').textContent = T('Ungespeichert …'); };
     // Empfängerzahl (über die Vorschau des Servers, damit Familien und Zahler genau so gezählt werden wie beim Senden)
     let cTimer = 0;
     const count = () => {
       clearTimeout(cTimer);
-      cTimer = setTimeout(async () => {
+      cTimer = GK.later(async () => {
         if (!hasTo(st.spec)) { $('mlCnt').textContent = ''; return; }
         try { await save(); if (!id) return; const p = await api(`mail/drafts/${id}/preview`, 'POST', {}); const el = $('mlCnt'); if (!el) return;
           const ways = [];
@@ -302,7 +303,7 @@
           if (p.app) ways.push(`${p.app.count} ${T('in der App')}${p.app.noDevice ? ` (${p.app.noDevice} ${T('ohne Handy')})` : ''}`);
           el.textContent = ways.join(' · ');
           el.classList.toggle('warn', Boolean((p.channels.includes('mail') && (p.withoutCount || p.bad.length)) || (p.app && p.app.noDevice))); } catch (e) { /* still */ }
-      }, 400);
+      }, 400, draftBox);
     };
     const picked = picker($('mlTo'), st.spec, { app: true, mailBad: () => st.channels.includes('mail') && !st.channels.includes('app'), onChange: () => { touch(); count(); } });
     // Wege: E-Mail, App, Push (Push öffnet die Nachricht in der App und braucht sie deshalb); mindestens ein Weg bleibt gewählt
@@ -456,7 +457,7 @@
       $('mlCopyM').onclick = async () => { try { const r = await api(`mail/messages/${id}/copy`, 'POST', {}); clearTimeout(poll); openDraft = r.id; goTabForce('neu'); toast(T('Als neuer Entwurf geöffnet.')); } catch (e) { fail(e); } };
       if ($('mlRetry')) $('mlRetry').onclick = async () => { try { const r = await api(`mail/messages/${id}/retry`, 'POST', {}); toast(`${T('Wird erneut gesendet an')} ${r.n}.`); draw(); } catch (e) { fail(e); } };
       if ($('mlRm')) $('mlRm').onclick = async () => { if (!await ask(`${T('Nachricht aus „Gesendet“ löschen?')}\n\n${T('Die Nachricht und die Zustellliste werden gelöscht, bei Mitgliedern verschwindet sie auch aus der App. E-Mails bleiben bei den Empfängern natürlich.')}`)) return; try { await api('mail/messages/' + id, 'DELETE'); toast(T('Gelöscht.')); markTab(back); folder(body, back); } catch (e) { fail(e); } };
-      if (m.status === 'sendet') poll = setTimeout(() => draw().catch(() => {}), 1500);
+      if (m.status === 'sendet') poll = GK.later(() => draw().catch(() => {}), 1500, $('mlBack'));   // nur, solange diese Nachricht offen ist
     };
     await draw();
   }

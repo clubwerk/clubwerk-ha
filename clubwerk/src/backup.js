@@ -23,6 +23,11 @@ const SQLITE_MAGIC = Buffer.from('SQLite format 3\0');
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
 const stamp = () => require('./util').fileStamp();
+/* Schnappschüsse heißen clubwerk_<Datum>_<Uhrzeit>_<Anlass>.db. Bis 2026.11.1 hießen sie getraenke_… (Altlast der Getränke-App):
+   Diese Namen gelten weiter – sie stehen in der Liste, lassen sich wiederherstellen und werden mit aufgeräumt. */
+const fileName = reason => `clubwerk_${stamp()}_${String(reason).replace(/[^\w-]/g, '')}.db`;
+/** Zeitstempel-Teil („2026-11-01_031500_auto.db“) – zum Sortieren und Vergleichen über alte und neue Namen hinweg */
+const stampOf = f => f.replace(/^(clubwerk|getraenke)_/, '');
 const safeName = f => typeof f === 'string' && /^[\w.-]+\.db$/.test(f) && !f.includes('..');
 
 function isSqlite(file) {
@@ -58,7 +63,7 @@ function validate(file) {
 
 /** Schnappschuss der laufenden Datenbank. */
 async function snapshot(db, reason = 'manuell') {
-  const name = `getraenke_${stamp()}_${reason.replace(/[^\w-]/g, '')}.db`;
+  const name = fileName(reason);
   await db.backup(path.join(BACKUP_DIR, name));
   standalone(path.join(BACKUP_DIR, name));
   if (reason === 'auto') rotate();
@@ -74,7 +79,7 @@ function standalone(file) {
 }
 
 function rotate() {
-  const autos = fs.readdirSync(BACKUP_DIR).filter(f => /_auto\.db$/.test(f)).sort();
+  const autos = fs.readdirSync(BACKUP_DIR).filter(f => /_auto\.db$/.test(f)).sort((a, b) => stampOf(a).localeCompare(stampOf(b)));   // alte getraenke_… zählen mit
   autos.slice(0, Math.max(0, autos.length - KEEP_AUTO)).forEach(f => { try { fs.unlinkSync(path.join(BACKUP_DIR, f)); } catch (e) { /* egal */ } });
 }
 
@@ -126,7 +131,7 @@ function applyPendingRestore() {
   if (err) { console.error(`Wiederherstellung abgebrochen (${why}): ${err}`); cancelRestore(); try { fs.unlinkSync(HA_MARKER); } catch (e) { /* egal */ } return null; }
   // aktuellen Stand zur Sicherheit aufheben
   if (fs.existsSync(DB_FILE)) {
-    const keep = path.join(BACKUP_DIR, `getraenke_${stamp()}_vor-wiederherstellung.db`);
+    const keep = path.join(BACKUP_DIR, fileName('vor-wiederherstellung'));
     try {
       const Database = require('better-sqlite3');
       const d = new Database(DB_FILE); d.pragma('wal_checkpoint(TRUNCATE)'); d.close();
@@ -155,7 +160,7 @@ async function haPre() {
 function haPost() { try { fs.unlinkSync(HA_MARKER); } catch (e) { /* egal */ } }
 
 module.exports = { BACKUP_DIR, DB_FILE, DATA_DIR, snapshot, list, validate, markRestore, pendingRestore, cancelRestore,
-  applyPendingRestore, haPre, haPost, safeName, stamp, stageDirs, standalone };
+  applyPendingRestore, haPre, haPost, safeName, stamp, fileName, stampOf, stageDirs, standalone };
 
 // Aufruf von der Kommandozeile: node backup.js pre|post
 if (require.main === module) {

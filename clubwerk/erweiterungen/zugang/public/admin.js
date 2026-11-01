@@ -36,7 +36,9 @@
   async function loadCfg() { const d = await api('config'); st.d = d; st.c = JSON.parse(JSON.stringify(d.cfg)); return d; }
   /** Nur die genannten Teile der Einrichtung speichern (Türen, Zeitprofile, Sperrtage …) */
   async function saveCfg(part, msg = 'Gespeichert.') {
-    try { const r = await api('config', 'PUT', Object.fromEntries(part.map(k => [k, st.c[k]]))); st.d.cfg = r.cfg; st.c = JSON.parse(JSON.stringify(r.cfg)); GK.clean(); toast(msg); return true; }
+    const body = Object.fromEntries(part.map(k => [k, st.c[k]]));
+    // neues Gerät an einer Tür: der Server fragt nach dem eigenen Passwort (428)
+    try { const r = await GK.withPassword(pw => api('config', 'PUT', pw ? { ...body, myPassword: pw } : body), 'Gerät zuordnen\n\nEine Tür bekommt ein Gerät aus Home Assistant. Bitte mit deinem Passwort bestätigen – der Vorstand wird zusätzlich benachrichtigt.'); st.d.cfg = r.cfg; st.c = JSON.parse(JSON.stringify(r.cfg)); GK.clean(); toast(msg); return true; }
     catch (e) { fail(e); return false; }
   }
   const goCfg = (a, page) => { a.onclick = e => { e.preventDefault(); GK.go(page); }; };
@@ -167,6 +169,8 @@
           <label class="f" style="flex:1;min-width:200px">Art<select id="zdT">${Object.entries(TYPE).map(([k, v]) => `<option value="${k}" ${cur.type === k ? 'selected' : ''}>${v}</option>`).join('')}</select></label></div>
         <div class="row" style="margin-top:12px"><label class="f" style="flex:1;min-width:200px">Gerät in Home Assistant<select id="zdR">${devOptions(TDOM[cur.type], cur.ref, '– Gerät wählen –')}</select></label>
           <label class="f" style="flex:1;min-width:200px">Türkontakt (optional)<select id="zdS">${devOptions(['binary_sensor'], cur.sensor, '– keiner –')}</select></label></div>
+        ${st.d.restricted ? `<p class="muted s" style="margin:8px 0 0">${st.d.cfg.vendor === 'other' ? 'Bei „Gemischt / anderer Hersteller“ ordnet nur ein Benutzer mit allen Rechten Geräte zu – oder unter Einstellungen den Hersteller der Schlösser wählen.' : 'Home Assistant nennt keine Geräte dieses Herstellers – Geräte zuordnen kann gerade nur ein Benutzer mit allen Rechten.'}</p>` : ''}
+        <p class="muted s" style="margin:8px 0 0">Ein neues Gerät bestätigst du mit deinem Passwort; der Vorstand bekommt eine Sicherheitswarnung.</p>
         <div class="row" style="margin-top:12px${cur.type === 'impulse' ? '' : ';display:none'}" id="zdPw"><label class="f" style="width:160px">Impuls (Sekunden)<input id="zdP" inputmode="numeric" value="${cur.pulseSec || 3}"></label></div>
         ${isNew ? '' : '<div class="row" style="margin-top:18px"><button class="btn danger" id="zdDel">Tür entfernen …</button></div>'}
         <div class="btns"><button class="btn" id="zdX">Abbrechen</button><button class="btn primary" id="zdOk">Speichern</button></div>`);
@@ -178,8 +182,9 @@
       }, form);
       $('zdOk').onclick = () => GK.busy($('zdOk'), async () => {
         const next = { ...cur, name: $('zdN').value, type: $('zdT').value, ref: $('zdR').value, sensor: $('zdS').value, pulseSec: +$('zdP').value || 3 };
+        const prev = c.doors.slice();
         if (isNew) c.doors.push(next); else c.doors[i] = next;
-        if (await saveCfg(['doors'])) { closeDialog(); again(); }
+        if (await saveCfg(['doors'])) { closeDialog(); again(); } else c.doors = prev;   // nicht gespeichert (z. B. Passwort abgebrochen): Liste wie vorher
       });
     };
     form();
@@ -297,7 +302,8 @@
       <p class="lead">Anbindung an Home Assistant, Schutz vor Zugriffen von außen und Hinweise bei Störungen.</p>
       ${haBanner(d.error)}
       <div class="card"><h3>Anbindung</h3>
-        <label class="f" style="max-width:420px">Hersteller (filtert die Geräteliste in „Türen“)<select id="zVendor">${d.vendors.map(v => `<option value="${v.id}" ${v.id === c.vendor ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
+        <label class="f" style="max-width:420px">Hersteller (filtert die Geräteliste in „Türen“)<select id="zVendor">${d.vendors.map(v => `<option value="${v.id}" ${v.id === c.vendor ? 'selected' : ''} ${v.free && !d.full && v.id !== c.vendor ? 'disabled' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
+        ${d.full ? '' : '<p class="muted s" style="margin:8px 0 0">„Gemischt / anderer Hersteller“ (freie Wahl aller Geräte aus Home Assistant) richtet nur ein Benutzer mit allen Rechten ein. Du siehst nur Geräte des gewählten Herstellers.</p>'}
         <p class="muted s" id="zVendHint" style="margin:8px 0 0">${setupText(vend)}</p>
         <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn primary" id="zSaveV">Speichern</button></div></div>
       <div class="card"><h3>Sicherheit</h3>
@@ -329,7 +335,7 @@
       const d = r.doors.find(x => x.id === b.dataset.d), a = b.dataset.a, lab = window.ZugangDoors.label(d, a);
       if (!await GK.ask(`${d.name}: ${lab}?\n\nWird sofort aus der Ferne ausgeführt und protokolliert.`, { ok: lab, danger: false })) return;
       b.disabled = true;
-      try { await api(`doors/${d.id}/${a}`, 'POST', {}); toast('Befehl gesendet.'); setTimeout(() => loadRemote().catch(fail), 1500); } catch (e) { fail(e); b.disabled = false; }
+      try { await api(`doors/${d.id}/${a}`, 'POST', {}); toast('Befehl gesendet.'); GK.later(() => loadRemote().catch(fail), 1500, $('zRemote')); } catch (e) { fail(e); b.disabled = false; }
     }; });
   }
 

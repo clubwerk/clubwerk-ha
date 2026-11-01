@@ -141,6 +141,19 @@ function webdav(t, secret) {
   };
 }
 
+/**
+ * Herunterladen in eine Datei über eine fremde Bibliothek, die einen Schreibstrom bekommt.
+ * ssh2-sftp-client meldet `get()` fertig, sobald sein LESEstrom endet – die Datei ist dann unter Last noch leer oder halb.
+ * Fertig ist sie erst, wenn der Schreibstrom geschlossen ist ('close' nach 'finish'). Bei einem Fehler wird er geschlossen.
+ */
+async function intoFile(dest, fn) {
+  const ws = fs.createWriteStream(dest, { mode: 0o600 });
+  const closed = new Promise((res, rej) => { ws.once('close', res); ws.once('error', rej); });
+  closed.catch(() => {});
+  try { await fn(ws); } catch (e) { ws.destroy(); throw e; }
+  await closed;
+}
+
 /* ---------- SFTP ---------- */
 function sftp(t, secret) {
   const Client = require('ssh2-sftp-client');
@@ -189,7 +202,7 @@ function sftp(t, secret) {
       await connect();
       const st = await c.stat(joinPath(dirOf(sub), name));
       if (st.size > maxBytes) throw err('Datei zu groß.');
-      await c.get(joinPath(dirOf(sub), name), fs.createWriteStream(dest, { mode: 0o600 }));
+      await intoFile(dest, ws => c.get(joinPath(dirOf(sub), name), ws));
       return st.size;
     },
     async remove(sub, name) { if (NAME_OK.test(name)) { await connect(); await c.delete(joinPath(dirOf(sub), name), true); } },
@@ -272,7 +285,7 @@ function ftp(t, secret) {
       await connect(); await c.cd(dirOf(sub));
       const size = await c.size(name).catch(() => 0);
       if (size > maxBytes) throw err('Datei zu groß.');
-      await c.downloadTo(fs.createWriteStream(dest, { mode: 0o600 }), name);
+      await intoFile(dest, ws => c.downloadTo(ws, name));   // basic-ftp wartet selbst (pipeline), so aber einheitlich
       return size;
     },
     async remove(sub, name) { if (NAME_OK.test(name)) { await connect(); await c.cd(dirOf(sub)); await c.remove(name, true); } },

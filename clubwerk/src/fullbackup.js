@@ -77,6 +77,7 @@ async function create(o) {
   const d = new Date(), name = `${require('./util').fileStamp(d)}_Clubwerk${EXT}`;
   const dest = path.join(o.outDir, name);
   const part = dest + '.part';
+  let out = null;
   try {
     await o.db.backup(path.join(stage, DB_NAME));
     if (o.standalone) o.standalone(path.join(stage, DB_NAME));
@@ -89,7 +90,7 @@ async function create(o) {
     const iv = crypto.randomBytes(12);
     const head = Buffer.from(JSON.stringify({ v: 1, alg: 'aes-256-gcm', kdf: o.kdf, iv: iv.toString('base64'), kid: keyId(key), created: manifest.created, app: manifest.app }));
     const pre = Buffer.alloc(12); MAGIC.copy(pre); pre.writeUInt32BE(head.length, 8);
-    const out = fs.createWriteStream(part, { mode: 0o600 });
+    out = fs.createWriteStream(part, { mode: 0o600 });
     out.write(Buffer.concat([pre, head]));
     const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
     const args = ['-czf', '-', '-C', stage, DB_NAME, 'manifest.json'];
@@ -106,6 +107,7 @@ async function create(o) {
     fs.renameSync(part, dest);
     return { file: name, path: dest, size: fs.statSync(dest).size, manifest };
   } catch (e) {
+    if (out) out.destroy();   // Datei-Handle nicht offen lassen (z. B. wenn tar fehlschlägt)
     try { fs.unlinkSync(part); } catch (x) { /* egal */ }
     throw e;
   } finally {

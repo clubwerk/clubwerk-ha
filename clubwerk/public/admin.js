@@ -24,9 +24,10 @@
     if (body !== undefined) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
     const r = await fetch('api/admin/' + url, opts);
     const data = await r.json().catch(() => ({}));
-    if (r.status === 401 && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
+    // 401 mit pwWrong = falsches Passwort bei einer Bestätigung: angemeldet bleiben, nur die Meldung zeigen
+    if (r.status === 401 && !data.pwWrong && !url.startsWith('login') && !url.startsWith('setup')) { showLogin(); throw new Error(data.error || 'Bitte anmelden.'); }
     if (r.status === 423 && data.vaultLocked) throw Object.assign(new Error(data.error), { status: 423, vaultLocked: true });
-    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links });
+    if (!r.ok) throw Object.assign(new Error(data.error || 'Fehler'), { status: r.status, odd: data.odd, links: data.links, needPassword: Boolean(data.needPassword) });
     return data;
   }
 
@@ -37,7 +38,17 @@
     clearTimeout(toast.t);
     toast.t = setTimeout(() => t.classList.add('hidden'), error ? 6000 : 3000);
   }
-  const fail = e => toast(e.message, true);
+  const fail = e => toast(e.message, !e.cancelled);   // cancelled: bewusst abgebrochen (z. B. Passwortabfrage) – Hinweis, kein Fehler
+  /** Bestätigung mit dem eigenen Passwort, wenn der Server danach fragt (428 needPassword) – z. B. Geräte in Zugang und Beregnung zuordnen.
+   *  call(pw) wird erst ohne, dann mit dem eingegebenen Passwort aufgerufen. text: Rückfrage (erste Zeile = Überschrift). */
+  async function withPassword(call, text) {
+    try { return await call(); } catch (e) {
+      if (!e.needPassword) throw e;
+      const pw = await askText(text || e.message, '', { password: true, ok: 'Bestätigen' });
+      if (pw === null || pw === '') throw Object.assign(new Error('Abgebrochen – nichts gespeichert.'), { cancelled: true });
+      return call(pw);
+    }
+  }
   /** Fehler beim Aufbau einer Seite: Tresor verschlossen → Hinweis mit „Öffnen“ statt nur einer Meldung */
   const pageFail = e => (e && e.vaultLocked ? vaultLockedPage() : fail(e));
   /** Doppelklick-Schutz: Knopf sperren, solange fn() läuft (Beschriftung bleibt), danach wieder freigeben – auch bei Fehlern.
@@ -114,6 +125,15 @@
       $('askIn').focus(); $('askIn').select();
     });
   }
+
+  /* ---------- Zeitgeber einer Ansicht ----------
+     GK.later(fn, ms, owner) / GK.every(fn, ms, owner): laufen nur, solange owner (ein Element der Ansicht, z. B. Feld oder Karte)
+     im Dokument steht – ohne owner nur, solange die Seite nicht gewechselt wurde. Ein Intervall endet dann von selbst.
+     Sonst greifen verzögerte Abläufe (Vorschau, Zählen, Abfragen) nach dem Wechsel auf Elemente der alten Ansicht zu
+     (Konsolenfehler) oder fragen den Server weiter ab. Rückgabe wie setTimeout (für clearTimeout/clearInterval). */
+  const viewAlive = (gen, owner) => (owner ? owner.isConnected : go.gen === gen);
+  function later(fn, ms, owner) { const gen = go.gen; return setTimeout(() => { if (viewAlive(gen, owner)) fn(); }, ms); }
+  function every(fn, ms, owner) { const gen = go.gen; const h = setInterval(() => { if (viewAlive(gen, owner)) fn(); else clearInterval(h); }, ms); return h; }
 
   /* ---------- Ungespeicherte Änderungen ---------- */
   let dirty = false;
@@ -808,11 +828,14 @@
       try { body = JSON.parse(await f.text()); } catch (e) { return fail(new Error('Die Datei ist keine gültige Exportdatei.')); }
       if (!body || !['clubwerk-funktion', 'vereinsheim-funktion'].includes(body.format)) return fail(new Error('Die Datei ist keine Funktions-Exportdatei von Clubwerk.'));
       if (body.module !== id) return fail(new Error(`Die Datei gehört zum Modul „${body.name || body.module}“, nicht zu „${name}“.`));
-      let vorschau = '';
-      try { const v = await api('extensions/' + id + '/import', 'POST', { ...body, dry: true }); vorschau = `Das würde passieren: ${v.summary}\n\n`; } catch (e) { return fail(e); }
+      let vorschau = '', needPw = false;
+      try { const v = await api('extensions/' + id + '/import', 'POST', { ...body, dry: true }); vorschau = `Das würde passieren: ${v.summary}\n\n`; needPw = v.needPassword; } catch (e) { return fail(e); }
       if (!await ask(`Einstellungen für „${name}“ importieren?\n\nQuelle: ${body.club || 'unbekannt'}${body.exported ? ', ' + body.exported : ''}\n\n${vorschau}Gleichnamige Einträge werden aktualisiert, neue angelegt, nichts wird gelöscht. Buchungen, Protokolle und Freischaltungen bleiben erhalten.`)) return;
       try {
-        const r = await api('extensions/' + id + '/import', 'POST', body);
+        // ordnet der Import Türen oder Ventilen Geräte neu zu: mit eigenem Passwort bestätigen (gleiche Regel wie in den Einstellungen des Moduls)
+        const pw = needPw ? await askText('Geräte zuordnen\n\nDer Import ordnet Türen oder Ventilen Geräte aus Home Assistant neu zu. Bitte mit deinem Passwort bestätigen – der Vorstand wird zusätzlich benachrichtigt.', '', { password: true, ok: 'Importieren' }) : null;
+        if (needPw && !pw) return;
+        const r = await api('extensions/' + id + '/import', 'POST', needPw ? { ...body, myPassword: pw } : body);
         await ask(`Import abgeschlossen.\n\n${r.summary || ''}`, { okOnly: true, danger: false }).catch(() => {});
         if (after) after(); else location.reload();
       } catch (e) { fail(e); }
@@ -831,7 +854,7 @@
   /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
   window.GK = {
     $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, deleteMember, watch, clean, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
+    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** ungespeicherte Änderungen? Rückfrage „Verwerfen?“ → true = weiter */
     leaveOk: () => leaveOk(),
@@ -1242,7 +1265,7 @@
       $('lines').addEventListener('input', e => {
         const el = e.target.closest('input[data-i]'); if (!el) return;
         lines[Number(el.dataset.i)][el.dataset.k] = el.value;
-        clearTimeout(draw.t); draw.t = setTimeout(() => { const f = document.activeElement; const sel = f && f.dataset ? [f.dataset.i, f.dataset.k] : null; draw(); if (sel) { const n = $('lines').querySelector(`[data-i="${sel[0]}"][data-k="${sel[1]}"]`); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } }, 400);
+        clearTimeout(draw.t); draw.t = later(() => { const f = document.activeElement; const sel = f && f.dataset ? [f.dataset.i, f.dataset.k] : null; draw(); if (sel) { const n = $('lines').querySelector(`[data-i="${sel[0]}"][data-k="${sel[1]}"]`); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } } }, 400, $('lines'));
       });
       $('lines').addEventListener('click', e => {
         const b = e.target.closest('[data-rm]'); if (!b) return;
@@ -1980,7 +2003,7 @@
           <label class="f">Mitglied<input id="lnk" list="peopleList" placeholder="Name eingeben …" autocomplete="off"></label>
           <div class="err" id="lnkErr" style="text-align:left"></div>
           <div class="btns"><button class="btn ghost" id="lc">Abbrechen</button><button class="btn primary" id="lo">Zuordnen</button></div>`);
-        setTimeout(() => $('lnk').focus(), 30);
+        setTimeout(() => $('lnk')?.focus(), 30);
         $('lc').onclick = () => { closeDialog(); res(null); };
         $('lo').onclick = () => {
           const m = people.find(x => x.name.toLocaleLowerCase('de') === $('lnk').value.trim().toLocaleLowerCase('de'));
@@ -2389,7 +2412,7 @@
         <label class="f">Typ<select id="mKind">${Object.entries(KIND).filter(([k]) => !(mvOn && k === 'mitglied')).map(([k, l]) => `<option value="${k}">${l}</option>`).join('')}</select></label></div>
         <label class="f hidden" id="mPinL" style="margin-top:12px">PIN der Mannschaft (Pflicht)<input id="mPin" inputmode="numeric" maxlength="6" placeholder="4–6 Ziffern" style="width:170px" autocomplete="off"></label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="mAdd">Anlegen</button></div>`);
-      $('c').onclick = closeDialog; setTimeout(() => $('mName').focus(), 50);
+      $('c').onclick = closeDialog; setTimeout(() => $('mName')?.focus(), 50);
       $('mKind').onchange = () => $('mPinL').classList.toggle('hidden', $('mKind').value !== 'mannschaft');
       $('mName').onkeydown = e => { if (e.key === 'Enter') $('mAdd').click(); };
       $('mAdd').onclick = () => busy($('mAdd'), async () => { try { const r = await api('members', 'POST', { name: $('mName').value, kind: $('mKind').value, pin: $('mPin').value }); closeDialog(); toast('Angelegt.'); cache.mSel = r.id; RENDER.konten(); } catch (e) { fail(e); } });
@@ -2930,7 +2953,7 @@
     const suggest = () => {
       if (u) return;
       if (src === 'mem') { const o = $('uMem').selectedOptions[0]; $('uUn').value = o && o.dataset.un ? o.dataset.un : ''; return; }
-      clearTimeout(sugT); sugT = setTimeout(async () => { const f = $('uFirst').value.trim(), l = $('uLast').value.trim(); if (!l) { $('uUn').value = ''; return; } try { $('uUn').value = (await api(`users/suggest?first=${encodeURIComponent(f)}&last=${encodeURIComponent(l)}`)).username; } catch (e) { /* */ } }, 250);
+      clearTimeout(sugT); sugT = later(async () => { const f = $('uFirst').value.trim(), l = $('uLast').value.trim(); if (!l) { $('uUn').value = ''; return; } try { $('uUn').value = (await api(`users/suggest?first=${encodeURIComponent(f)}&last=${encodeURIComponent(l)}`)).username; } catch (e) { /* */ } }, 250, $('uLast'));
     };
     const syncSrc = () => { if (u) return; $('uMemL').classList.toggle('hidden', src !== 'mem'); $('uFirstL').classList.toggle('hidden', src === 'mem'); $('uLastL').classList.toggle('hidden', src === 'mem'); suggest(); };
     if (!u) {
@@ -3710,7 +3733,7 @@
       <div class="btns"><button class="btn" id="unNo">Abbrechen</button><button class="btn danger" id="unOk" disabled>Endgültig deinstallieren</button></div>`);
     let downloaded = false;
     const check = () => { $('unOk').disabled = !(downloaded && $('unName').value.trim().toLocaleLowerCase('de') === name.toLocaleLowerCase('de')); };
-    $('unDl').addEventListener('click', () => { downloaded = true; $('unName').disabled = false; setTimeout(() => $('unName').focus(), 50); check(); });
+    $('unDl').addEventListener('click', () => { downloaded = true; $('unName').disabled = false; setTimeout(() => $('unName')?.focus(), 50); check(); });
     $('unName').oninput = check;
     $('unNo').onclick = closeDialog;
     $('unOk').onclick = () => busy($('unOk'), async () => {

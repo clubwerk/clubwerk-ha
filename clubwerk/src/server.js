@@ -360,6 +360,9 @@ function memberTx(fn) {
 }
 const int = (v, d = 0) => (Number.isFinite(Number(v)) ? Math.trunc(Number(v)) : d);
 const bad = (res, msg, code = 400) => res.status(code).json({ error: msg });
+/** Falsches Passwort bei einer Bestätigung (eigenes Passwort, Sicherungspasswort, Wiederherstellungscode): 401 mit pwWrong –
+    die Verwaltung bleibt angemeldet und zeigt nur die Meldung (ohne pwWrong hieße 401 „Sitzung abgelaufen“ → Anmeldeseite) */
+const pwBad = (res, msg) => res.status(401).json({ error: msg, pwWrong: true });
 const asyncRoute = fn => (req, res) => Promise.resolve(fn(req, res)).catch(err => {
   console.error(err);
   bad(res, 'Interner Fehler – bitte im Add-on-Protokoll nachsehen.', 500);
@@ -1065,7 +1068,7 @@ const owner = (req, res, next) => (req.user.role === 'oberadmin' ? next() : bad(
 admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
   const { current, next } = req.body || {};
   const u = db.prepare('SELECT * FROM admin_users WHERE id = ?').get(req.user.id);
-  if (!ownPwOk(req, current)) return bad(res, 'Aktuelles Passwort falsch.', 401);
+  if (!ownPwOk(req, current)) return pwBad(res, 'Aktuelles Passwort falsch.');
   if (!pwOk(next)) return bad(res, PW_MSG);
   auth.setPassword(u.id, String(next));
   const r = auth.login(u.username, String(next), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
@@ -1220,7 +1223,7 @@ admin.delete('/users/:id', need('benutzer'), (req, res) => {
 
 admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 * 60000), (req, res) => {
   // mit dem eigenen Passwort bestätigen – eine fremde, offen gelassene Sitzung reicht nicht, um Passwörter zu ändern
-  if (!ownPwOk(req, (req.body || {}).myPassword)) return bad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.', 401);
+  if (!ownPwOk(req, (req.body || {}).myPassword)) return pwBad(res, 'Dein eigenes Passwort zur Bestätigung stimmt nicht.');
   const pw = String((req.body || {}).password || '');
   if (!pwOk(pw)) return bad(res, PW_MSG);
   const u = db.prepare('SELECT id, username FROM admin_users WHERE id = ?').get(int(req.params.id));
@@ -1295,12 +1298,12 @@ admin.get('/vault', (req, res) => {
     oldPlain: v.on() ? undefined : (() => { try { return backup.list().length; } catch (e) { return 0; } })() });
 });
 admin.post('/vault/prepare', need('einstellungen'), vaultPwLimit, (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { res.json(require('./vault').prepare(req.user.id)); } catch (e) { bad(res, e.message); }
 });
 admin.post('/vault/enable', need('einstellungen'), vaultPwLimit, asyncRoute(async (req, res) => {
   const b = req.body || {}; const vault = require('./vault');
-  if (!ownPwOk(req, b.password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  if (!ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { if (!vault.confirmCode(req.user.id, b.typed)) return bad(res, 'Die Zeichen passen nicht zum Wiederherstellungscode – bitte auf dem Ausdruck nachsehen.'); } catch (e) { return bad(res, e.message); }
   try { await backup.snapshot(db, 'vor-verschluesselung'); } catch (e) { return bad(res, 'Vorher konnte keine Sicherung angelegt werden: ' + e.message); }
   let r; try { r = vault.enable(req.user.id, String(b.password)); } catch (e) { console.error('Tresor einschalten:', e); return bad(res, 'Das Einschalten ist fehlgeschlagen: ' + e.message, 500); }
@@ -1313,19 +1316,19 @@ admin.post('/vault/enable', need('einstellungen'), vaultPwLimit, asyncRoute(asyn
 }));
 admin.post('/vault/unlock', vaultPwLimit, (req, res) => {
   const b = req.body || {}; const vault = require('./vault');
-  if (!ownPwOk(req, b.password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  if (!ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   let ok = false; try { ok = vault.unlockWithCode(b.code); } catch (e) { return bad(res, e.message); }
-  if (!ok) { audit(req.user, 'Tresor: falscher Wiederherstellungscode'); return bad(res, 'Der Wiederherstellungscode stimmt nicht.', 401); }
+  if (!ok) { audit(req.user, 'Tresor: falscher Wiederherstellungscode'); return pwBad(res, 'Der Wiederherstellungscode stimmt nicht.'); }
   vault.onPassword(req.user.id, String(b.password));   // ab jetzt öffnet auch die Anmeldung dieses Admins den Tresor
   audit(req.user, 'Tresor mit Wiederherstellungscode geöffnet');
   res.json({ ok: true });
 });
 admin.post('/vault/new-code', need('einstellungen'), vaultPwLimit, (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { const code = require('./vault').newRecovery(); audit(req.user, 'Tresor: neuer Wiederherstellungscode'); res.json({ code }); } catch (e) { bad(res, e.message, e.status || 400); }
 });
 admin.post('/vault/disable', need('einstellungen'), vaultPwLimit, (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   try { require('./vault').disable(); audit(req.user, 'Tresor ausgeschaltet'); res.json({ ok: true }); } catch (e) { bad(res, e.message, e.status || 400); }
 });
 
@@ -3144,7 +3147,7 @@ function ownerConfirm(req, res) {
   // bei Datei-Uploads (Rohdaten) kommt das Passwort in der Kopfzeile X-Mein-Passwort (URL-kodiert)
   let pw = (req.body && !Buffer.isBuffer(req.body) && req.body.myPassword) || '';
   if (!pw && req.get('X-Mein-Passwort')) { try { pw = decodeURIComponent(req.get('X-Mein-Passwort')); } catch (e) { pw = ''; } }
-  if (!ownPwOk(req, pw)) { bad(res, 'Dein Passwort stimmt nicht.', 401); return false; }
+  if (!ownPwOk(req, pw)) { pwBad(res, 'Dein Passwort stimmt nicht.'); return false; }
   return true;
 }
 
@@ -3178,7 +3181,7 @@ admin.post('/backups/password', need('einstellungen'), rateLimit('bkpw', 10, 10 
 admin.post('/backups/password/check', need('einstellungen'), owner, rateLimit('bkcheck', 10, 10 * 60000), (req, res) => {
   const k = bkKey(); if (!k.key || !k.kdf) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
   let ok = false; try { ok = fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf)) === fullbackup.keyId(Buffer.from(k.key, 'hex')); } catch (e) { ok = false; }
-  if (!ok) return bad(res, 'Das Sicherungspasswort stimmt nicht.', 401);
+  if (!ok) return pwBad(res, 'Das Sicherungspasswort stimmt nicht.');
   res.json({ ok: true });
 });
 admin.post('/backups/run', need('einstellungen'), asyncRoute(async (req, res) => {
@@ -3415,7 +3418,7 @@ admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrest
       const man = await fullbackup.extract(src, pw ? { password: pw, outDir: tmp } : { key: bkHasKey() ? bkKey().key : null, outDir: tmp });
       const err = backup.validate(path.join(tmp, fullbackup.DB_NAME));
       if (err) throw new Error(err);
-      const name = `getraenke_${backup.stamp()}_komplett.db`;
+      const name = backup.fileName('komplett');
       fs.renameSync(path.join(tmp, fullbackup.DB_NAME), path.join(backup.BACKUP_DIR, name));
       backup.markRestore(name);
       backup.stageDirs(tmp, name, fullbackup.DIRS);
@@ -3516,7 +3519,7 @@ admin.post('/backups/upload', need('einstellungen'), streamUpload(200 * MB, '.db
     if (!req.uploadFile || req.uploadSize < 100) return bad(res, 'Die Datei ist leer.');
     const err = backup.validate(req.uploadFile);
     if (err) return bad(res, err);
-    const name = `getraenke_${backup.stamp()}_hochgeladen.db`;
+    const name = backup.fileName('hochgeladen');
     fs.mkdirSync(backup.BACKUP_DIR, { recursive: true });
     fs.renameSync(req.uploadFile, path.join(backup.BACKUP_DIR, name));   // gleiche Platte (DATA_DIR) → nur umbenennen
     req.uploadFile = null;
@@ -3543,7 +3546,7 @@ admin.delete('/backups/restore', need('einstellungen'), (req, res) => {
 /* Demo beenden und einrichten: alle Beispieldaten restlos löschen (beim Neustart, src/demo.js) – mit eigenem Passwort bestätigt */
 admin.post('/demo/ende', need('einstellungen'), owner, rateLimit('demoende', 10, 10 * 60000), (req, res) => {
   if (!isDemo()) return bad(res, 'Das ist keine Demo – hier wird nichts gelöscht.');
-  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Dein Passwort stimmt nicht.', 401);
+  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   const ticket = demo.markEnd(DATA_DIR);
   audit(req.user, 'Demo beendet', 'Alle Beispieldaten werden beim Neustart gelöscht');
   res.setHeader('Set-Cookie', `csetup=${ticket}; HttpOnly; SameSite=Strict; Path=/; Max-Age=3600${req.secure ? '; Secure' : ''}`);
@@ -3599,7 +3602,7 @@ app.get('/api/ha/summary', (req, res, next) => (fromHomeAssistant(req) ? next() 
 });
 
 /* ---------- Erweiterungen & eigene Links in der Kopfzeile ---------- */
-plugins.load({ app, admin, helpers: { need, rateLimit, rateLimitKey, bad, int, cleanName, nowTs, util, invites: require('./invites'), drinks, asyncRoute, viaIngress } });
+plugins.load({ app, admin, helpers: { need, rateLimit, rateLimitKey, bad, ownPwOk, int, cleanName, nowTs, util, invites: require('./invites'), drinks, asyncRoute, viaIngress } });
 i18n.reload();   // Sprachdateien der Erweiterungen
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung der Erweiterungs-Tabellen fehlgeschlagen –', e.message); }
 const memberapp = require('./memberapp');
@@ -3722,7 +3725,7 @@ admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () =
 }));
 /* Erweiterung aus dem Netzwerkordner freigeben: nur das Adminkonto/„alle Rechte“, mit Passwort bestätigt */
 admin.post('/extensions/:id/approve', need('einstellungen'), owner, rateLimit('approve', 10, 10 * 60000), (req, res) => {
-  if (!ownPwOk(req, (req.body || {}).password)) return bad(res, 'Passwort falsch.', 401);
+  if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Passwort falsch.');
   try { const r = plugins.approve(String(req.params.id), String((req.body || {}).hash || '')); audit(req.user, 'Erweiterung freigegeben', `${r.name} (${r.hash.slice(0, 12)})`); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
@@ -3814,16 +3817,19 @@ admin.post('/extensions/:id/import', express.json({ limit: '24mb' }), async (req
   if (!p || !plugins.isActive(p.meta.id) || typeof p.hooks.importConfig !== 'function') return bad(res, 'Für dieses Modul gibt es keinen Import.', 404);
   if (!mayConfig(req, p)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
   const b = req.body || {};
+  // eigenes Passwort (Zugang, Beregnung: Geräte neu zuordnen) – falsche Versuche je Benutzer gebremst (src/geraete.js)
+  const pw = require('./geraete').bestaetigt(req, res, ownPwOk); if (!pw) return;
   if (!['clubwerk-funktion', 'vereinsheim-funktion'].includes(b.format) || !b.data) return bad(res, 'Das ist keine Funktionsdatei von Clubwerk.');
   if (b.module !== p.meta.id) return bad(res, `Diese Datei gehört zum Modul „${b.name || b.module}“, nicht zu „${p.meta.name}“.`);
   /* dry: Vorschau „x neu, y aktualisiert“ – der Import läuft in einem Sicherungspunkt, der danach verworfen wird (auch für die Teil-Wiederherstellung nutzbar) */
   const dry = b.dry === true;
   if (dry) db.exec('SAVEPOINT cw_dry');
   try {
-    const summary = await p.hooks.importConfig(b.data, { user: req.user, dry });
+    const info = { user: req.user, dry, confirmed: pw.confirmed };   // confirmed: Passwort oben geprüft; needPassword setzt das Modul in der Vorschau
+    const summary = await p.hooks.importConfig(b.data, info);
     if (!dry) audit(req.user, `${p.meta.name}: Funktionsimport`, summary || '');
-    res.json({ ok: true, summary, dry });
-  } catch (e) { bad(res, e.message); }
+    res.json({ ok: true, summary, dry, needPassword: Boolean(info.needPassword) });
+  } catch (e) { if (e.needPassword) res.status(428).json({ error: e.message, needPassword: true }); else bad(res, e.message, e.status === 403 ? 403 : 400); }
   finally { if (dry) db.exec('ROLLBACK TO cw_dry; RELEASE cw_dry'); }
 });
 admin.put('/extensions/:id', need('einstellungen'), (req, res) => {
@@ -3875,7 +3881,7 @@ async function nightly() {
     if (now.getHours() >= 3 && lastAuto !== day) {
       lastAuto = day;
       try {
-        const have = backup.list().some(b => b.file.startsWith(`getraenke_${day}_`) && b.file.endsWith('_auto.db'));
+        const have = backup.list().some(b => backup.stampOf(b.file).startsWith(`${day}_`) && b.file.endsWith('_auto.db'));   // auch alte getraenke_…
         if (!have) console.log('Nächtliche Sicherung:', await backup.snapshot(db, 'auto'));
       } catch (e) { console.error('Nächtliche Sicherung fehlgeschlagen:', e.message); }
     }

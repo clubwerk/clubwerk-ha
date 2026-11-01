@@ -27,7 +27,7 @@
           const r = await ctx.withPin(`${d.name}: ${window.ZugangDoors.label(d, action)}`, pin => ctx.api('door', 'POST', { door: id, action, pin }));
           if (r) ctx.toast(`${d.name}: ${action === 'zu' ? (d.type === 'cover' ? 'wird geschlossen' : 'wird abgeschlossen') : 'wird geöffnet'}`);
         } catch (e) { ctx.toast(e.message, true, 5000); }
-        setTimeout(refresh, 1200);
+        setTimeout(() => { if (alive) refresh(); }, 1200);   // Bereich inzwischen verlassen: nichts mehr abfragen
       }
       ctx.onLeave(() => { alive = false; clearTimeout(timer); });
       refresh();   // doors.js lädt die App vor member.js (erweiterung.json „skripte“)

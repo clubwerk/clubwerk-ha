@@ -33,6 +33,7 @@ const DEF = {
   notify: '', openAlertMin: 0, blockAll: false, blockDays: [],
 };
 const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung bzw. Zugang)
+const G = require('../../src/geraete');   // Geräte neu zuordnen: Rechte und eigenes Passwort
 const { pad, today, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 /* IDs von Türen und Zeitprofilen werden nie doppelt vergeben – auch nicht nach dem Löschen (Protokoll und Freischaltungen verweisen darauf).
    Die Prüfung in cleanCfg() arbeitet auf einer Kopie (`used`) ohne Datenbankzugriff; gespeichert wird erst mit der Konfiguration (saveUsedIds). */
@@ -154,23 +155,22 @@ async function states(force) {
   try { const s = await ha.call('GET', '/states'); const m = new Map((Array.isArray(s) ? s : []).map(x => [x.entity_id, x])); cache = { at: Date.now(), states: m, err: null }; return m; }
   catch (e) { cache = { at: Date.now(), states: null, err: e }; throw e; }
 }
-async function deviceList(c) {
+/** Geräteliste für die Verwaltung. strict (Benutzer ohne „alle Rechte“): nur Geräte der Hersteller-Integration – nennt
+ *  Home Assistant sie nicht (oder „Gemischt / anderer Hersteller“), keine schaltbaren Geräte. Türkontakte bleiben (nur lesend). */
+async function deviceList(c, strict) {
   const st = await states(true);
   const out = { lock: [], switch: [], button: [], cover: [], binary_sensor: [] };
-  let ids = null;
   const v = VENDORS.find(x => x.id === c.vendor);
-  if (v && v.integration) {
-    try { const r = await ha.integrationEntities(v.integration); if (Array.isArray(r) && r.length) ids = new Set(r); } catch (e) { /* alles anbieten */ }
-  }
+  const ids = await G.integrationSet(v && v.integration);   // null: alles anbieten (nur mit allen Rechten)
   for (const s of st.values()) {
     const dom = s.entity_id.split('.')[0];
     if (!out[dom]) continue;
     if (dom === 'binary_sensor' && !['door', 'garage_door', 'opening', 'window', 'lock'].includes(s.attributes && s.attributes.device_class)) continue;
-    if (ids && dom !== 'binary_sensor' && !ids.has(s.entity_id)) continue;
+    if (dom !== 'binary_sensor' && ((ids && !ids.has(s.entity_id)) || (!ids && strict))) continue;
     out[dom].push({ ref: s.entity_id, name: `${(s.attributes && s.attributes.friendly_name) || s.entity_id} (${s.entity_id})` });
   }
   for (const k of Object.keys(out)) out[k].sort((a, b) => a.name.localeCompare(b.name, 'de'));
-  return { list: out, filtered: Boolean(ids) };
+  return { list: out, filtered: Boolean(ids), restricted: Boolean(strict && !ids) };
 }
 /** Zustand einer Tür für die Anzeige */
 function doorState(door, st) {
@@ -437,6 +437,13 @@ function doorAlert(before, out, who) {
   const refs = c2 => (c2.doors || []).map(d => `${d.name}=${d.ref}`).sort().join(', ');
   if (refs(before) !== refs(out)) H.require('./security').securityAlert(`Im Modul Zugang wurden die Türen geändert (von ${who}).\n\nVorher: ${refs(before) || '–'}\nJetzt: ${refs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'zugang-tueren-' + Date.now());
 }
+/** Türen, denen ein Gerät neu zugeordnet wird (neue Tür oder anderes Gerät an derselben Tür – die Zeitprofile hängen an der Tür) */
+const neueGeraete = (before, out) => { const alt = new Map((before.doors || []).map(d => [d.id, d.ref])); return out.doors.filter(d => alt.get(d.id) !== d.ref).map(d => d.ref); };
+const vendorInfo = c => { const v = VENDORS.find(x => x.id === c.vendor) || VENDORS[VENDORS.length - 1]; return { name: v.name, integration: v.integration, free: !v.integration }; };
+/** Geräte-Regeln (src/geraete.js) für eine fertig geprüfte Konfiguration – gibt die geprüften Geräte zurück */
+const geraetePruefen = async (before, out, o) => { const changed = neueGeraete(before, out); await G.pruefen({ changed, vendor: vendorInfo(out), vendorChanged: out.vendor !== before.vendor, ...o, info: o }); return new Set(changed); };
+/** nach dem Warten neu berechnet: kamen inzwischen (gleichzeitige Änderung) andere Geräte dazu, die nicht geprüft wurden? */
+const nachgeprueft = (geprueft, before, out) => { if (neueGeraete(before, out).some(r => !geprueft.has(r))) throw new Error('Die Türen wurden gerade gleichzeitig geändert – bitte die Seite neu laden und noch einmal speichern.'); };
 function activate(ctx) {
   try { clubNet = ctx.require('./memberapp').isClubNet; } catch (e) { clubNet = null; }
   ({ db, getSetting, setSetting, audit } = ctx); ({ lastFirst } = ctx.require('./db'));
@@ -467,11 +474,14 @@ function activate(ctx) {
   ctx.hooks.accessOptions = () => { const c = cfg(); return { profiles: c.profiles.map(p => ({ id: p.id, name: p.name, isDefault: p.isDefault, text: profileText(p) })), defaultProfile: (c.profiles.find(p => p.isDefault) || c.profiles[0]).id, profilesPage: 'zugang-freischaltungen', profilesPerm: 'zugang', profilesLabel: 'Zugang › Freischaltungen' }; };
   /* Funktionsexport/-import: Türen, Zeitprofile, Sperrtage, Einstellungen – ohne Freischaltungen und Protokoll */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { blockAll, ...rest } = c; void blockAll; return { ...rest, keepDays: keepDays() }; };
-  ctx.hooks.importConfig = (data, info = {}) => {
+  ctx.hooks.importConfig = async (data, info = {}) => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
-    const before = cfg();
     const keys = ['vendor', 'doors', 'profiles', 'wlanOnly', 'header', 'appName', 'subtitle', 'notify', 'openAlertMin', 'blockDays'];
-    const { out, commit } = cleanCfg(Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]])), ctx.cleanName);
+    const b = Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]]));
+    const geprueft = await geraetePruefen(cfg(), cleanCfg(b, ctx.cleanName).out, info);   // Geräte neu zuordnen: Rechte und eigenes Passwort (in der Vorschau nur needPassword)
+    const before = cfg();
+    const { out, commit } = cleanCfg(b, ctx.cleanName);   // nach dem Warten neu (sonst ginge eine Änderung dazwischen verloren)
+    nachgeprueft(geprueft, before, out);
     db.transaction(() => { save(out); commit(); })(); cache.at = 0;
     if (!info.dry) doorAlert(before, out, info.user ? `${info.user.name || info.user.username} per Funktionsimport` : 'Funktionsimport');   // Geräte über den Import geändert: gleiche Warnung wie in den Einstellungen
     if (Number.isInteger(data.keepDays) && data.keepDays >= 7 && data.keepDays <= 365) ctx.setSetting2('keep_days', String(data.keepDays));
@@ -505,14 +515,23 @@ function activate(ctx) {
   admin.get('/config', need('zugang'), async (req, res) => {
     const c = cfg();
     let devices = null, filtered = false, error = null;
-    try { const d = await deviceList(c); devices = d.list; filtered = d.filtered; } catch (e) { error = e.message; }
-    res.json({ cfg: c, vendors: VENDORS.map(({ id, name, setup }) => ({ id, name, setup })), devices, filtered, error, haAvailable: ha.available(),
+    const full = G.full(req.user);
+    let restricted = false;
+    try { const d = await deviceList(c, !full); devices = d.list; filtered = d.filtered; restricted = d.restricted; } catch (e) { error = e.message; }
+    // full: freie Gerätewahl („Gemischt / anderer Hersteller“) und Geräte außerhalb der Integration nur mit allen Rechten
+    res.json({ cfg: c, vendors: VENDORS.map(({ id, name, setup, integration }) => ({ id, name, setup, free: !integration })), devices, filtered, restricted, full, error, haAvailable: ha.available(),
       profileTexts: Object.fromEntries(c.profiles.map(p => [p.id, profileText(p)])) });
   });
-  admin.put('/config', need('zugang'), (req, res) => {
+  // Geräte neu zuordnen nur mit eigenem Passwort (src/geraete.js) – falsche Versuche je Benutzer gebremst
+  admin.put('/config', need('zugang'), async (req, res) => {
+    const b = req.body || {};
+    const pw = G.bestaetigt(req, res, ctx.ownPwOk); if (!pw) return;
+    let geprueft;
+    try { geprueft = await geraetePruefen(cfg(), cleanCfg(b, cleanName).out, { user: req.user, confirmed: pw.confirmed }); }
+    catch (e) { if (G.antwort(res, e)) return; return bad(res, e.message); }
     let out, commit;
-    try { ({ out, commit } = cleanCfg(req.body || {}, cleanName)); } catch (e) { return bad(res, e.message); }   // prüft nur, schreibt nichts
     const before = cfg();
+    try { ({ out, commit } = cleanCfg(b, cleanName)); nachgeprueft(geprueft, before, out); } catch (e) { return bad(res, e.message); }   // prüft nur, schreibt nichts
     db.transaction(() => { save(out); commit(); })();   // Konfiguration, vergebene IDs und Zeitprofil-Zuordnungen zusammen
     cache.at = 0;
     if (before.blockAll !== out.blockAll) { log('sperre', req.user.name || req.user.username, null, out.blockAll ? 'Zugang für alle gesperrt' : 'Sperre für alle aufgehoben'); audit(req.user, out.blockAll ? 'Zugang: alle gesperrt' : 'Zugang: Sperre aufgehoben', ''); }

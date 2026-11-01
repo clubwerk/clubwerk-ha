@@ -101,7 +101,7 @@ An Sperrtagen schalten weder Mitglieder noch Automatik, z. B. bei Wartung der Ma
 
 ### Reiter „Verlauf“ {#flutlicht-verlauf}
 
-![Der Reiter „Verlauf“: Schaltzeiten des Monats, Betriebsstunden und Ereignisse.](bild: seite=flutlicht-verlauf; hoehe=520)
+![Der Reiter „Verlauf“: Schaltzeiten des Monats, Betriebsstunden und Ereignisse.](bild: seite=flutlicht-verlauf; zeitraum=#flMonth; voll=#flLog table tr:nth-child(5); hoehe=520)
 
 #### Schaltzeiten
 

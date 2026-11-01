@@ -1,5 +1,24 @@
 # Änderungen
 
+## 2026.11.4
+
+**Zugang und Beregnung: Geräte nur noch mit Passwort zuordnen**
+- Bekommt eine Tür oder eine Beregnungszone ein Gerät aus Home Assistant (neue Tür/Zone oder ein anderes Gerät), fragt Clubwerk jetzt nach dem **eigenen Passwort**. Umbenennen, Reihenfolge, Laufzeiten und Löschen gehen weiter ohne Passwort. Das gilt auch beim Import von Einstellungen aus einer Datei: Die Vorschau sagt vorher, dass das Passwort nötig ist.
+- Wer **nicht alle Rechte** hat (z. B. nur das Recht „Zugang“ oder „Beregnung“), sieht und wählt nur noch Geräte des eingestellten Herstellers. „Gemischt / anderer Hersteller“ mit freier Wahl aller Geräte richtet nur noch ein Benutzer mit allen Rechten ein. So kann niemand ohne alle Rechte z. B. die Alarmanlage als Tür eintragen.
+- Die Sicherheitswarnung an den Vorstand bei geänderten Geräten bleibt wie bisher.
+- Anleitungen von Zugang und Beregnung ergänzt, neue Testreihe `geraet`.
+- Nicht geändert (Entscheidung): Erweiterungen dürfen weiter auch über die normale Verwaltung mit Passwort hochgeladen werden; falsche PINs am Tablet lösen weiter nur eine Warnung aus.
+
+**Falsches Passwort bei einer Bestätigung meldet nicht mehr ab**
+- Wer sich bei einer Rückfrage mit Passwort vertippte (z. B. Datenbank wiederherstellen, Tresor, Sicherungsziel), landete auf der Anmeldeseite, obwohl er angemeldet blieb. Jetzt kommt nur die Meldung „Dein Passwort stimmt nicht.“
+
+**Datensicherung**
+- **Wiederherstellen vom NAS (SFTP):** Unter Last konnte die heruntergeladene Sicherung noch leer oder halb sein, wenn Clubwerk sie las („Das ist keine Komplettsicherung“). Clubwerk wartet jetzt, bis die Datei ganz geschrieben ist. Alle anderen Ziele (WebDAV, FTP, Dropbox) und Uploads sind geprüft – dort war es schon richtig.
+- **Schnappschüsse heißen jetzt `clubwerk_<Datum>_<Anlass>.db`** statt `getraenke_…` (Altlast aus der Getränke-App). Ältere Schnappschüsse mit dem alten Namen stehen weiter in der Liste, lassen sich wiederherstellen und werden beim Aufräumen mitgezählt – immer die ältesten zuerst.
+
+**Kleine Korrekturen**
+- **Seitenwechsel:** Verzögerte Abläufe (z. B. die Empfängerzahl bei Nachrichten, Vorschauen beim Tippen, Abfragen nach einem Türbefehl) liefen nach dem Wechsel auf eine andere Seite weiter und erzeugten Fehler im Hintergrund. Sie enden jetzt mit ihrer Ansicht – in der Verwaltung und in der Mitglieder-App. Der Design-Prüfstand prüft das auf jeder Seite und in jedem Reiter.
+- **Anleitungen:** Die Bilder von Monatsansichten (Zeiterfassung, Zugang, Beregnung, Flutlicht) entstehen am Monatsanfang aus dem Vormonat, damit sie nicht leer sind. Das Bauen der Anleitungen scheiterte vorher an Monatsersten.
 ## 2026.11.3
 
 **Abstände: Knöpfe kleben nicht mehr an Ergebnis-Kästen, Kopfleiste deckt den Inhalt**

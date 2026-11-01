@@ -281,7 +281,8 @@ async function anwenden(c, ids, { db, plugins, user, dry, getSetting, setSetting
       if (TEILE[m.id]) { data = {}; for (const t of TEILE[m.id]) if (ids.has(`${m.id}:${t.key}`) && m.data[t.key] !== undefined) data[t.key] = m.data[t.key]; }
       const p = plugins.get(m.id);
       let text;
-      try { text = await p.hooks.importConfig(data, { user, dry }); } catch (e) { throw new Error(`${p.meta.name}: ${e.message}`); }
+      // confirmed: Übernehmen geht nur mit allen Rechten und eigenem Passwort (ownerConfirm), die Vorschau ändert nichts
+      try { text = await p.hooks.importConfig(data, { user, dry, confirmed: true }); } catch (e) { throw new Error(`${p.meta.name}: ${e.message}`); }
       zeilen.push({ name: p.meta.name, text: String(text || 'übernommen') });
     }
     ok = true;

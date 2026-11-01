@@ -31,6 +31,7 @@ const DEF = {
   appName: 'Beregnung', webappUrl: '', subtitle: 'Bewässerungssteuerung', nextEntity: '', notify: '', plaetze: [],
 };
 const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung bzw. Zugang)
+const G = require('../../src/geraete');   // Geräte neu zuordnen: Rechte und eigenes Passwort
 const HW_BASE = () => (process.env.HYDRAWISE_BASE || 'https://api.hydrawise.com/api/v1').replace(/\/$/, '');
 const { pad, nowTs: localTs } = require('../../src/util');   // gemeinsame Helfer des Kerns (auch als ctx.util)
 const hhmm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -515,6 +516,13 @@ function zoneAlert(before, out, who) {
   const zrefs = c2 => (c2.backend === 'hydrawise' ? [] : c2.plaetze.flatMap(p => p.zones.map(z => z.ref))).sort().join(', ');
   if (zrefs(before) !== zrefs(out)) H.require('./security').securityAlert(`Im Modul Beregnung wurden die geschalteten Geräte geändert (von ${who}).\n\nVorher: ${zrefs(before) || '–'}\nJetzt: ${zrefs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'beregnung-geraete-' + Date.now());
 }
+/** Ventile/Schalter aus Home Assistant, die neu zugeordnet werden (die direkte Hydrawise-Anbindung schaltet nur Zonen der eigenen Steuerung) */
+const haRefs = c => (c.backend === 'hydrawise' ? [] : c.plaetze.flatMap(p => p.zones.map(z => z.ref)));
+const neueGeraete = (before, out) => { const alt = new Set(haRefs(before)); return [...new Set(haRefs(out).filter(r => !alt.has(r)))]; };
+const vendorInfo = c => { const v = vendorOf(c); return { name: v.name, integration: v.integration, domains: v.domains, free: v.backend === 'ha' && !v.integration }; };
+/** Geräte-Regeln (src/geraete.js) – gibt die geprüften Geräte zurück */
+const geraetePruefen = async (before, out, o) => { const changed = neueGeraete(before, out); await G.pruefen({ changed, vendor: vendorInfo(out), vendorChanged: out.vendor !== before.vendor, ...o, info: o }); return new Set(changed); };
+const nachgeprueft = (geprueft, before, out) => { if (neueGeraete(before, out).some(r => !geprueft.has(r))) throw new Error('Die Plätze wurden gerade gleichzeitig geändert – bitte die Seite neu laden und noch einmal speichern.'); };
 function activate(ctx) {
   ({ db, getSetting, setSetting, audit, auth } = ctx);
   express = ctx.require('express');
@@ -559,12 +567,14 @@ function activate(ctx) {
   });
   /* Funktionsexport/-import: Anbindung, Plätze mit Zonen, Schutz-Modus, Webapp – ohne Vereins-PIN und API-Key */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { backend, ...rest } = c; void backend; return { ...rest, keepMonths: keepMonths() }; };
-  ctx.hooks.importConfig = (data, info = {}) => {
+  ctx.hooks.importConfig = async (data, info = {}) => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     if (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) throw new Error('Gerade läuft eine Beregnung – bitte erst stoppen oder abwarten.');
     const keys = ['vendor', 'plaetze', 'mode', 'stopFree', 'cooldownMin', 'header', 'appName', 'subtitle', 'nextEntity', 'notify'];
     const b = Object.fromEntries(keys.filter(k => data[k] !== undefined).map(k => [k, data[k]]));
+    const geprueft = await geraetePruefen(cfg(), cleanCfg(b, ctx.cleanName), info);   // Geräte neu zuordnen: Rechte und eigenes Passwort (in der Vorschau nur needPassword)
     const out = cleanCfg(b, ctx.cleanName), before = cfg();
+    nachgeprueft(geprueft, before, out);
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
     if (!info.dry) zoneAlert(before, out, info.user ? `${info.user.name || info.user.username} per Funktionsimport` : 'Funktionsimport');   // gleiche Warnung wie in den Einstellungen
     if (Number.isInteger(data.keepMonths) && data.keepMonths >= 1 && data.keepMonths <= 60) ctx.setSetting2('keep_months', String(data.keepMonths));
@@ -603,16 +613,25 @@ function activate(ctx) {
 
   const admin = ctx.admin;
   admin.get('/config', need('beregnung'), async (req, res) => {
-    let list = [], sensors = [], error = null;
-    try { const d = await readController(true); list = d.list; sensors = d.sensors || []; } catch (e) { error = e.message; }
-    res.json({ cfg: cfg(), vendors: VENDORS.map(({ id, name, backend, setup }) => ({ id, name, backend, setup })), filtered: Boolean(list.length) && Boolean(cache.data && cache.data.filtered), hasKey: Boolean(getSetting('ext_beregnung_hw_key', '')), hasPin: Boolean(getSetting('ext_beregnung_pin_hash', '')),
+    let list = [], sensors = [], error = null, filtered = false;
+    try { const d = await readController(true); list = d.list; sensors = d.sensors || []; filtered = Boolean(d.filtered); } catch (e) { error = e.message; }
+    // ohne „alle Rechte“: nur Ventile der Hersteller-Integration – nennt Home Assistant sie nicht (oder „Anderer Hersteller“), keine
+    const full = G.full(req.user), restricted = !full && cfg().backend === 'ha' && !filtered && list.length > 0;
+    if (restricted) list = [];
+    res.json({ cfg: cfg(), vendors: VENDORS.map(({ id, name, backend, setup, integration }) => ({ id, name, backend, setup, free: backend === 'ha' && !integration })), filtered: Boolean(list.length) && filtered, full, restricted, hasKey: Boolean(getSetting('ext_beregnung_hw_key', '')), hasPin: Boolean(getSetting('ext_beregnung_pin_hash', '')),
       haAvailable: ha.available(), port: parseInt(process.env.BEREGNUNG_PORT || '5000', 10) || null, list, sensors, error });
   });
-  admin.put('/config', need('beregnung'), (req, res) => {
+  // Geräte neu zuordnen nur mit eigenem Passwort (src/geraete.js) – falsche Versuche je Benutzer gebremst
+  admin.put('/config', need('beregnung'), async (req, res) => {
+    const b = req.body || {};
+    const pw = G.bestaetigt(req, res, ctx.ownPwOk); if (!pw) return;
+    let geprueft;
+    try { geprueft = await geraetePruefen(cfg(), cleanCfg(b, cleanName), { user: req.user, confirmed: pw.confirmed }); }
+    catch (e) { if (G.antwort(res, e)) return; return bad(res, e.message); }
     let out;
-    try { out = cleanCfg(req.body, cleanName); } catch (e) { return bad(res, e.message); }
-    if (out.backend !== cfg().backend && db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) return bad(res, 'Während einer laufenden Beregnung kann die Anbindung nicht gewechselt werden.');
     const before = cfg();
+    try { out = cleanCfg(b, cleanName); nachgeprueft(geprueft, before, out); } catch (e) { return bad(res, e.message); }
+    if (out.backend !== before.backend && db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) return bad(res, 'Während einer laufenden Beregnung kann die Anbindung nicht gewechselt werden.');
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
     zoneAlert(before, out, req.user.name || req.user.username);
     cache.at = 0;
