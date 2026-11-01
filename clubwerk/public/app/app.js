@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.5';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.6';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -295,12 +295,17 @@
     tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.t === 'mehr') { moreSheet(); return; } wlanTries = 0; show(b.dataset.t); });
     markTab(); fitTabs();
   }
-  /* Beschriftungen der Leiste nie kürzen und nie umbrechen: passt eine nicht ganz, wird die Schrift der ganzen Leiste kleiner (gemessen auf dem Gerät selbst – Schrift und Breite sind je Handy anders) */
+  /* Beschriftungen der Leiste: nie mitten im Wort umbrechen, nie kürzen, und mindestens 8 px zwischen den Textkanten benachbarter Beschriftungen (nicht nur zwischen den
+     Spalten). Gemessen auf dem Gerät selbst – Schrift und Breite sind je Handy anders. Erst wird die Schrift der ganzen Leiste kleiner (nicht unter 10 px), reicht das nicht,
+     brechen Beschriftungen mit mehreren Wörtern an den Leerzeichen um („Meine / Daten“). */
   function fitTabs() {
-    const t = $('tabs'), sp = [...t.querySelectorAll('button span')]; t.style.removeProperty('--tabfs');
-    if (!sp.length) return;
-    let fs = parseFloat(getComputedStyle(sp[0]).fontSize);
-    while (fs > 8 && sp.some(s => s.scrollWidth > s.clientWidth)) { fs -= 0.5; t.style.setProperty('--tabfs', fs + 'px'); }
+    const t = $('tabs'), btns = [...t.querySelectorAll('button')]; t.style.removeProperty('--tabfs'); t.classList.remove('zwei');
+    if (!btns.length || !t.offsetWidth) return;
+    const box = b => { const r = document.createRange(); r.selectNodeContents(b.querySelector('span')); const q = [...r.getClientRects()].filter(x => x.width > 0.5); return q.length ? { l: Math.min(...q.map(x => x.left)), r: Math.max(...q.map(x => x.right)) } : null; };
+    const ok = () => { let prev = null; const tr = t.getBoundingClientRect(); for (const b of btns) { const x = box(b), c = b.getBoundingClientRect(); if (c.left < tr.left - 0.5 || c.right > tr.right + 0.5) return false; if (!x) continue; if (x.l < c.left - 0.5 || x.r > c.right + 0.5 || (prev && x.l - prev.r < 8)) return false; prev = x; } return true; };
+    const start = parseFloat(getComputedStyle(btns[0].querySelector('span')).fontSize);
+    const fit = () => { for (let fs = start; fs >= 10; fs -= 0.5) { t.style.setProperty('--tabfs', fs + 'px'); if (ok()) return true; } return false; };
+    if (!fit()) { t.classList.add('zwei'); fit(); }
   }
   window.addEventListener('resize', fitTabs);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTabs);

@@ -1,5 +1,12 @@
 # Änderungen
 
+## 2026.11.6
+
+**Mitglieder-App: Beschriftungen der unteren Leiste mit klarem Abstand**
+- In 2026.11.5 brach „Nachrichten“ nicht mehr um, stand aber fast Kante an Kante neben „Meine Daten“ (nur 2–4 px). Jetzt haben benachbarte Beschriftungen mindestens 8 px Abstand zwischen den Buchstaben, bei jeder Breite von 320 bis 430 px und auch, wenn Safari breiter schreibt.
+- Die Spalten der Leiste richten sich nach der Länge der Beschriftung (statt alle gleich breit). Reicht der Platz nicht, wird zuerst die Schrift etwas kleiner (nie unter 10 px), und erst dann brechen Beschriftungen mit mehreren Wörtern an ihrem Leerzeichen um („Für / mich“, „Meine / Daten“) – nie mitten im Wort.
+- **Design-Prüfstand:** neue Regel „Textabstand“ (Leisten der App, Reiter, Segmente, Chips und Tablet-Kopfzeile: mindestens 8 px zwischen den Textkanten, jede Beschriftung bleibt in ihrer Spalte).
+
 ## 2026.11.5
 
 **Mitglieder-App: Beschriftungen der unteren Leiste brechen nie mehr mitten im Wort um**
