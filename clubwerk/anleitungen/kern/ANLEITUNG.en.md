@@ -283,7 +283,7 @@ A role has a name, a description and permissions. The list shows how many users 
 
 ![The backup page: key figures and cards.](bild: seite=sicherung; ziel=.kpis)
 
-Every night an **encrypted full backup** is created with everything Clubwerk contains (database, receipts, pictures, modules). It can only be opened with the **backup password**. Three tiles at the top show the last backup, the **test restore** (automatically once a month) and the **backup targets**. Yellow or red notes above them report problems.
+Every night an **encrypted full backup** is created with everything Clubwerk contains (database, receipts, pictures, modules). It can only be opened with the **backup password**. Three tiles at the top show the last backup, the **test restore** (automatically every Sunday) and the **backup targets**. Yellow or red notes above them report problems.
 
 #### Encryption of personal data
 
@@ -296,15 +296,30 @@ The **vault** stores addresses, bank details, birth dates, documents, photos and
 
 #### Now
 
-![Card “Now”: back up immediately, check, download.](bild: seite=sicherung; ziel=.card:has(#bkRun))
+![Card “Now”: back up immediately, download.](bild: seite=sicherung; ziel=.card:has(#bkRun))
 
-**Back up now**, **Check last backup** and **Download last full backup**. The file (`.cwbackup`) is encrypted and makes a good second copy off site, for example on a USB stick.
+**Back up now** and **Download last full backup**. The file (`.cwbackup`) is encrypted and makes a good second copy off site, for example on a USB stick.
+
+#### Test restore
+
+![Card “Test restore”: result and counts.](bild: seite=sicherung; ziel=#bkProbeCard)
+
+A backup is only as good as its restore. That is why Clubwerk runs a test **every Sunday** after the backup:
+- It downloads the latest backup **from one backup target in turn** (without a target it uses the file here) and compares it with the file here (checksum).
+- It **starts itself in isolation with this backup**, just as after a total failure, and counts the most important data: accounts, members, open items, sales, court bookings, receipts and more. Nothing here is changed.
+- If a number in the backup is **less than half** of today's (for example 3 instead of 412 members), a yellow note “Backup looks incomplete” appears. If the backup is damaged or unreadable, there is a red warning, also on the overview, and an e-mail to the security address.
+
+**Check now** starts the test immediately (one to three minutes depending on size). In addition, Clubwerk checks after **every** upload that the file has arrived complete at the target.
+
+Good to know: if the whole device fails, Clubwerk itself can no longer warn you. So look into the administration now and then. If it says “No successful backup for more than two days”, check at once.
 
 #### Backup password
 
 ![Card “Backup password”.](bild: seite=sicherung; ziel=.card:has(#bkPwSet))
 
 The password encrypts all backups, at least 10 characters. **Without the password a backup is worthless.** After setting it, print the **emergency sheet**: password, where the backups are and the steps to restore after a total failure. When you **change** it, older backups stay readable with the old password, so keep the old sheet. Only a user with all permissions may set and change it.
+
+**Password check:** half a year after setting it (or after the last check) the card asks: “Does the backup password you wrote down still match?” Tap **Check password …** and enter the password from the emergency sheet. If it does not match, set a new one and print the emergency sheet again.
 
 #### Schedule & retention
 

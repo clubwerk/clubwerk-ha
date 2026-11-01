@@ -586,6 +586,8 @@ function activate(ctx) {
     return `${out.plaetze.length} Plätze mit ${zones} Zonen, ${vendorOf(out).name}${hints.length ? ' – ' + hints.join(', ') : ''}`;
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Beregnungsprotokoll', n: db.prepare("SELECT COUNT(*) n FROM irr_log").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'anbindung', title: 'Anbindung der Bewässerung', text: 'Über Home Assistant oder direkt beim Hersteller der Steuerung.', page: 'beregnung', tab: ['beregnung', 'einstellungen'], card: ['Anbindung'] },
     { id: 'plaetze', title: 'Plätze und Zonen', text: 'Welche Ventile zu welchem Platz gehören und wie lange sie laufen – danach einen Platz testweise starten.', page: 'beregnung', tab: ['beregnung', 'plaetze'], card: ['Plätze & Zonen'], done: cfg().plaetze.length > 0 },

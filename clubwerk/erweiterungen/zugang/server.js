@@ -488,6 +488,8 @@ function activate(ctx) {
     return `${out.doors.length} Türen, ${out.profiles.length} Zeitprofile${out.blockDays.length ? `, ${out.blockDays.length} Sperrzeiträume` : ''}`;
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Türprotokoll', n: db.prepare("SELECT COUNT(*) n FROM zugang_log").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'anbindung', title: 'Anbindung der Türen', text: 'Welcher Hersteller die Schlösser steuert – Clubwerk schaltet sie über Home Assistant.', page: 'zugang-einstellungen', card: ['Anbindung'] },
     { id: 'tueren', title: 'Türen anlegen', text: 'Türen, Tore und Schlösser mit dem passenden Gerät aus Home Assistant – danach unter „Bedienen“ einmal testweise öffnen.', page: 'zugang-tueren', card: [], done: cfg().doors.length > 0 },

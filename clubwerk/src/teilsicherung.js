@@ -45,6 +45,11 @@ const ueberblick = d => Object.entries(d || {}).filter(([k, v]) => NAMEN[k] && A
 /* ======================= Lesekopie (Kindprozess mit der alten Datenbank) ======================= */
 function lesekopie({ plugins, db, vault, getSetting }) {
   process.once('message', async m => {
+    if (m && m.aufgabe === 'probe') {   // Probe-Wiederherstellung: Clubwerk ist mit der Sicherung gestartet – nur Anzahlen zurück, nie Inhalte
+      try { process.send({ ok: true, out: { zahlen: await zaehlen({ plugins, db }), module: plugins.list().filter(p => p.active).map(p => p.id) } }, () => process.exit(0)); }
+      catch (e) { process.send({ ok: false, error: String(e.message || e).slice(0, 300) }, () => process.exit(1)); }
+      return;
+    }
     const out = { module: [], konten: [], verein: {}, tresor: vault.on() ? 'zu' : 'aus' };
     try {
       const geheim = m && typeof m.tresor === 'string' ? m.tresor.slice(0, 300) : '';
@@ -66,6 +71,23 @@ function lesekopie({ plugins, db, vault, getSetting }) {
     } catch (e) { process.send({ ok: false, error: String(e.message || e).slice(0, 300) }, () => process.exit(1)); }
   });
   process.send({ bereit: true });
+}
+
+/* ======================= Zählerstände (Probe-Wiederherstellung) =======================
+   Kern zählt seine eigenen Tabellen, jedes eingeschaltete Modul liefert über den Hook
+   probeCounts = () => [{ label, n }] seine wichtigsten Anzahlen (nie Inhalte; je Modul höchstens 3 Sekunden). */
+const zahl = (db, sql) => { try { return db.prepare(sql).get().n; } catch (e) { return null; } };
+async function zaehlen({ plugins, db }) {
+  const out = [{ modul: 'kern', label: 'Benutzer der Verwaltung', n: zahl(db, 'SELECT COUNT(*) n FROM admin_users') }];
+  if (plugins.isActive('getraenke')) out.push({ modul: 'getraenke', label: 'Konten am Tablet', n: zahl(db, 'SELECT COUNT(*) n FROM members WHERE deleted = 0 AND pending = 0') },
+    { modul: 'getraenke', label: 'Verkäufe', n: zahl(db, 'SELECT COUNT(*) n FROM bookings') });
+  for (const p of plugins.withHook('probeCounts')) {
+    try {
+      const list = await Promise.race([Promise.resolve(p.hooks.probeCounts()), new Promise((_, rej) => setTimeout(() => rej(new Error('Zeitüberschreitung')), 3000))]);
+      for (const z of Array.isArray(list) ? list.slice(0, 10) : []) if (z && typeof z.label === 'string' && Number.isFinite(z.n)) out.push({ modul: p.meta.id, label: z.label.slice(0, 60), n: z.n });
+    } catch (e) { out.push({ modul: p.meta.id, label: p.meta.name, n: null, fehler: String(e.message || e).slice(0, 120) }); }
+  }
+  return out.filter(z => z.n !== null || z.fehler);
 }
 
 /* ======================= Hauptprozess ======================= */
@@ -118,7 +140,7 @@ function chownAll(p, uid, gid) {
   if (fs.lstatSync(p).isDirectory()) for (const n of fs.readdirSync(p)) chownAll(path.join(p, n), uid, gid);
 }
 /** Lesekopie starten, Ergebnis abholen, Ordner danach löschen */
-function lesen(dir, tresor) {
+function lesen(dir, tresor, aufgabe = '') {
   return new Promise((resolve, reject) => {
     const env = { PATH: process.env.PATH, TZ: process.env.TZ || '', NODE_ENV: process.env.NODE_ENV || 'production', LANG: process.env.LANG || '',
       DATA_DIR: dir, PORT: '0', HOST: '127.0.0.1', MEMBER_PORT: '0', BEREGNUNG_PORT: '0', EXT_DIR: path.join(dir, 'keine-erweiterungen'),
@@ -143,7 +165,7 @@ function lesen(dir, tresor) {
     };
     const t = setTimeout(() => ende(new Error('Das Lesen der Sicherung dauert zu lange – abgebrochen.')), LESEN_MS);
     proc.on('message', m => {
-      if (m && m.bereit) proc.send({ tresor: tresor || '' });
+      if (m && m.bereit) proc.send({ tresor: tresor || '', aufgabe });
       else if (m && m.ok) ende(null, m.out);
       else if (m) ende(new Error(m.error || 'Die Sicherung ließ sich nicht lesen.'));
     });
@@ -154,6 +176,7 @@ function lesen(dir, tresor) {
 
 /** Sicherung öffnen: entschlüsseln, prüfen, Lesekopie, aufräumen */
 async function oeffnen({ src, upload, password, key, tresor, user, appVersion, fullbackup, backup }) {
+  if (probeLaeuft) throw new Error('Gerade läuft die Probe-Wiederherstellung – bitte in ein paar Minuten noch einmal versuchen.');
   const head = fullbackup.readHeader(src).head;
   if (head.app && neuer(head.app, appVersion)) throw new Error(`Diese Sicherung stammt aus Clubwerk ${head.app} – hier läuft ${appVersion}. Bitte zuerst Clubwerk aktualisieren.`);
   const base = fs.mkdtempSync(path.join(os.tmpdir(), PREFIX));   // 0700, nie unter /data
@@ -170,6 +193,37 @@ async function oeffnen({ src, upload, password, key, tresor, user, appVersion, f
       quelle, upload, ...out };
     return cur;
   } finally { fs.rmSync(base, { recursive: true, force: true }); }
+}
+
+/* ---------- Probe-Wiederherstellung (wöchentlich, src/server.js probeBackup) ----------
+   laden(ziel) legt die verschlüsselte Sicherung in den Temp-Ordner (außerhalb von /data) – lokal kopiert oder vom Ziel geladen.
+   Dann wie beim Öffnen: entschlüsseln, Datenbank prüfen, Dateien gegen das Manifest zählen, Lesekopie starten (Migrationen, Module)
+   und nur die Zählerstände zurückholen. Nie gleichzeitig mit einer geöffneten Teil-Wiederherstellung. */
+let probeLaeuft = false;
+async function probe({ laden, key, fullbackup, backup }) {
+  if (cur && Date.now() - cur.at <= OFFEN_MS) throw new Error('Gerade ist eine Sicherung zur Teil-Wiederherstellung geöffnet – die Probe folgt beim nächsten Mal.');
+  if (probeLaeuft) throw new Error('Die Probe-Wiederherstellung läuft gerade schon.');
+  probeLaeuft = true;
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), PREFIX));   // 0700, nie unter /data
+  try {
+    fs.writeFileSync(path.join(base, 'clubwerk.pid'), String(process.pid));
+    const datei = path.join(base, 'sicherung' + fullbackup.EXT);
+    const info = (await laden(datei)) || {};
+    const size = fs.statSync(datei).size;
+    const frei = (st => st.bavail * st.bsize)(fs.statfsSync(base));
+    if (frei < size * 4 + 64 * 1024 * 1024) throw new Error(`Zu wenig freier Speicher für die Probe (${Math.round(frei / 1048576)} MB frei).`);
+    const dir = path.join(base, 'daten');
+    const man = await fullbackup.extract(datei, { key, outDir: dir });
+    fs.unlinkSync(datei);
+    const err = backup.validate(path.join(dir, fullbackup.DB_NAME));
+    if (err) throw new Error(err);
+    for (const [d, n] of Object.entries(man.dirs || {})) {
+      const have = fs.existsSync(path.join(dir, d)) ? fs.readdirSync(path.join(dir, d), { recursive: true, withFileTypes: true }).filter(e => e.isFile()).length : 0;
+      if (have !== n) throw new Error(`Ordner „${d}“: ${have} statt ${n} Dateien.`);
+    }
+    const out = await lesen(dir, '', 'probe');
+    return { ...info, size, created: man.created, dirs: man.dirs || {}, zahlen: out.zahlen || [], module: out.module || [] };
+  } finally { fs.rmSync(base, { recursive: true, force: true }); probeLaeuft = false; }
 }
 
 /* ---------- Inhaltsliste ---------- */
@@ -354,4 +408,4 @@ function routes(admin, d) {
   admin.post('/backups/teil/schliessen', need('einstellungen'), (req, res) => { if (offen(req.user.id)) schliessen(); res.json({ ok: true }); });
 }
 
-module.exports = { lesekopie, routes, cleanup, inhalt, auswahl, TEILE, PREFIX, aktiv: () => Boolean(cur) };
+module.exports = { lesekopie, routes, cleanup, inhalt, auswahl, probe, zaehlen, TEILE, PREFIX, aktiv: () => Boolean(cur) };

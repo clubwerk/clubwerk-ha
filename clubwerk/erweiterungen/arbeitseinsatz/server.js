@@ -681,6 +681,8 @@ function activate(ctx) {
     { id: 'termin', label: 'Erinnerung an einen Termin', desc: 'Neue Termine mit Bitte um Antwort, kurz vor Ablauf der Antwortfrist und am Vortag eines Termins, zu dem du zugesagt hast.', default: true },
   ];
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Dienste und Termine', n: db.prepare("SELECT COUNT(*) n FROM aw_event").get().n }, { label: 'Einträge', n: db.prepare("SELECT COUNT(*) n FROM aw_entry").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'regeln', title: 'Dienste & Termine: Soll und Abrechnung', text: 'Wie viele Stunden jedes Mitglied im Jahr leisten soll und was fehlende Stunden kosten. Vorschlagswerte sind eingestellt.', page: 'aw-einstellungen', card: ['Soll', 'Abrechnung'] },
   ];

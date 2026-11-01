@@ -1644,6 +1644,8 @@ function activate(ctx) {
 
   /* ---------- Übersicht, Funktionsdatei ---------- */
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Platzbuchungen', n: db.prepare("SELECT COUNT(*) n FROM bk_booking").get().n }, { label: 'Plätze und Geräte', n: db.prepare("SELECT COUNT(*) n FROM bk_resource").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'plaetze', title: 'Plätze anlegen', text: 'Welche Plätze und Geräte gebucht werden können, mit Namen, Bereich und Öffnungszeiten. Zwei Beispielplätze sind schon da.', page: 'bk-plaetze', card: [] },
     { id: 'regeln', title: 'Regeln fürs Buchen', text: 'Wie weit im Voraus, wie lange und wer buchen darf. Vorschlagswerte sind eingestellt.', page: 'bk-einstellungen', card: ['Buchen', 'Wer darf buchen'] },

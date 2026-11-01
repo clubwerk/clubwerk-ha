@@ -571,6 +571,8 @@ function activate(ctx) {
     if (Number.isInteger(data.keepMonths) && data.keepMonths >= 3 && data.keepMonths <= 60) ctx.setSetting2('keep_months', String(data.keepMonths));
     return `Lichtanlagen: ${n.neu} neu, ${n.upd} aktualisiert · Zeiten und Einstellungen übernommen`;
   };
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Flutlicht-Protokoll', n: db.prepare("SELECT COUNT(*) n FROM fl_log").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'lichtanlagen', title: 'Lichtanlagen anlegen', text: 'Je Platz der Schalter aus Home Assistant, der das Licht schaltet – danach unter „Bedienen“ einmal testen.', page: 'flutlicht-anlagen', card: [], done: cfg().lights.length > 0 },
     { id: 'zeiten', title: 'Dunkelheit und Nachtruhe', text: 'Standort für den Sonnenuntergang und die Uhrzeit, zu der spätestens alles aus ist.', page: 'flutlicht-zeiten', card: ['Dunkelheit', 'Nachtruhe'], done: cfg().sun.source === 'ha' || cfg().sun.lat !== null },

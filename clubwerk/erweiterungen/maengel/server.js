@@ -344,6 +344,8 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
       AND updated_at >= datetime('now','localtime','-14 days') AND (status != 'neu' OR answer IS NOT NULL) ORDER BY updated_at DESC LIMIT 3`).all(id, id)
     .map(r => ({ key: `${r.id}-${r.status}-${crypto.createHash('sha1').update(r.answer || '').digest('hex').slice(0, 10)}`, title: `Antwort auf deine Meldung: ${r.place}`, sub: r.answer ? `${STATUS[r.status]} · neue Antwort` : STATUS[r.status], tr: true })) });
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Mängelmeldungen', n: db.prepare("SELECT COUNT(*) n FROM mg_report").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'orte', title: 'Mängel: Orte und Meldungen', text: 'Wo Mängel auftreten können (Plätze, Clubhaus …) und wer neue Meldungen bekommt.', page: 'maengel', tab: ['maengel', 'einstellungen'], card: ['Orte', 'Benachrichtigungen'] },
   ];

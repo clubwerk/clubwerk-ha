@@ -1159,3 +1159,7 @@ Wie lange? Nur so lange wie nötig. Protokolle werden nach festen Fristen automa
 Deine Rechte: Auskunft (unter „Meine Daten“), Berichtigung, Löschung, Einschränkung, Widerspruch und Beschwerde bei der Datenschutz-Aufsichtsbehörde deines Bundeslandes.');
 INSERT INTO "settings"(key, value) VALUES('app_privacy_at','2026-10-21 14:55:38');
 COMMIT;
+INSERT INTO "settings"(key, value) VALUES('backup_probe_at','2026-10-18T02:12:00.000Z');
+INSERT INTO "settings"(key, value) VALUES('backup_probe_ok','1');
+INSERT INTO "settings"(key, value) VALUES('backup_probe_msg','NAS Vereinsheim: neueste Sicherung – Clubwerk startet mit der Sicherung (11 Module), Prüfsumme stimmt');
+INSERT INTO "settings"(key, value) VALUES('backup_probe_info','{"quelle":"NAS Vereinsheim","zahlen":[{"label":"Konten am Tablet","n":64},{"label":"Verkäufe","n":1873},{"label":"Mitglieder","n":58},{"label":"Offene Posten","n":12},{"label":"Platzbuchungen","n":214},{"label":"Belege","n":31}],"hinweis":""}');

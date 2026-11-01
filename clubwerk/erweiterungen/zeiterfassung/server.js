@@ -294,6 +294,8 @@ function activate(ctx) {
     return z.text('Empfänger des Monatsnachweises übernommen') + (notes.length ? ' – ' + notes.join(', ') : '');
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Zeiteinträge', n: db.prepare("SELECT COUNT(*) n FROM time_entries").get().n }, { label: 'Personal', n: db.prepare("SELECT COUNT(*) n FROM staff").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'personal', title: 'Personal', text: 'Wer seine Stunden am Tablet erfasst – mit PIN und Stundensatz.', page: 'zeit-personal', card: [], done: Boolean(ctx.db.prepare('SELECT 1 FROM staff').get()) },
     { id: 'nachweis', title: 'Monatsnachweis', text: 'An wen der Stundennachweis jeden Monat per E-Mail geht.', page: 'zeit-einstellungen', card: ['Monatsnachweis per E-Mail'] },

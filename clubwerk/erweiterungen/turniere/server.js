@@ -184,6 +184,8 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
   }
 
   /* ---------- Benachrichtigungen ---------- */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Turnierspiele', n: db.prepare("SELECT COUNT(*) n FROM tu_match").get().n }];
   ctx.hooks.pushEvents = () => [
     { id: 'ausgelost', label: 'Neues Spiel ausgelost', desc: 'Clubmeisterschaft: Du hast neue Gegner – nach der Auslosung, in der Endrunde und in der Relegation.', default: true },
     { id: 'frist', label: 'Frist in 7 Tagen', desc: 'Clubmeisterschaft: Ein Spiel von dir ist noch offen und die Frist endet in einer Woche.', default: true },

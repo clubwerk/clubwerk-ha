@@ -3188,22 +3188,30 @@
       ${st.warn ? `<div class="banner ${st.warnLevel || 'a'}">${esc(st.warn)}</div>` : ''}
       <div class="kpis">
         <div class="kpi ${st.last_error && !st.last_ok ? 'warn' : ''}"><div class="l">Letzte Sicherung</div><div class="v">${st.last_ok ? when(st.last_ok) : 'noch keine'}</div><div class="muted s">${esc(st.last_msg ? st.last_msg.replace(/^\d{4}-\d{2}-\d{2}: /, '') : (st.hasKey ? 'täglich ab ' + st.hour + ' Uhr' : 'Sicherungspasswort fehlt'))}</div></div>
-        <div class="kpi ${st.probe_at && !st.probe_ok ? 'warn' : ''}"><div class="l">Probe-Wiederherstellung</div><div class="v">${st.probe_at ? (st.probe_ok ? 'in Ordnung' : 'Fehler') : 'noch keine'}</div><div class="muted s">${st.probe_at ? 'am ' + when(st.probe_at) : 'einmal im Monat automatisch'}</div></div>
+        <div class="kpi ${st.probe_at && !st.probe_ok ? 'warn' : ''}"><div class="l">Probe-Wiederherstellung</div><div class="v">${st.probe_at ? (st.probe_ok ? 'in Ordnung' : 'Fehler') : 'noch keine'}</div><div class="muted s">${st.probe_at ? 'am ' + when(st.probe_at) : 'jeden Sonntag automatisch'}</div></div>
         <div class="kpi ${st.targetsOn && st.targetsOk < st.targetsOn ? 'warn' : ''}"><div class="l">Sicherungsziele</div><div class="v">${st.targetsOn ? `${st.targetsOk} von ${st.targetsOn} in Ordnung` : 'keins'}</div><div class="muted s">${st.targetsOn ? esc(st.targets.filter(t => t.enabled).map(t => t.name).join(' · ')) : 'Sicherung bleibt nur hier auf dem Gerät'}</div></div>
       </div>
       ${st.last_error && !st.targets.some(t => t.last_error && st.last_error.includes(t.name + ':')) ? `<div class="banner r">Letzter Fehler: ${esc(st.last_error.slice(25))}</div>` : ''}
  <div id="vaultCard"></div>
       <div class="card"><h3>Jetzt</h3><div class="row">
         <button class="btn ${st.hasKey ? 'primary' : ''}" id="bkRun" ${st.hasKey ? '' : 'disabled'}>Jetzt sichern</button>
-        <button class="btn" id="bkProbe" ${st.local.length ? '' : 'disabled'}>Letzte Sicherung prüfen</button>
         ${st.local[0] ? `<a class="btn" href="api/admin/backups/komplett/file/${encodeURIComponent(st.local[0].file)}">Letzte Komplettsicherung herunterladen (${size(st.local[0].size)})</a>` : ''}</div>
         <p class="muted s">Die heruntergeladene Datei (<code>.cwbackup</code>) eignet sich als zweites Exemplar außer Haus, z. B. auf einem USB-Stick. Sie ist verschlüsselt.</p>
-        ${st.probe_msg ? `<p class="muted s">Letzte Prüfung: ${esc(st.probe_msg)}</p>` : ''}</div>
+</div>
+
+      <div class="card" id="bkProbeCard"><h3>Probe-Wiederherstellung ${st.probe_at ? okPill(st.probe_ok && !(st.probe || {}).hinweis, st.probe_ok ? ((st.probe || {}).hinweis ? 'Hinweis' : 'in Ordnung') : 'Fehler') : ''}</h3>
+        <p class="muted s" style="margin-top:0">Jeden Sonntag nach der Sicherung lädt Clubwerk die neueste Sicherung zurück – reihum von einem Sicherungsziel, ohne Ziel die Datei hier –, startet sich damit abgeschottet zur Probe und zählt die wichtigsten Daten. Hier wird dabei nichts verändert.</p>
+        ${st.probe_at ? `<p style="margin:0 0 6px">${st.probe_ok ? '✓' : '✗'} ${esc(when(st.probe_at))} · ${esc(st.probe_msg)}</p>
+          ${(st.probe || {}).zahlen && st.probe.zahlen.length ? `<p class="muted s" style="margin:0 0 6px">${st.probe.zahlen.map(z => `${z.n.toLocaleString('de-DE')} ${esc(z.label)}`).join(' · ')}</p>` : ''}
+          ${(st.probe || {}).hinweis ? `<div class="banner a">Sicherung wirkt unvollständig oder veraltet: ${esc(st.probe.hinweis)}</div>` : ''}
+          ${(st.probe || {}).prev && st.probe.prev.at ? `<p class="muted s" style="margin:0 0 6px">Vorherige Probe: ${esc(when(st.probe.prev.at))}${st.probe.prev.quelle ? ' · ' + esc(st.probe.prev.quelle) : ''} · ${st.probe.prev.ok ? '✓' : '✗'}</p>` : ''}` : '<p class="muted s" style="margin:0 0 6px">Noch keine Probe gelaufen.</p>'}
+        <div class="row"><button class="btn" id="bkProbe" ${st.hasKey && (st.local.length || st.targetsOn) ? '' : 'disabled'}>Jetzt prüfen</button></div></div>
 
       <div class="card"><h3>Sicherungspasswort ${okPill(st.hasKey, st.hasKey ? 'festgelegt' : 'fehlt')}</h3>
         ${st.hasKey ? `<p class="muted s" style="margin-top:0">Festgelegt am ${esc(deTime(st.pwAt))} Uhr. Wird es geändert, lassen sich ältere Sicherungen weiter mit dem damaligen Passwort öffnen.</p>`
           : '<p class="muted s" style="margin-top:0">Mit diesem Passwort werden alle Sicherungen verschlüsselt. <b>Ohne das Passwort ist eine Sicherung wertlos</b> – deshalb danach unbedingt das Notfallblatt ausdrucken und sicher verwahren (z. B. beim Kassenwart oder im Tresor).</p>'}
-        ${owner ? (st.hasKey ? '<div class="row"><button class="btn" id="bkPwChange">Passwort ändern …</button><button class="btn" id="bkSheet">Notfallblatt drucken …</button></div>' : `<div class="row">
+        ${st.pwCheckDue && owner ? '<div class="banner a" id="bkPwDue">Seit über einem halben Jahr nicht mehr geprüft: Passt das notierte Sicherungspasswort noch? Ohne das richtige Passwort sind alle Sicherungen wertlos.</div>' : ''}
+        ${owner ? (st.hasKey ? `<div class="row">${st.pwCheckDue ? '<button class="btn primary" id="bkPwTest">Passwort prüfen …</button>' : ''}<button class="btn" id="bkPwChange">Passwort ändern …</button><button class="btn" id="bkSheet">Notfallblatt drucken …</button></div>` : `<div class="row">
           <label class="f" style="flex:1;min-width:180px">Sicherungspasswort (mind. 10 Zeichen)<input type="password" id="bkPw1" autocomplete="new-password"></label>
           <label class="f" style="flex:1;min-width:180px">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
           <label class="f" style="flex:1;min-width:180px">Dein Passwort zur Bestätigung<input type="password" id="bkMy" autocomplete="current-password"></label>
@@ -3294,6 +3302,16 @@
       sheetAsk(); $('c').onclick = closeDialog;
       $('ok').onclick = () => busy($('ok'), async () => { try { await api('backups/password/check', 'POST', { password: $('nfPw').value }); const pw = $('nfPw').value; closeDialog(); notfallblatt(pw); } catch (e) { fail(e); } });
     };
+    if ($('bkPwTest')) $('bkPwTest').onclick = () => {
+      dialog(`<h2>Sicherungspasswort prüfen</h2><p class="muted">Bitte das notierte Sicherungspasswort eingeben (z. B. vom Notfallblatt). Es wird nur verglichen, nicht gespeichert.</p>
+        <label class="f">Sicherungspasswort<input type="password" id="ptPw" autocomplete="off"></label><div id="ptMsg"></div>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Prüfen</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = () => busy($('ok'), async () => {
+        try { await api('backups/password/check', 'POST', { password: $('ptPw').value }); closeDialog(); toast('Das Passwort stimmt.'); RENDER.sicherung(); }
+        catch (e) { $('ptMsg').innerHTML = `<div class="banner r">${esc(e.message)} Das notierte Passwort passt nicht – bitte ein neues festlegen („Passwort ändern …“) und das Notfallblatt neu drucken.</div>`; }
+      });
+    };
     const afterSet = pw => {
       dialog(`<h2>Sicherungspasswort festgelegt</h2><div class="banner a" style="display:block">Jetzt bitte das Notfallblatt ausdrucken und sicher verwahren. Ohne das Passwort lässt sich keine Sicherung wiederherstellen.</div>
         <div class="btns"><button class="btn ghost" id="c">Später</button><button class="btn primary" id="ok">Notfallblatt drucken</button></div>`);
@@ -3325,7 +3343,7 @@
     };
     $('bkProbe').onclick = async () => {
       $('bkProbe').disabled = true; $('bkProbe').textContent = 'Prüft …';
-      try { const r = await api('backups/probe', 'POST', {}); toast('In Ordnung: ' + r.msg); } catch (e) { fail(e); }
+      try { await api('backups/probe', 'POST', {}); toast('Probe-Wiederherstellung fertig.'); } catch (e) { fail(e); }
       RENDER.sicherung();
     };
     $('bkSave').onclick = async () => {

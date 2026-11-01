@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2026.11.10
+
+**Datensicherung: wöchentliche Probe-Wiederherstellung vom Ziel außer Haus**
+- Jeden Sonntag nach der Sicherung (statt einmal im Monat) holt Clubwerk die neueste Sicherung reihum von einem Sicherungsziel zurück – ohne Ziel nimmt es die Datei hier – und vergleicht sie mit der Datei hier (Prüfsumme).
+- Die Probe startet Clubwerk abgeschottet mit dieser Sicherung (wie nach einem Totalausfall, mit allen Modulen) und zählt die wichtigsten Daten: Konten, Mitglieder, offene Posten, Verkäufe, Platzbuchungen, Belege und mehr. Hier wird dabei nichts verändert.
+- Ist eine Zahl in der Sicherung weniger als halb so groß wie jetzt, erscheint ein gelber Hinweis „Sicherung wirkt unvollständig“. Beschädigte oder unlesbare Sicherungen geben eine rote Warnung, auch in der Übersicht, und eine E-Mail an die Sicherheits-Adresse.
+- Neue Karte „Probe-Wiederherstellung“ auf der Seite Datensicherung mit Ergebnis, Quelle, Zählerständen, vorheriger Probe und „Jetzt prüfen“.
+- Nach jedem Hochladen prüft Clubwerk, ob die Datei vollständig am Ziel liegt. Ein voller Speicher oder ein abgebrochener Upload fällt so sofort auf.
+- **Passwort-Probe:** Ein halbes Jahr nach dem Festlegen fragt die Seite, ob das notierte Sicherungspasswort noch passt.
+- Für Entwickler: neuer Hook `probeCounts` (Zählerstände je Modul); alle Module liefern ihre wichtigsten Anzahlen. Neue Testreihe `probe`, Reihe `targets` erweitert.
+
 ## 2026.11.9
 
 **Neu: Einstellungen › Datenqualität**

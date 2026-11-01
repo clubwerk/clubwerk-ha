@@ -1097,6 +1097,8 @@ function activate(ctx) {
 
   /* Kennzahlen & Warnungen für die Übersicht */
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Mitglieder', n: ctx.db.prepare("SELECT COUNT(*) n FROM mv_person").get().n }, { label: 'Offene Posten', n: ctx.db.prepare("SELECT COUNT(*) n FROM mv_charge WHERE status = 'offen'").get().n }, { label: 'Lastschriftläufe', n: ctx.db.prepare("SELECT COUNT(*) n FROM mv_collection").get().n }];
   /* Datenqualität (Einstellungen › Datenqualität, src/datenqualitaet.js): nur Anzahlen und höchstens 5 Namen, keine Tresor-Inhalte */
   ctx.hooks.healthChecks = () => {
     const out = [], names = ids => ids.slice(0, 5).map(id => (ctx.db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name).filter(Boolean);

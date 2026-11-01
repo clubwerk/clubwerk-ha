@@ -510,6 +510,8 @@ function activate(ctx) {
     return true;
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Belege', n: db.prepare("SELECT COUNT(*) n FROM bh_invoice").get().n }, { label: 'Firmen und Personen', n: db.prepare("SELECT COUNT(*) n FROM bh_partner").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'rechnungen', title: 'Rechnungen und Steuer', text: 'Nummernkreis, Zahlungsziel und Angaben zum Finanzamt für Rechnungen und Spendenquittungen.', page: 'bh-einstellungen', card: ['Rechnungen', 'Steuer & Finanzamt'] },
   ];

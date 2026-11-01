@@ -3068,6 +3068,10 @@ async function runBackup(by = 'automatisch') {
       const a = tg.adapter();
       try {
         await a.put('Komplett', `${day}_Clubwerk${fullbackup.EXT}`, { path: r.path });
+        // nachprüfen: liegt die Datei vollständig am Ziel? (ein voller Speicher oder ein abgebrochener Upload fiele sonst erst beim Zurückspielen auf)
+        const da = (await a.list('Komplett')).find(e => String(e.name).toLowerCase() === `${day}_Clubwerk${fullbackup.EXT}`.toLowerCase());   // Dropbox unterscheidet keine Groß-/Kleinschreibung
+        if (!da) throw new Error('Die Datei ist nach dem Hochladen am Ziel nicht zu finden.');
+        if (da.size != null && da.size !== r.size) throw new Error(`Die Datei kam am Ziel unvollständig an (${da.size} statt ${r.size} Bytes).`);
         let lesbar = 0;
         if (g.readable) { if (!lesbarFiles) lesbarFiles = await readableExports(); for (const f of lesbarFiles) { await a.put('Lesbar', `${day}_${f.name}`, { buffer: f.buffer }); lesbar++; } }
         let removed = 0;
@@ -3098,29 +3102,71 @@ async function runBackup(by = 'automatisch') {
   } finally { bkRunning = false; }
 }
 
-/** Probe-Wiederherstellung: letzte lokale Sicherung vollständig entschlüsseln, entpacken und prüfen – ohne etwas zu überschreiben */
-async function probeBackup() {
-  const last = fullbackup.list(KOMPLETT_DIR)[0];
-  if (!last) throw new Error('Noch keine Komplettsicherung vorhanden.');
-  const tmp = fs.mkdtempSync(path.join(DATA_DIR, '.probe-'));
-  try {
-    const man = await fullbackup.extract(path.join(KOMPLETT_DIR, last.file), { key: bkKey().key, outDir: tmp });
-    const err = backup.validate(path.join(tmp, fullbackup.DB_NAME));
-    if (err) throw new Error(err);
-    for (const [d, n] of Object.entries(man.dirs || {})) {
-      const have = fs.existsSync(path.join(tmp, d)) ? fs.readdirSync(path.join(tmp, d), { recursive: true, withFileTypes: true }).filter(e => e.isFile()).length : 0;
-      if (have !== n) throw new Error(`Ordner „${d}“: ${have} statt ${n} Dateien.`);
+/** Probe-Wiederherstellung (wöchentlich, sonntags nach der Sicherung; „Jetzt prüfen“): die neueste Sicherung reihum von einem Ziel
+ *  außer Haus zurückladen (ohne Ziel: die lokale Datei), in der abgeschotteten Lesekopie mit Clubwerk starten (src/teilsicherung.js)
+ *  und die Zählerstände mit dieser Installation vergleichen. Nichts wird überschrieben. */
+async function probeBackup(by = 'automatisch') {
+  if (!bkHasKey()) throw new Error('Noch kein Sicherungspasswort festgelegt.');
+  const tsich = require('./teilsicherung');
+  const list = activeTargets();
+  let tg = null;
+  if (list.length) { const i = (parseInt(getSetting('backup_probe_idx', '0'), 10) || 0) % list.length; tg = list[i]; setSetting('backup_probe_idx', String(i + 1)); }
+  const quelleName = tg ? tg.name : 'hier auf dem Gerät';
+  const prev = { at: getSetting('backup_probe_at', ''), ok: getSetting('backup_probe_ok', '') === '1', quelle: (() => { try { return JSON.parse(getSetting('backup_probe_info', '{}')).quelle || ''; } catch (e) { return ''; } })() };
+  const laden = async ziel => {
+    if (!tg) {
+      const last = fullbackup.list(KOMPLETT_DIR)[0];
+      if (!last) throw new Error('Noch keine Komplettsicherung vorhanden.');
+      fs.copyFileSync(path.join(KOMPLETT_DIR, last.file), ziel);
+      return { datei: last.file };
     }
-    const msg = `${last.file}: lesbar und vollständig (${Object.entries(man.dirs || {}).map(([d, n]) => `${n} ${d}`).join(', ') || 'nur Datenbank'})`;
-    setSetting('backup_probe_at', new Date().toISOString()); setSetting('backup_probe_ok', '1'); setSetting('backup_probe_msg', msg);
-    return msg;
+    const a = tg.adapter();
+    try {
+      const files = (await a.list('Komplett')).filter(e => fullbackup.validName(String(e.name).replace(/_clubwerk\./i, '_Clubwerk.'))).sort((x, y) => (x.name < y.name ? 1 : -1));
+      if (!files.length) throw new Error(`Am Ziel „${tg.name}“ liegt keine Komplettsicherung.`);
+      await a.get('Komplett', files[0].name, ziel);
+      const size = fs.statSync(ziel).size;
+      if (files[0].size != null && files[0].size !== size) throw new Error(`Die Sicherung vom Ziel „${tg.name}“ kam unvollständig an (${size} statt ${files[0].size} Bytes).`);
+      // dieselbe Datei liegt meist noch hier: Prüfsumme vergleichen (die Uploads heißen <Tag>_Clubwerk, lokal mit Uhrzeit)
+      const day = files[0].name.slice(0, 10);
+      const lokal = fullbackup.list(KOMPLETT_DIR).filter(l => l.file.startsWith(day + '_') && l.size === size);
+      let pruefsumme = false;
+      if (lokal.length) {
+        const h = await fullbackup.sha256File(ziel);
+        for (const l of lokal) if (await fullbackup.sha256File(path.join(KOMPLETT_DIR, l.file)) === h) pruefsumme = true;
+        if (!pruefsumme) throw new Error(`Die Sicherung am Ziel „${tg.name}“ weicht von der Datei hier ab (Prüfsumme).`);
+      }
+      return { datei: files[0].name, alt: Math.floor((Date.now() - Date.parse(day + 'T12:00:00')) / 86400000), pruefsumme };
+    } finally { await a.close(); }
+  };
+  const at = new Date().toISOString();
+  try {
+    const r = await tsich.probe({ laden, key: bkKey().key, fullbackup, backup });
+    // Ergebnis der Lesekopie nicht blind übernehmen: nur Zahlen und kurze Texte
+    r.zahlen = (Array.isArray(r.zahlen) ? r.zahlen : []).slice(0, 200).map(z => ({ modul: String(z.modul || '').slice(0, 40), label: String(z.label || '').slice(0, 60), n: Number.isFinite(Number(z.n)) ? Number(z.n) : 0, fehler: z.fehler ? String(z.fehler).slice(0, 120) : '' }));
+    r.module = (Array.isArray(r.module) ? r.module : []).slice(0, 100);
+    // Plausibilität: fällt eine Zahl auf weniger als die Hälfte, wirkt die Sicherung unvollständig (Hinweis, kein Fehler – Löschen ist erlaubt)
+    const jetzt = new Map((await tsich.zaehlen({ plugins, db })).map(z => [z.modul + '|' + z.label, z.n]));
+    const hinweise = [];
+    for (const z of r.zahlen) { const n = jetzt.get(z.modul + '|' + z.label); z.jetzt = n; if (n >= 10 && z.n < n / 2) hinweise.push(`${z.label}: ${z.n} statt ${n}`); }
+    if (r.zahlen.some(z => z.fehler)) hinweise.push(...r.zahlen.filter(z => z.fehler).map(z => `${z.label}: Zählen fehlgeschlagen`));
+    if (r.alt > 3) hinweise.push(`Die neueste Sicherung am Ziel ist ${r.alt} Tage alt`);
+    const msg = `${quelleName}: ${r.datei} – Clubwerk startet mit der Sicherung (${r.module.length} Module)${r.pruefsumme ? ', Prüfsumme stimmt' : ''}`;
+    setSetting('backup_probe_at', at); setSetting('backup_probe_ok', '1'); setSetting('backup_probe_msg', msg);
+    setSetting('backup_probe_info', JSON.stringify({ quelle: quelleName, datei: r.datei, zahlen: r.zahlen.filter(z => !z.fehler).map(({ label, n, jetzt: j }) => ({ label, n, jetzt: j })), hinweis: hinweise.join(' · '), prev }));
+    audit(by, 'Probe-Wiederherstellung', msg + (hinweise.length ? ` – Hinweis: ${hinweise.join(' · ')}` : ''));
+    if (hinweise.length) securityAlert(`Die Probe-Wiederherstellung hat etwas gefunden (${quelleName}): ${hinweise.join(' · ')}. Bitte unter Datensicherung ansehen.`, 'backup-probe-hint');
+    return msg + (hinweise.length ? ` – Hinweis: ${hinweise.join(' · ')}` : '');
   } catch (e) {
-    setSetting('backup_probe_at', new Date().toISOString()); setSetting('backup_probe_ok', '0'); setSetting('backup_probe_msg', e.message);
-    securityAlert(`Die Probe-Wiederherstellung der Datensicherung ist fehlgeschlagen: ${e.message}`, 'backup-probe');
+    setSetting('backup_probe_at', at); setSetting('backup_probe_ok', '0'); setSetting('backup_probe_msg', `${quelleName}: ${e.message}`);
+    setSetting('backup_probe_info', JSON.stringify({ quelle: quelleName, zahlen: [], hinweis: '', prev }));
+    audit(by, 'Probe-Wiederherstellung fehlgeschlagen', `${quelleName}: ${e.message}`);
+    securityAlert(`Die Probe-Wiederherstellung der Datensicherung ist fehlgeschlagen (${quelleName}): ${e.message}`, 'backup-probe');
     throw e;
-  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
+  }
 }
 
+const probeInfo = () => { try { const o = JSON.parse(getSetting('backup_probe_info', '{}')); return o && typeof o === 'object' ? o : {}; } catch (e) { return {}; } };
 /** Zustand für Übersicht und Seite „Datensicherung“ */
 function backupStatus() {
   const lastOk = getSetting('backup_last_ok', '');
@@ -3133,11 +3179,13 @@ function backupStatus() {
     : age > 48 ? (lastOk ? 'Seit mehr als zwei Tagen keine erfolgreiche Sicherung.' : 'Noch keine Komplettsicherung erstellt.')
     : broken.length ? `Sicherungsziel ${broken.map(t => `„${t.name}“`).join(', ')} ${broken.length > 1 ? 'sind' : 'ist'} nicht erreichbar – die Sicherung kommt dort nicht an.`
     : getSetting('backup_probe_ok', '') === '0' ? 'Die letzte Probe-Wiederherstellung ist fehlgeschlagen.'
+    : probeInfo().hinweis ? `Die letzte Probe-Wiederherstellung hat etwas gefunden: ${probeInfo().hinweis}.`
     : !on.length ? 'Kein Sicherungsziel eingerichtet – die Sicherung liegt nur hier auf dem Gerät. Bitte Dropbox, ein NAS oder eine Cloud als Ziel einrichten.' : '';
   return { hasKey: bkHasKey(), pwAt: getSetting('backup_pw_at', ''), ...bkCfg(), dropbox: on.some(t => t.id === 'dropbox'),
     targets: tv, targetsOk: on.length - broken.length, targetsOn: on.length,
     last_ok: lastOk, last_msg: getSetting('backup_last_msg', ''), last_error: getSetting('backup_last_error', ''),
-    probe_at: getSetting('backup_probe_at', ''), probe_ok: getSetting('backup_probe_ok', '') === '1', probe_msg: getSetting('backup_probe_msg', ''),
+    probe_at: getSetting('backup_probe_at', ''), probe_ok: getSetting('backup_probe_ok', '') === '1', probe_msg: getSetting('backup_probe_msg', ''), probe: probeInfo(),
+    pwCheckDue: bkHasKey() && Date.now() - Math.max(Date.parse(getSetting('backup_pw_at', '')) || 0, Date.parse(getSetting('backup_pw_checked_at', '')) || 0) > 182 * 86400000,
     local: fullbackup.list(KOMPLETT_DIR), warn, warnLevel: !warn ? '' : (!bkHasKey() || (age <= 48 && !broken.length && getSetting('backup_probe_ok', '') !== '0')) ? 'a' : 'r' };
 }
 
@@ -3182,13 +3230,14 @@ admin.post('/backups/password/check', need('einstellungen'), owner, rateLimit('b
   const k = bkKey(); if (!k.key || !k.kdf) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
   let ok = false; try { ok = fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf)) === fullbackup.keyId(Buffer.from(k.key, 'hex')); } catch (e) { ok = false; }
   if (!ok) return pwBad(res, 'Das Sicherungspasswort stimmt nicht.');
+  setSetting('backup_pw_checked_at', nowTs());   // Passwort-Probe (alle 6 Monate) erledigt
   res.json({ ok: true });
 });
 admin.post('/backups/run', need('einstellungen'), asyncRoute(async (req, res) => {
   try { res.json({ ok: true, msg: await runBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
 }));
-admin.post('/backups/probe', need('einstellungen'), asyncRoute(async (req, res) => {
-  try { res.json({ ok: true, msg: await probeBackup() }); } catch (e) { bad(res, e.message); }
+admin.post('/backups/probe', need('einstellungen'), rateLimit('bkprobe', 12, 10 * 60000), asyncRoute(async (req, res) => {
+  try { res.json({ ok: true, msg: await probeBackup(req.user.username) }); } catch (e) { bad(res, e.message); }
 }));
 admin.get('/backups/komplett/file/:file', need('einstellungen'), (req, res) => {
   if (!fullbackup.validName(req.params.file) || !fs.existsSync(path.join(KOMPLETT_DIR, req.params.file))) return bad(res, 'Sicherung nicht gefunden.', 404);
@@ -3899,8 +3948,9 @@ async function nightly() {
       if (bkHasKey() && now.getHours() >= bkCfg().hour && getSetting('backup_last_day', '') !== day && Date.now() - dbxLastTry > 55 * 60 * 1000) {
         dbxLastTry = Date.now();
         console.log('Datensicherung:', await runBackup());
+        // Probe-Wiederherstellung sonntags (bzw. nachgeholt, wenn die letzte über eine Woche her ist)
         const pAt = getSetting('backup_probe_at', '');
-        if (!pAt || Date.now() - Date.parse(pAt) > 30 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
+        if (now.getDay() === 0 || !pAt || Date.now() - Date.parse(pAt) > 7.5 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
       }
     } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
     // Datenqualität: einmal am Tag ab der Uhrzeit der Sicherung (Ergebnis unter Einstellungen › Datenqualität und in der Übersicht)

@@ -1149,6 +1149,8 @@ function activate(ctx) {
 
   /* ----- Übersicht der Verwaltung ----- */
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
+  /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
+  ctx.hooks.probeCounts = () => [{ label: 'Mannschaften', n: db.prepare("SELECT COUNT(*) n FROM sp_team").get().n }, { label: 'Spiele', n: db.prepare("SELECT COUNT(*) n FROM sp_game").get().n }];
   ctx.hooks.setupSteps = () => [
     { id: 'mannschaften', title: 'Mannschaften', text: 'Eure Mannschaften mit Mannschaftsführung – die Spieltage kommen später aus dem Spielplan des Verbands.', page: 'spielbetrieb', tab: ['spielbetrieb', 'mannschaften'], card: [],
       done: Boolean(ctx.db.prepare('SELECT 1 FROM sp_team').get()) },

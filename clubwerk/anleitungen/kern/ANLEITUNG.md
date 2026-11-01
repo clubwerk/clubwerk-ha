@@ -283,7 +283,7 @@ Eine Rolle hat einen Namen, eine Beschreibung und Rechte. Die Liste zeigt, wie v
 
 ![Die Datensicherung: Kennzahlen und Karten.](bild: seite=sicherung; ziel=.kpis)
 
-Jede Nacht entsteht eine **verschlüsselte Komplettsicherung** mit allem, was Clubwerk enthält (Datenbank, Belege, Bilder, Module). Öffnen lässt sie sich nur mit dem **Sicherungspasswort**. Oben zeigen drei Kacheln die letzte Sicherung, die **Probe-Wiederherstellung** (einmal im Monat automatisch) und die **Sicherungsziele**. Gelbe oder rote Hinweise darüber melden Probleme.
+Jede Nacht entsteht eine **verschlüsselte Komplettsicherung** mit allem, was Clubwerk enthält (Datenbank, Belege, Bilder, Module). Öffnen lässt sie sich nur mit dem **Sicherungspasswort**. Oben zeigen drei Kacheln die letzte Sicherung, die **Probe-Wiederherstellung** (jeden Sonntag automatisch) und die **Sicherungsziele**. Gelbe oder rote Hinweise darüber melden Probleme.
 
 #### Verschlüsselung der persönlichen Daten
 
@@ -296,15 +296,30 @@ Der **Tresor** speichert Adressen, Bankdaten, Geburtsdaten, Dokumente, Fotos und
 
 #### Jetzt
 
-![Karte „Jetzt“: sofort sichern, prüfen, herunterladen.](bild: seite=sicherung; ziel=.card:has(#bkRun))
+![Karte „Jetzt“: sofort sichern, herunterladen.](bild: seite=sicherung; ziel=.card:has(#bkRun))
 
-**Jetzt sichern**, **Letzte Sicherung prüfen** und **Letzte Komplettsicherung herunterladen**. Die Datei (`.cwbackup`) ist verschlüsselt und eignet sich als zweites Exemplar außer Haus, zum Beispiel auf einem USB-Stick.
+**Jetzt sichern** und **Letzte Komplettsicherung herunterladen**. Die Datei (`.cwbackup`) ist verschlüsselt und eignet sich als zweites Exemplar außer Haus, zum Beispiel auf einem USB-Stick.
+
+#### Probe-Wiederherstellung
+
+![Karte „Probe-Wiederherstellung“: Ergebnis und Zählerstände.](bild: seite=sicherung; ziel=#bkProbeCard)
+
+Eine Sicherung ist nur so gut wie ihre Wiederherstellung. Deshalb macht Clubwerk **jeden Sonntag** nach der Sicherung eine Probe:
+- Es lädt die neueste Sicherung **reihum von einem Sicherungsziel** zurück (ohne Ziel nimmt es die Datei hier) und vergleicht sie mit der Datei hier (Prüfsumme).
+- Es **startet sich abgeschottet mit dieser Sicherung**, so wie nach einem Totalausfall, und zählt die wichtigsten Daten: Konten, Mitglieder, offene Posten, Verkäufe, Platzbuchungen, Belege und mehr. Dabei wird hier nichts verändert.
+- Ist eine Zahl in der Sicherung **weniger als halb so groß** wie jetzt (zum Beispiel 3 statt 412 Mitglieder), erscheint ein gelber Hinweis „Sicherung wirkt unvollständig“. Ist die Sicherung beschädigt oder nicht lesbar, gibt es eine rote Warnung, auch in der Übersicht, und eine E-Mail an die Sicherheits-Adresse.
+
+**Jetzt prüfen** startet die Probe sofort (dauert je nach Größe ein bis drei Minuten). Zusätzlich prüft Clubwerk nach **jedem** Hochladen, ob die Datei vollständig am Ziel liegt.
+
+Gut zu wissen: Fällt das ganze Gerät aus, kann Clubwerk selbst nicht mehr warnen. Schaut deshalb ab und zu in die Verwaltung. Steht dort „Seit mehr als zwei Tagen keine erfolgreiche Sicherung“, sofort nachsehen.
 
 #### Sicherungspasswort
 
 ![Karte „Sicherungspasswort“.](bild: seite=sicherung; ziel=.card:has(#bkPwSet))
 
 Das Passwort verschlüsselt alle Sicherungen, mindestens 10 Zeichen. **Ohne das Passwort ist eine Sicherung wertlos.** Nach dem Festlegen druckt ihr das **Notfallblatt**: Passwort, Orte der Sicherungen und die Schritte zur Wiederherstellung nach einem Totalausfall. Beim **Ändern** bleiben ältere Sicherungen mit dem alten Passwort lesbar, hebt also das alte Blatt auf. Festlegen und ändern darf nur ein Benutzer mit allen Rechten.
+
+**Passwort-Probe:** Ein halbes Jahr nach dem Festlegen (bzw. nach der letzten Probe) fragt die Karte: „Passt das notierte Sicherungspasswort noch?“ Tippt **Passwort prüfen …** und gebt das Passwort vom Notfallblatt ein. Stimmt es nicht, legt ein neues fest und druckt das Notfallblatt neu.
 
 #### Zeitplan & Aufbewahrung
 
