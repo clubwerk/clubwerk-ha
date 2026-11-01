@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2026.11.5
+
+**Mitglieder-App: Beschriftungen der unteren Leiste brechen nie mehr mitten im Wort um**
+- Am iPhone stand in der unteren Leiste „Nachrichte“ und darunter „n“. Der Grund: Safari setzt Schrift etwas breiter als andere Browser, und die Leiste teilte dann das Wort. Jetzt wird die Schrift der ganzen Leiste in kleinen Schritten kleiner, bis jede Beschriftung ganz auf einer Zeile steht – bei jeder Breite von 320 bis 430 px, mit den längsten Namen („Nachrichten“, „Meine Daten“, „Beregnung“, „Spieltage“) und auch dann, wenn Safari 9 % breiter schreibt.
+- **Seitentitel der App** („Dienste & Termine“) und Vereinsname oben enden nicht mehr mit „…“, sondern brechen an Leerzeichen um.
+- **Verwaltung am Handy:** Der Vereinsname im Kopf brach bei langem Seitennamen mitten im Wort („Musterstad / t“). Knöpfe in Handy-Listen (z. B. „Herunterladen … / Wiederherstellen …“ bei den Schnappschüssen) rutschen in die nächste Zeile, statt aus der Karte zu ragen. Lange Schilder („gehört nicht zu Clubwerk“) und der Postentext in Offene Posten brechen um statt abgeschnitten zu werden.
+- **Design-Prüfstand geschärft:** neue Regel „Wort getrennt“ (kein Wort steht über zwei Zeilen, auf allen Oberflächen; Trennung mit sichtbarem Bindestrich bleibt erlaubt), ein **Safari-Puffer** (Handy-Ansichten von Tablet, Verwaltung und App zusätzlich mit rund 9 % breiterem Text, weil WebKit in der Cloud fehlt) und die Leiste der App wird bei 320, 360, 375, 390 und 430 px mit den längsten Beschriftungen aller Module geprüft. Die Bilder der Befunde zeigen jetzt die markierte Stelle.
+
+
 ## 2026.11.4
 
 **Zugang und Beregnung: Geräte nur noch mit Passwort zuordnen**

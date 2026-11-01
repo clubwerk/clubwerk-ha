@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.4';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.5';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -295,10 +295,12 @@
     tabs.querySelectorAll('button').forEach(b => b.onclick = () => { if (b.dataset.t === 'mehr') { moreSheet(); return; } wlanTries = 0; show(b.dataset.t); });
     markTab(); fitTabs();
   }
-  /* Beschriftungen der Leiste nie kürzen: passt eine nicht ganz, werden alle zweizeilig (gemessen auf dem Gerät selbst – Schrift und Breite sind je Handy anders) */
+  /* Beschriftungen der Leiste nie kürzen und nie umbrechen: passt eine nicht ganz, wird die Schrift der ganzen Leiste kleiner (gemessen auf dem Gerät selbst – Schrift und Breite sind je Handy anders) */
   function fitTabs() {
-    const t = $('tabs'); t.classList.remove('zwei');
-    if ([...t.querySelectorAll('button span')].some(s => s.scrollWidth > s.clientWidth)) t.classList.add('zwei');
+    const t = $('tabs'), sp = [...t.querySelectorAll('button span')]; t.style.removeProperty('--tabfs');
+    if (!sp.length) return;
+    let fs = parseFloat(getComputedStyle(sp[0]).fontSize);
+    while (fs > 8 && sp.some(s => s.scrollWidth > s.clientWidth)) { fs -= 0.5; t.style.setProperty('--tabfs', fs + 'px'); }
   }
   window.addEventListener('resize', fitTabs);
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitTabs);

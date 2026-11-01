@@ -136,7 +136,7 @@
         mid = e.matches.map(m => `<span translate="no">${esc(m.label)}</span>`).join('<br>') + `<div class="muted s k-weg">${esc(e.done_by || '')}${e.done_at ? ` · ${deTime(e.done_at)}` : ''}</div>`;
         act = `<button class="btn small" data-kun="${e.id}">Aufheben</button>`;
       } else if (e.status === 'fremd') {
-        mid = `<span class="pill">gehört nicht zu Clubwerk</span><div class="muted s k-weg">wird nach der Löschfrist gelöscht (Einstellungen › Datenschutz)</div>`;
+        mid = `<span class="pill k-wrap">gehört nicht zu Clubwerk</span><div class="muted s k-weg">wird nach der Löschfrist gelöscht (Einstellungen › Datenschutz)</div>`;
         act = `<button class="btn small" data-kre="${e.id}">Wieder prüfen</button>`;
       } else if (e.cands.length) {
         const c = e.cands[0];

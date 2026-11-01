@@ -23,7 +23,7 @@
   nav.side .brandbox .mark img { max-width: 34px; max-height: 34px; object-fit: contain; }
   nav.side .brandbox b { display: block; font-size: 14px; line-height: 18px; font-weight: 700; overflow-wrap: break-word; }   /* Vereinsname ganz, auch lang (3.101) */
   nav.side .brandbox small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
-  nav.side .brandbox > div { min-width: 0; }
+  nav.side .brandbox > div { min-width: min-content; }   /* der Vereinsname bricht an Leerzeichen um, nie mitten im Wort („Musterstad|t“, wenn der Menüknopf viel Platz braucht) */
   nav.side .navbody { flex: 1; overflow: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 2px; }
   nav.side .navbody > * { flex-shrink: 0; }   /* wenig Höhe: Menü scrollt, Einträge werden nie zusammengedrückt */
   nav.side .search { position: relative; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; margin-bottom: 10px; border-radius: 12px; background: color-mix(in srgb, var(--card) 70%, transparent); border: 1px solid var(--line); color: var(--muted); }
@@ -553,7 +553,8 @@
     .tbl.kompakt td.k-lang:not(:first-child) { flex: 1 1 0; min-width: 96px; } .tbl.kompakt td:has(input, select, textarea) { flex: 1 1 0; }   /* lange Werte und Eingabefelder füllen den Rest der Zeile statt eine neue zu beginnen */
     .tbl.kompakt td > .tcell, .tbl.kompakt td > .tcell > div { text-align: left; overflow: hidden; text-overflow: ellipsis; }   /* „…“ zeichnet der Browser nur im Block, der den Text selbst hält – sonst wäre der Wert hart abgeschnitten */
     .tbl.kompakt td:first-child { order: 0; flex: 1 1 120px; max-width: none; font-size: 15px; line-height: 20px; font-weight: 600; color: var(--ink); white-space: normal; overflow-wrap: anywhere; }
-    .tbl.kompakt td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; }
+    .tbl.kompakt td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 1; flex: none; overflow: visible; max-width: 100%; white-space: normal; } .tbl.kompakt td:last-child .btn { white-space: nowrap; }   /* mehrere Knöpfe rutschen in die nächste Zeile statt aus der Karte zu ragen (Safari setzt breiter) */
+    .tbl.kompakt .pill.k-wrap { max-width: 100%; height: auto; padding: 2px 10px; line-height: 1.25; white-space: normal; }   /* lange Schilder („gehört nicht zu Clubwerk“) brechen um statt am Rand abgeschnitten zu werden */
     .tbl.kompakt td.k-sum { display: block; }
     .tbl.kompakt td:not(:first-child):has(> .chk) { flex: 0 0 auto; max-width: none; overflow: visible; }   /* nicht die erste Spalte: dort steht der Name samt Häkchen und füllt die Zeile (3.101) */
     .tbl.kompakt td > .chk { gap: 6px; font-size: 13px; }
@@ -593,10 +594,10 @@
   .ds-top li .ds-d { justify-self: end; }
   .ds-top .n { width: 24px; height: 24px; border-radius: 12px; background: var(--hover); font-size: 12px; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
   .ds-top li:nth-child(-n+3) .n { background: var(--brand); color: var(--on-brand); } .ds-top b { font-weight: 600; overflow-wrap: break-word; }   /* lange Artikelnamen brechen um statt „…“ (3.101) */ .ds-top .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; }
-  .ds-donut { display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 24px; align-items: center; }
+  .ds-donut { display: flex; flex-wrap: wrap; justify-content: center; gap: 20px 24px; align-items: center; }   /* Legende rutscht unter den Ring, wenn der Platz für lange Kategorien („Erfrischungsgetränke“) nicht reicht – nie mitten im Wort getrennt */
   .ds-dring { position: relative; width: 180px; height: 180px; } .ds-dc { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
   .ds-dc b { font-family: var(--num); font-size: 30px; line-height: 32px; font-weight: 600; font-variant-numeric: tabular-nums; max-width: 110px; } .ds-dc span { font-size: 12px; color: var(--muted); }
-  .ds-dleg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+  .ds-dleg { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; flex: 1 1 260px; min-width: 0; }
   .ds-dleg li { display: grid; grid-template-columns: 12px minmax(0, 1fr) 64px; gap: 10px; align-items: center; min-height: 26px; font-size: 13.5px; line-height: 18px; }
   .ds-dleg i { width: 12px; height: 12px; border-radius: 3px; } .ds-dleg b { font-weight: 600; overflow-wrap: break-word; }   /* lange Kategorien brechen um (3.101) */ .ds-dleg .r { text-align: right; font-family: var(--num); font-weight: 600; font-size: 15px; font-variant-numeric: tabular-nums; color: var(--muted); }
   .ds-mini { display: grid; grid-template-columns: repeat(var(--n, 4), minmax(0, 1fr));   /* Spaltenzahl per --n – ein fester Stil würde die Handy-Regel unten überstimmen */ gap: 12px; margin-top: auto; padding-top: 16px; border-top: 1px solid var(--line-soft); }
