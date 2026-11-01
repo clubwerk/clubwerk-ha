@@ -2,6 +2,7 @@
 const DEMO_KOPIE = process.env.CW_DEMO_KOPIE === '1';
 if (DEMO_KOPIE || process.env.CW_LESEKOPIE === '1') require('./abschottung');   // Demo-Kopie und Lesekopie der Teil-Wiederherstellung: nichts nach außen – vor allem anderen laden (src/demokopie.js, src/teilsicherung.js)
 require('./logtime');   // Zeitstempel im Protokoll
+if (process.env.CW_TEST_ROUTEN) require('./routen');   // nur Tests: merkt sich die Pfade aller Adressen (Testreihe rmatrix) – vor dem ersten Router
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');

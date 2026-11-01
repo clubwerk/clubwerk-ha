@@ -201,11 +201,11 @@ const hasFlags = row => Boolean(row && Object.values(parseFlags(row.flags)).some
 
 /* Module, die in der App erscheinen: id -> { name, label, order, dir, router, hooks, isActive } */
 const modules = new Map();
-function register(id, info) { modules.set(id, info); }
+function register(id, info) { modules.set(id, info); if (process.env.CW_TEST_ROUTEN) require('./routen').extra('Mitglieder-App', `/api/m/${id}`, info.router); }
 register('nachrichten', require('./nachrichten').info());   // Kern-Bereich „Nachrichten“ (Postfach des Mitglieds), kein Modul
 /* Öffentliche Teile von Modulen (ohne Anmeldung, z. B. Online-Mitgliedsantrag) */
 const publics = new Map();
-function registerPublic(id, info) { publics.set(id, info); }
+function registerPublic(id, info) { publics.set(id, info); if (process.env.CW_TEST_ROUTEN) require('./routen').extra('Mitglieder-App', `/api/p/${id}`, info.router); }
 /** Bereiche, die der Verein in der App ausgeschaltet hat (Reiter weg für alle, Freischaltungen bleiben erhalten) */
 const appOff = () => { try { return new Set(JSON.parse(getSetting('app_off', '[]')) || []); } catch (e) { return new Set(); } };
 const appVisible = (m, memberId) => { try { return !(m.hooks && typeof m.hooks.appVisible === 'function') || Boolean(m.hooks.appVisible(memberId)); } catch (e) { return false; } };

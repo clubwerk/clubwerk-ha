@@ -283,6 +283,7 @@ function register(sh) {
   /* ---------- Tablet ---------- */
   const T = C.tablet;
   const tFails = C.require('./security').limiter({ per: 8, baseMs: 15 * 60000 });
+  const tAll = C.require('./security').limiter({ per: 30, baseMs: 15 * 60000 });   // zusätzlich für alle Tablets zusammen – der 6-stellige Code lässt sich nicht von mehreren Geräten im WLAN durchprobieren
   T.get('/antrag/config', (req, res) => {
     const c = formConfig();
     res.json({ ...c, waiting: db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status = 'unterschrift' AND code_expires > ?").get(Date.now()).n });
@@ -298,11 +299,11 @@ function register(sh) {
   /** Antrag aus der Verwaltung mit dem Code öffnen */
   function byCode(req, res) {
     const ip = req.ip || '?';
-    const w = tFails.blocked(ip);
+    const w = Math.max(tFails.blocked(ip), tAll.blocked('*'));
     if (w) { bad(res, `Zu viele falsche Codes – bitte ${w} Min. warten.`, 429); return null; }
     const code = String((req.body || {}).code || '').replace(/\D/g, '');
     const a = code.length === 6 ? db.prepare("SELECT * FROM mv_application WHERE status = 'unterschrift' AND code_hash = ? AND code_expires > ?").get(codeHash(code), Date.now()) : null;
-    if (!a) { tFails.fail(ip); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
+    if (!a) { tFails.fail(ip); if (tAll.fail('*').locked) C.require('./security').securityAlert('Beitrittserklärung am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.', 'mvcode'); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
     tFails.ok(ip);
     return a;
   }

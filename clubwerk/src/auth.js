@@ -209,10 +209,12 @@ function requireAdmin(req, res, next) {
 
 /** Middleware: mindestens eines der Rechte nötig. */
 function need(...perms) {
-  return (req, res, next) => {
+  const f = (req, res, next) => {
     if (req.user && perms.some(p => req.user.perms.includes(p))) return next();
     res.status(403).json({ error: 'Dafür fehlt dir die Berechtigung. Bitte an einen Admin mit allen Rechten wenden.' });
   };
+  f.cwPerms = perms;   // für die Adressliste der Testreihe rmatrix (src/routen.js)
+  return f;
 }
 
 /* ---------- Tablet-Freigaben (kurzlebig, nach PIN-Prüfung) ---------- */

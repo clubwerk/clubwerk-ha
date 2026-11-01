@@ -11719,6 +11719,12 @@
   "Übernommen": "Taken over",
   "Unbekannter Teil der Sicherung.": "Unknown part of the backup.",
   "Vereinsname, Anschrift, Logo und Farbe": "Club name, address, logo and colour",
-  "Was übernehmen?": "What to take over?"
+  "Was übernehmen?": "What to take over?",
+  "{0}: 10 falsche Codes": "{0}: 10 wrong codes",
+  "Beitrittserklärung am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.": "Membership application on the tablet: a wrong code was entered 30 times – code entry is now locked on all tablets.",
+  "Der Code stimmt nicht – die Eingabe ist jetzt für {0} Min. gesperrt.": "The code is wrong – entry is now locked for {0} min.",
+  "Turniere: Code der Turnierleitung gesperrt": "Tournaments: tournament management code locked",
+  "Turnierplaner „{0}“: 10-mal ein falscher Code der Turnierleitung – die Eingabe ist für {1} Minuten gesperrt.": "Tournament planner ‘{0}’: the tournament management code was entered wrongly 10 times – entry is locked for {1} minutes.",
+  "Zu viele falsche Codes – die Eingabe ist für {0} Min. gesperrt. In der Verwaltung lässt sich der Code neu festlegen.": "Too many wrong codes – entry is locked for {0} min. A new code can be set in the admin area."
  }
 }

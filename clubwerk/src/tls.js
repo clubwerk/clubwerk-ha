@@ -25,6 +25,7 @@ const enabled = () => Boolean(creds());
 
 /** Server starten – mit HTTPS (und Umleitung von http://), wenn ein Zertifikat da ist */
 function listen(app, port, host, label) {
+  if (process.env.CW_TEST_ROUTEN) require('./routen').app(app, port, label);   // nur Tests: Adressliste (src/routen.js)
   const c = creds();
   if (!c) {
     const srv = http.createServer(app);

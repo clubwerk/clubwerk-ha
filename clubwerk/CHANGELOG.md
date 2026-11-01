@@ -1,5 +1,14 @@
 # Änderungen
 
+## 3.102.0
+
+**Sicherheits-Durchgang: mehr Schutz gegen Durchprobieren, Angriffe werden jetzt bei jeder Version automatisch geprüft**
+- **Code der Turnierleitung (Turnierplaner am Tablet):** Nach 10 falschen Codes ist die Eingabe für dieses Turnier 15 Minuten gesperrt, bei weiteren Fehlserien länger – egal von welchem Gerät. Das steht im Protokoll, auf Wunsch gibt es eine Sicherheitswarnung per E-Mail. Ein neuer Code in der Verwaltung hebt die Sperre sofort auf. Vorher wurde nur jedes einzelne Gerät gebremst.
+- **Beitrittserklärung am Tablet:** Der 6-stellige Code ist zusätzlich über alle Tablets zusammen geschützt (nach 30 falschen Codes kurz gesperrt).
+- **Dienste & Termine › Stunden:** Eine ungültige Jahreszahl in der Adresse führte zu einem Fehler – jetzt gilt dann einfach das aktuelle Jahr.
+- **Geprüft und für sicher befunden** (für Vereine nichts zu tun): Jede der rund 820 Adressen von Verwaltung, Tablet, Mitglieder-App und Beregnung verlangt die richtige Anmeldung und das passende Recht; über den Cloudflare-Tunnel ist nur die Mitglieder-App erreichbar; ein Mitglied kommt in der App nicht an Buchungen, Nachrichten, Fotos oder Meldungen anderer; SQL-Angriffe, eingeschleuster Code in Namen, getarnte Dateien (SVG, HTML) und Formeln in Exporten werden abgewehrt; alle PINs, Passwörter und Codes sind gegen Durchprobieren gesperrt.
+- **Für die Zukunft:** Diese Prüfungen laufen jetzt vor jeder neuen Version automatisch mit (neue Adressen sind sofort dabei), dazu Regeln im Quelltext und eine Prüfung der Bibliotheken auf bekannte Lücken.
+
 ## 3.101.0
 
 **Design-Durchgang: keine abgeschnittenen Namen und keine Überlappungen mehr**

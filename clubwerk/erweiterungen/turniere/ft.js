@@ -809,7 +809,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
     if (code === '') { db.prepare('UPDATE tu_ft SET code_hash = NULL WHERE id = ?').run(ft.id); audit(req.user, 'Turniere: Code der Turnierleitung entfernt', ft.name); return { ok: true }; }
     if (!/^\d{4,6}$/.test(code)) throw err('Bitte 4 bis 6 Ziffern.');
     if (/^(\d)\1+$/.test(code) || '01234567890'.includes(code) || '98765432109'.includes(code)) throw err('Bitte keine einfache Folge wie 1234 oder 1111.');
-    db.prepare('UPDATE tu_ft SET code_hash = ? WHERE id = ?').run(hashCode(code), ft.id);
+    db.prepare('UPDATE tu_ft SET code_hash = ? WHERE id = ?').run(hashCode(code), ft.id); codeFails.ok(ft.id);   // neuer Code: Sperre aufheben
     audit(req.user, 'Turniere: Code der Turnierleitung festgelegt', ft.name);
     return { ok: true };
   }));
@@ -842,7 +842,21 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
   /* ================================================================= Tablet (/api/tablet/x/turniere/ft/…) – im Vereins-WLAN, Tablet-Passwort; schreiben nur mit dem Code der Turnierleitung */
   const TB = ctx.tablet;
   const tabletFt = id => { const ft = ftRow(id); if (!ft || ft.date !== today() || ft.finished_at || !ft.drawn_at) throw err('Turnier nicht gefunden.', 404); return ft; };
-  const leitung = (ft, b) => { if (!ft.code_hash) throw err('Für dieses Turnier ist kein Code der Turnierleitung festgelegt (Verwaltung › Turnierplaner › Einstellungen).', 403); if (!codeOk(ft, (b || {}).code)) throw err('Der Code stimmt nicht.', 403); return { username: 'Turnierleitung (Tablet)', name: 'Turnierleitung (Tablet)' }; };
+  // Sperre je Turnier zusätzlich zur Bremse je Absender: Nach 10 falschen Codes ist der Code für dieses Turnier 15 Min. gesperrt (danach länger),
+  // egal von welchem Gerät – sonst ließe sich der 4-stellige Code von mehreren Geräten im WLAN durchprobieren
+  const codeFails = ctx.require('./security').limiter({ per: 10, baseMs: 15 * 60000 });
+  const leitung = (ft, b) => {
+    if (!ft.code_hash) throw err('Für dieses Turnier ist kein Code der Turnierleitung festgelegt (Verwaltung › Turnierplaner › Einstellungen).', 403);
+    const wait = codeFails.blocked(ft.id);
+    if (wait) throw err(`Zu viele falsche Codes – die Eingabe ist für ${wait} Min. gesperrt. In der Verwaltung lässt sich der Code neu festlegen.`, 429);
+    if (!codeOk(ft, (b || {}).code)) {
+      const f = codeFails.fail(ft.id);
+      if (f.locked) { audit(null, 'Turniere: Code der Turnierleitung gesperrt', `${ft.name}: 10 falsche Codes`); ctx.require('./security').securityAlert(`Turnierplaner „${ft.name}“: 10-mal ein falscher Code der Turnierleitung – die Eingabe ist für ${f.minutes} Minuten gesperrt.`, `ftcode:${ft.id}`); }
+      throw err(f.locked ? `Der Code stimmt nicht – die Eingabe ist jetzt für ${f.minutes} Min. gesperrt.` : 'Der Code stimmt nicht.', f.locked ? 429 : 403);
+    }
+    codeFails.ok(ft.id);
+    return { username: 'Turnierleitung (Tablet)', name: 'Turnierleitung (Tablet)' };
+  };
   const codeLimit = ctx.rateLimit('tuftcode', 20, 10 * 60000);
   /** Ansicht für Tablet und Monitor (nur Namen und Ergebnisse) */
   const strip = m => m && { id: m.id, phase: m.phase, label: m.label, ko: m.ko, a: m.a, b: m.b, a_ph: m.a_ph, b_ph: m.b_ph, court_id: m.court_id, court: m.court, time: m.time, est: m.est, delay: m.delay, running: m.running, done: m.done, left: m.left, minutes: m.minutes,

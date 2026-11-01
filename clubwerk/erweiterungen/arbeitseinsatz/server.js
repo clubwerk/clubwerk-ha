@@ -89,6 +89,7 @@ function activate(ctx) {
   /** Jahr Y → Zeitraum [from, to] */
   const period = y => { const ys = yearStart(); return { from: `${y}-${ys}`, to: addDays(`${y + 1}-${ys}`, -1) }; };
   const yearOf = day => { const ys = yearStart(); return day.slice(5) >= ys ? +day.slice(0, 4) : +day.slice(0, 4) - 1; };
+  const yearArg = v => { const y = int(v); return y >= 1900 && y <= 2200 ? y : null; };   // Jahr aus der Anfrage – Unsinn (Text, -1, 99999) zählt als „nicht angegeben“
   const yearLabel = y => (yearStart() === '01-01' ? String(y) : `${y}/${String(y + 1).slice(2)}`);
   // abgerechnet wird erst ab dem Jahr, in dem das Modul eingeführt wurde (frühere Jahre hat niemand erfasst)
   if (!S('start_year')) SET('start_year', yearOf(today()));
@@ -167,9 +168,9 @@ function activate(ctx) {
     res.json({ cfg: cfg(), club: ctx.getSetting('club_name', ''), year: y, years: [y + 1, y, y - 1, y - 2].map(v => ({ y: v, label: yearLabel(v) })), mv: mv(), today: today(), pending: db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n,
       running: db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'laeuft'").get().n, members: people().filter(p => p.active).map(p => ({ id: p.id, name: p.name })) });
   });
-  admin.get('/overview', P, ar(async (req, res) => res.json(await overview(int(req.query.year) || yearOf(today())))));
+  admin.get('/overview', P, ar(async (req, res) => res.json(await overview(yearArg(req.query.year) || yearOf(today())))));
   admin.get('/overview.xlsx', P, ar(async (req, res) => {
-    const o = await overview(int(req.query.year) || yearOf(today()));
+    const o = await overview(yearArg(req.query.year) || yearOf(today()));
     const ExcelJS = ctx.require('exceljs'); const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Arbeitsstunden ' + o.label);
     ws.columns = [{ header: 'Mitglied', width: 28 }, { header: 'Soll (h)', width: 10 }, { header: 'Geleistet (h)', width: 13 }, { header: 'Offen gemeldet (h)', width: 17 }, { header: 'Begründung Soll', width: 34 }];
     for (const r of o.rows) ws.addRow([r.name, r.target / 60, r.done / 60, r.open / 60, r.why]);
@@ -436,7 +437,7 @@ function activate(ctx) {
     const q = req.query, w = [], a = [];
     if (q.status && q.status !== 'alle') { w.push('e.status = ?'); a.push(q.status); }
     if (q.member) { w.push('e.member_id = ?'); a.push(int(q.member)); }
-    if (q.year) { const p = period(int(q.year)); w.push('e.date BETWEEN ? AND ?'); a.push(p.from, p.to); }
+    if (yearArg(q.year)) { const p = period(yearArg(q.year)); w.push('e.date BETWEEN ? AND ?'); a.push(p.from, p.to); }
     res.json(db.prepare(`SELECT e.*, m.name, v.title AS event_title FROM aw_entry e JOIN members m ON m.id = e.member_id LEFT JOIN aw_event v ON v.id = e.event_id ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY e.status = 'offen' DESC, e.date DESC, e.id DESC LIMIT 1000`).all(...a));
   });
   const entryInput = (b, cur = {}) => {
