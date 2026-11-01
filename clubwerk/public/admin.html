@@ -195,6 +195,7 @@
   label.f { display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 600; color: var(--muted); }
   label.f { min-width: 0; } label.f > input, label.f > select, label.f > textarea { min-width: 0; max-width: 100%; width: 100%; box-sizing: border-box; }
   /* Jede Auswahlliste sieht gleich aus – auch ohne eigenes Feld drumherum (Klassenregeln gehen vor) */
+  :where(select:not([multiple]):not([size])) { height: 40px; }   /* Safari/WebKit macht Auswahlfelder sonst 49 px hoch (Chromium 41) – gleiche Leistenhöhe wie Knöpfe und Chips */
   :where(select) { min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background-color: var(--field); color: var(--ink); font-family: inherit; font-size: 14px; font-weight: 500; box-sizing: border-box; }
   label.f input:not([type=checkbox]):not([type=radio]), label.f select, label.f textarea, .tbl input:not([type=checkbox]):not([type=radio]), .tbl select {   /* Haken bleiben 16 px – sonst gestaucht bzw. am iPhone riesig */
     min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: 14px; font-weight: 500; color: var(--ink);

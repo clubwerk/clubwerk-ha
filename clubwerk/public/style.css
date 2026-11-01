@@ -19,7 +19,7 @@
   --brand: #1f6b3a; --brand-ink: #164b29; --brand-soft: #e4eee7; --brand-hover: #1a5a31;
   --on-brand: #fff;                      /* Schrift auf der Vereinsfarbe – theme.css setzt Dunkel, wo die Vereinsfarbe hell ist */
   --accent: var(--brand); --accent-soft: var(--brand-soft);   /* Zweitfarbe (optional) */
-  --hero-a: #144626; --hero-b: #1f6b3a; --hero-c: #2b7444; --on-hero: #fff; --on-hero-muted: #c5d8cb;   /* Hauptkarte */
+  --hero-a: #144626; --hero-b: #1f6b3a; --hero-c: #2b7444; --on-hero: #fff; --on-hero-muted: #e0ece5;   /* Hauptkarte */
   --hero-bg: linear-gradient(155deg, var(--hero-a), var(--hero-b) 70%, var(--hero-c));
   --glow-1: #e2e9e2; --glow-2: #e2e9e2;  /* Schimmer im Hintergrund */
   --green: var(--brand); --green-dark: var(--brand-ink); --green-soft: var(--brand-soft);   /* ältere Namen */

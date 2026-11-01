@@ -1,5 +1,12 @@
 # Änderungen
 
+## 2026.11.11
+
+**Safari-Technik (WebKit) wird jetzt in jeder Prüfung mitgetestet – und zwei echte Safari-Fehler sind behoben**
+- Auswahlfelder (zum Beispiel „Alle Mannschaften“ im Spielbetrieb) waren in Safari am Handy 49 statt 40 Pixel hoch und standen damit schief neben den Knöpfen. Jetzt überall 40 Pixel.
+- Die helle Nebenschrift auf den grünen Hauptkarten („Zu erledigen“ in der Verwaltung, Termine im Tablet) war auf dem hellsten Teil des Verlaufs zu blass (3,8 : 1). Sie ist jetzt kräftiger (über 4,5 : 1), wie es die Vereinsfarbe schon immer bekam.
+- Sonst nichts: Alle übrigen Ansichten (Verwaltung, Tablet, App, Einrichtung; Demo, lange Namen, frische Installation) bestehen die Prüfung auch in der Safari-Technik.
+
 ## 2026.11.10
 
 **Datensicherung: wöchentliche Probe-Wiederherstellung vom Ziel außer Haus**
