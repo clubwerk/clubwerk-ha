@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2026.11.7
+
+**Mitglieder-App: deutlich schnellerer Start, vor allem bei schlechtem Netz**
+- Gemessen an einem Handy mit langsamer CPU (4× gedrosselt) und langsamem Netz (Fast 3G): Kaltstart bis „Für mich“ sichtbar **4,8 s → 1,6 s**, Start mit schon geladener App **3,7 s → 1,1 s**; Anfragen beim Start 28 → 15, übertragene Daten beim Warmstart 28 kB → 3 kB.
+- Die App lädt beim Start nicht mehr alle Bereiche (Plätze, Nachrichten, Dienste, Licht, Türen …) nacheinander, sondern nur noch „Für mich“. Ein Bereich wird erst geholt, wenn man ihn antippt – und seine Dateien kommen gleichzeitig statt eine nach der anderen.
+- Die ersten beiden Abfragen („wer bin ich“ und „Für mich“) starten schon, während die App noch lädt. Das spart eine komplette Wartezeit des Netzes.
+- Dateien mit Versionsnummer (App, Stile, Bereiche) bleiben ein Jahr im Speicher des Handys und werden nicht mehr bei jedem Start erneut angefragt. Bei einem Update ändert sich die Nummer, dann lädt die App alles neu.
+- Funktion, Rechte und Datenschutz sind unverändert; es kommen keine zusätzlichen externen Anfragen dazu.
+- **Neue Testreihe `apptempo`:** prüft Zwischenspeicher-Regeln, Kompression, Zahl der Anfragen und Datenmenge beim Kalt- und Warmstart (Zählwerte, keine Uhrzeit-Messung).
+
 ## 2026.11.6
 
 **Mitglieder-App: Beschriftungen der unteren Leiste mit klarem Abstand**

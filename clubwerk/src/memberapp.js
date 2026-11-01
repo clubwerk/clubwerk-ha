@@ -351,13 +351,17 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   app.use(express.json({ limit: '10kb' }));
   /** Vorschau einer anderen Vereinsfarbe (Design-Prüfstand) an den Hauptserver weiterreichen – nur Hex-Werte */
   const themePreview = req => { const q = new URLSearchParams(); for (const k of ['vorschau', 'vorschau2']) if (typeof req.query[k] === 'string' && /^[0-9a-f]{6}$/i.test(req.query[k])) q.set(k, req.query[k]); return q.toString() ? '?' + q : ''; };
+  /** Datei mit passender Versionsnummer (?v=<Paketversion>[-farbe]) ändert sich nie unter dieser Adresse: ein Jahr zwischenspeichern, ohne nachzufragen */
+  const VERSION = require('../package.json').version;
+  const versioned = req => typeof req.query.v === 'string' && req.query.v.split('-')[0] === VERSION && !req.query.vorschau;
+  const IMMUTABLE = 'public, max-age=31536000, immutable';
   const relay = (p, t) => async (req, res) => {
     try {
       const r = await fetch(`${INTERNAL()}${p}`, { signal: AbortSignal.timeout(5000) });
       if (!r.ok) return res.status(404).end();
       const ct = r.headers.get('content-type') || t;
       if (/^image\//.test(ct)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");   // Bilder (auch SVG-Logo) nie als Seite mit Skripten
-      res.set({ 'Content-Type': ct, 'Cache-Control': /\.(woff2|png)$/.test(p) ? 'public, max-age=604800' : 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));   // Schriften/Icons eine Woche, Rest per ETag
+      res.set({ 'Content-Type': ct, 'Cache-Control': /\.(woff2|png)$/.test(p) ? 'public, max-age=604800' : versioned(req) ? IMMUTABLE : 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));   // Schriften/Icons eine Woche, Rest per ETag
     } catch (e) { res.status(404).end(); }
   };
   for (const [p, t] of [['/style.css', 'text/css'], ['/kit.css', 'text/css'], ['/icon-192.png', 'image/png'], ['/icon-512.png', 'image/png'], ['/fonts/jakarta-latin.woff2', 'font/woff2'], ['/fonts/jakarta-latin-ext.woff2', 'font/woff2'], ['/fonts/barlow-condensed-600.woff2', 'font/woff2'], ['/theme-init.js', 'application/javascript']]) app.get(p, relay(p, t));
@@ -380,7 +384,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     if (!m || !m.isActive() || !m.dir || !/^[a-z0-9_-]+\.js$/.test(req.params.file) || ['admin.js'].includes(req.params.file)) return res.status(404).end();
     const f = path.join(m.publicDir || path.join(m.dir, 'public'), req.params.file);
     if (!fs.existsSync(f)) return res.status(404).end();
-    res.type('application/javascript').set('Cache-Control', 'no-cache').sendFile(f);
+    res.type('application/javascript').set('Cache-Control', versioned(req) ? IMMUTABLE : 'no-cache').sendFile(f);
   });
 
   const api = express.Router();
@@ -669,12 +673,12 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const v = encodeURIComponent(require('../package.json').version);
     let html = fs.readFileSync(path.join(APP_DIR, 'index.html'), 'utf8');
     const col = appColor();
-    html = html.replace(/(href|src)="(app\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}${f === 'theme.css' ? '-' + col.slice(1) : ''}"`)
+    html = html.replace(/(href|src)="(app\.js|early\.js|style\.css|theme\.css|kit\.css)"/g, (m, a, f) => `${a}="${f}?v=${v}${f === 'theme.css' ? '-' + col.slice(1) : ''}"`)
       .replace(/<meta name="theme-color" content="#[0-9a-fA-F]{6}">/, `<meta name="theme-color" content="${col}">`);   // Statusleiste am Handy in Vereinsfarbe
     res.set({ 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' }).send(html);
   };
   app.get(['/', '/index.html'], appIndex);
-  app.use(express.static(APP_DIR, { index: false, setHeaders: (r, p) => r.setHeader('Cache-Control', /\.(js|html)$/.test(p) ? 'no-store' : 'no-cache') }));
+  app.use((req, res, next) => { req.cwVersioned = versioned(req); next(); }, (req, res, next) => express.static(APP_DIR, { index: false, setHeaders: (r, p) => r.setHeader('Cache-Control', req.cwVersioned ? IMMUTABLE : /\.(js|html)$/.test(p) ? 'no-store' : 'no-cache') })(req, res, next));
   /* Fehler immer als JSON, ohne interne Details – echte Programmfehler landen im Protokoll statt als „Ungültige Anfrage“ unterzugehen */
   app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
     if (err && err.type === 'entity.too.large') return res.status(413).json({ error: 'Die Datei ist zu groß.' });
