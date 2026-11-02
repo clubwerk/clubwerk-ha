@@ -137,7 +137,7 @@ Eine Tabelle für alle Bereiche der App, ein „Speichern“ für alles:
 - **Beim Freischalten:** „vorwählen“ kreuzt den Bereich bei neuen Mitgliedern von selbst an.
 - **Start** und **↑ ↓:** Startbereich und Reihenfolge. Von Haus aus öffnet die App „Für mich“.
 
-„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen.
+„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen. Haben die Vorstände Push-Anlässe freigegeben und das Handy hat Benachrichtigungen noch nicht eingeschaltet, steht ganz oben die Karte **„Benachrichtigungen einschalten“** mit „Einschalten“ und „Später“ (blendet sie 14 Tage aus). Auf dem iPhone im Safari erklärt sie in drei Schritten, wie die App auf den Home-Bildschirm kommt; ist Push im Handy gesperrt, steht dort, wo man es erlaubt. Nach dem Einschalten verschwindet die Karte.
 
 ### Reiter „Benachrichtigungen“ {#app-push}
 
@@ -145,7 +145,7 @@ Eine Tabelle für alle Bereiche der App, ein „Speichern“ für alles:
 
 ![Testnachricht an ein Mitglied.](bild: seite=app; klick=[data-sec="push"]; ziel=.row:has(#pshWho))
 
-Push sind kurze Hinweise aufs Handy (auf dem iPhone nur in der Home-Bildschirm-App ab iOS 16.4). Oben steht, wie viele Handys angemeldet sind. Je Modul kreuzt ihr an, bei welchen **Anlässen** ein Hinweis kommt (zum Beispiel neue Nachricht, Erinnerung an einen Termin, neue Mängelmeldung); manche haben eine Vorlaufzeit. Jedes Mitglied schaltet Push nur je Handy ein oder aus, was ihr freigebt, entscheidet ihr. Unten sendet **Testnachricht an** einen Hinweis an ein Mitglied. „Zuletzt gesendet“ zeigt die letzten Hinweise und ob sie ankamen. Gesendet werden nur Titel und ein Satz, nie etwas, wofür man eine PIN braucht.
+Push sind kurze Hinweise aufs Handy (auf dem iPhone nur in der Home-Bildschirm-App ab iOS 16.4). Oben steht, wie viele Handys angemeldet sind. Je Modul kreuzt ihr an, bei welchen **Anlässen** ein Hinweis kommt (zum Beispiel neue Nachricht, Erinnerung an einen Termin, neue Mängelmeldung); manche haben eine Vorlaufzeit. Jedes Mitglied schaltet Push nur je Handy ein oder aus und wählt keine einzelnen Anlässe: was kommt, entscheidet allein ihr. Haben Mitglieder früher einzelne Anlässe abgewählt, gilt das nicht mehr. Unten sendet **Testnachricht an** einen Hinweis an ein Mitglied. „Zuletzt gesendet“ zeigt die letzten Hinweise und ob sie ankamen. Gesendet werden nur Titel und ein Satz, nie etwas, wofür man eine PIN braucht.
 
 ### Reiter „Einstellungen“ {#app-einstellungen}
 

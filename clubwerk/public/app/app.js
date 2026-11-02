@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.14';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.15';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -174,6 +174,47 @@
   const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
   const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const CHEV = '<svg class="vh-fm-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>';
+  /* ---------- „Für mich“: Karte „Benachrichtigungen einschalten“ (nur wenn der Verein Hinweise freigegeben hat und dieses Handy noch keine bekommt) ---------- */
+  const PUSH_LATER_DAYS = 14;
+  const pushLater = () => { try { return Date.now() < Number(localStorage.getItem('cw-push-spaeter')); } catch (e) { return false; } };
+  const pushLaterSet = () => { try { localStorage.setItem('cw-push-spaeter', String(Date.now() + PUSH_LATER_DAYS * 864e5)); } catch (e) { /* privat: dann erscheint die Karte eben wieder */ } };
+  const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
+  const BELL_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.7 3A6 6 0 0 1 18 8c0 2.7.4 4.6.9 6"/><path d="M17 17H3s3-2 3-9c0-.7.1-1.4.3-2"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="m2 2 20 20"/></svg>';
+  const SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/><path d="M5 11H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+  const ADDHOME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+  const OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>';
+  /** Welche Karte? '' (keine) | 'ask' (einschalten) | 'ios' (erst zum Home-Bildschirm) | 'denied' (im Handy gesperrt) */
+  function pushCardKind(p) {
+    if (!p || !p.released || p.mine || pushLater()) return '';
+    if (isIOS && !standalone()) return 'ios';   // im Safari-Tab gibt es auf dem iPhone kein Push
+    if (!pushSupported()) return '';
+    return Notification.permission === 'denied' ? 'denied' : 'ask';
+  }
+  function pushCard(p) {
+    const kind = pushCardKind(p);
+    if (!kind) return '';
+    const row = (ico, title, sub) => `<div class="vh-fm"><span class="vh-fm-ico">${ico}</span><span class="vh-tx"><strong>${title}</strong>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
+    const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>';
+    if (kind === 'ask') return `<div class="vh-card vh-fm-news" data-pushcard="ask"><h3>Benachrichtigungen einschalten</h3><div class="vh-rows">${row(BELL, 'Nichts verpassen', 'Damit du Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.')}</div>${act(later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>')}</div>`;
+    if (kind === 'denied') return `<div class="vh-card vh-fm-news" data-pushcard="denied"><h3>Benachrichtigungen sind gesperrt</h3><div class="vh-rows">${row(BELL_OFF, 'Im Handy erlauben', isIOS ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.')}</div>${act(later)}</div>`;
+    return `<div class="vh-card vh-fm-news" data-pushcard="ios"><h3>Benachrichtigungen einschalten</h3><div class="vh-rows">
+      ${row(SHARE, '1. Teilen antippen', 'Das Symbol mit dem Pfeil, unten in Safari.')}
+      ${row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.')}
+      ${row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.')}</div>${act(later)}</div>`;
+  }
+  function wirePushCard(el) {
+    const c = el.querySelector('[data-pushcard]'); if (!c) return;
+    const lt = c.querySelector('[data-pushlater]'), on = c.querySelector('[data-pushon]');
+    if (lt) lt.onclick = () => { pushLaterSet(); c.remove(); };
+    if (on) on.onclick = async () => {
+      on.disabled = true;
+      try {
+        const st = await call('push/state', 'POST', { endpoint: '' });
+        if (await pushOn(st.vapid)) toast('Benachrichtigungen eingeschaltet.'); else toast('Ohne Erlaubnis des Handys geht es nicht.', true);
+      } catch (e) { toast(e.message || 'Das hat nicht geklappt.', true); }
+      if (current === FM) forMe(el);
+    };
+  }
   async function forMe(el) {
     let d;
     try { d = await call('forme'); } catch (e) { if (current === FM) el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
@@ -195,9 +236,11 @@
     const icoBox = x => `<span class="vh-fm-ico">${ti(x.section || 'konto')}</span>`;
     const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}"><h3>${h}</h3><div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
     const first = me.sections.find(s => s.ok);
-    el.innerHTML = !d.news.length && !d.next.length && !d.todo.length && !d.money.length
+    const pc = pushCard(d.push);
+    el.innerHTML = pc + (!d.news.length && !d.next.length && !d.todo.length && !d.money.length
       ? `<div class="vh-empty">Gerade steht nichts an.${first ? ` <button type="button" class="vh-link" data-go="${esc(first.id)}">${first.id === 'buchung' ? 'Platz buchen' : `${esc(first.title)} öffnen`}</button>` : ''}</div>`
-      : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox);
+      : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox));
+    wirePushCard(el);
     el.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => {
       if (b.dataset.seen) call('forme/seen', 'POST', { key: b.dataset.seen }).catch(() => {});   // Neuigkeit gesehen: erscheint nicht wieder
       wlanTries = 0; show(b.dataset.go, b.dataset.focus || '');
@@ -447,6 +490,13 @@
   const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const b64ToBytes = s => { const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
   async function swReady() { const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; return reg; }
+  /** Push auf diesem Handy einschalten (Erlaubnis, Browser-Abo, Anmeldung am Server). null = Erlaubnis verweigert */
+  async function pushOn(vapid) {
+    const reg = await swReady();
+    if (await Notification.requestPermission() !== 'granted') return null;
+    const sub = (await reg.pushManager.getSubscription()) || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(vapid) });
+    return { sub, st: await call('push/subscribe', 'POST', { subscription: sub.toJSON() }) };
+  }
   async function notifSheet() {
     let sh = $('pushSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'pushSheet'; sh.className = 'vh-sheet'; document.body.appendChild(sh); }
     const sup = pushSupported();
@@ -460,10 +510,9 @@
       sh.innerHTML = `<div class="vh-box"><h2>Benachrichtigungen</h2>
         <p class="vh-small" style="text-align:left">Kurze Hinweise aufs Handy, z. B. wenn dich jemand als Mitspieler einträgt. Gilt nur für dieses Handy.</p>
         ${hint ? `<p class="vh-small" style="text-align:left;color:var(--ink)">${esc(hint)}</p>` : ''}
-        ${!st.events.length ? '<p class="vh-small" style="text-align:left">Der Verein hat noch keine Benachrichtigungen freigegeben.</p>' : ''}
-        ${sup && !hint && st.events.length ? `<label class="vh-switch"><input type="checkbox" id="pshOn" ${on() ? 'checked' : ''}><span>Benachrichtigungen auf diesem Handy</span></label>` : ''}
-        ${sup && !hint && st.events.length ? `<p class="vh-small" style="text-align:left;margin-top:-4px">${on() ? 'Das möchtest du auf diesem Handy bekommen – der Verein bestimmt, was es überhaupt gibt:' : 'Welche Hinweise kommen, legt der Verein fest.'}</p>` : ''}
-        ${on() ? st.events.map(e => `<label class="vh-switch" style="font-weight:600"><input type="checkbox" data-ev="${esc(e.key)}" ${e.on ? 'checked' : ''}><span>${esc(e.label)}</span></label>`).join('') : ''}
+        ${!st.topics.length ? '<p class="vh-small" style="text-align:left">Der Verein hat noch keine Benachrichtigungen freigegeben.</p>' : ''}
+        ${sup && !hint && st.topics.length ? `<label class="vh-switch"><input type="checkbox" id="pshOn" ${on() ? 'checked' : ''}><span>Benachrichtigungen auf diesem Handy</span></label>` : ''}
+        ${sup && !hint && st.topics.length ? `<p class="vh-small" style="text-align:left;margin-top:-4px">Welche Hinweise kommen, legt der Verein fest.</p><p style="text-align:left;margin:0 0 10px">${st.topics.map(t => `<span class="vh-chip g">${esc(t)}</span>`).join(' ')}</p>` : ''}
         ${on() ? `<button type="button" class="vh-btn sec" id="pshTest" style="width:100%">Testnachricht schicken</button>` : ''}
         <div class="vh-err" id="pshE"></div>
         <div class="vh-row" style="margin-top:10px"><button class="no" id="pshNo" style="flex:1">Schließen</button></div></div>`;
@@ -474,10 +523,9 @@
         sw.disabled = true;
         try {
           if (sw.checked) {
-            const perm = await Notification.requestPermission();
-            if (perm !== 'granted') { sw.checked = false; err('Ohne Erlaubnis des Handys geht es nicht.'); draw(); return; }
-            if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(st.vapid) });
-            st = await call('push/subscribe', 'POST', { subscription: sub.toJSON() });
+            const r = await pushOn(st.vapid);
+            if (!r) { sw.checked = false; err('Ohne Erlaubnis des Handys geht es nicht.'); draw(); return; }
+            st = r.st; sub = r.sub;
             toast('Benachrichtigungen eingeschaltet.');
           } else {
             const ep = sub ? sub.endpoint : '';
@@ -488,11 +536,6 @@
         } catch (e) { err(e.message || 'Das hat nicht geklappt.'); }
         draw();
       };
-      sh.querySelectorAll('[data-ev]').forEach(c => { c.onchange = async () => {
-        c.disabled = true;
-        try { st = await call('push/events', 'PUT', { endpoint: sub.endpoint, events: { [c.dataset.ev]: c.checked } }); } catch (e) { err(e.message || 'Das hat nicht geklappt.'); }
-        draw();
-      }; });
       const t = sh.querySelector('#pshTest');
       if (t) t.onclick = async () => { t.disabled = true; try { const r = await call('push/test', 'POST', { endpoint: sub.endpoint }); toast(r.ok ? 'Testnachricht gesendet – sie sollte gleich erscheinen.' : 'Nicht gesendet' + (r.skipped ? ': ' + r.skipped : '.'), !r.ok); } catch (e) { err(e.message); } t.disabled = false; };
     };

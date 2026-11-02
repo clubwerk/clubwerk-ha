@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2026.11.15
+
+**Benachrichtigungen: Mitglieder schalten nur noch ihr Handy an oder aus – und „Für mich“ erinnert daran**
+- **Wieder wie festgelegt:** Unter „Mein Konto › Benachrichtigungen“ gibt es nur noch den Schalter für dieses Handy. Die Auswahl einzelner Hinweise (Spieltage, Dienste, Termine, Nachrichten …) ist weg – welche Hinweise kommen, bestimmt allein der Vorstand unter Mitglieder-App › Benachrichtigungen. Das Blatt zeigt zur Information, aus welchen Bereichen Hinweise kommen. Wer früher einzelne Hinweise abgewählt hatte, bekommt sie jetzt wieder (die gespeicherten Abwahlen werden beim Start gelöscht und nicht mehr beachtet).
+- **Neue Karte oben in „Für mich“: „Benachrichtigungen einschalten“** – „Damit du Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.“ mit **Einschalten** und **Später** (blendet die Karte 14 Tage aus, danach kommt sie wieder). Nach dem Einschalten verschwindet sie. Sie erscheint nur, wenn der Vorstand Hinweise freigegeben hat und dieses Handy noch keine bekommt.
+  - **iPhone im Safari:** Die Karte erklärt in drei Schritten (Teilen → „Zum Home-Bildschirm“ → von dort öffnen), denn Push gibt es auf dem iPhone erst in der Home-Bildschirm-App.
+  - **Im Handy gesperrt:** Die Karte sagt kurz, wo man es in den Einstellungen wieder erlaubt.
+- Unverändert: Erinnerungen per E-Mail (z. B. „Helfer am Vortag per E-Mail erinnern“ und „Deine Erinnerung“ bei den Gratulationen für Benutzer mit dem Recht „Gratulationen“) und ihre Einstellungen.
+- Anleitung (Kern, Turniere) und Planungsdateien angepasst. Turniere 1.10.2 (nur Anleitung). Für Entwickler: `PUT /api/push/events` und `push.setEvents` entfallen, `GET /api/forme` liefert `push: { released, mine }`; neue Testreihe `pushwahl` scheitert, sobald es wieder eine Auswahl je Anlass für Mitglieder gibt; der Design-Prüfstand prüft die Karte in drei Zuständen (einschalten, gesperrt, iPhone).
+
 ## 2026.11.14
 
 **Neu: „Abgerechnet bis“ für alle auf einmal setzen (Beiträge & Zahlungen › Beitragslauf)**

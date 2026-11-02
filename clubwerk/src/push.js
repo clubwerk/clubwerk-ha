@@ -4,7 +4,8 @@
      (Anlass-Kennung im System: "<modul>.<id>", der Kern selbst: "app.test")
    - Der Vorstand legt fest, welche Anlässe es im Verein gibt (Einstellung push_events: { "<modul>.<id>": { on, lead } });
      nicht freigegebene Anlässe sieht kein Mitglied, und es wird dafür nichts gesendet.
-   - Das Mitglied schaltet Push je Handy ein (Browser-Abo) und je Anlass an/aus (Vorgabe: an).
+   - Das Mitglied schaltet Push nur je Handy an oder aus (Browser-Abo) – es wählt NIE einzelne Anlässe. Welche Hinweise kommen,
+     entscheidet allein der Vorstand (Festlegung Thorsten; fester Test `pushwahl` prüft, dass es keine Auswahl je Anlass gibt).
    - Versand: Module rufen ctx.push.send(memberIds, "<modul>.<id>", { title, body, url, tag }) – der Kern prüft Freigabe und Abos,
      verschickt verschlüsselt an den Push-Dienst des Handys (Apple/Google/Mozilla) und räumt erloschene Abos weg.
    - Es werden nur kurze Hinweise gesendet (Titel + ein Satz) – nichts, was in der App PIN-pflichtig ist. */
@@ -21,7 +22,7 @@ CREATE TABLE IF NOT EXISTS push_subs (
   endpoint   TEXT NOT NULL UNIQUE,
   p256dh     TEXT NOT NULL,
   auth       TEXT NOT NULL,
-  events     TEXT,                                 -- JSON { "<modul>.<id>": false } – nur Abweichungen von „an“
+  events     TEXT,                                 -- veraltet (frühere Abwahl einzelner Anlässe), wird nicht mehr beachtet und beim Start geleert
   label      TEXT,                                 -- Gerätebeschreibung
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   last_ok    TEXT,
@@ -38,6 +39,9 @@ CREATE TABLE IF NOT EXISTS push_log (
   info      TEXT
 );
 `);
+
+// Frühere Abwahlen einzelner Anlässe am Handy gelten nicht mehr: der Vorstand legt allein fest, was kommt
+db.prepare('UPDATE push_subs SET events = NULL WHERE events IS NOT NULL').run();
 
 /* ---------- Schlüssel (VAPID): einmal erzeugen, dauerhaft behalten – sonst verlieren alle Handys ihr Abo ---------- */
 function keys() {
@@ -94,7 +98,6 @@ function saveAdmin(body, user) {
 }
 
 /* ---------- Abos je Handy ---------- */
-const parseEv = s => { try { const v = JSON.parse(s || '{}'); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } };
 /* Push geht nur an die bekannten Push-Dienste der Browser (Apple, Google/Chrome/Android, Mozilla, Microsoft) –
    so kann ein Handy dem Server kein beliebiges Ziel (z. B. ein internes Gerät) als „Push-Adresse“ unterschieben. */
 const PUSH_HOSTS = [/^web\.push\.apple\.com$/, /^fcm\.googleapis\.com$/, /^android\.googleapis\.com$/, /^updates\.push\.services\.mozilla\.com$/, /^push\.services\.mozilla\.com$/, /^[a-z0-9-]+\.notify\.windows\.com$/];
@@ -116,19 +119,17 @@ function subscribe({ memberId, deviceId, label }, sub) {
 function unsubscribe(memberId, endpoint) {
   return db.prepare('DELETE FROM push_subs WHERE member_id = ? AND endpoint = ?').run(memberId, String(endpoint || '')).changes > 0;
 }
-function setEvents(memberId, endpoint, ev) {
-  const row = db.prepare('SELECT id, events FROM push_subs WHERE member_id = ? AND endpoint = ?').get(memberId, String(endpoint || ''));
-  if (!row) throw new Error('Dieses Handy hat kein Push-Abo.');
-  const cur = parseEv(row.events), keys = new Set(events().filter(e => e.on).map(e => e.key));
-  for (const [k, v] of Object.entries(ev && typeof ev === 'object' ? ev : {})) { if (!keys.has(k)) continue; if (v) delete cur[k]; else cur[k] = false; }
-  db.prepare('UPDATE push_subs SET events = ? WHERE id = ?').run(JSON.stringify(cur), row.id);
-  return state(memberId, endpoint);
-}
-/** Stand für die App: Schlüssel, freigegebene Anlässe mit der Wahl dieses Handys, ob dieses Handy ein Abo hat */
+/** Stand für die App: Schlüssel, ob dieses Handy ein Abo hat, und (nur zur Anzeige) die Bereiche, aus denen der Vorstand Hinweise freigegeben hat.
+    Keine Wahl je Anlass – das Mitglied schaltet nur das Handy an oder aus. */
 function state(memberId, endpoint) {
-  const row = endpoint ? db.prepare('SELECT events FROM push_subs WHERE member_id = ? AND endpoint = ?').get(memberId, String(endpoint)) : null;
-  const mine = parseEv(row ? row.events : null);
-  return { vapid: keys().pub, subscribed: Boolean(row), events: events().filter(e => e.on).map(e => ({ key: e.key, label: e.label, desc: e.desc || '', module: e.moduleName, on: mine[e.key] !== false })) };
+  const row = endpoint ? db.prepare('SELECT 1 FROM push_subs WHERE member_id = ? AND endpoint = ?').get(memberId, String(endpoint)) : null;
+  return { vapid: keys().pub, subscribed: Boolean(row), topics: topics() };
+}
+/** Bereiche mit freigegebenen Hinweisen (ohne Testnachricht und Sicherheitshinweis) – leer, wenn der Vorstand nichts freigegeben hat */
+const topics = () => [...new Set(events().filter(e => e.on && e.module !== 'app').map(e => e.moduleName))];
+/** „Für mich“: ob die Einschalten-Karte sinnvoll ist – der Vorstand hat Hinweise freigegeben (released) und dieses Handy hat noch kein Abo (mine) */
+function forMe(deviceId) {
+  return { released: topics().length > 0, mine: Boolean(deviceId && db.prepare('SELECT 1 FROM push_subs WHERE device_id = ?').get(deviceId)) };
 }
 const removeMember = memberId => db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(memberId).changes;
 const removeDevice = deviceId => db.prepare('DELETE FROM push_subs WHERE device_id = ?').run(deviceId).changes;
@@ -156,7 +157,7 @@ function deliver(row, payload) {
     rq.end();
   });
 }
-/** Nachricht an Mitglieder – nur für freigegebene Anlässe und nur an Handys, die den Anlass nicht abgewählt haben */
+/** Nachricht an Mitglieder – nur für vom Vorstand freigegebene Anlässe, an alle Handys mit Abo */
 async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
   const ids = [...new Set((Array.isArray(memberIds) ? memberIds : [memberIds]).map(Number).filter(Boolean))];
   if (!ids.length || !title) return { sent: 0, skipped: 'leer' };
@@ -168,10 +169,9 @@ async function send(memberIds, key, { title, body, url, tag } = {}, opts = {}) {
     const m = db.prepare('SELECT active, deleted FROM members WHERE id = ?').get(mid);
     if (!m || !m.active || m.deleted) { db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(mid); continue; }
     const rows = db.prepare('SELECT * FROM push_subs WHERE member_id = ?' + (opts.endpoint ? ' AND endpoint = ?' : '')).all(...(opts.endpoint ? [mid, opts.endpoint] : [mid]))
-      .filter(r => r.endpoint !== opts.except)   // except: das Handy, auf dem es gerade passiert ist
-      .filter(r => parseEv(r.events)[key] !== false);   // Anlass vom Mitglied auf diesem Handy abgeschaltet
+      .filter(r => r.endpoint !== opts.except);   // except: das Handy, auf dem es gerade passiert ist
     for (const r of rows) {
-      // Welche Anlässe es gibt, legt der Vorstand zentral fest (push_events) – das Mitglied schaltet sie je Handy ab (oben gefiltert)
+      // Welche Anlässe es gibt, legt der Vorstand zentral fest (push_events, oben geprüft) – das Mitglied wählt keine einzelnen
       const res = await deliver(r, payload);
       if (res.status >= 200 && res.status < 300) { sent++; db.prepare("UPDATE push_subs SET last_ok = datetime('now','localtime'), fails = 0 WHERE id = ?").run(r.id); log(mid, key, title, true, null); }
       else if (res.status === 404 || res.status === 410) { db.prepare('DELETE FROM push_subs WHERE id = ?').run(r.id); log(mid, key, title, false, `Abo erloschen (${res.status})`); }
@@ -192,4 +192,4 @@ function adminState() {
   return { events: ev, subs: subs.n, members: subs.m, subscribed: members, recent, subject: subject() };
 }
 
-module.exports = { pushHostOk, setModules: fn => { modulesRef = fn; }, catalog, events, enabled, lead, saveAdmin, subscribe, unsubscribe, setEvents, state, send, removeMember, removeDevice, adminState, keys };
+module.exports = { pushHostOk, setModules: fn => { modulesRef = fn; }, catalog, events, enabled, lead, saveAdmin, subscribe, unsubscribe, state, forMe, topics, send, removeMember, removeDevice, adminState, keys };

@@ -444,7 +444,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     // Thekenkonto (Verkauf im Kern): nur, wenn der Verein es eingeschaltet hat – noch nicht abgerechnete Buchungen (wie memberBalance am Tablet)
     const k = getSetting('app_forme_konto', '0') === '1' && kontoOf && require('./plugins').isActive('getraenke') ? kontoOf(w.memberId) : null;
     if (k && k.cents > 0) money.unshift({ section: '', title: 'Thekenkonto', sub: 'noch nicht abgerechnet', chip: '', focus: '', value: euro(k.cents), tr: true });
-    res.json({ news, next, todo, money });
+    res.json({ news, next, todo, money, push: push.forMe(w.deviceId) });
   });
   /** Neuigkeit quittiert (angetippt): erscheint nicht wieder – nur für das eigene Mitglied, ohne Protokoll; alte Einträge räumen sich nach 180 Tagen auf */
   api.post('/forme/seen', rateLimit('appfms', 60, 60000), (req, res) => {
@@ -567,10 +567,6 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
     if (push.unsubscribe(w.memberId, (req.body || {}).endpoint)) audit(null, 'Mitglieder-App: Push ausgeschaltet', w.name);
     res.json(push.state(w.memberId, ''));
-  });
-  api.put('/push/events', rateLimit('apppev', 60, 60000), (req, res) => {
-    const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });
-    try { res.json(push.setEvents(w.memberId, (req.body || {}).endpoint, (req.body || {}).events)); } catch (e) { res.status(400).json({ error: e.message }); }
   });
   api.post('/push/test', rateLimit('apppte', 5, 60000), async (req, res) => {
     const w = whoDev(req); if (!w) return res.status(403).json({ error: 'Dieses Gerät ist nicht freigeschaltet.', device: true });

@@ -410,7 +410,7 @@ Only the tournament director enters results, here in the admin area or on the ta
 - **Choose a date:** Tap the match, choose a day, then a free time (with “Courts” the court is booked for both players, otherwise you only enter the time). “Move” changes the same booking, “Cancel date” cancels it. The opponent is told every time and can be called or messaged straight from the app (if the member administration knows a number).
 - **Enter result:** Set by set, plus “Walkover” and “Retired”. Either player can enter it; only the sports officer can correct it.
 - **For me:** Upcoming matches, “Enter result”, “Arrange a date” and open entries also appear under “For me”.
-- **Notifications:** new match drawn, deadline in 7 days, result entered, match date arranged, reminder from the sports officer. Every member switches them on individually in the app.
+- **Notifications:** new match drawn, deadline in 7 days, result entered, match date arranged, reminder from the sports officer. The board releases them (Member app › Notifications); members only switch notifications on or off per phone in the app.
 
 **Without app or account:**
 

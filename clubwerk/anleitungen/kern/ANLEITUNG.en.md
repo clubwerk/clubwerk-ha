@@ -137,7 +137,7 @@ One table for all sections of the app, one “Save” for everything:
 - **When unlocking:** “preselect” ticks the section for new members automatically.
 - **Start** and **↑ ↓:** start section and order. By default the app opens “For me”.
 
-“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”.
+“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”. If the board has released push occasions and the phone has not switched notifications on yet, the card **“Turn on notifications”** sits at the very top, with “Turn on” and “Later” (hides it for 14 days). On an iPhone in Safari it explains in three steps how to put the app on the home screen; if push is blocked on the phone, it says where to allow it. The card disappears once notifications are on.
 
 ### Tab “Notifications” {#app-push}
 
@@ -145,7 +145,7 @@ One table for all sections of the app, one “Save” for everything:
 
 ![Test message to a member.](bild: seite=app; klick=[data-sec="push"]; ziel=.row:has(#pshWho))
 
-Push messages are short notes on the phone (on iPhone only in the home-screen app from iOS 16.4). At the top it shows how many phones are registered. For each module you tick the **occasions** for which a note is sent (for example new message, reminder of a date, new defect report); some have a lead time. Each member only switches push on or off per phone; what is allowed is decided by you. At the bottom **Test message to** sends a note to a member. “Recently sent” shows the latest notes and whether they arrived. Only a title and one sentence are sent, never anything that needs a PIN.
+Push messages are short notes on the phone (on iPhone only in the home-screen app from iOS 16.4). At the top it shows how many phones are registered. For each module you tick the **occasions** for which a note is sent (for example new message, reminder of a date, new defect report); some have a lead time. Each member only switches push on or off per phone and does not choose individual occasions: what arrives is decided by you alone. Occasions members switched off earlier no longer count. At the bottom **Test message to** sends a note to a member. “Recently sent” shows the latest notes and whether they arrived. Only a title and one sentence are sent, never anything that needs a PIN.
 
 ### Tab “Settings” {#app-einstellungen}
 

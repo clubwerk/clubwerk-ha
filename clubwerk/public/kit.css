@@ -206,6 +206,8 @@ button.vh-fm { width: 100%; font: inherit; color: inherit; text-align: left; bac
 .vh-fm .vh-tx strong { overflow-wrap: anywhere; hyphens: auto; }   /* lange Wörter („Mitgliederversammlung“) brechen um statt abgeschnitten zu werden */
 .vh-fm-val { flex: none; font-family: var(--num); font-size: 18px; font-weight: 600; }   /* Betrag in „Mein Konto“ */
 .vh-fm-news .vh-fm-ico { background: var(--brand-soft); }   /* Neuigkeiten heben sich leicht ab */
+/* Karte „Benachrichtigungen einschalten“ in „Für mich“: Später / Einschalten */
+.vh-pushact { display: flex; gap: 8px; margin-top: 12px; } .vh-pushact .vh-btn { flex: 1; min-width: 0; }
 /* Schlüssel/Wert */
 .vh-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
 .vh-kv dt { color: var(--muted); } .vh-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }

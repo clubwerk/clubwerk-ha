@@ -410,7 +410,7 @@ Ergebnisse tragen nur die Turnierleitung ein, hier in der Verwaltung oder am Tab
 - **Termin wählen:** Auf das Spiel tippen, Tag wählen, dann eine freie Zeit (mit „Plätze“ wird der Platz für beide gebucht, sonst trägt man nur die Uhrzeit ein). „Verlegen“ ändert dieselbe Buchung, „Termin absagen“ storniert sie. Der Gegner bekommt jedes Mal Bescheid und lässt sich direkt anrufen oder anschreiben (wenn die Mitgliederverwaltung eine Nummer kennt).
 - **Ergebnis eintragen:** Satz für Satz, dazu „Kampflos“ und „Aufgabe“. Eintragen kann einer der Spieler, korrigieren nur der Sportwart.
 - **Für mich:** Anstehende Spiele, „Ergebnis eintragen“, „Termin vereinbaren“ und offene Anmeldungen erscheinen auch unter „Für mich“.
-- **Benachrichtigungen:** neues Spiel ausgelost, Frist in 7 Tagen, Ergebnis eingetragen, Spieltermin vereinbart, Erinnerung vom Sportwart. Jedes Mitglied schaltet sie einzeln in der App.
+- **Benachrichtigungen:** neues Spiel ausgelost, Frist in 7 Tagen, Ergebnis eingetragen, Spieltermin vereinbart, Erinnerung vom Sportwart. Der Vorstand gibt sie frei (Mitglieder-App › Benachrichtigungen); das Mitglied schaltet Benachrichtigungen in der App nur je Handy ein oder aus.
 
 **Ohne App und Konto:**
 
