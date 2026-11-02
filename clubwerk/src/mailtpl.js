@@ -27,7 +27,7 @@ function logoWidth(lg) {
 /** Klartext → Absätze/Listen; „Hallo …,“ und der Gruß am Ende werden erkannt */
 function body(text) {
   const blocks = String(text || '').replace(/\r/g, '').split(/\n{2,}/).map(b => b.trim()).filter(Boolean);
-  const P = 'margin:0 0 14px;font-size:15px;line-height:1.55;color:#1f2723;';
+  const P = 'margin:0 0 14px;font-size:15px;line-height:1.55;color:#1f2723;overflow-wrap:anywhere;word-break:break-word;';
   return blocks.map((b, i) => {
     const lines = b.split('\n');
     if (lines.every(l => /^\s*[-•·]\s+/.test(l))) return `<ul style="margin:0 0 14px;padding-left:20px;font-size:15px;line-height:1.55;color:#1f2723;">${lines.map(l => `<li style="margin:0 0 4px;">${esc(l.replace(/^\s*[-•·]\s+/, ''))}</li>`).join('')}</ul>`;
@@ -65,8 +65,16 @@ function render({ subject, text, card, preheader }) {
           <td style="border-radius:10px;background:${c};"><a href="${esc(card.calendar.url)}" style="display:inline-block;padding:11px 18px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(card.calendar.label || 'Zu deinem Kalender hinzufügen')}</a></td></tr></table>` : ''}
       </td></tr></table>`;
   }
+  /* Nummerierte Schritte: Kreis (feste Spalte, 32 px) direkt neben dem Text – E-Mail-tauglich als Tabelle, Inline-Stile */
+  const F = "-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+  const stepsHtml = card && Array.isArray(card.steps) && card.steps.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 18px;">${card.steps.map((t, i) => `<tr>
+      <td width="40" valign="top" style="width:40px;padding:0 0 12px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td width="28" height="28" align="center" valign="middle" style="width:28px;height:28px;border-radius:14px;background:${c};font-family:${F};font-size:14px;font-weight:700;line-height:28px;color:#ffffff;">${i + 1}</td></tr></table></td>
+      <td valign="top" style="padding:3px 0 12px;font-family:${F};font-size:15px;line-height:1.5;color:#1f2723;">${esc(t)}</td></tr>`).join('')}</table>` : '';
   const btn = card && card.button && card.button !== true ? card.button : null;   // eigener Knopf je Mail (kein pauschales „In der App öffnen“ mehr)
-  const btnHtml = btn && /^https?:\/\//i.test(String(btn.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 6px;"><tr>
+  const wide = btn && btn.wide;   // über die ganze Breite, mindestens 52 px hoch (Handlungsaufforderung)
+  const btnHtml = btn && wide && /^https?:\/\//i.test(String(btn.url || '')) ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:6px 0 ${btn.note ? 8 : 18}px;"><tr>
+      <td align="center" style="border-radius:12px;background:${c};"><a href="${esc(btn.url)}" style="display:block;padding:18px 16px;min-height:16px;font-family:${F};font-size:17px;font-weight:700;line-height:1.2;color:#ffffff;text-align:center;text-decoration:none;border-radius:12px;">${esc(btn.label || 'Öffnen')}</a></td></tr></table>${btn.note ? `<div style="margin:0 0 18px;font-family:${F};font-size:12.5px;line-height:1.45;color:#5b6660;text-align:center;">${esc(btn.note)}</div>` : ''}`
+    : btn && /^https?:\/\//i.test(String(btn.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 6px;"><tr>
       <td style="border-radius:10px;background:${c};"><a href="${esc(btn.url)}" style="display:inline-block;padding:12px 20px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:15px;font-weight:700;line-height:1;color:#ffffff;text-decoration:none;border-radius:10px;">${esc(btn.label || 'Öffnen')}</a></td></tr></table>` : '';
   const pre = preheader || (card && card.title) || '';
   const html = `<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light only"><title>${esc(subject)}</title></head>
@@ -77,8 +85,9 @@ ${pre ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${esc
     <tr><td style="height:5px;background:${c};font-size:0;line-height:0;">&nbsp;</td></tr>
     <tr><td style="padding:22px 26px 6px;">${head}</td></tr>
     <tr><td style="padding:14px 26px 22px;"><div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:20px;font-weight:700;line-height:1.3;color:#1f2723;margin:0 0 14px;">${esc(heading)}</div>
-      <div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${(() => { const main = card && (card.before != null || card.after != null) ? body(card.before) + cardHtml + body(card.after) : cardHtml + body(text);
-        return main.includes('<!--SIG-->') ? main.replace('<!--SIG-->', btnHtml) : main + btnHtml; })()}</div></td></tr>
+      <div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">${(() => { const top = wide && card.buttonTop;   // breiter Knopf gleich nach der Anrede
+        const main = card && (card.before != null || card.after != null) ? body(card.before) + (top ? btnHtml : '') + stepsHtml + cardHtml + body(card.after) : stepsHtml + cardHtml + body(text);
+        return top ? main : main.includes('<!--SIG-->') ? main.replace('<!--SIG-->', btnHtml) : main + btnHtml; })()}</div></td></tr>
     <tr><td style="padding:18px 26px 22px;border-top:1px solid #edf1ef;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:12px;font-weight:400;line-height:1.5;color:#8a948f;">
       Diese Nachricht wurde automatisch von ${esc(club)} verschickt.</td></tr>
   </table>

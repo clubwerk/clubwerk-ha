@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS aw_extern (
   id INTEGER PRIMARY KEY, event_id INTEGER NOT NULL REFERENCES aw_event(id), name TEXT NOT NULL, note TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS aw_target (member_id INTEGER NOT NULL REFERENCES members(id), year INTEGER NOT NULL, minutes INTEGER, note TEXT, PRIMARY KEY(member_id, year));
+-- Kalender der Vereins-Homepage (Abo-Link): letzter erfolgreich abgerufener Stand, nur lesen
+CREATE TABLE IF NOT EXISTS aw_ical (id INTEGER PRIMARY KEY, uid TEXT, date TEXT NOT NULL, start TEXT, end_date TEXT, end TEXT, title TEXT NOT NULL, place TEXT, note TEXT);
 `);
 }
 
@@ -81,7 +83,7 @@ function activate(ctx) {
     rate_cents: parseInt(S('rate_cents', '1500'), 10) || 0, pool_family: S('pool_family', '1') === '1', exempt_passive: S('exempt_passive', '1') === '1',
     year_mode: S('year_mode', 'kalender') === 'beitrag' ? 'beitrag' : 'kalender', prorate: S('prorate', '1') === '1', tablet_auto: S('tablet_auto', '1') === '1',
     app_report: S('app_report', '1') === '1', start_year: parseInt(S('start_year', '0'), 10) || 0, remind_date: S('remind_date', ''), remind_events: S('remind_events', '1') === '1', round: parseInt(S('round', '15'), 10) || 1, text: S('text', ''),
-    contact: S('contact', ''), notify: S('notify', ''),
+    contact: S('contact', ''), notify: S('notify', ''), ical_url: S('ical_url', ''),
   });
   const mv = () => ctx.isModuleActive('mitglieder');
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
@@ -496,6 +498,58 @@ function activate(ctx) {
     res.json({ ok: true, cfg: cfg() });
   });
 
+  /* ---------------------------------------------------------------- Kalender der Vereins-Homepage
+     Abo-Link (webcal:// oder https://) stündlich abrufen, Termine der nächsten 13 Monate speichern; die Homepage bleibt die Quelle.
+     Klappt ein Abruf nicht, bleibt der letzte Stand. Beispieladressen (…example…) und die Demo-Kopie rufen nichts ab. */
+  const ical = ctx.require('./ical');
+  const ICAL_MAX = 2 * 1024 * 1024;
+  const icalUrl = v => { const u = String(v || '').trim().replace(/^webcal:\/\//i, 'https://'); return !u ? '' : /^https?:\/\/[^\s/?#]+[^\s]*$/i.test(u) && u.length <= 500 ? u : null; };
+  const icalHost = u => { try { return new URL(u).hostname.toLowerCase(); } catch (e) { return ''; } };
+  const icalSample = u => /(^|\.)example(\.(org|com|net))?$/.test(icalHost(u)) || /^dein-verein\./.test(icalHost(u));
+  const icalState = () => { const j = k => { try { return JSON.parse(S(k, 'null')); } catch (e) { return null; } }; return { ok: j('ical_ok'), err: j('ical_err'), n: db.prepare('SELECT COUNT(*) n FROM aw_ical').get().n }; };
+  let icalRun = null;
+  function icalSync() {
+    const url = S('ical_url');
+    if (!url || icalSample(url) || process.env.CW_DEMO_KOPIE === '1') return Promise.resolve(icalState());
+    if (icalRun) return icalRun;
+    icalRun = (async () => {
+      try {
+        const r = await fetch(url, { headers: { 'User-Agent': 'Clubwerk', Accept: 'text/calendar, text/plain;q=0.5' }, signal: AbortSignal.timeout(15000) });
+        if (!r.ok) throw new Error(`Die Homepage antwortet mit Fehler ${r.status}.`);
+        if (Number(r.headers.get('content-length')) > ICAL_MAX) throw new Error('Die Kalenderdatei ist zu groß (höchstens 2 MB).');
+        const parts = []; let n = 0;
+        for await (const c of r.body) { n += c.length; if (n > ICAL_MAX) throw new Error('Die Kalenderdatei ist zu groß (höchstens 2 MB).'); parts.push(c); }
+        const text = Buffer.concat(parts).toString('utf8');
+        if (!/BEGIN:VCALENDAR/.test(text)) throw new Error('Unter dieser Adresse liegt kein Kalender (keine iCal-Datei).');
+        const list = ical.events(text, { from: today(), to: addDays(today(), 400), max: 300 });
+        db.transaction(() => {
+          db.prepare('DELETE FROM aw_ical').run();
+          const ins = db.prepare('INSERT INTO aw_ical(uid, date, start, end_date, end, title, place, note) VALUES (?,?,?,?,?,?,?,?)');
+          for (const e of list) ins.run(e.uid, e.date, e.start || null, e.end_date || null, e.end || null, e.title, e.place || null, e.note || null);
+        })();
+        SET('ical_ok', JSON.stringify({ at: nowTs(), n: list.length })); SET('ical_err', 'null');
+      } catch (e) {
+        const msg = e.name === 'TimeoutError' || e.name === 'AbortError' ? 'Die Homepage hat nicht rechtzeitig geantwortet.' : /fetch failed|ENOTFOUND|ECONNREFUSED|EAI_AGAIN|EDEMO/.test(`${e.message} ${e.cause && e.cause.code}`) ? 'Die Homepage ist nicht erreichbar.' : txt(e.message, 200);
+        SET('ical_err', JSON.stringify({ at: nowTs(), error: msg }));
+      } finally { icalRun = null; }
+      return icalState();
+    })();
+    return icalRun;
+  }
+  admin.get('/ical', P, (req, res) => res.json({ url: S('ical_url'), sample: icalSample(S('ical_url')), ...icalState(), next: db.prepare('SELECT date, start, title FROM aw_ical WHERE date >= ? ORDER BY date, start LIMIT 3').all(today()) }));
+  admin.put('/ical', P, ar(async (req, res) => {
+    const u = icalUrl((req.body || {}).url);
+    if (u === null) return bad(res, 'Bitte den Abo-Link des Kalenders eintragen (beginnt mit webcal://, https:// oder http://).');
+    const before = S('ical_url');
+    if (u !== before) {
+      SET('ical_url', u); SET('ical_ok', 'null'); SET('ical_err', 'null'); db.prepare('DELETE FROM aw_ical').run();
+      ctx.audit(req.user, 'Dienste & Termine: Kalender der Homepage', u ? `Abo-Link ${before ? 'geändert' : 'eingetragen'}: ${u}` : 'Abo-Link entfernt');
+    }
+    res.json({ url: u, sample: icalSample(u), ...(u ? await icalSync() : icalState()) });
+  }));
+  admin.post('/ical/sync', P, rateLimit('awical', 10, 60000), ar(async (req, res) => res.json({ url: S('ical_url'), sample: icalSample(S('ical_url')), ...(await icalSync()) })));
+  const icalList = (from, to, max) => db.prepare('SELECT date, start, end_date, end, title, place, note FROM aw_ical WHERE COALESCE(end_date, date) >= ? AND date <= ? ORDER BY date, start IS NOT NULL, start, title LIMIT ?').all(from, to, max);
+
   /* ---------------------------------------------------------------- Tablet: ein- und ausstempeln */
   function stop(e, status) {
     const out = nowTs();
@@ -571,7 +625,7 @@ function activate(ctx) {
     const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
       shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
-      plans, termine,
+      plans, termine, kalender: icalList(today(), addDays(today(), 400), 60),
       events: db.prepare("SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL AND e.kind <> 'termin' ORDER BY e.date, e.start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));
@@ -670,12 +724,18 @@ function activate(ctx) {
     const ids = fam ? fam.members : [id];
     let tg = 0; for (const x of ids) tg += (await target(x, y)).minutes;
     const miss = tg - doneMinutes(ids, y);
+    // Vereinskalender der Homepage: die nächsten (höchstens 3) bis „until“, Antippen öffnet den Reiter „Termine“
+    next.push(...icalList(d, until, 6).filter(e => e.date > d || !(e.end || e.start) || (e.end || e.start) > now || (e.end_date || e.date) > d).slice(0, 3)
+      .map(e => ({ at: e.date < d ? d : e.date, start: e.date < d ? '' : e.start || '', end: e.date < d || (e.end_date && e.end_date !== e.date) ? '' : e.end || '', title: e.title, sub: [e.end_date && e.end_date !== e.date ? `bis ${deD(e.end_date).slice(0, 6)}` : '', e.place ? String(e.place).split(',')[0] : '', 'Vereinskalender'].filter(Boolean).join(' · '), focus: 'kalender' })));
     if (miss <= 0) return { next, todo: ask };
     // freie Dienste wie im Bereich: einzelne Termine und Schichten veröffentlichter Dienstpläne, noch nicht vorbei, nicht voll, ich noch nicht dabei
     const free = db.prepare(`SELECT e.* FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE e.date >= ? AND e.date <= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.counts = 1
       AND (e.plan_id IS NULL OR p.published = 1) AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)`).all(d, until, id).filter(e => isOpen(e) && (!e.slots || helpersOf(e.id).length < e.slots)).length;
     return { next, todo: [...ask, { title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '', tr: true }] };
   };
+  /* Kalender-Abo der Mitglieder-App: eigene Dienste und zugesagte Termine (ohne dauerhafte Dienste) */
+  ctx.hooks.calendarEvents = (id, { from, to }) => db.prepare(`SELECT e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND s.answer = 'ja' AND e.cancelled = 0 AND e.permanent = 0 AND e.date >= ? AND e.date <= ? ORDER BY e.date, e.start LIMIT 300`)
+    .all(id, from, to).map(e => ({ uid: `aw-${e.id}`, date: e.date, start: e.start || '', end: e.end || '', title: e.kind === 'termin' ? e.title : `${KIND[e.kind] || 'Dienst'}: ${e.title}`, place: e.place || '' }));
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
     { id: 'termin', label: 'Erinnerung an einen Termin', desc: 'Neue Termine mit Bitte um Antwort, kurz vor Ablauf der Antwortfrist und am Vortag eines Termins, zu dem du zugesagt hast.', default: true },
@@ -699,7 +759,7 @@ function activate(ctx) {
     return [{ group: 'Dienstpläne', art: 'dienstplan', page: 'aw-plaene', detail: true, hits: s.pick(rows, r => [r.title, r.place]).map(r => ({ id: r.id, label: r.title, person: false, score: r._score,
       sub: [r.from_date === r.to_date ? deD(r.from_date) : `${deD(r.from_date)} – ${deD(r.to_date)}`, r.place, r.published ? '' : 'Entwurf'] })) }];
   };
-  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact'];
+  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact', 'ical_url'];
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
   // nur bekannte Schlüssel übernehmen – eine fremde Datei darf keine beliebigen Einstellungen anlegen
   ctx.hooks.importConfig = d => { let n = 0; for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) { SET(k, v.slice(0, 600)); n++; } return `${n} Einstellungen übernommen – Dienste, Termine und Stunden gehören nicht dazu`; };
@@ -708,6 +768,7 @@ function activate(ctx) {
   async function daily() {
     try {
       if (!ctx.isActive()) return;
+      await icalSync();
       const c = cfg(), club = ctx.getSetting('club_name', '');
       const mailOk = ctx.mail.ready() && ctx.isModuleActive('mitglieder');
       const mailOf = id => hook('memberAddress', id);   // { email, … } aus der Mitgliederverwaltung

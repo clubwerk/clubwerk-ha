@@ -25,7 +25,14 @@
       .nx-files > button:first-child { border-top: 0; }
       .nx-view { display: flex; align-items: center; justify-content: center; max-height: 60vh; overflow: auto; background: var(--hover); border-radius: 12px; margin: 0 0 12px; }
       .nx-view img { max-width: 100%; height: auto; display: block; }
-      .nx-view iframe { width: 100%; height: 58vh; border: 0; background: #fff; }`;
+      .nx-view iframe { width: 100%; height: 58vh; border: 0; background: #fff; }
+      .nx-q { margin: 0 0 12px; font-size: 16px; line-height: 1.4; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+      .nx-opt { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; cursor: pointer; }
+      .nx-opt:first-child { border-top: 0; padding-top: 2px; }
+      .nx-opt input { width: 22px; height: 22px; flex: none; margin: 0; accent-color: var(--brand); }
+      .nx-opt .vh-tx { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+      .nx-bar { height: 6px; border-radius: 3px; background: var(--hover); margin-top: 6px; overflow: hidden; } .nx-bar i { display: block; height: 100%; background: var(--brand); border-radius: 3px; }
+      .nx-opt b { font-variant-numeric: tabular-nums; white-space: nowrap; }`;
     document.head.appendChild(s);
   }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
@@ -74,6 +81,26 @@
           <button class="vh-btn sec" id="nxBack" type="button" style="width:100%">Zurück zu den Nachrichten</button>`;
         el.querySelector('#nxBack').onclick = list;
         el.querySelectorAll('[data-f]').forEach(b => { b.onclick = () => openFile(m.id, m.files[+b.dataset.f]); });
+        if (m.poll) { el.querySelector('.vh-card').insertAdjacentHTML('afterend', '<div class="vh-card" id="nxPoll"></div>'); pollCard(m.id, m.poll); }
+      }
+
+      /* Umfrage: Antworten antippen und „Abstimmen“ (ändern bis zum Ende); Ergebnis als Balken, wenn der Verein es zeigt */
+      function pollCard(id, p) {
+        const box = document.getElementById('nxPoll'); if (!box) return;
+        const sum = p.counts ? Math.max(1, p.voters) : 0, voted = p.mine.length > 0;
+        const ends = p.ends_at ? `bis ${p.ends_at.slice(8, 10)}.${p.ends_at.slice(5, 7)}. ${p.ends_at.slice(11, 16)} Uhr` : '';
+        const state = !p.open ? '<span class="vh-chip">beendet</span>' : voted ? '<span class="vh-chip g">abgestimmt</span>' : '<span class="vh-chip a">offen</span>';
+        box.innerHTML = `<h3>Umfrage ${state}</h3><p class="nx-q" translate="no">${esc(p.question)}</p>
+          <div>${p.options.map((o, i) => `<label class="nx-opt"><input type="${p.multi ? 'checkbox' : 'radio'}" name="nxV" value="${i}" ${p.mine.includes(i) ? 'checked' : ''} ${p.open ? '' : 'disabled'}>
+            <span class="vh-tx"><span translate="no">${esc(o)}</span>${p.counts ? `<div class="nx-bar"><i style="width:${Math.round(p.counts[i] / sum * 100)}%"></i></div>` : ''}</span>${p.counts ? `<b>${Math.round(p.counts[i] / sum * 100)} %</b>` : ''}</label>`).join('')}</div>
+          <p class="vh-note" style="text-align:left;margin:10px 0 0">${[p.multi ? 'Mehrere Antworten möglich.' : '', p.anonymous ? 'Anonym – niemand sieht, was du gewählt hast.' : 'Der Verein sieht, was du gewählt hast.', p.counts ? `${p.voters} ${p.voters === 1 ? 'Stimme' : 'Stimmen'}.` : p.show === 'ende' && p.open ? 'Das Ergebnis siehst du nach dem Ende.' : p.show === 'nie' ? 'Das Ergebnis sieht nur der Verein.' : '', p.open && ends ? `Abstimmen ${ends}.` : ''].filter(Boolean).join(' ')}</p>
+          ${p.open ? `<button class="vh-btn wide" id="nxVote" type="button" style="margin-top:12px">${voted ? 'Stimme ändern' : 'Abstimmen'}</button>` : ''}`;
+        const b = box.querySelector('#nxVote');
+        if (b) b.onclick = async () => {
+          const choices = [...box.querySelectorAll('input[name="nxV"]:checked')].map(x => +x.value);
+          if (!choices.length) return ctx.toast('Bitte eine Antwort wählen.', true);
+          try { const r = await ctx.api('vote/' + id, 'POST', { choices }); ctx.toast(voted ? 'Stimme geändert.' : 'Danke für deine Stimme!'); pollCard(id, r.poll); } catch (e) { ctx.toast(e.message, true); }
+        };
       }
 
       async function list() {
@@ -82,7 +109,7 @@
         if (!d.items.length) { el.innerHTML = '<div class="vh-empty">Keine Nachrichten. Was der Verein dir schickt, erscheint hier.</div>'; return; }
         el.innerHTML = `<div class="vh-card flush"><h3>Nachrichten${d.unread ? ` <small>${d.unread} neu</small>` : ''}</h3><div class="vh-rows">${d.items.map(m => `<button type="button" class="vh-fm nx-row${m.read ? ' read' : ''}" data-id="${m.id}">
             <span class="vh-fm-ico">${MAIL}</span>
-            <span class="vh-tx"><strong translate="no">${esc(m.subject)}</strong><small class="nx-pre" translate="no">${esc(m.preview)}</small><small>${deD(m.at)}${m.from ? ' · ' + esc(m.from) : ''}${m.files ? ` · ${m.files} ${m.files === 1 ? 'Anhang' : 'Anhänge'}` : ''}${m.pinned ? ' · <span class="vh-chip a">angeheftet</span>' : ''}</small></span>${CHEV}</button>`).join('')}</div></div>`;
+            <span class="vh-tx"><strong translate="no">${esc(m.subject)}</strong><small class="nx-pre" translate="no">${esc(m.preview)}</small><small>${deD(m.at)}${m.from ? ' · ' + esc(m.from) : ''}${m.files ? ` · ${m.files} ${m.files === 1 ? 'Anhang' : 'Anhänge'}` : ''}${m.poll === 'offen' ? ' · <span class="vh-chip a">Umfrage</span>' : ''}${m.pinned ? ' · <span class="vh-chip a">angeheftet</span>' : ''}</small></span>${CHEV}</button>`).join('')}</div></div>`;
         el.querySelectorAll('[data-id]').forEach(b => { b.onclick = () => open(+b.dataset.id); });
       }
 

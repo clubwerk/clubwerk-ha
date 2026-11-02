@@ -334,7 +334,7 @@ let bank = null;
 function account() {
   if (bank === null) { try { bank = require('../../../src/bank'); } catch (e) { bank = false; } }
   const a = bank ? bank.pick({ id: Number(S('sepa_account')) || null }) : null;
-  return a ? { id: a.id, name: a.name, iban: a.iban, bic: a.bic || '', bank: a.bank || '', central: true } : { id: null, name: '', iban: S('club_iban'), bic: S('club_bic'), bank: S('club_bank'), central: false };
+  return a ? { id: a.id, name: a.name, holder: a.holder || '', iban: a.iban, bic: a.bic || '', bank: a.bank || '', central: true } : { id: null, name: '', holder: '', iban: S('club_iban'), bic: S('club_bic'), bank: S('club_bank'), central: false };
 }
 
 /* ---------- Beiträge ---------- */

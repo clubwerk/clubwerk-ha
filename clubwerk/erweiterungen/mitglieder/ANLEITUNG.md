@@ -506,6 +506,8 @@ Der Reiter hat vier Teile. Oben warnt ein Kasten, wenn der letzte Kontoauszug ä
 
 Für Zahler mit **Rechnung oder bar** (und Zahler, die nach zwei Rücklastschriften nicht mehr eingezogen werden). Je Zahler stehen Zahl der Posten und Betrag in der Liste. „PDF“ zeigt die Rechnung, **Ausgewählte per E-Mail senden** verschickt sie mit dem PDF.
 
+Rechnungen und Mahnungen tragen neben der Bankverbindung einen **QR-Code für die Banking-App**. Wer ihn scannt, hat Empfänger, IBAN, Betrag und Rechnungsnummer schon ausgefüllt. Weil die Rechnungsnummer so unverändert im Verwendungszweck steht, ordnet der Kontoauszug die Zahlung sicher zu.
+
 #### Mahnungen – jetzt fällig
 
 Der Mahnlauf: Clubwerk zeigt, wer jetzt ein Schreiben bekommt, mit der **Stufe je Posten** (z. B. Zahlungserinnerung, 1. Mahnung, 2. Mahnung), Fälligkeit, Zahl der Posten, offenem Betrag und Gebühr. Ihr haltet Häkchen und wählt:
@@ -571,6 +573,7 @@ Wie im Reiter „Einstellungen“ unter „Mitglieder“: die Einstellungen als 
 - **Eine neue Bankverbindung** auf dem Handy per Unterschrift als neues SEPA-Mandat erteilen. Der Vorstand übernimmt es.
 - **Einwilligungen** erteilen oder widerrufen (gilt sofort, mit PIN).
 - **Die Datenauskunft** anfordern: Sie kommt als PDF per E-Mail.
+- **Überweisen:** Wer per Rechnung oder bar zahlt oder eine Mahnung bekommen hat, findet unter „Zahlungen“ den Knopf „Überweisen“. Er zeigt einen QR-Code für die Banking-App und Empfänger, IBAN, Betrag und Verwendungszweck zum Kopieren. Offene Posten ohne Rechnungsnummer bekommen dabei eine, damit der Kontoauszug die Zahlung erkennt. Wer per Lastschrift zahlt, sieht den Knopf nicht.
 - **Kündigen**, wenn das erlaubt ist. Die App nennt den frühesten Austrittstermin; Familien wählen, wer mit kündigt.
 
 Unterschriften, Kündigung und Änderungen, die Geld oder E-Mail betreffen, verlangen die PIN des Mitglieds.

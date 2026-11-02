@@ -95,6 +95,7 @@
       $('app').innerHTML = `<div class="login card firststart">${logo}<h2 class="page">Admin-Konto</h2>
         <p class="lead">Dein Konto mit allen Rechten. Danach geht es in der Verwaltung weiter.</p>
         <form id="fsForm" autocomplete="on">
+        <label class="f">Name des Vereins <span class="muted">(erscheint in E-Mails, Hinweisen und auf Ausdrucken)</span><input id="fsClub" autocomplete="organization" placeholder="z. B. TC Grün-Weiß Musterstadt" maxlength="60"></label><br>
         <label class="f">Dein Name<input id="fsName" autocomplete="name" placeholder="z. B. Alex Muster" maxlength="60"></label><br>
         <label class="f">Benutzername<input id="fsUser" value="admin" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="30"></label><br>
         <label class="f">Passwort (mind. 8 Zeichen)<input type="password" id="fsPw1" autocomplete="new-password"></label><br>
@@ -104,13 +105,14 @@
         <div class="btns"><button class="btn ghost" id="fsBack" type="button">Zurück</button><button class="btn primary" id="fsGo">Konto anlegen</button></div>
         <p class="err" id="fsErr" role="alert"></p></form></div>`;
       $('fsBack').onclick = welcome;
-      $('fsName').focus();
+      $('fsClub').focus();
       $('fsForm').onsubmit = e => {
         e.preventDefault();
         GK.busy($('fsGo'), async () => {
+          if ($('fsClub').value.trim().length < 3) { $('fsErr').textContent = T('Bitte den Namen des Vereins eingeben.'); $('fsClub').focus(); return; }
           if ($('fsPw1').value !== $('fsPw2').value) { $('fsErr').textContent = T('Die Passwörter stimmen nicht überein.'); return; }
           try {
-            await api('setup', 'POST', { name: $('fsName').value, username: $('fsUser').value, password: $('fsPw1').value, language: lang, wizard: true, code: $('fsCode') ? $('fsCode').value : undefined });
+            await api('setup', 'POST', { clubName: $('fsClub').value, name: $('fsName').value, username: $('fsUser').value, password: $('fsPw1').value, language: lang, wizard: true, code: $('fsCode') ? $('fsCode').value : undefined });
             GK.restart();
           } catch (err) { $('fsErr').textContent = err.message; }
         });

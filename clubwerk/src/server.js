@@ -993,7 +993,7 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (!setupCodeOk(req, res)) return;
   const { password, clubName, tabletPassword, wizard } = req.body || {};
   const club = cleanName(clubName, 60);
-  if (clubName !== undefined && club.length < 3) return bad(res, 'Bitte den Namen des Vereins eingeben.');
+  if ((clubName !== undefined || wizard) && club.length < 3) return bad(res, 'Bitte den Namen des Vereins eingeben.');   // der Einrichtungs-Assistent verlangt den Vereinsnamen (Pflicht)
   // Assistent: Name und Benutzername frei wählbar, Vereinssprache gleich mit – sonst wie bisher fest „Adminkonto“ / „admin“
   const uname = wizard ? String((req.body || {}).username || 'admin').trim().toLowerCase() : 'admin', fullName = (wizard && cleanName((req.body || {}).name, 60)) || 'Adminkonto';
   if (!validUsername(uname)) return bad(res, 'Benutzername: 3 bis 30 Zeichen, nur Buchstaben, Ziffern, Punkt, Strich und Unterstrich.');
@@ -1244,7 +1244,7 @@ admin.post('/suche', (req, res) => res.json(require('./suche').run(req.user, req
 
 admin.get('/settings', (req, res) => {
   const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), lastSettlement: lastSettlement(),
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), clubNameSet: require('./vereinsname').isSet(), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
     clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''),
     topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,

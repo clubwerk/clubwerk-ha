@@ -2580,7 +2580,7 @@
     const club = cache.settings.clubName || '';
     printHtml(letters.map(l => `<div class="pr letter"><h1>${esc(club)}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(l.name)}</b></p>
       <div style="width:70mm;height:70mm;margin:8mm auto">${l.svg}</div>
-      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).</li><li>Die Seite auf den Home-Bildschirm legen – fertig.</li></ol>
+      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).</li><li>Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.</li></ol>
       <p style="margin-top:8mm">Gilt einmal und bis ${new Date(l.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Persönlich – bitte nicht weitergeben.</p></div>`).join(''));
   }
   /** Einladung per E-Mail an ein Mitglied */
@@ -4190,7 +4190,7 @@
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
-        <div class="frm"><label class="f">Vereinsname<input id="club" value="${esc(s.clubName)}"></label>
+        <div class="frm"><label class="f">Vereinsname<input id="club" value="${esc(s.clubNameSet === false ? '' : s.clubName)}" placeholder="z. B. TC Grün-Weiß Musterstadt"></label>
         <label class="f w1">Vereinsfarbe<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;flex:none;padding:2px">
           <input id="clubColor" value="${esc(s.clubColor)}" style="flex:1;min-width:0" maxlength="7"></span></label>
         <label class="f w1">Zweitfarbe (freiwillig)<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;flex:none;padding:2px">

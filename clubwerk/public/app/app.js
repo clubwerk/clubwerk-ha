@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.15';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.16';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -183,28 +183,55 @@
   const SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/><path d="M5 11H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
   const ADDHOME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
   const OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M11 18h2"/></svg>';
-  /** Welche Karte? '' (keine) | 'ask' (einschalten) | 'ios' (erst zum Home-Bildschirm) | 'denied' (im Handy gesperrt) */
-  function pushCardKind(p) {
-    if (!p || !p.released || p.mine || pushLater()) return '';
-    if (isIOS && !standalone()) return 'ios';   // im Safari-Tab gibt es auf dem iPhone kein Push
-    if (!pushSupported()) return '';
-    return Notification.permission === 'denied' ? 'denied' : 'ask';
+  /* Plattform erkennen: zuerst über Merkmale (PushManager, Notification, Standalone), der User-Agent ergänzt nur (Version, eingebettete Browser) */
+  const UA_EMBED_IOS = /FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|Twitter|Snapchat|MicroMessenger|GSA\/|Gmail|OutlookMobile|WhatsApp|Telegram|MetaIAB/i;
+  const UA_EMBED_AND = /; wv\)|FBAN|FBAV|FB_IAB|Instagram|LinkedInApp|Line\/|Twitter|Snapchat|MicroMessenger|GSA\/|Gmail|WhatsApp|MetaIAB/i;
+  function platformEnv(ua = navigator.userAgent) {
+    const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1), android = /Android/.test(ua);
+    const v = ua.match(/OS (\d+)[_.](\d+)/), thirdParty = /CriOS|FxiOS|EdgiOS|OPiOS|Brave/.test(ua);
+    return { ios, android, standalone: standalone(), push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'default',
+      iosVer: ios && v ? [+v[1], +v[2]] : null,
+      embedded: ios ? (UA_EMBED_IOS.test(ua) || (/Mobile\//.test(ua) && !/Safari\//.test(ua) && !thirdParty)) : android ? UA_EMBED_AND.test(ua) : false };
   }
+  /** Welche Karte zeigt „Für mich“ als Nächstes (immer nur eine)? '' | ask | denied | ios-share | ios-embedded | ios-old | android-embedded
+      p = Antwort des Servers { released, mine }; später = „Später“ gedrückt. Ohne Push auf diesem Gerät nie eine falsche Anleitung. */
+  function pushPlan(p, e, later) {
+    if (!p || !p.released || p.mine || later) return '';
+    if (e.ios) {
+      if (e.iosVer && (e.iosVer[0] < 16 || (e.iosVer[0] === 16 && e.iosVer[1] < 4))) return 'ios-old';   // vor iOS 16.4 gibt es kein Web-Push
+      if (!e.standalone) return e.embedded ? 'ios-embedded' : 'ios-share';   // Push nur in der Home-Bildschirm-App
+    } else if (e.android && e.embedded) return 'android-embedded';
+    if (!e.push) return '';   // z. B. Desktop-Browser ohne Push, Huawei ohne Google-Dienste, sehr alte Geräte
+    return e.perm === 'denied' ? 'denied' : 'ask';
+  }
+  window.cwPushPlan = pushPlan; window.cwPlatformEnv = platformEnv;
+  const hintOpen = () => { const h = $('installHint'); return Boolean(h) && !h.classList.contains('hidden'); };
+  const copyAddress = async () => {
+    const u = location.origin + location.pathname;
+    try { await navigator.clipboard.writeText(u); } catch (e) { const t = document.createElement('textarea'); t.value = u; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (x) { /* egal */ } t.remove(); }
+    toast('Adresse kopiert.');
+  };
+  let pushReload = null;
   function pushCard(p) {
-    const kind = pushCardKind(p);
+    const e = platformEnv();
+    let kind = pushPlan(p, e, pushLater());
+    if ((kind === 'ios-share' || kind === 'ios-embedded') && hintOpen()) return '';   // der Kasten „Auf den Home-Bildschirm“ oben sagt dasselbe – nie zwei Karten
     if (!kind) return '';
     const row = (ico, title, sub) => `<div class="vh-fm"><span class="vh-fm-ico">${ico}</span><span class="vh-tx"><strong>${title}</strong>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
-    const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>';
-    if (kind === 'ask') return `<div class="vh-card vh-fm-news" data-pushcard="ask"><h3>Benachrichtigungen einschalten</h3><div class="vh-rows">${row(BELL, 'Nichts verpassen', 'Damit du Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.')}</div>${act(later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>')}</div>`;
-    if (kind === 'denied') return `<div class="vh-card vh-fm-news" data-pushcard="denied"><h3>Benachrichtigungen sind gesperrt</h3><div class="vh-rows">${row(BELL_OFF, 'Im Handy erlauben', isIOS ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.')}</div>${act(later)}</div>`;
-    return `<div class="vh-card vh-fm-news" data-pushcard="ios"><h3>Benachrichtigungen einschalten</h3><div class="vh-rows">
-      ${row(SHARE, '1. Teilen antippen', 'Das Symbol mit dem Pfeil, unten in Safari.')}
-      ${row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.')}
-      ${row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.')}</div>${act(later)}</div>`;
+    const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>', copy = '<button type="button" class="vh-btn" data-pushcopy>Adresse kopieren</button>';
+    const card = (h, rows, buttons) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div>${act(...buttons)}</div>`;
+    const MENU = 'Je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“.';
+    if (kind === 'ask') return card('Benachrichtigungen einschalten', row(BELL, 'Nichts verpassen', 'Damit du Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.'), [later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>']);
+    if (kind === 'denied') return card('Benachrichtigungen sind gesperrt', row(BELL_OFF, 'Im Handy erlauben', e.ios ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.'), [later]);
+    if (kind === 'ios-old') return card('Benachrichtigungen gehen hier nicht', row(BELL_OFF, 'iOS 16.4 oder neuer nötig', 'Einstellungen › Allgemein › Softwareupdate. Auf diesem iPhone sind keine Benachrichtigungen möglich.'), [later]);
+    if (kind === 'ios-embedded') return card('Zuerst in Safari öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „…“ oder das Teilen-Symbol und dann auf „In Safari öffnen“.') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie in Safari. Dort „Übernahme-Code eingeben“ antippen.'), [later, copy]);
+    if (kind === 'android-embedded') return card('Im Browser öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „⋮“ oder „…“ und dann auf „Im Browser öffnen“ (Chrome).') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie im Browser.'), [later, copy]);
+    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.') + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.'), [later]);
   }
   function wirePushCard(el) {
     const c = el.querySelector('[data-pushcard]'); if (!c) return;
-    const lt = c.querySelector('[data-pushlater]'), on = c.querySelector('[data-pushon]');
+    const lt = c.querySelector('[data-pushlater]'), on = c.querySelector('[data-pushon]'), cp = c.querySelector('[data-pushcopy]');
+    if (cp) cp.onclick = copyAddress;
     if (lt) lt.onclick = () => { pushLaterSet(); c.remove(); };
     if (on) on.onclick = async () => {
       on.disabled = true;
@@ -237,6 +264,7 @@
     const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}"><h3>${h}</h3><div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
     const first = me.sections.find(s => s.ok);
     const pc = pushCard(d.push);
+    pushReload = () => { if (current === FM) forMe(el); };
     el.innerHTML = pc + (!d.news.length && !d.next.length && !d.todo.length && !d.money.length
       ? `<div class="vh-empty">Gerade steht nichts an.${first ? ` <button type="button" class="vh-link" data-go="${esc(first.id)}">${first.id === 'buchung' ? 'Platz buchen' : `${esc(first.title)} öffnen`}</button>` : ''}</div>`
       : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox));
@@ -401,6 +429,7 @@
         <button type="button" id="accPush">Benachrichtigungen</button>
         ${openLang ? `<button type="button" id="accLang">Sprache: <span translate="no">${esc(langName)}</span></button>` : ''}
         ${window.CWTheme ? `<button type="button" id="accLook">Darstellung: <span>${esc(LOOKS.find(x => x[0] === CWTheme.choice())[1])}</span></button>` : ''}
+        <button type="button" id="accCal">Kalender abonnieren</button>
         <button type="button" id="accPin">PIN ändern</button>
       </div>
       <button type="button" class="vh-danger" id="accOut" style="margin:14px 0 0">Abmelden</button>
@@ -414,6 +443,7 @@
     on('#accLang', () => openLang && openLang());
     on('#accLook', lookSheet);
     on('#accPin', pinChangeSheet);
+    on('#accCal', () => calSheet().catch(e => toast(e.message, true)));
     // Abmelden: Rückfrage im selben Blatt, mit der Folge
     sh.querySelector('#accOut').onclick = () => {
       sh.innerHTML = `<div class="vh-box"><h2>Abmelden?</h2>
@@ -448,6 +478,28 @@
     $('tabs').classList.add('hidden'); $('sec').innerHTML = ''; $('ava').classList.add('hidden'); $('who').textContent = 'Mitglieder-App';
     lock('Dieses Handy ist abgemeldet. Für die App brauchst du eine neue Einladung vom Vorstand.');
     try { const reg = pushSupported() && await navigator.serviceWorker.getRegistration(); const sub = reg && await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) { /* egal */ }
+  }
+  /* ---------- Kalender abonnieren: persönlicher Link für den Kalender des Handys (eigene Dienste, Termine, Buchungen, Spiele) ---------- */
+  async function calSheet() {
+    let sh = $('calSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'calSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); }
+    const close = () => sh.classList.remove('show');
+    const draw = d => {
+      sh.innerHTML = `<div class="vh-box"><h2>Kalender abonnieren</h2><p>Deine Dienste, zugesagten Termine, Platzbuchungen und Spiele erscheinen im Kalender deines Handys und bleiben dort von selbst aktuell.</p>
+        ${d.url ? `<div class="vh-codewrap"><div class="vh-code" translate="no" style="font-size:13px;letter-spacing:0;text-align:left;overflow-wrap:anywhere;padding-left:14px">${esc(d.url)}</div><button type="button" class="vh-copy" id="calCp" aria-label="Link kopieren" title="Link kopieren"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg></button></div>
+          <a class="vh-btn wide" href="${esc(d.url.replace(/^https?:/i, 'webcal:'))}">Im Kalender abonnieren</a>
+          ${d.local ? '<p class="vh-note" style="text-align:left;margin:10px 0 0">Der Verein hat keine Adresse für unterwegs eingerichtet – dein Kalender kann die Termine nur im Vereins-WLAN abrufen.</p>' : ''}<p class="vh-note" style="text-align:left;margin:10px 0 0">Der Link ist persönlich: Wer ihn kennt, sieht deine Termine. „Neuer Link“ macht den alten ungültig.</p>
+          <div class="vh-row" style="margin-top:12px"><button class="no" id="calNew">Neuer Link</button><button class="no" id="calOff">Abo beenden</button></div>`
+        : '<div class="vh-row" style="margin-top:12px"><button class="ok" id="calMake">Link erstellen</button></div>'}
+        <div class="vh-row" style="margin-top:10px"><button class="no" id="calNo">Schließen</button></div></div>`;
+      sh.querySelector('#calNo').onclick = close;
+      const on = (id, fn) => { const e = sh.querySelector(id); if (e) e.onclick = () => fn().catch(x => toast(x.message, true)); };
+      on('#calMake', async () => draw(await call('kalender', 'POST', {})));
+      on('#calNew', async () => { draw(await call('kalender', 'POST', {})); toast('Neuer Link – bitte im Kalender neu abonnieren.'); });
+      on('#calOff', async () => { await call('kalender', 'DELETE'); draw({}); toast('Abo beendet.'); });
+      on('#calCp', async () => { try { await navigator.clipboard.writeText(d.url); toast('Link kopiert.'); } catch (e) { toast('Kopieren geht hier nicht – bitte von Hand übernehmen.', true); } });
+    };
+    draw(await call('kalender'));
+    sh.classList.add('show');
   }
   /* ---------- PIN ändern: gilt auch am Tablet; die bisherige PIN zählt in die Sperre nach Fehlversuchen ---------- */
   function pinChangeSheet() {
@@ -505,7 +557,7 @@
     let st = await call('push/state', 'POST', { endpoint: sub ? sub.endpoint : '' });
     const on = () => Boolean(sub && st.subscribed);
     const draw = () => {
-      const hint = !sup ? (isIOS ? 'Auf dem iPhone gibt es Benachrichtigungen nur in der Home-Bildschirm-App: unten auf Teilen → „Zum Home-Bildschirm“, dann dort einschalten.' : 'Dieser Browser unterstützt keine Push-Benachrichtigungen.')
+      const hint = !sup ? (isIOS ? 'Auf dem iPhone gibt es Benachrichtigungen nur in der Home-Bildschirm-App: über das Teilen-Symbol → „Zum Home-Bildschirm“, dann dort einschalten.' : 'Dieser Browser unterstützt keine Push-Benachrichtigungen.')
         : Notification.permission === 'denied' ? 'Benachrichtigungen sind für diese App im Handy gesperrt – bitte in den Einstellungen des Handys erlauben.' : '';
       sh.innerHTML = `<div class="vh-box"><h2>Benachrichtigungen</h2>
         <p class="vh-small" style="text-align:left">Kurze Hinweise aufs Handy, z. B. wenn dich jemand als Mitspieler einträgt. Gilt nur für dieses Handy.</p>
@@ -587,7 +639,7 @@
       // Startadresse der Home-Bildschirm-App mit Code (Manifest und aktuelle Adresse – je nach iOS-Version zählt das eine oder das andere)
       const m = document.querySelector('link[rel="manifest"]'); if (m) m.setAttribute('href', 'manifest.json?k=' + r.code);
       history.replaceState(null, '', location.pathname + location.search + '#k=' + r.code);
-      if (isIOS && store.get('va_hint_off') !== '1') { $('installCode').textContent = fmtCode(r.code); $('installHint').classList.remove('hidden'); }
+      if (isIOS && store.get('va_hint_off') !== '1') { $('installCode').textContent = fmtCode(r.code); installText(); $('installHint').classList.remove('hidden'); if (pushReload) pushReload(); }
     } catch (e) { /* kein Code – App lässt sich trotzdem per QR neu freischalten */ }
   }
   $('installCopy').onclick = async () => {
@@ -596,7 +648,16 @@
     catch (e) { const r = document.createRange(); r.selectNodeContents($('installCode')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); try { document.execCommand('copy'); } catch (x) { /* egal */ } }
     toast('Code kopiert.');
   };
-  $('installX').onclick = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); };
+  $('installAddr').onclick = copyAddress;
+  $('installX').onclick = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); if (pushReload) pushReload(); };
+  /** Kasten „Auf den Home-Bildschirm“: nie feste Lage der Leiste nennen; in eingebetteten Browsern (Gmail, WhatsApp …) zuerst Safari */
+  function installText() {
+    const e = platformEnv(), t = $('installText'); if (!t) return;
+    t.innerHTML = e.embedded
+      ? 'Diese Seite läuft in einer anderen App. Tippe auf <b>„…“</b> oder das <b>Teilen-Symbol</b> und dann auf <b>„In Safari öffnen“</b>. Dort legst du sie über das Teilen-Symbol auf den Home-Bildschirm.'
+      : `Tippe auf das <b>Teilen-Symbol</b> ${SHARE.replace('<svg ', '<svg width="16" height="16" style="vertical-align:-3px" ')} – je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“ – und dann auf <b>„Zum Home-Bildschirm“</b>. Beim ersten Öffnen der App gibst du einmal deine PIN ein – fertig.`;
+    $('installAddr').classList.toggle('hidden', !e.embedded);   // Ausweg in eingebetteten Browsern: Adresse kopieren und in Safari öffnen
+  }
   let trMode = 'transfer';   // 'transfer' = Übernahme in die Home-Bildschirm-App, 'handover' = lokale Adresse im Vereinsheim
   function transferFlow(code, mode = 'transfer') {
     trMode = mode;

@@ -60,6 +60,11 @@
   .ml-file button{width:24px;height:24px;border-radius:12px;font-size:16px;color:var(--muted)}
   .ml-file button:hover{background:var(--hover);color:var(--ink)}
   .ml-drop{outline:2px dashed var(--brand);outline-offset:-6px;background:var(--brand-soft)}
+  .ml-poll{padding:12px 18px;border-top:1px solid var(--line-soft)}
+  .ml-poll .frm{margin-top:10px}
+  .ml-popt{display:flex;gap:8px;align-items:center;margin:0 0 8px}
+  .ml-res{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;align-items:center;margin:8px 0}
+  .ml-res .bar{grid-column:1/-1;height:6px;border-radius:3px;background:var(--hover);overflow:hidden;margin-bottom:6px}.ml-res .bar i{display:block;height:100%;background:var(--brand)}
   .ml-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 18px;border-top:1px solid var(--line-soft)}
   .ml-foot .st{font-size:13px;color:var(--muted);margin-right:auto}
   .ml-list{display:flex;flex-direction:column}
@@ -249,7 +254,7 @@
     let id = openDraft, d = null; openDraft = null;
     if (id) { try { d = await api('mail/messages/' + id); } catch (e) { id = null; } }
     const st = { subject: d ? d.subject : '', html: d ? d.html : '', spec: d ? d.spec : emptySpec(), copy_me: d ? d.copy_me : Boolean(O.me.reply_to), files: d ? d.files : [],
-      channels: d ? d.channels : ['mail'], keep_months: d ? d.keep_months : null, pinned: d ? d.pinned : false };
+      channels: d ? d.channels : ['mail'], keep_months: d ? d.keep_months : null, pinned: d ? d.pinned : false, poll: d ? d.poll : null };
     if (!st.spec.lists) st.spec.lists = [];
     const me = O.me;
     body.innerHTML = `<div class="card ml-card" id="mlBox">
@@ -269,6 +274,7 @@
         <div id="mlEd"></div>
         ${me.signature ? `<div class="ml-sig" title="${esc(T('Unterschrift – unter „Mein Konto“ änderbar'))}">${me.signature}</div>` : ''}
         <div class="ml-files" id="mlFiles"></div>
+        <div class="ml-poll" id="mlPoll"></div>
         <div class="ml-foot"><span class="st" id="mlSt">${d ? esc(T('Entwurf vom')) + ' ' + deT(d.updated_at || d.created_at) : ''}</span>
           <button class="btn ghost" id="mlTpl">${esc(T('Als Vorlage speichern'))}</button><button class="btn ghost" id="mlDel">${esc(T('Verwerfen'))}</button>
           <button class="btn" id="mlPrev">${esc(T('Vorschau'))}</button><button class="btn primary" id="mlSend">${esc(T('Senden …'))}</button></div></div>`;
@@ -276,7 +282,7 @@
     const draftBox = $('mlBox');   // Zeitgeber dieses Entwurfs enden, sobald er nicht mehr angezeigt wird (anderer Reiter, andere Seite)
     // Speichern: Entwurf beim ersten Tippen anlegen, danach kurz nach jeder Änderung
     let timer = 0, saving = null, dirtyN = 0;
-    const payload = () => ({ subject: $('mlSub').value, html: ed.html(), spec: st.spec, copy_me: $('mlCopy').checked, channels: st.channels, keep_months: $('mlKeep').value ? +$('mlKeep').value : null, pinned: $('mlPin').checked });
+    const payload = () => ({ subject: $('mlSub').value, html: ed.html(), spec: st.spec, copy_me: $('mlCopy').checked, channels: st.channels, keep_months: $('mlKeep').value ? +$('mlKeep').value : null, pinned: $('mlPin').checked, poll: st.poll });
     const empty = () => !$('mlSub').value.trim() && !ed.el.textContent.trim() && !hasTo(st.spec) && !st.files.length;
     const save = async () => {
       clearTimeout(timer);
@@ -313,7 +319,7 @@
       $('mlPayerL').classList.toggle('hidden', !c.includes('mail')); $('mlCopyL').classList.toggle('hidden', !c.includes('mail'));
       $('mlKeepL').classList.toggle('hidden', !c.includes('app') || $('mlPin').checked); $('mlPinL').classList.toggle('hidden', !c.includes('app'));
       $('mlWHint').textContent = c.includes('push') && !O.app.pushOn ? T('Der Push-Anlass „Nachrichten vom Verein“ ist noch nicht freigegeben (Mitglieder-App › Benachrichtigungen) – dann kommt nur die Nachricht in der App.') : c.includes('app') && !c.includes('push') ? T('Ohne Push sehen Mitglieder die Nachricht, sobald sie die App öffnen.') : !c.includes('app') ? T('Mitglieder ohne E-Mail-Adresse bekommen nichts – dafür „In der Mitglieder-App“ wählen.') : '';
-      picked.render();
+      picked.render(); drawPoll();
     };
     const setWay = (w, on) => {
       const set = new Set(st.channels); if (on) set.add(w); else set.delete(w);
@@ -324,6 +330,32 @@
       drawWays(); touch(); count();
     };
     $('mlWMail').onchange = () => setWay('mail', $('mlWMail').checked); $('mlWApp').onchange = () => setWay('app', $('mlWApp').checked); $('mlWPush').onchange = () => setWay('push', $('mlWPush').checked);
+    /* Umfrage anhängen (nur mit „In der Mitglieder-App“ – abgestimmt wird in der App) */
+    function drawPoll() {
+      const box = $('mlPoll'); if (!box) return;
+      const appOn = st.channels.includes('app'), p = st.poll;
+      if (!p) { box.innerHTML = appOn ? `<button class="btn small" id="mlPAdd">+ ${esc(T('Umfrage anhängen'))}</button>` : `<span class="muted s">${esc(T('Eine Umfrage geht nur mit „In der Mitglieder-App“.'))}</span>`; if ($('mlPAdd')) $('mlPAdd').onclick = () => { st.poll = { question: '', options: ['', ''], multi: false, anonymous: false, show: 'stimme', ends_at: null }; drawPoll(); touch(); $('mlPQ').focus(); }; return; }
+      box.innerHTML = `<div class="row" style="justify-content:space-between;align-items:center"><b>${esc(T('Umfrage'))}</b><button class="btn small ghost" id="mlPDel">${esc(T('Umfrage entfernen'))}</button></div>
+        ${appOn ? '' : `<p class="muted s" style="color:var(--red)">${esc(T('Abgestimmt wird in der Mitglieder-App – bitte den Weg „In der Mitglieder-App“ wählen.'))}</p>`}
+        <div class="frm"><label class="f wall">${esc(T('Frage'))}<input id="mlPQ" maxlength="300" value="${esc(p.question)}" placeholder="${esc(T('z. B. Welcher Termin passt für die Weihnachtsfeier?'))}"></label></div>
+        <div style="margin-top:10px">${p.options.map((o, i) => `<div class="ml-popt"><label class="f" style="flex:1;min-width:0;margin:0"><input data-po="${i}" maxlength="100" value="${esc(o)}" placeholder="${esc(T('Antwort'))} ${i + 1}" aria-label="${esc(T('Antwort'))} ${i + 1}"></label>${p.options.length > 2 ? `<button class="btn ghost" data-px="${i}" aria-label="${esc(T('Antwort entfernen'))}">×</button>` : ''}</div>`).join('')}
+          ${p.options.length < 10 ? `<button class="btn small" id="mlPMore">+ ${esc(T('Antwort'))}</button>` : ''}</div>
+        <div class="frm" style="--c:2"><label class="f">${esc(T('Ergebnis für Mitglieder'))}<select id="mlPShow"><option value="stimme">${esc(T('nach der eigenen Stimme'))}</option><option value="ende">${esc(T('erst nach dem Ende'))}</option><option value="nie">${esc(T('nie (nur Verwaltung)'))}</option></select></label>
+          <label class="f">${esc(T('Ende (leer = bis du sie beendest)'))}<input id="mlPEnd" type="datetime-local" value="${p.ends_at ? esc(p.ends_at.replace(' ', 'T')) : ''}"></label></div>
+        <div class="row" style="gap:18px;margin-top:10px"><label class="chk"><input type="checkbox" id="mlPMulti" ${p.multi ? 'checked' : ''}> ${esc(T('mehrere Antworten erlaubt'))}</label>
+          <label class="chk"><input type="checkbox" id="mlPAnon" ${p.anonymous ? 'checked' : ''}> ${esc(T('anonym (niemand sieht, wer was gewählt hat)'))}</label></div>`;
+      $('mlPShow').value = p.show || 'stimme';
+      const upd = () => { touch(); };
+      $('mlPQ').oninput = () => { p.question = $('mlPQ').value; upd(); };
+      box.querySelectorAll('[data-po]').forEach(x => { x.oninput = () => { p.options[+x.dataset.po] = x.value; upd(); }; });
+      box.querySelectorAll('[data-px]').forEach(x => { x.onclick = () => { p.options.splice(+x.dataset.px, 1); drawPoll(); upd(); }; });
+      if ($('mlPMore')) $('mlPMore').onclick = () => { p.options.push(''); drawPoll(); upd(); box.querySelector(`[data-po="${p.options.length - 1}"]`).focus(); };
+      $('mlPShow').onchange = () => { p.show = $('mlPShow').value; upd(); };
+      $('mlPEnd').onchange = () => { p.ends_at = $('mlPEnd').value ? $('mlPEnd').value.replace('T', ' ') : null; upd(); };
+      $('mlPMulti').onchange = () => { p.multi = $('mlPMulti').checked; upd(); };
+      $('mlPAnon').onchange = () => { p.anonymous = $('mlPAnon').checked; upd(); };
+      $('mlPDel').onclick = () => { st.poll = null; drawPoll(); upd(); };
+    }
     $('mlKeep').value = st.keep_months ? String(st.keep_months) : '';
     $('mlKeep').onchange = touch; $('mlPin').onchange = () => { drawWays(); touch(); count(); };
     drawWays();
@@ -414,7 +446,7 @@
     const r = await api('mail/messages?box=' + box);
     const draftBtn = document.querySelector('#mlTabs [data-tab="entwuerfe"]'); if (draftBtn) draftBtn.innerHTML = `${esc(T('Entwürfe'))}${r.drafts ? ` <span class="cnt">${r.drafts}</span>` : ''}`;
     if (!r.rows.length) { body.innerHTML = `<div class="card"><p class="muted" style="margin:0">${esc(box === 'entwuerfe' ? T('Keine Entwürfe. Was du in „Neue Nachricht“ schreibst, wird automatisch hier gespeichert.') : T('Noch keine Nachricht gesendet.'))}</p></div>`; return; }
-    const wayPill = m => (m.channels && m.channels.includes('app') ? ` <span class="pill b">${esc(T(m.channels.includes('push') ? 'App + Push' : 'App'))}</span>${m.pinned ? ` <span class="pill">${esc(T('angeheftet'))}</span>` : ''}` : '');
+    const wayPill = m => (m.channels && m.channels.includes('app') ? ` <span class="pill b">${esc(T(m.channels.includes('push') ? 'App + Push' : 'App'))}</span>${m.pinned ? ` <span class="pill">${esc(T('angeheftet'))}</span>` : ''}${m.poll ? ` <span class="pill">${esc(T('Umfrage'))}</span>` : ''}` : '');
     const stPill = m => (m.channels && !m.channels.includes('mail') ? `<span class="pill g">${m.total} ${esc(T('in der App'))}</span>` : m.status === 'sendet' ? `<span class="pill a">${esc(T('wird gesendet'))} ${m.sent || ''}</span>` : m.status === 'teilweise' ? `<span class="pill r">${m.failed} ${esc(T('fehlgeschlagen'))}</span>` : m.status === 'gesendet' ? `<span class="pill g">${m.total} ${esc(T('zugestellt'))}</span>` : '');
     body.innerHTML = `<div class="card"><div class="ml-list">${r.rows.map(m => `<button type="button" class="ml-row" data-id="${m.id}">
         <span class="t"><b translate="no">${m.files ? SV_CLIP : ''}${esc(m.subject || T('(ohne Betreff)'))}</b><span translate="no">${esc(m.preview || '')}</span></span>
@@ -427,6 +459,16 @@
   }
   const goTabForce = k => { markTab(k); if (tabsCtl) tabsCtl.reload(); };
 
+  /* Ergebnis einer Umfrage: Balken je Antwort, Beteiligung; bei nicht anonymen Umfragen, wer was gewählt hat (Nachname, Vorname) */
+  function pollHtml(p) {
+    const n = Math.max(1, p.voters), pct = c => Math.round(c / n * 100);
+    const end = p.closed_at || p.ends_at;
+    return `<h3 style="margin:18px 0 8px;display:flex;align-items:center;gap:10px">${esc(T('Umfrage'))} ${p.open ? `<span class="pill a">${esc(T('läuft'))}</span>` : `<span class="pill">${esc(T('beendet'))}</span>`}<span style="flex:1"></span>${p.open ? `<button class="btn small" id="mlPClose">${esc(T('Umfrage beenden'))}</button>` : ''}</h3>
+      <p style="margin:0 0 4px;font-weight:700" translate="no">${esc(p.question)}</p>
+      <p class="muted s" style="margin:0">${p.voters} ${esc(T('von'))} ${p.total} ${esc(T(p.voters === 1 ? 'hat abgestimmt' : 'haben abgestimmt'))}${end ? ` · ${esc(T(p.open ? 'endet' : 'beendet'))} ${deT(end)}` : ''} · ${esc(T(p.anonymous ? 'anonym' : 'mit Namen'))}${p.multi ? ` · ${esc(T('mehrere Antworten erlaubt'))}` : ''}</p>
+      <div class="ml-res">${p.options.map((o, i) => `<span translate="no">${esc(o)}</span><b>${p.counts[i]} (${pct(p.counts[i])} %)</b><div class="bar"><i style="width:${pct(p.counts[i])}%"></i></div>`).join('')}</div>
+      ${p.list && p.list.length ? `<div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Antwort'))}</th></tr>${p.list.map(r => `<tr><td translate="no">${esc(r.name)}</td><td translate="no">${esc(r.choices.join(', '))}</td></tr>`).join('')}</table></div>` : ''}`;
+  }
   async function showMessage(body, id, back) {
     let poll = 0;
     const draw = async () => {
@@ -446,6 +488,7 @@
           ${mailOn ? `<dt>${esc(T('Empfänger'))}</dt><dd>${m.total}${m.status === 'sendet' ? ` · ${esc(T('wird gesendet'))} (${done}/${m.rcpt.length})<div class="ml-prog"><i style="width:${m.rcpt.length ? Math.round(done / m.rcpt.length * 100) : 0}%"></i></div>` : ` · ${m.sent} ${esc(T('zugestellt'))}${m.failed ? `, <b style="color:var(--red)">${m.failed} ${esc(T('fehlgeschlagen'))}</b>` : ''}`}</dd>` : ''}
           ${m.files.length ? `<dt>${esc(T('Anhänge'))}</dt><dd style="display:flex;flex-wrap:wrap;gap:6px">${m.files.map(f => `<a class="ml-file" href="api/admin/mail/messages/${m.id}/files/${encodeURIComponent(f.id)}" download translate="no"><b>${SV_CLIP}${esc(f.name)}</b><small>${kb(f.size)}</small></a>`).join('')}</dd>` : ''}</dl>
         <div class="ml-view" translate="no">${m.html}${m.signature_html ? `<div style="margin-top:20px">${m.signature_html}</div>` : ''}</div>
+        ${m.poll ? pollHtml(m.poll) : ''}
         ${m.app && m.reach ? `<h3 style="margin:18px 0 8px">${esc(T('Wer wurde erreicht'))}</h3>
         <div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Erreicht über'))}</th></tr>${m.reach.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}</td><td>${r.reached ? esc(r.ways.map(w => T(w)).join(' · ')) : `<span class="pill r">${esc(T('nicht erreichbar'))}</span>`} <span class="muted s">${esc(r.note ? T(r.note) : '')}</span></td></tr>`).join('')}</table></div>` : ''}
         ${mailOn ? `<h3 style="margin:18px 0 8px">${esc(T('Zustellung'))}</h3>
@@ -453,6 +496,7 @@
           <td>${r.status === 'ok' ? `<span class="pill g">${esc(T('zugestellt'))}</span>` : r.status === 'fehler' ? `<span class="pill r" title="${esc(r.error || '')}">${esc(T('Fehler'))}</span> <span class="muted s">${esc((r.error || '').slice(0, 80))}</span>` : `<span class="pill">${esc(T('wartet'))}</span>`}</td></tr>`).join('')}</table></div>` : ''}</div>`;
       if ($('mlPinM')) $('mlPinM').onclick = async () => { try { await api(`mail/messages/${id}/app`, 'POST', { pinned: !m.app.pinned }); toast(T('Gespeichert.')); draw(); } catch (e) { fail(e); } };
       if ($('mlOffM')) $('mlOffM').onclick = async () => { if (!await ask(`${T('Nachricht aus der App nehmen?')}\n\n${T('Bei den Mitgliedern verschwindet sie sofort. E-Mails und der Eintrag unter „Gesendet“ bleiben.')}`, { ok: T('Aus der App nehmen'), danger: true })) return; try { await api(`mail/messages/${id}/app`, 'POST', { remove: true }); toast(T('Aus der App genommen.')); draw(); } catch (e) { fail(e); } };
+      if ($('mlPClose')) $('mlPClose').onclick = async () => { if (!await ask(`${T('Umfrage jetzt beenden?')}\n\n${T('Danach kann niemand mehr abstimmen oder seine Stimme ändern.')}`, { ok: T('Beenden') })) return; try { await api(`mail/messages/${id}/poll/close`, 'POST', {}); toast(T('Umfrage beendet.')); draw(); } catch (e) { fail(e); } };
       $('mlBack').onclick = () => { clearTimeout(poll); markTab(back); folder(body, back).catch(fail); };
       $('mlCopyM').onclick = async () => { try { const r = await api(`mail/messages/${id}/copy`, 'POST', {}); clearTimeout(poll); openDraft = r.id; goTabForce('neu'); toast(T('Als neuer Entwurf geöffnet.')); } catch (e) { fail(e); } };
       if ($('mlRetry')) $('mlRetry').onclick = async () => { try { const r = await api(`mail/messages/${id}/retry`, 'POST', {}); toast(`${T('Wird erneut gesendet an')} ${r.n}.`); draw(); } catch (e) { fail(e); } };

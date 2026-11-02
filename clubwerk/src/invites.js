@@ -70,13 +70,15 @@ const deviceIdsOf = (scope, memberId) => db.prepare('SELECT id FROM member_devic
 /* issuerPerms: Rechte des Admins, der die Einladung erzeugt hat ('*' = alle). Wird einem Mitglied später ein Bereich mit
    eigenem Recht (z. B. Türen) freigeschaltet, den dieser Admin nicht verwalten durfte, wird das Handy entkoppelt – sonst
    könnte jemand mit wenig Rechten vorab sein eigenes Handy koppeln und später Türzugang „erben“. */
+/* Persönliches Kalender-Abo (src/kalender.js) hängt am Handy: neue Einladung, Sperre, Entfernen und Abmelden beenden es – das neue Handy erstellt einen neuen Link */
+const dropCal = (scope, memberId) => { if (scope !== 'app') return; try { db.prepare('DELETE FROM member_cal WHERE member_id = ?').run(memberId); } catch (e) { /* Tabelle entsteht erst mit src/kalender.js */ } };
 function create(scope, memberId, by, issuerPerms, { kind = 'qr' } = {}) {
   scopeOk(scope);
   const hours = kind === 'qr' ? inviteHours() : mailDays() * 24;
   const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(memberId);
   if (!m) throw new Error('Mitglied nicht gefunden.');
   const token = crypto.randomBytes(18).toString('base64url');
-  dropPush(deviceIdsOf(scope, m.id));
+  dropPush(deviceIdsOf(scope, m.id)); dropCal(scope, m.id);
   db.transaction(() => {
     db.prepare('DELETE FROM member_devices WHERE scope = ? AND member_id = ?').run(scope, m.id);
     db.prepare('INSERT INTO member_devices(scope, member_id, invite_hash, invite_expires, created_by, issuer_perms, invite_kind) VALUES (?,?,?,?,?,?,?)')
@@ -289,7 +291,7 @@ function check(scope, deviceToken, pin, row, opts = {}) {
     const n = d.failed + 1, total = (d.failed_total || 0) + 1;
     if (total >= BLOCK_AFTER) {
       db.prepare('UPDATE member_devices SET token_hash = NULL, token2_hash = NULL, handover_hash = NULL, failed = 0, failed_total = ?, locked_until = NULL, blocked_at = ? WHERE id = ?').run(total, now(), d.id);
-      dropPush([d.id]);
+      dropPush([d.id]); dropCal(scope, d.member_id);
       blockedAlert(scope, w.name, d.device, total);
       return { error: `PIN ${total}-mal falsch – dieses Handy ist jetzt gesperrt. Bitte beim Vorstand einen neuen QR-Code holen.`, status: 403, device: true };
     }
@@ -324,7 +326,7 @@ function changePin(scope, deviceToken, oldPin, newPin) {
 function unpair(scope, deviceToken) {
   const w = whoIs(scope, deviceToken);
   if (!w) return null;
-  dropPush([w.deviceId]);
+  dropPush([w.deviceId]); dropCal(scope, w.memberId);
   db.prepare('DELETE FROM member_devices WHERE id = ?').run(w.deviceId);
   return w;
 }
@@ -347,7 +349,7 @@ function issuerCovers(scope, memberId, perm) {
 }
 function revoke(scope, memberId) {
   scopeOk(scope);
-  dropPush(deviceIdsOf(scope, memberId));
+  dropPush(deviceIdsOf(scope, memberId)); dropCal(scope, memberId);
   return db.prepare('DELETE FROM member_devices WHERE scope = ? AND member_id = ?').run(scope, memberId).changes > 0;
 }
 

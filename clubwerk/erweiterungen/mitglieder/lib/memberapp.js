@@ -8,6 +8,7 @@
  * In der Verwaltung: Liste der Änderungswünsche, Übernehmen / Ablehnen (das Mitglied bekommt eine E-Mail).
  */
 const pdf = require('./pdf');
+const giro = require('../../../src/girocode');
 
 function register(sh) {
   const { C, store, sepa, fees, one, txt, mailOk, euro, deD, uname, ar, personRow, bankRow, mandateState, savePerson, saveDocument, consentList, exitMember, zusatzFor } = sh;
@@ -86,7 +87,7 @@ function register(sh) {
         ...(V.anschrift ? { street: p.street, zip: p.zip, city: p.city, address_extra: p.address_extra } : {}), ...(V.kontakt ? { phone: p.phone, mobile: p.mobile, email: p.email } : {}), entry_date: p.entry_date, exit_date: p.exit_date, notice_date: p.notice_date, status: store.STATUS[p.status] || p.status, payment: store.PAYMENT[p.payment] || p.payment },
       departments: V.abteilungen ? db.prepare(`SELECT d.name, md.entry_date, md.status FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? AND (md.exit_date IS NULL OR md.exit_date >= ?) ORDER BY d.sort, d.name`).all(id, day) : [],
       fees: V.beitraege ? feeRows : [], family: V.familie ? family : [], familyMembership: V.familie ? familyMembership : [], familyHeadName: famHead && famHead !== id && V.familie ? (personRow(famHead) || {}).name : null, isHead, payerName: payer !== id && V.familie ? (personRow(payer) || {}).name : null,
-      open_cents: V.posten ? charges.filter(c => c.status === 'offen').reduce((s, c) => s + c.cents, 0) : 0, charges: V.posten ? charges : [],
+      open_cents: V.posten ? charges.filter(c => c.status === 'offen').reduce((s, c) => s + c.cents, 0) : 0, charges: V.posten ? charges : [], transfer: Boolean(isHead && V.posten && transferList(id, p)),
       bank: b && V.bank ? { iban: sepa.maskIban(b.iban), holder: b.holder, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, ok: mandateState(b).ok } : null,
       consents: !V.einwilligungen ? [] : consentList().map(c => ({ key: c.key, short: c.short, text: c.text, required: Boolean(c.required), given: Boolean(consents[c.key]), date: consents[c.key] || null })),
       pending: db.prepare("SELECT id, kind, created_at FROM mv_change WHERE member_id = ? AND status = 'offen' ORDER BY id").all(id).map(c => ({ ...c, label: KIND[c.kind] })),
@@ -104,7 +105,7 @@ function register(sh) {
     if (d.isHead && V.posten) {
       // gemahnt: „Zahlungserinnerung vom …“ und wohin überweisen (keine Push-Nachricht dazu – Push-Texte zeigen nichts Vertrauliches)
       const dun = d.open_cents > 0 && sh.lastDunning ? sh.lastDunning(id) : null;
-      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: dun ? `${dun.title} vom ${deD(dun.date)}` : 'offen', value: euro(d.open_cents), tr: true });
+      if (d.open_cents > 0) money.push({ title: 'Beiträge und Rechnungen', sub: dun ? `${dun.title} vom ${deD(dun.date)}` : 'offen', value: euro(d.open_cents), tr: true, ...(d.transfer ? { focus: 'ueberweisen' } : {}) });
       const acc = dun ? store.account() : null;
       if (acc && acc.iban) money.push({ title: 'Bitte überweisen an', sub: `${club().name} · IBAN ${String(acc.iban).replace(/(.{4})/g, '$1 ').trim()}${dun.ref ? ` · Verwendungszweck ${dun.ref}` : ''}`, tr: true });
       const due = d.charges.filter(c => c.status === 'eingezogen' && c.collection_date && c.collection_date >= today()), first = due.map(c => c.collection_date).sort()[0];
@@ -118,6 +119,28 @@ function register(sh) {
   };
   const maskMail = m => String(m).replace(/^(.)[^@]*(@.*)$/, '$1…$2');
   const openOf = (id, kind) => db.prepare("SELECT id FROM mv_change WHERE member_id = ? AND kind = ? AND status = 'offen'").get(id, kind);
+
+  /* Überweisen aus der App (QR-Code für die Banking-App): nur wer selbst überweist – Zahlungsart nicht Lastschrift oder schon gemahnt –,
+     nur offene Posten außerhalb eines Einzugs und nur mit gültigem Vereinskonto. Sonst null. */
+  function transferList(id, p) {
+    if (sh.payWay(p) === 'lastschrift' && !(sh.lastDunning && sh.lastDunning(id))) return null;
+    const list = db.prepare("SELECT * FROM mv_charge WHERE member_id = ? AND status = 'offen' AND collection_id IS NULL ORDER BY due_date, id").all(id);
+    const cents = list.reduce((n, c) => n + c.cents, 0), acc = store.account();
+    return cents > 0 && giro.payload({ name: acc.holder || sh.club().name, iban: acc.iban, cents, text: 'x' }) ? list : null;
+  }
+  // POST, weil offene Posten ohne Rechnungsnummer hier eine bekommen – der Kontoauszug erkennt die Zahlung daran (Verwendungszweck)
+  M.post('/ueberweisen', C.rateLimit('mvgiro', 30, 3600000), ar(async (req, res) => {
+    const id = req.member.id, p = personRow(id), d = p && me(id);
+    const list = d && d.transfer ? transferList(id, p) : null;
+    if (!list) return bad(res, 'Für dich gibt es gerade nichts zu überweisen.');
+    const loose = list.filter(c => !c.invoice_no);
+    if (loose.length) sh.invoiceNo(loose);
+    const acc = store.account(), cents = list.reduce((n, c) => n + c.cents, 0);
+    const purpose = [...new Set(list.map(c => c.invoice_no))].join(' ').slice(0, 140);
+    const name = acc.holder || sh.club().name;
+    res.json({ name, iban: String(acc.iban).replace(/\s+/g, '').replace(/(.{4})/g, '$1 ').trim(), bic: acc.bic || '', cents, purpose,
+      svg: await giro.svg(giro.payload({ name, iban: acc.iban, bic: acc.bic, cents, text: purpose })) });
+  }));
 
   M.get('/me', (req, res) => {
     const d = me(req.member.id);

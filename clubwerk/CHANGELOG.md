@@ -1,5 +1,42 @@
 # Änderungen
 
+## 2026.11.16
+
+**Mitglieder-App: Anleitung für jedes Handy, neue Einladungs-E-Mail, Vereinsname als Pflicht, zwei Fehler in Hinweisen**
+- **„Für mich“ zeigt immer nur die Karte, die als Nächstes nötig ist, passend zum Handy:**
+  - **iPhone/iPad** (Safari, Chrome, Firefox, Edge): „Teilen-Symbol antippen → Zum Home-Bildschirm → von dort öffnen“. Nie mehr „unten auf Teilen“: je nach Einstellung sitzt die Leiste oben, unten oder im Menü „…“, das Symbol ist als Bild dabei. Der Kasten „Auf den Home-Bildschirm“ mit dem Übernahme-Code sagt dasselbe neutral; solange er offen ist, gibt es keine zweite Karte.
+  - **Eingebettete Browser** (Gmail, Outlook, WhatsApp, Instagram, Facebook …): zuerst „In Safari öffnen“ (iPhone) bzw. „Im Browser öffnen“ (Android), mit „Adresse kopieren“ als Ausweg.
+  - **iOS vor 16.4:** ehrlicher Hinweis, dass dort keine Benachrichtigungen möglich sind.
+  - **Android:** Push geht ohne Startbildschirm – dort kommt gleich „Einschalten“. **Desktop, Huawei ohne Google-Dienste, sehr alte Geräte:** keine Karte statt einer falschen Anleitung.
+  - Erkannt wird über Merkmale des Browsers (Push, Home-Bildschirm-App), der Gerätename ergänzt nur Version und eingebettete Browser.
+- **Einladungs-E-Mail neu:** Betreff „Dein Zugang zur Mitglieder-App – bitte am Handy öffnen“; gleich nach der Anrede „Öffne diese E-Mail auf deinem Handy und tippe auf den Knopf“; großer Knopf „App jetzt freischalten“ über die ganze Breite (gültig bis …, nur für dich); drei Schritte mit der Nummer direkt am Text (vorher stand die Nummer weit links, der Text weit rechts); darunter die Adresse als Text und „Fragen? Antworte einfach“. Der Einladungsbrief (Aushang) sagt zum Home-Bildschirm ebenfalls nur noch „Die App zeigt dir genau, wie“. Lange Adressen laufen in Mails nicht mehr über den Rand.
+- **Vereinsname ist Pflicht:** Der Einrichtungs-Assistent verlangt ihn beim Anlegen des Kontos. Fehlt er, meldet die Datenqualität „Vereinsname fehlt“ in Rot (Knopf zur Einstellung), das Feld in den Einstellungen bleibt leer statt „Unser Verein“ zu zeigen, und es werden keine E-Mails und Push-Hinweise verschickt, bis er eingetragen ist.
+- **Fehler behoben (Buchung 1.26.2):** Die Erinnerung vor dem Spiel nannte allen dieselbe Mitspielerliste – der Empfänger stand selbst als Mitspieler da, der Bucher fehlte. Jetzt sieht jeder die anderen Beteiligten (Bucher und Mitspieler), nie sich selbst.
+- **„from tcf“ unter Hinweisen auf dem iPhone:** kommt von iOS selbst. iOS zeigt bei Hinweisen einer Home-Bildschirm-App „from <Name der App>“ an, der Text steht nicht in unseren Hinweisen und lässt sich je Hinweis nicht ändern. Der Name stammt aus dem Namen der App (Manifest); beim „Zum Home-Bildschirm“ lässt er sich auf dem iPhone ändern. Quellen: WebKit-Blog „Web Push for Web Apps on iOS and iPadOS“ und die Dokumentation von PushAlert (beide beschreiben „from App-Name“); am Gerät nicht nachgeprüft.
+- Für Entwickler: Karten-Entscheidung als reine Funktion `cwPushPlan` (Testreihe `pushwahl` prüft die Matrix aller Plattformen), Mail-Layout mit `card.steps`, breitem Knopf (`button.wide`, `buttonTop`), Testreihe `vname`; der Design-Prüfstand zeigt zehn Fälle (iPhone Safari/Chrome/Gmail/iOS 15, Android Chrome/Samsung/Gmail, einschalten, gesperrt).
+
+**Verbessert: Die Demo je Modul braucht weniger Arbeitsspeicher**
+- Die abgeschottete Demo-Kopie (Einstellungen › Module › „Demo“) gibt kurzlebigen Arbeitsspeicher schneller zurück und braucht dadurch rund 15 MB weniger (etwa 135 statt 150 MB). Am Aussehen und Verhalten der Demo ändert sich nichts.
+
+**Neu: Umfragen in der Mitglieder-App (Verein & System › Nachrichten)**
+- An eine Nachricht in der App lässt sich eine **Umfrage** hängen: Frage, 2 bis 10 Antworten, eine oder mehrere Antworten, auf Wunsch anonym, mit Ende oder bis zum Beenden. Beispiele: Termin der Weihnachtsfeier, Trikotfarbe, Meinungsbild.
+- Mitglieder stimmen in der Nachricht ab und können ihre Stimme bis zum Ende ändern. Das Ergebnis sehen sie – je nach Einstellung – nach der eigenen Stimme, erst nach dem Ende oder gar nicht. Offene Umfragen stehen unter „Für mich › Zu erledigen“.
+- Unter „Gesendet“ steht das Ergebnis mit Beteiligung und – wenn nicht anonym – wer was gewählt hat (Nachname, Vorname). „Umfrage beenden“ beendet sie sofort; „Weiterverwenden“ übernimmt die Umfrage ohne Stimmen.
+- Anonym heißt: Niemand in Clubwerk sieht, wer was gewählt hat. Für geheime Wahlen nach Satzung ist das kein Ersatz. Stimmen verschwinden mit der Nachricht.
+- Für Entwickler: Tabelle `msg_vote`, Spalten `poll`/`poll_closed_at` an `mail_message`, neue Testreihe `umfr`.
+
+**Neu: QR-Code für die Überweisung – auf Rechnungen, Mahnungen und in der App**
+- Rechnungen und Mahnungen der Mitgliederverwaltung und Rechnungen der Buchhaltung tragen neben der Bankverbindung einen QR-Code. Die Banking-App liest daraus Empfänger, IBAN, Betrag und Rechnungsnummer – nichts muss mehr abgetippt werden. Der Code entsteht im Vereinsheim, ohne Internet und ohne Gebühren. Bei Lastschrift und Gutschriften gibt es keinen Code.
+- **Mitglieder-App › Meine Daten › Zahlungen:** Wer per Rechnung oder bar zahlt oder eine Mahnung bekommen hat, sieht den Knopf „Überweisen“. Er zeigt den QR-Code (zum Scannen am Rechner oder von einem zweiten Gerät) und Empfänger, IBAN, Betrag und Verwendungszweck zum Kopieren. Offene Posten ohne Rechnungsnummer bekommen dabei eine. Auch „Für mich“ führt bei offenen Beträgen direkt dorthin. Wer per Lastschrift zahlt, sieht den Knopf nicht, damit niemand doppelt zahlt.
+- **Kontoauszug:** Zahlt jemand mehrere Rechnungen mit einer Überweisung (mehrere Rechnungsnummern im Verwendungszweck) und passt die Summe genau, schlägt Clubwerk jetzt **eine** sichere Zuordnung für alle vor. Bisher wurde daraus je Rechnung eine „Überzahlung“.
+- Auf Rechnungen der Mitgliederverwaltung steht als Empfänger jetzt der Kontoinhaber aus Einstellungen › Bankkonten (wie schon bei der Buchhaltung), damit die Bank den Namen bei der Empfängerprüfung bestätigt.
+- Module: Mitglieder 1.35.0, Buchhaltung 1.13.0. Für Entwickler: `src/girocode.js` (EPC-QR nach EPC069-12, Version 002), neue Testreihe `giro`.
+
+**Neu: Kalender der Homepage in der App und persönliches Kalender-Abo**
+- **Dienste & Termine › Einstellungen › Kalender der Homepage:** Hat eure Homepage einen Kalender zum Abonnieren, tragt ihr dort den Abo-Link ein (webcal:// oder https://). Clubwerk holt die Termine jede Stunde ab und zeigt sie in der Mitglieder-App im Reiter „Termine“ als „Vereinskalender“ (Antippen zeigt die Beschreibung) und die nächsten drei auf der Startseite „Für mich“. Gepflegt wird weiter auf der Homepage. Serientermine, ganztägige und mehrtägige Termine werden erkannt, abgesagte fallen weg. Ist die Homepage einmal nicht erreichbar, bleibt der letzte Stand.
+- **Mitglieder-App › Mehr › Kalender abonnieren:** ein persönlicher Link für den Kalender des Handys (iPhone, Android, Outlook). Darin stehen die eigenen Dienste, zugesagten Termine, Platzbuchungen und Spiele der eigenen Mannschaften, ohne Namen anderer. Der Kalender hält sich selbst aktuell. „Neuer Link“ macht den alten ungültig, „Abo beenden“ löscht ihn; wird das Handy entfernt, gilt der Link nicht mehr. Unterwegs klappt das, wenn die App eine öffentliche Adresse hat.
+- Module: Dienste & Termine, Plätze und Spielbetrieb mit neuer Version. Für Entwickler: `src/ical.js` (Kalenderdateien lesen), `src/kalender.js` (Abo-Link, Hook `calendarEvents`), neue Testreihe `kal`.
+
 ## 2026.11.15
 
 **Benachrichtigungen: Mitglieder schalten nur noch ihr Handy an oder aus – und „Für mich“ erinnert daran**
@@ -9,7 +46,6 @@
   - **Im Handy gesperrt:** Die Karte sagt kurz, wo man es in den Einstellungen wieder erlaubt.
 - Unverändert: Erinnerungen per E-Mail (z. B. „Helfer am Vortag per E-Mail erinnern“ und „Deine Erinnerung“ bei den Gratulationen für Benutzer mit dem Recht „Gratulationen“) und ihre Einstellungen.
 - Anleitung (Kern, Turniere) und Planungsdateien angepasst. Turniere 1.10.2 (nur Anleitung). Für Entwickler: `PUT /api/push/events` und `push.setEvents` entfallen, `GET /api/forme` liefert `push: { released, mine }`; neue Testreihe `pushwahl` scheitert, sobald es wieder eine Auswahl je Anlass für Mitglieder gibt; der Design-Prüfstand prüft die Karte in drei Zuständen (einschalten, gesperrt, iPhone).
-
 ## 2026.11.14
 
 **Neu: „Abgerechnet bis“ für alle auf einmal setzen (Beiträge & Zahlungen › Beitragslauf)**
@@ -104,7 +140,6 @@
 - **Seitentitel der App** („Dienste & Termine“) und Vereinsname oben enden nicht mehr mit „…“, sondern brechen an Leerzeichen um.
 - **Verwaltung am Handy:** Der Vereinsname im Kopf brach bei langem Seitennamen mitten im Wort („Musterstad / t“). Knöpfe in Handy-Listen (z. B. „Herunterladen … / Wiederherstellen …“ bei den Schnappschüssen) rutschen in die nächste Zeile, statt aus der Karte zu ragen. Lange Schilder („gehört nicht zu Clubwerk“) und der Postentext in Offene Posten brechen um statt abgeschnitten zu werden.
 - **Design-Prüfstand geschärft:** neue Regel „Wort getrennt“ (kein Wort steht über zwei Zeilen, auf allen Oberflächen; Trennung mit sichtbarem Bindestrich bleibt erlaubt), ein **Safari-Puffer** (Handy-Ansichten von Tablet, Verwaltung und App zusätzlich mit rund 9 % breiterem Text, weil WebKit in der Cloud fehlt) und die Leiste der App wird bei 320, 360, 375, 390 und 430 px mit den längsten Beschriftungen aller Module geprüft. Die Bilder der Befunde zeigen jetzt die markierte Stelle.
-
 
 ## 2026.11.4
 

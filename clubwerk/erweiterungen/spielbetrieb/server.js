@@ -324,6 +324,13 @@ function activate(ctx) {
      unbeantwortete stehen nur unter todo (kein doppelter Eintrag);
      todo = ein Hinweis „Spieltage: n Rückmeldungen offen“ über alle künftigen Spieltage, ohne Zeitgrenze und ohne Knöpfe (Sprung in den Bereich),
      und als Mannschaftsführer „Aufstellung noch nicht verschickt“ (gleiche Frist wie die Warnung der Sportwart-Übersicht) */
+  /* Kalender-Abo der Mitglieder-App: Spiele der eigenen Mannschaften (freigegeben, nicht abgesagt) */
+  ctx.hooks.calendarEvents = (mid, { from, to }) => {
+    const ids = [...new Set([...db.prepare('SELECT p.team_id FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').all(mid).map(r => r.team_id), ...captainOf(mid)])];
+    if (!ids.length) return [];
+    return db.prepare(`SELECT g.*, t.name AS tname FROM sp_game g JOIN sp_team t ON t.id = g.team_id WHERE g.team_id IN (${ids.map(() => '?').join(',')}) AND g.released = 1 AND g.status = 'geplant' AND g.date >= ? AND g.date <= ? ORDER BY g.date, g.start LIMIT 300`)
+      .all(...ids, from, to).map(g => ({ uid: `sp-${g.id}`, date: g.date, start: g.start || '', end: '', title: gameTitle(g, { name: g.tname }), place: g.venue || '', note: g.meet_time || g.meet_place ? `Treffpunkt ${[g.meet_time, g.meet_place].filter(Boolean).join(', ')}` : '' }));
+  };
   ctx.hooks.forMe = (mid, { until }) => {
     const d = today(), cap = new Set(captainOf(mid));
     const play = new Set(db.prepare('SELECT p.team_id FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').all(mid).map(r => r.team_id));

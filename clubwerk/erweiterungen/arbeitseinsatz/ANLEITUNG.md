@@ -242,6 +242,17 @@ Wer befreit ist, leistet Stunden wie alle (sie werden erfasst), hat aber kein So
 
 Mitglieder können sich in der App bis 24 Stunden vor Beginn selbst austragen. Danach gilt der Kontakt.
 
+#### Kalender der Homepage
+
+![Karte „Kalender der Homepage“.](bild: seite=aw-einstellungen; ziel=[data-set="kalender"])
+
+Hat eure Homepage einen Kalender zum Abonnieren (z. B. ein Kalender-Plugin oder ein Google-Kalender), tragt ihr hier seinen **Abo-Link** ein (beginnt mit `webcal://`, `https://` oder `http://`). Clubwerk holt die Termine beim Speichern und danach jede Stunde ab und zeigt sie in der Mitglieder-App im Reiter **Termine** als „Vereinskalender“ und auf der Startseite „Für mich“. Gepflegt werden die Termine weiter auf der Homepage, in Clubwerk lassen sie sich nicht ändern.
+
+- **Jetzt abrufen** holt den Kalender sofort.
+- Darunter steht, wann zuletzt abgerufen wurde, wie viele Termine es sind und die nächsten drei. Klappt ein Abruf nicht (Homepage nicht erreichbar, keine Kalenderdatei, Datei größer als 2 MB), steht der Grund in Rot. Die App zeigt dann weiter den letzten Stand.
+- Serientermine, ganztägige und mehrtägige Termine werden erkannt, abgesagte Termine fallen weg.
+- Ist das Feld leer, gibt es keinen Vereinskalender.
+
 #### Einstellungen übertragen
 
 ![Karte „Einstellungen übertragen“.](bild: seite=aw-einstellungen; ziel=#sFunc)
@@ -275,9 +286,15 @@ Gibt es Termine, erscheint der Umschalter **Termine** (mit der Zahl unbeantworte
 
 ![Zusagen mit Begleitpersonen.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; klick2=[data-ans="ja"])
 
+#### Vereinskalender
+
+Ist unter Einstellungen ein Kalender der Homepage eingetragen, steht im Reiter **Termine** unter den Terminen die Karte **Vereinskalender** mit Datum, Uhrzeit und Ort. Antippen zeigt die Beschreibung. Zu- oder Absagen gibt es hier nicht.
+
+![Der Vereinskalender im Reiter „Termine“.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; ziel=#dsKal)
+
 #### Startseite und Benachrichtigungen
 
-Auf der Startseite „Für mich“ stehen eigene Dienste und zugesagte Termine unter „Als Nächstes“. Offene Termine erscheinen unter „Zu erledigen“ nur als ein Hinweis „Termine: n Antworten offen“ (ohne Knöpfe, ohne Zeitgrenze, solange die Antwortfrist läuft); er nennt den Termin mit der nächsten Frist und führt in den Reiter „Termine“. Ebenso die fehlenden Arbeitsstunden mit Sprung zu den freien Diensten. Dazu gibt es Benachrichtigungen: **Erinnerung an den Dienst** (am Vortag) und **Erinnerung an einen Termin** (Einladung, Bitte um Antwort kurz vor Fristende, Erinnerung am Vortag bei Zusage). Mitglieder schalten sie in der App unter Benachrichtigungen je Handy ein.
+Auf der Startseite „Für mich“ stehen eigene Dienste, zugesagte Termine und die nächsten drei Termine des Vereinskalenders unter „Als Nächstes“. Offene Termine erscheinen unter „Zu erledigen“ nur als ein Hinweis „Termine: n Antworten offen“ (ohne Knöpfe, ohne Zeitgrenze, solange die Antwortfrist läuft); er nennt den Termin mit der nächsten Frist und führt in den Reiter „Termine“. Ebenso die fehlenden Arbeitsstunden mit Sprung zu den freien Diensten. Dazu gibt es Benachrichtigungen: **Erinnerung an den Dienst** (am Vortag) und **Erinnerung an einen Termin** (Einladung, Bitte um Antwort kurz vor Fristende, Erinnerung am Vortag bei Zusage). Mitglieder schalten sie in der App unter Benachrichtigungen je Handy ein.
 
 ### Tablet
 

@@ -116,7 +116,7 @@ Choose a member, tick the sections you want and tap **Activate & invite …**. A
 ![The invitation: QR code on screen, by email or as a letter.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=[data-aq]; ziel=#askBox)
 
 - **QR code here on screen:** The member scans it with the phone camera, ideally right here. It works once and only for a short time (adjustable). Then the member sets their app PIN. Do not photograph the code: whoever scans it first gets access.
-- **Send by email:** a personal link, valid for a few days. Needs a mailbox and the address in the member administration.
+- **Send by email:** a personal link, valid for a few days. Needs a mailbox and the address in the member administration. Right after the greeting the email says what to do (“Open this email on your phone and tap the button”), has a large full-width button “Activate app now”, three numbered steps and, below, the address as text in case the button does not work.
 - **Print invitation letter:** QR code with instructions on paper.
 - **Release doors and irrigation now:** only appears if a phone was paired from outside without an SMS code.
 
@@ -137,7 +137,9 @@ One table for all sections of the app, one “Save” for everything:
 - **When unlocking:** “preselect” ticks the section for new members automatically.
 - **Start** and **↑ ↓:** start section and order. By default the app opens “For me”.
 
-“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”. If the board has released push occasions and the phone has not switched notifications on yet, the card **“Turn on notifications”** sits at the very top, with “Turn on” and “Later” (hides it for 14 days). On an iPhone in Safari it explains in three steps how to put the app on the home screen; if push is blocked on the phone, it says where to allow it. The card disappears once notifications are on.
+“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”. If the board has released push occasions and the phone has not switched notifications on yet, the card **“Turn on notifications”** sits at the very top, with “Turn on” and “Later” (hides it for 14 days). Only the card that is needed next is shown, matching the phone: on an **iPhone** first the steps “Share icon → Add to Home Screen → open from there” (without naming a fixed position, since the bar sits at the top, bottom or in the “…” menu depending on the setting; iOS 16.4 or newer, earlier versions have no push); if the page runs inside another program (Gmail, WhatsApp, Instagram …), first “Open in Safari” with “Copy address”. On **Android** push works without a home-screen icon, so “Turn on” comes straight away; in an embedded browser first “Open in browser”. If push is blocked on the phone, the card says where to allow it; a device that cannot do push at all (desktop, Huawei without Google services) gets no card. The card disappears once notifications are on.
+
+**Subscribe to calendar:** Under “More” › “My account” every member creates a personal link for their phone’s calendar. It contains their duties, accepted dates, court bookings and matches of their own teams – only from areas they have in the app, without other people’s names. The calendar fetches them regularly by itself. For this to work away from the club, the app needs a public address (“Settings” tab, “Reachable on the go”). “New link” makes the old one invalid, “End subscription” deletes it. If the phone is removed, the link no longer works.
 
 ### Tab “Notifications” {#app-push}
 
@@ -189,6 +191,7 @@ From top to bottom:
 - **Pin to the top:** stays at the top of the app until you unpin it.
 - **Subject** and **text** with a toolbar: bold, italic, underline, headings, lists, quote, divider line, link. **Placeholder …** inserts, for example, the salutation or first name, replaced for each recipient. **Template …** inserts a saved template.
 - **＋ Attach file** or drag files in: up to 10 MB per file, 20 MB in total.
+- **＋ Attach poll** (only with “In the member app”): question, 2 to 10 answers, **Result for members** (after their own vote, only after the end, or never), **End** (empty = until you end it), **multiple answers allowed** and **anonymous**. Members vote in the app; each member has one vote and can change it until the end. Anonymous means nobody in Clubwerk can see who chose what – not even the admin area. It does not replace a secret ballot under your statutes.
 - At the bottom: **Save as template**, **Discard**, **Preview** (“This is how it looks for …”) and **Sending …**. Before sending Clubwerk asks, showing the number of recipients.
 
 The message is saved automatically as a draft while you write.
@@ -210,6 +213,10 @@ Every sent message with subject, sender, time, number of recipients and route. A
 ![The delivery of a message: who was reached.](bild: seite=email; tab=gesendet; klick=.ml-row)
 
 A click opens the message with text, attachments and the **delivery**: how many received it by email, in the app, by push, who was not reached and why (no address, invalid, failed). **Resend failed** tries again. **Reuse** opens a copy as a new draft, **Remove from the app** makes it disappear for members at once (emails stay), **Delete** removes it with its list.
+
+![A sent poll: result, turnout and who chose what.](bild: seite=email; tab=gesendet; klick=.ml-row:has-text("Weihnachtsfeier"); ziel=.ml-res)
+
+If the message has a **poll**, the result is shown below it: votes per answer, how many of how many have voted and – if it is not anonymous – who chose what (last name, first name). **End poll** ends it straight away. Members see the open poll under “For me” in “To do” until they have voted. **Reuse** takes the poll without votes into a new draft.
 
 ### Tab “Distribution lists” {#email-verteiler}
 
@@ -370,7 +377,7 @@ Everything that applies to the whole club. The areas are tabs at the top. What y
 
 ![Card “Club”: name, colours and address.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#clubColor))
 
-- **Club name, street, postcode and town, email, phone:** appear on invoices, membership documents and certificates. All modules read them from here.
+- **Club name, street, postcode and town, email, phone:** appear on invoices, membership documents and certificates. All modules read them from here. The **club name is mandatory**: the setup assistant asks for it when creating the account. If it is missing, data quality reports “Club name missing” in red, and no emails or notifications go out to members until it is entered.
 - **Club colour** and **second colour** (optional): The club colour applies to tablet, admin area, member app, irrigation and Excel. If it is too light for text, Clubwerk darkens it automatically (and lightens it in dark mode). The preview shows light and dark.
 
 ![Card “Club logo”.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#logoPrev))

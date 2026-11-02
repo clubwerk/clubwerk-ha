@@ -119,6 +119,13 @@ function register(sh) {
       const groups = [];
       for (const no of nos) groups.push({ no, list: db.prepare("SELECT * FROM mv_charge WHERE invoice_no = ? AND status IN ('offen','bezahlt') ORDER BY due_date, id").all(no) });
       for (const x of bhCharges) if (hasNo(e.purpose, x.no)) groups.push({ list: [x.c] });   // Text des Postens nennt die Rechnung schon
+      // mehrere Rechnungen desselben Zahlers in einer Überweisung (z. B. aus der App „Überweisen“): passt die Summe genau → ein Vorschlag für alle
+      const all = [...new Map(groups.flatMap(g => g.list).filter(c => c.status === 'offen' && !c.collection_id).map(c => [c.id, c])).values()];
+      if (groups.length > 1 && all.length && new Set(all.map(c => c.member_id)).size === 1 && all.reduce((n, c) => n + c.cents, 0) === e.cents) {
+        seenPayers.add(all[0].member_id);
+        add(`c:${all.map(c => c.id).join(',')}`, `${who(all[0].member_id)}: ${[...new Set(all.map(c => c.invoice_no).filter(Boolean))].map(n => `Rechnung ${n}`).join(', ')} – ${texts(all)}`, e.cents, 'sicher', '');
+        groups.length = 0;
+      }
       for (const g of groups) {
         const open = g.list.filter(c => c.status === 'offen' && !c.collection_id), paid = g.list.filter(c => c.status === 'bezahlt' && c.paid_via !== VIA);
         if (open.length) {

@@ -1668,6 +1668,10 @@ function activate(ctx) {
   };
   /* Mitglieder-App „Für mich“: next = eigene Buchungen (auch als Mitspieler) bis zum Tag „until“; news = Platz von der Warteliste frei geworden,
      kommende Buchung wegen einer Platzsperre storniert (letzte 14 Tage) – je einmal, bis das Mitglied sie antippt */
+  /* Kalender-Abo der Mitglieder-App: eigene Platzbuchungen (als Bucher oder Mitspieler), ohne Namen der anderen */
+  ctx.hooks.calendarEvents = (mid, { from, to }) => db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND b.date >= ? AND b.date <= ?
+      AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') ORDER BY b.date, b.start LIMIT 400`).all(from, to, mid, String(mid))
+    .filter(b => b.member_id === mid || J(b.partners, []).includes(mid)).map(b => ({ uid: `bk-${b.id}`, date: b.date, start: b.start, end: b.end === '24:00' ? '23:59' : b.end, title: b.rname, place: ctx.getSetting('club_name', '') }));
   ctx.hooks.forMe = (mid, { until }) => {
     const d = today(), n = hhmm(nowMin()), me = nameOf(mid);
     const mine = b => b.member_id === mid || J(b.partners, []).includes(mid);
@@ -1694,6 +1698,7 @@ function activate(ctx) {
     { id: 'erinnerung', label: 'Erinnerung vor dem Spiel', desc: 'Kurz vor deiner Buchung – an Buchende und Mitspieler.', default: true, lead: { default: 120, label: 'Vorlauf' } },
   ];
   try { db.exec('ALTER TABLE bk_booking ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* gibt es schon */ }
+  const andere = require('./lib/andere');
   async function remind() {
     if (!ctx.isActive() || !ctx.push || !ctx.push.enabled('erinnerung')) return;
     const lead = ctx.push.lead('erinnerung') || 120;
@@ -1703,8 +1708,12 @@ function activate(ctx) {
     for (const b of rows) {
       db.prepare('UPDATE bk_booking SET reminded = 1 WHERE id = ?').run(b.id);
       const r = resource(b.resource_id) || { name: 'Platz' };
-      const ids = [b.member_id, ...J(b.partners, [])];
-      await ctx.push.send(ids, 'erinnerung', { title: `Gleich: ${r.name} um ${b.start} Uhr`, body: `Deine Buchung ${r.name} ${deD(b.date)} ${b.start}–${b.end} Uhr${J(b.partners, []).length ? ' – mit ' + J(b.partners, []).map(nameOf).join(', ') : ''}`, url: './#buchung', tag: `buchung-erinnerung-${b.id}` }).catch(() => {});
+      const ids = [...new Set([b.member_id, ...J(b.partners, [])])];
+      // Jeder sieht die anderen Beteiligten (Bucher und Mitspieler), nie sich selbst
+      for (const id of ids) {
+        const others = andere(ids, id, nameOf);
+        await ctx.push.send([id], 'erinnerung', { title: `Gleich: ${r.name} um ${b.start} Uhr`, body: `Deine Buchung ${r.name} ${deD(b.date)} ${b.start}–${b.end} Uhr${others.length ? ' – mit ' + others.join(', ') : ''}`, url: './#buchung', tag: `buchung-erinnerung-${b.id}` }).catch(() => {});
+      }
     }
   }
   setInterval(() => remind().catch(() => {}), process.env.CW_TEST_FAST ? 1500 : 60000).unref();

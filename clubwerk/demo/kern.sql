@@ -53,7 +53,12 @@ CREATE TABLE IF NOT EXISTS mail_message (
   user_id INTEGER, user_name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_at TEXT, sent_at TEXT,
   total INTEGER NOT NULL DEFAULT 0, sent INTEGER NOT NULL DEFAULT 0, failed INTEGER NOT NULL DEFAULT 0
-, channels TEXT NOT NULL DEFAULT '["mail"]', keep_months INTEGER, expires_at TEXT, pinned INTEGER NOT NULL DEFAULT 0, app_stats TEXT);
+, channels TEXT NOT NULL DEFAULT '["mail"]', keep_months INTEGER, expires_at TEXT, pinned INTEGER NOT NULL DEFAULT 0, app_stats TEXT, poll TEXT, poll_closed_at TEXT);
+CREATE TABLE IF NOT EXISTS msg_vote (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER NOT NULL REFERENCES mail_message(id) ON DELETE CASCADE,
+  member_id INTEGER NOT NULL REFERENCES members(id), choices TEXT NOT NULL, at TEXT NOT NULL,
+  UNIQUE(message_id, member_id)
+);
 CREATE TABLE IF NOT EXISTS mail_recipient (
   id INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER NOT NULL REFERENCES mail_message(id) ON DELETE CASCADE,
   member_id INTEGER, name TEXT, email TEXT NOT NULL, via TEXT,
@@ -1159,6 +1164,67 @@ Wie lange? Nur so lange wie nötig. Protokolle werden nach festen Fristen automa
 
 Deine Rechte: Auskunft (unter „Meine Daten“), Berichtigung, Löschung, Einschränkung, Widerspruch und Beschwerde bei der Datenschutz-Aufsichtsbehörde deines Bundeslandes.');
 INSERT INTO "settings"(key, value) VALUES('app_privacy_at','2026-10-21 14:55:38');
+INSERT INTO "mail_message"(id, subject, html, spec, files, status, copy_me, from_name, reply_to, signature_html, user_id, user_name, created_at, updated_at, sent_at, total, sent, failed, channels, keep_months, expires_at, pinned, app_stats, poll, poll_closed_at) VALUES(4,'Termin für die Weihnachtsfeier','<p>{briefanrede},</p><p>wir planen die Weihnachtsfeier im Vereinsheim. Stimmt bitte unten ab, welcher Termin euch am besten passt.</p>','{"groups":[{"t":"status","v":"aktuell"}],"members":[],"addresses":[],"payer":true,"allApp":true,"lists":[]}','[]','gesendet',1,'Adminkonto',NULL,NULL,1,'Adminkonto','2026-10-20 16:10:00','2026-10-20 16:10:00','2026-10-20 16:10:00',43,43,0,'["app"]',NULL,NULL,0,NULL,'{"question":"Wann soll die Weihnachtsfeier stattfinden?","options":["Freitag, 11. Dezember","Samstag, 12. Dezember","Samstag, 19. Dezember"],"multi":false,"anonymous":false,"show":"stimme","ends_at":null}',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(130,4,3,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(131,4,14,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(132,4,15,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(133,4,4,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(134,4,16,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(135,4,17,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(136,4,18,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(137,4,10,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(138,4,19,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(139,4,20,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(140,4,21,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(141,4,45,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(142,4,44,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(143,4,7,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(144,4,22,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(145,4,23,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(146,4,24,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(147,4,8,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(148,4,25,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(149,4,26,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(150,4,27,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(151,4,28,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(152,4,29,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(153,4,30,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(154,4,11,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(155,4,31,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(156,4,32,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(157,4,33,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(158,4,34,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(159,4,35,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(160,4,5,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(161,4,36,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(162,4,12,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(163,4,37,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(164,4,38,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(165,4,39,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(166,4,6,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(167,4,40,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(168,4,9,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(169,4,46,NULL,NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(170,4,41,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(171,4,42,'2026-10-20 18:00:00',NULL);
+INSERT INTO "msg_inbox"(id, message_id, member_id, read_at, push) VALUES(172,4,43,NULL,NULL);
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(1,4,3,'[1]','2026-10-20 19:00:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(2,4,14,'[1]','2026-10-20 19:01:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(3,4,15,'[0]','2026-10-20 19:02:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(4,4,4,'[2]','2026-10-20 19:03:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(5,4,16,'[1]','2026-10-20 19:04:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(6,4,17,'[2]','2026-10-20 19:05:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(7,4,18,'[1]','2026-10-20 19:06:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(8,4,10,'[0]','2026-10-20 19:07:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(9,4,19,'[1]','2026-10-20 19:08:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(10,4,20,'[1]','2026-10-20 19:09:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(11,4,21,'[2]','2026-10-20 19:10:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(12,4,45,'[1]','2026-10-20 19:11:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(13,4,44,'[1]','2026-10-20 19:12:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(14,4,7,'[1]','2026-10-20 19:13:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(15,4,22,'[0]','2026-10-20 19:14:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(16,4,23,'[2]','2026-10-20 19:15:00');
+INSERT INTO "msg_vote"(id, message_id, member_id, choices, at) VALUES(17,4,24,'[1]','2026-10-20 19:16:00');
 COMMIT;
 INSERT INTO "settings"(key, value) VALUES('backup_probe_at','2026-10-18T02:12:00.000Z');
 INSERT INTO "settings"(key, value) VALUES('backup_probe_ok','1');

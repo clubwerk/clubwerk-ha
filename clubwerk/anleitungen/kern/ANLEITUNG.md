@@ -116,7 +116,7 @@ Mitglied wählen, die gewünschten Bereiche ankreuzen und **Freischalten & einla
 ![Die Einladung: QR-Code am Bildschirm, per E-Mail oder als Brief.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=[data-aq]; ziel=#askBox)
 
 - **QR-Code hier am Bildschirm:** Das Mitglied scannt ihn mit der Handy-Kamera, am besten direkt vor Ort. Er gilt einmal und nur kurze Zeit (einstellbar). Danach legt das Mitglied seine App-PIN fest. Den Code nicht abfotografieren: Wer ihn zuerst scannt, bekommt den Zugang.
-- **Per E-Mail schicken:** persönlicher Link, gilt einige Tage. Braucht ein Postfach und die Adresse in der Mitgliederverwaltung.
+- **Per E-Mail schicken:** persönlicher Link, gilt einige Tage. Braucht ein Postfach und die Adresse in der Mitgliederverwaltung. Die Mail sagt gleich nach der Anrede, was zu tun ist („Öffne diese E-Mail auf deinem Handy und tippe auf den Knopf“), hat einen großen Knopf „App jetzt freischalten“ über die ganze Breite, drei nummerierte Schritte und darunter die Adresse als Text für den Fall, dass der Knopf nicht geht.
 - **Einladungsbrief drucken:** QR-Code mit Anleitung auf Papier.
 - **Türen und Beregnung jetzt freigeben:** erscheint nur, wenn ein Handy von unterwegs ohne SMS-Code gekoppelt wurde.
 
@@ -137,7 +137,9 @@ Eine Tabelle für alle Bereiche der App, ein „Speichern“ für alles:
 - **Beim Freischalten:** „vorwählen“ kreuzt den Bereich bei neuen Mitgliedern von selbst an.
 - **Start** und **↑ ↓:** Startbereich und Reihenfolge. Von Haus aus öffnet die App „Für mich“.
 
-„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen. Haben die Vorstände Push-Anlässe freigegeben und das Handy hat Benachrichtigungen noch nicht eingeschaltet, steht ganz oben die Karte **„Benachrichtigungen einschalten“** mit „Einschalten“ und „Später“ (blendet sie 14 Tage aus). Auf dem iPhone im Safari erklärt sie in drei Schritten, wie die App auf den Home-Bildschirm kommt; ist Push im Handy gesperrt, steht dort, wo man es erlaubt. Nach dem Einschalten verschwindet die Karte.
+„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen. Haben die Vorstände Push-Anlässe freigegeben und das Handy hat Benachrichtigungen noch nicht eingeschaltet, steht ganz oben die Karte **„Benachrichtigungen einschalten“** mit „Einschalten“ und „Später“ (blendet sie 14 Tage aus). Immer erscheint nur die Karte, die als Nächstes nötig ist, passend zum Handy: auf dem **iPhone** erst die Schritte „Teilen-Symbol → Zum Home-Bildschirm → von dort öffnen“ (ohne feste Lage der Leiste, denn sie sitzt je nach Einstellung oben, unten oder im Menü „…“; ab iOS 16.4, früher gibt es dort kein Push); läuft die Seite in einem anderen Programm (Gmail, WhatsApp, Instagram …), zuerst „In Safari öffnen“ mit „Adresse kopieren“. Auf **Android** geht Push ohne Startbildschirm, dort kommt gleich „Einschalten“; in einem eingebetteten Browser zuerst „Im Browser öffnen“. Ist Push im Handy gesperrt, steht dort, wo man es erlaubt; kann das Gerät gar kein Push (Desktop, Huawei ohne Google-Dienste), erscheint keine Karte. Nach dem Einschalten verschwindet die Karte.
+
+**Kalender abonnieren:** Unter „Mehr“ › „Mein Konto“ erstellt sich jedes Mitglied einen persönlichen Link für den Kalender seines Handys. Darin stehen seine Dienste, zugesagten Termine, Platzbuchungen und Spiele der eigenen Mannschaften – nur aus Bereichen, die es in der App hat, ohne Namen anderer. Der Kalender holt sie selbst regelmäßig ab. Damit das auch unterwegs klappt, braucht die App eine öffentliche Adresse (Reiter „Einstellungen“, „Von unterwegs erreichbar“). „Neuer Link“ macht den alten ungültig, „Abo beenden“ löscht ihn. Wird das Handy entfernt, gilt der Link nicht mehr.
 
 ### Reiter „Benachrichtigungen“ {#app-push}
 
@@ -189,6 +191,7 @@ Von oben nach unten:
 - **Oben anheften:** bleibt in der App ganz oben, bis ihr sie löst.
 - **Betreff** und **Text** mit Werkzeugleiste: fett, kursiv, unterstrichen, Überschriften, Listen, Zitat, Trennlinie, Link. **Platzhalter …** fügt zum Beispiel die Briefanrede oder den Vornamen ein, die für jeden Empfänger ersetzt werden. **Vorlage …** setzt eine gespeicherte Vorlage ein.
 - **＋ Datei anhängen** oder Dateien hineinziehen: bis 10 MB je Datei, insgesamt 20 MB.
+- **＋ Umfrage anhängen** (nur mit „In der Mitglieder-App“): Frage, 2 bis 10 Antworten, **Ergebnis für Mitglieder** (nach der eigenen Stimme, erst nach dem Ende oder nie), **Ende** (leer = bis ihr sie beendet), **mehrere Antworten erlaubt** und **anonym**. Abgestimmt wird in der App, jedes Mitglied hat eine Stimme und kann sie bis zum Ende ändern. Anonym heißt: Niemand in Clubwerk sieht, wer was gewählt hat – auch nicht die Verwaltung. Für geheime Wahlen nach Satzung ist das kein Ersatz.
 - Unten: **Als Vorlage speichern**, **Verwerfen**, **Vorschau** („So sieht es bei … aus“) und **Senden …**. Vor dem Senden fragt Clubwerk mit der Zahl der Empfänger nach.
 
 Die Nachricht wird beim Schreiben automatisch als Entwurf gespeichert.
@@ -210,6 +213,10 @@ Jede gesendete Nachricht mit Betreff, Absender, Zeitpunkt, Empfängerzahl und We
 ![Die Zustellung einer Nachricht: wer erreicht wurde.](bild: seite=email; tab=gesendet; klick=.ml-row)
 
 Ein Klick öffnet die Nachricht mit Text, Anhängen und der **Zustellung**: wie viele bekamen sie per E-Mail, in der App, per Push, wer wurde nicht erreicht und warum (keine Adresse, ungültig, fehlgeschlagen). **Fehlgeschlagene erneut senden** versucht es noch einmal. **Weiterverwenden** öffnet eine Kopie als neuen Entwurf, **Aus der App nehmen** lässt sie bei den Mitgliedern sofort verschwinden (E-Mails bleiben), **Löschen** entfernt sie samt Liste.
+
+![Eine gesendete Umfrage: Ergebnis, Beteiligung und wer was gewählt hat.](bild: seite=email; tab=gesendet; klick=.ml-row:has-text("Weihnachtsfeier"); ziel=.ml-res)
+
+Hat die Nachricht eine **Umfrage**, steht darunter das Ergebnis: Stimmen je Antwort, wie viele von wie vielen abgestimmt haben und – wenn sie nicht anonym ist – wer was gewählt hat (Nachname, Vorname). **Umfrage beenden** beendet sie sofort. Mitglieder sehen die offene Umfrage unter „Für mich“ bei „Zu erledigen“, bis sie abgestimmt haben. **Weiterverwenden** übernimmt die Umfrage ohne Stimmen in einen neuen Entwurf.
 
 ### Reiter „Verteiler“ {#email-verteiler}
 
@@ -370,7 +377,7 @@ Alles, was für den ganzen Verein gilt. Die Bereiche stehen als Reiter oben. Was
 
 ![Karte „Verein“: Name, Farben und Anschrift.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#clubColor))
 
-- **Vereinsname, Straße, PLZ und Ort, E-Mail, Telefon:** stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen. Alle Module lesen sie von hier.
+- **Vereinsname, Straße, PLZ und Ort, E-Mail, Telefon:** stehen auf Rechnungen, Mitgliedsunterlagen und Bescheinigungen. Alle Module lesen sie von hier. Der **Vereinsname ist Pflicht**: der Einrichtungs-Assistent verlangt ihn gleich beim Anlegen des Kontos. Fehlt er, meldet die Datenqualität „Vereinsname fehlt“ in Rot, und es gehen keine E-Mails und Hinweise an Mitglieder raus, bis er eingetragen ist.
 - **Vereinsfarbe** und **Zweitfarbe** (freiwillig): Die Vereinsfarbe gilt für Tablet, Verwaltung, Mitglieder-App, Beregnung und Excel. Ist sie für Schrift zu hell, dunkelt Clubwerk sie automatisch ab (im dunklen Modus hellt es auf). Die Vorschau zeigt hell und dunkel.
 
 ![Karte „Vereinslogo“.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#logoPrev))

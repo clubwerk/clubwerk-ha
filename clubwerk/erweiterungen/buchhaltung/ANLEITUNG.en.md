@@ -73,7 +73,7 @@ At the end of each row are **PDF** (opens the invoice), **Paid** (for open invoi
 
 ![The window of an invoice with line items, status and buttons.](bild: seite=bh-rechnungen; klick=[data-inv]; ziel=dialog)
 
-- **PDF:** opens the invoice for printing or saving.
+- **PDF:** opens the invoice for printing or saving. Next to the bank details there is a **QR code for the banking app** with payee, IBAN, amount and invoice number (not for direct debit or credit notes).
 - **Send by email** or **Send again:** sends the invoice with the PDF to the stored address. If the address or the mailbox is missing, Clubwerk tells you.
 - **Send reminder:** only for overdue, open invoices. A friendly payment reminder with a new PDF goes out. Each further one is counted (“2nd payment reminder”), and the list remembers how often a reminder was sent.
 - **Mark as paid:** opens the “Record payment” window (see below). For member invoices with an open item the button is missing.

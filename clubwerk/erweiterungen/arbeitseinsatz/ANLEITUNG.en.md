@@ -242,6 +242,17 @@ Anyone who is exempt does hours like everyone else (they are recorded) but has n
 
 Members can remove themselves in the app up to 24 hours before the start. After that the contact applies.
 
+#### Homepage calendar
+
+![The “Homepage calendar” card.](bild: seite=aw-einstellungen; ziel=[data-set="kalender"])
+
+If your club website has a calendar to subscribe to (for example a calendar plugin or a Google calendar), enter its **subscription link** here (starting with `webcal://`, `https://` or `http://`). Clubwerk fetches the dates when you save and then every hour, and shows them in the member app in the **Dates** tab as “Club calendar” and on the “For me” start page. The dates are still maintained on the website; they cannot be changed in Clubwerk.
+
+- **Fetch now** fetches the calendar straight away.
+- Below it you see when it was last fetched, how many dates there are and the next three. If fetching fails (website not reachable, no calendar file, file larger than 2 MB), the reason is shown in red. The app then keeps showing the last state.
+- Recurring, all-day and multi-day dates are recognised; cancelled dates are left out.
+- If the field is empty, there is no club calendar.
+
 #### Transfer settings
 
 ![The “Transfer settings” card.](bild: seite=aw-einstellungen; ziel=#sFunc)
@@ -275,9 +286,15 @@ If there are club dates, a **Dates** switch appears (with the number still unans
 
 ![Accepting with guests.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; klick2=[data-ans="ja"])
 
+#### Club calendar
+
+If a homepage calendar is set under Settings, the **Dates** tab shows the card **Club calendar** below the dates, with date, time and place. Tapping shows the description. There is no accepting or declining here.
+
+![The club calendar in the “Dates” tab.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; ziel=#dsKal)
+
 #### Start page and notifications
 
-On the “For me” start page your own duties and accepted dates appear under “Coming up”. Open dates appear under “To do” only as one note “Dates: n replies open” (no buttons, no time limit while the reply deadline is running); it names the date with the nearest deadline and leads to the “Dates” tab. So do missing work hours, linking to the free duties. There are also notifications: **Duty reminder** (the day before) and **Reminder for a date** (invitation, request for a reply shortly before the deadline, reminder the day before for those who accepted). Members switch them on in the app under Notifications, per phone.
+On the “For me” start page your own duties, accepted dates and the next three dates of the club calendar appear under “Coming up”. Open dates appear under “To do” only as one note “Dates: n replies open” (no buttons, no time limit while the reply deadline is running); it names the date with the nearest deadline and leads to the “Dates” tab. So do missing work hours, linking to the free duties. There are also notifications: **Duty reminder** (the day before) and **Reminder for a date** (invitation, request for a reply shortly before the deadline, reminder the day before for those who accepted). Members switch them on in the app under Notifications, per phone.
 
 ### Tablet
 

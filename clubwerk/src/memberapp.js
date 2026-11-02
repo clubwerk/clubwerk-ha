@@ -59,11 +59,12 @@ async function inviteMail(memberId, inv, by) {
   const mail = require('./mail'); if (!mail.ready()) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
   const club = getSetting('club_name', 'Verein'), url = `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`;
   const until = deTs(inv.expiresAt), phone = smsPhone(memberId);
-  const steps = ['Den Knopf unten auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), 'Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).', 'Die Seite auf den Home-Bildschirm legen – fertig.'];
-  await mail.send({ to, subject: `Deine Mitglieder-App – ${club}`,
-    text: `Hallo ${firstName(inv.member)},\n\ndu kannst die Mitglieder-App von ${club} jetzt auf deinem Handy freischalten:\n\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n${url}\n\nDer Link gilt einmal und bis ${until} Uhr. Bitte nicht weiterleiten – wer ihn zuerst öffnet, bekommt den Zugang.\n\nViele Grüße\n${club}`,
-    card: { heading: 'Mitglieder-App freischalten', before: `Hallo ${firstName(inv.member)},\n\ndu kannst die Mitglieder-App von ${club} jetzt auf deinem Handy freischalten:`, title: 'So geht es', rows: steps.map((x, i) => [`${i + 1}.`, x]),
-      after: `Der Link gilt einmal und bis ${until} Uhr. Bitte nicht weiterleiten – wer ihn zuerst öffnet, bekommt den Zugang.\n\nViele Grüße\n${club}`, button: { label: 'App freischalten', url } } });
+  const steps = ['Den Knopf oben auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), 'Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).', 'Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.'];
+  const intro = `Hallo ${firstName(inv.member)},\n\nÖffne diese E-Mail auf deinem Handy und tippe auf den Knopf „App jetzt freischalten“.`;
+  const note = `Gültig bis ${until} Uhr · nur für dich, bitte nicht weiterleiten`, outro = `Knopf geht nicht? Diese Adresse öffnen: ${url}\n\nFragen? Antworte einfach auf diese E-Mail.\n\nViele Grüße\n${club}`;
+  await mail.send({ to, subject: 'Dein Zugang zur Mitglieder-App – bitte am Handy öffnen',
+    text: `${intro}\n\n${url}\n${note}\n\nSo geht es:\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n${outro}`,
+    card: { heading: `Mitglieder-App von ${club} freischalten`, before: intro, steps, after: outro, button: { label: 'App jetzt freischalten', url, wide: true, note }, buttonTop: true } });
   audit(by || null, 'Mitglieder-App: Einladung per E-Mail', `${inv.member} · gültig bis ${until}`);
   return { to };
 }
@@ -409,6 +410,11 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     res.json({ version: require('../package.json').version, start: getSetting('app_start', ''), color: appColor(), lanUrl: w ? lanUrl() : '', wlan: !awayReq(req), club: getSetting('club_name', 'Unser Verein'), demo: getSetting('demo_mode', '') === '1' || undefined, appName: getSetting('app_name', 'Verein'), member: w ? w.name : null,
       pinTablet: Boolean(w) && require('./plugins').isActive('getraenke'), sections, privacyAt: getSetting('app_privacy_at', '') || undefined });   // „Mein Konto › PIN ändern“: gilt die PIN auch im Verkauf am Tablet?
   });
+  /* Persönliches Kalender-Abo (src/kalender.js): eigene Termine der Bereiche, die das Mitglied in der App hat (Hook calendarEvents) */
+  require('./kalender').register({ api, whoIs: req => invites.whoIs(SCOPE, dev(req)), clubName: () => getSetting('club_name', 'Verein'),
+    sections: id => activeModules().filter(([mid, m]) => typeof (m.hooks || {}).calendarEvents === 'function' && accessFor(id, mid).ok).map(([mid, m]) => ({ id: mid, hooks: m.hooks })),
+    baseUrl: req => appUrl() || `${req.protocol}://${req.get('host')}`, localOnly: () => !appUrl(),
+    publicRouter: router => registerPublic('kalender', { router, isActive: () => true, dir: path.join(__dirname, 'kein-ordner') }) });
   /* „Für mich“: Zeilen der freigeschalteten Bereiche (Hook forMe) – alle gleichzeitig, je Modul höchstens FORME_TIMEOUT_MS; nur eigene Daten des gekoppelten Mitglieds.
      Vier Karten: news (einmalige Hinweise, bis zum Quittieren), next (meine Termine), todo (was ich selbst tun muss, optional mit Knöpfen), money (Mein Konto) */
   api.get('/forme', async (req, res) => {

@@ -53,7 +53,7 @@
           </div></div>` : ''}
           ${d.isHead && V.posten !== false ? `<div class="vh-card"><h3>Zahlungen${d.open_cents ? `<span class="vh-chip a">offen ${euro(d.open_cents)}</span>` : ''}</h3><div class="vh-rows">
             ${d.charges.slice(0, 12).map(c => `<div><span><span translate="no">${esc(c.text)}</span><small>${c.status === 'eingezogen' && c.collection_date ? `Lastschrift am ${deD(c.collection_date)}` : c.status === 'bezahlt' ? `bezahlt ${deD(c.paid_at)}` : `fällig ${deD(c.due_date)}`}<span class="vh-chip ${(ST[c.status] || [''])[0]}">${esc((ST[c.status] || ['', c.status])[1])}</span></small></span><b>${euro(c.cents)}</b></div>`).join('') || '<p class="vh-none">Noch keine Zahlungen.</p>'}
-          </div></div>` : ''}
+          </div>${d.transfer ? '<button class="vh-btn sec wide" id="mdPay" style="margin-top:12px">Überweisen</button>' : ''}</div>` : ''}
           ${V.anschrift !== false || V.kontakt !== false || V.geburt !== false ? `<div class="vh-card"><h3>Kontakt ${E.anschrift || E.kontakt ? '<button id="mdEdit">Ändern</button>' : ''}</h3><dl class="vh-kv">
             ${V.anschrift !== false ? `<dt>Anschrift</dt><dd>${esc(p.street || '–')}<br>${esc([p.zip, p.city].filter(Boolean).join(' '))}</dd>` : ''}
             ${V.kontakt !== false ? `<dt>E-Mail</dt><dd>${esc(p.email || '–')}</dd><dt>Mobil</dt><dd>${esc(p.mobile || p.phone || '–')}</dd>` : ''}
@@ -64,12 +64,27 @@
           ${d.auskunft ? `<div class="vh-card"><h3>Datenauskunft <button id="mdAusk">Anfordern</button></h3><div class="vh-rows"><div><span>Alles, was der Verein zu dir gespeichert hat – als PDF per E-Mail<small>${d.auskunft.to ? `an ${esc(d.auskunft.to)}` : 'Dafür braucht der Verein deine E-Mail-Adresse.'}</small></span></div></div></div>` : ''}
           ${p.exit_date || !E.kuendigung ? '' : '<button class="vh-danger" id="mdQuit">Mitgliedschaft kündigen …</button>'}`;
         const on = (id, fn) => { const b = document.getElementById(id); if (b) b.onclick = fn; };
-        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData);
-        if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank();
+        on('mdEdit', editContact); on('mdBank', editBank); on('mdCons', editConsents); on('mdQuit', quit); on('mdAusk', requestData); on('mdPay', transfer);
+        if (focus === 'kontakt' && document.getElementById('mdEdit')) editContact(); else if (focus === 'bank' && document.getElementById('mdBank')) editBank(); else if (focus === 'ueberweisen' && document.getElementById('mdPay')) transfer();
         focus = '';
         void open;
       }
 
+      /* Überweisen: QR-Code für die Banking-App (am Rechner oder auf einem zweiten Gerät scannen) und alle Angaben zum Kopieren */
+      async function transfer() {
+        let t;
+        try { t = await ctx.api('ueberweisen', 'POST', {}); } catch (e) { return ctx.toast(e.message, true, 6000); }
+        const row = (k, label, v) => `<div><span style="min-width:0"><small>${label}</small><strong translate="no" style="overflow-wrap:anywhere">${esc(v)}</strong></span><button type="button" class="vh-link" data-cp="${k}">Kopieren</button></div>`;
+        const vals = { n: t.name, i: t.iban.replace(/\s+/g, ''), a: (t.cents / 100).toFixed(2).replace('.', ','), z: t.purpose };
+        const sh = sheet(`<h2>Überweisen</h2><p>Mit der Banking-App scannen – zum Beispiel vom Bildschirm eines anderen Geräts – oder die Angaben einzeln kopieren.</p>
+          <div style="background:#fff;border-radius:14px;padding:8px;width:220px;max-width:100%;margin:0 auto 12px">${t.svg}</div>
+          <div class="vh-rows">${row('n', 'Empfänger', t.name)}${row('i', 'IBAN', t.iban)}${t.bic ? `<div><span><small>BIC</small><strong translate="no">${esc(t.bic)}</strong></span></div>` : ''}${row('a', 'Betrag', euro(t.cents))}${row('z', 'Verwendungszweck', t.purpose)}</div>
+          <p class="vh-note" style="text-align:left;margin:10px 0 0">Bitte den Verwendungszweck unverändert übernehmen – dann ordnet der Verein deine Zahlung automatisch zu.</p>
+          <div class="vh-row" style="margin-top:12px"><button class="ok" id="mdNo">Fertig</button></div>`);
+        const svg = sh.querySelector('svg'); if (svg) { svg.setAttribute('width', '100%'); svg.removeAttribute('height'); svg.style.display = 'block'; svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'QR-Code für die Überweisung'); }
+        sh.querySelector('#mdNo').onclick = closeSheet;
+        sh.querySelectorAll('[data-cp]').forEach(b => { b.onclick = async () => { try { await navigator.clipboard.writeText(vals[b.dataset.cp]); ctx.toast('Kopiert.'); } catch (e) { ctx.toast('Kopieren geht hier nicht – bitte von Hand übernehmen.', true); } }; });
+      }
       /* Auskunft nach Art. 15 DSGVO: mit PIN anfordern, kommt als PDF (und Datei) an die hinterlegte E-Mail-Adresse */
       async function requestData() {
         if (!d.auskunft.to) return ctx.toast('Beim Verein ist keine E-Mail-Adresse von dir hinterlegt. Bitte trag sie unter „Kontakt“ ein oder frag beim Vorstand nach.', true, 6000);

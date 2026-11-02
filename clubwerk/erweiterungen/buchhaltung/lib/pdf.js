@@ -19,6 +19,8 @@
  *   amountInWords(cents)  → „einhundertdreiundzwanzig Euro und fünfundvierzig Cent“
  */
 const PDFDocument = require('pdfkit');
+const giro = require('../../../src/girocode');
+const QR = 80, QZ = 10;   // QR-Code für Überweisungen: Kantenlänge (≈ 28 mm) und weiße Ruhezone
 
 /* ---------- Raster & Farben ---------- */
 const PW = 595.28, PH = 841.89;
@@ -292,20 +294,28 @@ function invoice(club = {}, inv = {}) {
     para(inv.payment_text || `Den Betrag von ${euro(-total)} erstatten wir Ihnen auf Ihr Konto.`);
   } else {
     const due = inv.due_date ? deD(inv.due_date) : '';
+    const purpose = [inv.no, inv.customer_no && `Kd.-Nr. ${inv.customer_no}`].filter(Boolean).join(' · ');
+    const qr = giro.payload({ name: club.holder || club.name, iban: club.iban, bic: club.bic, cents: total, text: purpose });
     const nRows = [club.name, club.iban, club.bic, club.bank, inv.no].filter(Boolean).length;
-    if (y + 40 + nRows * 17 + 18 > BOTTOM) newPage();          // Zahlungstext und Kontokasten bleiben zusammen
+    if (y + 40 + Math.max(nRows * 17 + 18, qr ? QR + 2 * QZ + 22 : 0) > BOTTOM) newPage();          // Zahlungstext und Kontokasten bleiben zusammen
     para(inv.payment_text || (isReminder
       ? `Bitte überweisen Sie den offenen Betrag von ${euro(total)} innerhalb von 14 Tagen unter Angabe der Rechnungsnummer ${inv.no} auf folgendes Konto:`
       : `Bitte überweisen Sie den Betrag von ${euro(total)}${due ? ` bis zum ${due}` : ''} unter Angabe der Rechnungsnummer ${inv.no} auf folgendes Konto:`), { gap: 10 });
-    const rows = [['Empfänger', club.holder || club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', [inv.no, inv.customer_no && `Kd.-Nr. ${inv.customer_no}`].filter(Boolean).join(' · ')]].filter(r => r[1]);
-    const bh = rows.length * 17 + 18;
+    const rows = [['Empfänger', club.holder || club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', purpose]].filter(r => r[1]);
+    const bh = Math.max(rows.length * 17 + 18, qr ? QR + 2 * QZ + 22 : 0);
     if (y + bh > BOTTOM) newPage();
     doc.roundedRect(L, y, W, bh, 6).fill(FAINT);
     let ry = y + 10;
     for (const [k, v] of rows) {
       doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(k, L + 16, ry + 1.5, { width: 110, lineBreak: false });
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(v, L + 130, ry, { width: W - 146, lineBreak: false, ellipsis: true });
+      doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(v, L + 130, ry, { width: W - 146 - (qr ? QR + 2 * QZ + 10 : 0), lineBreak: false, ellipsis: true });
       ry += 17;
+    }
+    if (qr) {   // QR-Code für die Banking-App rechts im Kasten, mit weißer Ruhezone
+      const qx = R - 8 - QZ - QR, qy = y + 6 + QZ;
+      doc.rect(qx - QZ, qy - QZ, QR + 2 * QZ, QR + 2 * QZ).fill('#ffffff');
+      giro.pdf(doc, qr, qx, qy, QR);
+      doc.font('Helvetica').fontSize(7).fillColor(MUTED).text('Mit Banking-App scannen', qx - QZ - 6, qy + QR + QZ + 3, { width: QR + 2 * QZ + 12, align: 'center', lineBreak: false });
     }
     y += bh + 14;
   }

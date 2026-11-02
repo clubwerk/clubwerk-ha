@@ -73,7 +73,7 @@ async function start({ module, name, user }) {
     // Nur, was Clubwerk zum Laufen braucht – kein SUPERVISOR_TOKEN, kein Notfallpasswort, keine Zertifikate, kein Erweiterungsordner
     const env = { PATH: process.env.PATH, TZ: process.env.TZ || '', NODE_ENV: process.env.NODE_ENV || 'production', LANG: process.env.LANG || '',
       DATA_DIR: dir, PORT: String(port), HOST: '127.0.0.1', MEMBER_PORT: String(mport), BEREGNUNG_PORT: String(bport), EXT_DIR: path.join(dir, 'keine-erweiterungen'),
-      TRUSTED_PROXY: '127.0.0.2', CW_DEMO_KOPIE: '1', CW_DEMO_MODUL: name, NODE_OPTIONS: '--max-old-space-size=128' };
+      TRUSTED_PROXY: '127.0.0.2', CW_DEMO_KOPIE: '1', CW_DEMO_MODUL: name, NODE_OPTIONS: '--max-old-space-size=128 --max-semi-space-size=2' };
     c.proc = spawn(process.execPath, [path.join(__dirname, 'server.js')], { env, cwd: path.join(__dirname, '..'), stdio: ['ignore', 'ignore', 'pipe'] });
     c.proc.stderr.on('data', d => { if (cur === c) process.stderr.write(String(d).split('\n').filter(Boolean).map(l => `[Demo] ${l}\n`).join('')); });
     c.proc.on('exit', () => { if (cur === c) stop('beendet sich'); });

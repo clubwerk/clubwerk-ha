@@ -61,7 +61,7 @@ function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fr
     const i18n = require('./i18n');
     subject = i18n.tr(String(subject || '')); text = i18n.tr(String(text || ''));
     if (card) card = { ...card, heading: card.heading ? i18n.tr(String(card.heading)) : card.heading, title: card.title ? i18n.tr(String(card.title)) : card.title, before: card.before != null ? i18n.tr(String(card.before)) : card.before, after: card.after != null ? i18n.tr(String(card.after)) : card.after,
-      rows: (card.rows || []).map(([k, v]) => [i18n.tr(String(k)), v]), button: card.button && card.button !== true ? { ...card.button, label: i18n.tr(String(card.button.label || '')) } : card.button,
+      rows: (card.rows || []).map(([k, v]) => [i18n.tr(String(k)), v]), steps: card.steps ? card.steps.map(t => i18n.tr(String(t))) : card.steps, button: card.button && card.button !== true ? { ...card.button, label: i18n.tr(String(card.button.label || '')), note: card.button.note ? i18n.tr(String(card.button.note)) : card.button.note } : card.button,
       calendar: card.calendar ? { ...card.calendar, label: i18n.tr(String(card.calendar.label || 'Zu deinem Kalender hinzufügen')) } : card.calendar };
   }
   // Gestaltete HTML-Fassung (Logo, Vereinsfarbe, Infokarte) – die Textfassung bleibt für Mailprogramme ohne HTML
@@ -83,12 +83,14 @@ function parked(o) {
   return true;
 }
 async function send(o) {
+  if (!require('./vereinsname').isSet()) throw new Error(require('./vereinsname').MSG);
   if (parked(o)) return { queued: true };
   const { s, t } = transport(false);
   await t.sendMail(message(s, o));
 }
 /** Viele Mails nacheinander über eine Verbindung: const x = session(); await x.send({…}); x.close() */
 function session() {
+  if (!require('./vereinsname').isSet()) throw new Error(require('./vereinsname').MSG);
   const { s, t } = transport(true);
   return { send: o => (parked(o) ? Promise.resolve({ queued: true }) : t.sendMail(message(s, o))), close: () => { try { t.close(); } catch (e) { /* zu */ } } };
 }

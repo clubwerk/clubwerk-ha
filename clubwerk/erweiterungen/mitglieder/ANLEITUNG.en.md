@@ -506,6 +506,8 @@ The tab has four parts. At the top a box warns if the last bank statement is old
 
 For payers with **invoice or cash** (and payers who are no longer collected from after two returned debits). Each payer shows number of items and amount in the list. “PDF” shows the invoice, **Send selected by email** sends it with the PDF.
 
+Invoices and reminders carry a **QR code for the banking app** next to the bank details. Scanning it fills in payee, IBAN, amount and invoice number. Because the invoice number then appears unchanged in the payment reference, the bank statement assigns the payment with certainty.
+
 #### Reminders – due now
 
 The reminder run: Clubwerk shows who gets a letter now, with the **level per item** (e.g. payment reminder, 1st reminder, 2nd reminder), due date, number of items, open amount and fee. You keep the tick boxes and choose:
@@ -571,6 +573,7 @@ As on the “Settings” tab under “Members”: save the settings as a file or
 - **Give new bank details** on the phone with a signature as a new SEPA mandate. The board applies it.
 - **Give or withdraw consents** (takes effect at once, with PIN).
 - **Request the data access:** it arrives as a PDF by email.
+- **Pay by bank transfer:** Anyone who pays by invoice or cash, or has received a reminder, finds the button “Pay by transfer” under “Payments”. It shows a QR code for the banking app and the payee, IBAN, amount and payment reference to copy. Open items without an invoice number get one, so the bank statement recognises the payment. Members paying by direct debit do not see the button.
 - **Cancel**, if allowed. The app names the earliest leaving date; families choose who cancels too.
 
 Signatures, cancellation and changes that concern money or email require the member's PIN.

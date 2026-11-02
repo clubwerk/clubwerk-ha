@@ -6,6 +6,8 @@
  */
 const PDFDocument = require('pdfkit');
 
+const giro = require('../../../src/girocode');
+
 /* ---------- Raster & Farben ---------- */
 const PW = 595.28, PH = 841.89;
 const L = 56.7, R = PW - 56.7, W = R - L;          // 20 mm links und rechts
@@ -155,6 +157,27 @@ function dunningLetters(club, list) {
   doc.end();
   return done;
 }
+/** Kasten mit der Bankverbindung; mit QR-Code für die Banking-App rechts daneben (Text wird schmaler, Kasten mindestens so hoch wie der Code) */
+const QR = 80, QZ = 10;   // Kantenlänge (≈ 28 mm) und weiße Ruhezone rundum
+function bankBox(doc, y, rows, qr, newPage) {
+  const bh = Math.max(rows.length * 17 + 18, qr ? QR + 2 * QZ + 22 : 0);
+  if (y + bh > BOTTOM) y = newPage();
+  doc.roundedRect(L, y, W, bh, 6).fill(FAINT);
+  const tw = W - 146 - (qr ? QR + 2 * QZ + 10 : 0);
+  let ry = y + 10;
+  for (const [k, v] of rows) {
+    doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(k, L + 16, ry + 1.5, { width: 110, lineBreak: false });
+    doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(v, L + 130, ry, { width: tw, lineBreak: false, ellipsis: true });
+    ry += 17;
+  }
+  if (qr) {
+    const qx = R - 8 - QZ - QR, qy = y + 6 + QZ;
+    doc.rect(qx - QZ, qy - QZ, QR + 2 * QZ, QR + 2 * QZ).fill('#ffffff');
+    giro.pdf(doc, qr, qx, qy, QR);
+    doc.font('Helvetica').fontSize(7).fillColor(MUTED).text('Mit Banking-App scannen', qx - QZ - 6, qy + QR + QZ + 3, { width: QR + 2 * QZ + 12, align: 'center', lineBreak: false });
+  }
+  return y + bh;
+}
 function invoicePages(doc, club, b, o) {
   doc.addPage();
   const dn = o.dunning || null;
@@ -198,17 +221,9 @@ function invoicePages(doc, club, b, o) {
     y = doc.y;
   } else {
     doc.text(`Bitte überweisen Sie den Betrag${dn && dn.deadline ? ` bis zum ${deD(dn.deadline)}` : ''} auf das Konto des Vereins:`, L, y, { width: W }); y = doc.y + 10;
-    const rows = [['Empfänger', club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', o.no]].filter(r => r[1]);
-    const bh = rows.length * 17 + 18;
-    if (y + bh > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); }
-    doc.roundedRect(L, y, W, bh, 6).fill(FAINT);
-    let ry = y + 10;
-    for (const [k, v] of rows) {
-      doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(k, L + 16, ry + 1.5, { width: 110, lineBreak: false });
-      doc.font('Helvetica-Bold').fontSize(10).fillColor(INK).text(v, L + 130, ry, { width: W - 146, lineBreak: false, ellipsis: true });
-      ry += 17;
-    }
-    y += bh;
+    const rows = [['Empfänger', club.holder || club.name], ['IBAN', fmtIban(club.iban)], ['BIC', club.bic], ['Bank', club.bank], ['Verwendungszweck', o.no]].filter(r => r[1]);
+    const qr = giro.payload({ name: club.holder || club.name, iban: club.iban, bic: club.bic, cents: total, text: o.no });
+    y = bankBox(doc, y, rows, qr, () => { doc.addPage(); return headSmall(doc, club, b, `${word} ${o.no}`); });
   }
   if (club.invoiceText) { y += 16; if (y + 30 > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, `${word} ${o.no}`); } doc.font('Helvetica').fontSize(8.8).fillColor(MUTED).text(club.invoiceText, L, y, { width: W }); }
 }

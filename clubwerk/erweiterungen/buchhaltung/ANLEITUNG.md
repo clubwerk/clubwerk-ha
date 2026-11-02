@@ -73,7 +73,7 @@ Mit „Rechnung erstellen“ ist die Rechnung angelegt und nummeriert. Die Numme
 
 ![Das Fenster einer Rechnung mit Positionen, Status und Knöpfen.](bild: seite=bh-rechnungen; klick=[data-inv]; ziel=dialog)
 
-- **PDF:** öffnet die Rechnung zum Drucken oder Speichern.
+- **PDF:** öffnet die Rechnung zum Drucken oder Speichern. Neben der Bankverbindung steht ein **QR-Code für die Banking-App** mit Empfänger, IBAN, Betrag und Rechnungsnummer (nicht bei Lastschrift und Gutschrift).
 - **Per E-Mail senden** bzw. **Erneut senden:** schickt die Rechnung mit PDF an die hinterlegte Adresse. Fehlt die Adresse oder das Postfach, sagt Clubwerk das.
 - **Erinnerung senden:** nur bei überfälligen, offenen Rechnungen. Es geht eine freundliche Zahlungserinnerung mit neuem PDF raus. Jede weitere trägt die Zählung („2. Zahlungserinnerung“), und die Liste merkt sich, wie oft erinnert wurde.
 - **Als bezahlt buchen:** öffnet das Fenster „Zahlung buchen“ (siehe unten). Bei Mitgliedsrechnungen mit offenem Posten fehlt der Knopf.

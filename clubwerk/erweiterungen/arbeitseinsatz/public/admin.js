@@ -503,6 +503,11 @@
         <label class="f">Kontakt für kurzfristige Absagen<input id="sCon" value="${esc(c.contact || '')}" placeholder="z. B. Max, 0170 1234567"></label>
         <label class="f wall">Hinweis für Mitglieder (App und Tablet)<input id="sText" value="${esc(c.text)}" placeholder="z. B. Jedes Mitglied ab 12 Jahren leistet 4 Stunden im Jahr."></label></div>
         <p class="muted s">Mitglieder können sich in der App bis 24 Stunden vor Beginn austragen, die Verwaltung bekommt dann eine E-Mail. Danach gilt der Kontakt.</p>${foot('sSaveBen')}</div>
+      <div class="card" data-set="kalender" data-nodirty><h3>Kalender der Homepage</h3>
+        <p class="muted s" style="margin-top:0">Hat eure Homepage einen Kalender zum Abonnieren, zeigt die Mitglieder-App seine Termine unter „Dienste › Termine“ und in „Für mich“. Clubwerk holt sie stündlich ab; gepflegt werden sie weiter auf der Homepage.</p>
+        <div class="aw-grid" style="--c:1"><label class="f">Abo-Link des Kalenders<input id="icU" inputmode="url" spellcheck="false" autocomplete="off" placeholder="z. B. webcal://dein-verein.de/?ical=1"></label></div>
+        <div id="icSt" class="muted s" style="margin-top:10px"></div>
+        <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px"><button class="btn" id="icNow">Jetzt abrufen</button><button class="btn primary" id="icSave">Speichern</button></div></div>
       <div id="sFunc"></div>`);
     GK.watch($('main'));
     // jede Karte schreibt nur ihre eigenen Felder; danach neu zeichnen
@@ -520,6 +525,17 @@
     };
     $('exAdd').onclick = async () => { try { await api('exempt', 'PUT', { member_id: +val('exM'), note: val('exN'), until: val('exU') }); $('exM').value = ''; $('exN').value = ''; $('exU').value = ''; toast('Befreit.'); exLoad(); } catch (e) { fail(e); } };
     exLoad().catch(fail);
+    // Kalender der Homepage: Stand (zuletzt abgerufen, Zahl der Termine, Fehler) und die nächsten Termine
+    const icShow = s => {
+      $('icNow').disabled = !s.url || s.sample;
+      const ok = s.ok ? `Zuletzt abgerufen ${deDate(s.ok.at.slice(0, 10))} ${s.ok.at.slice(11, 16)} Uhr: ${s.ok.n === 1 ? '1 Termin' : `${s.ok.n} Termine`}.` : '';
+      const err = s.err ? `<span style="color:var(--red)">Abruf am ${deDate(s.err.at.slice(0, 10))} ${s.err.at.slice(11, 16)} Uhr: ${esc(s.err.error)}${s.ok ? ' Es gilt der letzte Stand.' : ''}</span>` : '';
+      $('icSt').innerHTML = !s.url ? 'Kein Kalender eingetragen.' : s.sample ? `Beispieladresse – wird nicht abgerufen. ${s.n === 1 ? '1 Termin' : `${s.n} Termine`} aus den Beispieldaten.` : [ok, err].filter(Boolean).join('<br>') || 'Noch nicht abgerufen.';
+      if (s.next && s.next.length) $('icSt').insertAdjacentHTML('beforeend', `<br>Als Nächstes: ${s.next.map(e => `${esc(e.title)} (${deDate(e.date)}${e.start ? ' ' + e.start : ''})`).join(' · ')}`);
+    };
+    api('ical').then(s => { $('icU').value = s.url || ''; icShow(s); }).catch(fail);
+    $('icSave').onclick = () => GK.busy($('icSave'), async () => { try { const s = await api('ical', 'PUT', { url: val('icU') }); $('icU').value = s.url || ''; icShow({ ...s, next: (await api('ical')).next }); toast(s.url ? 'Gespeichert.' : 'Kalender entfernt.'); } catch (e) { fail(e); } });
+    $('icNow').onclick = () => GK.busy($('icNow'), async () => { try { await api('ical/sync', 'POST', {}); icShow(await api('ical')); } catch (e) { fail(e); } });
     if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Dienste & Termine', () => renderEinstellungen().catch(fail));
   }
 
@@ -547,6 +563,7 @@
     { label: 'Stunden am Tablet und in der App', page: 'aw-einstellungen', card: 'Tablet & App', words: 'runden Minuten sofort bestätigt melden Stempeln' },
     { label: 'Befreite Mitglieder (Dienste & Termine)', page: 'aw-einstellungen', card: 'Befreite Mitglieder', words: 'befreien Ausnahme Vorstand' },
     { label: 'Erinnerungen und Absagen der Dienste & Termine', page: 'aw-einstellungen', card: 'Benachrichtigungen & Kontakt', words: 'Erinnerung E-Mail Vortag Absagen Kontakt Hinweis fehlende Stunden' },
+    { label: 'Kalender der Homepage (Abo-Link)', page: 'aw-einstellungen', card: 'Kalender der Homepage', words: 'webcal iCal ics Abo Homepage Kalender Termine Vereinskalender' },
     { label: 'Einstellungen der Dienste & Termine übertragen', page: 'aw-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', words: 'Export Import Datei' },
   ]);
   // Zähler: gemeldete Stunden, die noch zu bestätigen sind (am Reiter „Stunden“, im Menü die Summe)

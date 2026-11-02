@@ -22,7 +22,7 @@ function register(sh) {
 
   const payerName = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   const personOf = id => db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id) || {};
-  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), iban: store.account().iban, bic: store.account().bic, bank: store.account().bank,
+  const club = () => ({ name: S('creditor_name') || C.getSetting('club_name', 'Verein'), street: S('club_street'), city: S('club_city'), iban: store.account().iban, bic: store.account().bic, bank: store.account().bank, holder: store.account().holder,
     ci: S('creditor_id'), invoiceText: S('invoice_text'), logo: null });
 
   /* ======================================================= Beitragslauf */

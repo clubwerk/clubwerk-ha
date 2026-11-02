@@ -32,13 +32,14 @@
       ctx.onLeave(close);
       let d_contact = '';
       const sel = {};   // gewählter Tag je Dienstplan
-      let tab = /^termin/.test(ctx.focus || '') ? 'termine' : 'dienste';   // Reiter „Dienste“ | „Termine“ (aus „Für mich“: gleich die Termine)
+      let tab = /^(termin|kalender)/.test(ctx.focus || '') ? 'termine' : 'dienste';   // Reiter „Dienste“ | „Termine“ (aus „Für mich“: gleich die Termine)
       let focus = ctx.focus || '';   // aus „Für mich“ („frei“): zum ersten freien Dienst scrollen (nur beim ersten Laden)
       const sheet = () => { let sh = document.getElementById('dsSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'dsSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       async function load() {
         let d; try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
         window.__dsToday = d.today; d_contact = d.contact;
-        if (!d.termine.length) tab = 'dienste';
+        const kal = d.kalender || [];
+        if (!d.termine.length && !kal.length) tab = 'dienste';
         const pct = d.target ? Math.min(100, Math.round(d.done / d.target * 100)) : 100;
         const miss = Math.max(0, d.target - d.done);
         // Solange Stunden fehlen, steht das Offene im Vordergrund; danach kein Zielstrich („Geschafft“), nur Dank – die Dienste rücken nach oben
@@ -53,8 +54,8 @@
         const duties = `${mineHtml(d)}${d.plans.map(planHtml).join('')}
           ${d.events.length || !d.plans.length ? `<div class="vh-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="vh-none">Gerade keine Termine geplant.</p>'}</div>` : ''}`;
         const openT = d.termine.filter(t => !t.answer && t.can).length;
-        const seg = d.termine.length ? `<div class="vh-seg"><button data-tab="dienste" class="${tab === 'dienste' ? 'on' : ''}">Dienste</button><button data-tab="termine" class="${tab === 'termine' ? 'on' : ''}">Termine${openT ? ` (${openT})` : ''}</button></div>` : '';
-        el.innerHTML = tab === 'termine' ? seg + d.termine.map(termHtml).join('') : `${seg}${met ? duties + hours : hours + duties}
+        const seg = d.termine.length || kal.length ? `<div class="vh-seg"><button data-tab="dienste" class="${tab === 'dienste' ? 'on' : ''}">Dienste</button><button data-tab="termine" class="${tab === 'termine' ? 'on' : ''}">Termine${openT ? ` (${openT})` : ''}</button></div>` : '';
+        el.innerHTML = tab === 'termine' ? seg + d.termine.map(termHtml).join('') + kalHtml(kal) : `${seg}${met ? duties + hours : hours + duties}
           <div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b class="num">${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`;
         el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; load(); }; });
         el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(d.termine.find(x => x.id === +b.dataset.t), b.dataset.ans); });
@@ -67,8 +68,24 @@
         el.querySelectorAll('[data-pd]').forEach(b => { b.onclick = () => { sel[b.dataset.pl] = b.dataset.pd; load(); }; });
         const rep = document.getElementById('dsRep'); if (rep) rep.onclick = () => report(d);
         if (focus === 'frei') { const f = el.querySelector('[data-ev][data-on="0"]:not([disabled])'); if (f) f.closest('.ds-sh').scrollIntoView({ block: 'center' }); }
+        el.querySelectorAll('[data-kal]').forEach(b => { b.onclick = () => kalSheet(kal[+b.dataset.kal]); });
+        if (focus === 'kalender' && tab === 'termine') { const f = document.getElementById('dsKal'); if (f) f.scrollIntoView({ block: 'start' }); }
         if (/^termin:\d+$/.test(focus) && tab === 'termine') { const f = el.querySelector(`[data-t="${focus.slice(7)}"]`); if (f) f.closest('.ds-tm').scrollIntoView({ block: 'center' }); }
         focus = '';
+      }
+      /* Vereinskalender (Termine der Homepage, nur lesen): Datum, Zeit, Ort – Antippen zeigt die Beschreibung */
+      const kalWhen = e => (e.end_date && e.end_date !== e.date ? `${wd(e.date)} ${deD(e.date).slice(0, 6)}${e.start ? ' ' + e.start : ''} – ${wd(e.end_date)} ${deD(e.end_date).slice(0, 6)}${e.end ? ' ' + e.end : ''}` : `${wd(e.date)} ${deD(e.date).slice(0, 6)}${e.start ? ` · ${e.start}${e.end ? '–' + e.end : ''} Uhr` : ' · ganztags'}`);
+      function kalHtml(kal) {
+        if (!kal.length) return '';
+        return `<div class="vh-card" id="dsKal"><h3>Vereinskalender</h3><div class="vh-rows">${kal.map((e, i) => `<button type="button" class="vh-fm" data-kal="${i}"><span class="vh-date"><b>${esc(e.date.slice(8, 10))}.${esc(e.date.slice(5, 7))}.</b><span>${esc(wd(e.date))}</span></span>
+          <span class="vh-tx"><strong translate="no">${esc(e.title)}</strong><small>${esc(kalWhen(e))}${e.place ? ` · <span translate="no">${esc(String(e.place).split(',')[0])}</span>` : ''}</small></span></button>`).join('')}</div></div>`;
+      }
+      function kalSheet(e) {
+        if (!e) return;
+        const sh = sheet();
+        sh.innerHTML = `<div class="vh-box"><h2 translate="no">${esc(e.title)}</h2><p>${esc(kalWhen(e))}</p>${e.place ? `<p translate="no">${esc(e.place)}</p>` : ''}${e.note ? `<p translate="no" style="white-space:pre-line;text-align:left">${esc(e.note)}</p>` : ''}
+          <p class="vh-note" style="text-align:left;margin:10px 0 0">Aus dem Kalender der Homepage.</p><div class="vh-row" style="margin-top:12px"><button class="ok" id="dsKalOk">Schließen</button></div></div>`;
+        sh.classList.add('show'); sh.querySelector('#dsKalOk').onclick = close;
       }
       function termHtml(t) {
         const chip = t.answer === 'ja' ? `<span class="vh-chip g">du kommst${t.persons > 1 ? ` (${t.persons} Personen)` : ''}</span>` : t.answer === 'nein' ? '<span class="vh-chip">du kommst nicht</span>' : t.can ? '<span class="vh-chip a">Antwort fehlt</span>' : '';
