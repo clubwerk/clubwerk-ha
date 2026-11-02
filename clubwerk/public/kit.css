@@ -313,3 +313,9 @@ body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius:
 @media (max-width: 640px) { .frm { grid-template-columns: minmax(0, 1fr); } .frm > *, .frm > .w1 { grid-column: 1 / -1; } }
 .frm-acts { display: flex; align-items: flex-end; gap: 8px; min-width: 0; }   /* Knöpfe in einer Formularzeile, z. B. ↑ ↓ oder „Entfernen“ */
 .frm .btn { height: 40px; min-height: 40px; }   /* Knöpfe im Formularraster so hoch wie die Felder */
+
+/* Buchführung › Erlösarten: je Zeile Erlösart, Konto, Sphäre – festes Raster, damit die Felder von Zeile zu Zeile fluchten */
+.gbrow { display: grid; grid-template-columns: minmax(0, 1fr) 120px 300px; gap: 8px 16px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.gbrow > div { align-self: center; min-width: 0; }
+@media (max-width: 900px) { .gbrow { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); } .gbrow > div { grid-column: 1 / -1; } }
+@media (max-width: 640px) { .gbrow { grid-template-columns: minmax(0, 1fr); } }

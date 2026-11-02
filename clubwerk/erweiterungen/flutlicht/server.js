@@ -533,6 +533,8 @@ function activate(ctx) {
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.lights.length && c.who.tablet); };
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); } };
   ctx.hooks.usedEntities = () => cfg().lights.map(l => l.ref);
+  ctx.hooks.gobdTables = () => [{ table: 'fl_claim', date: 'created_at' }];   // GoBD: Änderungsjournal (Lichtgeld wird als Forderung oder Verkauf bezahlt und dort gebucht)
+  ctx.hooks.gobdKeys = () => [{ key: 'fl.lichtgeld', label: 'Lichtgeld (Flutlicht)', sphere: 'zweck', prefix: 'fl-' }];
   ctx.hooks.historyTables = () => ['fl_claim'];   // Lichtgeld und Betriebsstunden bleiben beim Löschen eines Kontos lesbar
   ctx.hooks.deactivate = () => { allOff('System (Modul ausgeschaltet)').catch(() => {}); };
   /* Datenschutz: der Verlauf zeigt, wer wann Licht hatte – nach der Frist werden Namen entfernt, Dauer bleibt für die Betriebsstunden */

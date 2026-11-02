@@ -3855,7 +3855,7 @@
       };
     }
   }
-  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dqBody')) renderQuality().catch(e => { if ($('dqBody')) $('dqBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dqBody')) renderQuality().catch(e => { if ($('dqBody')) $('dqBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('gbJournal')) renderBooks().catch(e => { if ($('gbJournal')) $('gbJournal').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
 
   /* =================== Mein Konto (Benutzerchip): Passwort, Sprache und Aussehen in diesem Browser, E-Mail-Absender =================== */
   RENDER.konto = async () => {
@@ -3953,7 +3953,7 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['datenschutz', 'Datenschutz'], ['daten', 'Datenqualität'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
+  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['buchfuehrung', 'Buchführung'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['datenschutz', 'Datenschutz'], ['daten', 'Datenqualität'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
   const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : 'tablet');
   /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
@@ -4003,6 +4003,83 @@
       <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dqRun">Jetzt prüfen</button></div>`;
     box.querySelectorAll('[data-dq]').forEach(b => { b.onclick = () => dqGo(hits[+b.dataset.dq].fix); });
     $('dqRun').onclick = () => busy($('dqRun'), async () => { try { await renderQuality(await api('datenqualitaet', 'POST', {})); toast('Geprüft.'); } catch (e) { fail(e); } });
+  }
+
+  /* ---------- Buchführung (GoBD, src/gobd.js): Änderungsjournal mit Prüfkette, Konten und Sphären je Erlösart, DATEV- und Prüfer-Export ---------- */
+  const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  async function fileDownload(url, name) {
+    const r = await fetch(url, { headers: { 'X-Clubwerk': '1' } });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Fehler'); }
+    const u = URL.createObjectURL(await r.blob()), el = document.createElement('a');
+    el.href = u; el.download = name; document.body.appendChild(el); el.click(); el.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+  }
+  async function renderBooks() {
+    const r = await api('gobd'), c = r.cfg, jb = $('gbJournal'), kb = $('gbKonten'), eb = $('gbErl'), xb = $('gbExport');
+    if (!jb) return;
+    const sphOpts = v => `<option value="" ${v ? '' : 'selected'}>– ohne –</option>${Object.entries(r.spheres).map(([k, l]) => `<option value="${k}" ${k === v ? 'selected' : ''}>${esc(l)}</option>`).join('')}`;
+    jb.innerHTML = `<p class="muted s" style="margin-top:0">Clubwerk hält jede neue, geänderte oder gelöschte Zeile mit Geld oder Belegen fest: wann, wer, vorher und nachher. Jeder Eintrag ist mit seinem Vorgänger verkettet – fehlt einer oder wurde etwas verändert, fällt es beim Nachrechnen auf. Das Journal bleibt mindestens 10 Jahre, auch nach dem Anonymisieren eines Mitglieds.</p>
+      <div class="kpis"><div class="kpi"><div class="l">Einträge</div><div class="v" translate="no">${r.journal.count.toLocaleString('de-DE')}</div></div>
+        <div class="kpi"><div class="l">Seit</div><div class="v">${r.journal.first ? esc(deDate(r.journal.first.slice(0, 10))) : '–'}</div></div>
+        <div class="kpi"><div class="l">Prüfkette</div><div class="v" id="gbChain">–</div></div></div>
+      <div class="row" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="muted s" id="gbChainTxt">Wird jede Nacht nachgerechnet (Einstellungen › Datenqualität).</span><button class="btn" id="gbCheck">Jetzt nachrechnen</button></div>`;
+    const check = () => busy($('gbCheck'), async () => {
+      try {
+        const v = await api('gobd/pruefen', 'POST', {});
+        $('gbChain').textContent = T(v.ok ? 'intakt' : 'unterbrochen'); $('gbChain').style.color = v.ok ? '' : 'var(--red)';
+        $('gbChainTxt').textContent = v.ok ? T('{0} Einträge nachgerechnet, alles verkettet.').replace('{0}', v.count) + (v.beyond ? ' ' + T('Hinweis: Eine ältere Sicherung wurde zurückgespielt – was danach geändert wurde, ist nicht mehr im Journal.') : '') : `${T('Eintrag')} ${v.bad.id}: ${T(v.bad.why)}`;
+      } catch (e) { fail(e); }
+    });
+    $('gbCheck').onclick = check; check();
+    kb.innerHTML = `<p class="muted s" style="margin-top:0">Für den DATEV-Export: die Nummern vom Steuerberater und je Zahlweg ein Geldkonto. Lastschriften und Überweisungen am besten auf ein Geldtransitkonto, wenn euer Steuerberater die Bankumsätze selbst einliest – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.</p>
+      <div class="frm">
+        <label class="f w1">Beraternummer<input id="gbB" value="${esc(c.berater)}" inputmode="numeric" maxlength="7" autocomplete="off"></label>
+        <label class="f w1">Mandantennummer<input id="gbM" value="${esc(c.mandant)}" inputmode="numeric" maxlength="5" autocomplete="off"></label>
+        <label class="f w1">Wirtschaftsjahr beginnt im<select id="gbW">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i + 1 === Number(c.wj_month) ? 'selected' : ''}>${esc(T(m))}</option>`).join('')}</select></label>
+        <label class="f w1">Sachkontenlänge<select id="gbL">${[4, 5, 6, 7, 8].map(n => `<option ${n === Number(c.length) ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+        <label class="f w1">Kontenrahmen<input id="gbS" value="${esc(c.skr)}" placeholder="z. B. SKR 49" maxlength="20" autocomplete="off"></label>
+        ${Object.entries(r.vias).map(([k, l]) => `<label class="f w1">${esc(T('Geldkonto'))} ${esc(T(l))}<input data-gbg="${k}" value="${esc(c.gegen[k] || '')}" inputmode="numeric" maxlength="8" autocomplete="off"></label>`).join('')}
+      </div>
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-gbsave>Speichern</button></div>`;
+    eb.innerHTML = `<p class="muted s" style="margin-top:0">Je Erlösart ein Konto und die Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Clubwerk schlägt Sphären vor – Zuordnung und Kontenrahmen (für Vereine z. B. SKR 42 oder SKR 49) stimmt ihr mit eurem Steuerberater ab.</p>
+      ${r.keys.length ? `<div>${r.keys.map(k => `<div class="gbrow">
+          <div><b>${esc(k.label)}</b><div class="muted s">${esc(k.module)}</div></div>
+          <label class="f">Konto<input data-gbk="${esc(k.key)}" value="${esc(k.konto)}" inputmode="numeric" maxlength="8" autocomplete="off"></label>
+          <label class="f">Sphäre<select data-gbs="${esc(k.key)}">${sphOpts(k.sphere)}</select></label></div>`).join('')}</div>` : '<p class="empty">Keine Erlösarten – es ist kein Modul mit Geld eingeschaltet.</p>'}
+      <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-gbsave>Speichern</button></div>`;
+    const save = btn => busy(btn, async () => {
+      const gegen = {}, konten = {};
+      kb.querySelectorAll('[data-gbg]').forEach(i => { gegen[i.dataset.gbg] = i.value.trim(); });
+      eb.querySelectorAll('[data-gbk]').forEach(i => { konten[i.dataset.gbk] = { konto: i.value.trim(), sphere: eb.querySelector(`[data-gbs="${CSS.escape(i.dataset.gbk)}"]`).value }; });
+      try { await api('gobd', 'PUT', { berater: $('gbB').value, mandant: $('gbM').value, wj_month: $('gbW').value, length: $('gbL').value, skr: $('gbS').value, gegen, konten }); toast('Gespeichert.'); GK.clean && GK.clean(); renderBooks().catch(fail); } catch (e) { fail(e); }
+    });
+    document.querySelectorAll('[data-gbsave]').forEach(b => { b.onclick = () => save(b); });
+    const now = new Date(), y = now.getFullYear(), m = now.getMonth(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const pFrom = iso(new Date(y, m - 1, 1)), pTo = iso(new Date(y, m, 0));
+    xb.innerHTML = `<p class="muted s" style="margin-top:0">Alle Zahlungseingänge, die durch Clubwerk laufen (Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld) – je Erlösart, Rücklastschriften und Stornos als Gegenbuchung. Ausgaben und Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.</p>
+      <div class="frm"><label class="f w1">Von<input type="date" id="gbF" value="${pFrom}"></label><label class="f w1">Bis<input type="date" id="gbT" value="${pTo}"></label>
+        <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn" id="gbPrev">Vorschau</button><button class="btn primary" id="gbDatev">Herunterladen</button></div></div>
+      <div id="gbPrevBody"></div>`;
+    $('gbZipBody').innerHTML = `<p class="muted s" style="margin-top:0">Ein ZIP im Beschreibungsstandard der Finanzverwaltung (index.xml mit CSV-Dateien): alle Tabellen mit Geld und Belegen, das Änderungsjournal und die Zahlungseingänge eines Jahres.</p>
+      <div class="frm"><label class="f w1">Jahr<select id="gbY">${Array.from({ length: 11 }, (_, i) => y - i).map(v => `<option ${v === y ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+        <div class="row w3" style="justify-content:flex-end"><button class="btn primary" id="gbZip">Herunterladen</button></div></div>`;
+    $('gbList').innerHTML = r.exports.length ? `<table class="tbl kompakt"><tr><th>Erstellt</th><th>Art</th><th>Zeitraum</th><th class="r">Buchungen</th><th class="r">Summe</th></tr>
+        ${r.exports.map(e => `<tr><td>${esc(deTime(e.at))}<div class="muted s">${esc(e.by || '')}</div></td><td>${esc(T(e.kind === 'datev' ? 'DATEV' : 'Prüfer'))}</td><td>${esc(deDate(e.from))} – ${esc(deDate(e.to))}${e.changed ? ` <span class="pill a" title="${esc(T('Seit diesem Export wurde im Zeitraum etwas nachgetragen, storniert oder zurückgenommen – bitte den Steuerberater informieren.'))}">${esc(T('seitdem geändert'))}</span>` : ''}</td><td class="r" translate="no">${e.count}</td><td class="r" translate="no">${euro(e.cents)}</td></tr>`).join('')}</table>
+        <p class="muted s">„seitdem geändert“: Im Zeitraum wurde nachträglich etwas erfasst, storniert oder zurückgenommen. Dann den Zeitraum neu exportieren und den Steuerberater informieren.</p>` : '<p class="empty">Noch kein Export.</p>';
+    const per = () => `from=${encodeURIComponent($('gbF').value)}&to=${encodeURIComponent($('gbT').value)}`;
+    $('gbPrev').onclick = () => busy($('gbPrev'), async () => {
+      try {
+        const p = await api('gobd/buchungen?' + per()), lim = { zweck: 45000, wgb: 50000 };
+        $('gbPrevBody').innerHTML = `<div class="kpis" style="margin-top:14px">${Object.entries(r.spheres).map(([k, l]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v" translate="no">${euro(p.spheres[k] || 0)}</div></div>`).join('')}</div>
+          ${p.spheres[''] ? `<p class="muted s">${esc(T('Ohne Sphäre'))}: <span translate="no">${euro(p.spheres[''])}</span></p>` : ''}
+          ${Object.entries(lim).filter(([k, v]) => (p.spheres[k] || 0) > v * 100).map(([k, v]) => `<div class="banner a">${esc(T('Mehr als {0} € im Bereich „{1}“ – bitte mit dem Steuerberater klären, ob Steuern anfallen (Grenze gilt für das ganze Jahr, einschließlich Umsatzsteuer).').replace('{0}', v.toLocaleString('de-DE')).replace('{1}', T(r.spheres[k])))}</div>`).join('')}
+          ${p.missing.length ? `<div class="banner a">${esc(T('Für den DATEV-Export fehlt noch'))}: ${p.missing.map(x => esc(T(x))).join(' · ')}</div>` : ''}
+          ${p.keys.length ? `<table class="tbl kompakt"><tr><th>Erlösart</th><th>Sphäre</th><th class="r">Konto</th><th class="r">Buchungen</th><th class="r">Summe</th></tr>
+            ${p.keys.map(k => `<tr><td>${esc(k.label)}</td><td>${esc(T(r.spheres[k.sphere] || 'ohne'))}</td><td class="r" translate="no">${esc(k.konto || '–')}</td><td class="r" translate="no">${k.count}</td><td class="r" translate="no">${euro(k.cents)}</td></tr>`).join('')}
+            <tr><th colspan="3">Summe</th><th class="r" translate="no">${p.count}</th><th class="r" translate="no">${euro(p.total)}</th></tr></table>` : '<p class="empty">Keine Zahlungseingänge in diesem Zeitraum.</p>'}`;
+      } catch (e) { fail(e); }
+    });
+    $('gbDatev').onclick = () => busy($('gbDatev'), async () => { try { await fileDownload('api/admin/gobd/datev.csv?' + per(), `EXTF_Buchungsstapel_${$('gbF').value.replace(/-/g, '')}_${$('gbT').value.replace(/-/g, '')}.csv`); toast('Export erstellt.'); renderBooks().catch(fail); } catch (e) { fail(e); } });
+    $('gbZip').onclick = () => busy($('gbZip'), async () => { try { await fileDownload('api/admin/gobd/pruefer.zip?year=' + $('gbY').value, `Datenueberlassung_${$('gbY').value}.zip`); toast('Export erstellt.'); renderBooks().catch(fail); } catch (e) { fail(e); } });
   }
 
   /* ---------- Datenschutz: Löschfristen aller Module, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) ---------- */
@@ -4188,7 +4265,13 @@
         <div class="card" data-set="datenschutz"><h3>Datenschutzhinweis in der Mitglieder-App</h3><div id="dsNotice"></div></div>
         <div class="card" data-set="datenschutz"><h3>Verzeichnis von Verarbeitungstätigkeiten</h3><p class="muted s" style="margin-top:0">Eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, betroffene Personen, wer Zugriff hat und die Löschfristen. Der Verein ergänzt Verantwortliche, Datenschutzbeauftragte und genutzte Dienste (z. B. Mail-Anbieter) und bewahrt das Verzeichnis auf.</p>
           <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="dsReg">Verzeichnis drucken</button></div></div>
-        <div class="card" data-set="daten"><h3>Datenqualität</h3><div id="dqBody"><p class="muted">Wird geladen …</p></div></div>` : ''}
+        <div class="card" data-set="daten"><h3>Datenqualität</h3><div id="dqBody"><p class="muted">Wird geladen …</p></div></div>
+        <div class="card" data-set="buchfuehrung"><h3>Änderungsjournal</h3><div id="gbJournal"><p class="muted">Wird geladen …</p></div></div>
+        <div class="card" data-set="buchfuehrung"><h3>Steuerberater und Geldkonten</h3><div id="gbKonten"></div></div>
+        <div class="card" data-set="buchfuehrung"><h3>Erlösarten</h3><div id="gbErl"></div></div>
+        <div class="card" data-set="buchfuehrung"><h3>DATEV-Buchungsstapel</h3><div id="gbExport"></div></div>
+        <div class="card" data-set="buchfuehrung"><h3>Datenüberlassung für die Betriebsprüfung</h3><div id="gbZipBody"></div></div>
+        <div class="card" data-set="buchfuehrung"><h3>Bisherige Exporte</h3><div id="gbList"></div></div>` : ''}
       ${me.role === 'oberadmin' ? '<div class="card" id="updCard"><h3>Update von Clubwerk</h3><div id="updBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       ${ext ? `<div class="card"><h3>Module & Erweiterungen</h3>
         ${ext.all.length ? `<div class="mods" id="modList">

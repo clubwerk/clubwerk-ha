@@ -387,6 +387,32 @@ Everything that applies to the whole club. The areas are tabs at the top. What y
 
 The club's bank accounts, shared by accounting, direct debits and the bank statement. **+ Bank account** creates one: name, account holder, IBAN, BIC, bank, **default account** and optionally departments (invoices of these departments name this account). Inactive accounts are kept.
 
+### Area “Bookkeeping” {#einstellungen-buchfuehrung}
+
+Here Clubwerk prepares everything for your tax adviser and for a tax audit (German principles of proper electronic bookkeeping, GoBD). Clubwerk does not replace bookkeeping: it hands the incoming payments that run through Clubwerk to your tax adviser, cleanly separated.
+
+![Card “Change journal”: entries, start and chain check.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbJournal))
+
+**Change journal:** Clubwerk records every new, changed or deleted row involving money or receipts – when, who, before and after. This covers sales, tabs, events, deliveries, article prices, charges, direct debits, dunning, invoices, donation receipts and entry fees. Each entry is chained to the previous one; **Check now** verifies that nothing is missing or altered (also every night in Data quality). The journal is kept for at least 10 years, even after a member has been anonymised, and cannot be set shorter under Privacy.
+
+Clubwerk saves invoices, cancellation invoices and donation receipts as a PDF file when they are created. After that you always get exactly this file, even if the address or tax number changes later. Deleted delivery receipts stay in the recycle bin for 11 years.
+
+![Card “Tax adviser and cash accounts”.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbKonten))
+
+**Tax adviser and cash accounts:** You get the adviser number and client number from your tax adviser, plus the start of the financial year, the account number length (usually 4) and the chart of accounts. Enter a cash account for each payment method (cash, card, direct debit, bank transfer, offsetting). If your tax adviser imports the bank statements directly, use a transit account for direct debit and bank transfer – the batch then splits the collective direct debit into revenue types without double entries.
+
+![Card “Revenue types”: account and sphere per revenue type.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbErl))
+
+**Revenue types:** Each kind of income gets an account and a sphere: non-profit area, asset management, special-purpose operation or commercial operation. Revenue types are, for example, sales per article category, membership and section fees, admission fees, invoices per VAT rate, court and floodlight fees and entry fees. Clubwerk suggests spheres; agree accounts and assignment with your tax adviser (for clubs, for example SKR 42 or SKR 49). **Save** stores both cards.
+
+![Card “DATEV booking batch” with preview.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; klick2=#gbPrev; ziel=.card:has(#gbExport))
+
+**DATEV booking batch:** Choose a period (within one financial year). **Preview** shows the totals per sphere and revenue type, warns above €45,000 in special-purpose operations or €50,000 in commercial operations and lists missing accounts. **Download** creates the file in DATEV format (EXTF). It contains all incoming payments – fees and charges, invoices, cash and card sales, entry fees. Returned direct debits, cancellations and “open again” appear as reversing entries. Your tax adviser books expenses and bank transactions outside Clubwerk as before. Agree the first export with them.
+
+**Data provision for the tax audit:** A ZIP for one year in the tax authorities' description standard (index.xml with CSV files): all tables with money and receipts, the change journal and the incoming payments. PINs, passwords and account numbers are not included.
+
+**Previous exports:** When, by whom, which period, how many entries and which total. “changed since” means something in the period was recorded, cancelled or reversed later. Export the period again and tell your tax adviser.
+
 ### Area “Mailbox” {#einstellungen-mail}
 
 ![Card “Mailbox”: SMTP access and test email.](bild: seite=einstellungen; klick=[data-sec="mail"]; ziel=#mailCard)
@@ -405,7 +431,7 @@ One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), s
 
 ![Card “Retention periods”: one period per kind of data.](bild: seite=einstellungen; klick=[data-sec="datenschutz"]; ziel=.card:has(#dsBody))
 
-**Retention periods:** Clubwerk deletes once a day whatever is older than the period (for example logins, door openings, irrigation, circular emails, change log). Only the number goes into the log. Each line shows how many entries drop out at the next run. Clubwerk never deletes money and working hours by itself. **Save** applies, **Delete now** starts the run immediately. The periods are suggestions; if in doubt, agree them with your data protection officer.
+**Retention periods:** Clubwerk deletes once a day whatever is older than the period (for example logins, door openings, irrigation, circular emails, change log). Only the number goes into the log. Each line shows how many entries drop out at the next run. Clubwerk never deletes money and working hours by itself; the bookkeeping change journal is kept for at least 10 years. **Save** applies, **Delete now** starts the run immediately. The periods are suggestions; if in doubt, agree them with your data protection officer.
 
 ![Card “Privacy notice in the member app”.](bild: seite=einstellungen; klick=[data-sec="datenschutz"]; ziel=.card:has(#dsNotice))
 

@@ -21,6 +21,7 @@ function kern() {
     out.push({ id: 'konten', title: 'Gelöschte Konten mit offenem Betrag', level: 'r', count: r.n, detail: r.n ? `${(r.s / 100).toFixed(2).replace('.', ',')} €` : '',
       why: 'Angeschriebenes auf einem gelöschten Konto taucht in keiner Abrechnung mehr auf – das Geld fehlt.', fix: { label: 'Konten öffnen', page: 'konten' } });
   }
+  out.push(require('./gobd').healthCheck());   // Prüfkette des Änderungsjournals
   const inv = db.prepare(`SELECT COUNT(*) n FROM member_devices d JOIN members m ON m.id = d.member_id AND m.deleted = 0
     WHERE d.invite_hash IS NOT NULL AND d.token_hash IS NULL AND d.blocked_at IS NULL AND d.invite_expires < ?`).get(Date.now()).n;
   out.push({ id: 'einladungen', title: 'Abgelaufene Einladungen', level: 'a', count: inv,

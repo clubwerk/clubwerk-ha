@@ -303,6 +303,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   if (!port) return;
   const app = express();
   app.disable('x-powered-by');
+  app.use(require('./gobd').appMiddleware);   // Änderungsjournal: Änderungen aus der App tragen das Mitgliedskonto (src/gobd.js)
   app.use(require('./security').noEncodedBody());   // komprimierte Anfragen nie entpacken
   app.use(require('./security').hostGuard());
   app.use(require('./security').hardenHeaders({ frame: 'DENY' }));

@@ -27,6 +27,7 @@ const core = () => {
     e('rundmails', 'Gesendete Rundmails', 'Samt Empfängerliste und Anhängen.', 'monate', 12, 6, 120, cut => mailer.oldSent(cut).length, cut => mailer.purgeSent(cut)),
     e('kontoauszug', 'Kontoauszug: „gehört nicht zu Clubwerk“', 'Bankbuchungen, die nicht zum Verein gehören (Name, IBAN, Verwendungszweck). Zugeordnete Zahlungen bleiben als Nachweis.', 'tage', 90, 30, 365,
       cut => require('./kontoauszug').foreignOlder(cut), cut => require('./kontoauszug').purge(cut)),
+    (g => e(g.id, g.label, g.text, g.unit, g.def, g.min, g.max, g.due, g.purge))(require('./gobd').retention()),
   ].map(x => ({ ...x, key: `kern.${x.id}`, module: 'Clubwerk' }));
 };
 const fromModules = () => plugins.withHook('retention').flatMap(p => {

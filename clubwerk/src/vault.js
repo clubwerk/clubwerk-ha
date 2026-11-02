@@ -62,7 +62,7 @@ const SPEC = [
   { t: 'bank_entry', k: 'id', c: ['name', 'iban', 'purpose'] },   // Kontoauszug: Gegenpartei und Verwendungszweck
   { t: 'bank_match', k: 'id', c: ['label'] },
 ];
-const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge'];
+const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge', 'belege/buchhaltung'];   // belege/buchhaltung: eingefrorene Rechnungen und Spendenquittungen (GoBD) mit Anschriften
 const PLACEHOLDER_RE = /^gesperrt-(\d+)@clubwerk\.invalid$/i;
 
 /* ---------- Zustand (nur im Speicher) ---------- */

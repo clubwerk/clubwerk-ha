@@ -46,7 +46,11 @@ CREATE TABLE IF NOT EXISTS bh_donation (
   const ic = cols('bh_invoice');
   if (!ic.includes('department_id')) db.exec('ALTER TABLE bh_invoice ADD COLUMN department_id INTEGER');
   if (!ic.includes('account_id')) db.exec('ALTER TABLE bh_invoice ADD COLUMN account_id INTEGER');
-  if (!ic.includes('bank')) db.exec('ALTER TABLE bh_invoice ADD COLUMN bank TEXT');   // Bankverbindung zum Zeitpunkt der Rechnung (bleibt so, auch wenn das Konto später geändert wird)
+  if (!ic.includes('bank')) db.exec('ALTER TABLE bh_invoice ADD COLUMN bank TEXT');
+  // GoBD: das ausgegebene PDF bleibt genau so erhalten (Datei unter belege/buchhaltung, Prüfsumme hier) – auch wenn sich Anschrift, Steuernummer o. Ä. später ändern
+  for (const c of ['pdf_file', 'pdf_sha', 'storno_file', 'storno_sha']) if (!ic.includes(c)) db.exec(`ALTER TABLE bh_invoice ADD COLUMN ${c} TEXT`);
+  const dc = cols('bh_donation');
+  for (const c of ['pdf_file', 'pdf_sha']) if (!dc.includes(c)) db.exec(`ALTER TABLE bh_donation ADD COLUMN ${c} TEXT`);   // Bankverbindung zum Zeitpunkt der Rechnung (bleibt so, auch wenn das Konto später geändert wird)
 }
 
 /* ---------------------------------------------------------------- Einstellungen */
@@ -143,6 +147,33 @@ function pdfDonation(d) {
   return pdf.donation(club(), { no: d.no, kind: d.kind, donor: J(d.donor, {}), cents: d.cents, date: d.date, item: d.item, sach_origin: d.sach_origin, sach_docs: Boolean(d.sach_docs) });
 }
 const fileName = (pre, no) => `${pre}_${String(no).replace(/[^\w-]+/g, '_')}.pdf`;
+/* ---------- Belege einfrieren (GoBD, § 14b UStG, § 50 EStDV): Rechnung, Stornorechnung und Zuwendungsbestätigung werden beim ersten Erzeugen
+   als Datei abgelegt; danach liefert Clubwerk immer genau diese Datei. Eine veränderte Datei fällt über die Prüfsumme auf. */
+const fs = require('fs'), path = require('path'), crypto = require('crypto');
+const belegDir = () => path.join(C.require('./db').DATA_DIR, 'belege', 'buchhaltung');
+const sha256 = buf => crypto.createHash('sha256').update(buf).digest('hex');
+async function frozen(table, row, col, name, make) {
+  const shaCol = col.replace('_file', '_sha'), vault = C.require('./vault');   // mit Tresor verschlüsselt abgelegt (wie Mitglieder-Dokumente)
+  if (row[col]) {
+    const file = path.join(belegDir(), path.basename(row[col]));
+    let buf = null, bad = false;
+    if (fs.existsSync(file)) { try { buf = vault.readFile(file); } catch (e) { if (vault.locked && vault.locked()) throw e; bad = true; } }
+    if (buf && sha256(buf) === row[shaCol]) return buf;
+    if (buf || bad) throw new Error(`Die gespeicherte Belegdatei ${row.no} wurde verändert (Prüfsumme stimmt nicht). Bitte den Steuerberater informieren und die Datei aus einer Sicherung holen.`);
+    C.audit('Clubwerk', 'Beleg neu erzeugt', `${row.no}: Datei fehlte (z. B. nach dem Zurückspielen nur der Datenbank)`);
+  }
+  const buf = await make();
+  fs.mkdirSync(belegDir(), { recursive: true });
+  // nie eine vorhandene Datei überschreiben (z. B. nach dem Zurückspielen einer älteren Datenbank wird eine Nummer erneut vergeben)
+  let file = name; for (let i = 2; fs.existsSync(path.join(belegDir(), file)); i++) file = name.replace(/\.pdf$/, `-${i}.pdf`);
+  vault.writeFile(path.join(belegDir(), file + '.cwtmp'), buf); fs.renameSync(path.join(belegDir(), file + '.cwtmp'), path.join(belegDir(), file));
+  db.prepare(`UPDATE ${table} SET ${col} = ?, ${shaCol} = ? WHERE id = ?`).run(file, sha256(buf), row.id);
+  return buf;
+}
+const invoicePdf = r => (r.status === 'storniert'
+  ? frozen('bh_invoice', r, 'storno_file', fileName('Rechnung', r.no).replace(/\.pdf$/, '_storniert.pdf'), () => pdfInvoice(r))
+  : frozen('bh_invoice', r, 'pdf_file', fileName('Rechnung', r.no), () => pdfInvoice(r)));
+const donationPdf = d => frozen('bh_donation', d, 'pdf_file', fileName('Zuwendungsbestaetigung', d.no), () => pdfDonation(d));
 
 /* ---------------------------------------------------------------- Aktivierung */
 function activate(ctx) {
@@ -265,6 +296,7 @@ function activate(ctx) {
       const r = (await C.callHooks('createCharge', { member_id: memberId, text: `Rechnung ${no}: ${items[0].text}${items.length > 1 ? ' u. a.' : ''}`, cents: t.gross, due_date: due, kind: 'sonstiges', ext_key: `bh-inv-${id}`, by })).find(x => x.id === 'mitglieder');
       if (r && r.result) db.prepare('UPDATE bh_invoice SET charge_id = ? WHERE id = ?').run(r.result, id);
     }
+    try { await invoicePdf(db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(id)); } catch (e) { console.error('Buchhaltung – Rechnung einfrieren:', e.message); }
     return { id, no };
   }
   admin.get('/invoices', P, ar(async (req, res) => {
@@ -287,7 +319,8 @@ function activate(ctx) {
   admin.get('/invoices/:id', P, (req, res) => { const r = invOr404(req, res); if (r) res.json(invView(r)); });
   admin.get('/invoices/:id/pdf', P, ar(async (req, res) => {
     const r = invOr404(req, res); if (!r) return;
-    const buf = await pdfInvoice(r, { title: req.query.reminder ? `${Number(req.query.reminder) > 1 ? req.query.reminder + '. ' : ''}Zahlungserinnerung` : undefined });
+    let buf;
+    try { buf = req.query.reminder ? await pdfInvoice(r, { title: `${Number(req.query.reminder) > 1 ? req.query.reminder + '. ' : ''}Zahlungserinnerung` }) : await invoicePdf(r); } catch (e) { return bad(res, e.message, 409); }
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${fileName('Rechnung', r.no)}"` }).send(buf);
   }));
   async function sendInvoice(id, req, { reminder = false } = {}) {
@@ -297,7 +330,7 @@ function activate(ctx) {
     if (!v.recipient.email) throw new Error(`Für ${v.recipient.name} ist keine E-Mail-Adresse hinterlegt – bitte das PDF ausdrucken oder die Adresse ergänzen.`);
     const n = reminder ? r.reminders + 1 : 0;
     const title = reminder ? `${n > 1 ? n + '. ' : ''}Zahlungserinnerung` : 'Rechnung';
-    const buf = await pdfInvoice(r, { title });
+    const buf = reminder ? await pdfInvoice(r, { title }) : await invoicePdf(r);
     const cl = club(v.bank);
     const greet = v.recipient.contact ? `Guten Tag ${v.recipient.contact},` : 'Guten Tag,';
     const lines = reminder
@@ -363,6 +396,7 @@ function activate(ctx) {
     }
     db.prepare("UPDATE bh_invoice SET status = 'storniert', cancel_reason = ? WHERE id = ?").run(reason, r.id);
     ctx.audit(req.user, 'Rechnung storniert', `${r.no}: ${reason}`);
+    try { await invoicePdf(db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(r.id)); } catch (e) { console.error('Buchhaltung – Storno einfrieren:', e.message); }
     res.json({ ok: true });
   }));
   /* Jahresrechnungen: alle aktiven Firmen mit hinterlegten Positionen, je Jahr nur einmal */
@@ -426,12 +460,13 @@ function activate(ctx) {
         .run(no, year, type, memberId, partnerId, JSON.stringify(donor), kind, b.date, cents, item || null, kind === 'sach' ? (['betrieb', 'privat'].includes(b.sach_origin) ? b.sach_origin : 'unbekannt') : null, b.sach_docs ? 1 : 0, uname(req)).lastInsertRowid);
     })();
     ctx.audit(req.user, 'Spendenquittung erstellt', `${no}: ${donor.name} ${euro(cents)}`);
+    try { await donationPdf(db.prepare('SELECT * FROM bh_donation WHERE id = ?').get(id)); } catch (e) { console.error('Buchhaltung – Quittung einfrieren:', e.message); }
     res.json({ id, no });
   }));
   const donOr404 = (req, res) => { const r = db.prepare('SELECT * FROM bh_donation WHERE id = ?').get(int(req.params.id)); if (!r) bad(res, 'Nicht gefunden.', 404); return r; };
   admin.get('/donations/:id/pdf', P, ar(async (req, res) => {
     const d = donOr404(req, res); if (!d) return;
-    const buf = await pdfDonation(d);
+    let buf; try { buf = await donationPdf(d); } catch (e) { return bad(res, e.message, 409); }
     res.set({ 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${fileName('Zuwendungsbestaetigung', d.no)}"` }).send(buf);
   }));
   admin.post('/donations/:id/send', P, ar(async (req, res) => {
@@ -443,7 +478,7 @@ function activate(ctx) {
     const cl = club();
     await ctx.mail.send({ to: v.donor.email, subject: `Ihre Zuwendungsbestätigung ${d.no} – ${cl.name}`,
       text: ['Guten Tag,', '', `herzlichen Dank für Ihre ${d.kind === 'sach' ? 'Sachspende' : 'Spende'} vom ${deD(d.date)} über ${euro(d.cents)}!`, 'Die Zuwendungsbestätigung für das Finanzamt finden Sie im Anhang.', '', 'Mit freundlichen Grüßen', cl.name].join('\n'),
-      attachments: [{ filename: fileName('Zuwendungsbestaetigung', d.no), content: await pdfDonation(d) }] });
+      attachments: [{ filename: fileName('Zuwendungsbestaetigung', d.no), content: await donationPdf(d) }] });
     db.prepare('UPDATE bh_donation SET sent_at = ? WHERE id = ?').run(ctx.nowTs(), d.id);
     ctx.audit(req.user, 'Spendenquittung verschickt', `${d.no} an ${v.donor.email}`);
     res.json({ sent: true, to: v.donor.email });
@@ -538,6 +573,25 @@ function activate(ctx) {
       { group: 'Firmen & Sponsoren', art: 'firma', page: 'bh-firmen', hits: s.pick(firms, r => [r.name]).map(r => ({ id: r.id, label: r.name, person: false, score: r._score, sub: [r.city, r.active ? '' : 'inaktiv'] })) },
     ];
   };
+  /* GoBD (src/gobd.js): Tabellen fürs Änderungsjournal, Zahlungseingänge je Erlösart (Rechnungen mit offenem Posten bucht die Mitgliederverwaltung) */
+  const rateKey = (inv, v) => `bh.${inv.kind === 'member' ? 'mitglied' : 'firma'}.${inv.small_business ? 0 : VATS.includes(Number(v)) ? Number(v) : 19}`;
+  ctx.hooks.gobdTables = () => [
+    { table: 'bh_invoice', date: 'date', paid: inv => {
+      if (inv.status !== 'bezahlt' || !inv.paid_at || (inv.charge_id && ctx.isModuleActive('mitglieder'))) return [];
+      const by = new Map();
+      for (const it of J(inv.items, [])) { const k = rateKey(inv, it.vat); by.set(k, (by.get(k) || 0) + Math.round((Number(it.qty) || 0) * (Number(it.unit_cents) || 0))); }
+      const parts = [...by.entries()].map(([k, net]) => [k, net + Math.round(net * Number(k.split('.').pop()) / 100)]); if (!parts.length) return [];   // wie totals(): USt je Satz gerundet
+      parts[parts.length - 1][1] += inv.gross - parts.reduce((t, [, c]) => t + c, 0);   // Rundung: Summe = Rechnungsbetrag
+      const name = (J((db.prepare('SELECT recipient FROM bh_invoice WHERE id = ?').get(inv.id) || {}).recipient, {}) || {}).name || '';   // Empfänger steht verschlüsselt (Tresor), nicht im Journal
+      return parts.map(([key, cents]) => ({ cents, key, via: ctx.require('./gobd').viaOf(inv.paid_via), date: inv.paid_at, text: `Rechnung ${inv.no}`, doc: inv.no, name }));
+    } },
+    { table: 'bh_donation', date: 'date' },
+    { table: 'bh_partner', date: null, cols: ['id', 'name', 'contact', 'street', 'zip', 'city', 'country', 'vat_id', 'customer_no', 'active'] },
+  ];
+  ctx.hooks.gobdKeys = () => [
+    ...VATS.map(v => ({ key: `bh.firma.${v}`, label: `Rechnungen an Firmen und Sponsoren (${v} % USt)`, sphere: 'wgb' })),
+    ...VATS.map(v => ({ key: `bh.mitglied.${v}`, label: `Rechnungen an Mitglieder ohne offenen Posten (${v} % USt)`, sphere: '' })),
+  ];
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)])),
     partners: db.prepare('SELECT name, contact, street, zip, city, country, email, phone, vat_id, customer_no, items, note, active FROM bh_partner').all() });
   /* Import: gleicher Firmenname (ohne Groß-/Kleinschreibung) → aktualisieren, sonst neu anlegen, nie löschen */

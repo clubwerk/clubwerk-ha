@@ -919,6 +919,13 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     else { db.prepare('UPDATE tu_team SET p1 = NULL WHERE p1 = ?').run(fromId); db.prepare('UPDATE tu_team SET p2 = NULL WHERE p2 = ?').run(fromId); }
     db.prepare('DELETE FROM tu_player WHERE member_id = ?').run(fromId);
   };
+  /* GoBD (src/gobd.js): Nenngeld bar oder digital bezahlt → Zahlungseingang */
+  const nenngeld = (what) => r => (r.paid && r.paid_cents ? [{ cents: r.paid_cents, via: ctx.require('./gobd').viaOf(r.paid), date: r.paid_at, key: 'tu.nenngeld', text: `Nenngeld ${what}`, doc: `T-${r.id}`, name: r.name || [r.first_name, r.last_name].filter(Boolean).join(' ') }] : []);
+  ctx.hooks.gobdTables = () => [
+    { table: 'tu_person', date: 'paid_at', cols: ['id', 'day_id', 'name', 'first_name', 'last_name', 'club', 'paid', 'paid_cents', 'paid_at', 'paid_by'], paid: nenngeld('Turniertag') },
+    { table: 'tu_ftteam', date: 'paid_at', cols: ['id', 'ft_id', 'name', 'paid', 'paid_cents', 'paid_at', 'paid_by'], paid: nenngeld('Turnierplaner') },
+  ];
+  ctx.hooks.gobdKeys = () => [{ key: 'tu.nenngeld', label: 'Turnier-Nenngeld', sphere: 'zweck' }];
   ctx.hooks.retention = () => [LK.retention(), FT.retention()];
   ctx.hooks.privacyRecord = () => [
     { title: 'Turniere: Clubmeisterschaft', purpose: 'Anmeldung, Auslosung, Spieltermine und Ergebnisse, Ehrentafel', data: 'Name, Liga, Spiele mit Ergebnis und Termin', persons: 'Teilnehmende Mitglieder' },

@@ -114,6 +114,7 @@ app.use((req, res, next) => {
 const i18n = require('./i18n');
 i18n.init({ db, getSetting, setSetting, pluginDirs: () => plugins.dirs() });
 app.use(i18n.middleware);
+app.use(require('./gobd').middleware);   // Änderungsjournal: wer hat geändert (src/gobd.js)
 app.get('/i18n.js', (req, res) => {
   const l = typeof req.query.l === 'string' && req.query.l !== 'auto' ? req.query.l : '';
   res.type('application/javascript').set('Cache-Control', 'no-cache').send(i18n.pageScript(i18n.resolve(l, typeof req.query.b === 'string' ? req.query.b : '')));
@@ -1006,6 +1007,7 @@ app.post('/api/admin/setup', rateLimit('setup', 10, 60000), (req, res) => {
   if (club) setSetting('club_name', club);
   const mods = (req.body || {}).modules;
   if (mods && typeof mods === 'object') for (const p of plugins.list()) if (mods[p.id] !== undefined && !p.error) setSetting(`ext_${p.id}_active`, mods[p.id] ? '1' : '0');
+  require('./gobd').ensure();   // Änderungsjournal: Tabellen der eingeschalteten Module erfassen
   if (lang !== undefined) setSetting('language', i18n.normCode(lang));
   const adminId = auth.createUser({ username: uname, name: fullName, password: String(password), role: 'oberadmin', builtin: true });
   if (process.env.CW_TEST_VAULT === '1') { const v = require('./vault'); v.prepare(adminId); v.enable(adminId, String(password)); }   // nur Tests: alles mit eingeschaltetem Tresor prüfen
@@ -2159,7 +2161,7 @@ admin.delete('/deliveries/:id', need('lieferungen'), (req, res) => {
   const d = db.prepare('SELECT * FROM deliveries WHERE id = ?').get(int(req.params.id));
   if (!d) return res.json({ ok: true });
   db.prepare('DELETE FROM deliveries WHERE id = ?').run(d.id);
-  // Beleg nicht sofort vernichten: 90 Tage im Papierkorb (steckt auch in der Komplettsicherung)
+  // Beleg nicht vernichten: bleibt für die Aufbewahrungsfrist im Papierkorb (TRASH_DAYS, steckt auch in der Komplettsicherung); die Zeile steht im Änderungsjournal
   if (d.file && fileOk(d.file)) {
     try { fs.mkdirSync(TRASH_DIR, { recursive: true }); fs.renameSync(path.join(BELEG_DIR, d.file), path.join(TRASH_DIR, d.file)); }
     catch (e) { /* Datei schon weg */ }
@@ -3654,6 +3656,9 @@ app.get('/api/ha/summary', (req, res, next) => (fromHomeAssistant(req) ? next() 
 plugins.load({ app, admin, helpers: { need, rateLimit, rateLimitKey, bad, ownPwOk, int, cleanName, nowTs, util, invites: require('./invites'), drinks, asyncRoute, viaIngress } });
 i18n.reload();   // Sprachdateien der Erweiterungen
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung der Erweiterungs-Tabellen fehlgeschlagen –', e.message); }
+/* GoBD: Änderungsjournal für Geld und Belege (Trigger erst jetzt – alle Module und Tabellenumbauten sind geladen), Buchführung und Exporte */
+try { require('./gobd').install(); } catch (e) { console.error('GoBD: Änderungsjournal nicht eingerichtet –', e.message); }
+require('./gobd').routes(admin, { need, bad, asyncRoute });
 const memberapp = require('./memberapp');
 memberapp.adminRoutes(admin, { bad, need, auth });
 require('./mailer').routes(admin, { bad, need });
@@ -3922,7 +3927,7 @@ if (restoredMsg) { console.log(restoredMsg); audit('system', 'Wiederherstellung'
 if (demoMsg) { console.log(demoMsg); audit('system', 'Demo', demoMsg); }
 
 let lastAuto = null, dbxLastTry = 0;
-const TRASH_DAYS = 90;   // gelöschte Belege bleiben so lange im Papierkorb
+const TRASH_DAYS = 11 * 366;   // gelöschte Lieferbelege bleiben so lange im Papierkorb: 10 Jahre Aufbewahrung ab Ende des Jahres (GoBD, § 147 AO)
 /* Jeder Teil fängt seine Fehler selbst; ein unerwarteter Fehler darf nie als unbehandelte Promise-Ablehnung den Prozess beenden */
 async function nightly() {
   if (DEMO_KOPIE) return;   // keine Sicherungen in der Demo-Kopie
@@ -3953,6 +3958,7 @@ async function nightly() {
         if (now.getDay() === 0 || !pAt || Date.now() - Date.parse(pAt) > 7.5 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
       }
     } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
+    try { require('./gobd').anchor(); } catch (e) { console.error('GoBD-Anker:', e.message); }   // Kopf des Änderungsjournals außerhalb der Datenbank festhalten
     // Datenqualität: einmal am Tag ab der Uhrzeit der Sicherung (Ergebnis unter Einstellungen › Datenqualität und in der Übersicht)
     try {
       if (now.getHours() >= bkCfg().hour && getSetting('dq_day', '') !== day) { setSetting('dq_day', day); await require('./datenqualitaet').pruefen(); }

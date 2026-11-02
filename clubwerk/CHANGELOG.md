@@ -1,5 +1,19 @@
 # Änderungen
 
+## 2026.11.13
+
+**Neu: Einstellungen › Buchführung – vorbereitet für Steuerberater und Betriebsprüfung (GoBD)**
+- **Änderungsjournal:** Clubwerk hält jede neue, geänderte oder gelöschte Zeile mit Geld oder Belegen fest – wann, wer, vorher und nachher. Das gilt für Verkäufe, Deckel, Veranstaltungen, Lieferungen, Artikelpreise, Forderungen, Lastschriften, Mahnungen, Rechnungen, Spendenquittungen und Nenngeld, egal an welcher Stelle etwas geändert wird. Jeder Eintrag ist mit dem vorigen verkettet. „Jetzt nachrechnen“ (und jede Nacht die Datenqualität) zeigt, ob etwas fehlt oder verändert wurde. Beim ersten Start hält Clubwerk den vorhandenen Stand einmal fest.
+- Das Journal bleibt mindestens 10 Jahre, auch wenn ein Mitglied anonymisiert wird – so bleibt nachvollziehbar, wer eine Forderung oder Lastschrift schuldete. Unter Datenschutz lässt sich die Frist nicht kürzer stellen.
+- **Belege bleiben, wie sie ausgestellt wurden:** Rechnungen, Stornorechnungen und Spendenquittungen speichert Clubwerk beim Erstellen als PDF. Danach kommt immer genau diese Datei, auch wenn sich Anschrift, Steuernummer oder Unterschrift später ändern; eine veränderte Datei fällt auf. Ältere Rechnungen werden beim nächsten Öffnen festgehalten. Zahlungserinnerungen nennen weiter die aktuelle Anschrift.
+- Gelöschte Lieferbelege bleiben 11 Jahre im Papierkorb (bisher 90 Tage).
+- **Konten und Sphären:** Je Zahlweg ein Geldkonto und je Erlösart (Verkauf je Artikelkategorie, Beiträge, Abteilungsbeiträge, Aufnahmegebühren, Rechnungen je Steuersatz, Platz- und Lichtgeld, Nenngeld …) ein Konto und eine Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Clubwerk schlägt Sphären vor; die Zuordnung stimmt ihr mit dem Steuerberater ab.
+- **DATEV-Buchungsstapel:** alle Zahlungseingänge, die durch Clubwerk laufen, für einen Zeitraum im DATEV-Format. Rücklastschriften, Stornos und „wieder offen“ erscheinen als Gegenbuchung. Die Vorschau zeigt die Summen je Sphäre und warnt bei mehr als 45.000 € im Zweckbetrieb oder 50.000 € im wirtschaftlichen Geschäftsbetrieb.
+- **Datenüberlassung für die Betriebsprüfung:** ein ZIP je Jahr im Beschreibungsstandard der Finanzverwaltung mit allen Tabellen mit Geld und Belegen, dem Änderungsjournal und den Zahlungseingängen – ohne PINs, Passwörter und Kontonummern.
+- „Bisherige Exporte“ merkt sich jeden Export und zeigt „seitdem geändert“, wenn im Zeitraum später noch etwas erfasst oder storniert wurde.
+- Bitte den ersten DATEV-Export mit dem Steuerberater abstimmen (Konten, Kontenrahmen, Import in sein Programm).
+- Module: Buchhaltung 1.12.0, Mitglieder 1.33.0, Buchung 1.26.1, Flutlicht 1.1.1, Turniere 1.10.1. Für Entwickler: neue Hooks `gobdTables` und `gobdKeys` (src/gobd.js), neue Testreihe `gobd`.
+
 ## 2026.11.12
 
 **Tempo, Teil 2: kleinere Ziffernschrift und flüssiger Verkauf am Tablet bei langen Artikellisten**

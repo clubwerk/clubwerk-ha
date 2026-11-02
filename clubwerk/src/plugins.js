@@ -271,6 +271,7 @@ function setActive(id, on, user) {
   const was = isActive(id);
   setSetting(activeKey(id), on ? '1' : '0');
   audit(user, on ? 'Erweiterung aktiviert' : 'Erweiterung deaktiviert', `${p.meta.name} ${p.meta.version}`);
+  require('./gobd').ensure();   // Änderungsjournal: Tabellen des Moduls erfassen
   // Hook „deactivate“: laufende Vorgänge beenden (z. B. Beregnung: offene Ventile schließen) – darf das Ausschalten nicht verhindern
   if (was && !on && typeof p.hooks.deactivate === 'function') {
     Promise.resolve().then(() => p.hooks.deactivate(user)).catch(e => console.error(`Erweiterung „${id}“ beim Deaktivieren:`, e.message));

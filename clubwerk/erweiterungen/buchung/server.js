@@ -1596,6 +1596,12 @@ function activate(ctx) {
   /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – synchron in der Transaktion des Kerns, vor dem generischen
      Umhängen der Spalten mit Fremdschlüssel (bk_booking.member_id, bk_rights). Hier: Warteliste, Serien und Mitspieler-Listen (JSON). */
   /* Mitglied löschen: kommende Buchungen (auch als Mitspieler), laufende Serien, Warteliste – Vergangenes bleibt als Verlauf */
+  /* GoBD (src/gobd.js): Gebühren werden als Forderung (Mitgliederverwaltung) oder Verkauf bezahlt und dort gebucht; hier nur Journal und Erlösarten */
+  ctx.hooks.gobdTables = () => [{ table: 'bk_fee', date: 'date' }];
+  ctx.hooks.gobdKeys = () => [
+    { key: 'bk.platz', label: 'Platz- und Gastgebühren (Buchungssystem)', sphere: 'zweck', prefix: 'bk-' },
+    { key: 'bk.gebuehr', label: 'Von Hand gebuchte Gebühren (Buchungssystem)', sphere: 'zweck', prefix: 'bkf-' },
+  ];
   ctx.hooks.privacyRecord = () => [{ purpose: 'Buchung von Plätzen und Geräten, Gebühren für Gäste', data: 'Name, gebuchte Zeiten, Mitspieler und Gäste, Gebühren, Warteliste', persons: 'Mitglieder und ihre Gäste' }];
   /* Datenauskunft: eigene Buchungen und solche als Mitspieler, Gebühren, Warteliste, Sonderrechte */
   ctx.hooks.memberData = id => ({

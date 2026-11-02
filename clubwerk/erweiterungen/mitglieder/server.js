@@ -1209,6 +1209,36 @@ function activate(ctx) {
   /* ----- Mitglied löschen: Was hängt noch daran? (Kern fragt vor dem Löschen; Vergangenes zählt nicht, bezahlte Forderungen auch nicht) ----- */
   /** Beim Löschen eines Mitglieds bleiben Forderungen als Verlauf (offene sperren das Löschen ohnehin, s. memberLinks) */
   ctx.hooks.historyTables = () => ['mv_charge'];
+  /* ----- GoBD (src/gobd.js): Tabellen fürs Änderungsjournal und Zahlungseingänge je Erlösart ----- */
+  const KIND_KEY = { beitrag: 'mv.beitrag', getraenke: 'mv.getraenke', arbeitsstunden: 'mv.arbeitsstunden', aufnahme: 'mv.aufnahme', ruecklastschrift: 'mv.ruecklastschrift', mahngebuehr: 'mv.mahngebuehr' };
+  const chargeKey = c => {
+    if (c.kind === 'beitrag') return c.member_dept_id ? 'mv.abteilung' : 'mv.beitrag';
+    if (KIND_KEY[c.kind]) return KIND_KEY[c.kind];
+    if (c.ext_key && /^bh-inv-/.test(c.ext_key)) return 'mv.rechnung';
+    return ctx.require('./gobd').keyForExt(c.ext_key) || 'mv.sonstiges';
+  };
+  const payerName = id => { const m = ctx.db.prepare('SELECT name, kind FROM members WHERE id = ?').get(id); return m ? ctx.require('./db').lastFirst(m.name, m.kind) : ''; };
+  ctx.hooks.gobdTables = () => [
+    { table: 'mv_charge', date: 'due_date', paid: c => (c.status === 'bezahlt' && c.paid_at && c.cents ? [{ cents: c.cents, via: ctx.require('./gobd').viaOf(c.paid_via), date: c.paid_at,
+      key: chargeKey(c), text: c.text, doc: c.invoice_no || `F-${c.id}`, name: payerName(c.member_id) }] : []) },
+    { table: 'mv_run', date: 'created_at' },
+    { table: 'mv_collection', date: 'collection_date', cols: ['id', 'collection_date', 'msg_id', 'count', 'cents', 'status', 'prenotified_at', 'booked_at', 'by_user', 'created_at', 'note'] },
+    { table: 'mv_dunning', date: 'created_at' },
+    { table: 'mv_fee', date: null },
+    { table: 'mv_member_fee', date: 'start_date' },
+    { table: 'mv_person', date: null, cols: ['member_id', 'member_no', 'salutation', 'title', 'first_name', 'last_name', 'street', 'zip', 'city', 'country', 'entry_date', 'exit_date', 'payer_id', 'family_of', 'payment', 'anonymized_at'] },
+  ];
+  ctx.hooks.gobdKeys = () => [
+    { key: 'mv.beitrag', label: 'Mitgliedsbeiträge (Hauptverein)', sphere: 'ideell' },
+    { key: 'mv.abteilung', label: 'Abteilungsbeiträge', sphere: 'ideell' },
+    { key: 'mv.aufnahme', label: 'Aufnahmegebühren', sphere: 'ideell' },
+    { key: 'mv.arbeitsstunden', label: 'Ersatz für nicht geleistete Arbeitsstunden', sphere: 'ideell' },
+    { key: 'mv.getraenke', label: 'Verkauf auf Mitgliederkonto (Abrechnung)', sphere: 'wgb' },
+    { key: 'mv.mahngebuehr', label: 'Mahngebühren', sphere: 'ideell' },
+    { key: 'mv.ruecklastschrift', label: 'Gebühren für Rücklastschriften', sphere: 'ideell' },
+    { key: 'mv.rechnung', label: 'Rechnungen an Mitglieder (über offene Posten)', sphere: '' },
+    { key: 'mv.sonstiges', label: 'Sonstige Forderungen an Mitglieder', sphere: '' },
+  ];
   /** Kontoart wechseln (z. B. zu „Kein Mitglied“) nur ohne Mitgliedsdaten – sonst hingen Adresse, Bank & Co. unsichtbar an einem Nicht-Mitglied */
   ctx.hooks.memberKindLock = id => (ctx.db.prepare('SELECT 1 FROM mv_person WHERE member_id = ? AND anonymized_at IS NULL').get(id) ? ['Mitgliedsdaten vorhanden – erst Austritt eintragen und anonymisieren'] : []);
   ctx.hooks.memberLinks = id => {

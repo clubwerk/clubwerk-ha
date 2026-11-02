@@ -387,6 +387,32 @@ Alles, was für den ganzen Verein gilt. Die Bereiche stehen als Reiter oben. Was
 
 Die Bankkonten des Vereins, gemeinsam für Buchhaltung, Lastschriften und Kontoauszug. **+ Bankkonto** legt eines an: Bezeichnung, Kontoinhaber, IBAN, BIC, Kreditinstitut, **Standardkonto** und optional Abteilungen (Rechnungen dieser Abteilungen nennen dieses Konto). Inaktive Konten bleiben erhalten.
 
+### Bereich „Buchführung“ {#einstellungen-buchfuehrung}
+
+Hier bereitet Clubwerk alles für den Steuerberater und eine Betriebsprüfung vor (Grundsätze ordnungsmäßiger Buchführung, kurz GoBD). Clubwerk ersetzt keine Buchhaltung: Es liefert die Zahlungseingänge, die durch Clubwerk laufen, sauber getrennt an euren Steuerberater.
+
+![Karte „Änderungsjournal“: Einträge, Beginn und Prüfkette.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbJournal))
+
+**Änderungsjournal:** Jede neue, geänderte oder gelöschte Zeile mit Geld oder Belegen hält Clubwerk fest – wann, wer, vorher und nachher. Das gilt für Verkäufe, Deckel, Veranstaltungen, Lieferungen, Artikelpreise, Forderungen, Lastschriften, Mahnungen, Rechnungen, Spendenquittungen und Nenngeld. Jeder Eintrag ist mit seinem Vorgänger verkettet; **Jetzt nachrechnen** prüft, ob etwas fehlt oder verändert wurde (jede Nacht auch in der Datenqualität). Das Journal bleibt mindestens 10 Jahre, auch nach dem Anonymisieren eines Mitglieds, und lässt sich unter Datenschutz nicht kürzer stellen.
+
+Rechnungen, Stornorechnungen und Spendenquittungen speichert Clubwerk beim Erstellen als PDF-Datei. Danach erhaltet ihr immer genau diese Datei, auch wenn sich Anschrift oder Steuernummer später ändern. Gelöschte Lieferbelege bleiben 11 Jahre im Papierkorb.
+
+![Karte „Steuerberater und Geldkonten“.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbKonten))
+
+**Steuerberater und Geldkonten:** Beraternummer und Mandantennummer bekommt ihr vom Steuerberater, dazu Beginn des Wirtschaftsjahres, Sachkontenlänge (meist 4) und Kontenrahmen. Je Zahlweg (Bar, Karte, Lastschrift, Überweisung, Verrechnung) tragt ihr ein Geldkonto ein. Liest euer Steuerberater die Bankumsätze selbst ein, nehmt für Lastschrift und Überweisung ein Geldtransitkonto – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.
+
+![Karte „Erlösarten“: Konto und Sphäre je Erlösart.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbErl))
+
+**Erlösarten:** Jede Art von Einnahme bekommt ein Konto und eine Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Erlösarten sind zum Beispiel der Verkauf je Artikelkategorie, Mitglieds- und Abteilungsbeiträge, Aufnahmegebühren, Rechnungen je Steuersatz, Platz- und Lichtgeld und Nenngeld. Clubwerk schlägt Sphären vor; Konten und Zuordnung stimmt ihr mit dem Steuerberater ab (für Vereine zum Beispiel SKR 42 oder SKR 49). **Speichern** übernimmt beide Karten.
+
+![Karte „DATEV-Buchungsstapel“ mit Vorschau.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; klick2=#gbPrev; ziel=.card:has(#gbExport))
+
+**DATEV-Buchungsstapel:** Zeitraum wählen (innerhalb eines Wirtschaftsjahres). **Vorschau** zeigt die Summen je Sphäre und Erlösart, warnt bei mehr als 45.000 € im Zweckbetrieb oder 50.000 € im wirtschaftlichen Geschäftsbetrieb und nennt fehlende Konten. **Herunterladen** erzeugt die Datei im DATEV-Format (EXTF). Darin stehen alle Zahlungseingänge – Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld. Rücklastschriften, Stornos und „wieder offen“ erscheinen als Gegenbuchung. Ausgaben und Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.
+
+**Datenüberlassung für die Betriebsprüfung:** Ein ZIP für ein Jahr im Beschreibungsstandard der Finanzverwaltung (index.xml mit CSV-Dateien): alle Tabellen mit Geld und Belegen, das Änderungsjournal und die Zahlungseingänge. PINs, Passwörter und Kontonummern sind nicht enthalten.
+
+**Bisherige Exporte:** Wann, von wem, welcher Zeitraum, wie viele Buchungen und welche Summe. „seitdem geändert“ heißt: Im Zeitraum wurde später etwas erfasst, storniert oder zurückgenommen. Dann den Zeitraum neu exportieren und den Steuerberater informieren.
+
 ### Bereich „Postfach“ {#einstellungen-mail}
 
 ![Karte „Postfach“: SMTP-Zugang und Testmail.](bild: seite=einstellungen; klick=[data-sec="mail"]; ziel=#mailCard)
@@ -405,7 +431,7 @@ Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Ab
 
 ![Karte „Löschfristen“: je Datenart eine Frist.](bild: seite=einstellungen; klick=[data-sec="datenschutz"]; ziel=.card:has(#dsBody))
 
-**Löschfristen:** Clubwerk löscht einmal am Tag, was älter als die Frist ist (zum Beispiel Anmeldungen, Türöffnungen, Beregnung, Rundmails, Änderungsprotokoll). Ins Protokoll kommt nur die Anzahl. Jede Zeile zeigt, wie viele Einträge beim nächsten Lauf wegfallen. Geld und Arbeitszeiten löscht Clubwerk nie von selbst. **Speichern** übernimmt, **Jetzt löschen** startet den Lauf sofort. Die Fristen sind Vorschläge; stimmt sie im Zweifel mit eurem Datenschutzbeauftragten ab.
+**Löschfristen:** Clubwerk löscht einmal am Tag, was älter als die Frist ist (zum Beispiel Anmeldungen, Türöffnungen, Beregnung, Rundmails, Änderungsprotokoll). Ins Protokoll kommt nur die Anzahl. Jede Zeile zeigt, wie viele Einträge beim nächsten Lauf wegfallen. Geld und Arbeitszeiten löscht Clubwerk nie von selbst; das Änderungsjournal der Buchführung bleibt mindestens 10 Jahre. **Speichern** übernimmt, **Jetzt löschen** startet den Lauf sofort. Die Fristen sind Vorschläge; stimmt sie im Zweifel mit eurem Datenschutzbeauftragten ab.
 
 ![Karte „Datenschutzhinweis in der Mitglieder-App“.](bild: seite=einstellungen; klick=[data-sec="datenschutz"]; ziel=.card:has(#dsNotice))
 
