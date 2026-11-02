@@ -1095,3 +1095,54 @@ INSERT INTO mv_change(id, member_id, kind, data, status, created_at) VALUES (2, 
 INSERT INTO mv_honor(id, member_id, name, date, note) VALUES (1, 7, 'Ehrennadel in Silber', '2025-06-14', 'für 15 Jahre Mitgliedschaft');
 INSERT INTO mv_function(id, member_id, name, from_date, to_date) VALUES (1, 24, 'Kassenwart', '2024-03-01', NULL);
 COMMIT;
+-- Beispiel: „Abgerechnet bis“ gesammelt gesetzt – Zusatzbeiträge waren im alten Programm bis 31.12.2025 abgerechnet (vor dem ersten Beitragslauf)
+CREATE TABLE IF NOT EXISTS "mv_booked_row" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, set_id INTEGER NOT NULL REFERENCES mv_booked_set(id), kind TEXT NOT NULL,   -- mf = mv_member_fee | md = mv_member_department (Zusatzbeitrag)
+  row_id INTEGER NOT NULL, member_id INTEGER NOT NULL, old TEXT, new TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS "mv_booked_set" (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, date TEXT NOT NULL, back INTEGER NOT NULL DEFAULT 0, filters TEXT NOT NULL DEFAULT '{}', count INTEGER NOT NULL, members INTEGER NOT NULL,
+  effect_cents INTEGER NOT NULL DEFAULT 0, last_run_id INTEGER NOT NULL DEFAULT 0,   -- letzter Lauf davor: danach ist kein Zurücknehmen mehr möglich
+  by_user TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), undone_at TEXT, undone_by TEXT, undo_kept INTEGER
+);
+CREATE INDEX IF NOT EXISTS ix_mvbr_row ON mv_booked_row(kind, row_id);
+INSERT INTO "mv_booked_set"(id, date, back, filters, count, members, effect_cents, last_run_id, by_user, created_at, undone_at, undone_by, undo_kept) VALUES(1,'2025-12-31',0,'{"fees":[],"depts":[2,1],"names":{"fees":[],"depts":["Fußball","Tennis"]}}',39,37,3171917,0,'Adminkonto','2026-02-08 10:15:00',NULL,NULL,NULL);
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(1,1,'md',1,3,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(2,1,'md',11,14,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(3,1,'md',12,15,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(4,1,'md',2,4,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(5,1,'md',13,16,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(6,1,'md',14,17,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(7,1,'md',15,19,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(8,1,'md',16,20,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(9,1,'md',17,21,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(10,1,'md',6,7,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(11,1,'md',18,22,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(12,1,'md',19,23,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(13,1,'md',21,24,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(14,1,'md',20,24,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(15,1,'md',7,8,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(16,1,'md',22,25,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(17,1,'md',23,27,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(18,1,'md',24,28,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(19,1,'md',25,29,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(20,1,'md',26,30,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(21,1,'md',9,11,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(22,1,'md',27,31,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(23,1,'md',28,32,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(24,1,'md',29,33,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(25,1,'md',30,34,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(26,1,'md',31,35,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(27,1,'md',4,5,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(28,1,'md',3,5,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(29,1,'md',32,36,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(30,1,'md',10,12,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(31,1,'md',33,37,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(32,1,'md',34,38,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(33,1,'md',35,39,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(34,1,'md',5,6,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(35,1,'md',36,40,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(36,1,'md',8,9,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(37,1,'md',37,41,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(38,1,'md',38,42,NULL,'2025-12-31');
+INSERT INTO "mv_booked_row"(id, set_id, kind, row_id, member_id, old, new) VALUES(39,1,'md',39,43,NULL,'2025-12-31');

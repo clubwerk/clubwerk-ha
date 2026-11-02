@@ -98,6 +98,17 @@ CREATE TABLE IF NOT EXISTS mv_application (
   signed_at TEXT, signed_via TEXT, sig_member TEXT, sig_mandate TEXT, sha256 TEXT, document_id INTEGER,
   member_id INTEGER, reviewed_by TEXT, reviewed_at TEXT, reason TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+-- „Abgerechnet bis“ gesammelt setzen (lib/abgerechnet.js): je Änderung die vorherigen Werte, damit sie sich zurücknehmen lässt
+CREATE TABLE IF NOT EXISTS mv_booked_set (
+  id INTEGER PRIMARY KEY, date TEXT NOT NULL, back INTEGER NOT NULL DEFAULT 0, filters TEXT NOT NULL DEFAULT '{}', count INTEGER NOT NULL, members INTEGER NOT NULL,
+  effect_cents INTEGER NOT NULL DEFAULT 0, last_run_id INTEGER NOT NULL DEFAULT 0,   -- letzter Lauf davor: danach ist kein Zurücknehmen mehr möglich
+  by_user TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), undone_at TEXT, undone_by TEXT, undo_kept INTEGER
+);
+CREATE TABLE IF NOT EXISTS mv_booked_row (
+  id INTEGER PRIMARY KEY, set_id INTEGER NOT NULL REFERENCES mv_booked_set(id), kind TEXT NOT NULL,   -- mf = mv_member_fee | md = mv_member_department (Zusatzbeitrag)
+  row_id INTEGER NOT NULL, member_id INTEGER NOT NULL, old TEXT, new TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_mvbr_row ON mv_booked_row(kind, row_id);
 CREATE TABLE IF NOT EXISTS mv_change (
   id INTEGER PRIMARY KEY, member_id INTEGER NOT NULL REFERENCES members(id), kind TEXT NOT NULL,   -- daten | bank | kuendigung
   data TEXT NOT NULL, signature TEXT, status TEXT NOT NULL DEFAULT 'offen', reviewed_by TEXT, reviewed_at TEXT, reason TEXT,

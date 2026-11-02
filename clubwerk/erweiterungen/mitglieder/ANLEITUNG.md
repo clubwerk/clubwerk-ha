@@ -431,6 +431,22 @@ Der Beitragslauf erzeugt die Beiträge als **offene Posten**: für alle Mitglied
 
 Jeder Lauf steht mit Datum, Art, Stichtag, Zahl der Positionen und Summe in der Liste. „Posten“ zeigt die Posten des Laufs. Solange nichts davon eingezogen ist, macht **Lauf zurücknehmen …** ihn rückgängig (auch die Verkaufskonten stehen dann wieder offen).
 
+#### „Abgerechnet bis“ für alle setzen
+
+![Vorschau „Abgerechnet bis“ mit Zahlen, Hinweisen und Liste.](bild: seite=mv-beitraege; klick=#bkPrev; ziel=#bkOut)
+
+Für den Umstieg aus einem anderen Programm: Wurden die Beiträge bis zu einem Tag schon dort abgerechnet oder eingezogen (dort oft „gebucht bis“), tragt ihr das hier für alle auf einmal ein. Der nächste Beitragslauf berechnet diese Zeit dann nicht noch einmal. Es entstehen **keine Posten**, und vorhandene Posten bleiben, wie sie sind – nur der Stand „abgerechnet bis“ ändert sich.
+
+- **Abgerechnet bis:** vorgeschlagen ist das Ende des letzten Beitragsjahres.
+- **Beitragsarten** und **Abteilungen:** nichts angehakt heißt alle. Zusatzbeiträge der Abteilungen zählen mit (auch die von Familienangehörigen, die das Oberhaupt zahlt).
+- **Auch zurücksetzen:** Normalerweise geht der Stand nur vorwärts. Mit diesem Häkchen wird er genau auf das Datum gesetzt, auch wenn schon später abgerechnet ist. Dann berechnet der nächste Lauf die Zeit danach noch einmal – Vorsicht, sonst zahlen Mitglieder doppelt. Hinter Posten, die Clubwerk selbst schon berechnet hat, geht es nie zurück.
+
+**Vorschau** zeigt, wie viele Zuordnungen bei wie vielen Mitgliedern sich ändern, von welchem auf welches Datum, wer übersprungen wird (schon später abgerechnet, ausgetreten, beginnt erst später, befreit, über die Familie abgedeckt, ohne Beitrag) und wie viel ein Beitragslauf bis zum Datum dadurch nicht mehr berechnet. Hinweise warnen, wenn das Datum in der Zukunft oder mitten in einem Beitragszeitraum liegt. Die Listen klappt ihr auf oder holt sie mit **Liste als Excel**.
+
+**Setzen …** öffnet die Sicherheitsabfrage: ihr tippt **SETZEN** ein und bestätigt mit eurem **eigenen Passwort**. Hat sich seit der Vorschau etwas geändert, verlangt Clubwerk eine neue Vorschau. Das dürfen nur Benutzer mit dem Recht „Beitragslauf, Lastschriften …“.
+
+Unter **Bisherige Änderungen „abgerechnet bis“** steht jede Änderung. Die letzte lässt sich mit **Zurücknehmen …** (mit Passwort) rückgängig machen, solange danach kein Beitragslauf gelaufen ist; was jemand seitdem einzeln geändert hat, bleibt. Ein Beitragslauf von **vor** einer solchen Änderung lässt sich erst zurücknehmen, wenn die Änderung zurückgenommen ist. Jede Änderung steht im Protokoll, in der Historie der Mitglieder und im Änderungsjournal (Buchführung).
+
 ### Reiter „Lastschriften“ {#mv-einzug}
 
 #### Neuer Einzug

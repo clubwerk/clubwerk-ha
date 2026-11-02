@@ -1154,7 +1154,9 @@
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="rNext">Weiter zum Einzug</button></div></div>` : ''}</div>
       <div class="card"><h3>Bisherige Läufe</h3>${runs.length ? `<table class="tbl kompakt"><tr><th>Lauf</th><th>Art</th><th>bis</th><th class="r">Positionen</th><th class="r">Summe</th><th>von</th><th></th></tr>
         ${runs.map(r => `<tr><td class="num nw">${deTime(r.created_at)}</td><td>${r.kind === 'getraenke' ? 'Verkauf' : 'Beiträge'}</td><td class="num nw">${deDate(r.until_date)}</td><td class="r k-lbl" data-label="Positionen">${r.count}</td><td class="r">${euro(r.cents)}</td><td class="muted s k-weg">${esc(r.by_user || '')}</td>
-          <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>`;
+          <td class="r nw"><button class="btn small" data-rshow="${r.id}">Posten</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Lauf.</p>'}</div>
+      <div id="bkBox"></div>`;
+    bookedCard($('bkBox'), again).catch(fail);
     const preview = async () => {
       const o = { until: val('rUntil'), payment: val('rPay') || undefined, drinks: $('rDrinks') ? $('rDrinks').checked : false, extra: $('rExtra') ? $('rExtra').checked : true };
       const pv = await api('runs/preview', 'POST', o);
@@ -1193,6 +1195,95 @@
       };
       posten().catch(fail);
     }; });
+  }
+
+  /* ---------------------------------------------------------------- „Abgerechnet bis“ für alle setzen (lib/abgerechnet.js)
+     Nur der Stand „abgerechnet bis“ ändert sich, keine Posten. Vorschau → Fenster mit Zusammenfassung, Wort SETZEN und eigenem Passwort. */
+  const bkOld = d => (d ? deDate(d) : GK.T('noch nichts'));
+  async function bookedCard(el, again) {
+    const { sets, suggest } = await api('booked');
+    const m = st.meta;
+    const fz = f => { const d = f.kind === 'zusatz' ? (m.depts.find(x => x.id === f.department_id) || {}).name || '' : ''; return d && !f.name.includes(d) ? `${f.name} · ${d}` : f.name; };
+    const chk = (attr, id, label) => `<label class="chk"><input type="checkbox" ${attr}="${id}"> <span translate="no">${esc(label)}</span></label>`;
+    el.innerHTML = `<div class="card"><h3>„Abgerechnet bis“ für alle setzen</h3>
+        <p class="muted s" style="margin-top:0">Für den Umstieg aus einem anderen Programm: Wurden die Beiträge bis zu einem Tag schon dort abgerechnet oder eingezogen, trägt Clubwerk das hier für alle auf einmal ein (in anderen Programmen „gebucht bis“). Der nächste Beitragslauf berechnet diese Zeit dann nicht noch einmal. Es entstehen keine Posten, und vorhandene Posten bleiben, wie sie sind.</p>
+        <div class="mv-grid" style="--c:2"><label class="f">Abgerechnet bis<input id="bkDate" type="date" value="${esc(suggest)}"></label></div>
+        <div class="mv-sub" style="margin-top:14px">Beitragsarten <span class="muted s" style="text-transform:none;letter-spacing:0;font-weight:400">– nichts gewählt: alle</span></div>
+        <div class="mv-depchk">${m.fees.map(f => chk('data-bkf', f.id, fz(f))).join('') || '<span class="muted s">Keine Beitragsarten angelegt.</span>'}</div>
+        ${m.depts.length ? `<div class="mv-sub" style="margin-top:14px">Abteilungen <span class="muted s" style="text-transform:none;letter-spacing:0;font-weight:400">– nichts gewählt: alle</span></div>
+        <div class="mv-depchk">${m.depts.map(d => chk('data-bkd', d.id, d.name)).join('')}</div>` : ''}
+        <label class="chk" style="margin-top:14px"><input type="checkbox" id="bkBack"> Auch zurücksetzen, wo schon später abgerechnet ist</label>
+        <div class="banner r hidden" id="bkBackWarn" style="margin-top:8px"><span><b>Vorsicht:</b> Zurücksetzen heißt, dass der nächste Beitragslauf die Zeit nach dem Datum noch einmal berechnet. Wurde sie schon eingezogen, zahlen die Mitglieder doppelt. Hinter Posten, die Clubwerk selbst schon berechnet hat, geht es nie zurück.</span></div>
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="bkPrev" data-pruefbar>Vorschau</button></div></div>
+      <div id="bkOut"></div>
+      ${sets.length ? `<div class="card"><h3>Bisherige Änderungen „abgerechnet bis“</h3><table class="tbl kompakt"><tr><th>am</th><th>auf</th><th class="r">Zuordnungen</th><th class="k-weg">Auswahl</th><th class="k-weg">von</th><th></th></tr>
+        ${sets.map(x => `<tr class="${x.undone_at ? 'off' : ''}"><td class="num nw">${deTime(x.created_at)}</td><td class="num nw">${deDate(x.date)}${x.back ? ' <span class="pill a">auch zurück</span>' : ''}</td><td class="r k-lbl" data-label="Zuordnungen">${x.count}</td>
+          <td class="s k-weg"><span translate="no">${esc([x.fees.join(', '), x.depts.join(', ')].filter(Boolean).join(' · ') || GK.T('alle'))}</span></td><td class="muted s k-weg">${esc(x.by_user || '')}</td>
+          <td class="r nw">${x.undone_at ? `<span class="muted s">zurückgenommen ${deDate(x.undone_at.slice(0, 10))}</span>` : x.undo ? `<button class="btn small danger" data-bkundo="${x.id}">Zurücknehmen …</button>` : ''}</td></tr>`).join('')}</table>
+        ${sets.some(x => !x.undone_at && !x.undo && x.why) ? `<p class="muted s" style="margin-bottom:0">${esc(sets.find(x => !x.undone_at && !x.undo && x.why).why)}</p>` : ''}</div>` : ''}`;
+    $('bkBack').onchange = () => $('bkBackWarn').classList.toggle('hidden', !$('bkBack').checked);
+    const input = () => ({ date: val('bkDate'), back: $('bkBack').checked, fees: [...el.querySelectorAll('[data-bkf]:checked')].map(x => +x.dataset.bkf), depts: [...el.querySelectorAll('[data-bkd]:checked')].map(x => +x.dataset.bkd) });
+    const preview = async () => {
+      const o = input();
+      if (!o.date) { toast('Bitte ein Datum wählen.', true); $('bkDate').focus(); return; }
+      const p = await api('booked/preview', 'POST', o);
+      const t = p.totals, sk = t.skipped;
+      const SK = { schon: 'schon so weit oder später abgerechnet', aus: 'ausgetreten oder beendet', spaeter: 'beginnen erst später', befreit: 'vom Zusatzbeitrag befreit', eintritt: 'Eintritt noch nicht bestätigt', clubwerk: 'in Clubwerk schon weiter berechnet', familie: 'über die Familie abgedeckt', ohne: 'ohne Beitrag' };
+      const nSk = p.skipped.length;
+      const xls = `${BASE}booked/preview.xlsx?date=${encodeURIComponent(p.date)}&back=${p.back ? 1 : 0}&fees=${o.fees.join(',')}&depts=${o.depts.join(',')}`;
+      const who = c => `<b>${esc(GK.lastFirst(c.name))}</b>`;
+      const what = c => `<span translate="no">${esc(c.fee || '')}</span>${c.zusatz && c.dept && !String(c.fee || '').includes(c.dept) ? ` <span class="muted s" translate="no">(${esc(c.dept)})</span>` : ''}`;
+      $('bkOut').innerHTML = `<div class="card"><h3>Vorschau: abgerechnet bis ${deDate(p.date)}</h3>
+        <div class="kpis"><div class="kpi"><div class="l">Ändert sich</div><div class="v">${t.rows}</div></div><div class="kpi"><div class="l">Mitglieder</div><div class="v">${t.members}</div></div>
+          <div class="kpi"><div class="l">${t.effect >= 0 ? 'entfällt' : 'kommt dazu'}</div><div class="v">${euro(Math.abs(t.effect))}</div></div><div class="kpi"><div class="l">übersprungen</div><div class="v">${nSk}</div></div></div>
+        <p class="s" style="margin:12px 0 4px">${t.rows ? `${t.rows === 1 ? 'Eine Zuordnung bekommt' : `${t.rows} Zuordnungen bekommen`} „abgerechnet bis ${deDate(p.date)}“ – bisher: ${t.from.map(x => `${bkOld(x.old)} (${x.n})`).join(' · ')}.${t.later ? ` ${t.later} davon ${t.later === 1 ? 'geht' : 'gehen'} zurück.` : ''}
+          ${t.effect >= 0 ? 'Ein Beitragslauf bis zum Datum berechnet dadurch' : 'Ein Beitragslauf berechnet dadurch zusätzlich'} ${euro(Math.abs(t.effect))}${t.effect >= 0 ? ' nicht mehr' : ''}.` : 'Es ändert sich nichts.'}</p>
+        ${nSk ? `<p class="muted s" style="margin:0 0 4px">Übersprungen: ${Object.entries(sk).map(([k, n]) => `${esc(GK.T(SK[k] || k))} (${n})`).join(' · ')}.</p>` : ''}
+        <p class="muted s" style="margin:0 0 12px">Forderungen werden weder angelegt noch geändert oder gelöscht – nur der Stand „abgerechnet bis“.</p>
+        ${p.warnings.map(w => `<div class="banner a"><span>${esc(w)}</span></div>`).join('')}
+        ${t.rows ? `<details style="margin-top:10px"><summary>Ändert sich (${t.rows})</summary><div class="scroll" style="max-height:52vh"><table class="tbl kompakt"><tr><th>Mitglied</th><th>Beitrag</th><th class="nw">abgerechnet bis</th><th class="r nw k-weg">entfällt</th></tr>
+          ${p.changes.map(c => `<tr><td>${who(c)}</td><td>${what(c)}${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}</td><td class="nw"><span class="num">${bkOld(c.old)}</span> → <span class="num">${deDate(c.new)}</span></td><td class="r k-weg">${money(c.effect)}</td></tr>`).join('')}</table></div></details>` : ''}
+        ${nSk ? `<details style="margin-top:10px"><summary>Übersprungen (${nSk})</summary><div class="scroll" style="max-height:52vh"><table class="tbl kompakt"><tr><th>Mitglied</th><th>Beitrag</th><th>Grund</th></tr>
+          ${p.skipped.map(c => `<tr><td>${who(c)}</td><td>${c.fee ? what(c) : '<span class="muted s">–</span>'}</td><td class="s">${esc(c.reason)}</td></tr>`).join('')}</table></div></details>` : ''}
+        <div class="row" style="justify-content:flex-end;margin-top:12px"><a class="btn" href="${xls}" download>Liste als Excel</a><button class="btn ghost" id="bkX">Verwerfen</button>${t.rows ? '<button class="btn danger" id="bkGo" data-pruefbar>Setzen …</button>' : ''}</div></div>`;
+      $('bkX').onclick = () => { $('bkOut').innerHTML = ''; };
+      if ($('bkGo')) $('bkGo').onclick = () => confirmBooked(p, o, again, preview);
+      $('bkOut').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    $('bkPrev').onclick = () => preview().catch(fail);
+    el.querySelectorAll('[data-bkundo]').forEach(b => { b.onclick = async () => {
+      const x = sets.find(y => y.id === +b.dataset.bkundo);
+      if (!await ask(`Änderung zurücknehmen?\n\n„Abgerechnet bis“ vom ${deTime(x.created_at)} (auf ${deDate(x.date)}): ${x.count} ${x.count === 1 ? 'Zuordnung bekommt' : 'Zuordnungen bekommen'} wieder den Stand davor. Was seitdem jemand einzeln geändert hat, bleibt.`, { ok: 'Zurücknehmen' })) return;
+      try {
+        const r = await GK.withPassword(pw => api(`booked/${x.id}/undo`, 'POST', pw ? { myPassword: pw } : {}), 'Zurücknehmen bestätigen\nBitte mit deinem Passwort bestätigen.');
+        toast(`Zurückgenommen: ${r.back} ${r.back === 1 ? 'Zuordnung' : 'Zuordnungen'}${r.kept ? `, ${r.kept} seitdem anders geändert – so gelassen` : ''}.`); again();
+      } catch (e) { fail(e); }
+    }; });
+  }
+  /** Sicherheitsabfrage: Zusammenfassung, Wort SETZEN, eigenes Passwort */
+  function confirmBooked(p, o, again, redo) {
+    const t = p.totals;
+    dialog(`<h2>„Abgerechnet bis“ wirklich setzen?</h2>
+      <p class="muted" style="margin-top:0">${t.rows} ${t.rows === 1 ? 'Zuordnung' : 'Zuordnungen'} bei ${t.members} ${t.members === 1 ? 'Mitglied' : 'Mitgliedern'} bekommen „abgerechnet bis ${deDate(p.date)}“${p.names.fees.length || p.names.depts.length ? ` <span translate="no">(${esc([p.names.fees.join(', '), p.names.depts.join(', ')].filter(Boolean).join(' · '))})</span>` : ''}.
+        ${t.effect >= 0 ? `Ein Beitragslauf bis zum Datum berechnet dadurch <b>${euro(t.effect)}</b> nicht mehr.` : `Ein Beitragslauf berechnet dadurch <b>${euro(-t.effect)}</b> zusätzlich.`} Posten entstehen keine.</p>
+      ${p.warnings.map(w => `<div class="banner a"><span>${esc(w)}</span></div>`).join('')}
+      <p class="muted s">Zurücknehmen lässt sich das, solange danach kein Beitragslauf gelaufen ist.</p>
+      <div class="mv-grid" style="--c:2"><label class="f">Zur Bestätigung SETZEN eintippen<input id="bkWord" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+        <label class="f">Dein Passwort<input id="bkPw" type="password" autocomplete="current-password"></label></div>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="bkOk" disabled>Setzen</button></div>`);
+    $('c').onclick = closeDialog;
+    const ready = () => { $('bkOk').disabled = val('bkWord').toUpperCase() !== 'SETZEN' || !$('bkPw').value; };
+    $('bkWord').oninput = ready; $('bkPw').oninput = ready;
+    $('bkWord').focus();
+    $('bkOk').onclick = () => GK.busy($('bkOk'), async () => {
+      try {
+        const r = await api('booked', 'POST', { ...o, token: p.token, confirm: val('bkWord'), myPassword: $('bkPw').value });
+        closeDialog(); toast(`„Abgerechnet bis ${deDate(p.date)}“ für ${r.count} ${r.count === 1 ? 'Zuordnung' : 'Zuordnungen'} gesetzt.`); again();
+      } catch (e) {
+        if (e.status === 409 || /Vorschau neu/.test(e.message)) { closeDialog(); fail(e); redo().catch(fail); return; }
+        $('bkPw').value = ''; ready(); fail(e);
+      }
+    });
   }
 
   /** Mahnstufe eines Postens als Bezeichnung aus den Einstellungen (über der letzten Stufe: die letzte) */

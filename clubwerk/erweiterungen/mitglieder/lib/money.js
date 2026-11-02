@@ -31,6 +31,8 @@ function register(sh) {
     const yearStart = S('year_start', '01-01');
     const positions = [], warnings = [], info = [], marks = [];   // marks: beitragsfreie Zeiträume (Eintrittsjahr frei) – nur „abgerechnet bis“ vorrücken
     const famWarned = new Set();
+    // o.booked = { mf: { id: Datum }, md: { id: Datum } }: anderer Stand „abgerechnet bis“ nur für diese Rechnung (Vorschau „Abgerechnet bis“ für alle setzen)
+    const bk = (kind, row) => (o.booked && o.booked[kind] && Object.prototype.hasOwnProperty.call(o.booked[kind], row.id) ? o.booked[kind][row.id] : row.booked_until);
     if (!o.onlyDrinks) {
       const rows = db.prepare(`SELECT mf.*, f.name AS fee_name, f.cents AS fee_cents, f.interval, f.prorate, f.department_id, f.age_min, f.age_max, f.family,
           p.exit_date, p.birth_date, p.anonymized_at, m.name AS person_name
@@ -42,7 +44,7 @@ function register(sh) {
         const payer = store.payerOf(r.member_id);
         const pp = personOf(payer);
         if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
-        const per = fees.periods({ start_date: r.start_date, end_date: r.end_date, booked_until: r.booked_until, cents: r.cents != null ? r.cents : r.fee_cents, interval: r.interval, prorate: r.prorate }, until, { limit: r.exit_date, yearStart });
+        const per = fees.periods({ start_date: r.start_date, end_date: r.end_date, booked_until: bk('mf', r), cents: r.cents != null ? r.cents : r.fee_cents, interval: r.interval, prorate: r.prorate }, until, { limit: r.exit_date, yearStart });
         for (const pr of per) {
           if (pr.free || !pr.cents) { marks.push({ mf: r.id, to: pr.to, name: r.person_name, fee: r.fee_name }); continue; }   // beitragsfrei bzw. 0 € (befreit): kein Posten, nur „abgerechnet bis“ vorrücken
           const age = fees.ageAt(r.birth_date, pr.from);
@@ -92,7 +94,7 @@ function register(sh) {
           const base = pick(start) || (list || [])[0];
           if (!base) continue;
           const UNIT = 1200000;
-          const per = fees.periods({ start_date: start, end_date: md.exit_date, booked_until: md.booked_until, cents: UNIT, interval: base.interval, prorate: base.prorate }, until, { limit: md.p_exit, yearStart });
+          const per = fees.periods({ start_date: start, end_date: md.exit_date, booked_until: bk('md', md), cents: UNIT, interval: base.interval, prorate: base.prorate }, until, { limit: md.p_exit, yearStart });
           const payer = store.payerOf(md.member_id);
           const pp = personOf(payer);
           if (o.payment && (pp.payment || 'lastschrift') !== o.payment) continue;
@@ -167,7 +169,9 @@ function register(sh) {
       byKind: positions.reduce((m, p) => ({ ...m, [p.kind]: (m[p.kind] || 0) + p.cents }), {}) } };
   }
 
-  admin.post('/runs/preview', PF, ar(async (req, res) => res.json(await preview(req.body || {}))));
+  sh.runPreview = preview;
+  const body = req => ({ ...(req.body || {}), booked: undefined });   // anderer Stand „abgerechnet bis“ nur intern (lib/abgerechnet.js), nie aus der Anfrage
+  admin.post('/runs/preview', PF, ar(async (req, res) => res.json(await preview(body(req)))));
   /** Lauf aus einer Vorschau anlegen (Posten, „abgerechnet bis“, Verkaufskonten) → { run, count, cents, skipped } – auch innerhalb einer äußeren Transaktion */
   function makeRun(b, pv, pos, user) {
     let runId, drinkBatch = null, created = 0, cents = 0, skippedTotal = 0;
@@ -210,7 +214,7 @@ function register(sh) {
     return { run: runId, count: created, cents, skipped: skippedTotal };
   }
   admin.post('/runs', PF, ar(async (req, res) => {
-    const b = req.body || {};
+    const b = body(req);
     const pv = await preview(b);
     const skip = new Set(Array.isArray(b.skip) ? b.skip.map(String) : []);
     const pos = pv.positions.filter(p => !skip.has(p.key));
@@ -219,12 +223,21 @@ function register(sh) {
     C.audit(req.user, b.onlyDrinks ? 'Verkaufs-Einzug vorbereitet' : 'Beitragslauf', `${r.count} Positionen, ${euro(r.cents)} (bis ${deD(pv.until)})${r.skipped ? `, ${r.skipped} schon gebucht übersprungen` : ''}`);
     res.json({ ok: true, ...r });
   }));
+  /** Nach diesem Lauf wurde „abgerechnet bis“ derselben Zuordnungen gesammelt gesetzt (lib/abgerechnet.js) und nicht zurückgenommen?
+   *  Dann würde das Zurücknehmen des Laufs diesen Stand überschreiben – und der nächste Lauf berechnete doppelt. → Änderung oder null */
+  const setHit = db.prepare('SELECT s.id, s.created_at, s.date FROM mv_booked_set s JOIN mv_booked_row x ON x.set_id = s.id WHERE s.undone_at IS NULL AND s.last_run_id >= ? AND x.kind = ? AND x.row_id = ? ORDER BY s.id DESC LIMIT 1');
+  function laterSet(r) {
+    const f = JSON.parse(r.filters || '{}');
+    for (const [kind, ids] of [['mf', Object.keys(f.prev || {})], ['md', Object.keys(f.prevMd || {})]]) for (const id of ids) { const s = setHit.get(r.id, kind, int(id)); if (s) return s; }
+    return null;
+  }
   admin.get('/runs', PF, (req, res) => res.json(db.prepare(`SELECT r.*, (SELECT COUNT(*) FROM mv_charge c WHERE c.run_id = r.id AND c.status != 'offen') AS done FROM mv_run r ORDER BY r.id DESC LIMIT 50`).all()
-    .map(r => ({ ...r, filters: undefined, undo: r.done === 0 }))));
+    .map(r => ({ ...r, filters: undefined, undo: r.done === 0 && !laterSet(r) }))));
   /** Lauf zurücknehmen: Posten löschen, „abgerechnet bis“ und Verkaufskonten auf den Stand davor – wirft bei fachlichem Hindernis (e.fachlich) */
   function undoRun(r) {
     if (db.prepare("SELECT 1 FROM mv_charge WHERE run_id = ? AND status != 'offen'").get(r.id)) throw fachlich('Aus diesem Lauf wurde schon etwas eingezogen, bezahlt oder storniert – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden.');
     if (db.prepare('SELECT 1 FROM mv_charge WHERE run_id = ? AND dunning_level > 0').get(r.id)) throw fachlich('Aus diesem Lauf wurde schon gemahnt – Zurücknehmen geht nicht mehr. Einzelne Posten können storniert werden (die Mahngebühr gleich mit).');
+    { const s = laterSet(r); if (s) throw fachlich(`Nach diesem Lauf wurde „abgerechnet bis“ am ${deD(s.created_at.slice(0, 10))} für alle auf den ${deD(s.date)} gesetzt – Zurücknehmen würde diesen Stand überschreiben. Bitte zuerst diese Änderung zurücknehmen (Beitragslauf › „Abgerechnet bis“ für alle setzen).`); }
     const f = JSON.parse(r.filters || '{}');
     // Getränkeabrechnung und Posten in einer Transaktion zurücknehmen – schlägt eines fehl, bleibt alles wie es war
     // (sonst wären die Getränke wieder offen, die Posten aber noch da → beim nächsten Lauf doppelt)

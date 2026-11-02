@@ -1084,6 +1084,7 @@ function activate(ctx) {
   /* ---------- weitere Teile ---------- */
   shared = { auskunft, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
   require('./lib/money').register(shared);
+  require('./lib/abgerechnet').register(shared);   // „Abgerechnet bis“ für alle setzen (braucht runPreview aus money)
   require('./lib/mahnung').register(shared);
   require('./lib/kontoauszug').register(shared);
   require('./lib/agecheck').register(shared);
@@ -1226,6 +1227,8 @@ function activate(ctx) {
     { table: 'mv_dunning', date: 'created_at' },
     { table: 'mv_fee', date: null },
     { table: 'mv_member_fee', date: 'start_date' },
+    { table: 'mv_member_department', date: null, cols: ['id', 'member_id', 'department_id', 'entry_date', 'exit_date', 'status', 'fee_id', 'fee_free', 'booked_until'] },   // Zusatzbeitrag „abgerechnet bis“
+    { table: 'mv_booked_set', date: 'created_at' },   // „Abgerechnet bis“ gesammelt gesetzt bzw. zurückgenommen
     { table: 'mv_person', date: null, cols: ['member_id', 'member_no', 'salutation', 'title', 'first_name', 'last_name', 'street', 'zip', 'city', 'country', 'entry_date', 'exit_date', 'payer_id', 'family_of', 'payment', 'anonymized_at'] },
   ];
   ctx.hooks.gobdKeys = () => [

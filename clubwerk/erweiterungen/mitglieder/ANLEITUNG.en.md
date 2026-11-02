@@ -431,6 +431,22 @@ The fee run creates the fees as **open items**: for all members, pro rata from j
 
 Each run is listed with date, type, reference date, number of positions and total. “Items” shows the items of the run. As long as none of them has been collected, **Undo run …** reverses it (the sales accounts are then open again too).
 
+#### Set “billed until” for everyone
+
+![Preview “billed until” with figures, notes and list.](bild: seite=mv-beitraege; klick=#bkPrev; ziel=#bkOut)
+
+For switching from another program: if the fees up to a certain day were already billed or collected there (often called “booked until”), you enter that here for everyone at once. The next fee run then does not bill that time again. **No items** are created and existing items stay as they are – only the “billed until” date changes.
+
+- **Billed until:** the end of the last fee year is suggested.
+- **Fee types** and **Departments:** nothing ticked means all. Department add-on fees count too (including those of family members paid by the head of the family).
+- **Also set back:** normally the date only moves forward. With this tick it is set exactly to the date, even where a later date is already billed. The next run then bills the time after it again – careful, otherwise members pay twice. It never goes back behind items Clubwerk itself has already billed.
+
+**Preview** shows how many assignments of how many members change, from which date to which, who is skipped (already billed later, left the club, starts later, exempt, covered by the family, no fee) and how much a fee run up to the date will therefore no longer bill. Notes warn if the date is in the future or in the middle of a fee period. Open the lists or download them with **List as Excel**.
+
+**Set …** opens the safety check: type **SETZEN** and confirm with your **own password**. If anything has changed since the preview, Clubwerk asks for a new preview. Only users with the right “Fee run, direct debits …” may do this.
+
+**Previous “billed until” changes** lists every change. The latest one can be reversed with **Undo …** (with password) as long as no fee run has happened since; whatever someone has changed individually in the meantime stays. A fee run from **before** such a change can only be undone once the change has been undone. Every change appears in the log, in the members' history and in the change journal (Bookkeeping).
+
 ### “Direct debits” tab {#mv-einzug}
 
 #### New collection

@@ -1,5 +1,17 @@
 # Änderungen
 
+## 2026.11.14
+
+**Neu: „Abgerechnet bis“ für alle auf einmal setzen (Beiträge & Zahlungen › Beitragslauf)**
+- Für den Umstieg aus einem anderen Programm: Wurden die Beiträge bis zu einem Tag schon dort abgerechnet oder eingezogen (dort oft „gebucht bis“), trägt man das jetzt für alle Mitglieder auf einmal ein. Der nächste Beitragslauf berechnet diese Zeit dann nicht noch einmal. Es entstehen keine Posten, vorhandene Posten bleiben unverändert.
+- Wählbar: Datum (vorgeschlagen: Ende des letzten Beitragsjahres), Beitragsarten und Abteilungen (ohne Auswahl alle). Zusatzbeiträge der Abteilungen und Familien zählen mit.
+- Das Datum geht nur vorwärts. Zurücksetzen geht nur mit eigenem Häkchen und roter Warnung – und nie hinter Posten, die Clubwerk selbst schon berechnet hat.
+- **Vorschau:** wie viele Beiträge bei wie vielen Mitgliedern sich ändern, von welchem auf welches Datum, wer übersprungen wird (schon später abgerechnet, ausgetreten, beginnt erst später, befreit, über die Familie abgedeckt, ohne Beitrag) und wie viel ein Beitragslauf dadurch nicht mehr berechnet. Warnung, wenn das Datum in der Zukunft oder mitten in einem Beitragsjahr liegt. Liste zum Aufklappen und als Excel.
+- **Sicherheitsabfrage:** Zusammenfassung, das Wort SETZEN eintippen und mit dem eigenen Passwort bestätigen. Hat sich seit der Vorschau etwas geändert, braucht es eine neue Vorschau. Nur mit dem Recht „Beitragslauf, Lastschriften …“.
+- **Zurücknehmen:** Die letzte Änderung lässt sich zurücknehmen, solange danach kein Beitragslauf lief. Ein älterer Beitragslauf lässt sich erst zurücknehmen, wenn die Änderung danach zurückgenommen ist – sonst würde doppelt berechnet.
+- Jede Änderung steht im Protokoll, in der Historie der Mitglieder und im Änderungsjournal der Buchführung (jetzt auch für die Zusatzbeiträge der Abteilungen).
+- Module: Mitglieder 1.34.0. Neue Testreihe `gbis`.
+
 ## 2026.11.13
 
 **Neu: Einstellungen › Buchführung – vorbereitet für Steuerberater und Betriebsprüfung (GoBD)**
