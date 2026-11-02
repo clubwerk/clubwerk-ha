@@ -544,15 +544,28 @@
     };
     // gekürzt = mehr Zeilen als erlaubt ODER ein Wort passt nicht in eine Zeile (sonst bricht der Browser mitten im Wort um)
     const ctx2d = (layoutCats.cv = layoutCats.cv || document.createElement('canvas')).getContext('2d');
-    const wordTooLong = b => { const cs = getComputedStyle(b); ctx2d.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-      return b.textContent.split(/\s+/).some(w => ctx2d.measureText(w).width > b.clientWidth + 0.5); };
-    const measure = () => ({
-      scroll: box ? Math.max(0, box.scrollHeight - box.clientHeight - 1) : 0,
-      cut: names.filter(b => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1 || wordTooLong(b)).length,
-    });
+    // Alle Namen teilen dieselbe Schrift (eine Regel in index.html): Schrift einmal je Durchgang lesen und die Wortbreiten je Schrift merken –
+    // bei vielen Artikeln (400 und mehr) kostete das Auslesen jedes Namens in jedem der bis zu 80 Durchgänge mehrere Sekunden
+    const widthOf = new Map();
+    let font = '';
+    const wordTooLong = b => {
+      const key = font + '|' + b.textContent;
+      let w = widthOf.get(key);
+      if (w === undefined) { ctx2d.font = font; w = Math.max(...b.textContent.split(/\s+/).map(x => ctx2d.measureText(x).width)); widthOf.set(key, w); }
+      return w > b.clientWidth + 0.5;
+    };
+    const measure = () => {
+      if (names.length) { const cs = getComputedStyle(names[0]); font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; }
+      return {
+        scroll: box ? Math.max(0, box.scrollHeight - box.clientHeight - 1) : 0,
+        cut: names.filter(b => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1 || wordTooLong(b)).length,
+      };
+    };
     let best = null;
     const DENS = ['xxl', 'xl', '', 'd1', 'd2', 'd3', 'd4', 'd5'], TMIN = [150, 170, 190, 215, 240];
-    outer: for (let d = 0; d < DENS.length; d++) {
+    // Sehr lange Artikellisten (ab 80) scrollen auf jedem Tablet: dort zählt die kleinste Scrollhöhe, und die liefern die dichtesten Stufen –
+    // die übrigen Durchgänge (je ein vollständiges Layout aller Kacheln, bei 400 Artikeln rund 8 s auf einem langsamen Tablet) entfallen
+    outer: for (let d = names.length > 80 ? DENS.length - 2 : 0; d < DENS.length; d++) {
       for (const tmin of TMIN) {
         for (const packed of [true, false]) {
           apply(tmin, DENS[d], packed);

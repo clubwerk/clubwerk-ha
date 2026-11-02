@@ -1,5 +1,18 @@
 # Änderungen
 
+## 2026.11.12
+
+**Tempo, Teil 2: kleinere Ziffernschrift und flüssiger Verkauf am Tablet bei langen Artikellisten**
+- **Schriften:** Die Ziffernschrift (Uhrzeit, Beträge) ist von 21 auf 4 kB geschrumpft, die Textschrift bleibt unverändert (eine gekürzte Fassung ließ im Design-Prüfstand Texte anders umbrechen und wurde deshalb nicht übernommen). Die Startschrift wird beim Öffnen der App und der Verwaltung gleich mit geladen, damit der Text nicht erst in der Ersatzschrift erscheint. Aussehen und Zeichenvorrat (Umlaute, ß, €, Akzente) sind unverändert; Tablet und Verwaltung nutzen dieselben Dateien und profitieren mit.
+- **Tablet-Verkauf:** Wer einen Namen antippt, sah bei sehr langen Artikellisten (400 Artikel, getestet auf einem Tablet mit 4× langsamerer CPU) erst nach rund 14 Sekunden die Kacheln, weil die Anordnung zu viele Varianten durchprobierte. Jetzt dauert es rund 4 Sekunden (gleiche Anordnung wie vorher, Messung: dieselbe Dichte, dieselbe Kachelbreite). Bei normalen Listen (bis 80 Artikel) ändert sich nichts an der Anordnung, sie wird aber ebenfalls schneller, weil die Schrift nicht mehr für jeden Namen einzeln ausgelesen wird.
+- Buchung, Preise und Konten sind unverändert; die Abfragen am Server brauchen auch bei 2 500 Mitgliedern, 400 Artikeln und 30 000 Buchungen nur wenige Millisekunden (Buchen 3 ms, Namensliste 58 ms).
+- **Tests:** Reihe `apptempo` prüft Schriftgrößen, die Vorladung und die Zahl der Schriftabfragen der Kachel-Anordnung (vorher 11 600, jetzt 31).
+
+## 2026.11.8
+
+**Mitglieder-App: kein kurzes „Mitglieder-App“ mehr beim Start**
+- Die Überschrift oben blieb beim Start kurz auf dem Platzhalter „Mitglieder-App“ stehen und sprang dann auf „Für mich“. Jetzt bleibt sie leer, bis der richtige Titel feststeht.
+
 ## 2026.11.11
 
 **Safari-Technik (WebKit) wird jetzt in jeder Prüfung mitgetestet – und zwei echte Safari-Fehler sind behoben**
