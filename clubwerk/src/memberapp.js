@@ -172,7 +172,14 @@ let lastTunnelOk = null;   // zuletzt angenommene Tunnel-Quelle (nur im Speicher
 /** zuletzt abgelehnte Tunnel-Anfrage (nur im Speicher) – damit der Vorstand in der Verwaltung sieht, wenn das Cloudflared-Add-on
  *  von einer anderen Adresse kommt als erwartet, statt dass sich Mitglieder draußen über eine „kaputte“ App wundern */
 let lastTunnelReject = null;
-const noteTunnelReject = (sock, req, why) => { lastTunnelReject = { ip: normIp(sock).slice(0, 45), at: new Date().toISOString(), host: String(req.headers.host || '').slice(0, 100), why }; };
+let tunnelRej = { hour: 0, n: 0 };
+const noteTunnelReject = (sock, req, why) => {
+  lastTunnelReject = { ip: normIp(sock).slice(0, 45), at: new Date().toISOString(), host: String(req.headers.host || '').slice(0, 100), why };
+  // Häufung: ab 50 abgewiesenen Anfragen in einer Stunde eine Sicherheitswarnung (gelb, Tagesmail)
+  const h = Math.floor(Date.now() / 3600000);
+  if (tunnelRej.hour !== h) tunnelRej = { hour: h, n: 0 };
+  if (++tunnelRej.n === 50) require('./security').securityAlert('netz.tunnel', `Mitglieder-App: In der letzten Stunde wurden 50 Anfragen über den Tunnel abgewiesen (zuletzt ${why === 'aus' ? 'Tunnel ausgeschaltet' : 'nicht über den eingerichteten Weg'}, Adresse ${lastTunnelReject.ip}). Ist der Tunnel richtig eingerichtet?`);
+};
 
 db.exec(`
 CREATE TABLE IF NOT EXISTS member_access (
@@ -317,7 +324,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       // Direkt (ohne Tunnel) von einer öffentlichen Adresse – meist eine Portfreigabe am Router: ablehnen, außer bewusst erlaubt
       if (directOk() || require('./security').notPublic(sock)) return next();
       noteTunnelReject(sock, req, 'direkt');
-      require('./security').securityAlert(`Mitglieder-App: direkte Anfrage von öffentlicher Adresse ${normIp(sock).slice(0, 45)} abgewiesen. Ist Port ${process.env.MEMBER_PORT || '5001'} am Router freigegeben? Von unterwegs ist nur der Cloudflare Tunnel vorgesehen – bitte die Freigabe entfernen.`, 'app-direct');
+      require('./security').securityAlert('netz.oeffentlich', `Mitglieder-App: direkte Anfrage von öffentlicher Adresse ${normIp(sock).slice(0, 45)} abgewiesen. Ist Port ${process.env.MEMBER_PORT || '5001'} am Router freigegeben? Von unterwegs ist nur der Cloudflare Tunnel vorgesehen – bitte die Freigabe entfernen.`, { key: 'app' });
       return res.status(403).json({ error: 'Die Mitglieder-App ist von unterwegs nur über die öffentliche Adresse des Vereins erreichbar.' });
     }
     if (!tunnelOn()) { noteTunnelReject(sock, req, 'aus'); return res.status(403).json({ error: 'Externer Zugang ist ausgeschaltet.' }); }
@@ -465,7 +472,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   /** Einladung schon eingelöst und erneut geöffnet: Vorstand warnen (einmal je Einladung) */
   const usedAlert = p => {
     if (!invites.markAlerted(p.deviceId)) return;
-    require('./security').securityAlert(`Mitglieder-App: Die Einladung für ${p.member} wurde geöffnet, war aber schon auf einem Gerät (${p.usedDevice || 'unbekannt'}) eingelöst. Hat das Mitglied sie nicht selbst benutzt, bitte das Handy unter „Mitglieder-App“ entfernen und eine neue Einladung schicken.`, 'used:' + p.deviceId);
+    require('./security').securityAlert('app.einladung', `Mitglieder-App: Die Einladung für ${p.member} wurde geöffnet, war aber schon auf einem Gerät (${p.usedDevice || 'unbekannt'}) eingelöst. Hat das Mitglied sie nicht selbst benutzt, bitte das Handy unter „Mitglieder-App“ entfernen und eine neue Einladung schicken.`, { key: p.deviceId });
   };
   api.get('/invite', rateLimit('appinv', 30, 60000), (req, res) => {
     const p = invites.peek(SCOPE, String(req.query.t || ''));
@@ -739,7 +746,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
     res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [],
-      security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', mailTo: getSetting('security_mail_to', ''), blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
+      security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   // Vereinsnetz (Einstellungen › Erreichbarkeit): nur, was die Karte braucht – ohne Mitgliederliste
   admin.get('/app/network', need('einstellungen'), (req, res) => res.json({ wlanNets: getSetting('app_wlan_nets', ''), directPublic: directOk(), hostNets: hostNetsCached(), myIp: normIp(req.ip || req.socket.remoteAddress), tunnelOn: tunnelOn() }));
@@ -1002,7 +1009,6 @@ function adminRoutes(admin, { bad, need, auth }) {
     if (b.inviteHours !== undefined) { const h = parseInt(b.inviteHours, 10); if (!invites.INVITE_HOURS.includes(h)) return bad(res, 'Ungültige Gültigkeit.'); setSetting('app_invite_hours', String(h)); }
     if (b.inviteMailDays !== undefined) { const d = parseInt(b.inviteMailDays, 10); if (!invites.MAIL_DAYS.includes(d)) return bad(res, 'Ungültige Gültigkeit.'); setSetting('app_invite_mail_days', String(d)); }
     if (b.allowLink !== undefined) setSetting('app_invite_link', b.allowLink ? '1' : '0');
-    if (b.mailTo !== undefined) { const t = String(b.mailTo || '').trim(); if (t && !require('./mail').mailOk(t)) return bad(res, 'Bitte eine gültige E-Mail-Adresse eintragen (mehrere mit Komma).'); setSetting('security_mail_to', t); }
     if (b.inviteHours !== undefined || b.allowLink !== undefined || b.mailTo !== undefined) audit(req.user, 'Mitglieder-App: Sicherheit geändert', `QR ${getSetting('app_invite_hours', '24')} Std., Link ${getSetting('app_invite_link', '0') === '1' ? 'erlaubt' : 'aus'}`);
     res.json({ ok: true });
   });

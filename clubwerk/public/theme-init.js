@@ -30,6 +30,28 @@
   if (!l && root.getAttribute('data-lang-auto') === 'browser') q += '&b=' + encodeURIComponent(((navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']).join(',')).slice(0, 200));
   document.write('<script src="' + base + 'i18n.js?' + q + '"><\/script>');
 })();
+
+/* Planblöcke (Belegungs- und Zeitpläne: .bk-blk, .bkm-blk, .tl-plan .blk): nur ganze Zeilen zeigen. Was nicht mehr ganz in den Block passt, wird ausgeblendet
+   statt unten angeschnitten; ein langer Titel endet an einer Zeilengrenze. Kein „…“ – der volle Text steht beim Antippen (02.11.2026, „Julia F.“ halb sichtbar). */
+(function () {
+  var SEL = '.bk-blk, .bkm-blk, .tl-plan .blk';
+  var fit = function (b) {
+    var kids = [].slice.call(b.children); if (!kids.length || !b.clientHeight) return;
+    kids.forEach(function (k) { k.style.display = ''; k.style.maxHeight = ''; k.style.overflow = ''; k.removeAttribute('data-zeilen'); });
+    var cs = getComputedStyle(b), innen = b.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom), oben = b.getBoundingClientRect().top + b.clientTop + parseFloat(cs.paddingTop);
+    for (var i = 0; i < kids.length; i++) {
+      var r = kids[i].getBoundingClientRect(); if (r.bottom - oben <= innen + 0.5) continue;
+      var lh = parseFloat(getComputedStyle(kids[i]).lineHeight) || 15, n = Math.floor((innen - (r.top - oben)) / lh + 0.01);
+      if (n >= 1 || i === 0) { kids[i].style.maxHeight = Math.max(1, n) * lh + 'px'; kids[i].style.overflow = 'hidden'; kids[i].setAttribute('data-zeilen', Math.max(1, n)); i++; }
+      for (; i < kids.length; i++) kids[i].style.display = 'none';
+    }
+  };
+  var plan = 0, alle = function () { plan = 0; document.querySelectorAll(SEL).forEach(fit); };
+  var los = function () { if (!plan) plan = requestAnimationFrame(alle); };
+  var start = function () { new MutationObserver(los).observe(document.body, { childList: true, subtree: true }); addEventListener('resize', los); los(); };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();
+
 /* iPhone/iPad: Cursor in Fenstern an der richtigen Stelle. Liegt ein Eingabefeld in einem festen Fenster (position: fixed – .overlay,
    .vh-sheet, Menüs) und ist die Seite dahinter weit gescrollt, zeichnet Safari beim Aufklappen der Tastatur den blinkenden Cursor
    versetzt, oft deutlich unter dem Feld (WebKit-Fehler 300690/300952, iOS 26; ähnlich schon 176896, iOS 11 – Ursache ist immer der

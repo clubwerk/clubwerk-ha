@@ -259,7 +259,7 @@ async function sendStops() {
     if (!p) return null;
     if (Date.now() - p.at > 3600000) {   // nach einer Stunde sinnlos (jeder Lauf endet nach höchstens 60 min von selbst)
       savePending(null); log('fehler', null, p.platz.join(', ') || null, null, 'Stopp ließ sich eine Stunde lang nicht an Hydrawise senden');
-      notify('Achtung: Ein Stopp der Beregnung ließ sich eine Stunde lang nicht an Hydrawise senden.'); return null;
+      notify('Achtung: Ein Stopp der Beregnung ließ sich eine Stunde lang nicht an Hydrawise senden.'); H.securityAlert('stopp', 'Beregnung: Ein Stopp ließ sich eine Stunde lang nicht an Hydrawise senden – läuft das Wasser noch? Bitte vor Ort oder in der Hydrawise-App prüfen.'); return null;
     }
     const r = p.all ? null : p.refs[0];
     try {
@@ -299,7 +299,7 @@ async function tick() {
     for (const s of db.prepare("SELECT * FROM irr_steps WHERE state = 'run' AND end_at <= ?").all(now)) {
       try { if (c.backend !== 'hydrawise') await zoneOff(s.ref); else markZone(s.ref, false); db.prepare("UPDATE irr_steps SET state = 'done' WHERE id = ? AND state = 'run'").run(s.id); }
       catch (e) {
-        if (now - s.end_at > 5 * 60000) { db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ?").run('Ausschalten fehlgeschlagen: ' + e.message, s.id); log('fehler', null, platzName(s.platz), null, `${s.label || s.ref} ließ sich nicht ausschalten: ${e.message}`); notify(`Achtung: ${platzName(s.platz)} ${s.label || ''} ließ sich nicht ausschalten (${e.message}).`); }
+        if (now - s.end_at > 5 * 60000) { db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ?").run('Ausschalten fehlgeschlagen: ' + e.message, s.id); log('fehler', null, platzName(s.platz), null, `${s.label || s.ref} ließ sich nicht ausschalten: ${e.message}`); notify(`Achtung: ${platzName(s.platz)} ${s.label || ''} ließ sich nicht ausschalten (${e.message}).`); H.securityAlert('stopp', `Beregnung: ${platzName(s.platz)} ${s.label || ''} ließ sich nicht ausschalten (${e.message}). Bitte vor Ort prüfen.`, { key: s.ref }); }
       }
     }
     // nächste fällige Zone starten – nie mehr als eine gleichzeitig
@@ -313,7 +313,7 @@ async function tick() {
       // wurde während des Einschaltens „Alles stoppen“ gedrückt? Dann sofort wieder aus.
       if (!db.prepare("UPDATE irr_steps SET state = 'run' WHERE id = ? AND state = 'wait'").run(s.id).changes) {
         if (c.backend === 'hydrawise') { addStop([s.ref], false, 'System', platzName(s.platz)); await flushStops().catch(() => null); }   // nie verlieren: notfalls nachholen
-        else try { await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); }
+        else try { await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); H.securityAlert('stopp', `Beregnung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}). Bitte vor Ort prüfen.`, { key: s.ref }); }
       }
     } catch (e) {
       if (e.rate) return;   // Hydrawise bremst: Zone bleibt wartend und startet, sobald die Steuerung wieder annimmt
@@ -391,7 +391,7 @@ async function stopPlatz(platzIdx, who) {
   const up = db.prepare('UPDATE irr_steps SET start_at = ?, end_at = ? WHERE id = ?');
   db.transaction(() => { for (const w of db.prepare("SELECT * FROM irr_steps WHERE state = 'wait' ORDER BY start_at, id").all()) { up.run(t, t + w.sec * 1000, w.id); t += w.sec * 1000; } })();
   log('stop', who, p.name, null, errs.length ? 'Fehler: ' + errs.join('; ') : pendingSec ? `Hydrawise bremst – Stopp wird in ${pendingSec} s nachgeholt` : null);
-  if (errs.length) notify(`Stopp ${p.name} nicht vollständig: ` + errs.join('; '));
+  if (errs.length) { notify(`Stopp ${p.name} nicht vollständig: ` + errs.join('; ')); H.securityAlert('stopp', `Beregnung: Stopp ${p.name} nicht vollständig: ${errs.join('; ')}. Bitte vor Ort prüfen.`, { key: p.name }); }
   setImmediate(tick);
   return { errs, pendingSec };
 }
@@ -410,7 +410,7 @@ async function stopAll(who) {
     for (const r of refs) { if (haSkip(c, r, ran)) continue; try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
   }
   log('stop', who, was.join(', ') || null, null, errs.length ? 'Fehler: ' + errs.join('; ') : pendingSec ? `Hydrawise bremst – Stopp wird in ${pendingSec} s nachgeholt` : null);
-  if (errs.length) notify('Stopp nicht vollständig: ' + errs.join('; '));
+  if (errs.length) { notify('Stopp nicht vollständig: ' + errs.join('; ')); H.securityAlert('stopp', `Beregnung: Stopp nicht vollständig: ${errs.join('; ')}. Bitte vor Ort prüfen.`, { key: 'alle' }); }
   return { errs, pendingSec };
 }
 
@@ -506,7 +506,7 @@ function guard(req, res, { forStop = false } = {}) {
     const one = pinFails.fail(ip), all = allFails.fail('*');
     if (all.locked) {
       audit(null, 'Beregnung: PIN-Eingabe für alle gesperrt', `20 falsche PINs, zuletzt von ${ip}`);
-      H.require('./security').securityAlert(`Bei der Beregnung wurde 20-mal eine falsche Vereins-PIN eingegeben (zuletzt von ${ip}). Die PIN-Eingabe ist für ${all.minutes} Minuten für alle gesperrt. Falls das kein Versehen war: bitte in der Verwaltung unter Beregnung eine neue PIN festlegen.`, 'beregnung-pin');
+      H.securityAlert('pin', `Bei der Beregnung wurde 20-mal eine falsche Vereins-PIN eingegeben (zuletzt von ${ip}). Die PIN-Eingabe ist für ${all.minutes} Minuten für alle gesperrt. Falls das kein Versehen war: bitte in der Verwaltung unter Beregnung eine neue PIN festlegen.`);
     }
     res.status(401).json({ error: one.locked ? `PIN mehrfach falsch – ${one.minutes} Minuten gesperrt.` : 'Falsche PIN', pin: true });
     return null;
@@ -673,7 +673,7 @@ function cleanCfg(body, cleanName) {
 /** Geänderte Ventile/Schalter dem Vorstand melden (Einstellungen und Funktionsimport) – auch beim ersten Eintragen */
 function zoneAlert(before, out, who) {
   const zrefs = c2 => (c2.backend === 'hydrawise' ? [] : c2.plaetze.flatMap(p => p.zones.map(z => z.ref))).sort().join(', ');
-  if (zrefs(before) !== zrefs(out)) H.require('./security').securityAlert(`Im Modul Beregnung wurden die geschalteten Geräte geändert (von ${who}).\n\nVorher: ${zrefs(before) || '–'}\nJetzt: ${zrefs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'beregnung-geraete-' + Date.now());
+  if (zrefs(before) !== zrefs(out)) H.securityAlert('geraete', `Im Modul Beregnung wurden die geschalteten Geräte geändert (von ${who}). Vorher: ${zrefs(before) || '–'} · Jetzt: ${zrefs(out) || '–'}. War das so geplant? Sonst bitte in der Verwaltung prüfen.`);
 }
 /** Ventile/Schalter aus Home Assistant, die neu zugeordnet werden (die direkte Hydrawise-Anbindung schaltet nur Zonen der eigenen Steuerung) */
 const haRefs = c => (c.backend === 'hydrawise' ? [] : c.plaetze.flatMap(p => p.zones.map(z => z.ref)));
@@ -688,6 +688,12 @@ function activate(ctx) {
   H = ctx;
   createTables();
   const { need, bad, cleanName } = ctx;
+  // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
+  ctx.hooks.securityEvents = () => [
+    { id: 'pin', label: 'Beregnung: viele falsche PINs', level: 'r', push: 'Beregnung: viele falsche PINs – die PIN-Eingabe ist gesperrt.' },
+    { id: 'geraete', label: 'Beregnung: Geräte geändert', level: 'r', push: 'Im Modul Beregnung wurden die geschalteten Geräte geändert.' },
+    { id: 'stopp', label: 'Beregnung lässt sich nicht stoppen', level: 'r', push: 'Die Beregnung ließ sich nicht stoppen – bitte prüfen.' },
+  ];
   ctx.hooks.usedEntities = () => { const c = cfg(); return c.backend === 'hydrawise' ? [] : c.plaetze.flatMap(p => p.zones.map(z => z.ref)); };
   /* Datenschutz: Protokoll der Beregnung nach der Frist löschen (Einstellungen › Datenschutz, src/datenschutz.js) */
   const keepMonths = () => Math.min(60, Math.max(1, parseInt(ctx.setting('keep_months', '12'), 10) || 12));

@@ -7,7 +7,7 @@
     const s = document.createElement('style'); s.id = 'sbStyle';
     s.textContent = `
       .sb-line { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 10px; font-size: 13.5px; color: var(--muted); }
-      .sb-line button, .sb-link { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 6px 0; }
+      .sb-line button, .sb-link { font: inherit; font-size: 13.5px; font-weight: 700; color: var(--brand-ink); background: none; border: 0; padding: 6px 0; min-height: 36px; }   /* Tippfläche mind. 32 px (+ Bewirtung, 02.11.2026) */
       .sb-play { margin-top: 12px; padding: 12px; border-radius: var(--r-tile); background: var(--brand-soft); }
       .sb-play.wd { background: var(--amber-soft); }
       .sb-play b { display: block; font-size: 15px; color: var(--ink); } .sb-play p { margin: 4px 0 8px; font-size: 13px; color: var(--muted); }

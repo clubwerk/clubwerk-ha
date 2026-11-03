@@ -125,11 +125,12 @@ body { background: var(--shimmer), var(--bg); background-repeat: no-repeat; }   
 html { touch-action: manipulation; }
 button { font: inherit; color: inherit; cursor: pointer; border: 0; background: none; }
 input, select, textarea { font: inherit; color: inherit; }
+select { contain: layout; }   /* Safari 26: der Text einer langen Option zählte zur Scrollbreite aller Kästen darüber (Karte, Fenster ließen sich seitlich schieben; Release-Zug 2026.11.18). overflow:hidden/clip wirken an select nicht; Layout-Eingrenzung schneidet nichts ab (Fokusring bleibt) */
 :focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .hidden { display: none !important; }
 .muted { color: var(--muted); }
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px; text-align: center;   /* umbrochener Text auch bei a.btn/label.btn mittig wie bei <button> (02.11.2026) */
   min-height: 44px; padding: 0 18px; border-radius: var(--r-ctl);
   background: var(--card); border: 1px solid var(--line2); font-weight: 600; color: var(--ink);
   transition: background .15s, border-color .15s, transform .05s;

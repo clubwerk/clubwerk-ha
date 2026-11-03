@@ -220,7 +220,7 @@ async function watch() {
     const s = st.get(d.sensor);
     if (s && s.state === 'on') {
       const o = openSince.get(d.id) || { since: Date.now(), told: false };
-      if (!o.told && Date.now() - o.since > c.openAlertMin * 60000) { o.told = true; log('alarm', null, d.name, `steht seit ${c.openAlertMin} Minuten offen`); notify(`${d.name} steht seit über ${c.openAlertMin} Minuten offen.`); }
+      if (!o.told && Date.now() - o.since > c.openAlertMin * 60000) { o.told = true; log('alarm', null, d.name, `steht seit ${c.openAlertMin} Minuten offen`); notify(`${d.name} steht seit über ${c.openAlertMin} Minuten offen.`); H.securityAlert('offen', `Zugang: ${d.name} steht seit über ${c.openAlertMin} Minuten offen.`, { key: d.id }); }
       openSince.set(d.id, o);
     } else openSince.delete(d.id);
   }
@@ -250,10 +250,21 @@ function viewFor(memberId, c) {
       validUntil: zm && zm.valid_until ? zm.valid_until.split('-').reverse().join('.') : null };
   });
 }
+/* Abgelehnte Öffnungen je Tag zählen: ab 10 je Mitglied bzw. 30 insgesamt eine Sicherheitswarnung (gelb, Tagesmail) */
+const REJ_MEMBER = 10, REJ_ALL = 30;
+let rej = { day: '', all: 0, by: new Map() };
+function countReject(member, door) {
+  const day = new Date().toISOString().slice(0, 10);
+  if (rej.day !== day) rej = { day, all: 0, by: new Map() };
+  const n = (rej.by.get(member.id) || 0) + 1; rej.all++;
+  if (rej.by.size < 5000 || rej.by.has(member.id)) rej.by.set(member.id, n);
+  if (n === REJ_MEMBER) H.securityAlert('abgelehnt', `Zugang: Für ${member.name} wurde heute schon ${n}-mal eine Türöffnung abgelehnt (zuletzt ${door.name}). Bitte im Zugangsprotokoll nachsehen.`, { key: 'm' + member.id, member: member.id });
+  if (rej.all === REJ_ALL) H.securityAlert('abgelehnt', `Zugang: Heute wurden schon ${REJ_ALL} Türöffnungen abgelehnt. Bitte im Zugangsprotokoll nachsehen.`, { key: 'alle' });
+}
 /** Tür schalten – gemeinsam für App und Tablet */
 async function operate(res, c, member, door, action, where) {
   const m = mayOpen(member.id, door, c);
-  if (!m.ok) { log('abgelehnt', member.name, door.name, m.reason); return res.status(403).json({ error: m.reason }); }
+  if (!m.ok) { log('abgelehnt', member.name, door.name, m.reason); countReject(member, door); return res.status(403).json({ error: m.reason }); }
   try {
     await act(door, action === 'oeffnen' ? 'auf' : action);
     log(action, member.name, door.name, where || null);
@@ -261,6 +272,7 @@ async function operate(res, c, member, door, action, where) {
   } catch (e) {
     log('fehler', member.name, door.name, e.message);
     notify(`${door.name} ließ sich nicht ${action === 'zu' ? 'abschließen' : 'öffnen'} (${e.message}).`);
+    if (action === 'zu') H.securityAlert('abschliessen', `Zugang: ${door.name} ließ sich nicht abschließen (${e.message}). Bitte vor Ort prüfen.`, { key: door.id });
     res.status(502).json({ error: `${door.name} reagiert nicht – bitte erneut versuchen.` });
   }
 }
@@ -307,7 +319,7 @@ function tabletFail(ip, who, memberId) {
   if (T_FAILS.all.length >= 10) {
     const c = cfg(); c.header = false; save(c); cache.at = 0; T_FAILS.all = [];
     log('sperre', null, null, 'Öffnen am Tablet nach 10 falschen PINs abgeschaltet');
-    H.require('./security').securityAlert('Am Vereinstablet wurde beim Öffnen der Türen 10-mal eine falsche App-PIN eingegeben (zuletzt für „' + who + '“). Das Öffnen am Tablet ist deshalb abgeschaltet. In der Verwaltung unter Zugang → Einstellungen kann es wieder eingeschaltet werden. Die Mitglieder-App funktioniert weiter.', 'zugang-tablet');
+    H.securityAlert('tablet', 'Am Vereinstablet wurde beim Öffnen der Türen 10-mal eine falsche App-PIN eingegeben (zuletzt für „' + who + '“). Das Öffnen am Tablet ist deshalb abgeschaltet. In der Verwaltung unter Zugang → Einstellungen kann es wieder eingeschaltet werden. Die Mitglieder-App funktioniert weiter.');
   }
 }
 function tabletRoutes(r, ctx) {
@@ -435,7 +447,7 @@ function cleanCfg(b, cleanName) {
 /** Geänderte Türgeräte dem Vorstand melden (Einstellungen und Funktionsimport) – auch beim ersten Eintragen */
 function doorAlert(before, out, who) {
   const refs = c2 => (c2.doors || []).map(d => `${d.name}=${d.ref}`).sort().join(', ');
-  if (refs(before) !== refs(out)) H.require('./security').securityAlert(`Im Modul Zugang wurden die Türen geändert (von ${who}).\n\nVorher: ${refs(before) || '–'}\nJetzt: ${refs(out) || '–'}\n\nWar das so geplant? Sonst bitte in der Verwaltung prüfen.`, 'zugang-tueren-' + Date.now());
+  if (refs(before) !== refs(out)) H.securityAlert('tueren', `Im Modul Zugang wurden die Türen geändert (von ${who}). Vorher: ${refs(before) || '–'} · Jetzt: ${refs(out) || '–'}. War das so geplant? Sonst bitte in der Verwaltung prüfen.`);
 }
 /** Türen, denen ein Gerät neu zugeordnet wird (neue Tür oder anderes Gerät an derselben Tür – die Zeitprofile hängen an der Tür) */
 const neueGeraete = (before, out) => { const alt = new Map((before.doors || []).map(d => [d.id, d.ref])); return out.doors.filter(d => alt.get(d.id) !== d.ref).map(d => d.ref); };
@@ -455,6 +467,14 @@ function activate(ctx) {
   // Schalter „am Tablet zeigen“ liegt zentral unter Einstellungen › Tablet (Schlüssel header bleibt)
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); cache.at = 0; } };
   ctx.hooks.usedEntities = () => cfg().doors.map(d => d.ref);
+  // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
+  ctx.hooks.securityEvents = () => [
+    { id: 'tablet', label: 'Zugang: viele falsche PINs am Tablet', level: 'r', push: 'Zugang: viele falsche PINs am Tablet – das Öffnen am Tablet ist aus.' },
+    { id: 'tueren', label: 'Zugang: Türen geändert', level: 'r', push: 'Im Modul Zugang wurden die Türen geändert.' },
+    { id: 'abschliessen', label: 'Tür ließ sich nicht abschließen', level: 'r', push: 'Eine Tür ließ sich nicht abschließen – bitte prüfen.' },
+    { id: 'offen', label: 'Tür steht zu lange offen', level: 'a', push: 'Eine Tür steht zu lange offen.' },
+    { id: 'abgelehnt', label: 'Viele abgelehnte Türöffnungen', level: 'a', push: 'Auffällig viele abgelehnte Türöffnungen.' },
+  ];
   /* Datenschutz: Türöffnungen zeigen, wer wann da war – nach der Frist löschen (Einstellungen › Datenschutz, src/datenschutz.js) */
   const keepDays = () => Math.min(365, Math.max(7, parseInt(ctx.setting('keep_days', '30'), 10) || 30));
   ctx.hooks.retention = () => [{ id: 'protokoll', label: 'Türöffnungen', text: 'Wer wann welche Tür geöffnet hat.', unit: 'tage', value: keepDays(), def: 30, min: 7, max: 365,

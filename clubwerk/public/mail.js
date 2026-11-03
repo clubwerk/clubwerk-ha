@@ -423,7 +423,7 @@
           <dt>${esc(T('Sichtbar'))}</dt><dd>${ap.pinned ? esc(T('angeheftet – bis du sie löst')) : `${ap.keepMonths} ${esc(T(ap.keepMonths === 1 ? 'Monat' : 'Monate'))}`}</dd>` : ''}
           ${ap && ap.push != null ? `<dt>${esc(T('Push-Hinweis'))}</dt><dd>${ap.pushOn ? `${ap.push} ${esc(T(ap.push === 1 ? 'Mitglied mit Push' : 'Mitglieder mit Push'))} <span class="muted s">· ${esc(T('nur Betreff und „Neue Nachricht“, nie der Text'))}</span>` : `<span style="color:var(--amber)">${esc(T('Anlass nicht freigegeben – es geht kein Push raus'))}</span>`}</dd>` : ''}
           ${st.files.length ? `<dt>${esc(T('Anhänge'))}</dt><dd translate="no">${st.files.map(f => esc(f.name)).join(', ')} (${kb(st.files.reduce((s, f) => s + f.size, 0))})</dd>` : ''}</dl>
-        <div class="ml-rc hidden" id="mlRc"><table class="tbl">${p.rcpt.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td></tr>`).join('')}</table></div>
+        <div class="ml-rc hidden" id="mlRc"><table class="tbl kompakt">${p.rcpt.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td></tr>`).join('')}</table></div>
         ${p.sample.who ? `<p class="muted s" style="margin:14px 0 6px">${esc(T('So sieht es bei'))} <span translate="no">${esc(p.sample.who)}</span> ${esc(T('aus'))}:</p>` : ''}
         <div class="ml-view"><h3 style="margin-top:0" translate="no">${esc(p.sample.subject)}</h3><div translate="no">${p.sample.html}</div></div>
         <div class="btns"><button class="btn ghost" id="c">${esc(sendMode ? T('Abbrechen') : T('Schließen'))}</button>${sendMode && !p.errors.length && p.ready ? `<button class="btn primary" id="go">${esc(T('Jetzt senden'))}</button>` : ''}</div>`, true);
@@ -467,7 +467,7 @@
       <p style="margin:0 0 4px;font-weight:700" translate="no">${esc(p.question)}</p>
       <p class="muted s" style="margin:0">${p.voters} ${esc(T('von'))} ${p.total} ${esc(T(p.voters === 1 ? 'hat abgestimmt' : 'haben abgestimmt'))}${end ? ` · ${esc(T(p.open ? 'endet' : 'beendet'))} ${deT(end)}` : ''} · ${esc(T(p.anonymous ? 'anonym' : 'mit Namen'))}${p.multi ? ` · ${esc(T('mehrere Antworten erlaubt'))}` : ''}</p>
       <div class="ml-res">${p.options.map((o, i) => `<span translate="no">${esc(o)}</span><b>${p.counts[i]} (${pct(p.counts[i])} %)</b><div class="bar"><i style="width:${pct(p.counts[i])}%"></i></div>`).join('')}</div>
-      ${p.list && p.list.length ? `<div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Antwort'))}</th></tr>${p.list.map(r => `<tr><td translate="no">${esc(r.name)}</td><td translate="no">${esc(r.choices.join(', '))}</td></tr>`).join('')}</table></div>` : ''}`;
+      ${p.list && p.list.length ? `<div class="ml-rc"><table class="tbl kompakt"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Antwort'))}</th></tr>${p.list.map(r => `<tr><td translate="no">${esc(r.name)}</td><td translate="no">${esc(r.choices.join(', '))}</td></tr>`).join('')}</table></div>` : ''}`;
   }
   async function showMessage(body, id, back) {
     let poll = 0;
@@ -479,7 +479,7 @@
       body.innerHTML = `<div class="card">
         <div class="row" style="align-items:center;margin-bottom:12px"><button class="btn small ghost" id="mlBack">← ${esc(T('Gesendet'))}</button><span style="flex:1"></span>
           <button class="btn small" id="mlCopyM">${esc(T('Weiterverwenden'))}</button>${m.app && !m.app.expired ? `<button class="btn small" id="mlPinM">${esc(T(m.app.pinned ? 'Lösen' : 'Anheften'))}</button><button class="btn small" id="mlOffM">${esc(T('Aus der App nehmen'))}</button>` : ''}${m.status === 'teilweise' ? `<button class="btn small" id="mlRetry">${esc(T('Fehlgeschlagene erneut senden'))}</button>` : ''}
-          ${m.status !== 'sendet' && me && (m.user_name === (me.name || me.username) || me.role === 'oberadmin') ? `<button class="btn small danger" id="mlRm">${esc(T('Löschen'))}</button>` : ''}</div>
+          ${m.status !== 'sendet' && me && (m.user_name === (me.name || me.username) || me.role === 'oberadmin') ? `<button class="btn small danger abgesetzt" id="mlRm">${esc(T('Löschen'))}</button>` : ''}</div>
         <h3 style="margin:0 0 10px;font-size:19px" translate="no">${esc(m.subject)}</h3>
         <dl class="ml-kv"><dt>${esc(T('Von'))}</dt><dd translate="no">${esc(m.from_name || m.user_name || '')} · ${esc(O.club)}</dd>
           ${mailOn ? `<dt>${esc(T('Antworten an'))}</dt><dd translate="no">${esc(m.reply_to || T('Vereinspostfach'))}</dd>` : ''}<dt>${esc(T('Gesendet'))}</dt><dd>${deT(m.sent_at)}</dd>
@@ -490,9 +490,9 @@
         <div class="ml-view" translate="no">${m.html}${m.signature_html ? `<div style="margin-top:20px">${m.signature_html}</div>` : ''}</div>
         ${m.poll ? pollHtml(m.poll) : ''}
         ${m.app && m.reach ? `<h3 style="margin:18px 0 8px">${esc(T('Wer wurde erreicht'))}</h3>
-        <div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Erreicht über'))}</th></tr>${m.reach.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}</td><td>${r.reached ? esc(r.ways.map(w => T(w)).join(' · ')) : `<span class="pill r">${esc(T('nicht erreichbar'))}</span>`} <span class="muted s">${esc(r.note ? T(r.note) : '')}</span></td></tr>`).join('')}</table></div>` : ''}
+        <div class="ml-rc"><table class="tbl kompakt"><tr><th>${esc(T('Name'))}</th><th>${esc(T('Erreicht über'))}</th></tr>${m.reach.map(r => `<tr><td translate="no">${esc(window.CWNames.lastFirst(r.name))}</td><td>${r.reached ? esc(r.ways.map(w => T(w)).join(' · ')) : `<span class="pill r">${esc(T('nicht erreichbar'))}</span>`} <span class="muted s">${esc(r.note ? T(r.note) : '')}</span></td></tr>`).join('')}</table></div>` : ''}
         ${mailOn ? `<h3 style="margin:18px 0 8px">${esc(T('Zustellung'))}</h3>
-        <div class="ml-rc"><table class="tbl"><tr><th>${esc(T('Name'))}</th><th>${esc(T('E-Mail'))}</th><th>${esc(T('Status'))}</th></tr>${m.rcpt.map(r => `<tr><td translate="no">${esc(r.name || '')}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td>
+        <div class="ml-rc"><table class="tbl kompakt"><tr><th>${esc(T('Name'))}</th><th>${esc(T('E-Mail'))}</th><th>${esc(T('Status'))}</th></tr>${m.rcpt.map(r => `<tr><td translate="no">${esc(r.name || '')}${r.via ? ` <span class="muted s">(${esc(T('über'))} ${esc(r.via)})</span>` : ''}</td><td translate="no" class="muted s">${esc(r.email)}</td>
           <td>${r.status === 'ok' ? `<span class="pill g">${esc(T('zugestellt'))}</span>` : r.status === 'fehler' ? `<span class="pill r" title="${esc(r.error || '')}">${esc(T('Fehler'))}</span> <span class="muted s">${esc((r.error || '').slice(0, 80))}</span>` : `<span class="pill">${esc(T('wartet'))}</span>`}</td></tr>`).join('')}</table></div>` : ''}</div>`;
       if ($('mlPinM')) $('mlPinM').onclick = async () => { try { await api(`mail/messages/${id}/app`, 'POST', { pinned: !m.app.pinned }); toast(T('Gespeichert.')); draw(); } catch (e) { fail(e); } };
       if ($('mlOffM')) $('mlOffM').onclick = async () => { if (!await ask(`${T('Nachricht aus der App nehmen?')}\n\n${T('Bei den Mitgliedern verschwindet sie sofort. E-Mails und der Eintrag unter „Gesendet“ bleiben.')}`, { ok: T('Aus der App nehmen'), danger: true })) return; try { await api(`mail/messages/${id}/app`, 'POST', { remove: true }); toast(T('Aus der App genommen.')); draw(); } catch (e) { fail(e); } };

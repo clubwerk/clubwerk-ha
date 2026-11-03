@@ -34,7 +34,7 @@ A single line with a bar. “All items” opens the “Setup” page, “Continu
 
 ![The “To do” card with coloured notes. Red notes come first.](bild: seite=uebersicht; ziel=.todo)
 
-Notes from the core and from all modules appear here: missing backup password, encryption switched off, no club network, new entries from the tablet to confirm, low stock and much more. Red is urgent, yellow is a note. Six notes are visible, “Show all” opens the rest. The link at the end of a line takes you straight to where you fix it. You only see notes you are allowed to deal with.
+Notes from the core and from all modules appear here: open security warnings, missing backup password, encryption switched off, no club network, new entries from the tablet to confirm, low stock and much more. Red is urgent, yellow is a note. Six notes are visible, “Show all” opens the rest. The link at the end of a line takes you straight to where you fix it. You only see notes you are allowed to deal with.
 
 #### Grid of modules
 
@@ -173,9 +173,9 @@ If a tunnel is on, the card **Tunnel source** appears: you decide from which add
 
 #### Security
 
-![Card “Security”: validity of invitations and warning address.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#apSec)
+![Card “Security”: validity of invitations.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#apSec)
 
-How long a QR code (1 hour, 1 day or 7 days) and an email/letter (2, 7 or 14 days) are valid, who is warned about a locked phone, and whether the QR code is also offered as a link to pass on (less secure). After 5 wrong PINs the phone is locked for 5 minutes, from the 10th wrong attempt for 30 minutes, then completely: only a new QR code helps.
+How long a QR code (1 hour, 1 day or 7 days) and an email/letter (2, 7 or 14 days) are valid and whether the QR code is also offered as a link to pass on (less secure). After 5 wrong PINs the phone is locked for 5 minutes, from the 10th wrong attempt for 30 minutes, then completely: only a new QR code helps. Who is told about it is set under Settings › Security.
 
 #### SMS confirmation
 
@@ -444,6 +444,22 @@ One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), s
 - **Further addresses:** names under which the admin area can be reached, for example your own DuckDNS address. Protection against attacks via other websites.
 - **Encryption and access from outside:** shows whether HTTPS is on (in Home Assistant under Add-on › Configuration “HTTPS for all devices”). You set up access on the go under Member app › Settings.
 
+### Area “Security” {#einstellungen-sicherheit}
+
+![Card “Security warnings”: open warnings with time, type and a “Done” button.](bild: seite=einstellungen; klick=[data-sec="sicherheit"]; ziel=.card:has(#swBody))
+
+Clubwerk notices anything unusual and tells the committee – without any internet service, everything runs on your Home Assistant. Examples are many wrong passwords or PINs, a locked phone, a sign-in from a new device, changed users and permissions, an uploaded extension, the vault opened with the recovery code, changed backup destinations, a failed backup, low storage, new errors in the data, and also operational hazards: irrigation that cannot be stopped, a door that does not lock or a light that cannot be switched.
+
+- **Red** arrives at once by push and email, at night too. The same warning comes at most once an hour, and at most ten immediate messages a day; after that one last note arrives and the rest is listed here.
+- **Yellow** arrives collected in the **daily email at 7 am**, only on days with new warnings.
+- **Only here** (grey) is only listed here and in the log, for example an installed update.
+
+Identical warnings are combined; the number in brackets shows how often it happened. **Done** removes a warning from the list and the overview – for all recipients; the log records who did it. **All done** clears the whole list, **Also show done ones** brings them back. **Send test warning** sends a red test through every channel. Clubwerk deletes warnings after the period “Sign-ins and security messages” (Settings › Privacy).
+
+![Card “Who receives warnings?”: recipients with push and email, additional addresses.](bild: seite=einstellungen; klick=[data-sec="sicherheit"]; ziel=.card:has(#swWho))
+
+**Who receives warnings?** All users with the permission “Security warnings”; anyone with “all permissions” gets them automatically. Push goes to the phone of the member the user is linked to (Users & permissions), as soon as notifications are on there and the occasion “Security warning” is released under Member app › Notifications. The push only names the type of warning, never names or addresses. The email goes to that member’s address. **Additional addresses** (for example a committee mailbox) receive every email too; only users with the permission “Settings” may enter them, and every change is itself a warning. If the vault is still locked after a restart, emails only go to the additional addresses.
+
 ### Area “Privacy” {#einstellungen-datenschutz}
 
 ![Card “Retention periods”: one period per kind of data.](bild: seite=einstellungen; klick=[data-sec="datenschutz"]; ziel=.card:has(#dsBody))
@@ -543,6 +559,7 @@ Everything that applies only to you. You reach the page through your name at the
 | Messages (Email) | Write messages to members (email, app, push) |
 | Bank statement | Read in and match bank statements (also needs “Collection” or “Accounting”) |
 | Modules (Uninstall) | Uninstall and reinstall modules (with mandatory backup) |
+| Security warnings | Receive security warnings by push and email, view them under Settings › Security and mark them as done |
 
 The **admin account** always has all permissions, as do users with “All permissions”. The backup password, backup targets, restoring and updates are for a user with all permissions only. “My account” and the overview are open to every logged-in user.
 

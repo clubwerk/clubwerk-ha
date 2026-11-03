@@ -20,7 +20,7 @@
       .tu-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
       .tu-act .vh-btn { min-width: 0; }
       .tu-row { cursor: pointer; }
-      .tu-row .vh-tx strong, .tu-row .vh-tx small { white-space: nowrap; }
+      .tu-row .vh-tx strong, .tu-row .vh-tx small { overflow-wrap: anywhere; }   /* Paarungen brechen um statt „…“ (02.11.2026) */
       .tu-row .vh-chip.num { font-family: var(--num); font-size: 14px; font-weight: 600; }
       .tu-nodate { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--hover); color: var(--muted); display: flex; align-items: center; justify-content: center; }
       .tu-nodate svg { width: 22px; height: 22px; }

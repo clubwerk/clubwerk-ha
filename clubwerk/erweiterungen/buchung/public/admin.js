@@ -86,7 +86,7 @@
       .bk-plan .pastsh { position: absolute; left: 0; right: 0; top: 0; background: color-mix(in srgb, var(--hover) 70%, transparent); pointer-events: none; }
       .bk-plan .now { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 1; pointer-events: none; }
       .bk-blk { position: absolute; border-radius: 10px; padding: 5px 8px; box-sizing: border-box; overflow: hidden; font-size: 12.5px; line-height: 1.3; cursor: pointer; border: 1px solid transparent; text-align: left; font: inherit; }
-      .bk-blk b { display: block; font-size: 12px; font-variant-numeric: tabular-nums; } .bk-blk span { display: block; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+      .bk-blk b { display: block; font-size: 12px; font-variant-numeric: tabular-nums; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; } .bk-blk span { display: block; font-size: 12.5px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung, kein „…“, nur ganze Zeilen (02.11.2026) */
       .bk-blk.buchung { background: var(--brand-soft); color: var(--brand-ink); border-color: color-mix(in srgb, var(--brand) 30%, transparent); }
       .bk-blk.serie { background: color-mix(in srgb, var(--blue, #2f6fd6) 14%, var(--card)); color: var(--ink); border-color: color-mix(in srgb, var(--blue, #2f6fd6) 35%, transparent); }
       .bk-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
@@ -178,7 +178,7 @@
       .bk-bub .bc i { display: block; border-radius: 50%; }
       @media (max-width: 1100px) { .bk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-two { grid-template-columns: 1fr; } }
       @media (max-width: 560px) { .bk-kpis, .bk-kpis.three { grid-template-columns: 1fr; } .bk-rr { grid-template-columns: minmax(0, 1fr) 70px 56px 64px; } }
-      .bk-blk { padding: 4px 8px; gap: 0; } .bk-blk > b, .bk-blk > span { display: block; flex: none; height: 15px; line-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; }
+      .bk-blk { padding: 4px 8px; gap: 0; } .bk-blk > b, .bk-blk > span { display: block; flex: none; line-height: 15px; font-size: 12px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
       .bk-blk > b { font-weight: 800; } .bk-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
       .bk-use { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
       .bk-use .muted.s { margin: 0; }
@@ -188,6 +188,7 @@
       .bk-pal input[type=color] { width: 30px; height: 30px; border-radius: 50%; padding: 0; border: 1px dashed var(--faint); background: var(--card); cursor: pointer; overflow: hidden; }
       .bk-pal input[type=color]::-webkit-color-swatch-wrapper { padding: 3px; } .bk-pal input[type=color]::-webkit-color-swatch { border: 0; border-radius: 50%; }
       #bkBody .toolbar .btn, #bkBody .filterbar .btn, .bk-bar .btn { min-height: 40px; height: 40px; box-sizing: border-box; }
+      .bk-bar:has(.bk-days) #bkToday { height: 62px; border-radius: 14px; }   /* Tagesansicht: „Heute“ so hoch wie Tage und Datum daneben (02.11.2026, erst nach „‹“ sichtbar) */
       .bk-bar .day .btn { width: 40px; padding: 0; font-size: 18px; }
       .bk-bar .day input { width: 150px; box-sizing: border-box; }
       .bk-bar .bk-sel { width: 170px; }
@@ -283,7 +284,7 @@
     el.innerHTML = `<div class="bk-bar"><div class="chips" id="bkV" role="group" aria-label="Ansicht"><button type="button" data-v="tag" class="${week ? '' : 'on'}" aria-pressed="${!week}">Tag</button><button type="button" data-v="woche" class="${week ? 'on' : ''}" aria-pressed="${week}">Woche</button></div>
         ${week ? `<select id="bkRes" class="bk-sel" data-nodirty>${st.meta.resources.filter(r => r.active).map(r => opt(r.id, r.name, st.res)).join('')}</select>` : ''}
         ${week ? `<span class="day"><button class="btn" id="bkPrev" aria-label="zurück">‹</button><input type="date" id="bkDay" value="${st.day}" data-nodirty><button class="btn" id="bkNext" aria-label="vor">›</button></span>`
-          : `<div class="vh-days bk-days" id="bkDays"><button class="nav" id="bkPrev" aria-label="Woche zurück">‹</button>${Array.from({ length: 7 }, (_, i) => addDays(monday(st.day), i)).map(d => `<button data-d="${d}" class="${d === st.day ? 'on' : ''}"><span>${d === td ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}</b></button>`).join('')}<button class="nav" id="bkNext" aria-label="Woche vor">›</button></div>
+          : `<div class="vh-days bk-days" id="bkDays" data-wischt><button class="nav" id="bkPrev" aria-label="Woche zurück">‹</button>${Array.from({ length: 7 }, (_, i) => addDays(monday(st.day), i)).map(d => `<button data-d="${d}" class="${d === st.day ? 'on' : ''}"><span>${d === td ? 'heute' : new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span><b>${+d.slice(8, 10)}</b></button>`).join('')}<button class="nav" id="bkNext" aria-label="Woche vor">›</button></div>
              <input type="date" id="bkDay" class="bk-pick" value="${st.day}" data-nodirty title="Datum wählen" aria-label="Datum wählen">`}
         <button class="btn ghost bk-today" id="bkToday" style="${(week ? !cols.some(c => c.date === td) : monday(st.day) !== monday(td)) ? '' : 'display:none'}">Heute</button><b class="ttl">${esc(title)}</b>
         </div>
@@ -298,7 +299,7 @@
               const time = `${b.start}–${b.end}`, n = Math.max(1, Math.floor((h - 8) / 15));
               let ln = t[0] ? [[t[0], 'b'], ...(t[1] ? [[t[1], '']] : []), [time, 'tm']] : [[time, 'tm']];
               if (ln.length > n) ln = n === 1 ? [[t[0] ? `${t[0]} · ${time}` : time, 'b']] : ln.slice(0, n);
-              return `<button class="bk-blk ${b.type}${b.label ? ' lab' : ''}" data-b="${b.id}" title="${esc([...t, time].join(' · '))}" style="top:${y(tm(b.start)) + 1}px;height:${h}px;left:calc(${l * w}% + 3px);width:calc(${w}% - 6px);${blkStyle(b)}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`; }).join('')}
+              return `<button lang="de" class="bk-blk ${b.type}${b.label ? ' lab' : ''}" data-b="${b.id}" title="${esc([...t, time].join(' · '))}" style="top:${y(tm(b.start)) + 1}px;height:${h}px;left:calc(${l * w}% + 3px);width:calc(${w}% - 6px);${blkStyle(b)}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`; }).join('')}
           </div>`; }).join('')}
       </div></div>
       <div class="bk-legend">${[...used].map(([n, c]) => `<span><i style="background:${c}"></i>${esc(n)}</span>`).join('')}<span><i style="background:var(--brand-soft);border:1px solid var(--brand)"></i>Buchung</span><span><i style="background:var(--red-soft);border:1px solid var(--red)"></i>Sperre</span><span><i style="background:repeating-linear-gradient(135deg, var(--hover) 0 3px, transparent 3px 6px);border:1px solid var(--line)"></i>nicht buchbar</span></div>`
@@ -754,7 +755,7 @@
         <div class="card"><h3>Verwendung nach Art &amp; Buchungsart</h3>${d.kinds.length ? donut(d.kinds.map(k => ({ name: k.name, v: k.minutes, color: k.color || 'var(--brand)', sub: `${hrs(k.minutes)} Std. · ${k.count}×` })), `${hrs(d.kinds.reduce((x, k) => x + k.minutes, 0))}`, 'Stunden') : '<p class="empty">Noch keine Buchungen in diesem Jahr.</p>'}</div>
       </div>
       <div class="card"><div class="bk-ch"><h3>Jahr ${d.year} · ${hrs(c.minutes)} gebuchte Stunden</h3>${legend()}</div>
-        <div class="bk-heatwrap"><div class="bk-heat" style="--w:${weeks.length}">
+        <div class="bk-heatwrap" data-wischt><div class="bk-heat" style="--w:${weeks.length}">
           <span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key - 1] : ''}</span>`).join('')}
           ${WD.slice(1).map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addDays(w, r), v = d.days[day] || 0, inY = day.slice(0, 4) === String(d.year);
             return `<i class="${inY ? '' : 'out'}" ${inY ? `title="${deDate(day)}: ${hrs(v)} Std."` : ''} style="${inY && v ? `background:${heat(v, maxDay)}` : ''}"></i>`; }).join('')}`).join('')}
@@ -765,7 +766,7 @@
         <div class="card"><h3>Wer spielt am meisten?</h3>${d.top.length ? `<ol class="bk-top">${d.top.map((t, i) => `<li><span class="n">${i + 1}</span><b>${esc(t.name)}</b><div class="bk-meter"><i style="width:${t.minutes / d.top[0].minutes * 100}%"></i></div><span class="r">${hrs(t.minutes)} Std.</span></li>`).join('')}</ol>` : '<p class="empty">Noch keine Buchungen in diesem Jahr.</p>'}</div>
       </div>
       <div class="card"><div class="bk-ch"><h3>Wann wird gespielt?</h3>${legend()}</div>
-        ${hours.length ? `<div class="bk-heatwrap"><div class="bk-bub" style="--h:${hours.length}"><span></span>${hours.map(h => `<span class="hh">${hhmm(h * 60)}</span>`).join('')}
+        ${hours.length ? `<div class="bk-heatwrap" data-wischt><div class="bk-bub" style="--h:${hours.length}"><span></span>${hours.map(h => `<span class="hh">${hhmm(h * 60)}</span>`).join('')}
           ${WD.slice(1).map((n, r) => `<span class="dl">${n}</span>${hours.map(h => { const v = d.grid[r][h] || 0; const sz = v ? Math.max(8, Math.round(Math.sqrt(v / gmax) * 40)) : 0;
             return `<span class="bc" title="${n} ${hhmm(h * 60)}: ${hrs(v * 60)} Std.">${sz ? `<i style="width:${sz}px;height:${sz}px;background:${heat(v, gmax)}"></i>` : ''}</span>`; }).join('')}`).join('')}
         </div></div>` : ''}<p class="muted s" style="margin:10px 0 0">Größe und Farbe: gebuchte Stunden im Jahr je Wochentag und Uhrzeit.</p></div>`;

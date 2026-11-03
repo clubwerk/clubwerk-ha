@@ -202,6 +202,8 @@ function load({ app, admin, helpers }) {
         clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
         hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → Postfach)
         // Push-Benachrichtigungen (Mitglieder-App): Anlässe meldet das Modul über hooks.pushEvents an; send(ids, 'anlass', { title, body, url, tag })
+        // Sicherheitswarnungen („Sicherheit & Betrieb“): Arten meldet das Modul über hooks.securityEvents an; securityAlert('art', text, { key, member })
+        securityAlert: (ev, text, opts) => require('./security').securityAlert(`${id}.${ev}`, text, opts),
         push: { send: (ids, ev, msg) => require('./push').send(ids, `${id}.${ev}`, msg), enabled: ev => require('./push').enabled(`${id}.${ev}`), lead: ev => require('./push').lead(`${id}.${ev}`) },
         bank: require('./bank'),   // Bankkonten des Vereins: list() · get(id) · def() · forDepartment(id) · pick({ id, department })
         // Übersetzen: ctx.T('Text {0}', [wert]) in der Sprache der Anfrage bzw. der Vereinssprache (Fehlermeldungen, E-Mails, Excel und PDF übersetzt der Kern selbst)
@@ -248,6 +250,7 @@ function load({ app, admin, helpers }) {
       console.error(`Erweiterung „${id}“:`, e);
     }
   }
+  require('./security').setModules(() => [...plugins.values()].filter(q => isActive(q.meta.id)).map(q => [q.meta.id, { name: q.meta.name, hooks: q.hooks }]));
   const n = [...plugins.values()];
   if (n.length) console.log('Erweiterungen:', n.map(p => `${p.meta.id} ${p.meta.version}${p.error ? ' (Fehler)' : isActive(p.meta.id) ? ' (aktiv)' : ''}`).join(', '));
 }

@@ -58,6 +58,7 @@ seedIfEmpty();
   if (!u) { authM.createUser({ username: 'admin', name: 'Adminkonto', password: pw, role: 'oberadmin', builtin: true }); u = { username: 'admin' }; }
   else { db.prepare('UPDATE admin_users SET active = 1 WHERE id = ?').run(u.id); authM.setPassword(u.id, pw); }
   audit('system', 'Notfall-Passwort gesetzt', u.username);
+  require('./security').securityAlert('notfall', `Beim Start wurde das Notfall-Passwort für „${u.username}“ gesetzt (Home Assistant › Add-on › Konfiguration). Wart ihr das nicht, hat jemand Zugriff auf Home Assistant.`);
   console.log(`Notfall-Passwort für das Adminkonto „${u.username}“ gesetzt. Bitte die Option „notfall_passwort“ wieder leeren und das Add-on neu starten.`);
 })();
 
@@ -278,7 +279,7 @@ app.get('/verkauf/', (req, res) => res.redirect(302, '../verkauf'));
 
 app.use('/app', (req, res) => res.status(404).end());   // Mitglieder-App nur über ihren eigenen Port
 // Seiten der Erweiterungen binden die gemeinsamen Stile relativ ein („style.css“) – am Tablet liegen sie zwei Ebenen höher
-app.get(/^\/x\/[a-z0-9-]+\/(style|kit|theme)\.css$/, (req, res) => res.redirect(302, '../../' + req.path.split('/').pop()));
+app.get(/^\/x\/[a-z0-9-]+\/((style|kit|theme)\.css|theme-init\.js)$/, (req, res) => res.redirect(302, '../../' + req.path.split('/').pop()));   // theme-init.js: Beregnung bindet es relativ ein (eigene Webapp) – am Tablet fehlte es (404, 02.11.2026)
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   extensions: ['html'],
   setHeaders: (res, file) => {
@@ -516,7 +517,7 @@ app.post('/api/gate/login', rateLimit('gate', 10, 10 * 60000), (req, res) => {
   if (wait) return bad(res, `Zu viele falsche Passwörter – bitte in ${wait} Min. erneut versuchen.`, 429);
   const pw = String((req.body || {}).password || '');
   if (!pw || !auth.verifySecret(pw, getSetting('tablet_pw_hash'))) {
-    if (gateAll.fail('all').locked) securityAlert('Für die Buchungsseite wurde 30-mal ein falsches Passwort eingegeben. Neue Geräte können sich vorübergehend nicht freischalten; bereits freigeschaltete Tablets funktionieren weiter.', 'gate-all');
+    if (gateAll.fail('all').locked) securityAlert('tablet.passwort', 'Für die Buchungsseite wurde 30-mal ein falsches Passwort eingegeben. Neue Geräte können sich vorübergehend nicht freischalten; bereits freigeschaltete Tablets funktionieren weiter.');
     audit(null, 'Buchungsseite: falsches Passwort', req.ip);
     return bad(res, 'Das Passwort stimmt nicht.', 401);
   }
@@ -622,7 +623,7 @@ app.post('/api/tablet/unlock', rateLimit('unlock', 40, 60000), (req, res) => {
 let pinFails = [];
 function pinFailAll() {
   const now = Date.now(); pinFails = pinFails.filter(t => now - t < 86400000).slice(-5000); pinFails.push(now);   // begrenzt (Speicher)
-  if (pinFails.length === 25 || (pinFails.length > 25 && pinFails.length % 50 === 0)) securityAlert(`Am Tablet wurde in 24 Stunden ${pinFails.length}-mal eine falsche Mitglieder-PIN eingegeben (über mehrere Mitglieder). Rät jemand PINs durch? Bitte im Protokoll unter „PIN gesperrt“ nachsehen.`, 'tablet-pins');
+  if (pinFails.length === 25 || (pinFails.length > 25 && pinFails.length % 50 === 0)) securityAlert('tablet.pins', `Am Tablet wurde in 24 Stunden ${pinFails.length}-mal eine falsche Mitglieder-PIN eingegeben (über mehrere Mitglieder). Rät jemand PINs durch? Bitte im Protokoll unter „PIN gesperrt“ nachsehen.`);
 }
 /** PIN prüfen inkl. Sperre nach 5 Fehlversuchen. Die Sperre verdoppelt sich bei jeder weiteren Fehlserie
  *  (5 min, 10, 20, 40 … höchstens 24 h) und steht im Protokoll. Gibt null oder { msg, code } zurück. */
@@ -1033,13 +1034,18 @@ app.post('/api/admin/demo/start', rateLimit('setup', 10, 60000), (req, res) => {
 
 app.post('/api/admin/login', rateLimit('login', 15, 5 * 60000), (req, res) => {
   const { username, password } = req.body || {};
-  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known: auth.knownDevice(req, username), tablet: Boolean(req.cwTablet) });
+  const known = auth.knownDevice(req, username);
+  const before = db.prepare('SELECT last_login FROM admin_users WHERE username = ? AND active = 1').get(String(username || '').trim().toLowerCase());
+  const r = auth.login(String(username || ''), String(password || ''), req.ip, 'admin', { trusted: viaIngress(req), known, tablet: Boolean(req.cwTablet) });
   if (!r.ok) {
     audit(String(username || '').slice(0, 30), r.locked ? 'Anmeldung gesperrt (5 Fehlversuche)' : 'Anmeldung fehlgeschlagen', req.ip);
-    if (r.manyFails) securityAlert(`Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`);
+    if (r.manyFails) securityAlert('login.viele', `Auffällig viele fehlgeschlagene Anmeldungen für „${String(username || '').slice(0, 30)}“ (zuletzt von ${req.ip}). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.`, { key: String(username || '').trim().toLowerCase().slice(0, 30) });
     return bad(res, r.error, 401);
   }
   audit(String(username).toLowerCase(), 'Anmeldung', req.ip);
+  // Neues Gerät (kein Gerätecookie dieses Kontos): Warnung in der Tagesmail – nicht über die Seitenleiste und nicht bei der allerersten Anmeldung.
+  // Geräte, die sich schon einmal angemeldet haben, tragen das Cookie bereits und gelten als bekannt.
+  if (!known && !viaIngress(req) && before && before.last_login && !DEMO_KOPIE) securityAlert('login.geraet', `„${String(username).toLowerCase()}“ hat sich von einem neuen Gerät angemeldet (Adresse ${req.ip}). Warst du das nicht, bitte sofort das Passwort ändern.`, { key: String(username).toLowerCase() + '|' + req.ip });
   res.setHeader('Set-Cookie', [cookieOpts(r.token, req), auth.deviceCookie(username, req.secure)]);
   res.json({ ok: true });
 });
@@ -1073,6 +1079,8 @@ admin.post('/password', rateLimit('pwchange', 10, 10 * 60000), (req, res) => {
   if (!ownPwOk(req, current)) return pwBad(res, 'Aktuelles Passwort falsch.');
   if (!pwOk(next)) return bad(res, PW_MSG);
   auth.setPassword(u.id, String(next));
+  audit(req.user, 'Eigenes Passwort geändert', u.username);
+  securityAlert('benutzer.passwort', `„${u.username}“ hat das eigene Passwort geändert (Adresse ${req.ip}). Warst du es nicht, bitte sofort ein neues Passwort vergeben.`, { key: u.username });
   const r = auth.login(u.username, String(next), req.ip, 'admin', { tablet: Boolean(req.cwTablet) });
   res.setHeader('Set-Cookie', cookieOpts(r.token, req));
   res.json({ ok: true });
@@ -1143,6 +1151,7 @@ admin.post('/users', need('benutzer'), (req, res) => {
   const id = auth.createUser({ username: un, name: nm, password: String(password),
     role: role === 'oberadmin' ? 'oberadmin' : 'admin', perms: Array.isArray(perms) ? perms : [], roles, departments: depts, memberId });
   audit(req.user, 'Admin angelegt', `${un} (${role === 'oberadmin' ? 'alle Rechte' : [roles.map(r => (db.prepare('SELECT name FROM admin_roles WHERE id = ?').get(r) || {}).name).join(', '), Array.isArray(perms) ? permNames(perms) : ''].filter(Boolean).join(' · ')})`);
+  securityAlert(role === 'oberadmin' ? 'benutzer.alle' : 'benutzer.rechte', `Neuer Benutzer der Verwaltung „${un}“${role === 'oberadmin' ? ' mit allen Rechten' : ''}, angelegt von ${req.user.name || req.user.username}.`, { key: un });
   res.json({ id, username: un });
 });
 
@@ -1162,6 +1171,7 @@ admin.post('/roles', need('benutzer'), (req, res) => {
   if (db.prepare('SELECT 1 FROM admin_roles WHERE name = ?').get(r.v.name)) return bad(res, 'Diese Rolle gibt es schon.');
   const id = Number(db.prepare('INSERT INTO admin_roles(name, description, perms, dept_scope, sort) VALUES (?,?,?,?,?)').run(r.v.name, r.v.description, r.v.perms, r.v.dept_scope, r.v.sort).lastInsertRowid);
   audit(req.user, 'Rolle angelegt', `${r.v.name}: ${permNames(jarr(r.v.perms))}`);
+  securityAlert('benutzer.rechte', `Rolle „${r.v.name}“ angelegt von ${req.user.name || req.user.username}: ${permNames(jarr(r.v.perms)) || 'keine Rechte'}.`, { key: 'rolle-' + id });
   res.json({ id });
 });
 admin.put('/roles/:id', need('benutzer'), (req, res) => {
@@ -1171,6 +1181,7 @@ admin.put('/roles/:id', need('benutzer'), (req, res) => {
   db.prepare('UPDATE admin_roles SET name = ?, description = ?, perms = ?, dept_scope = ?, sort = ? WHERE id = ?').run(r.v.name, r.v.description, r.v.perms, r.v.dept_scope, r.v.sort, cur.id);
   for (const u of db.prepare('SELECT id, roles FROM admin_users').all()) if (jarr(u.roles).map(Number).includes(cur.id)) auth.dropUserSessions(u.id);   // gilt sofort
   audit(req.user, 'Rolle geändert', `${r.v.name}: ${permNames(jarr(r.v.perms))}${r.v.dept_scope ? ' (nur eigene Abteilung)' : ''}`);
+  if (r.v.perms !== cur.perms) securityAlert('benutzer.rechte', `Rechte der Rolle „${r.v.name}“ geändert von ${req.user.name || req.user.username}: ${permNames(jarr(r.v.perms)) || 'keine Rechte'}.`, { key: 'rolle-' + cur.id });
   res.json({ ok: true });
 });
 admin.delete('/roles/:id', need('benutzer'), (req, res) => {
@@ -1208,6 +1219,8 @@ admin.put('/users/:id', need('benutzer'), (req, res) => {
   auth.dropUserSessions(u.id);   // geänderte Rechte gelten sofort
   if (!active) require('./vault').dropUser(u.id);   // gesperrter Benutzer: seine Schlüsselkopie für den Tresor entfällt
   audit(req.user, 'Admin geändert', `${u.username}: ${role}${active ? '' : ', gesperrt'} ${role === 'admin' ? perms : ''}${roles ? ' Rollen ' + roles.join(',') : ''}`);
+  if (role === 'oberadmin' && u.role !== 'oberadmin') securityAlert('benutzer.alle', `„${u.username}“ hat von ${req.user.name || req.user.username} alle Rechte bekommen.`, { key: u.username });
+  else if (role !== u.role || perms !== u.perms || active !== u.active || (roles && JSON.stringify(roles) !== (u.roles || '[]'))) securityAlert('benutzer.rechte', `Rechte von „${u.username}“ geändert von ${req.user.name || req.user.username}${active ? '' : ' (gesperrt)'}.`, { key: u.username });
   res.json({ ok: true });
 });
 
@@ -1220,6 +1233,7 @@ admin.delete('/users/:id', need('benutzer'), (req, res) => {
   require('./vault').dropUser(u.id);
   auth.dropUserSessions(u.id);
   audit(req.user, 'Admin gelöscht', u.username);
+  securityAlert('benutzer.rechte', `Benutzer „${u.username}“ gelöscht von ${req.user.name || req.user.username}.`, { key: u.username });
   res.json({ ok: true });
 });
 
@@ -1232,6 +1246,7 @@ admin.post('/users/:id/password', need('benutzer'), rateLimit('pwreset', 10, 10 
   if (!u) return bad(res, 'Nicht gefunden.', 404);
   auth.setPassword(u.id, pw);
   audit(req.user, 'Passwort neu vergeben', u.username);
+  securityAlert('benutzer.passwort', `Das Passwort von „${u.username}“ wurde von ${req.user.name || req.user.username} neu vergeben.`, { key: u.username });
   res.json({ ok: true });
 });
 
@@ -1320,18 +1335,19 @@ admin.post('/vault/unlock', vaultPwLimit, (req, res) => {
   const b = req.body || {}; const vault = require('./vault');
   if (!ownPwOk(req, b.password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
   let ok = false; try { ok = vault.unlockWithCode(b.code); } catch (e) { return bad(res, e.message); }
-  if (!ok) { audit(req.user, 'Tresor: falscher Wiederherstellungscode'); return pwBad(res, 'Der Wiederherstellungscode stimmt nicht.'); }
+  if (!ok) { audit(req.user, 'Tresor: falscher Wiederherstellungscode'); securityAlert('tresor.code', `Beim Tresor wurde von ${req.user.name || req.user.username} ein falscher Wiederherstellungscode eingegeben.`, { key: 'falsch' }); return pwBad(res, 'Der Wiederherstellungscode stimmt nicht.'); }
   vault.onPassword(req.user.id, String(b.password));   // ab jetzt öffnet auch die Anmeldung dieses Admins den Tresor
   audit(req.user, 'Tresor mit Wiederherstellungscode geöffnet');
+  securityAlert('tresor.code', `Der Tresor wurde von ${req.user.name || req.user.username} mit dem Wiederherstellungscode geöffnet.`, { key: 'offen' });
   res.json({ ok: true });
 });
 admin.post('/vault/new-code', need('einstellungen'), vaultPwLimit, (req, res) => {
   if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
-  try { const code = require('./vault').newRecovery(); audit(req.user, 'Tresor: neuer Wiederherstellungscode'); res.json({ code }); } catch (e) { bad(res, e.message, e.status || 400); }
+  try { const code = require('./vault').newRecovery(); audit(req.user, 'Tresor: neuer Wiederherstellungscode'); securityAlert('tresor.neu', `Für den Tresor wurde von ${req.user.name || req.user.username} ein neuer Wiederherstellungscode erzeugt.`); res.json({ code }); } catch (e) { bad(res, e.message, e.status || 400); }
 });
 admin.post('/vault/disable', need('einstellungen'), vaultPwLimit, (req, res) => {
   if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Dein Passwort stimmt nicht.');
-  try { require('./vault').disable(); audit(req.user, 'Tresor ausgeschaltet'); res.json({ ok: true }); } catch (e) { bad(res, e.message, e.status || 400); }
+  try { require('./vault').disable(); audit(req.user, 'Tresor ausgeschaltet'); securityAlert('tresor.aus', `Die Verschlüsselung der persönlichen Daten (Tresor) wurde von ${req.user.name || req.user.username} ausgeschaltet.`); res.json({ ok: true }); } catch (e) { bad(res, e.message, e.status || 400); }
 });
 
 /* ---------- Sprachen ---------- */
@@ -1603,7 +1619,7 @@ admin.put('/members/:id', need('konten'), (req, res) => {
   if (pin && !validPin(pin)) return bad(res, 'Die PIN muss 4 bis 6 Ziffern haben.');
   if (kind === 'mannschaft' && !pin && !m.pin_hash) return bad(res, 'Mannschaftskonten brauchen eine PIN (4 bis 6 Ziffern).');
   db.prepare('UPDATE members SET name = ?, kind = ?, active = ? WHERE id = ?').run(name, kind, active, m.id);
-  if (kind !== m.kind) { audit(req.user, 'Kontoart geändert', `${name}: ${m.kind} → ${kind}`); if (kind === 'verein') securityAlert(`Das Konto „${name}“ wurde von ${req.user.name || req.user.username} auf „Verein (kostenfrei)“ umgestellt. Buchungen darauf kosten nichts.`, 'verein-' + m.id); }
+  if (kind !== m.kind) { audit(req.user, 'Kontoart geändert', `${name}: ${m.kind} → ${kind}`); if (kind === 'verein') securityAlert('konto.verein', `Das Konto „${name}“ wurde von ${req.user.name || req.user.username} auf „Verein (kostenfrei)“ umgestellt. Buchungen darauf kosten nichts.`, { key: m.id }); }
   if (pin) db.prepare(`UPDATE members SET pin_hash = ?, failed_pins = 0, pin_strikes = 0, locked_until = NULL, pin_changed_at = datetime('now','localtime'), pin_changed_by = ? WHERE id = ?`)
     .run(auth.hashSecret(pin), req.user.username, m.id);
   audit(req.user, 'Konto geändert', `${m.name}${name !== m.name ? ' → ' + name : ''}${active ? '' : ', ausgeblendet'}${pin ? ', PIN neu vergeben' : ''}`);
@@ -3089,7 +3105,7 @@ async function runBackup(by = 'automatisch') {
         tgSetStatus(tg.id, { last_error: `${new Date().toISOString()} ${e.message}` });
         failed.push(`${tg.name}: ${e.message}`);
         parts.push(`${tg.name} ✗`);
-        securityAlert(`Die Datensicherung konnte nicht nach „${tg.name}“ übertragen werden: ${e.message}`, `backup-target-${tg.id}-${day}`);
+        securityAlert('sicherung.fehler', `Die Datensicherung konnte nicht nach „${tg.name}“ übertragen werden: ${e.message}`, { key: 'ziel-' + tg.id });
       } finally { await a.close(); }
     }
     if (!list.length) parts.push('nur lokal (kein Sicherungsziel eingerichtet)');
@@ -3099,7 +3115,7 @@ async function runBackup(by = 'automatisch') {
     return msg;
   } catch (e) {
     setSetting('backup_last_error', `${new Date().toISOString()} ${e.message}`);
-    securityAlert(`Die Datensicherung ist fehlgeschlagen: ${e.message}`, 'backup-fail-' + day);
+    securityAlert('sicherung.fehler', `Die Datensicherung ist fehlgeschlagen: ${e.message}`);
     throw e;
   } finally { bkRunning = false; }
 }
@@ -3157,13 +3173,13 @@ async function probeBackup(by = 'automatisch') {
     setSetting('backup_probe_at', at); setSetting('backup_probe_ok', '1'); setSetting('backup_probe_msg', msg);
     setSetting('backup_probe_info', JSON.stringify({ quelle: quelleName, datei: r.datei, zahlen: r.zahlen.filter(z => !z.fehler).map(({ label, n, jetzt: j }) => ({ label, n, jetzt: j })), hinweis: hinweise.join(' · '), prev }));
     audit(by, 'Probe-Wiederherstellung', msg + (hinweise.length ? ` – Hinweis: ${hinweise.join(' · ')}` : ''));
-    if (hinweise.length) securityAlert(`Die Probe-Wiederherstellung hat etwas gefunden (${quelleName}): ${hinweise.join(' · ')}. Bitte unter Datensicherung ansehen.`, 'backup-probe-hint');
+    if (hinweise.length) securityAlert('sicherung.probe', `Die Probe-Wiederherstellung hat etwas gefunden (${quelleName}): ${hinweise.join(' · ')}. Bitte unter Datensicherung ansehen.`);
     return msg + (hinweise.length ? ` – Hinweis: ${hinweise.join(' · ')}` : '');
   } catch (e) {
     setSetting('backup_probe_at', at); setSetting('backup_probe_ok', '0'); setSetting('backup_probe_msg', `${quelleName}: ${e.message}`);
     setSetting('backup_probe_info', JSON.stringify({ quelle: quelleName, zahlen: [], hinweis: '', prev }));
     audit(by, 'Probe-Wiederherstellung fehlgeschlagen', `${quelleName}: ${e.message}`);
-    securityAlert(`Die Probe-Wiederherstellung der Datensicherung ist fehlgeschlagen (${quelleName}): ${e.message}`, 'backup-probe');
+    securityAlert('sicherung.probe', `Die Probe-Wiederherstellung der Datensicherung ist fehlgeschlagen (${quelleName}): ${e.message}`);
     throw e;
   }
 }
@@ -3213,7 +3229,7 @@ admin.put('/backups/settings', need('einstellungen'), (req, res) => {
   } catch (e) { return bad(res, 'Bitte gültige Zahlen eintragen (Uhrzeit 0–23, Tage 1–60, Wochen 0–52, Monate 0–120).'); }
   if (b.readable !== undefined) {
     // lesbare (unverschlüsselte) Auszüge einschalten: Namen, Beträge und Protokolle gingen dann im Klartext zu den Sicherungszielen – nur mit Passwort
-    if (b.readable && getSetting('backup_readable', '0') !== '1') { if (!ownerConfirm(req, res)) return; securityAlert(`Lesbare (unverschlüsselte) Auszüge der Datensicherung wurden von ${req.user.name || req.user.username} eingeschaltet.`, 'bk-readable'); }
+    if (b.readable && getSetting('backup_readable', '0') !== '1') { if (!ownerConfirm(req, res)) return; securityAlert('sicherung.ziel', `Lesbare (unverschlüsselte) Auszüge der Datensicherung wurden von ${req.user.name || req.user.username} eingeschaltet.`, { key: 'lesbar' }); }
     setSetting('backup_readable', b.readable ? '1' : '0');
   }
   audit(req.user, 'Datensicherung eingestellt', JSON.stringify(bkCfg()));
@@ -3225,6 +3241,7 @@ admin.post('/backups/password', need('einstellungen'), rateLimit('bkpw', 10, 10 
   const had = bkHasKey();
   setSetting('backup_kdf', JSON.stringify(k.kdf)); setSetting('backup_enc_key', k.key); setSetting('backup_pw_at', nowTs());
   audit(req.user, had ? 'Sicherungspasswort geändert' : 'Sicherungspasswort festgelegt', k.kid.slice(0, 8));
+  if (had) securityAlert('sicherung.passwort', `Das Sicherungspasswort wurde von ${req.user.name || req.user.username} geändert.`);
   res.json({ ok: true, changed: had });
 });
 /* Sicherungspasswort prüfen (für das Notfallblatt) – nur „alle Rechte“, gebremst */
@@ -3308,7 +3325,7 @@ async function saveTarget(req, res, old) {
   const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
   setSetting(tgSecretKey(t.id), secret);
   audit(req.user, old ? 'Sicherungsziel geändert' : 'Sicherungsziel angelegt', `${t.name} (${targets.TYPES[t.type]}${t.enabled ? '' : ', aus'})`);
-  if (old && old.enabled && !t.enabled) securityAlert(`Das Sicherungsziel „${t.name}“ wurde von ${req.user.name || req.user.username} ausgeschaltet.`, 'tg-off-' + t.id);
+  if (old && old.enabled && !t.enabled) securityAlert('sicherung.ziel', `Das Sicherungsziel „${t.name}“ wurde von ${req.user.name || req.user.username} ausgeschaltet.`, { key: 'aus-' + t.id });
   res.json({ ok: true, targets: targetsView() });
 }
 admin.post('/backups/targets', need('einstellungen'), rateLimit('tgsave', 20, 10 * 60000), asyncRoute(async (req, res) => saveTarget(req, res, null)));
@@ -3322,7 +3339,7 @@ admin.delete('/backups/targets/:id', need('einstellungen'), (req, res) => {
   tgSave(tgList().filter(x => x.id !== old.id));
   db.prepare('DELETE FROM settings WHERE key IN (?, ?)').run(tgSecretKey(old.id), `backup_target_${old.id}_status`);
   audit(req.user, 'Sicherungsziel entfernt', old.name);
-  securityAlert(`Das Sicherungsziel „${old.name}“ wurde von ${req.user.name || req.user.username} entfernt. Die Dateien dort bleiben erhalten.`, 'tg-del-' + old.id);
+  securityAlert('sicherung.ziel', `Das Sicherungsziel „${old.name}“ wurde von ${req.user.name || req.user.username} entfernt. Die Dateien dort bleiben erhalten.`, { key: 'weg-' + old.id });
   res.json({ ok: true, targets: targetsView() });
 });
 /** Komplettsicherungen auf einem Ziel (für „Wiederherstellen“) */
@@ -3399,7 +3416,7 @@ async function applyFolder(req, res, newDir, label) {
     const reserve = selfupdate.swap(dir, newDir, RESERVE_DIR, APP_VERSION);
     setSetting('update_last_error', '');
     audit(req.user, label, `${APP_VERSION} → ${selfupdate.yamlField(fs.readFileSync(path.join(dir, 'config.yaml'), 'utf8'), 'version')} (Reserve ${reserve})`);
-    securityAlert(`Clubwerk wird von ${req.user.name || req.user.username} aktualisiert (${label}).`, 'update-' + Date.now());
+    securityAlert('update', `Clubwerk wird von ${req.user.name || req.user.username} aktualisiert (${label}).`, { key: label });
     res.json({ ok: true, reserve, supervisor: Boolean(process.env.SUPERVISOR_TOKEN) });
   } catch (e) { updating = false; return bad(res, 'Update fehlgeschlagen: ' + e.message); }
   // Antwort ist raus – jetzt Home Assistant bitten, neu zu bauen (dabei wird diese Version beendet)
@@ -3509,11 +3526,11 @@ admin.put('/dropbox', need('einstellungen'), (req, res) => {
   }
   if (b.folder !== undefined) setSetting('dropbox_folder', dropbox.cleanFolder(b.folder));
   if (b.enabled !== undefined) {
-    if (!b.enabled && getSetting('dropbox_enabled', '1') === '1') securityAlert(`Die nächtliche Sicherung nach Dropbox wurde von ${req.user.name || req.user.username} pausiert.`, 'dbx-off');
+    if (!b.enabled && getSetting('dropbox_enabled', '1') === '1') securityAlert('sicherung.dropbox', `Die nächtliche Sicherung nach Dropbox wurde von ${req.user.name || req.user.username} pausiert.`, { key: 'aus' });
     setSetting('dropbox_enabled', b.enabled ? '1' : '0');
   }
   audit(req.user, 'Dropbox-Einstellungen geändert');
-  if (keyChange) securityAlert(`Die Dropbox-App für die Datensicherung wurde von ${req.user.name || req.user.username} geändert.`, 'dbx-keys');
+  if (keyChange) securityAlert('sicherung.ziel', `Die Dropbox-App für die Datensicherung wurde von ${req.user.name || req.user.username} geändert.`, { key: 'dropbox-app' });
   res.json({ ok: true });
 });
 admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), asyncRoute(async (req, res) => {
@@ -3537,7 +3554,7 @@ admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 *
     try { who = await dropbox.account({ ...c, refresh }); } catch (e) { /* App ohne Kontoberechtigung – egal */ }
     setSetting('dropbox_account', who);
     audit(req.user, 'Dropbox verbunden', who);
-    securityAlert(`Die Datensicherung wurde von ${req.user.name || req.user.username} mit Dropbox verbunden${who ? ` (${who})` : ''}.`, 'dbx-connect');
+    securityAlert('sicherung.dropbox', `Die Datensicherung wurde von ${req.user.name || req.user.username} mit Dropbox verbunden${who ? ` (${who})` : ''}.`, { key: 'verbunden' });
     res.json({ ok: true, account: who });
   } catch (e) { bad(res, e.message); }
 }));
@@ -3676,6 +3693,35 @@ require('./kontoauszug').routes(admin, { need, bad, int, asyncRoute, rateLimit, 
 require('./datenschutz').routes(admin, { need, bad });
 /* Datenqualität: Prüfungen von Kern und Modulen (src/datenqualitaet.js, Hook healthChecks) */
 require('./datenqualitaet').routes(admin, { need, rateLimit, asyncRoute });
+/* Sicherheitswarnungen (src/security.js): Liste, „Erledigt“, Testwarnung, zusätzliche Adressen – Einstellungen › Sicherheit */
+admin.get('/security/alerts', need('sicherheit'), (req, res) => {
+  const sec = require('./security'), c = sec.openCounts();
+  res.json({ counts: { r: c.r || 0, a: c.a || 0 }, list: req.query.counts ? undefined : sec.listAlerts({ open: req.query.all !== '1' }),
+    recipients: req.query.counts ? undefined : sec.recipients().map(r => ({ name: r.name, push: r.push, mail: Boolean(r.mail), linked: Boolean(r.member_id) })),
+    extra: req.user.perms.includes('einstellungen') ? sec.extraAddresses().join(', ') : undefined, mayEdit: req.user.perms.includes('einstellungen'),
+    mailReady: require('./mail').ready(), pushOn: require('./push').enabled('app.sicherheit') });
+});
+admin.post('/security/alerts/:id/done', need('sicherheit'), (req, res) => {
+  const id = req.params.id === 'alle' ? 'alle' : parseInt(req.params.id, 10);
+  if (id !== 'alle' && !Number.isInteger(id)) return bad(res, 'Unbekannte Warnung.', 404);
+  const n = require('./security').done(id, req.user);
+  if (!n && id !== 'alle') return bad(res, 'Diese Warnung ist schon erledigt.', 404);
+  res.json({ ok: true, n });
+});
+admin.post('/security/test', need('sicherheit'), rateLimit('sectest', 5, 10 * 60000), (req, res) => {
+  securityAlert('test', `Testwarnung, ausgelöst von ${req.user.name || req.user.username}. So kommen Sicherheitswarnungen an – per Push, E-Mail und hier in der Liste.`, { key: String(Date.now()) });
+  res.json({ ok: true });
+});
+admin.put('/security/settings', need('einstellungen'), (req, res) => {
+  const t = String((req.body || {}).extra || '').trim().slice(0, 500);
+  if (t && !require('./mail').mailOk(t.replace(/[;\s]+/g, ','))) return bad(res, 'Bitte gültige E-Mail-Adressen eintragen (mehrere mit Komma).');
+  const before = getSetting('security_mail_to', ''), after = t.split(/[,;\s]+/).filter(Boolean).join(', ');
+  if (before === after) return res.json({ ok: true });
+  setSetting('security_mail_to', after);
+  audit(req.user, 'Sicherheitswarnungen: zusätzliche Adressen geändert', `${before || '–'} → ${after || '–'}`);
+  securityAlert('empfaenger', `Die zusätzlichen Adressen für Sicherheitswarnungen wurden von ${req.user.name || req.user.username} geändert: vorher ${before || '–'}, jetzt ${after || '–'}.`);
+  res.json({ ok: true });
+});
 /* Einrichtungs-Assistent: Schritte und ihr Zustand (src/einrichtung.js) */
 require('./einrichtung').routes(admin, { need, bad, checks: {
   tabletOn, tabletPw: gateOn, vaultOn: () => require('./vault').on(), backupKey: bkHasKey, mailReady: () => mail.ready(),
@@ -3784,17 +3830,18 @@ admin.post('/extensions/upload', need('einstellungen'), express.raw({ type: () =
   try {
     const r = await plugins.installZip(req.body);
     audit(req.user, r.update ? 'Erweiterung aktualisiert' : 'Erweiterung hochgeladen', `${r.name} ${r.version}`);
+    securityAlert('erweiterung', `Erweiterung „${r.name} ${r.version}“ ${r.update ? 'aktualisiert' : 'hochgeladen'} von ${req.user.name || req.user.username}. Erweiterungen laufen als Programmcode im Add-on.`, { key: r.name });
     res.json({ ok: true, ...r, restart: true });
   } catch (e) { bad(res, e.message); }
 }));
 /* Erweiterung aus dem Netzwerkordner freigeben: nur das Adminkonto/„alle Rechte“, mit Passwort bestätigt */
 admin.post('/extensions/:id/approve', need('einstellungen'), owner, rateLimit('approve', 10, 10 * 60000), (req, res) => {
   if (!ownPwOk(req, (req.body || {}).password)) return pwBad(res, 'Passwort falsch.');
-  try { const r = plugins.approve(String(req.params.id), String((req.body || {}).hash || '')); audit(req.user, 'Erweiterung freigegeben', `${r.name} (${r.hash.slice(0, 12)})`); res.json({ ok: true, restart: true }); }
+  try { const r = plugins.approve(String(req.params.id), String((req.body || {}).hash || '')); audit(req.user, 'Erweiterung freigegeben', `${r.name} (${r.hash.slice(0, 12)})`); securityAlert('erweiterung', `Erweiterung „${r.name}“ freigegeben von ${req.user.name || req.user.username}. Sie läuft nach dem Neustart als Programmcode im Add-on.`, { key: r.name }); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
 admin.delete('/extensions/:id', need('einstellungen'), owner, (req, res) => {
-  try { const n = plugins.removeUploaded(String(req.params.id)); audit(req.user, 'Erweiterung entfernt', n); res.json({ ok: true, restart: true }); }
+  try { const n = plugins.removeUploaded(String(req.params.id)); audit(req.user, 'Erweiterung entfernt', n); securityAlert('erweiterung.entfernt', `Erweiterung „${n}“ entfernt von ${req.user.name || req.user.username}.`); res.json({ ok: true, restart: true }); }
   catch (e) { bad(res, e.message); }
 });
 /* ---------- Module deinstallieren / installieren (Recht „deinstallieren“) ----------
@@ -3969,9 +4016,35 @@ async function nightly() {
     try { require('./gobd').anchor(); } catch (e) { console.error('GoBD-Anker:', e.message); }   // Kopf des Änderungsjournals außerhalb der Datenbank festhalten
     // Datenqualität: einmal am Tag ab der Uhrzeit der Sicherung (Ergebnis unter Einstellungen › Datenqualität und in der Übersicht)
     try {
-      if (now.getHours() >= bkCfg().hour && getSetting('dq_day', '') !== day) { setSetting('dq_day', day); await require('./datenqualitaet').pruefen(); }
+      if (now.getHours() >= bkCfg().hour && getSetting('dq_day', '') !== day) {
+        setSetting('dq_day', day);
+        const dq = require('./datenqualitaet'), red = r => new Set(dq.funde(r).filter(c => c.level === 'r').map(c => `${c.module || ''}:${c.id}`));
+        const vorher = red(dq.stand()), r = await dq.pruefen(), neu = dq.funde(r).filter(c => c.level === 'r' && !vorher.has(`${c.module || ''}:${c.id}`));
+        if (neu.length) securityAlert('datenqualitaet', `Die tägliche Prüfung hat neue Fehler in den Daten gefunden: ${neu.map(c => `${c.title} (${c.count})`).join(' · ')}. Bitte unter Einstellungen › Datenqualität ansehen.`);
+      }
     } catch (e) { console.error('Datenqualität:', e.message); }
+    // Sicherheit & Betrieb: Speicher (nach jedem Start und täglich), Alter der Sicherung (täglich), Tagesmail um 7 Uhr
+    try {
+      if (!secStartChecked || getSetting('sec_check_day', '') !== day) {
+        if (getSetting('sec_check_day', '') !== day) {
+          setSetting('sec_check_day', day);
+          const lastOk = getSetting('backup_last_ok', '');
+          if (bkHasKey() && lastOk && Date.now() - Date.parse(lastOk) > 48 * 3600000) securityAlert('sicherung.alt', `Seit ${new Date(lastOk).toLocaleString('de-DE')} gibt es keine erfolgreiche Datensicherung. Bitte unter Einstellungen › Datensicherung nachsehen.`);
+        }
+        secStartChecked = true;
+        speicherPruefen();
+      }
+      if (now.getHours() >= 7 && getSetting('sec_digest_day', '') !== day) { setSetting('sec_digest_day', day); require('./security').digest(); }
+    } catch (e) { console.error('Sicherheit & Betrieb:', e.message); }
   } catch (e) { console.error('Nächtliche Aufgaben:', e); }
+}
+let secStartChecked = false;
+/** Freier Speicher im Datenordner: unter 15 % gelb, unter 5 % rot */
+function speicherPruefen() {
+  let st; try { st = fs.statfsSync(DATA_DIR); } catch (e) { return; }
+  const frei = st.bavail / st.blocks, gb = st.bavail * st.bsize / 1e9;
+  if (!st.blocks || frei >= 0.15) return;
+  securityAlert(frei < 0.05 ? 'speicher' : 'speicher.knapp', `Der Speicher von Clubwerk ist ${frei < 0.05 ? 'fast voll' : 'knapp'}: noch ${Math.round(frei * 100)} % frei (${gb.toLocaleString('de-DE', { maximumFractionDigits: 1 })} GB). Alte Sicherungen und Schnappschüsse belegen oft viel Platz.`);
 }
 setInterval(nightly, 10 * 60 * 1000).unref();
 setTimeout(nightly, 30 * 1000).unref();

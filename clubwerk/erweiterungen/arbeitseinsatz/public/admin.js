@@ -25,9 +25,12 @@
       .aw-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .aw-grid .w2 { grid-column: span 2; } .aw-grid .wall { grid-column: 1 / -1; }
       @media (max-width: 760px) { .aw-grid { grid-template-columns: 1fr; } .aw-grid .w2 { grid-column: auto; } }
-      .aw-sub td { background: var(--hover); } .aw-sub td:first-child { padding-left: 28px !important; }
+      .aw-sub { background: var(--hover); }   /* ganze Zeile hinterlegen – in der Handy-Liste wurden sonst einzelne graue Kästen je Zelle daraus (02.11.2026) */ .aw-sub td:first-child { padding-left: 28px !important; }
       @media (max-width: 700px) { #awTbl td:first-child { flex: 1 1 auto; min-width: 120px; } #awTbl td:first-child .muted { display: block; width: 0; min-width: 100%; } }
-      @media (max-width: 700px) { .aw-std td:not(:first-child) .pill { height: auto; padding: 0; border: 0; background: none; font-size: 13px; line-height: 16px; } }   /* Handy: Status als farbiger Text in der Werte-Zeile – so bleibt der Eintrag kompakt, auch wenn der Titel umbricht (3.101) */   /* Handy: ein langer Name steht neben „Pflichtstunden …“ nicht als Wortsäule – passt er nicht, rutscht der Knopf darunter (3.101) */
+      @media (max-width: 700px) { #awTbl tr > td:not(:first-child):has(button) { order: 3; margin-left: auto; } #awTbl tr > td:first-child { flex-basis: 100%; } }   /* Handy: „Pflichtstunden …“ rechts in der Werte-Zeile, der Name hat die ganze Breite (B-7, keine Wortsäule) */
+      @media (max-width: 700px) { #awTbl td:first-child .pill { min-height: 0; padding: 0; background: none; color: var(--muted); } }   /* „Familie · 4“ als schlichter Text: Zeile bleibt in der Höhe einer Handy-Liste (B-7) */
+      @media (max-width: 700px) { #awTbl td:first-child .muted.k-sum { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; } }   /* Handy: Grund höchstens zwei Zeilen neben „Pflichtstunden …“ (voller Text im Fenster) – keine Wortsäule (02.11.2026) */
+      @media (max-width: 700px) { .aw-std td:not(:first-child) .pill { height: auto; min-height: 0; padding: 0; border: 0; background: none; font-size: 13px; line-height: 16px; } }   /* Handy: Status als farbiger Text in der Werte-Zeile – so bleibt der Eintrag kompakt, auch wenn der Titel umbricht (3.101) */   /* Handy: ein langer Name steht neben „Pflichtstunden …“ nicht als Wortsäule – passt er nicht, rutscht der Knopf darunter (3.101) */
       .aw-ev { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line-soft); }
       .aw-ev:first-of-type { border-top: 0; }
       .aw-ev .aw-tog { min-width: 112px; justify-content: center; }
@@ -52,7 +55,7 @@
       .aw-lbl { font-size: 13px; font-weight: 600; color: var(--muted); }
       @media (max-width: 760px) { .aw-sh { grid-template-columns: 1fr; gap: 6px; } .aw-sh .acts { justify-content: flex-start; }
         .aw-ev { grid-template-columns: 64px minmax(0, 1fr); } .aw-ev .acts { grid-column: 1 / -1; justify-content: flex-start; } }   /* Knöpfe unter den Text, sonst wird er zur Wortsäule */
-      .aw-al { max-height: 34vh; overflow: auto; } .aw-ar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; border-top: 1px solid var(--line-soft); } .aw-al .aw-ar:first-child { border-top: 0; }
+      .aw-al { max-height: 34vh; overflow: auto; } .aw-ar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; min-height: 48px; padding: 4px 0; box-sizing: border-box; border-top: 1px solid var(--line-soft); } .aw-ar > span:first-child { flex: 1 1 140px; min-width: 0; } .aw-ar > .aw-as { margin-left: auto; }   /* lange Namen oder Notiz: Auswahl rutscht in die nächste Zeile statt den Namen zur Wortsäule zu drücken (02.11.2026) */ .aw-al .aw-ar:first-child { border-top: 0; }
       .aw-as { display: flex; gap: 6px; flex: none; } .aw-as select { width: 150px; } .aw-as input { width: 56px; height: 40px; padding: 0 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); text-align: center; }
       .aw-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px 16px; max-height: 46vh; overflow: auto; padding: 4px 0; }`;
     document.head.appendChild(s);
@@ -104,11 +107,11 @@
       $('awTbl').innerHTML = `<tr><th>${o.pool ? 'Familie / Mitglied' : 'Mitglied'}</th><th class="r">Soll</th><th class="r">geleistet</th><th class="k-weg hide-md">Fortschritt</th><th class="r hide-md k-weg">gemeldet</th><th class="r">fehlt</th><th class="r">Betrag</th><th></th></tr>`
         + (fams.length ? fams.map(x => {
           const many = x.members.length > 1;
-          const head = `<tr><td class="k-1z">${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px" aria-label="Familie ${open.has(x.head) ? 'zuklappen' : 'aufklappen'}">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `${rowOf(x.head).exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(rowOf(x.head).why)}</div>`}</td>
+          const head = `<tr><td class="k-1z">${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px" aria-label="Familie ${open.has(x.head) ? 'zuklappen' : 'aufklappen'}">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `${rowOf(x.head).exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s k-sum">${esc(rowOf(x.head).why)}</div>`}</td>
             <td class="r">${h(x.target)}</td><td class="r">${h(x.done)}</td><td class="k-weg hide-md">${bar(x.done, x.target)}</td><td class="r hide-md k-weg">${x.open ? h(x.open) : '<span class="muted s">–</span>'}</td>
             <td class="r ${x.missing ? 'neg' : ''}">${x.missing ? h(x.missing) : '✓'}</td><td class="r">${x.cents ? euro(x.cents) : '<span class="muted s">–</span>'}</td>
             <td class="r">${many ? '' : `<button class="btn small" data-tgt="${x.head}">Pflichtstunden …</button>`}</td></tr>`;
-          const subs = many && open.has(x.head) ? x.members.map(id => { const r = rowOf(id); return `<tr class="aw-sub"><td class="k-1z">${esc(GK.lastFirst(r.name))}${r.exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s">${esc(r.why)}</div></td><td class="r">${h(r.target)}${r.override ? ' <span class="pill b">eigen</span>' : ''}</td><td class="r">${h(r.done)}</td><td class="k-weg hide-md"></td><td class="r hide-md k-weg">${r.open ? h(r.open) : ''}</td><td></td><td></td><td class="r"><button class="btn small" data-tgt="${id}">Pflichtstunden …</button></td></tr>`; }).join('') : '';
+          const subs = many && open.has(x.head) ? x.members.map(id => { const r = rowOf(id); return `<tr class="aw-sub"><td class="k-1z">${esc(GK.lastFirst(r.name))}${r.exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s k-sum">${esc(r.why)}</div></td><td class="r">${h(r.target)}${r.override ? ' <span class="pill b">eigen</span>' : ''}</td><td class="r">${h(r.done)}</td><td class="k-weg hide-md"></td><td class="r hide-md k-weg">${r.open ? h(r.open) : ''}</td><td></td><td></td><td class="r"><button class="btn small" data-tgt="${id}">Pflichtstunden …</button></td></tr>`; }).join('') : '';
           return head + subs;
         }).join('') : '');
       $('awTbl').hidden = !fams.length; $('awEmpty').hidden = !!fams.length;
@@ -272,7 +275,7 @@
     const def = e.start && e.end ? (((+e.end.slice(0, 2) * 60 + +e.end.slice(3)) - (+e.start.slice(0, 2) * 60 + +e.start.slice(3))) + 1440) % 1440 || '' : '';
     dialog(`<h2>Stunden gutschreiben: ${esc(e.title)}</h2><p class="muted" style="margin-top:0">Alle angekreuzten Helfer bekommen die Stunden bestätigt. Wer schon Stunden zu diesem Einsatz hat, wird übersprungen.</p>
       <label class="f" style="max-width:240px">Dauer in Stunden<input id="ceM" inputmode="decimal" value="${def ? String(def / 60).replace('.', ',') : ''}"></label>
-      <div class="aw-cols" style="margin-top:12px" id="ceL">${(e.signups.length ? e.signups : []).map(s => `<label class="chk"><input type="checkbox" value="${s.member_id}" checked> ${esc(GK.lastFirst(s.name))}</label>`).join('') || '<p class="empty">Niemand eingetragen – über „Helfer“ ergänzen oder „Stunden nachtragen“ nutzen.</p>'}</div>
+      <div class="aw-cols" style="margin-top:12px" id="ceL">${(e.signups.length ? e.signups : []).map(s => `<label class="chk"><input type="checkbox" value="${s.member_id}" checked> ${esc(GK.lastFirst(s.name))}</label>`).join('') || '<p class="empty" style="grid-column:1/-1">Niemand eingetragen – über „Helfer“ ergänzen oder „Stunden nachtragen“ nutzen.</p>'}</div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ceOk" ${e.signups.length ? '' : 'disabled'}>Gutschreiben</button></div>`);
     $('c').onclick = closeDialog;
     $('ceOk').onclick = () => GK.busy($('ceOk'), async () => { try { const r = await api(`events/${e.id}/close`, 'POST', { minutes: toMin(val('ceM')), members: [...$('ceL').querySelectorAll('input:checked')].map(i => +i.value) }); closeDialog(); toast(`${r.count} Helfer gutgeschrieben.`); after(); } catch (x) { fail(x); } });
@@ -477,10 +480,10 @@
     $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="soll"><h3>Soll</h3><div class="aw-grid" style="--c:3">
         <label class="f">Stunden je Mitglied und Jahr<input id="sDef" inputmode="decimal" value="${String(c.default_minutes / 60).replace('.', ',')}"></label>
         <label class="f">Ab Alter (0 = alle)<input id="sMin" inputmode="numeric" value="${c.min_age}"></label><label class="f">Bis Alter (0 = ohne Grenze)<input id="sMax" inputmode="numeric" value="${c.max_age}"></label></div>
-        <div class="aw-grid" style="--c:2;margin-top:14px">
-          <label class="chk"><input type="checkbox" id="sPool" ${c.pool_family ? 'checked' : ''}> Familien gemeinsam zählen (Abrechnung beim Hauptzahler)</label>
+        <div class="aw-grid" style="--c:3;margin-top:14px">   <!-- drei Spalten wie die Felder darüber: Häkchen fluchten mit ihnen (02.11.2026) -->
+          <label class="chk w2"><input type="checkbox" id="sPool" ${c.pool_family ? 'checked' : ''}> Familien gemeinsam zählen (Abrechnung beim Hauptzahler)</label>
           <label class="chk"><input type="checkbox" id="sPass" ${c.exempt_passive ? 'checked' : ''}> Passive und Ehrenmitglieder sind befreit</label>
-          <label class="chk"><input type="checkbox" id="sPro" ${c.prorate ? 'checked' : ''}> Bei Ein- oder Austritt im Jahr anteilig</label></div>
+          <label class="chk w2"><input type="checkbox" id="sPro" ${c.prorate ? 'checked' : ''}> Bei Ein- oder Austritt im Jahr anteilig</label></div>
         <p class="muted s">Ein eigenes Soll je Beitragsart legst du unter Mitglieder › Beiträge fest, Ausnahmen einzelner Mitglieder in der Übersicht über „Pflichtstunden …“.</p>${foot('sSaveSoll')}</div>
       <div class="card" data-set="abrechnung"><h3>Abrechnung</h3><div class="aw-grid" style="--c:3">
         <label class="f">Stundensatz für fehlende Stunden<input id="sRate" inputmode="decimal" value="${centsToInput(c.rate_cents)}"></label>
@@ -492,8 +495,8 @@
         <label class="chk"><input type="checkbox" id="sTab" ${c.tablet_auto ? 'checked' : ''}> Am Tablet gestempelte Stunden (mit PIN) gelten sofort als bestätigt</label>
         <label class="chk"><input type="checkbox" id="sApp" ${c.app_report ? 'checked' : ''}> Mitglieder dürfen Stunden in der App melden (Vorstand bestätigt)</label></div>${foot('sSaveTab')}</div>
       <div class="card" data-set="befreit" data-nodirty><h3>Befreite Mitglieder</h3><p class="muted s" style="margin-top:0">Befreite leisten Stunden wie alle (sie werden erfasst), haben aber kein Soll. Änderungen gelten sofort.</p>
-        <div class="aw-grid" style="--c:4"><label class="f">Mitglied<select id="exM"><option value="">– Mitglied wählen –</option>${(st.meta.members || []).map(m => opt(m.id, GK.lastFirst(m.name))).join('')}</select></label>
-          <label class="f">Grund<input id="exN" placeholder="z. B. Vorstand, Krankheit"></label><label class="f">Befreit bis (leer = dauerhaft)<input id="exU" type="date"></label>
+        <div class="aw-grid" style="--c:4"><label class="f">Mitglied<select id="exM"><option value="">– wählen –</option>${(st.meta.members || []).map(m => opt(m.id, GK.lastFirst(m.name))).join('')}</select></label>
+          <label class="f">Grund<input id="exN" placeholder="z. B. Vorstand"></label><label class="f">Befreit bis (leer = dauerhaft)<input id="exU" type="date"></label>
           <label class="f"><span>&nbsp;</span><button class="btn" id="exAdd">Befreien</button></label></div>
         <div id="exList" style="margin-top:12px"></div></div>
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen & Kontakt</h3><div class="aw-grid" style="--c:2">
@@ -501,7 +504,7 @@
         <label class="chk" style="align-self:end;min-height:40px"><input type="checkbox" id="sEvR" ${c.remind_events ? 'checked' : ''}> Helfer am Vortag per E-Mail erinnern</label>
         <label class="f">Absagen per E-Mail an (mehrere mit Komma)<input id="sNot" value="${esc(c.notify || '')}" placeholder="z. B. vorstand@verein.de"></label>
         <label class="f">Kontakt für kurzfristige Absagen<input id="sCon" value="${esc(c.contact || '')}" placeholder="z. B. Max, 0170 1234567"></label>
-        <label class="f wall">Hinweis für Mitglieder (App und Tablet)<input id="sText" value="${esc(c.text)}" placeholder="z. B. Jedes Mitglied ab 12 Jahren leistet 4 Stunden im Jahr."></label></div>
+        <label class="f wall">Hinweis für Mitglieder (App und Tablet)<input id="sText" value="${esc(c.text)}" placeholder="z. B. Ab 12 Jahren 4 Std. im Jahr"></label></div>
         <p class="muted s">Mitglieder können sich in der App bis 24 Stunden vor Beginn austragen, die Verwaltung bekommt dann eine E-Mail. Danach gilt der Kontakt.</p>${foot('sSaveBen')}</div>
       <div class="card" data-set="kalender" data-nodirty><h3>Kalender der Homepage</h3>
         <p class="muted s" style="margin-top:0">Hat eure Homepage einen Kalender zum Abonnieren, zeigt die Mitglieder-App seine Termine unter „Dienste › Termine“ und in „Für mich“. Clubwerk holt sie stündlich ab; gepflegt werden sie weiter auf der Homepage.</p>

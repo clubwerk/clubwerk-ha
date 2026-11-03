@@ -118,7 +118,7 @@
   .who { display: flex; align-items: center; gap: 12px; min-height: 48px; }
   .who .av { width: 40px; height: 40px; flex-basis: 40px; border-radius: 20px; }
   .who .whot { flex: 1; min-width: 0; }
-  .who h2 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who h2 { margin: 0; font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: anywhere; }   /* lange Namen („Deckel: Gastmannschaft …“) brechen um statt „…“ (02.11.2026) */
   .who .note { font-size: 13px; line-height: 16px; color: var(--muted); }
   .who .note.free { color: var(--blue); font-weight: 700; }
   .who .note.cash { color: var(--amber); font-weight: 700; }
@@ -327,7 +327,7 @@
           <h3 id="tabHead">Bisher auf der Liste</h3>
           <ul id="tabList"></ul>
           <div class="sum small"><span>offen</span><span id="tabSum">0,00 €</span></div>
-          <button class="btn primary hidden" id="payBtn">Jetzt bezahlen</button>
+          <button class="btn hidden" id="payBtn">Jetzt bezahlen</button>
         </div>
       </aside>
     </div>

@@ -58,7 +58,7 @@
       .mv-cons label.chk { align-items: flex-start; line-height: 1.4; } .mv-cons input { margin-top: 2px; flex: none; }
       .mv-code { font: 800 44px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .18em; text-align: center; padding: 18px; border: 2px dashed var(--green-line); border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); margin: 6px 0 12px; }
       .mv-pers { padding: 12px 0; border-top: 1px solid var(--line-soft); } .mv-pers:first-of-type { border-top: 0; padding-top: 0; }
-      .mv-fees { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+      .mv-fees { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 8px; }
       .mv-fees label { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; font-size: 14px; min-height: 44px; box-sizing: border-box; cursor: pointer; }
       .mv-fees label:has(input:checked) { border-color: var(--brand); background: var(--brand-soft); }
       .mv-fees label b { margin-left: auto; font-variant-numeric: tabular-nums; }
@@ -681,7 +681,7 @@
         .imp-row { display: grid; grid-template-columns: minmax(150px, 1fr) minmax(0, 1.3fr) minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 14px; border-top: 1px solid var(--line); }
         .imp-grp + .imp-row { border-top: 0; }
         .imp-row > b { font-size: 14px; font-weight: 600; }
-        .imp-row select { width: 100%; height: 40px; min-height: 40px; box-sizing: border-box; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); transition: border-color .15s, box-shadow .15s; }
+        .imp-row select { width: 100%; height: 40px; min-height: 40px; box-sizing: border-box; padding: 0 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); transition: border-color .15s, box-shadow .15s; }
         .imp-row select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
         .imp-row .ex { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         .imp-row.on .ex { color: var(--ink); }
@@ -1018,10 +1018,10 @@
     dialog(`<h2>Beitrittserklärung ${esc(a.names)}</h2>
       <div class="row" style="gap:6px;margin:-4px 0 12px">${pill(ASTAT[a.status] || ['', a.status])}<span class="pill">${esc(SRC[a.source] || a.source)}</span>${a.signed_at ? `<span class="pill">unterschrieben ${deTime(a.signed_at)}</span>` : ''}${a.pre_by ? `<span class="pill g">befürwortet von ${esc(a.pre_by)}</span>` : ''}</div>
       <div class="split"><div>
-        <table class="tbl"><tr><th>Person</th><th>geboren</th>${ro ? '' : '<th>Im Bestand?</th><th>Beitrag</th>'}</tr>
+        <table class="tbl kompakt"><tr><th>Person</th><th>geboren</th>${ro ? '' : '<th>Im Bestand?</th><th>Beitrag</th>'}</tr>
         ${d.persons.map((p, i) => `<tr><td><b>${esc(p.first_name)} ${esc(p.last_name)}</b><div class="muted s">${i === 0 ? 'Antragsteller/in' : p.role === 'partner' ? 'Partner/in' : 'Kind'}${(p.departments || []).length ? ` · <span translate="no">${esc(p.departments.map(id => (st.meta.depts.find(x => x.id === id) || {}).name).filter(Boolean).join(', '))}</span>` : ''}</div></td><td class="num nw">${deDate(p.birth_date)}</td>
-          ${ro ? '' : `<td><select data-merge="${i}" style="width:100%"><option value="">neu anlegen</option>${(a.matches[i] || []).map(m => opt(m.id, `zusammenführen mit ${m.name}${m.member_no ? ' (' + m.member_no + ')' : ''}`, (a.matches[i] || [])[0] && (a.matches[i] || [])[0].id === m.id ? m.id : '')).join('')}</select></td>`}
-          ${ro ? '' : `<td>${i === 0 || !(fees.find(f => f.id === d.fee_id) || {}).family ? `<select data-fee="${i}" style="width:100%">${fees.map(f => opt(f.id, f.name, i === 0 ? d.fee_id : (p.fee_id || a.suggest[i]))).join('')}</select>` : '<span class="muted s">im Familienbeitrag</span>'}</td>`}</tr>`).join('')}</table>
+          ${ro ? '' : `<td><select data-merge="${i}" style="width:100%;min-width:150px"><option value="">neu anlegen</option>${(a.matches[i] || []).map(m => opt(m.id, `zusammenführen mit ${m.name}${m.member_no ? ' (' + m.member_no + ')' : ''}`, (a.matches[i] || [])[0] && (a.matches[i] || [])[0].id === m.id ? m.id : '')).join('')}</select></td>`}
+          ${ro ? '' : `<td>${i === 0 || !(fees.find(f => f.id === d.fee_id) || {}).family ? `<select data-fee="${i}" style="width:100%;min-width:150px">${fees.map(f => opt(f.id, f.name, i === 0 ? d.fee_id : (p.fee_id || a.suggest[i]))).join('')}</select>` : '<span class="muted s">im Familienbeitrag</span>'}</td>`}</tr>`).join('')}</table>
         ${ro && a.member_id ? `<p style="margin:10px 0 0"><button class="btn small" id="rvOpen">Mitglied öffnen</button></p>` : ''}
         <dl class="facts" style="margin-top:12px">
           <p style="margin:0 0 6px">${esc(d.street)}, ${esc(d.zip)} ${esc(d.city)}<br>${esc(d.email || '')}${d.mobile ? ' · ' + esc(d.mobile) : ''}</p>
@@ -1033,7 +1033,7 @@
       </div>
       <div class="preview"><iframe src="${BASE}applications/${id}/pdf" title="Beitrittserklärung"></iframe></div></div>
       ${a.status === 'unterschrift' ? '<div class="row" style="margin-top:12px"><button class="btn danger" id="rvDel">Antrag löschen …</button></div>' : ''}
-      <div class="btns">${ro ? '<button class="btn primary" id="c">Schließen</button>' : `<button class="btn ghost" id="c">Später</button><button class="btn danger" id="rvNo">Ablehnen</button><button class="btn primary" id="rvOk">${CONF() ? (a.pre_by ? 'Erneut befürworten' : 'Befürworten') : 'Annehmen & Mitglieder anlegen'}</button>`}</div>`, true);
+      <div class="btns">${ro ? '<button class="btn primary" id="c">Schließen</button>' : `<button class="btn danger" id="rvNo" style="margin-right:auto">Ablehnen</button><button class="btn ghost" id="c">Später</button><button class="btn primary" id="rvOk">${CONF() ? (a.pre_by ? 'Erneut befürworten' : 'Befürworten') : 'Annehmen & Mitglieder anlegen'}</button>`}</div>`, true);
     $('c').onclick = closeDialog;
     if ($('rvOpen')) $('rvOpen').onclick = () => { closeDialog(); openMember(a.member_id); };
     if ($('rvDel')) $('rvDel').onclick = () => confirmIn('Antrag löschen?', `Der Antrag von ${a.names} wird gelöscht, der Code am Tablet gilt dann nicht mehr.`, 'Antrag löschen', async () => {
@@ -1335,8 +1335,9 @@
       ${c ? '' : `<label class="f">Art<select id="chK">${['sonstiges', 'aufnahme', 'beitrag', 'getraenke'].map(k => opt(k, KIND[k])).join('')}</select></label>`}</div>
       ${c ? '' : `<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>
         <div class="banner a hidden" id="chKHint"><span>Beträge für den Verkauf besser unter <b>Verkauf › Abrechnung › „+ Betrag auf Konto“</b> buchen – dann stehen sie auf dem Verkaufskonto und werden mit dem nächsten Verkaufs-Einzug abgerechnet.</span></div>`}
-      ${c ? `<div class="row" style="margin-top:12px"><button class="btn danger" id="chCx">Posten stornieren …</button>${c.dunning_block ? '<button class="btn" id="chBlkOff">Mahnsperre aufheben</button>' : '<button class="btn" id="chBlk">Mahnsperre …</button>'}</div>
-        ${c.dunning_block ? `<p class="muted s">Mahnsperre: ${esc(c.dunning_block)}${c.dunning_block_until ? ` (bis ${deDate(c.dunning_block_until)})` : ''}</p>` : ''}` : ''}
+      ${c ? `<div class="row" style="margin-top:12px">${c.dunning_block ? '<button class="btn" id="chBlkOff">Mahnsperre aufheben</button>' : '<button class="btn" id="chBlk">Mahnsperre …</button>'}</div>
+        ${c.dunning_block ? `<p class="muted s">Mahnsperre: ${esc(c.dunning_block)}${c.dunning_block_until ? ` (bis ${deDate(c.dunning_block_until)})` : ''}</p>` : ''}
+        <div class="dz"><button class="btn ghost danger" id="chCx">Posten stornieren …</button></div>` : ''}
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="chOk">Speichern</button></div>`);
     $('c').onclick = closeDialog;
     if ($('chCx')) $('chCx').onclick = () => cancelDialog(c, again, () => chargeDialog(c, { member_id }, again)).catch(fail);
@@ -1485,7 +1486,7 @@
       <div class="toolbar"><a class="btn primary" href="${BASE}collections/${id}/xml" download>SEPA-Datei herunterladen</a><button class="btn" id="kMail">Vorabinformation per E-Mail</button><a class="btn" href="${BASE}collections/${id}/letters.pdf" target="_blank">Briefe für Mitglieder ohne E-Mail</a>
         ${open ? '<button class="btn" id="kBooked">Zahlung erfolgt (alle ohne Rücklastschrift)</button><button class="btn danger" id="kDel">Verwerfen</button>' : ''}</div>
       ${open ? '<p class="muted s" style="margin:0 0 10px">Erst buchen, wenn keine Rücklastschrift mehr kommt (meist nach 1–2 Wochen). Rückläufer vorher unten beim Zahler erfassen. Einzelne Posten lassen sich auch unter „Offene Posten → Im Einzug“ buchen.</p>' : ''}
-      <div class="scroll" style="max-height:56vh"><table class="tbl"><tr><th>Zahler</th><th>E-Mail</th><th>Posten</th><th class="r">Betrag</th><th></th></tr>
+      <div class="scroll" style="max-height:56vh"><table class="tbl kompakt k-name-voll"><tr><th>Zahler</th><th>E-Mail</th><th>Posten</th><th class="r">Betrag</th><th></th></tr>
         ${k.rows.map(r => `<tr class="${r.returned ? 'off' : ''}"><td><b>${esc(GK.lastFirst(r.name))}</b>${r.member_no ? `<div class="muted s">Nr. ${esc(r.member_no)}</div>` : ''}</td><td class="s">${esc(r.email || '–')}</td><td class="s" translate="no">${esc(r.texts)}</td><td class="r">${euro(r.cents)}</td>
           <td class="r">${k.status !== 'verworfen' ? `<button class="btn small danger" data-ret="${r.member_id}">Rücklastschrift</button>` : ''}</td></tr>`).join('')}
         ${k.returnedOnly.map(r => `<tr class="off"><td><b>${esc(GK.lastFirst(r.name))}</b></td><td></td><td class="s">zurückgebucht</td><td></td><td></td></tr>`).join('')}</table></div>
@@ -1699,7 +1700,7 @@
         <div class="row" style="justify-content:space-between;margin-top:10px"><span class="row" style="gap:8px"><button class="btn" id="eConsAdd">+ Einwilligung</button><button class="btn" id="eConsTpl">+ Vorlage …</button></span><button class="btn primary" id="eSave2">Speichern</button></div></div>
       <div class="card" id="eApp" data-set="meinedaten"></div>
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
-        <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de, kasse@verein.de"></label></div>
+        <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de"></label></div>
         <p class="muted s" style="margin:8px 0 0">Mehrere Adressen mit Komma trennen.</p>${foot('eSaveNot')}</div>
       <div class="card" id="eCg" data-set="gratulationen"></div>
       <div class="card" data-set="daten"><h3>Datenschutz & Aufbewahrung</h3><p class="muted s" style="margin-top:0">Nach dem Austritt braucht der Verein Name und Anschrift meist nur noch kurz (offene Beiträge, Rückfragen). Danach „Anonymisieren“: Beträge und Buchungen bleiben für die gesetzliche Aufbewahrung (Belege 8 Jahre, Bücher 10 Jahre). Jede Person kann eine Datenauskunft verlangen (Knopf im Mitglied, in der App unter „Meine Daten“).</p>
@@ -1821,8 +1822,8 @@
     const m = st.meta;
     const kind = f ? f.kind || 'grund' : preset.kind || 'grund';
     dialog(`<h2>${f ? 'Beitragsart bearbeiten' : kind === 'zusatz' ? 'Neuer Zusatzbeitrag' : 'Neue Beitragsart'}</h2><div class="mv-grid" style="--c:3">
-      <label class="f">Art<select id="feK">${opt('grund', 'Beitrag Hauptverein', kind)}${opt('zusatz', 'Zusatzbeitrag einer Abteilung', kind)}</select></label>
-      <label class="f w2" id="feDL">Abteilung<select translate="no" id="feD"><option value="">${esc(GK.T('Hauptverein'))}</option>${m.depts.map(d => opt(d.id, d.name, f ? f.department_id : preset.department_id)).join('')}</select></label>
+      <label class="f w2">Art<select id="feK">${opt('grund', 'Beitrag Hauptverein', kind)}${opt('zusatz', 'Zusatzbeitrag einer Abteilung', kind)}</select></label>
+      <label class="f" id="feDL">Abteilung<select translate="no" id="feD"><option value="">${esc(GK.T('Hauptverein'))}</option>${m.depts.map(d => opt(d.id, d.name, f ? f.department_id : preset.department_id)).join('')}</select></label>
       <label class="f w2">Bezeichnung (wie auf dem Formular)<input id="feN" value="${esc(f ? f.name : '')}" placeholder="z. B. Erwachsene ab 19 Jahre"></label>
       <label class="f">Betrag (€)<input id="feC" inputmode="decimal" value="${f ? centsToInput(f.cents) : ''}"></label>
       <label class="f">Rhythmus<select id="feI">${Object.entries(INTERVAL).map(([k, l]) => opt(k, l, f ? f.interval : 'jahr')).join('')}</select></label>

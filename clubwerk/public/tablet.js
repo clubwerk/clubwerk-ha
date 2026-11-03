@@ -212,7 +212,7 @@
     const open = state.tabs || [];
     openDialog(`<h2>Neuer Gäste-Deckel</h2>
       <div class="muted">Für Gäste und die gegnerische Mannschaft: den Tag über anschreiben, vor der Heimfahrt bar oder mit Karte bezahlen.</div>
-      <input class="big" id="tName" placeholder="z. B. Gastmannschaft SV Musterdorf oder Jan Müller" autocomplete="off" autocapitalize="words" maxlength="60">
+      <input class="big" id="tName" placeholder="z. B. Jan Müller" autocomplete="off" autocapitalize="words" maxlength="60">
       <div class="sugg" id="tSugg"></div>
       <div class="err" id="tErr"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:6px"><button class="btn" id="tCancel">Abbrechen</button><button class="btn primary" id="tOk">Deckel öffnen</button></div>`);

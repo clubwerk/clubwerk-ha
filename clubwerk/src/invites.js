@@ -259,19 +259,10 @@ function whoIs(scope, deviceToken) {
   return r ? { deviceId: r.id, memberId: r.member_id, name: r.name, remote: Boolean(r.remote) } : null;
 }
 
-/** Gesperrtes Gerät: Protokoll + E-Mail an die eingetragene Adresse (Mitglieder-App → Sicherheit) */
-function blockedAlert(scope, member, device, total) {
+/** Gesperrtes Gerät: Protokoll + Sicherheitswarnung (Art app.gesperrt, sofort an alle mit dem Recht „Sicherheitswarnungen“) */
+function blockedAlert(scope, member, device, total, memberId) {
   audit(null, 'Mitglieder-App: Handy wegen falscher PINs gesperrt', `${member} · ${device || 'Gerät'} · ${total} Fehlversuche`);
-  const to = getSetting('security_mail_to', '');
-  if (!to) return;
-  try {
-    const mail = require('./mail');
-    if (!mail.ready() || !mail.mailOk(to)) return;
-    const club = getSetting('club_name', 'Verein');
-    mail.send({ to, subject: `Sicherheitshinweis – Mitglieder-App (${club})`,
-      text: `Hallo,\n\nin der Mitglieder-App wurde ${BLOCK_AFTER}-mal hintereinander eine falsche PIN eingegeben.\n\nMitglied: ${member}\nGerät: ${device || 'unbekannt'}\nZeit: ${now()}\n\nDas Handy ist jetzt gesperrt. War es das Mitglied selbst (PIN vergessen), in der Verwaltung unter „Mitglieder-App“ einen neuen QR-Code erzeugen. Sonst bitte nachfragen – eventuell wurde das Handy verloren oder der QR-Code weitergegeben.\n\nAutomatisch versendet von Clubwerk.` })
-      .catch(e => console.error('Sicherheits-Mail:', e.message));
-  } catch (e) { console.error('Sicherheits-Mail:', e.message); }
+  require('./security').securityAlert('app.gesperrt', `In der Mitglieder-App wurde ${BLOCK_AFTER}-mal hintereinander eine falsche PIN eingegeben. Mitglied: ${member}, Gerät: ${device || 'unbekannt'}. Das Handy ist jetzt gesperrt. War es das Mitglied selbst (PIN vergessen), in der Verwaltung unter „Mitglieder-App“ einen neuen QR-Code erzeugen. Sonst bitte nachfragen – eventuell wurde das Handy verloren oder der QR-Code weitergegeben.`, { key: memberId || member, member: memberId });
 }
 
 /** Gerät + PIN prüfen → { ok, name } bzw. { error, status } – je 5 Fehlversuche kurze Sperre, nach 15 ist das Gerät gesperrt */
@@ -292,7 +283,7 @@ function check(scope, deviceToken, pin, row, opts = {}) {
     if (total >= BLOCK_AFTER) {
       db.prepare('UPDATE member_devices SET token_hash = NULL, token2_hash = NULL, handover_hash = NULL, failed = 0, failed_total = ?, locked_until = NULL, blocked_at = ? WHERE id = ?').run(total, now(), d.id);
       dropPush([d.id]); dropCal(scope, d.member_id);
-      blockedAlert(scope, w.name, d.device, total);
+      blockedAlert(scope, w.name, d.device, total, w.memberId);
       return { error: `PIN ${total}-mal falsch – dieses Handy ist jetzt gesperrt. Bitte beim Vorstand einen neuen QR-Code holen.`, status: 403, device: true };
     }
     const lock = n >= LOCK_STREAK ? (total >= LOCK_LONG_AFTER ? 30 : 5) : 0;

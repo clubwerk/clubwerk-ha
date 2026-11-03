@@ -16,8 +16,8 @@
   if (!document.getElementById('tuAdminStyle')) {
     const s = document.createElement('style'); s.id = 'tuAdminStyle';
     s.textContent = `
-      .tu-sets { display: grid; grid-template-columns: minmax(0, 1fr) 72px 12px 72px; gap: 8px; align-items: center; margin: 12px 0 0; }
-      .tu-sets .h { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .tu-sets { display: grid; grid-template-columns: minmax(0, 1fr) minmax(72px, 160px) 12px minmax(72px, 160px); gap: 8px; align-items: center; margin: 12px 0 0; }
+      .tu-sets .h { font-size: 12.5px; line-height: 15px; font-weight: 700; color: var(--muted); text-align: center; align-self: end; hyphens: auto; overflow-wrap: anywhere; }   /* lange Namen brechen um statt „…“ (02.11.2026) */
       .tu-sets .c { text-align: center; color: var(--muted); font-weight: 700; }
       .tu-sets input { width: 100%; box-sizing: border-box; height: 46px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); color: var(--ink); text-align: center; font-family: var(--num); font-size: 18px; font-weight: 600; }
       .tu-kv dd { overflow-wrap: break-word; }

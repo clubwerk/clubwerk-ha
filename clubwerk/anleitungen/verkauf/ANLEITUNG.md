@@ -349,7 +349,7 @@ Für die Inventur zählst du, trägst Gebinde und Stück ein (nur ausgefüllte Z
 
 ![Karte „Bruch oder Korrektur buchen“.](bild: seite=bestand; ziel=.card:has(#mvSave))
 
-Eine zerbrochene Kiste oder eine falsche Zahl buchst du hier: **Artikel**, **Grund** („Bruch / verdorben“ oder „Korrektur (+/−)“), **Einzelartikel**, **Datum** und **Notiz**, dann „Buchen“.
+Eine zerbrochene Kiste oder eine falsche Zahl buchst du hier: **Artikel**, **Grund** („Bruch“ – auch Verdorbenes – oder „Korrektur (+/−)“), **Einzelartikel**, **Datum** und **Notiz**, dann „Buchen“.
 
 #### Letzte Bestandsänderungen
 

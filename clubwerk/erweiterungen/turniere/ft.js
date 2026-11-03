@@ -851,7 +851,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_ftmatch ON tu_ftmatch(ft_id);
     if (wait) throw err(`Zu viele falsche Codes – die Eingabe ist für ${wait} Min. gesperrt. In der Verwaltung lässt sich der Code neu festlegen.`, 429);
     if (!codeOk(ft, (b || {}).code)) {
       const f = codeFails.fail(ft.id);
-      if (f.locked) { audit(null, 'Turniere: Code der Turnierleitung gesperrt', `${ft.name}: 10 falsche Codes`); ctx.require('./security').securityAlert(`Turnierplaner „${ft.name}“: 10-mal ein falscher Code der Turnierleitung – die Eingabe ist für ${f.minutes} Minuten gesperrt.`, `ftcode:${ft.id}`); }
+      if (f.locked) { audit(null, 'Turniere: Code der Turnierleitung gesperrt', `${ft.name}: 10 falsche Codes`); ctx.securityAlert('code', `Turnierplaner „${ft.name}“: 10-mal ein falscher Code der Turnierleitung – die Eingabe ist für ${f.minutes} Minuten gesperrt.`, { key: ft.id }); }
       throw err(f.locked ? `Der Code stimmt nicht – die Eingabe ist jetzt für ${f.minutes} Min. gesperrt.` : 'Der Code stimmt nicht.', f.locked ? 429 : 403);
     }
     codeFails.soft(ft.id);   // Erfolg: Zähler von vorn, die Sperrstufe bleibt (Review)

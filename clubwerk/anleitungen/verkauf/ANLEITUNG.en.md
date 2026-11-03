@@ -349,7 +349,7 @@ For a stocktake you count, enter packs and pieces (only filled-in rows are taken
 
 ![Card “Book breakage or correction”.](bild: seite=bestand; ziel=.card:has(#mvSave))
 
-A broken crate or a wrong number is booked here: **Item**, **Reason** (“Breakage / spoiled” or “Correction (+/−)”), **Single items**, **Date** and **Note**, then “Book”.
+A broken crate or a wrong number is booked here: **Item**, **Reason** (“Breakage” – spoiled goods too – or “Correction (+/−)”), **Single items**, **Date** and **Note**, then “Book”.
 
 #### Recent stock changes
 

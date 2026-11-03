@@ -27,7 +27,7 @@
       .bh-items { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; }
       .bh-item { display: grid; grid-template-columns: minmax(0, 1fr) 76px 116px 92px 40px; gap: 8px; align-items: center; }
       .bh-item.h { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
-      .bh-item input, .bh-item select { width: 100%; min-width: 0; box-sizing: border-box; height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); }
+      .bh-item input, .bh-item select { width: 100%; min-width: 0; box-sizing: border-box; height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); }
       .bh-item input:focus, .bh-item select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       .bh-item > span { padding: 0 2px; } .bh-item > .btn { height: 40px; min-height: 40px; width: 40px; padding: 0; }   /* Entfernen-Knopf so hoch wie die Felder der Zeile */
       label.f.bh-yr { flex-direction: row; align-items: center; gap: 8px; } label.f.bh-yr select { width: auto; min-width: 96px; }
@@ -205,7 +205,7 @@
     const remindN = r.reminders + 1;
     dialog(`<h2>Rechnung ${esc(r.no)}</h2>
       <p class="muted" style="margin-top:0">${esc(r.recipient.name)} · ${eur(r.gross)} · vom ${nm(deDate(r.date))}${r.due_date ? `, fällig ${nm(deDate(r.due_date))}` : ''}</p>
-      <table class="tbl" style="margin-bottom:12px">${r.items.map(i => `<tr><td>${esc(i.text)}</td><td class="r">${nm(String(i.qty).replace('.', ',') + ' × ')}${eur(i.unit_cents)}</td><td class="r">${r.small_business ? '' : i.vat + ' %'}</td></tr>`).join('')}</table>
+      <table class="tbl kompakt" style="margin-bottom:12px">${r.items.map(i => `<tr><td>${esc(i.text)}</td><td class="r">${nm(String(i.qty).replace('.', ',') + ' × ')}${eur(i.unit_cents)}</td><td class="r">${r.small_business ? '' : i.vat + ' %'}</td></tr>`).join('')}</table>
       <p class="s" style="margin:0 0 4px">Status: ${pill(r.overdue ? ['r', 'überfällig'] : ISTAT[r.status])}${r.status === 'bezahlt' ? ` am ${deDate(r.paid_at)}${r.paid_via ? ' (' + esc(VIA[r.paid_via] || r.paid_via) + ')' : ''}` : ''}${r.status === 'storniert' && r.cancel_reason ? ` – ${esc(r.cancel_reason)}` : ''}</p>
       <p class="muted s" style="margin:0">${r.sent_at ? `Verschickt am ${deDate(r.sent_at.slice(0, 10))}` : 'Noch nicht verschickt'}${r.recipient.email ? ` · ${esc(r.recipient.email)}` : ' · keine E-Mail-Adresse'}${r.reminders ? ` · ${r.reminders}. Erinnerung am ${deDate(String(r.reminded_at).slice(0, 10))}` : ''}</p>
       ${r.kind === 'member' && r.charge_id ? '<p class="muted s">Steht als offener Posten bei den Mitgliedern und kann dort per Lastschrift eingezogen werden.</p>' : ''}
@@ -254,10 +254,10 @@
         <div class="bh-grid" style="--c:3"><label class="f">Jahr<select id="yrY">${[m.year + 1, m.year, m.year - 1].map(v => opt(v, v, year)).join('')}</select></label>
           <label class="f">Rechnungsdatum<input id="yrD" type="date" value="${m.today}"></label>
           <label class="f">Leistungszeitraum<input id="yrP" value="${year}"></label></div>
-        ${y.rows.length ? `<table class="tbl" style="margin-top:12px"><tr><th style="width:36px"><input type="checkbox" id="yrAll" ${todo.length ? 'checked' : 'disabled'} aria-label="alle"></th><th>Firma</th><th class="r">Betrag</th><th></th></tr>
+        ${y.rows.length ? `<table class="tbl kompakt" style="margin-top:12px"><tr><th style="width:36px"><input type="checkbox" id="yrAll" ${todo.length ? 'checked' : 'disabled'} aria-label="alle"></th><th>Firma</th><th class="r">Betrag</th><th></th></tr>
           ${y.rows.map(r => `<tr class="${r.done ? 'off' : ''}"><td><input type="checkbox" data-yr="${r.id}" ${r.done ? 'disabled' : 'checked'} aria-label="${esc(r.name)}"></td><td><b>${esc(r.name)}</b><span class="bh-sub">${esc(r.items.map(i => i.text).join(', '))}</span></td>
             <td class="r">${euro(r.gross)}</td><td class="r">${r.done ? `<span class="pill g">${esc(r.done)}</span>` : r.email ? '' : '<span class="muted s">ohne E-Mail</span>'}</td></tr>`).join('')}</table>`
-          : '<p class="empty">Noch keine Firma mit Jahrespositionen angelegt.</p>'}
+          : '<p class="empty" style="margin-top:12px">Noch keine Firma mit Jahrespositionen angelegt.</p>'}
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="yrSend" ${m.mail ? '' : 'disabled'}> Gleich per E-Mail verschicken (wo eine Adresse hinterlegt ist)</label>
         <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="yrOk" ${todo.length ? '' : 'disabled'}>${todo.length} ${todo.length === 1 ? 'Rechnung' : 'Rechnungen'} erstellen</button></div>`, true);
       $('c').onclick = closeDialog;
@@ -427,7 +427,7 @@
       <div class="card" data-set="rechnungen"><h3>Rechnungen</h3>
         <div class="bh-grid">${inp('inv_prefix', 'Nummernkreis', { ph: 'R-' })}<label class="f">Zahlungsziel (Tage)<input id="bs_due_days" type="number" min="0" max="120" value="${s.due_days}"></label>
           <label class="f wall">Einleitungstext<textarea id="bs_intro" rows="2" placeholder="z. B. Vielen Dank für Ihre Unterstützung! Wir berechnen Ihnen folgende Leistungen:">${esc(s.intro)}</textarea></label>
-          <label class="f wall">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Vorstand: … · Amtsgericht … VR 1234"></label></div>
+          <label class="f wall">Fußzeile (optional)<input id="bs_footer" value="${esc(s.footer)}" placeholder="z. B. Amtsgericht … VR 1234"></label></div>
         <p class="muted s">Nummern laufen je Jahr: ${esc(s.inv_prefix)}${new Date().getFullYear()}-0001, -0002 …</p>${save('rechnungen')}</div>
       <div class="card" data-set="steuer"><h3>Steuer & Finanzamt</h3><p class="muted s" style="margin-top:0">Gilt für Rechnungen und Spendenquittungen. Werbeleistungen sind beim Verein in der Regel umsatzsteuerpflichtig – im Zweifel die Steuerberatung fragen.</p>
         <div class="bh-grid">${inp('tax_no', 'Steuernummer')}${inp('vat_id', 'USt-IdNr.', { ph: 'optional' })}

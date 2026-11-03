@@ -259,6 +259,7 @@ function anonymize(id, user) {
       street = NULL, zip = NULL, city = NULL, address_extra = NULL, phone = NULL, mobile = NULL, email = NULL, letter_salutation = NULL, key_no = NULL, notes = NULL,
       consents = '{}', extra = '{}', anonymized_at = ? WHERE member_id = ?`).run(label, nowTs(), id);
     C.db.prepare('DELETE FROM mv_bank WHERE member_id = ?').run(id);
+    C.require('./security').forgetMember(id);   // Sicherheitswarnungen, die das Mitglied nennen
     for (const d of C.db.prepare('SELECT * FROM mv_document WHERE member_id = ?').all(id)) deleteDocumentFile(d);
     C.db.prepare('DELETE FROM mv_document WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM mv_history WHERE member_id = ?').run(id);
@@ -880,7 +881,7 @@ function activate(ctx) {
     return { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
       ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
-      aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), getraenke_je_monat: drinks, weitere_bereiche: module };
+      aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), sicherheitswarnungen: ctx.require('./security').ofMember(id), getraenke_je_monat: drinks, weitere_bereiche: module };
   }
   admin.get('/member/:id/auskunft', P, ar(async (req, res) => {
     const id = int(req.params.id); const out = await auskunft(id, req.user);

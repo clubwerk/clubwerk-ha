@@ -11,7 +11,7 @@
   function zoneOptions(sel) {
     const list = st.data.list || [];
     const has = list.some(x => x.ref === sel);
-    return `<option value="">– Gerät wählen –</option>${!has && sel ? `<option value="${esc(sel)}" selected>${esc(sel)} (nicht gefunden)</option>` : ''}`
+    return `<option value="">– wählen –</option>${!has && sel ? `<option value="${esc(sel)}" selected>${esc(sel)} (nicht gefunden)</option>` : ''}`
       + list.map(x => `<option value="${esc(x.ref)}" ${x.ref === sel ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   }
 
@@ -21,7 +21,7 @@
     return c.plaetze.map((p, i) => `<div class="card soft" style="margin:0 0 12px">
       <div class="frm">
         <label class="f w1">Name<input data-pn="${i}" maxlength="30" value="${esc(p.name)}" placeholder="z. B. Platz 1"></label>
-        <label class="f">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Erst Vorne, dann Hinten · je 2 min"></label>
+        <label class="f">Untertitel (leer = automatisch)<input data-ps="${i}" maxlength="60" value="${esc(p.sub || '')}" placeholder="z. B. Vorne, dann Hinten"></label>
         <span class="w1 frm-acts"><button class="btn small" data-pu="${i}" ${i === 0 ? 'disabled' : ''} title="nach oben" aria-label="nach oben">↑</button>
         <button class="btn small" data-pd="${i}" ${i === c.plaetze.length - 1 ? 'disabled' : ''} title="nach unten" aria-label="nach unten">↓</button></span>
       ${p.zones.map((z, j) => `

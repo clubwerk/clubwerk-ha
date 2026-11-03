@@ -64,7 +64,8 @@ function subject() {
 /* ---------- Anlässe ---------- */
 let modulesRef = () => [];   // vom Kern gesetzt: () => [[id, { name, label, hooks, isActive }]]
 const CORE_EVENTS = [{ id: 'test', label: 'Testnachricht', desc: 'Zum Ausprobieren – vom Mitglied selbst oder vom Vorstand ausgelöst.', default: true },
-  { id: 'pin', label: 'PIN geändert', desc: 'Sicherheitshinweis, wenn die PIN in der App oder am Tablet geändert wurde.', default: true }];
+  { id: 'pin', label: 'PIN geändert', desc: 'Sicherheitshinweis, wenn die PIN in der App oder am Tablet geändert wurde.', default: true },
+  { id: 'sicherheit', label: 'Sicherheitswarnung', desc: 'Nur für Verwaltungsnutzer mit dem Recht „Sicherheitswarnungen“, deren Konto mit einem Mitglied verknüpft ist – sofort bei roten Warnungen (auch nachts), nur ein fester Satz ohne Namen.', default: true }];
 function catalog() {
   const out = CORE_EVENTS.map(e => ({ ...e, key: 'app.' + e.id, module: 'app', moduleName: 'Mitglieder-App' }));
   for (const [id, m] of modulesRef()) {

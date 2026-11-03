@@ -83,10 +83,10 @@ The window shows team, opponent, date and venue at the top, and the counters (�
 Below that:
 
 - **Stand-in from another team:** choose a player from another team and “Select as reserve”.
-- **Meeting point & notes:** time, place, result and a “Note to the team” (e.g. “please wear white”). “Save meeting point” applies it.
+- **Meeting point & notes:** time, place, result and a “Note to the team” (e.g. “please wear white”). “Save meeting point” right below applies it.
 - **Tasks:** only visible if switched on (see Settings). Pick a player for each task (e.g. driver), “remove” deletes it, “+ Driver” adds a new one.
 
-The buttons at the bottom: **Edit match day …** (opponent, date, start, venue, status, result), **Remind open** (push to everyone without a reply), **Send line-up** (asks first; goes out as a push and – with the members module and email switched on – as an email with a calendar entry to everyone selected and the reserves) and **Close**.
+Below the line-up are **Remind open** (push to everyone without a reply) and **Edit match day …** (opponent, date, start, venue, status, result). **Close** and **Send line-up** (asks first; goes out as a push and – with the members module and email switched on – as an email with a calendar entry to everyone selected and the reserves) always stay visible at the bottom.
 
 > If a match day is moved or cancelled, the team is notified. A line-up that has already been sent can simply be changed and sent again.
 
@@ -144,7 +144,7 @@ Each team is a card: name, below it age class, league, season, minimum, captain 
 
 ![The “Players” window: search on the left, registration list on the right.](bild: seite=spielbetrieb; tab=mannschaften; klick=[data-pl]; ziel=dialog)
 
-On the left you search members and guest players and add them to the team with **+**. On the right is the **registration list** (number 1 at the top), which you reorder with ▲ and ▼; ✕ takes someone out. A person can play on several teams. “Save” applies the list. Anyone left on no team at all is reported.
+On the left you search members and guest players and add them to the team with **+**. On the right is the **registration list** (number 1 at the top), which you reorder with ▲ and ▼; ✕ takes someone out. A person can play on several teams. “Save” applies the list. Anyone left on no team at all is reported. Notes such as “turns only 19 in 2027 (D40)” or “male – women’s team” and the “Guest” label sit on their own line below the name – they block nothing.
 
 **Guest players** are not club members (e.g. in a joint team with a neighbouring club). “+ Add guest player” asks for first and last name, optionally club and mobile number. Guests have no account and no app. Instead each guest gets a **personal link**: the link button copies it (e.g. for WhatsApp), the pencil edits details and shows when the link was last opened. “New link …” invalidates the old one, “Remove completely …” deletes the guest from all teams. A guest link expires after 12 months without use or when the guest is on no active team any more.
 

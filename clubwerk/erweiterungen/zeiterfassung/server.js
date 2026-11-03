@@ -258,6 +258,11 @@ function activate(ctx) {
   // Wer schon mit der Zeiterfassung gearbeitet hat (vor den Erweiterungen fest eingebaut), bekommt sie automatisch aktiv
   if (getSetting('ext_zeiterfassung_active') === null && db.prepare('SELECT 1 FROM staff LIMIT 1').get()) setSetting('ext_zeiterfassung_active', '1');
   ctx.hooks.tabletVisible = () => Boolean(db.prepare('SELECT 1 FROM staff WHERE active = 1 LIMIT 1').get());
+  // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
+  ctx.hooks.securityEvents = () => [
+    { id: 'geraet', label: 'Zeiterfassung: Gerät gesperrt', level: 'r', push: 'Zeiterfassung: ein Gerät wurde wegen falscher PINs gesperrt.' },
+    { id: 'pin', label: 'Zeiterfassung: PIN gesperrt', level: 'r', push: 'Zeiterfassung: eine PIN wurde wegen Fehlversuchen gesperrt.' },
+  ];
   // Fehlversuche je Person: kurze Pause (höchstens 1 Std.) – sonst könnte jeder am Tablet eine Kraft tagelang am Einstempeln hindern.
   // Gegen Durchprobieren zählt zusätzlich je Gerät, mit wachsender Sperre bis 24 Std.
   const zlim = ctx.require('./security').limiter({ maxMs: 3600000 });
@@ -330,11 +335,11 @@ function activate(ctx) {
     if (w) return bad(res, `Zu viele falsche PINs – bitte ${w} Min. warten.`, 429);
     if (!auth.verifySecret(String(pin || ''), s.pin_hash)) {
       const d = zdev.fail(dev);
-      if (d.locked) { audit(null, 'Zeiterfassung: Gerät gesperrt (falsche PINs)', `${dev} · ${d.minutes} Min.`); ctxRef.require('./security').securityAlert(`Bei der Zeiterfassung wurden an einem Gerät (${dev}) viele falsche PINs eingegeben. Das Gerät ist jetzt ${d.minutes} Minuten gesperrt.`, 'zeit-dev'); }
+      if (d.locked) { audit(null, 'Zeiterfassung: Gerät gesperrt (falsche PINs)', `${dev} · ${d.minutes} Min.`); ctxRef.securityAlert('geraet', `Bei der Zeiterfassung wurden an einem Gerät (${dev}) viele falsche PINs eingegeben. Das Gerät ist jetzt ${d.minutes} Minuten gesperrt.`); }
       const r = zlim.fail(s.id);
       if (r.locked) {
         audit(null, 'Zeiterfassung: PIN gesperrt', `${s.name} · ${r.minutes} Min.`);
-        if (r.strikes >= 2) ctxRef.require('./security').securityAlert(`Bei der Zeiterfassung wurde für „${s.name}“ wiederholt eine falsche PIN eingegeben. Die PIN ist jetzt ${r.minutes} Minuten gesperrt.`, 'zeit-' + s.id);
+        if (r.strikes >= 2) ctxRef.securityAlert('pin', `Bei der Zeiterfassung wurde für „${s.name}“ wiederholt eine falsche PIN eingegeben. Die PIN ist jetzt ${r.minutes} Minuten gesperrt.`, { key: s.id });
       }
       return bad(res, r.locked ? `PIN mehrfach falsch – ${r.minutes} Minuten gesperrt.` : 'Falsche PIN.', 401);
     }

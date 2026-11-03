@@ -36,7 +36,7 @@
       .tl-plan .head { font-size: 12.5px; font-weight: 700; color: var(--muted); text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .tl-plan .blk { position: absolute; left: 4px; right: 4px; border-radius: 10px; padding: 4px 8px; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); overflow: hidden; cursor: pointer; font-size: 12.5px; line-height: 1.3; color: var(--ink); }
       .tl-plan .blk .tl-meta { display: block; }
-      .tl-plan .blk b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+      .tl-plan .blk { display: flex; flex-direction: column; } .tl-plan .blk > * { flex: none; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; } .tl-plan .blk b { display: block; font-weight: 700; }   /* Planblock: Silbentrennung, kein „…“, nur ganze Zeilen (02.11.2026) */
       .tl-plan .blk .t { font-family: var(--num); font-weight: 600; font-size: 14px; color: var(--muted); }
       .tl-plan .blk.run { border-left: 4px solid var(--brand); background: var(--brand-soft); }
       .tl-plan .blk.done { opacity: .72; }
@@ -219,7 +219,7 @@
       ${narrow && cs.length > 1 ? chips(cs.map(c => [c.id, c.name]), st.zcourt, 'zc') : ''}
       <div class="card">${show.length ? `<div class="tl-plan" style="--n:${show.length};--h:${H}px;--hr:${60 * PX}px"><span></span>${show.map(c => `<div class="head">${esc(c.name)}</div>`).join('')}
         <div class="ax">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => (isNow && Math.abs(from + i * 60 - nowM) < 28 ? '' : `<span style="top:${i * 60 * PX}px">${String((from / 60 + i) % 24).padStart(2, '0')}:00</span>`)).join('')}${nowLine(true)}</div>
-        ${show.map(c => `<div class="col">${nowLine(false)}${dayM.filter(m => m.court_id === c.id).map(m => `<div class="blk${m.running ? ' run' : ''}${m.done ? ' done' : ''}${!m.done && m.delay >= 15 ? ' late' : !m.done && m.delay >= 5 ? ' bit' : ''}" data-m="${m.id}" style="top:${(start(m) - from) * PX}px;height:${len(m) * PX - 3}px" title="${esc(`${m.a || 'offen'} – ${m.b || 'offen'}`)}">
+        ${show.map(c => `<div class="col">${nowLine(false)}${dayM.filter(m => m.court_id === c.id).map(m => `<div lang="de" class="blk${m.running ? ' run' : ''}${m.done ? ' done' : ''}${!m.done && m.delay >= 15 ? ' late' : !m.done && m.delay >= 5 ? ' bit' : ''}" data-m="${m.id}" style="top:${(start(m) - from) * PX}px;height:${len(m) * PX - 3}px" title="${esc(`${m.a || 'offen'} – ${m.b || 'offen'}`)}">
           <span class="t">${esc(m.est || m.time)}</span> ${m.done ? `<span class="tl-num">${esc(m.score)}</span>` : delay(m)}<b translate="no">${esc(m.a || 'offen')}</b><b translate="no">${esc(m.b || 'offen')}</b><span class="tl-meta">${esc(m.event)} · ${esc(m.roundLabel)}</span></div>`).join('')}</div>`).join('')}
       </div>` : '<p class="empty">Noch kein Match mit Platz und Uhrzeit – Plätze verteilt die Zentrale.</p>'}</div>
       <p class="muted s">Läuft ein Match länger, rutschen die folgenden Matches desselben Platzes und derselben Spieler nach hinten (rot: mehr als 15 Minuten über Plan). Dauer je Match ${d.cfg.minutes} Minuten, Pause ${d.cfg.pause} Minuten – unter „Einstellungen“.</p>`;
@@ -298,7 +298,7 @@
     const day = d.day, closed = Boolean(day.finished_at);
     el.innerHTML = `<div class="card"><table class="tbl kompakt"><tr><th>Platz</th>${d.booking ? '<th>Platz im Buchungssystem</th>' : ''}<th>Automatisch verteilen</th><th></th></tr>
         ${d.courts.map(c => `<tr><td><b>${esc(c.name)}</b>${c.manual ? ' <span class="pill">von Hand</span>' : ''}</td>
-          ${d.booking ? `<td><select data-res="${c.id}" aria-label="Platz im Buchungssystem: ${esc(c.name)}" ${closed ? 'disabled' : ''}><option value="">– frei, sperrt nichts –</option>${res.map(r => `<option value="${r.id}" ${r.id === c.resource_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>` : ''}
+          ${d.booking ? `<td><select style="min-width:180px" data-res="${c.id}" aria-label="Platz im Buchungssystem: ${esc(c.name)}" ${closed ? 'disabled' : ''}><option value="">– frei, sperrt nichts –</option>${res.map(r => `<option value="${r.id}" ${r.id === c.resource_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>` : ''}
           <td><label class="chk" style="margin:0"><input type="checkbox" data-auto="${c.id}" ${c.auto ? 'checked' : ''} ${closed ? 'disabled' : ''}> ja</label></td>
           <td class="r"><span class="acts">${c.manual && !c.used && !closed ? `<button class="btn ico" data-del="${c.id}" title="Platz entfernen" aria-label="Platz entfernen">${DEL}</button>` : ''}</span></td></tr>`).join('')}</table>
         <p class="muted s" style="margin:10px 0 0">Die Plätze kommen aus den Platznamen in nuLiga. Plätze außerhalb der eigenen Anlage (z. B. eine Halle) mit „+ Platz“ anlegen – sie sperren nichts. „Freie Plätze belegen“ in der Zentrale nutzt nur Plätze mit „automatisch verteilen“.</p></div>

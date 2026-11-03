@@ -17,7 +17,7 @@
       .bkm-plan .nowl { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 2; pointer-events: none; }
       .bkm-blk { position: absolute; left: 3px; right: 3px; border-radius: 10px; padding: 4px 5px; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; box-shadow: var(--shadow); text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 3;   /* über der Jetzt-Linie – Namen bleiben lesbar */
         background: var(--hover); color: var(--ink); border-color: var(--line); }
-      .bkm-blk > b, .bkm-blk > span { display: block; flex: none; height: 15px; line-height: 15px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .bkm-blk > b:first-child { height: auto; max-height: 30px; white-space: normal; overflow-wrap: anywhere; hyphens: auto; -webkit-hyphens: auto; }   /* Buchungsart darf umbrechen statt „Meden…“ */
+      .bkm-blk > b, .bkm-blk > span { display: block; flex: none; line-height: 15px; font-size: 12px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung statt Bruch mitten im Wort, kein „…“; nur ganze Zeilen (theme-init.js blendet aus, was nicht mehr ganz passt) (02.11.2026) */
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-family: var(--num); font-size: 14px; font-weight: 600; opacity: .9; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card), var(--shadow); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
@@ -29,7 +29,7 @@
       .bkm-nowbody h3 { margin: 10px 0 2px; font-size: 13px; font-weight: 800; color: var(--muted); }
       .bkm-nowbody > div:first-child, .bkm-now h3 + div { border-top: 0; }
       .bkm-nowbody > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 14px; }
-      .bkm-nowbody > div[data-nl] { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+      .bkm-nowbody > div[data-nl] { cursor: pointer; -webkit-tap-highlight-color: transparent; min-height: 40px; align-content: center; }   /* Zeile ist Tippfläche (ganzer Name): mindestens 40 px wie die Leisten (03.11.2026) */
       .bkm-nowbody > div.open span { white-space: normal; overflow: visible; }
       .bkm-now span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-now small { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
       .bkm-now p { margin: 0; color: var(--muted); font-size: 14px; }
@@ -40,8 +40,8 @@
       .bkm-sheet label.l { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 4px; }
       .bkm-sheet .vh-select { font-size: 16px; }
       .bkm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
-      .bkm-chips span { display: inline-flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 6px 0 12px; border-radius: 17px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 700; }
-      .bkm-chips span button { width: 26px; height: 26px; border-radius: 13px; border: 0; background: var(--hover); color: inherit; font-size: 15px; line-height: 1; }
+      .bkm-chips span { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 4px 0 12px; border-radius: 20px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 700; }
+      .bkm-chips span button { width: 32px; height: 32px; border-radius: 16px; border: 0; background: var(--hover); color: inherit; font-size: 15px; line-height: 1; }
       .bkm-hits { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: -4px 0 10px; }
       .bkm-hits button { display: block; width: 100%; text-align: left; min-height: 44px; padding: 0 14px; border: 0; border-top: 1px solid var(--line); background: var(--card); font: inherit; font-size: 15px; color: var(--ink); }
       .bkm-hits button:first-child { border-top: 0; }
@@ -176,7 +176,7 @@
         const nxDay = nx ? (nx.date === d.today ? 'Heute' : nx.date === addDays(d.today, 1) ? 'Morgen' : `${wd(nx.date)}, ${deD(nx.date).slice(0, 6)}`) : '';
         const nxWho = !nx ? '' : nx.who && nx.who.length > 1 ? 'mit ' + nx.who.filter(w => w !== ctx.member).map(first).join(', ') : nx.partner_device_name ? 'mit ' + nx.partner_device_name : nx.solo_label || '';
         const nextHtml = nx ? `<div class="vh-next hero"><div class="t"><b>${esc(nx.start)}</b><small>${esc(nxDay)}</small></div><div class="i"><b>${esc(nx.resource)}</b>${nxWho ? `<span>${esc(nxWho)}</span>` : `<span>bis ${esc(nx.end)} Uhr</span>`}</div>${nx.canEdit ? `<button class="o" data-e="${nx.id}">Ändern</button>` : ''}</div>` : '';
-        el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}${nextHtml}<div class="vh-days">${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}</b></button>`).join('')}</div>
+        el.innerHTML = `${d.blocked ? `<div class="vh-bar a"><span><b>${esc(d.blocked)}</b><br>Bei Fragen bitte an den Vorstand wenden.</span></div>` : ''}${nextHtml}<div class="vh-days" data-wischt>${days.map(x => `<button data-d="${x}" class="${x === day ? 'on' : ''}"><span>${x === d.today ? 'heute' : esc(wd(x))}</span><b>${+x.slice(8, 10)}</b></button>`).join('')}</div>
           ${areas.length > 1 ? `<div class="vh-seg bkm-areas">${areas.map(a => `<button data-a="${esc(a)}" class="${a === area ? 'on' : ''}">${esc(a)}</button>`).join('')}</div>` : ''}
           <div class="vh-seg bkm-view">${[['zeiten', 'Freie Zeiten'], ['plan', 'Kompakt'], ['wide', 'Ausführlich']].map(([k, t]) => `<button data-v="${k}" class="${view === k ? 'on' : ''}">${t}</button>`).join('')}</div>
           ${rs.length && (view === 'plan' || view === 'wide') ? planHtml(rs, p, nowM) : rs.length ? listHtml(rs, p, nowM, d.today)
@@ -254,7 +254,7 @@
           else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
           // Buchungsart (z. B. Medenspiel) behält immer ihre Farbe – auch bei eigenen Buchungen; „meine“ zeigt dann ein Rahmen in Vereinsfarbe
           const st = b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
-          return `<button class="bkm-blk ${b.mine ? 'mine' : ''} ${b.label ? 'lab' : ''} ${b.type === 'sperre' ? 'sperre' : ''}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`;
+          return `<button lang="de" class="bkm-blk ${b.mine ? 'mine' : ''} ${b.label ? 'lab' : ''} ${b.type === 'sperre' ? 'sperre' : ''}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`;
         };
         // heute: wer gerade spielt und wer gleich kommt – kompakt über dem Raster
         let now = '';
@@ -269,7 +269,7 @@
             ${nowShown ? `<div class="bkm-nowbody">${play.length ? play.map(x => line(x.b, `bis ${x.b.end}`)).join('') : '<p>Gerade spielt niemand.</p>'}
             ${soon.length ? `<h3>In der nächsten Stunde</h3>${soon.map(b => line(b, `ab ${b.start}`)).join('')}` : ''}</div>` : ''}</div>`;
         }
-        return `${now}<div class="vh-card flush bkm-planwrap"><div class="bkm-scroll${wide ? ' on' : ''}"><div class="bkm-plan${wide ? ' wide' : ''}" style="--n:${rs.length};--ph:${ph}px">
+        return `${now}<div class="vh-card flush bkm-planwrap"><div class="bkm-scroll${wide ? ' on' : ''}" data-wischt><div class="bkm-plan${wide ? ' wide' : ''}" style="--n:${rs.length};--ph:${ph}px">
           <div class="hd" style="border-right:1px solid var(--line)"></div>${rs.map(r => `<div class="hd"><b>${esc(r.name)}</b>${!r.open_today ? '<small>heute zu</small>' : sameHours(rs) ? '' : `<small>${r.open_from}–${r.open_to}</small>`}</div>`).join('')}${isToday && cut > from0 ? `<button class="bkm-past" data-past="1" aria-expanded="${pastOpen ? 'true' : 'false'}">${folded ? `<b>${hhmm(from0)}–${hhmm(cut)}</b><span>vorbei · antippen zum Aufklappen</span>` : '<span>vergangene Stunden wieder einklappen</span>'}</button>` : ''}
           <div class="tc" style="height:${H}px">${Array.from({ length: (to - from) / 60 + 1 }, (_, i) => `<span style="top:${T + i * ph}px">${hhmm(from + i * 60)}</span>`).join('')}</div>
           ${rs.map(r => { const o = tm(r.open_from), c = tm(r.open_to);

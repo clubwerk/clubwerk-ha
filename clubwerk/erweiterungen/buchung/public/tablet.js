@@ -96,7 +96,7 @@
       if (ln.length < n) ln.push([`${b.start}–${b.end}`, 'tm']);
       else if (ln.length > n) ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${ln.length - n + 1} weitere`, 'tm']];
       const st = b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
-      return `<button class="bk-blk ${esc(b.type)}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b translate="no">${esc(x)}</b>` : `<span class="${c}" translate="no">${esc(x)}</span>`)).join('')}</button>`;
+      return `<button lang="de" class="bk-blk ${esc(b.type)}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b translate="no">${esc(x)}</b>` : `<span class="${c}" translate="no">${esc(x)}</span>`)).join('')}</button>`;
     };
     return `<div class="bk-plan">
       <div class="bk-grid" style="--n:${rs.length};--ph:${PH}px">

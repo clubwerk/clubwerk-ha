@@ -59,7 +59,7 @@
   function pickMatch() {
     const list = [...d.open, ...d.upcoming.filter(m => !d.open.some(x => x.id === m.id))].slice(0, 30);
     dlg(`<h2>Ergebnis eintragen</h2><div class="sub">Welches Match habt ihr gespielt?</div>
-      <div class="vh-names">${list.length ? list.map(m => `<button data-m="${m.id}" translate="no"><span>${esc(line(m))}</span></button>`).join('') : '<div class="vh-names-hint">Gerade läuft kein Match.</div>'}</div>
+      <div class="vh-names eins">${list.length ? list.map(m => `<button data-m="${m.id}" translate="no"><span>${esc(line(m))}</span></button>`).join('') : '<div class="vh-names-hint">Gerade läuft kein Match.</div>'}</div>
       <div class="dlg-btns"><button id="tx">Abbrechen</button></div>`);
     $('tx').onclick = closeDlg;
     $('dialog').querySelectorAll('[data-m]').forEach(b => { b.onclick = () => result(list.find(m => m.id === +b.dataset.m)); });

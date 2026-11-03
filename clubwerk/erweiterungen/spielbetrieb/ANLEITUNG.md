@@ -83,10 +83,10 @@ Das Fenster zeigt oben Mannschaft, Gegner, Datum und Ort und die Zähler („3 v
 Darunter:
 
 - **Aushilfe aus einer anderen Mannschaft:** Spieler einer anderen Mannschaft auswählen und „Als Ersatz aufstellen“.
-- **Treffpunkt & Hinweise:** Uhrzeit, Ort, Ergebnis und ein „Hinweis an die Mannschaft“ (z. B. „bitte weiße Kleidung“). „Treffpunkt speichern“ übernimmt das.
+- **Treffpunkt & Hinweise:** Uhrzeit, Ort, Ergebnis und ein „Hinweis an die Mannschaft“ (z. B. „bitte weiße Kleidung“). „Treffpunkt speichern“ direkt darunter übernimmt das.
 - **Aufgaben:** nur sichtbar, wenn eingeschaltet (siehe Einstellungen). Je Aufgabe (z. B. Fahrer) wählt ihr einen Spieler, „entfernen“ löscht sie, „+ Fahrer“ legt eine neue an.
 
-Die Knöpfe unten: **Spieltag ändern …** (Gegner, Datum, Beginn, Ort, Status, Ergebnis), **Offene erinnern** (Push an alle ohne Antwort), **Aufstellung verschicken** (fragt nach, geht als Push und – mit Mitgliederverwaltung und eingeschalteter E-Mail – als E-Mail mit Kalendereintrag an alle Aufgestellten und Ersatzspieler) und **Schließen**.
+Unter der Aufstellung stehen **Offene erinnern** (Push an alle ohne Antwort) und **Spieltag ändern …** (Gegner, Datum, Beginn, Ort, Status, Ergebnis). Unten bleiben **Schließen** und **Aufstellung verschicken** (fragt nach, geht als Push und – mit Mitgliederverwaltung und eingeschalteter E-Mail – als E-Mail mit Kalendereintrag an alle Aufgestellten und Ersatzspieler) immer sichtbar.
 
 > Wird ein Spieltag verlegt oder abgesagt, bekommt die Mannschaft eine Nachricht. Eine bereits verschickte Aufstellung ändert ihr einfach und verschickt sie neu.
 
@@ -144,7 +144,7 @@ Jede Mannschaft ist eine Karte: Name, darunter Altersklasse, Liga, Saison, Minde
 
 ![Das Fenster „Spieler/innen“: links suchen, rechts die Meldeliste.](bild: seite=spielbetrieb; tab=mannschaften; klick=[data-pl]; ziel=dialog)
 
-Links sucht ihr Mitglieder und Gastspieler und holt sie mit **+** in die Mannschaft. Rechts steht die **Meldeliste** (Nummer 1 oben), die ihr mit ▲ und ▼ umsortiert; ✕ nimmt jemanden heraus. Eine Person kann in mehreren Mannschaften spielen. „Speichern“ übernimmt die Liste. Wer dadurch in keiner Mannschaft mehr steht, wird gemeldet.
+Links sucht ihr Mitglieder und Gastspieler und holt sie mit **+** in die Mannschaft. Rechts steht die **Meldeliste** (Nummer 1 oben), die ihr mit ▲ und ▼ umsortiert; ✕ nimmt jemanden heraus. Eine Person kann in mehreren Mannschaften spielen. „Speichern“ übernimmt die Liste. Wer dadurch in keiner Mannschaft mehr steht, wird gemeldet. Hinweise wie „wird 2027 erst 19 (D40)“ oder „männlich – Damenmannschaft“ und das Schild „Gast“ stehen in einer eigenen Zeile unter dem Namen – sie sperren nichts.
 
 **Gastspieler/innen** sind keine Vereinsmitglieder (z. B. bei einer Spielgemeinschaft mit dem Nachbarverein). „+ Gastspieler/in anlegen“ verlangt Vor- und Nachname, optional Verein und Handynummer. Gäste haben kein Konto und keine App. Stattdessen bekommt jeder Gast einen **persönlichen Link**: Der Link-Knopf kopiert ihn (z. B. für WhatsApp), mit dem Stift ändert ihr Angaben und seht, wann der Link zuletzt geöffnet wurde. „Neuer Link …“ macht den alten ungültig, „Ganz entfernen …“ löscht den Gast aus allen Mannschaften. Ein Gastlink verfällt nach 12 Monaten ohne Nutzung oder wenn der Gast in keiner aktiven Mannschaft mehr steht.
 

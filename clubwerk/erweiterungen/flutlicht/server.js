@@ -207,7 +207,7 @@ async function tickInner() {
       } else if (want && isOn && (!k || !k.on)) cmd.set(light.id, { on: true, at: Date.now(), seenOn: true });
       if (failed.has(light.id) && haOn(light, await trySt()) === want) { failed.delete(light.id); log('behoben', light.name, null, 'wieder erreichbar'); }   // erst, wenn Home Assistant den gewünschten Zustand meldet
     } catch (e) {
-      if (failed.get(light.id) !== e.message) { failed.set(light.id, e.message); log('fehler', light.name, null, e.message); notify(`${light.name}: Licht ließ sich nicht schalten (${e.message}).`); }
+      if (failed.get(light.id) !== e.message) { failed.set(light.id, e.message); log('fehler', light.name, null, e.message); notify(`${light.name}: Licht ließ sich nicht schalten (${e.message}).`); H.securityAlert('licht', `Flutlicht: ${light.name} ließ sich nicht schalten (${e.message}).`, { key: light.id }); }
     }
   }
 }
@@ -397,7 +397,7 @@ function tabletFail(ip, who, memberId) {
   if (T_FAILS.all.length >= 10) {
     const c = cfg(); c.header = false; save(c); T_FAILS.all = [];
     log('abgelehnt', null, null, 'Licht am Tablet nach 10 falschen PINs abgeschaltet');
-    H.require('./security').securityAlert('Am Vereinstablet wurde beim Flutlicht 10-mal eine falsche App-PIN eingegeben (zuletzt für „' + who + '“). Das Schalten am Tablet ist deshalb abgeschaltet. In der Verwaltung unter Einstellungen › Tablet kann es wieder eingeschaltet werden.', 'flutlicht-tablet');
+    H.securityAlert('tablet', 'Am Vereinstablet wurde beim Flutlicht 10-mal eine falsche App-PIN eingegeben (zuletzt für „' + who + '“). Das Schalten am Tablet ist deshalb abgeschaltet. In der Verwaltung unter Einstellungen › Tablet kann es wieder eingeschaltet werden.');
   }
 }
 function tabletRoutes(r, ctx) {
@@ -533,6 +533,12 @@ function activate(ctx) {
   ctx.hooks.tabletVisible = () => { const c = cfg(); return Boolean(c.header && c.lights.length && c.who.tablet); };
   ctx.hooks.tabletSwitch = { get: () => Boolean(cfg().header), set: on => { const c = cfg(); c.header = on; save(c); } };
   ctx.hooks.usedEntities = () => cfg().lights.map(l => l.ref);
+  // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
+  ctx.hooks.securityEvents = () => [
+    { id: 'tablet', label: 'Flutlicht: viele falsche PINs am Tablet', level: 'r', push: 'Flutlicht: viele falsche PINs am Tablet – das Schalten am Tablet ist aus.' },
+    { id: 'schalter', label: 'Flutlicht: Schalter geändert', level: 'r', push: 'Im Modul Flutlicht wurden die Schalter geändert.' },
+    { id: 'licht', label: 'Flutlicht ließ sich nicht schalten', level: 'a', push: 'Das Flutlicht ließ sich nicht schalten.' },
+  ];
   ctx.hooks.gobdTables = () => [{ table: 'fl_claim', date: 'created_at' }];   // GoBD: Änderungsjournal (Lichtgeld wird als Forderung oder Verkauf bezahlt und dort gebucht)
   ctx.hooks.gobdKeys = () => [{ key: 'fl.lichtgeld', label: 'Lichtgeld (Flutlicht)', sphere: 'zweck', prefix: 'fl-' }];
   ctx.hooks.historyTables = () => ['fl_claim'];   // Lichtgeld und Betriebsstunden bleiben beim Löschen eines Kontos lesbar
@@ -616,7 +622,7 @@ function activate(ctx) {
     if (diff) audit(req.user, 'Flutlicht: Einstellungen geändert', diff);
     // geänderte Schalter dem Vorstand melden (wie bei Türen: wer Schalter umhängt, schaltet fremde Geräte)
     const refs = c2 => c2.lights.map(l => `${l.name}=${l.ref}`).sort().join(', ');
-    if (refs(before) !== refs(out) && before.lights.length) H.require('./security').securityAlert(`Im Modul Flutlicht wurden die Schalter geändert (von ${uname(req)}).\n\nVorher: ${refs(before) || '–'}\nJetzt: ${refs(out) || '–'}`, 'flutlicht-schalter-' + Date.now());
+    if (refs(before) !== refs(out) && before.lights.length) H.securityAlert('schalter', `Im Modul Flutlicht wurden die Schalter geändert (von ${uname(req)}). Vorher: ${refs(before) || '–'} · Jetzt: ${refs(out) || '–'}`);
     res.json({ ok: true, cfg: out });
   });
   admin.post('/test', P, async (req, res) => {

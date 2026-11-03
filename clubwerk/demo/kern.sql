@@ -133,6 +133,20 @@ CREATE TABLE IF NOT EXISTS "push_subs" (
   last_ok    TEXT,
   fails      INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS "sec_alerts" (
+  id        INTEGER PRIMARY KEY AUTOINCREMENT,
+  kind      TEXT NOT NULL,                 -- Art aus dem Katalog (z. B. login.viele, zugang.tueren)
+  level     TEXT NOT NULL,                 -- r | a | i
+  key       TEXT NOT NULL,                 -- Bündelung: Art + Schlüssel
+  text      TEXT NOT NULL,
+  n         INTEGER NOT NULL DEFAULT 1,
+  member_id INTEGER,                       -- betroffenes Mitglied (Datenauskunft), falls bekannt
+  first_at  TEXT NOT NULL,
+  last_at   TEXT NOT NULL,
+  sent_at   TEXT,                          -- letzte Sofortmeldung
+  done_at   TEXT,
+  done_by   TEXT
+);
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
   value TEXT
@@ -150,6 +164,7 @@ CREATE TABLE IF NOT EXISTS vault_wrap (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_audit_at ON audit_log(at);
+CREATE INDEX IF NOT EXISTS ix_sec_open ON sec_alerts(key, done_at);
 CREATE INDEX IF NOT EXISTS ix_devices_scope ON member_devices(scope, member_id);
 CREATE INDEX IF NOT EXISTS ix_devices_token ON member_devices(scope, token_hash);
 CREATE INDEX IF NOT EXISTS ix_devices_token2 ON member_devices(scope, token2_hash);
@@ -1122,6 +1137,10 @@ INSERT INTO "mv_dunning"(id, member_id, date, level, title, cents, fee_cents, fe
 INSERT INTO "mv_dunning"(id, member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user, created_at) VALUES(4,11,'2026-04-16',2,'1. Mahnung',21550,250,89,'RE-2026-0005','[{"id":49,"text":"Erwachsene 01/2026–12/2026","cents":12000,"level":2,"adv":true},{"id":50,"text":"Tennis Erwachsene 01/2026–12/2026","cents":9000,"level":2,"adv":true},{"id":87,"text":"Gebühr Rücklastschrift vom 16.03.2026","cents":300,"level":2,"adv":true}]','brief','Adminkonto','2026-04-16 14:52:58');
 INSERT INTO "mv_dunning"(id, member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user, created_at) VALUES(5,12,'2026-04-16',2,'1. Mahnung',21250,250,90,'RE-2026-0001','[{"id":66,"text":"Erwachsene 01/2026–12/2026","cents":12000,"level":2,"adv":true},{"id":67,"text":"Tennis Erwachsene 01/2026–12/2026","cents":9000,"level":2,"adv":true}]','brief','Adminkonto','2026-04-16 14:52:58');
 INSERT INTO "mv_dunning"(id, member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user, created_at) VALUES(6,12,'2026-05-02',3,'2. Mahnung',21500,250,91,'RE-2026-0001','[{"id":66,"text":"Erwachsene 01/2026–12/2026","cents":12000,"level":3,"adv":true},{"id":67,"text":"Tennis Erwachsene 01/2026–12/2026","cents":9000,"level":3,"adv":true},{"id":90,"text":"Mahngebühr (1. Mahnung vom 23.04.2026)","cents":250,"level":3,"adv":true}]','brief','Adminkonto','2026-05-02 14:52:59');
+INSERT INTO "sec_alerts"(id, kind, level, key, text, n, member_id, first_at, last_at, sent_at, done_at, done_by) VALUES(1,'login.viele','r','login.viele:kasse','Auffällig viele fehlgeschlagene Anmeldungen für „kasse“ (zuletzt von 192.168.178.57). Bitte prüfen, ob jemand versucht, das Passwort zu erraten.',2,NULL,'2026-10-20 23:10:00','2026-10-21 01:10:00','2026-10-20 23:10:00',NULL,NULL);
+INSERT INTO "sec_alerts"(id, kind, level, key, text, n, member_id, first_at, last_at, sent_at, done_at, done_by) VALUES(2,'zugang.abgelehnt','a','zugang.abgelehnt:m6','Zugang: Für Lea Wagner wurde heute schon 10-mal eine Türöffnung abgelehnt (zuletzt Clubhaus). Bitte im Zugangsprotokoll nachsehen.',1,6,'2026-10-20 12:10:00','2026-10-20 12:10:00',NULL,NULL,NULL);
+INSERT INTO "sec_alerts"(id, kind, level, key, text, n, member_id, first_at, last_at, sent_at, done_at, done_by) VALUES(3,'login.geraet','a','login.geraet:admin|192.168.178.34','„admin“ hat sich von einem neuen Gerät angemeldet (Adresse 192.168.178.34). Warst du das nicht, bitte sofort das Passwort ändern.',1,NULL,'2026-10-20 06:10:00','2026-10-20 06:10:00',NULL,NULL,NULL);
+INSERT INTO "sec_alerts"(id, kind, level, key, text, n, member_id, first_at, last_at, sent_at, done_at, done_by) VALUES(4,'sicherung.ziel','r','sicherung.ziel:aus-nas','Das Sicherungsziel „NAS im Vereinsheim“ wurde von Adminkonto ausgeschaltet.',1,NULL,'2026-10-18 08:10:00','2026-10-18 08:10:00','2026-10-18 08:10:00','2026-10-18 10:10:00','Adminkonto');
 INSERT INTO "settings"(key, value) VALUES('mig_event_guests','1');
 INSERT INTO "settings"(key, value) VALUES('roles_seeded','1');
 INSERT INTO "settings"(key, value) VALUES('gobd_cfg','{"berater":"1234567","mandant":"10001","wj_month":1,"length":4,"skr":"Beispiel","gegen":{"bar":"1000","karte":"1361","lastschrift":"1360","ueberweisung":"1360","verrechnung":"1590"},"konten":{"verkauf.Bier":{"konto":"8120","sphere":"wgb"},"verkauf.Kaffee":{"konto":"8121","sphere":"wgb"},"verkauf.Snacks":{"konto":"8122","sphere":"wgb"},"verkauf.Softdrinks":{"konto":"8123","sphere":"wgb"},"verkauf.Sonstiges":{"konto":"8124","sphere":"wgb"},"verkauf.Wasser":{"konto":"8125","sphere":"wgb"},"verkauf.Weizen":{"konto":"8126","sphere":"wgb"},"bh.firma.0":{"konto":"8200","sphere":"wgb"},"bh.firma.7":{"konto":"8300","sphere":"wgb"},"bh.firma.19":{"konto":"8400","sphere":"wgb"},"bh.mitglied.0":{"konto":"4430","sphere":""},"bh.mitglied.7":{"konto":"4420","sphere":""},"bh.mitglied.19":{"konto":"4410","sphere":""},"bk.platz":{"konto":"8510","sphere":"zweck"},"bk.gebuehr":{"konto":"8520","sphere":"zweck"},"fl.lichtgeld":{"konto":"8530","sphere":"zweck"},"mv.beitrag":{"konto":"4010","sphere":"ideell"},"mv.abteilung":{"konto":"4020","sphere":"ideell"},"mv.aufnahme":{"konto":"4030","sphere":"ideell"},"mv.arbeitsstunden":{"konto":"4040","sphere":"ideell"},"mv.getraenke":{"konto":"8110","sphere":"wgb"},"mv.mahngebuehr":{"konto":"4050","sphere":"ideell"},"mv.ruecklastschrift":{"konto":"4060","sphere":"ideell"},"mv.rechnung":{"konto":"4070","sphere":""},"mv.sonstiges":{"konto":"4090","sphere":""},"tu.nenngeld":{"konto":"8540","sphere":"zweck"}}}');

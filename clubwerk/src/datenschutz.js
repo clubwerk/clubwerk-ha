@@ -19,8 +19,8 @@ const core = () => {
   const e = (id, label, text, unit, def, min, max, due, purge) => ({ id, label, text, unit, def, min, max, value: keep(id, def), due, purge, set: v => setSetting(`ds_keep_${id}`, String(v)) });
   return [
     e('anmeldungen', 'Anmeldungen und Sicherheitsmeldungen', 'Im Protokoll, mit IP-Adresse. Nur für die Sicherheit nötig.', 'tage', 30, 7, 365,
-      cut => db.prepare(`SELECT COUNT(*) n FROM audit_log WHERE ${LOGIN_SQL} AND at < ?`).get(cut).n,
-      cut => db.prepare(`DELETE FROM audit_log WHERE ${LOGIN_SQL} AND at < ?`).run(cut).changes),
+      cut => db.prepare(`SELECT COUNT(*) n FROM audit_log WHERE ${LOGIN_SQL} AND at < ?`).get(cut).n + require('./security').purgeCount(cut),
+      cut => db.prepare(`DELETE FROM audit_log WHERE ${LOGIN_SQL} AND at < ?`).run(cut).changes + require('./security').purge(cut)),   // samt Liste der Sicherheitswarnungen (sec_alerts)
     e('protokoll', 'Übriges Protokoll', 'Wer wann was geändert hat.', 'monate', 12, 1, 120,
       cut => db.prepare(`SELECT COUNT(*) n FROM audit_log WHERE NOT ${LOGIN_SQL} AND at < ?`).get(cut).n,
       cut => db.prepare(`DELETE FROM audit_log WHERE NOT ${LOGIN_SQL} AND at < ?`).run(cut).changes),
@@ -87,6 +87,7 @@ function registry() {
   const ret = all();
   const out = [
     { title: 'Verwaltung und Protokoll', purpose: 'Anmeldung der Vorstandsmitglieder, Nachweis von Änderungen, Schutz vor Missbrauch', data: 'Benutzername, Zeitpunkt, Aktion, IP-Adresse bei Anmeldungen', persons: 'Benutzer der Verwaltung', access: who('einstellungen'), frist: frist(ret.filter(x => x.key === 'kern.anmeldungen' || x.key === 'kern.protokoll')) },
+    { title: 'Sicherheitswarnungen', purpose: 'Missbrauch und Betriebsgefahren erkennen und dem Vorstand melden (Push, E-Mail, Übersicht)', data: 'Art, Zeitpunkt, Benutzername, Name des betroffenen Mitglieds, IP-Adresse, Gerätebezeichnung; im Push nur ein fester Satz ohne Namen', persons: 'Benutzer der Verwaltung, Mitglieder (z. B. bei gesperrter PIN)', access: who('sicherheit'), frist: frist(ret.filter(x => x.key === 'kern.anmeldungen')) },
     { title: 'Rundmails', purpose: 'Informationen an Mitglieder', data: 'Name, E-Mail-Adresse, Inhalt und Anhänge', persons: 'Mitglieder und weitere Empfänger', access: who('email'), frist: frist(ret.filter(x => x.key === 'kern.rundmails')) },
   ];
   if (plugins.isActive('getraenke')) out.push({ title: 'Verkauf', purpose: 'Verkauf im Vereinsheim, Abrechnung mit den Mitgliedern', data: 'Name, Buchungen (Artikel, Menge, Betrag, Zeitpunkt), PIN nur als Hash', persons: 'Mitglieder und Gäste mit Konto', access: who(['buchungen', 'abrechnung', 'export', 'konten']), frist: 'Buchungen als Belege 8 Jahre (gesetzlich), nicht automatisch gelöscht' });

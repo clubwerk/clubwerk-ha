@@ -75,12 +75,24 @@
     }
   }
   function dialog(html, wide = false) {
-    $('dialog').className = 'dialog' + (wide ? ' wide' : '');
-    $('dialog').onchange = null;   // Ereignis-Handler eines früheren Dialogs (z. B. Serien-Dialog) gelten nicht weiter
-    $('dialog').innerHTML = html;
-    $('overlay').classList.remove('hidden');
-    $('overlay').scrollTop = 0;
+    const ov = $('overlay'), d = $('dialog'), h = () => (d.querySelector('h2') || {}).textContent;
+    // Zeichnet sich ein offenes Fenster neu (z. B. nach „+“ in einer Liste oder „+ Gastspieler/in anlegen“), bleibt es, wo es war – vorher sprang es nach oben
+    // und das gerade Aufgeklappte lag unter der Fußleiste. Innere Listen behalten ihren Scrollstand ebenso.
+    const alt = ov.classList.contains('hidden') ? null : { t: h(), top: ov.scrollTop, innen: [...d.querySelectorAll('*')].filter(e => e.scrollTop > 0).map(e => [e.className, [...d.getElementsByClassName(e.className.split(' ')[0] || 'x')].indexOf(e), e.scrollTop]) };
+    d.className = 'dialog' + (wide ? ' wide' : '');
+    d.onchange = null;   // Ereignis-Handler eines früheren Dialogs (z. B. Serien-Dialog) gelten nicht weiter
+    d.innerHTML = html;
+    ov.classList.remove('hidden');
+    if (alt && alt.t === h()) {
+      alt.innen.forEach(([c, i, y]) => { const e = c && d.getElementsByClassName(c.split(' ')[0])[i]; if (e) e.scrollTop = y; });
+      ov.scrollTop = alt.top;
+    } else ov.scrollTop = 0;
+    dialogMehr();
   }
+  /* Fußleiste eines langen Fensters: Schatten, solange darunter noch Inhalt folgt – so sieht man, dass er weitergeht und nicht abgeschnitten ist */
+  function dialogMehr() { const ov = $('overlay'), f = ov && $('dialog').querySelector(':scope > .btns:last-child'); if (f) f.classList.toggle('mehr', ov.scrollTop + ov.clientHeight < ov.scrollHeight - 2); }
+  document.addEventListener('scroll', e => { if (e.target && e.target.id === 'overlay') dialogMehr(); }, { capture: true, passive: true });
+  window.addEventListener('resize', dialogMehr);
   function closeDialog() { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; }
 
   /* ---------- Rückfragen im eigenen Fenster (statt Browser-Dialog) ---------- */
@@ -1054,6 +1066,9 @@
     if (page !== 'uebersicht') return;
     if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} ${vs.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Mitgliederdaten liegen unverschlüsselt.', detail: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
+    const sw = can('sicherheit') ? await api('security/alerts?counts=1').catch(() => null) : null;
+    const swN = sw ? sw.counts.r + sw.counts.a : 0;
+    if (swN) alerts.push({ level: sw.counts.r ? 'r' : 'a', who: 'Sicherheit', text: swN === 1 ? '1 neue Warnung – bitte ansehen.' : `${swN} neue Warnungen – bitte ansehen.`, go: 'einstellungen', sec: ['cw_setsec', 'sicherheit'], link: 'Ansehen' });
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     // Datenqualität: nur Fehler (Hinweise wie fehlende Mandate melden die Module hier schon selbst)
     const dqR = dq ? dq.list.filter(c => c.count > 0 && c.level === 'r') : [];
@@ -1144,7 +1159,7 @@
     $('main').querySelectorAll('[data-show]').forEach(b => b.onclick = () => {
       const d = list.find(x => x.id === Number(b.dataset.show));
       dialog(`<h2>${esc(d.supplier)} · ${deDate(d.date)}</h2>
-        <table class="tbl"><tr><th>Artikel</th><th>Lieferanten-Text</th><th class="r">Gebinde</th><th class="r">Einzelartikel lose</th><th class="r">Einzelartikel gesamt</th></tr>
+        <table class="tbl kompakt"><tr><th>Artikel</th><th>Lieferanten-Text</th><th class="r">Gebinde</th><th class="r">Einzelartikel lose</th><th class="r">Einzelartikel gesamt</th></tr>
         ${d.items.map(i => `<tr><td>${esc(i.name)}</td><td class="muted">${esc(i.supplier_text || '')}</td><td class="r">${num(i.crates)}</td><td class="r">${num(i.bottles)}</td><td class="r">${num(i.total)}</td></tr>`).join('')}
         <tr class="sum"><td colspan="4">Summe</td><td class="r">${num(d.total)}</td></tr></table>
         <div class="btns"><button class="btn primary" id="x">Schließen</button></div>`);
@@ -1202,14 +1217,12 @@
         <div class="${p.fileId ? 'split' : ''}">
           ${p.fileId ? `<div class="preview">${isPdf ? `<iframe src="${src}#view=FitH"></iframe>` : `<img src="${src}" alt="Beleg">`}</div>` : ''}
           <div>
-            <div class="row" style="margin-bottom:12px">
-              <label class="f" style="flex:2;min-width:180px">Lieferant<input id="dSup" list="supList" value="${esc(p.supplier || '')}" placeholder="z. B. Getränkehandel Muster"></label>
-              <label class="f">Lieferdatum<input type="date" id="dDate" value="${date}"></label>
-            </div>
-            <div class="row" style="margin-bottom:12px">
-              <label class="f">Belegart<select id="dKind">${Object.entries(DOCKIND).map(([k, l]) => `<option value="${k}" ${k === (p.docKind || 'lieferung') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-              <label class="f">Beleg-Nr.<input id="dNo" value="${esc(p.docNo || '')}" style="width:140px"></label>
-              <label class="f">Betrag €<input id="dSum" value="${p.total_cents == null ? '' : centsToInput(p.total_cents)}" style="width:110px"></label>
+            <div class="frm" style="margin-bottom:12px">   <!-- Formularraster: Kanten fluchten von Zeile zu Zeile (02.11.2026) -->
+              <label class="f wall">Lieferant<input id="dSup" list="supList" value="${esc(p.supplier || '')}" placeholder="z. B. Getränkehandel Muster"></label>
+              <label class="f w1">Lieferdatum<input type="date" id="dDate" value="${date}"></label>
+              <label class="f w1">Belegart<select id="dKind">${Object.entries(DOCKIND).map(([k, l]) => `<option value="${k}" ${k === (p.docKind || 'lieferung') ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+              <label class="f w1">Beleg-Nr.<input id="dNo" value="${esc(p.docNo || '')}"></label>
+              <label class="f w1">Betrag €<input id="dSum" value="${p.total_cents == null ? '' : centsToInput(p.total_cents)}"></label>
             </div>
             <datalist id="supList">${(cache.suppliers || []).map(x => `<option>${esc(x)}</option>`).join('')}</datalist>
             <div class="scroll" style="max-height:52vh"><table class="tbl" id="lines"></table></div>
@@ -1400,7 +1413,7 @@
         <p class="muted s">Nur ausgefüllte Zeilen werden übernommen. Leere Zeilen bleiben unverändert.</p></div>
       <div class="card"><h3>Bruch oder Korrektur buchen</h3>
         <div class="frm"><label class="f">Artikel<select id="mvArt">${articleOptions(null)}</select></label>
-          <label class="f w1">Grund<select id="mvReason"><option value="bruch">Bruch / verdorben</option><option value="korrektur">Korrektur (+/−)</option></select></label>
+          <label class="f w1">Grund<select id="mvReason"><option value="bruch">Bruch</option><option value="korrektur">Korrektur (+/−)</option></select></label>
           <label class="f w1">Einzelartikel<input id="mvQty" class="n" inputmode="numeric"></label>
           <label class="f">Datum<input type="date" id="mvDate" value="${today()}"></label>
           <label class="f">Notiz<input id="mvNote"></label></div>
@@ -1471,9 +1484,9 @@
       ${memberId ? `<div class="row" style="margin-bottom:14px">${(() => { const act = r.rows.filter(b => !b.cancelled_at); const konto = act.filter(b => b.kind === 'konto');
           return `<div class="kpi" style="padding:8px 14px"><div class="l">${esc((m => m ? lastFirst(m.name, m.kind) : '')(cache.members.find(m => m.id === Number(memberId))))} im Zeitraum</div>
             <div style="font-weight:700">${act.reduce((x, b) => x + b.qty, 0)} Stück · ${euro(konto.reduce((x, b) => x + b.total_cents, 0))} aufs Konto${act.length !== konto.length ? ' · dazu bar/frei/angeschrieben' : ''}</div></div>`; })()}</div>` : ''}
-      <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:nowrap">
-        <label class="f" style="flex:1;min-width:0">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
-        <label class="f" style="flex:1;min-width:0">Artikel<select id="nbArt">${articleOptions(null)}<option value="__betrag">— freier Betrag … —</option></select></label>
+      <div class="card"><h3>Nachtragen</h3><div class="row" style="flex-wrap:wrap">
+        <label class="f" style="flex:1;min-width:180px">Konto<select id="nbMem">${cache.members.filter(m => m.active).map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:180px">Artikel<select id="nbArt">${articleOptions(null)}<option value="__betrag">— freier Betrag … —</option></select></label>
         <label class="f" id="nbQtyL">Menge<input id="nbQty" class="n" value="1" inputmode="numeric" style="width:80px"></label>
         <label class="f hidden" id="nbAmtL">Betrag €<input id="nbAmt" class="n" placeholder="0,00" inputmode="decimal" style="width:90px"></label>
         <label class="f hidden" id="nbNoteL">Wofür?<input id="nbNote" placeholder="z. B. Startgeld" maxlength="60"></label>
@@ -1568,7 +1581,7 @@
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px">
         <b id="abProg"></b><span class="muted s">Zum Kopieren auf den Betrag tippen</span>
       </div>
-      <div class="scroll" style="max-height:52vh"><table class="tbl" id="abTbl">
+      <div class="scroll" style="max-height:52vh"><table class="tbl kompakt" id="abTbl">
         <tr><th style="width:44px"></th><th style="width:44px" class="r">Nr.</th><th>Nachname</th><th>Vorname</th><th class="r">Betrag</th></tr>
         ${d.rows.map((x, i) => `<tr data-row="${x.id}" class="${isDone(x) ? 'off' : ''}">
           <td><input type="checkbox" data-tick="${x.id}" ${isDone(x) ? 'checked' : ''} style="width:22px;height:22px;margin:0"></td>
@@ -1660,14 +1673,14 @@
       for (let w = 0; w < 54; w++) { const wd = addD(start, w * 7); if (wd > `${year}-12-31`) break; weeks.push(wd); }
       // Monatszeile: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat, in dem die meisten ihrer Tage liegen – ihr Donnerstag) – nichts läuft über
       const months = []; weeks.forEach(w => { const d = addD(w, 3), key = d.slice(0, 4) === String(year) ? d.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
-      return `<div class="ds-scroll"><div class="ds-heat" style="--w:${weeks.length}"><span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key - 1] : ''}</span>`).join('')}
+      return `<div class="ds-scroll" data-wischt><div class="ds-heat" style="--w:${weeks.length}"><span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key - 1] : ''}</span>`).join('')}
         ${WD.map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addD(w, r), v = days[day] || 0, inY = day.slice(0, 4) === String(year);
           return `<i class="${inY ? '' : 'out'}" ${inY ? `title="${deDate(day)}: ${fmt(v)}"` : ''} style="${inY && v ? `background:${heat(v, max)}` : ''}"></i>`; }).join('')}`).join('')}</div></div>`;
     }
     /** Wochentag × Uhrzeit als Punkte */
     function bubbles(grid, [h0, h1], fmt) {
       const hours = Array.from({ length: Math.max(0, h1 - h0) }, (_, i) => h0 + i), max = Math.max(0, ...grid.flat());
-      return `<div class="ds-scroll"><div class="ds-bub" style="--h:${hours.length}"><span></span>${hours.map(h => `<span class="hh">${String(h).padStart(2, '0')}:00</span>`).join('')}
+      return `<div class="ds-scroll" data-wischt><div class="ds-bub" style="--h:${hours.length}"><span></span>${hours.map(h => `<span class="hh">${String(h).padStart(2, '0')}:00</span>`).join('')}
         ${WD.map((n, r) => `<span class="dl">${n}</span>${hours.map(h => { const v = grid[r][h] || 0; const sz = v ? Math.max(8, Math.round(Math.sqrt(v / max) * 40)) : 0;
           return `<span class="bc" title="${n} ${String(h).padStart(2, '0')}:00: ${fmt(v)}">${sz ? `<i style="width:${sz}px;height:${sz}px;background:${heat(v, max)}"></i>` : ''}</span>`; }).join('')}`).join('')}</div></div>`;
     }
@@ -2327,13 +2340,13 @@
             ${m.bookings ? '' : `<button class="btn small danger" data-rm="${m.id}">Löschen</button>`}</td></tr>`).join('')}</table></div>` : ''}
       ${absent.length ? `<div class="card warnbox">
         <div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0">Diese Saison nicht da (${absent.length})</h3>
-          <div class="row"><button class="btn" id="abShow">${cache.showAbsent ? 'Liste zuklappen' : 'Liste anzeigen'}</button>
-          ${cache.showAbsent && absent.some(m => !absentOpen(m)) ? `<button class="btn danger" id="abAll">Alle ${absent.filter(m => !absentOpen(m)).length} entfernen</button>` : ''}</div></div>
+          <button class="btn" id="abShow">${cache.showAbsent ? 'Liste zuklappen' : 'Liste anzeigen'}</button></div>
         ${cache.showAbsent ? `<p class="muted" style="margin:10px 0">Seit Saisonbeginn (${deDate(cache.seasonStart)}) nichts gebucht und auf keiner Veranstaltungsliste. „Entfernen“ löscht Mitglieder ohne jede Buchung; wer früher schon gebucht hat, wird nur ausgeblendet (die alten Abrechnungen bleiben erhalten, „Bearbeiten“ holt ihn zurück).</p>
-          <table class="tbl"><tr><th>Name</th><th>zuletzt da</th><th>angelegt</th><th class="r">offen</th><th></th></tr>
+          <table class="tbl kompakt"><tr><th>Name</th><th>zuletzt da</th><th>angelegt</th><th class="r">offen</th><th></th></tr>
           ${absent.map(m => `<tr><td>${pName(m)}</td><td>${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : '<span class="muted">nie</span>'}</td><td>${deDate(m.created_at.slice(0, 10))}</td>
             <td class="r">${absentOpen(m) ? euro((m.balance_cents || 0) + (m.eventOpen_cents || 0)) : ''}</td>
-            <td class="r">${absentOpen(m) ? '<span class="muted s">erst abrechnen</span>' : `<button class="btn small danger" data-abrm="${m.id}">${m.bookings ? 'Ausblenden' : 'Entfernen'}</button>`}</td></tr>`).join('')}</table>` : ''}</div>` : ''}
+            <td class="r">${absentOpen(m) ? '<span class="muted s">erst abrechnen</span>' : `<button class="btn small danger" data-abrm="${m.id}">${m.bookings ? 'Ausblenden' : 'Entfernen'}</button>`}</td></tr>`).join('')}</table>
+          ${absent.some(m => !absentOpen(m)) ? `<div class="dz"><button class="btn danger" id="abAll">Alle ${absent.filter(m => !absentOpen(m)).length} entfernen</button></div>` : ''}` : ''}</div>` : ''}
       <div class="toolbar"><button class="btn primary" id="mNew">${asKonten ? '+ Neues Konto' : '+ Neues Mitglied'}</button><button class="btn ghost" id="mXls">Import …</button><button class="btn ghost" id="mImp">Liste einfügen …</button></div>
       <div class="kpis">${(() => { const vis = cache.members.filter(m => !m.pending && m.active);
         const open = vis.reduce((a, m) => a + (m.balance_cents || 0), 0);
@@ -2703,7 +2716,7 @@
     el.innerHTML = `<h3>Benachrichtigungen</h3>
       <p class="muted s" style="margin-top:0">Kurze Hinweise aufs Handy (Push) aus der Mitglieder-App – auf dem iPhone in der Home-Bildschirm-App ab iOS 16.4, auf Android im Browser. Hier legst du fest, welche Anlässe es im Verein gibt; jedes Mitglied schaltet Push je Handy nur ein oder aus – welche Hinweise kommen, entscheidest du hier zentral. Es werden nur Titel und ein Satz gesendet, nichts PIN-Pflichtiges.</p>
       <div class="row" style="gap:6px 22px;margin-bottom:6px"><span class="pill${r.subs ? ' g' : ''}">${r.subs} ${r.subs === 1 ? 'Handy' : 'Handys'} angemeldet · ${r.members} ${r.members === 1 ? 'Mitglied' : 'Mitglieder'}</span></div>
-      ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start;margin:0"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:90px;height:36px;margin-top:6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
+      ${byMod.map(g => `<p class="muted s" style="margin:10px 0 4px"><b>${esc(g.m)}</b></p><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(min(340px,100%),1fr));gap:10px 24px;align-items:start">${g.ev.map(e => `<label class="chk" style="align-items:flex-start;margin:0"><input type="checkbox" data-pe="${esc(e.key)}" ${e.on ? 'checked' : ''} ${mayEdit ? '' : 'disabled'}><span>${esc(e.label)}${e.desc ? `<br><span class="muted s">${esc(e.desc)}</span>` : ''}${e.lead ? `<br><span class="muted s">${esc(e.lead.label || 'Vorlauf')}: <input type="number" min="5" max="10080" step="5" data-pl="${esc(e.key)}" value="${e.lead}" ${mayEdit ? '' : 'disabled'} style="width:90px;height:36px;margin-top:6px"> Minuten</span>` : ''}</span></label>`).join('')}</div>`).join('')}
       ${mayEdit ? `<div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:14px">
         <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testnachricht an<select id="pshWho"><option value="">– Mitglied wählen –</option>${r.subscribed.map(m => `<option value="${m.id}">${pName(m)}</option>`).join('')}</select></label><button class="btn" id="pshTest" ${r.subscribed.length ? '' : 'disabled'} title="${r.subscribed.length ? '' : 'Noch kein Handy für Push angemeldet'}">Senden</button></div>
         <button class="btn primary" id="pshSave">Speichern</button></div>` : ''}
@@ -2809,12 +2822,11 @@
         <div class="row" style="align-items:flex-end">
           <label class="f" style="width:200px">QR-Code gültig<select id="apHours" ${can('einstellungen') ? '' : 'disabled'}>${[1, 24, 168].map(h => `<option value="${h}" ${r.security.inviteHours === h ? 'selected' : ''}>${hoursTxt(h)}</option>`).join('')}</select></label>
           <label class="f" style="width:200px">E-Mail/Brief gültig<select id="apDays" ${can('einstellungen') ? '' : 'disabled'}>${[2, 7, 14].map(d => `<option value="${d}" ${r.security.inviteMailDays === d ? 'selected' : ''}>${d} Tage</option>`).join('')}</select></label>
-          <label class="f" style="flex:1;min-width:240px">Warnung bei gesperrtem Handy an${r.security.mailReady ? '' : ' (erst Postfach einrichten)'}<input id="apMail" ${can('einstellungen') ? '' : 'disabled'} type="email" value="${esc(r.security.mailTo)}" placeholder="vorstand@verein.de"></label>
           <button class="btn primary" id="apSecSave" ${can('einstellungen') ? '' : 'disabled'}>Speichern</button></div>
         <label class="chk" style="margin-top:12px"><input type="checkbox" id="apLink" data-nodirty ${can('einstellungen') ? '' : 'disabled'} ${r.security.allowLink ? 'checked' : ''}> QR-Code auch als Link zum Weiterschicken anbieten (weniger sicher)</label>
         <div class="row" style="margin-top:12px;gap:8px">
           <span class="pill ${r.https ? 'g' : 'a'}">${r.https ? 'HTTPS an' : 'ohne HTTPS'}</span>
-          <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code.</span></div></div>` : ''}
+          <span class="muted s">${r.https ? 'Die App ist verschlüsselt.' : 'Im WLAN unverschlüsselt – HTTPS in Home Assistant unter Add-on → Konfiguration → „HTTPS für alle Geräte“ einschalten (Anleitung).'} Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, nach ${r.security.blockAfter} ganz – dann hilft nur ein neuer QR-Code. Wer davon erfährt, steht unter Einstellungen › Sicherheit.</span></div></div>` : ''}
       ${can('einstellungen') ? '<div class="card" id="smsCard" data-nodirty data-set="einstellungen"><h3>Bestätigung per SMS</h3><p class="muted s" style="margin-top:0">Lade …</p></div>' : ''}
       ${mayCfg && mods.length ? `<div class="card" id="apAreas" data-nodirty data-set="bereiche"><h3>Bereiche der App</h3>
         <p class="muted s" style="margin-top:0">Welche Bereiche die App zeigt, wer sie sieht, womit sie startet und in welcher Reihenfolge sie stehen.</p>
@@ -2861,7 +2873,7 @@
       try { const t = await api('app/tunnel-check', 'POST', {}); if (t.ok) toast(t.on ? 'Die Mitglieder-App ist von außen erreichbar.' : 'Erreichbar – jetzt noch „eingeschaltet“ setzen und speichern.'); else toast(t.error, true); }
       catch (e) { fail(e); } finally { $('apExtTest').disabled = false; }
     };
-    if ($('apSec')) $('apSecSave').onclick = async () => { try { await api('settings/app', 'PUT', { inviteHours: Number($('apHours').value), inviteMailDays: Number($('apDays').value), allowLink: $('apLink').checked, mailTo: $('apMail').value }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
+    if ($('apSec')) $('apSecSave').onclick = async () => { try { await api('settings/app', 'PUT', { inviteHours: Number($('apHours').value), inviteMailDays: Number($('apDays').value), allowLink: $('apLink').checked }); clean(); toast('Gespeichert.'); } catch (e) { fail(e); } };
     if ($('apSec')) $('apLink').onchange = async () => { try { await api('settings/app', 'PUT', { allowLink: $('apLink').checked }); toast($('apLink').checked ? 'Link-Weitergabe erlaubt.' : 'Nur noch QR-Code am Bildschirm.'); } catch (e) { fail(e); } };
     if ($('apGo')) $('apGo').onclick = async () => {
       const id = Number($('apNew').value);
@@ -3037,7 +3049,7 @@
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
     zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', turniere: 'Turniere',
-    email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen',
+    email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen', sicherheit: 'Sicherheitswarnungen',
     buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
   const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');
@@ -3529,7 +3541,7 @@
       const v = (k, d = '') => (t && t[k] !== undefined && t[k] !== null ? t[k] : d);
       const pwPh = t && t.hasSecret ? 'placeholder="•••••• (gespeichert – leer lassen = unverändert)"' : '';
       const fieldsHtml = () => typ === 'webdav' ? `
-          <div class="row"><label class="f" style="flex:1">WebDAV-Adresse<input id="tgUrl" value="${esc(v('url'))}" placeholder="https://cloud.example.de/remote.php/dav/files/verein"></label></div>
+          <div class="row"><label class="f" style="flex:1">WebDAV-Adresse<input id="tgUrl" value="${esc(v('url'))}" placeholder="https://cloud.example.de/…"></label></div>
           <div class="row"><label class="f" style="flex:1">Benutzer<input id="tgUser" value="${esc(v('user'))}" autocomplete="off"></label><label class="f" style="flex:1">Passwort / App-Passwort<input id="tgPw" type="password" ${pwPh} autocomplete="new-password"></label></div>`
         : typ === 'sftp' ? `
           <div class="row"><label class="f" style="flex:1">Server<input id="tgHost" value="${esc(v('host'))}" placeholder="nas.local oder 192.168.178.20"></label><label class="f" style="flex:1">Port<input id="tgPort" class="n" value="${esc(v('port', 22))}" inputmode="numeric"></label></div>
@@ -3628,7 +3640,7 @@
         <div class="row"><label class="f" style="flex:1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
           <label class="f" style="flex:1">App secret<input id="dxSecret" type="password" placeholder="${d.hasSecret ? '•••••• (gespeichert)' : ''}" autocomplete="new-password"></label></div>
         <div class="row"><label class="f" style="flex:1">Dein Passwort (zur Bestätigung)<input id="dxMy" type="password" autocomplete="current-password"></label></div>
-        <div class="btns" style="justify-content:flex-start;margin-top:0"><button class="btn primary" id="dxSaveKeys">Speichern</button></div>
+        <div class="btns" style="justify-content:flex-start;margin-top:12px"><button class="btn primary" id="dxSaveKeys">Speichern</button></div>
         ${d.authUrl && d.hasSecret ? `<ol class="steps" start="4" style="margin-top:14px">
           <li><a class="btn small primary" href="${esc(d.authUrl)}" target="_blank" rel="noopener">Bei Dropbox freigeben ↗</a> – im neuen Fenster <b>Zulassen</b> klicken.</li>
           <li>Den angezeigten Code kopieren und hier einfügen:</li></ol>
@@ -3874,7 +3886,7 @@
       };
     }
   }
-  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dqBody')) renderQuality().catch(e => { if ($('dqBody')) $('dqBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('gbJournal')) renderBooks().catch(e => { if ($('gbJournal')) $('gbJournal').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
+  RENDER.einstellungen = async () => { await renderSettings(); sectionize(); if ($('bankBody')) renderBank().catch(e => { if ($('bankBody')) $('bankBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dsBody')) renderPrivacy().catch(e => { if ($('dsBody')) $('dsBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('dqBody')) renderQuality().catch(e => { if ($('dqBody')) $('dqBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('swBody')) renderSecurity().catch(e => { if ($('swBody')) $('swBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); if ($('gbJournal')) renderBooks().catch(e => { if ($('gbJournal')) $('gbJournal').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); renderUpdate().catch(() => {}); renderLanguages().catch(e => { if ($('langBody')) $('langBody').innerHTML = `<div class="banner r">${esc(e.message)}</div>`; }); };
 
   /* =================== Mein Konto (Benutzerchip): Passwort, Sprache und Aussehen in diesem Browser, E-Mail-Absender =================== */
   RENDER.konto = async () => {
@@ -3972,7 +3984,7 @@
     setTimeout(tick, 3000);
   }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
-  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['buchfuehrung', 'Buchführung'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['datenschutz', 'Datenschutz'], ['daten', 'Datenqualität'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
+  const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['buchfuehrung', 'Buchführung'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['sicherheit', 'Sicherheit'], ['datenschutz', 'Datenschutz'], ['daten', 'Datenqualität'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
   const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : 'tablet');
   /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
@@ -4005,6 +4017,36 @@
     const show = k => { cur = k; sset(store, k); wrap.querySelectorAll('[data-sec]').forEach(b => { b.classList.toggle('on', b.dataset.sec === k); if (b.dataset.sec === k) revealTab(b); }); body.querySelectorAll('[data-secof]').forEach(c => c.classList.toggle('hidden', c.dataset.secof !== k)); };
     wrap.querySelectorAll('[data-sec]').forEach(b => { b.onclick = () => show(b.dataset.sec); });
     show(cur);
+  }
+
+  /* ---------- Sicherheitswarnungen (src/security.js): offene Warnungen mit „Erledigt“, Empfänger, Testwarnung, zusätzliche Adressen ---------- */
+  let swAll = false;
+  async function renderSecurity() {
+    const r = await api('security/alerts' + (swAll ? '?all=1' : ''));
+    const box = $('swBody'), who = $('swWho'); if (!box) return;
+    const open = r.list.filter(a => !a.done_at);
+    const row = a => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-top:1px solid var(--line-soft)">
+        <div style="flex:1 1 240px;min-width:0"><b><span>${esc(a.label)}</span>${a.n > 1 ? ` <span translate="no">(${a.n} ×)</span>` : ''}</b> <span class="pill ${a.level === 'i' ? '' : a.level}">${a.level === 'r' ? 'Sofort gemeldet' : a.level === 'a' ? 'Tagesmail' : 'Nur hier'}</span>
+          <div class="muted s"><span translate="no">${esc(deTime(a.last_at))}</span>${a.done_at ? ` · <span>${esc(T('Erledigt von {0}', [a.done_by || '–']))}</span>` : ''}</div><div class="s">${esc(a.text)}</div></div>
+        ${a.done_at ? '' : `<button type="button" class="btn small" data-swdone="${a.id}">Erledigt</button>`}</div>`;
+    box.innerHTML = `<p class="muted s" style="margin-top:0">Was Clubwerk Auffälliges bemerkt hat – Anmeldungen, Sperren, Rechte, Sicherung, Türen, Beregnung. Rote Warnungen kommen sofort per Push und E-Mail, gelbe in der Tagesmail um 7 Uhr. „Erledigt“ gilt für alle Empfänger.</p>
+      ${r.list.length ? r.list.map(row).join('') : `<p class="empty">${swAll ? 'Noch keine Warnungen.' : 'Keine offenen Warnungen.'}</p>`}
+      <label class="chk" style="margin-top:12px"><input type="checkbox" id="swAll" data-nodirty ${swAll ? 'checked' : ''}> Auch erledigte zeigen</label>
+      <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px">${open.length > 1 ? '<button class="btn" id="swDoneAll">Alle erledigt</button>' : ''}<button class="btn" id="swTest">Testwarnung senden</button></div>`;
+    box.querySelectorAll('[data-swdone]').forEach(b => { b.onclick = () => busy(b, async () => { try { await api(`security/alerts/${b.dataset.swdone}/done`, 'POST', {}); await renderSecurity(); } catch (e) { fail(e); } }); });
+    $('swAll').onchange = () => { swAll = $('swAll').checked; renderSecurity().catch(fail); };
+    if ($('swDoneAll')) $('swDoneAll').onclick = () => busy($('swDoneAll'), async () => { try { await api('security/alerts/alle/done', 'POST', {}); await renderSecurity(); toast('Alle erledigt.'); } catch (e) { fail(e); } });
+    $('swTest').onclick = () => busy($('swTest'), async () => { try { await api('security/test', 'POST', {}); await renderSecurity(); toast('Testwarnung gesendet.'); } catch (e) { fail(e); } });
+    if (!who) return;
+    const people = r.recipients.slice().sort((a, b) => String(a.name).localeCompare(String(b.name), 'de'));
+    who.innerHTML = `<p class="muted s" style="margin-top:0">Alle Benutzer mit dem Recht „Sicherheitswarnungen“ (bei „alle Rechte“ automatisch). Push bekommt, wessen Benutzer mit einem Mitglied verknüpft ist und auf dessen Handy Benachrichtigungen an sind; die E-Mail geht an die Adresse dieses Mitglieds.</p>
+      ${!r.pushOn ? '<div class="banner a">Der Anlass „Sicherheitswarnung“ ist unter Mitglieder-App › Benachrichtigungen nicht freigegeben – es kommt kein Push.</div>' : ''}
+      ${!r.mailReady ? '<div class="banner a">Das Postfach ist noch nicht eingerichtet – es geht keine E-Mail raus.</div>' : ''}
+      ${people.length ? people.map(p => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;padding:8px 0;border-top:1px solid var(--line-soft)"><b style="flex:1 1 160px;min-width:0">${esc(p.name)}</b>
+        <span class="pill ${p.push ? 'g' : ''}">${p.push ? 'Push' : p.linked ? 'kein Push am Handy' : 'kein Mitglied verknüpft'}</span><span class="pill ${p.mail ? 'g' : ''}">${p.mail ? 'E-Mail' : 'keine E-Mail'}</span></div>`).join('') : '<p class="empty">Niemand hat das Recht „Sicherheitswarnungen“.</p>'}
+      ${r.mayEdit ? `<div class="row" style="align-items:flex-end;margin-top:12px"><label class="f" style="flex:1;min-width:240px">Zusätzliche Adressen (mehrere mit Komma)<input id="swExtra" type="email" multiple value="${esc(r.extra || '')}" placeholder="vorstand@verein.de"></label>
+        <button class="btn primary" id="swSave">Speichern</button></div>` : ''}`;
+    if ($('swSave')) $('swSave').onclick = () => busy($('swSave'), async () => { try { await api('security/settings', 'PUT', { extra: $('swExtra').value }); toast('Gespeichert.'); await renderSecurity(); } catch (e) { fail(e); } });
   }
 
   /* ---------- Datenqualität: Prüfungen von Kern und Modulen (src/datenqualitaet.js); jeder Knopf führt zur Stelle, an der man es behebt ---------- */
@@ -4280,6 +4322,8 @@
             <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'} title="${ml.ready ? '' : 'Erst das Postfach speichern'}">Testmail senden</button></div>
           <button class="btn primary" id="mlSave">Postfach speichern</button></div>
         <p class="muted s">Am besten ein eigenes Vereinspostfach. Die Daten stehen beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“, Port meist 587 (manchmal 465). Beispiele: GMX mail.gmx.net, WEB.DE smtp.web.de, IONOS smtp.ionos.de, Strato smtp.strato.de; bei Gmail ein App-Passwort verwenden. Das Passwort wird nie wieder angezeigt und ist in keinem Export enthalten.</p></div>` : ''}
+      ${can('sicherheit') ? `<div class="card" data-set="sicherheit"><h3>Sicherheitswarnungen</h3><div id="swBody"><p class="muted">Wird geladen …</p></div></div>
+        <div class="card" data-set="sicherheit"><h3>Wer bekommt Warnungen?</h3><div id="swWho"></div></div>` : ''}
       ${can('einstellungen') ? `<div class="card" data-set="datenschutz"><h3>Löschfristen</h3><div id="dsBody"><p class="muted">Wird geladen …</p></div></div>
         <div class="card" data-set="datenschutz"><h3>Datenschutzhinweis in der Mitglieder-App</h3><div id="dsNotice"></div></div>
         <div class="card" data-set="datenschutz"><h3>Verzeichnis von Verarbeitungstätigkeiten</h3><p class="muted s" style="margin-top:0">Eine Vorlage aus allen eingeschalteten Modulen: Zweck, Daten, betroffene Personen, wer Zugriff hat und die Löschfristen. Der Verein ergänzt Verantwortliche, Datenschutzbeauftragte und genutzte Dienste (z. B. Mail-Anbieter) und bewahrt das Verzeichnis auf.</p>

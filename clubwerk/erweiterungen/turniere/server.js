@@ -193,6 +193,8 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     { id: 'termin', label: 'Spieltermin vereinbart', desc: 'Clubmeisterschaft: Dein Gegner hat einen Termin gebucht, verlegt oder abgesagt.', default: true },
     { id: 'erinnerung', label: 'Erinnerung vom Sportwart', desc: 'Clubmeisterschaft: Der Sportwart erinnert an ein offenes Spiel.', default: true },
   ];
+  // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
+  ctx.hooks.securityEvents = () => [{ id: 'code', label: 'Turnierplaner: viele falsche Codes', level: 'r', push: 'Turnierplaner: viele falsche Codes der Turnierleitung.' }];
   /** Push an die Spieler eines Spiels (ohne „except“) – msg(mm) bekommt { opp (Gegner aus Sicht des Empfängers), due, phase … } */
   function tellPlayers(m, ev, msg, { except = null } = {}) {
     const s = seasonRow(m.season_id), nm = names();

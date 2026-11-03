@@ -46,6 +46,7 @@ const PERMS = {
   email: 'Nachrichten an Mitglieder schreiben – per E-Mail, in der App und als Push (Verein → Nachrichten)',
   kontoauszug: 'Kontoauszüge einlesen und zuordnen (zusätzlich „Einzug“ bzw. „Buchhaltung“)',
   deinstallieren: 'Module deinstallieren und wieder installieren (vorher Pflicht-Sicherung)',
+  sicherheit: 'Sicherheitswarnungen erhalten und ansehen – per Push, E-Mail und unter Einstellungen › Sicherheit',
 };
 
 /* Rechte abgeschalteter Module zählen nicht (setzt plugins.js) */

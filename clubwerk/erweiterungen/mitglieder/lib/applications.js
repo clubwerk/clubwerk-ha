@@ -320,7 +320,7 @@ function register(sh) {
     if (w) { bad(res, `Zu viele falsche Codes – bitte ${w} Min. warten.`, 429); return null; }
     const code = String((req.body || {}).code || '').replace(/\D/g, '');
     const a = code.length === 6 ? db.prepare("SELECT * FROM mv_application WHERE status = 'unterschrift' AND code_hash = ? AND code_expires > ?").get(codeHash(code), Date.now()) : null;
-    if (!a) { tFails.fail(ip); if (tAll.fail('*').locked) C.require('./security').securityAlert('Beitrittserklärung am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.', 'mvcode'); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
+    if (!a) { tFails.fail(ip); if (tAll.fail('*').locked) C.securityAlert('antragscode', 'Beitrittserklärung am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.'); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
     tFails.ok(ip);
     return a;
   }

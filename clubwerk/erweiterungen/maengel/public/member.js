@@ -27,7 +27,7 @@
       .vh-bar.mg-ans { align-items: flex-start; padding: 10px 14px; font-weight: 500; line-height: 1.4; }
       .mg-txt { white-space: pre-line; overflow-wrap: anywhere; }
       .vh-rows .mg-row { cursor: pointer; }
-      .vh-rows .mg-row .vh-tx { min-width: 0; } .vh-rows .mg-row small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }`;
+      .vh-rows .mg-row .vh-tx { min-width: 0; } .vh-rows .mg-row small { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; overflow-wrap: anywhere; }   /* zwei Zeilen: kurze Meldungen stehen ganz da, nur lange enden mit „…“ (02.11.2026) */`;
     document.head.appendChild(s);
   }
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));

@@ -34,7 +34,7 @@ Eine Zeile mit Balken. „Alle Punkte“ öffnet die Seite „Einrichtung“, �
 
 ![Die Karte „Zu erledigen“ mit farbigen Hinweisen. Rote Hinweise stehen oben.](bild: seite=uebersicht; ziel=.todo)
 
-Hier stehen Hinweise aus dem Kern und allen Modulen: fehlendes Sicherungspasswort, ausgeschaltete Verschlüsselung, fehlendes Vereinsnetz, neue Einträge vom Tablet zum Bestätigen, knapper Bestand und vieles mehr. Rot ist dringend, gelb ist ein Hinweis. Sechs Hinweise sind sichtbar, „Alle zeigen“ klappt den Rest auf. Der Link am Zeilenende führt direkt dorthin, wo ihr es erledigt. Ihr seht nur Hinweise, die ihr mit euren Rechten auch erledigen dürft.
+Hier stehen Hinweise aus dem Kern und allen Modulen: offene Sicherheitswarnungen, fehlendes Sicherungspasswort, ausgeschaltete Verschlüsselung, fehlendes Vereinsnetz, neue Einträge vom Tablet zum Bestätigen, knapper Bestand und vieles mehr. Rot ist dringend, gelb ist ein Hinweis. Sechs Hinweise sind sichtbar, „Alle zeigen“ klappt den Rest auf. Der Link am Zeilenende führt direkt dorthin, wo ihr es erledigt. Ihr seht nur Hinweise, die ihr mit euren Rechten auch erledigen dürft.
 
 #### Raster der Module
 
@@ -173,9 +173,9 @@ Ist ein Tunnel an, erscheint die Karte **Tunnel-Quelle**: Ihr legt fest, von wel
 
 #### Sicherheit
 
-![Karte „Sicherheit“: Gültigkeit der Einladungen und Warn-Adresse.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#apSec)
+![Karte „Sicherheit“: Gültigkeit der Einladungen.](bild: seite=app; klick=[data-sec="einstellungen"]; ziel=#apSec)
 
-Wie lange QR-Code (1 Stunde, 1 Tag oder 7 Tage) und E-Mail/Brief (2, 7 oder 14 Tage) gelten, an wen die Warnung bei einem gesperrten Handy geht und ob der QR-Code auch als Link zum Weiterschicken angeboten wird (weniger sicher). Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, danach ganz: Dann hilft nur ein neuer QR-Code.
+Wie lange QR-Code (1 Stunde, 1 Tag oder 7 Tage) und E-Mail/Brief (2, 7 oder 14 Tage) gelten und ob der QR-Code auch als Link zum Weiterschicken angeboten wird (weniger sicher). Nach 5 falschen PINs ist das Handy 5 Minuten gesperrt, ab dem 10. Fehlversuch 30 Minuten, danach ganz: Dann hilft nur ein neuer QR-Code. Wer davon erfährt, legt ihr unter Einstellungen › Sicherheit fest.
 
 #### Bestätigung per SMS
 
@@ -444,6 +444,22 @@ Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Ab
 - **Weitere Adressen:** Namen, unter denen die Verwaltung erreichbar ist, zum Beispiel eine eigene DuckDNS-Adresse. Schutz gegen Angriffe über fremde Webseiten.
 - **Verschlüsselung und Zugang von außen:** zeigt, ob HTTPS an ist (in Home Assistant unter Add-on › Konfiguration „HTTPS für alle Geräte“). Den Zugang von unterwegs richtet ihr unter Mitglieder-App › Einstellungen ein.
 
+### Bereich „Sicherheit“ {#einstellungen-sicherheit}
+
+![Karte „Sicherheitswarnungen“: offene Warnungen mit Zeit, Art und Knopf „Erledigt“.](bild: seite=einstellungen; klick=[data-sec="sicherheit"]; ziel=.card:has(#swBody))
+
+Clubwerk bemerkt Auffälliges und sagt dem Vorstand Bescheid – ganz ohne Internetdienst, alles läuft auf eurem Home Assistant. Dazu gehören zum Beispiel viele falsche Passwörter oder PINs, ein gesperrtes Handy, eine Anmeldung von einem neuen Gerät, geänderte Benutzer und Rechte, eine hochgeladene Erweiterung, der Tresor mit Wiederherstellungscode, geänderte Sicherungsziele, eine fehlgeschlagene Sicherung, knapper Speicher, neue Fehler in den Daten, aber auch Betriebsgefahren: eine Beregnung, die sich nicht stoppen lässt, eine Tür, die sich nicht abschließt, oder Licht, das sich nicht schalten lässt.
+
+- **Rot** kommt sofort per Push und E-Mail, auch nachts. Dieselbe Warnung kommt höchstens einmal in der Stunde, und an einem Tag höchstens zehn Sofortmeldungen; danach kommt ein letzter Hinweis, der Rest steht hier.
+- **Gelb** kommt gesammelt in der **Tagesmail um 7 Uhr**, nur an Tagen mit neuen Warnungen.
+- **Nur hier** (grau) steht nur in dieser Liste und im Protokoll, zum Beispiel ein eingespieltes Update.
+
+Gleiche Warnungen werden zusammengefasst, die Zahl in Klammern zeigt, wie oft es war. **Erledigt** nimmt eine Warnung aus der Liste und aus der Übersicht – für alle Empfänger; im Protokoll steht, wer es war. **Alle erledigt** räumt die ganze Liste ab, **Auch erledigte zeigen** blendet sie wieder ein. **Testwarnung senden** schickt eine rote Probe über alle Wege. Warnungen löscht Clubwerk nach der Frist „Anmeldungen und Sicherheitsmeldungen“ (Einstellungen › Datenschutz).
+
+![Karte „Wer bekommt Warnungen?“: Empfänger mit Push und E-Mail, zusätzliche Adressen.](bild: seite=einstellungen; klick=[data-sec="sicherheit"]; ziel=.card:has(#swWho))
+
+**Wer bekommt Warnungen?** Alle Benutzer mit dem Recht „Sicherheitswarnungen“; wer „alle Rechte“ hat, bekommt sie automatisch. Push geht an das Handy des Mitglieds, mit dem der Benutzer verknüpft ist (Benutzer & Rechte), sobald dort Benachrichtigungen an sind und der Anlass „Sicherheitswarnung“ unter Mitglieder-App › Benachrichtigungen freigegeben ist. Der Push nennt nur die Art der Warnung, nie Namen oder Adressen. Die E-Mail geht an die Adresse dieses Mitglieds. **Zusätzliche Adressen** (zum Beispiel ein Vorstandspostfach) bekommen jede E-Mail mit; eintragen darf sie nur, wer das Recht „Einstellungen“ hat, und jede Änderung ist selbst eine Warnung. Ist der Tresor nach einem Neustart noch verschlossen, gehen E-Mails nur an die zusätzlichen Adressen.
+
 ### Bereich „Datenschutz“ {#einstellungen-datenschutz}
 
 ![Karte „Löschfristen“: je Datenart eine Frist.](bild: seite=einstellungen; klick=[data-sec="datenschutz"]; ziel=.card:has(#dsBody))
@@ -543,6 +559,7 @@ Alles, was nur für euch gilt. Ihr erreicht die Seite über euren Namen unten im
 | Nachrichten (E-Mail) | Nachrichten an Mitglieder schreiben (E-Mail, App, Push) |
 | Kontoauszug | Kontoauszüge einlesen und zuordnen (zusätzlich „Einzug“ bzw. „Buchhaltung“) |
 | Module (Deinstallieren) | Module deinstallieren und wieder installieren (mit Pflicht-Sicherung) |
+| Sicherheitswarnungen | Sicherheitswarnungen per Push und E-Mail erhalten, unter Einstellungen › Sicherheit ansehen und als erledigt markieren |
 
 Das **Adminkonto** hat immer alle Rechte, ebenso Benutzer mit „Alle Rechte“. Das Sicherungspasswort, Sicherungsziele, Wiederherstellen und Updates darf nur ein Benutzer mit allen Rechten. „Mein Konto“ und die Übersicht stehen jedem angemeldeten Benutzer offen.
 
