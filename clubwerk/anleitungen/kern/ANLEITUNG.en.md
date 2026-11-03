@@ -134,6 +134,22 @@ The **Edit access** window has a tick per section; changes apply immediately. Ne
 
 > A new QR code, or authorising a new section, can sign the old phone out for security reasons. Simply invite again.
 
+#### Give a section to several members
+
+![The “Give a section to several members” window: choose the section and “Who?”.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=#apBulkAcc; ziel=#dialog)
+
+With **Give section …** above the list you authorise a section (e.g. doors, irrigation, lighting) for many members at once – instead of ticking it for each one. Choose the **Section** and **Who?**: all members in the app, a membership type (e.g. active) or a department (both only with the member management) or your **own selection** with ticks and search. “Non-member” accounts (e.g. coaches) are only added through your own selection and only for sections that exist for them.
+
+![The preview: who gets the section, who already has it and for whom it is not possible.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=#apBulkAcc; klick3=#bfPrev; ziel=#dialog)
+
+**Preview** shows how many get the section, how many already have it and for whom it is not possible – each with names to expand. Nothing changes until afterwards. It is not possible for locked authorisations (they stay locked), for expired ones (extend them individually) and for phones invited by someone without the right for this section (authorise individually; the phone then has to be invited again). Members without a phone still get the section – it applies as soon as they pair the app.
+
+For sections that switch something at the club (**doors, irrigation, lighting**) you confirm by typing the word **FREIGEBEN** and your own password; for the other sections the button is enough. Giving doors to many members at once also sends a security warning to the board. Giving a section to many members does not lift “Open once in the club Wi-Fi first”: phones paired while away without an SMS code still open doors, irrigation and lighting only after their first visit to the club Wi-Fi. Only someone with the full right for the section (for doors “Access”) may do this, not a right limited to their own department.
+
+Afterwards **Last bulk authorisation** with **Undo …** appears above the list: it takes the section away again from exactly the members of this last bulk authorisation. Anyone you have changed individually since then stays as they are.
+
+When a new module with its own section is switched on and nobody has it yet, the **Overview** asks “New section …: who should get it?” and **Authorise …** opens this window straight away. If nobody should get it for now, **Nobody for now – hide notice** in the window hides the notice.
+
 ### Tab “Sections” {#app-bereiche}
 
 ![Tab “Sections”: which sections the app shows, for whom and in what order.](bild: seite=app; klick=[data-sec="bereiche"])

@@ -134,6 +134,22 @@ Im Fenster **Freigaben bearbeiten** steht je Bereich ein Haken; Änderungen gelt
 
 > Ein neuer QR-Code oder die Freischaltung eines neuen Bereichs kann das alte Handy aus Sicherheitsgründen abmelden. Dann einfach neu einladen.
 
+#### Bereich für mehrere Mitglieder freigeben
+
+![Das Fenster „Bereich für mehrere Mitglieder freigeben“: Bereich und „Wer?“ wählen.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=#apBulkAcc; ziel=#dialog)
+
+Mit **Bereich freigeben …** über der Liste schaltet ihr einen Bereich (z. B. Türen, Beregnung, Licht) für viele Mitglieder auf einmal frei – statt bei jedem einzeln den Haken zu setzen. Ihr wählt den **Bereich** und **Wer?**: alle Mitglieder in der App, eine Mitgliedsart (z. B. aktiv) oder eine Abteilung (beides nur mit der Mitgliederverwaltung) oder eine **eigene Auswahl** mit Häkchen und Suche. Konten „Kein Mitglied“ (z. B. Trainer) kommen nur über die eigene Auswahl dazu und nur bei Bereichen, die es für sie gibt.
+
+![Die Vorschau: wer den Bereich neu bekommt, wer ihn schon hat und bei wem es nicht geht.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=#apBulkAcc; klick3=#bfPrev; ziel=#dialog)
+
+**Vorschau** zeigt, wie viele den Bereich neu bekommen, wie viele ihn schon haben und bei wem es nicht geht – jeweils mit Namen zum Aufklappen. Geändert wird erst danach. Nicht möglich ist es bei gesperrten Freischaltungen (sie bleiben gesperrt), bei abgelaufenen (einzeln verlängern) und bei Handys, die jemand ohne das Recht für diesen Bereich eingeladen hat (einzeln freigeben; dabei muss das Handy neu eingeladen werden). Mitglieder ohne Handy bekommen den Bereich trotzdem – er gilt, sobald sie die App koppeln.
+
+Bei Bereichen, die im Verein etwas schalten (**Türen, Beregnung, Licht**), tippt ihr zur Bestätigung das Wort **FREIGEBEN** ein und euer eigenes Passwort; bei den übrigen Bereichen reicht der Knopf. Wer Türen gesammelt freigibt, löst außerdem eine Sicherheitswarnung an den Vorstand aus. Eine Sammel-Freigabe hebt „Erst im Vereins-WLAN öffnen“ nicht auf: Handys, die von unterwegs ohne SMS-Code gekoppelt wurden, öffnen Türen, Beregnung und Licht weiterhin erst nach dem ersten Besuch im Vereins-WLAN. Gesammelt freigeben darf nur, wer das volle Recht für den Bereich hat (bei Türen „Zugang“), nicht ein Recht nur für die eigene Abteilung.
+
+Über der Liste steht danach **Letzte Sammel-Freigabe** mit **Zurücknehmen …**: Das entzieht den Bereich genau den Mitgliedern dieser letzten Sammel-Freigabe wieder. Wen ihr seitdem einzeln geändert habt, bleibt, wie er ist.
+
+Wird ein neues Modul mit eigenem Bereich eingeschaltet und hat ihn noch niemand, fragt die **Übersicht** „Neuer Bereich …: für wen freigeben?“ und öffnet mit **Freigeben …** gleich dieses Fenster. Soll ihn vorerst niemand bekommen, blendet **Vorerst für niemanden – Hinweis ausblenden** im Fenster den Hinweis aus.
+
 ### Reiter „Bereiche“ {#app-bereiche}
 
 ![Reiter „Bereiche“: welche Bereiche die App zeigt, für wen und in welcher Reihenfolge.](bild: seite=app; klick=[data-sec="bereiche"])

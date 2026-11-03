@@ -8,7 +8,7 @@
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
-const { db, getSetting, setSetting, audit } = require('./db');
+const { db, getSetting, setSetting, audit, auditDiff } = require('./db');
 const { normIp } = require('./security');
 const invites = require('./invites');
 const tls = require('./tls');
@@ -701,7 +701,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
 }
 
 /* ---------- Verwaltung ---------- */
-function adminRoutes(admin, { bad, need, auth }) {
+function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
   // Profilbild in der Verwaltung ansehen und bei Bedarf entfernen
   /* Push-Benachrichtigungen: welche Anlässe es im Verein gibt (Recht „Einstellungen“), Überblick und Test */
   admin.get('/push', need('app', 'konten', 'einstellungen', 'mitglieder'), (req, res) => res.json(push.adminState()));
@@ -745,7 +745,7 @@ function adminRoutes(admin, { bad, need, auth }) {
     const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
     const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
-    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [],
+    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [], bulkCan: mayMembers && bulkModules(req).length > 0, bulkLast: mayMembers ? bulkLastInfo(req) : null,
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   // Vereinsnetz (Einstellungen › Erreichbarkeit): nur, was die Karte braucht – ohne Mitgliederliste
@@ -861,6 +861,159 @@ function adminRoutes(admin, { bad, need, auth }) {
     audit(req.user, 'Mitglieder-App: Bereich allen entzogen', `${mod.label || mod.name}: ${rows.length} Mitglieder${keep.size ? `, ${keep.size} behalten` : ''}`);
     res.json({ ok: true, removed: rows.length });
   });
+  /** Bereich für ein Mitglied freischalten oder die Freischaltung ändern – derselbe Schreibweg für einzeln und gesammelt */
+  function grantOne(user, id, name, modId, fields, opts) {
+    const mod = modules.get(modId);
+    const isNew = !access.get(id, modId);
+    if (isNew && fields.profile === undefined && opts && opts.defaultProfile) fields.profile = opts.defaultProfile;
+    // Handy/Einladung wurde von jemandem erzeugt, der diesen Bereich nicht verwalten darf → entkoppeln, neuer QR-Code nötig
+    let reinvite = false;
+    if (isNew && mod.perm && !invites.issuerCovers(SCOPE, id, mod.perm)) {
+      invites.revoke(SCOPE, id); reinvite = true;
+      audit(user, 'Mitglieder-App: Handy entkoppelt (neuer Bereich, Einladung von Admin ohne dieses Recht)', name);
+    }
+    access.set(id, modId, fields);
+    audit(user, `${mod.name}: ${isNew ? 'freigeschaltet' : 'Freischaltung geändert'}`, name);
+    return { reinvite };
+  }
+
+  /* ---------- Bereich für mehrere Mitglieder auf einmal freigeben (planung/bereich-fuer-alle-freigeben.md) ----------
+     Nur Bereiche „nur ausgewählte“. Wer? alle in der App-Liste, eine Mitgliedsart oder Abteilung (Hook memberGroups der Mitgliederverwaltung)
+     oder eine eigene Auswahl. Vorschau → Ausführen mit demselben Stand (Prüfwert); bei Bereichen, die im Verein etwas schalten (sensitive:
+     Türen, Beregnung, Licht), zusätzlich Wort FREIGEBEN und eigenes Passwort. Je Mitglied derselbe Schreibweg wie einzeln (grantOne).
+     Die letzte Sammel-Freigabe lässt sich zurücknehmen (Einstellung app_bulk_last), solange niemand die Freischaltung seither geändert hat. */
+  const BULK_MAX = 500, BULK_WORD = 'FREIGEBEN';
+  // nur mit dem vollen Recht des Bereichs – ein Recht „nur eigene Abteilung“ reicht für den Sammelweg nicht
+  const mayBulk = (req, module) => { const m = modules.get(module); const p = m && m.perm ? m.perm : 'konten'; return req.user.perms.includes(p) && !(req.user.deptOnly || []).includes(p); };
+  const bulkModules = req => activeModules().filter(([id, m]) => !m.open && !appOff().has(id) && mayBulk(req, id));
+  // Mitgliedsart/Abteilung verraten mehr als nur Namen: nur mit dem vollen Recht „Mitglieder“ (nicht nur eigene Abteilung)
+  const mayGroups = req => req.user.perms.includes('konten') && !(req.user.deptOnly || []).includes('konten');
+  const groups = () => { const out = []; for (const p of require('./plugins').withHook('memberGroups')) { try { out.push(...(p.hooks.memberGroups() || [])); } catch (e) { console.error('memberGroups:', e.message); } } return out; };
+  const bulkLast = () => { try { const x = JSON.parse(getSetting('app_bulk_last', '') || 'null'); return x && typeof x === 'object' ? x : null; } catch (e) { return null; } };
+  const sameRow = (r, s) => Boolean(r && s) && (r.profile ?? null) === (s.profile ?? null) && (r.valid_until || null) === (s.valid_until || null) && Boolean(r.blocked) === Boolean(s.blocked) && Boolean(r.away) === Boolean(s.away) && (r.flags || null) === (s.flags || null);
+  /** Zustand der letzten Sammel-Freigabe für die Verwaltung (ohne Mitglieds-IDs) */
+  const bulkLastInfo = req => { const x = bulkLast(); const m = x && modules.get(x.module); if (!x || x.undone || !m || !m.isActive()) return null;
+    return { module: x.module, label: m.label || m.name, n: x.rows.length, by: x.by, at: x.at, undo: mayBulk(req, x.module) }; };
+  /** Bereich, für den der Hinweis „Neuer Bereich: für wen freigeben?“ gilt: aktiv, eigens freizuschalten, niemand freigeschaltet, nicht weggeklickt */
+  const seenNew = () => { try { const x = JSON.parse(getSetting('app_new_seen', '[]')); return new Set(Array.isArray(x) ? x.map(String) : []); } catch (e) { return new Set(); } };
+  const markSeen = id => { const s = seenNew(); if (!s.has(id)) { s.add(id); setSetting('app_new_seen', JSON.stringify([...s])); } };
+  const newAreas = req => { const seen = seenNew(); return bulkModules(req).filter(([id]) => id !== 'nachrichten' && !seen.has(id) && !access.list(id).some(r => !r.blocked)).map(([id, m]) => ({ id, label: m.label || m.name })); };
+
+  /** Plan der Sammel-Freigabe → { mod, add: [{ id, name }], have, skip: [{ id, name, reason }], token } – schreibt nichts */
+  function bulkPlan(req, b) {
+    const modId = String(b.module || ''), mod = modules.get(modId);
+    if (!mod || !mod.isActive() || mod.open || appOff().has(modId)) throw Object.assign(new Error('Diesen Bereich gibt es nicht oder er gilt schon für alle.'), { status: 400 });
+    if (!mayBulk(req, modId)) throw Object.assign(new Error('Dafür fehlt dir die Berechtigung.'), { status: 403 });
+    const who = b.who && typeof b.who === 'object' ? b.who : {};
+    const typ = String(who.typ || '');
+    if (!['alle', 'gruppe', 'auswahl'].includes(typ)) throw Object.assign(new Error('Bitte auswählen, wer den Bereich bekommen soll.'), { status: 400 });
+    let ids, label;
+    if (typ === 'alle') {
+      // alle in der Liste „Freigeschaltete Mitglieder“ (mit Handy, eingeladen oder schon mit Freischaltung) – „Kein Mitglied“ nie über „alle“
+      ids = db.prepare('SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)').all(SCOPE).map(r => r.member_id);
+      label = 'alle Mitglieder in der App';
+    } else if (typ === 'gruppe') {
+      if (!mayGroups(req)) throw Object.assign(new Error('Auswahl nach Mitgliedsart oder Abteilung nur mit dem Recht „Mitglieder“.'), { status: 403 });
+      const g = groups().find(x => x.key === String(who.key || ''));
+      if (!g) throw Object.assign(new Error('Diese Auswahl gibt es nicht (mehr).'), { status: 400 });
+      ids = g.ids.map(Number); label = `${g.group}: ${g.label}`;
+    } else {
+      if (!Array.isArray(who.ids) || !who.ids.length) throw Object.assign(new Error('Bitte mindestens ein Mitglied auswählen.'), { status: 400 });
+      if (!who.ids.every(x => Number.isInteger(x) && x > 0)) throw Object.assign(new Error('Ungültige Auswahl.'), { status: 400 });
+      ids = who.ids; label = 'eigene Auswahl';
+    }
+    ids = [...new Set(ids)];
+    if (ids.length > BULK_MAX) throw Object.assign(new Error(`Höchstens ${BULK_MAX} Mitglieder auf einmal – bitte die Auswahl verkleinern.`), { status: 400 });
+    const ms = ids.length ? db.prepare(`SELECT id, name, kind FROM members WHERE id IN (${ids.map(() => '?').join(',')}) AND deleted = 0 AND active = 1 AND pending = 0 AND kind IN ('mitglied','nichtmitglied')`).all(...ids) : [];
+    const nk = require('./db').nameKey;
+    ms.sort((x, y) => nk(x.name, x.kind).localeCompare(nk(y.name, y.kind), 'de'));
+    const add = [], have = [], skip = [], away = [];
+    for (const m of ms) {
+      const p = { id: m.id, name: m.name, kind: m.kind };
+      if (m.kind === 'nichtmitglied') {
+        if (typ !== 'auswahl') continue;   // „Kein Mitglied“ nur, wenn ausdrücklich ausgewählt
+        if (!mod.nonMembers) { skip.push({ ...p, reason: 'nur für Mitglieder' }); continue; }
+      }
+      const r = access.get(m.id, modId);
+      if (r && r.blocked) { skip.push({ ...p, reason: 'für dieses Mitglied gesperrt' }); continue; }
+      if (r && r.valid_until && r.valid_until < today()) { skip.push({ ...p, reason: `Freischaltung abgelaufen (${deD(r.valid_until)}) – bitte einzeln verlängern` }); continue; }
+      if (r) { have.push(p); continue; }
+      // Handy von jemandem eingeladen, der diesen Bereich nicht verwalten darf: einzeln freigeben (dabei wird das Handy entkoppelt) – nie gesammelt
+      if (mod.perm && !invites.issuerCovers(SCOPE, m.id, mod.perm)) { skip.push({ ...p, reason: 'Handy muss neu eingeladen werden – bitte einzeln freigeben' }); continue; }
+      add.push(p);
+    }
+    if (mod.sensitive) { const st = statesPre(); for (const p of add) { const d = st.dev.get(p.id); if (d && d.paired && d.remote) away.push(p.id); } }
+    const token = require('crypto').createHash('sha256').update(JSON.stringify([modId, add.map(x => x.id)])).digest('hex').slice(0, 16);
+    return { modId, mod, label, add, have, skip, away, noDevice: add.filter(p => !db.prepare('SELECT 1 FROM member_devices WHERE scope = ? AND member_id = ? AND token_hash IS NOT NULL').get(SCOPE, p.id)).length, token };
+  }
+  const planErr = (res, e) => { if (e && e.status) { bad(res, e.message, e.status); return true; } return false; };
+  const pub = x => ({ id: x.id, name: x.name, kind: x.kind, ...(x.reason ? { reason: x.reason } : {}) });
+
+  // Wer für keinen Bereich das volle Recht hat, bekommt nichts zu sehen – vor jeder Prüfung der Eingaben
+  const bulkGuard = (req, res, next) => (bulkModules(req).length ? next() : bad(res, 'Dafür fehlt dir die Berechtigung.', 403));
+  admin.get('/app/bulk-access', bulkGuard, (req, res) => {
+    const mods = bulkModules(req);
+    res.json({ modules: mods.map(([id, m]) => ({ id, label: m.label || m.name, sensitive: Boolean(m.sensitive), nonMembers: Boolean(m.nonMembers) })),
+      groups: (mayGroups(req) ? groups() : []).map(g => ({ key: g.key, group: g.group, label: g.label, n: g.ids.length })), max: BULK_MAX, word: BULK_WORD, last: bulkLastInfo(req), newAreas: newAreas(req).map(x => x.id) });
+  });
+  admin.post('/app/bulk-access/preview', bulkGuard, (req, res) => {
+    let p; try { p = bulkPlan(req, req.body || {}); } catch (e) { if (planErr(res, e)) return; throw e; }
+    res.json({ module: p.modId, label: p.mod.label || p.mod.name, sensitive: Boolean(p.mod.sensitive), who: p.label, add: p.add.map(pub), have: p.have.map(pub), skip: p.skip.map(pub), away: p.away.length, noDevice: p.noDevice, token: p.token, word: p.mod.sensitive ? BULK_WORD : null });
+  });
+  admin.post('/app/bulk-access', bulkGuard, (req, res) => {
+    const b = req.body || {};
+    let p; try { p = bulkPlan(req, b); } catch (e) { if (planErr(res, e)) return; throw e; }
+    if (p.mod.sensitive) {
+      if (String(b.confirm || '').trim().toUpperCase() !== BULK_WORD) return bad(res, `Bitte zur Bestätigung das Wort ${BULK_WORD} eintippen.`);
+      const pw = require('./geraete').bestaetigt(req, res, ownPwOk); if (!pw) return;
+      if (!pw.confirmed) return res.status(428).json({ error: 'Bitte mit deinem Passwort bestätigen.', needPassword: true });
+    } else if (b.confirm !== true) return bad(res, 'Bitte bestätigen.');
+    if (!p.add.length) return bad(res, 'Es gibt niemanden, der den Bereich neu bekommt.');
+    if (b.token !== p.token) return res.status(409).json({ error: 'Seit der Vorschau hat sich etwas geändert. Bitte die Vorschau neu laden und noch einmal prüfen.', stale: true });
+    let opts = null; try { opts = p.mod.hooks.accessOptions ? p.mod.hooks.accessOptions() : null; } catch (e) { opts = null; }
+    const rows = [], by = req.user.name || req.user.username || '';
+    db.transaction(() => {
+      for (const x of p.add) {
+        const r = grantOne(req.user, x.id, x.name, p.modId, {}, opts);
+        if (r.reinvite) throw new Error('Handy müsste entkoppelt werden');   // ausgeschlossen durch den Plan – sicherheitshalber alles zurück
+        rows.push({ id: x.id, snap: access.get(x.id, p.modId) });
+      }
+      setSetting('app_bulk_last', JSON.stringify({ module: p.modId, label: p.mod.label || p.mod.name, rows, by, at: new Date().toISOString(), undone: false }));
+      markSeen(p.modId);
+    })();
+    const name = p.mod.label || p.mod.name, after = access.list(p.modId).filter(r => !r.blocked).length;
+    audit(req.user, 'Mitglieder-App: Bereich gesammelt freigegeben', `${auditDiff({ n: `${name} freigeschaltet (Mitglieder)` }, { n: String(after - p.add.length) }, { n: String(after) })} · neu: ${p.add.length} · Auswahl: ${p.label} · ${p.have.length} hatten ihn schon · ${p.skip.length} übersprungen`);
+    if (p.mod.sensitive) require('./security').securityAlert('app.sammel', `Mitglieder-App: „${name}“ wurde ${p.add.length} ${p.add.length === 1 ? 'Mitglied' : 'Mitgliedern'} auf einmal freigegeben (Auswahl: ${p.label}) von ${by}. War das nicht abgesprochen, unter Mitglieder-App › Mitglieder „Zurücknehmen“.`, { key: p.modId });
+    res.json({ ok: true, granted: p.add.length, have: p.have.length, skipped: p.skip.length });
+  });
+  admin.post('/app/bulk-access/undo', bulkGuard, (req, res) => {
+    const x = bulkLast();
+    if (!x || x.undone) return bad(res, 'Es gibt keine Sammel-Freigabe zum Zurücknehmen.');
+    const mod = modules.get(x.module);
+    if (!mod || !mod.isActive()) return bad(res, 'Diesen Bereich gibt es nicht mehr.');
+    if (!mayBulk(req, x.module)) return bad(res, 'Dafür fehlt dir die Berechtigung.', 403);
+    let back = 0, kept = 0;
+    db.transaction(() => {
+      for (const r of x.rows) {
+        const cur = access.get(r.id, x.module);
+        if (!sameRow(cur, r.snap)) { kept++; continue; }   // seitdem einzeln geändert oder entzogen: so lassen
+        access.remove(r.id, x.module); back++;
+        const m = db.prepare('SELECT name FROM members WHERE id = ?').get(r.id);
+        audit(req.user, `${mod.name}: Freischaltung entzogen (Sammel-Freigabe zurückgenommen)`, m ? m.name : '');
+      }
+      setSetting('app_bulk_last', JSON.stringify({ ...x, rows: [], undone: true }));
+    })();
+    audit(req.user, 'Mitglieder-App: Sammel-Freigabe zurückgenommen', `${mod.label || mod.name}: ${back} entzogen${kept ? `, ${kept} seitdem geändert – so gelassen` : ''}`);
+    res.json({ ok: true, removed: back, kept });
+  });
+  /** Hinweis „Neuer Bereich: für wen freigeben?“ (Übersicht) */
+  admin.get('/app/new-areas', bulkGuard, (req, res) => res.json(newAreas(req)));
+  admin.post('/app/new-areas/seen', bulkGuard, (req, res) => {
+    const id = String((req.body || {}).module || '');
+    if (!bulkModules(req).some(([x]) => x === id)) return bad(res, 'Unbekannter Bereich.');
+    markSeen(id); audit(req.user, 'Mitglieder-App: Hinweis „neuer Bereich“ ausgeblendet', (modules.get(id).label || modules.get(id).name));
+    res.json({ ok: true });
+  });
   admin.put('/app/member/:id/access', (req, res) => {
     const id = parseInt(req.params.id, 10);
     const b = req.body || {};
@@ -912,16 +1065,7 @@ function adminRoutes(admin, { bad, need, auth }) {
       if (opts && opts.profiles && !opts.profiles.some(p => p.id === b.profile)) return bad(res, 'Unbekanntes Profil.');
       fields.profile = b.profile;
     }
-    const isNew = !access.get(id, b.module);
-    if (isNew && fields.profile === undefined && opts && opts.defaultProfile) fields.profile = opts.defaultProfile;
-    // Handy/Einladung wurde von jemandem erzeugt, der diesen Bereich nicht verwalten darf → entkoppeln, neuer QR-Code nötig
-    let reinvite = false;
-    if (isNew && mod.perm && !invites.issuerCovers(SCOPE, id, mod.perm)) {
-      invites.revoke(SCOPE, id); reinvite = true;
-      audit(req.user, 'Mitglieder-App: Handy entkoppelt (neuer Bereich, Einladung von Admin ohne dieses Recht)', m.name);
-    }
-    access.set(id, b.module, fields);
-    audit(req.user, `${mod.name}: ${isNew ? 'freigeschaltet' : 'Freischaltung geändert'}`, m.name);
+    const { reinvite } = grantOne(req.user, id, m.name, b.module, fields, opts);
     res.json({ ok: true, reinvite, ...memberState(id) });
   });
   admin.put('/settings/app', need('app', 'einstellungen'), (req, res) => {

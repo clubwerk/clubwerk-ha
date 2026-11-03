@@ -1307,6 +1307,19 @@ function activate(ctx) {
   /** Jahrgang und Geschlecht aller Personen (für Hinweise im Spielbetrieb, z. B. Altersklasse H40) → { id: { y, g } } */
   ctx.hooks.birthGender = () => Object.fromEntries(ctx.db.prepare('SELECT member_id, birth_date, gender FROM mv_person WHERE anonymized_at IS NULL').all()
     .map(r => [r.member_id, { y: /^\d{4}-/.test(r.birth_date || '') ? Number(r.birth_date.slice(0, 4)) : null, g: r.gender || null }]));
+  /* Gruppen für „Bereich für mehrere Mitglieder freigeben“ (Mitglieder-App): Mitgliedsart und Abteilung, nur aktuelle Mitglieder (nicht ausgetreten,
+     nicht anonymisiert) – nur IDs, keine Inhalte */
+  ctx.hooks.memberGroups = () => {
+    const d = today(), out = [];
+    const cur = ctx.db.prepare('SELECT member_id, status FROM mv_person WHERE anonymized_at IS NULL AND (exit_date IS NULL OR exit_date >= ?)').all(d);
+    const curIds = new Set(cur.map(r => r.member_id));
+    for (const [k, label] of Object.entries(store.STATUS)) { const ids = cur.filter(r => r.status === k).map(r => r.member_id); if (ids.length) out.push({ key: `art:${k}`, group: 'Mitgliedsart', label, ids }); }
+    for (const dep of ctx.db.prepare('SELECT id, name FROM mv_department WHERE active = 1 ORDER BY sort, name').all()) {
+      const ids = [...new Set(ctx.db.prepare('SELECT member_id FROM mv_member_department WHERE department_id = ? AND (exit_date IS NULL OR exit_date >= ?)').all(dep.id, d).map(r => r.member_id))].filter(id => curIds.has(id));
+      if (ids.length) out.push({ key: `abt:${dep.id}`, group: 'Abteilung', label: dep.name, ids });
+    }
+    return out;
+  };
   ctx.hooks.memberInScope = (id, depts) => inScope(Number(id), (depts || []).map(Number).filter(Number.isInteger));
   /* Suche (Strg/⌘ K): Mitglieder nach Name oder Mitgliedsnummer, Abteilungsleitung nur die eigenen Abteilungen. Nur Name, Nummer, Abteilungen – keine Bank- oder Kontaktdaten. */
   ctx.hooks.search = s => {

@@ -456,6 +456,15 @@
   .invlist { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 12px; }
   .invlist > label { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 12px; border-top: 1px solid var(--line-soft); }
   .invlist > label:first-child { border-top: 0; }
+  /* Bereich für mehrere Mitglieder freigeben: Zahlen der Vorschau und Namenslisten (keine Tabelle, nichts scrollt seitlich) */
+  .bfsum { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-top: 4px; }
+  .bfsum > div { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; min-width: 0; }
+  .bfsum b { font-size: 22px; line-height: 1.2; color: var(--ink); }
+  .bfsum span { color: var(--muted); font-size: 13px; line-height: 1.35; overflow-wrap: anywhere; }
+  .invlist.bfl { max-height: 40vh; margin-top: 8px; }
+  .invlist.bfl > div { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 12px; padding: 8px 12px; border-top: 1px solid var(--line-soft); min-width: 0; }
+  .invlist.bfl > div:first-child { border-top: 0; }
+  .invlist.bfl b { min-width: 0; overflow-wrap: anywhere; }
   @media (max-width: 640px) { .pill.tg { height: 32px; padding: 0 12px; border-radius: 16px; } a.s[data-aplink] { display: inline-flex; align-items: center; min-height: 32px; } }   /* Handy: Tippfläche mind. 32 px (Freigaben-Fenster, 02.11.2026) */
   @media (max-width: 640px) { .invlist > label { grid-template-columns: 22px auto minmax(0, 1fr); row-gap: 4px; } .invlist > label > b { grid-column: 2 / -1; } }   /* Handy: Name über die ganze Zeile, Schild und E-Mail darunter – sonst Wortsäule bei langen Namen (02.11.2026) */
   .letter { page-break-after: always; text-align: center; padding-top: 18mm; }

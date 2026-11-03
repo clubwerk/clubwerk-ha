@@ -1,5 +1,17 @@
 # Änderungen
 
+## 2026.11.19
+
+**Mitglieder-App: einen Bereich für viele Mitglieder auf einmal freigeben**
+- **Neu: „Bereich freigeben …“** über der Liste „Freigeschaltete Mitglieder“ (Mitglieder-App › Mitglieder). Statt bei 80 Mitgliedern einzeln den Haken „Türen“ zu setzen, wählt ihr den Bereich und **wer** ihn bekommt: alle Mitglieder in der App, eine Mitgliedsart (z. B. aktiv), eine Abteilung oder eine eigene Auswahl mit Häkchen und Suche. Konten „Kein Mitglied“ kommen nur über die eigene Auswahl dazu.
+- **Erst die Vorschau:** wie viele den Bereich neu bekommen, wer ihn schon hat und bei wem es nicht geht (gesperrt, abgelaufen, Handy muss neu eingeladen werden) – mit Namen zum Aufklappen. Geändert wird erst nach der Bestätigung. Mitglieder ohne Handy bekommen den Bereich trotzdem; er gilt, sobald sie die App koppeln.
+- **Türen, Beregnung und Licht nur mit Wort und Passwort:** Zur Bestätigung tippt ihr FREIGEBEN und euer eigenes Passwort ein, bei anderen Bereichen reicht der Knopf. Eine solche Sammel-Freigabe meldet sich sofort als Sicherheitswarnung beim Vorstand. Gesammelt freigeben darf nur, wer das volle Recht für den Bereich hat (nicht nur für die eigene Abteilung).
+- **„Erst im Vereins-WLAN öffnen“ bleibt:** Handys, die von unterwegs ohne SMS-Code gekoppelt wurden, öffnen Türen, Beregnung und Licht auch nach einer Sammel-Freigabe erst nach dem ersten Besuch im Vereins-WLAN. Gesperrte Freischaltungen bleiben gesperrt, und kein Handy wird beim Sammeln entkoppelt.
+- **Zurücknehmen:** Die letzte Sammel-Freigabe steht über der Liste und lässt sich mit „Zurücknehmen …“ wieder entziehen – wen ihr seitdem einzeln geändert habt, bleibt, wie er ist.
+- **Hinweis in der Übersicht:** Wird ein Modul mit eigenem App-Bereich eingeschaltet und hat ihn noch niemand, fragt die Übersicht „Neuer Bereich …: für wen freigeben?“ und öffnet das Fenster gleich mit diesem Bereich („Vorerst für niemanden“ blendet den Hinweis aus).
+- **Protokoll:** je Mitglied ein Eintrag wie beim Einzeln-Freigeben, dazu ein Sammel-Eintrag mit Bereich, Anzahl und Auswahl.
+- **Module:** Mitglieder 1.37.0 (liefert Mitgliedsarten und Abteilungen für die Auswahl). **Für Entwickler:** neuer Hook `memberGroups()` der Mitgliederverwaltung, neue Testreihe `afall`.
+
 ## 2026.11.18
 
 **Design-Prüfstand findet mehr – und was er neu fand, ist behoben**

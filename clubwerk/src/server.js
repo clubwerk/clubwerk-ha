@@ -3685,7 +3685,7 @@ try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.
 try { require('./gobd').install(); } catch (e) { console.error('GoBD: Änderungsjournal nicht eingerichtet –', e.message); }
 require('./gobd').routes(admin, { need, bad, asyncRoute });
 const memberapp = require('./memberapp');
-memberapp.adminRoutes(admin, { bad, need, auth });
+memberapp.adminRoutes(admin, { bad, need, auth, ownPwOk });
 require('./mailer').routes(admin, { bad, need });
 /* Kontoauszug einlesen und abgleichen (src/kontoauszug.js) – Tabellen vor dem Tresor anlegen */
 require('./kontoauszug').routes(admin, { need, bad, int, asyncRoute, rateLimit, express });

@@ -34,6 +34,7 @@ const CORE = {
   'tablet.pins': ['Viele falsche PINs am Tablet', 'r', 'Viele falsche Mitglieder-PINs am Tablet.'],
   'app.gesperrt': ['Handy wegen falscher PINs gesperrt', 'r', 'Ein Handy wurde wegen falscher PINs gesperrt.'],
   'app.einladung': ['Einladung doppelt geöffnet', 'r', 'Eine schon eingelöste Einladung wurde erneut geöffnet.'],
+  'app.sammel': ['Bereich vielen Mitgliedern auf einmal freigegeben', 'r', 'Türen, Beregnung oder Licht wurden vielen Mitgliedern auf einmal freigegeben.'],
   'netz.oeffentlich': ['Anfrage aus dem Internet abgewiesen', 'r', 'Eine Anfrage aus dem Internet wurde abgewiesen – ist ein Port am Router offen?'],
   'netz.tunnel': ['Viele abgewiesene Tunnel-Anfragen', 'a', 'Viele Anfragen über den Tunnel wurden abgewiesen.'],
   'benutzer.rechte': ['Benutzer oder Rechte geändert', 'a', 'Benutzer oder Rechte der Verwaltung wurden geändert.'],

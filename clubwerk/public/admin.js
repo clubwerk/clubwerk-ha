@@ -1069,6 +1069,10 @@
     const sw = can('sicherheit') ? await api('security/alerts?counts=1').catch(() => null) : null;
     const swN = sw ? sw.counts.r + sw.counts.a : 0;
     if (swN) alerts.push({ level: sw.counts.r ? 'r' : 'a', who: 'Sicherheit', text: swN === 1 ? '1 neue Warnung – bitte ansehen.' : `${swN} neue Warnungen – bitte ansehen.`, go: 'einstellungen', sec: ['cw_setsec', 'sicherheit'], link: 'Ansehen' });
+    // neu eingeschalteter Bereich der App, den noch niemand hat: „für wen freigeben?“ (öffnet das Sammel-Fenster mit diesem Bereich)
+    const na = (cache.appModules || []).length ? await api('app/new-areas').catch(() => []) : [];
+    if (page !== 'uebersicht') return;
+    na.forEach(x => alerts.push({ level: 'a', who: 'Mitglieder-App', text: T('Neuer Bereich „{0}“: für wen freigeben?', [T(x.label)]), go: 'app', sec: ['cw_apbulk', x.id], link: 'Freigeben …' }));
     if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     // Datenqualität: nur Fehler (Hinweise wie fehlende Mandate melden die Module hier schon selbst)
     const dqR = dq ? dq.list.filter(c => c.count > 0 && c.level === 'r') : [];
@@ -2673,6 +2677,81 @@
     draw();
   }
 
+  /** Bereich für mehrere Mitglieder auf einmal freigeben: Bereich und „Wer?“ wählen → Vorschau → bestätigen
+   *  (Türen, Beregnung, Licht: Wort FREIGEBEN und eigenes Passwort). r: Daten der Seite Mitglieder-App, pre: vorgewählter Bereich */
+  async function bulkAccess(r, pre) {
+    const o = await api('app/bulk-access');
+    const people = [...r.rows.map(x => ({ id: x.member_id, name: x.name, kind: x.kind })), ...r.members.map(m => ({ id: m.id, name: m.name, kind: m.kind || 'mitglied' }))]
+      .sort((a, b) => lastFirst(a.name, a.kind).localeCompare(lastFirst(b.name, b.kind), 'de'));
+    const nAll = r.rows.filter(x => x.kind !== 'nichtmitglied').length;
+    // Vorgabe: der Bereich aus dem Hinweis, sonst ein neuer Bereich, sonst der, den bisher die wenigsten haben
+    const cnt = id => ((r.modules.find(m => m.id === id) || {}).count) || 0;
+    let mod = o.modules.some(m => m.id === pre) ? pre : (o.modules.find(m => o.newAreas.includes(m.id)) || o.modules.slice().sort((a, b) => cnt(a.id) - cnt(b.id))[0]).id, who = 'alle', q = '';
+    const sel = new Set();
+    const M = () => o.modules.find(m => m.id === mod);
+    const whoBody = () => (who === 'alle' ? { typ: 'alle' } : who === 'auswahl' ? { typ: 'auswahl', ids: [...sel] } : { typ: 'gruppe', key: who.slice(2) });
+    const listHtml = () => { const L = people.filter(x => (M().nonMembers || x.kind !== 'nichtmitglied') && (!q || lastFirst(x.name, x.kind).toLowerCase().includes(q)));
+      return L.map(x => `<label><input type="checkbox" data-bf="${x.id}" ${sel.has(x.id) ? 'checked' : ''}><b>${pName(x)}</b><span>${x.kind === 'nichtmitglied' ? '<span class="pill">Kein Mitglied</span>' : ''}</span></label>`).join('') || '<p class="empty">Niemand gefunden.</p>'; };
+    const GRP = { Mitgliedsart: T('Mitgliedsart'), Abteilung: T('Abteilung') }, ART = { aktiv: T('aktiv'), passiv: T('passiv'), ehren: T('Ehrenmitglied'), ruhend: T('ruhend') };
+    const step1 = () => {
+      const grp = [...new Set(o.groups.map(g => g.group))];
+      dialog(`<h2>Bereich für mehrere Mitglieder freigeben</h2>
+        <p class="muted" style="margin-top:0">Schaltet einen Bereich der App für viele Mitglieder auf einmal frei – wie der Haken im Fenster „Freigaben bearbeiten“. Erst kommt eine Vorschau, geändert wird erst nach deiner Bestätigung.</p>
+        <div class="frm"><label class="f">Bereich<select id="bfMod">${o.modules.map(m => `<option value="${m.id}" ${m.id === mod ? 'selected' : ''}>${esc(m.label)}</option>`).join('')}</select></label>
+          <label class="f">Wer?<select id="bfWho"><option value="alle" ${who === 'alle' ? 'selected' : ''}>${esc(T('Alle Mitglieder in der App ({0})', [nAll]))}</option>
+            ${grp.map(gn => `<optgroup label="${esc(GRP[gn] || gn)}">${o.groups.filter(g => g.group === gn).map(g => `<option value="g:${esc(g.key)}" ${who === 'g:' + g.key ? 'selected' : ''}${/^art:/.test(g.key) ? '' : ' translate="no"'}>${esc(/^art:/.test(g.key) ? ART[g.key.slice(4)] || g.label : g.label)} (${g.n})</option>`).join('')}</optgroup>`).join('')}
+            <option value="auswahl" ${who === 'auswahl' ? 'selected' : ''}>${esc(T('Eigene Auswahl …'))}</option></select></label></div>
+        ${who === 'auswahl' ? `<div class="frm" style="margin-top:12px"><label class="f">Suchen<input id="bfQ" type="search" value="${esc(q)}" autocomplete="off"></label><span class="muted s" id="bfN" style="align-self:end;line-height:40px">${esc(T('{0} ausgewählt', [sel.size]))}</span></div>
+          <div class="invlist" id="bfList" style="margin-top:10px">${listHtml()}</div>` : ''}
+        ${M().sensitive ? `<div class="banner a" style="margin:12px 0 0;font-weight:400"><div>${esc(T('„{0}“ schaltet etwas im Verein. Zum Freigeben brauchst du gleich das Wort FREIGEBEN und dein Passwort. Handys, die von unterwegs ohne SMS-Code gekoppelt wurden, öffnen den Bereich weiterhin erst nach dem ersten Öffnen im Vereins-WLAN.', [T(M().label)]))}</div></div>` : ''}
+        ${o.newAreas.includes(mod) ? `<p class="muted s" style="margin:12px 0 0">${esc(T('Neuer Bereich – noch niemand hat ihn.'))} <button type="button" class="btn small ghost" id="bfSeen">${esc(T('Vorerst für niemanden – Hinweis ausblenden'))}</button></p>` : ''}
+        <div class="btns"><button class="btn ghost" id="bfX" type="button">Abbrechen</button><button class="btn primary" id="bfPrev" type="button" ${who === 'auswahl' && !sel.size ? 'disabled' : ''}>Vorschau</button></div>`, true);
+      $('bfX').onclick = closeDialog;
+      $('bfMod').onchange = () => { mod = $('bfMod').value; if (!M().nonMembers) people.forEach(x => { if (x.kind === 'nichtmitglied') sel.delete(x.id); }); step1(); };
+      $('bfWho').onchange = () => { who = $('bfWho').value; step1(); };
+      const bindList = () => { $('dialog').querySelectorAll('[data-bf]').forEach(c => { c.onchange = () => { if (c.checked) sel.add(+c.dataset.bf); else sel.delete(+c.dataset.bf); $('bfN').textContent = T('{0} ausgewählt', [sel.size]); $('bfPrev').disabled = !sel.size; }; }); };
+      if ($('bfQ')) { $('bfQ').oninput = () => { q = $('bfQ').value.trim().toLowerCase(); $('bfList').innerHTML = listHtml(); bindList(); }; bindList(); }
+      if ($('bfSeen')) $('bfSeen').onclick = () => busy($('bfSeen'), async () => { try { await api('app/new-areas/seen', 'POST', { module: mod }); o.newAreas = o.newAreas.filter(x => x !== mod); toast('Hinweis ausgeblendet.'); step1(); } catch (e) { fail(e); } });
+      $('bfPrev').onclick = () => busy($('bfPrev'), async () => { try { step2(await api('app/bulk-access/preview', 'POST', { module: mod, who: whoBody() })); } catch (e) { fail(e); } });
+    };
+    const names = (L, why) => `<div class="invlist bfl">${L.map(x => `<div><b>${pName(x)}</b>${why && x.reason ? `<span class="muted s">${esc(T(x.reason))}</span>` : ''}</div>`).join('')}</div>`;
+    const step2 = p => {
+      const n = p.add.length, sens = p.sensitive;
+      dialog(`<h2>${esc(T('Vorschau: „{0}“ freigeben', [T(p.label)]))}</h2>
+        <p class="muted" style="margin-top:0">${esc(T('Auswahl: {0}', [T(p.who)]))}</p>
+        <div class="bfsum"><div><b class="num">${n}</b><span>${esc(T('bekommen ihn neu'))}</span></div><div><b class="num">${p.have.length}</b><span>${esc(T('haben ihn schon'))}</span></div><div><b class="num">${p.skip.length}</b><span>${esc(T('nicht möglich'))}</span></div></div>
+        <p class="s" style="margin:12px 0 0">${n ? esc(n === 1 ? T('1 Mitglied bekommt „{0}“ neu.', [T(p.label)]) : T('{0} Mitglieder bekommen „{1}“ neu.', [n, T(p.label)])) : esc(T('Niemand bekommt den Bereich neu.'))}
+          ${p.noDevice ? esc(T('{0} davon noch ohne Handy – es gilt, sobald sie es koppeln.', [p.noDevice])) : ''}
+          ${p.away ? esc(T('{0} mit Handy von unterwegs: erst nach dem ersten Öffnen im Vereins-WLAN.', [p.away])) : ''}</p>
+        ${n ? `<details style="margin-top:10px"><summary>${esc(T('Bekommen ihn neu ({0})', [n]))}</summary>${names(p.add)}</details>` : ''}
+        ${p.have.length ? `<details style="margin-top:10px"><summary>${esc(T('Haben ihn schon ({0})', [p.have.length]))}</summary>${names(p.have)}</details>` : ''}
+        ${p.skip.length ? `<details style="margin-top:10px"><summary>${esc(T('Nicht möglich ({0})', [p.skip.length]))}</summary>${names(p.skip, true)}</details>` : ''}
+        ${n && sens ? `<div class="frm" style="margin-top:14px"><label class="f">${esc(T('Zur Bestätigung {0} eintippen', [p.word]))}<input id="bfWord" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+          <label class="f">Dein Passwort<input id="bfPw" type="password" autocomplete="current-password"></label></div>` : ''}
+        <p class="muted s" style="margin:12px 0 0">${esc(T('Die letzte Sammel-Freigabe lässt sich unter „Freigeschaltete Mitglieder“ zurücknehmen.'))}</p>
+        <div class="btns"><button class="btn ghost" id="bfBack" type="button">Zurück</button>${n ? `<button class="btn ${sens ? 'danger' : 'primary'}" id="bfGo" type="button" data-pruefbar ${sens ? 'disabled' : ''}>${esc(n === 1 ? T('1 Mitglied freigeben') : T('{0} Mitglieder freigeben', [n]))}</button>` : ''}</div>`, true);
+      $('bfBack').onclick = step1;
+      if (!n) return;
+      const ready = () => { if (sens) $('bfGo').disabled = $('bfWord').value.trim().toUpperCase() !== p.word || !$('bfPw').value; };
+      if (sens) { $('bfWord').oninput = ready; $('bfPw').oninput = ready; }
+      $('bfGo').onclick = () => busy($('bfGo'), async () => {
+        try {
+          const x = await api('app/bulk-access', 'POST', { module: mod, who: whoBody(), token: p.token, ...(sens ? { confirm: $('bfWord').value, myPassword: $('bfPw').value } : { confirm: true }) });
+          closeDialog(); toast(T('„{0}“ für {1} freigegeben.', [T(p.label), x.granted === 1 ? T('1 Mitglied') : T('{0} Mitglieder', [x.granted])])); RENDER.app().catch(fail);
+        } catch (e) {
+          if (e.status === 409) { fail(e); step2(await api('app/bulk-access/preview', 'POST', { module: mod, who: whoBody() }).catch(() => p)); return; }
+          if (sens) { $('bfPw').value = ''; ready(); }
+          fail(e);
+        }
+      });
+    };
+    step1();
+  }
+  async function bulkUndo(last) {
+    if (!await ask(T('Sammel-Freigabe zurücknehmen?\n\n„{0}“ wird den {1} Mitgliedern wieder entzogen, die ihn am {2} gesammelt bekommen haben. Was seitdem jemand einzeln geändert hat, bleibt.', [T(last.label), last.n, deTime(last.at)]), { ok: T('Zurücknehmen') })) return;
+    try { const x = await api('app/bulk-access/undo', 'POST', {}); toast(T('Zurückgenommen: {0} entzogen', [x.removed]) + (x.kept ? T(', {0} seitdem geändert – so gelassen', [x.kept]) : '') + '.'); RENDER.app().catch(fail); } catch (e) { fail(e); }
+  }
+
   /** Freischaltungen eines Mitglieds (für den Bearbeiten-Dialog) – speichert sofort */
   async function appBox(el, memberId) {
     const info = await api('app/member/' + memberId);
@@ -2758,6 +2837,8 @@
     $('smsTest').onclick = () => busy($('smsTest'), async () => { try { const t = await api('app/sms/test', 'POST', { number: $('smsNo').value }); toast(`Test-SMS an ${t.to} verschickt.`); } catch (e) { fail(e); } });
   }
   RENDER.app = async () => {
+    const bulkPre = sget('cw_apbulk');   // Hinweis „Neuer Bereich: für wen freigeben?“ → Fenster gleich mit diesem Bereich öffnen
+    if (bulkPre) { try { sessionStorage.removeItem('cw_apbulk'); } catch (e) { /* egal */ } sset('cw_appsec', 'mitglieder'); }
     const r = await api('app');
     // Reiter nach Recht: Mitglieder freischalten (Mitglieder anlegen oder Recht eines Bereichs) · Bereiche, Benachrichtigungen, Name (Mitglieder-App einrichten) · Verbindung, Sicherheit (Einstellungen)
     const mayMem = r.mayMembers !== false, mayCfg = can('app') || can('einstellungen'), mayNet = can('einstellungen');
@@ -2840,7 +2921,8 @@
           <button class="btn primary" id="apGo" style="align-self:flex-end">Freischalten & einladen …</button></div>
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div>
         <p class="muted s" style="margin:10px 0 0">Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p></div>
-      <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
+      <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><div class="row" style="gap:8px">${r.bulkCan ? '<button class="btn" id="apBulkAcc" type="button">Bereich freigeben …</button>' : ''}<button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div></div>
+        ${r.bulkLast ? `<p class="muted s" id="apBulkLast" style="margin:0 0 10px">${esc(T('Letzte Sammel-Freigabe: „{0}“ für {1} ({2}, {3}).', [T(r.bulkLast.label), r.bulkLast.n === 1 ? T('1 Mitglied') : T('{0} Mitglieder', [r.bulkLast.n]), deTime(r.bulkLast.at), r.bulkLast.by]))}${r.bulkLast.undo ? ` <button class="btn small" id="apBulkUndo" type="button">Zurücknehmen …</button>` : ''}</p>` : ''}
         ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Türen und Beregnung jetzt freigeben“.'))}</div></div>` : ''}
@@ -2921,6 +3003,9 @@
     if ($('pushCard')) pushCard($('pushCard')).catch(e => { if ($('pushCard')) $('pushCard').innerHTML = `<h3>Benachrichtigungen</h3><p class="muted s">${esc(e.message)}</p>`; });
     $('main').querySelectorAll('[data-aq]').forEach(b => { b.onclick = () => inviteMenu(Number(b.dataset.aq), () => RENDER.app().catch(fail)); });
     if ($('apBulk')) $('apBulk').onclick = () => bulkInvites(r);
+    if ($('apBulkAcc')) $('apBulkAcc').onclick = () => busy($('apBulkAcc'), () => bulkAccess(r).catch(fail));
+    if ($('apBulkUndo')) $('apBulkUndo').onclick = () => bulkUndo(r.bulkLast);
+    if (bulkPre && $('apBulkAcc')) bulkAccess(r, bulkPre).catch(fail);   // aus dem Hinweis „Neuer Bereich“ der Übersicht
     $('main').querySelectorAll('[data-ad]').forEach(b => { b.onclick = async () => {
       const x = r.rows.find(y => y.member_id === Number(b.dataset.ad));
       if (await appRemove(x.member_id, x.name, Boolean(x.device))) RENDER.app().catch(fail);
