@@ -45,6 +45,8 @@ Jeder Platz ist eine Kachel mit Name und Untertitel (z. B. „Sand“). Rechts s
 
 Besteht keine Verbindung zur Anlage, erscheint oben ein roter Hinweis („Keine Verbindung zur Bewässerungsanlage“), die Kacheln sind ausgegraut und nichts lässt sich starten. So ist es auch in den Bildern dieser Anleitung, denn die Demo ist nicht mit einer echten Anlage verbunden. Die Anzeige aktualisiert sich von selbst, alle 5 Sekunden, solange etwas läuft.
 
+**Hunter Hydrawise bremst:** Hydrawise nimmt je Konto nur wenige Befehle an (höchstens 3 Schaltbefehle in 30 Sekunden und 30 Aufrufe in 5 Minuten). Wird es zu viel, steht in der Statuszeile „Die Steuerung bremst gerade (zu viele Anfragen)“. Das ist keine Störung: Die Kacheln zeigen den letzten bekannten Stand und bleiben bedienbar. Ein Stopp geht dabei nie verloren. Die Kachel zeigt „Stopp wird nachgeholt“ mit Countdown, Clubwerk schickt ihn, sobald Hydrawise wieder annimmt, und trägt „Stopp nachgeholt“ in den Verlauf ein. Ein Start wartet ebenso und beginnt etwas später. Kommt das öfter vor, fragt die Verwaltung, ob sich das Hydrawise-Konto mit anderen Programmen teilt (z. B. der Hydrawise-Integration in Home Assistant oder einer alten Webapp). Dann diese seltener abfragen lassen oder abschalten.
+
 #### Alle Zonen ausschalten
 
 Der rote Knopf **■ Alle Zonen ausschalten** unter den Kacheln ist der Not-Stopp. Nach einer Rückfrage beendet er laufende und geplante Beregnungen sofort. Er erscheint erst, wenn es Plätze gibt, und ist ohne Verbindung zur Anlage ausgegraut. Gelingt das Abschalten nicht überall, meldet Clubwerk das ausdrücklich, damit niemand glaubt, das Wasser sei aus.

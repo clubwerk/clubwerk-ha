@@ -30,3 +30,23 @@
   if (!l && root.getAttribute('data-lang-auto') === 'browser') q += '&b=' + encodeURIComponent(((navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']).join(',')).slice(0, 200));
   document.write('<script src="' + base + 'i18n.js?' + q + '"><\/script>');
 })();
+/* iPhone/iPad: Cursor in Fenstern an der richtigen Stelle. Liegt ein Eingabefeld in einem festen Fenster (position: fixed – .overlay,
+   .vh-sheet, Menüs) und ist die Seite dahinter weit gescrollt, zeichnet Safari beim Aufklappen der Tastatur den blinkenden Cursor
+   versetzt, oft deutlich unter dem Feld (WebKit-Fehler 300690/300952, iOS 26; ähnlich schon 176896, iOS 11 – Ursache ist immer der
+   Scrollstand der Seite hinter dem festen Fenster). Solange ein solches Feld den Fokus hat, steht die Seite deshalb mit Scrollstand 0
+   still (body fest, um den alten Stand nach oben verschoben – sie sieht unverändert aus); danach geht es an derselben Stelle weiter.
+   Nur auf Touch-Geräten und nur während der Eingabe – das Öffnen und Schließen der Fenster bleibt ohne Neuzeichnen (style.css). */
+(function () {
+  if (!window.matchMedia || !matchMedia('(pointer: coarse)').matches) return;
+  var y = null;
+  var feld = function (e) { return !!e && (e.isContentEditable || e.tagName === 'TEXTAREA' || (e.tagName === 'INPUT' && !/^(checkbox|radio|range|color|file|button|submit|reset|image|hidden|date|time|datetime-local|month|week)$/.test(e.type))); };
+  var imFenster = function (e) { for (; e && e !== document.body; e = e.parentElement) if (getComputedStyle(e).position === 'fixed') return true; return false; };
+  var los = function () { if (y === null) return; var s = document.body.style, z = y; y = null; s.position = s.top = s.left = s.right = ''; window.scrollTo(0, z); };
+  var noch = function () { if (y === null) return; var a = document.activeElement; if (feld(a) && imFenster(a)) setTimeout(noch, 250); else los(); };   // auch wenn das Fenster samt Feld entfernt wird (kein focusout); Datum/Uhrzeit öffnen eine Auswahl, keine Tastatur
+  document.addEventListener('focusin', function (ev) {
+    var a = ev.target, sy = window.scrollY;
+    if (y !== null || sy < 1 || !document.body || !feld(a) || !imFenster(a)) return;
+    var s = document.body.style; y = sy; s.position = 'fixed'; s.top = -sy + 'px'; s.left = s.right = '0';
+    setTimeout(noch, 250);
+  }, true);
+})();

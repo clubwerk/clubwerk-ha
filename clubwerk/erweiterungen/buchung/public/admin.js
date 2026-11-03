@@ -664,7 +664,7 @@
         <td><b>${esc(r.resource)}</b>${tags ? `<div class="bk-lgt">${tags}</div>` : ''}${r.title && r.people.length && (!r.label || r.title !== r.label.name) ? `<div class="muted s">${esc(r.title)}</div>` : ''}</td>
         <td class="nw"><b class="num">${r.start}–${r.end}</b><div class="muted s">${esc(new Date(r.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' }))}</div></td>
         <td>${pill(s0)}${r.status === 'storniert' ? `<div class="muted s">${esc(r.cancelled_by || '')}${r.cancelled_at ? ` · ${ago(r.cancelled_at)}` : ''}${r.cancel_reason ? `<br>${esc(r.cancel_reason)}` : ''}</div>` : ''}</td>
-        <td class="r k-weg"><span title="${esc(deDate(String(r.created_at).slice(0, 10)) + ' ' + String(r.created_at).slice(11, 16))}">${ago(r.created_at)}</span><div class="muted s">${esc(SRC[r.source] || '')}${r.created_by ? ` · ${esc(r.created_by)}` : ''}</div></td></tr>`;
+        <td class="r k-weg hide-md"><span title="${esc(deDate(String(r.created_at).slice(0, 10)) + ' ' + String(r.created_at).slice(11, 16))}">${ago(r.created_at)}</span><div class="muted s">${esc(SRC[r.source] || '')}${r.created_by ? ` · ${esc(r.created_by)}` : ''}</div></td></tr>`;
     }).join('');
     const csv = `<a class="btn" href="${BASE}log.csv?${qs}" download>Excel</a>`;
     el.innerHTML = `<div class="filterbar"><div class="chips" id="lgF" role="group" aria-label="Filter">${[['alle', 'Alle'], ['mitglieder', 'Mitglieder'], ['gast', 'Mit Gast'], ['label', 'Buchungsarten'], ['sperre', 'Sperren'], ['storniert', 'Storniert']].map(([k, t]) => `<button type="button" data-f="${k}" class="${g.f === k ? 'on' : ''}" aria-pressed="${g.f === k}">${t}</button>`).join('')}</div>
@@ -674,7 +674,7 @@
         <select id="lgR" class="bk-sel" data-nodirty>${opt('', 'Alle Plätze', g.resource)}${st.meta.resources.map(r => opt(r.id, r.name, g.resource)).join('')}</select>
         <select id="lgS" class="bk-sel" data-nodirty>${opt('termin', 'nach Termin', g.sort)}${opt('eingetragen', 'nach Eintragung', g.sort)}</select>
         <span style="flex:1"></span><span class="muted s">${d.total.toLocaleString('de-DE')} ${d.total === 1 ? 'Eintrag' : 'Einträge'}${d.total > shown.length ? ` · ${shown.length} angezeigt` : ''}</span></div>
-      <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl kompakt bk-lg"><tr><th>Spieler / Buchungsart</th><th>Platz</th><th>Termin</th><th>Status</th><th class="r k-weg">Eingetragen</th></tr>${rows}</table>${d.rows.length > shown.length ? '<div style="display:flex;justify-content:center;padding:16px 0"><button class="btn" id="lgMore">Weitere laden</button></div>' : ''}` : '<p class="empty">Keine Einträge für diese Auswahl.</p>'}</div>`;
+      <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl kompakt bk-lg"><tr><th>Spieler / Buchungsart</th><th>Platz</th><th>Termin</th><th>Status</th><th class="r k-weg hide-md">Eingetragen</th></tr>${rows}</table>${d.rows.length > shown.length ? '<div style="display:flex;justify-content:center;padding:16px 0"><button class="btn" id="lgMore">Weitere laden</button></div>' : ''}` : '<p class="empty">Keine Einträge für diese Auswahl.</p>'}</div>`;
     if (!GK.tabTools(csv, el)) el.querySelector('.filterbar').insertAdjacentHTML('beforeend', csv);
     if ($('lgMore')) $('lgMore').onclick = () => { g.n = (g.n || 200) + 300; const y0 = window.scrollY; showLog(el).then(() => window.scrollTo(0, y0)).catch(fail); };
     const again = () => showLog(el).catch(fail);

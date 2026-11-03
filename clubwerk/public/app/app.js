@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.16';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.17';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -211,6 +211,13 @@
     try { await navigator.clipboard.writeText(u); } catch (e) { const t = document.createElement('textarea'); t.value = u; document.body.appendChild(t); t.select(); try { document.execCommand('copy'); } catch (x) { /* egal */ } t.remove(); }
     toast('Adresse kopiert.');
   };
+  /* Satz der Karte: nennt die vom Verein freigegebenen Bereiche (höchstens 4, dann „und mehr“) */
+  const tx = (t, v) => window.CWI18N && CWI18N.T ? CWI18N.T(t, v) : (v || []).reduce((a, x, i) => a.replace('{' + i + '}', x), t);
+  function pushWhat(w) {
+    const fremd = window.CWI18N && CWI18N.lang !== 'de', l = (w || []).map(x => { const t = tx(x); return fremd ? t.charAt(0).toLowerCase() + t.slice(1) : t; });   // mitten im Satz klein (die Bereichsnamen stehen sonst groß)
+    const list = !l.length ? tx('alles Wichtige') : l.length > 4 ? tx('{0} und mehr', [l.slice(0, 4).join(', ')]) : l.length === 1 ? l[0] : tx('{0} und {1}', [l.slice(0, -1).join(', '), l[l.length - 1]]);
+    return tx('Damit du {0} vom Verein nicht verpasst.', [list]);
+  }
   let pushReload = null;
   function pushCard(p) {
     const e = platformEnv();
@@ -221,7 +228,7 @@
     const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>', copy = '<button type="button" class="vh-btn" data-pushcopy>Adresse kopieren</button>';
     const card = (h, rows, buttons) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div>${act(...buttons)}</div>`;
     const MENU = 'Je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“.';
-    if (kind === 'ask') return card('Benachrichtigungen einschalten', row(BELL, 'Nichts verpassen', 'Damit du Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.'), [later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>']);
+    if (kind === 'ask') return card('Benachrichtigungen einschalten', row(BELL, 'Nichts verpassen', pushWhat(p && p.words)), [later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>']);
     if (kind === 'denied') return card('Benachrichtigungen sind gesperrt', row(BELL_OFF, 'Im Handy erlauben', e.ios ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.'), [later]);
     if (kind === 'ios-old') return card('Benachrichtigungen gehen hier nicht', row(BELL_OFF, 'iOS 16.4 oder neuer nötig', 'Einstellungen › Allgemein › Softwareupdate. Auf diesem iPhone sind keine Benachrichtigungen möglich.'), [later]);
     if (kind === 'ios-embedded') return card('Zuerst in Safari öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „…“ oder das Teilen-Symbol und dann auf „In Safari öffnen“.') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie in Safari. Dort „Übernahme-Code eingeben“ antippen.'), [later, copy]);

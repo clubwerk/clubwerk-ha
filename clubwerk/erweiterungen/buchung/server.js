@@ -601,11 +601,28 @@ function activate(ctx) {
       AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start`).all(d, d, n)
       .filter(b => b.member_id === mid || J(b.partners, []).includes(mid) || (b.booked_by_id === mid && fo)).map(b => { const dev = lk.dev(b), own = b.member_id === mid, forOther = !own && b.booked_by_id === mid && fo;
         return { ...bview(b, { me: mid, full: false, lk }), who: bview(b, { me: b.member_id, full: false, lk }).who, resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? lk.name(b.member_id) : null, booked_by: own && b.booked_by_id ? lk.name(b.booked_by_id) : null,
-        canCancel: (own || forOther) && !isTu(b) && canCancelNow(b, lim), canEdit: (own || forOther) && !isTu(b) && canCancelNow(b, lim), ics: icsUrl(b.id, key),
+        ...(cc => ({ canCancel: Boolean(cc.ok), cancelNote: cc.ok ? null : cc.why, partner: cc.partner, booker: cc.partner ? lk.name(b.member_id) : null }))(cancelCheck(b, mid, { lim, fo })), canEdit: (own || forOther) && !isTu(b) && canCancelNow(b, lim), ics: icsUrl(b.id, key),
         ...((own || forOther) && !isTu(b) ? { edit: { for_member: forOther ? b.member_id : null, resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '', partner_device: dev ? dev.booking.resource_id : null, solo: Boolean(b.solo) } } : {}) }; });
   };
   const isTu = b => /^tu:/.test(b.ext_key || '');   // Spiel aus dem Modul „Turniere“ – verlegen und absagen nur dort
   const canCancelNow = (b, lim = cfg().cancel_before_min) => { const st = Date.parse(`${b.date}T${b.start}:00`); return Date.now() <= st - lim * 60000; };
+  /** Darf Mitglied me diese Buchung stornieren? Buchende, wer mit Sonderrecht für sie gebucht hat, und jeder eingetragene Mitspieler
+      (Entscheidung 03.11.2026) – alle mit derselben Frist. → { ok, own, partner, forOther, why } (why: Meldung, wenn nicht) */
+  function cancelCheck(b, me, { lim = cfg().cancel_before_min, fo = null } = {}) {
+    const own = b.member_id === me, forOther = !own && b.booked_by_id === me && (fo != null ? fo : rightsOf(me).forOthers);
+    const partner = !own && !forOther && J(b.partners, []).includes(me), r = { own, partner, forOther };
+    if (isTu(b)) return { ...r, why: own || partner ? 'Dieser Termin gehört zu einem Turnierspiel – bitte unter „Turniere“ verlegen oder absagen.' : 'Diese Buchung kannst du nicht stornieren.' };
+    if (b.type !== 'buchung') return { ...r, why: 'Diese Buchung kannst du nicht stornieren.' };
+    if (!own && !partner && !forOther) return { ...r, why: b.member_id && cfg().show_names ? `Gebucht hat ${nameOf(b.member_id)} – nur er/sie oder ein Mitspieler kann stornieren.` : 'Nur wer gebucht hat oder mitspielt, kann stornieren.' };
+    if (!canCancelNow(b, lim)) return { ...r, why: lim ? `Stornieren geht nur bis ${lim} Minuten vor Beginn.` : 'Die Buchung hat schon begonnen.' };
+    return { ...r, ok: true };
+  }
+  /** Storno durch ein Mitglied (App oder Tablet): Gebühr und Gerät wie beim Buchenden; als Mitspieler mit Vermerk, Benachrichtigung an Buchende und übrige Mitspieler */
+  async function memberCancel(b, me, c, where) {
+    await cancel(b, c.partner ? `${nameOf(me)} (Mitspieler)` : nameOf(me));
+    mailPlayers(b, 'storno', { by: me, budget: me, toBooker: c.forOther || c.partner });
+    if (c.partner) ctx.audit({ username: where, name: nameOf(me) }, `Buchung storniert (Mitspieler, ${where === 'app' ? 'App' : 'Tablet'})`, `${(resource(b.resource_id) || { name: 'Platz' }).name} ${deD(b.date)} ${b.start}–${b.end}, gebucht von ${nameOf(b.member_id)} – storniert von ${nameOf(me)}`);
+  }
 
   /* ---------- Platzgebühren (Gast- und Platzgebühr): offen, bezahlt, storniert ----------
      Mit Mitgliederverwaltung hängt an der Buchung eine Forderung (charge_id), deren Status einmal gesammelt abgefragt wird (Hook chargeStatus).
@@ -716,12 +733,9 @@ function activate(ctx) {
   }));
   M.post('/cancel', rateLimit('bkapp', 60, 60000), perMember, ar(async (req, res) => {
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int((req.body || {}).id));
-    const me = req.member.id, forOther = b && b.member_id !== me && b.booked_by_id === me && rightsOf(me).forOthers;
-    if (b && isTu(b) && (b.member_id === me || J(b.partners, []).includes(me))) return bad(res, 'Dieser Termin gehört zu einem Turnierspiel – bitte unter „Turniere“ verlegen oder absagen.');
-    if (!b || (b.member_id !== me && !forOther) || b.type !== 'buchung') return bad(res, 'Diese Buchung kannst du nicht stornieren.');
-    if (!canCancelNow(b)) return bad(res, cfg().cancel_before_min ? `Stornieren geht nur bis ${cfg().cancel_before_min} Minuten vor Beginn.` : 'Die Buchung hat schon begonnen.');
-    await cancel(b, req.member.name);
-    mailPlayers(b, 'storno', { by: me, budget: me, toBooker: forOther });
+    if (!b) return bad(res, 'Diese Buchung kannst du nicht stornieren.');
+    const c = cancelCheck(b, req.member.id); if (!c.ok) return bad(res, c.why);
+    await memberCancel(b, req.member.id, c, 'app');
     res.json({ ok: true });
   }));
   /* Serien in der App – nur mit Sonderrecht (Verwaltung → Plätze → Einstellungen → Wer darf buchen?) */
@@ -830,10 +844,9 @@ function activate(ctx) {
   T.post('/cancel', rateLimit('bktab', 60, 60000), ar(async (req, res) => {
     const mid = tabletMember(req, res); if (!mid) return;
     const b = db.prepare("SELECT * FROM bk_booking WHERE id = ? AND status = 'aktiv'").get(int((req.body || {}).id));
-    if (!b || b.member_id !== mid || b.type !== 'buchung') return bad(res, 'Diese Buchung kannst du nicht stornieren.');
-    if (!canCancelNow(b)) return bad(res, 'Stornieren geht jetzt nicht mehr.');
-    await cancel(b, nameOf(mid)); ctx.auth.dropTabletToken(req.body.token);
-    mailPlayers(b, 'storno', { by: mid, budget: mid });
+    if (!b) return bad(res, 'Diese Buchung kannst du nicht stornieren.');
+    const c = cancelCheck(b, mid, { fo: false }); if (!c.ok) return bad(res, c.why);   // am Tablet wie bisher ohne „für andere“: Buchende und Mitspieler
+    await memberCancel(b, mid, c, 'tablet'); ctx.auth.dropTabletToken(req.body.token);
     res.json({ ok: true });
   }));
 

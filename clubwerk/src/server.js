@@ -3524,7 +3524,15 @@ admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 *
   if (!/^[\w-]{10,200}$/.test(code)) return bad(res, 'Bitte den Code aus dem Dropbox-Fenster einfügen.');
   try {
     const refresh = await dropbox.exchangeCode(c.appKey, c.appSecret, code);
+    // erst verbunden, wenn Schreiben wirklich klappt (Testdatei hochladen, wiederfinden, löschen) – sonst fiele es erst nachts auf
+    try { await dropbox.probe({ ...c, refresh }, c.folder); }
+    catch (e) {
+      await dropbox.revoke({ ...c, refresh });
+      tgSetStatus('dropbox', { test_error: e.message });
+      return bad(res, `Dropbox hat den Zugriff erlaubt, aber das Speichern einer Testdatei ist fehlgeschlagen – die Verbindung wurde deshalb nicht übernommen. ${e.message}`);
+    }
     setSetting('dropbox_refresh', refresh);
+    tgSetStatus('dropbox', { tested: new Date().toISOString(), test_error: '' });
     let who = '';
     try { who = await dropbox.account({ ...c, refresh }); } catch (e) { /* App ohne Kontoberechtigung – egal */ }
     setSetting('dropbox_account', who);

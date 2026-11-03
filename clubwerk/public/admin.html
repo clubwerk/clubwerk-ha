@@ -221,7 +221,11 @@
   .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
   .tbl tr:last-child td { border-bottom: 0; }
   @media (min-width: 641px) and (max-width: 1279px) { .tbl th, .tbl td { padding-left: 6px; padding-right: 6px; } }   /* mit Seitenmenü bleibt in breiten Tabellen sonst ein Knopf hinter dem Kartenrand */
-  @media (min-width: 641px) { #apTbl td:last-child, #apTbl th:last-child, #apAreaTbl td:last-child, #apAreaTbl th:last-child { position: sticky; right: 0; background: var(--card); } }   /* Matrix der Mitglieder-App: Knöpfe bleiben beim seitlichen Wischen sichtbar */
+  @media (min-width: 701px) and (max-width: 1360px) { .tbl .k-mid { display: none; } }   /* k-mid: Aufteilung der Buchungen im Lager-Abgleich (11 Spalten) – bei 1280 px Fensterbreite zu breit für die Karte */
+  @media (min-width: 701px) and (max-width: 1600px) { .tbl .k-breit { display: none; } }   /* k-breit: Nebenspalte mit unbegrenzt langem Text (Kategorie), entfällt bis 1600 px Fensterbreite – am Handy zeigt die kompakte Liste sie ohnehin nicht (hide-md/k-eng reichen dafür nicht: 11 Spalten im Lager-Abgleich)  */
+  .tbl td.r.wrap-ok { white-space: normal; }   /* rechtsbündige Zellen brechen sonst nie um (nowrap oben): zwei Knöpfe nebeneinander dürfen umbrechen, statt die Tabelle über den Rand zu weiten */
+  #apTbl td:first-child { overflow-wrap: anywhere; }   /* lange Namen brechen um, statt die Knöpfe rechts aus der Karte zu schieben */
+  @media (min-width: 701px) { #apAreaTbl .ap-lbl { display: none; } }   /* Tabelle „Bereiche der App“: Am Rechner nennt die Kopfzeile die Spalte, das Feld braucht nur den Haken (Name steht im aria-label); am Handy steht der Text in der Zeile. So bleibt die Tabelle bei mittlerer Breite ohne Scrollen und ohne klebende Spalte. */
   @media (min-width: 641px) and (max-width: 1279px) { .tbl .k-eng { display: none; } }   /* k-eng: im schmaleren Rechnerfenster weglassen (steht beim Bearbeiten) – sonst scrollt die Karte seitlich */
   .tbl tr:hover td { background: color-mix(in srgb, var(--hover) 60%, transparent); }
   .tbl td.r, .tbl th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -382,7 +386,6 @@
   @media (max-width: 560px) { .mods2 { grid-template-columns: minmax(0, 1fr); } .mods2 .mo:nth-child(odd) { border-right: 0; } .mods2 .mo:nth-child(2) { border-top: 1px solid var(--line); } .mods2 .mo.fill { display: none; } }
   .pill.tg { height: 22px; padding: 0 9px; margin-left: 6px; font-size: 11.5px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; vertical-align: middle; font-family: inherit; }
   /* Haken eines Bereichs samt Zusatzschaltern als eine Gruppe – in der Handy-Ansicht (Karten) bündig rechts wie die übrigen Zeilen */
-  .ap-cell { display: inline-flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 6px 0; vertical-align: middle; }
   .pill.tg.on { background: var(--brand-soft); color: var(--brand-ink); border-color: transparent; }
   .pill.tg:disabled { opacity: .6; cursor: default; }
   .two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }

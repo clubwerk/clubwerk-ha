@@ -45,6 +45,8 @@ Each court is a tile with a name and subtitle (e.g. “Clay”). On the right is
 
 If there is no connection to the system, a red notice appears at the top (“No connection to the irrigation system”), the tiles are greyed out and nothing can be started. That is how it looks in the pictures of this guide, because the demo is not connected to a real system. The display refreshes by itself, every 5 seconds while anything is running.
 
+**Hunter Hydrawise slowing down:** Hydrawise only accepts a few commands per account (at most 3 switching commands in 30 seconds and 30 calls in 5 minutes). If there are too many, the status line says “The controller is slowing down (too many requests)”. This is not a fault: the tiles show the last known state and can still be used. A stop is never lost. The tile shows “Stop will follow” with a countdown, Clubwerk sends it as soon as Hydrawise accepts commands again and records “Stop sent later” in the history. A start waits in the same way and begins a little later. If this happens often, the admin area asks whether the Hydrawise account is shared with other programs (e.g. the Hydrawise integration in Home Assistant or an old web app). If so, let them poll less often or switch them off.
+
 #### Switch off all zones
 
 The red button **■ Switch off all zones** below the tiles is the emergency stop. After a confirmation it ends running and scheduled irrigation immediately. It only appears once there are courts, and it is greyed out without a connection to the system. If switching off does not work everywhere, Clubwerk says so explicitly, so nobody assumes the water is off.

@@ -76,25 +76,71 @@ const log = (action, who, platz, sec, detail) =>
   db.prepare('INSERT INTO irr_log(at, who, action, platz, sec, detail) VALUES (?,?,?,?,?,?)').run(localTs(), who || null, action, platz ?? null, sec ?? null, detail || null);
 
 /* =================== Anbindung =================== */
-async function hwCall(endpoint, params = {}) {
+/* Hydrawise bremst je Konto: höchstens 3 Schaltbefehle in 30 s und 30 Aufrufe in 5 min, sonst Antwort 429. Das Konto teilen sich oft
+   weitere Programme (Home-Assistant-Integration, alte Webapp) – darum zählt Clubwerk die eigenen Aufrufe und wartet lieber vorher,
+   hält nach einer 429 Abstand, vergisst den letzten Stand der Steuerung nie wegen eines Fehlers und verliert nie einen Stopp
+   (er wird gespeichert und nachgeholt, sobald die Steuerung wieder annimmt). */
+const HW = { calls: [], ctl: [], until: 0 };
+const HW_CTL = 3, HW_CTL_MS = 30000, HW_ALL_MS = 300000, HW_READS = 20, HW_ALL = 28;   // Abfragen nur bis 20 je 5 min – der Rest bleibt für Schaltbefehle
+function rateErr(ms) { return Object.assign(new Error('Die Steuerung bremst gerade (zu viele Anfragen).'), { rate: true, wait: Math.max(1000, ms) }); }
+/** Wie lange (ms) bis zum nächsten erlaubten Aufruf? kind: 'ctl' (Stopp), 'start' oder 'read' (Abfrage) */
+function hwWait(kind) {
+  const now = Date.now();
+  HW.calls = HW.calls.filter(t => now - t < HW_ALL_MS); HW.ctl = HW.ctl.filter(t => now - t < HW_CTL_MS);
+  let w = HW.until - now;
+  const max = kind === 'read' ? HW_READS : HW_ALL;
+  if (HW.calls.length >= max) w = Math.max(w, HW.calls[HW.calls.length - max] + HW_ALL_MS - now);
+  const n = kind === 'start' ? HW_CTL - 1 : HW_CTL;   // ein Start lässt immer einen Schaltbefehl für einen Stopp frei
+  if (kind !== 'read' && HW.ctl.length >= n) w = Math.max(w, HW.ctl[HW.ctl.length - n] + HW_CTL_MS - now);
+  return Math.max(0, w);
+}
+const SHARED = n => `Hydrawise hat in den letzten 24 Stunden ${n}-mal gebremst (zu viele Anfragen). Teilt sich das Hydrawise-Konto mit anderen Programmen (z. B. der Hydrawise-Integration in Home Assistant oder einer alten Webapp)? Dann diese seltener abfragen lassen oder abschalten.`;
+/** 429 der letzten 24 Std. (für den Hinweis in der Verwaltung) */
+const hwHits = () => { let a = []; try { a = JSON.parse(getSetting('ext_beregnung_hw_429', '[]')); } catch (e) { a = []; } return (Array.isArray(a) ? a : []).filter(t => Date.now() - t < 86400000); };
+async function hwCall(endpoint, params = {}, kind = 'read') {
   const key = getSetting('ext_beregnung_hw_key', '');
   if (!key) throw new Error('Kein Hydrawise-API-Key eingetragen.');
+  const w = hwWait(kind);
+  if (w > 0) throw rateErr(w);
+  HW.calls.push(Date.now());
   const qs = new URLSearchParams({ ...params, api_key: key });
   const r = await fetch(`${HW_BASE()}/${endpoint}?${qs}`, { headers: { 'User-Agent': 'Clubwerk-Beregnung/1.0' }, signal: AbortSignal.timeout(15000) });
+  if (r.status === 429) {
+    const ra = parseInt(r.headers.get('retry-after'), 10);
+    const ms = Math.min(300000, ra > 0 ? ra * 1000 : HW_CTL_MS);
+    HW.until = Date.now() + ms;
+    setSetting('ext_beregnung_hw_429', JSON.stringify([...hwHits(), Date.now()].slice(-200)));
+    throw rateErr(ms);
+  }
   if (!r.ok) throw new Error(`Hydrawise antwortet mit ${r.status}`);
+  if (kind !== 'read') HW.ctl.push(Date.now());   // nur angenommene Schaltbefehle zählen – nach einer 429 hält HW.until Abstand
   const t = await r.text();
   try { return JSON.parse(t); } catch (e) { return { message: t }; }
 }
 
-let cache = { at: 0, data: null, err: null, backend: null };
+let cache = { at: 0, data: null, err: null, backend: null, ttl: 4000 };
+/** Letzte bekannte Zuordnung Zonennummer → relay_id (übersteht Fehler und Neustarts) */
+const relayMap = () => { try { return JSON.parse(getSetting('ext_beregnung_hw_relays', '{}')) || {}; } catch (e) { return {}; } };
 /** Zustand der Steuerung: { zones: {ref: {running, remain}}, list: [{ref, name}], next: ms|null } */
 async function readController(force) {
   const c = cfg();
-  const ttl = c.backend === 'hydrawise' ? 20000 : 4000;
-  if (!force && cache.backend === c.backend && Date.now() - cache.at < ttl) { if (cache.err) throw cache.err; return cache.data; }
+  const hw = c.backend === 'hydrawise';
+  const fresh = cache.backend === c.backend && Date.now() - cache.at < cache.ttl;
+  // Hydrawise: auch „erzwungen“ höchstens alle 10 s – sonst zehrt jede offene Seite am gemeinsamen Kontingent
+  if (fresh && (!force || (hw && Date.now() - cache.at < 10000))) { if (cache.err && !(cache.err.rate && cache.data)) throw cache.err; return cache.data; }
+  // Stopp vorgemerkt: keine Abfrage, die ihm das Kontingent wegnimmt – der letzte Stand reicht bis dahin
+  if (hw && cache.backend === c.backend && cache.data && pendingStop()) return cache.data;
+  // viele offene Handys gleichzeitig: nur eine Abfrage, alle warten auf dieselbe Antwort
+  if (reading && reading.backend === c.backend) return reading.p;
+  const p = readNow(c, hw);
+  reading = { backend: c.backend, p };
+  try { return await p; } finally { if (reading && reading.p === p) reading = null; }
+}
+let reading = null;
+async function readNow(c, hw) {
   try {
-    let data;
-    if (c.backend === 'hydrawise') {
+    let data, ttl = 4000;
+    if (hw) {
       const s = await hwCall('statusschedule.php');
       const relays = Array.isArray(s.relays) ? s.relays : [];
       const zones = {}; let next = null;
@@ -104,6 +150,10 @@ async function readController(force) {
         if (t > 1 && (next === null || t * 1000 + Date.now() < next)) next = Date.now() + t * 1000;
       }
       data = { zones, list: relays.map(z => ({ ref: String(z.relay), name: `Zone ${z.relay}${z.name ? ' – ' + z.name : ''}` })), next };
+      // so oft abfragen, wie Hydrawise es erlaubt (nextpoll), mindestens 30 s
+      ttl = Math.max(30000, Math.min(600000, (parseInt(s.nextpoll, 10) || 0) * 1000));
+      const map = Object.fromEntries(relays.filter(z => z.relay_id).map(z => [String(z.relay), z.relay_id]));
+      if (Object.keys(map).length && JSON.stringify(map) !== JSON.stringify(relayMap())) setSetting('ext_beregnung_hw_relays', JSON.stringify(map));
     } else {
       const states = await ha.call('GET', '/states');
       const zones = {}, list = [], sensors = [];
@@ -134,40 +184,100 @@ async function readController(force) {
       }
       data = { zones, list: shown, filtered, sensors: sensors.map(({ ref, name }) => ({ ref, name })), next };
     }
-    cache = { at: Date.now(), data, err: null, backend: c.backend };
+    cache = { at: Date.now(), data, err: null, backend: c.backend, ttl };
     return data;
   } catch (e) {
-    cache = { at: Date.now(), data: null, err: e, backend: c.backend };
+    // Den letzten guten Stand nie wegen eines Fehlers vergessen. Bremst Hydrawise, gilt er weiter (mit Hinweis) – bis die Pause um ist.
+    const keep = cache.backend === c.backend ? cache.data : null;
+    if (e.rate && keep) { cache = { ...cache, err: e, at: Date.now(), ttl: e.wait }; return keep; }
+    cache = { at: Date.now(), data: keep, err: e, backend: c.backend, ttl: e.rate ? e.wait : cache.ttl };
     throw e;
   }
+}
+/** Bekannten Zustand nach einem Schaltbefehl selbst nachführen – statt die Steuerung sofort neu abzufragen */
+function markZone(ref, running, sec) {
+  const d = cache.data; if (!d || !d.zones) return;
+  if (ref === null) { for (const z of Object.values(d.zones)) { z.running = false; z.remain = null; } return; }
+  if (d.zones[ref]) Object.assign(d.zones[ref], { running, remain: running ? sec : null });
+}
+async function relayId(ref) {
+  const z = cache.data && cache.data.zones && cache.data.zones[ref];
+  if (z && z.relay_id) return z.relay_id;
+  const m = relayMap()[ref];
+  if (m) return m;
+  const d = await readController(true);
+  if (!d.zones[ref]) throw Object.assign(new Error(`Zone ${ref} gibt es in Hydrawise nicht.`), { gone: true });
+  return d.zones[ref].relay_id;
 }
 
 async function zoneOn(ref, sec) {
   const c = cfg();
   if (c.backend === 'hydrawise') {
-    let z = cache.data && cache.data.zones[ref];
-    if (!z || !z.relay_id) z = (await readController(true)).zones[ref];
-    if (!z) throw new Error(`Zone ${ref} gibt es in Hydrawise nicht.`);
-    await hwCall('setzone.php', { action: 'run', period_id: 999, relay_id: z.relay_id, custom: sec });
-  } else {
-    const dom = ref.split('.')[0];
-    if (dom === 'valve') await ha.call('POST', '/services/valve/open_valve', { entity_id: ref });
-    else await ha.call('POST', '/services/switch/turn_on', { entity_id: ref });
+    const id = await relayId(ref);
+    await hwCall('setzone.php', { action: 'run', period_id: 999, relay_id: id, custom: sec }, 'start');
+    markZone(ref, true, sec);
+    return;
   }
-  cache.at = 0;
+  const dom = ref.split('.')[0];
+  if (dom === 'valve') await ha.call('POST', '/services/valve/open_valve', { entity_id: ref });
+  else await ha.call('POST', '/services/switch/turn_on', { entity_id: ref });
+  cache.at = 0;   // Home Assistant ist lokal und ohne Kontingent – gleich neu abfragen
 }
 async function zoneOff(ref) {
   const c = cfg();
   if (c.backend === 'hydrawise') {
-    let z = cache.data && cache.data.zones[ref];
-    if (!z || !z.relay_id) z = (await readController(true)).zones[ref];
-    if (z) await hwCall('setzone.php', { action: 'stop', relay_id: z.relay_id });
-  } else {
-    const dom = ref.split('.')[0];
-    if (dom === 'valve') await ha.call('POST', '/services/valve/close_valve', { entity_id: ref });
-    else await ha.call('POST', '/services/switch/turn_off', { entity_id: ref });
+    await hwCall('setzone.php', { action: 'stop', relay_id: await relayId(ref) }, 'ctl');
+    markZone(ref, false);
+    return;
   }
+  const dom = ref.split('.')[0];
+  if (dom === 'valve') await ha.call('POST', '/services/valve/close_valve', { entity_id: ref });
+  else await ha.call('POST', '/services/switch/turn_off', { entity_id: ref });
   cache.at = 0;
+}
+
+/* Stopps, die Hydrawise (noch) nicht angenommen hat – gespeichert, damit sie auch einen Neustart überstehen: { all, refs, at, who, platz } */
+const pendingStop = () => { try { return JSON.parse(getSetting('ext_beregnung_hw_stop', '')) || null; } catch (e) { return null; } };
+const savePending = p => setSetting('ext_beregnung_hw_stop', p && (p.all || p.refs.length) ? JSON.stringify(p) : '');
+function addStop(refs, all, who, platz) {
+  const p = pendingStop() || { all: false, refs: [], at: Date.now(), who, platz: [] };
+  p.all = p.all || all; p.refs = [...new Set([...p.refs, ...refs])]; p.at = Date.now();
+  if (platz && !p.platz.includes(platz)) p.platz.push(platz);
+  savePending(p);
+}
+/** Gespeicherte Stopps senden (nie zwei Durchläufe gleichzeitig; liest den Speicher je Befehl neu, damit kein neu vorgemerkter Stopp verloren geht).
+    Rückgabe: null = alles gestoppt, sonst ms bis zum nächsten Versuch. Andere Fehler werden geworfen – der Stopp bleibt gespeichert und wird nachgeholt. */
+let flushing = null, stopRetryAt = 0;
+async function flushStops() {
+  let w;
+  do { if (!flushing) flushing = sendStops().finally(() => { flushing = null; }); w = await flushing; } while (w === null && pendingStop());
+  return w;
+}
+async function sendStops() {
+  for (;;) {
+    const p = pendingStop();
+    if (!p) return null;
+    if (Date.now() - p.at > 3600000) {   // nach einer Stunde sinnlos (jeder Lauf endet nach höchstens 60 min von selbst)
+      savePending(null); log('fehler', null, p.platz.join(', ') || null, null, 'Stopp ließ sich eine Stunde lang nicht an Hydrawise senden');
+      notify('Achtung: Ein Stopp der Beregnung ließ sich eine Stunde lang nicht an Hydrawise senden.'); return null;
+    }
+    const r = p.all ? null : p.refs[0];
+    try {
+      if (p.all) { await hwCall('setzone.php', { action: 'stopall' }, 'ctl'); markZone(null); }
+      else await zoneOff(r);
+    } catch (e) {
+      const q = pendingStop();
+      if (e.gone && q) { savePending({ ...q, refs: q.refs.filter(x => x !== r) }); continue; }   // Zone gibt es nicht (mehr) – da läuft nichts
+      if (q) savePending({ ...q, late: true });
+      if (e.rate) return e.wait;
+      stopRetryAt = Date.now() + 10000;   // Hydrawise nicht erreichbar: alle 10 s neu versuchen
+      throw e;
+    }
+    const q = pendingStop() || p;
+    const rest = p.all ? { ...q, all: false, refs: [] } : { ...q, refs: q.refs.filter(x => x !== r) };
+    savePending(rest);
+    if (!rest.all && !rest.refs.length && q.late) log('stop', 'System', q.platz.join(', ') || null, null, 'Stopp nachgeholt (Hydrawise hatte gebremst)');
+  }
 }
 const notify = text => ha.notify(cfg().notify, 'Beregnung', text);
 
@@ -179,9 +289,15 @@ async function tick() {
   try {
     const now = Date.now();
     const c = cfg();
+    // Stopp hat Vorrang: gespeicherte Stopps zuerst senden – solange einer offen ist, startet nichts Neues
+    if (c.backend === 'hydrawise' && pendingStop()) {
+      if (now < stopRetryAt) return;
+      try { if (await flushStops() !== null) return; }
+      catch (e) { console.error('Beregnung: Stopp nicht gesendet:', e.message); return; }
+    }
     // abgelaufene Zonen ausschalten (Hydrawise schaltet selbst ab – trotzdem als erledigt markieren)
     for (const s of db.prepare("SELECT * FROM irr_steps WHERE state = 'run' AND end_at <= ?").all(now)) {
-      try { if (c.backend !== 'hydrawise') await zoneOff(s.ref); db.prepare("UPDATE irr_steps SET state = 'done' WHERE id = ? AND state = 'run'").run(s.id); }
+      try { if (c.backend !== 'hydrawise') await zoneOff(s.ref); else markZone(s.ref, false); db.prepare("UPDATE irr_steps SET state = 'done' WHERE id = ? AND state = 'run'").run(s.id); }
       catch (e) {
         if (now - s.end_at > 5 * 60000) { db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ?").run('Ausschalten fehlgeschlagen: ' + e.message, s.id); log('fehler', null, platzName(s.platz), null, `${s.label || s.ref} ließ sich nicht ausschalten: ${e.message}`); notify(`Achtung: ${platzName(s.platz)} ${s.label || ''} ließ sich nicht ausschalten (${e.message}).`); }
       }
@@ -196,9 +312,11 @@ async function tick() {
       await zoneOn(s.ref, rest);
       // wurde während des Einschaltens „Alles stoppen“ gedrückt? Dann sofort wieder aus.
       if (!db.prepare("UPDATE irr_steps SET state = 'run' WHERE id = ? AND state = 'wait'").run(s.id).changes) {
-        try { await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); }
+        if (c.backend === 'hydrawise') { addStop([s.ref], false, 'System', platzName(s.platz)); await flushStops().catch(() => null); }   // nie verlieren: notfalls nachholen
+        else try { await zoneOff(s.ref); } catch (e) { notify(`Achtung: ${s.label || s.ref} ließ sich nach dem Stopp nicht ausschalten (${e.message}).`); }
       }
     } catch (e) {
+      if (e.rate) return;   // Hydrawise bremst: Zone bleibt wartend und startet, sobald die Steuerung wieder annimmt
       db.prepare("UPDATE irr_steps SET state = 'fail', err = ? WHERE id = ? AND state = 'wait'").run(e.message, s.id);
       log('fehler', null, platzName(s.platz), null, `${s.label || s.ref}: ${e.message}`);
       notify(`${platzName(s.platz)}${s.label ? ' ' + s.label : ''} konnte nicht gestartet werden: ${e.message}`);
@@ -236,41 +354,64 @@ function enqueue(platzIdx, who) {
   return { totalSec: total, waitSec: Math.max(0, Math.round(((tail || 0) - Date.now()) / 1000)) };
 }
 
+/** Hydrawise über Home Assistant: jeder Schließbefehl geht in die Hydrawise-Cloud und zählt beim Kontingent – nur schließen, was laut
+    Home Assistant offen ist (oder von uns gestartet wurde). Ist der Stand unbekannt oder das Ventil nicht erreichbar: vorsichtshalber schließen. */
+function haSkip(c, ref, ran) {
+  if (c.vendor !== 'hydrawise' || ran.includes(ref)) return false;
+  const z = cache.backend === 'ha' && !cache.err && cache.data && Date.now() - cache.at < 60000 && cache.data.zones[ref];
+  return Boolean(z && !z.running && !z.unavailable);
+}
+/** Hydrawise: Stopps vormerken und gleich senden. Rückgabe { errs, pendingSec } – bremst die Steuerung, wird der Stopp nachgeholt. */
+async function hwStop(refs, all, who, platz) {
+  addStop(refs, all, who, platz);
+  try { const w = await flushStops(); return { errs: [], pendingSec: w === null ? 0 : Math.ceil(w / 1000) }; }
+  catch (e) { return { errs: [e.message], pendingSec: 0 }; }
+}
 /** Einen Platz stoppen (auch von der Automatik gestartet); wartende Plätze rücken nach */
 async function stopPlatz(platzIdx, who) {
   const c = cfg(), p = c.plaetze[platzIdx];
   if (!p) throw new Error('Diesen Platz gibt es nicht.');
+  const ran = db.prepare("SELECT ref FROM irr_steps WHERE platz = ? AND state = 'run'").all(platzIdx).map(r => r.ref);
   db.prepare("UPDATE irr_steps SET state = 'stopped' WHERE platz = ? AND state IN ('wait','run')").run(platzIdx);
-  const errs = [];
-  for (const r of [...new Set((p.zones || []).map(z => String(z.ref)))]) { try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
+  const refs = [...new Set((p.zones || []).map(z => String(z.ref)))];
+  let errs = [], pendingSec = 0;
+  if (c.backend === 'hydrawise') {
+    // Nur stoppen, was läuft (je Befehl zählt das Kontingent). Ist der Stand der Steuerung unbekannt: vorsichtshalber alle Zonen des Platzes.
+    const z = cache.data && cache.data.zones;
+    const todo = z ? refs.filter(r => ran.includes(r) || (z[r] && z[r].running)) : refs;
+    // mehrere Zonen offen und sonst nichts → ein „stopall“ statt vieler Einzelbefehle
+    const others = z ? Object.entries(z).some(([r, st]) => st.running && !refs.includes(r)) || db.prepare("SELECT 1 FROM irr_steps WHERE state = 'run' LIMIT 1").get() : true;
+    if (todo.length) ({ errs, pendingSec } = await hwStop(todo.length > 1 && !others ? [] : todo, todo.length > 1 && !others, who, p.name));
+  } else {
+    for (const r of refs) { if (haSkip(c, r, ran)) continue; try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
+  }
   // Warteschlange zusammenschieben: was hinter diesem Platz wartete, startet entsprechend früher
   const running = db.prepare("SELECT MAX(end_at) e FROM irr_steps WHERE state = 'run'").get().e;
   let t = Math.max(Date.now(), running || 0);
   const up = db.prepare('UPDATE irr_steps SET start_at = ?, end_at = ? WHERE id = ?');
   db.transaction(() => { for (const w of db.prepare("SELECT * FROM irr_steps WHERE state = 'wait' ORDER BY start_at, id").all()) { up.run(t, t + w.sec * 1000, w.id); t += w.sec * 1000; } })();
-  cache.at = 0;
-  log('stop', who, p.name, null, errs.length ? 'Fehler: ' + errs.join('; ') : null);
+  log('stop', who, p.name, null, errs.length ? 'Fehler: ' + errs.join('; ') : pendingSec ? `Hydrawise bremst – Stopp wird in ${pendingSec} s nachgeholt` : null);
   if (errs.length) notify(`Stopp ${p.name} nicht vollständig: ` + errs.join('; '));
   setImmediate(tick);
-  return errs;
+  return { errs, pendingSec };
 }
 
 async function stopAll(who) {
   const c = cfg();
   const was = db.prepare("SELECT DISTINCT platz FROM irr_steps WHERE state IN ('wait','run')").all().map(r => platzName(r.platz));
+  const ran = db.prepare("SELECT ref FROM irr_steps WHERE state = 'run'").all().map(r => r.ref);
   db.prepare("UPDATE irr_steps SET state = 'stopped' WHERE state IN ('wait','run')").run();
-  const errs = [];
+  let errs = [], pendingSec = 0;
   if (c.backend === 'hydrawise') {
-    try { await hwCall('setzone.php', { action: 'stopall' }); } catch (e) { errs.push(e.message); }
+    ({ errs, pendingSec } = await hwStop([], true, who, was.join(', ')));
   } else {
     // alle eingerichteten Zonen schließen – auch solche, die die Automatik gestartet hat
     const refs = [...new Set(c.plaetze.flatMap(p => (p.zones || []).map(z => String(z.ref))))];
-    for (const r of refs) { try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
+    for (const r of refs) { if (haSkip(c, r, ran)) continue; try { await zoneOff(r); } catch (e) { errs.push(`${r}: ${e.message}`); } }
   }
-  cache.at = 0;
-  log('stop', who, was.join(', ') || null, null, errs.length ? 'Fehler: ' + errs.join('; ') : null);
+  log('stop', who, was.join(', ') || null, null, errs.length ? 'Fehler: ' + errs.join('; ') : pendingSec ? `Hydrawise bremst – Stopp wird in ${pendingSec} s nachgeholt` : null);
   if (errs.length) notify('Stopp nicht vollständig: ' + errs.join('; '));
-  return errs;
+  return { errs, pendingSec };
 }
 
 async function status() {
@@ -278,6 +419,16 @@ async function status() {
   let ctl = null, error = null;
   try { ctl = await readController(); } catch (e) { error = e.message; }
   const now = Date.now();
+  // Hydrawise bremst? Dann gilt der letzte Stand weiter – mit ehrlichem Hinweis statt „Keine Verbindung“
+  let throttle = null;
+  if (c.backend === 'hydrawise') {
+    const ps = pendingStop(), rated = cache.err && cache.err.rate;
+    const w = Math.ceil(Math.max(hwWait(ps ? 'ctl' : 'read'), rated ? cache.at + cache.ttl - now : 0) / 1000);
+    if (ps || rated || HW.until > now) {
+      throttle = { sec: Math.max(1, w), stop: Boolean(ps), stopRefs: ps ? (ps.all ? null : ps.refs) : [] };
+      if (!ctl && rated && !cache.data) error = 'Die Steuerung bremst gerade (zu viele Anfragen).';
+    }
+  }
   const steps = db.prepare("SELECT * FROM irr_steps WHERE state IN ('wait','run') ORDER BY start_at").all();
   const lastEnd = db.prepare("SELECT platz, MAX(end_at) e FROM irr_steps WHERE state IN ('done','run') GROUP BY platz").all();
   const plaetze = c.plaetze.map((p, i) => {
@@ -290,6 +441,9 @@ async function status() {
       return { ...base, state: cur ? 'run' : 'wait', remain: Math.max(0, Math.round((mine[mine.length - 1].end_at - now) / 1000)),
         startsIn: cur ? 0 : Math.max(0, Math.round((first.start_at - now) / 1000)), phase: cur && cur.label ? cur.label : '' };
     }
+    // Stopp vorgemerkt, Hydrawise bremst noch: nicht als „Automatik läuft“ zeigen
+    if (throttle && throttle.stop && (throttle.stopRefs === null || (p.zones || []).some(z => throttle.stopRefs.includes(String(z.ref))))
+      && ctl && (p.zones || []).some(z => ctl.zones[String(z.ref)] && ctl.zones[String(z.ref)].running)) return { ...base, state: 'stopping', stopIn: throttle.sec };
     // von der Automatik/der Hersteller-App gestartet?
     const ext = ctl && (p.zones || []).map(z => ({ z, st: ctl.zones[String(z.ref)] })).find(x => x.st && x.st.running);
     if (ext) return { ...base, state: 'auto', remain: ext.st.remain, phase: ext.z.label || '' };
@@ -306,7 +460,8 @@ async function status() {
       : d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
     next = `${day} ${hhmm(ctl.next)} Uhr`;
   }
-  return { online: Boolean(ctl), error, plaetze, next, zonesTotal: c.plaetze.reduce((a, p) => a + (p.zones || []).length, 0) };
+  return { online: Boolean(ctl), error, plaetze, next, zonesTotal: c.plaetze.reduce((a, p) => a + (p.zones || []).length, 0),
+    throttle: throttle && { sec: throttle.sec, stop: throttle.stop } };
 }
 function autoSub(p) {
   const z = p.zones || [];
@@ -360,6 +515,12 @@ function guard(req, res, { forStop = false } = {}) {
   return { who: 'Vereins-PIN' };
 }
 
+/** Antwort auf „Stoppen“: Fehler → 502; bremst Hydrawise, ist der Stopp vorgemerkt und wird nachgeholt (kein Fehler, aber ehrlich gesagt) */
+function stopAnswer(res, { errs, pendingSec }, msg) {
+  if (errs.length) return res.status(502).json({ error: msg });
+  res.json({ ok: true, pendingSec, ...(pendingSec ? { msg: `Die Steuerung bremst gerade (zu viele Anfragen) – Stopp folgt in ${pendingSec} s.` } : {}) });
+}
+
 /* Webapp-Schnittstelle – hängt am Tablet (/api/tablet/x/beregnung) und am eigenen Port (/api) */
 function appRouter(ctx) {
   const r = express.Router();
@@ -388,12 +549,10 @@ function appRouter(ctx) {
     const g = guard(req, res, { forStop: true }); if (!g) return;
     const b = req.body || {};
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {   // einzelnen Platz stoppen (wie in der Mitglieder-App)
-      try { const errs = await stopPlatz(parseInt(b.platz, 10), g.who); if (errs.length) return res.status(502).json({ error: 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!' }); return res.json({ ok: true }); }
+      try { return stopAnswer(res, await stopPlatz(parseInt(b.platz, 10), g.who), 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!'); }
       catch (e) { return res.status(400).json({ error: e.message }); }
     }
-    const errs = await stopAll(g.who);
-    if (errs.length) return res.status(502).json({ error: 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!' });
-    res.json({ ok: true });
+    stopAnswer(res, await stopAll(g.who), 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!');
   });
   r.post('/login', rateLimit('blogin', 10, 60000), (req, res) => {
     const { username, password } = req.body || {};
@@ -558,12 +717,10 @@ function activate(ctx) {
   ctx.member.post('/stop', ctx.rateLimit('bgmstop', 10, 60000), async (req, res) => {
     const b = req.body || {};
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
-      try { const errs = await stopPlatz(parseInt(b.platz, 10), req.member.name); if (errs.length) return res.status(502).json({ error: 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!' }); return res.json({ ok: true }); }
+      try { return stopAnswer(res, await stopPlatz(parseInt(b.platz, 10), req.member.name), 'Der Platz ließ sich nicht vollständig stoppen – bitte erneut versuchen!'); }
       catch (e) { return res.status(400).json({ error: e.message }); }
     }
-    const errs = await stopAll(req.member.name);
-    if (errs.length) return res.status(502).json({ error: 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!' });
-    res.json({ ok: true });
+    stopAnswer(res, await stopAll(req.member.name), 'Nicht alle Zonen ließen sich stoppen – bitte erneut versuchen!');
   });
   /* Funktionsexport/-import: Anbindung, Plätze mit Zonen, Schutz-Modus, Webapp – ohne Vereins-PIN und API-Key */
   ctx.hooks.exportConfig = () => { const c = cfg(); const { backend, ...rest } = c; void backend; return { ...rest, keepMonths: keepMonths() }; };
@@ -597,7 +754,9 @@ function activate(ctx) {
     if (!c.plaetze.length) return { kpis: [{ l: 'Plätze', v: 0 }, { l: 'Heute manuell gestartet', v: 0 }], alerts: [{ level: 'a', text: 'Noch keine Plätze eingerichtet.' }] };
     const st = await status();
     const alerts = [];
-    if (!st.online) alerts.push({ level: 'r', text: 'Keine Verbindung zur Bewässerungsanlage.', detail: st.error || undefined });   // Übersicht: kurzer Satz, Einzelheiten im Tooltip
+    if (!st.online && !st.throttle) alerts.push({ level: 'r', text: 'Keine Verbindung zur Bewässerungsanlage.', detail: st.error || undefined });   // Übersicht: kurzer Satz, Einzelheiten im Tooltip
+    const hits = c.backend === 'hydrawise' ? hwHits().length : 0;
+    if (hits >= 3) alerts.push({ level: 'a', text: 'Hydrawise bremst häufig (zu viele Anfragen).', detail: SHARED(hits), sec: ['tab_beregnung', 'bedienen'] });
     if (c.mode === 'pin' && !getSetting('ext_beregnung_pin_hash', '')) alerts.push({ level: 'a', text: 'Noch keine Vereins-PIN festgelegt.' });
     const day = localTs().slice(0, 10);
     // Fehler zählen nur, bis jemand den Verlauf angesehen hat – danach verschwindet der Hinweis (neue Fehler zeigen ihn wieder)
@@ -633,7 +792,7 @@ function activate(ctx) {
     let out;
     const before = cfg();
     try { out = cleanCfg(b, cleanName); nachgeprueft(geprueft, before, out); } catch (e) { return bad(res, e.message); }
-    if (out.backend !== before.backend && db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get()) return bad(res, 'Während einer laufenden Beregnung kann die Anbindung nicht gewechselt werden.');
+    if (out.backend !== before.backend && (db.prepare("SELECT 1 FROM irr_steps WHERE state IN ('wait','run') LIMIT 1").get() || pendingStop())) return bad(res, 'Während einer laufenden Beregnung kann die Anbindung nicht gewechselt werden.');
     setSetting('ext_beregnung_cfg', JSON.stringify(out));
     zoneAlert(before, out, req.user.name || req.user.username);
     cache.at = 0;
@@ -663,12 +822,15 @@ function activate(ctx) {
   admin.post('/stop', need('beregnung', 'beregnung_bedienen'), async (req, res) => {
     const b = req.body || {}, who = req.user.name || req.user.username;
     if (b.platz !== undefined && b.platz !== null && b.platz !== '') {
-      try { const errs = await stopPlatz(parseInt(b.platz, 10), who); return res.json({ ok: !errs.length, errors: errs }); } catch (e) { return res.status(400).json({ error: e.message }); }
+      try { const r = await stopPlatz(parseInt(b.platz, 10), who); return res.json({ ok: !r.errs.length, errors: r.errs, pendingSec: r.pendingSec }); } catch (e) { return res.status(400).json({ error: e.message }); }
     }
-    const errs = await stopAll(who);
-    res.json({ ok: !errs.length, errors: errs });
+    const r = await stopAll(who);
+    res.json({ ok: !r.errs.length, errors: r.errs, pendingSec: r.pendingSec });
   });
-  admin.get('/status', need('beregnung', 'beregnung_bedienen'), async (req, res) => res.json(await status()));
+  admin.get('/status', need('beregnung', 'beregnung_bedienen'), async (req, res) => {
+    const hits = cfg().backend === 'hydrawise' ? hwHits().length : 0;
+    res.json({ ...(await status()), shared: hits >= 3 ? SHARED(hits) : '' });
+  });
   const monthRows = m => db.prepare('SELECT * FROM irr_log WHERE at >= ? AND at < ? ORDER BY at DESC').all(m + '-01', nextMonth(m) + '-01');
   admin.get('/log', need('beregnung'), (req, res) => {
     const months = db.prepare("SELECT DISTINCT substr(at,1,7) m FROM irr_log ORDER BY m DESC").all().map(r => r.m);

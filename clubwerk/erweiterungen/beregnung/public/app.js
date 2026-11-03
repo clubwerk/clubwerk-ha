@@ -70,10 +70,9 @@
       if (r.status === 403 && d.app) { lock(d.error); return; }
       if (!r.ok) throw new Error(d.error);
       pl = d.plaetze || []; T.prime(pl); draw(); $('stop').classList.toggle('hidden', !pl.length);
-      $('tiles').classList.toggle('offline', !d.online); $('stop').disabled = !d.online;   // ohne Verbindung nichts startbar – wie bei den Türen
-      $('dot').className = 'vh-dot ' + (d.online ? 'ok' : 'err');
-      $('st').textContent = d.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
-      timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);
+      $('tiles').classList.toggle('offline', !d.online); $('stop').disabled = !d.online && !d.throttle;   // ohne Verbindung nichts startbar – wie bei den Türen; Stoppen geht immer, wenn nur gebremst wird
+      const L = T.line(d); $('dot').className = 'vh-dot ' + L.cls; $('st').textContent = L.text;
+      timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') || d.throttle ? 5000 : 20000);
     } catch (e) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Keine Verbindung zum Server'; timer = setTimeout(refresh, 15000); }
   }
   setInterval(() => { if (T.tick(pl)) draw(); }, 1000);
@@ -92,14 +91,14 @@
     const p = pl.find(x => x.id === id);
     try {
       const r = info.stopFree ? await post('stop', { platz: id }) : await withPin(`${p ? p.name : 'Platz'} stoppen`, pin => post('stop', { platz: id, pin }));
-      if (r) toast(`${p ? p.name : 'Platz'} gestoppt`);
+      if (r) toast(T.stopped(r, p ? p.name : 'Platz'), false, r.pendingSec ? 6000 : undefined);
     } catch (e) { if (e.login) $('loginSheet').classList.add('show'); else if (!e.app) toast(e.message || 'Fehler beim Stoppen – bitte erneut versuchen!', true, 5000); }
     refresh();
   }
   $('stop').onclick = async () => {
     try {
       const r = info.stopFree ? await post('stop', {}) : await withPin('Alle Zonen ausschalten', pin => post('stop', { pin }));
-      if (r) toast('Alle Zonen ausgeschaltet');
+      if (r) toast(r.pendingSec ? T.stopped(r) : 'Alle Zonen ausgeschaltet', false, r.pendingSec ? 6000 : undefined);
     } catch (e) { if (!e.app) toast(e.message || 'Fehler beim Stoppen – bitte erneut versuchen!', true, 5000); }
     refresh();
   };

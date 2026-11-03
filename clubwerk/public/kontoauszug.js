@@ -129,7 +129,7 @@
   function table(rows) {
     if (!rows.length) return `<p class="empty">${filter === 'pruefen' ? 'Nichts zu prüfen. Neue Kontoauszüge oben ablegen.' : filter === 'nicht' ? 'Alle Buchungen sind zugeordnet.' : 'Noch nichts zugeordnet.'}</p>`;
     const who = e => `<b translate="no">${esc(e.name || (e.kind === 'ruecklastschrift' ? 'Rücklastschrift' : 'Gutschrift'))}</b>${e.kind === 'ruecklastschrift' ? ' <span class="pill r">Rücklastschrift</span>' : ''}`;
-    const head = `<tr><th>Von</th><th>${filter === 'zugeordnet' ? 'Zugeordnet zu' : filter === 'pruefen' ? 'Vorschlag' : ''}</th><th>Datum</th><th>Verwendungszweck</th><th class="r">Betrag</th><th></th></tr>`;
+    const head = `<tr><th>Von</th><th>${filter === 'zugeordnet' ? 'Zugeordnet zu' : filter === 'pruefen' ? 'Vorschlag' : ''}</th><th>Datum</th><th class="hide-md">Verwendungszweck</th><th class="r">Betrag</th><th></th></tr>`;
     return `<div class="scroll"><table class="tbl kompakt">${head}${rows.map(e => {
       let mid = '', act = '';
       if (filter === 'zugeordnet') {
@@ -143,7 +143,7 @@
         mid = `<span translate="no">${esc(c.label)}</span> ${pill(LEVEL[c.level])}${c.note ? `<div class="muted s k-weg">${esc(c.note)}</div>` : ''}${e.cands.length > 1 ? `<div class="muted s k-weg">${e.cands.length === 2 ? '1 weiterer Vorschlag' : `${e.cands.length - 1} weitere Vorschläge`}</div>` : ''}`;
         act = `${e.cands.length === 1 ? `<button class="btn small" data-kok="${e.id}">Übernehmen</button> ` : ''}<button class="btn small" data-kchk="${e.id}">Prüfen …</button>`;
       } else act = `<button class="btn small" data-kchk="${e.id}">Zuordnen …</button>`;
-      return `<tr class="${e.status === 'fremd' ? 'off' : ''}"><td>${who(e)}</td><td class="s">${mid}</td><td class="num nw">${deDate(e.date)}</td><td class="s k-weg" translate="no">${esc(e.purpose)}</td>${sign(e.cents)}<td class="r nw">${act}</td></tr>`;
+      return `<tr class="${e.status === 'fremd' ? 'off' : ''}"><td>${who(e)}</td><td class="s">${mid}</td><td class="num nw">${deDate(e.date)}</td><td class="s k-weg hide-md" translate="no">${esc(e.purpose)}</td>${sign(e.cents)}<td class="r nw">${act}</td></tr>`;
     }).join('')}</table></div>`;
   }
 

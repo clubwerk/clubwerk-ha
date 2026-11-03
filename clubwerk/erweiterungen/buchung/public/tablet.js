@@ -127,7 +127,7 @@
         try { const r0 = await call('x/buchung/series-cancel', { token: tok, id: b.id, scope: x.dataset.sc }); closeDlg(); toast(`Abgesagt: ${r0.cancelled} ${r0.cancelled === 1 ? 'Termin' : 'Termine'}.`); load(); } catch (e) { closeDlg(); toast(e.message, true); }
       }; });
     });
-    else if (canCancel) $('cx').onclick = () => pickName('Wer hat gebucht?', async tok => {
+    else if (canCancel) $('cx').onclick = () => pickName('Wer hat gebucht oder spielt mit? Die Buchung wird für alle storniert.', async tok => {
       try { await call('x/buchung/cancel', { token: tok, id: b.id }); closeDlg(); toast('Storniert.'); load(); } catch (e) { closeDlg(); toast(e.message, true); }
     });
   }

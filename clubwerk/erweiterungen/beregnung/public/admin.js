@@ -91,16 +91,17 @@
         const alive = () => document.body.contains(el) && $('bTiles');
         const draw = () => {
           if (!alive()) { clearInterval(tick); clearTimeout(timer); return; }   // Seite schon verlassen (Antwort kam nach dem Wechsel) – nichts mehr zeichnen
-          $('bOff').innerHTML = s.online ? '' : `<div class="banner r">Keine Verbindung zur Bewässerungsanlage${s.error ? ': ' + esc(s.error) : ''}</div>`;
+          $('bOff').innerHTML = (s.throttle ? `<div class="banner a">${esc(T.line(s).text)}</div>` : s.online ? '' : `<div class="banner r">Keine Verbindung zur Bewässerungsanlage${s.error ? ': ' + esc(s.error) : ''}</div>`)
+            + (s.shared ? `<div class="banner a">${esc(s.shared)}</div>` : '');
           $('bTiles').innerHTML = s.plaetze.length ? T.html(s.plaetze, esc) : '<div class="vh-empty">Noch keine Plätze – unter „Plätze &amp; Zonen“ anlegen.</div>';
           $('bNext').textContent = s.next ? `Nächste automatische Beregnung: ${s.next}` : '';
           $('bStop').parentNode.classList.toggle('hidden', !s.plaetze.length);
-          $('bTiles').classList.toggle('offline', !s.online); $('bStop').disabled = !s.online;
+          $('bTiles').classList.toggle('offline', !s.online); $('bStop').disabled = !s.online && !s.throttle;
           $('bTiles').querySelectorAll('[data-p]').forEach(x => { x.onclick = async () => {
             const p = s.plaetze.find(y => y.id === +x.dataset.p); if (!p || p.state !== 'idle') return;
             try { await api('run', 'POST', { platz: p.id }); toast(`${p.name}: Beregnung gestartet.`); refresh(); } catch (e) { fail(e); } }; });
           $('bTiles').querySelectorAll('[data-stop]').forEach(x => { x.onclick = async e => { e.stopPropagation();
-            try { const r = await api('stop', 'POST', { platz: +x.dataset.stop }); toast(r.ok ? 'Gestoppt.' : 'Nicht alles ließ sich stoppen.', !r.ok); refresh(); } catch (e2) { fail(e2); } }; });
+            try { const r = await api('stop', 'POST', { platz: +x.dataset.stop }); toast(!r.ok ? 'Nicht alles ließ sich stoppen.' : r.pendingSec ? T.stopped(r) : 'Gestoppt.', !r.ok); refresh(); } catch (e2) { fail(e2); } }; });
         };
         async function refresh() {
           clearTimeout(timer); if (!alive()) return clearInterval(tick);
@@ -110,7 +111,7 @@
         }
         T.prime(s.plaetze); draw(); timer = setTimeout(refresh, 5000);
         tick = setInterval(() => { if (!alive()) { clearInterval(tick); clearTimeout(timer); return; } if (T.tick(s.plaetze)) draw(); }, 1000);
-        $('bStop').onclick = async () => { if (!await GK.ask('Alle Zonen jetzt ausschalten?\n\nLaufende und geplante Beregnungen werden sofort beendet.', { ok: 'Alles stoppen', danger: true })) return; try { const r = await api('stop', 'POST', {}); toast(r.ok ? 'Alle Zonen gestoppt.' : 'Nicht alles ließ sich stoppen: ' + r.errors.join('; '), !r.ok); refresh(); } catch (e) { fail(e); } };
+        $('bStop').onclick = async () => { if (!await GK.ask('Alle Zonen jetzt ausschalten?\n\nLaufende und geplante Beregnungen werden sofort beendet.', { ok: 'Alles stoppen', danger: true })) return; try { const r = await api('stop', 'POST', {}); toast(!r.ok ? 'Nicht alles ließ sich stoppen: ' + r.errors.join('; ') : r.pendingSec ? T.stopped(r) : 'Alle Zonen gestoppt.', !r.ok); refresh(); } catch (e) { fail(e); } };
         return;
       }
       if (k === 'plaetze') {

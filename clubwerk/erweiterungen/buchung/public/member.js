@@ -294,6 +294,7 @@
         const sh = sheet(); const b = x.booking || {};
         const canWait = data.settings.waitlist && x.state.split(' ')[0] === 'busy' && !x.state.includes('wait');
         sh.innerHTML = `<div class="vh-box"><h2>${esc(r.name)} · ${hhmm(x.s)}</h2><p>${esc(wd(day, { weekday: 'long' }))}, ${deD(day)} · ${b.type === 'sperre' ? 'gesperrt' : 'belegt'} ${b.start ? `${b.start}–${b.end} Uhr` : ''}${b.label ? `<br><b>${esc(b.label.name)}</b>` : ''}${b.type === 'buchung' && b.who ? `<br>${esc(b.who.join(', '))}` : b.title && (!b.label || b.title !== b.label.name) ? `<br>${esc(b.title)}` : ''}</p>
+          ${b.type === 'buchung' && !b.label && b.who && b.who[0] ? `<p>Gebucht hat ${esc(b.who[0])} – nur er/sie oder ein Mitspieler kann stornieren.</p>` : ''}
           ${canWait ? '<p>Auf die Warteliste? Du bekommst eine E-Mail, sobald die Zeit frei wird.</p>' : x.state.includes('wait') ? '<p>Du stehst schon auf der Warteliste.</p>' : ''}
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">${canWait ? 'Abbrechen' : 'Schließen'}</button>${canWait ? '<button class="ok" id="bkmOk">Vormerken</button>' : ''}</div></div>`;
         sh.classList.add('show');
@@ -534,7 +535,7 @@
       function cancelSheet(b) {
         const sh = sheet();
         sh.innerHTML = `<div class="vh-box"><h2>Buchung stornieren?</h2><p>${esc(b.resource)} · ${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)} · ${b.start}–${b.end} Uhr${b.fee_cents ? `<br>Die Gebühr (${euro(b.fee_cents)}) entfällt.` : ''}</p>
-          ${b.canCancel ? '' : '<p>Diese Buchung kannst du nicht mehr stornieren.</p>'}
+          ${b.canCancel ? (b.partner && b.booker ? `<p>Die Buchung von ${esc(b.booker)} wird für alle storniert.</p>` : '') : `<p>${esc(b.cancelNote || 'Diese Buchung kannst du nicht mehr stornieren.')}</p>`}
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">${b.canCancel ? 'Behalten' : 'Schließen'}</button>${b.canCancel ? '<button class="ok" id="bkmOk" style="background:var(--red)">Stornieren</button>' : ''}</div></div>`;
         sh.classList.add('show');
         sh.querySelector('#bkmNo').onclick = close;

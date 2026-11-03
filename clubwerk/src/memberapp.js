@@ -40,7 +40,7 @@ const awayOk = (req, id, row) => !awayReq(req) || extAllowed(id) || Boolean(row 
 const WLAN_ONLY = 'Nur im Vereins-WLAN nutzbar – bitte im Vereinsheim öffnen.';
 /** Vereinsfarbe (Verwaltung → Einstellungen) – die App übernimmt sie beim Start und, solange sie offen ist, ohne Neuladen */
 const appColor = () => require('./db').clubColor();
-const STAGED = 'Aus Sicherheitsgründen erst nach dem ersten Öffnen der App im Vereins-WLAN – oder nach Freigabe durch den Vorstand.';
+const STAGED = 'Aus Sicherheitsgründen noch gesperrt: Du hast dein Handy von unterwegs freigeschaltet. Öffne die App einmal im Vereins-WLAN (im Vereinsheim) – dann ist dieser Bereich frei. Oder der Vorstand gibt ihn frei.';
 const sms = require('./sms');
 /** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile }; hooked: Module mit memberAddress, wenn schon ermittelt (bei vielen Mitgliedern) */
 function contactOf(memberId, hooked = null) {
@@ -290,7 +290,7 @@ const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
   try { options = m.hooks.accessOptions ? m.hooks.accessOptions() : null; } catch (e) { options = null; }
   // Profile nur für eigens freizuschaltende Bereiche; zusätzliche Haken (flags) auch für „für alle“-Bereiche
-  return { id, name: m.name, label: m.label, perm: m.perm, open: Boolean(m.open), nonMembers: Boolean(m.nonMembers), away: extAllowed(id), on: !appOff().has(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
+  return { id, name: m.name, label: m.label, perm: m.perm, sensitive: Boolean(m.sensitive), open: Boolean(m.open), nonMembers: Boolean(m.nonMembers), away: extAllowed(id), on: !appOff().has(id), preselect: preselect(id), count: m.open ? null : access.list(id).filter(r => !r.blocked).length, options: options ? (m.open ? { flags: options.flags || null } : options) : null };
 });
 
 /* ---------- Port der Mitglieder-App ---------- */

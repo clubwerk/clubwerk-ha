@@ -10,6 +10,9 @@ window.BeregnungTiles = (() => {
       if (p.blockedUntil) act = `<span class="vh-pill ghost">ab ${esc(p.blockedUntil)} Uhr</span>`;
       else act = `<button type="button" class="vh-btn" data-p="${p.id}">▶ Starten</button>`;   // nur der Knopf startet – nicht die ganze Kachel (wie „Öffnen“ bei den Türen)
       const cls = p.state === 'run' || p.state === 'auto' ? ' run' : p.state === 'wait' ? ' wait' : p.blockedUntil ? ' off' : '';
+      if (p.state === 'stopping') {   // Stopp vorgemerkt, die Steuerung bremst noch – er wird automatisch nachgeholt
+        return `<div class="vh-tile wait"><span class="vh-tx"><span class="vh-name">${esc(p.name)}</span><span class="vh-sub">${esc(p.sub)} · ${esc('Stopp wird nachgeholt')}</span></span><span class="vh-acts"><span class="vh-pill"><span class="vh-rd"></span>${esc('Stopp in ' + fmt(p._stopIn || 0))}</span></span></div>`;
+      }
       if (p.state === 'run' || p.state === 'auto' || p.state === 'wait') {
         const phase = p.state === 'wait' ? 'wartet' : p.state === 'auto' ? 'Automatik läuft' : (p.phase ? `${p.phase} läuft` : 'läuft');
         const time = p.state === 'wait' ? `Start in ${fmt(p._startsIn || 0)}` : (p._remain != null ? fmt(p._remain) : 'läuft');
@@ -19,7 +22,14 @@ window.BeregnungTiles = (() => {
     }).join('');
   }
   /** Countdown lokal weiterzählen (jede Sekunde), bis der nächste Status kommt */
-  function prime(plaetze) { for (const p of plaetze) { p._remain = p.remain; p._startsIn = p.startsIn || 0; } }
-  function tick(plaetze) { let ch = false; for (const p of plaetze) { if (p._remain != null && p._remain > 0) { p._remain--; ch = true; } if (p._startsIn > 0) { p._startsIn--; ch = true; } } return ch; }
-  return { html, prime, tick, fmt };
+  function prime(plaetze) { for (const p of plaetze) { p._remain = p.remain; p._startsIn = p.startsIn || 0; p._stopIn = p.stopIn || 0; } }
+  function tick(plaetze) { let ch = false; for (const p of plaetze) { if (p._remain != null && p._remain > 0) { p._remain--; ch = true; } if (p._startsIn > 0) { p._startsIn--; ch = true; } if (p._stopIn > 1) { p._stopIn--; ch = true; } } return ch; }
+  /** Statuszeile für alle Wege: { cls, text } – bremst Hydrawise, bleibt der letzte Stand sichtbar und bedienbar (kein „Keine Verbindung“) */
+  function line(d) {
+    if (d.throttle) return { cls: 'busy', text: d.throttle.stop ? `Die Steuerung bremst gerade (zu viele Anfragen) – Stopp folgt in ${d.throttle.sec} s` : 'Die Steuerung bremst gerade (zu viele Anfragen) – letzter Stand' };
+    return d.online ? { cls: 'ok', text: 'Verbunden mit der Bewässerungsanlage' } : { cls: 'err', text: 'Keine Verbindung zur Bewässerungsanlage' };
+  }
+  /** Meldung nach „Stoppen“ */
+  const stopped = (r, name) => (r && r.pendingSec ? (r.msg || `Die Steuerung bremst gerade (zu viele Anfragen) – Stopp folgt in ${r.pendingSec} s.`) : `${name} gestoppt`);
+  return { html, prime, tick, fmt, line, stopped };
 })();

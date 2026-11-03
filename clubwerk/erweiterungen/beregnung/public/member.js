@@ -21,10 +21,9 @@
           const v = await ctx.api('status');
           pl = v.plaetze; T.prime(pl); draw();
           document.getElementById('bgStop').classList.toggle('hidden', !pl.length);   // ohne Plätze kein Not-Aus
-          document.getElementById('bgTiles').classList.toggle('offline', !v.online); document.getElementById('bgStop').disabled = !v.online;
-          document.getElementById('bgDot').className = 'vh-dot ' + (v.online ? 'ok' : 'err');
-          document.getElementById('bgSt').textContent = v.online ? 'Verbunden mit der Bewässerungsanlage' : 'Keine Verbindung zur Bewässerungsanlage';
-          if (alive) timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') ? 5000 : 20000);
+          document.getElementById('bgTiles').classList.toggle('offline', !v.online); document.getElementById('bgStop').disabled = !v.online && !v.throttle;
+          const L = T.line(v); document.getElementById('bgDot').className = 'vh-dot ' + L.cls; document.getElementById('bgSt').textContent = L.text;
+          if (alive) timer = setTimeout(refresh, pl.some(p => p.state !== 'idle') || v.throttle ? 5000 : 20000);
         } catch (e) { if (alive) timer = setTimeout(refresh, 15000); }
       }
       async function run(id) {
@@ -41,13 +40,13 @@
       }
       async function stopOne(id) {
         const p = pl.find(x => x.id === id);
-        try { await ctx.api('stop', 'POST', { platz: id }); ctx.toast(`${p ? p.name : 'Platz'} gestoppt`); } catch (e) { ctx.toast(e.message, true, 5000); }
+        try { const r = await ctx.api('stop', 'POST', { platz: id }); ctx.toast(T.stopped(r, p ? p.name : 'Platz'), false, r && r.pendingSec ? 6000 : undefined); } catch (e) { ctx.toast(e.message, true, 5000); }
         refresh();
       }
       document.getElementById('bgStop').onclick = async () => {
         try {
           const r = await ctx.api('stop', 'POST', {});
-          if (r) ctx.toast('Alle Zonen ausgeschaltet');
+          if (r) ctx.toast(r.pendingSec ? T.stopped(r) : 'Alle Zonen ausgeschaltet', false, r.pendingSec ? 6000 : undefined);
         } catch (e) { ctx.toast(e.message, true, 5000); }
         refresh();
       };

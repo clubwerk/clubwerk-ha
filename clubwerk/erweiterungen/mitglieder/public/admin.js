@@ -189,7 +189,7 @@
           <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
           <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
           <td>${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
-          <td class="nw">${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
+          <td>${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
           <td class="k-weg">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</td></tr>`).join('') : '';
       $('mvTbl').classList.toggle('hidden', !rows.length);
       const em = $('mvEmpty'); em.classList.toggle('hidden', rows.length > 0);
@@ -1290,13 +1290,13 @@
   const stageName = n => { const L = (st.meta && st.meta.settings.dunning_levels) || []; return L.length ? L[Math.min(n, L.length) - 1].title : `${n}. Mahnstufe`; };
   function chargeTable(rows, { member, select } = {}) {
     const first = c => (member ? `<b translate="no">${esc(c.text)}</b>${c.note ? `<div class="muted s">${esc(c.note)}</div>` : ''}` : `<b>${esc(GK.lastFirst(c.payer_name))}</b>${c.member_no ? `<div class="muted s mv-nr">Nr. ${esc(c.member_no)}</div>` : ''}`);
-    return `<div class="scroll" style="max-height:60vh"><table class="tbl kompakt${member ? ' mv-ctbl' : ''}"><tr>${member ? '<th>Position</th>' : '<th>Zahler</th><th>Position</th>'}<th>Fällig</th><th>Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
+    return `<div class="scroll" style="max-height:60vh"><table class="tbl kompakt${member ? ' mv-ctbl' : ''}"><tr>${member ? '<th>Position</th>' : '<th>Zahler</th><th>Position</th>'}<th>Fällig</th><th class="k-eng">Art</th><th>Status</th><th class="r">Betrag</th><th></th></tr>
       ${rows.map(c => `<tr class="${c.status === 'storniert' ? 'off' : ''}"><td>${select && c.status === 'eingezogen' ? `<label class="chk"><input type="checkbox" data-csel="${c.id}" aria-label="auswählen"> ${first(c)}</label>` : first(c)}</td>
         ${member ? '' : `<td class="k-lang"><span translate="no">${esc(c.text)}</span>${c.note ? `<div class="muted s k-weg">${esc(c.note)}</div>` : ''}</td>`}
-        <td class="num nw">${deDate(c.due_date)}</td><td class="k-weg">${esc(KIND[c.kind] || c.kind)}</td>
-        <td>${c.dunning_level && c.status === 'offen' ? `<span class="pill r">${esc(stageName(c.dunning_level))}</span>` : pill(CSTAT[c.status] || ['', c.status])}${c.dunning_block && c.status === 'offen' && (!c.dunning_block_until || c.dunning_block_until >= st.meta.today) ? ' <span class="pill b">Mahnsperre</span>' : ''}${c.paid_at ? ` <span class="muted s nw k-weg">${deDate(c.paid_at)} · ${esc(VIA[c.paid_via] || c.paid_via || '')}</span>` : ''}</td>
+        <td class="num nw">${deDate(c.due_date)}</td><td class="k-weg k-eng">${esc(KIND[c.kind] || c.kind)}</td>
+        <td>${c.dunning_level && c.status === 'offen' ? `<span class="pill r">${esc(stageName(c.dunning_level))}</span>` : pill(CSTAT[c.status] || ['', c.status])}${c.dunning_block && c.status === 'offen' && (!c.dunning_block_until || c.dunning_block_until >= st.meta.today) ? ' <span class="pill b">Mahnsperre</span>' : ''}${c.paid_at ? ` <span class="muted s nw k-weg hide-md">${deDate(c.paid_at)} · ${esc(VIA[c.paid_via] || c.paid_via || '')}</span>` : ''}</td>
         <td class="r ${c.cents < 0 ? 'neg' : ''}">${euro(c.cents)}</td>
-        <td class="r nw">${c.status === 'offen' ? `<button class="btn small" data-cpay="${c.id}">Bezahlt</button> <button class="btn small" data-ced="${c.id}">Ändern</button>` : c.status === 'bezahlt' ? `<button class="btn small danger" data-ccx="${c.id}">Stornieren</button>` : ''}</td></tr>`).join('')}</table></div>`;
+        <td class="r wrap-ok">${c.status === 'offen' ? `<button class="btn small" data-cpay="${c.id}">Bezahlt</button> <button class="btn small" data-ced="${c.id}">Ändern</button>` : c.status === 'bezahlt' ? `<button class="btn small danger" data-ccx="${c.id}">Stornieren</button>` : ''}</td></tr>`).join('')}</table></div>`;
   }
   /** Posten stornieren (im selben Fenster, auch aus „Posten ändern“ heraus) */
   async function cancelDialog(c, again, back) {
@@ -1388,10 +1388,10 @@
       ${st.meta.drinks ? `<div class="card"><h3>Verkauf einziehen</h3>
         <p class="muted s" style="margin-top:0">Jederzeit, getrennt von den Beiträgen: alle offenen Verkaufskonten der Mitglieder in einem Ablauf bis zur SEPA-Datei. Denselben Weg gibt es unter Verkauf › Abrechnung.${f.drinksDue ? ` Üblicher Termin: ${esc(f.drinksDue.split('-').reverse().join('.'))}.` : ''}</p>
         <div class="row" style="justify-content:space-between;align-items:center"><span>Offen auf Verkaufskonten (Mitglieder): <b>${euro(f.drinksOpen || 0)}</b></span><button class="btn" id="rDrinkOnly">Verkauf einziehen …</button></div></div>` : ''}
-      <div class="card"><h3>Einzüge</h3>${list.length ? `<table class="tbl kompakt"><tr><th>Termin</th><th>Status</th><th class="r">Lastschriften</th><th class="r">Summe</th><th>Vorabinfo</th><th></th></tr>
+      <div class="card"><h3>Einzüge</h3>${list.length ? `<table class="tbl kompakt"><tr><th>Termin</th><th>Status</th><th class="r">Lastschriften</th><th class="r">Summe</th><th class="hide-md">Vorabinfo</th><th></th></tr>
         ${list.map(k => `<tr class="${k.status === 'verworfen' ? 'off' : ''}"><td class="nw"><b>${deDate(k.collection_date)}</b>${k.kind === 'getraenke' ? ' <span class="pill b">Verkauf</span>' : ''}<div class="muted s k-weg">${esc(k.msg_id)}</div></td>
           <td>${pill(k.status === 'gebucht' ? ['g', 'verbucht'] : k.status === 'verworfen' ? ['', 'verworfen'] : ['a', 'erstellt'])}${k.returned ? ` <span class="pill r">${k.returned} zurück</span>` : ''}</td>
-          <td class="r k-lbl" data-label="Lastschriften">${k.count}</td><td class="r">${euro(k.cents)}</td><td class="nw k-weg">${k.prenotified_at ? deTime(k.prenotified_at) : '<span class="muted s">noch nicht</span>'}</td>
+          <td class="r k-lbl" data-label="Lastschriften">${k.count}</td><td class="r">${euro(k.cents)}</td><td class="nw k-weg hide-md">${k.prenotified_at ? deTime(k.prenotified_at) : '<span class="muted s">noch nicht</span>'}</td>
           <td class="r nw">${k.status !== 'verworfen' ? `<button class="btn small" data-kopen="${k.id}">Details</button> <a class="btn small" href="${BASE}collections/${k.id}/xml" download>SEPA-Datei</a>` : ''}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Einzug.</p>'}
         <p class="muted s" style="margin-bottom:0">Die SEPA-Datei (pain.008.001.08) im Online-Banking unter „Sammellastschrift / SEPA-Datei hochladen“ einreichen. Kam nach 1–2 Wochen nichts zurück: „Zahlung erfolgt“ buchen – im Einzug oder unter „Offene Posten → Im Einzug“.</p></div>`;
     $('kPrev').onclick = async () => {

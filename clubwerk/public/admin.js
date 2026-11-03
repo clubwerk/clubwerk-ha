@@ -1390,8 +1390,8 @@
       <p class="lead">Soll-Bestand = Lieferungen − Buchungen ± Bruch/Korrekturen. Bei der Inventur einfach zählen und eintragen – die Differenz wird als Schwund erfasst.</p>
       <div class="card"><div class="row" style="justify-content:space-between;margin-bottom:10px"><h3 style="margin:0">Aktueller Bestand</h3>
         <div class="row"><label class="f">Inventur-Datum<input type="date" id="invDate" value="${today()}"></label><button class="btn primary" id="saveInv">Inventur speichern</button></div></div>
-        <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Soll (Stück)</th><th class="r hide-md">Soll in Gebinden</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">Gezählt: Stück</th></tr>
-        ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted hide-md">${esc(s.category)}</td>
+        <div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="k-breit">Kategorie</th><th class="r">Soll (Stück)</th><th class="r hide-md">Soll in Gebinden</th><th class="r hide-md">Mindestbestand</th><th class="r">Gezählt: Gebinde</th><th class="r">Gezählt: Stück</th></tr>
+        ${tracked.map(s => `<tr><td>${esc(s.name)} ${s.stock <= s.min_stock && s.delivered > 0 ? '<span class="pill a">nachbestellen</span>' : ''}</td><td class="muted k-breit">${esc(s.category)}</td>
           <td class="r ${s.stock < 0 ? 'neg' : ''}">${num(s.stock)}</td>
           <td class="r muted hide-md">${s.crate_size > 1 ? `${Math.floor(Math.max(0, s.stock) / s.crate_size)} + ${Math.max(0, s.stock) % s.crate_size}` : '–'}</td>
           <td class="r hide-md">${num(s.min_stock)}</td>
@@ -1446,9 +1446,9 @@
     el.innerHTML = `<h3>Abgleich Lieferungen ↔ Buchungen</h3>
       <p class="muted s" style="margin-top:0">Was ist geliefert, was gebucht worden? „Offen“ ist noch im Lager oder wurde nicht gebucht – Klarheit bringt die Inventur.</p>
       ${rangeBar(r.from, r.to)}
-      ${r.rows.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="hide-md">Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r">Verein frei</th><th class="r">Gast bar</th><th class="r">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
-      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted hide-md">${esc(x.category)}</td><td class="r k-lbl">${num(x.delivered)}</td><td class="r k-weg">${num(x.konto)}</td><td class="r k-weg">${num(x.verein)}</td><td class="r k-weg">${num(x.gast)}</td><td class="r k-weg">${num(x.event)}</td><td class="r k-weg">${num(x.bruch + x.korrektur)}</td><td class="r k-lbl">${num(x.open)}</td><td class="r k-weg ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r k-lbl ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
-      <tr class="sum"><td colspan="2">Summe</td><td class="r">${num(sum('delivered'))}</td><td class="r">${num(sum('konto'))}</td><td class="r">${num(sum('verein'))}</td><td class="r">${num(sum('gast'))}</td><td class="r">${num(sum('event'))}</td><td class="r">${num(sum('bruch') + sum('korrektur'))}</td><td class="r">${num(sum('open'))}</td><td class="r">${num(sum('inventur'))}</td><td class="r">${euro(sum('shrink_cents'))}</td></tr></table></div>`
+      ${r.rows.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Artikel</th><th class="k-breit">Kategorie</th><th class="r">Geliefert</th><th class="r">Konten</th><th class="r k-mid">Verein frei</th><th class="r k-mid">Gast bar</th><th class="r k-mid">Veranstaltung</th><th class="r">Bruch/Korr.</th><th class="r">Offen</th><th class="r">Inventur-Diff.</th><th class="r">Schwund €</th></tr>
+      ${r.rows.map(x => `<tr><td>${esc(x.name)}</td><td class="muted k-breit">${esc(x.category)}</td><td class="r k-lbl">${num(x.delivered)}</td><td class="r k-weg">${num(x.konto)}</td><td class="r k-weg k-mid">${num(x.verein)}</td><td class="r k-weg k-mid">${num(x.gast)}</td><td class="r k-weg k-mid">${num(x.event)}</td><td class="r k-weg">${num(x.bruch + x.korrektur)}</td><td class="r k-lbl">${num(x.open)}</td><td class="r k-weg ${x.inventur < 0 ? 'neg' : ''}">${num(x.inventur)}</td><td class="r k-lbl ${x.shrink_cents ? 'neg' : ''}">${x.shrink_cents ? euro(x.shrink_cents) : ''}</td></tr>`).join('')}
+      <tr class="sum"><td colspan="2">Summe</td><td class="r">${num(sum('delivered'))}</td><td class="r">${num(sum('konto'))}</td><td class="r k-mid">${num(sum('verein'))}</td><td class="r k-mid">${num(sum('gast'))}</td><td class="r k-mid">${num(sum('event'))}</td><td class="r">${num(sum('bruch') + sum('korrektur'))}</td><td class="r">${num(sum('open'))}</td><td class="r">${num(sum('inventur'))}</td><td class="r">${euro(sum('shrink_cents'))}</td></tr></table></div>`
         : '<p class="empty">Noch keine Lieferungen oder Buchungen im Zeitraum.</p>'}`;
     bindRange('rng', (f, t) => abgleichCard(el, f, t).catch(fail));
   }
@@ -1483,7 +1483,7 @@
       ${moreRows(r.rows.map(b => `<tr class="${b.cancelled_at ? 'off' : ''}"><td>${deTime(b.created_at)}</td><td>${esc(b.member_kind ? lastFirst(b.member, b.member_kind) : b.member || (b.event ? 'Barverkauf ohne Namen' : ''))}${b.event ? `<div class="muted s k-weg">${esc(b.event)}</div>` : ''}</td>
         <td class="k-weg"><span class="pill ${BKIND[b.kind][1]}">${b.tab_id && b.kind === 'gast' ? (b.tab_status === 'bezahlt' ? 'Deckel · ' + (b.tab_method === 'karte' ? 'Karte' : 'bar') : 'Deckel · offen')
           : b.tab_id && b.kind === 'verein' ? 'Deckel · abgeschrieben'
-          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b k-weg">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill k-weg">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r k-lbl">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
+          : b.kind === 'event' ? (b.event_guest_id ? (b.pay_method === 'bar' ? 'Liste · bar bezahlt' : b.pay_method === 'karte' ? 'Liste · Karte' : 'Liste · offen') : 'bar') : BKIND[b.kind][0]}</span>${b.transferred_at ? ` <span class="pill b k-weg hide-md">von ${b.tab_id ? 'Gäste-Deckel' : 'Veranstaltung'} übernommen</span>` : ''}${b.settled_id && !b.cancelled_at ? ' <span class="pill k-weg hide-md">abgerechnet</span>' : ''}</td><td>${esc(b.article)}</td><td class="r k-lbl">${b.qty}</td><td class="r">${euro(b.total_cents)}</td>
         <td class="r">${b.cancelled_at ? `storniert (${esc(b.cancelled_by)})` : `<button class="btn small danger" data-cx="${b.id}">Storno</button>`}</td></tr>`), 7) }</table></div>${r.rows.length ? '' : '<p class="empty">Keine Buchungen im Zeitraum.</p>'}`;
     bindRange('rng', (f, t) => RENDER.buchungen(f, t, $('bMem').value).catch(fail));
     $('bMem').onchange = () => RENDER.buchungen(r.from, r.to, $('bMem').value).catch(fail);
@@ -1769,12 +1769,12 @@
       ${sepa ? `<div class="card" style="margin-bottom:16px"><div class="row" style="justify-content:space-between;align-items:center">
         <div style="flex:1 1 260px;min-width:0"><h3 style="margin:0 0 4px">Per Lastschrift einziehen</h3><p class="muted s" style="margin:0">Alle Mitglieder mit Mandat in einem Schritt bis zur SEPA-Datei, getrennt von den Beiträgen. Die Konten werden dabei als abgerechnet markiert; Mannschaften und Konten ohne Mandat bleiben offen.</p></div>
         <button class="btn primary" id="sepaGo">Per Lastschrift einziehen …</button></div></div>` : ''}
-      <div class="scroll"><table class="tbl kompakt" id="abTbl"><tr><th>Konto</th><th>offen seit</th>${cats.map(c => `<th class="r">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
+      <div class="scroll"><table class="tbl kompakt" id="abTbl"><tr><th>Konto</th><th class="hide-md">offen seit</th>${cats.map(c => `<th class="r hide-md">${esc(c)}</th>`).join('')}<th class="r">Betrag</th>${mayClose ? '<th></th>' : ''}</tr>
         ${moreRows(r.rows.map(x => `<tr><td>${pName(x)} ${x.kind === 'mannschaft' ? '<span class="pill">Mannschaft</span>' : ''}${x.eventOpen_cents ? ` <span class="pill r" title="Noch auf einer Veranstaltungsliste offen – erst nach Übernahme auf der Getränkeliste">+ ${euro(x.eventOpen_cents)} Veranstaltung</span>` : ''}</td>
-          <td>${deDate(x.since.slice(0, 10))}</td>${cats.map(c => `<td class="r k-lbl">${x.byCategory[c] || ''}</td>`).join('')}<td class="r">${euro(x.total_cents)}</td>
+          <td class="hide-md">${deDate(x.since.slice(0, 10))}</td>${cats.map(c => `<td class="r k-lbl hide-md">${x.byCategory[c] || ''}</td>`).join('')}<td class="r">${euro(x.total_cents)}</td>
           ${mayClose ? `<td class="r"><button class="btn small" data-settle="${x.id}">abgerechnet</button></td>` : ''}</tr>`), cats.length + 3 + (mayClose ? 1 : 0))
           || ''}
-        ${r.rows.length ? `<tr class="sum"><td>Summe</td><td></td>${cats.map(c => `<td class="r k-weg">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>${r.rows.length ? '' : '<p class="empty">Keine offenen Beträge – alles abgerechnet.</p>'}
+        ${r.rows.length ? `<tr class="sum"><td>Summe</td><td class="hide-md"></td>${cats.map(c => `<td class="r k-weg hide-md">${r.rows.reduce((a, x) => a + (x.byCategory[c] || 0), 0)}</td>`).join('')}<td class="r">${euro(r.total_cents)}</td>${mayClose ? '<td></td>' : ''}</tr>` : ''}</table></div>${r.rows.length ? '' : '<p class="empty">Keine offenen Beträge – alles abgerechnet.</p>'}
       ${(r.mvOpen || []).length ? `<div class="card" style="margin-top:16px"><h3>Offene Verkaufs-Posten in der Mitgliederverwaltung <span class="muted s">${r.mvOpen.length} · ${euro(r.mvOpen.reduce((a, c) => a + c.cents, 0))}</span></h3>
         <p class="muted s" style="margin-top:0">Schon abgerechnet oder von Hand angelegt, aber noch nicht bezahlt – sie kommen mit dem nächsten Einzug per Lastschrift mit.</p>
         <div class="scroll"><table class="tbl"><tr><th>Zahler</th><th>Posten</th><th>fällig</th><th class="r">Betrag</th></tr>
@@ -2527,6 +2527,16 @@
   const INVKIND = { qr: 'QR-Code offen', mail: 'E-Mail-Einladung offen', brief: 'Einladungsbrief offen' };
   const hoursTxt = h => (h >= 48 ? `${h / 24} Tage` : h === 1 ? '1 Stunde' : `${h} Stunden`);
   const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – Türen und Beregnung schalten sich beim ersten Öffnen im Vereins-WLAN frei">Türen/Beregnung erst im WLAN</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
+  /** Handy in einer Pille: der Zustand, bei Bedarf mit dem wichtigsten Zusatz (Einzelheiten stehen im Freigaben-Fenster) */
+  const devPill1 = (d, names = T('Türen & Beregnung')) => {
+    if (!d) return '<span class="pill">ohne Handy</span>';
+    if (d.status === 'gekoppelt' && d.oldAddress) return '<span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN. Neuer QR-Code nötig.">alte Adresse</span>';
+    if (d.status === 'gekoppelt' && d.remote) return `<span class="pill a k-wrap" title="${esc(wlanWhy(names))}">${esc(T('Erst im Vereins-WLAN öffnen'))}</span>`;
+    return `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>`;
+  };
+  /** Bereiche, die sich nach einer Kopplung von unterwegs erst im Vereins-WLAN freischalten („Türen & Beregnung“) */
+  const stagedNames = mods => { const n = mods.filter(m => m.sensitive).map(m => m.label || m.name); return n.length ? n.length > 1 ? n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1] : n[0] : T('Türen & Beregnung'); };
+  const wlanWhy = names => T('Dieses Handy wurde von unterwegs ohne SMS-Code freigeschaltet. Aus Sicherheitsgründen bleiben {0} gesperrt, bis das Mitglied die App einmal im Vereins-WLAN (im Vereinsheim) öffnet – dann schalten sie sich von selbst frei.', [names]);
   /** Entfernen: nur das Handy oder ganz aus der App? → 'device' | 'all' | null */
   function askRemove(name, hasDevice) {
     return askBoxOpen(`<h2>${esc(name)} entfernen</h2><p>Was soll passieren?</p>
@@ -2657,14 +2667,19 @@
     if (!info.modules.length) { el.remove(); return; }
     el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angehakten Bereiche. Änderungen hier gelten sofort.</p>
       <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
+      ${info.device && info.device.remote ? `<div class="banner a" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(stagedNames(info.modules)))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Türen und Beregnung jetzt freigeben“.'))}</div></div>` : ''}
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles && g ? (() => { const pf = m.options.profiles.find(p => p.id === (a ? a.profile : m.options.defaultProfile)); return `<span class="pill" title="${esc(pf && pf.text || '')}">${esc(pf ? pf.name : '')}</span>${m.options.profilesPage && can(m.options.profilesPerm || m.perm) ? ` <a href="#" class="s" data-aplink="${esc(m.options.profilesPage)}">ändern unter ${esc(m.options.profilesLabel || m.label || m.name)}</a>` : ''}`; })() : ''}
-        ${a && a.blocked && (!m.open || info.kind === 'nichtmitglied') ? '<span class="pill r">gesperrt</span>' : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
+        ${a && a.blocked && (!m.open || info.kind === 'nichtmitglied') ? '<span class="pill r">gesperrt</span>' : ''}${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${memberId}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
       <div class="row" style="margin-top:8px"><button class="btn small primary" id="apQr">Einladen …</button>${info.device || Object.keys(info.access || {}).length ? '<button class="btn small" id="apRm">Entfernen …</button>' : ''}</div>`;
     el.dataset.nodirty = '1';
     const reload = () => appBox(el, memberId).catch(fail);
     el.querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => { try { const rr = await api(`app/member/${memberId}/access`, 'PUT', { module: c.dataset.am, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); reload(); } catch (e) { fail(e); c.checked = !c.checked; } }; });
     el.querySelectorAll('[data-aplink]').forEach(l => { l.onclick = e => { e.preventDefault(); closeDialog(); go(l.dataset.aplink); }; });
+    el.querySelectorAll('[data-aw]').forEach(b => { b.onclick = () => togglePill(b, async on => {
+      const [id, mod] = b.dataset.aw.split(':');
+      await api(`app/member/${id}/access`, 'PUT', { module: mod, away: on }); toast(on ? 'Auch von unterwegs nutzbar.' : 'Nur noch im Vereins-WLAN.');
+    }); });
     bindFlags(el);
     $('apQr').onclick = () => inviteMenu(memberId, reload);
     if ($('apRm')) $('apRm').onclick = async () => { if (await appRemove(memberId, info.name, Boolean(info.device))) reload(); };
@@ -2735,6 +2750,24 @@
     const mayMem = r.mayMembers !== false, mayCfg = can('app') || can('einstellungen'), mayNet = can('einstellungen');
     const mods = r.modules;
     const oldN = r.rows.filter(x => x.device && x.device.oldAddress).length;
+    // Freigaben in einem Satz: „alle Bereiche“, „alle außer Beregnung“, „keine“ oder die Anzahl – bearbeitet wird im Fenster
+    const wlanNames = stagedNames(mods), nWlan = r.rows.filter(x => x.device && x.device.remote).length;
+    const apMods = x => mods.filter(m => !(x.kind === 'nichtmitglied' && !m.nonMembers));
+    const apName = m => m.label || m.name;
+    const apSum = x => {
+      const all = apMods(x), on = all.filter(m => (x.granted || {})[m.id]), off = all.filter(m => !(x.granted || {})[m.id]);
+      if (!on.length) return T('keine');
+      if (!off.length) return T('alle Bereiche');
+      if (off.length <= 2 && on.length > off.length) return T('alle außer {0}', [off.map(apName).join(', ')]);
+      return on.length === 1 ? T('1 Bereich') : T('{0} Bereiche', [on.length]);
+    };
+    const apSumTitle = x => { const on = apMods(x).filter(m => (x.granted || {})[m.id]); return on.map(m => apName(m) + (x.access[m.id] && x.access[m.id].away && !m.away ? ' (' + T('auch unterwegs') + ')' : '')).join(', '); };
+    const openAppDlg = id => {
+      const x = r.rows.find(y => y.member_id === id); if (!x) return;
+      dialog(`<h2>${pName(x)}</h2><div class="card" id="apDlg" style="box-shadow:none;padding:0"></div><div class="btns"><button class="btn" id="apDlgX">Schließen</button></div>`);
+      appBox($('apDlg'), id).catch(fail);
+      $('apDlgX').onclick = () => { closeDialog(); RENDER.app().catch(fail); };
+    };
     const FIL = { alle: () => true, mit: x => x.device && x.device.status === 'gekoppelt', ohne: x => !x.device || x.device.status !== 'gekoppelt', eing: x => x.device && x.device.status === 'eingeladen', wlan: x => x.device && x.device.remote, alt: x => x.device && x.device.oldAddress };
     let filt = FIL[cache.apFilter] ? cache.apFilter : 'alle';
     // abgelehnte Tunnel-Anfrage der letzten 24 Stunden: Hinweis, damit der Vorstand ein falsch erkanntes Cloudflared-Add-on bemerkt
@@ -2796,15 +2829,13 @@
         <div class="row" style="margin-top:10px;gap:6px 22px;align-items:center"><span class="muted s">In der App:</span>${mods.map(m => `<label class="chk"><input type="checkbox" data-nm="${m.id}" ${m.preselect ? 'checked' : ''}> ${esc(m.label || m.name)}</label>`).join('')}</div>
         <p class="muted s" style="margin:10px 0 0">Nur das freigeschaltete Handy funktioniert. Es ist dieselbe PIN wie im Verkauf am Tablet: Wer dort schon eine hat, gibt sie beim Freischalten ein; wer noch keine hat, legt sie in der App fest und sie gilt dann auch am Tablet.</p></div>
       <div class="card" data-set="mitglieder"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:6px"><h3 style="margin:0">Freigeschaltete Mitglieder <span class="muted s">(${r.rows.length})</span></h3><button class="btn" id="apBulk" type="button">Einladungen verschicken …</button></div>
-        ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'warten auf WLAN'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
+        ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
-          <div class="ds-scroll"><table class="tbl kompakt" id="apTbl"><tr><th>Mitglied</th><th>Handy</th><th class="k-sum">Bereiche</th>${mods.map(m => `<th>${esc(m.label || m.name)}</th>`).join('')}<th class="hide-md">zuletzt benutzt</th><th></th></tr>
-          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td class="nw"><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill(x.device)}</td><td class="k-sum">${esc(mods.filter(m => (x.granted || {})[m.id] && !(x.kind === 'nichtmitglied' && !m.nonMembers)).map(m => m.label || m.name).join(', '))}</td>
-            ${mods.map(m => { const a = x.access[m.id], g = (x.granted || {})[m.id]; if (x.kind === 'nichtmitglied' && !m.nonMembers) return '<td class="muted k-weg" title="nur für Mitglieder">–</td>';
-              if (m.id === 'zugang') return `<td class="k-weg" style="white-space:nowrap">${g ? `<span class="pill g">freigeschaltet</span>${a && a.blocked ? ' <span class="pill r">gesperrt</span>' : ''}${can('zugang') ? ` <a href="#zugang-freischaltungen" data-zgo="zugang-freischaltungen">ändern</a>` : ''}` : '<span class="muted">–</span>'}</td>`;   // Zeitprofil, gültig bis, Sperre: Zugang › Freischaltungen
-              return `<td class="k-weg" style="white-space:nowrap"><span class="ap-cell"><label class="chk" style="display:inline-flex;vertical-align:middle"><input type="checkbox" data-am="${x.member_id}:${m.id}" ${g ? 'checked' : ''}>${a && g && m.options && m.options.profiles ? ` <span class="muted s">${esc((m.options.profiles.find(p => p.id === a.profile) || {}).name || '')}</span>` : ''}${a && a.blocked && !m.open ? ' <span class="pill r">gesperrt</span>' : ''}</label>${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${x.member_id}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${x.member_id}:${m.id}`) : ''}</span></td>`; }).join('')}
+          ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Türen und Beregnung jetzt freigeben“.'))}</div></div>` : ''}
+          <table class="tbl kompakt" id="apTbl"><tr><th>Mitglied</th><th>Handy</th><th>Freigaben</th><th class="hide-md nw">Zuletzt benutzt</th><th></th></tr>
+          ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill1(x.device, wlanNames)}</td><td class="nw" title="${esc(apSumTitle(x))}">${esc(apSum(x))}</td>
             <td class="muted s hide-md k-weg">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
-            <td class="r"><span class="acts"><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table></div>
+            <td class="r"><span class="acts"><button class="btn ico" data-ae="${x.member_id}" title="Freigaben bearbeiten …" aria-label="Freigaben bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>
           <p class="empty" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
           : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>` : ''}`;
     // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
@@ -2814,7 +2845,7 @@
     extras.forEach((x, i) => { APP_SECS.splice(2 + i, 0, [x.key, x.label]); $('main').insertAdjacentHTML('beforeend', `<div class="card" data-set="${x.key}" id="apx-${x.key}"><p class="muted" style="margin:0">Lade …</p></div>`); });
     sectionize({ secs: APP_SECS, keyOf: () => 'mitglieder', store: 'cw_appsec', label: 'Bereiche der Mitglieder-App',
       badges: { einstellungen: !mayNet ? false : rj ? (rj.why === 'direkt' ? 'Anfrage aus dem Internet abgewiesen' : 'Tunnel-Anfrage abgelehnt') : oldN ? 'Handys mit alter Adresse' : r.security.sms && r.security.sms.on && !r.security.sms.ready ? 'SMS-Stick nicht bereit' : false,
-        mitglieder: r.rows.some(FIL.wlan) ? 'Handys warten auf die WLAN-Freigabe' : false } });
+        mitglieder: r.rows.some(FIL.wlan) ? 'Handys müssen einmal im Vereins-WLAN geöffnet werden' : false } });
     watch($('apSet')); watch($('apSec'));
     extras.forEach(x => { const box = $('apx-' + x.key); Promise.resolve().then(() => x.render(box)).then(() => watch(box)).catch(e => { box.innerHTML = `<p class="muted" style="margin:0">${esc(e.message)}</p>`; }); });
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
@@ -2842,27 +2873,17 @@
         inviteMenu(id, () => RENDER.app().catch(fail));
       } catch (e) { fail(e); }
     };
-    $('main').querySelectorAll('[data-am]').forEach(c => { c.onchange = async () => {
-      const [id, mod] = c.dataset.am.split(':');
-      try { const rr = await api(`app/member/${id}/access`, 'PUT', { module: mod, grant: c.checked }); toast(rr.reinvite ? 'Freigeschaltet. Das Handy wurde aus Sicherheitsgründen entkoppelt – bitte einen neuen QR-Code erzeugen.' : c.checked ? 'Freigeschaltet.' : 'Freischaltung entzogen.'); RENDER.app().catch(fail); } catch (e) { fail(e); c.checked = !c.checked; }
-    }; });
-    $('main').querySelectorAll('[data-zgo]').forEach(a => { a.onclick = e => { e.preventDefault(); go(a.dataset.zgo); }; });
-    $('main').querySelectorAll('[data-aw]').forEach(b => { b.onclick = () => togglePill(b, async on => {
-      const [id, mod] = b.dataset.aw.split(':');
-      await api(`app/member/${id}/access`, 'PUT', { module: mod, away: on }); toast(on ? 'Auch von unterwegs nutzbar.' : 'Nur noch im Vereins-WLAN.');
-    }); });
-    bindFlags($('main'));
     if ($('bgRows')) {   // eine Tabelle: Bereich · für wen · von unterwegs · beim Freischalten · Start · Reihenfolge – ein „Speichern“
       const AR = mods.map(m => ({ id: m.id, label: m.label || m.name, on: m.on !== false, open: Boolean(m.open), count: m.count, pre: Boolean(m.preselect), away: Boolean(m.away) }));
       let startId = r.startSection || '';
       const draw = () => {
         // „Für mich“ steht in der App immer vorn und ist ohne festen Start die Startseite
-        $('bgRows').innerHTML = `<tr><td><b>Für mich</b> <span class="muted s">eigene Termine und Offenes</span></td><td class="k-weg"><span class="pill g">alle Mitglieder</span></td>${mayNet ? '<td></td>' : ''}<td></td><td><label class="chk"><input type="radio" name="bgStart" data-bgst="" ${startId ? '' : 'checked'}> Start</label></td><td></td></tr>`
+        $('bgRows').innerHTML = `<tr><td><b>Für mich</b> <span class="muted s">eigene Termine und Offenes</span></td><td class="k-weg"><span class="pill g">alle Mitglieder</span></td>${mayNet ? '<td></td>' : ''}<td></td><td><label class="chk"><input type="radio" name="bgStart" data-bgst="" aria-label="${esc(T('Start'))}" ${startId ? '' : 'checked'}><span class="ap-lbl"> Start</span></label></td><td></td></tr>`
           + AR.map((m, i) => `<tr class="${m.on ? '' : 'off'}"><td><span class="swname"><button type="button" class="switch ${m.on ? 'on' : ''}" role="switch" aria-checked="${m.on}" aria-label="${esc(m.label)} in der App zeigen" data-bgon="${i}"></button><b translate="no">${esc(m.label)}</b>${m.on ? '' : '<span class="pill">aus</span>'}</span></td>
           <td class="k-weg">${m.open ? '<span class="pill g">alle Mitglieder</span>' : `<span class="pill">nur ausgewählte</span> <span class="muted s" style="white-space:nowrap">${m.count === 1 ? '1 Mitglied' : `${m.count} Mitglieder`}</span>`}</td>
-          ${mayNet ? `<td><label class="chk"><input type="checkbox" data-bgaway="${i}" ${m.away ? 'checked' : ''}> unterwegs</label></td>` : ''}
-          <td><label class="chk"><input type="checkbox" data-bgpre="${i}" ${m.pre ? 'checked' : ''}> vorwählen</label></td>
-          <td><label class="chk"><input type="radio" name="bgStart" data-bgst="${esc(m.id)}" ${startId === m.id ? 'checked' : ''}> Start</label></td>
+          ${mayNet ? `<td><label class="chk"><input type="checkbox" data-bgaway="${i}" aria-label="${esc(T('unterwegs'))}" ${m.away ? 'checked' : ''}><span class="ap-lbl"> unterwegs</span></label></td>` : ''}
+          <td><label class="chk"><input type="checkbox" data-bgpre="${i}" aria-label="${esc(T('vorwählen'))}" ${m.pre ? 'checked' : ''}><span class="ap-lbl"> vorwählen</span></label></td>
+          <td><label class="chk"><input type="radio" name="bgStart" data-bgst="${esc(m.id)}" aria-label="${esc(T('Start'))}" ${startId === m.id ? 'checked' : ''}><span class="ap-lbl"> Start</span></label></td>
           <td class="r"><span class="toact"><button class="btn small" data-bgup="${i}" ${i ? '' : 'disabled'} aria-label="nach vorn">↑</button><button class="btn small" data-bgdn="${i}" ${i < AR.length - 1 ? '' : 'disabled'} aria-label="nach hinten">↓</button></span></td></tr>`).join('');
         const tb = $('bgRows');
         tb.querySelectorAll('[data-bgon]').forEach(b => { b.onclick = () => { AR[+b.dataset.bgon].on = !AR[+b.dataset.bgon].on; draw(); }; });
@@ -2902,12 +2923,10 @@
     $('main').querySelectorAll('#apFil [data-f]').forEach(b => { b.onclick = () => { filt = cache.apFilter = b.dataset.f; applyFil(); }; });
     applyFil();
     // Am Handy zeigt die Zeile nur eine Zusammenfassung – Antippen öffnet die Bereiche dieses Mitglieds in einem Fenster
+    $('main').querySelectorAll('[data-ae]').forEach(b => { b.onclick = () => openAppDlg(Number(b.dataset.ae)); });
     $('main').querySelectorAll('#apTbl tr[data-row]').forEach(tr => { tr.onclick = e => {
       if (!matchMedia('(max-width: 700px)').matches || e.target.closest('button, a, input, label, select')) return;
-      const x = r.rows.find(y => y.member_id === Number(tr.dataset.row)); if (!x) return;
-      dialog(`<h2>${pName(x)}</h2><div class="card" id="apDlg" style="box-shadow:none;padding:0"></div><div class="btns"><button class="btn" id="apDlgX">Schließen</button></div>`);
-      appBox($('apDlg'), x.member_id).catch(fail);
-      $('apDlgX').onclick = () => { closeDialog(); RENDER.app().catch(fail); };
+      openAppDlg(Number(tr.dataset.row));
     }; });
   };
 
@@ -3603,7 +3622,7 @@
         ${d.connected ? `<div class="banner a"><span>Zurzeit verbunden mit <b>${esc(d.account || 'Dropbox-App')}</b>. Mit neuen Schlüsseln oder einem neuen Code wird die Verbindung ersetzt – bereits hochgeladene Dateien bleiben in Dropbox.</span></div>` : ''}
         <ol class="steps">
           <li>Auf <a href="https://www.dropbox.com/developers/apps" target="_blank" rel="noopener">dropbox.com/developers/apps</a> mit dem Vereins-Dropbox-Konto anmelden → <b>Create app</b> → <b>Scoped access</b> → <b>App folder</b> → Name z. B. „Vereinsname-Vereinsheim“.</li>
-          <li>Reiter <b>Permissions</b>: <code>files.metadata.read</code>, <code>files.content.write</code>, <code>files.content.read</code> und <code>account_info.read</code> anhaken → <b>Submit</b>.</li>
+          <li>Reiter <b>Permissions</b>: <code>files.metadata.read</code>, <code>files.content.write</code>, <code>files.content.read</code> und <code>account_info.read</code> anhaken → <b>Submit</b>. Häkchen später geändert? Dann hier neu verbinden – erst dann gelten sie.</li>
           <li>Reiter <b>Settings</b>: <b>App key</b> und <b>App secret</b> hier eintragen und speichern.</li>
         </ol>
         <div class="row"><label class="f" style="flex:1">App key<input id="dxKey" value="${esc(d.appKey)}" autocomplete="off"></label>
@@ -3617,7 +3636,7 @@
         <div class="btns"><button class="btn ghost" id="c">Schließen</button>${d.authUrl && d.hasSecret ? '<button class="btn primary" id="dxConnect">Verbinden</button>' : ''}</div>`, true);
       $('c').onclick = closeDialog;
       $('dxSaveKeys').onclick = async () => { try { await api('dropbox', 'PUT', { appKey: $('dxKey').value, appSecret: $('dxSecret').value || undefined, myPassword: $('dxMy').value }); toast('Gespeichert – jetzt bei Dropbox freigeben.'); dropboxSetup(); } catch (e) { fail(e); } };
-      if ($('dxConnect')) $('dxConnect').onclick = async () => { try { const r = await api('dropbox/connect', 'POST', { code: $('dxCode').value, myPassword: $('dxMy').value }); closeDialog(); toast('Dropbox verbunden' + (r.account ? ': ' + r.account : '') + '.'); RENDER.sicherung(); } catch (e) { fail(e); } };
+      if ($('dxConnect')) $('dxConnect').onclick = async () => { try { const r = await api('dropbox/connect', 'POST', { code: $('dxCode').value, myPassword: $('dxMy').value }); closeDialog(); toast('Dropbox verbunden, Testdatei gespeichert' + (r.account ? ': ' + r.account : '') + '.'); RENDER.sicherung(); } catch (e) { fail(e); } };
     };
     $('bNow').onclick = async () => { try { const r = await api('backups', 'POST', {}); toast('Gesichert: ' + r.file); RENDER.sicherung(); } catch (e) { fail(e); } };
     if ($('bCancel')) $('bCancel').onclick = async () => { await api('backups/restore', 'DELETE').catch(fail); RENDER.sicherung(); };

@@ -299,7 +299,7 @@ function dropboxTarget(cfg) {
   const dirOf = sub => `${cfg.folder}/${sub}`;
   const known = new Map();   // Dateiname → path_lower aus der letzten Liste (Dropbox unterscheidet Groß/klein nicht)
   return {
-    async test() { await dropbox.account(cfg); return { ok: true }; },
+    async test() { await dropbox.probe(cfg, cfg.folder); return { ok: true }; },   // schreibt, liest, löscht eine Testdatei
     async put(sub, name, src) { if (src.path) await dropbox.uploadFile(cfg, `${dirOf(sub)}/${name}`, src.path); else await dropbox.upload(cfg, `${dirOf(sub)}/${name}`, src.buffer); },
     async list(sub) { return (await dropbox.listFolder(cfg, dirOf(sub))).filter(e => e['.tag'] === 'file').map(e => { if (e.path_lower) known.set(sub + '/' + e.name, e.path_lower); return { name: e.name, size: e.size, mtime: e.server_modified || null }; }); },
     async get(sub, name, dest) { return dropbox.downloadFile(cfg, `${dirOf(sub)}/${name}`, dest); },

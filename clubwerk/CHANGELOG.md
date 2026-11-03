@@ -1,5 +1,43 @@
 # Änderungen
 
+## 2026.11.17
+
+**Mitglieder-App: Liste „Freigeschaltete Mitglieder“ neu gestaltet, „erst im WLAN“ erklärt**
+- **Die Liste ist wieder aufgeräumt.** Statt einer Spalte mit Häkchen je Bereich (bei acht Bereichen breiter als der Bildschirm, mit Scrollbalken, abgeschnittenem „Zuletzt benutzt“ und ungleich hohen Zeilen) gibt es jetzt je Mitglied eine Zeile: **Handy** (eine Pille), **Freigaben** (ein Satz: „alle Bereiche“, „alle außer Beregnung“, „3 Bereiche“, „keine“), **Zuletzt benutzt** und drei Knöpfe. Am Handy bleibt es die kompakte Liste.
+- **Freigaben bearbeitet man im Fenster** (neuer Knopf „Freigaben bearbeiten“, am Handy Tippen auf die Zeile): ein Haken je Bereich, „unterwegs“ als eigene Pille beim Bereich. Dieselben Freigaben, dieselben Rechte wie vorher.
+- **„Türen/Beregnung erst im WLAN“ ist jetzt erklärt:** Hat ein Mitglied sein Handy von unterwegs ohne SMS-Code freigeschaltet, steht in der Liste eine Pille „Erst im Vereins-WLAN öffnen“, darüber ein Hinweis mit Grund und nächstem Schritt (App einmal im Vereinsheim öffnen oder selbst freigeben), im Fenster derselbe Hinweis. Der Filter heißt „erst im WLAN öffnen“. Das Mitglied sieht in der App bei den gesperrten Bereichen einen verständlicheren Text.
+- **Tabellen am Tablet nicht mehr zu breit:** Beim Prüfen mit den neuen Regeln zeigte sich, dass im Tablet-Rahmen (Verwaltung bei 1024 bis 1180 Pixel Breite) acht weitere Tabellen ein Stück seitlich scrollten. Dort entfallen jetzt je ein bis drei weniger wichtige Spalten, damit alles ohne Scrollen passt (am Handy zeigt die kompakte Liste weiterhin alles): Offene Posten (Art), Lastschriften (Vorabinfo), Plätze › Buchungen (Eingetragen), Verkauf › Buchungen (Zusatzschilder), Lager › Bestand (Aufteilung der Buchungen, Kategorie), Dienste › Stunden (Uhrzeit, Fortschritt), Kontoauszug (Verwendungszweck), Mitglieder-App › Bereiche (Beschriftungen unter den Spaltenköpfen). Die Liste der Mitglieder-App bricht lange Namen um, statt die Knöpfe aus der Karte zu schieben.
+- **Für Entwickler:** Der Design-Prüfstand hat zwei neue Regeln, die den Fehler am alten Stand finden: `tabelle-scrollt-seitlich` (keine Tabelle scrollt seitlich, gleich in welchem Rahmen; Ausnahme: die Zusage-Matrix im Spielbetrieb) und `spalte-verdeckt` (eine klebende Spalte verdeckt keine andere). Neue Testreihe `afl`.
+
+**Datensicherung nach Dropbox: ehrlicher Verbindungstest und verständliche Fehler**
+- **„Verbunden“ heißt jetzt wirklich: Sicherungen kommen an.** Beim Verbinden und bei „Testen“ legt Clubwerk eine kleine Testdatei im Sicherungsordner an, findet sie in der Liste wieder und löscht sie. Vorher fragte der Test nur das Dropbox-Konto ab und meldete „in Ordnung“, obwohl Dropbox das Speichern ablehnte. So fiel das erst bei der nächtlichen Sicherung auf.
+- **Fehlermeldungen mit dem nächsten Schritt:** fehlende Berechtigung („files.content.write“ in der Dropbox-App anhaken, dann neu verbinden), Speicher voll, E-Mail-Adresse des Dropbox-Kontos nicht bestätigt, Verbindung abgelaufen, falscher Code und mehr. Bei der Meldung „other“, mit der Dropbox ohne Grund ablehnt, nennt Clubwerk zuerst die fehlenden Häkchen in der Dropbox-App (files.content.write, files.content.read, files.metadata.read, danach neu verbinden). Das war die Ursache im Verein: Ohne diese Häkchen lehnt Dropbox jeden Upload so ab.
+- Im Protokoll stehen jetzt HTTP-Status, Fehlerart und die Request-Id von Dropbox (für den Dropbox-Support), nie ein Zugangsschlüssel.
+- Die Anleitung erklärt, dass die Häkchen unter „Permissions“ vor dem Verbinden gesetzt werden müssen und nach einer Änderung neu verbunden werden muss.
+
+**iPhone/iPad: Cursor in Fenstern wieder im Feld**
+- In Fenstern mit Eingabefeldern (z. B. Einstellungen › Datensicherung › Dropbox: „App key“) zeichnete Safari den blinkenden Cursor beim Tippen deutlich unterhalb des Feldes. Ursache ist ein Fehler in Safari (iOS 26): Ist die Seite hinter dem Fenster weit nach unten gescrollt, verrutscht der Cursor, sobald die Tastatur aufgeht. Jetzt steht die Seite hinter dem Fenster während der Eingabe kurz auf ihrem Anfang (sie sieht dabei unverändert aus) und ist nach dem Tippen wieder genau an derselben Stelle. Das gilt für alle Fenster in Verwaltung, Tablet, Mitglieder-App und Beregnung.
+- Der Design-Prüfstand prüft das jetzt bei jedem Fenster mit Eingabefeld am Handy, auch in Safari-Technik (Regeln `caret-seite-gescrollt` und `fenster-springt`).
+
+**Fehler behoben: Beregnung mit Hunter Hydrawise – „Keine Verbindung“ und gescheiterter Stopp (Beregnung 1.15.0)**
+- **Was passiert war:** Platz starten, gleich wieder stoppen – danach stand „Keine Verbindung zur Bewässerungsanlage“, alle Kacheln waren gesperrt und der Stopp scheiterte. Ursache ist die Bremse von Hydrawise: Je Konto nimmt Hydrawise nur 3 Schaltbefehle in 30 Sekunden und 30 Aufrufe in 5 Minuten an, darüber antwortet es mit „zu viele Anfragen“. Clubwerk fragte nach jedem Befehl sofort neu nach, schickte beim Stoppen für jede Zone einen eigenen Befehl, vergaß bei einer solchen Antwort den letzten Stand der Anlage und fragte dann noch öfter. Das Konto teilen sich oft weitere Programme (z. B. die Hydrawise-Integration in Home Assistant oder eine alte Webapp), dann ist die Grenze schnell erreicht.
+- **Jetzt:** Clubwerk zählt die eigenen Aufrufe und hält Abstand, fragt nur so oft nach, wie Hydrawise es erlaubt, und viele offene Handys teilen sich eine Abfrage. Gestoppt wird nur die Zone, die wirklich läuft. Bremst Hydrawise trotzdem, bleiben Anzeige und Kacheln mit dem letzten Stand da („Die Steuerung bremst gerade (zu viele Anfragen)“).
+- **Ein Stopp geht nie verloren:** Er wird gespeichert (auch über einen Neustart), automatisch nachgeholt, sobald Hydrawise wieder annimmt, und hat Vorrang vor allem anderen. Die Kachel zeigt „Stopp wird nachgeholt“ mit Countdown, der Verlauf „Stopp nachgeholt“. Ein Start wartet ebenso, statt als Fehler zu enden.
+- **Hinweis in der Verwaltung**, wenn Hydrawise öfter bremst: „Teilt sich das Hydrawise-Konto mit anderen Programmen?“ (Beregnung › Bedienen und Übersicht).
+- Bei „Hydrawise über Home Assistant“ schließt Clubwerk beim Stoppen nur noch offene Ventile, denn auch dort geht jeder Befehl an die Hydrawise-Cloud. Zugang und Flutlicht sprechen nur mit dem eigenen Home Assistant und waren nicht betroffen.
+- Für Entwickler: neue Testreihe `berlimit` mit einer Hydrawise-Nachbildung, die die Grenzen durchsetzt (`hilfen/hw_limit_mock.js`).
+
+**Mitglieder-App: Die Karte „Benachrichtigungen einschalten“ nennt jetzt, worüber es wirklich Hinweise gibt**
+- Der Satz auf der Karte war fest („Spieltage, Dienste und Nachrichten“). Jetzt nennt er genau die Bereiche, aus denen der Vorstand Hinweise freigegeben hat und die es im Verein gibt, zum Beispiel „Damit du Platzbuchungen, Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.“ – in der Reihenfolge der App-Leiste, höchstens vier, bei mehr „… und mehr“.
+- Ohne Spielbetrieb steht dort kein „Spieltage“; Platzbuchungen kommen dazu, sobald das Buchungssystem aktiv ist; nicht freigegebene Hinweise werden nicht genannt.
+- Englisch (britisch) mit passender Aufzählung. Es gibt keine neue Einstellung.
+
+**Plätze: Mitspieler dürfen eine Buchung stornieren (Buchung 1.28.0)**
+- Wer als Mitspieler in einer Buchung steht, kann sie jetzt in der App und am Tablet stornieren – für alle, mit derselben Frist wie der Buchende. Vorher stand dort fälschlich „Diese Buchung kannst du nicht mehr stornieren“, auch wenn die Frist noch lange nicht vorbei war.
+- Das Fenster sagt jetzt, was passiert: „Die Buchung von Max Muster wird für alle storniert.“ Ist die Frist vorbei, steht dort der echte Grund („Stornieren geht nur bis … Minuten vor Beginn.“ bzw. „Die Buchung hat schon begonnen.“). Wer weder gebucht hat noch mitspielt, liest „Gebucht hat … – nur er/sie oder ein Mitspieler kann stornieren.“
+- Ändern bleibt beim Buchenden, Serien bleiben beim Buchenden, Turnierspiele weiter nur unter „Turniere“.
+- Eine Gebühr entfällt genau wie beim Storno durch den Buchenden (der offene Posten des Buchenden wird einmal zurückgenommen). Der Buchende und die anderen Mitspieler bekommen eine E-Mail und – falls vom Vorstand freigegeben – den Push-Hinweis „Buchung storniert“. In der Verwaltung steht „storniert von <Name> (Mitspieler)“, das Protokoll nennt den Namen.
+
 ## 2026.11.16
 
 **Mitglieder-App: Anleitung für jedes Handy, neue Einladungs-E-Mail, Vereinsname als Pflicht, zwei Fehler in Hinweisen**

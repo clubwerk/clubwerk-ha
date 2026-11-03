@@ -127,9 +127,13 @@ function state(memberId, endpoint) {
 }
 /** Bereiche mit freigegebenen Hinweisen (ohne Testnachricht und Sicherheitshinweis) – leer, wenn der Vorstand nichts freigegeben hat */
 const topics = () => [...new Set(events().filter(e => e.on && e.module !== 'app').map(e => e.moduleName))];
+/** Alltagswörter für den Satz „Damit du … nicht verpasst“: je Bereich mit freigegebenem Hinweis ein Wort, in der Reihenfolge der App-Leiste.
+    Bereiche ohne eigenes Wort (z. B. Gratulationen, nur für Verwaltungsnutzer) tauchen nicht auf; unbekannte Module nennen ihren Namen. */
+const WORDS = { buchung: 'Platzbuchungen', spielbetrieb: 'Spieltage', arbeitseinsatz: 'Dienste', turniere: 'Turniere', maengel: 'Mängelmeldungen', nachrichten: 'Nachrichten', mitglieder: null };
+const words = () => [...new Set(events().filter(e => e.on && e.module !== 'app').map(e => e.module in WORDS ? WORDS[e.module] : e.moduleName).filter(Boolean))];
 /** „Für mich“: ob die Einschalten-Karte sinnvoll ist – der Vorstand hat Hinweise freigegeben (released) und dieses Handy hat noch kein Abo (mine) */
 function forMe(deviceId) {
-  return { released: topics().length > 0, mine: Boolean(deviceId && db.prepare('SELECT 1 FROM push_subs WHERE device_id = ?').get(deviceId)) };
+  return { released: topics().length > 0, words: words(), mine: Boolean(deviceId && db.prepare('SELECT 1 FROM push_subs WHERE device_id = ?').get(deviceId)) };
 }
 const removeMember = memberId => db.prepare('DELETE FROM push_subs WHERE member_id = ?').run(memberId).changes;
 const removeDevice = deviceId => db.prepare('DELETE FROM push_subs WHERE device_id = ?').run(deviceId).changes;

@@ -19,6 +19,43 @@ function authUrl(appKey) {
   return `${AUTHORIZE}?client_id=${encodeURIComponent(appKey)}&response_type=code&token_access_type=offline`;
 }
 
+/** Token und Secrets nie in Meldungen: Dropbox-Zugangstoken beginnen mit „sl.“, dazu lange Zeichenketten ohne Leerzeichen */
+const scrub = s => String(s || '').replace(/\bBearer\s+\S+/gi, 'Bearer …').replace(/\bsl\.[\w.-]{8,}/g, 'sl.…').replace(/[\w-]{60,}/g, '…');
+
+/** Tag-Kette aus dem error-Objekt, z. B. {".tag":"path","reason":{".tag":"insufficient_space"}} → ["path","insufficient_space"] */
+function tagChain(e, depth = 0) {
+  if (!e || typeof e !== 'object' || depth > 4) return [];
+  const out = e['.tag'] ? [String(e['.tag'])] : [];
+  for (const [k, v] of Object.entries(e)) if (k !== '.tag' && v && typeof v === 'object') { out.push(...tagChain(v, depth + 1)); break; }
+  return out;
+}
+
+/** Nächster Schritt bei Schreibfehlern: die Häkchen der Dropbox-App (gelten erst nach neuem Verbinden) */
+const PERM = 'In der Dropbox-App (dropbox.com/developers/apps) im Reiter Permissions files.content.write, files.content.read und files.metadata.read anhaken, Submit klicken und danach in Clubwerk „Dropbox neu verbinden …“.';
+
+/** Bekannte Fälle in Alltagssprache mit dem nächsten Schritt; sonst null (dann zählt die Zusammenfassung von Dropbox) */
+function explain(status, data, tags, what) {
+  const has = t => tags.includes(t) || String(data.error_summary || '').includes(t + '/') || data.error === t;
+  if (has('missing_scope')) {
+    const scope = (data.error && data.error.required_scope) || 'files.content.write';
+    return `Der Dropbox-App fehlt die Berechtigung „${scope}“. In der Dropbox-App (dropbox.com/developers/apps) im Reiter Permissions „${scope}“ anhaken und Submit klicken, danach in Clubwerk „Dropbox neu verbinden …“ – erst das neue Verbinden übernimmt die Berechtigung.`;
+  }
+  if (what === 'Anmeldung' && has('invalid_grant')) return 'Der Code von Dropbox ist falsch oder abgelaufen (er gilt nur kurz und nur einmal). Bitte noch einmal „Bei Dropbox freigeben“ und den neuen Code einfügen.';
+  if (has('invalid_access_token') || has('expired_access_token') || has('invalid_grant')) return 'Die Verbindung zu Dropbox gilt nicht mehr (Zugriff in Dropbox entzogen oder App geändert). Bitte in Clubwerk „Dropbox neu verbinden …“.';
+  if (has('invalid_client')) return 'App key oder App secret stimmen nicht. Bitte in Clubwerk „Dropbox neu verbinden …“ und die Schlüssel aus dem Reiter Settings der Dropbox-App neu eintragen.';
+  if (has('user_suspended')) return 'Das Dropbox-Konto ist gesperrt. Bitte bei Dropbox anmelden und die Sperre klären.';
+  if (has('insufficient_space')) return 'Der Speicher in Dropbox ist voll. Bitte in Dropbox Platz schaffen oder den Speicher erweitern.';
+  if (has('no_write_permission') || has('team_folder') || has('operation_suppressed')) return `Dropbox erlaubt das Schreiben in diesen Ordner nicht. ${PERM} Außerdem prüfen, ob die Dropbox-App als „App folder“ angelegt ist.`;
+  if (has('disallowed_name') || has('malformed_path')) return 'Dropbox lehnt den Datei- oder Ordnernamen ab. Bitte den Ordner in Clubwerk einfacher benennen (z. B. /Clubwerk).';
+  if (has('too_many_write_operations') || status === 429) return 'Dropbox ist gerade ausgelastet. Bitte später noch einmal „Testen“; die nächste nächtliche Sicherung versucht es erneut.';
+  if (has('email_not_verified') || has('email_unverified')) return 'Die E-Mail-Adresse des Dropbox-Kontos ist nicht bestätigt. Bitte bei Dropbox anmelden, die Bestätigungs-E-Mail anfordern und den Link darin öffnen, dann „Testen“.';
+  if (status === 403) return 'Dropbox verweigert diesem Konto den Zugriff (z. B. Einschränkung durch ein Team- oder Firmenkonto). Bitte die Einstellungen des Dropbox-Kontos prüfen.';
+  // „other“ kam in der Praxis, als in der Dropbox-App die Häkchen für Dateien fehlten (Thorsten 02.11.2026) – nicht 401 missing_scope
+  if (status === 409 && tags[0] === 'other') return `Dropbox hat das Speichern abgelehnt, ohne einen Grund zu nennen. Häufigste Ursache: In der Dropbox-App fehlen Berechtigungen. ${PERM} Hilft das nicht: die E-Mail-Adresse des Dropbox-Kontos bestätigen und freien Speicher prüfen, sonst den Dropbox-Support mit der Request-Id fragen.`;
+  if (status >= 500) return 'Dropbox meldet gerade eine Störung. Bitte später noch einmal „Testen“.';
+  return null;
+}
+
 async function call(url, opts, what) {
   let r;
   try { r = await fetch(url, { ...opts, signal: AbortSignal.timeout(60000) }); }
@@ -26,9 +63,17 @@ async function call(url, opts, what) {
   const text = await r.text();
   let data; try { data = JSON.parse(text); } catch (e) { data = { raw: text }; }
   if (!r.ok) {
-    const msg = data.error_summary || data.error_description || (typeof data.error === 'string' ? data.error : '') || data.raw || r.statusText;
-    const err = new Error(`${what}: ${String(msg).slice(0, 200)}`);
-    err.status = r.status; err.summary = data.error_summary || '';
+    data = data && typeof data === 'object' ? data : { raw: String(data) };
+    const tags = tagChain(data.error);
+    const summary = data.error_summary || data.error_description || (typeof data.error === 'string' ? data.error : '') || data.raw || r.statusText;
+    const rid = String(r.headers.get('x-dropbox-request-id') || '').replace(/[^\w-]/g, '').slice(0, 40);
+    const hint = explain(r.status, data, tags, what);
+    // technische Angaben für die Fehlersuche: HTTP-Status, Zusammenfassung von Dropbox, Request-Id (nie das Token)
+    const sum = scrub(summary).replace(/\s+/g, ' ').slice(0, 160);
+    const tech = [`HTTP ${r.status}`, hint ? sum : '', rid ? `Request-Id ${rid}` : ''].filter(Boolean).join(', ');
+    // Technik zuerst: Protokolleinträge werden gekürzt, Status und Request-Id sollen dort sicher stehen
+    const err = new Error(`${what} (Dropbox: ${tech}): ${hint || sum}`);
+    err.status = r.status; err.summary = data.error_summary || ''; err.tags = tags; err.requestId = rid;
     throw err;
   }
   return data;
@@ -114,6 +159,21 @@ async function listFolder(cfg, folder) {
   return out;
 }
 
+/**
+ * Ehrlicher Verbindungstest: eine kleine Testdatei genauso hochladen wie die Sicherung (gleicher Ordner, gleiche Anfrage),
+ * in der Liste wiederfinden und wieder löschen. Nur das Konto abzufragen sagte „Verbunden“, obwohl Schreiben scheiterte.
+ */
+const PROBE = 'clubwerk-verbindungstest.txt';
+async function probe(cfg, folder) {
+  const dir = `${folder === '/' ? '' : folder}/Komplett`;
+  const body = Buffer.from(`Clubwerk-Verbindungstest ${new Date().toISOString()}\n`);
+  await upload(cfg, `${dir}/${PROBE}`, body);
+  const e = (await listFolder(cfg, dir)).find(x => String(x.name).toLowerCase() === PROBE);
+  if (!e) throw new Error('Testdatei: Sie ist nach dem Hochladen in Dropbox nicht zu finden.');
+  if (e.size != null && e.size !== body.length) throw new Error('Testdatei: Sie kam in Dropbox unvollständig an.');
+  await remove(cfg, e.path_lower || `${dir}/${PROBE}`);
+}
+
 async function remove(cfg, path) { return rpc(cfg, 'files/delete_v2', { path }, `Löschen ${path}`); }
 
 async function revoke(cfg) { try { await rpc(cfg, 'auth/token/revoke', null, 'Abmelden'); } catch (e) { /* egal */ } cached = { key: null, token: null, until: 0 }; }
@@ -124,4 +184,4 @@ function cleanFolder(f) {
   return '/' + s.slice(0, 200);
 }
 
-module.exports = { authUrl, exchangeCode, account, upload, uploadFile, downloadFile, listFolder, remove, revoke, cleanFolder, asciiJson };
+module.exports = { authUrl, exchangeCode, account, probe, upload, uploadFile, downloadFile, listFolder, remove, revoke, cleanFolder, asciiJson };
