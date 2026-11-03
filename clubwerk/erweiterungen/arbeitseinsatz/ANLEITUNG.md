@@ -288,7 +288,7 @@ Gibt es Termine, erscheint der Umschalter **Termine** (mit der Zahl unbeantworte
 
 #### Vereinskalender
 
-Ist unter Einstellungen ein Kalender der Homepage eingetragen, steht im Reiter **Termine** unter den Terminen die Karte **Vereinskalender** mit Datum, Uhrzeit und Ort. Antippen zeigt die Beschreibung. Zu- oder Absagen gibt es hier nicht.
+Ist unter Einstellungen ein Kalender der Homepage eingetragen, steht im Reiter **Termine** unter den Terminen die Karte **Vereinskalender** mit Datum, Uhrzeit und Ort. Antippen zeigt die Beschreibung. Zu- oder Absagen gibt es hier nicht. Im Fenster übernimmt **In den Kalender** genau diesen Termin in den Kalender des Handys. Das gleiche gibt es unter jedem Termin mit Zu- und Absage.
 
 ![Der Vereinskalender im Reiter „Termine“.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; ziel=#dsKal)
 

@@ -31,7 +31,7 @@
       .bkm-nowbody > div { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: 8px; align-items: baseline; padding: 4px 0; border-top: 1px solid var(--line-soft, var(--line)); font-size: 14px; }
       .bkm-nowbody > div[data-nl] { cursor: pointer; -webkit-tap-highlight-color: transparent; min-height: 40px; align-content: center; }   /* Zeile ist Tippfläche (ganzer Name): mindestens 40 px wie die Leisten (03.11.2026) */
       .bkm-nowbody > div.open span { white-space: normal; overflow: visible; }
-      .bkm-now span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bkm-now small { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
+      .bkm-now span { overflow-wrap: break-word; }   /* Name der Belegung immer ganz, bricht um statt „…“ (03.11.2026) */ .bkm-now small { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
       .bkm-now p { margin: 0; color: var(--muted); font-size: 14px; }
       .bkm-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }
       .bkm-hint { font-size: 12.5px; color: var(--muted); margin: -4px 2px 0; }

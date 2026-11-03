@@ -45,6 +45,16 @@ const isDay = s => /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')), isTime = s => /^
 const clean = (e, id) => (e && isDay(e.date) && e.title ? { uid: `${id}-${String(e.uid || '').slice(0, 120)}@clubwerk`, date: e.date, start: isTime(e.start) ? e.start : '', end: isTime(e.end) ? e.end : '',
   end_date: isDay(e.end_date) && e.end_date >= e.date ? e.end_date : '', title: String(e.title).slice(0, 200), place: e.place ? String(e.place).slice(0, 200) : '', note: e.note ? String(e.note).slice(0, 500) : '' } : null);
 
+/* Einzelner Termin „In den Kalender“: Der Termin steckt selbst im Link (Base64url-JSON) und ist mit dem Schlüssel des Servers signiert –
+   nur der Server stellt solche Links aus (in den Antworten der Bereiche an gekoppelte Handys), niemand kann fremde Inhalte hineinschreiben. */
+const esig = p => crypto.createHmac('sha256', key()).update('ev:' + p).digest('hex').slice(0, 32);
+/** Relativer Link auf die .ics-Datei eines Termins: ev = { uid, date, start, end, end_date, title, place, note } (null, wenn Datum/Titel fehlen) */
+function eventLink(ev) {
+  const c = clean(ev, 'e'); if (!c) return null;
+  const p = Buffer.from(JSON.stringify([c.uid, c.date, c.start, c.end, c.end_date, c.title, c.place, c.note])).toString('base64url');
+  return `${PATH}e/${p}.${esig(p)}.ics`;
+}
+
 /**
  * h = { api, publicRouter(router), whoIs(req) → { memberId } | null, sections(memberId) → [{ id, hooks }] (freigeschaltete Bereiche), baseUrl(req) → 'https://…', clubName() }
  */
@@ -81,7 +91,17 @@ function register(h) {
     db.prepare("UPDATE member_cal SET fetched_at = datetime('now','localtime') WHERE member_id = ?").run(id);
     res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="clubwerk.ics"', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' }).send(ics(list, h.clubName()));
   });
+  r.get('/e/:f', (req, res) => {
+    const m = /^([A-Za-z0-9_-]{1,4000})\.([0-9a-f]{32})\.ics$/.exec(req.params.f || '');
+    let a = null;
+    try { if (m && crypto.timingSafeEqual(Buffer.from(esig(m[1])), Buffer.from(m[2]))) a = JSON.parse(Buffer.from(m[1], 'base64url').toString()); } catch (e) { a = null; }
+    const ev = Array.isArray(a) ? clean({ uid: 'x', date: a[1], start: a[2], end: a[3], end_date: a[4], title: a[5], place: a[6], note: a[7] }, 'x') : null;
+    if (!ev) return res.status(404).json({ error: 'Diesen Termin gibt es nicht (mehr).' });
+    ev.uid = String(a[0]);   // stabile UID: derselbe Termin wird beim erneuten Übernehmen nicht doppelt angelegt
+    res.set({ 'Content-Type': 'text/calendar; charset=utf-8', 'Content-Disposition': 'inline; filename="clubwerk.ics"', 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' })
+      .send(ics([ev], h.clubName()).replace(/(X-WR-CALNAME|REFRESH-INTERVAL|X-PUBLISHED-TTL)[^\r]*\r\n/g, ''));
+  });
   h.publicRouter(r);
 }
 
-module.exports = { register, ics };
+module.exports = { register, ics, eventLink };

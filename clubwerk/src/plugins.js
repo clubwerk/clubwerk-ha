@@ -199,6 +199,7 @@ function load({ app, admin, helpers }) {
         id, meta: p.meta, appVersion: APP_VERSION, tablet, admin: adminR, db, getSetting, setSetting, audit, auditDiff, auth,
         isActive: () => isActive(id), require: name => require(name), ...helpers,
         setting: (k, d) => getSetting(`ext_${id}_${k}`, d), setSetting2: (k, v) => setSetting(`ext_${id}_${k}`, v),
+        calendarLink: ev => require('./kalender').eventLink(ev),   // Link auf die .ics-Datei eines einzelnen Termins für „In den Kalender“ (Mitglieder-App)
         clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
         hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → Postfach)
         // Push-Benachrichtigungen (Mitglieder-App): Anlässe meldet das Modul über hooks.pushEvents an; send(ids, 'anlass', { title, body, url, tag })

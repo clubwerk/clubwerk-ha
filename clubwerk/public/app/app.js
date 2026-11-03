@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.19';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.20';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -178,6 +178,42 @@
   const PUSH_LATER_DAYS = 14;
   const pushLater = () => { try { return Date.now() < Number(localStorage.getItem('cw-push-spaeter')); } catch (e) { return false; } };
   const pushLaterSet = () => { try { localStorage.setItem('cw-push-spaeter', String(Date.now() + PUSH_LATER_DAYS * 864e5)); } catch (e) { /* privat: dann erscheint die Karte eben wieder */ } };
+  /* Installieren (Android, Rechner): Knopf bei „beforeinstallprompt“, sonst Schritte des Browsers; „Später“ 14 Tage */
+  /** Installieren (nicht iPhone/iPad): '' | wait (Ereignis braucht noch Zeit, Anleitung erst nach 2,5 s) | install | android-howto | android-have | android-embedded | desktop-howto | desktop-safari | desktop-have */
+  function installPlan(e, s) {
+    if (e.ios || e.standalone || s.later || s.installDone) return '';
+    if (e.android && e.embedded) return 'android-embedded';
+    if (s.event) return 'install';
+    if (e.desktop && !s.secure) return '';
+    if (s.marked) return e.android ? 'android-have' : 'desktop-have';
+    const k = e.android ? 'android-howto' : e.browser === 'chrome' || e.browser === 'edge' ? 'desktop-howto' : e.browser === 'safari' && e.safariVer >= 17 ? 'desktop-safari' : '';   // Safari am Mac: „Zum Dock hinzufügen“ ab Safari 17
+    return k && !s.done ? (s.waited() ? k : 'wait') : '';
+  }
+  window.cwInstallPlan = (e, s) => { const k = installPlan(e, s); return k === 'wait' ? '' : k; };
+  const instWaited = () => { if (performance.now() >= 2500) return true; if (!instWaited.t) instWaited.t = setTimeout(() => { if (pushReload) pushReload(); }, 2600 - performance.now()); return false; };
+  let installUi = null, installState = '';   // '' | laedt | fehler
+  function loadInstallUi() {   // install.js (Karten für Android und Rechner) erst laden, wenn sie gebraucht werden – in der installierten App nie
+    installState = 'laedt';
+    const sc = document.createElement('script'); sc.src = 'install.js?v=' + APP_VER;
+    sc.onload = () => { installUi = window.cwInstallUi; installUi.init({ ls: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* egal */ } }, ev: () => installEv, takeEv: () => { const v = installEv; installEv = null; return v; }, isDone: () => installDone, setDone: () => { installDone = true; }, flag, standalone, toast, copyAddress, reload: () => { if (pushReload) pushReload(); } }); if (pushReload) pushReload(); };
+    sc.onerror = () => { installState = 'fehler'; if (pushReload) pushReload(); };   // ohne die Datei: nur die Benachrichtigungs-Karten
+    document.head.appendChild(sc);
+  }
+  let installEv = null, installDone = false;   // installDone: im Dialog angenommen – bis die App neu startet keine Anleitung mehr
+  /* Browser: samsung | firefox | edge | chrome | safari | other (Opera, Vivaldi, Xiaomi, Huawei, UC … bekommen die allgemeine Anleitung statt einer falschen Spezialanleitung) */
+  const browserOf = ua => /SamsungBrowser/.test(ua) ? 'samsung' : /Firefox\/|FxiOS/.test(ua) ? 'firefox' : /EdgA|Edg\/|EdgiOS/.test(ua) ? 'edge'
+    : /OPR\/|OPT\/|Opera|OPiOS|Vivaldi|MiuiBrowser|HuaweiBrowser|UCBrowser|DuckDuckGo|YaBrowser|HeyTapBrowser|VivoBrowser|SogouMobile|Puffin/.test(ua) ? 'other'
+    : /Chrome\/|CriOS|Chromium/.test(ua) ? 'chrome' : /Safari\//.test(ua) ? 'safari' : 'other';
+  /* „Schon installiert?“ Merker cw-installiert (App-Start, appinstalled, getInstalledRelatedApps); das Ereignis löscht ihn. „Habe ich schon installiert“: cw-install-erledigt (dauerhaft). */
+  const flag = (k, v) => { try { if (v === undefined) return localStorage.getItem(k) === '1'; if (v) localStorage.setItem(k, '1'); else localStorage.removeItem(k); } catch (e) { /* privat: dann eben ohne Merker */ } return false; };
+  const markInstalled = () => flag('cw-installiert', true), haveDone = () => flag('cw-install-erledigt');
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEv = e; if (!standalone()) flag('cw-installiert', false); if (pushReload) pushReload(); });
+  if (window.__vaInstallEv) { installEv = window.__vaInstallEv; window.__vaInstallEv = null; setTimeout(() => { if (!standalone()) flag('cw-installiert', false); if (pushReload) pushReload(); }, 0); }   // early.js
+  window.addEventListener('appinstalled', () => { installEv = null; markInstalled(); if (pushReload) pushReload(); });
+  setTimeout(() => {   // erst nach dem Laden des ganzen Skripts (standalone() steht weiter unten)
+    if (standalone()) markInstalled();
+    else if (navigator.getInstalledRelatedApps) navigator.getInstalledRelatedApps().then(l => { if (l && l.length) { markInstalled(); if (pushReload) pushReload(); } }).catch(() => {});
+  }, 0);
   const BELL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>';
   const BELL_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8.7 3A6 6 0 0 1 18 8c0 2.7.4 4.6.9 6"/><path d="M17 17H3s3-2 3-9c0-.7.1-1.4.3-2"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="m2 2 20 20"/></svg>';
   const SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/><path d="M5 11H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
@@ -189,7 +225,7 @@
   function platformEnv(ua = navigator.userAgent) {
     const ios = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1), android = /Android/.test(ua);
     const v = ua.match(/OS (\d+)[_.](\d+)/), thirdParty = /CriOS|FxiOS|EdgiOS|OPiOS|Brave/.test(ua);
-    return { ios, android, standalone: standalone(), push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'default',
+    return { ios, android, desktop: !ios && !android, browser: browserOf(ua), safariVer: (ua.match(/Version\/(\d+)/) || [])[1] | 0, thirdParty, standalone: standalone(), push: pushSupported(), perm: 'Notification' in window ? Notification.permission : 'default',
       iosVer: ios && v ? [+v[1], +v[2]] : null,
       embedded: ios ? (UA_EMBED_IOS.test(ua) || (/Mobile\//.test(ua) && !/Safari\//.test(ua) && !thirdParty)) : android ? UA_EMBED_AND.test(ua) : false };
   }
@@ -198,7 +234,7 @@
   function pushPlan(p, e, later) {
     if (!p || !p.released || p.mine || later) return '';
     if (e.ios) {
-      if (e.iosVer && (e.iosVer[0] < 16 || (e.iosVer[0] === 16 && e.iosVer[1] < 4))) return 'ios-old';   // vor iOS 16.4 gibt es kein Web-Push
+      if (e.iosVer && (e.iosVer[0] < 16 || (e.iosVer[0] === 16 && e.iosVer[1] < 4))) return e.thirdParty ? 'ios-embedded' : 'ios-old';   // vor iOS 16.4 gibt es kein Web-Push; Chrome/Firefox/Edge dort: zuerst Safari (nur der kann dort auf den Home-Bildschirm legen)
       if (!e.standalone) return e.embedded ? 'ios-embedded' : 'ios-share';   // Push nur in der Home-Bildschirm-App
     } else if (e.android && e.embedded) return 'android-embedded';
     if (!e.push) return '';   // z. B. Desktop-Browser ohne Push, Huawei ohne Google-Dienste, sehr alte Geräte
@@ -221,23 +257,37 @@
   let pushReload = null;
   function pushCard(p) {
     const e = platformEnv();
-    let kind = pushPlan(p, e, pushLater());
+    /* Zuerst installieren (Knopf, wenn der Browser es anbietet, sonst die Schritte des Browsers), in eingebetteten Android-Browsern „Im Browser öffnen“ – auch wenn Push schon geht;
+       erst danach die Benachrichtigungen. Immer nur eine Karte; „Teilen“ gibt es nur auf iPhone, iPad und Safari am Mac. */
+    let ip = null;
+    if (!e.ios && !e.standalone) {   // Android und Rechner
+      const k = installPlan(e, { event: Boolean(installEv), marked: flag('cw-installiert'), done: haveDone(), later: Date.now() < Number(localStorage.getItem('cw-install-spaeter')), waited: instWaited, installDone, secure: window.isSecureContext !== false });
+      if (k === 'wait') return '';
+      if (k) { if (!installUi && installState !== 'fehler') { if (installState !== 'laedt') loadInstallUi(); return ''; } if (installUi) ip = { kind: k, html: installUi.html(k, e) }; }
+    }
+    let kind = ip ? ip.kind : pushPlan(p, e, pushLater());
+    if (!ip && kind === 'android-embedded') kind = '';   // „Später“ gilt auch hier
+    if (kind === 'ios-share' && haveDone()) kind = '';   // „Habe ich schon installiert“ – iPhone-Safari kann es nicht selbst erkennen
     if ((kind === 'ios-share' || kind === 'ios-embedded') && hintOpen()) return '';   // der Kasten „Auf den Home-Bildschirm“ oben sagt dasselbe – nie zwei Karten
     if (!kind) return '';
+    if (ip) return ip.html;
     const row = (ico, title, sub) => `<div class="vh-fm"><span class="vh-fm-ico">${ico}</span><span class="vh-tx"><strong>${title}</strong>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
     const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>', copy = '<button type="button" class="vh-btn" data-pushcopy>Adresse kopieren</button>';
     const card = (h, rows, buttons) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div>${act(...buttons)}</div>`;
     const MENU = 'Je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“.';
+    const done = '<button type="button" class="vh-btn sec" data-installdone>Habe ich schon installiert</button>';
     if (kind === 'ask') return card('Benachrichtigungen einschalten', row(BELL, 'Nichts verpassen', pushWhat(p && p.words)), [later, '<button type="button" class="vh-btn" data-pushon>Einschalten</button>']);
     if (kind === 'denied') return card('Benachrichtigungen sind gesperrt', row(BELL_OFF, 'Im Handy erlauben', e.ios ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.'), [later]);
     if (kind === 'ios-old') return card('Benachrichtigungen gehen hier nicht', row(BELL_OFF, 'iOS 16.4 oder neuer nötig', 'Einstellungen › Allgemein › Softwareupdate. Auf diesem iPhone sind keine Benachrichtigungen möglich.'), [later]);
     if (kind === 'ios-embedded') return card('Zuerst in Safari öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „…“ oder das Teilen-Symbol und dann auf „In Safari öffnen“.') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie in Safari. Dort „Übernahme-Code eingeben“ antippen.'), [later, copy]);
-    if (kind === 'android-embedded') return card('Im Browser öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „⋮“ oder „…“ und dann auf „Im Browser öffnen“ (Chrome).') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie im Browser.'), [later, copy]);
-    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.') + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.'), [later]);
+    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.') + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.'), [later, done]);
   }
   function wirePushCard(el) {
     const c = el.querySelector('[data-pushcard]'); if (!c) return;
     const lt = c.querySelector('[data-pushlater]'), on = c.querySelector('[data-pushon]'), cp = c.querySelector('[data-pushcopy]');
+    const dn = c.querySelector('[data-installdone]');
+    if (installUi && installUi.owns(c.dataset.pushcard)) { installUi.wire(c); return; }
+    if (dn) dn.onclick = () => { flag('cw-install-erledigt', true); c.remove(); if (pushReload) pushReload(); };   // iPhone-Karte
     if (cp) cp.onclick = copyAddress;
     if (lt) lt.onclick = () => { pushLaterSet(); c.remove(); };
     if (on) on.onclick = async () => {
@@ -249,9 +299,11 @@
       if (current === FM) forMe(el);
     };
   }
-  async function forMe(el) {
+  let lastForme = null;
+  async function forMe(el, again) {   // again: nur neu zeigen (Karten wechseln), ohne neue Abfrage
     let d;
-    try { d = await call('forme'); } catch (e) { if (current === FM) el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
+    pushReload = () => { if (current === FM) forMe(el, true); };   // vor der Antwort: Karte auch nachträglich
+    try { d = again && lastForme ? lastForme : (lastForme = await call('forme')); } catch (e) { if (current === FM) { el.innerHTML = pushCard(null) + `<div class="vh-empty">${esc(e.message)}</div>`; wirePushCard(el); } return; }
     if (current !== FM) return;   // inzwischen anderer Bereich gewählt
     const today = ymd(new Date()), ok = id => me.sections.some(s => s.id === id && s.ok), acts = [];
     /* Zeile: Bereich vorhanden → tippbar (springt hin, eine Neuigkeit wird dabei quittiert); Knöpfe (Zusage) stehen rechts neben dem tippbaren Teil; sonst nur Anzeige */
@@ -271,7 +323,6 @@
     const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}"><h3>${h}</h3><div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
     const first = me.sections.find(s => s.ok);
     const pc = pushCard(d.push);
-    pushReload = () => { if (current === FM) forMe(el); };
     el.innerHTML = pc + (!d.news.length && !d.next.length && !d.todo.length && !d.money.length
       ? `<div class="vh-empty">Gerade steht nichts an.${first ? ` <button type="button" class="vh-link" data-go="${esc(first.id)}">${first.id === 'buchung' ? 'Platz buchen' : `${esc(first.title)} öffnen`}</button>` : ''}</div>`
       : card('Neu für dich', d.news, icoBox, true) + card('Als Nächstes', d.next, dateBox) + card('Zu erledigen', d.todo, icoBox) + card('Mein Konto', d.money, icoBox));
@@ -646,7 +697,7 @@
       // Startadresse der Home-Bildschirm-App mit Code (Manifest und aktuelle Adresse – je nach iOS-Version zählt das eine oder das andere)
       const m = document.querySelector('link[rel="manifest"]'); if (m) m.setAttribute('href', 'manifest.json?k=' + r.code);
       history.replaceState(null, '', location.pathname + location.search + '#k=' + r.code);
-      if (isIOS && store.get('va_hint_off') !== '1') { $('installCode').textContent = fmtCode(r.code); installText(); $('installHint').classList.remove('hidden'); if (pushReload) pushReload(); }
+      if (isIOS && store.get('va_hint_off') !== '1' && !haveDone()) { $('installCode').textContent = fmtCode(r.code); installText(); $('installHint').classList.remove('hidden'); if (pushReload) pushReload(); }
     } catch (e) { /* kein Code – App lässt sich trotzdem per QR neu freischalten */ }
   }
   $('installCopy').onclick = async () => {
@@ -708,6 +759,8 @@
 
   /* ---------- Einladung per QR-Code, Link aus der E-Mail oder Brief ---------- */
   let inviteToken = '', inviteInfo = {}, skipSms = false;
+  /** Hinweis zur gestaffelten Freischaltung aus den tatsächlich betroffenen Bereichen (ohne Liste allgemein) */
+  const wlanNote = (areas, list = (areas || []).join(', ')) => list ? `Einige Bereiche (${list}) schalten sich erst frei, sobald du die App einmal im Vereins-WLAN öffnest.` : 'Einige Bereiche schalten sich erst frei, sobald du die App einmal im Vereins-WLAN öffnest.';
   async function pair(t) {
     inviteToken = t; skipSms = false;
     history.replaceState(null, '', location.pathname + location.search);   // Einladung nicht in Lesezeichen/Verlauf behalten
@@ -720,6 +773,7 @@
       $('pairPhone').textContent = p.phone || '';
       $('pairOtp').classList.add('hidden'); $('pairOtp').value = '';
       $('pairSkip').classList.add('hidden');
+      $('pairNote').textContent = wlanNote(p.stagedAreas);
       $('pairNote').classList.toggle('hidden', !p.staged);
       // eine PIN für alles: wer im Verkauf schon eine hat, gibt sie ein – sonst neue festlegen (gilt dann auch am Tablet)
       $('pairText').textContent = p.hasPin ? `${p.sms ? 'Dann gib' : 'Gib'} deine PIN ein – dieselbe wie im Verkauf am Tablet. Vergessen? Der Vorstand setzt sie zurück.`
@@ -765,7 +819,7 @@
       if (dev() !== r.device) { $('pairErr').textContent = 'Der Browser speichert nichts (privater Modus?) – bitte normal öffnen.'; return; }
       sess.set(a);
       $('pairSheet').classList.remove('show');
-      toast(r.staged ? 'Freigeschaltet – Türen und Beregnung folgen beim ersten Besuch im Vereins-WLAN.' : 'Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
+      toast(r.staged ? `Freigeschaltet. ${wlanNote(r.stagedAreas)}` : /Android/.test(navigator.userAgent) ? 'Freigeschaltet – wie du die App installierst, steht jetzt unter „Für mich“.' : 'Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
       start().then(prepareTransfer).catch(e => toast(e.message, true));
     } catch (e) {
       $('pairErr').textContent = e.message;

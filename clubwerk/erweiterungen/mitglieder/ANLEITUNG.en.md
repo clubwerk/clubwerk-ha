@@ -28,12 +28,14 @@ All other modules work with the same people. Without this module there are only 
 The page shows all members as a list, sorted by last name and first name. The columns:
 
 - **Name** (“Last name, first name”), below it the leaving date for anyone who is leaving, or the status for passive, dormant and honorary members.
-- **No.** (the member number), **Age** and **Departments**.
+- **No.** (the member number), **Age** and **Departments**. A click on the heading **Name**, **No.** or **Age** sorts the list, a second click reverses it (▲/▼); on the phone use the “Sort” box. Members without a number or date of birth always come last. Clubwerk remembers the choice per device.
 - **Fee:** the fee type. For family members it says “Family” with the name of the head of the family.
 - **Payment:** direct debit, invoice or cash. If somebody else pays, it says “via name”. A “+3” shows how many relatives this person also pays for.
 - **Notes:** yellow marks where something is missing or needs checking, e.g. “Check age bracket” or “Revoke mandate”.
 
 At the top you see a **red warning box** if members are missing required details (member data, fee, bank details or SEPA mandate). “Show” jumps to the “With note” filter. Anyone missing required details is missing from the fee run.
+
+A **missing date of birth** also appears in the list as the note “Geburtsdatum fehlt” (filter “With note”) and under Settings › Data quality. Such members are missing from the LSB report and count as adults for age bands and the family rate; the fee run warns about this in its preview.
 
 For searching and filtering there are:
 
@@ -222,7 +224,7 @@ At the top it says whether a phone is authorised for the member app (and when it
 
 Membership applications and change requests arrive here. The number on the tab shows how many are waiting for you. The buttons at the top right:
 
-- **Form (PDF):** the empty paper form to print.
+- **Form (PDF):** the empty paper form to print. Wherever you choose from fixed options there are boxes to tick (gender, partner or child with the age limit from the settings, fee type, consents). “Place, date” stays blank; only the PDF signed online or on the tablet fills in the member's town and the date of signing.
 - **Online application …:** switches the application on via the address of the member app and shows the link to copy (it ends in `/p/mitglieder/`). A trap for automatic forms, a minimum filling-in time and a limit per device and day protect against misuse.
 - **+ Membership application:** you enter the data, and the new member signs on the tablet with a code.
 
@@ -339,7 +341,7 @@ Figures for the board and the federations. The **Reference date** field at the t
 
 ![The membership census for the state sports federation.](bild: seite=mv-auswertung; ziel=#mvBody > div:nth-child(4))
 
-The table by age group and gender, as the state sports federation requires it. “Excel as of 01.01.…” downloads it as a file. Clubwerk does not count members without a date of birth and points that out.
+The table by age group and gender, as the state sports federation requires it. “Excel as of 01.01.…” downloads it as a file. Clubwerk does not count members without a date of birth. The note names them (a click opens the member), and “Show in the list” shows exactly these members in the member list.
 
 #### Milestone birthdays & anniversaries
 
@@ -362,6 +364,7 @@ The cards are stacked; each has its own “Save”.
 ![The “Membership” card.](bild: seite=mv-einstellungen; ziel=[data-set="mitgliedschaft"])
 
 - **Member numbers from:** the first number assigned automatically.
+- **New number:** “from the start value” never assigns a number below the start value; “after highest number” assigns the highest existing number plus 1, whether the start value is higher or lower (handy after an import with your own numbers). In both cases nobody is given a number twice. Only the numeric part is compared: “007” counts as 7, numbers without digits are skipped.
 - **Fee year starts on the 1st:** the month your fee year begins.
 - **Notice period (months):** the basis for the earliest leaving date.
 - **Direct debit is required:** new members then need bank details and a SEPA mandate; “invoice” and “cash” can no longer be chosen. Family members and anyone paying via a payer are exempt. Existing members with another payment method appear under “With note”.

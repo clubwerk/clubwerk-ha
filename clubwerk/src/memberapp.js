@@ -50,7 +50,6 @@ function contactOf(memberId, hooked = null) {
 const mailOf = (id, hooked = null) => { const a = contactOf(id, hooked); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
 /** Handynummer für den SMS-Code – nur, wenn SMS eingerichtet ist */
 const smsPhone = id => { if (!sms.ready()) return null; const a = contactOf(id); return a ? (sms.normPhone(a.mobile) || sms.normPhone(a.phone)) : null; };
-/** hat das Mitglied einen Bereich, der im Verein etwas schaltet (Türen, Beregnung)? */
 const deTs = ms => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: process.env.TZ || 'Europe/Berlin' });
 const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
 /** Einladung per E-Mail verschicken (Link mit Knopf, kurze Anleitung) */
@@ -76,14 +75,18 @@ function pairedMail(memberId, { device, remote, verified }) {
   const club = getSetting('club_name', 'Verein');
   const dl = String(device || '');
   const label = /iPhone/.test(dl) ? 'iPhone' : /iPad/.test(dl) ? 'iPad' : /Android/.test(dl) ? 'Android-Handy' : 'Gerät';
-  const note = remote && hasSensitive(memberId) ? 'Türen und Beregnung schalten sich frei, sobald du die App einmal im Vereins-WLAN öffnest.' : verified ? 'Bestätigt mit dem Code per SMS.' : '';
+  const areas = remote ? stagedAreas(memberId) : [];
+  const wlan = areas.length ? wlanNote(areas) : '', note = verified ? 'Bestätigt mit dem Code per SMS.' : '';
   const warn = 'Warst du das nicht? Dann melde dich bitte sofort beim Vorstand – das Handy wird dann gesperrt.';
   mail.send({ to, subject: `Mitglieder-App freigeschaltet – ${club}`,
-    text: `Hallo ${firstName(m.name)},\n\nauf einem ${label} wurde gerade die Mitglieder-App für dich freigeschaltet (${deTs(Date.now())} Uhr).${note ? '\n' + note : ''}\n\n${warn}\n\nViele Grüße\n${club}`,
-    card: { heading: 'Mitglieder-App freigeschaltet', before: `Hallo ${firstName(m.name)},`, title: 'Neues Gerät', rows: [['Gerät', label], ['Zeit', deTs(Date.now()) + ' Uhr'], ...(note ? [['Hinweis', note]] : [])], after: `${warn}\n\nViele Grüße\n${club}` } })
+    text: `Hallo ${firstName(m.name)},\n\nauf einem ${label} wurde gerade die Mitglieder-App für dich freigeschaltet (${deTs(Date.now())} Uhr).${note ? '\n' + note : ''}${wlan ? '\n' + wlan : ''}\n\n${warn}\n\nViele Grüße\n${club}`,
+    card: { heading: 'Mitglieder-App freigeschaltet', before: `Hallo ${firstName(m.name)},`, title: 'Neues Gerät', rows: [['Gerät', label], ['Zeit', deTs(Date.now()) + ' Uhr'], ...(note ? [['Hinweis', note]] : [])], after: `${wlan ? wlan + '\n\n' : ''}${warn}\n\nViele Grüße\n${club}` } })
     .catch(e => console.error('Bestätigungs-Mail:', e.message));
 }
-const hasSensitive = memberId => activeModules().some(([id, m]) => m.sensitive && accessFor(memberId, id).ok);
+/** Namen der Bereiche, die dem Mitglied gehören und im Verein etwas schalten – sie schalten sich nach einer Kopplung von unterwegs erst im Vereins-WLAN frei */
+const stagedAreas = memberId => activeModules().filter(([id, m]) => m.sensitive && accessFor(memberId, id).ok).map(([, m]) => m.label || m.name);
+/** Hinweis für das Mitglied zur gestaffelten Freischaltung – aus den tatsächlich betroffenen Bereichen (ohne Liste: allgemein) */
+const wlanNote = (areas, list = (areas || []).join(', ')) => list ? `Einige Bereiche (${list}) schalten sich erst frei, sobald du die App einmal im Vereins-WLAN öffnest.` : 'Einige Bereiche schalten sich erst frei, sobald du die App einmal im Vereins-WLAN öffnest.';
 const qrUrl = () => (tunnelOn() && tunnelUrl() ? tunnelUrl() : getSetting('app_url', ''));
 /** private Absenderadresse (WLAN, Add-on-Netz, derselbe Rechner, link-local)? */
 const PRIVATE_IP = ip => /^(::ffff:)?(127\.|10\.|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[01])\.)/.test(ip) || ip === '::1' || /^f[cd][0-9a-f]{2}:/i.test(ip) || /^fe80:/i.test(ip);
@@ -291,7 +294,7 @@ function memberState(memberId, pre = null) {
     granted: Object.fromEntries((pre ? pre.mods : activeModules()).map(([id, m]) => { const a = acc.find(x => x.module === id); return [id, nm ? Boolean(m.nonMembers && a) : m.open ? !(a && a.blocked) : Boolean(a)]; })),
   };
 }
-/** Beim Freischalten vorausgewählt? Bereiche, die im Verein etwas schalten (Türen, Beregnung), standardmäßig nicht – nur für ausgewählte Mitglieder */
+/** Beim Freischalten vorausgewählt? Bereiche, die im Verein etwas schalten (z. B. Türen, Licht), standardmäßig nicht – nur für ausgewählte Mitglieder */
 const preselect = id => { const m = modules.get(id); let o = {}; try { o = JSON.parse(getSetting('app_preselect', '{}')) || {}; } catch (e) { o = {}; } return id in o ? Boolean(o[id]) : !(m && m.sensitive && !m.open); };
 const moduleInfo = () => activeModules().map(([id, m]) => {
   let options = null;
@@ -385,7 +388,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     const k = /^[A-Z2-9]{10}$/.test(String(req.query.k || '')) ? String(req.query.k) : '';
     res.set('Cache-Control', 'no-store');
     res.json({ name: `${getSetting('club_name', 'Verein')} – ${name}`, short_name: name, start_url: k ? `./#k=${k}` : './', scope: './', display: 'standalone', background_color: '#f6f5f1', theme_color: appColor(),
-      icons: [{ src: 'icon.png', sizes: '512x512', type: 'image/png', purpose: 'any' }] });
+      id: './', related_applications: [{ platform: 'webapp', url: `${req.get('x-forwarded-proto') || req.protocol}://${req.get('host')}${req.baseUrl}/manifest.json` }], icons: [{ src: 'icon.png', sizes: '192x192 512x512', type: 'image/png', purpose: 'any' }]   /* Vereinsbild für beide Größen (Whitelabel), Installierbarkeit verlangt 192 und 512 */ });
   });
   // Seiten der Module (public/member.js)
   app.get('/m/:id/:file', (req, res) => {
@@ -479,7 +482,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     if (p.used) { usedAlert(p); return res.status(410).json({ error: p.error, used: true }); }
     if (p.error) return res.status(410).json({ error: p.error });
     const away = awayReq(req), phone = away ? smsPhone(p.memberId) : null;
-    res.json({ member: p.member, hasPin: p.hasPin, away, sms: Boolean(phone), phone: sms.maskPhone(phone), staged: away && !phone && hasSensitive(p.memberId) });
+    res.json({ member: p.member, hasPin: p.hasPin, away, sms: Boolean(phone), phone: sms.maskPhone(phone), staged: away && !phone && stagedAreas(p.memberId).length > 0, stagedAreas: away ? stagedAreas(p.memberId) : [] });
   });
   /** zweiter Faktor: Code per SMS an die hinterlegte Handynummer (nie an eine eingegebene) */
   api.post('/invite/sms', rateLimit('appsms', 6, 600000), async (req, res) => {
@@ -497,7 +500,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       res.json({ ok: true, phone: sms.maskPhone(phone), minutes: o.minutes });
     } catch (e) {
       audit(null, 'Mitglieder-App: SMS-Code nicht verschickt', `${p.member} · ${e.message}`);
-      res.status(502).json({ error: 'Die SMS konnte gerade nicht verschickt werden. Du kannst ohne Code weitermachen – Türen und Beregnung schalten sich dann beim ersten Öffnen im Vereins-WLAN frei.', smsFailed: true });
+      res.status(502).json({ error: 'Die SMS konnte gerade nicht verschickt werden. Du kannst ohne Code weitermachen. ' + wlanNote(stagedAreas(p.memberId)), smsFailed: true });
     }
   });
   api.post('/pair', rateLimit('apppair', 10, 60000), (req, res) => {
@@ -518,9 +521,9 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
         else remote = true;   // ohne zweiten Faktor von unterwegs: gestufte Freischaltung
       }
       const out = invites.redeem(SCOPE, t, b.pin, req.get('user-agent'), req.get('host'), { remote, verified });
-      audit(null, 'Mitglieder-App: Handy freigeschaltet', `${out.member}${verified ? ' · mit SMS-Code' : remote ? ' · von unterwegs (Türen/Beregnung erst im Vereins-WLAN)' : ''}`);
+      audit(null, 'Mitglieder-App: Handy freigeschaltet', `${out.member}${verified ? ' · mit SMS-Code' : remote ? ' · von unterwegs (sensible Bereiche erst im Vereins-WLAN)' : ''}`);
       pairedMail(out.memberId, { device: req.get('user-agent'), remote, verified });
-      res.json({ ok: true, device: out.device, member: out.member, staged: remote && hasSensitive(out.memberId) });
+      res.json({ ok: true, device: out.device, member: out.member, staged: remote && stagedAreas(out.memberId).length > 0, stagedAreas: remote ? stagedAreas(out.memberId) : [] });
     } catch (e) { res.status(400).json({ error: e.message, ...(e.pin ? { pinWrong: true } : {}) }); }
   });
   /* Übernahme in die Home-Bildschirm-App (siehe invites.js) */
@@ -801,14 +804,14 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     if (kind === 'mail') audit(req.user, 'Mitglieder-App: Einladungen per E-Mail', `${done.length} verschickt${skipped.length ? `, ${skipped.length} übersprungen` : ''}`);
     res.json({ ok: true, kind, done, skipped, letters, days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) });
   });
-  /** von unterwegs gekoppeltes Handy: Türen/Beregnung freigeben (wie nach dem ersten Besuch im Vereins-WLAN) */
+  /** von unterwegs gekoppeltes Handy: sensible Bereiche (Türen, Licht …) freigeben (wie nach dem ersten Besuch im Vereins-WLAN) */
   admin.post('/app/member/:id/trust', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     const id = parseInt(req.params.id, 10);
     { const miss = missingFor(req, id); if (miss.length) return bad(res, `Dafür fehlt dir das Recht für: ${miss.join(', ')}.`, 403); }
     const d = db.prepare('SELECT id FROM member_devices WHERE scope = ? AND member_id = ? AND token_hash IS NOT NULL').get(SCOPE, id);
     if (!d || !invites.trust(d.id)) return bad(res, 'Kein Handy, das auf die Freigabe wartet.');
     const m = db.prepare('SELECT name FROM members WHERE id = ?').get(id);
-    audit(req.user, 'Mitglieder-App: Handy freigegeben (Türen/Beregnung)', m ? m.name : String(id));
+    audit(req.user, 'Mitglieder-App: Handy freigegeben (sensible Bereiche)', m ? m.name : String(id));
     res.json({ ok: true, ...memberState(id) });
   });
   /* ----- SMS-Modem (zweiter Faktor) ----- */

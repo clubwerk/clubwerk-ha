@@ -10,3 +10,5 @@
     window.__vaEarly.me.catch(() => {}); window.__vaEarly.forme.catch(() => {});
   } catch (e) { /* ohne Vorabfrage startet app.js wie gewohnt */ }
 })();
+/* „App installieren“: Der Browser kann das Angebot (beforeinstallprompt) schon melden, bevor app.js am Seitenende geladen ist – hier auffangen, app.js übernimmt es */
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window.__vaInstallEv = e; });

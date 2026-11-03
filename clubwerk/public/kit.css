@@ -119,6 +119,7 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-row { display: flex; gap: 10px; }
 .vh-row button { flex: 1; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; }
 .vh-row .ok { background: var(--brand); color: var(--on-brand); flex: 1.4; }
+.vh-row a.ok { flex: 1.4; display: flex; align-items: center; justify-content: center; min-height: 50px; border-radius: 14px; font-size: 16px; font-weight: 700; text-decoration: none; }   /* „In den Kalender“ (Link auf .ics) in der Fußleiste eines Fensters */
 .vh-row .no { background: var(--hover); color: var(--muted); border: 1px solid var(--line); }
 .vh-row .danger { background: var(--red); color: var(--on-red); }
 
@@ -207,7 +208,7 @@ button.vh-fm { width: 100%; font: inherit; color: inherit; text-align: left; bac
 .vh-fm-val { flex: none; font-family: var(--num); font-size: 18px; font-weight: 600; }   /* Betrag in „Mein Konto“ */
 .vh-fm-news .vh-fm-ico { background: var(--brand-soft); }   /* Neuigkeiten heben sich leicht ab */
 /* Karte „Benachrichtigungen einschalten“ in „Für mich“: Später / Einschalten */
-.vh-pushact { display: flex; gap: 8px; margin-top: 12px; } .vh-pushact .vh-btn { flex: 1; min-width: 0; }
+.vh-pushact { display: flex; gap: 8px; margin-top: 12px; } .vh-pushact .vh-btn { flex: 1; min-width: 0; } .vh-pushact { flex-wrap: wrap; } .vh-pushact [data-installdone] { flex: 1 1 100%; order: 3; }
 /* Schlüssel/Wert */
 .vh-kv { display: grid; grid-template-columns: auto 1fr; gap: 8px 14px; font-size: 14.5px; margin: 0; }
 .vh-kv dt { color: var(--muted); } .vh-kv dd { margin: 0; text-align: right; font-weight: 600; overflow-wrap: anywhere; }
@@ -221,6 +222,7 @@ button.vh-fm { width: 100%; font: inherit; color: inherit; text-align: left; bac
 .vh-seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.08); }
 :root[data-contrast="hoch"] .vh-seg { background: var(--hover); } :root[data-contrast="hoch"] .vh-seg button.on { box-shadow: inset 0 0 0 2px var(--ink); }
 /* Knöpfe in Karten: klein (40 px) – Hauptknopf .vh-btn, Nebenknopf .vh-btn.sec */
+a.vh-btn { display: flex; align-items: center; justify-content: center; text-decoration: none; }   /* Link als Knopf (z. B. „In den Kalender“) */
 .vh-btn.sm { min-height: 40px; min-width: 104px; padding: 0 12px; font-size: 14px; border-radius: 12px; }
 .vh-btn.sec:disabled, .vh-btn:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); opacity: 1; }
 .vh-btn.wide { width: 100%; }

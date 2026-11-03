@@ -250,7 +250,9 @@ function syncCore(memberId) {
 function nextMemberNo() {
   const max = db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n || 0;
   const start = parseInt(S('member_no_start', '1'), 10) || 1;
-  return String(Math.max(max + 1, (parseInt(S('member_no_max', '0'), 10) || 0) + 1, start));
+  const top = Math.max(max + 1, (parseInt(S('member_no_max', '0'), 10) || 0) + 1);
+  // „nach der höchsten vorhandenen Nummer“: der Startwert zählt nur, solange noch keine Nummer vergeben wurde (nur der Zahlenteil wird verglichen, Nummern mit Buchstaben am Anfang zählen nicht)
+  return String(S('member_no_mode', 'start') === 'max' && top > 1 ? top : Math.max(top, start));
 }
 /** gespeicherte Mitgliedsnummer merken (höchste je vergebene) – nach jedem Schreiben einer Nummer aufrufen */
 function noteMemberNo(no) {

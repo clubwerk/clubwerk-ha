@@ -16,7 +16,7 @@ const INK = '#1b1f24', MUTED = '#6b7280', SOFT = '#9aa1ab', LINE = '#d5d9df', FA
 const DEFAULT_COLOR = /^#[0-9a-f]{6}$/i.test(process.env.CLUB_COLOR || '') ? process.env.CLUB_COLOR : '#1f6b3a';
 
 const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
-const { deD } = require('../../../src/util');
+const { deD, endDot } = require('../../../src/util');
 const fmtIban = v => String(v || '').replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
 const mix = (hex, t) => '#' + [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)).map(v => Math.round(v + (255 - v) * t).toString(16).padStart(2, '0')).join('');
 const todayDe = () => { const d = new Date(); return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`; };
@@ -249,6 +249,12 @@ function letters(club, items) {
 /* ===================================================================== Beitrittserklärung
    a = { data (Antragsdaten), signed_at, signed_via, sig_member, sig_mandate, sha256 }, feeList = [{ id, name, cents }], s = Einstellungen
    Ohne Daten (persons: [{}]) entsteht das leere Formular zum Ausdrucken. */
+/** „Ort, Datum“ über der Unterschriftslinie: leer, solange nicht unterschrieben (das Mitglied schreibt beides selbst); danach Wohnort des Mitglieds (ersatzweise Vereinsort) und Datum der Unterschrift */
+function placeDate(city, signedAt) {
+  if (!signedAt) return '';
+  const c = String(city || '').replace(/^\d{5}\s*/, '').trim();
+  return (c ? c + ', ' : '') + deD(signedAt.slice(0, 10));
+}
 function application(club, a, feeList, s) {
   const d = a.data || {};
   const persons = d.persons && d.persons.length ? d.persons : [{}];
@@ -261,7 +267,7 @@ function application(club, a, feeList, s) {
   const ensure = h => { if (y + h > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, 'Beitrittserklärung'); } };
 
   doc.font('Helvetica-Bold').fontSize(21).fillColor(INK).text('Beitrittserklärung', L, y, { width: W }); y = doc.y + 4;
-  doc.font('Helvetica').fontSize(10).fillColor(MUTED).text(`Hiermit beantrage ich die Mitgliedschaft im ${club.name}.`, L, y, { width: W }); y = doc.y + 14;
+  doc.font('Helvetica').fontSize(10).fillColor(MUTED).text(endDot(`Hiermit beantrage ich die Mitgliedschaft im ${club.name}`), L, y, { width: W }); y = doc.y + 14;
 
   const section = (no, title, need = 60) => {
     ensure(need);
@@ -283,7 +289,10 @@ function application(club, a, feeList, s) {
     for (const f of list) {
       const w = span(f[2] || 1);
       doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text(f[0], x, y, { width: w, lineBreak: false, ellipsis: true });
-      doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(String(f[1] || ''), x, y + 12, { width: w });
+      if (f[3]) {   // feste Möglichkeiten: Kästchen zum Ankreuzen (angekreuzt, was gewählt ist)
+        let ox = x;
+        for (const [k, t] of f[3]) { box(doc, ox, y + 12, String(f[1]) === k, b.color); doc.font('Helvetica').fontSize(9.5).fillColor(INK).text(t, ox + 13, y + 12, { lineBreak: false }); ox += 13 + doc.widthOfString(t) + 12; }
+      } else doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(String(f[1] || ''), x, y + 12, { width: w });
       doc.moveTo(x, y + 14 + h).lineTo(x + w, y + 14 + h).lineWidth(0.6).strokeColor('#b9bfc7').stroke();
       x += w + GAP;
     }
@@ -301,7 +310,7 @@ function application(club, a, feeList, s) {
   const GENDER = { m: 'männlich', w: 'weiblich', d: 'divers' };
   section('01', 'Antragsteller/in');
   fields([['Vorname', p0.first_name, 2], ['Nachname', p0.last_name, 2]]);
-  fields([['Geburtsdatum', deD(p0.birth_date), 1], ['Geschlecht', GENDER[p0.gender] || '', 1], ['Mitgliedschaft ab', deD(d.entry_date), 2]]);
+  fields([['Geburtsdatum', deD(p0.birth_date), 1], ['Geschlecht', p0.gender || '', 2, Object.entries(GENDER)], ['Mitgliedschaft ab', deD(d.entry_date), 1]]);
 
   // 2 Anschrift & Kontakt
   section('02', 'Anschrift & Kontakt');
@@ -314,6 +323,7 @@ function application(club, a, feeList, s) {
   const ROLE = { partner: 'Partner/in', kind: 'Kind' };
   if (others.length || blank) {
     section('03', 'Weitere Familienmitglieder', 90);
+    if (blank) para(`Partner/in: höchstens eine weitere erwachsene Person. Kind: bis einschließlich ${s.child_max || 18} Jahre.`, 8.8, MUTED, 8);
     // gleiches Raster wie die Felder: Name (2 Spalten, Kontakt klein darunter), Geburtsdatum, Rolle
     const cx = [L, L + span(2) + GAP, L + span(3) + GAP], cw = [span(2), COL, COL];
     const head2 = () => {
@@ -333,7 +343,8 @@ function application(club, a, feeList, s) {
       doc.font('Helvetica').fontSize(10).fillColor(INK).text(r[0] || '', cx[0], y, { width: cw[0] });
       if (r[3]) doc.font('Helvetica').fontSize(8.5).fillColor(MUTED).text(r[3], cx[0], y + nh + 2, { width: cw[0] });
       doc.font('Helvetica').fontSize(10).fillColor(INK).text(r[1] || '', cx[1], y, { width: cw[1], lineBreak: false });
-      doc.text(r[2] || '', cx[2], y, { width: cw[2], lineBreak: false });
+      if (blank) { let ox = cx[2]; for (const t of Object.values(ROLE)) { box(doc, ox, y + 1, false); doc.font('Helvetica').fontSize(9.5).fillColor(INK).text(t, ox + 13, y + 1, { lineBreak: false }); ox += 13 + doc.widthOfString(t) + 10; } }
+      else doc.text(r[2] || '', cx[2], y, { width: cw[2], lineBreak: false });
       y += h + 4;
       doc.moveTo(L, y).lineTo(R, y).lineWidth(0.5).strokeColor(LINE).stroke();
       y += 7;
@@ -417,7 +428,7 @@ function application(club, a, feeList, s) {
     doc.text(cap, cx2, ly + 4, { width: colW });
     y = Math.max(doc.y, ly + 14) + 6;
   };
-  const place = `${(club.city || '').replace(/^\d{5}\s*/, '')}${a.signed_at ? ', ' + deD(a.signed_at.slice(0, 10)) : ''}`;
+  const place = placeDate(d.city || club.city, a.signed_at);
   sigBlock(a.sig_member, place, `Unterschrift${d.signer ? ' – ' + d.signer : ''} (bei Minderjährigen: gesetzliche/r Vertreter/in)`);
 
   // SEPA-Lastschriftmandat – als geschlossener Block (passt er nicht mehr, beginnt er auf der nächsten Seite)
@@ -479,7 +490,7 @@ function mandate(club, o) {
   const colW = (W - 36) / 2, ly = y + 46;
   const buf = imgFromData(o.signature);
   if (buf) { try { doc.image(buf, L + colW + 36, y, { fit: [colW, 44], align: 'center', valign: 'bottom' }); } catch (e) { /* ungültiges Bild */ } }
-  doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(`${(club.city || '').replace(/^\d{5}\s*/, '')}${o.signed_at ? ', ' + deD(o.signed_at.slice(0, 10)) : ''}`, L, ly - 15, { width: colW, lineBreak: false });
+  doc.font('Helvetica').fontSize(10.5).fillColor(INK).text(placeDate(person.city || club.city, o.signed_at), L, ly - 15, { width: colW, lineBreak: false });
   doc.moveTo(L, ly).lineTo(L + colW, ly).lineWidth(0.7).strokeColor(INK).stroke(); doc.moveTo(L + colW + 36, ly).lineTo(R, ly).stroke();
   doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text('Ort, Datum', L, ly + 4, { width: colW }); doc.text('Unterschrift Kontoinhaber/in', L + colW + 36, ly + 4, { width: colW });
   if (o.signed_at) {

@@ -5,7 +5,7 @@
 
 This is the core of Clubwerk. It is part of every installation and contains everything that does not belong to a single module: the overview, the setup assistant, accounts and PINs, the management of the member app, users and permissions, backup, the log, messages to members, the bank statement and the settings for the whole club.
 
-You switch modules (Sales, Courts, Defects …) on under Settings › Modules. The core also works with no modules at all. You reach it in the admin area through “Overview” and the “Club” menu group.
+You switch modules (Sales, Courts, Defects …) on under Settings › Modules. The core also works with no modules at all. You reach it in the admin area through “Overview”, the “Club” area (Users & permissions, System, Settings) and the “Members” area (Messages, Member app).
 
 ## Setting up {#einrichten}
 
@@ -18,7 +18,7 @@ You switch modules (Sales, Courts, Defects …) on under Settings › Modules. T
 
 ## Admin area {#verwaltung}
 
-The menu is on the left. At the top of the menu, **Search** (shortcut Ctrl K or ⌘K) finds pages, settings, actions and people. Your name is at the bottom: a click opens “My account”; next to it the tablet icon opens the tablet page in a new tab and the arrow logs you out. Via **Admin** in the tablet header, Clubwerk logs you out after one minute without input; a login directly in the admin area (for example in the Home Assistant sidebar) is not affected, even in the same browser. The **“?”** at the top right opens the guide for the area you are in, as a PDF.
+The menu is on the left, sorted into areas: **Catering**, **Sport**, **Facilities**, **Members**, **Finance** and **Club**. A click on an area expands or collapses it. The area of the page you are on is always open, and each device remembers which areas you leave open. A dot on a collapsed area shows that something needs doing in it. If you may only see a few pages (up to 9), you see everything without expanding, under the area headings. With the keyboard, the up and down arrows move between rows, the right arrow expands an area and the left arrow collapses it. At the top of the menu, **Search** (shortcut Ctrl K or ⌘K) finds pages, settings, actions and people. Your name is at the bottom: a click opens “My account”; next to it the tablet icon opens the tablet page in a new tab and the arrow logs you out. Via **Admin** in the tablet header, Clubwerk logs you out after one minute without input; a login directly in the admin area (for example in the Home Assistant sidebar) is not affected, even in the same browser. The **“?”** at the top right opens the guide for the area you are in, as a PDF.
 
 ### Page “Overview” {#uebersicht}
 
@@ -42,11 +42,13 @@ Notes from the core and from all modules appear here: open security warnings, mi
 
 Every module that is switched on has a tile with its state (Running, Note, Fault) and its most important figure. A click opens the module. Below, if there is anything, you find “Low stock” and “Latest deliveries” from Sales.
 
-> On a phone, the icon at the top left labelled “Menu” opens the menu bar.
+> On a phone, the button at the top right opens the menu. It shows the area you are in (for example “Finance”).
 
-### Page “Setup” {#einrichtung}
+### Tab “Setup” (page “System”) {#einrichtung}
 
-![The “Setup” page: open, done and hidden items.](bild: seite=einrichtung; ziel=.card:has(.wizbar))
+The **System** page in the “Club” area has three tabs: Backup, Log and Setup.
+
+![The “Setup” tab: open, done and hidden items.](bild: seite=einrichtung; ziel=.card:has(.wizbar))
 
 The checklist for everything that belongs to setting up. At the top it says “Setup … % complete”. Items are sorted into three lists: **Open**, **Done** and **Hidden**. They cover the general steps (language, admin account, club, “How do you use Clubwerk?”, choose modules, security, mailbox, member app, club network, backups) and the steps of your modules (for example “Items and prices” in Sales or “Create courts” in Courts). Each module reports its own steps.
 
@@ -118,7 +120,7 @@ Choose a member, tick the sections you want and tap **Activate & invite …**. A
 - **QR code here on screen:** The member scans it with the phone camera, ideally right here. It works once and only for a short time (adjustable). Then the member sets their app PIN. Do not photograph the code: whoever scans it first gets access.
 - **Send by email:** a personal link, valid for a few days. Needs a mailbox and the address in the member administration. Right after the greeting the email says what to do (“Open this email on your phone and tap the button”), has a large full-width button “Activate app now”, three numbered steps and, below, the address as text in case the button does not work.
 - **Print invitation letter:** QR code with instructions on paper.
-- **Approve doors and irrigation now:** only appears if a phone was paired from outside without an SMS code.
+- **Approve areas in the club Wi-Fi now:** only appears if a phone was paired from outside without an SMS code.
 
 #### Authorised members
 
@@ -161,7 +163,21 @@ One table for all sections of the app, one “Save” for everything:
 - **When unlocking:** “preselect” ticks the section for new members automatically.
 - **Start** and **↑ ↓:** start section and order. By default the app opens “For me”.
 
-“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”. If the board has released push occasions and the phone has not switched notifications on yet, the card **“Turn on notifications”** sits at the very top, with “Turn on” and “Later” (hides it for 14 days). The sentence on the card names only what the board has actually released and what the club has, for example “So that you don't miss court bookings, match days, duties and messages from the club.” (“… and more” if there are more than four areas). Only the card that is needed next is shown, matching the phone: on an **iPhone** first the steps “Share icon → Add to Home Screen → open from there” (without naming a fixed position, since the bar sits at the top, bottom or in the “…” menu depending on the setting; iOS 16.4 or newer, earlier versions have no push); if the page runs inside another program (Gmail, WhatsApp, Instagram …), first “Open in Safari” with “Copy address”. On **Android** push works without a home-screen icon, so “Turn on” comes straight away; in an embedded browser first “Open in browser”. If push is blocked on the phone, the card says where to allow it; a device that cannot do push at all (desktop, Huawei without Google services) gets no card. The card disappears once notifications are on.
+“For me” is always first. It is the start page of the app with the cards “New for you”, “Coming up”, “To do” and “My account”. Open replies to dates and match days appear only as a note (“Dates: n replies open”, “Match days: n replies open”), with no buttons and no time limit. If a member has a bar tab, a tick at the bottom also shows it under “For me”. If the board has released push occasions and the phone has not switched notifications on yet, the card **“Turn on notifications”** sits at the very top, with “Turn on” and “Later” (hides it for 14 days). The sentence on the card names only what the board has actually released and what the club has, for example “So that you don't miss court bookings, match days, duties and messages from the club.” (“… and more” if there are more than four areas). Only the card that is needed next is shown, matching the phone: on an **iPhone** first the steps “Share icon → Add to Home Screen → open from there” (without naming a fixed position, since the bar sits at the top, bottom or in the “…” menu depending on the setting; iOS 16.4 or newer, earlier versions have no push); if the page runs inside another program (Gmail, WhatsApp, Instagram …), first “Open in Safari” with “Copy address”. On **Android** (Chrome, Edge, Samsung Internet) the card **“Install app”** comes first: one tap opens the phone's install dialog, after which the app starts straight from the home screen and stays paired; “Later” hides it for 14 days, where the browser offers no install button (e.g. Firefox) the browser's own steps are shown instead (open the menu › “Install app” or “Add to Home screen”; in Samsung Internet “Add page to › Home screen”; in Firefox “Install”) – never “Share”, which exists only on the iPhone. If the page runs inside Gmail or WhatsApp, “Open in browser” comes first. The card stays until the app is installed or “Later” is tapped, even if notifications already work. It never appears in the installed app. If the browser notices that the app is already installed (Android shares its storage with the app), only the note “You already have the app – open it from your home screen” is shown. On the iPhone Safari cannot know this: there (and with the instructions that have no install button) “I have already installed it” hides the card for good. Push works without a home-screen icon, so “Turn on” follows; in an embedded browser first “Open in browser”. If push is blocked on the phone, the card says where to allow it; a device that cannot do push at all (desktop, Huawei without Google services) gets no card. The card disappears once notifications are on.
+
+**Installing the app – the right card for each device:** “For me” shows only the card that is needed next, never a wrong instruction (the browser is recognised by features, not just by name). It never appears in the installed app.
+
+| Device | Card |
+|---|---|
+| Android (Chrome, Edge, Samsung Internet, Opera, Xiaomi, Huawei …) | **“Install app”** button; if the browser offers none, the browser's own steps (menu › “Install app” or “Add to Home screen”; Samsung: “Add page to › Home screen”; Firefox: “Install”; unknown browsers: general instructions). Never “Share”. |
+| Android in Gmail/WhatsApp etc. | **“Open in browser”** first |
+| iPhone and iPad (also Chrome, Edge, Firefox) | Share icon › “Add to Home Screen” (iPadOS reports itself as a Mac and is recognised by touch); before iOS 16.4 in Chrome/Firefox/Edge “Open in Safari” first |
+| iPhone/iPad in Gmail, WhatsApp, Instagram … | **“Open in Safari”** first |
+| Computer with Chrome or Edge | **“Install app”** button; otherwise the install icon in the address bar or menu › “Install page as app” |
+| Safari on a Mac (Safari 17 or newer) | Share icon or “File” › “Add to Dock” |
+| Firefox on a computer | no card (Firefox does not install there); notifications work without installing |
+
+“Later” hides the card for 14 days; “I have already installed it” hides it for good (needed where the browser cannot tell by itself, such as Safari on the iPhone). If the browser notices that the app is already there, only the note “You already have the app” is shown.
 
 **Subscribe to calendar:** Under “More” › “My account” every member creates a personal link for their phone’s calendar. It contains their duties, accepted dates, court bookings and matches of their own teams – only from areas they have in the app, without other people’s names. The calendar fetches them regularly by itself. For this to work away from the club, the app needs a public address (“Settings” tab, “Reachable on the go”). “New link” makes the old one invalid, “End subscription” deletes it. If the phone is removed, the link no longer works.
 
@@ -310,7 +326,7 @@ A role has a name, a description and permissions. The list shows how many users 
 
 **Only members of own departments** is meant for department heads: they only see the members of their department (applies to the “Members” and “Messages” permissions). A role that has users cannot be deleted.
 
-### Page “Backup” {#sicherung}
+### Tab “Backup” (page “System”) {#sicherung}
 
 ![The backup page: key figures and cards.](bild: seite=sicherung; ziel=.kpis)
 
@@ -389,7 +405,7 @@ Same name → updated, otherwise new. **Nothing is deleted.** Taking over twice 
 
 Clubwerk also backs up just the database every night (the last 14 nights), handy for quickly undoing a mistake from the last few days. **Snapshot now** creates one, **Import .db file …** uploads one, and each entry can be downloaded or restored. To download, Clubwerk asks for your password, because the snapshot also contains the backup keys.
 
-### Page “Log” {#protokoll}
+### Tab “Log” (page “System”) {#protokoll}
 
 ![The log: time, who, action and details.](bild: seite=protokoll; fuelle=#aq::Nachricht)
 

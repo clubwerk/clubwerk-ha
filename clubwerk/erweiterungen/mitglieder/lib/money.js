@@ -59,6 +59,7 @@ function register(sh) {
             for (const d of fam) {
               const a = fees.ageAt(d.birth_date, pr.from);
               if (a == null || a > max) adults++;
+              if (a == null && !famWarned.has(`${d.name}|keinGeb`)) { famWarned.add(`${d.name}|keinGeb`); warnings.push({ member_id: r.member_id, text: `${d.name}: Geburtsdatum fehlt – in der Familienmitgliedschaft von ${r.person_name} gilt die Person als Erwachsene/r.` }); }
               if (a === max + 1 && !famWarned.has(`${d.name}|${pr.from}`)) { famWarned.add(`${d.name}|${pr.from}`); warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – nicht mehr im Familientarif von ${r.person_name}, bitte eigene Beitragsart zuweisen.` }); }
               else if (a != null && a > max + 1 && adults > 1) warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – neben ${r.person_name} ist schon ein weiterer Erwachsener in der Familienmitgliedschaft (erlaubt: Oberhaupt und ein Partner). Bitte eigene Beitragsart zuweisen.` });
             }

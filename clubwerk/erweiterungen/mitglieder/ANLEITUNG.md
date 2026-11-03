@@ -28,12 +28,14 @@ Alle anderen Module arbeiten mit denselben Personen. Ohne dieses Modul gibt es �
 Die Seite zeigt alle Mitglieder als Liste, nach Nachname und Vorname sortiert. Die Spalten:
 
 - **Name** („Nachname, Vorname“), darunter bei Austritt das Datum oder bei passiven, ruhenden und Ehrenmitgliedern der Status.
-- **Nr.** (die Mitgliedsnummer), **Alter** und **Abteilungen**.
+- **Nr.** (die Mitgliedsnummer), **Alter** und **Abteilungen**. Ein Klick auf die Überschrift **Name**, **Nr.** oder **Alter** sortiert die Liste, ein zweiter Klick dreht um (▲/▼); am Handy gibt es dafür das Feld „Sortieren“. Mitglieder ohne Nummer oder Geburtsdatum stehen immer am Ende. Clubwerk merkt sich die Wahl je Gerät.
 - **Beitrag:** die Beitragsart. Bei Familienmitgliedern steht „Familie“ mit dem Namen des Oberhaupts.
 - **Zahlung:** Lastschrift, Rechnung oder bar. Zahlt jemand anderes, steht „über Name“. Ein „+3“ zeigt, für wie viele Angehörige diese Person mitzahlt.
 - **Hinweise:** gelbe Markierungen, wo etwas fehlt oder zu prüfen ist, z. B. „Altersstufe prüfen“ oder „Mandat widerrufen“.
 
 Oben seht ihr einen **roten Warnkasten**, wenn Mitglieder Pflichtangaben fehlen (Mitgliedsdaten, Beitrag, Bankverbindung oder SEPA-Mandat). „Anzeigen“ springt in den Filter „Mit Hinweis“. Wer Pflichtangaben fehlen, fehlt im Beitragslauf.
+
+Auch ein **fehlendes Geburtsdatum** steht in der Liste als Hinweis „Geburtsdatum fehlt“ (Filter „Mit Hinweis“) und unter Einstellungen › Datenqualität. Solche Mitglieder fehlen in der LSB-Meldung und gelten bei Altersstufen und im Familientarif als erwachsen; der Beitragslauf warnt davor in der Vorschau.
 
 Zum Suchen und Filtern gibt es:
 
@@ -222,7 +224,7 @@ Oben steht, ob ein Handy für die Mitglieder-App freigeschaltet ist (und wann es
 
 Hier laufen Beitrittserklärungen und Änderungswünsche ein. Die Zahl am Reiter zeigt, wie viele auf euch warten. Die Knöpfe oben rechts:
 
-- **Formular (PDF):** das leere Papierformular zum Ausdrucken.
+- **Formular (PDF):** das leere Papierformular zum Ausdrucken. Wo man aus festen Möglichkeiten wählt, stehen Kästchen zum Ankreuzen (Geschlecht, Partner/in oder Kind mit der Altersgrenze aus den Einstellungen, Beitragsart, Einwilligungen). „Ort, Datum“ bleibt frei; erst das online oder am Tablet unterschriebene PDF trägt Wohnort und Datum der Unterschrift ein.
 - **Online-Antrag …:** schaltet den Antrag über die Adresse der Mitglieder-App ein und zeigt den Link zum Kopieren (er endet auf `/p/mitglieder/`). Gegen Missbrauch schützen eine Falle für automatische Formulare, eine Mindest-Ausfüllzeit und eine Begrenzung je Gerät und Tag.
 - **+ Beitrittserklärung:** ihr erfasst die Daten, das neue Mitglied unterschreibt am Tablet mit einem Code.
 
@@ -339,7 +341,7 @@ Zahlen für den Vorstand und die Verbände. Das **Stichtag**-Feld oben bestimmt,
 
 ![Die Bestandserhebung für den Landessportbund.](bild: seite=mv-auswertung; ziel=#mvBody > div:nth-child(4))
 
-Die Tabelle nach Altersgruppe und Geschlecht, wie sie der Landessportbund verlangt. „Excel zum 01.01.“ lädt sie als Datei. Mitglieder ohne Geburtsdatum zählt Clubwerk nicht mit und weist darauf hin.
+Die Tabelle nach Altersgruppe und Geschlecht, wie sie der Landessportbund verlangt. „Excel zum 01.01.“ lädt sie als Datei. Mitglieder ohne Geburtsdatum zählt Clubwerk nicht mit. Der Hinweis nennt sie mit Namen (Klick öffnet das Mitglied), „In der Liste anzeigen“ zeigt genau diese Mitglieder in der Mitgliederliste.
 
 #### Runde Geburtstage & Jubiläen
 
@@ -362,6 +364,7 @@ Die Karten stehen untereinander; jede hat ihr eigenes „Speichern“.
 ![Karte „Mitgliedschaft“.](bild: seite=mv-einstellungen; ziel=[data-set="mitgliedschaft"])
 
 - **Mitgliedsnummern ab:** die erste automatisch vergebene Nummer.
+- **Neue Nummer:** „ab dem Startwert“ vergibt nie eine Nummer unter dem Startwert; „nach höchster Nummer“ vergibt die höchste vorhandene Nummer plus 1, auch wenn der Startwert höher oder niedriger liegt (praktisch nach einem Import mit eigenen Nummern). Eine schon vergebene Nummer bekommt in beiden Fällen nie jemand zweimal. Verglichen wird der Zahlenteil: „007“ zählt als 7, Nummern ohne Ziffern werden übersprungen.
 - **Beitragsjahr beginnt am 1.:** der Monat, mit dem euer Beitragsjahr anfängt.
 - **Kündigungsfrist (Monate):** Grundlage für den frühesten Austrittstermin.
 - **Lastschrift ist Pflicht:** Neue Mitglieder brauchen dann Bankverbindung und SEPA-Mandat, „Rechnung“ und „bar“ sind nicht mehr wählbar. Ausgenommen sind Familienmitglieder und wer über einen Zahler zahlt. Bestehende Mitglieder mit anderer Zahlart erscheinen unter „Mit Hinweis“.

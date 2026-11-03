@@ -5,7 +5,7 @@
 
 Das ist der Kern von Clubwerk. Er gehört zu jeder Installation und enthält alles, was nicht zu einem einzelnen Modul gehört: die Übersicht, den Einrichtungs-Assistenten, Konten und PINs, die Verwaltung der Mitglieder-App, Benutzer und Rechte, die Datensicherung, das Protokoll, Nachrichten an Mitglieder, den Kontoauszug und die Einstellungen für den ganzen Verein.
 
-Die Module (Verkauf, Plätze, Mängel …) schaltet ihr unter Einstellungen › Module ein. Der Kern läuft auch ganz ohne Module. Ihr erreicht ihn in der Verwaltung über „Übersicht“ und die Menügruppe „Verein“.
+Die Module (Verkauf, Plätze, Mängel …) schaltet ihr unter Einstellungen › Module ein. Der Kern läuft auch ganz ohne Module. Ihr erreicht ihn in der Verwaltung über „Übersicht“, den Bereich „Verein“ (Benutzer & Rechte, System, Einstellungen) und den Bereich „Mitglieder“ (Nachrichten, Mitglieder-App).
 
 ## Einrichten {#einrichten}
 
@@ -18,7 +18,7 @@ Die Module (Verkauf, Plätze, Mängel …) schaltet ihr unter Einstellungen › 
 
 ## Verwaltung {#verwaltung}
 
-Links steht das Menü. Oben im Menü sucht ihr mit **Suchen** (Tastenkürzel Strg K bzw. ⌘K) nach Seiten, Einstellungen, Aktionen und Personen. Unten steht euer Name: Ein Klick öffnet „Mein Konto“, daneben öffnet das Tablet-Symbol die Tablet-Seite in einem neuen Tab und der Pfeil meldet euch ab. Über **Verwaltung** in der Kopfzeile des Tablets meldet Clubwerk nach einer Minute ohne Eingabe ab; eine Anmeldung direkt in der Verwaltung (zum Beispiel in der Seitenleiste von Home Assistant) bleibt davon unberührt, auch im selben Browser. Oben rechts öffnet das **„?“** die Anleitung des Bereichs, in dem ihr gerade seid, als PDF.
+Links steht das Menü, geordnet nach Bereichen: **Gastro**, **Sport**, **Anlage**, **Mitglieder**, **Finanzen** und **Verein**. Ein Klick auf einen Bereich klappt ihn auf oder zu. Der Bereich der Seite, auf der ihr gerade seid, ist immer offen, und jedes Gerät merkt sich, welche Bereiche ihr offen lasst. Ein Punkt an einem zugeklappten Bereich zeigt, dass darin etwas zu tun ist. Wer nur wenige Seiten sehen darf (bis 9), sieht alles ohne Aufklappen unter den Bereichsüberschriften. Mit der Tastatur wechseln Pfeil hoch und runter die Zeile, Pfeil rechts klappt einen Bereich auf, Pfeil links zu. Oben im Menü sucht ihr mit **Suchen** (Tastenkürzel Strg K bzw. ⌘K) nach Seiten, Einstellungen, Aktionen und Personen. Unten steht euer Name: Ein Klick öffnet „Mein Konto“, daneben öffnet das Tablet-Symbol die Tablet-Seite in einem neuen Tab und der Pfeil meldet euch ab. Über **Verwaltung** in der Kopfzeile des Tablets meldet Clubwerk nach einer Minute ohne Eingabe ab; eine Anmeldung direkt in der Verwaltung (zum Beispiel in der Seitenleiste von Home Assistant) bleibt davon unberührt, auch im selben Browser. Oben rechts öffnet das **„?“** die Anleitung des Bereichs, in dem ihr gerade seid, als PDF.
 
 ### Seite „Übersicht“ {#uebersicht}
 
@@ -42,11 +42,13 @@ Hier stehen Hinweise aus dem Kern und allen Modulen: offene Sicherheitswarnungen
 
 Jedes eingeschaltete Modul hat eine Kachel mit Zustand (Läuft, Hinweis, Störung) und seiner wichtigsten Zahl. Ein Klick öffnet das Modul. Darunter stehen, wenn es etwas gibt, „Bestand knapp“ und „Letzte Lieferungen“ des Verkaufs.
 
-> Am Handy öffnet das Symbol links oben mit „Menü“ die Menüleiste.
+> Am Handy öffnet der Knopf oben rechts das Menü. Er zeigt den Bereich, in dem ihr gerade seid (zum Beispiel „Finanzen“).
 
-### Seite „Einrichtung“ {#einrichtung}
+### Reiter „Einrichtung“ (Seite „System“) {#einrichtung}
 
-![Die Seite „Einrichtung“: offene, erledigte und ausgeblendete Punkte.](bild: seite=einrichtung; ziel=.card:has(.wizbar))
+Die Seite **System** im Bereich „Verein“ hat drei Reiter: Datensicherung, Protokoll und Einrichtung.
+
+![Der Reiter „Einrichtung“: offene, erledigte und ausgeblendete Punkte.](bild: seite=einrichtung; ziel=.card:has(.wizbar))
 
 Die Checkliste für alles, was zur Einrichtung gehört. Oben steht „Einrichtung zu … % fertig“. Die Punkte sind in drei Listen sortiert: **Offen**, **Erledigt** und **Ausgeblendet**. Zu den Punkten gehören die allgemeinen Schritte (Sprache, Admin-Konto, Verein, „Wie nutzt ihr Clubwerk?“, Module wählen, Sicherheit, Postfach, Mitglieder-App, Vereinsnetz, Sicherungen) und die Schritte eurer Module (zum Beispiel „Artikel und Preise“ beim Verkauf oder „Plätze anlegen“ bei den Plätzen). Jedes Modul meldet seine Schritte selbst.
 
@@ -118,7 +120,7 @@ Mitglied wählen, die gewünschten Bereiche ankreuzen und **Freischalten & einla
 - **QR-Code hier am Bildschirm:** Das Mitglied scannt ihn mit der Handy-Kamera, am besten direkt vor Ort. Er gilt einmal und nur kurze Zeit (einstellbar). Danach legt das Mitglied seine App-PIN fest. Den Code nicht abfotografieren: Wer ihn zuerst scannt, bekommt den Zugang.
 - **Per E-Mail schicken:** persönlicher Link, gilt einige Tage. Braucht ein Postfach und die Adresse in der Mitgliederverwaltung. Die Mail sagt gleich nach der Anrede, was zu tun ist („Öffne diese E-Mail auf deinem Handy und tippe auf den Knopf“), hat einen großen Knopf „App jetzt freischalten“ über die ganze Breite, drei nummerierte Schritte und darunter die Adresse als Text für den Fall, dass der Knopf nicht geht.
 - **Einladungsbrief drucken:** QR-Code mit Anleitung auf Papier.
-- **Türen und Beregnung jetzt freigeben:** erscheint nur, wenn ein Handy von unterwegs ohne SMS-Code gekoppelt wurde.
+- **Bereiche im Vereins-WLAN jetzt freigeben:** erscheint nur, wenn ein Handy von unterwegs ohne SMS-Code gekoppelt wurde.
 
 #### Freigeschaltete Mitglieder
 
@@ -161,7 +163,21 @@ Eine Tabelle für alle Bereiche der App, ein „Speichern“ für alles:
 - **Beim Freischalten:** „vorwählen“ kreuzt den Bereich bei neuen Mitgliedern von selbst an.
 - **Start** und **↑ ↓:** Startbereich und Reihenfolge. Von Haus aus öffnet die App „Für mich“.
 
-„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen. Haben die Vorstände Push-Anlässe freigegeben und das Handy hat Benachrichtigungen noch nicht eingeschaltet, steht ganz oben die Karte **„Benachrichtigungen einschalten“** mit „Einschalten“ und „Später“ (blendet sie 14 Tage aus). Der Satz auf der Karte nennt nur, was der Vorstand wirklich freigegeben hat und was es im Verein gibt, zum Beispiel „Damit du Platzbuchungen, Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.“ (bei mehr als vier Bereichen „… und mehr“). Immer erscheint nur die Karte, die als Nächstes nötig ist, passend zum Handy: auf dem **iPhone** erst die Schritte „Teilen-Symbol → Zum Home-Bildschirm → von dort öffnen“ (ohne feste Lage der Leiste, denn sie sitzt je nach Einstellung oben, unten oder im Menü „…“; ab iOS 16.4, früher gibt es dort kein Push); läuft die Seite in einem anderen Programm (Gmail, WhatsApp, Instagram …), zuerst „In Safari öffnen“ mit „Adresse kopieren“. Auf **Android** geht Push ohne Startbildschirm, dort kommt gleich „Einschalten“; in einem eingebetteten Browser zuerst „Im Browser öffnen“. Ist Push im Handy gesperrt, steht dort, wo man es erlaubt; kann das Gerät gar kein Push (Desktop, Huawei ohne Google-Dienste), erscheint keine Karte. Nach dem Einschalten verschwindet die Karte.
+„Für mich“ steht immer ganz vorn. Es ist die Startseite der App mit den Karten „Neu für dich“, „Als Nächstes“, „Zu erledigen“ und „Mein Konto“. Offene Antworten zu Terminen und Spieltagen erscheinen nur als Hinweis („Termine: n Antworten offen“, „Spieltage: n Rückmeldungen offen“), ohne Knöpfe und ohne Zeitgrenze. Wer ein Thekenkonto hat, kann es unten per Häkchen auch unter „Für mich“ anzeigen lassen. Auf Android-Handys (Chrome, Edge, Samsung Internet) steht davor die Karte **„App installieren“**: Ein Antippen öffnet den Installationsdialog des Handys, danach startet die App direkt vom Startbildschirm – die Freischaltung bleibt erhalten. „Später“ blendet sie 14 Tage aus; wo der Browser keinen Installationsknopf anbietet (z. B. Firefox), steht dort stattdessen die Anleitung des Browsers (Menü öffnen › „App installieren“ bzw. „Zum Startbildschirm hinzufügen“, in Samsung Internet „Seite hinzufügen zu › Startbildschirm“, in Firefox „Installieren“) – nie „Teilen“, das gibt es nur auf dem iPhone. Läuft die Seite in Gmail oder WhatsApp, kommt zuerst „Im Browser öffnen“. Die Karte bleibt, bis die App installiert ist oder „Später“ gedrückt wird, auch wenn Benachrichtigungen schon gehen. In der installierten App erscheint sie nie. Merkt der Browser, dass die App schon installiert ist (Android teilt den Speicher mit der App), steht nur der Hinweis „Du hast die App schon – öffne sie vom Startbildschirm“. Auf dem iPhone kann Safari das nicht wissen: Dort (und bei den Anleitungen ohne Installationsknopf) blendet „Habe ich schon installiert“ die Karte dauerhaft aus. Haben die Vorstände Push-Anlässe freigegeben und das Handy hat Benachrichtigungen noch nicht eingeschaltet, steht ganz oben die Karte **„Benachrichtigungen einschalten“** mit „Einschalten“ und „Später“ (blendet sie 14 Tage aus). Der Satz auf der Karte nennt nur, was der Vorstand wirklich freigegeben hat und was es im Verein gibt, zum Beispiel „Damit du Platzbuchungen, Spieltage, Dienste und Nachrichten vom Verein nicht verpasst.“ (bei mehr als vier Bereichen „… und mehr“). Immer erscheint nur die Karte, die als Nächstes nötig ist, passend zum Handy: auf dem **iPhone** erst die Schritte „Teilen-Symbol → Zum Home-Bildschirm → von dort öffnen“ (ohne feste Lage der Leiste, denn sie sitzt je nach Einstellung oben, unten oder im Menü „…“; ab iOS 16.4, früher gibt es dort kein Push); läuft die Seite in einem anderen Programm (Gmail, WhatsApp, Instagram …), zuerst „In Safari öffnen“ mit „Adresse kopieren“. Auf **Android** geht Push ohne Startbildschirm, dort kommt gleich „Einschalten“; in einem eingebetteten Browser zuerst „Im Browser öffnen“. Ist Push im Handy gesperrt, steht dort, wo man es erlaubt; kann das Gerät gar kein Push (Desktop, Huawei ohne Google-Dienste), erscheint keine Karte. Nach dem Einschalten verschwindet die Karte.
+
+**App installieren – je Gerät die richtige Karte:** Unter „Für mich“ steht immer nur die Karte, die als Nächstes nötig ist, nie eine falsche Anleitung (der Browser wird an Merkmalen erkannt, nicht nur am Namen). In der installierten App erscheint sie nie.
+
+| Gerät | Karte |
+|---|---|
+| Android (Chrome, Edge, Samsung Internet, Opera, Xiaomi, Huawei …) | Knopf **„App installieren“**; bietet der Browser ihn nicht an, die Schritte des Browsers (Menü › „App installieren“ bzw. „Zum Startbildschirm hinzufügen“; Samsung: „Seite hinzufügen zu › Startbildschirm“; Firefox: „Installieren“; unbekannte Browser: allgemeine Anleitung). Nie „Teilen“. |
+| Android in Gmail/WhatsApp u. Ä. | zuerst **„Im Browser öffnen“** |
+| iPhone und iPad (auch Chrome, Edge, Firefox) | Teilen-Symbol › „Zum Home-Bildschirm“ (iPadOS meldet sich als Mac und wird über die Berührung erkannt); vor iOS 16.4 in Chrome/Firefox/Edge zuerst „In Safari öffnen“ |
+| iPhone/iPad in Gmail, WhatsApp, Instagram … | zuerst **„In Safari öffnen“** |
+| Rechner mit Chrome oder Edge | Knopf **„App installieren“**; sonst das Installieren-Symbol der Adressleiste bzw. Menü › „Seite als App installieren“ |
+| Safari am Mac (ab Safari 17) | Teilen-Symbol oder „Ablage“ › „Zum Dock hinzufügen“ |
+| Firefox am Rechner | keine Karte (Firefox installiert dort nicht); Benachrichtigungen gehen auch ohne Installation |
+
+„Später“ blendet die Karte 14 Tage aus; „Habe ich schon installiert“ dauerhaft (nötig, wo der Browser es nicht selbst merkt, etwa Safari auf dem iPhone). Merkt der Browser, dass die App schon da ist, steht nur der Hinweis „Du hast die App schon“.
 
 **Kalender abonnieren:** Unter „Mehr“ › „Mein Konto“ erstellt sich jedes Mitglied einen persönlichen Link für den Kalender seines Handys. Darin stehen seine Dienste, zugesagten Termine, Platzbuchungen und Spiele der eigenen Mannschaften – nur aus Bereichen, die es in der App hat, ohne Namen anderer. Der Kalender holt sie selbst regelmäßig ab. Damit das auch unterwegs klappt, braucht die App eine öffentliche Adresse (Reiter „Einstellungen“, „Von unterwegs erreichbar“). „Neuer Link“ macht den alten ungültig, „Abo beenden“ löscht ihn. Wird das Handy entfernt, gilt der Link nicht mehr.
 
@@ -310,7 +326,7 @@ Eine Rolle hat einen Namen, eine Beschreibung und Rechte. Die Liste zeigt, wie v
 
 **Nur Mitglieder der eigenen Abteilungen** ist für Abteilungsleitungen gedacht: Sie sehen nur die Mitglieder ihrer Abteilung (gilt für die Rechte „Mitglieder“ und „Nachrichten“). Eine Rolle, die Benutzer hat, lässt sich nicht löschen.
 
-### Seite „Datensicherung“ {#sicherung}
+### Reiter „Datensicherung“ (Seite „System“) {#sicherung}
 
 ![Die Datensicherung: Kennzahlen und Karten.](bild: seite=sicherung; ziel=.kpis)
 
@@ -389,7 +405,7 @@ Gleicher Name → aktualisiert, sonst neu. **Gelöscht wird nichts.** Wer zweima
 
 Zusätzlich sichert Clubwerk jede Nacht nur die Datenbank (die letzten 14 Nächte), praktisch, um einen Fehler der letzten Tage schnell rückgängig zu machen. **Schnappschuss jetzt** legt einen an, **.db-Datei einspielen …** lädt einen hoch, jeder Eintrag lässt sich herunterladen oder wiederherstellen. Zum Herunterladen fragt Clubwerk nach eurem Passwort, denn der Schnappschuss enthält auch die Schlüssel der Datensicherung.
 
-### Seite „Protokoll“ {#protokoll}
+### Reiter „Protokoll“ (Seite „System“) {#protokoll}
 
 ![Das Protokoll: Zeit, Wer, Aktion und Details.](bild: seite=protokoll; fuelle=#aq::Nachricht)
 

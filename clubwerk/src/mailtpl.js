@@ -58,7 +58,10 @@ function render({ subject, text, card, preheader }) {
     cardHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:4px 0 18px;background:${soft};border:1px solid ${line};border-radius:12px;">
       <tr><td style="padding:16px 18px;">
         ${card.title ? `<div style="font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:17px;font-weight:700;line-height:1.35;color:#1f2723;margin:0 0 ${rows.length ? 10 : 0}px;">${esc(card.title)}</div>` : ''}
-        ${rows.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows.map(([k, v]) => `<tr>
+        ${rows.length ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${rows.map(([k, v]) => String(v).length > 36   // langer Wert (Hinweis, Beschreibung): Bezeichnung darüber, Wert in voller Breite – nicht in der schmalen Spalte
+          ? `<tr><td colspan="2" style="padding:6px 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:400;line-height:1.45;color:#5b6660;">${esc(k)}</td></tr>
+          <tr><td colspan="2" style="padding:2px 0 4px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:600;line-height:1.45;color:#1f2723;">${esc(v)}</td></tr>`
+          : `<tr>
           <td style="padding:4px 12px 4px 0;width:34%;vertical-align:top;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13.5px;font-weight:400;line-height:1.45;color:#5b6660;">${esc(k)}</td>
           <td style="padding:4px 0;vertical-align:top;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:14.5px;font-weight:600;line-height:1.45;color:#1f2723;">${esc(v)}</td></tr>`).join('')}</table>` : ''}
         ${card.calendar && /^https:\/\//i.test(String(card.calendar.url || '')) ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0 2px;"><tr>

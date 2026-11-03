@@ -394,13 +394,29 @@
     ['bestellung', 'Bestellung', 'bestellung', 'lager'], ['lieferungen', 'Lieferungen & Belege', 'lieferungen', 'lager'],
     ['bestand', 'Bestand & Inventur', 'bestand', 'lager'], ['artikel', 'Artikel', 'artikel', 'lager'],
     ['konten', 'Mitglieder & Konten', 'konten', 'verein'], ['app', 'Mitglieder-App', ['konten', 'app'], 'verein'], ['benutzer', 'Benutzer & Rechte', 'benutzer', 'verein'],
-    ['sicherung', 'Datensicherung', 'einstellungen', 'verein'], ['protokoll', 'Protokoll', 'einstellungen', 'verein'], ['einstellungen', 'Einstellungen', null, 'verein'],
+    ['sicherung', 'Datensicherung', 'einstellungen', 'system'], ['protokoll', 'Protokoll', 'einstellungen', 'system'], ['einstellungen', 'Einstellungen', null, 'verein'],
     ['konto', 'Mein Konto', null, 'konto'],   // erreichbar über den Benutzerchip, nicht im Menü
   ];
   /* Module mit mehreren Seiten: ein Menüeintrag, die Seiten als Reiter unter der Überschrift (wie bei „Verkauf“) */
   /* Feste Reihenfolge der Module im Menü (order): Verkauf 1 · Lager 1.5 · Plätze 2 · Spielbetrieb 2.5 · Helferdienste 3 · Zeiterfassung 4 · Beregnung 5 · Zugang 6 · Mängel 6.5 · Mitglieder 7 · Beiträge & Zahlungen 7.5 · Buchhaltung 8 (wie MODULE_ORDER in src/plugins.js);
      Einzelseiten geben ihre Position über registerPage({ order }) an, sonst 50 (Reihenfolge der Registrierung) */
-  const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 1 }, lager: { label: 'Lager', icon: 'lager', order: 1.5 } };
+  const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 1 }, lager: { label: 'Lager', icon: 'lager', order: 1.5 },
+    system: { label: 'System', icon: 'sicherung', order: 90 } };   // System: Datensicherung · Protokoll · Einrichtung als Reiter (Seiten ohne eigene Reiter)
+  /* Bereiche der Seitenleiste nach Aufgaben (Entscheidung Thorsten 03.11.2026, planung/seitenleiste.md), je Bereich die Menüeinträge in fester Reihenfolge.
+     Eintrag = Gruppe (getraenke, g-buchung …) oder Einzelseite. Andere Module nennen ihren Bereich mit registerPage({ bereich }), sonst „Verein“.
+     Bis 9 Einträge zeigt die Leiste alles flach mit Bereichsüberschriften, darüber sind die Bereiche aufklappbar. */
+  const BEREICHE = [
+    ['gastro', 'Gastro', 'verkauf', ['getraenke', 'lager']],
+    ['sport', 'Sport', 'pokal', ['g-buchung', 'spielbetrieb', 'turniere', 'turniertag', 'turnierplaner']],
+    ['anlage', 'Anlage', 'anlage', ['beregnung', 'g-flutlicht', 'g-zugang', 'maengel']],
+    ['mitglieder', 'Mitglieder', 'konten', ['g-mitglieder', 'g-arbeitseinsatz', 'g-zeiterfassung', 'email', 'app', 'konten']],
+    ['finanzen', 'Finanzen', 'zahlung', ['g-mv-zahlungen', 'g-buchhaltung']],
+    ['verein', 'Verein', 'einstellungen', ['benutzer', 'system', 'einstellungen']],
+  ];
+  const BEREICH_OF = {};   // Eintrag → Bereich, aus registerPage({ bereich })
+  const NAV_FLACH = 9;
+  const bereichOf = k => { const b = BEREICHE.find(x => x[3].includes(k)); return b ? b[0] : BEREICHE.some(x => x[0] === BEREICH_OF[k]) ? BEREICH_OF[k] : 'verein'; };
+  const navKey = p => groupOf(p) || p;   // Menüeintrag einer Seite
   const PAGE_ORDER = {};
   const PAGE_MOD = {};   // Seite → Modul (Erweiterungs-id), siehe GK.pageModule
   /** Recht ohne Abteilungs-Einschränkung („!recht“ in registerPage) */
@@ -432,6 +448,8 @@
     einstellungen: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.9 4.9 7 7M17 17l2.1 2.1M2 12h3M19 12h3M4.9 19.1 7 17M17 7l2.1-2.1"/>',
     modul: '<path d="M10 3H5a2 2 0 0 0-2 2v5h3a2 2 0 1 1 0 4H3v5a2 2 0 0 0 2 2h5v-3a2 2 0 1 1 4 0v3h5a2 2 0 0 0 2-2v-5h-3a2 2 0 1 1 0-4h3V5a2 2 0 0 0-2-2h-5v3a2 2 0 1 1-4 0z"/>',
     suche: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
+    anlage: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v12h14V9"/><path d="M10 21v-6h4v6"/>',
+    pfeil: '<path d="m9 6 6 6-6 6"/>',
     lager: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
     maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
     arbeit: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>',
@@ -456,7 +474,7 @@
   const GPAGES = g => PAGES.filter(x => x[3] === g && canAny(x[2]));
   const DRINKS = () => [...GPAGES('getraenke'), ...GPAGES('lager')];   // alle Seiten des Moduls Verkauf (auch „Lager“)
   const groupOf = p => { const x = PAGES.find(y => y[0] === p); return x && MODG[x[3]] ? x[3] : null; };
-  const GROUP_LABEL = new Proxy({ module: 'Module', verein: 'Verein & System', konto: 'Mein Konto' }, { get: (o, k) => (MODG[k] ? MODG[k].label : o[k]) });
+  const GROUP_LABEL = new Proxy({ module: 'Module', verein: 'Verein', konto: 'Mein Konto' }, { get: (o, k) => (MODG[k] ? MODG[k].label : o[k]) });
   const initials = n => String(n || '?').split(/[\s,]+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase();
   const sget = k => { try { return sessionStorage.getItem(k); } catch (e) { return null; } };
   const sset = (k, v) => { try { sessionStorage.setItem(k, v); } catch (e) { /* egal */ } };
@@ -465,11 +483,21 @@
 
   function showShell() {
     const navBtn = (k, label, ic, badge) => `<button class="nav" data-p="${k}">${icon(ic)}<span>${esc(label)}</span>${badge ? `<span class="badge hidden" data-badge="${badge}"></span>` : ''}</button>`;
-    // Modul-Gruppen (mehrere Reiter) und Einzelseiten in einer Liste, nach fester Reihenfolge (order)
-    const groups = Object.entries(MODG).filter(([g]) => GPAGES(g).length).map(([g, m]) => ({ order: m.order || 50, html: navBtn('__' + g, m.label, m.icon || 'modul', g) }));
-    const mods = PAGES.filter(x => x[3] === 'module' && canAny(x[2])).map(([k, l]) => ({ order: PAGE_ORDER[k] || 50, html: navBtn(k, l, PAGE_ICON[k] || 'modul', k) }));
-    const modNav = [...groups, ...mods].sort((a, b) => a.order - b.order).map(x => x.html).join('');
-    const verein = PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length));
+    // Alle Menüeinträge (Modul-Gruppen mit Reitern und Einzelseiten), die dieser Benutzer sehen darf, nach Bereichen geordnet
+    const items = [
+      ...Object.entries(MODG).filter(([g]) => GPAGES(g).length).map(([g, m]) => ({ k: g, order: m.order || 50, html: navBtn('__' + g, m.label, m.icon || 'modul', g) })),
+      ...PAGES.filter(x => x[3] === 'module' && canAny(x[2])).map(([k, l]) => ({ k, order: PAGE_ORDER[k] || 50, html: navBtn(k, l, PAGE_ICON[k] || 'modul', k) })),
+      ...PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length))
+        .map(([k, l], i) => ({ k, order: 100 + i, html: navBtn(k, TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, PAGE_ICON[k] || 'modul', k === 'konten' ? k : '') })),
+    ];
+    const pos = it => { const b = BEREICHE.find(x => x[3].includes(it.k)); return b ? b[3].indexOf(it.k) : 50 + it.order; };
+    const bereiche = BEREICHE.map(([b, l, ic]) => ({ b, l, ic, list: items.filter(it => bereichOf(it.k) === b).sort((x, y) => pos(x) - pos(y)) })).filter(x => x.list.length);
+    const flach = items.length <= NAV_FLACH;
+    const offen = navOpen();
+    const navHtml = bereiche.map(({ b, l, ic, list }) => (flach || bereiche.length === 1
+      ? `${bereiche.length > 1 ? `<div class="grp">${esc(l)}</div>` : ''}${list.map(x => x.html).join('')}`
+      : `<div class="navg${offen.includes(b) ? ' open' : ''}" data-b="${b}"><button type="button" class="navb" id="nbh-${b}" aria-expanded="${offen.includes(b)}" aria-controls="nb-${b}">${icon(ic)}<span>${esc(l)}</span><span class="badge hidden"></span>${icon('pfeil', 16).replace('<svg', '<svg class="chev"')}</button>
+          <div class="navgi" id="nb-${b}" role="group" aria-labelledby="nbh-${b}">${list.map(x => x.html).join('')}</div></div>`)).join('');
     $('app').innerHTML = `<div class="shell">
       <nav class="side glass" id="side">
         <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : '<span id="clubIni"></span>'}</div>
@@ -478,29 +506,58 @@
         <div class="navbody">
           <label class="search">${icon('suche')}<input id="navSearch" placeholder="Suchen" aria-label="Seite suchen" autocomplete="off"><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Strg K'}</kbd><div class="results hidden" id="navRes"></div></label>
           ${navBtn('uebersicht', 'Übersicht', 'uebersicht')}
-          ${modNav ? '<div class="grp">Module</div>' : ''}
-          ${modNav}
-          ${verein.length ? '<div class="grp">Verein</div>' : ''}
-          ${verein.map(([k, l]) => navBtn(k, TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, PAGE_ICON[k] || 'modul', k === 'konten' || k === 'sicherung' ? k : '')).join('')}
+          ${navHtml}
         </div>
-        <div class="userchip"><a class="who" href="#konto" id="myAcc" title="Mein Konto" aria-label="Mein Konto"><div class="av">${esc(initials(me.name || me.username))}</div>
-          <div class="nm"><b>${esc(me.name || me.username)}</b><span>${me.role === 'oberadmin' ? 'Alle Rechte' : 'Admin'} · Mein Konto</span></div></a><div class="ucbtns">
+        <div class="userchip"><a class="who" href="#konto" id="myAcc" title="${esc(T('Mein Konto'))} · ${esc(T(me.role === 'oberadmin' ? 'Alle Rechte' : 'Admin'))}" aria-label="Mein Konto"><div class="av">${esc(initials(me.name || me.username))}</div>
+          <div class="nm"><b>${esc(me.name || me.username)}</b><span>Mein Konto</span></div></a><div class="ucbtns">
           ${window.top === window && tabletOnUI ? `<a class="iconbtn" href="./" target="_blank" title="Tablet-Seite öffnen" aria-label="Tablet-Seite öffnen">${icon('tablet', 16)}</a>` : ''}
           <button class="iconbtn" id="logout" title="Abmelden" aria-label="Abmelden">${icon('abmelden', 16)}</button></div></div>
       </nav>
       <div class="content"><div class="pagebar" id="pagebar"></div><main id="main"></main></div></div>`;
     wireLogos();
     $('side').addEventListener('click', e => {
+      const h = e.target.closest('button.navb'); if (h) { navToggle(h.parentElement); return; }
       const b = e.target.closest('button.nav[data-p]'); if (!b) return;
       if (b.dataset.p.startsWith('__')) { const g = b.dataset.p.slice(2); const last = sget('cw_grp_' + g); go(last && GPAGES(g).some(x => x[0] === last) ? last : GPAGES(g)[0][0]); }
       else go(b.dataset.p);
     });
+    $('side').querySelector('.navbody').addEventListener('keydown', navKeys);
     $('menuT').onclick = () => $('side').classList.toggle('open');
     $('logout').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
     bindSearch();
     api('settings').then(s => { cache.settings = s; $('clubName').textContent = String(s.clubName).replace(/\be\.\s+V\./g, 'e.\u00a0V.');   /* „e. V.“ nie auf zwei Zeilen */ document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
     refreshBadges();
     go(page);
+  }
+
+  /* Aufklappbare Bereiche: was offen ist, merkt sich das Gerät (mehrere gleichzeitig, Entscheidung Thorsten 03.11.2026) */
+  function navOpen() { try { const v = JSON.parse(localStorage.getItem('cw_nav_offen') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+  function navToggle(box, on = !box.classList.contains('open')) {
+    box.classList.toggle('open', on); box.querySelector('.navb').setAttribute('aria-expanded', String(on));
+    const o = [...document.querySelectorAll('#side .navg.open')].map(x => x.dataset.b);
+    try { localStorage.setItem('cw_nav_offen', JSON.stringify(o)); } catch (e) { /* egal */ }
+  }
+  /** Punkte der Einträge sammeln sich am zugeklappten Bereich (rot vor gelb) */
+  function navDots() {
+    document.querySelectorAll('#side .navg').forEach(g => {
+      const on = [...g.querySelectorAll('.navgi .badge:not(.hidden)')], d = g.querySelector('.navb .badge');
+      d.classList.toggle('hidden', !on.length); d.classList.toggle('r', on.some(x => x.classList.contains('r'))); d.classList.toggle('a', on.length > 0 && !on.some(x => x.classList.contains('r')));
+    });
+  }
+  /** Tastatur in der Leiste: ↑/↓ von Zeile zu Zeile, → klappt einen Bereich auf (bzw. springt hinein), ← klappt zu (bzw. springt zum Bereich), Pos1/Ende */
+  function navKeys(e) {
+    const t = e.target; if (!(t.classList.contains('nav') || t.classList.contains('navb')) || !/^(Arrow(Up|Down|Left|Right)|Home|End)$/.test(e.key)) return;
+    const all = [...$('side').querySelectorAll('.navbody button.nav, .navbody button.navb')].filter(b => b.offsetParent);
+    const i = all.indexOf(t), box = t.closest('.navg');
+    let n = null;
+    if (e.key === 'ArrowDown') n = all[Math.min(all.length - 1, i + 1)];
+    else if (e.key === 'ArrowUp') n = all[Math.max(0, i - 1)];
+    else if (e.key === 'Home') n = all[0];
+    else if (e.key === 'End') n = all[all.length - 1];
+    else if (e.key === 'ArrowRight' && t.matches('.navb')) { if (!box.classList.contains('open')) navToggle(box, true); else n = box.querySelector('.navgi button.nav'); }
+    else if (e.key === 'ArrowLeft' && box) { if (t.matches('.navb')) navToggle(box, false); else n = box.querySelector('.navb'); }
+    else return;
+    e.preventDefault(); if (n) n.focus();
   }
 
   /* ---------- Suche (Strg/⌘ K) ----------
@@ -672,12 +729,16 @@
     const g = groupOf(p);
     if (g) sset('cw_grp_' + g, p);
     document.querySelectorAll('#side button.nav').forEach(b => b.classList.toggle('on', g ? b.dataset.p === '__' + g : b.dataset.p === p));
+    const cur = document.querySelector('#side button.nav.on');
+    document.querySelectorAll('#side .navg').forEach(x => { const has = Boolean(cur && x.contains(cur)); x.classList.toggle('cur', has); if (has && !x.classList.contains('open')) navToggle(x, true); });
     const pg = PAGES.find(x => x[0] === p);
-    if ($('menuCur')) $('menuCur').textContent = pg ? (g ? MODG[g].label : p === 'konten' ? 'Mitglieder' : pg[1]) : 'Menü';
+    // Menüknopf am Handy: der Bereich der Seite (ein kurzes Wort, immer einzeilig) – die Seite selbst steht als Überschrift darunter
+    if ($('menuCur')) $('menuCur').textContent = !pg ? 'Menü' : ['start', 'konto'].includes(pg[3]) ? pg[1] : (BEREICHE.find(x => x[0] === bereichOf(navKey(p))) || [0, 'Menü'])[1];
     const bar = $('pagebar'); if (!bar) return;
     const help = `<button type="button" class="helpbtn" id="docHelp" title="${esc(T('Anleitung zu dieser Seite (PDF)'))}" aria-label="${esc(T('Anleitung zu dieser Seite (PDF)'))}">?</button>`;
     if (!pg || p === 'uebersicht') { bar.innerHTML = pg ? `<div class="pagebarrow"><span></span>${help}</div>` : ''; }
-    else bar.innerHTML = `<div class="pagebarrow"><div class="crumb">${g ? 'Module · ' + esc(MODG[g].label) : pg[3] === 'module' ? 'Module · ' + esc(pg[1]) : esc(GROUP_LABEL[pg[3]] || '')}</div>${help}</div>`;
+    else { const bl = (BEREICHE.find(x => x[0] === bereichOf(navKey(p))) || [])[1];   // Bereich · Menüeintrag, wie in der Leiste
+      bar.innerHTML = `<div class="pagebarrow"><div class="crumb">${esc(bl)} · ${esc(g ? MODG[g].label : p === 'konten' ? TAB_LABEL.konten : pg[1])}</div>${help}</div>`; }
     if ($('docHelp')) { $('docHelp').onclick = docOpen; docLoad(); }
     if (!pg || p === 'uebersicht') return;
     const old = $('main') && $('main').querySelector('.tabrow:has(> .drinktabs)');
@@ -798,10 +859,10 @@
     }
     for (const fn of BADGE_HOOKS) { try { Object.assign(badges, await fn()); } catch (e) { /* egal */ } }
     // Menüeinträge: Seite selbst oder Summe der Seiten eines Moduls
-    for (const g of Object.keys(MODG)) setB(g, GPAGES(g).reduce((a, x) => a + (badges[x[0]] || 0), 0), 'a');
+    for (const g of Object.keys(MODG)) { const v = GPAGES(g).map(x => badges[x[0]] || 0); setB(g, v.includes('!') ? '!' : v.reduce((a, x) => a + x, 0), v.includes('!') ? 'r' : 'a'); }   // „!“ = Sicherung fehlt (rot)
     PAGES.filter(x => x[3] === 'module').forEach(([k]) => setB(k, badges[k] || 0, 'a'));
     setB('konten', groupOf('konten') ? 0 : badges.konten || 0);
-    setB('sicherung', badges.sicherung || 0, 'r');
+    navDots();
     if (groupOf(page)) setChrome(page);
   }
   const BADGE_HOOKS = [];
@@ -863,9 +924,29 @@
     el.querySelector('[data-fbimp]').onclick = () => funcImport(id, name, after);
   }
 
+  /** Sortierbare Tabelle: Klick auf die Spaltenüberschrift sortiert, zweiter Klick dreht um (aria-sort, Pfeil ▲/▼, Tastatur), am Handy eine Auswahl.
+   *  cols = { schluessel: { label, cmp: (a, b) => Zahl, empty?: zeile => Leerwert (immer ans Ende), selLabel?: [aufsteigend, absteigend] } }, def = { k, d } (d: 1 oder -1).
+   *  Wahl wird je Gerät gemerkt (localStorage, key). Nutzung: GK.sortKit(…).sort(zeilen), .th('k', 'Name'), .select(id), .bind(wurzel, selectElement, neuZeichnen). */
+  function sortKit(key, def, cols) {
+    let s = def; try { const v = JSON.parse(localStorage.getItem(key) || 'null'); if (v && cols[v.k] && (v.d === 1 || v.d === -1)) s = v; } catch (e) { /* ohne Speicher */ }
+    const save = () => { try { localStorage.setItem(key, JSON.stringify(s)); } catch (e) { /* ohne Speicher */ } };
+    const tie = cols[def.k].cmp;
+    return {
+      get: () => s,
+      sort: rows => rows.slice().sort((a, b) => { const c = cols[s.k], ea = c.empty ? c.empty(a) : false, eb = c.empty ? c.empty(b) : false; return ea !== eb ? (ea ? 1 : -1) : (ea ? 0 : c.cmp(a, b) * s.d) || tie(a, b); }),
+      th: (k, label, attrs = '') => `<th ${attrs} aria-sort="${s.k === k ? (s.d === 1 ? 'ascending' : 'descending') : 'none'}"><button type="button" class="srt" data-srt="${k}">${esc(label)}<span class="srt-pfeil" aria-hidden="true">${s.k === k ? (s.d === 1 ? '▲' : '▼') : ''}</span></button></th>`,
+      select: id => `<label class="f mv-fsel srt-sel"><select id="${id}" data-nodirty aria-label="${esc(T('Sortieren'))}">${Object.entries(cols).map(([k, c]) => [1, -1].map(d => `<option value="${k}:${d}"${s.k === k && s.d === d ? ' selected' : ''}>${esc(T(c.selLabel ? c.selLabel[d === 1 ? 0 : 1] : c.label + (d === 1 ? ' aufsteigend' : ' absteigend')))}</option>`).join('')).join('')}</select></label>`,
+      bind(root, sel, redraw) {
+        const set = (k, d) => { s = { k, d }; save(); if (sel) sel.value = `${k}:${d}`; redraw(); };
+        root.addEventListener('click', e => { const b = e.target.closest('[data-srt]'); if (b && root.contains(b)) set(b.dataset.srt, s.k === b.dataset.srt ? -s.d : 1); });
+        if (sel) sel.onchange = () => { const [k, d] = sel.value.split(':'); set(k, +d); };
+      },
+    };
+  }
+
   /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
   window.GK = {
-    $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
+    sortKit, $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
     scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** ungespeicherte Änderungen? Rückfrage „Verwerfen?“ → true = weiter */
@@ -893,17 +974,19 @@
     /** Eigener Reiter auf der Seite „Mitglieder-App“ (Verein): registerAppSection({ key, label, perm, render(el) }) –
      *  el ist eine leere Karte, render füllt sie (Überschrift, Felder, Speichern) */
     registerAppSection({ key, label, perm, render }) { if (/^[a-z0-9-]+$/.test(key) && !APP_EXTRA.some(x => x.key === key)) APP_EXTRA.push({ key, label, perm, render }); },
-    /** registerPage({ key, title, perm, render, group, before, icon, tab, order })
-     *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“)
-     *  order: Position im Menü unter „Module“ (Verkauf 1 … Buchhaltung 8; ohne Angabe 50 = hinten, in Registrierungsreihenfolge) */
-    registerPage({ key, title, perm, render, group, before, icon, tab, order }) {
+    /** registerPage({ key, title, perm, render, group, before, icon, tab, order, bereich })
+     *  group: 'module' (eigener Menüeintrag, Standard) · 'verein' · 'system' (Reiter von „System“) · { key, label, icon, order } = Modul mit mehreren Seiten als Reiter (wie „Verkauf“)
+     *  order: Position, wenn der Eintrag in BEREICHE nicht vorkommt (ohne Angabe 50 = hinten, in Registrierungsreihenfolge)
+     *  bereich: Bereich der Seitenleiste für Einträge, die BEREICHE nicht kennt ('gastro' · 'sport' · 'anlage' · 'mitglieder' · 'finanzen' · 'verein', Standard 'verein') */
+    registerPage({ key, title, perm, render, group, before, icon, tab, order, bereich }) {
       if (!/^[a-z0-9-]+$/.test(key) || PAGES.some(p => p[0] === key)) return;
       RENDER[key] = render;
       if (icon && ICO[icon]) PAGE_ICON[key] = icon;
       if (order) PAGE_ORDER[key] = order;
       if (loadingExt) PAGE_MOD[key] = loadingExt;
-      let gk = group === 'verein' ? 'verein' : 'module';
+      let gk = group === 'verein' || group === 'system' ? group : 'module';
       if (group && typeof group === 'object' && /^[a-z0-9-]+$/.test(group.key || '')) { gk = 'g-' + group.key; if (!MODG[gk]) MODG[gk] = { label: group.label || title, icon: ICO[group.icon] ? group.icon : 'modul', order: group.order || 50 }; }
+      if (typeof bereich === 'string') BEREICH_OF[gk.startsWith('g-') ? gk : key] = bereich;
       if (tab) TAB_LABEL[key] = tab;
       const entry = [key, title, perm || null, gk];
       const at = before ? PAGES.findIndex(p => p[0] === before) : -1;
@@ -1096,8 +1179,9 @@
     const pending = mem ? mem.rows.filter(m => m.pending) : [];
     if (pending.length) alerts.push({ level: 'a', who: 'Mitglieder', text: `${pending.length} neue Einträge vom Tablet zu bestätigen.`, go: 'konten', link: 'Prüfen' });
     // Ohne HTTPS gehen PIN und Geräteschlüssel der Mitglieder-App unverschlüsselt durchs WLAN – bei Türen ein echtes Risiko
-    if (SCHEME !== 'https' && (cache.modules || []).some(m => m === 'zugang' || m === 'beregnung') && can('einstellungen'))
-      alerts.push({ level: 'r', who: 'Sicherheit', text: 'HTTPS ist aus – App, Türen und Beregnung laufen im WLAN unverschlüsselt.', detail: 'Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
+    const httpsAreas = ['App', ...(cache.modules || []).includes('zugang') ? ['Türen'] : [], ...(cache.modules || []).includes('beregnung') ? ['Beregnung'] : []];
+    if (SCHEME !== 'https' && httpsAreas.length > 1 && can('einstellungen'))
+      alerts.push({ level: 'r', who: 'Sicherheit', text: `HTTPS ist aus – ${httpsAreas.slice(0, -1).join(', ')} und ${httpsAreas[httpsAreas.length - 1]} laufen im WLAN unverschlüsselt.`, detail: 'Bitte HTTPS einschalten (Add-on-Option „HTTPS für alle Geräte“, Anleitung in der Installationsanleitung, Abschnitt 9c).' });
     mods.forEach(m => m.alerts.forEach(a => alerts.push({ level: a.level, who: m.name, text: a.text, detail: a.detail, go: m.pageKey, link: a.link, sec: Array.isArray(a.sec) && a.sec.length === 2 ? a.sec.map(String) : undefined })));   // sec: Unterbereich, in dem der Hinweis erledigt wird
     const modCards = mods.map(m => {
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
@@ -2543,16 +2627,16 @@
   const DEVSTAT = { gekoppelt: ['g', 'Handy freigeschaltet'], eingeladen: ['a', 'QR-Code offen'], abgelaufen: ['r', 'Einladung abgelaufen'], gesperrt: ['r', 'gesperrt (falsche PINs)'] };
   const INVKIND = { qr: 'QR-Code offen', mail: 'E-Mail-Einladung offen', brief: 'Einladungsbrief offen' };
   const hoursTxt = h => (h >= 48 ? `${h / 24} Tage` : h === 1 ? '1 Stunde' : `${h} Stunden`);
-  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – Türen und Beregnung schalten sich beim ersten Öffnen im Vereins-WLAN frei">Türen/Beregnung erst im WLAN</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
+  const devPill = d => (d ? `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>${d.remote ? ' <span class="pill a" title="Von unterwegs ohne SMS-Code gekoppelt – einige Bereiche schalten sich beim ersten Öffnen im Vereins-WLAN frei">Erst im Vereins-WLAN öffnen</span>' : ''}${d.verified === 'sms' ? ' <span class="pill" title="Beim Freischalten mit dem Code per SMS bestätigt">per SMS bestätigt</span>' : ''}${d.oldAddress ? ' <span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN">alte Adresse – neuer QR-Code nötig</span>' : ''}` : '<span class="pill">ohne Handy</span>');
   /** Handy in einer Pille: der Zustand, bei Bedarf mit dem wichtigsten Zusatz (Einzelheiten stehen im Freigaben-Fenster) */
-  const devPill1 = (d, names = T('Türen & Beregnung')) => {
+  const devPill1 = (d, names = stagedNames([])) => {
     if (!d) return '<span class="pill">ohne Handy</span>';
     if (d.status === 'gekoppelt' && d.oldAddress) return '<span class="pill a" title="Gekoppelt, bevor die öffentliche Adresse eingetragen war – funktioniert nur im Vereins-WLAN. Neuer QR-Code nötig.">alte Adresse</span>';
     if (d.status === 'gekoppelt' && d.remote) return `<span class="pill a k-wrap" title="${esc(wlanWhy(names))}">${esc(T('Erst im Vereins-WLAN öffnen'))}</span>`;
     return `<span class="pill ${DEVSTAT[d.status][0]}">${d.status === 'eingeladen' ? INVKIND[d.kind] || DEVSTAT.eingeladen[1] : DEVSTAT[d.status][1]}</span>`;
   };
-  /** Bereiche, die sich nach einer Kopplung von unterwegs erst im Vereins-WLAN freischalten („Türen & Beregnung“) */
-  const stagedNames = mods => { const n = mods.filter(m => m.sensitive).map(m => m.label || m.name); return n.length ? n.length > 1 ? n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1] : n[0] : T('Türen & Beregnung'); };
+  /** Bereiche, die sich nach einer Kopplung von unterwegs erst im Vereins-WLAN freischalten (z. B. „Türen & Licht“); ohne Liste allgemein */
+  const stagedNames = mods => { const n = mods.filter(m => m.sensitive).map(m => m.label || m.name); return n.length ? n.length > 1 ? n.slice(0, -1).join(', ') + ' & ' + n[n.length - 1] : n[0] : T('die sensiblen Bereiche'); };
   const wlanWhy = names => T('Dieses Handy wurde von unterwegs ohne SMS-Code freigeschaltet. Aus Sicherheitsgründen bleiben {0} gesperrt, bis das Mitglied die App einmal im Vereins-WLAN (im Vereinsheim) öffnet – dann schalten sie sich von selbst frei.', [names]);
   /** Entfernen: nur das Handy oder ganz aus der App? → 'device' | 'all' | null */
   function askRemove(name, hasDevice) {
@@ -2623,16 +2707,16 @@
       const info = await api('app/member/' + memberId), iv = info.invite || {};
       const pick = await askBoxOpen(`<h2>${esc(lastFirst(info.name))} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
           <div class="rmopts"><button class="rmopt" data-v="qr"><b>QR-Code hier am Bildschirm</b><span>Das Mitglied scannt ihn mit dem Handy – am sichersten, weil es dabei vor Ort ist.</span></button>
-            <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Türen und Beregnung erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>
+            <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Sensible Bereiche erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>
             <button class="rmopt" data-v="brief"><b>Einladungsbrief drucken</b><span>QR-Code mit Anleitung auf Papier – zum Mitgeben oder per Post. Gilt ${iv.days || 7} Tage.</span></button>
-            ${info.device && info.device.remote ? '<button class="rmopt" data-v="trust"><b>Türen und Beregnung jetzt freigeben</b><span>Das Handy wurde von unterwegs ohne SMS-Code gekoppelt. Nur freigeben, wenn sicher ist, dass es dem Mitglied gehört.</span></button>' : ''}</div>
+            ${info.device && info.device.remote ? '<button class="rmopt" data-v="trust"><b>Bereiche im Vereins-WLAN jetzt freigeben</b><span>Das Handy wurde von unterwegs ohne SMS-Code gekoppelt. Nur freigeben, wenn sicher ist, dass es dem Mitglied gehört.</span></button>' : ''}</div>
           <div class="btns"><button class="btn" data-v="">Abbrechen</button></div>`, '', done => {
         $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = () => done(b.dataset.v); });
       });
       if (!pick) return;
       if (pick === 'qr') return appInvite(memberId, after);
       if (pick === 'mail') { if (await inviteByMail(memberId, info) && after) after(); return; }
-      if (pick === 'trust') { await api(`app/member/${memberId}/trust`, 'POST', {}); toast('Freigegeben – Türen und Beregnung funktionieren jetzt auch auf diesem Handy.'); if (after) after(); return; }
+      if (pick === 'trust') { await api(`app/member/${memberId}/trust`, 'POST', {}); toast('Freigegeben – alle Bereiche funktionieren jetzt auch auf diesem Handy.'); if (after) after(); return; }
       if (pick === 'brief') {
         if (info.device && info.device.status === 'gekoppelt' && !await ask(`Einladungsbrief für ${info.name}?\n\nDas bisher freigeschaltete Handy (${info.device.label || 'Gerät'}) verliert sofort den Zugang.`, { ok: 'Brief erzeugen', danger: true })) return;
         const r = await api('app/invites', 'POST', { kind: 'brief', ids: [memberId], force: true });
@@ -2759,7 +2843,7 @@
     if (!info.modules.length) { el.remove(); return; }
     el.innerHTML = `<h3>Mitglieder-App</h3><p class="muted s" style="margin:0 0 8px">Ein QR-Code, eine PIN – das Mitglied sieht in der App nur die angehakten Bereiche. Änderungen hier gelten sofort.</p>
       <div class="row" style="align-items:center;margin-bottom:8px">${devPill(info.device)}${info.device && info.device.label ? `<span class="muted s">${esc(info.device.label)}${info.device.last_used ? ' · zuletzt ' + deTime(info.device.last_used) : ''}</span>` : ''}</div>
-      ${info.device && info.device.remote ? `<div class="banner a" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(stagedNames(info.modules)))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Türen und Beregnung jetzt freigeben“.'))}</div></div>` : ''}
+      ${info.device && info.device.remote ? `<div class="banner a" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(stagedNames(info.modules)))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
       ${info.modules.map(m => { const a = info.access[m.id], g = (info.granted || {})[m.id]; return `<div class="row" style="align-items:center;min-height:42px"><label class="chk" style="min-width:150px"><input type="checkbox" data-am="${m.id}" ${g ? 'checked' : ''}> ${esc(m.label || m.name)}</label>
         ${m.options && m.options.profiles && g ? (() => { const pf = m.options.profiles.find(p => p.id === (a ? a.profile : m.options.defaultProfile)); return `<span class="pill" title="${esc(pf && pf.text || '')}">${esc(pf ? pf.name : '')}</span>${m.options.profilesPage && can(m.options.profilesPerm || m.perm) ? ` <a href="#" class="s" data-aplink="${esc(m.options.profilesPage)}">ändern unter ${esc(m.options.profilesLabel || m.label || m.name)}</a>` : ''}`; })() : ''}
         ${a && a.blocked && (!m.open || info.kind === 'nichtmitglied') ? '<span class="pill r">gesperrt</span>' : ''}${g && !m.away ? `<button type="button" class="pill tg${a && a.away ? ' on' : ''}" data-aw="${memberId}:${m.id}" aria-pressed="${a && a.away ? 'true' : 'false'}" title="Ausnahme: diesen Bereich auch von unterwegs nutzen (z. B. Platzwart oder Handys mit iCloud Privat-Relay)">unterwegs</button>` : ''}${g ? flagChks(m, a, `${memberId}:${m.id}`) : ''}</div>`; }).join('')}
@@ -2925,7 +3009,7 @@
         ${r.bulkLast ? `<p class="muted s" id="apBulkLast" style="margin:0 0 10px">${esc(T('Letzte Sammel-Freigabe: „{0}“ für {1} ({2}, {3}).', [T(r.bulkLast.label), r.bulkLast.n === 1 ? T('1 Mitglied') : T('{0} Mitglieder', [r.bulkLast.n]), deTime(r.bulkLast.at), r.bulkLast.by]))}${r.bulkLast.undo ? ` <button class="btn small" id="apBulkUndo" type="button">Zurücknehmen …</button>` : ''}</p>` : ''}
         ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
-          ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Türen und Beregnung jetzt freigeben“.'))}</div></div>` : ''}
+          ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
           <table class="tbl kompakt" id="apTbl"><tr><th>Mitglied</th><th>Handy</th><th>Freigaben</th><th class="hide-md nw">Zuletzt benutzt</th><th></th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill1(x.device, wlanNames)}</td><td class="nw" title="${esc(apSumTitle(x))}">${esc(apSum(x))}</td>
             <td class="muted s hide-md k-weg">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>

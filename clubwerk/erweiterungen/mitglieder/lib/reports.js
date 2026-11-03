@@ -22,16 +22,16 @@ function register(sh) {
     const deptOf = db.prepare('SELECT department_id FROM mv_member_department WHERE member_id = ? AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?)');
     const blank = () => LSB_GROUPS.map(() => ({ m: 0, w: 0, d: 0, x: 0 }));
     const total = blank(), per = new Map(depts.map(d => [d.id, blank()]));
-    let noBirth = 0;
+    let noBirth = 0; const noBirthNames = [];
     for (const p of people) {
       const a = fees.ageAt(p.birth_date, day);
-      if (a == null) { noBirth++; continue; }
+      if (a == null) { noBirth++; if (noBirthNames.length < 10) noBirthNames.push({ id: p.id, name: p.name }); continue; }
       const gi = LSB_GROUPS.findIndex(g => a >= g[0] && a <= g[1]);
       const g = p.gender === 'm' || p.gender === 'w' || p.gender === 'd' ? p.gender : 'x';
       total[gi][g]++;
       for (const r of deptOf.all(p.id, day, day)) if (per.has(r.department_id)) per.get(r.department_id)[gi][g]++;
     }
-    return { day, groups: LSB_GROUPS.map(g => g[2]), total, depts: depts.map(d => ({ id: d.id, name: d.name, federation: d.federation, rows: per.get(d.id) })), noBirth, count: people.length };
+    return { day, groups: LSB_GROUPS.map(g => g[2]), total, depts: depts.map(d => ({ id: d.id, name: d.name, federation: d.federation, rows: per.get(d.id) })), noBirth, noBirthNames, count: people.length };
   }
   admin.get('/stats', P, (req, res) => {
     const day = isDate(req.query.day) ? req.query.day : today();

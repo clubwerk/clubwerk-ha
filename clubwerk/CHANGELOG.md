@@ -1,5 +1,48 @@
 # Änderungen
 
+## 2026.11.20
+
+**Mitglieder-App: „App installieren“ auf Android**
+- **Neu:** Auf Android-Handys (Chrome, Edge, Samsung Internet) zeigt „Für mich“ ganz oben die Karte **„App installieren“**. Ein Antippen öffnet den Installationsdialog des Handys; danach startet die App direkt vom Startbildschirm, die Freischaltung bleibt erhalten. „Später“ (oder ein „Abbrechen“ im Dialog) blendet die Karte 14 Tage aus, nach der Installation verschwindet sie.
+- Der Knopf „App installieren“ kommt jetzt auch auf langsamen Geräten zuverlässig: Meldet der Browser das Angebot, bevor die App ganz geladen ist, geht es nicht mehr verloren.
+- **Auch ohne Knopf eine Anleitung (Rückmeldung eines Android-Mitglieds: „Ich habe kein Teilen gefunden“):** Bietet der Browser keinen Installationsknopf an (Firefox, Samsung Internet, Chrome ohne Angebot), zeigt „Für mich“ die Schritte des jeweiligen Browsers mit Symbolen – ohne „Teilen“ und ohne eine feste Lage der Leiste. In Gmail/WhatsApp kommt zuerst „Im Browser öffnen“. Die Karte bleibt, bis installiert oder „Später“, auch wenn Benachrichtigungen schon gehen. Auf dem iPhone bleibt alles wie bisher. Es steht immer nur eine Karte da.
+- **Für alle Systeme die richtige Karte:** Außer Android jetzt auch Rechner (Chrome/Edge: Knopf bzw. Installieren-Symbol der Adressleiste; Safari am Mac ab Version 17: „Zum Dock hinzufügen"; Firefox am Rechner: keine Karte, weil er dort nicht installiert), iPad (wird über die Berührung erkannt, auch wenn es sich als Mac meldet) und unbekannte Android-Browser (Opera, Xiaomi, Huawei … bekommen die allgemeine Anleitung). Chrome/Firefox/Edge auf dem iPhone vor iOS 16.4: zuerst „In Safari öffnen". Die Tabelle steht in der Anleitung.
+- **Erkennt, wenn die App schon installiert ist:** In der installierten App erscheint nie eine Installations-Karte. Merkt der Android-Browser, dass die App schon da ist, steht nur der Hinweis „Du hast die App schon – öffne sie vom Startbildschirm“. Wo es sich nicht erkennen lässt (iPhone-Safari, Anleitungen ohne Knopf), blendet „Habe ich schon installiert“ die Karte dauerhaft aus.
+- Das Symbol der App ist jetzt für 192 und 512 Pixel eingetragen und hat eine feste Kennung, damit Android sie sicher als installierbare App erkennt.
+
+**Mitglieder-App: Hinweis „erst im Vereins-WLAN“ nennt nur, was wirklich betroffen ist**
+- **Fehler behoben:** Die E-Mail „Mitglieder-App freigeschaltet“, die Kopplung in der App und die Verwaltung sagten fest „Türen und Beregnung“ – auch in Vereinen, die nur Licht oder gar keinen solchen Bereich haben. Jetzt steht dort aus den tatsächlich betroffenen Bereichen des Mitglieds z. B. „Einige Bereiche (Licht) schalten sich erst frei, sobald du die App einmal im Vereins-WLAN öffnest.“ Ohne bekannte Liste lautet der Satz allgemein „Einige Bereiche …“; ohne sensible Bereiche gibt es keinen Hinweis.
+- **Verwaltung:** Der Knopf heißt „Bereiche im Vereins-WLAN jetzt freigeben“; der Sicherheitshinweis zu HTTPS nennt nur Türen und Beregnung, wenn es sie im Verein gibt.
+- **E-Mail-Layout:** Lange Angaben in der Infokarte (z. B. dieser Hinweis, die Beschreibung einer Mängelmeldung) stehen jetzt mit der Bezeichnung darüber in voller Breite statt in der schmalen Spalte, die am Handy in viele Zeilen brach.
+
+**Verwaltung: kürzeres Menü, nach Bereichen geordnet**
+- **Bereiche statt einer langen Liste:** Das Menü links ist nach Aufgaben geordnet – **Gastro** (Verkauf, Lager), **Sport** (Plätze, Spielbetrieb, Clubmeisterschaft, Turniertag, Turnierplaner), **Anlage** (Beregnung, Flutlicht, Zugang, Mängel), **Mitglieder** (Mitglieder, Dienste & Termine, Zeiterfassung, Nachrichten, Mitglieder-App), **Finanzen** (Beiträge & Zahlungen, Buchhaltung) und **Verein** (Benutzer & Rechte, System, Einstellungen). Mit allen Modulen waren es 24 Zeilen und das Menü musste schon am Rechner scrollen – jetzt sind es 7.
+- **Aufklappen mit einem Klick:** Ein Klick auf einen Bereich zeigt seine Einträge. Der Bereich der Seite, auf der ihr seid, ist immer offen. Mehrere Bereiche dürfen gleichzeitig offen sein, und jedes Gerät merkt sich, welche ihr offen lasst. Ein Punkt am zugeklappten Bereich zeigt, dass darin etwas zu tun ist (rot, wenn die Datensicherung fehlt). Auch mit der Tastatur: Pfeile hoch/runter, rechts klappt auf, links zu.
+- **Wer wenig sieht, klappt nichts auf:** Mit bis zu 9 Einträgen (z. B. Kassenwart, Platzwart, Thekenteam) steht alles wie bisher untereinander, nur mit den Bereichen als Überschriften.
+- **Neue Seite „System“:** Datensicherung, Protokoll und Einrichtung sind jetzt Reiter einer Seite „System“ im Bereich Verein. Lesezeichen, Hinweise der Übersicht, die Suche (Strg K) und das „?“ führen weiter direkt an die richtige Stelle.
+- **Unten im Menü** stehen Name, Tablet und Abmelden in einer Zeile; ist der Name dafür zu lang, rutschen die beiden Knöpfe darunter – der Name bricht nie mitten im Wort.
+- **Mitglieder-App › Plätze › „Jetzt auf der Anlage“:** Lange Namen einer Belegung (z. B. „Training Jugend U12 Leistungsgruppe“) stehen ganz da und brechen um, statt mit „…“ zu enden (Buchung 1.28.2).
+- **Menüknopf am Handy** zeigt jetzt den Bereich (z. B. „Finanzen“) statt des langen Seitennamens und bleibt so immer einzeilig – vorher brach „Dienste & Termine“ oder „Beiträge & Zahlungen“ auf zwei Zeilen um.
+- Am Handy und im Tablet-Rahmen gilt dasselbe Menü; jede Zeile ist dort 40 px hoch, und mit einem offenen Bereich passt alles ohne Scrollen auf den Bildschirm.
+- **Für Entwickler:** `registerPage({ bereich })` für neue Module, Gruppe `'system'`; Prüfstand-Regeln `leiste-scrollt` (Rechner 1280 × 800, Laptop 1366 × 768, Tablet-Rahmen 820, Handy 390 × 664) und `kopfknopf-umbruch` (Kopfzeilen-Knöpfe einzeilig, 390 und 360 px, Chromium und WebKit), neue Testreihe `leiste`.
+
+**Mitglieder: fehlendes Geburtsdatum wird als Hinweis angezeigt**
+- **Fehler behoben:** Die LSB-Bestandserhebung meldete „2 Mitglieder ohne Geburtsdatum sind nicht enthalten“, aber im Filter „Mit Hinweis“ tauchten diese Mitglieder nicht auf. Jetzt steht bei jedem aktuellen Mitglied ohne Geburtsdatum der Hinweis **„Geburtsdatum fehlt“** (Liste, Filter „Mit Hinweis“, beim Geburtsdatum im Mitglied).
+- **LSB-Meldung klickbar:** Die Meldung nennt die Mitglieder mit Namen (Klick öffnet das Mitglied); „In der Liste anzeigen“ springt in die Mitgliederliste, gefiltert auf genau diese.
+- **Einstellungen › Datenqualität:** neuer Prüfpunkt „Mitglieder ohne Geburtsdatum“ mit Anzahl, Namen und Sprung in die Liste.
+- **Beitragslauf-Vorschau:** warnt auch bei Familienmitgliedern ohne Geburtsdatum (sie gelten als Erwachsene); bei Abteilungs-Zusatzbeiträgen tat sie das schon. Berechnet wird nichts anders als bisher.
+- **Mitgliederliste sortierbar:** Klick auf „Name“, „Nr.“ oder „Alter“ sortiert, zweiter Klick dreht um (Pfeil ▲/▼, auch per Tastatur). Standard bleibt „Nachname, Vorname“; Nummern werden als Zahlen sortiert (10 nach 2), Mitglieder ohne Nummer oder Geburtsdatum stehen immer am Ende. Am Handy gibt es dafür ein Feld „Sortieren“. Die Wahl wird je Gerät gemerkt. Für Entwickler: Baustein `GK.sortKit` (siehe ERWEITERUNGEN.md).
+- **Mitgliedsnummern:** neue Einstellung „Neue Nummer“ unter Mitglieder › Einstellungen › Mitgliedschaft: „ab dem Startwert“ (wie bisher) oder „nach höchster Nummer“ (höchste vorhandene + 1, nützlich nach einem Import). Geprüft: Eine schon vergebene Nummer wird in beiden Fällen nicht noch einmal vergeben.
+- **Papier-Beitrittserklärung (PDF) verständlicher:** Im leeren Antrag stehen bei „Weitere Familienmitglieder“ Kästchen „Partner/in“ und „Kind“, darüber die Regel aus den Einstellungen („Partner/in: höchstens eine weitere erwachsene Person. Kind: bis einschließlich 18 Jahre.“). Das Geschlecht steht ebenfalls als Kästchen („männlich/weiblich/divers“); Beitragsart, Abteilungen und Einwilligungen hatten sie schon.
+- **„Ort, Datum“ bei Unterschriften:** Im leeren Antrag und im leeren SEPA-Mandat steht kein Vereinsort mehr vorausgefüllt (das Mitglied schreibt Ort und Datum selbst). Im online oder am Tablet unterschriebenen PDF stehen Wohnort des Mitglieds und Datum der Unterschrift (nur ohne Wohnort der Vereinsort).
+- **Doppelter Punkt nach dem Vereinsnamen:** Endet der Vereinsname auf „e. V.“, stand im Antrag „… im TC Muster e. V..“. Neuer Helfer `endDot` (src/util.js) hängt das Satzende nur an, wenn noch keiner da ist. Alle Vorlagen (PDFs, E-Mails, Push- und App-Texte) durchsucht: nur diese eine Stelle setzte einen Punkt direkt hinter den Namen.
+- **Beispieldaten:** ein Demo-Mitglied ohne Geburtsdatum. **Module:** Mitglieder 1.38.0. Testreihen `mv`, `dq` erweitert.
+
+**Mitglieder-App: einzelne Termine in den eigenen Kalender übernehmen**
+- Im Fenster eines Termins aus dem **Vereinskalender** (Dienste & Termine › Termine) gibt es neben „Schließen“ den Knopf **„In den Kalender“**. Er legt genau diesen Termin im Kalender des Handys an (iPhone zeigt die Kalender-Vorschau, ohne Safari) – mit Uhrzeit, Ort und Beschreibung, ganztägige und mehrtägige Termine stimmen.
+- Auch die **Termine mit Zu- und Absage** haben unter den Antwort-Knöpfen jetzt „In den Kalender“.
+- Das persönliche Kalender-Abo bleibt daneben bestehen (alle Termine automatisch).
+
 ## 2026.11.19
 
 **Mitglieder-App: einen Bereich für viele Mitglieder auf einmal freigeben**

@@ -610,7 +610,7 @@ function activate(ctx) {
     const mine = db.prepare('SELECT answer, persons, note FROM aw_signup WHERE event_id = ? AND member_id = ?').get(e.id, id), total = personsYes(e.id);
     const free = e.slots ? Math.max(0, e.slots - total + (mine && mine.answer === 'ja' ? mine.persons : 0)) : null;
     return { id: e.id, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, deadline: e.deadline, persons_total: total, free, answer: mine ? mine.answer : null,
-      persons: mine && mine.answer === 'ja' ? mine.persons : 0, my_note: mine ? mine.note || '' : '', can: deadlineOk(e) };
+      persons: mine && mine.answer === 'ja' ? mine.persons : 0, my_note: mine ? mine.note || '' : '', can: deadlineOk(e), ics: ctx.calendarLink({ uid: `aw-${e.id}`, date: e.date, start: e.start, end: e.end, title: e.title, place: e.place, note: e.note }) };
   };
   M.get('/me', ar(async (req, res) => {
     const id = req.member.id, y = yearOf(today());
@@ -625,7 +625,7 @@ function activate(ctx) {
     const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
       shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
-      plans, termine, kalender: icalList(today(), addDays(today(), 400), 60),
+      plans, termine, kalender: icalList(today(), addDays(today(), 400), 60).map(e => ({ ...e, ics: ctx.calendarLink({ ...e, uid: 'ical-' + require('crypto').createHash('sha1').update([e.date, e.start, e.title].join('|')).digest('hex').slice(0, 16) }) })),
       events: db.prepare("SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL AND e.kind <> 'termin' ORDER BY e.date, e.start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));

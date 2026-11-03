@@ -84,8 +84,9 @@
         if (!e) return;
         const sh = sheet();
         sh.innerHTML = `<div class="vh-box"><h2 translate="no">${esc(e.title)}</h2><p>${esc(kalWhen(e))}</p>${e.place ? `<p translate="no">${esc(e.place)}</p>` : ''}${e.note ? `<p translate="no" style="white-space:pre-line;text-align:left">${esc(e.note)}</p>` : ''}
-          <p class="vh-note" style="text-align:left;margin:10px 0 0">Aus dem Kalender der Homepage.</p><div class="vh-row" style="margin-top:12px"><button class="ok" id="dsKalOk">Schließen</button></div></div>`;
+          <p class="vh-note" style="text-align:left;margin:10px 0 0">Aus dem Kalender der Homepage.</p><div class="vh-row" style="margin-top:12px"><button class="no" id="dsKalOk">Schließen</button>${e.ics ? `<a class="ok" id="dsKalIcs" href="${esc(e.ics)}">In den Kalender</a>` : ''}</div></div>`;
         sh.classList.add('show'); sh.querySelector('#dsKalOk').onclick = close;
+        const ic = sh.querySelector('#dsKalIcs'); if (ic) ic.addEventListener('click', () => setTimeout(close, 400));
       }
       function termHtml(t) {
         const chip = t.answer === 'ja' ? `<span class="vh-chip g">du kommst${t.persons > 1 ? ` (${t.persons} Personen)` : ''}</span>` : t.answer === 'nein' ? '<span class="vh-chip">du kommst nicht</span>' : t.can ? '<span class="vh-chip a">Antwort fehlt</span>' : '';
@@ -95,7 +96,8 @@
             <div style="min-width:0"><strong>${esc(`${wd(t.date, true)}, ${deD(t.date)}`)}</strong><small>${esc([when(t), t.place].filter(Boolean).join(' · '))}</small>${t.note ? `<small>${esc(t.note)}</small>` : ''}</div><span></span></div>
           ${count ? `<p class="vh-lead">${esc(count)}</p>` : ''}
           ${t.can ? `${t.deadline ? `<p class="vh-lead">Antwort bis ${deD(t.deadline)}</p>` : ''}<div class="ds-ans"><button class="vh-btn sm${t.answer === 'ja' ? '' : ' sec'}" data-t="${t.id}" data-ans="ja">${t.answer === 'ja' ? 'Ich komme ✓' : 'Ich komme'}</button><button class="vh-btn sm${t.answer === 'nein' ? '' : ' sec'}" data-t="${t.id}" data-ans="nein">${t.answer === 'nein' ? 'Ich komme nicht ✓' : 'Ich komme nicht'}</button></div>`
-            : `<p class="vh-lead">Die Antwortfrist ist abgelaufen${t.answer ? '' : ' – du hast nicht geantwortet'}. Änderungen bitte über ${d_contact ? esc(d_contact) : 'den Verein'}.</p>`}</div>`;
+            : `<p class="vh-lead">Die Antwortfrist ist abgelaufen${t.answer ? '' : ' – du hast nicht geantwortet'}. Änderungen bitte über ${d_contact ? esc(d_contact) : 'den Verein'}.</p>`}
+          ${t.ics ? `<div class="ds-ans" style="grid-template-columns:1fr"><a class="vh-btn sm sec" href="${esc(t.ics)}">In den Kalender</a></div>` : ''}</div>`;
       }
       function answer(t, a) {
         if (a === 'nein') return post(t, { event_id: t.id, answer: 'nein', note: t.my_note }, 'Abgesagt – danke für die Antwort.');

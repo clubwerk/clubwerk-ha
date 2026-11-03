@@ -32,7 +32,7 @@ function register(sh) {
     for (const p of data.persons || []) for (const id of p.departments || []) { const dep = deps.find(x => x.id === id); if (!dep) continue; const f = deptFeeFor(dep, p.birth_date); lines.push(`${p.first_name} ${p.last_name}: ${dep.name}${f ? ` – ${f.name} ${euro(f.cents)}` : ''}`); }
     return lines;
   }
-  const pdfSettings = data => ({ due_text: S('due_text'), work_text: S('work_text'), consents: consentList(), dept_lines: data ? deptLines(data) : null, depts: formDepts() });
+  const pdfSettings = data => ({ due_text: S('due_text'), work_text: S('work_text'), consents: consentList(), dept_lines: data ? deptLines(data) : null, depts: formDepts(), child_max: childMax() });
   function formConfig() {
     return { club: club(), intro: S('app_intro'), due_text: S('due_text'), work_text: S('work_text'), satzung_url: S('satzung_url'), consents: consentList(), fees: formFees(), departments: formDepts(),
       tablet: S('app_tablet', '1') === '1', online: S('app_online', '0') === '1', today: today(), child_max: childMax() };

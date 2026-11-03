@@ -230,7 +230,7 @@
     if (!id || !m || !data || !GK.me()) return;
     const s = id === 'fertig' ? FERTIG : data.steps.find(x => x.id === id);
     if (!s || pageNow() !== s.page) { if (!opening) stop(); return; }   // anderswohin gewechselt (Menü, Suche) → Assistent aus
-    document.querySelectorAll('#side button.nav').forEach(b => b.classList.toggle('on', b.dataset.p === 'einrichtung'));   // im Menü steht man in „Einrichtung“
+    document.querySelectorAll('#side button.nav').forEach(b => b.classList.toggle('on', b.dataset.p === '__system'));   // im Menü steht man in „System“ (Reiter Einrichtung)
     if ($('menuCur')) $('menuCur').textContent = T('Einrichtung');
     const whole = s.page !== 'einrichtung' && !s.card.length;   // ohne Kartenangabe: ganze Seite (Listen wie „Plätze & Geräte“), nur Kopf und Reiter der Seite verschwinden
     m.classList.toggle('wiz', !whole); m.classList.toggle('wizall', whole);
@@ -367,7 +367,7 @@
     m.querySelectorAll('[data-whide]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { await act(b.dataset.whide, 'hide'); toast(T('Ausgeblendet – unten unter „Ausgeblendet“ wieder einblendbar.')); render(); } catch (e) { fail(e); } }); });
     m.querySelectorAll('[data-wshow]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { await act(b.dataset.wshow, 'show'); render(); } catch (e) { fail(e); } }); });
   }
-  GK.registerPage({ key: 'einrichtung', title: 'Einrichtung', perm: 'einstellungen', group: 'verein', icon: 'einrichtung', before: 'einstellungen', render });
+  GK.registerPage({ key: 'einrichtung', title: 'Einrichtung', perm: 'einstellungen', group: 'system', icon: 'einrichtung', before: 'einstellungen', render });   // Reiter von „System“ (neben Datensicherung und Protokoll)
   GK.registerSearch([{ label: 'Einrichtung fortsetzen', page: 'einrichtung', words: 'Assistent Einrichtung Checkliste offen Start erste Schritte', perm: 'einstellungen', kind: 'aktion', boost: 1 }]);
 
   /* =================== Übersicht: Checkliste und Start nach der ersten Anmeldung =================== */

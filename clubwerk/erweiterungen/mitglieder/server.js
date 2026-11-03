@@ -102,7 +102,7 @@ function listRows(q = {}) {
       depts: r.depts || '', dept_ids: r.dept_ids ? r.dept_ids.split(',').map(Number) : [], fees: r.fees || '', fee_ids: r.fee_ids ? r.fee_ids.split(',').map(Number) : [],
       payer_id: r.payer_id, payer_name: r.payer_name, dependents: r.dependents, family_of: r.family_of, family_head_name: r.family_head_name, family_count: r.family_count, payment: r.payment || 'lastschrift', email: r.email, mobile: r.mobile || r.phone, city: r.city,
       complete: Boolean(r.complete), pending: Boolean(r.pending), open_cents: r.open_cents,
-      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
+      issues: [r.family_of && r.fee_ids && 'eigener Beitrag trotz Familienmitgliedschaft', !r.complete && 'ohne Mitgliedsdaten', r.complete && !exited && !r.anonymized_at && sepaRequired() && payNeedsSepa(r) && r.payment !== 'lastschrift' && 'Zahlart nicht Lastschrift', r.complete && !r.family_of && !r.fee_ids && !exited && r.status !== 'ehren' && 'kein Beitrag', ms && !ms.ok && ms.reason, r.complete && !r.email && !r.payer_id && !exited && 'keine E-Mail', r.age_open && !exited && 'Altersstufe prüfen', !exited && !r.anonymized_at && !r.birth_date && 'Geburtsdatum fehlt', ...(r.pend ? r.pend.split(',').map(k => ({ eintritt: 'Eintritt wartet auf Bestätigung', austritt: 'Austritt wartet auf Bestätigung', rueckkehr: 'Rückkehr wartet auf Bestätigung' })[k]) : [])].filter(Boolean) };
   }).filter(r => {
     if (q.status === 'aktuell' && (r.status === 'ausgetreten' || r.status === 'anonym')) return false;
     if (q.status && !['aktuell', 'alle'].includes(q.status) && r.status !== q.status) return false;
@@ -1022,7 +1022,7 @@ function activate(ctx) {
     const s = { club_name: ctx.getSetting('club_name', ''), club_street: S('club_street'), club_city: S('club_city'), creditor_id: S('creditor_id'), creditor_name: S('creditor_name') || ctx.getSetting('club_name', ''),
       club_iban: user && user.perms.includes('mitglieder_finanzen') ? store.account().iban : sepa.maskIban(store.account().iban), club_bic: store.account().bic, club_bank: store.account().bank,
       sepa_account: Number(S('sepa_account')) || null, account_name: store.account().name, account_central: store.account().central,
-      mandate_prefix: S('mandate_prefix'), member_no_start: S('member_no_start', '1'), year_start: S('year_start', '01-01'), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
+      mandate_prefix: S('mandate_prefix'), member_no_start: S('member_no_start', '1'), member_no_mode: S('member_no_mode', 'start') === 'max' ? 'max' : 'start', year_start: S('year_start', '01-01'), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_levels: shared.dunningLevels(), dunning_deadline_days: shared.dunningDeadline(),
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: retYears(),
@@ -1046,6 +1046,7 @@ function activate(ctx) {
     if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Finanzen“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else put('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
     if (b.club_bic !== undefined) { const c = sepa.checkBic(b.club_bic); if (!c.ok) errors.push('Der BIC des Vereinskontos hat 8 oder 11 Zeichen.'); else put('club_bic', c.bic); }
     if (b.mandate_prefix !== undefined) put('mandate_prefix', String(b.mandate_prefix).replace(/[^A-Za-z0-9]/g, '').slice(0, 10));
+    if (b.member_no_mode !== undefined) put('member_no_mode', b.member_no_mode === 'max' ? 'max' : 'start');
     if (b.member_no_start !== undefined) put('member_no_start', String(Math.max(1, int(b.member_no_start, 1))));
     if (b.year_start !== undefined) { if (!/^(0[1-9]|1[0-2])-01$/.test(b.year_start)) errors.push('Das Beitragsjahr beginnt immer am Ersten eines Monats.'); else put('year_start', b.year_start); }
     if (b.prenotify_days !== undefined) { const n = int(b.prenotify_days); if (n < 1 || n > 30) errors.push('Die Vorabinformation braucht 1 bis 30 Tage (Standard 14; kürzer nur, wenn es so vereinbart ist).'); else put('prenotify_days', n); }
@@ -1073,7 +1074,7 @@ function activate(ctx) {
     ctx.db.transaction(() => { for (const [k, v] of pending) SET(k, v); })();
     { const L = { club_street: 'Straße', club_city: 'PLZ und Ort', creditor_name: 'Zahlungsempfänger', club_bank: 'Kreditinstitut', notify_to: 'Benachrichtigung an', due_text: ['Hinweis zu Beitrag & Fälligkeit', 'text'],
         app_intro: ['Begrüßung im Formular', 'text'], work_text: ['Hinweis Arbeitseinsatz', 'text'], invoice_text: ['Rechnungstext', 'text'], satzung_url: 'Satzung (Link)', creditor_id: 'Gläubiger-ID', club_iban: ['Vereins-IBAN', 'text'],
-        sepa_account: ['Konto für Lastschriften', 'text'], club_bic: 'BIC', mandate_prefix: 'Mandatsreferenz-Vorsilbe', member_no_start: 'Mitgliedsnummern ab', year_start: 'Beginn des Beitragsjahres', prenotify_days: 'Vorabinformation (Tage)',
+        sepa_account: ['Konto für Lastschriften', 'text'], club_bic: 'BIC', mandate_prefix: 'Mandatsreferenz-Vorsilbe', member_no_start: 'Mitgliedsnummern ab', member_no_mode: 'Mitgliedsnummern vergeben', year_start: 'Beginn des Beitragsjahres', prenotify_days: 'Vorabinformation (Tage)',
         drinks_due: 'Einzug Verkauf am', app_tablet: ['Beitrittserklärung am Tablet', 'bool'], app_online: ['Online-Beitrittserklärung', 'bool'], return_fee_cents: ['Rücklastschrift-Gebühr', 'euro'], dunning_levels: ['Mahnstufen', 'text'], dunning_deadline_days: 'Zahlungsfrist in Mahnungen (Tage)',
         notice_months: 'Kündigungsfrist (Monate)', scope_confirm: ['Abteilungsmeldungen bestätigen', 'bool'], sepa_required: ['Lastschrift ist Pflicht', 'bool'], app_perms: ['„Meine Daten“ in der App', 'text'], retention_years: 'Datenschutz-Erinnerung nach … Jahren', consents: ['Einwilligungen', 'text'] };
       const after = {}; for (const [k, v] of pending) { after[k] = String(v); }
@@ -1108,6 +1109,9 @@ function activate(ctx) {
     const noMandate = rows.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => /Mandat|Bankverbindung|IBAN/.test(i)));
     out.push({ id: 'mandat', title: 'Lastschrift ohne gültiges Mandat', level: 'a', count: noMandate.length, names: noMandate.slice(0, 5).map(r => r.name),
       why: 'Der nächste Beitragslauf lässt sie aus, oder die Bank gibt die Lastschrift zurück (Gebühren).', fix: { label: 'Mitglieder ansehen', page: 'mitglieder', sec: ['mv_liste_filter', 'hinweis'] } });
+    const noBirth = rows.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.includes('Geburtsdatum fehlt'));
+    out.push({ id: 'geburtsdatum', title: 'Mitglieder ohne Geburtsdatum', level: 'a', count: noBirth.length, names: noBirth.slice(0, 5).map(r => r.name),
+      why: 'Sie fehlen in der LSB-Bestandserhebung und in Altersauswertungen; bei Altersstufen und im Familientarif gelten sie als Erwachsene.', fix: { label: 'Mitglieder ansehen', page: 'mitglieder', sec: ['mv_liste_filter', 'geburt'] } });
     const wait = parseInt(S('paid_reminder_days', '10'), 10) || 10;
     const hang = ctx.db.prepare("SELECT COUNT(*) n FROM mv_collection WHERE status = 'erstellt' AND collection_date <= ?").get(fees.addDays(today(), -wait)).n;
     out.push({ id: 'lastschrift', title: 'Lastschrift nicht als bezahlt gebucht', level: 'a', count: hang,
@@ -1347,7 +1351,7 @@ function activate(ctx) {
       fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
@@ -1372,7 +1376,7 @@ function activate(ctx) {
         z('Beitragsarten', konfigio.schreibe(ctx.db, 'mv_fee', fi.v, found));
         if (first) zusatzBegin(fi.v.department_id);
       }
-      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules'].includes(k) ? 6000 : 2000));
+      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ member_no_mode: x => x === 'start' || x === 'max', congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules'].includes(k) ? 6000 : 2000));
     })();
     if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
     z.hinweis('Gläubiger-ID und Vereinskonto bitte selbst eintragen');

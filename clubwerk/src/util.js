@@ -47,4 +47,6 @@ function zipBudget(max, msg = 'Das ZIP-Archiv ist zu groß.') {
     }),
   };
 }
-module.exports = { pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };
+/** Satzende anhängen, außer der Text endet schon auf „.“ (z. B. Vereinsname „… e. V.“) – nie „..“ */
+const endDot = s => { const t = String(s == null ? '' : s).replace(/\s+$/, ''); return /[.!?]$/.test(t) ? t : t + '.'; };
+module.exports = { endDot, pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };

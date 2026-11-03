@@ -84,6 +84,7 @@
       td.num, .mv-sum b { font-size: 1.15em; }   /* Anzeigetafel-Ziffern sind schmaler: etwas größer, damit sie neben der Textschrift gleich hoch wirken */
       .mv-sum b { font-family: var(--num); font-weight: 600; }
       .mv-code { font-family: var(--num); font-weight: 600; }
+      .mv-sortslot { display: contents; } @media (min-width: 701px) { .mv-sortslot { display: none; } }
       .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }`;
     document.head.appendChild(s);
   }
@@ -140,8 +141,8 @@
   }
   /* Klick auf den Reiter „Mitglieder“ zeigt immer die ganze Liste (Suche und Filter leer). Nur der Weg zurück aus einem Mitglied behält sie. */
   const list = pageRender('mitglieder', el => {
-    if (!st.fromDetail) st.f = { status: 'aktuell', q: '', dept: '', fee: '' };
-    try { const v = sessionStorage.getItem('mv_liste_filter'); if (v === 'hinweis') st.f.status = v; sessionStorage.removeItem('mv_liste_filter'); } catch (e) { /* privat */ }   // Sprung aus Einstellungen › Datenqualität
+    if (!st.fromDetail) st.f = { status: 'aktuell', q: '', dept: '', fee: '', issue: '' };
+    try { const v = sessionStorage.getItem('mv_liste_filter'); if (v === 'hinweis') st.f.status = v; if (v === 'geburt') { st.f.status = 'hinweis'; st.f.issue = 'Geburtsdatum fehlt'; } sessionStorage.removeItem('mv_liste_filter'); } catch (e) { /* privat */ }   // Sprung aus Einstellungen › Datenqualität
     st.fromDetail = false;
     return showList(el);
   });
@@ -166,6 +167,7 @@
     const lack = cur.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => typeof i === 'string' && PFLICHT.test(i)));
     el.innerHTML = `
       ${lack.length && !SC() ? `<div class="banner r mv-lack"><span title="${esc(GK.T('Fehlen Mitgliedsdaten, Beitrag oder Zahlungsdaten. Wer kein Vereinsmitglied ist (z. B. Trainer), wird beim Mitglied in „Kein Mitglied“ umgewandelt.'))}"><b>${lack.length === 1 ? '1 Mitglied ohne Pflichtangaben' : `${lack.length} Mitglieder ohne Pflichtangaben`}</b> – bitte ergänzen.</span><button class="btn small" id="mvLack" type="button">Anzeigen</button></div>` : ''}
+      ${st.f.issue ? `<div class="banner a"><span><b>${esc(GK.T(st.f.issue))}</b> – nur diese Mitglieder.</span><button class="btn small" id="mvIssueOff" type="button">Alle Hinweise</button></div>` : ''}
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mvQ" placeholder="Name, Nr., Ort suchen" aria-label="Suchen" value="${esc(st.f.q)}"></label>
         ${chipBar('mvSeg', [['aktuell', 'Aktuell'], ['hinweis', 'Mit Hinweis'], ['ausgetreten', 'Ausgetreten'], ['alle', 'Alle']], st.f.status)}
         <label class="f mv-fsel"><select translate="no" id="mvDept" data-nodirty aria-label="Abteilung"><option value="">${esc(GK.T(SC() ? 'Meine Abteilungen' : 'Alle Abteilungen'))}</option>${(SC() ? m.scope : m.depts).map(d => opt(d.id, d.name, st.f.dept)).join('')}</select></label>
@@ -173,17 +175,25 @@
       </div>
       <div class="scroll"><table class="tbl kompakt sel" id="mvTbl"></table></div>
       <p class="empty hidden" id="mvEmpty"></p>`;
+    $('mvSeg').insertAdjacentHTML('afterend', '<span id="mvSortSlot" class="mv-sortslot"></span>');
+    const coll = new Intl.Collator('de', { numeric: true, sensitivity: 'base' }), noNum = r => ((String(r.member_no || '').match(/\d+/) || [])[0]);
+    const sk = GK.sortKit('mv_sort', { k: 'name', d: 1 }, {
+      name: { label: 'Name', selLabel: ['Name A–Z', 'Name Z–A'], cmp: (a, b) => coll.compare(GK.lastFirst(a.name), GK.lastFirst(b.name)) },
+      no: { label: 'Nr.', selLabel: ['Nr. aufsteigend', 'Nr. absteigend'], empty: r => noNum(r) === undefined, cmp: (a, b) => (Number(noNum(a)) - Number(noNum(b))) || coll.compare(String(a.member_no), String(b.member_no)) },
+      age: { label: 'Alter', selLabel: ['Alter aufsteigend', 'Alter absteigend'], empty: r => r.age == null, cmp: (a, b) => a.age - b.age },
+    });
+    $('mvSortSlot').innerHTML = sk.select('mvSort');
     const F = {
       aktuell: r => r.status !== 'ausgetreten' && r.status !== 'anonym', aktiv: r => r.status === 'aktiv', passiv: r => r.status === 'passiv' || r.status === 'ehren' || r.status === 'ruhend',
-      hinweis: r => r.issues.length > 0 && r.status !== 'ausgetreten' && r.status !== 'anonym', ausgetreten: r => r.status === 'ausgetreten' || r.status === 'anonym', alle: () => true,
+      hinweis: r => r.issues.length > 0 && r.status !== 'ausgetreten' && r.status !== 'anonym' && (!st.f.issue || r.issues.includes(st.f.issue)), ausgetreten: r => r.status === 'ausgetreten' || r.status === 'anonym', alle: () => true,
     };
     const draw = () => {
       const q = st.f.q.toLowerCase();
       const match = r => (!q || [r.name, GK.lastFirst(r.name), r.member_no, r.email, r.city].some(v => v && String(v).toLowerCase().includes(q)))
         && (!st.f.dept || r.dept_ids.includes(+st.f.dept)) && (!st.f.fee || r.fee_ids.includes(+st.f.fee));
       Object.keys(F).forEach(k => { const c = el.querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = st.rows.filter(r => F[k](r) && match(r)).length; });
-      const rows = st.rows.filter(r => F[st.f.status](r) && match(r));
-      $('mvTbl').innerHTML = rows.length ? `<tr><th>Name</th><th style="width:90px">Nr.</th><th class="r" style="width:70px">Alter</th><th>Abteilungen</th><th>Beitrag</th><th style="width:130px">Zahlung</th><th>Hinweise</th></tr>`
+      const rows = sk.sort(st.rows.filter(r => F[st.f.status](r) && match(r)));
+      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th style="width:130px">Zahlung</th><th>Hinweise</th></tr>`
         + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}">
           <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}</span></span></td>
           <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
@@ -196,9 +206,11 @@
       em.textContent = rows.length ? '' : st.rows.length ? 'Keine Treffer – Suche oder Filter ändern.' : 'Noch keine Mitglieder – oben „+ Neues Mitglied“ anlegen oder „Import …“ nutzen (S-Verein, WISO, verein.cloud).';
     };
     draw();
+    sk.bind($('mvTbl'), $('mvSort'), draw);
     $('mvQ').oninput = () => { st.f.q = $('mvQ').value.trim(); draw(); };
-    if ($('mvLack')) $('mvLack').onclick = () => { st.f.status = 'hinweis'; $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x.dataset.f === 'hinweis'); x.setAttribute('aria-pressed', x.dataset.f === 'hinweis'); }); draw(); };
-    $('mvSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.f.status = b.dataset.f; $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); draw(); };
+    if ($('mvIssueOff')) $('mvIssueOff').onclick = () => { st.f.issue = ''; list(); };
+    if ($('mvLack')) $('mvLack').onclick = () => { st.f.issue = ''; st.f.status = 'hinweis'; $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x.dataset.f === 'hinweis'); x.setAttribute('aria-pressed', x.dataset.f === 'hinweis'); }); draw(); };
+    $('mvSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.f.status = b.dataset.f; if (st.f.issue) { st.f.issue = ''; list(); return; } $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); draw(); };
     $('mvDept').onchange = () => { st.f.dept = $('mvDept').value; draw(); };
     $('mvFee').onchange = () => { st.f.fee = $('mvFee').value; draw(); };
     $('mvTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) openMember(+tr.dataset.sel); };
@@ -318,7 +330,7 @@
         <label class="f">Titel<input id="sTitle" value="${esc(p.title || '')}"></label>
         <label class="f">Vorname<input id="sFirst" value="${esc(p.first_name || '')}"></label>
         <label class="f">Nachname<input id="sLast" value="${esc(p.last_name || '')}"></label>
-        <label class="f">Geburtsdatum<input id="sBirth" type="date" value="${esc(p.birth_date || '')}"></label>
+        <label class="f">Geburtsdatum<input id="sBirth" type="date" value="${esc(p.birth_date || '')}">${p.birth_date ? '' : '<span class="muted s">Fehlt – ohne Geburtsdatum fehlt die Person in der LSB-Meldung und gilt bei Altersstufen als erwachsen.</span>'}</label>
         <label class="f">Geschlecht<select id="sGen">${opt('', '–', p.gender)}${Object.entries(GENDER).map(([k, l]) => opt(k, l, p.gender)).join('')}</select></label>
         <label class="f">Mitgliedsnummer<input id="sNo" value="${esc(p.member_no || '')}"></label>
         <label class="f">Status<select id="sStatus">${opt('aktiv', 'aktiv', p.status)}${opt('passiv', 'passiv / fördernd', p.status)}${opt('ehren', 'Ehrenmitglied', p.status)}${opt('ruhend', 'ruhend', p.status)}</select></label>
@@ -1613,9 +1625,11 @@
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
         <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Divers</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
           ${s.lsb.groups.map((g, i) => { const t = s.lsb.total[i], c = (n, l, hide) => `<td class="k-lbl${hide && !n ? ' k-weg' : ''}" data-label="${l}">${n}</td>`; return `<tr><td>${esc(g)}</td>${c(t.m, 'Männlich')}${c(t.w, 'Weiblich')}${c(t.d, 'Divers', 1)}${c(t.x, 'Ohne Angabe', 1)}<td class="k-lbl" data-label="Gesamt"><b>${sum(t)}</b></td></tr>`; }).join('')}</table>
-        ${s.lsb.noBirth ? `<p class="muted s">${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten.</p>` : ''}</div>
+        ${s.lsb.noBirth ? `<div class="banner a"><span>${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten${s.lsb.noBirthNames.length ? ': ' + s.lsb.noBirthNames.map(n => `<a href="#" data-open="${n.id}">${esc(GK.lastFirst(n.name))}</a>`).join(', ') + (s.lsb.noBirth > s.lsb.noBirthNames.length ? ' …' : '') : ''}.</span><button class="btn small" id="rpNoBirth" type="button">In der Liste anzeigen</button></div>` : ''}</div>
       <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="num nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
+    if ($('rpNoBirth')) $('rpNoBirth').onclick = () => { try { sessionStorage.setItem('mv_liste_filter', 'geburt'); } catch (e) { /* ohne Speicher */ } st.fromDetail = false; GK.go('mitglieder'); };
+    el.querySelectorAll('a[data-open]').forEach(a => { a.onclick = e => { e.preventDefault(); openMember(+a.dataset.open); }; });
     // Einwilligungen (Stand heute): wie viele haben zugestimmt – Liste mit Namen als Excel (z. B. für den Pressewart)
     const c = await api('consents');
     el.insertAdjacentHTML('beforeend', `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Einwilligungen <span class="muted s">(heute)</span></h3><a class="btn" href="${BASE}consents.xlsx" download>Liste (Excel)</a></div>
@@ -1679,8 +1693,9 @@
     await loadMeta();
     const s = st.meta.settings;
     const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-    el.innerHTML = `<div class="card" data-set="mitgliedschaft"><h3>Mitgliedschaft</h3><div class="mv-grid" style="--c:3">
+    el.innerHTML = `<div class="card" data-set="mitgliedschaft"><h3>Mitgliedschaft</h3><div class="mv-grid" style="--c:4">
         <label class="f">Mitgliedsnummern ab<input id="eNo" value="${esc(s.member_no_start)}" inputmode="numeric"></label>
+        <label class="f">Neue Nummer<select id="eNoMode">${opt('start', 'ab dem Startwert', s.member_no_mode)}${opt('max', 'nach höchster Nummer', s.member_no_mode)}</select></label>
         <label class="f">Beitragsjahr beginnt am 1.<select id="eYear">${months.map((n, i) => opt(`${String(i + 1).padStart(2, '0')}-01`, n, s.year_start)).join('')}</select></label>
         <label class="f">Kündigungsfrist (Monate)<input id="eNotice" value="${s.notice_months}" inputmode="numeric"></label></div>
         <div class="mv-cons" style="margin-top:14px">
@@ -1712,7 +1727,7 @@
     congratsCard($('eCg')).catch(fail);
     if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el));
     const save = saveCard(() => showSettings(el));
-    save('eSaveMs', () => ({ member_no_start: val('eNo'), year_start: val('eYear'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
+    save('eSaveMs', () => ({ member_no_start: val('eNo'), member_no_mode: val('eNoMode'), year_start: val('eYear'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
     const consents = () => [...document.querySelectorAll('#eCons [data-c]')].map(r => ({ key: r.dataset.c, short: r.querySelector('[data-k=short]').value, text: r.querySelector('[data-k=text]').value, required: r.querySelector('[data-k=req]').checked }));
     const bindCons = () => document.querySelectorAll('#eCons [data-cx]').forEach(b => { b.onclick = () => b.closest('[data-c]').remove(); });
     bindCons();

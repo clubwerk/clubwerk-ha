@@ -18,14 +18,14 @@
   /* Seitenmenü: schwebende Glas-Leiste (Klasse .glass aus style.css), daneben der Inhalt */
   .shell { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
   nav.side { margin: 14px 0 14px 14px; border-radius: 22px; position: sticky; top: 14px; height: calc(100vh - 28px); height: calc(100dvh - 28px); display: flex; flex-direction: column; min-width: 0; overflow: hidden; box-sizing: border-box; }
-  nav.side .brandbox { display: flex; align-items: center; gap: 12px; padding: 18px 18px 8px; color: var(--ink); min-height: 72px; box-sizing: border-box; }
+  nav.side .brandbox { display: flex; align-items: center; gap: 12px; padding: 14px 18px 6px; color: var(--ink); min-height: 72px; box-sizing: border-box; }
   nav.side .brandbox .mark { width: 42px; height: 42px; flex: 0 0 42px; border-radius: 12px; background: var(--brand); display: flex; align-items: center; justify-content: center; overflow: hidden; color: var(--on-brand); font-weight: 800; font-size: 14px; }
   nav.side .brandbox .mark:has(img) { background: #fff; border: 1px solid var(--line); }
   nav.side .brandbox .mark img { max-width: 34px; max-height: 34px; object-fit: contain; }
   nav.side .brandbox b { display: block; font-size: 14px; line-height: 18px; font-weight: 700; overflow-wrap: break-word; }   /* Vereinsname ganz, auch lang (3.101) */
   nav.side .brandbox small { display: block; font-size: 12px; line-height: 16px; color: var(--muted); }
   nav.side .brandbox > div { min-width: min-content; }   /* der Vereinsname bricht an Leerzeichen um, nie mitten im Wort („Musterstad|t“, wenn der Menüknopf viel Platz braucht) */
-  nav.side .navbody { flex: 1; overflow: auto; padding: 10px 12px 14px; display: flex; flex-direction: column; gap: 2px; }
+  nav.side .navbody { flex: 1; overflow: auto; padding: 6px 12px 8px; display: flex; flex-direction: column; gap: 2px; }
   nav.side .navbody > * { flex-shrink: 0; }   /* wenig Höhe: Menü scrollt, Einträge werden nie zusammengedrückt */
   nav.side .search { position: relative; display: flex; align-items: center; gap: 10px; height: 40px; padding: 0 12px; margin-bottom: 10px; border-radius: 12px; background: color-mix(in srgb, var(--card) 70%, transparent); border: 1px solid var(--line); color: var(--muted); }
   nav.side .search input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 14px; color: var(--ink); }
@@ -53,15 +53,33 @@
   nav.side .badge { margin-left: auto; width: 8px; height: 8px; flex: 0 0 8px; border-radius: 50%; background: var(--brand); font-size: 0; overflow: hidden; }
   nav.side .badge.a { background: var(--amber); }
   nav.side .badge.r { background: var(--red); }   /* Datensicherung: fehlt oder zu alt */
-  nav.side .userchip { display: flex; flex-direction: column; gap: 10px; margin: 0 12px 12px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 4%, transparent); }
-  nav.side .userchip .who { display: flex; align-items: center; gap: 10px; min-width: 0; min-height: 40px; color: inherit; text-decoration: none; border-radius: 8px; }
+  /* Aufklappbare Bereiche (ab 10 Einträgen, planung/seitenleiste.md): Kopfzeile wie ein Eintrag, Einträge eingerückt an einer feinen Linie, ohne eigene Symbole */
+  nav.side .navg { display: flex; flex-direction: column; gap: 2px; }
+  nav.side button.navb { display: flex; align-items: center; gap: 12px; width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; color: var(--ink); font-size: 14px; font-weight: 700; text-align: left; }
+  nav.side button.navb:hover { background: var(--hover); }
+  nav.side button.navb > svg:first-child { flex: 0 0 18px; color: var(--muted); }
+  nav.side button.navb > span:not(.badge) { flex: 1; min-width: 0; }
+  nav.side button.navb .badge { margin-left: 0; }
+  nav.side button.navb .chev { flex: 0 0 16px; color: var(--muted); transition: transform .15s; }
+  nav.side .navg.open > .navb .chev { transform: rotate(90deg); }
+  nav.side .navg.open > .navb .badge { display: none; }   /* offen: die Punkte stehen an den Einträgen */
+  nav.side .navg.cur > .navb { color: var(--brand-ink); }
+  nav.side .navg.cur > .navb > svg:first-child { color: var(--brand); }
+  nav.side .navgi { display: none; flex-direction: column; gap: 2px; margin: 0 0 4px 21px; padding-left: 8px; border-left: 1px solid var(--line2); }
+  nav.side .navg.open > .navgi { display: flex; }
+  nav.side .navgi button.nav { height: 36px; padding-left: 10px; }
+  nav.side .navgi button.nav > svg:first-child { display: none; }
+  @media (prefers-reduced-motion: reduce) { nav.side button.navb .chev { transition: none; } }
+  /* Benutzerchip in einer Zeile (Name links, Tablet und Abmelden rechts) – lässt der Leiste Platz für einen offenen Bereich (planung/seitenleiste.md) */
+  nav.side .userchip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 12px 12px; padding: 8px 8px 8px 10px; border-radius: 14px; background: color-mix(in srgb, var(--ink) 4%, transparent); }
+  nav.side .userchip .who { flex: 1 1 auto; display: flex; align-items: center; gap: 10px; min-width: min-content; min-height: 40px; color: inherit; text-decoration: none; border-radius: 8px; }
   nav.side .userchip a.who:hover .nm b, nav.side .userchip a.who:focus-visible .nm b { text-decoration: underline; }
-  nav.side .userchip .ucbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 8px; }
-  nav.side .userchip .ucbtns .iconbtn { width: auto; flex: none; height: 34px; }
+  nav.side .userchip .ucbtns { display: flex; gap: 4px; margin-left: auto; }   /* passt das längste Wort des Namens nicht daneben, rutschen die Knöpfe in die nächste Zeile (rechts) */
+  nav.side .userchip .ucbtns .iconbtn { width: 32px; height: 32px; flex: 0 0 32px; }   /* Rechner: schmal, damit der Name daneben Platz hat (Handy: 40 px) */
   nav.side .userchip .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand); color: var(--on-brand); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 12px; }
-  nav.side .userchip .nm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  nav.side .userchip .nm b { font-size: 13px; line-height: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  nav.side .userchip .nm span { font-size: 12px; line-height: 16px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  nav.side .userchip .nm { flex: 1; min-width: min-content; display: flex; flex-direction: column; }
+  nav.side .userchip .nm b { font-size: 13px; line-height: 18px; overflow-wrap: break-word; }   /* lange Namen brechen an Leerzeichen um, nie mitten im Wort und nie „…“ */
+  nav.side .userchip .nm span { font-size: 12px; line-height: 16px; color: var(--muted); }
   nav.side .iconbtn, .iconbtn { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; color: var(--muted); background: var(--card); text-decoration: none; }
   nav.side .iconbtn:hover, .iconbtn:hover { color: var(--ink); }
   nav.side .menutoggle { display: none; }
@@ -218,6 +236,7 @@
   .switch:disabled { opacity: .5; }
   /* Tabellen */
   table.tbl { width: 100%; border-collapse: collapse; }
+  .tbl th .srt { all: unset; box-sizing: border-box; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; min-height: 24px; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; } .tbl th .srt:hover { color: var(--ink); } .tbl th .srt:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; border-radius: 4px; } .tbl th .srt-pfeil { display: inline-block; min-width: 1em; font-size: 9px; color: var(--brand-ink, var(--ink)); }
   .tbl th { text-align: left; font-size: 11px; line-height: 16px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 700; padding: 12px 10px; border-bottom: 1px solid var(--line); background: var(--card); position: sticky; top: 0; }
   .tbl td { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
   .tbl tr:last-child td { border-bottom: 0; }
@@ -522,9 +541,18 @@
     nav.side { position: sticky; top: 8px; height: auto; z-index: 15; margin: 8px 8px 0; border-radius: 18px; overflow: visible; }
     nav.side:not(.open)::before { content: ''; position: absolute; left: -8px; right: -8px; bottom: calc(100% - 1px); height: 9px; background: var(--bg); z-index: -1; }   /* deckt den Streifen über der klebenden Leiste: beim Scrollen schaut dort kein Inhalt heraus (Prüfregel kopfleiste-ueberdeckt) */
     nav.side .brandbox { min-height: 60px; padding: 10px 12px; }
-    nav.side .menutoggle { display: inline-flex; margin-left: auto; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line2); color: var(--ink); font-weight: 700; line-height: 1.2; text-align: left; max-width: 52vw; } nav.side .menutoggle svg { flex: none; } nav.side .menutoggle #menuCur { min-width: 0; overflow-wrap: break-word; }   /* lange Seitennamen brechen um statt abgeschnitten zu werden (3.101) */
+    nav.side .menutoggle { display: inline-flex; margin-left: auto; align-items: center; gap: 8px; min-height: 40px; padding: 4px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--line2); color: var(--ink); font-weight: 700; line-height: 1.2; text-align: left; flex: none; white-space: nowrap; } nav.side .menutoggle svg { flex: none; }   /* zeigt den Bereich (kurzes Wort): immer eine Zeile, gleich hoch, nie „…“ (planung/seitenleiste.md) */
     nav.side:not(.open) .navbody, nav.side:not(.open) .userchip { display: none; }
     nav.side .navbody { max-height: 70vh; }
+    /* Handy und Tablet: jede Zeile der Leiste 40 px hoch (Tippfläche), dafür enger gesetzt – alle Bereiche zu plus einer offen passen auf 390 × 664 */
+    nav.side .navbody { padding: 2px 12px 4px; gap: 0; }
+    nav.side .search { margin-bottom: 6px; }
+    nav.side .navg, nav.side .navgi { gap: 0; }
+    nav.side .navgi { margin-bottom: 0; }
+    nav.side .navgi button.nav { height: 40px; }
+    nav.side .userchip { margin-bottom: 6px; padding: 6px 6px 6px 10px; }
+    nav.side.open .brandbox { padding-top: 8px; padding-bottom: 8px; }
+    nav.side .userchip .ucbtns .iconbtn { width: 40px; height: 40px; flex-basis: 40px; }
     /* Offenes Menü am Handy: deckt die Seite ganz ab, nur das Menü scrollt – die Seite dahinter steht still */
     nav.side.open { position: fixed; inset: 0; height: 100dvh; margin: 0; border-radius: 0; background: var(--glass-solid); display: flex; flex-direction: column; z-index: 40; padding-bottom: env(safe-area-inset-bottom, 0px); box-sizing: border-box; }
     nav.side.open .navbody { flex: 1 1 auto; max-height: none; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }

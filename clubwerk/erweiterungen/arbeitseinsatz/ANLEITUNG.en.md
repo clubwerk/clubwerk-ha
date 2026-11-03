@@ -288,7 +288,7 @@ If there are club dates, a **Dates** switch appears (with the number still unans
 
 #### Club calendar
 
-If a homepage calendar is set under Settings, the **Dates** tab shows the card **Club calendar** below the dates, with date, time and place. Tapping shows the description. There is no accepting or declining here.
+If a homepage calendar is set under Settings, the **Dates** tab shows the card **Club calendar** below the dates, with date, time and place. Tapping shows the description. There is no accepting or declining here. In that window **Add to calendar** puts exactly this date into the phone’s calendar. Every date with accept/decline has the same button.
 
 ![The club calendar in the “Dates” tab.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; ziel=#dsKal)
 
