@@ -257,7 +257,7 @@ function activate(ctx) {
     const intro = kind === 'storno' ? `${by ? nameOf(by) : 'Der Verein'} hat diese Buchung storniert${reason ? ` (Grund: ${reason})` : ''}:`
       : kind === 'aenderung' ? `${by ? nameOf(by) : 'Der Verein'} hat die Buchung geändert${old && (old.date !== b.date || old.start !== b.start || old.end !== b.end || old.resource_id !== b.resource_id) ? ` (vorher: ${ro.name}, ${WD[isoDow(old.date)]} ${deD(old.date)} · ${old.start}–${old.end} Uhr)` : ''}. So sieht sie jetzt aus:`
       : `${nameOf(b.member_id)} hat dich als Mitspieler eingetragen:`;
-    const outro = kind === 'storno' ? 'Der Platz ist damit wieder frei.' : 'Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Buchen“.';
+    const outro = kind === 'storno' ? 'Der Platz ist damit wieder frei.' : 'Viel Spaß beim Spielen! Alle Buchungen siehst du in der Mitglieder-App unter „Plätze“.';
     notify(ids, head, [intro, '', ...summary(b), '', outro], null, { heading: kind === 'storno' ? 'Buchung storniert' : kind === 'aenderung' ? 'Buchung geändert' : 'Du bist als Mitspieler eingetragen', intro, title: when, rows: summaryRows(b), outro,
       calendar: kind === 'storno' ? null : calendarFor(b) }).catch(() => {});
   }
@@ -579,7 +579,7 @@ function activate(ctx) {
     for (const w of ws) {
       if (!free(r, w.date, tm(w.start), tm(w.end))) continue;
       db.prepare('UPDATE bk_wait SET notified_at = ? WHERE id = ?').run(nowTs(), w.id);
-      notify([w.member_id], `Frei geworden: ${r.name} ${deD(w.date)}`, [`Du stehst auf der Warteliste – ${r.name} am ${WD[isoDow(w.date)]} ${deD(w.date)} um ${w.start} Uhr ist jetzt frei.`, '', 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App unter „Buchen“ zugreifst.'], 'warteliste', { intro: 'Du stehst auf der Warteliste – dieser Termin ist jetzt frei:', title: `${r.name} · ${WD[isoDow(w.date)]} ${deD(w.date)}`, rows: [['Platz', r.name], ['Wann', `${WD[isoDow(w.date)]}, ${deD(w.date)} · ${w.start}–${w.end} Uhr`]], outro: 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App buchst.' }).catch(() => {});
+      notify([w.member_id], `Frei geworden: ${r.name} ${deD(w.date)}`, [`Du stehst auf der Warteliste – ${r.name} am ${WD[isoDow(w.date)]} ${deD(w.date)} um ${w.start} Uhr ist jetzt frei.`, '', 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App unter „Plätze“ zugreifst.'], 'warteliste', { intro: 'Du stehst auf der Warteliste – dieser Termin ist jetzt frei:', title: `${r.name} · ${WD[isoDow(w.date)]} ${deD(w.date)}`, rows: [['Platz', r.name], ['Wann', `${WD[isoDow(w.date)]}, ${deD(w.date)} · ${w.start}–${w.end} Uhr`]], outro: 'Schnell sein lohnt sich: Gebucht ist erst, wenn du in der Mitglieder-App buchst.' }).catch(() => {});
     }
   }
 

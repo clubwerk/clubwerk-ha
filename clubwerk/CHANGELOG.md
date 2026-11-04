@@ -14,6 +14,12 @@
 - **Lange Werte in Feldern:** Betreff der Bestellung (Verkauf › Lager), Abo-Link des Kalenders (Dienste & Termine), Buchungstext einer Forderung (Mitglieder) und die Bezeichnung einer Position (Buchhaltung) brechen jetzt in die nächste Zeile um, statt abgeschnitten zu werden; „Ehrenmitglied vorschlagen“ (Gratulationen) hat mehr Platz. Der Design-Prüfstand meldet solche Felder künftig selbst.
 - **Menüknopf am Handy mit eigenem Bereichsnamen:** Er bekommt höchstens 42 % der Kopfleiste und verkleinert die Schrift, wenn nötig. Passt der Name auch dann nicht, steht „Menü“ auf dem Knopf; der Bereich steht darunter in der Kopfzeile der Seite. So bleibt neben dem Vereinsnamen immer Platz, nichts wird mit „…“ gekürzt.
 - Weitere Felder, die ihren Text nun ganz zeigen (brechen um): Ort in Mängel › Einstellungen, Name im Turnierplaner, Titel im Einsatz-Fenster der Dienste, begünstigte Zwecke in der Buchhaltung und „Was“ bei den Gratulationen.
+## 2026.11.23
+
+**E-Mails zur Platzbuchung nennen den richtigen Bereich der App (Fehler Thorsten 04.11.2026)**
+- In der Buchungsbestätigung stand „Alle Buchungen siehst du in der Mitglieder-App unter „Buchen““ – der Bereich heißt in der App aber „Plätze“. Das ist korrigiert, ebenso in der Mail „Frei geworden“ an die Warteliste.
+- **Damit es nicht wiederkommt:** Die neue Testreihe `appbereich` prüft alle Texte der Form „in der (Mitglieder-)App unter „…““ gegen die echten Namen der App-Bereiche.
+- **Module:** Plätze 1.28.4.
 
 ## 2026.11.21
 

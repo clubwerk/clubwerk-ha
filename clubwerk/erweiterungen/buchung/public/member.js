@@ -1,5 +1,5 @@
 'use strict';
-/* Bereich „Buchen“ in der Mitglieder-App: Plätze und Geräte buchen, eigene Buchungen, Warteliste */
+/* Bereich „Plätze“ in der Mitglieder-App: Plätze und Geräte buchen, eigene Buchungen, Warteliste */
 (() => {
   if (!document.getElementById('bkmStyle')) {
     const s = document.createElement('style'); s.id = 'bkmStyle';
