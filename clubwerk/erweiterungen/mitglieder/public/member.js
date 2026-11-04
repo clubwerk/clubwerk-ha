@@ -43,7 +43,7 @@
         el.innerHTML = `
           ${d.pending.length ? `<div class="vh-bar a">Beim Vorstand in Bearbeitung: ${d.pending.map(x => esc(x.label)).join(', ')}</div>` : ''}
           ${p.exit_date ? `<div class="vh-bar a">Deine Mitgliedschaft endet zum ${deD(p.exit_date)}.</div>` : ''}
-          <div class="vh-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(p.status || 'Mitglied')}${p.entry_date ? ` seit ${deD(p.entry_date)}` : ''}</span></div></div></div>
+          <div class="vh-card"><div class="md-head"><span class="md-av">${esc(ini)}</span><div style="min-width:0"><b>${esc(full)}</b><span>${p.member_no ? `Mitgliedsnummer ${esc(p.member_no)} · ` : ''}${esc(T(p.status || 'Mitglied'))}${p.entry_date ? esc(' ' + T('seit {0}', [deD(p.entry_date)])) : ''}</span></div></div></div>
           ${showFees ? `<div class="vh-card"><h3>Mitgliedschaft</h3><div class="vh-rows">
             ${V.beitraege === false ? '' : d.fees.map(f => `<div><span><span translate="no">${esc(f.name)}</span>${f.dept ? `<small>Zusatzbeitrag Abteilung <span translate="no">${esc(f.dept)}</span></small>` : ''}${f.who ? `<small>für ${esc(f.who)}</small>` : ''}${f.booked_until ? `<small>abgerechnet bis ${deD(f.booked_until)}</small>` : ''}</span><b>${euro(f.cents)} <small style="display:inline">${esc(f.interval)}</small></b></div>`).join('')
               || `<div><span>${d.familyHeadName ? `Dein Beitrag ist im Familienbeitrag von ${esc(d.familyHeadName)} enthalten.` : d.payerName ? `Dein Beitrag läuft über ${esc(d.payerName)}.` : 'Kein Beitrag hinterlegt.'}</span></div>`}

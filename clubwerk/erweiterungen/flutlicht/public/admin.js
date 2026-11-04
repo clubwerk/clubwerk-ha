@@ -142,7 +142,7 @@
         <div class="frm" style="margin-top:12px"><label class="f w1">Von (Tag.Monat.)<input id="flSF" class="num" value="${mdIn(c.season && c.season.from) || '01.04.'}"></label><label class="f w1">Bis (Tag.Monat.)<input id="flST" class="num" value="${mdIn(c.season && c.season.to) || '31.10.'}"></label><span class="w1"></span><span class="w1"></span></div>
         <div class="row" style="margin-top:12px;justify-content:flex-end"><button class="btn primary" id="flSaveS">Speichern</button></div></div>
       <div class="card" id="flBBox"><h3>Sperrzeiträume</h3>
-      ${c.blockDays.length ? `<table class="tbl kompakt"><tr><th>Zeitraum</th><th>Grund</th><th></th></tr>${c.blockDays.map((b, i) => `<tr><td class="k-1z"><b class="num">${deD(b.from)}${b.to !== b.from ? ' – ' + deD(b.to) : ''}</b></td><td>${esc(b.note || '')}</td><td class="r"><button class="btn small" data-be="${i}">Bearbeiten</button></td></tr>`).join('')}</table>`
+      ${c.blockDays.length ? `<table class="tbl kompakt"><tr><th>Zeitraum</th><th>Grund</th><th></th></tr>${c.blockDays.map((b, i) => `<tr><td class="k-1z"><b class="num">${deD(b.from)}${b.to !== b.from ? ' – ' + deD(b.to) : ''}</b></td><td translate="no">${esc(b.note || '')}</td><td class="r"><button class="btn small" data-be="${i}">Bearbeiten</button></td></tr>`).join('')}</table>`
         : '<p class="empty">Keine Sperrzeiträume – an allen Tagen darf das Licht an.</p>'}</div>`;
     GK.watch($('main'));
     GK.tabTools('<button class="btn primary" id="flBAdd">+ Sperrzeitraum</button>', $('flBBox'));

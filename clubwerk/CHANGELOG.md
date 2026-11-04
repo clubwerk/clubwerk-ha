@@ -1,5 +1,17 @@
 # Änderungen
 
+## 2026.11.21
+
+**Englische Oberfläche: keine deutschen Reste mehr (Fehler Thorsten 03.11.2026)**
+- **Der Auslöser:** In der englischen Mitglieder-App stand bei „Work hours“ noch „… danach 15,00 € je fehlender Stunde“ auf Deutsch, dazu Datum und Betrag im deutschen Format. Jetzt steht dort ein ganzer englischer Satz: „0 h of 4 h done – please by 30/04/2027, after that €15.00 per missing hour.“
+- **Daten, Beträge und Dezimalzahlen richten sich nach der Sprache:** in der englischen Oberfläche erscheinen `31.12.2026` als 31/12/2026, `15,00 €` als €15.00 und `1,5 h` als 1.5 h – überall, auch in Hinweisen vom Server. Auch einmal angelegte Zahlen- und Datumsformate der Module folgen der Sprache. Deutsch bleibt unverändert.
+- **Zusammengesetzte Texte werden Teil für Teil übersetzt:** Aufzählungen wie „Zeiterfassung · An wen der Stundennachweis …“ oder „Heim · auswärts · 3/4 können“ und Angaben der Form „Bezeichnung: Wert“ blieben bisher halb deutsch, halb englisch. Rund 30 Stellen in der Verwaltung, im Tablet und in der App sind außerdem auf ganze Sätze umgestellt (Monatsnamen in den Statistiken, „alle 25 Konten“, Mahnstufen, Mannschaften „gegen/bei …“, Kontoauszug-Hinweis, Lastschrift-Hinweis, Termine „Als Nächstes“, LK-Turniertag am Tablet „Als Nächstes (etwa … Uhr)“ und „läuft seit … Minuten“ u. a.).
+- **Tablet › Beregnung war nie übersetzt:** die Seite lud ihre Sprachdatei vom falschen Pfad und blieb deutsch (Tablet, Rahmen „Beregnung“).
+- **Texte des Vereins bleiben, wie sie sind:** Hinweise und Notizen, die der Verein selbst eingibt (Arbeitseinsätze, Sperrzeiträume, Kündigungsgründe), werden nicht mehr zu einem Mischtext übersetzt.
+- **Weitere Texte ohne Übersetzung gefunden:** die lange Beschreibung des Moduls „Turniere“ (fiel beim Sammeln der Texte heraus), die Namen der Artikel-Symbole („Brötchen“, „Heißgetränke“ …) und Ein-Wort-Beschriftungen („geleistet“, „erledigt“, „bei“). Drei englische Einleitungen und die Herkunft „im Paket“ sind gekürzt, damit nichts umbricht; der Link „Ansehen/View“ in den Hinweisen hat jetzt die Mindestbreite einer Tippfläche.
+- **Neuer Prüfablauf:** der Design-Prüfstand geht Tablet, Verwaltung und App auch **mit Sprache Englisch** durch (alle Seiten, Reiter und Fenster, `gate.py --lauf=en`, in `paket.sh`) und meldet jeden sichtbaren Text, der noch deutsch aussieht. Am alten Stand 914 verschiedene Texte (1 144 Fundstellen), jetzt 0. Ausgenommen: Namen und Texte aus den Daten sowie das Protokoll (gespeicherter Text).
+- **Module:** Dienste & Termine 2.15.4, Mitglieder 1.38.1, Buchung 1.28.3, Beregnung 1.16.1, Turniere 1.11.1, Flutlicht und Spielbetrieb mit Versionsschritt. **Für Entwickler:** Regel `deutsch-in-englisch` (`deutsch.js`), Testreihe `deutsch`, `i18n-core.js` übersetzt „A · B · C“ Teil für Teil, `i18n-dom.js` formatiert Datum, Euro und Dezimalzahlen je Sprache, `extract.js` nimmt Beschreibungen bis 4 000 Zeichen mit, `extra.json` für Ein-Wort-Beschriftungen.
+
 ## 2026.11.20
 
 **Mitglieder-App: „App installieren“ auf Android**
@@ -21,7 +33,7 @@
 - **Wer wenig sieht, klappt nichts auf:** Mit bis zu 9 Einträgen (z. B. Kassenwart, Platzwart, Thekenteam) steht alles wie bisher untereinander, nur mit den Bereichen als Überschriften.
 - **Neue Seite „System“:** Datensicherung, Protokoll und Einrichtung sind jetzt Reiter einer Seite „System“ im Bereich Verein. Lesezeichen, Hinweise der Übersicht, die Suche (Strg K) und das „?“ führen weiter direkt an die richtige Stelle.
 - **Unten im Menü** stehen Name, Tablet und Abmelden in einer Zeile; ist der Name dafür zu lang, rutschen die beiden Knöpfe darunter – der Name bricht nie mitten im Wort.
-- **Mitglieder-App › Plätze › „Jetzt auf der Anlage“:** Lange Namen einer Belegung (z. B. „Training Jugend U12 Leistungsgruppe“) stehen ganz da und brechen um, statt mit „…“ zu enden (Buchung 1.28.2).
+- **Mitglieder-App › Plätze › „Jetzt auf der Anlage“:** Lange Namen einer Belegung (z. B. „Training Jugend U12 Leistungsgruppe“) stehen ganz da und brechen um, statt mit „…“ zu enden (Buchung 1.28.3).
 - **Menüknopf am Handy** zeigt jetzt den Bereich (z. B. „Finanzen“) statt des langen Seitennamens und bleibt so immer einzeilig – vorher brach „Dienste & Termine“ oder „Beiträge & Zahlungen“ auf zwei Zeilen um.
 - Am Handy und im Tablet-Rahmen gilt dasselbe Menü; jede Zeile ist dort 40 px hoch, und mit einem offenen Bereich passt alles ohne Scrollen auf den Bildschirm.
 - **Für Entwickler:** `registerPage({ bereich })` für neue Module, Gruppe `'system'`; Prüfstand-Regeln `leiste-scrollt` (Rechner 1280 × 800, Laptop 1366 × 768, Tablet-Rahmen 820, Handy 390 × 664) und `kopfknopf-umbruch` (Kopfzeilen-Knöpfe einzeilig, 390 und 360 px, Chromium und WebKit), neue Testreihe `leiste`.

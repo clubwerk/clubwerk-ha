@@ -16,11 +16,11 @@
   const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Zeile
   const hh = m => `${HF.format((m || 0) / 60)} h`;
   const euro = c => EUR.format((c || 0) / 100);
-  const deD = d => (d ? d.split('-').reverse().join('.') : '');
+  const deD = d => (d ? new Date(d + 'T12:00:00').toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '');   // „de-DE“ wird je Sprache getauscht (i18n-dom.js)
   const ST = { offen: ['a', 'wird geprüft'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'], laeuft: ['', 'läuft'] };
   const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Einsatz' };
   const WDS = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'], WDL = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-  const wd = (d, long) => (long ? WDL : WDS)[new Date(d + 'T12:00:00').getDay()];
+  const wd = (d, long) => T((long ? WDL : WDS)[new Date(d + 'T12:00:00').getDay()]);   // Wochentage über die Übersetzung (Mo → Mon)
   const when = e => (e.start ? (e.end ? `${e.start}–${e.end}` : `ab ${e.start}`) : 'ganztags');
   const short = n => { const w = String(n || '').trim().split(/\s+/); return w.length > 1 ? `${w[0]} ${w[w.length - 1][0]}.` : w[0]; };
 
@@ -47,10 +47,10 @@
         const hours = `<div class="vh-card"><h3>Arbeitsstunden ${esc(d.year)}${d.family ? '<span class="vh-chip">Familie</span>' : ''}</h3>
             ${!d.target ? `<p class="vh-lead">Für dich ist kein Soll hinterlegt${d.mine && d.mine.why ? ` (${esc(d.mine.why)})` : ''}. Mithelfen ist trotzdem willkommen!</p>`
               : miss ? `<div class="vh-big"><b>${hh(miss)}</b><span>noch offen</span></div><div class="vh-prog"><i style="width:${pct}%"></i></div>
-              <p class="vh-lead">${hh(d.done)} von ${hh(d.target)} geleistet – bitte bis ${deD(d.to)}${d.rate_cents ? `, danach ${euro(d.rate_cents)} je fehlender Stunde` : ''}.${d.open ? ` ${hh(d.open)} werden noch geprüft.` : ''}</p>`
+              <p class="vh-lead">${d.rate_cents ? T('{0} von {1} geleistet – bitte bis {2}, danach {3} je fehlender Stunde.', [hh(d.done), hh(d.target), deD(d.to), euro(d.rate_cents)]) : T('{0} von {1} geleistet – bitte bis {2}.', [hh(d.done), hh(d.target), deD(d.to)])}${d.open ? ' ' + T('{0} werden noch geprüft.', [hh(d.open)]) : ''}</p>`
               : `<div class="vh-big"><b>${hh(d.done)}</b><span>geleistet – danke!</span></div>
-              ${d.open ? `<p class="vh-lead" style="margin-top:8px">${hh(d.open)} werden noch geprüft.</p>` : ''}`}
-            ${d.text ? `<p class="vh-lead" style="margin-top:8px">${esc(d.text)}</p>` : ''}</div>`;
+              ${d.open ? `<p class="vh-lead" style="margin-top:8px">${T('{0} werden noch geprüft.', [hh(d.open)])}</p>` : ''}`}
+            ${d.text ? `<p class="vh-lead" style="margin-top:8px" translate="no">${esc(d.text)}</p>` : ''}</div>`;
         const duties = `${mineHtml(d)}${d.plans.map(planHtml).join('')}
           ${d.events.length || !d.plans.length ? `<div class="vh-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="vh-none">Gerade keine Termine geplant.</p>'}</div>` : ''}`;
         const openT = d.termine.filter(t => !t.answer && t.can).length;
@@ -93,7 +93,7 @@
         const count = t.persons_total ? `bisher ${t.persons_total} ${t.persons_total === 1 ? 'Person' : 'Personen'} zugesagt${t.free != null ? ` · noch ${t.free} ${t.free === 1 ? 'Platz' : 'Plätze'} frei` : ''}` : (t.free != null ? `${t.free} ${t.free === 1 ? 'Platz' : 'Plätze'} frei` : '');
         return `<div class="vh-card ds-tm"><h3><span translate="no">${esc(t.title)}</span>${chip}</h3>
           <div class="ds-sh" style="border-top:0;padding:2px 0 0"><span class="vh-date"><b>${t.date.slice(8, 10)}.${t.date.slice(5, 7)}.</b><span>${wd(t.date)}</span></span>
-            <div style="min-width:0"><strong>${esc(`${wd(t.date, true)}, ${deD(t.date)}`)}</strong><small>${esc([when(t), t.place].filter(Boolean).join(' · '))}</small>${t.note ? `<small>${esc(t.note)}</small>` : ''}</div><span></span></div>
+            <div style="min-width:0"><strong>${esc(`${wd(t.date, true)}, ${deD(t.date)}`)}</strong><small>${esc([when(t), t.place].filter(Boolean).join(' · '))}</small>${t.note ? `<small translate="no">${esc(t.note)}</small>` : ''}</div><span></span></div>
           ${count ? `<p class="vh-lead">${esc(count)}</p>` : ''}
           ${t.can ? `${t.deadline ? `<p class="vh-lead">Antwort bis ${deD(t.deadline)}</p>` : ''}<div class="ds-ans"><button class="vh-btn sm${t.answer === 'ja' ? '' : ' sec'}" data-t="${t.id}" data-ans="ja">${t.answer === 'ja' ? 'Ich komme ✓' : 'Ich komme'}</button><button class="vh-btn sm${t.answer === 'nein' ? '' : ' sec'}" data-t="${t.id}" data-ans="nein">${t.answer === 'nein' ? 'Ich komme nicht ✓' : 'Ich komme nicht'}</button></div>`
             : `<p class="vh-lead">Die Antwortfrist ist abgelaufen${t.answer ? '' : ' – du hast nicht geantwortet'}. Änderungen bitte über ${d_contact ? esc(d_contact) : 'den Verein'}.</p>`}
@@ -118,7 +118,7 @@
         const st = e.slots ? (e.taken >= e.slots ? ['g', 'voll'] : ['a', `${e.slots - e.taken} frei`]) : ['', `${e.taken} dabei`];
         return `<div class="ds-sh${e.mine ? ' me' : ''}">${withDate ? `<span class="vh-date"><b>${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.</b><span>${wd(e.date)}</span></span>` : `<div class="ds-t">${esc(when(e)).replace('–', '–<br>')}</div>`}
           <div style="min-width:0"><strong><span translate="no">${esc(e.title)}</span><span class="vh-chip ${st[0]}">${esc(st[1])}</span>${e.mine ? '<span class="vh-chip g">du bist dabei</span>' : ''}</strong>${withDate ? `<small>${esc([when(e), e.place].filter(Boolean).join(' · '))}</small>` : ''}
-            ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length ? `<small translate="no">${esc(e.helpers.map(short).join(', '))}</small>` : ''}${e.note ? `<small>${esc(e.note)}</small>` : ''}</div>
+            ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length ? `<small translate="no">${esc(e.helpers.map(short).join(', '))}</small>` : ''}${e.note ? `<small translate="no">${esc(e.note)}</small>` : ''}</div>
           ${over ? '<button class="vh-btn sm sec" disabled>vorbei</button>' : `<button data-ev="${e.id}" data-on="${e.mine ? 1 : 0}" class="vh-btn sm${e.mine ? ' sec' : ''}" ${full ? 'disabled' : ''}>${e.mine ? 'Austragen' : full ? 'voll' : 'Ich helfe'}</button>`}</div>`;
       }
       function planHtml(p) {
@@ -126,7 +126,7 @@
         if (!sel[p.id] || !days.includes(sel[p.id])) sel[p.id] = days.find(x => x >= (window.__dsToday || '')) || days[0];
         const sh = p.shifts.filter(e => e.date === sel[p.id]);
         return `<div class="vh-card"><h3 style="margin-bottom:2px" translate="no">${esc(p.title)}</h3><p class="vh-lead">${esc([p.from_date === p.to_date ? `${wd(p.from_date, true)}, ${deD(p.from_date)}` : `${deD(p.from_date)} – ${deD(p.to_date)}`, p.place].filter(Boolean).join(' · '))}</p>
-          ${p.note ? `<p class="vh-lead" style="margin:0 0 8px">${esc(p.note)}</p>` : ''}
+          ${p.note ? `<p class="vh-lead" style="margin:0 0 8px" translate="no">${esc(p.note)}</p>` : ''}
           ${days.length > 1 ? `<div class="vh-seg">${days.map(x => `<button data-pl="${p.id}" data-pd="${x}" class="${x === sel[p.id] ? 'on' : ''}">${wd(x)} ${+x.slice(8, 10)}.${+x.slice(5, 7)}.</button>`).join('')}</div>` : ''}
           ${sh.length ? sh.map(e => shiftHtml(e, false)).join('') : '<p class="vh-none">Noch keine Schichten.</p>'}</div>`;
       }

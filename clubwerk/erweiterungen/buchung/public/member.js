@@ -278,7 +278,7 @@
               ${r.open_today ? `${o > from ? `<div class="zu" style="top:0;height:${y(o)}px"></div>` : ''}<div class="zu" style="top:${y(c)}px;bottom:0"></div>` : '<div class="zu" style="top:0;bottom:0"></div>'}
               ${isToday && nowM > from ? `<div class="past" style="height:${Math.min(H, y(nowM))}px"></div>` : ''}${isToday && nowM > from && nowM < to ? `<div class="nowl" style="top:${y(nowM)}px"></div>` : ''}
               ${bs.map(b => blk(r, b)).join('')}</div>`; }).join('')}
-        </div></div></div><p class="bkm-hint">${wide && rs.length > 2 ? 'Seitlich wischen für weitere Plätze · ' : ''}Freie Stelle antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</p>`;
+        </div></div></div><p class="bkm-hint">${wide && rs.length > 2 ? '<span>Seitlich wischen für weitere Plätze</span> · ' : ''}<span>Freie Stelle antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</span></p>`;
       }
       function slotTap(r, s) {
         const sl0 = slots(r, data.plan, day, tm(data.now), data.today); const x = sl0.find(y => y.s === s) || sl0.find(y => y.s <= s && y.e > s); if (!x) return;

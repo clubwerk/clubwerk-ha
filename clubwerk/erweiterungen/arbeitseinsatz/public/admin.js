@@ -89,7 +89,7 @@
     const CNT = Object.fromEntries(Object.entries(PASS).map(([k, f]) => [k, o.families.filter(f).length]));
     if (!st.of || !PASS[st.of]) st.of = 'fehlt';
     $('main').insertAdjacentHTML('beforeend', `${!st.meta.mv ? '<div class="banner a"><span>Ohne das Modul „Mitglieder“ gilt die Vorgabe für alle gleich; Familien, Alter, Beitragsarten und die Abrechnung brauchen es.</span></div>' : ''}
-      ${st.meta.pending ? `<div class="banner a"><span>${st.meta.pending} ${st.meta.pending === 1 ? 'Stundenmeldung wartet' : 'Stundenmeldungen warten'} auf deine Bestätigung.</span><a href="#aw-stunden" data-go="aw-stunden">Zu den Stunden →</a></div>` : ''}
+      ${st.meta.pending ? `<div class="banner a"><span>${T(st.meta.pending === 1 ? '{0} Stundenmeldung wartet auf deine Bestätigung.' : '{0} Stundenmeldungen warten auf deine Bestätigung.', [st.meta.pending])}</span><a href="#aw-stunden" data-go="aw-stunden">Zu den Stunden →</a></div>` : ''}
       <div class="filterbar"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Jahr<select id="awYear" data-nodirty>${st.meta.years.map(y => opt(y.y, y.label, st.year)).join('')}</select></label>
         <span class="muted s">${deDate(o.from)} – ${deDate(o.to)}${o.closed ? ' · abgeschlossen' : ''}</span></div>
       <div class="kpis"><div class="kpi"><div class="l">Soll gesamt</div><div class="v">${h(o.totals.target)}</div></div><div class="kpi"><div class="l">geleistet</div><div class="v">${h(o.totals.done)}</div></div>
@@ -107,7 +107,7 @@
       $('awTbl').innerHTML = `<tr><th>${o.pool ? 'Familie / Mitglied' : 'Mitglied'}</th><th class="r">Soll</th><th class="r">geleistet</th><th class="k-weg hide-md">Fortschritt</th><th class="r hide-md k-weg">gemeldet</th><th class="r">fehlt</th><th class="r">Betrag</th><th></th></tr>`
         + (fams.length ? fams.map(x => {
           const many = x.members.length > 1;
-          const head = `<tr><td class="k-1z">${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px" aria-label="Familie ${open.has(x.head) ? 'zuklappen' : 'aufklappen'}">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `${rowOf(x.head).exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s k-sum">${esc(rowOf(x.head).why)}</div>`}</td>
+          const head = `<tr><td class="k-1z">${many ? `<button class="btn small ghost" data-tg="${x.head}" style="min-width:32px;padding:0 8px" aria-label="${T(open.has(x.head) ? 'Familie zuklappen' : 'Familie aufklappen')}">${open.has(x.head) ? '−' : '+'}</button> ` : ''}<b>${esc(GK.lastFirst(x.name))}</b>${many ? ` <span class="pill">Familie · ${x.members.length}</span>` : `${rowOf(x.head).exempt ? ' <span class="pill g">befreit</span>' : ''}<div class="muted s k-sum">${esc(rowOf(x.head).why)}</div>`}</td>
             <td class="r">${h(x.target)}</td><td class="r">${h(x.done)}</td><td class="k-weg hide-md">${bar(x.done, x.target)}</td><td class="r hide-md k-weg">${x.open ? h(x.open) : '<span class="muted s">–</span>'}</td>
             <td class="r ${x.missing ? 'neg' : ''}">${x.missing ? h(x.missing) : '✓'}</td><td class="r">${x.cents ? euro(x.cents) : '<span class="muted s">–</span>'}</td>
             <td class="r">${many ? '' : `<button class="btn small" data-tgt="${x.head}">Pflichtstunden …</button>`}</td></tr>`;
@@ -534,7 +534,7 @@
       const ok = s.ok ? `Zuletzt abgerufen ${deDate(s.ok.at.slice(0, 10))} ${s.ok.at.slice(11, 16)} Uhr: ${s.ok.n === 1 ? '1 Termin' : `${s.ok.n} Termine`}.` : '';
       const err = s.err ? `<span style="color:var(--red)">Abruf am ${deDate(s.err.at.slice(0, 10))} ${s.err.at.slice(11, 16)} Uhr: ${esc(s.err.error)}${s.ok ? ' Es gilt der letzte Stand.' : ''}</span>` : '';
       $('icSt').innerHTML = !s.url ? 'Kein Kalender eingetragen.' : s.sample ? `Beispieladresse – wird nicht abgerufen. ${s.n === 1 ? '1 Termin' : `${s.n} Termine`} aus den Beispieldaten.` : [ok, err].filter(Boolean).join('<br>') || 'Noch nicht abgerufen.';
-      if (s.next && s.next.length) $('icSt').insertAdjacentHTML('beforeend', `<br>Als Nächstes: ${s.next.map(e => `${esc(e.title)} (${deDate(e.date)}${e.start ? ' ' + e.start : ''})`).join(' · ')}`);
+      if (s.next && s.next.length) $('icSt').insertAdjacentHTML('beforeend', `<br>Als Nächstes: ${s.next.map(e => `<span translate="no">${esc(e.title)}</span> (${deDate(e.date)}${e.start ? ' ' + e.start : ''})`).join(' · ')}`);
     };
     api('ical').then(s => { $('icU').value = s.url || ''; icShow(s); }).catch(fail);
     $('icSave').onclick = () => GK.busy($('icSave'), async () => { try { const s = await api('ical', 'PUT', { url: val('icU') }); $('icU').value = s.url || ''; icShow({ ...s, next: (await api('ical')).next }); toast(s.url ? 'Gespeichert.' : 'Kalender entfernt.'); } catch (e) { fail(e); } });

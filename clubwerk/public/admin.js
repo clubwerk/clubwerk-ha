@@ -1774,7 +1774,7 @@
     }
     function monthBars(cur, prev, year, fmt) {
       const max = Math.max(1, ...cur, ...prev);
-      return `<div class="ds-bars">${MON.map((m, i) => `<div class="ds-bar1" title="${m} ${year}: ${fmt(cur[i])} · ${year - 1}: ${fmt(prev[i])}"><div class="ds-bpair"><i class="p" style="height:${prev[i] / max * 100}%"></i><i style="height:${cur[i] / max * 100}%"></i></div><span>${m.slice(0, 3)}</span></div>`).join('')}</div>`;
+      return `<div class="ds-bars">${MON.map((m, i) => `<div class="ds-bar1" title="${T(m)} ${year}: ${fmt(cur[i])} · ${year - 1}: ${fmt(prev[i])}"><div class="ds-bpair"><i class="p" style="height:${prev[i] / max * 100}%"></i><i style="height:${cur[i] / max * 100}%"></i></div><span>${T(m).slice(0, 3)}</span></div>`).join('')}</div>`;
     }
     return { PAL, delta, spark, donut, legend, kpi, calendar, bubbles, monthBars, num, WDL, heat };
   })();
@@ -1794,7 +1794,7 @@
     void tot;
     $('svBody').innerHTML = `<div class="filterbar"><select id="svY" class="ds-sel" data-nodirty>${d.years.map(y => `<option value="${y}" ${y === d.year ? 'selected' : ''}>Jahr ${y}</option>`).join('')}</select>
         <select id="svC" class="ds-sel" data-nodirty><option value="">Alle Kategorien</option>${d.categories.map(k => `<option value="${esc(k)}" ${k === d.cat ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>
-        <span style="flex:1"></span><span class="muted s">${d.year === new Date().getFullYear() ? `bis heute (${deDate(d.until)}) · ` : ''}Vergleich mit ${d.year - 1}</span></div>
+        <span style="flex:1"></span><span class="muted s">${d.year === new Date().getFullYear() ? `<span>bis heute (${deDate(d.until)})</span> · ` : ''}Vergleich mit ${d.year - 1}</span></div>
       <div class="ds-kpis">
         ${DS.kpi('e', 'Umsatz', euro(c.revenue), DS.delta(c.revenue, p.revenue), DS.spark(c.month, p.month, 'var(--brand)'))}
         ${DS.kpi('u', 'Verkaufte Artikel', num(c.units), DS.delta(c.units, p.units), DS.spark(c.monthUnits, p.monthUnits, '#e07b16'), 'o')}
@@ -1882,7 +1882,7 @@
           ${r.mvOpen.map(c => `<tr><td>${esc(lastFirst(c.payer, c.payer_kind))}</td><td translate="no">${esc(c.text)}</td><td class="nw">${deDate(c.due_date)}</td><td class="r">${euro(c.cents)}</td></tr>`).join('')}</table></div></div>` : ''}
       ${mayClose ? `<div class="card" style="margin-top:16px"><h3>Bisherige Abrechnungen</h3>
         ${hist.length ? `<table class="tbl kompakt"><tr><th>markiert am</th><th>Konten</th><th class="r">Betrag</th><th>von</th><th></th></tr>
-          ${hist.map(h => `<tr><td>${deTime(h.created_at)}</td><td>${h.names ? esc(h.names) : (h.batch.startsWith('alle-') ? 'alle' : '') + ' ' + h.members + ' Konten'}</td>
+          ${hist.map(h => `<tr><td>${deTime(h.created_at)}</td><td>${h.names ? esc(h.names) : esc(T(h.batch.startsWith('alle-') ? 'alle {0} Konten' : '{0} Konten', [h.members]))}</td>
             <td class="r">${euro(h.cents)}</td><td class="k-weg">${esc(h.by_user || '')}</td>
             <td class="r">${h.undo ? `<button class="btn small" data-undo="${esc(h.batch)}">Rückgängig</button>` : ''}</td></tr>`).join('')}</table>`
           : '<p class="empty">Noch keine Abrechnungen.</p>'}</div>` : ''}
@@ -4324,7 +4324,7 @@
       <div>${r.rows.map(x => `<div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 0;border-top:1px solid var(--line-soft)">
           <div style="flex:1 1 240px;min-width:0"><b>${esc(x.label)}</b><div class="muted s">${esc(x.text)}</div></div>
           ${field(x)}<span class="muted s" style="min-width:76px;text-align:right">Fällig: <b>${x.due == null ? '–' : x.due}</b></span></div>`).join('')}</div>
-      <p class="muted s">„Fällig“: so viele Einträge fallen beim nächsten Lauf weg${r.rows.some(x => x.self) ? '; Mängel und Turniere löschen stündlich selbst' : ''}. ${r.lastRun ? `Letzter Lauf: ${esc(deTime(r.lastRun))}${r.lastResult ? ` – ${esc(r.lastResult)}` : ' – nichts zu löschen'}.` : ''}</p>
+      <p class="muted s">${r.rows.some(x => x.self) ? T('„Fällig“: so viele Einträge fallen beim nächsten Lauf weg; Mängel und Turniere löschen stündlich selbst.') : T('„Fällig“: so viele Einträge fallen beim nächsten Lauf weg.')} ${r.lastRun ? `Letzter Lauf: ${esc(deTime(r.lastRun))}${r.lastResult ? ` – ${esc(r.lastResult)}` : ' – nichts zu löschen'}.` : ''}</p>
       <p class="muted s">Sicherungen: Gelöschtes verschwindet dort, sobald die älteren Sicherungen wegfallen – bei euren Einstellungen nach spätestens ${keepM} ${keepM === 1 ? 'Monat' : 'Monaten'}. Wird eine Sicherung zurückgespielt, löscht Clubwerk Abgelaufenes sofort wieder und anonymisiert bereits anonymisierte Mitglieder erneut.</p>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn" id="dsRun">Jetzt löschen</button><button class="btn primary" id="dsSave">Speichern</button></div>`;
     $('dsSave').onclick = () => busy($('dsSave'), async () => {

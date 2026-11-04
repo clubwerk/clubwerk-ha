@@ -737,7 +737,7 @@
     const mmax = Math.max(1, ...c.month, ...p.month);
     el.innerHTML = `<div class="filterbar"><label class="f bk-fl">Jahr<select id="syY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y, y, d.year)).join('')}</select></label>
         <label class="f bk-fl">Platz<select id="syR" class="bk-sel" data-nodirty>${opt('', 'Alle Plätze', d.resource || '')}${d.resources.map(r => opt(r.id, r.name, d.resource || '')).join('')}</select></label>
-        <span style="flex:1"></span><span class="muted s">${d.year === new Date().getFullYear() ? `Auslastung bis heute (${deDate(d.until)}) · ` : ''}Vergleich mit ${d.year - 1}</span></div>
+        <span style="flex:1"></span><span class="muted s">${d.year === new Date().getFullYear() ? `<span>Auslastung bis heute (${deDate(d.until)})</span> · ` : ''}Vergleich mit ${d.year - 1}</span></div>
       <div class="bk-kpis">
         ${kpi('h', 'Gebuchte Stunden', hrs(c.minutes), delta(c.minutes, p.minutes), spark(c.month, p.month, 'var(--brand)'))}
         ${kpi('r', 'Auslastung', pct(c.rate), delta(c.rate, p.rate, { points: true }), `<div class="bk-meter"><i style="width:${Math.min(100, c.rate * 100)}%"></i><em style="left:${Math.min(100, p.rate * 100)}%" title="${d.year - 1}: ${pct(p.rate)}"></em></div><div class="bk-mlab"><span>0 %</span><span>${d.year - 1}: ${pct(p.rate)}</span><span>100 %</span></div>`)}
@@ -762,7 +762,7 @@
         </div></div></div>
       <div class="bk-two">
         <div class="card"><div class="bk-ch"><h3>Gebuchte Stunden je Monat</h3><span class="bk-leg"><i style="background:var(--brand)"></i>${d.year}<i style="background:var(--line);margin-left:10px"></i>${d.year - 1}</span></div>
-          <div class="bk-bars">${MON.map((m, i) => `<div class="bk-bar1" title="${m} ${d.year}: ${hrs(c.month[i])} Std. · ${d.year - 1}: ${hrs(p.month[i])} Std."><div class="bk-bpair"><i class="p" style="height:${p.month[i] / mmax * 100}%"></i><i style="height:${c.month[i] / mmax * 100}%"></i></div><span>${m.slice(0, 3)}</span></div>`).join('')}</div></div>
+          <div class="bk-bars">${MON.map((m, i) => `<div class="bk-bar1" title="${T(m)} ${d.year}: ${hrs(c.month[i])} Std. · ${d.year - 1}: ${hrs(p.month[i])} Std."><div class="bk-bpair"><i class="p" style="height:${p.month[i] / mmax * 100}%"></i><i style="height:${c.month[i] / mmax * 100}%"></i></div><span>${m.slice(0, 3)}</span></div>`).join('')}</div></div>
         <div class="card"><h3>Wer spielt am meisten?</h3>${d.top.length ? `<ol class="bk-top">${d.top.map((t, i) => `<li><span class="n">${i + 1}</span><b>${esc(t.name)}</b><div class="bk-meter"><i style="width:${t.minutes / d.top[0].minutes * 100}%"></i></div><span class="r">${hrs(t.minutes)} Std.</span></li>`).join('')}</ol>` : '<p class="empty">Noch keine Buchungen in diesem Jahr.</p>'}</div>
       </div>
       <div class="card"><div class="bk-ch"><h3>Wann wird gespielt?</h3>${legend()}</div>

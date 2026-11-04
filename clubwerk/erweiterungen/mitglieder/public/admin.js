@@ -932,7 +932,7 @@
       <div class="card"><h3>Warten auf Unterschrift am Tablet <span class="muted s">(${signing.length})</span></h3>${signing.length ? appTable(signing) : '<p class="empty">Nichts offen.</p>'}</div>
       <div class="card"><h3>Änderungen & Meldungen <span class="muted s">(${changes.length})</span></h3><p class="muted s" style="margin-top:0">Aus der Mitglieder-App und von Abteilungsleitungen (Ein- und Austritte zur Bestätigung).</p>${changes.length ? `<table class="tbl kompakt"><tr><th>Mitglied</th><th>Art</th><th>eingegangen</th><th>Inhalt</th><th></th></tr>
         ${changes.map(c => `<tr><td><b>${esc(c.name)}</b>${c.member_no ? `<div class="muted s">Nr. ${esc(c.member_no)}</div>` : ''}</td><td>${pill(c.kind === 'kuendigung' || c.kind === 'austritt' ? ['r', c.label] : c.kind === 'bank' ? ['b', c.label] : c.kind === 'eintritt' ? ['g', c.label] : ['', c.label])}${c.created_by ? `<div class="muted s">von ${esc(c.created_by)}</div>` : ''}</td><td class="num nw">${deTime(c.created_at)}</td>
-          <td class="s k-weg">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
+          <td class="s k-weg">${c.kind === 'kuendigung' ? `${esc((c.kuendigung.names || []).join(', '))} – frühestens zum <b>${deDate(c.kuendigung.exit_date)}</b>${c.kuendigung.reason ? `<br><span class="muted" translate="no">${esc(c.kuendigung.reason)}</span>` : ''}` : c.rows.map(r => (c.scope && !r.old ? `${esc(r.field)}: <b>${esc(r.new || '–')}</b>` : `${esc(FIELD[r.field] || r.field)}: <span class="muted">${esc(r.old || '–')}</span> → <b>${esc(r.new || '–')}</b>`)).join('<br>')}</td>
           <td class="r nw">${SC() && (c.scope || (CONF() && c.kind === 'kuendigung')) ? '<span class="pill a">wartet auf Vereinsverwaltung</span>' : `<button class="btn small" data-cok="${c.id}">${c.scope ? 'Bestätigen' : 'Übernehmen'}</button> <button class="btn small" data-cno="${c.id}">Ablehnen</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Keine offenen Änderungswünsche.</p>'}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Archiv</h3><button class="btn small" id="aArch">${st.app === 'alle' ? 'Ausblenden' : 'Alle Anträge anzeigen'}</button></div>
         ${all ? (all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status)).length ? appTable(all.filter(a => ['angenommen', 'abgelehnt'].includes(a.status))) : '<p class="empty">Noch nichts im Archiv.</p>') : ''}</div>`;
@@ -1094,7 +1094,7 @@
       $('cbOk').onclick = () => GK.busy($('cbOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', {}); closeDialog(); toast('Neue Bankverbindung übernommen.'); after(); } catch (e) { fail(e); } });
       return;
     }
-    dialog(`<h2>Kündigung von ${esc(c.name)}</h2><p>Für: <b>${esc((c.kuendigung.names || []).join(', '))}</b>${c.kuendigung.reason ? `<br><span class="muted">${esc(c.kuendigung.reason)}</span>` : ''}</p>
+    dialog(`<h2>Kündigung von ${esc(c.name)}</h2><p>Für: <b>${esc((c.kuendigung.names || []).join(', '))}</b>${c.kuendigung.reason ? `<br><span class="muted" translate="no">${esc(c.kuendigung.reason)}</span>` : ''}</p>
       <label class="f" style="max-width:260px">Austritt zum<input id="ckDate" type="date" value="${esc(c.kuendigung.exit_date)}"></label>
       <p class="muted s">Vorschlag nach Kündigungsfrist und Beitragsjahr. Beiträge und Abteilungen enden zum Austritt; das Mitglied bekommt eine Bestätigung per E-Mail.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Kündigung bestätigen</button></div>`);
@@ -1544,7 +1544,7 @@
     const payers = [...new Set(all.rows.map(c => c.member_id))].map(id => { const list = all.rows.filter(c => c.member_id === id); return { id, name: list[0].payer_name, payment: list[0].payment, blocked: list[0].debit_blocked, cents: list.reduce((s, c) => s + c.cents, 0), n: list.length }; })
       .filter(p => p.cents > 0 && (p.payment !== 'lastschrift' || p.blocked));
     const mails = d.due.filter(x => x.email), letters = d.due.filter(x => !x.email);
-    const lv = d.levels.map((l, i) => `${esc(l.title)} ${i ? `${l.days} Tage danach` : `${l.days} Tage nach Fälligkeit`}${l.fee_cents ? ` (${euro(l.fee_cents)})` : ''}`).join(' · ');
+    const lv = d.levels.map((l, i) => `${esc(T(l.title))} ${esc(T(i ? '{0} Tage danach' : '{0} Tage nach Fälligkeit', [l.days]))}${l.fee_cents ? ` (${euro(l.fee_cents)})` : ''}`).join(' · ');
     const head = (h, btns) => `<div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">${h}</h3>${btns ? `<div class="row">${btns}</div>` : ''}</div>`;
     el.innerHTML = `${warn ? `<div class="banner a"><span>${esc(warn)}</span></div>` : hint ? `<div class="banner g"><span>${esc(hint)}</span></div>` : ''}
       <div class="card">${head('Rechnungen (Zahlungsart Rechnung/bar)', `<button class="btn" id="iSend" ${payers.length ? '' : 'disabled'}>Ausgewählte per E-Mail senden</button>`)}
@@ -1555,7 +1555,7 @@
           ${d.due.map(x => `<tr><td><label class="chk" style="align-items:flex-start"><input type="checkbox" data-dun="${x.member_id}" checked aria-label="auswählen" style="margin-top:2px"> <span><b>${esc(GK.lastFirst(x.name))}</b>${x.email ? '' : ' <span class="pill a">Brief</span>'}<span class="muted s" style="display:block;font-weight:400">${esc(x.title)}</span></span></label></td>
             <td class="nw k-lbl" data-label="seit">${deDate(x.oldest)}</td><td class="r k-lbl" data-label="Posten">${x.items.filter(i => i.cents > 0).length}</td><td class="r k-lbl" data-label="offen">${euro(x.net)}</td><td class="r k-lbl" data-label="Gebühr">${money(x.fee)}</td>
             <td class="r nw"><a class="btn small" href="${BASE}dunning/letter.pdf?member=${x.member_id}" target="_blank">PDF</a></td></tr>`).join('')}</table>` : '<p class="empty">Gerade ist niemand zu mahnen.</p>'}
-        <p class="muted s" style="margin-bottom:0">${lv}. Stufe und Gebühr werden erst gebucht, wenn die E-Mail raus ist bzw. die Briefe gedruckt sind. Eine Mahnsperre (z. B. bei Ratenzahlung) setzt man beim Mitglied unter „Zahlung & Familie“ oder am Posten.${d.debit.n ? ` ${d.debit.n} ${d.debit.n === 1 ? 'Zahler' : 'Zahler'} mit Lastschrift-Mandat (${euro(d.debit.cents)}) ${d.debit.n === 1 ? 'ist' : 'sind'} nicht dabei – ihre Posten kommen in den nächsten Einzug.` : ''}</p></div>
+        <p class="muted s" style="margin-bottom:0">${lv}. Stufe und Gebühr werden erst gebucht, wenn die E-Mail raus ist bzw. die Briefe gedruckt sind. Eine Mahnsperre (z. B. bei Ratenzahlung) setzt man beim Mitglied unter „Zahlung & Familie“ oder am Posten.${d.debit.n ? ' ' + T(d.debit.n === 1 ? '{0} Zahler mit Lastschrift-Mandat ({1}) ist nicht dabei – ihre Posten kommen in den nächsten Einzug.' : '{0} Zahler mit Lastschrift-Mandat ({1}) sind nicht dabei – ihre Posten kommen in den nächsten Einzug.', [d.debit.n, euro(d.debit.cents)]) : ''}</p></div>
       ${d.last.length ? `<div class="card">${head('Letzte Mahnung ohne Zahlung')}<p class="muted s" style="margin-top:0">Die letzte Stufe ist erreicht und die Frist von ${d.deadlineDays} Tagen ist um. Was jetzt geschieht, entscheidet der Vorstand.</p>
         <table class="tbl kompakt"><tr><th>Zahler</th><th>zuletzt</th><th class="r">offen</th><th></th></tr>${d.last.map(x => `<tr><td><b>${esc(GK.lastFirst(x.name))}</b></td><td class="k-lbl" data-label="zuletzt">${esc(x.title)} vom ${deDate(x.date)}</td><td class="r">${euro(x.net)}</td>
           <td class="r"><button class="btn small" data-mopen="${x.member_id}">Öffnen</button></td></tr>`).join('')}</table></div>` : ''}
@@ -1632,7 +1632,7 @@
     el.querySelectorAll('a[data-open]').forEach(a => { a.onclick = e => { e.preventDefault(); openMember(+a.dataset.open); }; });
     // Einwilligungen (Stand heute): wie viele haben zugestimmt – Liste mit Namen als Excel (z. B. für den Pressewart)
     const c = await api('consents');
-    el.insertAdjacentHTML('beforeend', `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Einwilligungen <span class="muted s">(heute)</span></h3><a class="btn" href="${BASE}consents.xlsx" download>Liste (Excel)</a></div>
+    el.insertAdjacentHTML('beforeend', `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Einwilligungen <span class="muted s">(<span>heute</span>)</span></h3><a class="btn" href="${BASE}consents.xlsx" download>Liste (Excel)</a></div>
       ${c.list.length ? `<table class="tbl kompakt"><tr><th>Einwilligung</th><th class="r">Zugestimmt</th><th class="r">Nicht zugestimmt</th></tr>${c.list.map(x => `<tr><td>${esc(x.short)}${x.required ? ' <span class="muted s">(Pflicht)</span>' : ''}</td><td class="r k-lbl" data-label="Zugestimmt">${x.yes}</td><td class="r k-lbl" data-label="Nicht zugestimmt">${c.count - x.yes}</td></tr>`).join('')}</table>` : '<p class="empty">Keine Einwilligungen eingerichtet (Einstellungen › Beitrittserklärung).</p>'}</div>`);
   }
 
@@ -1760,7 +1760,7 @@
   async function anonDue(box, again) {
     const r = await api('anonymize-due');
     if (!r.years) { box.innerHTML = ''; return; }
-    if (!r.rows.length) { box.innerHTML = `<p class="muted s" style="margin:10px 0 0">Niemand ist seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'} ausgetreten und noch nicht anonymisiert.</p>`; return; }
+    if (!r.rows.length) { box.innerHTML = `<p class="muted s" style="margin:10px 0 0">${T(r.years === 1 ? 'Niemand ist seit über {0} Jahr ausgetreten und noch nicht anonymisiert.' : 'Niemand ist seit über {0} Jahren ausgetreten und noch nicht anonymisiert.', [r.years])}</p>`; return; }
     box.innerHTML = `<div class="banner a" style="margin-top:12px">${r.rows.length} ${r.rows.length === 1 ? 'Mitglied ist' : 'Mitglieder sind'} seit über ${r.years} ${r.years === 1 ? 'Jahr' : 'Jahren'} ausgetreten. <button class="btn small" id="anDue">Liste ansehen …</button></div>`;
     $('anDue').onclick = () => {
       const can = r.rows.filter(x => !x.open);

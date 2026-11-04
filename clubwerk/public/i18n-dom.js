@@ -32,16 +32,30 @@
     }
     return false;
   }
+  /** Fest „deutsch“ geschriebene Daten, Beträge und Dezimalzahlen im Format der Sprache (31.12.2026 → 31/12/2026, 15,00 € → €15.00, 1,5 h → 1.5 h).
+   *  Wirkt auf jeden angezeigten Text, auch aus dem Server (Meldungen, Protokoll); nicht in Namen und eigenen Texten (translate="no"). Deutsch bleibt unberührt. */
+  var eur = null;
+  function fmt(s) {
+    if (!state.dict || /^de/i.test(state.locale) || !/\d/.test(s)) return s;
+    if (/\d\.\d{1,2}\.\d{4}/.test(s)) s = s.replace(/(^|[^\d.])(\d{1,2})\.(\d{1,2})\.(\d{4})(?!\d)/g, function (m, pre, d, mo, y) {
+      return +mo >= 1 && +mo <= 12 && +d >= 1 && +d <= 31 ? pre + new Date(+y, mo - 1, +d, 12).toLocaleDateString(state.locale, { day: '2-digit', month: '2-digit', year: 'numeric' }) : m;
+    });
+    if (s.indexOf('€') >= 0) {
+      if (!eur) eur = new Intl.NumberFormat(state.locale, { style: 'currency', currency: 'EUR' });
+      s = s.replace(/(-?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d{1,2}))?\s?€/g, function (m, neg, i, f) { return eur.format(+((neg ? '-' : '') + i.replace(/\./g, '') + '.' + (f || '0'))); });
+    }
+    return s.replace(/(\d),(\d{1,2})(?=\s?(?:h|%|km)(?![A-Za-zÄÖÜäöüß]))/g, '$1.$2');
+  }
   function doText(n) {
     var v = n.nodeValue;
     if (!v || written.get(n) === v) return;
-    var t = tr(v);
+    var t = fmt(tr(v));
     if (t !== v) { written.set(n, t); n.nodeValue = t; } else written.set(n, v);
   }
   function doAttrs(el) {
     for (var i = 0; i < ATTRS.length; i++) {
       var a = ATTRS[i], v = el.getAttribute(a);
-      if (v && written.get(el) !== a + v) { var t = tr(v); if (t !== v) { el.setAttribute(a, t); } }
+      if (v && written.get(el) !== a + v) { var t = fmt(tr(v)); if (t !== v) { el.setAttribute(a, t); } }
     }
     if (el.nodeName === 'INPUT' && /^(button|submit|reset)$/i.test(el.type) && el.value) { var tv = tr(el.value); if (tv !== el.value) el.value = tv; }
   }
@@ -92,6 +106,9 @@
     var swap = function (l) { return (l === 'de-DE' || l === 'de') ? loc : l; };
     ['toLocaleString', 'toLocaleDateString', 'toLocaleTimeString'].forEach(function (fn) {
       var o = Date.prototype[fn]; Date.prototype[fn] = function (l, opt) { return o.call(this, swap(l), opt); };
+    });
+    ['NumberFormat', 'DateTimeFormat'].forEach(function (n) {   // auch `new Intl.NumberFormat('de-DE', …)` (einmal angelegte Formatierer)
+      var O = Intl[n]; var W = function (l, opt) { return new O(swap(l), opt); }; W.prototype = O.prototype; W.supportedLocalesOf = O.supportedLocalesOf; Intl[n] = W;
     });
     var on = Number.prototype.toLocaleString; Number.prototype.toLocaleString = function (l, opt) { return on.call(this, swap(l), opt); };
     var oa = window.alert, oc = window.confirm, op = window.prompt;

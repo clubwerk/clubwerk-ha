@@ -154,6 +154,6 @@
   };
   /** „Kontoauszug zuletzt eingelesen am …“ für Offene Posten und Mahnungen (leer, wenn nie eingelesen) */
   GK.kontoauszugHint = async () => {
-    try { const s = await api('kontoauszug/status'); return s.last ? `Kontoauszug zuletzt eingelesen: bis ${deDate(s.last.to)} (am ${deDate(s.last.at.slice(0, 10))})${s.counts.offen ? ` · ${s.counts.offen} Buchungen noch nicht zugeordnet` : ''}` : ''; } catch (e) { return ''; }
+    try { const s = await api('kontoauszug/status'); return s.last ? T('Kontoauszug zuletzt eingelesen: bis {0} (am {1})', [deDate(s.last.to), deDate(s.last.at.slice(0, 10))]) + (s.counts.offen ? ' · ' + T('{0} Buchungen noch nicht zugeordnet', [s.counts.offen]) : '') : ''; } catch (e) { return ''; }
   };
 });

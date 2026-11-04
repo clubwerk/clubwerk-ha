@@ -22,6 +22,7 @@
     return j;
   }
   const done = async msg => { closeDlg(); toast(msg); await onChange(); };
+  const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
   const delay = m => (m.delay >= 5 ? ` · +${m.delay} min` : '');
 
   /* ---------- Einchecken: Namen suchen (ab 2 Buchstaben), dann einchecken und Nenngeld ---------- */
@@ -85,8 +86,8 @@
     const r = c.running, n = c.next;
     const canStart = !r && n && !n.wait;
     dlg(`<h2>${esc(c.name)}</h2>
-      ${r ? `<p class="tl-p"><b translate="no">${esc(line(r))}</b><br>läuft seit <span class="num">${r.minutes}</span> Minuten</p>` : '<p class="tl-p">Der Platz ist frei.</p>'}
-      ${n ? `<p class="tl-p">Als Nächstes${n.est ? ` (etwa <span class="num">${esc(n.est)}</span> Uhr${esc(delay(n))})` : ''}:<br><b translate="no">${esc(line(n))}</b>${n.wait ? `<br><span class="muted">${esc(n.wait)}</span>` : ''}</p>` : ''}
+      ${r ? `<p class="tl-p"><b translate="no">${esc(line(r))}</b><br>${esc(T('läuft seit {0} Minuten', [r.minutes]))}</p>` : '<p class="tl-p">Der Platz ist frei.</p>'}
+      ${n ? `<p class="tl-p">${esc(T('Als Nächstes'))}${n.est ? ` (${esc(T('etwa {0} Uhr', [n.est]))}${esc(delay(n))})` : ''}:<br><b translate="no">${esc(line(n))}</b>${n.wait ? `<br><span class="muted">${esc(n.wait)}</span>` : ''}</p>` : ''}
       <div class="dlg-btns">${r ? '<button class="pri" id="tres">Ergebnis eintragen</button>' : ''}${canStart ? '<button class="pri" id="tgo">Match starten</button>' : ''}<button id="tx">Schließen</button></div>`);
     $('tx').onclick = closeDlg;
     if ($('tres')) $('tres').onclick = () => result({ ...r, court: c.name });

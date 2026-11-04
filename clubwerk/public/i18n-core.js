@@ -46,7 +46,7 @@
       exact.set(nk, v);   // auch wörtlich (falls der Text selbst „{0}“ enthält, z. B. in Vorlagen)
     }
     pats.sort(function (a, b) { return b.weight - a.weight; });
-    return { exact: exact, pats: pats, cache: new Map(), size: exact.size };
+    return { exact: exact, pats: pats, cache: new Map(), wt: new Map(), size: exact.size };
   }
 
   function fill(str, vars) {
@@ -87,6 +87,11 @@
               var sw = val.replace(DATEWORD_G, function (w) { var x = d.exact.get(w); return x !== undefined ? x : w; });
               if (sw !== val) sub = sw;
             }
+            if (sub === null && /\s\d+$/.test(val)) { var nm = /^([\s\S]*?\S)(\s+\d+)$/.exec(val), nh = nm && lookup(d, nm[1], 1, true); if (nh) sub = nh + nm[2]; }   // „Viertelfinale 1“
+            if (sub === null && val.indexOf(': ') > 0) {   // „Bezeichnung: Wert“ („Buchungen heute: 6“)
+              var lv0 = val.split(': '), lh = lookup(d, lv0[0], 1);
+              if (lh !== null) sub = lh + ': ' + lv0.slice(1).join(': ');
+            }
             if (sub === null && val.indexOf(', ') > 0) {   // Aufzählung („Türen, Beregnung“)
               var items = val.split(', '), hit2 = false;
               for (var q = 0; q < items.length; q++) { var it = d.exact.get(norm(items[q])); if (it !== undefined) { items[q] = it; hit2 = true; } }
@@ -97,10 +102,11 @@
           vars[p.names[j]] = sub !== null ? sub : val;
         }
         out = fill(p.val, vars);
+        d.wt.set(t, p.weight + (/\S\s·\s\S/.test(m.slice(1).join('\u0001')) ? 1000 : 0));   // Gewicht des Musters; ab 1000: ein Platzhalter hat mehrere „·“-Teile verschluckt (translate: Aufzählungen Teil für Teil)
         break;
       }
     }
-    if (d.cache.size > 8000) d.cache.clear();
+    if (d.cache.size > 8000) { d.cache.clear(); d.wt.clear(); }
     d.cache.set(t, out);
     return out;
   }
@@ -116,6 +122,23 @@
       for (var i = 0; i < lines.length; i++) { var x = translate(d, lines[i]); if (x !== lines[i]) { lines[i] = x; any = true; } }
       if (any) r = lines.join('\n');
     }
+    if (r === null && (m[2].indexOf(' · ') > 0 || (m[2].indexOf(' – ') > 0 && m[2].length < 80 && !/[.!?] \S/.test(m[2])))) {   // „A · B – C“ aus Teilstücken zusammengesetzt: Teil für Teil, wenn kein Muster mit viel festem Text den ganzen Satz kennt
+      var parts0 = m[2].split(m[2].indexOf(' · ') > 0 ? /( · )/ : /( – )/), segs = parts0.filter(function (x, i) { return i % 2 === 0; }), gs = false;
+      for (var q = 0; q < segs.length; q++) {
+        var z = translate(d, segs[q]);
+        if (z === segs[q]) {   // der Text steht als Bruchstück mit Trenner im Wörterbuch („· eingetragen als Mitspieler“)
+          var zb = lookup(d, '· ' + segs[q], 0, true); if (zb !== null) z = zb.replace(/^·\s*/, '');
+          else { var za = lookup(d, segs[q] + ' ·', 0, true); if (za !== null) z = za.replace(/\s*·$/, ''); }
+        }
+        if (z === segs[q] && segs[q].indexOf(': ') > 0) { var lv = segs[q].split(': '), z1 = translate(d, lv[0]); if (z1 !== lv[0]) z = z1 + ': ' + translate(d, lv.slice(1).join(': ')); }   // „Buchungen heute: 6“
+        if (z !== segs[q]) { segs[q] = z; gs = true; }
+      }
+      if (gs) { var whole = lookup(d, m[2], 0); var wv = d.wt.get(norm(m[2])) || 0; if (whole === null || wv >= 1000 || (wv < 12 && (m[2].indexOf(' · ') > 0 || m[2].length < 80))) { var ix = 0; r = parts0.map(function (x, i) { return i % 2 === 0 ? segs[ix++] : x; }).join(''); } }
+    }
+    if (r === null) {   // Trenner „·“ an den Rändern eines Bruchstücks: der Kern hat einen eigenen Text („· Aufstellung noch nicht verschickt“)
+      var sm0 = /^(\s*·\s*)([\s\S]*?)(\s*·\s*)?$|^([\s\S]*?)(\s*·\s*)$/.exec(m[2]);
+      if (sm0) { var cr = sm0[1] !== undefined ? sm0[2] : sm0[4], ce = lookup(d, cr, 0, true); if (ce !== null) r = (sm0[1] || '') + ce + (sm0[3] || sm0[5] || ''); }
+    }
     if (r === null) r = lookup(d, m[2], 0);
     if (r === null && /[.!?] \S/.test(norm(m[2]))) {   // mehrere Sätze in einem Stück (zusammengesetzte Hinweise): Satz für Satz
       var raw = norm(m[2]).split(/(?<=[.!?]) (?=\S)/), sent = [];
@@ -125,6 +148,28 @@
       var got = false;
       for (var k = 0; k < sent.length; k++) { var y = lookup(d, sent[k], 0); if (y !== null) { sent[k] = y; got = true; } }
       if (got) r = sent.join(' ');
+    }
+    if (r === null && /^\d+(?:[.,]\d+)?\s+\S/.test(m[2])) {   // Zahl davor: „1 Gast“, „4 Schichten“ → Wort übersetzen (auch Mehrzahl: Gäste)
+      var nn = /^(\d+(?:[.,]\d+)?)\s+(\S[\s\S]*)$/.exec(m[2]), nw = lookup(d, nn[2], 0, true);
+      if (nw !== null) r = nn[1] + ' ' + nw;
+    }
+    if (r === null && /\S:$/.test(m[2])) { var cl = lookup(d, m[2].slice(0, -1), 0, true); if (cl !== null) r = cl + ':'; }   // „Licht an:“ vor einem Wert
+    if (r === null && m[2].indexOf(', ') > 0) {   // Aufzählung: „Spieltage, Plätze, Dienste“
+      var its = m[2].split(', '), allI = true;
+      for (var w2 = 0; w2 < its.length; w2++) { var ti = lookup(d, its[w2], 0, true); if (ti !== null) its[w2] = ti; else { allI = false; break; } }
+      if (allI) r = its.join(', ');   // nur wenn jeder Teil bekannt ist (sonst Satz für Satz weiter unten)
+    }
+    if (r === null) {   // Bezeichnung mit Zähler: „Termine (1)“, „Viertelfinale 2“ → Bezeichnung übersetzen, Zähler behalten
+      var cm = /^([\s\S]*?\S)(\s*\(\d+\)|\s+\d[\d\/.,–-]*)$/.exec(m[2]);
+      if (cm) { var cn = lookup(d, cm[1], 0, true); if (cn !== null) r = cn + cm[2]; }
+    }
+    if (r === null && m[2].indexOf(': ') > 0) {   // „Bezeichnung: Wert“ („Licht an: 0“): Bezeichnung und Wert je für sich
+      var kv = m[2].split(': '), kl = lookup(d, kv[0], 0, true);
+      if (kl !== null) { var kr = kv.slice(1).join(': '); r = kl + ': ' + (translate(d, kr) || kr); }
+    }
+    if (r === null) {   // Bruchstück zwischen Markierungen: „· auswärts ·“ → Trenner behalten, Kern übersetzen
+      var sm = /^(\s*·\s*)?([\s\S]*?)(\s*·\s*)?$/.exec(m[2]);
+      if (sm && (sm[1] || sm[3]) && sm[2]) { var core = translate(d, sm[2]); if (core !== sm[2]) r = (sm[1] || '') + core + (sm[3] || ''); }
     }
     return r === null ? s : m[1] + r + m[3];
   }
