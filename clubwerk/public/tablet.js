@@ -137,6 +137,21 @@
       `<div class="tk-empty" style="grid-column:1/-1">${all.length ? 'Kein Name passt zur Suche.' : 'Noch niemand auf der Liste – mit „+ Namen hinzufügen“ den eigenen Namen eintragen.'}</div>`;
   }
 
+  /* Namensliste: Sortierung, Anfangsbuchstaben, Suchtexte und Kacheln einmal je Datenstand aufbereiten. Buchstabe, Suche und „Alle“
+     blenden danach nur Kacheln ein und aus – bisher wurde bei jedem Tipp die ganze Liste neu sortiert und neu gezeichnet
+     (bei 300 Namen auf einem langsamen Tablet jedes Mal spürbar, 2026.11 Tablet-Verkauf-Tempo) */
+  let peopleCache = null;
+  function peopleOf() {
+    if (peopleCache && peopleCache.json === stateJson) return peopleCache;
+    const list = state.members.filter(m => person(m.kind) && !m.hidden)
+      .map(m => ({ m, key: nameKey(m.name, m.kind), ini: initial(m), q1: m.name.toLocaleLowerCase('de'), q2: lastFirst(m.name).toLocaleLowerCase('de') }))
+      .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+    const have = [...new Set(list.map(x => x.ini))].filter(l => /^[A-Z]$/.test(l)).sort();
+    return (peopleCache = { json: stateJson, list, have, html: list.map(x => card(x.m)).join('') });
+  }
+  /** nur schreiben, wenn sich der Inhalt geändert hat (spart Neuaufbau samt Fotos) */
+  const setHtml = (el, h) => { if (el.__h !== h) { el.innerHTML = h; el.__h = h; } };
+
   function renderStart() {
     const ev = state.event;
     $('eventBanner').classList.toggle('hidden', !ev);
@@ -145,45 +160,55 @@
     $('special').classList.toggle('hidden', Boolean(ev));   // während der Veranstaltung nur deren Liste
     if (ev) { $('eventName').textContent = ev.name; renderEventList(); }
 
-    const people = state.members.filter(m => person(m.kind) && !m.hidden).sort(byName);
+    const P = peopleOf();
     const topIds = new Set(state.top || []);
-    const top = people.filter(m => topIds.has(m.id));   // nur zusätzliche Schnellauswahl – alle stehen weiterhin unten in der Gesamtliste
+    const top = P.list.filter(x => topIds.has(x.m.id)).map(x => x.m);   // nur zusätzliche Schnellauswahl – alle stehen weiterhin unten in der Gesamtliste
 
     // Gäste-Deckel: offene Deckel oben, damit Gäste ihren schnell wiederfinden
     const tabs = ev ? [] : (state.tabs || []);
     $('tabsBox').classList.toggle('hidden', !tabs.length || Boolean(letter));
-    $('tabs').innerHTML = tabs.map(t => `<button class="tabt" data-tab="${t.id}"><i class="av">${initials(t.name)}</i><span class="nm"><b>${esc(t.name)}</b><span>${euro(t.open_cents)} offen</span></span></button>`).join('') +
-      '<button class="addtab" data-tabnew="1"><i class="av">+</i><span class="nm"><b>Neuer Deckel</b><span>für Gäste</span></span></button>';
+    setHtml($('tabs'), tabs.map(t => `<button class="tabt" data-tab="${t.id}"><i class="av">${initials(t.name)}</i><span class="nm"><b>${esc(t.name)}</b><span>${euro(t.open_cents)} offen</span></span></button>`).join('') +
+      '<button class="addtab" data-tabnew="1"><i class="av">+</i><span class="nm"><b>Neuer Deckel</b><span>für Gäste</span></span></button>');
 
     const q = ($('nameSearch').value || '').trim().toLocaleLowerCase('de');
     $('nameClear').classList.toggle('hidden', !q);
     // Gerade oft hier: nur ohne Buchstabenfilter und ohne Suche, alphabetisch
     const showTop = !letter && !q && top.length > 0;
     $('topBox').classList.toggle('hidden', !showTop);
-    $('top').innerHTML = showTop ? top.map(m => card(m, 'hero')).join('') : '';   // Hauptkarten in der Vereinsfarbe
+    setHtml($('top'), showTop ? top.map(m => card(m, 'hero')).join('') : '');   // Hauptkarten in der Vereinsfarbe
     $('topNote').textContent = `in den letzten ${state.topDays || 30} Tagen · A–Z`;
     $('allHead').textContent = q ? `Treffer für „${$('nameSearch').value.trim()}“` : letter ? `Mitglieder mit „${letter}“` : 'Alle Mitglieder (A–Z)';
     if (q) $('tabsBox').classList.add('hidden');
 
     // nur vorhandene Anfangsbuchstaben, gleichmäßig über die Breite verteilt
-    const have = [...new Set(people.map(initial))].filter(l => /^[A-Z]$/.test(l)).sort();
+    const have = P.have;
     $('letters').classList.toggle('hidden', Boolean(q));
     $('letters').classList.toggle('few', have.length < 12);
-    $('letters').innerHTML = `<button class="all ${letter ? '' : 'on'}" data-l="">Alle</button>` +
-      have.map(l => `<button data-l="${l}" class="${letter === l ? 'on' : ''}">${l}</button>`).join('');
+    setHtml($('letters'), `<button class="all ${letter ? '' : 'on'}" data-l="">Alle</button>` +
+      have.map(l => `<button data-l="${l}" class="${letter === l ? 'on' : ''}">${l}</button>`).join(''));
     // Gesamtliste immer vollständig (die häufigen stehen oben zusätzlich)
-    const match = m => m.name.toLocaleLowerCase('de').includes(q) || lastFirst(m.name).toLocaleLowerCase('de').includes(q);
-    const list = q ? people.filter(match) : letter ? people.filter(m => initial(m) === letter) : people;
-    $('names').innerHTML = list.map(m => card(m)).join('') || `<div class="tk-empty" style="grid-column:1/-1">Kein Name passt – oder „Ich bin neu“ antippen.</div>`;
+    const names = $('names');
+    if (names.__h !== P.html) {
+      names.innerHTML = P.html + '<div class="tk-empty hidden" style="grid-column:1/-1">Kein Name passt – oder „Ich bin neu“ antippen.</div>';
+      names.__h = P.html;
+    }
+    const kids = names.children;
+    let shown = 0;
+    P.list.forEach((x, i) => {
+      const on = q ? x.q1.includes(q) || x.q2.includes(q) : letter ? x.ini === letter : true;
+      if (kids[i].classList.contains('hidden') === on) kids[i].classList.toggle('hidden', !on);
+      if (on) shown++;
+    });
+    kids[P.list.length].classList.toggle('hidden', shown > 0);
 
     // ganz unten: Mannschaften/Gruppen, Verein (kostenfrei), Gast
     const teams = state.members.filter(m => m.kind === 'mannschaft' && (!q || m.name.toLocaleLowerCase('de').includes(q)));
-    $('teams').innerHTML = teams.map(m => `<button data-id="${m.id}"><i class="av">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}</b><span>Mannschaft</span></span></button>`).join('');
+    setHtml($('teams'), teams.map(m => `<button data-id="${m.id}"><i class="av">${initials(m.name)}</i><span class="nm"><b>${esc(m.name)}</b><span>Mannschaft</span></span></button>`).join(''));
     $('teamBox').classList.toggle('hidden', !teams.length);
     const special = state.members.filter(m => m.kind === 'verein' || m.kind === 'gast');
     const nTabs = (state.tabs || []).length;
-    $('special').innerHTML = special.map(m => `<button class="${m.kind}" data-id="${m.id}">${m.kind === 'verein' ? 'Verein · kostenfrei' : 'Gast · bar zahlen'}</button>`).join('') +
-      (ev ? '' : `<button class="deckel" data-tabnew="1">Gäste-Deckel${nTabs ? `<span class="cnt">${nTabs}</span>` : ''}</button>`);
+    setHtml($('special'), special.map(m => `<button class="${m.kind}" data-id="${m.id}">${m.kind === 'verein' ? 'Verein · kostenfrei' : 'Gast · bar zahlen'}</button>`).join('') +
+      (ev ? '' : `<button class="deckel" data-tabnew="1">Gäste-Deckel${nTabs ? `<span class="cnt">${nTabs}</span>` : ''}</button>`));
   }
 
   $('nameSearch').addEventListener('input', () => { letter = null; renderStart(); });
@@ -450,6 +475,10 @@
     } catch (e) { $('tabBox').classList.add('hidden'); }
   }
 
+  // Zuletzt gezeichnete Artikelkacheln (ohne Auswahl): Öffnet das nächste Mitglied dieselben Artikel, bleiben Kacheln, Bilder und
+  // Anordnung stehen und nur die Auswahl wird abgeglichen – der Neuaufbau samt Anordnungssuche kostete auf einem langsamen Tablet
+  // bei jedem Namen spürbar Zeit (2026.11, Tablet-Verkauf-Tempo)
+  let catsHtml = '';
   function renderArticles() {
     const cats = [];
     for (const a of articles()) {
@@ -459,19 +488,22 @@
     }
     const free = session && session.mode !== 'verein';
     // kleine Kategorien (Snacks, Bälle, Kaffee …) nebeneinander, damit alles auf einen Blick passt
-    $('cats').innerHTML = '<div class="cats-flow">' + cats.map(c => `
+    const html = '<div class="cats-flow">' + cats.map(c => `
       <div class="cat" data-n="${c.items.length}"><h3>${esc(c.name)}</h3><div class="arts">
         ${c.items.map(a => {
-          const q = cart.get(a.id) || 0;
           const nm = splitSize(a.name);
-          return `<button data-a="${a.id}" class="${q ? 'sel' : ''} ${a.soldOut ? 'out' : ''}" aria-label="${esc(a.name)}, ${euro(a.price_cents)}${q ? ', ausgewählt: ' + q : ''}">
-            <span class="ti ${a.image ? 'img' : ''}" style="${tileStyle(a)}">${artInner(a, 28)}${q ? `<span class="badge">${q}</span>` : ''}</span>
+          return `<button data-a="${a.id}" class="${a.soldOut ? 'out' : ''}" aria-label="${esc(a.name)}, ${euro(a.price_cents)}">
+            <span class="ti ${a.image ? 'img' : ''}" style="${tileStyle(a)}">${artInner(a, 28)}</span>
             <span class="tx"><b>${esc(nm.name)}</b><span class="sub">${nm.size ? esc(nm.size) + ' · ' : ''}<span class="num">${euro(a.price_cents)}</span></span></span></button>`;
         }).join('')}
       </div></div>`).join('') +
       (free ? `<div class="cat" data-n="1"><h3>Sonstiges</h3><div class="arts">
-        <button data-custom="1" class="custom ${customs.length ? 'sel' : ''}"><span class="ti" style="--ib:transparent;--if:var(--muted)">${window.ArtIcons ? ArtIcons.svg('muenze', 28) : '€'}${customs.length ? `<span class="badge">${customs.length}</span>` : ''}</span>
+        <button data-custom="1" class="custom"><span class="ti" style="--ib:transparent;--if:var(--muted)">${window.ArtIcons ? ArtIcons.svg('muenze', 28) : '€'}</span>
         <span class="tx"><b>Freier Betrag</b><span class="sub">Essen, Startgeld …</span></span></button></div></div>` : '') + '</div>';
+    if (html !== catsHtml || !$('cats').firstChild) { $('cats').innerHTML = html; catsHtml = html; }
+    const byId = new Map(articles().map(a => [a.id, a]));
+    $('cats').querySelectorAll('button[data-a]').forEach(b => syncTile(b, byId.get(Number(b.dataset.a))));
+    updateCustomTile();
     layoutCats();
   }
 
@@ -542,6 +574,14 @@
       flow.dataset.rows = rows;
       flow.style.height = (rows * band - rg) + 'px';
     };
+    // Dieselben Kacheln auf demselben Platz wie beim letzten Mal: gemerkte Anordnung nehmen statt neu zu suchen
+    // (jeder Suchdurchgang ist ein vollständiges Layout aller Kacheln)
+    const keyNow = () => `${flow.clientWidth}|${box ? box.clientWidth + 'x' + box.clientHeight : ''}|${document.fonts ? document.fonts.status : ''}`;
+    const key = keyNow(), sig = hashStr(catsHtml) + '/' + (layoutCats.css = layoutCats.css || hashStr([...document.querySelectorAll('style')].map(x => x.textContent).join('')));
+    if (layoutCats.memo && layoutCats.memo.sig === sig && layoutCats.memo.keys.includes(key)) {
+      if (layoutCats.flow !== flow) { const m = layoutCats.memo; apply(m.tmin, m.dens, m.packed, m.extra); layoutCats.flow = flow; }
+      return;
+    }
     // gekürzt = mehr Zeilen als erlaubt ODER ein Wort passt nicht in eine Zeile (sonst bricht der Browser mitten im Wort um)
     const ctx2d = (layoutCats.cv = layoutCats.cv || document.createElement('canvas')).getContext('2d');
     // Alle Namen teilen dieselbe Schrift (eine Regel in index.html): Schrift einmal je Durchgang lesen und die Wortbreiten je Schrift merken –
@@ -561,6 +601,15 @@
         cut: names.filter(b => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1 || wordTooLong(b)).length,
       };
     };
+    // Auch über ein Neuladen der Seite hinweg (Wechsel zwischen den Reitern des Tablets): Ergebnis mit Fingerabdruck der Kacheln und des Stils
+    // im Gerät gemerkt – vor der Übernahme einmal nachgemessen (Scrollen und gekürzte Namen wie damals), sonst wird neu gesucht
+    let saved = null;
+    try { saved = JSON.parse(localStorage.getItem(LAYOUT_KEY) || 'null'); } catch (e) { saved = null; }
+    if (saved && saved.sig === sig && Array.isArray(saved.keys) && saved.keys.includes(key)) {
+      apply(saved.tmin, saved.dens, saved.packed, saved.extra);
+      const m = measure();
+      if (m.scroll === saved.scroll && m.cut === saved.cut) { layoutCats.memo = saved; layoutCats.flow = flow; return; }
+    }
     let best = null;
     const DENS = ['xxl', 'xl', '', 'd1', 'd2', 'd3', 'd4', 'd5'], TMIN = [150, 170, 190, 215, 240];
     // Sehr lange Artikellisten (ab 80) scrollen auf jedem Tablet: dort zählt die kleinste Scrollhöhe, und die liefern die dichtesten Stufen –
@@ -577,14 +626,23 @@
       }
     }
     apply(best.tmin, best.dens, best.packed);
+    let extra = 0;
     // übrigen Platz nach unten auf die Kachelhöhe verteilen (größere, leichter zu treffende Kacheln), höchstens +16 px
     if (best.packed && box) {
       const spare = box.getBoundingClientRect().bottom - (parseFloat(getComputedStyle(box).paddingBottom) || 0) - flow.getBoundingClientRect().bottom - 2;
       const rows = Number(flow.dataset.rows) || 1;
       const add = Math.min(16, Math.floor(spare / rows));
-      if (add > 2) { apply(best.tmin, best.dens, true, add); if (measure().scroll) apply(best.tmin, best.dens, true); }
+      if (add > 2) { apply(best.tmin, best.dens, true, add); if (measure().scroll) apply(best.tmin, best.dens, true); else extra = add; }
     }
+    // Schlüssel vor und nach der Anordnung merken (eine Scrollleiste kann die Breite ändern)
+    const fin = measure();
+    const memo = { sig, keys: [...new Set([key, keyNow()])], tmin: best.tmin, dens: best.dens, packed: best.packed, extra, scroll: fin.scroll, cut: fin.cut };
+    layoutCats.memo = memo; layoutCats.flow = flow;
+    try { localStorage.setItem(LAYOUT_KEY, JSON.stringify(memo)); } catch (e) { /* ohne Speicher: nur bis zum Neuladen gemerkt */ }
   }
+  const LAYOUT_KEY = 'cw.tablet.anordnung';
+  /** kurzer Fingerabdruck eines Textes (FNV-1a) – für die gemerkte Anordnung */
+  const hashStr = t => { let h = 0x811c9dc5; for (let i = 0; i < t.length; i++) { h ^= t.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(36) + ':' + t.length; };
   window.addEventListener('resize', () => { if (session) layoutCats(); });
 
   /* Freier Betrag: Ziffernblock wie an der Kasse (3-5-0 → 3,50 €) */
@@ -631,13 +689,18 @@
     if (n && !bd) { bd = document.createElement('span'); bd.className = 'badge'; ti.appendChild(bd); }
     if (n) bd.textContent = n; else if (bd) bd.remove();
   }
+  function syncTile(b, a) {
+    if (!a) return;
+    const q = cart.get(a.id) || 0;
+    b.classList.toggle('sel', q > 0);
+    const label = `${a.name}, ${euro(a.price_cents)}${q ? ', ausgewählt: ' + q : ''}`;
+    if (b.getAttribute('aria-label') !== label) b.setAttribute('aria-label', label);
+    setBadge(b.querySelector('.ti'), q);
+  }
   function updateTile(id) {
     const b = $('cats').querySelector(`button[data-a="${id}"]`), a = articles().find(x => x.id === id);
     if (!b || !a) { renderArticles(); return; }
-    const q = cart.get(id) || 0;
-    b.classList.toggle('sel', q > 0);
-    b.setAttribute('aria-label', `${a.name}, ${euro(a.price_cents)}${q ? ', ausgewählt: ' + q : ''}`);
-    setBadge(b.querySelector('.ti'), q);
+    syncTile(b, a);
   }
   function updateCustomTile() {
     const b = $('cats').querySelector('button[data-custom]'); if (!b) return;

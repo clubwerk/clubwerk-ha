@@ -1,5 +1,18 @@
 # Änderungen
 
+## 2026.11.24
+
+**Tablet › Verkauf: Name antippen geht wieder sofort (Fehler Thorsten 04.11.2026, „die lädt zu lange“)**
+- **Die Ursache:** Nach jedem Antippen eines Namens hat das Tablet alle Artikelkacheln neu aufgebaut und dabei bis zu 80 Anordnungen durchprobiert, bis jeder Artikelname lesbar war und möglichst nichts scrollt – auch dann, wenn sich seit dem letzten Mitglied gar nichts geändert hatte. Bei 80 Artikeln dauerte das auf einem langsameren Tablet jedes Mal rund eine Sekunde, auf schwächeren Geräten deutlich länger.
+- **Jetzt:** Die Kacheln bleiben stehen, und das Tablet merkt sich die gefundene Anordnung. Beim nächsten Mitglied wird nur die Auswahl zurückgesetzt. Gemessen mit einem großen Musterverein (500 Mitglieder, 80 Artikel mit Bild, 4-fach gebremste CPU): **0,6–1,2 s → 0,2 s** vom Antippen bis zu den Artikeln.
+- Die Anordnung bleibt auch nach einem Wechsel zu einem anderen Reiter des Tablets (Plätze, Dienste …) und zurück gemerkt. Nur wenn sich Artikel, Preise oder die Bildschirmgröße ändern, sucht das Tablet einmal neu.
+- Wie die Kacheln angeordnet werden, ist unverändert (für 9 Artikelzahlen von 5 bis 130 in 7 Bildschirmgrößen vorher und nachher verglichen). Buchen, Warenkorb, Rückgängig und Kontostände sind nicht berührt (Verkauf 3.101.3).
+- **Namensliste:** Buchstabe antippen, „Alle“, Tippen in der Suche und das Zurückkommen nach „Anderes Mitglied“ bauen die Liste nicht mehr jedes Mal neu auf und sortieren nicht mehr neu – die Namen werden einmal vorbereitet und danach nur ein- und ausgeblendet. Bei rund 300 Namen und 4-fach gebremster CPU: Suche 0,23–0,26 s → 0,12–0,19 s je Taste, Suche leeren 0,18–0,24 s → 0,15 s. Was die Liste zeigt und in welcher Reihenfolge, ist unverändert.
+- **Weniger Arbeit für den Server:** Die Namensliste des Tablets fragte bei jedem Laden und alle 60 Sekunden für jedes Mitglied, das „über den Zahler“ bucht, einzeln nach, wer zahlt – bei 500 Mitgliedern 445 Datenbankabfragen, jetzt 49 (Mitgliederverwaltung 1.38.3).
+- **Damit es nicht wiederkommt:** neue Testreihe `tablettempo` (großer Musterverein, gebremste CPU): Abfragen, Anfragen und Datenmenge beim Start, wiederverwendete Anordnung, keine Auswahl des vorigen Mitglieds, neuer Preis erscheint.
+
+**Aufgeräumt:** Zwei Beispieltexte nannten noch ein echtes Vereinskürzel. Sie zeigen jetzt das Musterkürzel „TCM“ (TC Grün-Weiß Musterstadt).
+
 ## 2026.11.22
 
 **Seitenleiste der Verwaltung selbst anpassen (Wunsch Thorsten 04.11.2026)**
@@ -165,7 +178,7 @@
 - **Einladungs-E-Mail neu:** Betreff „Dein Zugang zur Mitglieder-App – bitte am Handy öffnen“; gleich nach der Anrede „Öffne diese E-Mail auf deinem Handy und tippe auf den Knopf“; großer Knopf „App jetzt freischalten“ über die ganze Breite (gültig bis …, nur für dich); drei Schritte mit der Nummer direkt am Text (vorher stand die Nummer weit links, der Text weit rechts); darunter die Adresse als Text und „Fragen? Antworte einfach“. Der Einladungsbrief (Aushang) sagt zum Home-Bildschirm ebenfalls nur noch „Die App zeigt dir genau, wie“. Lange Adressen laufen in Mails nicht mehr über den Rand.
 - **Vereinsname ist Pflicht:** Der Einrichtungs-Assistent verlangt ihn beim Anlegen des Kontos. Fehlt er, meldet die Datenqualität „Vereinsname fehlt“ in Rot (Knopf zur Einstellung), das Feld in den Einstellungen bleibt leer statt „Unser Verein“ zu zeigen, und es werden keine E-Mails und Push-Hinweise verschickt, bis er eingetragen ist.
 - **Fehler behoben (Buchung 1.26.2):** Die Erinnerung vor dem Spiel nannte allen dieselbe Mitspielerliste – der Empfänger stand selbst als Mitspieler da, der Bucher fehlte. Jetzt sieht jeder die anderen Beteiligten (Bucher und Mitspieler), nie sich selbst.
-- **„from tcf“ unter Hinweisen auf dem iPhone:** kommt von iOS selbst. iOS zeigt bei Hinweisen einer Home-Bildschirm-App „from <Name der App>“ an, der Text steht nicht in unseren Hinweisen und lässt sich je Hinweis nicht ändern. Der Name stammt aus dem Namen der App (Manifest); beim „Zum Home-Bildschirm“ lässt er sich auf dem iPhone ändern. Quellen: WebKit-Blog „Web Push for Web Apps on iOS and iPadOS“ und die Dokumentation von PushAlert (beide beschreiben „from App-Name“); am Gerät nicht nachgeprüft.
+- **„from <App-Name>“ unter Hinweisen auf dem iPhone:** kommt von iOS selbst. iOS zeigt bei Hinweisen einer Home-Bildschirm-App „from <Name der App>“ an, der Text steht nicht in unseren Hinweisen und lässt sich je Hinweis nicht ändern. Der Name stammt aus dem Namen der App (Manifest); beim „Zum Home-Bildschirm“ lässt er sich auf dem iPhone ändern. Quellen: WebKit-Blog „Web Push for Web Apps on iOS and iPadOS“ und die Dokumentation von PushAlert (beide beschreiben „from App-Name“); am Gerät nicht nachgeprüft.
 - Für Entwickler: Karten-Entscheidung als reine Funktion `cwPushPlan` (Testreihe `pushwahl` prüft die Matrix aller Plattformen), Mail-Layout mit `card.steps`, breitem Knopf (`button.wide`, `buttonTop`), Testreihe `vname`; der Design-Prüfstand zeigt zehn Fälle (iPhone Safari/Chrome/Gmail/iOS 15, Android Chrome/Samsung/Gmail, einschalten, gesperrt).
 
 **Verbessert: Die Demo je Modul braucht weniger Arbeitsspeicher**

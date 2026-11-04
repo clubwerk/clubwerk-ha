@@ -1179,7 +1179,11 @@ function activate(ctx) {
   ctx.hooks.tabletMembers = () => {
     const rows = ctx.db.prepare(`SELECT p.member_id, p.payer_id FROM mv_person p JOIN members m ON m.id = p.member_id
       WHERE p.payer_id IS NOT NULL AND p.payer_id != p.member_id AND p.sales_mode = 'payer' AND m.deleted = 0 AND m.active = 1 AND p.anonymized_at IS NULL`).all();
-    return { hidden: rows.filter(r => store.payerOf(r.member_id) !== r.member_id).map(r => r.member_id) };
+    // Hauptzahler wie store.payerOf (Kette höchstens 3 Stufen), aber aus einer Abfrage statt zwei je Person – läuft bei jedem Laden
+    // der Verkaufsseite und alle 60 s (bei 500 Mitgliedern vorher rund 400 Abfragen)
+    const pay = new Map(ctx.db.prepare('SELECT member_id, payer_id FROM mv_person WHERE payer_id IS NOT NULL').all().map(r => [r.member_id, r.payer_id]));
+    const payerOf = id => { for (let i = 0; i < 3; i++) { const p = pay.get(id); if (!p || p === id) return id; id = p; } return id; };
+    return { hidden: rows.filter(r => payerOf(r.member_id) !== r.member_id).map(r => r.member_id) };
   };
   /* für andere Module (Buchhaltung): Anschrift eines Mitglieds, Forderung anlegen/abfragen/stornieren */
   ctx.hooks.memberAddress = id => {
