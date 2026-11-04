@@ -77,7 +77,7 @@
       .mv-sub { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
       .mv-cons-ed { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto auto; gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cons-ed .f { margin: 0; } .mv-cons-ed textarea { width: 100%; min-height: 58px; resize: vertical; } .mv-cons-ed .chk { min-height: 40px; }
       @media (max-width: 700px) { .mv-cons-ed { grid-template-columns: minmax(0, 1fr); } }
-      .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1fr) 112px; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; } .mv-cg-days { border-top: 0; margin-top: 4px; }   /* Erinnerung im selben Raster wie die Regeln darüber */
+      .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.3fr) 112px; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; } .mv-cg-days { border-top: 0; margin-top: 4px; }   /* Erinnerung im selben Raster wie die Regeln darüber */
       @media (max-width: 700px) { .mv-cg-ed { grid-template-columns: minmax(0, 1fr); } .mv-cg-ed .btn { justify-self: end; } }
       .mv-addr { min-height: 40px; display: flex; align-items: center; font-size: 14px; }
       .mv-pic { overflow: hidden; } .mv-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -1342,7 +1342,7 @@
   function chargeDialog(c, { member_id } = {}, again) {
     dialog(`<h2>${c ? 'Posten ändern' : 'Forderung anlegen'}</h2><div class="mv-grid" style="--c:2">
       ${c || member_id ? '' : `<label class="f wall">Mitglied<select id="chM">${memberOptions('')}</select></label>`}
-      <label class="f wall">Buchungstext<input id="chT" value="${esc(c ? c.text : '')}" placeholder="z. B. Hallenmiete Wintersaison"></label>
+      <label class="f wall">Buchungstext<textarea id="chT" data-grow rows="1" placeholder="z. B. Hallenmiete Wintersaison">${esc(c ? c.text : '')}</textarea></label>
       <label class="f">Betrag (Gutschrift mit Minus)<input id="chC" inputmode="decimal" value="${c ? centsToInput(c.cents) : ''}"></label><label class="f">Fällig am<input id="chD" type="date" value="${esc(c ? c.due_date : st.meta.today)}"></label>
       ${c ? '' : `<label class="f">Art<select id="chK">${['sonstiges', 'aufnahme', 'beitrag', 'getraenke'].map(k => opt(k, KIND[k])).join('')}</select></label>`}</div>
       ${c ? '' : `<p class="muted s">Für Angehörige landet die Forderung automatisch beim Zahler.</p>
@@ -1951,7 +1951,7 @@
     const c = await api('congrats/settings');
     const kinds = [['geburtstag', 'Geburtstag'], ['verein', 'Vereinsjubiläum'], ['abteilung:0', 'Abteilungsjubiläum (alle Abteilungen)'], ...c.depts.map(x => [`abteilung:${x.id}`, `${GK.T('Abteilungsjubiläum')} ${x.name}`])];
     const row = r => `<div class="mv-cg-ed" data-r><label class="f">Anlass<select data-k="kind">${kinds.map(([k, l]) => opt(k, l, r.kind === 'abteilung' ? `abteilung:${r.dept || 0}` : r.kind)).join('')}</select></label>
-      <label class="f">Wann (Jahre)<input data-k="when" value="${esc(cgWhen(r))}" placeholder="z. B. 70, 75, ab 80"></label><label class="f">Was<input data-k="what" value="${esc(r.what)}" maxlength="60" placeholder="z. B. Blumen"></label>
+      <label class="f">Wann (Jahre)<input data-k="when" value="${esc(cgWhen(r))}" placeholder="z. B. 70, 75, ab 80"></label><label class="f">Was<textarea data-k="what" data-grow rows="1" maxlength="60" placeholder="z. B. Blumen">${esc(r.what)}</textarea></label>
       <button class="btn small danger" data-rx>Entfernen</button></div>`;
     const rec = c.recipients.map(x => `${x.name} (${[x.mail ? GK.T('E-Mail') : '', x.push ? GK.T('Push') : ''].filter(Boolean).join(', ') || GK.T('weder E-Mail noch Push')})`).join(', ');
     el.innerHTML = `<h3>Gratulationen</h3><p class="muted s" style="margin-top:0">Wem wann gratuliert wird. „ab 80“ heißt: mit 80 und danach jedes Jahr. Die Liste steht unter Mitglieder › Gratulationen.</p>

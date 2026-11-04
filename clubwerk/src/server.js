@@ -12,6 +12,7 @@ const restoredMsg = backup.applyPendingRestore();   // muss vor dem Öffnen der 
 const demo = require('./demo');
 const demoMsg = demo.applyPending(backup.DATA_DIR, backup.DB_FILE);   // Demo einrichten bzw. restlos löschen – ebenfalls vor dem Öffnen
 const { db, isPerson, splitPersonName, nameKey, lastFirst, customArticleId, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, memberRefs, rewireMemberRef } = require('./db');
+const seitenleiste = require('./seitenleiste');
 const util = require('./util');
 const { euro } = util;   // Beträge überall gleich: „12,50 €“
 const { today, nowTs, isDate, addDays, deD } = util;
@@ -3784,6 +3785,22 @@ admin.put('/settings/tablet-order', need('einstellungen'), (req, res) => {
   const items = tabletItems(); const st = tabletStart(items);
   res.json({ ok: true, items, start: st ? st.key : null, switches: plugins.tabletSwitches() });
 });
+/* Seitenleiste der Verwaltung: Namen, Reihenfolge und Zuordnung der Menüeinträge für den ganzen Verein (src/seitenleiste.js) */
+const navLayout = () => seitenleiste.lesen(getSetting('club_nav', ''));
+admin.get('/settings/nav-layout', need('einstellungen'), (req, res) => res.json(navLayout()));
+admin.put('/settings/nav-layout', need('einstellungen'), (req, res) => {
+  let neu; try { neu = seitenleiste.pruefen(req.body); } catch (e) { return bad(res, e.message); }
+  const vor = navLayout();
+  if (JSON.stringify(vor) !== JSON.stringify(neu)) {
+    if (seitenleiste.leer(neu)) db.prepare("DELETE FROM settings WHERE key = 'club_nav'").run(); else setSetting('club_nav', JSON.stringify(neu));
+    audit(req.user, 'Seitenleiste geändert', seitenleiste.aenderung(auditDiff, vor, neu, (req.body || {}).labels, (req.body || {}).ausgang));
+  }
+  res.json(neu);
+});
+admin.delete('/settings/nav-layout', need('einstellungen'), (req, res) => {
+  if (getSetting('club_nav', '')) { db.prepare("DELETE FROM settings WHERE key = 'club_nav'").run(); audit(req.user, 'Seitenleiste auf Standard zurückgesetzt', null); }
+  res.json(navLayout());
+});
 /* Anleitungen als PDF (werkzeuge/anleitungen/bauen.js erzeugt sie beim Bauen des Pakets; je Modul im Modulordner, Kern und Verkauf unter anleitungen/) */
 const anleitungDatei = (id, l, ext) => {
   if (!/^[a-z0-9-]+$/.test(String(id))) return null;
@@ -3805,7 +3822,7 @@ admin.get('/anleitung/:id/seiten', (req, res) => {
 admin.get('/extensions', (req, res) => {
   const all = plugins.list();
   // Jeder Admin bekommt die aktiven Erweiterungen mit Verwaltungsseite (zum Einblenden im Menü); die volle Liste nur mit „Einstellungen“
-  res.json({ modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
+  res.json({ navLayout: navLayout(), modules: plugins.activeIds(), appModules: require('./memberapp').activeModules().map(([id]) => id), ui: all.filter(p => p.active && p.adminScript).map(p => ({ id: p.id, name: p.name, version: p.version, verwaltung: p.verwaltung, scripts: p.scripts })),
     all: req.user.perms.includes('einstellungen') || req.user.perms.includes('deinstallieren') ? all.map(p => ({ ...p, demo: !DEMO_KOPIE && demo.withData().includes(p.id) || undefined, anleitung: Boolean(anleitungDatei(p.id, 'de', 'pdf')) || undefined })) : undefined, links: navLinks() });
 });
 /* Übersicht: Kennzahlen und Warnungen der aktiven Module (Hook „overview“) – je Modul höchstens OVERVIEW_TIMEOUT_MS */

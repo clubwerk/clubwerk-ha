@@ -430,6 +430,10 @@ Everything that applies to the whole club. The areas are tabs at the top. What y
 
 **Club language:** for tablet, member app, emails, Excel and PDF, and the default for everyone. Anyone can choose another for themselves in “My account”.
 
+![Card “Sidebar”: rename and order areas, move entries.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#nvRows))
+
+**Sidebar:** This is how the admin menu is arranged, for everyone who signs in. Each of the six areas has a row with its name (leave empty for the default name, up to 24 characters) and arrows ↑ ↓ that move it in the order. Below are the area’s menu entries: with the selector on the right you put an entry into another area, with the arrows you order it within the area. You cannot add new areas or delete one; an area without entries does not appear in the menu. New modules appear at the end of their default area by themselves. Your own names stay exactly as you write them in every language, and also appear in the page header and in the menu button on phones (a very long name does not fit next to the club name there: the button then says “Menu” and the area is shown in the page header); the manuals keep using the default names. What someone may see is still decided by their permissions. **Save** applies to everyone at once, **Restore default** (with a confirmation) restores names, order and assignment. The setting is also part of “Take over from backup” (part “Club”).
+
 ### Area “Bank accounts” {#einstellungen-bank}
 
 ![Card “Bank accounts”.](bild: seite=einstellungen; klick=[data-sec="bank"]; ziel=.card:has(#bankBody))

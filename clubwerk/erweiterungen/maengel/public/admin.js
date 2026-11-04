@@ -110,7 +110,7 @@
         <div class="btns"><button class="btn primary" id="mgSaveKe">Speichern</button></div></div>
       <div id="mgFunc"></div>`;
     const drawPlaces = () => {
-      $('mgPl').innerHTML = places.length ? places.map((p, i) => `<div class="row mg-pl" style="margin-top:${i ? 10 : 0}px"><label class="f"><input data-pn="${i}" maxlength="60" value="${esc(p)}" placeholder="z. B. Clubhaus Damen-WC" aria-label="Ort"></label>
+      $('mgPl').innerHTML = places.length ? places.map((p, i) => `<div class="row mg-pl" style="margin-top:${i ? 10 : 0}px"><label class="f"><textarea data-pn="${i}" data-grow rows="1" maxlength="60" placeholder="z. B. Clubhaus Damen-WC" aria-label="Ort">${esc(p)}</textarea></label>
         <span class="acts"><button class="btn ico" data-pu="${i}" ${i ? '' : 'disabled'} title="nach oben" aria-label="nach oben">${UP}</button><button class="btn ico" data-pd="${i}" ${i < places.length - 1 ? '' : 'disabled'} title="nach unten" aria-label="nach unten">${DOWN}</button><button class="btn ghost" data-px="${i}">Entfernen</button></span></div>`).join('')
         : '<p class="empty">Noch keine eigenen Orte – z. B. „Clubhaus“, „Parkplatz“, „Damen-WC“.</p>';
       $('mgPl').querySelectorAll('[data-pn]').forEach(x => { x.oninput = () => { places[+x.dataset.pn] = x.value; }; });

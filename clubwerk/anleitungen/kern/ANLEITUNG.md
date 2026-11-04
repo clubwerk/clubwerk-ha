@@ -430,6 +430,10 @@ Alles, was für den ganzen Verein gilt. Die Bereiche stehen als Reiter oben. Was
 
 **Vereinssprache:** Für Tablet, Mitglieder-App, E-Mails, Excel und PDF, und die Vorgabe für alle. Jeder kann für sich in „Mein Konto“ eine andere wählen.
 
+![Karte „Seitenleiste“: Bereiche umbenennen und ordnen, Einträge verschieben.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#nvRows))
+
+**Seitenleiste:** So ist das Menü der Verwaltung geordnet, für alle, die sich anmelden. Jeder der sechs Bereiche hat eine Zeile mit seinem Namen (leer lassen = Standardname, höchstens 24 Zeichen) und Pfeilen ↑ ↓, die ihn in der Reihenfolge verschieben. Darunter stehen die Menüeinträge des Bereichs: Mit der Auswahl rechts legt ihr einen Eintrag in einen anderen Bereich, mit den Pfeilen ordnet ihr ihn innerhalb des Bereichs. Neue Bereiche lassen sich nicht anlegen und keiner lässt sich löschen; ein Bereich ohne Einträge erscheint im Menü nicht. Neue Module stehen von selbst am Ende ihres Standardbereichs. Eure eigenen Namen bleiben in jeder Sprache so, wie ihr sie schreibt, und erscheinen auch in der Kopfzeile und im Menüknopf am Handy (ein sehr langer Name passt dort nicht neben den Vereinsnamen: Dann steht „Menü“ auf dem Knopf und der Bereich in der Kopfzeile der Seite); die Anleitungen nennen weiter die Standardnamen. Was jemand sehen darf, bestimmen weiter seine Rechte. **Speichern** gilt sofort für alle, **Standard wiederherstellen** (mit Rückfrage) stellt Namen, Reihenfolge und Zuordnung wieder her. Die Einstellung steckt auch in „Aus Sicherung übernehmen“ (Teil „Verein“).
+
 ### Bereich „Bankkonten“ {#einstellungen-bank}
 
 ![Karte „Bankkonten“.](bild: seite=einstellungen; klick=[data-sec="bank"]; ziel=.card:has(#bankBody))

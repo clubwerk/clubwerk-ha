@@ -55,7 +55,7 @@
   nav.side .badge.r { background: var(--red); }   /* Datensicherung: fehlt oder zu alt */
   /* Aufklappbare Bereiche (ab 10 Einträgen, planung/seitenleiste.md): Kopfzeile wie ein Eintrag, Einträge eingerückt an einer feinen Linie, ohne eigene Symbole */
   nav.side .navg { display: flex; flex-direction: column; gap: 2px; }
-  nav.side button.navb { display: flex; align-items: center; gap: 12px; width: 100%; height: 40px; padding: 0 12px; border-radius: 10px; color: var(--ink); font-size: 14px; font-weight: 700; text-align: left; }
+  nav.side button.navb { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 40px; padding: 4px 12px; line-height: 1.25; overflow-wrap: anywhere; border-radius: 10px; color: var(--ink); font-size: 14px; font-weight: 700; text-align: left; }
   nav.side button.navb:hover { background: var(--hover); }
   nav.side button.navb > svg:first-child { flex: 0 0 18px; color: var(--muted); }
   nav.side button.navb > span:not(.badge) { flex: 1; min-width: 0; }
@@ -220,7 +220,8 @@
     min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: 14px; font-weight: 500; color: var(--ink);
     transition: border-color .15s, box-shadow .15s;
   }
-  label.f select, .tbl select { padding-top: 0; padding-bottom: 0; }   /* Safari zeichnet den Text nativer Auswahlfelder mit Innenabstand oben/unten zu tief (unten abgeschnitten); die Höhe kommt aus min-height (02.11.2026) */
+  label.f textarea[data-grow] { resize: none; overflow: hidden; display: block; line-height: 20px; padding-top: 9px; padding-bottom: 9px; }   /* einzeiliges, selbst wachsendes Feld (GK.fit): bricht langen Text um, statt ihn abzuschneiden */
+  label.f select, .tbl select { padding-top: 0; padding-bottom: 0; padding-left: 8px; }   /* Auswahlfelder rücken ihren Text von selbst etwa 4 px nach innen (Chromium und WebKit): 8 + 4 = 12 px wie bei Textfeldern, so fluchten Felder und Auswahlen untereinander */   /* Safari zeichnet den Text nativer Auswahlfelder mit Innenabstand oben/unten zu tief (unten abgeschnitten); die Höhe kommt aus min-height (02.11.2026) */
   label.f input:focus, label.f select:focus, label.f textarea:focus, .tbl input:focus, .tbl select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   label.f textarea { min-height: 120px; line-height: 20px; }
   /* Datums-/Zeitfelder: iOS Safari gibt ihnen sonst eine eigene Breite und sie ragen aus dem Fenster */
@@ -504,6 +505,33 @@
   .mods .mact { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .torow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   @media (max-width: 560px) { .torow { grid-template-columns: 32px minmax(0, 1fr) auto; gap: 6px 8px; } .torow > .muted.s { display: none; } .torow .tnm { grid-column: 2 / -1; } .torow > .tostart { grid-column: 2; grid-row: 2; } .torow > .toact { grid-column: 3; grid-row: 2; } }   /* Handy: Name über die ganze Breite, „Start“ und ↑ ↓ darunter – der Name wird nie gekürzt */
+  @media (max-width: 560px) { .torow:not(:has(> .tostart)) > .tnm { grid-column: 2; } .torow:not(:has(> .tostart)) > .toact { grid-column: 3; grid-row: 1; } .torow:not(:has(> .tostart)) .tnm b { white-space: normal; overflow: visible; text-overflow: clip; } }   /* Zeilen ohne „Start“ (Reihenfolge-Listen): Pfeile neben dem Namen statt allein in einer zweiten Zeile (Regel knopfgruppe-allein) */
+  /* Karte „Seitenleiste“ (Einstellungen › Verein): je Bereich eine Kopfzeile mit Namen, darunter die Einträge mit Bereichswahl und Pfeilen – gleiche Spalten in jeder Zeile */
+  .nvrows { display: flex; flex-direction: column; gap: 16px; container-type: inline-size; }
+  .nvb { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .nvh, .nvr { display: grid; grid-template-columns: 32px minmax(0, 1fr) 260px 96px; gap: 12px; align-items: center; padding: 8px 12px; min-height: 52px; box-sizing: border-box; }
+  .nvh { background: var(--brand-soft); }
+  .nvh > .nvt { display: none; }   /* die Zeilenbeschriftung „Bereich 1“ gibt es nur in der schmalen Karte, am Rechner steht die Nummer in der Kachel */
+  .nvh > label { grid-column: 2 / 4; margin: 0; }
+  .nvr { border-top: 1px solid var(--line); }
+  .nvr > b { grid-column: 1 / 3; padding-left: 44px; min-width: 0; overflow-wrap: anywhere; font-weight: 600; }
+  .nvr > label { margin: 0; }
+  .nvr.leer > span { grid-column: 1 / -1; padding-left: 44px; }
+  .nvh .toact, .nvr .toact { justify-self: end; }
+  .nvh .toact .btn, .nvr .toact .btn { height: 40px; min-height: 40px; }   /* Pfeile so hoch wie das Feld daneben */
+  /* schmale Karte (Handy, Tablet-Rahmen): Bereichszeile und Eintragszeilen gleich gebaut – Zeile 1 Beschriftung links, Pfeile rechts; Zeile 2 Namensfeld bzw. Auswahl in voller Breite, nichts wird abgeschnitten */
+  @container (max-width: 620px) {
+    .nvh { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+    .nvh > .ton { display: none; }
+    .nvh > .nvt { display: block; grid-column: 1; grid-row: 1; font-weight: 600; }
+    .nvh > .toact { grid-column: 2; grid-row: 1; }
+    .nvh > label { grid-column: 1 / -1; grid-row: 2; }
+    .nvr { grid-template-columns: minmax(0, 1fr) auto; gap: 8px 12px; }
+    .nvr > b { grid-column: 1; grid-row: 1; padding-left: 0; }
+    .nvr > .toact { grid-column: 2; grid-row: 1; }
+    .nvr > label { grid-column: 1 / -1; grid-row: 2; }
+    .nvr.leer > span { padding-left: 0; }
+  }
   .ton { width: 28px; height: 28px; border-radius: 8px; background: var(--brand-soft); color: var(--brand-ink); font-weight: 800; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; }
   .toact { display: inline-flex; gap: 6px; } .toact .btn { width: 40px; justify-content: center; }
   /* Benutzer & Rollen */

@@ -1,5 +1,20 @@
 # Änderungen
 
+## 2026.11.22
+
+**Seitenleiste der Verwaltung selbst anpassen (Wunsch Thorsten 04.11.2026)**
+- **Neue Karte „Seitenleiste“** unter Einstellungen › Verein: Die sechs Bereiche (Gastro, Sport, Anlage, Mitglieder, Finanzen, Verein) lassen sich **umbenennen** (zum Beispiel „Gastro“ → „Vereinsheim“, bis 24 Zeichen, leer = Standardname) und mit den Pfeilen **in der Reihenfolge verschieben**.
+- **Menüeinträge verschieben:** Jeden Eintrag legt ihr mit einer Auswahl in einen anderen Bereich und ordnet ihn mit den Pfeilen innerhalb des Bereichs. Neue Bereiche gibt es nicht, und keiner geht verloren; ein Bereich ohne Einträge erscheint im Menü nicht.
+- **Gilt für den ganzen Verein** (Recht „Einstellungen“), nicht je Person. Welche Seiten jemand sieht, bestimmen weiter die Rechte. Die Leiste baut sich nach dem Speichern sofort neu auf.
+- **Nichts verschwindet:** Neue Module stehen von selbst am Ende ihres Standardbereichs; Einträge, die es nicht mehr gibt, werden ignoriert. **Standard wiederherstellen** fragt nach und setzt alles zurück.
+- **Eigene Namen** bleiben in jeder Sprache so, wie der Verein sie schreibt. Sie erscheinen auch in der Kopfzeile über der Seite, im Menüknopf am Handy und in der Suche. Lange Namen brechen in der Leiste um, nichts wird abgeschnitten.
+- **Protokoll und Sicherung:** Das Protokoll zeigt die Änderung mit Namen („Name „Gastro“: Gastro → Vereinsheim“, „„Beregnung“ liegt in: Anlage → Sport“). Die Einstellung steckt in „Aus Sicherung übernehmen“ (Teil „Verein“).
+- Anleitung „Grundlagen“ (Deutsch und Englisch) um die neue Karte ergänzt; Testreihe `leistanp`.
+- **Am Handy bleibt nichts abgeschnitten:** In der Karte stehen Bereichsname und Auswahl in voller Breite unter der Beschriftung, die Pfeile rechts daneben; der Text in Auswahlfeldern fluchtet jetzt mit dem in Textfeldern (überall in der Verwaltung).
+- **Lange Werte in Feldern:** Betreff der Bestellung (Verkauf › Lager), Abo-Link des Kalenders (Dienste & Termine), Buchungstext einer Forderung (Mitglieder) und die Bezeichnung einer Position (Buchhaltung) brechen jetzt in die nächste Zeile um, statt abgeschnitten zu werden; „Ehrenmitglied vorschlagen“ (Gratulationen) hat mehr Platz. Der Design-Prüfstand meldet solche Felder künftig selbst.
+- **Menüknopf am Handy mit eigenem Bereichsnamen:** Er bekommt höchstens 42 % der Kopfleiste und verkleinert die Schrift, wenn nötig. Passt der Name auch dann nicht, steht „Menü“ auf dem Knopf; der Bereich steht darunter in der Kopfzeile der Seite. So bleibt neben dem Vereinsnamen immer Platz, nichts wird mit „…“ gekürzt.
+- Weitere Felder, die ihren Text nun ganz zeigen (brechen um): Ort in Mängel › Einstellungen, Name im Turnierplaner, Titel im Einsatz-Fenster der Dienste, begünstigte Zwecke in der Buchhaltung und „Was“ bei den Gratulationen.
+
 ## 2026.11.21
 
 **Englische Oberfläche: keine deutschen Reste mehr (Fehler Thorsten 03.11.2026)**

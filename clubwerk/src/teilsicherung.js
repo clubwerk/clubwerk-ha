@@ -26,7 +26,7 @@ const OFFEN_MS = 30 * 60000;                                            // geöf
 const MAX_ERGEBNIS = 64 * 1024 * 1024;                                  // Ergebnis der Lesekopie (JSON) höchstens 64 MB
 const MAX_KONTEN = 20000;
 const KONTO_ARTEN = ['mitglied', 'mannschaft', 'verein', 'gast', 'extern', 'nichtmitglied'];
-const VEREIN_KEYS = ['club_name', 'club_street', 'club_city', 'club_email', 'club_phone', 'club_color', 'club_color2', 'club_logo', 'club_logo_type'];
+const VEREIN_KEYS = ['club_name', 'club_street', 'club_city', 'club_email', 'club_phone', 'club_color', 'club_color2', 'club_logo', 'club_logo_type', 'club_nav'];
 const LOGO_ARTEN = ['svg', 'png', 'jpg', 'webp'];
 /* Module, deren Export Felder aus dem Tresor enthält (vault.js SPEC) – ohne geöffneten Tresor der Sicherung nicht übernehmbar */
 const VERTRAULICH = new Set(['buchhaltung']);
@@ -308,13 +308,14 @@ function kontenUebernehmen(db, c, { mvAktiv }) {
 }
 function vereinUebernehmen(c, { getSetting, setSetting }) {
   const v = c.verein, z = zaehler3();
-  const ok = (k, x) => (/^club_color2?$/.test(k) ? /^#[0-9a-f]{6}$/i.test(x) : k === 'club_logo_type' ? LOGO_ARTEN.includes(x) : k === 'club_logo' ? x.length <= 4 * 1024 * 1024 : x.length <= 300);
+  const ok = (k, x) => (/^club_color2?$/.test(k) ? /^#[0-9a-f]{6}$/i.test(x) : k === 'club_logo_type' ? LOGO_ARTEN.includes(x) : k === 'club_logo' ? x.length <= 4 * 1024 * 1024 : k === 'club_nav' ? x.length <= 8000 : x.length <= 300);
   const logo = v.club_logo && v.club_logo_type && ok('club_logo', v.club_logo) && ok('club_logo_type', v.club_logo_type);
   for (const k of VEREIN_KEYS) {
     if (typeof v[k] !== 'string' || !ok(k, v[k]) || ((k === 'club_logo' || k === 'club_logo_type') && !logo)) continue;
-    const label = k === 'club_logo' ? 'Logo' : k === 'club_logo_type' ? null : /color/.test(k) ? 'Farbe' : 'Vereinsdaten';
-    if (getSetting(k, '') === v[k]) { if (label) z(label, 'unverändert'); continue; }
-    setSetting(k, v[k]); if (label) z(label, 'aktualisiert');
+    const label = k === 'club_logo' ? 'Logo' : k === 'club_logo_type' ? null : k === 'club_nav' ? 'Seitenleiste' : /color/.test(k) ? 'Farbe' : 'Vereinsdaten';
+    const wert = k === 'club_nav' ? JSON.stringify(require('./seitenleiste').lesen(v[k])) : v[k];   // nur Gültiges übernehmen
+    if (getSetting(k, '') === wert) { if (label) z(label, 'unverändert'); continue; }
+    setSetting(k, wert); if (label) z(label, 'aktualisiert');
   }
   if (logo) setSetting('club_logo_ver', String(Date.now()));   // Symbole und Startbildschirm-Icons neu erzeugen
   return z.text();

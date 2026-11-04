@@ -215,7 +215,7 @@
   function eventDialog(e, after) {
     const dur = e && e.start && e.end ? '' : '';
     dialog(`<h2>${e ? 'Einsatz bearbeiten' : 'Neuer Einsatz'}</h2><div class="aw-grid" style="--c:3">
-      <label class="f">Art<select id="evK">${Object.entries(KIND).map(([k, l]) => opt(k, l, e ? e.kind : 'arbeit')).join('')}</select></label><label class="f w2">Titel<input id="evT" value="${esc(e ? e.title : '')}" placeholder="z. B. Frühjahrsputz Plätze"></label>
+      <label class="f">Art<select id="evK">${Object.entries(KIND).map(([k, l]) => opt(k, l, e ? e.kind : 'arbeit')).join('')}</select></label><label class="f w2">Titel<textarea id="evT" data-grow rows="1" placeholder="z. B. Frühjahrsputz Plätze">${esc(e ? e.title : '')}</textarea></label>
       <label class="chk wall aw-notermin" style="min-height:32px"><input type="checkbox" id="evPm" ${e && e.permanent ? 'checked' : ''}> Dauerhaft – ganzjährig ohne festen Termin (z. B. Thekendienst), am Tablet jederzeit wählbar</label>
       <label class="f aw-dated">Datum<input id="evD" type="date" value="${esc(e ? e.date : st.meta.today)}"></label><label class="f aw-dated">Von<input id="evS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f aw-dated">Bis<input id="evE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
       <label class="f w2" id="evPL">Ort / Treffpunkt<input id="evP" value="${esc(e ? e.place || '' : '')}"></label><label class="f aw-dated"><span id="evNL">Helfer gesucht (leer = beliebig)</span><input id="evN" inputmode="numeric" value="${e && e.slots ? e.slots : ''}"></label>
@@ -230,7 +230,7 @@
     const pmPaint = () => { const tm = val('evK') === 'termin', pm = $('evPm').checked && !tm; $('dialog').querySelectorAll('.aw-dated').forEach(x => { x.style.display = pm ? 'none' : ''; });
       $('dialog').querySelectorAll('.aw-termin').forEach(x => { x.style.display = tm ? '' : 'none'; }); $('dialog').querySelectorAll('.aw-notermin').forEach(x => { x.style.display = tm ? 'none' : ''; });
       $('evNL').textContent = tm ? 'Höchstzahl Personen (leer = beliebig)' : 'Helfer gesucht (leer = beliebig)'; $('evPL').classList.toggle('wall', pm); $('evPL').classList.toggle('w2', !pm); if (!e) { $('evAL').classList.toggle('wall', pm); $('evAL').classList.toggle('w2', !pm); } };
-    $('evPm').onchange = () => { if ($('evPm').checked && val('evK') === 'arbeit' && !val('evT')) { $('evK').value = 'theke'; $('evT').value = 'Thekendienst'; } pmPaint(); };
+    $('evPm').onchange = () => { if ($('evPm').checked && val('evK') === 'arbeit' && !val('evT')) { $('evK').value = 'theke'; $('evT').value = 'Thekendienst'; GK.fit($('evT')); } pmPaint(); };
     $('evK').onchange = pmPaint;
     pmPaint();
     $('c').onclick = closeDialog;
@@ -508,7 +508,7 @@
         <p class="muted s">Mitglieder können sich in der App bis 24 Stunden vor Beginn austragen, die Verwaltung bekommt dann eine E-Mail. Danach gilt der Kontakt.</p>${foot('sSaveBen')}</div>
       <div class="card" data-set="kalender" data-nodirty><h3>Kalender der Homepage</h3>
         <p class="muted s" style="margin-top:0">Hat eure Homepage einen Kalender zum Abonnieren, zeigt die Mitglieder-App seine Termine unter „Dienste › Termine“ und in „Für mich“. Clubwerk holt sie stündlich ab; gepflegt werden sie weiter auf der Homepage.</p>
-        <div class="aw-grid" style="--c:1"><label class="f">Abo-Link des Kalenders<input id="icU" inputmode="url" spellcheck="false" autocomplete="off" placeholder="z. B. webcal://dein-verein.de/?ical=1"></label></div>
+        <div class="aw-grid" style="--c:1"><label class="f">Abo-Link des Kalenders<textarea id="icU" data-grow rows="1" inputmode="url" spellcheck="false" autocomplete="off" placeholder="z. B. webcal://dein-verein.de/?ical=1"></textarea></label></div>
         <div id="icSt" class="muted s" style="margin-top:10px"></div>
         <div class="row" style="justify-content:flex-end;margin-top:12px;gap:8px"><button class="btn" id="icNow">Jetzt abrufen</button><button class="btn primary" id="icSave">Speichern</button></div></div>
       <div id="sFunc"></div>`);
@@ -536,8 +536,8 @@
       $('icSt').innerHTML = !s.url ? 'Kein Kalender eingetragen.' : s.sample ? `Beispieladresse – wird nicht abgerufen. ${s.n === 1 ? '1 Termin' : `${s.n} Termine`} aus den Beispieldaten.` : [ok, err].filter(Boolean).join('<br>') || 'Noch nicht abgerufen.';
       if (s.next && s.next.length) $('icSt').insertAdjacentHTML('beforeend', `<br>Als Nächstes: ${s.next.map(e => `<span translate="no">${esc(e.title)}</span> (${deDate(e.date)}${e.start ? ' ' + e.start : ''})`).join(' · ')}`);
     };
-    api('ical').then(s => { $('icU').value = s.url || ''; icShow(s); }).catch(fail);
-    $('icSave').onclick = () => GK.busy($('icSave'), async () => { try { const s = await api('ical', 'PUT', { url: val('icU') }); $('icU').value = s.url || ''; icShow({ ...s, next: (await api('ical')).next }); toast(s.url ? 'Gespeichert.' : 'Kalender entfernt.'); } catch (e) { fail(e); } });
+    api('ical').then(s => { $('icU').value = s.url || ''; GK.fit($('icU')); icShow(s); }).catch(fail);
+    $('icSave').onclick = () => GK.busy($('icSave'), async () => { try { const s = await api('ical', 'PUT', { url: val('icU') }); $('icU').value = s.url || ''; GK.fit($('icU')); icShow({ ...s, next: (await api('ical')).next }); toast(s.url ? 'Gespeichert.' : 'Kalender entfernt.'); } catch (e) { fail(e); } });
     $('icNow').onclick = () => GK.busy($('icNow'), async () => { try { await api('ical/sync', 'POST', {}); icShow(await api('ical')); } catch (e) { fail(e); } });
     if (GK.funcBox) GK.funcBox($('sFunc'), 'arbeitseinsatz', 'Dienste & Termine', () => renderEinstellungen().catch(fail));
   }

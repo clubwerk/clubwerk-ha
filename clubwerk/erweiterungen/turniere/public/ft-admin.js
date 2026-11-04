@@ -419,7 +419,7 @@
     const sel = (id, v, opts, lab, cls = 'w1', dis = false) => `<label class="f ${cls}">${lab}<select id="${id}" ${off || dis ? 'disabled' : ''}>${opts.map(([k, l]) => `<option value="${k}" ${String(k) === String(v) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`;
     el.innerHTML = `${off ? '<div class="banner">Das Turnier ist beendet – Änderungen erst nach „Wieder öffnen“ (unten).</div>' : ''}
       <div class="card" data-card="turnier"><h3>Turnier</h3><div class="frm">
-        <label class="f wall">Name<input id="fsN" maxlength="80" value="${esc(ft.name)}" ${off ? 'disabled' : ''}></label>
+        <label class="f wall">Name<textarea id="fsN" data-grow rows="1" maxlength="80" ${off ? 'disabled' : ''}>${esc(ft.name)}</textarea></label>
         <label class="f w1">Tag<input id="fsD" type="date" value="${esc(ft.date)}" ${off ? 'disabled' : ''}></label><label class="f w1">Beginn<input id="fsT" type="time" value="${esc(ft.start)}" ${off ? 'disabled' : ''}></label>
         <label class="f w1">Spätestes Ende<input id="fsE" type="time" value="${esc(c.end_warn)}" ${off ? 'disabled' : ''}></label><label class="f w1">Startgeld je ${ft.format === 'schleifchen' ? 'Person' : 'Mannschaft'}<input id="fsFee" inputmode="decimal" value="${c.fee ? (c.fee / 100).toFixed(2).replace('.', ',') : ''}" placeholder="kein" ${off ? 'disabled' : ''}></label>
         ${sel('fsF', ft.format, Object.entries(st.meta.formats), 'Spielform', '', drawn)}<label class="f">Sportart<input value="${esc(sp.label)}" disabled></label></div>

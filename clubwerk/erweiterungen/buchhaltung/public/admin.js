@@ -27,6 +27,7 @@
       .bh-items { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 8px; }
       .bh-item { display: grid; grid-template-columns: minmax(0, 1fr) 76px 116px 92px 40px; gap: 8px; align-items: center; }
       .bh-item.h { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); font-weight: 700; }
+      .bh-item textarea.t { width: 100%; min-width: 0; box-sizing: border-box; min-height: 40px; padding: 9px 10px; line-height: 20px; resize: none; overflow: hidden; display: block; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; line-height: 20px; color: var(--ink); } .bh-item textarea.t:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       .bh-item input, .bh-item select { width: 100%; min-width: 0; box-sizing: border-box; height: 40px; padding: 0 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font: inherit; font-size: 14px; font-weight: 500; color: var(--ink); }
       .bh-item input:focus, .bh-item select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
       .bh-item > span { padding: 0 2px; } .bh-item > .btn { height: 40px; min-height: 40px; width: 40px; padding: 0; }   /* Entfernen-Knopf so hoch wie die Felder der Zeile */
@@ -87,7 +88,7 @@
     const paint = () => {
       const t = sums();
       box.innerHTML = `<div class="bh-items"><div class="bh-item h"><span>Leistung</span><span class="n">Menge</span><span class="n">${sb ? 'Preis' : 'Preis netto'}</span><span>${sb ? '' : 'USt'}</span><span></span></div>
-        ${rows.map((r, i) => `<div class="bh-item" data-i="${i}"><input class="t" value="${esc(r.text)}" placeholder="z. B. Bandenwerbung Sportplatz 3 × 1 m" aria-label="Leistung">
+        ${rows.map((r, i) => `<div class="bh-item" data-i="${i}"><textarea class="t" data-grow rows="1" placeholder="z. B. Bandenwerbung Sportplatz 3 × 1 m" aria-label="Leistung">${esc(r.text)}</textarea>
           <input class="q n" value="${esc(String(r.qty).replace('.', ','))}" inputmode="decimal" aria-label="Menge">
           <input class="u n" value="${r.unit_cents ? centsToInput(r.unit_cents) : ''}" inputmode="decimal" placeholder="0,00" aria-label="Einzelpreis">
           ${sb ? '<span class="v"></span>' : `<select class="v" aria-label="Umsatzsteuer">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', r.vat)).join('')}</select>`}
@@ -440,7 +441,7 @@
         <p class="muted s">Die Spendenbestätigung ist nur gültig, solange der Bescheid nicht älter als 5 Jahre ist (Feststellungsbescheid: 3 Jahre).</p>${save('steuer')}</div>
       <div class="card" data-set="spenden"><h3>Spendenquittungen</h3>
         <div class="bh-grid">${inp('don_prefix', 'Nummernkreis', { ph: 'SQ-' })}${inp('place', 'Ort der Ausstellung', { ph: 'leer = Ort des Vereins' })}
-          <label class="f wall">Begünstigte Zwecke<input id="bs_zwecke" value="${esc(s.zwecke)}"></label>
+          <label class="f wall">Begünstigte Zwecke<textarea id="bs_zwecke" data-grow rows="1">${esc(s.zwecke)}</textarea></label>
           ${inp('signer', 'Unterschrift (Name)')}${inp('signer_role', 'Funktion')}</div>${save('spenden')}</div>
       <div class="card" data-set="absender"><h3>Briefkopf & Bankkonten</h3>
         <p class="muted s" style="margin-top:0">Anschrift, E-Mail und Telefon stehen im Briefkopf jeder Rechnung und Spendenquittung. Sie gelten für den ganzen Verein – <a href="#einstellungen" id="bsToClub">ändern unter Einstellungen › Verein</a>.</p>

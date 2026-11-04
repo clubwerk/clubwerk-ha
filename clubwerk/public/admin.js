@@ -238,8 +238,15 @@
         i += td.colSpan || 1; }); });
     });
   }
-  new MutationObserver(() => { labelTables(document); }).observe(document.getElementById('app'), { childList: true, subtree: true });
-  new MutationObserver(() => { labelTables($('dialog')); }).observe($('dialog'), { childList: true, subtree: true });
+  /* Einzeilige Textfelder, die nie abschneiden: <textarea data-grow rows="1"> bricht langen Text um und wächst mit (Enter schaltet nicht um, Zeilenumbrüche fallen weg).
+     Für Werte, die länger als das Feld sein können (Betreff, Link, Bezeichnung); wer den Wert per Skript setzt, ruft GK.fit(feld) auf. */
+  const growFit = t => { t.style.height = 'auto'; t.style.height = Math.max(40, t.scrollHeight + (t.offsetHeight - t.clientHeight)) + 'px'; };
+  const growAll = root => root.querySelectorAll('textarea[data-grow]').forEach(growFit);
+  document.addEventListener('input', e => { const t = e.target; if (t.matches && t.matches('textarea[data-grow]')) { if (/\n/.test(t.value)) t.value = t.value.replace(/\s*\n\s*/g, ' '); growFit(t); } });
+  document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches && e.target.matches('textarea[data-grow]')) e.preventDefault(); });
+  addEventListener('resize', () => growAll(document));
+  new MutationObserver(() => { labelTables(document); growAll(document); }).observe(document.getElementById('app'), { childList: true, subtree: true });
+  new MutationObserver(() => { labelTables($('dialog')); growAll($('dialog')); }).observe($('dialog'), { childList: true, subtree: true });
 
   /* ---------- Anmeldung ---------- */
   let me = null, permLabels = {};
@@ -269,6 +276,7 @@
     cache.extLinks = r.links || [];
     cache.modules = r.modules || [];
     cache.appModules = r.appModules || [];
+    cache.navLayout = r.navLayout || null;
     for (const x of r.ui) {
       if (extLoaded.has(x.id)) continue;
       extLoaded.add(x.id);
@@ -415,7 +423,16 @@
   ];
   const BEREICH_OF = {};   // Eintrag → Bereich, aus registerPage({ bereich })
   const NAV_FLACH = 9;
-  const bereichOf = k => { const b = BEREICHE.find(x => x[3].includes(k)); return b ? b[0] : BEREICHE.some(x => x[0] === BEREICH_OF[k]) ? BEREICH_OF[k] : 'verein'; };
+  const bereichStd = k => { const b = BEREICHE.find(x => x[3].includes(k)); return b ? b[0] : BEREICHE.some(x => x[0] === BEREICH_OF[k]) ? BEREICH_OF[k] : 'verein'; };
+  /* Eigene Seitenleiste des Vereins (Einstellungen › Verein › Seitenleiste, Server-Einstellung club_nav): Namen, Reihenfolge der Bereiche, Zuordnung und Reihenfolge der Einträge.
+     Einträge ohne Zuordnung bleiben in ihrem Standardbereich (am Ende), unbekannte Einträge der Zuordnung fallen weg – nichts verschwindet. */
+  const NAV0 = { names: {}, order: [], lists: {} };
+  const navL = () => cache.navLayout || NAV0;
+  const bereichOf = (k, L = navL()) => { const e = Object.keys(L.lists).find(b => L.lists[b].includes(k)); return e && BEREICHE.some(x => x[0] === e) ? e : bereichStd(k); };
+  /** Bereiche in der eingestellten Reihenfolge, mit Namen (eigener oder Standard); L: andere Einstellung zum Vergleichen */
+  const berList = (L = navL()) => (L.order.length ? L.order.map(b => BEREICHE.find(x => x[0] === b)).filter(Boolean) : BEREICHE).map(x => [x[0], L.names[x[0]] || x[1], x[2], x[3]]);
+  const berLabel = b => (berList().find(x => x[0] === b) || [])[1];
+  const berOwn = b => Boolean(navL().names[b]);   // eigener Name = Vereinstext, bleibt unübersetzt
   const navKey = p => groupOf(p) || p;   // Menüeintrag einer Seite
   const PAGE_ORDER = {};
   const PAGE_MOD = {};   // Seite → Modul (Erweiterungs-id), siehe GK.pageModule
@@ -481,23 +498,40 @@
   const theme = () => (window.CWTheme ? CWTheme.choice() : 'auto');   // 'auto' | 'light' | 'dark' | 'hc' (theme-init.js)
   let badges = {};
 
-  function showShell() {
-    const navBtn = (k, label, ic, badge) => `<button class="nav" data-p="${k}">${icon(ic)}<span>${esc(label)}</span>${badge ? `<span class="badge hidden" data-badge="${badge}"></span>` : ''}</button>`;
-    // Alle Menüeinträge (Modul-Gruppen mit Reitern und Einzelseiten), die dieser Benutzer sehen darf, nach Bereichen geordnet
-    const items = [
-      ...Object.entries(MODG).filter(([g]) => GPAGES(g).length).map(([g, m]) => ({ k: g, order: m.order || 50, html: navBtn('__' + g, m.label, m.icon || 'modul', g) })),
-      ...PAGES.filter(x => x[3] === 'module' && canAny(x[2])).map(([k, l]) => ({ k, order: PAGE_ORDER[k] || 50, html: navBtn(k, l, PAGE_ICON[k] || 'modul', k) })),
+  /** Alle Menüeinträge (Modul-Gruppen mit Reitern und Einzelseiten), die dieser Benutzer sehen darf */
+  function navItems() {
+    return [
+      ...Object.entries(MODG).filter(([g]) => GPAGES(g).length).map(([g, m]) => ({ k: g, order: m.order || 50, p: '__' + g, label: m.label, ic: m.icon || 'modul', badge: g })),
+      ...PAGES.filter(x => x[3] === 'module' && canAny(x[2])).map(([k, l]) => ({ k, order: PAGE_ORDER[k] || 50, p: k, label: l, ic: PAGE_ICON[k] || 'modul', badge: k })),
       ...PAGES.filter(x => x[3] === 'verein' && canAny(x[2]) && (x[0] !== 'app' || (cache.appModules || []).length))
-        .map(([k, l], i) => ({ k, order: 100 + i, html: navBtn(k, TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, PAGE_ICON[k] || 'modul', k === 'konten' ? k : '') })),
+        .map(([k, l], i) => ({ k, order: 100 + i, p: k, label: TAB_LABEL[k] && k === 'konten' ? TAB_LABEL.konten : l, ic: PAGE_ICON[k] || 'modul', badge: k === 'konten' ? k : '' })),
     ];
-    const pos = it => { const b = BEREICHE.find(x => x[3].includes(it.k)); return b ? b[3].indexOf(it.k) : 50 + it.order; };
-    const bereiche = BEREICHE.map(([b, l, ic]) => ({ b, l, ic, list: items.filter(it => bereichOf(it.k) === b).sort((x, y) => pos(x) - pos(y)) })).filter(x => x.list.length);
-    const flach = items.length <= NAV_FLACH;
-    const offen = navOpen();
-    const navHtml = bereiche.map(({ b, l, ic, list }) => (flach || bereiche.length === 1
-      ? `${bereiche.length > 1 ? `<div class="grp">${esc(l)}</div>` : ''}${list.map(x => x.html).join('')}`
-      : `<div class="navg${offen.includes(b) ? ' open' : ''}" data-b="${b}"><button type="button" class="navb" id="nbh-${b}" aria-expanded="${offen.includes(b)}" aria-controls="nb-${b}">${icon(ic)}<span>${esc(l)}</span><span class="badge hidden"></span>${icon('pfeil', 16).replace('<svg', '<svg class="chev"')}</button>
-          <div class="navgi" id="nb-${b}" role="group" aria-labelledby="nbh-${b}">${list.map(x => x.html).join('')}</div></div>`)).join('');
+  }
+  /** Einträge nach Bereichen geordnet (Bereiche ohne Einträge entfallen); L: Einstellung (Standard: die des Vereins) */
+  function navGroups(items, L = navL()) {
+    const pos = it => { const i = (L.lists[bereichOf(it.k, L)] || []).indexOf(it.k); if (i >= 0) return i; const b = BEREICHE.find(x => x[3].includes(it.k)); return 1000 + (b ? b[3].indexOf(it.k) : 50 + it.order); };
+    return berList(L).map(([b, l, ic]) => ({ b, l, ic, list: items.filter(it => bereichOf(it.k, L) === b).sort((x, y) => pos(x) - pos(y)) })).filter(x => x.list.length);
+  }
+  const navBtn = (it) => `<button class="nav" data-p="${it.p}">${icon(it.ic)}<span>${esc(it.label)}</span>${it.badge ? `<span class="badge hidden" data-badge="${it.badge}"></span>` : ''}</button>`;
+  /** Inhalt der Leiste unter der Suche: Übersicht und die Bereiche (flach bis 9 Einträge, darüber aufklappbar) */
+  function navInner() {
+    const items = navItems(), bereiche = navGroups(items);
+    const flach = items.length <= NAV_FLACH, offen = navOpen();
+    const nm = b => `<span${berOwn(b) ? ' translate="no"' : ''}>${esc(berLabel(b))}</span>`;
+    return `<button class="nav" data-p="uebersicht">${icon('uebersicht')}<span>Übersicht</span></button>` + bereiche.map(({ b, ic, list }) => (flach || bereiche.length === 1
+      ? `${bereiche.length > 1 ? `<div class="grp"${berOwn(b) ? ' translate="no"' : ''}>${esc(berLabel(b))}</div>` : ''}${list.map(navBtn).join('')}`
+      : `<div class="navg${offen.includes(b) ? ' open' : ''}" data-b="${b}"><button type="button" class="navb" id="nbh-${b}" aria-expanded="${offen.includes(b)}" aria-controls="nb-${b}">${icon(ic)}${nm(b)}<span class="badge hidden"></span>${icon('pfeil', 16).replace('<svg', '<svg class="chev"')}</button>
+          <div class="navgi" id="nb-${b}" role="group" aria-labelledby="nbh-${b}">${list.map(navBtn).join('')}</div></div>`)).join('');
+  }
+  /** Leiste nach einer Änderung der Seitenleiste neu aufbauen, ohne die Seite neu zu laden */
+  function navRebuild() {
+    const body = document.querySelector('#side .navbody'); if (!body) return;
+    [...body.children].forEach(c => { if (!c.classList.contains('search')) c.remove(); });
+    body.insertAdjacentHTML('beforeend', navInner());
+    setChrome(page); refreshBadges();
+  }
+
+  function showShell() {
     $('app').innerHTML = `<div class="shell">
       <nav class="side glass" id="side">
         <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : '<span id="clubIni"></span>'}</div>
@@ -505,8 +539,7 @@
           <button class="menutoggle" id="menuT" aria-label="Menü">${icon('menue', 16)}<span id="menuCur">Menü</span></button></div>
         <div class="navbody">
           <label class="search">${icon('suche')}<input id="navSearch" placeholder="Suchen" aria-label="Seite suchen" autocomplete="off"><kbd>${/Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Strg K'}</kbd><div class="results hidden" id="navRes"></div></label>
-          ${navBtn('uebersicht', 'Übersicht', 'uebersicht')}
-          ${navHtml}
+          ${navInner()}
         </div>
         <div class="userchip"><a class="who" href="#konto" id="myAcc" title="${esc(T('Mein Konto'))} · ${esc(T(me.role === 'oberadmin' ? 'Alle Rechte' : 'Admin'))}" aria-label="Mein Konto"><div class="av">${esc(initials(me.name || me.username))}</div>
           <div class="nm"><b>${esc(me.name || me.username)}</b><span>Mein Konto</span></div></a><div class="ucbtns">
@@ -584,7 +617,7 @@
       .map(([k, l, , g]) => ({ label: groupOf(k) ? TAB_LABEL[k] || l : l, page: k, kind: groupOf(k) ? 'reiter' : 'seite', words: groupOf(k) ? `${l} ${MODG[g].label}` : '', path: pathOf(k).slice(0, -1) }));
     const reg = SEARCH.filter(e => allowed(e.page) && canAny(e.perm)).map(e => ({ ...e, path: pathOf(e.page, e.in) }));
     return [...pages, ...reg].map(e => {
-      const lab = snorm(e.label + ' ' + T(e.label)), words = snorm([e.words, e.words ? T(e.words) : ''].join(' ')), path = snorm(e.path.map(x => x + ' ' + T(x)).join(' '));
+      const lab = snorm(e.label + ' ' + T(e.label)), words = snorm([e.words, e.words ? T(e.words) : ''].join(' ')), path = snorm(e.path.map(x => x + ' ' + T(x)).join(' ') + ' ' + (berLabel(bereichOf(navKey(e.page))) || ''));
       return { ...e, _l: lab, _lw: lab.split(' '), _lc: lab.replace(/ /g, ''), _w: words, _p: path };
     });
   }
@@ -724,6 +757,24 @@
     window.open(`api/admin/anleitung/${id}?l=${docLang()}${hit ? '#page=' + map[hit] : ''}`, '_blank', 'noopener');
   }
 
+  /** Menüknopf am Handy: der Bereichsname bekommt höchstens 42 % der Kopfleiste (Platz für Logo und Vereinsname bleibt). Passt er auch in kleinster Schrift (12 px) nicht hinein,
+   *  steht auf dem Knopf „Menü“ – der Bereich steht in der Kopfzeile der Seite; gekürzt („…“) wird nie. */
+  function menuFit() {
+    const sp = $('menuCur'), btn = $('menuT'), box = sp && sp.closest('.brandbox'); if (!sp || !btn || !box) return;
+    if (sp.dataset.full === undefined || sp.dataset.shown !== sp.textContent) { sp.dataset.full = sp.textContent; }
+    sp.textContent = sp.dataset.full; sp.style.fontSize = ''; btn.title = '';
+    if (!btn.offsetParent) return;   // Rechner: Knopf ist ausgeblendet
+    const cs = getComputedStyle(btn), extra = btn.getBoundingClientRect().width - sp.getBoundingClientRect().width;
+    const frei = box.clientWidth * 0.42 - extra, cv = (window.__cwMenuCv = window.__cwMenuCv || document.createElement('canvas')).getContext('2d');
+    const w = px => { cv.font = `${cs.fontWeight} ${px}px ${cs.fontFamily}`; return cv.measureText(sp.dataset.full).width; };
+    const base = parseFloat(getComputedStyle(sp).fontSize) || 14;
+    let px = base; while (px > 12 && w(px) > frei) px -= 0.5;
+    if (w(px) > frei) { sp.textContent = T('Menü'); btn.title = sp.dataset.full; sp.style.fontSize = ''; }
+    else if (px < base) sp.style.fontSize = px + 'px';
+    sp.dataset.shown = sp.textContent;
+  }
+  addEventListener('resize', () => menuFit());
+
   /* Menü markieren, Kopf über der Seite (Bereich + Reiter von Getränke) */
   function setChrome(p) {
     const g = groupOf(p);
@@ -733,12 +784,12 @@
     document.querySelectorAll('#side .navg').forEach(x => { const has = Boolean(cur && x.contains(cur)); x.classList.toggle('cur', has); if (has && !x.classList.contains('open')) navToggle(x, true); });
     const pg = PAGES.find(x => x[0] === p);
     // Menüknopf am Handy: der Bereich der Seite (ein kurzes Wort, immer einzeilig) – die Seite selbst steht als Überschrift darunter
-    if ($('menuCur')) $('menuCur').textContent = !pg ? 'Menü' : ['start', 'konto'].includes(pg[3]) ? pg[1] : (BEREICHE.find(x => x[0] === bereichOf(navKey(p))) || [0, 'Menü'])[1];
+    if ($('menuCur')) { $('menuCur').dataset.shown = ''; const eigen = pg && !['start', 'konto'].includes(pg[3]) && berOwn(bereichOf(navKey(p))); $('menuCur').textContent = !pg ? 'Menü' : ['start', 'konto'].includes(pg[3]) ? pg[1] : berLabel(bereichOf(navKey(p))) || 'Menü'; $('menuCur').toggleAttribute('translate', Boolean(eigen)); if (eigen) $('menuCur').setAttribute('translate', 'no'); menuFit(); }
     const bar = $('pagebar'); if (!bar) return;
     const help = `<button type="button" class="helpbtn" id="docHelp" title="${esc(T('Anleitung zu dieser Seite (PDF)'))}" aria-label="${esc(T('Anleitung zu dieser Seite (PDF)'))}">?</button>`;
     if (!pg || p === 'uebersicht') { bar.innerHTML = pg ? `<div class="pagebarrow"><span></span>${help}</div>` : ''; }
-    else { const bl = (BEREICHE.find(x => x[0] === bereichOf(navKey(p))) || [])[1];   // Bereich · Menüeintrag, wie in der Leiste
-      bar.innerHTML = `<div class="pagebarrow"><div class="crumb">${esc(bl)} · ${esc(g ? MODG[g].label : p === 'konten' ? TAB_LABEL.konten : pg[1])}</div>${help}</div>`; }
+    else { const bb = bereichOf(navKey(p)), bl = berLabel(bb);   // Bereich · Menüeintrag, wie in der Leiste
+      bar.innerHTML = `<div class="pagebarrow"><div class="crumb">${berOwn(bb) ? `<span><span translate="no">${esc(bl)}</span> · ${esc(g ? MODG[g].label : p === 'konten' ? TAB_LABEL.konten : pg[1])}</span>` : `${esc(bl)} · ${esc(g ? MODG[g].label : p === 'konten' ? TAB_LABEL.konten : pg[1])}`}</div>${help}</div>`; }
     if ($('docHelp')) { $('docHelp').onclick = docOpen; docLoad(); }
     if (!pg || p === 'uebersicht') return;
     const old = $('main') && $('main').querySelector('.tabrow:has(> .drinktabs)');
@@ -946,6 +997,8 @@
 
   /* Schnittstelle für Erweiterungen (deren admin.js meldet sich hier an) */
   window.GK = {
+    /** Selbst wachsendes einzeiliges Textfeld (<textarea data-grow rows="1">) nach einer Wertänderung per Skript anpassen */
+    fit: growFit,
     sortKit, $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
     scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
@@ -1049,6 +1102,7 @@
     { label: 'HTTPS und Zugang von außen', page: E, sec: SET('erreichbar'), card: 'Verschlüsselung und Zugang', words: 'HTTPS Zertifikat Tunnel Cloudflare Internet', perm: E, in: 'Erreichbarkeit' },
     { label: 'Tablet-Passwort', page: E, sec: SET('tablet'), card: 'Passwort für das Tablet', words: 'Passwort Kennwort Sperre Tablet sperren', perm: E, in: 'Tablet' },
     { label: 'Alle Tablets abmelden', page: E, sec: SET('tablet'), btn: 'Alle Geräte abmelden', words: 'Geräte abmelden Tablet', perm: E, kind: 'aktion', in: 'Tablet' },
+    { label: 'Seitenleiste der Verwaltung anpassen (Bereiche umbenennen, ordnen, Einträge verschieben)', page: E, sec: SET('verein'), card: 'Seitenleiste', words: 'Menü Navigation Bereiche Reihenfolge umbenennen verschieben Gastro Sport Anlage Standard', perm: E, in: 'Verein' },
     { label: 'Leiste am Tablet (Reihenfolge, Start-Reiter)', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Reihenfolge Reiter Kopfzeile Start', perm: E, in: 'Tablet' },
     { label: 'Modul am Tablet zeigen oder ausblenden', page: E, sec: SET('tablet'), card: 'Leiste am Tablet', words: 'Beregnung Zugang Türen Tablet zeigen ausblenden Schalter Kopfzeile', perm: E, in: 'Tablet' },
     { label: 'Links in der Kopfzeile', page: E, sec: SET('tablet'), card: 'Links in der Kopfzeile', words: 'Link Kopfzeile Tablet', perm: E, in: 'Tablet' },
@@ -1440,7 +1494,7 @@
         ${o.mailReady ? '' : `<div class="banner a" style="margin:0 0 12px"><span>Zum direkten Senden fehlt noch das Vereinspostfach (${o.mayMailSetup ? '<a href="#einstellungen" data-gomail style="margin:0">Einstellungen → Postfach</a>' : 'ein Admin mit Recht „Einstellungen“ richtet es unter Einstellungen → Postfach ein'}). Bis dahin: Text kopieren oder im E-Mail-Programm öffnen.</span></div>`}
         <div class="row"><label class="f" style="flex:1;min-width:240px">An (Lieferant)<input id="oMail" type="email" value="${esc(st.order_email)}" placeholder="bestellung@lieferant.de" autocomplete="off"></label>
           <label class="f" style="flex:1;min-width:240px">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
-        <label class="f" style="margin-top:8px">Betreff<input id="oSubj"></label>
+        <label class="f" style="margin-top:8px">Betreff<textarea id="oSubj" data-grow rows="1"></textarea></label>
         <label class="f" style="margin-top:8px">Text<textarea id="oText" rows="16" style="font-family:inherit"></textarea></label>
         <div class="row" style="margin-top:10px;align-items:center"><button class="btn primary" id="oSend" ${o.mailReady ? '' : 'disabled'}>Bestellung jetzt senden</button><button class="btn" id="oCopy">Text kopieren</button><a class="btn" id="oMailBtn" href="#">In E-Mail-Programm öffnen</a>
           <span class="muted s" id="oInfo"></span></div>
@@ -1449,7 +1503,7 @@
     const build = () => {
       const lines = rows.map(r => ({ r, n: Number(($('main').querySelector(`[data-o="${r.id}"]`) || {}).value) || 0 })).filter(x => x.n > 0);
       const date = new Date().toLocaleDateString('de-DE');
-      $('oSubj').value = `Bestellung ${o.clubName}${$('oCust').value ? ' (Kd.-Nr. ' + $('oCust').value + ')' : ''} vom ${date}`;
+      $('oSubj').value = `Bestellung ${o.clubName}${$('oCust').value ? ' (Kd.-Nr. ' + $('oCust').value + ')' : ''} vom ${date}`; growFit($('oSubj'));
       $('oText').value = `Guten Tag,\n\nhiermit bestellen wir für den ${o.clubName}${$('oCust').value ? ' (Kunden-Nr. ' + $('oCust').value + ')' : ''}:\n\n` +
         (lines.length ? lines.map(({ r, n }) => `- ${n} Gebinde ${r.supplier_text || r.name}${r.art_no ? ' (Art.-Nr. ' + r.art_no + ')' : ''}`).join('\n') : '- (bitte Mengen eintragen)') +
         `\n\nLieferadresse: ${$('oAddr').value}\nLeergut geben wir bei der Lieferung mit.\n` +
@@ -4152,9 +4206,67 @@
     };
     setTimeout(tick, 3000);
   }
+  /** Karte „Seitenleiste“ (Einstellungen › Verein): Bereiche umbenennen und ordnen, Einträge verschieben und ordnen. Gespeichert wird für den ganzen Verein. */
+  function seitenleisteKarte() {
+    const items = navItems(), lab = Object.fromEntries(items.map(i => [i.k, i.label]));
+    const STD = Object.fromEntries(BEREICHE.map(x => [x[0], x[1]]));
+    // Arbeitskopie: alle Bereiche (auch leere) mit den Einträgen, wie die Leiste sie heute zeigt
+    const startL = () => { const g = navGroups(items); return { names: { ...navL().names }, order: berList().map(x => x[0]), lists: Object.fromEntries(BEREICHE.map(x => [x[0], (g.find(y => y.b === x[0]) || { list: [] }).list.map(i => i.k)])) }; };
+    let st = startL();
+    let ausgang = Object.fromEntries(Object.entries(st.lists).flatMap(([b, l]) => l.map(k => [k, b])));   // Bereich jedes Eintrags vor dem Bearbeiten (fürs Protokoll)
+    const nameOf = b => (st.names[b] || '').trim() || STD[b];
+    const draw = () => {
+      const opts = sel => st.order.map(b => `<option value="${b}" ${b === sel ? 'selected' : ''} translate="no">${esc(nameOf(b))}</option>`).join('');
+      $('nvRows').innerHTML = st.order.map((b, bi) => `<div class="nvb" data-b="${b}">
+        <div class="nvh"><span class="ton">${bi + 1}</span><b class="nvt">${esc(T('Bereich {0}', [bi + 1]))}</b>
+          <label class="f"><input data-nm="${b}" value="${esc(st.names[b] || '')}" placeholder="${esc(T(STD[b]))}" maxlength="24" aria-label="${esc(T('Name des Bereichs'))} ${esc(T(STD[b]))}" translate="no" autocomplete="off"></label>
+          <span class="toact"><button type="button" class="btn small" data-bup="${bi}" ${bi ? '' : 'disabled'} aria-label="${esc(T('Bereich nach oben'))}">↑</button><button type="button" class="btn small" data-bdn="${bi}" ${bi < st.order.length - 1 ? '' : 'disabled'} aria-label="${esc(T('Bereich nach unten'))}">↓</button></span></div>
+        ${st.lists[b].length ? st.lists[b].map((k, i) => `<div class="nvr"><b>${esc(lab[k])}</b>
+          <label class="f"><select data-mv="${esc(k)}" aria-label="${esc(T('Bereich von'))} ${esc(T(lab[k]))}">${opts(b)}</select></label>
+          <span class="toact"><button type="button" class="btn small" data-eup="${esc(k)}" ${i ? '' : 'disabled'} aria-label="${esc(T('Eintrag nach oben'))}">↑</button><button type="button" class="btn small" data-edn="${esc(k)}" ${i < st.lists[b].length - 1 ? '' : 'disabled'} aria-label="${esc(T('Eintrag nach unten'))}">↓</button></span></div>`).join('') : `<div class="nvr leer"><span class="muted s">${esc(T('Keine Einträge – hier ist gerade nichts sichtbar.'))}</span></div>`}</div>`).join('');
+      const R = $('nvRows');
+      R.querySelectorAll('[data-nm]').forEach(i => { i.oninput = () => { st.names[i.dataset.nm] = i.value; R.querySelectorAll('select').forEach(sel => { [...sel.options].forEach(o => { o.textContent = nameOf(o.value); }); }); }; });
+      const swap = (a, i, j) => { [a[i], a[j]] = [a[j], a[i]]; draw(); };
+      R.querySelectorAll('[data-bup]').forEach(x => { x.onclick = () => swap(st.order, +x.dataset.bup, +x.dataset.bup - 1); });
+      R.querySelectorAll('[data-bdn]').forEach(x => { x.onclick = () => swap(st.order, +x.dataset.bdn, +x.dataset.bdn + 1); });
+      const whereIs = k => st.order.find(b => st.lists[b].includes(k));
+      R.querySelectorAll('[data-eup]').forEach(x => { x.onclick = () => { const l = st.lists[whereIs(x.dataset.eup)], i = l.indexOf(x.dataset.eup); swap(l, i, i - 1); }; });
+      R.querySelectorAll('[data-edn]').forEach(x => { x.onclick = () => { const l = st.lists[whereIs(x.dataset.edn)], i = l.indexOf(x.dataset.edn); swap(l, i, i + 1); }; });
+      R.querySelectorAll('[data-mv]').forEach(x => { x.onchange = () => { const k = x.dataset.mv; st.lists[whereIs(k)].splice(st.lists[whereIs(k)].indexOf(k), 1); st.lists[x.value].push(k); draw(); const again = R.querySelector(`[data-mv="${k}"]`); if (again) again.focus(); }; });
+    };
+    draw();
+    /* Speichern: Namen/Reihenfolge/Zuordnung. Einträge, die diese Person nicht sieht (fehlendes Recht), behalten ihren gespeicherten Platz. */
+    $('nvSave').onclick = () => busy($('nvSave'), async () => {
+      const names = {}; for (const b of BEREICHE.map(x => x[0])) { const n = (st.names[b] || '').trim().replace(/\s+/g, ' '); if (n && n !== STD[b]) names[b] = n; }
+      const lists = {}, placed = new Set(Object.values(st.lists).flat());
+      for (const b of st.order) {
+        const l = [...st.lists[b]];
+        for (const k of (navL().lists[b] || [])) if (!placed.has(k) && !items.some(i => i.k === k)) l.push(k);   // unsichtbare behalten ihren Platz
+        if (l.length) lists[b] = l;
+      }
+      const def = startDefault();
+      const gleich = JSON.stringify(st.order.filter(Boolean)) === JSON.stringify(BEREICHE.map(x => x[0])) && JSON.stringify(Object.fromEntries(Object.entries(st.lists).filter(([, l]) => l.length))) === JSON.stringify(def) && !Object.keys(navL().lists).some(b => (navL().lists[b] || []).some(k => !items.some(i => i.k === k)));
+      const order = JSON.stringify(st.order) === JSON.stringify(BEREICHE.map(x => x[0])) ? [] : st.order;
+      try {
+        const r = await api('settings/nav-layout', 'PUT', { names, order, lists: gleich ? {} : lists, labels: lab, ausgang });
+        cache.navLayout = r; st = startL(); ausgang = Object.fromEntries(Object.entries(st.lists).flatMap(([b, l]) => l.map(k => [k, b]))); draw(); navRebuild(); toast('Gespeichert – die Seitenleiste gilt jetzt für alle.');
+      } catch (e) { fail(e); }
+    });
+    // Standard der Leiste (ohne eigene Einstellung), für den Vergleich beim Speichern
+    function startDefault() { const g = navGroups(items, NAV0); return Object.fromEntries(g.map(x => [x.b, x.list.map(i => i.k)])); }
+    $('nvReset').onclick = () => {
+      dialog(`<h2>Seitenleiste auf Standard zurücksetzen?</h2>
+        <p>Die Bereiche heißen dann wieder Gastro, Sport, Anlage, Mitglieder, Finanzen und Verein, in dieser Reihenfolge, und jeder Eintrag steht wieder an seinem ursprünglichen Platz. Das gilt für alle, die sich anmelden.</p>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Zurücksetzen</button></div>`);
+      $('c').onclick = closeDialog;
+      $('ok').onclick = () => busy($('ok'), async () => {
+        try { cache.navLayout = await api('settings/nav-layout', 'DELETE'); closeDialog(); st = startL(); ausgang = Object.fromEntries(Object.entries(st.lists).flatMap(([b, l]) => l.map(k => [k, b]))); draw(); navRebuild(); toast('Die Seitenleiste ist wieder im Standard.'); } catch (e) { fail(e); }
+      });
+    };
+  }
   /* Einstellungen in Unterbereiche aufteilen (Karten werden nach ihrer Überschrift zugeordnet) */
   const SETTING_SECS = [['verein', 'Verein'], ['bank', 'Bankkonten'], ['buchfuehrung', 'Buchführung'], ['mail', 'Postfach'], ['erreichbar', 'Erreichbarkeit'], ['sicherheit', 'Sicherheit'], ['datenschutz', 'Datenschutz'], ['daten', 'Datenqualität'], ['tablet', 'Tablet'], ['module', 'Module'], ['sprache', 'Sprachen'], ['update', 'Update']];
-  const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
+  const SETTING_OF = h => (/^Sprachen/.test(h) ? 'sprache' : /^Update/.test(h) ? 'update' : /^(Verein$|Vereinslogo|Vereinssprache|Seitenleiste)/.test(h) ? 'verein' : /^(E-Mail|Postfach)/.test(h) ? 'mail' : /^Module/.test(h) ? 'module'
     : /^(Vereinsnetz|Weitere Adressen|Verschlüsselung)/.test(h) ? 'erreichbar' : 'tablet');
   /** Karten eines Bereichs nach Bereichen ordnen – Kern-Einstellungen: als Reiter oben; Einstellungsseiten der Module (GK.sectionize, root im Reiter):
    *  alle Karten untereinander mit Abschnittsüberschriften, keine zweite Ebene. o.root: Element mit den Karten (Standard #main) · o.secs: [[key, label]] ·
@@ -4533,6 +4645,10 @@
         ${me.role === 'oberadmin' ? `<div class="row" style="margin-top:10px;align-items:center"><label class="btn primary" style="cursor:pointer">Erweiterung einspielen (ZIP) …<input type="file" id="extZip" accept=".zip,application/zip" class="hidden"></label>
           <button class="btn hidden" id="extRestart">Jetzt neu starten</button></div>
         <p class="muted s">Eine Erweiterung ist eine ZIP-Datei mit <code>erweiterung.json</code>. Eine neuere Version einer hochgeladenen Erweiterung ersetzt die alte. Wirksam nach einem Neustart. Alternativ per Samba in <code>share/clubwerk/erweiterungen</code> kopieren.</p>` : ''}</div>` : ''}
+      ${mayCfg ? `<div class="card"><h3>Seitenleiste</h3>
+        <p class="muted s" style="margin-top:0">So ist die Leiste der Verwaltung geordnet – für alle, die sich anmelden. Du kannst die Bereiche umbenennen, ordnen und Einträge in einen anderen Bereich legen. Neue Module erscheinen von selbst am Ende ihres Bereichs. Was jemand sehen darf, bestimmen weiter seine Rechte.</p>
+        <div id="nvRows" class="nvrows"><p class="muted">Lade …</p></div>
+        <div class="btns"><button class="btn ghost" id="nvReset">Standard wiederherstellen</button><button class="btn primary" id="nvSave">Speichern</button></div></div>` : ''}
       ${mayCfg && s.tablet ? `<div class="card"><h3>Leiste am Tablet</h3>
         <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der Schalter „am Tablet zeigen“ wirkt sofort, Reihenfolge und <b>Start-Reiter</b> (erscheint beim Aufruf der Adresse, z. B. <code>…:3100</code>, und nach 30 Sekunden ohne Eingabe) gelten nach „Speichern“.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
@@ -4650,6 +4766,7 @@
         try { const r = await api('settings/links', 'PUT', { links }); links = r.links; rowsHtml(); toast('Links gespeichert – Tablets übernehmen sie beim nächsten Laden.'); } catch (e) { fail(e); }
       };
     }
+    if ($('nvRows')) seitenleisteKarte();
     if ($('toRows')) {
       let items = [], start = null, sws = [];
       const swBtn = (x, on) => `<button type="button" class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="${esc(x.label)} am Tablet zeigen" data-tsw="${esc(x.id)}" data-on="${on ? 0 : 1}"></button>`;
