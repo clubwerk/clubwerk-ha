@@ -159,6 +159,21 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   window.GKNav = { reload: load };
   // Sperrbildschirm weg (Tablet-Passwort eingegeben): die Leiste war vorher nicht abrufbar – jetzt sofort nachladen
+  /* Fenster schließen: Abdunklung kurz nachklingen lassen (Aussehen in style.css, .tk-abblenden) – für alle Fenster der Tablet-Seiten,
+     egal wie die Seite sie schließt (Klasse „hidden“ an einem .overlay) */
+  ready(() => {
+    if (!document.body.classList.contains('tk')) return;
+    const glow = document.createElement('div'); glow.className = 'tk-abblenden'; glow.setAttribute('aria-hidden', 'true'); document.body.appendChild(glow);
+    glow.addEventListener('animationend', () => glow.classList.remove('an'));
+    new MutationObserver(recs => {
+      for (const r of recs) {
+        const e = r.target;
+        if (!e.classList.contains('overlay') || !e.classList.contains('hidden') || /(^|\s)hidden(\s|$)/.test(r.oldValue || '')) continue;
+        glow.style.background = getComputedStyle(e).backgroundColor;
+        glow.classList.remove('an'); void glow.offsetWidth; glow.classList.add('an');
+      }
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  });
   ready(() => { const g = document.getElementById('gate'); if (g) new MutationObserver(() => { if (g.classList.contains('hidden')) load(); }).observe(g, { attributes: true, attributeFilter: ['class'] }); });
   /* PIN-Eingabe – auf allen Tablet-Seiten derselbe Aufbau: Name, „Bitte deine PIN eingeben – Aktion“, 6 Kreise (Stellen 5 und 6
      freiwillig, daher blass), Ziffernblock, Fehlerzeile (ohne Meldung ohne Platz). title/sub kommen fertig maskiert. */

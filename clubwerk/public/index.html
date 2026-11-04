@@ -11,6 +11,7 @@
 <link rel="apple-touch-icon" href="vereinsicon.png">
 <title>Verkauf</title>
 <script src="theme-init.js"></script>
+<link rel="expect" href="#gk-bereit" blocking="render">   <!-- erstes Bild erst nach tablet.js: mit dem gemerkten Stand stehen die Namen sofort da (keine leere Zwischenseite in der Überblendung) -->
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="theme.css">
 <style>
@@ -28,6 +29,8 @@
 
   /* Startseite */
   .starthead { grid-template-columns: minmax(0, 1fr) minmax(260px, 400px); }   /* Seitenkopf: gemeinsame Regeln .tab-head/.tab-title in style.css; rechts die Namenssuche */
+  /* bis die ersten Daten da sind: nur Kopf und Suche, keine leeren Abschnitte und kein „Ich bin neu“ */
+  #start.warten #normalBox > :not(.starthead) { visibility: hidden; }
   .namesearch { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 12px 0 20px; border-radius: 999px; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-lg); color: var(--muted); }
   .namesearch:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft), var(--shadow-lg); }
   .namesearch input { flex: 1; min-width: 0; border: 0; outline: 0; background: transparent; font-size: 17px; color: var(--ink); }
@@ -48,7 +51,7 @@
   @media (min-width: 1600px) { :root { --cols: 5; } }
   @media (min-width: 641px) and (max-width: 1000px) { :root { --cols: 3; } }   /* Tablet hochkant: drei Spalten, sonst passen übliche Namen nicht ganz in die Kachel */
   .names { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 14px; }
-  .names button { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 8px 14px; border-radius: var(--r-tile); text-align: left; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); transition: transform .05s, border-color .12s; }
+  .names button { display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 8px 14px; border-radius: var(--r-tile); text-align: left; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-tile); transition: transform .05s, border-color .12s; }
   .names button:active { transform: scale(.98); }
   .names button .nm { display: flex; flex-direction: column; min-width: 0; flex: 1; }
   .names button b { font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: break-word; -webkit-hyphens: auto; hyphens: auto; }   /* lange Namen („Gastmannschaft SV Musterdorf“, „von Hohenstein-Waldeck“) brechen um, die Kachel wächst – nie gekürzt (3.101) */
@@ -75,7 +78,7 @@
   body.tk .allrow h2.sec { flex: 1 1 220px; margin: 0; }
   .letters { display: flex; justify-content: space-between; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1 1 100%; }
   .letters.few { justify-content: flex-end; flex: 0 1 auto; }
-  .letters button { min-width: 44px; height: 44px; padding: 0 6px; border-radius: 999px; font-size: 15px; font-weight: 700; color: var(--ink); background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); }   /* alle Buchstaben als gleich große Pillen – „Alle“ ist nur das aktive */
+  .letters button { min-width: 44px; height: 44px; padding: 0 6px; border-radius: 999px; font-size: 15px; font-weight: 700; color: var(--ink); background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-tile); }   /* alle Buchstaben als gleich große Pillen – „Alle“ ist nur das aktive */
   :root[data-theme="dark"] .letters button.on { color: var(--bg); }
   .letters button.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
   .letters button.all { padding: 0 14px; font-size: 14px; }
@@ -83,7 +86,7 @@
   .bottomrow { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 16px; margin-top: 24px; }
   .bottomrow .special { display: contents; }
   .bottomrow .btn, .special button { height: 64px; border-radius: var(--r-tile); font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 10px; text-align: center; padding: 0 12px; }
-  .special button { background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); color: var(--ink); }
+  .special button { background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-tile); color: var(--ink); }
   .special button small { display: none; }
   .special .cnt { height: 24px; line-height: 24px; padding: 0 10px; border-radius: 12px; background: var(--amber-soft); color: var(--amber); font-size: 13px; font-weight: 700; }
   .newrow { margin: 16px 0 6px; }
@@ -145,7 +148,7 @@
   .cat h3 { margin: 0; height: 16px; font-size: 11px; line-height: 16px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .arts { display: grid; grid-template-columns: repeat(var(--span, 1), var(--tw, 150px)); gap: var(--gap); }
   .arts button { position: relative; height: var(--th); padding: 0 10px 0 10px; display: flex; align-items: center; gap: 10px; border: 1px solid var(--edge); border-radius: 14px; text-align: left; box-sizing: border-box;
-    background: var(--card); box-shadow: var(--shadow); color: var(--ink); transition: background .12s, border-color .12s, transform .05s; }
+    background: var(--card); box-shadow: var(--shadow-tile); color: var(--ink); transition: background .12s, border-color .12s, transform .05s; }
   .arts button:active { transform: scale(.97); }
   .arts .ti { position: relative; width: var(--ti); height: var(--ti); flex: 0 0 var(--ti); border-radius: 10px; background: var(--ib, var(--hover)); color: var(--if, color-mix(in srgb, var(--ink), var(--muted)));
     display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; }
@@ -159,7 +162,7 @@
   .arts .tx { gap: 1px; }
   .arts .tx .sub .num { font-size: 1.2em; color: var(--ink); opacity: .8; }
   .arts .tx .sub { max-width: 100%; font-size: var(--sf, 12px); line-height: 15px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .arts button.sel { background: var(--brand-soft); border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand), var(--shadow); }
+  .arts button.sel { background: var(--brand-soft); border-color: var(--brand); box-shadow: 0 0 0 1px var(--brand), var(--shadow-tile); }
   .arts .badge { position: absolute; top: -6px; right: -6px; min-width: 22px; height: 22px; padding: 0 6px; box-sizing: border-box; border-radius: 11px; background: var(--brand); color: var(--on-brand);
     font-family: var(--num); font-size: 15px; font-weight: 600; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 0 2px var(--card); }
   .arts button.out { opacity: .5; }
@@ -270,7 +273,7 @@
 
 <main>
   <!-- Startseite: Konto wählen -->
-  <section id="start">
+  <section id="start" class="warten">
     <div id="eventBanner" class="event-banner hidden">
       <div>Veranstaltung: <strong id="eventName"></strong><br><span class="muted" style="font-size:15px">Namen antippen und anschreiben – bezahlt wird am Ende bar oder mit Karte</span></div>
       <button class="btn" id="eventBtn" style="min-height:56px;font-size:17px">Barverkauf ohne Namen</button>
@@ -351,5 +354,6 @@
 <script src="artikel-icons.js"></script>
 <script src="names.js"></script>
 <script src="tablet.js"></script>
+<span id="gk-bereit" hidden></span>
 </body>
 </html>

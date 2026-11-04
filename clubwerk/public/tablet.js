@@ -31,6 +31,7 @@
   /* ---------- Optionaler Passwortschutz der Buchungsseite ---------- */
   let gateShown = false;
   function showGate(unset) {
+    try { sessionStorage.removeItem(STATE_KEY); } catch (e) { /* egal */ }
     $('gate').classList.toggle('unset', Boolean(unset));
     if (unset) {   // noch kein Passwort vergeben: Hinweis statt Eingabefeld, alle 30 s neu prüfen
       $('gateTitle').textContent = 'Tablet noch nicht eingerichtet';
@@ -103,9 +104,26 @@
     state = next;
     if (json === stateJson) return;
     stateJson = json;
+    try { sessionStorage.setItem(STATE_KEY, json); } catch (e) { /* ohne Speicher: beim nächsten Seitenwechsel kurz ohne Namen */ }
     // Vereinsname, Logo und Farbe setzt die gemeinsame Kopfzeile (nav.js)
     renderStart();
+    later(preloadImages);
   }
+  /* Artikelbilder schon auf der Startseite holen und entpacken: Sonst erschienen sie beim ersten Namen nach dem Laden der Seite
+     (jeder Reiterwechsel lädt sie neu) erst nach und nach über rund eine Sekunde – die Artikelseite „blinkte“ (Fehler Thorsten 04.11.2026).
+     Die Bilder bleiben über die Verweise im Speicher; aus dem Zwischenspeicher des Browsers kommen sie ohne neue Übertragung. */
+  const imgKeep = new Map();
+  // erst wenn die Startseite gezeichnet ist (zwei Bilder später) und der Browser Leerlauf hat – sonst verzögerte das Vorladen die Namen
+  const later = f => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(() => (window.requestIdleCallback ? requestIdleCallback(f, { timeout: 1500 }) : f()), 300)));
+  function preloadImages() {
+    const want = new Set([...(state.articles || []), ...((state.event && state.event.articles) || [])].filter(a => a.image).map(a => 'api/tablet/artikelbild/' + encodeURIComponent(a.image)));
+    for (const u of [...imgKeep.keys()]) if (!want.has(u)) imgKeep.delete(u);
+    for (const u of want) if (!imgKeep.has(u)) { const i = new Image(); i.alt = ''; i.src = u; if (i.decode) i.decode().catch(() => {}); imgKeep.set(u, i); }
+  }
+  // Letzter Stand der Startseite im Tablet-Tab (sessionStorage endet mit dem Tab): Beim Zurückkehren von einem anderen Reiter
+  // (Plätze, Dienste …) steht die Namensliste sofort da. Vorher zeigte die Überblendung für einige Bilder eine leere Verkaufsseite
+  // („Gerade oft hier“, „Alle Mitglieder“ ohne Kacheln, „Ich bin neu“), bis die Daten vom Server kamen (2026.11)
+  const STATE_KEY = 'cw.tablet.verkauf';
 
   const initials = n => { const w = String(n || '').replace(/[()„“"]/g, '').trim().split(/\s+/).filter(Boolean); return esc(((w[0] || '?')[0] + (w.length > 1 ? w[w.length - 1][0] : (w[0] || '').slice(1, 2))).toLocaleUpperCase('de')); };
   /* „Bier alkoholfrei 0,33“ → Name „Bier alkoholfrei“ + Größe „0,33 l“ (für die zweite Zeile der Kachel) */
@@ -153,6 +171,7 @@
   const setHtml = (el, h) => { if (el.__h !== h) { el.innerHTML = h; el.__h = h; } };
 
   function renderStart() {
+    $('start').classList.remove('warten');   // Abschnitte erst mit Daten zeigen (index.html)
     const ev = state.event;
     $('eventBanner').classList.toggle('hidden', !ev);
     $('evBox').classList.toggle('hidden', !ev);
@@ -500,7 +519,11 @@
       (free ? `<div class="cat" data-n="1"><h3>Sonstiges</h3><div class="arts">
         <button data-custom="1" class="custom"><span class="ti" style="--ib:transparent;--if:var(--muted)">${window.ArtIcons ? ArtIcons.svg('muenze', 28) : '€'}</span>
         <span class="tx"><b>Freier Betrag</b><span class="sub">Essen, Startgeld …</span></span></button></div></div>` : '') + '</div>';
-    if (html !== catsHtml || !$('cats').firstChild) { $('cats').innerHTML = html; catsHtml = html; }
+    if (html !== catsHtml || !$('cats').firstChild) {
+      $('cats').innerHTML = html; catsHtml = html;
+      // schon geladene und entpackte Bilder (preloadImages) selbst einsetzen: erscheinen im ersten Bild statt nach und nach
+      $('cats').querySelectorAll('.ti img').forEach(img => { const k = imgKeep.get(img.getAttribute('src')); if (k && k.complete && k.naturalWidth) img.replaceWith(k); });
+    }
     const byId = new Map(articles().map(a => [a.id, a]));
     $('cats').querySelectorAll('button[data-a]').forEach(b => syncTile(b, byId.get(Number(b.dataset.a))));
     updateCustomTile();
@@ -898,6 +921,7 @@
   /* Der Browser stellt beim Zurückkehren (Reiter „Verkauf“, Zurück-Taste, Neuladen) alte Eingaben wieder her oder füllt sie vor –
      dann stünde ein alter Suchbegriff oben, ohne dass gefiltert wird. Deshalb bei jedem Anzeigen leeren. */
   const clearSearch = () => { let ch = false; for (const id of ['nameSearch', 'evSearch']) { const el = $(id); if (el && el.value) { el.value = ''; ch = true; } } if (ch && !session) { letter = null; evFilter = ''; if (state.members.length) renderStart(); } };
+  try { const last = sessionStorage.getItem(STATE_KEY); if (last) { state = JSON.parse(last); stateJson = last; renderStart(); later(preloadImages); } } catch (e) { /* neu laden */ }
   clearSearch();
   window.addEventListener('pageshow', clearSearch);
   load();

@@ -1,5 +1,23 @@
 # Änderungen
 
+## 2026.11.25
+
+**Tablet: Namensliste scrollt flüssiger (Entscheidung Thorsten 04.11.2026: „Mach es performant“)**
+- Die Kacheln der Namensliste, die Buchstaben, die Knöpfe „Gast“, „Verein“, „Gäste-Deckel“, die Artikelkacheln und die Kacheln der übrigen Tablet-Seiten (Stempeln, Dienste, Mitglied werden, Turniere) haben statt des großen weichen Schattens nur noch einen kleinen Schatten. Der Rand bleibt, die Kacheln heben sich weiter klar vom Hintergrund ab, hell wie dunkel. Verwaltung und Mitglieder-App sind unverändert.
+- Grund: Der große Schatten musste beim Scrollen für jede Kachel neu gezeichnet werden. Gemessen (großer Musterverein, 4-fach gebremste CPU, 2 500 px scrollen): Zeichenzeit 126 → 70 ms quer, 94 → 45 ms hochkant (Verkauf 3.101.4).
+
+**Tablet: Fenster blenden weich ein und aus (Fehler Thorsten 04.11.2026, Video mit 60 Bildern pro Sekunde)**
+- Beim Antippen eines Mitglieds ohne PIN dunkelte das Fenster „Kein PIN vergeben“ die ganze Seite schlagartig ab, und nach „Später“ sprang sie schlagartig wieder auf hell. Jetzt blenden alle Fenster der Tablet-Seiten (Verkauf, Plätze, Dienste, Stempeln, Mitglied werden, Turniere, Mängel) in rund 0,16 s weich ein und aus. Wer gleich weitertippt, wird nicht aufgehalten: das Fenster ist sofort zu, nur die Abdunklung klingt nach. Wer am Gerät „Bewegung reduzieren“ eingestellt hat, sieht es wie bisher ohne Übergang.
+
+**Tablet › Verkauf: Artikelseite blinkt nicht mehr beim Öffnen (Fehler Thorsten 04.11.2026, „es blinkt die Artikelseite“)**
+- Beim ersten Namen nach dem Laden der Seite (also auch nach jedem Wechsel von einem anderen Reiter) erschienen die Artikelbilder erst nach und nach über rund eine Sekunde – die ganze Kachelfläche veränderte sich dabei mehrmals. Die Anordnung der Kacheln selbst war immer gleich.
+- Jetzt holt das Tablet die Artikelbilder im Hintergrund, sobald die Namensliste steht, und setzt die fertigen Bilder beim Öffnen direkt ein: Die Artikelseite steht im ersten Bild vollständig da. Die Namensliste erscheint so schnell wie vorher; die Bilder werden nicht öfter geholt als bisher (danach ein Jahr aus dem Zwischenspeicher).
+
+**Tablet: kein leeres Aufblinken mehr beim Zurück zum Verkauf (Fehler Thorsten 04.11.2026)**
+- Beim Wechsel von einem anderen Reiter (z. B. Plätze oder Dienste) zurück zu „Verkauf“ zeigte die Überblendung für einige Bilder eine leere Verkaufsseite: Überschriften und „Ich bin neu“, aber keine Namen. Grund: Die Seite wurde gezeichnet, bevor die Namen vom Server da waren.
+- Jetzt merkt sich das Tablet den letzten Stand der Namensliste für die Dauer des geöffneten Browser-Tabs und zeigt ihn sofort; die frischen Daten kommen gleich danach (bei Änderungen sichtbar wie bisher). Beim allerersten Öffnen bleiben die Abschnitte unsichtbar, bis Daten da sind – nie eine leere Liste mit „Ich bin neu“.
+- Gemessen mit absichtlich verzögerter Antwort: vorher 33 von 86 Bildern mit leerer Namensliste, jetzt keines.
+
 ## 2026.11.24
 
 **Tablet › Verkauf: Name antippen geht wieder sofort (Fehler Thorsten 04.11.2026, „die lädt zu lange“)**

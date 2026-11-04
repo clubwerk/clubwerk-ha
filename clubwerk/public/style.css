@@ -52,6 +52,7 @@
   --shadow-lg: 0 1px 2px rgba(20,40,28,.05), 0 10px 28px rgba(20,40,28,.08);
   --shadow-pop: 0 16px 40px rgba(19,26,22,.16), 0 2px 6px rgba(19,26,22,.06);
   --shadow-hero: 0 10px 26px rgba(19,40,28,.2);
+  --shadow-tile: 0 1px 2px rgba(20,40,28,.08);   /* lange Kachellisten (Tablet-Verkauf): kleine Unschärfe – weiche 24-px-Schatten kosteten beim Scrollen das Doppelte an Zeichenzeit */
   --radius: 20px;        /* Karten */
   --r-tile: 18px;        /* Kacheln */
   --r-ctl: 12px;         /* Knöpfe, Felder */
@@ -82,7 +83,7 @@
   --blue-soft: #132434; --blue: #8ec2f0;
   --ok: #8fd9a3; --ok-soft: #13261a;
   --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(0,0,0,.25); --shadow-lg: 0 1px 0 rgba(255,255,255,.03) inset, 0 10px 28px rgba(0,0,0,.3);
-  --shadow-pop: 0 16px 40px rgba(0,0,0,.5); --shadow-hero: 0 10px 26px rgba(0,0,0,.4);
+  --shadow-pop: 0 16px 40px rgba(0,0,0,.5); --shadow-hero: 0 10px 26px rgba(0,0,0,.4); --shadow-tile: 0 1px 0 rgba(255,255,255,.03) inset, 0 1px 2px rgba(0,0,0,.35);
   --glass: rgba(23,29,25,.72); --glass-edge: rgba(255,255,255,.06); --glass-shadow: 0 1px 0 rgba(255,255,255,.04) inset, 0 10px 30px rgba(0,0,0,.35); --glass-solid: #161d19;
 }
 /* Hoher Kontrast: kräftige Ränder, kein Glas, kein Schimmer, keine weichen Schatten, stärkere Schrift (Theke bei Sonnenlicht, ältere Mitglieder) */
@@ -91,7 +92,7 @@
   --bg: #fff; --card: #fff; --field: #fff; --hover: #eceeea;
   --line: #59625c; --line2: #2b322d; --line-soft: #8a938d; --edge: #2b322d;
   --red: #8f1a10; --red-soft: #fde3df; --red-line: #8f1a10; --amber: #6a3905; --amber-soft: #fcefd6; --amber-line: #6a3905; --blue: #134673; --ok: #12561f;
-  --shadow: none; --shadow-lg: none; --shadow-hero: none; --shimmer: none; --hero-bg: var(--hero-a);
+  --shadow: none; --shadow-lg: none; --shadow-hero: none; --shadow-tile: none; --shimmer: none; --hero-bg: var(--hero-a);
   --glass: var(--card); --glass-edge: var(--edge); --glass-shadow: none; --glass-solid: var(--card);
 }
 :root[data-theme="dark"][data-contrast="hoch"] {
@@ -171,7 +172,15 @@ a.btn.primary { color: var(--on-brand); }
 @media (prefers-reduced-motion: no-preference) {
   @view-transition { navigation: auto; }
   ::view-transition-group(root) { animation-duration: .12s; }
+  /* Fenster am Tablet weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (Fehler Thorsten 04.11.2026,
+     „es blinkt die Artikelseite“ beim Fenster „Kein PIN vergeben“). Ausblenden: nav.js lässt die Abdunklung kurz nachklingen –
+     das Fenster selbst ist sofort zu, ein Tipp trifft nie eine verblassende Ebene. */
+  body.tk .overlay:not(.hidden) { animation: tk-fenster-ein .16s ease-out; }
+  body.tk .tk-abblenden.an { display: block; animation: tk-fenster-aus .16s ease-in forwards; }
 }
+@keyframes tk-fenster-ein { from { opacity: 0; } }
+@keyframes tk-fenster-aus { from { opacity: 1; } to { opacity: 0; } }
+body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; pointer-events: none; }
 #gkHeader { view-transition-name: gk-kopf; }
 #gkHeader { display: grid; grid-template-columns: 240px minmax(0, 1fr) 240px; align-items: center; gap: 16px; min-height: 72px; padding: 0 20px;
   margin: 12px 16px 0; border-radius: 20px; color: var(--ink); box-sizing: border-box; flex: none; }   /* schwebende Glas-Leiste (nav.js setzt .glass) */
@@ -271,7 +280,7 @@ body.tk .tab-head + h2.sec, body.tk .tk-cols h2.sec { margin-top: 0; }
 .tk-grid { display: grid; grid-template-columns: repeat(var(--tk-cols), minmax(0, 1fr)); gap: 14px; }
 .tk-grid > .span2 { grid-column: span 2; }
 @media (max-width: 520px) { .tk-grid > .span2 { grid-column: auto; } }
-.tk-tile { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 12px 16px; border-radius: var(--r-tile); text-align: left; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow); color: var(--ink); font: inherit; box-sizing: border-box; min-width: 0; transition: transform .05s, border-color .12s; }
+.tk-tile { display: flex; align-items: center; gap: 12px; min-height: 80px; padding: 12px 16px; border-radius: var(--r-tile); text-align: left; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-tile); color: var(--ink); font: inherit; box-sizing: border-box; min-width: 0; transition: transform .05s, border-color .12s; }
 button.tk-tile:active { transform: scale(.98); }
 .tk-tile > .tk-txt { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .tk-tile > .tk-txt > b { font-size: 17px; line-height: 22px; font-weight: 700; overflow-wrap: break-word; }   /* Namen brechen um statt „…“ (3.101) */
