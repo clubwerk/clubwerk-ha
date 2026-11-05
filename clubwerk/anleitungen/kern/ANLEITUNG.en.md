@@ -378,9 +378,40 @@ Time of the nightly backup and how many daily, weekly and monthly backups are ke
 
 ![Card “Backup targets”: where the nightly backup also goes.](bild: seite=sicherung; ziel=.card:has(#tgAdd))
 
-Where the full backup also goes every night. Two targets in different places are safest. **Add target …** knows WebDAV (Nextcloud, NAS, Storage Box), SFTP and FTP/FTPS (for example FRITZ!Box); **Connect Dropbox …** sets up Dropbox (you confirm saving the keys and connecting with your password). Each target has **Test**, **Edit** (including its own retention) and **Remove**. Old unencrypted files from earlier versions in Dropbox can be deleted.
+Where the full backup also goes every night. Two targets in different places are safest. **Add target …** knows WebDAV (Nextcloud, NAS, Storage Box), SFTP and FTP/FTPS (for example FRITZ!Box); **Connect Dropbox …** sets up Dropbox (you confirm saving the keys and connecting with your password). Each target has **Test** and **Edit** (including its own retention); the “Edit” window has **Remove …** on the left. Old unencrypted files from earlier versions in Dropbox can be deleted.
 
 > Dropbox: before connecting for the first time, tick `files.content.write`, `files.content.read`, `files.metadata.read` and `account_info.read` under **Permissions** in the Dropbox app and click **Submit**. Without the ticks for files, Dropbox refuses to save, often just with “other” and no reason. If you change the ticks later, use **Reconnect Dropbox …** in Clubwerk, otherwise the old authorisation stays in force. When connecting and on **Test**, Clubwerk creates a small test file and deletes it again; Dropbox only counts as connected if that works. If Dropbox reports an error, the message says what to do (usually first: set the ticks and reconnect), together with a request ID for Dropbox support.
+
+#### Google Drive as a backup target
+
+Google Drive is a target like the others: **Add target …** › type “Google Drive (your own Google app)”. Clubwerk only gets the `drive.file` permission and can therefore only see the files it created itself, not the rest of your Drive. It creates the folder `Clubwerk-Sicherung` in “My Drive” with the subfolders `Komplett` and `Lesbar`. Do not create this folder by hand – Clubwerk would not be able to see it.
+
+Set it up once in the Google Cloud Console (console.cloud.google.com) with the club’s Google account:
+
+1. Project picker at the top › **New Project**, name e.g. “Clubwerk Backup” › **Create**.
+2. **APIs & Services › Library** › search for “Google Drive API” › **Enable**.
+3. **Google Auth Platform** › **Get Started**: app name e.g. “Clubwerk”, your email address, audience **External**, contact address, agree › **Create**.
+4. **Data Access** › **Add or Remove Scopes** › tick `…/auth/drive.file` › **Update** › **Save**.
+5. **Audience** › **Publish app** › confirm. The status then reads “In production”. As `drive.file` is not a sensitive permission, Google does not review the app for it.
+6. **Clients** › **Create Client** › application type **TVs and Limited Input devices**, name e.g. “Clubwerk” › **Create**. Copy the client ID and client secret.
+
+Then in Clubwerk:
+
+1. Enter the client ID, client secret, name and folder, confirm with your password › **Sign in with Google**.
+2. Clubwerk shows a code. On a phone or computer open `google.com/device`, sign in with the club’s Google account, enter the code (**Copy code** helps) and allow access.
+3. Clubwerk notices the confirmation by itself, writes, reads and deletes a test file and only then creates the target.
+
+![Window “Reconnect Google Drive”: client ID, client secret and “Sign in with Google”.](bild: seite=sicherung; klick=[data-tgedit="d3m0gdrive"]; klick2=#gdRe; ziel=dialog)
+
+**Edit** changes the name, folder, active and its own retention (Clubwerk tests when saving); **Reconnect …** signs in again – the saved client ID stays if you leave the field empty. **Remove …** (in the same window) only deletes the target in Clubwerk and hands back the sign-in at Google; the backups in Google Drive stay untouched.
+
+![Window “Google Drive” for editing.](bild: seite=sicherung; klick=[data-tgedit="d3m0gdrive"]; ziel=dialog)
+
+> If you leave the Google app in “Testing” status (you then have to add your Google account under **Audience › Test users**), the sign-in expires **after 7 days**, and from then on no backups arrive. Clubwerk detects this, shows “Reconnect” here and on the overview straight away and sends a security warning. So it is better to **Publish app** right away. You also need to reconnect if someone removes access in the Google account or the connection was not used for 6 months.
+
+Clubwerk uploads large backups in chunks and continues at the same point after an interruption. It then compares Google’s checksum with the file here. If Google throttles because of too many requests, Clubwerk waits and tries again. If the Google account’s storage is full, the message says so clearly (Drive, Gmail and Google Photos share the storage). Every message names the HTTP status and, if Google provides one, an ID (request ID).
+
+**Switching from Dropbox:** both targets run at the same time. Set up Google Drive, tap **Test**, wait one night and check that the “Google Drive” row reads “OK” and the backup appears in the list under **Restore**. Then tap **Check now** for the test restore (Google Drive takes its turn too). Only after that use **Edit** › **Disconnect** for Dropbox. The files in Dropbox and in Google Drive are kept.
 
 #### Restore
 

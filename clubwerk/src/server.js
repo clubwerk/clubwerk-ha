@@ -3065,7 +3065,7 @@ function targetsView() {
   const c = dbxCfg();
   const rows = [];
   if (dbxReady(c)) rows.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', typeLabel: 'Dropbox', enabled: c.enabled, where: `Apps/…${c.folder}`, account: getSetting('dropbox_account', ''), ...tgStatus('dropbox') });
-  for (const t of tgList()) rows.push({ ...targets.publicView(t, getSetting(tgSecretKey(t.id), '')), where: t.type === 'webdav' ? `${t.url}${t.folder}` : `${t.host}:${t.port}${t.folder}`, ...tgStatus(t.id) });
+  for (const t of tgList()) rows.push({ ...targets.publicView(t, getSetting(tgSecretKey(t.id), '')), where: targets.where(t), ...tgStatus(t.id) });
   return rows;
 }
 
@@ -3100,10 +3100,10 @@ async function runBackup(by = 'automatisch') {
           const del = new Set(fullbackup.generations(files.map(e => e.name), ret));
           for (const e of files) if (del.has(e.name)) { await a.remove(sub, e.name); removed++; }
         }
-        tgSetStatus(tg.id, { last_ok: new Date().toISOString(), last_error: '', msg: `${lesbar ? lesbar + ' lesbare Auszüge, ' : ''}${removed} ältere aufgeräumt` });
+        tgSetStatus(tg.id, { last_ok: new Date().toISOString(), last_error: '', reconnect: false, msg: `${lesbar ? lesbar + ' lesbare Auszüge, ' : ''}${removed} ältere aufgeräumt` });
         parts.push(`${tg.name} ✓` + (lesbar ? ` (+${lesbar} lesbar)` : ''));
       } catch (e) {
-        tgSetStatus(tg.id, { last_error: `${new Date().toISOString()} ${e.message}` });
+        tgSetStatus(tg.id, { last_error: `${new Date().toISOString()} ${e.message}`, reconnect: Boolean(e.reconnect) });
         failed.push(`${tg.name}: ${e.message}`);
         parts.push(`${tg.name} ✗`);
         securityAlert('sicherung.fehler', `Die Datensicherung konnte nicht nach „${tg.name}“ übertragen werden: ${e.message}`, { key: 'ziel-' + tg.id });
@@ -3193,8 +3193,11 @@ function backupStatus() {
   const tv = targetsView();
   const on = tv.filter(t => t.enabled);
   // Ziel gilt als gestört, wenn der letzte Versuch fehlschlug und es seit zwei Tagen (oder noch nie) geklappt hat
-  const broken = on.filter(t => t.last_error && (!t.last_ok || Date.now() - Date.parse(t.last_ok) > 48 * 3600000));
+  // abgelaufene oder widerrufene Anmeldung (Google Drive): sofort rot – von selbst wird das nicht wieder gut
+  const broken = on.filter(t => t.reconnect || (t.last_error && (!t.last_ok || Date.now() - Date.parse(t.last_ok) > 48 * 3600000)));
+  const relog = on.filter(t => t.reconnect);
   const warn = !bkHasKey() ? 'Noch kein Sicherungspasswort festgelegt – es wird nichts gesichert.'
+    : relog.length ? `Die Anmeldung bei ${relog.map(t => `„${t.name}“`).join(', ')} gilt nicht mehr – dorthin wird nicht gesichert. Bitte unter Datensicherung › Sicherungsziele „Neu verbinden …“.`
     : age > 48 ? (lastOk ? 'Seit mehr als zwei Tagen keine erfolgreiche Sicherung.' : 'Noch keine Komplettsicherung erstellt.')
     : broken.length ? `Sicherungsziel ${broken.map(t => `„${t.name}“`).join(', ')} ${broken.length > 1 ? 'sind' : 'ist'} nicht erreichbar – die Sicherung kommt dort nicht an.`
     : getSetting('backup_probe_ok', '') === '0' ? 'Die letzte Probe-Wiederherstellung ist fehlgeschlagen.'
@@ -3305,8 +3308,8 @@ admin.post('/backups/targets/test', need('einstellungen'), owner, rateLimit('tgt
 admin.post('/backups/targets/:id/test', need('einstellungen'), rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
   const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
   const a = tg.adapter();
-  try { await a.test(); tgSetStatus(tg.id, { tested: new Date().toISOString(), test_error: '' }); res.json({ ok: true }); }
-  catch (e) { tgSetStatus(tg.id, { test_error: e.message }); bad(res, e.message); }
+  try { await a.test(); tgSetStatus(tg.id, { tested: new Date().toISOString(), test_error: '', reconnect: false }); res.json({ ok: true }); }
+  catch (e) { tgSetStatus(tg.id, { test_error: e.message, ...(e.reconnect ? { reconnect: true } : {}) }); bad(res, e.message); }
   finally { await a.close(); }
 }));
 /** Anlegen/Bearbeiten: wird nur gespeichert, wenn die Verbindung klappt (inkl. bestätigtem Fingerabdruck) */
@@ -3314,9 +3317,11 @@ async function saveTarget(req, res, old) {
   if (!ownerConfirm(req, res)) return;
   const b = req.body || {};
   if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
+  if (!old && (b.target || {}).type === 'gdrive') return bad(res, 'Google Drive wird über „Bei Google anmelden“ verbunden.');
   let t; try { t = targets.clean(b.target || {}, old); } catch (e) { return res.status(400).json({ error: e.message, needInsecure: Boolean(e.needInsecure) }); }
   const secret = b.secret ? String(b.secret).slice(0, 20000) : old ? getSetting(tgSecretKey(old.id), '') : '';
-  if (!secret) return bad(res, t.type === 'sftp' && t.auth === 'key' ? 'Bitte den privaten Schlüssel einfügen.' : 'Bitte das Passwort eintragen.');
+  if (!secret) return bad(res, t.type === 'sftp' && t.auth === 'key' ? 'Bitte den privaten Schlüssel einfügen.' : t.type === 'gdrive' ? 'Bitte zuerst bei Google anmelden.' : 'Bitte das Passwort eintragen.');
+  if (t.type === 'gdrive' && b.secret) return bad(res, 'Die Zugangsdaten für Google Drive kommen nur über „Bei Google anmelden“.');
   if (t.enabled) {
     const a = targets.open(t, secret);
     try { await a.test(); }
@@ -3338,11 +3343,82 @@ admin.delete('/backups/targets/:id', need('einstellungen'), (req, res) => {
   if (!ownerConfirm(req, res)) return;
   const old = tgList().find(x => x.id === String(req.params.id)); if (!old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
   tgSave(tgList().filter(x => x.id !== old.id));
+  // Google: Anmeldung zurückgeben (Dateien in Drive bleiben). Der Widerruf gilt fürs ganze Google-Projekt – nur, wenn kein anderes Google-Ziel es noch braucht
+  if (old.type === 'gdrive' && !tgList().some(x => x.type === 'gdrive')) { const g = require('./gdrive').parseSecret(getSetting(tgSecretKey(old.id), '')); if (g.refresh) require('./gdrive').revoke(g); }
   db.prepare('DELETE FROM settings WHERE key IN (?, ?)').run(tgSecretKey(old.id), `backup_target_${old.id}_status`);
   audit(req.user, 'Sicherungsziel entfernt', old.name);
   securityAlert('sicherung.ziel', `Das Sicherungsziel „${old.name}“ wurde von ${req.user.name || req.user.username} entfernt. Die Dateien dort bleiben erhalten.`, { key: 'weg-' + old.id });
   res.json({ ok: true, targets: targetsView() });
 });
+/* ---------- Google Drive verbinden (Geräte-Ablauf, src/gdrive.js) ----------
+   Nur „alle Rechte“ mit eigenem Passwort (wie jedes Ziel). Clubwerk holt einen Code bei Google, die Verwaltung zeigt ihn an,
+   der Vorstand bestätigt unter google.com/device, und Clubwerk fragt im Hintergrund nach. Erst wenn eine Testdatei geschrieben,
+   gelesen und gelöscht ist, wird das Ziel gespeichert. Gerätecode, Secret und Token bleiben im Server; die Verwaltung sieht nur
+   den kurzen Code für google.com/device und den Stand. */
+const gdrive = require('./gdrive');
+const gdFlows = new Map();   // Kennung → Ablauf (nur im Speicher, höchstens 15 Minuten nach dem Ende)
+const gdView = f => ({ id: f.id, state: f.state, userCode: f.state === 'wartet' ? f.userCode : '', url: f.url, expiresAt: f.expiresAt, error: f.error || '', account: f.account || '', targetId: f.targetId || '' });
+function gdStep(f) {
+  if (f.state !== 'wartet') return;
+  if (Date.now() > f.expiresAt) { f.state = 'abgelaufen'; f.error = 'Der Code ist abgelaufen, ohne dass die Anmeldung bestätigt wurde. Bitte noch einmal „Bei Google anmelden“.'; return; }
+  f.timer = setTimeout(async () => {
+    if (f.state !== 'wartet') return;
+    try {
+      const r = await gdrive.devicePoll(f.clientId, f.clientSecret, f.deviceCode);
+      if (r.slow) f.interval = Math.min(60, f.interval + gdrive.MIN_INTERVAL);   // Google: bei slow_down 5 s länger warten
+      if (!r.refresh) return gdStep(f);
+      f.state = 'prueft';
+      const cfg = { clientId: f.clientId, clientSecret: f.clientSecret, refresh: r.refresh, connectedAt: new Date().toISOString() };
+      const old = f.oldId ? tgList().find(x => x.id === f.oldId) : null;
+      if (f.oldId && !old) throw new Error('Das Sicherungsziel gibt es nicht mehr.');
+      if (!old && tgList().length >= MAX_TARGETS) throw new Error(`Höchstens ${MAX_TARGETS} Sicherungsziele.`);
+      const t = targets.clean({ ...f.target, type: 'gdrive' }, old);
+      try { await gdrive.probe(cfg, t.folder); }
+      catch (e) { await gdrive.revoke(cfg).catch(() => {}); throw new Error(`Google hat den Zugriff erlaubt, aber das Speichern einer Testdatei ist fehlgeschlagen – die Verbindung wurde deshalb nicht übernommen. ${e.message}`); }
+      t.account = await gdrive.account(cfg);
+      const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
+      setSetting(tgSecretKey(t.id), gdrive.makeSecret(cfg));
+      tgSetStatus(t.id, { tested: new Date().toISOString(), test_error: '', last_error: '', reconnect: false });
+      f.state = 'fertig'; f.account = t.account; f.targetId = t.id;
+      audit(f.by, old ? 'Google Drive neu verbunden' : 'Sicherungsziel angelegt', `${t.name} (Google Drive${t.account ? ', ' + t.account : ''})`);
+      securityAlert('sicherung.ziel', `Die Datensicherung wurde von ${f.byName} mit Google Drive verbunden${t.account ? ` (${t.account})` : ''} – Ziel „${t.name}“.`, { key: 'gdrive-' + t.id });
+    } catch (e) { f.state = 'fehler'; f.error = gdrive.scrub(e.message); }
+    finally { if (f.state !== 'wartet') gdEnd(f); }
+  }, f.interval * 1000);
+}
+function gdEnd(f) {
+  clearTimeout(f.timer); f.clientSecret = ''; f.deviceCode = '';   // Geheimnisse sofort vergessen, nur der Stand bleibt kurz sichtbar
+  setTimeout(() => gdFlows.delete(f.id), 15 * 60000).unref();
+}
+admin.post('/backups/gdrive/start', need('einstellungen'), rateLimit('gdstart', 10, 10 * 60000), asyncRoute(async (req, res) => {
+  if (!ownerConfirm(req, res)) return;   // neues Google-Konto = Sicherungen gehen woandershin
+  const b = req.body || {};
+  const old = b.id ? tgList().find(x => x.id === String(b.id) && x.type === 'gdrive') : null;
+  if (b.id && !old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
+  const prev = old ? gdrive.parseSecret(getSetting(tgSecretKey(old.id), '')) : {};
+  const clientId = String(b.clientId || '').trim() || prev.clientId || '';
+  // gespeichertes Secret nur zusammen mit derselben Client-ID (sonst ginge es an einen fremden Client)
+  const clientSecret = String(b.clientSecret || '').trim() || (clientId === prev.clientId ? prev.clientSecret : '') || '';
+  let target; try { target = targets.clean({ ...(b.target || {}), type: 'gdrive' }, old); } catch (e) { return bad(res, e.message); }
+  let d; try { gdrive.checkClient(clientId, clientSecret); d = await gdrive.deviceStart(clientId, clientSecret); } catch (e) { return bad(res, gdrive.scrub(e.message)); }
+  for (const f of gdFlows.values()) if (f.userId === req.user.id && f.state === 'wartet') { f.state = 'abgebrochen'; gdEnd(f); }   // je Benutzer ein Ablauf
+  const f = { id: crypto.randomBytes(12).toString('hex'), userId: req.user.id, by: req.user, byName: req.user.name || req.user.username, oldId: old ? old.id : '',
+    clientId, clientSecret, deviceCode: d.deviceCode, userCode: d.userCode, url: d.url, interval: d.interval, expiresAt: Date.now() + d.expiresIn * 1000, state: 'wartet',
+    target: { name: target.name, folder: target.folder, enabled: target.enabled, retention: target.retention } };
+  gdFlows.set(f.id, f); gdStep(f);
+  res.json({ ok: true, ...gdView(f) });
+}));
+const gdFlowOf = (req, res) => { const f = gdFlows.get(String(req.params.id)); if (!f || f.userId !== req.user.id) { bad(res, 'Diese Anmeldung gibt es nicht (mehr).', 404); return null; } return f; };
+admin.get('/backups/gdrive/flow/:id', need('einstellungen'), owner, (req, res) => { const f = gdFlowOf(req, res); if (f) res.json(gdView(f)); });
+admin.post('/backups/gdrive/flow/:id/cancel', need('einstellungen'), owner, (req, res) => { const f = gdFlowOf(req, res); if (!f) return; if (f.state === 'wartet') { f.state = 'abgebrochen'; gdEnd(f); } res.json(gdView(f)); });
+admin.get('/backups/gdrive/:id', need('einstellungen'), owner, (req, res) => {
+  const t = tgList().find(x => x.id === String(req.params.id) && x.type === 'gdrive'); if (!t) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  const g = gdrive.parseSecret(getSetting(tgSecretKey(t.id), ''));
+  // Client-ID nur gekürzt (zum Wiedererkennen), Secret und Token nie
+  res.json({ clientIdHint: g.clientId ? g.clientId.slice(0, 8) + '…' : '', hasSecret: Boolean(g.clientSecret), connectedAt: g.connectedAt || '' });
+});
+
 /** Komplettsicherungen auf einem Ziel (für „Wiederherstellen“) */
 admin.get('/backups/targets/:id/files', need('einstellungen'), asyncRoute(async (req, res) => {
   const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);

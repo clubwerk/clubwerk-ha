@@ -64,13 +64,13 @@ Each card shows the first day on the left, next to it the title, period, locatio
 
 #### New duty roster
 
-“+ New duty roster” opens a window with **Event**, **First day**, **Last day**, **Location** and **Info for all helpers** (everyone sees it in the app). Two ticks decide whether the roster **counts towards work hours** and whether it is **published**. Without the tick at “Published” the roster stays a draft until you release it.
+“+ New duty roster” opens a window with **Event**, **First day**, **Last day**, **Location** and **Info for all helpers** (everyone sees it in the app). Two ticks decide whether the roster **counts towards work hours** and whether it is **published**. Without the tick at “Published” the roster stays a draft until you release it. Times and tasks (bar, kitchen, till …) are not entered here: you add them per day as shifts, several at the same time if you like. Use the **Save and add shifts** button for this: the roster is saved and the “New shift” window opens straight away for the first day, with “Then add another shift” already ticked. If you do not want a shift yet, close that window; the roster is saved anyway.
 
 ![The “New duty roster” window.](bild: seite=aw-plaene; klick=#plNew; ziel=dialog)
 
 #### Inside a roster: “Shifts” tab
 
-A roster opens in its own view. At the top, “← All duty rosters” takes you back; on the right are the actions **Edit**, **Print**, **Excel** and, as long as the roster is a draft, **Publish**. Each day has a card with its shifts and a “+ Shift” button.
+A roster opens in its own view. At the top, “← All duty rosters” takes you back; on the right are the actions **Edit**, **Print**, **Excel** and, as long as the roster is a draft, **Publish**. Each day has a card with its shifts and a “+ Shift” button; a day without a shift reminds you of it.
 
 ![A duty roster with the shifts for each day: time, task, how full it is and the helpers signed up.](bild: seite=aw-plaene; klick=[data-po])
 

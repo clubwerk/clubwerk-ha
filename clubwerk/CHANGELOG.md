@@ -1,5 +1,22 @@
 # Änderungen
 
+## 2026.11.26
+
+**Dienste & Termine: Neuer Dienstplan erklärt, wo die Uhrzeiten hinkommen (Wunsch Thorsten 05.11.2026)**
+- Im Fenster „Neuer Dienstplan“ steht jetzt ein Hinweis: Schichten mit Uhrzeit und Aufgabe (Theke, Küche, Kasse …) legt man nach dem Speichern je Tag an, auch mehrere zur selben Zeit.
+- Beim Anlegen heißt der Knopf „Speichern und Schichten anlegen“: Der Plan wird gespeichert und gleich das Fenster „Neue Schicht“ für den ersten Tag geöffnet, mit gesetztem Haken „Danach weitere Schicht anlegen“. Wer keine Schicht will, schließt dieses Fenster, der Plan ist trotzdem gespeichert. Beim Bearbeiten bleibt es bei „Speichern“.
+- Ein Tag ohne Schicht sagt jetzt: „Noch keine Schicht – mit „+ Schicht“ Uhrzeit und Aufgabe anlegen.“ (statt „Keine Schichten an diesem Tag.“).
+- Dienste & Termine 2.15.6.
+
+**Datensicherung: Google Drive als neues Sicherungsziel (Auftrag Thorsten 05.11.2026: „Ich will von Dropbox weg“)**
+- Unter Verein › System › Datensicherung › Sicherungsziele gibt es bei „Ziel hinzufügen …“ jetzt „Google Drive (eigene Google-App)“. Der Verein legt dafür einmal eine eigene Google-App in der Google Cloud Console an; die Anleitung beschreibt jeden Schritt mit den Namen der Menüpunkte.
+- Anmelden ohne Weiterleitung an eine Adresse von außen: Clubwerk zeigt einen Code, man öffnet am Handy oder Rechner google.com/device, gibt ihn ein und erlaubt den Zugriff. Clubwerk merkt die Bestätigung von selbst, schreibt, liest und löscht eine Testdatei und legt erst dann das Ziel an.
+- Clubwerk bekommt nur die Berechtigung „drive.file“ und sieht damit nur die eigenen Dateien im Ordner „Clubwerk-Sicherung“ (mit „Komplett“ und „Lesbar“), nicht den Rest des Drive.
+- Alles wie bei den anderen Zielen: nächtliche Komplettsicherung und lesbare Auszüge, Aufräumen nach Generationen (auch eigene Aufbewahrung), Nachprüfung am Ziel, Probe-Wiederherstellung (reihum), Wiederherstellen und „Aus Sicherung übernehmen …“ direkt aus Google Drive.
+- Große Dateien gehen in Stücken hoch und machen nach einem Abbruch an derselben Stelle weiter; danach vergleicht Clubwerk die Prüfsumme von Google mit der Datei hier (auch beim Herunterladen). Bremst Google, wartet Clubwerk und versucht es erneut.
+- Klare Meldungen mit HTTP-Status und nächstem Schritt, z. B. Speicher voll, Drive API nicht aktiviert, falscher Client-Typ, Testnutzer fehlt. Läuft die Anmeldung ab oder wird sie widerrufen, steht sofort „Neu verbinden“ in der Übersicht und bei den Zielen, und der Vorstand bekommt eine Sicherheitswarnung. Läuft sie genau eine Woche nach dem Verbinden ab, nennt Clubwerk als Ursache den Status „Testen“ der Google-App („App veröffentlichen“).
+- Dropbox läuft unverändert weiter, beide Ziele gehen gleichzeitig. „Entfernen“ des Google-Ziels lässt die Dateien in Google Drive unberührt. Client-Secret und Anmeldung stehen nie im Protokoll, in Meldungen, Warnungen oder Exporten.
+
 ## 2026.11.25
 
 **Tablet: Namensliste scrollt flüssiger (Entscheidung Thorsten 04.11.2026: „Mach es performant“)**

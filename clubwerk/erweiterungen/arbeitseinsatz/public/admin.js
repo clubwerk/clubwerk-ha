@@ -314,14 +314,19 @@
       <label class="f wall">Infos für alle Helfer<textarea id="pN" rows="3" placeholder="z. B. Bitte ein paar Minuten vor Schichtbeginn da sein. Nach Ende wird gemeinsam aufgeräumt.">${esc(p ? p.note || '' : '')}</textarea></label>
       <label class="chk w2"><input type="checkbox" id="pC" ${!p || p.counts ? 'checked' : ''}> Zählt zu den Arbeitsstunden</label>
       <label class="chk w2"><input type="checkbox" id="pV" ${!p || p.published ? 'checked' : ''}> Veröffentlicht – in der Mitglieder-App sichtbar</label></div>
+      ${p ? '' : '<p class="muted s" style="margin:10px 0 0">Schichten mit Uhrzeit und Aufgabe (Theke, Küche, Kasse …) legst du nach dem Speichern je Tag an – auch mehrere zur selben Zeit.</p>'}
       ${p ? '<div class="row" style="margin-top:18px"><button class="btn danger" id="pDel">Dienstplan löschen …</button></div>' : ''}
-      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pOk">Speichern</button></div>`, true);
+      <div class="btns${p ? '' : ' lang'}"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="pOk">${p ? 'Speichern' : 'Speichern und Schichten anlegen'}</button></div>`, true);
     $('pF').onchange = () => { if (val('pU') < val('pF')) $('pU').value = val('pF'); };
     $('c').onclick = closeDialog;
-    $('pOk').onclick = () => GK.busy($('pOk'), async () => {
+    const save = (btn, shifts) => GK.busy(btn, async () => {
       const body = { title: val('pT'), from_date: val('pF'), to_date: val('pU'), place: val('pP'), note: val('pN'), counts: $('pC').checked, published: $('pV').checked };
-      try { const r = p ? await api('plans/' + p.id, 'PUT', body) : await api('plans', 'POST', body); closeDialog(); toast('Gespeichert.'); after(p ? p.id : r.id); } catch (x) { fail(x); }
+      try {
+        const r = p ? await api('plans/' + p.id, 'PUT', body) : await api('plans', 'POST', body); closeDialog(); toast('Gespeichert.'); after(p ? p.id : r.id);
+        if (shifts) { const days = []; for (let x = body.from_date; x <= body.to_date; x = addDays(x, 1)) days.push(x); setTimeout(() => shiftDialog({ id: r.id, counts: body.counts }, days, null, body.from_date, () => GK.openDetail('dienstplan', r.id), true), 150); }
+      } catch (x) { fail(x); }
     });
+    $('pOk').onclick = () => save($('pOk'), !p);
     if ($('pDel')) $('pDel').onclick = () => confirmIn(`Dienstplan „${p.title}“ löschen?`, `Alle ${p.shifts} ${p.shifts === 1 ? 'Schicht' : 'Schichten'} und ${p.helpers} Eintragungen werden mit gelöscht.`, 'Dienstplan löschen', async () => {
       try { await api('plans/' + p.id, 'DELETE'); closeDialog(); toast('Dienstplan gelöscht.'); after(null); } catch (x) { fail(x); }
     }, () => planDialog(p, after));
@@ -349,7 +354,7 @@
     el.innerHTML = `${p.note ? `<div class="card aw-note"><b>Infos für alle Helfer</b><div>${esc(p.note)}</div></div>` : ''}
       <div class="aw-people" style="margin-bottom:12px">${p.published ? pill(['g', 'veröffentlicht']) : pill(['a', 'Entwurf – in der App noch nicht sichtbar'])}${p.counts ? pill(['b', 'zählt zu den Arbeitsstunden']) : pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? pill(['b', `im Verkauf: ${p.sales.name}`]) : ''}</div>
       ${days.map(day => { const sh = d.shifts.filter(e => e.date === day);
-        return `<div class="card"><div class="aw-dh"><h3>${esc(dayLong(day))}</h3><button class="btn small" data-add="${day}">+ Schicht</button></div>${sh.length ? sh.map(row).join('') : '<p class="empty">Keine Schichten an diesem Tag.</p>'}</div>`; }).join('')}`;
+        return `<div class="card"><div class="aw-dh"><h3>${esc(dayLong(day))}</h3><button class="btn small" data-add="${day}">+ Schicht</button></div>${sh.length ? sh.map(row).join('') : '<p class="empty">Noch keine Schicht – mit „+ Schicht“ Uhrzeit und Aufgabe anlegen.</p>'}</div>`; }).join('')}`;
     GK.tabTools(`<button class="btn" id="plEd">Bearbeiten</button><button class="btn" id="plPrint">Drucken</button><a class="btn" href="${BASE}plans/${p.id}/xlsx">Excel</a>${p.published ? '' : '<button class="btn primary" id="plPub">Veröffentlichen</button>'}`, el);
     const again = () => GK.openDetail('dienstplan', id);
     $('plEd').onclick = () => planDialog(p, x => { if (!x) GK.closeDetail(); else again(); });
@@ -374,7 +379,7 @@
       $('cpOk').onclick = () => GK.busy($('cpOk'), async () => { try { const r = await api(`plans/${p.id}/copy`, 'POST', { title: val('cpT'), from_date: val('cpF') }); closeDialog(); toast('Kopiert.'); GK.openDetail('dienstplan', r.id); } catch (x) { fail(x); } });
     };
   }
-  function shiftDialog(p, days, e, day, after) {
+  function shiftDialog(p, days, e, day, after, more) {
     dialog(`<h2>${e ? 'Schicht bearbeiten' : 'Neue Schicht'}</h2><div class="aw-grid" style="--c:4">
       <label class="f w2">Tag<select id="shD">${days.map(x => opt(x, dayLong(x), e ? e.date : day)).join('')}</select></label><label class="f">Von<input id="shS" type="time" value="${esc(e ? e.start || '' : '')}"></label><label class="f">Bis (optional)<input id="shE" type="time" value="${esc(e ? e.end || '' : '')}"></label>
       <label class="f w2">Was<input id="shT" value="${esc(e ? e.title : '')}" placeholder="z. B. Theke, Sektbar, Kasse, Zeltaufbau" list="shTL"><datalist id="shTL">${['Theke', 'Sektbar', 'Kasse', 'Grill', 'Kuchentheke', 'Aufbau', 'Abbau', 'Zeltaufbau', 'Aufräumen', 'Einlass'].map(x => `<option value="${x}">`).join('')}</datalist></label>
@@ -384,7 +389,7 @@
       ${e ? `<label class="chk w2"><input type="checkbox" id="shA" ${e.cancelled ? '' : 'checked'}> Aktiv (sonst ausgeblendet)</label>` : ''}</div>
       <p class="muted s" style="margin:10px 0 0">Ohne Ende erscheint „ab 16 Uhr“. Ein Ende vor dem Beginn gilt als nach Mitternacht (z. B. 23:30–02:00).</p>
       ${e ? '<div class="row" style="margin-top:18px"><button class="btn danger" id="shDel">Schicht löschen …</button></div>' : ''}
-      <div class="btns">${e ? '' : '<label class="chk" style="margin-right:auto"><input type="checkbox" id="shMore"> Danach weitere Schicht anlegen</label>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="shOk">Speichern</button></div>`, true);
+      <div class="btns">${e ? '' : `<label class="chk" style="margin-right:auto"><input type="checkbox" id="shMore"${more ? ' checked' : ''}> Danach weitere Schicht anlegen</label>`}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="shOk">Speichern</button></div>`, true);
     $('c').onclick = closeDialog;
     $('shOk').onclick = () => GK.busy($('shOk'), async () => {
       const body = { plan_id: p.id, kind: 'dienst', date: val('shD'), start: val('shS'), end: val('shE'), title: val('shT'), slots: val('shN') || null, note: val('shX'), counts: $('shC').checked };

@@ -5,6 +5,7 @@
  *  - WebDAV  (Nextcloud, ownCloud, MagentaCLOUD, Hetzner Storage Box, Synology/QNAP …)
  *  - SFTP    (verschlüsselt über SSH – NAS, Storage Box, Linux-Server)
  *  - FTPS/FTP (z. B. FRITZ!Box mit USB-Speicher; reines FTP nur mit ausdrücklicher Warnung)
+ *  - Google Drive (eigene Google-App, Geräte-Ablauf, nur drive.file – siehe gdrive.js; angelegt wird es nur über „Bei Google anmelden“)
  *
  * Alle Ziele haben dieselbe Schnittstelle: test, put, list, get, remove, close – jeweils für einen Unterordner
  * („Komplett“ bzw. „Lesbar“) unterhalb des eingestellten Ordners.
@@ -21,7 +22,7 @@ const crypto = require('crypto');
 const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 
-const TYPES = { webdav: 'WebDAV', sftp: 'SFTP', ftp: 'FTP / FTPS' };
+const TYPES = { webdav: 'WebDAV', sftp: 'SFTP', ftp: 'FTP / FTPS', gdrive: 'Google Drive' };
 const NAME_OK = /^[\w.-]{1,120}$/;
 const HOST_RE = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]*[a-z0-9])?)(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$|^\d{1,3}(\.\d{1,3}){3}$|^\[[0-9a-f:]+\]$/i;
 const TIMEOUT = 60000;
@@ -37,14 +38,17 @@ function clean(b, old = null) {
   if (!TYPES[t.type]) throw err('Bitte die Art des Ziels wählen.');
   t.name = String(b.name || '').trim().replace(/\s+/g, ' ').slice(0, 40) || TYPES[t.type];
   t.enabled = b.enabled === undefined ? (old ? old.enabled : true) : Boolean(b.enabled);
-  t.folder = cleanFolder(b.folder !== undefined ? b.folder : (old ? old.folder : '/Clubwerk'));
+  t.folder = cleanFolder(b.folder !== undefined ? b.folder : (old ? old.folder : t.type === 'gdrive' ? '/Clubwerk-Sicherung' : '/Clubwerk'));
   const r = b.retention !== undefined ? b.retention : (old ? old.retention : null);
   if (r && typeof r === 'object') {
     const n = (v, lo, hi) => { const x = parseInt(v, 10); if (!(x >= lo && x <= hi)) throw err('Aufbewahrung: bitte gültige Zahlen.'); return x; };
     t.retention = { daily: n(r.daily, 1, 60), weekly: n(r.weekly, 0, 52), monthly: n(r.monthly, 0, 120) };
   } else t.retention = null;
   const pick = k => (b[k] !== undefined ? b[k] : old ? old[k] : undefined);
-  if (t.type === 'webdav') {
+  if (t.type === 'gdrive') {
+    if (t.folder === '/') throw err('Bitte einen Ordner angeben, z. B. /Clubwerk-Sicherung.');
+    t.account = old && old.account ? String(old.account) : '';   // kommt nur von Google (beim Verbinden), nie aus der Eingabe
+  } else if (t.type === 'webdav') {
     let u; try { u = new URL(String(pick('url') || '').trim()); } catch (e) { throw err('Bitte die WebDAV-Adresse eintragen, z. B. https://cloud.example.de/remote.php/dav/files/verein/'); }
     if (!/^https?:$/.test(u.protocol) || u.username || u.password || u.search || u.hash) throw err('Die WebDAV-Adresse muss mit https:// beginnen und darf keinen Benutzer/Passwort enthalten.');
     t.url = u.origin + u.pathname.replace(/\/+$/, '');
@@ -308,7 +312,42 @@ function dropboxTarget(cfg) {
   };
 }
 
+/* ---------- Google Drive ---------- */
+function gdriveTarget(t, secret) {
+  const g = require('./gdrive');
+  const cfg = g.parseSecret(secret);
+  const memo = new Map();                 // Ordnerpfad → id (eine Instanz = ein Vorgang)
+  const files = new Map();                // sub/name → { id, md5, size } aus der letzten Liste
+  const dir = async (sub, create) => g.folderId(cfg, joinPath(t.folder, sub), create, memo);
+  const lookup = async (sub, name) => { if (!files.has(sub + '/' + name)) await this_.list(sub); return files.get(sub + '/' + name); };
+  const this_ = {
+    async test() { await g.probe(cfg, t.folder, memo); return { ok: true }; },
+    async put(sub, name, src) { if (!NAME_OK.test(name)) throw err('Ungültiger Dateiname.'); const f = await g.upload(cfg, await dir(sub, true), name, src); files.set(sub + '/' + name, { id: f.id, md5: f.md5, size: f.size }); },
+    async list(sub) {
+      const id = await dir(sub, false); if (!id) return [];
+      const out = new Map();   // Drive erlaubt gleiche Namen mehrfach – je Name die neueste
+      for (const f of await g.listIn(cfg, id)) if (NAME_OK.test(f.name) && (!out.has(f.name) || String(f.mtime) > String(out.get(f.name).mtime))) out.set(f.name, f);
+      for (const [n, f] of out) files.set(sub + '/' + n, { id: f.id, md5: f.md5, size: f.size });
+      return [...out.values()].map(f => ({ name: f.name, size: f.size, mtime: f.mtime }));
+    },
+    async get(sub, name, dest, maxBytes = 4 * 1024 ** 3) {
+      if (!NAME_OK.test(name)) throw err('Ungültiger Dateiname.');
+      const f = await lookup(sub, name); if (!f) throw err('Die Datei liegt nicht (mehr) in Google Drive.');
+      return g.download(cfg, f, dest, maxBytes);
+    },
+    async remove(sub, name) {
+      if (!NAME_OK.test(name)) return;
+      const id = await dir(sub, false); if (!id) return;
+      for (const f of (await g.listIn(cfg, id)).filter(x => x.name === name)) await g.removeId(cfg, f.id);
+      files.delete(sub + '/' + name);
+    },
+    async close() { /* nichts */ },
+  };
+  return this_;
+}
+
 function open(t, secret) {
+  if (t.type === 'gdrive') return gdriveTarget(t, secret);
   if (t.type === 'webdav') return webdav(t, secret);
   if (t.type === 'sftp') return sftp(t, secret);
   if (t.type === 'ftp') return ftp(t, secret);
@@ -316,5 +355,6 @@ function open(t, secret) {
 }
 /** Für die Anzeige: nie das Geheimnis, nur ob eins hinterlegt ist */
 const publicView = (t, hasSecret) => ({ ...t, hasSecret: Boolean(hasSecret), typeLabel: t.type === 'ftp' ? (t.mode === 'ftp' ? 'FTP' : 'FTPS') : TYPES[t.type] });
+const where = t => (t.type === 'webdav' ? `${t.url}${t.folder}` : t.type === 'gdrive' ? `${t.folder.replace(/^\//, '')}${t.account ? ' · ' + t.account : ''}` : `${t.host}:${t.port}${t.folder}`);
 
-module.exports = { TYPES, clean, open, dropboxTarget, publicView, sshFingerprint };
+module.exports = { TYPES, clean, open, dropboxTarget, publicView, where, sshFingerprint };

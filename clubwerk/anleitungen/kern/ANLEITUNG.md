@@ -378,9 +378,40 @@ Uhrzeit der nächtlichen Sicherung und wie viele tägliche, wöchentliche und mo
 
 ![Karte „Sicherungsziele“: wohin die Nachtsicherung zusätzlich geht.](bild: seite=sicherung; ziel=.card:has(#tgAdd))
 
-Wohin die Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten. **Ziel hinzufügen …** kennt WebDAV (Nextcloud, NAS, Storage Box), SFTP und FTP/FTPS (zum Beispiel FRITZ!Box); **Dropbox verbinden …** richtet Dropbox ein (Schlüssel speichern und Verbinden bestätigt ihr mit eurem Passwort). Je Ziel gibt es **Testen**, **Bearbeiten** (auch eigene Aufbewahrung) und **Entfernen**. Alte unverschlüsselte Dateien früherer Versionen in Dropbox lassen sich löschen.
+Wohin die Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten. **Ziel hinzufügen …** kennt WebDAV (Nextcloud, NAS, Storage Box), SFTP und FTP/FTPS (zum Beispiel FRITZ!Box); **Dropbox verbinden …** richtet Dropbox ein (Schlüssel speichern und Verbinden bestätigt ihr mit eurem Passwort). Je Ziel gibt es **Testen** und **Bearbeiten** (auch eigene Aufbewahrung); im Fenster „Bearbeiten“ steht links **Entfernen …**. Alte unverschlüsselte Dateien früherer Versionen in Dropbox lassen sich löschen.
 
 > Dropbox: In der Dropbox-App unter **Permissions** schon vor dem ersten Verbinden `files.content.write`, `files.content.read`, `files.metadata.read` und `account_info.read` anhaken und **Submit** klicken. Fehlen die Häkchen für Dateien, lehnt Dropbox das Speichern ab, oft nur mit „other“ ohne Grund. Wer die Häkchen später ändert, muss in Clubwerk **Dropbox neu verbinden …**, sonst gilt die alte Freigabe weiter. Beim Verbinden und bei **Testen** legt Clubwerk eine kleine Testdatei an und löscht sie wieder; nur wenn das klappt, ist Dropbox verbunden. Meldet Dropbox einen Fehler, steht darin, was zu tun ist (zuerst meist: Häkchen setzen und neu verbinden), dazu eine Request-Id für den Dropbox-Support.
+
+#### Google Drive als Sicherungsziel
+
+Google Drive ist ein Ziel wie die anderen: **Ziel hinzufügen …** › Art „Google Drive (eigene Google-App)“. Clubwerk bekommt nur die Berechtigung `drive.file` und sieht damit ausschließlich die Dateien, die es selbst angelegt hat, nicht den Rest eures Drive. Es legt in „Meine Ablage“ den Ordner `Clubwerk-Sicherung` mit den Unterordnern `Komplett` und `Lesbar` an. Legt diesen Ordner nicht selbst von Hand an, Clubwerk könnte ihn nicht sehen.
+
+Einmal in der Google Cloud Console (console.cloud.google.com) einrichten, mit dem Google-Konto des Vereins (in Klammern die englischen Namen):
+
+1. Oben auf die Projektauswahl › **Neues Projekt** (New Project), Name z. B. „Clubwerk Sicherung“ › **Erstellen**.
+2. **APIs und Dienste › Bibliothek** (APIs & Services › Library) › „Google Drive API“ suchen › **Aktivieren** (Enable).
+3. **Google Auth Platform** › **Jetzt starten** (Get Started): App-Name z. B. „Clubwerk“, eure E-Mail-Adresse, Zielgruppe **Extern** (External), Kontaktadresse, zustimmen › **Erstellen**.
+4. **Datenzugriff** (Data Access) › **Bereiche hinzufügen oder entfernen** (Add or Remove Scopes) › `…/auth/drive.file` ankreuzen › **Aktualisieren** › **Speichern**.
+5. **Zielgruppe** (Audience) › **App veröffentlichen** (Publish app) › bestätigen. Der Status heißt danach „In Produktion“. Weil `drive.file` keine sensible Berechtigung ist, prüft Google die App dafür nicht.
+6. **Clients** › **Client erstellen** (Create Client) › Anwendungstyp **Fernseher und Geräte mit begrenzter Eingabe** (TVs and Limited Input devices), Name z. B. „Clubwerk“ › **Erstellen**. Client-ID und Clientschlüssel (Client secret) kopieren.
+
+In Clubwerk dann:
+
+1. Client-ID, Client-Secret, Name und Ordner eintragen, mit eurem Passwort bestätigen › **Bei Google anmelden**.
+2. Clubwerk zeigt einen Code. Am Handy oder Rechner `google.com/device` öffnen, mit dem Google-Konto des Vereins anmelden, den Code eingeben (**Code kopieren** hilft) und den Zugriff erlauben.
+3. Clubwerk merkt die Bestätigung von selbst, schreibt, liest und löscht eine Testdatei und legt erst dann das Ziel an.
+
+![Fenster „Google Drive neu verbinden“: Client-ID, Client-Secret und „Bei Google anmelden“.](bild: seite=sicherung; klick=[data-tgedit="d3m0gdrive"]; klick2=#gdRe; ziel=dialog)
+
+**Bearbeiten** ändert Name, Ordner, Aktiv und eigene Aufbewahrung (Clubwerk testet beim Speichern); **Neu verbinden …** meldet neu an, die gespeicherte Client-ID bleibt, wenn ihr das Feld leer lasst. **Entfernen …** (im selben Fenster) löscht nur das Ziel in Clubwerk und gibt die Anmeldung bei Google zurück; die Sicherungen in Google Drive bleiben unberührt.
+
+![Fenster „Google Drive“ zum Bearbeiten.](bild: seite=sicherung; klick=[data-tgedit="d3m0gdrive"]; ziel=dialog)
+
+> Lasst ihr die Google-App im Status „Testen“ (dann müsst ihr euer Google-Konto unter **Zielgruppe › Testnutzer** eintragen), läuft die Anmeldung **nach 7 Tagen** ab, und ab dann kommen keine Sicherungen mehr an. Clubwerk erkennt das, zeigt in der Übersicht und hier sofort „Neu verbinden“ und schickt eine Sicherheitswarnung. Deshalb besser gleich **App veröffentlichen**. Neu verbinden müsst ihr auch, wenn jemand den Zugriff im Google-Konto entfernt oder die Verbindung 6 Monate nicht benutzt wurde.
+
+Große Sicherungen lädt Clubwerk in Stücken hoch und macht nach einem Abbruch an derselben Stelle weiter. Danach vergleicht es die Prüfsumme von Google mit der Datei hier. Bremst Google wegen zu vieler Anfragen, wartet Clubwerk und versucht es erneut. Ist der Speicher im Google-Konto voll, sagt die Meldung das klar (Drive, Gmail und Google Fotos teilen sich den Speicher). Jede Meldung nennt den HTTP-Status und, falls Google eine liefert, eine Kennung (Request-Id).
+
+**Umstieg von Dropbox:** Beide Ziele laufen gleichzeitig. Richtet Google Drive ein, tippt **Testen**, wartet eine Nacht ab und seht nach, ob in der Zeile „Google Drive“ „in Ordnung“ steht und die Sicherung in der Liste unter **Wiederherstellen** auftaucht. Tippt dann bei der Probe-Wiederherstellung **Jetzt prüfen** (reihum kommt auch Google Drive dran). Erst danach bei Dropbox **Bearbeiten** › **Verbindung trennen**. Die Dateien in Dropbox und in Google Drive bleiben dabei erhalten.
 
 #### Wiederherstellen
 

@@ -1124,7 +1124,7 @@
     { label: 'Jetzt sichern', page: 'sicherung', btn: 'Jetzt sichern', words: 'Sicherung Backup', kind: 'aktion' },
     { label: 'Sicherungspasswort', page: 'sicherung', card: 'Sicherungspasswort', words: 'Passwort Sicherung Backup' },
     { label: 'Zeitplan und Aufbewahrung der Sicherungen', page: 'sicherung', card: 'Zeitplan & Aufbewahrung', words: 'Sicherung Uhrzeit aufbewahren' },
-    { label: 'Sicherungsziele (Dropbox, NAS, Cloud)', page: 'sicherung', card: 'Sicherungsziele', words: 'Dropbox NAS Cloud FRITZ!Box Ziel Sicherung' },
+    { label: 'Sicherungsziele (Dropbox, Google Drive, NAS, Cloud)', page: 'sicherung', card: 'Sicherungsziele', words: 'Dropbox Google Drive NAS Cloud FRITZ!Box Ziel Sicherung' },
     { label: 'Wiederherstellen', page: 'sicherung', card: 'Wiederherstellen', words: 'Sicherung einspielen Backup', kind: 'aktion' },
     { label: 'Datenbank-Schnappschüsse', page: 'sicherung', card: 'Datenbank-Schnappschüsse', words: 'Schnappschuss Datenbank Sicherung' },
     { label: 'Mitglied für die App freischalten', page: 'app', perm: 'konten', sec: APS('mitglieder'), card: 'Mitglied freischalten', words: 'App Einladung QR-Code Handy koppeln', kind: 'aktion', in: 'Mitglieder' },
@@ -3434,6 +3434,9 @@
     // beide Listen (hier / Dropbox) gleich aufgebaut: Stand | Größe | Aktionen – gleiche Spaltenbreiten, gleicher Rahmen
     const kTable = (title, rows) => `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt" style="table-layout:fixed"><tr><th>${title}</th><th class="r" style="width:110px">Größe</th><th class="r" style="width:320px"></th></tr>${rows}</table></div>`;
     const okPill = (ok, t) => `<span class="pill ${ok ? 'g' : 'a'}">${t}</span>`;
+    // Ziel gestört: letzter Versuch schlug fehl und war jünger als der letzte Erfolg
+    const tgBad = t => Boolean(t.enabled && t.last_error && (!t.last_ok || t.last_error.slice(0, 24) > t.last_ok));
+    const tgPill = (t, bad) => (!t.enabled ? '<span class="pill">aus</span>' : t.reconnect ? '<span class="pill r">Neu verbinden</span>' : bad ? `<span class="pill r" title="${esc(t.last_error.slice(25))}">Fehler</span>` : t.last_ok ? '<span class="pill g">in Ordnung</span>' : '<span class="pill">noch nicht</span>');
     $('main').innerHTML = `<h2 class="page">Datensicherung</h2>
       <p class="lead">Jede Nacht entsteht eine <b>verschlüsselte Komplettsicherung</b> mit allem, was Clubwerk enthält, und geht an die Sicherungsziele. Öffnen lässt sie sich nur mit dem Sicherungspasswort.</p>
       ${b.restored ? `<div class="banner g">${esc(b.restored)}</div>` : ''}
@@ -3481,14 +3484,14 @@
         <p class="muted s">Auf den Sicherungszielen bleiben die neuesten ${st.daily} Tage, dazu je Woche (${st.weekly}) und je Monat (${st.monthly}) die jüngste Sicherung – so reicht der Verlauf weit zurück, ohne dass der Speicher voll läuft. Für einzelne Ziele lässt sich das abweichend einstellen. Hier in der App bleiben die letzten 3.</p></div>
 
       <div class="card"><h3>Sicherungsziele ${st.targetsOn ? okPill(st.targetsOk === st.targetsOn, `${st.targetsOk} von ${st.targetsOn} in Ordnung`) : '<span class="pill a">keins eingerichtet</span>'}</h3>
-        <p class="muted s" style="margin-top:0">Wohin die verschlüsselte Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten – z. B. Dropbox außer Haus und das NAS oder die FRITZ!Box im Vereinsheim.</p>
-        ${st.targets.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Ziel</th><th>Art</th><th>Ort</th><th style="width:150px">Zuletzt erfolgreich</th><th style="width:130px">Status</th><th class="r" style="width:300px"></th></tr>
-          ${st.targets.map(t => { const bad = t.enabled && t.last_error && (!t.last_ok || t.last_error.slice(0, 24) > t.last_ok); return `<tr class="${t.enabled ? '' : 'off'}"><td><b>${esc(t.name)}</b>${t.insecure ? ' <span class="pill a">unverschlüsselt</span>' : ''}</td><td>${esc(t.typeLabel)}</td>
-            <td class="muted s" style="max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${esc(t.where)}">${esc(t.where)}</td>
+        <p class="muted s" style="margin-top:0">Wohin die verschlüsselte Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei Ziele an verschiedenen Orten – z. B. Google Drive oder Dropbox außer Haus und das NAS oder die FRITZ!Box im Vereinsheim.</p>
+        ${st.targets.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Ziel</th><th>Zuletzt erfolgreich</th><th>Status</th><th class="r"></th></tr>
+          ${st.targets.map(t => { const bad = tgBad(t), pill = tgPill(t, bad); return `<tr class="${t.enabled ? '' : 'off'}"><td style="min-width:220px"><b>${esc(t.name)}</b>${t.insecure ? ' <span class="pill a">unverschlüsselt</span>' : ''}<span class="k-handy"> ${pill}</span><div class="muted s k-desk">${esc(t.typeLabel)} · ${esc(t.where)}</div></td>
+            <td class="k-mob muted s k-lang">${esc(t.where)}</td>
             <td>${t.last_ok ? when(t.last_ok) : '–'}</td>
-            <td>${!t.enabled ? '<span class="pill">aus</span>' : bad ? `<span class="pill r" title="${esc(t.last_error.slice(25))}">Fehler</span>` : t.last_ok ? '<span class="pill g">in Ordnung</span>' : '<span class="pill">noch nicht</span>'}</td>
-            <td class="r"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}${owner && t.id !== 'dropbox' ? ` <button class="btn small danger-h" data-tgdel="${esc(t.id)}">Entfernen</button>` : ''}</td></tr>
-            ${bad ? `<tr><td colspan="6"><div class="banner r" style="margin:0">${esc(t.name)}: ${esc(t.last_error.slice(25))}</div></td></tr>` : ''}`; }).join('')}</table></div>` : ''}
+            <td class="k-desk nw">${pill}</td>
+            <td class="r" style="white-space:nowrap"><button class="btn small" data-tgtest="${esc(t.id)}">Testen</button>${owner ? ` <button class="btn small" data-tgedit="${esc(t.id)}">Bearbeiten</button>` : ''}</td></tr>`; }).join('')}</table></div>
+          ${st.targets.filter(tgBad).map(t => `<div class="banner r" style="margin:10px 0 0;display:block">${esc(t.name)}: <span>${esc(t.last_error.slice(25))}</span>${owner && t.type === 'gdrive' && t.reconnect ? `<div class="row" style="margin-top:8px"><button class="btn small" data-gdre="${esc(t.id)}">Neu verbinden …</button></div>` : ''}</div>`).join('')}` : ''}
         <div class="row" style="margin-top:12px">
           ${owner ? '<button class="btn" id="tgAdd">Ziel hinzufügen …</button>' : ''}
           ${owner || !dx.connected ? `<button class="btn" id="dxSetup">${dx.connected ? 'Dropbox neu verbinden …' : 'Dropbox verbinden …'}</button>` : ''}
@@ -3742,13 +3745,14 @@
       try { await api(`backups/targets/${encodeURIComponent(btn.dataset.tgtest)}/test`, 'POST', {}); toast(`„${tgById(btn.dataset.tgtest).name}“: Verbindung in Ordnung.`); } catch (e) { fail(e); }
       btn.disabled = false; btn.textContent = 'Testen';
     });
-    $('main').querySelectorAll('[data-tgdel]').forEach(btn => btn.onclick = async () => {
-      const t = tgById(btn.dataset.tgdel);
+    const tgRemove = async t => {
+      closeDialog();
       const pw = await askText(`Sicherungsziel „${t.name}“ entfernen?\n\nDie Dateien dort bleiben erhalten, es wird nur nicht mehr dorthin gesichert. Bitte mit deinem Passwort bestätigen.`, '', { password: true, ok: 'Entfernen' });
       if (pw === null) return;
       try { await api(`backups/targets/${encodeURIComponent(t.id)}`, 'DELETE', { myPassword: pw }); toast('Entfernt.'); RENDER.sicherung(); } catch (e) { fail(e); }
-    });
-    $('main').querySelectorAll('[data-tgedit]').forEach(btn => btn.onclick = () => (btn.dataset.tgedit === 'dropbox' ? dropboxDialog() : targetDialog(tgById(btn.dataset.tgedit))));
+    };
+    $('main').querySelectorAll('[data-tgedit]').forEach(btn => btn.onclick = () => (btn.dataset.tgedit === 'dropbox' ? dropboxDialog() : tgById(btn.dataset.tgedit).type === 'gdrive' ? gdriveDialog(tgById(btn.dataset.tgedit)) : targetDialog(tgById(btn.dataset.tgedit))));
+    $('main').querySelectorAll('[data-gdre]').forEach(btn => btn.onclick = () => gdriveSetup(tgById(btn.dataset.gdre)));
     if ($('tgAdd')) $('tgAdd').onclick = () => targetDialog(null);
     if ($('dxSetup')) $('dxSetup').onclick = () => dropboxSetup();
 
@@ -3785,7 +3789,7 @@
         $('tgFpOk').onchange = () => { fp = $('tgFpOk').checked ? f : ''; };
       };
       dialog(`<h2>${isNew ? 'Sicherungsziel hinzufügen' : 'Sicherungsziel bearbeiten'}</h2>
-        <div class="row"><label class="f" style="flex:1">Art<select id="tgType" ${isNew ? '' : 'disabled'}><option value="dropbox">Dropbox (App key + App secret)</option><option value="webdav">WebDAV (Nextcloud, NAS, Storage Box …)</option><option value="sftp">SFTP (SSH)</option><option value="ftp">FTPS / FTP (z. B. FRITZ!Box)</option></select></label>
+        <div class="row"><label class="f" style="flex:1">Art<select id="tgType" ${isNew ? '' : 'disabled'}><option value="dropbox">Dropbox (App key + App secret)</option><option value="gdrive">Google Drive (eigene Google-App)</option><option value="webdav">WebDAV (Nextcloud, NAS, Storage Box …)</option><option value="sftp">SFTP (SSH)</option><option value="ftp">FTPS / FTP (z. B. FRITZ!Box)</option></select></label>
           <label class="f" style="flex:1">Name<input id="tgName" value="${esc(v('name'))}" placeholder="z. B. NAS Vereinsheim"></label></div>
         <p class="muted s" id="tgHint" style="margin:0 0 8px"></p>
         <div id="tgFields"></div>
@@ -3798,14 +3802,15 @@
         <div id="tgFp"></div><div id="tgIns"></div>
         <label class="chk" style="margin-top:8px"><input type="checkbox" id="tgOn" ${!t || t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
         <label class="f" style="margin-top:8px">Dein Passwort zur Bestätigung<input type="password" id="tgMy" autocomplete="current-password"></label>
-        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn" id="tgTest">Verbindung testen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+        <div class="btns">${isNew ? '' : '<button class="btn danger" id="tgDel" style="margin-right:auto">Entfernen …</button>'}<button class="btn ghost" id="c">Abbrechen</button><button class="btn" id="tgTest">Verbindung testen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+      if ($('tgDel')) $('tgDel').onclick = () => tgRemove(t);
       const draw = () => { $('tgType').value = typ; $('tgHint').innerHTML = HINTS[typ]; $('tgFields').innerHTML = fieldsHtml();
         if ($('tgAuth')) { secretBox(); $('tgAuth').onchange = secretBox; }
         if ($('tgMode')) $('tgMode').onchange = () => { fp = ''; fpBox(''); $('tgPort').value = $('tgMode').value === 'ftps-implicit' ? 990 : 21; insBox(); };
         fpBox(fp); insBox(); };
       const insBox = () => { const ins = (typ === 'ftp' && $('tgMode') && $('tgMode').value === 'ftp') || (typ === 'webdav' && /^http:/i.test(($('tgUrl') || {}).value || ''));
         $('tgIns').innerHTML = ins ? '<div class="banner r" style="margin-top:8px;display:block">Unverschlüsselt: Das Passwort geht im Klartext durchs Netz. Die Sicherung selbst bleibt verschlüsselt. Nur im eigenen Netz verwenden.<label class="chk" style="margin-top:6px"><input type="checkbox" id="tgInsOk"> Verstanden, trotzdem verwenden</label></div>' : ''; };
-      $('tgType').onchange = () => { if ($('tgType').value === 'dropbox') { closeDialog(); dropboxSetup(); return; } typ = $('tgType').value; fp = ''; draw(); };
+      $('tgType').onchange = () => { if ($('tgType').value === 'dropbox') { closeDialog(); dropboxSetup(); return; } if ($('tgType').value === 'gdrive') { closeDialog(); gdriveSetup(null); return; } typ = $('tgType').value; fp = ''; draw(); };
       $('tgFields').addEventListener('input', e => { if (e.target.id === 'tgUrl') insBox(); if (e.target.id === 'tgHost' || e.target.id === 'tgPort') { fp = ''; fpBox(''); } });
       $('tgOwnRet').onchange = () => $('tgRet').classList.toggle('hidden', !$('tgOwnRet').checked);
       draw();
@@ -3839,6 +3844,72 @@
           closeDialog(); toast('Gespeichert – ab heute Nacht wird auch hierhin gesichert.'); RENDER.sicherung();
         } catch (e) { $('ok').disabled = false; fail(e); }
       });
+    };
+    /* Google Drive: Bearbeiten (Name, Ordner, Aktiv, Aufbewahrung) – die Zugangsdaten kommen nur über „Bei Google anmelden“ */
+    const gdriveDialog = t => {
+      dialog(`<h2>Google Drive</h2><p class="muted">Verbunden${t.account ? ` mit <b>${esc(t.account)}</b>` : ''}. Clubwerk sieht in Google Drive nur die Dateien, die es selbst angelegt hat.</p>
+        <div class="row"><label class="f" style="flex:1">Name<input id="gdName" value="${esc(t.name)}"></label><label class="f" style="flex:1">Ordner in „Meine Ablage“<input id="gdFolder" value="${esc(t.folder)}"></label></div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="gdOwnRet" ${t.retention ? 'checked' : ''}> Eigene Aufbewahrung für dieses Ziel (sonst wie oben eingestellt)</label>
+        <div class="row ${t.retention ? '' : 'hidden'}" id="gdRet" style="margin-top:8px">
+          <label class="f" style="flex:1">Tägliche<input id="gdD" class="n" value="${esc(t.retention ? t.retention.daily : st.daily)}" inputmode="numeric"></label>
+          <label class="f" style="flex:1">Wöchentliche<input id="gdW" class="n" value="${esc(t.retention ? t.retention.weekly : st.weekly)}" inputmode="numeric"></label>
+          <label class="f" style="flex:1">Monatliche<input id="gdM" class="n" value="${esc(t.retention ? t.retention.monthly : st.monthly)}" inputmode="numeric"></label></div>
+        <label class="chk" style="margin-top:8px"><input type="checkbox" id="gdOn" ${t.enabled ? 'checked' : ''}> Aktiv – jede Nacht hierhin sichern</label>
+        <label class="f" style="margin-top:8px">Dein Passwort zur Bestätigung<input type="password" id="gdMy" autocomplete="current-password"></label>
+        <div class="row" style="margin-top:12px"><button class="btn" id="gdRe">Neu verbinden …</button></div>
+        <div class="btns"><button class="btn danger" id="gdDel" style="margin-right:auto">Entfernen …</button><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ok">Speichern</button></div>`, true);
+      $('c').onclick = closeDialog;
+      $('gdDel').onclick = () => tgRemove(t);
+      $('gdOwnRet').onchange = () => $('gdRet').classList.toggle('hidden', !$('gdOwnRet').checked);
+      $('gdRe').onclick = () => gdriveSetup(t);
+      $('ok').onclick = () => busy($('ok'), async () => {
+        try {
+          await api(`backups/targets/${encodeURIComponent(t.id)}`, 'PUT', { target: { name: $('gdName').value, folder: $('gdFolder').value, enabled: $('gdOn').checked,
+            retention: $('gdOwnRet').checked ? { daily: $('gdD').value, weekly: $('gdW').value, monthly: $('gdM').value } : null }, myPassword: $('gdMy').value });
+          closeDialog(); toast('Gespeichert – Testdatei geschrieben, gelesen und gelöscht.'); RENDER.sicherung();
+        } catch (e) { fail(e); }
+      });
+    };
+    /* Google Drive verbinden (neu oder neu verbinden): Client-ID/Secret, dann Code für google.com/device – Clubwerk fragt im Hintergrund nach */
+    const gdriveSetup = async t => {
+      const info = t ? await api(`backups/gdrive/${encodeURIComponent(t.id)}`).catch(() => ({})) : {};
+      let flowId = null, timer = null;
+      const stop = () => { clearTimeout(timer); if (flowId) { api(`backups/gdrive/flow/${flowId}/cancel`, 'POST', {}).catch(() => {}); flowId = null; } };
+      dialog(`<h2>${t ? 'Google Drive neu verbinden' : 'Google Drive verbinden'}</h2>
+        <ol class="steps">
+          <li>In der <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> mit dem Google-Konto des Vereins ein Projekt anlegen und unter <b>APIs und Dienste › Bibliothek</b> die <b>Google Drive API</b> aktivieren.</li>
+          <li><b>Google Auth Platform</b> einrichten: Nutzertyp <b>Extern</b>, unter <b>Datenzugriff</b> die Berechtigung <code>…/auth/drive.file</code> hinzufügen, unter <b>Zielgruppe</b> „<b>App veröffentlichen</b>“. Bleibt die App im Status „Testen“, läuft die Anmeldung nach 7 Tagen ab.</li>
+          <li>Unter <b>Clients</b> einen Client vom Typ <b>Fernseher und Geräte mit begrenzter Eingabe</b> erstellen und Client-ID und Client-Secret hier eintragen. Die Anleitung (?) beschreibt jeden Schritt.</li>
+        </ol>
+        <div class="row"><label class="f" style="flex:1">Client-ID<input id="gdId" autocomplete="off" spellcheck="false" placeholder="${info.clientIdHint ? esc(info.clientIdHint) + ' (gespeichert – leer lassen = unverändert)' : '…apps.googleusercontent.com'}"></label>
+          <label class="f" style="flex:1">Client-Secret<input id="gdSec" type="password" autocomplete="new-password" placeholder="${info.hasSecret ? '•••••• (gespeichert)' : 'GOCSPX-…'}"></label></div>
+        ${t ? '' : `<div class="row"><label class="f" style="flex:1">Name<input id="gdName" value="Google Drive"></label><label class="f" style="flex:1">Ordner in „Meine Ablage“<input id="gdFolder" value="/Clubwerk-Sicherung"></label></div>`}
+        <div class="row"><label class="f" style="flex:1">Dein Passwort zur Bestätigung<input id="gdMy" type="password" autocomplete="current-password"></label></div>
+        <div id="gdFlow"></div>
+        <div class="btns"><button class="btn ghost" id="c">Schließen</button><button class="btn primary" id="gdGo">Bei Google anmelden</button></div>`, true);
+      $('c').onclick = () => { stop(); closeDialog(); };
+      const show = f => {
+        const el = $('gdFlow'); if (!el) { stop(); return; }
+        if (f.state === 'wartet') el.innerHTML = `<div class="card" style="margin:12px 0 0;text-align:center">
+            <p style="margin:0 0 8px">Am Handy oder Rechner <a href="${esc(f.url)}" target="_blank" rel="noopener"><b>${esc(f.url.replace(/^https:\/\/(www\.)?/, ''))}</b></a> öffnen, mit dem Google-Konto des Vereins anmelden und diesen Code eingeben:</p>
+            <div style="font:700 28px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:3px;border:2px solid var(--line);border-radius:12px;padding:12px 10px;margin:0 0 10px;word-break:break-all" id="gdCode">${esc(f.userCode)}</div>
+            <div class="row" style="justify-content:center"><button class="btn small" id="gdCopy">Code kopieren</button></div>
+            <p class="muted s" style="margin:10px 0 0">Wartet auf die Bestätigung bei Google … Der Code gilt bis ${esc(new Date(f.expiresAt).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }))} Uhr.</p></div>`;
+        else if (f.state === 'prueft') el.innerHTML = '<div class="banner a" style="margin-top:12px">Bestätigt – Clubwerk schreibt, liest und löscht jetzt eine Testdatei in Google Drive …</div>';
+        else if (f.state === 'fertig') { flowId = null; closeDialog(); toast(`Google Drive verbunden${f.account ? ' (' + f.account + ')' : ''} – Testdatei geschrieben, gelesen und gelöscht.`); RENDER.sicherung(); return; }
+        else { flowId = null; el.innerHTML = `<div class="banner r" style="margin-top:12px;display:block">${esc(f.error || 'Abgebrochen.')}</div>`; $('gdGo').disabled = false; $('gdGo').textContent = 'Noch einmal anmelden'; return; }
+        if ($('gdCopy')) $('gdCopy').onclick = () => copyText(f.userCode, 'Code kopiert.');
+        timer = setTimeout(() => api(`backups/gdrive/flow/${f.id}`).then(show).catch(e => { flowId = null; fail(e); }), 2000);
+      };
+      $('gdGo').onclick = async () => {
+        if ($('gdGo').disabled) return;
+        stop(); $('gdGo').disabled = true;
+        try {
+          const f = await api('backups/gdrive/start', 'POST', { id: t ? t.id : undefined, clientId: $('gdId').value.trim() || undefined, clientSecret: $('gdSec').value.trim() || undefined, myPassword: $('gdMy').value,
+            target: t ? undefined : { name: $('gdName').value, folder: $('gdFolder').value } });
+          flowId = f.id; show(f);
+        } catch (e) { $('gdGo').disabled = false; fail(e); }
+      };
     };
     const dropboxDialog = () => {
       dialog(`<h2>Dropbox</h2><p class="muted">Verbunden mit <b>${esc(dx.account || 'Dropbox-App')}</b>. Alles liegt unter <code>Dropbox/Apps/&lt;App-Name&gt;/…</code>.</p>

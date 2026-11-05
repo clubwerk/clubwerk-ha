@@ -64,13 +64,13 @@ Jede Karte zeigt links den Starttag, daneben Titel, Zeitraum, Ort, Zahl der Schi
 
 #### Neuer Dienstplan
 
-„+ Neuer Dienstplan“ öffnet ein Fenster mit **Veranstaltung**, **Erster Tag**, **Letzter Tag**, **Ort** und **Infos für alle Helfer** (sehen alle in der App). Zwei Haken legen fest, ob der Plan **zu den Arbeitsstunden zählt** und ob er **veröffentlicht** ist. Ohne Haken bei „Veröffentlicht“ bleibt der Plan ein Entwurf, bis ihr ihn freigebt.
+„+ Neuer Dienstplan“ öffnet ein Fenster mit **Veranstaltung**, **Erster Tag**, **Letzter Tag**, **Ort** und **Infos für alle Helfer** (sehen alle in der App). Zwei Haken legen fest, ob der Plan **zu den Arbeitsstunden zählt** und ob er **veröffentlicht** ist. Ohne Haken bei „Veröffentlicht“ bleibt der Plan ein Entwurf, bis ihr ihn freigebt. Uhrzeiten und Aufgaben (Theke, Küche, Kasse …) stehen noch nicht hier: Sie legt ihr je Tag als Schichten an, auch mehrere zur selben Zeit. Dazu dient der Knopf **Speichern und Schichten anlegen**: Der Plan wird gespeichert und gleich das Fenster „Neue Schicht“ für den ersten Tag geöffnet, mit gesetztem Haken „Danach weitere Schicht anlegen“. Wer keine Schicht anlegen will, schließt dieses Fenster; der Plan ist trotzdem gespeichert.
 
 ![Das Fenster „Neuer Dienstplan“.](bild: seite=aw-plaene; klick=#plNew; ziel=dialog)
 
 #### Im Dienstplan: Reiter „Schichten“
 
-Ein Dienstplan öffnet sich als eigene Ansicht. Oben führt „← Alle Dienstpläne“ zurück, rechts stehen die Aktionen **Bearbeiten**, **Drucken**, **Excel** und, solange der Plan ein Entwurf ist, **Veröffentlichen**. Pro Tag gibt es eine Karte mit den Schichten und dem Knopf „+ Schicht“.
+Ein Dienstplan öffnet sich als eigene Ansicht. Oben führt „← Alle Dienstpläne“ zurück, rechts stehen die Aktionen **Bearbeiten**, **Drucken**, **Excel** und, solange der Plan ein Entwurf ist, **Veröffentlichen**. Pro Tag gibt es eine Karte mit den Schichten und dem Knopf „+ Schicht“; ein Tag ohne Schicht erinnert daran.
 
 ![Ein Dienstplan mit den Schichten je Tag: Zeit, Aufgabe, Füllstand und eingetragene Helfer.](bild: seite=aw-plaene; klick=[data-po])
 
