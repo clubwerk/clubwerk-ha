@@ -253,7 +253,7 @@ a.vh-btn { display: flex; align-items: center; justify-content: center; text-dec
 .vh-next .t b { font-family: var(--num); font-size: 34px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; }
 .vh-next .t small { font-size: 12px; font-weight: 600; }
 .vh-next .i { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
-.vh-next .i b { font-size: 16px; line-height: 21px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vh-next .i b { font-size: 16px; line-height: 21px; overflow-wrap: anywhere; }   /* lange Platz-/Titelnamen brechen um statt „…“ */
 .vh-next .i span { font-size: 13px; line-height: 18px; color: var(--on-hero-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .vh-next .o { align-self: center; flex: none; margin-right: 12px; min-height: 42px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--on-hero); color: var(--hero-b); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 /* Bereichsfläche: Abstand 12 px zwischen den Blöcken – Bausteine direkt darin ohne eigenen Außenabstand */

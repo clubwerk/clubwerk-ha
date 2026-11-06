@@ -416,7 +416,7 @@
   const BEREICHE = [
     ['gastro', 'Gastro', 'verkauf', ['getraenke', 'lager']],
     ['sport', 'Sport', 'pokal', ['g-buchung', 'spielbetrieb', 'turniere', 'turniertag', 'turnierplaner']],
-    ['anlage', 'Anlage', 'anlage', ['beregnung', 'g-flutlicht', 'g-zugang', 'maengel']],
+    ['anlage', 'Anlage', 'anlage', ['beregnung', 'g-flutlicht', 'g-zugang', 'maengel', 'schluessel']],
     ['mitglieder', 'Mitglieder', 'konten', ['g-mitglieder', 'g-arbeitseinsatz', 'g-zeiterfassung', 'email', 'app', 'konten']],
     ['finanzen', 'Finanzen', 'zahlung', ['g-mv-zahlungen', 'g-buchhaltung']],
     ['verein', 'Verein', 'einstellungen', ['benutzer', 'system', 'einstellungen']],
@@ -468,6 +468,7 @@
     anlage: '<path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v12h14V9"/><path d="M10 21v-6h4v6"/>',
     pfeil: '<path d="m9 6 6 6-6 6"/>',
     lager: '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="m3 8 9 5 9-5M12 13v8"/>',
+    schluessel: '<circle cx="8" cy="15" r="4"/><path d="m10.8 12.2 9.2-9.2M16 7l3 3M14 9l2 2"/>',
     maengel: '<path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/>',
     arbeit: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 1.3-1.3a4 4 0 0 0-5-5L5 13 3 11l8-8 2 2z"/><path d="m9 15-4 4"/>',
     zahlung: '<rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 10h19M6.5 15h4"/>',
@@ -3271,7 +3272,7 @@
   const PERM_SHORT = { lieferungen: 'Lieferungen', bestand: 'Bestand', bestellung: 'Bestellung', buchungen: 'Buchungen', export: 'Export',
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
-    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', turniere: 'Turniere',
+    zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', schluessel: 'Schlüssel', turniere: 'Turniere',
     email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen', sicherheit: 'Sicherheitswarnungen',
     buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel

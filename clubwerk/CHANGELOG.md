@@ -1,5 +1,24 @@
 # Änderungen
 
+## 2026.11.27
+
+**Neues Modul „Schlüssel“: Schlüsselübergabe mit Unterschrift, Rücknahme und Verlust (Wunsch Thorsten 05.11.2026, Stufe 1)**
+- Unter Anlage › Schlüssel führt der Verein seinen Bestand: Sorten wie „Clubhaus Haupteingang“ mit mehreren Stück (Schlüssel, Transponder, Karte), „vorrätig · ausgegeben · verloren · gesperrt“ je Stück, „sicherheitsrelevant“ für Generalschlüssel.
+- **Ausgabe mit Protokoll:** Person wählen (Mitglied, „Kein Mitglied“ oder jemand ohne Clubwerk-Konto wie Pächter oder Handwerker mit Name und Kontakt), Schlüssel, optional „Rückgabe bis“, Pfand (nur als „bar erhalten“ quittiert). Die Bedingungen kommen aus einer Vorlage mit Platzhaltern und werden beim Unterschreiben eingefroren. Beide Seiten unterschreiben auf dem Bildschirm (bei Minderjährigen auch eine erziehungsberechtigte Person) – auf jedem Gerät in der Verwaltung oder am Vereinstablet mit einem 6-stelligen Code (3 Stunden gültig, falsche Codes werden gesperrt).
+- Aus jeder Unterschrift entsteht einmal ein PDF mit Nummer („S-2026-014“) und Prüfwert, verschlüsselt im Tresor; es geht per E-Mail an die Person und erscheint bei Mitgliedern im Reiter „Dokumente“ (ohne Kopie).
+- **Rücknahme, Verlust, Stornierung** bekommen ein eigenes Protokoll. Die Rücknahme braucht die Unterschrift der annehmenden Person. Der Verlust eines sicherheitsrelevanten Schlüssels löst eine rote Sicherheitswarnung aus, jeder andere eine gelbe.
+- **Wer hat welchen Schlüssel?** Liste mit Filtern „Zurückfordern“ (ausgetreten oder überfällig), „Befristet“, „Mit Pfand“; Hinweis auf der Übersicht und im Austritts-Fenster der Mitgliederverwaltung; „Erinnerung schicken“; Excel mit Ausgaben, Bestand und Pfandliste; Suche über „Nr. 08“. Ein Mitglied mit Schlüssel lässt sich nicht löschen.
+- Die alten „Schlüsselnummern“ aus der Mitgliederverwaltung lassen sich als „übernommen, ohne Protokoll“ übernehmen; das Protokoll holt man später mit Unterschriften nach. Danach steht im Mitgliederformular statt des Feldes ein Hinweis.
+- Datenschutz: Löschfristen (ohne Pfand 3 Jahre, mit Pfand oder Kosten 10 Jahre nach Rückgabe), Auskunft ohne Unterschriftsbilder, Eintrag im Verzeichnis der Verarbeitungstätigkeiten. Funktionsexport enthält nur Sorten, Vorlagen und Einstellungen.
+- Neu: gemeinsames Unterschriftsfeld für Verwaltung und Tablet (`unterschrift.js`), die Beitrittserklärung bleibt unverändert. Schlüssel 1.0.0, Mitgliederverwaltung 1.39.0.
+
+**Platzbuchung: Spielerliste im Buchungsfenster aufgeräumt (Fund Design-Prüfstand 06.11.2026)**
+- Im Fenster einer Buchung (Verwaltung › Plätze › Woche) stehen die Spieler jetzt untereinander, eine Person je Zeile, als „Nachname, Vorname“ und nach Nachname sortiert – links bündig, auch am Handy. Gäste, Gerät („+ Ballmaschine“) und Allein-Training folgen darunter.
+- Die Knöpfe sind geordnet wie in den anderen Fenstern: „Stornieren“ steht in eigener Zeile mit Trennlinie, darunter „Bearbeiten“ und „Schließen“.
+- Dieselbe Darstellung am Tablet (Buchung antippen), in der Mitglieder-App (belegte Zeit, „Meine Buchungen“) und in den Buchungs-E-Mails („Spieler: Adler, Felix; Becker, Anna“).
+- Die Beispieldaten haben jetzt jeden Tag eine Buchung mit vier Spielern auf Platz 1 (12–13 Uhr), damit der Prüfstand das Fenster an jedem Tag mit vier Namen prüft.
+- Buchung 1.28.5.
+
 ## 2026.11.26
 
 **Dienste & Termine: Neuer Dienstplan erklärt, wo die Uhrzeiten hinkommen (Wunsch Thorsten 05.11.2026)**

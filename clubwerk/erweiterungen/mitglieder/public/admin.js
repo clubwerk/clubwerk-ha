@@ -346,7 +346,7 @@
         <label class="f">Telefon<input id="sPhone" value="${esc(p.phone || '')}"></label>
         <label class="f w2">Briefanrede<input id="sLetter" value="${esc(p.letter_salutation || '')}" placeholder="z. B. Liebe Anna"></label>
         <label class="f">Eintritt<input id="sEntry" type="date" value="${esc(p.entry_date || '')}"></label>
-        <label class="f">Schlüsselnummer<input id="sKey" value="${esc(p.key_no || '')}"></label>
+        ${st.meta.keyModule ? '<div class="f wall">Schlüssel<span class="muted s">Wird im Modul „Schlüssel“ geführt (Anlage › Schlüssel).</span></div>' : `<label class="f">Schlüsselnummer<input id="sKey" value="${esc(p.key_no || '')}"></label>`}
         <label class="f wall">Notizen (nur für den Vorstand)<textarea id="sNotes" style="min-height:80px">${esc(p.notes || '')}</textarea></label>
       </div></div>
       <div class="card"><h3>Einwilligungen</h3><div class="mv-cons">${consents.map(c => `<label class="chk"><input type="checkbox" data-cons="${esc(c.key)}" ${p.consents[c.key] ? 'checked' : ''}>
@@ -382,7 +382,7 @@
       try {
         await api('member/' + p.id, 'PUT', { salutation: val('sSal'), title: val('sTitle'), first_name: val('sFirst'), last_name: val('sLast'), birth_date: val('sBirth') || null, gender: val('sGen'), member_no: val('sNo'),
           status: val('sStatus'), street: val('sStreet'), zip: val('sZip'), city: val('sCity'), address_extra: val('sExtra'), country: val('sCountry'), email: val('sMail'), mobile: val('sMobile'), phone: val('sPhone'),
-          letter_salutation: val('sLetter'), entry_date: val('sEntry') || null, key_no: val('sKey'), notes: $('sNotes').value,
+          letter_salutation: val('sLetter'), entry_date: val('sEntry') || null, key_no: $('sKey') ? val('sKey') : (p.key_no || ''), notes: $('sNotes').value,
           consents: Object.fromEntries([...el.querySelectorAll('[data-cons]')].map(c => [c.dataset.cons, c.checked])) });
         GK.clean(); toast('Gespeichert.'); again();
       } catch (e) { fail(e); }
@@ -625,8 +625,8 @@
         <button class="btn primary" id="dUp">Datei wählen & hochladen</button></div>
         <p class="muted s" style="margin-bottom:0">PDF, Foto (JPG, PNG, HEIC), Word oder Text, bis 15 MB. Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten.</p></div>
       <div class="card"><h3>Ablage</h3>${d.documents.length ? `<table class="tbl kompakt"><tr><th>Dokument</th><th>Art</th><th>Datum</th><th>von</th><th class="r">Größe</th><th></th></tr>
-        ${d.documents.map(x => `<tr><td class="k-datei" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(DOCK[x.kind] || x.kind)}</td><td class="num nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${Math.max(1, Math.round(x.size / 1024))} KB</td>
-          <td class="r nw"><button class="btn small" data-dx="${x.id}">Öffnen …</button></td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
+        ${d.documents.map(x => `<tr><td class="k-datei" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(x.source ? 'Schlüssel' : (DOCK[x.kind] || x.kind))}</td><td class="num nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${x.source ? '' : Math.max(1, Math.round(x.size / 1024)) + ' KB'}</td>
+          <td class="r nw">${x.source ? `<a class="btn small" href="${esc(x.href)}" target="_blank" rel="noopener">Öffnen</a>` : `<button class="btn small" data-dx="${x.id}">Öffnen …</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
     { const a = el.querySelector('[data-fhopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.fhopen); }; }
     $('dUp').onclick = async () => {
       const f = await pickFile('.pdf,.jpg,.jpeg,.png,.webp,.heic,.docx,.txt,application/pdf,image/*'); if (!f) return;
@@ -662,9 +662,11 @@
       <label class="f wall">Kündigungsschreiben o. ä. (optional, PDF oder Foto)<input id="xDoc" type="file" accept="application/pdf,image/*"></label></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk"><input type="checkbox" id="xFees" checked> Beiträge zum Austritt beenden</label><label class="chk"><input type="checkbox" id="xDepts" checked> Abteilungen zum Austritt beenden</label>
         ${fam.length ? `<label class="chk"><input type="checkbox" id="xFam"> Angehörige mit austreten lassen (${esc(fam.map(f => f.name).join(', '))})</label>` : ''}</div>
+      <div id="xNotes"></div>
       <p class="muted s">Bis zum Austritt bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; Daten bleiben bis zum Anonymisieren erhalten.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="xOk">Austritt eintragen</button></div>`);
     $('c').onclick = closeDialog;
+    if (st.meta.keyModule) api(`member/${p.id}/exit-notes`).then(r => { if ($('xNotes') && (r.notes || []).length) $('xNotes').innerHTML = r.notes.map(t => `<div class="banner a"><span>${esc(t)}</span></div>`).join(''); }).catch(() => {});
     $('xOk').onclick = () => GK.busy($('xOk'), async () => {
       const body = { exit_date: val('xDate'), notice_date: val('xNotice'), reason: val('xReason'), endFees: $('xFees').checked, endDepts: $('xDepts').checked, withDependents: $('xFam') ? $('xFam').checked : false };
       const file = $('xDoc').files[0] || null;

@@ -162,7 +162,7 @@ function activate(ctx) {
   const memberRow = id => db.prepare("SELECT id, name, kind FROM members WHERE id = ? AND kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0").get(int(id));
   const people = () => db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all();
   const photos = ctx.require('./photos');   // Profilbilder (nur wenn das Mitglied sie für die Platzbuchung freigegeben hat)
-  const { lastFirst } = ctx.require('./db');   // Anzeige „Nachname, Vorname“
+  const { lastFirst, nameKey } = ctx.require('./db');   // Anzeige „Nachname, Vorname“
   const nameOf = id => (db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || '?';
   /** Geräte, die als Mitspieler gebucht werden können (Ballmaschine …) */
   const partnerDevices = () => db.prepare("SELECT id, name FROM bk_resource WHERE deleted = 0 AND active = 1 AND kind = 'artikel' AND as_partner = 1 ORDER BY sort, name COLLATE NOCASE").all();
@@ -179,6 +179,12 @@ function activate(ctx) {
       dev: b => { const d = b.partner_device_id ? dev().get(b.partner_device_id) : null; return d ? { booking: d, name: d.rname } : null; } };
   }
   const single = { name: nameOf, label: labelOf, res: resource, dev: deviceOf };   // einzeln abfragen (einzelne Buchung)
+  /** Spielerliste zum Anzeigen im Fenster: Personen „Nachname, Vorname“ sortiert, dann Gäste; Vereinsbuchungen (kein Mitglied) unverändert */
+  const playerList = (b, lk) => {
+    const persons = [b.member_id, ...J(b.partners, [])].filter(Boolean).map(id => lk.name(id)).sort((x, y) => nameKey(x).localeCompare(nameKey(y), 'de')).map(n => lastFirst(n));
+    const club = b.member_id ? [] : [b.title || (lk.label(b.label_id) || {}).name || 'Verein'];
+    return [...club, ...persons, ...normGuests(J(b.guests, [])).map(guestLabel)];
+  };
   const bview = (b, { me = null, names = true, full = false, lk = single } = {}) => {
     const partners = J(b.partners, []), guests = normGuests(J(b.guests, []));
     const mine = me != null && (b.member_id === me || partners.includes(me));
@@ -187,6 +193,7 @@ function activate(ctx) {
     const dev = b.type === 'buchung' ? lk.dev(b) : null;
     const out = { id: b.id, resource_id: b.resource_id, date: b.date, start: b.start, end: b.end, type: b.type, series: b.series_id ? true : undefined, label: lab ? { name: lab.name, color: lab.color } : null, title: b.type === 'buchung' && !lab ? null : (b.title || (lab && lab.name) || null), mine, own: me != null && b.member_id === me,
       who: show && b.type === 'buchung' ? [b.member_id ? lk.name(b.member_id) : (b.title || (lab && lab.name) || 'Verein'), ...partners.map(lk.name), ...guests.map(guestLabel)] : null,
+      list: show && b.type === 'buchung' ? playerList(b, lk) : null,
       partner_device_name: dev ? dev.name : null, solo_label: b.type === 'buchung' ? soloLabelOf(b, lk.res) : null };   // Anzeige „Muster, Max + Ballmaschine“ bzw. „… · Ballwand“
     if (full) Object.assign(out, { booked_by: b.booked_by_id ? lk.name(b.booked_by_id) : null, member_id: b.member_id, partners, guests, fee_cents: b.fee_cents, charge_id: b.charge_id, series_id: b.series_id, note: b.note, source: b.source, status: b.status, created_by: b.created_by, created_at: b.created_at, title: b.title, partner_device_id: b.partner_device_id || null, solo: Boolean(b.solo) });
     return out;
@@ -230,10 +237,8 @@ function activate(ctx) {
   /** Eckdaten einer Buchung als Zeilen [Bezeichnung, Wert] – für die Infokarte der E-Mail und die Textfassung */
   const summaryRows = b => {
     const r = resource(b.resource_id) || { name: 'Platz' };
-    const players = [b.member_id ? nameOf(b.member_id) : null, ...J(b.partners, []).map(nameOf)].filter(Boolean);
-    const guests = normGuests(J(b.guests, []));
     return [['Platz', r.name], ['Wann', `${WD[isoDow(b.date)]}, ${deD(b.date)} · ${b.start}–${b.end} Uhr`], ['Gebucht von', b.member_id ? nameOf(b.member_id) : 'Verein'],
-      ['Spieler', `${players.join(', ')}${guests.length ? `, ${guests.map(guestLabel).join(', ')}` : ''}${deviceOf(b) ? ` + ${deviceOf(b).name}` : ''}${b.solo ? ` · ${soloLabelOf(b)}` : ''}`]].filter(([, v]) => v);
+      ['Spieler', `${playerList(b, single).join('; ')}${deviceOf(b) ? ` + ${deviceOf(b).name}` : ''}${b.solo ? ` · ${soloLabelOf(b)}` : ''}`]].filter(([, v]) => v);
   };
   const summary = b => summaryRows(b).map(([k, v]) => `${k}: ${v}`);
   /* Mail-Kontingent je buchendem Mitglied: höchstens 20 Mitspieler-Mails je Stunde. Buchen → Stornieren → Buchen ließe sich sonst
@@ -600,7 +605,7 @@ function activate(ctx) {
     return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?))
       AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start`).all(d, d, n)
       .filter(b => b.member_id === mid || J(b.partners, []).includes(mid) || (b.booked_by_id === mid && fo)).map(b => { const dev = lk.dev(b), own = b.member_id === mid, forOther = !own && b.booked_by_id === mid && fo;
-        return { ...bview(b, { me: mid, full: false, lk }), who: bview(b, { me: b.member_id, full: false, lk }).who, resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? lk.name(b.member_id) : null, booked_by: own && b.booked_by_id ? lk.name(b.booked_by_id) : null,
+        return { ...bview(b, { me: mid, full: false, lk }), who: bview(b, { me: b.member_id, full: false, lk }).who, list: bview(b, { me: b.member_id, full: false, lk }).list, others: playerList(b, lk).filter(x => x !== lastFirst(lk.name(mid))), resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? lk.name(b.member_id) : null, booked_by: own && b.booked_by_id ? lk.name(b.booked_by_id) : null,
         ...(cc => ({ canCancel: Boolean(cc.ok), cancelNote: cc.ok ? null : cc.why, partner: cc.partner, booker: cc.partner ? lk.name(b.member_id) : null }))(cancelCheck(b, mid, { lim, fo })), canEdit: (own || forOther) && !isTu(b) && canCancelNow(b, lim), ics: icsUrl(b.id, key),
         ...((own || forOther) && !isTu(b) ? { edit: { for_member: forOther ? b.member_id : null, resource_id: b.resource_id, partners: J(b.partners, []), guests: normGuests(J(b.guests, [])), label_id: b.label_id || null, title: b.label_id ? b.title || '' : '', partner_device: dev ? dev.booking.resource_id : null, solo: Boolean(b.solo) } } : {}) }; });
   };

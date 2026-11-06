@@ -61,8 +61,10 @@ const SPEC = [
   { t: 'bh_donation', k: 'id', c: ['donor'] },
   { t: 'bank_entry', k: 'id', c: ['name', 'iban', 'purpose'] },   // Kontoauszug: Gegenpartei und Verwendungszweck
   { t: 'bank_match', k: 'id', c: ['label'] },
+  { t: 'sl_issue', k: 'id', c: ['contact', 'ext_first', 'ext_last', 'ext_birth', 'guardian_name'] },   // Schlüssel: Person ohne Konto (Name, Kontakt)
+  { t: 'sl_protocol', k: 'id', c: ['sig_a', 'sig_b', 'sig_c'] },                          // Schlüssel: Unterschriften
 ];
-const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge', 'belege/buchhaltung'];   // belege/buchhaltung: eingefrorene Rechnungen und Spendenquittungen (GoBD) mit Anschriften
+const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge', 'belege/buchhaltung', 'belege/schluessel'];   // belege/buchhaltung: eingefrorene Rechnungen und Spendenquittungen (GoBD) mit Anschriften
 const PLACEHOLDER_RE = /^gesperrt-(\d+)@clubwerk\.invalid$/i;
 
 /* ---------- Zustand (nur im Speicher) ---------- */

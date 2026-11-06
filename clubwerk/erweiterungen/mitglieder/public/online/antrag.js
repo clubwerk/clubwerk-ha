@@ -64,6 +64,7 @@
       .af-pad .af-x { position: absolute; left: 24px; bottom: 50px; color: var(--pad-ink); font-size: 22px; pointer-events: none; }
       .af-pad .af-ph2 { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: var(--pad-ink); font-size: 16px; pointer-events: none; }   /* Unterschriftsfeld bleibt auch dunkel weiß – daher eine feste, lesbare Tinte (--pad-ink) nur für dieses Feld */
       .af-pad.signed .af-ph2 { display: none; }
+      .af-pad, .af-pad * { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }   /* beim Unterschreiben nie Text markieren (auch wenn .af sonst Auswahl erlaubt) */
       .af-mandate { font-size: 13.5px; color: var(--muted); line-height: 1.5; background: var(--hover); border-radius: 12px; padding: 12px 14px; margin-top: 12px; }
       .af-done { text-align: center; padding: 34px 22px; }
       .af-done .af-ok { width: 76px; height: 76px; border-radius: 38px; background: var(--brand-soft); color: var(--brand); display: inline-flex; align-items: center; justify-content: center; font-size: 40px; margin-bottom: 12px; }

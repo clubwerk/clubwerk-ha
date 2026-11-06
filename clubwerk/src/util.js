@@ -49,4 +49,13 @@ function zipBudget(max, msg = 'Das ZIP-Archiv ist zu groß.') {
 }
 /** Satzende anhängen, außer der Text endet schon auf „.“ (z. B. Vereinsname „… e. V.“) – nie „..“ */
 const endDot = s => { const t = String(s == null ? '' : s).replace(/\s+$/, ''); return /[.!?]$/.test(t) ? t : t + '.'; };
-module.exports = { endDot, pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };
+/** Unterschrift aus dem Unterschriftsfeld prüfen: PNG als Data-URL. Die Maße im Bildkopf werden begrenzt (höchstens 1200 × 1200) – ein winzig gepacktes PNG
+ *  mit riesigen Maßen ließe sonst beim PDF-Bau Gigabytes an Speicher reservieren und den Server blockieren. */
+const sigOk = s => {
+  if (typeof s !== 'string' || s.length >= 280000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]{400,}$/.test(s)) return false;
+  const h = Buffer.from(s.slice(22, 22 + 44), 'base64');
+  if (h.length < 24 || h.readUInt32BE(0) !== 0x89504e47 || h.toString('latin1', 12, 16) !== 'IHDR') return false;
+  const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
+  return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
+};
+module.exports = { sigOk, endDot, pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };

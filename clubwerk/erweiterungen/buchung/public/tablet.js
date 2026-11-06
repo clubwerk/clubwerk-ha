@@ -116,7 +116,7 @@
     if (/free/.test(x.cls)) { if (!state.booking) return toast('Gebucht wird in der Mitglieder-App.'); return pickName(`${r.name} ${state.date === state.today ? '' : `am ${new Date(state.date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'numeric' })} `}ab ${hhmm(s)} Uhr buchen`, tok => bookDlg(r, s, tok)); }
     const b = x.b || {};
     const canCancel = state.booking && (b.type === 'buchung' || (b.type === 'serie' && b.series));
-    dlg(`<h2>${esc(r.name)} · ${b.start}–${b.end}</h2><div class="sub">${b.type === 'buchung' ? esc(whoTxt(b)) : esc(b.title || '')}</div>
+    dlg(`<h2>${esc(r.name)} · ${b.start}–${b.end}</h2><div class="sub">${b.type === 'buchung' ? [...(b.list || b.who || []), ...(b.partner_device_name ? ['+ ' + b.partner_device_name] : []), ...(b.solo_label ? ['· ' + b.solo_label] : [])].map(esc).join('<br>') : esc(b.title || '')}</div>
       <div class="dlg-btns">${canCancel ? `<button id="x">Schließen</button><button class="ok" id="cx" style="background:var(--red);border-color:var(--red)">${b.type === 'serie' ? 'Absagen …' : 'Stornieren …'}</button>` : '<button class="ok" id="x" style="grid-column:1/-1">Schließen</button>'}</div>`);
     $('x').onclick = closeDlg;
     if (canCancel && b.type === 'serie') $('cx').onclick = () => pickName('Wer hat die Serie gebucht?', tok => {   // Serientermin: nur heute · ab heute · ganze Serie

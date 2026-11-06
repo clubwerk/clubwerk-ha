@@ -139,7 +139,7 @@ function detail(id, user) {
     family: famRows, familyHead: famHead && famHead !== id ? (x => x ? { id: x.id, name: x.name } : null)(personRow(famHead)) : null, familyFee: Boolean(store.familyFee(id)),
     honors: C.db.prepare('SELECT * FROM mv_honor WHERE member_id = ? ORDER BY date DESC').all(id), no_congrats: shared.congratsOff(id),
     functions: C.db.prepare('SELECT * FROM mv_function WHERE member_id = ? ORDER BY to_date IS NOT NULL, from_date DESC').all(id),
-    documents: perms.includes('mitglieder_dokumente') ? C.db.prepare('SELECT id, kind, title, mime, size, created_at, by_user FROM mv_document WHERE member_id = ? ORDER BY created_at DESC').all(id) : null,
+    documents: perms.includes('mitglieder_dokumente') ? [...C.db.prepare('SELECT id, kind, title, mime, size, created_at, by_user FROM mv_document WHERE member_id = ? ORDER BY created_at DESC').all(id), ...otherDocuments(id, perms)].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))) : null,
     charges: perms.includes('mitglieder_finanzen') ? C.db.prepare(`SELECT c.*, (SELECT name FROM members WHERE id = c.for_member_id) AS for_name FROM mv_charge c WHERE c.member_id = ? OR c.for_member_id = ? ORDER BY c.due_date DESC, c.id DESC LIMIT 200`).all(id, id) : null,
     history: C.db.prepare('SELECT * FROM mv_history WHERE member_id = ? ORDER BY id DESC LIMIT 150').all(id),
     dunning: perms.includes('mitglieder_finanzen') ? shared.dunningInfo(id) : null,
@@ -227,6 +227,11 @@ function docType(buf, name) {
   if (ext === 'docx' && buf[0] === 0x50 && buf[1] === 0x4b) return { ext: 'docx', mime: DOC_TYPES.docx };
   if (ext === 'txt' && !buf.includes(0)) return { ext: 'txt', mime: DOC_TYPES.txt };
   return null;
+}
+/** Protokolle anderer Module (z. B. Schlüsselübergabe) erscheinen im Reiter „Dokumente“, ohne Kopie – geöffnet wird über das Recht des anderen Moduls */
+function otherDocuments(id, perms) {
+  return (C.callHooksSync('memberDocuments', id).map(x => x.result).flat().filter(x => x && x.source === 'schluessel' && perms.includes('schluessel')))
+    .map(x => ({ id: `${x.source}-${x.id}`, source: x.source, kind: 'extern', title: String(x.title).slice(0, 120), mime: 'application/pdf', size: 0, created_at: x.created_at, by_user: 'Schlüssel', href: x.href }));
 }
 function saveDocument(memberId, buf, { kind = 'sonstiges', title, filename, user, applicationId = null } = {}) {
   if (!buf || !buf.length) throw new Error('Keine Datei empfangen.');
@@ -400,7 +405,7 @@ function activate(ctx) {
       for (const d of depts) if (!req.mvScope.includes(d.id)) d.members = null;
       for (const f of feeList) if (!(f.kind === 'zusatz' && req.mvScope.includes(f.department_id))) f.members = null;
     }
-    res.json({ depts, fees: feeList, settings: settingsView(req.user), perms: { bank: req.user.perms.includes('mitglieder_bank'), finance: req.user.perms.includes('mitglieder_finanzen'), docs: req.user.perms.includes('mitglieder_dokumente'), settings: req.user.perms.includes('einstellungen') },
+    res.json({ keyModule: ctx.isModuleActive('schluessel'), depts, fees: feeList, settings: settingsView(req.user), perms: { bank: req.user.perms.includes('mitglieder_bank'), finance: req.user.perms.includes('mitglieder_finanzen'), docs: req.user.perms.includes('mitglieder_dokumente'), settings: req.user.perms.includes('einstellungen') },
       counts: req.mvScope ? { applications: ctx.db.prepare("SELECT * FROM mv_application WHERE status IN ('eingegangen','unterschrift')").all().filter(a => appInScope(a, req.mvScope)).length,
         changes: ctx.db.prepare("SELECT member_id FROM mv_change WHERE status = 'offen'").all().filter(c => inScope(c.member_id, req.mvScope)).length }
         : { applications: ctx.db.prepare("SELECT COUNT(*) n FROM mv_application WHERE status IN ('eingegangen','unterschrift')").get().n, changes: ctx.db.prepare("SELECT COUNT(*) n FROM mv_change WHERE status = 'offen'").get().n },
@@ -417,6 +422,12 @@ function activate(ctx) {
   });
   /* Unterschriebene Beitrittserklärung (Papier) vorab hochladen – wird beim Anlegen dem neuen Mitglied zugeordnet.
      Nicht zugeordnete Uploads werden nach einem Tag gelöscht. */
+  /* Hinweise anderer Module im Austritts-Fenster (z. B. „Hat noch Schlüssel Nr. 07“) */
+  admin.get('/member/:id/exit-notes', P, (req, res) => {
+    const id = int(req.params.id);
+    if (!personRow(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
+    res.json({ notes: ctx.callHooksSync('exitNotes', id).map(x => x.result).flat().filter(t => typeof t === 'string').slice(0, 10) });
+  });
   admin.post('/member/new-document', P, express.raw({ type: () => true, limit: DOC_MAX + 1024 }), (req, res) => {
     let name = ''; try { name = decodeURIComponent(String(req.get('X-Filename') || '')); } catch (e) { name = ''; }
     try {
@@ -1186,6 +1197,9 @@ function activate(ctx) {
     return { hidden: rows.filter(r => payerOf(r.member_id) !== r.member_id).map(r => r.member_id) };
   };
   /* für andere Module (Buchhaltung): Anschrift eines Mitglieds, Forderung anlegen/abfragen/stornieren */
+  /* alte Schlüsselnummern (Freitext aus verein.cloud) für das Modul Schlüssel: „übernehmen“ statt doppelt führen */
+  ctx.hooks.keyNumbers = () => ctx.db.prepare("SELECT m.id, m.name, m.kind, x.key_no FROM mv_person x JOIN members m ON m.id = x.member_id WHERE m.deleted = 0 AND x.key_no IS NOT NULL AND trim(x.key_no) != ''").all()
+    .map(r => ({ member_id: r.id, name: ctx.require('./db').lastFirst(r.name, r.kind), no: String(r.key_no).trim() }));
   ctx.hooks.memberAddress = id => {
     const p = personRow(id); if (!p) return null;
     return { id, name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.name, street: p.street, zip: p.zip, city: p.city, country: p.country, email: p.email, mobile: p.mobile || null, phone: p.phone || null, member_no: p.member_no, payment: p.payment || 'lastschrift' };

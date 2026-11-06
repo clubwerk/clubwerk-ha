@@ -50,6 +50,10 @@
   if (!document.getElementById('bkStyle')) {
     const s = document.createElement('style'); s.id = 'bkStyle';
     s.textContent = `
+      .bk-facts { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 8px 16px; margin: 0 0 10px; text-align: left; }
+      .bk-facts dt { color: var(--muted); align-self: start; } .bk-facts dd { margin: 0; overflow-wrap: anywhere; }
+      .bk-pl { list-style: none; margin: 0; padding: 0; font-weight: 600; } .bk-pl li { padding: 1px 0; }
+      @media (max-width: 560px) { .bk-facts { grid-template-columns: 1fr; gap: 0; } .bk-facts dt { margin-top: 10px; font-size: 13px; } .bk-facts dt:first-child { margin-top: 0; } }
       .bk-grid { display: grid; grid-template-columns: repeat(var(--c, 3), minmax(0, 1fr)); gap: 14px 16px; }
       .bk-rights { display: grid; gap: 6px; padding-top: 4px; } .bk-sub { margin: 20px 0 8px; font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); }
       .bk-grid .w2 { grid-column: span 2; } .bk-grid .w3 { grid-column: span 3; } .bk-grid .wall { grid-column: 1 / -1; } .bk-grid .dim { opacity: .45; }
@@ -398,18 +402,25 @@
     $('bdOk').onclick = () => send(false);
   }
 
+  /** Spieler im Fenster: eine Person je Zeile, „Nachname, Vorname“ sortiert (Server: b.list), Gerät/Allein-Training darunter */
+  const playersHtml = b => {
+    const rows = [...(b.list || b.who || []).filter(w => !b.label || w !== b.label.name), ...(b.partner_device_name ? ['+ ' + b.partner_device_name] : []), ...(b.solo_label ? ['· ' + b.solo_label] : [])];
+    return rows.length ? `<ul class="bk-pl">${rows.map(x => `<li>${esc(x)}</li>`).join('')}</ul>` : '–';
+  };
+
   function detail(b, after) {
     const r = st.meta.resources.find(x => x.id === b.resource_id) || {};
     dialog(`<h2>${esc(r.name || '')} · ${b.start}–${b.end}</h2>
       <p class="muted" style="margin-top:0">${deDate(b.date)} · ${pill(TYPE[b.type])}${b.label ? ` <span class="pill" style="background:${b.label.color};color:${ink(b.label.color)}">${esc(b.label.name)}</span>` : ''}${b.series_id ? ' · aus einer Serie' : ''}</p>
-      <table class="tbl" style="margin-bottom:10px">
-        ${b.type === 'buchung' ? `<tr><td class="muted">Spieler</td><td><b>${esc(whoTxt(b) || '–')}</b></td></tr>${b.title && b.member_id ? `<tr><td class="muted">Titel</td><td>${esc(b.title)}</td></tr>` : ''}` : `<tr><td class="muted">${b.type === 'sperre' ? 'Grund' : 'Titel'}</td><td><b>${esc(b.title || '')}</b></td></tr>`}
-        ${b.fee_cents ? `<tr><td class="muted">Gebühr</td><td>${euro(b.fee_cents)}${b.charge_id ? ' · offener Posten bei den Mitgliedern' : ''}</td></tr>` : ''}
-        ${b.note ? `<tr><td class="muted">Notiz</td><td>${esc(b.note)}</td></tr>` : ''}
-        <tr><td class="muted">Eingetragen</td><td>${esc(b.created_by || '')}${b.booked_by ? ' (für ein anderes Mitglied gebucht)' : ''} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung', import: 'Spielplan-Import' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</td></tr>
-      </table>
+      <dl class="bk-facts">
+        ${b.type === 'buchung' ? `<dt>Spieler</dt><dd>${playersHtml(b)}</dd>${b.title && b.member_id ? `<dt>Titel</dt><dd>${esc(b.title)}</dd>` : ''}` : `<dt>${b.type === 'sperre' ? 'Grund' : 'Titel'}</dt><dd><b>${esc(b.title || '')}</b></dd>`}
+        ${b.fee_cents ? `<dt>Gebühr</dt><dd>${euro(b.fee_cents)}${b.charge_id ? ' · offener Posten bei den Mitgliedern' : ''}</dd>` : ''}
+        ${b.note ? `<dt>Notiz</dt><dd>${esc(b.note)}</dd>` : ''}
+        <dt>Eingetragen</dt><dd>${esc(b.created_by || '')}${b.booked_by ? ' (für ein anderes Mitglied gebucht)' : ''} · ${{ app: 'Mitglieder-App', tablet: 'Tablet', verwaltung: 'Verwaltung', import: 'Spielplan-Import' }[b.source] || ''} · ${deDate(String(b.created_at).slice(0, 10))} ${String(b.created_at).slice(11, 16)}</dd>
+      </dl>
 
-      <div class="btns">${b.series_id ? (can('buchung_serien') ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Aufheben …' : 'Stornieren …'}</button>` : '') : (b.type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button>` : ''}<span style="flex:1"></span>${b.series_id ? (can('buchung_serien') ? '<button class="btn" id="bxE">Bearbeiten …</button>' : '') : (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
+      ${(c => c ? `<div class="dz">${c}</div>` : '')(b.series_id ? (can('buchung_serien') ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Aufheben …' : 'Stornieren …'}</button>` : '') : (b.type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" id="bxC">${b.type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button>` : '')}
+      <div class="btns"><span style="flex:1"></span>${b.series_id ? (can('buchung_serien') ? '<button class="btn" id="bxE">Bearbeiten …</button>' : '') : (b.type === 'sperre' ? can('buchung_serien') : can('buchung_buchen')) ? '<button class="btn" id="bxE">Bearbeiten</button>' : ''}<button class="btn primary" id="c">Schließen</button></div>`);
     $('c').onclick = closeDialog;
     if (b.series_id) {   // Termin einer Serie oder Sperre: erst den Umfang wählen
       if ($('bxE')) $('bxE').onclick = async () => { const sc = await askScope('Serientermin bearbeiten', `${b.title || ''} · ${deDate(b.date)} ${b.start}–${b.end}`); if (sc) { closeDialog(); seriesEdit(b, sc, after); } };

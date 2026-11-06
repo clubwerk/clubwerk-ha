@@ -40,8 +40,8 @@
       .bkm-sheet label.l { display: block; font-size: 13px; font-weight: 700; color: var(--muted); margin: 6px 0 4px; }
       .bkm-sheet .vh-select { font-size: 16px; }
       .bkm-chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
-      .bkm-chips span { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 4px 0 12px; border-radius: 20px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 700; }
-      .bkm-chips span button { width: 32px; height: 32px; border-radius: 16px; border: 0; background: var(--hover); color: inherit; font-size: 15px; line-height: 1; }
+      .bkm-chips span { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; overflow-wrap: anywhere; min-height: 40px; padding: 0 4px 0 12px; border-radius: 20px; background: var(--brand-soft); color: var(--brand-ink); font-size: 14px; font-weight: 700; }
+      .bkm-chips span button { flex: none; width: 36px; height: 36px; border-radius: 16px; border: 0; background: var(--hover); color: inherit; font-size: 15px; line-height: 1; }
       .bkm-hits { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin: -4px 0 10px; }
       .bkm-hits button { display: block; width: 100%; text-align: left; min-height: 44px; padding: 0 14px; border: 0; border-top: 1px solid var(--line); background: var(--card); font: inherit; font-size: 15px; color: var(--ink); }
       .bkm-hits button:first-child { border-top: 0; }
@@ -72,7 +72,7 @@
       .bkm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } .bkm-two.one { grid-template-columns: 1fr; } .bkm-two .span2 { grid-column: 1 / -1; } .bkm-two > div { min-width: 0; }
       @media (max-width: 520px) { .bkm-two { grid-template-columns: 1fr; } }   /* Handy: Dauer und Art untereinander – sonst abgeschnitten */
       .bkm-lh { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 6px; } .bkm-lh label.l { margin: 0; }
-      .bkm-links { display: flex; gap: 16px; flex: none; }
+      .bkm-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; flex: 0 1 auto; min-width: 0; } .bkm-links .vh-link { max-width: 100%; white-space: normal; margin: 0; padding: 8px 0; overflow-wrap: anywhere; text-align: right; }   /* langer Gerätename bricht um statt das Fenster zu weiten */
       .bkm-fold { padding: 12px 12px 0; margin: 0 0 12px; border-radius: 12px; background: var(--hover); }
       .bkm-fold .vh-check { margin-bottom: 12px; }
       .bkm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .bkm-row2 .vh-btn { height: 48px; min-height: 48px; padding: 0 14px; font-size: 15px; border-radius: 12px; }
@@ -293,7 +293,7 @@
       function infoSheet(r, x) {
         const sh = sheet(); const b = x.booking || {};
         const canWait = data.settings.waitlist && x.state.split(' ')[0] === 'busy' && !x.state.includes('wait');
-        sh.innerHTML = `<div class="vh-box"><h2>${esc(r.name)} · ${hhmm(x.s)}</h2><p>${esc(wd(day, { weekday: 'long' }))}, ${deD(day)} · ${b.type === 'sperre' ? 'gesperrt' : 'belegt'} ${b.start ? `${b.start}–${b.end} Uhr` : ''}${b.label ? `<br><b>${esc(b.label.name)}</b>` : ''}${b.type === 'buchung' && b.who ? `<br>${esc(b.who.join(', '))}` : b.title && (!b.label || b.title !== b.label.name) ? `<br>${esc(b.title)}` : ''}</p>
+        sh.innerHTML = `<div class="vh-box"><h2>${esc(r.name)} · ${hhmm(x.s)}</h2><p>${esc(wd(day, { weekday: 'long' }))}, ${deD(day)} · ${b.type === 'sperre' ? 'gesperrt' : 'belegt'} ${b.start ? `${b.start}–${b.end} Uhr` : ''}${b.label ? `<br><b>${esc(b.label.name)}</b>` : ''}${b.type === 'buchung' && b.who ? `<br>${(b.list || b.who).map(esc).join('<br>')}` : b.title && (!b.label || b.title !== b.label.name) ? `<br>${esc(b.title)}` : ''}</p>
           ${b.type === 'buchung' && !b.label && b.who && b.who[0] ? `<p>Gebucht hat ${esc(b.who[0])} – nur er/sie oder ein Mitspieler kann stornieren.</p>` : ''}
           ${canWait ? '<p>Auf die Warteliste? Du bekommst eine E-Mail, sobald die Zeit frei wird.</p>' : x.state.includes('wait') ? '<p>Du stehst schon auf der Warteliste.</p>' : ''}
           <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">${canWait ? 'Abbrechen' : 'Schließen'}</button>${canWait ? '<button class="ok" id="bkmOk">Vormerken</button>' : ''}</div></div>`;
@@ -363,7 +363,7 @@
       }
       function manageSheet(b) {
         const sh = sheet();
-        sh.innerHTML = `<div class="vh-box"><h2>${esc(b.resource)} · ${b.start}–${b.end}</h2><p>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.who && b.who.length > 1 ? `<br>mit ${esc(b.who.filter(w => w !== ctx.member).join(', '))}` : ''}</p>
+        sh.innerHTML = `<div class="vh-box"><h2>${esc(b.resource)} · ${b.start}–${b.end}</h2><p>${esc(wd(b.date, { weekday: 'long' }))}, ${deD(b.date)}${b.others && b.others.length ? `<br>mit ${b.others.map(esc).join('<br>')}` : ''}</p>
           <div class="vh-row"><button class="no" id="bkmX" style="color:var(--red)">Stornieren</button><button class="ok" id="bkmEd">Ändern</button></div>
           <div class="vh-row" style="margin-top:8px"><button class="no" id="bkmNo">Schließen</button></div></div>`;
         sh.classList.add('show');
