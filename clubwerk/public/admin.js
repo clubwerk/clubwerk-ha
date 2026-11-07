@@ -946,9 +946,8 @@
 
   /* Funktionsimport: Einstellungen eines Moduls aus einer Exportdatei übernehmen */
   function funcImport(id, name, after) {
-    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.json,application/json';
-    inp.onchange = async () => {
-      const f = inp.files[0]; if (!f) return;
+    window.CWPick.file('.json,application/json').then(async f => {
+      if (!f) return;
       let body;
       try { body = JSON.parse(await f.text()); } catch (e) { return fail(new Error('Die Datei ist keine gültige Exportdatei.')); }
       if (!body || !['clubwerk-funktion', 'vereinsheim-funktion'].includes(body.format)) return fail(new Error('Die Datei ist keine Funktions-Exportdatei von Clubwerk.'));
@@ -964,8 +963,7 @@
         await ask(`Import abgeschlossen.\n\n${r.summary || ''}`, { okOnly: true, danger: false }).catch(() => {});
         if (after) after(); else location.reload();
       } catch (e) { fail(e); }
-    };
-    inp.click();
+    });
   }
   /** Karte „Funktion exportieren / importieren“ für die Seite eines Moduls */
   function funcBox(el, id, name, after) {

@@ -1,5 +1,13 @@
 # Änderungen
 
+## 2026.11.28
+
+**Fehler am iPhone: Datei im Reiter „Dokumente“ ausgewählt – danach passierte nichts (Fehler Thorsten 07.11.2026)**
+- Bei Mitglied › Dokumente › „Datei wählen & hochladen“ blieb nach dem Antippen einer Datei in der Dateien-App alles unverändert: keine Meldung, kein Eintrag in der Ablage. Ursache: Das Auswahlfeld für die Datei wurde nur im Hintergrund gebaut und nie in die Seite eingehängt. Safari am iPhone vergisst die Auswahl dann während des langen Auswahlfensters. Am Rechner fiel das nicht auf.
+- Jetzt hängt das Feld unsichtbar in der Seite, bis die Auswahl da ist oder abgebrochen wurde (gemeinsamer Baustein `CWPick.file`, auf allen Oberflächen verfügbar). Der Knopf zeigt „Wird hochgeladen …“, und jeder Fehler erscheint als Meldung. Dasselbe gilt für den Import von Funktions-Einstellungen (Dateien einspielen); alle anderen Dateiauswahlen waren schon richtig eingebaut.
+- Eine neue Prüfregel (`datei-feld-lose`) meldet künftig jedes selbstgebaute Dateifeld ohne den Baustein; die Testreihe `uploadios` spielt das Hochladen im Reiter „Dokumente“ in Chromium und WebKit (Safari-Technik) durch.
+- Mitglieder 1.39.1.
+
 ## 2026.11.27
 
 **Neues Modul „Schlüssel“: Schlüsselübergabe mit Unterschrift, Rücknahme und Verlust (Wunsch Thorsten 05.11.2026, Stufe 1)**

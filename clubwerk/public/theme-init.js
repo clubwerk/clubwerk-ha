@@ -72,3 +72,32 @@
     setTimeout(noch, 250);
   }, true);
 })();
+
+/* Dateiauswahl per Skript (CWPick.file). Das Dateifeld hängt unsichtbar im DOM und wird festgehalten, bis „change“ oder „cancel“ kam.
+   Ein losgelöstes <input type=file> (createElement + click, ohne es einzuhängen) verliert in iOS-Safari/WebKit während des langen
+   Dateiauswahl-Dialogs sein „change“: das Element wird aufgeräumt, die Auswahl kommt nie an – kein Fehler, keine Meldung (Fehler 07.11.2026,
+   Mitglied › Dokumente am iPhone). Darum nie `createElement('input')` mit type=file selbst bauen, immer hier durch (Regel in sicherheit-regeln.js).
+   CWPick.file(accept, { multiple, capture }) → Promise<File|null> (mit multiple: Liste); null bzw. [] bei Abbruch. */
+(function () {
+  var offen = [];   // Verweis, solange der Dialog offen ist
+  window.CWPick = {
+    file: function (accept, o) {
+      o = o || {};
+      return new Promise(function (res) {
+        var i = document.createElement('input'), fertig = false;
+        i.type = 'file'; if (accept) i.accept = accept; if (o.multiple) i.multiple = true; if (o.capture) i.setAttribute('capture', o.capture);
+        i.setAttribute('aria-hidden', 'true'); i.tabIndex = -1;
+        i.style.cssText = 'position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none';
+        var ende = function () {
+          if (fertig) return; fertig = true;
+          var l = [].slice.call(i.files || []);
+          setTimeout(function () { var k = offen.indexOf(i); if (k >= 0) offen.splice(k, 1); if (i.parentNode) i.parentNode.removeChild(i); }, 0);
+          res(o.multiple ? l : (l[0] || null));
+        };
+        i.addEventListener('change', ende); i.addEventListener('cancel', ende);
+        offen.push(i); (document.body || document.documentElement).appendChild(i);
+        i.click();
+      });
+    },
+  };
+})();

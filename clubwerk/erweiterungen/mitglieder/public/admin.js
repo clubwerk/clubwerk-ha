@@ -95,7 +95,7 @@
     if (!r.ok) throw new Error(d.error || 'Fehler beim Hochladen');
     return d;
   }
-  const pickFile = accept => new Promise(res => { const i = document.createElement('input'); i.type = 'file'; i.accept = accept; i.onchange = () => res(i.files[0] || null); i.click(); });
+  const pickFile = accept => window.CWPick.file(accept);   // Dateifeld im DOM (iOS-Safari), siehe theme-init.js
   /** Rückfrage im selben Fenster (kein zweites Fenster): Titel, Text und Knopf; „Abbrechen“ führt zurück.
    *  o.safe: harmloser Schritt (grüner Knopf statt rot), o.html: Felder unter dem Text (z. B. ein Datum) */
   function confirmIn(title, text, okLabel, onOk, back, o = {}) {
@@ -629,8 +629,11 @@
           <td class="r nw">${x.source ? `<a class="btn small" href="${esc(x.href)}" target="_blank" rel="noopener">Öffnen</a>` : `<button class="btn small" data-dx="${x.id}">Öffnen …</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
     { const a = el.querySelector('[data-fhopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.fhopen); }; }
     $('dUp').onclick = async () => {
+      const btn = $('dUp'), label = btn.textContent;
       const f = await pickFile('.pdf,.jpg,.jpeg,.png,.webp,.heic,.docx,.txt,application/pdf,image/*'); if (!f) return;
-      try { await upload(`member/${id}/documents?kind=${encodeURIComponent(val('dKind'))}&title=${encodeURIComponent(val('dTitle') || f.name)}`, f); toast('Hochgeladen.'); again(); } catch (e) { fail(e); }
+      btn.disabled = true; btn.textContent = GK.T('Wird hochgeladen …');
+      try { await upload(`member/${id}/documents?kind=${encodeURIComponent(val('dKind'))}&title=${encodeURIComponent(val('dTitle') || f.name)}`, f); toast('Hochgeladen.'); again(); }
+      catch (e) { fail(e); if (btn.isConnected) { btn.disabled = false; btn.textContent = label; } }
     };
     const docDialog = x => {
       dialog(`<h2 translate="no">${esc(x.title)}</h2><p class="muted" style="margin-top:0">${esc(DOCK[x.kind] || x.kind)} · ${deTime(x.created_at)}${x.by_user ? ' · ' + esc(x.by_user) : ''} · ${Math.max(1, Math.round(x.size / 1024))} KB</p>
