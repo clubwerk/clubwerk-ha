@@ -98,7 +98,9 @@ const SHARED = n => `Hydrawise hat in den letzten 24 Stunden ${n}-mal gebremst (
 /** 429 der letzten 24 Std. (für den Hinweis in der Verwaltung) */
 const hwHits = () => { let a = []; try { a = JSON.parse(getSetting('ext_beregnung_hw_429', '[]')); } catch (e) { a = []; } return (Array.isArray(a) ? a : []).filter(t => Date.now() - t < 86400000); };
 async function hwCall(endpoint, params = {}, kind = 'read') {
-  const key = getSetting('ext_beregnung_hw_key', '');
+  // Schlüssel im Tresor (ctx.geheim): nach einem Neustart verschlossen, bis sich ein Admin anmeldet – Stopps bleiben gespeichert und werden dann nachgeholt
+  if (H.geheim.locked('hw_key')) throw new Error('Der Tresor ist seit dem Neustart gesperrt – der Hydrawise-API-Key ist verschlossen, bis sich ein Admin anmeldet.');
+  const key = H.geheim.get('hw_key', '');
   if (!key) throw new Error('Kein Hydrawise-API-Key eingetragen.');
   const w = hwWait(kind);
   if (w > 0) throw rateErr(w);
@@ -686,6 +688,8 @@ function activate(ctx) {
   ({ db, getSetting, setSetting, audit, auth } = ctx);
   express = ctx.require('express');
   H = ctx;
+  ctx.geheim.melden('hw_key', 'Hydrawise-API-Key');
+  require('../../src/vault').onUnlock(() => { if (pendingStop()) flushStops().catch(e => console.error('Beregnung: Stopp nach dem Entsperren:', e.message)); });
   createTables();
   const { need, bad, cleanName } = ctx;
   // Sicherheitswarnungen („Sicherheit & Betrieb“, Einstellungen › Sicherheit)
@@ -744,7 +748,7 @@ function activate(ctx) {
     cache.at = 0;
     const zones = out.plaetze.reduce((a, p) => a + p.zones.length, 0);
     const hints = [];
-    if (out.backend === 'hydrawise' && !getSetting('ext_beregnung_hw_key', '')) hints.push('Hydrawise-API-Key noch eintragen');
+    if (out.backend === 'hydrawise' && !H.geheim.has('hw_key')) hints.push('Hydrawise-API-Key noch eintragen');
     if (out.mode === 'pin' && !getSetting('ext_beregnung_pin_hash', '')) hints.push('Vereins-PIN noch festlegen');
     return `${out.plaetze.length} Plätze mit ${zones} Zonen, ${vendorOf(out).name}${hints.length ? ' – ' + hints.join(', ') : ''}`;
   };
@@ -785,7 +789,7 @@ function activate(ctx) {
     // ohne „alle Rechte“: nur Ventile der Hersteller-Integration – nennt Home Assistant sie nicht (oder „Anderer Hersteller“), keine
     const full = G.full(req.user), restricted = !full && cfg().backend === 'ha' && !filtered && list.length > 0;
     if (restricted) list = [];
-    res.json({ cfg: cfg(), vendors: VENDORS.map(({ id, name, backend, setup, integration }) => ({ id, name, backend, setup, free: backend === 'ha' && !integration })), filtered: Boolean(list.length) && filtered, full, restricted, hasKey: Boolean(getSetting('ext_beregnung_hw_key', '')), hasPin: Boolean(getSetting('ext_beregnung_pin_hash', '')),
+    res.json({ cfg: cfg(), vendors: VENDORS.map(({ id, name, backend, setup, integration }) => ({ id, name, backend, setup, free: backend === 'ha' && !integration })), filtered: Boolean(list.length) && filtered, full, restricted, hasKey: H.geheim.has('hw_key'), keyLocked: H.geheim.locked('hw_key'), hasPin: Boolean(getSetting('ext_beregnung_pin_hash', '')),
       haAvailable: ha.available(), port: parseInt(process.env.BEREGNUNG_PORT || '5000', 10) || null, list, sensors, error });
   });
   // Geräte neu zuordnen nur mit eigenem Passwort (src/geraete.js) – falsche Versuche je Benutzer gebremst
@@ -816,7 +820,7 @@ function activate(ctx) {
   admin.put('/key', need('beregnung'), (req, res) => {
     const key = String((req.body || {}).key || '').trim();
     if (key && !/^[A-Za-z0-9-]{8,64}$/.test(key)) return bad(res, 'Das sieht nicht wie ein Hydrawise-API-Key aus.');
-    setSetting('ext_beregnung_hw_key', key);
+    H.geheim.set('hw_key', key);
     cache.at = 0;
     audit(req.user, key ? 'Beregnung: Hydrawise-API-Key gespeichert' : 'Beregnung: Hydrawise-API-Key gelöscht', '');
     res.json({ ok: true });

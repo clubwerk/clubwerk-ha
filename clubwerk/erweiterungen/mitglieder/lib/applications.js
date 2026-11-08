@@ -227,7 +227,11 @@ function register(sh) {
     res.json(v);
   });
   const newCode = () => String(crypto.randomInt(100000, 1000000));
-  const codeHash = c => crypto.createHash('sha256').update('mvcode:' + c).digest('hex');
+  /* Code zur Unterschrift am Tablet (6 Ziffern, 3 Std.): gesalzen (scrypt) wie PINs – ein heller sha256 ließe sich aus einer
+     Datenbank-Kopie sofort zurückrechnen. Nachschlagen: die wenigen wartenden Anträge der Reihe nach prüfen. (planung/geheimnisse.md) */
+  const codeHash = c => C.auth.hashSecret('mvcode:' + c);
+  const appByCode = code => db.prepare("SELECT * FROM mv_application WHERE status = 'unterschrift' AND code_hash IS NOT NULL AND code_expires > ? ORDER BY id DESC LIMIT 200").all(Date.now())
+    .find(a => C.auth.verifySecret('mvcode:' + code, a.code_hash)) || null;
   admin.post('/applications', P, (req, res) => {
     const b = req.body || {};
     const r = validate(b.data, { needBank: true }); if (r.error) return bad(res, r.error);
@@ -319,7 +323,7 @@ function register(sh) {
     const w = Math.max(tFails.blocked(ip), tAll.blocked('*'));
     if (w) { bad(res, `Zu viele falsche Codes – bitte ${w} Min. warten.`, 429); return null; }
     const code = String((req.body || {}).code || '').replace(/\D/g, '');
-    const a = code.length === 6 ? db.prepare("SELECT * FROM mv_application WHERE status = 'unterschrift' AND code_hash = ? AND code_expires > ?").get(codeHash(code), Date.now()) : null;
+    const a = code.length === 6 ? appByCode(code) : null;
     if (!a) { tFails.fail(ip); if (tAll.fail('*').locked) C.securityAlert('antragscode', 'Beitrittserklärung am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.'); bad(res, 'Der Code stimmt nicht oder ist abgelaufen.', 404); return null; }
     tFails.ok(ip);
     return a;

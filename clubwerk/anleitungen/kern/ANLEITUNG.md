@@ -336,9 +336,9 @@ Jede Nacht entsteht eine **verschlüsselte Komplettsicherung** mit allem, was Cl
 
 ![Karte „Verschlüsselung der persönlichen Daten“ (Tresor).](bild: seite=sicherung; ziel=#vaultCard)
 
-Der **Tresor** speichert Adressen, Bankdaten, Geburtsdaten, Dokumente, Fotos und ähnliches nur verschlüsselt. Namen, Konten und Buchungen bleiben lesbar, damit der Betrieb nach einem Neustart sofort läuft. Aufklappbar steht, was genau geschützt wird.
+Der **Tresor** speichert Adressen, Bankdaten, Geburtsdaten, Dokumente, Fotos und ähnliches nur verschlüsselt – dazu die Zugangsdaten, mit denen Clubwerk bei anderen Diensten anklopft (Postfach-Passwort, Dropbox und die anderen Sicherungsziele, Hydrawise, Schlüssel der Datensicherung). Namen, Konten und Buchungen bleiben lesbar, damit der Betrieb nach einem Neustart sofort läuft. Aufklappbar steht, was genau geschützt wird.
 - **Verschlüsselung einschalten:** Passwort eingeben, dann zeigt Clubwerk einmalig den **Wiederherstellungscode**. Druckt **zwei Blätter** (eins für den Vorsitz, eins für den Kassenwart), bewahrt sie verschlossen und nicht im Vereinsheim auf. Zur Probe tippt ihr danach einige Zeichen des Codes ab.
-- **Nach einem Neustart** sind die Daten verschlossen, bis sich ein Admin anmeldet. Ist das nicht möglich, öffnet der Wiederherstellungscode mit eurem Passwort sie. Bis dahin laufen Tablet, Buchungen, Türen und Beregnung weiter, E-Mails warten.
+- **Nach einem Neustart** sind die Daten verschlossen, bis sich ein Admin anmeldet. Ist das nicht möglich, öffnet der Wiederherstellungscode mit eurem Passwort sie. Bis dahin laufen Tablet, Buchungen und Türen weiter. **E-Mails, die Datensicherung und die Beregnung über Hydrawise warten** – die Übersicht zeigt dann „Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.“ Sobald sich ein Admin mit Schlüssel anmeldet, gehen die E-Mails raus und die Sicherung des Tages läuft sofort nach. Ist bis zur Uhrzeit der Sicherung niemand angemeldet, kommt einmal am Tag die Sicherheitswarnung „Tresor gesperrt – Sicherung wartet“.
 - **Neuen Wiederherstellungscode erzeugen** (zum Beispiel beim Vorstandswechsel; der alte gilt dann nicht mehr) und **Verschlüsselung ausschalten** brauchen euer Passwort.
 
 #### Jetzt

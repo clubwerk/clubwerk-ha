@@ -336,9 +336,9 @@ Every night an **encrypted full backup** is created with everything Clubwerk con
 
 ![Card “Encryption of personal data” (vault).](bild: seite=sicherung; ziel=#vaultCard)
 
-The **vault** stores addresses, bank details, birth dates, documents, photos and the like only in encrypted form. Names, accounts and bookings stay readable so that operation continues at once after a restart. A collapsible section lists exactly what is protected.
+The **vault** stores addresses, bank details, birth dates, documents, photos and the like only in encrypted form – together with the credentials Clubwerk uses to reach other services (mailbox password, Dropbox and the other backup targets, Hydrawise, the backup key). Names, accounts and bookings stay readable so that operation continues at once after a restart. A collapsible section lists exactly what is protected.
 - **Switch on encryption:** enter your password, then Clubwerk shows the **recovery code** once. Print **two sheets** (one for the chair, one for the treasurer) and keep them sealed, not in the clubhouse. As a check you then type a few characters of the code.
-- **After a restart** the data is locked until an admin logs in. If that is not possible, the recovery code with your password opens it. Until then tablet, bookings, doors and irrigation keep running; emails wait.
+- **After a restart** the data is locked until an admin logs in. If that is not possible, the recovery code with your password opens it. Until then tablet, bookings and doors keep running. **Emails, the data backup and irrigation via Hydrawise wait** – the overview then shows “Vault locked – backup and emails are waiting, please sign in.” As soon as an admin with a key signs in, the emails go out and the day’s backup runs at once. If nobody has signed in by the backup time, the security warning “Vault locked – backup waiting” arrives once a day.
 - **Create new recovery code** (for example when the board changes; the old one then no longer works) and **Switch off encryption** need your password.
 
 #### Now

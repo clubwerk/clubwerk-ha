@@ -43,6 +43,7 @@ const CORE = {
   'notfall': ['Notfall-Passwort gesetzt', 'r', 'Das Notfall-Passwort wurde gesetzt.'],
   'tresor.aus': ['Tresor ausgeschaltet', 'r', 'Die Verschlüsselung der persönlichen Daten wurde ausgeschaltet.'],
   'tresor.code': ['Tresor mit Wiederherstellungscode', 'r', 'Der Tresor wurde mit dem Wiederherstellungscode geöffnet oder ein falscher Code eingegeben.'],
+  'tresor.wartet': ['Tresor gesperrt – Sicherung wartet', 'r', 'Clubwerk wurde neu gestartet: Sicherung und E-Mails warten, bis sich ein Admin anmeldet.'],
   'tresor.neu': ['Neuer Wiederherstellungscode', 'i', 'Ein neuer Wiederherstellungscode wurde erzeugt.'],
   'sicherung.ziel': ['Sicherungsziel geändert', 'r', 'Ein Ziel der Datensicherung wurde geändert.'],
   'sicherung.passwort': ['Sicherungspasswort geändert', 'a', 'Das Sicherungspasswort wurde geändert.'],

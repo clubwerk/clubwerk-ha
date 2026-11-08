@@ -4,6 +4,7 @@
 const { getSetting, setSetting } = require('./db');
 
 const K = k => 'mail_smtp_' + k;
+const geheim = () => require('./geheim');
 // Einmalig: Postfach aus der Zeiterfassung (bis 2.4) übernehmen
 (function migrate() {
   if (getSetting(K('host'), '') || !getSetting('ext_zeiterfassung_smtp_host', '')) return;
@@ -18,13 +19,14 @@ const K = k => 'mail_smtp_' + k;
 function config() {
   const g = (k, env) => getSetting(K(k), '') || process.env[env] || '';
   const user = g('user', 'SMTP_USER');
-  return { host: g('host', 'SMTP_HOST'), port: Number(g('port', 'SMTP_PORT')) || 587, user, pass: g('pass', 'SMTP_PASS'), from: g('from', 'SMTP_FROM') || user };
+  // Passwort liegt im Tresor (src/geheim.js) – gesperrt nach einem Neustart: Mails warten (parked)
+  return { host: g('host', 'SMTP_HOST'), port: Number(g('port', 'SMTP_PORT')) || 587, user, pass: geheim().get(K('pass'), '') || process.env.SMTP_PASS || '', from: g('from', 'SMTP_FROM') || user };
 }
 const ready = () => { const s = config(); return Boolean(s.host && s.from); };
 const validMails = v => String(v || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
 const mailOk = v => validMails(v).length > 0 && validMails(v).every(m => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m));
 /** Für die Verwaltung: ohne Passwort */
-const publicConfig = () => { const s = config(); return { host: s.host, port: s.port, user: s.user, from: s.from, hasPass: Boolean(s.pass), ready: ready() }; };
+const publicConfig = () => { const s = config(); return { host: s.host, port: s.port, user: s.user, from: s.from, hasPass: Boolean(s.pass) || geheim().has(K('pass')), passLocked: geheim().locked(K('pass')), ready: ready() }; };
 
 function save(b) {
   const host = String(b.host || '').trim(), from = String(b.from || '').trim(), user = String(b.user || '').trim();
@@ -33,8 +35,8 @@ function save(b) {
   if (port < 1 || port > 65535) throw new Error('Ungültiger Port.');
   if (from && !mailOk(from)) throw new Error('Absender bitte als E-Mail-Adresse.');
   for (const [k, v] of [['host', host], ['port', String(port)], ['user', user.slice(0, 200)], ['from', from]]) setSetting(K(k), v);
-  if (b.pass !== undefined && b.pass !== '') setSetting(K('pass'), String(b.pass).slice(0, 300));
-  if (b.clearPass) setSetting(K('pass'), '');
+  if (b.pass !== undefined && b.pass !== '') geheim().set(K('pass'), String(b.pass).slice(0, 300));
+  if (b.clearPass) geheim().drop(K('pass'));
   return `${host}:${port}${user ? ' · ' + user : ''}`;
 }
 
@@ -74,11 +76,12 @@ function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fr
 
 /** send({ to, cc, replyTo, subject, text, html, attachments, fromName, raw, card }) – card = { before, title, rows: [[k, v]], after, button } für die Infokarte im HTML */
 /* Tresor gesperrt (nach einem Neustart, bis sich ein Admin anmeldet): Die Adressen der Mitglieder sind dann Platzhalter
-   (gesperrt-<id>@clubwerk.invalid). Solche Mails warten verschlüsselt und gehen nach dem Entsperren raus. */
+   (gesperrt-<id>@clubwerk.invalid), und das Postfach-Passwort liegt ebenfalls im Tresor. Solche Mails warten verschlüsselt
+   und gehen nach dem Entsperren raus – ohne Postfach-Passwort (z. B. Weiterleitung im eigenen Netz) nur die mit Platzhaltern. */
 function parked(o) {
   const vault = require('./vault');
-  if (!vault.on() || !(vault.hasPlaceholder(o.to) || vault.hasPlaceholder(o.cc) || vault.hasPlaceholder(o.bcc))) return false;
-  if (!vault.locked()) return false;
+  if (!vault.on() || !vault.locked()) return false;
+  if (!geheim().locked(K('pass')) && !(vault.hasPlaceholder(o.to) || vault.hasPlaceholder(o.cc) || vault.hasPlaceholder(o.bcc))) return false;
   vault.queueMail(o);
   return true;
 }

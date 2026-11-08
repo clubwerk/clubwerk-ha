@@ -23,10 +23,13 @@ const vault = () => require('./vault');
 const encCols = t => new Set(((vault().SPEC.find(x => x.t === t) || {}).c) || []);
 const stripSecrets = rows => rows.map(r => Object.fromEntries(Object.entries(r).filter(([k]) => !SECRET_COL_RE.test(k))));
 /* Jede Sicherung wird mit einem Schlüssel unterschrieben, den nur dieses System kennt. Eingespielt werden nur
-   unveränderte Sicherungen dieses Systems – eine selbst gebaute oder bearbeitete Datei wird abgelehnt. */
+   unveränderte Sicherungen dieses Systems – eine selbst gebaute oder bearbeitete Datei wird abgelehnt.
+   Der Schlüssel liegt im Tresor (src/geheim.js): Sicherungen entstehen nur auf Knopfdruck, also mit angemeldetem Admin. */
 function signKey() {
-  let k = getSetting('module_backup_secret', '');
-  if (!/^[0-9a-f]{64}$/.test(k)) { k = crypto.randomBytes(32).toString('hex'); setSetting('module_backup_secret', k); }
+  const geheim = require('./geheim');
+  if (geheim.locked('module_backup_secret')) throw Object.assign(new Error('Der Tresor ist seit dem Neustart gesperrt – Modul-Sicherungen gehen erst, wenn sich ein Admin mit Schlüssel angemeldet hat.'), { vaultLocked: true, status: 423 });
+  let k = geheim.get('module_backup_secret', '');
+  if (!/^[0-9a-f]{64}$/.test(k)) { k = crypto.randomBytes(32).toString('hex'); geheim.set('module_backup_secret', k); }
   return k;
 }
 const sign = text => crypto.createHmac('sha256', signKey()).update(text).digest('hex');

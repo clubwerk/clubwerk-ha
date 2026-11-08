@@ -15,6 +15,7 @@ const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f
 const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
 const WD = ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'];
 const wd = d => WD[new Date(d + 'T12:00:00Z').getUTCDay()];
+const tokH = t => crypto.createHash('sha256').update('sp:' + String(t)).digest('hex');   // Gast-Link nachschlagen (der Link selbst liegt im Tresor)
 const DEFAULT_TASKS = [
   { k: 'fahrer', l: 'Fahrer', when: 'auswaerts' },
   { k: 'bewirtung', l: 'Bewirtung', when: 'heim' },
@@ -71,6 +72,12 @@ CREATE TABLE IF NOT EXISTS sp_extern (
   if (!has('sp_team', 'age_class')) db.exec('ALTER TABLE sp_team ADD COLUMN age_class TEXT');
   if (!has('sp_game', 'kind')) db.exec("ALTER TABLE sp_game ADD COLUMN kind TEXT NOT NULL DEFAULT 'spiel'");   // spiel | rahmen (vorläufig)
   if (!has('sp_extern', 'token_at')) { db.exec('ALTER TABLE sp_extern ADD COLUMN token_at TEXT'); db.exec('UPDATE sp_extern SET token_at = created_at'); }   // 3.29: Links verfallen
+  // 2026.11: Der Link (token) liegt im Tresor (vault.SPEC) – nachgeschlagen wird über seinen Hash (planung/geheimnisse.md)
+  if (!has('sp_extern', 'token_h')) {
+    db.exec('ALTER TABLE sp_extern ADD COLUMN token_h TEXT');
+    for (const r of db.prepare('SELECT member_id, token FROM main.sp_extern').all()) if (r.token && !/^(e1|p1):/.test(r.token)) db.prepare('UPDATE main.sp_extern SET token_h = ? WHERE member_id = ?').run(tokH(r.token), r.member_id);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS main.ux_sp_extern_token_h ON sp_extern(token_h)');
   if (!has('sp_game', 'za')) db.exec('ALTER TABLE sp_game ADD COLUMN za INTEGER NOT NULL DEFAULT 0');           // Zusatz-/Ausweichtermin
   if (!has('sp_game', 'released')) db.exec('ALTER TABLE sp_game ADD COLUMN released INTEGER NOT NULL DEFAULT 1'); // in der App sichtbar
 }
@@ -113,7 +120,7 @@ function activate(ctx) {
   /* ---------- Gastspieler/innen ---------- */
   const extRow = id => db.prepare('SELECT * FROM sp_extern WHERE member_id = ?').get(int(id));
   const extIds = () => new Set(db.prepare('SELECT member_id FROM sp_extern').all().map(r => r.member_id));
-  const newToken = () => crypto.randomBytes(18).toString('base64url');
+  const newToken = () => crypto.randomBytes(18).toString('base64url');   // 144 Bit Zufall – zum Nachschlagen genügt sha256 (tokH)
   const normPhone = s => String(s || '').replace(/[^\d+ /()-]/g, '').trim().slice(0, 30) || null;
   function makeExtern(b, by) {
     const first = txt(b.first_name, 40), last = txt(b.last_name, 40);
@@ -121,7 +128,7 @@ function activate(ctx) {
     if (name.length < 3 || !/\s/.test(name.trim())) throw new Error('Bitte Vor- und Nachnamen eintragen.');
     const sp = splitPersonName(name);
     const id = Number(db.prepare("INSERT INTO members(name, kind, first_name, last_name, active) VALUES (?, 'extern', ?, ?, 1)").run(name, first || sp.first || null, last || sp.last || null).lastInsertRowid);
-    db.prepare("INSERT INTO sp_extern(member_id, phone, club, token, created_by, token_at) VALUES (?,?,?,?,?,datetime('now','localtime'))").run(id, normPhone(b.phone), txt(b.club, 60) || null, newToken(), by);
+    { const t = newToken(); db.prepare("INSERT INTO sp_extern(member_id, phone, club, token, token_h, created_by, token_at) VALUES (?,?,?,?,?,?,datetime('now','localtime'))").run(id, normPhone(b.phone), txt(b.club, 60) || null, t, tokH(t), by); }
     return id;
   }
   /** öffentliche Adresse für den persönlichen Link (von unterwegs über den Tunnel, sonst die Adresse im Vereins-WLAN) */
@@ -134,11 +141,11 @@ function activate(ctx) {
   const LINK_DAYS = 365;
   const inActiveTeam = id => Boolean(db.prepare('SELECT 1 FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? AND t.active = 1').get(int(id)));
   const linkAged = e => Boolean(db.prepare(`SELECT 1 WHERE COALESCE(?, ?, ?) < datetime('now','localtime','-${LINK_DAYS} days')`).get(e.last_seen, e.token_at, e.created_at));
-  const renewToken = id => db.prepare("UPDATE sp_extern SET token = ?, token_at = datetime('now','localtime'), last_seen = NULL WHERE member_id = ?").run(newToken(), int(id));
+  const renewToken = id => { const t = newToken(); db.prepare("UPDATE sp_extern SET token = ?, token_h = ?, token_at = datetime('now','localtime'), last_seen = NULL WHERE member_id = ?").run(t, tokH(t), int(id)); };
   const guestLink = id => {
     let e = extRow(id); const b = linkBase(); if (!e || !b) return null;
     if (linkAged(e)) { renewToken(id); e = extRow(id); }
-    return `${b}/p/spielbetrieb/#t=${e.token}`;
+    return e.token ? `${b}/p/spielbetrieb/#t=${e.token}` : null;   // Tresor gesperrt: Link erst nach dem Entsperren lesbar
   };
   const extView = id => { const e = extRow(id); return e ? { phone: e.phone, club: e.club, link: guestLink(id), last_seen: e.last_seen } : null; };
   function addToTeam(teamId, memberId) {
@@ -259,7 +266,7 @@ function activate(ctx) {
   }
   /* ---------- Persönlicher Link für Gastspieler/innen (ohne App, ohne PIN): /p/spielbetrieb/#t=<token> ---------- */
   const guestByToken = tok => {
-    const e = typeof tok === 'string' && /^[A-Za-z0-9_-]{20,40}$/.test(tok) ? db.prepare("SELECT e.*, m.name FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE e.token = ? AND m.deleted = 0").get(tok) : null;
+    const e = typeof tok === 'string' && /^[A-Za-z0-9_-]{20,40}$/.test(tok) ? db.prepare("SELECT e.*, m.name FROM sp_extern e JOIN members m ON m.id = e.member_id WHERE e.token_h = ? AND m.deleted = 0").get(tokH(tok)) : null;
     return e && !linkAged(e) && inActiveTeam(e.member_id) ? e : null;   // abgelaufen oder in keiner Mannschaft mehr: Link gilt nicht
   };
   function guestView(e) {
@@ -784,7 +791,7 @@ function activate(ctx) {
   const extViewPre = (id, x) => {
     const e = x.ext.get(id); if (!e) return null;
     if (x.base && x.aged.has(id)) return extView(id);
-    return { phone: e.phone, club: e.club, link: x.base ? `${x.base}/p/spielbetrieb/#t=${e.token}` : null, last_seen: e.last_seen };
+    return { phone: e.phone, club: e.club, link: x.base && e.token ? `${x.base}/p/spielbetrieb/#t=${e.token}` : null, last_seen: e.last_seen };
   };
   const teamRow = (t, x = teamPre([t])) => ({ ...t, need: needOf(t), captain: t.captain_id ? lf(x.names.get(t.captain_id) || '') : null, vice: t.vice_id ? lf(x.names.get(t.vice_id) || '') : null,
     players: (x.ros.get(t.id) || []).map(r => { const e = extViewPre(r.member_id, x); return { id: r.member_id, ln: lf(r.name), rank: r.rank, ext: Boolean(e), ...(e ? {} : factsOf(x.facts, r.member_id)), ...(e ? { phone: e.phone, club: e.club, link: e.link, last_seen: e.last_seen } : {}) }; }) });

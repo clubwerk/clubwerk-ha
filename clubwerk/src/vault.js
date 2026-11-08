@@ -55,7 +55,7 @@ const SPEC = [
   { t: 'mv_collection', k: 'id', c: ['xml'] },
   { t: 'mail_recipient', k: 'id', c: ['email'] },
   { t: 'bh_partner', k: 'id', c: ['contact', 'street', 'zip', 'city', 'email', 'phone', 'note'] },
-  { t: 'sp_extern', k: 'member_id', c: ['phone'] },        // Gastspieler/innen (Spielbetrieb)
+  { t: 'sp_extern', k: 'member_id', c: ['phone', 'token'] },   // Gastspieler/innen (Spielbetrieb); Gast-Link: Nachschlagen über token_h
   { t: 'aw_extern', k: 'id', c: ['note'] },                // externe Helfer (Arbeitsdienst)
   { t: 'bh_invoice', k: 'id', c: ['recipient'] },
   { t: 'bh_donation', k: 'id', c: ['donor'] },
@@ -63,6 +63,8 @@ const SPEC = [
   { t: 'bank_match', k: 'id', c: ['label'] },
   { t: 'sl_issue', k: 'id', c: ['contact', 'ext_first', 'ext_last', 'ext_birth', 'guardian_name'] },   // Schlüssel: Person ohne Konto (Name, Kontakt)
   { t: 'sl_protocol', k: 'id', c: ['sig_a', 'sig_b', 'sig_c'] },                          // Schlüssel: Unterschriften
+  { t: 'geheimnisse', k: 'name', c: ['value'] },   // Zugangsdaten fremder Dienste, Sicherungsschlüssel (src/geheim.js, planung/geheimnisse.md)
+  { t: 'tu_person', k: 'id', c: ['token'] },          // Spielerseite LK-Turnier: Nachschlagen über token_h
 ];
 const FILE_DIRS = ['mitglieder-dokumente', 'fotos', 'mail-anhaenge', 'belege/buchhaltung', 'belege/schluessel'];   // belege/buchhaltung: eingefrorene Rechnungen und Spendenquittungen (GoBD) mit Anschriften
 const PLACEHOLDER_RE = /^gesperrt-(\d+)@clubwerk\.invalid$/i;
@@ -454,7 +456,7 @@ function disable() {
 function status(userId) {
   return { on: on(), locked: locked(), since: getSetting('vault_since', '') || null, codeAt: getSetting('vault_code_at', '') || getSetting('vault_since', '') || null,
     mine: userId ? Boolean(db.prepare('SELECT 1 FROM vault_wrap WHERE user_id = ?').get(userId)) : false,
-    waitingMails: db.prepare('SELECT COUNT(*) n FROM vault_mail').get().n };
+    waitingMails: db.prepare('SELECT COUNT(*) n FROM vault_mail').get().n, wartet: [...new Set(require('./geheim').wartet().map(x => x.label))] };
 }
 /** Felder, die erst mit einer neueren Version in die Liste kamen (oder Module, die später eingeschaltet wurden): beim Start nachverschlüsseln */
 function upgradeSpec() {
@@ -466,7 +468,10 @@ function upgradeSpec() {
   return n;
 }
 /** beim Start: Kopie (gesperrt) anlegen – nachdem alle Module ihre Tabellen angelegt haben */
-function start() { ON = getSetting('vault_on', '0') === '1'; if (ON) { pubKey(); try { upgradeSpec(); } catch (e) { console.error('Tresor – Nachverschlüsseln:', e.message); } rebuild(); } try { resumeJob(); } catch (e) { console.error('Tresor – unterbrochener Lauf:', e.message); } }
+function start() {
+  ON = getSetting('vault_on', '0') === '1'; if (ON) pubKey();
+  try { if (require('./geheim').umziehen() && ON) { compact(); db.pragma('secure_delete = OFF'); } } catch (e) { console.error('Geheimnisse – Umzug:', e.message); }
+  if (ON) { try { upgradeSpec(); } catch (e) { console.error('Tresor – Nachverschlüsseln:', e.message); } rebuild(); } try { resumeJob(); } catch (e) { console.error('Tresor – unterbrochener Lauf:', e.message); } }
 
 /* ---------- Mail-Warteschlange (Platzhalter-Adressen im gesperrten Zustand) ---------- */
 const hasPlaceholder = v => (Array.isArray(v) ? v : String(v || '').split(/[,;]\s*/)).some(x => PLACEHOLDER_RE.test(String(x).trim()));

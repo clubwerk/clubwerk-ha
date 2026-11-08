@@ -10,6 +10,6 @@ Unterstützt wird nur die jeweils neueste Version (siehe `PRUEFSUMMEN.md`).
 
 - **Lokal zuerst.** Clubwerk läuft als Home-Assistant-Add-on im Vereinsnetz und braucht kein Internet. Von außen erreichbar ist höchstens die Mitglieder-App, wenn der Verein das ausdrücklich einrichtet (z. B. per Tunnel). Verwaltung, Tablet und Beregnung sind nur aus dem Vereinsnetz erreichbar.
 - **Verschlüsselt gespeichert.** Persönliche Daten (Adressen, Kontakt-, Geburts- und Bankdaten, Dokumente, Fotos) liegen auf der Festplatte nur verschlüsselt. Komplettsicherungen sind immer verschlüsselt. Passwörter und PINs werden nur als Hash gespeichert.
-- **Keine Geheimnisse in Exporten.** Exporte und Sicherungen enthalten keine PINs, Passwörter oder Schlüssel.
+- **Keine Geheimnisse in Exporten.** Exporte enthalten keine PINs, Passwörter oder Schlüssel. Passwörter und PINs werden nur als gesalzener Hash gespeichert; Zugangsdaten zu fremden Diensten (Postfach, Sicherungsziele, Steuerungen) liegen verschlüsselt im Tresor – auch in Schnappschüssen und Sicherungen.
 - **Prüfbare Pakete.** Jede Version hat eine Prüfsumme in `PRUEFSUMMEN.md`. Die Verwaltung zeigt sie beim Update zum Vergleich an.
 - In diesem Repository liegen keine Passwörter oder Vereinsdaten.

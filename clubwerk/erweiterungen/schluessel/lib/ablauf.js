@@ -113,7 +113,10 @@ function register(sh) {
     })();
     return { id, code, minor };
   }
-  const codeHash = c => crypto.createHash('sha256').update('slcode:' + c).digest('hex');
+  /* Code für die Unterschrift am Tablet (6 Ziffern, 3 Std.): gesalzen (scrypt) wie PINs, Nachschlagen über die wenigen wartenden Ausgaben (planung/geheimnisse.md) */
+  const codeHash = c => ctx.auth.hashSecret('slcode:' + c);
+  const issueByCode = code => db.prepare("SELECT * FROM sl_issue WHERE status = 'wartet' AND code_hash IS NOT NULL AND code_expires > ? ORDER BY id DESC LIMIT 200").all(Date.now())
+    .find(i => ctx.auth.verifySecret('slcode:' + code, i.code_hash)) || null;
   function release(id) {   // Reservierung aufheben (Fehler oder Abbruch)
     db.prepare("UPDATE sl_piece SET status = 'vorraetig' WHERE status = 'reserviert' AND id IN (SELECT piece_id FROM sl_issue_piece WHERE issue_id = ?)").run(id);
     db.prepare('DELETE FROM sl_issue_piece WHERE issue_id = ?').run(id);
@@ -336,7 +339,7 @@ function register(sh) {
     const ip = req.ip || '?', w = Math.max(tFails.blocked(ip), tAll.blocked('*'));
     if (w) { bad(res, `Zu viele falsche Codes – bitte ${w} Min. warten.`, 429); return null; }
     const code = String((req.body || {}).code || '').replace(/\D/g, '');
-    const i = code.length === 6 ? db.prepare("SELECT * FROM sl_issue WHERE status = 'wartet' AND code_hash = ? AND code_expires > ?").get(codeHash(code), Date.now()) : null;
+    const i = code.length === 6 ? issueByCode(code) : null;
     if (!i) {
       if (tFails.fail(ip).locked) ctx.securityAlert('code', 'Schlüsselübergabe am Tablet: 8-mal ein falscher Code – dieses Tablet ist für die Code-Eingabe vorübergehend gesperrt.', { key: 'tablet' });
       if (tAll.fail('*').locked) ctx.securityAlert('code_alle', 'Schlüsselübergabe am Tablet: 30-mal ein falscher Code – die Code-Eingabe ist für alle Tablets gesperrt.', { key: 'alle' });

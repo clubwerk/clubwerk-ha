@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2026.11.29
+
+**Zugangsdaten liegen jetzt im Tresor (Frage Thorsten 08.11.2026: „Sind alle Passwörter und Pins in der DB gehasht?“)**
+- Passwörter und PINs von Menschen waren schon immer nur als gesalzener Hash gespeichert. Lesbar in der Datenbank standen aber die Zugangsdaten, mit denen Clubwerk selbst bei anderen Diensten anklopft: Postfach-Passwort, Dropbox, die Zugänge zu NAS, Cloud und Google Drive, der Hydrawise-Schlüssel und der Schlüssel der Datensicherung – und damit auch in jedem Schnappschuss. Die liegen jetzt verschlüsselt im Tresor, genau wie Adressen und Bankdaten.
+- Folge (so gewollt): Nach einem Neustart warten Datensicherung, E-Mails und Hydrawise, bis sich ein Admin mit Schlüssel anmeldet oder den Wiederherstellungscode eingibt. In der Übersicht steht dann „Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.“ Wartende E-Mails gehen nach dem Anmelden raus, die Sicherung des Tages läuft sofort nach, gespeicherte Stopps der Beregnung werden gesendet. Ist um die Uhrzeit der Sicherung noch niemand angemeldet, kommt einmal am Tag die Sicherheitswarnung „Tresor gesperrt – Sicherung wartet“ (auch per Push).
+- Bestehende Installationen werden beim ersten Start von selbst umgestellt; ältere Schnappschüsse im Sicherungsordner werden dabei bereinigt, und die Datenbankdatei wird aufgeräumt, damit keine alten Werte darin stehen bleiben.
+- Kurze Codes (Unterschrift der Beitrittserklärung und der Schlüsselübergabe am Tablet, SMS-Code der App) sind jetzt gesalzen gespeichert; ein Code, der gerade beim Update offen war, muss neu erzeugt werden. Gast-Links im Spielbetrieb und Spielerseiten im LK-Turnier stehen verschlossen im Tresor; die bestehenden Links gelten weiter.
+- Achtung beim Zurückgehen auf eine ältere Version: Die findet die Zugangsdaten nicht mehr – Postfach, Dropbox, Sicherungsziele und Hydrawise müssten neu eingetragen werden (oder den Schnappschuss von vor dem Update zurückspielen).
+- Für Entwickler: neuer Baustein `src/geheim.js` bzw. `ctx.geheim`, neue Prüfregel `geheimnis-klartext`, Testreihe `geheim`. Beregnung 1.16.2, Mitglieder 1.39.2, Schlüssel 1.0.1, Spielbetrieb 1.24.2, Turniere 1.11.3.
+
 ## 2026.11.28
 
 **Fehler am iPhone: Datei im Reiter „Dokumente“ ausgewählt – danach passierte nichts (Fehler Thorsten 07.11.2026)**

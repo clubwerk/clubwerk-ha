@@ -33,6 +33,7 @@ const invoices = require('./invoices');
 const dropbox = require('./dropbox');
 const fullbackup = require('./fullbackup');
 const targets = require('./targets');
+const geheim = require('./geheim');
 const selfupdate = require('./selfupdate');
 const APP_VERSION = require('../package.json').version;
 const { buildWorkbook } = require('./export');
@@ -3008,18 +3009,23 @@ admin.get('/export.xlsx', need('abrechnung', 'export'), asyncRoute(async (req, r
 }));
 
 /* ---------- Dropbox: täglicher Export (alle Rechte) ---------- */
-const dbxCfg = () => ({ appKey: getSetting('dropbox_app_key', ''), appSecret: getSetting('dropbox_app_secret', ''),
-  refresh: getSetting('dropbox_refresh', ''), folder: getSetting('dropbox_folder', '/Clubwerk'),
-  enabled: getSetting('dropbox_enabled', '1') === '1' });
-const dbxReady = c => Boolean(c.appKey && c.appSecret && c.refresh);
+/* App secret und Verbindung (Refresh-Token) liegen im Tresor (src/geheim.js) – „eingerichtet“ gilt auch, solange er gesperrt ist */
+const dbxCfg = () => ({ appKey: getSetting('dropbox_app_key', ''), appSecret: geheim.get('dropbox_app_secret', ''),
+  refresh: geheim.get('dropbox_refresh', ''), folder: getSetting('dropbox_folder', '/Clubwerk'),
+  enabled: getSetting('dropbox_enabled', '1') === '1', hasSecret: geheim.has('dropbox_app_secret'), hasRefresh: geheim.has('dropbox_refresh') });
+const dbxReady = c => Boolean(c.appKey && c.hasSecret && c.hasRefresh);
 /* ---------- Datensicherung (Kern, unabhängig von den Modulen) ----------
    Jede Nacht: verschlüsselte Komplettsicherung (Datenbank aller Module, Belege, Bilder, Erweiterungen) – lokal die
    letzten 3, in Dropbox nach Generationen (täglich/wöchentlich/monatlich). Optional lesbare Auszüge der Module (Excel).
    Monatlich eine Probe-Wiederherstellung, die prüft, ob sich die letzte Sicherung vollständig entschlüsseln lässt. */
 const KOMPLETT_DIR = path.join(backup.BACKUP_DIR, 'komplett');
 const INCOMING_DIR = path.join(DATA_DIR, '.sicherung-eingang');
-const bkKey = () => ({ key: getSetting('backup_enc_key', ''), kdf: (() => { try { return JSON.parse(getSetting('backup_kdf', '')); } catch (e) { return null; } })() });
-const bkHasKey = () => Boolean(getSetting('backup_enc_key', '') && bkKey().kdf);
+/* Schlüssel der Komplettsicherung im Tresor: nach einem Neustart wartet die Sicherung, bis er entsperrt ist (bkWartet) */
+const bkKey = () => ({ key: geheim.get('backup_enc_key', ''), kdf: (() => { try { return JSON.parse(getSetting('backup_kdf', '')); } catch (e) { return null; } })() });
+const bkHasKey = () => Boolean(geheim.has('backup_enc_key') && bkKey().kdf);
+const bkWartet = () => bkHasKey() && geheim.locked('backup_enc_key');
+const ZUGANG_ZU = 'Der Tresor ist seit dem Neustart gesperrt – die gespeicherten Zugangsdaten sind verschlossen, bis sich ein Admin mit Schlüssel anmeldet (oder der Wiederherstellungscode eingegeben wird).';
+const WARTET_MSG = 'Der Tresor ist seit dem Neustart gesperrt – die Datensicherung wartet, bis sich ein Admin anmeldet (oder der Wiederherstellungscode eingegeben wird).';
 const bkCfg = () => ({ hour: Math.max(0, Math.min(23, int(getSetting('backup_hour', '3'), 3))), daily: Math.max(1, Math.min(60, int(getSetting('backup_daily', '7'), 7))),
   weekly: Math.max(0, Math.min(52, int(getSetting('backup_weekly', '4'), 4))), monthly: Math.max(0, Math.min(120, int(getSetting('backup_monthly', '12'), 12))),
   readable: getSetting('backup_readable', '0') === '1' });   // Standard aus: die Auszüge (Namen, Beträge, Türprotokoll) liegen unverschlüsselt im Ziel
@@ -3052,25 +3058,26 @@ function activeTargets() {
   const out = [];
   const c = dbxCfg();
   if (dbxReady(c) && c.enabled) out.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', retention: null, adapter: () => targets.dropboxTarget(c) });
-  for (const t of tgList()) if (t.enabled) out.push({ ...t, adapter: () => targets.open(t, getSetting(tgSecretKey(t.id), '')) });
+  for (const t of tgList()) if (t.enabled) out.push({ ...t, adapter: () => targets.open(t, geheim.get(tgSecretKey(t.id), '')) });
   return out;
 }
 function targetById(id) {
   if (id === 'dropbox') { const c = dbxCfg(); return dbxReady(c) ? { id, name: 'Dropbox', type: 'dropbox', adapter: () => targets.dropboxTarget(c) } : null; }
   const t = tgList().find(x => x.id === id);
-  return t ? { ...t, adapter: () => targets.open(t, getSetting(tgSecretKey(t.id), '')) } : null;
+  return t ? { ...t, adapter: () => targets.open(t, geheim.get(tgSecretKey(t.id), '')) } : null;
 }
 /** Übersicht für die Verwaltung – nie mit Zugangsdaten */
 function targetsView() {
   const c = dbxCfg();
   const rows = [];
   if (dbxReady(c)) rows.push({ id: 'dropbox', name: 'Dropbox', type: 'dropbox', typeLabel: 'Dropbox', enabled: c.enabled, where: `Apps/…${c.folder}`, account: getSetting('dropbox_account', ''), ...tgStatus('dropbox') });
-  for (const t of tgList()) rows.push({ ...targets.publicView(t, getSetting(tgSecretKey(t.id), '')), where: targets.where(t), ...tgStatus(t.id) });
+  for (const t of tgList()) rows.push({ ...targets.publicView(t, geheim.has(tgSecretKey(t.id))), where: targets.where(t), ...tgStatus(t.id) });
   return rows;
 }
 
 async function runBackup(by = 'automatisch') {
   if (!bkHasKey()) throw new Error('Noch kein Sicherungspasswort festgelegt (Datensicherung → Sicherungspasswort).');
+  if (bkWartet()) throw Object.assign(new Error(WARTET_MSG), { vaultLocked: true, status: 423 });
   if (bkRunning) throw new Error('Die Sicherung läuft gerade schon.');
   bkRunning = true;
   const day = backup.stamp().slice(0, 10);
@@ -3126,6 +3133,7 @@ async function runBackup(by = 'automatisch') {
  *  und die Zählerstände mit dieser Installation vergleichen. Nichts wird überschrieben. */
 async function probeBackup(by = 'automatisch') {
   if (!bkHasKey()) throw new Error('Noch kein Sicherungspasswort festgelegt.');
+  if (bkWartet()) throw Object.assign(new Error(WARTET_MSG), { vaultLocked: true, status: 423 });
   const tsich = require('./teilsicherung');
   const list = activeTargets();
   let tg = null;
@@ -3197,13 +3205,14 @@ function backupStatus() {
   const broken = on.filter(t => t.reconnect || (t.last_error && (!t.last_ok || Date.now() - Date.parse(t.last_ok) > 48 * 3600000)));
   const relog = on.filter(t => t.reconnect);
   const warn = !bkHasKey() ? 'Noch kein Sicherungspasswort festgelegt – es wird nichts gesichert.'
+    : bkWartet() ? WARTET_MSG
     : relog.length ? `Die Anmeldung bei ${relog.map(t => `„${t.name}“`).join(', ')} gilt nicht mehr – dorthin wird nicht gesichert. Bitte unter Datensicherung › Sicherungsziele „Neu verbinden …“.`
     : age > 48 ? (lastOk ? 'Seit mehr als zwei Tagen keine erfolgreiche Sicherung.' : 'Noch keine Komplettsicherung erstellt.')
     : broken.length ? `Sicherungsziel ${broken.map(t => `„${t.name}“`).join(', ')} ${broken.length > 1 ? 'sind' : 'ist'} nicht erreichbar – die Sicherung kommt dort nicht an.`
     : getSetting('backup_probe_ok', '') === '0' ? 'Die letzte Probe-Wiederherstellung ist fehlgeschlagen.'
     : probeInfo().hinweis ? `Die letzte Probe-Wiederherstellung hat etwas gefunden: ${probeInfo().hinweis}.`
     : !on.length ? 'Kein Sicherungsziel eingerichtet – die Sicherung liegt nur hier auf dem Gerät. Bitte Dropbox, ein NAS oder eine Cloud als Ziel einrichten.' : '';
-  return { hasKey: bkHasKey(), pwAt: getSetting('backup_pw_at', ''), ...bkCfg(), dropbox: on.some(t => t.id === 'dropbox'),
+  return { hasKey: bkHasKey(), wartet: bkWartet(), pwAt: getSetting('backup_pw_at', ''), ...bkCfg(), dropbox: on.some(t => t.id === 'dropbox'),
     targets: tv, targetsOk: on.length - broken.length, targetsOn: on.length,
     last_ok: lastOk, last_msg: getSetting('backup_last_msg', ''), last_error: getSetting('backup_last_error', ''),
     probe_at: getSetting('backup_probe_at', ''), probe_ok: getSetting('backup_probe_ok', '') === '1', probe_msg: getSetting('backup_probe_msg', ''), probe: probeInfo(),
@@ -3243,15 +3252,16 @@ admin.post('/backups/password', need('einstellungen'), rateLimit('bkpw', 10, 10 
   if (!ownerConfirm(req, res)) return;
   let k; try { k = fullbackup.newKey((req.body || {}).password); } catch (e) { return bad(res, e.message); }
   const had = bkHasKey();
-  setSetting('backup_kdf', JSON.stringify(k.kdf)); setSetting('backup_enc_key', k.key); setSetting('backup_pw_at', nowTs());
+  setSetting('backup_kdf', JSON.stringify(k.kdf)); geheim.set('backup_enc_key', k.key); setSetting('backup_pw_at', nowTs());
   audit(req.user, had ? 'Sicherungspasswort geändert' : 'Sicherungspasswort festgelegt', k.kid.slice(0, 8));
   if (had) securityAlert('sicherung.passwort', `Das Sicherungspasswort wurde von ${req.user.name || req.user.username} geändert.`);
   res.json({ ok: true, changed: had });
 });
 /* Sicherungspasswort prüfen (für das Notfallblatt) – nur „alle Rechte“, gebremst */
 admin.post('/backups/password/check', need('einstellungen'), owner, rateLimit('bkcheck', 10, 10 * 60000), (req, res) => {
-  const k = bkKey(); if (!k.key || !k.kdf) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
-  let ok = false; try { ok = fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf)) === fullbackup.keyId(Buffer.from(k.key, 'hex')); } catch (e) { ok = false; }
+  const k = bkKey(); if (!bkHasKey()) return bad(res, 'Noch kein Sicherungspasswort festgelegt.');
+  if (bkWartet()) return bad(res, WARTET_MSG, 423);
+  let ok = false; try { ok = crypto.timingSafeEqual(Buffer.from(fullbackup.keyId(fullbackup.deriveKey(String((req.body || {}).password || ''), k.kdf))), Buffer.from(fullbackup.keyId(Buffer.from(k.key, 'hex')))); } catch (e) { ok = false; }
   if (!ok) return pwBad(res, 'Das Sicherungspasswort stimmt nicht.');
   setSetting('backup_pw_checked_at', nowTs());   // Passwort-Probe (alle 6 Monate) erledigt
   res.json({ ok: true });
@@ -3299,7 +3309,8 @@ admin.post('/backups/targets/test', need('einstellungen'), owner, rateLimit('tgt
   // Das gespeicherte Passwort nur für denselben Server verwenden – sonst ließe es sich mit einer geänderten Adresse an einen fremden Server schicken
   const same = old && ['type', 'url', 'host', 'port', 'user', 'mode', 'insecure', 'hostKey', 'certFp'].every(k => (t[k] ?? '') === (old[k] ?? ''));
   if (old && !same && !b.secret && t.auth !== 'key') return bad(res, 'Die Adresse oder der Server hat sich geändert – bitte das Passwort für den Test noch einmal eingeben.');
-  const secret = b.secret ? String(b.secret) : same ? getSetting(tgSecretKey(old.id), '') : '';
+  if (same && !b.secret && geheim.locked(tgSecretKey(old.id))) return bad(res, ZUGANG_ZU, 423);
+  const secret = b.secret ? String(b.secret) : same ? geheim.get(tgSecretKey(old.id), '') : '';
   const a = targets.open(t, secret);
   try { const r = await a.test(); res.json({ ok: true, fingerprint: r.fingerprint || null }); }
   catch (e) { if (e.needConfirm || e.changed) return res.json({ ok: false, needConfirm: true, changed: Boolean(e.changed), fingerprint: e.fingerprint, error: e.message }); bad(res, e.message); }
@@ -3307,6 +3318,7 @@ admin.post('/backups/targets/test', need('einstellungen'), owner, rateLimit('tgt
 }));
 admin.post('/backups/targets/:id/test', need('einstellungen'), rateLimit('tgtest', 20, 10 * 60000), asyncRoute(async (req, res) => {
   const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  if (geheim.locked(tg.id === 'dropbox' ? 'dropbox_refresh' : tgSecretKey(tg.id))) return bad(res, ZUGANG_ZU, 423);
   const a = tg.adapter();
   try { await a.test(); tgSetStatus(tg.id, { tested: new Date().toISOString(), test_error: '', reconnect: false }); res.json({ ok: true }); }
   catch (e) { tgSetStatus(tg.id, { test_error: e.message, ...(e.reconnect ? { reconnect: true } : {}) }); bad(res, e.message); }
@@ -3319,7 +3331,8 @@ async function saveTarget(req, res, old) {
   if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
   if (!old && (b.target || {}).type === 'gdrive') return bad(res, 'Google Drive wird über „Bei Google anmelden“ verbunden.');
   let t; try { t = targets.clean(b.target || {}, old); } catch (e) { return res.status(400).json({ error: e.message, needInsecure: Boolean(e.needInsecure) }); }
-  const secret = b.secret ? String(b.secret).slice(0, 20000) : old ? getSetting(tgSecretKey(old.id), '') : '';
+  if (old && !b.secret && geheim.locked(tgSecretKey(old.id))) return bad(res, ZUGANG_ZU, 423);
+  const secret = b.secret ? String(b.secret).slice(0, 20000) : old ? geheim.get(tgSecretKey(old.id), '') : '';
   if (!secret) return bad(res, t.type === 'sftp' && t.auth === 'key' ? 'Bitte den privaten Schlüssel einfügen.' : t.type === 'gdrive' ? 'Bitte zuerst bei Google anmelden.' : 'Bitte das Passwort eintragen.');
   if (t.type === 'gdrive' && b.secret) return bad(res, 'Die Zugangsdaten für Google Drive kommen nur über „Bei Google anmelden“.');
   if (t.enabled) {
@@ -3329,7 +3342,7 @@ async function saveTarget(req, res, old) {
     finally { await a.close(); }
   }
   const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
-  setSetting(tgSecretKey(t.id), secret);
+  geheim.set(tgSecretKey(t.id), secret);
   audit(req.user, old ? 'Sicherungsziel geändert' : 'Sicherungsziel angelegt', `${t.name} (${targets.TYPES[t.type]}${t.enabled ? '' : ', aus'})`);
   if (old && old.enabled && !t.enabled) securityAlert('sicherung.ziel', `Das Sicherungsziel „${t.name}“ wurde von ${req.user.name || req.user.username} ausgeschaltet.`, { key: 'aus-' + t.id });
   res.json({ ok: true, targets: targetsView() });
@@ -3344,8 +3357,8 @@ admin.delete('/backups/targets/:id', need('einstellungen'), (req, res) => {
   const old = tgList().find(x => x.id === String(req.params.id)); if (!old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
   tgSave(tgList().filter(x => x.id !== old.id));
   // Google: Anmeldung zurückgeben (Dateien in Drive bleiben). Der Widerruf gilt fürs ganze Google-Projekt – nur, wenn kein anderes Google-Ziel es noch braucht
-  if (old.type === 'gdrive' && !tgList().some(x => x.type === 'gdrive')) { const g = require('./gdrive').parseSecret(getSetting(tgSecretKey(old.id), '')); if (g.refresh) require('./gdrive').revoke(g); }
-  db.prepare('DELETE FROM settings WHERE key IN (?, ?)').run(tgSecretKey(old.id), `backup_target_${old.id}_status`);
+  if (old.type === 'gdrive' && !tgList().some(x => x.type === 'gdrive')) { const g = require('./gdrive').parseSecret(geheim.get(tgSecretKey(old.id), '')); if (g.refresh) require('./gdrive').revoke(g); }
+  geheim.drop(tgSecretKey(old.id)); db.prepare('DELETE FROM settings WHERE key = ?').run(`backup_target_${old.id}_status`);
   audit(req.user, 'Sicherungsziel entfernt', old.name);
   securityAlert('sicherung.ziel', `Das Sicherungsziel „${old.name}“ wurde von ${req.user.name || req.user.username} entfernt. Die Dateien dort bleiben erhalten.`, { key: 'weg-' + old.id });
   res.json({ ok: true, targets: targetsView() });
@@ -3377,7 +3390,7 @@ function gdStep(f) {
       catch (e) { await gdrive.revoke(cfg).catch(() => {}); throw new Error(`Google hat den Zugriff erlaubt, aber das Speichern einer Testdatei ist fehlgeschlagen – die Verbindung wurde deshalb nicht übernommen. ${e.message}`); }
       t.account = await gdrive.account(cfg);
       const list = tgList().filter(x => x.id !== t.id); list.push(t); tgSave(list);
-      setSetting(tgSecretKey(t.id), gdrive.makeSecret(cfg));
+      geheim.set(tgSecretKey(t.id), gdrive.makeSecret(cfg));
       tgSetStatus(t.id, { tested: new Date().toISOString(), test_error: '', last_error: '', reconnect: false });
       f.state = 'fertig'; f.account = t.account; f.targetId = t.id;
       audit(f.by, old ? 'Google Drive neu verbunden' : 'Sicherungsziel angelegt', `${t.name} (Google Drive${t.account ? ', ' + t.account : ''})`);
@@ -3396,7 +3409,8 @@ admin.post('/backups/gdrive/start', need('einstellungen'), rateLimit('gdstart', 
   const old = b.id ? tgList().find(x => x.id === String(b.id) && x.type === 'gdrive') : null;
   if (b.id && !old) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
   if (!old && tgList().length >= MAX_TARGETS) return bad(res, `Höchstens ${MAX_TARGETS} Sicherungsziele.`);
-  const prev = old ? gdrive.parseSecret(getSetting(tgSecretKey(old.id), '')) : {};
+  if (old && geheim.locked(tgSecretKey(old.id)) && !String(b.clientSecret || '').trim()) return bad(res, ZUGANG_ZU, 423);
+  const prev = old ? gdrive.parseSecret(geheim.get(tgSecretKey(old.id), '')) : {};
   const clientId = String(b.clientId || '').trim() || prev.clientId || '';
   // gespeichertes Secret nur zusammen mit derselben Client-ID (sonst ginge es an einen fremden Client)
   const clientSecret = String(b.clientSecret || '').trim() || (clientId === prev.clientId ? prev.clientSecret : '') || '';
@@ -3414,7 +3428,8 @@ admin.get('/backups/gdrive/flow/:id', need('einstellungen'), owner, (req, res) =
 admin.post('/backups/gdrive/flow/:id/cancel', need('einstellungen'), owner, (req, res) => { const f = gdFlowOf(req, res); if (!f) return; if (f.state === 'wartet') { f.state = 'abgebrochen'; gdEnd(f); } res.json(gdView(f)); });
 admin.get('/backups/gdrive/:id', need('einstellungen'), owner, (req, res) => {
   const t = tgList().find(x => x.id === String(req.params.id) && x.type === 'gdrive'); if (!t) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
-  const g = gdrive.parseSecret(getSetting(tgSecretKey(t.id), ''));
+  if (geheim.locked(tgSecretKey(t.id))) return bad(res, ZUGANG_ZU, 423);
+  const g = gdrive.parseSecret(geheim.get(tgSecretKey(t.id), ''));
   // Client-ID nur gekürzt (zum Wiedererkennen), Secret und Token nie
   res.json({ clientIdHint: g.clientId ? g.clientId.slice(0, 8) + '…' : '', hasSecret: Boolean(g.clientSecret), connectedAt: g.connectedAt || '' });
 });
@@ -3422,6 +3437,7 @@ admin.get('/backups/gdrive/:id', need('einstellungen'), owner, (req, res) => {
 /** Komplettsicherungen auf einem Ziel (für „Wiederherstellen“) */
 admin.get('/backups/targets/:id/files', need('einstellungen'), asyncRoute(async (req, res) => {
   const tg = targetById(String(req.params.id)); if (!tg) return bad(res, 'Sicherungsziel nicht gefunden.', 404);
+  if (geheim.locked(tg.id === 'dropbox' ? 'dropbox_refresh' : tgSecretKey(tg.id))) return bad(res, ZUGANG_ZU, 423);
   const a = tg.adapter();
   try { res.json({ files: (await a.list('Komplett')).filter(f => fullbackup.validName(f.name)).map(f => ({ file: f.name, size: f.size, mtime: f.mtime })).sort((x, y) => (x.file < y.file ? 1 : -1)) }); }
   catch (e) { bad(res, e.message, 502); }
@@ -3582,7 +3598,7 @@ require('./teilsicherung').routes(admin, { db, plugins, need, owner, bad, asyncR
 
 admin.get('/dropbox', need('einstellungen'), (req, res) => {
   const c = dbxCfg();
-  res.json({ appKey: c.appKey, hasSecret: Boolean(c.appSecret), connected: dbxReady(c), folder: c.folder, enabled: c.enabled,
+  res.json({ appKey: c.appKey, hasSecret: c.hasSecret, connected: dbxReady(c), locked: c.hasSecret && !c.appSecret, folder: c.folder, enabled: c.enabled,
     account: getSetting('dropbox_account', ''), authUrl: c.appKey ? dropbox.authUrl(c.appKey) : null });
 });
 admin.put('/dropbox', need('einstellungen'), (req, res) => {
@@ -3593,13 +3609,13 @@ admin.put('/dropbox', need('einstellungen'), (req, res) => {
   if (b.appKey !== undefined) {
     const k = String(b.appKey).trim();
     if (k && !/^[a-z0-9]{8,40}$/i.test(k)) return bad(res, 'Der App key sieht nicht richtig aus.');
-    if (k !== getSetting('dropbox_app_key', '')) setSetting('dropbox_refresh', '');   // andere App → neu verbinden
+    if (k !== getSetting('dropbox_app_key', '')) geheim.drop('dropbox_refresh');   // andere App → neu verbinden
     setSetting('dropbox_app_key', k);
   }
   if (b.appSecret) {
     const sec = String(b.appSecret).trim();
     if (!/^[a-z0-9]{8,40}$/i.test(sec)) return bad(res, 'Das App secret sieht nicht richtig aus.');
-    setSetting('dropbox_app_secret', sec);
+    geheim.set('dropbox_app_secret', sec);
   }
   if (b.folder !== undefined) setSetting('dropbox_folder', dropbox.cleanFolder(b.folder));
   if (b.enabled !== undefined) {
@@ -3613,6 +3629,7 @@ admin.put('/dropbox', need('einstellungen'), (req, res) => {
 admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 * 60000), asyncRoute(async (req, res) => {
   if (!ownerConfirm(req, res)) return;   // neues Dropbox-Konto = Sicherungen gehen woandershin
   const c = dbxCfg();
+  if (geheim.locked('dropbox_app_secret')) return bad(res, ZUGANG_ZU, 423);
   if (!c.appKey || !c.appSecret) return bad(res, 'Bitte zuerst App key und App secret speichern.');
   const code = String((req.body || {}).code || '').trim();
   if (!/^[\w-]{10,200}$/.test(code)) return bad(res, 'Bitte den Code aus dem Dropbox-Fenster einfügen.');
@@ -3625,7 +3642,7 @@ admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 *
       tgSetStatus('dropbox', { test_error: e.message });
       return bad(res, `Dropbox hat den Zugriff erlaubt, aber das Speichern einer Testdatei ist fehlgeschlagen – die Verbindung wurde deshalb nicht übernommen. ${e.message}`);
     }
-    setSetting('dropbox_refresh', refresh);
+    geheim.set('dropbox_refresh', refresh);
     tgSetStatus('dropbox', { tested: new Date().toISOString(), test_error: '' });
     let who = '';
     try { who = await dropbox.account({ ...c, refresh }); } catch (e) { /* App ohne Kontoberechtigung – egal */ }
@@ -3638,7 +3655,7 @@ admin.post('/dropbox/connect', need('einstellungen'), rateLimit('bkpw', 10, 10 *
 admin.post('/dropbox/disconnect', need('einstellungen'), asyncRoute(async (req, res) => {
   const c = dbxCfg();
   if (dbxReady(c)) await dropbox.revoke(c);
-  setSetting('dropbox_refresh', ''); setSetting('dropbox_account', '');
+  geheim.drop('dropbox_refresh'); setSetting('dropbox_account', '');
   audit(req.user, 'Dropbox getrennt');
   res.json({ ok: true });
 }));
@@ -3807,6 +3824,8 @@ require('./einrichtung').routes(admin, { need, bad, checks: {
    da alle Module ihre Tabellen angelegt haben */
 const vault = require('./vault');
 try { vault.start(); } catch (e) { console.error('Tresor beim Start:', e); }
+/* Ältere Schnappschüsse (von vor dem Umzug der Zugangsdaten in den Tresor) enthalten sie noch im Klartext – bereinigen (src/geheim.js) */
+if (!DEMO_KOPIE && process.env.CW_LESEKOPIE !== '1') { try { require('./geheim').schnappschuesse(backup.BACKUP_DIR); } catch (e) { console.error('Geheimnisse – Schnappschüsse:', e.message); } }
 /* Lesekopie der Teil-Wiederherstellung (src/teilsicherung.js): Datenbank ist auf dem heutigen Stand, alle Module geladen – Export abliefern und enden, ohne Ports zu öffnen */
 if (process.env.CW_LESEKOPIE === '1') return require('./teilsicherung').lesekopie({ plugins, db, vault, getSetting });
 vault.onUnlock(() => vault.flushMail(o => require('./mail').send(o)).then(n => { if (n) audit(null, 'Tresor: wartende E-Mails verschickt', String(n)); }));
@@ -4077,6 +4096,22 @@ if (demoMsg) { console.log(demoMsg); audit('system', 'Demo', demoMsg); }
 let lastAuto = null, dbxLastTry = 0;
 const TRASH_DAYS = 11 * 366;   // gelöschte Lieferbelege bleiben so lange im Papierkorb: 10 Jahre Aufbewahrung ab Ende des Jahres (GoBD, § 147 AO)
 /* Jeder Teil fängt seine Fehler selbst; ein unerwarteter Fehler darf nie als unbehandelte Promise-Ablehnung den Prozess beenden */
+/* Komplettsicherung des Tages fällig? (ab der eingestellten Uhrzeit, noch nicht gelaufen) */
+const bkFaellig = (now, day) => bkHasKey() && now.getHours() >= bkCfg().hour && getSetting('backup_last_day', '') !== day;
+async function bkTag(now) {
+  dbxLastTry = Date.now();
+  console.log('Datensicherung:', await runBackup());
+  // Probe-Wiederherstellung sonntags (bzw. nachgeholt, wenn die letzte über eine Woche her ist)
+  const pAt = getSetting('backup_probe_at', '');
+  if (now.getDay() === 0 || !pAt || Date.now() - Date.parse(pAt) > 7.5 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
+}
+/* Nach dem Entsperren: die wartende Sicherung des Tages gleich nachholen (nicht erst beim nächsten Durchlauf in bis zu 10 Minuten) */
+vault.onUnlock(() => {
+  if (DEMO_KOPIE) return;
+  const now = new Date(), day = backup.stamp().slice(0, 10);
+  if (!bkFaellig(now, day) || bkRunning) return;
+  setTimeout(() => bkTag(now).catch(e => console.error('Datensicherung (nachgeholt):', e.message)), 2000).unref();
+});
 async function nightly() {
   if (DEMO_KOPIE) return;   // keine Sicherungen in der Demo-Kopie
   try {
@@ -4098,13 +4133,9 @@ async function nightly() {
     } catch (e) { console.error('Papierkorb:', e.message); }
     // Komplettsicherung: einmal am Tag ab der eingestellten Uhrzeit, bei Fehler stündlich neuer Versuch; monatlich Probe-Wiederherstellung
     try {
-      if (bkHasKey() && now.getHours() >= bkCfg().hour && getSetting('backup_last_day', '') !== day && Date.now() - dbxLastTry > 55 * 60 * 1000) {
-        dbxLastTry = Date.now();
-        console.log('Datensicherung:', await runBackup());
-        // Probe-Wiederherstellung sonntags (bzw. nachgeholt, wenn die letzte über eine Woche her ist)
-        const pAt = getSetting('backup_probe_at', '');
-        if (now.getDay() === 0 || !pAt || Date.now() - Date.parse(pAt) > 7.5 * 86400000) console.log('Probe-Wiederherstellung:', await probeBackup());
-      }
+      if (bkFaellig(now, day) && bkWartet()) {   // Tresor gesperrt: einmal am Tag Bescheid geben, nach dem Entsperren nachholen (vault.onUnlock oben)
+        if (getSetting('backup_wartet_day', '') !== day) { setSetting('backup_wartet_day', day); securityAlert('tresor.wartet', WARTET_MSG); }
+      } else if (bkFaellig(now, day) && Date.now() - dbxLastTry > 55 * 60 * 1000) await bkTag(now);
     } catch (e) { console.error('Datensicherung fehlgeschlagen:', e.message); }
     try { require('./gobd').anchor(); } catch (e) { console.error('GoBD-Anker:', e.message); }   // Kopf des Änderungsjournals außerhalb der Datenbank festhalten
     // Datenqualität: einmal am Tag ab der Uhrzeit der Sicherung (Ergebnis unter Einstellungen › Datenqualität und in der Übersicht)

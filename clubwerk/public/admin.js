@@ -1200,7 +1200,10 @@
     const alerts = [];
     const vs = can('einstellungen') || can('mitglieder') ? await api('vault').catch(() => null) : null;
     if (page !== 'uebersicht') return;
-    if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Persönliche Daten', text: `Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Mit dem Wiederherstellungscode öffnen.${vs.waitingMails ? ` ${vs.waitingMails} ${vs.waitingMails === 1 ? 'E-Mail' : 'E-Mails'} warten.` : ''}`, go: 'sicherung', link: 'Öffnen' });
+    if (vs && vs.on && vs.locked) alerts.push({ level: 'r', who: 'Tresor', text: 'Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.',   // Zugangsdaten (Postfach, Sicherung, Hydrawise) liegen im Tresor – planung/geheimnisse.md
+      detail: [T('Seit dem Neustart verschlossen – dein Konto hat noch keinen Schlüssel. Ein Admin mit Schlüssel meldet sich an, oder du öffnest mit dem Wiederherstellungscode.'),
+        vs.waitingMails ? T(vs.waitingMails === 1 ? '1 E-Mail wartet.' : '{0} E-Mails warten.', [vs.waitingMails]) : '',
+        (vs.wartet || []).length ? T('Verschlossen: {0}.', [vs.wartet.map(x => T(x)).join(', ')]) : ''].filter(Boolean).join(' '), go: 'sicherung', link: 'Öffnen' });
     else if (vs && !vs.on && vs.may && (cache.modules || []).some(m => m === 'mitglieder' || m === 'buchhaltung')) alerts.push({ level: 'a', who: 'Datenschutz', text: 'Mitgliederdaten liegen unverschlüsselt.', detail: 'Die persönlichen Daten der Mitglieder liegen unverschlüsselt auf dem Home Assistant. Empfohlen: Verschlüsselung einschalten.', go: 'sicherung', link: 'Einschalten' });
     const sw = can('sicherheit') ? await api('security/alerts?counts=1').catch(() => null) : null;
     const swN = sw ? sw.counts.r + sw.counts.a : 0;
@@ -1209,7 +1212,7 @@
     const na = (cache.appModules || []).length ? await api('app/new-areas').catch(() => []) : [];
     if (page !== 'uebersicht') return;
     na.forEach(x => alerts.push({ level: 'a', who: 'Mitglieder-App', text: T('Neuer Bereich „{0}“: für wen freigeben?', [T(x.label)]), go: 'app', sec: ['cw_apbulk', x.id], link: 'Freigeben …' }));
-    if (bkSt && bkSt.warn) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
+    if (bkSt && bkSt.warn && !(bkSt.wartet && vs && vs.locked)) alerts.push({ level: bkSt.hasKey ? 'r' : 'a', who: 'Datensicherung', text: bkSt.warn, go: 'sicherung', link: 'Öffnen' });
     // Datenqualität: nur Fehler (Hinweise wie fehlende Mandate melden die Module hier schon selbst)
     const dqR = dq ? dq.list.filter(c => c.count > 0 && c.level === 'r') : [];
     if (dqR.length) alerts.push({ level: 'r', who: 'Datenqualität', text: `${dqR.reduce((n, c) => n + c.count, 0)} Fehler in den Daten – bitte ansehen.`, detail: dqR.map(c => T(c.title)).join(' · '), go: 'einstellungen', sec: ['cw_setsec', 'daten'], link: 'Ansehen' });
@@ -3318,7 +3321,8 @@
         <li>Bankdaten (Kontoinhaber, IBAN, BIC), Lastschrift-Dateien</li>
         <li>Online-Anträge, Änderungsanträge, Unterschriften, Änderungsverlauf</li>
         <li>Buchhaltung: Kontaktdaten der Partner, Rechnungsempfänger, Spender</li>
-        <li>Gastspieler/innen: Handynummer · externe Helfer: Notiz</li>
+        <li>Gastspieler/innen: Handynummer und persönlicher Link · externe Helfer: Notiz · Spielerseiten im LK-Turnier</li>
+        <li>Zugangsdaten: Postfach-Passwort, Dropbox, Sicherungsziele, Hydrawise, Schlüssel der Datensicherung (warten nach einem Neustart, bis der Tresor offen ist)</li>
         <li>E-Mail-Adressen der Empfänger von Rundmails</li>
         <li>Dateien: Mitglieder-Dokumente, Profilfotos, Mail-Anhänge</li></ul></div>
       <div style="flex:1;min-width:240px"><b>Bleibt lesbar</b> (wird für den Betrieb gebraucht)<ul class="s" style="margin:6px 0 0;padding-left:18px">

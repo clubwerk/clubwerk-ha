@@ -20,7 +20,8 @@ const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; }
 const txt = (v, max = 80) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
 const euro = c => `${(c / 100).toFixed(2).replace('.', ',')} €`;
-const newToken = () => crypto.randomBytes(24).toString('base64url');   // 32 Zeichen, 192 Bit
+const newToken = () => crypto.randomBytes(24).toString('base64url');   // 32 Zeichen, 192 Bit – zum Nachschlagen genügt sha256 (tokH)
+const tokH = t => crypto.createHash('sha256').update('tu:' + String(t)).digest('hex');
 const MINUTES = [45, 60, 75, 90, 105, 120];
 const PAUSES = [0, 15, 30, 45, 60];
 const KEEP = [7, 14, 30, 90, 365];
@@ -63,6 +64,12 @@ CREATE TABLE IF NOT EXISTS tu_lkmatch (
 );
 CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
 `);
+  // 2026.11: Der Link (token) liegt im Tresor (vault.SPEC) – nachgeschlagen wird über seinen Hash (planung/geheimnisse.md)
+  if (!db.prepare('PRAGMA main.table_info(tu_person)').all().some(c => c.name === 'token_h')) {
+    db.exec('ALTER TABLE main.tu_person ADD COLUMN token_h TEXT');
+    for (const r of db.prepare('SELECT id, token FROM main.tu_person WHERE token IS NOT NULL').all()) if (!/^(e1|p1):/.test(r.token)) db.prepare('UPDATE main.tu_person SET token_h = ? WHERE id = ?').run(tokH(r.token), r.id);
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS main.ux_tu_person_token_h ON tu_person(token_h)');
   const S = (k, d) => ctx.getSetting('ext_turniere_lk_' + k, d);
   const SET = (k, v) => ctx.setSetting('ext_turniere_lk_' + k, String(v));
   const pick = (list, v, d) => (list.includes(int(v)) ? int(v) : d);
@@ -268,8 +275,8 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
         if (o && o.lk && p.lk && !p.lk.includes(',') && o.lk.split(',')[0] === p.lk) p.lk = o.lk;   // genaue LK aus einer früheren CSV bleibt, solange nuLiga dieselbe ganze Zahl meldet
         if (o) db.prepare('UPDATE tu_person SET first = ?, last = ?, club = ?, club_no = ?, lk = ?, gender = ?, birth_year = ?, dtb = ?, own = ?, pay_hint = COALESCE(?, pay_hint), gone = 0 WHERE id = ?')
           .run(p.first, p.last, p.club || null, p.clubNo || null, p.lk || null, p.gender || null, p.birthYear || null, p.dtb || null, own, p.pay_hint, o.id);
-        else db.prepare('INSERT INTO tu_person(day_id, ext, first, last, club, club_no, lk, gender, birth_year, dtb, own, token, pay_hint) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)')
-          .run(id, p.ext, p.first, p.last, p.club || null, p.clubNo || null, p.lk || null, p.gender || null, p.birthYear || null, p.dtb || null, own, newToken(), p.pay_hint);
+        else { const t = newToken(); db.prepare('INSERT INTO tu_person(day_id, ext, first, last, club, club_no, lk, gender, birth_year, dtb, own, token, token_h, pay_hint) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)')
+          .run(id, p.ext, p.first, p.last, p.club || null, p.clubNo || null, p.lk || null, p.gender || null, p.birthYear || null, p.dtb || null, own, t, tokH(t), p.pay_hint); }
       }
       const pid = new Map(persons(id).filter(p => p.ext).map(p => [p.ext, p.id]));
       /* Konkurrenzen */
@@ -427,8 +434,8 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
     const limit = addDays(today(), -cfg().keep_days);
     for (const d of db.prepare('SELECT * FROM tu_day WHERE purged_at IS NULL AND date_to < ?').all(limit)) {
       db.transaction(() => {
-        const n = db.prepare("UPDATE tu_person SET first = NULL, last = 'gelöscht', club = NULL, club_no = NULL, lk = NULL, gender = NULL, birth_year = NULL, dtb = NULL, ext = NULL, token = NULL WHERE day_id = ? AND own = 0").run(d.id).changes;
-        db.prepare('UPDATE tu_person SET token = NULL WHERE day_id = ?').run(d.id);
+        const n = db.prepare("UPDATE tu_person SET first = NULL, last = 'gelöscht', club = NULL, club_no = NULL, lk = NULL, gender = NULL, birth_year = NULL, dtb = NULL, ext = NULL, token = NULL, token_h = NULL WHERE day_id = ? AND own = 0").run(d.id).changes;
+        db.prepare('UPDATE tu_person SET token = NULL, token_h = NULL WHERE day_id = ?').run(d.id);
         db.prepare('UPDATE tu_entry SET note = NULL WHERE day_id = ?').run(d.id);
         db.prepare('UPDATE tu_day SET purged_at = ? WHERE id = ?').run(nowTs(), d.id);
         audit(null, 'Turniere: Spielerdaten gelöscht', `${d.name}: ${n} Spieler fremder Vereine (Löschfrist ${cfg().keep_days} Tage)`);
@@ -509,6 +516,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
   /** QR-Code der Spielerseite (über die Adresse der Mitglieder-App) */
   A.get('/lk/person/:id/qr', P, send(async req => {
     const p = personOr404(req.params.id), base = ctx.appUrl();
+    if (!p.token && p.token_h) throw err('Der Tresor ist seit dem Neustart gesperrt – der Link ist verschlossen, bis sich ein Admin mit Schlüssel anmeldet.', 423);
     if (!p.token) throw err('Für diesen Spieler gibt es keinen Link mehr (Turnier vorbei).');
     if (!base) return { url: null, svg: null };
     const url = `${base}/p/turniere/#t=${p.token}`;
@@ -665,7 +673,7 @@ CREATE INDEX IF NOT EXISTS ix_tu_lkmatch ON tu_lkmatch(day_id, event_id);
   /** Link gilt nur für diesen Turniertag und nur bis zum Turnierende (beendet oder letzter Turniertag vorbei) */
   const byToken = tok => {
     if (typeof tok !== 'string' || !/^[A-Za-z0-9_-]{32}$/.test(tok)) return null;
-    const p = db.prepare('SELECT * FROM tu_person WHERE token = ? AND gone = 0').get(tok);
+    const p = db.prepare('SELECT * FROM tu_person WHERE token_h = ? AND gone = 0').get(tokH(tok));
     if (!p) return null;
     const d = dayRow(p.day_id);
     return d && !d.finished_at && !d.purged_at && d.date_to >= today() ? { p, d } : null;

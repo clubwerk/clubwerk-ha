@@ -147,7 +147,7 @@ function otpCreate(scope, inviteToken) {
   if (d.otp_last && Date.now() - d.otp_last < OTP_GAP) return { error: `Bitte ${Math.ceil((OTP_GAP - (Date.now() - d.otp_last)) / 1000)} Sekunden warten, dann geht eine neue SMS.`, status: 429 };
   if (count >= OTP_PER_DAY) return { error: `Heute wurden schon ${OTP_PER_DAY} SMS verschickt – bitte morgen noch einmal oder beim Vorstand melden.`, status: 429 };
   const code = String(crypto.randomInt(0, 1000000)).padStart(6, '0');
-  db.prepare('UPDATE member_devices SET otp_hash = ?, otp_expires = ?, otp_tries = 0, otp_day = ?, otp_count = ?, otp_last = ? WHERE id = ?').run(sha(`${d.id}:${code}`), Date.now() + OTP_MIN * 60000, day, count + 1, Date.now(), d.id);
+  db.prepare('UPDATE member_devices SET otp_hash = ?, otp_expires = ?, otp_tries = 0, otp_day = ?, otp_count = ?, otp_last = ? WHERE id = ?').run(auth.hashSecret(`${d.id}:${code}`), Date.now() + OTP_MIN * 60000, day, count + 1, Date.now(), d.id);
   return { code, memberId: d.member_id, minutes: OTP_MIN };
 }
 /** Code prüfen (vor dem Einlösen) → { ok } oder { error, status } */
@@ -156,8 +156,8 @@ function otpCheck(scope, inviteToken, code) {
   const d = db.prepare('SELECT * FROM member_devices WHERE id = ?').get(p.deviceId);
   if (!d.otp_hash || !(d.otp_expires > Date.now())) return { error: 'Der SMS-Code ist abgelaufen – bitte einen neuen anfordern.', status: 400, otp: true };
   if (!/^\d{6}$/.test(String(code || '').trim())) return { error: 'Bitte die 6 Ziffern aus der SMS eingeben.', status: 400, otp: true };
-  const a = Buffer.from(sha(`${d.id}:${String(code).trim()}`)), b = Buffer.from(d.otp_hash);
-  if (a.length === b.length && crypto.timingSafeEqual(a, b)) return { ok: true };
+  // gesalzen wie PINs (scrypt, Vergleich timing-safe) – ein heller sha256 von 6 Ziffern ließe sich aus einer Datenbank-Kopie sofort zurückrechnen
+  if (auth.verifySecret(`${d.id}:${String(code).trim()}`, d.otp_hash)) return { ok: true };
   const t = d.otp_tries + 1;
   if (t >= OTP_TRIES) { db.prepare('UPDATE member_devices SET otp_hash = NULL, otp_expires = NULL, otp_tries = 0 WHERE id = ?').run(d.id); return { error: `Code ${OTP_TRIES}-mal falsch – bitte einen neuen anfordern.`, status: 400, otp: true }; }
   db.prepare('UPDATE member_devices SET otp_tries = ? WHERE id = ?').run(t, d.id);
