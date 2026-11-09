@@ -87,6 +87,8 @@ Lädt die Liste als Excel-Datei herunter, mit den Spalten, die ihr ankreuzt. Es 
 
 ### Mitglied öffnen {#mitglied}
 
+Auf einem breiten Bildschirm (ab 1400 Pixel, etwa ein großer Monitor) steht rechts neben der Liste eine Karte: Ein Klick auf einen Namen zeigt dort das Wichtigste – Geburtsdatum, Eintritt, Abteilungen, Beitrag, Zahlung, „Abgerechnet bis“, offene Posten, Kontakt und Hinweise. **Öffnen** (oder ein Doppelklick auf den Namen) öffnet das Mitglied, die Knöpfe darunter springen gleich in den passenden Reiter. Die Spalten „Zahlung“ und „Hinweise“ der Liste entfallen dann, beides steht in der Karte. Auf schmaleren Bildschirmen, am Tablet und am Handy öffnet ein Klick das Mitglied direkt.
+
 ![Ein geöffnetes Mitglied: oben Name und Eckdaten, darunter „← Alle Mitglieder“ und die Reiter.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detailrow)
 
 Über dem Reiter steht der Name; darunter eine Zeile mit Nummer, Alter, Status, geplantem Austritt, „zahlt über …“ oder „Familie von …“ und dem Hinweis, wenn Änderungswünsche aus der App vorliegen. Die Reiter heißen **Stammdaten**, **Mitgliedschaft**, **Zahlung & Familie**, **Konto & Mandat**, **Dokumente** und **Verlauf**. Wer nur eine Abteilung betreut, sieht nur „Stammdaten“, „Mitgliedschaft“, „Dokumente“ und „Verlauf“.

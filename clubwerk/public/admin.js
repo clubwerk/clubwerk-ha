@@ -1171,7 +1171,6 @@
     const pageOf = m => (PAGES.some(p => p[0] === m.page) ? m.page : PAGES.some(p => p[0] === m.id) ? m.id : null);
     return list.map(m => ({ ...m, pageKey: pageOf(m) }));
   }
-  const greeting = () => { const h = new Date().getHours(); return h < 11 ? 'Guten Morgen' : h < 18 ? 'Guten Tag' : 'Guten Abend'; };
   /* Hauptkarte „Zu erledigen“: Hinweise als ruhige Liste mit farbigem Strich, rote zuerst, höchstens 6 sichtbar, der Rest hinter „Alle zeigen“.
      Je Hinweis ein kurzer Satz; Einzelheiten (detail) stehen im Tooltip und auf der Seite, zu der der Link führt */
   const TODO_N = 6;
@@ -1187,7 +1186,8 @@
   /** „Wort: Zahl“ bricht nie so um, dass die Zahl allein steht: Zahlen hängen immer am Wort davor */
   const kpiNote = k => `${k.l}:\u00a0${String(k.v).replace(/ (?=\d)/g, '\u00a0')}`;
   function modCell({ ic, name, state, note, val, go: g }) {
-    const inner = `<span class="mi">${icon(ic)}</span><span class="mt"><b title="${esc(name)}">${esc(name)}</b><small><i class="stdot ${state}" aria-hidden="true"></i>${esc(note || STATE[state])}</small></span><span class="v num">${esc(val == null ? '' : val)}</span>`;
+    const v = val == null ? '' : String(val).replace(/ /g, '\u00a0');   // Kennzahl bricht nie um: „129 von 155 h“ bleibt eine Zeile, die Einheit nie allein (Fund 09.11.2026)
+    const inner = `<span class="mi">${icon(ic)}</span><span class="mt"><b title="${esc(name)}">${esc(name)}</b><small><i class="stdot ${state}" aria-hidden="true"></i>${esc(note || STATE[state])}</small></span><span class="v num${v.length > 7 ? ' lang' : ''}">${esc(v)}</span>`;
     return g ? `<a class="mo" href="#${g}" data-go="${g}">${inner}</a>` : `<div class="mo">${inner}</div>`;
   }
   RENDER.uebersicht = async () => {
@@ -1257,7 +1257,7 @@
     if (cells.length % 2) cells.push('<div class="mo fill" aria-hidden="true"></div>');   // gleich großes Raster ohne Loch
     const d = new Date();
     $('main').innerHTML = `<div class="greet"><div><div class="date">${d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}</div>
-        <h2 class="page"><span>${greeting()}</span>, <span>${esc((me.name || me.username).split(" ")[0])}</span></h2></div>
+        <h2 class="page">Übersicht</h2></div>
         <div class="row">${window.top === window && tabletOnUI ? `<a class="btn" href="./" target="_blank">${icon('tablet', 16)}Tablet-Seite</a>` : ''}</div></div>
       <div class="court greetline"></div>
       ${setupCard}

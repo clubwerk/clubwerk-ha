@@ -400,7 +400,8 @@
   .mods2 .mt small { font-size: 12px; line-height: 16px; color: var(--muted); }   /* darf umbrechen – nie abgeschnitten */
   .stdot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 6px; vertical-align: 1px; background: var(--ok); }
   .stdot.a { background: var(--amber); } .stdot.r { background: var(--red); }
-  .mods2 .v { margin-left: auto; flex: none; max-width: 45%; font-size: 24px; line-height: 28px; text-align: right; }   /* langer Wert („0 von 156 h“) bricht in schmalen Kacheln um statt abgeschnitten zu werden */
+  .mods2 .v { margin-left: auto; flex: none; font-size: 24px; line-height: 28px; text-align: right; white-space: nowrap; }   /* Kennzahl in einer Zeile – Zahl und Einheit nie getrennt (admin.js setzt geschützte Leerzeichen) */
+  .mods2 .v.lang { font-size: 20px; }   /* lange Werte („129 von 155 h“, „1 · 952,00 €“) etwas kleiner, damit der Modulname daneben Platz behält */
   /* Eine Spaltenteilung für die ganze Übersicht (daneben nur, wenn das Modulraster Platz für ganze Namen hat): links L = 4/9 der Breite ohne Abstand,
      rechts der Rest, unten dieselben zwei Spalten. */
   @media (min-width: 1440px) {

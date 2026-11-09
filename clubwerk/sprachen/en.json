@@ -13526,6 +13526,7 @@
   "Tresor gesperrt – Sicherung wartet": "Vault locked – backup waiting",
   "Verschlossen: {0}.": "Locked: {0}.",
   "Zugang zu einem Sicherungsziel": "Access to a backup target",
-  "Zugangsdaten: Postfach-Passwort, Dropbox, Sicherungsziele, Hydrawise, Schlüssel der Datensicherung (warten nach einem Neustart, bis der Tresor offen ist)": "Credentials: mailbox password, Dropbox, backup targets, Hydrawise, backup key (wait after a restart until the vault is open)"
+  "Zugangsdaten: Postfach-Passwort, Dropbox, Sicherungsziele, Hydrawise, Schlüssel der Datensicherung (warten nach einem Neustart, bis der Tresor offen ist)": "Credentials: mailbox password, Dropbox, backup targets, Hydrawise, backup key (wait after a restart until the vault is open)",
+  "Klick auf einen Namen zeigt hier das Wichtigste, Doppelklick öffnet das Mitglied.": "Click a name to see the key details here; double-click to open the member."
  }
 }

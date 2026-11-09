@@ -85,7 +85,14 @@
       .mv-sum b { font-family: var(--num); font-weight: 600; }
       .mv-code { font-family: var(--num); font-weight: 600; }
       .mv-sortslot { display: contents; } @media (min-width: 701px) { .mv-sortslot { display: none; } }
-      .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }`;
+      .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }
+      .mv-split .mdetail { max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }   /* klebt oben und bleibt ganz erreichbar, auch wenn sie höher als das Fenster ist */
+      .mv-split .mdetail .mact { grid-template-columns: minmax(0, 1fr); }   /* „Öffnen“ und die Reiter untereinander, alle gleich hoch und einzeilig (zu zweit brach „Zahlung & Familie“ um) */
+      .mv-split .mdetail .mhead .muted { font-size: 13px; line-height: 18px; }
+      .mv-split .mdetail .facts dd { overflow-wrap: anywhere; }
+      #mvTbl.ez td.k-1z { min-width: 210px; } #mvTbl.ez td.mv-nw { white-space: nowrap; } #mvTbl.ez td.k-weg .pill { white-space: nowrap; }   /* Namen haben Platz (nur sehr lange brechen um), Beitrag und Zahlung einzeilig – die Zeilen bleiben gleich hoch; nur solange die Tabelle damit hineinpasst (einzeilig() unten), sonst bricht es um statt seitlich zu scrollen */
+      @media (min-width: 1400px) { .mv-split #mvTbl th:nth-last-child(-n+2), .mv-split #mvTbl td.k-weg, .mv-split #mvTbl td.mv-pay { display: none; } }   /* Zahlung und Hinweise stehen dann in der Karte rechts */
+      @media (max-width: 1399px) { .mv-split { grid-template-columns: minmax(0, 1fr); } .mv-split > .mdetail { display: none; } }   /* Liste und Mitglied nebeneinander erst ab 1400 px, darunter öffnet ein Klick das Mitglied wie bisher */`;
     document.head.appendChild(s);
   }
 
@@ -173,8 +180,8 @@
         <label class="f mv-fsel"><select translate="no" id="mvDept" data-nodirty aria-label="Abteilung"><option value="">${esc(GK.T(SC() ? 'Meine Abteilungen' : 'Alle Abteilungen'))}</option>${(SC() ? m.scope : m.depts).map(d => opt(d.id, d.name, st.f.dept)).join('')}</select></label>
         <label class="f mv-fsel"><select translate="no" id="mvFee" data-nodirty aria-label="Beitrag"><option value="">${esc(GK.T('Alle Beiträge'))}</option>${m.fees.map(f => opt(f.id, f.name, st.f.fee)).join('')}</select></label>
       </div>
-      <div class="scroll"><table class="tbl kompakt sel" id="mvTbl"></table></div>
-      <p class="empty hidden" id="mvEmpty"></p>`;
+      <div class="mlayout mv-split"><div class="mlist"><div class="scroll"><table class="tbl kompakt sel" id="mvTbl"></table></div>
+      <p class="empty hidden" id="mvEmpty"></p></div><aside class="mdetail card" id="mvDetail"></aside></div>`;
     $('mvSeg').insertAdjacentHTML('afterend', '<span id="mvSortSlot" class="mv-sortslot"></span>');
     const coll = new Intl.Collator('de', { numeric: true, sensitivity: 'base' }), noNum = r => ((String(r.member_no || '').match(/\d+/) || [])[0]);
     const sk = GK.sortKit('mv_sort', { k: 'name', d: 1 }, {
@@ -187,21 +194,30 @@
       aktuell: r => r.status !== 'ausgetreten' && r.status !== 'anonym', aktiv: r => r.status === 'aktiv', passiv: r => r.status === 'passiv' || r.status === 'ehren' || r.status === 'ruhend',
       hinweis: r => r.issues.length > 0 && r.status !== 'ausgetreten' && r.status !== 'anonym' && (!st.f.issue || r.issues.includes(st.f.issue)), ausgetreten: r => r.status === 'ausgetreten' || r.status === 'anonym', alle: () => true,
     };
+    // Gleich hohe Zeilen (einzeilig) ab 1280 px, aber nur, wenn die Tabelle dann noch in ihre Spalte passt – lange Beitragsarten oder Namen
+    // (oder die Verwaltung im Tablet-Rahmen) brechen sonst um, statt dass die Liste seitlich scrollt
+    const einzeilig = () => {
+      const t = $('mvTbl'), sc = t && t.parentNode; if (!sc) return;
+      t.classList.toggle('ez', window.matchMedia('(min-width: 1280px)').matches);
+      if (t.classList.contains('ez') && sc.scrollWidth > sc.clientWidth + 1) t.classList.remove('ez');
+    };
+    if (window.ResizeObserver) new ResizeObserver(() => einzeilig()).observe($('mvTbl').parentNode);
     const draw = () => {
       const q = st.f.q.toLowerCase();
       const match = r => (!q || [r.name, GK.lastFirst(r.name), r.member_no, r.email, r.city].some(v => v && String(v).toLowerCase().includes(q)))
         && (!st.f.dept || r.dept_ids.includes(+st.f.dept)) && (!st.f.fee || r.fee_ids.includes(+st.f.fee));
       Object.keys(F).forEach(k => { const c = el.querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = st.rows.filter(r => F[k](r) && match(r)).length; });
       const rows = sk.sort(st.rows.filter(r => F[st.f.status](r) && match(r)));
-      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th style="width:130px">Zahlung</th><th>Hinweise</th></tr>`
-        + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}">
+      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th><th>Hinweise</th></tr>`
+        + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}${st.sel === r.id ? ' on' : ''}">
           <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}</span></span></td>
           <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
-          <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
-          <td>${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
-          <td>${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
+          <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td class="mv-nw" translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
+          <td class="mv-nw">${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
+          <td class="mv-nw mv-pay">${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
           <td class="k-weg">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</td></tr>`).join('') : '';
       $('mvTbl').classList.toggle('hidden', !rows.length);
+      einzeilig();
       const em = $('mvEmpty'); em.classList.toggle('hidden', rows.length > 0);
       em.textContent = rows.length ? '' : st.rows.length ? 'Keine Treffer – Suche oder Filter ändern.' : 'Noch keine Mitglieder – oben „+ Neues Mitglied“ anlegen oder „Import …“ nutzen (S-Verein, WISO, verein.cloud).';
     };
@@ -213,12 +229,47 @@
     $('mvSeg').onclick = e => { const b = e.target.closest('[data-f]'); if (!b) return; st.f.status = b.dataset.f; if (st.f.issue) { st.f.issue = ''; list(); return; } $('mvSeg').querySelectorAll('[data-f]').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); draw(); };
     $('mvDept').onchange = () => { st.f.dept = $('mvDept').value; draw(); };
     $('mvFee').onchange = () => { st.f.fee = $('mvFee').value; draw(); };
-    $('mvTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) openMember(+tr.dataset.sel); };
-    $('mvTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); openMember(+tr.dataset.sel); } };
+    // Breiter Bildschirm: Klick zeigt das Mitglied in der Karte rechts, Doppelklick oder „Öffnen“ öffnet es. Schmal: Klick öffnet wie bisher.
+    const pick = id => { if (!wide()) return openMember(id); st.sel = id; $('mvTbl').querySelectorAll('tr[data-sel]').forEach(t => t.classList.toggle('on', +t.dataset.sel === id)); showCard(id); };
+    $('mvTbl').onclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) pick(+tr.dataset.sel); };
+    $('mvTbl').ondblclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) openMember(+tr.dataset.sel); };
+    $('mvTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(+tr.dataset.sel); } };
+    $('mvDetail').onclick = e => { const b = e.target.closest('[data-open]'); if (b) GK.openDetail('mitglied', +b.dataset.open, b.dataset.tab || undefined); };
+    showCard(st.rows.some(r => r.id === st.sel) ? st.sel : null);
     if (!GK.tabTools(tools, $('mvTbl'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('mvNew').onclick = () => newMember();
     if ($('mvImp')) $('mvImp').onclick = () => importDialog();
     if ($('mvXls')) $('mvXls').onclick = () => exportDialog();
+  }
+
+  /* Karte rechts neben der Liste (ab 1400 px): das Wichtigste zum gewählten Mitglied, „Öffnen“ und die Reiter führen in die Detailansicht */
+  const wide = () => window.matchMedia('(min-width: 1400px)').matches;
+  async function showCard(id) {
+    const el = $('mvDetail'); if (!el) return;
+    el.classList.toggle('empty', !id);
+    if (!id) { el.innerHTML = `<div class="mempty"><span class="mi">${icon('ausweis', 22)}</span><b>Mitglied auswählen</b><span class="muted s">Klick auf einen Namen zeigt hier das Wichtigste, Doppelklick öffnet das Mitglied.</span></div>`; return; }
+    const d = await api('member/' + id).catch(() => null);
+    if (!d || st.sel !== id || !$('mvDetail')) return;   // inzwischen ein anderes Mitglied gewählt oder Seite gewechselt
+    const p = d.person, r = st.rows.find(x => x.id === id) || { issues: [] };
+    const status = p.anonymized_at ? 'anonym' : p.exited ? 'ausgetreten' : p.status;
+    const sub = [p.member_no ? `${GK.T('Nr.')} ${p.member_no}` : '', p.age != null ? `${p.age} ${GK.T('Jahre')}` : '', status ? GK.T((STATUS[status] || ['', status])[1]) : ''].filter(Boolean).join(' · ');
+    const fee = (d.fees || []).filter(f => !f.end_date).map(f => `${esc(f.name)} · ${euro(f.eff_cents ?? f.fee_cents ?? 0)} ${esc(GK.T(INTERVAL[f.interval] || ''))}`).join('<br>');
+    const deps = (d.departments || []).filter(x => !x.exit_date).map(x => esc(x.name)).join(', ');
+    const pay = d.payer ? `${esc(GK.T('über'))} ${esc(GK.lastFirst(d.payer.name))}` : `${esc(GK.T(PAY[p.payment] || p.payment || ''))}${d.bank && d.bank.mandate_ref ? ` · ${esc(GK.T('Mandat'))} ${esc(d.bank.mandate_ref)}` : ''}`;
+    const until = (d.fees || []).map(f => f.booked_until).filter(Boolean).sort().pop();
+    const open = (d.charges || []).filter(c => c.status === 'offen').reduce((a, c) => a + (c.cents || 0), 0);
+    const addr = [p.street, [p.zip, p.city].filter(Boolean).join(' ')].filter(Boolean).map(esc).join('<br>');   // Straße, darunter PLZ und Ort – feste Zeilen statt zufälligem Umbruch
+    const fact = (l, v, cls = '') => v ? `<div><dt>${esc(GK.T(l))}</dt><dd class="${cls}">${v}</dd></div>` : '';
+    const tabs = [['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ['verlauf', 'Verlauf']];
+    $('mvDetail').innerHTML = `<div class="mhead"><span class="av lg mv-pic">${p.photo ? `<img src="api/admin/photo/${p.id}?v=${esc(p.photo)}" alt="">` : ini(p.name)}</span><div style="min-width:0"><h3>${esc(GK.lastFirst(p.name))}</h3><div class="muted">${esc(sub)}</div></div></div>
+      <dl class="facts">
+        ${fact('Geburtsdatum', p.birth_date ? deDate(p.birth_date) : '')}${fact('Eintritt', p.entry_date ? deDate(p.entry_date) : '')}
+        ${fact('Abteilungen', deps)}${fact('Beitrag', p.family_of ? `${esc(GK.T('Familie'))} ${esc(r.family_head_name || '')}` : fee)}
+        ${fact('Zahlung', pay)}${fact('Abgerechnet bis', until ? deDate(until) : '')}${fact('Offene Posten', open ? euro(open) : '', 'neg')}
+        ${fact('Mobil', esc(p.mobile || p.phone || ''))}${fact('E-Mail', esc(p.email || ''))}${fact('Anschrift', addr)}
+        ${fact('Hinweise', (r.issues || []).filter(i => typeof i === 'string').map(i => esc(GK.T(i))).join('<br>'))}
+      </dl>
+      <div class="mact"><button class="btn primary" data-open="${id}">Öffnen</button>${tabs.map(([k, l]) => `<button class="btn" data-open="${id}" data-tab="${k}">${esc(GK.T(l))}</button>`).join('')}</div>`;
   }
 
   function newMember() {

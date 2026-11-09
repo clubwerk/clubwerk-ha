@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2026.11.30
+
+**Mitgliederliste mit dem Mitglied daneben, Übersicht ohne Begrüßung (Wunsch Thorsten 09.11.2026)**
+- Mitglieder: Auf breiten Bildschirmen (ab 1400 Pixel) steht rechts neben der Liste eine Karte mit dem Wichtigsten zum angeklickten Mitglied – Geburtsdatum, Eintritt, Abteilungen, Beitrag, Zahlung, „Abgerechnet bis“, offene Posten, Kontakt und Hinweise. „Öffnen“ oder ein Doppelklick öffnet das Mitglied, die Knöpfe darunter springen direkt in Mitgliedschaft, Zahlung & Familie, Konto & Mandat oder Verlauf. Auf kleineren Bildschirmen, am Tablet und am Handy bleibt alles wie bisher: Ein Klick öffnet das Mitglied.
+- Übersicht: Statt „Guten Abend, …“ steht oben jetzt einfach „Übersicht“, darüber wie bisher das Datum.
+- Übersicht: Kennzahlen in den Modulkacheln brechen nicht mehr um – bei „Dienste & Termine“ stand das „h“ von „129 von 155 h“ allein in der zweiten Zeile. Lange Werte sind etwas kleiner.
+- Mitgliederliste: Alle Zeilen sind gleich hoch. Namen, Abteilungen, Beitrag, Zahlung („über Weber, Markus“) und Hinweise bleiben auf großen Bildschirmen einzeilig, statt einzelne Zeilen höher zu machen – solange die Liste damit hineinpasst. Sehr lange Beitragsarten oder Namen brechen um, statt dass die Liste seitlich scrollt.
+- Überall (Verwaltung, Tablet, App): Zahl und Einheit bleiben zusammen – „18:55 Uhr“, „64 min“, „30 Tage“, „20 %“ brechen nie mehr so um, dass die Einheit allein in der nächsten Zeile steht – auch in eigenen Texten des Vereins (Beitragsart „Erwachsene ab 27 Jahre“, Hinweis zum Arbeitseinsatz „15 € je Stunde“).
+- Für Entwickler: neue Prüfstand-Regel `einheit-allein` (eine Einheit wie h, €, % steht nie allein in der nächsten Zeile).
+- Mitglieder 1.40.0, Turniere 1.11.4 (Spielzeit am Tablet „· 40 min“ bleibt zusammen, die Zeile steht als Name ohne Übersetzung).
+
 ## 2026.11.29
 
 **Zugangsdaten liegen jetzt im Tresor (Frage Thorsten 08.11.2026: „Sind alle Passwörter und Pins in der DB gehasht?“)**

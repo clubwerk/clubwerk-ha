@@ -22,7 +22,7 @@ Links steht das Menü, geordnet nach Bereichen: **Gastro**, **Sport**, **Anlage*
 
 ### Seite „Übersicht“ {#uebersicht}
 
-![Die Übersicht: Begrüßung, Fortschritt der Einrichtung, „Zu erledigen“ und das Raster der Module.](bild: seite=uebersicht)
+![Die Übersicht: Datum und Überschrift, Fortschritt der Einrichtung, „Zu erledigen“ und das Raster der Module.](bild: seite=uebersicht)
 
 Die Übersicht ist eure Startseite. Sie zeigt, was heute wichtig ist.
 

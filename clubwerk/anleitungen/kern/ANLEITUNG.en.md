@@ -22,7 +22,7 @@ The menu is on the left, sorted into areas: **Catering**, **Sport**, **Facilitie
 
 ### Page “Overview” {#uebersicht}
 
-![The overview: greeting, setup progress, “To do” and the grid of modules.](bild: seite=uebersicht)
+![The overview: date and heading, setup progress, “To do” and the grid of modules.](bild: seite=uebersicht)
 
 The overview is your home page. It shows what matters today.
 

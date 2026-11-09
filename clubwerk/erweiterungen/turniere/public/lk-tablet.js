@@ -23,7 +23,7 @@
   }
   const done = async msg => { closeDlg(); toast(msg); await onChange(); };
   const T = (t, v) => (window.T ? window.T(t, v) : String(t).replace(/\{(\d+)\}/g, (m, i) => (v && v[i] != null ? v[i] : m)));
-  const delay = m => (m.delay >= 5 ? ` · +${m.delay} min` : '');
+  const delay = m => (m.delay >= 5 ? ` · +${m.delay}\u00a0min` : '');
 
   /* ---------- Einchecken: Namen suchen (ab 2 Buchstaben), dann einchecken und Nenngeld ---------- */
   function pickName() {
@@ -101,7 +101,7 @@
     if (!d.day) return null;
     const tile = c => {   // Platz-Kacheln doppelt breit: Paarung und Uhrzeit stehen ganz da, nie mit „…“
       const r = c.running, n = c.next;
-      const txt = r ? `${line(r)} · ${r.minutes} min` : n ? `als Nächstes ${n.est || ''} ${line(n)}` : 'frei';
+      const txt = r ? `${line(r)} · ${r.minutes}\u00a0min` : n ? `als Nächstes ${n.est || ''} ${line(n)}` : 'frei';
       const chip = r ? '<span class="tk-chip g">läuft</span>' : n && !n.wait ? '<span class="tk-chip">bereit</span>' : n && n.delay >= 15 ? `<span class="tk-chip r">+${n.delay} min</span>` : '';
       return `<button class="tk-tile span2" data-c="${c.id}"><span class="tk-ico">${COURT}</span><span class="tk-txt"><b>${esc(c.name)}</b><span translate="no">${esc(txt)}</span></span>${chip}</button>`;
     };

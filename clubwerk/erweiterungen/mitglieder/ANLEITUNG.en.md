@@ -87,6 +87,8 @@ Downloads the list as an Excel file with the columns you tick. The filter of the
 
 ### Opening a member {#mitglied}
 
+On a wide screen (from 1400 pixels, such as a large monitor) a card sits to the right of the list: clicking a name shows the essentials there – date of birth, joining date, departments, fee, payment, “Billed until”, open items, contact details and notes. **Open** (or double-clicking the name) opens the member; the buttons below jump straight to the matching tab. The list’s “Payment” and “Notes” columns are then hidden, as both are shown in the card. On narrower screens, on the tablet and on the phone, a click opens the member directly.
+
 ![An opened member: name and key facts at the top, below them “← All members” and the tabs.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detailrow)
 
 Above the tabs is the name; below it a line with number, age, status, planned leaving date, “pays via …” or “Family of …” and a note if change requests from the app are waiting. The tabs are **Master data**, **Membership**, **Payment & family**, **Account & mandate**, **Documents** and **History**. Anyone who looks after just one department only sees “Master data”, “Membership”, “Documents” and “History”.
