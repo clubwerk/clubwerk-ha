@@ -34,6 +34,7 @@ function register(sh) {
     // o.booked = { mf: { id: Datum }, md: { id: Datum } }: anderer Stand „abgerechnet bis“ nur für diese Rechnung (Vorschau „Abgerechnet bis“ für alle setzen)
     const bk = (kind, row) => (o.booked && o.booked[kind] && Object.prototype.hasOwnProperty.call(o.booked[kind], row.id) ? o.booked[kind][row.id] : row.booked_until);
     if (!o.onlyDrinks) {
+      if (sh.ageScan) sh.ageScan(until);   // Vorschau und Liste „Altersstufen“ sagen dasselbe: erst prüfen, dann warnen
       const rows = db.prepare(`SELECT mf.*, f.name AS fee_name, f.cents AS fee_cents, f.interval, f.prorate, f.department_id, f.age_min, f.age_max, f.family,
           p.exit_date, p.birth_date, p.anonymized_at, m.name AS person_name
         FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id JOIN mv_person p ON p.member_id = mf.member_id JOIN members m ON m.id = mf.member_id
@@ -49,19 +50,19 @@ function register(sh) {
           if (pr.free || !pr.cents) { marks.push({ mf: r.id, to: pr.to, name: r.person_name, fee: r.fee_name }); continue; }   // beitragsfrei bzw. 0 € (befreit): kein Posten, nur „abgerechnet bis“ vorrücken
           const age = fees.ageAt(r.birth_date, pr.from);
           if (age != null && ((r.age_max != null && age > r.age_max) || (r.age_min != null && age < r.age_min)) && !(sh.ageNoticeFor && sh.ageNoticeFor(r.id)))
-            warnings.push({ member_id: r.member_id, text: `${r.person_name} ist am ${deD(pr.from)} ${age} Jahre – „${r.fee_name}“ gilt für ${r.age_min != null ? r.age_min : 0}–${r.age_max != null ? r.age_max : '…'} Jahre.` });
+            warnings.push({ member_id: r.member_id, text: `${lastFirst(r.person_name, 'mitglied')} ist am ${deD(pr.from)} ${age} Jahre – „${r.fee_name}“ gilt für ${fees.ageLimText(r, ' Jahre')}.` });
           if (r.family) {
             // Familienbeitrag deckt das Oberhaupt und die Angehörigen der Familienmitgliedschaft (family_of) ab – nicht die Zahlergruppe.
             // Ein Partner (zweiter Erwachsener) ist ausdrücklich zugeordnet; wer als Kind 19 wird, bleibt ohne Beitrag, bis ihm eine eigene Beitragsart zugewiesen ist (keine stille Umstellung).
             const max = store.childMax();
-            const fam = db.prepare('SELECT m.name, p.birth_date FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.family_of = ? AND p.member_id != ? AND m.deleted = 0 AND (p.exit_date IS NULL OR p.exit_date >= ?) ORDER BY p.birth_date IS NULL, p.birth_date').all(r.member_id, r.member_id, pr.from);
+            const fam = db.prepare('SELECT m.id, m.name, p.birth_date FROM mv_person p JOIN members m ON m.id = p.member_id WHERE p.family_of = ? AND p.member_id != ? AND m.deleted = 0 AND (p.exit_date IS NULL OR p.exit_date >= ?) ORDER BY p.birth_date IS NULL, p.birth_date').all(r.member_id, r.member_id, pr.from);
             let adults = 0;
             for (const d of fam) {
               const a = fees.ageAt(d.birth_date, pr.from);
               if (a == null || a > max) adults++;
-              if (a == null && !famWarned.has(`${d.name}|keinGeb`)) { famWarned.add(`${d.name}|keinGeb`); warnings.push({ member_id: r.member_id, text: `${d.name}: Geburtsdatum fehlt – in der Familienmitgliedschaft von ${r.person_name} gilt die Person als Erwachsene/r.` }); }
-              if (a === max + 1 && !famWarned.has(`${d.name}|${pr.from}`)) { famWarned.add(`${d.name}|${pr.from}`); warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – nicht mehr im Familientarif von ${r.person_name}, bitte eigene Beitragsart zuweisen.` }); }
-              else if (a != null && a > max + 1 && adults > 1) warnings.push({ member_id: r.member_id, text: `${d.name} ist am ${deD(pr.from)} ${a} Jahre – neben ${r.person_name} ist schon ein weiterer Erwachsener in der Familienmitgliedschaft (erlaubt: Oberhaupt und ein Partner). Bitte eigene Beitragsart zuweisen.` });
+              if (a == null && !famWarned.has(`${d.name}|keinGeb`)) { famWarned.add(`${d.name}|keinGeb`); warnings.push({ member_id: r.member_id, text: `${lastFirst(d.name, 'mitglied')}: Geburtsdatum fehlt – in der Familienmitgliedschaft von ${lastFirst(r.person_name, 'mitglied')} gilt die Person als Erwachsene/r.` }); }
+              if (a === max + 1 && !famWarned.has(`${d.name}|${pr.from}`)) { famWarned.add(`${d.name}|${pr.from}`); if (!(sh.ageNoticeFamily && sh.ageNoticeFamily(d.id))) warnings.push({ member_id: r.member_id, text: `${lastFirst(d.name, 'mitglied')} ist am ${deD(pr.from)} ${a} Jahre – nicht mehr im Familientarif von ${lastFirst(r.person_name, 'mitglied')}, bitte eigene Beitragsart zuweisen.` }); }   // gibt es schon einen Hinweis unter „Altersstufen“, entscheidet man dort – keine zweite Anweisung
+              else if (a != null && a > max + 1 && adults > 1) warnings.push({ member_id: r.member_id, text: `${lastFirst(d.name, 'mitglied')} ist am ${deD(pr.from)} ${a} Jahre – neben ${lastFirst(r.person_name, 'mitglied')} ist schon ein weiterer Erwachsener in der Familienmitgliedschaft (erlaubt: Oberhaupt und ein Partner). Bitte eigene Beitragsart zuweisen.` });
             }
           }
           positions.push({ key: `f${r.id}-${pr.from}`, kind: r.interval === 'einmalig' ? 'aufnahme' : 'beitrag', member_id: payer, for_member_id: r.member_id, member_fee_id: r.id,
@@ -677,11 +678,12 @@ function register(sh) {
   }));
   /* Übersicht Finanzen */
   admin.get('/finance', PF, (req, res) => {
-    const y = String(req.query.year || today().slice(0, 4)).slice(0, 4);
+    // Jahr = Geschäftsjahr des Vereins (Kern, ctx.geschaeftsjahr); „year“ ist das Startjahr, angezeigt als „2026“ bzw. „2026/27“
+    const G = C.geschaeftsjahr, yn = /^\d{4}$/.test(String(req.query.year || '')) ? +req.query.year : G.yearOf(today()), r = G.range(yn);
     const sum = (where, ...a) => db.prepare(`SELECT COALESCE(SUM(cents),0) c, COUNT(*) n FROM mv_charge WHERE ${where}`).get(...a);
-    res.json({ year: y, open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), inCollection: sum("status = 'eingezogen'"),
-      paidYear: sum("status = 'bezahlt' AND substr(paid_at,1,4) = ?", y), billedYear: sum("status != 'storniert' AND substr(due_date,1,4) = ?", y),
-      byKind: db.prepare("SELECT kind, COALESCE(SUM(cents),0) c FROM mv_charge WHERE status != 'storniert' AND substr(due_date,1,4) = ? GROUP BY kind").all(y),
+    res.json({ year: G.label(yn), from: r.from, to: r.to, open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), inCollection: sum("status = 'eingezogen'"),
+      paidYear: sum("status = 'bezahlt' AND substr(paid_at,1,10) BETWEEN ? AND ?", r.from, r.to), billedYear: sum("status != 'storniert' AND due_date BETWEEN ? AND ?", r.from, r.to),
+      byKind: db.prepare("SELECT kind, COALESCE(SUM(cents),0) c FROM mv_charge WHERE status != 'storniert' AND due_date BETWEEN ? AND ? GROUP BY kind").all(r.from, r.to),
       ready: { creditor: Boolean(S('creditor_id')), iban: Boolean(store.account().iban), mail: C.mail.ready() }, earliest: sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14),
       drinksDue: S('drinks_due', ''), drinksOpen: C.drinks.active() ? C.drinks.open().rows.filter(r => r.kind === 'mitglied').reduce((s, r) => s + r.total_cents, 0) : null });
   });

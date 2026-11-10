@@ -189,12 +189,13 @@ function activate(ctx) {
   /* ---------- Übersicht ---------- */
   admin.get('/meta', P, ar(async (req, res) => {
     await syncMemberInvoices();
-    const y = Number(today().slice(0, 4));
+    const y = Number(today().slice(0, 4));   // Kalenderjahr: Spenden (Zuwendungsbestätigungen gelten je Kalenderjahr), Jahresrechnungen
+    const G = ctx.geschaeftsjahr, gy = G.yearOf(today()), gr = G.range(gy);   // Geschäftsjahr: „Bezahlt …“ und Jahresfilter der Rechnungen
     const sum = (where, ...a) => db.prepare(`SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE ${where}`).get(...a);
     const members = db.prepare("SELECT m.id, m.name, m.active FROM members m WHERE m.kind = 'mitglied' ORDER BY m.active DESC, name_key(m.name, m.kind)").all();
     const nos = mvSync('memberNumbers') || {};
-    res.json({ today: today(), year: y, settings: settings(), mv: ctx.isModuleActive('mitglieder'), mail: ctx.mail.ready(),
-      kpis: { open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), paidYear: sum("status = 'bezahlt' AND year = ?", y),
+    res.json({ today: today(), year: y, gj: { year: gy, label: G.label(gy), fiscal: G.month(), years: Array.from({ length: 6 }, (_, i) => ({ y: gy - i, label: G.label(gy - i) })) }, settings: settings(), mv: ctx.isModuleActive('mitglieder'), mail: ctx.mail.ready(),
+      kpis: { open: sum("status = 'offen'"), overdue: sum("status = 'offen' AND due_date < ?", today()), paidYear: sum("status = 'bezahlt' AND substr(COALESCE(paid_at, date),1,10) BETWEEN ? AND ?", gr.from, gr.to),
         donations: db.prepare("SELECT COUNT(*) n, COALESCE(SUM(cents),0) c FROM bh_donation WHERE status = 'aktiv' AND year = ?").get(y) },
       partners: db.prepare('SELECT id, name, active, department_id FROM bh_partner ORDER BY active DESC, name COLLATE NOCASE').all(),
       accounts: C.bank.list().map(a => ({ id: a.id, name: a.name, iban: a.iban, is_default: a.is_default, departments: a.departments })), departments: departments(),
@@ -303,7 +304,7 @@ function activate(ctx) {
     await syncMemberInvoices();
     const q = req.query, w = [], a = [];
     if (q.status && q.status !== 'alle') { if (q.status === 'ueber') { w.push("status = 'offen' AND due_date < ?"); a.push(today()); } else { w.push('status = ?'); a.push(q.status); } }
-    if (q.year) { w.push('year = ?'); a.push(int(q.year)); }
+    if (q.year) { const r = ctx.geschaeftsjahr.range(int(q.year)); w.push('date BETWEEN ? AND ?'); a.push(r.from, r.to); }   // Geschäftsjahr (Startjahr) nach Rechnungsdatum
     if (q.partner) { w.push('partner_id = ?'); a.push(int(q.partner)); }
     res.json(db.prepare(`SELECT * FROM bh_invoice ${w.length ? 'WHERE ' + w.join(' AND ') : ''} ORDER BY date DESC, id DESC LIMIT 1000`).all(...a).map(invView));
   }));

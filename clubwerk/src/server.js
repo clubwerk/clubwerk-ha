@@ -1263,7 +1263,7 @@ admin.get('/settings', (req, res) => {
   const p = req.user.perms;   // Bestelldaten (Kundennummer, Adresse, Mail des Lieferanten) nur für „Bestellung“/„Einstellungen“
   res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), clubNameSet: require('./vereinsname').isSet(), lastSettlement: lastSettlement(),
     order: p.includes('bestellung') || p.includes('einstellungen') ? orderSettings() : undefined, clubColor: clubColor(), clubColor2: clubColor2(), tabletTheme: tabletTheme(), logo: logoUrl(), logoCustom: Boolean((logoInfo() || {}).custom),
-    clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''),
+    clubStreet: getSetting('club_street', ''), clubCity: getSetting('club_city', ''), clubEmail: getSetting('club_email', ''), clubPhone: getSetting('club_phone', ''), fiscalMonth: require('./geschaeftsjahr').month(),
     topN: topN(), topDays: topDays(), tabletPw: p.includes('einstellungen') ? { on: gateOn(), since: getSetting('tablet_pw_at') } : undefined, tablet: tabletOn(), tabletChosen: getSetting('tablet_enabled', null) !== null,
     allowedHosts: p.includes('einstellungen') ? getSetting('allowed_hosts', '') : undefined });
 });
@@ -1479,7 +1479,7 @@ admin.post('/order/send', need('bestellung'), rateLimit('ordermail', 10, 10 * 60
   if (!subject || !text.trim()) return bad(res, 'Betreff und Text dürfen nicht leer sein.');
   if (orderMailChange(req, { order_email: to, order_cc: cc })) return bad(res, 'Bestellungen gehen nur an die gespeicherte Adresse des Lieferanten. Eine neue Adresse trägt ein Admin mit dem Recht „Einstellungen“ ein.', 403);
   try {
-    await mail.send({ to, cc, subject, text });
+    await mail.send({ direct: true, to, cc, subject, text });
     setSetting('order_email', to); setSetting('order_cc', cc);
     setSetting('order_last_sent', `${nowTs()} · ${to}`);
     audit(req.user, 'Bestellung gesendet', `an ${to}${cc ? ', Kopie ' + cc : ''} · ${subject}`);
@@ -1496,7 +1496,7 @@ admin.put('/mail', need('einstellungen'), (req, res) => {
 admin.post('/mail/test', need('einstellungen'), rateLimit('mailtest', 6, 10 * 60000), async (req, res) => {
   const to = String((req.body || {}).to || '').trim();
   try {
-    await mail.send({ to, subject: `Test – ${getSetting('club_name', 'Verein')}`, text: 'Diese Testnachricht kommt von Clubwerk. Der E-Mail-Versand funktioniert.' });
+    await mail.send({ direct: true, to, subject: `Test – ${getSetting('club_name', 'Verein')}`, text: 'Diese Testnachricht kommt von Clubwerk. Der E-Mail-Versand funktioniert.' });
     res.json({ ok: true });
   } catch (e) { bad(res, 'Test fehlgeschlagen: ' + e.message, 502); }
 });
@@ -1655,7 +1655,7 @@ admin.post('/members/import', need('konten'), (req, res) => {
   res.json({ added, skipped });
 });
 
-/* Saison = Kalenderjahr (wie „Ganze Saison“ in der Verwaltung) */
+/* Saison = Kalenderjahr (Spielsaison für „lange nicht gebucht“ – bewusst nicht das Geschäftsjahr, planung/geschaeftsjahr.md) */
 const seasonStart = () => today().slice(0, 4) + '-01-01';
 
 /* Mitglieder, die diese Saison nicht da waren, entfernen:
@@ -2413,17 +2413,19 @@ function balances(asOf = nowTs(), upTo = maxBookingId()) {
 admin.get('/sales-stats', need('abrechnung', 'export'), (req, res) => {
   const t0 = new Date(); const pad2 = n => String(n).padStart(2, '0');
   const today0 = `${t0.getFullYear()}-${pad2(t0.getMonth() + 1)}-${pad2(t0.getDate())}`;
-  const y = Math.max(2000, Math.min(2100, parseInt(req.query.year, 10) || t0.getFullYear()));
+  // Jahr = Geschäftsjahr des Vereins (src/geschaeftsjahr.js; Beginn Januar = Kalenderjahr), Monate in der Reihenfolge des Geschäftsjahres
+  const gj = require('./geschaeftsjahr'), fm = gj.month();
+  const y = Math.max(2000, Math.min(2100, parseInt(req.query.year, 10) || gj.yearOf(today0, fm)));
   const cat = String(req.query.cat || '');
-  const load = yy => db.prepare(`SELECT b.*, a.name AS aname, a.category FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.created_at >= ? AND b.created_at < ? ${cat ? 'AND a.category = ?' : ''}`)
-    .all(`${yy}-01-01`, `${yy + 1}-01-01`, ...(cat ? [cat] : []));
+  const load = yy => { const r = gj.range(yy, fm); return db.prepare(`SELECT b.*, a.name AS aname, a.category FROM bookings b JOIN articles a ON a.id = b.article_id WHERE b.created_at >= ? AND b.created_at < ? ${cat ? 'AND a.category = ?' : ''}`)
+    .all(r.from, gj.range(yy + 1, fm).from, ...(cat ? [cat] : [])); };
+  const mi = b => (+b.created_at.slice(5, 7) - fm + 12) % 12;   // 0 = erster Monat des Geschäftsjahres
   const calc = yy => {
     const all = load(yy), act = all.filter(b => !b.cancelled_at), can = all.filter(b => b.cancelled_at);
     const rev = b => (b.kind === 'verein' ? 0 : b.total_cents);
-    const m = f => Array.from({ length: 12 }, (_, i) => act.filter(b => +b.created_at.slice(5, 7) === i + 1).reduce((x, b) => x + f(b), 0));
+    const m = (list, f) => { const out = Array(12).fill(0); for (const b of list) out[mi(b)] += f(b); return out; };
     return { act, can, revenue: act.reduce((x, b) => x + rev(b), 0), units: act.reduce((x, b) => x + b.qty, 0), count: act.length, cancelled: can.length,
-      month: m(rev), monthUnits: m(b => b.qty), monthCount: Array.from({ length: 12 }, (_, i) => act.filter(b => +b.created_at.slice(5, 7) === i + 1).length),
-      monthCan: Array.from({ length: 12 }, (_, i) => can.filter(b => +b.created_at.slice(5, 7) === i + 1).length), rev };
+      month: m(act, rev), monthUnits: m(act, b => b.qty), monthCount: m(act, () => 1), monthCan: m(can, () => 1), rev };
   };
   const c = calc(y), p = calc(y - 1);
   const group = (key, nameOf) => { const mp = new Map(); for (const b of c.act) { const k = key(b); const v = mp.get(k) || { name: nameOf(b), units: 0, cents: 0, count: 0 }; v.units += b.qty; v.cents += c.rev(b); v.count++; mp.set(k, v); } return [...mp.values()]; };
@@ -2440,8 +2442,9 @@ admin.get('/sales-stats', need('abrechnung', 'export'), (req, res) => {
   for (const b of c.act) { const dt = new Date(b.created_at.replace(' ', 'T')); grid[(dt.getDay() + 6) % 7][dt.getHours()] += b.qty; }
   const usedH = grid.reduce((a, row) => { row.forEach((v, h) => { if (v) { a[0] = Math.min(a[0], h); a[1] = Math.max(a[1], h + 1); } }); return a; }, [24, 0]);
   const pick = x => ({ revenue: x.revenue, units: x.units, count: x.count, cancelled: x.cancelled, month: x.month, monthUnits: x.monthUnits, monthCount: x.monthCount, monthCan: x.monthCan });
-  res.json({ year: y, cat, until: y === t0.getFullYear() ? today0 : `${y}-12-31`,
-    years: [...new Set([t0.getFullYear(), ...db.prepare("SELECT DISTINCT substr(created_at,1,4) y FROM bookings").all().map(r => +r.y)])].filter(Boolean).sort((a, b) => b - a),
+  const rg = gj.range(y, fm), years = gj.yearsOf(db.prepare("SELECT DISTINCT substr(created_at,1,7) m FROM bookings").all().map(r => r.m), today0, fm);
+  res.json({ year: y, cat, until: today0 <= rg.to && today0 >= rg.from ? today0 : rg.to, from: rg.from, to: rg.to, fiscal: fm,
+    label: gj.label(y, fm), prevLabel: gj.label(y - 1, fm), current: gj.yearOf(today0, fm), years, labels: Object.fromEntries(years.map(v => [v, gj.label(v, fm)])),
     categories: db.prepare('SELECT DISTINCT category FROM articles ORDER BY category').all().map(r => r.category),
     cur: pick(c), prev: pick(p), top, cats, kinds, days, grid, hours: usedH[0] < usedH[1] ? usedH : [16, 23] });
 });
@@ -3776,6 +3779,7 @@ plugins.load({ app, admin, helpers: { need, rateLimit, rateLimitKey, bad, ownPwO
 i18n.reload();   // Sprachdateien der Erweiterungen
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung der Erweiterungs-Tabellen fehlgeschlagen –', e.message); }
 /* GoBD: Änderungsjournal für Geld und Belege (Trigger erst jetzt – alle Module und Tabellenumbauten sind geladen), Buchführung und Exporte */
+try { require('./geschaeftsjahr').migrate(); } catch (e) { console.error('Geschäftsjahr:', e.message); }   // übernimmt „Wirtschaftsjahr“ der Buchführung
 try { require('./gobd').install(); } catch (e) { console.error('GoBD: Änderungsjournal nicht eingerichtet –', e.message); }
 require('./gobd').routes(admin, { need, bad, asyncRoute });
 const memberapp = require('./memberapp');
@@ -3828,7 +3832,7 @@ try { vault.start(); } catch (e) { console.error('Tresor beim Start:', e); }
 if (!DEMO_KOPIE && process.env.CW_LESEKOPIE !== '1') { try { require('./geheim').schnappschuesse(backup.BACKUP_DIR); } catch (e) { console.error('Geheimnisse – Schnappschüsse:', e.message); } }
 /* Lesekopie der Teil-Wiederherstellung (src/teilsicherung.js): Datenbank ist auf dem heutigen Stand, alle Module geladen – Export abliefern und enden, ohne Ports zu öffnen */
 if (process.env.CW_LESEKOPIE === '1') return require('./teilsicherung').lesekopie({ plugins, db, vault, getSetting });
-vault.onUnlock(() => vault.flushMail(o => require('./mail').send(o)).then(n => { if (n) audit(null, 'Tresor: wartende E-Mails verschickt', String(n)); }));
+vault.onUnlock(() => require('./mail').flushQueue().then(n => { if (n) audit(null, 'Tresor: wartende E-Mails verschickt', String(n)); }));
 memberapp.startPort({ rateLimit, rateLimitKey, memberBalance });
 
 function navLinks() {

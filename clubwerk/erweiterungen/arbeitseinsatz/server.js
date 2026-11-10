@@ -81,13 +81,13 @@ function activate(ctx) {
   const cfg = () => ({
     default_minutes: parseInt(S('default_minutes', '240'), 10) || 0, min_age: parseInt(S('min_age', '12'), 10) || 0, max_age: parseInt(S('max_age', '0'), 10) || 0,
     rate_cents: parseInt(S('rate_cents', '1500'), 10) || 0, pool_family: S('pool_family', '1') === '1', exempt_passive: S('exempt_passive', '1') === '1',
-    year_mode: S('year_mode', 'kalender') === 'beitrag' ? 'beitrag' : 'kalender', prorate: S('prorate', '1') === '1', tablet_auto: S('tablet_auto', '1') === '1',
+    year_mode: ['beitrag', 'geschaeft'].includes(S('year_mode', 'kalender')) ? S('year_mode', 'kalender') : 'kalender', prorate: S('prorate', '1') === '1', tablet_auto: S('tablet_auto', '1') === '1',
     app_report: S('app_report', '1') === '1', start_year: parseInt(S('start_year', '0'), 10) || 0, remind_date: S('remind_date', ''), remind_events: S('remind_events', '1') === '1', round: parseInt(S('round', '15'), 10) || 1, text: S('text', ''),
     contact: S('contact', ''), notify: S('notify', ''), ical_url: S('ical_url', ''),
   });
   const mv = () => ctx.isModuleActive('mitglieder');
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
-  const yearStart = () => { if (cfg().year_mode !== 'beitrag') return '01-01'; const x = ctx.callHooksSync('clubInfo').find(y => y.id === 'mitglieder'); return (x && x.result.yearStart) || '01-01'; };
+  const yearStart = () => { const mode = cfg().year_mode; if (mode === 'geschaeft') return `${String(ctx.geschaeftsjahr.month()).padStart(2, '0')}-01`; if (mode !== 'beitrag') return '01-01'; const x = ctx.callHooksSync('clubInfo').find(y => y.id === 'mitglieder'); return (x && x.result.yearStart) || '01-01'; };
   /** Jahr Y → Zeitraum [from, to] */
   const period = y => { const ys = yearStart(); return { from: `${y}-${ys}`, to: addDays(`${y + 1}-${ys}`, -1) }; };
   const yearOf = day => { const ys = yearStart(); return day.slice(5) >= ys ? +day.slice(0, 4) : +day.slice(0, 4) - 1; };
@@ -489,7 +489,7 @@ function activate(ctx) {
     const num = (k, lo, hi) => { if (b[k] !== undefined) SET(k, Math.max(lo, Math.min(hi, int(b[k])))); };
     num('default_minutes', 0, 20000); num('start_year', 2000, 2100); num('min_age', 0, 99); num('max_age', 0, 120); num('rate_cents', 0, 100000); num('round', 1, 60);
     for (const k of ['pool_family', 'exempt_passive', 'prorate', 'tablet_auto', 'app_report', 'remind_events']) if (b[k] !== undefined) SET(k, b[k] ? '1' : '0');
-    if (b.year_mode !== undefined) SET('year_mode', b.year_mode === 'beitrag' ? 'beitrag' : 'kalender');
+    if (b.year_mode !== undefined) SET('year_mode', ['beitrag', 'geschaeft'].includes(b.year_mode) ? b.year_mode : 'kalender');
     if (b.remind_date !== undefined) { if (b.remind_date && !/^(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/.test(b.remind_date)) return bad(res, 'Ungültiges Datum für die Erinnerung (TT.MM.).'); SET('remind_date', b.remind_date || ''); }
     if (b.text !== undefined) SET('text', txt(b.text, 600));
     if (b.contact !== undefined) SET('contact', txt(b.contact, 120));

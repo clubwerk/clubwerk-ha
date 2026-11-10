@@ -59,7 +59,7 @@
   nav.side button.navb:hover { background: var(--hover); }
   nav.side button.navb > svg:first-child { flex: 0 0 18px; color: var(--muted); }
   nav.side button.navb > span:not(.badge) { flex: 1; min-width: 0; }
-  nav.side button.navb .badge { margin-left: 0; }
+  nav.side button.navb .badge { margin-left: 0; margin-right: 0; }
   nav.side button.navb .chev { flex: 0 0 16px; color: var(--muted); transition: transform .15s; }
   nav.side .navg.open > .navb .chev { transform: rotate(90deg); }
   nav.side .navg.open > .navb .badge { display: none; }   /* offen: die Punkte stehen an den Einträgen */
@@ -176,7 +176,10 @@
   /* Detailansicht (GK.registerDetail): „← Zurück“ vorn in der einen Reiterzeile, gleich hoch wie die Reiter */
   .detailrow > .detback { padding: 0 14px; flex: none; }
   .mlayout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-  .mlist .scroll { margin: 0; }
+  .mlist .scroll { margin: 0; max-height: none; overflow: visible; }   /* Liste ohne eigenen Scrollbereich: die Seite scrollt, das Mausrad wirkt überall (auch über der Karte und daneben), die Kopfzeile klebt oben (Fehler Thorsten 09.11.2026) */
+  .mlayout > .mlist { align-self: stretch; display: flex; flex-direction: column; }   /* Liste reicht bis zur Unterkante der Karte, auch bei wenigen Treffern – beide Rahmen enden bündig (Symmetrie, Fehler Thorsten 09.11.2026) */
+  .mlayout > .mlist > .scroll:has(> table:not(.hidden)), .mlayout > .mlist > p.empty { flex: 1 0 auto; }
+  .mlayout > .mlist > .scroll:not(:has(> table:not(.hidden))) { display: none; }   /* keine Treffer: nur der Leerhinweis, kein leerer Rahmen darüber */
   .tbl.sel tr[data-sel] { cursor: pointer; }
   .tbl.sel tr[data-sel]:hover td { background: var(--hover); }
   .tbl.sel tr[data-sel].on td { background: var(--brand-soft); }
@@ -185,7 +188,8 @@
   .tbl .who b { font-weight: 600; }
   .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
   .av.lg { width: 52px; height: 52px; flex-basis: 52px; border-radius: 26px; font-size: 17px; background: var(--brand); color: var(--on-brand); }
-  .mdetail { position: sticky; top: 20px; margin: 0; padding: 20px; }
+  .mlayout > .mcol { align-self: stretch; margin: 0; padding: 0; overflow: visible; }   /* rechte Spalte als Rahmen über die ganze Höhe der Zeile: Liste und Karte enden immer bündig (Symmetrie, Fehler Thorsten 09.11.2026) */
+  .mdetail { position: sticky; top: var(--mtop, 20px); margin: 0; padding: 20px; }   /* Inhalt der Karte klebt oben; höher als das Fenster scrollt er mit, bis sein Ende zu sehen ist (--mtop aus GK.klebend) – nie ein eigener Scrollbalken */
   .mdetail .mhead { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
   .mdetail .mhead h3 { margin: 0 0 6px; font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mdetail .facts { margin: 0; padding: 8px 0; }
@@ -198,7 +202,7 @@
   .mdetail .mact .btn:only-child, .mdetail .mact .btn.ghost { grid-column: 1 / -1; }
   .mdetail .mempty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 28px 8px; }
   .mdetail .mempty .mi { width: 48px; height: 48px; border-radius: 14px; background: var(--brand-soft); color: var(--brand); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
-  @media (max-width: 1100px) { .mlayout { grid-template-columns: 1fr; } .mlayout > .mdetail { display: none; } }   /* schmal: Detail als Dialog (admin.js), die Liste springt nicht */
+  @media (max-width: 1100px) { .mlayout { grid-template-columns: 1fr; } .mlayout > .mcol { display: none; } }   /* schmal: Detail als Dialog (admin.js), die Liste springt nicht */
   @media (max-width: 700px) {
     .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
     .kpi { padding: 14px 16px; }
@@ -220,7 +224,7 @@
     min-height: 40px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); font-size: 14px; font-weight: 500; color: var(--ink);
     transition: border-color .15s, box-shadow .15s;
   }
-  label.f textarea[data-grow] { resize: none; overflow: hidden; display: block; line-height: 20px; padding-top: 9px; padding-bottom: 9px; }   /* einzeiliges, selbst wachsendes Feld (GK.fit): bricht langen Text um, statt ihn abzuschneiden */
+  label.f textarea[data-grow] { min-height: 40px; resize: none; overflow: hidden; display: block; line-height: 20px; padding-top: 9px; padding-bottom: 9px; }   /* einzeiliges, selbst wachsendes Feld (GK.fit): bricht langen Text um, statt ihn abzuschneiden */
   label.f select, .tbl select { padding-top: 0; padding-bottom: 0; padding-left: 8px; }   /* Auswahlfelder rücken ihren Text von selbst etwa 4 px nach innen (Chromium und WebKit): 8 + 4 = 12 px wie bei Textfeldern, so fluchten Felder und Auswahlen untereinander */   /* Safari zeichnet den Text nativer Auswahlfelder mit Innenabstand oben/unten zu tief (unten abgeschnitten); die Höhe kommt aus min-height (02.11.2026) */
   label.f input:focus, label.f select:focus, label.f textarea:focus, .tbl input:focus, .tbl select:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
   label.f textarea { min-height: 120px; line-height: 20px; }
@@ -458,7 +462,7 @@
   .modtbl td:nth-child(3), .modtbl td:nth-child(4) { white-space: nowrap; }
   .extbtns { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
   .instopts { display: flex; flex-direction: column; gap: 10px; margin-bottom: 6px; }
-  .mailgrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; } .mailgrid > :nth-child(1) { grid-column: span 3; } .mailgrid > :nth-child(3) { grid-column: span 2; } .mailgrid > :nth-child(4), .mailgrid > :nth-child(5) { grid-column: span 3; }
+  .mailgrid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; align-items: end; } .mailgrid > :nth-child(1) { grid-column: span 3; } .mailgrid > :nth-child(3) { grid-column: span 2; } .mailgrid > :nth-child(4), .mailgrid > :nth-child(5), .mailgrid > :nth-child(6), .mailgrid > :nth-child(7) { grid-column: span 3; }
   .mailgrid .btn { height: 40px; min-height: 40px; justify-content: center; }
   .logoprev { width: 150px; height: 110px; border: 1px solid var(--line); border-radius: 12px; display: flex; align-items: center; justify-content: center; background: var(--card); padding: 8px; } .logoprev:has(img) { background: #fff; }   /* weiß nur hinter dem Logo – „kein Logo“ braucht im dunklen Modus die Kartenfarbe */
   .logoprev img { max-width: 100%; max-height: 100%; object-fit: contain; }
@@ -597,6 +601,17 @@
     .mods .mrow .ver, .mods .mrow .st, .mods .mrow.head { display: none; }
     .split { grid-template-columns: 1fr; }
     .row[style*="nowrap"] { flex-wrap: wrap !important; }
+    /* Knopfzeilen am Handy (Entscheidung 09.11.2026, Prüfstand-Regel knopfreihe-ungleich): besteht eine Zeile nur aus Knöpfen, sind alle gleich breit – bricht sie um, steht nie einer schmaler allein darunter */
+    @media (max-width: 700px) {
+      :is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn) { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); justify-content: stretch; white-space: normal; }
+      :is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))) > span:empty { display: none; }
+      :is(.row, .btns, .acts)[data-einspaltig]:not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn) { grid-template-columns: minmax(0, 1fr); }   /* eine Beschriftung passt nicht in die halbe Breite (admin.js): ganze Zeile in einer Spalte, Text darf umbrechen */
+      :is(.row, .btns, .acts)[data-einspaltig]:not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn) > .btn { white-space: normal; }
+      :is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn) > .btn { width: 100%; justify-content: center; margin-left: 0; margin-right: 0; white-space: nowrap; }
+      /* Knöpfe in der letzten Tabellenzelle (z. B. „Herunterladen …“ und „Wiederherstellen …“): brechen sie um, steht jeder in voller Breite – nie zwei verschieden breite übereinander (Prüfstand knopfreihe-ungleich, System › Datensicherung) */
+      .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+      .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) > .btn { flex: 1 1 auto; justify-content: center; margin: 0; } .tbl td:has(> .btn ~ .btn):not(:has(> :not(.btn))) > .btn.abgesetzt { margin-left: 24px; }   /* rote Aktion bleibt abgesetzt (B-4) */
+    }
     .preview iframe, .preview img { height: 50vh; }
     .mailgrid { grid-template-columns: 1fr; } .mailgrid > * { grid-column: auto !important; }
     .minikpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }

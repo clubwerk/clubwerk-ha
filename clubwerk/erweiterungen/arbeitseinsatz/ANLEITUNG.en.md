@@ -211,7 +211,7 @@ You set a target per fee type under Members › Fees, and exceptions for single 
 ![The “Billing” card.](bild: seite=aw-einstellungen; ziel=[data-set="abrechnung"])
 
 - **Hourly rate for missing hours** in euros (0 = nothing is billed).
-- **Billing year:** calendar year or the same as the members’ fee year.
+- **Billing year:** calendar year, the same as the members’ fee year or the same as the club’s financial year (Settings › Bookkeeping).
 - **Bill from year:** earlier years are never billed, because nobody recorded hours then.
 
 Missing hours are added in the fee run as a “Work hours” item, with the text “x h not completed × hourly rate”.

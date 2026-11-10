@@ -149,7 +149,7 @@
       }
       function quit() {
         const fam = d.isHead && d.family.length > 1;
-        const sh = sheet(`<h2>Mitgliedschaft kündigen</h2><p>Nach der Satzung endet die Mitgliedschaft frühestens zum <b>${deD(d.notice.date)}</b>${d.notice.months ? ` (Kündigungsfrist ${d.notice.months} Monate zum Ende des Beitragsjahres)` : ''}. Der Vorstand bestätigt die Kündigung per E-Mail.</p>
+        const sh = sheet(`<h2>Mitgliedschaft kündigen</h2><p>Nach der Satzung endet die Mitgliedschaft frühestens zum <b>${deD(d.notice.date)}</b>${d.notice.months ? ` (Kündigungsfrist ${d.notice.months} Monate zum Ende des Geschäftsjahres)` : ' (zum Ende des Geschäftsjahres)'}. Der Vorstand bestätigt die Kündigung per E-Mail.</p>
           ${fam ? `<div>${d.family.map(f => `<label class="vh-check"><input type="checkbox" data-m="${f.id}" ${f.me ? 'checked' : ''}><span>${esc(f.name)}${f.head ? ' (zahlt)' : ''}</span></label>`).join('')}</div>` : ''}
           <label>Grund (freiwillig)</label><input class="vh-input" id="mqR" maxlength="300">
           <div style="margin-top:10px"><label class="vh-check"><input type="checkbox" id="mqC"><span>Ich möchte die Mitgliedschaft kündigen.</span></label></div>

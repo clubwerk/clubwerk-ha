@@ -32,7 +32,7 @@ Every single booking in the period is listed here. You cancel wrong bookings her
 
 ![Period and account filter.](bild: seite=buchungen; ziel=#rng)
 
-With **From** and **To** and “Show” you choose the period; “Whole season” runs from 1 January until today. Below that, **Account only** narrows the list to one person or team. A total is then shown as well: how many pieces and how much money that account has on its bill for the period.
+With **From** and **To** and “Show” you choose the period; “Financial year” runs from the start of the current financial year until today (Settings › Bookkeeping, usually 1 January). Below that, **Account only** narrows the list to one person or team. A total is then shown as well: how many pieces and how much money that account has on its bill for the period.
 
 #### List
 
@@ -199,7 +199,7 @@ The card **Closed (last 30 days)** shows who paid when and how. **Reopen** takes
 
 ![The tabs of Sales, “Statistics” is selected.](bild: seite=auswertung; ziel=.tabrow:has(> .drinktabs))
 
-The statistics show sales, items sold and popular times, always compared with the previous year. At the top you choose the **year** and optionally a **category**. In the current year the comparison runs up to today.
+The statistics show sales, items sold and popular times, always compared with the previous year. At the top you choose the **year** and optionally a **category**. If your financial year does not start on 1 January (Settings › Bookkeeping), you choose the **financial year** (e.g. “2026/27”); months and calendar then start with its first month, and the comparison is with the previous financial year.
 
 ![Filter for year and category.](bild: seite=auswertung; ziel=.filterbar)
 

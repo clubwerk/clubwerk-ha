@@ -133,6 +133,16 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 .vh-box.vh-hint h2 { font-size: 17px; }
 .vh-box.vh-hint p { margin: 0 0 10px; }
 .vh-small { font-size: 13px !important; }
+.vh-hhead { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px; } .vh-hhead h2 { margin: 0; }
+.vh-hx { flex: none; width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); font-size: 16px; display: grid; place-items: center; }
+.vh-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 16px; }
+.vh-step, .vh-zero { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 12px; align-items: start; text-align: left; margin-bottom: 16px; } .vh-steps .vh-step { margin-bottom: 0; }
+.vh-step > div, .vh-zero > div { min-width: 0; } .vh-step > div > b:first-child, .vh-zero > div > b:first-child { font-size: 15px; display: block; margin: 3px 0 6px; } .vh-step p, .vh-zero p { margin: 0 0 8px; }
+.vh-n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; background: var(--brand-soft); color: var(--brand-ink); }
+.vh-step.done > .vh-n { background: var(--brand); color: var(--on-brand); }
+.vh-wide { width: 100%; }
+.vh-sharebox { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); vertical-align: middle; margin: 0 2px; } .vh-sharebox svg { width: 20px; height: 20px; }
+.vh-ask { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin-bottom: 14px; background: var(--field); } .vh-ask p { margin: 0 0 10px; }
 .vh-codewrap { position: relative; margin-bottom: 12px; }
 .vh-codewrap .vh-code { margin-bottom: 0; padding-left: 56px; padding-right: 56px; }
 .vh-copy { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--ink); }
@@ -254,7 +264,7 @@ a.vh-btn { display: flex; align-items: center; justify-content: center; text-dec
 .vh-next .t small { font-size: 12px; font-weight: 600; }
 .vh-next .i { flex: 1; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; justify-content: center; gap: 2px; }
 .vh-next .i b { font-size: 16px; line-height: 21px; overflow-wrap: anywhere; }   /* lange Platz-/Titelnamen brechen um statt „…“ */
-.vh-next .i span { font-size: 13px; line-height: 18px; color: var(--on-hero-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vh-next .i span { font-size: 13px; line-height: 18px; color: var(--on-hero-muted); overflow-wrap: anywhere; }   /* Zeile unter dem Titel bricht um statt mit „…“ zu enden (Regel d4-gekuerzt: „mit Lea, Markus, Laura“) */
 .vh-next .o { align-self: center; flex: none; margin-right: 12px; min-height: 42px; padding: 0 16px; border-radius: 999px; border: 0; background: var(--on-hero); color: var(--hero-b); font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
 /* Bereichsfläche: Abstand 12 px zwischen den Blöcken – Bausteine direkt darin ohne eigenen Außenabstand */
 .vh-sec { display: flex; flex-direction: column; gap: 12px; }
@@ -325,3 +335,7 @@ body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius:
 .gbrow > div { align-self: center; min-width: 0; }
 @media (max-width: 900px) { .gbrow { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); } .gbrow > div { grid-column: 1 / -1; } }
 @media (max-width: 640px) { .gbrow { grid-template-columns: minmax(0, 1fr); } }
+
+/* Knöpfe einer Zeile stehen am Handy untereinander in voller Breite und gleich hoch (Prüfstand-Regel d5-knopfspalte) */
+@media (max-width: 560px) { .row.knopfspalte { flex-direction: column; flex-wrap: nowrap; align-items: stretch !important; } .knopfspalte .btn { width: 100%; justify-content: center; } }
+.vh-steps > li:last-child { border-bottom: 0; padding-bottom: 0; }

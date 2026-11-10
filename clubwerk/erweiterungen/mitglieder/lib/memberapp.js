@@ -9,6 +9,7 @@
  */
 const pdf = require('./pdf');
 const giro = require('../../../src/girocode');
+const { lastFirst } = require('../../../src/db');   // Namen immer „Nachname, Vorname“
 
 function register(sh) {
   const { C, store, sepa, fees, one, txt, mailOk, euro, deD, uname, ar, personRow, bankRow, mandateState, savePerson, saveDocument, consentList, exitMember, zusatzFor } = sh;
@@ -32,16 +33,9 @@ function register(sh) {
   const KIND = { daten: 'Datenänderung', bank: 'Neue Bankverbindung', kuendigung: 'Kündigung', eintritt: 'Eintritt (Abteilung)', austritt: 'Austritt (Abteilung)', rueckkehr: 'Rückkehr (Abteilung)' };
   const SCOPE_KINDS = ['eintritt', 'austritt', 'rueckkehr'];
 
-  /** frühester Austritt: Ende des Beitragsjahres unter Einhaltung der Kündigungsfrist */
+  /** frühester Austritt: Ende des Geschäftsjahres (Kern-Einstellung) unter Einhaltung der Kündigungsfrist – nicht das Beitragsjahr */
   function noticeDate(day = today()) {
-    const months = Math.max(0, parseInt(S('notice_months', '3'), 10) || 0);
-    const ys = S('year_start', '01-01');
-    const earliest = fees.addMonths(day, months);
-    for (let y = Number(day.slice(0, 4)); y < Number(day.slice(0, 4)) + 4; y++) {
-      const end = fees.addDays(`${y}-${ys}`, -1);
-      if (end >= earliest) return end;
-    }
-    return fees.addDays(`${Number(day.slice(0, 4)) + 2}-${ys}`, -1);
+    return C.geschaeftsjahr.exitDate(day, Math.max(0, parseInt(S('notice_months', '3'), 10) || 0));
   }
 
   const notifyBoard = async (subject, lines) => {
@@ -61,9 +55,9 @@ function register(sh) {
     // Zahlergruppe (wer über wen zahlt – Beiträge, Posten, Kündigung) und Familienmitgliedschaft (Familienbeitrag – nur Namen) getrennt, siehe store.js
     const fam = store.payerGroup(id);
     const family = fam.members.length > 1 ? db.prepare(`SELECT m.id, m.name, p.birth_date FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${fam.members.map(() => '?').join(',')})`).all(...fam.members)
-      .map(r => ({ id: r.id, name: r.name, head: r.id === fam.head, me: r.id === id })) : [];
+      .map(r => ({ id: r.id, name: lastFirst(r.name, 'mitglied'), head: r.id === fam.head, me: r.id === id })).sort((a, b) => a.name.localeCompare(b.name, 'de')) : [];
     const famHead = store.familyHead(id);
-    const familyMembership = famHead ? store.familyMembers(famHead).filter(f => !store.isExited(f)).map(f => ({ name: f.name, role: f.role, me: f.id === id })) : [];
+    const familyMembership = famHead ? store.familyMembers(famHead).filter(f => !store.isExited(f)).map(f => ({ name: lastFirst(f.name, 'mitglied'), role: f.role, me: f.id === id })) : [];   // Reihenfolge: Oberhaupt, Partner/in, Kinder nach Alter absteigend (store.familyMembers)
     const isHead = fam.head === id;
     const feeRows = db.prepare(`SELECT mf.start_date, mf.end_date, mf.booked_until, COALESCE(mf.cents, f.cents) AS cents, f.name, f.interval, mf.member_id, (SELECT name FROM members WHERE id = mf.member_id) AS who
       FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id IN (${(isHead ? fam.members : [id]).map(() => '?').join(',')}) AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.member_id = ? DESC, f.name`)
@@ -86,7 +80,7 @@ function register(sh) {
       person: { first_name: p.first_name, last_name: p.last_name, member_no: p.member_no, birth_date: V.geburt ? p.birth_date : null,
         ...(V.anschrift ? { street: p.street, zip: p.zip, city: p.city, address_extra: p.address_extra } : {}), ...(V.kontakt ? { phone: p.phone, mobile: p.mobile, email: p.email } : {}), entry_date: p.entry_date, exit_date: p.exit_date, notice_date: p.notice_date, status: store.STATUS[p.status] || p.status, payment: store.PAYMENT[p.payment] || p.payment },
       departments: V.abteilungen ? db.prepare(`SELECT d.name, md.entry_date, md.status FROM mv_member_department md JOIN mv_department d ON d.id = md.department_id WHERE md.member_id = ? AND (md.exit_date IS NULL OR md.exit_date >= ?) ORDER BY d.sort, d.name`).all(id, day) : [],
-      fees: V.beitraege ? feeRows : [], family: V.familie ? family : [], familyMembership: V.familie ? familyMembership : [], familyHeadName: famHead && famHead !== id && V.familie ? (personRow(famHead) || {}).name : null, isHead, payerName: payer !== id && V.familie ? (personRow(payer) || {}).name : null,
+      fees: V.beitraege ? feeRows : [], family: V.familie ? family : [], familyMembership: V.familie ? familyMembership : [], familyHeadName: famHead && famHead !== id && V.familie ? lastFirst((personRow(famHead) || {}).name, 'mitglied') : null, isHead, payerName: payer !== id && V.familie ? lastFirst((personRow(payer) || {}).name, 'mitglied') : null,
       open_cents: V.posten ? charges.filter(c => c.status === 'offen').reduce((s, c) => s + c.cents, 0) : 0, charges: V.posten ? charges : [], transfer: Boolean(isHead && V.posten && transferList(id, p)),
       bank: b && V.bank ? { iban: sepa.maskIban(b.iban), holder: b.holder, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, ok: mandateState(b).ok } : null,
       consents: !V.einwilligungen ? [] : consentList().map(c => ({ key: c.key, short: c.short, text: c.text, required: Boolean(c.required), given: Boolean(consents[c.key]), date: consents[c.key] || null })),
@@ -355,6 +349,11 @@ function register(sh) {
   }));
 
   sh.noticeDate = noticeDate;
+  // Verwaltung: frühester Austritt für einen Kündigungseingang (Fenster „Austritt“ – Vorschlag nach Kündigungsfrist und Geschäftsjahr)
+  admin.get('/notice-date', P, (req, res) => {
+    const day = fees.isDate(String(req.query.day || '')) ? String(req.query.day) : today();
+    res.json({ date: noticeDate(day), months: Math.max(0, parseInt(S('notice_months', '3'), 10) || 0) });
+  });
   sh.notifyBoard = notifyBoard;
   void euro;
 }

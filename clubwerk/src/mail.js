@@ -20,13 +20,16 @@ function config() {
   const g = (k, env) => getSetting(K(k), '') || process.env[env] || '';
   const user = g('user', 'SMTP_USER');
   // Passwort liegt im Tresor (src/geheim.js) – gesperrt nach einem Neustart: Mails warten (parked)
-  return { host: g('host', 'SMTP_HOST'), port: Number(g('port', 'SMTP_PORT')) || 587, user, pass: geheim().get(K('pass'), '') || process.env.SMTP_PASS || '', from: g('from', 'SMTP_FROM') || user };
+  const num = (k, def, max) => { const n = parseInt(getSetting(K(k), ''), 10); return n > 0 ? Math.min(n, max) : def; };
+  return { host: g('host', 'SMTP_HOST'), port: Number(g('port', 'SMTP_PORT')) || 587, user, pass: geheim().get(K('pass'), '') || process.env.SMTP_PASS || '', from: g('from', 'SMTP_FROM') || user,
+    perConn: num('perconn', 20, 500), perHour: num('perhour', 0, 100000) };   // Mails je Verbindung (Standard 20) und je Stunde (0 = unbegrenzt)
 }
 const ready = () => { const s = config(); return Boolean(s.host && s.from); };
 const validMails = v => String(v || '').split(/[,;\s]+/).map(x => x.trim()).filter(Boolean);
 const mailOk = v => validMails(v).length > 0 && validMails(v).every(m => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(m));
 /** Für die Verwaltung: ohne Passwort */
-const publicConfig = () => { const s = config(); return { host: s.host, port: s.port, user: s.user, from: s.from, hasPass: Boolean(s.pass) || geheim().has(K('pass')), passLocked: geheim().locked(K('pass')), ready: ready() }; };
+const publicConfig = () => { const s = config(); return { host: s.host, port: s.port, user: s.user, from: s.from, hasPass: Boolean(s.pass) || geheim().has(K('pass')), passLocked: geheim().locked(K('pass')), ready: ready(),
+  perConn: s.perConn, perHour: s.perHour || '', queued: queueInfo() }; };
 
 function save(b) {
   const host = String(b.host || '').trim(), from = String(b.from || '').trim(), user = String(b.user || '').trim();
@@ -37,16 +40,23 @@ function save(b) {
   for (const [k, v] of [['host', host], ['port', String(port)], ['user', user.slice(0, 200)], ['from', from]]) setSetting(K(k), v);
   if (b.pass !== undefined && b.pass !== '') geheim().set(K('pass'), String(b.pass).slice(0, 300));
   if (b.clearPass) geheim().drop(K('pass'));
+  // Drosselung: leer = Standard (je Verbindung) bzw. unbegrenzt (je Stunde)
+  for (const [k, f, max] of [['perconn', 'perConn', 500], ['perhour', 'perHour', 100000]]) {
+    if (b[f] === undefined) continue;
+    const raw = String(b[f]).trim(), n = parseInt(raw, 10);
+    if (raw && (!(n >= 1) || n > max || String(n) !== raw)) throw new Error(`Bitte bei „Mails je ${f === 'perConn' ? 'Verbindung' : 'Stunde'}“ eine ganze Zahl von 1 bis ${max} eintragen (oder leer lassen).`);
+    setSetting(K(k), raw);
+  }
   return `${host}:${port}${user ? ' · ' + user : ''}`;
 }
 
-function transport(pool) {
+function transport(pool, perConn) {
   const s = config();
   if (!s.host || !s.from) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
   const nodemailer = require('nodemailer');
   // 465 = verschlüsselt von Anfang an, 587 = Verschlüsselung (STARTTLS) ist Pflicht – sonst könnte jemand sie unterdrücken und das Passwort mitlesen
   return { s, t: nodemailer.createTransport({ host: s.host, port: s.port, secure: s.port === 465, requireTLS: s.port === 587, auth: s.user ? { user: s.user, pass: s.pass } : undefined,
-    connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000, ...(pool ? { pool: true, maxConnections: 1, maxMessages: 50 } : {}) }) };
+    connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000, ...(pool ? { pool: true, maxConnections: 1, maxMessages: perConn || s.perConn } : {}) }) };
 }
 /** Absender: immer das Vereinspostfach (sonst landen Mails im Spam), optional mit Anzeigenamen */
 const fromOf = (s, fromName) => (fromName ? { name: String(fromName).replace(/[\r\n"<>]/g, ' ').slice(0, 80), address: s.from } : s.from);
@@ -85,17 +95,64 @@ function parked(o) {
   vault.queueMail(o);
   return true;
 }
+/* ---------- Vorübergehende Fehler (4xx) und Drosselung ----------
+   Antwortet der Mailserver mit 4xx (z. B. 451 „Mails per session limit exceeded“, 421, 450, 452), ist das kein Fehlschlag: die Mail wartet und wird
+   automatisch nachgeholt (Pausen 1, 5, 15, dann 60 Minuten, höchstens 24 Stunden). 5xx (z. B. unbekannte Adresse) bleibt sofort ein Fehler.
+   Einzelmails warten in derselben Tabelle wie die Mails bei gesperrtem Tresor (vault_mail, Spalte due = nächster Versuch). */
+const BACKOFF_MIN = [1, 5, 15, 60], GIVE_UP_MS = 24 * 3600 * 1000, HOUR = 3600 * 1000;
+const temporary = e => { const c = Number(e && e.responseCode); return c >= 400 && c < 500; };
+const limitHit = e => temporary(e) && /limit|too many|exceed|per (session|connection|hour|day)|rate/i.test(String((e && e.response) || (e && e.message) || ''));
+/** Wartezeit in Millisekunden vor dem n-ten Wiederholen (n ab 0) */
+const backoffMs = n => BACKOFF_MIN[Math.min(n, BACKOFF_MIN.length - 1)] * (Number(process.env.CW_MAIL_BACKOFF_UNIT) || 60000);   // CW_MAIL_BACKOFF_UNIT: nur für Tests
+const sentLog = [];   // Zeitpunkte erfolgreicher Sendungen der letzten Stunde (nur im Speicher; nach einem Neustart beginnt die Zählung neu)
+const noteSent = () => { sentLog.push(Date.now()); };
+/** 0 = darf senden, sonst Millisekunden bis wieder ein Platz in der Stunde frei ist */
+function hourWait() {
+  const lim = config().perHour; if (!lim) return 0;
+  const now = Date.now(); while (sentLog.length && sentLog[0] <= now - HOUR) sentLog.shift();
+  return sentLog.length >= lim ? sentLog[0] + HOUR - now + 1000 : 0;
+}
+const shortErr = e => String((e && e.message) || e || '').replace(/\s+/g, ' ').slice(0, 300);
+function defer(o, e, ms, since) { require('./vault').queueMail(o, { due: Date.now() + ms, since: since || Date.now(), error: shortErr(e) }); }
+function queueInfo() {
+  try { const r = require('./vault').dueInfo(); return r; } catch (e) { return { n: 0, next: null }; }
+}
+
 async function send(o) {
   if (!require('./vereinsname').isSet()) throw new Error(require('./vereinsname').MSG);
   if (parked(o)) return { queued: true };
+  const { direct, ...rest } = o;   // direct: Fehler sofort melden statt warten (Testmail)
+  const wait = direct ? 0 : hourWait();
+  if (wait > 0) { defer(rest, 'Stundengrenze erreicht', wait); return { queued: true, waiting: true }; }
   const { s, t } = transport(false);
-  await t.sendMail(message(s, o));
+  try { await t.sendMail(message(s, rest)); noteSent(); }
+  catch (e) { if (!direct && temporary(e)) { defer(rest, e, backoffMs(0)); return { queued: true, waiting: true }; } throw e; }
 }
-/** Viele Mails nacheinander über eine Verbindung: const x = session(); await x.send({…}); x.close() */
-function session() {
+/** Viele Mails nacheinander über eine Verbindung: const x = session(); await x.send({…}); x.close(); x.reopen(n) = neue Verbindung mit höchstens n Mails */
+function session(perConn) {
   if (!require('./vereinsname').isSet()) throw new Error(require('./vereinsname').MSG);
-  const { s, t } = transport(true);
-  return { send: o => (parked(o) ? Promise.resolve({ queued: true }) : t.sendMail(message(s, o))), close: () => { try { t.close(); } catch (e) { /* zu */ } } };
+  let cur = transport(true, perConn); let n = perConn || cur.s.perConn;
+  const close = () => { try { cur.t.close(); } catch (e) { /* zu */ } };
+  return { get perConn() { return n; },
+    send: async o => { if (parked(o)) return { queued: true }; await cur.t.sendMail(message(cur.s, o)); noteSent(); },
+    reopen: m => { close(); n = m || n; cur = transport(true, n); }, close };
 }
 
-module.exports = { config, publicConfig, ready, save, send, session, validMails, mailOk };
+/** Wartende Mails aus der Warteschlange (Tresor entsperrt / Zeit abgelaufen) abarbeiten */
+let flushing = false;
+async function flushQueue() {
+  if (flushing) return 0; flushing = true;
+  try {
+    const vault = require('./vault');
+    return await vault.flushMail(async (o, row) => {
+      const wait = hourWait();
+      if (wait > 0) return { retry: { ms: wait, error: 'Stundengrenze erreicht', keep: true } };
+      const { s, t } = transport(false);
+      try { await t.sendMail(message(s, o)); noteSent(); }
+      catch (e) { if (temporary(e)) return { retry: { ms: backoffMs(row.tries || 0), error: shortErr(e) } }; throw e; }
+    }, { giveUpMs: GIVE_UP_MS });
+  } finally { flushing = false; }
+}
+setInterval(() => { flushQueue().catch(e => console.error('E-Mail-Warteschlange:', e.message)); }, Number(process.env.CW_MAIL_TICK) || 60000).unref();
+
+module.exports = { config, publicConfig, ready, save, send, session, validMails, mailOk, temporary, limitHit, backoffMs, hourWait, flushQueue, GIVE_UP_MS };

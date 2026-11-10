@@ -52,10 +52,14 @@ CREATE TABLE IF NOT EXISTS mail_template (id INTEGER PRIMARY KEY AUTOINCREMENT, 
 `);
 {
   const cols = db.prepare('PRAGMA table_info(mail_message)').all().map(c => c.name);
-  for (const [c, t] of [['signature_html', 'TEXT'], ['channels', `TEXT NOT NULL DEFAULT '["mail"]'`], ['keep_months', 'INTEGER'], ['expires_at', 'TEXT'], ['pinned', 'INTEGER NOT NULL DEFAULT 0'], ['app_stats', 'TEXT'], ['poll', 'TEXT'], ['poll_closed_at', 'TEXT']])
+  for (const [c, t] of [['per_conn', 'INTEGER'], ['signature_html', 'TEXT'], ['channels', `TEXT NOT NULL DEFAULT '["mail"]'`], ['keep_months', 'INTEGER'], ['expires_at', 'TEXT'], ['pinned', 'INTEGER NOT NULL DEFAULT 0'], ['app_stats', 'TEXT'], ['poll', 'TEXT'], ['poll_closed_at', 'TEXT']])
     if (!cols.includes(c)) db.exec(`ALTER TABLE mail_message ADD COLUMN ${c} ${t}`);
 }
 /* Postfach in der Mitglieder-App: eine Zeile je Empfänger und Nachricht (read_at = vom Mitglied geöffnet, push = ja/nein) */
+{   // vorübergehend abgelehnte Empfänger (4xx): next_try = nächster Versuch (ms), tries = Versuche, first_temp = erste Ablehnung
+  const cols = db.prepare('PRAGMA table_info(mail_recipient)').all().map(c => c.name);
+  for (const [c, t] of [['next_try', 'INTEGER'], ['tries', 'INTEGER NOT NULL DEFAULT 0'], ['first_temp', 'INTEGER']]) if (!cols.includes(c)) db.exec(`ALTER TABLE mail_recipient ADD COLUMN ${c} ${t}`);
+}
 db.exec(`
 CREATE TABLE IF NOT EXISTS msg_inbox (
   id INTEGER PRIMARY KEY AUTOINCREMENT, message_id INTEGER NOT NULL REFERENCES mail_message(id) ON DELETE CASCADE,
@@ -274,6 +278,12 @@ function copyFiles(from, to) {
 
 /* ---------- Versand im Hintergrund ---------- */
 const running = new Set();
+const countsOf = id => db.prepare("SELECT SUM(status = 'ok') AS ok, SUM(status = 'fehler') AS bad, SUM(status = 'wartet' AND next_try IS NOT NULL) AS later, SUM(status = 'wartet') AS open FROM mail_recipient WHERE message_id = ? AND COALESCE(via, '') != '__kopie'").get(id);
+function finish(id) {
+  const c = countsOf(id), left = db.prepare("SELECT COUNT(*) n FROM mail_recipient WHERE message_id = ? AND status = 'wartet'").get(id).n;
+  // Wer noch wartet (4xx), hält die Nachricht auf „sendet“; sie wird von selbst nachgeholt
+  db.prepare('UPDATE mail_message SET status = ?, sent = ?, failed = ? WHERE id = ?').run(left ? 'sendet' : c.bad ? 'teilweise' : 'gesendet', c.ok || 0, c.bad || 0, id);
+}
 async function work(id) {
   if (running.has(id)) return; running.add(id);
   let sess = null;
@@ -281,31 +291,59 @@ async function work(id) {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(id); if (!m) return;
     const files = J(m.files, []).map(f => ({ filename: f.name, path: filePath(id, f), contentType: f.type || undefined }));
     const all = new Map(people().map(p => [p.id, p]));
-    sess = mail.session();
-    const upd = db.prepare("UPDATE mail_recipient SET status = ?, error = ?, sent_at = ? WHERE id = ?");
+    let perConn = m.per_conn || mail.config().perConn;
+    sess = mail.session(perConn);
+    const upd = db.prepare("UPDATE mail_recipient SET status = ?, error = ?, sent_at = ?, next_try = NULL WHERE id = ?");
+    // vorübergehend abgelehnt: warten und später noch einmal (Pausen steigend, nach 24 Stunden Fehler). count = false: kein Versuch verbraucht (Stundengrenze)
+    const later = (r, err, ms, count = true) => {
+      const t = Date.now(), first = r.first_temp || t;
+      if (count && t - first > mail.GIVE_UP_MS) return upd.run('fehler', `Nach 24 Stunden nicht zugestellt: ${err}`.slice(0, 300), now(), r.id);
+      db.prepare("UPDATE mail_recipient SET next_try = ?, tries = tries + ?, first_temp = ?, error = ? WHERE id = ?").run(t + ms, count ? 1 : 0, r.first_temp || (count ? t : null), String(err).slice(0, 300), r.id);
+    };
+    const dueAll = db.prepare("SELECT * FROM mail_recipient WHERE message_id = ? AND status = 'wartet' AND (next_try IS NULL OR next_try <= ?)"), dueOne = db.prepare("SELECT * FROM mail_recipient WHERE message_id = ? AND status = 'wartet' AND (next_try IS NULL OR next_try <= ?) ORDER BY id LIMIT 1");
+    let streak = 0, limitTries = 0;
     for (;;) {
-      const r = db.prepare("SELECT * FROM mail_recipient WHERE message_id = ? AND status = 'wartet' ORDER BY id LIMIT 1").get(id);
+      const wait = mail.hourWait();
+      if (wait > 0) {   // Stundengrenze erreicht: alle übrigen warten, bis wieder ein Platz frei ist
+        for (const r of dueAll.all(id, Date.now())) later(r, 'Stundengrenze des Postfachs erreicht', wait, false);
+        break;
+      }
+      const r = dueOne.get(id, Date.now());
       if (!r) break;
       const v = r.via === '__kopie' ? vars({ name: m.from_name, email: r.email }) : vars({ ...r, person: r.member_id ? all.get(r.member_id) : null });
       const subject = (r.via === '__kopie' ? '[Kopie] ' : '') + fillText(m.subject, v);
       const body = fillHtml(m.html, v) + sigBlock(m.signature_html);
       try {
         await sess.send({ to: r.email, replyTo: m.reply_to || undefined, fromName: m.from_name ? `${m.from_name} · ${club()}` : club(), subject, html: wrap(body), text: toText(body), attachments: files, raw: true });
-        upd.run('ok', null, now(), r.id);
-      } catch (e) { upd.run('fehler', String(e.message || e).slice(0, 300), now(), r.id); }
+        upd.run('ok', null, now(), r.id); streak = 0; limitTries = 0;
+      } catch (e) {
+        if (!mail.temporary(e)) { upd.run('fehler', String(e.message || e).slice(0, 300), now(), r.id); streak = 0; }
+        else if (mail.limitHit(e) && perConn > 1 && limitTries < 8) {
+          // „zu viele Mails je Verbindung“: weniger je Verbindung, neue Verbindung, derselbe Empfänger gleich noch einmal
+          perConn = Math.max(1, Math.floor(perConn / 2)); limitTries++;
+          db.prepare('UPDATE mail_message SET per_conn = ? WHERE id = ?').run(perConn, id); sess.reopen(perConn); continue;
+        } else {
+          later(r, String(e.message || e), mail.backoffMs(r.tries || 0)); sess.reopen(perConn);
+          if (++streak >= 3) {   // der Server lehnt gerade alles ab – nicht jeden Einzelnen durchprobieren
+            for (const x of dueAll.all(id, Date.now())) later(x, String(e.message || e), mail.backoffMs(x.tries || 0));
+            break;
+          }
+        }
+      }
       await new Promise(ok => setTimeout(ok, process.env.CW_MAIL_DELAY != null ? Number(process.env.CW_MAIL_DELAY) : 250));
     }
-    const c = db.prepare("SELECT SUM(status = 'ok') AS ok, SUM(status = 'fehler') AS bad FROM mail_recipient WHERE message_id = ? AND COALESCE(via, '') != '__kopie'").get(id);
-    db.prepare('UPDATE mail_message SET status = ?, sent = ?, failed = ? WHERE id = ?').run(c.bad ? 'teilweise' : 'gesendet', c.ok || 0, c.bad || 0, id);
+    finish(id);
   } catch (e) {
     console.error('E-Mail: Versand', id, e.message);
-    db.prepare("UPDATE mail_recipient SET status = 'fehler', error = ? WHERE message_id = ? AND status = 'wartet'").run(String(e.message).slice(0, 300), id);
-    const c = db.prepare("SELECT SUM(status = 'ok') AS ok, SUM(status = 'fehler') AS bad FROM mail_recipient WHERE message_id = ? AND COALESCE(via, '') != '__kopie'").get(id);
+    db.prepare("UPDATE mail_recipient SET status = 'fehler', error = ?, next_try = NULL WHERE message_id = ? AND status = 'wartet'").run(String(e.message).slice(0, 300), id);
+    const c = countsOf(id);
     db.prepare("UPDATE mail_message SET status = 'teilweise', sent = ?, failed = ? WHERE id = ?").run(c.ok || 0, c.bad || 0, id);
   } finally { if (sess) sess.close(); running.delete(id); }
 }
 // nach einem Neustart angefangene Versände fortsetzen
 setTimeout(() => { for (const r of db.prepare("SELECT id FROM mail_message WHERE status = 'sendet'").all()) work(r.id); }, 5000).unref();
+// wartende Empfänger (4xx) nachholen, sobald ihre Zeit da ist
+setInterval(() => { for (const r of db.prepare("SELECT DISTINCT message_id id FROM mail_recipient WHERE status = 'wartet' AND next_try IS NOT NULL AND next_try <= ?").all(Date.now())) if (!running.has(r.id)) work(r.id); }, process.env.CW_MAIL_TICK ? Number(process.env.CW_MAIL_TICK) : 30000).unref();
 
 /* ---------- Wege (E-Mail, App, Push) und Aufbewahrung in der App ---------- */
 const WAYS = ['mail', 'app', 'push'];
@@ -461,20 +499,22 @@ function routes(admin, { need, bad }) {
   });
 
   /* Ordner */
+  /** noch wartende Empfänger (4xx) einer Nachricht: Anzahl und nächster Versuch (ms) */
+  const waitOf = id => { const r = db.prepare("SELECT COUNT(*) n, MIN(next_try) next FROM mail_recipient WHERE message_id = ? AND status = 'wartet' AND next_try IS NOT NULL AND COALESCE(via, '') != '__kopie'").get(id); return { waiting: r.n, next_try: r.next || null }; };
   admin.get('/mail/messages', P, (req, res) => {
     const box = req.query.box === 'entwuerfe' ? 'entwuerfe' : 'gesendet';
     const rows = box === 'entwuerfe'
       ? db.prepare("SELECT * FROM mail_message WHERE status = 'entwurf' AND user_id = ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 200").all(req.user.id)
       : db.prepare(`SELECT * FROM mail_message WHERE status != 'entwurf' ${seeAll(req) ? '' : 'AND user_id = ' + Number(req.user.id)} ORDER BY sent_at DESC LIMIT 300`).all();
     res.json({ rows: rows.map(m => ({ id: m.id, subject: m.subject, status: m.status, user_name: m.user_name, from_name: m.from_name, at: m.status === 'entwurf' ? (m.updated_at || m.created_at) : m.sent_at,
-      total: m.total, sent: m.sent, failed: m.failed, files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll) })),
+      total: m.total, sent: m.sent, failed: m.failed, ...(m.status === 'sendet' ? waitOf(m.id) : {}), files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll) })),
       drafts: db.prepare("SELECT COUNT(*) AS n FROM mail_message WHERE status = 'entwurf' AND user_id = ?").get(req.user.id).n });
   });
   admin.get('/mail/messages/:id', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
     if (!visible(req, m)) return bad(res, 'Nicht gefunden.', 404);
-    const rcpt = m.status === 'entwurf' ? [] : db.prepare("SELECT name, email, via, status, error, sent_at, member_id FROM mail_recipient WHERE message_id = ? AND COALESCE(via, '') != '__kopie' ORDER BY id").all(m.id);
-    res.json({ ...out(m), rcpt: rcpt.map(({ member_id, ...r }) => r), waiting: rcpt.filter(r => r.status === 'wartet').length, ...(m.status === 'entwurf' ? {} : { reach: reachOf(m, rcpt), app: appStats(m) }) });
+    const rcpt = m.status === 'entwurf' ? [] : db.prepare("SELECT name, email, via, status, error, sent_at, member_id, next_try, tries FROM mail_recipient WHERE message_id = ? AND COALESCE(via, '') != '__kopie' ORDER BY id").all(m.id);
+    res.json({ ...out(m), rcpt: rcpt.map(({ member_id, ...r }) => r), waiting: rcpt.filter(r => r.status === 'wartet').length, wait: waitOf(m.id), ...(m.status === 'entwurf' ? {} : { reach: reachOf(m, rcpt), app: appStats(m) }) });
   });
 
   /* Entwürfe */
@@ -653,12 +693,15 @@ function routes(admin, { need, bad }) {
     audit(req.user, 'Umfrage beendet', `Nachricht Nr. ${m.id}`);
     res.json({ ok: true, poll: pollResult(db.prepare('SELECT * FROM mail_message WHERE id = ?').get(m.id), { names: true }) });
   });
-  /** fehlgeschlagene Empfänger noch einmal versuchen */
+  /** fehlgeschlagene Empfänger noch einmal versuchen – und wartende (4xx) sofort statt zur nächsten Zeit */
   admin.post('/mail/messages/:id/retry', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
-    if (!visible(req, m) || m.status !== 'teilweise') return bad(res, 'Nichts zu wiederholen.');
+    if (!visible(req, m) || !['teilweise', 'sendet'].includes(m.status)) return bad(res, 'Nichts zu wiederholen.');
+    if (running.has(m.id)) return bad(res, 'Die Nachricht wird gerade gesendet.');
     if (!mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
-    const n = db.prepare("UPDATE mail_recipient SET status = 'wartet', error = NULL WHERE message_id = ? AND status = 'fehler'").run(m.id).changes;
+    const n = db.prepare("UPDATE mail_recipient SET status = 'wartet', error = NULL, next_try = NULL, tries = 0, first_temp = NULL WHERE message_id = ? AND status = 'fehler'").run(m.id).changes
+      + db.prepare("UPDATE mail_recipient SET next_try = NULL WHERE message_id = ? AND status = 'wartet' AND next_try IS NOT NULL").run(m.id).changes;
+    if (!n) return bad(res, 'Nichts zu wiederholen.');
     db.prepare("UPDATE mail_message SET status = 'sendet' WHERE id = ?").run(m.id);
     audit(req.user, 'E-Mail erneut gesendet', `„${m.subject}“ an ${n} Empfänger`);
     setImmediate(() => work(m.id));

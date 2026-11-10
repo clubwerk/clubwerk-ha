@@ -475,7 +475,7 @@
     const list = await api('series');
     const row = x => `<div class="bk-ser${x.active ? '' : ' off'}"><div style="min-width:0"><h4>${x.label ? `<i class="bk-dot" style="background:${x.label.color}"></i>` : ''}${esc(x.title)} ${pill(x.type === 'sperre' ? ['r', 'Sperre'] : ['b', 'Serie'])}${x.active ? '' : ' ' + pill(['', 'beendet'])}</h4>
         <div class="muted">${(x.rule && x.rule.freq === 'import' ? ['Spielplan vom Verband', `${deDate(x.from_date)} – ${deDate(x.to_date)}`, x.resources.map(resName).join(', '), x.active ? `${x.games} kommende ${x.games === 1 ? 'Spiel' : 'Spiele'}` : '']
-          : [x.rule_text || x.weekdays.split('').map(d => WD[+d]).join(', '), `${x.start}–${x.end} Uhr`, `${deDate(x.from_date)} – ${deDate(x.to_date)}`, x.resources.map(resName).join(', '), x.member ? `für ${x.member}` : '', x.active ? `${x.count} kommende Termine` : '']).filter(Boolean).map(esc).join(' · ')}</div></div>
+          : [x.rule_text || x.weekdays.split('').map(d => WD[+d]).join(', '), `${x.start}–${x.end} Uhr`, `${deDate(x.from_date)} – ${deDate(x.to_date)}`, x.resources.map(resName).join(', '), x.member ? `für ${x.member}` : '', x.active ? `${x.count} kommende Termine` : '']).filter(Boolean).map(esc).join('\u00a0· ')}</div></div>
         <div>${x.active && can('buchung_serien') ? `<button class="btn small" data-end="${x.id}">${x.type === 'sperre' ? 'Aufheben' : 'Beenden'}</button>` : ''}</div></div>`;
     const act = list.filter(x => x.active), old = list.filter(x => !x.active);
     el.innerHTML = `${can('buchung_serien') ? '<div class="toolbar"><button class="btn primary" id="srNew">+ Serie</button><button class="btn" id="srLock">+ Sperre über Zeitraum</button><button class="btn" id="srImp">Spielplan importieren …</button></div>' : ''}
@@ -788,18 +788,19 @@
 
   /* ---------------------------------------------------------------- Gebühren (Gast- und Platzgebühren, Zahlungsstand aus den Mitgliedern) */
   async function showFees(el) {
-    st.fe = st.fe || { year: new Date().getFullYear(), status: 'offen' };
+    st.fe = st.fe || { year: 0, status: 'offen' };   // 0 = laufendes Geschäftsjahr (der Server wählt)
     const g = st.fe, canB = can('buchung_buchen');
-    const d = await api(`fees?from=${g.year}-01-01&to=${g.year}-12-31&status=${g.status}`);
+    const d = await api(`fees?${g.year ? `year=${g.year}&` : ''}status=${g.status}`);
+    g.year = d.year;
     const STS = { offen: ['a', 'offen'], bezahlt: ['g', 'bezahlt'], storniert: ['', 'storniert'], unbekannt: ['', 'ohne Zahlungsverfolgung'] };
     const ICO = { o: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>', p: '<path d="M4 12.5l5 5L20 6.5"/>', a: '<path d="M4 7h16v12H4zM4 11h16M8 15h3"/>' };
     const ic = k => `<span class="bk-ki"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICO[k]}</svg></span>`;
     const kpi = (k, label, t, tone = '') => `<div class="card bk-kpi ${tone}"><div class="bk-kh">${ic(k)}<span>${label}</span></div><div class="bk-kv"><b>${euro(t.cents)}</b><span class="bk-d n">${t.count} Posten</span></div></div>`;
     el.innerHTML = `${canB ? '<div class="toolbar"><button class="btn primary" id="feNew" type="button">+ Gebühr buchen</button></div>' : ''}
       <div class="filterbar"><div class="chips" id="feF" role="group" aria-label="Filter">${[['alle', 'Alle', d.totals.all.count], ['offen', 'Offen', d.totals.open.count], ['bezahlt', 'Bezahlt', d.totals.paid.count]].map(([k, t, n]) => `<button type="button" data-f="${k}" class="${g.status === k ? 'on' : ''}" aria-pressed="${g.status === k}">${t}<span class="cnt">${n}</span></button>`).join('')}</div>
-        <select id="feY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y, `Jahr ${y}`, g.year)).join('')}</select></div>
+        <select id="feY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y.y, GK.T(d.fiscal > 1 ? 'Geschäftsjahr {0}' : 'Jahr {0}', [y.label]), g.year)).join('')}</select></div>
       ${d.note ? `<div class="banner a" style="margin:0 0 16px;font-weight:400">${esc(d.note)}</div>` : ''}
-      <div class="bk-kpis three">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${g.year}`, d.totals.all, 'b')}</div>
+      <div class="bk-kpis three">${kpi('o', d.tracked ? 'Offen' : 'Gebühren (offen)', d.totals.open, 'r')}${kpi('p', 'Bezahlt', d.totals.paid)}${kpi('a', `Gesamt ${esc(d.label)}`, d.totals.all, 'b')}</div>
       <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl kompakt bk-fees"><tr><th>Mitglied</th><th>Datum</th><th class="k-weg">Platz</th><th class="k-weg">Text</th><th class="r">Betrag</th><th>Status</th><th></th></tr>
         ${d.rows.map(x => `<tr ${x.manual ? '' : `data-b="${x.id}" data-d="${x.date}" style="cursor:pointer"`}><td><b>${esc(x.member)}</b></td><td class="nw">${deDate(x.date)}${x.start ? ` · ${x.start}–${x.end}` : ' · von Hand'}</td>
           <td class="k-weg">${esc(x.resource)}</td><td class="k-weg">${esc(x.text)}</td><td class="r nw"><b>${euro(x.fee_cents)}</b></td><td>${pill(STS[x.status] || ['', x.status])}${x.paid_at ? ` <span class="muted s">${deDate(x.paid_at)}</span>` : ''}</td>

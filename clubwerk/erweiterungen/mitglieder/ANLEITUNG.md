@@ -31,7 +31,7 @@ Die Seite zeigt alle Mitglieder als Liste, nach Nachname und Vorname sortiert. D
 - **Nr.** (die Mitgliedsnummer), **Alter** und **Abteilungen**. Ein Klick auf die Überschrift **Name**, **Nr.** oder **Alter** sortiert die Liste, ein zweiter Klick dreht um (▲/▼); am Handy gibt es dafür das Feld „Sortieren“. Mitglieder ohne Nummer oder Geburtsdatum stehen immer am Ende. Clubwerk merkt sich die Wahl je Gerät.
 - **Beitrag:** die Beitragsart. Bei Familienmitgliedern steht „Familie“ mit dem Namen des Oberhaupts.
 - **Zahlung:** Lastschrift, Rechnung oder bar. Zahlt jemand anderes, steht „über Name“. Ein „+3“ zeigt, für wie viele Angehörige diese Person mitzahlt.
-- **Hinweise:** gelbe Markierungen, wo etwas fehlt oder zu prüfen ist, z. B. „Altersstufe prüfen“ oder „Mandat widerrufen“.
+- **Hinweise:** gelbe Schilder unter dem Namen, wo etwas fehlt oder zu prüfen ist, z. B. „Altersstufe prüfen“ oder „Mandat widerrufen“.
 
 Oben seht ihr einen **roten Warnkasten**, wenn Mitglieder Pflichtangaben fehlen (Mitgliedsdaten, Beitrag, Bankverbindung oder SEPA-Mandat). „Anzeigen“ springt in den Filter „Mit Hinweis“. Wer Pflichtangaben fehlen, fehlt im Beitragslauf.
 
@@ -54,6 +54,8 @@ Ein Mitglied wird nur **vollständig** angelegt: Name, Geburtsdatum, Eintritt, A
 - Beim **Beitrag** sind nur die Arten wählbar, die zum Alter passen; die übrigen sind ausgegraut. Dafür zuerst das Geburtsdatum eintragen.
 - Ist in den Einstellungen „Lastschrift ist Pflicht“ gesetzt, gibt es nur die Zahlart Lastschrift.
 - Soll das neue Mitglied am Tablet unterschreiben, nehmt stattdessen „+ Beitrittserklärung“ im Reiter „Anträge“.
+- **Von Mitglied übernehmen …** (Knopf oben im Fenster): spart das Abtippen, wenn jemand zu einem vorhandenen Mitglied gehört. Ihr sucht das Mitglied (Anzeige „Nachname, Vorname“) und setzt Haken, was ins Formular soll: Anschrift, Nachname und Telefon Festnetz sind vorgewählt, E-Mail und Mobil nicht. „Übernehmen“ füllt nur das Formular aus; gespeichert wird erst mit „Anlegen“. **Bankdaten werden nie übernommen.** Stattdessen wählt ihr im selben Fenster „Zur Familie von … hinzufügen“ oder „Zahlt über …“. Dann braucht das neue Mitglied keinen eigenen Beitrag (Familie) bzw. kein eigenes Konto; es zahlt über das Oberhaupt bzw. den Zahler. Es gelten die Familienregeln (siehe „Familienmitgliedschaft“): Clubwerk meldet es, wenn schon ein/e Partner/in da ist oder ein „Kind“ älter als 18 Jahre ist. Kinder brauchen keine E-Mail und kein Handy.
+- Dieselbe Übernahme gibt es oben in der Karte „Anschrift & Kontakt“ eines vorhandenen Mitglieds (Reiter „Stammdaten“) und bei „+ Beitrittserklärung“ im Reiter „Anträge“ (dort ohne Familie und Zahler).
 
 #### Import …
 
@@ -87,7 +89,7 @@ Lädt die Liste als Excel-Datei herunter, mit den Spalten, die ihr ankreuzt. Es 
 
 ### Mitglied öffnen {#mitglied}
 
-Auf einem breiten Bildschirm (ab 1400 Pixel, etwa ein großer Monitor) steht rechts neben der Liste eine Karte: Ein Klick auf einen Namen zeigt dort das Wichtigste – Geburtsdatum, Eintritt, Abteilungen, Beitrag, Zahlung, „Abgerechnet bis“, offene Posten, Kontakt und Hinweise. **Öffnen** (oder ein Doppelklick auf den Namen) öffnet das Mitglied, die Knöpfe darunter springen gleich in den passenden Reiter. Die Spalten „Zahlung“ und „Hinweise“ der Liste entfallen dann, beides steht in der Karte. Auf schmaleren Bildschirmen, am Tablet und am Handy öffnet ein Klick das Mitglied direkt.
+Auf einem breiten Bildschirm (ab 1500 Pixel, etwa ein großer Monitor) steht rechts neben der Liste eine Karte: Ein Klick auf einen Namen zeigt dort das Wichtigste – Geburtsdatum, Eintritt, Abteilungen, Beitrag, Zahlung, „Abgerechnet bis“, offene Posten, Kontakt und Hinweise. **Öffnen** (oder ein Doppelklick auf den Namen) öffnet das Mitglied, die Knöpfe darunter springen gleich in den passenden Reiter. Die Spalten „Zahlung“ und „Hinweise“ der Liste entfallen dann, beides steht in der Karte. Auf schmaleren Bildschirmen, am Tablet und am Handy öffnet ein Klick das Mitglied direkt.
 
 ![Ein geöffnetes Mitglied: oben Name und Eckdaten, darunter „← Alle Mitglieder“ und die Reiter.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detailrow)
 
@@ -110,6 +112,10 @@ Anrede, Titel, Vorname, Nachname, Geburtsdatum, Geschlecht (männlich oder weibl
 ![Karte „Anschrift & Kontakt“.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
 
 Straße, PLZ, Ort, Adresszusatz, Land, E-Mail, Mobil, Telefon und die **Briefanrede** (z. B. „Liebe Anna“). Dazu das Eintrittsdatum, die Schlüsselnummer und **Notizen**, die nur der Vorstand sieht.
+
+Mit **Von Mitglied übernehmen …** (Knopf oben in der Karte) holt ihr Anschrift, Nachname, Telefon Festnetz, E-Mail oder Mobil von einem anderen Mitglied ins Formular – gespeichert wird erst mit „Speichern“, Bankdaten werden nie übernommen. Statt der Bankverbindung könnt ihr dort auch „Zur Familie von … hinzufügen“ oder „Zahlt über …“ wählen; das wird beim Speichern gesetzt.
+
+**Umzug:** Ändert ihr die Anschrift und wohnen andere aktive Mitglieder unter der bisherigen Anschrift, fragt Clubwerk beim Speichern: „Unter derselben Anschrift wohnen auch: …“ – mit einem Haken je Person (Nachname, Vorname). Wer abgehakt bleibt, bekommt die neue Anschrift ebenfalls. Ohne Haken ändert sich nur dieses Mitglied; „Abbrechen“ speichert nichts. Jede Änderung steht im Verlauf der Person und im Protokoll.
 
 #### Einwilligungen
 
@@ -165,7 +171,7 @@ Zwei Karten nebeneinander. Mit „+ Ehrung“ und „+ Amt“ tragt ihr Bezeichn
 
 ![Das Fenster „Austritt“.](bild: seite=mitglieder/mitglied/24; tab=mitgliedschaft; tabkey=detail_mitglied; klick=#mvExit; ziel=dialog)
 
-Der Knopf **Austritt …** rechts in der Reiterzeile trägt den Austritt ein: Datum (vorgeschlagen ist das Ende des Beitragsjahres), Eingang der Kündigung, Grund und auf Wunsch das Kündigungsschreiben als Datei. Ihr entscheidet, ob Beiträge und Abteilungen zum Austritt enden und ob Angehörige mit austreten. Bis zum Austrittstag bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; die Daten bleiben bis zum Anonymisieren. Ein noch nicht wirksamer Austritt lässt sich mit **Austritt zurücknehmen** widerrufen, ein vollzogener mit **Wiedereintritt …** (das Mitglied bekommt eine neue Nummer und braucht bei Lastschrift ein neues Mandat).
+Der Knopf **Austritt …** rechts in der Reiterzeile trägt den Austritt ein: Datum (vorgeschlagen ist der früheste Termin nach Kündigungsfrist und Geschäftsjahr, gerechnet ab dem Eingang der Kündigung), Eingang der Kündigung, Grund und auf Wunsch das Kündigungsschreiben als Datei. Ihr entscheidet, ob Beiträge und Abteilungen zum Austritt enden und ob Angehörige mit austreten. Bis zum Austrittstag bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; die Daten bleiben bis zum Anonymisieren. Ein noch nicht wirksamer Austritt lässt sich mit **Austritt zurücknehmen** widerrufen, ein vollzogener mit **Wiedereintritt …** (das Mitglied bekommt eine neue Nummer und braucht bei Lastschrift ein neues Mandat).
 
 ### Mitglied › Zahlung & Familie {#mitglied-zahlung}
 
@@ -181,7 +187,7 @@ Das ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf laufen 
 
 ![Karte „Familienmitgliedschaft“.](bild: seite=mitglieder/mitglied/7; tab=zahlung; tabkey=detail_mitglied; ziel=.detbody > .mv-two > div:nth-child(2))
 
-Ein **Oberhaupt** mit Familienbeitrag deckt Partner/in und Kinder ab. Erlaubt sind ein/e Partner/in und beliebig viele Kinder bis 18 Jahre (einstellbar). Wer zugeordnet ist, braucht keine eigene Beitragsart; Zusatzbeiträge der Abteilungen bleiben je Person. Am Oberhaupt fügt ihr Angehörige über „Angehörige/n hinzufügen …“ hinzu; „Lösen“ nimmt sie wieder heraus. Bei einem Angehörigen wählt ihr unter „Familienmitgliedschaft bei“ das Oberhaupt.
+Ein **Oberhaupt** mit Familienbeitrag deckt Partner/in und Kinder ab. Erlaubt sind ein/e Partner/in und beliebig viele Kinder bis 18 Jahre (einstellbar). Wer zugeordnet ist, braucht keine eigene Beitragsart; Zusatzbeiträge der Abteilungen bleiben je Person. Am Oberhaupt fügt ihr vorhandene Mitglieder über „Angehörige/n hinzufügen …“ hinzu; „Lösen“ nimmt sie wieder heraus. Noch nicht erfasste Angehörige legt ihr mit **„Partner/in neu anlegen“** oder **„Kind neu anlegen“** an: Das Formular „Neues Mitglied“ öffnet sich, vorbelegt mit Anschrift, Nachname und Telefon Festnetz des Oberhaupts, der Familie und der Zahlung über das Oberhaupt. Gibt es schon eine/n Partner/in, ist „Partner/in neu anlegen“ gesperrt (mit Begründung); ein Kind über 18 Jahre meldet das Formular deutlich. Namen stehen überall als „Nachname, Vorname“. Bei einem Angehörigen wählt ihr unter „Familienmitgliedschaft bei“ das Oberhaupt.
 
 #### Forderungen & Zahlungen
 
@@ -234,7 +240,7 @@ Hier laufen Beitrittserklärungen und Änderungswünsche ein. Die Zahl am Reiter
 
 ![Das Fenster „Beitrittserklärung erfassen“.](bild: seite=mv-antraege; klick=#aNew; ziel=dialog)
 
-Ihr tragt Personen, Anschrift, Mitgliedschaft und SEPA-Mandat ein. Für eine **Familie** fügt ihr mit „+ Person (Familie)“ Partner/in und Kinder hinzu; dann gilt der Familienbeitrag und der/die Antragsteller/in wird Hauptzahler. Am Ende steht „Code fürs Tablet erzeugen“ (der Code gilt drei Stunden). Am Tablet tippt das neue Mitglied „Mitglied werden“ › „Ich habe einen Code“, prüft seine Daten, setzt die Häkchen für die Einwilligungen und unterschreibt Beitrittserklärung und SEPA-Mandat. Mit dem Häkchen „Nach der Unterschrift sofort als Mitglied übernehmen“ ist es danach gleich angelegt und bekommt eine Willkommens-E-Mail mit Mitgliedsnummer und Mandatsreferenz.
+Ihr tragt Personen, Anschrift, Mitgliedschaft und SEPA-Mandat ein (mit „Von Mitglied übernehmen …“ holt ihr Anschrift, Nachname, E-Mail und Mobil von einem vorhandenen Mitglied). Für eine **Familie** fügt ihr mit „+ Person (Familie)“ Partner/in und Kinder hinzu; dann gilt der Familienbeitrag und der/die Antragsteller/in wird Hauptzahler. Am Ende steht „Code fürs Tablet erzeugen“ (der Code gilt drei Stunden). Am Tablet tippt das neue Mitglied „Mitglied werden“ › „Ich habe einen Code“, prüft seine Daten, setzt die Häkchen für die Einwilligungen und unterschreibt Beitrittserklärung und SEPA-Mandat. Mit dem Häkchen „Nach der Unterschrift sofort als Mitglied übernehmen“ ist es danach gleich angelegt und bekommt eine Willkommens-E-Mail mit Mitgliedsnummer und Mandatsreferenz.
 
 #### Warten auf Bestätigung
 
@@ -254,7 +260,7 @@ Wünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen:
 
 - **Datenänderung** (z. B. neue Anschrift): „Übernehmen“ zeigt alt und neu zur Bestätigung, „Ablehnen“ schickt dem Mitglied auf Wunsch eine E-Mail mit Grund.
 - **Neue Bankverbindung:** mit der Unterschrift des Mitglieds. Beim Übernehmen entsteht ein neues Mandat (Erstlastschrift); das unterschriebene Mandat wird als PDF abgelegt und dem Mitglied geschickt.
-- **Kündigung:** Clubwerk schlägt den frühestmöglichen Austrittstag nach Kündigungsfrist und Beitragsjahr vor, ihr bestätigt oder ändert ihn. Das Mitglied bekommt eine Bestätigung per E-Mail.
+- **Kündigung:** Clubwerk schlägt den frühestmöglichen Austrittstag vor: das Ende des Geschäftsjahres unter Einhaltung der Kündigungsfrist (Frist 0 und Geschäftsjahr = Kalenderjahr: Kündigung bis 31.12. → Austritt zum 31.12.; Frist 3 Monate: Eingang bis 30.09.). Dasselbe Datum nennt die App beim Kündigen und die Eingangsbestätigung per E-Mail. Ein angefangenes Beitragsjahr wird voll berechnet; ihr bestätigt oder ändert ihn. Das Mitglied bekommt eine Bestätigung per E-Mail.
 - **Ein-, Austritt und Rückkehr in eine Abteilung** meldet die Abteilungsleitung; „Bestätigen“ übernimmt sie.
 
 #### Archiv
@@ -302,7 +308,7 @@ Die Felder im Fenster:
 - **Rhythmus:** jährlich bis monatlich oder „einmalig“, z. B. für eine Aufnahmegebühr.
 - **Im Eintrittsjahr:** „anteilig (volle Monate)“, „voller Betrag“ oder „Eintrittsjahr frei“.
 - **Arbeitsstunden im Jahr:** leer = Vorgabe des Moduls „Dienste & Termine“, 0 = keine.
-- **Mindest- und Höchstalter:** Hinweis im Beitragslauf und Vorschlag bei neuen Anträgen.
+- **ab … Jahre** und **bis einschließlich … Jahre:** Hinweis im Beitragslauf und Vorschlag bei neuen Anträgen. Gerechnet wird mit dem Alter zu Beginn des Beitragszeitraums; unter dem Feld steht, was die Obergrenze bedeutet („bis einschließlich 18 → gilt bis zum Tag vor dem 19. Geburtstag“). Überall steht dieselbe Schreibweise: „ab 19“, „bis einschl. 18“, „12 bis einschl. 18“. Überschneiden sich die Altersbereiche zweier Beitragsarten gleicher Art (z. B. „Jugendliche bis 19“ und „Erwachsene ab 19“), warnt das Fenster („Überschneidet sich mit … – meintest du bis einschließlich 18?“; Speichern bleibt möglich) und Einstellungen › Datenqualität zeigt es als Hinweis. Bei einer Überschneidung gilt immer die höhere Stufe, auch beim Vorschlag für Kinder, die aus dem Familienbeitrag herauswachsen.
 - **Familienbeitrag:** gilt für den Hauptzahler und alle Angehörigen.
 - **Auf der Beitrittserklärung zur Auswahl:** nur diese Arten bieten Neue am Tablet und online an.
 - **Aktiv** und **Hinweis (intern)**. „Beitragsart löschen …“ gibt es nur, wenn kein Mitglied sie mehr hat. Eine Art, die schon abgerechnet wurde, deaktiviert ihr besser.
@@ -367,8 +373,9 @@ Die Karten stehen untereinander; jede hat ihr eigenes „Speichern“.
 
 - **Mitgliedsnummern ab:** die erste automatisch vergebene Nummer.
 - **Neue Nummer:** „ab dem Startwert“ vergibt nie eine Nummer unter dem Startwert; „nach höchster Nummer“ vergibt die höchste vorhandene Nummer plus 1, auch wenn der Startwert höher oder niedriger liegt (praktisch nach einem Import mit eigenen Nummern). Eine schon vergebene Nummer bekommt in beiden Fällen nie jemand zweimal. Verglichen wird der Zahlenteil: „007“ zählt als 7, Nummern ohne Ziffern werden übersprungen.
-- **Beitragsjahr beginnt am 1.:** der Monat, mit dem euer Beitragsjahr anfängt.
-- **Kündigungsfrist (Monate):** Grundlage für den frühesten Austrittstermin.
+- **Beitragsjahr beginnt am 1.:** der Monat, mit dem euer Beitragsjahr anfängt – der Zeitraum der Mitgliedsbeiträge.
+- **Geschäftsjahr beginnt am 1.:** der Monat, mit dem euer Geschäftsjahr anfängt (meist Januar). Es gilt für Kündigungen, Jahresauswertungen (z. B. „eingegangen“ unter Beiträge & Zahlungen) und DATEV und ist dasselbe Feld wie unter Einstellungen › Buchführung. Beitragsjahr und Geschäftsjahr dürfen verschieden sein, etwa Beiträge Mai bis April und Geschäftsjahr Januar bis Dezember.
+- **Kündigungsfrist (Monate):** Grundlage für den frühesten Austrittstermin; ausgetreten wird zum Ende des Geschäftsjahres.
 - **Lastschrift ist Pflicht:** Neue Mitglieder brauchen dann Bankverbindung und SEPA-Mandat, „Rechnung“ und „bar“ sind nicht mehr wählbar. Ausgenommen sind Familienmitglieder und wer über einen Zahler zahlt. Bestehende Mitglieder mit anderer Zahlart erscheinen unter „Mit Hinweis“.
 - **Ein- und Austritte der Abteilungsleitungen bestätigt die Vereinsverwaltung:** Meldet eine Abteilungsleitung ein neues Mitglied, einen Austritt oder eine Rückkehr, landet das unter „Anträge“ und gilt erst nach Bestätigung durch einen Admin.
 

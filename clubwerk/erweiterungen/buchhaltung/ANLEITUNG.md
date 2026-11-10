@@ -28,10 +28,10 @@ Hier seht ihr alle Rechnungen und legt neue an.
 
 #### Kennzahlen und Filter
 
-Oben stehen drei Kacheln: **Offen** (Summe und Anzahl der unbezahlten Rechnungen), **Überfällig** (davon die Rechnungen, deren Zahlungsziel verstrichen ist, in Rot) und **Bezahlt** im laufenden Jahr. Darunter filtert ihr die Liste:
+Oben stehen drei Kacheln: **Offen** (Summe und Anzahl der unbezahlten Rechnungen), **Überfällig** (davon die Rechnungen, deren Zahlungsziel verstrichen ist, in Rot) und **Bezahlt** im laufenden Geschäftsjahr (nach Zahltag). Darunter filtert ihr die Liste:
 
 - **Status:** Offen, Überfällig, Bezahlt, Storniert oder Alle. An den ersten beiden Knöpfen steht die Anzahl.
-- **Jahr:** ein Jahr (bis fünf Jahre zurück) oder „alle“.
+- **Jahr:** ein Jahr (bis fünf Jahre zurück, nach Rechnungsdatum) oder „alle“. Beginnt euer Geschäftsjahr nicht am 1. Januar, heißt das Feld „Geschäftsjahr“ und zeigt z. B. „2026/27“.
 
 Ist ein Kontoauszug eingelesen, steht unter den Filtern, bis zu welchem Tag er reicht. So mahnt niemand, wer schon gezahlt hat.
 

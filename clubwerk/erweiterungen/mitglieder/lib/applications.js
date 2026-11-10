@@ -91,7 +91,7 @@ function register(sh) {
   }
   function suggestFee(birth) {
     const a = fees.ageAt(birth, today());
-    return formFees().find(f => !f.family && (f.age_min == null || a >= f.age_min) && (f.age_max == null || a <= f.age_max)) || null;
+    return formFees().filter(f => !f.family && fees.fitsAge(f, a)).sort(fees.higherFirst)[0] || null;
   }
   /* Unterschrift: PNG (App und Formular liefern 600 px Breite). Die Maße im Bildkopf begrenzen – ein winzig gepacktes PNG mit
      riesigen Maßen ließe sonst beim PDF-Bau Gigabytes an Speicher reservieren und den Server blockieren. */

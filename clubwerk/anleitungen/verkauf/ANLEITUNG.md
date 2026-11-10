@@ -32,7 +32,7 @@ Hier steht jede einzelne Buchung des Zeitraums. Falschbuchungen stornierst du hi
 
 ![Zeitraum und Konto-Filter.](bild: seite=buchungen; ziel=#rng)
 
-Mit **Von** und **Bis** und „Anzeigen“ wählst du den Zeitraum, „Ganze Saison“ geht vom 1. Januar bis heute. Darunter schränkt **Nur Konto** die Liste auf eine Person oder Mannschaft ein. Dann steht dort zusätzlich eine Summe: wie viele Stück und wie viel Geld das Konto im Zeitraum auf der Rechnung hat.
+Mit **Von** und **Bis** und „Anzeigen“ wählst du den Zeitraum, „Geschäftsjahr“ geht vom Beginn des laufenden Geschäftsjahres bis heute (Einstellungen › Buchführung, meist der 1. Januar). Darunter schränkt **Nur Konto** die Liste auf eine Person oder Mannschaft ein. Dann steht dort zusätzlich eine Summe: wie viele Stück und wie viel Geld das Konto im Zeitraum auf der Rechnung hat.
 
 #### Liste
 
@@ -199,7 +199,7 @@ Die Karte **Geschlossen (letzte 30 Tage)** zeigt, wer wann wie bezahlt hat. **Wi
 
 ![Die Reiter des Verkaufs, „Auswertung“ ist gewählt.](bild: seite=auswertung; ziel=.tabrow:has(> .drinktabs))
 
-Die Auswertung zeigt Umsatz, verkaufte Artikel und beliebte Zeiten, immer im Vergleich zum Vorjahr. Oben wählst du das **Jahr** und optional eine **Kategorie**. Im laufenden Jahr gilt der Vergleich bis zum heutigen Tag.
+Die Auswertung zeigt Umsatz, verkaufte Artikel und beliebte Zeiten, immer im Vergleich zum Vorjahr. Oben wählst du das **Jahr** und optional eine **Kategorie**. Beginnt euer Geschäftsjahr nicht am 1. Januar (Einstellungen › Buchführung), wählst du das **Geschäftsjahr** (z. B. „2026/27“); Monate und Kalender beginnen dann mit dessen erstem Monat, verglichen wird mit dem vorigen Geschäftsjahr.
 
 ![Filter für Jahr und Kategorie.](bild: seite=auswertung; ziel=.filterbar)
 

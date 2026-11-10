@@ -73,7 +73,7 @@ Clicking a block shows the details: players, title, fee, note and who entered th
 
 If the date belongs to a recurring booking or block, Clubwerk first asks what you mean:
 
-![The choice for recurring dates: only this date, this and all following, entire series.](bild: seite=bk-belegung; klick=#bkDays button:nth-child(2); klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
+![The choice for recurring dates: only this date, this and all following, entire series.](bild: seite=bk-belegung; klick=#bkNext; klick2=#bkDays button:nth-child(3); klick3=.bk-blk.serie; klick4=#bxE; ziel=#askBox)
 
 When cancelling, a confirmation follows before anything disappears. When editing (court, time, title, booking type, note), “Check” first shows how many dates are affected and on which days the court is taken.
 
@@ -137,7 +137,7 @@ The log of all bookings in a year, including cancelled ones and blocks, grouped 
 
 ![The tab “Fees” with three totals and the list of fees.](bild: seite=bk-gebuehren)
 
-All guest and court fees from bookings, plus fees booked by hand. At the top are the totals **Open**, **Paid** and **Total** for the year, below them the list (member, date, court, text, amount, status). Use the filters “All / Open / Paid” and the year selector to narrow it down.
+All guest and court fees from bookings, plus fees booked by hand. At the top are the totals **Open**, **Paid** and **Total** for the financial year (usually the calendar year, otherwise e.g. “2026/27”), below them the list (member, date, court, text, amount, status). Use the filters “All / Open / Paid” and the year selector to narrow it down.
 
 Fees arise when booking, as open items, and are settled with the next collection. Clubwerk takes the payment status from Fees & payments › Open items. Without the Members module it says “without payment tracking” and the fees are only listed. Clicking a row opens the booking it belongs to.
 

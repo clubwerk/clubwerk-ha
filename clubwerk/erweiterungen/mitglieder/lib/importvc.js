@@ -317,8 +317,8 @@ function register(sh) {
   }
   function guessAges(name) {
     const s = String(name).toLowerCase();
-    const min = /ab\s*(\d{1,2})/.exec(s), max = /bis\s*(\d{1,2})/.exec(s);
-    return { age_min: min ? Number(min[1]) : null, age_max: max ? Number(max[1]) : null, family: /familie|alleinerz/.test(s) ? 1 : 0, work_minutes: /ohne\s+arbeit/.test(s) ? 0 : null };
+    const min = /ab\s*(\d{1,2})/.exec(s), max = /bis\s*(\d{1,2})/.exec(s), under = /unter\s*(\d{1,2})/.exec(s);   // „unter 19“ heißt bis einschließlich 18
+    return { age_min: min ? Number(min[1]) : null, age_max: max ? Number(max[1]) : under ? Number(under[1]) - 1 : null, family: /familie|alleinerz/.test(s) ? 1 : 0, work_minutes: /ohne\s+arbeit/.test(s) ? 0 : null };
   }
 
   // lesbare Namen für den Feldabgleich (keine internen Schlüssel anzeigen)

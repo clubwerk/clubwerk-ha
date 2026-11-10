@@ -72,7 +72,7 @@
       .bkm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; } .bkm-two.one { grid-template-columns: 1fr; } .bkm-two .span2 { grid-column: 1 / -1; } .bkm-two > div { min-width: 0; }
       @media (max-width: 520px) { .bkm-two { grid-template-columns: 1fr; } }   /* Handy: Dauer und Art untereinander – sonst abgeschnitten */
       .bkm-lh { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 2px 0 6px; } .bkm-lh label.l { margin: 0; }
-      .bkm-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; flex: 0 1 auto; min-width: 0; } .bkm-links .vh-link { max-width: 100%; white-space: normal; margin: 0; padding: 8px 0; overflow-wrap: anywhere; text-align: right; }   /* langer Gerätename bricht um statt das Fenster zu weiten */
+      .bkm-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 4px 16px; flex: 0 1 auto; min-width: 0; } .bkm-links .vh-link { flex: 1 1 auto; max-width: 100%; white-space: normal; margin: 0; padding: 8px 0; overflow-wrap: anywhere; text-align: right; }   /* langer Gerätename bricht um statt das Fenster zu weiten */
       .bkm-fold { padding: 12px 12px 0; margin: 0 0 12px; border-radius: 12px; background: var(--hover); }
       .bkm-fold .vh-check { margin-bottom: 12px; }
       .bkm-row2 { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; } .bkm-row2 .vh-btn { height: 48px; min-height: 48px; padding: 0 14px; font-size: 15px; border-radius: 12px; }

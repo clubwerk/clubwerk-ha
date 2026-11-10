@@ -12,6 +12,8 @@
   const deTime = t => (t ? DT.format(new Date(t.replace(' ', 'T'))) : '');
   const pinInfo = m => m.pin_changed_at ? `<div class="muted s">${m.hasPin ? 'geändert' : (m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? 'zurückgesetzt' : 'entfernt')} ${deTime(m.pin_changed_at)}${m.pin_changed_by && m.pin_changed_by !== 'Mitglied' ? ' · ' + esc(m.pin_changed_by) : ''}</div>` : '';
   const today = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  /** Geschäftsjahr mit Startjahr y bei Beginnmonat m: „2026“ (Kalenderjahr) bzw. „2026/27“ (src/geschaeftsjahr.js label) */
+  const gjLabel = (y, m) => (+m > 1 ? `${y}/${String(+y + 1).slice(2)}` : String(y));
   const toCents = v => Math.round(Number(String(v).replace(/\./g, '').replace(',', '.')) * 100);
   const centsToInput = c => ((c || 0) / 100).toFixed(2).replace('.', ',');
   const KIND = { mitglied: 'Mitglied', nichtmitglied: 'Kein Mitglied', mannschaft: 'Mannschaft', verein: 'Verein (kostenfrei)', gast: 'Gast (bar)' };
@@ -93,6 +95,27 @@
   function dialogMehr() { const ov = $('overlay'), f = ov && $('dialog').querySelector(':scope > .btns:last-child'); if (f) f.classList.toggle('mehr', ov.scrollTop + ov.clientHeight < ov.scrollHeight - 2); }
   document.addEventListener('scroll', e => { if (e.target && e.target.id === 'overlay') dialogMehr(); }, { capture: true, passive: true });
   window.addEventListener('resize', dialogMehr);
+  /* Knopfzeilen am Handy (Raster in admin.html): passt eine Beschriftung nicht einzeilig in die halbe Breite, steht die ganze Zeile in einer Spalte – gleich breit und einzeilig (09.11.2026) */
+  (function () {
+     let t = 0;
+    /* Ohne die Zeile umzuschalten messen: Breite der Beschriftung (Schrift des Knopfs) plus Innenabstand gegen die Spaltenbreite des Rasters
+       (auto-fit, mindestens 150 px, wie admin.html). Früher wurde die Markierung zum Messen kurz entfernt – das ließ die Seite kurz schrumpfen,
+       und WebKit am Handy (resize schon beim Scrollen, Adressleiste) blieb danach 52 px vor dem Seitenende hängen (Prüfstand nicht-erreichbar, 09.11.2026). */
+    const cv = document.createElement('canvas').getContext('2d');
+    const textW = c => { const cs = getComputedStyle(c); cv.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`; return cv.measureText(c.textContent.replace(/\s+/g, ' ').trim()).width + (parseFloat(cs.paddingLeft) || 0) + (parseFloat(cs.paddingRight) || 0) + (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0); };
+    const einspaltig = r => {
+      const bs = [...r.children].filter(c => c.matches('.btn') && c.offsetParent !== null); if (bs.length < 2) return false;
+      const cs = getComputedStyle(r), gap = parseFloat(cs.columnGap) || 0, W = r.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0);
+      const cols = Math.max(1, Math.min(bs.length, Math.floor((W + gap) / (150 + gap)))); if (cols < 2) return false;
+      const colW = (W - gap * (cols - 1)) / cols;
+      return bs.some(c => textW(c) > colW + 1);
+    };
+    let breite = innerWidth;
+    const fit = () => { t = 0; if (innerWidth > 700 && !document.querySelector('[data-einspaltig]')) return; document.querySelectorAll(':is(.row, .btns, .acts):not(.tbl *, .knopfspalte):not(:has(> :not(.btn, span:empty))):has(> .btn ~ .btn)').forEach(r => { const soll = innerWidth <= 700 && einspaltig(r); if (soll !== r.hasAttribute('data-einspaltig')) { if (soll) r.dataset.einspaltig = ''; else delete r.dataset.einspaltig; } }); };
+    const later = () => { if (!t) { t = 1; queueMicrotask(fit); } };   // einmal je Änderungsschub, vor dem nächsten Bild
+    new MutationObserver(later).observe(document.body, { childList: true, subtree: true }); window.addEventListener('resize', () => { if (innerWidth !== breite) { breite = innerWidth; later(); } }); later();
+    if (document.fonts) { document.fonts.ready.then(later); document.fonts.addEventListener && document.fonts.addEventListener('loadingdone', later); }   // Webschrift geladen: Breiten neu messen (vorher misst die Ersatzschrift – „Bestellung jetzt senden“ lief in WebKit über)   // nur bei geänderter Breite (die Höhe ändert sich am Handy schon beim Scrollen)
+  })();
   function closeDialog() { $('overlay').classList.add('hidden'); $('dialog').innerHTML = ''; }
 
   /* ---------- Rückfragen im eigenen Fenster (statt Browser-Dialog) ---------- */
@@ -146,6 +169,17 @@
   const viewAlive = (gen, owner) => (owner ? owner.isConnected : go.gen === gen);
   function later(fn, ms, owner) { const gen = go.gen; return setTimeout(() => { if (viewAlive(gen, owner)) fn(); }, ms); }
   function every(fn, ms, owner) { const gen = go.gen; const h = setInterval(() => { if (viewAlive(gen, owner)) fn(); else clearInterval(h); }, ms); return h; }
+
+  /* ---------- Karte neben einer Liste (.mlayout > .mcol > .mdetail) ----------
+     GK.klebend(el): Die Karte klebt oben, solange sie ins Fenster passt. Ist sie höher, scrollt sie mit der Seite, bis ihr Ende zu sehen ist,
+     und bleibt dann stehen (negatives top) – so gibt es nie einen eigenen Scrollbalken, und am Seitenende endet sie bündig mit der Liste. */
+  const kleb = new Set();
+  window.addEventListener('resize', () => kleb.forEach(f => f()));
+  function klebend(el) {
+    if (!el) return;
+    const f = () => { if (!el.isConnected) { kleb.delete(f); return; } el.style.setProperty('--mtop', Math.min(20, window.innerHeight - el.offsetHeight - 20) + 'px'); };
+    kleb.add(f); f(); if (window.ResizeObserver) new ResizeObserver(f).observe(el);
+  }
 
   /* ---------- Ungespeicherte Änderungen ---------- */
   let dirty = false;
@@ -931,13 +965,14 @@
       <label class="f">Von<input type="date" name="from" value="${from}"></label>
       <label class="f">Bis<input type="date" name="to" value="${to}"></label>${extra}
       <button class="btn" data-r="apply" data-pruefbar>Anzeigen</button>
-      <button class="btn ghost" data-r="season">Ganze Saison</button></div>`;
+      <button class="btn ghost" data-r="season">Geschäftsjahr</button></div>`;
   }
   function bindRange(id, cb) {
     const box = $(id);
     box.addEventListener('click', e => {
       const b = e.target.closest('[data-r]'); if (!b) return;
-      if (b.dataset.r === 'season') { box.querySelector('[name=from]').value = new Date().getFullYear() + '-01-01'; box.querySelector('[name=to]').value = today(); }
+      // „Geschäftsjahr“: vom Beginn des laufenden Geschäftsjahres (Kern-Einstellung) bis heute
+      if (b.dataset.r === 'season') { const fm = (cache.settings && cache.settings.fiscalMonth) || 1, t = today(), y = +t.slice(5, 7) >= fm ? +t.slice(0, 4) : +t.slice(0, 4) - 1; box.querySelector('[name=from]').value = `${y}-${String(fm).padStart(2, '0')}-01`; box.querySelector('[name=to]').value = t; }
       cb(box.querySelector('[name=from]').value, box.querySelector('[name=to]').value);
     });
   }
@@ -998,8 +1033,8 @@
   window.GK = {
     /** Selbst wachsendes einzeiliges Textfeld (<textarea data-grow rows="1">) nach einer Wertänderung per Skript anpassen */
     fit: growFit,
-    sortKit, $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
-    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, funcImport, lastFirst, busy, invite: (...a) => appInvite(...a), go: p => go(p),
+    gjLabel, sortKit, $, esc, euro, num, deDate, deTime, today, toCents, centsToInput, api, toast, fail, dialog, closeDialog, can, canFull, RENDER, icon, T, printHtml: (...a) => printHtml(...a), copyText: t => copyText(t),
+    scheme: () => SCHEME, ask, askText, withPassword, deleteMember, watch, clean, later, every, tabs, funcBox, funcImport, lastFirst, busy, klebend, invite: (...a) => appInvite(...a), go: p => go(p),
     me: () => me,
     /** ungespeicherte Änderungen? Rückfrage „Verwerfen?“ → true = weiter */
     leaveOk: () => leaveOk(),
@@ -1498,7 +1533,7 @@
           <label class="f" style="flex:1;min-width:240px">Kopie an (optional, z. B. Vorstand)<input id="oCc" type="email" value="${esc(st.order_cc)}" placeholder="vorstand@verein.de" autocomplete="off"></label></div>
         <label class="f" style="margin-top:8px">Betreff<textarea id="oSubj" data-grow rows="1"></textarea></label>
         <label class="f" style="margin-top:8px">Text<textarea id="oText" rows="16" style="font-family:inherit"></textarea></label>
-        <div class="row" style="margin-top:10px;align-items:center"><button class="btn primary" id="oSend" ${o.mailReady ? '' : 'disabled'}>Bestellung jetzt senden</button><button class="btn" id="oCopy">Text kopieren</button><a class="btn" id="oMailBtn" href="#">In E-Mail-Programm öffnen</a>
+        <div class="row knopfspalte" style="margin-top:10px;align-items:center"><button class="btn primary" id="oSend" ${o.mailReady ? '' : 'disabled'}>Bestellung jetzt senden</button><button class="btn" id="oCopy">Text kopieren</button><a class="btn" id="oMailBtn" href="#">In E-Mail-Programm öffnen</a>
           <span class="muted s" id="oInfo"></span></div>
         ${o.lastSent ? `<p class="muted s" style="margin:8px 0 0">Zuletzt gesendet: ${esc(deTime(o.lastSent.split(' · ')[0]))} Uhr an ${esc(o.lastSent.split(' · ')[1] || '')}</p>` : ''}</div>`;
 
@@ -1810,15 +1845,15 @@
     const WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'], WDL = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
     const addD = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
     const dowI = s => (new Date(s + 'T12:00:00Z').getUTCDay() + 6) % 7;
-    /** Kalender-Heatmap eines Jahres: days = { 'YYYY-MM-DD': Wert } */
-    function calendar(year, days, fmt) {
+    /** Kalender-Heatmap eines Zeitraums (Geschäftsjahr, sonst Kalenderjahr): days = { 'YYYY-MM-DD': Wert } */
+    function calendar(year, days, fmt, from = `${year}-01-01`, to = `${year}-12-31`) {
       const max = Math.max(0, ...Object.values(days));
-      const jan1 = `${year}-01-01`, start = addD(jan1, -dowI(jan1)), weeks = [];
-      for (let w = 0; w < 54; w++) { const wd = addD(start, w * 7); if (wd > `${year}-12-31`) break; weeks.push(wd); }
+      const start = addD(from, -dowI(from)), weeks = [], inR = day => day >= from && day <= to;
+      for (let w = 0; w < 54; w++) { const wd = addD(start, w * 7); if (wd > to) break; weeks.push(wd); }
       // Monatszeile: je Monat eine Zelle über alle seine Wochen (Woche zählt zum Monat, in dem die meisten ihrer Tage liegen – ihr Donnerstag) – nichts läuft über
-      const months = []; weeks.forEach(w => { const d = addD(w, 3), key = d.slice(0, 4) === String(year) ? d.slice(5, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
-      return `<div class="ds-scroll" data-wischt><div class="ds-heat" style="--w:${weeks.length}"><span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key - 1] : ''}</span>`).join('')}
-        ${WD.map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addD(w, r), v = days[day] || 0, inY = day.slice(0, 4) === String(year);
+      const months = []; weeks.forEach(w => { const d = addD(w, 3), key = inR(d) ? d.slice(0, 7) : ''; const last = months[months.length - 1]; if (last && last.key === key) last.n++; else months.push({ key, n: 1 }); });
+      return `<div class="ds-scroll" data-wischt><div class="ds-heat" style="--w:${weeks.length}"><span></span>${months.map(m => `<span class="mo" style="grid-column:span ${m.n}">${m.key ? MON[+m.key.slice(5, 7) - 1] : ''}</span>`).join('')}
+        ${WD.map((n, r) => `<span class="dl">${n}</span>${weeks.map(w => { const day = addD(w, r), v = days[day] || 0, inY = inR(day);
           return `<i class="${inY ? '' : 'out'}" ${inY ? `title="${deDate(day)}: ${fmt(v)}"` : ''} style="${inY && v ? `background:${heat(v, max)}` : ''}"></i>`; }).join('')}`).join('')}</div></div>`;
     }
     /** Wochentag × Uhrzeit als Punkte */
@@ -1828,14 +1863,15 @@
         ${WD.map((n, r) => `<span class="dl">${n}</span>${hours.map(h => { const v = grid[r][h] || 0; const sz = v ? Math.max(8, Math.round(Math.sqrt(v / max) * 40)) : 0;
           return `<span class="bc" title="${n} ${String(h).padStart(2, '0')}:00: ${fmt(v)}">${sz ? `<i style="width:${sz}px;height:${sz}px;background:${heat(v, max)}"></i>` : ''}</span>`; }).join('')}`).join('')}</div></div>`;
     }
-    function monthBars(cur, prev, year, fmt) {
+    /** Balken je Monat; first = erster Monat (1–12) des (Geschäfts-)Jahres, cur/prev beginnen mit diesem Monat; Jahreszahlen aus labels [jetzt, Vorjahr] */
+    function monthBars(cur, prev, year, fmt, first = 1, labels = [year, year - 1]) {
       const max = Math.max(1, ...cur, ...prev);
-      return `<div class="ds-bars">${MON.map((m, i) => `<div class="ds-bar1" title="${T(m)} ${year}: ${fmt(cur[i])} · ${year - 1}: ${fmt(prev[i])}"><div class="ds-bpair"><i class="p" style="height:${prev[i] / max * 100}%"></i><i style="height:${cur[i] / max * 100}%"></i></div><span>${T(m).slice(0, 3)}</span></div>`).join('')}</div>`;
+      return `<div class="ds-bars">${cur.map((_, i) => { const m = MON[(first - 1 + i) % 12]; return `<div class="ds-bar1" title="${T(m)} ${labels[0]}: ${fmt(cur[i])} · ${labels[1]}: ${fmt(prev[i])}"><div class="ds-bpair"><i class="p" style="height:${prev[i] / max * 100}%"></i><i style="height:${cur[i] / max * 100}%"></i></div><span>${T(m).slice(0, 3)}</span></div>`; }).join('')}</div>`;
     }
     return { PAL, delta, spark, donut, legend, kpi, calendar, bubbles, monthBars, num, WDL, heat };
   })();
 
-  const svState = { year: new Date().getFullYear(), cat: '' };
+  const svState = { year: 0, cat: '' };   // 0 = laufendes Geschäftsjahr (der Server wählt)
   RENDER.auswertung = async () => {
     const g = svState;
     $('main').innerHTML = `<h2 class="page">Auswertung</h2><p class="lead">Umsatz, verkaufte Artikel und beliebte Zeiten – was am meisten verkauft wird, im Vergleich zum Vorjahr.</p><div id="svBody"><p class="muted">Lade …</p></div>`;
@@ -1848,9 +1884,9 @@
     const bestDay = Object.entries(d.days).sort((a, b) => b[1] - a[1])[0];
     const hl = (t, v, sub) => `<div class="ds-hlt"><span>${t}</span><b>${v}</b><small>${sub}</small></div>`;
     void tot;
-    $('svBody').innerHTML = `<div class="filterbar"><select id="svY" class="ds-sel" data-nodirty>${d.years.map(y => `<option value="${y}" ${y === d.year ? 'selected' : ''}>Jahr ${y}</option>`).join('')}</select>
+    $('svBody').innerHTML = `<div class="filterbar"><select id="svY" class="ds-sel" data-nodirty>${d.years.map(y => `<option value="${y}" ${y === d.year ? 'selected' : ''}>${esc(T(d.fiscal > 1 ? 'Geschäftsjahr {0}' : 'Jahr {0}', [d.labels[y]]))}</option>`).join('')}</select>
         <select id="svC" class="ds-sel" data-nodirty><option value="">Alle Kategorien</option>${d.categories.map(k => `<option value="${esc(k)}" ${k === d.cat ? 'selected' : ''}>${esc(k)}</option>`).join('')}</select>
-        <span style="flex:1"></span><span class="muted s">${d.year === new Date().getFullYear() ? `<span>bis heute (${deDate(d.until)})</span> · ` : ''}Vergleich mit ${d.year - 1}</span></div>
+        <span style="flex:1"></span><span class="muted s">${d.fiscal > 1 ? `<span>${deDate(d.from)}–${deDate(d.to)}</span> · ` : ''}${d.year === d.current ? `<span>bis heute (${deDate(d.until)})</span> · ` : ''}Vergleich mit ${esc(d.prevLabel)}</span></div>
       <div class="ds-kpis">
         ${DS.kpi('e', 'Umsatz', euro(c.revenue), DS.delta(c.revenue, p.revenue), DS.spark(c.month, p.month, 'var(--brand)'))}
         ${DS.kpi('u', 'Verkaufte Artikel', num(c.units), DS.delta(c.units, p.units), DS.spark(c.monthUnits, p.monthUnits, '#e07b16'), 'o')}
@@ -1866,9 +1902,9 @@
         <div class="card"><h3>Umsatz nach Kategorie</h3>${d.cats.length ? DS.donut(d.cats.map((k, i) => ({ name: k.name, v: k.cents || k.units, color: DS.PAL[i % DS.PAL.length] })), euro(c.revenue).replace(/,\d\d\s/, ' '), 'Umsatz') : '<p class="empty">Noch keine Verkäufe.</p>'}
           ${d.kinds.length ? `<div class="ds-mini" style="--n:${Math.min(4, d.kinds.length)}">${d.kinds.slice(0, 4).map(k => `<div><span>${esc(k.name)}</span><b>${num(k.units)}</b><small>${euro(k.cents)}</small></div>`).join('')}</div>` : ''}</div>
       </div>
-      <div class="card"><div class="ds-ch"><h3>Jahr ${d.year} · ${num(c.units)} verkaufte Artikel</h3>${DS.legend()}</div>${DS.calendar(d.year, d.days, v => `${num(v)} Artikel`)}</div>
+      <div class="card"><div class="ds-ch"><h3>${esc(T(d.fiscal > 1 ? 'Geschäftsjahr {0}' : 'Jahr {0}', [d.label]))} · ${num(c.units)} verkaufte Artikel</h3>${DS.legend()}</div>${DS.calendar(d.year, d.days, v => `${num(v)} Artikel`, d.from, d.to)}</div>
       <div class="ds-two">
-        <div class="card"><div class="ds-ch"><h3>Umsatz je Monat</h3><span class="ds-leg"><i style="background:var(--brand)"></i>${d.year}<i style="background:var(--line);margin-left:10px"></i>${d.year - 1}</span></div>${DS.monthBars(c.month, p.month, d.year, euro)}</div>
+        <div class="card"><div class="ds-ch"><h3>Umsatz je Monat</h3><span class="ds-leg"><i style="background:var(--brand)"></i>${esc(d.label)}<i style="background:var(--line);margin-left:10px"></i>${esc(d.prevLabel)}</span></div>${DS.monthBars(c.month, p.month, d.year, euro, d.fiscal, [d.label, d.prevLabel])}</div>
         <div class="card"><div class="ds-ch"><h3>Wann wird gekauft?</h3>${DS.legend()}</div>${DS.bubbles(d.grid, d.hours, v => `${num(v)} Artikel`)}</div>
       </div>`;
     $('svY').onchange = () => { g.year = +$('svY').value; RENDER.auswertung().catch(fail); };
@@ -2499,7 +2535,7 @@
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mSearch" placeholder="Name suchen" aria-label="Name suchen"></label>
         <div class="chips" id="mFilter" role="group" aria-label="Filter">${[['alle', 'Alle'], ['mitglied', 'Mitglieder'], ['nichtmitglied', 'Kein Mitglied'], ['mannschaft', 'Mannschaften'], ['sonder', 'Sonderkonten'], ['offen', 'Mit offenem Betrag'], ['aus', 'Ausgeblendet']]
           .filter(([k]) => (k !== 'sonder' || (cache.modules || []).includes('getraenke')) && (k !== 'nichtmitglied' || cache.members.some(m => m.kind === 'nichtmitglied' && !m.pending))).map(([k, l]) => `<button type="button" data-f="${k}" class="${(cache.mFilter || 'alle') === k ? 'on' : ''}" aria-pressed="${(cache.mFilter || 'alle') === k}">${l}<span class="cnt" data-cnt="${k}"></span></button>`).join('')}</div></div>
-      <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel kompakt" id="mTbl"></table></div><p class="empty hidden" id="mEmpty"></p></div><aside class="mdetail card" id="mDetail"></aside></div>`;
+      <div class="mlayout"><div class="mlist"><div class="scroll"><table class="tbl sel kompakt" id="mTbl"></table></div><p class="empty hidden" id="mEmpty"></p></div><div class="mcol card"><aside class="mdetail" id="mDetail"></aside></div></div>`;
     const showAll = (cache.modules || []).includes('getraenke');
     const base = cache.members.filter(m => !m.pending && (showAll || (m.kind !== 'verein' && m.kind !== 'gast')));
     const FILTER = {
@@ -2508,6 +2544,7 @@
     };
     const ini = m => esc(initials(isPerson(m.kind) ? m.name : m.name.replace(/[()]/g, '')));
     const pinPill = m => m.hasPin ? `<span class="pill g">${m.kind === 'mannschaft' ? 'vom Vorstand' : 'gesetzt'}</span>${m.pinLocked ? ' <span class="pill r">gesperrt</span>' : ''}` : m.kind === 'mannschaft' ? '<span class="pill r">fehlt</span>' : '<span class="muted s">ohne</span>';
+    klebend($('mDetail'));
     // Detailkarte rechts neben der Liste; bei schmalen Fenstern (≤ 1100 px) als Dialog, damit die Liste nicht springt
     const narrow = () => window.matchMedia('(max-width: 1100px)').matches;
     const detail = asDialog => {
@@ -2538,6 +2575,7 @@
       const match = m => !q || m.name.toLowerCase().includes(q) || lastFirst(m.name, m.kind).toLowerCase().includes(q);
       Object.keys(FILTER).forEach(k => { const c = $('main').querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = base.filter(m => FILTER[k](m) && match(m)).length; });
       const rows = base.filter(m => f(m) && match(m));
+      if (cache.mSel && !rows.some(m => m.id === cache.mSel)) cache.mSel = null;   // Karte zeigt nie ein Konto, das nach Suche oder Filter nicht in der Liste steht
       $('mTbl').innerHTML = `<tr><th>Name</th><th>Typ</th><th>PIN</th><th>Zuletzt da</th><th class="r">Offen</th></tr>` +
         (rows.length ? rows.map(m => `<tr data-sel="${m.id}" class="${m.active ? '' : 'off'} ${cache.mSel === m.id ? 'on' : ''}" tabindex="0"><td><span class="who"><span class="av">${ini(m)}</span><b>${pName(m)}</b></span></td><td>${KIND[m.kind]}</td>
           <td>${pinPill(m)}</td><td class="k-weg">${m.last_seen ? deDate(m.last_seen.slice(0, 10)) : ''}</td><td class="r k-lbl">${m.balance_cents ? euro(m.balance_cents) : ''}</td></tr>`).join('') : '');
@@ -2747,7 +2785,7 @@
     const club = cache.settings.clubName || '';
     printHtml(letters.map(l => `<div class="pr letter"><h1>${esc(club)}</h1><p style="font-size:14pt">Mitglieder-App für <b>${esc(l.name)}</b></p>
       <div style="width:70mm;height:70mm;margin:8mm auto">${l.svg}</div>
-      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).</li><li>Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.</li></ol>
+      <ol><li>Den QR-Code mit der Handy-Kamera scannen.</li><li>Falls gefragt: den Code aus der SMS eingeben.</li><li>${esc(l.pinStep || 'Deine persönliche PIN vergeben (4 bis 6 Ziffern) – du brauchst sie später bei jedem Öffnen.')}</li><li>Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.</li></ol>
       <p style="margin-top:8mm">Gilt einmal und bis ${new Date(l.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Persönlich – bitte nicht weitergeben.</p></div>`).join(''));
   }
   /** Einladung per E-Mail an ein Mitglied */
@@ -3009,10 +3047,10 @@
     $('main').innerHTML = `<h2 class="page">Mitglieder-App</h2>
       <p class="lead">Mitglieder bekommen <b>eine Einladung</b> (QR-Code, E-Mail oder Brief), nutzen <b>eine PIN</b> und sehen in der App, was für sie freigeschaltet ist.</p>
       ${mayCfg ? `<div class="card" id="apSet" data-set="einstellungen"><h3>Adresse & Aussehen</h3>
-        <div class="frm"><label class="f w3">Adresse im Vereins-WLAN<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.lanUrl || '')}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
-          <label class="f w1">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
-        ${mayNet ? `<label class="f w3">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
-          <label class="chk w1" style="height:40px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> Von unterwegs erreichbar</label>` : ''}
+        <div class="frm"><label class="f">Adresse im Vereins-WLAN<input id="apUrl" ${can('einstellungen') ? '' : 'disabled title="Nur mit dem Recht „Einstellungen“"'} value="${esc(r.lanUrl || '')}" placeholder="${r.https ? 'https' : 'http'}://${esc(location.hostname)}:${r.port || 5001}"></label>
+          <label class="f">Name auf dem Homescreen<input id="apName" maxlength="20" value="${esc(r.name)}"></label>
+        ${mayNet ? `<label class="f">Öffentliche Adresse der App<input id="apExtUrl" ${can('einstellungen') ? '' : 'disabled'} value="${esc(r.tunnel.url)}" placeholder="https://app.meinverein.de"></label>
+          <label class="chk" style="height:40px"><input type="checkbox" id="apExtOn" ${can('einstellungen') ? '' : 'disabled'} ${r.tunnel.on ? 'checked' : ''}> Von unterwegs erreichbar</label>` : ''}
         </div>
         ${r.lanHint ? `<div class="banner a" id="apPortHint" style="margin:10px 0 0;font-weight:400"><div>Port fehlt – meinst du <b>${esc(r.lanHint.vorschlag)}</b>? Die App läuft auf Port ${r.port || 5001}, ohne Port landet das Handy auf Port 443 und kommt nicht durch.<div class="btns" style="margin:8px 0 0;justify-content:flex-start"><button class="btn" id="apPortTake">So übernehmen</button></div></div></div>` : ''}
         <div class="btns"><a class="btn" id="apTest" target="_blank" rel="noopener">Testen ↗</a>${mayNet ? `<button class="btn" id="apExtTest" ${can('einstellungen') && r.tunnel.url ? '' : 'disabled'}>Verbindung prüfen</button>` : ''}<button class="btn primary" id="apSave">Speichern</button></div>
@@ -3472,9 +3510,9 @@
           : '<p class="muted s" style="margin-top:0">Mit diesem Passwort werden alle Sicherungen verschlüsselt. <b>Ohne das Passwort ist eine Sicherung wertlos</b> – deshalb danach unbedingt das Notfallblatt ausdrucken und sicher verwahren (z. B. beim Kassenwart oder im Tresor).</p>'}
         ${st.pwCheckDue && owner ? '<div class="banner a" id="bkPwDue">Seit über einem halben Jahr nicht mehr geprüft: Passt das notierte Sicherungspasswort noch? Ohne das richtige Passwort sind alle Sicherungen wertlos.</div>' : ''}
         ${owner ? (st.hasKey ? `<div class="row">${st.pwCheckDue ? '<button class="btn primary" id="bkPwTest">Passwort prüfen …</button>' : ''}<button class="btn" id="bkPwChange">Passwort ändern …</button><button class="btn" id="bkSheet">Notfallblatt drucken …</button></div>` : `<div class="row">
-          <label class="f" style="flex:1;min-width:180px">Sicherungspasswort (mind. 10 Zeichen)<input type="password" id="bkPw1" autocomplete="new-password"></label>
+          <label class="f" style="flex:1;min-width:180px">Sicherungspasswort<input type="password" id="bkPw1" autocomplete="new-password" placeholder="mind. 10 Zeichen"></label>
           <label class="f" style="flex:1;min-width:180px">Wiederholen<input type="password" id="bkPw2" autocomplete="new-password"></label>
-          <label class="f" style="flex:1;min-width:180px">Dein Passwort zur Bestätigung<input type="password" id="bkMy" autocomplete="current-password"></label>
+          <label class="f" style="flex:1;min-width:180px">Dein Passwort<input type="password" id="bkMy" autocomplete="current-password" placeholder="zur Bestätigung"></label>
           <button class="btn primary" id="bkPwSet" style="align-self:flex-end">Festlegen</button></div>`) : '<p class="muted s">Festlegen und ändern darf nur ein Benutzer mit allen Rechten.</p>'}</div>
 
       <div class="card"><h3>Zeitplan &amp; Aufbewahrung</h3><div class="row">
@@ -4446,14 +4484,15 @@
       } catch (e) { fail(e); }
     });
     $('gbCheck').onclick = check; check();
-    kb.innerHTML = `<p class="muted s" style="margin-top:0">Für den DATEV-Export: die Nummern vom Steuerberater und je Zahlweg ein Geldkonto. Lastschriften und Überweisungen am besten auf ein Geldtransitkonto, wenn euer Steuerberater die Bankumsätze selbst einliest – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.</p>
+    kb.innerHTML = `<p class="muted s" style="margin-top:0">Für den DATEV-Export: die Nummern vom Steuerberater, das Geschäftsjahr (Wirtschaftsjahr – gilt auch für Kündigungen und Jahresauswertungen, dasselbe Feld wie bei den Mitgliedern) und je Zahlweg ein Geldkonto. Lastschriften und Überweisungen am besten auf ein Geldtransitkonto, wenn euer Steuerberater die Bankumsätze selbst einliest – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.</p>
       <div class="frm">
         <label class="f w1">Beraternummer<input id="gbB" value="${esc(c.berater)}" inputmode="numeric" maxlength="7" autocomplete="off"></label>
         <label class="f w1">Mandantennummer<input id="gbM" value="${esc(c.mandant)}" inputmode="numeric" maxlength="5" autocomplete="off"></label>
-        <label class="f w1">Wirtschaftsjahr beginnt im<select id="gbW">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i + 1 === Number(c.wj_month) ? 'selected' : ''}>${esc(T(m))}</option>`).join('')}</select></label>
+        <label class="f">Geschäftsjahr beginnt am 1.<select id="gbW">${MONTHS.map((m, i) => `<option value="${i + 1}" ${i + 1 === Number(c.wj_month) ? 'selected' : ''}>${esc(T(m))}</option>`).join('')}</select></label>
         <label class="f w1">Sachkontenlänge<select id="gbL">${[4, 5, 6, 7, 8].map(n => `<option ${n === Number(c.length) ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
         <label class="f w1">Kontenrahmen<input id="gbS" value="${esc(c.skr)}" placeholder="z. B. SKR 49" maxlength="20" autocomplete="off"></label>
-        ${Object.entries(r.vias).map(([k, l]) => `<label class="f w1">${esc(T('Geldkonto'))} ${esc(T(l))}<input data-gbg="${k}" value="${esc(c.gegen[k] || '')}" inputmode="numeric" maxlength="8" autocomplete="off"></label>`).join('')}
+        <p class="wall muted s" style="margin:4px 0 -4px">${esc(T('Geldkonto je Zahlweg'))}</p>
+        ${Object.entries(r.vias).map(([k, l]) => `<label class="f w1">${esc(T(l))}<input data-gbg="${k}" aria-label="${esc(T('Geldkonto'))} ${esc(T(l))}" value="${esc(c.gegen[k] || '')}" inputmode="numeric" maxlength="8" autocomplete="off"></label>`).join('')}
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-gbsave>Speichern</button></div>`;
     eb.innerHTML = `<p class="muted s" style="margin-top:0">Je Erlösart ein Konto und die Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Clubwerk schlägt Sphären vor – Zuordnung und Kontenrahmen (für Vereine z. B. SKR 42 oder SKR 49) stimmt ihr mit eurem Steuerberater ab.</p>
@@ -4471,12 +4510,13 @@
     document.querySelectorAll('[data-gbsave]').forEach(b => { b.onclick = () => save(b); });
     const now = new Date(), y = now.getFullYear(), m = now.getMonth(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const pFrom = iso(new Date(y, m - 1, 1)), pTo = iso(new Date(y, m, 0));
+    const wm = Number(c.wj_month) || 1, gy = m + 1 >= wm ? y : y - 1;   // laufendes Geschäftsjahr (Startjahr)
     xb.innerHTML = `<p class="muted s" style="margin-top:0">Alle Zahlungseingänge, die durch Clubwerk laufen (Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld) – je Erlösart, Rücklastschriften und Stornos als Gegenbuchung. Ausgaben und Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.</p>
       <div class="frm"><label class="f w1">Von<input type="date" id="gbF" value="${pFrom}"></label><label class="f w1">Bis<input type="date" id="gbT" value="${pTo}"></label>
         <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn" id="gbPrev">Vorschau</button><button class="btn primary" id="gbDatev">Herunterladen</button></div></div>
       <div id="gbPrevBody"></div>`;
     $('gbZipBody').innerHTML = `<p class="muted s" style="margin-top:0">Ein ZIP im Beschreibungsstandard der Finanzverwaltung (index.xml mit CSV-Dateien): alle Tabellen mit Geld und Belegen, das Änderungsjournal und die Zahlungseingänge eines Jahres.</p>
-      <div class="frm"><label class="f w1">Jahr<select id="gbY">${Array.from({ length: 11 }, (_, i) => y - i).map(v => `<option ${v === y ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+      <div class="frm"><label class="f w1">${esc(T(wm === 1 ? 'Jahr' : 'Geschäftsjahr'))}<select id="gbY">${Array.from({ length: 11 }, (_, i) => gy - i).map(v => `<option value="${v}" ${v === gy ? 'selected' : ''}>${esc(gjLabel(v, wm))}</option>`).join('')}</select></label>
         <div class="row w3" style="justify-content:flex-end"><button class="btn primary" id="gbZip">Herunterladen</button></div></div>`;
     $('gbList').innerHTML = r.exports.length ? `<table class="tbl kompakt"><tr><th>Erstellt</th><th>Art</th><th>Zeitraum</th><th class="r">Buchungen</th><th class="r">Summe</th></tr>
         ${r.exports.map(e => `<tr><td>${esc(deTime(e.at))}<div class="muted s">${esc(e.by || '')}</div></td><td>${esc(T(e.kind === 'datev' ? 'DATEV' : 'Prüfer'))}</td><td>${esc(deDate(e.from))} – ${esc(deDate(e.to))}${e.changed ? ` <span class="pill a" title="${esc(T('Seit diesem Export wurde im Zeitraum etwas nachgetragen, storniert oder zurückgenommen – bitte den Steuerberater informieren.'))}">${esc(T('seitdem geändert'))}</span>` : ''}</td><td class="r" translate="no">${e.count}</td><td class="r" translate="no">${euro(e.cents)}</td></tr>`).join('')}</table>
@@ -4495,7 +4535,7 @@
       } catch (e) { fail(e); }
     });
     $('gbDatev').onclick = () => busy($('gbDatev'), async () => { try { await fileDownload('api/admin/gobd/datev.csv?' + per(), `EXTF_Buchungsstapel_${$('gbF').value.replace(/-/g, '')}_${$('gbT').value.replace(/-/g, '')}.csv`); toast('Export erstellt.'); renderBooks().catch(fail); } catch (e) { fail(e); } });
-    $('gbZip').onclick = () => busy($('gbZip'), async () => { try { await fileDownload('api/admin/gobd/pruefer.zip?year=' + $('gbY').value, `Datenueberlassung_${$('gbY').value}.zip`); toast('Export erstellt.'); renderBooks().catch(fail); } catch (e) { fail(e); } });
+    $('gbZip').onclick = () => busy($('gbZip'), async () => { try { await fileDownload('api/admin/gobd/pruefer.zip?year=' + $('gbY').value, `Datenueberlassung_${gjLabel(+$('gbY').value, wm).replace('/', '-')}.zip`); toast('Export erstellt.'); renderBooks().catch(fail); } catch (e) { fail(e); } });
   }
 
   /* ---------- Datenschutz: Löschfristen aller Module, Hinweis der Mitglieder-App, Verzeichnis (src/datenschutz.js) ---------- */
@@ -4671,7 +4711,11 @@
           <label class="f">Absender-Adresse<input id="mlF" value="${esc(ml.from)}" placeholder="verein@beispiel.de" autocomplete="off"></label>
           <label class="f">Benutzer<input id="mlU" value="${esc(ml.user)}" autocomplete="off"></label>
           <label class="f">Passwort${ml.hasPass ? ' (gespeichert – leer = unverändert)' : ''}<input id="mlW" type="password" autocomplete="new-password"></label>
+          <label class="f">Höchstens … Mails je Verbindung<input id="mlC" value="${esc(ml.perConn)}" inputmode="numeric" autocomplete="off"></label>
+          <label class="f">Höchstens … Mails je Stunde<input id="mlS" value="${esc(ml.perHour)}" inputmode="numeric" placeholder="leer = unbegrenzt" autocomplete="off"></label>
         </div>
+        <p class="muted s" style="margin:8px 0 0">Manche Anbieter begrenzen, wie viele Mails sie je Verbindung oder je Stunde annehmen, und lehnen den Rest ab („451 … limit exceeded“). Standard: 20 je Verbindung, keine Stundengrenze. Abgelehnte Mails gehen nicht verloren: Clubwerk versucht es von selbst noch einmal (nach 1, 5, 15 und dann alle 60 Minuten, höchstens 24 Stunden). Meldet der Anbieter ein Limit, senkt Clubwerk die Zahl für diese Rundmail selbst.</p>
+        ${ml.queued && ml.queued.n ? `<div class="banner a" style="margin:12px 0 0">${ml.queued.n} ${ml.queued.n === 1 ? 'Mail wartet' : 'Mails warten'} auf Zustellung (nächster Versuch ${new Date(ml.queued.next).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}).</div>` : ''}
         <div class="row" style="justify-content:space-between;align-items:flex-end;margin-top:12px">
           <div class="row" style="align-items:flex-end"><label class="f" style="width:260px">Testmail an<input id="mlT" type="email" placeholder="deine@adresse.de" autocomplete="email"></label>
             <button class="btn" id="mlTest" ${ml.ready ? '' : 'disabled'} title="${ml.ready ? '' : 'Erst das Postfach speichern'}">Testmail senden</button></div>
@@ -4765,7 +4809,7 @@
     if ($('tkTheme')) $('tkTheme').onchange = async () => { try { await api('settings', 'PUT', { tabletTheme: $('tkTheme').value }); toast('Gespeichert – die Tablets übernehmen es beim nächsten Laden.'); } catch (e) { fail(e); } };
     if ($('mlSave')) {
       $('mlSave').onclick = async () => {
-        try { await api('mail', 'PUT', { host: $('mlH').value, port: $('mlP').value, user: $('mlU').value, pass: $('mlW').value, from: $('mlF').value }); toast('Postfach gespeichert – jetzt eine Testmail senden.'); location.hash = '#einstellungen'; RENDER.einstellungen().then(() => $('mailCard') && $('mailCard').scrollIntoView()); } catch (e) { fail(e); }
+        try { await api('mail', 'PUT', { host: $('mlH').value, port: $('mlP').value, user: $('mlU').value, pass: $('mlW').value, from: $('mlF').value, perConn: $('mlC').value, perHour: $('mlS').value }); toast('Postfach gespeichert – jetzt eine Testmail senden.'); location.hash = '#einstellungen'; RENDER.einstellungen().then(() => $('mailCard') && $('mailCard').scrollIntoView()); } catch (e) { fail(e); }
       };
       $('mlTest').onclick = async () => {
         if (!$('mlT').value.trim()) return fail(new Error('Bitte bei „Testmail an“ eine Adresse eintragen.'));

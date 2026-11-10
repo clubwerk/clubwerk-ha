@@ -177,6 +177,8 @@ Eine Tabelle für alle Bereiche der App, ein „Speichern“ für alles:
 | Safari am Mac (ab Safari 17) | Teilen-Symbol oder „Ablage“ › „Zum Dock hinzufügen“ |
 | Firefox am Rechner | keine Karte (Firefox installiert dort nicht); Benachrichtigungen gehen auch ohne Installation |
 
+**Erster Start am iPhone/iPad (Kasten „Auf den Home-Bildschirm“):** Beim ersten Öffnen im Browser zeigt die App einen Kasten mit drei Schritten, alle gleich sichtbar. **① Code kopieren:** der Übernahme-Code groß, darunter der breite Knopf „Code kopieren“ (danach „✓ Kopiert“ und ein Haken an Schritt 1). Ohne den Code muss sich das Mitglied neu einladen lassen. **② Auf den Home-Bildschirm legen:** Teilen-Symbol (je nach Einstellung oben, unten oder im Menü „…“) › „Zum Home-Bildschirm“ › „Hinzufügen“. **③ App öffnen und Code einfügen:** Clubwerk auf dem Home-Bildschirm öffnen, im Fenster „Fast geschafft“ mit **„Einfügen“** den Code aus der Zwischenablage holen (klappt das nicht, einfach eintippen) und die PIN eingeben. Wer den Kasten mit ✕ schließt, bevor der Code kopiert ist, wird gefragt: „Code schon kopiert?“. In Gmail, WhatsApp u. Ä. steht davor Schritt 0 „In Safari öffnen“. Android und Rechner bleiben unverändert.
+
 „Später“ blendet die Karte 14 Tage aus; „Habe ich schon installiert“ dauerhaft (nötig, wo der Browser es nicht selbst merkt, etwa Safari auf dem iPhone). Merkt der Browser, dass die App schon da ist, steht nur der Hinweis „Du hast die App schon“.
 
 **Kalender abonnieren:** Unter „Mehr“ › „Mein Konto“ erstellt sich jedes Mitglied einen persönlichen Link für den Kalender seines Handys. Darin stehen seine Dienste, zugesagten Termine, Platzbuchungen und Spiele der eigenen Mannschaften – nur aus Bereichen, die es in der App hat, ohne Namen anderer. Der Kalender holt sie selbst regelmäßig ab. Damit das auch unterwegs klappt, braucht die App eine öffentliche Adresse (Reiter „Einstellungen“, „Von unterwegs erreichbar“). „Neuer Link“ macht den alten ungültig, „Abo beenden“ löscht ihn. Wird das Handy entfernt, gilt der Link nicht mehr.
@@ -252,7 +254,7 @@ Jede gesendete Nachricht mit Betreff, Absender, Zeitpunkt, Empfängerzahl und We
 
 ![Die Zustellung einer Nachricht: wer erreicht wurde.](bild: seite=email; tab=gesendet; klick=.ml-row)
 
-Ein Klick öffnet die Nachricht mit Text, Anhängen und der **Zustellung**: wie viele bekamen sie per E-Mail, in der App, per Push, wer wurde nicht erreicht und warum (keine Adresse, ungültig, fehlgeschlagen). **Fehlgeschlagene erneut senden** versucht es noch einmal. **Weiterverwenden** öffnet eine Kopie als neuen Entwurf, **Aus der App nehmen** lässt sie bei den Mitgliedern sofort verschwinden (E-Mails bleiben), **Löschen** entfernt sie samt Liste.
+Ein Klick öffnet die Nachricht mit Text, Anhängen und der **Zustellung**: wie viele bekamen sie per E-Mail, in der App, per Push, wer wurde nicht erreicht und warum (keine Adresse, ungültig, fehlgeschlagen). **Fehlgeschlagene erneut senden** versucht es noch einmal. Lehnt der Mailserver des Anbieters vorübergehend ab (er begrenzt die Mails je Verbindung oder je Stunde), steht dort nicht „fehlgeschlagen“, sondern zum Beispiel „80 zugestellt · 101 warten (nächster Versuch 19:45)“: Clubwerk holt die Wartenden von selbst nach (nach 1, 5, 15 und dann alle 60 Minuten, höchstens 24 Stunden lang); erst danach gelten sie als fehlgeschlagen. **Jetzt erneut versuchen** startet den nächsten Versuch sofort. Eine falsche Adresse (der Server antwortet „unbekannt“) ist dagegen gleich ein Fehler. **Weiterverwenden** öffnet eine Kopie als neuen Entwurf, **Aus der App nehmen** lässt sie bei den Mitgliedern sofort verschwinden (E-Mails bleiben), **Löschen** entfernt sie samt Liste.
 
 ![Eine gesendete Umfrage: Ergebnis, Beteiligung und wer was gewählt hat.](bild: seite=email; tab=gesendet; klick=.ml-row:has-text("Weihnachtsfeier"); ziel=.ml-res)
 
@@ -483,7 +485,7 @@ Rechnungen, Stornorechnungen und Spendenquittungen speichert Clubwerk beim Erste
 
 ![Karte „Steuerberater und Geldkonten“.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbKonten))
 
-**Steuerberater und Geldkonten:** Beraternummer und Mandantennummer bekommt ihr vom Steuerberater, dazu Beginn des Wirtschaftsjahres, Sachkontenlänge (meist 4) und Kontenrahmen. Je Zahlweg (Bar, Karte, Lastschrift, Überweisung, Verrechnung) tragt ihr ein Geldkonto ein. Liest euer Steuerberater die Bankumsätze selbst ein, nehmt für Lastschrift und Überweisung ein Geldtransitkonto – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.
+**Steuerberater und Geldkonten:** Beraternummer und Mandantennummer bekommt ihr vom Steuerberater, dazu den Beginn des Geschäftsjahres (Wirtschaftsjahres – dasselbe Feld wie „Geschäftsjahr beginnt am 1.“ bei den Mitgliedern; es gilt auch für Kündigungen und alle Jahresauswertungen), Sachkontenlänge (meist 4) und Kontenrahmen. Je Zahlweg (Bar, Karte, Lastschrift, Überweisung, Verrechnung) tragt ihr ein Geldkonto ein. Liest euer Steuerberater die Bankumsätze selbst ein, nehmt für Lastschrift und Überweisung ein Geldtransitkonto – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.
 
 ![Karte „Erlösarten“: Konto und Sphäre je Erlösart.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbErl))
 
@@ -491,7 +493,7 @@ Rechnungen, Stornorechnungen und Spendenquittungen speichert Clubwerk beim Erste
 
 ![Karte „DATEV-Buchungsstapel“ mit Vorschau.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; klick2=#gbPrev; ziel=.card:has(#gbExport))
 
-**DATEV-Buchungsstapel:** Zeitraum wählen (innerhalb eines Wirtschaftsjahres). **Vorschau** zeigt die Summen je Sphäre und Erlösart, warnt bei mehr als 45.000 € im Zweckbetrieb oder 50.000 € im wirtschaftlichen Geschäftsbetrieb und nennt fehlende Konten. **Herunterladen** erzeugt die Datei im DATEV-Format (EXTF). Darin stehen alle Zahlungseingänge – Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld. Rücklastschriften, Stornos und „wieder offen“ erscheinen als Gegenbuchung. Ausgaben und Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.
+**DATEV-Buchungsstapel:** Zeitraum wählen (innerhalb eines Geschäftsjahres). **Vorschau** zeigt die Summen je Sphäre und Erlösart, warnt bei mehr als 45.000 € im Zweckbetrieb oder 50.000 € im wirtschaftlichen Geschäftsbetrieb und nennt fehlende Konten. **Herunterladen** erzeugt die Datei im DATEV-Format (EXTF). Darin stehen alle Zahlungseingänge – Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld. Rücklastschriften, Stornos und „wieder offen“ erscheinen als Gegenbuchung. Ausgaben und Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.
 
 **Datenüberlassung für die Betriebsprüfung:** Ein ZIP für ein Jahr im Beschreibungsstandard der Finanzverwaltung (index.xml mit CSV-Dateien): alle Tabellen mit Geld und Belegen, das Änderungsjournal und die Zahlungseingänge. PINs, Passwörter und Kontonummern sind nicht enthalten.
 
@@ -501,7 +503,7 @@ Rechnungen, Stornorechnungen und Spendenquittungen speichert Clubwerk beim Erste
 
 ![Karte „Postfach“: SMTP-Zugang und Testmail.](bild: seite=einstellungen; klick=[data-sec="mail"]; ziel=#mailCard)
 
-Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Absender-Adresse, Benutzer und Passwort. Die Daten findet ihr beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“; bei Gmail ein App-Passwort verwenden. **Postfach speichern**, dann **Testmail senden**. Das Passwort wird nie wieder angezeigt und steht in keinem Export.
+Ein Postfach für alle Module: Server (SMTP), Port (meist 587, manchmal 465), Absender-Adresse, Benutzer und Passwort. Die Daten findet ihr beim Anbieter unter „SMTP“ bzw. „Postausgangsserver“; bei Gmail ein App-Passwort verwenden. **Höchstens … Mails je Verbindung** (Standard 20) und **Höchstens … Mails je Stunde** (leer = unbegrenzt) schützen vor Anbietern, die nur eine bestimmte Zahl Mails annehmen und den Rest ablehnen („451 … limit exceeded“). Meldet der Anbieter ein Limit, senkt Clubwerk die Zahl für diese Rundmail selbst und macht weiter; was trotzdem abgelehnt wird, wartet und wird nachgeholt (auch Einzelmails wie Mahnungen oder Einladungen). Darunter steht, wie viele Mails gerade warten. **Postfach speichern**, dann **Testmail senden** (die Testmail meldet einen Fehler sofort, sie wartet nicht). Das Passwort wird nie wieder angezeigt und steht in keinem Export.
 
 ### Bereich „Erreichbarkeit“ {#einstellungen-erreichbar}
 

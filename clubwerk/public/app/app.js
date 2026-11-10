@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.30';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.31';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -697,31 +697,31 @@
       // Startadresse der Home-Bildschirm-App mit Code (Manifest und aktuelle Adresse – je nach iOS-Version zählt das eine oder das andere)
       const m = document.querySelector('link[rel="manifest"]'); if (m) m.setAttribute('href', 'manifest.json?k=' + r.code);
       history.replaceState(null, '', location.pathname + location.search + '#k=' + r.code);
-      if (isIOS && store.get('va_hint_off') !== '1' && !haveDone()) { $('installCode').textContent = fmtCode(r.code); installText(); $('installHint').classList.remove('hidden'); if (pushReload) pushReload(); }
+      if (isIOS && store.get('va_hint_off') !== '1' && !haveDone()) { $('installCode').textContent = fmtCode(r.code); codeCopied = false; mark(false, 'Code kopieren'); installText(); $('istep3new').classList.toggle('hidden', store.get('va_pinneu') !== '1'); $('installHint').classList.remove('hidden'); if (pushReload) pushReload(); }
     } catch (e) { /* kein Code – App lässt sich trotzdem per QR neu freischalten */ }
   }
+  let codeCopied = false;
+  const hideInstall = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); if (pushReload) pushReload(); };
+  const mark = (on, n) => { $('istep1').classList.toggle('done', on); $('istep1').querySelector('.vh-n').textContent = on ? '✓' : '1'; $('installCopy').textContent = tx(n); };
   $('installCopy').onclick = async () => {
     const code = $('installCode').textContent.trim();
     try { await navigator.clipboard.writeText(code); }
     catch (e) { const r = document.createRange(); r.selectNodeContents($('installCode')); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); try { document.execCommand('copy'); } catch (x) { /* egal */ } }
-    toast('Code kopiert.');
+    codeCopied = true; mark(true, '✓ Kopiert');
   };
   $('installAddr').onclick = copyAddress;
-  $('installX').onclick = () => { $('installHint').classList.add('hidden'); store.set('va_hint_off', '1'); if (pushReload) pushReload(); };
-  /** Kasten „Auf den Home-Bildschirm“: nie feste Lage der Leiste nennen; in eingebetteten Browsern (Gmail, WhatsApp …) zuerst Safari */
-  function installText() {
-    const e = platformEnv(), t = $('installText'); if (!t) return;
-    t.innerHTML = e.embedded
-      ? 'Diese Seite läuft in einer anderen App. Tippe auf <b>„…“</b> oder das <b>Teilen-Symbol</b> und dann auf <b>„In Safari öffnen“</b>. Dort legst du sie über das Teilen-Symbol auf den Home-Bildschirm.'
-      : `Tippe auf das <b>Teilen-Symbol</b> ${SHARE.replace('<svg ', '<svg width="16" height="16" style="vertical-align:-3px" ')} – je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“ – und dann auf <b>„Zum Home-Bildschirm“</b>. Beim ersten Öffnen der App gibst du einmal deine PIN ein – fertig.`;
-    $('installAddr').classList.toggle('hidden', !e.embedded);   // Ausweg in eingebetteten Browsern: Adresse kopieren und in Safari öffnen
-  }
+  $('installX').onclick = () => { if (codeCopied) hideInstall(); else $('installAsk').classList.remove('hidden'); };
+  $('installAskNo').onclick = () => $('installAsk').classList.add('hidden');
+  $('installAskYes').onclick = hideInstall;
+  /* Schritt ②: nie feste Lage der Leiste nennen; Schritt 0 nur in eingebetteten Browsern */
+  function installText() { $('installZero').classList.toggle('hidden', !platformEnv().embedded); }
+  const trField = h => ['trCode', 'trPaste'].forEach(i => $(i).classList.toggle('hidden', h));
   let trMode = 'transfer';   // 'transfer' = Übernahme in die Home-Bildschirm-App, 'handover' = lokale Adresse im Vereinsheim
   function transferFlow(code, mode = 'transfer') {
     trMode = mode;
     $('lockSheet').classList.remove('show');
     $('trCode').value = code ? fmtCode(code) : '';
-    $('trCode').classList.toggle('hidden', Boolean(code));
+    trField(Boolean(code));
     $('trText').textContent = mode === 'handover' ? 'Du öffnest die App über die lokale Adresse im Vereinsheim. Gib einmal deine PIN ein – danach merkt sich der Browser die Freischaltung auch hier.' : code ? 'Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.' : 'Den Übernahme-Code findest du auf der Seite in Safari, auf der du freigeschaltet hast. Dazu deine PIN.';
     $('trErr').textContent = ''; $('trPin').value = '';
     $('trSheet').classList.add('show');
@@ -739,6 +739,10 @@
   })();
   $('lockCode').onclick = () => transferFlow('');
   $('trNo').onclick = () => { $('trSheet').classList.remove('show'); lock(); };
+  $('trPaste').onclick = async () => {
+    try { const c = (await navigator.clipboard.readText()).toUpperCase().replace(/[^A-Z0-9]/g, ''); if (c.length === 10) { $('trCode').value = fmtCode(c); $('trPin').focus(); return; } } catch (e) { }
+    $('trCode').focus();
+  };
   $('trPin').addEventListener('keydown', e => { if (e.key === 'Enter') $('trOk').click(); });
   $('trOk').onclick = async () => {
     const code = $('trCode').value.toUpperCase().replace(/[^A-Z0-9]/g, ''), pin = $('trPin').value.trim();
@@ -754,7 +758,7 @@
       $('trSheet').classList.remove('show');
       toast(trMode === 'handover' ? 'Lokal verbunden – du bist im Vereinsheim.' : 'Freigeschaltet – willkommen!', false, 4000);
       start().catch(e => toast(e.message, true));
-    } catch (e) { $('trErr').textContent = e.message; if (e.data && e.data.badCode) { $('trCode').classList.remove('hidden'); } }
+    } catch (e) { $('trErr').textContent = e.message; if (e.data && e.data.badCode) trField(false); }
   };
 
   /* ---------- Einladung per QR-Code, Link aus der E-Mail oder Brief ---------- */
@@ -817,7 +821,7 @@
       const r = await call('pair', 'POST', { t: inviteToken, pin: a, ...(inviteInfo.sms && !skipSms ? { otp } : {}), ...(skipSms ? { skipSms: true } : {}) });
       store.set('va_geraet', r.device);
       if (dev() !== r.device) { $('pairErr').textContent = 'Der Browser speichert nichts (privater Modus?) – bitte normal öffnen.'; return; }
-      sess.set(a);
+      sess.set(a); store.set('va_pinneu', inviteInfo.hasPin ? '' : '1');   // PIN gerade vergeben → Schritt ③ sagt es
       $('pairSheet').classList.remove('show');
       toast(r.staged ? `Freigeschaltet. ${wlanNote(r.stagedAreas)}` : /Android/.test(navigator.userAgent) ? 'Freigeschaltet – wie du die App installierst, steht jetzt unter „Für mich“.' : 'Freigeschaltet – lege die Seite jetzt auf den Home-Bildschirm.', false, 6000);
       start().then(prepareTransfer).catch(e => toast(e.message, true));

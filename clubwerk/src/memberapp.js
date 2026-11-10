@@ -52,13 +52,17 @@ const mailOf = (id, hooked = null) => { const a = contactOf(id, hooked); const m
 const smsPhone = id => { if (!sms.ready()) return null; const a = contactOf(id); return a ? (sms.normPhone(a.mobile) || sms.normPhone(a.phone)) : null; };
 const deTs = ms => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: process.env.TZ || 'Europe/Berlin' });
 const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
+/** Hat das Mitglied schon eine PIN (Verkauf am Tablet)? Nur für den Text der Einladung – die Einladung ist persönlich, der Link das Geheimnis */
+const hasPinOf = id => Boolean((db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(id) || {}).pin_hash);
+/** Schritt der Einladung zur PIN: vorhandene PIN eingeben, sonst eine persönliche vergeben */
+const pinStep = has => has ? 'Deine PIN eingeben – dieselbe wie im Verkauf am Tablet.' : 'Deine persönliche PIN vergeben (4 bis 6 Ziffern) – du brauchst sie später bei jedem Öffnen.';
 /** Einladung per E-Mail verschicken (Link mit Knopf, kurze Anleitung) */
 async function inviteMail(memberId, inv, by) {
   const to = mailOf(memberId); if (!to) throw new Error('Keine E-Mail-Adresse hinterlegt.');
   const mail = require('./mail'); if (!mail.ready()) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
   const club = getSetting('club_name', 'Verein'), url = `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`;
   const until = deTs(inv.expiresAt), phone = smsPhone(memberId);
-  const steps = ['Den Knopf oben auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), 'Eine eigene PIN für die App festlegen (4 bis 6 Ziffern).', 'Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.'];
+  const steps = ['Den Knopf oben auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), pinStep(hasPinOf(memberId)), 'Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.'];
   const intro = `Hallo ${firstName(inv.member)},\n\nÖffne diese E-Mail auf deinem Handy und tippe auf den Knopf „App jetzt freischalten“.`;
   const note = `Gültig bis ${until} Uhr · nur für dich, bitte nicht weiterleiten`, outro = `Knopf geht nicht? Diese Adresse öffnen: ${url}\n\nFragen? Antworte einfach auf diese E-Mail.\n\nViele Grüße\n${club}`;
   await mail.send({ to, subject: 'Dein Zugang zur Mitglieder-App – bitte am Handy öffnen',
@@ -799,7 +803,7 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
       const st = memberState(id);
       if (st.device && st.device.status === 'gekoppelt' && !b.force) { skipped.push({ name: m.name, reason: 'Handy schon gekoppelt' }); continue; }
       const r = await inviteOne(req, id, kind);
-      if (r.error) skipped.push({ name: m.name, reason: r.error }); else { done.push(m.name); if (kind === 'brief') letters.push({ name: r.member, url: r.url, expiresAt: r.expiresAt, svg: r.svg }); }
+      if (r.error) skipped.push({ name: m.name, reason: r.error }); else { done.push(m.name); if (kind === 'brief') letters.push({ name: r.member, url: r.url, expiresAt: r.expiresAt, svg: r.svg, pinStep: pinStep(hasPinOf(id)) }); }
     }
     if (kind === 'mail') audit(req.user, 'Mitglieder-App: Einladungen per E-Mail', `${done.length} verschickt${skipped.length ? `, ${skipped.length} übersprungen` : ''}`);
     res.json({ ok: true, kind, done, skipped, letters, days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) });

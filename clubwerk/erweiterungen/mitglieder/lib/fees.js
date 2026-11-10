@@ -67,6 +67,21 @@ function periods(mf, until, { limit = null, yearStart = '01-01' } = {}) {
   return out;
 }
 
+const fitsAge = (f, age) => (f.age_min == null || age >= f.age_min) && (f.age_max == null || age <= f.age_max);
+/** Bei überschneidenden Altersbereichen gilt die höhere Stufe: höchstes Mindestalter, bei Gleichstand die ohne Obergrenze (nie die, aus der man gerade herauswächst) */
+const higherFirst = (a, b) => (b.age_min || 0) - (a.age_min || 0) || (a.age_max == null ? 0 : 1) - (b.age_max == null ? 0 : 1);
+/** Altersgrenzen überall gleich geschrieben: „ab 19“, „bis einschl. 18“, „12 bis einschl. 18“ (u = Einheit, z. B. ' Jahre') */
+const ageLimText = (f, u = '') => { const lo = f.age_min || null; return lo != null && f.age_max != null ? `${lo} bis einschl. ${f.age_max}${u}` : f.age_max != null ? `bis einschl. ${f.age_max}${u}` : lo != null ? `ab ${lo}${u}` : ''; };
+/** Beitragsarten gleicher Art (Beitrag/Zusatz, Abteilung, Rhythmus; nicht Familie, nicht einmalig, aktiv), deren Altersbereiche sich überschneiden → [{ a, b }] */
+function ageOverlaps(list) {
+  const own = list.filter(f => f.active !== 0 && !f.family && f.interval !== 'einmalig' && (f.age_min != null || f.age_max != null)), out = [];
+  for (let i = 0; i < own.length; i++) for (let j = i + 1; j < own.length; j++) {
+    const a = own[i], b = own[j];
+    if (a.kind !== b.kind || (a.department_id || null) !== (b.department_id || null) || a.interval !== b.interval) continue;
+    if ((a.age_min || 0) <= (b.age_max == null ? Infinity : b.age_max) && (b.age_min || 0) <= (a.age_max == null ? Infinity : a.age_max)) out.push({ a, b });
+  }
+  return out;
+}
 /**
  * Passende Altersstufe aus einer Liste von Beiträgen (age_min/age_max).
  * Ohne Geburtsdatum gilt die Stufe ohne Obergrenze mit dem höchsten Mindestalter (= Erwachsene) – markiert als assumed.
@@ -79,7 +94,7 @@ function pickByAge(list, birth, day) {
     const open = list.filter(f => f.age_max == null).sort((a, b) => (b.age_min || 0) - (a.age_min || 0));
     return { fee: open[0] || null, age: null, assumed: true };
   }
-  return { fee: list.find(f => (f.age_min == null || age >= f.age_min) && (f.age_max == null || age <= f.age_max)) || null, age, assumed: false };
+  return { fee: list.filter(f => fitsAge(f, age)).sort(higherFirst)[0] || null, age, assumed: false };
 }
 
 const INTERVAL_LABEL ={ jahr: 'jährlich', halbjahr: 'halbjährlich', quartal: 'vierteljährlich', monat: 'monatlich', einmalig: 'einmalig' };
@@ -90,4 +105,4 @@ function periodText(from, to) {
   return a === b ? a : `${a}–${b}`;
 }
 
-module.exports = { MONTHS, INTERVAL_LABEL, periods, ageAt, pickByAge, isDate, addDays, addMonths, nextAnchor, periodText, deD };
+module.exports = { MONTHS, INTERVAL_LABEL, periods, ageAt, pickByAge, fitsAge, higherFirst, ageLimText, ageOverlaps, isDate, addDays, addMonths, nextAnchor, periodText, deD };

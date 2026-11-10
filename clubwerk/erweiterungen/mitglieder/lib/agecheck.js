@@ -25,13 +25,20 @@ function register(sh) {
   const fits = (f, age) => age != null && (f.age_min == null || age >= f.age_min) && (f.age_max == null || age <= f.age_max);
   const grundFees = () => db.prepare("SELECT * FROM mv_fee WHERE kind != 'zusatz' AND active = 1 AND family = 0 AND interval != 'einmalig' AND (age_min IS NOT NULL OR age_max IS NOT NULL) ORDER BY COALESCE(age_min, 0)").all();
   /** passender Beitrag für ein Alter – bevorzugt gleicher Rhythmus und „auf dem Formular“ */
-  const target = (age, interval, list) => list.filter(f => fits(f, age)).sort((a, b) => (b.interval === interval) - (a.interval === interval) || b.on_form - a.on_form)[0] || null;
+  const members = id => db.prepare('SELECT COUNT(*) n FROM mv_member_fee WHERE fee_id = ? AND (end_date IS NULL OR end_date >= ?)').get(id, today()).n;
+  /** Wohin? Gleicher Rhythmus zuerst, bei überschneidenden Altersbereichen die höhere Stufe (nie die, aus der man herauswächst), dann die mit den meisten Mitgliedern, dann „auf dem Formular“ */
+  const target = (age, interval, list) => list.filter(f => fits(f, age)).sort((a, b) => (b.interval === interval) - (a.interval === interval) || fees.higherFirst(a, b) || members(b.id) - members(a.id) || b.on_form - a.on_form)[0] || null;
 
   /** Bestand prüfen → neue Hinweise anlegen, erledigte schließen. Gibt die Zahl offener Hinweise zurück. */
-  function scan() {
+  /** untilDate: bis wohin vorausgeschaut wird (Beitragslauf-Vorschau bis …) – sonst heute und der nächste Zeitraum. Dieselbe Prüfung für Vorschau und Liste „Altersstufen“. */
+  function scan(untilDate) {
     const day = today(), found = new Set();
     const ins = db.prepare('INSERT OR IGNORE INTO mv_age_notice(member_id, kind, ref_id, from_fee_id, to_fee_id, age, due_date) VALUES (?,?,?,?,?,?,?)');
-    const add = (m, k, ref, from, to, age, due) => { ins.run(m, k, ref, from, to, age, due); found.add(`${m}|${k}|${ref}|${to}`); };
+    const find = db.prepare('SELECT id, status FROM mv_age_notice WHERE member_id = ? AND kind = ? AND ref_id = ? AND COALESCE(to_fee_id, 0) = COALESCE(?, 0)');
+    const reopen = db.prepare("UPDATE mv_age_notice SET status = 'offen', decided_by = NULL, decided_at = NULL, from_fee_id = ?, age = ?, due_date = ? WHERE id = ?");
+    /** neu anlegen; ein „erledigter“ Hinweis (Anlass war weg) kommt wieder, wenn der Anlass zurückkehrt – „belassen“ und „umgestellt“ bleiben so */
+    const add = (m, k, ref, from, to, age, due) => { const x = find.get(m, k, ref, to); if (!x) ins.run(m, k, ref, from, to, age, due); else if (x.status === 'erledigt') reopen.run(from, age, due, x.id); found.add(`${m}|${k}|${ref}|${to}`); };
+    const later = (start, step, end) => { const out = []; if (untilDate) for (let d = fees.addMonths(start, step), i = 0; d <= untilDate && i < 40; d = fees.addMonths(d, step), i++) if (!end || end >= d) out.push(d); return out; };
     const alive = `p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?) AND p.birth_date IS NOT NULL`;
     const gf = grundFees();
     // 1) eigener Beitrag mit Altersgrenzen
@@ -39,7 +46,7 @@ function register(sh) {
         JOIN mv_person p ON p.member_id = mf.member_id JOIN members m ON m.id = mf.member_id
         WHERE m.deleted = 0 AND ${alive} AND f.kind != 'zusatz' AND f.family = 0 AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) AND (f.age_min IS NOT NULL OR f.age_max IS NOT NULL)`).all(day, day)) {
       const nx = nextStart(r.interval);
-      const checks = [...(r.start_date <= day ? [[day, store.periodStart(day, r.interval)]] : []), ...(!r.end_date || r.end_date >= nx ? [[r.start_date > nx ? r.start_date : nx, r.start_date > nx ? r.start_date : nx]] : [])];
+      const checks = [...(r.start_date <= day ? [[day, store.periodStart(day, r.interval)]] : []), ...(!r.end_date || r.end_date >= nx ? [[r.start_date > nx ? r.start_date : nx, r.start_date > nx ? r.start_date : nx]] : []), ...later(nx, fees.MONTHS[r.interval] || 12, r.end_date).filter(d => d >= r.start_date).map(d => [d, d])];
       for (const [d, due] of checks) {
         const age = fees.ageAt(r.birth_date, d);
         if (fits(r, age)) continue;
@@ -54,10 +61,12 @@ function register(sh) {
         JOIN mv_member_fee mf ON mf.member_id = p.family_of JOIN mv_fee f ON f.id = mf.fee_id
         WHERE m.deleted = 0 AND ${alive} AND p.family_of IS NOT NULL AND p.family_of != p.member_id AND f.family = 1 AND (mf.end_date IS NULL OR mf.end_date >= ?)
           AND NOT EXISTS (SELECT 1 FROM mv_member_fee x WHERE x.member_id = p.member_id AND (x.end_date IS NULL OR x.end_date >= ?))`).all(day, day, day)) {
-      const nx = nextStart(r.interval), age = fees.ageAt(r.birth_date, nx);
-      if (age == null || age <= max || age > max + 1) continue;   // nur wer gerade herauswächst (Partner sind älter und bleiben unberührt)
+      const nx = nextStart(r.interval); let due = nx, age = fees.ageAt(r.birth_date, nx);
+      if (age == null || age > max + 1) continue;   // nur wer gerade herauswächst (Partner sind älter und bleiben unberührt)
+      if (age <= max) { due = later(nx, fees.MONTHS[r.interval] || 12, null).find(d => fees.ageAt(r.birth_date, d) > max) || ''; age = due ? fees.ageAt(r.birth_date, due) : age; }   // Vorschau bis später: erster Zeitraum, in dem er herauswächst
+      if (!due || age !== max + 1) continue;
       const t = target(age, r.interval, gf);
-      add(r.member_id, 'family', r.mf_id, r.fee_id, t ? t.id : null, age, nx);
+      add(r.member_id, 'family', r.mf_id, r.fee_id, t ? t.id : null, age, due);
     }
     // 3) Zusatzbeitrag nach Alter: Stufe heute ≠ Stufe im nächsten Zeitraum
     const tiers = new Map();
@@ -72,8 +81,9 @@ function register(sh) {
       }
     }
     // offene Hinweise, deren Anlass weg ist (Beitrag geändert, ausgetreten …), schließen
+    const near = nextStart('jahr');   // Hinweise weiter in der Zukunft (aus einer Vorschau bis später) bleiben stehen, solange diese Prüfung nicht so weit schaut
     for (const n of db.prepare("SELECT * FROM mv_age_notice WHERE status = 'offen'").all())
-      if (!found.has(`${n.member_id}|${n.kind}|${n.ref_id}|${n.to_fee_id}`)) db.prepare("UPDATE mv_age_notice SET status = 'erledigt', decided_at = ? WHERE id = ?").run(nowTs(), n.id);
+      if (!(n.due_date && n.due_date > near && n.due_date > (untilDate || '')) && !found.has(`${n.member_id}|${n.kind}|${n.ref_id}|${n.to_fee_id}`)) db.prepare("UPDATE mv_age_notice SET status = 'erledigt', decided_at = ? WHERE id = ?").run(nowTs(), n.id);
     return db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen'").get().n;
   }
 
@@ -118,6 +128,7 @@ function register(sh) {
   sh.ageHold = () => new Map(db.prepare("SELECT ref_id, from_fee_id, to_fee_id FROM mv_age_notice WHERE kind = 'zusatz' AND status = 'offen'").all().map(r => [r.ref_id, r]));
   sh.ageNoticeFor = mfId => db.prepare("SELECT status FROM mv_age_notice WHERE kind = 'fee' AND ref_id = ? AND status IN ('offen','belassen') LIMIT 1").get(mfId);
   sh.ageScan = scan;
+  sh.ageNoticeFamily = memberId => db.prepare("SELECT 1 FROM mv_age_notice WHERE kind = 'family' AND member_id = ? AND status IN ('offen','belassen') LIMIT 1").get(memberId);
   sh.ageOpen = () => db.prepare("SELECT COUNT(*) n FROM mv_age_notice WHERE status = 'offen'").get().n;
   sh.ageFor = memberId => list('offen', memberId);
 

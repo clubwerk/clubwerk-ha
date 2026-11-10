@@ -234,7 +234,7 @@
             <label>Ort</label><input class="vh-input" id="sbMp" value="${esc(v.meet_place || '')}" placeholder="z. B. Parkplatz Vereinsheim">
             <label>Hinweis an die Mannschaft</label><input class="vh-input" id="sbNo" value="${esc(v.note || '')}" placeholder="optional">
             ${v.tasks ? `<div class="vh-cap">Aufgaben</div>${v.tasks.map(x => `<div class="sb-two" style="grid-template-columns:1fr 1.3fr;align-items:center;margin-bottom:6px"><span style="font-size:14px">${esc(x.label)}</span><select class="vh-select" data-tk="${x.id}" style="min-height:42px;font-size:14.5px;margin:0"><option value="">– offen –</option>${v.people.filter(p => p.state !== 'nein').map(p => `<option value="${p.id}" ${x.member_id === p.id ? 'selected' : ''}>${esc(p.ln)}</option>`).join('')}</select></div>`).join('')}
-              <div style="display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 6px">${v.taskKinds.map(k => `<button class="sb-link" data-tka="${esc(k.k)}">+ ${esc(k.l)}</button>`).join('')}</div>` : ''}
+              <div style="display:flex;flex-direction:column;align-items:stretch;gap:2px;margin:4px 0 6px">${v.taskKinds.map(k => `<button class="sb-link" style="text-align:left" data-tka="${esc(k.k)}">+ ${esc(k.l)}</button>`).join('')}</div>` : ''}
             <div class="vh-row" style="margin-top:12px"><button class="no" id="sbSave">Speichern</button><button class="no" id="sbRem" ${s.open ? '' : 'disabled'}>Offene erinnern</button></div>`}
             <div class="vh-row" style="margin-top:8px"><button class="no" id="sbX">Schließen</button>${rt ? '' : `<button class="ok" id="sbSend" ${s.playing ? '' : 'disabled'}>Aufstellung verschicken</button>`}</div></div>`;
           sh.classList.add('show');

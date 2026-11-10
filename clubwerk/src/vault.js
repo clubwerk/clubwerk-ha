@@ -42,6 +42,10 @@ CREATE TABLE IF NOT EXISTS vault_mail (
   created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
   tries      INTEGER NOT NULL DEFAULT 0
 );`);
+{   // Warteschlange für vorübergehend abgelehnte Mails (4xx): due = nächster Versuch (ms), since = erster Versuch; ohne due wartet die Mail auf das Entsperren
+  const cols = db.prepare('PRAGMA table_info(vault_mail)').all().map(c => c.name);
+  for (const [c, t] of [['due', 'INTEGER'], ['since', 'INTEGER'], ['last_error', 'TEXT']]) if (!cols.includes(c)) db.exec(`ALTER TABLE vault_mail ADD COLUMN ${c} ${t}`);
+}
 
 /* ---------- Was verschlüsselt wird ---------- */
 const PH_MAIL = "CASE WHEN {c} IS NULL THEN NULL ELSE 'gesperrt-' || {k} || '@clubwerk.invalid' END";
@@ -475,7 +479,7 @@ function start() {
 
 /* ---------- Mail-Warteschlange (Platzhalter-Adressen im gesperrten Zustand) ---------- */
 const hasPlaceholder = v => (Array.isArray(v) ? v : String(v || '').split(/[,;]\s*/)).some(x => PLACEHOLDER_RE.test(String(x).trim()));
-function queueMail(o) {
+function queueMail(o, meta = {}) {
   const att = (o.attachments || []).map(a => {
     if (a.path) {   // Datei im Tresor ist gesperrt nicht lesbar – dann den Pfad merken und beim Versand entschlüsseln
       try { return { filename: a.filename, contentType: a.contentType, cid: a.cid, contentDisposition: a.contentDisposition, content: b64(readFile(a.path)), b64: true }; } catch (e) { return { filename: a.filename, contentType: a.contentType, path: a.path }; }
@@ -483,26 +487,43 @@ function queueMail(o) {
     return a.content != null ? { ...a, content: b64(Buffer.isBuffer(a.content) ? a.content : Buffer.from(String(a.content))), b64: true } : a;
   }).filter(Boolean);
   const payload = Buffer.from(JSON.stringify({ ...o, attachments: att }));
-  db.prepare('INSERT INTO vault_mail(data) VALUES (?)').run(encValue(payload));
+  // ohne Tresor liegt die Mail unverschlüsselt in der Datenbank wie alle anderen Daten, mit Tresor verschlüsselt
+  db.prepare('INSERT INTO vault_mail(data, due, since, last_error) VALUES (?,?,?,?)').run(ON ? encValue(payload) : payload.toString('utf8'), meta.due || null, meta.since || null, meta.error || null);
 }
+/** wartende Mails mit Zeitplan: Anzahl und nächster Versuch (ms) – für die Anzeige in den Einstellungen */
+const dueInfo = () => { const r = db.prepare('SELECT COUNT(*) n, MIN(due) next FROM vault_mail WHERE due IS NOT NULL').get(); return { n: r.n, next: r.next || null }; };
 const resolveAddr = v => {
   const one = x => { const m = PLACEHOLDER_RE.exec(String(x).trim()); if (!m) return String(x).trim(); const r = db.prepare('SELECT email FROM mv_person WHERE member_id = ?').get(Number(m[1])); return r && r.email && !PLACEHOLDER_RE.test(r.email) ? r.email : null; };
   return (Array.isArray(v) ? v : String(v || '').split(/[,;]\s*/)).filter(Boolean).map(one).filter(Boolean).join(', ');
 };
-async function flushMail(send) {
-  if (!DK) return 0;
+/** send(o, row) liefert nichts (zugestellt), { retry: { ms, error, keep } } (später noch einmal; keep = nicht als Versuch zählen) oder wirft (endgültig).
+    Mails ohne Zeitplan (warteten auf den Tresor) werden beim Entsperren sofort versucht, Mails mit Zeitplan erst, wenn due erreicht ist. */
+async function flushMail(send, { giveUpMs = 24 * 3600 * 1000 } = {}) {
+  if (ON && !DK) return 0;
   let n = 0;
-  for (const r of db.prepare('SELECT * FROM vault_mail ORDER BY id').all()) {
-    let o; try { o = JSON.parse(decValue(r.data)); } catch (e) { db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); continue; }
+  for (const r of db.prepare('SELECT * FROM vault_mail WHERE due IS NULL OR due <= ? ORDER BY id').all(Date.now())) {
+    let o; try { o = JSON.parse(decValue(r.data)); } catch (e) { if (e.vaultLocked) return n; db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); continue; }
     o.attachments = (o.attachments || []).map(a => (a.b64 ? { ...a, content: Buffer.from(a.content, 'base64'), b64: undefined } : a.path ? (() => { try { return { filename: a.filename, contentType: a.contentType, content: readFile(a.path) }; } catch (e) { return null; } })() : a)).filter(Boolean);
     o.to = resolveAddr(o.to); if (o.cc) o.cc = resolveAddr(o.cc) || undefined; if (o.bcc) o.bcc = resolveAddr(o.bcc) || undefined;
     if (!o.to) { db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); continue; }
-    try { await send(o); db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); n++; }
-    catch (e) { db.prepare('UPDATE vault_mail SET tries = tries + 1 WHERE id = ?').run(r.id); if (r.tries >= 5) db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); console.error('Tresor – wartende Mail:', e.message); }
+    try {
+      const x = await send(o, r);
+      if (x && x.retry) {
+        const since = r.since || Date.now();
+        if (Date.now() - since > giveUpMs) { db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); console.error('E-Mail nach 24 Stunden nicht zugestellt:', x.retry.error); continue; }
+        db.prepare('UPDATE vault_mail SET due = ?, since = ?, last_error = ?, tries = tries + ? WHERE id = ?').run(Date.now() + x.retry.ms, since, x.retry.error || null, x.retry.keep ? 0 : 1, r.id);
+        continue;
+      }
+      db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id); n++;
+    } catch (e) {
+      db.prepare('UPDATE vault_mail SET tries = tries + 1 WHERE id = ?').run(r.id);
+      if (r.due != null || r.tries >= 5) db.prepare('DELETE FROM vault_mail WHERE id = ?').run(r.id);   // endgültiger Fehler (z. B. 5xx) – nicht ewig wiederholen
+      console.error('Tresor – wartende Mail:', e.message);
+    }
   }
   return n;
 }
 
 module.exports = { SPEC, FILE_DIRS, on, locked, status, start, rebuild, suspend, onLogin, onPassword, dropUser, unlockWithCode, onUnlock,
   prepare, confirmCode, enable, disable, newRecovery, purge, writeFile, readFile, isEncFile, encValue, decValue, isEnc,
-  hasPlaceholder, queueMail, flushMail, PLACEHOLDER_RE, lockedErr, _test: { lock: () => { DK = null; PRIV = null; rebuild(); } } };
+  hasPlaceholder, queueMail, flushMail, dueInfo, PLACEHOLDER_RE, lockedErr, _test: { lock: () => { DK = null; PRIV = null; rebuild(); } } };

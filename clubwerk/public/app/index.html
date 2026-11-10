@@ -27,12 +27,19 @@
 </header>
 <main class="vh-main">
   <div class="vh-box vh-hint hidden" id="installHint">
-    <h2>Auf den Home-Bildschirm</h2>
-    <p id="installText">Tippe auf das <b>Teilen-Symbol</b> und dann auf <b>„Zum Home-Bildschirm“</b>. Beim ersten Öffnen der App gibst du einmal deine PIN ein – fertig.</p>
-    <button type="button" class="vh-btn sec sm hidden" id="installAddr" style="margin:0 0 10px">Adresse kopieren</button>
-    <p class="vh-small">Zeigt die App trotzdem „Nicht freigeschaltet“: dort „Übernahme-Code eingeben“ antippen und diesen Code eintippen (7 Tage gültig):</p>
-    <div class="vh-codewrap"><div class="vh-code" id="installCode">–</div><button type="button" class="vh-copy" id="installCopy" aria-label="Code kopieren" title="Code kopieren"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></svg></button></div>
-    <div class="vh-row"><button class="no" id="installX">Ausblenden</button></div>
+    <div class="vh-hhead"><h2>Auf den Home-Bildschirm</h2><button type="button" class="vh-hx" id="installX" aria-label="Schließen">✕</button></div>
+    <div class="vh-ask hidden" id="installAsk"><p><b>Code schon kopiert?</b> Ohne den Code musst du dich in der App neu einladen lassen.</p><div class="vh-row"><button class="no" id="installAskNo">Zurück</button><button class="ok" id="installAskYes">Ja, schließen</button></div></div>
+    <div class="vh-zero hidden" id="installZero"><span class="vh-n">0</span><div><b>In Safari öffnen</b><p>Diese Seite läuft in einer anderen App. Tippe auf <b>„…“</b> oder das <b>Teilen-Symbol</b> und dann auf <b>„In Safari öffnen“</b> – oder kopiere die Adresse und öffne sie in Safari.</p><button type="button" class="vh-btn sec sm" id="installAddr">Adresse kopieren</button></div></div>
+    <ol class="vh-steps">
+      <li class="vh-step" id="istep1"><span class="vh-n">1</span><div><b>Code kopieren</b>
+        <div class="vh-code" id="installCode">–</div>
+        <button type="button" class="vh-btn vh-wide" id="installCopy">Code kopieren</button>
+        <p class="vh-small">Du brauchst den Code gleich in der App. Ohne ihn musst du dich neu einladen lassen.</p></div></li>
+      <li class="vh-step" id="istep2"><span class="vh-n">2</span><div><b>Auf den Home-Bildschirm legen</b>
+        <p id="installText">Tippe auf das <b>Teilen-Symbol</b> <span class="vh-sharebox"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3"/><path d="m8 7 4-4 4 4"/><path d="M5 11H4a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg></span> (oben, unten oder im Menü „…“) → <b>„Zum Home-Bildschirm“</b> → <b>„Hinzufügen“</b>.</p></div></li>
+      <li class="vh-step" id="istep3"><span class="vh-n">3</span><div><b>App öffnen und Code einfügen</b>
+        <p>Öffne Clubwerk auf dem Home-Bildschirm, füge den Code ein und gib deine PIN ein<span id="istep3new" class="hidden"> (die du eben vergeben hast)</span>.</p></div></li>
+    </ol>
   </div>
   <div class="vh-tabs glass hidden" id="tabs"></div>
   <div id="sec" class="vh-sec"></div>
@@ -78,6 +85,7 @@
   <h2>Fast geschafft</h2>
   <p id="trText">Gib deine PIN ein, um die Freischaltung in diese App zu übernehmen.</p>
   <input class="vh-input vh-codein hidden" id="trCode" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="11" placeholder="Übernahme-Code">
+  <button type="button" class="vh-btn sec vh-wide hidden" id="trPaste" style="margin-bottom:10px">Einfügen</button>
   <input class="vh-input pin" id="trPin" type="password" inputmode="numeric" maxlength="8" autocomplete="off" placeholder="PIN">
   <div class="vh-err" id="trErr"></div>
   <div class="vh-row"><button class="no" id="trNo">Abbrechen</button><button class="ok" id="trOk">Übernehmen</button></div>

@@ -211,7 +211,7 @@ Ein eigenes Soll je Beitragsart legt ihr unter Mitglieder › Beiträge fest, Au
 ![Karte „Abrechnung“.](bild: seite=aw-einstellungen; ziel=[data-set="abrechnung"])
 
 - **Stundensatz für fehlende Stunden** in Euro (0 = es wird nichts abgerechnet).
-- **Abrechnungsjahr:** Kalenderjahr oder wie das Beitragsjahr der Mitglieder.
+- **Abrechnungsjahr:** Kalenderjahr, wie das Beitragsjahr der Mitglieder oder wie das Geschäftsjahr des Vereins (Einstellungen › Buchführung).
 - **Abrechnen ab Jahr:** Frühere Jahre werden nie berechnet, weil damals niemand Stunden erfasst hat.
 
 Fehlende Stunden kommen im Beitragslauf als Posten „Arbeitsstunden“ dazu, mit dem Text „x h nicht geleistet × Stundensatz“.

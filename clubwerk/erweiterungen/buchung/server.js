@@ -885,14 +885,15 @@ function activate(ctx) {
   });
   /* Gebühren (Reiter „Gebühren“): ?from&to&status=alle|offen|bezahlt */
   admin.get('/fees', P, ar(async (req, res) => {
-    const y = today().slice(0, 4);
-    const from = isDate(req.query.from) ? req.query.from : `${y}-01-01`, to = isDate(req.query.to) ? req.query.to : `${y}-12-31`;
+    // Standard: Geschäftsjahr des Vereins (ctx.geschaeftsjahr; „year“ = Startjahr), sonst frei from/to
+    const G = ctx.geschaeftsjahr, gy = /^\d{4}$/.test(String(req.query.year || '')) ? +req.query.year : G.yearOf(today()), gr = G.range(gy);
+    const from = isDate(req.query.from) ? req.query.from : gr.from, to = isDate(req.query.to) ? req.query.to : gr.to;
     const { rows, tracked } = await feeRows({ from, to });
     const f = String(req.query.status || 'alle');
     const open = rows.filter(isOpenFee), paid = rows.filter(x => x.status === 'bezahlt');
     res.json({ from, to, tracked, note: tracked ? null : NO_TRACK, rows: f === 'offen' ? open : f === 'bezahlt' ? paid : rows,
       totals: { all: { count: rows.length, cents: sumOf(rows) }, open: { count: open.length, cents: sumOf(open) }, paid: { count: paid.length, cents: sumOf(paid) } },
-      years: [...new Set([Number(y), ...db.prepare('SELECT DISTINCT substr(date,1,4) y FROM bk_booking WHERE fee_cents > 0').all().map(r => +r.y)])].sort((a, b) => b - a) });
+      year: gy, label: G.label(gy), years: G.yearsOf(db.prepare('SELECT DISTINCT substr(date,1,7) m FROM bk_booking WHERE fee_cents > 0').all().map(r => r.m), today()).map(v => ({ y: v, label: G.label(v) })), fiscal: G.month() });
   }));
   /* Gebühr von Hand buchen (Vorstand): Mitglied → Forderung in der Mitgliederverwaltung; Trainer („Kein Mitglied“) oder ohne
      Mitgliederverwaltung → aufs Verkaufskonto (bezahlt mit dem Verkauf unter Abrechnung) */
@@ -1679,10 +1680,10 @@ function activate(ctx) {
     const t = db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND type = 'buchung'").get(d).n;
     const nowB = db.prepare("SELECT COUNT(*) n FROM bk_booking WHERE date = ? AND status = 'aktiv' AND start <= ? AND end > ?").get(d, n, n).n;
     // offene Platzgebühren: mit Mitgliederverwaltung alle unbezahlten (eine Abfrage, chargeStatus einmal), ohne: alle Gebühren des laufenden Jahres
-    const { rows, tracked } = await feeRows(mv() ? {} : { from: `${d.slice(0, 4)}-01-01` });
+    const { rows, tracked } = await feeRows(mv() ? {} : { from: ctx.geschaeftsjahr.startOf(d) });   // ohne Mitgliederverwaltung: seit Beginn des Geschäftsjahres
     const open = rows.filter(isOpenFee), sum = sumOf(open);
     // Kachel wie beim Verkauf: groß die offenen Gebühren, darunter die Belegung – kein Hinweis-Banner
-    return { kpis: [{ l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Jahr', v: euro(sum) }, { l: 'Buchungen heute', v: `${t} · belegt ${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
+    return { kpis: [{ l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Geschäftsjahr', v: euro(sum) }, { l: 'Buchungen heute', v: `${t} · belegt ${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
   };
   /* Mitglieder-App „Für mich“: next = eigene Buchungen (auch als Mitspieler) bis zum Tag „until“; news = Platz von der Warteliste frei geworden,
      kommende Buchung wegen einer Platzsperre storniert (letzte 14 Tage) – je einmal, bis das Mitglied sie antippt */

@@ -73,7 +73,7 @@ Ein Klick auf einen Block zeigt die Einzelheiten: Spieler, Titel, Gebühr, Notiz
 
 Gehört der Termin zu einer Serie oder Sperre, fragt Clubwerk zuerst, was gemeint ist:
 
-![Die Auswahl bei Serienterminen: nur dieser Termin, dieser und alle folgenden, gesamte Serie.](bild: seite=bk-belegung; klick=#bkDays button:nth-child(2); klick2=.bk-blk.serie; klick3=#bxE; ziel=#askBox)
+![Die Auswahl bei Serienterminen: nur dieser Termin, dieser und alle folgenden, gesamte Serie.](bild: seite=bk-belegung; klick=#bkNext; klick2=#bkDays button:nth-child(3); klick3=.bk-blk.serie; klick4=#bxE; ziel=#askBox)
 
 Beim Stornieren folgt eine Rückfrage, bevor etwas verschwindet. Beim Bearbeiten (Platz, Uhrzeit, Titel, Buchungsart, Notiz) zeigt „Prüfen“ vorher, wie viele Termine betroffen sind und an welchen Tagen der Platz belegt ist.
 
@@ -137,7 +137,7 @@ Das Protokoll aller Buchungen eines Jahres, auch stornierter und Sperren, nach T
 
 ![Der Reiter „Gebühren“ mit drei Summen und der Liste der Gebühren.](bild: seite=bk-gebuehren)
 
-Alle Gast- und Platzgebühren aus Buchungen sowie von Hand gebuchte Gebühren. Oben stehen die Summen **Offen**, **Bezahlt** und **Gesamt** des Jahres, darunter die Liste (Mitglied, Datum, Platz, Text, Betrag, Status). Mit den Filtern „Alle / Offen / Bezahlt“ und der Jahresauswahl grenzt ihr ein.
+Alle Gast- und Platzgebühren aus Buchungen sowie von Hand gebuchte Gebühren. Oben stehen die Summen **Offen**, **Bezahlt** und **Gesamt** des Geschäftsjahres (meist das Kalenderjahr, sonst z. B. „2026/27“), darunter die Liste (Mitglied, Datum, Platz, Text, Betrag, Status). Mit den Filtern „Alle / Offen / Bezahlt“ und der Jahresauswahl grenzt ihr ein.
 
 Gebühren entstehen beim Buchen als offene Posten und werden mit dem nächsten Einzug abgerechnet. Den Zahlungsstand zeigt Clubwerk aus Beiträge & Zahlungen › Offene Posten. Ohne die Mitgliederverwaltung steht „ohne Zahlungsverfolgung“ da, die Gebühren werden nur aufgelistet. Eine Zeile anklicken öffnet die zugehörige Buchung.
 

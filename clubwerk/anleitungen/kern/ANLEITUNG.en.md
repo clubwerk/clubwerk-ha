@@ -177,6 +177,8 @@ One table for all sections of the app, one “Save” for everything:
 | Safari on a Mac (Safari 17 or newer) | Share icon or “File” › “Add to Dock” |
 | Firefox on a computer | no card (Firefox does not install there); notifications work without installing |
 
+**First start on iPhone/iPad (box “To the Home Screen”):** when first opened in the browser, the app shows a box with three steps, all equally visible. **① Copy the code:** the transfer code in large type, with a wide “Copy code” button below (afterwards “✓ Copied” and a tick on step 1). Without the code the member has to be invited again. **② Put it on the Home Screen:** Share icon (at the top, at the bottom or in the “…” menu, depending on the setting) › “Add to Home Screen” › “Add”. **③ Open the app and paste the code:** open Clubwerk on the Home Screen, tap **“Paste”** in the “Almost there” window to fetch the code from the clipboard (if that does not work, just type it) and enter the PIN. Anyone who closes the box with ✕ before the code is copied is asked: “Code already copied?”. In Gmail, WhatsApp etc. step 0 “Open in Safari” comes first. Android and computers are unchanged.
+
 “Later” hides the card for 14 days; “I have already installed it” hides it for good (needed where the browser cannot tell by itself, such as Safari on the iPhone). If the browser notices that the app is already there, only the note “You already have the app” is shown.
 
 **Subscribe to calendar:** Under “More” › “My account” every member creates a personal link for their phone’s calendar. It contains their duties, accepted dates, court bookings and matches of their own teams – only from areas they have in the app, without other people’s names. The calendar fetches them regularly by itself. For this to work away from the club, the app needs a public address (“Settings” tab, “Reachable on the go”). “New link” makes the old one invalid, “End subscription” deletes it. If the phone is removed, the link no longer works.
@@ -252,7 +254,7 @@ Every sent message with subject, sender, time, number of recipients and route. A
 
 ![The delivery of a message: who was reached.](bild: seite=email; tab=gesendet; klick=.ml-row)
 
-A click opens the message with text, attachments and the **delivery**: how many received it by email, in the app, by push, who was not reached and why (no address, invalid, failed). **Resend failed** tries again. **Reuse** opens a copy as a new draft, **Remove from the app** makes it disappear for members at once (emails stay), **Delete** removes it with its list.
+A click opens the message with text, attachments and the **delivery**: how many received it by email, in the app, by push, who was not reached and why (no address, invalid, failed). **Resend failed** tries again. If your provider's mail server declines temporarily (it limits the mails per connection or per hour), the message does not say “failed” but, for example, “80 delivered · 101 waiting (next attempt 19:45)”: Clubwerk retries the waiting ones by itself (after 1, 5, 15 and then every 60 minutes, for at most 24 hours); only after that do they count as failed. **Try again now** starts the next attempt straight away. A wrong address (the server answers “unknown user”) is an error immediately. **Reuse** opens a copy as a new draft, **Remove from the app** makes it disappear for members at once (emails stay), **Delete** removes it with its list.
 
 ![A sent poll: result, turnout and who chose what.](bild: seite=email; tab=gesendet; klick=.ml-row:has-text("Weihnachtsfeier"); ziel=.ml-res)
 
@@ -483,7 +485,7 @@ Clubwerk saves invoices, cancellation invoices and donation receipts as a PDF fi
 
 ![Card “Tax adviser and cash accounts”.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbKonten))
 
-**Tax adviser and cash accounts:** You get the adviser number and client number from your tax adviser, plus the start of the financial year, the account number length (usually 4) and the chart of accounts. Enter a cash account for each payment method (cash, card, direct debit, bank transfer, offsetting). If your tax adviser imports the bank statements directly, use a transit account for direct debit and bank transfer – the batch then splits the collective direct debit into revenue types without double entries.
+**Tax adviser and cash accounts:** You get the adviser number and client number from your tax adviser, plus the start of the financial year (the same field as “Financial year starts on the 1st” for members; it also applies to cancellations and all annual reports), the account number length (usually 4) and the chart of accounts. Enter a cash account for each payment method (cash, card, direct debit, bank transfer, offsetting). If your tax adviser imports the bank statements directly, use a transit account for direct debit and bank transfer – the batch then splits the collective direct debit into revenue types without double entries.
 
 ![Card “Revenue types”: account and sphere per revenue type.](bild: seite=einstellungen; klick=[data-sec="buchfuehrung"]; ziel=.card:has(#gbErl))
 
@@ -501,7 +503,7 @@ Clubwerk saves invoices, cancellation invoices and donation receipts as a PDF fi
 
 ![Card “Mailbox”: SMTP access and test email.](bild: seite=einstellungen; klick=[data-sec="mail"]; ziel=#mailCard)
 
-One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), sender address, user and password. Your provider lists the details under “SMTP” or “outgoing mail server”; for Gmail use an app password. **Save mailbox**, then **Send test email**. The password is never shown again and is in no export.
+One mailbox for all modules: server (SMTP), port (usually 587, sometimes 465), sender address, user and password. Your provider lists the details under “SMTP” or “outgoing mail server”; for Gmail use an app password. **At most … mails per connection** (default 20) and **At most … mails per hour** (empty = unlimited) protect against providers that accept only a certain number of mails and decline the rest (“451 … limit exceeded”). If the provider reports a limit, Clubwerk lowers the number for that mailing by itself and carries on; whatever is declined anyway waits and is retried (single mails such as reminders or invitations too). Below you can see how many mails are waiting. **Save mailbox**, then **Send test email** (the test email reports an error straight away, it does not wait). The password is never shown again and is in no export.
 
 ### Area “Reachability” {#einstellungen-erreichbar}
 

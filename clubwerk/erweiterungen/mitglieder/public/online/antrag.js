@@ -6,7 +6,7 @@
   const euro = c => ((c || 0) / 100).toLocaleString('de-DE', { style: 'currency', currency: 'EUR' });
   const deD = d => (d ? d.split('-').reverse().join('.') : '');
   const ageAt = (b, day) => { if (!b) return null; let a = +day.slice(0, 4) - +b.slice(0, 4); if (day.slice(5) < b.slice(5)) a--; return a; };
-  const deptFee = (dep, birth) => { const a = ageAt(birth, new Date().toISOString().slice(0, 10)); return dep.fees.find(f => a == null || ((f.age_min == null || a >= f.age_min) && (f.age_max == null || a <= f.age_max))) || null; };
+  const deptFee = (dep, birth) => { const a = ageAt(birth, new Date().toISOString().slice(0, 10)); return dep.fees.filter(f => a == null || ((f.age_min == null || a >= f.age_min) && (f.age_max == null || a <= f.age_max))).sort((x, y) => (y.age_min || 0) - (x.age_min || 0) || (x.age_max == null ? 0 : 1) - (y.age_max == null ? 0 : 1))[0] || null; };
   const fmtIban = v => String(v || '').replace(/\s/g, '').toUpperCase().replace(/(.{4})/g, '$1 ').trim();
 
   if (!document.getElementById('afStyle')) {

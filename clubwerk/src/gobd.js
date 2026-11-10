@@ -16,6 +16,7 @@ const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 const { db, DATA_DIR, getSetting, setSetting, audit, auditDiff } = require('./db');
 const plugins = require('./plugins');
+const gj = require('./geschaeftsjahr');
 
 const als = new AsyncLocalStorage();
 const ANCHOR_FILE = path.join(DATA_DIR, 'gobd-anker.json');
@@ -189,7 +190,7 @@ function verify() {
 const CFG_DEF = { berater: '', mandant: '', wj_month: 1, length: 4, skr: '', gegen: {}, konten: {} };
 function cfg() {
   let c = {}; try { c = JSON.parse(getSetting('gobd_cfg', '{}')) || {}; } catch (e) { c = {}; }
-  return { ...CFG_DEF, ...c, gegen: { ...(c.gegen || {}) }, konten: { ...(c.konten || {}) } };
+  return { ...CFG_DEF, ...c, wj_month: gj.month(), gegen: { ...(c.gegen || {}) }, konten: { ...(c.konten || {}) } };   // Wirtschaftsjahr = Geschäftsjahr des Kerns
 }
 /** Alle Erlösarten: Verkauf je Artikelkategorie + Module */
 function keys() {
@@ -264,10 +265,7 @@ function missing(list) {
   for (const k of new Set(list.map(p => p.key))) if (!ok((ks.get(k) || {}).konto)) out.push(`Konto für „${(ks.get(k) || { label: k }).label}“`);
   return out;
 }
-function wjStart(from) {
-  const c = cfg(), m = Math.min(12, Math.max(1, parseInt(c.wj_month, 10) || 1)), [y, mm] = from.split('-').map(Number);
-  return `${mm >= m ? y : y - 1}-${String(m).padStart(2, '0')}-01`;
-}
+const wjStart = from => gj.startOf(from);
 function datev(from, to, user) {
   const c = cfg(), list = postings(from, to), ks = new Map(keys().map(k => [k.key, k]));
   const now = new Date(), stamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}${String(now.getMilliseconds()).padStart(3, '0')}`;
@@ -300,7 +298,7 @@ const xml = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g,
 const csvCell = v => (v == null ? '' : typeof v === 'number' ? String(v) : `"${String(v).replace(/"/g, '""').replace(/\r?\n/g, ' ')}"`);
 const deDate = d => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}`;
 async function pruefer(year, user, club) {
-  const from = `${year}-01-01`, to = `${year}-12-31`, upto = `${year}-12-31 23:59:59`;
+  const { from, to } = gj.range(year), upto = `${to} 23:59:59`, yl = gj.label(year);   // Geschäftsjahr (bei Beginn Januar = Kalenderjahr)
   const JSZip = require('jszip'), zip = new JSZip(), tabs = [];
   const add = (file, name, desc, colsDef, rows) => {
     zip.file(file, '﻿' + [colsDef.map(c => c.name).join(';'), ...rows.map(r => colsDef.map(c => csvCell(r[c.name])).join(';'))].join('\r\n') + '\r\n');
@@ -310,8 +308,8 @@ async function pruefer(year, user, club) {
   for (const t of tables()) {
     const ids = new Set(db.prepare("SELECT DISTINCT row_id r FROM gobd_journal WHERE tbl = ? AND op != 'S' AND at BETWEEN ? AND ?").all(t.table, from, upto).map(r => r.r));
     const types = new Map(db.prepare(`PRAGMA table_info("${t.table}")`).all().map(c => [c.name, String(c.type).toUpperCase()]));
-    const cond = t.date ? `substr("${t.date}", 1, 4) = ?` : '1';   // Stammdaten (Artikel, Konten, Beitragsarten …) ganz
-    const rows = db.prepare(`SELECT ${t.pk} AS _rid, ${t.cols.map(c => `"${c}"`).join(', ')} FROM "${t.table}" WHERE ${cond} ORDER BY ${t.pk}`).all(...(t.date ? [String(year)] : []));
+    const cond = t.date ? `substr("${t.date}", 1, 10) BETWEEN ? AND ?` : '1';   // Stammdaten (Artikel, Konten, Beitragsarten …) ganz
+    const rows = db.prepare(`SELECT ${t.pk} AS _rid, ${t.cols.map(c => `"${c}"`).join(', ')} FROM "${t.table}" WHERE ${cond} ORDER BY ${t.pk}`).all(...(t.date ? [from, to] : []));
     const have = new Set(rows.map(r => r._rid));
     const extra = [...ids].filter(id => !have.has(id));
     for (let i = 0; i < extra.length; i += 500) {
@@ -328,13 +326,13 @@ async function pruefer(year, user, club) {
   add('zahlungseingaenge.csv', 'zahlungseingaenge', 'Zahlungseingänge je Erlösart und Sphäre (Grundlage des DATEV-Buchungsstapels)',
     [{ name: 'datum' }, { name: 'betrag', dec: true }, { name: 'zahlweg' }, { name: 'erloesart' }, { name: 'sphaere' }, { name: 'beleg' }, { name: 'text' }, { name: 'name' }, { name: 'herkunft' }],
     list.map(p => ({ datum: deDate(p.date), betrag: (p.cents / 100).toFixed(2).replace('.', ','), zahlweg: VIAS[p.via], erloesart: (ks.get(p.key) || { label: p.key }).label, sphaere: SPHERES[(ks.get(p.key) || {}).sphere] || '', beleg: p.doc, text: p.text, name: p.name, herkunft: p.ref })));
-  const ixml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE DataSet SYSTEM "gdpdu-01-09-2004.dtd">\n<DataSet>\n  <Version>1.0</Version>\n  <DataSupplier>\n    <Name>${xml(club || 'Verein')}</Name>\n    <Location></Location>\n    <Comment>Clubwerk – Datenüberlassung ${year}</Comment>\n  </DataSupplier>\n  <Media>\n    <Name>Clubwerk ${year}</Name>\n` +
+  const ixml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE DataSet SYSTEM "gdpdu-01-09-2004.dtd">\n<DataSet>\n  <Version>1.0</Version>\n  <DataSupplier>\n    <Name>${xml(club || 'Verein')}</Name>\n    <Location></Location>\n    <Comment>Clubwerk – Datenüberlassung ${yl}</Comment>\n  </DataSupplier>\n  <Media>\n    <Name>Clubwerk ${year}</Name>\n` +
     tabs.map(t => `    <Table>\n      <URL>${xml(t.file)}</URL>\n      <Name>${xml(t.name)}</Name>\n      <Description>${xml(t.desc)}</Description>\n      <Validity>\n        <Range>\n          <From>${deDate(from)}</From>\n          <To>${deDate(to)}</To>\n        </Range>\n        <Format>DD.MM.YYYY</Format>\n      </Validity>\n      <UTF8/>\n      <DecimalSymbol>,</DecimalSymbol>\n      <DigitGroupingSymbol>.</DigitGroupingSymbol>\n      <SkipNumBytes>3</SkipNumBytes>\n      <VariableLength>\n        <ColumnDelimiter>;</ColumnDelimiter>\n        <RecordDelimiter>&#13;&#10;</RecordDelimiter>\n        <TextEncapsulator>"</TextEncapsulator>\n` +
       t.cols.map(c => `        <VariableColumn>\n          <Name>${xml(c.name)}</Name>\n          ${c.dec ? '<Numeric>\n            <Accuracy>2</Accuracy>\n          </Numeric>' : c.num ? '<Numeric/>' : '<AlphaNumeric/>'}\n        </VariableColumn>\n`).join('') +
       '      </VariableLength>\n    </Table>\n').join('') + '  </Media>\n</DataSet>\n';
   zip.file('index.xml', ixml);
   const v = verify();
-  zip.file('LIESMICH.txt', [`Clubwerk – Datenüberlassung für das Jahr ${year}`, `Erstellt: ${new Date().toISOString()} von ${user || ''}`, '',
+  zip.file('LIESMICH.txt', [`Clubwerk – Datenüberlassung für das Geschäftsjahr ${yl} (${deDate(from)} bis ${deDate(to)})`, `Erstellt: ${new Date().toISOString()} von ${user || ''}`, '',
     'index.xml beschreibt alle Dateien im Beschreibungsstandard für die Datenüberlassung (Z3). Die Dateien sind UTF-8 mit BOM (SkipNumBytes 3).',
     'Beträge in Spalten mit „cents“ sind Cent-Beträge, in zahlungseingaenge.csv Euro mit Komma.',
     'aenderungsjournal.csv enthält jede Änderung mit Vorher/Nachher; jede Zeile trägt den SHA-256 ihrer Vorgängerin (Prüfkette).',
@@ -369,7 +367,7 @@ function routes(admin, { need, bad, asyncRoute }) {
     const digits = (v, n) => String(v == null ? '' : v).replace(/\D/g, '').slice(0, n);
     if (b.berater !== undefined) c.berater = digits(b.berater, 7);
     if (b.mandant !== undefined) c.mandant = digits(b.mandant, 5);
-    if (b.wj_month !== undefined) c.wj_month = Math.min(12, Math.max(1, parseInt(b.wj_month, 10) || 1));
+    if (b.wj_month !== undefined) c.wj_month = Math.min(12, Math.max(1, parseInt(b.wj_month, 10) || 1));   // gespeichert als Geschäftsjahr (unten)
     if (b.length !== undefined) c.length = Math.min(8, Math.max(4, parseInt(b.length, 10) || 4));
     if (b.skr !== undefined) c.skr = String(b.skr || '').slice(0, 20);
     if (b.gegen && typeof b.gegen === 'object') for (const v of Object.keys(VIAS)) if (b.gegen[v] !== undefined) c.gegen[v] = digits(b.gegen[v], 8);
@@ -379,8 +377,10 @@ function routes(admin, { need, bad, asyncRoute }) {
     }
     const bad8 = [...Object.values(c.gegen), ...Object.values(c.konten).map(x => x.konto)].filter(x => x && x.length !== c.length);
     if (bad8.length) return bad(res, `Kontonummern müssen ${c.length} Ziffern haben (Sachkontenlänge): ${[...new Set(bad8)].slice(0, 5).join(', ')}.`);
-    setSetting('gobd_cfg', JSON.stringify(c));
-    const L = { berater: 'Beraternummer', mandant: 'Mandantennummer', wj_month: 'Beginn Wirtschaftsjahr (Monat)', length: 'Sachkontenlänge', skr: 'Kontenrahmen' };
+    const { wj_month: wm, ...store } = c;
+    setSetting('gobd_cfg', JSON.stringify(store));
+    gj.set(wm);
+    const L = { berater: 'Beraternummer', mandant: 'Mandantennummer', wj_month: 'Geschäftsjahr beginnt im Monat', length: 'Sachkontenlänge', skr: 'Kontenrahmen' };
     const flat = x => ({ ...Object.fromEntries(Object.keys(L).map(k => [k, x[k]])), ...Object.fromEntries(Object.keys(VIAS).map(v => [`g_${v}`, x.gegen[v] || ''])), ...Object.fromEntries(keys().map(k => [`k_${k.key}`, x.konten[k.key] ? `${x.konten[k.key].konto || '–'} · ${SPHERES[x.konten[k.key].sphere] || 'ohne Sphäre'}` : ''])) });
     const labels = { ...L, ...Object.fromEntries(Object.entries(VIAS).map(([v, l]) => [`g_${v}`, `Geldkonto ${l}`])), ...Object.fromEntries(keys().map(k => [`k_${k.key}`, k.label])) };
     const diff = auditDiff(labels, flat(before), flat(c));
@@ -411,8 +411,8 @@ function routes(admin, { need, bad, asyncRoute }) {
     const y = parseInt(req.query.year, 10);
     if (!(y >= 2000 && y <= 2100)) return bad(res, 'Bitte ein gültiges Jahr wählen.');
     const buf = await pruefer(y, req.user && req.user.username, getSetting('club_name', ''));
-    audit(req.user, 'Prüfer-Export erstellt', String(y));
-    res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="Datenueberlassung_${y}.zip"` }).send(buf);
+    audit(req.user, 'Prüfer-Export erstellt', gj.label(y));
+    res.set({ 'Content-Type': 'application/zip', 'Content-Disposition': `attachment; filename="Datenueberlassung_${gj.label(y).replace('/', '-')}.zip"` }).send(buf);
   }));
 }
 

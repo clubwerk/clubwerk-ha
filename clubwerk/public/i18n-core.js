@@ -122,8 +122,8 @@
       for (var i = 0; i < lines.length; i++) { var x = translate(d, lines[i]); if (x !== lines[i]) { lines[i] = x; any = true; } }
       if (any) r = lines.join('\n');
     }
-    if (r === null && (m[2].indexOf(' · ') > 0 || (m[2].indexOf(' – ') > 0 && m[2].length < 80 && !/[.!?] \S/.test(m[2])))) {   // „A · B – C“ aus Teilstücken zusammengesetzt: Teil für Teil, wenn kein Muster mit viel festem Text den ganzen Satz kennt
-      var parts0 = m[2].split(m[2].indexOf(' · ') > 0 ? /( · )/ : /( – )/), segs = parts0.filter(function (x, i) { return i % 2 === 0; }), gs = false;
+    if (r === null && (/[ \u00a0]·[ \u00a0]/.test(m[2]) || (m[2].indexOf(' – ') > 0 && m[2].length < 80 && !/[.!?] \S/.test(m[2])))) {   // „A · B – C“ aus Teilstücken zusammengesetzt: Teil für Teil, wenn kein Muster mit viel festem Text den ganzen Satz kennt
+      var parts0 = m[2].split(/[ \u00a0]·[ \u00a0]/.test(m[2]) ? /([ \u00a0]·[ \u00a0])/ : /( – )/), segs = parts0.filter(function (x, i) { return i % 2 === 0; }), gs = false;
       for (var q = 0; q < segs.length; q++) {
         var z = translate(d, segs[q]);
         if (z === segs[q]) {   // der Text steht als Bruchstück mit Trenner im Wörterbuch („· eingetragen als Mitspieler“)
@@ -133,7 +133,7 @@
         if (z === segs[q] && segs[q].indexOf(': ') > 0) { var lv = segs[q].split(': '), z1 = translate(d, lv[0]); if (z1 !== lv[0]) z = z1 + ': ' + translate(d, lv.slice(1).join(': ')); }   // „Buchungen heute: 6“
         if (z !== segs[q]) { segs[q] = z; gs = true; }
       }
-      if (gs) { var whole = lookup(d, m[2], 0); var wv = d.wt.get(norm(m[2])) || 0; if (whole === null || wv >= 1000 || (wv < 12 && (m[2].indexOf(' · ') > 0 || m[2].length < 80))) { var ix = 0; r = parts0.map(function (x, i) { return i % 2 === 0 ? segs[ix++] : x; }).join(''); } }
+      if (gs) { var whole = lookup(d, m[2], 0); var wv = d.wt.get(norm(m[2])) || 0; if (whole === null || wv >= 1000 || (wv < 12 && (/[ \u00a0]·[ \u00a0]/.test(m[2]) || m[2].length < 80))) { var ix = 0; r = parts0.map(function (x, i) { return i % 2 === 0 ? segs[ix++] : x; }).join(''); } }
     }
     if (r === null) {   // Trenner „·“ an den Rändern eines Bruchstücks: der Kern hat einen eigenen Text („· Aufstellung noch nicht verschickt“)
       var sm0 = /^(\s*·\s*)([\s\S]*?)(\s*·\s*)?$|^([\s\S]*?)(\s*·\s*)$/.exec(m[2]);

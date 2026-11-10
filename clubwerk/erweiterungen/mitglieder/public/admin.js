@@ -28,6 +28,11 @@
   const ini = n => esc(String(n || '?').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase());
   const fmtIban = v => String(v || '').replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim();
   const money = c => (c ? euro(c) : '<span class="muted s">–</span>');
+  /** Altersgrenzen überall gleich: „ab 19“, „bis einschl. 18“, „12 bis einschl. 18“ (u = Einheit, z. B. ' Jahre' oder ' J.') – wie lib/fees.js ageLimText */
+  const ageLim = (f, u = '') => { const lo = f.age_min || null, N = '\u00a0'; return lo != null && f.age_max != null ? `${lo} bis einschl.${N}${f.age_max}${u}` : f.age_max != null ? `bis einschl.${N}${f.age_max}${u}` : lo != null ? `ab${N}${lo}${u}` : ''; };   // feste Leerzeichen: die Zahl bleibt bei ihrem Wort
+  /** Beitragsarten gleicher Art (Beitrag/Zusatz, Abteilung, Rhythmus; nicht Familie/einmalig/inaktiv) mit überschneidendem Altersbereich – wie lib/fees.js ageOverlaps */
+  const ageClash = (f, list) => (f.family || f.interval === 'einmalig' || (f.age_min == null && f.age_max == null) ? [] : list.filter(o => o.id !== f.id && o.active !== 0 && !o.family && o.kind === f.kind && (o.department_id || null) === (f.department_id || null) && o.interval === f.interval && (o.age_min != null || o.age_max != null)
+    && (f.age_min || 0) <= (o.age_max == null ? Infinity : o.age_max) && (o.age_min || 0) <= (f.age_max == null ? Infinity : f.age_max)));
 
   /* eigene Bausteine (gleiche Raster, gleiche Höhen) */
   if (!document.getElementById('mvStyle')) {
@@ -78,6 +83,8 @@
       .mv-cons-ed { display: grid; grid-template-columns: 200px minmax(0, 1fr) auto auto; gap: 12px; align-items: start; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cons-ed .f { margin: 0; } .mv-cons-ed textarea { width: 100%; min-height: 58px; resize: vertical; } .mv-cons-ed .chk { min-height: 40px; }
       @media (max-width: 700px) { .mv-cons-ed { grid-template-columns: minmax(0, 1fr); } }
       .mv-cg-ed { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .9fr) minmax(0, 1.3fr) 112px; gap: 12px; align-items: end; padding: 10px 0; border-top: 1px solid var(--line-soft); } .mv-cg-ed .f { margin: 0; } .mv-cg-ed .btn { height: 40px; } .mv-cg-days { border-top: 0; margin-top: 4px; }   /* Erinnerung im selben Raster wie die Regeln darüber */
+      #eCg { container-type: inline-size; }   /* Karte „Gratulationen“: Raster der Regeln nach Kartenbreite */
+      @container (max-width: 860px) { .mv-cg-ed { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .mv-cg-ed .btn { justify-self: end; } }   /* schmale Karte (Tablet): Anlass | Wann, darunter Was | Entfernen – „Was“ bleibt einzeilig wie die Nachbarn */
       @media (max-width: 700px) { .mv-cg-ed { grid-template-columns: minmax(0, 1fr); } .mv-cg-ed .btn { justify-self: end; } }
       .mv-addr { min-height: 40px; display: flex; align-items: center; font-size: 14px; }
       .mv-pic { overflow: hidden; } .mv-pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
@@ -86,13 +93,25 @@
       .mv-code { font-family: var(--num); font-weight: 600; }
       .mv-sortslot { display: contents; } @media (min-width: 701px) { .mv-sortslot { display: none; } }
       .mv-fsel { width: 170px; } @media (max-width: 640px) { .mv-fsel { width: 100%; } }
-      .mv-split .mdetail { max-height: calc(100vh - 40px); max-height: calc(100dvh - 40px); overflow-y: auto; overscroll-behavior: contain; }   /* klebt oben und bleibt ganz erreichbar, auch wenn sie höher als das Fenster ist */
       .mv-split .mdetail .mact { grid-template-columns: minmax(0, 1fr); }   /* „Öffnen“ und die Reiter untereinander, alle gleich hoch und einzeilig (zu zweit brach „Zahlung & Familie“ um) */
       .mv-split .mdetail .mhead .muted { font-size: 13px; line-height: 18px; }
       .mv-split .mdetail .facts dd { overflow-wrap: anywhere; }
-      #mvTbl.ez td.k-1z { min-width: 210px; } #mvTbl.ez td.mv-nw { white-space: nowrap; } #mvTbl.ez td.k-weg .pill { white-space: nowrap; }   /* Namen haben Platz (nur sehr lange brechen um), Beitrag und Zahlung einzeilig – die Zeilen bleiben gleich hoch; nur solange die Tabelle damit hineinpasst (einzeilig() unten), sonst bricht es um statt seitlich zu scrollen */
-      @media (min-width: 1400px) { .mv-split #mvTbl th:nth-last-child(-n+2), .mv-split #mvTbl td.k-weg, .mv-split #mvTbl td.mv-pay { display: none; } }   /* Zahlung und Hinweise stehen dann in der Karte rechts */
-      @media (max-width: 1399px) { .mv-split { grid-template-columns: minmax(0, 1fr); } .mv-split > .mdetail { display: none; } }   /* Liste und Mitglied nebeneinander erst ab 1400 px, darunter öffnet ein Klick das Mitglied wie bisher */`;
+      .mv-split .mdetail .mv-khw { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); }   /* Hinweise in der Karte oben unter dem Kopf, nicht am Ende */
+      #mvTbl .mv-hw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }   /* Hinweise als Schild unter dem Namen – bei jeder Breite, mit und ohne Karte (in 2026.11.30 fehlten sie neben der Karte, Fund Thorsten 09.11.2026) */
+      #mvTbl.ez td.k-1z { min-width: 210px; } #mvTbl.ez td.mv-nw { white-space: nowrap; } #mvTbl.ez .mv-hw { white-space: nowrap; }   /* Namen haben Platz (nur sehr lange brechen um), Beitrag und Zahlung einzeilig – die Zeilen bleiben gleich hoch; nur solange die Tabelle damit hineinpasst (einzeilig() unten), sonst bricht es um statt seitlich zu scrollen */
+      @media (max-width: 1499px) { .mv-split { grid-template-columns: minmax(0, 1fr); } .mv-split > .mcol { display: none; } }   /* Liste und Mitglied nebeneinander erst ab 1400 px, darunter öffnet ein Klick das Mitglied wie bisher */
+      .mv-famact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 8px; } .mv-famact .btn { width: 100%; justify-content: center; }   /* zwei gleiche Hälften über die volle Breite, bündig mit der Zeile „Hinzufügen“ darüber */
+      @media (max-width: 560px) { .mv-famact { grid-template-columns: 1fr; } .row.mv-famadd { flex-direction: column; flex-wrap: nowrap; align-items: stretch; } .row.mv-famadd .f { flex: none !important; width: 100%; min-height: 0; } .row.mv-famadd select { width: 100%; } .mv-famadd .btn, .mv-dunhead .row, .mv-dunhead .row .btn { width: 100%; justify-content: center; } }   /* Handy: alle Knöpfe volle Breite, gleich hoch */
+      @media (max-width: 560px) { .mv-bankact, .mv-bankact .row { flex-direction: column; align-items: stretch; } .mv-bankact .btn { width: 100%; justify-content: center; } }   /* Handy: Mandat-Knöpfe untereinander, volle Breite, gleich hoch */
+      @media (min-width: 1280px) and (max-width: 1359px) { .mv-hv .k-eng { display: none; } }
+      @media (min-width: 1280px) { .mv-alter { white-space: nowrap; } }   /* Alter („bis einschl. 17“) ab 1280 px einzeilig; schmaler (Tablet) darf es umbrechen, sonst scrollt die Tabelle seitlich (Prüfstand ATd) */   /* Arbeitsstunden und Formular entfallen auch bei 1280–1359 px (steht beim Bearbeiten) – die Alterspalte „bis einschl. 17“ bleibt einzeilig, die Tabelle ragt nicht aus der Karte */
+      .mv-tklist { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; }
+      .mv-tk { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 2px; width: 100%; min-height: 48px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-sizing: border-box; }
+      .mv-tk:hover { background: var(--hover); } .mv-tk b { font-weight: 600; overflow-wrap: anywhere; } .mv-tk .muted { overflow-wrap: anywhere; }
+      .mv-tkopts { display: flex; flex-direction: column; gap: 10px; margin: 0 0 4px; } .mv-tkopts label.chk { align-items: flex-start; line-height: 1.4; } .mv-tkopts input { margin-top: 2px; flex: none; }
+      .mv-tkopts label.off { opacity: .55; cursor: default; }
+      .mv-move { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; margin: 0 0 14px; } .mv-move > div { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; } .mv-move b { overflow-wrap: anywhere; }
+      @media (max-width: 560px) { .mv-move { grid-template-columns: 1fr; } }`;
     document.head.appendChild(s);
   }
 
@@ -112,7 +131,9 @@
     $('cfOk').onclick = () => GK.busy($('cfOk'), onOk);
   }
   const memberOptions = (sel, skip) => st.rows.filter(r => r.id !== skip && r.status !== 'ausgetreten' && r.status !== 'anonym').map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, sel)).join('');
-  const feeLabel = f => `${f.name} · ${euro(f.cents)} ${INTERVAL[f.interval] || ''}`;
+  const feeLabel = f => `${f.name} · ${euro(f.cents)} ${INTERVAL[f.interval] || ''}`;   // nur für Auswahllisten (einzeilig)
+  /** Name und Betrag untereinander (kein „·“ am Zeilenanfang bei Umbruch): Name, darunter grau der Betrag (und Rhythmus) */
+  const nameBetrag = (name, cents, extra = '', inline = false) => `<span translate="no">${esc(name)}</span>${inline ? ' ' : '<div class="muted s">'}${inline ? '<span class="muted s nw">' : ''}${euro(cents)}${extra ? ' ' + esc(extra) : ''}${inline ? '</span>' : '</div>'}`;   // inline: Betrag als nicht trennbares Stück hinter dem Namen (enge Listen am Handy) – bricht er um, steht er ohne „·“ in der nächsten Zeile
 
   async function loadMeta() { st.meta = await api('meta'); return st.meta; }
   async function loadRows() { st.rows = await api('list?status=alle'); return st.rows; }
@@ -181,7 +202,7 @@
         <label class="f mv-fsel"><select translate="no" id="mvFee" data-nodirty aria-label="Beitrag"><option value="">${esc(GK.T('Alle Beiträge'))}</option>${m.fees.map(f => opt(f.id, f.name, st.f.fee)).join('')}</select></label>
       </div>
       <div class="mlayout mv-split"><div class="mlist"><div class="scroll"><table class="tbl kompakt sel" id="mvTbl"></table></div>
-      <p class="empty hidden" id="mvEmpty"></p></div><aside class="mdetail card" id="mvDetail"></aside></div>`;
+      <p class="empty hidden" id="mvEmpty"></p></div><div class="mcol card"><aside class="mdetail" id="mvDetail"></aside></div></div>`;
     $('mvSeg').insertAdjacentHTML('afterend', '<span id="mvSortSlot" class="mv-sortslot"></span>');
     const coll = new Intl.Collator('de', { numeric: true, sensitivity: 'base' }), noNum = r => ((String(r.member_no || '').match(/\d+/) || [])[0]);
     const sk = GK.sortKit('mv_sort', { k: 'name', d: 1 }, {
@@ -208,14 +229,14 @@
         && (!st.f.dept || r.dept_ids.includes(+st.f.dept)) && (!st.f.fee || r.fee_ids.includes(+st.f.fee));
       Object.keys(F).forEach(k => { const c = el.querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = st.rows.filter(r => F[k](r) && match(r)).length; });
       const rows = sk.sort(st.rows.filter(r => F[st.f.status](r) && match(r)));
-      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th><th>Hinweise</th></tr>`
+      if (st.sel && !rows.some(r => r.id === st.sel)) { st.sel = null; showCard(null); }   // Karte zeigt nie ein Mitglied, das nach Suche oder Filter nicht in der Liste steht
+      $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th></tr>`
         + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}${st.sel === r.id ? ' on' : ''}">
-          <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}</span></span></td>
+          <td class="k-1z"><span class="who"><span class="av">${ini(r.name)}</span><span><b>${esc(GK.lastFirst(r.name))}</b>${r.leaving ? `<div class="muted s">Austritt ${deDate(r.exit_date)}</div>` : r.status !== 'aktiv' ? `<div class="muted s">${esc((STATUS[r.status] || ['', r.status])[1])}</div>` : ''}${r.issues.length ? `<div class="mv-hw">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</div>` : ''}</span></span></td>
           <td class="muted nw num k-lbl" data-label="Nr.">${esc(r.member_no || '')}</td>
           <td class="r k-lbl" data-label="Alter">${r.age ?? ''}</td><td class="mv-nw" translate="no" title="${esc(r.depts)}">${esc(r.depts)}</td>
-          <td class="mv-nw">${r.family_of ? `<span class="muted s">Familie ${esc(r.family_head_name)}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
-          <td class="mv-nw mv-pay">${r.payer_id ? `<span class="muted s">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td>
-          <td class="k-weg">${r.issues.map(i => `<span class="pill a">${esc(i)}</span>`).join(' ')}</td></tr>`).join('') : '';
+          <td class="mv-nw">${r.family_of ? `<span class="muted s">Familie ${esc(GK.lastFirst(r.family_head_name))}</span>` : `<span translate="no">${esc(r.fees)}</span>`}</td>
+          <td class="mv-nw mv-pay${r.payer_id ? '' : ' k-weg'}">${r.payer_id ? `<span class="muted s${r.family_of && r.payer_id === r.family_of ? ' k-weg' : ''}">über ${esc(GK.lastFirst(r.payer_name))}</span>` : esc(PAY[r.payment] || r.payment)}${r.dependents ? ` <span class="pill">+${r.dependents}</span>` : ''}</td></tr>`).join('') : '';
       $('mvTbl').classList.toggle('hidden', !rows.length);
       einzeilig();
       const em = $('mvEmpty'); em.classList.toggle('hidden', rows.length > 0);
@@ -235,6 +256,7 @@
     $('mvTbl').ondblclick = e => { const tr = e.target.closest('tr[data-sel]'); if (tr) openMember(+tr.dataset.sel); };
     $('mvTbl').onkeydown = e => { const tr = e.target.closest('tr[data-sel]'); if (tr && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pick(+tr.dataset.sel); } };
     $('mvDetail').onclick = e => { const b = e.target.closest('[data-open]'); if (b) GK.openDetail('mitglied', +b.dataset.open, b.dataset.tab || undefined); };
+    GK.klebend($('mvDetail'));   // klebt oben, höher als das Fenster scrollt sie mit – nie ein eigener Scrollbalken
     showCard(st.rows.some(r => r.id === st.sel) ? st.sel : null);
     if (!GK.tabTools(tools, $('mvTbl'))) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${tools}</div>`);
     $('mvNew').onclick = () => newMember();
@@ -242,8 +264,8 @@
     if ($('mvXls')) $('mvXls').onclick = () => exportDialog();
   }
 
-  /* Karte rechts neben der Liste (ab 1400 px): das Wichtigste zum gewählten Mitglied, „Öffnen“ und die Reiter führen in die Detailansicht */
-  const wide = () => window.matchMedia('(min-width: 1400px)').matches;
+  /* Karte rechts neben der Liste (ab 1500 px – darunter passen die Spalten neben der Karte nicht einzeilig): das Wichtigste zum gewählten Mitglied, „Öffnen“ und die Reiter führen in die Detailansicht */
+  const wide = () => window.matchMedia('(min-width: 1500px)').matches;
   async function showCard(id) {
     const el = $('mvDetail'); if (!el) return;
     el.classList.toggle('empty', !id);
@@ -253,7 +275,7 @@
     const p = d.person, r = st.rows.find(x => x.id === id) || { issues: [] };
     const status = p.anonymized_at ? 'anonym' : p.exited ? 'ausgetreten' : p.status;
     const sub = [p.member_no ? `${GK.T('Nr.')} ${p.member_no}` : '', p.age != null ? `${p.age} ${GK.T('Jahre')}` : '', status ? GK.T((STATUS[status] || ['', status])[1]) : ''].filter(Boolean).join(' · ');
-    const fee = (d.fees || []).filter(f => !f.end_date).map(f => `${esc(f.name)} · ${euro(f.eff_cents ?? f.fee_cents ?? 0)} ${esc(GK.T(INTERVAL[f.interval] || ''))}`).join('<br>');
+    const fee = (d.fees || []).filter(f => !f.end_date).map(f => nameBetrag(f.name, f.eff_cents ?? f.fee_cents ?? 0, GK.T(INTERVAL[f.interval] || ''))).join('');
     const deps = (d.departments || []).filter(x => !x.exit_date).map(x => esc(x.name)).join(', ');
     const pay = d.payer ? `${esc(GK.T('über'))} ${esc(GK.lastFirst(d.payer.name))}` : `${esc(GK.T(PAY[p.payment] || p.payment || ''))}${d.bank && d.bank.mandate_ref ? ` · ${esc(GK.T('Mandat'))} ${esc(d.bank.mandate_ref)}` : ''}`;
     const until = (d.fees || []).map(f => f.booked_until).filter(Boolean).sort().pop();
@@ -262,32 +284,121 @@
     const fact = (l, v, cls = '') => v ? `<div><dt>${esc(GK.T(l))}</dt><dd class="${cls}">${v}</dd></div>` : '';
     const tabs = [['mitgliedschaft', 'Mitgliedschaft'], ...(SC() ? [] : [['zahlung', 'Zahlung & Familie'], ['konto', 'Konto & Mandat']]), ['verlauf', 'Verlauf']];
     $('mvDetail').innerHTML = `<div class="mhead"><span class="av lg mv-pic">${p.photo ? `<img src="api/admin/photo/${p.id}?v=${esc(p.photo)}" alt="">` : ini(p.name)}</span><div style="min-width:0"><h3>${esc(GK.lastFirst(p.name))}</h3><div class="muted">${esc(sub)}</div></div></div>
+      ${(r.issues || []).length ? `<div class="mv-khw">${r.issues.filter(i => typeof i === 'string').map(i => `<span class="pill a">${esc(GK.T(i))}</span>`).join(' ')}</div>` : ''}
       <dl class="facts">
         ${fact('Geburtsdatum', p.birth_date ? deDate(p.birth_date) : '')}${fact('Eintritt', p.entry_date ? deDate(p.entry_date) : '')}
-        ${fact('Abteilungen', deps)}${fact('Beitrag', p.family_of ? `${esc(GK.T('Familie'))} ${esc(r.family_head_name || '')}` : fee)}
+        ${fact('Abteilungen', deps)}${fact('Beitrag', p.family_of ? `${esc(GK.T('Familie'))} ${esc(GK.lastFirst(r.family_head_name || ''))}` : fee)}
         ${fact('Zahlung', pay)}${fact('Abgerechnet bis', until ? deDate(until) : '')}${fact('Offene Posten', open ? euro(open) : '', 'neg')}
         ${fact('Mobil', esc(p.mobile || p.phone || ''))}${fact('E-Mail', esc(p.email || ''))}${fact('Anschrift', addr)}
-        ${fact('Hinweise', (r.issues || []).filter(i => typeof i === 'string').map(i => esc(GK.T(i))).join('<br>'))}
       </dl>
       <div class="mact"><button class="btn primary" data-open="${id}">Öffnen</button>${tabs.map(([k, l]) => `<button class="btn" data-open="${id}" data-tab="${k}">${esc(GK.T(l))}</button>`).join('')}</div>`;
   }
 
-  function newMember() {
+  /* ---------------------------------------------------------------- „Von Mitglied übernehmen …“ (Anlegen, Bearbeiten, Beitrittserklärung erfassen) */
+  const ageOn = (b, d) => { if (!b) return null; let a = +d.slice(0, 4) - +b.slice(0, 4); if (d.slice(5) < b.slice(5)) a--; return a; };
+  /** Ein offenes Fenster (Formular) beiseitelegen: die Auswahl erscheint im selben Fenster, danach kommt das Formular samt Eingaben zurück. Ohne offenes Fenster schließt der Rückweg es. */
+  function stashDialog() {
+    const d = $('dialog'), open = !$('overlay').classList.contains('hidden'), cls = d.className, keep = document.createDocumentFragment();
+    while (d.firstChild) keep.appendChild(d.firstChild);
+    return () => { if (!open) return closeDialog(); d.className = cls; d.textContent = ''; d.appendChild(keep); };
+  }
+  /** Mitglied suchen („Nachname, Vorname“), dann wählen, was ins Formular soll – und statt der Bankverbindung ggf. „Zur Familie von … hinzufügen“ oder „Zahlt über …“.
+   *  Füllt nichts selbst und speichert nichts: der Aufrufer trägt die Werte ein, gespeichert wird erst mit „Speichern“. Bankdaten werden nie übernommen.
+   *  o.fields: erlaubte Angaben (Standard alle) · o.family: Wahl Familie/Zahler anbieten · o.birth(): Geburtsdatum der Person (Familienregeln vorab) · o.skip: dieses Mitglied nicht anbieten
+   *  → { v: { street, zip, city, country, last_name, phone, email, mobile … }, rel: null | { kind: 'family'|'payer', id, name, partner } } oder null bei Abbruch */
+  function takeFrom(o = {}) {
+    return new Promise(resolve => {
+      const back = stashDialog();
+      const done = r => { back(); resolve(r); };
+      const run = async () => {
+        if (!st.rows.length) await loadRows();
+        const people = st.rows.filter(r => r.id !== o.skip && r.status !== 'ausgetreten' && r.status !== 'anonym').map(r => ({ r, lf: GK.lastFirst(r.name) })).sort((a, b) => a.lf.localeCompare(b.lf, 'de'));
+        const choose = async id => {
+          const d = await api('member/' + id).catch(e => { fail(e); return null; }); if (!d) return;
+          const p = d.person, nm = `<b translate="no">${esc(GK.lastFirst(p.name))}</b>`, m = st.meta;
+          const ALL = [['address', 'Anschrift', [p.street, [p.zip, p.city].filter(Boolean).join(' '), p.country].filter(Boolean).join(', '), true], ['last_name', 'Nachname', p.last_name || '', true], ['phone', 'Telefon Festnetz', p.phone || '', true], ['email', 'E-Mail', p.email || '', false], ['mobile', 'Mobil', p.mobile || '', false]];
+          const defs = ALL.filter(x => !o.fields || o.fields.includes(x[0]));
+          let fam = null;
+          if (o.family) {   // Familie: Oberhaupt ist das Mitglied selbst (mit Familienbeitrag) oder dessen Oberhaupt
+            const headId = d.familyHead ? d.familyHead.id : d.familyFee ? id : null;
+            if (headId) { const hd = headId === id ? d : await api('member/' + headId).catch(() => null); if (hd) fam = { id: headId, name: hd.person.name, partner: hd.family.some(f => f.role === 'partner' && !(f.exit_date && f.exit_date < m.today)) }; }
+          }
+          const birth = o.birth ? o.birth() : '', age = birth ? ageOn(birth, m.today) : null, max = m.settings.family_child_max || 18;
+          const famBlock = fam && fam.partner && age != null && age > max ? GK.T('Dort gibt es schon eine/n Partner/in – in einer Familie sind höchstens zwei Erwachsene.') : '';
+          dialog(`<h2>${esc(GK.T('Übernehmen von'))} ${nm}</h2>
+            <div id="tkBox"><p class="muted s" style="margin-top:0">Haken setzen, was ins Formular soll. Gespeichert wird erst mit „Speichern“.</p>
+            <div class="mv-tkopts">${defs.map(([k, l, v, on]) => `<label class="chk ${v ? '' : 'off'}"><input type="checkbox" data-f="${k}" ${v && on ? 'checked' : ''} ${v ? '' : 'disabled'}><span><b>${esc(GK.T(l))}</b><br><span class="muted s" translate="no">${v ? esc(v) : '–'}</span></span></label>`).join('')}</div>
+            ${o.family ? `<h4 class="mv-sub" style="margin-top:18px">Zuordnung statt Bankverbindung</h4>
+              <div class="mv-tkopts"><label class="chk"><input type="radio" name="tkRel" value="" checked><span>Keine Zuordnung</span></label>
+                <label class="chk ${fam && !famBlock ? '' : 'off'}"><input type="radio" name="tkRel" value="family" ${fam && !famBlock ? '' : 'disabled'}><span>${fam ? GK.T('Zur Familie von {0} hinzufügen', [`<b translate="no">${esc(GK.lastFirst(fam.name))}</b>`]) : esc(GK.T('Zur Familie hinzufügen'))}<br><span class="muted s">${famBlock ? esc(famBlock) : fam ? esc(GK.T('Die Rolle (Partner/in oder Kind) ergibt sich aus dem Geburtsdatum. Gezahlt wird über das Oberhaupt.')) : esc(GK.T('Nur möglich bei Mitgliedern mit Familienbeitrag oder in einer Familie.'))}</span></span></label>
+                <label class="chk"><input type="radio" name="tkRel" value="payer"><span>${esc(GK.T('Zahlt über'))} ${nm}<br><span class="muted s">Beiträge und Verkauf laufen dann über dessen Konto – ein eigenes Konto ist nicht nötig.</span></span></label></div>` : ''}</div>
+            <div class="btns"><button class="btn ghost" id="tkBack" type="button">Zurück</button><button class="btn primary" id="tkOk" type="button">Übernehmen</button></div>`);
+          $('tkBack').onclick = () => search();
+          $('tkOk').onclick = () => {
+            const on = k => ($('tkBox').querySelector(`[data-f="${k}"]`) || {}).checked;
+            const v = {};
+            if (on('address')) Object.assign(v, { street: p.street || '', zip: p.zip || '', city: p.city || '', country: p.country || '' });
+            for (const k of ['last_name', 'phone', 'email', 'mobile']) if (on(k)) v[k] = p[k] || '';
+            const r = ($('tkBox').querySelector('[name=tkRel]:checked') || {}).value;
+            done({ v, rel: r === 'family' && fam ? { kind: 'family', id: fam.id, name: fam.name, partner: fam.partner } : r === 'payer' ? { kind: 'payer', id, name: p.name } : null });
+          };
+        };
+        const search = () => {
+          dialog(`<h2>Von Mitglied übernehmen</h2>
+            <p class="muted s" style="margin-top:0">Wähle das Mitglied, dessen Angaben ins Formular übernommen werden sollen. Die Bankverbindung wird nie übernommen.</p>
+            <label class="f">Mitglied suchen<input id="tkQ" autocomplete="off" placeholder="Nachname oder Vorname"></label>
+            <div class="mv-tklist" id="tkList"></div>
+            <div class="btns"><button class="btn ghost" id="tkX" type="button">Abbrechen</button></div>`);
+          const draw = () => {
+            const q = val('tkQ').toLowerCase(), hits = people.filter(x => !q || [x.lf, x.r.name, x.r.member_no].some(v => v && String(v).toLowerCase().includes(q)));
+            $('tkList').innerHTML = (hits.length ? hits.slice(0, 8).map(x => `<button type="button" class="mv-tk" data-tk="${x.r.id}"><b translate="no">${esc(x.lf)}</b><span class="muted s">${esc([x.r.member_no ? `${GK.T('Nr.')} ${x.r.member_no}` : '', x.r.age != null ? `${x.r.age} ${GK.T('Jahre')}` : '', x.r.city || ''].filter(Boolean).join(' · '))}</span></button>`).join('')
+              : '<p class="empty">Kein Mitglied gefunden.</p>') + (hits.length > 8 ? `<p class="muted s" style="margin:4px 0 0">${esc(GK.T('{0} weitere Treffer – bitte die Suche eingrenzen.', [hits.length - 8]))}</p>` : '');
+            $('tkList').querySelectorAll('[data-tk]').forEach(b => { b.onclick = () => choose(+b.dataset.tk); });
+          };
+          $('tkQ').oninput = draw; $('tkX').onclick = () => done(null); draw(); setTimeout(() => $('tkQ') && $('tkQ').focus(), 50);
+        };
+        search();
+      };
+      run().catch(e => { fail(e); done(null); });
+    });
+  }
+  const ADDR = ['street', 'zip', 'city', 'country', 'address_extra'];
+  /** Umzug: andere aktive Mitglieder unter derselben bisherigen Anschrift – mit Häkchen je Person fragen, ob sie ebenfalls umziehen. → Nummern der Gewählten, [] für „nur diese Person“, null bei Abbruch */
+  function askMove(p, next, rows) {
+    return new Promise(resolve => {
+      const line = a => [a.street, [a.zip, a.city].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '–';
+      dialog(`<h2>Umzug</h2>
+        <div class="mv-move"><div><span class="muted s">Bisher</span><b translate="no">${esc(line(p))}</b></div><div><span class="muted s">Neu</span><b translate="no">${esc(line({ ...p, ...next }))}</b></div></div>
+        <p style="margin:0 0 8px">Unter derselben Anschrift wohnen auch:</p>
+        <div class="mv-tkopts">${rows.map(r => `<label class="chk"><input type="checkbox" data-mv="${r.id}" checked><span><b translate="no">${esc(GK.lastFirst(r.name))}</b>${r.member_no || r.age != null ? `<br><span class="muted s">${esc([r.member_no ? `${GK.T('Nr.')} ${r.member_no}` : '', r.age != null ? `${r.age} ${GK.T('Jahre')}` : ''].filter(Boolean).join(' · '))}</span>` : ''}</span></label>`).join('')}</div>
+        <p class="muted s" style="margin:12px 0 0"><b>Dort ebenfalls ändern?</b> Wer abgehakt bleibt, bekommt die neue Anschrift. Jede Änderung steht im Verlauf und im Protokoll.</p>
+        <div class="btns"><button class="btn ghost" id="mvX" type="button">Abbrechen</button><button class="btn primary" id="mvOk" type="button">Speichern</button></div>`);
+      $('mvX').onclick = () => { closeDialog(); resolve(null); };
+      $('mvOk').onclick = () => { const ids = [...$('dialog').querySelectorAll('[data-mv]:checked')].map(i => +i.dataset.mv); closeDialog(); resolve(ids); };
+    });
+  }
+
+  function newMember(init = {}) {
     const m = st.meta, full = !SC();
-    const ageAt = (b, d) => { if (!b) return null; let a = +d.slice(0, 4) - +b.slice(0, 4); if (d.slice(5) < b.slice(5)) a--; return a; };
+    let rel = init.rel || null, country = init.country || '';   // rel: Familie (neu angelegt als Partner/in oder Kind) bzw. „zahlt über“
     dialog(`<h2>Neues Mitglied</h2>
-      <p class="muted s" style="margin-top:0">Angelegt wird nur vollständig: Adresse, E-Mail und Handy${full ? ', Beitrag, Zahlung (bei Lastschrift Kontoinhaber, IBAN und Datum des SEPA-Mandats)' : ''} und die unterschriebene Beitrittserklärung als PDF oder Foto. Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.</p>
+      <div class="row" style="align-items:flex-start;margin:0 0 14px"><p class="muted s" style="margin:0;flex:1 1 280px">Angelegt wird nur vollständig: Adresse, E-Mail und Handy${full ? ', Beitrag, Zahlung (bei Lastschrift Kontoinhaber, IBAN und Datum des SEPA-Mandats)' : ''} und die unterschriebene Beitrittserklärung als PDF oder Foto. Mit Unterschrift auf dem Tablet geht es über „Beitrittserklärung am Tablet“.</p>
+        ${SC() ? '' : '<button class="btn" id="mvTake" type="button">Von Mitglied übernehmen …</button>'}</div>
+      <div id="nRelBox" style="display:none;margin:0 0 14px"></div>
       <div class="mv-grid" style="--c:4">
         <label class="f">Vorname<input id="nFirst" autocomplete="off"></label><label class="f">Nachname<input id="nLast" autocomplete="off"></label><label class="f">Geburtsdatum<input id="nBirth" type="date"></label><label class="f">Eintritt<input id="nEntry" type="date" value="${m.today}"></label>
         <label class="f w2">Straße und Hausnummer<input id="nStreet" autocomplete="off"></label><label class="f">PLZ<input id="nZip" inputmode="numeric" maxlength="10"></label><label class="f">Ort<input id="nCity"></label>
-        <label class="f w2">E-Mail<input id="nMail" type="email"></label><label class="f">Handy<input id="nMob" type="tel" placeholder="z. B. 0170 1234567"></label><label class="f">Mitgliedsnummer<input id="nNo" placeholder="${esc(m.nextNo)} (automatisch)"></label>
-        ${full ? `<label class="f w2">Beitrag<select translate="no" id="nFee"></select></label>` : ''}
-        <label class="f ${full ? '' : 'w2'}">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
-        ${full ? `<label class="f">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${m.settings.sepa_required ? '' : opt('rechnung', 'Rechnung') + opt('bar', 'bar')}</select></label>
-        <label class="f w2 nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label><label class="f w2 nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
+        <label class="f w2">E-Mail<input id="nMail" type="email"></label><label class="f">Handy<input id="nMob" type="tel" placeholder="z. B. 0170 1234567"></label><label class="f">Telefon Festnetz<input id="nPhone" type="tel"></label>
+        ${full ? `<label class="f w2 nfee">Beitrag<select translate="no" id="nFee"></select></label>` : ''}
+        <label class="f ${full ? '' : 'w2'}" id="nDeptL">Abteilung<select translate="no" id="nDept">${SC() ? m.scope.map(d => opt(d.id, d.name)).join('') : `<option value="">–</option>${m.depts.filter(d => d.active).map(d => opt(d.id, d.name)).join('')}`}</select></label>
+        ${full ? `<label class="f npay">Zahlart<select id="nPay">${opt('lastschrift', 'Lastschrift')}${m.settings.sepa_required ? '' : opt('rechnung', 'Rechnung') + opt('bar', 'bar')}</select></label>
+        <label class="f w2 nb">Kontoinhaber<input id="nHold" placeholder="wie auf dem Mandat"></label><label class="f w2 nb">IBAN<input id="nIban" autocomplete="off" spellcheck="false"></label>
+        <label class="f w2 nb">SEPA-Mandat unterschrieben am<input id="nMand" type="date" value="${m.today}"></label>` : ''}
+        <label class="f w2">Mitgliedsnummer<input id="nNo" placeholder="${esc(m.nextNo)} (automatisch)"></label>
         <label class="f wall">Unterschriebene Beitrittserklärung${full ? ' mit SEPA-Mandat' : ''} (PDF oder Foto)<input id="nDocF" type="file" accept="application/pdf,image/*" hidden><div class="mv-up" id="nDoc"><span>Datei wählen oder hierher ziehen</span><b>Datei wählen …</b></div></label>
       </div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="nOk">Anlegen</button></div>`, true);
+    for (const [k, v] of Object.entries(init.f || {})) if ($(k) && v) $(k).value = v;
     // Kontoinhaber: vorschlagen, solange niemand etwas anderes eingetragen hat (bei Kindern meist ein Elternteil – dann überschreiben)
     let holdAuto = true;
     const holdSync = () => { if ($('nHold') && holdAuto) $('nHold').value = [val('nFirst'), val('nLast')].filter(Boolean).join(' '); };
@@ -312,21 +423,59 @@
     dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag'); if (e.dataTransfer.files.length) upDoc(e.dataTransfer.files[0]); });
     const fees = () => {   // Beiträge passend zum Alter (bei Eintritt) – unpassende ausgegraut
       if (!$('nFee')) return;
-      const age = ageAt(val('nBirth'), val('nEntry') || m.today), cur = val('nFee');
+      const age = ageOn(val('nBirth'), val('nEntry') || m.today), cur = val('nFee');
       const fits = x => age == null ? x.age_min == null && x.age_max == null : (x.age_min == null || age >= x.age_min) && (x.age_max == null || age <= x.age_max);
       const list = m.fees.filter(f => f.active && f.kind !== 'zusatz'), ok = list.filter(fits), no = list.filter(x => !fits(x));
       $('nFee').innerHTML = `<option value="">– Beitrag wählen –</option>${ok.map(f => opt(f.id, feeLabel(f), cur)).join('')}${no.length ? `<optgroup label="${esc(age == null ? 'mit Altersgrenze – erst Geburtsdatum eintragen' : `passt nicht zum Alter (${age} Jahre)`)}">${no.map(f => `<option value="${f.id}" disabled>${esc(feeLabel(f))}</option>`).join('')}</optgroup>` : ''}`;
     };
-    const pay = () => { if ($('nPay')) $('dialog').querySelectorAll('.nb').forEach(x => { x.style.display = val('nPay') === 'lastschrift' ? '' : 'none'; }); };
-    fees(); pay();
-    $('nBirth').onchange = fees; $('nEntry').onchange = fees; if ($('nPay')) $('nPay').onchange = pay;
+    const pay = () => {   // Bankfelder nur bei Lastschrift – und nie, wenn ein anderer zahlt (Familie, „zahlt über“)
+      const other = Boolean(rel), show = (el, on) => { el.style.display = on ? '' : 'none'; };
+      if ($('nPay')) { show($('dialog').querySelector('.npay'), !other); $('dialog').querySelectorAll('.nb').forEach(x => show(x, !other && val('nPay') === 'lastschrift')); }
+      if ($('nFee')) show($('dialog').querySelector('.nfee'), !(rel && rel.kind === 'family'));
+      if (full) $('nDeptL').classList.toggle('w2', Boolean(rel && rel.kind === 'family'));   // ohne Beitrag und Zahlart füllt die Abteilung die halbe Zeile – wie die Mitgliedsnummer daneben
+    };
+    /** Hinweis zu den Familienregeln (Rolle nach Alter), sobald das Geburtsdatum da ist – streng prüft der Server beim Anlegen */
+    const relHint = () => {
+      const h = $('nRelHint'); if (!h) return;
+      const age = ageOn(val('nBirth'), m.today), max = m.settings.family_child_max || 18; let t = '';
+      if (rel && rel.kind === 'family' && age != null) {
+        if (rel.role === 'kind' && age > max) t = GK.T('Die Person ist {0} Jahre alt und damit älter als {1} Jahre – als Kind kann sie nicht in die Familie. Bitte „Partner/in“ wählen (höchstens ein weiterer Erwachsener) oder das Geburtsdatum prüfen.', [age, max]);
+        else if (rel.role === 'partner' && age <= max) t = GK.T('Die Person ist {0} Jahre alt und gilt damit als Kind – bitte „Kind“ wählen.', [age]);
+        else if (!rel.role && age > max && rel.partner) t = GK.T('In der Familie gibt es schon eine/n Partner/in – in einer Familie sind höchstens zwei Erwachsene.');
+        else if (!rel.role) t = age > max ? GK.T('Mit {0} Jahren wird die Person als Partner/in eingetragen.', [age]) : GK.T('Mit {0} Jahren wird die Person als Kind eingetragen.', [age]);
+      }
+      h.style.display = t ? '' : 'none'; h.querySelector('span').textContent = t; h.className = t && /gibt es schon|älter als|gilt damit/.test(t) ? 'banner a' : 'banner b';
+    };
+    const drawRel = () => {
+      const box = $('nRelBox');
+      if (!rel) { box.style.display = 'none'; box.innerHTML = ''; pay(); return; }
+      const nm = `<b translate="no">${esc(GK.lastFirst(rel.name))}</b>`;
+      box.style.display = '';
+      box.innerHTML = `<div class="banner b"><span>${rel.kind === 'family' ? `${esc(GK.T('Neu in der Familie von'))} ${nm}${rel.role ? ` · ${esc(GK.T(rel.role === 'kind' ? 'als Kind' : 'als Partner/in'))}` : ''} · ${esc(GK.T('Zahlung über das Oberhaupt – kein eigener Beitrag, kein eigenes Konto.'))}` : `${esc(GK.T('Zahlt über'))} ${nm} · ${esc(GK.T('ein eigenes Konto ist nicht nötig.'))}`}</span><button class="btn small" id="nRelX" type="button">Entfernen</button></div>
+        <div class="banner b" id="nRelHint" style="display:none;margin-top:8px"><span></span></div>`;
+      $('nRelX').onclick = () => { rel = null; drawRel(); };
+      pay(); relHint();
+    };
+    fees(); drawRel();
+    $('nBirth').onchange = () => { fees(); relHint(); }; $('nBirth').oninput = relHint; $('nEntry').onchange = fees; if ($('nPay')) $('nPay').onchange = pay;
+    if ($('mvTake')) $('mvTake').onclick = async () => {
+      const r = await takeFrom({ family: true, birth: () => val('nBirth') });
+      if (!r) return;
+      const map = { street: 'nStreet', zip: 'nZip', city: 'nCity', last_name: 'nLast', phone: 'nPhone', email: 'nMail', mobile: 'nMob' };
+      for (const [k, v] of Object.entries(r.v)) if (map[k]) $(map[k]).value = v;
+      if (r.v.country !== undefined) country = r.v.country;
+      if (r.rel) rel = r.rel;
+      holdSync(); drawRel(); fees();
+    };
     $('c').onclick = closeDialog; setTimeout(() => $('nFirst')?.focus(), 50);
     $('nOk').onclick = () => GK.busy($('nOk'), async () => {
       try {
-        const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'),
+        const other = Boolean(rel), famRel = rel && rel.kind === 'family';
+        const r = await api('member', 'POST', { first_name: val('nFirst'), last_name: val('nLast'), birth_date: val('nBirth') || null, email: val('nMail'), mobile: val('nMob'), phone: val('nPhone'), street: val('nStreet'), zip: val('nZip'), city: val('nCity'), country: country || undefined,
           entry_date: val('nEntry'), member_no: val('nNo') || undefined, department_id: +val('nDept') || undefined,
           doc_id: doc ? doc.doc_id : null,
-          ...(full ? { fee_id: +val('nFee') || null, payment: val('nPay'), iban: val('nIban'), holder: val('nHold'), mandate_date: val('nMand') } : {}) });
+          ...(famRel ? { family_of: rel.id, family_role: rel.role } : rel ? { payer_id: rel.id } : {}),
+          ...(full ? { fee_id: famRel ? null : +val('nFee') || null, ...(other ? {} : { payment: val('nPay'), iban: val('nIban'), holder: val('nHold'), mandate_date: val('nMand') }) } : {}) });
         closeDialog(); toast(r.pending ? `Mitglied angelegt. ${PENDING}` : 'Mitglied angelegt.'); openMember(r.id);
       } catch (e) { fail(e); }
     });
@@ -386,7 +535,7 @@
         <label class="f">Mitgliedsnummer<input id="sNo" value="${esc(p.member_no || '')}"></label>
         <label class="f">Status<select id="sStatus">${opt('aktiv', 'aktiv', p.status)}${opt('passiv', 'passiv / fördernd', p.status)}${opt('ehren', 'Ehrenmitglied', p.status)}${opt('ruhend', 'ruhend', p.status)}</select></label>
       </div></div>
-      <div class="card"><h3>Anschrift & Kontakt</h3><div class="mv-grid" style="--c:4">
+      <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Anschrift & Kontakt</h3>${ro ? '' : '<button class="btn small" id="mvTake" type="button">Von Mitglied übernehmen …</button>'}</div><div id="sRel" style="display:none;margin-bottom:14px"></div><div class="mv-grid" style="--c:4">
         <label class="f w2">Straße und Hausnummer<input id="sStreet" value="${esc(p.street || '')}"></label>
         <label class="f">PLZ<input id="sZip" value="${esc(p.zip || '')}" inputmode="numeric"></label>
         <label class="f">Ort<input id="sCity" value="${esc(p.city || '')}"></label>
@@ -429,33 +578,61 @@
       const h = document.createElement('p'); h.className = 'muted s'; h.textContent = 'Mitgliedsnummer, Status, Eintritt, Schlüsselnummer, Notizen und Einwilligungen pflegt die Vereinsverwaltung.';
       $('sSave').parentNode.prepend(h); h.style.marginRight = 'auto';
     }
-    $('sSave').onclick = async () => {
+    // „Von Mitglied übernehmen …“: füllt nur das Formular; Familie bzw. „zahlt über“ wird mit „Speichern“ gesetzt
+    let rel = null;
+    const drawRel = () => {
+      const box = $('sRel'); if (!box) return;
+      if (!rel) { box.style.display = 'none'; box.innerHTML = ''; return; }
+      const nm = `<b translate="no">${esc(GK.lastFirst(rel.name))}</b>`;
+      box.style.display = '';
+      box.innerHTML = `<div class="banner b"><span>${rel.kind === 'family' ? GK.T('Mit „Speichern“: zur Familie von {0} hinzufügen', [nm]) : GK.T('Mit „Speichern“: zahlt über {0}', [nm])}</span><button class="btn small" id="sRelX" type="button">Entfernen</button></div>`;
+      $('sRelX').onclick = () => { rel = null; drawRel(); };
+    };
+    if ($('mvTake')) $('mvTake').onclick = async () => {
+      const r = await takeFrom({ family: !SC(), skip: p.id, birth: () => val('sBirth') });
+      if (!r) return;
+      const map = { street: 'sStreet', zip: 'sZip', city: 'sCity', country: 'sCountry', last_name: 'sLast', phone: 'sPhone', email: 'sMail', mobile: 'sMobile' };
+      for (const [k, v] of Object.entries(r.v)) { const e = $(map[k]); if (e) { e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); } }
+      if (r.rel) { rel = r.rel; drawRel(); }
+    };
+    $('sSave').onclick = () => GK.busy($('sSave'), async () => {
       try {
+        // Umzug: wohnen andere aktive Mitglieder unter der bisherigen Anschrift, fragen wir je Person, ob sie ebenfalls umziehen
+        const next = { street: val('sStreet'), zip: val('sZip'), city: val('sCity'), address_extra: val('sExtra'), country: val('sCountry') };
+        let move = [];
+        if (!SC() && ADDR.some(k => (next[k] || '') !== (p[k] || ''))) {
+          const same = await api(`member/${p.id}/same-address`).catch(() => ({ rows: [] }));
+          if (same.rows.length) { move = await askMove(p, next, same.rows); if (move === null) return; }
+        }
         await api('member/' + p.id, 'PUT', { salutation: val('sSal'), title: val('sTitle'), first_name: val('sFirst'), last_name: val('sLast'), birth_date: val('sBirth') || null, gender: val('sGen'), member_no: val('sNo'),
           status: val('sStatus'), street: val('sStreet'), zip: val('sZip'), city: val('sCity'), address_extra: val('sExtra'), country: val('sCountry'), email: val('sMail'), mobile: val('sMobile'), phone: val('sPhone'),
           letter_salutation: val('sLetter'), entry_date: val('sEntry') || null, key_no: $('sKey') ? val('sKey') : (p.key_no || ''), notes: $('sNotes').value,
-          consents: Object.fromEntries([...el.querySelectorAll('[data-cons]')].map(c => [c.dataset.cons, c.checked])) });
-        GK.clean(); toast('Gespeichert.'); again();
+          consents: Object.fromEntries([...el.querySelectorAll('[data-cons]')].map(c => [c.dataset.cons, c.checked])), ...(move.length ? { move_address_ids: move } : {}) });
+        if (rel) {
+          try { await (rel.kind === 'family' ? api(`member/${p.id}/family`, 'PUT', { family_of: rel.id }) : api(`member/${p.id}/payer`, 'PUT', { payer_id: rel.id })); }
+          catch (e) { GK.clean(); toast(`${GK.T('Die Stammdaten sind gespeichert, die Zuordnung nicht:')} ${e.message}`, true); again(); return; }
+        }
+        GK.clean(); toast(move.length === 1 ? 'Gespeichert – eine weitere Person ist ebenfalls umgezogen.' : move.length ? GK.T('Gespeichert – {0} weitere Personen sind ebenfalls umgezogen.', [move.length]) : 'Gespeichert.'); again();
       } catch (e) { fail(e); }
-    };
+    });
   }
 
   function subMembership(el, d, again) {
     const p = d.person, m = st.meta, id = p.id;
-    const feeRows = d.fees.map(f => `<tr class="${f.end_date && f.end_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(f.name)}</b>${(!f.end_date || f.end_date >= m.today) && p.age != null && ((f.age_min != null && p.age < f.age_min) || (f.age_max != null && p.age > f.age_max)) ? ` <span class="pill r">passt nicht zum Alter (${f.age_max != null ? `bis ${f.age_max}` : `ab ${f.age_min}`} J.)</span>` : ''}${f.note ? `<div class="muted s">${esc(f.note)}</div>` : ''}</td>
+    const feeRows = d.fees.map(f => `<tr class="${f.end_date && f.end_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(f.name)}</b>${(!f.end_date || f.end_date >= m.today) && p.age != null && ((f.age_min != null && p.age < f.age_min) || (f.age_max != null && p.age > f.age_max)) ? ` <span class="pill r">passt nicht zum Alter (${ageLim(f, ' J.')})</span>` : ''}${f.note ? `<div class="muted s">${esc(f.note)}</div>` : ''}</td>
       <td class="r">${euro(f.eff_cents)}${f.cents != null ? ' <span class="pill">abweichend</span>' : ''}</td><td>${esc(INTERVAL[f.interval] || f.interval)}</td><td class="num nw k-weg">${deDate(f.start_date)}</td><td class="nw k-weg">${f.end_date ? deDate(f.end_date) : '–'}</td>
       <td class="nw k-weg">${f.booked_until ? deDate(f.booked_until) : '<span class="muted s">noch nichts</span>'}</td><td class="r nw">${SC() ? '' : `<button class="btn small" data-mf="${f.id}">Bearbeiten</button>`}</td></tr>`).join('');
     const myDept = depId => !SC() || m.scope.some(x => x.id === depId);
-    const zText = x => '<div>' + (x.zusatz_free ? '<span class="pill">befreit</span>' : x.zusatz ? `<span translate="no">${esc(x.zusatz.name)}</span> · ${euro(x.zusatz.cents)}${x.zusatz.auto ? '' : ' <span class="pill b">fest</span>'}${x.zusatz.assumed ? '<div class="muted s">Geburtsdatum fehlt – Erwachsenenbeitrag angenommen</div>' : ''}${x.booked_until ? `<div class="muted s">abgerechnet bis ${deDate(x.booked_until)}</div>` : ''}`
+    const zText = x => '<div>' + (x.zusatz_free ? '<span class="pill">befreit</span>' : x.zusatz ? `${nameBetrag(x.zusatz.name, x.zusatz.cents, '', true)}${x.zusatz.auto ? '' : ' <span class="pill b">fest</span>'}${x.zusatz.assumed ? '<div class="muted s">Geburtsdatum fehlt – Erwachsenenbeitrag angenommen</div>' : ''}${x.booked_until ? `<div class="muted s">abgerechnet bis ${deDate(x.booked_until)}</div>` : ''}`
       : x.zusatz_nomatch ? (x.zusatz_age != null ? `<span class="pill">beitragsfrei</span><div class="muted s">keine Altersstufe für ${x.zusatz_age} Jahre</div>` : '<span class="pill a">Geburtsdatum fehlt</span>') : '<span class="muted s">–</span>') + '</div>';
     const depRows = d.departments.map(x => `<tr class="${x.exit_date && x.exit_date < m.today ? 'off' : ''}"><td><b translate="no">${esc(x.name)}</b></td><td>${esc(x.status)}</td><td class="num nw k-weg">${deDate(x.entry_date) || '–'}</td><td class="nw k-weg">${x.exit_date ? deDate(x.exit_date) : '–'}</td><td>${zText(x)}</td>
       <td class="r nw">${myDept(x.department_id) ? `<button class="btn small" data-md="${x.id}">Bearbeiten</button>` : ''}</td></tr>`).join('');
     el.innerHTML = `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Beiträge</h3>${SC() || d.familyHead ? '' : '<button class="btn small" id="fAdd">+ Beitrag</button>'}</div>
         ${d.fees.length ? `<table class="tbl kompakt"><tr><th>Beitrag</th><th class="r">Betrag</th><th>Rhythmus</th><th>ab</th><th>bis</th><th>abgerechnet bis</th><th></th></tr>${feeRows}</table>`
-          : `<p class="muted">${d.familyHead ? `Kein eigener Beitrag – im Familienbeitrag von ${esc(d.familyHead.name)} enthalten (Reiter „Zahlung & Familie“).` : p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt.' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
+          : `<p class="muted">${d.familyHead ? `Kein eigener Beitrag – im Familienbeitrag von ${esc(GK.lastFirst(d.familyHead.name))} enthalten (Reiter „Zahlung & Familie“).` : p.payer_id ? 'Kein eigener Beitrag – der Zahler zahlt.' : 'Noch kein Beitrag zugeordnet.'}</p>`}</div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Abteilungen</h3>${SC() ? '' : '<button class="btn small" id="dAdd">+ Abteilung</button>'}</div>
         ${d.departments.length ? `<table class="tbl kompakt"><tr><th>Abteilung</th><th>Status</th><th>Eintritt</th><th>Austritt</th><th>Zusatzbeitrag</th><th></th></tr>${depRows}</table>
-          <p class="muted s" style="margin-bottom:0">${d.familyHead ? `Der Zusatzbeitrag wird ${esc(d.familyHead.name)} (Oberhaupt) zusätzlich zum Familienbeitrag belastet.` : 'Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.'}</p>` : '<p class="empty">Keiner Abteilung zugeordnet.</p>'}</div>
+          <p class="muted s" style="margin-bottom:0">${d.familyHead ? `Der Zusatzbeitrag wird ${esc(GK.lastFirst(d.familyHead.name))} (Oberhaupt) zusätzlich zum Familienbeitrag belastet.` : 'Zusatzbeiträge der Abteilungen gelten je Person nach Alter – auch in einer Familie zahlt der Hauptzahler sie nur für die Angehörigen, die der Abteilung angehören.'}</p>` : '<p class="empty">Keiner Abteilung zugeordnet.</p>'}</div>
       <div class="mv-two">
         <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Ehrungen</h3><button class="btn small" id="hAdd">+ Ehrung</button></div>
           ${d.honors.length ? `<table class="tbl kompakt">${d.honors.map(h => `<tr><td><b>${esc(h.name)}</b></td><td class="num nw">${deDate(h.date)}</td><td class="r"><button class="btn small danger" data-hx="${h.id}">Entfernen</button></td></tr>`).join('')}</table>` : '<p class="empty">Keine Ehrungen eingetragen.</p>'}
@@ -550,27 +727,29 @@
     const heads = st.rows.filter(r => r.id !== id && live(r) && !r.family_of && (r.fee_ids.some(x => famFeeIds.has(x)) || r.id === p.family_of));
     const isHead = d.family.length > 0 && d.family[0].id === id;
     const famOpts = `<option value="">– keine –</option>${heads.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, p.family_of)).join('')}`;
-    const famTable = list => `<table class="tbl kompakt">${list.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.role === 'oberhaupt' ? '<span class="pill g">Oberhaupt</span>' : esc(ROLE[f.role] || f.role)}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}${isHead && f.id !== id ? ` <button class="btn small" data-famx="${f.id}" title="Aus der Familienmitgliedschaft lösen">Lösen</button>` : ''}</td></tr>`).join('')}</table>`;
+    const famTable = list => `<table class="tbl kompakt">${list.map(f => `<tr><td><b>${esc(GK.lastFirst(f.name))}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.role === 'oberhaupt' ? '<span class="pill g">Oberhaupt</span>' : esc(ROLE[f.role] || f.role)}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}${isHead && f.id !== id ? ` <button class="btn small" data-famx="${f.id}" title="Aus der Familienmitgliedschaft lösen">Lösen</button>` : ''}</td></tr>`).join('')}</table>`;
+    const hasPartner = d.family.some(f => f.role === 'partner' && !(f.exit_date && f.exit_date < st.meta.today));
     const addable = st.rows.filter(r => r.id !== id && live(r) && !r.family_of && !d.family.some(f => f.id === r.id));
     el.innerHTML = `<div class="mv-two">
       <div class="card"><h3>Wer zahlt?</h3>
         <div class="mv-grid" style="--c:1">
-          <label class="f">Zahler<select id="pPayer" ${d.familyHead ? 'disabled' : ''}><option value="">${esc(p.name)} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
+          <label class="f">Zahler<select id="pPayer" ${d.familyHead ? 'disabled' : ''}><option value="">${esc(GK.lastFirst(p.name))} zahlt selbst</option>${memberOptions(p.payer_id, id)}</select></label>
           <label class="f ${p.payer_id ? '' : 'hidden'}" id="pDrinksL">Verkauf am Tablet<select id="pSales">${opt('payer', 'Über den Hauptzahler (nicht in der Liste)', p.sales_mode || 'payer')}${opt('own_payer', 'Eigener Eintrag – zahlt der Hauptzahler', p.sales_mode)}${opt('own', 'Eigener Eintrag – zahlt selbst', p.sales_mode)}</select></label>
           <label class="f">Zahlungsart (des Zahlers)<select id="pPay" ${head ? '' : 'disabled'}>${Object.entries(PAY).filter(([k]) => !st.meta.settings.sepa_required || k === 'lastschrift' || k === p.payment).map(([k, l]) => opt(k, l, p.payment)).join('')}</select></label>
         </div>
-        ${d.familyHead ? `<div class="banner b mv-lockinfo"><span><b>Familienmitglied von ${esc(d.familyHead.name)}</b> – gezahlt wird immer über das Oberhaupt. Einstellbar ist nur, wie am Tablet gebucht wird.</span></div>` : ''}
+        ${d.familyHead ? `<div class="banner b mv-lockinfo"><span><b>Familienmitglied von ${esc(GK.lastFirst(d.familyHead.name))}</b> – gezahlt wird immer über das Oberhaupt. Einstellbar ist nur, wie am Tablet gebucht wird.</span></div>` : ''}
         <p class="muted s">Der Zahler ist eine reine Geldbeziehung: Beiträge, Zusatzbeiträge und Verkauf aller Angehörigen laufen über sein Konto und Mandat – auch für erwachsene Kinder mit eigenem Beitrag. Am Tablet bucht die Zahlergruppe standardmäßig auf den Namen des Hauptzahlers.</p>
-        ${d.payerGroup.length ? `<h4 class="mv-sub">Zahlergruppe</h4><table class="tbl kompakt">${d.payerGroup.map(f => `<tr><td><b>${esc(f.name)}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.head ? '<span class="pill g">Hauptzahler</span>' : `<span class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</span>`}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>` : ''}
+        ${d.payerGroup.length ? `<h4 class="mv-sub">Zahlergruppe</h4><table class="tbl kompakt">${[...d.payerGroup].sort((a, b) => GK.lastFirst(a.name).localeCompare(GK.lastFirst(b.name), 'de')).map(f => `<tr><td><b>${esc(GK.lastFirst(f.name))}</b>${f.id === id ? '<div class="muted s">dieses Mitglied</div>' : ''}</td><td class="nw">${f.age != null ? f.age + ' Jahre' : '<span class="muted s">ohne Geburtsdatum</span>'}</td><td class="nw">${f.head ? '<span class="pill g">Hauptzahler</span>' : `<span class="muted s">Verkauf: ${f.sales_mode === 'payer' ? 'über Hauptzahler' : f.sales_mode === 'own' ? 'eigener Eintrag, zahlt selbst' : 'eigener Eintrag'}</span>`}</td><td class="r nw">${f.id !== id ? `<button class="btn small" data-open="${f.id}">Öffnen</button>` : ''}</td></tr>`).join('')}</table>` : ''}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pSave">Speichern</button></div></div>
       <div class="card"><h3>Familienmitgliedschaft</h3>
         <div class="mv-grid" style="--c:1">
           <label class="f">Familienmitgliedschaft bei<select id="pFamOf" ${isHead ? 'disabled' : ''}>${famOpts}</select></label>
         </div>
-        <p class="muted s">${isHead ? `${esc(p.name)} ist Oberhaupt: der eigene Familienbeitrag deckt Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre ab. Ein Oberhaupt kann nicht selbst einer anderen Familie zugeordnet sein.`
+        <p class="muted s">${isHead ? `${esc(GK.lastFirst(p.name))} ist Oberhaupt: der eigene Familienbeitrag deckt Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre ab. Ein Oberhaupt kann nicht selbst einer anderen Familie zugeordnet sein.`
           : `Wählbar sind Mitglieder mit aktivem Familienbeitrag. Wer zugeordnet ist, braucht keine eigene Beitragsart – Zusatzbeiträge der Abteilungen bleiben je Person. Erlaubt: Oberhaupt, ein/e Partner/in und Kinder bis ${esc(String(st.meta.settings.family_child_max || 18))} Jahre.${!d.familyFee && famFeeIds.size === 0 ? ' Noch keine Beitragsart mit Familienbeitrag angelegt (Mitglieder › Beiträge & Abteilungen).' : ''}`}</p>
         ${d.family.length ? `<h4 class="mv-sub">Familie</h4>${famTable(d.family)}` : d.familyFee ? '<p class="empty">Noch keine Angehörigen zugeordnet – unten hinzufügen.</p>' : ''}
-        ${isHead || d.familyFee ? `<div class="row" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>${addable.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, '')).join('')}</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>` : ''}
+        ${isHead || d.familyFee ? `<div class="row mv-famadd" style="margin-top:10px"><label class="f" style="flex:1"><select id="pAddFam" data-nodirty><option value="">Angehörige/n hinzufügen …</option>${addable.map(r => opt(r.id, `${GK.lastFirst(r.name)}${r.member_no ? ' (' + r.member_no + ')' : ''}`, '')).join('')}</select></label><button class="btn" id="pFamOk">Hinzufügen</button></div>
+          ${SC() ? '' : `<div class="mv-famact"><button class="btn" id="pFamPartner" type="button" ${hasPartner ? 'disabled' : ''}>Partner/in neu anlegen</button><button class="btn" id="pFamKid" type="button">Kind neu anlegen</button></div>${hasPartner ? '<p class="muted s" id="pFamPartnerWhy" style="margin:6px 0 0">Es gibt schon eine/n Partner/in – in einer Familie sind höchstens zwei Erwachsene.</p>' : ''}`}` : ''}
         <div class="row" style="justify-content:flex-end"><button class="btn primary" id="pFamSave" ${isHead ? 'disabled' : ''}>Speichern</button></div></div></div>
       ${d.charges ? `<div class="card"><h3>Forderungen & Zahlungen</h3>
         ${d.charges.length ? chargeTable(d.charges, { member: true }) : '<p class="empty">Noch keine Forderungen.</p>'}
@@ -588,6 +767,10 @@
     };
     $('pFamSave').onclick = () => GK.busy($('pFamSave'), async () => { try { await api(`member/${id}/family`, 'PUT', { family_of: val('pFamOf') ? +val('pFamOf') : null }); GK.clean(); toast('Gespeichert.'); again(); } catch (e) { fail(e); } });
     if ($('pFamOk')) $('pFamOk').onclick = () => GK.busy($('pFamOk'), async () => { const x = +val('pAddFam'); if (!x) return; try { await api(`member/${x}/family`, 'PUT', { family_of: id }); toast('Hinzugefügt.'); again(); } catch (e) { fail(e); } });
+    // neue Angehörige: Formular „Neues Mitglied“, vorbelegt mit Anschrift, Nachname und Festnetz des Oberhaupts, Familie und Zahlung über das Oberhaupt
+    const newRel = role => newMember({ rel: { kind: 'family', id, name: p.name, role }, country: p.country || '', f: { nStreet: p.street || '', nZip: p.zip || '', nCity: p.city || '', nLast: p.last_name || '', nPhone: p.phone || '' } });
+    if ($('pFamPartner')) $('pFamPartner').onclick = () => newRel('partner');
+    if ($('pFamKid')) $('pFamKid').onclick = () => newRel('kind');
     el.querySelectorAll('[data-famx]').forEach(b => { b.onclick = async () => {
       const x = d.family.find(f => f.id === +b.dataset.famx);
       if (!await ask(`${x.name} aus der Familienmitgliedschaft lösen?\n\nDer Familienbeitrag deckt ${x.name} dann nicht mehr ab – bitte danach einen eigenen Beitrag zuordnen.`, { ok: 'Lösen', danger: false })) return;
@@ -606,7 +789,7 @@
   /** Karte „Mahnungen“ am Zahler: Ausnahme vom Einzug (2 Rücklastschriften), Mahnsperre, Mahnhistorie */
   function dunningCard(x) {
     const VIA2 = { email: 'E-Mail', brief: 'Brief' };
-    return `<div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
+    return `<div class="card"><div class="row mv-dunhead" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Mahnungen</h3>
         <div class="row">${x.block ? '<button class="btn" id="pDunOff">Mahnsperre aufheben</button>' : '<button class="btn" id="pDunBlk">Mahnsperre …</button>'}</div></div>
       ${x.debitBlocked ? `<div class="banner a"><span>Seit ${deDate(x.debitBlocked)} vom Lastschrift-Einzug ausgenommen (${x.debitReturns} Rücklastschriften) – die offenen Posten werden per Überweisung und Mahnung bezahlt. Das Mandat bleibt eingetragen.</span><button class="btn small" id="pDebOn">Wieder einziehen …</button></div>` : ''}
       ${x.block ? `<div class="banner b"><span>Mahnsperre: ${esc(x.block.reason)}${x.block.until ? ` (bis ${deDate(x.block.until)})` : ''}</span></div>` : ''}
@@ -618,7 +801,7 @@
     const p = d.person, b = d.bank || {}, id = p.id;
     // Familienmitglied oder abweichender Zahler: Konto und Mandat gehören dem Oberhaupt/Zahler – hier nur ausgegraut zur Orientierung
     const lockTo = d.familyHead || (p.payer_id ? (d.payer || { id: p.payer_id, name: 'ein anderes Mitglied' }) : null);
-    const lockBanner = lockTo ? `<div class="banner b mv-lockinfo"><span><b>${d.familyHead ? `Familienmitglied von ${esc(lockTo.name)}` : `Zahler: ${esc(lockTo.name)}`}</b> – Beiträge laufen über Konto und Mandat ${d.familyHead ? 'des Oberhaupts' : 'des Zahlers'}. Hier ist nichts einzutragen.</span>${lockTo.id ? `<a href="#" data-lockopen="${lockTo.id}">${esc(lockTo.name)} öffnen →</a>` : ''}</div>` : '';
+    const lockBanner = lockTo ? `<div class="banner b mv-lockinfo"><span><b>${d.familyHead ? `Familienmitglied von ${esc(GK.lastFirst(lockTo.name))}` : `Zahler: ${esc(GK.lastFirst(lockTo.name))}`}</b> – Beiträge laufen über Konto und Mandat ${d.familyHead ? 'des Oberhaupts' : 'des Zahlers'}. Hier ist nichts einzutragen.</span>${lockTo.id ? `<a href="#" data-lockopen="${lockTo.id}">${esc(GK.lastFirst(lockTo.name))} öffnen →</a>` : ''}</div>` : '';
     const lockUp = () => { if (!lockTo) return; el.insertAdjacentHTML('afterbegin', lockBanner); el.querySelectorAll('.card').forEach(c => c.classList.add('mv-locked')); el.querySelectorAll('.card input, .card select, .card textarea, .card button').forEach(x => { x.disabled = true; }); const a = el.querySelector('[data-lockopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.lockopen); }; };
     const stPill = b.state ? (b.state.ok ? ['g', 'Mandat gültig'] : ['r', b.state.reason]) : ['', 'keine Bankverbindung'];
     if (!st.meta.perms.bank) {
@@ -641,7 +824,7 @@
       </div>
       <p class="muted s">${b.mandate_first_used ? `Erstmals benutzt am ${deDate(b.mandate_first_used)} – weitere Lastschriften sind Folgelastschriften.` : 'Noch nie benutzt – die nächste Lastschrift ist eine Erstlastschrift. Bei einem Mandat aus der bisherigen Vereinsverwaltung bitte „zuletzt benutzt“ eintragen.'}
         ${b.mandate_first_used && b.mandate_ref ? 'Die Mandatsreferenz kennt die Bank schon und lässt sich deshalb nicht mehr ändern – eine neue gibt es über „Neues Mandat …“. ' : ''}Ein Mandat verfällt, wenn es 36 Monate nicht benutzt wurde.${b.mandate_revoked ? ` <b>Widerrufen am ${deDate(b.mandate_revoked)}.</b>` : ''}</p>
-      <div class="row" style="justify-content:space-between"><div class="row">${b.mandate_ref ? `<button class="btn ghost" id="bRevoke">${b.mandate_revoked ? 'Widerruf aufheben' : 'Mandat widerrufen'}</button>` : ''}<button class="btn ghost" id="bNew">Neues Mandat …</button></div>
+      <div class="row mv-bankact" style="justify-content:space-between"><div class="row">${b.mandate_ref ? `<button class="btn ghost" id="bRevoke">${b.mandate_revoked ? 'Widerruf aufheben' : 'Mandat widerrufen'}</button>` : ''}<button class="btn ghost" id="bNew">Neues Mandat …</button></div>
         <button class="btn primary" id="bSave">Speichern</button></div></div>`;
     GK.watch(el);
     lockUp();
@@ -709,9 +892,9 @@
 
   function exitDialog(d, again) {
     const p = d.person, seen = new Set(), fam = [...(d.payerGroup || []), ...(d.family || [])].filter(f => !f.head && f.id !== p.id && !seen.has(f.id) && seen.add(f.id));   // Zahlergruppe und Familienmitgliedschaft
-    const yearEnd = (() => { const ys = st.meta.settings.year_start || '01-01'; const y = +st.meta.today.slice(0, 4); for (const yy of [y, y + 1]) { const e = new Date(`${yy}-${ys}T00:00:00Z`); e.setUTCDate(e.getUTCDate() - 1); const s = e.toISOString().slice(0, 10); if (s >= st.meta.today) return s; } return st.meta.today; })();
     dialog(`<h2>Austritt von ${esc(GK.lastFirst(p.name))}</h2>
-      <div class="mv-grid" style="--c:2"><label class="f">Austritt zum<input id="xDate" type="date" value="${yearEnd}"></label><label class="f">Kündigung eingegangen am<input id="xNotice" type="date" value="${st.meta.today}"></label>
+      <div class="mv-grid" style="--c:2"><label class="f">Austritt zum<input id="xDate" type="date"></label><label class="f">Kündigung eingegangen am<input id="xNotice" type="date" value="${st.meta.today}"></label>
+      <p class="muted s wall" id="xHint" style="margin:0">Vorschlag nach Kündigungsfrist und Geschäftsjahr.</p>
       <label class="f wall">Grund (optional)<input id="xReason" placeholder="z. B. Umzug"></label>
       <label class="f wall">Kündigungsschreiben o. ä. (optional, PDF oder Foto)<input id="xDoc" type="file" accept="application/pdf,image/*"></label></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk"><input type="checkbox" id="xFees" checked> Beiträge zum Austritt beenden</label><label class="chk"><input type="checkbox" id="xDepts" checked> Abteilungen zum Austritt beenden</label>
@@ -720,6 +903,11 @@
       <p class="muted s">Bis zum Austritt bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; Daten bleiben bis zum Anonymisieren erhalten.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="xOk">Austritt eintragen</button></div>`);
     $('c').onclick = closeDialog;
+    // Vorschlag „Austritt zum“: Ende des Geschäftsjahres nach Kündigungsfrist, bezogen auf den Eingang (bis man das Datum selbst ändert)
+    let own = false;
+    const suggest = () => { const day = val('xNotice'); if (own || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return; api(`notice-date?day=${day}`).then(r => { if (!own && $('xDate') && val('xNotice') === day) $('xDate').value = r.date; }).catch(() => {}); };
+    $('xDate').oninput = () => { own = true; };
+    $('xNotice').onchange = suggest; suggest();
     if (st.meta.keyModule) api(`member/${p.id}/exit-notes`).then(r => { if ($('xNotes') && (r.notes || []).length) $('xNotes').innerHTML = r.notes.map(t => `<div class="banner a"><span>${esc(t)}</span></div>`).join(''); }).catch(() => {});
     $('xOk').onclick = () => GK.busy($('xOk'), async () => {
       const body = { exit_date: val('xDate'), notice_date: val('xNotice'), reason: val('xReason'), endFees: $('xFees').checked, endDepts: $('xDepts').checked, withDependents: $('xFam') ? $('xFam').checked : false };
@@ -847,8 +1035,7 @@
       /** Eigenschaften der Zielart: gewählte vorhandene bzw. die Art aus der Datei */
       const tgtAttr = (t, v) => { const x = Number.isInteger(v) ? [...t.suggest, ...t.others].find(o => o.id === v) : (v === undefined || v === '') ? t.exactFee : null;
         return x ? { ...x, isNew: false } : { name: (targeted(t.key) && (feeName[t.key] || '').trim()) || t.name, cents: t.cents || 0, interval: t.interval, age_min: t.age_min, age_max: t.age_max, family: t.family, dept: t.kind === 'zusatz' ? t.dept : t.fdept, isNew: true }; };
-      const ageTxt = (x, kurz) => (x.age_min != null && x.age_max != null ? (kurz ? `${x.age_min}–${x.age_max} J.` : `${x.age_min}–${x.age_max} Jahre`)
-        : x.age_max != null ? (kurz ? `bis ${x.age_max} J.` : `bis ${x.age_max} Jahre`) : x.age_min != null ? (kurz ? `ab ${x.age_min} J.` : `ab ${x.age_min} Jahre`) : 'keine');
+      const ageTxt = (x, kurz) => ageLim(x, kurz ? ' J.' : ' Jahre') || 'keine';
       const ivTxt = i => INTERVAL[i] || i;
       feeOut = () => Object.fromEntries(Object.entries(feeDec).map(([k, v]) => [k, isMit(v) ? { mit: v.slice(4) } : v === 'neu' && targeted(k) && (feeName[k] || '').trim() && feeName[k].trim() !== fk(k).name ? { neu: feeName[k].trim() } : v]));
       /** Hinweise zum Zusammenführen: Kreise, Ziel „nicht übernehmen“, Abweichungen vom Ziel (es gilt die Zielart) und die Ergebniszeile */
@@ -1044,6 +1231,7 @@
       ${i === 0 ? '' : '<div class="f"><span>&nbsp;</span><button class="btn small danger" data-px="1">Entfernen</button></div>'}</div></div>`;
     dialog(`<h2>Beitrittserklärung erfassen</h2>
       <p class="muted" style="margin-top:0">Daten hier eintragen – unterschrieben wird anschließend am Tablet mit einem Code. Für eine Familienmitgliedschaft Partner/in und Kinder (bis ${cfg.child_max || 18} Jahre) hinzufügen: der/die Antragsteller/in wird Hauptzahler.</p>
+      <div class="row" style="justify-content:flex-end;margin:0 0 10px"><button class="btn" id="afTake" type="button">Von Mitglied übernehmen …</button></div>
       <div class="card mv-persons" style="margin-bottom:16px;box-shadow:none"><h3>Personen</h3><div id="afP">${person(0)}</div>
         <div class="row" style="margin-top:8px"><button class="btn small" id="afAdd">+ Person (Familie)</button></div></div>
       <div class="mv-grid" style="--c:4">
@@ -1069,6 +1257,13 @@
     drawFees();
     const bindPx = () => document.querySelectorAll('#afP [data-px]').forEach(b => { b.onclick = () => { b.closest('[data-p]').remove(); drawFees(); }; });
     $('afAdd').onclick = () => { const n = document.querySelectorAll('#afP [data-p]').length; $('afP').insertAdjacentHTML('beforeend', person(n, { last_name: (document.querySelector('#afP [data-p="0"] [data-k="last_name"]') || {}).value || '' })); bindPx(); drawFees(); };
+    $('afTake').onclick = async () => {   // Anschrift, Nachname (der antragstellenden Person), E-Mail und Mobil – Bankdaten nie
+      const r = await takeFrom({ fields: ['address', 'last_name', 'email', 'mobile'] });
+      if (!r) return;
+      const map = { street: 'afStreet', zip: 'afZip', city: 'afCity', email: 'afMail', mobile: 'afMobile' };
+      for (const [k, v] of Object.entries(r.v)) if (map[k]) $(map[k]).value = v;
+      if (r.v.last_name !== undefined) { const ln = document.querySelector('#afP [data-p="0"] [data-k="last_name"]'); if (ln) ln.value = r.v.last_name; }
+    };
     $('afHolder').onfocus = () => { if (!$('afHolder').value) { const r = document.querySelector('#afP [data-p="0"]'); $('afHolder').value = `${r.querySelector('[data-k=first_name]').value} ${r.querySelector('[data-k=last_name]').value}`.trim(); } };
     $('afOk').onclick = () => GK.busy($('afOk'), async () => {
       const persons = [...document.querySelectorAll('#afP [data-p]')].map(tr => ({ ...Object.fromEntries([...tr.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])), departments: [...tr.querySelectorAll('[data-dep]:checked')].map(i => +i.dataset.dep) }));
@@ -1152,7 +1347,7 @@
     }
     dialog(`<h2>Kündigung von ${esc(c.name)}</h2><p>Für: <b>${esc((c.kuendigung.names || []).join(', '))}</b>${c.kuendigung.reason ? `<br><span class="muted" translate="no">${esc(c.kuendigung.reason)}</span>` : ''}</p>
       <label class="f" style="max-width:260px">Austritt zum<input id="ckDate" type="date" value="${esc(c.kuendigung.exit_date)}"></label>
-      <p class="muted s">Vorschlag nach Kündigungsfrist und Beitragsjahr. Beiträge und Abteilungen enden zum Austritt; das Mitglied bekommt eine Bestätigung per E-Mail.</p>
+      <p class="muted s">Vorschlag nach Kündigungsfrist und Geschäftsjahr. Beiträge und Abteilungen enden zum Austritt; das Mitglied bekommt eine Bestätigung per E-Mail.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Kündigung bestätigen</button></div>`);
     $('c').onclick = closeDialog;
     $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Kündigung bestätigt.'); after(); } catch (e) { fail(e); } });
@@ -1183,8 +1378,8 @@
     await ageList($('cAges'), again, rows);
   }
   /* ---------------------------------------------------------------- Altersstufen */
-  const ageTo = n => (n.to ? `<span translate="no">${esc(n.to.name)}</span> · ${euro(n.to.cents)}` : '<span class="muted s">kein passender Einzelbeitrag</span>');
-  const ageFrom = n => (n.kind === 'family' ? 'Familienbeitrag' : n.from ? `<span translate="no">${esc(n.from.name)}</span> · ${euro(n.from.cents)}` : '–');
+  const ageTo = n => (n.to ? nameBetrag(n.to.name, n.to.cents) : '<span class="muted s">kein passender Einzelbeitrag</span>');
+  const ageFrom = n => (n.kind === 'family' ? 'Familienbeitrag' : n.from ? nameBetrag(n.from.name, n.from.cents) : '–');
   function ageBind(root, after) {
     root.querySelectorAll('[data-age]').forEach(b => { b.onclick = async () => {
       const [id, action] = b.dataset.age.split(':');
@@ -1475,7 +1670,7 @@
           ${p.other.length ? `<div class="banner g"><span>${p.other.length} Zahler mit Rechnung/bar (${euro(p.other.reduce((s, x) => s + x.cents, 0))}) – unter „Rechnungen & Mahnungen“ verschicken.</span></div>` : ''}
           ${p.ok.length ? `<div class="scroll" style="max-height:48vh;margin-top:12px"><table class="tbl kompakt"><tr><th>Zahler</th><th>Konto</th><th>Mandat</th><th>Art</th><th>Posten</th><th class="r">Betrag</th></tr>
             ${p.ok.map(x => `<tr><td><label class="chk"><input type="checkbox" data-kx="${x.member_id}" checked aria-label="einziehen"> <b>${esc(GK.lastFirst(x.name))}</b></label></td><td class="nw">${esc(x.masked)}</td><td class="k-weg">${esc(x.mandate_ref)}</td><td>${x.seq === 'FRST' ? '<span class="pill b">Erst</span>' : '<span class="pill">Folge</span>'}</td><td class="s" translate="no">${esc(x.texts.join(', '))}</td><td class="r">${euro(x.cents)}</td></tr>`).join('')}</table></div>
-            <div class="mv-sum"><span class="muted s">An ${esc(p.creditor.name)} · ${esc(p.creditor.iban)} · Gläubiger-ID ${esc(p.creditor.ci)}</span><span>Summe <b id="kSum">${euro(p.total)}</b></span></div>
+            <div class="mv-sum"><span class="muted s">An ${esc(p.creditor.name)}&nbsp;· ${esc(p.creditor.iban)}&nbsp;· Gläubiger-ID ${esc(p.creditor.ci)}</span><span>Summe <b id="kSum">${euro(p.total)}</b></span></div>
             <div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary" id="kGo" ${p.ready && p.bankDay ? '' : 'disabled'}>Einzug erstellen</button></div>` : '<p class="empty">Keine fälligen Lastschriften.</p>'}`;
         $('kOut').querySelectorAll('[data-kx]').forEach(c => { c.onchange = () => { if (c.checked) skip.delete(+c.dataset.kx); else skip.add(+c.dataset.kx); $('kSum').textContent = euro(p.ok.filter(x => !skip.has(x.member_id)).reduce((s, x) => s + x.cents, 0)); }; });
         if ($('kGo')) $('kGo').onclick = async () => {
@@ -1696,17 +1891,17 @@
   function catalogCards(el, again) {
     const m = st.meta;
     const grund = m.fees.filter(f => f.kind !== 'zusatz'), zus = m.fees.filter(f => f.kind === 'zusatz');
-    const ageTxt = (f, none) => (f.age_min != null && f.age_max == null ? `ab ${f.age_min}` : f.age_max != null && !f.age_min ? `bis ${f.age_max}` : f.age_min != null || f.age_max != null ? `${f.age_min}–${f.age_max}` : none);
+    const ageTxt = (f, none) => ageLim(f) || none;
     el.innerHTML = `<div class="card"><h3>Beiträge Hauptverein</h3>
-        ${grund.length ? `<table class="tbl kompakt"><tr><th>Bezeichnung</th><th class="r">Betrag</th><th>Rhythmus</th><th>Alter</th><th>Familie</th><th class="k-eng">Arbeitsstunden</th><th class="k-eng">Formular</th><th class="r">Mitglieder</th><th></th></tr>
+        ${grund.length ? `<table class="tbl kompakt mv-hv"><tr><th>Bezeichnung</th><th class="r">Betrag</th><th>Rhythmus</th><th>Alter</th><th>Familie</th><th class="k-eng">Arbeitsstunden</th><th class="k-eng">Formular</th><th class="r">Mitglieder</th><th></th></tr>
           ${grund.map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc(f.name)}</b>${f.department_id ? `<div class="muted s">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</div>` : ''}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])}${f.interval === 'einmalig' ? '' : ` <span class="muted s k-weg">${esc(PRS[f.prorate] || '')}</span>`}</td>
-            <td class="nw">${ageTxt(f, '–')}</td><td class="k-weg">${f.family ? '<span class="pill g">ja</span>' : '–'}</td><td class="k-weg k-eng">${f.work_minutes === 0 ? 'keine' : f.work_minutes ? (f.work_minutes / 60).toLocaleString('de-DE') + ' h' : 'Vorgabe'}</td>
+            <td class="mv-alter">${ageTxt(f, '–')}</td><td class="k-weg">${f.family ? '<span class="pill g">ja</span>' : '–'}</td><td class="k-weg k-eng">${f.work_minutes === 0 ? 'keine' : f.work_minutes ? (f.work_minutes / 60).toLocaleString('de-DE') + ' h' : 'Vorgabe'}</td>
             <td class="k-weg k-eng">${f.on_form ? '✓' : '–'}</td><td class="r k-lbl" data-label="Mitglieder">${f.members == null ? '' : f.members}</td><td class="r nw"><span class="toact"><button class="btn small" data-fmv="${f.id}:-1" aria-label="nach oben" title="nach oben">↑</button><button class="btn small" data-fmv="${f.id}:1" aria-label="nach unten" title="nach unten">↓</button></span> <button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table><p class="muted s" style="margin:10px 0 0">Mit ↑ ↓ legst du die Reihenfolge fest – so erscheinen die Beitragsarten auch in Auswahlfeldern und auf der Beitrittserklärung.</p>`
           : '<p class="empty">Noch keine Beitragsart – oben „+ Beitragsart“, z. B. „Erwachsene ab 19 Jahre“, „Jugendliche 12–18“ oder „Familie“. Oder die Mitglieder per „Import …“ übernehmen (S-Verein, WISO Mein Verein, verein.cloud).</p>'}</div>
       <div class="card"><h3>Zusatzbeiträge der Abteilungen</h3>
         ${zus.length ? `<table class="tbl kompakt"><tr><th>Abteilung</th><th>Bezeichnung</th><th>Alter</th><th class="r">Betrag</th><th>Rhythmus</th><th class="r">Mitglieder</th><th></th></tr>
           ${zus.map(f => `<tr class="${f.active ? '' : 'off'}"><td><b translate="no">${esc((m.depts.find(d => d.id === f.department_id) || {}).name || '')}</b></td><td translate="no">${esc(f.name)}</td>
-            <td class="nw">${ageTxt(f, 'alle')}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])} <span class="muted s">${esc(PRS[f.prorate] || '')}</span></td>
+            <td class="mv-alter">${ageTxt(f, 'alle')}</td><td class="r">${euro(f.cents)}</td><td>${esc(INTERVAL[f.interval])} <span class="muted s">${esc(PRS[f.prorate] || '')}</span></td>
             <td class="r k-lbl" data-label="Mitglieder">${f.members == null ? '' : f.members}</td><td class="r"><button class="btn small" data-fe="${f.id}">Bearbeiten</button></td></tr>`).join('')}</table>`
           : '<p class="empty">Noch kein Zusatzbeitrag – z. B. Abteilung Padel: „Padel Erwachsene“ ab 19 Jahre 60 €, „Padel Jugend“ bis 18 Jahre 30 €. Jede Person in der Abteilung zahlt den Beitrag ihres Alters zusätzlich zum Beitrag des Hauptvereins, in Familien der Hauptzahler.</p>'}</div>
       <div class="card"><h3>Abteilungen</h3>
@@ -1749,11 +1944,13 @@
     await loadMeta();
     const s = st.meta.settings;
     const months = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
-    el.innerHTML = `<div class="card" data-set="mitgliedschaft"><h3>Mitgliedschaft</h3><div class="mv-grid" style="--c:4">
+    // Beitragsjahr (Mitgliederverwaltung) und Geschäftsjahr (Kern, ctx.geschaeftsjahr – dasselbe Feld wie Einstellungen › Buchführung) nebeneinander
+    el.innerHTML = `<div class="card" data-set="mitgliedschaft"><h3>Mitgliedschaft</h3><div class="mv-grid" style="--c:3">
+        <label class="f">Beitragsjahr beginnt am 1.<select id="eYear">${months.map((n, i) => opt(`${String(i + 1).padStart(2, '0')}-01`, n, s.year_start)).join('')}</select><span class="muted s" style="font-weight:500">Beitragsjahr: Zeitraum der Mitgliedsbeiträge.</span></label>
+        <label class="f">Geschäftsjahr beginnt am 1.<select id="eFiscal">${months.map((n, i) => opt(i + 1, n, s.fiscal_month)).join('')}</select><span class="muted s" style="font-weight:500">Geschäftsjahr: Kündigungen, Jahresauswertungen, DATEV.</span></label>
+        <label class="f">Kündigungsfrist (Monate)<input id="eNotice" value="${s.notice_months}" inputmode="numeric"><span class="muted s" style="font-weight:500">Austritt zum Ende des Geschäftsjahres.</span></label>
         <label class="f">Mitgliedsnummern ab<input id="eNo" value="${esc(s.member_no_start)}" inputmode="numeric"></label>
-        <label class="f">Neue Nummer<select id="eNoMode">${opt('start', 'ab dem Startwert', s.member_no_mode)}${opt('max', 'nach höchster Nummer', s.member_no_mode)}</select></label>
-        <label class="f">Beitragsjahr beginnt am 1.<select id="eYear">${months.map((n, i) => opt(`${String(i + 1).padStart(2, '0')}-01`, n, s.year_start)).join('')}</select></label>
-        <label class="f">Kündigungsfrist (Monate)<input id="eNotice" value="${s.notice_months}" inputmode="numeric"></label></div>
+        <label class="f w2">Neue Nummer<select id="eNoMode">${opt('start', 'ab dem Startwert', s.member_no_mode)}${opt('max', 'nach höchster Nummer', s.member_no_mode)}</select></label></div>
         <div class="mv-cons" style="margin-top:14px">
           <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eSepaReq" ${s.sepa_required ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Lastschrift ist Pflicht</b><br><span class="muted s">Neue Mitglieder brauchen dann Bankverbindung und SEPA-Mandat, „Rechnung“ und „bar“ lassen sich nicht mehr wählen. Ausgenommen sind Familienmitglieder und wer über einen Zahler zahlt. Bestehende Mitglieder mit anderer Zahlart erscheinen unter „Mit Hinweis“.</span></span></label>
           <label class="chk" style="align-items:flex-start"><input type="checkbox" id="eScope" ${s.scope_confirm ? 'checked' : ''} style="margin-top:3px;flex:none"> <span><b>Ein- und Austritte der Abteilungsleitungen bestätigt die Vereinsverwaltung</b><br><span class="muted s">Legt eine Abteilungsleitung ein neues Mitglied an, trägt einen Austritt oder eine Rückkehr ein oder nimmt eine Beitrittserklärung an, landet das unter „Anträge“ und gilt erst nach Bestätigung durch einen Admin. Bis dahin ist ein neues Mitglied nicht am Tablet und nicht im Beitragslauf.</span></span></label></div>
@@ -1783,7 +1980,7 @@
     congratsCard($('eCg')).catch(fail);
     if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el));
     const save = saveCard(() => showSettings(el));
-    save('eSaveMs', () => ({ member_no_start: val('eNo'), member_no_mode: val('eNoMode'), year_start: val('eYear'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
+    save('eSaveMs', () => ({ member_no_start: val('eNo'), member_no_mode: val('eNoMode'), year_start: val('eYear'), fiscal_month: +val('eFiscal'), notice_months: +val('eNotice'), sepa_required: $('eSepaReq').checked, scope_confirm: $('eScope').checked }));
     const consents = () => [...document.querySelectorAll('#eCons [data-c]')].map(r => ({ key: r.dataset.c, short: r.querySelector('[data-k=short]').value, text: r.querySelector('[data-k=text]').value, required: r.querySelector('[data-k=req]').checked }));
     const bindCons = () => document.querySelectorAll('#eCons [data-cx]').forEach(b => { b.onclick = () => b.closest('[data-c]').remove(); });
     bindCons();
@@ -1900,9 +2097,12 @@
       <label class="f">Rhythmus<select id="feI">${Object.entries(INTERVAL).map(([k, l]) => opt(k, l, f ? f.interval : 'jahr')).join('')}</select></label>
       <label class="f">Im Eintrittsjahr<select id="feP">${Object.entries(PRORATE).map(([k, l]) => opt(k, l, f && f.prorate)).join('')}</select></label>
       <label class="f" id="feWL">Arbeitsstunden im Jahr<input id="feW" inputmode="decimal" value="${f && f.work_minutes != null ? String(f.work_minutes / 60).replace('.', ',') : ''}" placeholder="Vorgabe des Moduls"></label>
-      <label class="f">Mindestalter<input id="feA1" inputmode="numeric" value="${f && f.age_min != null ? f.age_min : ''}" placeholder="–"></label>
-      <label class="f">Höchstalter<input id="feA2" inputmode="numeric" value="${f && f.age_max != null ? f.age_max : ''}" placeholder="–"></label>
+      <label class="f">ab … Jahre<input id="feA1" inputmode="numeric" value="${f && f.age_min != null ? f.age_min : ''}" placeholder="–"></label>
+      <label class="f">bis einschließlich … Jahre<input id="feA2" inputmode="numeric" value="${f && f.age_max != null ? f.age_max : ''}" placeholder="–"></label>
       <label class="f">Hinweis (intern)<input id="feNote" value="${esc(f ? f.note || '' : '')}"></label></div>
+      <p class="muted s" style="margin:10px 0 0">Gerechnet wird mit dem Alter zu Beginn des Beitragszeitraums.</p>
+      <p class="s hidden" id="feAgeLive" style="margin:4px 0 0"></p>
+      <div class="banner a hidden" id="feWarn" style="margin-top:12px"><span></span></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk" id="feFL"><input type="checkbox" id="feF" ${f && f.family ? 'checked' : ''}> Familienbeitrag – gilt für den Hauptzahler und alle Angehörigen (Partner/in, Kinder)</label>
         <label class="chk" id="feOL"><input type="checkbox" id="feO" ${!f || f.on_form ? 'checked' : ''}> Auf der Beitrittserklärung zur Auswahl</label>
         ${f ? `<label class="chk"><input type="checkbox" id="feAct" ${f.active ? 'checked' : ''}> Aktiv</label>` : ''}</div>
@@ -1919,6 +2119,19 @@
     };
     $('feK').onchange = sync; sync();
     const n = v => (v === '' ? null : +v);
+    /** Live-Zeile zur Obergrenze und Warnung bei überschneidenden Altersbereichen (Speichern bleibt erlaubt) */
+    const curFee = () => ({ id: f ? f.id : null, kind: val('feK'), department_id: val('feD') ? +val('feD') : null, interval: val('feI'), family: $('feF').checked && val('feK') !== 'zusatz', age_min: n(val('feA1')), age_max: n(val('feA2')), active: 1 });
+    const ageInfo = () => {
+      const c = curFee(), live = $('feAgeLive'), warn = $('feWarn');
+      live.classList.toggle('hidden', c.age_max == null || isNaN(c.age_max));
+      if (c.age_max != null) live.textContent = GK.T('bis einschließlich {0} → gilt bis zum Tag vor dem {1}. Geburtstag', [c.age_max, c.age_max + 1]);
+      const o = isNaN(c.age_min) || isNaN(c.age_max) ? [] : ageClash(c, m.fees);
+      warn.classList.toggle('hidden', !o.length);
+      warn.querySelector('span').textContent = o.map(x => GK.T('Überschneidet sich mit „{0}“ ({1})', [x.name, ageLim(x)]) + (x.age_min && (c.age_max == null || x.age_min <= c.age_max) && x.age_min > (c.age_min || 0) ? ' – ' + GK.T('meintest du bis einschließlich {0}?', [x.age_min - 1]) : '')).join(' · ') + (o.length ? '. ' + GK.T('Beide gelten dann für dasselbe Alter; es gilt die höhere Stufe.') : '');
+      $('feOk').textContent = o.length ? 'Trotzdem speichern' : 'Speichern';
+    };
+    ['feA1', 'feA2', 'feK', 'feD', 'feI', 'feF'].forEach(i => { $(i).addEventListener('input', ageInfo); $(i).addEventListener('change', ageInfo); });
+    ageInfo();
     $('feOk').onclick = () => GK.busy($('feOk'), async () => {
       const w = val('feW');
       const body = { kind: val('feK'), name: val('feN'), cents: toCents(val('feC') || '0'), interval: val('feI'), prorate: val('feP'), department_id: val('feD') ? +val('feD') : null, age_min: n(val('feA1')), age_max: n(val('feA2')),
@@ -2093,7 +2306,7 @@
     { label: 'Anlass für eine Gratulation ergänzen', page: 'mv-gratulationen', btn: '+ Anlass', perm: 'gratulationen', kind: 'aktion', words: 'Hochzeit Gratulation von Hand' },
     { label: 'Erinnerung an Gratulationen (E-Mail, Push)', page: 'mv-gratulationen', card: 'Deine Erinnerung', perm: 'gratulationen', words: 'Benachrichtigung Geburtstag Push E-Mail' },
     { label: 'Regeln für Gratulationen', page: 'mv-einstellungen', card: 'Gratulationen', field: 'cgDays', in: 'Einstellungen', words: 'Geburtstag Jubiläum Ehrennadel Urkunde Blumen Erinnerung Tage vorher' },
-    { label: 'Mitgliedsnummern, Beitragsjahr und Kündigungsfrist', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eNo', in: 'Einstellungen', words: 'Mitgliedsnummer Beitragsjahr Kündigungsfrist Kündigung' },
+    { label: 'Mitgliedsnummern, Beitragsjahr, Geschäftsjahr und Kündigungsfrist', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eNo', in: 'Einstellungen', words: 'Geschäftsjahr Wirtschaftsjahr Mitgliedsnummer Beitragsjahr Kündigungsfrist Kündigung' },
     { label: 'Lastschrift als Pflicht', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eSepaReq', in: 'Einstellungen', words: 'Zahlart Lastschrift Rechnung bar' },
     { label: 'Abteilungsleitungen: Ein- und Austritte bestätigen', page: 'mv-einstellungen', card: 'Mitgliedschaft', field: 'eScope', in: 'Einstellungen', words: 'Abteilungsleitung bestätigen' },
     { label: 'Beitrittserklärung und Online-Antrag (Formular, Einwilligungen)', page: 'mv-einstellungen', card: 'Beitrittserklärung', in: 'Einstellungen', words: 'Formular Satzung Einwilligung Online-Antrag Tablet' },

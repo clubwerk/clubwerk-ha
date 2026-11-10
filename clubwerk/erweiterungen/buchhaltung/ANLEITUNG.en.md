@@ -28,10 +28,10 @@ Here you see all invoices and create new ones.
 
 #### Figures and filters
 
-Three tiles are at the top: **Open** (total and number of unpaid invoices), **Overdue** (the invoices past their payment term, in red) and **Paid** in the current year. Below them you filter the list:
+Three tiles are at the top: **Open** (total and number of unpaid invoices), **Overdue** (the invoices past their payment term, in red) and **Paid** in the current financial year (by payment date). Below them you filter the list:
 
 - **Status:** Open, Overdue, Paid, Cancelled or All. The first two buttons show a count.
-- **Year:** one year (up to five years back) or “all”.
+- **Year:** one year (up to five years back, by invoice date) or “all”. If your financial year does not start on 1 January, the field is called “Financial year” and shows e.g. “2026/27”.
 
 If a bank statement has been imported, a line under the filters shows the date up to which it reaches. That way nobody is chased who has already paid.
 

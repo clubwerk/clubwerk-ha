@@ -101,3 +101,39 @@
     },
   };
 })();
+
+/* Trennpunkt „·“ nie am Zeilenanfang (Regel punkt-zeilenanfang, Fund Thorsten 09.11.2026: „Kinder und Jugendliche / · 60,00 €“).
+   Zentral für alle Oberflächen: Das Leerzeichen vor jedem „·“ in sichtbarem Text wird ein festes (U+00A0), so bricht eine Zeile nur nach
+   dem Punkt um – „Name ·“ / „60,00 €“. Gilt für Text, den Seiten später einsetzen (MutationObserver), nie für Eingabefelder, Code oder
+   Skripte. Die Übersetzung erkennt den Trenner mit festem Leerzeichen genauso (i18n-core.js). */
+(function () {
+  var RE = /[ \t\n\r]+·(?=[\s\u00a0]|$)/g, SKIP = /^(SCRIPT|STYLE|TEXTAREA|PRE|CODE|OPTION|TITLE)$/;
+  var fix = function (n) {
+    var v = n.nodeValue; if (!v || v.indexOf('·') < 0 || !RE.test(v)) return; RE.lastIndex = 0;
+    var p = n.parentNode; if (!p || p.nodeType !== 1 || SKIP.test(p.tagName) || p.isContentEditable) return;
+    var w = v.replace(RE, ' ·'); if (w !== v) n.nodeValue = w;
+  };
+  var walk = function (root) {
+    if (root.nodeType === 3) { fix(root); return; }
+    if (root.nodeType !== 1 || SKIP.test(root.tagName)) return;
+    var it = document.createTreeWalker(root, NodeFilter.SHOW_TEXT), n; while ((n = it.nextNode())) fix(n);
+  };
+  var start = function () {
+    walk(document.body);
+    new MutationObserver(function (list) {
+      for (var i = 0; i < list.length; i++) {
+        var r = list[i];
+        if (r.type === 'characterData') fix(r.target);
+        else for (var j = 0; j < r.addedNodes.length; j++) walk(r.addedNodes[j]);
+      }
+    }).observe(document.body, { childList: true, subtree: true, characterData: true });
+  };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  // Kopieren: das feste Leerzeichen vor „·“ nie in die Zwischenablage – dort steht wieder ein normales
+  document.addEventListener('copy', function (ev) {
+    var sel = window.getSelection && window.getSelection(), t = sel ? String(sel) : '';
+    if (!t || t.indexOf('\u00a0·') < 0 || !ev.clipboardData) return;
+    var a = document.activeElement; if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')) return;   // Eingaben bleiben, wie sie sind
+    ev.clipboardData.setData('text/plain', t.replace(/\u00a0·/g, ' ·')); ev.preventDefault();
+  });
+})();

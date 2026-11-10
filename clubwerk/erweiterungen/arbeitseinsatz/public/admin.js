@@ -31,8 +31,9 @@
       @media (max-width: 700px) { #awTbl td:first-child .pill { min-height: 0; padding: 0; background: none; color: var(--muted); } }   /* „Familie · 4“ als schlichter Text: Zeile bleibt in der Höhe einer Handy-Liste (B-7) */
       @media (max-width: 700px) { #awTbl td:first-child .muted.k-sum { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 1; overflow: hidden; } }   /* Handy: Grund höchstens zwei Zeilen neben „Pflichtstunden …“ (voller Text im Fenster) – keine Wortsäule (02.11.2026) */
       @media (max-width: 700px) { .aw-std td:not(:first-child) .pill { height: auto; min-height: 0; padding: 0; border: 0; background: none; font-size: 13px; line-height: 16px; } }   /* Handy: Status als farbiger Text in der Werte-Zeile – so bleibt der Eintrag kompakt, auch wenn der Titel umbricht (3.101) */   /* Handy: ein langer Name steht neben „Pflichtstunden …“ nicht als Wortsäule – passt er nicht, rutscht der Knopf darunter (3.101) */
-      .aw-ev { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: center; padding: 14px 0; border-top: 1px solid var(--line-soft); }
+      .aw-ev { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 16px; align-items: start; padding: 14px 0; border-top: 1px solid var(--line-soft); }
       .aw-ev:first-of-type { border-top: 0; }
+      .aw-ev .acts { align-self: center; }   /* Datumskästchen oben bündig mit dem Titel, auch wenn das Schild umbricht; die Knöpfe rechts bleiben mittig (09.11.2026) */
       .aw-ev .aw-tog { min-width: 112px; justify-content: center; }
       .aw-date.perm b { font-size: 26px; line-height: 1; } .aw-date.perm span { font-size: 10.5px; letter-spacing: .02em; }
       .aw-ev.off .aw-date, .aw-ev.off h4 > span[translate], .aw-ev.off .muted { opacity: .55; }
@@ -295,7 +296,7 @@
     const card = p => `<div class="aw-ev aw-pl" data-pl="${p.id}">
         <div class="aw-date"><span>${new Date(p.from_date + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' })}</span><b>${p.from_date.slice(8, 10)}.${p.from_date.slice(5, 7)}.</b></div>
         <div style="min-width:0"><h4><span translate="no">${esc(p.title)}</span>${p.published ? '' : ' ' + pill(['a', 'Entwurf'])}${p.counts ? '' : ' ' + pill(['', 'zählt nicht als Arbeitsstunden'])}${p.sales ? ' ' + pill(['b', 'im Verkauf']) : ''}</h4>
-          <div class="muted">${[rangeTxt(p), p.place, `${p.shifts} ${p.shifts === 1 ? 'Schicht' : 'Schichten'}`, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).map(esc).join(' · ')}</div>
+          <div class="muted">${[rangeTxt(p), p.place, `${p.shifts} ${p.shifts === 1 ? 'Schicht' : 'Schichten'}`, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).map(esc).join('\u00a0· ')}</div>
           ${p.need ? `<div class="aw-prog"><span class="aw-bar"><i style="width:${Math.round(p.filled / p.need * 100)}%;background:var(--brand)"></i></span><span class="muted s">${p.open ? `${p.open} ${p.open === 1 ? 'Schicht' : 'Schichten'} noch nicht voll` : 'alle Schichten voll'}</span></div>` : ''}</div>
         <div class="acts"><button class="btn small" data-po="${p.id}">Öffnen</button></div></div>`;
     head('Dienstpläne', 'Veranstaltungen mit Tagen und Schichten, z. B. Kirmes oder Turnier. Mitglieder tragen sich in der App ein.');
@@ -339,7 +340,7 @@
       await metaNow();
       const d = await api('plans/' + id).catch(() => null); if (!d) return null;
       const p = d.plan;
-      return { title: p.title, lead: [rangeTxt(p), p.place, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).join(' · '), tabs: [['schichten', 'Schichten'], ['weitergeben', 'Weitergeben']], d };
+      return { title: p.title, lead: [rangeTxt(p), p.place, p.need ? `${p.filled} von ${p.need} Helfern` : `${p.helpers} Helfer`].filter(Boolean).join('\u00a0· '), tabs: [['schichten', 'Schichten'], ['weitergeben', 'Weitergeben']], d };
     },
     render: async (reiter, body, rec, id) => (reiter === 'weitergeben' ? showWeitergeben(body, rec.d, id) : showPlan(body, rec.d, id)),
   });
@@ -492,7 +493,7 @@
         <p class="muted s">Ein eigenes Soll je Beitragsart legst du unter Mitglieder › Beiträge fest, Ausnahmen einzelner Mitglieder in der Übersicht über „Pflichtstunden …“.</p>${foot('sSaveSoll')}</div>
       <div class="card" data-set="abrechnung"><h3>Abrechnung</h3><div class="aw-grid" style="--c:3">
         <label class="f">Stundensatz für fehlende Stunden<input id="sRate" inputmode="decimal" value="${centsToInput(c.rate_cents)}"></label>
-        <label class="f">Abrechnungsjahr<select id="sYear">${opt('kalender', 'Kalenderjahr (01.01.–31.12.)', c.year_mode)}${opt('beitrag', 'wie das Beitragsjahr der Mitglieder', c.year_mode)}</select></label>
+        <label class="f">Abrechnungsjahr<select id="sYear">${opt('kalender', 'Kalenderjahr (01.01.–31.12.)', c.year_mode)}${opt('beitrag', 'wie das Beitragsjahr der Mitglieder', c.year_mode)}${opt('geschaeft', 'wie das Geschäftsjahr des Vereins', c.year_mode)}</select></label>
         <label class="f">Abrechnen ab Jahr<input id="sStart" inputmode="numeric" value="${c.start_year}"></label></div>
         <p class="muted s">Fehlende Stunden kommen im Beitragslauf als Posten „Arbeitsstunden“ dazu.</p>${foot('sSaveAbr')}</div>
       <div class="card" data-set="tablet"><h3>Tablet & App</h3><div class="aw-grid" style="--c:1">
@@ -539,7 +540,7 @@
       const ok = s.ok ? `Zuletzt abgerufen ${deDate(s.ok.at.slice(0, 10))} ${s.ok.at.slice(11, 16)} Uhr: ${s.ok.n === 1 ? '1 Termin' : `${s.ok.n} Termine`}.` : '';
       const err = s.err ? `<span style="color:var(--red)">Abruf am ${deDate(s.err.at.slice(0, 10))} ${s.err.at.slice(11, 16)} Uhr: ${esc(s.err.error)}${s.ok ? ' Es gilt der letzte Stand.' : ''}</span>` : '';
       $('icSt').innerHTML = !s.url ? 'Kein Kalender eingetragen.' : s.sample ? `Beispieladresse – wird nicht abgerufen. ${s.n === 1 ? '1 Termin' : `${s.n} Termine`} aus den Beispieldaten.` : [ok, err].filter(Boolean).join('<br>') || 'Noch nicht abgerufen.';
-      if (s.next && s.next.length) $('icSt').insertAdjacentHTML('beforeend', `<br>Als Nächstes: ${s.next.map(e => `<span translate="no">${esc(e.title)}</span> (${deDate(e.date)}${e.start ? ' ' + e.start : ''})`).join(' · ')}`);
+      if (s.next && s.next.length) $('icSt').insertAdjacentHTML('beforeend', `<br>Als Nächstes: ${s.next.map(e => `<span translate="no">${esc(e.title)}</span> (${deDate(e.date)}${e.start ? ' ' + e.start : ''})`).join('\u00a0· ')}`);
     };
     api('ical').then(s => { $('icU').value = s.url || ''; GK.fit($('icU')); icShow(s); }).catch(fail);
     $('icSave').onclick = () => GK.busy($('icSave'), async () => { try { const s = await api('ical', 'PUT', { url: val('icU') }); $('icU').value = s.url || ''; GK.fit($('icU')); icShow({ ...s, next: (await api('ical')).next }); toast(s.url ? 'Gespeichert.' : 'Kalender entfernt.'); } catch (e) { fail(e); } });

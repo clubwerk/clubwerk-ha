@@ -31,7 +31,7 @@ The page shows all members as a list, sorted by last name and first name. The co
 - **No.** (the member number), **Age** and **Departments**. A click on the heading **Name**, **No.** or **Age** sorts the list, a second click reverses it (▲/▼); on the phone use the “Sort” box. Members without a number or date of birth always come last. Clubwerk remembers the choice per device.
 - **Fee:** the fee type. For family members it says “Family” with the name of the head of the family.
 - **Payment:** direct debit, invoice or cash. If somebody else pays, it says “via name”. A “+3” shows how many relatives this person also pays for.
-- **Notes:** yellow marks where something is missing or needs checking, e.g. “Check age bracket” or “Revoke mandate”.
+- **Notes:** yellow labels below the name where something is missing or needs checking, e.g. “Check age bracket” or “Revoke mandate”.
 
 At the top you see a **red warning box** if members are missing required details (member data, fee, bank details or SEPA mandate). “Show” jumps to the “With note” filter. Anyone missing required details is missing from the fee run.
 
@@ -54,6 +54,8 @@ A member is only created **completely**: name, date of birth, joining date, addr
 - For the **fee** only the types that fit the age can be chosen; the rest are greyed out. Enter the date of birth first.
 - If “Direct debit is required” is set in the settings, direct debit is the only payment method.
 - If the new member is to sign on the tablet, use “+ Membership application” on the “Applications” tab instead.
+- **Take over from member …** (button at the top of the window) saves retyping when someone belongs to an existing member. You search for the member (shown as “Surname, First name”) and tick what goes into the form: address, surname and landline are pre-ticked, email and mobile are not. “Take over” only fills in the form; nothing is saved until “Create”. **Bank details are never copied.** Instead, in the same window you choose “Add to the family of …” or “Pays via …”. The new member then needs no fee of its own (family) or no account of its own; it pays via the head of family or the payer. The family rules apply (see “Family membership”): Clubwerk warns you if there is already a partner or if a “child” is over 18. Children need no email and no mobile.
+- The same takeover is at the top of the “Address & contact” card of an existing member (“Master data” tab) and with “+ Membership application” on the “Applications” tab (there without family and payer).
 
 #### Import …
 
@@ -87,7 +89,7 @@ Downloads the list as an Excel file with the columns you tick. The filter of the
 
 ### Opening a member {#mitglied}
 
-On a wide screen (from 1400 pixels, such as a large monitor) a card sits to the right of the list: clicking a name shows the essentials there – date of birth, joining date, departments, fee, payment, “Billed until”, open items, contact details and notes. **Open** (or double-clicking the name) opens the member; the buttons below jump straight to the matching tab. The list’s “Payment” and “Notes” columns are then hidden, as both are shown in the card. On narrower screens, on the tablet and on the phone, a click opens the member directly.
+On a wide screen (from 1500 pixels, such as a large monitor) a card sits to the right of the list: clicking a name shows the essentials there – date of birth, joining date, departments, fee, payment, “Billed until”, open items, contact details and notes. **Open** (or double-clicking the name) opens the member; the buttons below jump straight to the matching tab. The list’s “Payment” and “Notes” columns are then hidden, as both are shown in the card. On narrower screens, on the tablet and on the phone, a click opens the member directly.
 
 ![An opened member: name and key facts at the top, below them “← All members” and the tabs.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detailrow)
 
@@ -110,6 +112,10 @@ Salutation, title, first name, last name, date of birth, gender (male or female)
 ![The “Address & contact” card.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
 
 Street, postcode, town, address line 2, country, email, mobile, phone and the **letter salutation** (e.g. “Dear Anna”). Also the joining date, the key number and **notes** that only the board sees.
+
+With **Take over from member …** (button at the top of the card) you copy address, surname, landline, email or mobile from another member into the form – nothing is saved until you click “Save”, and bank details are never copied. Instead of bank details you can also choose “Add to the family of …” or “Pays via …” there; this is applied when you save.
+
+**Moving house:** if you change the address and other active members live at the old address, Clubwerk asks when you save: “Also living at the same address: …” – with a tick per person (surname, first name). Everyone left ticked gets the new address too. Without a tick only this member changes; “Cancel” saves nothing. Every change appears in the person's history and in the log.
 
 #### Consents
 
@@ -165,7 +171,7 @@ Two cards side by side. With “+ Honour” and “+ Position” you enter a nam
 
 ![The “Leaving” window.](bild: seite=mitglieder/mitglied/24; tab=mitgliedschaft; tabkey=detail_mitglied; klick=#mvExit; ziel=dialog)
 
-The **Leaving …** button on the right of the tab bar records the leaving: date (the end of the fee year is suggested), date the cancellation was received, reason and, if you like, the cancellation letter as a file. You decide whether fees and departments end at the leaving date and whether relatives leave too. Until the leaving date everything stays as before. After that the member disappears from the tablet and the app; the data stays until anonymised. A leaving that has not yet taken effect can be withdrawn with **Revert leaving**, one that has been completed with **Rejoin …** (the member gets a new number and needs a new mandate for direct debit).
+The **Leaving …** button on the right of the tab bar records the leaving: date (the earliest date based on notice period and financial year is suggested, counted from when the cancellation was received), date the cancellation was received, reason and, if you like, the cancellation letter as a file. You decide whether fees and departments end at the leaving date and whether relatives leave too. Until the leaving date everything stays as before. After that the member disappears from the tablet and the app; the data stays until anonymised. A leaving that has not yet taken effect can be withdrawn with **Revert leaving**, one that has been completed with **Rejoin …** (the member gets a new number and needs a new mandate for direct debit).
 
 ### Member › Payment & family {#mitglied-zahlung}
 
@@ -181,7 +187,7 @@ This is purely a money relationship: fees, add-on fees and sales run through the
 
 ![The “Family membership” card.](bild: seite=mitglieder/mitglied/7; tab=zahlung; tabkey=detail_mitglied; ziel=.detbody > .mv-two > div:nth-child(2))
 
-A **head of family** with a family fee covers partner and children. One partner and any number of children up to 18 are allowed (adjustable). Anyone assigned needs no fee type of their own; department add-on fees stay per person. On the head of family you add relatives via “Add relative …”; “Remove” takes them out again. On a relative you choose the head of family under “Family membership with”.
+A **head of family** with a family fee covers partner and children. One partner and any number of children up to 18 are allowed (adjustable). Anyone assigned needs no fee type of their own; department add-on fees stay per person. On the head of family you add existing members via “Add relative …”; “Remove” takes them out again. Relatives not yet recorded you create with **“Create partner”** or **“Create child”**: the “New member” form opens, pre-filled with the head's address, surname and landline, the family and payment via the head of family. If there is already a partner, “Create partner” is blocked (with a reason); the form clearly flags a child over 18. Names appear everywhere as “Surname, First name”. On a relative you choose the head of family under “Family membership with”.
 
 #### Claims & payments
 
@@ -234,7 +240,7 @@ Membership applications and change requests arrive here. The number on the tab s
 
 ![The “Enter membership application” window.](bild: seite=mv-antraege; klick=#aNew; ziel=dialog)
 
-You enter people, address, membership and SEPA mandate. For a **family**, add partner and children with “+ Person (family)”; then the family fee applies and the applicant becomes main payer. At the end there is “Generate code for the tablet” (the code is valid for three hours). On the tablet the new member taps “Join” › “I have a code”, checks their data, ticks the consents and signs the membership application and the SEPA mandate. With the tick box “Accept as member immediately after signing” they are created right away afterwards and get a welcome email with member number and mandate reference.
+You enter people, address, membership and SEPA mandate (with “Take over from member …” you copy address, surname, email and mobile from an existing member). For a **family**, add partner and children with “+ Person (family)”; then the family fee applies and the applicant becomes main payer. At the end there is “Generate code for the tablet” (the code is valid for three hours). On the tablet the new member taps “Join” › “I have a code”, checks their data, ticks the consents and signs the membership application and the SEPA mandate. With the tick box “Accept as member immediately after signing” they are created right away afterwards and get a welcome email with member number and mandate reference.
 
 #### Awaiting confirmation
 
@@ -254,7 +260,7 @@ Requests from the member app and reports from department heads:
 
 - **Data change** (e.g. new address): “Apply” shows old and new for confirmation, “Reject” sends the member an email with the reason if you want.
 - **New bank details:** with the member's signature. On applying, a new mandate is created (first-time debit); the signed mandate is filed as a PDF and sent to the member.
-- **Cancellation:** Clubwerk suggests the earliest possible leaving date based on notice period and fee year, you confirm or change it. The member gets a confirmation by email.
+- **Cancellation:** Clubwerk suggests the earliest possible leaving date: the end of the financial year, keeping to the notice period (notice 0 and financial year = calendar year: cancel by 31.12. → leave on 31.12.; notice 3 months: received by 30.09.). The app shows the same date when cancelling, and so does the confirmation of receipt by email. A fee year that has started is charged in full; you confirm or change it. The member gets a confirmation by email.
 - **Joining, leaving and return to a department** are reported by the department head; “Confirm” applies them.
 
 #### Archive
@@ -302,7 +308,7 @@ The fields in the window:
 - **Frequency:** yearly to monthly or “one-off”, e.g. for an admission fee.
 - **In joining year:** “pro rata (full months)”, “full amount” or “Joining year free”.
 - **Work hours per year:** empty = default of the “Duties & dates” module, 0 = none.
-- **Minimum age** and **Maximum age:** a note in the fee run and a suggestion for new applications.
+- **from … years** and **up to and including … years:** a note in the fee run and a suggestion for new applications. The age at the start of the fee period is used; under the field it says what the upper limit means (“up to and including 18 → applies until the day before turning 19”). The same wording is used everywhere: “from 19”, “up to and including 18”, “12 to 18 inclusive”. If the age ranges of two fee types of the same kind overlap (e.g. “Youth up to 19” and “Adults from 19”), the window warns (“Overlaps with … – did you mean up to and including 18?”; saving is still possible) and Settings › Data quality lists it. With an overlap the higher tier always applies, including the suggestion for children growing out of the family fee.
 - **Family fee:** applies to the main payer and all relatives.
 - **Offered for selection on the membership application:** only these types are offered to new members on the tablet and online.
 - **Active** and **Note (internal)**. “Delete fee type …” only exists if no member has it any more. A type that has already been billed is better deactivated.
@@ -367,8 +373,9 @@ The cards are stacked; each has its own “Save”.
 
 - **Member numbers from:** the first number assigned automatically.
 - **New number:** “from the start value” never assigns a number below the start value; “after highest number” assigns the highest existing number plus 1, whether the start value is higher or lower (handy after an import with your own numbers). In both cases nobody is given a number twice. Only the numeric part is compared: “007” counts as 7, numbers without digits are skipped.
-- **Fee year starts on the 1st:** the month your fee year begins.
-- **Notice period (months):** the basis for the earliest leaving date.
+- **Fee year starts on the 1st:** the month your fee year begins – the period of the membership fees.
+- **Financial year starts on the 1st:** the month your financial year begins (usually January). It applies to cancellations, annual reports (e.g. “received” under Fees & payments) and DATEV and is the same field as under Settings › Bookkeeping. Fee year and financial year may differ, for example fees May to April and financial year January to December.
+- **Notice period (months):** the basis for the earliest leaving date; members leave at the end of the financial year.
 - **Direct debit is required:** new members then need bank details and a SEPA mandate; “invoice” and “cash” can no longer be chosen. Family members and anyone paying via a payer are exempt. Existing members with another payment method appear under “With note”.
 - **Joining and leaving reported by department heads is confirmed by the club admin:** if a department head reports a new member, a leaving or a return, it lands under “Applications” and only counts after confirmation by an admin.
 

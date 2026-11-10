@@ -203,6 +203,8 @@ function load({ app, admin, helpers }) {
         clubAddress: () => ({ street: getSetting('club_street', ''), city: getSetting('club_city', ''), email: getSetting('club_email', ''), phone: getSetting('club_phone', '') }),   // Anschrift und Kontakt des Vereins (Einstellungen › Verein)
         // Zugangsdaten fremder Dienste (API-Schlüssel, Passwörter, Tokens): nur über ctx.geheim – liegen im Tresor, Name bekommt ext_<id>_ (planung/geheimnisse.md)
         geheim: require('./geheim').fuerModul(id),
+        // Geschäftsjahr des Vereins (Kern-Einstellung): month() · yearOf(tag) · range(jahr) → { from, to } · startOf/endOf(tag) · label(jahr) → „2026/27“ · yearsOf(tage, heute)
+        geschaeftsjahr: require('./geschaeftsjahr'),
         hooks: p.hooks, mail: require('./mail'),   // zentraler E-Mail-Versand (Einstellungen → Postfach)
         // Push-Benachrichtigungen (Mitglieder-App): Anlässe meldet das Modul über hooks.pushEvents an; send(ids, 'anlass', { title, body, url, tag })
         // Sicherheitswarnungen („Sicherheit & Betrieb“): Arten meldet das Modul über hooks.securityEvents an; securityAlert('art', text, { key, member })
