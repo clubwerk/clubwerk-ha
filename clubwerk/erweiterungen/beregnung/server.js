@@ -761,7 +761,7 @@ function activate(ctx) {
   ];
   ctx.hooks.overview = async () => {
     const c = cfg();
-    if (!c.plaetze.length) return { kpis: [{ l: 'Plätze', v: 0 }, { l: 'Heute manuell gestartet', v: 0 }], alerts: [{ level: 'a', text: 'Noch keine Plätze eingerichtet.' }] };
+    if (!c.plaetze.length) return { kpis: [{ l: 'Plätze', v: ctx.T('{0} Plätze', [0]) }, { l: 'Heute manuell gestartet', v: 0 }], alerts: [{ level: 'a', text: 'Noch keine Plätze eingerichtet.' }] };
     const st = await status();
     const alerts = [];
     if (!st.online && !st.throttle) alerts.push({ level: 'r', text: 'Keine Verbindung zur Bewässerungsanlage.', detail: st.error || undefined });   // Übersicht: kurzer Satz, Einzelheiten im Tooltip
@@ -775,7 +775,7 @@ function activate(ctx) {
     if (errs) alerts.push({ level: 'r', text: `${errs} ${errs === 1 ? 'neuer Fehler' : 'neue Fehler'} heute.`, link: 'Verlauf öffnen', sec: ['tab_beregnung', 'verlauf'] });
     const runs = db.prepare("SELECT COUNT(*) n FROM irr_log WHERE at >= ? AND action = 'start'").get(day).n;
     const running = st.plaetze.filter(p => p.state !== 'idle').map(p => p.name);
-    return { kpis: [{ l: 'Plätze', v: c.plaetze.length }, { l: 'Heute manuell gestartet', v: runs }, { l: 'Läuft gerade', v: running.length ? running.join(', ') : '–' }], alerts };
+    return { kpis: [{ l: 'Plätze', v: (n => n === 1 ? ctx.T('{0} Platz', [n]) : ctx.T('{0} Plätze', [n]))(c.plaetze.length) }, { l: 'Heute manuell gestartet', v: runs }, { l: 'Läuft gerade', v: running.length ? running.join(', ') : '–' }], alerts };
   };
 
   // Tablet-Weg nur, solange die Beregnung am Tablet gezeigt wird (wie beim Zugang) – sonst bliebe die Schnittstelle offen, obwohl der Vorstand sie ausgeschaltet hat

@@ -556,6 +556,22 @@ db.prepare(`UPDATE bookings SET article_name = (SELECT name FROM articles a WHER
 
 /* v2.10: IDs nie doppelt vergeben (alle Tabellen auf AUTOINCREMENT, vorher Sicherung) */
 try { require('./ids').ensureAutoincrement(db, DATA_DIR); } catch (e) { console.error('IDs: Umstellung nicht möglich, Daten unverändert –', e.message); }
+/** Text der CHECK-Regel von members tauschen (writable_schema). Danach prüfen; meldet SQLite einen Fehler, den alten Text zurückschreiben
+    (statt nur zu protokollieren und mit einer beschädigten Beschreibung weiterzulaufen) */
+function setMembersSql(oldSql, newSql) {
+  const put = sql => {
+    const ver = db.pragma('schema_version', { simple: true });
+    db.unsafeMode(true);
+    try {
+      db.pragma('writable_schema = ON');
+      db.prepare("UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'members'").run(sql);
+      db.pragma(`schema_version = ${ver + 1}`);
+    } finally { db.pragma('writable_schema = OFF'); db.unsafeMode(false); }
+  };
+  put(newSql);
+  const ok = db.pragma('quick_check', { simple: true });
+  if (ok !== 'ok') { put(oldSql); throw new Error(`Prüfung danach: ${ok} – alte Regel wiederhergestellt`); }
+}
 /* Personenart „extern“ (Gastspieler/innen im Spielbetrieb – kein Vereinsmitglied, kein Konto) in der Prüfregel der Tabelle members
    ergänzen. Nur der Text der CHECK-Regel ändert sich (keine Daten, kein Umbau der Tabelle): offiziell dokumentierter Weg über writable_schema. */
 try {
@@ -563,15 +579,8 @@ try {
   const KIND_EXT = ['gast', 'extern'].map(k => `'${k}'`).join(',') + '))';
   if (row && /CHECK \(kind IN \('mitglied','mannschaft','verein','gast'\)\)/.test(row.sql)) {
     const sql = row.sql.replace(/'gast'\)\)/, KIND_EXT);
-    const ver = db.pragma('schema_version', { simple: true });
-    db.unsafeMode(true);
-    try {
-      db.pragma('writable_schema = ON');
-      db.prepare("UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'members'").run(sql);
-      db.pragma(`schema_version = ${ver + 1}`);
-    } finally { db.pragma('writable_schema = OFF'); db.unsafeMode(false); }
-    const ok = db.pragma('quick_check', { simple: true });
-    console.log(`Personenart „extern“ ergänzt (Prüfung: ${ok}).`);
+    setMembersSql(row.sql, sql);
+    console.log('Personenart „extern“ ergänzt.');
   }
 } catch (e) { console.error('Personenart „extern“ konnte nicht ergänzt werden –', e.message); }
 /* v3.37: Kontoart „nichtmitglied“ (Kein Mitglied, z. B. Trainer: Konto im Verkauf ohne Mitgliedschaft) – gleicher Weg wie oben */
@@ -579,14 +588,8 @@ try {
   const row = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'members'").get();
   if (row && /'extern'\)\)/.test(row.sql) && !/'nichtmitglied'/.test(row.sql)) {
     const sql = row.sql.replace(/'extern'\)\)/, ['extern', 'nichtmitglied'].map(k => `'${k}'`).join(',') + '))');
-    const ver = db.pragma('schema_version', { simple: true });
-    db.unsafeMode(true);
-    try {
-      db.pragma('writable_schema = ON');
-      db.prepare("UPDATE sqlite_master SET sql = ? WHERE type = 'table' AND name = 'members'").run(sql);
-      db.pragma(`schema_version = ${ver + 1}`);
-    } finally { db.pragma('writable_schema = OFF'); db.unsafeMode(false); }
-    console.log(`Kontoart „Kein Mitglied“ ergänzt (Prüfung: ${db.pragma('quick_check', { simple: true })}).`);
+    setMembersSql(row.sql, sql);
+    console.log('Kontoart „Kein Mitglied“ ergänzt.');
   }
 } catch (e) { console.error('Kontoart „Kein Mitglied“ konnte nicht ergänzt werden –', e.message); }
 

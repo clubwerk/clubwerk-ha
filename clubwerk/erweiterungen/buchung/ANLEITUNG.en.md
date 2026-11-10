@@ -147,7 +147,9 @@ Fees arise when booking, as open items, and are settled with the next collection
 
 For a fee without a booking, e.g. a hall rental: person, amount (between €0.10 and €1,000), date and text. For members this creates a claim that is collected like a membership fee. For coaches (“Not a member”) the amount goes to the sales account. You need the permission “book for members”.
 
-Fees booked by hand have a **Cancel** button in their row; the confirmation names the amount, and the open item is withdrawn.
+Fees booked by hand have a **Cancel** button in their row; the confirmation names the amount, and the open item is withdrawn. If the fee has already been collected or paid, you cancel it in Members (choosing “keep as credit” or “transferred back”). A booking whose fee has been paid can no longer be edited, only cancelled – the fee then stays and the log notes “Fee not cancelled”.
+
+Fees for a family member or someone with their own payer (“pays for”) appear as an open item with the payer.
 
 ### Tab “Statistics” {#bk-auswertung}
 

@@ -271,7 +271,7 @@
     $('main').querySelectorAll('[data-be]').forEach(b => { b.onclick = () => blockDialog(+b.dataset.be, again); });
   }
   function blockDialog(i, again) {
-    const c = st.c, isNew = i === null, t = new Date().toISOString().slice(0, 10);
+    const c = st.c, isNew = i === null, t = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
     const cur = isNew ? { from: t, to: t, note: '' } : c.blockDays[i];
     const form = () => {
       dialog(`<h2>${isNew ? 'Sperrzeitraum anlegen' : 'Sperrzeitraum bearbeiten'}</h2>

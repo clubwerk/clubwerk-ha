@@ -10,13 +10,15 @@
  */
 const pad = (n, len = 2) => String(n).padStart(len, '0');
 /** heutiges Datum in lokaler Zeit: 'JJJJ-MM-TT' */
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
+/** aktuelle Zeit als Date – die Stelle für neuen Code, nie `new Date()` direkt (im Testbetrieb stellt src/testuhr.js diese Uhr) */
+const jetzt = () => new Date();
+const today = () => { const d = jetzt(); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; };
 /** Zeitstempel in lokaler Zeit: 'JJJJ-MM-TT HH:MM:SS' (optional für ein bestimmtes Date-Objekt) */
-const nowTs = (d = new Date()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+const nowTs = (d = jetzt()) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 /** Zeitstempel für Dateinamen: 'JJJJ-MM-TT_HHMMSS' (lokale Zeit) */
-const fileStamp = (d = new Date()) => nowTs(d).replace(' ', '_').replace(/:/g, '');
+const fileStamp = (d = jetzt()) => nowTs(d).replace(' ', '_').replace(/:/g, '');
 /** gültiges Datum 'JJJJ-MM-TT' (Form und Kalender, z. B. kein 2024-13-45)? */
-const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !Number.isNaN(Date.parse(s + 'T00:00:00Z'));
+const isDate = s => { if (typeof s !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return false; const t = Date.parse(s + 'T00:00:00Z'); return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === s; };   // 30.02. gibt es nicht (Date.parse rollt es still auf den 02.03.)
 /** Tage zu einem Datum 'JJJJ-MM-TT' addieren (negativ = zurück) – kalenderrein, ohne Zeitzonen-/Sommerzeiteffekte */
 const addDays = (s, n) => { const d = new Date(s + 'T00:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
 /** Monate zu einem Datum 'JJJJ-MM-TT' addieren (negativ = zurück); fehlt der Tag im Zielmonat, gilt dessen letzter Tag */
@@ -58,4 +60,4 @@ const sigOk = s => {
   const w = h.readUInt32BE(16), ht = h.readUInt32BE(20);
   return w > 0 && ht > 0 && w <= 1200 && ht <= 1200;
 };
-module.exports = { sigOk, endDot, pad, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };
+module.exports = { sigOk, endDot, pad, jetzt, today, nowTs, fileStamp, isDate, addDays, addMonths, deD, euro, esc, zipSize, zipUnsafe, zipBudget };

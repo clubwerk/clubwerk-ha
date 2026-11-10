@@ -17,7 +17,7 @@ const crypto = require('crypto');
 const express = require('express');
 const { db, DATA_DIR, getSetting, setSetting, audit, nameKey, splitPersonName, lastFirst } = require('./db');
 const mail = require('./mail');
-const { nowTs: now, today, esc } = require('./util');
+const { nowTs: now, today, esc, addMonths } = require('./util');   // addMonths klemmt auf den Monatsletzten (31.01. + 1 Monat = 28./29.02., nicht 03.03.)
 
 /* ---------- kleine Helfer (vor der Rechte-Migration unten, die sie schon beim Laden braucht) ---------- */
 const J = (v, d) => { try { const x = JSON.parse(v); return x == null ? d : x; } catch (e) { return d; } };
@@ -356,7 +356,6 @@ function cleanChannels(c) {
 }
 const KEEP = [1, 3, 6, 12, 24];
 const keepDefault = () => { const m = parseInt(getSetting('msg_keep_months', '6'), 10); return KEEP.includes(m) ? m : 6; };
-const addMonths = (day, n) => { const d = new Date(day + 'T12:00:00Z'); d.setUTCMonth(d.getUTCMonth() + n); return d.toISOString().slice(0, 10); };
 /** Ist die Nachricht (noch) in der App sichtbar? */
 const inApp = (m, day = today()) => Boolean(m.pinned) || !m.expires_at || m.expires_at >= day;
 /** Abgelaufene Nachrichten aus den Postfächern der Mitglieder entfernen; der Gelesen-Stand bleibt als Zahl an der Nachricht */

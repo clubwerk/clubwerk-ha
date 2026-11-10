@@ -184,5 +184,5 @@ Schalten geht nur im WLAN des Vereinsheims, nie über das Internet, auch nicht m
 - **Mitglieder-App und Tablet:** Freischaltung, Kopplung und PIN laufen über die Mitglieder-App.
 - **Übersicht:** zeigt Lichtanlagen und „Licht an“ und warnt bei Störungen oder fehlendem Standort.
 - **Einrichtung:** Der Einrichtungs-Assistent führt durch „Lichtanlagen anlegen“ und „Dunkelheit und Nachtruhe“.
-- **Datenschutz:** Unter Einstellungen › Datenschutz stellt ihr ein, wie lange Namen im Verlauf bleiben (3 bis 60 Monate, Standard 24). Danach entfernt Clubwerk die Namen; Dauer und Betriebsstunden bleiben.
+- **Datenschutz:** Unter Einstellungen › Datenschutz stellt ihr ein, wie lange Namen im Verlauf bleiben (3 bis 60 Monate, Standard 24). Danach entfernt Clubwerk die Namen; Dauer und Betriebsstunden bleiben. Einträge mit Lichtgeld sind Buchungsbelege und behalten den Namen 10 Jahre (Aufbewahrungspflicht).
 - **Andere Module mit Home Assistant:** Ein Schalter kann nur in einem Modul verwendet werden.

@@ -150,6 +150,7 @@ a.btn.primary { color: var(--on-brand); }
 /* Symbolknopf in Tabellenzeilen (Aktion als Symbol mit Tooltip): 34 × 34 px, gleich hoch wie .btn.small */
 .btn.ico { width: 34px; min-height: 34px; height: 34px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border-radius: 9px; vertical-align: middle; }
 .btn.ico svg { width: 17px; height: 17px; flex: none; }
+.btn.danger-h, .btn.ghost.danger-h { color: var(--red); }   /* Entfernen-Symbol überall in Gefahrenfarbe, nicht erst beim Darüberfahren – am Touchgerät gibt es kein Hover (Punkt 6) */
 .btn.danger-h:hover { color: var(--red); border-color: var(--red); background: var(--red-soft); }
 .acts { display: inline-flex; gap: 6px; justify-content: flex-end; white-space: nowrap; }
 .toast {
@@ -200,7 +201,7 @@ body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; p
 #gkHeader .topnav a.on { background: var(--card); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(19,26,22,.12); }
 :root[data-contrast="hoch"] #gkHeader .topnav { background: var(--hover); } :root[data-contrast="hoch"] #gkHeader .topnav a.on { box-shadow: inset 0 0 0 2px var(--ink); }
 #gkHeader .topnav a.on svg { color: var(--brand); }
-#gkHeader .topnav .ext { font-size: 12px; opacity: .7; }
+#gkHeader .topnav .ext { font-size: 13px; opacity: .7; }
 #gkHeader .hright { grid-column: 3; grid-row: 1; justify-self: end; display: flex; align-items: center; gap: 16px; }
 #gkHeader .clock { display: inline-flex; align-items: baseline; gap: 6px; color: var(--ink); white-space: nowrap; }
 #gkHeader .clock small { font-size: 13px; font-weight: 600; color: var(--muted); }
@@ -225,7 +226,7 @@ body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; p
 @media (max-width: 640px) {
   #gkHeader { grid-template-columns: minmax(0, 1fr) auto; height: auto; padding: 10px; row-gap: 10px; margin: 8px 8px 0; border-radius: 18px; }
   #gkHeader .hright { grid-column: 2; gap: 8px; }
-  #gkHeader #demoChip { padding: 2px 7px; font-size: 11px; }   /* „Demo“ neben „Verwaltung“: der Vereinsname bleibt ganz lesbar */
+  #gkHeader #demoChip { padding: 2px 7px; font-size: 13px; }   /* „Demo“ neben „Verwaltung“: der Vereinsname bleibt ganz lesbar */
   #gkHeader .admin { padding: 0 12px; }
   #gkHeader .clock { display: none; }
   #gkHeader .topnav { grid-column: 1 / -1; grid-row: 2; justify-self: stretch; grid-auto-columns: minmax(0, 1fr); }
@@ -268,10 +269,10 @@ body.tk .tk-abblenden { display: none; position: fixed; inset: 0; z-index: 19; p
    ===================================================================================================== */
 body.tk { user-select: none; -webkit-user-select: none; overscroll-behavior: none; }
 body.tk main { padding: 24px 24px 40px; }
-body.tk h2.sec { margin: 22px 0 12px; font-size: 12px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 12px; }   /* Token statt fester Farbe – lesbar in Hell und Dunkel */
+body.tk h2.sec { margin: 22px 0 12px; font-size: 13px; line-height: 16px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: var(--muted); display: flex; align-items: center; gap: 12px; }   /* Token statt fester Farbe – lesbar in Hell und Dunkel */
 body.tk h2.sec::after { content: ''; flex: 1 1 24px; height: 1px; background: var(--line2); }   /* Linie bis zum Rand, Zusatz (<small>) rechts daneben */
 body.tk h2.sec > small { order: 2; }
-body.tk h2.sec small { font-weight: 700; font-size: 11px; color: var(--muted); letter-spacing: .09em; text-transform: uppercase; }
+body.tk h2.sec small { font-weight: 700; font-size: 13px; color: var(--muted); letter-spacing: .09em; text-transform: uppercase; }
 body.tk .tab-head + h2.sec, body.tk .tk-cols h2.sec { margin-top: 0; }
 :root { --tk-cols: 4; }
 @media (min-width: 1600px) { :root { --tk-cols: 5; } }
@@ -293,7 +294,7 @@ button.tk-tile:active { transform: scale(.98); }
 .tk-ico { width: 44px; height: 44px; flex: 0 0 44px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; }
 .tk-ico svg { width: 22px; height: 22px; }
 .tk-date { width: 56px; height: 56px; flex: 0 0 56px; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; font-variant-numeric: tabular-nums; }   /* Datumsblock wie in Verwaltung und App */
-.tk-date b { font-family: var(--num); font-size: 22px; line-height: 1; font-weight: 600; } .tk-date span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
+.tk-date b { font-family: var(--num); font-size: 22px; line-height: 1; font-weight: 600; } .tk-date span { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .tk-chip { flex: none; font-size: 13px; line-height: 18px; font-weight: 700; padding: 4px 10px; border-radius: 999px; background: var(--hover); color: var(--muted); white-space: nowrap; }
 .tk-chip.g { background: var(--brand-soft); color: var(--brand-ink); } .tk-chip.a { background: var(--amber-soft); color: var(--amber); } .tk-chip.r { background: var(--red-soft); color: var(--red); }
 .tk-grid > .tk-empty { grid-column: 1 / -1; }
@@ -364,3 +365,12 @@ body.tk .overlay::-webkit-scrollbar, .vh-sheet::-webkit-scrollbar { display: non
 .topmore a { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 0 14px; border-radius: 10px; color: var(--ink); font-size: 15px; font-weight: 600; text-decoration: none; white-space: nowrap; }
 .topmore a svg { flex: none; color: var(--muted); }
 .topmore a.on { background: var(--hover); font-weight: 700; } .topmore a.on svg { color: var(--brand); }
+
+/* nur für Screenreader sichtbar (Sprunglink, Zähler, versteckte Überschriften) */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* Sprunglink „Zum Inhalt springen“: nur bei Tastaturfokus sichtbar (WCAG 2.4.1) */
+.skiplink { position: absolute; left: 12px; top: -80px; z-index: 1000; padding: 10px 16px; border-radius: 10px; background: var(--brand); color: var(--on-brand); font-weight: 700; text-decoration: none; }
+.skiplink:focus { top: 12px; }
+#main:focus { outline: none; }
+/* Tablet: nichts Sichtbares unter 13 px – aus einem Meter Abstand an der Theke lesbar (planung/ui-review.md Punkt 11) */
+body.tk .vh-cap, body.tk .vh-chip, body.tk .vh-date span, body.tk .vh-days button span, body.tk .vh-rows small, body.tk .vh-card > h3 small, body.tk .vh-card .vh-ch small, body.tk .vh-next .t small, body.tk .vh-uses span small, body.tk .vh-wlan-diag { font-size: 13px; }

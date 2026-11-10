@@ -18,6 +18,7 @@ const HA_MARKER = path.join(DATA_DIR, '.restore-ha-snapshot');
 const RESTORE_MARKER = path.join(DATA_DIR, '.restore-pending');   // enthält den Dateinamen der gewünschten Sicherung
 const RESTORE_DIRS = path.join(DATA_DIR, '.restore-dirs');       // Ordner (Belege, Bilder, Erweiterungen) aus einer Komplettsicherung
 const KEEP_AUTO = 14;
+const HA_STALE_MS = 2 * 3600000;   // so viel jünger darf die Datenbank als der HA-Schnappschuss sein (Schreiben während eines langen Backups)
 const SQLITE_MAGIC = Buffer.from('SQLite format 3\0');
 
 fs.mkdirSync(BACKUP_DIR, { recursive: true });
@@ -123,7 +124,14 @@ function applyDirs(forFile) {
 /** Beim Start VOR dem Öffnen der Datenbank aufrufen. Gibt eine Meldung zurück, falls etwas wiederhergestellt wurde. */
 function applyPendingRestore() {
   let src = null, why = null;
-  if (fs.existsSync(HA_MARKER) && fs.existsSync(HA_SNAPSHOT)) { src = HA_SNAPSHOT; why = 'Home-Assistant-Backup'; }
+  if (fs.existsSync(HA_MARKER) && fs.existsSync(HA_SNAPSHOT)) {
+    // Zurückgespieltes HA-Backup: Datenbank und Schnappschuss stammen aus demselben Backup (gleich alt). Ist die Datenbank viel neuer,
+    // lief nur backup_post nicht (HA abgestürzt) – dann wäre der Schnappschuss ein stiller Rückschritt: Markierung verwerfen.
+    const mt = f => { try { return fs.statSync(f).mtimeMs; } catch (e) { return 0; } };
+    const newer = Math.max(mt(DB_FILE), mt(DB_FILE + '-wal')) - mt(HA_SNAPSHOT);
+    if (newer > HA_STALE_MS) { console.error(`Home-Assistant-Markierung verworfen: Die Datenbank ist ${Math.round(newer / 3600000)} h neuer als der Schnappschuss (backup_post lief nicht).`); try { fs.unlinkSync(HA_MARKER); } catch (e) { /* egal */ } }
+    else { src = HA_SNAPSHOT; why = 'Home-Assistant-Backup'; }
+  }
   const wanted = pendingRestore();
   if (wanted && safeName(wanted) && fs.existsSync(path.join(BACKUP_DIR, wanted))) { src = path.join(BACKUP_DIR, wanted); why = `Sicherung ${wanted}`; }
   if (!src) { try { fs.unlinkSync(HA_MARKER); } catch (e) { /* egal */ } cancelRestore(); return null; }

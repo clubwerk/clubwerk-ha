@@ -331,17 +331,19 @@ function register(sh) {
     if (!['offen', 'bezahlt'].includes(c.status)) return bad(res, 'Posten in einem laufenden Einzug zuerst über den Einzug klären (Rücklastschrift oder verwerfen).');
     const reason = one((req.body || {}).reason, 120);
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
-    // per Kontoauszug bezahlt: Das Geld ist auf dem Vereinskonto – es darf nicht still verschwinden
+    // schon bezahlt (Kontoauszug, Lastschrift, bar, Überweisung, verrechnet): Das Geld ist beim Verein – es darf nicht still verschwinden
+    // (Entscheidung Thorsten 10.11.2026: immer fragen wie beim Kontoauszug)
     const refund = (req.body || {}).refund;
-    if (sh.paidByStatement && sh.paidByStatement(c) && !['guthaben', 'zurueck'].includes(refund))
-      return res.status(409).json({ error: `Dieser Posten wurde laut Kontoauszug bezahlt (${euro(c.cents)}). Bitte wählen: Betrag als Guthaben behalten oder Geld wurde zurücküberwiesen.`, refund: true });
+    const paidIn = c.status === 'bezahlt' && c.cents > 0;
+    if (paidIn && !['guthaben', 'zurueck'].includes(refund))
+      return res.status(409).json({ error: `Dieser Posten ist schon bezahlt (${euro(c.cents)}). Bitte wählen: Betrag als Guthaben behalten oder Geld wurde zurücküberwiesen.`, refund: true });
     // Verkaufs-Posten aus einem Lauf: die Verkaufsbuchungen wieder öffnen, sonst blieben sie „abgerechnet“, ohne dass etwas eingezogen wird
     let reopened = 0;
     if (c.kind === 'getraenke' && c.run_id && c.status === 'offen' && C.drinks.active()) {
       const run = db.prepare('SELECT drinks_batch FROM mv_run WHERE id = ?').get(c.run_id);
       if (run && run.drinks_batch) { const r = C.drinks.reopen(run.drinks_batch, c.for_member_id || c.member_id); if (!r.ok) return bad(res, r.error); reopened = r.n; }
     }
-    const keep = sh.paidByStatement && sh.paidByStatement(c) ? refund : null;
+    const keep = paidIn ? refund : null;
     // Mahngebühren, die dieser Posten ausgelöst hat (angeboten im Storno-Dialog) – nur offene, nur aus Schreiben mit diesem Posten
     const feeIds = new Set(sh.dunningFeesOf ? sh.dunningFeesOf(c.id).map(f => f.id) : []);
     const fees2 = (Array.isArray((req.body || {}).fees) ? req.body.fees.map(Number) : []).filter(x => feeIds.has(x));

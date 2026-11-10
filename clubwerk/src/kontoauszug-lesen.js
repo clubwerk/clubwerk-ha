@@ -5,7 +5,7 @@
               ret: { code, origCents, feeCents } | null, sure (Referenzfelder vorhanden – CAMT bzw. CSV-CAMT) }
    XML wird mit einem eigenen kleinen Leser gelesen: DOCTYPE und Entitäten werden abgelehnt (keine externen Entitäten, keine „XML-Bomben“). */
 const JSZip = require('jszip');
-const { zipSize, zipUnsafe, zipBudget } = require('./util');
+const { zipSize, zipUnsafe, zipBudget, isDate } = require('./util');
 
 const fail = msg => Object.assign(new Error(msg), { fachlich: true });
 
@@ -164,11 +164,12 @@ function amount(v) {
 /** Datum „24.10.2026“, „24.10.26“, „2026-10-24“ → JJJJ-MM-TT */
 function dateDe(v) {
   const s = String(v || '').trim();
-  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  let m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s); if (m) return isDate(`${m[1]}-${m[2]}-${m[3]}`) ? `${m[1]}-${m[2]}-${m[3]}` : '';
   m = /^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/.exec(s);
   if (!m) return '';
   const y = m[3].length === 2 ? `20${m[3]}` : m[3];
-  return `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  const d = `${y}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+  return isDate(d) ? d : '';   // 31.13. oder 30.02. gibt es nicht – lieber überspringen als einen unmöglichen Tag speichern
 }
 
 /* Sparkassen-„CSV-CAMT“ (V2 und V8): Spalten werden über ihren Namen gefunden, nicht über die Position – so stört es nicht,

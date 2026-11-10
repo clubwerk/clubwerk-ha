@@ -92,7 +92,7 @@
           <input class="q n" value="${esc(String(r.qty).replace('.', ','))}" inputmode="decimal" aria-label="Menge">
           <input class="u n" value="${r.unit_cents ? centsToInput(r.unit_cents) : ''}" inputmode="decimal" placeholder="0,00" aria-label="Einzelpreis">
           ${sb ? '<span class="v"></span>' : `<select class="v" aria-label="Umsatzsteuer">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', r.vat)).join('')}</select>`}
-          <button class="btn small ghost" data-rm="${i}" aria-label="Position entfernen" ${rows.length < 2 ? 'disabled' : ''}>${X}</button></div>`).join('')}</div>
+          <button class="btn small ghost danger-h" data-rm="${i}" aria-label="Position entfernen" ${rows.length < 2 ? 'disabled' : ''}>${X}</button></div>`).join('')}</div>
         <div class="row" style="justify-content:space-between;align-items:flex-start"><button class="btn small" data-add>+ Position</button>
           <div class="bh-sum"><span>Netto</span><span>${eur(t.net)}</span>${t.vats.map(([v, c]) => `<span>USt ${v} %</span><span>${eur(c)}</span>`).join('')}<span class="tot">Gesamt</span><span class="tot">${eur(t.gross)}</span></div></div>
         ${sb ? '<p class="muted s" style="margin:0">Kleinunternehmer: keine Umsatzsteuer (§ 19 UStG) – der Hinweis steht auf der Rechnung.</p>' : ''}`;
@@ -142,7 +142,7 @@
     dialog(`<h2>Neue Rechnung</h2>
       <div class="seg" role="tablist"><button data-k="partner">an Firma / Sponsor</button><button data-k="member">an Mitglied</button></div>
       <div class="bh-grid" style="--c:3">
-        <label class="f wall" id="biRecL">Empfänger<select id="biRec"></select><span class="muted s" id="biHint" style="font-weight:500"></span></label>
+        <label class="f wall" id="biRecL">Empfänger<select id="biRec" required></select><span class="muted s" id="biHint" style="font-weight:500"></span></label>
         <label class="f">Rechnungsdatum<input id="biD" type="date" value="${m.today}"></label>
         <label class="f">Zahlbar bis<input id="biDue" type="date" value="${due(m.today)}"></label>
         <label class="f">Leistungszeitraum<input id="biPer" placeholder="z. B. Saison ${m.year}/${String(m.year + 1).slice(2)}"></label>

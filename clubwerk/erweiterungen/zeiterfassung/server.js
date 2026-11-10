@@ -312,7 +312,7 @@ function activate(ctx) {
     if (err) alerts.push({ level: 'r', text: 'Monatsnachweis nicht verschickt.', detail: err });
     if (!mailReady()) alerts.push({ level: 'a', text: 'Kein Postfach – der Monatsnachweis kann nicht verschickt werden.', detail: 'Einrichten unter Einstellungen → Postfach.' });
     if (!st.length) return { kpis: [], alerts };
-    return { kpis: [{ l: 'Personal', v: st.length }, { l: 'Gerade da', v: st.filter(x => x.in_since && !x.forgotten).map(x => x.name.split(' ')[0]).join(', ') || '–' }], alerts };
+    return { kpis: [{ l: 'Personal', v: (n => n === 1 ? ctx.T('{0} Person', [n]) : ctx.T('{0} Personen', [n]))(st.length) }, { l: 'Gerade da', v: st.filter(x => x.in_since && !x.forgotten).map(x => x.name.split(' ')[0]).join(', ') || '–' }], alerts };
   };
 
   const staffState = () => db.prepare('SELECT id, name, job FROM staff WHERE active = 1 ORDER BY name_key(name, NULL)').all().map(s => {

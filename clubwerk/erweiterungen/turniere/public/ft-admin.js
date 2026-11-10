@@ -101,7 +101,7 @@
   function newDialog() {
     const sp = st.meta.sports, today = GK.today();
     GK.dialog(`<h2>Neues Turnier</h2>
-      <div class="frm"><label class="f wall">Name<input id="nfN" maxlength="80" placeholder="z. B. Dorfturnier ${new Date().getFullYear()}"></label>
+      <div class="frm"><label class="f wall">Name<input id="nfN" required maxlength="80" placeholder="z. B. Dorfturnier ${new Date().getFullYear()}"></label>
         <label class="f">Sportart<select id="nfS">${Object.entries(sp).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('')}</select></label>
         <label class="f">Spielform<select id="nfF">${Object.entries(st.meta.formats).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</select></label>
         <label class="f w1">Tag<input id="nfD" type="date" value="${today}"></label><label class="f w1">Beginn<input id="nfT" type="time" value="10:00"></label>

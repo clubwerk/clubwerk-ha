@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.31';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.32';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -257,8 +257,7 @@
   let pushReload = null;
   function pushCard(p) {
     const e = platformEnv();
-    /* Zuerst installieren (Knopf, wenn der Browser es anbietet, sonst die Schritte des Browsers), in eingebetteten Android-Browsern „Im Browser öffnen“ – auch wenn Push schon geht;
-       erst danach die Benachrichtigungen. Immer nur eine Karte; „Teilen“ gibt es nur auf iPhone, iPad und Safari am Mac. */
+    /* Zuerst installieren, in eingebetteten Android-Browsern „Im Browser öffnen“, erst danach Benachrichtigungen – immer nur eine Karte. */
     let ip = null;
     if (!e.ios && !e.standalone) {   // Android und Rechner
       const k = installPlan(e, { event: Boolean(installEv), marked: flag('cw-installiert'), done: haveDone(), later: Date.now() < Number(localStorage.getItem('cw-install-spaeter')), waited: instWaited, installDone, secure: window.isSecureContext !== false });
@@ -271,7 +270,7 @@
     if ((kind === 'ios-share' || kind === 'ios-embedded') && hintOpen()) return '';   // der Kasten „Auf den Home-Bildschirm“ oben sagt dasselbe – nie zwei Karten
     if (!kind) return '';
     if (ip) return ip.html;
-    const row = (ico, title, sub) => `<div class="vh-fm"><span class="vh-fm-ico">${ico}</span><span class="vh-tx"><strong>${title}</strong>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
+    const row = (ico, title, sub, c) => `<${c ? 'details class="vh-fm vh-fm-step"><summary' : 'div class="vh-fm"'}><span class="vh-fm-ico">${ico}</span><span class="vh-tx"><strong>${title}</strong>${sub && !c ? `<small>${sub}</small>` : ''}</span>${c ? `<span class="vh-fm-wie">Wie?</span></summary><p>${sub}</p></details>` : '</div>'}`;
     const act = (...b) => `<div class="vh-pushact">${b.join('')}</div>`, later = '<button type="button" class="vh-btn sec" data-pushlater>Später</button>', copy = '<button type="button" class="vh-btn" data-pushcopy>Adresse kopieren</button>';
     const card = (h, rows, buttons) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div>${act(...buttons)}</div>`;
     const MENU = 'Je nach Einstellung oben in der Adressleiste, unten oder im Menü „…“.';
@@ -280,7 +279,7 @@
     if (kind === 'denied') return card('Benachrichtigungen sind gesperrt', row(BELL_OFF, 'Im Handy erlauben', e.ios ? 'Einstellungen › Mitteilungen › diese App › „Mitteilungen erlauben“.' : 'Einstellungen › Apps › diese App bzw. dein Browser › Benachrichtigungen › erlauben.'), [later]);
     if (kind === 'ios-old') return card('Benachrichtigungen gehen hier nicht', row(BELL_OFF, 'iOS 16.4 oder neuer nötig', 'Einstellungen › Allgemein › Softwareupdate. Auf diesem iPhone sind keine Benachrichtigungen möglich.'), [later]);
     if (kind === 'ios-embedded') return card('Zuerst in Safari öffnen', row(OPEN, 'Diese Seite läuft in einer anderen App', 'Tippe auf „…“ oder das Teilen-Symbol und dann auf „In Safari öffnen“.') + row(SHARE, 'Geht das nicht?', 'Kopiere die Adresse und öffne sie in Safari. Dort „Übernahme-Code eingeben“ antippen.'), [later, copy]);
-    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.') + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.'), [later, done]);
+    return card('Zuerst auf den Home-Bildschirm', row(SHARE, '1. Teilen-Symbol antippen', `Quadrat mit Pfeil nach oben. ${MENU}`) + row(ADDHOME, '2. „Zum Home-Bildschirm“', 'Dann „Hinzufügen“ antippen.', 1) + row(OPEN, '3. Vom Home-Bildschirm öffnen', 'PIN eingeben, dann hier „Einschalten“ antippen.', 1), [later, done]);
   }
   function wirePushCard(el) {
     const c = el.querySelector('[data-pushcard]'); if (!c) return;

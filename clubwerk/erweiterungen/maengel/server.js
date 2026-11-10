@@ -353,8 +353,8 @@ CREATE TABLE IF NOT EXISTS mg_also (report_id INTEGER NOT NULL, member_id INTEGE
     const open = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status IN ('neu','arbeit')").get().n;
     const fresh = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status = 'neu'").get().n;
     const urgent = db.prepare("SELECT COUNT(*) n FROM mg_report WHERE status IN ('neu','arbeit') AND urgent = 1").get().n;
-    return { kpis: [{ l: 'Offene Mängel', v: open }, { l: 'davon neu', v: fresh }],
-      alerts: urgent ? [{ level: 'a', text: `${urgent} ${urgent === 1 ? 'dringende Mängelmeldung ist' : 'dringende Mängelmeldungen sind'} offen.`, sec: ['tab_maengel', 'offen'] }] : [] };
+    return { kpis: [{ l: 'Offene Mängel', v: ctx.T('{0} offen', [open]) }, { l: 'davon neu', v: fresh }],
+      alerts: urgent ? [{ level: 'a', text: urgent === 1 ? ctx.T('{0} dringende Mängelmeldung ist offen.', [urgent]) : ctx.T('{0} dringende Mängelmeldungen sind offen.', [urgent]), sec: ['tab_maengel', 'offen'] }] : [] };
   };
 }
 

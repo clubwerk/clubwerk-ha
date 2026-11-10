@@ -57,7 +57,7 @@
   }
   /** Knöpfe rechts in die Reiterzeile (wie auf der Seite Clubmeisterschaft) */
   const tools = (el, html) => { if (html && !GK.tabTools(html, el.firstElementChild)) el.insertAdjacentHTML('afterbegin', `<div class="toolbar">${html}</div>`); };
-  async function days() { st.days = await api('tage'); if (!st.days.some(x => x.id === st.did)) { const t = new Date().toISOString().slice(0, 10); st.did = (st.days.find(x => !x.finished_at && x.date_from <= t && x.date_to >= t) || st.days.find(x => !x.finished_at) || st.days[0] || {}).id || null; } }
+  async function days() { st.days = await api('tage'); if (!st.days.some(x => x.id === st.did)) { const t = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10); st.did = (st.days.find(x => !x.finished_at && x.date_from <= t && x.date_to >= t) || st.days.find(x => !x.finished_at) || st.days[0] || {}).id || null; } }
   async function load() { st.d = st.did ? await api('tag/' + st.did) : null; return st.d; }
   const reload = async () => { await load(); lead(); if (st.tabs) st.tabs.reload(); };
   function lead() {
@@ -300,7 +300,7 @@
         ${d.courts.map(c => `<tr><td><b>${esc(c.name)}</b>${c.manual ? ' <span class="pill">von Hand</span>' : ''}</td>
           ${d.booking ? `<td><select style="min-width:180px" data-res="${c.id}" aria-label="Platz im Buchungssystem: ${esc(c.name)}" ${closed ? 'disabled' : ''}><option value="">– frei, sperrt nichts –</option>${res.map(r => `<option value="${r.id}" ${r.id === c.resource_id ? 'selected' : ''}>${esc(r.name)}</option>`).join('')}</select></td>` : ''}
           <td><label class="chk" style="margin:0"><input type="checkbox" data-auto="${c.id}" ${c.auto ? 'checked' : ''} ${closed ? 'disabled' : ''}> ja</label></td>
-          <td class="r"><span class="acts">${c.manual && !c.used && !closed ? `<button class="btn ico" data-del="${c.id}" title="Platz entfernen" aria-label="Platz entfernen">${DEL}</button>` : ''}</span></td></tr>`).join('')}</table>
+          <td class="r"><span class="acts">${c.manual && !c.used && !closed ? `<button class="btn ico danger-h" data-del="${c.id}" title="Platz entfernen" aria-label="Platz entfernen">${DEL}</button>` : ''}</span></td></tr>`).join('')}</table>
         <p class="muted s" style="margin:10px 0 0">Die Plätze kommen aus den Platznamen in nuLiga. Plätze außerhalb der eigenen Anlage (z. B. eine Halle) mit „+ Platz“ anlegen – sie sperren nichts. „Freie Plätze belegen“ in der Zentrale nutzt nur Plätze mit „automatisch verteilen“.</p></div>
       <div class="card" data-card="sperre"><h3>Sperre im Buchungssystem</h3>
         ${!d.booking ? '<p class="muted">Ohne das Modul „Plätze“ läuft der Turniertag ohne Sperren.</p>'

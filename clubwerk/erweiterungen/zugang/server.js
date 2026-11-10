@@ -254,7 +254,7 @@ function viewFor(memberId, c) {
 const REJ_MEMBER = 10, REJ_ALL = 30;
 let rej = { day: '', all: 0, by: new Map() };
 function countReject(member, door) {
-  const day = new Date().toISOString().slice(0, 10);
+  const day = today();   // lokaler Tag (toISOString zählte zwischen 0 und 2 Uhr noch den Vortag)
   if (rej.day !== day) rej = { day, all: 0, by: new Map() };
   const n = (rej.by.get(member.id) || 0) + 1; rej.all++;
   if (rej.by.size < 5000 || rej.by.has(member.id)) rej.by.set(member.id, n);
@@ -530,7 +530,7 @@ function activate(ctx) {
     const n = access.list(MOD).length;
     const today0 = localTs().slice(0, 10);
     const opened = db.prepare("SELECT COUNT(*) n FROM zugang_log WHERE at >= ? AND action IN ('auf','oeffnen')").get(today0).n;
-    return { kpis: [{ l: 'Türen', v: c.doors.length }, { l: 'Freigeschaltet', v: n }, { l: 'Heute geöffnet', v: opened }, ...(open ? [{ l: 'Türen offen', v: open, warn: true }] : [])], alerts };
+    return { kpis: [{ l: 'Türen', v: (n => n === 1 ? ctx.T('{0} Tür', [n]) : ctx.T('{0} Türen', [n]))(c.doors.length) }, { l: 'Freigeschaltet', v: n }, { l: 'Heute geöffnet', v: opened }, ...(open ? [{ l: 'Türen offen', v: open, warn: true }] : [])], alerts };
   };
 
   const admin = ctx.admin;

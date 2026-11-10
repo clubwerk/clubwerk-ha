@@ -409,4 +409,4 @@ function routes(admin, d) {
   admin.post('/backups/teil/schliessen', need('einstellungen'), (req, res) => { if (offen(req.user.id)) schliessen(); res.json({ ok: true }); });
 }
 
-module.exports = { lesekopie, routes, cleanup, inhalt, auswahl, probe, zaehlen, TEILE, PREFIX, aktiv: () => Boolean(cur) };
+module.exports = { lesekopie, routes, cleanup, inhalt, auswahl, probe, zaehlen, TEILE, PREFIX, aktiv: () => Boolean(cur), neuer };

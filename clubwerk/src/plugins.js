@@ -237,6 +237,10 @@ function load({ app, admin, helpers }) {
         isModuleActive: other => isActive(other),
         /** Adresse der Mitglieder-App (https) für Links in E-Mails, z. B. Kalender – leer, wenn keine eingetragen ist */
         appUrl: () => memberapp.appUrl(),
+        /** E-Mail-Einladung zur Mitglieder-App für eine eigene Mail des Moduls (Willkommens-Mail): state(id) → { ok, reason, email }, create(id, user) → { url, until, steps, note, to, revoke } */
+        appInvite: { state: mid => memberapp.mailInviteState(mid), create: (mid, user) => memberapp.mailInviteFor(mid, user),
+          /** Anleitung „Mitglieder-App einrichten“ als Anhang ({ filename, content }) in der Vereinssprache */
+          guide: async () => { const g = require('./appanleitung'), l = g.langNow(); return { filename: g.FILE(l), content: await g.pdf(l), contentType: 'application/pdf' }; } },
         /** Nachrichten, die ein Mitglied in der App hat (für die Datenauskunft) */
         messagesOf: id => require('./nachrichten').dataOf(id),
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden

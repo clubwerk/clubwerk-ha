@@ -558,7 +558,7 @@ function activate(ctx) {
     const alerts = over.n ? [{ level: 'a', text: `${over.n} ${over.n === 1 ? 'Rechnung' : 'Rechnungen'} überfällig (${euro(over.c)}) – Zahlungserinnerung schicken?`, go: 'bh-rechnungen', link: 'Ansehen' }] : [];
     const y = Number(today().slice(0, 4));
     const pend = db.prepare("SELECT COUNT(*) n FROM bh_partner p WHERE p.active = 1 AND p.items != '[]' AND NOT EXISTS (SELECT 1 FROM bh_invoice i WHERE i.partner_id = p.id AND i.yearly = ? AND i.status != 'storniert')").get(y).n;
-    return { kpis: [{ l: 'Offene Rechnungen', v: `${open.n} · ${euro(open.c)}` }, { l: `Jahresrechnungen ${y} offen`, v: pend }], alerts };
+    return { kpis: [{ l: 'Offene Rechnungen', v: euro(open.c) }, { l: 'Rechnungen offen', v: open.n, note: open.n === 1 ? ctx.T('{0} Rechnung offen', [open.n]) : ctx.T('{0} Rechnungen offen', [open.n]) }, { l: `Jahresrechnungen ${y} offen`, v: pend }], alerts };
   };
   /* Suche (Strg/⌘ K): Rechnungen nach Nummer oder Empfänger, Firmen nach Name oder Kundennummer – ohne Beträge und Bankdaten.
      Der Empfänger steht verschlüsselt (Tresor); gesperrt zählt der Name der Firma bzw. des Mitglieds, Rechnungen an Mitglieder fallen dann weg (Personen). */

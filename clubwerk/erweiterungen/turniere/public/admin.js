@@ -42,7 +42,7 @@
     const n = s ? s.leagues.length : 4, y = new Date().getFullYear();
     const closed = st.meta.seasons.filter(x => x.closed_at);
     GK.dialog(`<h2>${s ? 'Saison bearbeiten' : 'Neue Saison'}</h2>
-      <div class="row"><label class="f" style="flex:2 1 240px">Name<input id="tsN" maxlength="60" value="${esc(s ? s.name : `Clubmeisterschaft ${y}`)}" placeholder="z. B. Clubmeisterschaft ${y}"></label>
+      <div class="row"><label class="f" style="flex:2 1 240px">Name<input id="tsN" required maxlength="60" value="${esc(s ? s.name : `Clubmeisterschaft ${y}`)}" placeholder="z. B. Clubmeisterschaft ${y}"></label>
         <label class="f" style="flex:1 1 140px">Ligen<select id="tsL" ${s && s.drawn_at ? 'disabled' : ''}>${st.meta.letters.map((l, i) => `<option value="${i + 1}" ${i + 1 === n ? 'selected' : ''}>${i + 1} (A${i ? '–' + l : ''})</option>`).join('')}</select></label></div>
       <label class="f" style="margin-top:12px">Doppel-Ligen<input id="tsD" value="${esc(s ? s.doubles.join(', ') : st.meta.defaults[n])}" placeholder="z. B. A+B, C+D" ${s && s.paired_at ? 'disabled' : ''}></label>
       <p class="muted s" style="margin:4px 0 0">Je zwei benachbarte Einzel-Ligen bilden eine Doppel-Liga; die Partner kommen je aus der oberen und der unteren Liga. Eine Liga allein (z. B. „E“): Partner innerhalb der Liga. Leer = kein Doppel.</p>
@@ -368,7 +368,7 @@
   async function showHonors(el) {
     let list; try { list = await api('ehrentafel'); } catch (e) { return fail(e); }
     el.innerHTML = `<div class="card">${list.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Jahr</th><th>Titel</th><th></th></tr>${list.map(h => `<tr><td translate="no"><b>${esc(h.names)}</b></td><td class="tu-num">${esc(h.year)}</td><td>${esc(h.title)}</td>
-        <td class="r"><span class="acts">${h.season_id ? '' : `<button class="btn ico" data-hd="${h.id}" title="Eintrag löschen" aria-label="Eintrag löschen">${DEL}</button>`}</span></td></tr>`).join('')}</table>`
+        <td class="r"><span class="acts">${h.season_id ? '' : `<button class="btn ico danger-h" data-hd="${h.id}" title="Eintrag löschen" aria-label="Eintrag löschen">${DEL}</button>`}</span></td></tr>`).join('')}</table>`
       : '<p class="empty">Noch keine Clubmeister – sie kommen beim Saisonabschluss von selbst hierher. Frühere Jahre lassen sich mit „+ Eintrag“ ergänzen.</p>'}</div>`;
     tools(el, '<button class="btn primary" id="tuHon">+ Eintrag</button>');
     $('tuHon').onclick = () => {

@@ -34,13 +34,13 @@ A single line with a bar. “All items” opens the “Setup” page, “Continu
 
 ![The “To do” card with coloured notes. Red notes come first.](bild: seite=uebersicht; ziel=.todo)
 
-Notes from the core and from all modules appear here: open security warnings, missing backup password, encryption switched off, no club network, new entries from the tablet to confirm, low stock and much more. Red is urgent, yellow is a note. Six notes are visible, “Show all” opens the rest. The link at the end of a line takes you straight to where you fix it. You only see notes you are allowed to deal with.
+Notes from the core and from all modules appear here: open security warnings, missing backup password, encryption switched off, no club network, new entries from the tablet to confirm, low stock and much more. Red is urgent, yellow is a note. The order follows urgency: faults first, then the missing backup, then security and data protection, then the other notes; notes from the same area sit together under one heading. Six tasks are visible (“6 of 21 tasks”), “Show all” opens the rest. The link at the end of a line takes you straight to where you fix it. You only see notes you are allowed to deal with.
 
 #### Grid of modules
 
 ![The grid of modules: name, state and the most important figure.](bild: seite=uebersicht; ziel=.mods2)
 
-Every module that is switched on has a tile with its state (Running, Note, Fault) and its most important figure. A click opens the module. Below, if there is anything, you find “Low stock” and “Latest deliveries” from Sales.
+Every module that is switched on has a tile with its most important figure and its unit (“4 courts”, “7 today”, “4 open”). Below it is the state – “All good” or, if there is a note, the reason in plain words, with “(+2 more)” if there are several. A click opens the module. Below, if there is anything, you find “Low stock” and “Latest deliveries” from Sales.
 
 > On a phone, the button at the top right opens the menu. It shows the area you are in (for example “Finance”).
 
@@ -119,6 +119,7 @@ Choose a member, tick the sections you want and tap **Activate & invite …**. A
 
 - **QR code here on screen:** The member scans it with the phone camera, ideally right here. It works once and only for a short time (adjustable). Then the member sets their app PIN. Do not photograph the code: whoever scans it first gets access.
 - **Send by email:** a personal link, valid for a few days. Needs a mailbox and the address in the member administration. Right after the greeting the email says what to do (“Open this email on your phone and tap the button”), has a large full-width button “Activate app now”, three numbered steps and, below, the address as text in case the button does not work.
+- **Shared email address:** If several members have the same address (for example a family with one mailbox), only **one** of them gets the invitation by email: the head of the family, without a family the payer, otherwise the oldest adult. Otherwise whoever reads the mailbox could authorise the app as any of these members. For all others “Send by email” is greyed out (“Email address belongs to Surname, First name – please authorise via QR code”); they get the QR code on screen or an invitation letter. Once a member has their own address, the email invitation goes to them again.
 - **Print invitation letter:** QR code with instructions on paper.
 - **Approve areas in the club Wi-Fi now:** only appears if a phone was paired from outside without an SMS code.
 
@@ -126,7 +127,7 @@ Choose a member, tick the sections you want and tap **Activate & invite …**. A
 
 ![The “Enabled members” list: per member the phone state, access in one sentence and three buttons.](bild: seite=app; klick=[data-sec="mitglieder"]; ziel=.card:has(#apTbl))
 
-The list has one row per member: **Phone** (one pill: phone authorised, QR code open, invitation expired, locked, old address or “Open once in the club Wi-Fi first”), **Access** in one sentence (“all sections”, “all except Irrigation”, “3 sections” or “none”) and **Last used**. The filters “with phone”, “without phone”, “invited”, “open in Wi-Fi first” and “old address” help with tidying up. At the end of a row are three buttons: **Edit access**, the envelope button (invites again) and the bin (removes: **Remove phone only** – with a new QR code the member is back – or **Remove from the app entirely**). **Send invitations …** invites many people at once by email or as letters. On a phone, tap the row to open the access.
+The list has one row per member: **Phone** (one pill: phone authorised, QR code open, invitation expired, locked, old address or “Open once in the club Wi-Fi first”), **Access** in one sentence (“all sections”, “all except Irrigation”, “3 sections” or “none”) and **Last used**. The filters “with phone”, “without phone”, “invited”, “open in Wi-Fi first” and “old address” help with tidying up. At the end of a row are three buttons: **Edit access**, the envelope button (invites again) and the bin (removes: **Remove phone only** – with a new QR code the member is back – or **Remove from the app entirely**). **Send invitations …** invites many people at once by email or as letters. In the selection, members with a shared address show “Email with head of family” (or “Email with payer” or the name); when sending they are listed under “skipped” with the reason. On a phone, tap the row to open the access.
 
 ![The “Edit access” window: a tick per section, “away” as its own pill.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=[data-ae]; ziel=#dialog)
 
@@ -135,6 +136,14 @@ The **Edit access** window has a tick per section; changes apply immediately. Ne
 **“Open once in the club Wi-Fi first” – what does it mean?** If a member authorised their phone **while away and without an SMS code**, the sensitive sections (e.g. doors, irrigation, lighting) stay locked for security until the app is opened **once in the clubhouse on the Wi-Fi**; then they unlock themselves. The member sees a note in the app at these sections saying what to do. If you are sure the phone belongs to the member, authorise the sections yourself: **Invite …** › **Approve doors and irrigation now**. The same explanation stands above the list as long as such a phone exists.
 
 > A new QR code, or authorising a new section, can sign the old phone out for security reasons. Simply invite again.
+
+#### Guide for members
+
+![“Guide for members” card.](bild: seite=app; klick=[data-sec="mitglieder"]; ziel=#apGuideCard)
+
+Two pages to print, put up or pass on: open the invitation on the phone, set the PIN, put the app on the home screen on iPhone and Android, insert the transfer code, plus a few tips. **Guide for members (PDF)** asks for the language (German or English) and downloads the PDF. Clubwerk fills in your club name, club colour and logo, the validity periods you have set (email/letter and QR code, “Settings” tab › “Security”), in the tip “Some things only at the clubhouse” exactly the sections that only work in your club Wi-Fi (without such sections the tip is left out), the notification tip only if notification events are enabled, and the SMS code only with SMS confirmation. The pictures show the real app (iPhone and Android), without a club name.
+
+The guide can go along with invitations: the “Invite …” window and “Send invitations …” have the tick boxes **“Email: attach guide as PDF”** (ticked by default) and **“Letter: print guide as well”**. With the letter tick box you get one PDF to print: for each member the invitation letter with QR code followed by the guide. The guide comes in the club language.
 
 #### Give a section to several members
 

@@ -8,7 +8,8 @@
    2. Buchungen: Aus dem Journal entstehen Zahlungseingänge (Zufluss) je Erlösart. Jede Tabelle mit Geld hat eine Regel
       paid(row) → [{ cents, via, key, text, doc, date }]. Ändert sich das Ergebnis, wird das Alte gegengebucht und das Neue gebucht –
       so erscheinen Rücklastschriften, Stornos und „wieder offen“ als eigene Buchung, ohne dass ein Modul daran denken muss.
-   Module melden ihre Tabellen über den Hook gobdTables = () => [{ table, cols?, date?, paid? }] und ihre Erlösarten über
+   Module melden ihre Tabellen über den Hook gobdTables = () => [{ table, cols?, date?, paid?, onlyIf? }] und ihre Erlösarten über
+   (onlyIf: Spalte – nur Zeilen, in denen sie nicht 0/leer ist, kommen ins Journal; z. B. Flutlicht nur mit Lichtgeld, Datenschutz)
    gobdKeys = () => [{ key, label, sphere, prefix? }] (prefix: ext_key von Forderungen, die das Modul in der Mitgliederverwaltung anlegt). */
 const crypto = require('crypto');
 const fs = require('fs');
@@ -17,6 +18,7 @@ const { AsyncLocalStorage } = require('async_hooks');
 const { db, DATA_DIR, getSetting, setSetting, audit, auditDiff } = require('./db');
 const plugins = require('./plugins');
 const gj = require('./geschaeftsjahr');
+const { today, addDays } = require('./util');
 
 const als = new AsyncLocalStorage();
 const ANCHOR_FILE = path.join(DATA_DIR, 'gobd-anker.json');
@@ -88,7 +90,8 @@ function tables() {
   const vault = require('./vault').SPEC;
   return out.filter(t => exists(t.table)).map(t => {
     const all = colsOf(t.table), enc = new Set((vault.find(v => v.t === t.table) || { c: [] }).c);
-    return { ...t, cols: (t.cols || all).filter(c => all.includes(c) && !enc.has(c) && /^[a-z_][a-z0-9_]*$/.test(c)), pk: all.includes('id') ? 'id' : 'rowid' };
+    return { ...t, cols: (t.cols || all).filter(c => all.includes(c) && !enc.has(c) && /^[a-z_][a-z0-9_]*$/.test(c)), pk: all.includes('id') ? 'id' : 'rowid',
+      onlyIf: t.onlyIf && all.includes(t.onlyIf) && /^[a-z_][a-z0-9_]*$/.test(t.onlyIf) ? t.onlyIf : null };
   });
 }
 const tableByName = () => new Map(tables().map(t => [t.table, t]));
@@ -100,18 +103,19 @@ function triggerSql(t) {
   const ins = (op, rowId, oldJ, newJ) => `INSERT INTO main.gobd_journal(at, who, tbl, op, row_id, old, new, prev, hash) VALUES (datetime('now','localtime'), cw_gobd_who(), '${t.table}', '${op}', ${rowId}, ${oldJ}, ${newJ}, ${HEAD},
     cw_gobd_hash(${HEAD}, datetime('now','localtime'), cw_gobd_who(), '${t.table}', '${op}', ${rowId}, ${oldJ}, ${newJ}));`;
   const changed = t.cols.map(c => `OLD.${q(c)} IS NOT NEW.${q(c)}`).join(' OR ');
+  const has = (...R) => `(${R.map(r => `COALESCE(${r}.${q(t.onlyIf)}, 0) != 0`).join(' OR ')})`;   // nur mit onlyIf
   const n = `gobd_${t.table}`;
   return [
     `DROP TRIGGER IF EXISTS temp.${n}_i`, `DROP TRIGGER IF EXISTS temp.${n}_u`, `DROP TRIGGER IF EXISTS temp.${n}_d`,
-    `CREATE TEMP TRIGGER ${n}_i AFTER INSERT ON main."${t.table}" BEGIN ${ins('I', `NEW.${t.pk}`, 'NULL', obj('NEW'))} END`,
-    `CREATE TEMP TRIGGER ${n}_u AFTER UPDATE ON main."${t.table}" WHEN ${changed} BEGIN ${ins('U', `NEW.${t.pk}`, obj('OLD'), obj('NEW'))} END`,
-    `CREATE TEMP TRIGGER ${n}_d AFTER DELETE ON main."${t.table}" BEGIN ${ins('D', `OLD.${t.pk}`, obj('OLD'), 'NULL')} END`,
+    `CREATE TEMP TRIGGER ${n}_i AFTER INSERT ON main."${t.table}"${t.onlyIf ? ` WHEN ${has('NEW')}` : ''} BEGIN ${ins('I', `NEW.${t.pk}`, 'NULL', obj('NEW'))} END`,
+    `CREATE TEMP TRIGGER ${n}_u AFTER UPDATE ON main."${t.table}" WHEN (${changed})${t.onlyIf ? ` AND ${has('OLD', 'NEW')}` : ''} BEGIN ${ins('U', `NEW.${t.pk}`, obj('OLD'), obj('NEW'))} END`,
+    `CREATE TEMP TRIGGER ${n}_d AFTER DELETE ON main."${t.table}"${t.onlyIf ? ` WHEN ${has('OLD')}` : ''} BEGIN ${ins('D', `OLD.${t.pk}`, obj('OLD'), 'NULL')} END`,
   ];
 }
 const lastRow = () => db.prepare('SELECT id, hash FROM gobd_journal ORDER BY id DESC LIMIT 1').get() || null;
 /** Startbestand einer Tabelle: alle vorhandenen Zeilen einmal festhalten (ohne Trigger, Kette in JS) */
 function seed(t) {
-  const sel = db.prepare(`SELECT ${t.pk} AS _rid, json_object(${t.cols.map(c => `'${c}', "${c}"`).join(', ')}) AS j FROM "${t.table}" WHERE ${t.pk} > ? ORDER BY ${t.pk} LIMIT 2000`);
+  const sel = db.prepare(`SELECT ${t.pk} AS _rid, json_object(${t.cols.map(c => `'${c}', "${c}"`).join(', ')}) AS j FROM "${t.table}" WHERE ${t.pk} > ?${t.onlyIf ? ` AND COALESCE("${t.onlyIf}", 0) != 0` : ''} ORDER BY ${t.pk} LIMIT 2000`);
   const ins = db.prepare('INSERT INTO gobd_journal(at, who, tbl, op, row_id, old, new, prev, hash) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?)');
   const at = db.prepare("SELECT datetime('now','localtime') t").get().t;
   let prev = (lastRow() || {}).hash || null, from = -Infinity, n = 0;
@@ -222,7 +226,7 @@ function postings(from, to) {
   const rules = tables().filter(t => typeof t.paid === 'function');
   if (!rules.length) return [];
   const byT = new Map(rules.map(t => [t.table, t]));
-  const lower = new Date(new Date(from + 'T00:00:00').getTime() - 400 * 86400000).toISOString().slice(0, 10);
+  const lower = addDays(from, -400);
   const sel = db.prepare(`SELECT id, at, tbl, op, row_id, old, new FROM gobd_journal WHERE tbl IN (${rules.map(() => '?').join(',')}) AND (op = 'S' OR at >= ?) AND id > ? ORDER BY id LIMIT 5000`);
   const out = []; let last = -1;
   const run = (t, row, at) => { try { return norm(row ? t.paid(row) : [], at); } catch (e) { return []; } };
@@ -317,7 +321,7 @@ async function pruefer(year, user, club) {
       rows.push(...db.prepare(`SELECT ${t.pk} AS _rid, ${t.cols.map(c => `"${c}"`).join(', ')} FROM "${t.table}" WHERE ${t.pk} IN (${part.map(() => '?').join(',')})`).all(...part));
     }
     if (!rows.length) continue;
-    add(`${t.table}.csv`, t.table, `Tabelle ${t.table} (Stand ${deDate(new Date().toISOString().slice(0, 10))})`, t.cols.map(c => ({ name: c, num: /INT|REAL|NUM/.test(types.get(c) || '') })), rows);
+    add(`${t.table}.csv`, t.table, `Tabelle ${t.table} (Stand ${deDate(today())})`, t.cols.map(c => ({ name: c, num: /INT|REAL|NUM/.test(types.get(c) || '') })), rows);
   }
   const jr = db.prepare('SELECT id, at, who, tbl, op, row_id, old, new, prev, hash FROM gobd_journal WHERE at BETWEEN ? AND ? ORDER BY id').all(from, upto);
   add('aenderungsjournal.csv', 'aenderungsjournal', 'Änderungsjournal: jede neue, geänderte oder gelöschte Zeile mit Vorher/Nachher (JSON) und Prüfkette (SHA-256)',

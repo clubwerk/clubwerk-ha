@@ -46,7 +46,7 @@ function register(sh) {
   H.overview = () => {
     const rows = db.prepare("SELECT * FROM sl_issue WHERE status = 'ausgegeben'").all().map(issueView);
     const reclaim = rows.filter(r => r.reclaim).length, out = rows.reduce((n, r) => n + openItems(r.pieces).length, 0);
-    return { kpis: [{ l: 'Schlüssel ausgegeben', v: out }], alerts: reclaim ? [{ level: 'a', text: reclaim === 1 ? ctx.T('1 Person hat noch Schlüssel – bitte zurückfordern.') : ctx.T('{0} Personen haben noch Schlüssel – bitte zurückfordern.', [reclaim]), link: 'Ansehen', sec: ['tab_schluessel', 'ausgegeben'] }] : [] };
+    return { kpis: [{ l: 'Schlüssel ausgegeben', v: ctx.T('{0} ausgegeben', [out]) }], alerts: reclaim ? [{ level: 'a', text: reclaim === 1 ? ctx.T('1 Person hat noch Schlüssel – bitte zurückfordern.') : ctx.T('{0} Personen haben noch Schlüssel – bitte zurückfordern.', [reclaim]), link: 'Ansehen', sec: ['tab_schluessel', 'ausgegeben'] }] : [] };
   };
   H.search = s => {
     const w = s.where('t.ident', 't.name', 'm.name');

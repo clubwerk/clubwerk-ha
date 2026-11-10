@@ -48,6 +48,15 @@ function contactOf(memberId, hooked = null) {
   return null;
 }
 const mailOf = (id, hooked = null) => { const a = contactOf(id, hooked); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
+/* Geteilte E-Mail-Adresse (z. B. Familie mit einem Postfach): Die E-Mail-Einladung bekommt nur EIN Mitglied (Oberhaupt → Zahler → ältester
+   Erwachsener, Hook mailOwners der Mitgliederverwaltung); alle anderen schaltet der Vorstand per QR-Code frei – sonst könnte, wer das Postfach
+   liest, die App als jedes dieser Mitglieder koppeln. Ohne Mitgliederverwaltung gibt es keine Adressen und damit keine E-Mail-Einladung. */
+const mailOwners = () => { try { const p = require('./plugins').withHook('mailOwners')[0]; return (p && p.hooks.mailOwners()) || {}; } catch (e) { return {}; } };
+/** Besitzer der Adresse, wenn sie zu einem ANDEREN Mitglied gehört → { owner, ownerName, why }, sonst null */
+const mailSharedWith = (id, owners = mailOwners()) => { const o = owners[id]; return o && o.owner !== id ? o : null; };
+const sharedReason = o => `E-Mail-Adresse gehört zu ${require('./db').lastFirst(o.ownerName, 'mitglied')} – bitte per QR-Code freischalten`;
+/** Adresse für eine E-Mail-Einladung: wie mailOf, aber null bei geteilter Adresse, die einem anderen Mitglied gehört */
+const inviteMailOf = (id, hooked = null, owners = null) => (mailSharedWith(id, owners || mailOwners()) ? null : mailOf(id, hooked));
 /** Handynummer für den SMS-Code – nur, wenn SMS eingerichtet ist */
 const smsPhone = id => { if (!sms.ready()) return null; const a = contactOf(id); return a ? (sms.normPhone(a.mobile) || sms.normPhone(a.phone)) : null; };
 const deTs = ms => new Date(ms).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short', timeZone: process.env.TZ || 'Europe/Berlin' });
@@ -56,19 +65,48 @@ const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
 const hasPinOf = id => Boolean((db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(id) || {}).pin_hash);
 /** Schritt der Einladung zur PIN: vorhandene PIN eingeben, sonst eine persönliche vergeben */
 const pinStep = has => has ? 'Deine PIN eingeben – dieselbe wie im Verkauf am Tablet.' : 'Deine persönliche PIN vergeben (4 bis 6 Ziffern) – du brauchst sie später bei jedem Öffnen.';
+/** Link, Gültigkeit und Schritte einer E-Mail-Einladung – gemeinsam für die Einladungs-Mail und die Willkommens-Mail der Mitgliederverwaltung */
+function inviteParts(memberId, inv) {
+  const url = `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`, until = deTs(inv.expiresAt), phone = smsPhone(memberId);
+  const steps = ['Den Knopf oben auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), pinStep(hasPinOf(memberId)), 'Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.'];
+  return { url, until, steps, note: `Gültig bis ${until} Uhr · nur für dich, bitte nicht weiterleiten` };
+}
+/* Für Module (Willkommens-Mail der Mitgliederverwaltung, ctx.appInvite): dieselben Regeln wie „Einladen …“ › „Per E-Mail schicken“ */
+let missingForRef = () => [], permsAllRef = () => ['konten'];   // Bereiche, für die dem Admin das Recht fehlt (gesetzt in adminRoutes)
+/** Darf eine E-Mail-Einladung an dieses Mitglied mit? → { ok, reason, email } */
+function mailInviteState(memberId) {
+  if (!qrUrl()) return { ok: false, reason: 'Die Adresse der Mitglieder-App ist noch nicht eingetragen (Mitglieder-App › Einstellungen).' };
+  const o = mailSharedWith(memberId); if (o) return { ok: false, reason: sharedReason(o) + '.', shared: { name: o.ownerName, why: o.why } };
+  const email = mailOf(memberId); if (!email) return { ok: false, reason: 'Keine E-Mail-Adresse hinterlegt.' };
+  return { ok: true, email };
+}
+/** Einladung für eine fremde Mail (z. B. Willkommens-Mail) erzeugen – Rechte wie beim Einzelversand; ersetzt ein gekoppeltes Handy → Teile zum Einbetten */
+function mailInviteFor(memberId, user) {
+  const stt = mailInviteState(memberId); if (!stt.ok) throw new Error(stt.reason);
+  // dieselben Regeln wie „Einladen …“ › „Per E-Mail schicken“ (Route invite-mail): Recht „Mitglieder“ der Verwaltung bzw. eines Bereichs, aktives Konto
+  if (!permsAllRef().some(p => user.perms.includes(p))) throw new Error('Für die Einladung zur Mitglieder-App fehlt das Recht „Mitglieder“.');
+  if (!db.prepare("SELECT 1 FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(memberId)) throw new Error('Mitglied nicht gefunden.');
+  if (!require('./auth').memberAllowed(user, memberId)) throw new Error('Für die Einladung zur Mitglieder-App fehlt das Recht „Mitglieder“.');
+  const miss = missingForRef({ user }, memberId); if (miss.length) throw new Error(`Für die Einladung zur Mitglieder-App fehlt dir das Recht für: ${miss.join(', ')}.`);
+  const inv = invites.create(SCOPE, memberId, user.name || user.username, user.role === 'oberadmin' ? '*' : user.perms, { kind: 'mail' });
+  audit(user, 'Mitglieder-App: Einladung per E-Mail', `${inv.member} · mit der Willkommens-E-Mail · gültig bis ${deTs(inv.expiresAt)}`);
+  return { to: stt.email, days: invites.mailDays(), revoke: () => invites.revoke(SCOPE, memberId), ...inviteParts(memberId, inv) };
+}
 /** Einladung per E-Mail verschicken (Link mit Knopf, kurze Anleitung) */
-async function inviteMail(memberId, inv, by) {
+async function inviteMail(memberId, inv, by, { guide = false } = {}) {
+  { const o = mailSharedWith(memberId); if (o) throw new Error(sharedReason(o) + '.'); }
   const to = mailOf(memberId); if (!to) throw new Error('Keine E-Mail-Adresse hinterlegt.');
   const mail = require('./mail'); if (!mail.ready()) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
-  const club = getSetting('club_name', 'Verein'), url = `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`;
-  const until = deTs(inv.expiresAt), phone = smsPhone(memberId);
-  const steps = ['Den Knopf oben auf deinem Handy antippen (nicht am PC).', ...(phone ? [`Den Code eingeben, den du per SMS an ${sms.maskPhone(phone)} bekommst.`] : []), pinStep(hasPinOf(memberId)), 'Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.'];
+  const club = getSetting('club_name', 'Verein');
+  const { url, until, steps, note } = inviteParts(memberId, inv);
   const intro = `Hallo ${firstName(inv.member)},\n\nÖffne diese E-Mail auf deinem Handy und tippe auf den Knopf „App jetzt freischalten“.`;
-  const note = `Gültig bis ${until} Uhr · nur für dich, bitte nicht weiterleiten`, outro = `Knopf geht nicht? Diese Adresse öffnen: ${url}\n\nFragen? Antworte einfach auf diese E-Mail.\n\nViele Grüße\n${club}`;
-  await mail.send({ to, subject: 'Dein Zugang zur Mitglieder-App – bitte am Handy öffnen',
+  const outro = `Knopf geht nicht? Diese Adresse öffnen: ${url}\n\nFragen? Antworte einfach auf diese E-Mail.\n\nViele Grüße\n${club}`;
+  // Anleitung „Mitglieder-App einrichten“ als PDF (je Sprache zwischengespeichert, nicht je Mitglied neu gebaut)
+  const g = require('./appanleitung'), attachments = guide ? [{ filename: g.FILE(g.langNow()), content: await g.pdf(g.langNow()), contentType: 'application/pdf' }] : undefined;
+  await mail.send({ to, subject: g.SUBJECT, attachments,
     text: `${intro}\n\n${url}\n${note}\n\nSo geht es:\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n${outro}`,
     card: { heading: `Mitglieder-App von ${club} freischalten`, before: intro, steps, after: outro, button: { label: 'App jetzt freischalten', url, wide: true, note }, buttonTop: true } });
-  audit(by || null, 'Mitglieder-App: Einladung per E-Mail', `${inv.member} · gültig bis ${until}`);
+  audit(by || null, 'Mitglieder-App: Einladung per E-Mail', `${inv.member} · gültig bis ${until}${guide ? ' · mit Anleitung (PDF)' : ''}`);
   return { to };
 }
 /** Bestätigung an das Mitglied nach jeder Kopplung – fällt so sofort auf, wenn jemand anderes die Einladung benutzt hat */
@@ -208,9 +246,9 @@ CREATE TABLE IF NOT EXISTS app_forme_seen (   -- „Für mich“: quittierte Neu
 
 const { today, deD } = require('./util');
 // 3.14.2: Ausnahme je Mitglied – Bereich auch von unterwegs nutzbar, obwohl er sonst nur im Vereins-WLAN gilt (Platzwart, Privat-Relay)
-try { db.exec('ALTER TABLE member_access ADD COLUMN away INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* gibt es schon */ }
+try { db.exec('ALTER TABLE member_access ADD COLUMN away INTEGER NOT NULL DEFAULT 0'); } catch (e) { if (!/duplicate column/i.test(e.message)) console.error('Spalte ergänzen:', e.message); }   // nur „gibt es schon“ ist erwartet
 // 3.17: zusätzliche Haken je Mitglied und Bereich, die das Modul anbietet (Hook accessOptions().flags), z. B. Buchen → „Gebühren zeigen“ – JSON { fees: true }
-try { db.exec('ALTER TABLE member_access ADD COLUMN flags TEXT'); } catch (e) { /* gibt es schon */ }
+try { db.exec('ALTER TABLE member_access ADD COLUMN flags TEXT'); } catch (e) { if (!/duplicate column/i.test(e.message)) console.error('Spalte ergänzen:', e.message); }   // nur „gibt es schon“ ist erwartet
 const parseFlags = v => { try { const x = JSON.parse(v || '{}'); return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; } catch (e) { return {}; } };
 const hasFlags = row => Boolean(row && Object.values(parseFlags(row.flags)).some(Boolean));
 
@@ -742,6 +780,7 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
   const missingFor = (req, memberId) => db.prepare('SELECT module, blocked FROM member_access WHERE member_id = ?').all(memberId)
     .filter(r => { const m = modules.get(r.module); return m && m.isActive() && !m.open && !r.blocked; })
     .filter(r => !mayModule(req, r.module)).map(r => modules.get(r.module).label || modules.get(r.module).name);
+  missingForRef = missingFor; permsAllRef = permsAll;
   admin.get('/app', (req, res, next) => need(...permsAll(), 'app')(req, res, next), (req, res) => {
     const mayMembers = permsAll().some(p => req.user.perms.includes(p));   // nur „Mitglieder-App einrichten“: keine Mitgliederliste
     const ids = db.prepare(`SELECT DISTINCT member_id FROM (SELECT member_id FROM member_devices WHERE scope = ? UNION SELECT member_id FROM member_access)`).all(SCOPE).map(r => r.member_id);
@@ -751,8 +790,9 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     const have = new Set(rows.map(r => r.member_id));
     const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
-    const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => mailOf(id, hooked)) : [];
-    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [], bulkCan: mayMembers && bulkModules(req).length > 0, bulkLast: mayMembers ? bulkLastInfo(req) : null,
+    const owners = canMail ? mailOwners() : {}, mailShared = {};
+    const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => { if (!mailOf(id, hooked)) return false; const o = mailSharedWith(id, owners); if (o) { mailShared[id] = { name: o.ownerName, why: o.why }; return false; } return true; }) : [];
+    res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mailShared: mayMembers ? mailShared : {}, mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [], bulkCan: mayMembers && bulkModules(req).length > 0, bulkLast: mayMembers ? bulkLastInfo(req) : null,
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });
   // Vereinsnetz (Einstellungen › Erreichbarkeit): nur, was die Karte braucht – ohne Mitgliederliste
@@ -761,8 +801,8 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     const id = parseInt(req.params.id, 10);
     const m = db.prepare('SELECT id, name, kind FROM members WHERE id = ? AND deleted = 0').get(id);
     if (!m) return bad(res, 'Mitglied nicht gefunden.', 404);
-    const em = mailOf(id);
-    res.json({ invite: { mail: Boolean(em && require('./mail').ready()), email: em, mailReady: require('./mail').ready(), sms: Boolean(smsPhone(id)), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) }, member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
+    const em = mailOf(id), sh = em ? mailSharedWith(id) : null;
+    res.json({ invite: { mail: Boolean(em && !sh && require('./mail').ready()), email: em, shared: sh ? { name: sh.ownerName, why: sh.why, reason: sharedReason(sh) } : null, mailReady: require('./mail').ready(), sms: Boolean(smsPhone(id)), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) }, member_id: id, name: m.name, kind: m.kind, url: qrUrl(), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), ...memberState(id) });
   });
   admin.post('/app/member/:id/invite', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
     if (!auth.memberAllowed(req.user, parseInt(req.params.id, 10))) return bad(res, NO_INVITE, 403);
@@ -773,20 +813,27 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
       res.json(out);
     } catch (e) { bad(res, e.message); }
   });
+  /* Anleitung „Mitglieder-App einrichten“ (PDF, src/appanleitung.js) – zum Ausdrucken oder Weitergeben */
+  admin.get('/app/anleitung.pdf', (req, res, next) => need(...permsAll(), 'app')(req, res, next), async (req, res) => {
+    const g = require('./appanleitung'), lang = req.query.lang === 'en' ? 'en' : 'de';
+    try { const buf = await g.pdf(lang); res.type('application/pdf'); res.setHeader('Content-Disposition', `attachment; filename="${g.FILE(lang)}"`); res.setHeader('Cache-Control', 'no-store'); res.send(buf); }
+    catch (e) { console.error('Anleitung Mitglieder-App:', e.message); bad(res, 'Die Anleitung konnte nicht erstellt werden.', 500); }
+  });
   /* ----- Einladung per E-Mail (einzeln) und Sammelversand / Briefe ----- */
-  const inviteOne = async (req, id, kind) => {
+  const inviteOne = async (req, id, kind, owners = null, { guide = false } = {}) => {
     if (!auth.memberAllowed(req.user, id)) return { error: 'fehlendes Recht „Mitglieder“' };
     const miss = missingFor(req, id); if (miss.length) return { error: `fehlendes Recht für ${miss.join(', ')}` };
-    if (kind === 'mail' && !mailOf(id)) return { error: 'keine E-Mail-Adresse' };
+    if (kind === 'mail') { const o = mailSharedWith(id, owners || mailOwners()); if (o) return { error: sharedReason(o) }; }
+    if (kind === 'mail' && !inviteMailOf(id, null, owners)) return { error: 'keine E-Mail-Adresse' };
     const inv = invites.create(SCOPE, id, req.user.name || req.user.username, req.user.role === 'oberadmin' ? '*' : req.user.perms, { kind });
-    if (kind === 'mail') { try { await inviteMail(id, inv, req.user); } catch (e) { invites.revoke(SCOPE, id); return { error: e.message }; } return { ok: true, member: inv.member }; }
+    if (kind === 'mail') { try { await inviteMail(id, inv, req.user, { guide }); } catch (e) { invites.revoke(SCOPE, id); return { error: e.message }; } return { ok: true, member: inv.member }; }
     audit(req.user, 'Mitglieder-App: Einladungsbrief', `${inv.member} · gültig bis ${deTs(inv.expiresAt)}`);
     return { ok: true, member: inv.member, url: `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`, expiresAt: inv.expiresAt, svg: await invites.qrSvg(`${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`) };
   };
   admin.post('/app/member/:id/invite-mail', (req, res, next) => need(...permsAll())(req, res, next), async (req, res) => {
     const id = parseInt(req.params.id, 10);
     if (!db.prepare("SELECT 1 FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id)) return bad(res, 'Mitglied nicht gefunden.', 404);
-    const r = await inviteOne(req, id, 'mail');
+    const r = await inviteOne(req, id, 'mail', null, { guide: (req.body || {}).guide !== false });
     if (r.error) return bad(res, r.error[0].toUpperCase() + r.error.slice(1) + '.');
     res.json({ ok: true, to: mailOf(id), days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()), ...memberState(id) });
   });
@@ -796,17 +843,23 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     const ids = [...new Set((Array.isArray(b.ids) ? b.ids : []).map(x => parseInt(x, 10)).filter(Boolean))].slice(0, 500);
     if (!ids.length) return bad(res, 'Bitte Mitglieder auswählen.');
     if (kind === 'mail' && !require('./mail').ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
-    const done = [], skipped = [], letters = [];
+    const done = [], skipped = [], letters = [], owners = kind === 'mail' ? mailOwners() : null;
     for (const id of ids) {
       const m = db.prepare("SELECT id, name FROM members WHERE id = ? AND active = 1 AND deleted = 0 AND kind IN ('mitglied','nichtmitglied')").get(id);
       if (!m) continue;
       const st = memberState(id);
       if (st.device && st.device.status === 'gekoppelt' && !b.force) { skipped.push({ name: m.name, reason: 'Handy schon gekoppelt' }); continue; }
-      const r = await inviteOne(req, id, kind);
+      const r = await inviteOne(req, id, kind, owners, { guide: kind === 'mail' && b.guide !== false });
       if (r.error) skipped.push({ name: m.name, reason: r.error }); else { done.push(m.name); if (kind === 'brief') letters.push({ name: r.member, url: r.url, expiresAt: r.expiresAt, svg: r.svg, pinStep: pinStep(hasPinOf(id)) }); }
     }
-    if (kind === 'mail') audit(req.user, 'Mitglieder-App: Einladungen per E-Mail', `${done.length} verschickt${skipped.length ? `, ${skipped.length} übersprungen` : ''}`);
-    res.json({ ok: true, kind, done, skipped, letters, days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) });
+    if (kind === 'mail') audit(req.user, 'Mitglieder-App: Einladungen per E-Mail', `${done.length} verschickt${skipped.length ? `, ${skipped.length} übersprungen` : ''}${b.guide !== false ? ' · mit Anleitung (PDF)' : ''}`);
+    // „Anleitung mitdrucken“: Briefe als ein PDF, hinter jedem Brief die Anleitung (sonst druckt die Verwaltung die Briefe selbst)
+    let pdf = null;
+    if (kind === 'brief' && b.guide && letters.length) {
+      const g = require('./appanleitung'), withSms = sms.ready();
+      pdf = (await g.letters(letters.map(l => ({ name: l.name, url: l.url, expiresAt: l.expiresAt, steps: ['Den QR-Code mit der Handy-Kamera scannen.', ...(withSms ? ['Falls gefragt: den Code aus der SMS eingeben.'] : []), l.pinStep, 'Die App zeigt dir genau, wie sie auf deinen Home-Bildschirm kommt – das geht auf jedem Handy anders.'] })), g.langNow())).toString('base64');
+    }
+    res.json({ ok: true, kind, done, skipped, letters: pdf ? letters.map(({ svg, ...x }) => x) : letters, pdf, days: invites.mailDays(), localOnly: !(tunnelOn() && tunnelUrl()) });
   });
   /** von unterwegs gekoppeltes Handy: sensible Bereiche (Türen, Licht …) freigeben (wie nach dem ersten Besuch im Vereins-WLAN) */
   admin.post('/app/member/:id/trust', (req, res, next) => need(...permsAll())(req, res, next), (req, res) => {
@@ -1185,4 +1238,4 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
 
 /** Adresse der Mitglieder-App für Links in E-Mails (von unterwegs, sonst im Vereins-WLAN) – nur https, sonst leer */
 const appUrl = () => { const u = String(qrUrl() || '').replace(/\/+$/, ''); return /^https:\/\//i.test(u) ? u : ''; };
-module.exports = { appUrl, netsFromInfo, register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };
+module.exports = { mailInviteState, mailInviteFor, appUrl, netsFromInfo, register, registerPublic, accessFor, access, startPort, adminRoutes, SCOPE, memberState, moduleInfo, activeModules, fromTunnel, awayReq, PRIVATE_IP, isClubNet, inClubNets, hasClubNets, validNets, cidrList };

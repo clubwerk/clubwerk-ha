@@ -330,6 +330,35 @@ function familyOf(memberId) {
   return pg;
 }
 const isExited = (p, day = today()) => Boolean(p && p.exit_date && p.exit_date < day);
+/**
+ * Geteilte E-Mail-Adressen (Mitglieder-App, Willkommens-Mail): Steht dieselbe Adresse (ohne Groß-/Kleinschreibung und Leerzeichen,
+ * wie src/mailer.js) bei mehreren aktuellen Personen, bekommt nur EINE die E-Mail-Einladung – sonst könnte, wer das Postfach liest,
+ * die App als jedes dieser Mitglieder freischalten. Reihenfolge: Familienoberhaupt (family_of) → Zahler (payer_id) → ältester
+ * Erwachsener (ohne Geburtsdatum nach denen mit; Kinder zuletzt) → kleinste Kontonummer.
+ * → Map memberId → { owner, why: 'familie'|'zahler'|'alter' } nur für Personen mit geteilter Adresse (auch für den Besitzer selbst).
+ */
+function mailOwners(day = today(), extra = null) {
+  const rows = db.prepare(`SELECT p.member_id id, p.email, p.birth_date, p.family_of, p.payer_id FROM mv_person p JOIN members m ON m.id = p.member_id
+    WHERE p.anonymized_at IS NULL AND (p.exit_date IS NULL OR p.exit_date >= ?) AND m.deleted = 0 AND m.active = 1 AND m.pending = 0
+    AND m.kind IN ('mitglied','nichtmitglied') AND p.email IS NOT NULL AND trim(p.email) != ''`).all(day);
+  if (extra && extra.email) rows.push(extra);   // noch nicht angelegte Person (Fenster „Neues Mitglied“), id < 0
+  const groups = new Map();
+  for (const r of rows) { const k = String(r.email).trim().toLowerCase(); if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); }
+  const out = new Map(), adultAge = 18;
+  for (const g of groups.values()) {
+    if (g.length < 2) continue;
+    const ids = new Set(g.map(r => r.id));
+    const heads = g.filter(h => g.some(r => r.id !== h.id && r.family_of === h.id) || (h.id > 0 && !h.family_of && db.prepare('SELECT 1 FROM mv_person WHERE family_of = ? AND member_id != ?').get(h.id, h.id)));
+    const payers = g.filter(h => g.some(r => r.id !== h.id && ids.has(r.payer_id) && (r.id < 0 ? r.payer_id : payerOf(r.id)) === h.id));
+    const pool = heads.length ? heads : payers.length ? payers : g, why = heads.length ? 'familie' : payers.length ? 'zahler' : 'alter';
+    const rank = r => { const a = fees.ageAt(r.birth_date, day); return a == null ? 1 : a >= adultAge ? 0 : 2; };
+    const best = pool.slice().sort((a, b) => rank(a) - rank(b) || String(a.birth_date || '9999').localeCompare(String(b.birth_date || '9999')) || (a.id < 0) - (b.id < 0) || a.id - b.id)[0];   // Gleichstand: das schon angelegte Mitglied
+    for (const r of g) out.set(r.id, { owner: best.id, why });
+  }
+  return out;
+}
+/** Wem gehört die Adresse, wenn diese (noch nicht angelegte) Person dazukommt? → ID eines anderen Mitglieds oder null (dann gehört sie ihr) */
+function mailOwnerFor(cand, day = today()) { const o = mailOwners(day, { id: -1, ...cand }).get(-1); return o && o.owner !== -1 ? o.owner : null; }
 const fullName = p => [p.first_name, p.last_name].filter(Boolean).join(' ');
 /** Konto für Lastschriften: aus den zentralen Bankkonten (Einstellungen → Bankkonten), sonst die früher hier eingetragenen Werte */
 let bank = null;
@@ -347,6 +376,6 @@ module.exports = {
     noteMemberNo(db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n);   // Bestand: höchste Nummer gilt als vergeben
   },
   S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, noteMemberNo, mandateRefFor, hist,
-  payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, fullName, sepa, fees,
+  payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, mailOwners, mailOwnerFor, fullName, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

@@ -9,7 +9,7 @@
     const s = document.createElement('style'); s.id = 'tuStyle';
     s.textContent = `
       .tu-tab { width: 100%; border-collapse: collapse; font-size: 14px; table-layout: fixed; }
-      .tu-tab th { font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; text-align: right; padding: 0 4px 6px; white-space: nowrap; }
+      .tu-tab th { font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; text-align: right; padding: 0 4px 6px; white-space: nowrap; }
       .tu-tab th.n, .tu-tab td.n { text-align: left; }
       .tu-tab td { padding: 8px 4px; border-top: 1px solid var(--line); text-align: right; color: var(--ink); }
       .tu-tab td.n { overflow-wrap: anywhere; font-weight: 600; }   /* Namen stehen ganz da, notfalls zweizeilig */
@@ -24,11 +24,11 @@
       .tu-score .s { display: flex; gap: 6px; justify-content: flex-end; font-family: var(--num); font-weight: 600; font-variant-numeric: tabular-nums; font-size: 17px; color: var(--muted); }
       .tu-score .s b { min-width: 14px; text-align: center; font-weight: 600; }
       .tu-score .s b.w { color: var(--ink); }
-      .tu-score .s i { font-style: normal; font-family: inherit; font-size: 12.5px; color: var(--muted); }
+      .tu-score .s i { font-style: normal; font-family: inherit; font-size: 13px; color: var(--muted); }
       .tu-tree { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 28px; align-items: center; }
       .tu-tree > .col { display: grid; gap: 12px; }
       .tu-box { background: var(--card); border: 1px solid var(--edge); border-radius: 16px; box-shadow: var(--shadow); padding: 10px 14px; position: relative; min-width: 0; }
-      .tu-box h4 { margin: 0 0 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; gap: 8px; }
+      .tu-box h4 { margin: 0 0 6px; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; display: flex; justify-content: space-between; gap: 8px; }
       .tu-box h4 span { text-transform: none; letter-spacing: 0; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       :is(.card, .vh-card) .tu-box { box-shadow: none; background: transparent; border-color: var(--line); }
       .tu-tree .col:first-child .tu-box::after { content: ''; position: absolute; right: -15px; top: 50%; width: 14px; border-top: 2px solid var(--line2); }
@@ -37,16 +37,16 @@
       .tu-res { display: grid; gap: 10px; }
       .tu-res .tu-score { padding-top: 10px; border-top: 1px solid var(--line); }
       .tu-res .tu-score:first-child { border-top: 0; padding-top: 0; }
-      .tu-score .when { grid-column: 1 / -1; font-size: 12.5px; color: var(--muted); }
+      .tu-score .when { grid-column: 1 / -1; font-size: 13px; color: var(--muted); }
       .tu-rel { display: grid; gap: 10px; }
-      .tu-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; align-items: stretch; }   /* Gruppen nebeneinander gleich hoch */
+      .tu-groups { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 400px), 1fr)); gap: 12px; align-items: stretch; }   /* Gruppen nebeneinander gleich hoch */
       .tu-groups > .vh-card, .tu-groups > .card { margin: 0; min-width: 0; }
       .tu-rel + .tu-rel { margin-top: 10px; }
       .tu-hon { display: grid; gap: 0; }
       .tu-hon > div { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--line); }
       .tu-hon > div:first-child { border-top: 0; padding-top: 2px; }
       .tu-hon b.y { grid-row: span 2; font-family: var(--num); font-weight: 600; font-size: 22px; line-height: 1.1; color: var(--brand-ink); font-variant-numeric: tabular-nums; }
-      .tu-hon small { font-size: 12.5px; color: var(--muted); }
+      .tu-hon small { font-size: 13px; color: var(--muted); }
       .tu-hon span { font-size: 14.5px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
       .tu-tab.ft col.z { width: 30px; } .tu-tab.ft col.w { width: 50px; } .tu-tab.ft col.p { width: 40px; }
       .tu-tab.ft td.pt { font-family: var(--num); font-weight: 700; font-variant-numeric: tabular-nums; font-size: 17px; color: var(--ink); }
@@ -56,7 +56,7 @@
       .ft-tree { display: grid; grid-template-columns: repeat(var(--r), minmax(0, 1fr)); gap: 12px 16px; align-items: stretch; }
       .ft-tree > .col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
       .ft-tree > .col > .ms { flex: 1; display: flex; flex-direction: column; justify-content: space-around; gap: 10px; }
-      .ft-tree h4.ft-rh { margin: 0; font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+      .ft-tree h4.ft-rh { margin: 0; font-size: 13px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
       .ft-tree .tu-box.bye { padding: 6px 14px; }
       .ft-tree .tu-box.bye .tu-score .s { color: var(--muted); }
       .ft-third { margin-top: 12px; display: grid; grid-template-columns: repeat(var(--r), minmax(0, 1fr)); gap: 12px 16px; }

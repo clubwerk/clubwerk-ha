@@ -147,7 +147,9 @@ Gebühren entstehen beim Buchen als offene Posten und werden mit dem nächsten E
 
 Für eine Gebühr ohne Buchung, z. B. eine Hallenmiete: Person, Betrag (zwischen 0,10 € und 1.000 €), Datum und Text. Bei Mitgliedern entsteht eine Forderung, die wie ein Beitrag eingezogen wird. Bei Trainern („Kein Mitglied“) kommt der Betrag aufs Verkaufskonto. Nötig ist das Recht „für Mitglieder buchen“.
 
-Von Hand gebuchte Gebühren haben in der Zeile den Knopf **Stornieren**; die Rückfrage nennt den Betrag, der offene Posten wird zurückgenommen.
+Von Hand gebuchte Gebühren haben in der Zeile den Knopf **Stornieren**; die Rückfrage nennt den Betrag, der offene Posten wird zurückgenommen. Ist die Gebühr schon eingezogen oder bezahlt, storniert ihr sie in den Mitgliedern (dort mit „als Guthaben behalten“ oder „zurücküberwiesen“). Eine Buchung mit bezahlter Gebühr lässt sich nicht mehr ändern, nur stornieren – die Gebühr bleibt dann stehen, das Protokoll vermerkt „Gebühr nicht storniert“.
+
+Gebühren für ein Familienmitglied oder jemanden mit eigenem Zahler („zahlt für“) stehen als offener Posten beim Zahler.
 
 ### Reiter „Auswertung“ {#bk-auswertung}
 

@@ -192,7 +192,7 @@
     dialog(`<h2>${g.id ? 'Spieltag ändern' : 'Neuer Spieltag'}</h2>
       <div class="sp-grid" style="--c:2">
         <label class="f">Mannschaft<select id="egT">${m.teams.filter(t => t.active || t.id === g.team_id).map(t => opt(t.id, t.name, g.team_id)).join('')}</select></label>
-        <label class="f">Gegner<input id="egO" value="${esc(g.opponent || '')}" placeholder="z. B. TC Hadamar II"></label>
+        <label class="f">Gegner<input id="egO" required value="${esc(g.opponent || '')}" placeholder="z. B. TC Hadamar II"></label>
         <label class="f">Datum<input id="egD" type="date" value="${esc(g.date)}"></label>
         <label class="f">Beginn<input id="egS" type="time" value="${esc(g.start || '')}"></label>
         <label class="f">Ort<select id="egH">${opt(1, 'Heimspiel', g.home ? 1 : 0)}${opt(0, 'Auswärtsspiel', g.home ? 1 : 0)}</select></label>
@@ -392,7 +392,7 @@
     const pick = (id, sel) => `<select id="${id}">${opt('', '– niemand –', sel || '')}${m.members.map(x => opt(x.id, x.ln, sel)).join('')}</select>`;
     dialog(`<h2>${t.id ? 'Mannschaft bearbeiten' : 'Neue Mannschaft'}</h2>
       <div class="sp-grid" style="--c:2">
-        <label class="f wall">Name<input id="etN" value="${esc(t.name)}" placeholder="z. B. Herren 40 I"></label>
+        <label class="f wall">Name<input id="etN" required value="${esc(t.name)}" placeholder="z. B. Herren 40 I"></label>
         <label class="f">Liga<input id="etL" value="${esc(t.league || '')}" placeholder="z. B. H40 (4er) Bezirksliga"></label>
         <label class="f">Saison<input id="etS" value="${esc(t.season || '')}" placeholder="z. B. Sommer 2027"></label>
         <label class="f">Altersklasse (Rahmenterminplan)<input id="etK" value="${esc(t.age_class || '')}" placeholder="z. B. H40, D, HL H30"></label>

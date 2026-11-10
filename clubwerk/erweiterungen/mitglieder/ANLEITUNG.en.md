@@ -48,13 +48,16 @@ Clicking a row opens the member. “← All members” takes you back, with the 
 
 ![The “New member” window.](bild: seite=mitglieder; klick=#mvNew; ziel=dialog)
 
-A member is only created **completely**: name, date of birth, joining date, address, email, mobile, fee, department and payment method. For direct debit, the account holder (Clubwerk suggests the name), IBAN and the date of the SEPA mandate are needed as well. On top comes the **signed membership application** as a PDF or photo (choose the file or drag it into the box).
+Required fields carry the note “(required)” – the same throughout the admin area. A member is only created **completely**: name, date of birth, joining date, address, email, mobile, fee, department and payment method. For direct debit, the account holder (Clubwerk suggests the name), IBAN and the date of the SEPA mandate are needed as well. On top comes the **signed membership application** as a PDF or photo (choose the file or drag it into the box).
 
 - Clubwerk assigns the **member number** itself if the field stays empty.
 - For the **fee** only the types that fit the age can be chosen; the rest are greyed out. Enter the date of birth first.
 - If “Direct debit is required” is set in the settings, direct debit is the only payment method.
 - If the new member is to sign on the tablet, use “+ Membership application” on the “Applications” tab instead.
 - **Take over from member …** (button at the top of the window) saves retyping when someone belongs to an existing member. You search for the member (shown as “Surname, First name”) and tick what goes into the form: address, surname and landline are pre-ticked, email and mobile are not. “Take over” only fills in the form; nothing is saved until “Create”. **Bank details are never copied.** Instead, in the same window you choose “Add to the family of …” or “Pays via …”. The new member then needs no fee of its own (family) or no account of its own; it pays via the head of family or the payer. The family rules apply (see “Family membership”): Clubwerk warns you if there is already a partner or if a “child” is over 18. Children need no email and no mobile.
+- **Send welcome email** (tick box at the bottom of the window): ticked as soon as an email address is entered and a mailbox is set up; otherwise greyed out with the reason. You set subject and text under Settings › “Welcome email”. If a new family member (e.g. a child) has no address of their own, the email goes to the head of the family. For direct debit Clubwerk adds the mandate reference and creditor ID, and the membership application is attached as a PDF.
+- **Include invitation to the member app** (below, unticked by default): puts the personal authorisation link straight into the welcome email. This only works with the member's own address. If the new member shares the address with others (e.g. the head of the family), only one of them gets the invitation by email under the rule of the member app; the tick box is then greyed out (“Email address belongs to … – please authorise via QR code”). Without an address for the member app the tick box is not shown. With the app invitation, **“Attach guide as PDF”** appears below it (ticked by default): the two-page guide “Setting up the member app” is included.
+- The same applies to **“Add new partner”** and **“Add new child”** (“Payment & family” tab).
 - The same takeover is at the top of the “Address & contact” card of an existing member (“Master data” tab) and with “+ Membership application” on the “Applications” tab (there without family and payer).
 
 #### Import …
@@ -111,7 +114,7 @@ Salutation, title, first name, last name, date of birth, gender (male or female)
 
 ![The “Address & contact” card.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
 
-Street, postcode, town, address line 2, country, email, mobile, phone and the **letter salutation** (e.g. “Dear Anna”). Also the joining date, the key number and **notes** that only the board sees.
+Street, postcode, town, address line 2, country, email, mobile, landline phone and the **letter salutation** (e.g. “Dear Anna”). Also the joining date, the key number and **notes** that only the board sees.
 
 With **Take over from member …** (button at the top of the card) you copy address, surname, landline, email or mobile from another member into the form – nothing is saved until you click “Save”, and bank details are never copied. Instead of bank details you can also choose “Add to the family of …” or “Pays via …” there; this is applied when you save.
 
@@ -126,6 +129,10 @@ One tick box per consent with its date (“since …”), e.g. for photos. Which
 #### More cards and buttons
 
 - **Tablet PIN:** shows whether the member has a PIN. “Reset PIN” deletes it; next time the member sets a new one on the tablet.
+- **Welcome email:** shows when it was last sent and which address it goes to. “Send welcome email …” asks for confirmation and offers to include the invitation to the member app. Every sending is recorded in the member's history and in the log.
+
+![“Welcome email” card on the member.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
+
 - **Profile picture:** appears when the member has uploaded one in the app. “Remove profile picture …” deletes it.
 - **Caution:** “Delete …” only works if nothing is attached to the member any more (meant for members created by mistake or twice). “Anonymize …” only exists after leaving. It permanently deletes name, address, account, documents and history; for the statistics, birth year, gender, joining and leaving and departments remain. For safety you type the word ANONYMISIEREN.
 - **Data access request** (button on the right of the tab bar): downloads a file with everything Clubwerk has stored about the person, including data from other modules. Without the “Bank details” permission the IBAN in it is masked.
@@ -390,6 +397,12 @@ Here you switch on where people can join: **on the tablet** (“Join”) and **o
 
 ![The templates for consents.](bild: seite=mv-einstellungen; klick=#eConsTpl; ziel=dialog)
 
+#### Welcome email
+
+![“Welcome email” card.](bild: seite=mv-einstellungen; ziel=#eWel)
+
+Subject and text of the email new members receive – when a membership application is accepted, when created with the tick box and via the button on the member. You insert the **placeholders** with a click at the cursor: {Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Eintritt}, {Beitrag} (first name, surname, membership number, club, joining date, fee). Clubwerk reports unknown placeholders before saving; subject and text must not be empty. **Preview …** shows the email with sample values. For direct debit Clubwerk always adds the mandate reference and creditor ID itself – this part cannot be changed. **Restore default text …** puts the supplied text back. The text is not translated; it goes out exactly as you write it. Every change is logged with before and after.
+
 #### “My data” in the app
 
 ![The “My data” card in the app.](bild: seite=mv-einstellungen; ziel=#eApp)
@@ -499,7 +512,7 @@ All claims and credits of the members with their status. At the top the chips **
 
 - **Paid:** records a payment with amount, date and payment method (bank transfer, cash, direct debit, offset). If somebody pays less, it is a **part payment** and the rest stays open.
 - **Change:** change text, amount and due date; also **Cancel item …** and the **reminder hold** for this item.
-- **Cancel** (for paid items): with a reason. For a fee you can have the period billed again in the next fee run. If the money arrived according to the bank statement, you choose whether it stays as a credit or was transferred back.
+- **Cancel** (for paid items): with a reason. For a fee you can have the period billed again in the next fee run. Because the club already has the money (bank statement, direct debit, cash or transfer), you choose whether it stays as a credit or was transferred back.
 - **+ Charge** (top right) creates a new item:
 
 ![The “Create claim” window.](bild: seite=mv-posten; klick=#cNew; ziel=dialog)

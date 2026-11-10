@@ -48,7 +48,7 @@ function register(sh) {
     if (out.some(x => x.text.length < 10)) return { error: 'Jede Mahnstufe braucht einen Text (mindestens ein Satz).' };
     return { levels: out };
   };
-  sh.dunningLevels = levels; sh.dunningDeadline = deadlineDays;
+  sh.dunningLevels = levels; sh.dunningDeadline = deadlineDays; sh.dunningPlan = plan;   // plan: auch für den Einzeltest ohne Server (Testreihe rechnen)
 
   /* ---------- Mahnlauf berechnen ---------- */
   const blockOn = (reason, until, day) => Boolean(reason) && (!until || until >= day);
@@ -116,17 +116,21 @@ function register(sh) {
   /** Stufe und Gebühr buchen, Mahnhistorie schreiben – erst wenn das Schreiben raus ist (E-Mail gesendet bzw. Brief gedruckt) */
   function commit(x, pl, no, via, req) {
     const user = uname(req);
-    let feeId = null;
+    let feeId = null, moved = 0;
     db.transaction(() => {
       for (const i of x.items.filter(y => y.adv))
-        db.prepare("UPDATE mv_charge SET dunning_level = ?, dunned_at = ? WHERE id = ? AND status = 'offen' AND collection_id IS NULL AND dunning_level <= ?").run(i.level, pl.day, i.id, i.from);
+        moved += db.prepare("UPDATE mv_charge SET dunning_level = ?, dunned_at = ? WHERE id = ? AND status = 'offen' AND collection_id IS NULL AND dunning_level < ?").run(i.level, pl.day, i.id, i.level).changes;
+      // Gebühr nur, wenn dieses Schreiben wirklich eine Stufe weitergeschaltet hat (nicht bei doppeltem Absenden oder inzwischen bezahlt)
+      if (!moved) return;
       if (x.fee) feeId = Number(db.prepare("INSERT INTO mv_charge(member_id, kind, text, cents, due_date, invoice_no, dunning_level, dunned_at, created_by, note) VALUES (?, 'mahngebuehr', ?, ?, ?, ?, ?, ?, ?, ?)")
         .run(x.member_id, `Mahngebühr (${x.title} vom ${deD(pl.day)})`, x.fee, pl.day, no, x.level, pl.day, user, `${via === 'email' ? 'per E-Mail' : 'per Brief'}`).lastInsertRowid);
       db.prepare('INSERT INTO mv_dunning(member_id, date, level, title, cents, fee_cents, fee_id, ref, charges, via, by_user) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
         .run(x.member_id, pl.day, x.level, x.title, x.total, x.fee, feeId, no, JSON.stringify(x.items.map(i => ({ id: i.id, text: i.text, cents: i.cents, level: i.level, adv: i.adv }))), via, user);
     })();
+    if (!moved) return false;
     store.hist(x.member_id, user, 'Mahnung', null, `${x.title} über ${euro(x.total)}${x.fee ? ` (Gebühr ${euro(x.fee)})` : ''}, ${via === 'email' ? 'per E-Mail' : 'per Brief'}`);
     C.audit(req.user, via === 'email' ? 'Mahnung per E-Mail versendet' : 'Mahnbrief gedruckt', `${x.name}: ${x.title} über ${euro(x.total)}${x.fee ? `, Mahngebühr ${euro(x.fee)}` : ''}`);
+    return true;
   }
   /** Auswahl aus der Verwaltung gegen den aktuellen Plan prüfen: nur, was dort noch genauso steht → { ok: [Schreiben], changed: [Namen] } */
   function pick(pl, body) {
@@ -159,16 +163,26 @@ function register(sh) {
   }));
   admin.post('/dunning/printed', PF, (req, res) => {
     const pl = plan(), { ok, changed } = pick(pl, req.body || {});
-    for (const x of ok) commit(x, pl, letterData(x, pl).no, 'brief', req);
-    res.json({ ok: true, done: ok.length, changed });
+    let done = 0;
+    for (const x of ok) if (commit(x, pl, letterData(x, pl).no, 'brief', req)) done++; else changed.push(x.name);
+    res.json({ ok: true, done, changed });
   });
+  let sending = false;   // Versand läuft (wartet je Mail) – ein zweiter Klick darf nicht dieselben Schreiben noch einmal schicken
   admin.post('/dunning/send', PF, rateLimit('mvdun', 10, 10 * 60000), ar(async (req, res) => {
     if (!C.mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
+    if (sending) return bad(res, 'Der Mahnversand läuft gerade – bitte warten und danach neu laden.', 409);
+    sending = true;
+    try { await sendRun(req, res); } finally { sending = false; }
+  }));
+  async function sendRun(req, res) {
     const pl = plan(), { ok, changed } = pick(pl, req.body || {});
     const cl = sh.club();
     let sent = 0; const missing = [], failed = [];
     for (const x of ok) {
       if (!x.email) { missing.push(x.name); continue; }
+      // während der vorigen Mails bezahlt, storniert oder anders geändert? Dann dieses Schreiben nicht mehr schicken
+      const now = plan(pl.day, x.member_id).due.find(d => d.member_id === x.member_id);
+      if (!now || now.sig !== x.sig) { changed.push(x.name); continue; }
       const { no, o } = letterData(x, pl);
       try {
         const buf = await pdf.invoice(cl, o);
@@ -178,12 +192,11 @@ function register(sh) {
           'Die Einzelheiten stehen im angehängten PDF.', '', 'Viele Grüße', cl.name].filter(l => l !== null).join('\n'),
           attachments: [{ filename: `${no}.pdf`, content: buf }] });
       } catch (e) { failed.push(`${x.name}: ${e.message}`); continue; }   // nicht raus → keine Stufe, keine Gebühr
-      commit(x, pl, no, 'email', req);
-      sent++;
+      if (commit(x, pl, no, 'email', req)) sent++; else changed.push(x.name);
       await new Promise(r => setTimeout(r, 150));
     }
     res.json({ ok: true, sent, missing, failed, changed });
-  }));
+  }
 
   /* ---------- Mahnsperre ---------- */
   /** aktive Sperren (Zahler und Posten) für die Seite „Rechnungen & Mahnungen“ */

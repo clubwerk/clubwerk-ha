@@ -184,5 +184,5 @@ Switching only works on the clubhouse Wi-Fi, never over the internet, not even w
 - **Member app and tablet:** authorisation, pairing and PIN run through the member app.
 - **Overview:** shows the number of lights and “Lights on” and warns about faults or a missing location.
 - **Setup:** the setup assistant guides you through “Add lights” and “Darkness and lights-out”.
-- **Data protection:** under Settings › Data protection you set how long names stay in the history (3 to 60 months, default 24). After that Clubwerk removes the names; durations and operating hours remain.
+- **Data protection:** under Settings › Data protection you set how long names stay in the history (3 to 60 months, default 24). After that Clubwerk removes the names; durations and operating hours remain. Entries with a light fee are accounting records and keep the name for 10 years (retention duty).
 - **Other modules using Home Assistant:** a switch can only be used in one module.

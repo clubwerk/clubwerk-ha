@@ -56,7 +56,7 @@
           </div>${d.transfer ? '<button class="vh-btn sec wide" id="mdPay" style="margin-top:12px">Überweisen</button>' : ''}</div>` : ''}
           ${V.anschrift !== false || V.kontakt !== false || V.geburt !== false ? `<div class="vh-card"><h3>Kontakt ${E.anschrift || E.kontakt ? '<button id="mdEdit">Ändern</button>' : ''}</h3><dl class="vh-kv">
             ${V.anschrift !== false ? `<dt>Anschrift</dt><dd>${esc(p.street || '–')}<br>${esc([p.zip, p.city].filter(Boolean).join(' '))}</dd>` : ''}
-            ${V.kontakt !== false ? `<dt>E-Mail</dt><dd>${esc(p.email || '–')}</dd><dt>Mobil</dt><dd>${esc(p.mobile || p.phone || '–')}</dd>` : ''}
+            ${V.kontakt !== false ? `<dt>E-Mail</dt><dd>${esc(p.email || '–')}</dd><dt>Handy</dt><dd>${esc(p.mobile || p.phone || '–')}</dd>` : ''}
             ${V.geburt !== false && p.birth_date ? `<dt>Geburtsdatum</dt><dd>${deD(p.birth_date)}</dd>` : ''}</dl></div>` : ''}
           ${d.isHead && V.bank !== false ? `<div class="vh-card"><h3>Bankverbindung ${E.bank ? '<button id="mdBank">Neue Bankverbindung</button>' : ''}</h3>${d.bank ? `<dl class="vh-kv"><dt>Konto</dt><dd>${esc(d.bank.iban)}</dd><dt>Inhaber/in</dt><dd>${esc(d.bank.holder || '–')}</dd>
             <dt>Mandatsreferenz</dt><dd>${esc(d.bank.mandate_ref || '–')}</dd>${d.creditor.ci ? `<dt>Gläubiger-ID</dt><dd>${esc(d.creditor.ci)}</dd>` : ''}</dl>` : `<dl class="vh-kv"><dt>Zahlungsart</dt><dd>${esc(p.payment || '–')}</dd></dl>`}</div>` : ''}
@@ -99,7 +99,7 @@
         const f = (k, l, t = 'text') => `<label>${l}</label><input class="vh-input" data-k="${k}" type="${t}" value="${esc(p[k] || '')}">`;
         const E = (d.perms && d.perms.edit) || {};
         const sh = sheet(`<h2>Kontaktdaten ändern</h2><p>Der Vorstand bestätigt die Änderung.</p>${E.kontakt ? '<p>Eine neue E-Mail-Adresse bestätigst du mit deiner PIN.</p>' : ''}${E.anschrift ? `${f('street', 'Straße und Hausnummer')}<div class="vh-row" style="gap:10px"><div style="flex:1">${f('zip', 'PLZ')}</div><div style="flex:2">${f('city', 'Ort')}</div></div>` : ''}
-          ${E.kontakt ? `${f('email', 'E-Mail', 'email')}${f('mobile', 'Mobil', 'tel')}` : ''}${!E.kontakt || !E.anschrift ? `<p class="vh-note" style="text-align:left;margin:10px 0 0">${!E.kontakt ? 'E-Mail und Handynummer' : 'Die Anschrift'} kann nur der Vorstand ändern.</p>` : ''}<div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Senden</button></div>`);
+          ${E.kontakt ? `${f('email', 'E-Mail', 'email')}${f('mobile', 'Handy', 'tel')}` : ''}${!E.kontakt || !E.anschrift ? `<p class="vh-note" style="text-align:left;margin:10px 0 0">${!E.kontakt ? 'E-Mail und Handynummer' : 'Die Anschrift'} kann nur der Vorstand ändern.</p>` : ''}<div class="vh-err" id="mdErr"></div><div class="vh-row"><button class="no" id="mdNo">Abbrechen</button><button class="ok" id="mdOk">Senden</button></div>`);
         sh.querySelector('#mdNo').onclick = closeSheet;
         sh.querySelector('#mdOk').onclick = async () => {
           const body = {}; sh.querySelectorAll('[data-k]').forEach(i => { body[i.dataset.k] = i.value.trim(); });

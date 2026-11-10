@@ -34,13 +34,13 @@ Eine Zeile mit Balken. „Alle Punkte“ öffnet die Seite „Einrichtung“, �
 
 ![Die Karte „Zu erledigen“ mit farbigen Hinweisen. Rote Hinweise stehen oben.](bild: seite=uebersicht; ziel=.todo)
 
-Hier stehen Hinweise aus dem Kern und allen Modulen: offene Sicherheitswarnungen, fehlendes Sicherungspasswort, ausgeschaltete Verschlüsselung, fehlendes Vereinsnetz, neue Einträge vom Tablet zum Bestätigen, knapper Bestand und vieles mehr. Rot ist dringend, gelb ist ein Hinweis. Sechs Hinweise sind sichtbar, „Alle zeigen“ klappt den Rest auf. Der Link am Zeilenende führt direkt dorthin, wo ihr es erledigt. Ihr seht nur Hinweise, die ihr mit euren Rechten auch erledigen dürft.
+Hier stehen Hinweise aus dem Kern und allen Modulen: offene Sicherheitswarnungen, fehlendes Sicherungspasswort, ausgeschaltete Verschlüsselung, fehlendes Vereinsnetz, neue Einträge vom Tablet zum Bestätigen, knapper Bestand und vieles mehr. Rot ist dringend, gelb ist ein Hinweis. Die Reihenfolge richtet sich nach Dringlichkeit: erst Störungen, dann die fehlende Datensicherung, dann Sicherheit und Datenschutz, dann die übrigen Hinweise; Hinweise desselben Bereichs stehen zusammen unter einer Überschrift. Sechs Aufgaben sind sichtbar („6 von 21 Aufgaben“), „Alle zeigen“ klappt den Rest auf. Der Link am Zeilenende führt direkt dorthin, wo ihr es erledigt. Ihr seht nur Hinweise, die ihr mit euren Rechten auch erledigen dürft.
 
 #### Raster der Module
 
 ![Das Raster der Module: Name, Zustand und die wichtigste Zahl.](bild: seite=uebersicht; ziel=.mods2)
 
-Jedes eingeschaltete Modul hat eine Kachel mit Zustand (Läuft, Hinweis, Störung) und seiner wichtigsten Zahl. Ein Klick öffnet das Modul. Darunter stehen, wenn es etwas gibt, „Bestand knapp“ und „Letzte Lieferungen“ des Verkaufs.
+Jedes eingeschaltete Modul hat eine Kachel mit seiner wichtigsten Zahl samt Einheit („4 Plätze“, „7 heute“, „4 offen“). Darunter steht der Zustand – „Alles gut“ oder bei einem Hinweis der Grund im Klartext, bei mehreren mit „(+2 weitere)“. Ein Klick öffnet das Modul. Darunter stehen, wenn es etwas gibt, „Bestand knapp“ und „Letzte Lieferungen“ des Verkaufs.
 
 > Am Handy öffnet der Knopf oben rechts das Menü. Er zeigt den Bereich, in dem ihr gerade seid (zum Beispiel „Finanzen“).
 
@@ -119,6 +119,7 @@ Mitglied wählen, die gewünschten Bereiche ankreuzen und **Freischalten & einla
 
 - **QR-Code hier am Bildschirm:** Das Mitglied scannt ihn mit der Handy-Kamera, am besten direkt vor Ort. Er gilt einmal und nur kurze Zeit (einstellbar). Danach legt das Mitglied seine App-PIN fest. Den Code nicht abfotografieren: Wer ihn zuerst scannt, bekommt den Zugang.
 - **Per E-Mail schicken:** persönlicher Link, gilt einige Tage. Braucht ein Postfach und die Adresse in der Mitgliederverwaltung. Die Mail sagt gleich nach der Anrede, was zu tun ist („Öffne diese E-Mail auf deinem Handy und tippe auf den Knopf“), hat einen großen Knopf „App jetzt freischalten“ über die ganze Breite, drei nummerierte Schritte und darunter die Adresse als Text für den Fall, dass der Knopf nicht geht.
+- **Gemeinsame E-Mail-Adresse:** Steht dieselbe Adresse bei mehreren Mitgliedern (zum Beispiel eine Familie mit einem Postfach), bekommt nur **eines** die Einladung per E-Mail: das Familienoberhaupt, ohne Familie der Zahler, sonst der älteste Erwachsene. Wer das Postfach liest, könnte sonst die App als jedes dieser Mitglieder freischalten. Bei allen anderen ist „Per E-Mail schicken“ ausgegraut („E-Mail-Adresse gehört zu Nachname, Vorname – bitte per QR-Code freischalten“); sie bekommen den QR-Code am Bildschirm oder einen Einladungsbrief. Bekommt ein Mitglied eine eigene Adresse, geht die E-Mail-Einladung auch wieder an es selbst.
 - **Einladungsbrief drucken:** QR-Code mit Anleitung auf Papier.
 - **Bereiche im Vereins-WLAN jetzt freigeben:** erscheint nur, wenn ein Handy von unterwegs ohne SMS-Code gekoppelt wurde.
 
@@ -126,7 +127,7 @@ Mitglied wählen, die gewünschten Bereiche ankreuzen und **Freischalten & einla
 
 ![Die Liste „Freigeschaltete Mitglieder“: je Mitglied Handy-Zustand, Freigaben in einem Satz und drei Knöpfe.](bild: seite=app; klick=[data-sec="mitglieder"]; ziel=.card:has(#apTbl))
 
-Die Liste hat je Mitglied eine Zeile: **Handy** (eine Pille: Handy freigeschaltet, QR-Code offen, Einladung abgelaufen, gesperrt, alte Adresse oder „Erst im Vereins-WLAN öffnen“), **Freigaben** in einem Satz („alle Bereiche“, „alle außer Beregnung“, „3 Bereiche“ oder „keine“) und **Zuletzt benutzt**. Die Filter „mit Handy“, „ohne Handy“, „eingeladen“, „erst im WLAN öffnen“ und „alte Adresse“ helfen beim Aufräumen. Am Zeilenende stehen drei Knöpfe: **Freigaben bearbeiten**, der Brief-Knopf (lädt neu ein) und der Papierkorb (entfernt: **Nur Handy entfernen** – mit neuem QR-Code ist das Mitglied wieder dabei – oder **Ganz aus der App entfernen**). **Einladungen verschicken …** lädt viele auf einmal per E-Mail oder als Briefe ein. Am Handy tippt ihr auf die Zeile, um die Freigaben zu öffnen.
+Die Liste hat je Mitglied eine Zeile: **Handy** (eine Pille: Handy freigeschaltet, QR-Code offen, Einladung abgelaufen, gesperrt, alte Adresse oder „Erst im Vereins-WLAN öffnen“), **Freigaben** in einem Satz („alle Bereiche“, „alle außer Beregnung“, „3 Bereiche“ oder „keine“) und **Zuletzt benutzt**. Die Filter „mit Handy“, „ohne Handy“, „eingeladen“, „erst im WLAN öffnen“ und „alte Adresse“ helfen beim Aufräumen. Am Zeilenende stehen drei Knöpfe: **Freigaben bearbeiten**, der Brief-Knopf (lädt neu ein) und der Papierkorb (entfernt: **Nur Handy entfernen** – mit neuem QR-Code ist das Mitglied wieder dabei – oder **Ganz aus der App entfernen**). **Einladungen verschicken …** lädt viele auf einmal per E-Mail oder als Briefe ein. In der Auswahl steht bei Mitgliedern mit gemeinsamer Adresse „E-Mail beim Oberhaupt“ (bzw. „E-Mail beim Zahler“ oder der Name); sie landen beim Versand unter „übersprungen“ mit dem Grund. Am Handy tippt ihr auf die Zeile, um die Freigaben zu öffnen.
 
 ![Das Fenster „Freigaben bearbeiten“: ein Haken je Bereich, „unterwegs“ als eigene Pille.](bild: seite=app; klick=[data-sec="mitglieder"]; klick2=[data-ae]; ziel=#dialog)
 
@@ -135,6 +136,14 @@ Im Fenster **Freigaben bearbeiten** steht je Bereich ein Haken; Änderungen gelt
 **„Erst im Vereins-WLAN öffnen“ – was heißt das?** Hat ein Mitglied sein Handy **von unterwegs ohne SMS-Code** freigeschaltet, bleiben die sensiblen Bereiche (z. B. Türen, Beregnung, Licht) aus Sicherheitsgründen gesperrt, bis die App **einmal im Vereinsheim im WLAN** geöffnet wird; dann schalten sie sich von selbst frei. Das Mitglied sieht dazu in der App bei diesen Bereichen den Hinweis, was zu tun ist. Ist sicher, dass das Handy dem Mitglied gehört, gebt ihr die Bereiche selbst frei: **Einladen …** › **Türen und Beregnung jetzt freigeben**. Über der Liste steht dieselbe Erklärung, solange es ein solches Handy gibt.
 
 > Ein neuer QR-Code oder die Freischaltung eines neuen Bereichs kann das alte Handy aus Sicherheitsgründen abmelden. Dann einfach neu einladen.
+
+#### Anleitung für Mitglieder
+
+![Karte „Anleitung für Mitglieder“.](bild: seite=app; klick=[data-sec="mitglieder"]; ziel=#apGuideCard)
+
+Zwei Seiten zum Ausdrucken, Aushängen oder Weitergeben: Einladung am Handy öffnen, PIN festlegen, App auf iPhone und Android auf den Startbildschirm legen, Übernahme-Code einfügen und ein paar Tipps. **Anleitung für Mitglieder (PDF)** fragt nach der Sprache (Deutsch oder Englisch) und lädt das PDF herunter. Clubwerk setzt euren Vereinsnamen, eure Vereinsfarbe und euer Logo ein, die eingestellten Gültigkeiten (E-Mail/Brief und QR-Code, Reiter „Einstellungen“ › „Sicherheit“), im Tipp „Manches nur im Vereinsheim“ genau die Bereiche, die bei euch nur im Vereins-WLAN gehen (ohne solche entfällt der Tipp), den Tipp zu Benachrichtigungen nur, wenn Anlässe freigegeben sind, und den SMS-Code nur mit SMS-Bestätigung. Die Bilder zeigen die echte App (iPhone und Android), ohne Vereinsnamen.
+
+Beim Einladen geht die Anleitung mit: Im Fenster „Einladen …“ und bei „Einladungen verschicken …“ stehen die Häkchen **„E-Mail: Anleitung als PDF anhängen“** (vorbelegt an) und **„Brief: Anleitung mitdrucken“**. Mit dem Brief-Häkchen entsteht ein PDF zum Drucken: je Mitglied der Einladungsbrief mit QR-Code und dahinter die Anleitung. Die Anleitung kommt in der Vereinssprache.
 
 #### Bereich für mehrere Mitglieder freigeben
 

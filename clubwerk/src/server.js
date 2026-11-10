@@ -1,6 +1,7 @@
 'use strict';
 const DEMO_KOPIE = process.env.CW_DEMO_KOPIE === '1';
 if (DEMO_KOPIE || process.env.CW_LESEKOPIE === '1') require('./abschottung');   // Demo-Kopie und Lesekopie der Teil-Wiederherstellung: nichts nach außen – vor allem anderen laden (src/demokopie.js, src/teilsicherung.js)
+require('./testuhr');   // Test-Uhr (nur mit CW_TEST_UHR, sonst ohne Wirkung)
 require('./logtime');   // Zeitstempel im Protokoll
 if (process.env.CW_TEST_ROUTEN) require('./routen');   // nur Tests: merkt sich die Pfade aller Adressen (Testreihe rmatrix) – vor dem ersten Router
 const path = require('path');
@@ -100,6 +101,7 @@ app.use((req, res, next) => {
 });
 app.use(require('./security').noTunnel({ msg: 'Die Verwaltung und die Tablet-Seiten sind von außen nicht erreichbar.', bypass: req => viaIngress(req) }));
 app.use(require('./security').hostGuard({ bypass: req => viaIngress(req) }));
+if (require('./testuhr').stellbar) app.use((req, res, next) => (req.method === 'POST' && req.path === '/api/test/uhr/vor' ? res.json({ jetzt: require('./testuhr').vor(req.query.ms) }) : next()));   // nur Testläufe (CW_TEST_UHR_STELLBAR=1), nach Tunnel- und Host-Prüfung, keine Route (rmatrix): Uhr vorstellen statt Wartezeiten absitzen
 app.use(require('./security').hardenHeaders({ frame: 'SAMEORIGIN', camera: 'self' }));
 app.use(require('./security').compress());
 app.use((req, res, next) => {
@@ -3576,6 +3578,9 @@ admin.post('/backups/komplett/restore', need('einstellungen'), rateLimit('bkrest
     const q = await komplettQuelle(b);
     if (q) ({ src, temp } = q);
     if (!src) return bad(res, 'Sicherung nicht gefunden.', 404);
+    // Sicherung aus einer neueren Version: deren Datenbank kennt dieser Code nicht (wie bei der Teil-Wiederherstellung) – erst aktualisieren
+    let head = {}; try { head = fullbackup.readHeader(src).head || {}; } catch (e) { /* kein lesbarer Kopf: extract() meldet den Fehler */ }
+    if (head.app && require('./teilsicherung').neuer(head.app, APP_VERSION)) return bad(res, `Diese Sicherung stammt aus Clubwerk ${head.app} – hier läuft ${APP_VERSION}. Bitte zuerst Clubwerk aktualisieren.`);
     const tmp = fs.mkdtempSync(path.join(DATA_DIR, '.wiederherstellung-'));
     try {
       const pw = String(b.password || '');

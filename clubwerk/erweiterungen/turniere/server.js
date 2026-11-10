@@ -903,7 +903,7 @@ CREATE TABLE IF NOT EXISTS tu_honor (                               -- Ehrentafe
     const alerts = [];
     if (!s.drawn_at && !s.paired_at && s.reg_until && s.reg_until < d0) alerts.push({ level: 'a', text: `${s.name}: Die Anmeldung ist vorbei – jetzt die Gruppen auslosen.`, sec: ['tab_turniere', 'teilnehmer'] });
     if (late) alerts.push({ level: 'a', text: `${s.name}: ${late} ${late === 1 ? 'Spiel ist' : 'Spiele sind'} überfällig.`, sec: ['tab_turniere', 'spiele'] });
-    return { kpis: [{ l: 'Offene Turnierspiele', v: ms.filter(m => !decided(m)).length }, ...lk.kpis], alerts: [...alerts, ...lk.alerts] };
+    return { kpis: [{ l: 'Offene Turnierspiele', v: (n => n === 1 ? ctx.T('{0} Spiel', [n]) : ctx.T('{0} Spiele', [n]))(ms.filter(m => !decided(m)).length) }, ...lk.kpis], alerts: [...alerts, ...lk.alerts] };
   };
   ctx.hooks.memberLinks = id => {
     const out = [];

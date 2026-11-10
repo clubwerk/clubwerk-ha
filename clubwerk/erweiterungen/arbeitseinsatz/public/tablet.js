@@ -16,7 +16,7 @@
   const since = ts => { const m = Math.max(0, Math.round((Date.now() - new Date(ts.replace(' ', 'T')).getTime()) / 60000)); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, '0')}`; };
 
   /** Datumsblock wie überall (Verwaltung, Mitglieder-App): Datum groß, Wochentag klein darunter */
-  const dateBlk = d => { const x = new Date((d || new Date().toISOString().slice(0, 10)) + 'T12:00:00'); return `<span class="tk-date"><b>${String(x.getDate()).padStart(2, '0')}.${String(x.getMonth() + 1).padStart(2, '0')}.</b><span>${x.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span></span>`; };
+  const dateBlk = d => { const x = new Date((d || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)) + 'T12:00:00'); return `<span class="tk-date"><b>${String(x.getDate()).padStart(2, '0')}.${String(x.getMonth() + 1).padStart(2, '0')}.</b><span>${x.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span></span>`; };
   async function load() {
     try { state = await call('x/arbeitseinsatz/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="tk-tile on" data-r="${r.member_id}"><i class="av">${esc(String(r.name || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</i><span class="tk-txt"><b>${esc(r.ln)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></span><span class="t">${since(r.in_at)}</span></button>`).join('')

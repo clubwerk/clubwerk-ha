@@ -84,6 +84,7 @@
     d.className = 'dialog' + (wide ? ' wide' : '');
     d.onchange = null;   // Ereignis-Handler eines früheren Dialogs (z. B. Serien-Dialog) gelten nicht weiter
     d.innerHTML = html;
+    markRequired(d);
     ov.classList.remove('hidden');
     if (alt && alt.t === h()) {
       alt.innen.forEach(([c, i, y]) => { const e = c && d.getElementsByClassName(c.split(' ')[0])[i]; if (e) e.scrollTop = y; });
@@ -219,6 +220,11 @@
     const more = bar.scrollWidth > bar.clientWidth + 1;
     bar.classList.toggle('more-l', more && bar.scrollLeft > 1);
     bar.classList.toggle('more-r', more && bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 1);
+    if (more && ![...bar.children].some(c => c.classList.contains('tabarrow'))) {   // Pfeile an den Kanten für die Maus (nur mit Zeigegerät sichtbar, admin.html); Tastatur und Wischen laufen über die Reiter selbst (Punkt 8)
+      const mk = (c, ch) => { const x = document.createElement('span'); x.classList.add('tabarrow', c); x.setAttribute('aria-hidden', 'true'); x.innerHTML = icon('pfeil', 14);
+        x.onclick = () => bar.scrollBy({ left: (c === 'l' ? -1 : 1) * Math.max(160, bar.clientWidth * .6), behavior: 'smooth' }); return x; };
+      bar.prepend(mk('l')); bar.append(mk('r'));
+    }
     if (!bar.dataset.fade) { bar.dataset.fade = '1'; bar.addEventListener('scroll', () => tabFade(bar), { passive: true }); }
   }
   /** Knöpfe der Reiterzeile neben die Reiter setzen, wenn beide Platz haben; sonst darunter (Klasse .beside, siehe admin.html) */
@@ -263,7 +269,9 @@
       const names = [...head.children].map(th => th.textContent.trim());
       t.querySelectorAll('tr').forEach(tr => { if (tr === head) return; let i = 0; [...tr.children].forEach(td => {
         if (!td.hasAttribute('data-label')) td.setAttribute('data-label', td.colSpan > 1 ? '' : names[i] || '');
-        if (t.classList.contains('kompakt') && td.tagName === 'TD') td.classList.toggle('k-lang', td.textContent.trim().length > 40);   // Handy-Liste: nur lange Werte teilen sich den Rest der Zeile (dürfen mit … enden), kurze stehen ganz da
+        if (t.classList.contains('kompakt') && td.tagName === 'TD') td.classList.toggle('k-lang', td.textContent.trim().length > 40);
+        /* Liste (Handy, Tablet): eine reine Zahl (auch Datum oder Uhrzeit allein) ohne Einheit oder Wort verliert ohne Spalte ihren Sinn („24“, „0“ – Gebinde? Mindestbestand?) – sie bekommt ihre Spaltenüberschrift als kleine graue Beschriftung (k-zbl); „–“ ohne Wert fällt in der Tablet-Liste weg (k-dash) */
+        if (t.classList.contains('kompakt') && td.tagName === 'TD') { const v = td.textContent.trim(); td.classList.toggle('k-zbl', i > 0 && !td.classList.contains('k-lbl') && /^([+\-−–]?\d+([.,]\d{1,3})?|\d{1,2}\.\d{1,2}\.(\d{2,4})?|\d{1,2}:\d{2})$/.test(v) && !!(td.getAttribute('data-label') || names[i])); td.classList.toggle('k-dash', v === '–'); }   // Handy-Liste: nur lange Werte teilen sich den Rest der Zeile (dürfen mit … enden), kurze stehen ganz da
         // Wert + Zusatzzeile (z. B. „jährlich“ / „anteilig“) zusammenhalten, damit die Kartenansicht sie rechtsbündig untereinander zeigt
         if (td.tagName === 'TD' && !td.classList.contains('r') && !td.querySelector(':scope > .tcell, input, select, textarea, button')
           && [...td.childNodes].filter(n => n.nodeType === 1 || (n.nodeType === 3 && n.textContent.trim())).length > 1) {
@@ -567,7 +575,7 @@
   }
 
   function showShell() {
-    $('app').innerHTML = `<div class="shell">
+    $('app').innerHTML = `<a class="skiplink" href="#main" id="skipMain">Zum Inhalt springen</a><div class="shell">
       <nav class="side glass" id="side">
         <div class="brandbox"><div class="mark">${brand.logo ? `<img src="${esc(brand.logo)}" alt="" data-logo>` : '<span id="clubIni"></span>'}</div>
           <div><b id="clubName" translate="no">Verein</b><small>Verwaltung</small></div>
@@ -581,7 +589,7 @@
           ${window.top === window && tabletOnUI ? `<a class="iconbtn" href="./" target="_blank" title="Tablet-Seite öffnen" aria-label="Tablet-Seite öffnen">${icon('tablet', 16)}</a>` : ''}
           <button class="iconbtn" id="logout" title="Abmelden" aria-label="Abmelden">${icon('abmelden', 16)}</button></div></div>
       </nav>
-      <div class="content"><div class="pagebar" id="pagebar"></div><main id="main"></main></div></div>`;
+      <div class="content"><div class="pagebar" id="pagebar"></div><main id="main" tabindex="-1"></main></div></div>`;
     wireLogos();
     $('side').addEventListener('click', e => {
       const h = e.target.closest('button.navb'); if (h) { navToggle(h.parentElement); return; }
@@ -591,6 +599,7 @@
     });
     $('side').querySelector('.navbody').addEventListener('keydown', navKeys);
     $('menuT').onclick = () => $('side').classList.toggle('open');
+    $('skipMain').onclick = e => { e.preventDefault(); const m = $('main'); m.focus({ preventScroll: true }); m.scrollIntoView(); };   // Sprunglink: die Adresse (#…) ist die Seitenwahl, darum von Hand
     $('logout').onclick = async e => { e.preventDefault(); await api('logout', 'POST', {}).catch(() => {}); showLogin(); };
     bindSearch();
     api('settings').then(s => { cache.settings = s; $('clubName').textContent = String(s.clubName).replace(/\be\.\s+V\./g, 'e.\u00a0V.');   /* „e. V.“ nie auf zwei Zeilen */ document.title = `${s.clubName} – ${T('Verwaltung')}`; if ($('clubIni')) $('clubIni').textContent = initials(s.clubName); }).catch(() => {});
@@ -880,7 +889,8 @@
     history.replaceState(null, '', '#' + hashOf());
     // Reiter der Module: neu einsetzen, sobald eine Seite ihren Inhalt schreibt. Nach erneuter Anmeldung (z. B. nach einem Update des Add-ons)
     // baut die Verwaltung ihr Grundgerüst neu – dann muss auch der Beobachter an das neue <main>, sonst fehlen die Reiter bis zum Neuladen.
-    if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => placeDrinkTabs()); go.obs.observe(go.obsEl, { childList: true }); }
+    if ($('main') && go.obsEl !== $('main')) { if (go.obs) go.obs.disconnect(); go.obsEl = $('main'); go.obs = new MutationObserver(() => { placeDrinkTabs(); pageH1(); }); go.obs.observe(go.obsEl, { childList: true }); }
+    if ($('main') && go.reqEl !== $('main')) { if (go.req) go.req.disconnect(); go.reqEl = $('main'); let q = 0; go.req = new MutationObserver(() => { if (!q) q = requestAnimationFrame(() => { q = 0; markRequired($('main')); markSave($('main')); $('main').querySelectorAll('.tabs').forEach(tabFade); }); }); go.req.observe(go.reqEl, { childList: true, subtree: true }); }
     setChrome(p);
     $('side').classList.remove('open');
     $('main').onclick = null; $('main').oninput = null;
@@ -931,8 +941,41 @@
     const first = cur; cur = null; await show(first);
   }
 
+  /** Hauptüberschrift: die Seitenüberschrift (h2.page) gilt für Screenreader als Ebene 1 – so hat jede Seite genau eine (WCAG 1.3.1, planung/ui-review.md Punkt 4) */
+  function pageH1() {
+    const m = $('main'); if (!m) return;
+    const h = m.querySelector('h2.page'); if (h && h.getAttribute('aria-level') !== '1') { h.setAttribute('role', 'heading'); h.setAttribute('aria-level', '1'); }
+  }
+  /** Pflichtfelder: ein Feld mit `required` bekommt in seiner Beschriftung „(Pflicht)“ (wie bei den Einwilligungen) – überall gleich, in Fenstern und auf Seiten (planung/ui-review.md Punkt 5).
+   *  Module setzen nur das Attribut `required`; hier wird die Beschriftung nachgerüstet. */
+  function markRequired(root) {
+    (root || document).querySelectorAll('label.f:has(> input[required], > select[required], > textarea[required])').forEach(l => {
+      if ([...l.children].some(c => c.classList.contains('flab'))) return;
+      const t = [...l.childNodes].find(n => n.nodeType === 3 && n.textContent.trim()); if (!t) return;
+      const w = document.createElement('span'), r = document.createElement('span');
+      w.className = 'flab'; r.className = 'req'; r.textContent = T('(Pflicht)');
+      t.replaceWith(w); w.append(t, ' ', r);
+    });
+  }
+  /** Feste Speichern-Leiste am Handy: eine Knopfzeile mit nur „Speichern“ klebt unten am Rand, solange ihre Karte zu sehen ist – lange Formulare (Mitglied › Stammdaten) hatten den Knopf erst nach 3 000 px (Punkt 15).
+   *  Die Leiste bleibt im Fluss (sticky): am Ende steht sie an ihrem Platz und verdeckt nichts. Aussehen nur ≤ 700 px (admin.html, .savebar). */
+  function markSave(root) {
+    (root || document).querySelectorAll('.row:not(.savebar) > .btn.primary:only-child').forEach(b => { if (/^Speichern\b/.test(b.textContent.trim()) && !b.closest('.dialog, .overlay')) b.parentElement.classList.add('savebar'); });
+  }
+  /** Zähler im Menü: der Punkt ist nur Zeichen – der Name des Eintrags nennt die Zahl getrennt („Mitglieder, 5 offen“), null wird nicht vorgelesen (Punkt 14) */
+  function navA11y() {
+    document.querySelectorAll('#side button.nav, #side button.navb').forEach(btn => {
+      const kids = [...btn.children], lab = kids.find(c => c.tagName === 'SPAN' && !c.classList.contains('badge')), b = kids.find(c => c.classList.contains('badge')); if (!lab || !b) return;
+      b.setAttribute('aria-hidden', 'true');
+      const txt = btn.classList.contains('navb') ? [...btn.parentElement.querySelectorAll('.navgi .badge:not(.hidden)')].map(x => x.textContent.trim()) : b.classList.contains('hidden') ? [] : [b.textContent.trim()];
+      const n = txt.filter(x => x !== '!').reduce((a, x) => a + (Number(x) || 0), 0);
+      if (!txt.length || (!txt.includes('!') && !n)) { btn.removeAttribute('aria-label'); return; }
+      const name = lab.textContent.trim();
+      btn.setAttribute('aria-label', txt.includes('!') ? T('{0}, Achtung', [name]) : T('{0}, {1} offen', [name, n]));
+    });
+  }
   async function refreshBadges() {
-    const setB = (k, n, cls) => { const b = document.querySelector(`[data-badge="${k}"]`); if (b) { b.textContent = n; b.classList.toggle('hidden', !n); if (cls) b.classList.add(cls); } };
+    const setB = (k, n, cls) => { const b = document.querySelector(`[data-badge="${k}"]`); if (b) { b.textContent = n || ''; b.classList.toggle('hidden', !n); if (cls) b.classList.add(cls); } };
     if (canAny(['veranstaltungen', 'uebernahme', 'abrechnung', 'export']) && (cache.modules || []).includes('getraenke')) {
       const t = await api('tabs?days=1').catch(() => ({ open: [] }));
       badges.veranstaltungen = t.open.length;
@@ -948,7 +991,7 @@
     for (const g of Object.keys(MODG)) { const v = GPAGES(g).map(x => badges[x[0]] || 0); setB(g, v.includes('!') ? '!' : v.reduce((a, x) => a + x, 0), v.includes('!') ? 'r' : 'a'); }   // „!“ = Sicherung fehlt (rot)
     PAGES.filter(x => x[3] === 'module').forEach(([k]) => setB(k, badges[k] || 0, 'a'));
     setB('konten', groupOf('konten') ? 0 : badges.konten || 0);
-    navDots();
+    navDots(); navA11y();
     if (groupOf(page)) setChrome(page);
   }
   const BADGE_HOOKS = [];
@@ -1209,20 +1252,29 @@
   /* Hauptkarte „Zu erledigen“: Hinweise als ruhige Liste mit farbigem Strich, rote zuerst, höchstens 6 sichtbar, der Rest hinter „Alle zeigen“.
      Je Hinweis ein kurzer Satz; Einzelheiten (detail) stehen im Tooltip und auf der Seite, zu der der Link führt */
   const TODO_N = 6;
-  const hintHtml = (a, i) => `<div class="hint ${a.level === 'r' ? 'r' : 'a'}${i >= TODO_N ? ' extra' : ''}"><i class="bar" aria-hidden="true"></i><div class="ht">${a.who ? `<b>${esc(a.who)}</b>` : ''}<span title="${esc(a.detail ? `${T(a.text)} ${T(a.detail)}` : T(a.text))}">${esc(a.text)}</span></div>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}>${esc(a.link || 'Ansehen')}</a>` : ''}</div>`;
+  /* Reihenfolge nach Dringlichkeit: Störungen (rot, nicht Sicherheit) → fehlende Datensicherung → übrige rote → Sicherheit und Datenschutz → Hinweise.
+     Hinweise desselben Bereichs stehen zusammen unter einer Überschrift (planung/ui-review.md Punkt 2) */
+  const todoRank = a => a.who === 'Datensicherung' ? 1 : a.who === 'Sicherheit' || a.who === 'Datenschutz' ? 3 : a.level === 'r' ? (a.who === 'Datenqualität' ? 2 : 0) : 4;
+  const hintHtml = (a, i, follow) => `<div class="hint ${a.level === 'r' ? 'r' : 'a'}${i >= TODO_N ? ' extra' : ''}${follow ? ' follow' : ''}"><i class="bar" aria-hidden="true"></i><div class="ht">${a.who ? `<b${follow ? ' class="sr-only"' : ''}>${esc(a.who)}</b>` : ''}<span title="${esc(a.detail ? `${T(a.text)} ${T(a.detail)}` : T(a.text))}">${esc(a.text)}</span></div>${a.go ? `<a href="#${a.go}" data-go="${a.go}"${a.sec ? ` data-secstore="${a.sec[0]}" data-sec="${a.sec[1]}"` : ''}>${esc(a.link || 'Ansehen')}</a>` : ''}</div>`;
   const todoHtml = alerts => {
-    const list = alerts.slice().sort((a, b) => (a.level === 'r' ? 0 : 1) - (b.level === 'r' ? 0 : 1)), n = list.length;
-    return `<section class="todo hero"><div class="th">${icon('glocke')}<h3>Zu erledigen</h3>${n > TODO_N ? `<span class="lab num">${T('{0} von {1}', [TODO_N, n])}</span>` : ''}</div>
-      ${n ? list.map(hintHtml).join('') : '<p class="none">Gerade ist nichts zu tun.</p>'}
-      ${n > TODO_N ? `<button type="button" class="hint more" data-showall><i class="bar" aria-hidden="true"></i><span class="ht">${T('{0} weitere Hinweise', [n - TODO_N])}</span><b>Alle zeigen</b></button>` : ''}</section>`;
+    const sorted = alerts.map((a, i) => ({ a, i })).sort((x, y) => todoRank(x.a) - todoRank(y.a) || (x.a.level === 'r' ? 0 : 1) - (y.a.level === 'r' ? 0 : 1) || x.i - y.i).map(x => x.a);
+    const list = []; sorted.forEach(a => { const at = list.map(x => x.who).lastIndexOf(a.who); if (a.who && at >= 0 && at < list.length - 1) list.splice(at + 1, 0, a); else list.push(a); });   // gleiche Bereiche nebeneinander
+    const n = list.length;
+    return `<section class="todo hero"><div class="th">${icon('glocke')}<h3>Zu erledigen</h3>${n > TODO_N ? `<span class="lab num">${T('{0} von {1} Aufgaben', [TODO_N, n])}</span>` : ''}</div>
+      ${n ? list.map((a, i) => hintHtml(a, i, i > 0 && a.who && list[i - 1].who === a.who)).join('') : '<p class="none">Gerade ist nichts zu tun.</p>'}
+      ${n > TODO_N ? `<button type="button" class="hint more" data-showall><i class="bar" aria-hidden="true"></i><span class="ht">${T('{0} weitere Aufgaben', [n - TODO_N])}</span><b>Alle zeigen</b></button>` : ''}</section>`;
   };
   /** Ein Modul im Raster der Übersicht – Symbol, Name, Zustand, die wichtigste Zahl */
   const STATE = { r: 'Störung', a: 'Hinweis', g: 'Läuft' };
   /** „Wort: Zahl“ bricht nie so um, dass die Zahl allein steht: Zahlen hängen immer am Wort davor */
-  const kpiNote = k => `${k.l}:\u00a0${String(k.v).replace(/ (?=\d)/g, '\u00a0')}`;
+  const kpiNote = k => k.note || `${k.l}: ${String(k.v).replace(/ (?=\d)/g, '\u00a0')}`;   // k.note: fertiger Satz des Moduls („1 Rechnung offen“)
+  /** Grund statt „Hinweis“: der wichtigste Hinweis des Moduls (rote zuerst) im Klartext, bei mehreren „(+2 weitere)“ (planung/ui-review.md Punkt 1) */
+  const reasonNote = al => { const a = al.find(x => x.level === 'r') || al[0]; return { text: a.text, more: al.length - 1 }; };   // Text bleibt deutsch – die Oberfläche übersetzt ihn wie die Zeilen in „Zu erledigen“
   function modCell({ ic, name, state, note, val, go: g }) {
     const v = val == null ? '' : String(val).replace(/ /g, '\u00a0');   // Kennzahl bricht nie um: „129 von 155 h“ bleibt eine Zeile, die Einheit nie allein (Fund 09.11.2026)
-    const inner = `<span class="mi">${icon(ic)}</span><span class="mt"><b title="${esc(name)}">${esc(name)}</b><small><i class="stdot ${state}" aria-hidden="true"></i>${esc(note || STATE[state])}</small></span><span class="v num${v.length > 7 ? ' lang' : ''}">${esc(v)}</span>`;
+    const um = /^(\d[\d.,]*)\u00a0([A-Za-zÄÖÜäöüß][^\d]*)$/.exec(v);   // „4 Plätze“ → Zahl groß, Einheit klein; „129 von 155 h“ bleibt ganz
+    const vh = um ? `${esc(um[1])}<span class="vu">${esc(um[2])}</span>` : esc(v);
+    const inner = `<span class="mi">${icon(ic)}</span><span class="mt"><b title="${esc(name)}">${esc(name)}</b><small><i class="stdot ${state}" aria-hidden="true"></i>${note && note.text ? `${esc(note.text)}${note.more ? `<span class="mehr">${esc(T('(+{0} weitere)', [note.more]))}</span>` : ''}` : esc(note || STATE[state])}</small></span><span class="v num${!um && v.length > 7 ? ' lang' : ''}">${vh}</span>`;
     return g ? `<a class="mo" href="#${g}" data-go="${g}">${inner}</a>` : `<div class="mo">${inner}</div>`;
   }
   RENDER.uebersicht = async () => {
@@ -1278,7 +1330,7 @@
       const bad = m.alerts.some(a => a.level === 'r'), warn = m.alerts.length;
       const gk = (PAGES.find(x => x[0] === m.pageKey) || [])[3];
       return modCell({ ic: PAGE_ICON[m.pageKey] || (MODG[gk] && MODG[gk].icon !== 'modul' ? MODG[gk].icon : null) || PAGE_ICON[m.id] || 'modul', name: m.name, state: bad ? 'r' : warn ? 'a' : 'g',
-        note: bad || warn || !m.kpis[1] ? null : kpiNote(m.kpis[1]), val: m.kpis[0] ? m.kpis[0].v : '', go: m.pageKey });   // Zustand in Worten, wenn etwas ist – sonst die zweite Zahl
+        note: warn ? reasonNote(m.alerts) : m.kpis[1] ? kpiNote(m.kpis[1]) : m.kpis[0] ? T(m.kpis[0].l) : null, val: m.kpis[0] ? m.kpis[0].v : '', go: m.pageKey });   // Grund, wenn etwas ist – sonst die zweite Zahl, sonst sagt die Beschriftung, was die Zahl zählt
     });
     const memberCard = mem && !mods.some(m => m.id === 'mitglieder') ? modCell({ ic: 'konten', name: 'Mitglieder', state: pending.length ? 'a' : 'g', note: pending.length ? `${pending.length} neu` : 'Aktive Mitglieder',
       val: String(mem.rows.filter(m => m.kind === 'mitglied' && m.active).length), go: 'konten' }) : '';
@@ -2302,7 +2354,7 @@
       const box = nested ? holder.querySelector('#artDlg') : $('dialog');
       const html = `<h2>${a ? 'Artikel bearbeiten' : 'Neuer Artikel'}</h2>
         <datalist id="catList">${cats.map(c => `<option>${esc(c)}</option>`).join('')}</datalist>
-        <div class="frm"><label class="f w3">Name (so steht er auf dem Tablet)<input name="name" value="${esc(x.name)}"></label>
+        <div class="frm"><label class="f w3">Name (so steht er auf dem Tablet)<input name="name" required value="${esc(x.name)}"></label>
           <label class="f w1">Kategorie<input name="category" list="catList" value="${esc(x.category)}" placeholder="z. B. Bier"></label>
           <label class="f w1">Preis €<input name="price" value="${centsToInput(x.price_cents)}" inputmode="decimal"></label>
           <label class="f w1">Einzelartikel je Gebinde<input name="crate_size" value="${x.crate_size}" inputmode="numeric"></label>
@@ -2483,7 +2535,7 @@
     if (mayMap) {
       $('vkMap').innerHTML = `<h3>Gemerkte Zuordnungen von Lieferanten-Artikeln</h3>
         <p class="muted s" style="margin-top:0">Clubwerk merkt sich, welcher Artikel auf dem Beleg zu welchem Artikel in der App gehört. „Vergessen“ löscht nur die Zuordnung.</p>
-        ${map.length ? `<div class="scroll" style="max-height:40vh"><table class="tbl kompakt"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
+        ${map.length ? `<div class="scroll"><table class="tbl kompakt"><tr><th>Lieferant</th><th>Art.-Nr.</th><th>Text auf dem Beleg</th><th>Artikel in der App</th><th class="r">Gebinde</th><th></th></tr>
           ${map.map(m => `<tr><td>${esc(m.supplier)}</td><td>${/^lidl:/.test(m.art_no) ? '' : esc(m.art_no)}</td><td class="k-weg">${esc(m.text || '')}</td><td>${m.article_id ? esc(m.article) : '<span class="muted">ignoriert</span>'}</td><td class="r k-lbl">${m.pack_size}</td>
             <td class="r"><button class="btn small ghost" data-sup="${esc(m.supplier)}" data-no="${esc(m.art_no)}">Vergessen</button></td></tr>`).join('')}</table></div>` : '<p class="empty">Noch keine – entsteht automatisch beim ersten Rechnungs-Upload unter Lager › Lieferungen.</p>'}`;
       $('vkMap').querySelectorAll('[data-sup]').forEach(b => b.onclick = async () => {
@@ -2789,63 +2841,87 @@
       <p style="margin-top:8mm">Gilt einmal und bis ${new Date(l.expiresAt).toLocaleString('de-DE', { dateStyle: 'short', timeStyle: 'short' })} Uhr. Persönlich – bitte nicht weitergeben.</p></div>`).join(''));
   }
   /** Einladung per E-Mail an ein Mitglied */
-  async function inviteByMail(memberId, info) {
+  async function inviteByMail(memberId, info, guide = true) {
     if (info.device && info.device.status === 'gekoppelt' && !await ask(`Einladung per E-Mail an ${info.name}?\n\nDas bisher freigeschaltete Handy (${info.device.label || 'Gerät'}) verliert sofort den Zugang.`, { ok: 'Einladung schicken', danger: true })) return false;
-    const r = await api(`app/member/${memberId}/invite-mail`, 'POST', {});
+    const r = await api(`app/member/${memberId}/invite-mail`, 'POST', { guide });
     toast(`Einladung an ${r.to} geschickt – gilt ${r.days} Tage.${r.localOnly ? ' Hinweis: Ohne „Von unterwegs erreichbar“ funktioniert der Link nur im Vereins-WLAN.' : ''}`, false, 6000);
     return true;
+  }
+  /** Anleitung „Mitglieder-App einrichten“ (PDF) auf Deutsch oder Englisch herunterladen */
+  async function guideDownload() {
+    const lang = await askBoxOpen(`<h2>${esc(T('Anleitung für Mitglieder (PDF)'))}</h2><p>${esc(T('In welcher Sprache?'))}</p>
+      <div class="rmopts"><button class="rmopt" data-v="de"><b>Deutsch</b><span>Mitglieder-App-einrichten.pdf</span></button><button class="rmopt" data-v="en"><b>${esc(T('Englisch'))}</b><span>Member-app-setup.pdf</span></button></div>
+      <div class="btns"><button class="btn" data-v="">Abbrechen</button></div>`, '', done => { $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = () => done(b.dataset.v); }); });
+    if (!lang) return;
+    const a = document.createElement('a'); a.href = `api/admin/app/anleitung.pdf?lang=${lang}`; a.download = lang === 'en' ? 'Member-app-setup.pdf' : 'Mitglieder-App-einrichten.pdf';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  /** Briefe als PDF (mit Anleitung) herunterladen – zum Drucken */
+  function lettersPdf(b64) {
+    const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([u], { type: 'application/pdf' })), a = document.createElement('a');
+    a.href = url; a.download = T('Einladungsbriefe.pdf'); document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 60000);
+    toast(T('Einladungsbriefe mit Anleitung als PDF heruntergeladen – bitte ausdrucken.'));
   }
   /** „Einladen …“: QR-Code am Bildschirm, per E-Mail, als Brief – und Freigabe eines von unterwegs gekoppelten Handys */
   async function inviteMenu(memberId, after) {
     try {
       const info = await api('app/member/' + memberId), iv = info.invite || {};
+      let guideMail = true, guideBrief = false;
       const pick = await askBoxOpen(`<h2>${esc(lastFirst(info.name))} einladen</h2><p>Wie soll die Einladung zum Mitglied kommen?</p>
           <div class="rmopts"><button class="rmopt" data-v="qr"><b>QR-Code hier am Bildschirm</b><span>Das Mitglied scannt ihn mit dem Handy – am sichersten, weil es dabei vor Ort ist.</span></button>
-            <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Sensible Bereiche erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>
+            <button class="rmopt" data-v="mail" ${iv.mail ? '' : 'disabled'}><b>Per E-Mail schicken</b><span>${iv.mail ? `An ${esc(iv.email)}, gilt ${iv.days} Tage.${iv.sms ? ' Von unterwegs mit Code per SMS.' : ' Sensible Bereiche erst nach dem ersten Öffnen im Vereins-WLAN.'}` : !iv.email ? 'Keine E-Mail-Adresse in der Mitgliederverwaltung hinterlegt.' : iv.shared ? esc(T('E-Mail-Adresse gehört zu {0} – bitte per QR-Code freischalten.', [lastFirst(iv.shared.name)])) : 'Erst ein Postfach einrichten (Einstellungen → Postfach).'}</span></button>${!iv.mail && iv.email && !iv.shared ? '<a href="#einstellungen" class="rmlink" data-v="__postfach">Postfach einrichten …</a>' : ''}
             <button class="rmopt" data-v="brief"><b>Einladungsbrief drucken</b><span>QR-Code mit Anleitung auf Papier – zum Mitgeben oder per Post. Gilt ${iv.days || 7} Tage.</span></button>
             ${info.device && info.device.remote ? '<button class="rmopt" data-v="trust"><b>Bereiche im Vereins-WLAN jetzt freigeben</b><span>Das Handy wurde von unterwegs ohne SMS-Code gekoppelt. Nur freigeben, wenn sicher ist, dass es dem Mitglied gehört.</span></button>' : ''}</div>
+          <div class="ivguide"><label class="chk"${iv.mail ? '' : ' hidden'}><input type="checkbox" id="ivGuideMail" checked> ${esc(T('E-Mail: Anleitung als PDF anhängen'))}</label><label class="chk"><input type="checkbox" id="ivGuideBrief"> ${esc(T('Brief: Anleitung mitdrucken'))}</label></div>
           <div class="btns"><button class="btn" data-v="">Abbrechen</button></div>`, '', done => {
-        $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = () => done(b.dataset.v); });
+        $('askBox').querySelectorAll('[data-v]').forEach(b => { b.onclick = e => { e.preventDefault(); guideMail = $('ivGuideMail').checked; guideBrief = $('ivGuideBrief').checked; done(b.dataset.v); }; });
       });
       if (!pick) return;
+      if (pick === '__postfach') { sset('cw_setsec', 'mail'); go('einstellungen'); return; }   // Weg zum Postfach statt nur ein Hinweis (Punkt 13)
       if (pick === 'qr') return appInvite(memberId, after);
-      if (pick === 'mail') { if (await inviteByMail(memberId, info) && after) after(); return; }
+      if (pick === 'mail') { if (await inviteByMail(memberId, info, guideMail) && after) after(); return; }
       if (pick === 'trust') { await api(`app/member/${memberId}/trust`, 'POST', {}); toast('Freigegeben – alle Bereiche funktionieren jetzt auch auf diesem Handy.'); if (after) after(); return; }
       if (pick === 'brief') {
         if (info.device && info.device.status === 'gekoppelt' && !await ask(`Einladungsbrief für ${info.name}?\n\nDas bisher freigeschaltete Handy (${info.device.label || 'Gerät'}) verliert sofort den Zugang.`, { ok: 'Brief erzeugen', danger: true })) return;
-        const r = await api('app/invites', 'POST', { kind: 'brief', ids: [memberId], force: true });
+        const r = await api('app/invites', 'POST', { kind: 'brief', ids: [memberId], force: true, guide: guideBrief });
         if (!r.letters.length) return toast(r.skipped.length ? r.skipped[0].reason : 'Kein Brief erzeugt.', true);
-        printLetters(r.letters); if (after) after();
+        if (r.pdf) lettersPdf(r.pdf); else printLetters(r.letters); if (after) after();
       }
     } catch (e) { fail(e); }
   }
   /** Sammelversand: Einladungen per E-Mail oder als Briefe für viele Mitglieder */
   function bulkInvites(r) {
-    const mail = new Set(r.mailIds || []);
+    const mail = new Set(r.mailIds || []), shared = r.mailShared || {};
+    const sharedTxt = o => (o.why === 'familie' ? T('E-Mail beim Oberhaupt') : o.why === 'zahler' ? T('E-Mail beim Zahler') : T('E-Mail bei {0}', [lastFirst(o.name)]));
     const all = [...r.rows.map(x => ({ id: x.member_id, name: x.name, kind: x.kind, dev: x.device, inApp: true })), ...r.members.map(m => ({ id: m.id, name: m.name, kind: m.kind || 'mitglied', dev: null, inApp: false }))];
+    let guideMail = true, guideBrief = false;
     let showNew = false, sel = new Set(all.filter(x => x.inApp && !(x.dev && x.dev.status === 'gekoppelt')).map(x => x.id));
     const list = () => all.filter(x => x.inApp || showNew);
     const draw = () => {
-      const L = list(), n = L.filter(x => sel.has(x.id)).length, nm = L.filter(x => sel.has(x.id) && mail.has(x.id)).length;
+      const L = list(), n = L.filter(x => sel.has(x.id)).length, nm = L.filter(x => sel.has(x.id) && mail.has(x.id)).length, ns = L.filter(x => sel.has(x.id) && shared[x.id]).length;
       dialog(`<h2>Einladungen verschicken</h2>
         <p class="muted" style="margin-top:0">Jedes ausgewählte Mitglied bekommt einen persönlichen Link (gilt ${r.security.inviteMailDays} Tage, einmal). Mitglieder mit bereits freigeschaltetem Handy werden übersprungen.${r.security.sms && r.security.sms.ready ? ' Von unterwegs wird mit einem Code per SMS bestätigt.' : ' Türen und Beregnung schalten sich bei Kopplung von unterwegs erst im Vereins-WLAN frei.'}</p>
         <div class="row" style="align-items:center;gap:8px 18px;margin-bottom:8px"><label class="chk"><input type="checkbox" id="ivAll" ${n && n === L.filter(x => !(x.dev && x.dev.status === 'gekoppelt')).length ? 'checked' : ''}> alle ohne Handy</label>
           ${r.members.length ? `<label class="chk"><input type="checkbox" id="ivNew" ${showNew ? 'checked' : ''}> Auch Mitglieder, die noch nicht in der App sind (${r.members.length})</label>` : ''}</div>
         <div class="invlist">${L.map(x => { const paired = x.dev && x.dev.status === 'gekoppelt'; return `<label><input type="checkbox" data-iv="${x.id}" ${sel.has(x.id) ? 'checked' : ''} ${paired ? 'disabled' : ''}><b>${pName(x)}</b>
-          <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s">${mail.has(x.id) ? 'E-Mail ✓' : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="empty">Niemand.</p>'}</div>
-        ${!r.security.mailReady ? '<p class="muted s" style="margin:10px 0 0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s" style="margin:10px 0 0">${n - nm} ohne E-Mail-Adresse – für sie Briefe drucken.</p>` : ''}
+          <span>${paired ? '<span class="pill g">Handy freigeschaltet</span>' : x.inApp ? devPill(x.dev) : '<span class="pill">neu in der App</span>'}</span><span class="muted s"${shared[x.id] ? ` title="${esc(T('E-Mail-Adresse gehört zu {0} – bitte per QR-Code freischalten.', [lastFirst(shared[x.id].name)]))}"` : ''}>${mail.has(x.id) ? 'E-Mail ✓' : shared[x.id] ? esc(sharedTxt(shared[x.id])) : 'keine E-Mail'}</span></label>`; }).join('') || '<p class="empty">Niemand.</p>'}</div>
+        ${!r.security.mailReady ? '<p class="muted s" style="margin:10px 0 0">Für E-Mails erst ein Postfach einrichten (Einstellungen → Postfach).</p>' : n > nm ? `<p class="muted s" style="margin:10px 0 0">${n - nm - ns ? esc(T('{0} ohne E-Mail-Adresse – für sie Briefe drucken.', [n - nm - ns])) + ' ' : ''}${ns ? esc(T('{0} mit geteilter E-Mail-Adresse – nur per QR-Code (Bildschirm oder Brief).', [ns])) : ''}</p>` : ''}
+        <div class="ivguide" style="margin-top:12px"><label class="chk"><input type="checkbox" id="ivGuideMail" data-nodirty ${guideMail ? 'checked' : ''}> ${esc(T('E-Mail: Anleitung als PDF anhängen'))}</label><label class="chk"><input type="checkbox" id="ivGuideBrief" data-nodirty ${guideBrief ? 'checked' : ''}> ${esc(T('Brief: Anleitung mitdrucken'))}</label></div>
         <div class="btns"><button class="btn" id="ivX">Abbrechen</button><button class="btn" id="ivBrief" ${n ? '' : 'disabled'}>${n} ${n === 1 ? 'Brief' : 'Briefe'} drucken</button><button class="btn primary" id="ivMail" ${nm && r.security.mailReady ? '' : 'disabled'}>${nm} ${nm === 1 ? 'E-Mail' : 'E-Mails'} schicken</button></div>`, true);
       $('ivX').onclick = closeDialog;
+      $('ivGuideMail').onchange = () => { guideMail = $('ivGuideMail').checked; }; $('ivGuideBrief').onchange = () => { guideBrief = $('ivGuideBrief').checked; };
       $('ivAll').onchange = () => { list().forEach(x => { if (!(x.dev && x.dev.status === 'gekoppelt')) { if ($('ivAll').checked) sel.add(x.id); else sel.delete(x.id); } }); draw(); };
       if ($('ivNew')) $('ivNew').onchange = () => { showNew = $('ivNew').checked; if (!showNew) r.members.forEach(m => sel.delete(m.id)); draw(); };
       $('dialog').querySelectorAll('[data-iv]').forEach(c => { c.onchange = () => { if (c.checked) sel.add(+c.dataset.iv); else sel.delete(+c.dataset.iv); draw(); }; });
       const run = kind => busy($(kind === 'mail' ? 'ivMail' : 'ivBrief'), async () => {
-        const ids = list().filter(x => sel.has(x.id) && (kind === 'brief' || mail.has(x.id))).map(x => x.id);
-        if (!await ask(kind === 'mail' ? `${ids.length} ${ids.length === 1 ? 'Einladung' : 'Einladungen'} per E-Mail verschicken?` : `${ids.length} ${ids.length === 1 ? 'Einladungsbrief' : 'Einladungsbriefe'} erzeugen und drucken?`, { ok: kind === 'mail' ? 'Verschicken' : 'Drucken' })) return;
+        const ids = list().filter(x => sel.has(x.id) && (kind === 'brief' || mail.has(x.id) || shared[x.id])).map(x => x.id);   // geteilte Adressen: Server überspringt mit Grund
+        const nMail = kind === 'mail' ? ids.filter(i => mail.has(i)).length : ids.length;
+        if (!await ask(kind === 'mail' ? `${nMail} ${nMail === 1 ? 'Einladung' : 'Einladungen'} per E-Mail verschicken?` : `${ids.length} ${ids.length === 1 ? 'Einladungsbrief' : 'Einladungsbriefe'} erzeugen und drucken?`, { ok: kind === 'mail' ? 'Verschicken' : 'Drucken' })) return;
         try {
-          const x = await api('app/invites', 'POST', { kind, ids });
+          const x = await api('app/invites', 'POST', { kind, ids, guide: kind === 'mail' ? guideMail : guideBrief });
           closeDialog();
-          if (kind === 'brief' && x.letters.length) printLetters(x.letters);
+          if (kind === 'brief' && x.pdf) lettersPdf(x.pdf); else if (kind === 'brief' && x.letters.length) printLetters(x.letters);
           toast(`${x.done.length} ${kind === 'mail' ? (x.done.length === 1 ? 'E-Mail verschickt' : 'E-Mails verschickt') : (x.done.length === 1 ? 'Brief erzeugt' : 'Briefe erzeugt')}${x.skipped.length ? ` · ${x.skipped.length} übersprungen (${x.skipped.slice(0, 3).map(y => `${y.name}: ${y.reason}`).join('; ')}${x.skipped.length > 3 ? ' …' : ''})` : ''}.${x.localOnly && kind === 'mail' ? ' Ohne „Von unterwegs erreichbar“ funktionieren die Links nur im Vereins-WLAN.' : ''}`, Boolean(x.skipped.length && !x.done.length), 8000);
           RENDER.app().catch(fail);
         } catch (e) { fail(e); }
@@ -3104,12 +3180,15 @@
         ${r.rows.length ? `<div class="chips" id="apFil" role="group" aria-label="Filter" style="margin-bottom:10px">${[['alle', 'Alle'], ['mit', 'mit Handy'], ['ohne', 'ohne Handy'], ['eing', 'eingeladen'], ['wlan', 'erst im WLAN öffnen'], ['alt', 'alte Adresse']].filter(([k]) => !['alt', 'eing', 'wlan'].includes(k) || r.rows.some(FIL[k]))
           .map(([k, l]) => `<button type="button" data-f="${k}" class="${filt === k ? 'on' : ''}">${l} <span class="cnt">${r.rows.filter(FIL[k]).length}</span></button>`).join('')}</div>
           ${nWlan ? `<div class="banner a" id="apWlanHint" style="margin:0 0 10px;font-weight:400"><div>${esc(wlanWhy(wlanNames))} <b>${esc(T('Was tun?'))}</b> ${esc(T('Das Mitglied öffnet die App einmal im Vereinsheim im WLAN. Ist sicher, dass das Handy dem Mitglied gehört, gibst du es selbst frei: „Einladen …“ › „Bereiche im Vereins-WLAN jetzt freigeben“.'))}</div></div>` : ''}
-          <table class="tbl kompakt" id="apTbl"><tr><th>Mitglied</th><th>Handy</th><th>Freigaben</th><th class="hide-md nw">Zuletzt benutzt</th><th></th></tr>
+          <table class="tbl kompakt" id="apTbl"><tr><th>Mitglied</th><th>Handy</th><th>Freigaben</th><th class="hide-md nw">Zuletzt benutzt</th><th class="r">Rechte · Einladen · Entfernen</th></tr>
           ${r.rows.map(x => `<tr data-row="${x.member_id}"><td><b>${pName(x)}</b>${x.kind === 'nichtmitglied' ? ' <span class="pill">Kein Mitglied</span>' : ''}</td><td>${devPill1(x.device, wlanNames)}</td><td class="nw" title="${esc(apSumTitle(x))}">${esc(apSum(x))}</td>
             <td class="muted s hide-md k-weg">${x.device && x.device.last_used ? deTime(x.device.last_used) : '–'}</td>
             <td class="r"><span class="acts"><button class="btn ico" data-ae="${x.member_id}" title="Freigaben bearbeiten …" aria-label="Freigaben bearbeiten"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button><button class="btn ico" data-aq="${x.member_id}" title="Einladen (QR-Code, E-Mail, Brief) …" aria-label="Einladen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg></button><button class="btn ico danger-h" data-ad="${x.member_id}" title="Aus der App entfernen …" aria-label="Entfernen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button></span></td></tr>`).join('')}</table>
           <p class="empty" id="apNone" style="display:none">Niemand in dieser Auswahl.</p>`
-          : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>` : ''}`;
+          : '<p class="empty">Noch niemand freigeschaltet.</p>'}</div>` : ''}
+      <div class="card" data-set="mitglieder" id="apGuideCard"><h3>Anleitung für Mitglieder</h3>
+        <p class="muted s" style="margin-top:0">${esc(T('Zwei Seiten mit Bildern: Einladung öffnen, PIN festlegen, App auf iPhone und Android einrichten. Mit eurem Vereinsnamen, eurer Vereinsfarbe und den eingestellten Gültigkeiten – zum Ausdrucken, Aushängen oder Weitergeben. Beim Einladen per E-Mail oder Brief kann sie mitgehen.'))}</p>
+        <div class="row"><button class="btn" id="apGuide" type="button">Anleitung für Mitglieder (PDF)</button></div></div>`;
     // Unterbereiche wie in den Einstellungen; Punkt am Reiter, wenn dort etwas zu tun ist
     const APP_SECS = [['mitglieder', 'Mitglieder'], ['bereiche', 'Bereiche'], ['push', 'Benachrichtigungen'], ['einstellungen', 'Einstellungen']];
     // Bereiche, die Module beisteuern (z. B. „Meine Daten“ der Mitgliederverwaltung) – stehen hinter „Bereiche“
@@ -3119,6 +3198,7 @@
       badges: { einstellungen: !mayNet ? false : rj ? (rj.why === 'direkt' ? 'Anfrage aus dem Internet abgewiesen' : 'Tunnel-Anfrage abgelehnt') : oldN ? 'Handys mit alter Adresse' : r.security.sms && r.security.sms.on && !r.security.sms.ready ? 'SMS-Stick nicht bereit' : false,
         mitglieder: r.rows.some(FIL.wlan) ? 'Handys müssen einmal im Vereins-WLAN geöffnet werden' : false } });
     watch($('apSet')); watch($('apSec'));
+    $('apGuide').onclick = () => guideDownload();
     extras.forEach(x => { const box = $('apx-' + x.key); Promise.resolve().then(() => x.render(box)).then(() => watch(box)).catch(e => { box.innerHTML = `<p class="muted" style="margin:0">${esc(e.message)}</p>`; }); });
     const setTest = () => { $('apTest').href = ($('apUrl').value.trim() || `${r.https ? 'https' : 'http'}://${location.hostname}:${r.port || 5001}`).replace(/\/+$/, '') + '/'; };
     if ($('apSet')) { $('apUrl').addEventListener('input', setTest); setTest(); }
@@ -3329,7 +3409,7 @@
     if (userTab === 'rollen') {
       $('uBody').innerHTML = `<table class="tbl kompakt"><tr><th>Rolle</th><th>Rechte</th><th class="r">Benutzer</th><th></th></tr>
         ${opt.roles.map(r => `<tr><td><b>${esc(r.name)}</b><div class="muted s">${r.dept_scope ? '<span class="pill b">eigene Abteilung</span> ' : ''}${esc(r.description || '')}</div></td>
-          <td class="k-weg">${permPills(r.perms, opt.permLabels) || '<span class="muted s">keine</span>'}</td><td class="r k-lbl">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
+          <td class="k-weg k-1z">${permPills(r.perms, opt.permLabels) || '<span class="muted s">keine</span>'}</td><td class="r k-lbl">${r.users}</td><td class="r"><button class="btn small" data-r="${r.id}">Bearbeiten</button></td></tr>`).join('')}</table>`;
       $('uBody').querySelectorAll('[data-r]').forEach(b => { b.onclick = () => roleDialog(opt.roles.find(x => x.id === +b.dataset.r), opt); });
     } else {
       $('uBody').innerHTML = `<table class="tbl kompakt"><tr><th>Benutzer</th><th>Zugang</th><th>Letzte Anmeldung</th><th></th></tr>
@@ -4042,7 +4122,7 @@
       const q = $('aq').value.trim().toLowerCase();
       $('at').innerHTML = '<tr><th>Zeit</th><th>Wer</th><th>Aktion</th><th>Details</th></tr>' + rows
         .filter(r => !q || `${r.username} ${r.action} ${r.detail}`.toLowerCase().includes(q))
-        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td class="nw">${deTime(r.at)}</td><td>${esc(r.username || '–')}</td><td>${esc(r.action)}</td><td class="muted"${r.detail ? ` title="${esc(r.detail)}"` : ''}>${esc(shortUA(r.detail || ''))}</td></tr>`).join('')
+        .map(r => `<tr class="${/fehlgeschlagen/.test(r.action) ? 'off' : ''}"><td class="nw">${deTime(r.at)}</td><td>${esc(r.username || '–')}</td><td class="nw">${esc(r.action)}</td><td class="muted"${r.detail ? ` title="${esc(r.detail)}"` : ''}>${esc(shortUA(r.detail || ''))}</td></tr>`).join('')
         || '<tr><td colspan="4"><p class="empty">Kein Eintrag passt zum Filter.</p></td></tr>';
     };
     draw(); $('aq').oninput = draw;
@@ -4646,7 +4726,7 @@
       ${mayBank ? '<div class="card" data-set="bank"><h3>Bankkonten</h3><div id="bankBody"><p class="muted">Wird geladen …</p></div></div>' : ''}
       <div class="card" data-set="sprache"><h3>Sprachen</h3><div id="langBody"><p class="muted">Wird geladen …</p></div></div>
       ${can('einstellungen') ? `<div class="card"><h3>Verein</h3>
-        <div class="frm"><label class="f">Vereinsname<input id="club" value="${esc(s.clubNameSet === false ? '' : s.clubName)}" placeholder="z. B. TC Grün-Weiß Musterstadt"></label>
+        <div class="frm"><label class="f">Vereinsname<input id="club" required value="${esc(s.clubNameSet === false ? '' : s.clubName)}" placeholder="z. B. TC Grün-Weiß Musterstadt"></label>
         <label class="f w1">Vereinsfarbe<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColorPick" value="${esc(s.clubColor)}" style="width:52px;flex:none;padding:2px">
           <input id="clubColor" value="${esc(s.clubColor)}" style="flex:1;min-width:0" maxlength="7"></span></label>
         <label class="f w1">Zweitfarbe (freiwillig)<span class="row" style="gap:6px;flex-wrap:nowrap;min-width:0"><input type="color" id="clubColor2Pick" value="${esc(s.clubColor2 || '#c0262d')}" style="width:52px;flex:none;padding:2px">
@@ -4763,10 +4843,10 @@
         ${me.role === 'oberadmin' ? `<div class="row" style="margin-top:10px;align-items:center"><label class="btn primary" style="cursor:pointer">Erweiterung einspielen (ZIP) …<input type="file" id="extZip" accept=".zip,application/zip" class="hidden"></label>
           <button class="btn hidden" id="extRestart">Jetzt neu starten</button></div>
         <p class="muted s">Eine Erweiterung ist eine ZIP-Datei mit <code>erweiterung.json</code>. Eine neuere Version einer hochgeladenen Erweiterung ersetzt die alte. Wirksam nach einem Neustart. Alternativ per Samba in <code>share/clubwerk/erweiterungen</code> kopieren.</p>` : ''}</div>` : ''}
-      ${mayCfg ? `<div class="card"><h3>Seitenleiste</h3>
-        <p class="muted s" style="margin-top:0">So ist die Leiste der Verwaltung geordnet – für alle, die sich anmelden. Du kannst die Bereiche umbenennen, ordnen und Einträge in einen anderen Bereich legen. Neue Module erscheinen von selbst am Ende ihres Bereichs. Was jemand sehen darf, bestimmen weiter seine Rechte.</p>
+      ${mayCfg ? `<div class="card fold" id="nvCard"><h3><button type="button" class="foldbtn" id="nvFold" aria-expanded="false" aria-controls="nvBody"><span>Seitenleiste</span>${icon('pfeil', 16).replace('<svg', '<svg class="chev"')}</button></h3>
+        <div id="nvBody" hidden><p class="muted s" style="margin-top:0">So ist die Leiste der Verwaltung geordnet – für alle, die sich anmelden. Du kannst die Bereiche umbenennen, ordnen und Einträge in einen anderen Bereich legen. Neue Module erscheinen von selbst am Ende ihres Bereichs. Was jemand sehen darf, bestimmen weiter seine Rechte.</p>
         <div id="nvRows" class="nvrows"><p class="muted">Lade …</p></div>
-        <div class="btns"><button class="btn ghost" id="nvReset">Standard wiederherstellen</button><button class="btn primary" id="nvSave">Speichern</button></div></div>` : ''}
+        <div class="btns"><button class="btn ghost" id="nvReset">Standard wiederherstellen</button><button class="btn primary" id="nvSave">Speichern</button></div></div></div>` : ''}
       ${mayCfg && s.tablet ? `<div class="card"><h3>Leiste am Tablet</h3>
         <p class="muted s" style="margin-top:0">So stehen die Module und Links in der Leiste oben am Tablet – von links nach rechts. Der Schalter „am Tablet zeigen“ wirkt sofort, Reihenfolge und <b>Start-Reiter</b> (erscheint beim Aufruf der Adresse, z. B. <code>…:3100</code>, und nach 30 Sekunden ohne Eingabe) gelten nach „Speichern“.</p>
         <div id="toRows" class="torows"><p class="muted">Lade …</p></div>
@@ -4793,7 +4873,7 @@
           try {
             const css = await (await fetch('theme.css?vorschau=' + c1.slice(1) + (/^#[0-9a-f]{6}$/i.test(c2) ? '&vorschau2=' + c2.slice(1) : ''))).text();
             const blk = k => Object.fromEntries([...(css.split(k)[1] || '').split('}')[0].matchAll(/--([\w-]+):([^;}]+)/g)].map(m => [m[1], m[2]]));
-            const sample = (lbl, v) => `<div class="cp" style="background:${v['brand-soft']};color:${v['brand-ink']}"><b>${esc(lbl)}</b><span class="cpb" style="background:${v.brand};color:${v['on-brand']}">${esc(T('Speichern'))}</span><span class="cph num" style="background:linear-gradient(135deg,${v['hero-a']},${v['hero-c']});color:${v['on-hero']}">70,00 €</span></div>`;
+            const sample = (lbl, v) => `<div class="cp" aria-hidden="true" style="background:${v['brand-soft']};color:${v['brand-ink']}"><b>${esc(T('Vorschau'))} · ${esc(lbl)}</b><span class="cpb" style="background:${v.brand};color:${v['on-brand']}">${esc(T('Vereinsfarbe'))}</span><span class="cph" style="background:linear-gradient(135deg,${v['hero-a']},${v['hero-c']});color:${v['on-hero']}">${esc(T('Hervorgehoben'))}</span></div>`;   // nur Farbfelder mit Beschriftung – keine Knöpfe zum Anklicken (Punkt 7)
             $('clubPrev').innerHTML = sample(T('Hell'), blk(':root{')) + sample(T('Dunkel'), blk(':root[data-theme="dark"]{'));
           } catch { /* Vorschau ist nur Beiwerk */ }
         }, 250);
@@ -4885,6 +4965,7 @@
       };
     }
     if ($('nvRows')) seitenleisteKarte();
+    if ($('nvFold')) $('nvFold').onclick = () => { const o = $('nvFold').getAttribute('aria-expanded') !== 'true'; $('nvFold').setAttribute('aria-expanded', o); $('nvBody').hidden = !o; $('nvCard').classList.toggle('open', o); };   // selten gebraucht: eingeklappt (Punkt 7)
     if ($('toRows')) {
       let items = [], start = null, sws = [];
       const swBtn = (x, on) => `<button type="button" class="switch ${on ? 'on' : ''}" role="switch" aria-checked="${on}" aria-label="${esc(x.label)} am Tablet zeigen" data-tsw="${esc(x.id)}" data-on="${on ? 0 : 1}"></button>`;

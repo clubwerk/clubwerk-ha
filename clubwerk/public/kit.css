@@ -339,3 +339,9 @@ body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius:
 /* Knöpfe einer Zeile stehen am Handy untereinander in voller Breite und gleich hoch (Prüfstand-Regel d5-knopfspalte) */
 @media (max-width: 560px) { .row.knopfspalte { flex-direction: column; flex-wrap: nowrap; align-items: stretch !important; } .knopfspalte .btn { width: 100%; justify-content: center; } }
 .vh-steps > li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* Installationskarte: der aktuelle Schritt groß, die weiteren eine Zeile mit „Wie?“ (Erklärung klappt im selben Blatt auf) */
+.vh-fm-step { display: block; padding: 0; } .vh-fm-step > summary { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 6px 0; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; } .vh-fm-step > summary::-webkit-details-marker { display: none; }
+.vh-fm-step .vh-tx { flex: 1; min-width: 0; } .vh-fm-wie { flex: none; font-size: 13px; font-weight: 700; color: var(--brand-ink); padding: 0 4px; }
+.vh-fm-step[open] .vh-fm-wie { display: none; }
+.vh-fm-step > p { margin: 0 0 10px 60px; font-size: 13px; line-height: 18px; color: var(--muted); }

@@ -11,7 +11,8 @@
 const crypto = require('crypto');
 const L = require('./logik');
 const ha = require('../../src/ha');   // Home Assistant (gemeinsam mit Beregnung und Zugang)
-const { deD, euro } = require('../../src/util');
+const util = require('../../src/util');
+const { deD, euro } = util;
 let db, getSetting, setSetting, audit, H, lastFirst;
 const MOD = 'flutlicht';
 const APP = 'app';   // Geräte-Kopplung der Mitglieder-App
@@ -63,9 +64,8 @@ CREATE TABLE IF NOT EXISTS fl_log (
 CREATE INDEX IF NOT EXISTS ix_fl_log_at ON fl_log(at);
 `);
 }
-/* Testuhr (nur Testreihe fl, nie in einer Installation gesetzt): CW_TEST_UHR = "JJJJ-MM-TT HH:MM|<echte Zeit in ms>" – die Uhr des Moduls läuft ab dort weiter, auch über einen Neustart */
-const TEST_UHR = (() => { const m = /^(\d{4}-\d{2}-\d{2} \d{2}:\d{2})\|(\d+)$/.exec(process.env.CW_TEST_UHR || ''); return m ? L.parse(m[1]).getTime() - Number(m[2]) : 0; })();
-const nowD = () => new Date(Date.now() + TEST_UHR);
+/* Uhr des Moduls: util.jetzt() – in der Testreihe fl stellt sie CW_TEST_UHR (src/testuhr.js): Für das Modul ist es dann heute 19:00 Uhr, egal wann die Reihe läuft */
+const nowD = () => util.jetzt();
 const log = (action, light, who, detail) => db.prepare('INSERT INTO fl_log(at, light, action, who, detail) VALUES (?,?,?,?,?)').run(L.ts(nowD()), light || null, action, who || null, detail || null);
 const notify = text => ha.notify(cfg().notify, 'Flutlicht', text);
 
@@ -539,15 +539,19 @@ function activate(ctx) {
     { id: 'schalter', label: 'Flutlicht: Schalter geändert', level: 'r', push: 'Im Modul Flutlicht wurden die Schalter geändert.' },
     { id: 'licht', label: 'Flutlicht ließ sich nicht schalten', level: 'a', push: 'Das Flutlicht ließ sich nicht schalten.' },
   ];
-  ctx.hooks.gobdTables = () => [{ table: 'fl_claim', date: 'created_at' }];   // GoBD: Änderungsjournal (Lichtgeld wird als Forderung oder Verkauf bezahlt und dort gebucht)
+  // GoBD: Änderungsjournal nur für Einträge mit Lichtgeld (Beleg, 10 Jahre). Licht ohne Lichtgeld ist kein Beleg – kommt nicht ins Journal,
+  // damit die Löschfrist die Namen wirklich entfernt (Entscheidung Thorsten 10.11.2026: Aufbewahrung geht vor, nur wo Geld dran hängt)
+  ctx.hooks.gobdTables = () => [{ table: 'fl_claim', date: 'created_at', onlyIf: 'fee_cents' }];
   ctx.hooks.gobdKeys = () => [{ key: 'fl.lichtgeld', label: 'Lichtgeld (Flutlicht)', sphere: 'zweck', prefix: 'fl-' }];
   ctx.hooks.historyTables = () => ['fl_claim'];   // Lichtgeld und Betriebsstunden bleiben beim Löschen eines Kontos lesbar
   ctx.hooks.deactivate = () => { allOff('System (Modul ausgeschaltet)').catch(() => {}); };
   /* Datenschutz: der Verlauf zeigt, wer wann Licht hatte – nach der Frist werden Namen entfernt, Dauer bleibt für die Betriebsstunden */
+  // ohne Lichtgeld: nach der Frist; mit Lichtgeld (Beleg, im GoBD-Journal): erst nach 10 Jahren
+  const FL_PURGE = `((COALESCE(fee_cents, 0) = 0 AND ? > start) OR datetime('now', 'localtime', '-10 years') > start)`;
   const keepMonths = () => Math.min(60, Math.max(3, parseInt(ctx.setting('keep_months', '24'), 10) || 24));
-  ctx.hooks.retention = () => [{ id: 'verlauf', label: 'Flutlicht-Verlauf', text: 'Wer wann das Licht eingeschaltet hat und welches Lichtgeld daraus entstand.', unit: 'monate', value: keepMonths(), def: 24, min: 3, max: 60,
-    due: cut => db.prepare('SELECT COUNT(*) n FROM fl_claim WHERE start < ? AND (who IS NOT NULL OR member_id IS NOT NULL)').get(cut).n + db.prepare('SELECT COUNT(*) n FROM fl_log WHERE at < ? AND who IS NOT NULL').get(cut).n,
-    purge: cut => db.prepare("UPDATE fl_claim SET who = NULL, member_id = NULL WHERE start < ? AND ended_at IS NOT NULL AND (who IS NOT NULL OR member_id IS NOT NULL)").run(cut).changes
+  ctx.hooks.retention = () => [{ id: 'verlauf', label: 'Flutlicht-Verlauf', text: 'Wer wann das Licht eingeschaltet hat. Einträge mit Lichtgeld sind Buchungsbelege und behalten den Namen 10 Jahre (Aufbewahrungspflicht).', unit: 'monate', value: keepMonths(), def: 24, min: 3, max: 60,
+    due: cut => db.prepare(`SELECT COUNT(*) n FROM fl_claim WHERE ${FL_PURGE} AND ended_at IS NOT NULL AND (who IS NOT NULL OR member_id IS NOT NULL)`).get(cut).n + db.prepare('SELECT COUNT(*) n FROM fl_log WHERE at < ? AND who IS NOT NULL').get(cut).n,
+    purge: cut => db.prepare(`UPDATE fl_claim SET who = NULL, member_id = NULL WHERE ${FL_PURGE} AND ended_at IS NOT NULL AND (who IS NOT NULL OR member_id IS NOT NULL)`).run(cut).changes
       + db.prepare('UPDATE fl_log SET who = NULL WHERE at < ? AND who IS NOT NULL').run(cut).changes,
     set: v => ctx.setSetting2('keep_months', String(v)) }];
   ctx.hooks.privacyRecord = () => [{ purpose: 'Schalten des Flutlichts, Nachweis von Lichtgeld und Betriebsstunden', data: 'Name, Lichtanlage, Zeitpunkt und Dauer, Auslöser (Buchung, App, Tablet), Lichtgeld', persons: 'Mitglieder, die das Licht einschalten oder bei Dunkelheit buchen' }];
@@ -593,7 +597,7 @@ function activate(ctx) {
     for (const [id, msg] of failed) { const l = c.lights.find(x => x.id === id); if (l) alerts.push({ level: 'r', text: `${l.name}: Licht ließ sich nicht schalten`, detail: msg }); }
     if (!v.darkFrom && c.sun.source === 'calc' && c.lights.length) alerts.push({ level: 'a', text: 'Flutlicht: Standort für den Sonnenuntergang fehlt.', sec: ['tab_flutlicht-zeiten', ''] });
     const on = v.lights.filter(l => l.on).length;
-    return { kpis: [{ l: 'Lichtanlagen', v: c.lights.length }, { l: 'Licht an', v: on }], alerts };
+    return { kpis: [{ l: 'Lichtanlagen', v: (n => n === 1 ? ctx.T('{0} Anlage', [n]) : ctx.T('{0} Anlagen', [n]))(c.lights.length) }, { l: 'Licht an', v: on }], alerts };
   };
 
   const admin = ctx.admin;

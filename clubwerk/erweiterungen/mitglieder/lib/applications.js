@@ -184,22 +184,9 @@ function register(sh) {
       db.prepare("UPDATE mv_application SET status = 'angenommen', member_id = ?, reviewed_by = ?, reviewed_at = ? WHERE id = ?").run(head, by || null, nowTs(), id);
     })();
     C.audit(by, 'Beitrittserklärung angenommen', d.persons.map(p => `${p.first_name} ${p.last_name}`).join(', '));
-    welcome(id).catch(e => console.error('Willkommens-Mail:', e.message));
+    // Willkommens-E-Mail (gemeinsamer Weg, lib/willkommen.js): an die Person, die den Antrag gestellt hat – ohne Adresse oder Postfach still nicht
+    if (d.email && sh.welcome.state(ids[0]).ok) sh.welcome.send(ids[0], user, { why: 'Beitrittserklärung angenommen' }).catch(e => console.error('Willkommens-Mail:', e.message));
     return ids;
-  }
-  async function welcome(id) {
-    const a = db.prepare('SELECT * FROM mv_application WHERE id = ?').get(id);
-    const d = JSON.parse(a.data);
-    if (!d.email || !C.mail.ready()) return;
-    const b = db.prepare('SELECT * FROM mv_bank WHERE member_id = ?').get(a.member_id) || {};
-    const p = db.prepare('SELECT member_no FROM mv_person WHERE member_id = ?').get(a.member_id) || {};
-    const doc = a.document_id ? db.prepare('SELECT * FROM mv_document WHERE id = ?').get(a.document_id) : null;
-    const file = doc ? require('path').join(C.require('./db').DATA_DIR, 'mitglieder-dokumente', require('path').basename(doc.file)) : null;
-    const cl = club();
-    await C.mail.send({ to: d.email, subject: `Willkommen im ${cl.name}`, text: [`Guten Tag ${d.persons[0].first_name} ${d.persons[0].last_name},`, '', `herzlich willkommen im ${cl.name}! Ihre Mitgliedschaft ist bestätigt.`, '',
-      `Mitgliedsnummer: ${p.member_no || '–'}`, b.mandate_ref ? `Mandatsreferenz für das SEPA-Lastschriftmandat: ${b.mandate_ref}` : '', b.mandate_ref ? `Gläubiger-Identifikationsnummer: ${cl.ci}` : '', '',
-      'Ihre Beitrittserklärung finden Sie als PDF im Anhang.', '', 'Viele Grüße', cl.name].filter((x, i, arr) => x !== '' || arr[i - 1] !== '').join('\n'),
-      attachments: file && require('fs').existsSync(file) ? [{ filename: 'Beitrittserklaerung.pdf', path: file }] : undefined });
   }
 
   /* ---------- Verwaltung ---------- */

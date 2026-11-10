@@ -12,11 +12,12 @@
   const KINDS = ['install', 'android-have', 'desktop-have', 'android-howto', 'desktop-howto', 'desktop-safari', 'android-embedded'];
   let ctx;
   const laterSet = () => ctx.ls('cw-install-spaeter', String(Date.now() + 14 * 864e5));
+  const rowC = (i, t, sub) => `<details class="vh-fm vh-fm-step"><summary><span class="vh-fm-ico">${i}</span><span class="vh-tx"><strong>${t}</strong></span><span class="vh-fm-wie">Wie?</span></summary><p>${sub}</p></details>`;   // weitere Schritte: eine Zeile, die Erklärung klappt im selben Blatt auf (Punkt 10)
   const row = (i, t, sub) => `<div class="vh-fm"><span class="vh-fm-ico">${i}</span><span class="vh-tx"><strong>${t}</strong>${sub ? `<small>${sub}</small>` : ''}</span></div>`;
   function html(kind, e) {
     const lt = '<button type="button" class="vh-btn sec" data-pushlater data-installlater>Später</button>', done = '<button type="button" class="vh-btn sec" data-installdone>Habe ich schon installiert</button>';
     const card = (h, rows, b) => `<div class="vh-card vh-fm-news" data-pushcard="${kind}"><h3>${h}</h3><div class="vh-rows">${rows}</div><div class="vh-pushact">${b.join('')}</div></div>`;
-    const R3 = (a, b, c) => row(...a) + row(ADDHOME, ...b) + row(OPEN, ...c);
+    const R3 = (a, b, c) => row(...a) + rowC(ADDHOME, ...b) + rowC(OPEN, ...c);
     if (kind === 'install') return card('App installieren', e.android ? row(ADDHOME, 'Die App aufs Handy legen', 'Ein Antippen genügt – danach startest du sie direkt vom Startbildschirm, ohne dich neu freizuschalten.')
       : row(ADDHOME, 'Die App auf diesem Rechner installieren', 'Ein Klick genügt – danach öffnet sie sich in einem eigenen Fenster, ohne dich neu freizuschalten.'), [lt, '<button type="button" class="vh-btn" data-installgo>App installieren</button>']);
     if (kind === 'android-have') return card('App schon installiert', row(OPEN, 'Du hast die App schon', 'Öffne sie vom Startbildschirm – dort bleibt deine Freischaltung.'), [lt]);

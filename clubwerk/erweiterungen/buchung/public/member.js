@@ -18,6 +18,7 @@
       .bkm-blk { position: absolute; left: 3px; right: 3px; border-radius: 10px; padding: 4px 5px; box-sizing: border-box; overflow: hidden; border: 1px solid transparent; box-shadow: var(--shadow); text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 3;   /* über der Jetzt-Linie – Namen bleiben lesbar */
         background: var(--hover); color: var(--ink); border-color: var(--line); }
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; line-height: 15px; font-size: 12px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung statt Bruch mitten im Wort, kein „…“; nur ganze Zeilen (theme-init.js blendet aus, was nicht mehr ganz passt) (02.11.2026) */
+      .bkm-plan:not(.wide) .bkm-blk > b, .bkm-plan:not(.wide) .bkm-blk > span { hyphens: manual; -webkit-hyphens: manual; overflow-wrap: normal; }   /* Kompakt: Kürzel brechen nie mitten im Wort */
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-family: var(--num); font-size: 14px; font-weight: 600; opacity: .9; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card), var(--shadow); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
@@ -90,6 +91,7 @@
       .bkm-list .bkm-row:first-child { border-top: 0; }
       .bkm-row > b.num { font-size: 26px; line-height: 1; font-weight: 600; color: var(--ink); }
       .bkm-pills { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+      .bkm-pills.lang { display: grid; grid-template-columns: minmax(0, 1fr); }   /* lange Namen („Ballmaschine Lobster Elite“): alle Kästchen der Zeile stehen untereinander, gleich breit – statt verschieden breit auf zwei Zeilen verteilt (Prüfstand knopfreihe-ungleich, 10.11.2026) */
       /* Kästchen wachsen mit dem Namen und brechen zwischen Wörtern um – nie abgeschnitten (früher 84 px breit: „Ballmaschine“ lief links und rechts heraus) */
       .bkm-pill { box-sizing: border-box; min-width: 44px; max-width: 100%; min-height: 44px; padding: 5px 12px; border-radius: 22px; border: 0; background: var(--brand-soft); color: var(--brand-ink); font: inherit; font-size: 15px; line-height: 1.2; font-weight: 800; text-align: center; overflow-wrap: break-word; display: inline-flex; align-items: center; justify-content: center; }
       .bkm-pill.busy, .bkm-pill.lock, .bkm-pill.past, .bkm-pill.closed { background: var(--hover); color: var(--muted); text-decoration: line-through; font-weight: 600; }
@@ -227,7 +229,7 @@
             const bad = x.booking && x.booking.label && !x.booking.mine ? ` style="box-shadow:inset 0 -3px 0 ${x.booking.label.color}"` : '';
             return `<button class="bkm-pill ${x.state}" data-r="${r.id}" data-s="${x.s}" aria-label="${esc(r.name)} ${hhmm(x.s)}: ${esc(x.label)}" title="${esc(r.name)}"${bad} ${/past|closed/.test(st) ? 'disabled' : ''}>${esc(short(r.name))}</button>`; };
           return `${rasters.length > 1 ? `<h3 class="bkm-gh">Raster ${dur(m)}<small>${esc(g.map(x => x.r.name).join(' · '))}</small></h3>` : ''}
-            <div class="vh-card flush bkm-list">${shown.map(w => `<div class="bkm-row"><b class="num">${hhmm(w.s)}</b><div class="bkm-pills">${w.cells.map(c => pill(c.r, c.x)).join('')}</div><span class="bkm-sum">${esc(sum(w.cells))}</span></div>`).join('')}
+            <div class="vh-card flush bkm-list">${shown.map(w => `<div class="bkm-row"><b class="num">${hhmm(w.s)}</b><div class="bkm-pills${w.cells.length > 1 && w.cells.some(c => short(c.r.name).length > 11) ? ' lang' : ''}">${w.cells.map(c => pill(c.r, c.x)).join('')}</div><span class="bkm-sum">${esc(sum(w.cells))}</span></div>`).join('')}
             ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}</div>`; }).join('');
         return `${lists}${notes ? `<div class="bkm-notes">${notes}</div>` : ''}<p class="bkm-hint">Freies Kästchen antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</p>`;
       }
@@ -250,6 +252,8 @@
           const hm = t => (wide || t.slice(3) !== '00' ? t : String(+t.slice(0, 2)));   // schmal: volle Stunden kurz („20–22“), damit die Zeit nicht abgeschnitten wird
           const time = `${hm(b.start)}–${hm(b.end)}`;
           let ln = head ? [[head, 'b'], ...names.map(x => [x, '']), ...(!names.length && b.title && b.title !== head ? [[b.title, '']] : [])] : names.length ? names.map(x => [x, 'b']) : [[b.mine ? 'Meine Buchung' : 'belegt', 'b']];
+          // Kompakt: nur Kürzel („DG · SH“) und Zeit – ganze Namen und Buchungsart stehen beim Antippen und in „Ausführlich“ (planung/ui-review.md Punkt 9)
+          if (!wide) { const ini = x => String(x).split(/[ ,.]+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase(); ln = b.type === 'sperre' ? [['gesperrt', 'b']] : names.length ? [[names.map(ini).join(' · '), 'b']] : b.label ? [] : [[b.mine ? 'Ich' : 'belegt', 'b']]; }
           if (ln.length < n) ln.push([time, 'tm']);
           else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
           // Buchungsart (z. B. Medenspiel) behält immer ihre Farbe – auch bei eigenen Buchungen; „meine“ zeigt dann ein Rahmen in Vereinsfarbe

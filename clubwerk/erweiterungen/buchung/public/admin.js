@@ -561,7 +561,7 @@
       <div class="bk-grid" style="--c:4">
         <label class="f w2">Buchungsart<select id="sxL">${opt('', '– ohne –')}${m.labels.filter(l => l.active).map(l => opt(l.id, l.name)).join('')}</select></label>
         <label class="f w2">${type === 'sperre' ? 'Grund' : 'Titel (leer = Buchungsart oder Mitglied)'}<input id="sxT" placeholder="${type === 'sperre' ? 'optional, z. B. Winterpause' : 'optional, z. B. Training Herren 40'}"></label>
-        <label class="f w2">Erster Tag<input id="sxF" type="date" value="${m.today}"></label><label class="f w2">Letzter Tag<input id="sxU" type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
+        <label class="f w2">Erster Tag<input id="sxF" required type="date" value="${m.today}"></label><label class="f w2">Letzter Tag<input id="sxU" required type="date" value="${type === 'sperre' ? m.today : (`${y}-09-30` > addDays(m.today, 28) ? `${y}-09-30` : addDays(m.today, 91))}"></label>
         <div class="f bkf wall"><span>Plätze</span><div class="bk-chips">${rs.map(r => `<label><input type="checkbox" data-r="${r.id}"> ${esc(r.name)}</label>`).join('')}</div></div>
         <label class="f w2">Wiederholung<select id="sxRf">${repeatOpts(type === 'sperre' ? 'daily:1' : 'weekly:1')}</select></label>
         <div class="f bkf w2" id="sxWD"><span>Wochentage</span><div class="bk-chips">${[1, 2, 3, 4, 5, 6, 7].map(d => `<label><input type="checkbox" data-d="${d}"> ${WD[d]}</label>`).join('')}</div></div>

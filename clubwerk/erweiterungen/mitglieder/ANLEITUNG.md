@@ -48,13 +48,16 @@ Ein Klick auf eine Zeile öffnet das Mitglied. „← Alle Mitglieder“ führt 
 
 ![Das Fenster „Neues Mitglied“.](bild: seite=mitglieder; klick=#mvNew; ziel=dialog)
 
-Ein Mitglied wird nur **vollständig** angelegt: Name, Geburtsdatum, Eintritt, Anschrift, E-Mail, Handy, Beitrag, Abteilung und Zahlart. Bei Lastschrift gehören Kontoinhaber (Clubwerk schlägt den Namen vor), IBAN und das Datum des SEPA-Mandats dazu. Dazu kommt die **unterschriebene Beitrittserklärung** als PDF oder Foto (Datei wählen oder ins Feld ziehen).
+Pflichtfelder tragen den Zusatz „(Pflicht)“ – in der ganzen Verwaltung gleich. Ein Mitglied wird nur **vollständig** angelegt: Name, Geburtsdatum, Eintritt, Anschrift, E-Mail, Handy, Beitrag, Abteilung und Zahlart. Bei Lastschrift gehören Kontoinhaber (Clubwerk schlägt den Namen vor), IBAN und das Datum des SEPA-Mandats dazu. Dazu kommt die **unterschriebene Beitrittserklärung** als PDF oder Foto (Datei wählen oder ins Feld ziehen).
 
 - Die **Mitgliedsnummer** vergibt Clubwerk selbst, wenn das Feld leer bleibt.
 - Beim **Beitrag** sind nur die Arten wählbar, die zum Alter passen; die übrigen sind ausgegraut. Dafür zuerst das Geburtsdatum eintragen.
 - Ist in den Einstellungen „Lastschrift ist Pflicht“ gesetzt, gibt es nur die Zahlart Lastschrift.
 - Soll das neue Mitglied am Tablet unterschreiben, nehmt stattdessen „+ Beitrittserklärung“ im Reiter „Anträge“.
-- **Von Mitglied übernehmen …** (Knopf oben im Fenster): spart das Abtippen, wenn jemand zu einem vorhandenen Mitglied gehört. Ihr sucht das Mitglied (Anzeige „Nachname, Vorname“) und setzt Haken, was ins Formular soll: Anschrift, Nachname und Telefon Festnetz sind vorgewählt, E-Mail und Mobil nicht. „Übernehmen“ füllt nur das Formular aus; gespeichert wird erst mit „Anlegen“. **Bankdaten werden nie übernommen.** Stattdessen wählt ihr im selben Fenster „Zur Familie von … hinzufügen“ oder „Zahlt über …“. Dann braucht das neue Mitglied keinen eigenen Beitrag (Familie) bzw. kein eigenes Konto; es zahlt über das Oberhaupt bzw. den Zahler. Es gelten die Familienregeln (siehe „Familienmitgliedschaft“): Clubwerk meldet es, wenn schon ein/e Partner/in da ist oder ein „Kind“ älter als 18 Jahre ist. Kinder brauchen keine E-Mail und kein Handy.
+- **Von Mitglied übernehmen …** (Knopf oben im Fenster): spart das Abtippen, wenn jemand zu einem vorhandenen Mitglied gehört. Ihr sucht das Mitglied (Anzeige „Nachname, Vorname“) und setzt Haken, was ins Formular soll: Anschrift, Nachname und Telefon Festnetz sind vorgewählt, E-Mail und Handy nicht. „Übernehmen“ füllt nur das Formular aus; gespeichert wird erst mit „Anlegen“. **Bankdaten werden nie übernommen.** Stattdessen wählt ihr im selben Fenster „Zur Familie von … hinzufügen“ oder „Zahlt über …“. Dann braucht das neue Mitglied keinen eigenen Beitrag (Familie) bzw. kein eigenes Konto; es zahlt über das Oberhaupt bzw. den Zahler. Es gelten die Familienregeln (siehe „Familienmitgliedschaft“): Clubwerk meldet es, wenn schon ein/e Partner/in da ist oder ein „Kind“ älter als 18 Jahre ist. Kinder brauchen keine E-Mail und kein Handy.
+- **Willkommens-E-Mail senden** (Häkchen unten im Fenster): ist vorbelegt, sobald eine E-Mail-Adresse eingetragen und ein Postfach eingerichtet ist; sonst ausgegraut mit dem Grund. Text und Betreff legt ihr unter Einstellungen › „Willkommens-E-Mail“ fest. Hat ein neues Familienmitglied (z. B. ein Kind) keine eigene Adresse, geht die Mail an das Oberhaupt. Bei Lastschrift hängt Clubwerk Mandatsreferenz und Gläubiger-ID an, die Beitrittserklärung kommt als PDF in den Anhang.
+- **Einladung zur Mitglieder-App mitsenden** (darunter, vorbelegt aus): steckt den persönlichen Link zum Freischalten gleich in die Willkommens-E-Mail. Das geht nur mit eigener Adresse. Teilt sich das neue Mitglied die Adresse mit anderen (z. B. dem Oberhaupt), bekommt nach der Regel der Mitglieder-App nur eines die Einladung per E-Mail; dann ist das Häkchen ausgegraut („E-Mail-Adresse gehört zu … – bitte per QR-Code freischalten“). Ohne eingetragene Adresse der Mitglieder-App fehlt das Häkchen. Mit App-Einladung erscheint darunter **„Anleitung als PDF anhängen“** (vorbelegt an): die zweiseitige Anleitung „Mitglieder-App einrichten“ geht mit.
+- Dasselbe gilt für **„Partner/in neu anlegen“** und **„Kind neu anlegen“** (Reiter „Zahlung & Familie“).
 - Dieselbe Übernahme gibt es oben in der Karte „Anschrift & Kontakt“ eines vorhandenen Mitglieds (Reiter „Stammdaten“) und bei „+ Beitrittserklärung“ im Reiter „Anträge“ (dort ohne Familie und Zahler).
 
 #### Import …
@@ -111,9 +114,9 @@ Anrede, Titel, Vorname, Nachname, Geburtsdatum, Geschlecht (männlich oder weibl
 
 ![Karte „Anschrift & Kontakt“.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=.detbody > div:nth-child(2))
 
-Straße, PLZ, Ort, Adresszusatz, Land, E-Mail, Mobil, Telefon und die **Briefanrede** (z. B. „Liebe Anna“). Dazu das Eintrittsdatum, die Schlüsselnummer und **Notizen**, die nur der Vorstand sieht.
+Straße, PLZ, Ort, Adresszusatz, Land, E-Mail, Handy, Telefon (Festnetz) und die **Briefanrede** (z. B. „Liebe Anna“). Dazu das Eintrittsdatum, die Schlüsselnummer und **Notizen**, die nur der Vorstand sieht.
 
-Mit **Von Mitglied übernehmen …** (Knopf oben in der Karte) holt ihr Anschrift, Nachname, Telefon Festnetz, E-Mail oder Mobil von einem anderen Mitglied ins Formular – gespeichert wird erst mit „Speichern“, Bankdaten werden nie übernommen. Statt der Bankverbindung könnt ihr dort auch „Zur Familie von … hinzufügen“ oder „Zahlt über …“ wählen; das wird beim Speichern gesetzt.
+Mit **Von Mitglied übernehmen …** (Knopf oben in der Karte) holt ihr Anschrift, Nachname, Telefon (Festnetz), E-Mail oder Handy von einem anderen Mitglied ins Formular – gespeichert wird erst mit „Speichern“, Bankdaten werden nie übernommen. Statt der Bankverbindung könnt ihr dort auch „Zur Familie von … hinzufügen“ oder „Zahlt über …“ wählen; das wird beim Speichern gesetzt.
 
 **Umzug:** Ändert ihr die Anschrift und wohnen andere aktive Mitglieder unter der bisherigen Anschrift, fragt Clubwerk beim Speichern: „Unter derselben Anschrift wohnen auch: …“ – mit einem Haken je Person (Nachname, Vorname). Wer abgehakt bleibt, bekommt die neue Anschrift ebenfalls. Ohne Haken ändert sich nur dieses Mitglied; „Abbrechen“ speichert nichts. Jede Änderung steht im Verlauf der Person und im Protokoll.
 
@@ -126,6 +129,10 @@ Je Einwilligung ein Häkchen mit Datum („seit …“), z. B. für Fotos. Welch
 #### Weitere Karten und Knöpfe
 
 - **Tablet-PIN:** zeigt, ob das Mitglied eine PIN hat. „PIN zurücksetzen“ löscht sie; beim nächsten Mal legt das Mitglied am Tablet eine neue fest.
+- **Willkommens-E-Mail:** zeigt, wann sie zuletzt gesendet wurde und an welche Adresse sie geht. „Willkommens-E-Mail senden …“ fragt nach und bietet dabei an, die Einladung zur Mitglieder-App mitzuschicken. Jeder Versand steht im Verlauf des Mitglieds und im Protokoll.
+
+![Karte „Willkommens-E-Mail“ am Mitglied.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
+
 - **Profilbild:** erscheint, wenn das Mitglied in der App eines hochgeladen hat. „Profilbild entfernen …“ löscht es.
 - **Vorsicht:** „Löschen …“ geht nur, wenn nichts mehr am Mitglied hängt (gedacht für versehentlich oder doppelt angelegte). „Anonymisieren …“ gibt es erst nach dem Austritt. Es löscht Name, Anschrift, Konto, Dokumente und Verlauf unwiderruflich; für die Statistik bleiben Geburtsjahr, Geschlecht, Ein- und Austritt und Abteilungen. Zur Sicherheit tippt ihr dabei das Wort ANONYMISIEREN.
 - **Datenauskunft** (Knopf rechts in der Reiterzeile): lädt eine Datei mit allem, was Clubwerk über die Person gespeichert hat, auch aus anderen Modulen. Ohne das Recht „Bankdaten“ bleibt die IBAN darin unkenntlich.
@@ -240,7 +247,7 @@ Hier laufen Beitrittserklärungen und Änderungswünsche ein. Die Zahl am Reiter
 
 ![Das Fenster „Beitrittserklärung erfassen“.](bild: seite=mv-antraege; klick=#aNew; ziel=dialog)
 
-Ihr tragt Personen, Anschrift, Mitgliedschaft und SEPA-Mandat ein (mit „Von Mitglied übernehmen …“ holt ihr Anschrift, Nachname, E-Mail und Mobil von einem vorhandenen Mitglied). Für eine **Familie** fügt ihr mit „+ Person (Familie)“ Partner/in und Kinder hinzu; dann gilt der Familienbeitrag und der/die Antragsteller/in wird Hauptzahler. Am Ende steht „Code fürs Tablet erzeugen“ (der Code gilt drei Stunden). Am Tablet tippt das neue Mitglied „Mitglied werden“ › „Ich habe einen Code“, prüft seine Daten, setzt die Häkchen für die Einwilligungen und unterschreibt Beitrittserklärung und SEPA-Mandat. Mit dem Häkchen „Nach der Unterschrift sofort als Mitglied übernehmen“ ist es danach gleich angelegt und bekommt eine Willkommens-E-Mail mit Mitgliedsnummer und Mandatsreferenz.
+Ihr tragt Personen, Anschrift, Mitgliedschaft und SEPA-Mandat ein (mit „Von Mitglied übernehmen …“ holt ihr Anschrift, Nachname, E-Mail und Handy von einem vorhandenen Mitglied). Für eine **Familie** fügt ihr mit „+ Person (Familie)“ Partner/in und Kinder hinzu; dann gilt der Familienbeitrag und der/die Antragsteller/in wird Hauptzahler. Am Ende steht „Code fürs Tablet erzeugen“ (der Code gilt drei Stunden). Am Tablet tippt das neue Mitglied „Mitglied werden“ › „Ich habe einen Code“, prüft seine Daten, setzt die Häkchen für die Einwilligungen und unterschreibt Beitrittserklärung und SEPA-Mandat. Mit dem Häkchen „Nach der Unterschrift sofort als Mitglied übernehmen“ ist es danach gleich angelegt und bekommt eine Willkommens-E-Mail mit Mitgliedsnummer und Mandatsreferenz.
 
 #### Warten auf Bestätigung
 
@@ -390,6 +397,12 @@ Hier schaltet ihr ein, wo man Mitglied werden kann: **am Tablet** („Mitglied w
 
 ![Die Vorlagen für Einwilligungen.](bild: seite=mv-einstellungen; klick=#eConsTpl; ziel=dialog)
 
+#### Willkommens-E-Mail
+
+![Karte „Willkommens-E-Mail“.](bild: seite=mv-einstellungen; ziel=#eWel)
+
+Betreff und Text der Mail, die neue Mitglieder bekommen – beim Annehmen einer Beitrittserklärung, beim Anlegen mit dem Häkchen und über den Knopf am Mitglied. Die **Platzhalter** setzt ihr per Klick an der Schreibstelle ein: {Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Eintritt}, {Beitrag}. Unbekannte Platzhalter meldet Clubwerk, bevor gespeichert wird; Betreff und Text dürfen nicht leer sein. **Vorschau …** zeigt die Mail mit Beispielwerten. Bei Lastschrift hängt Clubwerk Mandatsreferenz und Gläubiger-ID immer selbst an – dieser Teil lässt sich nicht ändern. **Standardtext wiederherstellen …** setzt den mitgelieferten Text wieder ein. Der Text wird nicht übersetzt; er geht so hinaus, wie ihr ihn schreibt. Jede Änderung steht mit Vorher und Nachher im Protokoll.
+
 #### „Meine Daten“ in der App
 
 ![Karte „Meine Daten“ in der App.](bild: seite=mv-einstellungen; ziel=#eApp)
@@ -499,7 +512,7 @@ Alle Forderungen und Gutschriften der Mitglieder mit ihrem Stand. Oben filtern d
 
 - **Bezahlt:** erfasst eine Zahlung mit Betrag, Datum und Zahlungsweg (Überweisung, bar, Lastschrift, verrechnet). Zahlt jemand weniger, ist es eine **Teilzahlung**, der Rest bleibt offen.
 - **Ändern:** Text, Betrag und Fälligkeit ändern; außerdem **Posten stornieren …** und die **Mahnsperre** für diesen Posten.
-- **Stornieren** (bei bezahlten Posten): mit Grund. Bei einem Beitrag könnt ihr den Zeitraum beim nächsten Beitragslauf neu abrechnen lassen. Kam das Geld laut Kontoauszug an, wählt ihr, ob es als Guthaben bleibt oder zurücküberwiesen wurde.
+- **Stornieren** (bei bezahlten Posten): mit Grund. Bei einem Beitrag könnt ihr den Zeitraum beim nächsten Beitragslauf neu abrechnen lassen. Weil das Geld schon beim Verein ist (Kontoauszug, Lastschrift, bar oder Überweisung), wählt ihr, ob es als Guthaben bleibt oder zurücküberwiesen wurde.
 - **+ Forderung** (oben rechts) legt einen neuen Posten an:
 
 ![Das Fenster „Forderung anlegen“.](bild: seite=mv-posten; klick=#cNew; ziel=dialog)

@@ -137,3 +137,21 @@
     ev.clipboardData.setData('text/plain', t.replace(/\u00a0·/g, ' ·')); ev.preventDefault();
   });
 })();
+/* Zähler an Schaltflächen („Anträge 3“, „Gäste-Deckel 1“): der Name nennt die Zahl getrennt („Anträge, 3“) statt „Anträge3“ – für alle Oberflächen (planung/ui-review.md Punkt 14, Regel knopf-name-zaehler) */
+(function () {
+  var q = 0;
+  function run() {
+    q = 0;
+    var bs = document.querySelectorAll('button:not([aria-label]), a[href]:not([aria-label]), [role=tab]:not([aria-label]), [data-cwc]');
+    for (var i = 0; i < bs.length; i++) {
+      var b = bs[i], last = b.lastElementChild;
+      if (!last || last.children.length || typeof last.className !== 'string' || !/badge|cnt|count|zaehler|num/i.test(last.className) || !/^\d{1,4}$/.test(last.textContent.trim())) continue;
+      var n = last.textContent.trim(), all = b.textContent, lab = all.slice(0, all.lastIndexOf(n)).replace(/\s+/g, ' ').trim();
+      if (!lab) continue;
+      last.setAttribute('aria-hidden', 'true'); b.setAttribute('data-cwc', '1'); b.setAttribute('aria-label', lab + ', ' + n);
+    }
+  }
+  function sched() { if (!q) q = requestAnimationFrame(run); }
+  function start() { new MutationObserver(sched).observe(document.documentElement, { childList: true, subtree: true, characterData: true }); sched(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
+})();

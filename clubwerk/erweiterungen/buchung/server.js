@@ -103,6 +103,12 @@ function activate(ctx) {
   const ar = fn => ctx.asyncRoute(fn);
   const mv = () => ctx.isModuleActive('mitglieder');
   const hook = async (name, ...a) => { const r = await ctx.callHooks(name, ...a); const x = r.find(y => y.id === 'mitglieder'); return x ? x.result : null; };
+  /* Gebühr (Forderung in den Mitgliedern) schon eingezogen oder bezahlt? Dann lässt sie sich hier nicht mehr zurücknehmen –
+     die Mitgliederverwaltung lehnt das ab (Geld darf nicht still verschwinden). Vorher prüfen statt hinterher „storniert“ anzeigen. */
+  const chargeLocked = id => { if (!id || !mv()) return false; const r = ctx.callHooksSync('chargeStatus', [id]).find(y => y.id === 'mitglieder'); const st = r && r.result && r.result[id]; return Boolean(st && ['eingezogen', 'bezahlt'].includes(st.status)); };
+  const LOCKED = 'Die Gebühr dieser Buchung ist schon eingezogen oder bezahlt – die Buchung lässt sich deshalb nicht mehr ändern. Stornieren geht; die Gebühr klärt dann der Vorstand in den Mitgliedern.';
+  /** Gebühr zurücknehmen → true, wenn die Mitgliederverwaltung sie storniert hat (oder es keine gibt) */
+  const dropCharge = async (id, reason, by) => !id || (await ctx.callHooks('cancelCharge', id, reason, by)).some(y => y.id === 'mitglieder' && y.result);
   const mvSync = (name, ...a) => { const x = ctx.callHooksSync(name, ...a).find(y => y.id === 'mitglieder'); return x ? x.result : null; };   // null ohne Mitgliederverwaltung
 
   const DEF = { advance_days: '7', max_open_platz: '2', max_open_artikel: '2', count_partners: '1', max_partners: '3', max_guests: '3', guest_fee_cents: '500',
@@ -412,6 +418,7 @@ function activate(ctx) {
     if (editId) {
       if (!old || old.member_id !== mid || old.type !== 'buchung' || (by && old.booked_by_id !== by)) throw new Error('Diese Buchung kannst du nicht ändern.');
       if (!canCancelNow(old)) throw new Error('Diese Buchung kann nicht mehr geändert werden.');
+      if (chargeLocked(old.charge_id)) throw new Error(LOCKED);
     }
     const { r, date, s, e, partners, guests, fee, lines, label, title, club, device, solo } = await check(mid, b, { exceptId: editId });
     let id = editId;
@@ -438,7 +445,7 @@ function activate(ctx) {
         .run(r.id, date, hhmm(s), hhmm(e), 'buchung', mid, JSON.stringify(partners), JSON.stringify(guests), fee, source, nameOf(by || mid), label ? label.id : null, title, devId, solo ? 1 : 0, by || null).lastInsertRowid);
     })();
     // alte Gebühr zurücknehmen, neue anlegen (Gast- und Platzgebühr: offener Posten beim buchenden Mitglied)
-    if (old && old.charge_id) await ctx.callHooks('cancelCharge', old.charge_id, 'Buchung geändert', nameOf(mid));
+    if (old && old.charge_id) await dropCharge(old.charge_id, 'Buchung geändert', nameOf(mid));
     if (fee && mv()) {
       const cid = await hook('createCharge', { member_id: mid, text: `${r.name} ${deD(date)} ${hhmm(s)}: ${lines.filter(l => l.cents).map(l => l.text.replace(/ \(.*\)$/, '')).join(', ')}`, cents: fee, due_date: date, kind: 'sonstiges', ext_key: `bk-${id}${old ? '-' + Date.now() : ''}`, by: nameOf(mid) });
       if (cid) db.prepare('UPDATE bk_booking SET charge_id = ? WHERE id = ?').run(cid, id);
@@ -569,7 +576,8 @@ function activate(ctx) {
   /** Stornieren (Mitglied, Tablet oder Verwaltung) + Gastgebühr zurücknehmen + Warteliste benachrichtigen */
   async function cancel(b, by, reason = '') {
     db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = ? WHERE id = ? AND status = 'aktiv'").run(nowTs(), by, txt(reason, 160) || null, b.id);
-    if (b.charge_id) await ctx.callHooks('cancelCharge', b.charge_id, `Buchung storniert${reason ? ': ' + txt(reason, 80) : ''}`, by);
+    if (b.charge_id && !(await dropCharge(b.charge_id, `Buchung storniert${reason ? ': ' + txt(reason, 80) : ''}`, by)))   // Buchung ist storniert, die Gebühr nicht – sichtbar machen
+      ctx.audit({ username: 'system', name: by || 'System' }, 'Plätze: Gebühr nicht storniert', `${(resource(b.resource_id) || {}).name || ''} ${deD(b.date)} ${b.start}: Die Gebühr ${euro(b.fee_cents || 0)} ist schon eingezogen oder bezahlt – bitte in den Mitgliedern stornieren (Guthaben oder zurücküberwiesen).`);
     // Gerät als Mitspieler (Ballmaschine) hängt an der Platzbuchung: mit stornieren; wird die Gerätebuchung selbst storniert, Verknüpfung lösen
     const dev = deviceOf(b);
     if (dev) { db.prepare("UPDATE bk_booking SET status = 'storniert', cancelled_at = ?, cancelled_by = ?, cancel_reason = ? WHERE id = ? AND status = 'aktiv'").run(nowTs(), by, txt(reason, 160) || 'Platzbuchung storniert', dev.booking.id); await wakeWaitlist(dev.booking); }
@@ -916,8 +924,10 @@ function activate(ctx) {
   admin.post('/fees/manual/:id/cancel', PB, ar(async (req, res) => {
     const f = db.prepare('SELECT * FROM bk_fee WHERE id = ? AND cancelled_at IS NULL').get(int(req.params.id));
     if (!f) return bad(res, 'Diese Gebühr gibt es nicht (mehr).', 404);
+    if (f.charge_id && !mv()) return bad(res, 'Die Gebühr steht als Forderung in der Mitgliederverwaltung – dafür muss das Modul Mitglieder eingeschaltet sein.');
+    if (chargeLocked(f.charge_id)) return bad(res, 'Diese Gebühr ist schon eingezogen oder bezahlt – bitte in den Mitgliedern stornieren (Guthaben oder zurücküberwiesen).');
     if (f.sale_id) { try { ctx.drinks.cancelCharge(f.sale_id, uname(req)); } catch (e) { return bad(res, e.message); } }
-    if (f.charge_id) await ctx.callHooks('cancelCharge', f.charge_id, 'Gebühr storniert', uname(req));
+    if (f.charge_id && !(await dropCharge(f.charge_id, 'Gebühr storniert', uname(req)))) return bad(res, 'Die Gebühr ließ sich in den Mitgliedern nicht stornieren – bitte dort klären.');
     db.prepare("UPDATE bk_fee SET cancelled_at = datetime('now','localtime') WHERE id = ?").run(f.id);
     ctx.audit(req.user, 'Plätze: Gebühr storniert', `${f.name}: ${f.text} ${euro(f.cents)}`);
     res.json({ ok: true });
@@ -944,6 +954,11 @@ function activate(ctx) {
     const partners = [...new Set((Array.isArray(b.partners) ? b.partners : []).map(Number))].filter(x => x !== (mid && mid.id) && memberRow(x));
     const guests = normGuests(b.guests).filter(g => g.name.length >= 3).slice(0, 10);
     const conflicts = db.prepare("SELECT * FROM bk_booking WHERE resource_id = ? AND date = ? AND status = 'aktiv' AND start < ? AND end > ? AND id != ?").all(r.id, b.date, hhmm(e), hhmm(s), editId);
+    // Gastgebühr: bei Änderung neu berechnen (alte zurücknehmen, neue anlegen) – geht nicht, wenn die alte schon eingezogen/bezahlt ist
+    const paying = label && label.free_rules ? 0 : guests.filter(g => !g.partner).length;
+    const fee = paying && mid && b.fee !== false && mv() && !isTrainer(mid.id) ? paying * feeOf(r) : 0;   // Trainer: ohne Gebühr
+    const feeChanges = old && (old.charge_id || old.fee_cents) && (fee !== old.fee_cents || !mid || old.member_id !== mid.id);
+    if (feeChanges && chargeLocked(old.charge_id)) return bad(res, 'Die Gebühr dieser Buchung ist schon eingezogen oder bezahlt – Gäste oder Mitglied lassen sich deshalb nicht mehr ändern. Bitte die Gebühr zuerst in den Mitgliedern stornieren.');
     let id = editId;
     try {
       db.transaction(() => {
@@ -962,11 +977,8 @@ function activate(ctx) {
       await cancel(c, uname(req), `Platz gesperrt: ${title}`);
       if (c.member_id) notifyLockCancel(c, title);
     }
-    // Gastgebühr: bei Änderung neu berechnen (alte zurücknehmen, neue anlegen)
-    const paying = label && label.free_rules ? 0 : guests.filter(g => !g.partner).length;
-    const fee = paying && mid && b.fee !== false && mv() && !isTrainer(mid.id) ? paying * feeOf(r) : 0;   // Trainer: ohne Gebühr
-    if (old && (old.charge_id || old.fee_cents) && (fee !== old.fee_cents || !mid || old.member_id !== mid.id)) {
-      if (old.charge_id) await ctx.callHooks('cancelCharge', old.charge_id, 'Buchung geändert', uname(req));
+    if (feeChanges) {
+      if (old.charge_id) await dropCharge(old.charge_id, 'Buchung geändert', uname(req));
       db.prepare('UPDATE bk_booking SET fee_cents = 0, charge_id = NULL WHERE id = ?').run(id);
     }
     const cur = db.prepare('SELECT fee_cents FROM bk_booking WHERE id = ?').get(id);
@@ -1683,7 +1695,7 @@ function activate(ctx) {
     const { rows, tracked } = await feeRows(mv() ? {} : { from: ctx.geschaeftsjahr.startOf(d) });   // ohne Mitgliederverwaltung: seit Beginn des Geschäftsjahres
     const open = rows.filter(isOpenFee), sum = sumOf(open);
     // Kachel wie beim Verkauf: groß die offenen Gebühren, darunter die Belegung – kein Hinweis-Banner
-    return { kpis: [{ l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Geschäftsjahr', v: euro(sum) }, { l: 'Buchungen heute', v: `${t} · belegt ${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
+    return { kpis: [{ l: 'Buchungen heute', v: ctx.T('{0} heute', [t]) }, { l: tracked ? 'Offene Gebühren' : 'Gebühren dieses Geschäftsjahr', v: euro(sum) }, { l: 'belegt', v: `${nowB} von ${resources().filter(r => r.kind === 'platz').length}` }, { l: 'offene Posten', v: open.length }], alerts: [] };
   };
   /* Mitglieder-App „Für mich“: next = eigene Buchungen (auch als Mitspieler) bis zum Tag „until“; news = Platz von der Warteliste frei geworden,
      kommende Buchung wegen einer Platzsperre storniert (letzte 14 Tage) – je einmal, bis das Mitglied sie antippt */
@@ -1716,7 +1728,7 @@ function activate(ctx) {
     { id: 'warteliste', label: 'Platz frei geworden', desc: 'Ein Termin von deiner Warteliste ist frei geworden.', default: true },
     { id: 'erinnerung', label: 'Erinnerung vor dem Spiel', desc: 'Kurz vor deiner Buchung – an Buchende und Mitspieler.', default: true, lead: { default: 120, label: 'Vorlauf' } },
   ];
-  try { db.exec('ALTER TABLE bk_booking ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0'); } catch (e) { /* gibt es schon */ }
+  try { db.exec('ALTER TABLE bk_booking ADD COLUMN reminded INTEGER NOT NULL DEFAULT 0'); } catch (e) { if (!/duplicate column/i.test(e.message)) console.error('Spalte ergänzen:', e.message); }   // nur „gibt es schon“ ist erwartet
   const andere = require('./lib/andere');
   async function remind() {
     if (!ctx.isActive() || !ctx.push || !ctx.push.enabled('erinnerung')) return;

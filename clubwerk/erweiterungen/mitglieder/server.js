@@ -182,7 +182,7 @@ function personInput(b, cur = {}) {
   return { fields: out };
 }
 const LABEL = { salutation: 'Anrede', title: 'Titel', first_name: 'Vorname', last_name: 'Nachname', birth_date: 'Geburtsdatum', gender: 'Geschlecht', street: 'Straße', zip: 'PLZ', city: 'Ort', country: 'Land',
-  address_extra: 'Adresszusatz', phone: 'Telefon', mobile: 'Mobil', email: 'E-Mail', letter_salutation: 'Briefanrede', status: 'Status', entry_date: 'Eintritt', exit_date: 'Austritt', exit_reason: 'Austrittsgrund',
+  address_extra: 'Adresszusatz', phone: 'Telefon (Festnetz)', mobile: 'Handy', email: 'E-Mail', letter_salutation: 'Briefanrede', status: 'Status', entry_date: 'Eintritt', exit_date: 'Austritt', exit_reason: 'Austrittsgrund',
   notice_date: 'Kündigung eingegangen', payer_id: 'Zahler', family_of: 'Familienmitgliedschaft bei', drinks_to_payer: 'Verkauf beim Zahler', payment: 'Zahlungsart', key_no: 'Schlüsselnummer', notes: 'Notizen', member_no: 'Mitgliedsnummer',
   iban: 'IBAN', holder: 'Kontoinhaber', bic: 'BIC', bank: 'Kreditinstitut', mandate_ref: 'Mandatsreferenz', mandate_date: 'Mandat unterschrieben', mandate_revoked: 'Mandat widerrufen' };
 
@@ -263,8 +263,11 @@ function anonymize(id, user) {
   const p = C.db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(id);
   if (!p) throw new Error('Nicht gefunden.');
   const label = `Anonym ${p.member_no || id}`;
+  // Tresor gesperrt (z. B. erneutes Anonymisieren beim Start nach dem Zurückspielen): das Geburtsdatum ist verschlüsselt („e1:…“/„p1:…“) –
+  // daraus lässt sich kein Jahr schneiden. Es bleibt bis zum Entsperren stehen und wird dann auf das Jahr gekürzt (birthYearsAfterUnlock).
   C.db.transaction(() => {
-    C.db.prepare(`UPDATE mv_person SET salutation = NULL, title = NULL, first_name = NULL, last_name = ?, birth_date = CASE WHEN birth_date IS NULL THEN NULL ELSE substr(birth_date,1,4) || '-07-01' END,
+    C.db.prepare(`UPDATE mv_person SET salutation = NULL, title = NULL, first_name = NULL, last_name = ?,
+      birth_date = CASE WHEN birth_date IS NULL OR birth_date GLOB '[ep]1:*' THEN birth_date ELSE substr(birth_date,1,4) || '-07-01' END,
       street = NULL, zip = NULL, city = NULL, address_extra = NULL, phone = NULL, mobile = NULL, email = NULL, letter_salutation = NULL, key_no = NULL, notes = NULL,
       consents = '{}', extra = '{}', anonymized_at = ? WHERE member_id = ?`).run(label, nowTs(), id);
     C.db.prepare('DELETE FROM mv_bank WHERE member_id = ?').run(id);
@@ -299,7 +302,14 @@ function anonReapply() {
     if (!p.anonymized_at) { try { anonymize(e.id, 'Clubwerk'); n++; } catch (err) { console.error('Mitgliederverwaltung – erneut anonymisieren:', err.message); } }
   }
   anonSave(keep);
+  if (n && C.require('./vault').locked()) C.require('./vault').onUnlock(birthYearsAfterUnlock);
   if (n) C.audit(null, 'Mitglieder erneut anonymisiert', `${n} ${n === 1 ? 'Mitglied war' : 'Mitglieder waren'} schon anonymisiert (Sicherung zurückgespielt)`);
+}
+
+/** nach dem Entsperren: Geburtsdaten anonymisierter Mitglieder auf das Jahr kürzen (läuft auf der entschlüsselten Kopie, die Trigger verschlüsseln) */
+function birthYearsAfterUnlock() {
+  const n = C.db.prepare("UPDATE mv_person SET birth_date = substr(birth_date,1,4) || '-07-01' WHERE anonymized_at IS NOT NULL AND birth_date IS NOT NULL AND birth_date NOT LIKE '____-07-01'").run().changes;
+  if (n) console.log(`Mitgliederverwaltung: ${n} Geburtsdaten anonymisierter Mitglieder auf das Jahr gekürzt`);
 }
 
 /* ---------------------------------------------------------------- tägliche Aufgaben */
@@ -447,7 +457,7 @@ function activate(ctx) {
   };
   setTimeout(dropOrphans, 30000).unref(); setInterval(dropOrphans, 6 * 3600000).unref();
 
-  admin.post('/member', P, (req, res) => {
+  admin.post('/member', P, async (req, res) => {
     const pi = personInput(req.body || {}); if (pi.error) return bad(res, pi.error);
     if (!pi.fields.first_name) return bad(res, 'Bitte den Vornamen eintragen.');
     // Neue Mitglieder nur vollständig: erreichbar (Adresse, E-Mail, Handy), Beitrag zugeordnet, Zahlung möglich (Lastschrift mit Mandat oder Rechnung/bar)
@@ -519,7 +529,28 @@ function activate(ctx) {
       return bad(res, /UNIQUE.*mandate_ref/.test(e.message) ? 'Diese Mandatsreferenz ist schon vergeben.' : /UNIQUE.*member_no/.test(e.message) ? 'Die Mitgliedsnummer ist schon vergeben.' : 'Das Mitglied konnte nicht angelegt werden: ' + e.message);
     }
     ctx.audit(req.user, pending ? 'Mitglied angelegt (wartet auf Bestätigung)' : 'Mitglied angelegt', `${pi.fields.first_name} ${pi.fields.last_name}`);
-    res.json(pending ? { id, pending: true } : { id });
+    // Willkommens-E-Mail (Häkchen im Fenster): angelegt ist das Mitglied in jedem Fall – ein Fehler beim Versand steht nur in der Antwort
+    let welcome = null;
+    if (b.welcome && !pending) {
+      try { welcome = { ok: true, ...(await shared.welcome.send(id, req.user, { app: Boolean(b.welcome_app), guide: b.welcome_guide !== false, why: 'beim Anlegen' })) }; }
+      catch (e) { welcome = { ok: false, error: e.message }; }
+    }
+    res.json(pending ? { id, pending: true } : { id, welcome });
+  });
+  /** Fenster „Neues Mitglied“: Geht die Willkommens-E-Mail, und darf die Einladung zur App mit? (Adresse und Familie aus dem Formular, Regel wie lib/willkommen.js) */
+  admin.post('/member/welcome-check', P, (req, res) => {
+    const b = req.body || {}, email = one(b.email, 120).trim(), own = Boolean(email && mailOk(email));
+    const head = b.family_of ? personRow(int(b.family_of)) : null, headMail = head && head.email && mailOk(String(head.email).trim()) ? String(head.email).trim() : '';
+    const to = own ? email : headMail;
+    const why = !ctx.mail.ready() ? 'Kein Postfach eingerichtet (Einstellungen › Postfach).' : !to ? 'Keine E-Mail-Adresse eingetragen.' : '';
+    const base = ctx.appInvite ? ctx.appInvite.state(0) : { reason: 'Die Mitglieder-App ist nicht verfügbar.' };   // Mitglied 0: nur „App-Adresse fehlt“ zählt
+    let appWhy = /Adresse der Mitglieder-App|nicht verfügbar/.test(base.reason || '') ? base.reason : why;
+    if (!appWhy && !own) appWhy = 'Die E-Mail geht an das Oberhaupt – die Einladung zur App bitte per QR-Code.';
+    if (!appWhy) {
+      const owner = store.mailOwnerFor({ email, birth_date: b.birth_date || null, family_of: head ? head.member_id : null, payer_id: b.payer_id ? int(b.payer_id) : null });
+      if (owner) appWhy = `E-Mail-Adresse gehört zu ${ctx.require('./db').lastFirst((personRow(owner) || {}).name || '', 'mitglied')} – bitte per QR-Code freischalten.`;
+    }
+    res.json({ ok: !why, why, to: to || null, via: own ? null : head ? head.name : null, app: { ok: !appWhy, reason: appWhy } });
   });
   admin.put('/member/:id', P, (req, res) => {
     const id = int(req.params.id); const p = personRow(id);
@@ -1150,12 +1181,23 @@ function activate(ctx) {
   require('./lib/kontoauszug').register(shared);
   require('./lib/agecheck').register(shared);
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
+  shared.welcome = require('./lib/willkommen').register(shared);   // vor den Anträgen: Annehmen schickt die Willkommens-E-Mail
   require('./lib/applications').register(shared);
   require('./lib/reports').register(shared);
   require('./lib/congrats').register(shared);
   require('./lib/importvc').register(shared);
   require('./lib/memberapp').register(shared);
   try { anonReapply(); } catch (e) { console.error('Mitgliederverwaltung – Anonymisierungen:', e.message); }   // nach dem Zurückspielen einer Sicherung
+  /* Posten aus anderen Modulen (Platz-, Gast-, Lichtgeld, Rechnungen) lagen bis 2026.11 beim Angehörigen statt beim Zahler – offene,
+     noch nicht eingezogene einmalig zum Zahler umhängen (sonst findet der Einzug kein Mandat). Läuft bei jedem Start, ändert nur Altfälle. */
+  try {
+    const moved = ctx.db.transaction(() => { let n = 0;
+      for (const c of ctx.db.prepare("SELECT id, member_id FROM mv_charge WHERE ext_key IS NOT NULL AND member_id = for_member_id AND status = 'offen' AND collection_id IS NULL AND dunning_level = 0").all()) {
+        const payer = store.payerOf(c.member_id); if (payer === c.member_id) continue;
+        store.ensurePerson(payer); n += ctx.db.prepare('UPDATE mv_charge SET member_id = ? WHERE id = ?').run(payer, c.id).changes;
+      } return n; })();
+    if (moved) console.log(`Mitgliederverwaltung: ${moved} offene Posten zum Zahler umgehängt`);
+  } catch (e) { console.error('Mitgliederverwaltung – Posten zum Zahler:', e.message); }
 
   /* Kennzahlen & Warnungen für die Übersicht */
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
@@ -1258,8 +1300,10 @@ function activate(ctx) {
   ctx.hooks.createCharge = ({ member_id, text, cents, due_date, kind = 'sonstiges', ext_key, by }) => {
     if (!personRow(member_id)) throw new Error('Mitglied nicht gefunden.');
     store.ensurePerson(member_id);
+    // Posten liegt beim Zahler (Familie / „zahlt für“) wie bei Beiträgen und POST /charges – sonst fände der Einzug kein Mandat
+    const payer = store.payerOf(member_id); if (payer !== member_id) store.ensurePerson(payer);
     return Number(ctx.db.prepare('INSERT INTO mv_charge(member_id, for_member_id, kind, text, cents, due_date, ext_key, created_by) VALUES (?,?,?,?,?,?,?,?)')
-      .run(member_id, member_id, kind, one(text, 140), Math.round(cents), isDate(due_date) ? due_date : today(), ext_key ? String(ext_key).slice(0, 80) : null, by || null).lastInsertRowid);
+      .run(payer, member_id, kind, one(text, 140), Math.round(cents), isDate(due_date) ? due_date : today(), ext_key ? String(ext_key).slice(0, 80) : null, by || null).lastInsertRowid);
   };
   /** Verkaufs-Abrechnung aus einem Lauf: wird sie hier noch berechnet? false = Posten storniert (nichts berechnet), null = unbekannt */
   ctx.hooks.drinksSettlementBilled = ({ batch, memberId }) => {
@@ -1273,7 +1317,7 @@ function activate(ctx) {
     const c = ctx.db.prepare('SELECT * FROM mv_charge WHERE id = ?').get(id);
     if (!c) return false;
     if (c.status === 'eingezogen') throw new Error('Der Posten steckt in einer laufenden Lastschrift – erst im Einzug klären.');
-    if (shared.paidByStatement(c)) throw new Error('Der Posten ist laut Kontoauszug bezahlt – bitte in den Mitgliedern stornieren (Guthaben oder zurücküberwiesen).');
+    if (c.status === 'bezahlt' && c.cents > 0) throw new Error('Der Posten ist schon bezahlt – bitte in den Mitgliedern stornieren (Guthaben oder zurücküberwiesen).');
     if (c.status === 'offen' || c.status === 'bezahlt') ctx.db.prepare("UPDATE mv_charge SET status = 'storniert', note = ? WHERE id = ?").run(`storniert von ${by || '–'}: ${one(reason, 100)}`, id);
     return true;
   };
@@ -1377,6 +1421,10 @@ function activate(ctx) {
   /* für andere Module (Arbeitseinsatz) */
   /* Helferdienste „Familienpool“: Familienmitgliedschaft (family_of), ohne eine solche die Zahlergruppe – siehe store.familyOf */
   ctx.hooks.familyOf = id => store.familyOf(id);
+  /** Geteilte E-Mail-Adressen (Mitglieder-App, Willkommens-Mail): { memberId: { owner, ownerName, why } } nur für Personen, deren Adresse auch
+   *  bei anderen steht – „owner“ bekommt die E-Mail-Einladung, alle anderen nur den QR-Code (store.mailOwners) */
+  ctx.hooks.mailOwners = () => { const m = store.mailOwners(), names = new Map(); const nm = id => { if (!names.has(id)) names.set(id, (ctx.db.prepare('SELECT name FROM members WHERE id = ?').get(id) || {}).name || ''); return names.get(id); };
+    return Object.fromEntries([...m].map(([id, o]) => [id, { owner: o.owner, ownerName: nm(o.owner), why: o.why }])); };
   /** Jahrgang und Geschlecht aller Personen (für Hinweise im Spielbetrieb, z. B. Altersklasse H40) → { id: { y, g } } */
   ctx.hooks.birthGender = () => Object.fromEntries(ctx.db.prepare('SELECT member_id, birth_date, gender FROM mv_person WHERE anonymized_at IS NULL').all()
     .map(r => [r.member_id, { y: /^\d{4}-/.test(r.birth_date || '') ? Number(r.birth_date.slice(0, 4)) : null, g: r.gender || null }]));
@@ -1420,7 +1468,7 @@ function activate(ctx) {
       fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null };
   };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
@@ -1445,7 +1493,7 @@ function activate(ctx) {
         z('Beitragsarten', konfigio.schreibe(ctx.db, 'mv_fee', fi.v, found));
         if (first) zusatzBegin(fi.v.department_id);
       }
-      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ member_no_mode: x => x === 'start' || x === 'max', congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules'].includes(k) ? 6000 : 2000));
+      if (data.settings && typeof data.settings === 'object') for (const [k, v] of Object.entries(data.settings)) if (typeof v === 'string' && CONFIG_KEYS.includes(k) && ({ member_no_mode: x => x === 'start' || x === 'max', congrats_days: x => /^\d+$/.test(x) && +x >= 1 && +x <= 60, family_child_max: x => /^\d+$/.test(x) && +x >= 1 && +x <= 30, welcome_text: x => x.length <= 6000, congrats_rules: x => { try { return Array.isArray(JSON.parse(x)); } catch (e) { return false; } } }[k] || (() => true))(v)) SET(k, v.slice(0, ['dunning_levels', 'congrats_rules', 'welcome_text'].includes(k) ? 6000 : 2000));
     })();
     if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
     z.hinweis('Gläubiger-ID und Vereinskonto bitte selbst eintragen');

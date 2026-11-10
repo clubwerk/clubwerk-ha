@@ -296,7 +296,7 @@
     const pcs = t ? (await api('pieces?type=' + t.id)).list : [];
     const kinds = st.meta.kinds;
     GK.dialog(`<h2>${t ? `Nr. ${esc(t.ident)} – bearbeiten` : 'Neue Sorte'}</h2>
-      <div class="frm"><label class="f">Kennung<input id="stId" maxlength="20" value="${esc(t ? t.ident : '')}" placeholder="z. B. 08 oder T-14"></label><label class="f w2">Bezeichnung<input id="stNm" maxlength="80" value="${esc(t ? t.name : '')}" placeholder="z. B. Clubhaus Haupteingang"></label>
+      <div class="frm"><label class="f">Kennung<input id="stId" required maxlength="20" value="${esc(t ? t.ident : '')}" placeholder="z. B. 08 oder T-14"></label><label class="f w2">Bezeichnung<input id="stNm" required maxlength="80" value="${esc(t ? t.name : '')}" placeholder="z. B. Clubhaus Haupteingang"></label>
         <label class="f">Art<select id="stKd">${Object.entries(kinds).map(([k, l]) => `<option value="${k}" ${t && t.kind === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>
         <label class="f wall">Schließt<textarea id="stOp" data-grow rows="1" maxlength="200" placeholder="z. B. Haupteingang, Umkleiden">${esc(t ? t.opens : '')}</textarea></label>
         <label class="f">Pfand (€)<input id="stDp" inputmode="decimal" value="${t && t.deposit_cents ? (t.deposit_cents / 100).toFixed(2).replace('.', ',') : ''}" placeholder="0,00"></label>
