@@ -1,28 +1,33 @@
 # Änderungen
 
+## 2026.11.38
+
+### Verbessert
+- Änderungsprotokoll und Hinweise im Programm sind jetzt neutral formuliert, ohne Personennamen.
+
 ## 2026.11.37
 
-**Anrede nur Frau und Herr, Fenster der Verwaltung ohne Flackern (Wünsche/Fehler Thorsten 11.11.2026)**
+**Anrede nur Frau und Herr, Fenster der Verwaltung ohne Flackern (Wünsche/Fehler 11.11.2026)**
 - Anrede und Geschlecht kennen nur noch Frau/Herr bzw. männlich/weiblich. In der LSB-Auswertung entfällt die Spalte „divers“; frühere Einträge zählen dort als „ohne Angabe“.
 - Fenster in der Verwaltung blenden weich ein und aus (wie am Tablet), statt die Seite beim Schließen schlagartig aufzuhellen.
 
-**Verwendungszweck der Lastschrift einstellbar (Wunsch Thorsten 11.11.2026)**
+**Verwendungszweck der Lastschrift einstellbar (Wunsch 11.11.2026)**
 - Auf dem Kontoauszug steht jetzt „Mitgliedsbeitrag 2026: Erwachsene, Tennis - Mitgl.-Nr. 1041“ statt nur der Beitragsarten mit Zeitraum (der Punkt „·“ der Vorlage wird für die Bank zu „-“).
 - Unter Beiträge & Zahlungen › Einstellungen › Lastschrift lässt sich der Text als Vorlage anpassen (Platzhalter {Jahr}, {Posten}, {Nr}, {Name}, {Verein}). Der Verkaufs-Einzug nennt weiter nur die Posten.
 
-**Zuverlässigere Endprüfung („Wackler-Jagd“, Entscheidung Thorsten 11.11.2026; `planung/wackler-jagd.md`)**
+**Zuverlässigere Endprüfung („Wackler-Jagd“, Entscheidung 11.11.2026; `planung/wackler-jagd.md`)**
 - Tablet und Seiten mit weichem Überblenden: Wurde ein Seitenwechsel abgebrochen, während die Seite überblendet (zum Beispiel kehrt das Tablet zum Start zurück, während gerade neu geladen wird), meldete der Browser einen Skriptfehler „Transition was skipped“. Zu sehen war nichts, aber die Fehlermeldung landete in der Konsole und ließ die Endprüfung zufällig rot werden. Der Fehler wird jetzt aufgefangen.
 - Mitglieder-App, Tablet und Verwaltung: Lädt die Sprachdatei nicht (schwaches Netz, Vereins-Server gerade stark ausgelastet), bleiben die Texte deutsch – bisher konnten dann einzelne Bereiche der App gar nicht erscheinen (Skriptfehler „T is not defined“). Kann die Mitglieder-App eine Datei nicht vom Vereins-Server holen, steht das jetzt im Protokoll des Add-ons (vorher still). Ursachen: Die Mitglieder-App holte die Sprachdatei per Umweg über den Vereins-Server und gab nach 5 Sekunden auf – unter hoher Last (zum Beispiel kurz nach einem Neustart) kam das vor. Jetzt liefert die App sie direkt. Außerdem packte der Server die Sprachdatei nach jeder Sprachänderung und nach dem Start und blieb dabei kurz für alle Anfragen stehen (auf schnellen Rechnern eine Viertelsekunde, auf kleinen länger) – das läuft jetzt im Hintergrund.
 - Anleitung Schlüssel: Das Bild zum Fenster „Rücknahme“ ließ sich nicht mehr erzeugen (bei Tablet-Breite steht der Knopf im Eintrag hinter dem Stift, seit 2026.11.32) – das Bild entsteht jetzt über den Stift. Schlüssel 1.0.4.
 - Für Entwickler: Testreihen und Design-Prüfstand warten auf Zustände statt fester Pausen (Mail angekommen, Zone geschaltet, Durchlauf des Flutlicht-Abgleichs, Karte der Mitglieder-App entschieden, Prozess beendet …). Neue Kernprüfung `pausen` meldet jede neue feste Pause; begründete Fälle tragen `pause-ok: <Grund>`. Der Test-Mailserver legt Mails jetzt in einem Schritt ab (vorher konnte ein Test eine halb geschriebene Mail lesen). Die Mitglieder-App vermerkt ihre Kartenentscheidung unsichtbar am Dokument (`data-pushkarte`), Flutlicht zählt im Testbetrieb seine Abgleiche. Flutlicht 1.3.2.
 
-**Profilbild bei der Platzbuchung am Tablet (Fehler Thorsten 11.11.2026)**
+**Profilbild bei der Platzbuchung am Tablet (Fehler 11.11.2026)**
 - Im Fenster „Wer bist du?“ (Tablet › Plätze) erschien statt des Profilbilds ein kaputtes Bild-Symbol – der Pfad zum Bild stimmte seit den eigenen Tablet-Adressen (/plaetze/) nicht mehr. Behoben.
 - Sehr lange Namen in Listen am Handy (z. B. bei „Offene Posten“) bekommen eine eigene Zeile, statt auf einen schmalen Rest gequetscht zu werden.
 - Mitglieder-App › Dienste: die kleinen Profilbilder der Helfer stehen mit Abstand nebeneinander statt übereinander.
 - Die Beispieldaten haben jetzt Profilbilder, und der Design-Prüfstand meldet jedes Bild, das nicht lädt (Regel „bild-kaputt“).
 
-**Verwaltung am Tablet aufgeräumt (Fehler Thorsten 11.11.2026: „Das sieht am Tablet total unaufgeräumt aus“; `planung/tablet-aufraeumen.md`)**
+**Verwaltung am Tablet aufgeräumt (Fehler 11.11.2026: „Das sieht am Tablet total unaufgeräumt aus“; `planung/tablet-aufraeumen.md`)**
 - Die Verwaltung im Tablet-Rahmen (Menüpunkt „Verwaltung“ am Tablet) zeigt Tabellen bis 1399 Pixel Breite als **Liste** – eine Karte je Eintrag, Name oben, die Angaben darunter –, nicht mehr als eng gedrängte Tabelle. Am Rechner (und am Tablet über 1400 Pixel) bleibt die Tabelle.
 - **Mitgliederliste am Tablet:** Zeile 1 „Nachname, Vorname“ mit Hinweis-Schild („Altersstufe prüfen“, „Mandat widerrufen“) und Austrittsdatum daneben, Zeile 2 Nr., Alter, Abteilung, Beitrag und Zahlung. Alle Zeilen sind gleich hoch; „zahlt für 3“ und „zahlt über …“ machen sie nicht mehr höher.
 - Der Vereinsname steht am Tablet nur noch einmal (in der Kopfzeile); die Vereinskarte oben in der Seitenleiste entfällt dort.
@@ -30,12 +35,12 @@
 - **Reiter und Knopfreihe** schließen rechts bündig ab: stehen die Knöpfe („Import …“, „Excel“, „+ Neues Mitglied“) unter den Reitern, füllt die Reiterleiste die ganze Zeile, die Reiter verteilen sich gleichmäßig.
 - Am Handy und im Hochformat füllen Auswahlfelder ihre Zeile (zwei nebeneinander, ein einzelnes über die ganze Breite) statt halbbreit allein zu stehen – zuerst aufgefallen bei Plätze › Buchungen. Im Hochformat des Tablets steht oben nur noch der Menüknopf, ohne zweiten Vereinsnamen.
 - **Leere Spalten** (z. B. „Abteilungen“, wenn niemand eine hat) werden samt Überschrift ausgeblendet – in allen Tabellen der Verwaltung. Spaltenüberschrift „Alter“ steht bündig über den Zahlen.
-- **Kein Zoomen mehr am Tablet** (Wunsch Thorsten 11.11.2026): Auf allen Tablet-Seiten – Verkauf, Plätze, Dienste, Stempeln, Zugang, Mängel, „Mitglied werden“ und so weiter – lässt sich nicht mehr mit zwei Fingern oder Doppeltippen vergrößern; am iPad ging das bisher trotz Sperre. Die Verwaltung (auch im Tablet-Rahmen), die Mitglieder-App und die Beregnungs-Webapp am eigenen Port lassen sich weiter vergrößern; die Beregnung am Tablet ist gesperrt. Zurück zum Tablet gilt wieder die normale Größe. Für Entwickler: Baustein `CWZoom` (theme-init.js), aufgerufen von `nav.js` und von Tablet › Beregnung; Testreihe `zoom` (liest alle Tablet-Module aus den Manifesten). Beregnung 1.16.4.
+- **Kein Zoomen mehr am Tablet** (Wunsch 11.11.2026): Auf allen Tablet-Seiten – Verkauf, Plätze, Dienste, Stempeln, Zugang, Mängel, „Mitglied werden“ und so weiter – lässt sich nicht mehr mit zwei Fingern oder Doppeltippen vergrößern; am iPad ging das bisher trotz Sperre. Die Verwaltung (auch im Tablet-Rahmen), die Mitglieder-App und die Beregnungs-Webapp am eigenen Port lassen sich weiter vergrößern; die Beregnung am Tablet ist gesperrt. Zurück zum Tablet gilt wieder die normale Größe. Für Entwickler: Baustein `CWZoom` (theme-init.js), aufgerufen von `nav.js` und von Tablet › Beregnung; Testreihe `zoom` (liest alle Tablet-Module aus den Manifesten). Beregnung 1.16.4.
 - Für Entwickler: `<html class="tabrahmen">` (theme-init.js) für die Verwaltung im Tablet-Rahmen; Baustein `.fb-sel` für zusammengehörige Auswahlfelder in Filterleisten. Der Design-Prüfstand prüft die Verwaltung jetzt auch im Tablet-Rahmen (alle Seiten, Reiter und Fenster) und hat vier neue Regeln: `filter-einzelgaenger`, `spalte-leer`, `vereinskarte-doppelt`, `reiter-knopfreihe-unbuendig`. Mitglieder 1.47.1, Buchung 1.32.2.
 
 ## 2026.11.36
 
-**Dokumente als ZIP – je Mitglied und für die ganze Mitgliederliste (Entscheidungen Thorsten 11.11.2026; `planung/dokumente-zip.md`)**
+**Dokumente als ZIP – je Mitglied und für die ganze Mitgliederliste (Entscheidungen 11.11.2026; `planung/dokumente-zip.md`)**
 - Mitglied › Dokumente: Knopf **„Alle Dokumente als ZIP“** rechts über der Ablage. Er lädt alle Dokumente des Mitglieds auf einmal herunter, in einem Ordner „Nachname, Vorname“ und mit einer Übersicht als Excel. Das steht im Protokoll.
 - Mitgliederliste: neuer Knopf **„Dokumente (ZIP) …“** neben „Excel“. Er nimmt genau die Mitglieder, die gerade in der Liste stehen (alle oder gefiltert nach Suche, Abteilung, Beitrag, Status). Im ZIP: ein Ordner je Mitglied „Nachname, Vorname“ (bei gleichen Namen mit Mitgliedsnummer), jede Datei mit Datum vorn, dazu „Übersicht.xlsx“ (Mitglied, Nr., Dokument, Art, Datum, Größe, Herkunft, Datei im ZIP). Das Fenster zeigt vorher Anzahl und Größe.
 - Enthalten ist alles, was am Mitglied unter „Dokumente“ steht – auch Schlüsselprotokolle aus dem Modul Schlüssel (nur mit dem Recht „Schlüssel“).
@@ -47,7 +52,7 @@
 
 ## 2026.11.35
 
-**Hinweis vor der Abmeldung am Tablet, eigene Seite „Keine Verbindung“ in der Mitglieder-App, rundes App-Symbol für Android (Leitfäden-Abgleich, Entscheidungen Thorsten 11.11.2026; `planung/leitfaeden-2.md`)**
+**Hinweis vor der Abmeldung am Tablet, eigene Seite „Keine Verbindung“ in der Mitglieder-App, rundes App-Symbol für Android (Leitfäden-Abgleich, Entscheidungen 11.11.2026; `planung/leitfaeden-2.md`)**
 - Verwaltung am Tablet: 10 Sekunden vor der Abmeldung nach einer Minute ohne Eingabe erscheint ein Fenster „Du wirst gleich abgemeldet“ mit einem Countdown und dem Knopf **„Angemeldet bleiben“** (gibt wieder eine volle Minute). Jedes andere Antippen zählt genauso. Ohne Tippen wird wie bisher abgemeldet. Screenreader sagen das Fenster an, der Knopf hat gleich den Fokus.
 - Verkauf am Tablet: dasselbe 10 Sekunden bevor ein angemeldetes Mitglied nach einer Minute ohne Eingabe zur Namensliste zurückgeht – mit Auswahl „Gleich wird abgebrochen … nichts wird gebucht“ und „Weiter auswählen“, ohne Auswahl „Du wirst gleich abgemeldet“.
 - Tablet-Seiten der Module (z. B. „Mitglied werden“, Schlüssel, Mängel): Gehen nach 30 Sekunden ohne Eingabe Eingaben verloren (ausgefülltes Feld, Häkchen, Unterschrift), kommt 10 Sekunden vorher „Gleich geht es zurück zum Start“ mit **„Hier bleiben“**. Ohne Eingaben geht es wie bisher still zurück.
@@ -57,16 +62,16 @@
 
 ## 2026.11.34
 
-**Seiten laden bei großen Vereinen schneller (Auftrag Thorsten 10.11.2026)**
+**Seiten laden bei großen Vereinen schneller (Auftrag 10.11.2026)**
 - Clubwerk fragt die Datenbank jetzt viel seltener: Über alle 271 Seiten und Listen von Verwaltung, Tablet und Mitglieder-App zusammen 10 700 statt 61 900 Abfragen (gemessen mit einem Musterverein mit 500 Mitgliedern und 7 Jahren Daten). Die Inhalte sind dieselben wie vorher.
 - Besonders spürbar: Übersicht der Verwaltung 9 962 → 230 Abfragen (206 → 87 ms), Helferdienste › Übersicht 7 901 → 61 (103 → 47 ms), Plätze in der Mitglieder-App 4 625 → 49 (59 → 9 ms), Tablet › Plätze beim ersten Öffnen 4 575 → 40, Mitgliederliste 67 → 14 ms, Abrechnung 57 → 26 ms, Beitragsläufe 12 → 3 ms. Vorher wuchsen diese Zahlen mit jedem Mitglied – jetzt bleiben sie gleich, ob 50 oder 500 Mitglieder.
 - Nach einigen Jahren wäre es sonst langsamer geworden: Platzbuchungen, Verkäufe, Forderungen und Helferstunden aus früheren Jahren werden nicht mehr bei jedem Öffnen ganz durchgelesen (z. B. „Gerade oft hier“ auf der Tablet-Startseite 23 → 1 ms). Dafür legt Clubwerk beim ersten Start ein paar Suchhilfen in der Datenbank an (dauert Sekundenbruchteile, auch bei bestehenden Installationen). Der Verkauf am Tablet bleibt dabei unverändert schnell.
-- Einstellungen › Datenqualität und Buchführung: Die Prüfkette des Änderungsjournals (GoBD) rechnet Clubwerk jetzt nur noch ab dem zuletzt geprüften Eintrag nach statt jedes Mal alles – sonst wurde die Prüfung mit jedem Jahr langsamer (Entscheidung Thorsten). Die ganze Kette prüft Clubwerk weiterhin einmal pro Woche, nach jedem Zurückspielen einer Sicherung und auf Knopfdruck: Einstellungen › Buchführung › **„Ganze Prüfkette prüfen“** (bisher „Jetzt nachrechnen“). Hat sich ein schon geprüfter Eintrag verändert, zeigt Clubwerk das sofort rot und schickt eine Sicherheitswarnung „Änderungsjournal (GoBD) unterbrochen“.
+- Einstellungen › Datenqualität und Buchführung: Die Prüfkette des Änderungsjournals (GoBD) rechnet Clubwerk jetzt nur noch ab dem zuletzt geprüften Eintrag nach statt jedes Mal alles – sonst wurde die Prüfung mit jedem Jahr langsamer (Entscheidung). Die ganze Kette prüft Clubwerk weiterhin einmal pro Woche, nach jedem Zurückspielen einer Sicherung und auf Knopfdruck: Einstellungen › Buchführung › **„Ganze Prüfkette prüfen“** (bisher „Jetzt nachrechnen“). Hat sich ein schon geprüfter Eintrag verändert, zeigt Clubwerk das sofort rot und schickt eine Sicherheitswarnung „Änderungsjournal (GoBD) unterbrochen“.
 - Für Entwickler: Sammel-Hooks der Mitgliederverwaltung `memberInfos(ids)`, `familiesOf(ids)`, `memberAddresses(ids)` für Listen; Einstellungen liest eine Leseanfrage nur einmal je Schlüssel. Neues Werkzeug `werkzeuge/last/alle.js` misst jede GET-Adresse; die Testreihe `last` misst jetzt automatisch alle Adressen bei 50 und 500 Mitgliedern, wird rot, wenn eine Adresse mit der Mitgliederzahl wächst, und prüft die Abfragepläne auf ganze Tabellendurchläufe (Ausnahmen begründet in `werkzeuge/last/scan-erlaubt.txt`). Mitglieder 1.46.1, Helferdienste 2.16.3, Plätze 1.31.1, Spielbetrieb 1.24.5.
 
 ## 2026.11.33
 
-**Plätze: Stornieren auch aus „Ändern“, „Kostenlos.“ bündig, Platzbuchung in „Für mich“ hervorgehoben (Fehler Thorsten 10.11.2026)**
+**Plätze: Stornieren auch aus „Ändern“, „Kostenlos.“ bündig, Platzbuchung in „Für mich“ hervorgehoben (Fehler 10.11.2026)**
 - Mitglieder-App › Plätze: Im Fenster „Buchung ändern“ gibt es ganz unten den Knopf „Buchung stornieren“ (rot). Er führt in dieselbe Sicherheitsabfrage wie bisher, mit denselben Regeln (Frist, Mitspieler stornieren für alle, Gebühr entfällt). Ist die Buchung nicht mehr stornierbar, erscheint der Knopf nicht.
 - Verwaltung › Plätze: Auch im Fenster „Bearbeiten“ einer Buchung oder Sperre steht links unten „Stornieren“ bzw. „Sperre aufheben“, mit derselben Rückfrage wie in den Einzelheiten. Am Tablet gibt es kein „Ändern“; dort führt das Antippen einer Buchung ohnehin direkt zum Stornieren.
 - Der Hinweis „Kostenlos.“ bzw. der Preis im Buchungsfenster stand eingerückt (er erbte von der Zeitenliste „rechtsbündig, schmal“); jetzt steht er bündig mit den Feldern. Der Design-Prüfstand hat dafür die neue Regel `text-eingerueckt`.
@@ -78,7 +83,7 @@
 - Verwaltung: Bilder in Listen (Artikel, Mängelliste, Helfer-Gesichter) laden ebenfalls erst beim Heranscrollen. Einzelbilder (Logo, Foto im offenen Fenster) laden wie bisher sofort, das Tablet lädt Artikelbilder weiter vorab.
 - Zusage und Absage zu Terminen in der App reagieren sofort: Die Anzeige wechselt beim Tippen, nicht erst nach der Antwort des Vereins-Servers (gemessen im langsamen Handynetz: 372 ms → 28 ms). Klappt es nicht, springt sie zurück und eine Meldung erscheint.
 - Neue Regel im Design-Prüfstand: Bilder in Listen ohne verzögertes Laden schlagen an.
-**Leitfäden-Abgleich: Sicherheit, Barrierefreiheit, Ladezeit (Auftrag Thorsten 10.11.2026, `planung/leitfaeden.md`)**
+**Leitfäden-Abgleich: Sicherheit, Barrierefreiheit, Ladezeit (Auftrag 10.11.2026, `planung/leitfaeden.md`)**
 - Sicherheit: Auch die Mitglieder-App und die Beregnungs-Webapp senden jetzt die Kopfzeile, die fremden Fenstern den Zugriff auf Clubwerk-Seiten verwehrt (Cross-Origin-Opener-Policy) – bisher nur die Verwaltung. Die Cookies der Demo-Kopie gehen über HTTPS nur noch verschlüsselt. Ein neuer Test prüft die Sicherheits-Kopfzeilen auf allen drei Ports, auch auf Fehlerseiten.
 - Barrierefreiheit (WCAG 2.2 AA, für Screenreader und Tastatur; Aussehen unverändert bis auf eine Farbe): Fenster der Verwaltung nehmen beim Öffnen den Fokus, die Seite dahinter ist solange für die Tab-Taste gesperrt, Escape schließt (wie ein Klick neben das Fenster) und danach steht der Fokus wieder auf dem Knopf, der es geöffnet hat. Fenster und Blätter in Tablet, Mitglieder-App und Modulen gelten für Screenreader als Dialog mit ihrer Überschrift als Namen. Kurzmeldungen („Gespeichert.“, Fehler) werden vorgelesen. Reiter werden als Reiter angesagt, mit dem gewählten. Überschriften springen nicht mehr von Ebene 1 auf 3. Die Anmeldeseite der Verwaltung hat einen Hauptbereich und liest Fehler sofort vor.
 - Mitglieder-App: Die Beschriftung des gewählten Bereichs in der Leiste unten ist etwas dunkler (hell) bzw. heller (dunkel). Lag eine grüne Fläche unter der Glasleiste, war sie vorher nur mit 3,8 : 1 lesbar, jetzt mindestens 5,4 : 1.
@@ -91,39 +96,39 @@
 
 ## 2026.11.32
 
-**Geld und Daten sicher (Analyse Tests und technische Schulden, Auftrag Thorsten 10.11.2026)**
+**Geld und Daten sicher (Analyse Tests und technische Schulden, Auftrag 10.11.2026)**
 - Familie und „zahlt für“: Platzgebühren, Gastgebühren, Lichtgeld und Rechnungen aus der Buchhaltung landen jetzt beim Zahler – wie Beiträge. Bisher standen sie beim Kind bzw. Angehörigen; dort gab es kein Mandat, der Einzug ließ sie liegen und eine Mahnung wäre ans Kind gegangen. Offene, noch nicht eingezogene Posten dieser Art hängt Clubwerk beim ersten Start einmal zum Zahler um.
 - Plätze: Eine Gebühr, die schon eingezogen oder bezahlt ist, wird nicht mehr still als „storniert“ angezeigt. „Gebühr stornieren“ meldet dann, dass sie in den Mitgliedern zu stornieren ist (mit Guthaben oder Rücküberweisung). Eine solche Buchung lässt sich nicht mehr ändern (Gäste, Mitglied); Stornieren geht weiter, die Gebühr bleibt sichtbar stehen und das Protokoll vermerkt „Gebühr nicht storniert“.
-- Posten stornieren, der schon bezahlt ist: Clubwerk fragt jetzt immer, was mit dem Geld passiert („als Guthaben behalten“ oder „zurücküberwiesen“) – auch bei Lastschrift, bar und Überweisung, nicht nur bei Zahlungen laut Kontoauszug (Entscheidung Thorsten 10.11.2026).
+- Posten stornieren, der schon bezahlt ist: Clubwerk fragt jetzt immer, was mit dem Geld passiert („als Guthaben behalten“ oder „zurücküberwiesen“) – auch bei Lastschrift, bar und Überweisung, nicht nur bei Zahlungen laut Kontoauszug (Entscheidung 10.11.2026).
 - Mahnungen: Ein doppelter Klick auf „per E-Mail senden“ verschickt jede Mahnung nur einmal und bucht die Mahngebühr nur einmal. Wird ein Posten bezahlt, während die Mails noch rausgehen, geht an dieses Mitglied keine Mahnung mehr.
 - Komplettsicherung aus einer neueren Clubwerk-Version: wird nicht mehr in eine ältere Version eingespielt („Bitte zuerst Clubwerk aktualisieren“) – wie schon bei der Teil-Wiederherstellung.
 - Anonymisieren mit eingeschaltetem Tresor: Nach dem Zurückspielen einer Sicherung anonymisiert Clubwerk Ausgetretene erneut. Dabei ging bisher das Geburtsjahr (für die LSB-Statistik) verloren. Jetzt bleibt es erhalten und wird nach dem Entsperren auf das Jahr gekürzt.
 - Home-Assistant-Backup: Lief nach einem Backup der Abschlussschritt nicht (z. B. Absturz von Home Assistant), hätte der nächste Neustart still auf den Stand des Backups zurückgesprungen. Das passiert nicht mehr, wenn die Datenbank deutlich neuer ist als der Schnappschuss.
-- Flutlicht und Datenschutz (Entscheidung Thorsten 10.11.2026): Einträge mit Lichtgeld sind Buchungsbelege und behalten den Namen 10 Jahre (Aufbewahrungspflicht) – so steht es jetzt auch in Einstellungen › Datenschutz. Einträge ohne Lichtgeld verlieren den Namen nach der Frist wirklich und kommen nicht mehr ins Änderungsjournal. Die Zahl „fällig“ stimmt wieder (zählte auch laufende Einträge).
+- Flutlicht und Datenschutz (Entscheidung 10.11.2026): Einträge mit Lichtgeld sind Buchungsbelege und behalten den Namen 10 Jahre (Aufbewahrungspflicht) – so steht es jetzt auch in Einstellungen › Datenschutz. Einträge ohne Lichtgeld verlieren den Namen nach der Frist wirklich und kommen nicht mehr ins Änderungsjournal. Die Zahl „fällig“ stimmt wieder (zählte auch laufende Einträge).
 - Updates: Ergänzen der Datenbank beim Start übergeht nur noch „Spalte gibt es schon“ still, alle anderen Fehler stehen im Protokoll; eine missglückte Änderung der Prüfregel wird zurückgenommen.
 - Für Entwickler: neue Testreihen `anontresor` (Anonymisieren und Komplett-Wiederherstellung mit Tresor), `updapply` (Update einspielen und zurückrollen mit nachgebautem Supervisor), `migrate3` (Umstellung einer Datenbank aus 3.95.0 mit allen Modulen); Tests ergänzt in `bk`, `trainer`, `mv`, `backup`, `fl`. Hook `gobdTables` kennt `onlyIf` (nur Zeilen mit Geld ins Journal). Mitglieder 1.44.0, Plätze 1.30.0, Flutlicht 1.3.0.
 
-**Mitglieder-App: Einladung per E-Mail bei gemeinsamer Adresse nur an ein Mitglied (Auftrag Thorsten 10.11.2026)**
+**Mitglieder-App: Einladung per E-Mail bei gemeinsamer Adresse nur an ein Mitglied (Auftrag 10.11.2026)**
 - Steht dieselbe E-Mail-Adresse bei mehreren Mitgliedern (z. B. Eltern und Kinder mit einem Postfach), geht die Einladung zur Mitglieder-App per E-Mail nur noch an **eines** von ihnen: das Familienoberhaupt, ohne Familie den Zahler, sonst den ältesten Erwachsenen. Groß-/Kleinschreibung und Leerzeichen spielen dabei keine Rolle. Vorher konnte, wer das Postfach liest, die App mit jedem dieser Links als jedes Mitglied freischalten.
 - Alle anderen mit derselben Adresse schaltet ihr per QR-Code frei – am Bildschirm, am Tablet oder mit dem Einladungsbrief. Im Fenster „Einladen …“ ist „Per E-Mail schicken“ für sie ausgegraut, mit dem Hinweis „E-Mail-Adresse gehört zu Nachname, Vorname – bitte per QR-Code freischalten“. Beim Sammelversand stehen sie unter „übersprungen“ mit demselben Grund, in der Auswahl steht „E-Mail beim Oberhaupt“ (bzw. „E-Mail beim Zahler“ oder der Name).
 - Die Regel gilt im Server, nicht nur in der Oberfläche. Bekommt ein Mitglied eine eigene Adresse, bekommt es die Einladung wieder selbst. Ohne Mitgliederverwaltung gibt es keine E-Mail-Adressen und damit keine E-Mail-Einladung – dort ändert sich nichts.
 - Für Entwickler: neuer Hook `mailOwners()` der Mitgliederverwaltung (`{ id: { owner, ownerName, why } }`), Testreihe `invdup`. Mitglieder 1.45.0.
 
-**Willkommens-E-Mail auch beim Anlegen von Hand, Text selbst festlegen (Auftrag Thorsten 10.11.2026)**
+**Willkommens-E-Mail auch beim Anlegen von Hand, Text selbst festlegen (Auftrag 10.11.2026)**
 - Mitglieder › „+ Neues Mitglied“: Unten vor „Anlegen“ gibt es das Häkchen **„Willkommens-E-Mail senden“**. Es ist vorbelegt, sobald eine E-Mail-Adresse eingetragen und ein Postfach eingerichtet ist; sonst ist es ausgegraut und sagt warum. Darunter **„Einladung zur Mitglieder-App mitsenden“** (vorbelegt aus): Der persönliche Link zum Freischalten steckt dann gleich in derselben Mail. Bisher ging eine Willkommens-E-Mail nur raus, wenn eine Beitrittserklärung angenommen wurde.
 - Dasselbe bei „Partner/in neu anlegen“ und „Kind neu anlegen“. Hat das neue Familienmitglied keine eigene Adresse, geht die Willkommens-E-Mail an das Oberhaupt; die App-Einladung gibt es dann nur per QR-Code. Teilt es sich die Adresse mit anderen, gilt die Regel von oben – die App-Einladung ist dann ausgegraut („E-Mail-Adresse gehört zu … – bitte per QR-Code freischalten“).
 - Am Mitglied (Stammdaten) zeigt die neue Karte **„Willkommens-E-Mail“**, wann sie zuletzt gesendet wurde und wohin sie geht; „Willkommens-E-Mail senden …“ fragt nach und bietet die App-Einladung an. Jeder Versand steht im Verlauf des Mitglieds und im Protokoll.
 - Mitglieder › Einstellungen › **„Willkommens-E-Mail“**: Betreff und Text frei festlegen, Platzhalter per Klick einfügen ({Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Eintritt}, {Beitrag}), „Vorschau …“ mit Beispielwerten, „Standardtext wiederherstellen …“ (der bisherige Text). Unbekannte Platzhalter meldet Clubwerk vor dem Speichern, leerer Betreff oder Text geht nicht. Bei Lastschrift hängt Clubwerk Mandatsreferenz und Gläubiger-ID immer selbst an (nicht änderbar), die hochgeladene Beitrittserklärung kommt als PDF in den Anhang. Der eigene Text des Vereins wird nicht übersetzt; der Standardtext und die festen Teile kommen in der Vereinssprache.
 - Für Entwickler: ein Weg für alle Willkommens-E-Mails (`erweiterungen/mitglieder/lib/willkommen.js`), neu `ctx.appInvite` (`state(id)`, `create(id, user)`) für eine App-Einladung in einer Modul-Mail. Testreihe `mvu` erweitert; `werkzeuge/tests/run.sh` erkennt jetzt auch abgebrochene Reihen, deren Stacktrace auf „{“ endet (Playwright-Zeitüberschreitung).
 
-**Anleitung „Mitglieder-App einrichten“ als PDF aus Clubwerk (Auftrag Thorsten 10.11.2026)**
+**Anleitung „Mitglieder-App einrichten“ als PDF aus Clubwerk (Auftrag 10.11.2026)**
 - Mitglieder-App › Mitglieder › Karte **„Anleitung für Mitglieder“**: Der Knopf „Anleitung für Mitglieder (PDF)“ lädt eine zweiseitige Anleitung auf Deutsch oder Englisch herunter – Einladung am Handy öffnen, PIN festlegen, App auf iPhone und Android auf den Startbildschirm legen, Code einfügen, Tipps. Aufbau wie die freigegebene Vorlage, mit Bildern der echten App.
 - Eingesetzt werden euer Vereinsname, eure Vereinsfarbe und euer Logo, die eingestellten Gültigkeiten von E-Mail-Einladung und QR-Code, im WLAN-Tipp nur eure Bereiche, die nur im Vereins-WLAN gehen (ohne solche fällt der Tipp weg), der Tipp zu Benachrichtigungen nur, wenn Anlässe freigegeben sind, und der SMS-Code nur mit SMS-Bestätigung. Beschriftungen wie „Code kopieren“ oder „Übernahme-Code eingeben“ stehen genau so in der App.
 - Mitschicken: Beim Einladen per E-Mail (einzeln und im Sammelversand) gibt es das Häkchen „E-Mail: Anleitung als PDF anhängen“ (vorbelegt an), beim Einladungsbrief „Brief: Anleitung mitdrucken“ – dann entsteht ein PDF mit jedem Brief samt Anleitung dahinter. Die Willkommens-E-Mail mit App-Einladung hat das Häkchen „Anleitung als PDF anhängen“. Das PDF wird je Sprache einmal gebaut und wiederverwendet, nicht je Mitglied neu.
 - Für Entwickler: `src/appanleitung.js` (pdfkit, Schriften im Paket unter `anleitungen/app/schriften/`), Bilder `anleitungen/app/<sprache>-<bild>.jpg` aus der Demo per `werkzeuge/anleitungen/app-bilder.js` (iPhone mit WebKit, Android mit Chromium, nur Ausschnitte ohne Vereinsname; läuft in `paket.sh` Stufe 5c und baut nur bei Änderungen neu), `ctx.appInvite.guide()`, Testreihe `appanl`.
 - Nebenbei: In der englischen Übersicht steht der Hinweis zu dringenden Mängelmeldungen jetzt ganz auf Englisch („2 urgent fault reports are open.“) statt halb deutsch. Mängel 1.11.4.
 
-**Klarer, barrierefreier, einheitlicher: Ergebnis des Designer-Blicks (Auftrag Thorsten 10.11.2026, alle 15 Punkte aus `planung/ui-review.md`; Erscheinungsbild unverändert)**
+**Klarer, barrierefreier, einheitlicher: Ergebnis des Designer-Blicks (Auftrag 10.11.2026, alle 15 Punkte aus `planung/ui-review.md`; Erscheinungsbild unverändert)**
 - Übersicht: Jede Kachel sagt jetzt, was ihre Zahl bedeutet („4 Plätze“, „7 heute“, „4 offen“, „3 Türen“, „9 ausgegeben“) – die Einheit steht klein hinter der Zahl. Statt nur „Hinweis“ steht der Grund im Klartext („2 dringende Mängelmeldungen sind offen“, bei mehreren „(+1 weitere)“). Buchhaltung zeigt nur den Betrag, die Anzahl steht darunter („1 Rechnung überfällig …“).
 - Übersicht › „Zu erledigen“: „6 von 21 Aufgaben“ statt „6 von 21“. Die Reihenfolge richtet sich nach Dringlichkeit – erst Störungen, dann fehlende Datensicherung, dann Sicherheit und Datenschutz, dann Hinweise. Hinweise desselben Bereichs stehen zusammen unter einer Überschrift (vorher stand „Sicherheit“ zweimal untereinander).
 - Fehler behoben: In Mitglied › Stammdaten klebte bei „Schlüssel“ der Hinweistext direkt an der Beschriftung. Jetzt stehen beide untereinander wie bei den anderen Feldern.
@@ -141,7 +146,7 @@
 - Am Handy kleben Speichern-Knöpfe langer Formulare unten am Rand, solange die Karte zu sehen ist (z. B. Mitglied › Stammdaten); am Seitenende stehen sie an ihrem Platz und verdecken nichts.
 - Für Entwickler: neue Bausteine `markRequired` (Feld mit `required` → „(Pflicht)“), `markSave`, `.sr-only`, `.skip`, `.card.fold`; Module können in der Kachel-Hook-Ausgabe `kpis[].note` als fertigen Satz mitgeben. Neue Prüfstand-Regeln: `label-klebt`, `h1-fehlt`, `skip-link-fehlt`, `knopf-name-zaehler`, `pflicht-unmarkiert`, `symbolknopf-papierkorb-farbe`, `kleinschrift-tablet`, `silbentrennung-titel`, `reiter-abgeschnitten-ohne-pfeil`. Module: Mitglieder, Plätze, Beregnung, Zugang, Flutlicht, Mängel, Zeiterfassung, Spielbetrieb, Turniere, Schlüssel, Buchhaltung und Verkauf bekommen eine neue Modulversion.
 
-**Tabellen bei Tablet-Breite als Liste, keine verschachtelten Scrollbereiche (Auftrag Thorsten 10.11.2026)**
+**Tabellen bei Tablet-Breite als Liste, keine verschachtelten Scrollbereiche (Auftrag 10.11.2026)**
 - Verwaltung am Tablet (Fensterbreite 701–1279 px, z. B. iPad quer): Tabellen, die in dieser Breite nicht mehr in eine Zeile passen, stehen jetzt als Liste untereinander – Name fett oben, darunter die Angaben, Knöpfe rechts oben. Vorher brachen Werte ungleich um („bis / einschl. 17“, „Möller, / Paula“, „Tennis / Erwachsene“). Betrifft Mitglieder › Beiträge & Abteilungen (Beiträge Hauptverein, Zusatzbeiträge, Abteilungen, Altersstufen) und alle weiteren Tabellen im Listenformat (Mitgliederliste, Offene Posten, Protokoll, Lager, Stunden u. a.). Ab 1280 px bleiben es Tabellen wie bisher, am Handy ändert sich nichts.
 - Keine eigenen Scrollbereiche mehr auf der Seite: Listen wie Lager › Artikel, Bestand, Lieferungen, Beitragslauf oder Einzug stehen in voller Länge, das Mausrad scrollt über jeder Fläche die Seite. Die Kopfzeile der Tabelle klebt am oberen Rand. In Fenstern (z. B. Import-Vorschau) scrollen lange Listen weiter im Fenster.
 - Listen am Tablet erklären ihre Zahlen: In der Listenform steht vor einer reinen Zahl (oder einem Datum ohne weiteren Text) jetzt ihre Spaltenüberschrift als kleine graue Beschriftung – „Gebinde 24“, „Mindest 0“, „fällig 14.11.2026“. Vorher stand in Lager › Artikel nur „Bier 1,50 € 24 Bestand: 166 0 aktiv“. Betrag mit €, Schilder und Namen bleiben ohne Beschriftung; am Handy ändert sich dafür nichts (dort gelten schmale Zeilen).
@@ -150,7 +155,7 @@
 - App › Plätze › Freie Zeiten: Hat eine Zeile ein Kästchen mit langem Namen („Ballmaschine Lobster Elite“), stehen die Kästchen der Zeile untereinander und gleich breit – vorher verteilten sie sich verschieden breit auf zwei Zeilen. Plätze 1.29.1.
 - Für Entwickler: `.tbl.kompakt` bildet jetzt auch bei 701–1279 px die Listenform (Kopie der Handy-Regeln in `admin.html`, mit `k-tabelle` am `<table>` bleibt eine Tabelle Tabelle); `.scroll` ist `overflow: clip` ohne `max-height`, nur in `#overlay` scrollt es. Neue Prüfstand-Regeln `zelle-umbruch` (kurzer Wert in einer Tabellenzelle bricht um) und `scroll-verschachtelt` (senkrechter Scrollbereich außerhalb von Fenstern), Prüfung `kompakt-kopie`. Mitglieder 1.44.0, Turniere 1.11.5 (Gruppenkarten mind. 400 px breit), Dienste & Termine 2.16.1, Verkauf 3.101.5.
 
-**Datumsfehler zwischen 0 und 2 Uhr nachts behoben (Tests stabil, Auftrag Thorsten 10.11.2026)**
+**Datumsfehler zwischen 0 und 2 Uhr nachts behoben (Tests stabil, Auftrag 10.11.2026)**
 - Zwischen 0 und 2 Uhr nachts rechneten einige Stellen noch mit dem Vortag: die Zählung abgelehnter Türöffnungen am Tag (Zugang), die Vorbelegung beim Anlegen eines Sperrzeitraums (Zugang), die Vorauswahl des heutigen Turniertags (Turniere), der Beitragsvorschlag im Online-Antrag, das Datum auf der Dienste-Kachel am Tablet und der „Stand“ in der Datenüberlassung für den Steuerberater. Jetzt gilt überall der heutige Tag.
 - E-Mails in der Mitglieder-App laufen am Monatsende richtig ab (Aufbewahrung ab 31.08. um 6 Monate endete bisher am 03.03. statt am 28.02.).
 - Kontoauszug: Eine unmögliche Datumsangabe (z. B. 31.13.2026 oder 30.02.2026) wird übersprungen, statt als Buchungstag gespeichert zu werden.
@@ -158,15 +163,15 @@
 
 ## 2026.11.31
 
-**Geschäftsjahr: Kündigung zum Ende des Geschäftsjahres, Jahresauswertungen nach Geschäftsjahr (Auftrag Thorsten 09.11.2026)**
+**Geschäftsjahr: Kündigung zum Ende des Geschäftsjahres, Jahresauswertungen nach Geschäftsjahr (Auftrag 09.11.2026)**
 - Neu: Das Geschäftsjahr ist eine eigene Einstellung für den ganzen Verein – unabhängig vom Beitragsjahr. Beispiel: Beiträge laufen von Mai bis April, das Geschäftsjahr ist das Kalenderjahr. Einstellen lässt es sich unter Mitglieder › Einstellungen › Mitgliedschaft („Geschäftsjahr beginnt am 1.“ direkt neben „Beitragsjahr beginnt am 1.“) und unter Einstellungen › Buchführung – beides ist dasselbe Feld. Wer bisher dort ein anderes „Wirtschaftsjahr“ eingestellt hatte, behält es; es gilt jetzt als Geschäftsjahr.
 - Kündigung: Der früheste Austritt ist jetzt das Ende des Geschäftsjahres unter Einhaltung der Kündigungsfrist – bisher war es fälschlich das Ende des Beitragsjahres. Mit Frist 0 und Geschäftsjahr = Kalenderjahr heißt das: Kündigung bis 31.12. → Austritt zum 31.12. Das gilt gleich in der Mitglieder-App („Mitgliedschaft kündigen“), in der Eingangsbestätigung per E-Mail und im Fenster „Kündigung bestätigen“.
-- Austritt in der Verwaltung: „Austritt zum“ ist jetzt vorausgefüllt mit dem frühesten Termin nach Kündigungsfrist und Geschäftsjahr und passt sich an, wenn man „Kündigung eingegangen am“ ändert (bis man das Datum selbst ändert). Bisher stand dort das Ende des Beitragsjahres ohne Frist. Beiträge bleiben wie bisher: Ein angefangenes Beitragsjahr wird voll berechnet (Entscheidung Thorsten).
+- Austritt in der Verwaltung: „Austritt zum“ ist jetzt vorausgefüllt mit dem frühesten Termin nach Kündigungsfrist und Geschäftsjahr und passt sich an, wenn man „Kündigung eingegangen am“ ändert (bis man das Datum selbst ändert). Bisher stand dort das Ende des Beitragsjahres ohne Frist. Beiträge bleiben wie bisher: Ein angefangenes Beitragsjahr wird voll berechnet (Entscheidung).
 - Jahresauswertungen nach Geschäftsjahr: Verkauf › Auswertung (Jahreswahl „Geschäftsjahr 2026/27“, Monate und Kalender ab dem ersten Monat des Geschäftsjahres, Vergleich mit dem vorigen Geschäftsjahr), Beiträge & Zahlungen („eingegangen …“), Platzgebühren, Rechnungen („Bezahlt …“ zählt jetzt nach Zahltag, Jahresfilter), DATEV und die Datenüberlassung für die Betriebsprüfung. Arbeitseinsatz bekommt als Abrechnungsjahr zusätzlich „wie das Geschäftsjahr des Vereins“. Verkauf: der Knopf „Ganze Saison“ heißt jetzt „Geschäftsjahr“ und beginnt am Anfang des Geschäftsjahres. Solange das Geschäftsjahr am 1. Januar beginnt, bleibt alles wie bisher.
 - Bewusst beim Kalenderjahr bleiben: Spendenquittungen, Nummernkreise (Rechnungen, Spenden, Schlüsselprotokolle), Jahresrechnungen für Sponsoren, LSB-Bestandserhebung und Ein-/Austritte je Jahr, Gratulationen, Platz-Auslastung, Flutlicht-Betriebsstunden, Spieltage und Turniere.
 - Für Entwickler: neuer Baustein `src/geschaeftsjahr.js` bzw. `ctx.geschaeftsjahr` (`range`, `yearOf`, `label`, `exitDate` …), Testreihe `gj`. Dienste & Termine 2.16.0, Buchhaltung 1.14.0, Plätze 1.29.0, Mitglieder 1.43.0 (zusammen mit den Änderungen unten).
 
-**Mitgliederliste mit Karte: Mausrad überall, bündige Unterkanten, keine eigenen Scrollbalken (Fehler Thorsten 09.11.2026)**
+**Mitgliederliste mit Karte: Mausrad überall, bündige Unterkanten, keine eigenen Scrollbalken (Fehler 09.11.2026)**
 - Mitglieder › Mitglieder: Stand die Maus auf der Karte rechts oder daneben, ließ sich nicht scrollen – die Liste hatte einen eigenen Scrollbereich, und die Karte hielt das Mausrad fest. Jetzt scrollt die ganze Seite, egal wo die Maus steht. Die Kopfzeile der Liste und die Karte bleiben dabei oben stehen.
 - Liste und Karte enden unten immer auf gleicher Höhe – bei langen Listen, bei einem Treffer und ohne Treffer. Die rechte Spalte reicht als Rahmen bis zum Ende der Liste, der Inhalt der Karte bleibt oben stehen.
 - Bei niedrigem Fenster hat die Karte keinen eigenen Scrollbalken mehr: Ist sie höher als das Fenster, scrollt sie mit der Seite, bis ihr Ende zu sehen ist.
@@ -176,7 +181,7 @@
 - Dasselbe in Verkauf › Konten (gleicher Aufbau mit Liste und Karte).
 - Für Entwickler: Testreihe `mausrad` (echtes Mausrad über Liste, Karte, Lücke und Rand, Chromium und WebKit) und zwei neue Prüfstand-Regeln: `mausrad-sperrt` (über jeder klebenden Fläche, der Mitte und dem Rand bewegt das Mausrad etwas, solange die Seite scrollen kann) und `liste-scrollt-innen` (weder Liste noch Karte scrollen in sich); `d3-kartenhoehe` prüft jetzt alle Rahmen nebeneinander, nicht nur bekannte Kartenklassen. Neuer Baustein `GK.klebend` (ERWEITERUNGEN.md).
 
-**Mitglied von einem anderen Mitglied übernehmen, Angehörige in der Familie neu anlegen, Umzug (Auftrag Thorsten 09.11.2026)**
+**Mitglied von einem anderen Mitglied übernehmen, Angehörige in der Familie neu anlegen, Umzug (Auftrag 09.11.2026)**
 - Mitglieder: Neues Mitglied, Stammdaten und „Beitrittserklärung erfassen“ haben den Knopf **„Von Mitglied übernehmen …“**. Man sucht ein Mitglied (Anzeige „Nachname, Vorname“) und setzt Haken, was ins Formular soll: Anschrift, Nachname und Telefon Festnetz sind vorgewählt, E-Mail und Mobil nicht. „Übernehmen“ füllt nur das Formular – gespeichert wird erst mit „Anlegen“ bzw. „Speichern“. **Bankdaten werden nie übernommen.** Stattdessen gibt es im selben Fenster die Wahl „Zur Familie von … hinzufügen“ oder „Zahlt über …“; dann braucht das neue Mitglied weder eigenen Beitrag noch eigenes Konto. Die Familienregeln gelten wie bisher (ein Oberhaupt, höchstens ein weiterer Erwachsener, Kinder bis 18) und werden auch beim Anlegen geprüft; ein Kind über 18 und eine zweite Partnerin melden sich mit klarem Hinweis. Kinder brauchen keine E-Mail und kein Handy.
 - Mitglieder › Zahlung & Familie: In der Karte „Familienmitgliedschaft“ gibt es neben „Hinzufügen“ die Knöpfe **„Partner/in neu anlegen“** und **„Kind neu anlegen“**. Das Formular „Neues Mitglied“ ist vorbelegt mit Anschrift, Nachname und Festnetz des Oberhaupts, der Familie und der Zahlung über das Oberhaupt. Gibt es schon eine/n Partner/in, ist „Partner/in neu anlegen“ gesperrt (mit Begründung).
 - Mitglieder › Stammdaten: Neues Feld „Telefon Festnetz“ im Formular „Neues Mitglied“. **Umzug:** Ändert man die Anschrift und wohnen andere aktive Mitglieder unter der bisherigen, fragt Clubwerk beim Speichern „Unter derselben Anschrift wohnen auch: … Dort ebenfalls ändern?“ – mit einem Haken je Person. Ohne Bestätigung ändert sich niemand anderes; jede Änderung steht im Verlauf der Person und im Protokoll („Straße: … → …“).
@@ -188,11 +193,11 @@
 - Für Entwickler: neue Prüfstand-Regel `d5-knopfspalte` (Knopfzeilen unter einer Feldzeile gleich breit und bündig; Knöpfe am Handy untereinander gleich breit) und neue Gruppe `mitglieddetail` (jeder Reiter der Mitglieder-Detailansicht samt Fenstern – vorher nirgends geprüft).
 - Mitglieder-App, erster Start am iPhone: Der Kasten „Auf den Home-Bildschirm“ hat jetzt drei nummerierte, gleich sichtbare Schritte. ① Code kopieren (Code groß, breiter Knopf „Code kopieren“, danach „✓ Kopiert“ und Haken; dazu der Hinweis, dass man sich ohne Code neu einladen lassen muss), ② Auf den Home-Bildschirm legen (Teilen-Symbol als Bild, Lage der Leiste wird nicht genannt), ③ App öffnen und Code einfügen. Im Fenster „Fast geschafft“ der App holt der Knopf „Einfügen“ den Code aus der Zwischenablage; klappt das nicht, tippt man ihn wie bisher ein. Wer den Kasten mit ✕ schließt, bevor der Code kopiert ist, wird gefragt „Code schon kopiert?“. In eingebetteten Browsern (Gmail, WhatsApp) steht davor Schritt 0 „In Safari öffnen“. Android und Rechner bleiben unverändert. Hat das Mitglied seine PIN gerade beim Koppeln in Safari vergeben, steht in Schritt ③ zusätzlich „(die du eben vergeben hast)“.
 - Einladung: Die Einladungs-E-Mail und der Brief mit QR-Code sagen jetzt passend zur PIN: Hat das Mitglied schon eine PIN (Verkauf am Tablet), heißt es „Deine PIN eingeben – dieselbe wie im Verkauf am Tablet“, sonst „Deine persönliche PIN vergeben (4 bis 6 Ziffern)“. Ohne gültigen Einladungslink verrät der Server nichts darüber. Testreihe `invpin`.
-- Altersstufen (Fehler Thorsten 09.11.2026): Ein Kind mit 19, das aus dem Familienbeitrag fällt, bekam „Jugendliche“ vorgeschlagen, weil sich dessen Altersbereich („bis 19“) mit „Erwachsene ab 19“ überschnitt. Jetzt gilt bei Überschneidung immer die höhere Stufe (höchstes „ab“, bei Gleichstand die ohne Obergrenze mit den meisten Mitgliedern) – beim Vorschlag für Kinder und Beitragswechsel, beim Zusatzbeitrag nach Alter und bei Vorschlägen für neue Anträge. „Umstellen“ und „So belassen“ laufen wie bisher.
+- Altersstufen (Fehler 09.11.2026): Ein Kind mit 19, das aus dem Familienbeitrag fällt, bekam „Jugendliche“ vorgeschlagen, weil sich dessen Altersbereich („bis 19“) mit „Erwachsene ab 19“ überschnitt. Jetzt gilt bei Überschneidung immer die höhere Stufe (höchstes „ab“, bei Gleichstand die ohne Obergrenze mit den meisten Mitgliedern) – beim Vorschlag für Kinder und Beitragswechsel, beim Zusatzbeitrag nach Alter und bei Vorschlägen für neue Anträge. „Umstellen“ und „So belassen“ laufen wie bisher.
 - Beitragsart bearbeiten: Die Felder heißen „ab … Jahre“ und „bis einschließlich … Jahre“, darunter steht „Gerechnet wird mit dem Alter zu Beginn des Beitragszeitraums.“ und – bei einer Obergrenze – „bis einschließlich 18 → gilt bis zum Tag vor dem 19. Geburtstag“. Überschneiden sich die Altersbereiche mit einer anderen Beitragsart gleicher Art, warnt das Fenster („Überschneidet sich mit … – meintest du bis einschließlich 18?“, Speichern bleibt möglich, Knopf „Trotzdem speichern“); Einstellungen › Datenqualität zeigt es als Hinweis „Altersgrenzen überschneiden sich“.
 - Überall dieselbe Schreibweise der Altersgrenzen: „ab 19“, „bis einschl. 18“, „12 bis einschl. 18“ (Tabelle Beitragsarten, Schild „passt nicht zum Alter“, Fehler- und Warntexte, Import-Abgleich). Import aus verein.cloud: „unter 19“ im Beitragsnamen wird als „bis einschließlich 18“ übernommen; „bis 19“ wird wörtlich als 19 gelesen (Hinweis, falls es „unter 19“ meint, bitte nach dem Import prüfen).
-- Altersstufen und Beitragslauf-Vorschau sagen jetzt dasselbe (Fund Thorsten 09.11.2026): Die Vorschau prüft vor dem Warnen die Altersstufen (und schaut so weit voraus wie „bis“ im Beitragslauf), ein Hinweis, der wegen einer kurz geänderten Altersgrenze als „erledigt“ geschlossen wurde, kommt wieder, sobald der Anlass zurückkehrt („belassen“ bleibt belassen), bei Kindern in der Familie warnt die Vorschau nicht zusätzlich „bitte eigene Beitragsart zuweisen“, wenn unter „Altersstufen“ schon ein Hinweis steht, und die Warnungen nennen Namen als „Nachname, Vorname“ und die Altersgrenze als „bis einschl. 18 Jahre“.
-- Tabellen und Karten (Fund Thorsten 09.11.2026): In „Beiträge Hauptverein“ und bei den Zusatzbeiträgen bleibt die Alter-Spalte einzeilig („bis einschl. 17“); bei 1280–1359 Pixel Breite entfallen dafür „Arbeitsstunden“ und „Formular“ (stehen beim Bearbeiten), damit die Tabelle nicht aus der Karte ragt. In der Karte „Altersstufen“ und beim Zusatzbeitrag im Mitglied steht der Name in einer Zeile, der Betrag grau darunter (statt „Name · Betrag“, wobei ein Umbruch die zweite Zeile mit „·“ begann). Dasselbe bei den Beiträgen in der Mitglieder-Karte. Auch in Mannschaften (Spielbetrieb), Serien-Sperren (Buchung), Kalender-Hinweis (Dienste & Termine) und der Lastschrift-Prüfung beginnt keine Zeile mehr mit „·“.
+- Altersstufen und Beitragslauf-Vorschau sagen jetzt dasselbe (Fund 09.11.2026): Die Vorschau prüft vor dem Warnen die Altersstufen (und schaut so weit voraus wie „bis“ im Beitragslauf), ein Hinweis, der wegen einer kurz geänderten Altersgrenze als „erledigt“ geschlossen wurde, kommt wieder, sobald der Anlass zurückkehrt („belassen“ bleibt belassen), bei Kindern in der Familie warnt die Vorschau nicht zusätzlich „bitte eigene Beitragsart zuweisen“, wenn unter „Altersstufen“ schon ein Hinweis steht, und die Warnungen nennen Namen als „Nachname, Vorname“ und die Altersgrenze als „bis einschl. 18 Jahre“.
+- Tabellen und Karten (Fund 09.11.2026): In „Beiträge Hauptverein“ und bei den Zusatzbeiträgen bleibt die Alter-Spalte einzeilig („bis einschl. 17“); bei 1280–1359 Pixel Breite entfallen dafür „Arbeitsstunden“ und „Formular“ (stehen beim Bearbeiten), damit die Tabelle nicht aus der Karte ragt. In der Karte „Altersstufen“ und beim Zusatzbeitrag im Mitglied steht der Name in einer Zeile, der Betrag grau darunter (statt „Name · Betrag“, wobei ein Umbruch die zweite Zeile mit „·“ begann). Dasselbe bei den Beiträgen in der Mitglieder-Karte. Auch in Mannschaften (Spielbetrieb), Serien-Sperren (Buchung), Kalender-Hinweis (Dienste & Termine) und der Lastschrift-Prüfung beginnt keine Zeile mehr mit „·“.
 - Für Entwickler: neue Prüfstand-Regel `punkt-zeilenanfang` (ein „·“ am Anfang einer umgebrochenen Zeile).
 - Buchung, Dienste & Termine, Spielbetrieb: je ein kleiner Punktfehler (Trennzeichen am Zeilenanfang), Modulversionen hochgezählt.
 - Mitglieder 1.43.0.
@@ -205,7 +210,7 @@
 
 ## 2026.11.30
 
-**Mitgliederliste mit dem Mitglied daneben, Übersicht ohne Begrüßung (Wunsch Thorsten 09.11.2026)**
+**Mitgliederliste mit dem Mitglied daneben, Übersicht ohne Begrüßung (Wunsch 09.11.2026)**
 - Mitglieder: Auf breiten Bildschirmen (ab 1400 Pixel) steht rechts neben der Liste eine Karte mit dem Wichtigsten zum angeklickten Mitglied – Geburtsdatum, Eintritt, Abteilungen, Beitrag, Zahlung, „Abgerechnet bis“, offene Posten, Kontakt und Hinweise. „Öffnen“ oder ein Doppelklick öffnet das Mitglied, die Knöpfe darunter springen direkt in Mitgliedschaft, Zahlung & Familie, Konto & Mandat oder Verlauf. Auf kleineren Bildschirmen, am Tablet und am Handy bleibt alles wie bisher: Ein Klick öffnet das Mitglied.
 - Übersicht: Statt „Guten Abend, …“ steht oben jetzt einfach „Übersicht“, darüber wie bisher das Datum.
 - Übersicht: Kennzahlen in den Modulkacheln brechen nicht mehr um – bei „Dienste & Termine“ stand das „h“ von „129 von 155 h“ allein in der zweiten Zeile. Lange Werte sind etwas kleiner.
@@ -214,18 +219,18 @@
 - Für Entwickler: neue Prüfstand-Regel `einheit-allein` (eine Einheit wie h, €, % steht nie allein in der nächsten Zeile).
 - Mitglieder 1.40.0, Turniere 1.11.4 (Spielzeit am Tablet „· 40 min“ bleibt zusammen, die Zeile steht als Name ohne Übersetzung).
 
-**Große Rundmails kommen vollständig an – auch bei Anbietern, die Mails je Verbindung begrenzen (Fehler Thorsten 09.11.2026: 80 von 181 zugestellt, 101 „451 … Mails per session limit exceeded“)**
+**Große Rundmails kommen vollständig an – auch bei Anbietern, die Mails je Verbindung begrenzen (Fehler 09.11.2026: 80 von 181 zugestellt, 101 „451 … Mails per session limit exceeded“)**
 - Lehnt der Mailserver eine Mail nur vorübergehend ab (Antworten 4xx wie 451, 450, 421, 452), zählt sie nicht mehr als „fehlgeschlagen“, sondern wartet. Clubwerk holt sie von selbst nach: neue Verbindung, Pausen 1, 5, 15 und dann alle 60 Minuten, höchstens 24 Stunden lang. Erst danach gilt sie als fehlgeschlagen. Antworten 5xx (zum Beispiel „Adresse unbekannt“) bleiben sofort ein Fehler. Wer zuerst abgelehnt und später angenommen wird, bekommt die Mail genau einmal.
 - Einstellungen › Postfach: neue Felder „Höchstens … Mails je Verbindung“ (Standard 20, vorher fest 50) und „Höchstens … Mails je Stunde“ (leer = unbegrenzt), mit kurzer Erklärung. Meldet der Anbieter ein Limit, senkt Clubwerk die Zahl für diese Rundmail selbst und macht weiter. Darunter steht, wie viele Einzelmails gerade warten.
 - Gesendet-Ordner: statt „101 fehlgeschlagen“ steht „80 zugestellt · 101 warten“ mit „nächster Versuch 19:45“; in der Nachricht zeigt jeder Empfänger, ob er wartet. Neuer Knopf „Jetzt erneut versuchen“ für Wartende.
 - Einzelmails (Mahnungen, Einladungen, Protokolle, Erinnerungen) laufen bei einem 4xx ebenfalls über die Warteschlange. Es ist dieselbe Warteschlange wie für Mails, die bei gesperrtem Tresor warten (`vault_mail`, neue Spalten für den nächsten Versuch). Testmail und Bestellung melden einen Fehler weiterhin sofort.
 - Für Entwickler: `mail.send({ direct: true, … })` meldet 4xx sofort statt zu warten; `CW_MAIL_BACKOFF_UNIT` und `CW_MAIL_TICK` (nur Tests). Testreihe `mdrossel` mit eigenem Test-Mailserver (`hilfen/drossel.js`). Die Zählung „je Stunde“ liegt im Speicher und beginnt nach einem Neustart neu. Anleitung (Kern) Deutsch und Englisch ergänzt.
 - Handy: Knopfzeilen in der Verwaltung sind gleich breit (zwei nebeneinander oder untereinander, nie einer schmaler allein darunter); passt eine Beschriftung nicht in die halbe Breite, steht die ganze Zeile in einer Spalte. Die Nachricht im Gesendet-Ordner zeigt die Zustellung als „Nachname, Vorname“ und scrollt als ganze Seite. Dienste & Termine 2.16.0: Datumskästchen steht oben bündig mit dem Titel, auch wenn das Schild umbricht. Prüfstand: neue Regeln `knopfreihe-ungleich` und `knopf-mehrzeilig`.
-- Fehler behoben (Thorsten 09.11.2026): Einzeilige, selbst wachsende Textfelder (zum Beispiel „Was“ bei Mitglieder › Einstellungen › Gratulationen, Betreff bei der Bestellung) waren 120 statt 40 Pixel hoch; daneben hingen Auswahlfelder und Knöpfe unten, die Beschriftungen standen versetzt. Jetzt sind sie so hoch wie ein normales Feld und wachsen nur mit dem Text. Prüfstand: neue Regeln `felder-ungleich-hoch` und `beschriftung-versetzt` (am alten Stand schlägt die Gratulationen-Karte an).
+- Fehler behoben (09.11.2026): Einzeilige, selbst wachsende Textfelder (zum Beispiel „Was“ bei Mitglieder › Einstellungen › Gratulationen, Betreff bei der Bestellung) waren 120 statt 40 Pixel hoch; daneben hingen Auswahlfelder und Knöpfe unten, die Beschriftungen standen versetzt. Jetzt sind sie so hoch wie ein normales Feld und wachsen nur mit dem Text. Prüfstand: neue Regeln `felder-ungleich-hoch` und `beschriftung-versetzt` (am alten Stand schlägt die Gratulationen-Karte an).
 
 ## 2026.11.29
 
-**Zugangsdaten liegen jetzt im Tresor (Frage Thorsten 08.11.2026: „Sind alle Passwörter und Pins in der DB gehasht?“)**
+**Zugangsdaten liegen jetzt im Tresor (Frage 08.11.2026: „Sind alle Passwörter und Pins in der DB gehasht?“)**
 - Passwörter und PINs von Menschen waren schon immer nur als gesalzener Hash gespeichert. Lesbar in der Datenbank standen aber die Zugangsdaten, mit denen Clubwerk selbst bei anderen Diensten anklopft: Postfach-Passwort, Dropbox, die Zugänge zu NAS, Cloud und Google Drive, der Hydrawise-Schlüssel und der Schlüssel der Datensicherung – und damit auch in jedem Schnappschuss. Die liegen jetzt verschlüsselt im Tresor, genau wie Adressen und Bankdaten.
 - Folge (so gewollt): Nach einem Neustart warten Datensicherung, E-Mails und Hydrawise, bis sich ein Admin mit Schlüssel anmeldet oder den Wiederherstellungscode eingibt. In der Übersicht steht dann „Tresor gesperrt – Sicherung und E-Mails warten, bitte anmelden.“ Wartende E-Mails gehen nach dem Anmelden raus, die Sicherung des Tages läuft sofort nach, gespeicherte Stopps der Beregnung werden gesendet. Ist um die Uhrzeit der Sicherung noch niemand angemeldet, kommt einmal am Tag die Sicherheitswarnung „Tresor gesperrt – Sicherung wartet“ (auch per Push).
 - Bestehende Installationen werden beim ersten Start von selbst umgestellt; ältere Schnappschüsse im Sicherungsordner werden dabei bereinigt, und die Datenbankdatei wird aufgeräumt, damit keine alten Werte darin stehen bleiben.
@@ -235,7 +240,7 @@
 
 ## 2026.11.28
 
-**Fehler am iPhone: Datei im Reiter „Dokumente“ ausgewählt – danach passierte nichts (Fehler Thorsten 07.11.2026)**
+**Fehler am iPhone: Datei im Reiter „Dokumente“ ausgewählt – danach passierte nichts (Fehler 07.11.2026)**
 - Bei Mitglied › Dokumente › „Datei wählen & hochladen“ blieb nach dem Antippen einer Datei in der Dateien-App alles unverändert: keine Meldung, kein Eintrag in der Ablage. Ursache: Das Auswahlfeld für die Datei wurde nur im Hintergrund gebaut und nie in die Seite eingehängt. Safari am iPhone vergisst die Auswahl dann während des langen Auswahlfensters. Am Rechner fiel das nicht auf.
 - Jetzt hängt das Feld unsichtbar in der Seite, bis die Auswahl da ist oder abgebrochen wurde (gemeinsamer Baustein `CWPick.file`, auf allen Oberflächen verfügbar). Der Knopf zeigt „Wird hochgeladen …“, und jeder Fehler erscheint als Meldung. Dasselbe gilt für den Import von Funktions-Einstellungen (Dateien einspielen); alle anderen Dateiauswahlen waren schon richtig eingebaut.
 - Eine neue Prüfregel (`datei-feld-lose`) meldet künftig jedes selbstgebaute Dateifeld ohne den Baustein; die Testreihe `uploadios` spielt das Hochladen im Reiter „Dokumente“ in Chromium und WebKit (Safari-Technik) durch.
@@ -243,7 +248,7 @@
 
 ## 2026.11.27
 
-**Neues Modul „Schlüssel“: Schlüsselübergabe mit Unterschrift, Rücknahme und Verlust (Wunsch Thorsten 05.11.2026, Stufe 1)**
+**Neues Modul „Schlüssel“: Schlüsselübergabe mit Unterschrift, Rücknahme und Verlust (Wunsch 05.11.2026, Stufe 1)**
 - Unter Anlage › Schlüssel führt der Verein seinen Bestand: Sorten wie „Clubhaus Haupteingang“ mit mehreren Stück (Schlüssel, Transponder, Karte), „vorrätig · ausgegeben · verloren · gesperrt“ je Stück, „sicherheitsrelevant“ für Generalschlüssel.
 - **Ausgabe mit Protokoll:** Person wählen (Mitglied, „Kein Mitglied“ oder jemand ohne Clubwerk-Konto wie Pächter oder Handwerker mit Name und Kontakt), Schlüssel, optional „Rückgabe bis“, Pfand (nur als „bar erhalten“ quittiert). Die Bedingungen kommen aus einer Vorlage mit Platzhaltern und werden beim Unterschreiben eingefroren. Beide Seiten unterschreiben auf dem Bildschirm (bei Minderjährigen auch eine erziehungsberechtigte Person) – auf jedem Gerät in der Verwaltung oder am Vereinstablet mit einem 6-stelligen Code (3 Stunden gültig, falsche Codes werden gesperrt).
 - Aus jeder Unterschrift entsteht einmal ein PDF mit Nummer („S-2026-014“) und Prüfwert, verschlüsselt im Tresor; es geht per E-Mail an die Person und erscheint bei Mitgliedern im Reiter „Dokumente“ (ohne Kopie).
@@ -262,13 +267,13 @@
 
 ## 2026.11.26
 
-**Dienste & Termine: Neuer Dienstplan erklärt, wo die Uhrzeiten hinkommen (Wunsch Thorsten 05.11.2026)**
+**Dienste & Termine: Neuer Dienstplan erklärt, wo die Uhrzeiten hinkommen (Wunsch 05.11.2026)**
 - Im Fenster „Neuer Dienstplan“ steht jetzt ein Hinweis: Schichten mit Uhrzeit und Aufgabe (Theke, Küche, Kasse …) legt man nach dem Speichern je Tag an, auch mehrere zur selben Zeit.
 - Beim Anlegen heißt der Knopf „Speichern und Schichten anlegen“: Der Plan wird gespeichert und gleich das Fenster „Neue Schicht“ für den ersten Tag geöffnet, mit gesetztem Haken „Danach weitere Schicht anlegen“. Wer keine Schicht will, schließt dieses Fenster, der Plan ist trotzdem gespeichert. Beim Bearbeiten bleibt es bei „Speichern“.
 - Ein Tag ohne Schicht sagt jetzt: „Noch keine Schicht – mit „+ Schicht“ Uhrzeit und Aufgabe anlegen.“ (statt „Keine Schichten an diesem Tag.“).
 - Dienste & Termine 2.15.6.
 
-**Datensicherung: Google Drive als neues Sicherungsziel (Auftrag Thorsten 05.11.2026: „Ich will von Dropbox weg“)**
+**Datensicherung: Google Drive als neues Sicherungsziel (Auftrag 05.11.2026: „Ich will von Dropbox weg“)**
 - Unter Verein › System › Datensicherung › Sicherungsziele gibt es bei „Ziel hinzufügen …“ jetzt „Google Drive (eigene Google-App)“. Der Verein legt dafür einmal eine eigene Google-App in der Google Cloud Console an; die Anleitung beschreibt jeden Schritt mit den Namen der Menüpunkte.
 - Anmelden ohne Weiterleitung an eine Adresse von außen: Clubwerk zeigt einen Code, man öffnet am Handy oder Rechner google.com/device, gibt ihn ein und erlaubt den Zugriff. Clubwerk merkt die Bestätigung von selbst, schreibt, liest und löscht eine Testdatei und legt erst dann das Ziel an.
 - Clubwerk bekommt nur die Berechtigung „drive.file“ und sieht damit nur die eigenen Dateien im Ordner „Clubwerk-Sicherung“ (mit „Komplett“ und „Lesbar“), nicht den Rest des Drive.
@@ -279,25 +284,25 @@
 
 ## 2026.11.25
 
-**Tablet: Namensliste scrollt flüssiger (Entscheidung Thorsten 04.11.2026: „Mach es performant“)**
+**Tablet: Namensliste scrollt flüssiger (Entscheidung 04.11.2026: „Mach es performant“)**
 - Die Kacheln der Namensliste, die Buchstaben, die Knöpfe „Gast“, „Verein“, „Gäste-Deckel“, die Artikelkacheln und die Kacheln der übrigen Tablet-Seiten (Stempeln, Dienste, Mitglied werden, Turniere) haben statt des großen weichen Schattens nur noch einen kleinen Schatten. Der Rand bleibt, die Kacheln heben sich weiter klar vom Hintergrund ab, hell wie dunkel. Verwaltung und Mitglieder-App sind unverändert.
 - Grund: Der große Schatten musste beim Scrollen für jede Kachel neu gezeichnet werden. Gemessen (großer Musterverein, 4-fach gebremste CPU, 2 500 px scrollen): Zeichenzeit 126 → 70 ms quer, 94 → 45 ms hochkant (Verkauf 3.101.4).
 
-**Tablet: Fenster blenden weich ein und aus (Fehler Thorsten 04.11.2026, Video mit 60 Bildern pro Sekunde)**
+**Tablet: Fenster blenden weich ein und aus (Fehler 04.11.2026, Video mit 60 Bildern pro Sekunde)**
 - Beim Antippen eines Mitglieds ohne PIN dunkelte das Fenster „Kein PIN vergeben“ die ganze Seite schlagartig ab, und nach „Später“ sprang sie schlagartig wieder auf hell. Jetzt blenden alle Fenster der Tablet-Seiten (Verkauf, Plätze, Dienste, Stempeln, Mitglied werden, Turniere, Mängel) in rund 0,16 s weich ein und aus. Wer gleich weitertippt, wird nicht aufgehalten: das Fenster ist sofort zu, nur die Abdunklung klingt nach. Wer am Gerät „Bewegung reduzieren“ eingestellt hat, sieht es wie bisher ohne Übergang.
 
-**Tablet › Verkauf: Artikelseite blinkt nicht mehr beim Öffnen (Fehler Thorsten 04.11.2026, „es blinkt die Artikelseite“)**
+**Tablet › Verkauf: Artikelseite blinkt nicht mehr beim Öffnen (Fehler 04.11.2026, „es blinkt die Artikelseite“)**
 - Beim ersten Namen nach dem Laden der Seite (also auch nach jedem Wechsel von einem anderen Reiter) erschienen die Artikelbilder erst nach und nach über rund eine Sekunde – die ganze Kachelfläche veränderte sich dabei mehrmals. Die Anordnung der Kacheln selbst war immer gleich.
 - Jetzt holt das Tablet die Artikelbilder im Hintergrund, sobald die Namensliste steht, und setzt die fertigen Bilder beim Öffnen direkt ein: Die Artikelseite steht im ersten Bild vollständig da. Die Namensliste erscheint so schnell wie vorher; die Bilder werden nicht öfter geholt als bisher (danach ein Jahr aus dem Zwischenspeicher).
 
-**Tablet: kein leeres Aufblinken mehr beim Zurück zum Verkauf (Fehler Thorsten 04.11.2026)**
+**Tablet: kein leeres Aufblinken mehr beim Zurück zum Verkauf (Fehler 04.11.2026)**
 - Beim Wechsel von einem anderen Reiter (z. B. Plätze oder Dienste) zurück zu „Verkauf“ zeigte die Überblendung für einige Bilder eine leere Verkaufsseite: Überschriften und „Ich bin neu“, aber keine Namen. Grund: Die Seite wurde gezeichnet, bevor die Namen vom Server da waren.
 - Jetzt merkt sich das Tablet den letzten Stand der Namensliste für die Dauer des geöffneten Browser-Tabs und zeigt ihn sofort; die frischen Daten kommen gleich danach (bei Änderungen sichtbar wie bisher). Beim allerersten Öffnen bleiben die Abschnitte unsichtbar, bis Daten da sind – nie eine leere Liste mit „Ich bin neu“.
 - Gemessen mit absichtlich verzögerter Antwort: vorher 33 von 86 Bildern mit leerer Namensliste, jetzt keines.
 
 ## 2026.11.24
 
-**Tablet › Verkauf: Name antippen geht wieder sofort (Fehler Thorsten 04.11.2026, „die lädt zu lange“)**
+**Tablet › Verkauf: Name antippen geht wieder sofort (Fehler 04.11.2026, „die lädt zu lange“)**
 - **Die Ursache:** Nach jedem Antippen eines Namens hat das Tablet alle Artikelkacheln neu aufgebaut und dabei bis zu 80 Anordnungen durchprobiert, bis jeder Artikelname lesbar war und möglichst nichts scrollt – auch dann, wenn sich seit dem letzten Mitglied gar nichts geändert hatte. Bei 80 Artikeln dauerte das auf einem langsameren Tablet jedes Mal rund eine Sekunde, auf schwächeren Geräten deutlich länger.
 - **Jetzt:** Die Kacheln bleiben stehen, und das Tablet merkt sich die gefundene Anordnung. Beim nächsten Mitglied wird nur die Auswahl zurückgesetzt. Gemessen mit einem großen Musterverein (500 Mitglieder, 80 Artikel mit Bild, 4-fach gebremste CPU): **0,6–1,2 s → 0,2 s** vom Antippen bis zu den Artikeln.
 - Die Anordnung bleibt auch nach einem Wechsel zu einem anderen Reiter des Tablets (Plätze, Dienste …) und zurück gemerkt. Nur wenn sich Artikel, Preise oder die Bildschirmgröße ändern, sucht das Tablet einmal neu.
@@ -310,7 +315,7 @@
 
 ## 2026.11.22
 
-**Seitenleiste der Verwaltung selbst anpassen (Wunsch Thorsten 04.11.2026)**
+**Seitenleiste der Verwaltung selbst anpassen (Wunsch 04.11.2026)**
 - **Neue Karte „Seitenleiste“** unter Einstellungen › Verein: Die sechs Bereiche (Gastro, Sport, Anlage, Mitglieder, Finanzen, Verein) lassen sich **umbenennen** (zum Beispiel „Gastro“ → „Vereinsheim“, bis 24 Zeichen, leer = Standardname) und mit den Pfeilen **in der Reihenfolge verschieben**.
 - **Menüeinträge verschieben:** Jeden Eintrag legt ihr mit einer Auswahl in einen anderen Bereich und ordnet ihn mit den Pfeilen innerhalb des Bereichs. Neue Bereiche gibt es nicht, und keiner geht verloren; ein Bereich ohne Einträge erscheint im Menü nicht.
 - **Gilt für den ganzen Verein** (Recht „Einstellungen“), nicht je Person. Welche Seiten jemand sieht, bestimmen weiter die Rechte. Die Leiste baut sich nach dem Speichern sofort neu auf.
@@ -324,14 +329,14 @@
 - Weitere Felder, die ihren Text nun ganz zeigen (brechen um): Ort in Mängel › Einstellungen, Name im Turnierplaner, Titel im Einsatz-Fenster der Dienste, begünstigte Zwecke in der Buchhaltung und „Was“ bei den Gratulationen.
 ## 2026.11.23
 
-**E-Mails zur Platzbuchung nennen den richtigen Bereich der App (Fehler Thorsten 04.11.2026)**
+**E-Mails zur Platzbuchung nennen den richtigen Bereich der App (Fehler 04.11.2026)**
 - In der Buchungsbestätigung stand „Alle Buchungen siehst du in der Mitglieder-App unter „Buchen““ – der Bereich heißt in der App aber „Plätze“. Das ist korrigiert, ebenso in der Mail „Frei geworden“ an die Warteliste.
 - **Damit es nicht wiederkommt:** Die neue Testreihe `appbereich` prüft alle Texte der Form „in der (Mitglieder-)App unter „…““ gegen die echten Namen der App-Bereiche.
 - **Module:** Plätze 1.28.4.
 
 ## 2026.11.21
 
-**Englische Oberfläche: keine deutschen Reste mehr (Fehler Thorsten 03.11.2026)**
+**Englische Oberfläche: keine deutschen Reste mehr (Fehler 03.11.2026)**
 - **Der Auslöser:** In der englischen Mitglieder-App stand bei „Work hours“ noch „… danach 15,00 € je fehlender Stunde“ auf Deutsch, dazu Datum und Betrag im deutschen Format. Jetzt steht dort ein ganzer englischer Satz: „0 h of 4 h done – please by 30/04/2027, after that €15.00 per missing hour.“
 - **Daten, Beträge und Dezimalzahlen richten sich nach der Sprache:** in der englischen Oberfläche erscheinen `31.12.2026` als 31/12/2026, `15,00 €` als €15.00 und `1,5 h` als 1.5 h – überall, auch in Hinweisen vom Server. Auch einmal angelegte Zahlen- und Datumsformate der Module folgen der Sprache. Deutsch bleibt unverändert.
 - **Zusammengesetzte Texte werden Teil für Teil übersetzt:** Aufzählungen wie „Zeiterfassung · An wen der Stundennachweis …“ oder „Heim · auswärts · 3/4 können“ und Angaben der Form „Bezeichnung: Wert“ blieben bisher halb deutsch, halb englisch. Rund 30 Stellen in der Verwaltung, im Tablet und in der App sind außerdem auf ganze Sätze umgestellt (Monatsnamen in den Statistiken, „alle 25 Konten“, Mahnstufen, Mannschaften „gegen/bei …“, Kontoauszug-Hinweis, Lastschrift-Hinweis, Termine „Als Nächstes“, LK-Turniertag am Tablet „Als Nächstes (etwa … Uhr)“ und „läuft seit … Minuten“ u. a.).
@@ -945,7 +950,7 @@ Der ganze Programmcode wurde mit dem Blick eines Angreifers gelesen. Gefunden un
 
 ## 3.83.0
 
-**Weniger auf einen Blick – nur das, was gerade zählt (Entschlacken, Entscheidung Thorsten)**
+**Weniger auf einen Blick – nur das, was gerade zählt (Entschlacken, Entscheidung)**
 - **Übersicht:** Die Kennzahlenzeile oben ist weg – dieselben Zahlen stehen im Modulraster. „Einrichtung zu … % fertig“ ist nur noch eine Zeile mit Balken (die offenen Punkte stehen unter „Einrichtung“). „Zu erledigen“ zeigt jetzt 6 statt 3 Hinweise, jeden als kurzen Satz (z. B. „13 Artikel unter null – fehlt eine Lieferung?“ statt der ganzen Artikelliste); Einzelheiten zeigt der Hinweis beim Darüberfahren und die Seite, zu der der Link führt. „Bestand knapp“ und „Letzte Lieferungen“ erscheinen nur, wenn es etwas zu zeigen gibt. Im Modulraster rutscht eine Zahl nie mehr allein in die nächste Zeile („zu bestätigen: 0“).
 - **Plätze › Buchung eintragen:** Gäste, Wiederholen und Notiz stehen hinter „Weitere Angaben“ zum Aufklappen. Beim Bearbeiten einer Buchung mit Gästen oder Notiz ist der Bereich gleich offen.
 - **Mitglieder:** Die vier Zahlenkacheln über der Liste sind weg – „Aktuell“ und „Mit Hinweis“ stehen mit Zahl an den Filtern, „Austritt angekündigt“ jetzt unter „Auswertung › Ein- und Austritte“. Der Hinweis auf fehlende Pflichtangaben ist eine Zeile mit „Anzeigen“.

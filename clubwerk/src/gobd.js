@@ -162,7 +162,7 @@ function anchor() {
   return h;
 }
 /*
- * Geprüfter Stand (Entscheidung Thorsten 10.11.2026, planung/n-plus-1.md): Die Prüfung rechnet nur ab dem zuletzt geprüften Eintrag nach –
+ * Geprüfter Stand (Entscheidung 10.11.2026, planung/n-plus-1.md): Die Prüfung rechnet nur ab dem zuletzt geprüften Eintrag nach –
  * die volle Kette wuchs mit jedem Jahr. Der Stand (ID + Hash) liegt AUSSERHALB der Datenbank (gobd-geprueft.json neben den Ankern):
  * eine zurückgespielte oder untergeschobene Datenbank bringt ihn nicht mit. Ganz nachgerechnet wird
  *   – einmal pro Woche (die nächste Prüfung nach 7 Tagen ist automatisch voll; die Datenqualität läuft täglich),

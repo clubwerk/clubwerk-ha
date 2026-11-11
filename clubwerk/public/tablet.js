@@ -111,7 +111,7 @@
     later(preloadImages);
   }
   /* Artikelbilder schon auf der Startseite holen und entpacken: Sonst erschienen sie beim ersten Namen nach dem Laden der Seite
-     (jeder Reiterwechsel lädt sie neu) erst nach und nach über rund eine Sekunde – die Artikelseite „blinkte“ (Fehler Thorsten 04.11.2026).
+     (jeder Reiterwechsel lädt sie neu) erst nach und nach über rund eine Sekunde – die Artikelseite „blinkte“ (Fehler 04.11.2026).
      Die Bilder bleiben über die Verweise im Speicher; aus dem Zwischenspeicher des Browsers kommen sie ohne neue Übertragung. */
   const imgKeep = new Map();
   // erst wenn die Startseite gezeichnet ist (zwei Bilder später) und der Browser Leerlauf hat – sonst verzögerte das Vorladen die Namen

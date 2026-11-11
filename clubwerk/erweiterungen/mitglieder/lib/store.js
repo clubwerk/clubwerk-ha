@@ -222,7 +222,7 @@ const PERSON_FIELDS = ['salutation', 'title', 'first_name', 'last_name', 'birth_
   'letter_salutation', 'status', 'entry_date', 'exit_date', 'exit_reason', 'notice_date', 'payer_id', 'family_of', 'drinks_to_payer', 'payment', 'key_no', 'notes', 'member_no'];
 const STATUS = { aktiv: 'aktiv', passiv: 'passiv', ehren: 'Ehrenmitglied', ruhend: 'ruhend' };
 const PAYMENT = { lastschrift: 'Lastschrift', rechnung: 'Rechnung', bar: 'bar' };
-const GENDER = { m: 'männlich', w: 'weiblich' };   // nur Mann und Frau (Entscheidung Thorsten 11.11.2026)
+const GENDER = { m: 'männlich', w: 'weiblich' };   // nur Mann und Frau (Entscheidung 11.11.2026)
 
 /** Vor-/Nachname fehlen (z. B. Person stammt aus Verkaufskonto oder Import): aus dem bekannten Namen übernehmen */
 function fillNames(memberId = null) {

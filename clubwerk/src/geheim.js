@@ -2,7 +2,7 @@
 /* ---------- Geheimnisse der Maschine (ab 2026.11, planung/geheimnisse.md) ----------
    Zugangsdaten, mit denen Clubwerk selbst bei anderen Diensten anklopft (Postfach, Dropbox, Sicherungsziele, Hydrawise),
    und der Schlüssel der Komplettsicherung liegen NICHT in „settings“, sondern in der Tabelle „geheimnisse“ – und die
-   verschlüsselt der Tresor (vault.SPEC). Entscheidung Thorsten 08.11.2026: Nach einem Neustart sind sie verschlossen, bis sich
+   verschlüsselt der Tresor (vault.SPEC). Entscheidung 08.11.2026: Nach einem Neustart sind sie verschlossen, bis sich
    ein Admin mit Schlüssel anmeldet oder den Wiederherstellungscode eingibt. Bis dahin warten Mails (vault_mail) und die
    Sicherung des Tages (wird nach dem Entsperren nachgeholt). Schreiben geht auch gesperrt (öffentlicher Schlüssel).
    Ist der Tresor aus, stehen die Werte unverschlüsselt in „geheimnisse“ (wie vorher in „settings“) – die Übersicht empfiehlt dann den Tresor.

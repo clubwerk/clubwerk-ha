@@ -183,7 +183,7 @@ a.btn.primary { color: var(--on-brand); }
 @media (prefers-reduced-motion: no-preference) {
   @view-transition { navigation: auto; }
   ::view-transition-group(root) { animation-duration: .12s; }
-  /* Fenster am Tablet weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (Fehler Thorsten 04.11.2026,
+  /* Fenster am Tablet weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (Fehler 04.11.2026,
      „es blinkt die Artikelseite“ beim Fenster „Kein PIN vergeben“). Ausblenden: nav.js lässt die Abdunklung kurz nachklingen –
      das Fenster selbst ist sofort zu, ein Tipp trifft nie eine verblassende Ebene. */
   body.tk .overlay:not(.hidden) { animation: tk-fenster-ein .16s ease-out; }

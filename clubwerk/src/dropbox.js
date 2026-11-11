@@ -50,7 +50,7 @@ function explain(status, data, tags, what) {
   if (has('too_many_write_operations') || status === 429) return 'Dropbox ist gerade ausgelastet. Bitte später noch einmal „Testen“; die nächste nächtliche Sicherung versucht es erneut.';
   if (has('email_not_verified') || has('email_unverified')) return 'Die E-Mail-Adresse des Dropbox-Kontos ist nicht bestätigt. Bitte bei Dropbox anmelden, die Bestätigungs-E-Mail anfordern und den Link darin öffnen, dann „Testen“.';
   if (status === 403) return 'Dropbox verweigert diesem Konto den Zugriff (z. B. Einschränkung durch ein Team- oder Firmenkonto). Bitte die Einstellungen des Dropbox-Kontos prüfen.';
-  // „other“ kam in der Praxis, als in der Dropbox-App die Häkchen für Dateien fehlten (Thorsten 02.11.2026) – nicht 401 missing_scope
+  // „other“ kam in der Praxis, als in der Dropbox-App die Häkchen für Dateien fehlten (02.11.2026) – nicht 401 missing_scope
   if (status === 409 && tags[0] === 'other') return `Dropbox hat das Speichern abgelehnt, ohne einen Grund zu nennen. Häufigste Ursache: In der Dropbox-App fehlen Berechtigungen. ${PERM} Hilft das nicht: die E-Mail-Adresse des Dropbox-Kontos bestätigen und freien Speicher prüfen, sonst den Dropbox-Support mit der Request-Id fragen.`;
   if (status >= 500) return 'Dropbox meldet gerade eine Störung. Bitte später noch einmal „Testen“.';
   return null;

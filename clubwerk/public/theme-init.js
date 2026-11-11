@@ -151,7 +151,7 @@
   };
 })();
 
-/* Trennpunkt „·“ nie am Zeilenanfang (Regel punkt-zeilenanfang, Fund Thorsten 09.11.2026: „Kinder und Jugendliche / · 60,00 €“).
+/* Trennpunkt „·“ nie am Zeilenanfang (Regel punkt-zeilenanfang, Fund 09.11.2026: „Kinder und Jugendliche / · 60,00 €“).
    Zentral für alle Oberflächen: Das Leerzeichen vor jedem „·“ in sichtbarem Text wird ein festes (U+00A0), so bricht eine Zeile nur nach
    dem Punkt um – „Name ·“ / „60,00 €“. Gilt für Text, den Seiten später einsetzen (MutationObserver), nie für Eingabefelder, Code oder
    Skripte. Die Übersetzung erkennt den Trenner mit festem Leerzeichen genauso (i18n-core.js). */
@@ -266,7 +266,7 @@
   new MutationObserver(function (ms) { ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) { if (n.tagName === 'STYLE' && n.sheet) { try { weiter(n.sheet.cssRules); } catch (e) { /* leer */ } } }); }); }).observe(document.documentElement, { childList: true, subtree: true });
 })();
 
-/* Zoom-Sperre für Tablet-Seiten (Baustein CWZoom; Wunsch Thorsten 11.11.2026: „Auf dem Tablet sollte man nirgends zoomen können, nur in der Verwaltung“;
+/* Zoom-Sperre für Tablet-Seiten (Baustein CWZoom; Wunsch 11.11.2026: „Auf dem Tablet sollte man nirgends zoomen können, nur in der Verwaltung“;
    WCAG 1.4.4 bewusst zugunsten des gemeinsamen Theken-Tablets abgewogen, planung/tablet-aufraeumen.md). nav.js ruft CWZoom.sperren() auf allen Tablet-Seiten auf
    (außer der Verwaltung), Tablet › Beregnung selbst. Viewport ohne Zoom, dazu Abfangen der Pinch-Gesten (iPad-Safari ignoriert user-scalable=no) und kein
    Doppeltipp-Zoom (touch-action; touchend wird bewusst nicht abgefangen, das schluckte schnelle Doppeltipps auf Knöpfen). */

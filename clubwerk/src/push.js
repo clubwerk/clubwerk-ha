@@ -5,7 +5,7 @@
    - Der Vorstand legt fest, welche Anlässe es im Verein gibt (Einstellung push_events: { "<modul>.<id>": { on, lead } });
      nicht freigegebene Anlässe sieht kein Mitglied, und es wird dafür nichts gesendet.
    - Das Mitglied schaltet Push nur je Handy an oder aus (Browser-Abo) – es wählt NIE einzelne Anlässe. Welche Hinweise kommen,
-     entscheidet allein der Vorstand (Festlegung Thorsten; fester Test `pushwahl` prüft, dass es keine Auswahl je Anlass gibt).
+     entscheidet allein der Vorstand (Festlegung; fester Test `pushwahl` prüft, dass es keine Auswahl je Anlass gibt).
    - Versand: Module rufen ctx.push.send(memberIds, "<modul>.<id>", { title, body, url, tag }) – der Kern prüft Freigabe und Abos,
      verschickt verschlüsselt an den Push-Dienst des Handys (Apple/Google/Mozilla) und räumt erloschene Abos weg.
    - Es werden nur kurze Hinweise gesendet (Titel + ein Satz) – nichts, was in der App PIN-pflichtig ist. */

@@ -3,7 +3,7 @@
    Aufruf mit Art, Text und { key, member } – die Art steht im Katalog (Kern unten, Module über hooks.securityEvents)
    und bestimmt die Stufe:
      r = sofort: Push (Anlass app.sicherheit) und E-Mail an alle mit dem Recht „Sicherheitswarnungen“, höchstens 1× je Stunde
-         und Eintrag, höchstens 10 am Tag (danach ein letzter Hinweis) – auch nachts (Entscheidung Thorsten 03.11.2026)
+         und Eintrag, höchstens 10 am Tag (danach ein letzter Hinweis) – auch nachts (Entscheidung 03.11.2026)
      a = Tagesmail um 7 Uhr (nur an Tagen mit neuen Warnungen)
      i = nur Liste und Protokoll
    Gleiche Art + Schlüssel bündelt (Zähler, auch über Neustarts) in sec_alerts, bis jemand „Erledigt“ drückt.

@@ -104,7 +104,7 @@
       .mv-split .mdetail .mhead .muted { font-size: 13px; line-height: 18px; }
       .mv-split .mdetail .facts dd { overflow-wrap: anywhere; }
       .mv-split .mdetail .mv-khw { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); } .mv-khr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }   /* Hinweise in der Karte oben unter dem Kopf, nicht am Ende */
-      #mvTbl .mv-hw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }   /* Hinweise als Schild unter dem Namen – bei jeder Breite, mit und ohne Karte (in 2026.11.30 fehlten sie neben der Karte, Fund Thorsten 09.11.2026) */
+      #mvTbl .mv-hw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }   /* Hinweise als Schild unter dem Namen – bei jeder Breite, mit und ohne Karte (in 2026.11.30 fehlten sie neben der Karte, Fund 09.11.2026) */
       @media (min-width: 701px) and (max-width: 1279px) {   /* Tablet-Liste (im Tablet-Rahmen bis 1399 px, theme-init.js): Zeile 1 Name samt Hinweis-Schild und Status nebeneinander, Zeile 2 die Werte – jede Zeile gleich hoch */
         #mvTbl td.k-1z .who > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
         #mvTbl td.k-1z .mv-hw, #mvTbl td.k-1z .muted.s { margin-top: 0; }

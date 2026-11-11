@@ -1,7 +1,7 @@
 'use strict';
 /**
  * Anleitung „Mitglieder-App einrichten“ als PDF (2 Seiten A4), gebaut zur Laufzeit mit pdfkit – Aufbau nach der freigegebenen Vorlage
- * planung/app-anleitung/ (Thorsten 10.11.2026).
+ * planung/app-anleitung/ (10.11.2026).
  *  - Eingesetzt: Vereinsname, Vereinsfarbe und Logo, die echten Gültigkeiten (E-Mail/Brief, QR-Code), im WLAN-Tipp nur aktive Bereiche, die
  *    nur im Vereins-WLAN gehen (ohne solche entfällt der Tipp), Push-Tipp nur mit freigegebenen Benachrichtigungen, SMS-Schritt nur mit SMS-Bestätigung.
  *  - Beschriftungen in „…“ stehen wörtlich so in der App (app/index.html, app.js, install.js) bzw. in der Einladungs-Mail – Testreihe appanl prüft das.

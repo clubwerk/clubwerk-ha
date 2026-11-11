@@ -1,5 +1,5 @@
 'use strict';
-/* Geräte in Zugang und Beregnung absichern (Entscheidung Thorsten 01.11.2026, planung/sicherheit-review.md Abschnitt 4 Punkt 1):
+/* Geräte in Zugang und Beregnung absichern (Entscheidung 01.11.2026, planung/sicherheit-review.md Abschnitt 4 Punkt 1):
    - Wer einer Tür bzw. einem Ventil ein Home-Assistant-Gerät neu zuordnet (neue Tür/Zone oder anderes Gerät), bestätigt mit dem
      eigenen Passwort – in den Einstellungen und beim Funktionsimport.
    - Ohne „alle Rechte“ nur Geräte der gewählten Hersteller-Integration; „Gemischt / anderer Hersteller“ (freie Gerätewahl)

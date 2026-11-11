@@ -16,7 +16,7 @@
   body { font-size: 14px; line-height: 20px; }
   /* ---------- Rahmen: Seitenleiste + Inhalt ---------- */
   /* Seitenmenü: schwebende Glas-Leiste (Klasse .glass aus style.css), daneben der Inhalt */
-  @media (min-width: 901px) { html.tabrahmen nav.side .brandbox { display: none; } }   /* Verwaltung im Tablet-Rahmen: die Tablet-Kopfzeile zeigt den Verein schon – keine zweite Vereinskarte (Fehler Thorsten 11.11.2026); am Handy trägt die Karte den Menüknopf */
+  @media (min-width: 901px) { html.tabrahmen nav.side .brandbox { display: none; } }   /* Verwaltung im Tablet-Rahmen: die Tablet-Kopfzeile zeigt den Verein schon – keine zweite Vereinskarte (Fehler 11.11.2026); am Handy trägt die Karte den Menüknopf */
   @media (max-width: 900px) { html.tabrahmen nav.side .brandbox > .mark, html.tabrahmen nav.side .brandbox > div:not(.mark) { display: none; } html.tabrahmen nav.side .brandbox .menutoggle { margin-left: 0; } }   /* Hochformat und Handy im Tablet-Rahmen: nur der Menüknopf, ohne zweiten Vereinsnamen und Logo */
   .shell { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh; min-height: 100dvh; }
   nav.side { margin: 14px 0 14px 14px; border-radius: 22px; position: sticky; top: 14px; height: calc(100vh - 28px); height: calc(100dvh - 28px); display: flex; flex-direction: column; min-width: 0; overflow: hidden; box-sizing: border-box; }
@@ -179,8 +179,8 @@
   /* Detailansicht (GK.registerDetail): „← Zurück“ vorn in der einen Reiterzeile, gleich hoch wie die Reiter */
   .detailrow > .detback { padding: 0 14px; flex: none; }
   .mlayout { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
-  .mlist .scroll { margin: 0; max-height: none; overflow: visible; }   /* Liste ohne eigenen Scrollbereich: die Seite scrollt, das Mausrad wirkt überall (auch über der Karte und daneben), die Kopfzeile klebt oben (Fehler Thorsten 09.11.2026) */
-  .mlayout > .mlist { align-self: stretch; display: flex; flex-direction: column; }   /* Liste reicht bis zur Unterkante der Karte, auch bei wenigen Treffern – beide Rahmen enden bündig (Symmetrie, Fehler Thorsten 09.11.2026) */
+  .mlist .scroll { margin: 0; max-height: none; overflow: visible; }   /* Liste ohne eigenen Scrollbereich: die Seite scrollt, das Mausrad wirkt überall (auch über der Karte und daneben), die Kopfzeile klebt oben (Fehler 09.11.2026) */
+  .mlayout > .mlist { align-self: stretch; display: flex; flex-direction: column; }   /* Liste reicht bis zur Unterkante der Karte, auch bei wenigen Treffern – beide Rahmen enden bündig (Symmetrie, Fehler 09.11.2026) */
   .mlayout > .mlist > .scroll:has(> table:not(.hidden)), .mlayout > .mlist > p.empty { flex: 1 0 auto; }
   .mlayout > .mlist > .scroll:not(:has(> table:not(.hidden))) { display: none; }   /* keine Treffer: nur der Leerhinweis, kein leerer Rahmen darüber */
   .tbl.sel tr[data-sel] { cursor: pointer; }
@@ -191,7 +191,7 @@
   .tbl .who b { font-weight: 600; }
   .av { width: 32px; height: 32px; flex: 0 0 32px; border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; }
   .av.lg { width: 52px; height: 52px; flex-basis: 52px; border-radius: 26px; font-size: 17px; background: var(--brand); color: var(--on-brand); }
-  .mlayout > .mcol { align-self: stretch; margin: 0; padding: 0; overflow: visible; }   /* rechte Spalte als Rahmen über die ganze Höhe der Zeile: Liste und Karte enden immer bündig (Symmetrie, Fehler Thorsten 09.11.2026) */
+  .mlayout > .mcol { align-self: stretch; margin: 0; padding: 0; overflow: visible; }   /* rechte Spalte als Rahmen über die ganze Höhe der Zeile: Liste und Karte enden immer bündig (Symmetrie, Fehler 09.11.2026) */
   .mdetail { position: sticky; top: var(--mtop, 20px); margin: 0; padding: 20px; }   /* Inhalt der Karte klebt oben; höher als das Fenster scrollt er mit, bis sein Ende zu sehen ist (--mtop aus GK.klebend) – nie ein eigener Scrollbalken */
   .mdetail .mhead { display: flex; align-items: center; gap: 14px; padding-bottom: 16px; border-bottom: 1px solid var(--line-soft); }
   .mdetail .mhead h3 { margin: 0 0 6px; font-size: 16px; line-height: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -266,7 +266,7 @@
   .tbl tr.sum td { font-weight: 700; border-top: 2px solid var(--line); }
   .tbl input.n { width: 76px; text-align: right; }
   .tbl input.n[placeholder] { width: 104px; }   /* auch am Handy (16 px Schrift): Platzhalter wie „Gebinde“, „+ einzeln“ ganz sichtbar (02.11.2026) */
-  .scroll { overflow: clip; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }   /* kein eigener Scrollbereich auf der Seite: die Seite scrollt, das Mausrad wirkt überall, die Kopfzeile klebt (position: sticky) an der Seite – nur `clip`, damit der Rahmen rund bleibt (Fehler Thorsten 09./10.11.2026) */
+  .scroll { overflow: clip; border: 1px solid var(--line); border-radius: 14px; background: var(--card); }   /* kein eigener Scrollbereich auf der Seite: die Seite scrollt, das Mausrad wirkt überall, die Kopfzeile klebt (position: sticky) an der Seite – nur `clip`, damit der Rahmen rund bleibt (Fehler 09./10.11.2026) */
   #overlay .scroll, .vh-sheet .scroll { overflow: auto; max-height: 70vh; }   /* Fenster: ihre langen Vorschaulisten dürfen im Fenster scrollen – die Seite dahinter steht still */
   /* Marken */
   .pill { display: inline-flex; align-items: center; min-height: 24px; padding: 3px 10px; line-height: 18px; box-sizing: border-box; max-width: 100%; border-radius: 12px; font-size: 12px; font-weight: 700; background: var(--hover); color: var(--muted); }   /* lange Schilder (Namen, Hinweise) brechen in ihrem Kasten um statt hinauszuragen oder unter Knöpfe zu laufen (02.11.2026); einzeilig wie bisher 24 px */
@@ -280,7 +280,7 @@
   .drop .big { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
   .drop .row { justify-content: center; margin-top: 14px; }
   /* Dialoge */
-  /* Fenster weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (wie am Tablet seit 2026.11.25; Fehler Thorsten 11.11.2026,
+  /* Fenster weich ein- und ausblenden statt die ganze Seite schlagartig ab- und aufzudunkeln (wie am Tablet seit 2026.11.25; Fehler 11.11.2026,
      Video „Abteilung zuordnen › Abbrechen“). Ausblenden: admin.js lässt die Abdunklung kurz nachklingen – das Fenster selbst ist sofort zu. */
   @media (prefers-reduced-motion: no-preference) { .overlay:not(.hidden) { animation: cw-fenster-ein .16s ease-out; } .cw-abblenden.an { display: block; animation: cw-fenster-aus .16s ease-in forwards; } }
   @keyframes cw-fenster-ein { from { opacity: 0; } } @keyframes cw-fenster-aus { from { opacity: 1; } to { opacity: 0; } }
@@ -392,7 +392,7 @@
   .tabrow { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 4px 0 20px; } .tabrow > .tabs { margin: 0; }
   @media (min-width: 701px) { .tabrow.beside { flex-wrap: nowrap; } .tabrow.beside > .tabs { flex: 0 1 auto; min-width: 0; } }   /* Knöpfe neben den Reitern, solange beide Platz haben (admin.js: fitTools); sonst darunter – nie ein abgeschnittener Reiter */
   .tabtools { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: 8px; } .tabtools:empty { display: none; }
-  /* Knöpfe stehen unter den Reitern (nicht daneben, admin.js: fitTools setzt .stack): die Reiterleiste füllt die ganze Zeile und fluchtet rechts mit der Knopfreihe, die Reiter verteilen sich gleichmäßig (Fehler Thorsten 11.11.2026, Tablet) */
+  /* Knöpfe stehen unter den Reitern (nicht daneben, admin.js: fitTools setzt .stack): die Reiterleiste füllt die ganze Zeile und fluchtet rechts mit der Knopfreihe, die Reiter verteilen sich gleichmäßig (Fehler 11.11.2026, Tablet) */
   .tabrow.stack > .tabs { flex: 1 1 100%; } .tabrow.stack > .tabs > button { flex: 1 1 auto; justify-content: center; }
   /* Filterleiste: zwei oder mehr Auswahlfelder stehen als Gruppe (<div class="fb-sel">) zusammen – sie brechen nur gemeinsam um und teilen sich dann die Zeile zu gleichen Teilen, nie ein Feld allein */
   .filterbar .fb-gap { flex: 1 1 0; min-width: 0; }
@@ -766,7 +766,7 @@
     .tbl.kompakt:not(.k-tabelle) td.k-weg:not(:empty):not(.k-dash):not(.k-lbl):not(.k-zbl)::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }
     .tbl.kompakt:not(.k-tabelle) td.k-dash { display: none; }
     .tbl.kompakt:not(.k-tabelle) td.k-zbl::before { content: attr(data-label) ' '; display: inline; color: var(--muted); font-size: 12px; font-weight: 500; }   /* k-zbl: reine Zahl (auch Datum/Uhrzeit allein) ohne Einheit bekommt ihre Spaltenüberschrift (Gebinde 24, Mindestbestand 0) – von labelTables in admin.js gesetzt; nur in der Tablet-Liste: am Handy würden die Zeilen über die 96 px (B-7) wachsen */
-    .filterbar .search { max-width: none; }   /* Tablet: die Suche füllt den Rest der ersten Zeile – rechts fluchtet sie mit der Zeile der Auswahlfelder darunter (Fehler Thorsten 11.11.2026) */
+    .filterbar .search { max-width: none; }   /* Tablet: die Suche füllt den Rest der ersten Zeile – rechts fluchtet sie mit der Zeile der Auswahlfelder darunter (Fehler 11.11.2026) */
   }
 
   /* Druck: nur die Abtippliste */

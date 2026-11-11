@@ -334,7 +334,7 @@ function register(sh) {
     const reason = one((req.body || {}).reason, 120);
     if (reason.length < 3) return bad(res, 'Bitte kurz begründen.');
     // schon bezahlt (Kontoauszug, Lastschrift, bar, Überweisung, verrechnet): Das Geld ist beim Verein – es darf nicht still verschwinden
-    // (Entscheidung Thorsten 10.11.2026: immer fragen wie beim Kontoauszug)
+    // (Entscheidung 10.11.2026: immer fragen wie beim Kontoauszug)
     const refund = (req.body || {}).refund;
     const paidIn = c.status === 'bezahlt' && c.cents > 0;
     if (paidIn && !['guthaben', 'zurueck'].includes(refund))
@@ -399,7 +399,7 @@ function register(sh) {
       ready: Boolean(S('creditor_id') && store.account().iban), bicMissing: Boolean(store.account().iban && !store.account().bic),
       creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(store.account().iban), account: store.account().name } };
   }
-  /** Verwendungszweck (max. 140 Zeichen) nach der Vorlage aus Beiträge & Zahlungen › Einstellungen › Lastschrift (Wunsch Thorsten 11.11.2026):
+  /** Verwendungszweck (max. 140 Zeichen) nach der Vorlage aus Beiträge & Zahlungen › Einstellungen › Lastschrift (Wunsch 11.11.2026):
    *  {Jahr} {Posten} {Nr} {Name} {Verein}. Die Vorlage gilt, sobald ein Beitrag dabei ist; ohne Beitrag (z. B. Verkaufs-Einzug) „{Posten} · Mitgl.-Nr. {Nr}“.
    *  {Posten}: die Posten ohne Zeitraum und Namenszusatz, doppelte nur einmal; zu lang → nur das erste Wort je Posten, dann „n Posten“. */
   function remittance(x, day) {

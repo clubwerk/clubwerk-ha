@@ -1,5 +1,5 @@
 'use strict';
-/* Seitenleiste der Verwaltung anpassen (planung/seitenleiste-anpassen.md, Auftrag Thorsten 04.11.2026).
+/* Seitenleiste der Verwaltung anpassen (planung/seitenleiste-anpassen.md, Auftrag 04.11.2026).
    Gespeichert wird eine Einstellung für den ganzen Verein (club_nav):
      { names: { gastro: 'Vereinsheim' }, order: ['sport', 'gastro', …], lists: { gastro: ['lager', 'getraenke'], … } }
    - names: eigene Namen der sechs festen Bereiche (leer = Standardname)

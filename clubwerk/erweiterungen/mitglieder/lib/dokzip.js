@@ -1,6 +1,6 @@
 'use strict';
 /**
- * Dokumente als ZIP (planung/dokumente-zip.md, Entscheidungen Thorsten 11.11.2026)
+ * Dokumente als ZIP (planung/dokumente-zip.md, Entscheidungen 11.11.2026)
  *  - Je Mitglied: GET member/:id/documents.zip – Recht „Dokumente“, Protokolleintrag.
  *  - Gesammelt (alle bzw. die in der Liste gefilterten Mitglieder): POST documents/zip mit dry (Vorschau) bzw. eigenem Passwort
  *    → Einmal-Ticket (2 Minuten, nur für diesen Benutzer) → GET documents.zip?t=… lädt herunter. Protokolleintrag mit Anzahl

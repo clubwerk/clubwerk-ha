@@ -540,7 +540,7 @@ function activate(ctx) {
     { id: 'licht', label: 'Flutlicht ließ sich nicht schalten', level: 'a', push: 'Das Flutlicht ließ sich nicht schalten.' },
   ];
   // GoBD: Änderungsjournal nur für Einträge mit Lichtgeld (Beleg, 10 Jahre). Licht ohne Lichtgeld ist kein Beleg – kommt nicht ins Journal,
-  // damit die Löschfrist die Namen wirklich entfernt (Entscheidung Thorsten 10.11.2026: Aufbewahrung geht vor, nur wo Geld dran hängt)
+  // damit die Löschfrist die Namen wirklich entfernt (Entscheidung 10.11.2026: Aufbewahrung geht vor, nur wo Geld dran hängt)
   ctx.hooks.gobdTables = () => [{ table: 'fl_claim', date: 'created_at', onlyIf: 'fee_cents' }];
   ctx.hooks.gobdKeys = () => [{ key: 'fl.lichtgeld', label: 'Lichtgeld (Flutlicht)', sphere: 'zweck', prefix: 'fl-' }];
   ctx.hooks.historyTables = () => ['fl_claim'];   // Lichtgeld und Betriebsstunden bleiben beim Löschen eines Kontos lesbar

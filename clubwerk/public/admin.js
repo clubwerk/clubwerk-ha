@@ -306,7 +306,7 @@
         }
         i += td.colSpan || 1; }); });
       /* Spalten ohne einen einzigen Wert (jede Zelle leer, kein Knopf, Feld oder Schild) fallen samt Kopf weg – sonst bleibt eine leere Spalte mit Lücke
-         (Fehler Thorsten 11.11.2026: „Abteilungen“ ohne Inhalt). Nur Tabellen, deren Zeilen alle so viele Zellen haben wie der Kopf. */
+         (Fehler 11.11.2026: „Abteilungen“ ohne Inhalt). Nur Tabellen, deren Zeilen alle so viele Zellen haben wie der Kopf. */
       const rows = [...t.querySelectorAll('tr')].filter(tr => tr !== head), n = head.children.length;
       if (rows.length && rows.every(tr => tr.children.length === n && !tr.querySelector('[colspan]')) && !t.classList.contains('k-alle-spalten')) {
         const inhalt = ['img', 'svg', 'input', 'select', 'textarea', 'button', 'a', '.pill', '.av'].join(',');
@@ -450,7 +450,7 @@
      steht für alle zugänglich. Direkt aufgerufen (admin.html, Seitenleiste von Home Assistant) bleibt man angemeldet; die Abmeldung
      am Tablet beendet nur die Tablet-Sitzung. */
   const onTablet = /\/tadmin\//.test(location.pathname);
-  /* 10 s vorher erscheint ein Hinweis mit Countdown und „Angemeldet bleiben“ (WCAG 2.2.1, Entscheidung Thorsten 11.11.2026; CWZeit in
+  /* 10 s vorher erscheint ein Hinweis mit Countdown und „Angemeldet bleiben“ (WCAG 2.2.1, Entscheidung 11.11.2026; CWZeit in
      theme-init.js). Der Knopf und jede andere Eingabe geben wieder 60 s; der Knopf fragt dabei den Server, damit dessen Sitzung mitläuft. */
   const IDLE_MS = 60000, WARN_MS = 10000;
   if (onTablet) {
@@ -521,7 +521,7 @@
      Einzelseiten geben ihre Position über registerPage({ order }) an, sonst 50 (Reihenfolge der Registrierung) */
   const MODG = { getraenke: { label: 'Verkauf', icon: 'verkauf', order: 1 }, lager: { label: 'Lager', icon: 'lager', order: 1.5 },
     system: { label: 'System', icon: 'sicherung', order: 90 } };   // System: Datensicherung · Protokoll · Einrichtung als Reiter (Seiten ohne eigene Reiter)
-  /* Bereiche der Seitenleiste nach Aufgaben (Entscheidung Thorsten 03.11.2026, planung/seitenleiste.md), je Bereich die Menüeinträge in fester Reihenfolge.
+  /* Bereiche der Seitenleiste nach Aufgaben (Entscheidung 03.11.2026, planung/seitenleiste.md), je Bereich die Menüeinträge in fester Reihenfolge.
      Eintrag = Gruppe (getraenke, g-buchung …) oder Einzelseite. Andere Module nennen ihren Bereich mit registerPage({ bereich }), sonst „Verein“.
      Bis 9 Einträge zeigt die Leiste alles flach mit Bereichsüberschriften, darüber sind die Bereiche aufklappbar. */
   const BEREICHE = [
@@ -676,7 +676,7 @@
     go(page);
   }
 
-  /* Aufklappbare Bereiche: was offen ist, merkt sich das Gerät (mehrere gleichzeitig, Entscheidung Thorsten 03.11.2026) */
+  /* Aufklappbare Bereiche: was offen ist, merkt sich das Gerät (mehrere gleichzeitig, Entscheidung 03.11.2026) */
   function navOpen() { try { const v = JSON.parse(localStorage.getItem('cw_nav_offen') || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
   function navToggle(box, on = !box.classList.contains('open')) {
     box.classList.toggle('open', on); box.querySelector('.navb').setAttribute('aria-expanded', String(on));

@@ -31,7 +31,7 @@ function register(sh) {
       const a = fees.ageAt(p.birth_date, day);
       if (a == null) { noBirth++; if (noBirthNames.length < 10) noBirthNames.push({ id: p.id, name: p.name }); continue; }
       const gi = LSB_GROUPS.findIndex(g => a >= g[0] && a <= g[1]);
-      const g = p.gender === 'm' || p.gender === 'w' ? p.gender : 'x';   // nur männlich/weiblich (Entscheidung Thorsten 11.11.2026), alles andere „ohne Angabe“
+      const g = p.gender === 'm' || p.gender === 'w' ? p.gender : 'x';   // nur männlich/weiblich (Entscheidung 11.11.2026), alles andere „ohne Angabe“
       total[gi][g]++;
       for (const r of deptRows.get(p.id) || []) if (per.has(r.department_id)) per.get(r.department_id)[gi][g]++;
     }
