@@ -74,6 +74,11 @@
       .mv-sig { max-width: 220px; max-height: 70px; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
       .mv-diff td:nth-child(2) { color: var(--muted); text-decoration: line-through; }
       .mv-lsb { table-layout: fixed; } .mv-lsb th, .mv-lsb td { text-align: right; font-variant-numeric: tabular-nums; } .mv-lsb th:first-child, .mv-lsb td:first-child { text-align: left; width: 22%; }   /* Zahlenspalten gleich breit */
+      .mv-dochead { justify-content: space-between; align-items: center; margin: -8px 0 4px; }   /* Überschrift fluchtet mit Karten ohne Knopf (Knopf ragt 8 px über) */ .mv-dochead h3 { margin: 0; flex: 1 1 120px; min-width: 0; }   /* Ablage: Überschrift links, ZIP-Knopf rechts */
+      .mv-zipsum { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 4px 0 8px; }
+      .mv-zipsum > div { display: flex; flex-direction: column; justify-content: space-between; gap: 2px; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--field); }
+      .mv-zipsum b { font-size: 18px; font-variant-numeric: tabular-nums; }
+      @media (max-width: 560px) { .mv-zipsum { grid-template-columns: 1fr 1fr; } }
       .mv-cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px 16px; margin: 4px 0 12px; }
       .tbl td.nw, .tbl th.nw { white-space: nowrap; }
       .mv-sub { margin: 14px 0 6px; font-size: 13px; font-weight: 600; color: var(--muted, #667); text-transform: uppercase; letter-spacing: .04em; }
@@ -191,7 +196,7 @@
     const m = st.meta;
     const cur = st.rows.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym');
     // Knöpfe rechts in der Reiterzeile (Beitrittserklärungen am Tablet: Reiter „Anträge“)
-    const tools = `${SC() ? '' : '<button class="btn" id="mvImp">Import …</button><button class="btn" id="mvXls">Excel</button>'}<button class="btn primary" id="mvNew">+ Neues Mitglied</button>`;
+    const tools = `${SC() ? '' : '<button class="btn" id="mvImp">Import …</button><button class="btn" id="mvXls">Excel</button>'}${m.perms.docs ? '<button class="btn" id="mvZip">Dokumente (ZIP) …</button>' : ''}<button class="btn primary" id="mvNew">+ Neues Mitglied</button>`;
     // Pflichtangaben (Mitgliedsdaten, Beitrag, Zahlungsdaten): wer sie nicht hat, fehlt im Beitragslauf – deutlich melden
     const PFLICHT = /^(ohne Mitgliedsdaten|kein Beitrag|Zahlart nicht Lastschrift|keine Bankverbindung|IBAN ungültig|kein SEPA-Mandat|Mandat widerrufen|Mandat verfallen)/;
     const lack = cur.filter(r => r.status !== 'ausgetreten' && r.status !== 'anonym' && r.issues.some(i => typeof i === 'string' && PFLICHT.test(i)));
@@ -231,6 +236,7 @@
         && (!st.f.dept || r.dept_ids.includes(+st.f.dept)) && (!st.f.fee || r.fee_ids.includes(+st.f.fee));
       Object.keys(F).forEach(k => { const c = el.querySelector(`[data-cnt="${k}"]`); if (c) c.textContent = st.rows.filter(r => F[k](r) && match(r)).length; });
       const rows = sk.sort(st.rows.filter(r => F[st.f.status](r) && match(r)));
+      st.shown = rows.map(r => r.id);   // „Dokumente (ZIP)“ exportiert genau die angezeigten Mitglieder
       if (st.sel && !rows.some(r => r.id === st.sel)) { st.sel = null; showCard(null); }   // Karte zeigt nie ein Mitglied, das nach Suche oder Filter nicht in der Liste steht
       $('mvTbl').innerHTML = rows.length ? `<tr>${sk.th('name', 'Name')}${sk.th('no', 'Nr.', 'style="width:90px"')}${sk.th('age', 'Alter', 'class="r" style="width:70px"')}<th>Abteilungen</th><th>Beitrag</th><th>Zahlung</th></tr>`
         + rows.map(r => `<tr data-sel="${r.id}" data-row tabindex="0" class="${r.status === 'ausgetreten' || r.status === 'anonym' ? 'off' : ''}${st.sel === r.id ? ' on' : ''}">
@@ -264,6 +270,7 @@
     $('mvNew').onclick = () => newMember();
     if ($('mvImp')) $('mvImp').onclick = () => importDialog();
     if ($('mvXls')) $('mvXls').onclick = () => exportDialog();
+    if ($('mvZip')) $('mvZip').onclick = () => GK.busy($('mvZip'), () => zipDialog());
   }
 
   /* Karte rechts neben der Liste (ab 1500 px – darunter passen die Spalten neben der Karte nicht einzeilig): das Wichtigste zum gewählten Mitglied, „Öffnen“ und die Reiter führen in die Detailansicht */
@@ -911,10 +918,13 @@
         <label class="f" style="flex:1;min-width:220px">Bezeichnung (optional)<input id="dTitle" placeholder="${fh ? 'z. B. Schülerausweis 2026' : 'z. B. Beitrittserklärung 2019'}"></label>
         <button class="btn primary" id="dUp">Datei wählen & hochladen</button></div>
         <p class="muted s" style="margin-bottom:0">PDF, Foto (JPG, PNG, HEIC), Word oder Text, bis 15 MB. Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten.</p></div>
-      <div class="card"><h3>Ablage</h3>${d.documents.length ? `<table class="tbl kompakt"><tr><th>Dokument</th><th>Art</th><th>Datum</th><th>von</th><th class="r">Größe</th><th></th></tr>
+      <div class="card">${d.documents.length ? `<div class="row mv-dochead"><h3>Ablage</h3><button class="btn" id="dZip" type="button">Alle Dokumente als ZIP</button></div>` : '<h3>Ablage</h3>'}${d.documents.length ? `<table class="tbl kompakt"><tr><th>Dokument</th><th>Art</th><th>Datum</th><th>von</th><th class="r">Größe</th><th></th></tr>
         ${d.documents.map(x => `<tr><td class="k-datei" title="${esc(x.title)}"><b>${esc(x.title)}</b></td><td>${esc(x.source ? 'Schlüssel' : (DOCK[x.kind] || x.kind))}</td><td class="num nw">${deTime(x.created_at)}</td><td class="k-weg">${esc(x.by_user || '')}</td><td class="r k-weg">${x.source ? '' : Math.max(1, Math.round(x.size / 1024)) + ' KB'}</td>
           <td class="r nw">${x.source ? `<a class="btn small" href="${esc(x.href)}" target="_blank" rel="noopener">Öffnen</a>` : `<button class="btn small" data-dx="${x.id}">Öffnen …</button>`}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Dokumente.</p>'}</div>`;
     { const a = el.querySelector('[data-fhopen]'); if (a) a.onclick = e => { e.preventDefault(); openMember(+a.dataset.fhopen); }; }
+    if ($('dZip')) $('dZip').onclick = () => GK.busy($('dZip'), async () => {
+      try { await api(`member/${id}/documents.zip?pruefen=1`); location.href = `${BASE}member/${id}/documents.zip`; } catch (e) { fail(e); }
+    });
     $('dUp').onclick = async () => {
       const btn = $('dUp'), label = btn.textContent;
       const f = await pickFile('.pdf,.jpg,.jpeg,.png,.webp,.heic,.docx,.txt,application/pdf,image/*'); if (!f) return;
@@ -1197,6 +1207,35 @@
         else { const r = await run(true); closeDialog(); await ask(`Import abgeschlossen.\n\n${r.created} neu angelegt, ${r.updated} ergänzt, ${r.depts} Abteilungen und ${r.fees} Beitragsarten neu, ${r.payers} Zahler verknüpft, ${r.families || 0} Familienmitgliedschaften.`, { okOnly: true, danger: false }); reloadTab(); return; }
       } catch (e) { fail(e); }
       $('iOk').disabled = false;
+    });
+  }
+
+  /** Dokumente der angezeigten Mitglieder als ZIP: Vorschau, Hinweis auf Protokoll und Sicherheitswarnung, eigenes Passwort → Einmal-Link (lib/dokzip.js) */
+  async function zipDialog() {
+    const body = { ids: st.shown || [], filter: { status: st.f.status, dept: st.f.dept, fee: st.f.fee, q: st.f.q } };
+    if (!body.ids.length) return toast('Keine Mitglieder in der Liste.');
+    let pv; try { pv = await api('documents/zip', 'POST', { ...body, dry: true }); } catch (e) { return fail(e); }
+    const mb = b => (b < 1024 * 1024 ? `${Math.max(1, Math.round(b / 1024))} KB` : `${(b / 1024 / 1024).toLocaleString(GK.locale ? GK.locale() : 'de-DE', { maximumFractionDigits: 1 })} MB`);
+    const big = pv.bytes > pv.max;
+    dialog(`<h2>Dokumente als ZIP</h2>
+      <p class="muted" style="margin-top:0">Alle Dokumente der Mitglieder, die gerade in der Liste stehen: ein Ordner je Mitglied („Nachname, Vorname“), dazu eine Übersicht als Excel.</p>
+      <div class="mv-zipsum"><div><span class="muted s">Mitglieder</span><b>${pv.members}</b></div><div><span class="muted s">mit Dokumenten</span><b>${pv.withDocs}</b></div><div><span class="muted s">Dokumente</span><b>${pv.docs}</b></div><div><span class="muted s">Größe etwa</span><b>${pv.docs ? mb(pv.bytes) : '–'}</b></div></div>
+      <p class="muted s">Auswahl: <span translate="no">${esc(pv.filter)}</span></p>
+      ${!pv.docs ? '<p class="empty">Bei diesen Mitgliedern gibt es keine Dokumente.</p>'
+        : big ? '<div class="banner r"><span>Das wären mehr als 2 GB – bitte die Liste eingrenzen (z. B. nach Abteilung) und in mehreren Teilen exportieren.</span></div>'
+        : `<div class="banner a"><span>Die Dateien enthalten persönliche Daten. Der Export wird protokolliert, und der Vorstand bekommt eine Sicherheitswarnung.</span></div>
+      <label class="f">Dein Passwort<input id="zPw" type="password" autocomplete="current-password"></label>`}
+      <div class="btns"><button class="btn ghost" id="c">${pv.docs && !big ? 'Abbrechen' : 'Schließen'}</button>${pv.docs && !big ? '<button class="btn primary" id="zOk" disabled>Herunterladen</button>' : ''}</div>`);
+    $('c').onclick = closeDialog;
+    if (!$('zOk')) return;
+    $('zPw').oninput = () => { $('zOk').disabled = !$('zPw').value; };
+    $('zPw').onkeydown = e => { if (e.key === 'Enter' && $('zPw').value) $('zOk').click(); };
+    $('zPw').focus();
+    $('zOk').onclick = () => GK.busy($('zOk'), async () => {
+      try {
+        const r = await api('documents/zip', 'POST', { ...body, myPassword: $('zPw').value });
+        closeDialog(); location.href = r.url; toast(`Download startet: ${r.docs} ${r.docs === 1 ? 'Dokument' : 'Dokumente'}.`);
+      } catch (e) { $('zPw').value = ''; $('zOk').disabled = true; fail(e); }
     });
   }
 
@@ -2364,6 +2403,7 @@
     { label: 'Neues Mitglied anlegen', page: 'mitglieder', btn: '+ Neues Mitglied', kind: 'aktion', words: 'Mitglied aufnehmen Neuaufnahme' },
     { label: 'Mitglieder importieren', page: 'mitglieder', btn: 'Import', perm: '!mitglieder', kind: 'aktion', words: 'Import S-Verein WISO verein.cloud CSV Excel übernehmen' },
     { label: 'Mitgliederliste als Excel', page: 'mitglieder', btn: 'Excel', perm: '!mitglieder', kind: 'aktion', words: 'Export Liste Excel' },
+    { label: 'Dokumente aller Mitglieder als ZIP', page: 'mitglieder', btn: 'Dokumente (ZIP)', perm: 'mitglieder_dokumente', kind: 'aktion', words: 'Export Dokumente ZIP herunterladen Beitrittserklärung Mandat Ablage' },
     { label: 'Mitglieder mit Hinweis (fehlende Angaben)', page: 'mitglieder', seg: 'Mit Hinweis', words: 'Pflichtangaben fehlen Hinweis IBAN Mandat Beitrag' },
     { label: 'Ausgetretene Mitglieder', page: 'mitglieder', seg: 'Ausgetreten', words: 'Austritt ehemalige Kündigung' },
     { label: 'Beitrittserklärung erfassen', page: 'mv-antraege', btn: '+ Beitrittserklärung', kind: 'aktion', words: 'Antrag Aufnahme Beitritt' },

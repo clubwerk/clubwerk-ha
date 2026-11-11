@@ -235,9 +235,11 @@ function docType(buf, name) {
   return null;
 }
 /** Protokolle anderer Module (z. B. Schlüsselübergabe) erscheinen im Reiter „Dokumente“, ohne Kopie – geöffnet wird über das Recht des anderen Moduls */
-function otherDocuments(id, perms) {
+/*  withRead: mit read() (Inhalt als Buffer) für den ZIP-Export (lib/dokzip.js) – nie in einer Antwort an die Oberfläche */
+function otherDocuments(id, perms, withRead = false) {
   return (C.callHooksSync('memberDocuments', id).map(x => x.result).flat().filter(x => x && x.source === 'schluessel' && perms.includes('schluessel')))
-    .map(x => ({ id: `${x.source}-${x.id}`, source: x.source, kind: 'extern', title: String(x.title).slice(0, 120), mime: 'application/pdf', size: 0, created_at: x.created_at, by_user: 'Schlüssel', href: x.href }));
+    .map(x => ({ id: `${x.source}-${x.id}`, source: x.source, kind: 'extern', title: String(x.title).slice(0, 120), mime: 'application/pdf', size: 0, created_at: x.created_at, by_user: 'Schlüssel', href: x.href,
+      ...(withRead && typeof x.read === 'function' ? { read: x.read, origin: 'Schlüssel', kind_label: 'Schlüsselprotokoll', ext: 'pdf' } : {}) }));
 }
 function saveDocument(memberId, buf, { kind = 'sonstiges', title, filename, user, applicationId = null } = {}) {
   if (!buf || !buf.length) throw new Error('Keine Datei empfangen.');
@@ -250,6 +252,25 @@ function saveDocument(memberId, buf, { kind = 'sonstiges', title, filename, user
   const id = Number(C.db.prepare('INSERT INTO mv_document(member_id, application_id, kind, title, file, mime, size, sha256, by_user) VALUES (?,?,?,?,?,?,?,?,?)')
     .run(memberId || null, applicationId, DOC_KIND[kind] ? kind : 'sonstiges', one(title || filename || DOC_KIND[kind] || 'Dokument', 120), file, t.mime, buf.length, store.sha256(buf), user || null).lastInsertRowid);
   return id;
+}
+/** Demo: Die Beispieldaten (demo/demo.sql) haben nur die Dokument-Zeilen – fehlende Dateien „demo_<n>.pdf“ als kleines Beispiel-PDF anlegen */
+async function demoDocuments() {
+  if (!C.getSetting('demo_build', '')) return;
+  const vault = C.require('./vault'); if (vault.locked()) return;
+  const PDF = C.require('pdfkit');
+  for (const d of C.db.prepare("SELECT d.id, d.title, d.file, d.kind, d.created_at, m.name FROM mv_document d JOIN members m ON m.id = d.member_id WHERE d.file LIKE 'demo!_%' ESCAPE '!'").all()) {
+    const f = path.join(DOC_DIR, path.basename(d.file));
+    if (fs.existsSync(f)) continue;
+    const doc = new PDF({ size: 'A4', margin: 56, info: { Title: d.title } }), parts = [];
+    doc.on('data', b => parts.push(b));
+    const done = new Promise(r => doc.on('end', r));
+    doc.fontSize(18).text(d.title).moveDown().fontSize(11).text(`${DOC_KIND[d.kind] || d.kind} · ${d.name} · ${String(d.created_at).slice(0, 10).split('-').reverse().join('.')}`).moveDown().text('Beispieldokument der Demo – erfundene Daten.');
+    doc.end(); await done;
+    const buf = Buffer.concat(parts);
+    fs.mkdirSync(DOC_DIR, { recursive: true, mode: 0o700 });
+    vault.writeFile(f, buf);
+    C.db.prepare('UPDATE mv_document SET size = ?, sha256 = ? WHERE id = ?').run(buf.length, store.sha256(buf), d.id);
+  }
 }
 function deleteDocumentFile(doc) { try { fs.unlinkSync(path.join(DOC_DIR, path.basename(doc.file))); } catch (e) { /* schon weg */ } }
 
@@ -335,6 +356,8 @@ function activate(ctx) {
   C = ctx;
   store.init({ db: ctx.db, getSetting: ctx.getSetting, setSetting: ctx.setSetting });
   DOC_DIR = path.join(ctx.require('./db').DATA_DIR, 'mitglieder-dokumente');
+  const demoDocs = () => demoDocuments().catch(e => console.error('Demo-Dokumente:', e.message));
+  demoDocs(); ctx.require('./vault').onUnlock(demoDocs);
   ctx.require('./vault').onUnlock(() => { if (ageScanFn && ctx.isActive()) ageScanFn(); });   // nach dem Entsperren nachholen
   try { store.fillNames(); } catch (e) { /* Tabellen entstehen beim ersten Start */ }
   const { need, bad, int } = ctx;
@@ -362,12 +385,13 @@ function activate(ctx) {
   }
   /** Hinweise, die ein Abteilungsadmin selbst erledigen kann (Beiträge, Bank und Mandat macht die Vereinsverwaltung) */
   const scopedIssues = list => (list || []).filter(i => !/Mandat|Bankverbindung|IBAN|Beitrag|Altersstufe/.test(i));
-  const SCOPED = [   // [Methode, Pfad, Prüfung]  Prüfung: m = Mitglied :id, md = Abteilungszugehörigkeit, h/f = Ehrung/Amt, a = Antrag, ch = Änderungswunsch, - = keine
+  const SCOPED = [   // [Methode, Pfad, Prüfung]  Prüfung: m = Mitglied :id, doc = Dokument eines Mitglieds, md = Abteilungszugehörigkeit, h/f = Ehrung/Amt, a = Antrag, ch = Änderungswunsch, - = keine
     ['GET', /^\/meta$/, '-'], ['GET', /^\/list$/, '-'], ['GET', /^\/iban-check$/, '-'], ['GET', /^\/applications$/, '-'], ['GET', /^\/applications\/config$/, '-'], ['GET', /^\/changes$/, '-'],
     ['POST', /^\/member$/, 'new'], ['POST', /^\/member\/new-document$/, '-'], ['GET', /^\/member\/(\d+)$/, 'm'], ['PUT', /^\/member\/(\d+)$/, 'm'],
     ['POST', /^\/member\/(\d+)\/(departments|honors|functions|exit|reenter|exit-document)$/, 'm'],
     ['PUT', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/honors\/(\d+)$/, 'h'], ['DELETE', /^\/functions\/(\d+)$/, 'f'],
     ['GET', /^\/applications\/(\d+)$/, 'a'], ['POST', /^\/applications\/(\d+)\/(accept|reject|code)$/, 'a'], ['PUT', /^\/applications\/(\d+)$/, 'a'], ['GET', /^\/applications\/(\d+)\/pdf$/, 'a'], ['POST', /^\/applications$/, 'newapp'],
+    ['GET', /^\/documents\/(\d+)$/, 'doc'], ['GET', /^\/member\/(\d+)\/documents\.zip$/, 'm'], ['POST', /^\/documents\/zip$/, '-'], ['GET', /^\/documents\.zip$/, '-'],   // Dokumente als ZIP: nur Mitglieder der eigenen Abteilung(en) (lib/dokzip.js)
     ['GET', /^\/changes\/(\d+)\/signature$/, 'ch'], ['POST', /^\/changes\/(\d+)\/(accept|reject)$/, 'ch'],
   ];
   admin.use((req, res, next) => {
@@ -385,6 +409,7 @@ function activate(ctx) {
     let ok = true;
     if (hit[2] === 'm') ok = inScope(id, depts) && (!/departments$/.test(path) || depts.includes(Number(b.department_id)));
     else if (hit[2] === 'md') { const r = row('SELECT * FROM mv_member_department WHERE id = ?', id); ok = Boolean(r && depts.includes(r.department_id)) && (req.method !== 'PUT' || (b.fee_id === undefined && b.fee_free === undefined && b.booked_until === undefined)); }
+    else if (hit[2] === 'doc') { const r = row('SELECT member_id FROM mv_document WHERE id = ?', id); ok = Boolean(r && r.member_id && inScope(r.member_id, depts)); }
     else if (hit[2] === 'h' || hit[2] === 'f') { const r = row(`SELECT member_id FROM ${hit[2] === 'h' ? 'mv_honor' : 'mv_function'} WHERE id = ?`, id); ok = Boolean(r && inScope(r.member_id, depts)); }
     else if (hit[2] === 'a') { const a = row('SELECT * FROM mv_application WHERE id = ?', id); ok = Boolean(a && appInScope(a, depts)); }
     else if (hit[2] === 'ch') {
@@ -1177,6 +1202,8 @@ function activate(ctx) {
 
   /* ---------- weitere Teile ---------- */
   shared = { auskunft, C: ctx, store, sepa, fees, personRow, bankRow, mandateState, listRows, createPerson, savePerson, saveDocument, deleteDocumentFile, consentList, settingsView, txt, one, mailOk, euro, deD, uname, ar, exitMember, zusatzFor, inScope, reenterMember };
+  Object.assign(shared, { DOC_KIND, docDir: () => DOC_DIR, otherDocuments });
+  require('./lib/dokzip').register(shared);   // Dokumente als ZIP (je Mitglied und gesammelt)
   require('./lib/money').register(shared);
   require('./lib/abgerechnet').register(shared);   // „Abgerechnet bis“ für alle setzen (braucht runPreview aus money)
   require('./lib/mahnung').register(shared);

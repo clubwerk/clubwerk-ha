@@ -1,9 +1,10 @@
 'use strict';
 /* Anbindung an den Kern und andere Module: Hooks (Tablet-Reiter, Verknüpfungen, Datenschutz, Übersicht, Suche, Sicherheitswarnungen, Funktionsexport). */
+const path = require('path');
 const konfigio = require('../../../src/konfigio');
 
 function register(sh) {
-  const { ctx, db, S, SET, cfg, one, txt, fail, euro, personName, itemsOf, pieceText, dropFile, issueView, openItems, KINDS, deD, today, int } = sh;
+  const { ctx, db, S, SET, cfg, one, txt, fail, euro, personName, itemsOf, pieceText, dropFile, fileOk, vault, DIR, issueView, openItems, KINDS, deD, today, int } = sh;
   const H = ctx.hooks;
 
   /* Tablet: der Reiter „Schlüssel“ erscheint nur, solange eine Übergabe mit Code auf die Unterschrift wartet */
@@ -14,8 +15,10 @@ function register(sh) {
     .flatMap(i => itemsOf(i.id).filter(x => x.state === 'ausgegeben' || x.state === 'reserviert').map(x => pieceText(x)));
   H.memberLinks = id => heldBy(id).map(t => `Hat Schlüssel: ${t}`);
   H.exitNotes = id => { const l = heldBy(id); return l.length ? [`Hat noch ${l.length === 1 ? 'den Schlüssel' : 'die Schlüssel'} ${l.join(', ')} – bitte zurückfordern (Anlage › Schlüssel).`] : []; };
-  H.memberDocuments = id => db.prepare(`SELECT p.id, p.no, p.kind, p.at FROM sl_protocol p JOIN sl_issue i ON i.id = p.issue_id WHERE i.member_id = ? AND p.file IS NOT NULL ORDER BY p.id DESC`).all(id)
-    .map(p => ({ source: 'schluessel', id: p.id, title: `${{ ausgabe: 'Schlüsselübergabe', rueckgabe: 'Schlüsselrückgabe', verlust: 'Verlustanzeige', storno: 'Stornierung' }[p.kind]} ${p.no}`, created_at: p.at, href: `api/admin/x/schluessel/protocols/${p.id}/pdf` }));
+  //  read(): Inhalt des Protokoll-PDFs (Tresor entschlüsselt) – für „Dokumente als ZIP“ im Modul Mitglieder, das dafür das Recht „Schlüssel“ prüft
+  H.memberDocuments = id => db.prepare(`SELECT p.id, p.no, p.kind, p.at, p.file FROM sl_protocol p JOIN sl_issue i ON i.id = p.issue_id WHERE i.member_id = ? AND p.file IS NOT NULL ORDER BY p.id DESC`).all(id)
+    .map(p => ({ source: 'schluessel', id: p.id, title: `${{ ausgabe: 'Schlüsselübergabe', rueckgabe: 'Schlüsselrückgabe', verlust: 'Verlustanzeige', storno: 'Stornierung' }[p.kind]} ${p.no}`, created_at: p.at, href: `api/admin/x/schluessel/protocols/${p.id}/pdf`,
+      read: () => { if (!fileOk(p.file)) throw new Error('Die Datei fehlt.'); return vault.readFile(path.join(DIR, p.file)); } }));
   H.memberRemoved = (fromId, intoId) => { db.prepare('UPDATE sl_issue SET member_id = ? WHERE member_id = ?').run(intoId || null, fromId); };
 
   /* Datenschutz: Löschfristen (laufende Ausgaben nie), Auskunft, Verzeichnis */

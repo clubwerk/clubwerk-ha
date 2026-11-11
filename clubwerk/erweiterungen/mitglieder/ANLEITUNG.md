@@ -90,6 +90,17 @@ Die Vorschau hat vier Prüfkarten:
 
 Lädt die Liste als Excel-Datei herunter, mit den Spalten, die ihr ankreuzt. Es gilt der Filter der Liste (z. B. nur eine Abteilung).
 
+#### Dokumente (ZIP) …
+
+![Das Fenster „Dokumente als ZIP“ mit Anzahl, Größe und Passwortfeld.](bild: seite=mitglieder; klick=#mvZip; ziel=dialog)
+
+Lädt alle Dokumente der Mitglieder, die **gerade in der Liste stehen**, als eine ZIP-Datei herunter – also alle oder nur die gefilterten (Suche, Abteilung, Beitrag, „Ausgetreten“ …). Im ZIP gibt es einen Ordner je Mitglied („Nachname, Vorname“; bei gleichen Namen mit Mitgliedsnummer) und die Datei „Übersicht.xlsx“ mit Mitglied, Nummer, Dokument, Art, Datum, Größe und Herkunft. Enthalten ist alles, was am Mitglied unter „Dokumente“ steht, auch Schlüsselprotokolle (nur mit dem Recht „Schlüssel“).
+
+- Das Fenster zeigt vorher, wie viele Mitglieder und Dokumente es sind und wie groß das ZIP etwa wird.
+- Zum Herunterladen gebt ihr **euer eigenes Passwort** ein. Der Export steht im Protokoll (Anzahl und Auswahl, keine Inhalte), und alle mit dem Recht „Sicherheitswarnungen“ bekommen sofort eine Warnung.
+- Höchstens 10 solche Exporte je Stunde und Benutzer, höchstens 2 GB je ZIP – sonst die Liste eingrenzen und in Teilen exportieren.
+- Wer nur eine Abteilung betreut, bekommt nur die Mitglieder seiner Abteilung(en).
+
 ### Mitglied öffnen {#mitglied}
 
 Auf einem breiten Bildschirm (ab 1500 Pixel, etwa ein großer Monitor) steht rechts neben der Liste eine Karte: Ein Klick auf einen Namen zeigt dort das Wichtigste – Geburtsdatum, Eintritt, Abteilungen, Beitrag, Zahlung, „Abgerechnet bis“, offene Posten, Kontakt und Hinweise. **Öffnen** (oder ein Doppelklick auf den Namen) öffnet das Mitglied, die Knöpfe darunter springen gleich in den passenden Reiter. Die Spalten „Zahlung“ und „Hinweise“ der Liste entfallen dann, beides steht in der Karte. Auf schmaleren Bildschirmen, am Tablet und am Handy öffnet ein Klick das Mitglied direkt.
@@ -225,7 +236,7 @@ Bei Familienmitgliedern und Mitgliedern mit abweichendem Zahler ist der Reiter g
 
 ![Der Reiter „Dokumente“: Dokument ablegen und die Ablage.](bild: seite=mitglieder/mitglied/7; tab=dokumente; tabkey=detail_mitglied)
 
-Hier liegen Beitrittserklärung, SEPA-Mandat, Kündigung, Nachweise und Schriftverkehr als Dateien. Mit **Dokument ablegen** wählt ihr die Art, optional eine Bezeichnung und die Datei (PDF, Foto, Word oder Text, bis 15 MB). In der **Ablage** öffnet „Öffnen …“ die Datei oder löscht sie. Die Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten. Bei Familienmitgliedern liegen Beitrittserklärung und Mandat beim Oberhaupt.
+Hier liegen Beitrittserklärung, SEPA-Mandat, Kündigung, Nachweise und Schriftverkehr als Dateien. Mit **Dokument ablegen** wählt ihr die Art, optional eine Bezeichnung und die Datei (PDF, Foto, Word oder Text, bis 15 MB). In der **Ablage** öffnet „Öffnen …“ die Datei oder löscht sie. **Alle Dokumente als ZIP** (rechts über der Ablage) lädt alle Dokumente dieses Mitglieds auf einmal herunter, mit einer Übersicht als Excel; das steht im Protokoll. Die Dokumente liegen nur auf dem Vereinsrechner und sind in der Datensicherung enthalten. Bei Familienmitgliedern liegen Beitrittserklärung und Mandat beim Oberhaupt.
 
 ### Mitglied › Verlauf {#mitglied-verlauf}
 

@@ -1,5 +1,17 @@
 # Änderungen
 
+## 2026.11.36
+
+**Dokumente als ZIP – je Mitglied und für die ganze Mitgliederliste (Entscheidungen Thorsten 11.11.2026; `planung/dokumente-zip.md`)**
+- Mitglied › Dokumente: Knopf **„Alle Dokumente als ZIP“** rechts über der Ablage. Er lädt alle Dokumente des Mitglieds auf einmal herunter, in einem Ordner „Nachname, Vorname“ und mit einer Übersicht als Excel. Das steht im Protokoll.
+- Mitgliederliste: neuer Knopf **„Dokumente (ZIP) …“** neben „Excel“. Er nimmt genau die Mitglieder, die gerade in der Liste stehen (alle oder gefiltert nach Suche, Abteilung, Beitrag, Status). Im ZIP: ein Ordner je Mitglied „Nachname, Vorname“ (bei gleichen Namen mit Mitgliedsnummer), jede Datei mit Datum vorn, dazu „Übersicht.xlsx“ (Mitglied, Nr., Dokument, Art, Datum, Größe, Herkunft, Datei im ZIP). Das Fenster zeigt vorher Anzahl und Größe.
+- Enthalten ist alles, was am Mitglied unter „Dokumente“ steht – auch Schlüsselprotokolle aus dem Modul Schlüssel (nur mit dem Recht „Schlüssel“).
+- Schutz beim gesammelten Export: nur mit dem Recht „Dokumente“ und dem **eigenen Passwort**; Protokolleintrag mit Anzahl und Auswahl (keine Inhalte); alle mit dem Recht „Sicherheitswarnungen“ bekommen sofort eine Warnung „Dokumente gesammelt exportiert“. Höchstens 10 gesammelte Exporte je Stunde und Benutzer, höchstens 2 GB je ZIP. Der Download-Link gilt nur einmal, nur 2 Minuten und nur für den, der ihn angefordert hat.
+- Abteilungsleitungen (Rolle „nur eigene Abteilung“ plus Recht „Dokumente“) bekommen nur Mitglieder ihrer Abteilung(en). Dabei behoben: Sie sahen die Dokumente eigener Mitglieder in der Liste, konnten sie aber nicht öffnen.
+- Das ZIP entsteht Datei für Datei während des Herunterladens (wenig Speicher, auch bei vielen Dokumenten); bricht der Browser ab, hört Clubwerk sofort auf. Dateinamen werden bereinigt (keine Pfade, kein „..“, Umlaute bleiben); fehlt eine Datei, steht das in der Übersicht.
+- Die Demo hat jetzt Beispiel-Dokumente bei mehreren Mitgliedern.
+- Für Entwickler: Hook `memberDocuments` – Einträge können `read()` mitliefern (Inhalt als Buffer), dann landen sie im ZIP. Neue Testreihe `dokzip`. Mitglieder 1.47.0, Schlüssel 1.0.3.
+
 ## 2026.11.35
 
 **Hinweis vor der Abmeldung am Tablet, eigene Seite „Keine Verbindung“ in der Mitglieder-App, rundes App-Symbol für Android (Leitfäden-Abgleich, Entscheidungen Thorsten 11.11.2026; `planung/leitfaeden-2.md`)**

@@ -90,6 +90,17 @@ The preview has four check cards:
 
 Downloads the list as an Excel file with the columns you tick. The filter of the list applies (e.g. only one department).
 
+#### Documents (ZIP) …
+
+![The “Documents as ZIP” window with number, size and password field.](bild: seite=mitglieder; klick=#mvZip; ziel=dialog)
+
+Downloads all documents of the members **currently shown in the list** as one ZIP file – so all of them or only the filtered ones (search, department, fee, “Left” …). The ZIP contains one folder per member (“Surname, First name”; with the membership number if names are the same) and the file “Overview.xlsx” with member, number, document, type, date, size and origin. It includes everything listed under “Documents” on the member, including key records (only with the “Keys” permission).
+
+- The window shows beforehand how many members and documents there are and roughly how big the ZIP will be.
+- To download, you enter **your own password**. The export is logged (number and selection, no contents), and everyone with the “Security warnings” permission gets a warning straight away.
+- At most 10 such exports per hour and user, at most 2 GB per ZIP – otherwise narrow down the list and export in parts.
+- Anyone who looks after just one department only gets the members of their department(s).
+
 ### Opening a member {#mitglied}
 
 On a wide screen (from 1500 pixels, such as a large monitor) a card sits to the right of the list: clicking a name shows the essentials there – date of birth, joining date, departments, fee, payment, “Billed until”, open items, contact details and notes. **Open** (or double-clicking the name) opens the member; the buttons below jump straight to the matching tab. The list’s “Payment” and “Notes” columns are then hidden, as both are shown in the card. On narrower screens, on the tablet and on the phone, a click opens the member directly.
@@ -225,7 +236,7 @@ For family members and members with a different payer the tab is greyed out: acc
 
 ![The “Documents” tab: file document and the filing.](bild: seite=mitglieder/mitglied/7; tab=dokumente; tabkey=detail_mitglied)
 
-Membership application, SEPA mandate, cancellation, proofs and correspondence are kept here as files. With **File document** you choose the type, optionally a name, and the file (PDF, photo, Word or text, up to 15 MB). In the **Filing**, “Open …” opens the file or deletes it. The documents are stored only on the club computer and are included in the backup. For family members the membership application and mandate are with the head of family.
+Membership application, SEPA mandate, cancellation, proofs and correspondence are kept here as files. With **File document** you choose the type, optionally a name, and the file (PDF, photo, Word or text, up to 15 MB). In the **Filing**, “Open …” opens the file or deletes it. **All documents as ZIP** (on the right above the filing) downloads all documents of this member in one go, with an overview as Excel; this is logged. The documents are stored only on the club computer and are included in the backup. For family members the membership application and mandate are with the head of family.
 
 ### Member › History {#mitglied-verlauf}
 
