@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.34';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.35';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -604,7 +604,15 @@
   /* ---------- Push-Benachrichtigungen: Abo je Handy, Anlässe je Mitglied (nur die vom Vorstand freigegebenen) ---------- */
   const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   const b64ToBytes = s => { const b = atob((s + '='.repeat((4 - s.length % 4) % 4)).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, c => c.charCodeAt(0)); };
-  async function swReady() { const reg = await navigator.serviceWorker.register('sw.js'); await navigator.serviceWorker.ready; return reg; }
+  /* Service Worker (sw.js): Push und Hinweisseite „Keine Verbindung“ – je Version eine eigene Adresse, damit er sich mit der App erneuert.
+     Für alle Handys, aber erst wenn die App steht (nichts gegen den Start). Push und Offline nutzen dieselbe Anmeldung. */
+  const SW_URL = 'sw.js?v=' + encodeURIComponent(APP_VER);
+  const swRegister = () => navigator.serviceWorker.register(SW_URL, { updateViaCache: 'none' });
+  async function swReady() { const reg = await swRegister(); await navigator.serviceWorker.ready; return reg; }
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    const spaeter = () => setTimeout(() => swRegister().catch(() => { /* z. B. Zertifikat im WLAN nicht vertraut: dann eben ohne */ }), 3000);
+    if (document.readyState === 'complete') spaeter(); else window.addEventListener('load', spaeter, { once: true });
+  }
   /** Push auf diesem Handy einschalten (Erlaubnis, Browser-Abo, Anmeldung am Server). null = Erlaubnis verweigert */
   async function pushOn(vapid) {
     const reg = await swReady();

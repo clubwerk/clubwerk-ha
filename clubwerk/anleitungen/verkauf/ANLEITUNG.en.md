@@ -408,7 +408,7 @@ At the top are the members who have been here often lately (“Frequently here�
 
 ![Booking: item tiles and basket.](bild: tablet=start; klick=#special button.verein; klick2=#cats button[data-a])
 
-After 60 seconds without input the tablet returns to the start page, and nothing has been booked. Tapping twice or a WiFi dropout never books twice.
+After 60 seconds without input the tablet returns to the start page, and nothing has been booked. 10 seconds before, a notice with a countdown appears (“Cancelling shortly”, or “You will be signed out shortly” with nothing selected); **Continue selecting** or **Stay signed in**, or any tap, gives you 60 seconds again. Tapping twice or a WiFi dropout never books twice.
 
 ![The PIN entry.](bild: tablet=start; klick=#names button[data-id])
 

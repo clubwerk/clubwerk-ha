@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2026.11.35
+
+**Hinweis vor der Abmeldung am Tablet, eigene Seite „Keine Verbindung“ in der Mitglieder-App, rundes App-Symbol für Android (Leitfäden-Abgleich, Entscheidungen Thorsten 11.11.2026; `planung/leitfaeden-2.md`)**
+- Verwaltung am Tablet: 10 Sekunden vor der Abmeldung nach einer Minute ohne Eingabe erscheint ein Fenster „Du wirst gleich abgemeldet“ mit einem Countdown und dem Knopf **„Angemeldet bleiben“** (gibt wieder eine volle Minute). Jedes andere Antippen zählt genauso. Ohne Tippen wird wie bisher abgemeldet. Screenreader sagen das Fenster an, der Knopf hat gleich den Fokus.
+- Verkauf am Tablet: dasselbe 10 Sekunden bevor ein angemeldetes Mitglied nach einer Minute ohne Eingabe zur Namensliste zurückgeht – mit Auswahl „Gleich wird abgebrochen … nichts wird gebucht“ und „Weiter auswählen“, ohne Auswahl „Du wirst gleich abgemeldet“.
+- Tablet-Seiten der Module (z. B. „Mitglied werden“, Schlüssel, Mängel): Gehen nach 30 Sekunden ohne Eingabe Eingaben verloren (ausgefülltes Feld, Häkchen, Unterschrift), kommt 10 Sekunden vorher „Gleich geht es zurück zum Start“ mit **„Hier bleiben“**. Ohne Eingaben geht es wie bisher still zurück.
+- Mitglieder-App: Ohne Netz (oder wenn der Vereins-Server nicht antwortet) erscheint statt der Fehlerseite des Browsers die eigene Seite **„Keine Verbindung“** mit „Erneut versuchen“, hell und dunkel, auf Deutsch und Englisch. Kommt das Netz zurück, lädt die App von selbst neu; antwortet der Verein noch nicht (etwa während eines Neustarts), fragt die Seite von selbst wieder nach (nach 3, 6, 12, 24 Sekunden, dann alle 30 Sekunden). Gespeichert wird dafür nur diese eine Hinweisseite mit ihren Schriften und Farben – keine Mitgliederdaten, keine Antworten des Servers, und die App selbst kommt immer frisch vom Verein.
+- Mitglieder-App unter Android: Das App-Symbol gibt es jetzt zusätzlich in einer Fassung zum runden Zuschneiden („maskable“): Vereinsfarbe bis zum Rand, das Logo ganz im Kreis. Bisher schnitt Android die Ecken des weißen Logo-Rahmens ab. Erzeugt wird es wie das bisherige Symbol beim nächsten Öffnen der Verwaltung; iPhone und Rechner behalten ihr Symbol. Auch das Tablet-Manifest hat die runde Fassung.
+- Für Entwickler: Baustein `CWZeit` (theme-init.js) für Hinweise vor einer Zeitgrenze; der Service Worker der App (`sw.js?v=<Version>`) wird jetzt für jedes Handy angemeldet, nicht erst beim Einschalten von Push. Neue Testreihen `zeithin` und `appoff`. Verkauf 3.101.6.
+
 ## 2026.11.34
 
 **Seiten laden bei großen Vereinen schneller (Auftrag Thorsten 10.11.2026)**

@@ -5,6 +5,7 @@
   const euro = c => EUR.format(c / 100);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
   const IDLE_MS = 60 * 1000;      // nach 60 s ohne Eingabe zurück zum Start
+  const WARN_MS = 10 * 1000;      // 10 s vorher Hinweis mit Countdown (CWZeit, WCAG 2.2.1)
   const DONE_MS = 20 * 1000;      // Bestätigung 20 s sichtbar (Rückgängig möglich)
 
   let state = { members: [], articles: [], event: null };
@@ -17,7 +18,7 @@
   let bookReqId = null;
   const newReqId = () => (window.crypto && crypto.randomUUID ? crypto.randomUUID().replace(/-/g, '') : Date.now().toString(36) + Math.random().toString(36).slice(2, 12));
   let evFilter = '';
-  let idleTimer = null;
+  let idleTimer = null, warnTimer = null;
 
   async function api(url, body) {
     const opts = body === undefined ? {} : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
@@ -829,7 +830,7 @@
         renderArticles(); renderCart(); bumpIdle();
       } catch (e) { toast(e.message, true); }
     };
-    clearTimeout(idleTimer);
+    stopIdle();
   }
 
   /* ---------- Mein Konto / PIN ---------- */
@@ -898,15 +899,21 @@
   });
 
   /* ---------- Zurück zum Start ---------- */
+  function stopIdle() { clearTimeout(idleTimer); clearTimeout(warnTimer); window.CWZeit.weg(); }
   function bumpIdle() {
-    clearTimeout(idleTimer);
-    if (session) idleTimer = setTimeout(() => { toast('Zeit abgelaufen – nichts gebucht.'); closeDialog(); backToStart(); }, IDLE_MS);
+    stopIdle();
+    if (!session) return;
+    const ende = Date.now() + IDLE_MS;
+    warnTimer = setTimeout(() => window.CWZeit.hinweis(cart.size || customs.length
+      ? { titel: 'Gleich wird abgebrochen', text: 'Ohne Eingabe wird deine Auswahl in wenigen Sekunden verworfen – nichts wird gebucht.', knopf: 'Weiter auswählen', ende, weiter: bumpIdle }
+      : { titel: 'Du wirst gleich abgemeldet', text: 'Ohne Eingabe geht es in wenigen Sekunden zurück zur Namensliste.', knopf: 'Angemeldet bleiben', ende, weiter: bumpIdle }), IDLE_MS - WARN_MS);
+    idleTimer = setTimeout(() => { stopIdle(); toast('Zeit abgelaufen – nichts gebucht.'); closeDialog(); backToStart(); }, IDLE_MS);
   }
   function backToStart() {
     if (session) api('api/tablet/logout', { token: session.token }).catch(() => {});
     const filtered = Boolean(letter || evFilter || ($('nameSearch') && $('nameSearch').value));
     session = null; cart = new Map(); customs = []; bookReqId = null; letter = null; evFilter = ''; $('evSearch').value = '';
-    clearTimeout(idleTimer);
+    stopIdle();
     $('booking').classList.add('hidden');
     $('start').classList.remove('hidden');
     document.body.classList.remove('bookmode');

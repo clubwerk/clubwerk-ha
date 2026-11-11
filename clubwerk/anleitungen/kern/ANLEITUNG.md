@@ -18,7 +18,7 @@ Die Module (Verkauf, Plätze, Mängel …) schaltet ihr unter Einstellungen › 
 
 ## Verwaltung {#verwaltung}
 
-Links steht das Menü, geordnet nach Bereichen: **Gastro**, **Sport**, **Anlage**, **Mitglieder**, **Finanzen** und **Verein**. Ein Klick auf einen Bereich klappt ihn auf oder zu. Der Bereich der Seite, auf der ihr gerade seid, ist immer offen, und jedes Gerät merkt sich, welche Bereiche ihr offen lasst. Ein Punkt an einem zugeklappten Bereich zeigt, dass darin etwas zu tun ist. Wer nur wenige Seiten sehen darf (bis 9), sieht alles ohne Aufklappen unter den Bereichsüberschriften. Mit der Tastatur wechseln Pfeil hoch und runter die Zeile, Pfeil rechts klappt einen Bereich auf, Pfeil links zu. Oben im Menü sucht ihr mit **Suchen** (Tastenkürzel Strg K bzw. ⌘K) nach Seiten, Einstellungen, Aktionen und Personen. Unten steht euer Name: Ein Klick öffnet „Mein Konto“, daneben öffnet das Tablet-Symbol die Tablet-Seite in einem neuen Tab und der Pfeil meldet euch ab. Über **Verwaltung** in der Kopfzeile des Tablets meldet Clubwerk nach einer Minute ohne Eingabe ab; eine Anmeldung direkt in der Verwaltung (zum Beispiel in der Seitenleiste von Home Assistant) bleibt davon unberührt, auch im selben Browser. Oben rechts öffnet das **„?“** die Anleitung des Bereichs, in dem ihr gerade seid, als PDF.
+Links steht das Menü, geordnet nach Bereichen: **Gastro**, **Sport**, **Anlage**, **Mitglieder**, **Finanzen** und **Verein**. Ein Klick auf einen Bereich klappt ihn auf oder zu. Der Bereich der Seite, auf der ihr gerade seid, ist immer offen, und jedes Gerät merkt sich, welche Bereiche ihr offen lasst. Ein Punkt an einem zugeklappten Bereich zeigt, dass darin etwas zu tun ist. Wer nur wenige Seiten sehen darf (bis 9), sieht alles ohne Aufklappen unter den Bereichsüberschriften. Mit der Tastatur wechseln Pfeil hoch und runter die Zeile, Pfeil rechts klappt einen Bereich auf, Pfeil links zu. Oben im Menü sucht ihr mit **Suchen** (Tastenkürzel Strg K bzw. ⌘K) nach Seiten, Einstellungen, Aktionen und Personen. Unten steht euer Name: Ein Klick öffnet „Mein Konto“, daneben öffnet das Tablet-Symbol die Tablet-Seite in einem neuen Tab und der Pfeil meldet euch ab. Über **Verwaltung** in der Kopfzeile des Tablets meldet Clubwerk nach einer Minute ohne Eingabe ab; 10 Sekunden vorher erscheint „Du wirst gleich abgemeldet“ mit Countdown, und **Angemeldet bleiben** (oder jedes andere Antippen) gibt wieder eine volle Minute; eine Anmeldung direkt in der Verwaltung (zum Beispiel in der Seitenleiste von Home Assistant) bleibt davon unberührt, auch im selben Browser. Oben rechts öffnet das **„?“** die Anleitung des Bereichs, in dem ihr gerade seid, als PDF.
 
 ### Seite „Übersicht“ {#uebersicht}
 
@@ -466,7 +466,7 @@ Alles, was für den ganzen Verein gilt. Die Bereiche stehen als Reiter oben. Was
 
 ![Karte „Vereinslogo“.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#logoPrev))
 
-**Vereinslogo:** SVG, PNG, JPG oder WebP, bis 2 MB. Nach dem Hochladen schlägt Clubwerk die Farben aus dem Logo vor; ein Klick übernimmt eine als Vereinsfarbe.
+**Vereinslogo:** SVG, PNG, JPG oder WebP, bis 2 MB. Nach dem Hochladen schlägt Clubwerk die Farben aus dem Logo vor; ein Klick übernimmt eine als Vereinsfarbe. Aus Logo und Vereinsfarbe zeichnet Clubwerk das App-Symbol, für Android zusätzlich eine runde Fassung (Logo ganz im Kreis, damit beim runden Zuschneiden nichts fehlt).
 
 ![Karte „Vereinssprache“.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#clubLangBody))
 
@@ -616,13 +616,13 @@ Alles, was nur für euch gilt. Ihr erreicht die Seite über euren Namen unten im
 
 ![Die Startseite „Für mich“ in der Mitglieder-App.](bild: app=start)
 
-**Mitglieder-App:** Mit dem QR-Code und der PIN am Handy öffnet sich die App. Das Symbol oben (Profilbild) und „Mehr“ unten öffnen „Mein Konto“: Profilbild, Benachrichtigungen, Sprache, Darstellung, **PIN ändern** (mit der bisherigen PIN; sie gilt auch am Tablet) und **Abmelden** (entkoppelt nur dieses Handy; danach braucht es eine neue Einladung). Die App bleibt immer in sich und öffnet nie ein neues Fenster. Die Rubrik **Nachrichten** zeigt die Mitteilungen des Vereins: neueste zuerst, Ungelesenes fett, Angeheftetes oben.
+**Mitglieder-App:** Mit dem QR-Code und der PIN am Handy öffnet sich die App. Das Symbol oben (Profilbild) und „Mehr“ unten öffnen „Mein Konto“: Profilbild, Benachrichtigungen, Sprache, Darstellung, **PIN ändern** (mit der bisherigen PIN; sie gilt auch am Tablet) und **Abmelden** (entkoppelt nur dieses Handy; danach braucht es eine neue Einladung). Die App bleibt immer in sich und öffnet nie ein neues Fenster. Ohne Netz (oder wenn der Verein gerade nicht antwortet) zeigt sie statt einer Fehlerseite des Browsers **„Keine Verbindung“** mit **Erneut versuchen**; kommt das Netz zurück, lädt sie von selbst neu. Gespeichert ist dafür nur diese Hinweisseite, keine Daten. Die Rubrik **Nachrichten** zeigt die Mitteilungen des Vereins: neueste zuerst, Ungelesenes fett, Angeheftetes oben.
 
 ![Das Blatt „Mein Konto“ in der App.](bild: app=mehr)
 
 ![Nachrichten in der Mitglieder-App.](bild: app=nachrichten)
 
-**Tablet:** Das Tablet im Vereinsheim öffnet ihr im Browser unter der Tablet-Adresse (`…:3100`) und gebt einmal das Passwort für das Tablet ein. Danach bleibt das Gerät freigeschaltet. Oben zeigt die Kopfzeile die Module in der Reihenfolge, die ihr unter Einstellungen › Tablet festgelegt habt. Das Tablet kehrt nach 30 Sekunden ohne Eingabe zum Start-Reiter zurück, und jede Aktion mit Namen verlangt die Mitglieder-PIN. Wer noch keine PIN hat, legt sie beim ersten Mal am Tablet fest.
+**Tablet:** Das Tablet im Vereinsheim öffnet ihr im Browser unter der Tablet-Adresse (`…:3100`) und gebt einmal das Passwort für das Tablet ein. Danach bleibt das Gerät freigeschaltet. Oben zeigt die Kopfzeile die Module in der Reihenfolge, die ihr unter Einstellungen › Tablet festgelegt habt. Das Tablet kehrt nach 30 Sekunden ohne Eingabe zum Start-Reiter zurück; stehen auf der Seite Eingaben (ausgefülltes Feld, Häkchen, Unterschrift), kommt 10 Sekunden vorher „Gleich geht es zurück zum Start“ mit **Hier bleiben**, und jede Aktion mit Namen verlangt die Mitglieder-PIN. Wer noch keine PIN hat, legt sie beim ersten Mal am Tablet fest.
 
 ![Die Startseite des Tablets mit der Kopfzeile.](bild: tablet=start; hoehe=520)
 

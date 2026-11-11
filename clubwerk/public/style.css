@@ -159,6 +159,16 @@ a.btn.primary { color: var(--on-brand); }
   font-size: 15px; font-weight: 600; z-index: 50; width: max-content; max-width: min(90vw, 560px); text-align: center;
 }
 .toast.error { background: var(--red); color: var(--on-red); }
+/* Hinweis vor einer Zeitgrenze (CWZeit in theme-init.js): Countdown groß, ein Knopf zum Bleiben – über allem, auch über offenen Fenstern */
+.cw-zeit { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(13,19,16,.5); animation: cw-zeit-ein .16s ease-out; }
+@keyframes cw-zeit-ein { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .cw-zeit { animation: none; } }
+.cw-zeit-k { box-sizing: border-box; width: min(440px, 100%); max-height: 100%; overflow: auto; padding: 24px; border-radius: 22px; background: var(--card); border: 1px solid var(--edge); box-shadow: var(--shadow-pop); color: var(--ink); text-align: center; }
+.cw-zeit-n { width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 36px; background: var(--brand-soft); color: var(--brand-ink); font-family: var(--num); font-size: 34px; line-height: 72px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cw-zeit-k h2 { margin: 0 0 6px; font-size: 22px; line-height: 28px; }
+.cw-zeit-k p { margin: 0 0 20px; color: var(--muted); font-size: 16px; line-height: 24px; }
+.cw-zeit-b { display: flex; align-items: center; justify-content: center; width: 100%; min-height: 56px; border-radius: 14px; border: 0; background: var(--brand); color: var(--on-brand); font: inherit; font-size: 18px; font-weight: 700; cursor: pointer; }
+.cw-zeit-b:focus-visible { outline: 3px solid var(--brand-ink); outline-offset: 3px; }
 .btn:disabled { background: var(--hover); border-color: var(--line); color: var(--muted); box-shadow: none; cursor: not-allowed; }   /* gesperrt: grau und lesbar, nicht blass */
 /* Kopfzeile am Tablet (alle Seiten, auch Erweiterungen) */
 #topnav a { white-space: nowrap; }

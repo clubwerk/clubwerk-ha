@@ -18,7 +18,7 @@ You switch modules (Sales, Courts, Defects …) on under Settings › Modules. T
 
 ## Admin area {#verwaltung}
 
-The menu is on the left, sorted into areas: **Catering**, **Sport**, **Facilities**, **Members**, **Finance** and **Club**. A click on an area expands or collapses it. The area of the page you are on is always open, and each device remembers which areas you leave open. A dot on a collapsed area shows that something needs doing in it. If you may only see a few pages (up to 9), you see everything without expanding, under the area headings. With the keyboard, the up and down arrows move between rows, the right arrow expands an area and the left arrow collapses it. At the top of the menu, **Search** (shortcut Ctrl K or ⌘K) finds pages, settings, actions and people. Your name is at the bottom: a click opens “My account”; next to it the tablet icon opens the tablet page in a new tab and the arrow logs you out. Via **Admin** in the tablet header, Clubwerk logs you out after one minute without input; a login directly in the admin area (for example in the Home Assistant sidebar) is not affected, even in the same browser. The **“?”** at the top right opens the guide for the area you are in, as a PDF.
+The menu is on the left, sorted into areas: **Catering**, **Sport**, **Facilities**, **Members**, **Finance** and **Club**. A click on an area expands or collapses it. The area of the page you are on is always open, and each device remembers which areas you leave open. A dot on a collapsed area shows that something needs doing in it. If you may only see a few pages (up to 9), you see everything without expanding, under the area headings. With the keyboard, the up and down arrows move between rows, the right arrow expands an area and the left arrow collapses it. At the top of the menu, **Search** (shortcut Ctrl K or ⌘K) finds pages, settings, actions and people. Your name is at the bottom: a click opens “My account”; next to it the tablet icon opens the tablet page in a new tab and the arrow logs you out. Via **Admin** in the tablet header, Clubwerk logs you out after one minute without input; 10 seconds before, “You will be signed out shortly” appears with a countdown, and **Stay signed in** (or any other tap) gives you a full minute again; a login directly in the admin area (for example in the Home Assistant sidebar) is not affected, even in the same browser. The **“?”** at the top right opens the guide for the area you are in, as a PDF.
 
 ### Page “Overview” {#uebersicht}
 
@@ -466,7 +466,7 @@ Everything that applies to the whole club. The areas are tabs at the top. What y
 
 ![Card “Club logo”.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#logoPrev))
 
-**Club logo:** SVG, PNG, JPG or WebP, up to 2 MB. After uploading, Clubwerk suggests the colours from the logo; a click takes one as club colour.
+**Club logo:** SVG, PNG, JPG or WebP, up to 2 MB. After uploading, Clubwerk suggests the colours from the logo; a click takes one as club colour. From the logo and club colour Clubwerk draws the app icon, and for Android also a round version (the logo fully inside the circle, so nothing is cut off when it is cropped round).
 
 ![Card “Club language”.](bild: seite=einstellungen; klick=[data-sec="verein"]; ziel=.card:has(#clubLangBody))
 
@@ -616,13 +616,13 @@ Everything that applies only to you. You reach the page through your name at the
 
 ![The “For me” start page in the member app.](bild: app=start)
 
-**Member app:** With the QR code and PIN the app opens on the phone. The icon at the top (profile picture) and “More” at the bottom open “My account”: profile picture, notifications, language, appearance, **Change PIN** (with the old PIN; it also applies on the tablet) and **Log out** (only unpairs this phone; it then needs a new invitation). The app always stays inside itself and never opens a new window. The **Messages** section shows the club's messages: newest first, unread in bold, pinned at the top.
+**Member app:** With the QR code and PIN the app opens on the phone. The icon at the top (profile picture) and “More” at the bottom open “My account”: profile picture, notifications, language, appearance, **Change PIN** (with the old PIN; it also applies on the tablet) and **Log out** (only unpairs this phone; it then needs a new invitation). The app always stays inside itself and never opens a new window. Without a connection (or when the club is not responding) it shows **“No connection”** with **Try again** instead of a browser error page; when the connection is back, it reloads by itself. Only this notice page is stored for that, no data. The **Messages** section shows the club's messages: newest first, unread in bold, pinned at the top.
 
 ![The “My account” sheet in the app.](bild: app=mehr)
 
 ![Messages in the member app.](bild: app=nachrichten)
 
-**Tablet:** Open the clubhouse tablet in the browser at the tablet address (`…:3100`) and enter the tablet password once. The device then stays authorised. The header at the top shows the modules in the order you set under Settings › Tablet. The tablet returns to the start tab after 30 seconds without input, and every action by name asks for the member PIN. Whoever has no PIN yet sets one the first time on the tablet.
+**Tablet:** Open the clubhouse tablet in the browser at the tablet address (`…:3100`) and enter the tablet password once. The device then stays authorised. The header at the top shows the modules in the order you set under Settings › Tablet. The tablet returns to the start tab after 30 seconds without input; if anything has been entered on the page (a filled-in field, a tick, a signature), “Returning to the start page shortly” appears 10 seconds before, with **Stay here**, and every action by name asks for the member PIN. Whoever has no PIN yet sets one the first time on the tablet.
 
 ![The start page of the tablet with the header.](bild: tablet=start; hoehe=520)
 

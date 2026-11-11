@@ -386,18 +386,25 @@
     if (!(x1 - x0 < w0 || y1 - y0 < h0) && !(() => { try { const d = tg.getImageData(0, 0, w0, h0).data; for (let i = 3; i < d.length; i += 16) if (d[i] > 24) return true; return false; } catch (err) { return true; } })())
       throw new Error('Logo ließ sich nicht zeichnen (leer)');   // sonst landet ein unsichtbares Bild in E-Mails und PDFs
     const w = x1 - x0, h = y1 - y0, round = Math.abs(w / h - 1) < 0.12;
-    const S = 512, c = document.createElement('canvas'); c.width = c.height = S;
-    const g = c.getContext('2d');
-    g.fillStyle = /^#[0-9a-f]{6}$/i.test(brand.color || '') ? brand.color : '#1f6b3a'; g.fillRect(0, 0, S, S);
-    const F = 14, box = S * 0.80;                       // Rahmen 14 px, Logo samt Rahmen 80 % der Fläche
-    const k = Math.min((box - 2 * F) / w, (box - 2 * F) / h), dw = w * k, dh = h * k, dx = (S - dw) / 2, dy = (S - dh) / 2;
-    g.fillStyle = '#ffffff';
-    if (round) { g.beginPath(); g.arc(S / 2, S / 2, dw / 2 + F, 0, Math.PI * 2); g.fill(); g.save(); g.beginPath(); g.arc(S / 2, S / 2, dw / 2, 0, Math.PI * 2); g.clip(); }
-    else { const r = 40; g.beginPath(); g.roundRect ? g.roundRect(dx - F, dy - F, dw + 2 * F, dh + 2 * F, r) : g.rect(dx - F, dy - F, dw + 2 * F, dh + 2 * F); g.fill(); g.save(); }
-    g.drawImage(img, x0, y0, w, h, dx, dy, dw, dh);
-    g.restore();
-    const blob = await new Promise(r => c.toBlob(r, 'image/png'));
-    await fetch('api/admin/logo-icon', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'image/png' }, body: blob });
+    /* zwei Fassungen: normal (Logo samt Rahmen 80 % der Fläche) und „maskable“ für Android (planung/leitfaeden-2.md) – dort liegt das
+       Logo samt Rahmen ganz im Kreis mit 78 % Durchmesser (Sicherheitszone 80 %), weil Android rund oder als Tropfen zuschneidet */
+    const S = 512, F = 14;
+    for (const mask of [true, false]) {
+      const c = document.createElement('canvas'); c.width = c.height = S;
+      const g = c.getContext('2d');
+      g.fillStyle = /^#[0-9a-f]{6}$/i.test(brand.color || '') ? brand.color : '#1f6b3a'; g.fillRect(0, 0, S, S);
+      const box = S * 0.80, D = S * 0.78, q = w * w + h * h;
+      let k = Math.min((box - 2 * F) / w, (box - 2 * F) / h);
+      if (mask) k = Math.min(k, round ? (D - 2 * F) / Math.max(w, h) : (-4 * F * (w + h) + Math.sqrt(16 * F * F * (w + h) ** 2 - 4 * q * (8 * F * F - D * D))) / (2 * q));   // Ecken des Rahmens auf dem Kreis
+      const dw = w * k, dh = h * k, dx = (S - dw) / 2, dy = (S - dh) / 2;
+      g.fillStyle = '#ffffff';
+      if (round) { g.beginPath(); g.arc(S / 2, S / 2, dw / 2 + F, 0, Math.PI * 2); g.fill(); g.save(); g.beginPath(); g.arc(S / 2, S / 2, dw / 2, 0, Math.PI * 2); g.clip(); }
+      else { const r = 40; g.beginPath(); g.roundRect ? g.roundRect(dx - F, dy - F, dw + 2 * F, dh + 2 * F, r) : g.rect(dx - F, dy - F, dw + 2 * F, dh + 2 * F); g.fill(); g.save(); }
+      g.drawImage(img, x0, y0, w, h, dx, dy, dw, dh);
+      g.restore();
+      const blob = await new Promise(r => c.toBlob(r, 'image/png'));
+      await fetch('api/admin/logo-icon' + (mask ? '?art=maskable' : ''), { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'image/png' }, body: blob });
+    }
     // dazu das Logo selbst als PNG (leere Ränder abgeschnitten, durchsichtig) – für PDFs (Beitrittserklärung, Rechnungen) und E-Mails,
     // die kein SVG darstellen können
     const L = 800, kk = Math.min(1, L / Math.max(w, h)) * (Math.max(w, h) < 400 ? 400 / Math.max(w, h) : 1), pc = document.createElement('canvas');
@@ -423,14 +430,25 @@
      steht für alle zugänglich. Direkt aufgerufen (admin.html, Seitenleiste von Home Assistant) bleibt man angemeldet; die Abmeldung
      am Tablet beendet nur die Tablet-Sitzung. */
   const onTablet = /\/tadmin\//.test(location.pathname);
+  /* 10 s vorher erscheint ein Hinweis mit Countdown und „Angemeldet bleiben“ (WCAG 2.2.1, Entscheidung Thorsten 11.11.2026; CWZeit in
+     theme-init.js). Der Knopf und jede andere Eingabe geben wieder 60 s; der Knopf fragt dabei den Server, damit dessen Sitzung mitläuft. */
+  const IDLE_MS = 60000, WARN_MS = 10000;
   if (onTablet) {
-    let last = Date.now();
+    let last = Date.now(), ab = false;
     ['pointerdown', 'keydown', 'input', 'wheel', 'touchstart', 'scroll'].forEach(ev => window.addEventListener(ev, () => { last = Date.now(); }, { capture: true, passive: true }));
     setInterval(async () => {
-      if (!me || Date.now() - last < 60000) return;
+      const z = Date.now() - last;
+      if (ab) return;
+      if (!me || z < IDLE_MS - WARN_MS) { if (window.CWZeit.offen()) window.CWZeit.weg(); return; }
+      if (z < IDLE_MS) {
+        if (!window.CWZeit.offen()) window.CWZeit.hinweis({ titel: 'Du wirst gleich abgemeldet', text: 'Ohne Eingabe endet die Anmeldung an diesem Tablet in wenigen Sekunden.',
+          knopf: 'Angemeldet bleiben', ende: last + IDLE_MS, weiter: () => { last = Date.now(); api('status').then(s => { if (!s.loggedIn) showLogin(); }).catch(() => {}); } });
+        return;
+      }
+      window.CWZeit.weg(); ab = true;
       await api('logout', 'POST', {}).catch(() => {});
-      closeDialog(); showLogin(); toast('Nach einer Minute ohne Eingabe abgemeldet.');
-    }, 5000);
+      ab = false; closeDialog(); showLogin(); toast('Nach einer Minute ohne Eingabe abgemeldet.');
+    }, 500);
   }
 
   function showLogin() {

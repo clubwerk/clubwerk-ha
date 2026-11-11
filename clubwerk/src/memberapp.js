@@ -432,13 +432,15 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   app.get('/i18n.js', (req, res) => relay('/i18n.js?' + new URLSearchParams({ l: String(req.query.l || 'auto').slice(0, 20), b: String(req.query.b || '').slice(0, 200) }), 'application/javascript')(req, res));
   app.get('/logo', relay('/vereinslogo', 'image/png'));
   app.get('/icon.png', relay('/vereinsicon.png', 'image/png'));
+  app.get('/icon-maskable.png', relay('/vereinsicon-maskable.png', 'image/png'));
   app.get('/manifest.json', (req, res) => {
     const name = getSetting('app_name', 'Verein');
     // mit Übernahme-Code: die Home-Bildschirm-App startet mit #k=…, damit sie die Freischaltung übernehmen kann (iPhone)
     const k = /^[A-Z2-9]{10}$/.test(String(req.query.k || '')) ? String(req.query.k) : '';
     res.set('Cache-Control', 'no-store');
     res.json({ name: `${getSetting('club_name', 'Verein')} – ${name}`, short_name: name, start_url: k ? `./#k=${k}` : './', scope: './', display: 'standalone', background_color: '#f6f5f1', theme_color: appColor(),
-      id: './', related_applications: [{ platform: 'webapp', url: `${req.get('x-forwarded-proto') || req.protocol}://${req.get('host')}${req.baseUrl}/manifest.json` }], icons: [{ src: 'icon.png', sizes: '192x192 512x512', type: 'image/png', purpose: 'any' }]   /* Vereinsbild für beide Größen (Whitelabel), Installierbarkeit verlangt 192 und 512 */ });
+      id: './', related_applications: [{ platform: 'webapp', url: `${req.get('x-forwarded-proto') || req.protocol}://${req.get('host')}${req.baseUrl}/manifest.json` }], icons: [{ src: 'icon.png', sizes: '192x192 512x512', type: 'image/png', purpose: 'any' },   /* Vereinsbild für beide Größen (Whitelabel), Installierbarkeit verlangt 192 und 512 */
+        { src: 'icon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] });   /* Android: rund zugeschnitten, Logo in der Sicherheitszone */
   });
   // Seiten der Module (public/member.js)
   app.get('/m/:id/:file', (req, res) => {

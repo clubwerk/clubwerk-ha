@@ -201,3 +201,38 @@
   function start() { new MutationObserver(sched).observe(document.documentElement, { childList: true, subtree: true, characterData: true }); sched(); }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
+
+/* Hinweis vor einer Zeitgrenze (WCAG 2.2.1 „Zeitbegrenzung anpassbar“, planung/leitfaeden-2.md): Wo am Tablet eine Abmeldung oder ein
+   Zurück-zum-Start nach einer Zeit ohne Eingabe Eingaben verwirft, erscheint vorher ein Fenster mit Countdown und einem Knopf zum Bleiben.
+   Rolle alertdialog (wird beim Öffnen angesagt), Fokus auf dem Knopf, danach zurück an die vorige Stelle. Jede Eingabe zählt wie der Knopf:
+   Die aufrufende Seite misst die Zeit selbst und schließt den Hinweis bei Eingabe (CWZeit.weg), der Knopf ruft zusätzlich o.weiter auf.
+   CWZeit.hinweis({ titel, text, knopf, ende: Zeitpunkt in ms, weiter }) · CWZeit.weg() · CWZeit.offen() */
+(function () {
+  var box = null, iv = null, zurueck = null;
+  var weg = function () {
+    clearInterval(iv); iv = null; if (!box) return;
+    var hatte = box.contains(document.activeElement);
+    box.parentNode && box.parentNode.removeChild(box); box = null;
+    if (hatte && zurueck && zurueck.isConnected && zurueck.focus) zurueck.focus({ preventScroll: true });
+    zurueck = null;
+  };
+  window.CWZeit = {
+    hinweis: function (o) {
+      weg();
+      zurueck = document.activeElement;
+      var rest = function () { return Math.max(0, Math.ceil((o.ende - Date.now()) / 1000)); };
+      box = document.createElement('div'); box.className = 'cw-zeit';
+      box.innerHTML = '<div class="cw-zeit-k" role="alertdialog" aria-modal="true" aria-labelledby="cwZeitT" aria-describedby="cwZeitD">'
+        + '<div class="cw-zeit-n" aria-hidden="true"></div><h2 id="cwZeitT"></h2><p id="cwZeitD"></p><button type="button" class="cw-zeit-b"></button></div>';
+      var n = box.querySelector('.cw-zeit-n'), b = box.querySelector('button');
+      box.querySelector('h2').textContent = o.titel; box.querySelector('p').textContent = o.text; b.textContent = o.knopf;
+      n.textContent = rest();
+      b.addEventListener('click', function () { weg(); if (o.weiter) o.weiter(); });
+      document.body.appendChild(box);
+      b.focus({ preventScroll: true });
+      iv = setInterval(function () { if (box) n.textContent = rest(); }, 250);
+    },
+    weg: weg,
+    offen: function () { return Boolean(box); },
+  };
+})();

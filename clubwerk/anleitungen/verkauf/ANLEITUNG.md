@@ -408,7 +408,7 @@ Oben stehen die Mitglieder, die in letzter Zeit oft hier waren („Gerade oft hi
 
 ![Buchen: Artikelkacheln und Warenkorb.](bild: tablet=start; klick=#special button.verein; klick2=#cats button[data-a])
 
-Nach 60 Sekunden ohne Eingabe springt das Tablet auf die Startseite zurück, dann ist nichts gebucht. Doppeltes Antippen oder ein WLAN-Aussetzer buchen nie doppelt.
+Nach 60 Sekunden ohne Eingabe springt das Tablet auf die Startseite zurück, dann ist nichts gebucht. 10 Sekunden vorher erscheint ein Hinweis mit Countdown („Gleich wird abgebrochen“ bzw. ohne Auswahl „Du wirst gleich abgemeldet“); **Weiter auswählen** bzw. **Angemeldet bleiben** oder jedes Antippen gibt wieder 60 Sekunden. Doppeltes Antippen oder ein WLAN-Aussetzer buchen nie doppelt.
 
 ![Die PIN-Eingabe.](bild: tablet=start; klick=#names button[data-id])
 

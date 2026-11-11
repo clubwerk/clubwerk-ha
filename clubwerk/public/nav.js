@@ -186,13 +186,30 @@
 
   /* Nach 30 Sekunden ohne Eingabe zurück zum Start-Reiter – auf allen Tablet-Seiten außer dem Start-Reiter selbst
      (die Verwaltung bindet diese Datei nicht ein und bleibt deshalb offen). */
-  const IDLE_MS = 30 * 1000;
+  /* Stehen dabei Eingaben auf der Seite (Feld ausgefüllt, Häkchen gesetzt, Unterschrift), kommt 10 s vorher ein Hinweis mit Countdown und
+     „Hier bleiben“ (WCAG 2.2.1, planung/leitfaeden-2.md; CWZeit in theme-init.js). Ohne Eingaben geht es wie bisher still zurück. */
+  const IDLE_MS = 30 * 1000, WARN_MS = 10 * 1000;
   if (active !== 'verwaltung' && active !== 'start') {
-    let last = Date.now();
+    let last = Date.now(), getippt = false;
     const poke = () => { last = Date.now(); };
     ['pointerdown', 'keydown', 'touchstart', 'wheel', 'scroll', 'input'].forEach(ev => window.addEventListener(ev, poke, { capture: true, passive: true }));
+    ['input', 'change'].forEach(ev => window.addEventListener(ev, e => { if (e.target && e.target.matches && e.target.matches('input, textarea')) getippt = true; }, true));
     // Tippen in eine eingebettete Seite (Link unter der Kopfzeile) ist nur am Fokuswechsel erkennbar
     window.addEventListener('blur', poke);
-    setInterval(() => { if (active !== homeId && Date.now() - last >= IDLE_MS) location.href = base || './'; }, 1000);
+    // Suchfelder, Datum, Auswahllisten sind Filter, keine Eingaben; Verkauf mit angemeldetem Mitglied (body.bookmode) zählt mit
+    const LEER = /^(hidden|search|button|submit|reset|file|image|range|color|date|month|week|time)$/;
+    const inArbeit = () => document.body.classList.contains('bookmode') || Boolean(document.querySelector('.sg-pad.signed')) || (getippt && [].some.call(document.querySelectorAll('input, textarea'), f =>
+      !LEER.test(f.type) && !f.closest('#gkHeader') && f.offsetParent !== null && (f.type === 'checkbox' || f.type === 'radio' ? f.checked && !f.defaultChecked : f.value !== '' && f.value !== f.defaultValue)));
+    let meiner = false;   // nur den eigenen Hinweis schließen – der Verkauf zeigt seinen eigenen (tablet.js)
+    setInterval(() => {
+      const z = Date.now() - last;
+      if (active === homeId || z < IDLE_MS - WARN_MS) { if (meiner) { meiner = false; window.CWZeit.weg(); } return; }
+      if (z >= IDLE_MS) { location.href = base || './'; return; }
+      if (window.CWZeit && !window.CWZeit.offen() && inArbeit()) {
+        meiner = true;
+        window.CWZeit.hinweis({ titel: 'Gleich geht es zurück zum Start', text: 'Ohne Eingabe gehen deine Eingaben auf dieser Seite in wenigen Sekunden verloren.',
+          knopf: 'Hier bleiben', ende: last + IDLE_MS, weiter: () => { meiner = false; poke(); } });
+      }
+    }, 500);
   }
 })();

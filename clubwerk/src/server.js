@@ -231,24 +231,31 @@ app.get('/vereinslogo', (req, res) => {
 const ICON_DESIGN = '2';   // 2: Vereinsfarbe als Hintergrund, Logo groß mit schmalem weißem Rahmen
 const iconKey = () => `${getSetting('club_logo_ver', 'std')}:${clubColor()}:${ICON_DESIGN}`;
 const iconFresh = () => Boolean(getSetting('club_icon', '')) && getSetting('club_icon_ver', '') === iconKey();
-app.get('/vereinsicon.png', (req, res) => {
+/* Rundes Symbol für Android („maskable“, planung/leitfaeden-2.md): Hintergrund randlos, Logo ganz im Kreis mit 80 % Durchmesser
+   (Sicherheitszone) – Android schneidet rund, als Tropfen oder abgerundetes Quadrat zu. Erzeugt wie das normale Symbol (admin.js). */
+const maskFresh = () => Boolean(getSetting('club_icon_mask', '')) && getSetting('club_icon_mask_ver', '') === iconKey();
+const sendIcon = (res, mask) => {
   res.set('Cache-Control', 'no-cache');
-  if (iconFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon', ''), 'base64'));
+  if (mask && maskFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon_mask', ''), 'base64'));
+  if (iconFresh()) return res.type('image/png').send(Buffer.from(getSetting('club_icon', ''), 'base64'));   // maskable noch nicht erzeugt: lieber Vereinsbild als fremdes
   const l = logoInfo();
   if (l && l.custom && (l.type === 'png' || l.type === 'jpg')) return res.type(LOGO_TYPES[l.type]).send(Buffer.from(getSetting('club_logo', ''), 'base64'));
-  res.sendFile(path.join(__dirname, '..', 'public', 'icon-512.png'));
-});
+  res.sendFile(path.join(__dirname, '..', 'public', mask ? 'icon-maskable-512.png' : 'icon-512.png'));
+};
+app.get('/vereinsicon.png', (req, res) => sendIcon(res, false));
+app.get('/vereinsicon-maskable.png', (req, res) => sendIcon(res, true));
 /* Tablet-Manifest mit dem Namen des Vereins (Whitelabel: auf dem Tablet erscheint der Verein, nicht das Produkt) */
 app.get('/manifest.webmanifest', (req, res) => {
   const club = getSetting('club_name', process.env.CLUB_NAME || 'Verein');
   res.set('Cache-Control', 'no-cache').type('application/manifest+json').send(JSON.stringify({
     name: club, short_name: club.length > 14 ? club.slice(0, 14) : club, start_url: './', scope: './', display: 'fullscreen', orientation: 'landscape',
     background_color: '#f6f5f1', theme_color: clubColor(),
-    icons: [{ src: 'vereinsicon.png', sizes: '512x512', type: 'image/png' }, { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' }] }));
+    icons: [{ src: 'vereinsicon.png', sizes: '512x512', type: 'image/png' }, { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml' },
+      { src: 'vereinsicon-maskable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }] }));
 });
 app.get('/api/branding', (req, res) => {
   const l = logoInfo();
-  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), demo: isDemo() || undefined, iconNeeded: Boolean(l) && (!iconFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
+  res.json({ clubName: getSetting('club_name', process.env.CLUB_NAME || 'Unser Verein'), color: clubColor(), logo: logoUrl(), tabletTheme: tabletTheme(), demo: isDemo() || undefined, iconNeeded: Boolean(l) && (!iconFresh() || !maskFresh() || (l.type === 'svg' && getSetting('club_logo_png_ver', '') !== getSetting('club_logo_ver', 'std'))) });
 });
 
 /* ---------- Betrieb ohne Tablet (Einstellungen › Tablet › „Tablet im Vereinsheim“) ----------
@@ -1414,7 +1421,7 @@ admin.post('/logo', need('einstellungen'), express.raw({ type: () => true, limit
   setSetting('club_logo', r.data.toString('base64'));
   setSetting('club_logo_type', r.type);
   setSetting('club_logo_ver', String(Date.now()));
-  db.prepare("DELETE FROM settings WHERE key IN ('club_icon','club_icon_ver')").run();   // App-Symbol wird aus dem neuen Logo neu erzeugt
+  db.prepare("DELETE FROM settings WHERE key IN ('club_icon','club_icon_ver','club_icon_mask','club_icon_mask_ver')").run();   // App-Symbol wird aus dem neuen Logo neu erzeugt
   audit(req.user, 'Vereinslogo hochgeladen', r.type.toUpperCase() + ', ' + Math.round(r.data.length / 1024) + ' KB');
   res.json({ ok: true, logo: logoUrl(), type: r.type });
 });
@@ -1423,8 +1430,9 @@ admin.post('/logo', need('einstellungen'), express.raw({ type: () => true, limit
 admin.post('/logo-icon', need('einstellungen'), express.raw({ type: () => true, limit: '1mb' }), (req, res) => {
   const b = req.body;
   if (!b || b.length < 100 || b.readUInt32BE(0) !== 0x89504e47) return bad(res, 'Kein PNG.');
-  setSetting('club_icon', b.toString('base64'));
-  setSetting('club_icon_ver', iconKey());
+  const mask = req.query.art === 'maskable';   // rundes Symbol für Android (maskable)
+  setSetting(mask ? 'club_icon_mask' : 'club_icon', b.toString('base64'));
+  setSetting(mask ? 'club_icon_mask_ver' : 'club_icon_ver', iconKey());
   res.json({ ok: true });
 });
 /* Logo als schlichtes PNG (vom Browser aus dem SVG gezeichnet) – für PDFs und E-Mails; gilt für genau diesen Logo-Stand */
@@ -1436,7 +1444,7 @@ admin.post('/logo-png', need('einstellungen'), express.raw({ type: () => true, l
   res.json({ ok: true });
 });
 admin.delete('/logo', need('einstellungen'), (req, res) => {
-  db.prepare("DELETE FROM settings WHERE key IN ('club_logo','club_logo_type','club_logo_ver','club_icon','club_icon_ver','club_logo_png','club_logo_png_ver')").run();
+  db.prepare("DELETE FROM settings WHERE key IN ('club_logo','club_logo_type','club_logo_ver','club_icon','club_icon_ver','club_icon_mask','club_icon_mask_ver','club_logo_png','club_logo_png_ver')").run();
   audit(req.user, 'Vereinslogo entfernt');
   res.json({ ok: true, logo: logoUrl() });
 });

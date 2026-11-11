@@ -13858,6 +13858,27 @@
   "vh-chip g": "vh-chip g",
   "{0}{1}; HttpOnly; SameSite=Strict; Path=/{2}": "{0}{1}; HttpOnly; SameSite=Strict; Path=/{2}",
   "Accept-Encoding": "Accept-Encoding",
-  "h1, h2, h3, h4, h5, h6, [role=\"heading\"]": "h1, h2, h3, h4, h5, h6, [role=\"heading\"]"
+  "h1, h2, h3, h4, h5, h6, [role=\"heading\"]": "h1, h2, h3, h4, h5, h6, [role=\"heading\"]",
+  "Angemeldet bleiben": "Stay signed in",
+  "Der Verein ist gerade nicht erreichbar. Prüfe WLAN oder mobile Daten und versuche es dann noch einmal.": "The club cannot be reached right now. Check Wi-Fi or mobile data and then try again.",
+  "Du wirst gleich abgemeldet": "You will be signed out shortly",
+  "Erneut versuchen": "Try again",
+  "Gleich geht es zurück zum Start": "Returning to the start page shortly",
+  "Gleich wird abgebrochen": "Cancelling shortly",
+  "Hier bleiben": "Stay here",
+  "input, textarea": "input, textarea",
+  "Keine Verbindung": "No connection",
+  "No connection": "No connection",
+  "Noch keine Verbindung.": "Still no connection.",
+  "Ohne Eingabe endet die Anmeldung an diesem Tablet in wenigen Sekunden.": "Without any input, the sign-in on this tablet will end in a few seconds.",
+  "Ohne Eingabe gehen deine Eingaben auf dieser Seite in wenigen Sekunden verloren.": "Without any input, what you have entered on this page will be lost in a few seconds.",
+  "Ohne Eingabe geht es in wenigen Sekunden zurück zur Namensliste.": "Without any input, you will return to the list of names in a few seconds.",
+  "Ohne Eingabe wird deine Auswahl in wenigen Sekunden verworfen – nichts wird gebucht.": "Without any input, your selection will be discarded in a few seconds – nothing will be booked.",
+  "Still no connection.": "Still no connection.",
+  "The club cannot be reached right now. Check Wi-Fi or mobile data and then try again.": "The club cannot be reached right now. Check Wi-Fi or mobile data and then try again.",
+  "Try again": "Try again",
+  "Trying …": "Trying …",
+  "Weiter auswählen": "Continue selecting",
+  "Wird versucht …": "Trying …"
  }
 }
