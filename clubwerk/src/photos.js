@@ -63,8 +63,13 @@ function remove(id, who) {
 /** Bild ausliefern (use = Zweck, den das Mitglied freigegeben haben muss; null = Verwaltung/eigenes Bild) */
 function send(res, id, use) {
   const r = row(id), f = file(r);
-  if (!f || (use && !J(r.photo_use).includes(use)) || !fs.existsSync(f)) return res.status(404).end();
-  let buf; try { buf = require('./vault').readFile(f, { cacheIt: true }); } catch (e) { return res.status(404).end(); }   // gesperrt: Initialen statt Bild
+  if (!f || (use && !J(r.photo_use).includes(use))) return res.status(404).end();
+  let buf;
+  if (!fs.existsSync(f)) {   // Demo: Beispielbilder (clubwerk/demo/fotos) liegen im Paket, nicht im Datenordner
+    const d = path.join(__dirname, '..', 'demo', 'fotos', path.basename(f));
+    if (!fs.existsSync(d) || !db.prepare("SELECT 1 FROM settings WHERE key = 'demo_build'").get()) return res.status(404).end();
+    buf = fs.readFileSync(d);
+  } else try { buf = require('./vault').readFile(f, { cacheIt: true }); } catch (e) { return res.status(404).end(); }   // gesperrt: Initialen statt Bild
   res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=86400', 'Content-Security-Policy': "default-src 'none'", 'X-Content-Type-Options': 'nosniff' });
   res.end(buf);
 }

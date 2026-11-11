@@ -575,6 +575,7 @@ Der Kontoauszug liest die Bankumsätze ein und ordnet sie den offenen Posten zu,
 - **Gläubiger-ID:** bekommt der Verein von der Bundesbank.
 - **Mandatsreferenz = Kürzel + Nr.:** das Kürzel ist der Anfang jeder Mandatsreferenz; dahinter steht die Mitgliedsnummer.
 - **Vorabinformation (Tage vorher):** so früh kündigt ihr die Lastschrift an. Davon hängt der früheste Einzugstag ab.
+- **Verwendungszweck der Lastschrift:** Vorlage für den Text auf dem Kontoauszug des Mitglieds (höchstens 140 Zeichen). Platzhalter: {Jahr}, {Posten} (die Beitragsarten ohne Zeitraum, z. B. „Erwachsene, Tennis“), {Nr} (Mitgliedsnummer), {Name}, {Verein}. Leer bleibt die Vorgabe „Mitgliedsbeitrag {Jahr}: {Posten} · Mitgl.-Nr. {Nr}“. Die Vorlage gilt, wenn ein Beitrag in der Lastschrift steckt; der Verkaufs-Einzug nennt nur die Posten.
 - **Konto für Lastschriften:** eines der Vereinskonten (Einstellungen › Bankkonten); sonst das Standardkonto.
 - **Verkaufs-Einzug üblich am:** Tag und Monat für den Einzug der Verkaufskonten.
 - **Gebühr Rücklastschrift:** der Betrag, den ihr bei einer Rücklastschrift weiterberechnet.

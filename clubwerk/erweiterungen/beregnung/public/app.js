@@ -9,6 +9,7 @@
   const T = window.BeregnungTiles;
 
   if (embedded) {
+    if (window.CWZoom) window.CWZoom.sperren();   // am Tablet kein Zoom (nav.js gilt hier nicht); die Webapp am Beregnungs-Port bleibt zoombar
     document.body.classList.add('embedded');
     document.querySelectorAll('link[rel=manifest], link[rel=icon], link[rel=apple-touch-icon]').forEach(l => l.remove());
     // Kopfzeile und nav.js setzt der Server schon ins HTML der Tablet-Seite (src/plugins.js tabletPage)

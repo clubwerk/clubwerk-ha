@@ -424,12 +424,12 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
       const ct = r.headers.get('content-type') || t;
       if (/^image\//.test(ct)) res.set('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; img-src data:");   // Bilder (auch SVG-Logo) nie als Seite mit Skripten
       res.set({ 'Content-Type': ct, 'Cache-Control': /\.(woff2|png)$/.test(p) ? 'public, max-age=604800' : versioned(req) ? IMMUTABLE : 'no-cache' }).send(Buffer.from(await r.arrayBuffer()));   // Schriften/Icons eine Woche, Rest per ETag
-    } catch (e) { res.status(404).end(); }
+    } catch (e) { console.error(`Mitglieder-App: ${p.split('?')[0]} vom Server nicht erhalten (${e.name === 'TimeoutError' ? 'keine Antwort (Zeitüberschreitung)' : e.message})`); res.status(404).end(); }   // sichtbar im Protokoll (vorher still)
   };
   for (const [p, t] of [['/style.css', 'text/css'], ['/kit.css', 'text/css'], ['/icon-192.png', 'image/png'], ['/icon-512.png', 'image/png'], ['/fonts/jakarta-latin.woff2', 'font/woff2'], ['/fonts/jakarta-latin-ext.woff2', 'font/woff2'], ['/fonts/barlow-condensed-600.woff2', 'font/woff2'], ['/theme-init.js', 'application/javascript']]) app.get(p, relay(p, t));
   app.get('/theme.css', (req, res) => relay('/theme.css' + themePreview(req), 'text/css')(req, res));
-  // Sprache: Anfrage samt Wahl (l) und Handy-Sprache (b) an den Hauptserver weiterreichen
-  app.get('/i18n.js', (req, res) => relay('/i18n.js?' + new URLSearchParams({ l: String(req.query.l || 'auto').slice(0, 20), b: String(req.query.b || '').slice(0, 200) }), 'application/javascript')(req, res));
+  // Sprache: direkt aus dem gemeinsamen Zwischenspeicher (gleicher Prozess) – nicht per HTTP über den Hauptserver: unter Last gab das Relais nach 5 s auf, die App blieb deutsch
+  app.get('/i18n.js', (req, res) => require('./i18n').sendPage(req, res));
   app.get('/logo', relay('/vereinslogo', 'image/png'));
   app.get('/icon.png', relay('/vereinsicon.png', 'image/png'));
   app.get('/icon-maskable.png', relay('/vereinsicon-maskable.png', 'image/png'));

@@ -307,7 +307,7 @@ function application(club, a, feeList, s) {
 
   // 1 Antragsteller/in
   const p0 = persons[0] || {};
-  const GENDER = { m: 'männlich', w: 'weiblich', d: 'divers' };
+  const GENDER = { m: 'männlich', w: 'weiblich' };
   section('01', 'Antragsteller/in');
   fields([['Vorname', p0.first_name, 2], ['Nachname', p0.last_name, 2]]);
   fields([['Geburtsdatum', deD(p0.birth_date), 1], ['Geschlecht', p0.gender || '', 2, Object.entries(GENDER)], ['Mitgliedschaft ab', deD(d.entry_date), 1]]);

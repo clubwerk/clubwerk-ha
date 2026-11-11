@@ -105,6 +105,13 @@
       .mv-split .mdetail .facts dd { overflow-wrap: anywhere; }
       .mv-split .mdetail .mv-khw { display: flex; flex-direction: column; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-soft); } .mv-khr { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }   /* Hinweise in der Karte oben unter dem Kopf, nicht am Ende */
       #mvTbl .mv-hw { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }   /* Hinweise als Schild unter dem Namen – bei jeder Breite, mit und ohne Karte (in 2026.11.30 fehlten sie neben der Karte, Fund Thorsten 09.11.2026) */
+      @media (min-width: 701px) and (max-width: 1279px) {   /* Tablet-Liste (im Tablet-Rahmen bis 1399 px, theme-init.js): Zeile 1 Name samt Hinweis-Schild und Status nebeneinander, Zeile 2 die Werte – jede Zeile gleich hoch */
+        #mvTbl td.k-1z .who > span:last-child { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; min-width: 0; }
+        #mvTbl td.k-1z .mv-hw, #mvTbl td.k-1z .muted.s { margin-top: 0; }
+        #mvTbl td.mv-pay::before { content: none !important; }
+        #mvTbl td.mv-pay .pill { min-height: 0; height: 16px; line-height: 16px; padding: 0 7px; font-size: 11px; margin-left: 4px; vertical-align: top; }   /* „zahlt für 3“ macht die Zeile nicht höher */
+        #mvTbl td.k-lbl::before { margin-right: 3px; }
+      }
       #mvTbl.ez td.k-1z { min-width: 210px; } #mvTbl.ez td.mv-nw { white-space: nowrap; } #mvTbl.ez .mv-hw { white-space: nowrap; }   /* Namen haben Platz (nur sehr lange brechen um), Beitrag und Zahlung einzeilig – die Zeilen bleiben gleich hoch; nur solange die Tabelle damit hineinpasst (einzeilig() unten), sonst bricht es um statt seitlich zu scrollen */
       @media (max-width: 1499px) { .mv-split { grid-template-columns: minmax(0, 1fr); } .mv-split > .mcol { display: none; } }   /* Liste und Mitglied nebeneinander erst ab 1400 px, darunter öffnet ein Klick das Mitglied wie bisher */
       .mv-famact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; margin-top: 8px; } .mv-famact .btn { width: 100%; justify-content: center; }   /* zwei gleiche Hälften über die volle Breite, bündig mit der Zeile „Hinzufügen“ darüber */
@@ -205,8 +212,8 @@
       ${st.f.issue ? `<div class="banner a"><span><b>${esc(GK.T(st.f.issue))}</b> – nur diese Mitglieder.</span><button class="btn small" id="mvIssueOff" type="button">Alle Hinweise</button></div>` : ''}
       <div class="filterbar"><label class="search"><span aria-hidden="true">${icon('suche', 16)}</span><input id="mvQ" placeholder="Name, Nr., Ort suchen" aria-label="Suchen" value="${esc(st.f.q)}"></label>
         ${chipBar('mvSeg', [['aktuell', 'Aktuell'], ['hinweis', 'Mit Hinweis'], ['ausgetreten', 'Ausgetreten'], ['alle', 'Alle']], st.f.status)}
-        <label class="f mv-fsel"><select translate="no" id="mvDept" data-nodirty aria-label="Abteilung"><option value="">${esc(GK.T(SC() ? 'Meine Abteilungen' : 'Alle Abteilungen'))}</option>${(SC() ? m.scope : m.depts).map(d => opt(d.id, d.name, st.f.dept)).join('')}</select></label>
-        <label class="f mv-fsel"><select translate="no" id="mvFee" data-nodirty aria-label="Beitrag"><option value="">${esc(GK.T('Alle Beiträge'))}</option>${m.fees.map(f => opt(f.id, f.name, st.f.fee)).join('')}</select></label>
+        <div class="fb-sel"><label class="f mv-fsel"><select translate="no" id="mvDept" data-nodirty aria-label="Abteilung"><option value="">${esc(GK.T(SC() ? 'Meine Abteilungen' : 'Alle Abteilungen'))}</option>${(SC() ? m.scope : m.depts).map(d => opt(d.id, d.name, st.f.dept)).join('')}</select></label>
+        <label class="f mv-fsel"><select translate="no" id="mvFee" data-nodirty aria-label="Beitrag"><option value="">${esc(GK.T('Alle Beiträge'))}</option>${m.fees.map(f => opt(f.id, f.name, st.f.fee)).join('')}</select></label></div>
       </div>
       <div class="mlayout mv-split"><div class="mlist"><div class="scroll"><table class="tbl kompakt sel" id="mvTbl"></table></div>
       <p class="empty hidden" id="mvEmpty"></p></div><div class="mcol card"><aside class="mdetail" id="mvDetail"></aside></div></div>`;
@@ -584,7 +591,7 @@
     const p = d.person, ro = Boolean(p.anonymized_at);
     const consents = st.meta.settings.consents;
     el.innerHTML = `<div class="card"><h3>Person</h3><div class="mv-grid" style="--c:4">
-        <label class="f">Anrede<select id="sSal">${['', 'Frau', 'Herr', 'Divers'].map(x => opt(x, x || '–', p.salutation)).join('')}</select></label>
+        <label class="f">Anrede<select id="sSal">${p.salutation === 'Frau' || p.salutation === 'Herr' ? '' : '<option value="" selected disabled>bitte wählen</option>'}${['Frau', 'Herr'].map(x => opt(x, x, p.salutation)).join('')}</select></label>
         <label class="f">Titel<input id="sTitle" value="${esc(p.title || '')}"></label>
         <label class="f">Vorname<input id="sFirst" value="${esc(p.first_name || '')}"></label>
         <label class="f">Nachname<input id="sLast" value="${esc(p.last_name || '')}"></label>
@@ -1955,7 +1962,7 @@
     st.day = st.day || st.meta.today;
     if (!st.rows) await loadRows();   // „Austritt angekündigt“ (früher als Kachel über der Liste)
     const s = await api('stats?day=' + st.day);
-    const G = { m: 'männlich', w: 'weiblich', d: 'divers', x: 'ohne Angabe' };
+    const G = { m: 'männlich', w: 'weiblich', x: 'ohne Angabe' };
     const sum = r => r.m + r.w + r.d + r.x;
     el.innerHTML = `<div class="filterbar"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Stichtag<input id="rpDay" type="date" value="${s.day}" data-nodirty></label></div>
       <div class="kpis"><div class="kpi"><div class="l">Mitglieder am ${deDate(s.day)}</div><div class="v">${s.count}</div></div>
@@ -1966,8 +1973,8 @@
         <div class="card"><h3>Ein- und Austritte</h3>${(n => (n ? `<p class="muted s" style="margin-top:0">Austritt angekündigt: <b>${n}</b></p>` : ''))((st.rows || []).filter(r => r.leaving).length)}<table class="tbl kompakt"><tr><th>Jahr</th><th class="r">Eintritte</th><th class="r">Austritte</th><th class="r">Saldo</th></tr>
           ${s.years.slice().reverse().filter(y => y.in || y.out || y.year >= +s.day.slice(0, 4) - 2).map(y => `<tr><td>${y.year}</td><td class="r k-lbl" data-label="Eintritte">${y.in}</td><td class="r k-lbl" data-label="Austritte">${y.out}</td><td class="r k-lbl ${y.in - y.out < 0 ? 'neg' : ''}" data-label="Saldo">${y.in - y.out > 0 ? '+' : ''}${y.in - y.out}</td></tr>`).join('')}</table></div></div>
       <div class="card"><div class="row" style="justify-content:space-between;align-items:center;margin-bottom:8px"><h3 style="margin:0;flex:1 1 180px;min-width:0;line-height:1.25">Bestandserhebung (Landessportbund)</h3><a class="btn" href="${BASE}stats/lsb.xlsx?day=${s.day.slice(0, 4)}-01-01">Excel zum 01.01.${s.day.slice(0, 4)}</a></div>
-        <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Divers</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
-          ${s.lsb.groups.map((g, i) => { const t = s.lsb.total[i], c = (n, l, hide) => `<td class="k-lbl${hide && !n ? ' k-weg' : ''}" data-label="${l}">${n}</td>`; return `<tr><td>${esc(g)}</td>${c(t.m, 'Männlich')}${c(t.w, 'Weiblich')}${c(t.d, 'Divers', 1)}${c(t.x, 'Ohne Angabe', 1)}<td class="k-lbl" data-label="Gesamt"><b>${sum(t)}</b></td></tr>`; }).join('')}</table>
+        <table class="tbl kompakt mv-lsb"><tr><th>Altersgruppe</th><th>Männlich</th><th>Weiblich</th><th>Ohne Angabe</th><th>Gesamt</th></tr>
+          ${s.lsb.groups.map((g, i) => { const t = s.lsb.total[i], c = (n, l, hide) => `<td class="k-lbl${hide && !n ? ' k-weg' : ''}" data-label="${l}">${n}</td>`; return `<tr><td>${esc(g)}</td>${c(t.m, 'Männlich')}${c(t.w, 'Weiblich')}${c(t.x, 'Ohne Angabe', 1)}<td class="k-lbl" data-label="Gesamt"><b>${sum(t)}</b></td></tr>`; }).join('')}</table>
         ${s.lsb.noBirth ? `<div class="banner a"><span>${s.lsb.noBirth} ${s.lsb.noBirth === 1 ? 'Mitglied ohne Geburtsdatum ist' : 'Mitglieder ohne Geburtsdatum sind'} nicht enthalten${s.lsb.noBirthNames.length ? ': ' + s.lsb.noBirthNames.map(n => `<a href="#" data-open="${n.id}">${esc(GK.lastFirst(n.name))}</a>`).join(', ') + (s.lsb.noBirth > s.lsb.noBirthNames.length ? ' …' : '') : ''}.</span><button class="btn small" id="rpNoBirth" type="button">In der Liste anzeigen</button></div>` : ''}</div>
       <div class="card"><h3>Runde Geburtstage & Jubiläen <span class="muted s">(12 Monate)</span></h3>${s.events.length ? `<table class="tbl kompakt"><tr><th>Name</th><th>Datum</th><th>Anlass</th><th class="r">Jahre</th></tr>${s.events.map(e => `<tr><td><b translate="no">${esc(GK.lastFirst(e.name))}</b></td><td class="num nw">${deDate(e.date)}</td><td>${esc(e.kind)}</td><td class="r nw">${e.n}${e.kind === 'Geburtstag' ? ' Jahre' : ' Jahre Mitglied'}</td></tr>`).join('')}</table>` : '<p class="empty">Keine runden Geburtstage oder Jubiläen.</p>'}</div>`;
     $('rpDay').onchange = () => { st.day = val('rpDay'); showReports(el).catch(fail); };
@@ -2169,7 +2176,9 @@
         <label class="f w2">Konto für Lastschriften<select id="eAcc" ${m.perms.finance && acc.rows.length ? '' : 'disabled'}>${acc.rows.length ? `${opt('', 'Standardkonto' + (acc.rows.find(a => a.is_default) ? ` (${acc.rows.find(a => a.is_default).name})` : ''), s.sepa_account || '')}${acc.rows.filter(a => a.active !== false).map(a => opt(a.id, `${a.name} · ${fmtIban(a.iban).slice(0, 4)} … ${String(a.iban).replace(/\s/g, '').slice(-4)}`, s.sepa_account)).join('')}` : `<option>${s.club_iban && !s.account_central ? esc(fmtIban(s.club_iban)) + ' (bisher hier eingetragen)' : 'noch kein Bankkonto angelegt'}</option>`}</select></label>
         <label class="f"><span>&nbsp;</span><a class="btn" href="#einstellungen" id="eAccGo" style="justify-content:center">Bankkonten verwalten …</a></label>
         <label class="f w2">Verkaufs-Einzug üblich am (TT.MM.)<input id="eDrinks" value="${esc(s.drinks_due ? s.drinks_due.split('-').reverse().join('.') : '')}" placeholder="z. B. 01.12."></label>
-        <label class="f">Gebühr Rücklastschrift<input id="eRet" value="${centsToInput(s.return_fee_cents)}" inputmode="decimal"></label></div>
+        <label class="f">Gebühr Rücklastschrift<input id="eRet" value="${centsToInput(s.return_fee_cents)}" inputmode="decimal"></label>
+        <label class="f" style="grid-column:1/-1">Verwendungszweck der Lastschrift<input id="eZweck" value="${esc(s.sepa_purpose || '')}" maxlength="140" spellcheck="false">
+          <span class="muted s">Platzhalter: {Jahr} {Posten} {Nr} {Name} {Verein} – leer = „${esc(s.sepa_purpose_default)}“, z. B. „Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041“. Gilt, wenn ein Beitrag dabei ist; der Verkaufs-Einzug nennt nur die Posten.</span></label></div>
         <p class="muted s" style="margin:12px 0 0">Die Gläubiger-ID bekommt der Verein von der Bundesbank. Die Mandatsreferenz jedes Mitglieds besteht aus dem Kürzel und seiner Mitgliedsnummer.</p>
         ${s.club_iban && !s.club_bic ? `<div class="banner g" style="margin-top:12px"><span>${BIC_HINT}</span></div>` : ''}${foot('eSaveSepa')}</div>
       <div class="card" data-set="rechnung"><h3>Rechnungen</h3><div class="mv-grid" style="--c:2">
@@ -2187,7 +2196,7 @@
     save('eSaveSepa', () => {
       const dd = /^(\d{1,2})\.(\d{1,2})\.?$/.exec(val('eDrinks'));
       return { creditor_name: val('eName'), creditor_id: val('eCi'), ...(m.perms.finance && $('eAcc') && !$('eAcc').disabled ? { sepa_account: val('eAcc') ? +val('eAcc') : null } : {}),
-        mandate_prefix: val('ePre'), prenotify_days: +val('ePre2'), drinks_due: dd ? `${dd[2].padStart(2, '0')}-${dd[1].padStart(2, '0')}` : '', return_fee_cents: toCents(val('eRet') || '0') };
+        mandate_prefix: val('ePre'), sepa_purpose: val('eZweck'), prenotify_days: +val('ePre2'), drinks_due: dd ? `${dd[2].padStart(2, '0')}-${dd[1].padStart(2, '0')}` : '', return_fee_cents: toCents(val('eRet') || '0') };
     });
     save('eSaveInv', () => ({ invoice_text: val('eInv') }));
     // Mahnstufen: je Stufe Bezeichnung, Abstand, Gebühr und Text; 1 bis 5 Stufen

@@ -689,7 +689,7 @@
       <div class="filterbar"><select id="lgY" class="bk-sel" data-nodirty>${d.years.map(y => opt(y, `Jahr ${y}`, g.year)).join('')}</select>
         <select id="lgR" class="bk-sel" data-nodirty>${opt('', 'Alle Plätze', g.resource)}${st.meta.resources.map(r => opt(r.id, r.name, g.resource)).join('')}</select>
         <select id="lgS" class="bk-sel" data-nodirty>${opt('termin', 'nach Termin', g.sort)}${opt('eingetragen', 'nach Eintragung', g.sort)}</select>
-        <span style="flex:1"></span><span class="muted s">${d.total.toLocaleString('de-DE')} ${d.total === 1 ? 'Eintrag' : 'Einträge'}${d.total > shown.length ? ` · ${shown.length} angezeigt` : ''}</span></div>
+        <span class="fb-gap"></span><span class="muted s fb-count">${d.total.toLocaleString('de-DE')} ${d.total === 1 ? 'Eintrag' : 'Einträge'}${d.total > shown.length ? ` · ${shown.length} angezeigt` : ''}</span></div>
       <div class="card" style="padding:0 20px;overflow:auto">${d.rows.length ? `<table class="tbl kompakt bk-lg"><tr><th>Spieler / Buchungsart</th><th>Platz</th><th>Termin</th><th>Status</th><th class="r k-weg hide-md">Eingetragen</th></tr>${rows}</table>${d.rows.length > shown.length ? '<div style="display:flex;justify-content:center;padding:16px 0"><button class="btn" id="lgMore">Weitere laden</button></div>' : ''}` : '<p class="empty">Keine Einträge für diese Auswahl.</p>'}</div>`;
     if (!GK.tabTools(csv, el)) el.querySelector('.filterbar').insertAdjacentHTML('beforeend', csv);
     if ($('lgMore')) $('lgMore').onclick = () => { g.n = (g.n || 200) + 300; const y0 = window.scrollY; showLog(el).then(() => window.scrollTo(0, y0)).catch(fail); };

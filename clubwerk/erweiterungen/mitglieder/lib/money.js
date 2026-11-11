@@ -9,6 +9,8 @@
  */
 const pdf = require('./pdf');
 
+/** Vorgabe für den Verwendungszweck der Lastschrift (Beiträge & Zahlungen › Einstellungen › Lastschrift) */
+const ZWECK_VORGABE = 'Mitgliedsbeitrag {Jahr}: {Posten} · Mitgl.-Nr. {Nr}';
 function register(sh) {
   const { C, store, sepa, fees, personRow, bankRow, mandateState, one, euro, deD, uname, ar } = sh;
   const { S, today, nowTs } = store;
@@ -389,7 +391,7 @@ function register(sh) {
       // Sicherheitsnetz für Altdaten: Unterschrift nach dem Fälligkeitstag würde die Bank ablehnen (DtOfSgntr > ReqdColltnDt)
       if (b.mandate_date > day) { problems.push({ member_id: payer, name, reason: `Mandat erst am ${deD(b.mandate_date)} unterschrieben – nach dem Einzugstag`, cents: sum, count: list.length }); continue; }
       if (sum < 0) { problems.push({ member_id: payer, name, reason: `Guthaben ${euro(-sum)} – nichts einzuziehen`, cents: sum, count: list.length }); continue; }
-      ok.push({ member_id: payer, name, member_no: p.member_no, cents: sum, count: list.length, charges: list.map(c => c.id), texts: list.map(c => c.text), seq: b.mandate_first_used ? 'RCUR' : 'FRST',
+      ok.push({ member_id: payer, name, member_no: p.member_no, cents: sum, count: list.length, charges: list.map(c => c.id), texts: list.map(c => c.text), kinds: list.map(c => c.kind), seq: b.mandate_first_used ? 'RCUR' : 'FRST',
         holder: b.holder || name, iban: b.iban, bic: b.bic, mandate_ref: b.mandate_ref, mandate_date: b.mandate_date, masked: sepa.maskIban(b.iban) });
     }
     const earliest = sepa.earliestCollection(today(), parseInt(S('prenotify_days', '14'), 10) || 14);
@@ -397,12 +399,26 @@ function register(sh) {
       ready: Boolean(S('creditor_id') && store.account().iban), bicMissing: Boolean(store.account().iban && !store.account().bic),
       creditor: { ci: S('creditor_id'), name: S('creditor_name') || C.getSetting('club_name', ''), iban: sepa.maskIban(store.account().iban), account: store.account().name } };
   }
-  /** Verwendungszweck: Positionen zusammengefasst, max. 140 Zeichen */
-  function remittance(x) {
-    const uniq = [...new Set(x.texts)];
-    let t = uniq.join(', ');
-    if (t.length > 120) t = `${uniq.length} Posten: ` + uniq.map(s => s.split(' ')[0]).filter((v, i, a) => a.indexOf(v) === i).join(', ');
-    return `${t}${x.member_no ? ' Mitgl.-Nr. ' + x.member_no : ''}`.slice(0, 140);
+  /** Verwendungszweck (max. 140 Zeichen) nach der Vorlage aus Beiträge & Zahlungen › Einstellungen › Lastschrift (Wunsch Thorsten 11.11.2026):
+   *  {Jahr} {Posten} {Nr} {Name} {Verein}. Die Vorlage gilt, sobald ein Beitrag dabei ist; ohne Beitrag (z. B. Verkaufs-Einzug) „{Posten} · Mitgl.-Nr. {Nr}“.
+   *  {Posten}: die Posten ohne Zeitraum und Namenszusatz, doppelte nur einmal; zu lang → nur das erste Wort je Posten, dann „n Posten“. */
+  function remittance(x, day) {
+    const kurz = t => String(t).replace(/\s+\d{2}\/\d{4}\s*[-–]\s*\d{2}\/\d{4}/g, '').replace(/\s*\(anteilig\)/g, '').replace(/\s+–\s+.*$/, '').trim();
+    const posten = [...new Set(x.texts.map(kurz).filter(Boolean))];
+    // {Jahr}: aus dem Zeitraum des ersten Beitrags („01/2027-12/2027“ → 2027, „07/2026-06/2027“ → 2026/27), sonst das Jahr des Einzugs
+    const zr = x.texts.map((t, i) => (x.kinds || [])[i] === 'beitrag' && /(\d{2})\/(\d{4})\s*[-–]\s*(\d{2})\/(\d{4})/.exec(t)).find(Boolean);
+    const jahr = zr ? (zr[2] === zr[4] ? zr[2] : `${zr[2]}/${zr[4].slice(2)}`) : String(day || today()).slice(0, 4);
+    const vorlage = (x.kinds || []).includes('beitrag') ? (S('sepa_purpose') || ZWECK_VORGABE) : '{Posten} · Mitgl.-Nr. {Nr}';
+    const fuell = p => {
+      let v = vorlage;
+      if (!x.member_no) v = v.replace(/[\s·,;:–-]*[^\s{}]*\s*\{Nr\}/g, '');   // ohne Nummer auch die Beschriftung davor weglassen
+      return v.replace(/\{Jahr\}/g, jahr).replace(/\{Posten\}/g, p).replace(/\{Nr\}/g, x.member_no || '')
+        .replace(/\{Name\}/g, lastFirst(x.name, 'mitglied')).replace(/\{Verein\}/g, club().name).replace(/\s+/g, ' ').replace(/^[\s·,;:–-]+|[\s·,;:–-]+$/g, '');
+    };
+    let t = fuell(posten.join(', '));
+    if (t.length > 140) t = fuell(posten.map(s => s.split(' ')[0]).filter((v, i, a) => a.indexOf(v) === i).join(', '));
+    if (t.length > 140) t = fuell(`${posten.length} Posten`);
+    return t.slice(0, 140);
   }
   admin.post('/collections/preview', PF, (req, res) => res.json(collectionPlan((req.body || {}).date)));
   /** Einzug prüfen wie beim Erstellen – Text des Hindernisses (mit Status) oder null */
@@ -433,7 +449,7 @@ function register(sh) {
       const msgId = `CW${stamp}-${id}`;
       const prevMandates = {};
       const batches = ['FRST', 'RCUR'].map(seq => ({ id: `${msgId}-${seq}`, seqTp: seq, date: plan.date, txs: txs.filter(x => x.seq === seq).map(x => ({
-        e2e: `CW${id}-${x.member_id}`, cents: x.cents, mandateId: x.mandate_ref, mandateDate: x.mandate_date, name: x.holder, iban: x.iban, bic: x.bic, text: remittance(x) })) }));
+        e2e: `CW${id}-${x.member_id}`, cents: x.cents, mandateId: x.mandate_ref, mandateDate: x.mandate_date, name: x.holder, iban: x.iban, bic: x.bic, text: remittance(x, plan.date) })) }));
       const xmlStr = sepa.buildPain008({ msgId, created: sepa.isoLocal(), initiator: plan.creditor.name, creditor: { name: plan.creditor.name, iban: store.account().iban, bic: store.account().bic, ci: S('creditor_id') }, batches });
       for (const x of txs) {
         const bk = bankRow(x.member_id);
@@ -715,4 +731,4 @@ function register(sh) {
   };
 }
 
-module.exports = { register };
+module.exports = { register, ZWECK_VORGABE };

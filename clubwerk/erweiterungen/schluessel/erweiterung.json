@@ -1,7 +1,7 @@
 {
   "id": "schluessel",
   "name": "Schlüssel",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "kurz": "Schlüsselübergabe mit Unterschrift, Rücknahme und Verlust – als PDF festgehalten.",
   "beschreibung": "Bestand an Schlüsseln, Transpondern und Karten (Sorten mit mehreren Stück). Bei der Ausgabe unterschreiben beide Seiten auf dem Bildschirm – in der Verwaltung auf jedem Gerät oder am Vereinstablet mit einem Code. Die Bedingungen werden beim Unterschreiben eingefroren, das Protokoll als PDF (mit Prüfwert) im Tresor abgelegt und per E-Mail verschickt. Rücknahme, Verlust und Stornierung bekommen ein eigenes Protokoll; der Verlust eines sicherheitsrelevanten Schlüssels löst eine Sicherheitswarnung aus. Hinweis „zurückfordern“ bei Austritt oder abgelaufener Frist, Excel mit Pfandliste, Löschfristen und Auskunft nach DSGVO.",
   "minApp": "2026.11.26",

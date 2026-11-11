@@ -325,7 +325,9 @@ function remove(code) {
 let pageCode = null;
 /* i18n.js je Sprache nur einmal bauen und fertig komprimiert vorhalten (Englisch: 1,2 MB Text, vorher bei jedem Seitenaufruf neu gebaut und
    gepackt, 20–45 ms vor dem ersten Bild – auf dem Raspberry Pi ein Vielfaches; planung/leitfaeden.md). Neu bei Änderung einer Sprache
-   (invalidate/reload) und der Vereinssprache (Schlüssel). Brotli in höchster Stufe: einmal ~2 s im Hintergrund, dann 25 % kleiner als gzip. */
+   (invalidate/reload) und der Vereinssprache (Schlüssel). Brotli in höchster Stufe: einmal ~2 s im Hintergrund, dann 25 % kleiner als gzip.
+   Auch gzip (Stufe 9) läuft im Hintergrund: synchron hielt es den ganzen Server an (234 ms auf einem schnellen Rechner, unter Last Sekunden – das Relais der
+   Mitglieder-App gab nach 5 s auf, die App blieb deutsch; Wackler-Jagd 11.11.2026). Bis es fertig ist, packt security.compress die Antwort als Datenstrom. */
 const pages = new Map();
 function pageAsset(lang) {
   const key = lang + '|' + clubLang();
@@ -333,12 +335,25 @@ function pageAsset(lang) {
   if (a) return a;
   const zlib = require('zlib');
   const body = Buffer.from(pageScript(lang));
-  a = { body, etag: '"' + require('crypto').createHash('sha1').update(body).digest('base64url').slice(0, 27) + '"', gz: zlib.gzipSync(body, { level: 9 }), br: null };
+  a = { body, etag: '"' + require('crypto').createHash('sha1').update(body).digest('base64url').slice(0, 27) + '"', gz: null, br: null };
   if (pages.size > 20) pages.clear();
   pages.set(key, a);
   const mine = a;
+  zlib.gzip(body, { level: 9 }, (e, buf) => { if (!e) mine.gz = buf; });
   zlib.brotliCompress(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length } }, (e, buf) => { if (!e) mine.br = buf; });
   return a;
+}
+
+/** GET /i18n.js (Verwaltung, Tablet und Mitglieder-App): l = gewählte Sprache, b = Sprachen des Browsers; fertig gepackt aus pageAsset.
+ *  Die Mitglieder-App ruft das direkt auf (gleicher Prozess) – vorher holte sie die Datei per HTTP vom eigenen Server und gab nach 5 s auf (Wackler-Jagd 11.11.2026). */
+function sendPage(req, res) {
+  const l = typeof req.query.l === 'string' && req.query.l !== 'auto' ? req.query.l.slice(0, 20) : '';
+  const a = pageAsset(resolve(l, typeof req.query.b === 'string' ? req.query.b.slice(0, 200) : ''));
+  res.type('application/javascript').set({ 'Cache-Control': 'no-cache', ETag: a.etag, Vary: 'Accept-Encoding' });
+  if (req.fresh) return res.status(304).end();
+  const acc = String(req.headers['accept-encoding'] || ''), enc = a.br && /\bbr\b/.test(acc) ? 'br' : a.gz && /\bgzip\b/.test(acc) ? 'gzip' : '';   // noch nicht fertig gepackt: security.compress packt als Datenstrom
+  if (enc) res.set('Content-Encoding', enc);   // schon gepackt – die Komprimierung (security.compress) lässt es dann in Ruhe
+  res.send(enc === 'br' ? a.br : enc === 'gzip' ? a.gz : a.body);
 }
 
 function pageScript(lang) {
@@ -358,4 +373,4 @@ function init(o) {
 }
 
 module.exports = { aliases, init, reload, list, catalog, strings, meta, exists, resolve, clubLang, normCode, dict, tr, T, current, run, locale,
-  middleware, exportJson, exportXlsx, parseUpload, importData, remove, pageScript, pageAsset, LANG_DIR };
+  middleware, exportJson, exportXlsx, parseUpload, importData, remove, pageScript, pageAsset, sendPage, LANG_DIR };

@@ -231,8 +231,11 @@
   function fitTools() {
     requestAnimationFrame(() => document.querySelectorAll('#main .tabrow:not(.detailrow)').forEach(row => {
       const t = [...row.children].find(c => c.classList.contains('tabs')), box = [...row.children].find(c => c.classList.contains('tabtools')); if (!t) return;
-      row.classList.remove('beside'); if (t.scrollWidth > t.clientWidth + 1) { tabFade(t); return; }   // Reiter allein zu breit: wischbar wie am Handy
-      if (box && box.childElementCount) { row.classList.add('beside'); if (t.scrollWidth > t.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1 || box.offsetTop > t.offsetTop + 8) row.classList.remove('beside'); }
+      row.classList.remove('beside', 'stack'); if (t.scrollWidth > t.clientWidth + 1) { if (box && box.childElementCount) row.classList.add('stack'); tabFade(t); return; }   // Reiter allein zu breit: wischbar wie am Handy
+      if (box && box.childElementCount) {
+        row.classList.add('beside'); if (t.scrollWidth > t.clientWidth + 1 || row.scrollWidth > row.clientWidth + 1 || box.offsetTop > t.offsetTop + 8) row.classList.remove('beside');
+        if (!row.classList.contains('beside')) row.classList.add('stack');   // Knöpfe unter den Reitern: die Reiterleiste füllt die Zeile und schließt rechts bündig mit der Knopfreihe ab
+      }
       tabFade(t);
     }));
   }
@@ -302,6 +305,16 @@
           const w = document.createElement('div'); w.className = 'tcell'; while (td.firstChild) w.appendChild(td.firstChild); td.appendChild(w);
         }
         i += td.colSpan || 1; }); });
+      /* Spalten ohne einen einzigen Wert (jede Zelle leer, kein Knopf, Feld oder Schild) fallen samt Kopf weg – sonst bleibt eine leere Spalte mit Lücke
+         (Fehler Thorsten 11.11.2026: „Abteilungen“ ohne Inhalt). Nur Tabellen, deren Zeilen alle so viele Zellen haben wie der Kopf. */
+      const rows = [...t.querySelectorAll('tr')].filter(tr => tr !== head), n = head.children.length;
+      if (rows.length && rows.every(tr => tr.children.length === n && !tr.querySelector('[colspan]')) && !t.classList.contains('k-alle-spalten')) {
+        const inhalt = ['img', 'svg', 'input', 'select', 'textarea', 'button', 'a', '.pill', '.av'].join(',');
+        for (let c = 0; c < n; c++) {
+          const leer = rows.every(tr => { const z = tr.children[c]; return !z.textContent.trim() && !z.querySelector(inhalt); });
+          head.children[c].classList.toggle('k-leer', leer); rows.forEach(tr => tr.children[c].classList.toggle('k-leer', leer));
+        }
+      }
     });
   }
   /* Einzeilige Textfelder, die nie abschneiden: <textarea data-grow rows="1"> bricht langen Text um und wächst mit (Enter schaltet nicht um, Zeilenumbrüche fallen weg).
@@ -313,6 +326,13 @@
   addEventListener('resize', () => growAll(document));
   new MutationObserver(() => { labelTables(document); growAll(document); }).observe(document.getElementById('app'), { childList: true, subtree: true });
   new MutationObserver(() => { labelTables($('dialog')); growAll($('dialog')); }).observe($('dialog'), { childList: true, subtree: true });
+  /* Fenster schließen: Abdunklung kurz nachklingen lassen (Aussehen in admin.html, .cw-abblenden) – für jedes .overlay, egal wie es geschlossen wird */
+  { const glow = document.createElement('div'); glow.className = 'cw-abblenden'; glow.setAttribute('aria-hidden', 'true'); document.body.appendChild(glow);
+    glow.addEventListener('animationend', () => glow.classList.remove('an'));
+    new MutationObserver(recs => { for (const r of recs) { const e = r.target;
+      if (!e.classList.contains('overlay') || !e.classList.contains('hidden') || /(^|\s)hidden(\s|$)/.test(r.oldValue || '')) continue;
+      glow.style.background = getComputedStyle(e).backgroundColor; glow.classList.remove('an'); void glow.offsetWidth; glow.classList.add('an'); } })
+      .observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true }); }
 
   /* ---------- Anmeldung ---------- */
   let me = null, permLabels = {};
@@ -471,7 +491,8 @@
   let tabToolsOwner = null;   // Inhalt, zu dem die Knöpfe in der Reiterzeile gehören
   /* Reiterzeile pflegen: Knöpfe entfernen, wenn ihr Inhalt verschwindet; eine Knopfleiste (.toolbar mit nur Knöpfen) ganz oben im
      Seiteninhalt wandert automatisch rechts in die Reiterzeile – so stehen „+ Neu …“ und Co. auf allen Seiten an derselben Stelle */
-  new MutationObserver(() => {
+  new MutationObserver(ms => {
+    if (ms.some(m => (m.target.nodeType === 1 && m.target.closest('#main .tabrow > .tabtools')) || [...m.addedNodes].some(n => n.nodeType === 1 && (n.matches('.tabrow') || n.querySelector('.tabrow'))))) fitTools();   // Knöpfe, die eine Seite selbst in die Reiterzeile setzt (z. B. „Einrichtung fortsetzen“): neben oder unter den Reitern, bündig
     if (tabToolsOwner && !document.body.contains(tabToolsOwner)) { tabToolsOwner = null; const b = $('tabTools'); if (b) b.innerHTML = ''; }
     const box = $('tabTools'), row = box && box.parentElement; if (!row || row.parentElement !== $('main')) return;
     const next = row.nextElementSibling; if (!next) return;

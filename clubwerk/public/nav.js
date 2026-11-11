@@ -8,6 +8,10 @@
   const base = (me && me.dataset.base) || '';
   const active = (me && me.dataset.active) || 'getraenke';
   const activeLabel = (me && me.dataset.label) || document.title;   // Beschriftung, falls die aktuelle Seite nicht in der Leiste steht
+  /* Zoom-Sperre für alle Tablet-Seiten (Wunsch Thorsten 11.11.2026; Baustein CWZoom in theme-init.js, planung/tablet-aufraeumen.md). Die Verwaltung
+     (verwaltung.html, data-active „verwaltung“) bleibt zoombar, ebenso ihr Rahmen tadmin/admin.html (lädt nav.js nicht). Tablet › Beregnung ruft den Baustein
+     selbst auf (beregnung/public/app.js, nur am Tablet, nicht auf dem Beregnungs-Port). */
+  if (active !== 'verwaltung' && window.CWZoom) window.CWZoom.sperren();
   let homeId = 'getraenke';   // erste Seite in der Kopfzeile = Startseite (dorthin geht es nach 30 s zurück)
   /* Letzter Stand von Vereinsname, Logo und Reitern: beim Seitenwechsel sofort zeichnen statt leer anfangen (sonst flackert die Kopfzeile) */
   const ready = f => { if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', f, { once: true }); else f(); };   // Sperrseite steht im HTML erst nach der Kopfzeile

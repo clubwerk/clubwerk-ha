@@ -31,7 +31,7 @@ function register(sh) {
       const a = fees.ageAt(p.birth_date, day);
       if (a == null) { noBirth++; if (noBirthNames.length < 10) noBirthNames.push({ id: p.id, name: p.name }); continue; }
       const gi = LSB_GROUPS.findIndex(g => a >= g[0] && a <= g[1]);
-      const g = p.gender === 'm' || p.gender === 'w' || p.gender === 'd' ? p.gender : 'x';
+      const g = p.gender === 'm' || p.gender === 'w' ? p.gender : 'x';   // nur männlich/weiblich (Entscheidung Thorsten 11.11.2026), alles andere „ohne Angabe“
       total[gi][g]++;
       for (const r of deptRows.get(p.id) || []) if (per.has(r.department_id)) per.get(r.department_id)[gi][g]++;
     }
@@ -60,7 +60,7 @@ function register(sh) {
       }
     }
     events.sort((a, b) => a.date.localeCompare(b.date));
-    res.json({ day, count: people.length, byStatus, byGender: ['m', 'w', 'd', 'x'].map(g => ({ g, n: people.filter(p => (p.gender || 'x') === g).length })),
+    res.json({ day, count: people.length, byStatus, byGender: ['m', 'w', 'x'].map(g => ({ g, n: people.filter(p => (p.gender === 'm' || p.gender === 'w' ? p.gender : 'x') === g).length })),
       avgAge: ages.length ? Math.round(ages.reduce((s, a) => s + a, 0) / ages.length * 10) / 10 : null, years, depts, lsb: lsb(day), events: events.slice(0, 60) });
   });
 
@@ -72,10 +72,10 @@ function register(sh) {
     const wb = new ExcelJS.Workbook();
     const sheet = (title, rows) => {
       const ws = wb.addWorksheet(title.slice(0, 31).replace(/[\\/?*[\]:]/g, ' '));
-      ws.columns = [{ header: 'Altersgruppe', width: 16 }, { header: 'männlich', width: 11 }, { header: 'weiblich', width: 11 }, { header: 'divers', width: 9 }, { header: 'ohne Angabe', width: 13 }, { header: 'gesamt', width: 10 }];
-      rows.forEach((x, i) => ws.addRow([r.groups[i], x.m, x.w, x.d, x.x, x.m + x.w + x.d + x.x]));
+      ws.columns = [{ header: 'Altersgruppe', width: 16 }, { header: 'männlich', width: 11 }, { header: 'weiblich', width: 11 }, { header: 'ohne Angabe', width: 13 }, { header: 'gesamt', width: 10 }];
+      rows.forEach((x, i) => ws.addRow([r.groups[i], x.m, x.w, x.x, x.m + x.w + x.x]));
       const s = k => rows.reduce((a, x) => a + x[k], 0);
-      ws.addRow(['Summe', s('m'), s('w'), s('d'), s('x'), s('m') + s('w') + s('d') + s('x')]).font = { bold: true };
+      ws.addRow(['Summe', s('m'), s('w'), s('x'), s('m') + s('w') + s('x')]).font = { bold: true };
       style(ws);
     };
     sheet(`Verein gesamt ${deD(day)}`, r.total);

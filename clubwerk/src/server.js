@@ -120,15 +120,7 @@ i18n.init({ db, getSetting, setSetting, pluginDirs: () => plugins.dirs() });
 app.use(i18n.middleware);
 app.use(require('./gobd').middleware);   // Änderungsjournal: wer hat geändert (src/gobd.js)
 app.use(require('./db').settingCache);   // Einstellungen je Leseanfrage nur einmal lesen (src/db.js)
-app.get('/i18n.js', (req, res) => {
-  const l = typeof req.query.l === 'string' && req.query.l !== 'auto' ? req.query.l : '';
-  const a = i18n.pageAsset(i18n.resolve(l, typeof req.query.b === 'string' ? req.query.b : ''));
-  res.type('application/javascript').set({ 'Cache-Control': 'no-cache', ETag: a.etag, Vary: 'Accept-Encoding' });
-  if (req.fresh) return res.status(304).end();
-  const acc = String(req.headers['accept-encoding'] || ''), enc = a.br && /\bbr\b/.test(acc) ? 'br' : /\bgzip\b/.test(acc) ? 'gzip' : '';
-  if (enc) res.set('Content-Encoding', enc);   // schon gepackt – die Komprimierung (security.compress) lässt es dann in Ruhe
-  res.send(enc === 'br' ? a.br : enc === 'gzip' ? a.gz : a.body);
-});
+app.get('/i18n.js', i18n.sendPage);   // Mitglieder-App liefert dasselbe direkt (memberapp.js), ohne Umweg über HTTP
 
 /* ---------- einfache Bremse gegen Durchprobieren (pro IP oder je frei wählbarem Schlüssel) ----------
    Ein Kontingent je Name (security.budget, begrenzte Größe: viele Absenderadressen füllen den Speicher nicht).

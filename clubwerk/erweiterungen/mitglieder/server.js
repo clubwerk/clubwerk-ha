@@ -1134,7 +1134,7 @@ function activate(ctx) {
     const s = { club_name: ctx.getSetting('club_name', ''), club_street: S('club_street'), club_city: S('club_city'), creditor_id: S('creditor_id'), creditor_name: S('creditor_name') || ctx.getSetting('club_name', ''),
       club_iban: user && user.perms.includes('mitglieder_finanzen') ? store.account().iban : sepa.maskIban(store.account().iban), club_bic: store.account().bic, club_bank: store.account().bank,
       sepa_account: Number(S('sepa_account')) || null, account_name: store.account().name, account_central: store.account().central,
-      mandate_prefix: S('mandate_prefix'), member_no_start: S('member_no_start', '1'), member_no_mode: S('member_no_mode', 'start') === 'max' ? 'max' : 'start', year_start: S('year_start', '01-01'), fiscal_month: ctx.geschaeftsjahr.month(), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
+      mandate_prefix: S('mandate_prefix'), sepa_purpose: S('sepa_purpose'), sepa_purpose_default: require('./lib/money').ZWECK_VORGABE, member_no_start: S('member_no_start', '1'), member_no_mode: S('member_no_mode', 'start') === 'max' ? 'max' : 'start', year_start: S('year_start', '01-01'), fiscal_month: ctx.geschaeftsjahr.month(), prenotify_days: parseInt(S('prenotify_days', '14'), 10) || 14,
       drinks_due: S('drinks_due', ''), due_text: S('due_text'), notify_to: S('notify_to'), app_tablet: S('app_tablet', '1') === '1', app_online: S('app_online', '0') === '1', app_intro: S('app_intro'),
       work_text: S('work_text'), satzung_url: S('satzung_url'), return_fee_cents: parseInt(S('return_fee_cents', '0'), 10) || 0, dunning_levels: shared.dunningLevels(), dunning_deadline_days: shared.dunningDeadline(),
       invoice_text: S('invoice_text'), consents: consentList(), retention_years: retYears(),
@@ -1142,7 +1142,7 @@ function activate(ctx) {
     return s;
   }
   /** Schlüssel der Karten unter Beiträge & Zahlungen › Einstellungen */
-  const FIN_KEYS = ['creditor_name', 'creditor_id', 'club_iban', 'club_bic', 'club_bank', 'sepa_account', 'mandate_prefix', 'prenotify_days', 'drinks_due', 'return_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'invoice_text'];
+  const FIN_KEYS = ['creditor_name', 'creditor_id', 'club_iban', 'club_bic', 'club_bank', 'sepa_account', 'mandate_prefix', 'sepa_purpose', 'prenotify_days', 'drinks_due', 'return_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'invoice_text'];
   admin.put('/settings', P, (req, res) => {
     // Erst alles prüfen und in `pending` sammeln, dann in einer Transaktion schreiben – bei einem Fehler bleibt alles unverändert
     const b = req.body || {}; const errors = []; const pending = [];
@@ -1157,6 +1157,7 @@ function activate(ctx) {
     if (b.club_iban !== undefined && !/•/.test(String(b.club_iban))) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Die Vereins-IBAN darf nur ändern, wer das Recht „Finanzen“ hat.'); else { const i = sepa.checkIban(b.club_iban); if (b.club_iban && !i.ok) errors.push('Vereinskonto: ' + i.error); else put('club_iban', i.iban); } }
     if (b.sepa_account !== undefined) { if (!req.user.perms.includes('mitglieder_finanzen')) errors.push('Das Konto für Lastschriften darf nur ändern, wer das Recht „Finanzen“ hat.'); else if (b.sepa_account && !(ctx.bank.get(b.sepa_account) || {}).active) errors.push('Dieses Bankkonto gibt es nicht (mehr).'); else put('sepa_account', b.sepa_account ? int(b.sepa_account) : ''); }
     if (b.club_bic !== undefined) { const c = sepa.checkBic(b.club_bic); if (!c.ok) errors.push('Der BIC des Vereinskontos hat 8 oder 11 Zeichen.'); else put('club_bic', c.bic); }
+    if (b.sepa_purpose !== undefined) { const v = one(b.sepa_purpose, 140); if (/\{(?!Jahr\}|Posten\}|Nr\}|Name\}|Verein\})[^}]*\}/.test(v)) errors.push('Im Verwendungszweck gibt es nur die Platzhalter {Jahr}, {Posten}, {Nr}, {Name} und {Verein}.'); else put('sepa_purpose', v); }
     if (b.mandate_prefix !== undefined) put('mandate_prefix', String(b.mandate_prefix).replace(/[^A-Za-z0-9]/g, '').slice(0, 10));
     if (b.member_no_mode !== undefined) put('member_no_mode', b.member_no_mode === 'max' ? 'max' : 'start');
     if (b.member_no_start !== undefined) put('member_no_start', String(Math.max(1, int(b.member_no_start, 1))));
@@ -1527,7 +1528,7 @@ function activate(ctx) {
   /* Familie bzw. Zahlergruppe (wie familyOf) für viele Mitglieder auf einmal → Map id → { head, members, kind } */
   ctx.hooks.familiesOf = list => { const rel = store.relations(); return new Map([...new Set((list || []).map(Number))].map(id => [id, store.familyOf(id, rel)])); };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });

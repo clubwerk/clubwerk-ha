@@ -575,6 +575,7 @@ The bank statement reads in the bank transactions and matches them to the open i
 - **Creditor ID:** the club gets it from the Bundesbank.
 - **Mandate reference = prefix + no.:** the prefix is the start of every mandate reference; the member number follows.
 - **Pre-notification (days before):** how early you announce the direct debit. The earliest collection day depends on it.
+- **Direct debit payment reference:** template for the text on the member's bank statement (at most 140 characters). Placeholders: {Jahr} (year), {Posten} (the fee types without period, e.g. “Erwachsene, Tennis”), {Nr} (membership number), {Name}, {Verein} (club). Left empty, the default “Mitgliedsbeitrag {Jahr}: {Posten} · Mitgl.-Nr. {Nr}” applies. The template is used when a membership fee is part of the debit; the sales collection lists only the items.
 - **Direct debit account:** one of the club accounts (Settings › Bank accounts); otherwise the default account.
 - **Sales collection usually on:** day and month for collecting the sales accounts.
 - **Returned debit fee:** the amount you pass on for a returned debit.

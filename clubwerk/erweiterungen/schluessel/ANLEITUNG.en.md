@@ -49,7 +49,7 @@ The window then shows the summary and terms. The person ticks “Read and agreed
 
 #### Return {#rueckgabe}
 
-![The “Return” window: units, condition, deposit and the signature of the person accepting.](bild: seite=schluessel; tab=ausgegeben; klick=[data-ret]; ziel=dialog)
+![The “Return” window: units, condition, deposit and the signature of the person accepting.](bild: seite=schluessel; tab=ausgegeben; klick=[data-det]; klick2=#slRet; ziel=dialog)
 
 The “Return” button on the row opens the return record. You choose which units come back, the condition (fine or damaged, with a note) and – if a deposit was paid – whether it was paid back in cash, kept (with a reason) or not yet refunded. **The signature of the person accepting is required**, the returner’s is optional (keys often come back by post). The PDF is the receipt; the units are available again afterwards.
 

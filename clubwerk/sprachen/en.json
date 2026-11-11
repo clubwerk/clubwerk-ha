@@ -13921,6 +13921,12 @@
   "Tresor gesperrt": "Vault locked",
   "Übersicht.xlsx": "Overview.xlsx",
   "Zu diesem Mitglied gibt es keine Dokumente.": "This member has no documents.",
-  "mit Dokumenten": "with documents"
+  "mit Dokumenten": "with documents",
+  "{Posten} · Mitgl.-Nr. {Nr}": "{Posten} · Mitgl.-Nr. {Nr}",
+  "Mitgliedsbeitrag {Jahr}: {Posten} · Mitgl.-Nr. {Nr}": "Mitgliedsbeitrag {Jahr}: {Posten} · Mitgl.-Nr. {Nr}",
+  "Im Verwendungszweck gibt es nur die Platzhalter {Jahr}, {Posten}, {Nr}, {Name} und {Verein}.": "The payment reference only supports the placeholders {Jahr}, {Posten}, {Nr}, {Name} and {Verein}.",
+  "Platzhalter: {Jahr} {Posten} {Nr} {Name} {Verein} – leer = „{0}“, z. B. „Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041“. Gilt, wenn ein Beitrag dabei ist; der Verkaufs-Einzug nennt nur die Posten.": "Placeholders: {Jahr} (year) {Posten} (items) {Nr} (membership no.) {Name} {Verein} (club) – empty = “{0}”, e.g. “Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041”. Applies when a membership fee is included; the sales collection lists only the items.",
+  "Verwendungszweck der Lastschrift": "Direct debit payment reference",
+  "bitte wählen": "please choose"
  }
 }

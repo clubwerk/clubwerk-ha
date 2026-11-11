@@ -522,7 +522,7 @@ function register(sh) {
     // Beispiel für den Feldabgleich: so landen die Spalten der Datei in Clubwerk (erste Person mit Nachnamen)
     const ex = recs.find(r => r.p.last_name) || recs[0];
     const sample = ex ? { line: ex.line, fields: [['Mitgliedsnummer', ex.member_no], ['Anrede', ex.p.salutation], ['Titel', ex.p.title], ['Vorname', ex.p.first_name], ['Nachname', ex.p.last_name],
-      ['Geburtsdatum', ex.p.birth_date && fees.deD(ex.p.birth_date)], ['Geschlecht', { w: 'weiblich', m: 'männlich', d: 'divers' }[ex.p.gender] || ex.p.gender], ['Straße', ex.p.street], ['PLZ', ex.p.zip], ['Ort', ex.p.city], ['Land', ex.p.country],
+      ['Geburtsdatum', ex.p.birth_date && fees.deD(ex.p.birth_date)], ['Geschlecht', { w: 'weiblich', m: 'männlich' }[ex.p.gender] || ex.p.gender], ['Straße', ex.p.street], ['PLZ', ex.p.zip], ['Ort', ex.p.city], ['Land', ex.p.country],
       ['E-Mail', ex.p.email], ['Telefon', ex.p.phone], ['Mobil', ex.p.mobile], ['Eintritt', ex.p.entry_date && fees.deD(ex.p.entry_date)], ['Austritt', ex.p.exit_date && fees.deD(ex.p.exit_date)],
       ['Status', SAMPLE_LABEL[ex.p.status] || ex.p.status], ['Zahlungsart', SAMPLE_LABEL[ex.p.payment] || ex.p.payment], ['Kontoinhaber', ex.bank && ex.bank.holder], ['IBAN', ex.bank && sepa.maskIban(ex.bank.iban)], ['BIC', ex.bank && ex.bank.bic],
       ['Mandatsreferenz', ex.bank && ex.bank.mandate_ref], ['Mandat unterschrieben', ex.bank && ex.bank.mandate_date && fees.deD(ex.bank.mandate_date)],

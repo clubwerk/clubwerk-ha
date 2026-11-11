@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.36';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.37';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -258,14 +258,18 @@
     return tx('Damit du {0} vom Verein nicht verpasst.', [list]);
   }
   let pushReload = null;
-  function pushCard(p) {
+  /* Entscheidung der Karte am Dokument vermerken (data-pushkarte = Art, „keine“ oder „warten“): Tests warten darauf statt auf feste Pausen (Wackler-Jagd 11.11.2026) */
+  let pushWartet = false;
+  const pushMark = (k, html) => { pushWartet = true; document.documentElement.dataset.pushkarte = k; return html; };
+  function pushCard(p) { pushWartet = false; const html = pushCardHtml(p); if (!pushWartet) document.documentElement.dataset.pushkarte = html ? (/data-pushcard="([^"]*)"/.exec(html) || [])[1] || 'karte' : 'keine'; return html; }
+  function pushCardHtml(p) {
     const e = platformEnv();
     /* Zuerst installieren, in eingebetteten Android-Browsern „Im Browser öffnen“, erst danach Benachrichtigungen – immer nur eine Karte. */
     let ip = null;
     if (!e.ios && !e.standalone) {   // Android und Rechner
       const k = installPlan(e, { event: Boolean(installEv), marked: flag('cw-installiert'), done: haveDone(), later: Date.now() < Number(localStorage.getItem('cw-install-spaeter')), waited: instWaited, installDone, secure: window.isSecureContext !== false });
-      if (k === 'wait') return '';
-      if (k) { if (!installUi && installState !== 'fehler') { if (installState !== 'laedt') loadInstallUi(); return ''; } if (installUi) ip = { kind: k, html: installUi.html(k, e) }; }
+      if (k === 'wait') return pushMark('warten', '');
+      if (k) { if (!installUi && installState !== 'fehler') { if (installState !== 'laedt') loadInstallUi(); return pushMark('warten', ''); } if (installUi) ip = { kind: k, html: installUi.html(k, e) }; }
     }
     let kind = ip ? ip.kind : pushPlan(p, e, pushLater());
     if (!ip && kind === 'android-embedded') kind = '';   // „Später“ gilt auch hier

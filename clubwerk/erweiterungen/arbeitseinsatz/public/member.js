@@ -10,7 +10,7 @@
       .ds-sh strong { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 15px; line-height: 1.3; } .ds-sh strong > span[translate] { min-width: 0; overflow-wrap: anywhere; -webkit-hyphens: auto; hyphens: auto; }   /* lange Wörter („Frühjahrsinstandsetzung“) trennen statt in den Knopf zu laufen (3.101) */
       .ds-sh small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.35; }
       .ds-ans { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; } .ds-tm .vh-lead { margin: 8px 0 0; } .ds-tm h3 { align-items: center; }
-      .ds-faces { display: flex; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); margin-left: -4px; }`;
+      .ds-faces { display: flex; gap: 4px; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); }`;
     document.head.appendChild(s);
   }
   const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 }), EUR = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });   // einmal anlegen statt je Zeile

@@ -163,11 +163,11 @@ function addClaim(light, { source, member_id = null, who = null, start, end, pay
 }
 
 /* =================== Zeitgeber =================== */
-let lastAuto = 0, busy = false;
+let lastAuto = 0, busy = false, durchlauf = 0;   // durchlauf: abgeschlossene Abgleiche (nur im Testbetrieb in /lights sichtbar – Tests warten auf den nächsten statt fester Pause)
 const failed = new Map();   // Lichtanlage → letzter Fehlertext (nur einmal ins Protokoll)
 async function tick() {
   if (busy) return; busy = true;
-  try { await tickInner(); } catch (e) { console.error('Flutlicht:', e.message); } finally { busy = false; }
+  try { await tickInner(); } catch (e) { console.error('Flutlicht:', e.message); } finally { busy = false; durchlauf++; }
 }
 async function tickInner() {
   const c = cfg(), now = nowD(), nowTs = L.ts(now);
@@ -640,7 +640,7 @@ function activate(ctx) {
   });
   admin.get('/lights', PB, async (req, res) => {
     const v = await view('admin'), c = cfg();
-    res.json({ ...v, auto: c.who.auto && H.isModuleActive('buchung'), error: !v.online && cache.err ? cache.err.message : null });
+    res.json({ ...v, auto: c.who.auto && H.isModuleActive('buchung'), error: !v.online && cache.err ? cache.err.message : null, ...(process.env.CW_TEST_FAST ? { durchlauf } : {}) });
   });
   admin.post('/lights/:id/:action', PB, async (req, res) => {
     const light = lightById(cfg(), req.params.id), action = req.params.action;

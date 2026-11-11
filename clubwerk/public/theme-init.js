@@ -28,6 +28,9 @@
   var me = document.currentScript, base = me && me.src ? me.src.replace(/[^\/]*(\?.*)?$/, '') : '';
   var q = 'l=' + encodeURIComponent(l || 'auto');
   if (!l && root.getAttribute('data-lang-auto') === 'browser') q += '&b=' + encodeURIComponent(((navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || '']).join(',')).slice(0, 200));
+  // Ersatz, falls die Sprachdatei nicht lädt (Netz, Server ausgelastet): Platzhalter füllen, Text bleibt Deutsch – Modul-Skripte rufen T() direkt auf und
+  // stürzten sonst ab („T is not defined“, Fund Wackler-Jagd 11.11.2026, Mitglieder-App englisch). i18n.js ersetzt ihn durch die echte Übersetzung.
+  if (!window.T) window.T = function (t, v) { if (v && Array.isArray(v)) { var o = {}; for (var i = 0; i < v.length; i++) o[i] = v[i]; v = o; } return String(t == null ? '' : t).replace(/\{(\w+)\}/g, function (m, k) { return v && v[k] !== undefined ? v[k] : m; }); };
   document.write('<script src="' + base + 'i18n.js?' + q + '"><\/script>');
 })();
 
@@ -234,5 +237,46 @@
     },
     weg: weg,
     offen: function () { return Boolean(box); },
+  };
+})();
+
+/* Überblenden zwischen Seiten (style.css: @view-transition): Wird ein Seitenwechsel abgebrochen (z. B. Tablet kehrt zum Start zurück, während schon neu geladen wird),
+   verwirft der Browser die Überblendung und meldet das als unbehandelten Skriptfehler „Transition was skipped“. Das ist gewollt – hier auffangen (Fund Wackler-Jagd 11.11.2026, Testreihe zeithin). */
+(function () {
+  var still = function (e) { var t = e.viewTransition; if (t) ['ready', 'finished', 'updateCallbackDone'].forEach(function (k) { if (t[k] && t[k].catch) t[k].catch(function () {}); }); };
+  window.addEventListener('pageswap', still); window.addEventListener('pagereveal', still);
+})();
+
+/* Verwaltung im Tablet-Rahmen (verwaltung.html bettet …/tadmin/admin.html ein; der Prüfstand setzt window.__cwTabRahmen): <html class="tabrahmen">.
+   Dort gilt die Tablet-Form der Verwaltung (Listen statt Tabellen) bis 1399 px Breite statt nur bis 1279 px – echte Tablets haben 1024, 1180, 1280
+   oder 1366 px – und die Vereinskarte der Seitenleiste entfällt (die Tablet-Kopfzeile zeigt den Verein schon; planung/tablet-aufraeumen.md). */
+(function () {
+  if (!(/\/tadmin\//.test(location.pathname) || window.__cwTabRahmen)) return;
+  document.documentElement.classList.add('tabrahmen');
+  var weiter = function (rs) {
+    for (var i = 0; i < rs.length; i++) {
+      var r = rs[i];
+      if (r.media && /^\(min-width:\s*701px\)\s*and\s*\(max-width:\s*1279px\)$/.test(r.media.mediaText)) r.media.mediaText = '(min-width: 701px) and (max-width: 1399px)';
+      else if (r.cssRules && !r.media) weiter(r.cssRules);
+    }
+  };
+  var alle = function () { [].forEach.call(document.styleSheets, function (b) { try { weiter(b.cssRules); } catch (e) { /* fremde Datei */ } }); };
+  document.addEventListener('DOMContentLoaded', alle);
+  // Module hängen ihr Stylesheet erst beim ersten Öffnen ihrer Seite an: auch das bekommt die weitere Tablet-Form
+  new MutationObserver(function (ms) { ms.forEach(function (m) { [].forEach.call(m.addedNodes, function (n) { if (n.tagName === 'STYLE' && n.sheet) { try { weiter(n.sheet.cssRules); } catch (e) { /* leer */ } } }); }); }).observe(document.documentElement, { childList: true, subtree: true });
+})();
+
+/* Zoom-Sperre für Tablet-Seiten (Baustein CWZoom; Wunsch Thorsten 11.11.2026: „Auf dem Tablet sollte man nirgends zoomen können, nur in der Verwaltung“;
+   WCAG 1.4.4 bewusst zugunsten des gemeinsamen Theken-Tablets abgewogen, planung/tablet-aufraeumen.md). nav.js ruft CWZoom.sperren() auf allen Tablet-Seiten auf
+   (außer der Verwaltung), Tablet › Beregnung selbst. Viewport ohne Zoom, dazu Abfangen der Pinch-Gesten (iPad-Safari ignoriert user-scalable=no) und kein
+   Doppeltipp-Zoom (touch-action; touchend wird bewusst nicht abgefangen, das schluckte schnelle Doppeltipps auf Knöpfen). */
+(function () {
+  window.CWZoom = {
+    sperren: function () {
+      var vp = document.querySelector('meta[name="viewport"]');
+      if (vp) vp.setAttribute('content', vp.getAttribute('content').replace(/,?\s*(maximum-scale|minimum-scale|user-scalable)\s*=\s*[^,]*/g, '') + [',', 'maximum-scale=1,', 'user-scalable=no'].join(' '));
+      ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) { document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false }); });
+      document.documentElement.style.touchAction = 'manipulation';
+    },
   };
 })();

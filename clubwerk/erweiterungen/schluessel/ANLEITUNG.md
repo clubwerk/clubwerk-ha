@@ -49,7 +49,7 @@ Danach zeigt das Fenster Zusammenfassung und Bedingungen. Die Person setzt den H
 
 #### Rücknahme {#rueckgabe}
 
-![Das Fenster „Rücknahme“: Stücke, Zustand, Pfand und die Unterschrift der annehmenden Person.](bild: seite=schluessel; tab=ausgegeben; klick=[data-ret]; ziel=dialog)
+![Das Fenster „Rücknahme“: Stücke, Zustand, Pfand und die Unterschrift der annehmenden Person.](bild: seite=schluessel; tab=ausgegeben; klick=[data-det]; klick2=#slRet; ziel=dialog)
 
 Der Knopf „Rücknahme“ an der Zeile öffnet das Rückgabeprotokoll. Ihr wählt, welche Stücke zurückkommen, den Zustand (in Ordnung oder beschädigt mit Notiz) und – wenn Pfand hinterlegt war – ob es bar zurückgezahlt, einbehalten (mit Grund) oder noch nicht erstattet ist. **Die Unterschrift der annehmenden Person ist Pflicht**, die des Rückgebers freiwillig (Schlüssel kommen oft per Briefkasten zurück). Das PDF ist die Quittung; die Stücke sind danach wieder vorrätig.
 

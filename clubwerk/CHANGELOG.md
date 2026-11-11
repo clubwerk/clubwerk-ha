@@ -1,5 +1,38 @@
 # Änderungen
 
+## 2026.11.37
+
+**Anrede nur Frau und Herr, Fenster der Verwaltung ohne Flackern (Wünsche/Fehler Thorsten 11.11.2026)**
+- Anrede und Geschlecht kennen nur noch Frau/Herr bzw. männlich/weiblich. In der LSB-Auswertung entfällt die Spalte „divers“; frühere Einträge zählen dort als „ohne Angabe“.
+- Fenster in der Verwaltung blenden weich ein und aus (wie am Tablet), statt die Seite beim Schließen schlagartig aufzuhellen.
+
+**Verwendungszweck der Lastschrift einstellbar (Wunsch Thorsten 11.11.2026)**
+- Auf dem Kontoauszug steht jetzt „Mitgliedsbeitrag 2026: Erwachsene, Tennis - Mitgl.-Nr. 1041“ statt nur der Beitragsarten mit Zeitraum (der Punkt „·“ der Vorlage wird für die Bank zu „-“).
+- Unter Beiträge & Zahlungen › Einstellungen › Lastschrift lässt sich der Text als Vorlage anpassen (Platzhalter {Jahr}, {Posten}, {Nr}, {Name}, {Verein}). Der Verkaufs-Einzug nennt weiter nur die Posten.
+
+**Zuverlässigere Endprüfung („Wackler-Jagd“, Entscheidung Thorsten 11.11.2026; `planung/wackler-jagd.md`)**
+- Tablet und Seiten mit weichem Überblenden: Wurde ein Seitenwechsel abgebrochen, während die Seite überblendet (zum Beispiel kehrt das Tablet zum Start zurück, während gerade neu geladen wird), meldete der Browser einen Skriptfehler „Transition was skipped“. Zu sehen war nichts, aber die Fehlermeldung landete in der Konsole und ließ die Endprüfung zufällig rot werden. Der Fehler wird jetzt aufgefangen.
+- Mitglieder-App, Tablet und Verwaltung: Lädt die Sprachdatei nicht (schwaches Netz, Vereins-Server gerade stark ausgelastet), bleiben die Texte deutsch – bisher konnten dann einzelne Bereiche der App gar nicht erscheinen (Skriptfehler „T is not defined“). Kann die Mitglieder-App eine Datei nicht vom Vereins-Server holen, steht das jetzt im Protokoll des Add-ons (vorher still). Ursachen: Die Mitglieder-App holte die Sprachdatei per Umweg über den Vereins-Server und gab nach 5 Sekunden auf – unter hoher Last (zum Beispiel kurz nach einem Neustart) kam das vor. Jetzt liefert die App sie direkt. Außerdem packte der Server die Sprachdatei nach jeder Sprachänderung und nach dem Start und blieb dabei kurz für alle Anfragen stehen (auf schnellen Rechnern eine Viertelsekunde, auf kleinen länger) – das läuft jetzt im Hintergrund.
+- Anleitung Schlüssel: Das Bild zum Fenster „Rücknahme“ ließ sich nicht mehr erzeugen (bei Tablet-Breite steht der Knopf im Eintrag hinter dem Stift, seit 2026.11.32) – das Bild entsteht jetzt über den Stift. Schlüssel 1.0.4.
+- Für Entwickler: Testreihen und Design-Prüfstand warten auf Zustände statt fester Pausen (Mail angekommen, Zone geschaltet, Durchlauf des Flutlicht-Abgleichs, Karte der Mitglieder-App entschieden, Prozess beendet …). Neue Kernprüfung `pausen` meldet jede neue feste Pause; begründete Fälle tragen `pause-ok: <Grund>`. Der Test-Mailserver legt Mails jetzt in einem Schritt ab (vorher konnte ein Test eine halb geschriebene Mail lesen). Die Mitglieder-App vermerkt ihre Kartenentscheidung unsichtbar am Dokument (`data-pushkarte`), Flutlicht zählt im Testbetrieb seine Abgleiche. Flutlicht 1.3.2.
+
+**Profilbild bei der Platzbuchung am Tablet (Fehler Thorsten 11.11.2026)**
+- Im Fenster „Wer bist du?“ (Tablet › Plätze) erschien statt des Profilbilds ein kaputtes Bild-Symbol – der Pfad zum Bild stimmte seit den eigenen Tablet-Adressen (/plaetze/) nicht mehr. Behoben.
+- Sehr lange Namen in Listen am Handy (z. B. bei „Offene Posten“) bekommen eine eigene Zeile, statt auf einen schmalen Rest gequetscht zu werden.
+- Mitglieder-App › Dienste: die kleinen Profilbilder der Helfer stehen mit Abstand nebeneinander statt übereinander.
+- Die Beispieldaten haben jetzt Profilbilder, und der Design-Prüfstand meldet jedes Bild, das nicht lädt (Regel „bild-kaputt“).
+
+**Verwaltung am Tablet aufgeräumt (Fehler Thorsten 11.11.2026: „Das sieht am Tablet total unaufgeräumt aus“; `planung/tablet-aufraeumen.md`)**
+- Die Verwaltung im Tablet-Rahmen (Menüpunkt „Verwaltung“ am Tablet) zeigt Tabellen bis 1399 Pixel Breite als **Liste** – eine Karte je Eintrag, Name oben, die Angaben darunter –, nicht mehr als eng gedrängte Tabelle. Am Rechner (und am Tablet über 1400 Pixel) bleibt die Tabelle.
+- **Mitgliederliste am Tablet:** Zeile 1 „Nachname, Vorname“ mit Hinweis-Schild („Altersstufe prüfen“, „Mandat widerrufen“) und Austrittsdatum daneben, Zeile 2 Nr., Alter, Abteilung, Beitrag und Zahlung. Alle Zeilen sind gleich hoch; „zahlt für 3“ und „zahlt über …“ machen sie nicht mehr höher.
+- Der Vereinsname steht am Tablet nur noch einmal (in der Kopfzeile); die Vereinskarte oben in der Seitenleiste entfällt dort.
+- **Filterleiste** (Mitglieder): die zwei Auswahlfelder „Alle Abteilungen“ und „Alle Beiträge“ bleiben zusammen und teilen sich die zweite Zeile zu gleichen Teilen, statt dass eines allein darunter steht; die Suche füllt die erste Zeile bis zum Rand.
+- **Reiter und Knopfreihe** schließen rechts bündig ab: stehen die Knöpfe („Import …“, „Excel“, „+ Neues Mitglied“) unter den Reitern, füllt die Reiterleiste die ganze Zeile, die Reiter verteilen sich gleichmäßig.
+- Am Handy und im Hochformat füllen Auswahlfelder ihre Zeile (zwei nebeneinander, ein einzelnes über die ganze Breite) statt halbbreit allein zu stehen – zuerst aufgefallen bei Plätze › Buchungen. Im Hochformat des Tablets steht oben nur noch der Menüknopf, ohne zweiten Vereinsnamen.
+- **Leere Spalten** (z. B. „Abteilungen“, wenn niemand eine hat) werden samt Überschrift ausgeblendet – in allen Tabellen der Verwaltung. Spaltenüberschrift „Alter“ steht bündig über den Zahlen.
+- **Kein Zoomen mehr am Tablet** (Wunsch Thorsten 11.11.2026): Auf allen Tablet-Seiten – Verkauf, Plätze, Dienste, Stempeln, Zugang, Mängel, „Mitglied werden“ und so weiter – lässt sich nicht mehr mit zwei Fingern oder Doppeltippen vergrößern; am iPad ging das bisher trotz Sperre. Die Verwaltung (auch im Tablet-Rahmen), die Mitglieder-App und die Beregnungs-Webapp am eigenen Port lassen sich weiter vergrößern; die Beregnung am Tablet ist gesperrt. Zurück zum Tablet gilt wieder die normale Größe. Für Entwickler: Baustein `CWZoom` (theme-init.js), aufgerufen von `nav.js` und von Tablet › Beregnung; Testreihe `zoom` (liest alle Tablet-Module aus den Manifesten). Beregnung 1.16.4.
+- Für Entwickler: `<html class="tabrahmen">` (theme-init.js) für die Verwaltung im Tablet-Rahmen; Baustein `.fb-sel` für zusammengehörige Auswahlfelder in Filterleisten. Der Design-Prüfstand prüft die Verwaltung jetzt auch im Tablet-Rahmen (alle Seiten, Reiter und Fenster) und hat vier neue Regeln: `filter-einzelgaenger`, `spalte-leer`, `vereinskarte-doppelt`, `reiter-knopfreihe-unbuendig`. Mitglieder 1.47.1, Buchung 1.32.2.
+
 ## 2026.11.36
 
 **Dokumente als ZIP – je Mitglied und für die ganze Mitgliederliste (Entscheidungen Thorsten 11.11.2026; `planung/dokumente-zip.md`)**
