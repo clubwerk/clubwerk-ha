@@ -42,7 +42,7 @@
     if (!done && st.sort === 'auch') sorted.sort((a, b) => (b.also - a.also) || b.created_at.localeCompare(a.created_at));
     return `<table class="tbl sel kompakt"><tr><th>Meldung</th><th class="k-weg">Gemeldet</th><th class="r">Auch gemeldet</th><th>Status</th><th class="hide-md k-weg">Zuständig</th><th></th></tr>
       ${sorted.map(r => `<tr data-sel="${r.id}">
-        <td class="mg-tdw"><div class="mg-what"><span class="mg-th">${r.photo ? `<img src="api/admin/x/maengel/foto/${r.photo}?t=1" alt="" loading="lazy">` : CAM}</span>
+        <td class="mg-tdw"><div class="mg-what"><span class="mg-th">${r.photo ? `<img src="api/admin/x/maengel/foto/${r.photo}?t=1" alt="" loading="lazy" decoding="async">` : CAM}</span>
           <div><b translate="no">${esc(r.place)}</b>${r.urgent ? ' <span class="pill r">dringend</span>' : ''}<div class="muted s" translate="no">${esc(r.text)}</div></div></div></td>
         <td class="k-weg" data-label="Gemeldet"><span class="tcell"><span class="nw">${num(dt(r.created_at))}</span><div class="muted s" translate="no">${esc(r.reporter || 'gelöschtes Konto')}${r.source === 'tablet' ? ' · Tablet' : ''}</div></span></td>
         <td class="r" data-label="Auch gemeldet">${r.also ? `<span class="pill a num">+${r.also}</span>` : ''}</td>
@@ -65,7 +65,7 @@
     const m = st.meta;
     GK.dialog(`<h2 translate="no">${esc(r.place)}${r.urgent ? ' <span class="pill r">dringend</span>' : ''}</h2>
       <p class="muted" style="margin-top:-4px">Gemeldet ${num(dt(r.created_at))} von <span translate="no">${esc(r.reporter || 'gelöschtem Konto')}</span>${r.source === 'tablet' ? ' am Tablet' : ''}${r.alsoNames.length ? ` · auch gemeldet von <span translate="no">${esc(r.alsoNames.join('; '))}</span>` : ''}</p>
-      ${r.photos.length ? `<div class="mg-photos">${r.photos.map(p => `<a href="#" data-big="${p}" aria-label="Foto groß anzeigen"><img src="api/admin/x/maengel/foto/${p}" alt=""></a>`).join('')}</div>` : ''}
+      ${r.photos.length ? `<div class="mg-photos">${r.photos.map(p => `<a href="#" data-big="${p}" aria-label="Foto groß anzeigen"><img src="api/admin/x/maengel/foto/${p}" alt="" loading="lazy" decoding="async"></a>`).join('')}</div>` : ''}
       <p class="mg-text" translate="no">${esc(r.text)}</p>
       <div class="row">
         <label class="f" style="flex:1 1 200px">Status<select id="mgSt">${Object.entries(m.status).map(([k, l]) => `<option value="${k}" ${k === r.status ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>

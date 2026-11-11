@@ -2321,7 +2321,7 @@
   const artAbbr = n => { const w = String(n || '').replace(/[0-9,.()]+/g, ' ').trim().split(/\s+/).filter(Boolean); return esc(((w[0] || '?')[0] + (w[1] ? w[1][0] : (w[0] || '').slice(1, 2))).toUpperCase()); };
   const artImgUrl = f => 'api/tablet/artikelbild/' + encodeURIComponent(f);
   function artTile(a, cls = '') {
-    const inner = a.image ? `<img src="${artImgUrl(a.image)}" alt="">` : a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.svg(a.icon, cls.includes('lg') ? 40 : 20) : artAbbr(a.name);
+    const inner = a.image ? `<img src="${artImgUrl(a.image)}" alt=""${cls.includes('lg') ? '' : ' loading=lazy'}${cls.includes('lg') ? '' : ' decoding=async'}>` : a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ArtIcons.svg(a.icon, cls.includes('lg') ? 40 : 20) : artAbbr(a.name);
     const st = !a.image && a.icon && window.ArtIcons && ArtIcons.has(a.icon) ? ` style="${ArtIcons.style(a.icon)}"` : '';
     return `<span class="atile ${cls}${a.image ? ' img' : ''}"${st}>${inner}</span>`;
   }

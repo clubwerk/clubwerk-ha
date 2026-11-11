@@ -359,7 +359,7 @@
           <label class="f wall" id="bdNL">Notiz (intern)<input id="bdN" value="${esc(ed ? ed.note || '' : '')}" placeholder="nur für die Verwaltung sichtbar"></label>
         </div></div>
       </div>
-      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
+      <div class="btns">${ed && !ed.series_id && (type === 'sperre' ? can('buchung_serien') || can('buchung_stornieren') : can('buchung_stornieren')) ? `<button class="btn ghost danger" type="button" id="bdCx">${type === 'sperre' ? 'Sperre aufheben' : 'Stornieren'}</button><span style="flex:1"></span>` : ''}<button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="bdOk">Speichern</button></div>`, true);
     const paint = () => {
       $('dialog').querySelectorAll('#bdT [data-t]').forEach(b => b.classList.toggle('on', b.dataset.t === type));
       $('dialog').querySelector('h2').textContent = head();
@@ -400,6 +400,14 @@
       }
     };
     $('bdOk').onclick = () => send(false);
+    if ($('bdCx')) $('bdCx').onclick = () => cancelBooking(ed, after);
+  }
+
+  /** Einzelbuchung oder -sperre stornieren (aus „Bearbeiten“ und aus den Einzelheiten) */
+  async function cancelBooking(b, after) {
+    const why = await askText(b.type === 'sperre' ? 'Sperre aufheben?\nOptional ein Hinweis fürs Protokoll:' : `Buchung stornieren?\n${b.member_id ? 'Das Mitglied bekommt eine E-Mail. ' : ''}Grund (optional):`, '', { ok: b.type === 'sperre' ? 'Aufheben' : 'Stornieren' });
+    if (why == null) return;
+    try { await api(`bookings/${b.id}/cancel`, 'POST', { reason: why }); closeDialog(); toast('Erledigt.'); after(); } catch (e) { fail(e); }
   }
 
   /** Spieler im Fenster: eine Person je Zeile, „Nachname, Vorname“ sortiert (Server: b.list), Gerät/Allein-Training darunter */
@@ -431,11 +439,7 @@
       return;
     }
     if ($('bxE')) $('bxE').onclick = () => { closeDialog(); bookDialog({ edit: b }, after); };
-    if ($('bxC')) $('bxC').onclick = async () => {
-      const why = await askText(b.type === 'sperre' ? 'Sperre aufheben?\nOptional ein Hinweis fürs Protokoll:' : `Buchung stornieren?\n${b.member_id ? 'Das Mitglied bekommt eine E-Mail. ' : ''}Grund (optional):`, '', { ok: b.type === 'sperre' ? 'Aufheben' : 'Stornieren' });
-      if (why == null) return;
-      try { await api(`bookings/${b.id}/cancel`, 'POST', { reason: why }); closeDialog(); toast('Erledigt.'); after(); } catch (e) { fail(e); }
-    };
+    if ($('bxC')) $('bxC').onclick = () => cancelBooking(b, after);
   }
 
   /** Serientermin(e) ändern: Platz, Uhrzeit, Titel, Buchungsart, Notiz – im gewählten Umfang, Überschneidungen werden vorher gezeigt */

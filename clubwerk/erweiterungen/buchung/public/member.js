@@ -85,6 +85,7 @@
       .bkm-form .bkm-chips:empty { display: none; }
       .bkm-form .bkm-sum { margin: 4px 0 6px; }
       .bkm-form .vh-link { color: var(--brand-ink); }
+      .bkm-form .bkm-storno { display: block; width: 100%; min-height: 48px; margin: 8px 0 0; border: 0; background: transparent; color: var(--red); font: inherit; font-size: 15px; font-weight: 700; }
       /* „Freie Zeiten“: Zeile je Uhrzeit, je Platz ein Kästchen */
       .bkm-gh { margin: 14px 4px 8px; font-size: 13px; font-weight: 800; color: var(--muted); display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: baseline; } .bkm-gh small { font-weight: 600; font-size: 12.5px; color: var(--faint); }
       .bkm-list .bkm-row { display: grid; grid-template-columns: 64px minmax(0, 1fr) auto; gap: 10px; align-items: center; min-height: 56px; padding: 6px 16px; border-top: 1px solid var(--line); box-sizing: border-box; }
@@ -99,7 +100,7 @@
       .bkm-pill.mine { background: var(--brand); color: var(--on-brand); }
       .bkm-pill.wait { box-shadow: inset 0 0 0 2px var(--amber); }
       .bkm-pill.none { background: transparent; color: var(--faint); font-weight: 600; cursor: default; }
-      .bkm-sum { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; max-width: 7.5em; overflow-wrap: break-word; }
+      .bkm-rowsum { font-size: 14px; font-weight: 600; color: var(--muted); text-align: right; max-width: 7.5em; overflow-wrap: break-word; }
       .bkm-list .bkm-hidden { width: calc(100% - 32px); margin: 6px 16px 12px; }
       .bkm-notes { margin: 10px 4px 0; } .bkm-notes .vh-lead { margin: 0 0 4px; font-size: 12.5px; }
       /* Ansicht „Ausführlich“: breite Platzspalten (wischen), Uhrzeiten und Platznamen bleiben stehen, ganze Namen in den Blöcken */
@@ -229,7 +230,7 @@
             const bad = x.booking && x.booking.label && !x.booking.mine ? ` style="box-shadow:inset 0 -3px 0 ${x.booking.label.color}"` : '';
             return `<button class="bkm-pill ${x.state}" data-r="${r.id}" data-s="${x.s}" aria-label="${esc(r.name)} ${hhmm(x.s)}: ${esc(x.label)}" title="${esc(r.name)}"${bad} ${/past|closed/.test(st) ? 'disabled' : ''}>${esc(short(r.name))}</button>`; };
           return `${rasters.length > 1 ? `<h3 class="bkm-gh">Raster ${dur(m)}<small>${esc(g.map(x => x.r.name).join(' · '))}</small></h3>` : ''}
-            <div class="vh-card flush bkm-list">${shown.map(w => `<div class="bkm-row"><b class="num">${hhmm(w.s)}</b><div class="bkm-pills${w.cells.length > 1 && w.cells.some(c => short(c.r.name).length > 11) ? ' lang' : ''}">${w.cells.map(c => pill(c.r, c.x)).join('')}</div><span class="bkm-sum">${esc(sum(w.cells))}</span></div>`).join('')}
+            <div class="vh-card flush bkm-list">${shown.map(w => `<div class="bkm-row"><b class="num">${hhmm(w.s)}</b><div class="bkm-pills${w.cells.length > 1 && w.cells.some(c => short(c.r.name).length > 11) ? ' lang' : ''}">${w.cells.map(c => pill(c.r, c.x)).join('')}</div><span class="bkm-rowsum">${esc(sum(w.cells))}</span></div>`).join('')}
             ${gone ? `<button class="bkm-hidden" data-past="1">${gone} vergangene ${gone === 1 ? 'Zeit' : 'Zeiten'} ausgeblendet</button>` : ''}</div>`; }).join('');
         return `${lists}${notes ? `<div class="bkm-notes">${notes}</div>` : ''}<p class="bkm-hint">Freies Kästchen antippen zum Buchen · eigene Buchung antippen zum Ändern oder Stornieren.</p>`;
       }
@@ -417,9 +418,10 @@
           ${set.rules ? `<div class="bkm-lh bkm-rl"><label class="vh-check"><input type="checkbox" id="bkmR" ${ed ? 'checked' : ''}> Ich halte mich an die Platzordnung.</label><button type="button" class="vh-link" id="bkmRr">lesen</button></div>
             <div class="bkm-rules" id="bkmRules" hidden>${esc(set.rules)}</div>` : ''}
           <div class="bkm-sum" id="bkmSum"></div>
-          <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">Abbrechen</button><button class="ok" id="bkmOk">${ed ? 'Speichern' : 'Buchen'}</button></div></div>`;
+          <div class="vh-err" id="bkmE"></div><div class="vh-row"><button class="no" id="bkmNo">Abbrechen</button><button class="ok" id="bkmOk">${ed ? 'Speichern' : 'Buchen'}</button></div>${ed && ed.canCancel ? '<button type="button" class="bkm-storno" id="bkmCx">Buchung stornieren</button>' : ''}</div>`;
         sh.classList.add('show');
         const $q = id => sh.querySelector('#' + id);
+        if ($q('bkmCx')) $q('bkmCx').onclick = () => cancelSheet(ed);
         const fold = (btn, box, focus) => { if ($q(btn)) $q(btn).onclick = () => { const o = $q(box).hidden; $q(box).hidden = !o; $q(btn).classList.toggle('on', o); if (o && focus && $q(focus)) $q(focus).focus(); }; };
         fold('bkmGt', 'bkmGw', 'bkmGq'); fold('bkmDt', 'bkmDw'); fold('bkmRr', 'bkmRules');
         if (guests.length && $q('bkmGw')) $q('bkmGw').hidden = false;
@@ -547,7 +549,10 @@
       }
       const timer = setInterval(() => { if (!document.hidden && !(document.getElementById('bkmSheet') || {}).classList?.contains('show')) load(); }, 60000);
       el.innerHTML = '<div class="vh-empty">Lade …</div>';
-      load();
+      load().then(() => {   // aus „Für mich“ angetippt: gleich die Buchung mit „Ändern“ / „Stornieren“ öffnen
+        const f = /^b(\d+)$/.exec(String(ctx.focus || '')), m = f && data && data.mine.find(x => x.id === +f[1]);
+        if (m) (m.canEdit ? manageSheet(m) : cancelSheet(m));
+      });
     },
   });
 })();

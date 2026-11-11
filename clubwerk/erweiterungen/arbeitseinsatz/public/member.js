@@ -108,10 +108,18 @@
           <div class="vh-row"><button class="no" id="dsNo">Abbrechen</button><button class="ok" id="dsOk">Zusagen</button></div></div>`;
         sh.classList.add('show');
         sh.querySelector('#dsNo').onclick = close;
-        sh.querySelector('#dsOk').onclick = () => post(t, { event_id: t.id, answer: 'ja', persons: sh.querySelector('#dsP').value, note: sh.querySelector('#dsN').value }, 'Zugesagt – danke!', sh.querySelector('#dsE'));
+        sh.querySelector('#dsOk').onclick = () => post(t, { event_id: t.id, answer: 'ja', persons: sh.querySelector('#dsP').value, note: sh.querySelector('#dsN').value }, 'Zugesagt – danke!');
       }
-      async function post(t, body, msg, errEl) {
-        try { await ctx.api('answer', 'POST', body); close(); ctx.toast(msg); load(); } catch (x) { if (errEl) errEl.textContent = x.message; else ctx.toast(x.message, true); }
+      /* Zu-/Absage: Anzeige sofort umschalten, bei Fehler zurück (neu laden) und Meldung – ctx.optimistic */
+      let kette = Promise.resolve();   // schnelles Doppeltippen: Antworten gehen nacheinander ab, die letzte gilt
+      function post(t, body, msg) {
+        const b = document.querySelector(`.ds-tm [data-t="${t.id}"]`), card = b && b.closest('.ds-tm'), ja = body.answer === 'ja';
+        return ctx.optimistic(() => {
+          close();
+          if (!card) return;
+          const ch = card.querySelector('h3 .vh-chip'); if (ch) { ch.className = ja ? 'vh-chip g' : 'vh-chip'; ch.textContent = ja ? 'du kommst' : 'du kommst nicht'; }
+          card.querySelectorAll('[data-ans]').forEach(x => x.classList.toggle('sec', x.dataset.ans !== body.answer));
+        }, load, () => (kette = kette.catch(() => {}).then(async () => { await ctx.api('answer', 'POST', body); ctx.toast(msg); load(); })));
       }
       function shiftHtml(e, withDate) {
         const over = e.open === false, full = e.slots && e.taken >= e.slots && !e.mine;

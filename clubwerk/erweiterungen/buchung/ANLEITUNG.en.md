@@ -68,7 +68,7 @@ Behind **“More details”** are the rarely used fields:
 
 Clicking a block shows the details: players, title, fee, note and who entered the booking, when and where (app, tablet, admin area, schedule import).
 
-- **Cancel** asks for a reason (optional). The member receives an email and any fee is dropped. You need the permission “cancel other people's bookings”.
+- **Cancel** asks for a reason (optional). The member receives an email and any fee is dropped. You need the permission “cancel other people's bookings”. You find it in the details and also in the “Edit” window (“Cancel” button at the bottom left).
 - **Edit** opens the same window as when entering a booking: court, time, member, playing partners, guests and booking type can be changed. Guest fees are recalculated, and new playing partners receive the email.
 
 If the date belongs to a recurring booking or block, Clubwerk first asks what you mean:
@@ -318,7 +318,7 @@ Export courts, booking types and settings as a file and import them into another
 
 - **Booking:** tap a free slot, choose the duration (only up to the next booking or the maximum duration), and if you like add playing partners, guests (by name; ticking “Member of a partner club” saves the fee) or equipment (“ball machine”) or “solo” (e.g. ball wall). Anyone with the special right can also book for another member or repeat. A price field shows the guest fee and any court fee in advance; then confirm the court rules and tap “Book”.
 - **Tapping a taken time:** shows who has booked (depending on the setting) and offers “Join waiting list”.
-- **My bookings:** with icons for calendar (the booking goes into the phone's calendar), change and cancel; below it “My series” with “End” and “Waiting list” with “Remove”.
+- **My bookings:** with icons for calendar (the booking goes into the phone's calendar), change and cancel (also at the very bottom of the “Change booking” window: “Cancel booking”); below it “My series” with “End” and “Waiting list” with “Remove”.
 - **Cancelling as a playing partner:** every playing partner entered on a booking can cancel the whole booking, with the same deadline as the person who booked it (“…'s booking will be cancelled for everyone.”). Only the person who booked can change it. Any fee is dropped just as when the booker cancels; the booker and the other playing partners receive an email and a push notification, and the log shows who cancelled. Anyone who neither booked nor plays sees “Booked by … – only they or a playing partner can cancel.”
 - **Push:** members can be notified when they are added as a playing partner, when a booking is changed or cancelled (also because of a court block), when a court from the waiting list becomes free and shortly before the match (2 hours ahead, adjustable). The board decides which occasions exist under Member app › Notifications.
 - If a member is barred (their membership or fee type may not book), a note at the top tells them to contact the board.

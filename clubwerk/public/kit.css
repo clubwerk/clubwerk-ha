@@ -19,6 +19,7 @@ body.vh-page { margin: 0; background: var(--shimmer), var(--bg); background-repe
 .vh-ava.hidden { display: none; } .vh-ava img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .vh-photo { width: 128px; height: 128px; border-radius: 50%; margin: 4px auto 14px; background: var(--hover); display: flex; align-items: center; justify-content: center; overflow: hidden; font-size: 40px; font-weight: 800; color: var(--muted); }
 .vh-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+img[data-auth-src]:not([src]) { background: var(--hover); }
 .vh-uses { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 12px; text-align: left; } .vh-uses label { display: flex; gap: 10px; align-items: center; font-size: 15px; } .vh-uses input { width: 20px; height: 20px; flex: none; }
 .vh-pick { display: flex; align-items: center; justify-content: center; min-height: 48px; border-radius: 14px; border: 1px dashed var(--line); font-weight: 700; color: var(--brand-ink); margin-bottom: 12px; cursor: pointer; }
 .vh-pick input { display: none; }
@@ -204,6 +205,7 @@ html.vh-embed .vh-main { padding: 0 0 8px; max-width: none; flex: none; }
 .vh-date { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--brand-soft); color: var(--brand-ink); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.1; position: relative; }
 .vh-date b { font-family: var(--num); font-size: 18px; line-height: 1; font-weight: 600; font-variant-numeric: tabular-nums; } .vh-date span { font-size: 11px; font-weight: 700; text-transform: uppercase; opacity: .8; }
 .vh-date.today { background: var(--brand); color: var(--on-brand); }
+.vh-date.acc { background: var(--brand); color: var(--on-brand); } .vh-date.acc span { opacity: 1; }   /* Wochentag ohne Abdunkeln: im Dunkelmodus sonst 4,27 : 1, so 5,6 : 1 (hell 6,5 : 1) */   /* hervorgehobener Eintrag (z. B. eigene Platzbuchung): Vereinsfarbe gefüllt */
 .vh-date i { position: absolute; top: -3px; right: -3px; width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--card); background: var(--faint, var(--line)); }
 .vh-date i.g { background: var(--brand); } .vh-date i.r { background: var(--red); } .vh-date i.a { background: var(--amber); }
 /* „Für mich“: Zeilen mit Datumsblock bzw. Symbol des Bereichs, ganze Zeile tippbar (führt in den Bereich) */

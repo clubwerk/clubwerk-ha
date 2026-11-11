@@ -13840,6 +13840,12 @@
   "✓ IBAN gültig: {0}": "✓ IBAN valid: {0}",
   "✓ Kopiert": "✓ Copied",
   "✓ gültig": "✓ valid",
-  "✓ voll": "✓ full"
+  "✓ voll": "✓ full",
+  "Buchung stornieren": "Cancel booking",
+  "Platzbuchung · mit": "Court booking · with",
+  "Platzbuchung · mit {0}": "Court booking · with {0}",
+  "du kommst": "you’re coming",
+  "h3 .vh-chip": "h3 .vh-chip",
+  "vh-chip g": "vh-chip g"
  }
 }

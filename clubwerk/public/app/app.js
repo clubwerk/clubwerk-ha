@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.32';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.33';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -164,7 +164,10 @@
     }
     el.innerHTML = '';
     const ctx = {
-      api: (p, method, body) => call(`m/${id}/${p}`, method, body), blob: p => callBlob(`m/${id}/${p}`), withPin, toast, esc, member: me.member, focus,   // focus: Eintrag, zu dem „Für mich“ springt (z. B. ein Spieltag)
+      api: (p, method, body) => call(`m/${id}/${p}`, method, body), blob: p => callBlob(`m/${id}/${p}`), withPin, toast, esc, member: me.member, focus,
+      /* Harmloser Schalter: apply() zeigt den neuen Stand sofort, request() läuft; bei Fehler undo() + Meldung. Nie für Geld, Buchung, Geräte, Anmeldung, PIN, Freischaltung (Regel „optimistisch-verboten“) */
+      optimistic: async (apply, undo, request) => { apply(); try { return await request(); } catch (e) { undo(); toast(e.message, true); } },
+      // focus: Eintrag, zu dem „Für mich“ springt (z. B. ein Spieltag)
       onLeave: fn => { cleanup = fn; },
     };
     try { sec.render(el, ctx); } catch (e) { el.innerHTML = `<div class="vh-empty">Fehler: ${esc(e.message)}</div>`; }
@@ -317,7 +320,7 @@
       }
       return go ? `<button type="button" class="vh-fm"${go}>${inner}${CHEV}</button>` : `<div class="vh-fm">${inner}</div>`;
     };
-    const dateBox = x => `<span class="vh-date${x.at === today ? ' today' : ''}"><b>${esc(x.at.slice(8, 10))}.${esc(x.at.slice(5, 7))}.</b><span>${esc(WD[new Date(x.at + 'T12:00:00').getDay()])}</span></span>`;
+    const dateBox = x => `<span class="vh-date${x.accent ? ' acc' : x.at === today ? ' today' : ''}"><b>${esc(x.at.slice(8, 10))}.${esc(x.at.slice(5, 7))}.</b><span>${esc(WD[new Date(x.at + 'T12:00:00').getDay()])}</span></span>`;
     const icoBox = x => `<span class="vh-fm-ico">${ti(x.section || 'konto')}</span>`;
     const card = (h, rows, lead, news) => (rows.length ? `<div class="vh-card${news ? ' vh-fm-news' : ''}"><h3>${h}</h3><div class="vh-rows">${rows.map(x => line(x, lead(x), news)).join('')}</div></div>` : '');
     const first = me.sections.find(s => s.ok);
@@ -459,8 +462,11 @@
       const d = await imgCache.get(u); if (d) img.src = d; else img.style.visibility = 'hidden';
     } catch (e) { /* ohne Bild */ }
   };
-  const scanImgs = root => (root.querySelectorAll ? root.querySelectorAll('img[data-auth-src]') : []).forEach(loadAuthImg);
-  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('img[data-auth-src]')) loadAuthImg(n); scanImgs(n); } }))).observe(document.body, { childList: true, subtree: true });
+  /* Bilder erst laden, wenn sie bis eine Bildschirmhöhe an den sichtbaren Bereich kommen (ohne IntersectionObserver sofort) */
+  const imgIO = window.IntersectionObserver && new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { imgIO.unobserve(e.target); loadAuthImg(e.target); } }), { rootMargin: '100% 0px' });
+  const queueImg = img => { img.decoding = 'async'; imgIO ? imgIO.observe(img) : loadAuthImg(img); };
+  const scanImgs = root => (root.querySelectorAll ? root.querySelectorAll('img[data-auth-src]') : []).forEach(queueImg);
+  new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => { if (n.nodeType === 1) { if (n.matches && n.matches('img[data-auth-src]')) queueImg(n); scanImgs(n); } }))).observe(document.body, { childList: true, subtree: true });
 
   /* ---------- Profilbild: selbst hochladen, selbst bestimmen, wo es erscheint ---------- */
   const initials = n => String(n || '').split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase();

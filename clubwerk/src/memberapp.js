@@ -488,7 +488,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     // Knöpfe in der Zeile (z. B. Zusage): nur Wege im eigenen Bereich (/api/m/<bereich>/…) – dort gelten Rechte, Fristen und Protokoll wie im Bereich
     const act = a => ({ label: String(a.label || ''), aria: String(a.aria || ''), post: a.post, body: a.body && typeof a.body === 'object' ? a.body : {}, on: Boolean(a.on), kind: a.kind === 'n' ? 'n' : 'y' });
     const pick = (x, id) => ({ section: id, title: String(x.title), ...(x.tr ? { tr: true } : {}), sub: x.sub ? String(x.sub) : '', chip: x.chip ? String(x.chip) : '', focus: x.focus != null ? String(x.focus) : '',
-      ...(x.at ? { at: x.at, start: x.start || '', end: x.end || '' } : {}), ...(x.value ? { value: String(x.value) } : {}),
+      ...(x.at ? { at: x.at, start: x.start || '', end: x.end || '' } : {}), ...(x.accent ? { accent: true } : {}), ...(x.value ? { value: String(x.value) } : {}),
       ...(Array.isArray(x.actions) ? { actions: x.actions.filter(a => a && /^[a-z0-9/_-]{1,60}$/.test(a.post || '')).slice(0, 3).map(act) } : {}) });
     const time = x => x.at + (x.start || '');
     /* je Bereich zuerst seine erste Zeile, danach auffüllen – vier Buchungen verdrängen nie den nächsten Dienst („immer die nächste zeigen“) */

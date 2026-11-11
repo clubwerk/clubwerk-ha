@@ -1,5 +1,20 @@
 # Änderungen
 
+## 2026.11.33
+
+**Plätze: Stornieren auch aus „Ändern“, „Kostenlos.“ bündig, Platzbuchung in „Für mich“ hervorgehoben (Fehler Thorsten 10.11.2026)**
+- Mitglieder-App › Plätze: Im Fenster „Buchung ändern“ gibt es ganz unten den Knopf „Buchung stornieren“ (rot). Er führt in dieselbe Sicherheitsabfrage wie bisher, mit denselben Regeln (Frist, Mitspieler stornieren für alle, Gebühr entfällt). Ist die Buchung nicht mehr stornierbar, erscheint der Knopf nicht.
+- Verwaltung › Plätze: Auch im Fenster „Bearbeiten“ einer Buchung oder Sperre steht links unten „Stornieren“ bzw. „Sperre aufheben“, mit derselben Rückfrage wie in den Einzelheiten. Am Tablet gibt es kein „Ändern“; dort führt das Antippen einer Buchung ohnehin direkt zum Stornieren.
+- Der Hinweis „Kostenlos.“ bzw. der Preis im Buchungsfenster stand eingerückt (er erbte von der Zeitenliste „rechtsbündig, schmal“); jetzt steht er bündig mit den Feldern. Der Design-Prüfstand hat dafür die neue Regel `text-eingerueckt`.
+- Mitglieder-App › Plätze › „Buchung ändern“: Wer schon die höchste Zahl offener Buchungen erreicht hat (auch weil andere ihn als Mitspieler eingetragen haben), konnte seine eigene Buchung nicht mehr ändern („Du hast schon die höchste Zahl …“), und der Preishinweis blieb leer. Jetzt zählt nur, wer neu hinzukommt; neue Buchungen und neue Mitspieler am Höchstwert bleiben gesperrt.
+- Mitglieder-App › Für mich › „Als Nächstes“: Eigene Platzbuchungen heben sich ab – die Datumskachel ist in der Vereinsfarbe gefüllt, die Zeile nennt „Platzbuchung“. Antippen öffnet die Buchung direkt mit „Ändern“ und „Stornieren“. (Module können Zeilen mit `accent` hervorheben.)
+
+**Bilder laden erst, wenn man sie braucht (Mitglieder-App und Verwaltung)**
+- Mitglieder-App: Profilfotos in langen Listen (Helferlisten mit Gesichtern, Mängelmelder, Profil) werden erst geladen, wenn sie beim Scrollen bis etwa eine Bildschirmhöhe an den sichtbaren Bereich herankommen. Unterwegs über das Handynetz spart das Daten und Wartezeit; in einer Liste mit 60 Fotos waren es beim Öffnen 9 statt 36 Bilder. Bis ein Bild da ist, steht ein ruhiger grauer Platzhalter in gleicher Größe, nichts springt.
+- Verwaltung: Bilder in Listen (Artikel, Mängelliste, Helfer-Gesichter) laden ebenfalls erst beim Heranscrollen. Einzelbilder (Logo, Foto im offenen Fenster) laden wie bisher sofort, das Tablet lädt Artikelbilder weiter vorab.
+- Zusage und Absage zu Terminen in der App reagieren sofort: Die Anzeige wechselt beim Tippen, nicht erst nach der Antwort des Vereins-Servers (gemessen im langsamen Handynetz: 372 ms → 28 ms). Klappt es nicht, springt sie zurück und eine Meldung erscheint.
+- Neue Regel im Design-Prüfstand: Bilder in Listen ohne verzögertes Laden schlagen an.
+
 ## 2026.11.32
 
 **Geld und Daten sicher (Analyse Tests und technische Schulden, Auftrag Thorsten 10.11.2026)**

@@ -68,7 +68,7 @@ Hinter **„Weitere Angaben“** stehen die seltenen Felder:
 
 Ein Klick auf einen Block zeigt die Einzelheiten: Spieler, Titel, Gebühr, Notiz und wer die Buchung wann und wo (App, Tablet, Verwaltung, Spielplan-Import) eingetragen hat.
 
-- **Stornieren** fragt nach einem Grund (freiwillig). Das Mitglied bekommt eine E-Mail, eine Gebühr entfällt. Nötig ist das Recht „Buchungen anderer stornieren“.
+- **Stornieren** fragt nach einem Grund (freiwillig). Das Mitglied bekommt eine E-Mail, eine Gebühr entfällt. Nötig ist das Recht „Buchungen anderer stornieren“. Du findest es in den Einzelheiten und auch im Fenster „Bearbeiten“ (Knopf „Stornieren“ links unten).
 - **Bearbeiten** öffnet dasselbe Fenster wie beim Eintragen: Platz, Zeit, Mitglied, Mitspieler, Gäste und Buchungsart lassen sich ändern. Gastgebühren werden neu berechnet, neue Mitspieler bekommen die Mail.
 
 Gehört der Termin zu einer Serie oder Sperre, fragt Clubwerk zuerst, was gemeint ist:
@@ -318,7 +318,7 @@ Plätze, Buchungsarten und Einstellungen als Datei exportieren und in einer ande
 
 - **Buchen:** freie Stelle antippen, Dauer wählen (nur bis zur nächsten Buchung oder zur Höchstdauer), auf Wunsch Mitspieler, Gäste (mit Namen; der Haken „Mitglied in einem Partnerverein“ spart die Gebühr) oder ein Gerät („Ballmaschine“) bzw. „allein“ (z. B. Ballwand) hinzufügen. Wer das Sonderrecht hat, kann auch für ein anderes Mitglied buchen oder wiederholen. Ein Preisfeld zeigt vorab Gastgebühr und eventuelle Platzgebühr, dann die Platzordnung bestätigen und „Buchen“.
 - **Belegte Zeit antippen:** zeigt, wer gebucht hat (je nach Einstellung), und bietet „Vormerken“ für die Warteliste.
-- **Meine Buchungen:** mit Symbolen für Kalender (die Buchung landet im Handykalender), Ändern und Stornieren; darunter „Meine Serien“ mit „Beenden“ und „Warteliste“ mit „Entfernen“.
+- **Meine Buchungen:** mit Symbolen für Kalender (die Buchung landet im Handykalender), Ändern und Stornieren (auch im Fenster „Buchung ändern“ ganz unten: „Buchung stornieren“); darunter „Meine Serien“ mit „Beenden“ und „Warteliste“ mit „Entfernen“.
 - **Stornieren als Mitspieler:** Jeder eingetragene Mitspieler kann die ganze Buchung stornieren, mit derselben Frist wie der Buchende („Die Buchung von … wird für alle storniert.“). Ändern bleibt beim Buchenden. Eine Gebühr entfällt wie beim Storno durch den Buchenden; der Buchende und die anderen Mitspieler bekommen eine E-Mail und einen Push-Hinweis, das Protokoll nennt, wer storniert hat. Wer weder gebucht hat noch mitspielt, sieht „Gebucht hat … – nur er/sie oder ein Mitspieler kann stornieren.“
 - **Push:** Das Mitglied kann sich benachrichtigen lassen, wenn es als Mitspieler eingetragen wird, wenn eine Buchung geändert oder storniert wird (auch durch eine Platzsperre), wenn ein Platz von der Warteliste frei wird und kurz vor dem Spiel (Vorlauf 2 Stunden, einstellbar). Welche Anlässe es gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest.
 - Ist ein Mitglied gesperrt (Mitgliedschaft oder Beitragsart darf nicht buchen), steht oben der Hinweis, sich an den Vorstand zu wenden.

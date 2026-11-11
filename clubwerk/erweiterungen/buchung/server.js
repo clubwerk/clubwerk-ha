@@ -224,6 +224,12 @@ function activate(ctx) {
     return null;
   }
   /** offene (noch nicht vorbei) Buchungen eines Mitglieds je Art */
+  /** War die Person schon in der Buchung, die gerade geändert wird (gleiche Art)? Dann ändert die Änderung ihr Kontingent nicht – sie darf auch am Maximum ändern. */
+  function wasIn(mid, kind, editId) {
+    if (!editId) return false;
+    const o = db.prepare('SELECT b.member_id, b.partners, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.id = ?').get(editId);
+    return Boolean(o && o.kind === kind && (o.member_id === mid || J(o.partners, []).includes(mid)));
+  }
   function openCount(mid, kind, exceptId = 0) {
     const d = today(), n = hhmm(nowMin()), cp = cfg().count_partners;
     // Gerätebuchungen, die als Mitspieler an einer Platzbuchung hängen (Ballmaschine), zählen nicht fürs Kontingent
@@ -392,7 +398,7 @@ function activate(ctx) {
     const fee = lines.reduce((x, l) => x + l.cents, 0);
     const max = r.kind === 'artikel' ? c.max_open_artikel : c.max_open_platz;
     for (const p of club ? [] : [mid, ...(c.count_partners ? partners : [])].filter(p => !isTrainer(p))) {   // Trainer: ohne Kontingent
-      if (max && openCount(p, r.kind, exceptId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
+      if (max && !wasIn(p, r.kind, exceptId) && openCount(p, r.kind, exceptId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
     }
     for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, exceptId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
     return { r, date, s, e, partners, guests, fee, lines, label, club, title: label ? txt(b.title, 80) || null : null, device, solo };
@@ -428,7 +434,7 @@ function activate(ctx) {
       // Kontingent und Doppelbelegung der Personen noch einmal hier (check() lief vor dem await, inzwischen kann eine zweite
       // Anfrage desselben Mitglieds – Doppeltipp in der App – auf einem anderen Platz eingetragen worden sein)
       const c = cfg(), max = r.kind === 'artikel' ? c.max_open_artikel : c.max_open_platz;
-      for (const p of club ? [] : [mid, ...(c.count_partners ? partners : [])].filter(p => !isTrainer(p))) if (max && openCount(p, r.kind, editId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
+      for (const p of club ? [] : [mid, ...(c.count_partners ? partners : [])].filter(p => !isTrainer(p))) if (max && !wasIn(p, r.kind, editId) && openCount(p, r.kind, editId) >= max) throw new Error(p === mid ? `Du hast schon die höchste Zahl offener Buchungen (${max}) – erst wenn eine vorbei ist, geht die nächste.` : `${nameOf(p)} hat schon die höchste Zahl offener Buchungen (${max}).`);
       for (const p of [mid, ...partners]) if (personBusy(p, r.kind, date, s, e, editId)) throw new Error(p === mid ? 'Du hast zu dieser Zeit schon gebucht.' : `${nameOf(p)} hat zu dieser Zeit schon gebucht.`);
       // Gerät als Mitspieler: eigene Buchung auf dem Gerät im selben Zeitfenster, verknüpft über partner_device_id
       const devOld = old ? deviceOf(old) : null;
@@ -1711,7 +1717,7 @@ function activate(ctx) {
       AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') AND (b.ext_key IS NULL OR b.ext_key NOT LIKE 'tu:%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start LIMIT 20`).all(d, d, n, until, mid, String(mid))
       .filter(mine).slice(0, 5).map(b => {
         const others = (bview(b, { me: mid }).who || []).filter(x => x !== me);
-        return { at: b.date, start: b.start, end: b.end, title: b.rname, sub: others.length ? `mit ${others.join(', ')}` : '' };
+        return { at: b.date, start: b.start, end: b.end, title: b.rname, sub: others.length ? `Platzbuchung · mit ${others.join(', ')}` : 'Platzbuchung', accent: true, focus: `b${b.id}` };
       });
     const free = db.prepare(`SELECT w.id, w.date, w.start, w.end, r.name AS rname FROM bk_wait w JOIN bk_resource r ON r.id = w.resource_id WHERE w.member_id = ? AND w.notified_at IS NOT NULL AND w.date >= ? AND w.date <= ? ORDER BY w.date, w.start LIMIT 3`).all(mid, d, until)
       .filter(w => w.date > d || w.end > n).map(w => ({ key: `wait-${w.id}`, title: `Platz frei geworden: ${w.rname}`, sub: `${when(w)} – jetzt buchen`, tr: true }));
