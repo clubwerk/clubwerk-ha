@@ -110,8 +110,8 @@ function dict(code) {
   cache.dicts.set(code, d);
   return d;
 }
-function invalidate() { cache.dicts.clear(); }
-function reload() { cache = { builtin: null, catalog: null, dicts: new Map() }; }
+function invalidate() { cache.dicts.clear(); pages.clear(); }
+function reload() { cache = { builtin: null, catalog: null, dicts: new Map() }; pages.clear(); }
 
 function clubLang() { const l = normCode(env.getSetting('language', 'de')); return l && exists(l) ? l : 'de'; }
 /** Sprache wählen: ausdrücklich gewählt → Browser/Handy (falls vorhanden) → Vereinssprache */
@@ -323,6 +323,24 @@ function remove(code) {
 
 /** Skript für die Seiten: Kern + Browser-Teil + Daten der gewählten Sprache */
 let pageCode = null;
+/* i18n.js je Sprache nur einmal bauen und fertig komprimiert vorhalten (Englisch: 1,2 MB Text, vorher bei jedem Seitenaufruf neu gebaut und
+   gepackt, 20–45 ms vor dem ersten Bild – auf dem Raspberry Pi ein Vielfaches; planung/leitfaeden.md). Neu bei Änderung einer Sprache
+   (invalidate/reload) und der Vereinssprache (Schlüssel). Brotli in höchster Stufe: einmal ~2 s im Hintergrund, dann 25 % kleiner als gzip. */
+const pages = new Map();
+function pageAsset(lang) {
+  const key = lang + '|' + clubLang();
+  let a = pages.get(key);
+  if (a) return a;
+  const zlib = require('zlib');
+  const body = Buffer.from(pageScript(lang));
+  a = { body, etag: '"' + require('crypto').createHash('sha1').update(body).digest('base64url').slice(0, 27) + '"', gz: zlib.gzipSync(body, { level: 9 }), br: null };
+  if (pages.size > 20) pages.clear();
+  pages.set(key, a);
+  const mine = a;
+  zlib.brotliCompress(body, { params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 11, [zlib.constants.BROTLI_PARAM_SIZE_HINT]: body.length } }, (e, buf) => { if (!e) mine.br = buf; });
+  return a;
+}
+
 function pageScript(lang) {
   if (!pageCode) pageCode = fs.readFileSync(path.join(ROOT, 'public', 'i18n-core.js'), 'utf8') + '\n' + fs.readFileSync(path.join(ROOT, 'public', 'i18n-dom.js'), 'utf8');
   const m = meta(lang) || DE;
@@ -340,4 +358,4 @@ function init(o) {
 }
 
 module.exports = { aliases, init, reload, list, catalog, strings, meta, exists, resolve, clubLang, normCode, dict, tr, T, current, run, locale,
-  middleware, exportJson, exportXlsx, parseUpload, importData, remove, pageScript, LANG_DIR };
+  middleware, exportJson, exportXlsx, parseUpload, importData, remove, pageScript, pageAsset, LANG_DIR };

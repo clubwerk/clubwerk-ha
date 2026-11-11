@@ -70,14 +70,18 @@ function register(sh) {
     const groups = new Map();
     for (const c of rows) { if (!groups.has(c.member_id)) groups.set(c.member_id, []); groups.get(c.member_id).push(c); }
     const due = [], last = [], held = [], debit = { n: 0, cents: 0 };
+    // Personen- und Bankdaten aller Zahler mit je einer Abfrage statt je Zahler
+    const all = t => new Map(db.prepare(`SELECT * FROM ${t} WHERE member_id IN (SELECT value FROM json_each(?))`).all(JSON.stringify([...groups.keys()])).map(x => [x.member_id, x]));
+    const persons = groups.size ? all('mv_person') : new Map(), banks = groups.size ? all('mv_bank') : new Map();
+    const names = new Map(groups.size ? db.prepare('SELECT id, name FROM members WHERE id IN (SELECT value FROM json_each(?))').all(JSON.stringify([...groups.keys()])).map(m => [m.id, m.name]) : []);
     for (const [payer, list] of groups) {
-      const p = db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(payer) || {};
+      const p = persons.get(payer) || {};
       const items = list.filter(c => !blockOn(c.dunning_block, c.dunning_block_until, day));
       const net = items.reduce((s, c) => s + c.cents, 0);
       if (net <= 0) continue;   // nichts offen oder Guthaben deckt alles
       // Lastschrift mit gültigem Mandat: die Posten kommen in den nächsten Einzug (auch nach der ersten Rücklastschrift) – nicht mahnen
-      if ((p.payment || 'lastschrift') === 'lastschrift' && !p.debit_blocked && mandateState(bankRow(payer)).ok) { debit.n++; debit.cents += net; continue; }
-      const name = nameOf(payer);
+      if ((p.payment || 'lastschrift') === 'lastschrift' && !p.debit_blocked && mandateState(banks.get(payer) || null).ok) { debit.n++; debit.cents += net; continue; }
+      const name = names.get(payer) || '?';
       const its = items.map(c => {
         const from = Math.min(c.dunning_level || 0, n), at = c.cents > 0 ? nextAt(c, L) : null, adv = Boolean(at && at <= day);
         return { id: c.id, text: c.text, due_date: c.due_date, cents: c.cents, kind: c.kind, invoice_no: c.invoice_no, from, level: adv ? from + 1 : from, adv, dunned_at: c.dunned_at };

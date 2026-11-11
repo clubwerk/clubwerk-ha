@@ -52,6 +52,52 @@
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
 
+/* Barrierefreiheit für Screenreader (WCAG 1.3.1, 4.1.2, 4.1.3; planung/leitfaeden.md) – ändert nichts am Aussehen:
+   - Reiter: Knöpfe in einer Reiterleiste ([role=tablist]) sind Reiter (role=tab); der Knopf mit „on“ ist ausgewählt (aria-selected).
+     Knöpfe, deren Auswahl ein Modul selbst pflegt (aria-selected von Anfang an gesetzt), bleiben unberührt.
+   - Überschriften: Ebenen springen nicht (Seitentitel Ebene 1, Kartenüberschrift h3 → Ebene 2). Nur die angesagte Ebene (aria-level)
+     ändert sich, nie das Element oder sein Stil; die erste Überschrift einer Seite bleibt, wie sie ist. */
+(function () {
+  var vis = function (e) { return !!(e.offsetWidth || e.offsetHeight || e.getClientRects().length); };
+  var reiter = function () {
+    document.querySelectorAll('[role="tablist"] > button').forEach(function (b) {
+      if (!b.hasAttribute('role')) b.setAttribute('role', 'tab');
+      if (b.hasAttribute('aria-selected') && !b.hasAttribute('data-cw-sel')) return;
+      var s = b.classList.contains('on') ? 'true' : 'false';
+      if (b.getAttribute('aria-selected') !== s) { b.setAttribute('aria-selected', s); b.setAttribute('data-cw-sel', ''); }
+    });
+  };
+  var ebenen = function () {
+    var prev = 0;
+    document.querySelectorAll('h1, h2, h3, h4, h5, h6, [role="heading"]').forEach(function (h) {
+      var eigen = h.getAttribute('data-cw-ebene'), nat = eigen ? Number(eigen) : Number(h.getAttribute('aria-level')) || Number(h.tagName.slice(1)) || 2;
+      if (!vis(h)) return;
+      var lv = prev && nat > prev + 1 ? prev + 1 : nat;
+      if (lv !== nat) { if (h.getAttribute('aria-level') !== String(lv)) h.setAttribute('aria-level', String(lv)); if (!eigen) h.setAttribute('data-cw-ebene', String(nat)); }
+      else if (eigen) { if (/^H[1-6]$/.test(h.tagName) && Number(h.tagName.slice(1)) === nat) h.removeAttribute('aria-level'); else h.setAttribute('aria-level', String(nat)); h.removeAttribute('data-cw-ebene'); }
+      prev = lv;
+    });
+  };
+  // Kurzmeldungen („Gespeichert.“, Fehler) werden angesagt, ohne den Fokus zu verschieben (WCAG 4.1.3)
+  var meldung = function () { var t = document.getElementById('toast'); if (t && !t.hasAttribute('role')) { t.setAttribute('role', 'status'); t.setAttribute('aria-live', 'polite'); } };
+  // Fenster und Blätter (Tablet, Mitglieder-App, Module) sind für Screenreader Dialoge mit ihrer Überschrift als Name (WCAG 4.1.2);
+  // die Verwaltung setzt das schon im HTML und führt zusätzlich den Fokus (admin.js)
+  var fenster = function () {
+    document.querySelectorAll('.overlay > .dialog, .vh-sheet > .vh-box').forEach(function (d, i) {
+      if (!d.hasAttribute('role')) { d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); }
+      if (!vis(d)) return;
+      var h = d.querySelector('h1, h2, h3'); if (!h) return;
+      if (!h.id) h.id = 'cwDlgT' + i;
+      if (d.getAttribute('aria-labelledby') !== h.id) d.setAttribute('aria-labelledby', h.id);
+    });
+  };
+  var plan = 0, alle = function () { plan = 0; meldung(); reiter(); fenster(); ebenen(); };
+  var los = function () { if (!plan) plan = requestAnimationFrame(alle); };
+  var start = function () { new MutationObserver(los).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'hidden'] }); los(); };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+  window.CWA11y = { jetzt: alle };   // Tests/Prüfstand: sofort anwenden statt aufs nächste Bild zu warten
+})();
+
 /* iPhone/iPad: Cursor in Fenstern an der richtigen Stelle. Liegt ein Eingabefeld in einem festen Fenster (position: fixed – .overlay,
    .vh-sheet, Menüs) und ist die Seite dahinter weit gescrollt, zeichnet Safari beim Aufklappen der Tastatur den blinkenden Cursor
    versetzt, oft deutlich unter dem Feld (WebKit-Fehler 300690/300952, iOS 26; ähnlich schon 176896, iOS 11 – Ursache ist immer der

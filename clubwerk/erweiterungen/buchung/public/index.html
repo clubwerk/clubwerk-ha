@@ -47,7 +47,7 @@
   .bk-grid .nowl { position: absolute; left: 0; right: 0; height: 2px; background: var(--red); z-index: 2; pointer-events: none; }
   .bk-blk { position: absolute; left: 4px; right: 4px; border-radius: 12px; padding: 6px 10px; box-sizing: border-box; overflow: hidden; border: 1px solid var(--line); background: var(--hover); color: var(--ink); text-align: left; font: inherit; display: flex; flex-direction: column; z-index: 3; box-shadow: var(--shadow); }
   .bk-blk > b, .bk-blk > span { display: block; flex: none; line-height: 20px; font-size: 15px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung, kein „…“, nur ganze Zeilen (02.11.2026) */
-  .bk-blk > b { font-weight: 800; } .bk-blk > .tm { font-family: var(--num); font-size: 16px; font-weight: 600; opacity: .9; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+  .bk-blk > b { font-weight: 800; } .bk-blk > .tm { font-family: var(--num); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
   .bk-blk.buchung { background: var(--brand-soft); color: var(--brand-ink); border-color: color-mix(in srgb, var(--brand) 30%, transparent); }   /* Farben wie in der Verwaltung */
   .bk-blk.serie { background: color-mix(in srgb, var(--blue, #2f6fd6) 14%, var(--card)); color: var(--ink); border-color: color-mix(in srgb, var(--blue, #2f6fd6) 35%, transparent); }
   .bk-blk.sperre { background: repeating-linear-gradient(135deg, var(--red-soft) 0 8px, color-mix(in srgb, var(--red-soft) 50%, var(--card)) 8px 16px); color: var(--red); border-color: color-mix(in srgb, var(--red) 30%, transparent); }

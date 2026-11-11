@@ -161,17 +161,61 @@ function anchor() {
   try { fs.writeFileSync(ANCHOR_FILE + '.neu', JSON.stringify(list.slice(-4000))); fs.renameSync(ANCHOR_FILE + '.neu', ANCHOR_FILE); } catch (e) { console.error('GoBD-Anker:', e.message); }
   return h;
 }
-/** Kette nachrechnen: jede Zeile muss den Hash ihrer Vorgängerin tragen und ihr eigener Hash muss stimmen */
-function verify() {
+/*
+ * Geprüfter Stand (Entscheidung Thorsten 10.11.2026, planung/n-plus-1.md): Die Prüfung rechnet nur ab dem zuletzt geprüften Eintrag nach –
+ * die volle Kette wuchs mit jedem Jahr. Der Stand (ID + Hash) liegt AUSSERHALB der Datenbank (gobd-geprueft.json neben den Ankern):
+ * eine zurückgespielte oder untergeschobene Datenbank bringt ihn nicht mit. Ganz nachgerechnet wird
+ *   – einmal pro Woche (die nächste Prüfung nach 7 Tagen ist automatisch voll; die Datenqualität läuft täglich),
+ *   – nach jeder Wiederherstellung und Übernahme aus einer Sicherung (Stand gelöscht: src/backup.js, src/teilsicherung.js),
+ *   – solange ein Bruch besteht (Stand gelöscht),
+ *   – mit „Ganze Prüfkette prüfen“ (Einstellungen › Buchführung),
+ *   – sofort, wenn der gespeicherte Eintrag nicht mehr stimmt: Dann ist das Ergebnis rot (der Eintrag wird als Anker festgehalten,
+ *     die volle Prüfung meldet ihn dauerhaft) und es gibt eine Sicherheitswarnung.
+ */
+const CHECKED_FILE = path.join(DATA_DIR, 'gobd-geprueft.json');
+const FULL_DAYS = 7;
+function checkedState() {
+  try { const c = JSON.parse(fs.readFileSync(CHECKED_FILE, 'utf8')); return c && Number.isInteger(c.id) && typeof c.hash === 'string' ? c : null; } catch (e) { return null; }
+}
+function saveChecked(c) {
+  try {
+    if (!c) { fs.rmSync(CHECKED_FILE, { force: true }); return; }
+    fs.writeFileSync(CHECKED_FILE + '.neu', JSON.stringify(c)); fs.renameSync(CHECKED_FILE + '.neu', CHECKED_FILE);
+  } catch (e) { console.error('GoBD-Prüfstand:', e.message); }
+}
+/** nach einer Wiederherstellung oder Übernahme: nächste Prüfung ganz */
+const resetChecked = () => saveChecked(null);
+/** einen Eintrag dauerhaft als Anker festhalten (z. B. den geprüften Stand, der nicht mehr stimmt) */
+function keepAnchor(a) {
+  const list = anchors(); if (list.some(x => x.id === a.id && x.hash === a.hash)) return;
+  list.push({ id: a.id, hash: a.hash, at: new Date().toISOString() }); list.sort((x, y) => x.id - y.id);
+  try { fs.writeFileSync(ANCHOR_FILE + '.neu', JSON.stringify(list.slice(-4000))); fs.renameSync(ANCHOR_FILE + '.neu', ANCHOR_FILE); } catch (e) { console.error('GoBD-Anker:', e.message); }
+}
+/**
+ * Kette nachrechnen: jede Zeile muss den Hash ihrer Vorgängerin tragen und ihr eigener Hash muss stimmen.
+ * full: ganze Kette; sonst ab dem geprüften Stand (siehe oben), wenn es einen gibt und die letzte volle Prüfung keine Woche her ist.
+ * → { ok, count (nachgerechnete Einträge), first, head, bad, anchors, beyond, full, fullAt }
+ */
+function verify({ full = false } = {}) {
   const sel = db.prepare('SELECT * FROM gobd_journal WHERE id > ? ORDER BY id LIMIT 5000');
   let start = null;
   try { start = JSON.parse(getSetting('gobd_start', 'null')); } catch (e) { start = null; }
-  let last = -1, prevHash, count = 0, bad = null, first = null;
+  const first = db.prepare('SELECT id, prev, at FROM gobd_journal ORDER BY id LIMIT 1').get() || null;
+  let st = checkedState(), from = null, moved = null;
+  if (st && first && st.id < first.id) st = null;   // vom Löschlauf nach Ablauf der Frist entfernt: einfach ganz prüfen
+  if (st) {
+    const r = db.prepare('SELECT hash FROM gobd_journal WHERE id = ?').get(st.id);
+    if (!r || r.hash !== st.hash) moved = st;   // geprüfter Eintrag verändert oder verschwunden
+    else if (!full && st.full_at && Date.parse(st.full_at) <= Date.now() && Date.now() - Date.parse(st.full_at) < FULL_DAYS * 86400000) from = st;   // Zeit in der Zukunft (gefälschte Datei) zählt nicht: ganz prüfen
+  }
+  if (moved) keepAnchor(moved);   // ab jetzt meldet ihn auch jede volle Prüfung
+  let last = from ? from.id : -1, prevHash = from ? from.hash : first && first.prev, count = 0, bad = null;
+  if (first && start && start.id === first.id && start.prev !== first.prev) bad = { id: first.id, why: 'Der Anfang des Journals passt nicht zum letzten Löschlauf.' };
+  if (moved && !bad) bad = { id: moved.id, why: 'Ein schon geprüfter Eintrag hat sich verändert – das Journal wurde neu geschrieben.' };
   for (;;) {
     const rows = sel.all(last);
     if (!rows.length) break;
     for (const r of rows) {
-      if (first === null) { first = r; prevHash = r.prev; if (start && start.id === r.id && start.prev !== r.prev) bad = bad || { id: r.id, why: 'Der Anfang des Journals passt nicht zum letzten Löschlauf.' }; }
       if (r.prev !== prevHash && !bad) bad = { id: r.id, why: 'Die Verkettung ist unterbrochen – hier fehlt ein Eintrag oder wurde eingefügt.' };
       if (sha(r.prev, r.at, r.who, r.tbl, r.op, r.row_id, r.old, r.new) !== r.hash && !bad) bad = { id: r.id, why: 'Der Eintrag wurde nachträglich verändert.' };
       prevHash = r.hash; last = r.id; count++;
@@ -187,7 +231,14 @@ function verify() {
     const r = get.get(a.id);
     if (!r || r.hash !== a.hash) { if (!bad) bad = { id: a.id, why: 'Ein früher notierter Prüfwert stimmt nicht mehr – das Journal wurde neu geschrieben.' }; } else matched++;
   }
-  return { ok: !bad, count, first: first ? first.at : null, head: last > 0 ? { id: last, hash: prevHash } : null, bad, anchors: matched, beyond };
+  const now = new Date().toISOString(), isFull = !from;
+  if (bad) {
+    saveChecked(null);   // bis zur Klärung jedes Mal ganz prüfen – der Bruch bleibt sichtbar
+    try { require('./security').securityAlert('gobd', `Das Änderungsjournal (GoBD) ist unterbrochen – Eintrag ${bad.id}: ${bad.why} Bitte unter Einstellungen › Buchführung ansehen und keine Sicherung überschreiben.`, { key: bad.id }); }
+    catch (e) { console.error('GoBD-Warnung:', e.message); }
+  } else if (last > 0) saveChecked({ id: last, hash: prevHash, at: now, full_at: isFull ? now : from.full_at });
+  return { ok: !bad, count, first: first ? first.at : null, head: last > 0 ? { id: last, hash: prevHash } : null, bad, anchors: matched, beyond, full: isFull,
+    fullAt: bad ? null : isFull ? now : from.full_at };
 }
 
 /* ---------- Erlösarten, Konten, Sphären ---------- */
@@ -391,7 +442,8 @@ function routes(admin, { need, bad, asyncRoute }) {
     if (diff) audit(req.user, 'Buchführung: Konten geändert', diff);
     res.json({ ok: true, cfg: c, keys: keys() });
   });
-  admin.post('/gobd/pruefen', P, (req, res) => { const v = verify(); if (v.ok) anchor(); res.json(v); });
+  // ohne voll: ab dem geprüften Stand (beim Öffnen der Seite) · voll: ganze Kette („Ganze Prüfkette prüfen“)
+  admin.post('/gobd/pruefen', P, (req, res) => { const full = (req.body || {}).voll === true; const v = verify({ full }); if (v.ok) anchor(); if (full) audit(req.user, 'Buchführung: ganze Prüfkette geprüft', v.ok ? `${v.count} Einträge, intakt` : `unterbrochen bei Eintrag ${v.bad.id}`); res.json(v); });
   const range = (req, res) => {
     const from = String(req.query.from || ''), to = String(req.query.to || '');
     if (!isDate(from) || !isDate(to) || from > to) { bad(res, 'Bitte einen gültigen Zeitraum wählen.'); return null; }
@@ -428,4 +480,4 @@ function healthCheck() {
     fix: { label: 'Buchführung öffnen', page: 'einstellungen', sec: ['cw_setsec', 'buchfuehrung'] } };
 }
 
-module.exports = { install, ensure, middleware, appMiddleware, verify, anchor, postings, summary, keys, keyForExt, cfg, datev, pruefer, retention, routes, healthCheck, viaOf, SPHERES, VIAS, tables };
+module.exports = { install, ensure, middleware, appMiddleware, verify, resetChecked, anchor, postings, summary, keys, keyForExt, cfg, datev, pruefer, retention, routes, healthCheck, viaOf, SPHERES, VIAS, tables };

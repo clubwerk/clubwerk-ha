@@ -95,7 +95,7 @@ async function start({ module, name, user }) {
 
 /** Set-Cookie der Kopie für den Browser: Name mit „cwdemo_“, gilt nur auf …/demo/ und darunter nicht für die echte Verwaltung */
 const rename = c => COOKIE + c.replace(/;\s*Path=[^;]*/i, '') + '; Path=/';
-const browserCookies = c => c.cookies.map(x => `${COOKIE}${x}; HttpOnly; SameSite=Strict; Path=/`);
+const browserCookies = (c, secure) => c.cookies.map(x => `${COOKIE}${x}; HttpOnly; SameSite=Strict; Path=/${secure ? '; Secure' : ''}`);   // Secure über HTTPS wie alle Anmelde-Cookies (planung/leitfaeden.md)
 
 /** Weiterleitung …/demo/* → Kopie. Läuft vor express.json (Inhalt wird roh durchgereicht). */
 function proxy(currentUser) {

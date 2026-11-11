@@ -98,7 +98,7 @@
       .bk-legend span { display: inline-flex; align-items: center; gap: 8px; min-height: 30px; padding: 0 12px; border-radius: 999px; background: var(--card); border: 1px solid var(--edge); }
       .bk-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 4px; flex: none; }
       .bk-blk { display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; gap: 1px; }
-      .bk-blk { box-shadow: var(--shadow); } .bk-blk .tm { font-family: var(--num); font-size: 14.5px; font-weight: 600; opacity: .9; letter-spacing: .01em; } .bk-blk .tm:only-child { font-weight: 800; }
+      .bk-blk { box-shadow: var(--shadow); } .bk-blk .tm { font-family: var(--num); font-size: 14.5px; font-weight: 600; letter-spacing: .01em; } .bk-blk .tm:only-child { font-weight: 800; }
       .bk-plan .hd.today { color: var(--brand-ink); box-shadow: inset 0 -3px 0 var(--brand); }
       .bk-sel { height: 40px; border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--field); color: var(--ink); font: inherit; font-size: 14px; }
       .bk-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 10px; vertical-align: -1px; }
@@ -183,7 +183,7 @@
       @media (max-width: 1100px) { .bk-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bk-two { grid-template-columns: 1fr; } }
       @media (max-width: 560px) { .bk-kpis, .bk-kpis.three { grid-template-columns: 1fr; } .bk-rr { grid-template-columns: minmax(0, 1fr) 70px 56px 64px; } }
       .bk-blk { padding: 4px 8px; gap: 0; } .bk-blk > b, .bk-blk > span { display: block; flex: none; line-height: 15px; font-size: 12px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }
-      .bk-blk > b { font-weight: 800; } .bk-blk > .tm { font-size: 11px; opacity: .85; font-variant-numeric: tabular-nums; }
+      .bk-blk > b { font-weight: 800; } .bk-blk > .tm { font-size: 11px; font-variant-numeric: tabular-nums; }
       .bk-use { display: flex; flex-direction: column; gap: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--field); }
       .bk-use .muted.s { margin: 0; }
       .bkf { display: flex; flex-direction: column; gap: 6px; min-width: 0; }

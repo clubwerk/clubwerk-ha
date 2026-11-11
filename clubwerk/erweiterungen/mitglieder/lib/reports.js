@@ -19,7 +19,11 @@ function register(sh) {
   function lsb(day) {
     const people = membersAt(day);
     const depts = db.prepare('SELECT * FROM mv_department ORDER BY sort, name').all();
-    const deptOf = db.prepare('SELECT department_id FROM mv_member_department WHERE member_id = ? AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?)');
+    // Abteilungen aller auf einmal (eine Abfrage statt einer je Mitglied)
+    const deptRows = new Map();
+    for (const r of db.prepare('SELECT member_id, department_id FROM mv_member_department WHERE (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?) ORDER BY member_id, id').all(day, day)) {
+      if (!deptRows.has(r.member_id)) deptRows.set(r.member_id, []); deptRows.get(r.member_id).push(r);
+    }
     const blank = () => LSB_GROUPS.map(() => ({ m: 0, w: 0, d: 0, x: 0 }));
     const total = blank(), per = new Map(depts.map(d => [d.id, blank()]));
     let noBirth = 0; const noBirthNames = [];
@@ -29,7 +33,7 @@ function register(sh) {
       const gi = LSB_GROUPS.findIndex(g => a >= g[0] && a <= g[1]);
       const g = p.gender === 'm' || p.gender === 'w' || p.gender === 'd' ? p.gender : 'x';
       total[gi][g]++;
-      for (const r of deptOf.all(p.id, day, day)) if (per.has(r.department_id)) per.get(r.department_id)[gi][g]++;
+      for (const r of deptRows.get(p.id) || []) if (per.has(r.department_id)) per.get(r.department_id)[gi][g]++;
     }
     return { day, groups: LSB_GROUPS.map(g => g[2]), total, depts: depts.map(d => ({ id: d.id, name: d.name, federation: d.federation, rows: per.get(d.id) })), noBirth, noBirthNames, count: people.length };
   }
@@ -83,7 +87,8 @@ function register(sh) {
   const { lastFirst, nameKey } = C.require('./db');
   function consentRows() {
     const day = today();
-    return membersAt(day).map(m => { const p = db.prepare('SELECT member_no, consents, anonymized_at FROM mv_person WHERE member_id = ?').get(m.id) || {}; return { ...m, no: p.member_no, c: JSON.parse(p.consents || '{}'), anon: p.anonymized_at }; })
+    const pers = new Map(db.prepare('SELECT member_id, member_no, consents, anonymized_at FROM mv_person').all().map(p => [p.member_id, p]));   // eine Abfrage statt einer je Mitglied
+    return membersAt(day).map(m => { const p = pers.get(m.id) || {}; return { ...m, no: p.member_no, c: JSON.parse(p.consents || '{}'), anon: p.anonymized_at }; })
       .filter(m => !m.anon).sort((a, b) => nameKey(a.name, 'mitglied').localeCompare(nameKey(b.name, 'mitglied'), 'de'));
   }
   admin.get('/consents', P, (req, res) => {
@@ -112,9 +117,12 @@ function register(sh) {
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('Mitglieder');
     ws.columns = cols.map(([, h]) => ({ header: h, width: Math.max(12, h.length + 2) }));
     const cons = sh.consentList();
+    // Personen- und Bankdaten aller Zeilen mit je einer Abfrage statt zwei je Mitglied
+    const all = t => new Map(db.prepare(`SELECT * FROM ${t} WHERE member_id IN (SELECT value FROM json_each(?))`).all(JSON.stringify(rows.map(r => r.id))).map(x => [x.member_id, x]));
+    const persons = all('mv_person'), banks = canBank ? all('mv_bank') : new Map();
     for (const r of rows) {
-      const p = db.prepare('SELECT * FROM mv_person WHERE member_id = ?').get(r.id) || {};
-      const b = canBank ? db.prepare('SELECT * FROM mv_bank WHERE member_id = ?').get(r.id) || {} : {};
+      const p = persons.get(r.id) || {};
+      const b = canBank ? banks.get(r.id) || {} : {};
       const c = JSON.parse(p.consents || '{}');
       const val = { ...p, ...r, gender: store.GENDER[r.gender] || '', payer: r.payer_name || '', family: r.family_head_name || '', payment: store.PAYMENT[r.payment] || '', iban: b.iban ? sepa.fmtIban(b.iban) : '', mandate_ref: b.mandate_ref || '', mandate_date: b.mandate_date || '',
         consents: cons.filter(x => c[x.key]).map(x => x.short).join(', ') };

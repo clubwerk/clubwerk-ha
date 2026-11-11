@@ -173,7 +173,7 @@ function register(sh) {
       WHERE c.status = 'offen' AND c.collection_id IS NULL GROUP BY c.member_id HAVING SUM(c.cents) > 0 ORDER BY name_key(m.name, m.kind)`).all()
       .map(r => ({ key: `p:${r.member_id}`, label: lastFirst(r.name, 'mitglied'), sub: `${r.n} ${r.n === 1 ? 'offener Posten' : 'offene Posten'}`, cents: r.cents, kind: 'zahlung' }));
     const since = C.util.addDays(today(), -400);
-    for (const r of db.prepare(`SELECT c.collection_id, c.member_id, m.name, SUM(c.cents) cents, k.collection_date FROM mv_charge c JOIN members m ON m.id = c.member_id JOIN mv_collection k ON k.id = c.collection_id
+    for (const r of db.prepare(`SELECT c.collection_id, c.member_id, m.name, SUM(c.cents) cents, k.collection_date FROM mv_collection k CROSS JOIN mv_charge c ON c.collection_id = k.id JOIN members m ON m.id = c.member_id
       WHERE c.status IN ('eingezogen','bezahlt') AND k.status != 'verworfen' AND k.collection_date >= ? GROUP BY c.collection_id, c.member_id ORDER BY k.collection_date DESC, name_key(m.name, m.kind)`).all(since))
       out.push({ key: `r:${r.collection_id}:${r.member_id}`, label: lastFirst(r.name, 'mitglied'), sub: `Lastschrift vom ${deD(r.collection_date)}`, cents: r.cents, kind: 'ruecklastschrift' });
     return out;

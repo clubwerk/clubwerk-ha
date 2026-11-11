@@ -401,6 +401,7 @@ function routes(admin, d) {
     const snap = await backup.snapshot(db, 'vor-wiederherstellung');
     try {
       const zeilen = await anwenden(c, a.ids, { db, plugins, user: req.user, dry: false, getSetting, setSetting });
+      require('./gobd').resetChecked();   // GoBD: nach der Übernahme die ganze Prüfkette nachrechnen
       audit(req.user, 'Aus Sicherung übernommen', `Stand ${String(c.created).slice(0, 16).replace('T', ' ')}: ${zeilen.map(z => `${z.name} – ${z.text}`).join(' | ')} (vorher gesichert: ${snap})`);
       schliessen();
       res.json({ ok: true, zeilen, snapshot: snap });

@@ -148,6 +148,7 @@ function applyPendingRestore() {
   }
   for (const ext of ['', '-wal', '-shm']) { try { fs.unlinkSync(DB_FILE + ext); } catch (e) { /* egal */ } }
   fs.copyFileSync(src, DB_FILE);
+  fs.rmSync(path.join(DATA_DIR, 'gobd-geprueft.json'), { force: true });   // GoBD: nach dem Zurückspielen die ganze Prüfkette nachrechnen (src/gobd.js, geprüfter Stand)
   try { fs.unlinkSync(HA_MARKER); } catch (e) { /* egal */ }
   if (wanted) { try { applyDirs(wanted); } catch (e) { console.error('Ordner aus der Komplettsicherung:', e.message); } }
   cancelRestore();

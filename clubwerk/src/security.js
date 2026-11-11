@@ -52,6 +52,7 @@ const CORE = {
   'sicherung.alt': ['Keine Sicherung seit 48 Stunden', 'a', 'Seit über 48 Stunden gibt es keine erfolgreiche Datensicherung.'],
   'sicherung.probe': ['Probe-Wiederherstellung mit Befund', 'r', 'Die Probe-Wiederherstellung der Datensicherung hat etwas gefunden.'],
   'datenqualitaet': ['Fehler in den Daten', 'a', 'Die Prüfung der Daten hat Fehler gefunden.'],
+  'gobd': ['Änderungsjournal (GoBD) unterbrochen', 'r', 'Die Prüfkette des Änderungsjournals ist unterbrochen.'],
   'speicher': ['Speicher fast voll', 'r', 'Der Speicher von Clubwerk ist fast voll.'],
   'speicher.knapp': ['Speicher wird knapp', 'a', 'Der Speicher von Clubwerk wird knapp.'],
   'update': ['Update eingespielt', 'i', 'Clubwerk wird aktualisiert.'],
@@ -226,6 +227,7 @@ function hardenHeaders({ frame = 'SAMEORIGIN', camera = '' } = {}) {
   return (req, res, next) => {
     res.setHeader('X-Frame-Options', frame);   // Schutz gegen Einbetten in fremde Seiten (Klick-Fallen) – zusätzlich zu frame-ancestors
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin');
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');   // fremde Fenster bekommen keinen Griff auf Clubwerk-Seiten (OWASP/ASVS 14.4; auch App und Beregnung, planung/leitfaeden.md)
     res.setHeader('Permissions-Policy', `camera=(${camera}), microphone=(), geolocation=(), payment=(), usb=()`);
     // HTTPS: Browser merken sich einen Tag lang, nur noch verschlüsselt zu verbinden (ohne Subdomains – Home Assistant selbst bleibt unberührt)
     if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=86400');

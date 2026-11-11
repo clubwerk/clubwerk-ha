@@ -82,6 +82,8 @@ CREATE TABLE IF NOT EXISTS mv_charge (
 );
 CREATE INDEX IF NOT EXISTS ix_mvc_member ON mv_charge(member_id, status);
 CREATE INDEX IF NOT EXISTS ix_mvc_coll ON mv_charge(collection_id);
+CREATE INDEX IF NOT EXISTS ix_mvc_run ON mv_charge(run_id);               -- Läufe: erledigte Posten je Lauf (planung/n-plus-1.md)
+CREATE INDEX IF NOT EXISTS ix_mvc_for ON mv_charge(for_member_id);        -- Posten eines Mitglieds „für“ (Kind, Familie)
 CREATE TABLE IF NOT EXISTS mv_document (
   id INTEGER PRIMARY KEY, member_id INTEGER REFERENCES members(id), application_id INTEGER, kind TEXT NOT NULL DEFAULT 'sonstiges',
   title TEXT NOT NULL, file TEXT NOT NULL, mime TEXT, size INTEGER, sha256 TEXT, by_user TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -137,6 +139,11 @@ function migrate() {
   flattenPayers();
   // Familienmitgliedschaft (3.16): eigene Zuordnung neben dem Zahler – zeigt auf das Familienoberhaupt (dessen Familienbeitrag deckt die Person ab)
   add('mv_person', 'family_of', 'INTEGER');   // → members(id), Oberhaupt
+  // Zahler und Familie nachschlagen („wer zahlt über …?“, „wer gehört zur Familie von …?“): Mitgliederliste und Familienansicht lasen sonst je Mitglied alle Personen (planung/n-plus-1.md)
+  db.exec('CREATE INDEX IF NOT EXISTS ix_mvp_payer ON mv_person(payer_id) WHERE payer_id IS NOT NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS ix_mvp_family ON mv_person(family_of) WHERE family_of IS NOT NULL');
+  db.exec('CREATE INDEX IF NOT EXISTS ix_mvch_member ON mv_change(member_id)');   // offene Änderungswünsche je Mitglied (Mitgliederliste)
+  db.exec("CREATE INDEX IF NOT EXISTS ix_mvc_open ON mv_charge(due_date) WHERE status = 'offen'");   // offene Posten (Finanzübersicht, Mahnwesen) – nur die wenigen offenen statt aller Jahre
   if (S('family_of_migrated') !== '1') {   // Bestand: wer bisher über einen Zahler mit Familienbeitrag lief, gehört zu dessen Familie – heutiges Verhalten bleibt
     familyFromPayers();
     SET('family_of_migrated', '1');
@@ -270,11 +277,44 @@ const hist = (memberId, user, field, oldV, newV) => {
   db.prepare('INSERT INTO mv_history(member_id, by_user, field, old, new) VALUES (?,?,?,?,?)').run(memberId, user || null, field, oldV == null ? null : String(oldV).slice(0, 300), newV == null ? null : String(newV).slice(0, 300));
 };
 
+/*
+ * Quelle für Zahler und Familie: Standard ist je Frage eine Abfrage (live). Für Listen über viele Mitglieder liefert relations()
+ * einen Schnappschuss aller Personen aus EINER Abfrage – dieselben Funktionen unten rechnen mit beiden Quellen gleich (planung/n-plus-1.md).
+ */
+const FAMILY_SQL = `SELECT m.id, m.name, p.birth_date, p.exit_date FROM mv_person p JOIN members m ON m.id = p.member_id
+    WHERE (p.member_id = ? OR p.family_of = ?) AND m.deleted = 0 ORDER BY p.member_id = ? DESC, p.birth_date IS NULL, p.birth_date, p.member_id`;
+const live = {
+  person: id => db.prepare('SELECT payer_id, family_of FROM mv_person WHERE member_id = ?').get(id),
+  hasDependents: id => Boolean(db.prepare('SELECT 1 FROM mv_person WHERE family_of = ? AND member_id != ?').get(id, id)),
+  payees: head => db.prepare('SELECT member_id FROM mv_person WHERE payer_id = ? AND member_id != ? ORDER BY member_id').all(head, head).map(r => r.member_id),
+  familyRows: head => db.prepare(FAMILY_SQL).all(head, head, head),
+};
+/** Schnappschuss aller Zahler- und Familienbeziehungen → Quelle für payerOf/familyHead/familyMembers/familyOf/payerGroup(…, src) */
+function relations() {
+  const rows = db.prepare('SELECT p.member_id, p.payer_id, p.family_of, p.birth_date, p.exit_date, m.name, m.deleted FROM mv_person p LEFT JOIN members m ON m.id = p.member_id ORDER BY p.member_id').all();
+  const by = new Map(), deps = new Map(), pays = new Map();
+  const add = (map, k, v) => { if (!map.has(k)) map.set(k, []); map.get(k).push(v); };
+  for (const r of rows) {
+    by.set(r.member_id, r);
+    if (r.family_of != null && r.family_of !== r.member_id) add(deps, r.family_of, r);
+    if (r.payer_id != null && r.payer_id !== r.member_id) add(pays, r.payer_id, r.member_id);
+  }
+  const nb = r => (r.birth_date == null ? 1 : 0);
+  return {
+    person: id => by.get(id),
+    hasDependents: id => deps.has(id),
+    payees: head => pays.get(head) || [],
+    familyRows: head => [by.get(head), ...(deps.get(head) || [])].filter(r => r && r.deleted === 0)
+      .sort((a, b) => (b.member_id === head) - (a.member_id === head) || nb(a) - nb(b) || String(a.birth_date || '').localeCompare(String(b.birth_date || '')) || a.member_id - b.member_id)
+      .map(r => ({ id: r.member_id, name: r.name, birth_date: r.birth_date, exit_date: r.exit_date })),
+  };
+}
+
 /** Wer zahlt für diese Person? (Kette höchstens 3 Stufen, sonst selbst) */
-function payerOf(memberId) {
+function payerOf(memberId, src = live) {
   let id = memberId;
   for (let i = 0; i < 3; i++) {
-    const p = db.prepare('SELECT payer_id FROM mv_person WHERE member_id = ?').get(id);
+    const p = src.person(id);
     if (!p || !p.payer_id || p.payer_id === id) return id;
     id = p.payer_id;
   }
@@ -288,16 +328,16 @@ function payerOf(memberId) {
  *    Eine Ebene; Oberhaupt + höchstens ein weiterer Erwachsener (Partner) + Kinder bis family_child_max. → familyHead, familyMembers
  */
 /** Zahlergruppe: Hauptzahler + alle, für die er zahlt */
-function payerGroup(memberId) {
-  const head = payerOf(memberId);
-  const ids = [head, ...db.prepare('SELECT member_id FROM mv_person WHERE payer_id = ? AND member_id != ?').all(head, head).map(r => r.member_id)];
+function payerGroup(memberId, src = live) {
+  const head = payerOf(memberId, src);
+  const ids = [head, ...src.payees(head)];
   return { head, members: ids, kind: 'zahler' };
 }
 /** Oberhaupt der Familienmitgliedschaft dieser Person (sie selbst, wenn andere ihr zugeordnet sind), sonst null */
-function familyHead(memberId) {
-  const p = db.prepare('SELECT family_of FROM mv_person WHERE member_id = ?').get(memberId);
+function familyHead(memberId, src = live) {
+  const p = src.person(memberId);
   if (p && p.family_of && p.family_of !== memberId) return p.family_of;
-  return db.prepare('SELECT 1 FROM mv_person WHERE family_of = ? AND member_id != ?').get(memberId, memberId) ? memberId : null;
+  return src.hasDependents(memberId) ? memberId : null;
 }
 /** Familien-Beitragsart des Oberhaupts (Zeile aus mv_member_fee ⨝ mv_fee) oder null – an einem Tag, oder ohne Tag: jede noch nicht beendete (auch künftig beginnende) */
 function familyFee(headId, day = null) {
@@ -309,10 +349,9 @@ const childMax = () => parseInt(S('family_child_max', '18'), 10) || 18;
 /** Erwachsen im Sinn des Familientarifs: älter als family_child_max – ohne Geburtsdatum gilt die Person als erwachsen */
 function isAdult(birth, day = today()) { const a = fees.ageAt(birth, day); return a == null || a > childMax(); }
 /** Familienmitgliedschaft: Oberhaupt, Partner, Kinder (mit Alter und Rolle) – [] ohne Familie */
-function familyMembers(headId, day = today()) {
+function familyMembers(headId, day = today(), src = live) {
   if (!headId) return [];
-  const rows = db.prepare(`SELECT m.id, m.name, p.birth_date, p.exit_date FROM mv_person p JOIN members m ON m.id = p.member_id
-    WHERE (p.member_id = ? OR p.family_of = ?) AND m.deleted = 0 ORDER BY p.member_id = ? DESC, p.birth_date IS NULL, p.birth_date`).all(headId, headId, headId);
+  const rows = src.familyRows(headId);
   return rows.map(r => ({ id: r.id, name: r.name, age: fees.ageAt(r.birth_date, day), exit_date: r.exit_date, role: r.id === headId ? 'oberhaupt' : isAdult(r.birth_date, day) ? 'partner' : 'kind' }));
 }
 /**
@@ -322,11 +361,11 @@ function familyMembers(headId, day = today()) {
  * (z. B. das erwachsene Kind mit eigenem Beitrag, für das der Vater zahlt, während Vater, Mutter und Geschwister die Familie sind).
  * Der Verkauf („beim Zahler“) nutzt bewusst NICHT diese Funktion, sondern payerOf.
  */
-function familyOf(memberId) {
-  const head = familyHead(memberId);
-  if (head) return { head, members: familyMembers(head).map(r => r.id), kind: 'familie' };
-  const pg = payerGroup(memberId);
-  if (pg.members.some(m => familyHead(m))) return { head: memberId, members: [memberId], kind: 'einzeln' };
+function familyOf(memberId, src = live) {
+  const head = familyHead(memberId, src);
+  if (head) return { head, members: familyMembers(head, today(), src).map(r => r.id), kind: 'familie' };
+  const pg = payerGroup(memberId, src);
+  if (pg.members.some(m => familyHead(m, src))) return { head: memberId, members: [memberId], kind: 'einzeln' };
   return pg;
 }
 const isExited = (p, day = today()) => Boolean(p && p.exit_date && p.exit_date < day);
@@ -376,6 +415,6 @@ module.exports = {
     noteMemberNo(db.prepare("SELECT MAX(CAST(member_no AS INTEGER)) n FROM mv_person WHERE member_no GLOB '[0-9]*'").get().n);   // Bestand: höchste Nummer gilt als vergeben
   },
   S, SET, account, today, nowTs, PERSON_FIELDS, STATUS, PAYMENT, GENDER, ensurePerson, fillNames, splitName, syncCore, nextMemberNo, noteMemberNo, mandateRefFor, hist,
-  payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, mailOwners, mailOwnerFor, fullName, sepa, fees,
+  relations, payerOf, payerGroup, familyOf, familyHead, familyFee, familyMembers, familyFromPayers, isAdult, childMax, flattenPayers, appPerms, APP_VIEW, APP_EDIT, periodStart, zusatzStart, isExited, mailOwners, mailOwnerFor, fullName, sepa, fees,
   sha256: b => crypto.createHash('sha256').update(b).digest('hex'),
 };

@@ -107,7 +107,6 @@ app.use(require('./security').compress());
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
     `frame-src 'self'${embedOrigins()}`, "object-src 'none'", "base-uri 'self'", "form-action 'self'", "frame-ancestors 'self'",
@@ -120,9 +119,15 @@ const i18n = require('./i18n');
 i18n.init({ db, getSetting, setSetting, pluginDirs: () => plugins.dirs() });
 app.use(i18n.middleware);
 app.use(require('./gobd').middleware);   // Änderungsjournal: wer hat geändert (src/gobd.js)
+app.use(require('./db').settingCache);   // Einstellungen je Leseanfrage nur einmal lesen (src/db.js)
 app.get('/i18n.js', (req, res) => {
   const l = typeof req.query.l === 'string' && req.query.l !== 'auto' ? req.query.l : '';
-  res.type('application/javascript').set('Cache-Control', 'no-cache').send(i18n.pageScript(i18n.resolve(l, typeof req.query.b === 'string' ? req.query.b : '')));
+  const a = i18n.pageAsset(i18n.resolve(l, typeof req.query.b === 'string' ? req.query.b : ''));
+  res.type('application/javascript').set({ 'Cache-Control': 'no-cache', ETag: a.etag, Vary: 'Accept-Encoding' });
+  if (req.fresh) return res.status(304).end();
+  const acc = String(req.headers['accept-encoding'] || ''), enc = a.br && /\bbr\b/.test(acc) ? 'br' : /\bgzip\b/.test(acc) ? 'gzip' : '';
+  if (enc) res.set('Content-Encoding', enc);   // schon gepackt – die Komprimierung (security.compress) lässt es dann in Ruhe
+  res.send(enc === 'br' ? a.br : enc === 'gzip' ? a.gz : a.body);
 });
 
 /* ---------- einfache Bremse gegen Durchprobieren (pro IP oder je frei wählbarem Schlüssel) ----------
@@ -463,16 +468,24 @@ function guestResponse(g, ev) {
 
 /** „Ich bin öfter hier“: die topN() Mitglieder mit den meisten Buchungen in den letzten topDays() Tagen (Standard 15 aus 30 Tagen). */
 function topMembers() {
+  // Nur die letzten Tage lesen (Index auf created_at) statt aller Verkäufe aller Jahre – sonst wuchs jede Tablet-Startseite mit der Zeit (planung/n-plus-1.md).
+  // Gleichstand wie bisher: kleinere Nummer zuerst.
   return db.prepare(`SELECT b.member_id AS id, SUM(b.qty) AS n
-    FROM bookings b JOIN members m ON m.id = b.member_id
+    FROM bookings b INDEXED BY ix_bookings_created JOIN members m ON m.id = b.member_id
     WHERE b.cancelled_at IS NULL AND m.kind IN ('mitglied','nichtmitglied') AND m.active = 1
-      AND b.kind IN ('konto','event') AND date(b.created_at) >= date('now','localtime', ?)
-    GROUP BY b.member_id ORDER BY n DESC LIMIT ?`).all(`-${topDays()} days`, topN()).map(r => r.id);
+      AND b.kind IN ('konto','event') AND b.created_at >= date('now','localtime', ?)
+    GROUP BY b.member_id ORDER BY n DESC, b.member_id LIMIT ?`).all(`-${topDays()} days`, topN()).map(r => r.id);
 }
 
 function eventOpen(memberId) {
   return db.prepare(`SELECT COALESCE(SUM(total_cents),0) AS cents FROM bookings
     WHERE member_id = ? AND event_guest_id IS NOT NULL AND ${OPEN_GUEST}`).get(memberId).cents;
+}
+/** eventOpen für alle Konten auf einmal → Funktion id → Cent (Listen: eine Abfrage statt einer je Konto) */
+function eventOpenAll() {
+  const m = new Map(db.prepare(`SELECT member_id, SUM(total_cents) AS cents FROM bookings
+    WHERE member_id IS NOT NULL AND event_guest_id IS NOT NULL AND ${OPEN_GUEST} GROUP BY member_id`).all().map(r => [r.member_id, r.cents || 0]));
+  return id => m.get(id) || 0;
 }
 
 /* ---------- Optional: Buchungsseite mit Masterpasswort schützen ----------
@@ -941,12 +954,12 @@ const cleanUser = u => { const pi = auth.permInfo(u); return { id: u.id, usernam
 /** Abteilungen (aus der Mitgliederverwaltung, falls aktiv) */
 const departmentList = () => { for (const p of plugins.withHook('departments')) { try { return p.hooks.departments() || []; } catch (e) { /* */ } } return []; };
 /** Benutzername-Vorschlag: erster Buchstabe Vorname + Nachname (ä → ae …), eindeutig */
-function suggestUsername(first, last, exceptId = 0) {
+function suggestUsername(first, last, exceptId = 0, taken = null) {   // taken: vergebene Namen (klein geschrieben, ohne exceptId) – für Listen, statt je Vorschlag abzufragen
   const t = v => String(v || '').toLowerCase().replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
   let base = (t(first).slice(0, 1) + t(last)).slice(0, 26);
   if (base.length < 3) base = (base + 'user').slice(0, 26);
   let un = base, n = 1;
-  while (db.prepare('SELECT 1 FROM admin_users WHERE username = ? AND id != ?').get(un, exceptId)) un = `${base}${++n}`;
+  while (taken ? taken.has(un) : db.prepare('SELECT 1 FROM admin_users WHERE username = ? AND id != ?').get(un, exceptId)) un = `${base}${++n}`;
   return un;
 }
 
@@ -1101,12 +1114,13 @@ const deptIds = v => { if (!Array.isArray(v)) return null; const ok = new Set(de
 const memberOk = v => (v ? (db.prepare("SELECT id FROM members WHERE id = ? AND deleted = 0").get(int(v)) || {}).id || null : null);
 admin.get('/users/options', need('benutzer'), (req, res) => {
   const linked = new Set(db.prepare('SELECT member_id FROM admin_users WHERE member_id IS NOT NULL').all().map(r => r.member_id));
+  const taken = new Set(db.prepare('SELECT username FROM admin_users').all().map(r => String(r.username).toLowerCase()));   // Benutzernamen: NOCASE
   res.json({ roles: db.prepare('SELECT * FROM admin_roles ORDER BY sort, name').all().map(r => ({ ...r, perms: jarr(r.perms), dept_scope: Boolean(r.dept_scope),
     users: db.prepare('SELECT username, roles FROM admin_users').all().filter(u => jarr(u.roles).map(Number).includes(r.id)).length })),
     departments: departmentList(), permLabels: plugins.visiblePerms(),
     members: db.prepare("SELECT id, name, first_name, last_name FROM members WHERE kind = 'mitglied' AND deleted = 0 AND active = 1 ORDER BY name_key(name, kind)").all()
       .map(m => { const sp = m.first_name || m.last_name ? { first: m.first_name || '', last: m.last_name || '' } : splitPersonName(m.name);
-        return { id: m.id, name: m.name, linked: linked.has(m.id), username: suggestUsername(sp.first, sp.last) }; }) });
+        return { id: m.id, name: m.name, linked: linked.has(m.id), username: suggestUsername(sp.first, sp.last, 0, taken) }; }) });
 });
 admin.get('/users/suggest', need('benutzer'), (req, res) => res.json({ username: suggestUsername(req.query.first, req.query.last) }));
 
@@ -1517,8 +1531,9 @@ admin.get('/members', need('konten', 'buchungen', 'abrechnung', 'export', 'veran
       (SELECT COUNT(*) FROM bookings b WHERE b.member_id = m.id AND b.cancelled_at IS NULL) AS bookings
     FROM members m WHERE m.deleted = 0 AND m.kind != 'extern' ORDER BY m.pending DESC, m.active DESC,
       CASE m.kind WHEN 'mitglied' THEN 1 WHEN 'nichtmitglied' THEN 2 WHEN 'mannschaft' THEN 3 WHEN 'verein' THEN 4 ELSE 5 END, name_key(m.name, m.kind)`).all();
+  const evOpen = eventOpenAll();
   res.json({ from, to, seasonStart: seasonStart(), rows: rows.map(r => ({ ...r, last_seen: r.last_seen || null, hasPin: Boolean(r.hasPin), pinLocked: Boolean(r.pinLocked),
-    active: Boolean(r.active), pending: Boolean(r.pending), eventOpen_cents: eventOpen(r.id) })) });
+    active: Boolean(r.active), pending: Boolean(r.pending), eventOpen_cents: evOpen(r.id) })) });
 });
 
 /* Am Tablet angelegtes Mitglied bestätigen (optional mit korrigiertem Namen) */
@@ -2291,7 +2306,7 @@ admin.get('/bookings', need('buchungen'), (req, res) => {
     LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
     LEFT JOIN event_guests g ON g.id = b.event_guest_id LEFT JOIN event_payments p ON p.id = b.payment_id
     LEFT JOIN guest_tabs t ON t.id = b.tab_id
-    WHERE date(b.created_at) BETWEEN ? AND ? ${where}
+    WHERE b.created_at >= ? AND b.created_at < date(?, '+1 day') ${where}   -- wie date(created_at) BETWEEN, aber über den Index (planung/n-plus-1.md)
     ORDER BY b.created_at DESC, b.id DESC LIMIT 1000`).all(...params);
   res.json({ from, to, rows });
 });
@@ -2399,7 +2414,8 @@ function balances(asOf = nowTs(), upTo = maxBookingId()) {
     FROM bookings b JOIN members m ON m.id = b.member_id JOIN articles a ON a.id = b.article_id
     WHERE b.${OPEN_KONTO.replace(/ AND /g, ' AND b.')} AND ${CUT('b.')}
     GROUP BY m.id, a.category ORDER BY m.kind, name_key(m.name, m.kind)`).all(upTo, asOf, asOf);
-  const lastAt = db.prepare('SELECT MAX(until_at) t FROM member_settlements WHERE member_id = ?');
+  const lastAt = new Map(db.prepare('SELECT member_id, MAX(until_at) t FROM member_settlements WHERE member_id IN (SELECT value FROM json_each(?)) GROUP BY member_id').all(JSON.stringify([...new Set(rows.map(r => r.id))])).map(r => [r.member_id, r.t]));   // eine Abfrage statt einer je Konto
+  const evOpen = eventOpenAll();
   const map = new Map();
   for (const r of rows) {
     if (!map.has(r.id)) map.set(r.id, { id: r.id, name: r.name, kind: r.kind, total_cents: 0, items: 0, byCategory: {}, since: r.first_at });
@@ -2408,7 +2424,7 @@ function balances(asOf = nowTs(), upTo = maxBookingId()) {
     e.total_cents += r.cents; e.items += r.qty;
     if (r.first_at < e.since) e.since = r.first_at;
   }
-  return [...map.values()].map(e => ({ ...e, lastSettled: lastAt.get(e.id).t, eventOpen_cents: eventOpen(e.id) }));
+  return [...map.values()].map(e => ({ ...e, lastSettled: lastAt.has(e.id) ? lastAt.get(e.id) : null, eventOpen_cents: evOpen(e.id) }));
 }
 
 /* Auswertung Verkauf (Dashboard): Umsatz, Artikel, Verlauf, Anteile, beliebte Zeiten – Vergleich mit dem Vorjahr */
@@ -2457,7 +2473,7 @@ admin.get('/balances', need('abrechnung', 'export'), (req, res) => {
   const { from, to } = defaultRange(req.query);
   const sums = db.prepare(`SELECT kind, COALESCE(SUM(total_cents),0) cents, COALESCE(SUM(qty),0) qty,
       COALESCE(SUM(unit_cents * qty),0) list_cents
-    FROM bookings WHERE cancelled_at IS NULL AND date(created_at) BETWEEN ? AND ? GROUP BY kind`).all(from, to);
+    FROM bookings WHERE cancelled_at IS NULL AND created_at >= ? AND created_at < date(?, '+1 day') GROUP BY kind`).all(from, to);   // wie date(created_at) BETWEEN, aber über den Index
   // Hinweis: Was Mitglieder auf Veranstaltungslisten noch offen haben, kommt erst nach der Übernahme auf die Getränkeliste
   const evOpen = db.prepare(`SELECT e.name, SUM(b.total_cents) c FROM bookings b JOIN events e ON e.id = b.event_id
     JOIN event_guests g ON g.id = b.event_guest_id WHERE g.member_id IS NOT NULL AND b.${OPEN_GUEST.replace(/ AND /g, ' AND b.')}
@@ -2479,7 +2495,7 @@ function splitName(m) {
 const BT_DEFAULT = 'Verkauf {von} – {bis}';
 function abtippliste(asOf, upTo) {
   const list = balances(asOf, upTo);
-  const extra = db.prepare('SELECT first_name, last_name FROM members WHERE id = ?');
+  const extra = new Map(db.prepare('SELECT id, first_name, last_name FROM members WHERE id IN (SELECT value FROM json_each(?))').all(JSON.stringify(list.map(r => r.id))).map(m => [m.id, { first_name: m.first_name, last_name: m.last_name }]));
   const rows = list.map(r => {
     const person = isPerson(r.kind);
     const nm = person ? splitName({ ...r, ...extra.get(r.id) }) : { first: '', last: r.name };
@@ -2985,7 +3001,7 @@ async function buildExport(from, to, asOf = nowTs(), upTo = maxBookingId()) {
     LEFT JOIN members m ON m.id = b.member_id LEFT JOIN events e ON e.id = b.event_id
     LEFT JOIN event_guests g ON g.id = b.event_guest_id LEFT JOIN event_payments p ON p.id = b.payment_id
     LEFT JOIN guest_tabs t ON t.id = b.tab_id
-    WHERE b.cancelled_at IS NULL AND date(b.created_at) BETWEEN ? AND ? ORDER BY b.created_at`).all(from, to);
+    WHERE b.cancelled_at IS NULL AND b.created_at >= ? AND b.created_at < date(?, '+1 day') ORDER BY b.created_at`).all(from, to);   // wie date(created_at) BETWEEN, aber über den Index
   const events = db.prepare('SELECT id FROM events WHERE date BETWEEN ? AND ? ORDER BY date').all(from, to).map(r => eventSummary(r.id));
   const tabs = tabRows("date(t.created_at) BETWEEN ? AND ? ORDER BY t.created_at", from, to);
   const categories = db.prepare('SELECT category FROM articles WHERE deleted = 0 OR id IN (SELECT article_id FROM bookings) GROUP BY category ORDER BY cat_rank(category), de_key(category)').all().map(r => r.category);
@@ -3742,7 +3758,7 @@ admin.post('/demo-kopie', need('einstellungen'), rateLimit('demokopie', 30, 10 *
   try { c = await demokopie.start({ module: id, name: p.meta.name, user: req.user }); } catch (e) { return bad(res, e.message, 500); }
   audit(req.user, 'Demo gestartet', `${p.meta.name}${st.running ? ` (vorherige Demo ${st.name} beendet)` : ''}`);
   console.log(`Demo-Kopie (${p.meta.name}) gestartet – ${demokopie.rssMb() || '?'} MB Arbeitsspeicher.`);
-  res.setHeader('Set-Cookie', demokopie.browserCookies(c));
+  res.setHeader('Set-Cookie', demokopie.browserCookies(c, req.secure));
   res.json({ ok: true, url: 'demo/admin.html', ...demokopie.status(req.user) });
 }));
 admin.delete('/demo-kopie', need('einstellungen'), (req, res) => {
@@ -4121,7 +4137,16 @@ vault.onUnlock(() => {
   if (!bkFaellig(now, day) || bkRunning) return;
   setTimeout(() => bkTag(now).catch(e => console.error('Datensicherung (nachgeholt):', e.message)), 2000).unref();
 });
+/* Statistiken für den Abfrageplaner (SQLite-Doku zu PRAGMA optimize, planung/leitfaeden.md): nach dem Start einmal mit Grenze (0x10002 –
+   untersucht nur Tabellen, bei denen es sich lohnt, kurz), danach stündlich und vor dem Beenden; meist tut es nichts. */
+let optimizedAt = 0;
+function dbOptimize() {
+  if (Date.now() - optimizedAt < 3600000) return;
+  try { db.pragma(optimizedAt ? 'optimize' : 'optimize=0x10002'); } catch (e) { console.error('Datenbank optimieren:', e.message); }
+  optimizedAt = Date.now();
+}
 async function nightly() {
+  dbOptimize();
   if (DEMO_KOPIE) return;   // keine Sicherungen in der Demo-Kopie
   try {
     const now = new Date();
@@ -4209,7 +4234,7 @@ async function shutdown(why, code = 0) {
     await Promise.race([Promise.allSettled(plugins.withHook('shutdown').map(p => p.hooks.shutdown())), new Promise(r => setTimeout(r, 3000))]);
   } catch (e) { console.error('Beenden:', e.message); }
   // Datenbank sauber schließen und SOFORT beenden – danach darf kein Zeitgeber mehr auf die Datenbank zugreifen
-  try { db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) { console.error(e.message); }
+  try { db.pragma('optimize'); db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); } catch (e) { console.error(e.message); }
   process.exit(code);
 }
 /* Ein Fehler in einer Hintergrundaufgabe (Mail, Push, Hook ohne await) darf nie das ganze Add-on beenden – sonst reißen alle

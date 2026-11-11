@@ -13841,11 +13841,23 @@
   "✓ Kopiert": "✓ Copied",
   "✓ gültig": "✓ valid",
   "✓ voll": "✓ full",
+  "{0} Einträge, intakt": "{0} entries, intact",
+  "{0} neue Einträge nachgerechnet, alles verkettet. Ganze Kette zuletzt geprüft am {1}.": "{0} new entries checked, all chained. Whole chain last checked on {1}.",
+  "Buchführung: ganze Prüfkette geprüft": "Bookkeeping: whole hash chain checked",
+  "Das Änderungsjournal (GoBD) ist unterbrochen – Eintrag {0}: {1} Bitte unter Einstellungen › Buchführung ansehen und keine Sicherung überschreiben.": "The change journal (GoBD) is broken – entry {0}: {1} Please check under Settings › Bookkeeping and do not overwrite any backup.",
+  "Die Prüfkette des Änderungsjournals ist unterbrochen.": "The hash chain of the change journal is broken.",
+  "Ein schon geprüfter Eintrag hat sich verändert – das Journal wurde neu geschrieben.": "An entry that had already been checked has changed – the journal has been rewritten.",
+  "Ganze Prüfkette prüfen": "Check whole hash chain",
+  "Neue Einträge werden jede Nacht nachgerechnet (Einstellungen › Datenqualität), die ganze Kette einmal pro Woche.": "New entries are checked every night (Settings › Data quality), the whole chain once a week.",
+  "unterbrochen bei Eintrag {0}": "broken at entry {0}",
   "Buchung stornieren": "Cancel booking",
   "Platzbuchung · mit": "Court booking · with",
   "Platzbuchung · mit {0}": "Court booking · with {0}",
   "du kommst": "you’re coming",
   "h3 .vh-chip": "h3 .vh-chip",
-  "vh-chip g": "vh-chip g"
+  "vh-chip g": "vh-chip g",
+  "{0}{1}; HttpOnly; SameSite=Strict; Path=/{2}": "{0}{1}; HttpOnly; SameSite=Strict; Path=/{2}",
+  "Accept-Encoding": "Accept-Encoding",
+  "h1, h2, h3, h4, h5, h6, [role=\"heading\"]": "h1, h2, h3, h4, h5, h6, [role=\"heading\"]"
  }
 }

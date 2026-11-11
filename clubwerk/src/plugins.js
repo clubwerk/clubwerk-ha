@@ -98,6 +98,10 @@ function tabletPage(id, baseHref) {
   try { html = fs.readFileSync(path.join(p.dir, 'public', 'index.html'), 'utf8').replace(/<head([^>]*)>/i, `<head$1>\n<base href="${baseHref}">`); } catch (e) { return null; }
   // Seite ohne eigene Kopfzeile (Beregnung teilt sie mit ihrer Webapp): Kopfzeile gleich ins HTML – per Skript nachträglich eingefügt,
   // baute sie sich nach jedem Modulwechsel sichtbar neu auf
+  // Schriften gleich mit dem HTML anfordern (wie Verwaltung und App): kommt die Ziffernschrift erst später, springt die Seite (Lighthouse
+  // Tablet › Plätze am Handy: Layoutsprung 0,18 durch barlow-condensed-600, planung/leitfaeden.md) – zentral hier statt in jeder Modulseite
+  const fonts = ['jakarta-latin.woff2', 'barlow-condensed-600.woff2'].filter(f => !html.includes(f)).map(f => `<link rel="preload" href="../../fonts/${f}" as="font" type="font/woff2" crossorigin>`).join('\n');
+  if (fonts) html = html.replace(`<base href="${baseHref}">`, m => m + '\n' + fonts);
   if (!/id="gkHeader"/.test(html)) html = html.replace(/<body([^>]*)>/i, `<body$1>\n<header id="gkHeader"></header>\n<script src="../../nav.js" data-base="../../" data-active="${id}"></script>`);
   return html;
 }
@@ -188,7 +192,9 @@ function load({ app, admin, helpers }) {
       app.get([`/x/${id}/`, `/x/${id}/index.html`], (req, res) => res.redirect(302, `../../${slug}/` + (req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '')));
     }
     if (fs.existsSync(pub)) app.use(`/x/${id}`, (req, res, next) => (isActive(id) ? next() : inactive(req, res)),
-      express.static(pub, { setHeaders: res => res.setHeader('Cache-Control', 'no-cache') }));
+      // mit der aktuellen Modulversion in der Adresse (?v=…, Verwaltung lädt so) ein Jahr im Zwischenspeicher – eine neue Version hat eine neue
+      // Adresse; sonst kurz nachfragen (ETag → 304). Vorher fragte die Verwaltung bei jedem Aufruf alle Modul-Skripte neu nach (planung/leitfaeden.md)
+      express.static(pub, { setHeaders: res => res.setHeader('Cache-Control', res.req && res.req.query.v === p.meta.version ? 'public, max-age=31536000, immutable' : 'no-cache') }));
     const serverFile = path.join(p.dir, 'server.js');
     if (!fs.existsSync(serverFile)) continue;
     try {

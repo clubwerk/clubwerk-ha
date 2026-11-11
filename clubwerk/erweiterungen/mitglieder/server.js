@@ -30,11 +30,13 @@ function personRow(id) {
   return C.db.prepare(`SELECT m.id, m.name, m.kind, m.active, m.pending, m.pin_hash IS NOT NULL AS has_pin, p.*
     FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id = ? AND m.deleted = 0`).get(id);
 }
-/** Zusatzbeitrag einer Abteilungszugehörigkeit (fest gewählt oder nach Alter) → { fee, auto, free } */
-function zusatzFor(md, birth, day = today()) {
+/** Zusatzbeitrag einer Abteilungszugehörigkeit (fest gewählt oder nach Alter) → { fee, auto, free }
+ *  memo (Map): bei Listen über viele Mitglieder die Beitragsarten je Abteilung nur einmal lesen */
+function zusatzFor(md, birth, day = today(), memo = null) {
   if (md.fee_free) return { fee: null, free: true };
-  if (md.fee_id) return { fee: C.db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(md.fee_id) || null, auto: false };
-  const list = C.db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz' AND active = 1 AND department_id = ? ORDER BY COALESCE(age_min, 0), COALESCE(age_max, 999)").all(md.department_id);
+  const once = (k, f) => { if (!memo) return f(); if (!memo.has(k)) memo.set(k, f()); return memo.get(k); };
+  if (md.fee_id) return { fee: once('f' + md.fee_id, () => C.db.prepare('SELECT * FROM mv_fee WHERE id = ?').get(md.fee_id) || null), auto: false };
+  const list = once('d' + md.department_id, () => C.db.prepare("SELECT * FROM mv_fee WHERE kind = 'zusatz' AND active = 1 AND department_id = ? ORDER BY COALESCE(age_min, 0), COALESCE(age_max, 999)").all(md.department_id));
   if (!list.length) return { fee: null, none: true };
   const p = fees.pickByAge(list, birth, day);
   const ages = list.some(f => f.age_min != null || f.age_max != null);
@@ -409,9 +411,9 @@ function activate(ctx) {
       ELSE (SELECT COUNT(*) FROM mv_member_fee mf WHERE mf.fee_id = f.id AND (mf.end_date IS NULL OR mf.end_date >= ?)) END AS members FROM mv_fee f ORDER BY f.kind = 'zusatz', CASE WHEN f.kind = 'zusatz' THEN f.department_id END, CASE WHEN f.kind = 'zusatz' THEN COALESCE(f.age_min, 0) END, f.sort, f.name`).all(today(), today());   // Hauptverein: Reihenfolge wie festgelegt (↑ ↓)
     // Zusatzbeiträge: zählen, wer heute tatsächlich diese Altersstufe zahlt (ohne Befreite)
     if (feeList.some(f => f.kind === 'zusatz')) {
-      const per = {};
+      const per = {}, memo = new Map();
       for (const md of ctx.db.prepare('SELECT md.*, p.birth_date FROM mv_member_department md LEFT JOIN mv_person p ON p.member_id = md.member_id JOIN members m ON m.id = md.member_id WHERE m.deleted = 0 AND (md.exit_date IS NULL OR md.exit_date >= ?)').all(today())) {
-        const z = zusatzFor(md, md.birth_date); if (z.fee) per[z.fee.id] = (per[z.fee.id] || 0) + 1;
+        const z = zusatzFor(md, md.birth_date, today(), memo); if (z.fee) per[z.fee.id] = (per[z.fee.id] || 0) + 1;
       }
       for (const f of feeList) if (f.kind === 'zusatz') f.members = per[f.id] || 0;
     }
@@ -1293,10 +1295,14 @@ function activate(ctx) {
   /* alte Schlüsselnummern (Freitext aus verein.cloud) für das Modul Schlüssel: „übernehmen“ statt doppelt führen */
   ctx.hooks.keyNumbers = () => ctx.db.prepare("SELECT m.id, m.name, m.kind, x.key_no FROM mv_person x JOIN members m ON m.id = x.member_id WHERE m.deleted = 0 AND x.key_no IS NOT NULL AND trim(x.key_no) != ''").all()
     .map(r => ({ member_id: r.id, name: ctx.require('./db').lastFirst(r.name, r.kind), no: String(r.key_no).trim() }));
-  ctx.hooks.memberAddress = id => {
-    const p = personRow(id); if (!p) return null;
+  const addressOf = (id, p) => {
+    if (!p) return null;
     return { id, name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.name, street: p.street, zip: p.zip, city: p.city, country: p.country, email: p.email, mobile: p.mobile || null, phone: p.phone || null, member_no: p.member_no, payment: p.payment || 'lastschrift' };
   };
+  ctx.hooks.memberAddress = id => addressOf(id, personRow(id));
+  /* dasselbe für viele Mitglieder auf einmal → Map id → Anschrift (Listen: eine Abfrage statt einer je Mitglied) */
+  ctx.hooks.memberAddresses = ids => new Map(ctx.db.prepare(`SELECT m.id, m.name, m.kind, m.active, m.pending, m.pin_hash IS NOT NULL AS has_pin, p.*
+    FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (SELECT value FROM json_each(?)) AND m.deleted = 0`).all(JSON.stringify((ids || []).map(Number))).map(p => [p.id, addressOf(p.id, p)]));
   ctx.hooks.createCharge = ({ member_id, text, cents, due_date, kind = 'sonstiges', ext_key, by }) => {
     if (!personRow(member_id)) throw new Error('Mitglied nicht gefunden.');
     store.ensurePerson(member_id);
@@ -1455,18 +1461,44 @@ function activate(ctx) {
       id: r.id, label: lf(r.name), person: true, score: r._score,
       sub: [r.member_no ? `${ctx.T('Nr.')} ${r.member_no}` : '', r.depts, r.exit_date && r.exit_date < day ? 'ausgetreten' : ''] })) }];
   };
-  /* Beitrag einer Person = ihr Hauptbeitrag (kein Abteilungs-Zusatzbeitrag, keine einmalige Gebühr); bei gleichem Beginn der zuletzt eingetragene */
-  ctx.hooks.memberInfo = id => {
-    const p = personRow(id); if (!p) return null;
-    const fee = ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC, mf.id DESC LIMIT 1`).get(id, today());
-    // ohne eigenen Beitrag: der Familienbeitrag des Oberhaupts (family_of), sonst – wie früher – der Beitrag des Zahlers
-    const famFee = !fee && p.family_of ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.family = 1 AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC, mf.id DESC LIMIT 1`).get(p.family_of, today()) : null;
-    const payerFee = famFee || (!fee && p.payer_id ? ctx.db.prepare(`SELECT f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id = ? AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.start_date DESC, mf.id DESC LIMIT 1`).get(store.payerOf(id), today()) : null);
-    const d0 = today();
-    const departments = ctx.db.prepare("SELECT department_id FROM mv_member_department WHERE member_id = ? AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?) AND status != 'ausgetreten'").all(id, d0, d0).map(r => r.department_id);
-    return { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: store.payerOf(id), family_of: p.family_of || null, departments,
-      fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null };
-  };
+  /* Beitrag einer Person = ihr Hauptbeitrag (kein Abteilungs-Zusatzbeitrag, keine einmalige Gebühr); bei gleichem Beginn der zuletzt eingetragene.
+     memberInfos(ids) → Map id → Angaben: für Listen über viele Mitglieder mit wenigen Abfragen statt fünf je Person (planung/n-plus-1.md);
+     memberInfo(id) ist derselbe Weg für eine Person. */
+  const IDS = 'SELECT value FROM json_each(?)';
+  function memberInfos(list) {
+    const ids = [...new Set((list || []).map(Number).filter(Number.isInteger))], out = new Map();
+    if (!ids.length) return out;
+    const d0 = today(), rel = ids.length > 1 ? store.relations() : undefined;   // eine Person: wie bisher je Frage eine kleine Abfrage
+    const rows = ctx.db.prepare(`SELECT m.id, m.name, m.kind, m.active, m.pending, m.pin_hash IS NOT NULL AS has_pin, p.*
+      FROM members m LEFT JOIN mv_person p ON p.member_id = m.id WHERE m.id IN (${IDS}) AND m.deleted = 0`).all(JSON.stringify(ids));
+    const payer = new Map(rows.map(p => [p.id, store.payerOf(p.id, rel)]));
+    const need = new Set(rows.flatMap(p => [p.id, p.family_of, payer.get(p.id)]).filter(x => x != null));
+    // je Person die erste passende Beitragsart (bei gleichem Beginn die zuletzt eingetragene) – eigene, Familienbeitrag des Oberhaupts, des Zahlers
+    const own = new Map(), fam = new Map();
+    for (const f of ctx.db.prepare(`SELECT mf.member_id AS mv_member, f.* FROM mv_member_fee mf JOIN mv_fee f ON f.id = mf.fee_id WHERE mf.member_id IN (${IDS})
+        AND f.kind != 'zusatz' AND f.interval != 'einmalig' AND (mf.end_date IS NULL OR mf.end_date >= ?) ORDER BY mf.member_id, mf.start_date DESC, mf.id DESC`).all(JSON.stringify([...need]), d0)) {
+      if (!own.has(f.mv_member)) own.set(f.mv_member, f);
+      if (f.family === 1 && !fam.has(f.mv_member)) fam.set(f.mv_member, f);
+    }
+    const depts = new Map();
+    for (const r of ctx.db.prepare(`SELECT member_id, department_id FROM mv_member_department WHERE member_id IN (${IDS}) AND (entry_date IS NULL OR entry_date <= ?) AND (exit_date IS NULL OR exit_date >= ?) AND status != 'ausgetreten' ORDER BY member_id, id`).all(JSON.stringify(ids), d0, d0)) {
+      if (!depts.has(r.member_id)) depts.set(r.member_id, []);
+      depts.get(r.member_id).push(r.department_id);
+    }
+    for (const p of rows) {
+      const id = p.id, fee = own.get(id) || null;
+      // ohne eigenen Beitrag: der Familienbeitrag des Oberhaupts (family_of), sonst – wie früher – der Beitrag des Zahlers
+      const famFee = !fee && p.family_of ? fam.get(p.family_of) || null : null;
+      const payerFee = famFee || (!fee && p.payer_id ? own.get(payer.get(id)) || null : null);
+      out.set(id, { id, name: p.name, email: p.email, birth_date: p.birth_date, status: store.isExited(p) ? 'ausgetreten' : p.status, entry_date: p.entry_date, exit_date: p.exit_date, payer: payer.get(id), family_of: p.family_of || null, departments: depts.get(id) || [],
+        fee: fee ? { id: fee.id, name: fee.name, work_minutes: fee.work_minutes } : payerFee ? { id: payerFee.id, name: payerFee.name, work_minutes: payerFee.work_minutes, viaPayer: true, viaFamily: Boolean(famFee) } : null });
+    }
+    return out;
+  }
+  ctx.hooks.memberInfos = memberInfos;
+  ctx.hooks.memberInfo = id => memberInfos([id]).get(Number(id)) || null;
+  /* Familie bzw. Zahlergruppe (wie familyOf) für viele Mitglieder auf einmal → Map id → { head, members, kind } */
+  ctx.hooks.familiesOf = list => { const rel = store.relations(); return new Map([...new Set((list || []).map(Number))].map(id => [id, store.familyOf(id, rel)])); };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
   const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),

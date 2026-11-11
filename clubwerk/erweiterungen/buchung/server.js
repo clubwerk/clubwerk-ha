@@ -97,7 +97,11 @@ function activate(ctx) {
     if (!bc.includes('ext_key')) db.exec('ALTER TABLE bk_booking ADD COLUMN ext_key TEXT');
     const sc = db.prepare('PRAGMA table_info(bk_series)').all().map(c => c.name);
     if (!sc.includes('rule')) db.exec('ALTER TABLE bk_series ADD COLUMN rule TEXT');
-    db.exec('CREATE INDEX IF NOT EXISTS ix_bk_booking_ext ON bk_booking(ext_key)'); }
+    db.exec('CREATE INDEX IF NOT EXISTS ix_bk_booking_ext ON bk_booking(ext_key)');
+    // verknüpfte Gerätebuchungen: „… NOT IN (SELECT partner_device_id …)“ las sonst bei jeder Platzansicht alle Buchungen aller Jahre (planung/n-plus-1.md)
+    db.exec('CREATE INDEX IF NOT EXISTS ix_bk_device ON bk_booking(partner_device_id) WHERE partner_device_id IS NOT NULL');
+    // Gebühren: Monatsliste nur aus den (wenigen) Buchungen mit Gebühr statt aus allen
+    db.exec('CREATE INDEX IF NOT EXISTS ix_bk_fee ON bk_booking(date) WHERE fee_cents > 0'); }
   const admin = ctx.admin, T = ctx.tablet, M = ctx.member;
   const uname = req => req.user.name || req.user.username;
   const ar = fn => ctx.asyncRoute(fn);
@@ -235,7 +239,7 @@ function activate(ctx) {
     // Gerätebuchungen, die als Mitspieler an einer Platzbuchung hängen (Ballmaschine), zählen nicht fürs Kontingent
     // Spiele der Turniere (ext_key „tu:…“) zählen auch nicht – sie sind Vereinstermine
     return db.prepare(`SELECT b.id, b.member_id, b.partners FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND r.kind = ? AND b.id != ?
-      AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND (b.ext_key IS NULL OR b.ext_key NOT LIKE 'tu:%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`).all(kind, exceptId, d, d, n)
+      AND b.date >= ? AND (b.date > ? OR b.end > ?) AND (b.ext_key IS NULL OR b.ext_key NOT LIKE 'tu:%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv')`).all(kind, exceptId, d, d, n)
       .filter(b => b.member_id === mid || (cp && J(b.partners, []).includes(mid))).length;
   }
   /** gleiche Person zur gleichen Zeit schon gebucht (gleiche Art)? */
@@ -303,6 +307,15 @@ function activate(ctx) {
     const v = mv() ? await hook('memberInfo', id).catch(() => null) : null;
     infoCache.set(id, { at: Date.now(), v }); return v;
   }
+  /** wie info, aber für viele Mitglieder auf einmal: was nicht mehr im Zwischenspeicher liegt, mit einer Sammelabfrage (memberInfos) nachladen */
+  async function infos(ids) {
+    const now = Date.now(), miss = ids.filter(id => { const c = infoCache.get(id); return !(c && c.at > now - 30000); });
+    if (miss.length) {
+      const m = mv() ? await hook('memberInfos', miss).catch(() => null) : null;
+      for (const id of miss) infoCache.set(id, { at: now, v: m ? m.get(id) || null : null });
+    }
+    return new Map(ids.map(id => [id, infoCache.get(id).v]));
+  }
   /** Trainer = Konto „Kein Mitglied“: keine Gebühren, kein Kontingent, Abteilungsplätze nur mit eingetragener Abteilung (Sonderrechte) */
   const isTrainer = id => (db.prepare('SELECT kind FROM members WHERE id = ?').get(int(id)) || {}).kind === 'nichtmitglied';
   const trainerDepts = id => J((db.prepare('SELECT depts FROM bk_rights WHERE member_id = ?').get(int(id)) || {}).depts, []).map(Number);
@@ -325,8 +338,8 @@ function activate(ctx) {
   async function eligiblePeople(exceptId) {   // Einstellungen und Modulprüfung einmal, nicht je Mitglied
     const list = people().filter(p => p.id !== exceptId);
     if (!mv()) return list;
-    const c = cfg(), out = [];
-    for (const p of list) if (!whyNot(await info(p.id), c)) out.push(p);
+    const c = cfg(), out = [], all = await infos(list.map(p => p.id));
+    for (const p of list) if (!whyNot(all.get(p.id), c)) out.push(p);
     return out;
   }
 
@@ -616,7 +629,7 @@ function activate(ctx) {
   const myUpcoming = mid => {
     const d = today(), n = hhmm(nowMin()), fo = rightsOf(mid).forOthers, lim = cfg().cancel_before_min, key = S('ics_key'), lk = lookups();
     // verknüpfte Gerätebuchungen (Ballmaschine zur Platzbuchung) erscheinen nicht einzeln – die Platzbuchung zeigt „+ Ballmaschine“
-    return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?))
+    return db.prepare(`SELECT b.*, r.name AS rname, r.kind FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND b.date >= ? AND (b.date > ? OR b.end > ?)
       AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start`).all(d, d, n)
       .filter(b => b.member_id === mid || J(b.partners, []).includes(mid) || (b.booked_by_id === mid && fo)).map(b => { const dev = lk.dev(b), own = b.member_id === mid, forOther = !own && b.booked_by_id === mid && fo;
         return { ...bview(b, { me: mid, full: false, lk }), who: bview(b, { me: b.member_id, full: false, lk }).who, list: bview(b, { me: b.member_id, full: false, lk }).list, others: playerList(b, lk).filter(x => x !== lastFirst(lk.name(mid))), resource: b.rname, kind: b.kind, fee_cents: own ? b.fee_cents : 0, own, for_name: forOther ? lk.name(b.member_id) : null, booked_by: own && b.booked_by_id ? lk.name(b.booked_by_id) : null,
@@ -1713,7 +1726,7 @@ function activate(ctx) {
     const d = today(), n = hhmm(nowMin()), me = nameOf(mid);
     const mine = b => b.member_id === mid || J(b.partners, []).includes(mid);
     const when = b => `${WD[isoDow(b.date)]} ${deD(b.date)} · ${b.start}–${b.end}`;
-    const next = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND (b.date > ? OR (b.date = ? AND b.end > ?)) AND b.date <= ?
+    const next = db.prepare(`SELECT b.*, r.name AS rname FROM bk_booking b JOIN bk_resource r ON r.id = b.resource_id WHERE b.status = 'aktiv' AND b.type = 'buchung' AND b.date >= ? AND (b.date > ? OR b.end > ?) AND b.date <= ?
       AND (b.member_id = ? OR b.partners LIKE '%' || ? || '%') AND (b.ext_key IS NULL OR b.ext_key NOT LIKE 'tu:%') AND b.id NOT IN (SELECT partner_device_id FROM bk_booking WHERE partner_device_id IS NOT NULL AND status = 'aktiv') ORDER BY b.date, b.start LIMIT 20`).all(d, d, n, until, mid, String(mid))
       .filter(mine).slice(0, 5).map(b => {
         const others = (bview(b, { me: mid }).who || []).filter(x => x !== me);

@@ -1,5 +1,14 @@
 # Änderungen
 
+## 2026.11.34
+
+**Seiten laden bei großen Vereinen schneller (Auftrag Thorsten 10.11.2026)**
+- Clubwerk fragt die Datenbank jetzt viel seltener: Über alle 271 Seiten und Listen von Verwaltung, Tablet und Mitglieder-App zusammen 10 700 statt 61 900 Abfragen (gemessen mit einem Musterverein mit 500 Mitgliedern und 7 Jahren Daten). Die Inhalte sind dieselben wie vorher.
+- Besonders spürbar: Übersicht der Verwaltung 9 962 → 230 Abfragen (206 → 87 ms), Helferdienste › Übersicht 7 901 → 61 (103 → 47 ms), Plätze in der Mitglieder-App 4 625 → 49 (59 → 9 ms), Tablet › Plätze beim ersten Öffnen 4 575 → 40, Mitgliederliste 67 → 14 ms, Abrechnung 57 → 26 ms, Beitragsläufe 12 → 3 ms. Vorher wuchsen diese Zahlen mit jedem Mitglied – jetzt bleiben sie gleich, ob 50 oder 500 Mitglieder.
+- Nach einigen Jahren wäre es sonst langsamer geworden: Platzbuchungen, Verkäufe, Forderungen und Helferstunden aus früheren Jahren werden nicht mehr bei jedem Öffnen ganz durchgelesen (z. B. „Gerade oft hier“ auf der Tablet-Startseite 23 → 1 ms). Dafür legt Clubwerk beim ersten Start ein paar Suchhilfen in der Datenbank an (dauert Sekundenbruchteile, auch bei bestehenden Installationen). Der Verkauf am Tablet bleibt dabei unverändert schnell.
+- Einstellungen › Datenqualität und Buchführung: Die Prüfkette des Änderungsjournals (GoBD) rechnet Clubwerk jetzt nur noch ab dem zuletzt geprüften Eintrag nach statt jedes Mal alles – sonst wurde die Prüfung mit jedem Jahr langsamer (Entscheidung Thorsten). Die ganze Kette prüft Clubwerk weiterhin einmal pro Woche, nach jedem Zurückspielen einer Sicherung und auf Knopfdruck: Einstellungen › Buchführung › **„Ganze Prüfkette prüfen“** (bisher „Jetzt nachrechnen“). Hat sich ein schon geprüfter Eintrag verändert, zeigt Clubwerk das sofort rot und schickt eine Sicherheitswarnung „Änderungsjournal (GoBD) unterbrochen“.
+- Für Entwickler: Sammel-Hooks der Mitgliederverwaltung `memberInfos(ids)`, `familiesOf(ids)`, `memberAddresses(ids)` für Listen; Einstellungen liest eine Leseanfrage nur einmal je Schlüssel. Neues Werkzeug `werkzeuge/last/alle.js` misst jede GET-Adresse; die Testreihe `last` misst jetzt automatisch alle Adressen bei 50 und 500 Mitgliedern, wird rot, wenn eine Adresse mit der Mitgliederzahl wächst, und prüft die Abfragepläne auf ganze Tabellendurchläufe (Ausnahmen begründet in `werkzeuge/last/scan-erlaubt.txt`). Mitglieder 1.46.1, Helferdienste 2.16.3, Plätze 1.31.1, Spielbetrieb 1.24.5.
+
 ## 2026.11.33
 
 **Plätze: Stornieren auch aus „Ändern“, „Kostenlos.“ bündig, Platzbuchung in „Für mich“ hervorgehoben (Fehler Thorsten 10.11.2026)**
@@ -14,6 +23,16 @@
 - Verwaltung: Bilder in Listen (Artikel, Mängelliste, Helfer-Gesichter) laden ebenfalls erst beim Heranscrollen. Einzelbilder (Logo, Foto im offenen Fenster) laden wie bisher sofort, das Tablet lädt Artikelbilder weiter vorab.
 - Zusage und Absage zu Terminen in der App reagieren sofort: Die Anzeige wechselt beim Tippen, nicht erst nach der Antwort des Vereins-Servers (gemessen im langsamen Handynetz: 372 ms → 28 ms). Klappt es nicht, springt sie zurück und eine Meldung erscheint.
 - Neue Regel im Design-Prüfstand: Bilder in Listen ohne verzögertes Laden schlagen an.
+**Leitfäden-Abgleich: Sicherheit, Barrierefreiheit, Ladezeit (Auftrag Thorsten 10.11.2026, `planung/leitfaeden.md`)**
+- Sicherheit: Auch die Mitglieder-App und die Beregnungs-Webapp senden jetzt die Kopfzeile, die fremden Fenstern den Zugriff auf Clubwerk-Seiten verwehrt (Cross-Origin-Opener-Policy) – bisher nur die Verwaltung. Die Cookies der Demo-Kopie gehen über HTTPS nur noch verschlüsselt. Ein neuer Test prüft die Sicherheits-Kopfzeilen auf allen drei Ports, auch auf Fehlerseiten.
+- Barrierefreiheit (WCAG 2.2 AA, für Screenreader und Tastatur; Aussehen unverändert bis auf eine Farbe): Fenster der Verwaltung nehmen beim Öffnen den Fokus, die Seite dahinter ist solange für die Tab-Taste gesperrt, Escape schließt (wie ein Klick neben das Fenster) und danach steht der Fokus wieder auf dem Knopf, der es geöffnet hat. Fenster und Blätter in Tablet, Mitglieder-App und Modulen gelten für Screenreader als Dialog mit ihrer Überschrift als Namen. Kurzmeldungen („Gespeichert.“, Fehler) werden vorgelesen. Reiter werden als Reiter angesagt, mit dem gewählten. Überschriften springen nicht mehr von Ebene 1 auf 3. Die Anmeldeseite der Verwaltung hat einen Hauptbereich und liest Fehler sofort vor.
+- Mitglieder-App: Die Beschriftung des gewählten Bereichs in der Leiste unten ist etwas dunkler (hell) bzw. heller (dunkel). Lag eine grüne Fläche unter der Glasleiste, war sie vorher nur mit 3,8 : 1 lesbar, jetzt mindestens 5,4 : 1.
+- Ladezeit Verwaltung: Die Skripte der Module werden jetzt gleichzeitig geladen statt eins nach dem anderen und bleiben mit ihrer Versionsnummer im Browser gespeichert (bisher fragte jeder Aufruf alle neu nach). Lighthouse am Rechner 93 → 97 Punkte, am Handy erscheint die Seite rund 1,4 s früher.
+- Tablet: Die Seiten der Module (Plätze, Dienste, Mängel …) laden die Schriften gleich mit der Seite. Vorher kam die Ziffernschrift manchmal erst später, und der Inhalt sprang beim Öffnen kurz nach unten.
+- Sprachpaket: Die Texte für die Oberfläche (bei Englisch 1,2 MB) baut Clubwerk nur noch einmal je Sprache und hält sie fertig gepackt bereit – vorher bei jedem Seitenaufruf neu, was gerade auf kleinen Rechnern Zeit vor dem ersten Bild kostete. Englisch ist dabei ein Viertel kleiner (Brotli).
+- Datenbank: Clubwerk lässt SQLite jetzt regelmäßig die Statistiken für schnelle Abfragen aktualisieren (`PRAGMA optimize` nach dem Start, stündlich und beim Beenden), wie es die SQLite-Dokumentation empfiehlt.
+- Für Entwickler: Design-Prüfstand mit neuen Regeln `ueberschrift-sprung`, `reiter-rolle`, `meldung-live`, `fenster-rolle`; die Regel `kontrast` rechnet bei Glasleisten auch mit einer Fläche in Vereinsfarbe darunter. Gemeinsamer Baustein in `theme-init.js` (`CWA11y`).
+- Für Entwickler: Lighthouse ist jetzt Teil der Endprüfung (`paket.sh` Stufe 6b, gleichzeitig zum Design-Prüfstand, rund 2 Minuten): Hauptseiten von Verwaltung, Tablet und Mitglieder-App am Handy (gedrosselt) und am Rechner mit festen Mindestwerten für Performance, Barrierefreiheit und Best Practices (`werkzeuge/lighthouse/`). Ausweg `CW_OHNE_LIGHTHOUSE=1`.
 
 ## 2026.11.32
 

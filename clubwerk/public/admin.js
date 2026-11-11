@@ -243,6 +243,30 @@
   }
   window.addEventListener('resize', () => { document.querySelectorAll('#main .tabs').forEach(tabFade); fitTools(); });
   $('overlay').addEventListener('mousedown', e => { if (e.target === $('overlay') && !$('dialog').dataset.sticky) closeDialog(); });
+  /* Fenster für Tastatur und Screenreader (WCAG 2.1.1, 2.4.3, 4.1.2; planung/leitfaeden.md): Ist ein Fenster offen, liegt der Fokus darin
+     (das Fenster selbst, kein Feld – am Handy springt sonst die Tastatur auf), die Seite dahinter ist für Tab und Screenreader gesperrt (inert),
+     nach dem Schließen geht der Fokus zurück an den Knopf, der es geöffnet hat. Escape schließt wie ein Klick neben das Fenster
+     (nicht bei Fenstern, die das nicht erlauben – data-sticky). Rückfragen (#askOverlay) haben ihr eigenes Escape. Aussehen unverändert. */
+  (function () {
+    const ov = $('overlay'), ask = $('askOverlay'), dlg = $('dialog'), box = $('askBox');
+    const offen = o => !o.classList.contains('hidden');
+    let zurueck = null;
+    const titel = (b, id) => { const h = b.querySelector('h2, h3'); if (h) { if (!h.id) h.id = id; b.setAttribute('aria-labelledby', h.id); } else b.removeAttribute('aria-labelledby'); };
+    const sync = () => {
+      const a = offen(ov), q = offen(ask), app = $('app');
+      if (app) app.inert = a || q;
+      ov.inert = q;   // Rückfrage über einem Fenster: nur die Rückfrage ist bedienbar
+      if (a) titel(dlg, 'dialogT'); if (q) titel(box, 'askT');
+      const top = q ? box : a ? dlg : null;
+      if (top) { if (!top.contains(document.activeElement)) { if (!zurueck && document.activeElement !== document.body) zurueck = document.activeElement; top.focus({ preventScroll: true }); } return; }
+      const z = zurueck; zurueck = null;
+      if (z && z.isConnected && !z.closest('[inert]') && (document.activeElement === document.body || !document.activeElement)) z.focus({ preventScroll: true });
+    };
+    const mo = new MutationObserver(sync);
+    [ov, ask].forEach(o => mo.observe(o, { attributes: true, attributeFilter: ['class'] }));
+    [dlg, box].forEach(b => mo.observe(b, { childList: true }));
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && offen(ov) && !offen(ask) && !dlg.dataset.sticky && !e.defaultPrevented) closeDialog(); });
+  })();
 
   /* Lange Tabellen: erst 150 Zeilen, der Rest auf Knopfdruck – sonst baut der Browser tausende Zeilen auf einmal auf.
      rows: fertige <tr>-Zeilen, cols: Spaltenzahl. Knöpfe in den Zeilen über einen Klick auf die Tabelle anbinden, dann wirken sie auch in nachgeladenen Zeilen. */
@@ -319,6 +343,12 @@
     cache.modules = r.modules || [];
     cache.appModules = r.appModules || [];
     cache.navLayout = r.navLayout || null;
+    const url = (x, f) => `x/${x.id}/${f}?v=${encodeURIComponent(x.version)}`;
+    // alle Skripte gleichzeitig anfordern (vorher eins nach dem anderen: am Handy ein Netz-Umlauf je Modul, Lighthouse 10.11.2026) –
+    // ausgeführt werden sie unten weiter der Reihe nach, damit registerPage jedes Skript seinem Modul zuordnet
+    for (const x of r.ui) if (!extLoaded.has(x.id)) for (const f of [...(x.scripts || []), 'admin.js']) {
+      const l = document.createElement('link'); l.rel = 'preload'; l.as = 'script'; l.href = url(x, f); document.head.appendChild(l);
+    }
     for (const x of r.ui) {
       if (extLoaded.has(x.id)) continue;
       extLoaded.add(x.id);
@@ -326,7 +356,7 @@
       // erst die gemeinsamen Skripte des Moduls (z. B. Kacheln, die auch Tablet und App nutzen), dann admin.js – alle mit Modulversion
       for (const f of [...(x.scripts || []), 'admin.js']) await new Promise(res => {
         const sc = document.createElement('script');
-        sc.src = `x/${x.id}/${f}?v=${encodeURIComponent(x.version)}`;
+        sc.src = url(x, f);
         sc.onload = res; sc.onerror = () => { console.error('Erweiterung', x.id, f, 'konnte nicht geladen werden'); res(); };
         document.head.appendChild(sc);
       });
@@ -405,12 +435,12 @@
 
   function showLogin() {
     me = null;
-    $('app').innerHTML = `<div class="login card">${logoImg('loginlogo')}<h2 class="page">Verwaltung</h2>
+    $('app').innerHTML = `<main class="login card">${logoImg('loginlogo')}<h2 class="page" role="heading" aria-level="1">Verwaltung</h2>
       <p class="lead">Clubwerk – bitte anmelden.</p>
       <form id="lf" class="loginform"><label class="f">Benutzername<input id="un" autocomplete="username" autocapitalize="none" autofocus></label>
       <label class="f">Passwort<input type="password" id="pw" autocomplete="current-password"></label>
-      <button class="btn primary">Anmelden</button><span class="err" id="err"></span></form>
-      ${window.top === window && tabletOnUI ? '<p class="muted s" style="margin-top:18px"><a href="./">Zurück zur Buchungsseite</a></p>' : ''}</div>`;
+      <button class="btn primary">Anmelden</button><span class="err" id="err" role="alert"></span></form>
+      ${window.top === window && tabletOnUI ? '<p class="muted s" style="margin-top:18px"><a href="./">Zurück zur Buchungsseite</a></p>' : ''}</main>`;
     wireLogos();
     $('lf').onsubmit = async e => {
       e.preventDefault();
@@ -4555,15 +4585,17 @@
       <div class="kpis"><div class="kpi"><div class="l">Einträge</div><div class="v" translate="no">${r.journal.count.toLocaleString('de-DE')}</div></div>
         <div class="kpi"><div class="l">Seit</div><div class="v">${r.journal.first ? esc(deDate(r.journal.first.slice(0, 10))) : '–'}</div></div>
         <div class="kpi"><div class="l">Prüfkette</div><div class="v" id="gbChain">–</div></div></div>
-      <div class="row" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="muted s" id="gbChainTxt">Wird jede Nacht nachgerechnet (Einstellungen › Datenqualität).</span><button class="btn" id="gbCheck">Jetzt nachrechnen</button></div>`;
-    const check = () => busy($('gbCheck'), async () => {
+      <div class="row" style="justify-content:space-between;align-items:center;margin-top:12px"><span class="muted s" id="gbChainTxt">Neue Einträge werden jede Nacht nachgerechnet (Einstellungen › Datenqualität), die ganze Kette einmal pro Woche.</span><button class="btn" id="gbCheck">Ganze Prüfkette prüfen</button></div>`;
+    // beim Öffnen nur ab dem zuletzt geprüften Stand (schnell), der Knopf rechnet die ganze Kette nach (src/gobd.js)
+    const check = voll => busy($('gbCheck'), async () => {
       try {
-        const v = await api('gobd/pruefen', 'POST', {});
+        const v = await api('gobd/pruefen', 'POST', { voll });
         $('gbChain').textContent = T(v.ok ? 'intakt' : 'unterbrochen'); $('gbChain').style.color = v.ok ? '' : 'var(--red)';
-        $('gbChainTxt').textContent = v.ok ? T('{0} Einträge nachgerechnet, alles verkettet.').replace('{0}', v.count) + (v.beyond ? ' ' + T('Hinweis: Eine ältere Sicherung wurde zurückgespielt – was danach geändert wurde, ist nicht mehr im Journal.') : '') : `${T('Eintrag')} ${v.bad.id}: ${T(v.bad.why)}`;
+        $('gbChainTxt').textContent = v.ok ? (v.full ? T('{0} Einträge nachgerechnet, alles verkettet.').replace('{0}', v.count) : T('{0} neue Einträge nachgerechnet, alles verkettet. Ganze Kette zuletzt geprüft am {1}.').replace('{0}', v.count).replace('{1}', deDate(v.fullAt.slice(0, 10))))
+          + (v.beyond ? ' ' + T('Hinweis: Eine ältere Sicherung wurde zurückgespielt – was danach geändert wurde, ist nicht mehr im Journal.') : '') : `${T('Eintrag')} ${v.bad.id}: ${T(v.bad.why)}`;
       } catch (e) { fail(e); }
     });
-    $('gbCheck').onclick = check; check();
+    $('gbCheck').onclick = () => check(true); check(false);
     kb.innerHTML = `<p class="muted s" style="margin-top:0">Für den DATEV-Export: die Nummern vom Steuerberater, das Geschäftsjahr (Wirtschaftsjahr – gilt auch für Kündigungen und Jahresauswertungen, dasselbe Feld wie bei den Mitgliedern) und je Zahlweg ein Geldkonto. Lastschriften und Überweisungen am besten auf ein Geldtransitkonto, wenn euer Steuerberater die Bankumsätze selbst einliest – dann löst der Stapel den Sammeleinzug in Erlösarten auf, ohne doppelt zu buchen.</p>
       <div class="frm">
         <label class="f w1">Beraternummer<input id="gbB" value="${esc(c.berater)}" inputmode="numeric" maxlength="7" autocomplete="off"></label>

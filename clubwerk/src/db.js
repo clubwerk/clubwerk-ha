@@ -466,14 +466,29 @@ addColumn('members', 'deleted', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('articles', 'deleted', 'INTEGER NOT NULL DEFAULT 0');
 addColumn('events', 'deleted', 'INTEGER NOT NULL DEFAULT 0');
 
+/* Einstellungen je Leseanfrage (GET) nur einmal lesen (planung/n-plus-1.md): Listen fragten je Mitglied dieselben Einstellungen
+   („Modul aktiv?“, Altersgrenzen …) tausendfach ab. Gilt nur, solange die Anfrage läuft; setSetting vergisst den Wert sofort.
+   Schreibende Anfragen (POST/PUT/DELETE) lesen wie bisher jedes Mal frisch. */
+const { AsyncLocalStorage } = require('async_hooks');
+const settingMemo = new AsyncLocalStorage();
+function settingCache(req, res, next) {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+  const m = new Map(); const end = () => { m.done = true; m.clear(); };
+  res.on('finish', end); res.on('close', end);   // danach (z. B. in einem Zeitgeber, der den Kontext erbt) wieder frisch lesen
+  settingMemo.run(m, next);
+}
 function getSetting(key, fallback = null) {
   if (!db.open) return fallback;   // beim Beenden schon geschlossen
+  const m = settingMemo.getStore();
+  if (m && !m.done && m.has(key)) { const v = m.get(key); return v === null ? fallback : v; }
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
+  if (m && !m.done) m.set(key, row ? row.value : null);
   return row ? row.value : fallback;
 }
 function setSetting(key, value) {
   db.prepare('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value')
     .run(key, value);
+  const m = settingMemo.getStore(); if (m) m.delete(key);
   if (key === 'category_order') loadCategoryOrder();
 }
 
@@ -512,6 +527,7 @@ CREATE TABLE IF NOT EXISTS member_settlements (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_msettle_member ON member_settlements(member_id);
+CREATE INDEX IF NOT EXISTS ix_msettle_until ON member_settlements(member_id, until_at);   -- „zuletzt abgerechnet“ je Konto ohne alle Abrechnungen zu lesen (planung/n-plus-1.md)
 `);
 addColumn('bookings', 'settled_id', 'INTEGER REFERENCES member_settlements(id)');
 addColumn('bookings', 'credit_for', 'INTEGER');   // Gutschrift für eine schon abgerechnete Buchung
@@ -641,5 +657,5 @@ function rewireMemberRef(table, column, fromId, intoId) {
   }
 }
 
-module.exports = { PERSON_KINDS, isPerson, deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, setSetting, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
+module.exports = { PERSON_KINDS, isPerson, deKey, nameKey, splitPersonName, lastFirst, clubColor, mixColor, db, DB_FILE, DATA_DIR, getSetting, setSetting, settingCache, stockList, lastSettlement, audit, auditDiff, customArticleId, memberRefs, rewireMemberRef };
 loadCategoryOrder();

@@ -43,11 +43,18 @@ const appColor = () => require('./db').clubColor();
 const STAGED = 'Aus Sicherheitsgründen noch gesperrt: Du hast dein Handy von unterwegs freigeschaltet. Öffne die App einmal im Vereins-WLAN (im Vereinsheim) – dann ist dieser Bereich frei. Oder der Vorstand gibt ihn frei.';
 const sms = require('./sms');
 /** Kontaktdaten aus der Mitgliederverwaltung (falls aktiv) → { email, mobile }; hooked: Module mit memberAddress, wenn schon ermittelt (bei vielen Mitgliedern) */
-function contactOf(memberId, hooked = null) {
+function contactOf(memberId, hooked = null, pre = null) {
+  if (pre) return pre.get(memberId) || null;
   try { for (const p of hooked || require('./plugins').withHook('memberAddress')) { const a = p.hooks.memberAddress(memberId); if (a) return a; } } catch (e) { /* Modul-Fehler: keine Kontaktdaten */ }
   return null;
 }
-const mailOf = (id, hooked = null) => { const a = contactOf(id, hooked); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
+/** Kontaktdaten vieler Mitglieder auf einmal (Hook memberAddresses) → Map – oder null, wenn ein Modul sie nur einzeln liefert (dann je Mitglied) */
+function contactsOf(ids, hooked) {
+  const out = new Map();
+  try { for (const p of hooked) { if (typeof p.hooks.memberAddresses !== 'function') return null; for (const [id, a] of p.hooks.memberAddresses(ids)) if (a && !out.has(id)) out.set(id, a); } } catch (e) { return null; }
+  return out;
+}
+const mailOf = (id, hooked = null, pre = null) => { const a = contactOf(id, hooked, pre); const m = require('./mail'); return a && a.email && m.mailOk(a.email) && !/@clubwerk\.invalid$/i.test(a.email) ? a.email : null; };
 /* Geteilte E-Mail-Adresse (z. B. Familie mit einem Postfach): Die E-Mail-Einladung bekommt nur EIN Mitglied (Oberhaupt → Zahler → ältester
    Erwachsener, Hook mailOwners der Mitgliederverwaltung); alle anderen schaltet der Vorstand per QR-Code frei – sonst könnte, wer das Postfach
    liest, die App als jedes dieser Mitglieder koppeln. Ohne Mitgliederverwaltung gibt es keine Adressen und damit keine E-Mail-Einladung. */
@@ -357,6 +364,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
   const app = express();
   app.disable('x-powered-by');
   app.use(require('./gobd').appMiddleware);   // Änderungsjournal: Änderungen aus der App tragen das Mitgliedskonto (src/gobd.js)
+  app.use(require('./db').settingCache);   // Einstellungen je Leseanfrage nur einmal lesen (src/db.js)
   app.use(require('./security').noEncodedBody());   // komprimierte Anfragen nie entpacken
   app.use(require('./security').hostGuard());
   app.use(require('./security').hardenHeaders({ frame: 'DENY' }));
@@ -791,7 +799,8 @@ function adminRoutes(admin, { bad, need, auth, ownPwOk }) {
     const members = db.prepare("SELECT id, name, kind FROM members WHERE kind IN ('mitglied','nichtmitglied') AND active = 1 AND deleted = 0 AND pending = 0 ORDER BY name_key(name, kind)").all().filter(m => !have.has(m.id));
     const hooked = require('./plugins').withHook('memberAddress'), canMail = Boolean(hooked.length);   // einmal statt je Mitglied
     const owners = canMail ? mailOwners() : {}, mailShared = {};
-    const mailIds = canMail ? [...rows.map(x => x.member_id), ...members.map(x => x.id)].filter(id => { if (!mailOf(id, hooked)) return false; const o = mailSharedWith(id, owners); if (o) { mailShared[id] = { name: o.ownerName, why: o.why }; return false; } return true; }) : [];
+    const all = [...rows.map(x => x.member_id), ...members.map(x => x.id)], addrs = canMail ? contactsOf(all, hooked) : null;   // Anschriften auf einmal statt je Mitglied
+    const mailIds = canMail ? all.filter(id => { if (!mailOf(id, hooked, addrs)) return false; const o = mailSharedWith(id, owners); if (o) { mailShared[id] = { name: o.ownerName, why: o.why }; return false; } return true; }) : [];
     res.json({ startSection: getSetting('app_start', ''), formeKonto: getSetting('app_forme_konto', '0') === '1', kontoOn: require('./plugins').isActive('getraenke'), mailIds: mayMembers ? mailIds : [], mailShared: mayMembers ? mailShared : {}, mayMembers, url: qrUrl(), lanUrl: getSetting('app_url', ''), lanHint: lanPortHint(), tunnel: { on: tunnelOn(), url: tunnelUrl(), lanHttps: Boolean(lanUrl()), lastReject: lastTunnelReject, lastOk: lastTunnelOk, src: getSetting('tunnel_src', ''), proxyIps: TUNNEL_IPS, directPublic: directOk(), hostNets: hostNetsCached(), wlanNets: getSetting('app_wlan_nets', ''), myIp: normIp(req.ip || req.socket.remoteAddress) }, mayExt: req.user.perms.includes('einstellungen'), name: getSetting('app_name', 'Verein'), port: parseInt(process.env.MEMBER_PORT || '5001', 10) || null, https: tls.enabled(), modules: moduleInfo(), rows: mayMembers ? rows : [], members: mayMembers ? members : [], bulkCan: mayMembers && bulkModules(req).length > 0, bulkLast: mayMembers ? bulkLastInfo(req) : null,
       security: { inviteHours: invites.inviteHours(), inviteMailDays: invites.mailDays(), mailInvites: canMail, sms: smsInfo(), allowLink: getSetting('app_invite_link', '0') === '1', blockAfter: invites.BLOCK_AFTER, mailReady: require('./mail').ready() } });
   });

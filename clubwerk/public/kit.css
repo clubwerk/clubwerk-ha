@@ -50,7 +50,7 @@ body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 @media (max-width: 340px) { .vh-tabs { left: 4px; right: 4px; padding: 3px; } }   /* sehr schmale Handys (iPhone SE, 320 px): mehr Platz für die Beschriftungen */
 /* Spalten richten sich nach der Textbreite (flex: 1 1 auto) – app.js (fitTabs) sorgt für mindestens 8 px zwischen den Textkanten: erst Schrift kleiner (nicht unter 10 px), dann Beschriftungen mit mehreren Wörtern zweizeilig – nur an Leerzeichen, nie mitten im Wort */
 .vh-tabs.zwei button { justify-content: flex-start; padding-top: 4px; } .vh-tabs.zwei button span { white-space: normal; text-align: center; line-height: 1.1; overflow: visible; }
-.vh-tabs button.on { color: var(--brand); }
+.vh-tabs button.on { color: var(--brand-ink); }   /* dunklere Vereinsfarbe: auf der Glasleiste über der Seitenfarbe ≥ 4,5 : 1 (vorher 3,8; Prüfstand kontrast mit Glas-Fall, Lighthouse, 10.11.2026) */
 :root[data-contrast="hoch"] .vh-tabs button.on { background: var(--brand-soft); color: var(--brand-ink); box-shadow: inset 0 0 0 2px var(--brand-ink); }
 .vh-tabs button.wlan { opacity: .45; }
 .vh-tabs button.wlan.on { opacity: .7; }

@@ -35,6 +35,10 @@ CREATE TABLE IF NOT EXISTS aw_entry (
   by_user TEXT, reviewed_by TEXT, reviewed_at TEXT, reason TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_awe_member ON aw_entry(member_id, date);
+CREATE INDEX IF NOT EXISTS ix_awe_event ON aw_entry(event_id);   -- Stunden je Einsatz in den Listen (planung/n-plus-1.md)
+CREATE INDEX IF NOT EXISTS ix_awe_date ON aw_entry(date);        -- Übersicht: Stunden eines Jahres statt aller Jahre
+CREATE INDEX IF NOT EXISTS ix_awe_open ON aw_entry(date) WHERE status = 'offen';         -- gemeldete, noch nicht bestätigte Stunden
+CREATE INDEX IF NOT EXISTS ix_awe_run ON aw_entry(member_id) WHERE status = 'laeuft';   -- gerade eingestempelt
 CREATE TABLE IF NOT EXISTS aw_exempt (member_id INTEGER NOT NULL PRIMARY KEY REFERENCES members(id), note TEXT, until_date TEXT, created_by TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')));
 CREATE TABLE IF NOT EXISTS aw_plan (
   id INTEGER PRIMARY KEY, title TEXT NOT NULL, from_date TEXT NOT NULL, to_date TEXT NOT NULL, place TEXT, note TEXT,
@@ -140,13 +144,15 @@ function activate(ctx) {
     const sums = st => new Map(db.prepare(`SELECT member_id, SUM(minutes) n FROM aw_entry WHERE status = ? AND date BETWEEN ? AND ? GROUP BY member_id`).all(st, p0.from, p0.to).map(r => [r.member_id, r.n]));
     const doneBy = sums('bestaetigt'), openBy = sums('offen');
     const pre = { c, per: p0, ov: new Map(db.prepare('SELECT * FROM aw_target WHERE year = ?').all(y).map(r => [r.member_id, r])), ex: new Map(db.prepare('SELECT * FROM aw_exempt').all().map(r => [r.member_id, r])) };
-    const withMv = mv();
-    for (const p of people()) {
-      const info = withMv ? await hook('memberInfo', p.id) : null;
+    const withMv = mv(), list = people();
+    // Mitgliedsdaten und Familien aller auf einmal (Mitgliederverwaltung: memberInfos/familiesOf) statt je Mitglied
+    const infos = withMv ? await hook('memberInfos', list.map(p => p.id)) : null, fams0 = withMv ? await hook('familiesOf', list.map(p => p.id)) : null;
+    for (const p of list) {
+      const info = infos ? infos.get(p.id) || null : null;
       if (info && info.status === 'ausgetreten' && info.exit_date && info.exit_date < p0.from) continue;
       const t = await target(p.id, y, info, pre);
       const done = doneBy.get(p.id) || 0, open = openBy.get(p.id) || 0;
-      const fam = withMv ? await hook('familyOf', p.id) : null;
+      const fam = fams0 ? fams0.get(p.id) || null : null;
       rows.push({ id: p.id, name: p.name, target: t.minutes, why: t.why, done, open, head: fam ? fam.head : p.id, exempt: Boolean(t.exempt), exempt_until: t.exempt ? t.until || null : null, exempt_note: t.exempt ? t.note || '' : '', override: Boolean(pre.ov.get(p.id) && pre.ov.get(p.id).minutes != null) });
     }
     const groups = new Map();

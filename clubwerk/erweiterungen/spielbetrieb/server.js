@@ -1171,7 +1171,8 @@ function activate(ctx) {
   ];
   ctx.hooks.overview = async () => {
     const soon = db.prepare("SELECT * FROM sp_game WHERE date >= ? AND date <= ? AND status = 'geplant' AND released = 1 ORDER BY date").all(today(), addDays(today(), 14));
-    const red = soon.filter(g => !stats(g).ok);
+    const pre = soon.length ? prep(soon) : null;   // je Tabelle eine Abfrage statt vier je Spieltag
+    const red = soon.filter(g => !stats(g, pre.team(g.team_id), pre.ros(g.team_id), pre).ok);
     const wd2 = db.prepare("SELECT COUNT(*) n FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.withdraw = 1 AND g.date >= ?").get(today()).n;
     return { kpis: [{ l: 'Spieltage in 14 Tagen', v: (n => n === 1 ? ctx.T('{0} Spieltag', [n]) : ctx.T('{0} Spieltage', [n]))(soon.length) }, { l: 'Mannschaften', v: String(db.prepare('SELECT COUNT(*) n FROM sp_team WHERE active = 1').get().n) }],
       alerts: [...(red.length ? [{ level: 'a', text: `${red.length} ${red.length === 1 ? 'Spieltag' : 'Spieltage'} in den nächsten 14 Tagen mit zu wenigen Zusagen.` }] : []), ...(wd2 ? [{ level: 'a', text: `${wd2} offene Absage-Anfrage(n).` }] : [])] };
