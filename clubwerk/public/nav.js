@@ -178,7 +178,17 @@
       }
     }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
   });
-  ready(() => { const g = document.getElementById('gate'); if (g) new MutationObserver(() => { if (g.classList.contains('hidden')) load(); }).observe(g, { attributes: true, attributeFilter: ['class'] }); });
+  /* Letzter Datenstand einer Tablet-Seite im Tab (sessionStorage endet mit dem Tab): Beim Zurückkehren von einem anderen Reiter steht die Seite sofort
+     mit Inhalt da, danach kommen die frischen Daten (Seiten der Module: Plätze, Licht, Stempeln, Dienste; die Startseite hat eigenen Speicher).
+     Die Seite zeichnet den Stand vor dem Ende ihres Skripts und setzt dann <span id="gk-bereit"> (<link rel="expect" blocking="render">): so entsteht das erste Bild
+     der Überblendung mit Inhalt. Wird das Tablet gesperrt (Passwortfenster), ist der Speicher leer. */
+  const MK = 'cw.tablet.';
+  window.GKMerk = {
+    holen: k => { try { const s = sessionStorage.getItem(MK + k); return s ? JSON.parse(s) : null; } catch (e) { return null; } },
+    merken: (k, v) => { try { sessionStorage.setItem(MK + k, JSON.stringify(v)); } catch (e) { /* ohne Speicher: beim nächsten Seitenwechsel kurz ohne Inhalt */ } },
+    leeren: () => { try { Object.keys(sessionStorage).filter(k => k.indexOf(MK) === 0).forEach(k => sessionStorage.removeItem(k)); } catch (e) { /* egal */ } },
+  };
+  ready(() => { const g = document.getElementById('gate'); if (g) new MutationObserver(() => { if (g.classList.contains('hidden')) load(); else window.GKMerk.leeren(); }).observe(g, { attributes: true, attributeFilter: ['class'] }); });
   /* PIN-Eingabe – auf allen Tablet-Seiten derselbe Aufbau: Name, „Bitte deine PIN eingeben – Aktion“, 6 Kreise (Stellen 5 und 6
      freiwillig, daher blass), Ziffernblock, Fehlerzeile (ohne Meldung ohne Platz). title/sub kommen fertig maskiert. */
   const dots = n => Array.from({ length: Math.max(6, n) }, (_, i) => `<span class="${i < n ? 'f' : i >= 4 ? 'opt' : ''}"></span>`).join('');

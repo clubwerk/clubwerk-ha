@@ -268,7 +268,7 @@ Exports this module’s settings as a file and imports them into another Clubwer
 The section is called “Duties” in the bar, and its heading is “Duties & dates”. The **Duties** tab shows:
 
 - **Work hours:** how many hours are still open, with a bar and deadline, and what is still being checked. Once the target is reached it only says “completed – thank you!” and the duties move up. Without a target it says “Helping is welcome anyway!”. For families there is a “Family” tag.
-- **My duties:** your own upcoming duties.
+- **My duties:** your own upcoming duties. Below each of your own shifts there is **Add to calendar**; the shift goes into the phone’s calendar with time and place.
 - **Duty rosters and dates:** for each roster you pick the day, then “I’ll help”. Anyone signed up sees “you’re in” and the “Remove” button. That works up to 24 hours before the start; after that a notice with the contact from the settings appears. Full shifts show “full”, past ones “over”.
 - **My hours:** your own entries with status (being checked, confirmed, rejected with a reason). The **Report hours** button only appears if the setting is on.
 

@@ -395,7 +395,7 @@ Wohin die Komplettsicherung jede Nacht zusätzlich geht. Am sichersten sind zwei
 
 #### Google Drive als Sicherungsziel
 
-Google Drive ist ein Ziel wie die anderen: **Ziel hinzufügen …** › Art „Google Drive (eigene Google-App)“. Clubwerk bekommt nur die Berechtigung `drive.file` und sieht damit ausschließlich die Dateien, die es selbst angelegt hat, nicht den Rest eures Drive. Es legt in „Meine Ablage“ den Ordner `Clubwerk-Sicherung` mit den Unterordnern `Komplett` und `Lesbar` an. Legt diesen Ordner nicht selbst von Hand an, Clubwerk könnte ihn nicht sehen.
+Google Drive ist ein Ziel wie die anderen: **Ziel hinzufügen …** › Art „Google Drive (eigene Google-App)“. Clubwerk bekommt nur die Berechtigung `drive.file` und sieht damit ausschließlich die Dateien, die es selbst angelegt hat, nicht den Rest eures Drive. Es legt in „Meine Ablage“ den Ordner `Clubwerk-Sicherung` mit den Unterordnern `Komplett` und `Lesbar` an. Legt diesen Ordner nicht selbst von Hand an, Clubwerk könnte ihn nicht sehen: Ein vorhandener Ordner gleichen Namens bleibt unbeachtet, Clubwerk legt daneben einen neuen an. Wollt ihr die Sicherungen mit dem Vorstand teilen, teilt den von Clubwerk angelegten Ordner in Google Drive mit den gewünschten Personen.
 
 Einmal in der Google Cloud Console (console.cloud.google.com) einrichten, mit dem Google-Konto des Vereins (in Klammern die englischen Namen):
 
@@ -403,8 +403,9 @@ Einmal in der Google Cloud Console (console.cloud.google.com) einrichten, mit de
 2. **APIs und Dienste › Bibliothek** (APIs & Services › Library) › „Google Drive API“ suchen › **Aktivieren** (Enable).
 3. **Google Auth Platform** › **Jetzt starten** (Get Started): App-Name z. B. „Clubwerk“, eure E-Mail-Adresse, Zielgruppe **Extern** (External), Kontaktadresse, zustimmen › **Erstellen**.
 4. **Datenzugriff** (Data Access) › **Bereiche hinzufügen oder entfernen** (Add or Remove Scopes) › `…/auth/drive.file` ankreuzen › **Aktualisieren** › **Speichern**.
-5. **Zielgruppe** (Audience) › **App veröffentlichen** (Publish app) › bestätigen. Der Status heißt danach „In Produktion“. Weil `drive.file` keine sensible Berechtigung ist, prüft Google die App dafür nicht.
-6. **Clients** › **Client erstellen** (Create Client) › Anwendungstyp **Fernseher und Geräte mit begrenzter Eingabe** (TVs and Limited Input devices), Name z. B. „Clubwerk“ › **Erstellen**. Client-ID und Clientschlüssel (Client secret) kopieren.
+5. **Branding** › App-Name, Support-E-Mail, Startseite der App, Link zur Datenschutzerklärung und Entwickler-E-Mail (Kontaktdaten) eintragen › **Speichern**. Ohne diese Angaben ist „App veröffentlichen“ gesperrt. Startseite und Datenschutzerklärung dürfen die Seiten eures Vereins sein.
+6. **Zielgruppe** (Audience) › **App veröffentlichen** (Publish app) › bestätigen. Der Status heißt danach „In Produktion“. Weil `drive.file` keine sensible Berechtigung ist, prüft Google die App dafür nicht.
+7. **Clients** › **Client erstellen** (Create Client) › Anwendungstyp **Fernseher und Geräte mit begrenzter Eingabe** (TVs and Limited Input devices), Name z. B. „Clubwerk“ › **Erstellen**. Client-ID und Clientschlüssel (Client secret) kopieren.
 
 In Clubwerk dann:
 

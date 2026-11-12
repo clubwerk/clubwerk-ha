@@ -395,7 +395,7 @@ Where the full backup also goes every night. Two targets in different places are
 
 #### Google Drive as a backup target
 
-Google Drive is a target like the others: **Add target …** › type “Google Drive (your own Google app)”. Clubwerk only gets the `drive.file` permission and can therefore only see the files it created itself, not the rest of your Drive. It creates the folder `Clubwerk-Sicherung` in “My Drive” with the subfolders `Komplett` and `Lesbar`. Do not create this folder by hand – Clubwerk would not be able to see it.
+Google Drive is a target like the others: **Add target …** › type “Google Drive (your own Google app)”. Clubwerk only gets the `drive.file` permission and can therefore only see the files it created itself, not the rest of your Drive. It creates the folder `Clubwerk-Sicherung` in “My Drive” with the subfolders `Komplett` and `Lesbar`. Do not create this folder by hand – Clubwerk would not be able to see it: an existing folder of the same name is ignored and Clubwerk creates a new one next to it. To share the backups with the board, share the folder Clubwerk created in Google Drive with the people you want.
 
 Set it up once in the Google Cloud Console (console.cloud.google.com) with the club’s Google account:
 
@@ -403,8 +403,9 @@ Set it up once in the Google Cloud Console (console.cloud.google.com) with the c
 2. **APIs & Services › Library** › search for “Google Drive API” › **Enable**.
 3. **Google Auth Platform** › **Get Started**: app name e.g. “Clubwerk”, your email address, audience **External**, contact address, agree › **Create**.
 4. **Data Access** › **Add or Remove Scopes** › tick `…/auth/drive.file` › **Update** › **Save**.
-5. **Audience** › **Publish app** › confirm. The status then reads “In production”. As `drive.file` is not a sensitive permission, Google does not review the app for it.
-6. **Clients** › **Create Client** › application type **TVs and Limited Input devices**, name e.g. “Clubwerk” › **Create**. Copy the client ID and client secret.
+5. **Branding** › enter the app name, support email, app home page, link to the privacy policy and developer contact email › **Save**. Without these details “Publish app” is blocked. The home page and privacy policy can be your club’s own pages.
+6. **Audience** › **Publish app** › confirm. The status then reads “In production”. As `drive.file` is not a sensitive permission, Google does not review the app for it.
+7. **Clients** › **Create Client** › application type **TVs and Limited Input devices**, name e.g. “Clubwerk” › **Create**. Copy the client ID and client secret.
 
 Then in Clubwerk:
 

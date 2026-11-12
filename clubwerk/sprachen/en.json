@@ -13927,6 +13927,9 @@
   "Im Verwendungszweck gibt es nur die Platzhalter {Jahr}, {Posten}, {Nr}, {Name} und {Verein}.": "The payment reference only supports the placeholders {Jahr}, {Posten}, {Nr}, {Name} and {Verein}.",
   "Platzhalter: {Jahr} {Posten} {Nr} {Name} {Verein} – leer = „{0}“, z. B. „Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041“. Gilt, wenn ein Beitrag dabei ist; der Verkaufs-Einzug nennt nur die Posten.": "Placeholders: {Jahr} (year) {Posten} (items) {Nr} (membership no.) {Name} {Verein} (club) – empty = “{0}”, e.g. “Mitgliedsbeitrag 2026: Erwachsene, Tennis · Mitgl.-Nr. 1041”. Applies when a membership fee is included; the sales collection lists only the items.",
   "Verwendungszweck der Lastschrift": "Direct debit payment reference",
-  "bitte wählen": "please choose"
+  "bitte wählen": "please choose",
+  "“. Clubwerk sieht nur Ordner, die es selbst angelegt hat; einen vorhandenen Ordner gleichen Namens legt es daneben neu an. Bleibt die App im Status „Testen“, läuft die Anmeldung nach 7 Tagen ab.": "”. Clubwerk only sees folders it created itself; it creates a new folder next to an existing one of the same name. If the app stays in “Testing” status, the sign-in expires after 7 days.",
+  "App-Name, Support-E-Mail, Startseite, Link zur Datenschutzerklärung und Entwickler-E-Mail eintragen (sonst ist „App veröffentlichen“ gesperrt), dann unter": "Enter the app name, support email, home page, link to the privacy policy and developer email (otherwise “Publish app” is blocked), then under",
+  "Branding": "Branding"
  }
 }

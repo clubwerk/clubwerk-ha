@@ -7,6 +7,7 @@
 <link rel="manifest" href="../../manifest.webmanifest">
 <link rel="icon" href="../../icon.svg" type="image/svg+xml">
 <script src="../../theme-init.js"></script>
+  <link rel="expect" href="#gk-bereit" blocking="render">   <!-- erstes Bild erst nach tablet.js: mit dem gemerkten Stand steht die Seite sofort mit Inhalt da (keine leere Zwischenseite in der Überblendung) -->
 <title>Zeiterfassung</title>
 <link rel="stylesheet" href="../../style.css">
 <link rel="stylesheet" href="../../theme.css">
@@ -39,5 +40,6 @@
 <div id="overlay" class="overlay hidden"><div class="dialog" id="dialog"></div></div>
 <div id="toast" class="toast hidden"></div>
 <script src="tablet.js"></script>
+<span id="gk-bereit" hidden></span>
 </body>
 </html>

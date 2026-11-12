@@ -45,6 +45,7 @@
   }
   async function load() {
     try { state = await call('x/buchung/state' + (day ? '?date=' + day : '')); day = state.date === state.today ? null : state.date; } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
+    if (!day) GKMerk.merken('buchung', state);   // nur der heutige Tag (so öffnet die Seite)
     draw();
   }
   /* vergangene Zeiten wie in der Mitglieder-App einklappen – die Ansicht beginnt bei der aktuellen Zeit; Tipp auf die Leiste klappt auf,
@@ -254,5 +255,6 @@
   let idle = 0; document.addEventListener('pointerdown', () => { idle = 0; }, true);
   setInterval(() => { idle += 30; if (idle >= 120 && day) { day = null; pastOpen = false; } if ($('overlay').classList.contains('hidden')) load(); }, 30000);   // nach 2 Minuten ohne Eingabe wieder „heute“
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  { const last = GKMerk.holen('buchung'); if (last && last.plan) { state = last; draw(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
   load();
 })();

@@ -559,6 +559,9 @@ function activate(ctx) {
     const gs = futureGames(teams.map(t => t.id)), pre = prep(gs);
     const games = gs.map(g => gameView(g, { viewer: me }, pre)).map(v => { const o = plays.find(x => x.date === v.date && x.id !== v.id);
       return { ...v, mine: playIn.has(v.team_id), lead: cap.includes(v.team_id), elsewhere: o ? o.name : null }; });
+    // „In den Kalender“ je Spieltag (Link auf die .ics-Datei, derselbe Baustein wie bei Terminen); nicht für abgesagte und vorläufige Rahmentermine
+    gs.forEach((g, i) => { if (g.status !== 'geplant' || g.kind === 'rahmen') return;
+      games[i].ics = ctx.calendarLink({ uid: `sp-${g.id}`, date: g.date, start: g.start || '', title: gameTitle(g, teams.find(t => t.id === g.team_id) || {}), place: g.venue || '', note: g.meet_time || g.meet_place ? `Treffpunkt ${[g.meet_time, g.meet_place].filter(Boolean).join(', ')}` : '' }); });
     const past = db.prepare(`SELECT g.*, l.role FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date < ? AND g.date >= ? ORDER BY g.date DESC`).all(me, today(), `${today().slice(0, 4)}-01-01`);
     const contacts = c.capInfo ? await Promise.all(teams.map(t => contactOf(t, me))) : teams.map(() => null);
     res.json({ today: today(), teams: teams.map((t, i) => ({ id: t.id, name: t.name, league: t.league, min: t.min_players, lead: cap.includes(t.id), player: playIn.has(t.id), captain: t.captain_id ? short(memberName(t.captain_id)) : null, contact: contacts[i] })),

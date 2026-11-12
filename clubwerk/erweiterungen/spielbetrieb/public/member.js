@@ -162,6 +162,7 @@
         const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt' && !g.elsewhere;
         const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button class="vh-btn sm" data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="vh-btn sm sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
         return `          ${mine}
+          ${g.ics && !cancelled && !g.past ? `<div class="sb-line"><a class="vh-btn sm sec" href="${esc(g.ics)}">In den Kalender</a></div>` : ''}
           ${!g.home && g.venue && g.kind !== 'rahmen' ? `<div class="sb-line"><span translate="no">${esc(g.venue)}</span></div>` : ''}${g.kind === 'rahmen' ? '<div class="sb-line"><span>Gegner und Heim/Auswärts kommen mit dem Spielplan.</span></div>' : ''}
           ${answerable ? `${me.state === 'ja' && d.settings.times ? `<div class="sb-line"><span>${me.from || me.until ? esc([me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') + ' Uhr') : 'den ganzen Spieltag'}</span><button data-time="${g.id}">Uhrzeit angeben</button></div>` : ''}
             ${!me.state ? '<div class="sb-line"><span>Bitte oben mit ✓ oder ✕ melden.</span></div>' : ''}` : ''}

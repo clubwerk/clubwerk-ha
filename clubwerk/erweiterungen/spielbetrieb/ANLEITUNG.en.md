@@ -186,7 +186,7 @@ Export teams (without players and match days) and settings as a file and import 
 
 ## Tablet and app {#tablet-app}
 
-This module is not on the tablet. Work is done in the member app in the **Match days** section. It appears for everyone who plays on an active team or leads one. On the “For me” start page, “To do” shows only a note “Match days: n replies open”, without ✓/✕ buttons and without a time limit. Tapping it leads to the “Match days” section, where you reply.
+This module is not on the tablet. Work is done in the member app in the **Match days** section. It appears for everyone who plays on an active team or leads one. On the “For me” start page, “To do” shows only a note “Match days: n replies open”, without ✓/✕ buttons and without a time limit. Tapping it leads to the “Match days” section, where you reply. In an opened match day, **Add to calendar** copies the event (title, start, venue, meeting point) to the phone’s calendar; there is no button for cancelled and provisional framework dates.
 
 #### For players
 

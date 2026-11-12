@@ -33,6 +33,7 @@
   async function load() {
     try { state = await api('../../api/tablet/x/zeiterfassung/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
     // Vereinsname und Logo: gemeinsame Kopfzeile (nav.js)
+    GKMerk.merken('zeiterfassung', state);
     render();
   }
 
@@ -114,5 +115,6 @@
 
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
   setInterval(() => { if ($('overlay').classList.contains('hidden')) load(); }, 30000);
+  { const last = GKMerk.holen('zeiterfassung'); if (last && last.staff) { state = last; render(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
   load();
 })();

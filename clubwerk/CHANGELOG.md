@@ -1,5 +1,15 @@
 # Änderungen
 
+## 2026.11.39
+
+### Neu
+- Spieltage und eigene Dienste (Schichten) haben in der Mitglieder-App den Knopf „In den Kalender“, wie die Termine mit Zu- und Absage.
+
+### Verbessert
+- Die Tablet-Seiten Plätze, Licht, Stempeln und Dienste zeigen beim Zurückkehren sofort ihren letzten Stand, auch wenn der Server langsam antwortet – keine leere Seite mehr beim Wechsel. Wird das Tablet gesperrt, ist dieser Stand weg.
+- Blätter am Tablet und in der Mitglieder-App (Beregnung, Licht, Türen, PIN, Profil u. a.) blenden weich ein und aus, wie die übrigen Fenster.
+- Anleitung und Einrichtungsfenster für Google Drive nennen jetzt den Schritt „Branding“ (App-Name, Support-E-Mail, Startseite, Datenschutzerklärung, Entwickler-E-Mail), ohne den „App veröffentlichen“ gesperrt bleibt, und erklären, dass Clubwerk nur eigene Ordner sieht und einen vorhandenen Ordner gleichen Namens daneben neu anlegt.
+
 ## 2026.11.38
 
 ### Verbessert

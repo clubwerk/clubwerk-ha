@@ -186,7 +186,7 @@ Mannschaften (ohne Spieler und Spieltage) und Einstellungen als Datei exportiere
 
 ## Tablet und App {#tablet-app}
 
-Am Tablet gibt es dieses Modul nicht. Gearbeitet wird in der Mitglieder-App im Bereich **Spieltage**. Er erscheint für alle, die in einer aktiven Mannschaft spielen oder sie führen. Auf der Startseite „Für mich“ steht unter „Zu erledigen“ nur ein Hinweis „Spieltage: n Rückmeldungen offen“, ohne ✓/✕-Knöpfe und ohne Zeitgrenze. Antippen führt in den Bereich „Spieltage“, dort wird geantwortet.
+Am Tablet gibt es dieses Modul nicht. Gearbeitet wird in der Mitglieder-App im Bereich **Spieltage**. Er erscheint für alle, die in einer aktiven Mannschaft spielen oder sie führen. Auf der Startseite „Für mich“ steht unter „Zu erledigen“ nur ein Hinweis „Spieltage: n Rückmeldungen offen“, ohne ✓/✕-Knöpfe und ohne Zeitgrenze. Antippen führt in den Bereich „Spieltage“, dort wird geantwortet. Im aufgeklappten Spieltag übernimmt **In den Kalender** den Termin (Titel, Beginn, Ort, Treffpunkt) in den Kalender des Handys; für abgesagte und vorläufige Rahmentermine gibt es den Knopf nicht.
 
 #### Für Spieler
 

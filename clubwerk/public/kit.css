@@ -104,6 +104,14 @@ button.vh-tile { width: 100%; text-align: left; font: inherit; cursor: pointer; 
 /* Dialog (PIN, Einladung, Hinweise) */
 .vh-sheet { position: fixed; inset: 0; background: rgba(13,19,16,.55); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
 .vh-sheet.show { display: flex; }
+/* Blätter blenden weich ein und aus (wie die Fenster); Ausblenden: Abdunklung klingt nach, theme-init.js */
+@media (prefers-reduced-motion: no-preference) {
+  .vh-sheet.show { animation: cw-blatt-ein .16s ease-out; }
+  .cw-blatt-aus.an { display: block; animation: cw-blatt-aus .16s ease-in forwards; }
+}
+@keyframes cw-blatt-ein { from { opacity: 0; } }
+@keyframes cw-blatt-aus { from { opacity: 1; } to { opacity: 0; } }
+.cw-blatt-aus { display: none; position: fixed; inset: 0; z-index: 100; pointer-events: none; }
 .vh-box { background: var(--card); border: 1px solid var(--edge); border-radius: 24px; padding: 24px 22px 20px; width: 100%; max-width: 360px; text-align: center; box-shadow: var(--shadow-pop); }   /* ohne farbigen Randstreifen – wie alle Fenster */
 .vh-box h2 { margin: 0 0 6px; font-size: 20px; }
 .vh-box p { margin: 0 0 16px; font-size: 14.5px; color: var(--muted); line-height: 1.45; text-wrap: pretty; }

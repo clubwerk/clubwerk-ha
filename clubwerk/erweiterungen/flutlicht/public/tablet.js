@@ -11,14 +11,19 @@
     clearTimeout(timer);
     try {
       v = await (await fetch(API + 'status')).json();
+      if (v.gate) { GKMerk.leeren(); throw new Error('gesperrt'); }   // Tablet gesperrt: nichts mehr merken
+      if (v.lights) GKMerk.merken('flutlicht', v);
+      zeige();
+    } catch (e) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Keine Verbindung zum Server'; }
+    timer = setTimeout(refresh, 10000);
+  }
+  function zeige() {
       $('dot').className = 'vh-dot ' + (v.online ? 'ok' : 'err');
       $('st').textContent = !v.online ? 'Keine Verbindung zum Flutlicht' : v.block ? v.block : v.darkFrom ? `Licht ab ${v.darkFrom} Uhr · alles aus um ${v.quiet} Uhr` : 'Verbunden';
       // am Tablet darf jeder Freigeschaltete auch ausschalten, was er selbst eingeschaltet hat – wer das ist, klärt erst die PIN
       v.lights.forEach(l => { l.can.off = l.on; });
       $('lights').innerHTML = F.html(v.lights, esc, v.extendMin);
       document.querySelectorAll('[data-l]').forEach(b => { b.onclick = () => ask(b.dataset.l, b.dataset.a); });
-    } catch (e) { $('dot').className = 'vh-dot err'; $('st').textContent = 'Keine Verbindung zum Server'; }
-    timer = setTimeout(refresh, 10000);
   }
   function drawDur() {
     const list = F.durations(v.maxMin);
@@ -61,5 +66,6 @@
     setTimeout(refresh, 800);
   };
   fetch(API + 'members').then(r => r.json()).then(j => { members = j.members || []; }).catch(() => {});
+  { const last = GKMerk.holen('flutlicht'); if (last && last.lights) { v = last; zeige(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
   refresh();
 })();

@@ -4068,7 +4068,7 @@
       dialog(`<h2>${t ? 'Google Drive neu verbinden' : 'Google Drive verbinden'}</h2>
         <ol class="steps">
           <li>In der <a href="https://console.cloud.google.com/" target="_blank" rel="noopener">Google Cloud Console</a> mit dem Google-Konto des Vereins ein Projekt anlegen und unter <b>APIs und Dienste › Bibliothek</b> die <b>Google Drive API</b> aktivieren.</li>
-          <li><b>Google Auth Platform</b> einrichten: Nutzertyp <b>Extern</b>, unter <b>Datenzugriff</b> die Berechtigung <code>…/auth/drive.file</code> hinzufügen, unter <b>Zielgruppe</b> „<b>App veröffentlichen</b>“. Bleibt die App im Status „Testen“, läuft die Anmeldung nach 7 Tagen ab.</li>
+          <li><b>Google Auth Platform</b> einrichten: Nutzertyp <b>Extern</b>, unter <b>Datenzugriff</b> die Berechtigung <code>…/auth/drive.file</code> hinzufügen, unter <b>Branding</b> App-Name, Support-E-Mail, Startseite, Link zur Datenschutzerklärung und Entwickler-E-Mail eintragen (sonst ist „App veröffentlichen“ gesperrt), dann unter <b>Zielgruppe</b> „<b>App veröffentlichen</b>“. Clubwerk sieht nur Ordner, die es selbst angelegt hat; einen vorhandenen Ordner gleichen Namens legt es daneben neu an. Bleibt die App im Status „Testen“, läuft die Anmeldung nach 7 Tagen ab.</li>
           <li>Unter <b>Clients</b> einen Client vom Typ <b>Fernseher und Geräte mit begrenzter Eingabe</b> erstellen und Client-ID und Client-Secret hier eintragen. Die Anleitung (?) beschreibt jeden Schritt.</li>
         </ol>
         <div class="row"><label class="f" style="flex:1">Client-ID<input id="gdId" autocomplete="off" spellcheck="false" placeholder="${info.clientIdHint ? esc(info.clientIdHint) + ' (gespeichert – leer lassen = unverändert)' : '…apps.googleusercontent.com'}"></label>

@@ -268,7 +268,7 @@ Exportiert die Einstellungen dieses Moduls als Datei und übernimmt sie in einer
 Der Bereich heißt in der Leiste „Dienste“, die Überschrift „Dienste & Termine“. Der Reiter **Dienste** zeigt:
 
 - **Arbeitsstunden:** wie viele Stunden noch offen sind, mit Balken und Frist, und was noch geprüft wird. Ist das Soll erreicht, steht dort nur „geleistet – danke!“ und die Dienste rücken nach oben. Ohne Soll steht „Mithelfen ist trotzdem willkommen!“. Bei Familien steht die Marke „Familie“.
-- **Meine Dienste:** die eigenen kommenden Dienste.
+- **Meine Dienste:** die eigenen kommenden Dienste. Unter jeder eigenen Schicht steht **In den Kalender**; der Dienst landet mit Uhrzeit und Ort im Kalender des Handys.
 - **Dienstpläne und Termine:** Je Dienstplan wählt man den Tag, dann „Ich helfe“. Wer eingetragen ist, sieht „du bist dabei“ und den Knopf „Austragen“. Das geht bis 24 Stunden vor Beginn; danach erscheint der Hinweis mit dem Kontakt aus den Einstellungen. Volle Schichten zeigen „voll“, vergangene „vorbei“.
 - **Meine Stunden:** die eigenen Einträge mit Status (wird geprüft, bestätigt, abgelehnt mit Grund). Der Knopf **Stunden melden** erscheint nur, wenn die Einstellung an ist.
 

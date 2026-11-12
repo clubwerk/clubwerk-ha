@@ -280,3 +280,22 @@
     },
   };
 })();
+
+/* Blätter (.vh-sheet: Tablet-Seiten der Module, Mitglieder-App, Beregnungs-Webapp) blenden weich ein und aus wie die Fenster (.overlay).
+   Ausblenden: Das Blatt ist sofort zu (ein Tipp trifft nie eine verblassende Ebene), nur die Abdunklung klingt kurz nach
+   (Aussehen in kit.css, .cw-blatt-aus). Egal, wie die Seite das Blatt schließt (Klasse „show“ entfällt). */
+(function () {
+  var start = function () {
+    var glow = document.createElement('div'); glow.className = 'cw-blatt-aus'; glow.setAttribute('aria-hidden', 'true'); document.body.appendChild(glow);
+    glow.addEventListener('animationend', function () { glow.classList.remove('an'); });
+    new MutationObserver(function (recs) {
+      recs.forEach(function (r) {
+        var e = r.target;
+        if (!e.classList || !e.classList.contains('vh-sheet') || e.classList.contains('show') || !/(^|\s)show(\s|$)/.test(r.oldValue || '')) return;
+        glow.style.background = getComputedStyle(e).backgroundColor;
+        glow.classList.remove('an'); void glow.offsetWidth; glow.classList.add('an');
+      });
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['class'], attributeOldValue: true });
+  };
+  if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
+})();

@@ -10,6 +10,7 @@
       .ds-sh strong { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 15px; line-height: 1.3; } .ds-sh strong > span[translate] { min-width: 0; overflow-wrap: anywhere; -webkit-hyphens: auto; hyphens: auto; }   /* lange Wörter („Frühjahrsinstandsetzung“) trennen statt in den Knopf zu laufen (3.101) */
       .ds-sh small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; line-height: 1.35; }
       .ds-ans { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; } .ds-tm .vh-lead { margin: 8px 0 0; } .ds-tm h3 { align-items: center; }
+      .ds-ical { display: inline-flex; align-items: center; min-height: 32px; margin-top: 2px; font-size: 13px; font-weight: 700; color: var(--brand-ink); text-decoration: underline; }
       .ds-faces { display: flex; gap: 4px; margin: 5px 0 0 2px; } .ds-faces img { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; border: 2px solid var(--card); }`;
     document.head.appendChild(s);
   }
@@ -126,7 +127,7 @@
         const st = e.slots ? (e.taken >= e.slots ? ['g', 'voll'] : ['a', `${e.slots - e.taken} frei`]) : ['', `${e.taken} dabei`];
         return `<div class="ds-sh${e.mine ? ' me' : ''}">${withDate ? `<span class="vh-date"><b>${e.date.slice(8, 10)}.${e.date.slice(5, 7)}.</b><span>${wd(e.date)}</span></span>` : `<div class="ds-t">${esc(when(e)).replace('–', '–<br>')}</div>`}
           <div style="min-width:0"><strong><span translate="no">${esc(e.title)}</span><span class="vh-chip ${st[0]}">${esc(st[1])}</span>${e.mine ? '<span class="vh-chip g">du bist dabei</span>' : ''}</strong>${withDate ? `<small>${esc([when(e), e.place].filter(Boolean).join(' · '))}</small>` : ''}
-            ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length ? `<small translate="no">${esc(e.helpers.map(short).join(', '))}</small>` : ''}${e.note ? `<small translate="no">${esc(e.note)}</small>` : ''}</div>
+            ${e.faces && e.faces.length ? `<span class="ds-faces">${e.faces.slice(0, 8).map(f => `<img data-auth-src="api/photo/of/${f.id}?u=helfer&v=${esc(f.v)}" alt="">`).join('')}</span>` : ''}${e.helpers.length ? `<small translate="no">${esc(e.helpers.map(short).join(', '))}</small>` : ''}${e.note ? `<small translate="no">${esc(e.note)}</small>` : ''}${e.ics && !over ? `<a class="ds-ical" href="${esc(e.ics)}">In den Kalender</a>` : ''}</div>
           ${over ? '<button class="vh-btn sm sec" disabled>vorbei</button>' : `<button data-ev="${e.id}" data-on="${e.mine ? 1 : 0}" class="vh-btn sm${e.mine ? ' sec' : ''}" ${full ? 'disabled' : ''}>${e.mine ? 'Austragen' : full ? 'voll' : 'Ich helfe'}</button>`}</div>`;
       }
       function planHtml(p) {

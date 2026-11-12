@@ -19,6 +19,10 @@
   const dateBlk = d => { const x = new Date((d || new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10)) + 'T12:00:00'); return `<span class="tk-date"><b>${String(x.getDate()).padStart(2, '0')}.${String(x.getMonth() + 1).padStart(2, '0')}.</b><span>${x.toLocaleDateString('de-DE', { weekday: 'short' }).replace('.', '')}</span></span>`; };
   async function load() {
     try { state = await call('x/arbeitseinsatz/state'); } catch (e) { if (!e.gate) toast('Keine Verbindung zum Server.', true); return; }
+    GKMerk.merken('arbeitseinsatz', state);
+    zeigen();
+  }
+  function zeigen() {
     $('running').innerHTML = state.running.length ? state.running.map(r => `<button class="tk-tile on" data-r="${r.member_id}"><i class="av">${esc(String(r.name || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase())}</i><span class="tk-txt"><b>${esc(r.ln)}</b><span>${esc(r.title || '')} · seit ${r.in_at.slice(11, 16)} Uhr</span></span><span class="t">${since(r.in_at)}</span></button>`).join('')
       : '<div class="tk-empty">Niemand eingestempelt.</div>';
     $('events').innerHTML = state.events.filter(e => !e.permanent).length ? state.events.filter(e => !e.permanent).map(e => `<div class="tk-tile">${dateBlk(e.date)}<span class="tk-txt"><b translate="no">${esc(e.title)}</b><span>${[e.start ? `<span class="num">${esc(e.start)}${e.end ? '–' + esc(e.end) : ''}</span> Uhr` : '', e.place ? esc(e.place) : ''].filter(Boolean).join(' · ') || (e.kind === 'theke' ? 'Thekendienst' : 'Arbeitseinsatz')}</span></span></div>`).join('')
@@ -109,5 +113,6 @@
   $('gatePw').addEventListener('keydown', e => { if (e.key === 'Enter') gateLogin(); });
   setInterval(() => { if ($('overlay').classList.contains('hidden')) load(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) load(); });
+  { const last = GKMerk.holen('arbeitseinsatz'); if (last && last.running) { state = last; zeigen(); } }   // letzter Stand sofort, danach frisch (nav.js, GKMerk)
   load();
 })();

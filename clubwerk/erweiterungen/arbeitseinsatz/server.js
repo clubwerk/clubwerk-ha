@@ -627,7 +627,8 @@ function activate(ctx) {
     const mine = await target(id, y);
     const termine = db.prepare("SELECT * FROM aw_event WHERE kind = 'termin' AND cancelled = 0 AND date >= ? ORDER BY date, start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(e => termApp(e, id));
     const shiftApp = e => { const hp = helpersOf(e.id); return { id: e.id, kind: e.kind, title: e.title, date: e.date, start: e.start, end: e.end, place: e.place, note: e.note, slots: e.slots, counts: Boolean(e.counts),
-      taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.map(x => x.name), faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e), open: isOpen(e) }; };
+      taken: hp.length, mine: hp.some(x => x.member_id === id), helpers: hp.map(x => x.name), faces: hp.filter(x => x.ph).map(x => ({ id: x.member_id, v: x.ph })), canLeave: canLeave(e), open: isOpen(e),
+      ics: hp.some(x => x.member_id === id) ? ctx.calendarLink({ uid: `aw-${e.id}`, date: e.date, start: e.start, end: e.end, title: e.title, place: e.place, note: e.note }) : null }; };
     const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
       shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
