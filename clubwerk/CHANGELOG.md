@@ -1,5 +1,11 @@
 # Änderungen
 
+## 2026.11.41
+
+### Behoben
+- Mitglieder-App › Nachrichten: Anhänge gehen wieder auf. Bilder wurden nur als kaputtes Bild mit Dateinamen gezeigt, PDFs blieben weiß.
+- Auf iPhone, iPad und Android-Handys öffnet sich ein PDF-Anhang über das Teilen-Menü (bzw. als Download) statt in einem leeren Fenster; Rechner zeigen es weiter im Blatt.
+
 ## 2026.11.40
 
 ### Neu

@@ -78,6 +78,16 @@ function build(file, { modules } = {}) {
       for (const c of db.prepare(`pragma table_info("${name}")`).all().filter(x => /datetime\('now'/.test(x.dflt_value || '')))
         db.prepare(`update "${name}" set "${c.name}" = datetime('now','localtime') where "${c.name}" > datetime('now','localtime')`).run();
   })();
+  // Anhänge der Beispiel-Nachrichten: Dateien aus demo/anhaenge/ (nach Dateiname) in den Anhang-Ordner legen, damit sie in der App aufgehen
+  for (const m of db.prepare("SELECT id, files FROM mail_message WHERE files != '[]'").all()) {
+    let fl = []; try { fl = JSON.parse(m.files); } catch (e) { fl = []; }
+    for (const f of fl) {
+      const src = path.join(DIR, 'anhaenge', path.basename(String(f.name || '')));
+      if (!f.id || !fs.existsSync(src)) continue;
+      const dst = path.join(path.dirname(file), 'mail-anhaenge', String(m.id));
+      fs.mkdirSync(dst, { recursive: true }); fs.copyFileSync(src, path.join(dst, `${f.id}.bin`));
+    }
+  }
   set.run('demo_build', JSON.stringify({ stichtag: stichtag(), off, dm, heute }));
   return { db, off };
 }

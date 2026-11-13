@@ -14235,6 +14235,8 @@
   "z. B. Wechselgeld falsch": "e.g. wrong change",
   "{0} deine persönliche PIN ein. Vergessen? Der Vorstand setzt sie zurück.": "{0} your personal PIN. Forgotten? The board can reset it.",
   "Deine persönliche PIN eingeben.": "Enter your personal PIN.",
-  "Die PIN stimmt nicht. Noch {0} {1}.": "The PIN is wrong. {0} {1} left."
+  "Die PIN stimmt nicht. Noch {0} {1}.": "The PIN is wrong. {0} {1} left.",
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'",
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' blob: {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' blob: {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}"
  }
 }

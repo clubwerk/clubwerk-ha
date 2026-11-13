@@ -51,10 +51,13 @@
       ctx.onLeave(closeFile);
 
       /* Anhang ansehen: Bilder und PDF im Blatt über der App, alles andere als Download (Teilen-Menü, wo das Handy es kann) */
+      /* PDF im Blatt nur, wo der Browser es im Rahmen zeigt: iPhone/iPad zeigen darin höchstens die erste Seite, Android-Handys nichts – dort Teilen/Speichern */
+      const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      const pdfImRahmen = !iOS && navigator.pdfViewerEnabled !== false;
       async function openFile(msgId, f) {
         let blob;
         try { blob = await ctx.blob(`file/${msgId}/${f.id}`); } catch (e) { ctx.toast(e.message, true); return; }
-        if (f.kind === 'other') {
+        if (f.kind === 'other' || (f.kind === 'pdf' && !pdfImRahmen)) {
           const file = new File([blob], f.name, { type: blob.type });
           try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
           const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
