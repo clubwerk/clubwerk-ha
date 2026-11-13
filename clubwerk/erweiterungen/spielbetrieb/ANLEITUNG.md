@@ -85,6 +85,7 @@ Darunter:
 - **Aushilfe aus einer anderen Mannschaft:** Spieler einer anderen Mannschaft auswählen und „Als Ersatz aufstellen“.
 - **Treffpunkt & Hinweise:** Uhrzeit, Ort, Ergebnis und ein „Hinweis an die Mannschaft“ (z. B. „bitte weiße Kleidung“). „Treffpunkt speichern“ direkt darunter übernimmt das.
 - **Aufgaben:** nur sichtbar, wenn eingeschaltet (siehe Einstellungen). Je Aufgabe (z. B. Fahrer) wählt ihr einen Spieler, „entfernen“ löscht sie, „+ Fahrer“ legt eine neue an.
+- **Fahrgemeinschaften:** nur bei Auswärtsspielen. Hier seht ihr die Fahrten, die Teilnehmende in der App anbieten (Fahrer, Abfahrt, Ort, freie Plätze, Mitfahrer), und wer noch eine Mitfahrt sucht. Ihr könnt **Mitfahrer eintragen** (Fahrt, Person und Personenzahl wählen, z. B. für Kinder ohne eigenes Handy), **Mitfahrer austragen**, ein Gesuch **streichen** und eine Fahrt **entfernen** (die Mitfahrenden bekommen eine Nachricht). Eine Fahrt anbieten kann nur ein Mitglied selbst in der App. Telefonnummern gibt es hier nicht.
 
 Unter der Aufstellung stehen **Offene erinnern** (Push an alle ohne Antwort) und **Spieltag ändern …** (Gegner, Datum, Beginn, Ort, Status, Ergebnis). Unten bleiben **Schließen** und **Aufstellung verschicken** (fragt nach, geht als Push und – mit Mitgliederverwaltung und eingeschalteter E-Mail – als E-Mail mit Kalendereintrag an alle Aufgestellten und Ersatzspieler) immer sichtbar.
 
@@ -176,7 +177,7 @@ Mit „Aufgaben je Spieltag“ verteilt der Mannschaftsführer Aufgaben wie Fahr
 - **Automatische Erinnerungen:** Spieler ohne Antwort bekommen vor dem Spieltag eine Push-Nachricht („Spieler erinnern … Tage vorher“, Standard 7). Der Mannschaftsführer bekommt eine Warnung, wenn zu wenige können („Mannschaftsführer warnen … Tage vorher“, Standard 5).
 - **Wichtige Nachrichten auch per E-Mail:** Aufstellung und Absage-Anfragen zusätzlich per E-Mail an die Adresse aus den Mitgliedern, mit Kalendereintrag. Push kommt immer. Ohne Mitgliederverwaltung gibt es nur Push.
 
-Welche Push-Nachrichten es gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest. Das Modul bringt diese Anlässe mit: „Du bist aufgestellt“, „Aufstellung verschickt“, „Absage-Anfrage“, „Antwort auf Absage“, „Spieltag verlegt/abgesagt“, „Bitte Verfügbarkeit melden“, „Zu wenige Spieler“, „Vorläufige Termine“ und „Aufgabe übernommen/zugeteilt“.
+Welche Push-Nachrichten es gibt, legt der Vorstand unter Mitglieder-App › Benachrichtigungen fest. Das Modul bringt diese Anlässe mit: „Du bist aufgestellt“, „Aufstellung verschickt“, „Absage-Anfrage“, „Antwort auf Absage“, „Spieltag verlegt/abgesagt“, „Bitte Verfügbarkeit melden“, „Zu wenige Spieler“, „Vorläufige Termine“, „Aufgabe übernommen/zugeteilt“, „Fahrgemeinschaft: Jemand fährt mit dir“ und „Fahrgemeinschaft: Fahrt geändert“.
 
 #### Einstellungen übertragen
 
@@ -195,6 +196,19 @@ Am Tablet gibt es dieses Modul nicht. Gearbeitet wird in der Mitglieder-App im B
 Oben steht die Mannschaft mit Liga und der Mannschaftsführer (sonst Stellvertreter) mit „Anrufen“. Darunter eine Zeile je Spieltag: Datum, Begegnung, Uhrzeit, Heim oder auswärts und rechts **✓** (ich kann) und **✕** (ich kann nicht). Nochmal tippen nimmt die Antwort zurück. Antippen der Zeile klappt Details auf: Treffpunkt, Spielort, wer kann, wer aufgestellt ist (je nach Einstellung) und die Aufgaben („Übernehme ich“ / „Abgeben“). Mit „Uhrzeit angeben“ bietet man „ab“ und „bis“ und einen Hinweis an. Ist man aufgestellt, steht dort „Du spielst“ mit dem Treffpunkt und dem Knopf **Kann doch nicht – Absage anfragen**; der Mannschaftsführer muss bestätigen, bis dahin bleibt man aufgestellt. Ersatzspieler können direkt absagen. Eine Anfrage lässt sich mit „Absage zurücknehmen“ widerrufen.
 
 Spielt jemand in mehreren Mannschaften, wählt er oben die Mannschaft. In „Alle“ steht jeder Tag nur einmal („Herren + Herren 30“): ein ✓/✕ gilt für alle Mannschaften dieses Tages, aufgeklappt antwortet man einzeln. Bei drei oder mehr offenen Terminen erscheint „Alle ✓ / Alle ✕“. Wer an einem Tag schon aufgestellt ist, sieht in der anderen Mannschaft „spielt in …“ statt ✓/✕. Unten steht, wie oft man in dieser Saison gespielt hat.
+
+#### Fahrgemeinschaften zu Auswärtsspielen
+
+![Fahrgemeinschaften in einem aufgeklappten Auswärtsspiel: zwei Fahrten und ein Mitfahrgesuch.](bild: app=spielbetrieb; klick=.sb-row:nth-child(2) .sb-rh)
+
+Bei einem Auswärtsspiel erscheint im aufgeklappten Spieltag die Karte **Fahrgemeinschaften**. Sie sehen nur Teilnehmende (aufgestellt, Ersatz oder mit ✓ zugesagt), der Mannschaftsführer und die Verwaltung – wer „kann nicht“ gemeldet hat, sieht sie nicht und wird aus Fahrten herausgenommen.
+
+- **Ich fahre – Plätze anbieten:** Hinfahrt, Rückfahrt oder beides, Abfahrtszeit, Abfahrtsort (Vorschlag: der Treffpunkt der Mannschaft – bitte einen Treffpunkt nennen, nicht die eigene Wohnadresse), freie Plätze ohne dich (1 bis 6) und ein kurzer Hinweis. Jeder kann höchstens drei Fahrten gleichzeitig anbieten. Mit **Ändern** und **Absagen** passt man die eigene Fahrt an; wer mitfährt, bekommt eine Nachricht.
+- **Ich fahre mit:** trägt sofort ein, wer zuerst kommt. Bei mehreren freien Plätzen fragt die App, wie viele Personen mitfahren (du eingeschlossen, z. B. mit einem Kind). **Austragen** geht jederzeit. Der Fahrer bekommt eine Nachricht.
+- **Ich brauche eine Mitfahrt:** erscheint unter „Suchen noch eine Mitfahrt“. Fahrer mit freien Plätzen tippen **Mitnehmen**.
+- **Mannschaftsführer:** tragen Mitfahrer und Gesuche auch für andere Teilnehmende ein (z. B. Kinder ohne eigenes Handy) – über **Mitfahrer verwalten** und **Gesuch für andere eintragen**.
+
+Gezeigt werden „Nachname, Vorname“, Abfahrt, Ort, freie Plätze und der Hinweis – keine Telefonnummern und kein Chat. Fahrten, Mitfahrten und Gesuche werden 30 Tage nach dem Spieltag gelöscht (Frist einstellbar unter Einstellungen › Datenschutz).
 
 #### Für Mannschaftsführer
 
@@ -216,7 +230,7 @@ Mitglieder in der App brauchen kein Recht: Zu- und Absagen darf, wer in einer Ma
 
 ## Zusammenspiel mit anderen Modulen {#zusammenspiel}
 
-- **Mitglieder:** Spieler, Mannschaftsführer und Stellvertreter kommen aus der Mitgliederverwaltung; Namen erscheinen als „Nachname, Vorname“. Sie liefert Handynummer, E-Mail-Adresse, Geburtsdatum und Geschlecht (für die Hinweise). In der Datenauskunft eines Mitglieds stehen seine Mannschaften, Zusagen, Aufstellungen und Aufgaben; beim Zusammenführen doppelter Mitglieder gehen die Verweise mit, und beim Löschen zeigt Clubwerk „Spielt in: …“ als Grund, warum es noch nicht geht.
+- **Mitglieder:** Spieler, Mannschaftsführer und Stellvertreter kommen aus der Mitgliederverwaltung; Namen erscheinen als „Nachname, Vorname“. Sie liefert Handynummer, E-Mail-Adresse, Geburtsdatum und Geschlecht (für die Hinweise). In der Datenauskunft eines Mitglieds stehen seine Mannschaften, Zusagen, Aufstellungen, Aufgaben und Fahrgemeinschaften; beim Zusammenführen doppelter Mitglieder gehen die Verweise mit, und beim Löschen zeigt Clubwerk „Spielt in: …“ als Grund, warum es noch nicht geht.
 - **Plätze:** Der Spielplan-Import kann Heimspiele zugleich als Platzbelegung eintragen.
 - **Nachrichten:** Jede aktive Mannschaft ist eine Empfängergruppe („Mannschaft Herren 40“) mit Mannschaftsführer und Stellvertreter.
 - **Mitglieder-App:** „Für mich“ zeigt unter „Zu erledigen“ nur den Hinweis „Spieltage: n Rückmeldungen offen“ (ohne Knöpfe) und führt in den Bereich „Spieltage“.

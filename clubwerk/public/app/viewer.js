@@ -96,15 +96,16 @@
       return Math.max(1, Math.min(sc.clientWidth, sc.clientHeight * s.ratio));
     };
     const layout = () => { const w = base() * s.z; if (s.img) { s.img.style.width = w + 'px'; } else if (s.wrap) { s.wrap.style.width = w + 'px'; } };
-    function setZoom(z, cx, cy) {
+    /* Ankerpunkt = Stelle im Inhalt (Anteil von Breite/Höhe des Bildes bzw. der Seitenfolge) unter (cx, cy); nach dem Vergrößern wird so gescrollt, dass er wieder dort liegt.
+       Gemessen wird am sichtbaren Inhalt selbst (nicht an dessen Umgebung): das Bild steht im Querformat mittig mit Leerraum darüber und darunter. */
+    const part = v => Math.max(0, Math.min(1, v));
+    const anchorAt = (cx, cy) => { const b = content().getBoundingClientRect(); return { fx: part((cx - b.left) / Math.max(1, b.width)), fy: part((cy - b.top) / Math.max(1, b.height)) }; };
+    const place = (a, cx, cy) => { const b = content().getBoundingClientRect(); sc.scrollLeft += b.left + a.fx * b.width - cx; sc.scrollTop += b.top + a.fy * b.height - cy; };
+    function setZoom(z, cx, cy, a) {
       z = Math.max(1, Math.min(MAXZ, z)); if (!content() || Math.abs(z - s.z) < 0.001) return;
-      const c = content(), r = sc.getBoundingClientRect();
-      if (cx == null) { cx = r.left + sc.clientWidth / 2; cy = r.top + sc.clientHeight / 2; }
-      const ox = cx - r.left, oy = cy - r.top;
-      const box = s.img ? s.img.parentNode : c;   // Bereich, der mitwächst
-      const fx = (sc.scrollLeft + ox - box.offsetLeft) / Math.max(1, box.offsetWidth), fy = (sc.scrollTop + oy - box.offsetTop) / Math.max(1, box.offsetHeight);
-      s.z = z; layout();
-      sc.scrollLeft = fx * box.offsetWidth + box.offsetLeft - ox; sc.scrollTop = fy * box.offsetHeight + box.offsetTop - oy;
+      if (cx == null) { const r = sc.getBoundingClientRect(); cx = r.left + sc.clientWidth / 2; cy = r.top + sc.clientHeight / 2; }   // „+“/„–“: um die Mitte des Ausschnitts
+      a = a || anchorAt(cx, cy);
+      s.z = z; layout(); place(a, cx, cy);
       $('vvMin').disabled = z <= 1.001; $('vvPlus').disabled = z >= MAXZ - 0.001;
       clearTimeout(s.rz); s.rz = setTimeout(() => { if (mine()) redraw(); }, 160);   // erst nach der Geste scharf nachzeichnen
     }
@@ -115,13 +116,17 @@
     /* ----- Eingaben ----- */
     let pinch = null, tap = null;
     const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
-    sc.addEventListener('touchstart', e => { if (e.touches.length === 2) { pinch = { d: dist(e.touches), z: s.z }; tap = null; } }, { passive: true });
+    const mid = t => ({ x: (t[0].clientX + t[1].clientX) / 2, y: (t[0].clientY + t[1].clientY) / 2 });
+    sc.addEventListener('touchstart', e => { if (e.touches.length === 2 && content()) { const m = mid(e.touches); pinch = { d: dist(e.touches), z: s.z, a: anchorAt(m.x, m.y), x: m.x, y: m.y }; tap = null; } }, { passive: true });
     sc.addEventListener('touchmove', e => {
       if (!pinch || e.touches.length !== 2) return;
       if (e.cancelable) e.preventDefault();
-      setZoom(pinch.z * dist(e.touches) / pinch.d, (e.touches[0].clientX + e.touches[1].clientX) / 2, (e.touches[0].clientY + e.touches[1].clientY) / 2);
+      const m = mid(e.touches); pinch.x = m.x; pinch.y = m.y;
+      const z = Math.max(1, Math.min(MAXZ, pinch.z * dist(e.touches) / pinch.d));
+      if (Math.abs(z - s.z) < 0.001) place(pinch.a, m.x, m.y); else setZoom(z, m.x, m.y, pinch.a);   // Anker bleibt unter den Fingern, auch beim Verkleinern und Verschieben
     }, { passive: false });
     sc.addEventListener('touchend', e => { if (e.touches.length < 2) pinch = null; }, { passive: true });
+    sc.addEventListener('scroll', () => { if (pinch && content()) place(pinch.a, pinch.x, pinch.y); }, { passive: true });   // iOS schiebt mitunter nativ nach: Anker wieder unter die Finger
     sc.addEventListener('wheel', e => { if (e.ctrlKey) { e.preventDefault(); setZoom(s.z * Math.exp(-e.deltaY / 200), e.clientX, e.clientY); } }, { passive: false });
     // Doppeltippen / Doppelklick: auf 2,5-fach, noch einmal: zurück
     sc.addEventListener('pointerdown', e => { s.down = { x: e.clientX, y: e.clientY }; });

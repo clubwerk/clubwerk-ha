@@ -8,7 +8,7 @@
   const KIND = { arbeit: 'Arbeitseinsatz', theke: 'Thekendienst', dienst: 'Dienst', sonstiges: 'Sonstiges', termin: 'Termin' };
   const EST = { laeuft: ['b', 'läuft'], offen: ['a', 'zu bestätigen'], bestaetigt: ['g', 'bestätigt'], abgelehnt: ['', 'abgelehnt'] };
   const SRC = { verwaltung: 'Verwaltung', app: 'App', tablet: 'Tablet' };
-  const st = { meta: null, year: null, past: false, ppast: false, es: 'offen' };
+  const st = { meta: null, year: null, past: false, ppast: false, es: 'offen', tf: 'offen' };
   const HF = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 2 });   // einmal anlegen statt je Zeile
   const h = m => `${HF.format((m || 0) / 60)} h`;
   const toMin = v => Math.round(Number(String(v || '').replace(',', '.')) * 60);
@@ -212,6 +212,53 @@
       try { await api(`events/${e.id}/active`, 'POST', { active: on }); toast(on ? `„${e.title}“ ist aktiv – steht am Tablet und in der Mitglieder-App.` : `„${e.title}“ ist deaktiviert – nicht am Tablet, nicht in der Mitglieder-App.`); again(); } catch (x) { fail(x); }
     }; });
     el.querySelectorAll('[data-evc]').forEach(b => { b.onclick = () => closeEvent(list.find(e => e.id === +b.dataset.evc), again); });
+  }
+  /* ---------------------------------------------------------------- Aufgaben */
+  /** Frist als Wort: „überfällig“, „heute fällig“, „morgen fällig“, „in 6 Tagen fällig“ – dazu die Farbe des Schildes */
+  const dueTag = t => t.status === 'erledigt' ? ['g', 'erledigt'] : t.days < 0 ? ['r', 'überfällig'] : t.days === 0 ? ['a', 'heute fällig'] : t.days === 1 ? ['a', 'morgen fällig'] : t.days <= 3 ? ['a', `in ${t.days} Tagen fällig`] : ['', `in ${t.days} Tagen fällig`];
+  async function renderAufgaben() {
+    await metaNow();
+    const d = await api('tasks?f=' + st.tf);
+    const list = d.items, wd = x => new Date(x + 'T12:00:00').toLocaleDateString('de-DE', { weekday: 'short' });
+    const row = t => `<div class="aw-ev${t.status === 'erledigt' ? ' off' : ''}">
+        <div class="aw-date"><b>${t.due.slice(8, 10)}.${t.due.slice(5, 7)}.</b><span>${wd(t.due)}</span></div>
+        <div style="min-width:0"><h4><span translate="no" id="tkt${t.id}">${esc(t.title)}</span> ${pill(dueTag(t))}${t.member_id ? '' : ' ' + pill(['a', 'ohne Person'])}</h4>
+          <div class="muted">${[t.member_id ? GK.lastFirst(t.name) : '', `Frist ${deDate(t.due)}`, t.status === 'erledigt' && t.done_at ? T('erledigt am {0}', [deDate(t.done_at.slice(0, 10))]) + (t.done_by === 'mitglied' ? ' ' + T('(von der Person selbst)') : '') : '',
+            t.returned && !t.member_id ? (t.returned_name ? T('zurückgegeben von {0}', [GK.lastFirst(t.returned_name)]) : T('zurückgegeben')) : ''].filter(Boolean).map(esc).join(' · ')}</div>
+          ${t.note ? `<div class="muted" translate="no" style="white-space:pre-wrap">${esc(t.note)}</div>` : ''}${t.feedback ? `<div class="muted">Rückmeldung: <span translate="no">${esc(t.feedback)}</span></div>` : ''}</div>
+        <div class="acts">${t.status === 'erledigt' ? `<button class="btn small" data-tk-open="${t.id}">Wieder öffnen</button>` : `<button class="btn small" data-tk-done="${t.id}" aria-label="${esc(T('Als erledigt markieren'))}" aria-describedby="tkt${t.id}">Erledigt</button>`}<button class="btn small" data-tk-edit="${t.id}">Bearbeiten</button></div></div>`;
+    head('Aufgaben', 'Wer macht was bis wann? Teile eine Aufgabe einer Person zu – sie sieht sie in der App und hakt sie ab.');
+    $('main').insertAdjacentHTML('beforeend', `<div class="toolbar"><button class="btn primary" id="tkNew">+ Neue Aufgabe</button></div>
+      <div class="filterbar">${chips('tkSeg', [['offen', 'Offen', d.counts.offen], ['ueberfaellig', 'Überfällig', d.counts.ueberfaellig], ['erledigt', 'Erledigt', d.counts.erledigt], ['alle', 'Alle', d.counts.alle]], st.tf)}</div>
+      <div class="card"><h3>${esc({ offen: 'Offene Aufgaben', ueberfaellig: 'Überfällige Aufgaben', erledigt: 'Erledigte Aufgaben', alle: 'Alle Aufgaben' }[st.tf])}</h3>${list.length ? list.map(row).join('')
+        : `<p class="empty">${st.tf === 'offen' ? 'Keine offene Aufgabe – oben „+ Neue Aufgabe“ anlegen.' : st.tf === 'ueberfaellig' ? 'Nichts überfällig.' : st.tf === 'erledigt' ? 'Noch nichts erledigt.' : 'Noch keine Aufgabe angelegt.'}</p>`}</div>`);
+    const again = () => renderAufgaben().catch(fail);
+    onChips('tkSeg', f => { st.tf = f; again(); });
+    $('tkNew').onclick = () => taskDialog(null, again);
+    const el = $('main');
+    el.querySelectorAll('[data-tk-edit]').forEach(b => { b.onclick = () => taskDialog(list.find(t => t.id === +b.dataset.tkEdit), again); });
+    el.querySelectorAll('[data-tk-done]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { await api(`tasks/${b.dataset.tkDone}/done`, 'POST', { done: true }); toast('Als erledigt abgehakt.'); again(); } catch (x) { fail(x); } }); });
+    el.querySelectorAll('[data-tk-open]').forEach(b => { b.onclick = () => GK.busy(b, async () => { try { await api(`tasks/${b.dataset.tkOpen}/done`, 'POST', { done: false }); toast('Wieder offen.'); again(); } catch (x) { fail(x); } }); });
+  }
+  function taskDialog(t, after) {
+    const people = st.meta.members;
+    dialog(`<h2>${t ? 'Aufgabe bearbeiten' : 'Neue Aufgabe'}</h2><div class="aw-grid" style="--c:3">
+      <label class="f wall">Was ist zu tun?<textarea id="tkT" required data-grow rows="1" maxlength="120" placeholder="z. B. Pokale für die Clubmeisterschaft bestellen">${esc(t ? t.title : '')}</textarea></label>
+      <label class="f">Verantwortlich<select id="tkM">${opt('', 'noch niemand', t ? t.member_id : '')}${people.map(p => opt(p.id, GK.lastFirst(p.name), t ? t.member_id : '')).join('')}</select></label>
+      <label class="f">Frist<input id="tkD" type="date" value="${esc(t ? t.due : '')}"></label>
+      <label class="f">Erinnerung (Tage vorher)<input id="tkR" inputmode="numeric" maxlength="2" value="${t ? t.remind_days : 3}"></label>
+      <label class="f wall">Notiz (freiwillig)<textarea id="tkN" data-grow rows="2" maxlength="500" placeholder="Was genau? Wo gibt es Näheres?">${esc(t ? t.note : '')}</textarea></label></div>
+      <p class="muted s">Bei Erinnerung 0 gibt es keine Vorab-Erinnerung. Bitte keine persönlichen Daten Dritter in die Notiz schreiben. Nur die zugeteilte Person und die Verwaltung sehen die Aufgabe.</p>
+      ${t ? '<div class="row" style="margin-top:18px"><button class="btn danger" id="tkDel">Aufgabe löschen …</button></div>' : ''}
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="tkOk">Speichern</button></div>`);
+    $('c').onclick = closeDialog;
+    $('tkOk').onclick = () => GK.busy($('tkOk'), async () => {
+      const body = { title: val('tkT'), member_id: val('tkM') || null, due: val('tkD'), remind_days: val('tkR') === '' ? 3 : val('tkR'), note: val('tkN') };
+      try { if (t) await api('tasks/' + t.id, 'PUT', body); else await api('tasks', 'POST', body); closeDialog(); toast('Gespeichert.'); after(); } catch (x) { fail(x); }
+    });
+    if ($('tkDel')) $('tkDel').onclick = () => confirmIn(T('Aufgabe „{0}“ löschen?', [t.title]), 'Sie verschwindet auch aus der Mitglieder-App.', 'Aufgabe löschen', async () => {
+      try { await api('tasks/' + t.id, 'DELETE'); closeDialog(); toast('Aufgabe gelöscht.'); after(); } catch (x) { fail(x); }
+    }, () => taskDialog(t, after));
   }
   function eventDialog(e, after) {
     const dur = e && e.start && e.end ? '' : '';
@@ -549,11 +596,12 @@
   }
 
   void deTime;
-  /* Reiter: Übersicht · Dienstpläne · Einsätze · Stunden · Einstellungen (Abzeichen am Reiter „Stunden“) */
+  /* Reiter: Übersicht · Dienstpläne · Einsätze · Aufgaben · Stunden · Einstellungen (Abzeichen am Reiter „Stunden“) */
   const G = { key: 'arbeitseinsatz', label: 'Dienste & Termine', icon: 'arbeit', order: 3 };
   GK.registerPage({ key: 'arbeitseinsatz', title: 'Übersicht', perm: 'arbeitseinsatz', render: renderUebersicht, group: G });
   GK.registerPage({ key: 'aw-plaene', title: 'Dienstpläne', perm: 'arbeitseinsatz', render: renderPlaene, group: G });
   GK.registerPage({ key: 'aw-einsaetze', title: 'Einsätze', perm: 'arbeitseinsatz', render: renderEinsaetze, group: G });
+  GK.registerPage({ key: 'aw-aufgaben', title: 'Aufgaben', perm: 'arbeitseinsatz', render: renderAufgaben, group: G });
   GK.registerPage({ key: 'aw-stunden', title: 'Stunden', perm: 'arbeitseinsatz', render: renderStunden, group: G });
   GK.registerPage({ key: 'aw-einstellungen', title: 'Einstellungen', perm: 'arbeitseinsatz', render: renderEinstellungen, group: G });
   // Suche (Strg/⌘ K): Reiter findet sie von selbst, hier Aktionen und Einstellungskarten der Helferdienste
@@ -561,6 +609,8 @@
     { label: 'Dienstplan anlegen', page: 'aw-plaene', btn: '+ Neuer Dienstplan', kind: 'aktion', words: 'Veranstaltung Schichten Kirmes Turnier' },
     { label: 'Einsatz oder Thekendienst anlegen', page: 'aw-einsaetze', btn: '+ Neuer Einsatz', kind: 'aktion', words: 'Arbeitseinsatz Thekendienst Einzeltermin Termin' },
     { label: 'Termin mit Zu- und Absage anlegen', page: 'aw-einsaetze', btn: '+ Neuer Einsatz', kind: 'aktion', words: 'Termin Weihnachtsfeier Versammlung Feier Einladung Zusage Absage Antwort Teilnehmerliste' },
+    { label: 'Aufgabe anlegen und zuteilen', page: 'aw-aufgaben', btn: '+ Neue Aufgabe', kind: 'aktion', words: 'Aufgabe Verantwortlicher Frist erledigt zuteilen Pokale bestellen To-do' },
+    { label: 'Überfällige Aufgaben', page: 'aw-aufgaben', kind: 'aktion', words: 'Aufgaben überfällig offen erledigt Frist' },
     { label: 'Stunden bestätigen', page: 'aw-stunden', kind: 'aktion', words: 'Arbeitsstunden bestätigen ablehnen freigeben gemeldet' },
     { label: 'Stunden nachtragen', page: 'aw-stunden', btn: 'Stunden nachtragen', kind: 'aktion', words: 'Arbeitsstunden nachtragen eintragen' },
     { label: 'Dienstplan als Vorlage kopieren', page: 'aw-plaene', kind: 'aktion', words: 'Vorlage kopieren nächstes Jahr Kirmes' },

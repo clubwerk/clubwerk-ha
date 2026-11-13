@@ -49,6 +49,8 @@
       label.f.sp-bar > input { height: 40px; }
       .sp-tasks > div { display: grid; grid-template-columns: minmax(0, 1fr) 240px auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
       .sp-tasks > div:first-child { border-top: 0; }
+      .sp-fz > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line-soft); } .sp-fz > div:first-child { border-top: 0; }
+      .sp-fz .btn { height: 40px; min-height: 40px; }
       .sp-tasks .btn { height: 40px; min-height: 40px; }   /* so hoch wie die Auswahl daneben (D-2, 02.11.2026) */
       .sp-g.rt h4 { color: var(--muted); } .sp-g.rt .sp-d { background: var(--hover); color: var(--ink); }
       .sp-rt td { vertical-align: middle; } .sp-rt select { min-height: 36px; height: 36px; padding-top: 0; padding-bottom: 0; min-width: 150px; }
@@ -212,6 +214,7 @@
   async function gameDialog(id, after) {
     let v = await api('games/' + id);
     if (v.kind === 'rahmen') return rahmenGame(v, after);
+    let fz = v.home ? null : await api('rides/' + id).catch(() => null);   // Fahrgemeinschaften (nur Auswärtsspiele)
     const draw = () => {
       const s = v.stats, cfg = st.meta.settings;
       const AV = p => (p.state === 'ja' ? `<span class="pill g">kann${p.from ? ' ab ' + esc(p.from) : ''}${p.until ? ' bis ' + esc(p.until) : ''}</span>` : p.state === 'nein' ? '<span class="pill r">kann nicht</span>' : '<span class="pill">offen</span>');
@@ -232,6 +235,7 @@
         <div class="btns" style="margin-top:10px"><button class="btn" id="gdSave" type="button">Treffpunkt speichern</button></div>
         ${cfg.tasks ? `<h4 style="margin:16px 0 6px">Aufgaben</h4><div class="sp-tasks">${(v.tasks || []).map(x => `<div><span>${esc(x.label)}</span><label class="f"><select data-tk="${x.id}" aria-label="${esc(x.label)}">${opt('', '– noch offen –', x.member_id || '')}${v.people.filter(p => p.state !== 'nein').map(p => opt(p.id, p.ln, x.member_id)).join('')}</select></label><button class="btn ghost" data-tkx="${x.id}" type="button">entfernen</button></div>`).join('') || '<p class="empty">Noch keine Aufgaben.</p>'}</div>
           <p class="muted s" style="margin:10px 0 6px">Aufgabe hinzufügen</p><div class="row" style="gap:8px">${v.taskKinds.map(k => `<button class="btn small" data-tka="${esc(k.k)}" type="button">+ ${esc(k.l)}</button>`).join('')}</div>` : ''}
+        ${fz ? fahrtHtml(v, fz) : ''}
         <div class="btns"><button class="btn ghost" id="gdC" type="button">Schließen</button><button class="btn primary" id="gdSend" type="button" ${s.playing ? '' : 'disabled'}>Aufstellung verschicken</button></div>`, true);   /* Fußleiste nur Schließen + Hauptaktion: am Handy belegten fünf Knöpfe ein Drittel des Bildschirms (02.11.2026) */
       const call = async (fn, msg) => { try { v = await fn(); draw(); if (msg) toast(msg); } catch (e) { fail(e); draw(); } };
       $('dialog').querySelectorAll('[data-av]').forEach(x => { x.onchange = () => call(() => api(`games/${id}/avail`, 'POST', { member_id: +x.dataset.av, state: x.value })); });
@@ -240,6 +244,11 @@
       $('dialog').querySelectorAll('[data-tk]').forEach(x => { x.onchange = () => call(() => api(`games/${id}/task`, 'POST', { task_id: +x.dataset.tk, member_id: +x.value || null })); });
       $('dialog').querySelectorAll('[data-tkx]').forEach(x => { x.onclick = () => call(() => api(`games/${id}/task`, 'POST', { task_id: +x.dataset.tkx, remove: true })); });
       $('dialog').querySelectorAll('[data-tka]').forEach(x => { x.onclick = () => call(() => api(`games/${id}/task`, 'POST', { kind: x.dataset.tka })); });
+      const fzDo = async (path, body, msg) => { try { fz = await api(`rides/${id}/${path}`, 'POST', body); draw(); if (msg) toast(msg); } catch (e) { fail(e); } };
+      $('dialog').querySelectorAll('[data-fzc]').forEach(x => { x.onclick = async () => { if (await ask('Diese Fahrt entfernen? Die Mitfahrenden bekommen eine Nachricht.', { ok: 'Entfernen', danger: true })) fzDo('cancel', { ride_id: +x.dataset.fzc }, 'Fahrt entfernt.'); }; });
+      $('dialog').querySelectorAll('[data-fzw]').forEach(x => { x.onclick = () => fzDo('unwant', { member_id: +x.dataset.fzw }, 'Gesuch gestrichen.'); });
+      if ($('fzAdd')) $('fzAdd').onclick = () => { if (!val('fzR') || !val('fzM')) return; fzDo('join', { ride_id: +val('fzR'), member_id: +val('fzM'), persons: +val('fzC') }, 'Eingetragen.'); };
+      if ($('fzOut')) $('fzOut').onclick = () => { const [r, m] = val('fzO').split(':'); if (r) fzDo('leave', { ride_id: +r, member_id: +m }, 'Ausgetragen.'); };
       if ($('gdHa')) $('gdHa').onclick = () => { if (!val('gdH')) return; call(() => api(`games/${id}/lineup`, 'POST', { member_id: +val('gdH'), role: 'ersatz' })); };
       $('gdSave').onclick = () => GK.busy($('gdSave'), async () => { try { await api('games/' + id, 'PUT', { meet_time: val('gdMt'), meet_place: val('gdMp'), note: val('gdN'), result: val('gdR') }); v = await api('games/' + id); toast('Gespeichert.'); draw(); } catch (e) { fail(e); } });
       $('gdSend').onclick = () => GK.busy($('gdSend'), async () => { if (!await ask(`Aufstellung an ${s.playing + s.reserve} Spieler schicken (Push${st.meta.mitglieder ? ' und E-Mail' : ''})?`, { ok: 'Verschicken' })) return; await call(() => api(`games/${id}/send`, 'POST', {}), 'Aufstellung verschickt.'); });
@@ -251,6 +260,23 @@
   }
 
   /** Vorläufiger Termin: nur Verfügbarkeit (Aufstellung erst mit dem Spielplan) */
+  const DIRT = { hin: 'Hinfahrt', rueck: 'Rückfahrt', beide: 'Hin- und Rückfahrt' };
+  const plusN = n => (n > 1 ? ` (+${n - 1})` : '');
+  /** Fahrgemeinschaften im Spieltag-Fenster: Fahrten und Gesuche ansehen, Fahrten entfernen, Mitfahrer eintragen/austragen (z. B. Kinder ohne Handy) */
+  function fahrtHtml(v, fz) {
+    const ppl = (v.people || []).filter(p => p.state === 'ja' || p.role);
+    const seated = fz.rides.flatMap(r => r.passengers.map(p => ({ r, p })));
+    const open = fz.rides.filter(r => r.free > 0);
+    return `<h4 style="margin:16px 0 6px">Fahrgemeinschaften</h4>
+      ${fz.rides.length ? `<div class="sp-fz">${fz.rides.map(r => `<div><span><b translate="no">${esc(r.driver.ln)}</b> · ${DIRT[r.dir]} · ${esc(r.depart)} Uhr · <span translate="no">${esc(r.place)}</span> · ${r.free === 0 ? 'voll' : `${r.free} von ${r.seats} Plätzen frei`}
+        <span class="muted s" style="display:block">${r.passengers.length ? 'Mitfahrer: ' + r.passengers.map(p => `<span translate="no">${esc(p.ln)}${plusN(p.persons)}</span>`).join(' · ') : 'Noch keine Mitfahrer.'}${r.note ? ` · <span translate="no">${esc(r.note)}</span>` : ''}</span></span>
+        <button class="btn ghost" data-fzc="${r.id}" type="button">entfernen</button></div>`).join('')}</div>` : '<p class="muted">Noch keine Fahrt angeboten. Teilnehmende bieten sie in der Mitglieder-App an.</p>'}
+      ${fz.wants.length ? `<h4 style="margin:16px 0 6px">Suchen noch eine Mitfahrt</h4><div class="sp-fz">${fz.wants.map(w => `<div><span><b translate="no">${esc(w.ln)}</b> · ${w.persons} ${w.persons === 1 ? 'Person' : 'Personen'} · ${DIRT[w.dir]}</span><button class="btn ghost" data-fzw="${w.id}" type="button">entfernen</button></div>`).join('')}</div>` : ''}
+      ${open.length && ppl.length ? `<p class="muted s" style="margin:10px 0 6px">Mitfahrer eintragen</p><div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1;min-width:200px">Fahrt<select id="fzR">${open.map(r => opt(r.id, `${r.driver.ln} · ${r.depart} Uhr`, '')).join('')}</select></label>
+        <label class="f" style="flex:1;min-width:200px">Person<select id="fzM">${ppl.map(p => opt(p.id, p.ln, '')).join('')}</select></label>
+        <label class="f" style="width:110px">Personen<select id="fzC">${[1, 2, 3, 4].map(n => opt(n, n, 1)).join('')}</select></label><button class="btn" id="fzAdd" type="button">Eintragen</button></div>` : ''}
+      ${seated.length ? `<p class="muted s" style="margin:10px 0 6px">Mitfahrer austragen</p><div class="row" style="gap:8px;align-items:flex-end"><label class="f" style="flex:1;min-width:260px">Mitfahrer<select id="fzO">${seated.map(({ r, p }) => opt(`${r.id}:${p.id}`, `${p.ln}${plusN(p.persons)} – bei ${r.driver.ln}`, '')).join('')}</select></label><button class="btn" id="fzOut" type="button">Austragen</button></div>` : ''}`;
+  }
   function rahmenGame(v, after) {
     const id = v.id;
     const draw = () => {

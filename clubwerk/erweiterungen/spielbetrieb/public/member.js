@@ -15,6 +15,17 @@
       .sb-who { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.5; } .sb-who b { color: var(--ink); font-weight: 700; }
       .sb-tasks { margin-top: 10px; border-top: 1px solid var(--line); padding-top: 8px; }
       .sb-tasks > div { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 5px 0; font-size: 14px; }
+      .sb-fz { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 4px; }
+      .sb-fz .vh-cap { margin: 10px 0 6px; }
+      .sb-ride { padding: 10px 0; border-top: 1px solid var(--line); } .sb-ride:first-of-type { border-top: 0; }
+      .sb-rtop { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; } .sb-rtop strong { font-size: 14.5px; overflow-wrap: anywhere; min-width: 0; }
+      .sb-rtop .vh-chip { flex: none; }
+      .sb-ride p { margin: 3px 0 0; font-size: 13.5px; color: var(--muted); line-height: 1.4; overflow-wrap: anywhere; } .sb-ride p.w { color: var(--ink); font-weight: 600; }
+      .sb-rchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+      .sb-ract { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+      .sb-ract .vh-btn { flex: 1 1 118px; width: auto; } .sb-ract .vh-btn.sb-full { flex-basis: 100%; }
+      .sb-fzbtn { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-top: 10px; }
+      .sb-fzbtn .vh-btn { width: 100%; } .sb-fz .vh-btn, .sb-fz .vh-btn.sm { min-width: 0; white-space: normal; line-height: 1.25; padding-top: 4px; padding-bottom: 4px; }
       .sb-two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
       .sb-p { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
       .sb-p:first-of-type { border-top: 0; }
@@ -104,6 +115,7 @@
         el.querySelectorAll('[data-wdc]').forEach(b => { b.onclick = () => run(() => ctx.api('withdraw', 'POST', { game_id: +b.dataset.wdc, cancel: true }), 'Absage zurückgenommen – du bleibst aufgestellt.'); });
         el.querySelectorAll('[data-tk]').forEach(b => { b.onclick = () => run(() => ctx.api('task', 'POST', { task_id: +b.dataset.tk, take: b.dataset.take === '1' }), b.dataset.take === '1' ? 'Übernommen – danke!' : 'Abgegeben.'); });
         el.querySelectorAll('[data-lead]').forEach(b => { b.onclick = () => leadSheet(+b.dataset.lead); });
+        el.querySelectorAll('[data-fz]').forEach(b => { b.onclick = () => fzClick(b); });
         el.querySelectorAll('[data-bulk]').forEach(b => { b.onclick = () => run(() => ctx.api('avail/all', 'POST', { team_ids: b.dataset.bulk.split(',').map(Number), state: b.dataset.st }), 'Gemeldet – danke!'); });
         el.querySelectorAll('[data-gans]').forEach(b => { b.onclick = () => answerDay(b.dataset.gans, b.dataset.ans); });
       }
@@ -162,6 +174,7 @@
         const answerable = g.mine && !cancelled && !g.past && me.role !== 'spielt' && !g.elsewhere;
         const tasks = d.settings.tasks && g.tasks && g.tasks.length && g.mine && !cancelled ? `<div class="sb-tasks">${g.tasks.map(x => `<div><span>${esc(x.label)}${x.who ? ` · <b translate="no">${esc(x.who)}</b>` : ''}</span>${x.member_id === null && !(g.me && g.me.state === 'nein') ? `<button class="vh-btn sm" data-tk="${x.id}" data-take="1">Übernehme ich</button>` : x.mine ? `<button class="vh-btn sm sec" data-tk="${x.id}" data-take="0">Abgeben</button>` : ''}</div>`).join('')}</div>` : '';
         return `          ${mine}
+          ${fahrt(g)}
           ${g.ics && !cancelled && !g.past ? `<div class="sb-line"><a class="vh-btn sm sec" href="${esc(g.ics)}">In den Kalender</a></div>` : ''}
           ${!g.home && g.venue && g.kind !== 'rahmen' ? `<div class="sb-line"><span translate="no">${esc(g.venue)}</span></div>` : ''}${g.kind === 'rahmen' ? '<div class="sb-line"><span>Gegner und Heim/Auswärts kommen mit dem Spielplan.</span></div>' : ''}
           ${answerable ? `${me.state === 'ja' && d.settings.times ? `<div class="sb-line"><span>${me.from || me.until ? esc([me.from ? `ab ${me.from}` : '', me.until ? `bis ${me.until}` : ''].filter(Boolean).join(' ') + ' Uhr') : 'den ganzen Spieltag'}</span><button data-time="${g.id}">Uhrzeit angeben</button></div>` : ''}
@@ -171,6 +184,110 @@
           ${g.lead && !cancelled && g.kind === 'rahmen' ? `<div class="sb-line"><span>${s.yes} von ${s.min} können${s.open ? ` · ${s.open} offen` : ''} – aufstellen geht, sobald der Spielplan da ist.</span></div>` : ''}
           ${g.lead && !cancelled && g.kind === 'rahmen' ? `<button class="vh-btn sec wide" style="margin-top:12px" data-lead="${g.id}">Rückmeldungen · Gäste eintragen</button>` : ''}
           ${g.lead && !cancelled && g.kind !== 'rahmen' ? `<button class="vh-btn sec wide" style="margin-top:12px" data-lead="${g.id}">Aufstellung${s.withdraws ? ` · ${s.withdraws} Absage-Anfrage` : ''}</button>` : ''}`;
+      }
+      /* ---------- Fahrgemeinschaften (nur Auswärtsspiele, nur Teilnehmende – kommt mit der Spieltag-Antwort) ---------- */
+      const DIRT = { hin: 'Hinfahrt', rueck: 'Rückfahrt', beide: 'Hin- und Rückfahrt' };
+      const plus = n => (n > 1 ? ` (+${n - 1})` : '');
+      const overlap = (a, b) => a === 'beide' || b === 'beide' || a === b;
+      function fahrt(g) {
+        const f = g.rides; if (!f || g.status === 'abgesagt' || g.past) return '';
+        const ride = r => {
+          const ps = r.passengers.map(p => `<span translate="no">${p.mine ? 'Du' : esc(p.ln)}${plus(p.persons)}</span>`).join(' · ');
+          const full = r.free === 0, label = `${r.driver.ln}, ${r.depart} Uhr`;
+          const act = [];
+          if (r.joined) act.push(`<button class="vh-btn sm sec" data-fz="leave" data-r="${r.id}" aria-label="Austragen bei ${esc(label)}">Austragen</button>`);
+          else if (!r.mine && !full) act.push(`<button class="vh-btn sm" data-fz="join" data-r="${r.id}" aria-label="Mitfahren bei ${esc(label)}">Ich fahre mit</button>`);
+          if (r.mine) act.push(`<button class="vh-btn sm sec" data-fz="edit" data-r="${r.id}">Ändern</button><button class="vh-btn sm sec" data-fz="cancel" data-r="${r.id}">Absagen</button>`);
+          if (f.manage) act.push(`<button class="vh-btn sm sec sb-full" data-fz="people" data-r="${r.id}">Mitfahrer verwalten</button>`);
+          return `<div class="sb-ride"><div class="sb-rtop"><strong translate="no">${r.mine ? 'Du fährst' : esc(r.driver.ln)}</strong><span class="vh-chip ${full ? '' : 'g'}">${full ? 'voll' : `${r.free} von ${r.seats} Plätzen frei`}</span></div>
+            <p class="w">Abfahrt ${nums(r.depart)} Uhr · <span translate="no">${esc(r.place)}</span></p>
+            ${ps ? `<p>Mitfahrer: ${ps}</p>` : ''}${r.note ? `<p translate="no">${esc(r.note)}</p>` : ''}
+            <div class="sb-rchips"><span class="vh-chip">${DIRT[r.dir]}</span></div>${act.length ? `<div class="sb-ract">${act.join('')}</div>` : ''}</div>`;
+        };
+        const want = w => {
+          const mineRide = f.rides.find(r => r.mine && r.free >= w.persons && overlap(r.dir, w.dir));
+          return `<div class="sb-ride"><div class="sb-rtop"><strong translate="no">${w.mine ? 'Du suchst' : esc(w.ln)}</strong><span class="vh-chip">${w.persons} ${w.persons === 1 ? 'Person' : 'Personen'}</span></div>
+            <p>${DIRT[w.dir]} gesucht</p>${w.mine || f.manage || mineRide ? `<div class="sb-ract">${mineRide ? `<button class="vh-btn sm" data-fz="take" data-r="${mineRide.id}" data-g="${g.id}" data-m="${w.id}" aria-label="${esc(w.ln)} mitnehmen">Mitnehmen</button>` : ''}${w.mine || f.manage ? `<button class="vh-btn sm sec" data-fz="unwant" data-g="${g.id}" data-m="${w.id}">${w.mine ? 'Zurücknehmen' : 'Streichen'}</button>` : ''}</div>` : ''}</div>`;
+        };
+        const place = g.meet_place || g.meet_time ? `<p class="vh-lead" style="margin:0 0 4px">Treffpunkt der Mannschaft: <span translate="no">${esc(g.meet_place || '')}</span>${g.meet_place && g.meet_time ? ', ' : ''}${g.meet_time ? `${nums(g.meet_time)} Uhr` : ''}</p>` : '';
+        return `<div class="sb-fz" data-fzbox="${g.id}"><div class="vh-cap">Fahrgemeinschaften</div>${place}
+          ${f.rides.length ? f.rides.map(ride).join('') : '<p class="vh-none" style="margin:4px 0 0">Noch keine Fahrt angeboten.</p>'}
+          ${f.wants.length ? `<div class="vh-cap">Suchen noch eine Mitfahrt</div>${f.wants.map(want).join('')}` : ''}
+          <div class="sb-fzbtn">${f.canOffer ? `<button class="vh-btn wide" data-fz="offer" data-g="${g.id}">Ich fahre – Plätze anbieten</button>` : ''}
+            ${f.canOffer && !f.mineWant && !f.mineSeat ? `<button class="vh-btn sec wide" data-fz="wantnew" data-g="${g.id}">Ich brauche eine Mitfahrt</button>` : ''}${f.manage ? `<button class="vh-btn sec wide" data-fz="wantfor" data-g="${g.id}">Gesuch für andere eintragen</button>` : ''}</div></div>`;
+      }
+      const findRide = id => { for (const g of d.games) { const r = g.rides && g.rides.rides.find(x => x.id === id); if (r) return { g, r }; } return null; };
+      async function fz(path, body, msg) {
+        const gid = body.ref_id || (findRide(body.ride_id) || { g: {} }).g.id;
+        try { const r = await ctx.api('ride/' + path, 'POST', body); const g = d.games.find(x => x.id === gid); if (g) g.rides = r.rides; close(); draw(); if (msg) ctx.toast(msg); }
+        catch (e) { close(); ctx.toast(e.message, true); await load(); }
+      }
+      const segHtml = (name, items, cur) => `<div class="vh-seg" role="group" data-seg="${name}">${items.map(([v, l]) => `<button type="button" data-v="${v}" class="${String(v) === String(cur) ? 'on' : ''}" aria-pressed="${String(v) === String(cur)}">${l}</button>`).join('')}</div>`;
+      const segVal = (sh, name) => (sh.querySelector(`[data-seg="${name}"] button.on`) || {}).dataset.v;
+      const segWire = sh => sh.querySelectorAll('[data-seg]').forEach(box => box.querySelectorAll('button').forEach(b => { b.onclick = () => { box.querySelectorAll('button').forEach(x => { x.classList.toggle('on', x === b); x.setAttribute('aria-pressed', x === b); }); }; }));
+      const DIR3 = [['hin', 'Hinfahrt'], ['rueck', 'Rückfahrt'], ['beide', 'Beides']];
+      const people = (g, skip) => (g.people || []).filter(p => (p.state === 'ja' || p.role) && !skip.includes(p.id)).sort((a, b) => a.ln.localeCompare(b.ln, 'de'));
+      function offerSheet(g, r) {
+        const sh = sheet();
+        sh.innerHTML = `<div class="vh-box"><h2>${r ? 'Fahrt ändern' : 'Ich fahre'}</h2><p>${esc(title(g))} · ${esc(wd(g.date, true))}, ${esc(deD(g.date))}</p>
+          <label>Fahrt</label>${segHtml('dir', DIR3, r ? r.dir : 'hin')}
+          <label for="fzT">Abfahrt um</label><input class="vh-input" type="time" id="fzT" value="${esc(r ? r.depart : g.meet_time || '')}">
+          <label for="fzP">Abfahrtsort</label><input class="vh-input" id="fzP" maxlength="60" value="${esc(r ? r.place : g.meet_place || '')}" placeholder="Treffpunkt – nicht deine Wohnadresse">
+          <label>Freie Plätze (ohne dich)</label>${segHtml('seats', [1, 2, 3, 4, 5, 6].map(n => [n, n]), r ? r.seats : 3)}
+          <label for="fzN">Hinweis (höchstens 140 Zeichen)</label><input class="vh-input" id="fzN" maxlength="140" value="${esc(r ? r.note : '')}" placeholder="z. B. Kindersitz vorhanden">
+          <div class="vh-err" id="fzE"></div><div class="vh-row"><button class="no" id="fzX">Abbrechen</button><button class="ok" id="fzOk">${r ? 'Speichern' : 'Anbieten'}</button></div></div>`;
+        sh.classList.add('show'); segWire(sh);
+        sh.querySelector('#fzX').onclick = close;
+        sh.querySelector('#fzOk').onclick = async () => {
+          const body = { dir: segVal(sh, 'dir'), depart: sh.querySelector('#fzT').value, place: sh.querySelector('#fzP').value, seats: +segVal(sh, 'seats'), note: sh.querySelector('#fzN').value };
+          try { const x = await ctx.api('ride/' + (r ? 'update' : 'offer'), 'POST', r ? { ...body, ride_id: r.id } : { ...body, ref_id: g.id }); g.rides = x.rides; close(); draw(); ctx.toast(r ? 'Gespeichert.' : 'Fahrt angeboten – danke!'); }
+          catch (e) { sh.querySelector('#fzE').textContent = e.message; }
+        };
+      }
+      function joinSheet(g, r) {
+        const sh = sheet(), opts = Array.from({ length: r.free }, (_, i) => i + 1);
+        sh.innerHTML = `<div class="vh-box"><h2>Mitfahren</h2><p><span translate="no">${esc(r.driver.ln)}</span> · ${nums(r.depart)} Uhr · <span translate="no">${esc(r.place)}</span></p>
+          <label for="fzC">Wie viele Personen fahren mit (du eingeschlossen)?</label><select class="vh-select" id="fzC">${opts.map(n => `<option value="${n}">${n}</option>`).join('')}</select>
+          <div class="vh-err" id="fzE"></div><div class="vh-row"><button class="no" id="fzX">Abbrechen</button><button class="ok" id="fzOk">Eintragen</button></div></div>`;
+        sh.classList.add('show');
+        sh.querySelector('#fzX').onclick = close;
+        sh.querySelector('#fzOk').onclick = () => fz('join', { ride_id: r.id, persons: +sh.querySelector('#fzC').value }, 'Eingetragen – gute Fahrt!');
+      }
+      function wantSheet(g, forOther) {
+        const sh = sheet(), list = forOther ? people(g, g.rides.wants.map(w => w.id)) : [];
+        sh.innerHTML = `<div class="vh-box"><h2>${forOther ? 'Mitfahrgesuch eintragen' : 'Ich brauche eine Mitfahrt'}</h2><p>${esc(title(g))} · ${esc(wd(g.date, true))}, ${esc(deD(g.date))}</p>
+          ${forOther ? `<label for="fzM">Wer?</label><select class="vh-select" id="fzM">${list.map(p => `<option value="${p.id}" translate="no">${esc(p.ln)}</option>`).join('')}</select>` : ''}
+          <label>Wohin</label>${segHtml('dir', [['hin', 'Hinfahrt'], ['rueck', 'Rückfahrt'], ['beide', 'Beides']], 'hin')}
+          <label for="fzC">Wie viele Personen (${forOther ? 'mit Begleitung' : 'du eingeschlossen'})?</label><select class="vh-select" id="fzC">${[1, 2, 3, 4].map(n => `<option value="${n}">${n}</option>`).join('')}</select>
+          <div class="vh-err" id="fzE"></div><div class="vh-row"><button class="no" id="fzX">Abbrechen</button><button class="ok" id="fzOk" ${forOther && !list.length ? 'disabled' : ''}>Eintragen</button></div></div>`;
+        sh.classList.add('show'); segWire(sh);
+        sh.querySelector('#fzX').onclick = close;
+        sh.querySelector('#fzOk').onclick = () => fz('want', { ref_id: g.id, dir: segVal(sh, 'dir'), persons: +sh.querySelector('#fzC').value, ...(forOther ? { member_id: +sh.querySelector('#fzM').value } : {}) }, 'Eingetragen – wer fährt, sieht dein Gesuch.');
+      }
+      function peopleSheet(g, r) {
+        const sh = sheet(), skip = [r.driver.id, ...r.passengers.map(p => p.id)], list = people(g, skip);
+        sh.innerHTML = `<div class="vh-box"><h2>Mitfahrer verwalten</h2><p><span translate="no">${esc(r.driver.ln)}</span> · ${nums(r.depart)} Uhr · ${r.free} von ${r.seats} Plätzen frei</p>
+          ${r.passengers.length ? `<div class="vh-rows">${r.passengers.map(p => `<div><span class="vh-tx"><strong translate="no">${esc(p.ln)}${plus(p.persons)}</strong></span><button class="vh-btn sm sec" data-pl="${p.id}" aria-label="${esc(p.ln)} austragen">Austragen</button></div>`).join('')}</div>` : '<p class="vh-none">Noch niemand eingetragen.</p>'}
+          ${r.free > 0 && list.length ? `<label for="fzM" style="margin-top:10px">Eintragen</label><select class="vh-select" id="fzM">${list.map(p => `<option value="${p.id}" translate="no">${esc(p.ln)}</option>`).join('')}</select>
+            <label for="fzC">Personen (mit Begleitung)</label><select class="vh-select" id="fzC">${Array.from({ length: r.free }, (_, i) => `<option value="${i + 1}">${i + 1}</option>`).join('')}</select>` : ''}
+          <div class="vh-err" id="fzE"></div><div class="vh-row"><button class="no" id="fzX">Schließen</button>${r.free > 0 && list.length ? '<button class="ok" id="fzOk">Eintragen</button>' : ''}</div></div>`;
+        sh.classList.add('show');
+        sh.querySelector('#fzX').onclick = close;
+        sh.querySelectorAll('[data-pl]').forEach(b => { b.onclick = () => fz('leave', { ride_id: r.id, member_id: +b.dataset.pl }, 'Ausgetragen.'); });
+        if (sh.querySelector('#fzOk')) sh.querySelector('#fzOk').onclick = () => fz('join', { ride_id: r.id, member_id: +sh.querySelector('#fzM').value, persons: +sh.querySelector('#fzC').value }, 'Eingetragen.');
+      }
+      function fzClick(b) {
+        const k = b.dataset.fz, g = d.games.find(x => x.id === +b.dataset.g), f = b.dataset.r ? findRide(+b.dataset.r) : null;
+        if (k === 'offer') offerSheet(g);
+        else if (k === 'wantnew') wantSheet(g, false);
+        else if (k === 'wantfor') wantSheet(g, true);
+        else if (k === 'edit') offerSheet(f.g, f.r);
+        else if (k === 'join') { if (f.r.free === 1) fz('join', { ride_id: f.r.id, persons: 1 }, 'Eingetragen – gute Fahrt!'); else joinSheet(f.g, f.r); }
+        else if (k === 'leave') fz('leave', { ride_id: f.r.id }, 'Ausgetragen.');
+        else if (k === 'cancel') fz('cancel', { ride_id: f.r.id }, 'Fahrt abgesagt – die Mitfahrenden wurden benachrichtigt.');
+        else if (k === 'take') fz('take', { ride_id: f.r.id, member_id: +b.dataset.m }, 'Mitgenommen.');
+        else if (k === 'unwant') fz('unwant', { ref_id: g.id, member_id: +b.dataset.m }, 'Gesuch entfernt.');
+        else if (k === 'people') peopleSheet(f.g, f.r);
       }
       async function run(fn, msg) { try { await fn(); if (msg) ctx.toast(msg); close(); await load(); } catch (e) { ctx.toast(e.message, true); } }
       function answer(id, state) {

@@ -85,6 +85,7 @@ Below that:
 - **Stand-in from another team:** choose a player from another team and “Select as reserve”.
 - **Meeting point & notes:** time, place, result and a “Note to the team” (e.g. “please wear white”). “Save meeting point” right below applies it.
 - **Tasks:** only visible if switched on (see Settings). Pick a player for each task (e.g. driver), “remove” deletes it, “+ Driver” adds a new one.
+- **Car shares:** away matches only. This shows the rides that participants offer in the app (driver, departure, place, free seats, passengers) and who is still looking for a lift. You can **add passengers** (choose the ride, the person and the number of people, e.g. for children without their own phone), **remove passengers**, **strike** a request and **remove** a ride (the passengers get a message). Only a member can offer a ride, in the app. There are no phone numbers here.
 
 Below the line-up are **Remind open** (push to everyone without a reply) and **Edit match day …** (opponent, date, start, venue, status, result). **Close** and **Send line-up** (asks first; goes out as a push and – with the members module and email switched on – as an email with a calendar entry to everyone selected and the reserves) always stay visible at the bottom.
 
@@ -176,7 +177,7 @@ With “Tasks per match day” the captain assigns tasks such as driver or bring
 - **Automatic reminders:** players without a reply get a push message before the match day (“Remind players … days before”, default 7). The captain gets a warning if too few can play (“Warn captain … days before”, default 5).
 - **Important messages also by email:** line-up and withdrawal requests also by email to the address from the members, with a calendar entry. Push is always sent. Without the members module there is only push.
 
-The board decides which push messages exist under Member app › Notifications. The module brings these occasions: “You are selected”, “Line-up sent”, “Withdrawal request”, “Reply to withdrawal”, “Match day moved/cancelled”, “Please report availability”, “Too few players”, “Provisional dates” and “Task taken/assigned”.
+The board decides which push messages exist under Member app › Notifications. The module brings these occasions: “You are selected”, “Line-up sent”, “Withdrawal request”, “Reply to withdrawal”, “Match day moved/cancelled”, “Please report availability”, “Too few players”, “Provisional dates”, “Task taken/assigned”, “Car share: someone is riding with you” and “Car share: ride changed”.
 
 #### Transfer settings
 
@@ -195,6 +196,19 @@ This module is not on the tablet. Work is done in the member app in the **Match 
 At the top are the team with league and the captain (otherwise the deputy) with “Call”. Below is one row per match day: date, fixture, time, home or away and on the right **✓** (I can) and **✕** (I can’t). Tapping again withdraws the reply. Tapping the row opens details: meeting point, venue, who can, who is selected (depending on the settings) and the tasks (“I’ll do it” / “Hand back”). “Add time” offers “from” and “until” and a note. If you are selected, it says “You are playing” with the meeting point and the button **Can’t make it – request withdrawal**; the captain has to confirm, until then you stay selected. Reserves can withdraw directly. A request can be revoked with “Cancel withdrawal”.
 
 Anyone on several teams chooses the team at the top. In “All” each day appears only once (“Men + Men 30”): one ✓/✕ applies to all teams that day, and opened up you reply separately. With three or more open dates “All ✓ / All ✕” appears. Anyone already selected that day sees “plays in …” instead of ✓/✕ for the other team. At the bottom it shows how often you have played this season.
+
+#### Car shares for away matches
+
+![Car shares in an opened away match: two rides and a request for a lift.](bild: app=spielbetrieb; klick=.sb-row:nth-child(2) .sb-rh)
+
+For an away match, the opened match day shows a **Car shares** card. Only participants (selected, reserve or confirmed with ✓), the team captain and the administration see it – anyone who has said “can’t” does not see it and is taken out of any rides.
+
+- **I’m driving – offer seats:** outward journey, return journey or both, departure time, departure place (suggestion: the team’s meeting point – please give a meeting point, not your home address), free seats not counting yourself (1 to 6) and a short note. Everyone can offer at most three rides at a time. **Change** and **Cancel** adjust your own ride; passengers get a message.
+- **I’ll ride along:** books straight away, first come first served. With several free seats the app asks how many people are coming (you included, e.g. with a child). **Remove** works at any time. The driver gets a message.
+- **I need a lift:** appears under “Still looking for a lift”. Drivers with free seats tap **Take along**.
+- **Team captains:** also add passengers and requests for other participants (e.g. children without their own phone) – with **Manage passengers** and **Add a request for others**.
+
+What is shown: “Last name, first name”, departure, place, free seats and the note – no phone numbers and no chat. Rides, passengers and requests are deleted 30 days after the match (period adjustable under Settings › Data protection).
 
 #### For team captains
 
@@ -216,7 +230,7 @@ Members in the app need no permission: anyone on a team may confirm or decline. 
 
 ## Working with other modules {#zusammenspiel}
 
-- **Members:** players, captains and deputies come from the members module; names appear as “Last name, first name”. It provides mobile number, email address, date of birth and gender (for the hints). A member’s data export lists their teams, replies, line-ups and tasks; when duplicate members are merged the references move along, and when deleting a member Clubwerk shows “Plays in: …” as the reason it is not possible yet.
+- **Members:** players, captains and deputies come from the members module; names appear as “Last name, first name”. It provides mobile number, email address, date of birth and gender (for the hints). A member’s data export lists their teams, replies, line-ups, tasks and car shares; when duplicate members are merged the references move along, and when deleting a member Clubwerk shows “Plays in: …” as the reason it is not possible yet.
 - **Courts:** the fixture import can enter home matches as court bookings at the same time.
 - **Messages:** every active team is a recipient group (“Team Men 40”) with captain and deputy.
 - **Member app:** under “To do”, “For me” shows only the note “Match days: n replies open” (no buttons) and leads to the “Match days” section.

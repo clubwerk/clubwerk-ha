@@ -33,14 +33,16 @@
       ctx.onLeave(close);
       let d_contact = '';
       const sel = {};   // gewählter Tag je Dienstplan
-      let tab = /^(termin|kalender)/.test(ctx.focus || '') ? 'termine' : 'dienste';   // Reiter „Dienste“ | „Termine“ (aus „Für mich“: gleich die Termine)
+      let tab = /^(termin|kalender)/.test(ctx.focus || '') ? 'termine' : ctx.focus === 'aufgaben' ? 'aufgaben' : 'dienste';   // Reiter „Dienste“ | „Termine“ | „Aufgaben“ (aus „Für mich“: gleich dorthin)
       let focus = ctx.focus || '';   // aus „Für mich“ („frei“): zum ersten freien Dienst scrollen (nur beim ersten Laden)
       const sheet = () => { let sh = document.getElementById('dsSheet'); if (!sh) { sh = document.createElement('div'); sh.id = 'dsSheet'; sh.className = 'vh-sheet vh-form'; document.body.appendChild(sh); } return sh; };
       async function load() {
         let d; try { d = await ctx.api('me'); } catch (e) { el.innerHTML = `<div class="vh-empty">${esc(e.message)}</div>`; return; }
         window.__dsToday = d.today; d_contact = d.contact;
         const kal = d.kalender || [];
-        if (!d.termine.length && !kal.length) tab = 'dienste';
+        const tasks = d.aufgaben || [];
+        if (tab === 'termine' && !d.termine.length && !kal.length) tab = 'dienste';
+        if (tab === 'aufgaben' && !tasks.length) tab = 'dienste';
         const pct = d.target ? Math.min(100, Math.round(d.done / d.target * 100)) : 100;
         const miss = Math.max(0, d.target - d.done);
         // Solange Stunden fehlen, steht das Offene im Vordergrund; danach kein Zielstrich („Geschafft“), nur Dank – die Dienste rücken nach oben
@@ -55,11 +57,16 @@
         const duties = `${mineHtml(d)}${d.plans.map(planHtml).join('')}
           ${d.events.length || !d.plans.length ? `<div class="vh-card"><h3>${d.plans.length ? 'Weitere Termine' : 'Termine'}</h3>${d.events.length ? d.events.map(e => shiftHtml(e, true)).join('') : '<p class="vh-none">Gerade keine Termine geplant.</p>'}</div>` : ''}`;
         const openT = d.termine.filter(t => !t.answer && t.can).length;
-        const seg = d.termine.length || kal.length ? `<div class="vh-seg"><button data-tab="dienste" class="${tab === 'dienste' ? 'on' : ''}">Dienste</button><button data-tab="termine" class="${tab === 'termine' ? 'on' : ''}">Termine${openT ? ` (${openT})` : ''}</button></div>` : '';
-        el.innerHTML = tab === 'termine' ? seg + d.termine.map(termHtml).join('') + kalHtml(kal) : `${seg}${met ? duties + hours : hours + duties}
+        const openA = tasks.filter(x => x.status === 'offen').length;
+        const tabs = [['dienste', 'Dienste'], ...(d.termine.length || kal.length ? [['termine', `Termine${openT ? ` (${openT})` : ''}`]] : []), ...(tasks.length ? [['aufgaben', `Aufgaben${openA ? ` (${openA})` : ''}`]] : [])];
+        const seg = tabs.length > 1 ? `<div class="vh-seg">${tabs.map(([k, l]) => `<button data-tab="${k}" class="${tab === k ? 'on' : ''}">${l}</button>`).join('')}</div>` : '';
+        el.innerHTML = tab === 'aufgaben' ? seg + tasks.map(taskHtml).join('') : tab === 'termine' ? seg + d.termine.map(termHtml).join('') + kalHtml(kal) : `${seg}${met ? duties + hours : hours + duties}
           <div class="vh-card"><h3>Meine Stunden${d.report ? '<button id="dsRep">Stunden melden</button>' : ''}</h3><div class="vh-rows">${d.entries.length ? d.entries.map(x => `<div><span><span translate="no">${esc(x.text || '')}</span><small>${deD(x.date)}${d.family ? ' · ' + esc(x.name) : ''}<span class="vh-chip ${(ST[x.status] || [''])[0]}">${esc((ST[x.status] || ['', x.status])[1])}</span>${x.reason ? ' ' + esc(x.reason) : ''}</small></span><b class="num">${x.minutes ? hh(x.minutes) : '–'}</b></div>`).join('') : '<p class="vh-none">Noch keine Stunden in diesem Jahr.</p>'}</div></div>`;
         el.querySelectorAll('[data-tab]').forEach(b => { b.onclick = () => { tab = b.dataset.tab; load(); }; });
         el.querySelectorAll('[data-ans]').forEach(b => { b.onclick = () => answer(d.termine.find(x => x.id === +b.dataset.t), b.dataset.ans); });
+        el.querySelectorAll('[data-tk-done]').forEach(b => { b.onclick = () => taskDone(tasks.find(x => x.id === +b.dataset.tkDone), false); });
+        el.querySelectorAll('[data-tk-undo]').forEach(b => { b.onclick = () => taskDone(tasks.find(x => x.id === +b.dataset.tkUndo), true); });
+        el.querySelectorAll('[data-tk-ret]').forEach(b => { b.onclick = () => taskReturn(tasks.find(x => x.id === +b.dataset.tkRet)); });
         const all = [...d.events, ...d.plans.flatMap(p => p.shifts)];
         el.querySelectorAll('[data-ev]').forEach(b => { b.onclick = async () => {
           const e = all.find(x => x.id === +b.dataset.ev);
@@ -99,6 +106,34 @@
           ${t.can ? `${t.deadline ? `<p class="vh-lead">Antwort bis ${deD(t.deadline)}</p>` : ''}<div class="ds-ans"><button class="vh-btn sm${t.answer === 'ja' ? '' : ' sec'}" data-t="${t.id}" data-ans="ja">${t.answer === 'ja' ? 'Ich komme ✓' : 'Ich komme'}</button><button class="vh-btn sm${t.answer === 'nein' ? '' : ' sec'}" data-t="${t.id}" data-ans="nein">${t.answer === 'nein' ? 'Ich komme nicht ✓' : 'Ich komme nicht'}</button></div>`
             : `<p class="vh-lead">Die Antwortfrist ist abgelaufen${t.answer ? '' : ' – du hast nicht geantwortet'}. Änderungen bitte über ${d_contact ? esc(d_contact) : 'den Verein'}.</p>`}
           ${t.ics ? `<div class="ds-ans" style="grid-template-columns:1fr"><a class="vh-btn sm sec" href="${esc(t.ics)}">In den Kalender</a></div>` : ''}</div>`;
+      }
+      /* Aufgaben (vom Vorstand zugeteilt): nur die eigenen – abhaken, wieder öffnen oder zurückgeben */
+      function taskHtml(t) {
+        const open = t.status === 'offen';
+        return `<div class="vh-card ds-tk" data-tk="${t.id}"><h3><span translate="no" id="dstk${t.id}">${esc(t.title)}</span>${open ? `<span class="vh-chip ${t.overdue ? 'a' : ''}">${esc(t.chip)}</span>` : '<span class="vh-chip g">erledigt</span>'}</h3>
+          <p class="vh-lead">${esc(open ? `Frist: ${wd(t.due, true)}, ${deD(t.due)}` : `Erledigt am ${deD((t.done_at || '').slice(0, 10))}`)}</p>
+          ${t.note ? `<p class="vh-lead" translate="no" style="white-space:pre-line">${esc(t.note)}</p>` : ''}${t.feedback ? `<p class="vh-lead">Rückmeldung: <span translate="no">${esc(t.feedback)}</span></p>` : ''}
+          ${open ? `<div class="ds-ans"><button class="vh-btn sm" data-tk-done="${t.id}" aria-label="${esc(T('Als erledigt markieren'))}" aria-describedby="dstk${t.id}">Erledigt</button><button class="vh-btn sm sec" data-tk-ret="${t.id}">Zurückgeben</button></div>`
+            : `<div class="ds-ans" style="grid-template-columns:1fr"><button class="vh-btn sm sec" data-tk-undo="${t.id}">Wieder öffnen</button></div>`}</div>`;
+      }
+      function taskDone(t, undo) {
+        const card = el.querySelector(`.ds-tk[data-tk="${t.id}"]`);
+        return ctx.optimistic(() => {
+          if (!card) return;
+          const ch = card.querySelector('h3 .vh-chip'); if (ch) { ch.className = undo ? 'vh-chip' : 'vh-chip g'; ch.textContent = undo ? t.chip : 'erledigt'; }
+          card.querySelectorAll('button').forEach(b => { b.disabled = true; });
+        }, load, () => (kette = kette.catch(() => {}).then(async () => { await ctx.api('tasks/done', 'POST', { id: t.id, undo }); ctx.toast(undo ? 'Wieder offen.' : 'Erledigt – danke!'); load(); })));
+      }
+      function taskReturn(t) {
+        const sh = sheet();
+        sh.innerHTML = `<div class="vh-box"><h2>Aufgabe zurückgeben?</h2><p><span translate="no">${esc(t.title)}</span><br>Die Aufgabe geht zurück an den Vorstand und wird neu verteilt.</p>
+          <label>Rückmeldung (freiwillig)</label><input class="vh-input" id="dsRt" maxlength="140" placeholder="z. B. Ich bin im Urlaub"><div class="vh-err" id="dsE"></div>
+          <div class="vh-row"><button class="no" id="dsNo">Doch behalten</button><button class="ok" id="dsOk">Zurückgeben</button></div></div>`;
+        sh.classList.add('show');
+        sh.querySelector('#dsNo').onclick = close;
+        sh.querySelector('#dsOk').onclick = async () => {
+          try { await ctx.api('tasks/return', 'POST', { id: t.id, feedback: sh.querySelector('#dsRt').value }); close(); ctx.toast('Zurückgegeben.'); load(); } catch (e) { sh.querySelector('#dsE').textContent = e.message; }
+        };
       }
       function answer(t, a) {
         if (a === 'nein') return post(t, { event_id: t.id, answer: 'nein', note: t.my_note }, 'Abgesagt – danke für die Antwort.');

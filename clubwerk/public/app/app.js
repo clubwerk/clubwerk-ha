@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.42';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.43';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -320,10 +320,11 @@
     const line = (x, lead, news = false) => {
       const time = x.start ? (x.end ? `${x.start}–${x.end}` : `${x.start} Uhr`) : '';
       const sub = [time, x.sub].filter(Boolean).map(t => `<span>${esc(t)}</span>`).join(' · ') + (x.chip ? ` <span class="vh-chip a">${esc(x.chip)}</span>` : '');
-      const inner = `${lead}<span class="vh-tx"><strong${x.tr ? '' : ' translate="no"'}>${esc(x.title)}</strong>${sub ? `<small>${sub}</small>` : ''}</span>${x.value ? `<b class="vh-fm-val">${esc(x.value)}</b>` : ''}`;
+      const tid = x.actions ? 'f' + acts.length : '';
+      const inner = `${lead}<span class="vh-tx"><strong${tid && ` id=${tid}`}${x.tr ? '' : ' translate="no"'}>${esc(x.title)}</strong>${sub ? `<small>${sub}</small>` : ''}</span>${x.value ? `<b class="vh-fm-val">${esc(x.value)}</b>` : ''}`;
       const go = ok(x.section) ? ` data-go="${esc(x.section)}" data-focus="${esc(x.focus)}"${news ? ` data-seen="${esc(x.key)}"` : ''}` : '';
       if (x.actions && x.actions.length) {
-        const yn = `<span class="vh-yn">${x.actions.map(a => `<button type="button" class="${a.kind}${a.on ? ' on' : ''}" data-act="${acts.push({ x, a }) - 1}" aria-label="${esc(a.aria || a.label)}">${esc(a.label)}</button>`).join('')}</span>`;
+        const yn = `<span class="vh-yn">${x.actions.map(a => `<button type="button" class="${a.kind}${a.on ? ' on' : ''}" data-act="${acts.push({ x, a }) - 1}" aria-label="${esc(a.aria || a.label)}"${tid && ` aria-describedby=${tid}`}>${esc(a.label)}</button>`).join('')}</span>`;
         return `<div class="vh-fm">${go ? `<button type="button" class="vh-fm-in"${go}>${inner}</button>` : `<span class="vh-fm-in">${inner}</span>`}${yn}</div>`;
       }
       return go ? `<button type="button" class="vh-fm"${go}>${inner}${CHEV}</button>` : `<div class="vh-fm">${inner}</div>`;

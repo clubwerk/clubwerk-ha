@@ -17,7 +17,7 @@ The module works on its own. Without the Members module the same target applies 
 
 ## Admin area {#verwaltung}
 
-The admin area has five tabs at the top: **Overview**, **Duty rosters**, **Shifts**, **Hours** and **Settings**. The number of hour reports you still have to confirm is shown on the “Hours” tab and in the menu.
+The admin area has six tabs at the top: **Overview**, **Duty rosters**, **Shifts**, **Tasks**, **Hours** and **Settings**. The number of hour reports you still have to confirm is shown on the “Hours” tab and in the menu.
 
 ### “Overview” tab {#arbeitseinsatz}
 
@@ -164,6 +164,32 @@ The row of a club date shows, instead of helpers, the number of **acceptances** 
 
 > In the app members only see the number of acceptances, never names. Only the admin area sees declines.
 
+### “Tasks” tab {#aw-aufgaben}
+
+Tasks are the board’s little to-do list: **who does what by when?** You assign a task to one person and set a deadline. They see it in the member app and tick it off. No hours are counted, and there are no shifts.
+
+> Looking for volunteers? Create a **duty** (tab “Shifts”) that members sign up for themselves. If the person is already decided, it is a **task**.
+
+![The “Tasks” tab with open, overdue and assigned tasks.](bild: seite=aw-aufgaben)
+
+#### List
+
+- The filters at the top show **Open**, **Overdue**, **Done** and **All**, each with its count. Overdue tasks come first, then by deadline.
+- Each row shows the title, the assigned person (“Last name, First name”), the deadline and a badge: **overdue**, **due today**, **due tomorrow** or **due in n days**. Tasks without a person carry the badge **no person**; if someone handed a task back, the row says who, and shows their reply.
+- **Done** ticks the task off on the person’s behalf (for example after a phone call), **Reopen** takes the tick back. **Edit** opens the window.
+
+#### New task
+
+![The “New task” window.](bild: seite=aw-aufgaben; klick=#tkNew; ziel=dialog)
+
+- **What needs doing?** (up to 120 characters) and **Deadline** are required.
+- **Responsible:** one member, or “nobody yet”. There is always exactly one person; for several members, create several tasks.
+- **Reminder:** how many days before the deadline the app reminds them (0 = no advance reminder, default 3).
+- **Note** (up to 500 characters, optional). Please do not put other people’s personal data in it.
+- In the window of an existing task you can change the person or the deadline, or delete the task. A new person or deadline restarts the reminders.
+
+Only the assigned person and the admin area can see a task, other members never. At most 200 tasks can be open at once. Done tasks are removed after the retention period (Settings › Data protection, default 12 months).
+
 ### “Hours” tab {#aw-stunden}
 
 ![The “Hours” tab with the reports waiting for confirmation.](bild: seite=aw-stunden)
@@ -292,9 +318,15 @@ If a homepage calendar is set under Settings, the **Dates** tab shows the card *
 
 ![The club calendar in the “Dates” tab.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; ziel=#dsKal)
 
+#### Completing tasks
+
+If the board has assigned you a task, the switch **Tasks** appears in the section (with the number of open ones). Each task shows its title, deadline (with the badge “overdue”, “due in 3 days” …) and the note. **Done** ticks it off straight away; **Reopen** takes the tick back. If someone cannot take a task on, **Hand back** (with a short reply) returns it to the board. Members only see their own tasks.
+
+![The tasks in the app with “Done” and “Hand back”.](bild: app=arbeitseinsatz; klick=[data-tab="aufgaben"])
+
 #### Start page and notifications
 
-On the “For me” start page your own duties, accepted dates and the next three dates of the club calendar appear under “Coming up”. Open dates appear under “To do” only as one note “Dates: n replies open” (no buttons, no time limit while the reply deadline is running); it names the date with the nearest deadline and leads to the “Dates” tab. So do missing work hours, linking to the free duties. There are also notifications: **Duty reminder** (the day before) and **Reminder for a date** (invitation, request for a reply shortly before the deadline, reminder the day before for those who accepted). Members switch them on in the app under Notifications, per phone.
+On the “For me” start page your own duties, accepted dates and the next three dates of the club calendar appear under “Coming up”. Open dates appear under “To do” only as one note “Dates: n replies open” (no buttons, no time limit while the reply deadline is running); it names the date with the nearest deadline and leads to the “Dates” tab. So do missing work hours, linking to the free duties. Your own open tasks appear under “To do” with a deadline badge and a tick to mark them done straight away. There are also notifications: **Duty reminder** (the day before), **Reminder for a date** (invitation, request for a reply shortly before the deadline, reminder the day before for those who accepted) and **Reminder for a task** (a few days before the deadline and once when the deadline has passed; never more often). Members switch them on in the app under Notifications, per phone.
 
 ### Tablet
 
@@ -314,7 +346,7 @@ Club dates (type “Date”) do not appear on the tablet.
 
 | Permission | What it allows |
 |---|---|
-| Duties & dates | See and edit all five tabs: manage rosters, assignments and club dates, confirm and add hours, change targets, exemptions and settings, enter replies for members |
+| Duties & dates | See and edit all six tabs: manage rosters, assignments, club dates and tasks, confirm and add hours, change targets, exemptions and settings, enter replies for members |
 | Events (Sales) | Also needed to “transfer a duty roster to Sales” |
 
 Members need no permission: whether they see the “Duties” section in the app is set under Member app › Sections.

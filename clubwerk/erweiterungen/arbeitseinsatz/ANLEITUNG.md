@@ -17,7 +17,7 @@ Das Modul läuft allein. Ohne die Mitgliederverwaltung gilt dieselbe Vorgabe fü
 
 ## Verwaltung {#verwaltung}
 
-Die Verwaltung hat oben fünf Reiter: **Übersicht**, **Dienstpläne**, **Einsätze**, **Stunden** und **Einstellungen**. Die Zahl der Stundenmeldungen, die ihr noch bestätigen müsst, steht am Reiter „Stunden“ und im Menü.
+Die Verwaltung hat oben sechs Reiter: **Übersicht**, **Dienstpläne**, **Einsätze**, **Aufgaben**, **Stunden** und **Einstellungen**. Die Zahl der Stundenmeldungen, die ihr noch bestätigen müsst, steht am Reiter „Stunden“ und im Menü.
 
 ### Reiter „Übersicht“ {#arbeitseinsatz}
 
@@ -164,6 +164,32 @@ Die Zeile eines Termins zeigt statt der Helfer die Zahl der **Zusagen** (mit Per
 
 > Mitglieder sehen in der App nur die Zahl der Zusagen, nie Namen. Absagen sieht nur die Verwaltung.
 
+### Reiter „Aufgaben“ {#aw-aufgaben}
+
+Aufgaben sind die kleine To-do-Liste des Vorstands: **Wer macht was bis wann?** Ihr teilt eine Aufgabe einer Person zu und setzt eine Frist. Die Person sieht sie in der Mitglieder-App und hakt sie ab. Es zählen keine Stunden, und es gibt keine Schichten.
+
+> Freiwillige gesucht? Dann legt einen **Dienst** an (Reiter „Einsätze“), in den sich Mitglieder selbst eintragen. Ist die Person schon bestimmt, ist es eine **Aufgabe**.
+
+![Der Reiter „Aufgaben“ mit offenen, überfälligen und zugeteilten Aufgaben.](bild: seite=aw-aufgaben)
+
+#### Liste
+
+- Die Filter oben zeigen **Offen**, **Überfällig**, **Erledigt** und **Alle**, jeweils mit der Zahl. Überfällige stehen zuerst, danach nach Frist.
+- Jede Zeile zeigt Titel, die zugeteilte Person („Nachname, Vorname“), die Frist und ein Schild: **überfällig**, **heute fällig**, **morgen fällig** oder **in n Tagen fällig**. Aufgaben ohne Person tragen das Schild **ohne Person**; hat jemand die Aufgabe zurückgegeben, steht dabei, von wem, und die Rückmeldung.
+- **Erledigt** hakt die Aufgabe für die Person ab (z. B. nach einem Anruf), **Wieder öffnen** nimmt den Haken zurück. **Bearbeiten** öffnet das Fenster.
+
+#### Neue Aufgabe
+
+![Das Fenster „Neue Aufgabe“.](bild: seite=aw-aufgaben; klick=#tkNew; ziel=dialog)
+
+- **Was ist zu tun?** (bis 120 Zeichen) und **Frist** sind Pflicht.
+- **Verantwortlich:** ein Mitglied, oder „noch niemand“. Es gibt immer genau eine Person; für mehrere Mitglieder legt ihr mehrere Aufgaben an.
+- **Erinnerung:** Wie viele Tage vor der Frist die App erinnert (0 = keine Vorab-Erinnerung, Standard 3).
+- **Notiz** (bis 500 Zeichen, freiwillig). Bitte keine persönlichen Daten Dritter hineinschreiben.
+- Im Fenster einer vorhandenen Aufgabe könnt ihr die Person oder Frist ändern oder die Aufgabe löschen. Eine neue Person oder Frist startet die Erinnerungen neu.
+
+Nur die zugeteilte Person und die Verwaltung sehen eine Aufgabe, andere Mitglieder nie. Es sind höchstens 200 Aufgaben gleichzeitig offen. Erledigte Aufgaben werden nach der Löschfrist entfernt (Einstellungen › Datenschutz, Standard 12 Monate).
+
 ### Reiter „Stunden“ {#aw-stunden}
 
 ![Der Reiter „Stunden“ mit den zu bestätigenden Meldungen.](bild: seite=aw-stunden)
@@ -292,9 +318,15 @@ Ist unter Einstellungen ein Kalender der Homepage eingetragen, steht im Reiter *
 
 ![Der Vereinskalender im Reiter „Termine“.](bild: app=arbeitseinsatz; klick=[data-tab="termine"]; ziel=#dsKal)
 
+#### Aufgaben erledigen
+
+Hat euch der Vorstand eine Aufgabe zugeteilt, erscheint im Bereich der Umschalter **Aufgaben** (mit der Zahl offener). Jede Aufgabe zeigt Titel, Frist (mit dem Schild „überfällig“, „in 3 Tagen fällig“ …) und die Notiz. **Erledigt** hakt sie sofort ab; **Wieder öffnen** nimmt den Haken zurück. Kann jemand die Aufgabe nicht übernehmen, geht sie mit **Zurückgeben** (mit kurzer Rückmeldung) an den Vorstand zurück. Die Mitglieder sehen nur ihre eigenen Aufgaben.
+
+![Die Aufgaben in der App mit „Erledigt“ und „Zurückgeben“.](bild: app=arbeitseinsatz; klick=[data-tab="aufgaben"])
+
 #### Startseite und Benachrichtigungen
 
-Auf der Startseite „Für mich“ stehen eigene Dienste, zugesagte Termine und die nächsten drei Termine des Vereinskalenders unter „Als Nächstes“. Offene Termine erscheinen unter „Zu erledigen“ nur als ein Hinweis „Termine: n Antworten offen“ (ohne Knöpfe, ohne Zeitgrenze, solange die Antwortfrist läuft); er nennt den Termin mit der nächsten Frist und führt in den Reiter „Termine“. Ebenso die fehlenden Arbeitsstunden mit Sprung zu den freien Diensten. Dazu gibt es Benachrichtigungen: **Erinnerung an den Dienst** (am Vortag) und **Erinnerung an einen Termin** (Einladung, Bitte um Antwort kurz vor Fristende, Erinnerung am Vortag bei Zusage). Mitglieder schalten sie in der App unter Benachrichtigungen je Handy ein.
+Auf der Startseite „Für mich“ stehen eigene Dienste, zugesagte Termine und die nächsten drei Termine des Vereinskalenders unter „Als Nächstes“. Offene Termine erscheinen unter „Zu erledigen“ nur als ein Hinweis „Termine: n Antworten offen“ (ohne Knöpfe, ohne Zeitgrenze, solange die Antwortfrist läuft); er nennt den Termin mit der nächsten Frist und führt in den Reiter „Termine“. Ebenso die fehlenden Arbeitsstunden mit Sprung zu den freien Diensten. Die eigenen offenen Aufgaben stehen mit Frist-Schild unter „Zu erledigen“, mit einem Haken zum sofortigen Abhaken. Dazu gibt es Benachrichtigungen: **Erinnerung an den Dienst** (am Vortag), **Erinnerung an einen Termin** (Einladung, Bitte um Antwort kurz vor Fristende, Erinnerung am Vortag bei Zusage) und **Erinnerung an eine Aufgabe** (einige Tage vor der Frist und einmal, wenn die Frist abgelaufen ist; nie öfter). Mitglieder schalten sie in der App unter Benachrichtigungen je Handy ein.
 
 ### Tablet
 
@@ -314,7 +346,7 @@ Termine (Art „Termin“) erscheinen nicht am Tablet.
 
 | Recht | Was es erlaubt |
 |---|---|
-| Dienste & Termine | Alle fünf Reiter sehen und bearbeiten: Dienstpläne, Einsätze und Termine verwalten, Stunden bestätigen und nachtragen, Soll, Befreiungen und Einstellungen ändern, Zu- und Absagen für Mitglieder eintragen |
+| Dienste & Termine | Alle sechs Reiter sehen und bearbeiten: Dienstpläne, Einsätze, Termine und Aufgaben verwalten, Stunden bestätigen und nachtragen, Soll, Befreiungen und Einstellungen ändern, Zu- und Absagen für Mitglieder eintragen |
 | Veranstaltungen (Verkauf) | Zusätzlich nötig, um einen Dienstplan „in den Verkauf zu übernehmen“ |
 
 Mitglieder brauchen kein Recht: Ob sie den Bereich „Dienste“ in der App sehen, legt ihr unter Mitglieder-App › Bereiche fest.
@@ -323,7 +355,7 @@ Mitglieder brauchen kein Recht: Ob sie den Bereich „Dienste“ in der App sehe
 
 - **Mitglieder:** liefert Alter, Beitragsart, Status (aktiv, passiv, Ehrenmitglied), Ein- und Austritt, Familien und E-Mail-Adressen. Das Modul rechnet das Soll daraus und nimmt fehlende Stunden als Posten „Arbeitsstunden“ in den **Beitragslauf** auf. Bei der Datenauskunft eines Mitglieds stehen seine Anmeldungen, Stunden, Befreiung und Vorgaben dabei; offene Anmeldungen und unbestätigte Stunden sieht man in der Mitgliederansicht.
 - **Verkauf:** Ein Dienstplan lässt sich als Veranstaltung übernehmen (Karte „In den Verkauf übernehmen“).
-- **Mitglieder-App und Benachrichtigungen:** Bereich „Dienste“, Startseite „Für mich“ und die Anlässe „Erinnerung an den Dienst“ und „Erinnerung an einen Termin“.
+- **Mitglieder-App und Benachrichtigungen:** Bereich „Dienste“, Startseite „Für mich“ und die Anlässe „Erinnerung an den Dienst“, „Erinnerung an einen Termin“ und „Erinnerung an eine Aufgabe“.
 - **Postfach:** Erinnerungen und Absagen per E-Mail brauchen ein eingerichtetes Postfach.
 - **Einrichtung, Suche und Übersicht:** Der Einrichtungs-Assistent hat einen Schritt „Soll und Abrechnung“, die Suche (Strg/⌘ K) findet Dienstpläne, Reiter, Karten und Aktionen, und die Startseite der Verwaltung zeigt Stunden geleistet und zu bestätigen.
 - **Datenschutz:** Das Modul steht im Verzeichnis von Verarbeitungstätigkeiten.

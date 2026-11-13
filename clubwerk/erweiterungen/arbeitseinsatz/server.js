@@ -322,6 +322,8 @@ function activate(ctx) {
     ctx.audit(req.user, 'Termin: um Antwort gebeten', `${e.title} ${deD(e.date)}: ${n} ${n === 1 ? 'Mitglied' : 'Mitglieder'}`);
     res.json({ ok: true, count: n });
   });
+  /* Aufgaben mit Verantwortlichem und Frist: eigene Datei, nutzt dieselben Helfer */
+  const aufg = require('./aufgaben').activate(ctx, { P, admin, M, uname, tellAdmins, S, SET });
   /** Einsatz abschließen: allen Eingetragenen die Stunden gutschreiben */
   admin.post('/events/:id/close', P, (req, res) => {
     const e = db.prepare('SELECT * FROM aw_event WHERE id = ?').get(int(req.params.id)); if (!e) return bad(res, 'Nicht gefunden.', 404);
@@ -632,7 +634,7 @@ function activate(ctx) {
     const plans = db.prepare('SELECT * FROM aw_plan WHERE published = 1 AND to_date >= ? ORDER BY from_date LIMIT 10').all(today()).map(p => ({ id: p.id, title: p.title, from_date: p.from_date, to_date: p.to_date, place: p.place, note: p.note, counts: Boolean(p.counts),
       shifts: db.prepare('SELECT * FROM aw_event WHERE plan_id = ? AND cancelled = 0 ORDER BY date, start IS NULL, start, id').all(p.id).map(shiftApp) }));
     res.json({ year: yearLabel(y), to: period(y).to, family: ids.length > 1, target: tg, done, open, mine, rate_cents: cfg().rate_cents, text: cfg().text, report: cfg().app_report, contact: cfg().contact, cancel_h: CANCEL_H, today: today(),
-      plans, termine, kalender: icalList(today(), addDays(today(), 400), 60).map(e => ({ ...e, ics: ctx.calendarLink({ ...e, uid: 'ical-' + require('crypto').createHash('sha1').update([e.date, e.start, e.title].join('|')).digest('hex').slice(0, 16) }) })),
+      plans, termine, aufgaben: aufg.mine(id), kalender: icalList(today(), addDays(today(), 400), 60).map(e => ({ ...e, ics: ctx.calendarLink({ ...e, uid: 'ical-' + require('crypto').createHash('sha1').update([e.date, e.start, e.title].join('|')).digest('hex').slice(0, 16) }) })),
       events: db.prepare("SELECT * FROM aw_event e WHERE e.date >= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.plan_id IS NULL AND e.kind <> 'termin' ORDER BY e.date, e.start LIMIT 60").all(today()).filter(isOpen).slice(0, 40).map(shiftApp),
       entries: db.prepare(`SELECT e.id, e.date, e.minutes, e.text, e.status, e.reason, m.name FROM aw_entry e JOIN members m ON m.id = e.member_id WHERE e.member_id IN (${ids.map(() => '?').join(',')}) AND e.date >= ? ORDER BY e.date DESC LIMIT 40`).all(...ids, period(y).from) });
   }));
@@ -697,13 +699,17 @@ function activate(ctx) {
     return out;
   };
   /* Mitglied löschen: kommende Einsätze und noch nicht bestätigte Stunden sperren (bestätigte Stunden sind Verlauf) */
-  ctx.hooks.privacyRecord = () => [{ purpose: 'Arbeitseinsätze und Dienste planen, Arbeitsstunden nachweisen und abrechnen', data: 'Name, Anmeldungen, geleistete Stunden, Befreiungen, Vorgaben', persons: 'Mitglieder; externe Helfer nur mit Namen' }];
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Arbeitseinsätze und Dienste planen, Arbeitsstunden nachweisen und abrechnen', data: 'Name, Anmeldungen, geleistete Stunden, Befreiungen, Vorgaben', persons: 'Mitglieder; externe Helfer nur mit Namen' },
+    { purpose: 'Aufgaben des Vorstands zuteilen und die Erledigung festhalten', data: 'Name der zugeteilten Person, Aufgabe, Frist, Erledigt-Vermerk, kurze Rückmeldung', persons: 'Mitglieder mit einer zugeteilten Aufgabe' }];
+  ctx.hooks.retention = aufg.retention;
+  ctx.hooks.memberRemoved = aufg.memberRemoved;
   /* Datenauskunft: Anmeldungen, Stunden, Befreiung und eigene Vorgaben */
   ctx.hooks.memberData = id => ({
     anmeldungen: db.prepare('SELECT e.date AS datum, e.title AS einsatz, s.created_at AS angemeldet FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? ORDER BY e.date').all(id),
     stunden: db.prepare('SELECT date AS datum, minutes AS minuten, text, status, source AS quelle, reason AS grund FROM aw_entry WHERE member_id = ? ORDER BY date').all(id),
     befreiung: db.prepare('SELECT note AS grund, until_date AS bis FROM aw_exempt WHERE member_id = ?').get(id) || null,
     vorgaben: db.prepare('SELECT year AS jahr, minutes AS minuten, note AS grund FROM aw_target WHERE member_id = ? ORDER BY year').all(id),
+    aufgaben: aufg.memberData(id),
   });
   ctx.hooks.memberLinks = id => {
     const out = [];
@@ -734,17 +740,19 @@ function activate(ctx) {
     // Vereinskalender der Homepage: die nächsten (höchstens 3) bis „until“, Antippen öffnet den Reiter „Termine“
     next.push(...icalList(d, until, 6).filter(e => e.date > d || !(e.end || e.start) || (e.end || e.start) > now || (e.end_date || e.date) > d).slice(0, 3)
       .map(e => ({ at: e.date < d ? d : e.date, start: e.date < d ? '' : e.start || '', end: e.date < d || (e.end_date && e.end_date !== e.date) ? '' : e.end || '', title: e.title, sub: [e.end_date && e.end_date !== e.date ? `bis ${deD(e.end_date).slice(0, 6)}` : '', e.place ? String(e.place).split(',')[0] : '', 'Vereinskalender'].filter(Boolean).join(' · '), focus: 'kalender' })));
-    if (miss <= 0) return { next, todo: ask };
+    const tasks = aufg.forMe(id);   // eigene Aufgaben mit Frist (zuerst, weil sie eine Frist haben)
+    if (miss <= 0) return { next, todo: [...tasks, ...ask] };
     // freie Dienste wie im Bereich: einzelne Termine und Schichten veröffentlichter Dienstpläne, noch nicht vorbei, nicht voll, ich noch nicht dabei
     const free = db.prepare(`SELECT e.* FROM aw_event e LEFT JOIN aw_plan p ON p.id = e.plan_id WHERE e.date >= ? AND e.date <= ? AND e.cancelled = 0 AND e.permanent = 0 AND e.counts = 1
       AND (e.plan_id IS NULL OR p.published = 1) AND NOT EXISTS (SELECT 1 FROM aw_signup s WHERE s.event_id = e.id AND s.member_id = ?)`).all(d, until, id).filter(e => isOpen(e) && (!e.slots || helpersOf(e.id).length < e.slots)).length;
-    return { next, todo: [...ask, { title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '', tr: true }] };
+    return { next, todo: [...tasks, ...ask, { title: ids.length > 1 ? 'Arbeitsstunden der Familie' : 'Arbeitsstunden', sub: [`noch ${hh(miss)} bis ${deD(period(y).to)}`, free ? `${free} ${free === 1 ? 'freier Dienst' : 'freie Dienste'}` : ''].filter(Boolean).join(' · '), focus: free ? 'frei' : '', tr: true }] };
   };
   /* Kalender-Abo der Mitglieder-App: eigene Dienste und zugesagte Termine (ohne dauerhafte Dienste) */
   ctx.hooks.calendarEvents = (id, { from, to }) => db.prepare(`SELECT e.* FROM aw_signup s JOIN aw_event e ON e.id = s.event_id WHERE s.member_id = ? AND s.answer = 'ja' AND e.cancelled = 0 AND e.permanent = 0 AND e.date >= ? AND e.date <= ? ORDER BY e.date, e.start LIMIT 300`)
     .all(id, from, to).map(e => ({ uid: `aw-${e.id}`, date: e.date, start: e.start || '', end: e.end || '', title: e.kind === 'termin' ? e.title : `${KIND[e.kind] || 'Dienst'}: ${e.title}`, place: e.place || '' }));
   ctx.hooks.pushEvents = () => [
     { id: 'erinnerung', label: 'Erinnerung an den Dienst', desc: 'Am Vortag eines Einsatzes oder Thekendienstes, für den du eingetragen bist.', default: true },
+    { id: 'aufgabe', label: 'Erinnerung an eine Aufgabe', desc: 'Kurz vor der Frist einer Aufgabe, die dir der Vorstand zugeteilt hat, und einmal, wenn die Frist abgelaufen ist.', default: true },
     { id: 'termin', label: 'Erinnerung an einen Termin', desc: 'Neue Termine mit Bitte um Antwort, kurz vor Ablauf der Antwortfrist und am Vortag eines Termins, zu dem du zugesagt hast.', default: true },
   ];
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
@@ -757,7 +765,7 @@ function activate(ctx) {
     const pend = db.prepare("SELECT COUNT(*) n FROM aw_entry WHERE status = 'offen'").get().n;
     const y = yearOf(today()); const o = await overview(y);
     return { kpis: [{ l: `Stunden geleistet ${o.label}`, v: `${Math.round(o.totals.done / 60)} von ${Math.round(o.totals.target / 60)} h` }, { l: 'zu bestätigen', v: pend }],
-      alerts: pend ? [{ level: 'a', text: `${pend} gemeldete Arbeitsstunden warten auf Bestätigung.` }] : [] };
+      alerts: [...(pend ? [{ level: 'a', text: `${pend} gemeldete Arbeitsstunden warten auf Bestätigung.` }] : []), ...aufg.overdueAlert()] };
   };
   /* Suche (Strg/⌘ K): Dienstpläne nach Titel oder Ort, Sprung in die Detailansicht */
   ctx.hooks.search = s => {
@@ -766,7 +774,7 @@ function activate(ctx) {
     return [{ group: 'Dienstpläne', art: 'dienstplan', page: 'aw-plaene', detail: true, hits: s.pick(rows, r => [r.title, r.place]).map(r => ({ id: r.id, label: r.title, person: false, score: r._score,
       sub: [r.from_date === r.to_date ? deD(r.from_date) : `${deD(r.from_date)} – ${deD(r.to_date)}`, r.place, r.published ? '' : 'Entwurf'] })) }];
   };
-  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact', 'ical_url'];
+  const CONFIG_KEYS = ['default_minutes', 'min_age', 'max_age', 'rate_cents', 'pool_family', 'exempt_passive', 'year_mode', 'prorate', 'tablet_auto', 'app_report', 'remind_date', 'remind_events', 'round', 'text', 'start_year', 'notify', 'contact', 'ical_url', 'task_keep_months'];
   ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });
   // nur bekannte Schlüssel übernehmen – eine fremde Datei darf keine beliebigen Einstellungen anlegen
   ctx.hooks.importConfig = d => { let n = 0; for (const [k, v] of Object.entries((d && d.settings) || {})) if (typeof v === 'string' && CONFIG_KEYS.includes(k)) { SET(k, v.slice(0, 600)); n++; } return `${n} Einstellungen übernommen – Dienste, Termine und Stunden gehören nicht dazu`; };
@@ -776,6 +784,7 @@ function activate(ctx) {
     try {
       if (!ctx.isActive()) return;
       await icalSync();
+      await aufg.daily({ mailOk: ctx.mail.ready() && ctx.isModuleActive('mitglieder'), mailOf: id => hook('memberAddress', id), club: ctx.getSetting('club_name', '') });
       const c = cfg(), club = ctx.getSetting('club_name', '');
       const mailOk = ctx.mail.ready() && ctx.isModuleActive('mitglieder');
       const mailOf = id => hook('memberAddress', id);   // { email, … } aus der Mitgliederverwaltung

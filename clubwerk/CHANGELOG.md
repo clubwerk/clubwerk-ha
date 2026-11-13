@@ -1,5 +1,27 @@
 # Änderungen
 
+## 2026.11.43
+
+### Neu
+- Spielbetrieb: Fahrgemeinschaften zu Auswärtsspielen. Wer zum Spiel fährt, bietet in der Mitglieder-App eine Fahrt an (Hinfahrt, Rückfahrt oder beides, Abfahrt, Treffpunkt, freie Plätze, kurzer Hinweis); Mitfahrer tragen sich mit einem Tipp ein, auch mit mehreren Personen. Wer noch eine Mitfahrt braucht, trägt ein Gesuch ein – Fahrer mit freien Plätzen nehmen ihn mit einem Tipp mit.
+- Die Fahrten sehen nur Teilnehmende des Spiels (aufgestellt, Ersatz, zugesagt), der Mannschaftsführer und die Verwaltung. Es gibt keine Telefonnummern und keinen Chat; der Abfahrtsort ist ein Treffpunkt, nicht die Wohnadresse.
+- Der Mannschaftsführer und die Verwaltung tragen Mitfahrer und Gesuche auch für andere ein, zum Beispiel für Kinder ohne eigenes Handy. Die Verwaltung sieht die Fahrten im Fenster des Spieltags und kann Fahrten entfernen.
+- Benachrichtigungen (vom Vorstand freigegeben): „Jemand fährt mit dir“ an den Fahrer und „Fahrt geändert“ an die Mitfahrenden. Wer für ein Spiel absagt, wird aus Fahrten herausgenommen.
+- Datenschutz: Fahrten, Mitfahrten und Gesuche werden 30 Tage nach dem Spieltag gelöscht (einstellbar von 7 bis 365 Tagen unter Einstellungen › Datenschutz); sie stehen in der Datenauskunft und im Verzeichnis der Verarbeitungstätigkeiten.
+- Dienste & Termine › Aufgaben: Der Vorstand legt Aufgaben an („Pokale bestellen“), teilt sie einer Person zu und setzt eine Frist. Die Liste zeigt offene, überfällige und erledigte Aufgaben; überfällige stehen zuerst. Es zählen keine Stunden.
+- Mitglieder-App: Wer eine Aufgabe hat, sieht sie unter „Für mich › Zu erledigen“ mit Frist-Schild („überfällig“, „in 3 Tagen fällig“) und kann sie dort mit einem Haken abhaken. Im Bereich „Dienste“ gibt es dafür den Umschalter „Aufgaben“ mit „Erledigt“, „Wieder öffnen“ und „Zurückgeben“ (mit kurzer Rückmeldung an den Vorstand).
+- Neue Benachrichtigung „Erinnerung an eine Aufgabe“: einige Tage vor der Frist und einmal, wenn sie abgelaufen ist – nie öfter. Der Vorstand gibt sie wie die übrigen Anlässe frei; auf Wunsch kommt zusätzlich eine E-Mail.
+- Nur die zugeteilte Person und die Verwaltung sehen eine Aufgabe. Die Startseite der Verwaltung weist auf überfällige Aufgaben hin; erledigte Aufgaben werden nach der Löschfrist aus Einstellungen › Datenschutz entfernt (Standard 12 Monate).
+
+### Verbessert
+- Verwaltung am Handy: Filterchips (z. B. „Alle 39“, „Liga A“) stehen überall in einer Zeile zum Wischen; kein einzelner Chip rutscht mehr allein in eine zweite Zeile.
+### Behoben
+- Mitglieder-App: Ein Tipp auf die eigene Platzbuchung unter „Für mich › Als Nächstes“ springt jetzt im Kalender zum Tag und zur Uhrzeit der Buchung und hebt sie kurz hervor. Das Fenster mit „Ändern“ und „Stornieren“ geht nicht mehr von selbst auf; es öffnet sich wie bisher durch Antippen der Buchung. Dasselbe gilt für Clubmeisterschaftsspiele: Der Tipp führt zum Spiel in der Liste, ohne gleich „Termin absagen“ anzubieten.
+- Platzkalender (Mitglieder-App „Ausführlich“, Tablet und Verwaltung): Die Namen im Buchungsblock stehen jetzt wie überall als „Nachname, Vorname“ und alphabetisch; mehrere Namen sind durch „·“ getrennt, damit sie sich nicht mit dem Komma vermischen.
+### Behoben
+- Mitglieder-App › Betrachter: Beim Zoomen mit zwei Fingern bleibt jetzt die Stelle unter den Fingern stehen, auch beim Verkleinern und Verschieben; vorher sprang die Ansicht zur linken oberen Ecke. „+“ und „–“ zoomen um die Mitte des sichtbaren Ausschnitts, Doppeltippen um die getippte Stelle – bei Bildern und PDFs.
+- Ein breites Bild springt nach dem Zoomen nicht mehr in die leere Fläche über oder unter dem Bild.
+
 ## 2026.11.42
 
 ### Neu

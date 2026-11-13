@@ -9,6 +9,7 @@
 const crypto = require('crypto');
 const konfigio = require('../../src/konfigio');   // gemeinsame Regeln für Funktionsexport/-import
 const { today, isDate, addDays, deD } = require('../../src/util');
+const FAHRTEN = require('../../src/fahrten');   // Fahrgemeinschaften (gemeinsamer Baustein)
 
 const isTime = s => /^([01]\d|2[0-3]):[0-5]\d$/.test(String(s || ''));
 const txt = (v, max = 120) => String(v == null ? '' : v).replace(/[\u0000-\u001f<>]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -326,6 +327,7 @@ function activate(ctx) {
     { id: 'knapp', label: 'Spielbetrieb: Zu wenige Spieler', desc: 'An den Mannschaftsführer, wenn für einen nahen Spieltag zu wenige können.', default: true },
     { id: 'rahmen', label: 'Spielbetrieb: Vorläufige Termine', desc: 'Der Sportwart fragt die Termine aus dem Rahmenterminplan ab – oder deine Mannschaft hat an einem davon spielfrei.', default: true },
     { id: 'aufgabe', label: 'Spielbetrieb: Aufgabe übernommen/zugeteilt', desc: 'Eine Aufgabe für einen Spieltag (z. B. Fahrer) wurde dir zugeteilt.', default: true },
+    ...FAHRTEN.events(),
   ];
   /* Mitglieder-App „Für mich“: next = Spieltage bis „until“, bei denen ich dabei bin (aufgestellt, Ersatz, zugesagt) – als Mannschaftsführer alle übrigen auch;
      unbeantwortete stehen nur unter todo (kein doppelter Eintrag);
@@ -455,6 +457,7 @@ function activate(ctx) {
           made.push(g);
         } else if (ex.date !== g.date || (g.start && ex.start !== g.start)) {
           db.prepare("UPDATE sp_game SET date = ?, start = ?, status = 'geplant', rem_players = 0, rem_captain = 0 WHERE id = ?").run(g.date, g.start || ex.start, ex.id);
+          FZ.touch(ex.id, g.date);
           moved.push({ id: ex.id, was: `${deD(ex.date)}${ex.start ? ' ' + ex.start : ''}` });
         } else same.push(g);
       }
@@ -541,6 +544,19 @@ function activate(ctx) {
     ctx.audit(by, 'Spielbetrieb: Aufstellung verschickt', `${gameTitle(g, t)} ${deD(g.date)}`);
   }
 
+  /* ---------- Fahrgemeinschaften zu Auswärtsspielen (Kern-Baustein src/fahrten.js) ----------
+     Sichtbar und nutzbar nur für Teilnehmende (aufgestellt, Ersatz, zugesagt) und den Mannschaftsführer; Verwaltung über die Verwaltungs-Routen. */
+  const rideInfo = (g, can, lead, t = null) => (!g || !g.released || g.home || g.kind === 'rahmen' ? null : {
+    title: gameTitle(g, t || team(g.team_id)), when: gameWhen(g), date: g.date, place: g.meet_place || '', depart: g.meet_time || '',
+    locked: g.status !== 'geplant' ? 'Dieser Spieltag ist abgesagt.' : g.date < today() ? 'Dieser Spieltag ist vorbei.' : '', can, lead });
+  const FZ = FAHRTEN.bind({ refType: 'spiel', audit: (u, a, d) => ctx.audit(u, a, d), tell: (ids, ev, m) => tell(ids, ev, m),
+    context: gameId => { const g = game(gameId);
+      return g && rideInfo(g, id => Boolean(db.prepare("SELECT 1 FROM sp_lineup WHERE game_id = ? AND member_id = ? UNION ALL SELECT 1 FROM sp_avail WHERE game_id = ? AND member_id = ? AND state = 'ja'").get(g.id, id, g.id, id)), id => isCaptain(id, g.team_id)); } });
+  /** wer nicht mehr „kann“ sagt, verschwindet aus Fahrten und Gesuchen dieses Spieltags */
+  const leaveRides = (g, me) => { if (!g.home && !db.prepare("SELECT 1 FROM sp_lineup WHERE game_id = ? AND member_id = ? AND role = 'spielt'").get(g.id, me)) FZ.withdraw(g.id, me); };
+  FZ.mountMember(M, ctx.rateLimitKey('spfahrt', 60, 86400000, req => (req.member && req.member.id) || req.ip));   // Anmeldungen/Tag je Mitglied
+  FZ.mountAdmin(admin, P);
+
   /* ================================================================= Mitglieder-App (/api/m/spielbetrieb/…) */
   const futureGames = teamIds => (teamIds.length ? db.prepare(`SELECT * FROM sp_game WHERE team_id IN (${teamIds.map(() => '?').join(',')}) AND date >= ? AND released = 1 ORDER BY date, start`).all(...teamIds, addDays(today(), -1)) : []);
   /** Ansprechpartner einer Mannschaft für die App: Mannschaftsführer (sonst Stellvertretung) mit Handynummer aus der Mitgliederverwaltung */
@@ -562,6 +578,9 @@ function activate(ctx) {
     // „In den Kalender“ je Spieltag (Link auf die .ics-Datei, derselbe Baustein wie bei Terminen); nicht für abgesagte und vorläufige Rahmentermine
     gs.forEach((g, i) => { if (g.status !== 'geplant' || g.kind === 'rahmen') return;
       games[i].ics = ctx.calendarLink({ uid: `sp-${g.id}`, date: g.date, start: g.start || '', title: gameTitle(g, teams.find(t => t.id === g.team_id) || {}), place: g.venue || '', note: g.meet_time || g.meet_place ? `Treffpunkt ${[g.meet_time, g.meet_place].filter(Boolean).join(', ')}` : '' }); });
+    // Fahrgemeinschaften: eine Abfrage je Tabelle für alle Auswärtsspiele (nur Teilnehmende bekommen sie)
+    const fz = FZ.views(gs.map(g => ({ refId: g.id, info: rideInfo(g, id => pre.lu(g.id).some(x => x.member_id === id) || pre.av(g.id).some(a => a.member_id === id && a.state === 'ja'), id => cap.includes(g.team_id), pre.team(g.team_id)) })), { id: me });
+    gs.forEach((g, i) => { const v = fz.get(g.id); if (v) games[i].rides = v; });
     const past = db.prepare(`SELECT g.*, l.role FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? AND l.role = 'spielt' AND g.date < ? AND g.date >= ? ORDER BY g.date DESC`).all(me, today(), `${today().slice(0, 4)}-01-01`);
     const contacts = c.capInfo ? await Promise.all(teams.map(t => contactOf(t, me))) : teams.map(() => null);
     res.json({ today: today(), teams: teams.map((t, i) => ({ id: t.id, name: t.name, league: t.league, min: t.min_players, lead: cap.includes(t.id), player: playIn.has(t.id), captain: t.captain_id ? short(memberName(t.captain_id)) : null, contact: contacts[i] })),
@@ -592,6 +611,7 @@ function activate(ctx) {
     if (b.state == null || b.state === '') {
       db.prepare('DELETE FROM sp_avail WHERE game_id = ? AND member_id = ?').run(g.id, me);
       if (l && l.role === 'ersatz') db.prepare('DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ?').run(g.id, me);
+      leaveRides(g, me);
       return res.json({ ok: true });
     }
     if (!['ja', 'nein'].includes(b.state)) return bad(res, 'Bitte „kann“ oder „kann nicht“ wählen.');
@@ -607,6 +627,7 @@ function activate(ctx) {
       db.prepare('DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ?').run(g.id, me);
       tell(leaders(t), 'absage', { title: `Ersatz sagt ab: ${short(req.member.name)}`, body: `${gameTitle(g, t)}, ${gameWhen(g)}` });
     }
+    if (b.state === 'nein') leaveRides(g, me);
     res.json({ ok: true });
   });
   /** Ein Tag, mehrere Mannschaften: alle beantwortbaren Spieltage dieses Tags in einer Anfrage (state ja | nein | null) */
@@ -625,6 +646,7 @@ function activate(ctx) {
       ins.run(g.id, me, st);
       if (st === 'nein' && l && l.role === 'ersatz') { const tm0 = team(g.team_id); db.prepare('DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ?').run(g.id, me); tell(leaders(tm0), 'absage', { title: `Ersatz sagt ab: ${short(req.member.name)}`, body: `${gameTitle(g, tm0)}, ${gameWhen(g)}` }); }
     }))();
+    if (st !== 'ja') gs.forEach(g => leaveRides(g, me));
     res.json({ ok: true, n: gs.length });
   });
   /** Saisonstart: alle offenen Spieltage einer Mannschaft auf einmal beantworten */
@@ -651,6 +673,7 @@ function activate(ctx) {
       db.prepare('DELETE FROM sp_lineup WHERE game_id = ? AND member_id = ?').run(g.id, me);
       db.prepare(`INSERT INTO sp_avail(game_id, member_id, state, note) VALUES (?,?, 'nein', ?) ON CONFLICT(game_id, member_id) DO UPDATE SET state = 'nein', note = excluded.note, at = datetime('now','localtime')`).run(g.id, me, txt(b.note, 140) || null);
       tell(leaders(t), 'absage', { title: `Ersatz sagt ab: ${short(req.member.name)}`, body: `${gameTitle(g, t)}, ${gameWhen(g)}` });
+      leaveRides(g, me);
       return res.json({ ok: true, direct: true });
     }
     db.prepare("UPDATE sp_lineup SET withdraw = 1, withdraw_note = ?, withdraw_at = datetime('now','localtime') WHERE game_id = ? AND member_id = ?").run(txt(b.note, 200) || null, g.id, me);
@@ -997,6 +1020,7 @@ function activate(ctx) {
     let v; try { v = gameInput(req.body || {}, g); } catch (e) { return bad(res, e.message); }
     db.prepare('UPDATE sp_game SET team_id = ?, date = ?, start = ?, home = ?, opponent = ?, venue = ?, status = ?, meet_time = ?, meet_place = ?, note = ?, result = ? WHERE id = ?')
       .run(v.team_id, v.date, v.start, v.home, v.opponent, v.venue, v.status, v.meet_time, v.meet_place, v.note, v.result, g.id);
+    FZ.touch(g.id, v.date);
     const t = team(v.team_id), ng = game(g.id);
     if (v.status === 'abgesagt' && g.status !== 'abgesagt') tell([...roster(t.id).map(r => r.member_id), ...leaders(t)], 'verlegt', { title: `Abgesagt: ${gameTitle(ng, t)}`, body: gameWhen(g) });
     else if (v.date !== g.date || v.start !== g.start) {
@@ -1009,6 +1033,7 @@ function activate(ctx) {
   admin.delete('/games/:id', P, (req, res) => {
     const g = game(req.params.id); if (!g) return bad(res, 'Spieltag nicht gefunden.', 404);
     db.prepare('DELETE FROM sp_game WHERE id = ?').run(g.id);
+    FZ.dropRef(g.id);
     ctx.audit(req.user, 'Spielbetrieb: Spieltag gelöscht', `${deD(g.date)} ${g.opponent}`);
     res.json({ ok: true });
   });
@@ -1201,7 +1226,11 @@ function activate(ctx) {
   setInterval(tick, process.env.CW_TEST_FAST ? 1500 : 30 * 60000).unref();
 
   /* ----- Mitglied löschen: Mannschaften, in denen es spielt oder die es führt ----- */
-  ctx.hooks.privacyRecord = () => [{ purpose: 'Mannschaften, Spieltage, Aufstellungen und Aufgaben', data: 'Name, Mannschaft, Zu- und Absagen, Aufstellung; bei Gastspielern Telefon und Verein', persons: 'Spielerinnen und Spieler, Gastspieler' }];
+  ctx.hooks.privacyRecord = () => [{ purpose: 'Mannschaften, Spieltage, Aufstellungen und Aufgaben', data: 'Name, Mannschaft, Zu- und Absagen, Aufstellung; bei Gastspielern Telefon und Verein', persons: 'Spielerinnen und Spieler, Gastspieler' },
+    { title: 'Fahrgemeinschaften zu Auswärtsspielen', purpose: 'Fahrten und Mitfahrten zu Auswärtsspielen organisieren', data: 'Name, Abfahrtsort und -zeit, freie Plätze, Hinweis, Zahl der Mitfahrenden (keine Telefonnummern); sichtbar nur für Teilnehmende des Spiels und den Mannschaftsführer', persons: 'Spielerinnen und Spieler, die Fahrten anbieten oder Mitfahrten suchen' }];
+  /* Datenschutz: Fahrgemeinschaften werden nach dem Spieltag gelöscht (Frist einstellbar) */
+  ctx.hooks.retention = () => [{ id: 'fahrten', label: 'Fahrgemeinschaften', text: 'Fahrten, Mitfahrten und Gesuche zu Auswärtsspielen, gerechnet ab dem Spieltag.', unit: 'tage', value: Math.max(7, Math.min(365, int(S('fahrt_tage', '30')) || 30)), def: 30, min: 7, max: 365,
+    due: cut => FZ.due(cut), purge: cut => FZ.purge(cut), set: v => SET('fahrt_tage', v) }];
   /* Datenauskunft: Mannschaften, Zu-/Absagen, Aufstellungen, Aufgaben, Angaben als Gastspieler */
   ctx.hooks.memberData = id => ({
     mannschaften: db.prepare('SELECT t.name AS mannschaft, t.season AS saison, p.rank AS position FROM sp_player p JOIN sp_team t ON t.id = p.team_id WHERE p.member_id = ? ORDER BY t.id').all(id),
@@ -1209,6 +1238,7 @@ function activate(ctx) {
     aufstellungen: db.prepare('SELECT g.date AS datum, g.opponent AS gegner, l.role AS rolle, l.withdraw AS abgemeldet FROM sp_lineup l JOIN sp_game g ON g.id = l.game_id WHERE l.member_id = ? ORDER BY g.date').all(id),
     aufgaben: db.prepare('SELECT g.date AS datum, k.label AS aufgabe FROM sp_task k JOIN sp_game g ON g.id = k.game_id WHERE k.member_id = ? ORDER BY g.date').all(id),
     gastspieler: db.prepare('SELECT phone AS telefon, club AS verein, created_at AS angelegt, last_seen AS zuletzt FROM sp_extern WHERE member_id = ?').get(id) || null,
+    ...FZ.dataOf(id, gid => { const g = game(gid); return g ? gameTitle(g, team(g.team_id)) : ''; }),
   });
   ctx.hooks.memberLinks = id => {
     const out = [], ts = rows => rows.map(r => r.name).join(', ');
@@ -1227,7 +1257,7 @@ function activate(ctx) {
   };
 
   /* ----- Funktionsexport: Mannschaften und Einstellungen ----- */
-  ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note, age_class FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].map(k => [k, S(k)])) });
+  ctx.hooks.exportConfig = () => ({ teams: db.prepare('SELECT name, league, season, min_players, active, note, age_class FROM sp_team').all(), settings: Object.fromEntries(['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za', 'fahrt_tage'].map(k => [k, S(k)])) });
   /* Import: gleiche Mannschaft (Name, Liga, Altersklasse) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
@@ -1239,7 +1269,7 @@ function activate(ctx) {
         const v = { name, league: txt(t.league, 80) || null, season: txt(t.season, 30) || null, min_players: Math.max(1, Math.min(20, int(t.min_players) || 4)), active: t.active === 0 ? 0 : 1, note: txt(t.note, 300) || null, import_key: IMP.norm(name), age_class: txt(t.age_class, 30) || null };
         z('Mannschaften', konfigio.schreibe(db, 'sp_team', v, found));
       }
-      for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za'].includes(k)) SET(k, v.slice(0, 2000));
+      for (const [k, v] of Object.entries(data.settings || {})) if (typeof v === 'string' && ['see_avail', 'see_lineup', 'cap_info', 'times', 'tasks', 'remind', 'remind_days', 'captain_days', 'mail', 'task_kinds', 'za', 'fahrt_tage'].includes(k)) SET(k, v.slice(0, 2000));
     })();
     if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
     z.hinweis('Spieler und Spieltage bitte neu zuordnen bzw. importieren');

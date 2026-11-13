@@ -20,6 +20,8 @@
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; line-height: 15px; font-size: 12px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung statt Bruch mitten im Wort, kein „…“; nur ganze Zeilen (theme-init.js blendet aus, was nicht mehr ganz passt) (02.11.2026) */
       .bkm-plan:not(.wide) .bkm-blk > b, .bkm-plan:not(.wide) .bkm-blk > span { hyphens: manual; -webkit-hyphens: manual; overflow-wrap: normal; }   /* Kompakt: Kürzel brechen nie mitten im Wort */
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-family: var(--num); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
+      @keyframes bkmHit { 0%, 70% { outline-color: var(--ink); } 100% { outline-color: transparent; } }
+      .bkm-blk.hit, .bkm-pill.hit { outline: 3px solid var(--ink); outline-offset: 1px; animation: bkmHit 2.2s ease-out; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card), var(--shadow); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
       .bkm-nowbar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
@@ -248,7 +250,7 @@
         const blk = (r, b) => {
           const s0 = tm(b.start), e0 = tm(b.end), h = Math.max(20, y(e0) - y(s0) - 2), n = Math.max(1, Math.floor((h - (wide ? 10 : 8)) / (wide ? 16 : 15)));
           // Spieler je eine Zeile („Max M.“) – auf einen Blick, wer gerade spielt; die Uhrzeit nur, wenn noch Platz ist
-          const names = b.type === 'buchung' && b.who ? [...b.who.map(wide ? (x => x) : shortName), ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
+          const names = b.type === 'buchung' && b.who ? [...(wide && b.list ? b.list : b.who.map(shortName)), ...(b.partner_device_name ? [b.partner_device_name] : []), ...(b.solo_label ? [b.solo_label] : [])] : [];
           const head = b.type === 'sperre' ? (b.title || 'gesperrt') : b.label ? b.label.name : b.type === 'serie' ? (b.title || 'Training') : '';
           const hm = t => (wide || t.slice(3) !== '00' ? t : String(+t.slice(0, 2)));   // schmal: volle Stunden kurz („20–22“), damit die Zeit nicht abgeschnitten wird
           const time = `${hm(b.start)}–${hm(b.end)}`;
@@ -256,7 +258,7 @@
           // Kompakt: nur Kürzel („DG · SH“) und Zeit – ganze Namen und Buchungsart stehen beim Antippen und in „Ausführlich“ (planung/ui-review.md Punkt 9)
           if (!wide) { const ini = x => String(x).split(/[ ,.]+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase(); ln = b.type === 'sperre' ? [['gesperrt', 'b']] : names.length ? [[names.map(ini).join(' · '), 'b']] : b.label ? [] : [[b.mine ? 'Ich' : 'belegt', 'b']]; }
           if (ln.length < n) ln.push([time, 'tm']);
-          else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(', '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
+          else if (ln.length > n) { const rest = ln.length - n + 1; ln = n === 1 ? [[ln.map(x => x[0]).join(' · '), 'b']] : [...ln.slice(0, n - 1), [`+${rest} weitere`, 'tm']]; }
           // Buchungsart (z. B. Medenspiel) behält immer ihre Farbe – auch bei eigenen Buchungen; „meine“ zeigt dann ein Rahmen in Vereinsfarbe
           const st = b.label ? `background:${b.label.color};color:${ink(b.label.color)};border-color:transparent;` : '';
           return `<button lang="de" class="bkm-blk ${b.mine ? 'mine' : ''} ${b.label ? 'lab' : ''} ${b.type === 'sperre' ? 'sperre' : ''}" data-s="${s0}" style="top:${y(s0) + 1}px;height:${h}px;${st}">${ln.map(([x, c]) => (c === 'b' ? `<b>${esc(x)}</b>` : `<span class="${c}">${esc(x)}</span>`)).join('')}</button>`;
@@ -549,9 +551,22 @@
       }
       const timer = setInterval(() => { if (!document.hidden && !(document.getElementById('bkmSheet') || {}).classList?.contains('show')) load(); }, 60000);
       el.innerHTML = '<div class="vh-empty">Lade …</div>';
-      load().then(() => {   // aus „Für mich“ angetippt: gleich die Buchung mit „Ändern“ / „Stornieren“ öffnen
+      /* aus „Für mich“ angetippt: im Kalender zum Tag und zur Uhrzeit der Buchung springen und sie kurz hervorheben – das Fenster
+         mit „Ändern“ / „Stornieren“ geht nicht von selbst auf (Antippen der Buchung im Kalender bzw. „Ändern“ in der Hauptkarte) */
+      function jumpTo(m) {
+        const s0 = tm(m.start);
+        const t = view === 'zeiten'
+          ? [...el.querySelectorAll(`.bkm-pill[data-r="${m.resource_id}"]`)].filter(x => +x.dataset.s <= s0).pop()
+          : el.querySelector(`.bkm-plan .cl[data-r="${m.resource_id}"] .bkm-blk[data-s="${s0}"]`);
+        if (!t) return;
+        t.scrollIntoView({ block: 'center', inline: 'center' });
+        t.classList.add('hit'); setTimeout(() => t.classList.remove('hit'), 2300);
+      }
+      load().then(async () => {
         const f = /^b(\d+)$/.exec(String(ctx.focus || '')), m = f && data && data.mine.find(x => x.id === +f[1]);
-        if (m) (m.canEdit ? manageSheet(m) : cancelSheet(m));
+        if (!m) return;
+        if (m.date !== day) { day = m.date; await load(); }
+        jumpTo(m);
       });
     },
   });

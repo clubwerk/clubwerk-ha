@@ -1,5 +1,23 @@
 -- Clubwerk Demo-Daten (erfunden): Spielbetrieb. Bearbeiten: siehe werkzeuge/demo/aufteilen.js
 BEGIN;
+CREATE TABLE IF NOT EXISTS fz_request (
+  ref_type TEXT NOT NULL, ref_id INTEGER NOT NULL, ref_date TEXT NOT NULL, member_id INTEGER NOT NULL REFERENCES members(id),
+  persons INTEGER NOT NULL DEFAULT 1, dir TEXT NOT NULL DEFAULT 'beide', created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (ref_type, ref_id, member_id)
+);
+CREATE TABLE IF NOT EXISTS fz_ride (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, ref_type TEXT NOT NULL, ref_id INTEGER NOT NULL, ref_date TEXT NOT NULL,
+  driver_id INTEGER NOT NULL REFERENCES members(id), dir TEXT NOT NULL DEFAULT 'hin', depart TEXT NOT NULL, place TEXT NOT NULL,
+  seats INTEGER NOT NULL, note TEXT, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS fz_seat (
+  ride_id INTEGER NOT NULL REFERENCES fz_ride(id) ON DELETE CASCADE, member_id INTEGER NOT NULL REFERENCES members(id),
+  persons INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), PRIMARY KEY (ride_id, member_id)
+);
+CREATE INDEX IF NOT EXISTS ix_fz_request_member ON fz_request(member_id);
+CREATE INDEX IF NOT EXISTS ix_fz_ride_driver ON fz_ride(driver_id);
+CREATE INDEX IF NOT EXISTS ix_fz_ride_ref ON fz_ride(ref_type, ref_id);
+CREATE INDEX IF NOT EXISTS ix_fz_seat_member ON fz_seat(member_id);
 CREATE TABLE IF NOT EXISTS sp_avail (
   game_id INTEGER NOT NULL REFERENCES sp_game(id) ON DELETE CASCADE, member_id INTEGER NOT NULL REFERENCES members(id),
   state TEXT NOT NULL,                                          -- ja | nein
@@ -43,6 +61,12 @@ CREATE INDEX IF NOT EXISTS ix_sp_task_game ON sp_task(game_id);
 INSERT INTO "settings"(key, value) VALUES('ext_spielbetrieb_ics_key','245cdc0f1342d111142539ee7e3b55793e5f6fa142ef9935');
 INSERT INTO "settings"(key, value) VALUES('ext_spielbetrieb_tasks','1');
 INSERT INTO "settings"(key, value) VALUES('ext_spielbetrieb_task_kinds','[{"k":"fahrer","l":"Fahrer","when":"auswaerts"},{"k":"bewirtung","l":"Bewirtung","when":"heim"},{"k":"kuchen","l":"Kuchen backen","when":"heim"},{"k":"baelle","l":"Bälle mitbringen","when":"immer"},{"k":"bericht","l":"Spielbericht eintragen","when":"immer"}]');
+INSERT INTO "fz_request"(ref_type, ref_id, ref_date, member_id, persons, dir, created_at) VALUES('spiel',2,'2026-11-04',7,1,'hin','2026-10-20 19:05:00');
+INSERT INTO "fz_ride"(id, ref_type, ref_id, ref_date, driver_id, dir, depart, place, seats, note, created_at) VALUES(1,'spiel',2,'2026-11-04',4,'beide','08:30','Parkplatz am Clubhaus',3,'Rückfahrt nach dem Essen, gegen 17 Uhr','2026-10-19 18:20:00');
+INSERT INTO "fz_ride"(id, ref_type, ref_id, ref_date, driver_id, dir, depart, place, seats, note, created_at) VALUES(2,'spiel',2,'2026-11-04',3,'hin','09:00','Marktplatz Musterstadt, Bushaltestelle an der Kirche (Seitenstraße hinter dem Rathaus)',4,'Kindersitz vorhanden','2026-10-19 18:42:00');
+INSERT INTO "fz_ride"(id, ref_type, ref_id, ref_date, driver_id, dir, depart, place, seats, note, created_at) VALUES(3,'spiel',12,'2026-11-07',16,'hin','12:45','Parkplatz am Clubhaus',4,NULL,'2026-10-20 07:55:00');
+INSERT INTO "fz_seat"(ride_id, member_id, persons, created_at) VALUES(1,5,1,'2026-10-19 19:01:00');
+INSERT INTO "fz_seat"(ride_id, member_id, persons, created_at) VALUES(1,6,2,'2026-10-19 20:12:00');
 INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(4,14,'ja',NULL,NULL,NULL,'2026-09-30 14:53:03');
 INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(4,16,'ja',NULL,NULL,NULL,'2026-09-30 14:53:03');
 INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(4,18,'ja',NULL,NULL,NULL,'2026-09-30 14:53:03');
@@ -134,9 +158,12 @@ INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VAL
 INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(1,8,'ja',NULL,NULL,NULL,'2026-03-20 19:10:55');
 INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(2,3,'ja',NULL,NULL,NULL,'2026-03-20 19:10:55');
 INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(2,4,'ja',NULL,NULL,NULL,'2026-03-20 19:10:55');
+INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(2,5,'ja',NULL,NULL,NULL,'2026-10-19 18:00:00');
+INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(2,6,'ja',NULL,NULL,NULL,'2026-10-19 18:00:00');
+INSERT INTO "sp_avail"(game_id, member_id, state, from_t, until_t, note, at) VALUES(2,7,'ja',NULL,NULL,NULL,'2026-10-19 18:00:00');
 INSERT INTO "sp_extern"(member_id, phone, club, token, created_by, created_at, last_seen, token_at) VALUES(13,'0171 2223333','TC Nachbarort','PpWOkYt3sXCLaACOKotw2keT','Adminkonto','2026-02-13 14:52:50',NULL,'2026-10-21 17:26:50');
 INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, venue, league, ext_key, status, meet_time, meet_place, note, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released) VALUES(1,1,'2026-10-28','10:00',1,'TC Nachbarort 1',NULL,NULL,NULL,'geplant',NULL,NULL,NULL,NULL,0,0,NULL,'Adminkonto','2026-02-13 14:52:50','spiel',0,1);
-INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, venue, league, ext_key, status, meet_time, meet_place, note, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released) VALUES(2,1,'2026-11-04','10:00',0,'TC Nachbarort 2',NULL,NULL,NULL,'geplant',NULL,NULL,NULL,NULL,0,0,NULL,'Adminkonto','2026-02-13 14:52:50','spiel',0,1);
+INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, venue, league, ext_key, status, meet_time, meet_place, note, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released) VALUES(2,1,'2026-11-04','10:00',0,'TC Nachbarort 2','Tennisanlage Nachbarort, Sportweg 5',NULL,NULL,'geplant','08:30','Parkplatz am Clubhaus',NULL,NULL,0,0,NULL,'Adminkonto','2026-02-13 14:52:50','spiel',0,1);
 INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, venue, league, ext_key, status, meet_time, meet_place, note, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released) VALUES(3,1,'2026-11-11','10:00',1,'TC Nachbarort 3',NULL,NULL,NULL,'geplant',NULL,NULL,NULL,NULL,0,0,NULL,'Adminkonto','2026-02-13 14:52:50','spiel',0,1);
 INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, venue, league, ext_key, status, meet_time, meet_place, note, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released) VALUES(4,2,'2026-10-03','14:00',1,'TC Blau-Weiß Beispielstadt',NULL,NULL,NULL,'geplant',NULL,NULL,NULL,'4:2',0,0,'2026-10-21 14:53:03','Adminkonto','2026-09-30 14:53:03','spiel',0,1);
 INSERT INTO "sp_game"(id, team_id, date, start, home, opponent, venue, league, ext_key, status, meet_time, meet_place, note, result, rem_players, rem_captain, lineup_sent_at, created_by, created_at, kind, za, released) VALUES(5,2,'2026-10-17','14:00',0,'TV Musterdorf','Tennishalle Musterdorf, Hallenweg 3',NULL,NULL,'geplant','12:45','Parkplatz am Clubhaus',NULL,'3:3',0,0,'2026-10-21 14:53:04','Adminkonto','2026-09-30 14:53:03','spiel',0,1);
