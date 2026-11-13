@@ -1,0 +1,7 @@
+PDF.js (Mozilla), Version 6.5.438, Apache-2.0 (Datei LICENSE).
+Quelle: npm-Paket pdfjs-dist 6.5.438, Ordner legacy/build (pdf.min.mjs, pdf.worker.min.mjs) unverändert.
+Nicht enthalten: Betrachter-Oberfläche, Schriften, CMaps, WebAssembly-Teile (JPEG2000/JBIG2/ICC) – die App erlaubt kein WebAssembly.
+Aktualisieren: neue Version von pdfjs-dist laden, beide Dateien ersetzen, Version hier und in planung/pdf-vorschau.md eintragen.
+SHA-256 (von werkzeuge/paket.sh geprüft; nur unveränderte Fremddateien sind von der Suche nach Geheimnissen ausgenommen, weil kurze Muster wie PINs im minimierten Code zufällig vorkommen):
+522ad2c83bc8a0010e7f0cc60d0892b77c8d2bf2c9702dc12288311d94270f42  pdf.min.mjs
+b4c8353ded0d88d2e2009574a29eb4e0c3ff7e942ecdf51ef5f71566a9667f31  pdf.worker.min.mjs

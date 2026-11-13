@@ -396,7 +396,7 @@ function startPort({ rateLimit, rateLimitKey, memberBalance }) {
     res.setHeader('Referrer-Policy', 'no-referrer');
     // Die App darf zusätzlich die lokale Adresse (im Vereinsheim) bzw. die öffentliche Adresse ansprechen
     const own = [originOf(lanUrl()), tunnelOn() ? originOf(tunnelUrl()) : ''].filter(Boolean);
-    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${own.join(' ')}; frame-src 'self' blob: ${own.join(' ')}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' ${own.join(' ')}`);
+    res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${own.join(' ')}; frame-src 'self' ${own.join(' ')}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' ${own.join(' ')}`);
     // Die öffentliche App bettet im Vereinsheim die lokale Adresse ein (Inlay) – nur die eigenen Adressen dürfen einbetten
     if (own.length) res.removeHeader('X-Frame-Options');
     // CORS nur zwischen den beiden eigenen Adressen (öffentlich ↔ lokal): die App von app.verein.de ruft im WLAN https://lan…:5001 auf

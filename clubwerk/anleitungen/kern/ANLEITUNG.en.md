@@ -241,7 +241,7 @@ From top to bottom:
 - **Visible in the app:** how long the message stays in the app (default, 1 to 24 months).
 - **Pin to the top:** stays at the top of the app until you unpin it.
 - **Subject** and **text** with a toolbar: bold, italic, underline, headings, lists, quote, divider line, link. **Placeholder …** inserts, for example, the salutation or first name, replaced for each recipient. **Template …** inserts a saved template.
-- **＋ Attach file** or drag files in: up to 10 MB per file, 20 MB in total.
+- **＋ Attach file** or drag files in: up to 10 MB per file, 20 MB in total. In the member app, images and PDFs open full screen inside the app: PDFs with all pages one below the other, with two-finger zoom, double-tap and “+”/“–”, plus a “Share/Save” button. Other files go through the phone’s share menu.
 - **＋ Attach poll** (only with “In the member app”): question, 2 to 10 answers, **Result for members** (after their own vote, only after the end, or never), **End** (empty = until you end it), **multiple answers allowed** and **anonymous**. Members vote in the app; each member has one vote and can change it until the end. Anonymous means nobody in Clubwerk can see who chose what – not even the admin area. It does not replace a secret ballot under your statutes.
 - At the bottom: **Save as template**, **Discard**, **Preview** (“This is how it looks for …”) and **Sending …**. Before sending Clubwerk asks, showing the number of recipients.
 

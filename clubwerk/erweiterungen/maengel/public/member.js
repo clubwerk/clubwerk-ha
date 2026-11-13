@@ -165,6 +165,12 @@
           ${r.photos.length ? `<div class="mg-big">${r.photos.map(p => `<img data-auth-src="api/m/maengel/foto/${p}" alt="">`).join('')}</div>` : ''}
           <div class="vh-row"><button class="ok" id="mgDx" type="button">Schließen</button></div></div>`;
         sh.querySelector('#mgDx').onclick = () => sh.classList.remove('show');
+        // Foto antippen: groß im Betrachter der App (Zoom, Teilen/Sichern)
+        sh.querySelectorAll('.mg-big img').forEach((im, i) => {
+          im.tabIndex = 0; im.setAttribute('role', 'button'); im.setAttribute('aria-label', 'Foto vergrößern'); im.style.cursor = 'pointer';
+          const gross = async () => { try { ctx.view(await ctx.blob('foto/' + r.photos[i]), `Foto ${i + 1}`, 'image'); } catch (e) { ctx.toast(e.message, true); } };
+          im.onclick = gross; im.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); gross(); } };
+        });
         sh.classList.add('show');
       }
       async function load() {

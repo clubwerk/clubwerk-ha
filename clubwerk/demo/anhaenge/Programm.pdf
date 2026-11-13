@@ -3,30 +3,64 @@
 <</Type/Catalog/Pages 2 0 R>>
 endobj
 2 0 obj
-<</Type/Pages/Kids[3 0 R]/Count 1>>
+<</Type/Pages/Kids[5 0 R 7 0 R 9 0 R]/Count 3>>
 endobj
 3 0 obj
-<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>
+<</Type/Font/Subtype/Type1/BaseFont/Helvetica/Encoding/WinAnsiEncoding>>
 endobj
 4 0 obj
-<</Length 183>>
+<</Length 268>>
 stream
-BT /F1 18 Tf 60 760 Td 22 TL (Programm Saisonabschluss (Beispiel)) Tj T* (17:00 Begruessung im Vereinsheim) Tj T* (17:30 Grillen) Tj T* (19:00 Siegerehrung Clubmeisterschaft) Tj T* ET
+BT /F1 28 Tf 50 752 Td (Programm Saisonabschluss) Tj ET
+BT /F1 18 Tf 50 692 Td (Samstag, 18 Uhr: Begrüßung am Vereinsheim) Tj ET
+BT /F1 18 Tf 50 658 Td (Grillen, Getränke und Musik) Tj ET
+BT /F1 18 Tf 50 624 Td (Ehrungen der Clubmeister) Tj ET
+0.5 g 50 732 495 3 re f
 endstream
 endobj
 5 0 obj
-<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 4 0 R/Resources<</Font<</F1 3 0 R>>>>>>
+endobj
+6 0 obj
+<</Length 272>>
+stream
+BT /F1 28 Tf 50 752 Td (Wegbeschreibung und Parken) Tj ET
+BT /F1 18 Tf 50 692 Td (Parkplätze hinter dem Vereinsheim) Tj ET
+BT /F1 18 Tf 50 658 Td (Bitte Fahrgemeinschaften bilden) Tj ET
+BT /F1 18 Tf 50 624 Td (Fußweg vom Bahnhof: 10 Minuten) Tj ET
+0.5 g 50 732 495 3 re f
+endstream
+endobj
+7 0 obj
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]/Contents 6 0 R/Resources<</Font<</F1 3 0 R>>>>>>
+endobj
+8 0 obj
+<</Length 269>>
+stream
+BT /F1 28 Tf 50 505 Td (Anmeldung bis Freitag) Tj ET
+BT /F1 18 Tf 50 445 Td (Bitte über die Mitglieder-App zu- oder absagen) Tj ET
+BT /F1 18 Tf 50 411 Td (Rückfragen an den Vorstand) Tj ET
+BT /F1 18 Tf 50 377 Td (Wir freuen uns auf euch!) Tj ET
+0.5 g 50 485 742 3 re f
+endstream
+endobj
+9 0 obj
+<</Type/Page/Parent 2 0 R/MediaBox[0 0 842 595]/Contents 8 0 R/Resources<</Font<</F1 3 0 R>>>>>>
 endobj
 xref
-0 6
+0 10
 0000000000 65535 f 
 0000000009 00000 n 
 0000000054 00000 n 
-0000000105 00000 n 
-0000000217 00000 n 
-0000000449 00000 n 
+0000000117 00000 n 
+0000000205 00000 n 
+0000000521 00000 n 
+0000000633 00000 n 
+0000000953 00000 n 
+0000001065 00000 n 
+0000001382 00000 n 
 trailer
-<</Size 6/Root 1 0 R>>
+<</Size 10/Root 1 0 R>>
 startxref
-512
+1494
 %%EOF

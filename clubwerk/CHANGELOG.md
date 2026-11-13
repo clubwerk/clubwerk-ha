@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2026.11.42
+
+### Neu
+- Mitglieder-App: PDFs und Bilder öffnen in einem eigenen Betrachter im Vollbild, ohne die App zu verlassen. PDFs zeigen alle Seiten untereinander, scharf und in Bildschirmbreite; Bilder füllen die Breite.
+- Zoomen mit zwei Fingern, Doppeltippen oder „+“/„–“; dazu der Knopf „Teilen/Sichern“ und die Seitenzahl („Seite 2 von 5“). Ein beschädigtes oder passwortgeschütztes PDF bekommt eine verständliche Meldung.
+- Mängelmelder: Ein Foto in der Meldung lässt sich antippen und groß ansehen.
+
+### Verbessert
+- PDF-Anhänge in Nachrichten erscheinen auf iPhone, iPad und Android-Handys jetzt als Vorschau statt über das Teilen-Menü; große PDFs laden Seite für Seite beim Scrollen.
+- Die Lesehilfe wird erst beim Öffnen des ersten PDFs geladen; der Start der App bleibt gleich schnell.
+
 ## 2026.11.41
 
 ### Behoben

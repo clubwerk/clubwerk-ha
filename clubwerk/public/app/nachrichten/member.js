@@ -1,6 +1,6 @@
 'use strict';
 /* Nachrichten – Postfach in der Mitglieder-App: Liste (ungelesene fett, angeheftete zuerst), einzelne Nachricht, Anhänge.
-   Alles bleibt in der App: Anhänge öffnen in einem Blatt über der Seite, Links sind nur Text (kein neues Fenster, kein Safari). */
+   Alles bleibt in der App: Anhänge öffnen im Betrachter der App (Vollbild-Blatt), Links sind nur Text (kein neues Fenster, kein Safari). */
 (() => {
   if (!window.VA) return;
   if (!document.getElementById('nxStyle')) {
@@ -23,9 +23,6 @@
       .nx-body .vh-url { color: var(--brand-ink); font-weight: 600; overflow-wrap: anywhere; }
       .nx-files > button { text-align: left; font: inherit; color: inherit; background: none; border: 0; border-top: 1px solid var(--line); cursor: pointer; }
       .nx-files > button:first-child { border-top: 0; }
-      .nx-view { display: flex; align-items: center; justify-content: center; max-height: 60vh; overflow: auto; background: var(--hover); border-radius: 12px; margin: 0 0 12px; }
-      .nx-view img { max-width: 100%; height: auto; display: block; }
-      .nx-view iframe { width: 100%; height: 58vh; border: 0; background: #fff; }
       .nx-q { margin: 0 0 12px; font-size: 16px; line-height: 1.4; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
       .nx-opt { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); font-size: 15px; cursor: pointer; }
       .nx-opt:first-child { border-top: 0; padding-top: 2px; }
@@ -45,31 +42,13 @@
   window.VA.registerSection({
     id: 'nachrichten',
     render(el, ctx) {
-      let blobUrl = '';
-      const sheet = () => { let sh = document.getElementById('nxFile'); if (!sh) { sh = document.createElement('div'); sh.id = 'nxFile'; sh.className = 'vh-sheet'; document.body.appendChild(sh); } return sh; };
-      const closeFile = () => { const sh = document.getElementById('nxFile'); if (sh) sh.classList.remove('show'); if (blobUrl) { URL.revokeObjectURL(blobUrl); blobUrl = ''; } };
-      ctx.onLeave(closeFile);
+      ctx.onLeave(ctx.closeView);
 
-      /* Anhang ansehen: Bilder und PDF im Blatt über der App, alles andere als Download (Teilen-Menü, wo das Handy es kann) */
-      /* PDF im Blatt nur, wo der Browser es im Rahmen zeigt: iPhone/iPad zeigen darin höchstens die erste Seite, Android-Handys nichts – dort Teilen/Speichern */
-      const iOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      const pdfImRahmen = !iOS && navigator.pdfViewerEnabled !== false;
+      /* Anhang ansehen: Bilder und PDF im Vollbild-Betrachter der App (ctx.view, PDF.js lokal), alles andere als Download (Teilen-Menü, wo das Handy es kann) */
       async function openFile(msgId, f) {
         let blob;
         try { blob = await ctx.blob(`file/${msgId}/${f.id}`); } catch (e) { ctx.toast(e.message, true); return; }
-        if (f.kind === 'other' || (f.kind === 'pdf' && !pdfImRahmen)) {
-          const file = new File([blob], f.name, { type: blob.type });
-          try { if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; } } catch (e) { if (e && e.name === 'AbortError') return; }
-          const u = URL.createObjectURL(blob), a = document.createElement('a'); a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
-          return;
-        }
-        closeFile(); blobUrl = URL.createObjectURL(blob);
-        const sh = sheet();
-        sh.innerHTML = `<div class="vh-box"><h2 translate="no">${esc(f.name)}</h2>
-          <div class="nx-view">${f.kind === 'image' ? `<img src="${blobUrl}" alt="${esc(f.name)}">` : `<iframe src="${blobUrl}" title="${esc(f.name)}"></iframe>`}</div>
-          <div class="vh-row"><button class="ok" id="nxX" type="button">Schließen</button></div></div>`;
-        sh.querySelector('#nxX').onclick = closeFile;
-        sh.classList.add('show');
+        if (f.kind === 'other') ctx.save(blob, f.name); else ctx.view(blob, f.name, f.kind === 'image' ? 'image' : 'pdf');
       }
 
       async function open(id) {

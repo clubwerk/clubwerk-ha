@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.41';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.42';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -117,6 +117,8 @@
   const loadScript = src => new Promise(res => { const s = document.createElement('script'); s.async = false; s.src = src; s.onload = res; s.onerror = res; document.body.appendChild(s); });
   /** Bereich laden, erst wenn er gebraucht wird: alle Skripte des Moduls (erweiterung.json „skripte“, dann member.js) laden gleichzeitig
       und laufen in dieser Reihenfolge (async=false) – bei langsamem Netz kostet das eine Laufzeit statt eine je Datei und je Bereich. */
+  let viewerP = null;
+  const viewerReady = () => window.VA.view ? Promise.resolve() : (viewerP = viewerP || loadScript('viewer.js?v=' + encodeURIComponent(me.version || APP_VER)));
   const loading = {}, loaded = new Set();
   const loadSection = s => loading[s.id] || (loading[s.id] = Promise.all([...(s.scripts || []), 'member.js'].map(f => loadScript(`m/${s.id}/${f}?v=${encodeURIComponent(me.version || APP_VER)}`))).then(() => { loaded.add(s.id); }));
 
@@ -169,6 +171,8 @@
       optimistic: async (apply, undo, request) => { apply(); try { return await request(); } catch (e) { undo(); toast(e.message, true); } },
       // focus: Eintrag, zu dem „Für mich“ springt (z. B. ein Spieltag)
       onLeave: fn => { cleanup = fn; },
+      // Datei groß ansehen/sichern: viewer.js lädt erst beim ersten Mal
+      view: (b, n, k) => viewerReady().then(() => window.VA.view(b, n, k)), save: (b, n) => viewerReady().then(() => window.VA.save(b, n)), closeView: () => window.VA.closeView && window.VA.closeView(),
     };
     try { sec.render(el, ctx); } catch (e) { el.innerHTML = `<div class="vh-empty">Fehler: ${esc(e.message)}</div>`; }
   }

@@ -14237,6 +14237,22 @@
   "Deine persönliche PIN eingeben.": "Enter your personal PIN.",
   "Die PIN stimmt nicht. Noch {0} {1}.": "The PIN is wrong. {0} {1} left.",
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'",
-  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' blob: {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' blob: {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}"
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' blob: {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' blob: {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}",
+  "button:not(:disabled), [tabindex=\"0\"]": "button:not(:disabled), [tabindex=\"0\"]",
+  "Das Bild lässt sich nicht anzeigen.": "The image cannot be displayed.",
+  "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' {0}; frame-src 'self' {1}; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self' {2}",
+  "Die Vorschau konnte nicht geladen werden.": "The preview could not be loaded.",
+  "Dieses PDF ist passwortgeschützt.": "This PDF is password-protected.",
+  "Dieses PDF lässt sich nicht anzeigen.": "This PDF cannot be displayed.",
+  "Du kannst die Datei mit „Teilen/Sichern“ öffnen.": "You can open the file with “Share/Save”.",
+  "Du kannst es mit „Teilen/Sichern“ in einer anderen App öffnen.": "You can open it in another app with “Share/Save”.",
+  "Du kannst es mit „Teilen/Sichern“ speichern.": "You can save it with “Share/Save”.",
+  "Es ist vielleicht beschädigt. Du kannst es mit „Teilen/Sichern“ in einer anderen App öffnen.": "It may be damaged. You can open it in another app with “Share/Save”.",
+  "Foto {0}": "Photo {0}",
+  "Foto vergrößern": "Enlarge photo",
+  "Teilen/Sichern": "Share/Save",
+  "Vergrößern": "Zoom in",
+  "Verkleinern": "Zoom out",
+  "vh-sheet vh-viewer": "vh-sheet vh-viewer"
  }
 }

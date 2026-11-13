@@ -241,7 +241,7 @@ Von oben nach unten:
 - **In der App sichtbar:** wie lange die Nachricht in der App steht (Vorgabe, 1 bis 24 Monate).
 - **Oben anheften:** bleibt in der App ganz oben, bis ihr sie löst.
 - **Betreff** und **Text** mit Werkzeugleiste: fett, kursiv, unterstrichen, Überschriften, Listen, Zitat, Trennlinie, Link. **Platzhalter …** fügt zum Beispiel die Briefanrede oder den Vornamen ein, die für jeden Empfänger ersetzt werden. **Vorlage …** setzt eine gespeicherte Vorlage ein.
-- **＋ Datei anhängen** oder Dateien hineinziehen: bis 10 MB je Datei, insgesamt 20 MB.
+- **＋ Datei anhängen** oder Dateien hineinziehen: bis 10 MB je Datei, insgesamt 20 MB. In der Mitglieder-App öffnen Bilder und PDFs im Vollbild direkt in der App: PDFs mit allen Seiten untereinander, mit Zwei-Finger-Zoom, Doppeltippen und „+“/„–“, dazu der Knopf „Teilen/Sichern“. Andere Dateien gehen über das Teilen-Menü des Handys.
 - **＋ Umfrage anhängen** (nur mit „In der Mitglieder-App“): Frage, 2 bis 10 Antworten, **Ergebnis für Mitglieder** (nach der eigenen Stimme, erst nach dem Ende oder nie), **Ende** (leer = bis ihr sie beendet), **mehrere Antworten erlaubt** und **anonym**. Abgestimmt wird in der App, jedes Mitglied hat eine Stimme und kann sie bis zum Ende ändern. Anonym heißt: Niemand in Clubwerk sieht, wer was gewählt hat – auch nicht die Verwaltung. Für geheime Wahlen nach Satzung ist das kein Ersatz.
 - Unten: **Als Vorlage speichern**, **Verwerfen**, **Vorschau** („So sieht es bei … aus“) und **Senden …**. Vor dem Senden fragt Clubwerk mit der Zahl der Empfänger nach.
 
