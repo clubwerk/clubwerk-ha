@@ -36,6 +36,7 @@ body.embedded .vh-main { max-width: 640px; padding-top: 24px; }
 .vh-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--faint); flex: none; }
 .vh-dot.ok { background: #2f9e5b; box-shadow: 0 0 0 4px rgba(47,158,91,.15); }
 .vh-dot.err { background: var(--red); }
+.vh-dot.warn { background: #d9962b; }
 .vh-dot.busy { background: #d9962b; animation: vhblink .8s ease-in-out infinite alternate; }
 @keyframes vhblink { to { opacity: .3; } }
 

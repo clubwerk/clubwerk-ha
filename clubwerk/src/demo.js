@@ -36,6 +36,11 @@ function shift(db, off, dm, heute) {
       const rows = db.prepare(`select rowid r, "${c.name}" v from "${t}" where typeof("${c.name}")='text' and "${c.name}" glob '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]*'`).all();
       for (const r of rows) db.prepare(`update "${t}" set "${c.name}"=? where rowid=?`).run(sh(r.v), r.r);
     }
+    // Datumsangaben in Einstellungen (JSON, z. B. Sperrzeiträume): ganze Werte in Anführungszeichen "JJJJ-MM-TT" wandern mit
+    if (tabs.has('settings')) for (const r of db.prepare(`select rowid r, value v from settings where typeof(value)='text' and value like '%"____-__-__"%'`).all()) {
+      const n = r.v.replace(/"(\d{4}-\d{2}-\d{2})"/g, (m, d) => `"${sh(d)}"`);
+      if (n !== r.v) db.prepare('update settings set value=? where rowid=?').run(n, r.r);
+    }
   };
   // Turniertag (LK-Turniere) und das heutige Turnier im Turnierplaner zeigen den Stand „11:00 Uhr“ – laufende Spiele, Verzug
   const times = () => {

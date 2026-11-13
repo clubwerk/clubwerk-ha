@@ -71,7 +71,7 @@ const firstName = n => String(n || '').trim().split(/\s+/)[0] || '';
 /** Hat das Mitglied schon eine PIN (Verkauf am Tablet)? Nur für den Text der Einladung – die Einladung ist persönlich, der Link das Geheimnis */
 const hasPinOf = id => Boolean((db.prepare('SELECT pin_hash FROM members WHERE id = ?').get(id) || {}).pin_hash);
 /** Schritt der Einladung zur PIN: vorhandene PIN eingeben, sonst eine persönliche vergeben */
-const pinStep = has => has ? 'Deine PIN eingeben – dieselbe wie im Verkauf am Tablet.' : 'Deine persönliche PIN vergeben (4 bis 6 Ziffern) – du brauchst sie später bei jedem Öffnen.';
+const pinStep = has => has ? 'Deine persönliche PIN eingeben.' : 'Deine persönliche PIN vergeben (4 bis 6 Ziffern) – du brauchst sie später bei jedem Öffnen.';
 /** Link, Gültigkeit und Schritte einer E-Mail-Einladung – gemeinsam für die Einladungs-Mail und die Willkommens-Mail der Mitgliederverwaltung */
 function inviteParts(memberId, inv) {
   const url = `${qrUrl().replace(/\/+$/, '')}/#i=${inv.token}`, until = deTs(inv.expiresAt), phone = smsPhone(memberId);

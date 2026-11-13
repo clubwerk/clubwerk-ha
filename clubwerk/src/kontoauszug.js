@@ -8,7 +8,9 @@
      paymentTargets()                      → [{ key, label, sub, cents }] zum Zuordnen von Hand
      applyPayment(key, { entry, opts, user }) → { cents, label, ref } – wirft bei fachlichem Hindernis
      undoPayment(key, ref, { entry, user }) → wirft, wenn inzwischen etwas anderes passiert ist (Text sagt, was zuerst zurückzunehmen ist)
-   Gespeichert werden nur Zahlungseingänge und Rücklastschriften (keine anderen Abbuchungen), Name, IBAN und Verwendungszweck
+   Ein Modul, das Abbuchungen braucht (Ausgaben der Buchhaltung), meldet paymentDebits() → true; dann speichert der Kern auch Abbuchungen
+   (kind 'abbuchung', Betrag negativ). Abbuchungen passen nur zu Vorschlägen mit debit: true bzw. Zielen mit kind 'ausgabe', Eingänge nie dazu.
+   Gespeichert werden sonst nur Zahlungseingänge und Rücklastschriften (keine anderen Abbuchungen), Name, IBAN und Verwendungszweck
    liegen im Tresor. „Gehört nicht zu Clubwerk“ löscht der Datenschutz-Löschlauf (Vorgabe 90 Tage), die Datei selbst wird nie aufbewahrt. */
 const crypto = require('crypto');
 const { db, getSetting, setSetting, audit } = require('./db');
@@ -27,7 +29,7 @@ CREATE TABLE IF NOT EXISTS bank_entry (
   uniq TEXT NOT NULL UNIQUE,                                   -- Bankreferenz (AcctSvcrRef) bzw. Prüfsumme des Inhalts + laufende Nummer
   ckey TEXT, has_ref INTEGER NOT NULL DEFAULT 0,               -- Prüfsumme des Inhalts: dieselbe Buchung aus CAMT-XML und aus einer CSV-Datei
   booking_date TEXT NOT NULL, value_date TEXT, cents INTEGER NOT NULL,
-  kind TEXT NOT NULL,                                         -- eingang | ruecklastschrift
+  kind TEXT NOT NULL,                                         -- eingang | ruecklastschrift | abbuchung
   name TEXT, iban TEXT, purpose TEXT,                         -- im Tresor
   e2e TEXT, batch_ref TEXT, mandate_ref TEXT, ret_code TEXT, orig_cents INTEGER, fee_cents INTEGER,
   sure INTEGER NOT NULL DEFAULT 1,                            -- 0 = allgemeines CSV: Rücklastschriften und Sammler nie „sicher“
@@ -61,7 +63,7 @@ function candidates(user, entries) {
   for (const p of allowed(user)) {
     let list = [];
     try { list = p.hooks.paymentCandidates(entries) || []; } catch (e) { console.error(`Kontoauszug – Vorschläge (${p.meta.id}):`, e.message); }
-    for (const c of list) if (c && out.has(c.entry) && LEVEL[c.level] !== undefined) out.get(c.entry).push({ module: p.meta.id, moduleName: p.meta.name, key: String(c.key), label: String(c.label || ''), cents: Number(c.cents) || 0, level: c.level, note: c.note || '', opts: c.opts || {} });
+    for (const c of list) if (c && out.has(c.entry) && LEVEL[c.level] !== undefined) out.get(c.entry).push({ module: p.meta.id, moduleName: p.meta.name, key: String(c.key), label: String(c.label || ''), cents: Number(c.cents) || 0, level: c.level, note: c.note || '', opts: c.opts || {}, debit: Boolean(c.debit) });
   }
   for (const l of out.values()) l.sort((a, b) => LEVEL[a.level] - LEVEL[b.level]);
   return out;
@@ -79,6 +81,8 @@ function targets(user) {
 /* ---------- Einlesen ---------- */
 const sha = s => crypto.createHash('sha256').update(s).digest('hex');
 const accountByIban = iban => bank.list().find(a => a.iban === iban) || null;
+/** Abbuchungen speichern? Nur wenn ein eingeschaltetes Modul sie braucht (Hook paymentDebits) */
+const keepDebits = () => plugins.withHook('paymentDebits').some(p => { try { return Boolean(p.hooks.paymentDebits()); } catch (e) { return false; } });
 /** Datei einlesen → Zusammenfassung; derselbe Auszug zweimal ändert nichts */
 async function upload(buf, { name, accountId, map, user }) {
   const file = String(name || 'Kontoauszug').replace(/[^\w.\- äöüÄÖÜß()]/g, '_').slice(0, 120);
@@ -105,7 +109,8 @@ async function upload(buf, { name, accountId, map, user }) {
     if (!acc) throw fachlich(a.iban ? `Das Konto ${bank.maskIban(a.iban)} ist kein Vereinskonto. Bitte zuerst unter Einstellungen › Bankkonten eintragen.` : 'In der Datei steht keine IBAN des Kontos.');
     parts.push({ f, a, acc });
   }
-  const sum = { files: r.results.length, format: [...new Set(r.results.map(f => f.format))].join(', '), total: 0, added: 0, dup: 0, pending: 0, debits: 0, returns: 0, accounts: [...new Set(parts.map(p => p.acc.name))], from: '', to: '', savedMap: Boolean(r.usedSaved) };
+  const debitsToo = keepDebits();
+  const sum = { files: r.results.length, format: [...new Set(r.results.map(f => f.format))].join(', '), total: 0, added: 0, dup: 0, pending: 0, debits: 0, debitsKept: 0, returns: 0, accounts: [...new Set(parts.map(p => p.acc.name))], from: '', to: '', savedMap: Boolean(r.usedSaved) };
   db.transaction(() => {
     for (const { f, a, acc } of parts) {
       sum.pending += a.pending; sum.debits += a.debits;
@@ -117,7 +122,7 @@ async function upload(buf, { name, accountId, map, user }) {
       const seenU = new Map(), seenC = new Map();
       const count = (m, k) => { const n = (m.get(k) || 0) + 1; m.set(k, n); return n; };
       let added = 0;
-      for (const e of a.entries) {
+      for (const e of debitsToo ? [...a.entries, ...(a.debitList || [])] : a.entries) {
         const content = sha([acc.iban, e.date, e.cents, e.iban, e.e2e, String(e.purpose || '').toUpperCase().replace(/[^A-Z0-9]/g, '')].join('|')).slice(0, 40);
         const hasRef = Boolean(e.bankRef);
         const ub = hasRef ? sha([acc.iban, e.bankRef, e.txRef || ''].join('|')).slice(0, 40) : content;
@@ -125,10 +130,10 @@ async function upload(buf, { name, accountId, map, user }) {
         sum.total++;
         if (db.prepare('SELECT 1 FROM bank_entry WHERE uniq = ?').get(uniq) || db.prepare('SELECT 1 FROM bank_entry WHERE ckey = ? AND has_ref != ?').get(ckey, hasRef ? 1 : 0)) { sum.dup++; continue; }
         db.prepare(`INSERT INTO bank_entry(stmt_id, account_id, uniq, ckey, has_ref, booking_date, value_date, cents, kind, name, iban, purpose, e2e, batch_ref, mandate_ref, ret_code, orig_cents, fee_cents, sure)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(stmt, acc.id, uniq, ckey, hasRef ? 1 : 0, e.date, e.valDate || null, e.cents, e.ret ? 'ruecklastschrift' : 'eingang',
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(stmt, acc.id, uniq, ckey, hasRef ? 1 : 0, e.date, e.valDate || null, e.cents, e.ret ? 'ruecklastschrift' : e.cents < 0 ? 'abbuchung' : 'eingang',
           String(e.name || '').slice(0, 140) || null, e.iban || null, String(e.purpose || '').slice(0, 500) || null, e.e2e || null, e.batch || null, e.mandate || null,
           e.ret ? e.ret.code || null : null, e.ret ? e.ret.origCents : null, e.ret ? e.ret.feeCents || 0 : null, e.sure ? 1 : 0);
-        added++; if (e.ret) sum.returns++;
+        added++; if (e.ret) sum.returns++; else if (e.cents < 0) sum.debitsKept++;
         const d = e.date;
         if (!sum.from || d < sum.from) sum.from = d;
         if (!sum.to || d > sum.to) sum.to = d;
@@ -174,8 +179,10 @@ function applyOne(user, entryId, { module, key, opts }, { manual = true } = {}) 
   if (!p) throw fachlich('Dafür fehlt dir die Berechtigung (oder das Modul ist ausgeschaltet).');
   // Nur echte Vorschläge oder Ziele zum Zuordnen von Hand – nie beliebige Schlüssel
   const cand = (candidates(user, [e]).get(e.id) || []).find(c => c.module === p.meta.id && c.key === String(key));
-  const ok = cand || (manual && targets(user).some(t => t.module === p.meta.id && t.key === String(key)));
-  if (!ok) throw fachlich('Dieser Vorschlag passt nicht mehr – bitte die Liste neu laden.');
+  const tgt = !cand && manual ? targets(user).find(t => t.module === p.meta.id && t.key === String(key)) : null;
+  if (!cand && !tgt) throw fachlich('Dieser Vorschlag passt nicht mehr – bitte die Liste neu laden.');
+  // Abbuchungen nur zu Ausgaben, Eingänge und Rücklastschriften nie zu Ausgaben
+  if ((e.kind === 'abbuchung') !== Boolean(cand ? cand.debit : tgt.kind === 'ausgabe')) throw fachlich(e.kind === 'abbuchung' ? 'Eine Abbuchung passt nur zu einer Ausgabe.' : 'Ein Zahlungseingang passt nicht zu einer Ausgabe.');
   const o = { ...(cand ? cand.opts : {}), ...(opts && typeof opts === 'object' ? opts : {}) };
   let res;
   db.transaction(() => {
@@ -228,6 +235,21 @@ function setForeign(user, entryId, on) {
   return { ok: true };
 }
 
+/** Ein Modul hat zu einer offenen Abbuchung selbst etwas angelegt (z. B. eine Ausgabe): verknüpfen wie eine Zuordnung, ohne Vorschlag.
+ *  Läuft in der Transaktion des Moduls; undoPayment(key, ref) des Moduls hebt die Verknüpfung über „Zuordnung aufheben“ wieder auf. */
+function link(user, entryId, { module, key, label, cents, ref }) {
+  const e = db.prepare('SELECT * FROM bank_entry WHERE id = ?').get(entryId);
+  if (!e || e.kind !== 'abbuchung') throw fachlich('Diese Abbuchung gibt es nicht mehr.');
+  if (e.status !== 'offen') throw fachlich('Diese Abbuchung ist schon zugeordnet.');
+  if (!Number.isInteger(cents) || Math.abs(cents) > Math.abs(e.cents)) throw fachlich('Es würde mehr zugeordnet, als die Buchung hergibt.');
+  db.prepare('INSERT INTO bank_match(entry_id, module, key, label, cents, ref, by_user) VALUES (?,?,?,?,?,?,?)').run(e.id, module, String(key), String(label || '').slice(0, 300), cents, JSON.stringify(ref || null), uname(user));
+  db.prepare("UPDATE bank_entry SET status = 'zugeordnet', assigned_cents = ?, done_by = ?, done_at = ? WHERE id = ? AND status = 'offen'").run(cents, uname(user), nowTs(), e.id);
+  audit(user, 'Kontoauszug: Zahlung zugeordnet', `${deD(e.booking_date)} ${euro(e.cents)} → ${label}`);
+}
+/** Offene Abbuchungen (für die Ausgaben der Buchhaltung) */
+const openDebits = () => db.prepare("SELECT * FROM bank_entry WHERE status = 'offen' AND kind = 'abbuchung' ORDER BY booking_date DESC, id DESC LIMIT 500").all()
+  .map(e => ({ ...entryView(e), account: (bank.get(e.account_id) || {}).name || '' }));
+
 /* ---------- Löschfrist (Einstellungen › Datenschutz, src/datenschutz.js): „gehört nicht zu Clubwerk“ vor cut löschen ---------- */
 const foreignOlder = cut => db.prepare("SELECT COUNT(*) n FROM bank_entry WHERE status = 'fremd' AND done_at < ?").get(cut).n;
 const purge = cut => db.prepare("DELETE FROM bank_entry WHERE status = 'fremd' AND done_at < ?").run(cut).changes;
@@ -254,4 +276,4 @@ function routes(admin, { need, bad, int, asyncRoute, rateLimit, express }) {
   admin.post('/kontoauszug/entries/:id/reopen', P, run(req => setForeign(req.user, int(req.params.id), false)));
 }
 
-module.exports = { routes, status, foreignOlder, purge, upload };
+module.exports = { routes, status, foreignOlder, purge, upload, link, openDebits };

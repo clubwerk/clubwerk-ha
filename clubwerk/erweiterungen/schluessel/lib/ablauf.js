@@ -368,7 +368,7 @@ function register(sh) {
   A.get('/export.xlsx', P, ar(async (req, res) => {
     const ExcelJS = ctx.require('exceljs'), wb = new ExcelJS.Workbook();
     const rows = db.prepare("SELECT * FROM sl_issue WHERE status IN ('ausgegeben','zurueck','storniert') ORDER BY id").all().map(issueView).sort((a, b) => a.person.localeCompare(b.person, 'de'));
-    const w1 = wb.addWorksheet('Ausgaben'); w1.addRow(['Person', 'Schlüssel', 'seit', 'bis', 'Pfand', 'Status', 'Protokoll-Nr.']).font = { bold: true };
+    const w1 = wb.addWorksheet('Schlüsselausgaben'); w1.addRow(['Person', 'Schlüssel', 'seit', 'bis', 'Pfand', 'Status', 'Protokoll-Nr.']).font = { bold: true };
     for (const r of rows) w1.addRow([safe(r.person), safe(r.pieces.map(p => `Nr. ${p.ident} ${p.name}`).join('; ')), r.issued_at ? deD(r.issued_at.slice(0, 10)) : '', r.due ? deD(r.due) : '', r.deposit_cents ? r.deposit_cents / 100 : '',
       r.reclaim ? 'zurückfordern' : r.status === 'ausgegeben' ? (r.legacy ? 'übernommen, ohne Protokoll' : 'ausgegeben') : r.status, r.no]);
     const w2 = wb.addWorksheet('Bestand'); w2.addRow(['Kennung', 'Bezeichnung', 'Art', 'gesamt', 'vorrätig', 'ausgegeben', 'verloren', 'gesperrt']).font = { bold: true };

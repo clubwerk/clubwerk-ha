@@ -2,7 +2,7 @@
 /* Mitglieder-App: ein QR-Code, eine PIN, alle freigeschalteten Bereiche (Zugang, Beregnung …).
    Bereiche melden sich mit VA.registerSection({ id, render(el, ctx) }) aus /m/<id>/member.js an. */
 (() => {
-  const APP_VER = '2026.11.39';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
+  const APP_VER = '2026.11.40';   // muss zur Version in config.yaml passen (pack.sh prüft das) – eine veraltete Home-Bildschirm-App lädt sich damit einmal neu
   const $ = id => document.getElementById(id);
   /* Inlay-Modus: die öffentliche App bettet im Vereinsheim die lokale Adresse ein und zeigt dort nur einen Bereich
      (?embed=<bereich>) – ohne Kopf, Reiter und Fußzeile; Größe und Zustand gehen per postMessage an die einbettende Seite */
@@ -797,7 +797,7 @@
       $('pairNote').textContent = wlanNote(p.stagedAreas);
       $('pairNote').classList.toggle('hidden', !p.staged);
       // eine PIN für alles: wer im Verkauf schon eine hat, gibt sie ein – sonst neue festlegen (gilt dann auch am Tablet)
-      $('pairText').textContent = p.hasPin ? `${p.sms ? 'Dann gib' : 'Gib'} deine PIN ein – dieselbe wie im Verkauf am Tablet. Vergessen? Der Vorstand setzt sie zurück.`
+      $('pairText').textContent = p.hasPin ? `${p.sms ? 'Dann gib' : 'Gib'} deine persönliche PIN ein. Vergessen? Der Vorstand setzt sie zurück.`
         : `${p.sms ? 'Dann legst du' : 'Lege'} deine persönliche PIN fest (4–6 Ziffern). Sie gilt auch im Verkauf am Tablet.`;
       $('pair2').classList.toggle('hidden', Boolean(p.hasPin));
       $('pair1').maxLength = p.hasPin ? 8 : 6; $('pair1').placeholder = p.hasPin ? 'Deine PIN' : 'PIN'; $('pair1').value = ''; $('pair2').value = '';

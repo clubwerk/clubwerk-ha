@@ -1,5 +1,28 @@
 # Änderungen
 
+## 2026.11.40
+
+### Neu
+- Buchhaltung › Ausgaben: Alles, was der Verein bezahlt, mit Beleg erfassen – Foto (am Handy direkt mit der Kamera) oder PDF, vom Bankkonto oder aus einer Kasse. Der Beleg wird beim Speichern eingefroren und verschlüsselt abgelegt; ohne Beleg nur als Eigenbeleg mit Begründung. Ausgaben werden storniert statt gelöscht.
+- Lieferungen aus dem Verkauf und Abbuchungen aus dem Kontoauszug erscheinen unter „Zu erfassen“ und werden mit einem Klick zur Ausgabe – ohne doppelte Erfassung.
+- Buchhaltung › Kassenbuch: je Kasse alle Bareinnahmen, Barausgaben, Geldtransit zur und von der Bank und Umbuchungen mit laufendem Bestand. Kassensturz mit Zählprotokoll, Differenzen als eigene Buchung mit Begründung, Monate festschreiben, Kassenbuch als PDF und Excel.
+- Eine Kasse ist vorgegeben, weitere lassen sich anlegen; je Erlösart wählbar, in welche Kasse Bargeld fließt.
+- Buchhaltung › EÜR: Einnahmen-Überschuss-Rechnung je Sphäre mit Hinweis bei den Freigrenzen, als Excel.
+- Neue Rechte „Ausgaben und Kassenbuch erfassen“ (Kassenwart) und „Kassenprüfung“ (nur ansehen).
+- Einstellungen der Ausgaben: Nummernkreis, Ausgabearten mit Sphäre und – falls der Verein vorsteuerabzugsberechtigt ist – Steuersatz je Ausgabe.
+
+### Verbessert
+- Der DATEV-Buchungsstapel enthält jetzt auch Ausgaben, Geldtransit und Kassendifferenzen; Konto und Sphäre je Ausgabeart stehen unter Einstellungen › Buchführung.
+- Der Kontoauszug behält mit der Buchhaltung auch Abbuchungen und schlägt die passende Ausgabe vor.
+- Die Vorschau in Einstellungen › Buchführung trennt Einnahmen und Ausgaben je Sphäre; die Freigrenzen gelten nur für Einnahmen.
+- DATEV-Vorschau, DATEV-Export und Datenüberlassung rechnen bei großen Vereinen mit deutlich weniger Datenbankabfragen.
+- Schlüssel: Die Art „Schlüsselausgabe“ heißt in Protokollen und in der Excel-Liste jetzt so – eindeutig auch in der englischen Oberfläche.
+### Verbessert
+- Licht: Bei einer Sperre (Sperrzeitraum, Nachtruhe, außerhalb der Saison, noch hell) steht vor dem Hinweis am Tablet und in der Mitglieder-App ein gelber statt eines grünen Punkts – grün meldet nur noch „alles bereit“.
+- Die Beispieldaten für Flutlicht und Zugang enthalten Sperrzeiträume, die beim Laden mit dem Datum mitwandern. Der Sperrfall ist damit in der Demo jeden Tag zu sehen.
+### Verbessert
+- Einladung und Freischalten der Mitglieder-App: Wer schon eine PIN hat, liest jetzt nur „Deine persönliche PIN eingeben“ – ohne Verweis auf den Verkauf am Tablet.
+
 ## 2026.11.39
 
 ### Neu

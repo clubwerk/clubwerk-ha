@@ -44,7 +44,8 @@
         if (r.needMapping) { r = await mapDialog(f, r); if (!r) continue; }
         const parts = [`${r.added} ${r.added === 1 ? 'Buchung' : 'Buchungen'} neu`];
         if (r.dup) parts.push(`${r.dup} schon eingelesen`);
-        if (r.debits) parts.push(`${r.debits} Abbuchungen übersprungen`);
+        if (r.debitsKept) parts.push(`${r.debitsKept} Abbuchungen für die Ausgaben`);
+        if (r.debits - (r.debitsKept || 0) > 0) parts.push(`${r.debits - (r.debitsKept || 0)} Abbuchungen übersprungen`);
         toast(`${f.name}: ${parts.join(', ')}.`);
       } catch (e) { fail(e); }
     }
@@ -57,11 +58,11 @@
   }
   /** Buchung prüfen: alle Vorschläge, bei Rücklastschriften Gebühr und Mandat, von Hand zuordnen oder „gehört nicht zu Clubwerk“ */
   async function checkDialog(e, again) {
-    const ret = e.kind === 'ruecklastschrift';
+    const ret = e.kind === 'ruecklastschrift', deb = e.kind === 'abbuchung';
     const all = await api('kontoauszug/targets');
-    const targets = all.filter(t => (t.kind || 'zahlung') === (ret ? 'ruecklastschrift' : 'zahlung'));
+    const targets = all.filter(t => (t.kind || 'zahlung') === (ret ? 'ruecklastschrift' : deb ? 'ausgabe' : 'zahlung'));
     const c0 = e.cands[0];
-    dialog(`<h2>${ret ? 'Rücklastschrift' : 'Zahlungseingang'} zuordnen</h2>
+    dialog(`<h2>${ret ? 'Rücklastschrift' : deb ? 'Abbuchung' : 'Zahlungseingang'} zuordnen</h2>
       <p style="margin:0 0 4px"><b class="num">${deDate(e.date)}</b> · <b class="num ${e.cents < 0 ? 'neg' : ''}">${euro(e.cents)}</b>${ret && e.fee_cents ? ` <span class="muted s">(davon Gebühr der Bank ${euro(e.fee_cents)})</span>` : ''}</p>
       <p style="margin:0 0 4px" translate="no">${esc(e.name || '–')}${e.iban ? ` <span class="muted s">${esc(e.iban)}</span>` : ''}</p>
       <p class="muted s" style="margin:0" translate="no">${esc(e.purpose || '–')}</p>
@@ -69,15 +70,15 @@
       ${ret ? `<div class="frm" style="margin-top:12px"><label class="f">Gebühr für den Zahler (€)<input id="kaFee" inputmode="decimal" value="${GK.centsToInput(c0 && c0.opts.fee != null ? c0.opts.fee : e.fee_cents || 0)}"></label>
         <label class="chk w2" style="align-self:end"><input type="checkbox" id="kaRev" ${c0 && c0.opts.revoke ? 'checked' : ''}> Mandat sperren</label></div>` : ''}
       <h3 style="margin:16px 0 8px">${e.cands.length ? 'Oder von Hand zuordnen' : 'Von Hand zuordnen'}</h3>
-      <div class="filterbar" style="margin-bottom:8px"><label class="search"><input id="kaQ" placeholder="${ret ? 'Zahler suchen' : 'Zahler oder Rechnung suchen'}" aria-label="Suchen"></label></div>
+      <div class="filterbar" style="margin-bottom:8px"><label class="search"><input id="kaQ" placeholder="${ret ? 'Zahler suchen' : deb ? 'Ausgabe suchen' : 'Zahler oder Rechnung suchen'}" aria-label="Suchen"></label></div>
       <div class="scroll" style="max-height:32vh" id="kaT"></div>
       <div class="btns">${e.status === 'offen' ? '<button class="btn ghost" id="kaIgn" style="margin-right:auto">Gehört nicht zu Clubwerk</button>' : ''}<button class="btn ghost" id="kaNo">Abbrechen</button>${e.cands.length ? '<button class="btn primary" id="kaOk">Übernehmen</button>' : ''}</div>`);
     const opts = () => (ret ? { fee: GK.toCents($('kaFee').value) || 0, revoke: $('kaRev').checked } : undefined);
     const showT = () => {
       const q = String($('kaQ').value || '').toLowerCase();
       const list = targets.filter(t => !q || `${t.label} ${t.sub}`.toLowerCase().includes(q)).slice(0, 60);
-      $('kaT').innerHTML = list.length ? `<table class="tbl kompakt">${list.map((t, i) => `<tr><td><b translate="no">${esc(t.label)}</b><div class="muted s">${esc(t.moduleName)} · ${esc(t.sub)}</div></td>${sign(t.cents)}<td class="r"><button class="btn small" data-kt="${targets.indexOf(t)}">Zuordnen</button></td></tr>`).join('')}</table>`
-        : `<p class="empty">${targets.length ? 'Nichts gefunden.' : ret ? 'Keine Lastschriften der letzten 13 Monate.' : 'Nichts offen.'}</p>`;
+      $('kaT').innerHTML = list.length ? `<table class="tbl kompakt">${list.map((t, i) => `<tr><td><b translate="no">${esc(t.label)}</b><div class="muted s"><span class="k-handy num">${euro(t.cents)} · </span><span class="k-desk">${esc(t.moduleName)} · </span>${esc(t.sub)}</div></td>${sign(t.cents).replace('<td class="', '<td class="k-desk ')}<td class="r"><button class="btn small" data-kt="${targets.indexOf(t)}">Zuordnen</button></td></tr>`).join('')}</table>`
+        : `<p class="empty">${targets.length ? 'Nichts gefunden.' : ret ? 'Keine Lastschriften der letzten 13 Monate.' : deb ? 'Keine Ausgabe ohne Abbuchung – neue Ausgaben unter Buchhaltung › Ausgaben erfassen.' : 'Nichts offen.'}</p>`;
       $('kaT').querySelectorAll('[data-kt]').forEach(b => { b.onclick = () => GK.busy(b, () => assign(e, targets[+b.dataset.kt], opts(), again)); });
     };
     $('kaQ').oninput = showT; showT();
@@ -128,7 +129,7 @@
   }
   function table(rows) {
     if (!rows.length) return `<p class="empty">${filter === 'pruefen' ? 'Nichts zu prüfen. Neue Kontoauszüge oben ablegen.' : filter === 'nicht' ? 'Alle Buchungen sind zugeordnet.' : 'Noch nichts zugeordnet.'}</p>`;
-    const who = e => `<b translate="no">${esc(e.name || (e.kind === 'ruecklastschrift' ? 'Rücklastschrift' : 'Gutschrift'))}</b>${e.kind === 'ruecklastschrift' ? ' <span class="pill r">Rücklastschrift</span>' : ''}`;
+    const who = e => `<b translate="no">${esc(e.name || (e.kind === 'ruecklastschrift' ? 'Rücklastschrift' : e.kind === 'abbuchung' ? 'Abbuchung' : 'Gutschrift'))}</b>${e.kind === 'ruecklastschrift' ? ' <span class="pill r">Rücklastschrift</span>' : e.kind === 'abbuchung' ? ' <span class="pill k-weg">Abbuchung</span>' : ''}`;
     const head = `<tr><th>Von</th><th>${filter === 'zugeordnet' ? 'Zugeordnet zu' : filter === 'pruefen' ? 'Vorschlag' : ''}</th><th>Datum</th><th class="hide-md">Verwendungszweck</th><th class="r">Betrag</th><th></th></tr>`;
     return `<div class="scroll"><table class="tbl kompakt">${head}${rows.map(e => {
       let mid = '', act = '';

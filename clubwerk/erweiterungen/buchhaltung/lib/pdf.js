@@ -519,4 +519,50 @@ function donation(club = {}, d = {}) {
   function lab() { return 7.4; }
 }
 
-module.exports = { invoice, donation, amountInWords, euro };
+/* ---------- Kassenbuch eines Monats ---------- */
+const MONATE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+/** cashBook(club, { cash, month: 'JJJJ-MM', opening, closing, rows: [{ date, doc, text, sub, cents, balance }], closed: { at, by } }) → Promise<Buffer> */
+function cashBook(club = {}, k = {}) {
+  const b = brand(club);
+  const mon = `${MONATE[Number(String(k.month).slice(5, 7)) - 1] || ''} ${String(k.month).slice(0, 4)}`;
+  const label = `Kassenbuch ${k.cash || ''} – ${mon}`;
+  const doc = newDoc(club, label), done = collect(doc);
+  let y = head(doc, club, b) + 18;
+  doc.font('Helvetica-Bold').fontSize(15).fillColor(INK).text(label, L, y, { width: W }); y = doc.y + 4;
+  doc.font('Helvetica').fontSize(9).fillColor(MUTED).text(k.closed ? `Festgeschrieben am ${deD(String(k.closed.at).slice(0, 10))}${k.closed.by ? ` von ${k.closed.by}` : ''} – unveränderlich.` : 'Noch nicht festgeschrieben – Stand ' + deD(todayIso()) + '.', L, y, { width: W }); y = doc.y + 14;
+  const wD = 54, wB = 66, wM = 68, xD = L + 6, xB = xD + wD, xT = xB + wB, xS = R - 6 - wM, xO = xS - wM, xI = xO - wM, wT = xI - xT - 8;
+  const th = () => {
+    doc.rect(L, y, W, 20).fill(b.soft);
+    doc.font('Helvetica-Bold').fontSize(8.5).fillColor(INK);
+    const o = { lineBreak: false };
+    doc.text('Datum', xD, y + 6, { ...o, width: wD }); doc.text('Beleg', xB, y + 6, { ...o, width: wB }); doc.text('Text', xT, y + 6, { ...o, width: wT });
+    doc.text('Einnahme', xI, y + 6, { ...o, width: wM, align: 'right' }); doc.text('Ausgabe', xO, y + 6, { ...o, width: wM, align: 'right' }); doc.text('Bestand', xS, y + 6, { ...o, width: wM, align: 'right' });
+    y += 24;
+  };
+  const line = (d, bel, text, sub, cin, cout, bal, bold) => {
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9);
+    const th1 = doc.heightOfString(text || ' ', { width: wT }), th2 = sub ? doc.font('Helvetica').fontSize(7.5).heightOfString(sub, { width: wT }) : 0;
+    const hgt = Math.max(14, th1 + (sub ? th2 + 1 : 0)) + 6;
+    if (y + hgt > BOTTOM) { doc.addPage(); y = headSmall(doc, club, b, label); th(); }
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(INK);
+    doc.text(d || '', xD, y, { width: wD, lineBreak: false }); doc.text(bel || '', xB, y, { width: wB, lineBreak: false, ellipsis: true });
+    doc.text(text || '', xT, y, { width: wT });
+    if (sub) doc.font('Helvetica').fontSize(7.5).fillColor(MUTED).text(sub, xT, y + th1 + 1, { width: wT });
+    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(9).fillColor(INK);
+    if (cin) doc.text(euro(cin), xI, y, { width: wM, align: 'right', lineBreak: false });
+    if (cout) doc.text(euro(cout), xO, y, { width: wM, align: 'right', lineBreak: false });
+    doc.text(euro(bal), xS, y, { width: wM, align: 'right', lineBreak: false });
+    y += hgt; doc.moveTo(L, y - 3).lineTo(R, y - 3).lineWidth(0.4).strokeColor(LINE).stroke();
+  };
+  th();
+  line(deD(`${k.month}-01`), '', 'Anfangsbestand', '', 0, 0, k.opening || 0, true);
+  let tin = 0, tout = 0;
+  for (const r of k.rows || []) { if (r.cents > 0) tin += r.cents; else tout -= r.cents; line(deD(r.date), r.doc, r.text, r.sub, r.cents > 0 ? r.cents : 0, r.cents < 0 ? -r.cents : 0, r.balance, false); }
+  if (!(k.rows || []).length) line('', '', 'Keine Buchungen in diesem Monat.', '', 0, 0, k.opening || 0, false);
+  line('', '', 'Summen und Endbestand', '', tin, tout, k.closing || 0, true);
+  footer(doc, club, { tax: false });
+  doc.end();
+  return done;
+}
+
+module.exports = { invoice, donation, cashBook, amountInWords, euro };

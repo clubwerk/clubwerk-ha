@@ -1373,7 +1373,7 @@ function activate(ctx) {
   const payerName = id => { const m = ctx.db.prepare('SELECT name, kind FROM members WHERE id = ?').get(id); return m ? ctx.require('./db').lastFirst(m.name, m.kind) : ''; };
   ctx.hooks.gobdTables = () => [
     { table: 'mv_charge', date: 'due_date', paid: c => (c.status === 'bezahlt' && c.paid_at && c.cents ? [{ cents: c.cents, via: ctx.require('./gobd').viaOf(c.paid_via), date: c.paid_at,
-      key: chargeKey(c), text: c.text, doc: c.invoice_no || `F-${c.id}`, name: payerName(c.member_id) }] : []) },
+      key: chargeKey(c), text: c.text, doc: c.invoice_no || `F-${c.id}`, get name() { return payerName(c.member_id); } }] : []) },   // Name erst, wenn ein Export ihn braucht
     { table: 'mv_run', date: 'created_at' },
     { table: 'mv_collection', date: 'collection_date', cols: ['id', 'collection_date', 'msg_id', 'count', 'cents', 'status', 'prenotified_at', 'booked_at', 'by_user', 'created_at', 'note'] },
     { table: 'mv_dunning', date: 'created_at' },

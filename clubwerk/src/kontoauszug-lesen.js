@@ -103,7 +103,7 @@ function camtEntries(stmt, out) {
       else list = txs.map((t, i) => one(t, i, parts[i]));
     }
     for (const e of list) {
-      if (e.cents < 0 && !e.ret) { out.debits++; continue; }   // Abbuchungen (Lieferanten, Strom …) zeigt und speichert Clubwerk nicht
+      if (e.cents < 0 && !e.ret) { out.debits++; out.debitList.push(e); continue; }   // Abbuchungen (Lieferanten, Strom …): nur gespeichert, wenn ein Modul sie braucht (Ausgaben der Buchhaltung, kontoauszug.js)
       out.entries.push(e);
     }
   }
@@ -116,7 +116,7 @@ function readCamt(text) {
   const ns = (text.match(/xmlns(?::\w+)?="urn:iso:std:iso:20022:tech:xsd:(camt\.\d{3}\.\d{3}\.\d{2})"/) || [])[1] || '';
   const out = { format: ns ? ns.replace(/^(camt\.\d{3})\.001\.(\d{2})$/, '$1 V$2') : 'CAMT', accounts: [] };
   for (const stmt of body.c.filter(x => ['Stmt', 'Rpt', 'Ntfctn'].includes(x.n))) {
-    const r = { iban: normIban(tx(stmt, 'Acct/Id/IBAN')), from: (tx(stmt, 'FrToDt/FrDtTm') || '').slice(0, 10), to: (tx(stmt, 'FrToDt/ToDtTm') || '').slice(0, 10), entries: [], pending: 0, debits: 0, skipped: 0 };
+    const r = { iban: normIban(tx(stmt, 'Acct/Id/IBAN')), from: (tx(stmt, 'FrToDt/FrDtTm') || '').slice(0, 10), to: (tx(stmt, 'FrToDt/ToDtTm') || '').slice(0, 10), entries: [], debitList: [], pending: 0, debits: 0, skipped: 0 };
     camtEntries(stmt, r);
     out.accounts.push(r);
   }
@@ -189,7 +189,7 @@ function readSpk(rows, map) {
   for (const r of rows.slice(1)) {
     const iban = normIban(g(r, 'konto'));
     if (!iban) continue;
-    if (!acc.has(iban)) acc.set(iban, { iban, from: '', to: '', entries: [], pending: 0, debits: 0, skipped: 0 });
+    if (!acc.has(iban)) acc.set(iban, { iban, from: '', to: '', entries: [], debitList: [], pending: 0, debits: 0, skipped: 0 });
     const a = acc.get(iban);
     if (/vorgemerkt/i.test(g(r, 'info'))) { a.pending++; continue; }
     const c = amount(g(r, 'betrag')), date = dateDe(g(r, 'tag'));
@@ -197,7 +197,7 @@ function readSpk(rows, map) {
     if (g(r, 'waehrung') && g(r, 'waehrung').toUpperCase() !== 'EUR') { a.skipped++; continue; }
     const e2e = g(r, 'e2e'), text = g(r, 'text');
     const isReturn = c < 0 && (OUR_E2E.test(e2e) || RETURN_RE.test(text) || Boolean(g(r, 'auslagen')));
-    if (c < 0 && !isReturn) { a.debits++; continue; }
+    if (c < 0 && !isReturn) { a.debits++; a.debitList.push({ date, valDate: dateDe(g(r, 'valuta')), cents: c, name: g(r, 'name'), iban: normIban(g(r, 'iban')), purpose: g(r, 'zweck').replace(/\s+/g, ' '), e2e: e2e === 'NOTPROVIDED' ? '' : e2e, batch: '', mandate: '', bankRef: '', info: text, txRef: '', ret: null, sure: true }); continue; }
     const fee = Math.abs(amount(g(r, 'auslagen')) || 0), orig = amount(g(r, 'ursprung'));
     a.entries.push({ date, valDate: dateDe(g(r, 'valuta')), cents: c, name: g(r, 'name'), iban: normIban(g(r, 'iban')), purpose: g(r, 'zweck').replace(/\s+/g, ' '),
       e2e: e2e === 'NOTPROVIDED' ? '' : e2e, batch: g(r, 'sammler'), mandate: g(r, 'mandat'), bankRef: '', info: text, txRef: '',
@@ -249,7 +249,7 @@ function readCsvMapped(rows, map, iban) {
   const n = v => (Number.isInteger(Number(v)) && Number(v) >= 0 && Number(v) < lay.header.length ? Number(v) : -1);
   const m = { date: n(map.date), amount: n(map.amount), name: n(map.name), iban: n(map.iban), purpose: n(map.purpose), sh: n(map.sh) };
   if (m.date < 0 || m.amount < 0) throw fail('Bitte mindestens die Spalten für Datum und Betrag wählen.');
-  const a = { iban, from: '', to: '', entries: [], pending: 0, debits: 0, skipped: 0 };
+  const a = { iban, from: '', to: '', entries: [], debitList: [], pending: 0, debits: 0, skipped: 0 };
   const g = (r, k) => (m[k] >= 0 ? String(r[m[k]] || '').trim() : '');
   for (const r of rows.slice(lay.headerAt + 1)) {
     let c = amount(g(r, 'amount')); const date = dateDe(g(r, 'date'));
@@ -258,7 +258,7 @@ function readCsvMapped(rows, map, iban) {
     const purpose = g(r, 'purpose').replace(/\s+/g, ' ');
     const e2e = (/(?:EREF\+|End-?to-?End[^:]*:\s*)(\S+)/i.exec(purpose) || [])[1] || '';
     const isReturn = c < 0 && (RETURN_RE.test(purpose) || OUR_E2E.test(e2e));
-    if (c < 0 && !isReturn) { a.debits++; continue; }
+    if (c < 0 && !isReturn) { a.debits++; a.debitList.push({ date, valDate: '', cents: c, name: g(r, 'name'), iban: normIban(g(r, 'iban')), purpose, e2e: e2e === 'NOTPROVIDED' ? '' : e2e, batch: '', mandate: '', bankRef: '', info: '', txRef: '', ret: null, sure: false }); continue; }
     a.entries.push({ date, valDate: '', cents: c, name: g(r, 'name'), iban: normIban(g(r, 'iban')), purpose, e2e: e2e === 'NOTPROVIDED' ? '' : e2e, batch: '', mandate: '', bankRef: '', info: '', txRef: '',
       ret: isReturn ? { code: '', origCents: Math.abs(c), feeCents: 0 } : null, sure: false });
     if (!a.from || date < a.from) a.from = date;

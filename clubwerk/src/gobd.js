@@ -10,7 +10,9 @@
       so erscheinen Rücklastschriften, Stornos und „wieder offen“ als eigene Buchung, ohne dass ein Modul daran denken muss.
    Module melden ihre Tabellen über den Hook gobdTables = () => [{ table, cols?, date?, paid?, onlyIf? }] und ihre Erlösarten über
    (onlyIf: Spalte – nur Zeilen, in denen sie nicht 0/leer ist, kommen ins Journal; z. B. Flutlicht nur mit Lichtgeld, Datenschutz)
-   gobdKeys = () => [{ key, label, sphere, prefix? }] (prefix: ext_key von Forderungen, die das Modul in der Mitgliederverwaltung anlegt). */
+   gobdKeys = () => [{ key, label, sphere, prefix?, art? }] (prefix: ext_key von Forderungen, die das Modul in der Mitgliederverwaltung anlegt;
+   art: 'einnahme' (Standard) | 'ausgabe' (Buchung mit negativem Betrag, z. B. Ausgaben der Buchhaltung) | 'neutral' (Geldtransit – zählt nicht in die EÜR)).
+   Eine Buchung darf zusätzlich bu (DATEV-BU-Schlüssel, z. B. Vorsteuer) tragen. */
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
@@ -56,16 +58,23 @@ const appMiddleware = (req, res, next) => als.run({ req, app: true }, () => next
 
 /* ---------- Tabellen ---------- */
 /* Verkauf: bar oder mit Karte bezahlt ist, was die Abrechnung der Veranstaltung bzw. des Deckels als Kasse zählt (server.js) */
+/* Vorab geladene Deckel und Zahlungen eines Journal-Blocks (postings → prefetch), sonst einzeln nachgeschlagen */
+let pre = null;
+const inIds = (sql, ids) => { const m = new Map(); for (let i = 0; i < ids.length; i += 500) { const part = ids.slice(i, i + 500); for (const r of db.prepare(sql.replace('?', part.map(() => '?').join(','))).all(...part)) m.set(r.id, r); } return m; };
+function verkaufPrefetch(rows) {
+  const tabs = [...new Set(rows.filter(r => r.tab_id && r.paid_cash).map(r => r.tab_id))], pays = [...new Set(rows.filter(r => r.event_guest_id && r.payment_id).map(r => r.payment_id))];
+  pre = { tab: inIds('SELECT id, method, closed_at FROM guest_tabs WHERE id IN (?)', tabs), pay: inIds('SELECT id, method, at FROM event_payments WHERE id IN (?)', pays) };
+}
 function verkaufPaid(r) {
   if (r.cancelled_at || !r.total_cents) return null;
-  if (r.tab_id) { const t = r.paid_cash ? db.prepare('SELECT method, closed_at FROM guest_tabs WHERE id = ?').get(r.tab_id) : null; return t ? { via: viaOf(t.method), date: t.closed_at } : null; }
-  if (r.event_guest_id) { const p = r.payment_id ? db.prepare('SELECT method, at FROM event_payments WHERE id = ?').get(r.payment_id) : null; return p ? { via: viaOf(p.method), date: p.at } : null; }
+  if (r.tab_id) { const t = r.paid_cash ? (pre && pre.tab.has(r.tab_id) ? pre.tab.get(r.tab_id) : db.prepare('SELECT method, closed_at FROM guest_tabs WHERE id = ?').get(r.tab_id)) : null; return t ? { via: viaOf(t.method), date: t.closed_at } : null; }
+  if (r.event_guest_id) { const p = r.payment_id ? (pre && pre.pay.has(r.payment_id) ? pre.pay.get(r.payment_id) : db.prepare('SELECT method, at FROM event_payments WHERE id = ?').get(r.payment_id)) : null; return p ? { via: viaOf(p.method), date: p.at } : null; }
   return r.kind === 'gast' || (r.kind === 'event' && r.paid_cash) ? { via: 'bar', date: r.created_at } : null;
 }
 const catOf = r => { if (r.article_category) return r.article_category; const a = db.prepare('SELECT category FROM articles WHERE id = ?').get(r.article_id); return (a && a.category) || 'Sonstiges'; };
 const CORE_TABLES = [
   { table: 'articles', date: null },
-  { table: 'bookings', date: 'created_at', paid: r => { const p = verkaufPaid(r); return p ? [{ ...p, cents: r.total_cents, key: `verkauf.${catOf(r)}`, text: `${r.qty} × ${r.article_name || (db.prepare('SELECT name FROM articles WHERE id = ?').get(r.article_id) || {}).name || 'Artikel'}`, doc: `V-${r.id}` }] : []; } },
+  { table: 'bookings', date: 'created_at', prefetch: verkaufPrefetch, paid: r => { const p = verkaufPaid(r); return p ? [{ ...p, cents: r.total_cents, key: `verkauf.${catOf(r)}`, text: `${r.qty} × ${r.article_name || (db.prepare('SELECT name FROM articles WHERE id = ?').get(r.article_id) || {}).name || 'Artikel'}`, doc: `V-${r.id}` }] : []; } },
   { table: 'guest_tabs', date: 'created_at' },
   { table: 'events', date: 'date' },
   { table: 'event_guests', date: null },
@@ -247,13 +256,20 @@ function cfg() {
   let c = {}; try { c = JSON.parse(getSetting('gobd_cfg', '{}')) || {}; } catch (e) { c = {}; }
   return { ...CFG_DEF, ...c, wj_month: gj.month(), gegen: { ...(c.gegen || {}) }, konten: { ...(c.konten || {}) } };   // Wirtschaftsjahr = Geschäftsjahr des Kerns
 }
-/** Alle Erlösarten: Verkauf je Artikelkategorie + Module */
+const ARTEN = ['einnahme', 'ausgabe', 'neutral'];
+/** Alle Erlös- und Ausgabearten: Verkauf je Artikelkategorie + Module. Kurz gemerkt (2 s, beim Speichern der Konten verworfen):
+ *  das Nachrechnen des Journals fragt je Posten nach der Erlösart (keyForExt) – sonst wüchse jede Auswertung mit der Zahl der Posten. */
+let keysMemo = null;
 function keys() {
+  if (keysMemo && Date.now() - keysMemo.at < 2000) return keysMemo.v;
+  const v = keysNow(); keysMemo = { at: Date.now(), v }; return v;
+}
+function keysNow() {
   const out = [];
   const cats = db.prepare("SELECT DISTINCT category c FROM articles WHERE category IS NOT NULL AND category != '' ORDER BY category").all().map(r => r.c);
-  if (plugins.isActive('getraenke')) for (const c of cats.length ? cats : ['Sonstiges']) out.push({ key: `verkauf.${c}`, label: `Verkauf bar/Karte: ${c}`, sphere: 'wgb', module: 'Verkauf' });
+  if (plugins.isActive('getraenke')) for (const c of cats.length ? cats : ['Sonstiges']) out.push({ key: `verkauf.${c}`, label: `Verkauf bar/Karte: ${c}`, sphere: 'wgb', module: 'Verkauf', art: 'einnahme' });
   for (const p of plugins.withHook('gobdKeys')) {
-    try { for (const k of p.hooks.gobdKeys() || []) if (k && k.key) out.push({ key: String(k.key).slice(0, 80), label: String(k.label || k.key).slice(0, 120), sphere: SPHERES[k.sphere] ? k.sphere : '', prefix: k.prefix || null, module: p.meta.name }); }
+    try { for (const k of p.hooks.gobdKeys() || []) if (k && k.key) out.push({ key: String(k.key).slice(0, 80), label: String(k.label || k.key).slice(0, 120), sphere: SPHERES[k.sphere] ? k.sphere : '', prefix: k.prefix || null, module: p.meta.name, art: ARTEN.includes(k.art) ? k.art : 'einnahme' }); }
     catch (e) { console.error(`Hook gobdKeys (${p.meta.id}):`, e.message); }
   }
   const c = cfg();
@@ -268,8 +284,14 @@ function keyForExt(ext) {
 
 /* ---------- Buchungen aus dem Journal ---------- */
 const J = s => { try { return s ? JSON.parse(s) : null; } catch (e) { return null; } };
-const norm = (list, at) => (Array.isArray(list) ? list : []).filter(p => p && Number.isFinite(p.cents) && p.cents).map(p => ({
-  cents: Math.round(p.cents), via: VIAS[p.via] ? p.via : 'ueberweisung', key: String(p.key || 'ohne'), text: String(p.text || '').slice(0, 120), doc: String(p.doc || '').slice(0, 36), date: day(p.date) || day(at), name: p.name ? String(p.name).slice(0, 80) : '' }));
+/* name darf ein Getter sein (Regel paid): er wird erst gelesen, wenn ein Export den Namen braucht – Summen, EÜR und Kassenbuch fragen ihn nie ab */
+const norm = (list, at) => (Array.isArray(list) ? list : []).filter(p => p && Number.isFinite(p.cents) && p.cents).map(p => {
+  const o = { cents: Math.round(p.cents), via: VIAS[p.via] ? p.via : 'ueberweisung', key: String(p.key || 'ohne'), text: String(p.text || '').slice(0, 120), doc: String(p.doc || '').slice(0, 36), date: day(p.date) || day(at),
+    ...(/^\d{1,4}$/.test(String(p.bu || '')) ? { bu: String(p.bu) } : {}) };
+  let n; Object.defineProperty(o, 'name', { enumerable: true, get: () => (n === undefined ? (n = p.name ? String(p.name).slice(0, 80) : '') : n) });
+  return o;
+});
+const copy = (p, extra) => Object.assign(Object.defineProperties({}, Object.getOwnPropertyDescriptors(p)), extra);   // Getter (name) bleiben Getter
 const money = l => JSON.stringify(l.map(p => [p.cents, p.via, p.key, p.date]));
 const same = (a, b) => money(a) === money(b);   // nur Betrag, Zahlweg, Erlösart und Datum zählen – ein geänderter Text bucht nichts um
 /** Zahlungseingänge im Zeitraum [from, to] (JJJJ-MM-TT), Stornos und Rücknahmen als Gegenbuchung */
@@ -284,26 +306,31 @@ function postings(from, to) {
   for (;;) {
     const rows = sel.all(...rules.map(t => t.table), lower, last);
     if (!rows.length) break;
-    for (const j of rows) {
+    const parsed = rows.map(j => ({ j, o: J(j.old), n: J(j.new) }));
+    for (const t of rules) if (typeof t.prefetch === 'function') { try { t.prefetch(parsed.filter(x => x.j.tbl === t.table).flatMap(x => [x.o, x.n]).filter(Boolean)); } catch (e) { pre = null; } }   // ein Block: Nachschlagen in wenigen Abfragen statt je Zeile
+    for (const { j, o, n } of parsed) {
       last = j.id;
-      const t = byT.get(j.tbl), a = run(t, J(j.old), j.at), b = run(t, J(j.new), j.at);
+      const t = byT.get(j.tbl), a = run(t, o, j.at), b = run(t, n, j.at);
       if (same(a, b)) continue;
-      for (const p of a) out.push({ ...p, cents: -p.cents, date: day(j.at), text: `Rücknahme: ${p.text}`.slice(0, 120), ref: `${j.tbl}:${j.row_id}`, jid: j.id });
-      for (const p of b) out.push({ ...p, ref: `${j.tbl}:${j.row_id}`, jid: j.id });
+      for (const p of a) out.push(copy(p, { cents: -p.cents, date: day(j.at), text: `Rücknahme: ${p.text}`.slice(0, 120), ref: `${j.tbl}:${j.row_id}`, jid: j.id }));
+      for (const p of b) out.push(copy(p, { ref: `${j.tbl}:${j.row_id}`, jid: j.id }));
     }
   }
+  pre = null;
   return out.filter(p => p.date >= from && p.date <= to).sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : x.jid - y.jid));
 }
-/** Summen je Erlösart und je Sphäre */
+/** Summen je Erlös-/Ausgabeart und je Sphäre: spheres = Einnahmen (für die Freigrenzen), expenses = Ausgaben (positiv); Geldtransit zählt in keins */
 function summary(list) {
   const ks = new Map(keys().map(k => [k.key, k]));
-  const byKey = new Map(), bySphere = Object.fromEntries([...Object.keys(SPHERES), ''].map(s => [s, 0]));
+  const zero = () => Object.fromEntries([...Object.keys(SPHERES), ''].map(s => [s, 0]));
+  const byKey = new Map(), bySphere = zero(), out = zero();
   for (const p of list) {
-    const k = ks.get(p.key) || { key: p.key, label: p.key, sphere: '' };
-    const e = byKey.get(p.key) || { key: p.key, label: k.label, sphere: k.sphere, konto: k.konto || '', count: 0, cents: 0 };
-    e.count++; e.cents += p.cents; byKey.set(p.key, e); bySphere[k.sphere || ''] += p.cents;
+    const k = ks.get(p.key) || { key: p.key, label: p.key, sphere: '', art: 'einnahme' };
+    const e = byKey.get(p.key) || { key: p.key, label: k.label, sphere: k.sphere, konto: k.konto || '', art: k.art, count: 0, cents: 0 };
+    e.count++; e.cents += p.cents; byKey.set(p.key, e);
+    if (k.art === 'ausgabe') out[k.sphere || ''] -= p.cents; else if (k.art !== 'neutral') bySphere[k.sphere || ''] += p.cents;
   }
-  return { keys: [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label, 'de')), spheres: bySphere, total: list.reduce((s, p) => s + p.cents, 0), count: list.length };
+  return { keys: [...byKey.values()].sort((a, b) => a.label.localeCompare(b.label, 'de')), spheres: bySphere, expenses: out, total: list.reduce((s, p) => s + p.cents, 0), count: list.length };
 }
 
 /* ---------- DATEV-Buchungsstapel (EXTF 700, Kategorie 21) ---------- */
@@ -327,7 +354,7 @@ function datev(from, to, user) {
   const head = ['"EXTF"', 700, 21, '"Buchungsstapel"', 13, stamp, '', '"CW"', q(String(user || '').slice(0, 25)), '""', c.berater, c.mandant, ymd(wjStart(from)), c.length, ymd(from), ymd(to),
     q(`Clubwerk ${from.slice(0, 7)}`), '""', 1, 0, 0, '"EUR"', '', '""', '', '', q(String(c.skr || '').replace(/\D/g, '').slice(0, 2)), '', '', '""', '""'].join(';');
   const cols = ['Umsatz (ohne Soll/Haben-Kz)', 'Soll/Haben-Kennzeichen', 'WKZ Umsatz', 'Kurs', 'Basis-Umsatz', 'WKZ Basis-Umsatz', 'Konto', 'Gegenkonto (ohne BU-Schlüssel)', 'BU-Schlüssel', 'Belegdatum', 'Belegfeld 1', 'Belegfeld 2', 'Skonto', 'Buchungstext'].join(';');
-  const lines = list.map(p => [eur(p.cents), p.cents >= 0 ? '"S"' : '"H"', '"EUR"', '', '', '', c.gegen[p.via], (ks.get(p.key) || {}).konto, '""',
+  const lines = list.map(p => [eur(p.cents), p.cents >= 0 ? '"S"' : '"H"', '"EUR"', '', '', '', c.gegen[p.via], (ks.get(p.key) || {}).konto, p.bu ? q(p.bu) : '""',
     p.date.slice(8, 10) + p.date.slice(5, 7), q(p.doc.replace(/[^A-Za-z0-9$&%*+\-/]/g, '').slice(0, 36)), '""', '', q([p.text, p.name].filter(Boolean).join(' – ').slice(0, 60))].join(';'));
   const text = [head, cols, ...lines].join('\r\n') + '\r\n';
   const buf = require('iconv-lite').encode(text, 'win1252');   // erst hier laden – spart beim Start Speicher
@@ -378,7 +405,7 @@ async function pruefer(year, user, club) {
   add('aenderungsjournal.csv', 'aenderungsjournal', 'Änderungsjournal: jede neue, geänderte oder gelöschte Zeile mit Vorher/Nachher (JSON) und Prüfkette (SHA-256)',
     ['id', 'at', 'who', 'tbl', 'op', 'row_id', 'old', 'new', 'prev', 'hash'].map(n => ({ name: n, num: n === 'id' || n === 'row_id' })), jr);
   const list = postings(from, to), ks = new Map(keys().map(k => [k.key, k]));
-  add('zahlungseingaenge.csv', 'zahlungseingaenge', 'Zahlungseingänge je Erlösart und Sphäre (Grundlage des DATEV-Buchungsstapels)',
+  add('zahlungseingaenge.csv', 'zahlungseingaenge', 'Zahlungen je Erlös- und Ausgabeart und Sphäre – Einnahmen positiv, Ausgaben negativ (Grundlage des DATEV-Buchungsstapels)',
     [{ name: 'datum' }, { name: 'betrag', dec: true }, { name: 'zahlweg' }, { name: 'erloesart' }, { name: 'sphaere' }, { name: 'beleg' }, { name: 'text' }, { name: 'name' }, { name: 'herkunft' }],
     list.map(p => ({ datum: deDate(p.date), betrag: (p.cents / 100).toFixed(2).replace('.', ','), zahlweg: VIAS[p.via], erloesart: (ks.get(p.key) || { label: p.key }).label, sphaere: SPHERES[(ks.get(p.key) || {}).sphere] || '', beleg: p.doc, text: p.text, name: p.name, herkunft: p.ref })));
   const ixml = `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE DataSet SYSTEM "gdpdu-01-09-2004.dtd">\n<DataSet>\n  <Version>1.0</Version>\n  <DataSupplier>\n    <Name>${xml(club || 'Verein')}</Name>\n    <Location></Location>\n    <Comment>Clubwerk – Datenüberlassung ${yl}</Comment>\n  </DataSupplier>\n  <Media>\n    <Name>Clubwerk ${year}</Name>\n` +
@@ -433,7 +460,7 @@ function routes(admin, { need, bad, asyncRoute }) {
     const bad8 = [...Object.values(c.gegen), ...Object.values(c.konten).map(x => x.konto)].filter(x => x && x.length !== c.length);
     if (bad8.length) return bad(res, `Kontonummern müssen ${c.length} Ziffern haben (Sachkontenlänge): ${[...new Set(bad8)].slice(0, 5).join(', ')}.`);
     const { wj_month: wm, ...store } = c;
-    setSetting('gobd_cfg', JSON.stringify(store));
+    setSetting('gobd_cfg', JSON.stringify(store)); keysMemo = null;
     gj.set(wm);
     const L = { berater: 'Beraternummer', mandant: 'Mandantennummer', wj_month: 'Geschäftsjahr beginnt im Monat', length: 'Sachkontenlänge', skr: 'Kontenrahmen' };
     const flat = x => ({ ...Object.fromEntries(Object.keys(L).map(k => [k, x[k]])), ...Object.fromEntries(Object.keys(VIAS).map(v => [`g_${v}`, x.gegen[v] || ''])), ...Object.fromEntries(keys().map(k => [`k_${k.key}`, x.konten[k.key] ? `${x.konten[k.key].konto || '–'} · ${SPHERES[x.konten[k.key].sphere] || 'ohne Sphäre'}` : ''])) });

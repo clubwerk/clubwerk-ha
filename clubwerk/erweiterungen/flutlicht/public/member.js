@@ -18,7 +18,7 @@
         try {
           v = await ctx.api('status');
           const ok = v.online && v.wlan && v.app;
-          document.getElementById('flDot').className = 'vh-dot ' + (ok ? 'ok' : 'err');
+          document.getElementById('flDot').className = 'vh-dot ' + (!ok ? 'err' : v.block ? 'warn' : 'ok');   // Sperre: kein grünes „alles gut“
           document.getElementById('flSt').textContent = !v.online ? 'Keine Verbindung zum Flutlicht' : !v.wlan ? 'Schalten nur im WLAN des Vereinsheims'
             : !v.app ? 'Schalten in der App ist ausgeschaltet' : v.block ? `Im Vereins-WLAN · ${v.block}` : v.darkFrom ? `Im Vereins-WLAN · Licht ab ${v.darkFrom} Uhr, spätestens bis ${v.quiet} Uhr` : 'Im Vereins-WLAN';
           if (!ok) v.lights.forEach(l => { l.can = { on: false, extend: false, off: false }; });

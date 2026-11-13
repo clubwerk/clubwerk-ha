@@ -1,5 +1,5 @@
 'use strict';
-/* Verwaltung „Buchhaltung“: Rechnungen · Firmen & Sponsoren · Spendenquittungen · Einstellungen */
+/* Verwaltung „Buchhaltung“: Rechnungen · Spendenquittungen · Firmen & Sponsoren · Ausgaben · Kassenbuch · Auswertung · Einstellungen */
 (() => {
   const GK = window.GK;
   const { $, esc, euro, toast, fail, dialog, closeDialog, ask, askText, deDate, toCents, centsToInput } = GK;
@@ -44,7 +44,13 @@
       .bh-sub { display: block; font-size: 12.5px; color: var(--muted); margin-top: 2px; }
       .bh-tbl span.num:not(.bh-sub), .bh-tbl b.num, #dialog span.num, .bh-sub.num { font-size: 1.15em; }   /* Anzeigetafel-Ziffern sind schmaler: etwas größer, damit sie neben der Textschrift gleich hoch wirken */
       @media (min-width: 761px) { .bh-tbl td { height: 52px; } }
-      @media (max-width: 1100px) { .bh-tbl .hm, .bh-tbl .bh-sub { display: none; } }`;
+      @media (max-width: 1100px) { .bh-tbl .hm, .bh-tbl .bh-sub { display: none; } .bh-tbl.ax .k-1z .bh-sub:not(.k-weg) { display: block; } }
+      .frm.bh-coins + .frm.bh-coins { margin-top: 12px; }   /* Münzen und Scheine im Formularraster (4 Spalten), fluchten mit „Gezählt am“ */
+      @media (max-width: 640px) { .frm.bh-coins { grid-template-columns: repeat(2, minmax(0, 1fr)); } .frm.bh-coins > .w1 { grid-column: span 1; } }
+      .bh-beleg { margin: 12px 0 0; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; background: var(--hover); text-align: center; }
+      .bh-beleg img { display: block; max-width: 100%; max-height: 60vh; margin: 0 auto; object-fit: contain; }
+      .bh-euer th { text-align: left; font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--faint); }
+      .bh-euer tr.tot td { border-top: 2px solid var(--line2); }`;
     document.head.appendChild(s);
   }
 
@@ -52,15 +58,17 @@
     'bh-rechnungen': ['Rechnungen', 'Rechnungen an Firmen, Sponsoren und Mitglieder – mit fortlaufender Nummer, Umsatzsteuer je Position und Zahlungserinnerung.'],
     'bh-firmen': ['Firmen & Sponsoren', 'Einmal anlegen, jedes Jahr wiederverwenden: Anschrift, Ansprechperson und die jährlichen Positionen (z. B. Bandenwerbung).'],
     'bh-spenden': ['Spendenquittungen', 'Zuwendungsbestätigungen nach amtlichem Muster – Geldspende, Sachspende oder Verzicht auf Aufwandserstattung.'],
-    'bh-einstellungen': ['Einstellungen', 'Rechnungen, Steuerangaben und Spendenquittungen. Anschrift und Bankkonten pflegst du zentral unter Einstellungen.'],
+    'bh-einstellungen': ['Einstellungen', 'Rechnungen, Steuerangaben, Spendenquittungen, Ausgaben und Kassen. Anschrift und Bankkonten pflegst du zentral unter Einstellungen.'],
+    'bh-ausgaben': ['Ausgaben', 'Alles, was Geld kostet – mit Beleg, vom Bankkonto oder aus der Kasse. Stornieren statt löschen.'],
+    'bh-kasse': ['Kassenbuch', 'Bargeld je Kasse: Bareinnahmen, Barausgaben und Geldtransit, gezählt im Kassensturz und je Monat festgeschrieben.'],
+    'bh-euer': ['EÜR', 'Einnahmen-Überschuss-Rechnung je Sphäre – Einnahmen und Ausgaben, die durch Clubwerk laufen.'],
   };
   const loadMeta = async () => { st.meta = await api('meta'); return st.meta; };
   function pageRender(key, fn) {
     return async () => {
-      const m = await loadMeta(), [title, lead] = PAGE[key];
-      const s = m.settings;
-      const noBank = key === 'bh-rechnungen' && !m.accounts.length;
-      const noFa = key === 'bh-spenden' && !m.donationReady;
+      const m = GK.can('buchhaltung') ? await loadMeta() : null, [title, lead] = PAGE[key];   // nur „Ausgaben“: Einstellungen ohne Rechnungen
+      const noBank = m && key === 'bh-rechnungen' && !m.accounts.length;
+      const noFa = m && key === 'bh-spenden' && !m.donationReady;
       $('main').innerHTML = `<h2 class="page">${esc(title)}</h2><p class="lead">${esc(lead)}</p>
         <div id="bhBody"></div>`;
       st.note = (noBank ? '<div class="banner a"><span>Für Rechnungen fehlt noch ein Bankkonto des Vereins.</span><a href="#einstellungen" data-bank>Anlegen →</a></div>' : '')
@@ -416,8 +424,16 @@
 
   /* ---------------- Einstellungen ---------------- */
   /* Karten untereinander (Reihenfolge nach den Regeln der Verwaltung), je Karte ein Thema und ein Speichern – jede Karte sendet nur ihre Felder */
-  const SET_SECS = [['rechnungen', 'Rechnungen'], ['steuer', 'Steuer & Finanzamt'], ['spenden', 'Spendenquittungen'], ['absender', 'Briefkopf & Bankkonten'], ['transfer', 'Einstellungen übertragen']];
+  const SET_SECS = [['rechnungen', 'Rechnungen'], ['steuer', 'Steuer & Finanzamt'], ['spenden', 'Spendenquittungen'], ['absender', 'Briefkopf & Bankkonten'], ['ausgaben', 'Ausgaben & Kasse'], ['transfer', 'Einstellungen übertragen']];
+  const AUS_CARDS = () => (GK.can('ausgaben') ? '<div class="card" data-set="ausgaben" id="bsAus"></div><div class="card" data-set="ausgaben" id="bsTypes"></div><div class="card" data-set="ausgaben" id="bsCash"></div><div class="card" data-set="ausgaben" id="bsMap"></div>' : '');
   async function showSettings(el) {
+    if (!GK.can('buchhaltung')) {   // nur „Ausgaben“: Karten der Ausgaben und Kassen
+      el.innerHTML = AUS_CARDS();
+      if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bh' });
+      GK.watch(el);
+      await ausSettings(el);
+      return;
+    }
     const s = await api('settings'), ad = s.address || {}, fb = s.fallback;
     const inp = (k, l, o = {}) => `<label class="f ${o.cls || ''}">${esc(l)}<input id="bs_${k}" value="${esc(s[k] ?? '')}" ${o.ph ? `placeholder="${esc(o.ph)}"` : ''} ${o.type ? `type="${o.type}"` : ''}></label>`;
     const save = id => `<div class="btns"><button class="btn primary" data-save="${id}" type="button">Speichern</button></div>`;
@@ -447,10 +463,11 @@
         <dl class="bh-addr">${addr.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${v ? esc(v) : '<span class="muted">–</span>'}</dd>`).join('')}</dl>
         <p class="muted s">Auf der Rechnung steht das Bankkonto der Abteilung, sonst das Standardkonto – im Rechnungsfenster änderbar. <a href="#einstellungen" id="bsToBank">Bankkonten ändern unter Einstellungen › Bankkonten</a>.</p>
         ${m.accounts.length ? `<table class="tbl kompakt">${m.accounts.map(a => `<tr><td class="k-1z"><b>${esc(a.name)}</b>${a.is_default ? ' <span class="pill g">Standard</span>' : ''}</td><td class="nw">${nm(a.iban.replace(/(.{4})/g, '$1 ').trim())}</td><td>${a.departments.length ? esc(a.departments.map(id => (m.departments.find(d => d.id === id) || {}).name || '?').join(', ')) : '<span class="muted s">alle</span>'}</td></tr>`).join('')}</table>` : '<p class="empty">Noch kein Bankkonto angelegt – unter Einstellungen › Bankkonten eintragen.</p>'}</div>
-      <div id="bhFunc" data-set="transfer"></div>`;
+      ${AUS_CARDS()}<div id="bhFunc" data-set="transfer"></div>`;
     if (GK.funcBox) GK.funcBox($('bhFunc'), 'buchhaltung', 'Buchhaltung', () => showSettings(el).catch(fail));
     if (GK.sectionize) GK.sectionize({ root: el, secs: SET_SECS, store: 'cw_setsec_bh' });
     GK.watch(el);
+    if (GK.can('ausgaben')) await ausSettings(el);
     const toCore = (e, bank) => { e.preventDefault(); if (bank && GK.openSettings) GK.openSettings('bank'); else GK.go('einstellungen'); };
     $('bsToClub').onclick = e => toCore(e, false);
     $('bsToBank').onclick = e => toCore(e, true);
@@ -464,14 +481,354 @@
     if (go) { const c = [...el.querySelectorAll('.card h3')].find(h => h.textContent.trim() === go); if (c) c.scrollIntoView({ block: 'start' }); }
   }
 
+  /* ================= Ausgaben, Kassenbuch, Auswertung (lib/kasse.js) ================= */
+  const ax = { meta: null, f: { status: 'aktiv', year: '', type: '' }, cash: null, month: '', year: '' };
+  const SPH = { ideell: 'Ideeller Bereich', verm: 'Vermögensverwaltung', zweck: 'Zweckbetrieb', wgb: 'Wirtschaftlicher Geschäftsbetrieb', '': 'Ohne Sphäre' };
+  const MON = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const monLabel = m => `${GK.T(MON[Number(m.slice(5, 7)) - 1])} ${m.slice(0, 4)}`;
+  const addMon = (m, n) => { const d = new Date(Number(m.slice(0, 4)), Number(m.slice(5, 7)) - 1 + n, 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`; };
+  const axMeta = async () => { ax.meta = await api('aus/meta'); return ax.meta; };
+  const COINS = [50000, 20000, 10000, 5000, 2000, 1000, 500, 200, 100, 50, 20, 10, 5, 2, 1];
+  const coinLabel = c => (c >= 500 ? `${c / 100} €` : `${c} ct`);
+  /** Seitenkopf wie bei den übrigen Reitern (ohne Daten der Rechnungen – mit nur „Ausgaben“ oder „Kassenprüfung“) */
+  function axRender(key, fn) {
+    return async () => {
+      const [title, lead] = PAGE[key];
+      $('main').innerHTML = `<h2 class="page">${esc(title)}</h2><p class="lead">${esc(lead)}</p><div id="bhBody"></div>`;
+      await axMeta();
+      await fn($('bhBody'));
+    };
+  }
+  /** Foto verkleinern (längste Seite 2000 px, JPEG) – auch HEIC, soweit der Browser es anzeigen kann; PDF und Unlesbares unverändert */
+  async function shrink(file) {
+    if (!/^image\//.test(file.type) && !/\.(heic|heif)$/i.test(file.name)) return file;
+    try {
+      const url = URL.createObjectURL(file), img = new Image();
+      await new Promise((ok, no) => { img.onload = ok; img.onerror = no; img.src = url; });
+      const k = Math.min(1, 2000 / Math.max(img.naturalWidth, img.naturalHeight));
+      if (k === 1 && file.type === 'image/jpeg' && file.size < 1.5e6) { URL.revokeObjectURL(url); return file; }
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * k); c.height = Math.round(img.naturalHeight * k);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      const blob = await new Promise(r => c.toBlob(r, 'image/jpeg', 0.85));
+      return blob && blob.size < file.size ? blob : file;
+    } catch (e) { return file; }   // z. B. HEIC in Chrome: Original hochladen
+  }
+  async function uploadBeleg(file) {
+    const body = await shrink(file);
+    const r = await fetch(BASE + 'expenses/beleg', { method: 'POST', headers: { 'X-Clubwerk': '1', 'Content-Type': 'application/octet-stream' }, body });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(d.error || 'Fehler beim Hochladen');
+    return d;
+  }
+  async function fileDl(url, name) {
+    const r = await fetch(url, { headers: { 'X-Clubwerk': '1' } });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.error || 'Fehler'); }
+    const u = URL.createObjectURL(await r.blob()), a = document.createElement('a');
+    a.href = u; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 60000);
+  }
+
+  /* ---------------- Ausgaben ---------------- */
+  async function showExpenses(el) {
+    const m = ax.meta, f = ax.f;
+    if (!f.year) f.year = String(m.gj.year);
+    const q = new URLSearchParams({ status: f.status, year: f.year, ...(f.type ? { type: f.type } : {}) });
+    const [rows, sug] = await Promise.all([api('expenses?' + q), m.canEdit ? api('expenses-suggest') : { deliveries: [], debits: [] }]);
+    const act = rows.filter(r => r.status === 'aktiv');
+    const tot = l => l.reduce((s, r) => s + r.gross, 0);
+    const yl = (m.gj.years.find(y => String(y.y) === f.year) || {}).label || f.year;
+    const nSug = sug.deliveries.length + sug.debits.length;
+    el.innerHTML = `${m.canEdit ? '<div class="toolbar"><button class="btn primary" id="axNew" type="button">+ Neue Ausgabe</button></div>' : ''}
+      <div class="kpis"><div class="kpi"><div class="l">Ausgaben ${esc(yl)}</div><div class="v">${euro(tot(act))}</div><div class="s muted">${act.length} ${act.length === 1 ? 'Ausgabe' : 'Ausgaben'}</div></div>
+        <div class="kpi"><div class="l">Vom Bankkonto</div><div class="v">${euro(tot(act.filter(r => r.paid_from === 'bank')))}</div><div class="s muted">${act.filter(r => r.paid_from === 'bank' && !r.bank).length} ohne Kontoauszug</div></div>
+        <div class="kpi"><div class="l">Aus der Kasse</div><div class="v">${euro(tot(act.filter(r => r.paid_from === 'kasse')))}</div><div class="s muted">${act.filter(r => !r.beleg).length} mit Eigenbeleg</div></div></div>
+      ${nSug ? `<div class="card" id="axSug"><h3>Zu erfassen <span class="pill a">${nSug}</span></h3><p class="muted s" style="margin-top:0">Lieferungen aus dem Verkauf und Abbuchungen aus dem Kontoauszug, zu denen es noch keine Ausgabe gibt. Mit „Erfassen …“ sind Betrag, Datum und Empfänger schon eingetragen.</p>
+        <table class="tbl kompakt bh-tbl ax">${sug.deliveries.map(d => `<tr><td class="k-1z"><b translate="no">${esc(d.supplier)}</b><span class="bh-sub">Lieferung${d.doc_no ? ' ' + esc(d.doc_no) : ''}${d.beleg ? ' · mit Beleg' : ''}</span></td><td class="nw k-weg">${nm(deDate(d.date))}</td><td class="r">${euro(d.cents)}</td><td class="r"><button class="btn small" data-sd="${d.id}">Erfassen …</button></td></tr>`).join('')}
+          ${sug.debits.map(d => `<tr><td class="k-1z"><b translate="no">${esc(d.name || 'Abbuchung')}</b><span class="bh-sub">Abbuchung · <span translate="no">${esc(d.purpose || d.account)}</span></span></td><td class="nw k-weg">${nm(deDate(d.date))}</td><td class="r">${euro(-d.cents)}</td><td class="r"><button class="btn small" data-sb="${d.id}">Erfassen …</button></td></tr>`).join('')}</table></div>` : ''}
+      <div class="filterbar"><div class="chips" id="axS" role="group" aria-label="Status">${[['aktiv', 'Gebucht'], ['storniert', 'Storniert'], ['alle', 'Alle']].map(([k, l]) => `<button type="button" data-f="${k}" class="${f.status === k ? 'on' : ''}" aria-pressed="${f.status === k}">${l}</button>`).join('')}</div>
+        <label class="f bh-yr">${esc(GK.T(m.gj.fiscal > 1 ? 'Geschäftsjahr' : 'Jahr'))}<select id="axY" data-nodirty>${m.gj.years.map(y => opt(y.y, y.label, f.year)).join('')}</select></label>
+        <label class="f bh-yr">Art<select id="axT" data-nodirty>${opt('', 'alle', f.type)}${m.types.map(t => opt(t.id, t.name, f.type)).join('')}</select></label></div>
+      <div class="card" ${rows.length ? 'style="padding:0 20px"' : ''}>${rows.length ? `<table class="tbl bh-tbl kompakt ax"><tr><th>Empfänger</th><th>Nr.</th><th class="hm">Datum</th><th class="hm">Bezahlt</th><th class="r">Betrag</th><th>Beleg</th><th></th></tr>
+        ${rows.map(r => `<tr class="${r.status === 'storniert' ? 'off' : ''}"><td class="k-1z" title="${esc(r.payee)}"><b translate="no">${esc(r.payee)}</b><span class="bh-sub k-weg"><span translate="no">${esc(r.purpose)}</span> · ${esc(r.type)}</span></td>
+          <td class="nw k-lbl">${nm(r.no)}</td><td class="hm nw k-weg">${nm(deDate(r.date))}</td><td class="hm k-weg">${esc(r.paid_from === 'kasse' ? r.cash : r.account)}${r.bank ? ' <span class="pill g">Kontoauszug</span>' : ''}</td>
+          <td class="r">${euro(r.gross)}</td><td>${r.status === 'storniert' ? pill(['', 'storniert']) : r.beleg ? pill(['g', 'Beleg']) : pill(['a', 'Eigenbeleg'])}</td>
+          <td class="r"><span class="acts"><button class="btn ico" data-ax="${r.id}" title="${esc(GK.T('Details'))}" aria-label="${esc(GK.T('Details'))}"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button></span></td></tr>`).join('')}</table>`
+        : `<p class="empty">Keine Ausgaben${f.status !== 'alle' ? ' mit diesem Status' : ''} in diesem Zeitraum${m.canEdit ? ' – mit „+ Neue Ausgabe“ oben rechts erfasst du die erste' : ''}.</p>`}</div>`;
+    const reload = () => showExpenses(el).catch(fail);
+    $('axS').querySelectorAll('button').forEach(b => { b.onclick = () => { f.status = b.dataset.f; reload(); }; });
+    $('axY').onchange = () => { f.year = $('axY').value; reload(); };
+    $('axT').onchange = () => { f.type = $('axT').value; reload(); };
+    if ($('axNew')) $('axNew').onclick = () => expenseDialog({}, reload);
+    el.querySelectorAll('[data-sd]').forEach(b => { b.onclick = () => { const d = sug.deliveries.find(x => x.id === +b.dataset.sd); expenseDialog({ delivery: d, date: d.date, gross: d.cents, payee: d.supplier, purpose: `Lieferung${d.doc_no ? ' ' + d.doc_no : ''}`, type: m.types.find(t => /Getränke/.test(t.name) && t.active) }, reload); }; });
+    el.querySelectorAll('[data-sb]').forEach(b => { b.onclick = () => { const d = sug.debits.find(x => x.id === +b.dataset.sb); expenseDialog({ debit: d, date: d.date, gross: -d.cents, payee: d.name, purpose: d.purpose, account_id: d.account_id }, reload); }; });
+    el.querySelectorAll('[data-ax]').forEach(b => { b.onclick = () => expenseDetail(rows.find(r => r.id === +b.dataset.ax), reload); });
+  }
+
+  function expenseDialog(pre, after) {
+    const m = ax.meta, cashes = m.cashes.filter(c => c.active);
+    let from = pre.debit ? 'bank' : pre.from || 'bank', token = null, eigen = false;
+    const lock = Boolean(pre.debit);   // Abbuchung: Betrag und Konto stehen fest
+    dialog(`<h2>${pre.delivery ? 'Lieferung als Ausgabe erfassen' : pre.debit ? 'Abbuchung als Ausgabe erfassen' : 'Neue Ausgabe'}</h2>
+      <div class="frm">
+        <label class="f w1">Bezahlt am<input id="axD" type="date" value="${esc(pre.date || m.today)}" max="${m.today}" required></label>
+        <label class="f w1">Betrag (€, brutto)<input id="axC" inputmode="decimal" value="${pre.gross ? centsToInput(pre.gross) : ''}" ${lock ? 'readonly' : ''} required aria-describedby="axErr"></label>
+        <label class="f">Empfänger<input id="axP" list="axPL" maxlength="100" value="${esc(pre.payee || '')}" placeholder="z. B. Platzbau Muster GmbH" required autocomplete="off"></label>
+        <datalist id="axPL">${m.partners.map(p => `<option value="${esc(p.name)}">`).join('')}</datalist>
+        <label class="f">Ausgabeart<select id="axT2" required><option value="">– bitte wählen –</option>${m.types.filter(t => t.active).map(t => opt(t.id, t.name, pre.type ? pre.type.id : '')).join('')}</select></label>
+        <label class="f">Wofür<input id="axW" maxlength="200" value="${esc(pre.purpose || '')}" placeholder="z. B. Ziegelmehl für Platz 3" required></label>
+        ${m.vorsteuer ? `<label class="f w1">Umsatzsteuer<select id="axV">${[19, 7, 0].map(v => opt(v, v ? v + ' %' : 'ohne', 19)).join('')}</select></label>` : ''}
+      </div>
+      <h3 style="margin:16px 0 8px">Bezahlt von</h3>
+      ${lock ? `<p class="muted s" style="margin:0 0 4px" translate="no">${esc(pre.debit.account)} · Abbuchung vom ${esc(deDate(pre.debit.date))}</p>` : `<div class="seg" role="tablist" id="axFrom"><button type="button" data-fr="bank">Bankkonto</button><button type="button" data-fr="kasse" ${cashes.length ? '' : 'disabled'}>Kasse</button></div>`}
+      <div class="frm" id="axSrc"></div>
+      <h3 style="margin:16px 0 8px">Beleg</h3>
+      <div id="axBel"></div>
+      <p class="err" id="axErr" role="alert" aria-live="polite"></p>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="axOk">Ausgabe speichern</button></div>`, true);
+    const src = () => {
+      if (lock) { $('axSrc').innerHTML = ''; return; }
+      $('axFrom').querySelectorAll('[data-fr]').forEach(b => b.classList.toggle('on', b.dataset.fr === from));
+      $('axSrc').innerHTML = from === 'kasse'
+        ? `<label class="f">Kasse<select id="axK">${cashes.map(c => opt(c.id, c.name, (cashes.find(x => x.is_default) || cashes[0]).id)).join('')}</select></label>`
+        : `<label class="f">Bankkonto<select id="axA">${m.accounts.length ? m.accounts.map(a => opt(a.id, `${a.name} · ${a.iban}`, pre.account_id || (m.accounts.find(x => x.is_default) || m.accounts[0]).id)).join('') : '<option value="">kein Bankkonto angelegt</option>'}</select></label>`;
+    };
+    const bel = () => {
+      const dl = pre.delivery && pre.delivery.beleg;
+      $('axBel').innerHTML = token ? `<p style="margin:0" class="s"><span class="pill g">Beleg hochgeladen</span> <span class="muted">${esc(token.label)}</span> <button type="button" class="btn small ghost" id="axRm">Anderen wählen</button></p>`
+        : dl ? '<p class="muted s" style="margin:0">Der Beleg der Lieferung wird übernommen und eingefroren.</p>'
+          : eigen ? `<label class="f">Warum gibt es keinen Beleg? (Eigenbeleg)<textarea id="axE" rows="2" maxlength="300" placeholder="z. B. Parkschein ohne Quittung, Fahrt zum Verbandstag am …"></textarea></label><p style="margin:6px 0 0"><button type="button" class="btn small ghost" id="axE0">Doch Beleg hinzufügen</button></p>`
+            : `<div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn" id="axCam">Foto aufnehmen</button><button type="button" class="btn" id="axFile">Datei wählen (Foto oder PDF)</button><button type="button" class="btn ghost" id="axE1">Kein Beleg vorhanden …</button></div>
+              <p class="muted s" style="margin:6px 0 0">Der Beleg wird beim Speichern eingefroren und lässt sich danach nicht mehr ersetzen.</p>`;
+      const pick = async capture => {
+        const fl = await window.CWPick.file(capture ? 'image/*' : 'image/jpeg,image/png,image/heic,image/heif,application/pdf,.heic,.pdf', capture ? { capture: 'environment' } : {});
+        if (!fl) return;
+        $('axErr').textContent = 'Wird hochgeladen …';
+        try { const r = await uploadBeleg(fl); token = { id: r.token, label: `${fl.name || 'Foto'} (${Math.max(1, Math.round(r.size / 1024))} KB)` }; $('axErr').textContent = ''; bel(); } catch (e) { $('axErr').textContent = e.message; }
+      };
+      if ($('axCam')) $('axCam').onclick = () => pick(true);
+      if ($('axFile')) $('axFile').onclick = () => pick(false);
+      if ($('axE1')) $('axE1').onclick = () => { eigen = true; bel(); $('axE').focus(); };
+      if ($('axE0')) $('axE0').onclick = () => { eigen = false; bel(); };
+      if ($('axRm')) $('axRm').onclick = () => { token = null; bel(); };
+    };
+    if (!lock) $('axFrom').querySelectorAll('[data-fr]').forEach(b => { b.onclick = () => { from = b.dataset.fr; src(); }; });
+    src(); bel();
+    $('c').onclick = closeDialog;
+    $('axOk').onclick = () => GK.busy($('axOk'), async () => {
+      const body = { date: $('axD').value, gross: toCents($('axC').value || '0'), payee: $('axP').value.trim(), type_id: +$('axT2').value || null, purpose: $('axW').value.trim(),
+        vat_rate: $('axV') ? +$('axV').value : 0, paid_from: lock ? 'bank' : from, account_id: lock ? pre.debit.account_id : $('axA') ? +$('axA').value || null : null, cash_id: $('axK') ? +$('axK').value : null,
+        beleg: token ? token.id : null, eigenbeleg: eigen && $('axE') ? $('axE').value.trim() : '', delivery_id: pre.delivery ? pre.delivery.id : null, bank_entry_id: pre.debit ? pre.debit.id : null,
+        partner_id: (m.partners.find(p => p.name === $('axP').value.trim()) || {}).id || null };
+      $('axErr').textContent = '';
+      try { const r = await api('expenses', 'POST', body); closeDialog(); toast(`Ausgabe ${r.no} gespeichert.`); after(); } catch (e) { $('axErr').textContent = e.message; }
+    });
+  }
+
+  function expenseDetail(r, after) {
+    const img = r.beleg && /^image\/(jpeg|png)$/.test(r.beleg_mime), url = `${BASE}expenses/${r.id}/beleg`;
+    dialog(`<h2>Ausgabe ${esc(r.no)}</h2>
+      <p class="muted" style="margin-top:0"><span translate="no">${esc(r.payee)}</span> · ${eur(r.gross)} · ${nm(deDate(r.date))}</p>
+      <dl class="bh-addr"><dt>Wofür</dt><dd translate="no">${esc(r.purpose)}</dd><dt>Ausgabeart</dt><dd>${esc(r.type)}</dd>
+        <dt>Bezahlt von</dt><dd>${esc(r.paid_from === 'kasse' ? r.cash : r.account)}${r.bank ? ' – mit Kontoauszug abgeglichen' : ''}</dd>
+        ${r.vat ? `<dt>Vorsteuer</dt><dd>${eur(r.vat)} (${r.vat_rate} %)</dd>` : ''}
+        <dt>Erfasst</dt><dd>${esc(deDate(String(r.created_at).slice(0, 10)))}${r.created_by ? ` · ${esc(r.created_by)}` : ''}</dd>
+        ${r.status === 'storniert' ? `<dt>Storniert</dt><dd>${esc(deDate(String(r.cancelled_at).slice(0, 10)))} – ${esc(r.cancel_reason || '')}</dd>` : ''}
+        ${r.eigenbeleg ? `<dt>Eigenbeleg</dt><dd>${esc(r.eigenbeleg)}</dd>` : ''}</dl>
+      ${img ? `<div class="bh-beleg"><img src="${url}" alt="Beleg ${esc(r.no)}" loading="lazy" decoding="async"></div>` : ''}
+      <div class="btns" style="flex-wrap:wrap">${r.beleg ? `<a class="btn" href="${url}" target="_blank" rel="noopener">Beleg öffnen</a>` : ''}<button class="btn ghost" id="c">Schließen</button></div>
+      ${r.status === 'aktiv' && ax.meta.canEdit ? '<div class="bh-danger"><button class="btn ghost danger" id="axX">Ausgabe stornieren</button></div>' : ''}`, true);
+    $('c').onclick = closeDialog;
+    if ($('axX')) $('axX').onclick = async () => {
+      const why = await askText(`Ausgabe ${r.no} stornieren?\nDie Nummer und der Beleg bleiben erhalten, die Ausgabe zählt nicht mehr${r.paid_from === 'kasse' ? ' und das Geld kommt rechnerisch in die Kasse zurück' : ''}. Bitte kurz begründen:`, '', { ok: 'Stornieren' });
+      if (why == null) return;
+      try { await api(`expenses/${r.id}/cancel`, 'POST', { reason: why }); closeDialog(); toast('Storniert.'); after(); } catch (e) { fail(e); }
+    };
+  }
+
+  /* ---------------- Kassenbuch ---------------- */
+  async function showCash(el) {
+    const m = ax.meta, cashes = m.cashes;
+    if (!ax.cash || !cashes.some(c => c.id === ax.cash)) ax.cash = (cashes.find(c => c.is_default) || cashes[0] || {}).id;
+    if (!ax.month) ax.month = m.today.slice(0, 7);
+    if (!ax.cash) { el.innerHTML = '<p class="empty">Noch keine Kasse angelegt.</p>'; return; }
+    const b = await api(`cash/${ax.cash}/book?month=${ax.month}`);
+    const ein = b.rows.filter(r => r.cents > 0).reduce((s, r) => s + r.cents, 0), aus = -b.rows.filter(r => r.cents < 0).reduce((s, r) => s + r.cents, 0);
+    const startM = b.cash.start_date.slice(0, 7), nowM = m.today.slice(0, 7);
+    const months = []; for (let k = nowM; k >= startM && months.length < 36; k = addMon(k, -1)) months.push(k);
+    if (!months.includes(ax.month)) months.push(ax.month);
+    const ed = m.canEdit && b.cash.active;
+    el.innerHTML = `<div class="toolbar">${ed ? '<button class="btn" id="kbMove" type="button">Geldtransit …</button><button class="btn primary" id="kbCount" type="button">Kassensturz …</button>' : ''}</div>
+      <div class="filterbar">${cashes.length > 1 ? `<div class="chips" id="kbC" role="group" aria-label="Kasse">${cashes.filter(c => c.active || c.id === ax.cash).map(c => `<button type="button" data-c="${c.id}" class="${c.id === ax.cash ? 'on' : ''}" aria-pressed="${c.id === ax.cash}" translate="no">${esc(c.name)}</button>`).join('')}</div>` : ''}
+        <label class="f bh-yr">Monat<select id="kbM" data-nodirty>${months.sort().reverse().map(k => opt(k, monLabel(k), ax.month)).join('')}</select></label></div>
+      ${b.closed ? `<div class="banner g"><span>${esc(GK.T('Festgeschrieben am {0} – dieser Monat ist unveränderlich. Korrekturen erscheinen als Buchung in einem offenen Monat.', [deDate(String(b.closed.at).slice(0, 10))]))}</span></div>` : b.before ? '' : b.canClose && ed ? `<div class="banner a"><span>${esc(monLabel(ax.month))} ist abgelaufen und noch nicht festgeschrieben.</span><button class="btn small" id="kbClose" type="button">Monat festschreiben …</button></div>` : ''}
+      <div class="kpis"><div class="kpi"><div class="l">Anfangsbestand</div><div class="v">${euro(b.opening)}</div><div class="s muted">${esc(deDate(`${ax.month}-01`))}</div></div>
+        <div class="kpi"><div class="l">Einnahmen / Ausgaben</div><div class="v"><span class="num">${euro(ein)}</span></div><div class="s muted">${esc(GK.T('Ausgaben {0}', [euro(aus)]))}</div></div>
+        <div class="kpi"><div class="l">${b.closed ? 'Endbestand' : ax.month === nowM ? 'Bestand laut Kassenbuch' : 'Endbestand'}</div><div class="v">${euro(b.closing)}</div><div class="s muted">${b.counts.length ? esc(GK.T('Zuletzt gezählt am {0}', [deDate(b.counts[b.counts.length - 1].date)])) : esc(GK.T('in diesem Monat nicht gezählt'))}</div></div></div>
+      <div class="card" ${b.rows.length ? 'style="padding:0 20px"' : ''}>${b.before ? `<p class="empty">${esc(GK.T('Die Kasse beginnt am {0}.', [deDate(b.cash.start_date)]))}</p>` : b.rows.length ? `<table class="tbl bh-tbl kompakt ax"><tr><th>Text</th><th>Datum</th><th class="hm">Beleg</th><th class="r">Einnahme</th><th class="r">Ausgabe</th><th class="r">Bestand</th></tr>
+        ${b.rows.map(r => `<tr class="${r.src === 'storno' ? 'off' : ''}"><td class="k-1z"><b>${cbText(r)}</b>${r.sub ? `<span class="bh-sub k-weg"${r.src === 'move' || r.src === 'storno' ? ' translate="no"' : ''}>${esc(r.sub)}</span>` : ''}</td><td class="nw">${nm(deDate(r.date))}</td>
+          <td class="nw hm k-weg">${r.doc ? nm(r.doc) : ''}</td><td class="r k-lbl">${r.cents > 0 ? euro(r.cents) : ''}</td><td class="r k-lbl">${r.cents < 0 ? euro(-r.cents) : ''}</td><td class="r k-lbl"><b class="num">${euro(r.balance)}</b>
+          ${ed && r.src === 'move' && r.kind !== 'differenz' && !b.closed ? `<button class="btn small ghost" data-mx="${r.id}" title="Stornieren" aria-label="Stornieren">${X}</button>` : ''}</td></tr>`).join('')}</table>`
+        : `<p class="empty">${esc(GK.T('Keine Buchungen in diesem Monat.'))}${ed ? ' ' + esc(GK.T('Barausgaben erfasst du unter „Ausgaben“, Geld von oder zur Bank mit „Geldtransit …“.')) : ''}</p>`}</div>
+      <div class="row" style="justify-content:flex-end;gap:8px;margin:0 0 16px"><span class="muted s" style="margin-right:auto;align-self:center">${esc(GK.T('Kassenbuch des Monats'))}</span><button class="btn" id="kbPdf" type="button">PDF</button><button class="btn" id="kbXls" type="button">Excel</button></div>
+      ${b.counts.length ? `<div class="card"><h3>Kassenstürze im ${esc(monLabel(ax.month))}</h3><table class="tbl kompakt">${b.counts.map(c => `<tr><td class="k-1z"><b>${esc(deDate(c.date))}</b><span class="bh-sub k-weg">${esc(c.created_by || '')}${c.reason ? ` · <span translate="no">${esc(c.reason)}</span>` : ''}</span></td><td class="r k-lbl">gezählt ${euro(c.counted_cents)}</td><td class="r k-lbl">Soll ${euro(c.soll_cents)}</td><td class="r">${c.diff_cents ? pill(['a', `${GK.T('Differenz')} ${euro(c.diff_cents)}`]) : pill(['g', 'stimmt'])}</td></tr>`).join('')}</table></div>` : ''}`;
+    const reload = () => showCash(el).catch(fail);
+    if ($('kbC')) $('kbC').querySelectorAll('[data-c]').forEach(x => { x.onclick = () => { ax.cash = +x.dataset.c; reload(); }; });
+    $('kbM').onchange = () => { ax.month = $('kbM').value; reload(); };
+    const file = ext => `Kassenbuch_${b.cash.name.replace(/[^\wäöüÄÖÜß-]+/g, '_')}_${ax.month}.${ext}`;
+    $('kbPdf').onclick = () => GK.busy($('kbPdf'), () => fileDl(`${BASE}cash/${ax.cash}/book.pdf?month=${ax.month}`, file('pdf')).catch(fail));
+    $('kbXls').onclick = () => GK.busy($('kbXls'), () => fileDl(`${BASE}cash/${ax.cash}/book.xlsx?month=${ax.month}`, file('xlsx')).catch(fail));
+    if ($('kbCount')) $('kbCount').onclick = () => countDialog(b.cash, reload);
+    if ($('kbMove')) $('kbMove').onclick = () => moveDialog(b.cash, reload);
+    if ($('kbClose')) $('kbClose').onclick = async () => {
+      if (!await ask(`${monLabel(ax.month)} der ${b.cash.name} festschreiben?\n\nEndbestand ${euro(b.closing)}${b.counts.length ? '' : '\nIn diesem Monat wurde die Kasse nicht gezählt – am besten erst einen Kassensturz machen.'}\n\nDanach lässt sich in diesem Monat nichts mehr buchen; Korrekturen erscheinen im nächsten offenen Monat.`, { ok: 'Festschreiben', danger: false })) return;
+      try { await api(`cash/${ax.cash}/close`, 'POST', { month: ax.month }); toast('Festgeschrieben.'); await axMeta(); reload(); } catch (e) { fail(e); }
+    };
+    el.querySelectorAll('[data-mx]').forEach(x => { x.onclick = async () => {
+      const why = await askText('Diese Kassenbuchung stornieren?\nSie bleibt sichtbar, eine Gegenbuchung von heute hebt sie auf. Bitte kurz begründen:', '', { ok: 'Stornieren' });
+      if (why == null) return;
+      try { await api(`cash/moves/${x.dataset.mx}/cancel`, 'POST', { reason: why }); toast('Storniert.'); reload(); } catch (e) { fail(e); }
+    }; });
+  }
+
+  // Kassenbuch-Zeile: Empfänger und Zweck einer Ausgabe sind Vereinstexte (nicht übersetzen), feste Texte schon
+  function cbText(r) {
+    const aus = r.src === 'aus' || (r.src === 'storno' && !String(r.doc).startsWith('K-'));
+    if (!aus) return esc(r.text);
+    const m = /^Storno: (.*)$/.exec(r.text);
+    return m ? `${esc(GK.T('Storno'))}: <span translate="no">${esc(m[1])}</span>` : `<span translate="no">${esc(r.text)}</span>`;
+  }
+
+  function countDialog(cash, after) {
+    dialog(`<h2>Kassensturz – <span translate="no">${esc(cash.name)}</span></h2>
+      <p class="muted s" style="margin-top:0">Geld zählen und je Schein und Münze die Anzahl eintragen. Weicht das Ergebnis vom Kassenbuch ab, bucht Clubwerk die Differenz mit deiner Begründung.</p>
+      <div class="frm bh-coins"><label class="f w1">Gezählt am<input id="ksD" type="date" value="${ax.meta.today}" max="${ax.meta.today}"></label></div>
+      <div class="frm bh-coins">${COINS.map(c => `<label class="f w1">${coinLabel(c)}<input data-coin="${c}" inputmode="numeric" placeholder="0" autocomplete="off"></label>`).join('')}</div>
+      <div class="bh-sum" aria-live="polite"><span>Gezählt</span><span id="ksSum" class="num">${euro(0)}</span><span>Laut Kassenbuch</span><span id="ksSoll" class="num">–</span><span class="tot">Differenz</span><span id="ksDiff" class="num tot">–</span></div>
+      <label class="f" id="ksRL">Begründung der Differenz<input id="ksR" maxlength="200" placeholder="z. B. Wechselgeld falsch"></label>
+      <p class="err" id="ksErr" role="alert" aria-live="polite"></p>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="ksOk">Kassensturz speichern</button></div>`, true);
+    let soll = null;
+    const counted = () => [...document.querySelectorAll('[data-coin]')].reduce((s, i) => s + (parseInt(i.value, 10) || 0) * Number(i.dataset.coin), 0);
+    const paint = () => { const c = counted(); $('ksSum').textContent = euro(c); $('ksSoll').textContent = soll == null ? '–' : euro(soll); const d = soll == null ? null : c - soll; $('ksDiff').textContent = d == null ? '–' : euro(d); $('ksRL').style.display = d ? '' : 'none'; };
+    const loadSoll = async () => { try { const r = await api(`cash/${cash.id}/soll?date=${$('ksD').value}`); soll = r.soll; $('ksErr').textContent = r.closed ? GK.T('Dieser Tag liegt in einem festgeschriebenen Monat.') : ''; } catch (e) { soll = null; } paint(); };
+    document.querySelectorAll('[data-coin]').forEach(i => { i.oninput = paint; });
+    $('ksD').onchange = loadSoll; loadSoll();
+    $('c').onclick = closeDialog;
+    $('ksOk').onclick = () => GK.busy($('ksOk'), async () => {
+      const coins = {}; document.querySelectorAll('[data-coin]').forEach(i => { const n = parseInt(i.value, 10); if (n > 0) coins[i.dataset.coin] = n; });
+      try { const r = await api(`cash/${cash.id}/count`, 'POST', { date: $('ksD').value, coins, reason: $('ksR').value.trim() }); closeDialog(); toast(r.diff ? `Gespeichert – Differenz ${euro(r.diff)} gebucht.` : 'Gespeichert – die Kasse stimmt.'); after(); } catch (e) { $('ksErr').textContent = e.message; }
+    });
+  }
+
+  function moveDialog(cash, after) {
+    const m = ax.meta, others = m.cashes.filter(c => c.active && c.id !== cash.id);
+    let kind = 'in';
+    dialog(`<h2>Geldtransit – <span translate="no">${esc(cash.name)}</span></h2>
+      <div class="seg" role="tablist" id="mvK"><button type="button" data-k="in">Von der Bank in die Kasse</button><button type="button" data-k="out">Aus der Kasse zur Bank</button>${others.length ? '<button type="button" data-k="kasse">An andere Kasse</button>' : ''}</div>
+      <div class="frm"><label class="f w1">Datum<input id="mvD" type="date" value="${m.today}" max="${m.today}"></label><label class="f w1">Betrag (€)<input id="mvC" inputmode="decimal" required></label>
+        <span id="mvTo" class="f-slot"></span>
+        <label class="f wall">Notiz (optional)<input id="mvN" maxlength="120" placeholder="z. B. Wechselgeld für das Sommerfest"></label></div>
+      <p class="err" id="mvErr" role="alert" aria-live="polite"></p>
+      <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="mvOk">Buchen</button></div>`, true);
+    const paint = () => {
+      $('mvK').querySelectorAll('[data-k]').forEach(b => b.classList.toggle('on', b.dataset.k === kind));
+      $('mvTo').outerHTML = kind === 'kasse' ? `<label class="f" id="mvTo">An Kasse<select id="mvO">${others.map(c => opt(c.id, c.name)).join('')}</select></label>`
+        : `<label class="f" id="mvTo">Bankkonto<select id="mvA">${m.accounts.length ? m.accounts.map(a => opt(a.id, `${a.name} · ${a.iban}`, (m.accounts.find(x => x.is_default) || m.accounts[0]).id)).join('') : '<option value="">kein Bankkonto angelegt</option>'}</select></label>`;
+    };
+    $('mvK').querySelectorAll('[data-k]').forEach(b => { b.onclick = () => { kind = b.dataset.k; paint(); }; });
+    paint();
+    $('c').onclick = closeDialog;
+    $('mvOk').onclick = () => GK.busy($('mvOk'), async () => {
+      const body = { date: $('mvD').value, cents: toCents($('mvC').value || '0'), text: $('mvN').value.trim(), ...(kind === 'kasse' ? { kind: 'umbuchung', other_cash_id: +$('mvO').value } : { kind: 'transit', direction: kind, account_id: +$('mvA').value || null }) };
+      try { await api(`cash/${cash.id}/move`, 'POST', body); closeDialog(); toast('Gebucht.'); after(); } catch (e) { $('mvErr').textContent = e.message; }
+    });
+  }
+
+  /* ---------------- Auswertung (EÜR) ---------------- */
+  async function showEuer(el) {
+    const m = ax.meta;
+    if (!ax.year) ax.year = String(m.gj.year);
+    const e = await api(`euer?year=${ax.year}`);
+    const keys = ['ideell', 'verm', 'zweck', 'wgb', ''].filter(k => e.spheres[k].ein.length || e.spheres[k].aus.length);
+    el.innerHTML = `<div class="toolbar"><button class="btn" id="euXls" type="button">Excel</button></div>
+      <div class="filterbar"><label class="f bh-yr">${esc(GK.T(m.gj.fiscal > 1 ? 'Geschäftsjahr' : 'Jahr'))}<select id="euY" data-nodirty>${m.gj.years.map(y => opt(y.y, y.label, ax.year)).join('')}</select></label></div>
+      ${e.warn.map(w => `<div class="banner a"><span>${esc(GK.T('Mehr als {0} € Einnahmen im Bereich „{1}“ – bitte mit dem Steuerberater klären, ob Steuern anfallen (Grenze gilt für das ganze Jahr, einschließlich Umsatzsteuer).', [(w.limit / 100).toLocaleString('de-DE'), GK.T(SPH[w.sphere])]))}</span></div>`).join('')}
+      <div class="kpis"><div class="kpi"><div class="l">Einnahmen</div><div class="v">${euro(e.total.ein)}</div><div class="s muted">${esc(e.label)}</div></div>
+        <div class="kpi"><div class="l">Ausgaben</div><div class="v">${euro(e.total.aus)}</div><div class="s muted">${e.vorsteuer != null ? esc(GK.T('davon Vorsteuer {0}', [euro(e.vorsteuer)])) : esc(GK.T('brutto'))}</div></div>
+        <div class="kpi"><div class="l">Überschuss</div><div class="v ${e.total.ein - e.total.aus < 0 ? 'neg' : ''}">${euro(e.total.ein - e.total.aus)}</div><div class="s muted">${esc(GK.T('Einnahmen − Ausgaben'))}</div></div></div>
+      <p class="muted s">Gezählt wird, was durch Clubwerk läuft – nach Zahlungstag, je Sphäre aus Einstellungen › Buchführung. Bankumsätze außerhalb von Clubwerk (z. B. Zinsen) fehlen hier.</p>
+      ${keys.length ? keys.map(k => { const x = e.spheres[k]; return `<div class="card"><h3>${esc(GK.T(SPH[k]))}</h3><table class="tbl kompakt bh-euer">
+          ${x.ein.length ? `<tr><th colspan="2">Einnahmen</th></tr>${x.ein.map(i => `<tr><td>${esc(i.label)}</td><td class="r">${euro(i.cents)}</td></tr>`).join('')}` : ''}
+          ${x.aus.length ? `<tr><th colspan="2">Ausgaben</th></tr>${x.aus.map(i => `<tr><td>${esc(i.label)}</td><td class="r">${euro(-i.cents)}</td></tr>`).join('')}` : ''}
+          <tr class="tot"><td><b>Überschuss</b></td><td class="r"><b class="num ${x.saldo < 0 ? 'neg' : ''}">${euro(x.saldo)}</b></td></tr></table></div>`; }).join('')
+        : `<div class="card"><p class="empty">${esc(GK.T('Keine Einnahmen und Ausgaben in diesem Zeitraum.'))}</p></div>`}`;
+    $('euY').onchange = () => { ax.year = $('euY').value; showEuer(el).catch(fail); };
+    $('euXls').onclick = () => GK.busy($('euXls'), () => fileDl(`${BASE}euer.xlsx?year=${ax.year}`, `EUER_${e.label.replace('/', '-')}.xlsx`).catch(fail));
+  }
+
+  /* ---------------- Einstellungen: Ausgaben & Kasse ---------------- */
+  async function ausSettings(el) {
+    const m = await axMeta(), cash = await api('cash');
+    const box = id => el.querySelector(`#${id}`);
+    box('bsAus').innerHTML = `<h3>Ausgaben</h3>
+      <div class="frm"><label class="f w1">Nummernkreis<input id="bsaP" value="${esc(m.prefix)}" maxlength="8" placeholder="A-"></label>
+        <label class="chk w3" style="align-self:end;min-height:40px"><input type="checkbox" id="bsaV" ${m.vorsteuer ? 'checked' : ''}> Verein ist vorsteuerabzugsberechtigt (Steuersatz je Ausgabe, Vorsteuer im DATEV-Export)</label></div>
+      <p class="muted s">Nummern laufen je Jahr: ${esc(m.prefix)}${new Date().getFullYear()}-0001, -0002 … Ohne Vorsteuerabzug werden Ausgaben brutto erfasst – im Zweifel die Steuerberatung fragen.</p>
+      <div class="btns"><button class="btn primary" id="bsaSave" type="button">Speichern</button></div>`;
+    box('bsTypes').innerHTML = `<h3>Ausgabearten</h3>
+      <p class="muted s" style="margin-top:0">Konto und Sphäre je Ausgabeart stellst du unter Einstellungen › Buchführung ein (wie bei den Erlösarten).</p>
+      <table class="tbl kompakt">${m.types.map(t => `<tr class="${t.active ? '' : 'off'}"><td class="k-1z"><b>${esc(t.name)}</b><span class="bh-sub">${esc(GK.T(SPH[t.sphere] || 'Ohne Sphäre'))}</span></td>
+        <td class="r nw"><button class="btn small" data-tr="${t.id}">Umbenennen</button> <button class="btn small" data-ta="${t.id}">${t.active ? 'Stilllegen' : 'Wieder aktiv'}</button></td></tr>`).join('')}</table>
+      <div class="frm" style="margin-top:12px"><label class="f">Neue Ausgabeart<input id="bstN" maxlength="60" placeholder="z. B. Jugendfahrten"></label>
+        <label class="f w1">Sphäre<select id="bstS">${['ideell', 'verm', 'zweck', 'wgb'].map(k => opt(k, GK.T(SPH[k]), 'ideell')).join('')}</select></label><span class="w1 frm-acts"><button class="btn" id="bstAdd" type="button">+ Hinzufügen</button></span></div>`;
+    box('bsCash').innerHTML = `<h3>Kassen</h3>
+      <p class="muted s" style="margin-top:0">Jede Bargeldkasse mit Anfangsbestand. Bareinnahmen aus Verkauf, Veranstaltungen und Rechnungen laufen in die Hauptkasse, wenn unten nichts anderes eingestellt ist.</p>
+      <table class="tbl kompakt">${cash.map(c => `<tr class="${c.active ? '' : 'off'}"><td class="k-1z"><b translate="no">${esc(c.name)}</b>${c.is_default ? ' <span class="pill g">Hauptkasse</span>' : ''}<span class="bh-sub k-weg">${esc(GK.T('seit {0} mit {1}', [deDate(c.start_date), euro(c.start_cents)]))}${c.closed_until ? ' · ' + esc(GK.T('festgeschrieben bis {0}', [deDate(c.closed_until)])) : ''}</span></td>
+        <td class="r k-lbl">${euro(c.balance)}</td><td class="r"><button class="btn small" data-ce="${c.id}">Ändern …</button></td></tr>`).join('')}</table>
+      <div class="btns"><button class="btn" id="bscAdd" type="button">+ Kasse</button></div>`;
+    const act = cash.filter(c => c.active);
+    if (act.length > 1) {
+      const map = await api('cash-map');
+      box('bsMap').innerHTML = `<h3>Bareinnahmen je Kasse</h3><p class="muted s" style="margin-top:0">In welche Kasse fließt bares Geld je Erlösart? Ohne Auswahl in die Hauptkasse.</p>
+        <table class="tbl kompakt">${map.map((k, i) => `<tr><td class="k-1z"><b id="bsCm${i}">${esc(k.label)}</b><span class="bh-sub">${esc(k.module || '')}</span></td><td class="r"><select data-cm="${esc(k.key)}" aria-labelledby="bsCm${i}" style="min-width:180px">${opt('', GK.T('Hauptkasse'), k.cash_id || '')}${act.map(c => opt(c.id, c.name, k.cash_id || '').replace('<option ', '<option translate="no" ')).join('')}</select></td></tr>`).join('')}</table>
+        <div class="btns"><button class="btn primary" id="bsmSave" type="button">Speichern</button></div>`;
+      $('bsmSave').onclick = () => GK.busy($('bsmSave'), async () => { const mm = {}; el.querySelectorAll('[data-cm]').forEach(s => { if (s.value) mm[s.dataset.cm] = +s.value; }); try { await api('cash-map', 'PUT', { map: mm }); GK.clean(); toast('Gespeichert.'); } catch (e) { fail(e); } });
+    } else box('bsMap').remove();
+    const again = () => ausSettings(el).catch(fail);
+    $('bsaSave').onclick = () => GK.busy($('bsaSave'), async () => { try { await api('aus/settings', 'PUT', { aus_prefix: $('bsaP').value.trim(), vorsteuer: $('bsaV').checked }); GK.clean(); toast('Gespeichert.'); again(); } catch (e) { fail(e); } });
+    $('bstAdd').onclick = () => GK.busy($('bstAdd'), async () => { try { await api('types', 'POST', { name: $('bstN').value.trim(), sphere: $('bstS').value }); GK.clean(); toast('Angelegt.'); again(); } catch (e) { fail(e); } });
+    el.querySelectorAll('[data-tr]').forEach(b => { b.onclick = async () => { const t = m.types.find(x => x.id === +b.dataset.tr); const n = await askText('Neuer Name der Ausgabeart:', t.name, { ok: 'Umbenennen' }); if (n == null) return; try { await api(`types/${t.id}`, 'PUT', { name: n }); toast('Umbenannt.'); again(); } catch (e) { fail(e); } }; });
+    el.querySelectorAll('[data-ta]').forEach(b => { b.onclick = async () => { const t = m.types.find(x => x.id === +b.dataset.ta); try { await api(`types/${t.id}`, 'PUT', { active: !t.active }); toast('Gespeichert.'); again(); } catch (e) { fail(e); } }; });
+    const cashDlg = c => {
+      dialog(`<h2>${c ? 'Kasse ändern' : 'Neue Kasse'}</h2>
+        <div class="frm"><label class="f">Name<input id="cdN" maxlength="40" value="${esc(c ? c.name : '')}" placeholder="z. B. Turnierkasse"></label>
+          <label class="f w1">Beginnt am<input id="cdD" type="date" value="${esc(c ? c.start_date : m.today)}"></label><label class="f w1">Anfangsbestand (€)<input id="cdC" inputmode="decimal" value="${centsToInput(c ? c.start_cents : 0)}"></label>
+          ${c ? `<label class="chk wall"><input type="checkbox" id="cdH" ${c.is_default ? 'checked disabled' : ''}> Hauptkasse (Bareinnahmen ohne eigene Zuordnung)</label><label class="chk wall"><input type="checkbox" id="cdA" ${c.active ? 'checked' : ''} ${c.is_default ? 'disabled' : ''}> In Betrieb</label>` : ''}</div>
+        <p class="muted s">Den Anfangsbestand kannst du ändern, solange in der Kasse noch nichts gebucht ist.</p>
+        <p class="err" id="cdErr" role="alert" aria-live="polite"></p>
+        <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn primary" id="cdOk">Speichern</button></div>`);
+      $('c').onclick = closeDialog;
+      $('cdOk').onclick = () => GK.busy($('cdOk'), async () => {
+        const body = { name: $('cdN').value.trim(), start_date: $('cdD').value, start_cents: toCents($('cdC').value || '0') };
+        if (c) { body.is_default = $('cdH').checked && !c.is_default ? true : undefined; body.active = $('cdA').checked; }
+        try { await api(c ? `cash/${c.id}` : 'cash', c ? 'PUT' : 'POST', body); closeDialog(); toast('Gespeichert.'); again(); } catch (e) { $('cdErr').textContent = e.message; }
+      });
+    };
+    $('bscAdd').onclick = () => cashDlg(null);
+    el.querySelectorAll('[data-ce]').forEach(b => { b.onclick = () => cashDlg(cash.find(c => c.id === +b.dataset.ce)); });
+  }
+
   const G = { key: 'buchhaltung', label: 'Buchhaltung', icon: 'buchhaltung', order: 8 };   // Menüposition (siehe Kern: feste Modulreihenfolge)
   // Reiter in fester Folge: Rechnungen · Spendenquittungen · Firmen & Sponsoren · Einstellungen (die Schlüssel der Seiten bleiben gleich)
   GK.registerPage({ key: 'bh-rechnungen', title: 'Rechnungen', perm: 'buchhaltung', render: pageRender('bh-rechnungen', showInvoices), group: G });
   GK.registerPage({ key: 'bh-spenden', title: 'Spendenquittungen', perm: 'buchhaltung', render: pageRender('bh-spenden', showDonations), group: G });
   GK.registerPage({ key: 'bh-firmen', title: 'Firmen & Sponsoren', perm: 'buchhaltung', render: pageRender('bh-firmen', showPartners), group: G });
+  const AXP = ['ausgaben', 'kassenpruefung'];   // Kassenprüfer sehen Ausgaben, Kassenbuch und Auswertung (nur lesen)
+  GK.registerPage({ key: 'bh-ausgaben', title: 'Ausgaben', perm: AXP, render: axRender('bh-ausgaben', showExpenses), group: G });
+  GK.registerPage({ key: 'bh-kasse', title: 'Kassenbuch', perm: AXP, render: axRender('bh-kasse', showCash), group: G });
+  GK.registerPage({ key: 'bh-euer', title: 'EÜR', perm: AXP, render: axRender('bh-euer', showEuer), group: G });
   // Kontoauszug (Kern): hier nur ohne Mitgliederverwaltung – sonst unter „Beiträge & Zahlungen“
   if (GK.kontoauszugRegister && !(GK.modules && GK.modules().includes('mitglieder'))) GK.kontoauszugRegister(G);
-  GK.registerPage({ key: 'bh-einstellungen', title: 'Einstellungen', perm: 'buchhaltung', render: pageRender('bh-einstellungen', showSettings), group: G });
+  GK.registerPage({ key: 'bh-einstellungen', title: 'Einstellungen', perm: ['buchhaltung', 'ausgaben'], render: pageRender('bh-einstellungen', showSettings), group: G });
   // Suche (Strg/⌘ K), Datensätze: Rechnung in der Liste „Alle“ hervorheben, Firma in ihrer Liste
   if (GK.registerHit) {
     GK.registerHit('rechnung', { before: () => { st.inv.status = 'alle'; st.inv.year = ''; }, find: id => $('main').querySelector(`[data-inv="${Number(id)}"]`)?.closest('tr') });
@@ -484,11 +841,18 @@
     { label: 'Offene und überfällige Rechnungen', page: 'bh-rechnungen', seg: 'Überfällig', kind: 'aktion', in: 'Rechnungen', words: 'Mahnung Erinnerung Zahlung offen bezahlt' },
     { label: 'Firma oder Sponsor anlegen', page: 'bh-firmen', btn: '+ Firma', kind: 'aktion', in: 'Firmen & Sponsoren', words: 'Sponsor Partner Firma', boost: 1 },
     { label: 'Spendenquittung ausstellen', page: 'bh-spenden', btn: '+ Neue Spendenquittung', kind: 'aktion', in: 'Spendenquittungen', words: 'Spende Zuwendungsbestätigung Quittung', boost: 1 },
-    { label: 'Rechnungen (Nummernkreis, Zahlungsziel, Einleitung, Fußzeile)', page: 'bh-einstellungen', card: 'Rechnungen', in: 'Einstellungen', words: 'Nummernkreis Zahlungsziel Einleitung Fußzeile Rechnungsnummer' },
-    { label: 'Steuer & Finanzamt (Steuernummer, Umsatzsteuer, Freistellungsbescheid)', page: 'bh-einstellungen', card: 'Steuer & Finanzamt', in: 'Einstellungen', words: 'Steuernummer USt Umsatzsteuer Kleinunternehmer Finanzamt Freistellungsbescheid Feststellungsbescheid Veranlagungszeitraum' },
-    { label: 'Spendenquittungen (Zwecke, Unterschrift, Ort, Nummernkreis)', page: 'bh-einstellungen', card: 'Spendenquittungen', in: 'Einstellungen', words: 'Zwecke Unterschrift Funktion Ort Nummernkreis Zuwendungsbestätigung' },
-    { label: 'Briefkopf und Bankkonten auf Rechnungen', page: 'bh-einstellungen', card: 'Briefkopf', in: 'Einstellungen', words: 'Anschrift Absender Telefon Konto IBAN' },
-    { label: 'Einstellungen der Buchhaltung übertragen', page: 'bh-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei' },
+    { label: 'Rechnungen (Nummernkreis, Zahlungsziel, Einleitung, Fußzeile)', page: 'bh-einstellungen', card: 'Rechnungen', perm: 'buchhaltung', in: 'Einstellungen', words: 'Nummernkreis Zahlungsziel Einleitung Fußzeile Rechnungsnummer' },
+    { label: 'Steuer & Finanzamt (Steuernummer, Umsatzsteuer, Freistellungsbescheid)', page: 'bh-einstellungen', card: 'Steuer & Finanzamt', perm: 'buchhaltung', in: 'Einstellungen', words: 'Steuernummer USt Umsatzsteuer Kleinunternehmer Finanzamt Freistellungsbescheid Feststellungsbescheid Veranlagungszeitraum' },
+    { label: 'Spendenquittungen (Zwecke, Unterschrift, Ort, Nummernkreis)', page: 'bh-einstellungen', card: 'Spendenquittungen', perm: 'buchhaltung', in: 'Einstellungen', words: 'Zwecke Unterschrift Funktion Ort Nummernkreis Zuwendungsbestätigung' },
+    { label: 'Briefkopf und Bankkonten auf Rechnungen', page: 'bh-einstellungen', card: 'Briefkopf', perm: 'buchhaltung', in: 'Einstellungen', words: 'Anschrift Absender Telefon Konto IBAN' },
+    { label: 'Einstellungen der Buchhaltung übertragen', page: 'bh-einstellungen', card: 'Einstellungen übertragen', kind: 'aktion', in: 'Einstellungen', words: 'Export Import Datei', perm: 'buchhaltung' },
+    { label: 'Ausgabe erfassen', page: 'bh-ausgaben', btn: '+ Neue Ausgabe', kind: 'aktion', in: 'Ausgaben', words: 'Beleg Quittung Rechnung bezahlt Foto Kassenbon Auslage', perm: 'ausgaben', boost: 1 },
+    { label: 'Kassensturz (Kasse zählen)', page: 'bh-kasse', btn: 'Kassensturz', kind: 'aktion', in: 'Kassenbuch', words: 'zählen Bargeld Kasse Bestand Differenz Zählprotokoll', perm: 'ausgaben', boost: 1 },
+    { label: 'Geldtransit zwischen Kasse und Bank', page: 'bh-kasse', btn: 'Geldtransit', kind: 'aktion', in: 'Kassenbuch', words: 'einzahlen abheben Wechselgeld Bank Kasse Umbuchung', perm: 'ausgaben' },
+    { label: 'Einnahmen-Überschuss-Rechnung (EÜR)', page: 'bh-euer', kind: 'aktion', in: 'EÜR', words: 'Auswertung Jahresabschluss Sphäre Überschuss Kassenprüfung Freigrenze', perm: ['ausgaben', 'kassenpruefung'] },
+    { label: 'Ausgaben: Nummernkreis und Vorsteuer', page: 'bh-einstellungen', card: 'Ausgaben', in: 'Einstellungen', words: 'Vorsteuer Nummernkreis brutto netto', perm: 'ausgaben' },
+    { label: 'Ausgabearten', page: 'bh-einstellungen', card: 'Ausgabearten', in: 'Einstellungen', words: 'Kategorie Ausgabe Art Sphäre', perm: 'ausgaben' },
+    { label: 'Kassen (Anfangsbestand, Hauptkasse)', page: 'bh-einstellungen', card: 'Kassen', in: 'Einstellungen', words: 'Kasse Thekenkasse Turnierkasse Anfangsbestand Bargeld', perm: 'ausgaben' },
   ]);
   if (GK.badges) GK.badges(async () => { if (!GK.can('buchhaltung')) return {}; const m = await api('meta'); return { 'bh-rechnungen': m.kpis.overdue.n }; });
 })();

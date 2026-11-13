@@ -7,6 +7,7 @@
       zusätzlich als offener Posten beim Mitglied und können so per Lastschrift eingezogen werden.
    2. Spendenquittungen (Zuwendungsbestätigungen nach amtlichem Muster): Geldspende, Sachspende, Verzicht auf Aufwandserstattung –
       für Mitglieder, Firmen oder einmalige Spender.
+   3. Ausgaben mit Beleg, Kassenbuch und Einnahmen-Überschuss-Rechnung (lib/kasse.js).
    ===================================================================================================== */
 const pdf = require('./lib/pdf');
 
@@ -56,7 +57,7 @@ CREATE TABLE IF NOT EXISTS bh_donation (
 /* ---------------------------------------------------------------- Einstellungen */
 const DEF = { street: '', city: '', tax_no: '', vat_id: '', phone: '', email: '', vat_default: '19', small_business: '0', inv_prefix: 'R-', due_days: '14',
   footer: '', intro: '', don_prefix: 'SQ-', finanzamt: '', fa_tax_no: '', bescheid_type: 'freistellung', bescheid_date: '', veranlagungszeitraum: '',
-  zwecke: 'des Sports (§ 52 Abs. 2 Satz 1 Nr. 21 AO)', signer: '', signer_role: 'Vorsitzende/r', place: '' };
+  zwecke: 'des Sports (§ 52 Abs. 2 Satz 1 Nr. 21 AO)', signer: '', signer_role: 'Vorsitzende/r', place: '', aus_prefix: 'A-', vorsteuer: '0', cash_map: '{}' };
 const S = k => C.setting(k, DEF[k] != null ? DEF[k] : '');
 const mvSync = (name, ...a) => { const x = C.callHooksSync(name, ...a).find(y => y.id === 'mitglieder'); return x ? x.result : null; };   // null ohne Mitgliederverwaltung
 function settings() {
@@ -186,6 +187,16 @@ function activate(ctx) {
   const uname = req => req.user.name || req.user.username;
   const VIA_KA = 'kontoauszug';   // per Kontoauszug bezahlt (Zuordnung im Kontoauszug)
 
+  /* ---------- Ausgaben, Kassenbuch, EÜR (lib/kasse.js) ---------- */
+  const K = require('./lib/kasse')(ctx, { txt, one, nextNo, S, pdf, club });
+  admin.put('/aus/settings', need('ausgaben'), (req, res) => {
+    const b = req.body || {}, before = { aus_prefix: S('aus_prefix'), vorsteuer: S('vorsteuer') === '1' }, err = [];
+    applySettings({ aus_prefix: b.aus_prefix, vorsteuer: b.vorsteuer === undefined ? undefined : Boolean(b.vorsteuer) }, err);
+    const diff = ctx.auditDiff({ aus_prefix: 'Nummernkreis der Ausgaben', vorsteuer: ['Vorsteuerabzug', 'bool'] }, before, { aus_prefix: S('aus_prefix'), vorsteuer: S('vorsteuer') === '1' });
+    if (diff) ctx.audit(req.user, 'Buchhaltung: Einstellungen der Ausgaben geändert', diff);
+    res.json({ ok: true });
+  });
+
   /* ---------- Übersicht ---------- */
   admin.get('/meta', P, ar(async (req, res) => {
     await syncMemberInvoices();
@@ -213,7 +224,8 @@ function activate(ctx) {
     if (b.vat_default !== undefined) C.setSetting2('vat_default', String(VATS.includes(Number(b.vat_default)) ? Number(b.vat_default) : 19));
     if (b.small_business !== undefined) C.setSetting2('small_business', b.small_business ? '1' : '0');
     if (b.due_days !== undefined) C.setSetting2('due_days', String(Math.max(0, Math.min(120, int(b.due_days)))));
-    for (const k of ['inv_prefix', 'don_prefix']) if (b[k] !== undefined) C.setSetting2(k, String(b[k]).replace(/[^A-Za-z0-9-]/g, '').slice(0, 8));
+    for (const k of ['inv_prefix', 'don_prefix', 'aus_prefix']) if (b[k] !== undefined) C.setSetting2(k, String(b[k]).replace(/[^A-Za-z0-9-]/g, '').slice(0, 8));
+    if (b.vorsteuer !== undefined) C.setSetting2('vorsteuer', b.vorsteuer === true || b.vorsteuer === '1' ? '1' : '0');
     if (b.bescheid_type !== undefined) C.setSetting2('bescheid_type', b.bescheid_type === 'feststellung' ? 'feststellung' : 'freistellung');
     if (b.bescheid_date !== undefined) { if (b.bescheid_date && !isDate(b.bescheid_date)) err.push('Das Datum des Bescheids ist ungültig.'); else C.setSetting2('bescheid_date', b.bescheid_date || ''); }
   }
@@ -223,7 +235,7 @@ function activate(ctx) {
     applySettings(b, err);
     { const L = { street: 'Straße', city: 'PLZ und Ort', tax_no: 'Steuernummer', vat_id: 'USt-IdNr.', phone: 'Telefon', email: 'E-Mail', finanzamt: 'Finanzamt', fa_tax_no: 'Steuernummer (Finanzamt)', veranlagungszeitraum: 'Veranlagungszeitraum',
         signer: 'Unterschrift', signer_role: 'Funktion', place: 'Ort', footer: ['Fußzeile', 'text'], intro: ['Einleitung', 'text'], zwecke: ['Satzungszwecke', 'text'], vat_default: 'Umsatzsteuer (Standard, %)', small_business: ['Kleinunternehmer', 'bool'],
-        due_days: 'Zahlungsziel (Tage)', inv_prefix: 'Rechnungsnummer-Vorsilbe', don_prefix: 'Quittungsnummer-Vorsilbe', bescheid_type: 'Art des Bescheids', bescheid_date: 'Datum des Bescheids' };
+        due_days: 'Zahlungsziel (Tage)', inv_prefix: 'Rechnungsnummer-Vorsilbe', don_prefix: 'Quittungsnummer-Vorsilbe', aus_prefix: 'Ausgabennummer-Vorsilbe', vorsteuer: ['Vorsteuerabzug', 'text'], bescheid_type: 'Art des Bescheids', bescheid_date: 'Datum des Bescheids' };
       const diff = ctx.auditDiff(L, before, settings()); if (diff) ctx.audit(req.user, 'Buchhaltung: Einstellungen geändert', diff); }
     if (err.length) return bad(res, err.join(' '));
     res.json({ ok: true, settings: settings() });
@@ -497,7 +509,7 @@ function activate(ctx) {
   /* für den Kern: Konto zusammengeführt (intoId) oder gelöscht (null) – Rechnungen und Spendenbescheinigungen behalten den Empfängertext,
      der Verweis aufs Mitglied wandert bzw. entfällt (keine Fremdschlüssel, daher hier) */
   /* Mitglied löschen: offene Rechnungen sperren (bezahlte, stornierte und Spendenquittungen bleiben mit Namen erhalten) */
-  ctx.hooks.privacyRecord = () => [{ purpose: 'Rechnungen und Spendenquittungen, Buchführung', data: 'Name, Anschrift, Rechnungen, Zahlungen, Spenden', persons: 'Mitglieder, Sponsoren, Geschäftspartner, Spender', frist: 'Rechnungen und Quittungen als Belege 8 Jahre, Bücher 10 Jahre (gesetzlich), nicht automatisch gelöscht' }];
+  ctx.hooks.privacyRecord = () => [...K.hooks.privacyRecord(), { purpose: 'Rechnungen und Spendenquittungen, Buchführung', data: 'Name, Anschrift, Rechnungen, Zahlungen, Spenden', persons: 'Mitglieder, Sponsoren, Geschäftspartner, Spender', frist: 'Rechnungen und Quittungen als Belege 8 Jahre, Bücher 10 Jahre (gesetzlich), nicht automatisch gelöscht' }];
   /* Datenauskunft: Rechnungen und Spendenquittungen an das Mitglied */
   ctx.hooks.memberData = id => ({
     rechnungen: db.prepare('SELECT no AS nummer, date AS datum, recipient AS empfaenger, gross AS brutto_cent, status FROM bh_invoice WHERE member_id = ? ORDER BY date').all(id),
@@ -516,8 +528,9 @@ function activate(ctx) {
   const openInvoices = () => db.prepare("SELECT * FROM bh_invoice WHERE status = 'offen' ORDER BY date, id").all().filter(r => !(r.charge_id && ctx.isModuleActive('mitglieder')));
   const invWho = r => { const n = J(r.recipient, {}).name || ''; return r.kind === 'member' ? ctx.require('./db').lastFirst(n) : n; };
   ctx.hooks.paymentPerm = () => 'buchhaltung';
+  ctx.hooks.paymentDebits = K.hooks.paymentDebits;   // Abbuchungen im Kontoauszug behalten: sie werden zu Ausgaben
   ctx.hooks.paymentCandidates = entries => {
-    const inv = openInvoices(), out = [];
+    const inv = openInvoices(), out = K.hooks.paymentCandidates(entries);
     for (const e of entries) {
       if (e.kind !== 'eingang' || e.cents <= 0) continue;
       for (const r of inv) {
@@ -528,8 +541,10 @@ function activate(ctx) {
     }
     return out;
   };
-  ctx.hooks.paymentTargets = () => openInvoices().map(r => ({ key: `i:${r.id}`, label: `Rechnung ${r.no} – ${invWho(r)}`, sub: `vom ${deD(r.date)}`, cents: r.gross, kind: 'zahlung' }));
-  ctx.hooks.applyPayment = (key, { entry: e }) => {
+  ctx.hooks.paymentTargets = () => [...openInvoices().map(r => ({ key: `i:${r.id}`, label: `Rechnung ${r.no} – ${invWho(r)}`, sub: `vom ${deD(r.date)}`, cents: r.gross, kind: 'zahlung' })), ...K.hooks.paymentTargets()];
+  ctx.hooks.applyPayment = (key, o) => {
+    if (String(key).startsWith('a:')) return K.hooks.applyPayment(String(key), o);
+    const e = o.entry;
     const r = db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(Number(String(key).replace(/^i:/, '')));
     const no = msg => Object.assign(new Error(msg), { fachlich: true });
     if (!r || !/^i:\d+$/.test(key)) throw no('Diese Rechnung gibt es nicht.');
@@ -540,6 +555,7 @@ function activate(ctx) {
     return { cents: r.gross, label: `Rechnung ${r.no} – ${invWho(r)}`, ref: { id: r.id, date: e.booking_date } };
   };
   ctx.hooks.undoPayment = (key, ref) => {
+    if (String(key).startsWith('a:')) return K.hooks.undoPayment(String(key), ref);
     const r = ref && db.prepare('SELECT * FROM bh_invoice WHERE id = ?').get(ref.id);
     if (!r || r.status !== 'bezahlt' || r.paid_via !== VIA_KA || r.paid_at !== ref.date) throw Object.assign(new Error(`Rechnung ${r ? r.no : ''} wurde inzwischen geändert – bitte das zuerst zurücknehmen.`), { fachlich: true });
     db.prepare("UPDATE bh_invoice SET status = 'offen', paid_at = NULL, paid_via = NULL WHERE id = ?").run(r.id);
@@ -547,15 +563,15 @@ function activate(ctx) {
   };
   /* Einrichtungs-Assistent (Verein › Einrichtung): eigene Schritte – zeigen auf die vorhandenen Karten, done prüft die eigenen Daten */
   /* Probe-Wiederherstellung: Zählerstände (nur Anzahlen) */
-  ctx.hooks.probeCounts = () => [{ label: 'Belege', n: db.prepare("SELECT COUNT(*) n FROM bh_invoice").get().n }, { label: 'Firmen und Personen', n: db.prepare("SELECT COUNT(*) n FROM bh_partner").get().n }];
+  ctx.hooks.probeCounts = () => [{ label: 'Belege', n: db.prepare("SELECT COUNT(*) n FROM bh_invoice").get().n }, { label: 'Firmen und Personen', n: db.prepare("SELECT COUNT(*) n FROM bh_partner").get().n }, ...K.hooks.probeCounts()];
   ctx.hooks.setupSteps = () => [
     { id: 'rechnungen', title: 'Rechnungen und Steuer', text: 'Nummernkreis, Zahlungsziel und Angaben zum Finanzamt für Rechnungen und Spendenquittungen.', page: 'bh-einstellungen', card: ['Rechnungen', 'Steuer & Finanzamt'] },
   ];
-  ctx.hooks.overview = async () => {
+  ctx.hooks.overview = async user => {
     await syncMemberInvoices();
     const open = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen'").get();
     const over = db.prepare("SELECT COUNT(*) n, COALESCE(SUM(gross),0) c FROM bh_invoice WHERE status = 'offen' AND due_date < ?").get(today());
-    const alerts = over.n ? [{ level: 'a', text: `${over.n} ${over.n === 1 ? 'Rechnung' : 'Rechnungen'} überfällig (${euro(over.c)}) – Zahlungserinnerung schicken?`, go: 'bh-rechnungen', link: 'Ansehen' }] : [];
+    const alerts = [...(over.n ? [{ level: 'a', text: `${over.n} ${over.n === 1 ? 'Rechnung' : 'Rechnungen'} überfällig (${euro(over.c)}) – Zahlungserinnerung schicken?`, go: 'bh-rechnungen', link: 'Ansehen' }] : []), ...(user && user.perms && user.perms.includes('ausgaben') ? K.hooks.overview() : [])];
     const y = Number(today().slice(0, 4));
     const pend = db.prepare("SELECT COUNT(*) n FROM bh_partner p WHERE p.active = 1 AND p.items != '[]' AND NOT EXISTS (SELECT 1 FROM bh_invoice i WHERE i.partner_id = p.id AND i.yearly = ? AND i.status != 'storniert')").get(y).n;
     return { kpis: [{ l: 'Offene Rechnungen', v: euro(open.c) }, { l: 'Rechnungen offen', v: open.n, note: open.n === 1 ? ctx.T('{0} Rechnung offen', [open.n]) : ctx.T('{0} Rechnungen offen', [open.n]) }, { l: `Jahresrechnungen ${y} offen`, v: pend }], alerts };
@@ -583,25 +599,27 @@ function activate(ctx) {
       for (const it of J(inv.items, [])) { const k = rateKey(inv, it.vat); by.set(k, (by.get(k) || 0) + Math.round((Number(it.qty) || 0) * (Number(it.unit_cents) || 0))); }
       const parts = [...by.entries()].map(([k, net]) => [k, net + Math.round(net * Number(k.split('.').pop()) / 100)]); if (!parts.length) return [];   // wie totals(): USt je Satz gerundet
       parts[parts.length - 1][1] += inv.gross - parts.reduce((t, [, c]) => t + c, 0);   // Rundung: Summe = Rechnungsbetrag
-      const name = (J((db.prepare('SELECT recipient FROM bh_invoice WHERE id = ?').get(inv.id) || {}).recipient, {}) || {}).name || '';   // Empfänger steht verschlüsselt (Tresor), nicht im Journal
-      return parts.map(([key, cents]) => ({ cents, key, via: ctx.require('./gobd').viaOf(inv.paid_via), date: inv.paid_at, text: `Rechnung ${inv.no}`, doc: inv.no, name }));
+      const name = () => (J((db.prepare('SELECT recipient FROM bh_invoice WHERE id = ?').get(inv.id) || {}).recipient, {}) || {}).name || '';   // Empfänger steht verschlüsselt (Tresor), nicht im Journal – erst lesen, wenn ein Export ihn braucht
+      return parts.map(([key, cents]) => ({ cents, key, via: ctx.require('./gobd').viaOf(inv.paid_via), date: inv.paid_at, text: `Rechnung ${inv.no}`, doc: inv.no, get name() { return name(); } }));
     } },
     { table: 'bh_donation', date: 'date' },
     { table: 'bh_partner', date: null, cols: ['id', 'name', 'contact', 'street', 'zip', 'city', 'country', 'vat_id', 'customer_no', 'active'] },
+    ...K.hooks.gobdTables(),
   ];
   ctx.hooks.gobdKeys = () => [
     ...VATS.map(v => ({ key: `bh.firma.${v}`, label: `Rechnungen an Firmen und Sponsoren (${v} % USt)`, sphere: 'wgb' })),
     ...VATS.map(v => ({ key: `bh.mitglied.${v}`, label: `Rechnungen an Mitglieder ohne offenen Posten (${v} % USt)`, sphere: '' })),
+    ...K.hooks.gobdKeys(),
   ];
-  ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).map(k => [k, S(k)])),
-    partners: db.prepare('SELECT name, contact, street, zip, city, country, email, phone, vat_id, customer_no, items, note, active FROM bh_partner').all() });
+  ctx.hooks.exportConfig = () => ({ settings: Object.fromEntries(Object.keys(DEF).filter(k => k !== 'cash_map').map(k => [k, S(k)])),   // Zuordnung der Bareinnahmen zu Kassen gilt nur in dieser Installation
+    partners: db.prepare('SELECT name, contact, street, zip, city, country, email, phone, vat_id, customer_no, items, note, active FROM bh_partner').all(), ...K.hooks.exportConfig() });
   /* Import: gleicher Firmenname (ohne Groß-/Kleinschreibung) → aktualisieren, sonst neu anlegen, nie löschen */
   ctx.hooks.importConfig = data => {
     if (!data || typeof data !== 'object') throw new Error('Leere Funktionsdatei.');
     const z = konfigio.zaehler(); let ungueltig = 0;
     db.transaction(() => {
       if (data.settings && typeof data.settings === 'object') {   // gleiche Prüfung wie in der Verwaltung (Vorsilben, E-Mail, Datum …)
-        const st = Object.fromEntries(Object.entries(data.settings).filter(([k, v]) => k in DEF && typeof v === 'string' && !(k === 'email' && !v))), e = [];
+        const st = Object.fromEntries(Object.entries(data.settings).filter(([k, v]) => k in DEF && k !== 'cash_map' && typeof v === 'string' && !(k === 'email' && !v))), e = [];
         if (st.small_business !== undefined) st.small_business = st.small_business === '1';   // im Export steht „0“/„1“ als Text
         applySettings(st, e); if (e.length) ungueltig += e.length;
       }
@@ -612,6 +630,7 @@ function activate(ctx) {
         z('Firmen', konfigio.schreibe(db, 'bh_partner', r.v, found));
         if (!found) have.set(r.v.name.toLowerCase(), { ...r.v, id: Number(db.prepare('SELECT id FROM bh_partner WHERE name = ?').pluck().get(r.v.name)) });
       }
+      ungueltig += K.hooks.importConfig(data, z, konfigio);   // Ausgabearten und Kassen
     })();
     if (ungueltig) z.hinweis(`${ungueltig} ungültige Einträge übersprungen`);
     z.hinweis('Bankkonten stehen unter Einstellungen → Bankkonten');

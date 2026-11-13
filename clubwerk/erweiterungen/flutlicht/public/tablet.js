@@ -18,7 +18,7 @@
     timer = setTimeout(refresh, 10000);
   }
   function zeige() {
-      $('dot').className = 'vh-dot ' + (v.online ? 'ok' : 'err');
+      $('dot').className = 'vh-dot ' + (!v.online ? 'err' : v.block ? 'warn' : 'ok');   // Sperre: kein grünes „alles gut“
       $('st').textContent = !v.online ? 'Keine Verbindung zum Flutlicht' : v.block ? v.block : v.darkFrom ? `Licht ab ${v.darkFrom} Uhr · alles aus um ${v.quiet} Uhr` : 'Verbunden';
       // am Tablet darf jeder Freigeschaltete auch ausschalten, was er selbst eingeschaltet hat – wer das ist, klärt erst die PIN
       v.lights.forEach(l => { l.can.off = l.on; });

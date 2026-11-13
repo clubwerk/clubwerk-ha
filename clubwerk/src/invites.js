@@ -118,7 +118,7 @@ function redeem(scope, inviteToken, pin, userAgent, host, { remote = false, veri
       const d = db.prepare('SELECT failed FROM member_devices WHERE id = ?').get(p.deviceId), n = (d ? d.failed : 0) + 1;
       if (n >= 5) { db.prepare('UPDATE member_devices SET invite_hash = NULL, invite_expires = NULL, failed = 0 WHERE id = ?').run(p.deviceId); audit(null, 'Mitglieder-App: Einladung nach 5 falschen PINs ungültig', p.member); throw new Error('PIN 5-mal falsch – diese Einladung gilt nicht mehr. Bitte beim Vorstand eine neue holen (er kann auch die PIN zurücksetzen).'); }
       db.prepare('UPDATE member_devices SET failed = ? WHERE id = ?').run(n, p.deviceId);
-      const e = new Error(`Die PIN stimmt nicht – es ist dieselbe wie im Verkauf am Tablet. Noch ${5 - n} ${(5 - n) === 1 ? 'Versuch' : 'Versuche'}.`); e.pin = true; throw e;
+      const e = new Error(`Die PIN stimmt nicht. Noch ${5 - n} ${(5 - n) === 1 ? 'Versuch' : 'Versuche'}.`); e.pin = true; throw e;
     }
     pinHash = m.pin_hash;
   } else {

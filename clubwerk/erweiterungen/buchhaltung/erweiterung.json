@@ -1,12 +1,14 @@
 {
   "id": "buchhaltung",
   "name": "Buchhaltung",
-  "version": "1.14.1",
-  "kurz": "Rechnungen und Spendenquittungen.",
-  "beschreibung": "Rechnungen an Sponsoren, Firmen und Mitglieder (Umsatzsteuer je Position, Jahresrechnungen mit einem Klick, offen/bezahlt, Zahlungserinnerung per E-Mail; an Mitglieder zusätzlich als offener Posten bei den Mitgliedern) und Spendenquittungen nach amtlichem Muster – Geld, Sachspende oder Verzicht auf Aufwandserstattung – für Mitglieder, Firmen oder einmalige Spender.",
+  "version": "1.15.0",
+  "kurz": "Rechnungen, Spendenquittungen, Ausgaben und Kassenbuch.",
+  "beschreibung": "Rechnungen an Sponsoren, Firmen und Mitglieder (Umsatzsteuer je Position, Jahresrechnungen mit einem Klick, offen/bezahlt, Zahlungserinnerung per E-Mail; an Mitglieder zusätzlich als offener Posten bei den Mitgliedern) und Spendenquittungen nach amtlichem Muster – Geld, Sachspende oder Verzicht auf Aufwandserstattung – für Mitglieder, Firmen oder einmalige Spender. Dazu Ausgaben mit Belegfoto (eingefroren, Storno statt Löschen), Kassenbuch mit Kassensturz und Festschreibung je Monat sowie die Einnahmen-Überschuss-Rechnung je Sphäre; Ausgaben und Kassenbewegungen laufen in den DATEV-Buchungsstapel.",
   "minApp": "3.5.0",
   "perms": {
-    "buchhaltung": "Buchhaltung: Rechnungen, Firmen & Sponsoren, Spendenquittungen"
+    "buchhaltung": "Buchhaltung: Rechnungen, Firmen & Sponsoren, Spendenquittungen",
+    "ausgaben": "Ausgaben und Kassenbuch erfassen (Kassenwart)",
+    "kassenpruefung": "Kassenprüfung: Ausgaben, Belege, Kassenbuch und EÜR nur ansehen"
   },
   "verwaltung": {
     "label": "Buchhaltung",
@@ -16,7 +18,13 @@
   "tabellen": [
     "bh_partner",
     "bh_invoice",
-    "bh_donation"
+    "bh_donation",
+    "bh_expense_type",
+    "bh_expense",
+    "bh_cash",
+    "bh_cash_move",
+    "bh_cash_count",
+    "bh_cash_close"
   ],
   "einstellungen": [
     "ext_buchhaltung_"

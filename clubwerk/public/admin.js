@@ -3461,7 +3461,7 @@
     abrechnung: 'Abrechnung', veranstaltungen: 'Veranstaltungen', uebernahme: 'Übernahme', artikel: 'Artikel', konten: 'Konten', deinstallieren: 'Module',
     mitglieder: 'Mitglieder', mitglieder_bank: 'Bankdaten', mitglieder_finanzen: 'Einzug', mitglieder_dokumente: 'Dokumente', gratulationen: 'Gratulationen', arbeitseinsatz: 'Helferdienste',
     zeiterfassung: 'Zeiterfassung', zugang: 'Zugang', zugang_bedienen: 'Zugang bedienen', beregnung: 'Beregnung', beregnung_bedienen: 'Beregnung bedienen', flutlicht: 'Flutlicht', flutlicht_bedienen: 'Flutlicht bedienen', app: 'App einrichten', maengel: 'Mängel', schluessel: 'Schlüssel', turniere: 'Turniere',
-    email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen', sicherheit: 'Sicherheitswarnungen',
+    email: 'Nachrichten', kontoauszug: 'Kontoauszug', buchhaltung: 'Buchhaltung', ausgaben: 'Ausgaben & Kasse', kassenpruefung: 'Kassenprüfung', spielbetrieb: 'Spielbetrieb', benutzer: 'Benutzer', einstellungen: 'Einstellungen', sicherheit: 'Sicherheitswarnungen',
     buchung: 'Belegung ansehen', buchung_buchen: 'Für andere buchen', buchung_stornieren: 'Buchungen stornieren', buchung_serien: 'Serien & Sperren', buchung_einstellungen: 'Buchung einrichten' };
   // Rechte von Erweiterungen ohne Kurzname: ihr Name aus erweiterung.json, nie der interne Schlüssel
   const permPills = (list, labels = {}) => list.map(p => `<span class="pill b" style="margin:1px">${esc(PERM_SHORT[p] || labels[p] || p)}</span>`).join(' ');
@@ -4647,10 +4647,10 @@
       </div>
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-gbsave>Speichern</button></div>`;
     eb.innerHTML = `<p class="muted s" style="margin-top:0">Je Erlösart ein Konto und die Sphäre: ideeller Bereich, Vermögensverwaltung, Zweckbetrieb oder wirtschaftlicher Geschäftsbetrieb. Clubwerk schlägt Sphären vor – Zuordnung und Kontenrahmen (für Vereine z. B. SKR 42 oder SKR 49) stimmt ihr mit eurem Steuerberater ab.</p>
-      ${r.keys.length ? `<div>${r.keys.map(k => `<div class="gbrow">
+      ${r.keys.length ? [r.keys.filter(k => k.art === 'einnahme' || !k.art), r.keys.filter(k => k.art === 'ausgabe' || k.art === 'neutral')].map((list, i) => (list.length ? `${i ? `<p class="muted s" style="margin:16px 0 4px"><b>${esc(T('Ausgaben und Kasse'))}</b></p>` : ''}<div>${list.map(k => `<div class="gbrow">
           <div><b>${esc(k.label)}</b><div class="muted s">${esc(k.module)}</div></div>
           <label class="f">Konto<input data-gbk="${esc(k.key)}" value="${esc(k.konto)}" inputmode="numeric" maxlength="8" autocomplete="off"></label>
-          <label class="f">Sphäre<select data-gbs="${esc(k.key)}">${sphOpts(k.sphere)}</select></label></div>`).join('')}</div>` : '<p class="empty">Keine Erlösarten – es ist kein Modul mit Geld eingeschaltet.</p>'}
+          <label class="f">Sphäre<select data-gbs="${esc(k.key)}">${sphOpts(k.sphere)}</select></label></div>`).join('')}</div>` : '')).join('') : '<p class="empty">Keine Erlösarten – es ist kein Modul mit Geld eingeschaltet.</p>'}
       <div class="row" style="justify-content:flex-end;margin-top:14px"><button class="btn primary" data-gbsave>Speichern</button></div>`;
     const save = btn => busy(btn, async () => {
       const gegen = {}, konten = {};
@@ -4662,7 +4662,7 @@
     const now = new Date(), y = now.getFullYear(), m = now.getMonth(), iso = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const pFrom = iso(new Date(y, m - 1, 1)), pTo = iso(new Date(y, m, 0));
     const wm = Number(c.wj_month) || 1, gy = m + 1 >= wm ? y : y - 1;   // laufendes Geschäftsjahr (Startjahr)
-    xb.innerHTML = `<p class="muted s" style="margin-top:0">Alle Zahlungseingänge, die durch Clubwerk laufen (Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld) – je Erlösart, Rücklastschriften und Stornos als Gegenbuchung. Ausgaben und Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.</p>
+    xb.innerHTML = `<p class="muted s" style="margin-top:0">Alle Zahlungen, die durch Clubwerk laufen (Beiträge und Forderungen, Rechnungen, Verkauf bar und mit Karte, Nenngeld, mit der Buchhaltung auch Ausgaben und Kassenbewegungen) – je Erlös- bzw. Ausgabeart, Rücklastschriften und Stornos als Gegenbuchung. Bankumsätze außerhalb von Clubwerk bucht der Steuerberater wie bisher. Den ersten Export stimmt ihr mit ihm ab.</p>
       <div class="frm"><label class="f w1">Von<input type="date" id="gbF" value="${pFrom}"></label><label class="f w1">Bis<input type="date" id="gbT" value="${pTo}"></label>
         <div class="row" style="gap:8px;justify-content:flex-end"><button class="btn" id="gbPrev">Vorschau</button><button class="btn primary" id="gbDatev">Herunterladen</button></div></div>
       <div id="gbPrevBody"></div>`;
@@ -4678,9 +4678,10 @@
         const p = await api('gobd/buchungen?' + per()), lim = { zweck: 45000, wgb: 50000 };
         $('gbPrevBody').innerHTML = `<div class="kpis" style="margin-top:14px">${Object.entries(r.spheres).map(([k, l]) => `<div class="kpi"><div class="l">${esc(l)}</div><div class="v" translate="no">${euro(p.spheres[k] || 0)}</div></div>`).join('')}</div>
           ${p.spheres[''] ? `<p class="muted s">${esc(T('Ohne Sphäre'))}: <span translate="no">${euro(p.spheres[''])}</span></p>` : ''}
+          ${Object.values(p.expenses || {}).some(Boolean) ? `<p class="muted s">${esc(T('Ausgaben'))}: ${Object.entries(p.expenses).filter(([, v]) => v).map(([k, v]) => `${esc(T(r.spheres[k] || 'ohne Sphäre'))} <span translate="no">${euro(v)}</span>`).join(' · ')}</p>` : ''}
           ${Object.entries(lim).filter(([k, v]) => (p.spheres[k] || 0) > v * 100).map(([k, v]) => `<div class="banner a">${esc(T('Mehr als {0} € im Bereich „{1}“ – bitte mit dem Steuerberater klären, ob Steuern anfallen (Grenze gilt für das ganze Jahr, einschließlich Umsatzsteuer).').replace('{0}', v.toLocaleString('de-DE')).replace('{1}', T(r.spheres[k])))}</div>`).join('')}
           ${p.missing.length ? `<div class="banner a">${esc(T('Für den DATEV-Export fehlt noch'))}: ${p.missing.map(x => esc(T(x))).join(' · ')}</div>` : ''}
-          ${p.keys.length ? `<table class="tbl kompakt"><tr><th>Erlösart</th><th>Sphäre</th><th class="r">Konto</th><th class="r">Buchungen</th><th class="r">Summe</th></tr>
+          ${p.keys.length ? `<table class="tbl kompakt"><tr><th>Erlös- oder Ausgabeart</th><th>Sphäre</th><th class="r">Konto</th><th class="r">Buchungen</th><th class="r">Summe</th></tr>
             ${p.keys.map(k => `<tr><td>${esc(k.label)}</td><td>${esc(T(r.spheres[k.sphere] || 'ohne'))}</td><td class="r" translate="no">${esc(k.konto || '–')}</td><td class="r" translate="no">${k.count}</td><td class="r" translate="no">${euro(k.cents)}</td></tr>`).join('')}
             <tr><th colspan="3">Summe</th><th class="r" translate="no">${p.count}</th><th class="r" translate="no">${euro(p.total)}</th></tr></table>` : '<p class="empty">Keine Zahlungseingänge in diesem Zeitraum.</p>'}`;
       } catch (e) { fail(e); }
