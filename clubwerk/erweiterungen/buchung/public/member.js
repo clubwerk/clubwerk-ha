@@ -20,8 +20,6 @@
       .bkm-blk > b, .bkm-blk > span { display: block; flex: none; line-height: 15px; font-size: 12px; width: 100%; white-space: normal; hyphens: auto; -webkit-hyphens: auto; overflow-wrap: break-word; }   /* Planblock: Silbentrennung statt Bruch mitten im Wort, kein „…“; nur ganze Zeilen (theme-init.js blendet aus, was nicht mehr ganz passt) (02.11.2026) */
       .bkm-plan:not(.wide) .bkm-blk > b, .bkm-plan:not(.wide) .bkm-blk > span { hyphens: manual; -webkit-hyphens: manual; overflow-wrap: normal; }   /* Kompakt: Kürzel brechen nie mitten im Wort */
       .bkm-blk > b { font-weight: 800; } .bkm-blk > .tm { font-family: var(--num); font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; letter-spacing: .01em; }
-      @keyframes bkmHit { 0%, 70% { outline-color: var(--ink); } 100% { outline-color: transparent; } }
-      .bkm-blk.hit, .bkm-pill.hit { outline: 3px solid var(--ink); outline-offset: 1px; animation: bkmHit 2.2s ease-out; }
       .bkm-blk.mine { background: var(--brand); border-color: var(--brand); color: var(--on-brand); }
       .bkm-blk.mine.lab { box-shadow: inset 0 0 0 2px var(--brand), inset 0 0 0 3px var(--card), var(--shadow); }   /* Rahmen innen – ragt nicht in die Nachbarspalte */
       .bkm-nowbar { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 0 16px; border: 0; background: none; font: inherit; color: var(--ink); text-align: left; cursor: pointer; }
@@ -560,7 +558,7 @@
           : el.querySelector(`.bkm-plan .cl[data-r="${m.resource_id}"] .bkm-blk[data-s="${s0}"]`);
         if (!t) return;
         t.scrollIntoView({ block: 'center', inline: 'center' });
-        t.classList.add('hit'); setTimeout(() => t.classList.remove('hit'), 2300);
+        CWHit.flash(t);
       }
       load().then(async () => {
         const f = /^b(\d+)$/.exec(String(ctx.focus || '')), m = f && data && data.mine.find(x => x.id === +f[1]);

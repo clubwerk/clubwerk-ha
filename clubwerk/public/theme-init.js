@@ -299,3 +299,20 @@
   };
   if (document.body) start(); else document.addEventListener('DOMContentLoaded', start);
 })();
+
+/* Hervorhebung nach einem Sprung (Buchung, Turniere, Spielbetrieb, Verwaltungs-Suche …): CWHit.flash(element).
+   Eine Klasse (.cw-hl in kit.css) blendet den Rahmen in 1,5 s weich aus und bleibt am Ende unsichtbar (fill-mode forwards);
+   entfernt wird die Klasse erst bei „animationend“ – so gibt es nie einen Zustand mit vollem Rahmen nach dem Ausblenden. */
+(function () {
+  function weg(el) { el.classList.remove('cw-hl'); }
+  window.CWHit = {
+    flash: function (el) {
+      if (!el) return;
+      weg(el); void el.offsetWidth;
+      el.classList.add('cw-hl');
+      var fertig = function (e) { if (e && e.target !== el) return; el.removeEventListener('animationend', fertig); clearTimeout(t); weg(el); };
+      el.addEventListener('animationend', fertig);
+      var t = setTimeout(fertig, 3000);   // Rückfall, falls die Animation nie läuft (Element versteckt)
+    },
+  };
+})();

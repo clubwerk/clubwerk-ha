@@ -20,8 +20,6 @@
       .tu-act { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 12px; }
       .tu-act .vh-btn { min-width: 0; }
       .tu-row { cursor: pointer; }
-      @keyframes tuHit { 0%, 70% { background: color-mix(in srgb, var(--brand) 22%, var(--card)); } 100% { background: transparent; } }
-      .tu-row.hit { animation: tuHit 2.2s ease-out; }
       .tu-row .vh-tx strong, .tu-row .vh-tx small { overflow-wrap: anywhere; }   /* Paarungen brechen um statt „…“ (02.11.2026) */
       .tu-row .vh-chip.num { font-family: var(--num); font-size: 14px; font-weight: 600; }
       .tu-nodate { width: 48px; height: 46px; flex: none; border-radius: 12px; background: var(--hover); color: var(--muted); display: flex; align-items: center; justify-content: center; }
@@ -62,7 +60,7 @@
         paint();
         // aus „Für mich“: zum Spiel scrollen und es kurz hervorheben – das Fenster mit „Termin absagen“ geht nicht von selbst auf
         const row = m && el.querySelector(`.tu-row[data-m="${m.id}"]`);
-        if (row) { row.scrollIntoView({ block: 'center' }); row.classList.add('hit'); setTimeout(() => row.classList.remove('hit'), 2300); }
+        if (row) { row.scrollIntoView({ block: 'center' }); CWHit.flash(row); }
       }
       /* ---------- Darstellung ---------- */
       function paint() {

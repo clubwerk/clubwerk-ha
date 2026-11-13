@@ -1,5 +1,16 @@
 # Änderungen
 
+## 2026.11.44
+
+### Behoben
+- Nach einem Sprung (zum Beispiel aus „Für mich“ in den Platzkalender, zu einem Spieltag, einer Turnierpaarung oder einem Suchtreffer in der Verwaltung) blendet die Hervorhebung jetzt in etwa anderthalb Sekunden weich aus und blinkt am Ende nicht mehr noch einmal auf. Sie sieht überall gleich aus; bei „Bewegung reduzieren“ erscheint sie kurz und verschwindet ohne Übergang.
+- Mitglieder-App, Bild- und PDF-Betrachter: Der Zwei-Finger-Zoom flackert nicht mehr und springt nicht mehr mitten in der Geste auf eine andere Größe. Während der Geste wird die Ansicht nur vergrößert oder verschoben; erst nach dem Loslassen wird die Seite einmal scharf neu gezeichnet, und das bisherige Bild bleibt stehen, bis das neue fertig ist. Die Stelle unter den Fingern bleibt dabei an ihrem Platz.
+- Zwei kurze Zwei-Finger-Gesten hintereinander werden nicht mehr als Doppeltippen erkannt.
+
+### Verbessert
+- Betrachter: Über die kleinste oder größte Zoomstufe hinaus gibt die Ansicht etwas nach und federt nach dem Loslassen weich zurück. „+“, „–“ und Doppeltippen gleiten weich auf die neue Größe.
+- Betrachter: Bei starkem Zoom ist der sichtbare Ausschnitt einer PDF-Seite gestochen scharf, ohne dass der Speicher des Handys überläuft.
+
 ## 2026.11.43
 
 ### Neu

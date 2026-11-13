@@ -782,7 +782,7 @@
     const tall = box.getBoundingClientRect().height > innerHeight * 0.55;   // hohe Karten ab ihrem Anfang zeigen (unter der Kopfleiste), kleine mittig
     box.style.scrollMarginTop = '96px';
     box.scrollIntoView({ block: tall ? 'start' : 'center', behavior: 'smooth' });
-    box.classList.remove('cw-hit'); void box.offsetWidth; box.classList.add('cw-hit'); setTimeout(() => box.classList.remove('cw-hit'), 2400);
+    CWHit.flash(box);
   }
   /* Datensätze (ab 3.61): Der Server sucht (POST suche, src/suche.js), höchstens 5 Treffer je Art. Ein Treffer öffnet die Detailansicht
      (GK.registerDetail) oder die passende Liste und hebt den Eintrag hervor – wie, meldet das Modul mit GK.registerHit(art, { tab, before, find }). */
