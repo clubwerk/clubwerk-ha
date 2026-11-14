@@ -351,7 +351,8 @@ function activate(ctx) {
       : v.kind === 'member' && r.charge_id && v.recipient.payment === 'lastschrift' ? [greet, '', `anbei erhalten Sie unsere Rechnung ${r.no} über ${euro(r.gross)}.`, 'Der Betrag wird wie gewohnt per SEPA-Lastschrift von Ihrem Konto eingezogen.']
       : [greet, '', `anbei erhalten Sie unsere Rechnung ${r.no} über ${euro(r.gross)}.`, `Bitte überweisen Sie den Betrag bis zum ${deD(r.due_date)}${cl.iban ? ` auf das Konto ${cl.iban.replace(/(.{4})/g, '$1 ').trim()}` : ''} unter Angabe der Rechnungsnummer.`];
     await ctx.mail.send({ to: v.recipient.email, subject: `${title} ${r.no} – ${cl.name}`, text: [...lines, '', 'Vielen Dank!', '', 'Mit freundlichen Grüßen', cl.name].join('\n'),
-      attachments: [{ filename: fileName(reminder ? 'Zahlungserinnerung' : 'Rechnung', r.no), content: buf }] });
+      attachments: [{ filename: fileName(reminder ? 'Zahlungserinnerung' : 'Rechnung', r.no), content: buf }],
+      log: { art: reminder ? 'mahnung' : 'rechnung', memberId: r.member_id || null, by: req.user, name: v.recipient.name || '' } });
     if (reminder) db.prepare('UPDATE bh_invoice SET reminders = ?, reminded_at = ? WHERE id = ?').run(n, ctx.nowTs(), r.id);
     else db.prepare('UPDATE bh_invoice SET sent_at = ? WHERE id = ?').run(ctx.nowTs(), r.id);
     ctx.audit(req.user, reminder ? 'Zahlungserinnerung verschickt' : 'Rechnung verschickt', `${r.no} an ${v.recipient.email}`);
@@ -491,7 +492,8 @@ function activate(ctx) {
     const cl = club();
     await ctx.mail.send({ to: v.donor.email, subject: `Ihre Zuwendungsbestätigung ${d.no} – ${cl.name}`,
       text: ['Guten Tag,', '', `herzlichen Dank für Ihre ${d.kind === 'sach' ? 'Sachspende' : 'Spende'} vom ${deD(d.date)} über ${euro(d.cents)}!`, 'Die Zuwendungsbestätigung für das Finanzamt finden Sie im Anhang.', '', 'Mit freundlichen Grüßen', cl.name].join('\n'),
-      attachments: [{ filename: fileName('Zuwendungsbestaetigung', d.no), content: await donationPdf(d) }] });
+      attachments: [{ filename: fileName('Zuwendungsbestaetigung', d.no), content: await donationPdf(d) }],
+      log: { art: 'spende', memberId: d.member_id || null, by: req.user, name: v.donor.name || '' } });
     db.prepare('UPDATE bh_donation SET sent_at = ? WHERE id = ?').run(ctx.nowTs(), d.id);
     ctx.audit(req.user, 'Spendenquittung verschickt', `${d.no} an ${v.donor.email}`);
     res.json({ sent: true, to: v.donor.email });

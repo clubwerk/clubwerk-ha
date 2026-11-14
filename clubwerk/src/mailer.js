@@ -260,7 +260,7 @@ function identity(user) {
    Willkommen, Austrittsbestätigung, Einladung zur Mitglieder-App und Mahnung stehen mit vollem Text unter Nachrichten › Gesendet (Filter „Automatisch“).
    Sie liegen in derselben Tabelle wie Rundschreiben (art gesetzt, ein Empfänger), sind aber keine Entwürfe: nicht erneut sendbar, nicht in der App, eigene Löschfrist.
    Einladungslinks und Codes werden nie gespeichert (→ „[Code ausgeblendet]“). Versand ohne Nachrichten-Verlauf bleibt möglich: ein Fehler hier stört nie den Versand. */
-const ARTEN = ['willkommen', 'austritt', 'einladung', 'mahnung'];
+const ARTEN = ['willkommen', 'austritt', 'einladung', 'mahnung', 'rechnung', 'vorabinfo', 'spende', 'antrag', 'bestellung'];
 const HIDDEN = '[Code ausgeblendet]';
 const hideSecrets = (text, hide) => {
   let t = String(text == null ? '' : text);
@@ -556,14 +556,14 @@ function routes(admin, { need, bad }) {
       ? db.prepare("SELECT * FROM mail_message WHERE status = 'entwurf' AND user_id = ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 200").all(req.user.id)
       : db.prepare(`SELECT * FROM mail_message WHERE status != 'entwurf' AND (? = 'alle' OR (art IS NOT NULL) = (? = 'auto')) ${seeAll(req) ? '' : 'AND user_id = ' + Number(req.user.id)} ORDER BY sent_at DESC LIMIT 300`).all(art, art);
     res.json({ rows: rows.map(m => ({ id: m.id, subject: m.subject, status: m.status, user_name: m.user_name, from_name: m.from_name, at: m.status === 'entwurf' ? (m.updated_at || m.created_at) : m.sent_at,
-      total: m.total, sent: m.sent, failed: m.failed, ...(m.status === 'sendet' ? waitOf(m.id) : {}), files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll), art: m.art || null, to: m.art ? ((db.prepare('SELECT name FROM mail_recipient WHERE message_id = ?').get(m.id) || {}).name || null) : undefined })),
+      total: m.total, sent: m.sent, failed: m.failed, ...(m.status === 'sendet' ? waitOf(m.id) : {}), files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll), art: m.art || null, ...(m.art ? (r => ({ to: r.name || r.email || null, to_person: Boolean(r.member_id) }))(db.prepare('SELECT name, email, member_id FROM mail_recipient WHERE message_id = ?').get(m.id) || {}) : {}) })),
       drafts: db.prepare("SELECT COUNT(*) AS n FROM mail_message WHERE status = 'entwurf' AND user_id = ?").get(req.user.id).n });
   });
   admin.get('/mail/messages/:id', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
     if (!visible(req, m)) return bad(res, 'Nicht gefunden.', 404);
     const rcpt = m.status === 'entwurf' ? [] : db.prepare("SELECT name, email, via, status, error, sent_at, member_id, next_try, tries FROM mail_recipient WHERE message_id = ? AND COALESCE(via, '') != '__kopie' ORDER BY id").all(m.id);
-    res.json({ ...out(m), rcpt: rcpt.map(({ member_id, ...r }) => r), waiting: rcpt.filter(r => r.status === 'wartet').length, wait: waitOf(m.id), ...(m.status === 'entwurf' ? {} : { reach: reachOf(m, rcpt), app: appStats(m) }) });
+    res.json({ ...out(m), rcpt: rcpt.map(({ member_id, ...r }) => (m.art ? { ...r, person: Boolean(member_id) } : r)), waiting: rcpt.filter(r => r.status === 'wartet').length, wait: waitOf(m.id), ...(m.status === 'entwurf' ? {} : { reach: reachOf(m, rcpt), app: appStats(m) }) });
   });
 
   /* Entwürfe */

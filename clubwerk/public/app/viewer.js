@@ -154,7 +154,7 @@
       if (t0.k === 1 && !t0.x && !t0.y) return settle();
       const start = performance.now();
       const step = now => {
-        const p = Math.min(1, (now - start) / FEDER), e = 1 - (1 - p) ** 3;
+        const p = Math.max(0, Math.min(1, (now - start) / FEDER)), e = 1 - (1 - p) ** 3;   // der erste Bild-Takt kann vor „start“ liegen (Zeitstempel = Beginn des Bildes): nie rückwärts
         s.t = { x: t0.x * (1 - e), y: t0.y * (1 - e), k: t0.k + (1 - t0.k) * e }; apply();
         if (p < 1) s.anim = requestAnimationFrame(step); else { s.anim = 0; s.t = { x: 0, y: 0, k: 1 }; apply(); settle(); }
       };

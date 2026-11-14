@@ -1495,7 +1495,7 @@ admin.post('/order/send', need('bestellung'), rateLimit('ordermail', 10, 10 * 60
   if (!subject || !text.trim()) return bad(res, 'Betreff und Text dürfen nicht leer sein.');
   if (orderMailChange(req, { order_email: to, order_cc: cc })) return bad(res, 'Bestellungen gehen nur an die gespeicherte Adresse des Lieferanten. Eine neue Adresse trägt ein Admin mit dem Recht „Einstellungen“ ein.', 403);
   try {
-    await mail.send({ direct: true, to, cc, subject, text });
+    await mail.send({ direct: true, to, cc, subject, text, log: { art: 'bestellung', by: req.user, name: getSetting('order_supplier', '') } });
     setSetting('order_email', to); setSetting('order_cc', cc);
     setSetting('order_last_sent', `${nowTs()} · ${to}`);
     audit(req.user, 'Bestellung gesendet', `an ${to}${cc ? ', Kopie ' + cc : ''} · ${subject}`);

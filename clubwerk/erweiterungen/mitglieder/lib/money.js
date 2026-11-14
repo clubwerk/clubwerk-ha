@@ -628,7 +628,8 @@ function register(sh) {
     let sent = 0; const missing = [], failed = [];
     for (const r of rows) {
       if (!r.email) { missing.push(r.name); continue; }
-      try { await C.mail.send({ to: r.email, subject: `Ankündigung SEPA-Lastschrift zum ${deD(k.collection_date)} – ${club().name}`, text: prenoteText(k, r, bankRow(r.member_id)) }); sent++; }
+      try { await C.mail.send({ to: r.email, subject: `Ankündigung SEPA-Lastschrift zum ${deD(k.collection_date)} – ${club().name}`, text: prenoteText(k, r, bankRow(r.member_id)),
+        log: { art: 'vorabinfo', memberId: r.member_id, by: req.user, name: r.name } }); sent++; }
       catch (e) { failed.push(`${r.name}: ${e.message}`); }
       await new Promise(ok => setTimeout(ok, 150));
     }
@@ -686,7 +687,8 @@ function register(sh) {
       if (!inv) continue;
       try {
         await C.mail.send({ to: p.email, subject: `Rechnung ${inv.no} – ${club().name}`, text: [`Guten Tag ${payerName(id)},`, '', `anbei die Rechnung ${inv.no} über ${euro(inv.total)}.`, '', 'Die Einzelheiten stehen im angehängten PDF.', '', 'Viele Grüße', club().name].join('\n'),
-          attachments: [{ filename: `${inv.no}.pdf`, content: inv.buf }] });
+          attachments: [{ filename: `${inv.no}.pdf`, content: inv.buf }],
+          log: { art: 'rechnung', memberId: id, by: req.user, name: payerName(id) } });
         sent++;
       } catch (e) { failed.push(`${payerName(id)}: ${e.message}`); }
       await new Promise(ok => setTimeout(ok, 150));

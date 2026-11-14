@@ -42,9 +42,9 @@ function register(sh) {
     const to = S('notify_to'); if (!to || !C.mail.ready()) return;
     try { await C.mail.send({ to, subject, text: lines.join('\n') }); } catch (e) { console.error('Mitgliederverwaltung: Benachrichtigung', e.message); }
   };
-  const mailMember = async (id, subject, lines, attachments) => {
+  const mailMember = async (id, subject, lines, attachments, log) => {
     const p = personRow(id); if (!p || !p.email || !C.mail.ready()) return false;
-    try { await C.mail.send({ to: p.email, subject, text: [`Guten Tag ${[p.first_name, p.last_name].filter(Boolean).join(' ') || p.name},`, '', ...lines, '', `Viele Grüße`, club().name].join('\n'), attachments }); return true; } catch (e) { return false; }
+    try { await C.mail.send({ to: p.email, subject, text: [`Guten Tag ${[p.first_name, p.last_name].filter(Boolean).join(' ') || p.name},`, '', ...lines, '', `Viele Grüße`, club().name].join('\n'), attachments, log: log ? { ...log, memberId: id, name: personRow(id).name } : undefined }); return true; } catch (e) { return false; }
   };
 
   /* ================================================================ Mitglieder-App */
@@ -329,7 +329,7 @@ function register(sh) {
       mailRes = await sh.exitMail.afterExit(c.member_id, req.user, b.mail, { exit_date: date, notice_date: d.received || c.created_at.slice(0, 10), names: (d.members || [c.member_id]).map(personRow).filter(Boolean).map(sh.exitMail.fullName) }, 'Kündigung aus der Mitglieder-App bestätigt');
     }
     db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ?, signature = CASE WHEN kind = 'bank' THEN NULL ELSE signature END WHERE id = ?").run(by, nowTs(), c.id);
-    const mailed = c.kind === 'kuendigung' ? Boolean(mailRes && mailRes.sent) : await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments);
+    const mailed = c.kind === 'kuendigung' ? Boolean(mailRes && mailRes.sent) : await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments, { art: 'antrag', by: req.user });
     C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App übernommen`, p.name);
     res.json({ ok: true, mailed, ...(c.kind === 'kuendigung' ? { mail: mailRes } : {}) });
   }));
@@ -346,7 +346,7 @@ function register(sh) {
       C.audit(req.user, `Mitglied: ${KIND[c.kind]} abgelehnt`, `${p.name || ''} (gemeldet von ${c.created_by || '–'})`);
       return res.json({ ok: true });
     }
-    const mailed = (req.body || {}).notify === false ? false : await mailMember(c.member_id, `Ihre Mitteilung (${KIND[c.kind]}) – ${club().name}`, [`Ihre Mitteilung „${KIND[c.kind]}“ vom ${deD(c.created_at.slice(0, 10))} konnten wir leider nicht übernehmen.`, reason ? `Grund: ${reason}` : 'Bitte sprechen Sie uns kurz an.']);
+    const mailed = (req.body || {}).notify === false ? false : await mailMember(c.member_id, `Ihre Mitteilung (${KIND[c.kind]}) – ${club().name}`, [`Ihre Mitteilung „${KIND[c.kind]}“ vom ${deD(c.created_at.slice(0, 10))} konnten wir leider nicht übernehmen.`, reason ? `Grund: ${reason}` : 'Bitte sprechen Sie uns kurz an.'], undefined, { art: 'antrag', by: req.user });
     C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App abgelehnt`, p.name);
     res.json({ ok: true, mailed });
   }));

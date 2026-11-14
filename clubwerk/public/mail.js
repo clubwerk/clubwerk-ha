@@ -12,7 +12,7 @@
   let openDraft = null;    // beim Wechsel in „Neue E-Mail“ diesen Entwurf öffnen
   let tabsCtl = null;
   let artFilter = 'alle';   // Gesendet: alle | rund (Rundschreiben) | auto (automatische Mails)
-  const ART = { willkommen: 'Willkommen', austritt: 'Austrittsbestätigung', einladung: 'App-Einladung', mahnung: 'Mahnung', automatisch: 'Automatisch' };   // Art der automatischen Mails (Schild)
+  const ART = { willkommen: 'Willkommen', austritt: 'Austrittsbestätigung', einladung: 'App-Einladung', mahnung: 'Mahnung', rechnung: 'Rechnung', vorabinfo: 'SEPA-Vorabinfo', spende: 'Zuwendungsbestätigung', antrag: 'App-Antrag', bestellung: 'Bestellung', automatisch: 'Automatisch' };   // Art der automatischen Mails (Schild)
 
   const style = document.createElement('style');
   style.textContent = `
@@ -70,7 +70,7 @@
   .ml-foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 18px;border-top:1px solid var(--line-soft)}
   .ml-foot .st{font-size:13px;color:var(--muted);margin-right:auto}
   .ml-list{display:flex;flex-direction:column}
-  .ml-row{display:grid;grid-template-columns:minmax(0,1fr) 170px 150px 120px;gap:16px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;text-align:left;width:100%}
+  .ml-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,150px) max-content 130px;gap:16px;align-items:center;padding:12px 4px;border-bottom:1px solid var(--line-soft);cursor:pointer;text-align:left;width:100%}
   .ml-row:hover{background:var(--hover)}
   .ml-row .t{min-width:0}.ml-row .t b{display:block;overflow-wrap:anywhere}
   .ml-row .t em{font-style:normal;display:table;max-width:100%;white-space:normal;margin-bottom:3px}.ml-row .t span.ml-auto{white-space:normal;overflow:visible}.ml-row .t span{display:block;color:var(--muted);font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -84,6 +84,7 @@
   .ml-prog i{display:block;height:100%;background:var(--brand);transition:width .3s}
   .ml-rc{overflow:auto;border:1px solid var(--line-soft);border-radius:10px}
   .ml-rc table{margin:0}
+  @media (max-width:1180px){.ml-row{grid-template-columns:minmax(0,1fr) max-content 130px;gap:4px 14px}.ml-row .c.who{display:none}}   /* Tablet-Breite: der Betreff bekommt den Platz (Ausgelöst von steht in der geöffneten Mail) */
   @media (max-width:760px){
     .ml-line{grid-template-columns:1fr;gap:4px;padding:10px 14px}
     .ml-row{grid-template-columns:minmax(0,1fr) auto;gap:4px 12px}
@@ -99,7 +100,7 @@
   // nächster Versuch: heute nur die Uhrzeit, sonst mit Datum
   const atT = ms => { const d = new Date(ms), t = new Date(), hh = d.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }); return d.toDateString() === t.toDateString() ? hh : `${d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })} ${hh}`; };
   // „Nachname, Vorname“; ohne Namen die Adresse
-  const lastFirst = r => (r.name ? window.CWNames.lastFirst(r.name) : r.email || '');
+  const lastFirst = r => (r.name ? (r.person === false ? r.name : window.CWNames.lastFirst(r.name)) : r.email || '');
   const atShort = ms => (new Date(ms).toDateString() === new Date().toDateString() ? new Date(ms).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : new Date(ms).toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
   const deT = s => (s ? new Date(s.replace(' ', 'T')).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '–');
   const okMail = m => /^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(m);
@@ -461,7 +462,7 @@
     const stPill = m => (m.channels && !m.channels.includes('mail') ? `<span class="pill g">${m.total} ${esc(T('in der App'))}</span>` : m.status === 'sendet' && m.waiting ? `<span class="pill g">${m.sent} ${esc(T('zugestellt'))}</span> <span class="pill a" style="white-space:nowrap" title="${esc(T('nächster Versuch'))} ${m.next_try ? atT(m.next_try) : ''}">${m.waiting} ${esc(T('warten'))}${m.next_try ? ` · ${atShort(m.next_try)}` : ''}</span>` : m.status === 'sendet' ? `<span class="pill a">${esc(T('wird gesendet'))} ${m.sent || ''}</span>` : m.status === 'teilweise' ? `<span class="pill r">${m.failed} ${esc(T('fehlgeschlagen'))}</span>` : m.status === 'gesendet' ? `<span class="pill g">${m.total} ${esc(T('zugestellt'))}</span>` : '');
     const autoStat = m => (m.status === 'gesendet' ? `<span class="pill g">${esc(T('zugestellt'))}</span>` : m.status === 'sendet' ? `<span class="pill a">${esc(T('wartet'))}</span>` : `<span class="pill r">${esc(T('Fehler'))}</span>`);
     body.innerHTML = `${filt}<div class="card"><div class="ml-list">${r.rows.map(m => `<button type="button" class="ml-row" data-id="${m.id}">
-        <span class="t"><b translate="no">${m.files ? SV_CLIP : ''}${esc(m.subject || T('(ohne Betreff)'))}</b><span${m.art ? ' class="ml-auto"' : ''}>${m.art ? `<em class="pill b">${esc(T(ART[m.art] || ART.automatisch))}</em> <span translate="no" style="display:inline">${esc(m.to ? window.CWNames.lastFirst(m.to) : '')}</span>` : `<span translate="no" style="display:inline">${esc(m.preview || '')}</span>`}</span></span>
+        <span class="t"><b translate="no">${m.files ? SV_CLIP : ''}${esc(m.subject || T('(ohne Betreff)'))}</b><span${m.art ? ' class="ml-auto"' : ''}>${m.art ? `<em class="pill b">${esc(T(ART[m.art] || ART.automatisch))}</em> <span translate="no" style="display:inline">${esc(m.to ? (m.to_person ? window.CWNames.lastFirst(m.to) : m.to) : '')}</span>` : `<span translate="no" style="display:inline">${esc(m.preview || '')}</span>`}</span></span>
         <span class="c who" translate="no">${esc(box === 'entwuerfe' ? '' : m.from_name || m.user_name || '')}</span>
         <span class="c">${deT(m.at)}</span><span class="c r">${box === 'entwuerfe' ? esc(T('Entwurf')) : m.art ? autoStat(m) : stPill(m) + wayPill(m)}</span></button>`).join('')}</div></div>
       ${box === 'gesendet' ? `<div class="card"><label class="chk" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center">${esc(T('Nachrichten bleiben in der App standardmäßig'))} <select id="mlKeepDef" aria-label="${esc(T('Nachrichten bleiben in der App standardmäßig'))}">${O.app.keepChoices.map(n => `<option value="${n}" ${n === O.app.keepMonths ? 'selected' : ''}>${n} ${esc(T(n === 1 ? 'Monat' : 'Monate'))}</option>`).join('')}</select></label>

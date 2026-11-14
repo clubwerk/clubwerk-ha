@@ -25,7 +25,7 @@ const core = () => {
       cut => db.prepare(`SELECT COUNT(*) n FROM audit_log WHERE NOT ${LOGIN_SQL} AND at < ?`).get(cut).n,
       cut => db.prepare(`DELETE FROM audit_log WHERE NOT ${LOGIN_SQL} AND at < ?`).run(cut).changes),
     e('rundmails', 'Gesendete Rundmails', 'Samt Empfängerliste und Anhängen.', 'monate', 12, 6, 120, cut => mailer.oldSent(cut).length, cut => mailer.purgeSent(cut)),
-    e('automails', 'Automatische Mails', 'Willkommen, Austrittsbestätigung, App-Einladung und Mahnung an einzelne Mitglieder – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).', 'monate', 12, 1, 120, cut => mailer.oldAuto(cut).length, cut => mailer.purgeAuto(cut)),
+    e('automails', 'Automatische Mails', 'Vom Vorstand ausgelöste Einzelmails (Willkommen, Austritt, Einladung, Mahnung, Rechnung, SEPA-Vorabinfo, Zuwendungsbestätigung, App-Antrag, Bestellung) – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).', 'monate', 12, 1, 120, cut => mailer.oldAuto(cut).length, cut => mailer.purgeAuto(cut)),
     e('kontoauszug', 'Kontoauszug: „gehört nicht zu Clubwerk“', 'Bankbuchungen, die nicht zum Verein gehören (Name, IBAN, Verwendungszweck). Zugeordnete Zahlungen bleiben als Nachweis.', 'tage', 90, 30, 365,
       cut => require('./kontoauszug').foreignOlder(cut), cut => require('./kontoauszug').purge(cut)),
     (g => e(g.id, g.label, g.text, g.unit, g.def, g.min, g.max, g.due, g.purge))(require('./gobd').retention()),

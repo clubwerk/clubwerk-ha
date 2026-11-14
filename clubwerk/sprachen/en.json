@@ -14520,6 +14520,10 @@
   "Noch keine automatische Mail gesendet. Willkommens-E-Mails, Austrittsbestätigungen, App-Einladungen und Mahnungen erscheinen hier mit vollem Text.": "No automatic email sent yet. Welcome emails, resignation confirmations, app invitations and reminders appear here with their full text.",
   "Oberhaupt/Zahler": "Head of family/payer",
   "Rundschreiben": "Circulars",
-  "Willkommen, Austrittsbestätigung, App-Einladung und Mahnung an einzelne Mitglieder – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).": "Welcome email, resignation confirmation, app invitation and payment reminder sent to individual members – with full text and recipient (Messages › Sent › Automatic)."
+  "Willkommen, Austrittsbestätigung, App-Einladung und Mahnung an einzelne Mitglieder – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).": "Welcome email, resignation confirmation, app invitation and payment reminder sent to individual members – with full text and recipient (Messages › Sent › Automatic).",
+  "App-Antrag": "App request",
+  "SEPA-Vorabinfo": "SEPA pre-notification",
+  "Zuwendungsbestätigung": "Donation receipt",
+  "Vom Vorstand ausgelöste Einzelmails (Willkommen, Austritt, Einladung, Mahnung, Rechnung, SEPA-Vorabinfo, Zuwendungsbestätigung, App-Antrag, Bestellung) – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).": "Individual emails triggered by the board (welcome, resignation, invitation, reminder, invoice, SEPA pre-notification, donation receipt, app request, order) – with full text and recipient (Messages › Sent › Automatic)."
  }
 }
