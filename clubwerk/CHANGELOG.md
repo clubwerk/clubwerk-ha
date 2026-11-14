@@ -1,5 +1,10 @@
 # Änderungen
 
+## 2026.11.45
+
+### Behoben
+- Nach einem Sprung (zum Beispiel aus „Für mich“ in den Platzkalender) ist die Hervorhebung auch auf einem langsamen Handy wieder zu sehen: Der Rahmen bleibt kurz stehen, solange das Handy noch zeichnet, und blendet erst danach weich aus. Auch mit „Bewegung reduzieren“ ist er rund eine Sekunde lang sichtbar.
+
 ## 2026.11.44
 
 ### Behoben

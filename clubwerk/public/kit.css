@@ -357,17 +357,24 @@ body.embedded .vh-row button { min-height: 56px; font-size: 18px; border-radius:
 .vh-fm-step[open] .vh-fm-wie { display: none; }
 .vh-fm-step > p { margin: 0 0 10px 60px; font-size: 13px; line-height: 18px; color: var(--muted); }
 
-/* Hervorhebung nach einem Sprung (CWHit.flash, theme-init.js): überall gleich – Rahmen, 1,5 s, dann weich weg. Endzustand = unsichtbar. */
-.cw-hl { outline: 3px solid var(--ink); outline-offset: 1px; animation: cw-hl 1.5s ease-out forwards; }
-@keyframes cw-hl { 0%, 55% { outline-color: var(--ink); } 100% { outline-color: transparent; } }
-@media (prefers-reduced-motion: reduce) { .cw-hl { animation-timing-function: step-end; } }   /* ohne Bewegung: kurz zeigen, dann weg */
+/* Hervorhebung nach einem Sprung (CWHit.flash, theme-init.js): überall gleich – Rahmen steht erst ruhig (.cw-hl, zählt nur gezeichnete Bilder),
+   blendet dann in 0,6 s weich aus (.aus, fill-mode forwards: Endzustand unsichtbar). Auf einem langsamen Handy läuft so keine Animation „unsichtbar“ ab,
+   während der Browser noch rechnet. */
+.cw-hl { outline: 3px solid var(--ink); outline-offset: 1px; }
+.cw-hl.aus { animation: cw-hl 0.6s ease-out forwards; }
+@keyframes cw-hl { from { outline-color: var(--ink); } to { outline-color: transparent; } }
+@media (prefers-reduced-motion: reduce) { .cw-hl.aus { animation-timing-function: step-end; } }   /* ohne Bewegung: kurz zeigen, dann weg */
 /* Tabellenzeile (Verwaltung): Rahmen wird an Zeilen nicht gezeichnet, darum Hintergrund */
-tr.cw-hl { outline: 0; animation: none; }
-tr.cw-hl > td { animation: cw-hl-td 1.5s ease-out forwards; }
-tr.cw-hl > td:first-child { animation-name: cw-hl-td, cw-hl-l; box-shadow: -10px 0 0 transparent; }
-tr.cw-hl > td:last-child { animation-name: cw-hl-td, cw-hl-r; box-shadow: 10px 0 0 transparent; }
-tr.cw-hl > td:first-child:last-child { animation-name: cw-hl-td; }
-@keyframes cw-hl-td { 0%, 55% { background-color: var(--brand-soft); } 100% { background-color: transparent; } }
-@keyframes cw-hl-l { 0%, 55% { box-shadow: -10px 0 0 var(--brand-soft); } 100% { box-shadow: -10px 0 0 transparent; } }
-@keyframes cw-hl-r { 0%, 55% { box-shadow: 10px 0 0 var(--brand-soft); } 100% { box-shadow: 10px 0 0 transparent; } }
-@media (prefers-reduced-motion: reduce) { tr.cw-hl > td { animation-timing-function: step-end; } }
+tr.cw-hl { outline: 0; }
+tr.cw-hl > td { background-color: var(--brand-soft); }
+tr.cw-hl > td:first-child { box-shadow: -10px 0 0 var(--brand-soft); }
+tr.cw-hl > td:last-child { box-shadow: 10px 0 0 var(--brand-soft); }
+tr.cw-hl.aus { animation: none; }
+tr.cw-hl.aus > td { animation: cw-hl-td 0.6s ease-out forwards; }
+tr.cw-hl.aus > td:first-child { animation-name: cw-hl-td, cw-hl-l; }
+tr.cw-hl.aus > td:last-child { animation-name: cw-hl-td, cw-hl-r; }
+tr.cw-hl.aus > td:first-child:last-child { animation-name: cw-hl-td; }
+@keyframes cw-hl-td { to { background-color: transparent; } }
+@keyframes cw-hl-l { to { box-shadow: -10px 0 0 transparent; } }
+@keyframes cw-hl-r { to { box-shadow: 10px 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { tr.cw-hl.aus > td { animation-timing-function: step-end; } }

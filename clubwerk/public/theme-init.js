@@ -301,18 +301,37 @@
 })();
 
 /* Hervorhebung nach einem Sprung (Buchung, Turniere, Spielbetrieb, Verwaltungs-Suche …): CWHit.flash(element).
-   Eine Klasse (.cw-hl in kit.css) blendet den Rahmen in 1,5 s weich aus und bleibt am Ende unsichtbar (fill-mode forwards);
-   entfernt wird die Klasse erst bei „animationend“ – so gibt es nie einen Zustand mit vollem Rahmen nach dem Ausblenden. */
+   Der Rahmen (.cw-hl in kit.css) steht 0,9 s – gezählt werden nur wirklich gezeichnete Bilder (ein Bild zählt höchstens 0,1 s): rechnet ein Handy nach
+   dem Sprung noch (Bilder, Kalender), läuft die Zeit nicht ab, bevor man den Rahmen sieht. Danach blendet er in 0,6 s aus (.aus, fill-mode forwards)
+   und wird erst bei „animationend“ entfernt – nie mit einem Zeitgeber mitten in der Animation. */
 (function () {
-  function weg(el) { el.classList.remove('cw-hl'); }
+  var HALTEN = 900;
   window.CWHit = {
     flash: function (el) {
       if (!el) return;
-      weg(el); void el.offsetWidth;
+      if (el.__cwHl) el.__cwHl();
+      el.classList.remove('cw-hl', 'aus'); void el.offsetWidth;
       el.classList.add('cw-hl');
-      var fertig = function (e) { if (e && e.target !== el) return; el.removeEventListener('animationend', fertig); clearTimeout(t); weg(el); };
-      el.addEventListener('animationend', fertig);
-      var t = setTimeout(fertig, 3000);   // Rückfall, falls die Animation nie läuft (Element versteckt)
+      var t, gesehen = 0, letzte = 0, weg = false;
+      var fertig = function (e) {
+        if (e && e.target !== el && el.tagName !== 'TR') return;   // Tabellenzeile: die Zellen blenden aus
+        if (weg) return; weg = true;
+        el.removeEventListener('animationend', fertig); clearTimeout(t); el.__cwHl = null; el.classList.remove('cw-hl', 'aus');
+      };
+      el.__cwHl = fertig;
+      var tick = function (now) {
+        if (weg) return;
+        if (!el.isConnected) { fertig(); return; }
+        if (letzte) gesehen += Math.min(now - letzte, 100);
+        letzte = now;
+        if (gesehen >= HALTEN) {
+          el.addEventListener('animationend', fertig); el.classList.add('aus');
+          t = setTimeout(fertig, 3000);   // Rückfall, falls die Animation nie läuft (Element versteckt)
+          return;
+        }
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
     },
   };
 })();
