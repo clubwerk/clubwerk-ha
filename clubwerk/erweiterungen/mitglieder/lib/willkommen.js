@@ -102,7 +102,8 @@ function register(sh) {
     const m = build(p, tpl(), inv);
     try {
       const att = [...(m.file ? [{ filename: 'Beitrittserklaerung.pdf', path: m.file }] : []), ...(inv && guide ? [await C.appInvite.guide()] : [])];
-      await C.mail.send({ raw: true, to: stt.to, subject: m.subject, text: m.text, card: m.card, attachments: att.length ? att : undefined });
+      await C.mail.send({ raw: true, to: stt.to, subject: m.subject, text: m.text, card: m.card, attachments: att.length ? att : undefined,
+        log: { art: 'willkommen', memberId: id, by: user || null, name: p.name, via: stt.via, hide: inv ? [inv.url] : [] } });   // Verlauf unter Nachrichten › Gesendet; Einladungslink bleibt dort ausgeblendet
     } catch (e) { if (inv) inv.revoke(); throw e; }
     const by = user ? uname({ user }) : null;
     store.hist(id, by, FIELD, null, `an ${stt.to}${inv ? ' · mit Einladung zur Mitglieder-App' : ''}`);

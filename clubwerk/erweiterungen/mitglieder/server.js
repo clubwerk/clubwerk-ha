@@ -304,6 +304,7 @@ function anonymize(id, user) {
     C.db.prepare('DELETE FROM member_devices WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM member_access WHERE member_id = ?').run(id);
     C.db.prepare('DELETE FROM msg_inbox WHERE member_id = ?').run(id);   // Nachrichten in der App (samt Gelesen-Stand)
+    C.require('./mailer').forgetMember(id);   // automatische Mails (Willkommen, Austritt, Mahnung …) samt Text und Adresse
   })();
   store.hist(id, user, 'anonymisiert', null, label);
   anonRemember(id, p);
@@ -996,7 +997,7 @@ function activate(ctx) {
     return { erstellt: nowTs(), verein: ctx.getSetting('club_name', ''), hinweis: 'Auskunft nach Art. 15 DSGVO – alle zu dieser Person gespeicherten Daten.',
       konto: core, vereinsdaten: { ...d.person, consents: d.person.consents }, bankverbindung: d.bank, abteilungen: d.departments, beitraege: d.fees, zahlergruppe: d.payerGroup, familienmitgliedschaft: d.family,
       ehrungen: d.honors, aemter: d.functions, gratulationen: { keine_gewuenscht: d.no_congrats, anlaesse: shared.congratsOf(id) }, forderungen: d.charges, dokumente: (d.documents || []).map(x => ({ titel: x.title, art: x.kind, datum: x.created_at })),
-      aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), sicherheitswarnungen: ctx.require('./security').ofMember(id), getraenke_je_monat: drinks, weitere_bereiche: module };
+      aenderungsverlauf: d.history, mitglieder_app: d.app, nachrichten_in_der_app: (ctx.messagesOf ? ctx.messagesOf(id) : []), automatische_mails: (ctx.autoMailsOf ? ctx.autoMailsOf(id) : []), sicherheitswarnungen: ctx.require('./security').ofMember(id), getraenke_je_monat: drinks, weitere_bereiche: module };
   }
   admin.get('/member/:id/auskunft', P, ar(async (req, res) => {
     const id = int(req.params.id); const out = await auskunft(id, req.user);

@@ -194,7 +194,8 @@ function register(sh) {
           ...o.charges.map(c => `- ${c.text}: ${euro(c.cents)}${c.stage ? ` (${c.stage})` : ''}`), `Offen gesamt: ${euro(x.total)}`, '',
           `Bitte überweisen Sie den Betrag bis zum ${deD(pl.deadline)} auf das Konto des Vereins:`, cl.name, cl.iban ? `IBAN ${String(cl.iban).replace(/(.{4})/g, '$1 ').trim()}` : null, `Verwendungszweck: ${no}`, '',
           'Die Einzelheiten stehen im angehängten PDF.', '', 'Viele Grüße', cl.name].filter(l => l !== null).join('\n'),
-          attachments: [{ filename: `${no}.pdf`, content: buf }] });
+          attachments: [{ filename: `${no}.pdf`, content: buf }],
+          log: { art: 'mahnung', memberId: x.member_id, by: req.user, name: x.name, via: x.via } });
       } catch (e) { failed.push(`${x.name}: ${e.message}`); continue; }   // nicht raus → keine Stufe, keine Gebühr
       if (commit(x, pl, no, 'email', req)) sent++; else changed.push(x.name);
       await new Promise(r => setTimeout(r, 150));

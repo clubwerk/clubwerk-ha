@@ -140,7 +140,7 @@ Je Einwilligung ein Häkchen mit Datum („seit …“), z. B. für Fotos. Welch
 #### Weitere Karten und Knöpfe
 
 - **Tablet-PIN:** zeigt, ob das Mitglied eine PIN hat. „PIN zurücksetzen“ löscht sie; beim nächsten Mal legt das Mitglied am Tablet eine neue fest.
-- **Willkommens-E-Mail:** zeigt, wann sie zuletzt gesendet wurde und an welche Adresse sie geht. „Willkommens-E-Mail senden …“ fragt nach und bietet dabei an, die Einladung zur Mitglieder-App mitzuschicken. Jeder Versand steht im Verlauf des Mitglieds und im Protokoll.
+- **Willkommens-E-Mail:** zeigt, wann sie zuletzt gesendet wurde und an welche Adresse sie geht. „Willkommens-E-Mail senden …“ fragt nach und bietet dabei an, die Einladung zur Mitglieder-App mitzuschicken. Jeder Versand steht im Verlauf des Mitglieds und im Protokoll. Jede so gesendete Mail steht mit vollem Text unter Nachrichten › Gesendet › Automatisch.
 
 ![Karte „Willkommens-E-Mail“ am Mitglied.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
 
@@ -191,7 +191,7 @@ Zwei Karten nebeneinander. Mit „+ Ehrung“ und „+ Amt“ tragt ihr Bezeichn
 
 Der Knopf **Austritt …** rechts in der Reiterzeile trägt den Austritt ein: Datum (vorgeschlagen ist der früheste Termin nach Kündigungsfrist und Geschäftsjahr, gerechnet ab dem Eingang der Kündigung), Eingang der Kündigung, Grund und auf Wunsch das Kündigungsschreiben als Datei. Ihr entscheidet, ob Beiträge und Abteilungen zum Austritt enden und ob Angehörige mit austreten. Bis zum Austrittstag bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; die Daten bleiben bis zum Anonymisieren. Ein noch nicht wirksamer Austritt lässt sich mit **Austritt zurücknehmen** widerrufen, ein vollzogener mit **Wiedereintritt …** (das Mitglied bekommt eine neue Nummer und braucht bei Lastschrift ein neues Mandat).
 
-Unter **Bestätigung an das Mitglied** wählt ihr, ob das Mitglied eine E-Mail bekommt: **Standardtext senden** (vorgewählt, Text aus Einstellungen › „Austrittsbestätigung“), **Vor dem Versenden anpassen** (Betreff und Text mit den eingesetzten Werten erscheinen im Fenster und lassen sich nur für dieses Mal ändern) oder **Keine E-Mail** (z. B. bei einem Todesfall). Darunter steht, an welche Adresse die Mail geht; ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler. Fehlt eine Adresse oder ist kein Postfach eingerichtet, bleibt nur „Keine E-Mail“ mit dem Grund. Der Versand steht im Verlauf des Mitglieds und im Protokoll; klappt er nicht, ist der Austritt trotzdem eingetragen und die Meldung nennt den Grund. Meldet eine Abteilungsleitung den Austritt, wählt die Vereinsverwaltung beim Bestätigen.
+Unter **Bestätigung an das Mitglied** wählt ihr, ob das Mitglied eine E-Mail bekommt: **Standardtext senden** (vorgewählt, Text aus Einstellungen › „Austrittsbestätigung“), **Vor dem Versenden anpassen** (Betreff und Text mit den eingesetzten Werten erscheinen im Fenster und lassen sich nur für dieses Mal ändern) oder **Keine E-Mail** (z. B. bei einem Todesfall). Darunter steht, an welche Adresse die Mail geht; ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler. Fehlt eine Adresse oder ist kein Postfach eingerichtet, bleibt nur „Keine E-Mail“ mit dem Grund. Der Versand steht im Verlauf des Mitglieds und im Protokoll; klappt er nicht, ist der Austritt trotzdem eingetragen und die Meldung nennt den Grund. Meldet eine Abteilungsleitung den Austritt, wählt die Vereinsverwaltung beim Bestätigen. Jede so gesendete Mail steht mit vollem Text unter Nachrichten › Gesendet › Automatisch.
 
 ### Mitglied › Zahlung & Familie {#mitglied-zahlung}
 
@@ -219,7 +219,7 @@ Alle Posten des Zahlers (Spalten Position, Fällig, Art, Status, Betrag). „Bez
 
 ![Die Karte „Mahnungen“ eines Zahlers mit Mahnhistorie.](bild: seite=mitglieder/mitglied/11; tab=zahlung; tabkey=detail_mitglied; ziel=.detbody > .card:last-child)
 
-Die bisherigen Mahnschreiben (Datum, Schreiben, Betrag, Gebühr). „Mahnsperre …“ stoppt Mahnungen für alle Posten dieses Zahlers (mit Grund und optionalem Datum, z. B. bei vereinbarter Ratenzahlung). Gab es zwei Rücklastschriften, steht hier der Hinweis, dass der Zahler nicht mehr eingezogen wird; „Wieder einziehen …“ hebt das auf.
+Die bisherigen Mahnschreiben (Datum, Schreiben, Betrag, Gebühr). „Mahnsperre …“ stoppt Mahnungen für alle Posten dieses Zahlers (mit Grund und optionalem Datum, z. B. bei vereinbarter Ratenzahlung). Gab es zwei Rücklastschriften, steht hier der Hinweis, dass der Zahler nicht mehr eingezogen wird; „Wieder einziehen …“ hebt das auf. Per E-Mail verschickte Mahnungen stehen mit vollem Text unter Nachrichten › Gesendet › Automatisch.
 
 ### Mitglied › Konto & Mandat {#mitglied-konto}
 

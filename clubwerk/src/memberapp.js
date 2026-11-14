@@ -110,7 +110,7 @@ async function inviteMail(memberId, inv, by, { guide = false } = {}) {
   const outro = `Knopf geht nicht? Diese Adresse öffnen: ${url}\n\nFragen? Antworte einfach auf diese E-Mail.\n\nViele Grüße\n${club}`;
   // Anleitung „Mitglieder-App einrichten“ als PDF (je Sprache zwischengespeichert, nicht je Mitglied neu gebaut)
   const g = require('./appanleitung'), attachments = guide ? [{ filename: g.FILE(g.langNow()), content: await g.pdf(g.langNow()), contentType: 'application/pdf' }] : undefined;
-  await mail.send({ to, subject: g.SUBJECT, attachments,
+  await mail.send({ to, subject: g.SUBJECT, attachments, log: { art: 'einladung', memberId, by: by || null, name: inv.member, hide: [url] },
     text: `${intro}\n\n${url}\n${note}\n\nSo geht es:\n${steps.map((x, i) => `${i + 1}. ${x}`).join('\n')}\n\n${outro}`,
     card: { heading: `Mitglieder-App von ${club} freischalten`, before: intro, steps, after: outro, button: { label: 'App jetzt freischalten', url, wide: true, note }, buttonTop: true } });
   audit(by || null, 'Mitglieder-App: Einladung per E-Mail', `${inv.member} · gültig bis ${until}${guide ? ' · mit Anleitung (PDF)' : ''}`);

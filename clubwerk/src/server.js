@@ -319,7 +319,7 @@ function dropMemberExtras(fromId, intoId = null) {
   // Verweise ohne Fremdschlüssel im Kern: Benutzer-Verknüpfung, Empfänger gesendeter Mails
   const linked = intoId && db.prepare('SELECT 1 FROM admin_users WHERE member_id = ?').get(intoId);
   db.prepare('UPDATE admin_users SET member_id = ? WHERE member_id = ?').run(intoId && !linked ? intoId : null, fromId);
-  try { db.prepare('UPDATE mail_recipient SET member_id = ? WHERE member_id = ?').run(intoId, fromId); } catch (e) { /* Tabelle gibt es erst nach dem Start des Mailers */ }
+  try { db.prepare('UPDATE mail_recipient SET member_id = ? WHERE member_id = ?').run(intoId, fromId); db.prepare('UPDATE mail_message SET member_id = ? WHERE member_id = ?').run(intoId, fromId); } catch (e) { /* Tabelle gibt es erst nach dem Start des Mailers */ }
   const keep = intoId == null ? keepHistory() : null;
   for (const { table, column } of memberRefs()) {
     if (keep && keep.has(table)) continue;

@@ -90,10 +90,11 @@ function message(s, { to, cc, bcc, replyTo, subject, text, html, attachments, fr
 /* Tresor gesperrt (nach einem Neustart, bis sich ein Admin anmeldet): Die Adressen der Mitglieder sind dann Platzhalter
    (gesperrt-<id>@clubwerk.invalid), und das Postfach-Passwort liegt ebenfalls im Tresor. Solche Mails warten verschlüsselt
    und gehen nach dem Entsperren raus – ohne Postfach-Passwort (z. B. Weiterleitung im eigenen Netz) nur die mit Platzhaltern. */
-function parked(o) {
+function parked(o, pre) {
   const vault = require('./vault');
   if (!vault.on() || !vault.locked()) return false;
   if (!geheim().locked(K('pass')) && !(vault.hasPlaceholder(o.to) || vault.hasPlaceholder(o.cc) || vault.hasPlaceholder(o.bcc))) return false;
+  if (pre) pre(o);
   vault.queueMail(o);
   return true;
 }
@@ -120,15 +121,25 @@ function queueInfo() {
   try { const r = require('./vault').dueInfo(); return r; } catch (e) { return { n: 0, next: null }; }
 }
 
+/** Verlauf „Automatisch“ unter Nachrichten › Gesendet (src/mailer.js recordAuto) – ein Fehler dort darf den Versand nie stören */
+function logAuto(log, o, state, err) {
+  if (!log) return null;
+  try { return require('./mailer').recordAuto(log, o, state, err); } catch (e) { console.error('Mail-Verlauf:', e.message); return null; }
+}
+/** log = { art, memberId, by, name, via, hide: [Text …] } – vom Vorstand ausgelöste Einzelmails (Willkommen, Austritt, Einladung, Mahnung) erscheinen so mit Text unter Nachrichten › Gesendet;
+    hide: Texte (z. B. Einladungslink), die dort nie im Klartext stehen sollen */
 async function send(o) {
   if (!require('./vereinsname').isSet()) throw new Error(require('./vereinsname').MSG);
-  if (parked(o)) return { queued: true };
-  const { direct, ...rest } = o;   // direct: Fehler sofort melden statt warten (Testmail)
+  const { direct, log, ...rest } = o;   // direct: Fehler sofort melden statt warten (Testmail)
+  if (parked(rest, q => { q.logId = logAuto(log, o, 'wartet') || undefined; })) return { queued: true };
   const wait = direct ? 0 : hourWait();
-  if (wait > 0) { defer(rest, 'Stundengrenze erreicht', wait); return { queued: true, waiting: true }; }
+  if (wait > 0) { rest.logId = logAuto(log, o, 'wartet') || undefined; defer(rest, 'Stundengrenze erreicht', wait); return { queued: true, waiting: true }; }
   const { s, t } = transport(false);
-  try { await t.sendMail(message(s, rest)); noteSent(); }
-  catch (e) { if (!direct && temporary(e)) { defer(rest, e, backoffMs(0)); return { queued: true, waiting: true }; } throw e; }
+  try { await t.sendMail(message(s, rest)); noteSent(); logAuto(log, o, 'ok'); }
+  catch (e) {
+    if (!direct && temporary(e)) { rest.logId = logAuto(log, o, 'wartet') || undefined; defer(rest, e, backoffMs(0)); return { queued: true, waiting: true }; }
+    logAuto(log, o, 'fehler', e); throw e;
+  }
 }
 /** Viele Mails nacheinander über eine Verbindung: const x = session(); await x.send({…}); x.close(); x.reopen(n) = neue Verbindung mit höchstens n Mails */
 function session(perConn) {
@@ -150,7 +161,7 @@ async function flushQueue() {
       const wait = hourWait();
       if (wait > 0) return { retry: { ms: wait, error: 'Stundengrenze erreicht', keep: true } };
       const { s, t } = transport(false);
-      try { await t.sendMail(message(s, o)); noteSent(); }
+      try { await t.sendMail(message(s, o)); noteSent(); if (o.logId) require('./mailer').markAuto(o.logId, 'ok'); }
       catch (e) { if (temporary(e)) return { retry: { ms: backoffMs(row.tries || 0), error: shortErr(e) } }; throw e; }
     }, { giveUpMs: GIVE_UP_MS });
   } finally { flushing = false; }

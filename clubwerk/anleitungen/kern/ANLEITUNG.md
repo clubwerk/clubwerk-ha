@@ -269,6 +269,10 @@ Ein Klick öffnet die Nachricht mit Text, Anhängen und der **Zustellung**: wie 
 
 Hat die Nachricht eine **Umfrage**, steht darunter das Ergebnis: Stimmen je Antwort, wie viele von wie vielen abgestimmt haben und – wenn sie nicht anonym ist – wer was gewählt hat (Nachname, Vorname). **Umfrage beenden** beendet sie sofort. Mitglieder sehen die offene Umfrage unter „Für mich“ bei „Zu erledigen“, bis sie abgestimmt haben. **Weiterverwenden** übernimmt die Umfrage ohne Stimmen in einen neuen Entwurf.
 
+![Die Liste „Gesendet“ mit dem Filter „Automatisch“: Willkommen, Austrittsbestätigung, App-Einladung und Mahnung.](bild: seite=email; tab=gesendet; klick=[data-art="auto"])
+
+**Alle · Rundschreiben · Automatisch:** Über der Liste filtert ihr. Unter **Automatisch** stehen die Mails, die ihr selbst ausgelöst habt, ohne eine Nachricht zu schreiben: Willkommens-E-Mail, Austrittsbestätigung, Einladung zur Mitglieder-App und Mahnung. Jede trägt ein Schild mit ihrer Art. Ein Klick öffnet sie so, wie sie versendet wurde: Betreff, vollständiger Text (auch ein vor dem Versand angepasster), Empfänger als „Nachname, Vorname“ mit Adresse (ging sie an das Familienoberhaupt oder den Zahler, steht das dabei), Zeitpunkt, wer sie ausgelöst hat und ob sie zugestellt wurde oder fehlgeschlagen ist. Einladungslinks und Codes stehen dort nie im Klartext, sie sind als „[Code ausgeblendet]“ ersetzt. Automatische Mails lassen sich nicht erneut senden oder weiterverwenden. Wie lange sie aufbewahrt werden, stellt ihr unter Einstellungen › Datenschutz ein („Automatische Mails“, Vorgabe 12 Monate); beim Anonymisieren eines Mitglieds verschwinden seine automatischen Mails, und in der Datenauskunft stehen sie mit Text.
+
 ### Reiter „Verteiler“ {#email-verteiler}
 
 ![Neuer Verteiler: eine gespeicherte Empfängerliste.](bild: seite=email; tab=verteiler; klick=button.btn.primary; ziel=dialog)

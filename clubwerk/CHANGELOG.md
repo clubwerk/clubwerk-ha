@@ -1,5 +1,17 @@
 # Änderungen
 
+## 2026.11.47
+
+### Neu
+- Nachrichten › Gesendet: Mails, die der Vorstand selbst auslöst, stehen jetzt mit vollem Text in der Liste – Willkommens-E-Mail, Austrittsbestätigung, Einladung zur Mitglieder-App und Mahnung. Jede trägt ein Schild mit ihrer Art.
+- Über der Liste filtert „Alle · Rundschreiben · Automatisch“. Ein Klick öffnet die Mail so, wie sie versendet wurde: Betreff, Text (auch ein vor dem Versand angepasster), Empfänger als „Nachname, Vorname“ mit Adresse (ging sie an Familienoberhaupt oder Zahler, steht das dabei), Zeitpunkt, wer sie ausgelöst hat und ob sie zugestellt wurde.
+- Einstellungen › Datenschutz: eigene Löschfrist „Automatische Mails“ (Vorgabe 12 Monate). Beim Anonymisieren eines Mitglieds verschwinden seine automatischen Mails, in der Datenauskunft stehen sie mit Text.
+
+### Verbessert
+- Einladungslinks und Codes werden dort nie gespeichert; sie stehen als „[Code ausgeblendet]“.
+- Automatische Mails lassen sich nicht erneut senden oder als Rundschreiben weiterverwenden, damit ein Mitglied nicht versehentlich dieselbe Einladung noch einmal bekommt.
+- Demo: Beispiele für Willkommen, App-Einladung, Austrittsbestätigung (an das Familienoberhaupt) und Mahnung, auch eine fehlgeschlagene.
+
 ## 2026.11.46
 
 ### Neu

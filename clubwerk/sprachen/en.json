@@ -14511,6 +14511,15 @@
   "Warn": "Warn",
   "Geht an {0} (Adresse von {1}).": "Goes to {0} (address of {1}).",
   "Keine E-Mail-Adresse hinterlegt – auch nicht beim Familienoberhaupt oder Zahler.": "No email address on file – not for the head of family or payer either.",
-  "Geht an das Mitglied, wenn ihr einen Austritt eintragt oder eine Kündigung aus der Mitglieder-App bzw. einen Austritt der Abteilungsleitung bestätigt. Im Fenster wählt ihr jedes Mal: Standardtext senden, vor dem Versenden anpassen oder keine E-Mail. Ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler.": "Goes to the member when you record a leaving or confirm a cancellation from the members' app or a leaving reported by a department head. Each time, you choose in the dialogue: send default text, edit before sending or no email. Without their own address it goes to the head of family, otherwise to the payer."
+  "Geht an das Mitglied, wenn ihr einen Austritt eintragt oder eine Kündigung aus der Mitglieder-App bzw. einen Austritt der Abteilungsleitung bestätigt. Im Fenster wählt ihr jedes Mal: Standardtext senden, vor dem Versenden anpassen oder keine E-Mail. Ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler.": "Goes to the member when you record a leaving or confirm a cancellation from the members' app or a leaving reported by a department head. Each time, you choose in the dialogue: send default text, edit before sending or no email. Without their own address it goes to the head of family, otherwise to the payer.",
+  "App-Einladung": "App invitation",
+  "Ausgelöst von": "Triggered by",
+  "automatisch erzeugte E-Mail": "automatically generated email",
+  "Automatische Mails": "Automatic emails",
+  "Noch kein Rundschreiben gesendet.": "No circular sent yet.",
+  "Noch keine automatische Mail gesendet. Willkommens-E-Mails, Austrittsbestätigungen, App-Einladungen und Mahnungen erscheinen hier mit vollem Text.": "No automatic email sent yet. Welcome emails, resignation confirmations, app invitations and reminders appear here with their full text.",
+  "Oberhaupt/Zahler": "Head of family/payer",
+  "Rundschreiben": "Circulars",
+  "Willkommen, Austrittsbestätigung, App-Einladung und Mahnung an einzelne Mitglieder – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).": "Welcome email, resignation confirmation, app invitation and payment reminder sent to individual members – with full text and recipient (Messages › Sent › Automatic)."
  }
 }

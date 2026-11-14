@@ -140,7 +140,7 @@ One tick box per consent with its date (“since …”), e.g. for photos. Which
 #### More cards and buttons
 
 - **Tablet PIN:** shows whether the member has a PIN. “Reset PIN” deletes it; next time the member sets a new one on the tablet.
-- **Welcome email:** shows when it was last sent and which address it goes to. “Send welcome email …” asks for confirmation and offers to include the invitation to the member app. Every sending is recorded in the member's history and in the log.
+- **Welcome email:** shows when it was last sent and which address it goes to. “Send welcome email …” asks for confirmation and offers to include the invitation to the member app. Every sending is recorded in the member's history and in the log. Every email sent this way is listed with its full text under Messages › Sent › Automatic.
 
 ![“Welcome email” card on the member.](bild: seite=mitglieder/mitglied/7; tab=stamm; tabkey=detail_mitglied; ziel=#sWel)
 
@@ -191,7 +191,7 @@ Two cards side by side. With “+ Honour” and “+ Position” you enter a nam
 
 The **Leaving …** button on the right of the tab bar records the leaving: date (the earliest date based on notice period and financial year is suggested, counted from when the cancellation was received), date the cancellation was received, reason and, if you like, the cancellation letter as a file. You decide whether fees and departments end at the leaving date and whether relatives leave too. Until the leaving date everything stays as before. After that the member disappears from the tablet and the app; the data stays until anonymised. A leaving that has not yet taken effect can be withdrawn with **Revert leaving**, one that has been completed with **Rejoin …** (the member gets a new number and needs a new mandate for direct debit).
 
-Under **Confirmation to the member** you choose whether the member gets an email: **Send default text** (preselected, text from Settings › “Leaving confirmation”), **Edit before sending** (subject and text with the values filled in appear in the dialogue and can be changed for this one time) or **No email** (e.g. after a death). Below it you see which address the email goes to; without their own address it goes to the head of family, otherwise to the payer. If there is no address or no mailbox is set up, only “No email” remains, with the reason. Sending is recorded in the member's history and in the log; if it fails, the leaving is still recorded and the message names the reason. If a department head reports the leaving, the club administration chooses when confirming.
+Under **Confirmation to the member** you choose whether the member gets an email: **Send default text** (preselected, text from Settings › “Leaving confirmation”), **Edit before sending** (subject and text with the values filled in appear in the dialogue and can be changed for this one time) or **No email** (e.g. after a death). Below it you see which address the email goes to; without their own address it goes to the head of family, otherwise to the payer. If there is no address or no mailbox is set up, only “No email” remains, with the reason. Sending is recorded in the member's history and in the log; if it fails, the leaving is still recorded and the message names the reason. If a department head reports the leaving, the club administration chooses when confirming. Every email sent this way is listed with its full text under Messages › Sent › Automatic.
 
 ### Member › Payment & family {#mitglied-zahlung}
 
@@ -219,7 +219,7 @@ All items of the payer (columns Position, Due, Type, Status, Amount). “Paid”
 
 ![A payer's “Reminders” card with the reminder history.](bild: seite=mitglieder/mitglied/11; tab=zahlung; tabkey=detail_mitglied; ziel=.detbody > .card:last-child)
 
-The reminder letters so far (date, letter, amount, fee). “Reminder hold …” stops reminders for all items of this payer (with a reason and an optional date, e.g. for an agreed payment plan). After two returned debits a note says the payer is no longer collected from; “Collect again …” cancels that.
+The reminder letters so far (date, letter, amount, fee). “Reminder hold …” stops reminders for all items of this payer (with a reason and an optional date, e.g. for an agreed payment plan). After two returned debits a note says the payer is no longer collected from; “Collect again …” cancels that. Reminders sent by email are listed with their full text under Messages › Sent › Automatic.
 
 ### Member › Account & mandate {#mitglied-konto}
 

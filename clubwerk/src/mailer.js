@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS mail_template (id INTEGER PRIMARY KEY AUTOINCREMENT, 
 `);
 {
   const cols = db.prepare('PRAGMA table_info(mail_message)').all().map(c => c.name);
-  for (const [c, t] of [['per_conn', 'INTEGER'], ['signature_html', 'TEXT'], ['channels', `TEXT NOT NULL DEFAULT '["mail"]'`], ['keep_months', 'INTEGER'], ['expires_at', 'TEXT'], ['pinned', 'INTEGER NOT NULL DEFAULT 0'], ['app_stats', 'TEXT'], ['poll', 'TEXT'], ['poll_closed_at', 'TEXT']])
+  for (const [c, t] of [['per_conn', 'INTEGER'], ['signature_html', 'TEXT'], ['channels', `TEXT NOT NULL DEFAULT '["mail"]'`], ['keep_months', 'INTEGER'], ['expires_at', 'TEXT'], ['pinned', 'INTEGER NOT NULL DEFAULT 0'], ['app_stats', 'TEXT'], ['poll', 'TEXT'], ['poll_closed_at', 'TEXT'], ['art', 'TEXT'], ['member_id', 'INTEGER']])
     if (!cols.includes(c)) db.exec(`ALTER TABLE mail_message ADD COLUMN ${c} ${t}`);
 }
 /* Postfach in der Mitglieder-App: eine Zeile je Empfänger und Nachricht (read_at = vom Mitglied geöffnet, push = ja/nein) */
@@ -256,6 +256,55 @@ function identity(user) {
   return { name: cur.name != null ? cur.name : (user.name || user.username || ''), reply_to: cur.reply_to != null ? cur.reply_to : memberMail, signature: cur.signature || '', set: Boolean(cur.saved) };
 }
 
+/* ---------- Automatische Mails (vom Vorstand ausgelöste Einzelmails) ----------
+   Willkommen, Austrittsbestätigung, Einladung zur Mitglieder-App und Mahnung stehen mit vollem Text unter Nachrichten › Gesendet (Filter „Automatisch“).
+   Sie liegen in derselben Tabelle wie Rundschreiben (art gesetzt, ein Empfänger), sind aber keine Entwürfe: nicht erneut sendbar, nicht in der App, eigene Löschfrist.
+   Einladungslinks und Codes werden nie gespeichert (→ „[Code ausgeblendet]“). Versand ohne Nachrichten-Verlauf bleibt möglich: ein Fehler hier stört nie den Versand. */
+const ARTEN = ['willkommen', 'austritt', 'einladung', 'mahnung'];
+const HIDDEN = '[Code ausgeblendet]';
+const hideSecrets = (text, hide) => {
+  let t = String(text == null ? '' : text);
+  for (const h of (hide || []).map(String).filter(x => x.length >= 6)) t = t.split(h).join(HIDDEN);
+  return t.replace(/\S*#i=[A-Za-z0-9_-]{8,}\S*/g, HIDDEN);   // Sicherheitsnetz: jeder Einladungslink (…/#i=<Code>)
+};
+const textHtml = t => String(t).split(/\n{2,}/).map(par => `<p>${esc(par).replace(/\n/g, '<br>')}</p>`).join('');
+/** → Nummer des Verlaufseintrags. state: 'ok' | 'wartet' | 'fehler' */
+function recordAuto(log, o, state, err) {
+  const art = ARTEN.includes(log.art) ? log.art : 'automatisch';
+  const text = hideSecrets(log.text != null ? log.text : o.text, log.hide).slice(0, 30000), subject = hideSecrets(log.subject != null ? log.subject : o.subject, log.hide).replace(/\s+/g, ' ').trim().slice(0, 200);
+  const by = log.by || null, at = now();
+  const st = state === 'ok' ? 'gesendet' : state === 'wartet' ? 'sendet' : 'teilweise';
+  const msg = String(err && err.message || err || '').replace(/\s+/g, ' ').slice(0, 300);
+  return db.transaction(() => {
+    const r = db.prepare("INSERT INTO mail_message(subject, html, spec, channels, status, copy_me, user_id, user_name, sent_at, total, sent, failed, art, member_id) VALUES (?,?,?,?,?,0,?,?,?,1,?,?,?,?)")
+      .run(subject, textHtml(text), '{}', '["mail"]', st, by && by.id != null ? by.id : null, by ? by.name || by.username || null : null, at, state === 'ok' ? 1 : 0, state === 'fehler' ? 1 : 0, art, log.memberId || null);
+    db.prepare('INSERT INTO mail_recipient(message_id, member_id, name, email, via, status, error, sent_at) VALUES (?,?,?,?,?,?,?,?)')
+      .run(r.lastInsertRowid, log.memberId || null, String(log.name || '').slice(0, 200) || null, String(o.to || '').slice(0, 300), log.via ? String(log.via).slice(0, 200) : null, state === 'ok' ? 'ok' : state === 'wartet' ? 'wartet' : 'fehler', state === 'fehler' ? msg : null, state === 'ok' ? at : null);
+    return Number(r.lastInsertRowid);
+  })();
+}
+/** eine wartende Mail ist doch noch rausgegangen (Tresor entsperrt, Wartezeit vorbei) */
+function markAuto(id, state) {
+  if (state !== 'ok') return;
+  const at = now();
+  db.prepare("UPDATE mail_recipient SET status = 'ok', sent_at = ?, error = NULL WHERE message_id = ?").run(at, id);
+  db.prepare("UPDATE mail_message SET status = 'gesendet', sent = 1, sent_at = ? WHERE id = ? AND art IS NOT NULL").run(at, id);
+}
+/** Löschfrist „Automatische Mails“ (src/datenschutz.js): Rundschreiben und automatische Mails haben getrennte Fristen */
+const oldAuto = before => db.prepare("SELECT id FROM mail_message WHERE art IS NOT NULL AND status != 'sendet' AND COALESCE(sent_at, created_at) < ?").all(before).map(r => r.id);
+const dropMessages = ids => { for (const id of ids) { db.prepare('DELETE FROM mail_recipient WHERE message_id = ?').run(id); db.prepare('DELETE FROM mail_message WHERE id = ?').run(id); } return ids.length; };
+const purgeAuto = before => dropMessages(oldAuto(before));
+/** Anonymisieren: alle automatischen Mails, die das Mitglied betreffen oder an es gingen, samt Text und Adresse löschen */
+function forgetMember(memberId) {
+  const ids = db.prepare("SELECT id FROM mail_message WHERE art IS NOT NULL AND (member_id = ? OR id IN (SELECT message_id FROM mail_recipient WHERE member_id = ?))").all(memberId, memberId).map(r => r.id);
+  return dropMessages(ids);
+}
+/** Auskunft (Art. 15): automatische Mails an oder über dieses Mitglied, mit Text */
+function autoOf(memberId) {
+  return db.prepare("SELECT m.subject, m.html, m.art, m.sent_at, m.status FROM mail_message m WHERE m.art IS NOT NULL AND (m.member_id = ? OR m.id IN (SELECT message_id FROM mail_recipient WHERE member_id = ?)) ORDER BY m.sent_at DESC").all(memberId, memberId)
+    .map(m => ({ art: m.art, betreff: m.subject, text: toText(m.html), gesendet: m.sent_at, status: m.status }));
+}
+
 /* ---------- Anhänge ---------- */
 const safeName = n => String(n || 'Datei').replace(/[\\/:*?"<>|\u0000-\u001f]+/g, '_').replace(/^\.+/, '').slice(0, 120) || 'Datei';
 const fileDir = id => path.join(DIR, String(id));
@@ -263,7 +312,7 @@ const filePath = (id, f) => path.join(fileDir(id), `${f.id}.bin`);
 const BLOCK_EXT = /\.(exe|bat|cmd|com|scr|pif|vbs|vbe|js|jse|wsf|wsh|msi|msp|ps1|jar|lnk|reg|hta|cpl|dll)$/i;
 function removeFiles(id) { try { fs.rmSync(fileDir(id), { recursive: true, force: true }); } catch (e) { /* weg */ } }
 /** Gesendete Rundmails samt Empfängern und Anhängen, verschickt vor dem Tag `before` (Löschfrist, src/datenschutz.js) */
-const oldSent = before => db.prepare("SELECT id FROM mail_message WHERE status IN ('gesendet', 'teilweise') AND pinned = 0 AND NOT EXISTS (SELECT 1 FROM msg_inbox WHERE message_id = mail_message.id) AND COALESCE(sent_at, created_at) < ?").all(before).map(r => r.id);   // was noch in der App steht (angeheftet oder nicht abgelaufen), bleibt
+const oldSent = before => db.prepare("SELECT id FROM mail_message WHERE art IS NULL AND status IN ('gesendet', 'teilweise') AND pinned = 0 AND NOT EXISTS (SELECT 1 FROM msg_inbox WHERE message_id = mail_message.id) AND COALESCE(sent_at, created_at) < ?").all(before).map(r => r.id);   // was noch in der App steht (angeheftet oder nicht abgelaufen), bleibt
 function purgeSent(before) {
   const ids = oldSent(before);
   for (const id of ids) { db.prepare('DELETE FROM mail_recipient WHERE message_id = ?').run(id); db.prepare('DELETE FROM msg_vote WHERE message_id = ?').run(id); db.prepare('DELETE FROM mail_message WHERE id = ?').run(id); removeFiles(id); }
@@ -341,7 +390,7 @@ async function work(id) {
   } finally { if (sess) sess.close(); running.delete(id); }
 }
 // nach einem Neustart angefangene Versände fortsetzen
-setTimeout(() => { for (const r of db.prepare("SELECT id FROM mail_message WHERE status = 'sendet'").all()) work(r.id); }, 5000).unref();
+setTimeout(() => { for (const r of db.prepare("SELECT id FROM mail_message WHERE status = 'sendet' AND art IS NULL").all()) work(r.id); }, 5000).unref();
 // wartende Empfänger (4xx) nachholen, sobald ihre Zeit da ist
 setInterval(() => { for (const r of db.prepare("SELECT DISTINCT message_id id FROM mail_recipient WHERE status = 'wartet' AND next_try IS NOT NULL AND next_try <= ?").all(Date.now())) if (!running.has(r.id)) work(r.id); }, process.env.CW_MAIL_TICK ? Number(process.env.CW_MAIL_TICK) : 30000).unref();
 
@@ -449,7 +498,7 @@ function routes(admin, { need, bad }) {
   };
   const seeAll = req => !scopeOf(req.user);
   const visible = (req, m) => m && (m.status === 'entwurf' ? mine(req, m) : seeAll(req) || mine(req, m));
-  const out = m => ({ id: m.id, subject: m.subject, html: m.html, spec: cleanSpec(J(m.spec, {})), files: J(m.files, []), status: m.status, copy_me: Boolean(m.copy_me),
+  const out = m => ({ art: m.art || null, id: m.id, subject: m.subject, html: m.html, spec: cleanSpec(J(m.spec, {})), files: J(m.files, []), status: m.status, copy_me: Boolean(m.copy_me),
     channels: cleanChannels(m.channels), keep_months: m.keep_months || null, pinned: Boolean(m.pinned), expires_at: m.expires_at || null,
     from_name: m.from_name, reply_to: m.reply_to, signature_html: m.signature_html || '', user_name: m.user_name, created_at: m.created_at, updated_at: m.updated_at, sent_at: m.sent_at, total: m.total, sent: m.sent, failed: m.failed,
     poll: m.status === 'entwurf' ? pollOf(m) : pollResult(m, { names: true }) });
@@ -502,11 +551,12 @@ function routes(admin, { need, bad }) {
   const waitOf = id => { const r = db.prepare("SELECT COUNT(*) n, MIN(next_try) next FROM mail_recipient WHERE message_id = ? AND status = 'wartet' AND next_try IS NOT NULL AND COALESCE(via, '') != '__kopie'").get(id); return { waiting: r.n, next_try: r.next || null }; };
   admin.get('/mail/messages', P, (req, res) => {
     const box = req.query.box === 'entwuerfe' ? 'entwuerfe' : 'gesendet';
+    const art = ['auto', 'rund'].includes(req.query.art) ? req.query.art : 'alle';
     const rows = box === 'entwuerfe'
       ? db.prepare("SELECT * FROM mail_message WHERE status = 'entwurf' AND user_id = ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 200").all(req.user.id)
-      : db.prepare(`SELECT * FROM mail_message WHERE status != 'entwurf' ${seeAll(req) ? '' : 'AND user_id = ' + Number(req.user.id)} ORDER BY sent_at DESC LIMIT 300`).all();
+      : db.prepare(`SELECT * FROM mail_message WHERE status != 'entwurf' AND (? = 'alle' OR (art IS NOT NULL) = (? = 'auto')) ${seeAll(req) ? '' : 'AND user_id = ' + Number(req.user.id)} ORDER BY sent_at DESC LIMIT 300`).all(art, art);
     res.json({ rows: rows.map(m => ({ id: m.id, subject: m.subject, status: m.status, user_name: m.user_name, from_name: m.from_name, at: m.status === 'entwurf' ? (m.updated_at || m.created_at) : m.sent_at,
-      total: m.total, sent: m.sent, failed: m.failed, ...(m.status === 'sendet' ? waitOf(m.id) : {}), files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll) })),
+      total: m.total, sent: m.sent, failed: m.failed, ...(m.status === 'sendet' ? waitOf(m.id) : {}), files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll), art: m.art || null, to: m.art ? ((db.prepare('SELECT name FROM mail_recipient WHERE message_id = ?').get(m.id) || {}).name || null) : undefined })),
       drafts: db.prepare("SELECT COUNT(*) AS n FROM mail_message WHERE status = 'entwurf' AND user_id = ?").get(req.user.id).n });
   });
   admin.get('/mail/messages/:id', P, (req, res) => {
@@ -550,7 +600,7 @@ function routes(admin, { need, bad }) {
   /** Gesendete Mail als neuen Entwurf weiterverwenden (z. B. Erinnerung, gleiche Mail an andere) */
   admin.post('/mail/messages/:id/copy', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
-    if (!visible(req, m)) return bad(res, 'Nicht gefunden.', 404);
+    if (!visible(req, m) || m.art) return bad(res, 'Nicht gefunden.', 404);
     const r = db.prepare('INSERT INTO mail_message(subject, html, spec, copy_me, channels, keep_months, pinned, poll, user_id, user_name, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
       .run(m.subject, m.html, req.body && req.body.keepRecipients === false ? '{}' : m.spec, m.copy_me, m.channels, m.keep_months, m.pinned, m.poll || null, req.user.id, req.user.name || req.user.username, now());
     const id = Number(r.lastInsertRowid);
@@ -666,7 +716,7 @@ function routes(admin, { need, bad }) {
   /** Nachricht in der App anheften / lösen oder aus der App nehmen (bei den Mitgliedern verschwindet sie sofort; E-Mails bleiben natürlich) */
   admin.post('/mail/messages/:id/app', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
-    if (!visible(req, m) || m.status === 'entwurf' || !cleanChannels(m.channels).includes('app')) return bad(res, 'Nicht gefunden.', 404);
+    if (!visible(req, m) || m.art || m.status === 'entwurf' || !cleanChannels(m.channels).includes('app')) return bad(res, 'Nicht gefunden.', 404);
     const b = req.body || {};
     if (b.remove) {
       const c = db.prepare('SELECT COUNT(*) AS total, SUM(read_at IS NOT NULL) AS opened FROM msg_inbox WHERE message_id = ?').get(m.id);
@@ -686,7 +736,7 @@ function routes(admin, { need, bad }) {
   /** Umfrage sofort beenden (Mitglieder sehen danach, je nach Einstellung, das Ergebnis) */
   admin.post('/mail/messages/:id/poll/close', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
-    if (!visible(req, m) || m.status === 'entwurf' || !pollOf(m)) return bad(res, 'Nicht gefunden.', 404);
+    if (!visible(req, m) || m.art || m.status === 'entwurf' || !pollOf(m)) return bad(res, 'Nicht gefunden.', 404);
     if (!pollOpen(m)) return bad(res, 'Die Umfrage ist schon beendet.');
     db.prepare('UPDATE mail_message SET poll_closed_at = ? WHERE id = ?').run(now(), m.id);
     audit(req.user, 'Umfrage beendet', `Nachricht Nr. ${m.id}`);
@@ -695,7 +745,7 @@ function routes(admin, { need, bad }) {
   /** fehlgeschlagene Empfänger noch einmal versuchen – und wartende (4xx) sofort statt zur nächsten Zeit */
   admin.post('/mail/messages/:id/retry', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
-    if (!visible(req, m) || !['teilweise', 'sendet'].includes(m.status)) return bad(res, 'Nichts zu wiederholen.');
+    if (!visible(req, m) || m.art || !['teilweise', 'sendet'].includes(m.status)) return bad(res, 'Nichts zu wiederholen.');
     if (running.has(m.id)) return bad(res, 'Die Nachricht wird gerade gesendet.');
     if (!mail.ready()) return bad(res, 'Kein Postfach eingerichtet (Einstellungen → Postfach).');
     const n = db.prepare("UPDATE mail_recipient SET status = 'wartet', error = NULL, next_try = NULL, tries = 0, first_temp = NULL WHERE message_id = ? AND status = 'fehler'").run(m.id).changes
@@ -755,4 +805,4 @@ function routes(admin, { need, bad }) {
   }, 'Vorlage');
 }
 
-module.exports = { routes, clean, toText, resolve, DIR, oldSent, purgeSent, cleanChannels, inApp, fillHtml, fillText, vars, filePath, J, PUSH_KEY, everyone, club, sigBlock, pollOf, pollOpen, pollResult };
+module.exports = { routes, clean, toText, resolve, DIR, oldSent, purgeSent, oldAuto, purgeAuto, recordAuto, markAuto, forgetMember, autoOf, ARTEN, cleanChannels, inApp, fillHtml, fillText, vars, filePath, J, PUSH_KEY, everyone, club, sigBlock, pollOf, pollOpen, pollResult };

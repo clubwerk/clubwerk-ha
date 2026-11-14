@@ -249,6 +249,7 @@ function load({ app, admin, helpers }) {
           guide: async () => { const g = require('./appanleitung'), l = g.langNow(); return { filename: g.FILE(l), content: await g.pdf(l), contentType: 'application/pdf' }; } },
         /** Nachrichten, die ein Mitglied in der App hat (für die Datenauskunft) */
         messagesOf: id => require('./nachrichten').dataOf(id),
+        autoMailsOf: id => require('./mailer').autoOf(id),   // vom Vorstand ausgelöste Mails (Willkommen, Austritt, Einladung, Mahnung) mit Text – für die Auskunft
         // Home-Assistant-Geräte gehören genau einem Modul: z. B. kann der Türöffner nicht als Beregnungs-Zone eingetragen werden
         entityOwner: ent => { for (const q of plugins.values()) { if (q.meta.id === id || typeof q.hooks.usedEntities !== 'function') continue; try { if (q.hooks.usedEntities().includes(ent)) return q.meta.name; } catch (e) { /* */ } } return null; },   // Mitglieder-App: Router unter /api/m/<id>, Freischaltungen je Mitglied
       };
