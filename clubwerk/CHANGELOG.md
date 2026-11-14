@@ -1,5 +1,19 @@
 # Änderungen
 
+## 2026.11.46
+
+### Neu
+- Mitglieder: Austrittsbestätigung per E-Mail. Wer einen Austritt einträgt, wählt im Fenster „Standardtext senden“, „Vor dem Versenden anpassen“ oder „Keine E-Mail“. Ohne eigene Adresse geht die Bestätigung an das Familienoberhaupt oder an den Zahler; der Versand steht im Verlauf des Mitglieds.
+- Einstellungen › Mitglieder: neue Karte „Austrittsbestätigung“ mit Betreff, Text und Platzhaltern (z. B. Austrittsdatum und alle, die mit austreten), Vorschau und „Standardtext wiederherstellen“.
+
+### Verbessert
+- Dieselbe Auswahl und derselbe Text gelten beim Bestätigen einer Kündigung aus der Mitglieder-App und beim Bestätigen eines Austritts, den eine Abteilungsleitung gemeldet hat.
+- Einstellungen › Mitglieder: Die Platzhalter-Knöpfe der Willkommens-E-Mail sind so breit wie ihr Text und stoßen nicht mehr an den Rand.
+- Demo: Die Beispieldaten haben ein Demo-Postfach. E-Mails gelten dort als gesendet, verlassen den Rechner aber nicht.
+
+### Behoben
+- Verwaltung am Handy: Knöpfe auf Reitern, die beim Öffnen der Seite noch verborgen sind (z. B. Einstellungen › Sicherheit), stehen jetzt wie überall untereinander, wenn ihr Text nicht nebeneinander passt.
+
 ## 2026.11.45
 
 ### Behoben

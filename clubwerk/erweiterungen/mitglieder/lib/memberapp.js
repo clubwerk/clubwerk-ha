@@ -264,7 +264,7 @@ function register(sh) {
     if (c.kind === 'eintritt') rows = [{ field: 'Abteilung', old: null, new: (db.prepare('SELECT name FROM mv_department WHERE id = ?').get(d.department_id) || {}).name || '–' }, { field: 'Eintritt', old: null, new: deD(d.entry_date) }];
     if (c.kind === 'austritt') rows = [{ field: 'Austritt zum', old: null, new: deD(d.exit_date) }, ...(d.reason ? [{ field: 'Grund', old: null, new: d.reason }] : []), ...(d.withDependents ? [{ field: 'Angehörige', old: null, new: 'treten mit aus' }] : [])];
     if (c.kind === 'rueckkehr') rows = [{ field: 'Rückkehr', old: deD(p.exit_date) ? `Austritt ${deD(p.exit_date)}` : null, new: p.exit_date && p.exit_date < today() ? 'Wiedereintritt (neue Mitgliedsnummer)' : 'Austritt zurücknehmen' }];
-    return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, created_by: c.created_by || null, scope: SCOPE_KINDS.includes(c.kind), exit_date: d.exit_date || null, name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
+    return { id: c.id, kind: c.kind, label: KIND[c.kind], member_id: c.member_id, created_by: c.created_by || null, scope: SCOPE_KINDS.includes(c.kind), exit_date: d.exit_date || null, notice_date: d.notice_date || null, with: c.kind === 'austritt' && d.withDependents ? db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, d.exit_date).map(x => x.member_id) : [], name: p.name, member_no: p.member_no, created_at: c.created_at, status: c.status, reason: c.reason, reviewed_by: c.reviewed_by, reviewed_at: c.reviewed_at,
       rows, kuendigung: c.kind === 'kuendigung' ? d : null, signed_at: d.signed_at || null, hasSignature: Boolean(c.signature) };
   }
   admin.get('/changes', P, (req, res) => {
@@ -283,7 +283,7 @@ function register(sh) {
     if (!c) return bad(res, 'Dieser Änderungswunsch ist schon erledigt.', 404);
     const d = JSON.parse(c.data || '{}'); const b = req.body || {}; const by = uname(req);
     const p = personRow(c.member_id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
-    let mailLines, attachments;
+    let mailLines, attachments, mailRes;
     if (SCOPE_KINDS.includes(c.kind)) {   // Meldung einer Abteilungsleitung bestätigen
       if (c.kind === 'eintritt') { db.prepare('UPDATE members SET active = 1 WHERE id = ?').run(c.member_id); store.hist(c.member_id, by, 'Eintritt bestätigt', null, d.entry_date ? deD(d.entry_date) : null); }
       if (c.kind === 'austritt') {
@@ -291,12 +291,14 @@ function register(sh) {
         if (!fees.isDate(date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
         const opt = { exit_date: date, reason: d.reason, notice_date: d.notice_date, endFees: d.endFees !== false, endDepts: d.endDepts !== false };
         exitMember(c.member_id, opt, by);
-        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, date)) exitMember(x.member_id, { exit_date: date, reason: d.reason }, by);
+        const mit = [];
+        if (d.withDependents) for (const x of db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(c.member_id, c.member_id, c.member_id, date)) { mit.push(x.member_id); exitMember(x.member_id, { exit_date: date, reason: d.reason }, by); }
+        mailRes = await sh.exitMail.afterExit(c.member_id, req.user, b.mail, { exit_date: date, notice_date: d.notice_date, names: [p, ...mit.map(personRow)].filter(Boolean).map(sh.exitMail.fullName) }, 'Austritt der Abteilungsleitung bestätigt');
       }
       if (c.kind === 'rueckkehr') sh.reenterMember(c.member_id, by);
       db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ? WHERE id = ?").run(by, nowTs(), c.id);
       C.audit(req.user, `Mitglied: ${KIND[c.kind]} bestätigt`, `${p.name} (gemeldet von ${c.created_by || '–'})`);
-      return res.json({ ok: true });
+      return res.json({ ok: true, ...(mailRes !== undefined ? { mail: mailRes } : {}) });
     }
     if (c.kind === 'daten') {
       const fields = {};
@@ -323,12 +325,13 @@ function register(sh) {
       const date = fees.isDate(b.exit_date) ? b.exit_date : d.exit_date;
       if (!fees.isDate(date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
       for (const m of (d.members || [c.member_id])) if (personRow(m)) exitMember(m, { exit_date: date, reason: one(b.reason, 80) || 'Kündigung', notice_date: d.received || c.created_at.slice(0, 10) }, by);
-      mailLines = [`hiermit bestätigen wir Ihre Kündigung (${(d.names || [p.name]).join(', ')}). Die Mitgliedschaft endet zum ${deD(date)}.`, 'Danke für Ihre Zeit bei uns – Sie sind jederzeit wieder herzlich willkommen!'];
+      // Bestätigung mit dem Text aus Einstellungen › Austrittsbestätigung (Standard / angepasst / keine E-Mail – Wahl im Fenster)
+      mailRes = await sh.exitMail.afterExit(c.member_id, req.user, b.mail, { exit_date: date, notice_date: d.received || c.created_at.slice(0, 10), names: (d.members || [c.member_id]).map(personRow).filter(Boolean).map(sh.exitMail.fullName) }, 'Kündigung aus der Mitglieder-App bestätigt');
     }
     db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ?, signature = CASE WHEN kind = 'bank' THEN NULL ELSE signature END WHERE id = ?").run(by, nowTs(), c.id);
-    const mailed = await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments);
+    const mailed = c.kind === 'kuendigung' ? Boolean(mailRes && mailRes.sent) : await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments);
     C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App übernommen`, p.name);
-    res.json({ ok: true, mailed });
+    res.json({ ok: true, mailed, ...(c.kind === 'kuendigung' ? { mail: mailRes } : {}) });
   }));
   admin.post('/changes/:id/reject', P, ar(async (req, res) => {
     const c = db.prepare("SELECT * FROM mv_change WHERE id = ? AND status = 'offen'").get(int(req.params.id));

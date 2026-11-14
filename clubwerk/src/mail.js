@@ -54,6 +54,8 @@ function transport(pool, perConn) {
   const s = config();
   if (!s.host || !s.from) throw new Error('Kein Postfach eingerichtet (Einstellungen → Postfach).');
   const nodemailer = require('nodemailer');
+  // Demo-Postfach (Beispieldaten): Endung .invalid gibt es nie (RFC 2606) – Mails gelten als gesendet, verlassen aber nie den Rechner
+  if (/\.invalid$/i.test(s.host)) return { s, t: nodemailer.createTransport({ jsonTransport: true }) };
   // 465 = verschlüsselt von Anfang an, 587 = Verschlüsselung (STARTTLS) ist Pflicht – sonst könnte jemand sie unterdrücken und das Passwort mitlesen
   return { s, t: nodemailer.createTransport({ host: s.host, port: s.port, secure: s.port === 465, requireTLS: s.port === 587, auth: s.user ? { user: s.user, pass: s.pass } : undefined,
     connectionTimeout: 20000, greetingTimeout: 20000, socketTimeout: 30000, ...(pool ? { pool: true, maxConnections: 1, maxMessages: perConn || s.perConn } : {}) }) };

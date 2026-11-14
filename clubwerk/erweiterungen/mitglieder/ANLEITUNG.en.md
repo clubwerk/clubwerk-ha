@@ -191,6 +191,8 @@ Two cards side by side. With “+ Honour” and “+ Position” you enter a nam
 
 The **Leaving …** button on the right of the tab bar records the leaving: date (the earliest date based on notice period and financial year is suggested, counted from when the cancellation was received), date the cancellation was received, reason and, if you like, the cancellation letter as a file. You decide whether fees and departments end at the leaving date and whether relatives leave too. Until the leaving date everything stays as before. After that the member disappears from the tablet and the app; the data stays until anonymised. A leaving that has not yet taken effect can be withdrawn with **Revert leaving**, one that has been completed with **Rejoin …** (the member gets a new number and needs a new mandate for direct debit).
 
+Under **Confirmation to the member** you choose whether the member gets an email: **Send default text** (preselected, text from Settings › “Leaving confirmation”), **Edit before sending** (subject and text with the values filled in appear in the dialogue and can be changed for this one time) or **No email** (e.g. after a death). Below it you see which address the email goes to; without their own address it goes to the head of family, otherwise to the payer. If there is no address or no mailbox is set up, only “No email” remains, with the reason. Sending is recorded in the member's history and in the log; if it fails, the leaving is still recorded and the message names the reason. If a department head reports the leaving, the club administration chooses when confirming.
+
 ### Member › Payment & family {#mitglied-zahlung}
 
 There are two **separate** assignments here, side by side in two cards.
@@ -278,7 +280,7 @@ Requests from the member app and reports from department heads:
 
 - **Data change** (e.g. new address): “Apply” shows old and new for confirmation, “Reject” sends the member an email with the reason if you want.
 - **New bank details:** with the member's signature. On applying, a new mandate is created (first-time debit); the signed mandate is filed as a PDF and sent to the member.
-- **Cancellation:** Clubwerk suggests the earliest possible leaving date: the end of the financial year, keeping to the notice period (notice 0 and financial year = calendar year: cancel by 31.12. → leave on 31.12.; notice 3 months: received by 30.09.). The app shows the same date when cancelling, and so does the confirmation of receipt by email. A fee year that has started is charged in full; you confirm or change it. The member gets a confirmation by email.
+- **Cancellation:** Clubwerk suggests the earliest possible leaving date: the end of the financial year, keeping to the notice period (notice 0 and financial year = calendar year: cancel by 31.12. → leave on 31.12.; notice 3 months: received by 30.09.). The app shows the same date when cancelling, and so does the confirmation of receipt by email. A fee year that has started is charged in full; you confirm or change it. When confirming, you choose as for a leaving: send default text, edit before sending or no email.
 - **Joining, leaving and return to a department** are reported by the department head; “Confirm” applies them.
 
 #### Archive
@@ -414,6 +416,12 @@ Here you switch on where people can join: **on the tablet** (“Join”) and **o
 
 Subject and text of the email new members receive – when a membership application is accepted, when created with the tick box and via the button on the member. You insert the **placeholders** with a click at the cursor: {Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Eintritt}, {Beitrag} (first name, surname, membership number, club, joining date, fee). Clubwerk reports unknown placeholders before saving; subject and text must not be empty. **Preview …** shows the email with sample values. For direct debit Clubwerk always adds the mandate reference and creditor ID itself – this part cannot be changed. **Restore default text …** puts the supplied text back. The text is not translated; it goes out exactly as you write it. Every change is logged with before and after.
 
+
+#### Leaving confirmation
+
+![“Leaving confirmation” card.](bild: seite=mv-einstellungen; ziel=#eAus)
+
+Subject and text of the email a member receives on leaving – when you record a leaving, confirm a cancellation from the members' app or confirm a leaving reported by a department head. **Placeholders:** {Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Austritt} (leaving date), {Kündigungseingang} (date the cancellation was received) and {Personen} (everyone leaving together, e.g. “Anna and Max Beispiel”). Preview, placeholder check, “Restore default text …” and log as for the welcome email. In the leaving dialogue you decide each time whether this text is sent, whether you edit it first or whether no email is sent.
 #### “My data” in the app
 
 ![The “My data” card in the app.](bild: seite=mv-einstellungen; ziel=#eApp)

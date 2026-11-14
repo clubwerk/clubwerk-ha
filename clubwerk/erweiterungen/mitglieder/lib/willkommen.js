@@ -148,6 +148,6 @@ function register(sh) {
     res.json({ ok: true, ...view() });
   });
 
-  return { send, state };
+  return { send, state, recipient };
 }
 module.exports = { register, PH, DEF_SUBJECT, DEF_TEXT, unknownPh };

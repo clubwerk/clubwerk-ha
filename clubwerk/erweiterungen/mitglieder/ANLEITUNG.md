@@ -191,6 +191,8 @@ Zwei Karten nebeneinander. Mit „+ Ehrung“ und „+ Amt“ tragt ihr Bezeichn
 
 Der Knopf **Austritt …** rechts in der Reiterzeile trägt den Austritt ein: Datum (vorgeschlagen ist der früheste Termin nach Kündigungsfrist und Geschäftsjahr, gerechnet ab dem Eingang der Kündigung), Eingang der Kündigung, Grund und auf Wunsch das Kündigungsschreiben als Datei. Ihr entscheidet, ob Beiträge und Abteilungen zum Austritt enden und ob Angehörige mit austreten. Bis zum Austrittstag bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; die Daten bleiben bis zum Anonymisieren. Ein noch nicht wirksamer Austritt lässt sich mit **Austritt zurücknehmen** widerrufen, ein vollzogener mit **Wiedereintritt …** (das Mitglied bekommt eine neue Nummer und braucht bei Lastschrift ein neues Mandat).
 
+Unter **Bestätigung an das Mitglied** wählt ihr, ob das Mitglied eine E-Mail bekommt: **Standardtext senden** (vorgewählt, Text aus Einstellungen › „Austrittsbestätigung“), **Vor dem Versenden anpassen** (Betreff und Text mit den eingesetzten Werten erscheinen im Fenster und lassen sich nur für dieses Mal ändern) oder **Keine E-Mail** (z. B. bei einem Todesfall). Darunter steht, an welche Adresse die Mail geht; ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler. Fehlt eine Adresse oder ist kein Postfach eingerichtet, bleibt nur „Keine E-Mail“ mit dem Grund. Der Versand steht im Verlauf des Mitglieds und im Protokoll; klappt er nicht, ist der Austritt trotzdem eingetragen und die Meldung nennt den Grund. Meldet eine Abteilungsleitung den Austritt, wählt die Vereinsverwaltung beim Bestätigen.
+
 ### Mitglied › Zahlung & Familie {#mitglied-zahlung}
 
 Hier gibt es zwei **getrennte** Zuordnungen, nebeneinander in zwei Karten.
@@ -278,8 +280,8 @@ Wünsche aus der Mitglieder-App und Meldungen der Abteilungsleitungen:
 
 - **Datenänderung** (z. B. neue Anschrift): „Übernehmen“ zeigt alt und neu zur Bestätigung, „Ablehnen“ schickt dem Mitglied auf Wunsch eine E-Mail mit Grund.
 - **Neue Bankverbindung:** mit der Unterschrift des Mitglieds. Beim Übernehmen entsteht ein neues Mandat (Erstlastschrift); das unterschriebene Mandat wird als PDF abgelegt und dem Mitglied geschickt.
-- **Kündigung:** Clubwerk schlägt den frühestmöglichen Austrittstag vor: das Ende des Geschäftsjahres unter Einhaltung der Kündigungsfrist (Frist 0 und Geschäftsjahr = Kalenderjahr: Kündigung bis 31.12. → Austritt zum 31.12.; Frist 3 Monate: Eingang bis 30.09.). Dasselbe Datum nennt die App beim Kündigen und die Eingangsbestätigung per E-Mail. Ein angefangenes Beitragsjahr wird voll berechnet; ihr bestätigt oder ändert ihn. Das Mitglied bekommt eine Bestätigung per E-Mail.
-- **Ein-, Austritt und Rückkehr in eine Abteilung** meldet die Abteilungsleitung; „Bestätigen“ übernimmt sie.
+- **Kündigung:** Clubwerk schlägt den frühestmöglichen Austrittstag vor: das Ende des Geschäftsjahres unter Einhaltung der Kündigungsfrist (Frist 0 und Geschäftsjahr = Kalenderjahr: Kündigung bis 31.12. → Austritt zum 31.12.; Frist 3 Monate: Eingang bis 30.09.). Dasselbe Datum nennt die App beim Kündigen und die Eingangsbestätigung per E-Mail. Ein angefangenes Beitragsjahr wird voll berechnet; ihr bestätigt oder ändert ihn. Beim Bestätigen wählt ihr wie beim Austritt: Standardtext senden, vor dem Versenden anpassen oder keine E-Mail.
+- **Ein-, Austritt und Rückkehr in eine Abteilung** meldet die Abteilungsleitung; „Bestätigen“ übernimmt sie. Beim Austritt wählt ihr dabei die Bestätigung an das Mitglied.
 
 #### Archiv
 
@@ -413,6 +415,12 @@ Hier schaltet ihr ein, wo man Mitglied werden kann: **am Tablet** („Mitglied w
 ![Karte „Willkommens-E-Mail“.](bild: seite=mv-einstellungen; ziel=#eWel)
 
 Betreff und Text der Mail, die neue Mitglieder bekommen – beim Annehmen einer Beitrittserklärung, beim Anlegen mit dem Häkchen und über den Knopf am Mitglied. Die **Platzhalter** setzt ihr per Klick an der Schreibstelle ein: {Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Eintritt}, {Beitrag}. Unbekannte Platzhalter meldet Clubwerk, bevor gespeichert wird; Betreff und Text dürfen nicht leer sein. **Vorschau …** zeigt die Mail mit Beispielwerten. Bei Lastschrift hängt Clubwerk Mandatsreferenz und Gläubiger-ID immer selbst an – dieser Teil lässt sich nicht ändern. **Standardtext wiederherstellen …** setzt den mitgelieferten Text wieder ein. Der Text wird nicht übersetzt; er geht so hinaus, wie ihr ihn schreibt. Jede Änderung steht mit Vorher und Nachher im Protokoll.
+
+#### Austrittsbestätigung
+
+![Karte „Austrittsbestätigung“.](bild: seite=mv-einstellungen; ziel=#eAus)
+
+Betreff und Text der Mail, die ein Mitglied zum Austritt bekommt – wenn ihr einen Austritt eintragt, eine Kündigung aus der Mitglieder-App bestätigt oder einen Austritt der Abteilungsleitung bestätigt. **Platzhalter:** {Vorname}, {Nachname}, {Mitgliedsnummer}, {Verein}, {Austritt} (Austrittsdatum), {Kündigungseingang} und {Personen} (alle, die mit austreten, z. B. „Anna und Max Beispiel“). Vorschau, Prüfung der Platzhalter, „Standardtext wiederherstellen …“ und Protokoll wie bei der Willkommens-E-Mail. Im Austritt-Fenster entscheidet ihr jedes Mal, ob dieser Text geht, ob ihr ihn vorher anpasst oder ob keine E-Mail geht.
 
 #### „Meine Daten“ in der App
 

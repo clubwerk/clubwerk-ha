@@ -388,7 +388,7 @@ function activate(ctx) {
   const SCOPED = [   // [Methode, Pfad, Prüfung]  Prüfung: m = Mitglied :id, doc = Dokument eines Mitglieds, md = Abteilungszugehörigkeit, h/f = Ehrung/Amt, a = Antrag, ch = Änderungswunsch, - = keine
     ['GET', /^\/meta$/, '-'], ['GET', /^\/list$/, '-'], ['GET', /^\/iban-check$/, '-'], ['GET', /^\/applications$/, '-'], ['GET', /^\/applications\/config$/, '-'], ['GET', /^\/changes$/, '-'],
     ['POST', /^\/member$/, 'new'], ['POST', /^\/member\/new-document$/, '-'], ['GET', /^\/member\/(\d+)$/, 'm'], ['PUT', /^\/member\/(\d+)$/, 'm'],
-    ['POST', /^\/member\/(\d+)\/(departments|honors|functions|exit|reenter|exit-document)$/, 'm'],
+    ['POST', /^\/member\/(\d+)\/(departments|honors|functions|exit|exit-mail|reenter|exit-document)$/, 'm'],
     ['PUT', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/md\/(\d+)$/, 'md'], ['DELETE', /^\/honors\/(\d+)$/, 'h'], ['DELETE', /^\/functions\/(\d+)$/, 'f'],
     ['GET', /^\/applications\/(\d+)$/, 'a'], ['POST', /^\/applications\/(\d+)\/(accept|reject|code)$/, 'a'], ['PUT', /^\/applications\/(\d+)$/, 'a'], ['GET', /^\/applications\/(\d+)\/pdf$/, 'a'], ['POST', /^\/applications$/, 'newapp'],
     ['GET', /^\/documents\/(\d+)$/, 'doc'], ['GET', /^\/member\/(\d+)\/documents\.zip$/, 'm'], ['POST', /^\/documents\/zip$/, '-'], ['GET', /^\/documents\.zip$/, '-'],   // Dokumente als ZIP: nur Mitglieder der eigenen Abteilung(en) (lib/dokzip.js)
@@ -866,7 +866,7 @@ function activate(ctx) {
   }
 
   /* Austritt & Rückkehr */
-  admin.post('/member/:id/exit', P, (req, res) => {
+  admin.post('/member/:id/exit', P, ar(async (req, res) => {
     const id = int(req.params.id); const b = req.body || {};
     const p = personRow(id); if (!p) return bad(res, 'Mitglied nicht gefunden.', 404);
     if (!isDate(b.exit_date)) return bad(res, 'Bitte das Austrittsdatum angeben.');
@@ -879,11 +879,14 @@ function activate(ctx) {
       return res.json({ ok: true, pending: true });
     }
     exitMember(id, { exit_date: b.exit_date, reason: one(b.reason, 80), notice_date: isDate(b.notice_date) ? b.notice_date : null, endFees: b.endFees !== false, endDepts: b.endDepts !== false }, uname(req));
-    if (b.withDependents) for (const d of ctx.db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(id, id, id, b.exit_date)) exitMember(d.member_id, { exit_date: b.exit_date, reason: one(b.reason, 80) }, uname(req));
+    const mit = [];   // mit ausgetretene Angehörige (für die Bestätigung)
+    if (b.withDependents) for (const d of ctx.db.prepare('SELECT member_id FROM mv_person WHERE (payer_id = ? OR family_of = ?) AND member_id != ? AND (exit_date IS NULL OR exit_date > ?)').all(id, id, id, b.exit_date)) { mit.push(d.member_id); exitMember(d.member_id, { exit_date: b.exit_date, reason: one(b.reason, 80) }, uname(req)); }
     daily();
     ctx.audit(req.user, 'Mitglied: Austritt eingetragen', `${p.name} zum ${deD(b.exit_date)}`);
-    res.json({ ok: true });
-  });
+    const names = [p, ...mit.map(personRow)].filter(Boolean).map(shared.exitMail.fullName);
+    const mail = await shared.exitMail.afterExit(id, req.user, b.mail, { exit_date: b.exit_date, notice_date: isDate(b.notice_date) ? b.notice_date : null, names }, 'Austritt in der Verwaltung');
+    res.json({ ok: true, mail });
+  }));
   /* Dokument zum Austritt (Kündigungsschreiben o. ä.): PDF oder Foto – auch für Abteilungsadmins, ohne Dokumenten-Recht */
   admin.post('/member/:id/exit-document', P, express.raw({ type: () => true, limit: DOC_MAX + 1024 }), (req, res) => {
     const id = int(req.params.id); const p = personRow(id);
@@ -1212,6 +1215,7 @@ function activate(ctx) {
   require('./lib/agecheck').register(shared);
   ageScanFn = shared.ageScan; ageForFn = shared.ageFor;
   shared.welcome = require('./lib/willkommen').register(shared);   // vor den Anträgen: Annehmen schickt die Willkommens-E-Mail
+  shared.exitMail = require('./lib/austrittmail').register(shared);   // Austrittsbestätigung (Verwaltung, App-Kündigung, Abteilungsmeldung)
   require('./lib/applications').register(shared);
   require('./lib/reports').register(shared);
   require('./lib/congrats').register(shared);
@@ -1528,7 +1532,7 @@ function activate(ctx) {
   /* Familie bzw. Zahlergruppe (wie familyOf) für viele Mitglieder auf einmal → Map id → { head, members, kind } */
   ctx.hooks.familiesOf = list => { const rel = store.relations(); return new Map([...new Set((list || []).map(Number))].map(id => [id, store.familyOf(id, rel)])); };
   /* Funktionsexport: Katalog und Einstellungen (ohne Personen, ohne Bankdaten) */
-  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text'];
+  const CONFIG_KEYS = ['club_street', 'club_city', 'creditor_name', 'mandate_prefix', 'sepa_purpose', 'year_start', 'prenotify_days', 'drinks_due', 'due_text', 'app_intro', 'work_text', 'satzung_url', 'consents', 'invoice_text', 'return_fee_cents', 'dunning_fee_cents', 'dunning_levels', 'dunning_deadline_days', 'notice_months', 'member_no_start', 'member_no_mode', 'app_perms', 'scope_confirm', 'paid_reminder_days', 'retention_years', 'sepa_required', 'congrats_days', 'congrats_rules', 'family_child_max', 'welcome_subject', 'welcome_text', 'exit_mail_subject', 'exit_mail_text'];
   ctx.hooks.exportConfig = () => ({ depts: ctx.db.prepare('SELECT name, federation, sort, active FROM mv_department').all(),
     fees: ctx.db.prepare('SELECT f.name, f.kind, d.name AS department, f.cents, f.interval, f.prorate, f.age_min, f.age_max, f.family, f.work_minutes, f.on_form, f.sort, f.active, f.note FROM mv_fee f LEFT JOIN mv_department d ON d.id = f.department_id').all(),
     settings: Object.fromEntries(CONFIG_KEYS.map(k => [k, S(k)])) });

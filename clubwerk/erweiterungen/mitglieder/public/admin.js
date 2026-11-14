@@ -62,6 +62,7 @@
       @media (max-width: 700px) { .tbl.kompakt .mv-nr { display: none; }
         .tbl.kompakt.mv-ctbl td:first-child { flex-basis: 100%; } .tbl.kompakt.mv-ctbl td:last-child:not(:first-child):has(button, a.btn, .acts) { order: 4; margin-left: auto; } }   /* Postenlisten: Text über die ganze Breite, Knöpfe ans Ende der Wertezeile – lange Texte brechen nicht dreizeilig um */   /* Handy-Liste: Mitgliedsnummer weglassen, damit ein Eintrag höchstens 96 px hoch bleibt */
       .mv-cons { display: flex; flex-direction: column; gap: 10px; }
+      .ph-chips { display: flex; flex-wrap: wrap; gap: 6px; } .ph-chips .btn { width: auto; flex: none; }   /* Platzhalter-Knöpfe nach Inhalt breit, nie fest breite Spalten (Regel knopftext-am-rand) */
       .mv-cons label.chk { align-items: flex-start; line-height: 1.4; } .mv-cons input { margin-top: 2px; flex: none; }
       .mv-code { font: 800 44px/1 ui-monospace, Menlo, Consolas, monospace; letter-spacing: .18em; text-align: center; padding: 18px; border: 2px dashed var(--green-line); border-radius: 16px; background: var(--brand-soft); color: var(--brand-ink); margin: 6px 0 12px; }
       .mv-pers { padding: 12px 0; border-top: 1px solid var(--line-soft); } .mv-pers:first-of-type { border-top: 0; padding-top: 0; }
@@ -960,6 +961,43 @@
         ${d.history.map(h => `<tr><td><b>${esc(h.field)}</b></td><td class="num nw">${deTime(h.at)}</td><td class="muted" title="${esc(h.old || '')}">${esc(h.old || '–')}</td><td title="${esc(h.new || '')}">${esc(h.new || '–')}</td><td class="muted s k-weg">${esc(h.by_user || '')}</td></tr>`).join('')}</table>` : '<p class="empty">Noch keine Änderungen.</p>'}</div>`;
   }
 
+  /** Auswahl „Bestätigung an das Mitglied“ in den Austritt-Fenstern (Austritt eintragen, Kündigung aus der App, Austritt der Abteilungsleitung):
+   *  Standardtext senden (vorgewählt) · vor dem Versenden anpassen · keine E-Mail. Den Text liefert der Server aus Einstellungen › Austrittsbestätigung
+   *  (Platzhalter schon eingesetzt). Ohne Adresse oder Postfach bleibt nur „Keine E-Mail“ mit dem Grund. ctxOf() → { exit_date, notice_date, with }.
+   *  → { get(): { mode, subject?, text? }, load() } */
+  function exitMailBox(box, memberId, ctxOf) {
+    box.innerHTML = `<div class="mv-sub" style="margin-top:14px">Bestätigung an das Mitglied</div>
+      <div class="mv-cons" role="radiogroup" aria-label="Bestätigung an das Mitglied">
+        <label class="chk"><input type="radio" name="xmMode" value="standard" checked> Standardtext senden</label>
+        <label class="chk"><input type="radio" name="xmMode" value="custom"> Vor dem Versenden anpassen</label>
+        <label class="chk"><input type="radio" name="xmMode" value="none"> Keine E-Mail</label></div>
+      <p class="muted s" id="xmTo" style="margin:6px 0 0"></p>
+      <div id="xmEdit" class="mv-grid" style="--c:1;margin-top:10px;display:none">
+        <label class="f">Betreff<input id="xmSub" maxlength="200" translate="no"></label>
+        <label class="f">Text<textarea id="xmTxt" style="min-height:180px" maxlength="6000" translate="no"></textarea></label></div>`;
+    const q = s => box.querySelector(s), mode = () => (q('input[name=xmMode]:checked') || {}).value || 'standard';
+    let edited = false, data = null;
+    q('#xmSub').oninput = q('#xmTxt').oninput = () => { edited = true; };
+    const show = () => { q('#xmEdit').style.display = mode() === 'custom' ? '' : 'none'; };
+    box.querySelectorAll('input[name=xmMode]').forEach(r => { r.onchange = () => { show(); if (mode() === 'custom' && !edited) load(); }; });
+    async function load() {
+      try {
+        data = await api(`member/${memberId}/exit-mail`, 'POST', ctxOf());
+        if (!q('#xmTo')) return;
+        if (!data.ok) {
+          box.querySelectorAll('input[name=xmMode]').forEach(r => { r.disabled = r.value !== 'none'; r.checked = r.value === 'none'; });
+          q('#xmTo').textContent = GK.T('Keine Bestätigung möglich: {0}', [GK.T(data.why)]); show(); return;
+        }
+        q('#xmTo').textContent = data.via ? GK.T('Geht an {0} (Adresse von {1}).', [data.to, GK.lastFirst(data.via)]) : GK.T('Geht an {0}.', [data.to]);
+        if (!edited) { q('#xmSub').value = data.subject; q('#xmTxt').value = data.text; }
+      } catch (e) { fail(e); }
+    }
+    load();
+    return { load: () => { if (!edited) load(); }, get: () => (mode() === 'custom' ? { mode: 'custom', subject: q('#xmSub').value, text: q('#xmTxt').value } : { mode: mode() }) };
+  }
+  /** Meldung nach dem Austritt: Bestätigung gesendet oder warum nicht */
+  const exitMailToast = (base, m) => { if (m && m.sent) toast(`${GK.T(base)} ${GK.T('Bestätigung an {0} gesendet.', [m.to])}`); else if (m && m.error) toast(`${GK.T(base)} ${GK.T(m.error)}`, true); else toast(base); };
+
   function exitDialog(d, again) {
     const p = d.person, seen = new Set(), fam = [...(d.payerGroup || []), ...(d.family || [])].filter(f => !f.head && f.id !== p.id && !seen.has(f.id) && seen.add(f.id));   // Zahlergruppe und Familienmitgliedschaft
     dialog(`<h2>Austritt von ${esc(GK.lastFirst(p.name))}</h2>
@@ -968,8 +1006,9 @@
       <label class="f wall">Grund (optional)<input id="xReason" placeholder="z. B. Umzug"></label>
       <label class="f wall">Kündigungsschreiben o. ä. (optional, PDF oder Foto)<input id="xDoc" type="file" accept="application/pdf,image/*"></label></div>
       <div class="mv-cons" style="margin-top:12px"><label class="chk"><input type="checkbox" id="xFees" checked> Beiträge zum Austritt beenden</label><label class="chk"><input type="checkbox" id="xDepts" checked> Abteilungen zum Austritt beenden</label>
-        ${fam.length ? `<label class="chk"><input type="checkbox" id="xFam"> Angehörige mit austreten lassen (${esc(fam.map(f => f.name).join(', '))})</label>` : ''}</div>
+        ${fam.length ? `<label class="chk"><input type="checkbox" id="xFam"><span>Angehörige mit austreten lassen (<span translate="no">${esc(fam.map(f => GK.lastFirst(f.name)).sort((a, b) => a.localeCompare(b, 'de')).join(' · '))}</span>)</span></label>` : ''}</div>
       <div id="xNotes"></div>
+      ${CONF() ? '<p class="muted s">Die Bestätigung an das Mitglied schickt die Vereinsverwaltung, wenn sie den Austritt bestätigt.</p>' : '<div id="xMail"></div>'}
       <p class="muted s">Bis zum Austritt bleibt alles wie bisher. Danach verschwindet das Mitglied am Tablet und in der App; Daten bleiben bis zum Anonymisieren erhalten.</p>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="xOk">Austritt eintragen</button></div>`);
     $('c').onclick = closeDialog;
@@ -977,17 +1016,20 @@
     let own = false;
     const suggest = () => { const day = val('xNotice'); if (own || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return; api(`notice-date?day=${day}`).then(r => { if (!own && $('xDate') && val('xNotice') === day) $('xDate').value = r.date; }).catch(() => {}); };
     $('xDate').oninput = () => { own = true; };
-    $('xNotice').onchange = suggest; suggest();
+    $('xNotice').onchange = () => { suggest(); xm && xm.load(); };
+    const xm = $('xMail') ? exitMailBox($('xMail'), p.id, () => ({ exit_date: val('xDate'), notice_date: val('xNotice'), with: $('xFam') && $('xFam').checked ? fam.map(f => f.id) : [] })) : null;
+    $('xDate').onchange = () => xm && xm.load(); if ($('xFam')) $('xFam').onchange = () => xm && xm.load();
+    suggest();
     if (st.meta.keyModule) api(`member/${p.id}/exit-notes`).then(r => { if ($('xNotes') && (r.notes || []).length) $('xNotes').innerHTML = r.notes.map(t => `<div class="banner a"><span>${esc(t)}</span></div>`).join(''); }).catch(() => {});
     $('xOk').onclick = () => GK.busy($('xOk'), async () => {
-      const body = { exit_date: val('xDate'), notice_date: val('xNotice'), reason: val('xReason'), endFees: $('xFees').checked, endDepts: $('xDepts').checked, withDependents: $('xFam') ? $('xFam').checked : false };
+      const body = { exit_date: val('xDate'), notice_date: val('xNotice'), reason: val('xReason'), endFees: $('xFees').checked, endDepts: $('xDepts').checked, withDependents: $('xFam') ? $('xFam').checked : false, ...(xm ? { mail: xm.get() } : {}) };
       const file = $('xDoc').files[0] || null;
       if (file && !/^(application\/pdf|image\/)/.test(file.type || '') && !/\.(pdf|jpe?g|png|webp|heic)$/i.test(file.name)) return toast('Bitte ein PDF oder Foto wählen.', true);
       const doc = async () => { if (file) { try { await upload(`member/${p.id}/exit-document`, file); } catch (e) { fail(e); } } };
-      try { const r = await api(`member/${p.id}/exit`, 'POST', body); await doc(); closeDialog(); toast(r.pending ? `Austritt gemeldet. ${PENDING}` : file ? 'Austritt eingetragen, Dokument abgelegt.' : 'Austritt eingetragen.'); again(); }
+      try { const r = await api(`member/${p.id}/exit`, 'POST', body); await doc(); closeDialog(); if (r.pending) toast(`Austritt gemeldet. ${PENDING}`); else exitMailToast(file ? 'Austritt eingetragen, Dokument abgelegt.' : 'Austritt eingetragen.', r.mail); again(); }
       catch (e) {
         if (e.status === 409) confirmIn('Trotzdem austreten lassen?', `${e.message}\n\nTrotzdem nur dieses Mitglied austreten lassen?`, 'Trotzdem austreten lassen', async () => {
-          try { const r = await api(`member/${p.id}/exit`, 'POST', { ...body, force: true }); await doc(); closeDialog(); if (r.pending) toast(`Austritt gemeldet. ${PENDING}`); again(); } catch (e2) { fail(e2); }
+          try { const r = await api(`member/${p.id}/exit`, 'POST', { ...body, force: true }); await doc(); closeDialog(); if (r.pending) toast(`Austritt gemeldet. ${PENDING}`); else exitMailToast('Austritt eingetragen.', r.mail); again(); } catch (e2) { fail(e2); }
         }, () => exitDialog(d, again));
         else fail(e);
       }
@@ -1421,9 +1463,11 @@
         dialog(`<h2>Austritt von ${esc(c.name)}</h2><p>Gemeldet von <b>${esc(c.created_by || '–')}</b> (Abteilungsleitung).</p>${c.rows.filter(r => r.field !== 'Austritt zum').map(r => `<p class="muted s" style="margin:0 0 6px">${esc(r.field)}: ${esc(r.new || '–')}</p>`).join('')}
           <label class="f" style="max-width:260px">Austritt zum<input id="ckDate" type="date" value="${esc(c.exit_date || '')}"></label>
           <p class="muted s">Beiträge und Abteilungen enden zum Austritt. Das Kündigungsschreiben (falls hochgeladen) liegt im Mitglied unter Dokumente.</p>
+          <div id="ckMail"></div>
           <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Austritt bestätigen</button></div>`);
         $('c').onclick = closeDialog;
-        $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Austritt bestätigt.'); after(); } catch (e) { fail(e); } });
+        const xm = exitMailBox($('ckMail'), c.member_id, () => ({ exit_date: val('ckDate'), notice_date: c.notice_date || '', with: c.with || [] })); $('ckDate').onchange = () => xm.load();
+        $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { const r = await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate'), mail: xm.get() }); closeDialog(); exitMailToast('Austritt bestätigt.', r.mail); after(); } catch (e) { fail(e); } });
         return;
       }
       if (!await ask(`${c.label} von ${c.name} bestätigen?\nGemeldet von ${c.created_by || '–'}.\n\n${c.rows.map(r => `${r.field}: ${r.new || '–'}`).join('\n')}`, { ok: 'Bestätigen', danger: false })) return;
@@ -1446,10 +1490,12 @@
     }
     dialog(`<h2>Kündigung von ${esc(c.name)}</h2><p>Für: <b>${esc((c.kuendigung.names || []).join(', '))}</b>${c.kuendigung.reason ? `<br><span class="muted" translate="no">${esc(c.kuendigung.reason)}</span>` : ''}</p>
       <label class="f" style="max-width:260px">Austritt zum<input id="ckDate" type="date" value="${esc(c.kuendigung.exit_date)}"></label>
-      <p class="muted s">Vorschlag nach Kündigungsfrist und Geschäftsjahr. Beiträge und Abteilungen enden zum Austritt; das Mitglied bekommt eine Bestätigung per E-Mail.</p>
+      <p class="muted s">Vorschlag nach Kündigungsfrist und Geschäftsjahr. Beiträge und Abteilungen enden zum Austritt.</p>
+      <div id="ckMail"></div>
       <div class="btns"><button class="btn ghost" id="c">Abbrechen</button><button class="btn danger" id="ckOk">Kündigung bestätigen</button></div>`);
     $('c').onclick = closeDialog;
-    $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate') }); closeDialog(); toast('Kündigung bestätigt.'); after(); } catch (e) { fail(e); } });
+    const xm = exitMailBox($('ckMail'), c.member_id, () => ({ exit_date: val('ckDate'), notice_date: c.kuendigung.received || '', with: (c.kuendigung.members || []).filter(m => m !== c.member_id) })); $('ckDate').onchange = () => xm.load();
+    $('ckOk').onclick = () => GK.busy($('ckOk'), async () => { try { const r = await api(`changes/${c.id}/accept`, 'POST', { exit_date: val('ckDate'), mail: xm.get() }); closeDialog(); exitMailToast('Kündigung bestätigt.', r.mail); after(); } catch (e) { fail(e); } });
   }
 
   /* ================================================================= Beiträge & Einzug */
@@ -2066,6 +2112,7 @@
         <div id="eCons">${s.consents.map((c, i) => consentRow(c, i)).join('')}</div>
         <div class="row" style="justify-content:space-between;margin-top:10px"><span class="row" style="gap:8px"><button class="btn" id="eConsAdd">+ Einwilligung</button><button class="btn" id="eConsTpl">+ Vorlage …</button></span><button class="btn primary" id="eSave2">Speichern</button></div></div>
       <div class="card" id="eWel" data-set="willkommen"></div>
+      <div class="card" id="eAus" data-set="austritt"></div>
       <div class="card" id="eApp" data-set="meinedaten"></div>
       <div class="card" data-set="benachrichtigung"><h3>Benachrichtigungen</h3><div class="mv-grid" style="--c:2">
         <label class="f">Neue Anträge & App-Änderungen melden an<input id="eNotify" value="${esc(s.notify_to)}" placeholder="vorstand@verein.de"></label></div>
@@ -2077,7 +2124,8 @@
       <div id="eFunc" data-set="uebertragen"></div>`;
     GK.watch(el);
     appDataCard($('eApp')).catch(fail);
-    welcomeTplCard($('eWel')).catch(fail);
+    tplCard($('eWel'), 'welcome').catch(fail);
+    tplCard($('eAus'), 'exit').catch(fail);
     congratsCard($('eCg')).catch(fail);
     if (GK.funcBox) GK.funcBox($('eFunc'), 'mitglieder', 'Mitglieder', () => showSettings(el));
     const save = saveCard(() => showSettings(el));
@@ -2104,35 +2152,46 @@
       };
     };
   }
-  /** Einstellungen › Karte „Willkommens-E-Mail“: Betreff und Text mit Platzhaltern (Chips fügen an der Schreibstelle ein), Vorschau,
-   *  Standard wiederherstellen. Der SEPA-Block (Mandatsreferenz, Gläubiger-ID) und der Hinweis auf den Anhang kommen immer fest dazu. */
-  async function welcomeTplCard(box) {
-    const t = await api('welcome-template');
-    box.innerHTML = `<h3>Willkommens-E-Mail</h3>
-      <p class="muted s" style="margin-top:0">Geht an neue Mitglieder: beim Annehmen einer Beitrittserklärung, beim Anlegen (Häkchen „Willkommens-E-Mail senden“) und über den Knopf am Mitglied. Bei Lastschrift hängt Clubwerk Mandatsreferenz und Gläubiger-ID immer selbst an, die Beitrittserklärung als PDF, wenn sie hochgeladen ist.${t.mailReady ? '' : ' <b>Es ist noch kein Postfach eingerichtet (Einstellungen › Postfach).</b>'}</p>
+  /** Einstellungen › Karten „Willkommens-E-Mail“ und „Austrittsbestätigung“: Betreff und Text mit Platzhaltern (Chips fügen an der Schreibstelle ein),
+   *  Vorschau, Standard wiederherstellen. Bei der Willkommens-E-Mail kommen SEPA-Block und Hinweis auf den Anhang immer fest dazu. */
+  const TPL = {
+    welcome: { api: 'welcome-template', pre: 'wt', title: 'Willkommens-E-Mail',
+      intro: 'Geht an neue Mitglieder: beim Annehmen einer Beitrittserklärung, beim Anlegen (Häkchen „Willkommens-E-Mail senden“) und über den Knopf am Mitglied. Bei Lastschrift hängt Clubwerk Mandatsreferenz und Gläubiger-ID immer selbst an, die Beitrittserklärung als PDF, wenn sie hochgeladen ist.',
+      sample: 'Mit Beispielwerten (Anna Beispiel, Lastschrift). Der Block mit Mandatsreferenz und Gläubiger-ID kommt bei Lastschrift immer dazu.',
+      reset: 'Standardtext wiederherstellen?\n\nBetreff und Text der Willkommens-E-Mail werden auf den mitgelieferten Text zurückgesetzt.' },
+    exit: { api: 'exit-template', pre: 'at', title: 'Austrittsbestätigung',
+      intro: 'Geht an das Mitglied, wenn ihr einen Austritt eintragt oder eine Kündigung aus der Mitglieder-App bzw. einen Austritt der Abteilungsleitung bestätigt. Im Fenster wählt ihr jedes Mal: Standardtext senden, vor dem Versenden anpassen oder keine E-Mail. Ohne eigene Adresse geht sie an das Familienoberhaupt, sonst an den Zahler.',
+      sample: 'Mit Beispielwerten (Anna Beispiel, Austritt zum Jahresende).',
+      reset: 'Standardtext wiederherstellen?\n\nBetreff und Text der Austrittsbestätigung werden auf den mitgelieferten Text zurückgesetzt.' },
+  };
+  async function tplCard(box, k) {
+    const c = TPL[k], id = s => c.pre + s;
+    const t = await api(c.api);
+    box.innerHTML = `<h3>${esc(GK.T(c.title))}</h3>
+      <p class="muted s" style="margin-top:0">${esc(GK.T(c.intro))}${t.mailReady ? '' : ' <b>Es ist noch kein Postfach eingerichtet (Einstellungen › Postfach).</b>'}</p>
       <div class="mv-grid" style="--c:1">
-        <label class="f">Betreff<input id="wtSub" maxlength="200" value="${esc(t.subject)}" translate="no"></label>
-        <label class="f">Text<textarea id="wtTxt" style="min-height:200px" maxlength="6000" translate="no">${esc(t.text)}</textarea></label></div>
-      <p class="muted s" style="margin:10px 0 6px">Platzhalter einfügen:</p><div id="wtPh" translate="no" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:6px">${t.placeholders.map(k => `<button type="button" class="btn small" data-ph="${esc(k)}">${esc(k)}</button>`).join('')}</div>
-      <div class="banner a" id="wtWarn" style="display:none;margin-top:12px"><span></span></div>
-      <div class="btns lang" style="margin-top:14px"><button class="btn" id="wtPrev" type="button">Vorschau …</button><button class="btn" id="wtReset" type="button" ${t.custom ? '' : 'disabled'}>Standardtext wiederherstellen …</button><button class="btn primary" id="wtSave" type="button">Speichern</button></div>`;
-    let last = $('wtTxt');
-    ['wtSub', 'wtTxt'].forEach(id => $(id).addEventListener('focus', () => { last = $(id); }));
+        <label class="f">Betreff<input id="${id('Sub')}" maxlength="200" value="${esc(t.subject)}" translate="no"></label>
+        <label class="f">Text<textarea id="${id('Txt')}" style="min-height:200px" maxlength="6000" translate="no">${esc(t.text)}</textarea></label></div>
+      <p class="muted s" style="margin:10px 0 6px">Platzhalter einfügen:</p><div id="${id('Ph')}" class="ph-chips" translate="no">${t.placeholders.map(k => `<button type="button" class="btn small" data-ph="${esc(k)}">${esc(k)}</button>`).join('')}</div>
+      <div class="banner a" id="${id('Warn')}" style="display:none;margin-top:12px"><span></span></div>
+      <div class="btns lang" style="margin-top:14px"><button class="btn" id="${id('Prev')}" type="button">Vorschau …</button><button class="btn" id="${id('Reset')}" type="button" ${t.custom ? '' : 'disabled'}>Standardtext wiederherstellen …</button><button class="btn primary" id="${id('Save')}" type="button">Speichern</button></div>`;
+    let last = $(id('Txt'));
+    [id('Sub'), id('Txt')].forEach(id => $(id).addEventListener('focus', () => { last = $(id); }));
     const known = new Set(t.placeholders);
-    const warn = () => { const u = [...new Set((`${$('wtSub').value}\n${$('wtTxt').value}`.match(/\{[^{}\n]{1,40}\}/g) || []).filter(k => !known.has(k)))];
-      $('wtWarn').style.display = u.length ? '' : 'none'; $('wtWarn').querySelector('span').textContent = u.length ? GK.T('Unbekannte Platzhalter: {0} – sie bleiben so im Text stehen. Erlaubt sind {1}.', [u.join(', '), t.placeholders.join(', ')]) : ''; return u; };
-    $('wtSub').addEventListener('input', warn); $('wtTxt').addEventListener('input', warn); warn();
-    $('wtPh').querySelectorAll('[data-ph]').forEach(b => { b.onclick = () => { const f = last, a = f.selectionStart ?? f.value.length, e = f.selectionEnd ?? a; f.value = f.value.slice(0, a) + b.dataset.ph + f.value.slice(e); f.focus(); f.setSelectionRange(a + b.dataset.ph.length, a + b.dataset.ph.length); f.dispatchEvent(new Event('input', { bubbles: true })); }; });
-    $('wtPrev').onclick = () => GK.busy($('wtPrev'), async () => {
-      try { const v = await api('welcome-template/preview', 'POST', { subject: $('wtSub').value, text: $('wtTxt').value });
-        dialog(`<h2>Vorschau</h2><p class="muted s" style="margin-top:0">${esc(GK.T('Mit Beispielwerten (Anna Beispiel, Lastschrift). Der Block mit Mandatsreferenz und Gläubiger-ID kommt bei Lastschrift immer dazu.'))}</p>
+    const warn = () => { const u = [...new Set((`${$(id('Sub')).value}\n${$(id('Txt')).value}`.match(/\{[^{}\n]{1,40}\}/g) || []).filter(k => !known.has(k)))];
+      $(id('Warn')).style.display = u.length ? '' : 'none'; $(id('Warn')).querySelector('span').textContent = u.length ? GK.T('Unbekannte Platzhalter: {0} – sie bleiben so im Text stehen. Erlaubt sind {1}.', [u.join(', '), t.placeholders.join(', ')]) : ''; return u; };
+    $(id('Sub')).addEventListener('input', warn); $(id('Txt')).addEventListener('input', warn); warn();
+    $(id('Ph')).querySelectorAll('[data-ph]').forEach(b => { b.onclick = () => { const f = last, a = f.selectionStart ?? f.value.length, e = f.selectionEnd ?? a; f.value = f.value.slice(0, a) + b.dataset.ph + f.value.slice(e); f.focus(); f.setSelectionRange(a + b.dataset.ph.length, a + b.dataset.ph.length); f.dispatchEvent(new Event('input', { bubbles: true })); }; });
+    $(id('Prev')).onclick = () => GK.busy($(id('Prev')), async () => {
+      try { const v = await api(c.api + '/preview', 'POST', { subject: $(id('Sub')).value, text: $(id('Txt')).value });
+        dialog(`<h2>Vorschau</h2><p class="muted s" style="margin-top:0">${esc(GK.T(c.sample))}</p>
           <div class="mv-mailprev" translate="no" style="border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-top:12px"><p style="margin:0 0 10px"><b>${esc(v.subject)}</b></p><div style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(v.text)}</div></div>
           <div class="btns"><button class="btn primary" id="c">Schließen</button></div>`);
         $('c').onclick = closeDialog; } catch (e) { fail(e); }
     });
-    const put = async body => { try { await api('welcome-template', 'PUT', body); GK.clean && GK.clean(); toast('Gespeichert.'); welcomeTplCard(box).catch(fail); } catch (e) { if (e.status === 409 || /Unbekannte Platzhalter/.test(e.message)) { if (await ask(`${e.message}\n\nTrotzdem speichern?`, { ok: 'Trotzdem speichern' })) return put({ ...body, force: true }); return; } fail(e); } };
-    $('wtSave').onclick = () => GK.busy($('wtSave'), () => put({ subject: $('wtSub').value, text: $('wtTxt').value }));
-    $('wtReset').onclick = async () => { if (!await ask('Standardtext wiederherstellen?\n\nBetreff und Text der Willkommens-E-Mail werden auf den mitgelieferten Text zurückgesetzt.', { ok: 'Wiederherstellen' })) return; put({ reset: true }); };
+    const put = async body => { try { await api(c.api, 'PUT', body); GK.clean && GK.clean(); toast('Gespeichert.'); tplCard(box, k).catch(fail); } catch (e) { if (e.status === 409 || /Unbekannte Platzhalter/.test(e.message)) { if (await ask(`${e.message}\n\nTrotzdem speichern?`, { ok: 'Trotzdem speichern' })) return put({ ...body, force: true }); return; } fail(e); } };
+    $(id('Save')).onclick = () => GK.busy($(id('Save')), () => put({ subject: $(id('Sub')).value, text: $(id('Txt')).value }));
+    $(id('Reset')).onclick = async () => { if (!await ask(GK.T(c.reset), { ok: 'Wiederherstellen' })) return; put({ reset: true }); };
   }
   /* übliche Einwilligungen als Vorlage (Fotos, Presse, Geburtstag) – der Verein passt den Text an */
   const CONSENT_TPL = [
