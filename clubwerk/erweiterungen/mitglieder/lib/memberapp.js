@@ -329,7 +329,7 @@ function register(sh) {
       mailRes = await sh.exitMail.afterExit(c.member_id, req.user, b.mail, { exit_date: date, notice_date: d.received || c.created_at.slice(0, 10), names: (d.members || [c.member_id]).map(personRow).filter(Boolean).map(sh.exitMail.fullName) }, 'Kündigung aus der Mitglieder-App bestätigt');
     }
     db.prepare("UPDATE mv_change SET status = 'übernommen', reviewed_by = ?, reviewed_at = ?, signature = CASE WHEN kind = 'bank' THEN NULL ELSE signature END WHERE id = ?").run(by, nowTs(), c.id);
-    const mailed = c.kind === 'kuendigung' ? Boolean(mailRes && mailRes.sent) : await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments, { art: 'antrag', by: req.user });
+    const mailed = c.kind === 'kuendigung' ? Boolean(mailRes && mailRes.sent) : await mailMember(c.member_id, `${KIND[c.kind]} bestätigt – ${club().name}`, mailLines, attachments, { art: 'antrag', by: req.user, perm: c.kind === 'bank' ? 'mitglieder_bank' : undefined });   // Bankwechsel: im Verlauf nur mit dem Recht „Bankdaten“
     C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App übernommen`, p.name);
     res.json({ ok: true, mailed, ...(c.kind === 'kuendigung' ? { mail: mailRes } : {}) });
   }));
@@ -346,7 +346,7 @@ function register(sh) {
       C.audit(req.user, `Mitglied: ${KIND[c.kind]} abgelehnt`, `${p.name || ''} (gemeldet von ${c.created_by || '–'})`);
       return res.json({ ok: true });
     }
-    const mailed = (req.body || {}).notify === false ? false : await mailMember(c.member_id, `Ihre Mitteilung (${KIND[c.kind]}) – ${club().name}`, [`Ihre Mitteilung „${KIND[c.kind]}“ vom ${deD(c.created_at.slice(0, 10))} konnten wir leider nicht übernehmen.`, reason ? `Grund: ${reason}` : 'Bitte sprechen Sie uns kurz an.'], undefined, { art: 'antrag', by: req.user });
+    const mailed = (req.body || {}).notify === false ? false : await mailMember(c.member_id, `Ihre Mitteilung (${KIND[c.kind]}) – ${club().name}`, [`Ihre Mitteilung „${KIND[c.kind]}“ vom ${deD(c.created_at.slice(0, 10))} konnten wir leider nicht übernehmen.`, reason ? `Grund: ${reason}` : 'Bitte sprechen Sie uns kurz an.'], undefined, { art: 'antrag', by: req.user, perm: c.kind === 'bank' ? 'mitglieder_bank' : undefined });
     C.audit(req.user, `Mitglied: ${KIND[c.kind]} aus der App abgelehnt`, p.name);
     res.json({ ok: true, mailed });
   }));

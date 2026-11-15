@@ -14524,6 +14524,7 @@
   "App-Antrag": "App request",
   "SEPA-Vorabinfo": "SEPA pre-notification",
   "Zuwendungsbestätigung": "Donation receipt",
-  "Vom Vorstand ausgelöste Einzelmails (Willkommen, Austritt, Einladung, Mahnung, Rechnung, SEPA-Vorabinfo, Zuwendungsbestätigung, App-Antrag, Bestellung) – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).": "Individual emails triggered by the board (welcome, resignation, invitation, reminder, invoice, SEPA pre-notification, donation receipt, app request, order) – with full text and recipient (Messages › Sent › Automatic)."
+  "Vom Vorstand ausgelöste Einzelmails (Willkommen, Austritt, Einladung, Mahnung, Rechnung, SEPA-Vorabinfo, Zuwendungsbestätigung, App-Antrag, Bestellung) – mit vollem Text und Empfänger (Nachrichten › Gesendet › Automatisch).": "Individual emails triggered by the board (welcome, resignation, invitation, reminder, invoice, SEPA pre-notification, donation receipt, app request, order) – with full text and recipient (Messages › Sent › Automatic).",
+  "Automatische Mails lassen sich nicht einzeln löschen – sie verschwinden mit der Löschfrist (Einstellungen › Datenschutz).": "Automatic emails cannot be deleted individually – they are removed with the retention period (Settings › Data protection)."
  }
 }

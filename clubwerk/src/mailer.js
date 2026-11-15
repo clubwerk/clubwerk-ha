@@ -52,7 +52,7 @@ CREATE TABLE IF NOT EXISTS mail_template (id INTEGER PRIMARY KEY AUTOINCREMENT, 
 `);
 {
   const cols = db.prepare('PRAGMA table_info(mail_message)').all().map(c => c.name);
-  for (const [c, t] of [['per_conn', 'INTEGER'], ['signature_html', 'TEXT'], ['channels', `TEXT NOT NULL DEFAULT '["mail"]'`], ['keep_months', 'INTEGER'], ['expires_at', 'TEXT'], ['pinned', 'INTEGER NOT NULL DEFAULT 0'], ['app_stats', 'TEXT'], ['poll', 'TEXT'], ['poll_closed_at', 'TEXT'], ['art', 'TEXT'], ['member_id', 'INTEGER']])
+  for (const [c, t] of [['per_conn', 'INTEGER'], ['signature_html', 'TEXT'], ['channels', `TEXT NOT NULL DEFAULT '["mail"]'`], ['keep_months', 'INTEGER'], ['expires_at', 'TEXT'], ['pinned', 'INTEGER NOT NULL DEFAULT 0'], ['app_stats', 'TEXT'], ['poll', 'TEXT'], ['poll_closed_at', 'TEXT'], ['art', 'TEXT'], ['member_id', 'INTEGER'], ['perm', 'TEXT']])
     if (!cols.includes(c)) db.exec(`ALTER TABLE mail_message ADD COLUMN ${c} ${t}`);
 }
 /* Postfach in der Mitglieder-App: eine Zeile je Empfänger und Nachricht (read_at = vom Mitglied geöffnet, push = ja/nein) */
@@ -261,6 +261,23 @@ function identity(user) {
    Sie liegen in derselben Tabelle wie Rundschreiben (art gesetzt, ein Empfänger), sind aber keine Entwürfe: nicht erneut sendbar, nicht in der App, eigene Löschfrist.
    Einladungslinks und Codes werden nie gespeichert (→ „[Code ausgeblendet]“). Versand ohne Nachrichten-Verlauf bleibt möglich: ein Fehler hier stört nie den Versand. */
 const ARTEN = ['willkommen', 'austritt', 'einladung', 'mahnung', 'rechnung', 'vorabinfo', 'spende', 'antrag', 'bestellung'];
+/* Wer sieht eine automatische Mail unter Nachrichten › Gesendet? Nur wer das Recht ihrer Herkunft hat – das Recht „E-Mail“ allein reicht nicht
+   (Mahnungen, Rechnungen, Anträge enthalten Geld- und Bankangaben einzelner Mitglieder). Spalte perm: abweichendes Recht für eine einzelne Mail (Bankwechsel → Bankdaten). */
+const AUTO_PERMS = { willkommen: ['mitglieder'], austritt: ['mitglieder'], einladung: ['mitglieder', 'konten'], antrag: ['mitglieder'],
+  mahnung: ['mitglieder_finanzen'], rechnung: ['mitglieder_finanzen'], vorabinfo: ['mitglieder_finanzen'], spende: ['buchhaltung'], bestellung: ['bestellung', 'lieferungen'], automatisch: ['einstellungen'] };
+const autoPerms = m => (m.perm ? [m.perm] : AUTO_PERMS[m.art] || AUTO_PERMS.automatisch);
+/** darf user diese automatische Mail sehen? Bei Mitglieder-Mails gilt zusätzlich die Abteilungsbeschränkung des Rechts „Mitglieder“ */
+function autoAllowed(user, m) {
+  const need = autoPerms(m);
+  if (!need.some(p => user.perms.includes(p))) return false;
+  if (need.includes('mitglieder') && (user.deptOnly || []).includes('mitglieder') && !user.perms.includes('konten')) return Boolean(m.member_id) && require('./auth').memberAllowed(user, m.member_id);
+  return true;
+}
+/** für die Liste: Arten und Rechte, deren automatische Mails der Benutzer sehen darf (als SQL-Liste) */
+function autoLists(user) {
+  const q = a => a.map(x => "'" + x + "'").join(',') || "''";
+  return { arts: q(Object.keys(AUTO_PERMS).filter(a => AUTO_PERMS[a].some(p => user.perms.includes(p)))), perms: q(user.perms.filter(p => /^[a-z_]+$/.test(p))) };
+}
 const HIDDEN = '[Code ausgeblendet]';
 const hideSecrets = (text, hide) => {
   let t = String(text == null ? '' : text);
@@ -276,8 +293,8 @@ function recordAuto(log, o, state, err) {
   const st = state === 'ok' ? 'gesendet' : state === 'wartet' ? 'sendet' : 'teilweise';
   const msg = String(err && err.message || err || '').replace(/\s+/g, ' ').slice(0, 300);
   return db.transaction(() => {
-    const r = db.prepare("INSERT INTO mail_message(subject, html, spec, channels, status, copy_me, user_id, user_name, sent_at, total, sent, failed, art, member_id) VALUES (?,?,?,?,?,0,?,?,?,1,?,?,?,?)")
-      .run(subject, textHtml(text), '{}', '["mail"]', st, by && by.id != null ? by.id : null, by ? by.name || by.username || null : null, at, state === 'ok' ? 1 : 0, state === 'fehler' ? 1 : 0, art, log.memberId || null);
+    const r = db.prepare("INSERT INTO mail_message(subject, html, spec, channels, status, copy_me, user_id, user_name, sent_at, total, sent, failed, art, member_id, perm) VALUES (?,?,?,?,?,0,?,?,?,1,?,?,?,?,?)")
+      .run(subject, textHtml(text), '{}', '["mail"]', st, by && by.id != null ? by.id : null, by ? by.name || by.username || null : null, at, state === 'ok' ? 1 : 0, state === 'fehler' ? 1 : 0, art, log.memberId || null, /^[a-z_]+$/.test(log.perm || '') ? log.perm : null);
     db.prepare('INSERT INTO mail_recipient(message_id, member_id, name, email, via, status, error, sent_at) VALUES (?,?,?,?,?,?,?,?)')
       .run(r.lastInsertRowid, log.memberId || null, String(log.name || '').slice(0, 200) || null, String(o.to || '').slice(0, 300), log.via ? String(log.via).slice(0, 200) : null, state === 'ok' ? 'ok' : state === 'wartet' ? 'wartet' : 'fehler', state === 'fehler' ? msg : null, state === 'ok' ? at : null);
     return Number(r.lastInsertRowid);
@@ -497,7 +514,7 @@ function routes(admin, { need, bad }) {
     return m;
   };
   const seeAll = req => !scopeOf(req.user);
-  const visible = (req, m) => m && (m.status === 'entwurf' ? mine(req, m) : seeAll(req) || mine(req, m));
+  const visible = (req, m) => m && (m.status === 'entwurf' ? mine(req, m) : (seeAll(req) || mine(req, m)) && (!m.art || autoAllowed(req.user, m)));
   const out = m => ({ art: m.art || null, id: m.id, subject: m.subject, html: m.html, spec: cleanSpec(J(m.spec, {})), files: J(m.files, []), status: m.status, copy_me: Boolean(m.copy_me),
     channels: cleanChannels(m.channels), keep_months: m.keep_months || null, pinned: Boolean(m.pinned), expires_at: m.expires_at || null,
     from_name: m.from_name, reply_to: m.reply_to, signature_html: m.signature_html || '', user_name: m.user_name, created_at: m.created_at, updated_at: m.updated_at, sent_at: m.sent_at, total: m.total, sent: m.sent, failed: m.failed,
@@ -552,9 +569,11 @@ function routes(admin, { need, bad }) {
   admin.get('/mail/messages', P, (req, res) => {
     const box = req.query.box === 'entwuerfe' ? 'entwuerfe' : 'gesendet';
     const art = ['auto', 'rund'].includes(req.query.art) ? req.query.art : 'alle';
+    const al = autoLists(req.user);   // automatische Mails nur mit dem Recht ihrer Herkunft
     const rows = box === 'entwuerfe'
       ? db.prepare("SELECT * FROM mail_message WHERE status = 'entwurf' AND user_id = ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 200").all(req.user.id)
-      : db.prepare(`SELECT * FROM mail_message WHERE status != 'entwurf' AND (? = 'alle' OR (art IS NOT NULL) = (? = 'auto')) ${seeAll(req) ? '' : 'AND user_id = ' + Number(req.user.id)} ORDER BY sent_at DESC LIMIT 300`).all(art, art);
+      : db.prepare(`SELECT * FROM mail_message WHERE status != 'entwurf' AND (? = 'alle' OR (art IS NOT NULL) = (? = 'auto')) AND (art IS NULL OR (perm IS NULL AND art IN (${al.arts})) OR perm IN (${al.perms})) ${seeAll(req) ? '' : 'AND user_id = ' + Number(req.user.id)} ORDER BY sent_at DESC LIMIT 300`).all(art, art)
+        .filter(m => !m.art || autoAllowed(req.user, m));   // Abteilungsbeschränkung „Mitglieder“ je Mail
     res.json({ rows: rows.map(m => ({ id: m.id, subject: m.subject, status: m.status, user_name: m.user_name, from_name: m.from_name, at: m.status === 'entwurf' ? (m.updated_at || m.created_at) : m.sent_at,
       total: m.total, sent: m.sent, failed: m.failed, ...(m.status === 'sendet' ? waitOf(m.id) : {}), files: J(m.files, []).length, preview: toText(m.html).slice(0, 140), channels: cleanChannels(m.channels), pinned: Boolean(m.pinned), poll: Boolean(m.poll), art: m.art || null, ...(m.art ? (r => ({ to: r.name || r.email || null, to_person: Boolean(r.member_id) }))(db.prepare('SELECT name, email, member_id FROM mail_recipient WHERE message_id = ?').get(m.id) || {}) : {}) })),
       drafts: db.prepare("SELECT COUNT(*) AS n FROM mail_message WHERE status = 'entwurf' AND user_id = ?").get(req.user.id).n });
@@ -758,6 +777,7 @@ function routes(admin, { need, bad }) {
   });
   admin.delete('/mail/messages/:id', P, (req, res) => {
     const m = db.prepare('SELECT * FROM mail_message WHERE id = ?').get(parseInt(req.params.id, 10));
+    if (m && m.art) return bad(res, 'Automatische Mails lassen sich nicht einzeln löschen – sie verschwinden mit der Löschfrist (Einstellungen › Datenschutz).', 403);
     if (!m || m.status === 'entwurf' || m.status === 'sendet' || !(mine(req, m) || req.user.role === 'oberadmin')) return bad(res, 'Löschen kann nur, wer die Mail geschrieben hat.', 403);
     db.prepare('DELETE FROM mail_recipient WHERE message_id = ?').run(m.id);
     db.prepare('DELETE FROM msg_inbox WHERE message_id = ?').run(m.id);

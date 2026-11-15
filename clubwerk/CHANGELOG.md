@@ -1,5 +1,11 @@
 # Änderungen
 
+## 2026.11.49
+
+### Behoben
+- Nachrichten › Gesendet: Automatische Mails (Mahnung, Rechnung, SEPA-Vorabinfo, Zuwendungsbestätigung, App-Antrag, Bestellung, Willkommen, Austritt, App-Einladung) sieht nur noch, wer auch das Recht ihrer Herkunft hat – das Recht „E-Mail“ allein reicht nicht mehr. Das gilt für Liste, Filter, Einzelansicht und Anhänge; Bestätigungen eines Bankwechsels brauchen das Recht „Bankdaten“.
+- Automatische Mails lassen sich nicht mehr einzeln löschen; sie verschwinden mit der Löschfrist unter Einstellungen › Datenschutz.
+
 ## 2026.11.47
 
 ### Neu

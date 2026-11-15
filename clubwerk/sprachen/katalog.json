@@ -2833,6 +2833,7 @@
   "Automatisch verteilen",
   "Automatische Erinnerungen",
   "Automatische Mails",
+  "Automatische Mails lassen sich nicht einzeln löschen – sie verschwinden mit der Löschfrist (Einstellungen › Datenschutz).",
   "b.created_at DESC, b.id DESC",
   "b.date >= ?",
   "b.date BETWEEN ? AND ?",
